@@ -1,4 +1,7 @@
-# Build the project
+# Book manifest: lists all ACL2 files to translate and test
+books := "acl2_samples/books.txt"
+
+# Build the Lean project
 build:
     lake build
 
@@ -14,7 +17,7 @@ report:
 verify:
     python3 Verify.py
 
-# Translate an ACL2 file to Lean
+# Translate a single ACL2 file to Lean
 translate file:
     lake exe acl2lean translate {{file}}
 
@@ -22,9 +25,9 @@ translate file:
 eval-in file expr:
     lake exe acl2lean eval-in {{file}} "{{expr}}"
 
-# Translate sorting corpus and verify
-translate-sorting:
-    ./scripts/translate-book.sh acl2_samples/sorting/orderedp.lisp acl2_samples/sorting/how-many.lisp acl2_samples/sorting/perm.lisp acl2_samples/sorting/isort.lisp --verify
+# Translate all books listed in the manifest and verify
+translate-all:
+    ./scripts/translate-book.sh $(grep -v '^\s*#' {{books}} | grep -v '^\s*$') --verify
 
 # Translate a directory of ACL2 files
 translate-dir dir:
@@ -34,22 +37,14 @@ translate-dir dir:
 build-acl2:
     cd acl2 && make LISP=sbcl
 
+# Capture structured proof log for a single file
+capture-proof-log file:
+    ./scripts/capture-proof-log.sh {{file}}
 
+# Capture proof logs for all books in the manifest
+capture-all-logs:
+    ./scripts/capture-proof-log.sh $(grep -v '^\s*#' {{books}} | grep -v '^\s*$')
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Parse and display a proof log
+parse-proof-log file:
+    lake exe acl2lean parse-proof-log {{file}}

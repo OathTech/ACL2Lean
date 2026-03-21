@@ -146,9 +146,28 @@ def main (args : List String) : IO Unit := do
               | .defthm name info => printTheoremMetadata name info
               | _ => IO.eprintln s!"No theorem named {theoremName} in {path}"
           | _ => IO.eprintln s!"No theorem named {theoremName} in {path}"
+  | ["parse-proof-log", path] => do
+      let contents ← IO.FS.readFile path
+      match ACL2.ProofLog.parse contents with
+      | .ok log =>
+          IO.println (log.summary)
+          IO.println ""
+          for event in log.events do
+            match event with
+            | .step s =>
+                IO.println s!"  STEP {s.clauseId} [{s.processor}] → {repr s.result}"
+                if !s.runes.isEmpty then
+                  let runeStrs := s.runes.map fun (t, n) => s!"(:{t} {n})"
+                  IO.println s!"    runes: {String.intercalate " " runeStrs}"
+            | .induction i =>
+                IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
+            | .qed =>
+                IO.println "  QED"
+      | .error e => IO.eprintln s!"Parse error: {e}"
   | _ => do
       IO.println "Usage:"
       IO.println "  acl2lean report"
       IO.println "  acl2lean eval \"(expr)\""
       IO.println "  acl2lean metadata file.lisp [theorem]"
       IO.println "  acl2lean translate file.lisp"
+      IO.println "  acl2lean parse-proof-log file.proof-log"

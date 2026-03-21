@@ -12,6 +12,7 @@ import ACL2Lean.Count
 import ACL2Lean.Tactics
 import ACL2Lean.DSL
 import ACL2Lean.PrettyPrinter
+import ACL2Lean.ProofLog
 import ACL2Lean.Imported.Log2Replay
 import ACL2Lean.Lexorder
 import ACL2Lean.TermOrder

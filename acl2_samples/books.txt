@@ -1,0 +1,12 @@
+# ACL2 books to translate and test.
+# One .lisp file per line, relative to repo root.
+# Lines starting with # are comments. Blank lines are ignored.
+# Order matters: earlier files are loaded before later ones.
+
+acl2_samples/sorting/orderedp.lisp
+acl2_samples/sorting/how-many.lisp
+acl2_samples/sorting/perm.lisp
+acl2_samples/sorting/isort.lisp
+acl2_samples/sorting/msort.lisp
+acl2_samples/sorting/bsort.lisp
+acl2_samples/sorting/qsort.lisp
