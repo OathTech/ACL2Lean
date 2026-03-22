@@ -201,52 +201,27 @@ def splitByTheorem (log : ProofLog) : List (String × List ProofEvent) :=
     | e :: rest => go rest curName (e :: current) acc
   go log.events none [] []
 
+/-- Sanitize an ACL2 name to a Lean identifier (same as Translator.sanitizeName). -/
+private def sanitize (s : String) : String :=
+  let s := s.replace "-" "_"
+  let s := s.replace "=" "_eq_"
+  let s := s.replace "+" "_plus_"
+  let s := s.replace "*" "_times_"
+  s.replace "/" "_div_"
+
 /-- Convert a rune (type, name) pair to a Lean simp lemma name.
-    Uses the same sanitization as the translator. -/
+    Returns none for rune types that don't map to simp lemmas. -/
 private def runeToLeanName (runeType : String) (runeName : String) : Option String :=
   match runeType with
-  | "definition" | "rewrite" =>
-    -- Same sanitization as Translator.sanitizeName
-    let s := runeName.replace "-" "_"
-    let s := s.replace "=" "_eq_"
-    let s := s.replace "+" "_plus_"
-    let s := s.replace "*" "_times_"
-    let s := s.replace "/" "_div_"
-    some s
-  | "type-prescription" =>
-    let s := runeName.replace "-" "_"
-    let s := s.replace "=" "_eq_"
-    let s := s.replace "+" "_plus_"
-    let s := s.replace "*" "_times_"
-    let s := s.replace "/" "_div_"
-    some s
+  | "definition" | "rewrite" | "type-prescription"
+  | "forward-chaining" | "linear" | "congruence" | "compound-recognizer" =>
+    some (sanitize runeName)
   | "executable-counterpart" => none  -- handled by decide/native_decide
   | "fake-rune-for-type-set" => none  -- built-in, no Lean analog
   | "fake-rune-for-linear" => none    -- handled by omega
   | "fake-rune-for-linear-equalities" => none
   | "induction" => none               -- not a simp lemma
   | "elim" => none                    -- handled structurally
-  | "forward-chaining" =>
-    let s := runeName.replace "-" "_"
-    let s := s.replace "=" "_eq_"
-    let s := s.replace "+" "_plus_"
-    let s := s.replace "*" "_times_"
-    let s := s.replace "/" "_div_"
-    some s
-  | "linear" =>
-    let s := runeName.replace "-" "_"
-    let s := s.replace "=" "_eq_"
-    let s := s.replace "+" "_plus_"
-    let s := s.replace "*" "_times_"
-    let s := s.replace "/" "_div_"
-    some s
-  | "congruence" | "compound-recognizer" =>
-    let s := runeName.replace "-" "_"
-    let s := s.replace "=" "_eq_"
-    let s := s.replace "+" "_plus_"
-    let s := s.replace "*" "_times_"
-    let s := s.replace "/" "_div_"
-    some s
   | _ => panic! s!"Unknown rune type: {runeType}"
 
 /-- Convert a list of runes to Lean simp lemma names. -/
@@ -266,22 +241,33 @@ private def simpStepTactic (runes : List (String × String)) : String :=
   else
     s!"simp only [{String.intercalate ", " simpArgs}]{omega}"
 
+/-- Extract function name and argument variable names from an induction term
+    like (PERM X Y) → ("perm", ["x", "y"]). -/
+private def parseInductionTerm (term : SExpr) : String × List String :=
+  match term with
+  | .cons (.atom (.symbol s)) rest =>
+    let funcName := sanitize s.normalizedName
+    let args := match rest.toList? with
+      | some items => items.filterMap fun
+          | .atom (.symbol v) => some (sanitize v.normalizedName)
+          | _ => none
+      | none => []
+    (funcName, args)
+  | _ => ("unknown", [])
+
 /-- Generate a tactic string for a single theorem's proof events.
     Returns `none` if the events are empty (no proof needed). -/
 def generateTacticScript (events : List ProofEvent) : Option String :=
   if events.isEmpty then none
   else
-    -- For now: find the first induction (if any), collect all simp steps,
-    -- and generate a flat proof attempt.
-    -- This is a starting point — will need to handle proof tree structure later.
-    let inductionTerm := events.findSome? fun
-      | .induction i => some i.term
+    -- Find the first induction (if any)
+    let inductionStep := events.findSome? fun
+      | .induction i => some i
       | _ => none
-    -- Collect all runes from all simp/preprocess steps that proved their goal
+    -- Collect ALL runes from all steps (not just proved — intermediate runes matter)
     let allRunes := events.foldl (init := ([] : List (String × String))) fun acc e =>
       match e with
-      | .step s =>
-        if s.result == .proved then acc ++ s.runes else acc
+      | .step s => acc ++ s.runes
       | _ => acc
     -- Deduplicate runes
     let uniqueRunes := allRunes.foldl (init := ([] : List (String × String))) fun acc r =>
@@ -290,21 +276,22 @@ def generateTacticScript (events : List ProofEvent) : Option String :=
     let hasOmega := hasLinearArith uniqueRunes
     let simpStr := if simpArgs.isEmpty then "simp" else
       s!"simp only [{String.intercalate ", " simpArgs}]"
-    let omegaStr := if hasOmega then "\n    try omega" else ""
-    match inductionTerm with
-    | some term =>
-      -- Extract the function name from the induction term
-      let funcName := match term with
-        | .cons (.atom (.symbol s)) _ =>
-          let n := s.normalizedName
-          let n := n.replace "-" "_"
-          let n := n.replace "=" "_eq_"
-          let n := n.replace "+" "_plus_"
-          let n := n.replace "*" "_times_"
-          let n := n.replace "/" "_div_"
-          n
-        | _ => "unknown"
-      some s!"by\n  acl2_induct {funcName}\n  all_goals {simpStr}{omegaStr}\n  all_goals acl2_grind"
+    let omegaStr := if hasOmega then "\n  try omega" else ""
+    match inductionStep with
+    | some indStep =>
+      let (funcName, argNames) := parseInductionTerm indStep.term
+      let argsStr := if argNames.isEmpty then "" else
+        " " ++ String.intercalate " " argNames
+      -- Generate induction with args from the induction term.
+      -- Try all args first; if the .induct principle wants fewer targets,
+      -- fall back to just the last arg (the typical decreasing parameter).
+      let argsComma := String.intercalate ", " argNames
+      let lastArg := argNames.getLast!
+      let inductTactic := if argNames.length <= 1 then
+        s!"induction {argsComma} using {funcName}.induct"
+      else
+        s!"first | induction {argsComma} using {funcName}.induct | induction {lastArg} using {funcName}.induct"
+      some s!"by\n  {inductTactic}\n  all_goals {simpStr}{omegaStr}\n  all_goals acl2_grind"
     | none =>
       some s!"by\n  {simpStr}{omegaStr}"
 

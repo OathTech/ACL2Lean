@@ -74,18 +74,8 @@ elab "acl2_induct" f:(ident)? args:term* : tactic => do
   let mut targets : Array (TSyntax ``Parser.Tactic.elimTarget) := fArgs.map fun a => ⟨a.raw⟩
 
   if targets.isEmpty then
-     let mut fvarNames := #[]
-     for fvarId in (← getLCtx).getFVarIds do
-       let localDecl ← fvarId.getDecl
-       if !localDecl.isAuxDecl then
-         fvarNames := fvarNames.push localDecl.userName
-
-     if fvarNames.isEmpty then
-       evalTactic (← `(tactic| apply $(inductTerm)))
-     else
-       let fvarIdents := fvarNames.map mkIdent
-       let fvarTargets : Array (TSyntax ``Parser.Tactic.elimTarget) := fvarIdents.map fun id => ⟨id.raw⟩
-       evalTactic (← `(tactic| induction $[$fvarTargets],* using $inductTerm))
+     -- No explicit args: use `apply` to let Lean figure out the targets
+     evalTactic (← `(tactic| apply $(inductTerm)))
   else
      evalTactic (← `(tactic| induction $[$targets],* using $inductTerm))
 
