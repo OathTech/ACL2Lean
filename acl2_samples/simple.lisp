@@ -1,15 +1,15 @@
 (in-package "ACL2")
 
-(defun len (x)
+(defun my-len (x)
   (if (consp x)
-      (+ 1 (len (cdr x)))
+      (+ 1 (my-len (cdr x)))
     0))
 
-(defun append (x y)
+(defun my-app (x y)
   (if (consp x)
-      (cons (car x) (append (cdr x) y))
+      (cons (car x) (my-app (cdr x) y))
     y))
 
-(defthm len-append
-  (equal (len (append x y))
-         (+ (len x) (len y))))
+(defthm my-len-my-app
+  (equal (my-len (my-app x y))
+         (+ (my-len x) (my-len y))))

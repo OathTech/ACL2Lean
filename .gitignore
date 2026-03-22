@@ -3,3 +3,4 @@ report.txt
 report_new.txt
 ACL2Lean/Translated/
 *.proof-log
+.claude/
