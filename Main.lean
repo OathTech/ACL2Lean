@@ -159,23 +159,76 @@ def main (args : List String) : IO Unit := do
                 if !s.runes.isEmpty then
                   let runeStrs := s.runes.map fun (t, n) => s!"(:{t} {n})"
                   IO.println s!"    runes: {String.intercalate " " runeStrs}"
+            | .defthm name =>
+                IO.println s!"\n  DEFTHM {name}"
             | .induction i =>
                 IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
             | .qed =>
                 IO.println "  QED"
       | .error e => IO.eprintln s!"Parse error: {e}"
+  | ["translate", path, "--proof-log", proofLogPath] => do
+      let events ← ACL2.loadEventsFromFile path
+      let proofContents ← IO.FS.readFile proofLogPath
+      match events, ACL2.ProofLog.parse proofContents with
+      | .error e, _ => IO.eprintln s!"Load error: {e}"
+      | _, .error e => IO.eprintln s!"Proof log parse error: {e}"
+      | .ok evs, .ok log =>
+          let segments := ACL2.ProofLog.splitByTheorem log
+          -- Build a map from lowercase theorem name to tactic script
+          let proofMap := segments.foldl (init := ([] : List (String × String))) fun acc (name, seg) =>
+            match ACL2.ProofLog.generateTacticScript seg with
+            | some script => acc ++ [(name.map Char.toLower, script)]
+            | none => acc
+          IO.println "import ACL2Lean.Logic"
+          IO.println "import ACL2Lean.Lexorder"
+          IO.println "import ACL2Lean.Count"
+          IO.println "import ACL2Lean.TermOrder"
+          IO.println "import ACL2Lean.Tactics"
+          for ev in ACL2.Event.flattenList evs do
+            match ev with
+            | .includeBook bookPath _ =>
+                let baseBook := match bookPath.splitOn "/" with
+                  | [] => bookPath
+                  | parts => parts.getLast!
+                let baseParts := baseBook.splitOn "-"
+                let capitalized := baseParts.map fun p =>
+                  if p.isEmpty then p
+                  else String.ofList (p.toList.head!.toUpper :: p.toList.tail!)
+                let moduleName := String.intercalate "" capitalized
+                IO.println s!"import ACL2Lean.Translated.{moduleName}"
+            | _ => pure ()
+          IO.println "open ACL2 ACL2.Logic ACL2.Tactics"
+          IO.println ""
+          for (ev, isLocal) in flattenListWithLocality evs do
+            let priv := if isLocal then "private " else ""
+            match ev with
+            | .defun name formals _ _ body =>
+                let defStr := ACL2.Translator.translateDefun name formals body
+                let defStr := if isLocal then defStr.replace "def " s!"{priv}def " else defStr
+                IO.println defStr
+                IO.println ""
+            | .defthm name info =>
+                let nameKey := name.normalizedName
+                let proofScript := (proofMap.find? fun (k, _) => k == nameKey).map Prod.snd
+                let thmStr := ACL2.Translator.translateDefthm name info proofScript
+                let thmStr := if isLocal then thmStr.replace "theorem " s!"{priv}theorem " else thmStr
+                IO.println thmStr
+                IO.println ""
+            | .inTheory expr =>
+                IO.println s!"/- ACL2 in-theory: {(ACL2.TheoryExpr.ofSExpr expr).summary} -/"
+                IO.println ""
+            | _ => pure ()
   | ["generate-tactics", proofLogPath] => do
       let contents ← IO.FS.readFile proofLogPath
       match ACL2.ProofLog.parse contents with
       | .ok log =>
           let segments := ACL2.ProofLog.splitByTheorem log
           IO.println s!"Found {segments.length} theorem proof(s)"
-          for seg in segments do
+          for (name, seg) in segments do
+            IO.println s!"\n=== {name} ({seg.length} events) ==="
             match ACL2.ProofLog.generateTacticScript seg with
-            | some script =>
-                IO.println ""
-                IO.println script
-            | none => pure ()
+            | some script => IO.println script
+            | none => IO.println "(no proof needed)"
       | .error e => IO.eprintln s!"Parse error: {e}"
   | _ => do
       IO.println "Usage:"

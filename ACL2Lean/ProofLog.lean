@@ -31,6 +31,7 @@ structure InductionStep where
 
 /-- A single event in the proof log. -/
 inductive ProofEvent where
+  | defthm (name : String)
   | step (s : ProofStep)
   | induction (i : InductionStep)
   | qed
@@ -128,6 +129,10 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
     | none => throw s!"INDUCTION: expected plist, got {repr rest}"
   | .cons (.atom (.keyword "qed")) _ =>
     return .qed
+  | .cons (.atom (.keyword "defthm")) (.cons nameExpr .nil) =>
+    match atomString? nameExpr with
+    | some name => return .defthm name
+    | none => throw s!"DEFTHM: bad name: {repr nameExpr}"
   | _ => throw s!"Unknown proof log event: {repr s}"
 
 /-- Parse a proof log from raw ACL2 output.
@@ -152,6 +157,7 @@ def summary (log : ProofLog) : String :=
   let steps := log.events.filter fun e => match e with | .step _ => true | _ => false
   let inductions := log.events.filter fun e => match e with | .induction _ => true | _ => false
   let qeds := log.events.filter fun e => match e with | .qed => true | _ => false
+  let defthms := log.events.filterMap fun e => match e with | .defthm n => some n | _ => none
   let processors := steps.filterMap fun e => match e with
     | .step s => some s.processor | _ => none
   let procPairs := processors.foldl (init := ([] : List (String × Nat)))
@@ -161,6 +167,7 @@ def summary (log : ProofLog) : String :=
       | none => acc ++ [(p, 1)]
   let lines := #[
     s!"Proof log: {log.events.length} events",
+    s!"  Theorems: {defthms.length} ({String.intercalate ", " defthms})",
     s!"  Steps: {steps.length}",
     s!"  Inductions: {inductions.length}",
     s!"  QEDs: {qeds.length}",
@@ -169,15 +176,30 @@ def summary (log : ProofLog) : String :=
   let procLines := procPairs.map fun (p, n) => s!"    {p}: {n}"
   "\n".intercalate (lines.toList ++ procLines)
 
-/-- Split a proof log into per-theorem segments (each ending with QED). -/
-def splitByTheorem (log : ProofLog) : List (List ProofEvent) :=
-  let rec go (events : List ProofEvent) (current : List ProofEvent) (acc : List (List ProofEvent)) :
-      List (List ProofEvent) :=
+/-- Split a proof log into named per-theorem segments.
+    Each segment starts with a (:DEFTHM name) event and ends with (:QED).
+    Returns (name, events) pairs. -/
+def splitByTheorem (log : ProofLog) : List (String × List ProofEvent) :=
+  let rec go (events : List ProofEvent) (curName : Option String)
+      (current : List ProofEvent) (acc : List (String × List ProofEvent)) :
+      List (String × List ProofEvent) :=
     match events with
-    | [] => if current.isEmpty then acc.reverse else (current.reverse :: acc).reverse
-    | .qed :: rest => go rest [] ((.qed :: current).reverse :: acc)
-    | e :: rest => go rest (e :: current) acc
-  go log.events [] []
+    | [] =>
+      match curName with
+      | some n => ((n, current.reverse) :: acc).reverse
+      | none => acc.reverse
+    | .defthm name :: rest =>
+      -- Start a new theorem segment; flush any previous
+      let acc := match curName with
+        | some n => (n, current.reverse) :: acc
+        | none => acc
+      go rest (some name) [] acc
+    | .qed :: rest =>
+      match curName with
+      | some n => go rest none [] ((n, (.qed :: current).reverse) :: acc)
+      | none => go rest none [] acc  -- QED without defthm, skip
+    | e :: rest => go rest curName (e :: current) acc
+  go log.events none [] []
 
 /-- Convert a rune (type, name) pair to a Lean simp lemma name.
     Uses the same sanitization as the translator. -/
@@ -282,7 +304,7 @@ def generateTacticScript (events : List ProofEvent) : Option String :=
           let n := n.replace "/" "_div_"
           n
         | _ => "unknown"
-      some s!"by\n  acl2_induct [{funcName}]\n  all_goals ({simpStr}{omegaStr}; try acl2_grind)"
+      some s!"by\n  acl2_induct {funcName}\n  all_goals {simpStr}{omegaStr}\n  all_goals acl2_grind"
     | none =>
       some s!"by\n  {simpStr}{omegaStr}"
 
