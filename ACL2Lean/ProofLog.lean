@@ -207,15 +207,21 @@ private def sanitize (s : String) : String :=
   let s := s.replace "=" "_eq_"
   let s := s.replace "+" "_plus_"
   let s := s.replace "*" "_times_"
-  s.replace "/" "_div_"
+  let s := s.replace "/" "_div_"
+  -- Qualify names that clash with Lean builtins
+  if s == "not" then "Logic.not"
+  else if s == "and" then "Logic.and"
+  else if s == "or" then "Logic.or"
+  else s
 
 /-- Convert a rune (type, name) pair to a Lean simp lemma name.
     Returns none for rune types that don't map to simp lemmas. -/
 private def runeToLeanName (runeType : String) (runeName : String) : Option String :=
   match runeType with
-  | "definition" | "rewrite" | "type-prescription"
+  | "definition" | "rewrite"
   | "forward-chaining" | "linear" | "congruence" | "compound-recognizer" =>
     some (sanitize runeName)
+  | "type-prescription" => none  -- ACL2's type reasoning; no direct Lean analog
   | "executable-counterpart" => none  -- handled by decide/native_decide
   | "fake-rune-for-type-set" => none  -- built-in, no Lean analog
   | "fake-rune-for-linear" => none    -- handled by omega
@@ -272,10 +278,17 @@ def generateTacticScript (events : List ProofEvent) : Option String :=
     -- Deduplicate runes
     let uniqueRunes := allRunes.foldl (init := ([] : List (String × String))) fun acc r =>
       if acc.contains r then acc else acc ++ [r]
-    let simpArgs := runesToSimpArgs uniqueRunes
+    -- Separate definitions (need unfold) from rewrites (can simp)
+    let defNames := (uniqueRunes.filter fun (t, _) => t == "definition").filterMap
+      fun (_, n) => some (sanitize n)
+    let nonDefRunes := uniqueRunes.filter fun (t, _) => t != "definition"
+    let simpArgs := runesToSimpArgs nonDefRunes
     let hasOmega := hasLinearArith uniqueRunes
-    let simpStr := if simpArgs.isEmpty then "simp" else
-      s!"simp only [{String.intercalate ", " simpArgs}]"
+    -- unfold once for each definition, then simp with rewrite rules
+    let unfoldStr := if defNames.isEmpty then "" else
+      s!"try unfold {String.intercalate " " defNames}\n  all_goals "
+    let simpStr := if simpArgs.isEmpty then "acl2_simp" else
+      s!"try simp only [{String.intercalate ", " simpArgs}]"
     let omegaStr := if hasOmega then "\n  try omega" else ""
     match inductionStep with
     | some indStep =>
@@ -291,9 +304,10 @@ def generateTacticScript (events : List ProofEvent) : Option String :=
         s!"induction {argsComma} using {funcName}.induct"
       else
         s!"first | induction {argsComma} using {funcName}.induct | induction {lastArg} using {funcName}.induct"
-      some s!"by\n  {inductTactic}\n  all_goals {simpStr}{omegaStr}\n  all_goals acl2_grind"
+      let tactics := s!"{inductTactic}\n  all_goals {unfoldStr}{simpStr}{omegaStr}\n  all_goals acl2_grind"
+      some s!"by\n  {tactics}"
     | none =>
-      some s!"by\n  {simpStr}{omegaStr}"
+      some s!"by\n  {unfoldStr}{simpStr}{omegaStr}\n  acl2_grind"
 
 end ProofLog
 end ACL2
