@@ -164,6 +164,19 @@ def main (args : List String) : IO Unit := do
             | .qed =>
                 IO.println "  QED"
       | .error e => IO.eprintln s!"Parse error: {e}"
+  | ["generate-tactics", proofLogPath] => do
+      let contents ← IO.FS.readFile proofLogPath
+      match ACL2.ProofLog.parse contents with
+      | .ok log =>
+          let segments := ACL2.ProofLog.splitByTheorem log
+          IO.println s!"Found {segments.length} theorem proof(s)"
+          for seg in segments do
+            match ACL2.ProofLog.generateTacticScript seg with
+            | some script =>
+                IO.println ""
+                IO.println script
+            | none => pure ()
+      | .error e => IO.eprintln s!"Parse error: {e}"
   | _ => do
       IO.println "Usage:"
       IO.println "  acl2lean report"

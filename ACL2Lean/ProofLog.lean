@@ -169,5 +169,122 @@ def summary (log : ProofLog) : String :=
   let procLines := procPairs.map fun (p, n) => s!"    {p}: {n}"
   "\n".intercalate (lines.toList ++ procLines)
 
+/-- Split a proof log into per-theorem segments (each ending with QED). -/
+def splitByTheorem (log : ProofLog) : List (List ProofEvent) :=
+  let rec go (events : List ProofEvent) (current : List ProofEvent) (acc : List (List ProofEvent)) :
+      List (List ProofEvent) :=
+    match events with
+    | [] => if current.isEmpty then acc.reverse else (current.reverse :: acc).reverse
+    | .qed :: rest => go rest [] ((.qed :: current).reverse :: acc)
+    | e :: rest => go rest (e :: current) acc
+  go log.events [] []
+
+/-- Convert a rune (type, name) pair to a Lean simp lemma name.
+    Uses the same sanitization as the translator. -/
+private def runeToLeanName (runeType : String) (runeName : String) : Option String :=
+  match runeType with
+  | "definition" | "rewrite" =>
+    -- Same sanitization as Translator.sanitizeName
+    let s := runeName.replace "-" "_"
+    let s := s.replace "=" "_eq_"
+    let s := s.replace "+" "_plus_"
+    let s := s.replace "*" "_times_"
+    let s := s.replace "/" "_div_"
+    some s
+  | "type-prescription" =>
+    let s := runeName.replace "-" "_"
+    let s := s.replace "=" "_eq_"
+    let s := s.replace "+" "_plus_"
+    let s := s.replace "*" "_times_"
+    let s := s.replace "/" "_div_"
+    some s
+  | "executable-counterpart" => none  -- handled by decide/native_decide
+  | "fake-rune-for-type-set" => none  -- built-in, no Lean analog
+  | "fake-rune-for-linear" => none    -- handled by omega
+  | "fake-rune-for-linear-equalities" => none
+  | "induction" => none               -- not a simp lemma
+  | "elim" => none                    -- handled structurally
+  | "forward-chaining" =>
+    let s := runeName.replace "-" "_"
+    let s := s.replace "=" "_eq_"
+    let s := s.replace "+" "_plus_"
+    let s := s.replace "*" "_times_"
+    let s := s.replace "/" "_div_"
+    some s
+  | "linear" =>
+    let s := runeName.replace "-" "_"
+    let s := s.replace "=" "_eq_"
+    let s := s.replace "+" "_plus_"
+    let s := s.replace "*" "_times_"
+    let s := s.replace "/" "_div_"
+    some s
+  | "congruence" | "compound-recognizer" =>
+    let s := runeName.replace "-" "_"
+    let s := s.replace "=" "_eq_"
+    let s := s.replace "+" "_plus_"
+    let s := s.replace "*" "_times_"
+    let s := s.replace "/" "_div_"
+    some s
+  | _ => panic! s!"Unknown rune type: {runeType}"
+
+/-- Convert a list of runes to Lean simp lemma names. -/
+private def runesToSimpArgs (runes : List (String × String)) : List String :=
+  runes.filterMap fun (t, n) => runeToLeanName t n
+
+/-- Check if a rune list includes linear arithmetic fake runes. -/
+private def hasLinearArith (runes : List (String × String)) : Bool :=
+  runes.any fun (t, _) => t == "fake-rune-for-linear" || t == "fake-rune-for-linear-equalities"
+
+/-- Generate a tactic string for a single simp step. -/
+private def simpStepTactic (runes : List (String × String)) : String :=
+  let simpArgs := runesToSimpArgs runes
+  let omega := if hasLinearArith runes then "; try omega" else ""
+  if simpArgs.isEmpty then
+    s!"simp{omega}"
+  else
+    s!"simp only [{String.intercalate ", " simpArgs}]{omega}"
+
+/-- Generate a tactic string for a single theorem's proof events.
+    Returns `none` if the events are empty (no proof needed). -/
+def generateTacticScript (events : List ProofEvent) : Option String :=
+  if events.isEmpty then none
+  else
+    -- For now: find the first induction (if any), collect all simp steps,
+    -- and generate a flat proof attempt.
+    -- This is a starting point — will need to handle proof tree structure later.
+    let inductionTerm := events.findSome? fun
+      | .induction i => some i.term
+      | _ => none
+    -- Collect all runes from all simp/preprocess steps that proved their goal
+    let allRunes := events.foldl (init := ([] : List (String × String))) fun acc e =>
+      match e with
+      | .step s =>
+        if s.result == .proved then acc ++ s.runes else acc
+      | _ => acc
+    -- Deduplicate runes
+    let uniqueRunes := allRunes.foldl (init := ([] : List (String × String))) fun acc r =>
+      if acc.contains r then acc else acc ++ [r]
+    let simpArgs := runesToSimpArgs uniqueRunes
+    let hasOmega := hasLinearArith uniqueRunes
+    let simpStr := if simpArgs.isEmpty then "simp" else
+      s!"simp only [{String.intercalate ", " simpArgs}]"
+    let omegaStr := if hasOmega then "\n    try omega" else ""
+    match inductionTerm with
+    | some term =>
+      -- Extract the function name from the induction term
+      let funcName := match term with
+        | .cons (.atom (.symbol s)) _ =>
+          let n := s.normalizedName
+          let n := n.replace "-" "_"
+          let n := n.replace "=" "_eq_"
+          let n := n.replace "+" "_plus_"
+          let n := n.replace "*" "_times_"
+          let n := n.replace "/" "_div_"
+          n
+        | _ => "unknown"
+      some s!"by\n  acl2_induct [{funcName}]\n  all_goals ({simpStr}{omegaStr}; try acl2_grind)"
+    | none =>
+      some s!"by\n  {simpStr}{omegaStr}"
+
 end ProofLog
 end ACL2

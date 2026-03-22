@@ -433,12 +433,14 @@ private def renderMetadataComment (info : TheoremInfo) : String :=
     let body := String.intercalate "\n" (lines.map fun line => s!"  {line}")
     s!"/- ACL2 metadata:\n{body}\n-/\n"
 
-def translateDefthm (name : Symbol) (info : TheoremInfo) : String :=
+def translateDefthm (name : Symbol) (info : TheoremInfo)
+    (proofScript : Option String := none) : String :=
   let nameStr := sanitizeName (translateSymbol name)
   let vars := (collectVars info.body []).reverse
   let fmls := String.intercalate " " (vars.map fun v => s!"({v} : SExpr)")
   let metaComment := renderMetadataComment info
-  s!"{metaComment}theorem {nameStr} {fmls} : Logic.toBool ({translateExpr info.body}) = true :=\n  sorry"
+  let proof := proofScript.getD "sorry"
+  s!"{metaComment}theorem {nameStr} {fmls} : Logic.toBool ({translateExpr info.body}) = true :=\n  {proof}"
 
 private def uppercaseIfExpr : SExpr :=
   .cons
