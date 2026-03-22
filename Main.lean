@@ -159,6 +159,10 @@ def main (args : List String) : IO Unit := do
                 if !s.runes.isEmpty then
                   let runeStrs := s.runes.map fun (t, n) => s!"(:{t} {n})"
                   IO.println s!"    runes: {String.intercalate " " runeStrs}"
+                if !s.rewrites.isEmpty then
+                  IO.println s!"    rewrites: {s.rewrites.length} steps"
+                  for rw in s.rewrites do
+                    IO.println s!"      {rw.rune.1}:{rw.rune.2}"
             | .defthm name =>
                 IO.println s!"\n  DEFTHM {name}"
             | .induction i =>

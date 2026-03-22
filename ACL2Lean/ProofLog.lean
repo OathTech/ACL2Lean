@@ -9,6 +9,16 @@ inductive ProofResult where
   | subgoals
   deriving Repr, BEq
 
+/-- A single rewrite application from ACL2's rewriter. -/
+structure RewriteStep where
+  /-- The rune applied, as (type, name) e.g. ("rewrite", "car-cons"). -/
+  rune : String × String
+  /-- The term before rewriting. -/
+  lhs : SExpr
+  /-- The term after rewriting. -/
+  rhs : SExpr
+  deriving Repr
+
 /-- A single waterfall step from ACL2's structured proof output. -/
 structure ProofStep where
   clauseId : String
@@ -16,6 +26,8 @@ structure ProofStep where
   result : ProofResult
   /-- Runes used in this step, as (type, name) pairs, e.g. ("rewrite", "car-cons"). -/
   runes : List (String × String)
+  /-- Ordered list of individual rewrite applications. -/
+  rewrites : List RewriteStep := []
   /-- Output clauses if result is subgoals. -/
   newClauses : List SExpr := []
   deriving Repr
@@ -73,6 +85,37 @@ private def parseRunes (s : SExpr) : List (String × String) :=
   | some items => items.filterMap parseRune?
   | none => []
 
+/-- Parse a single (:REWRITE-STEP :RUNE r :LHS l :RHS r) s-expression. -/
+private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
+  match s.toList? with
+  | some items =>
+    match items with
+    | .atom (.keyword "rewrite-step") :: rest =>
+      let rune ← match lookupKeyword "rune" rest with
+        | some r => match parseRune? r with
+          | some rune => pure rune
+          | none => throw s!"REWRITE-STEP: bad :RUNE: {repr r}"
+        | none => throw "REWRITE-STEP: missing :RUNE"
+      let lhs ← match lookupKeyword "lhs" rest with
+        | some s => pure s
+        | none => throw "REWRITE-STEP: missing :LHS"
+      let rhs ← match lookupKeyword "rhs" rest with
+        | some s => pure s
+        | none => throw "REWRITE-STEP: missing :RHS"
+      pure { rune, lhs, rhs }
+    | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
+  | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
+
+/-- Parse a list of rewrite steps. -/
+private def parseRewrites (s : SExpr) : Except String (List RewriteStep) := do
+  match s.toList? with
+  | some items =>
+    let mut result := #[]
+    for item in items do
+      result := result.push (← parseRewriteStep? item)
+    pure result.toList
+  | none => throw s!"REWRITES: expected list, got {repr s}"
+
 /-- Parse a (:STEP ...) s-expression. -/
 private def parseStep? (items : List SExpr) : Except String ProofStep := do
   let clauseId ← match lookupKeyword "clause-id" items with
@@ -93,12 +136,15 @@ private def parseStep? (items : List SExpr) : Except String ProofStep := do
   let runes := match lookupKeyword "runes" items with
     | some s => parseRunes s
     | none => []
+  let rewrites ← match lookupKeyword "rewrites" items with
+    | some s => parseRewrites s
+    | none => pure []
   let newClauses := match lookupKeyword "new-clauses" items with
     | some s => match s.toList? with
       | some cs => cs
       | none => [s]
     | none => []
-  pure { clauseId, processor, result, runes, newClauses }
+  pure { clauseId, processor, result, runes, rewrites, newClauses }
 
 /-- Parse a (:INDUCTION ...) s-expression. -/
 private def parseInduction? (items : List SExpr) : Except String InductionStep := do
@@ -261,6 +307,38 @@ private def parseInductionTerm (term : SExpr) : String × List String :=
     (funcName, args)
   | _ => ("unknown", [])
 
+/-- Convert a RewriteStep to a Lean tactic string. -/
+private def rewriteStepToTactic (step : RewriteStep) : String :=
+  let (runeType, runeName) := step.rune
+  let leanName := sanitize runeName
+  match runeType with
+  | "definition" => s!"try (unfold {leanName}; simp only [Logic.toBool, Logic.if_, Logic.consp, Logic.car, Logic.cdr, Logic.cons, Logic.equal, Logic.implies, Logic.and, Logic.or, Logic.not, Logic.endp])"
+  | "rewrite" => s!"try rw [{leanName}]"
+  | _ => s!"-- skipped rune :{runeType} {runeName}"
+
+/-- Generate tactic lines for a single proof step's rewrites.
+    If the step has detailed rewrite trace, use individual rw steps.
+    Otherwise fall back to simp with the rune list. -/
+private def stepToTactics (step : ProofStep) : List String :=
+  if !step.rewrites.isEmpty then
+    -- We have detailed rewrite trace — use individual steps
+    step.rewrites.map rewriteStepToTactic
+  else if !step.runes.isEmpty then
+    -- No detailed trace, fall back to rune-based tactics.
+    -- Use unfold for definitions (avoids simp looping on recursive defs),
+    -- simp only for rewrite/other rules.
+    let defRunes := step.runes.filter fun (t, _) => t == "definition"
+    let otherRunes := step.runes.filter fun (t, _) => t != "definition"
+    let unfolds := defRunes.filterMap fun (_, n) =>
+      some s!"try unfold {sanitize n}"
+    let simpArgs := runesToSimpArgs otherRunes
+    let simps := if simpArgs.isEmpty then []
+      else [s!"try simp only [{String.intercalate ", " simpArgs}]"]
+    let fallback := if unfolds.isEmpty && simps.isEmpty then ["acl2_simp"] else []
+    unfolds ++ simps ++ fallback
+  else
+    [] -- no-op step (settled-down, push, etc.)
+
 /-- Generate a tactic string for a single theorem's proof events.
     Returns `none` if the events are empty (no proof needed). -/
 def generateTacticScript (events : List ProofEvent) : Option String :=
@@ -270,44 +348,36 @@ def generateTacticScript (events : List ProofEvent) : Option String :=
     let inductionStep := events.findSome? fun
       | .induction i => some i
       | _ => none
-    -- Collect ALL runes from all steps (not just proved — intermediate runes matter)
-    let allRunes := events.foldl (init := ([] : List (String × String))) fun acc e =>
-      match e with
-      | .step s => acc ++ s.runes
-      | _ => acc
-    -- Deduplicate runes
-    let uniqueRunes := allRunes.foldl (init := ([] : List (String × String))) fun acc r =>
-      if acc.contains r then acc else acc ++ [r]
-    -- Separate definitions (need unfold) from rewrites (can simp)
-    let defNames := (uniqueRunes.filter fun (t, _) => t == "definition").filterMap
-      fun (_, n) => some (sanitize n)
-    let nonDefRunes := uniqueRunes.filter fun (t, _) => t != "definition"
-    let simpArgs := runesToSimpArgs nonDefRunes
-    let hasOmega := hasLinearArith uniqueRunes
-    -- unfold once for each definition, then simp with rewrite rules
-    let unfoldStr := if defNames.isEmpty then "" else
-      s!"try unfold {String.intercalate " " defNames}\n  all_goals "
-    let simpStr := if simpArgs.isEmpty then "acl2_simp" else
-      s!"try simp only [{String.intercalate ", " simpArgs}]"
-    let omegaStr := if hasOmega then "\n  try omega" else ""
+    -- Collect all proof steps (skipping defthm, induction, qed markers)
+    let proofSteps := events.filterMap fun
+      | .step s => some s
+      | _ => none
+    -- Collect all rewrite steps across all proof steps
+    let allRewrites := proofSteps.foldl (init := ([] : List String)) fun acc s =>
+      acc ++ stepToTactics s
+    -- Deduplicate tactic lines
+    let uniqueTactics := allRewrites.foldl (init := ([] : List String)) fun acc t =>
+      if acc.contains t then acc else acc ++ [t]
+    let hasOmega := proofSteps.any fun s =>
+      hasLinearArith s.runes
+    let omegaLine := if hasOmega then ["try omega"] else []
     match inductionStep with
     | some indStep =>
       let (funcName, argNames) := parseInductionTerm indStep.term
-      let argsStr := if argNames.isEmpty then "" else
-        " " ++ String.intercalate " " argNames
-      -- Generate induction with args from the induction term.
-      -- Try all args first; if the .induct principle wants fewer targets,
-      -- fall back to just the last arg (the typical decreasing parameter).
       let argsComma := String.intercalate ", " argNames
       let lastArg := argNames.getLast!
       let inductTactic := if argNames.length <= 1 then
         s!"induction {argsComma} using {funcName}.induct"
       else
         s!"first | induction {argsComma} using {funcName}.induct | induction {lastArg} using {funcName}.induct"
-      let tactics := s!"{inductTactic}\n  all_goals {unfoldStr}{simpStr}{omegaStr}\n  all_goals acl2_grind"
-      some s!"by\n  {tactics}"
+      let tacticLines := [inductTactic] ++
+        ["all_goals ("] ++
+        (uniqueTactics ++ omegaLine ++ ["acl2_grind"]).map (s!"  " ++ ·) ++
+        [")"]
+      some ("by\n" ++ String.intercalate "\n" (tacticLines.map (s!"  " ++ ·)))
     | none =>
-      some s!"by\n  {unfoldStr}{simpStr}{omegaStr}\n  acl2_grind"
+      let tacticLines := uniqueTactics ++ omegaLine ++ ["acl2_grind"]
+      some ("by\n" ++ String.intercalate "\n" (tacticLines.map (s!"  " ++ ·)))
 
 end ProofLog
 end ACL2
