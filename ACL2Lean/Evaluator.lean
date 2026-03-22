@@ -75,7 +75,12 @@ partial def callBuiltin (name : String) (args : List SExpr) : EvalM SExpr :=
   | "/", [.atom (.number (.int a)), .atom (.number (.int b))] =>
       if b == 0 then .error "division by zero"
       else if a % b == 0 then .ok (SExpr.atom (.number (.int (a / b))))
-      else .ok (SExpr.atom (.number (.rational a b.toNat)))
+      else
+        let g := Nat.gcd a.natAbs b.toNat
+        let n := a / Int.ofNat g
+        let d := b.toNat / g
+        if d == 1 then .ok (SExpr.atom (.number (.int n)))
+        else .ok (SExpr.atom (.number (.rational n d)))
   | n, _ => .error s!"unknown built-in or wrong arity: {n}"
 
 /-- Bind formals to arguments in a new environment. -/

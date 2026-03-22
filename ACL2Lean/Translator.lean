@@ -61,7 +61,7 @@ def translateSymbol (s : Symbol) : String :=
 
 def foldNary (fn : String) (args : List String) : String :=
   match args with
-  | [] => "SExpr.nil"
+  | [] => panic! s!"foldNary called with empty args for {fn}"
   | [a] => a
   | a :: rest => s!"({fn} {a} {foldNary fn rest})"
 
@@ -108,11 +108,11 @@ partial def translateCaseClauses (testStr : String) (clauses : SExpr) (nativeIf 
           | [c] => c
           | c :: cs => cs.foldl (fun acc g => s!"(Logic.or {acc} {g})") c
         s!"(if Logic.toBool {guard} then {translateExpr val nativeIf} else {translateCaseClauses testStr rest nativeIf})"
-      | none => s!"sorry /- malformed case key list: {repr key} -/"
+      | none => panic! s!"malformed case key list: {repr key}"
     | _ =>
       s!"(if Logic.toBool (Logic.equal {testStr} {translateExpr key nativeIf}) then {translateExpr val nativeIf} else {translateCaseClauses testStr rest nativeIf})"
   | .nil => "SExpr.nil"
-  | _ => s!"sorry /- malformed case clause: {repr clauses} -/"
+  | _ => panic! s!"malformed case clause: {repr clauses}"
 
 /-- Translate `(cond (test1 val1) (test2 val2) ... (t default))` to nested if.
     Multi-body clauses `(test body1 body2)` use the last body (implicit progn). -/
@@ -133,7 +133,7 @@ partial def translateCond (clauses : SExpr) (nativeIf : Bool) : String :=
       else
         s!"(Logic.if_ {translateExpr test nativeIf} {translateExpr val nativeIf} {translateCond rest nativeIf})"
   | .nil => "SExpr.nil"
-  | _ => s!"sorry /- malformed cond: {repr clauses} -/"
+  | _ => panic! s!"malformed cond: {repr clauses}"
 
 /-- Translate an ACL2 expression. When `nativeIf` is true, emit Lean's native
     `if toBool ... then ... else ...` instead of `Logic.if_` so Lean's
@@ -153,7 +153,7 @@ partial def translateExpr (expr : SExpr) (nativeIf : Bool := false) : String :=
       if s.isNamed "quote" then
         match argsExpr with
         | .cons v .nil => translateLiteral v
-        | _ => s!"sorry /- malformed quote: {repr expr} -/"
+        | _ => panic! s!"malformed quote: {repr expr}"
       else if s.isNamed "if" then
         match argsExpr with
         | .cons c (.cons t (.cons e .nil)) =>
@@ -161,7 +161,7 @@ partial def translateExpr (expr : SExpr) (nativeIf : Bool := false) : String :=
               s!"(if Logic.toBool {translateExpr c nativeIf} then {translateExpr t nativeIf} else {translateExpr e nativeIf})"
             else
               s!"(Logic.if_ {translateExpr c nativeIf} {translateExpr t nativeIf} {translateExpr e nativeIf})"
-        | _ => s!"sorry /- malformed if: {repr expr} -/"
+        | _ => panic! s!"malformed if: {repr expr}"
       else if s.isNamed "cond" then
         translateCond argsExpr nativeIf
       else if s.isNamed "case" then
@@ -169,49 +169,54 @@ partial def translateExpr (expr : SExpr) (nativeIf : Bool := false) : String :=
         | .cons testExpr clauses =>
           let testStr := translateExpr testExpr nativeIf
           translateCaseClauses testStr clauses nativeIf
-        | _ => s!"sorry /- malformed case -/"
+        | _ => panic! s!"malformed case: {repr expr}"
       else if s.isNamed "let" || s.isNamed "let*" then
         match argsExpr with
         | .cons bindings (.cons body .nil) =>
           let bindStrs := match bindings.toList? with
-            | some pairs => pairs.filterMap fun pair =>
+            | some pairs => pairs.map fun pair =>
                 match pair.toList? with
                 | some [.atom (.symbol var), val] =>
-                  some s!"let {translateSymbol var} := {translateExpr val nativeIf}"
-                | _ => none
-            | none => []
+                  s!"let {translateSymbol var} := {translateExpr val nativeIf}"
+                | _ => panic! s!"malformed let binding: {repr pair}"
+            | none => panic! s!"non-list let bindings: {repr bindings}"
           let bodyStr := translateExpr body nativeIf
           if bindStrs.isEmpty then bodyStr
           else s!"({String.intercalate "; " bindStrs}; {bodyStr})"
-        | _ => s!"sorry /- malformed let: {repr expr} -/"
+        | _ => panic! s!"malformed let: {repr expr}"
       else if s.isNamed "list" then
-        let args := match argsExpr.toList? with | some l => l.map (translateExpr · nativeIf) | none => []
+        let args := match argsExpr.toList? with
+          | some l => l.map (translateExpr · nativeIf)
+          | none => panic! s!"non-list args in list: {repr argsExpr}"
         args.foldr (fun a acc => s!"(Logic.cons {a} {acc})") "SExpr.nil"
       else if s.isNamed "1+" || s.isNamed "1+$inline" then
         match argsExpr with
         | .cons x .nil => s!"(Logic.plus {translateExpr x nativeIf} 1)"
-        | _ => s!"sorry /- malformed 1+: {repr expr} -/"
+        | _ => panic! s!"malformed 1+: {repr expr}"
       else if s.isNamed "1-" || s.isNamed "1-$inline" then
         match argsExpr with
         | .cons x .nil => s!"(Logic.minus {translateExpr x nativeIf} 1)"
-        | _ => s!"sorry /- malformed 1-: {repr expr} -/"
+        | _ => panic! s!"malformed 1-: {repr expr}"
       else if s.isNamed "cadr" then
         match argsExpr with
         | .cons x .nil => s!"(Logic.car (Logic.cdr {translateExpr x nativeIf}))"
-        | _ => s!"sorry /- malformed cadr: {repr expr} -/"
+        | _ => panic! s!"malformed cadr: {repr expr}"
       else if s.isNamed "cddr" then
         match argsExpr with
         | .cons x .nil => s!"(Logic.cdr (Logic.cdr {translateExpr x nativeIf}))"
-        | _ => s!"sorry /- malformed cddr: {repr expr} -/"
+        | _ => panic! s!"malformed cddr: {repr expr}"
       else if s.isNamed "declare" then
         "" -- skip declarations
       else
-        let args := match argsExpr.toList? with | some l => l.map (translateExpr · nativeIf) | none => []
+        let args := match argsExpr.toList? with
+          | some l => l.map (translateExpr · nativeIf)
+          | none => panic! s!"non-list args in function call ({s.name} ...): {repr argsExpr}"
         let fn := translateSymbol s
         if ["Logic.plus", "Logic.times", "Logic.and", "Logic.or"].contains fn && args.length > 2 then
           foldNary fn args
         else if args.isEmpty then fn else s!"({fn} {String.intercalate " " args})"
-  | _ => s!"sorry /- {repr expr} -/"
+  | .atom (.keyword k) => panic! s!"unexpected keyword atom in expression: :{k}"
+  | .cons head _ => panic! s!"unexpected expression head: {repr head} in {repr expr}"
 end -- mutual (translateCond / translateExpr)
 
 mutual
@@ -221,7 +226,8 @@ partial def collectVarsCond (clauses : SExpr) (acc : List String) : List String 
     let acc := collectVars test acc
     let acc := collectVars val acc
     collectVarsCond rest acc
-  | _ => acc
+  | .nil => acc
+  | _ => panic! s!"malformed cond clause in collectVars: {repr clauses}"
 
 /-- Collect variables from case clauses, skipping key symbols. -/
 partial def collectVarsCaseClauses (clauses : SExpr) (acc : List String) : List String :=
@@ -229,10 +235,15 @@ partial def collectVarsCaseClauses (clauses : SExpr) (acc : List String) : List 
   | .cons (.cons _ (.cons val .nil)) rest =>
     let acc := collectVars val acc
     collectVarsCaseClauses rest acc
-  | _ => acc
+  | .nil => acc
+  | _ => panic! s!"malformed case clause in collectVars: {repr clauses}"
 
 partial def collectVars (expr : SExpr) (acc : List String := []) : List String :=
   match expr with
+  | .nil => acc
+  | .atom (.number _) => acc
+  | .atom (.string _) => acc
+  | .atom (.keyword _) => acc
   | .atom (.symbol s) =>
       let name := translateSymbol s
       if name.startsWith "Logic." then acc
@@ -248,7 +259,7 @@ partial def collectVars (expr : SExpr) (acc : List String := []) : List String :
             let acc := collectVars c acc
             let acc := collectVars t acc
             collectVars e acc
-        | _ => acc
+        | _ => panic! s!"malformed if in collectVars: {repr argsExpr}"
       else if s.isNamed "cond" then
         collectVarsCond argsExpr acc
       else if s.isNamed "case" then
@@ -256,7 +267,7 @@ partial def collectVars (expr : SExpr) (acc : List String := []) : List String :
         | .cons testExpr clauses =>
           let acc := collectVars testExpr acc
           collectVarsCaseClauses clauses acc
-        | _ => acc
+        | _ => panic! s!"malformed case in collectVars: {repr argsExpr}"
       else if s.isNamed "let" || s.isNamed "let*" then
         match argsExpr with
         | .cons bindings (.cons body .nil) =>
@@ -264,21 +275,21 @@ partial def collectVars (expr : SExpr) (acc : List String := []) : List String :
             | some pairs => pairs.foldl (fun acc pair =>
                 match pair.toList? with
                 | some [_, val] => collectVars val acc
-                | _ => acc) acc
-            | none => acc
+                | _ => panic! s!"malformed let binding in collectVars: {repr pair}") acc
+            | none => panic! s!"non-list let bindings in collectVars: {repr bindings}"
           collectVars body acc
-        | _ => acc
+        | _ => panic! s!"malformed let in collectVars: {repr argsExpr}"
       else if s.isNamed "list" then
         match argsExpr.toList? with
         | some args => args.foldl (fun a e => collectVars e a) acc
-        | none => acc
+        | none => panic! s!"non-list args in list collectVars: {repr argsExpr}"
       else if s.isNamed "declare" then
         acc
       else
         match argsExpr.toList? with
         | some args => args.foldl (fun a e => collectVars e a) acc
-        | none => acc
-  | _ => acc
+        | none => panic! s!"non-list args in collectVars for ({s.name} ...): {repr argsExpr}"
+  | .cons head _ => panic! s!"unexpected collectVars head: {repr head}"
 end -- mutual
 
 def sanitizeName (s : String) : String :=

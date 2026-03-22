@@ -76,8 +76,8 @@ private def int (n : Int) : SExpr := .atom (.number (.int n))
   | .defconst { name := "*c*", .. } _ => true
   | _ => false
 
--- skip for unknown forms
-#guard match Event.classify (SExpr.ofList [sym "unknown-form", int 1]) with
+-- known no-ops produce .skip
+#guard match Event.classify (SExpr.ofList [sym "program"]) with
   | .skip _ => true
   | _ => false
 

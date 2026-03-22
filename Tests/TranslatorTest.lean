@@ -212,13 +212,7 @@ private def naryTimes : SExpr := SExpr.ofList [sym "*", sym "a", sym "b", sym "c
 -- 2 args: no folding needed
 #guard (Translator.translateExpr (SExpr.ofList [sym "+", sym "a", sym "b"])) = "(Logic.plus a b)"
 
--- === Translator error paths ===
-
--- Malformed if → sorry
-#guard (Translator.translateExpr (SExpr.ofList [sym "if", sym "c"])).contains "sorry"
-
--- Malformed case → sorry
-#guard (Translator.translateExpr (SExpr.ofList [sym "case"])).contains "sorry"
+-- Malformed if/case now panic! instead of producing sorry (not testable with #guard)
 
 -- === nativeIf toggle ===
 

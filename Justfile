@@ -9,6 +9,9 @@ build:
 test:
     lake build Tests
 
+# Full conformance: build + unit tests + translate all books + verify
+ci: build test translate-all
+
 # Run the corpus report
 report:
     lake exe acl2lean report

@@ -58,8 +58,7 @@ theorem lexorder_refl (x : SExpr) : lexorder x x = .t := by
   induction x with
   | nil => rfl
   | atom a =>
-    simp only [lexorder, show ¬(atomKind a < atomKind a) from Nat.lt_irrefl _, ite_false,
-               show ¬(atomKind a > atomKind a) from Nat.lt_irrefl _, ite_false]
+    simp only [lexorder, show ¬(atomKind a < atomKind a) from Nat.lt_irrefl _, ite_false]
     cases a with
     | number n =>
       cases n with
@@ -359,7 +358,7 @@ theorem lexorder_antisym (x y : SExpr)
   | case29 a1 b1 a2 b2 hne ih =>
     simp only [lexorder, hne] at hxy hyx
     have hne' : ¬(a2 == a1) = true := by simp [beq_iff_eq] at hne ⊢; exact fun h => hne h.symm
-    simp only [hne', ite_false, Logic.toBool] at hxy hyx
+    simp only [hne', Logic.toBool] at hxy hyx
     exact absurd (ih hxy hyx) (by simp [beq_iff_eq] at hne; exact hne)
 
 /-- Transitivity restricted to integers. Fully proved. -/
@@ -674,11 +673,11 @@ theorem lexorder_trans (x y z : SExpr)
         simp only [ha13, ite_true] at hyz ⊢
         exact ih b3 hxy hyz
       · -- a1 ≠ a3
-        simp only [show ¬(a1 == a3) = true from ha13, ite_false] at hyz ⊢
+        simp only [show ¬(a1 == a3) = true from ha13] at hyz ⊢
         exact hyz
   -- cons(a1,b1) vs cons(a2,b2), a1 ≠ a2
   | case29 a1 b1 a2 b2 hne ih =>
-    simp only [lexorder, hne, ite_false, Logic.toBool] at hxy
+    simp only [lexorder, hne, Logic.toBool] at hxy
     cases z with
     | nil => simp [lexorder, Logic.toBool] at hyz
     | atom c => simp [lexorder, Logic.toBool] at hyz
@@ -691,10 +690,10 @@ theorem lexorder_trans (x y z : SExpr)
         -- a1 ≠ a2 = a3, so a1 ≠ a3
         by_cases ha13 : (a1 == a2) = true
         · exact absurd ha13 hne
-        · simp only [ha13, ite_false]
+        · simp only [ha13]
           exact hxy
       · -- a2 ≠ a3: hyz gives lexorder a2 a3.
-        simp only [show ¬(a2 == a3) = true from ha23, ite_false] at hyz
+        simp only [show ¬(a2 == a3) = true from ha23] at hyz
         -- By IH: lexorder a1 a3
         have h13 := ih a3 hxy hyz
         by_cases ha13 : (a1 == a3) = true
@@ -712,7 +711,7 @@ theorem lexorder_trans (x y z : SExpr)
           have hyz' : Logic.toBool (lexorder a2 a1) = true := hyz
           have := lexorder_antisym a1 a2 hxy hyz'
           rw [beq_iff_eq] at hne; exact absurd this hne
-        · simp only [ha13, ite_false]
+        · simp only [ha13]
           exact h13
 
 end ACL2
