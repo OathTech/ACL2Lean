@@ -32,6 +32,8 @@ inductive TraceEvent where
   | beginBranch (segment : SExpr)
   | endBranch
   | caseSplit (literalIndex : Nat) (numBranches : Nat)
+  | branchSubstitution (equivalence : SExpr) (lhs : SExpr) (rhs : SExpr)
+  | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
   deriving Repr
 
 /-- A single waterfall step from ACL2's structured proof output. -/
@@ -202,6 +204,24 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           | some s => throw s!"CASE-SPLIT: bad :NUM-BRANCHES: {repr s}"
           | none => throw "CASE-SPLIT: missing :NUM-BRANCHES"
         pure (.caseSplit litIdx numBranches)
+    | .atom (.keyword "branch-substitution") :: rest =>
+        let equivalence ← lookupKeyword "equivalence" rest
+          |>.elim (throw "BRANCH-SUBSTITUTION: missing :EQUIVALENCE") pure
+        let lhs ← lookupKeyword "lhs" rest
+          |>.elim (throw "BRANCH-SUBSTITUTION: missing :LHS") pure
+        let rhs ← lookupKeyword "rhs" rest
+          |>.elim (throw "BRANCH-SUBSTITUTION: missing :RHS") pure
+        pure (.branchSubstitution equivalence lhs rhs)
+    | .atom (.keyword "type-set-reasoning") :: rest =>
+        let term ← lookupKeyword "term" rest
+          |>.elim (throw "TYPE-SET-REASONING: missing :TERM") pure
+        let result ← lookupKeyword "result" rest
+          |>.elim (throw "TYPE-SET-REASONING: missing :RESULT") pure
+        let notFlg := match lookupKeyword "not-flg" rest with
+          | some .nil => false
+          | _ => true
+        let justification := (lookupKeyword "justification" rest).getD .nil
+        pure (.typeSetReasoning term result notFlg justification)
     | _ => throw s!"Unknown trace event: {repr s}"
   | none => throw s!"Expected list trace event, got: {repr s}"
 
