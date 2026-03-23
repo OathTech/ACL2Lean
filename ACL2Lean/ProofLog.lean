@@ -33,6 +33,7 @@ inductive TraceEvent where
   | endBranch
   | caseSplit (literalIndex : Nat) (numBranches : Nat)
   | branchSubstitution (equivalence : SExpr) (lhs : SExpr) (rhs : SExpr)
+  | contextSubst (var : SExpr) (value : SExpr) (justification : SExpr)
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
   deriving Repr
 
@@ -212,6 +213,13 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
         let rhs ← lookupKeyword "rhs" rest
           |>.elim (throw "BRANCH-SUBSTITUTION: missing :RHS") pure
         pure (.branchSubstitution equivalence lhs rhs)
+    | .atom (.keyword "context-subst") :: rest =>
+        let var ← lookupKeyword "variable" rest
+          |>.elim (throw "CONTEXT-SUBST: missing :VARIABLE") pure
+        let value ← lookupKeyword "value" rest
+          |>.elim (throw "CONTEXT-SUBST: missing :VALUE") pure
+        let justification := (lookupKeyword "justification" rest).getD .nil
+        pure (.contextSubst var value justification)
     | .atom (.keyword "type-set-reasoning") :: rest =>
         let term ← lookupKeyword "term" rest
           |>.elim (throw "TYPE-SET-REASONING: missing :TERM") pure
