@@ -56,6 +56,29 @@ def applyRewriteStep (step : RewriteStep) (term : SExpr) : SExpr :=
 def applyRewriteSteps (steps : List RewriteStep) (term : SExpr) : SExpr :=
   steps.foldl (fun t s => applyRewriteStep s t) term
 
+/-- Replace all occurrences of `pattern` with `replacement` in `term`. -/
+def replaceAll (term pattern replacement : SExpr) : SExpr :=
+  if term == pattern then replacement
+  else match term with
+  | .cons a b => .cons (replaceAll a pattern replacement) (replaceAll b pattern replacement)
+  | _ => term
+
+/-- Apply branch substitutions from trace events to a term.
+    BRANCH-SUBSTITUTION events record variable replacements from case-split
+    equivalences (e.g., from (equal x1 a) in a branch, substitute x1→a). -/
+def applyBranchSubstitutions (events : List TraceEvent) (term : SExpr) : SExpr :=
+  events.foldl (fun t ev =>
+    match ev with
+    | .branchSubstitution _equiv lhs rhs => replaceAll t lhs rhs
+    | _ => t) term
+
+/-- Apply a full literal rewrite: first apply branch substitutions from
+    enclosing context, then apply per-literal rewrite steps. -/
+def rewriteLiteral (contextEvents : List TraceEvent) (literalSteps : List RewriteStep)
+    (term : SExpr) : SExpr :=
+  let substituted := applyBranchSubstitutions contextEvents term
+  applyRewriteSteps literalSteps substituted
+
 end Rewriter
 
 /-! ## Tests -/
