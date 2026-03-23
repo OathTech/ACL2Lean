@@ -6,6 +6,8 @@ import ACL2Lean.Parser
 import ACL2Lean.Import
 import ACL2Lean.Workbench
 import ACL2Lean.Evaluator
+import ACL2Lean.Eval
+import ACL2Lean.WorldGen
 import ACL2Lean.Translator
 import ACL2Lean.Logic
 import ACL2Lean.Count
@@ -13,6 +15,8 @@ import ACL2Lean.Tactics
 import ACL2Lean.DSL
 import ACL2Lean.PrettyPrinter
 import ACL2Lean.ProofLog
+import ACL2Lean.Rewriter
 import ACL2Lean.Imported.Log2Replay
+import ACL2Lean.Imported.SimpleWorld
 import ACL2Lean.Lexorder
 import ACL2Lean.TermOrder

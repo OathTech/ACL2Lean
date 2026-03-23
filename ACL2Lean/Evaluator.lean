@@ -3,9 +3,6 @@ import ACL2Lean.Parser
 
 namespace ACL2
 
-/-- Environment maps symbols to values (SExprs). -/
-abbrev Env := Std.HashMap Symbol SExpr
-
 /-- Evaluation result. -/
 abbrev EvalM := Except String
 

@@ -75,6 +75,13 @@ def main (args : List String) : IO Unit := do
               match ACL2.Evaluator.eval w {} sexpr with
               | .error e => IO.eprintln s!"Eval error: {e}"
               | .ok res => IO.println s!"{repr res}"
+  | ["gen-world", path] => do
+      let events ← ACL2.loadEventsFromFile path
+      match events with
+      | .error e => IO.eprintln s!"Load error: {e}"
+      | .ok evs =>
+          let bookName := ACL2.WorldGen.bookNameFromPath path
+          IO.println (ACL2.WorldGen.generateWorld bookName evs)
   | ["translate", path] => do
       let events ← ACL2.loadEventsFromFile path
       match events with
@@ -159,9 +166,10 @@ def main (args : List String) : IO Unit := do
                 if !s.runes.isEmpty then
                   let runeStrs := s.runes.map fun (t, n) => s!"(:{t} {n})"
                   IO.println s!"    runes: {String.intercalate " " runeStrs}"
-                if !s.rewrites.isEmpty then
-                  IO.println s!"    rewrites: {s.rewrites.length} steps"
-                  for rw in s.rewrites do
+                let rwSteps := s.rewriteSteps
+                if !rwSteps.isEmpty then
+                  IO.println s!"    rewrites: {rwSteps.length} steps"
+                  for rw in rwSteps do
                     IO.println s!"      {rw.rune.1}:{rw.rune.2}"
             | .defthm name =>
                 IO.println s!"\n  DEFTHM {name}"
@@ -239,5 +247,6 @@ def main (args : List String) : IO Unit := do
       IO.println "  acl2lean report"
       IO.println "  acl2lean eval \"(expr)\""
       IO.println "  acl2lean metadata file.lisp [theorem]"
+      IO.println "  acl2lean gen-world file.lisp"
       IO.println "  acl2lean translate file.lisp"
       IO.println "  acl2lean parse-proof-log file.proof-log"

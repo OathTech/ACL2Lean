@@ -662,4 +662,7 @@ def replay (events : List Event) : World :=
 
 end World
 
+/-- Environment maps variable symbols to their values. -/
+abbrev Env := Std.HashMap Symbol SExpr
+
 end ACL2

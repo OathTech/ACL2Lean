@@ -19,6 +19,21 @@ structure RewriteStep where
   rhs : SExpr
   deriving Repr
 
+/-- A trace event from ACL2's detailed rewriter output.
+    These appear inside the :REWRITES field of a waterfall step. -/
+inductive TraceEvent where
+  | rewriteStep (step : RewriteStep)
+  | ifTestTrue (test : SExpr) (unrewrittenTest : SExpr) (justification : SExpr)
+  | ifTestFalse (test : SExpr) (unrewrittenTest : SExpr) (justification : SExpr)
+  | ifTestUnknown (test : SExpr) (unrewrittenTest : SExpr) (justification : SExpr)
+  | beginLiteral (index : Nat) (literal : SExpr) (notFlg : Bool)
+  | endLiteral (index : Nat) (result : SExpr) (branches : Nat)
+  | rewrittenLiteral (original : SExpr) (result : SExpr)
+  | beginBranch (segment : SExpr)
+  | endBranch
+  | caseSplit (literalIndex : Nat) (numBranches : Nat)
+  deriving Repr
+
 /-- A single waterfall step from ACL2's structured proof output. -/
 structure ProofStep where
   clauseId : String
@@ -26,11 +41,23 @@ structure ProofStep where
   result : ProofResult
   /-- Runes used in this step, as (type, name) pairs, e.g. ("rewrite", "car-cons"). -/
   runes : List (String × String)
-  /-- Ordered list of individual rewrite applications. -/
-  rewrites : List RewriteStep := []
+  /-- Full detailed trace events from ACL2's rewriter. -/
+  traceEvents : List TraceEvent := []
+  /-- Input clause (disjunction of literals). -/
+  inputClause : List SExpr := []
   /-- Output clauses if result is subgoals. -/
   newClauses : List SExpr := []
   deriving Repr
+
+namespace ProofStep
+
+/-- Extract just the rewrite steps from the trace events. -/
+def rewriteSteps (s : ProofStep) : List RewriteStep :=
+  s.traceEvents.filterMap fun
+    | .rewriteStep step => some step
+    | _ => none
+
+end ProofStep
 
 /-- An induction scheme choice from ACL2. -/
 structure InductionStep where
@@ -106,13 +133,85 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
-/-- Parse a list of rewrite steps. -/
-private def parseRewrites (s : SExpr) : Except String (List RewriteStep) := do
+/-- Parse a single trace event from the :REWRITES field. -/
+private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
+  match s.toList? with
+  | some items =>
+    match items with
+    | .atom (.keyword "rewrite-step") :: _ =>
+        pure (.rewriteStep (← parseRewriteStep? s))
+    | .atom (.keyword "if-test-true") :: rest =>
+        let test ← lookupKeyword "test" rest |>.elim (throw "IF-TEST-TRUE: missing :TEST") pure
+        let unrewritten ← lookupKeyword "unrewritten-test" rest
+          |>.elim (throw "IF-TEST-TRUE: missing :UNREWRITTEN-TEST") pure
+        let justification := (lookupKeyword "justification" rest).getD .nil
+        pure (.ifTestTrue test unrewritten justification)
+    | .atom (.keyword "if-test-false") :: rest =>
+        let test ← lookupKeyword "test" rest |>.elim (throw "IF-TEST-FALSE: missing :TEST") pure
+        let unrewritten ← lookupKeyword "unrewritten-test" rest
+          |>.elim (throw "IF-TEST-FALSE: missing :UNREWRITTEN-TEST") pure
+        let justification := (lookupKeyword "justification" rest).getD .nil
+        pure (.ifTestFalse test unrewritten justification)
+    | .atom (.keyword "if-test-unknown") :: rest =>
+        let test ← lookupKeyword "test" rest |>.elim (throw "IF-TEST-UNKNOWN: missing :TEST") pure
+        let unrewritten ← lookupKeyword "unrewritten-test" rest
+          |>.elim (throw "IF-TEST-UNKNOWN: missing :UNREWRITTEN-TEST") pure
+        let justification := (lookupKeyword "justification" rest).getD .nil
+        pure (.ifTestUnknown test unrewritten justification)
+    | .atom (.keyword "begin-literal") :: rest =>
+        let index ← match lookupKeyword "index" rest with
+          | some (.atom (.number (.int n))) => pure n.toNat
+          | some s => throw s!"BEGIN-LITERAL: bad :INDEX: {repr s}"
+          | none => throw "BEGIN-LITERAL: missing :INDEX"
+        let literal ← lookupKeyword "literal" rest
+          |>.elim (throw "BEGIN-LITERAL: missing :LITERAL") pure
+        let notFlg := match lookupKeyword "not-flg" rest with
+          | some .nil => false
+          | _ => true
+        pure (.beginLiteral index literal notFlg)
+    | .atom (.keyword "end-literal") :: rest =>
+        let index ← match lookupKeyword "index" rest with
+          | some (.atom (.number (.int n))) => pure n.toNat
+          | some s => throw s!"END-LITERAL: bad :INDEX: {repr s}"
+          | none => throw "END-LITERAL: missing :INDEX"
+        let result ← lookupKeyword "result" rest
+          |>.elim (throw "END-LITERAL: missing :RESULT") pure
+        let branches ← match lookupKeyword "branches" rest with
+          | some (.atom (.number (.int n))) => pure n.toNat
+          | some s => throw s!"END-LITERAL: bad :BRANCHES: {repr s}"
+          | none => throw "END-LITERAL: missing :BRANCHES"
+        pure (.endLiteral index result branches)
+    | .atom (.keyword "rewritten-literal") :: rest =>
+        let original ← lookupKeyword "original" rest
+          |>.elim (throw "REWRITTEN-LITERAL: missing :ORIGINAL") pure
+        let result ← lookupKeyword "result" rest
+          |>.elim (throw "REWRITTEN-LITERAL: missing :RESULT") pure
+        pure (.rewrittenLiteral original result)
+    | .atom (.keyword "begin-branch") :: rest =>
+        let segment := (lookupKeyword "segment" rest).getD .nil
+        pure (.beginBranch segment)
+    | .atom (.keyword "end-branch") :: _ =>
+        pure .endBranch
+    | .atom (.keyword "case-split") :: rest =>
+        let litIdx ← match lookupKeyword "literal-index" rest with
+          | some (.atom (.number (.int n))) => pure n.toNat
+          | some s => throw s!"CASE-SPLIT: bad :LITERAL-INDEX: {repr s}"
+          | none => throw "CASE-SPLIT: missing :LITERAL-INDEX"
+        let numBranches ← match lookupKeyword "num-branches" rest with
+          | some (.atom (.number (.int n))) => pure n.toNat
+          | some s => throw s!"CASE-SPLIT: bad :NUM-BRANCHES: {repr s}"
+          | none => throw "CASE-SPLIT: missing :NUM-BRANCHES"
+        pure (.caseSplit litIdx numBranches)
+    | _ => throw s!"Unknown trace event: {repr s}"
+  | none => throw s!"Expected list trace event, got: {repr s}"
+
+/-- Parse a list of trace events from the :REWRITES field. -/
+private def parseTraceEvents (s : SExpr) : Except String (List TraceEvent) := do
   match s.toList? with
   | some items =>
     let mut result := #[]
     for item in items do
-      result := result.push (← parseRewriteStep? item)
+      result := result.push (← parseTraceEvent item)
     pure result.toList
   | none => throw s!"REWRITES: expected list, got {repr s}"
 
@@ -136,15 +235,20 @@ private def parseStep? (items : List SExpr) : Except String ProofStep := do
   let runes := match lookupKeyword "runes" items with
     | some s => parseRunes s
     | none => []
-  let rewrites ← match lookupKeyword "rewrites" items with
-    | some s => parseRewrites s
+  let traceEvents ← match lookupKeyword "rewrites" items with
+    | some s => parseTraceEvents s
     | none => pure []
+  let inputClause := match lookupKeyword "input-clause" items with
+    | some s => match s.toList? with
+      | some cs => cs
+      | none => [s]
+    | none => []
   let newClauses := match lookupKeyword "new-clauses" items with
     | some s => match s.toList? with
       | some cs => cs
       | none => [s]
     | none => []
-  pure { clauseId, processor, result, runes, rewrites, newClauses }
+  pure { clauseId, processor, result, runes, traceEvents, inputClause, newClauses }
 
 /-- Parse a (:INDUCTION ...) s-expression. -/
 private def parseInduction? (items : List SExpr) : Except String InductionStep := do
@@ -320,9 +424,9 @@ private def rewriteStepToTactic (step : RewriteStep) : String :=
     If the step has detailed rewrite trace, use individual rw steps.
     Otherwise fall back to simp with the rune list. -/
 private def stepToTactics (step : ProofStep) : List String :=
-  if !step.rewrites.isEmpty then
+  if !step.rewriteSteps.isEmpty then
     -- We have detailed rewrite trace — use individual steps
-    step.rewrites.map rewriteStepToTactic
+    step.rewriteSteps.map rewriteStepToTactic
   else if !step.runes.isEmpty then
     -- No detailed trace, fall back to rune-based tactics.
     -- Use unfold for definitions (avoids simp looping on recursive defs),
