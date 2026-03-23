@@ -63,24 +63,16 @@ def replaceAll (term pattern replacement : SExpr) : SExpr :=
   | .cons a b => .cons (replaceAll a pattern replacement) (replaceAll b pattern replacement)
   | _ => term
 
-/-- Apply context substitutions from trace events to a term.
-    BRANCH-SUBSTITUTION events come from remove-trivial-equivalences.
-    CONTEXT-SUBST events come from IF branch processing where an equality
-    is known (e.g., from (equal x1 a) in a branch, substitute x1→a).
-    Both are applied via replaceAll (they hold for all occurrences). -/
-def applyContextSubstitutions (events : List TraceEvent) (term : SExpr) : SExpr :=
-  events.foldl (fun t ev =>
-    match ev with
-    | .branchSubstitution _equiv lhs rhs => replaceAll t lhs rhs
-    | .contextSubst var value _justification => replaceAll t var value
-    | _ => t) term
-
-/-- Apply a full literal rewrite: first apply context substitutions
-    (from branch assumptions and IF-equality resolution), then apply
-    per-literal rewrite steps. -/
+/-- Apply a full literal rewrite: apply context substitutions from
+    the trace, then apply per-literal rewrite steps. Every substitution
+    and step must be explicitly logged by ACL2. -/
 def rewriteLiteral (contextEvents : List TraceEvent) (literalSteps : List RewriteStep)
     (term : SExpr) : SExpr :=
-  let substituted := applyContextSubstitutions contextEvents term
+  -- Apply CONTEXT-SUBST events that ACL2 explicitly logged as applied
+  let substituted := contextEvents.foldl (fun t ev =>
+    match ev with
+    | .contextSubst var value _justification => replaceAll t var value
+    | _ => t) term
   applyRewriteSteps literalSteps substituted
 
 end Rewriter
