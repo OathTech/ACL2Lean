@@ -1,7 +1,6 @@
 import Lean
 import ACL2Lean.DSL.SyntaxCategories
 import ACL2Lean.Logic
-import ACL2Lean.Tactics
 
 open Lean Elab Command Term Meta
 
@@ -305,7 +304,7 @@ def elabAclEvent : CommandElab := fun stx => do
           elabCommand cmd
         else
           let cmd ← `(set_option maxHeartbeats 1000000 in theorem $nameId $[$binders]* : _root_.ACL2.Logic.toBool $prop' = true := by
-            first | acl2_grind | sorry)
+            sorry)
           elabCommand cmd
     | `(acl2_event| (defconst $id:acl2_id $val:acl2_sexpr)) =>
         let nameId := mkIdent (sanitize (getLeafVal id.raw |>.trimAscii.toString))

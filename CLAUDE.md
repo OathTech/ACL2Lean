@@ -28,13 +28,15 @@ ACL2Lean/               Lean 4 library
   Logic.lean            ACL2 primitives (car, cdr, cons, arithmetic, predicates, bitwise)
   Count.lean            acl2Count structural size measure + termination lemmas
   Lexorder.lean         Total ordering on SExpr
-  Evaluator.lean        Built-in operations, macro expansion, eval loop
-  Translator.lean       defun/defthm → Lean source, symbol sanitisation
-  Tactics.lean          acl2_simp, acl2_grind, acl2_induct
+  Eval.lean             Total evaluator with fuel (semantic anchor for soundness)
+  Evaluator.lean        Legacy partial evaluator (used by CLI eval commands)
+  Translator.lean       translateSymbol, translateLiteral, sanitizeName (used by WorldGen)
+  WorldGen.lean         Generate World definitions + theorem statements from .lisp
+  Rewriter.lean         Subterm replacement guided by proof trace
+  ProofLog.lean         Proof trace types (TraceEvent, RewriteStep) + parser
   DSL/                  #acl { } macro for inline ACL2 events
   PrettyPrinter.lean    S-expression pretty printing
-  Imported/             Kernel-checked theorem bundles (e.g. Log2Replay.lean)
-  Translated/           Auto-generated .lean from translator (gitignored)
+  Imported/             Generated worlds + kernel-checked proofs (e.g. SimpleWorld.lean)
   Import.lean           loadEventsFromFile IO wrapper
   Workbench.lean        reportSamples corpus diagnostics
 Main.lean               CLI entry point
@@ -48,16 +50,16 @@ docs/plans/             Roadmap and design plans
 
 ```sh
 lake build                              # Type-check everything (includes tests)
-just test                               # Run unit tests only (402 #guard tests)
-just ci                                 # Full conformance: unit tests + translate all books
-just translate-all                      # Translate all books in manifest + verify
-lake exe acl2lean translate <file>      # Translate .lisp → Lean stdout
+just test                               # Run unit tests only (460 #guard tests)
+just ci                                 # Full conformance: build + unit tests
+lake exe acl2lean gen-world <file>      # Generate World + theorem stubs from .lisp
+lake exe acl2lean parse-proof-log <f>   # Parse and display proof trace
 lake exe acl2lean report                # Corpus event histogram
 lake exe acl2lean eval "<expr>"         # Evaluate s-expression
 lake exe acl2lean eval-in <file> "<e>"  # Eval in file's world
 ```
 
-`just ci` is the conformance gate. Run it before pushing. It runs all unit tests and translates+verifies every book in the manifest.
+`just ci` is the conformance gate. Run it before pushing.
 
 Build system: Lake (`lakefile.toml`). Toolchain pinned in `lean-toolchain`.
 
