@@ -153,10 +153,15 @@ The REWRITE-STEP events are leaves in this tree. What's missing is:
 
 ### ACL2 code modifications
 All modifications are in the `acl2/` submodule (branch `acl2-lean-output`):
-- `rewrite.lisp` — ~20 logging points added, depth counter in
+- `rewrite.lisp` — 27 logging points, depth counter in
   `rewrite-entry` macro, `*structured-rewrite-depth*` variable
-- `simplify.lisp` — ~10 logging points for literal/branch/clause events
-- `axioms.lisp` — function registrations for `#-acl2-loop-only` code
+- `simplify.lisp` — 9 logging points for literal/branch/clause events
+- `axioms.lisp` — 18 function registrations for `#-acl2-loop-only` code
+
+Every logging point has a `; TRACE-LOG:` comment tag. To find all:
+```
+grep "TRACE-LOG:" acl2/rewrite.lisp acl2/simplify.lisp
+```
 
 ### ACL2 code patterns discovered
 - **rewrite-entry macro** (rewrite.lisp ~7038): central dispatch for
@@ -223,3 +228,94 @@ while handling the edge cases.
   structure ACL2's designers intended
 - The existing structural markers (BEGIN-BRANCH, IF-TEST, etc.) are
   the skeleton of the proof tree and should be preserved/extended
+
+## What We Tried That Didn't Work
+
+### Branch-level CONTEXT-SUBST (applied all, regressed 344→302)
+Emitting CONTEXT-SUBST events at the branch level for ALL equality
+assumptions, then applying them all via `replaceAll` in Lean. Problem:
+many substitutions were already applied by `remove-trivial-equivalences`
+and reflected in BEGIN-LITERAL. Re-applying them corrupted the literal.
+
+### Targeted CONTEXT-SUBST (dumb-occur filter, still regressed)
+Adding `(dumb-occur var unrewritten)` check to only emit CONTEXT-SUBST
+when the variable was still in the clause. Still regressed because
+some variables appear in the clause but ACL2's rewriter doesn't
+actually substitute them in the specific literal being processed.
+
+### On-demand Lean-side search (345/371 but makes decisions)
+Lean rewriter tries each CONTEXT-SUBST when a step's LHS isn't found:
+if applying the substitution makes the LHS findable, apply it. This
+works (perm fixed) but the Lean side is making decisions about when to
+substitute — violates the principle that ACL2 records exactly what it
+did and Lean replays mechanically.
+
+### Key lesson
+The problem isn't knowing WHICH equalities hold (we have that from
+branch segments). It's knowing WHETHER and WHEN the rewriter actually
+used each equality for a specific literal. That information is inside
+the rewriter's recursive processing, at varying depths.
+
+## Lean-Side Infrastructure Already in Place
+
+The Lean side is ready for richer trace events:
+- `TraceEvent.contextSubst` variant in `ProofLog.lean` (parsed)
+- `TraceEvent.branchSubstitution` variant (parsed)
+- `Rewriter.rewriteLiteral` function (applies context + steps)
+- `Rewriter.replaceAll` for global substitutions
+- `Rewriter.containsSubterm` for presence checking
+- Parser handles all current event types; adding new ones is
+  straightforward (add variant to `TraceEvent`, add match case
+  in `parseTraceEvent`)
+
+## Concrete Failure Examples
+
+### Group 1 (bsort, 1 case): fnstack + depth
+```
+LIT: (not (equal (bnext x) x))
+Steps: definition:bnext → (cons (car x) (bnext (cdr x)))
+       car-cons, cdr-cons (from rewrite-equal decomposition)
+STUCK: (not (equal (cons (car x) (bnext (cdr x))) x))
+```
+The branch assumption `(bnext (cdr x)) = (cdr x)` is known but fires
+at depth 1 (inside bnext expansion, fnstack-blocked recursive call).
+
+### Group 2 (qsort, 7 cases): IF branch combination
+```
+LIT: (if (orderedp ...) (if ...) (if ... '() 't))
+Steps: definition expansions, type-alist, if-simplification, if-same-branches
+STUCK: (if '() '() 't)
+```
+Steps reduce the ELSE branch internals but the outer IF with constant
+test `'()` is never explicitly simplified. ACL2 handles it during
+recursive IF processing at a depth our flat model can't represent.
+
+### Group 3 (qsort, 6 cases): cross-expansion references
+```
+LIT: (equal (all-rel 'gt (rm x1 x-equiv) e) '())
+Steps: definition:memb (memb x1 x-equiv) => 't
+       definition:all-rel ... => '()
+STUCK: unchanged (no step LHS matches the literal)
+```
+Steps reference `(memb x1 x-equiv)` which is NOT a subterm of the
+literal — it comes from inside the expansion of `rm` or `all-rel`.
+
+## ACL2 Rewrite-Entry Macro Details
+
+The `rewrite-entry` macro (rewrite.lisp ~7038) is the central dispatch
+for the mutual recursion. Key details for the depth mechanism:
+
+**bkptr detection** (~line 7130): extracts the 4th argument of
+`(rewrite term alist bkptr)` calls. If it's a quoted symbol in
+`{rhs, body, lambda-body, expansion}`, marks as inner rewrite.
+
+**Depth increment** (~line 7141): `(incf *structured-rewrite-depth*)`
+guarded by `(consp *structured-rewrite-log*)`. Happens BEFORE the call.
+
+**Depth decrement** (~lines 7156-7172): three paths depending on
+gstackp/dmrp state, all using `multiple-value-prog1` or equivalent
+to ensure decrement happens AFTER the call returns.
+
+**IF branch depth** (~lines 17335-17390 in `rewrite-if-finish`):
+manually increments before branch rewrites, decrements + logs combined
+result after `rewrite-if1` returns.
