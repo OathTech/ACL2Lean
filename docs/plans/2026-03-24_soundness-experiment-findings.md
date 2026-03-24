@@ -63,9 +63,26 @@ When `term = (.cons a b)` where `a` is NOT `.atom (.symbol _)`:
 
 5. **Well-formedness matters.** The non-symbol-headed cons case reveals that `evalReplace_sound` is not true for ALL SExpr — only for well-formed terms where function heads are always symbols. This is fine practically (all ACL2 terms are well-formed) but means the theorem needs a well-formedness precondition or the replacement function needs further restriction.
 
+## Remaining sorry inventory
+
+| Lemma | Status | Estimated size | Description |
+|-------|--------|---------------|-------------|
+| `evalReplaceOpt_toList` | sorry | 30-50 lines | Structural: evalReplaceOpt preserves toList? structure |
+| `evalReplace_sound` cons case | sorry | 20-30 lines | Uses above two lemmas to close the function-call congruence |
+| `evalReplace_sound` non-symbol case | sorry | 10-20 lines | Needs well-formedness precondition or restricted recursion |
+| `applyEvalRewriteSteps_sound` cons case | sorry | 5 lines | Blocked by sorry propagation; will work once core is proved |
+| `evalOpt_some_eq_eval` | sorry | 30-50 lines | Bridge to original eval (needed for final theorem statements) |
+
 ## Next steps
 
-1. **Prove the argument-list congruence** (the `sorry` in the function-call case)
-2. **Handle well-formedness** for the non-symbol-headed case
-3. **Demonstrate on simple.lisp** — prove per-step justifications using rune interpreters
-4. **Prove the bridge lemma** `evalOpt_some_eq_eval` to connect back to the original `eval`
+1. **Prove `evalReplaceOpt_toList`** — the key remaining structural lemma
+2. **Close the function-call congruence** using the two helper lemmas
+3. **Handle well-formedness** for the non-symbol-headed case (add precondition or restrict recursion)
+4. **Demonstrate on simple.lisp** — prove per-step justifications using rune interpreters
+5. **Prove `evalOpt_some_eq_eval`** to connect back to the original `eval`
+
+## Updated 2026-03-24
+
+Proved `mapM_evalOpt_congr` (no sorry): pointwise eval-equivalent lists
+give the same result under mapM. This is one of the two lemmas needed
+for the function-call congruence case.
