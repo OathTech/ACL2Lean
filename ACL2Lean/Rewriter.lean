@@ -46,6 +46,61 @@ def containsSubterm (term pattern : SExpr) : Bool :=
   | .cons a b => containsSubterm a pattern || containsSubterm b pattern
   | _ => false
 
+/-- Check whether `pattern` appears inside the body of a QUOTE form in `term`.
+    Used as a proof precondition: the soundness theorem for `replaceFirst` requires
+    that the replacement target does not appear inside any QUOTE, since eval does
+    not traverse QUOTE bodies. ACL2's rewriter never targets subterms inside QUOTE,
+    so this condition is always satisfied by real traces. -/
+def appearsInsideQuote (term pattern : SExpr) : Bool :=
+  match term with
+  | .cons (.atom (.symbol s)) argsExpr =>
+      if s.isNamed "quote" then containsSubterm argsExpr pattern
+      else appearsInsideQuote argsExpr pattern
+  | .cons a b => appearsInsideQuote a pattern || appearsInsideQuote b pattern
+  | _ => false
+
+/-- Eval-aware replacement: like `replaceFirstOpt` but only recurses into the
+    cdr (tail) of cons cells, never the car (head). This ensures replacement
+    never targets the function-head position, which eval pattern-matches on
+    rather than evaluating. Also skips inside QUOTE bodies.
+
+    This is the replacement function that has a provable soundness theorem. -/
+def evalReplaceOpt (term pattern replacement : SExpr) : Option SExpr :=
+  if term == pattern then some replacement
+  else match term with
+  | .cons (.atom (.symbol s)) argsExpr =>
+      if s.isNamed "quote" then none  -- skip inside QUOTE
+      else
+        -- Recurse into argsExpr only, NOT the head symbol.
+        -- argsExpr is a cons-list of arguments; recursion traverses
+        -- both the list spine and into each argument (via the second branch).
+        match evalReplaceOpt argsExpr pattern replacement with
+        | some args' => some (.cons (.atom (.symbol s)) args')
+        | none => none
+  | .cons a b =>
+      -- Non-symbol head (argument list spine, or malformed term).
+      -- Recurse into both car and cdr: car holds a function argument
+      -- that eval will evaluate, cdr holds the rest of the argument list.
+      match evalReplaceOpt a pattern replacement with
+      | some a' => some (.cons a' b)
+      | none =>
+        match evalReplaceOpt b pattern replacement with
+        | some b' => some (.cons a b')
+        | none => none
+  | _ => none
+
+/-- Eval-aware replacement (total version). Returns term unchanged if no match. -/
+def evalReplace (term pattern replacement : SExpr) : SExpr :=
+  (evalReplaceOpt term pattern replacement).getD term
+
+/-- Apply a single rewrite step using eval-aware replacement. -/
+def applyEvalRewriteStep (step : RewriteStep) (term : SExpr) : SExpr :=
+  evalReplace term step.lhs step.rhs
+
+/-- Apply a sequence of rewrite steps using eval-aware replacement. -/
+def applyEvalRewriteSteps (steps : List RewriteStep) (term : SExpr) : SExpr :=
+  steps.foldl (fun t s => applyEvalRewriteStep s t) term
+
 /-- Apply a single rewrite step: find LHS in term, replace with RHS.
     If LHS is not found (intermediate ACL2 rewrite), term is unchanged. -/
 def applyRewriteStep (step : RewriteStep) (term : SExpr) : SExpr :=
