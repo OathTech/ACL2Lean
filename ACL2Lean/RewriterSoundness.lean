@@ -9,6 +9,13 @@
   - Never replaces the head symbol of a function call (eval dispatches on it)
   - Never replaces inside QUOTE bodies (eval returns them as raw data)
   - Recurses into both car (arguments) and cdr (argument list spine)
+
+  Precondition: LHS must be symbol-headed (a function call pattern like
+  `(f arg1 arg2 ...)`). This is always true for ACL2 proof traces.
+  It ensures:
+  1. Bare atoms and nil never match the pattern
+  2. Argument list spines never match the pattern
+  3. Only genuine subterm occurrences at eval-evaluated positions are replaced
 -/
 import ACL2Lean.Rewriter
 import ACL2Lean.EvalOpt
@@ -17,22 +24,17 @@ namespace ACL2.Rewriter
 
 open ACL2
 
-/-! ## Helper: evalReplaceOpt preserves toList structure -/
+/-! ## Helper lemma: atoms/nil never match a symbol-headed pattern -/
 
-/-- When `evalReplaceOpt` on a proper list succeeds, the result has the same
-    `toList?` length and differs in at most one element (which is the
-    `evalReplace` of the original). -/
-theorem evalReplaceOpt_toList (argsExpr lhs rhs : SExpr)
-    (args : List SExpr) (args' : SExpr)
-    (h_list : argsExpr.toList? = some args)
-    (h_replace : evalReplaceOpt argsExpr lhs rhs = some args') :
-    ∃ args'_list : List SExpr,
-      args'.toList? = some args'_list ∧
-      args'_list.length = args.length ∧
-      (∀ (i : Nat), ∀ (x : SExpr), args[i]? = some x →
-        ∃ (x' : SExpr), args'_list[i]? = some x' ∧
-          (x' = x ∨ x' = evalReplace x lhs rhs)) := by
-  sorry
+/-- evalReplaceOpt on nil returns none when pattern is a cons. -/
+theorem evalReplaceOpt_nil_of_cons (ca cb rhs : SExpr) :
+    evalReplaceOpt SExpr.nil (SExpr.cons ca cb) rhs = none := by
+  unfold evalReplaceOpt; simp
+
+/-- evalReplaceOpt on an atom returns none when pattern is a cons. -/
+theorem evalReplaceOpt_atom_of_cons (a : Atom) (ca cb rhs : SExpr) :
+    evalReplaceOpt (SExpr.atom a) (SExpr.cons ca cb) rhs = none := by
+  unfold evalReplaceOpt; simp
 
 /-! ## Helper: mapM congruence for eval -/
 
@@ -63,59 +65,56 @@ theorem mapM_evalOpt_congr (f : Nat) (w : World) (env : Env)
 
 /-- The main soundness theorem for `evalReplace`.
 
-    If `lhs` and `rhs` are eval-equivalent at all fuel levels, then
-    replacing `lhs` with `rhs` in `term` (using eval-aware replacement)
-    preserves the eval result.
+    LHS must be symbol-headed (`lhs = .cons (.atom (.symbol lhsHead)) lhsArgs`).
+    This ensures the pattern only matches at eval-evaluated positions (function
+    calls), not at structural positions (argument list spines, nil, atoms).
 
-    Proof by structural induction on `term`, generalized over fuel.
-    The two remaining sorry's are:
-    - evalReplaceOpt_toList (structural lemma about list preservation)
-    - mapM_evalOpt_congr (pointwise congruence for Option.mapM)
-    Both are self-contained and provable by straightforward induction. -/
+    The `∀ f` quantification on the hypothesis works because `evalOpt`
+    returns `none` on fuel exhaustion. -/
 theorem evalReplace_sound (fuel : Nat) (w : World) (env : Env)
-    (term lhs rhs : SExpr)
-    (h_eq : ∀ f, evalOpt f w env lhs = evalOpt f w env rhs) :
-    evalOpt fuel w env (evalReplace term lhs rhs) = evalOpt fuel w env term := by
+    (term : SExpr) (lhsHead : Symbol) (lhsArgs rhs : SExpr)
+    (h_eq : ∀ f, evalOpt f w env (.cons (.atom (.symbol lhsHead)) lhsArgs)
+                  = evalOpt f w env rhs) :
+    evalOpt fuel w env (evalReplace term (.cons (.atom (.symbol lhsHead)) lhsArgs) rhs)
+    = evalOpt fuel w env term := by
+  -- Abbreviation for readability
+  let lhs := SExpr.cons (.atom (.symbol lhsHead)) lhsArgs
   -- Generalize fuel so IH applies at any fuel level
-  suffices h : ∀ f, evalOpt f w env (evalReplace term lhs rhs) = evalOpt f w env term from h fuel
+  suffices h : ∀ f, evalOpt f w env (evalReplace term lhs rhs)
+                    = evalOpt f w env term from h fuel
   induction term with
   | nil =>
-    intro f; simp only [evalReplace]; unfold evalReplaceOpt
-    split
-    · next h_beq => simp [Option.getD]; rw [eq_of_beq h_beq]; exact (h_eq f).symm
-    · simp
+    intro f; unfold evalReplace; rw [evalReplaceOpt_nil_of_cons]; rfl
   | atom a =>
-    intro f; simp only [evalReplace]; unfold evalReplaceOpt
-    split
-    · next h_beq => simp [Option.getD]; rw [eq_of_beq h_beq]; exact (h_eq f).symm
-    · simp
+    intro f; unfold evalReplace; rw [evalReplaceOpt_atom_of_cons]; rfl
   | cons a b iha ihb =>
     intro f; simp only [evalReplace]; unfold evalReplaceOpt
     split
     · next h_beq => -- Whole term matches lhs
-      simp [Option.getD]; rw [eq_of_beq h_beq]; exact (h_eq f).symm
-    · -- term ≠ lhs: need split on the inner match
+      simp; rw [eq_of_beq h_beq]; exact (h_eq f).symm
+    · next h_nbeq => -- term ≠ lhs
+      -- Need to split on whether a is .atom (.symbol s) or not
       sorry
 
 /-! ## Step and chain composition -/
 
-/-- Single-step soundness. -/
+/-- Single-step soundness (for symbol-headed LHS). -/
 theorem applyEvalRewriteStep_sound (fuel : Nat) (w : World) (env : Env)
     (step : RewriteStep) (term : SExpr)
+    (lhsHead : Symbol) (lhsArgs : SExpr)
+    (h_lhs : step.lhs = SExpr.cons (.atom (.symbol lhsHead)) lhsArgs)
     (h_eq : ∀ f, evalOpt f w env step.lhs = evalOpt f w env step.rhs) :
-    evalOpt fuel w env (applyEvalRewriteStep step term) = evalOpt fuel w env term :=
-  evalReplace_sound fuel w env term step.lhs step.rhs h_eq
+    evalOpt fuel w env (applyEvalRewriteStep step term) = evalOpt fuel w env term := by
+  simp only [applyEvalRewriteStep, h_lhs]
+  exact evalReplace_sound fuel w env term lhsHead lhsArgs step.rhs
+    (fun f => by rw [← h_lhs]; exact h_eq f)
 
 /-- Multi-step soundness. -/
 theorem applyEvalRewriteSteps_sound (fuel : Nat) (w : World) (env : Env)
     (steps : List RewriteStep) (term : SExpr)
+    (h_compound : ∀ s ∈ steps, ∃ head args, s.lhs = SExpr.cons (.atom (.symbol head)) args)
     (h_eqs : ∀ s ∈ steps, ∀ f, evalOpt f w env s.lhs = evalOpt f w env s.rhs) :
     evalOpt fuel w env (applyEvalRewriteSteps steps term) = evalOpt fuel w env term := by
-  unfold applyEvalRewriteSteps
-  induction steps generalizing term with
-  | nil => simp [List.foldl]
-  | cons step rest ih =>
-    simp only [List.foldl]
-    sorry
+  sorry
 
 end ACL2.Rewriter
