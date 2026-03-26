@@ -35,6 +35,10 @@ inductive TraceEvent where
   | branchSubstitution (equivalence : SExpr) (lhs : SExpr) (rhs : SExpr)
   | contextSubst (var : SExpr) (value : SExpr) (justification : SExpr)
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
+  | beginInnerRewrite (kind : String)
+  | endInnerRewrite (kind : String)
+  | beginIfRewrite (test : SExpr) (unrewrittenTest : SExpr)
+  | endIfRewrite (test : SExpr) (result : SExpr)
   deriving Repr
 
 /-- A single waterfall step from ACL2's structured proof output. -/
@@ -230,6 +234,28 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           | _ => true
         let justification := (lookupKeyword "justification" rest).getD .nil
         pure (.typeSetReasoning term result notFlg justification)
+    | .atom (.keyword "begin-inner-rewrite") :: rest =>
+        let kind := match lookupKeyword "kind" rest with
+          | some (.atom (.symbol s)) => s.name
+          | some (.atom (.keyword k)) => k
+          | _ => "unknown"
+        pure (.beginInnerRewrite kind)
+    | .atom (.keyword "end-inner-rewrite") :: rest =>
+        let kind := match lookupKeyword "kind" rest with
+          | some (.atom (.symbol s)) => s.name
+          | some (.atom (.keyword k)) => k
+          | _ => "unknown"
+        pure (.endInnerRewrite kind)
+    | .atom (.keyword "begin-if-rewrite") :: rest =>
+        let test ← lookupKeyword "test" rest
+          |>.elim (throw "BEGIN-IF-REWRITE: missing :TEST") pure
+        let unrewrittenTest := (lookupKeyword "unrewritten-test" rest).getD .nil
+        pure (.beginIfRewrite test unrewrittenTest)
+    | .atom (.keyword "end-if-rewrite") :: rest =>
+        let test ← lookupKeyword "test" rest
+          |>.elim (throw "END-IF-REWRITE: missing :TEST") pure
+        let result := (lookupKeyword "result" rest).getD .nil
+        pure (.endIfRewrite test result)
     | _ => throw s!"Unknown trace event: {repr s}"
   | none => throw s!"Expected list trace event, got: {repr s}"
 

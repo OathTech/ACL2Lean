@@ -109,6 +109,47 @@ def main (args : List String) : IO Unit := do
             | .qed =>
                 IO.println "  QED"
       | .error e => IO.eprintln s!"Parse error: {e}"
+  | ["dump-proof-tree", path] => do
+      let contents ← IO.FS.readFile path
+      match ACL2.ProofLog.parse contents with
+      | .error e => IO.eprintln s!"Parse error: {e}"
+      | .ok log =>
+          let proofs := ACL2.buildAllTheoremProofs log
+          if proofs.isEmpty then
+            IO.eprintln "No theorems found in proof log"
+          else
+            for proof in proofs do
+              IO.println s!"\n══ {proof.name} ══"
+              if let some ind := proof.induction then
+                IO.println s!"  Induction on {repr ind.term} → {ind.subgoalCount} subgoals"
+              for c in proof.cases do
+                IO.println s!"\n  ── {c.clauseId} ──"
+                IO.println s!"  Clause ({c.clause.length} literals):"
+                let mut li := 0
+                for lit in c.clause do
+                  IO.println s!"    [{li}] {lit}"
+                  li := li + 1
+                for lp in c.literalProofs do
+                  IO.println s!"\n  Literal {lp.index} (notFlg={lp.notFlg}):"
+                  IO.println s!"    Input:  {lp.literal}"
+                  IO.println s!"    Result: {lp.result}"
+                  if lp.steps.isEmpty then
+                    IO.println "    (no rewrites)"
+                  else
+                    IO.println s!"    Steps ({lp.steps.length}):"
+                    let mut si := 0
+                    for s in lp.steps do
+                      let mut line := s!"      [{si}] {s.rune.1}:{s.rune.2}"
+                      IO.println line
+                      IO.println s!"           LHS: {s.lhs}"
+                      IO.println s!"           RHS: {s.rhs}"
+                      for bd in s.branchDecisions do
+                        match bd with
+                        | .true t j =>
+                          IO.println s!"           BRANCH-TRUE  {t}  ({repr j})"
+                        | .false t j =>
+                          IO.println s!"           BRANCH-FALSE {t}  ({repr j})"
+                      si := si + 1
   | _ => do
       IO.println "Usage:"
       IO.println "  acl2lean report"
@@ -117,3 +158,4 @@ def main (args : List String) : IO Unit := do
       IO.println "  acl2lean gen-world file.lisp"
       IO.println "  acl2lean metadata file.lisp [theorem]"
       IO.println "  acl2lean parse-proof-log file.proof-log"
+      IO.println "  acl2lean dump-proof-tree file.proof-log"
