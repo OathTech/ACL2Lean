@@ -1,7 +1,6 @@
 import Tests.ParserTest
 import Tests.LogicTest
 import Tests.TranslatorTest
-import Tests.EvaluatorTest
 import Tests.SyntaxTest
 import Tests.CountTest
 import Tests.LexorderTest

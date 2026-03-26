@@ -5,7 +5,7 @@
   Output format:
   - SExpr constants for each defun body (as data, not Lean functions)
   - A World definition mapping function names to (formals, body) pairs
-  - Theorem statements using `eval` with `sorry`
+  - Theorem statements using `evalOpt` with `sorry`
 -/
 import ACL2Lean.Syntax
 import ACL2Lean.Translator
@@ -55,7 +55,7 @@ def generateWorld (bookName : String) (events : List Event) : String := Id.run d
   let mut lines : Array String := #[]
 
   -- Header
-  lines := lines.push "import ACL2Lean.Eval"
+  lines := lines.push "import ACL2Lean.EvalOpt"
   lines := lines.push ""
   lines := lines.push "open ACL2"
   lines := lines.push ""
@@ -100,7 +100,7 @@ def generateWorld (bookName : String) (events : List Event) : String := Id.run d
     lines := lines.push s!"  {Translator.translateLiteral body}"
     lines := lines.push ""
     lines := lines.push s!"theorem {ln} (env : Env) :"
-    lines := lines.push s!"    eval defaultFuel world env {ln}Formula = SExpr.t := sorry"
+    lines := lines.push s!"    ∃ N, ∀ f, f ≥ N → evalOpt f world env {ln}Formula = some SExpr.t := sorry"
     lines := lines.push ""
 
   -- Footer

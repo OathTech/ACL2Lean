@@ -1,87 +1,325 @@
 /-
-  Option-returning ACL2 evaluator for soundness proofs.
+  ACL2 evaluator: the semantic definition of what ACL2 terms mean.
 
-  Structurally identical to `eval` but returns `Option SExpr`:
-  - `none` means fuel exhaustion (computation incomplete)
-  - `some v` means successful evaluation to value `v`
+  Returns `Option SExpr`: `none` = fuel exhaustion, `some v` = value.
+  This distinction is critical for soundness proofs — it avoids conflating
+  fuel exhaustion with legitimate nil results.
 
-  This distinction is critical for the verified rewriter's soundness proof:
-  at insufficient fuel, `evalOpt f w env lhs = none = evalOpt f w env rhs`,
-  so the hypothesis `∀ f, evalOpt f w env lhs = evalOpt f w env rhs` holds
-  trivially. With the original `eval` (which returns `.nil` for fuel exhaustion),
-  intermediate fuel levels can produce `.nil` on one side and a real value on
-  the other, breaking the universal quantification.
+  The evaluator is factored into `evalOptStep` (non-recursive body) and
+  `evalOpt` (fuel-bounded recursion calling evalOptStep). This factoring
+  makes fuel monotonicity provable without fighting Lean's term reduction.
 -/
-import ACL2Lean.Eval
+import ACL2Lean.Syntax
+import ACL2Lean.Logic
+import ACL2Lean.Parser
 
 namespace ACL2
+
+/-- Bind function formals to argument values, producing a new environment. -/
+def bindArgs : List Symbol → List SExpr → Env
+  | f :: fs, v :: vs => (bindArgs fs vs).insert f v
+  | _, _ => {}
+
+/-- Dispatch an ACL2 built-in primitive by normalized name.
+    Returns SExpr.nil for unknown functions or wrong arity. -/
+def callBuiltin (name : String) (args : List SExpr) : SExpr :=
+  match name, args with
+  | "cons", [a, b] => .cons a b
+  | "car", [a] => Logic.car a
+  | "cdr", [a] => Logic.cdr a
+  | "consp", [a] => Logic.consp a
+  | "atom", [a] => Logic.atom a
+  | "endp", [a] => Logic.endp a
+  | "equal", [a, b] => Logic.equal a b
+  | "eql", [a, b] => Logic.equal a b
+  | "not", [a] => Logic.not a
+  | "binary-+", [a, b] => Logic.plus a b
+  | "binary-*", [a, b] => Logic.times a b
+  | "unary--", [a] =>
+      let (n, d) := Logic.toRat a
+      Logic.mkNumber (-n) d
+  | "unary-/", [a] =>
+      let (n, d) := Logic.toRat a
+      if n == 0 then .atom (.number (.int 0))
+      else if n > 0 then Logic.mkNumber (Int.ofNat d) n.natAbs
+      else Logic.mkNumber (-(Int.ofNat d)) n.natAbs
+  | "+", [a, b] => Logic.plus a b
+  | "-", [a] =>
+      let (n, d) := Logic.toRat a
+      Logic.mkNumber (-n) d
+  | "-", [a, b] => Logic.minus a b
+  | "*", [a, b] => Logic.times a b
+  | "1+", [a] => Logic.plus (.atom (.number (.int 1))) a
+  | "1-", [a] => Logic.minus a (.atom (.number (.int 1)))
+  | "<", [a, b] => Logic.lt a b
+  | "integerp", [a] => Logic.integerp a
+  | "natp", [a] => Logic.natp a
+  | "posp", [a] => Logic.posp a
+  | "rationalp", [a] =>
+      match a with | .atom (.number _) => .t | _ => .nil
+  | "acl2-numberp", [a] =>
+      match a with | .atom (.number _) => .t | _ => .nil
+  | "zp", [a] => Logic.zp a
+  | "symbolp", [a] =>
+      match a with | .atom (.symbol _) | .nil => .t | _ => .nil
+  | "stringp", [a] => Logic.stringp a
+  | "fix", [a] =>
+      match a with | .atom (.number _) => a | _ => .atom (.number (.int 0))
+  | "nfix", [a] =>
+      match a with
+      | .atom (.number (.int n)) => if n >= 0 then a else .atom (.number (.int 0))
+      | _ => .atom (.number (.int 0))
+  | "ifix", [a] =>
+      match a with | .atom (.number (.int _)) => a | _ => .atom (.number (.int 0))
+  | "implies", [a, b] => Logic.implies a b
+  | "iff", [a, b] => Logic.iff a b
+  | "true-listp", [a] => Logic.trueListp a
+  | "len", [a] => Logic.len a
+  | "list", xs => SExpr.ofList xs
+  | "force", [a] => a
+  | "double-rewrite", [a] => a
+  | "hide", [a] => a
+  | _, _ => .nil
+
+/-- One step of the option-returning evaluator, parameterized by the
+    recursive evaluator function. Factored out so that monotonicity
+    can be proved about this non-recursive function directly. -/
+def evalOptStep (rec : World → Env → SExpr → Option SExpr)
+    (w : World) (env : Env) (term : SExpr) : Option SExpr :=
+  match term with
+  | .nil => some .nil
+  | .atom (.number n) => some (.atom (.number n))
+  | .atom (.string s) => some (.atom (.string s))
+  | .atom (.keyword k) => some (.atom (.keyword k))
+  | .atom (.symbol s) =>
+      match env.get? s with
+      | some v => some v
+      | none =>
+          if s.isNamed "t" then some SExpr.t
+          else some .nil
+  | .cons (.atom (.symbol s)) argsExpr =>
+      if s.isNamed "quote" then
+        match argsExpr with
+        | .cons v .nil => some v
+        | _ => some .nil
+      else if s.isNamed "if" then
+        match argsExpr.toList? with
+        | some [c, t, e] => do
+            let cv ← rec w env c
+            if Logic.toBool cv then rec w env t else rec w env e
+        | _ => some .nil
+      else if s.isNamed "let" || s.isNamed "let*" then
+        match argsExpr.toList? with
+        | some [bindings, body] =>
+            match bindings.toList? with
+            | some bList => do
+                let env' ← bList.foldlM (fun acc b =>
+                  match b.toList? with
+                  | some [.atom (.symbol var), valExpr] => do
+                      let v ← rec w acc valExpr
+                      pure (acc.insert var v)
+                  | _ => some acc) env
+                rec w env' body
+            | none => some .nil
+        | _ => some .nil
+      else
+        match argsExpr.toList? with
+        | some args => do
+            let argVals ← args.mapM (fun a => rec w env a)
+            match w.defs.get? s with
+            | some (formals, body) =>
+                if formals.length = argVals.length then
+                  rec w (bindArgs formals argVals) body
+                else some .nil
+            | none => some (callBuiltin s.normalizedName argVals)
+        | none => some .nil
+  | _ => some .nil
 
 /-- Option-returning ACL2 evaluator. `none` = fuel exhaustion.
     Structurally mirrors `eval` exactly. -/
 def evalOpt (fuel : Nat) (w : World) (env : Env) (term : SExpr) : Option SExpr :=
   match fuel with
   | 0 => none
-  | fuel + 1 =>
-    match term with
-    | .nil => some .nil
-    | .atom (.number n) => some (.atom (.number n))
-    | .atom (.string s) => some (.atom (.string s))
-    | .atom (.keyword k) => some (.atom (.keyword k))
-    | .atom (.symbol s) =>
-        match env.get? s with
-        | some v => some v
-        | none =>
-            if s.isNamed "t" then some SExpr.t
-            else some .nil  -- NIL or unbound variable
-    | .cons (.atom (.symbol s)) argsExpr =>
-        if s.isNamed "quote" then
-          match argsExpr with
-          | .cons v .nil => some v
-          | _ => some .nil
-        else if s.isNamed "if" then
-          match argsExpr.toList? with
-          | some [c, t, e] => do
-              let cv ← evalOpt fuel w env c
-              if Logic.toBool cv then
-                evalOpt fuel w env t
-              else
-                evalOpt fuel w env e
-          | _ => some .nil
-        else if s.isNamed "let" || s.isNamed "let*" then
-          match argsExpr.toList? with
+  | fuel + 1 => evalOptStep (evalOpt fuel) w env term
+
+/-! ## Generic Option-monad monotonicity helpers -/
+
+/-- If every element maps successfully under `f`, and `g` agrees with `f` on
+    successful outputs, then `mapM g` also succeeds with the same result. -/
+theorem List.mapM_option_mono {f g : α → Option β} {l : List α} {vs : List β}
+    (hmono : ∀ a, a ∈ l → ∀ v, f a = some v → g a = some v)
+    (h : l.mapM f = some vs) :
+    l.mapM g = some vs := by
+  induction l generalizing vs with
+  | nil => simpa [List.mapM_nil] using h
+  | cons x xs ih =>
+    simp only [List.mapM_cons] at h ⊢
+    cases hfx : f x with
+    | none => simp [hfx] at h
+    | some vx =>
+      cases hfxs : List.mapM f xs with
+      | none => simp [hfx, hfxs] at h
+      | some vtl =>
+        simp [hfx, hfxs] at h; subst h
+        simp [hmono x (.head ..) vx hfx, ih (fun a ha => hmono a (.tail _ ha)) hfxs]
+
+/-- If every step maps successfully under `f`, and `g` agrees with `f` on
+    successful outputs, then `foldlM g` also succeeds with the same result. -/
+theorem List.foldlM_option_mono {f g : β → α → Option β} {l : List α} {init result : β}
+    (hmono : ∀ acc a, a ∈ l → ∀ v, f acc a = some v → g acc a = some v)
+    (h : l.foldlM f init = some result) :
+    l.foldlM g init = some result := by
+  induction l generalizing init with
+  | nil => simpa [List.foldlM_nil] using h
+  | cons x xs ih =>
+    simp only [List.foldlM_cons] at h ⊢
+    cases hfx : f init x with
+    | none => simp [hfx] at h
+    | some mid =>
+      simp [hfx] at h
+      simp [hmono init x (.head ..) mid hfx,
+            ih (fun acc a ha => hmono acc a (.tail _ ha)) h]
+
+/-! ## evalOptStep monotonicity helpers -/
+
+/-- Monotonicity of the LET binding fold step. -/
+private theorem letFoldStep_mono
+    (f g : World → Env → SExpr → Option SExpr)
+    (hmono : ∀ w env t v, f w env t = some v → g w env t = some v)
+    (w : World) (acc : Env) (b : SExpr) (mid : Env)
+    (hmid : (match b.toList? with
+      | some [.atom (.symbol var), valExpr] =>
+          (f w acc valExpr).bind fun v => some (acc.insert var v)
+      | _ => some acc) = some mid) :
+    (match b.toList? with
+      | some [.atom (.symbol var), valExpr] =>
+          (g w acc valExpr).bind fun v => some (acc.insert var v)
+      | _ => some acc) = some mid := by
+  match hbl : b.toList? with
+  | some [.atom (.symbol var), valExpr] =>
+    simp only [hbl] at hmid ⊢
+    cases hval : f w acc valExpr with
+    | none => simp [hval] at hmid
+    | some val => simp [hval] at hmid; simp [hmono w acc valExpr val hval, hmid]
+  | some [.nil, _] | some [.atom (.number _), _] | some [.atom (.string _), _]
+  | some [.atom (.keyword _), _] | some [.cons _ _, _]
+  | some (_ :: _ :: _ :: _) | some [_] | some [] | none =>
+    simp only [hbl] at hmid ⊢; exact hmid
+
+/-! ## evalOptStep monotonicity -/
+
+/-- `evalOptStep` is monotone in its function argument: if `f` and `g`
+    agree on successful evaluations, then `evalOptStep f` and `evalOptStep g`
+    agree on successful evaluations. This is the heart of fuel monotonicity,
+    proved about the non-recursive step function. -/
+theorem evalOptStep_mono
+    (f g : World → Env → SExpr → Option SExpr)
+    (hmono : ∀ w env t v, f w env t = some v → g w env t = some v)
+    (w : World) (env : Env) (t : SExpr) (v : SExpr)
+    (h : evalOptStep f w env t = some v) :
+    evalOptStep g w env t = some v := by
+  -- evalOptStep is non-recursive; f and g are opaque parameters.
+  -- Match on t to reduce evalOptStep's dispatch. For non-recursive
+  -- cases, h and goal are definitionally equal (no f/g calls).
+  match t with
+  | .nil | .atom (.number _) | .atom (.string _)
+  | .atom (.keyword _) | .atom (.symbol _) => exact h
+  | .cons (.atom (.number _)) _ | .cons (.atom (.string _)) _
+  | .cons (.atom (.keyword _)) _ | .cons .nil _
+  | .cons (.cons _ _) _ => exact h
+  | .cons (.atom (.symbol s)) argsExpr =>
+    simp only [evalOptStep] at h ⊢
+    by_cases hq : s.isNamed "quote" = true
+    · simp [hq] at h ⊢; exact h
+    · simp [hq] at h ⊢
+      by_cases hif : s.isNamed "if" = true
+      · simp [hif] at h ⊢
+        match htl : argsExpr.toList? with
+        | some [c, t', e] =>
+          simp [htl] at h ⊢
+          cases hc : f w env c with
+          | none => simp [hc] at h
+          | some cv =>
+            simp [hc] at h; simp [hmono w env c cv hc]
+            cases cv with
+            | nil => simp [Logic.toBool] at h ⊢; exact hmono w env e v h
+            | atom _ => simp [Logic.toBool] at h ⊢; exact hmono w env t' v h
+            | cons _ _ => simp [Logic.toBool] at h ⊢; exact hmono w env t' v h
+        | none | some [] | some [_] | some [_, _]
+        | some (_ :: _ :: _ :: _ :: _) => simp only [htl] at h; exact h
+      · simp [hif] at h ⊢
+        by_cases hlet : (s.isNamed "let" || s.isNamed "let*") = true
+        · -- LET branch
+          simp only [Bool.or_eq_true] at hlet
+          simp only [hlet, ite_true] at h ⊢
+          match htl : argsExpr.toList? with
           | some [bindings, body] =>
-              match bindings.toList? with
-              | some bList => do
-                  let env' ← bList.foldlM (fun acc b =>
-                    match b.toList? with
-                    | some [.atom (.symbol var), valExpr] => do
-                        let v ← evalOpt fuel w acc valExpr
-                        pure (acc.insert var v)
-                    | _ => some acc) env
-                  evalOpt fuel w env' body
-              | none => some .nil
-          | _ => some .nil
-        else
-          -- Function call: evaluate args, then dispatch
-          match argsExpr.toList? with
-          | some args => do
-              let argVals ← args.mapM (fun a => evalOpt fuel w env a)
-              match w.defs.get? s with
+            simp only [htl] at h ⊢
+            match hbl : bindings.toList? with
+            | some bList =>
+              simp only [hbl] at h ⊢
+              cases hfold : List.foldlM (fun acc b => match b.toList? with
+                | some [.atom (.symbol var), valExpr] =>
+                    (f w acc valExpr).bind fun v => some (acc.insert var v)
+                | _ => some acc) env bList with
+              | none => simp [hfold] at h
+              | some env' =>
+                simp [hfold] at h
+                have hfold' := List.foldlM_option_mono
+                  (fun acc b _ mid hmid => letFoldStep_mono f g hmono w acc b mid hmid) hfold
+                simp [hfold', hmono w env' _ v h]
+            | none => simp only [hbl] at h; exact h
+          | none | some [] | some [_]
+          | some (_ :: _ :: _ :: _) => simp only [htl] at h; exact h
+        · -- Function call branch
+          simp only [Bool.or_eq_true] at hlet
+          simp only [hlet, ite_false] at h ⊢
+          match htl : argsExpr.toList? with
+          | some args =>
+            simp only [htl] at h ⊢
+            cases hmap : (List.mapM (fun a => f w env a) args) with
+            | none => simp [hmap] at h
+            | some argVals =>
+              simp [hmap] at h
+              simp [List.mapM_option_mono (fun a _ val hval =>
+                hmono w env a val hval) hmap]
+              match hdef : w.defs[s]? with
               | some (formals, body) =>
-                  if formals.length = argVals.length then
-                    evalOpt fuel w (bindArgs formals argVals) body
-                  else some .nil
-              | none => some (callBuiltin s.normalizedName argVals)
-          | none => some .nil
-    | _ => some .nil
+                simp [hdef] at h ⊢
+                by_cases hlen : formals.length = argVals.length
+                · simp [hlen] at h ⊢
+                  exact hmono w (bindArgs formals argVals) body v h
+                · simp [hlen] at h ⊢; exact h
+              | none => simp [hdef] at h ⊢; exact h
+          | none => simp only [htl] at h; exact h
 
-/-! ## Bridge lemma: evalOpt agrees with eval when successful -/
+/-! ## Fuel monotonicity -/
 
-theorem evalOpt_some_eq_eval (fuel : Nat) (w : World) (env : Env) (term : SExpr) (v : SExpr) :
-    evalOpt fuel w env term = some v → eval fuel w env term = v := by
-  sorry -- TODO: prove by induction on fuel, mirroring eval's structure
+/-- Once evalOpt converges, more fuel doesn't change the result. -/
+theorem evalOpt_fuel_mono (f : Nat) (w : World) (env : Env)
+    (t : SExpr) (v : SExpr)
+    (h : evalOpt f w env t = some v) :
+    evalOpt (f + 1) w env t = some v := by
+  induction f generalizing w env t v with
+  | zero => simp [evalOpt] at h
+  | succ n ih =>
+    -- evalOpt (n+1) = evalOptStep (evalOpt n)
+    -- evalOpt (n+2) = evalOptStep (evalOpt (n+1))
+    -- By ih: evalOpt n agrees with evalOpt (n+1) on successful evals
+    -- By evalOptStep_mono: therefore evalOptStep (evalOpt n) agrees with evalOptStep (evalOpt (n+1))
+    exact evalOptStep_mono (evalOpt n) (evalOpt (n + 1)) ih w env t v h
 
-/-! ## Smoke tests — evalOpt agrees with eval on concrete inputs -/
+/-- Fuel sufficiency: if evalOpt converges at fuel N, it gives the same
+    result at any fuel f ≥ N. -/
+theorem evalOpt_ge_fuel (N f : Nat) (w : World) (env : Env)
+    (t : SExpr) (v : SExpr)
+    (h : evalOpt N w env t = some v) (hge : f ≥ N) :
+    evalOpt f w env t = some v := by
+  induction hge with
+  | refl => exact h
+  | step _ ih => exact evalOpt_fuel_mono _ w env t v ih
+
+/-! ## Smoke tests -/
 
 section Tests
 

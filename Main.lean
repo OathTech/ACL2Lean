@@ -36,9 +36,10 @@ def main (args : List String) : IO Unit := do
       | .error e => IO.eprintln s!"Parse error: {e}"
       | .ok (sexpr, _) =>
           let w := ACL2.World.empty
-          match ACL2.Evaluator.eval w {} sexpr with
-          | .error e => IO.eprintln s!"Eval error: {e}"
-          | .ok res => IO.println s!"{repr res}"
+          let fuel := 100000
+          match ACL2.evalOpt fuel w {} sexpr with
+          | none => IO.eprintln "Eval: fuel exhaustion (try a larger fuel)"
+          | some res => IO.println s!"{repr res}"
   | ["eval-in", path, exprStr] => do
       let events ← ACL2.loadEventsFromFile path
       match events with
@@ -48,9 +49,10 @@ def main (args : List String) : IO Unit := do
           match ACL2.Parse.parseSExpr exprStr.toList with
           | .error e => IO.eprintln s!"Parse error: {e}"
           | .ok (sexpr, _) =>
-              match ACL2.Evaluator.eval w {} sexpr with
-              | .error e => IO.eprintln s!"Eval error: {e}"
-              | .ok res => IO.println s!"{repr res}"
+              let fuel := 100000
+              match ACL2.evalOpt fuel w {} sexpr with
+              | none => IO.eprintln "Eval: fuel exhaustion (try a larger fuel)"
+              | some res => IO.println s!"{repr res}"
   | ["gen-world", path] => do
       let events ← ACL2.loadEventsFromFile path
       match events with

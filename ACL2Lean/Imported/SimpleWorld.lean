@@ -1,4 +1,4 @@
-import ACL2Lean.Eval
+import ACL2Lean.EvalOpt
 
 open ACL2
 
@@ -23,7 +23,7 @@ def my_len_my_appFormula : SExpr :=
   (SExpr.cons (SExpr.atom (.symbol { name := "equal" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-len" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-app" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "+" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-len" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-len" })) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil)) SExpr.nil))) SExpr.nil)))
 
 theorem my_len_my_app (env : Env) :
-    eval defaultFuel world env my_len_my_appFormula = SExpr.t := sorry
+    ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t := sorry
 
 end ACL2.Worlds.Simple
 

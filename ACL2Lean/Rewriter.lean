@@ -12,7 +12,7 @@
 -/
 import ACL2Lean.Syntax
 import ACL2Lean.ProofLog
-import ACL2Lean.Eval
+import ACL2Lean.EvalOpt
 import ACL2Lean.Parser
 
 namespace ACL2
@@ -200,14 +200,14 @@ private def expectedBase : SExpr :=
 private def envNilNil : Env :=
   ({} : Env).insert (sym "x") .nil |>.insert (sym "y") .nil
 
-#guard eval 100 simpleWorld envNilNil (applyRewriteSteps baseSteps baseLit) == SExpr.t
+#guard evalOpt 100 simpleWorld envNilNil (applyRewriteSteps baseSteps baseLit) == some SExpr.t
 
 -- Also works for non-trivial Y
 private def envNilList : Env :=
   ({} : Env).insert (sym "x") .nil
     |>.insert (sym "y") (.cons (.atom (.symbol (sym "a"))) .nil)
 
-#guard eval 100 simpleWorld envNilList (applyRewriteSteps baseSteps baseLit) == SExpr.t
+#guard evalOpt 100 simpleWorld envNilList (applyRewriteSteps baseSteps baseLit) == some SExpr.t
 
 /-! ### Inductive case rewrite steps -/
 
@@ -268,7 +268,7 @@ private def envConsList : Env :=
   ({} : Env).insert (sym "x") (.cons (.atom (.number (.int 1))) .nil)
     |>.insert (sym "y") .nil
 
-#guard eval 200 simpleWorld envConsList (applyRewriteSteps stepSteps baseLit) == SExpr.t
+#guard evalOpt 200 simpleWorld envConsList (applyRewriteSteps stepSteps baseLit) == some SExpr.t
 
 /-! ### Edge cases -/
 

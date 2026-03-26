@@ -28,8 +28,7 @@ ACL2Lean/               Lean 4 library
   Logic.lean            ACL2 primitives (car, cdr, cons, arithmetic, predicates, bitwise)
   Count.lean            acl2Count structural size measure + termination lemmas
   Lexorder.lean         Total ordering on SExpr
-  Eval.lean             Total evaluator with fuel (semantic anchor for soundness)
-  Evaluator.lean        Legacy partial evaluator (used by CLI eval commands)
+  EvalOpt.lean          Canonical evaluator (Option-returning, with fuel monotonicity proofs)
   Translator.lean       translateSymbol, translateLiteral, sanitizeName (used by WorldGen)
   WorldGen.lean         Generate World definitions + theorem statements from .lisp
   Rewriter.lean         Subterm replacement guided by proof trace
