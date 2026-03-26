@@ -1,0 +1,485 @@
+This is SBCL 2.6.1, an implementation of ANSI Common Lisp.
+More information about SBCL is available at <http://www.sbcl.org/>.
+
+SBCL is free software, provided as is, with absolutely no warranty.
+It is mostly in the public domain; some portions are provided under
+BSD-style licenses.  See the CREDITS and COPYING files in the
+distribution for more information.
+
+ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ + ACL2 Version 8.6+ (a development snapshot based on ACL2 Version 8.6) +
+ +   built March 26, 2026  16:01:26.                                    +
+ +   (Git commit hash: afe26ad75f6d0763f0ac8a5bc4c250f044ad48e2)        +
+ + Copyright (C) 2026, Regents of the University of Texas.              +
+ + ACL2 comes with ABSOLUTELY NO WARRANTY.  This is free software and   +
+ + you are welcome to redistribute it under certain conditions.  For    +
+ + details, see the LICENSE file distributed with ACL2.                 +
+ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Project-dir-alist:
+((:SYSTEM . "/Users/miked/Projects/ACL2Lean/acl2/books/")).
+Type :help for help.
+Type (quit) to quit completely out of ACL2.
+
+ACL2 !>
+(:BEGIN-PROOF-LOG)
+
+(:DEFTHM MY-LEN-MY-APP)
+
+(:STEP :CLAUSE-ID "Goal" :PROCESSOR SETTLED-DOWN-CLAUSE :RESULT :SUBGOALS
+:RUNES NIL :INPUT-CLAUSE 
+((EQUAL (MY-LEN (MY-APP X Y)) (BINARY-+ (MY-LEN X) (MY-LEN Y)))) :NEW-
+CLAUSES (((EQUAL (MY-LEN (MY-APP X Y)) (BINARY-+ (MY-LEN X) (MY-LEN Y))))))
+
+(:STEP :CLAUSE-ID "Goal" :PROCESSOR PUSH-CLAUSE :RESULT :PROVED :RUNES
+NIL :INPUT-CLAUSE 
+((EQUAL (MY-LEN (MY-APP X Y)) (BINARY-+ (MY-LEN X) (MY-LEN Y)))) :REWRITES
+((:BEGIN-LITERAL :INDEX 1
+                 :LITERAL (EQUAL (MY-LEN (MY-APP X Y))
+                                 (BINARY-+ (MY-LEN X) (MY-LEN Y)))
+                 :NOT-FLG NIL)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP X)
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP X)
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP X)
+                  :RESULT
+                  (IF (CONSP X)
+                      (CONS (CAR X) (MY-APP (CDR X) Y))
+                    Y))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP (MY-APP X Y))
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP (MY-APP X Y))
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP (MY-APP X Y))
+                  :RESULT
+                  (IF (CONSP (MY-APP X Y))
+                      (BINARY-+ '1
+                                (MY-LEN (CDR (MY-APP X Y))))
+                    '0))
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF (CONSP (MY-APP X Y))
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS
+                (IF (CONSP (MY-APP X Y))
+                    (BINARY-+ '1
+                              (MY-LEN (CDR (MY-APP X Y))))
+                  '0))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP X)
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP X)
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP X)
+                  :RESULT
+                  (IF (CONSP X)
+                      (BINARY-+ '1 (MY-LEN (CDR X)))
+                    '0))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP Y)
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP Y)
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP Y)
+                  :RESULT
+                  (IF (CONSP Y)
+                      (BINARY-+ '1 (MY-LEN (CDR Y)))
+                    '0))
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR Y)))
+                  '0))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:END-LITERAL :INDEX 1
+               :RESULT (EQUAL (MY-LEN (MY-APP X Y))
+                              (BINARY-+ (MY-LEN X) (MY-LEN Y)))
+               :BRANCHES 1)
+ (:BEGIN-BRANCH :SEGMENT ((EQUAL (MY-LEN (MY-APP X Y))
+                                 (BINARY-+ (MY-LEN X) (MY-LEN Y)))))
+ (:END-BRANCH)))
+
+
+(:INDUCTION :TERM (MY-APP X Y) :SUBGOAL-COUNT 2 :SCHEME 
+(((CONSP X)
+  (EQUAL (MY-LEN (MY-APP X Y))
+         (BINARY-+ (MY-LEN X) (MY-LEN Y))))
+ ((NOT (CONSP X))
+  (NOT (EQUAL (MY-LEN (MY-APP (CDR X) Y))
+              (BINARY-+ (MY-LEN (CDR X)) (MY-LEN Y))))
+  (EQUAL (MY-LEN (MY-APP X Y))
+         (BINARY-+ (MY-LEN X) (MY-LEN Y))))))
+
+
+(:STEP :CLAUSE-ID "Subgoal *1/2" :PROCESSOR SIMPLIFY-CLAUSE :RESULT
+:PROVED :RUNES 
+((:DEFINITION FIX)
+ (:DEFINITION MY-APP)
+ (:DEFINITION MY-LEN)
+ (:FAKE-RUNE-FOR-TYPE-SET NIL)
+ (:REWRITE UNICITY-OF-0)
+ (:TYPE-PRESCRIPTION MY-LEN))
+ :INPUT-CLAUSE 
+((CONSP X) (EQUAL (MY-LEN (MY-APP X Y)) (BINARY-+ (MY-LEN X) (MY-LEN Y))))
+:REWRITES 
+((:BEGIN-LITERAL :INDEX 1
+                 :LITERAL (CONSP X)
+                 :NOT-FLG NIL)
+ (:END-LITERAL :INDEX 1
+               :RESULT (CONSP X)
+               :BRANCHES 1)
+ (:BEGIN-BRANCH :SEGMENT ((CONSP X)))
+ (:BEGIN-LITERAL :INDEX 2
+                 :LITERAL (EQUAL (MY-LEN (MY-APP X Y))
+                                 (BINARY-+ (MY-LEN X) (MY-LEN Y)))
+                 :NOT-FLG NIL)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:FAKE-RUNE-FOR-ANONYMOUS-ENABLED-RULE NIL)
+                :LHS (CONSP X)
+                :RHS 'NIL)
+ (:IF-TEST-FALSE :TEST 'NIL
+                 :UNREWRITTEN-TEST (CONSP X)
+                 :JUSTIFICATION :REWRITTEN-TO-CONSTANT)
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF 'NIL
+                    (CONS (CAR X) (MY-APP (CDR X) Y))
+                  Y)
+                :RHS Y)
+ (:END-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:DEFINITION MY-APP)
+                :LHS (MY-APP X Y)
+                :RHS Y)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP Y)
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP Y)
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP Y)
+                  :RESULT
+                  (IF (CONSP Y)
+                      (BINARY-+ '1 (MY-LEN (CDR Y)))
+                    '0))
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR Y)))
+                  '0))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:FAKE-RUNE-FOR-ANONYMOUS-ENABLED-RULE NIL)
+                :LHS (CONSP X)
+                :RHS 'NIL)
+ (:IF-TEST-FALSE :TEST 'NIL
+                 :UNREWRITTEN-TEST (CONSP X)
+                 :JUSTIFICATION :REWRITTEN-TO-CONSTANT)
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF 'NIL
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS '0)
+ (:END-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:DEFINITION MY-LEN)
+                :LHS (MY-LEN X)
+                :RHS '0)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP Y)
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP Y)
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP Y)
+                  :RESULT
+                  (IF (CONSP Y)
+                      (BINARY-+ '1 (MY-LEN (CDR Y)))
+                    '0))
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR Y)))
+                  '0))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:BEGIN-INNER-REWRITE :KIND RHS)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:FAKE-RUNE-FOR-ANONYMOUS-ENABLED-RULE NIL)
+                :LHS (ACL2-NUMBERP (MY-LEN Y))
+                :RHS 'T)
+ (:IF-TEST-TRUE :TEST 'T
+                :UNREWRITTEN-TEST (ACL2-NUMBERP X)
+                :JUSTIFICATION :REWRITTEN-TO-CONSTANT)
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS (IF 'T X '0)
+                :RHS X)
+ (:END-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:DEFINITION FIX)
+                :LHS (FIX (MY-LEN Y))
+                :RHS (MY-LEN Y))
+ (:END-INNER-REWRITE :KIND RHS)
+ (:REWRITE-STEP :RUNE (:REWRITE UNICITY-OF-0)
+                :LHS (BINARY-+ '0 (MY-LEN Y))
+                :RHS (MY-LEN Y))
+ (:REWRITE-STEP :RUNE (:EQUAL-SELF NIL)
+                :LHS (EQUAL (MY-LEN Y) (MY-LEN Y))
+                :RHS 'T)
+ (:REWRITTEN-LITERAL :ORIGINAL (EQUAL (MY-LEN (MY-APP X Y))
+                                      (BINARY-+ (MY-LEN X) (MY-LEN Y)))
+                     :RESULT 'T)
+ (:END-LITERAL :INDEX 2
+               :RESULT 'T
+               :BRANCHES 0)
+ (:END-BRANCH)))
+
+
+(:STEP :CLAUSE-ID "Subgoal *1/1" :PROCESSOR SIMPLIFY-CLAUSE :RESULT
+:PROVED :RUNES 
+((:DEFINITION MY-APP)
+ (:DEFINITION MY-LEN)
+ (:FAKE-RUNE-FOR-TYPE-SET NIL)
+ (:REWRITE CDR-CONS)
+ (:REWRITE COMMUTATIVITY-2-OF-+)
+ (:REWRITE COMMUTATIVITY-OF-+))
+ :INPUT-CLAUSE 
+((NOT (CONSP X))
+ (NOT (EQUAL (MY-LEN (MY-APP (CDR X) Y))
+             (BINARY-+ (MY-LEN (CDR X)) (MY-LEN Y))))
+ (EQUAL (MY-LEN (MY-APP X Y))
+        (BINARY-+ (MY-LEN X) (MY-LEN Y))))
+ :REWRITES 
+((:BEGIN-LITERAL :INDEX 1
+                 :LITERAL (NOT (CONSP X))
+                 :NOT-FLG T)
+ (:END-LITERAL :INDEX 1
+               :RESULT (NOT (CONSP X))
+               :BRANCHES 1)
+ (:BEGIN-BRANCH :SEGMENT ((NOT (CONSP X))))
+ (:BEGIN-LITERAL
+      :INDEX 2
+      :LITERAL (NOT (EQUAL (MY-LEN (MY-APP (CDR X) Y))
+                           (BINARY-+ (MY-LEN (CDR X)) (MY-LEN Y))))
+      :NOT-FLG T)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP (MY-APP (CDR X) Y))
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP (MY-APP (CDR X) Y))
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP (MY-APP (CDR X) Y))
+                  :RESULT
+                  (IF (CONSP (MY-APP (CDR X) Y))
+                      (BINARY-+ '1
+                                (MY-LEN (CDR (MY-APP (CDR X) Y))))
+                    '0))
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF (CONSP (MY-APP (CDR X) Y))
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS
+                (IF (CONSP (MY-APP (CDR X) Y))
+                    (BINARY-+ '1
+                              (MY-LEN (CDR (MY-APP (CDR X) Y))))
+                  '0))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP Y)
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP Y)
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP Y)
+                  :RESULT
+                  (IF (CONSP Y)
+                      (BINARY-+ '1 (MY-LEN (CDR Y)))
+                    '0))
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR Y)))
+                  '0))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:BEGIN-INNER-REWRITE :KIND RHS)
+ (:END-INNER-REWRITE :KIND RHS)
+ (:REWRITE-STEP :RUNE (:REWRITE COMMUTATIVITY-OF-+)
+                :LHS (BINARY-+ (MY-LEN (CDR X)) (MY-LEN Y))
+                :RHS (BINARY-+ (MY-LEN Y) (MY-LEN (CDR X))))
+ (:REWRITTEN-LITERAL
+      :ORIGINAL (NOT (EQUAL (MY-LEN (MY-APP (CDR X) Y))
+                            (BINARY-+ (MY-LEN (CDR X)) (MY-LEN Y))))
+      :RESULT (NOT (EQUAL (MY-LEN (MY-APP (CDR X) Y))
+                          (BINARY-+ (MY-LEN Y)
+                                    (MY-LEN (CDR X))))))
+ (:END-LITERAL :INDEX 2
+               :RESULT (NOT (EQUAL (MY-LEN (MY-APP (CDR X) Y))
+                                   (BINARY-+ (MY-LEN Y) (MY-LEN (CDR X)))))
+               :BRANCHES 1)
+ (:BEGIN-BRANCH :SEGMENT ((NOT (EQUAL (MY-LEN (MY-APP (CDR X) Y))
+                                      (BINARY-+ (MY-LEN Y)
+                                                (MY-LEN (CDR X)))))))
+ (:BEGIN-LITERAL :INDEX 3
+                 :LITERAL (EQUAL (MY-LEN (MY-APP X Y))
+                                 (BINARY-+ (MY-LEN X) (MY-LEN Y)))
+                 :NOT-FLG NIL)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:FAKE-RUNE-FOR-ANONYMOUS-ENABLED-RULE NIL)
+                :LHS (CONSP X)
+                :RHS 'T)
+ (:IF-TEST-TRUE :TEST 'T
+                :UNREWRITTEN-TEST (CONSP X)
+                :JUSTIFICATION :REWRITTEN-TO-CONSTANT)
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF 'T
+                    (CONS (CAR X) (MY-APP (CDR X) Y))
+                  Y)
+                :RHS (CONS (CAR X) (MY-APP (CDR X) Y)))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:DEFINITION MY-APP)
+                :LHS (MY-APP X Y)
+                :RHS (CONS (CAR X) (MY-APP (CDR X) Y)))
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:FAKE-RUNE-FOR-ANONYMOUS-ENABLED-RULE NIL)
+                :LHS (CONSP (CONS (CAR X) (MY-APP (CDR X) Y)))
+                :RHS 'T)
+ (:IF-TEST-TRUE :TEST 'T
+                :UNREWRITTEN-TEST (CONSP X)
+                :JUSTIFICATION :REWRITTEN-TO-CONSTANT)
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF 'T
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS (BINARY-+ '1 (MY-LEN (CDR X))))
+ (:BEGIN-INNER-REWRITE :KIND RHS)
+ (:END-INNER-REWRITE :KIND RHS)
+ (:REWRITE-STEP :RUNE (:REWRITE CDR-CONS)
+                :LHS (CDR (CONS (CAR X) (MY-APP (CDR X) Y)))
+                :RHS (MY-APP (CDR X) Y))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP (MY-APP (CDR X) Y))
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP (MY-APP (CDR X) Y))
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP (MY-APP (CDR X) Y))
+                  :RESULT
+                  (IF (CONSP (MY-APP (CDR X) Y))
+                      (BINARY-+ '1
+                                (MY-LEN (CDR (MY-APP (CDR X) Y))))
+                    '0))
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF (CONSP (MY-APP (CDR X) Y))
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS
+                (IF (CONSP (MY-APP (CDR X) Y))
+                    (BINARY-+ '1
+                              (MY-LEN (CDR (MY-APP (CDR X) Y))))
+                  '0))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:DEFINITION MY-LEN)
+                :LHS (MY-LEN (CONS (CAR X) (MY-APP (CDR X) Y)))
+                :RHS (BINARY-+ '1
+                               (MY-LEN (MY-APP (CDR X) Y))))
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:FAKE-RUNE-FOR-ANONYMOUS-ENABLED-RULE NIL)
+                :LHS (CONSP X)
+                :RHS 'T)
+ (:IF-TEST-TRUE :TEST 'T
+                :UNREWRITTEN-TEST (CONSP X)
+                :JUSTIFICATION :REWRITTEN-TO-CONSTANT)
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF 'T
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS (BINARY-+ '1 (MY-LEN (CDR X))))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:REWRITE-STEP :RUNE (:DEFINITION MY-LEN)
+                :LHS (MY-LEN X)
+                :RHS (BINARY-+ '1 (MY-LEN (CDR X))))
+ (:BEGIN-INNER-REWRITE :KIND BODY)
+ (:IF-TEST-UNKNOWN :TEST (CONSP Y)
+                   :UNREWRITTEN-TEST (CONSP X)
+                   :JUSTIFICATION NIL)
+ (:BEGIN-IF-REWRITE :TEST (CONSP Y)
+                    :UNREWRITTEN-TEST (CONSP X))
+ (:END-IF-REWRITE :TEST (CONSP Y)
+                  :RESULT
+                  (IF (CONSP Y)
+                      (BINARY-+ '1 (MY-LEN (CDR Y)))
+                    '0))
+ (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL)
+                :LHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR X)))
+                  '0)
+                :RHS
+                (IF (CONSP Y)
+                    (BINARY-+ '1 (MY-LEN (CDR Y)))
+                  '0))
+ (:END-INNER-REWRITE :KIND BODY)
+ (:BEGIN-INNER-REWRITE :KIND RHS)
+ (:BEGIN-INNER-REWRITE :KIND RHS)
+ (:REWRITE-STEP :RUNE (:REWRITING-EQUIVALENCE NIL)
+                :LHS (BINARY-+ (MY-LEN Y) (MY-LEN (CDR X)))
+                :RHS (MY-LEN (MY-APP (CDR X) Y)))
+ (:END-INNER-REWRITE :KIND RHS)
+ (:REWRITE-STEP :RUNE (:REWRITE COMMUTATIVITY-2-OF-+)
+                :LHS (BINARY-+ (MY-LEN Y)
+                               (BINARY-+ '1 (MY-LEN (CDR X))))
+                :RHS (BINARY-+ '1
+                               (MY-LEN (MY-APP (CDR X) Y))))
+ (:END-INNER-REWRITE :KIND RHS)
+ (:REWRITE-STEP :RUNE (:REWRITE COMMUTATIVITY-OF-+)
+                :LHS (BINARY-+ (BINARY-+ '1 (MY-LEN (CDR X)))
+                               (MY-LEN Y))
+                :RHS (BINARY-+ '1
+                               (MY-LEN (MY-APP (CDR X) Y))))
+ (:REWRITE-STEP :RUNE (:EQUAL-SELF NIL)
+                :LHS (EQUAL (BINARY-+ '1
+                                      (MY-LEN (MY-APP (CDR X) Y)))
+                            (BINARY-+ '1
+                                      (MY-LEN (MY-APP (CDR X) Y))))
+                :RHS 'T)
+ (:REWRITTEN-LITERAL :ORIGINAL (EQUAL (MY-LEN (MY-APP X Y))
+                                      (BINARY-+ (MY-LEN X) (MY-LEN Y)))
+                     :RESULT 'T)
+ (:END-LITERAL :INDEX 3
+               :RESULT 'T
+               :BRANCHES 0)
+ (:END-BRANCH)
+ (:END-BRANCH)))
+
+
+(:QED)
