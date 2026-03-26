@@ -8,8 +8,8 @@ distribution for more information.
 
  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
  + ACL2 Version 8.6+ (a development snapshot based on ACL2 Version 8.6) +
- +   built March 26, 2026  16:01:26.                                    +
- +   (Git commit hash: afe26ad75f6d0763f0ac8a5bc4c250f044ad48e2)        +
+ +   built March 26, 2026  16:50:18.                                    +
+ +   (Git commit hash: 49832bd2597ee3c56ab77c5579a2c809025d9f18)        +
  + Copyright (C) 2026, Regents of the University of Texas.              +
  + ACL2 comes with ABSOLUTELY NO WARRANTY.  This is free software and   +
  + you are welcome to redistribute it under certain conditions.  For    +
@@ -24,7 +24,8 @@ Type (quit) to quit completely out of ACL2.
 ACL2 !>
 (:BEGIN-PROOF-LOG)
 
-(:DEFTHM MY-LEN-MY-APP)
+(:DEFTHM MY-LEN-MY-APP :FORMULA 
+(EQUAL (MY-LEN (MY-APP X Y)) (+ (MY-LEN X) (MY-LEN Y))) :SOURCE :LOCAL)
 
 (:STEP :CLAUSE-ID "Goal" :PROCESSOR SETTLED-DOWN-CLAUSE :RESULT :SUBGOALS
 :RUNES NIL :INPUT-CLAUSE 
