@@ -276,3 +276,329 @@ Workstream C (proof tree replay) is the remaining architectural work.
 Prerequisites are met: fuel monotonicity and fuel sufficiency are
 proved. The corrected congruence (existential-fuel `evalReplace_sound`)
 should be proved as part of the tree replay design, not independently.
+
+## Workstream C: Proof tree replay (design)
+
+Updated: 2026-03-26
+
+### Why the flat model fails (recap)
+
+The current rewriter applies a flat list of `RewriteStep` values via
+`replaceFirst` in a fold. This serialization loses three kinds of
+information:
+
+1. **Scope**: Branch assumptions (e.g., `X1 = A`) are scoped to a
+   branch. Steps that use these assumptions only make sense inside
+   that scope. The flat model can't express this.
+
+2. **Nesting**: Definition expansion creates a sub-proof. Steps inside
+   the expansion reference subterms that exist only in the expanded
+   body, not in the literal. The flat model leaks these into the
+   literal-level step list.
+
+3. **Combination**: When both IF branches are processed (UNKNOWN
+   case), the combined result is a new term that the flat model can't
+   compose from the branch results.
+
+All 14/371 (4%) failures are caused by these. The tree model fixes
+all three by making the nesting explicit.
+
+### ACL2's proof structure (what the tree represents)
+
+ACL2's simplifier processes a theorem through these levels:
+
+```
+Theorem
+  └── Induction (optional)
+      └── Case₁ (clause: disjunction of literals)
+      │   └── Literal₁: no rewrites needed (passes through)
+      │   └── Literal₂: rewrite chain → T
+      │       ├── Step: defn-expand MY-APP → body
+      │       │   └── IF branch decision: (CONSP X) false
+      │       ├── Step: defn-expand MY-LEN → '0
+      │       │   └── IF branch decision: (CONSP X) false
+      │       ├── Step: rewrite UNICITY-OF-0
+      │       └── Result: (EQUAL (MY-LEN Y) (MY-LEN Y)) = T
+      └── Case₂ (with IH)
+          └── ...
+```
+
+Key structural observation: the trace we already emit contains
+almost all of this. The current events — BEGIN/END-LITERAL,
+BEGIN/END-BRANCH, CASE-SPLIT, IF-TEST-TRUE/FALSE/UNKNOWN,
+REWRITE-STEP, REWRITTEN-LITERAL — form the SKELETON of this tree.
+What's missing is sub-proof boundaries inside the rewriter.
+
+### What the trace currently provides vs. what we need
+
+**Already emitted:**
+- Clause structure: `:INPUT-CLAUSE` gives the literal list
+- Literal boundaries: `BEGIN-LITERAL`/`END-LITERAL`
+- Branch structure: `BEGIN-BRANCH`/`END-BRANCH`, `CASE-SPLIT`
+- IF decisions: `IF-TEST-TRUE/FALSE/UNKNOWN` with test and justification
+- Rewrite steps: `REWRITE-STEP` with rune, LHS, RHS
+- Literal results: `REWRITTEN-LITERAL` with original and result
+- Induction: `:INDUCTION` with scheme and subgoal count
+- Branch substitutions: `BRANCH-SUBSTITUTION`, `CONTEXT-SUBST`
+
+**Not emitted (causes the 4% failures):**
+- Sub-proof boundaries for definition expansion (where the body
+  rewriting begins and ends)
+- IF branch rewriting boundaries (when UNKNOWN, both branches are
+  rewritten; the sub-proofs for each branch are invisible)
+- Steps inside definition expansions (suppressed by depth counter)
+
+### Proposed representation: two levels
+
+Rather than emitting the full rewriter recursion tree (which would
+be enormous and fragile), we propose a two-level design:
+
+**Outer level (already exists, minor changes):**
+```
+Theorem → Induction → [Case]
+Case → Clause → [LiteralProof]
+LiteralProof → Literal → [JustifiedStep] → Result
+```
+
+This maps directly to the existing trace structure. No ACL2 changes
+needed for this level.
+
+**Inner level (the new part):**
+
+Each `JustifiedStep` is a rewrite step enriched with its
+justification. The current flat `RewriteStep` (rune + LHS + RHS)
+becomes:
+
+```lean
+structure JustifiedStep where
+  rune : String × String
+  lhs : SExpr
+  rhs : SExpr
+  branchDecisions : List BranchDecision  -- IF decisions inside this step
+
+inductive BranchDecision where
+  | true (test : SExpr) (justification : BranchJustification)
+  | false (test : SExpr) (justification : BranchJustification)
+
+inductive BranchJustification where
+  | clauseAssumption   -- test's truth follows from a negated literal
+  | typeSet            -- test's truth follows from type reasoning
+  | rewrittenConstant  -- test rewrote to 'T or 'NIL
+  | hypothesis         -- test matches an assumption from a branch
+```
+
+The key insight: **the IF-TEST events that currently precede each
+REWRITE-STEP in the flat trace ARE the branch decisions**. They're
+already emitted in the right order. We just need to associate them
+with their step instead of treating them as independent events.
+
+This association can be done entirely in the Lean parser — no ACL2
+changes for 96% of cases.
+
+### Handling the 4% failures
+
+The three failure types need different solutions:
+
+**Scope loss (bsort, 1 case):** An equivalence from
+`find-rewriting-equivalence` fires inside a definition expansion.
+The depth counter suppresses it.
+
+Fix: Remove the depth counter for `find-rewriting-equivalence`
+logging. These events are lightweight (just variable substitutions)
+and carry their own justification. Emit them at all depths, and let
+the Lean parser associate them with the enclosing step.
+
+**Inner step leakage (qsort, 6 cases):** Steps reference subterms
+from inside a definition expansion.
+
+Fix: Add `BEGIN-EXPANSION`/`END-EXPANSION` markers around definition
+body rewriting in `rewrite-fncall`. Steps inside the expansion are
+grouped into the expansion node. The Lean parser builds a sub-tree
+for the expansion; only the outermost LHS/RHS are visible at the
+literal level.
+
+**Branch combination loss (qsort, 7 cases):** Both IF branches are
+rewritten but the combined result requires further simplification.
+
+Fix: Add `BEGIN-IF-BRANCH`/`END-IF-BRANCH` markers around the
+TRUE/FALSE branch rewriting in `rewrite-if-finish` (the UNKNOWN
+case). The combined result is already logged. The Lean parser builds
+a sub-tree for the IF processing.
+
+### ACL2 changes (acl2/ submodule)
+
+Three targeted changes in `rewrite.lisp`:
+
+1. **`rewrite-fncall`** (~line 19766): Add `BEGIN-EXPANSION`/
+   `END-EXPANSION` markers around the definition body rewriting.
+   Remove the depth increment (or keep it but don't use it to
+   suppress logging).
+
+2. **`rewrite-if-finish`** (~line 17277): Add `BEGIN-IF-BRANCH`/
+   `END-IF-BRANCH` markers around the UNKNOWN-case branch rewriting.
+   The existing `IF-TEST-UNKNOWN` + combined-result logging stays.
+
+3. **`rewrite-solidify-rec`** (~line 4750): Remove the depth check
+   for `find-rewriting-equivalence` logging so it emits at all
+   depths.
+
+Estimated: ~30 lines of changes across 3 functions. All existing
+logging stays; we're adding boundary markers and removing
+suppressions.
+
+### Lean types
+
+```lean
+/-- A proof of a single theorem. -/
+structure TheoremProof where
+  name : String
+  formula : SExpr
+  induction : Option InductionScheme
+  cases : List CaseProof
+
+/-- Proof of one induction case (or the single case if no induction). -/
+structure CaseProof where
+  clauseId : String
+  clause : List SExpr        -- input clause (disjunction)
+  targetLiteral : Nat        -- which literal simplifies to T
+  literalProof : LiteralProof
+
+/-- Proof that a literal simplifies to T under clause assumptions. -/
+structure LiteralProof where
+  literal : SExpr
+  steps : List JustifiedStep
+  result : SExpr              -- should be 'T or (EQUAL X X)
+```
+
+### Lean proof checker
+
+```lean
+/-- Check a theorem proof. Returns true if all steps are valid. -/
+def checkTheoremProof (w : World) (proof : TheoremProof) : Bool
+
+/-- Check a single justified step against the world. -/
+def checkStep (w : World) (step : JustifiedStep)
+    (clauseAssumptions : List SExpr) : Bool
+```
+
+The checker verifies:
+- For `defn-expand`: function exists in world, branch decisions are
+  consistent with unfolding the body under clause assumptions
+- For `rewrite`: rule exists (in world's proved theorems or as an
+  axiom), LHS matches the rule's LHS pattern
+- For `type-set`: the type reasoning is valid
+- For `equal-self`, `if-simplify`, `exec-counterpart`: trivially
+  checkable
+
+### Lean soundness theorem
+
+```lean
+theorem checkTheoremProof_sound (w : World) (proof : TheoremProof) :
+    checkTheoremProof w proof = true →
+    ∀ env, ∃ N, ∀ f ≥ N,
+      evalOpt f w env proof.formula = some SExpr.t
+```
+
+Proved by structural induction on the proof:
+1. **Induction**: from the scheme, derive a Lean induction principle
+   on SExpr (using acl2Count). Apply it to decompose into cases.
+2. **Per case**: the clause is `{L₁, ..., Lₙ}`. Assume `¬Lⱼ` for
+   j ≠ targetLiteral. Show the target literal evaluates to T.
+3. **Per step**: per-rule soundness. Each rule type gets its own
+   lemma (proved once):
+   - `defnExpand_sound`: unfolding + branch decisions preserve eval
+   - `rewriteRule_sound`: rule application preserves eval
+   - `typeSetResolve_sound`: type reasoning preserves eval
+4. **Composition**: chain steps using evalReplace + fuel monotonicity
+   (from workstream A).
+
+### Per-rule soundness lemmas needed
+
+**`defnExpand_sound`**: If `f` is defined with body `b` and formals
+`xs`, and the branch decisions are consistent with evaluating `b`
+under the clause assumptions, then
+`evalOpt f w env (f args) = evalOpt f w env result`.
+
+This is the most complex per-rule lemma. It requires:
+- Unfolding evalOpt for function calls
+- Following IF branches according to the branch decisions
+- Using clause assumptions to justify the branch choices
+- Composing fuel bounds
+
+**`rewriteRule_sound`**: If theorem `thm` is proved (in the world or
+as an axiom), and LHS matches `thm`'s LHS under substitution σ,
+then `evalOpt f w env LHS = evalOpt f w env RHS`.
+
+This requires:
+- Pattern matching to extract σ
+- Instantiating the theorem with σ
+- Showing the instantiation is correct
+
+**`equalSelf_sound`**: `(EQUAL X X)` evaluates to T. Trivial.
+
+**`ifSimplify_sound`**: IF with constant test simplifies. Trivial
+from evalOpt's IF case.
+
+**`execCounterpart_sound`**: Ground function application evaluates
+to a known result. Follows from evalOpt + callBuiltin.
+
+### Implementation order
+
+1. **Lean types**: Define `TheoremProof`, `CaseProof`,
+   `LiteralProof`, `JustifiedStep`, `BranchDecision` types.
+   No dependencies.
+
+2. **Lean parser**: Parse the current trace format into the new
+   types. The parser associates IF-TEST events with REWRITE-STEPs.
+   Test on simple.lisp (should work with current trace).
+
+3. **Lean checker**: Implement `checkTheoremProof`. Start with a
+   simple version that just verifies syntactic conditions. Test on
+   simple.lisp.
+
+4. **ACL2 changes**: Add `BEGIN-EXPANSION`/`END-EXPANSION` markers.
+   Remove depth-counter suppressions. Re-capture proof logs for the
+   sorting corpus.
+
+5. **Lean parser update**: Handle the new markers, build sub-trees
+   for expansions. Test on the 4% failure cases.
+
+6. **Per-rule soundness**: Prove `defnExpand_sound`,
+   `rewriteRule_sound`, etc. These use `evalOpt_fuel_mono` and
+   `evalOpt_ge_fuel` from workstream A.
+
+7. **Main soundness theorem**: Prove `checkTheoremProof_sound` by
+   composing the per-rule lemmas.
+
+8. **End-to-end**: Prove `my_len_my_app` from simple.lisp with no
+   sorry.
+
+9. **Scale**: Run on sorting corpus. Debug remaining issues.
+
+### Open questions
+
+1. **Induction**: How does the induction scheme from the trace map
+   to a Lean induction principle? The trace gives us the recursion
+   pattern and case conditions, but we need to construct a
+   well-founded recursion argument in Lean.
+
+2. **Rule instantiation**: When a rewrite rule is applied, the trace
+   gives us LHS/RHS but not the substitution explicitly. We need to
+   reconstruct it by matching the rule's pattern against the step's
+   LHS. This is first-order matching (not unification) — decidable
+   and straightforward.
+
+3. **Hypothesis tracking**: When a rewrite step uses the induction
+   hypothesis (which is a negated literal in the clause), how do we
+   formally connect this to the Lean IH? The IH is `¬Lᵢ`, which
+   gives us `evalOpt f w env Lᵢ = some .nil`, which is equivalent
+   to the equality the step claims.
+
+4. **Axioms**: Built-in ACL2 axioms (CAR-CONS, CDR-CONS, etc.) need
+   to be proved once in Lean and made available to the checker. Many
+   already exist in Logic.lean as simp lemmas.
+
+5. **Previously proved theorems**: When a rewrite references a
+   user-proved theorem from the same book, we need that theorem's
+   proof to be available. This creates a dependency order — theorems
+   must be proved in book order.
