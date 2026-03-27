@@ -121,6 +121,9 @@ def main (args : List String) : IO Unit := do
                   IO.println s!"    rewrites: {rwSteps.length} steps"
                   for rw in rwSteps do
                     IO.println s!"      {rw.rune.1}:{rw.rune.2}"
+            | .defun name formals body =>
+                let formalStr := String.intercalate " " (formals.map (·.name))
+                IO.println s!"\n  DEFUN {name} ({formalStr}) = {body}"
             | .defthm name formula source =>
                 let srcStr := match source with
                   | .local => " [local]"
@@ -173,17 +176,15 @@ def main (args : List String) : IO Unit := do
                     IO.println s!"    Proof tree ({lp.nodes.length} top-level nodes):"
                     printProofNodes lp.nodes 3
   | "check-proof" :: logPath :: srcPaths => do
-      if srcPaths.isEmpty then
-        IO.eprintln "Usage: acl2lean check-proof <proof-log> <source.lisp> [more-sources...]"
-        return
       let contents ← IO.FS.readFile logPath
       match ACL2.ProofLog.parse contents with
       | .error e => IO.eprintln s!"Parse error: {e}"
       | .ok log =>
-          -- Build world from all source files in dependency order.
-          -- Each file's events extend the world cumulatively,
-          -- matching how ACL2 processes include-book chains.
-          let mut world := ACL2.World.empty
+          -- Build world from DEFUN events in the proof log (these
+          -- contain macro-expanded, normalized bodies from ACL2).
+          let mut world := ACL2.ProofChecker.buildWorldFromLog log
+          -- Optionally extend with source files (for definitions not
+          -- in the proof log, e.g., from included books without DEFUN events).
           for srcPath in srcPaths do
             let events ← ACL2.loadEventsFromFile srcPath
             match events with

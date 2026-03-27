@@ -94,6 +94,7 @@ inductive TheoremSource where
 
 /-- A single event in the proof log. -/
 inductive ProofEvent where
+  | defun (name : String) (formals : List Symbol) (body : SExpr)
   | defthm (name : String) (formula : SExpr := .nil) (source : TheoremSource := .unknown)
   | step (s : ProofStep)
   | induction (i : InductionStep)
@@ -389,6 +390,22 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
       | none => throw s!"DEFTHM: bad name: {repr nameExpr}"
     | some [] => throw s!"DEFTHM: missing name"
     | none => throw s!"DEFTHM: expected plist, got {repr rest}"
+  | .cons (.atom (.keyword "defun")) rest =>
+    match rest.toList? with
+    | some (nameExpr :: fields) =>
+      match atomString? nameExpr with
+      | some name =>
+        let formals := match lookupKeyword "formals" fields with
+          | some f => match f.toList? with
+            | some syms => syms.filterMap fun
+              | .atom (.symbol s) => some s
+              | _ => none
+            | none => []
+          | none => []
+        let body := (lookupKeyword "body" fields).getD .nil
+        return .defun name formals body
+      | none => throw s!"DEFUN: bad name: {repr nameExpr}"
+    | _ => throw s!"DEFUN: expected plist, got {repr rest}"
   | _ => throw s!"Unknown proof log event: {repr s}"
 
 /-- Parse a proof log from raw ACL2 output.

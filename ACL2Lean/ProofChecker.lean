@@ -231,6 +231,22 @@ def buildFormulaMap (log : ProofLog) : Std.HashMap String SExpr :=
       else acc
     | _ => acc) builtinAxioms
 
+/-- Build a World from DEFUN events in the proof log.
+    These contain the macro-expanded, normalized bodies that ACL2's
+    rewriter operates on. -/
+def buildWorldFromLog (log : ProofLog) : World :=
+  let defs := log.events.foldl (fun acc ev =>
+    match ev with
+    | .defun name formals body =>
+      let sym : Symbol := { name := name.map Char.toLower }
+      let formalSyms := formals.map fun s => { name := s.name.map Char.toLower : Symbol }
+      acc.insert sym (formalSyms, body)
+    | _ => acc) ({} : Std.HashMap Symbol (List Symbol × SExpr))
+  -- Merge with built-in definitions
+  let defs := builtinDefs.fold (fun acc k v =>
+    if (acc.get? k).isNone then acc.insert k v else acc) defs
+  { defs := defs }
+
 /-! ## Checker context -/
 
 structure CheckerContext where
