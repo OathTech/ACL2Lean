@@ -172,17 +172,24 @@ def main (args : List String) : IO Unit := do
                   else
                     IO.println s!"    Proof tree ({lp.nodes.length} top-level nodes):"
                     printProofNodes lp.nodes 3
-  | ["check-proof", logPath, srcPath] => do
+  | "check-proof" :: logPath :: srcPaths => do
+      if srcPaths.isEmpty then
+        IO.eprintln "Usage: acl2lean check-proof <proof-log> <source.lisp> [more-sources...]"
+        return
       let contents ← IO.FS.readFile logPath
       match ACL2.ProofLog.parse contents with
       | .error e => IO.eprintln s!"Parse error: {e}"
       | .ok log =>
-          -- Build world from the source .lisp file
-          let events ← ACL2.loadEventsFromFile srcPath
-          match events with
-          | .error e => IO.eprintln s!"Load error: {e}"
-          | .ok evs =>
-            let world := ACL2.World.replay evs
+          -- Build world from all source files in dependency order.
+          -- Each file's events extend the world cumulatively,
+          -- matching how ACL2 processes include-book chains.
+          let mut world := ACL2.World.empty
+          for srcPath in srcPaths do
+            let events ← ACL2.loadEventsFromFile srcPath
+            match events with
+            | .error e => IO.eprintln s!"Load error for {srcPath}: {e}"
+            | .ok evs => world := world.extend evs
+          do
             let formulas := ACL2.ProofChecker.buildFormulaMap log
             let proofs := ACL2.buildAllTheoremProofs log
             IO.println s!"Checking {logPath} ({proofs.length} theorems, {formulas.size} formulas)"

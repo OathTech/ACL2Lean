@@ -656,9 +656,13 @@ partial def step (w : World) (event : Event) : World :=
 /-- Replay a script of events. -/
 def empty : World := { package := {}, defs := {}, macros := {} }
 
-/-- Replay a script of events. -/
+/-- Replay a script of events starting from an empty world. -/
 def replay (events : List Event) : World :=
   events.foldl step empty
+
+/-- Replay events extending an existing world. -/
+def extend (w : World) (events : List Event) : World :=
+  events.foldl step w
 
 end World
 
