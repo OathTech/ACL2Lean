@@ -272,12 +272,218 @@ Files removed:
 
 ### What's next
 
-Workstream C (proof tree replay) is the remaining architectural work.
-Prerequisites are met: fuel monotonicity and fuel sufficiency are
-proved. The corrected congruence (existential-fuel `evalReplace_sound`)
-should be proved as part of the tree replay design, not independently.
+Workstream C: proof checker + soundness.
 
-## Workstream C: Proof tree replay (design)
+## What was done (2026-03-27)
+
+### Workstream C steps 1-2, 4-5: completed
+
+**Proof tree types and parser** — `ProofTree.lean` defines recursive
+`ProofNode` tree with `StepProvenance` (origin, runes, parents, subst,
+equivTerm). Parser uses `BEGIN/END-INNER-REWRITE` markers to build
+tree from flat trace. `dump-proof-tree` CLI command for inspection.
+
+**ACL2 structured trace** — complete instrumentation:
+- 44 logging points with unique `:ORIGIN` tags and `TRACE-LOG[id]`
+  comments across `rewrite.lisp` (31) and `simplify.lisp` (13)
+- `BEGIN/END-INNER-REWRITE` markers scope definition body/RHS rewriting
+- `BEGIN/END-IF-REWRITE` markers scope unknown-case IF branch processing
+- Transaction rollback for abandoned definition expansions
+- All depth-zero suppression removed; events emit at all depths
+- `:RUNES` (type-prescription provenance) on type-alist/recognizer/
+  lemma steps
+- `:SUBST` (formal→actual mapping) on definition expansion steps
+- `:EQUIV-TERM` on rewriting-equivalence steps
+- `:FORMULA` and `:SOURCE` on DEFTHM events (imported vs local)
+- Hyphenated keywords renamed to prevent printer line-wrapping
+
+**Corpus validation** — 648 theorems across 10 sorting corpus books,
+0 parse errors. Proof tree audit on simple.lisp confirms correct
+structure with full provenance.
+
+### Files deprecated by the new architecture
+
+The old flat rewriter and its soundness proof are superseded:
+- `Rewriter.lean` — `replaceFirst`/`evalReplace`/`applyRewriteSteps`
+  replaced by proof tree checker (the checker verifies steps, not
+  computes them)
+- `RewriterSoundness.lean` — `evalReplace_sound` (known false) and
+  `replaySteps_sound` replaced by soundness theorem over the checker
+
+These should be deleted when the checker is working.
+
+## Workstream C step 3: Proof checker
+
+### Architecture
+
+The checker replaces the old rewriter. Instead of:
+```
+trace → flat steps → replaceFirst fold → result term
+```
+the new pipeline is:
+```
+trace → ProofNode tree → checker verifies each node → accept/reject
+```
+
+The checker doesn't transform terms. The proof tree already contains
+the LHS/RHS of every step. The checker verifies that each step is
+VALID — that the claimed equality holds under the proof context.
+
+### What the checker verifies per node type
+
+For each `ProofNode` with `rune`, `lhs`, `rhs`, `children`, and
+`provenance`:
+
+**definition expansion** (rune = `(:DEFINITION fn)`):
+1. Look up `fn` in World → formals, body
+2. `provenance.subst` gives the formal→actual mapping
+3. Verify: applying the substitution to the body and following the
+   branch decisions (from children) yields the RHS
+4. Children are sub-proof nodes that justify the body simplification
+
+**rewrite rule** (rune = `(:REWRITE name)`):
+1. Look up `name` in the World's proved theorems (or axiom library)
+2. Extract the rule's formula (e.g., `(EQUAL (+ 0 X) (FIX X))`)
+3. Match the rule's LHS pattern against the step's LHS → substitution σ
+4. Verify: σ applied to the rule's RHS gives (the start of) the step's
+   RHS. Children may further simplify the RHS.
+
+**recognizer / anonymous rule** (rune = `(:FAKE-RUNE-FOR-...)`):
+1. If `provenance.runes` has type-prescription runes: verify the
+   type-prescription is in the World and the conclusion follows
+2. If `provenance.runes` is empty: this is a clause assumption.
+   Verify: the negation of the step's conclusion matches a clause
+   literal (the literal being assumed false).
+
+**equal-self** (rune = `(:EQUAL-SELF)`):
+1. Verify: LHS is `(EQUAL x x)` and RHS is `T`
+
+**if-simplification** (rune = `(:IF-SIMPLIFICATION)`):
+1. Verify: LHS is `(IF test then else)` where test is a constant
+   (`'T` or `'NIL`), and RHS is the appropriate branch
+
+**executable-counterpart** (rune = `(:EXECUTABLE-COUNTERPART fn)`):
+1. Verify: LHS is a ground term (no variables), evaluate it via
+   `evalOpt` with sufficient fuel, check result matches RHS
+
+**rewriting-equivalence** (rune = `(:REWRITING-EQUIVALENCE)`):
+1. `provenance.equivTerm` gives the equality formula
+2. Verify: the equiv-term matches a negated clause literal (the IH
+   or a branch assumption)
+
+**clause-context-resolution** (rune = `(:CLAUSE-CONTEXT-RESOLUTION)`):
+1. The literal was resolved by the clause context. Verify: the
+   result follows from the other clause literals.
+
+### What the checker needs beyond the proof tree
+
+**A World with:**
+- Function definitions (already in `World.defs`)
+- Proved theorem formulas (from DEFTHM events with `:SOURCE :LOCAL`)
+- Imported theorem formulas (from DEFTHM events with `:SOURCE :INCLUDE-BOOK`)
+- Built-in axiom formulas (CAR-CONS, CDR-CONS, UNICITY-OF-0, etc.)
+
+Many built-in axioms already exist in `Logic.lean` as simp lemmas.
+We need to register them as rewrite rule formulas in the World.
+
+**Pattern matching:**
+First-order matching of a rule's LHS pattern against a step's LHS
+to extract the substitution σ. This is decidable and straightforward
+for SExpr terms.
+
+### Implementation plan
+
+**Step 3a: ProofChecker.lean — checker function**
+
+New file. Takes `World` + `TheoremProof` → `Bool`.
+Walk the proof tree, verify each node by the rules above.
+Start with just simple.lisp: definition expansion, rewrite rules,
+equal-self, if-simplification, executable-counterpart.
+
+Test: `checkTheoremProof simpleWorld simpleProof = true`
+
+**Step 3b: Axiom library**
+
+Register built-in ACL2 axioms as theorem formulas accessible to the
+checker. Start with the ones used in simple.lisp:
+- UNICITY-OF-0: `(EQUAL (+ 0 X) (FIX X))`
+- CDR-CONS: `(EQUAL (CDR (CONS X Y)) Y)`
+- COMMUTATIVITY-OF-+: `(EQUAL (+ X Y) (+ Y X))`
+- COMMUTATIVITY-2-OF-+: `(EQUAL (+ X (+ Y Z)) (+ Y (+ X Z)))`
+
+**Step 3c: Pattern matching**
+
+First-order matching for rewrite rule application:
+`match? (pattern : SExpr) (term : SExpr) : Option (List (Symbol × SExpr))`
+Returns the substitution if the pattern matches.
+
+**Step 3d: End-to-end test on simple.lisp**
+
+Parse simple.proof-log → build TheoremProof → check with World →
+should return true for all cases.
+
+### After the checker: proof-producing replay (steps 6-8)
+
+The direct approach: write a function (or tactic) that walks the
+proof tree and **constructs Lean proof terms** for each node. The
+Lean kernel checks each constructed proof. No separate soundness
+theorem is needed — if the proof type-checks, it's correct.
+
+This is strictly better than the checker+soundness approach:
+- No need to state or prove a soundness theorem
+- A bug in the replay produces a type error, not a false theorem
+- The Lean kernel IS the soundness checker
+- Less code, smaller trusted base
+
+```lean
+theorem my_len_my_app (env : Env) :
+    ∃ N, ∀ f ≥ N, evalOpt f simpleWorld env formula = some SExpr.t := by
+  acl2_replay "acl2_samples/simple.proof-log"
+```
+
+The `acl2_replay` tactic:
+1. Parses the proof log at elaboration time
+2. Builds the `TheoremProof` value
+3. Walks the tree, constructing proof terms for each node:
+   - Definition expansion → unfold evalOpt, follow IF branches
+   - Rewrite rule → instantiate the proved theorem, apply
+   - Equal-self → `rfl`
+   - Recognizer/clause assumption → derive from clause context
+   - etc.
+4. Composes per-node proofs into the full theorem proof
+5. The Lean kernel checks the result
+
+The per-node proof constructions use `evalOpt_fuel_mono` and
+`evalOpt_ge_fuel` to compose fuel bounds across the tree.
+
+The Bool checker (step 3) is still useful as a **debugging tool** —
+it validates the proof tree has enough information before we invest
+in constructing proof terms. But it's not load-bearing for
+soundness.
+
+The trajectory:
+1. Bool checker — validates completeness, catches design bugs
+2. Per-node proof construction — for each node type, build the
+   Lean proof term
+3. Tactic — `acl2_replay` composes everything
+
+### Open questions (carried forward)
+
+1. **Induction**: The trace gives the scheme (case clauses). How do
+   we construct a Lean induction principle from this? Likely via
+   `acl2Count` well-founded recursion.
+
+2. **Clause-to-disjunction**: How do we formally state that a clause
+   `{L₁, ..., Lₙ}` is valid iff for all env, at least one Lᵢ is
+   non-NIL? This is the bridge between clause-level reasoning and
+   the evaluator.
+
+3. **Book dependencies**: Theorems from included books are axioms in
+   the current book's proof. Processing books in dependency order
+   (perm → isort → etc.) ensures each theorem is either proved or
+   imported.
+
+## Workstream C historical design notes (superseded)
 
 Updated: 2026-03-26
 
