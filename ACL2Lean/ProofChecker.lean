@@ -232,14 +232,43 @@ def checkExecutableCounterpart (ctx : CheckerContext) (node : ProofNode) : Bool 
       | none => result == rhs
     | none => false
 
-/-- Check a recognizer/anonymous rule step -/
+/-- Check a recognizer/anonymous rule step.
+    This resolves a predicate call to T or NIL based on either:
+    (a) clause assumptions (negation of another literal), or
+    (b) type-prescription reasoning (the function's return type is known). -/
 def checkAnonymousRule (ctx : CheckerContext) (node : ProofNode) : Bool :=
   match node with
   | .node _ lhs rhs _ prov =>
-    -- If provenance has type-prescription runes, accept (v1)
-    if !prov.runes.isEmpty then true
-    -- Otherwise: clause assumption. Check clause context.
-    else clauseJustifies ctx.clause ctx.currentLiteralIndex lhs rhs
+    -- RHS must be a constant ('T or 'NIL)
+    let rhsIsConstant := isQuotedT rhs || isQuotedNil rhs
+    if !rhsIsConstant then false
+    else
+      -- Try clause context first: does the negation of LHS=RHS
+      -- follow from a clause literal?
+      let fromClause := clauseJustifies ctx.clause ctx.currentLiteralIndex lhs rhs
+      if fromClause then true
+      else
+        -- Type-prescription: the step resolves via type reasoning.
+        -- Verify the provenance has type-prescription runes AND
+        -- the LHS is a recognizer/predicate call (i.e., it's a
+        -- function call, not a variable or constant).
+        if !prov.runes.isEmpty then
+          match lhs.headSymbol? with
+          | some _ => true  -- function call with type-prescription justification
+          | none => false   -- not a function call
+        else
+          -- No clause justification and no type-prescription runes.
+          -- Check if LHS is a trivially decidable predicate on a
+          -- constructor (e.g., (CONSP (CONS ...)) = T).
+          match lhs with
+          | .cons (.atom (.symbol fn)) (.cons arg .nil) =>
+            if fn.isNamed "consp" then
+              match arg with
+              | .cons _ _ => isQuotedT rhs  -- (CONSP (CONS ...)) = T
+              | .nil => isQuotedNil rhs     -- (CONSP NIL) = NIL
+              | _ => false
+            else false
+          | _ => false
 
 /-- Check a rewriting-equivalence step (IH application) -/
 def checkRewritingEquivalence (ctx : CheckerContext) (node : ProofNode) : Bool :=
@@ -265,6 +294,54 @@ def checkRewritingEquivalence (ctx : CheckerContext) (node : ProofNode) : Bool :
       | none => false
     | none => false
 
+/-- Expand ACL2 macros in a term to match the rewriter's internal form.
+    + → BINARY-+, * → BINARY-*, bare integers → quoted, etc. -/
+partial def macroExpand (s : SExpr) : SExpr :=
+  match s with
+  | .nil => .nil
+  | .atom (.number n) =>
+    -- Bare number → quoted: 0 → (QUOTE 0)
+    mkCall "quote" [.atom (.number n)]
+  | .atom _ => s
+  | .cons (.atom (.symbol fn)) args =>
+    if fn.isNamed "quote" then s  -- Don't expand inside QUOTE
+    else
+    -- Expand known macros
+    let expandedArgs := macroExpandList args
+    if fn.isNamed "+" then
+      -- (+ a b) → (BINARY-+ a' b')
+      .cons (.atom (.symbol { name := "binary-+" })) expandedArgs
+    else if fn.isNamed "*" then
+      .cons (.atom (.symbol { name := "binary-*" })) expandedArgs
+    else if fn.isNamed "-" then
+      match expandedArgs.toList? with
+      | some [a] => .cons (.atom (.symbol { name := "unary--" })) (SExpr.ofList [a])
+      | _ => .cons (.atom (.symbol { name := "binary-+" })) expandedArgs  -- (- a b) handled differently
+    else
+      .cons (.atom (.symbol fn)) expandedArgs
+  | .cons a b => .cons (macroExpand a) (macroExpand b)
+where
+  macroExpandList : SExpr → SExpr
+    | .nil => .nil
+    | .cons a b => .cons (macroExpand a) (macroExpandList b)
+    | s => macroExpand s
+
+/-- Apply a chain of child rewrites to a term.
+    Each child's LHS is found in the current term and replaced with its RHS.
+    Returns the final term after all children are applied. -/
+def applyChildRewrites (term : SExpr) (children : List ProofNode) : SExpr :=
+  children.foldl (fun t child =>
+    match child with
+    | .node _ childLhs childRhs _ _ =>
+      -- Try to find and replace childLhs in the current term
+      -- Use replaceFirst-style structural replacement
+      let rec replace (s : SExpr) : SExpr :=
+        if s == childLhs then childRhs
+        else match s with
+        | .cons a b => .cons (replace a) (replace b)
+        | _ => s
+      replace t) term
+
 /-- Check a clause-context-resolution step -/
 def checkClauseContextResolution (ctx : CheckerContext) (node : ProofNode) : Bool :=
   match node with
@@ -284,33 +361,72 @@ partial def checkNode (ctx : CheckerContext) (node : ProofNode) : Bool :=
     let childrenOk := fun () => children.all (checkNode ctx)
     match runeType with
     | "definition" =>
-      -- Definition expansion: function must exist, LHS is a call to it
+      -- Definition expansion: unfold the function body, apply the
+      -- substitution, verify children simplify body to match RHS.
       let fnSym : Symbol := { name := runeName }
       let nameLC := runeName.map Char.toLower
       let builtins := ["fix", "nfix", "ifix", "endp", "not", "len",
         "true-listp", "binary-append", "return-last", "mv-nth", "implies"]
-      let inWorld := (ctx.world.defs.get? fnSym).isSome
-      let fnExists := inWorld || builtins.any (· == nameLC)
-      if !fnExists then false
-      else match lhs.headSymbol? with
-        | some headSym => headSym.isNamed runeName && childrenOk ()
+      -- LHS must be a call to the function
+      let lhsOk := match lhs.headSymbol? with
+        | some headSym => headSym.isNamed runeName
         | none => false
+      if !lhsOk then false
+      else
+        match ctx.world.defs.get? fnSym with
+        | some (formals, body) =>
+          -- Build substitution from formals → actual arguments
+          let args := match lhs.toList? with
+            | some (_ :: args) => args
+            | _ => []
+          let substMap := (formals.zip args).foldl
+            (fun acc (f, a) => acc.insert f a) ({} : Std.HashMap Symbol SExpr)
+          -- Apply substitution to body, then macro-expand
+          let instBody := macroExpand (applySubst substMap body)
+          -- Apply child rewrites to the instantiated body
+          let simplified := applyChildRewrites instBody children
+          -- The simplified body should match the step's RHS
+          if simplified == rhs then childrenOk ()
+          else
+            dbg_trace s!"ProofChecker: defn expansion mismatch for '{runeName}'"
+            dbg_trace s!"  expected: {rhs}"
+            dbg_trace s!"  got:      {simplified}"
+            false
+        | none =>
+          -- Built-in function: accept if known, verify children
+          if builtins.any (· == nameLC) then childrenOk ()
+          else
+            dbg_trace s!"ProofChecker: unknown function '{runeName}'"
+            false
     | "rewrite" =>
-      -- Rewrite rule: formula must exist, pattern must match
+      -- Rewrite rule: formula must exist, pattern must match,
+      -- and substituted RHS must match step RHS (or be further
+      -- simplified by children).
       let name := runeName.map Char.toLower
       match ctx.theoremFormulas.get? name with
       | some formula =>
         match extractRewriteRule formula with
-        | some (patLhs, _) =>
+        | some (patLhs, patRhs) =>
           match patternMatch patLhs lhs with
-          | some _ => childrenOk ()
+          | some subst =>
+            -- Apply substitution to rule's RHS
+            let expectedRhs := applySubst subst patRhs
+            -- If no children, the step RHS must match exactly
+            -- If children exist, they further simplify expectedRhs → step RHS
+            let rhsOk := if children.isEmpty then
+              expectedRhs == rhs
+            else
+              -- Children justify the gap between expectedRhs and rhs.
+              -- The children's own LHS/RHS chain should connect them.
+              -- For now: verify children check OK (they validate the
+              -- intermediate simplification steps).
+              true
+            rhsOk && childrenOk ()
           | none =>
             dbg_trace s!"ProofChecker: pattern match failed for '{runeName}'"
-            dbg_trace s!"  pattern: {repr patLhs}"
-            dbg_trace s!"  term:    {repr lhs}"
             false
         | none =>
-          dbg_trace s!"ProofChecker: can't extract rewrite from formula for '{runeName}'"
+          dbg_trace s!"ProofChecker: can't extract rewrite from '{runeName}'"
           false
       | none =>
         dbg_trace s!"ProofChecker: unknown rewrite rule '{runeName}'"
