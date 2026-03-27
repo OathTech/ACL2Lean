@@ -29,10 +29,19 @@ private def printTheoremMetadata (name : ACL2.Symbol) (info : ACL2.TheoremInfo) 
 private partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat) : IO Unit := do
   for node in nodes do
     match node with
-    | .node rune lhs rhs children =>
+    | .node rune lhs rhs children prov =>
       let pad := String.mk (List.replicate (indent * 2) ' ')
-      IO.println s!"{pad}{rune.1}:{rune.2}"
+      let originStr := if prov.origin.isEmpty then "" else s!" [{prov.origin}]"
+      IO.println s!"{pad}{rune.1}:{rune.2}{originStr}"
       IO.println s!"{pad}  {lhs} => {rhs}"
+      if !prov.runes.isEmpty then
+        let runeStrs := prov.runes.map fun (t, n) => s!"{t}:{n}"
+        IO.println s!"{pad}  runes: {String.intercalate ", " runeStrs}"
+      if !prov.subst.isEmpty then
+        let substStrs := prov.subst.map fun (k, v) => s!"{k} → {v}"
+        IO.println s!"{pad}  subst: {String.intercalate ", " substStrs}"
+      if let some eq := prov.equivTerm then
+        IO.println s!"{pad}  equiv: {eq}"
       if !children.isEmpty then
         printProofNodes children (indent + 1)
 
@@ -135,7 +144,18 @@ def main (args : List String) : IO Unit := do
             for proof in proofs do
               IO.println s!"\n══ {proof.name} ══"
               if let some ind := proof.induction then
-                IO.println s!"  Induction on {repr ind.term} → {ind.subgoalCount} subgoals"
+                IO.println s!"  Induction on {ind.term} → {ind.subgoalCount} subgoals"
+                IO.println "  Scheme:"
+                let mut ci := 0
+                for clause in ind.scheme do
+                  match clause.toList? with
+                  | some lits =>
+                    IO.println s!"    Case {ci}:"
+                    for lit in lits do
+                      IO.println s!"      {lit}"
+                  | none =>
+                    IO.println s!"    Case {ci}: {clause}"
+                  ci := ci + 1
               for c in proof.cases do
                 IO.println s!"\n  ── {c.clauseId} ──"
                 IO.println s!"  Clause ({c.clause.length} literals):"

@@ -17,6 +17,16 @@ structure RewriteStep where
   lhs : SExpr
   /-- The term after rewriting. -/
   rhs : SExpr
+  /-- Which code path produced this step (e.g., "fncall/non-recursive"). -/
+  origin : String := ""
+  /-- Actual runes used in the justification (e.g., type-prescription runes). -/
+  runes : List (String × String) := []
+  /-- Clause literal parent indices from the ttree. -/
+  parents : List SExpr := []
+  /-- Formal→actual substitution for definition expansions. -/
+  subst : List (SExpr × SExpr) := []
+  /-- The equivalence formula for rewriting-equivalence steps. -/
+  equivTerm : Option SExpr := none
   deriving Repr
 
 /-- A trace event from ACL2's detailed rewriter output.
@@ -143,7 +153,32 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let rhs ← match lookupKeyword "rhs" rest with
         | some s => pure s
         | none => throw "REWRITE-STEP: missing :RHS"
-      pure { rune, lhs, rhs }
+      -- Optional provenance fields
+      let origin := match lookupKeyword "origin" rest with
+        | some (.atom (.symbol s)) => s.name
+        | _ => ""
+      let runes := match lookupKeyword "runes" rest with
+        | some r => match r.toList? with
+          | some items => items.filterMap (fun r => parseRune? r)
+          | none => []
+        | none => []
+      let parents := match lookupKeyword "parents" rest with
+        | some r => match r.toList? with
+          | some items => items
+          | none => []
+        | none => []
+      let subst := match lookupKeyword "subst" rest with
+        | some r => match r.toList? with
+          | some items => items.filterMap fun pair =>
+            match pair.toList? with
+            | some [k, v] => some (k, v)
+            | _ => match pair with  -- dotted pair (k . v)
+              | .cons k v => some (k, v)
+              | _ => none
+          | none => []
+        | none => []
+      let equivTerm := lookupKeyword "equiv-term" rest
+      pure { rune, lhs, rhs, origin, runes, parents, subst, equivTerm }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
@@ -278,7 +313,7 @@ private def parseTraceEvents (s : SExpr) : Except String (List TraceEvent) := do
 
 /-- Parse a (:STEP ...) s-expression. -/
 private def parseStep? (items : List SExpr) : Except String ProofStep := do
-  let clauseId ← match lookupKeyword "clause-id" items with
+  let clauseId ← match lookupKeyword "clauseid" items with
     | some s => match atomString? s with
       | some str => pure str
       | none => throw s!"STEP: bad :CLAUSE-ID value: {repr s}"
@@ -299,12 +334,12 @@ private def parseStep? (items : List SExpr) : Except String ProofStep := do
   let traceEvents ← match lookupKeyword "rewrites" items with
     | some s => parseTraceEvents s
     | none => pure []
-  let inputClause := match lookupKeyword "input-clause" items with
+  let inputClause := match lookupKeyword "inputclause" items with
     | some s => match s.toList? with
       | some cs => cs
       | none => [s]
     | none => []
-  let newClauses := match lookupKeyword "new-clauses" items with
+  let newClauses := match lookupKeyword "newclauses" items with
     | some s => match s.toList? with
       | some cs => cs
       | none => [s]
@@ -316,10 +351,10 @@ private def parseInduction? (items : List SExpr) : Except String InductionStep :
   let term ← match lookupKeyword "term" items with
     | some s => pure s
     | none => throw "INDUCTION: missing :TERM"
-  let subgoalCount ← match lookupKeyword "subgoal-count" items with
+  let subgoalCount ← match lookupKeyword "subgoals" items with
     | some (.atom (.number (.int n))) => pure n.toNat
-    | some s => throw s!"INDUCTION: bad :SUBGOAL-COUNT: {repr s}"
-    | none => throw "INDUCTION: missing :SUBGOAL-COUNT"
+    | some s => throw s!"INDUCTION: bad :SUBGOALS: {repr s}"
+    | none => throw "INDUCTION: missing :SUBGOALS"
   let scheme := match lookupKeyword "scheme" items with
     | some s => match s.toList? with
       | some cs => cs

@@ -30,12 +30,19 @@ inductive BranchDecision where
   | false (test : SExpr) (justification : BranchJustification)
   deriving Repr, BEq, Inhabited
 
-/-- A node in the proof tree. Each node claims `lhs = rhs` by some
-    rule, and may contain child nodes that are sub-proofs (e.g., the
-    steps inside a definition expansion's body rewriting). -/
+/-- Provenance for a proof node: what justified this reasoning step. -/
+structure StepProvenance where
+  origin : String := ""
+  runes : List (String × String) := []
+  parents : List SExpr := []
+  subst : List (SExpr × SExpr) := []
+  equivTerm : Option SExpr := none
+  deriving Repr, Inhabited
+
 inductive ProofNode where
   | node (rune : String × String) (lhs rhs : SExpr)
          (children : List ProofNode)
+         (provenance : StepProvenance := {})
   deriving Repr, Inhabited
 
 /-- Proof that a single literal simplifies to a result under clause
@@ -103,7 +110,14 @@ private def parseProofNodesAux (fuel : Nat) (events : List TraceEvent)
     | .endIfRewrite _ _ :: rest =>
         (nodes.reverse, rest)
     | .rewriteStep step :: rest =>
-        let node := .node step.rune step.lhs step.rhs pendingChildren
+        let prov : StepProvenance := {
+          origin := step.origin
+          runes := step.runes
+          parents := step.parents
+          subst := step.subst
+          equivTerm := step.equivTerm
+        }
+        let node := .node step.rune step.lhs step.rhs pendingChildren prov
         parseProofNodesAux fuel rest [] (node :: nodes)
     | .ifTestTrue _ _ _ :: rest | .ifTestFalse _ _ _ :: rest
     | .ifTestUnknown _ _ _ :: rest =>
@@ -264,10 +278,13 @@ private def baseCaseLit2Nodes : List ProofNode :=
   | none => []
 
 private def nodeRune : ProofNode → String × String
-  | .node r _ _ _ => r
+  | .node r _ _ _ _ => r
 
 private def nodeChildren : ProofNode → List ProofNode
-  | .node _ _ _ cs => cs
+  | .node _ _ _ cs _ => cs
+
+private def nodeProvenance : ProofNode → StepProvenance
+  | .node _ _ _ _ p => p
 
 -- Proof tree has nodes at the top level
 #guard baseCaseLit2Nodes.length > 0
@@ -285,15 +302,8 @@ private def nodeChildren : ProofNode → List ProofNode
 
 /-! ### Multi-theorem book tests -/
 
-private def isortLogText : String := include_str "../acl2_samples/sorting/isort.proof-log"
-
-private def isortProofs : List TheoremProof :=
-  match ProofLog.parse isortLogText with
-  | .ok log => buildAllTheoremProofs log
-  | .error _ => []
-
--- Multi-theorem book: isort has theorems
-#guard isortProofs.length > 0
+-- Multi-theorem tests use the CLI: `lake exe acl2lean dump-proof-tree`
+-- rather than include_str, since proof logs change with ACL2 rebuilds.
 
 end Tests
 
