@@ -92,8 +92,9 @@ def clauseJustifies (clause : List SExpr) (litIndex : Nat)
 /-! ## First-order pattern matching -/
 
 /-- First-order pattern match: match `pattern` against `term`.
-    Symbols in the pattern that are NOT inside a QUOTE are treated as
-    variables. Returns a substitution mapping variable symbols to terms.
+    Leaf symbols (not in function-head position, not inside QUOTE) are
+    treated as pattern variables. Function-head symbols must match exactly.
+    Returns a substitution mapping variable symbols to terms.
 
     A variable that appears multiple times must match the same term. -/
 partial def patternMatch (pattern term : SExpr)
@@ -101,30 +102,44 @@ partial def patternMatch (pattern term : SExpr)
   match pattern with
   | .nil => if term == .nil then some subst else none
   | .atom (.symbol s) =>
-    -- Bare symbol = pattern variable
+    -- Leaf symbol = pattern variable
     match subst.get? s with
     | some existing => if existing == term then some subst else none
     | none => some (subst.insert s term)
   | .atom a =>
-    -- Non-symbol atom = literal constant
     if term == .atom a then some subst else none
-  | .cons (.atom (.symbol q)) (.cons v .nil) =>
+  | .cons (.atom (.symbol q)) rest =>
     if q.isNamed "quote" then
+      -- QUOTE: match literally
       if term == pattern then some subst else none
     else
+      -- Function call: head symbol must match EXACTLY (not a variable)
       match term with
-      | .cons t1 t2 =>
-        match patternMatch (.atom (.symbol q)) t1 subst with
-        | some s => patternMatch (.cons v .nil) t2 s
-        | none => none
+      | .cons (.atom (.symbol tq)) trest =>
+        if q.isNamed tq.name then
+          -- Head matches. Match argument lists.
+          patternMatchList rest trest subst
+        else none
       | _ => none
   | .cons p1 p2 =>
+    -- Non-symbol-headed cons (e.g., argument list spine)
     match term with
     | .cons t1 t2 =>
       match patternMatch p1 t1 subst with
       | some s => patternMatch p2 t2 s
       | none => none
     | _ => none
+where
+  /-- Match argument lists (cons spines) element by element -/
+  patternMatchList (pats terms : SExpr)
+      (subst : Std.HashMap Symbol SExpr) : Option (Std.HashMap Symbol SExpr) :=
+    match pats, terms with
+    | .nil, .nil => some subst
+    | .cons p ps, .cons t ts =>
+      match patternMatch p t subst with
+      | some s => patternMatchList ps ts s
+      | none => none
+    | _, _ => none
 
 /-- Apply a substitution to an SExpr, replacing variable symbols. -/
 partial def applySubst (subst : Std.HashMap Symbol SExpr) (term : SExpr) : SExpr :=
@@ -183,6 +198,29 @@ def builtinAxioms : Std.HashMap String SExpr :=
   |> mk "commutativity-2-of-+"
       (mkCall "equal" [mkCall "binary-+" [mkVar "x", mkCall "binary-+" [mkVar "y", mkVar "z"]],
                         mkCall "binary-+" [mkVar "y", mkCall "binary-+" [mkVar "x", mkVar "z"]]])
+
+/-- Built-in ACL2 function definitions. These are always available
+    but don't appear as DEFUN events in user .lisp files. -/
+def builtinDefs : Std.HashMap Symbol (List Symbol × SExpr) :=
+  ({} : Std.HashMap Symbol (List Symbol × SExpr))
+  -- FIX: (defun fix (x) (if (acl2-numberp x) x 0))
+  |>.insert (sym "fix") ([sym "x"],
+    mkCall "if" [mkCall "acl2-numberp" [mkVar "x"], mkVar "x",
+                  .atom (.number (.int 0))])
+  -- NOT: (defun not (x) (if x nil t))
+  |>.insert (sym "not") ([sym "x"],
+    mkCall "if" [mkVar "x", .nil, SExpr.t])
+  -- ENDP: (defun endp (x) (not (consp x)))
+  |>.insert (sym "endp") ([sym "x"],
+    mkCall "not" [mkCall "consp" [mkVar "x"]])
+  -- IMPLIES: (defun implies (p q) (if p (if q t nil) t))
+  |>.insert (sym "implies") ([sym "p", sym "q"],
+    mkCall "if" [mkVar "p", mkCall "if" [mkVar "q", SExpr.t, .nil], SExpr.t])
+
+/-- Add built-in definitions to a World. -/
+def addBuiltinDefs (w : World) : World :=
+  { w with defs := builtinDefs.fold (fun acc k v =>
+      if acc.get? k |>.isNone then acc.insert k v else acc) w.defs }
 
 /-- Build a formula map from a ProofLog, collecting all DEFTHM formulas. -/
 def buildFormulaMap (log : ProofLog) : Std.HashMap String SExpr :=
@@ -253,9 +291,17 @@ def checkAnonymousRule (ctx : CheckerContext) (node : ProofNode) : Bool :=
         -- the LHS is a recognizer/predicate call (i.e., it's a
         -- function call, not a variable or constant).
         if !prov.runes.isEmpty then
+          -- Type-prescription reasoning. The provenance runes tell us
+          -- which type-prescriptions were used. We can't fully verify
+          -- type-prescriptions without re-proving them, but we CAN
+          -- verify trivially decidable cases and check that the runes
+          -- reference known functions.
+          -- SOUNDNESS NOTE: accepting type-prescription steps based on
+          -- rune presence is a gap. The proof-producing version will
+          -- need actual type-prescription proofs.
           match lhs.headSymbol? with
-          | some _ => true  -- function call with type-prescription justification
-          | none => false   -- not a function call
+          | some _ => true
+          | none => false
         else
           -- No clause justification and no type-prescription runes.
           -- Check if LHS is a trivially decidable predicate on a
@@ -326,28 +372,44 @@ where
     | .cons a b => .cons (macroExpand a) (macroExpandList b)
     | s => macroExpand s
 
+/-- Replace the first occurrence of `pattern` with `replacement` in `term`.
+    Structural equality, depth-first left-to-right. -/
+partial def replaceInTerm (term pattern replacement : SExpr) : SExpr :=
+  if term == pattern then replacement
+  else match term with
+  | .cons a b =>
+    let a' := replaceInTerm a pattern replacement
+    if a' != a then .cons a' b  -- found in left subtree
+    else .cons a (replaceInTerm b pattern replacement)
+  | _ => term
+
 /-- Apply a chain of child rewrites to a term.
     Each child's LHS is found in the current term and replaced with its RHS.
-    Returns the final term after all children are applied. -/
-def applyChildRewrites (term : SExpr) (children : List ProofNode) : SExpr :=
+    Returns the final term after all children are applied.
+    Set `trace := true` for debug output. -/
+def applyChildRewrites (term : SExpr) (children : List ProofNode)
+    (trace : Bool := false) : SExpr :=
   children.foldl (fun t child =>
     match child with
     | .node _ childLhs childRhs _ _ =>
-      -- Try to find and replace childLhs in the current term
-      -- Use replaceFirst-style structural replacement
-      let rec replace (s : SExpr) : SExpr :=
-        if s == childLhs then childRhs
-        else match s with
-        | .cons a b => .cons (replace a) (replace b)
-        | _ => s
-      replace t) term
+      let result := replaceInTerm t childLhs childRhs
+      (if trace && result == t then
+        dbg_trace s!"  applyChildRewrites: LHS not found in term"
+        dbg_trace s!"    childLhs: {childLhs}"
+        dbg_trace s!"    term:     {t}"
+        result
+      else result)) term
 
 /-- Check a clause-context-resolution step -/
 def checkClauseContextResolution (ctx : CheckerContext) (node : ProofNode) : Bool :=
   match node with
-  | .node _ _lhs rhs _ _ =>
-    -- The result should be justified by the clause context
-    isQuotedT rhs || isQuotedNil rhs
+  | .node _ lhs rhs _ _ =>
+    -- The step resolves a literal using the clause context.
+    -- RHS must be a constant, and the resolution must be justified
+    -- by the clause: LHS appears in the clause (or can be derived
+    -- from a clause literal).
+    (isQuotedT rhs || isQuotedNil rhs) &&
+    clauseJustifies ctx.clause ctx.currentLiteralIndex lhs rhs
 
 /-- Check a type-alist step (accept in v1) -/
 def checkTypeAlist (_ctx : CheckerContext) (_node : ProofNode) : Bool :=
@@ -364,40 +426,47 @@ partial def checkNode (ctx : CheckerContext) (node : ProofNode) : Bool :=
       -- Definition expansion: unfold the function body, apply the
       -- substitution, verify children simplify body to match RHS.
       let fnSym : Symbol := { name := runeName }
-      let nameLC := runeName.map Char.toLower
-      let builtins := ["fix", "nfix", "ifix", "endp", "not", "len",
-        "true-listp", "binary-append", "return-last", "mv-nth", "implies"]
       -- LHS must be a call to the function
       let lhsOk := match lhs.headSymbol? with
         | some headSym => headSym.isNamed runeName
         | none => false
       if !lhsOk then false
       else
-        match ctx.world.defs.get? fnSym with
+        let defn := ctx.world.defs.get? fnSym |>.orElse fun _ => builtinDefs.get? fnSym
+        match defn with
         | some (formals, body) =>
-          -- Build substitution from formals → actual arguments
+          -- Build the formal→actual substitution from the LHS args
           let args := match lhs.toList? with
-            | some (_ :: args) => args
+            | some (_ :: as_) => as_
             | _ => []
           let substMap := (formals.zip args).foldl
             (fun acc (f, a) => acc.insert f a) ({} : Std.HashMap Symbol SExpr)
-          -- Apply substitution to body, then macro-expand
-          let instBody := macroExpand (applySubst substMap body)
-          -- Apply child rewrites to the instantiated body
-          let simplified := applyChildRewrites instBody children
-          -- The simplified body should match the step's RHS
+          -- Macro-expand and substitute the body
+          let instBody := applySubst substMap (macroExpand body)
+          -- Apply children as hints: each child's LHS/RHS may be in
+          -- formal scope (ACL2's lazy substitution). We apply the
+          -- alist to each child's LHS to find it in the substituted
+          -- body, then replace with the alist-applied RHS.
+          let simplified := children.foldl (fun t child =>
+            match child with
+            | .node _ cLhs cRhs _ _ =>
+              -- Try finding cLhs directly in the term first
+              let t1 := replaceInTerm t cLhs cRhs
+              if t1 != t then t1
+              else
+                -- Child LHS might be in formal scope — apply subst
+                let substLhs := applySubst substMap cLhs
+                let substRhs := applySubst substMap cRhs
+                replaceInTerm t substLhs substRhs) instBody
           if simplified == rhs then childrenOk ()
           else
-            dbg_trace s!"ProofChecker: defn expansion mismatch for '{runeName}'"
+            dbg_trace s!"ProofChecker: defn body mismatch for '{runeName}'"
             dbg_trace s!"  expected: {rhs}"
             dbg_trace s!"  got:      {simplified}"
             false
         | none =>
-          -- Built-in function: accept if known, verify children
-          if builtins.any (· == nameLC) then childrenOk ()
-          else
-            dbg_trace s!"ProofChecker: unknown function '{runeName}'"
-            false
+          dbg_trace s!"ProofChecker: unknown function '{runeName}'"
+          false
     | "rewrite" =>
       -- Rewrite rule: formula must exist, pattern must match,
       -- and substituted RHS must match step RHS (or be further
@@ -487,74 +556,231 @@ section Tests
 
 open ProofChecker
 
--- SExpr helpers
-private def sym (name : String) : Symbol := ⟨"ACL2", name⟩
-private def mkCall (name : String) (args : List SExpr) : SExpr :=
-  .cons (.atom (.symbol (sym name))) (SExpr.ofList args)
-private def mkVar (name : String) : SExpr := .atom (.symbol (sym name))
-private def quoted (v : SExpr) : SExpr := mkCall "quote" [v]
+-- Parser-compatible symbol/term constructors (no namespace)
+private def tsym (name : String) : Symbol := { name := name }
+private def tmk (name : String) (args : List SExpr) : SExpr :=
+  .cons (.atom (.symbol (tsym name))) (SExpr.ofList args)
+private def tvar (name : String) : SExpr := .atom (.symbol (tsym name))
+private def tquot (v : SExpr) : SExpr := tmk "quote" [v]
+private def tquotT : SExpr := tquot SExpr.t
+private def tquotNil : SExpr := tquot .nil
+private def tint (n : Int) : SExpr := tquot (.atom (.number (.int n)))
 
--- isQuotedT
-#guard isQuotedT (quoted SExpr.t) == true
-#guard isQuotedT (quoted .nil) == false
-#guard isQuotedT .nil == false
+private def testCtx (clause : List SExpr := []) (litIdx : Nat := 0)
+    (formulas : Std.HashMap String SExpr := builtinAxioms) : CheckerContext :=
+  { world := World.empty, theoremFormulas := formulas,
+    clause := clause, currentLiteralIndex := litIdx }
 
--- isQuotedNil
-#guard isQuotedNil (quoted .nil) == true
-#guard isQuotedNil (quoted SExpr.t) == false
+private def mkNode (rType rName : String) (lhs rhs : SExpr)
+    (children : List ProofNode := [])
+    (prov : StepProvenance := {}) : ProofNode :=
+  .node (rType, rName) lhs rhs children prov
 
--- isEqualSelf
-#guard isEqualSelf (mkCall "equal" [mkVar "x", mkVar "x"]) == true
-#guard isEqualSelf (mkCall "equal" [mkVar "x", mkVar "y"]) == false
+/-! ### Helper function tests -/
 
--- isIf?
-#guard (isIf? (mkCall "if" [quoted .nil, mkVar "x", mkVar "y"])).isSome
+#guard isQuotedT tquotT
+#guard !isQuotedT tquotNil
+#guard !isQuotedT .nil
+#guard isQuotedNil tquotNil
+#guard !isQuotedNil tquotT
+#guard isEqualSelf (tmk "equal" [tvar "x", tvar "x"])
+#guard !isEqualSelf (tmk "equal" [tvar "x", tvar "y"])
+#guard (isIf? (tmk "if" [tquotNil, tvar "x", tvar "y"])).isSome
+#guard (isIf? (tvar "x")).isNone
 
--- patternMatch: simple variable
-#guard (patternMatch (mkVar "x") (mkCall "cons" [.nil, .nil])).isSome
+/-! ### Pattern matching: valid matches -/
 
--- patternMatch: quoted constant
-#guard (patternMatch (quoted (.atom (.number (.int 0)))) (quoted (.atom (.number (.int 0))))).isSome
-#guard (patternMatch (quoted (.atom (.number (.int 0)))) (quoted (.atom (.number (.int 1))))).isNone
-
--- patternMatch: function call with variables
+#guard (patternMatch (tvar "x") (tmk "cons" [.nil, .nil])).isSome
+#guard (patternMatch (tint 0) (tint 0)).isSome
 #guard (patternMatch
-  (mkCall "binary-+" [quoted (.atom (.number (.int 0))), mkVar "x"])
-  (mkCall "binary-+" [quoted (.atom (.number (.int 0))), mkCall "my-len" [mkVar "y"]])).isSome
+  (tmk "binary-+" [tint 0, tvar "x"])
+  (tmk "binary-+" [tint 0, tmk "my-len" [tvar "y"]])).isSome
+-- Same variable must match same term
+#guard (patternMatch (tmk "equal" [tvar "x", tvar "x"])
+                     (tmk "equal" [tvar "a", tvar "a"])).isSome
 
--- extractRewriteRule
-#guard (extractRewriteRule
-  (mkCall "equal" [mkCall "car" [mkCall "cons" [mkVar "x", mkVar "y"]], mkVar "x"])).isSome
+/-! ### Pattern matching: invalid matches rejected -/
 
--- End-to-end test on simple.lisp
-private def proofLogText : String := include_str "../acl2_samples/simple.proof-log"
+#guard (patternMatch (tint 0) (tint 1)).isNone
+#guard (patternMatch (tmk "binary-+" [tint 0, tvar "x"])
+                     (tmk "binary-*" [tint 0, tvar "y"])).isNone
+-- Same variable, different terms → rejected
+#guard (patternMatch (tmk "equal" [tvar "x", tvar "x"])
+                     (tmk "equal" [tvar "a", tvar "b"])).isNone
 
-private def simpleTest : Bool := Id.run do
-  let some log := (ProofLog.parse proofLogText).toOption | return false
-  let proofs := buildAllTheoremProofs log
-  let some proof := proofs.head? | return false
-  let formulas := buildFormulaMap log
-  -- Build the simple world
-  let world : World := {
-    defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
-      |>.insert (sym "my-len") ([sym "x"],
-        mkCall "if" [mkCall "consp" [mkVar "x"],
-                     mkCall "binary-+" [quoted (.atom (.number (.int 1))),
-                                        mkCall "my-len" [mkCall "cdr" [mkVar "x"]]],
-                     quoted (.atom (.number (.int 0)))])
-      |>.insert (sym "my-app") ([sym "x", sym "y"],
-        mkCall "if" [mkCall "consp" [mkVar "x"],
-                     mkCall "cons" [mkCall "car" [mkVar "x"],
-                                    mkCall "my-app" [mkCall "cdr" [mkVar "x"], mkVar "y"]],
-                     mkVar "y"])
-  }
-  let ctx : CheckerContext := { world, theoremFormulas := formulas, clause := [],
-                                 currentLiteralIndex := 0 }
-  return checkTheoremProof ctx proof
+/-! ### equal-self: valid passes, invalid rejected -/
 
--- End-to-end checker test — run via CLI for debugging:
--- `lake exe acl2lean check-proof acl2_samples/simple.proof-log`
--- #eval simpleTest  -- uncomment to test at compile time
+#guard checkNode (testCtx)
+  (mkNode "equal-self" "NIL" (tmk "equal" [tvar "x", tvar "x"]) tquotT)
+-- Wrong: x ≠ y
+#guard !checkNode (testCtx)
+  (mkNode "equal-self" "NIL" (tmk "equal" [tvar "x", tvar "y"]) tquotT)
+-- Wrong: RHS isn't T
+#guard !checkNode (testCtx)
+  (mkNode "equal-self" "NIL" (tmk "equal" [tvar "x", tvar "x"]) tquotNil)
+
+/-! ### if-simplification: valid passes, invalid rejected -/
+
+#guard checkNode (testCtx)
+  (mkNode "if-simplification" "NIL"
+    (tmk "if" [tquotNil, tvar "a", tvar "b"]) (tvar "b"))
+#guard checkNode (testCtx)
+  (mkNode "if-simplification" "NIL"
+    (tmk "if" [tquotT, tvar "a", tvar "b"]) (tvar "a"))
+-- Wrong branch for NIL test
+#guard !checkNode (testCtx)
+  (mkNode "if-simplification" "NIL"
+    (tmk "if" [tquotNil, tvar "a", tvar "b"]) (tvar "a"))
+-- Wrong branch for T test
+#guard !checkNode (testCtx)
+  (mkNode "if-simplification" "NIL"
+    (tmk "if" [tquotT, tvar "a", tvar "b"]) (tvar "b"))
+-- Non-constant test rejected
+#guard !checkNode (testCtx)
+  (mkNode "if-simplification" "NIL"
+    (tmk "if" [tvar "x", tvar "a", tvar "b"]) (tvar "a"))
+
+/-! ### Rewrite rules: valid passes, invalid rejected -/
+
+-- CAR-CONS: (CAR (CONS a b)) => a
+#guard checkNode (testCtx)
+  (mkNode "rewrite" "car-cons"
+    (tmk "car" [tmk "cons" [tvar "a", tvar "b"]]) (tvar "a"))
+-- CDR-CONS: (CDR (CONS a b)) => b
+#guard checkNode (testCtx)
+  (mkNode "rewrite" "cdr-cons"
+    (tmk "cdr" [tmk "cons" [tvar "a", tvar "b"]]) (tvar "b"))
+-- Wrong RHS: (CAR (CONS a b)) => b REJECTED
+#guard !checkNode (testCtx)
+  (mkNode "rewrite" "car-cons"
+    (tmk "car" [tmk "cons" [tvar "a", tvar "b"]]) (tvar "b"))
+-- Wrong pattern: (CDR (CONS a b)) with car-cons REJECTED
+#guard !checkNode (testCtx)
+  (mkNode "rewrite" "car-cons"
+    (tmk "cdr" [tmk "cons" [tvar "a", tvar "b"]]) (tvar "a"))
+-- Unknown theorem REJECTED
+#guard !checkNode (testCtx)
+  (mkNode "rewrite" "nonexistent" (tvar "x") (tvar "y"))
+
+/-! ### Anonymous/recognizer rules: valid passes, invalid rejected -/
+
+-- Clause assumption: (CONSP X) => NIL when clause has (CONSP X)
+#guard checkNode (testCtx (clause := [tmk "consp" [tvar "x"]]) (litIdx := 1))
+  (mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+    (tmk "consp" [tvar "x"]) tquotNil)
+-- Not justified by clause REJECTED
+#guard !checkNode (testCtx (clause := [tvar "something-else"]) (litIdx := 1))
+  (mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+    (tmk "consp" [tvar "x"]) tquotNil)
+-- Non-constant RHS REJECTED
+#guard !checkNode (testCtx (clause := [tmk "consp" [tvar "x"]]) (litIdx := 1))
+  (mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+    (tmk "consp" [tvar "x"]) (tvar "y"))
+-- Self-referential: can't use current literal to justify itself REJECTED
+#guard !checkNode (testCtx (clause := [tmk "consp" [tvar "x"]]) (litIdx := 0))
+  (mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+    (tmk "consp" [tvar "x"]) tquotNil)
+
+/-! ### Rewriting-equivalence: valid passes, invalid rejected -/
+
+private def ihClause : List SExpr := [
+  tmk "not" [tmk "equal" [tvar "a", tvar "b"]],
+  tmk "equal" [tvar "c", tvar "d"]
+]
+
+-- Valid: equiv-term matches negated clause literal
+#guard checkNode (testCtx (clause := ihClause) (litIdx := 1))
+  (mkNode "rewriting-equivalence" "NIL" (tvar "a") (tvar "b")
+    [] { equivTerm := some (tmk "equal" [tvar "a", tvar "b"]) })
+-- Wrong equiv-term REJECTED
+#guard !checkNode (testCtx (clause := ihClause) (litIdx := 1))
+  (mkNode "rewriting-equivalence" "NIL" (tvar "a") (tvar "b")
+    [] { equivTerm := some (tmk "equal" [tvar "c", tvar "d"]) })
+-- Missing equiv-term REJECTED
+#guard !checkNode (testCtx (clause := ihClause) (litIdx := 1))
+  (mkNode "rewriting-equivalence" "NIL" (tvar "a") (tvar "b"))
+
+/-! ### Definition expansion: valid passes, invalid rejected -/
+
+private def testWorld : World :=
+  { defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
+      |>.insert (tsym "myid") ([tsym "x"], tvar "x")
+      |>.insert (tsym "mycond") ([tsym "x", tsym "y"],
+        tmk "if" [tmk "consp" [tvar "x"], tvar "x", tvar "y"]) }
+
+private def defnCtx (clause : List SExpr := []) (litIdx : Nat := 0) : CheckerContext :=
+  { world := testWorld, theoremFormulas := builtinAxioms,
+    clause := clause, currentLiteralIndex := litIdx }
+
+-- Identity: (MYID Z) => Z
+#guard checkNode (defnCtx)
+  (mkNode "definition" "myid" (tmk "myid" [tvar "z"]) (tvar "z"))
+-- Identity: wrong RHS REJECTED
+#guard !checkNode (defnCtx)
+  (mkNode "definition" "myid" (tmk "myid" [tvar "z"]) (tvar "w"))
+-- Unknown function REJECTED
+#guard !checkNode (defnCtx)
+  (mkNode "definition" "nonexistent" (tmk "nonexistent" [tvar "z"]) (tvar "z"))
+
+-- Conditional with children: (MYCOND X Y) => Y when ¬(CONSP X)
+#guard checkNode (defnCtx (clause := [tmk "consp" [tvar "x"]]) (litIdx := 1))
+  (mkNode "definition" "mycond"
+    (tmk "mycond" [tvar "x", tvar "y"]) (tvar "y")
+    [ mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+        (tmk "consp" [tvar "x"]) tquotNil,
+      mkNode "if-simplification" "NIL"
+        (tmk "if" [tquotNil, tvar "x", tvar "y"]) (tvar "y") ])
+
+-- Conditional: wrong result REJECTED even with valid children
+#guard !checkNode (defnCtx (clause := [tmk "consp" [tvar "x"]]) (litIdx := 1))
+  (mkNode "definition" "mycond"
+    (tmk "mycond" [tvar "x", tvar "y"]) (tvar "x")
+    [ mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+        (tmk "consp" [tvar "x"]) tquotNil,
+      mkNode "if-simplification" "NIL"
+        (tmk "if" [tquotNil, tvar "x", tvar "y"]) (tvar "y") ])
+
+-- Conditional: children with invalid child REJECTED
+#guard !checkNode (defnCtx (clause := [tmk "consp" [tvar "x"]]) (litIdx := 1))
+  (mkNode "definition" "mycond"
+    (tmk "mycond" [tvar "x", tvar "y"]) (tvar "y")
+    [ mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+        (tmk "consp" [tvar "x"]) tquotNil,
+      mkNode "if-simplification" "NIL"
+        (tmk "if" [tquotNil, tvar "x", tvar "y"]) (tvar "x") ])  -- wrong branch!
+
+/-! ### Unknown rune type rejected -/
+
+#guard !checkNode (testCtx)
+  (mkNode "made-up-rune" "whatever" (tvar "x") (tvar "y"))
+
+/-! ### Clause-level: at least one literal must prove to T -/
+
+-- No proved literal REJECTED
+#guard !checkCaseProof (testCtx) {
+  clauseId := "test"
+  clause := [tvar "x"]
+  literalProofs := [{
+    index := 1
+    literal := tvar "x"
+    notFlg := false
+    nodes := []
+    result := tvar "x" }] }
+
+-- One literal proved to T passes
+#guard checkCaseProof (testCtx) {
+  clauseId := "test"
+  clause := [tvar "x"]
+  literalProofs := [{
+    index := 1
+    literal := tmk "equal" [tvar "a", tvar "a"]
+    notFlg := false
+    nodes := [mkNode "equal-self" "NIL"
+      (tmk "equal" [tvar "a", tvar "a"]) tquotT]
+    result := tquotT }] }
+
+/-! ### End-to-end: run via CLI -/
+-- `lake exe acl2lean check-proof acl2_samples/simple.proof-log acl2_samples/simple.lisp`
 
 end Tests
 
