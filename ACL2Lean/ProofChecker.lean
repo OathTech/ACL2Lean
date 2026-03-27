@@ -270,6 +270,25 @@ def checkExecutableCounterpart (ctx : CheckerContext) (node : ProofNode) : Bool 
       | none => result == rhs
     | none => false
 
+/-- Check if a predicate application is trivially decidable.
+    E.g., (CONSP (CONS ...)) = T, (CONSP NIL) = NIL,
+    (ATOM NIL) = T, (ATOM (CONS ...)) = NIL. -/
+def isRecognizerTrivial (lhs rhs : SExpr) : Bool :=
+  match lhs with
+  | .cons (.atom (.symbol fn)) (.cons arg .nil) =>
+    if fn.isNamed "consp" then
+      match arg with
+      | .cons _ _ => isQuotedT rhs
+      | .nil => isQuotedNil rhs
+      | _ => false
+    else if fn.isNamed "atom" then
+      match arg with
+      | .cons _ _ => isQuotedNil rhs
+      | .nil => isQuotedT rhs
+      | .atom _ => isQuotedT rhs
+    else false
+  | _ => false
+
 /-- Check a recognizer/anonymous rule step.
     This resolves a predicate call to T or NIL based on either:
     (a) clause assumptions (negation of another literal), or
@@ -281,40 +300,23 @@ def checkAnonymousRule (ctx : CheckerContext) (node : ProofNode) : Bool :=
     let rhsIsConstant := isQuotedT rhs || isQuotedNil rhs
     if !rhsIsConstant then false
     else
-      -- Try clause context first: does the negation of LHS=RHS
-      -- follow from a clause literal?
-      let fromClause := clauseJustifies ctx.clause ctx.currentLiteralIndex lhs rhs
-      if fromClause then true
-      else
-        -- Type-prescription: the step resolves via type reasoning.
-        -- Verify the provenance has type-prescription runes AND
-        -- the LHS is a recognizer/predicate call (i.e., it's a
-        -- function call, not a variable or constant).
-        if !prov.runes.isEmpty then
-          -- Type-prescription reasoning. The provenance runes tell us
-          -- which type-prescriptions were used. We can't fully verify
-          -- type-prescriptions without re-proving them, but we CAN
-          -- verify trivially decidable cases and check that the runes
-          -- reference known functions.
-          -- SOUNDNESS NOTE: accepting type-prescription steps based on
-          -- rune presence is a gap. The proof-producing version will
-          -- need actual type-prescription proofs.
-          match lhs.headSymbol? with
-          | some _ => true
-          | none => false
-        else
-          -- No clause justification and no type-prescription runes.
-          -- Check if LHS is a trivially decidable predicate on a
-          -- constructor (e.g., (CONSP (CONS ...)) = T).
-          match lhs with
-          | .cons (.atom (.symbol fn)) (.cons arg .nil) =>
-            if fn.isNamed "consp" then
-              match arg with
-              | .cons _ _ => isQuotedT rhs  -- (CONSP (CONS ...)) = T
-              | .nil => isQuotedNil rhs     -- (CONSP NIL) = NIL
-              | _ => false
-            else false
-          | _ => false
+      -- Try multiple verification methods in order:
+      -- 1. Clause context: the negation follows from a clause literal
+      if clauseJustifies ctx.clause ctx.currentLiteralIndex lhs rhs then true
+      -- 2. Trivially decidable: recognizer applied to a constructor
+      else if isRecognizerTrivial lhs rhs then true
+      -- 3. Type-prescription: provenance runes reference known functions
+      else if !prov.runes.isEmpty then
+        -- SOUNDNESS GAP: we verify the runes reference known functions
+        -- but don't re-prove the type-prescription itself.
+        match lhs.headSymbol? with
+        | some fn =>
+          prov.runes.any fun (_, runeName) =>
+            let rn := { name := runeName.map Char.toLower : Symbol }
+            (ctx.world.defs.get? rn).isSome || (builtinDefs.get? rn).isSome ||
+            fn.isNamed runeName
+        | none => false
+      else false
 
 /-- Check a rewriting-equivalence step (IH application) -/
 def checkRewritingEquivalence (ctx : CheckerContext) (node : ProofNode) : Bool :=
@@ -411,9 +413,12 @@ def checkClauseContextResolution (ctx : CheckerContext) (node : ProofNode) : Boo
     (isQuotedT rhs || isQuotedNil rhs) &&
     clauseJustifies ctx.clause ctx.currentLiteralIndex lhs rhs
 
-/-- Check a type-alist step (accept in v1) -/
-def checkTypeAlist (_ctx : CheckerContext) (_node : ProofNode) : Bool :=
-  true  -- Type-set reasoning is sound but hard to check statically
+/-- Check a type-alist step: term resolved to constant via type reasoning.
+    Same verification as anonymous rules: check clause context or
+    type-prescription provenance. -/
+def checkTypeAlist (ctx : CheckerContext) (node : ProofNode) : Bool :=
+  -- Reuse the same logic as anonymous rules
+  checkAnonymousRule ctx node
 
 /-- Check a single proof node by dispatching on rune type.
     Uses fuel for termination of recursive tree walk. -/
@@ -477,20 +482,34 @@ partial def checkNode (ctx : CheckerContext) (node : ProofNode) : Bool :=
         match extractRewriteRule formula with
         | some (patLhs, patRhs) =>
           match patternMatch patLhs lhs with
-          | some subst =>
+          | some substResult =>
             -- Apply substitution to rule's RHS
-            let expectedRhs := applySubst subst patRhs
-            -- If no children, the step RHS must match exactly
-            -- If children exist, they further simplify expectedRhs → step RHS
-            let rhsOk := if children.isEmpty then
-              expectedRhs == rhs
+            let expectedRhs := applySubst substResult patRhs
+            if children.isEmpty then
+              -- No children: substituted RHS must match exactly
+              if expectedRhs == rhs then true
+              else
+                dbg_trace s!"ProofChecker: rewrite RHS mismatch for '{runeName}'"
+                false
             else
-              -- Children justify the gap between expectedRhs and rhs.
-              -- The children's own LHS/RHS chain should connect them.
-              -- For now: verify children check OK (they validate the
-              -- intermediate simplification steps).
-              true
-            rhsOk && childrenOk ()
+              -- Children further simplify expectedRhs → rhs.
+              -- Apply child rewrites (same approach as defn expansion).
+              let simplified := children.foldl (fun t child =>
+                match child with
+                | .node _ cLhs cRhs _ _ =>
+                  let t1 := replaceInTerm t cLhs cRhs
+                  if t1 != t then t1
+                  else
+                    -- Try with pattern substitution applied
+                    let substLhs := applySubst substResult cLhs
+                    let substRhs := applySubst substResult cRhs
+                    replaceInTerm t substLhs substRhs) expectedRhs
+              if simplified == rhs then childrenOk ()
+              else
+                dbg_trace s!"ProofChecker: rewrite+children mismatch for '{runeName}'"
+                dbg_trace s!"  expected: {rhs}"
+                dbg_trace s!"  got:      {simplified}"
+                false
           | none =>
             dbg_trace s!"ProofChecker: pattern match failed for '{runeName}'"
             false
@@ -507,8 +526,17 @@ partial def checkNode (ctx : CheckerContext) (node : ProofNode) : Bool :=
     | "rewriting-equivalence" => checkRewritingEquivalence ctx node
     | "clause-context-resolution" => checkClauseContextResolution ctx node
     | "type-alist" => checkTypeAlist ctx node
-    | "if-same-branches" => checkIfSimplification ctx node
-    | "type-set-equality" => true
+    | "if-same-branches" =>
+      -- (IF test X X) => X when both branches are identical
+      match isIf? lhs with
+      | some (_, thn, els) => thn == els && rhs == thn
+      | none => false
+    | "type-set-equality" =>
+      -- Type-set equality: (EQUAL a b) = T or NIL based on type reasoning.
+      -- Verify the step is well-formed: LHS is an EQUAL, RHS is constant.
+      match isEqual? lhs with
+      | some _ => isQuotedT rhs || isQuotedNil rhs
+      | none => false
     | other =>
       dbg_trace s!"ProofChecker: unknown rune type '{other}'"
       false
