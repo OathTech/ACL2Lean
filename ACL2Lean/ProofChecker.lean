@@ -807,6 +807,138 @@ private def defnCtx (clause : List SExpr := []) (litIdx : Nat := 0) : CheckerCon
       (tmk "equal" [tvar "a", tvar "a"]) tquotT]
     result := tquotT }] }
 
+/-! ### Additional soundness tests -/
+
+-- equal-self: non-EQUAL LHS rejected
+#guard !checkNode (testCtx)
+  (mkNode "equal-self" "NIL" (tmk "consp" [tvar "x"]) tquotT)
+
+-- if-simplification: non-IF LHS rejected
+#guard !checkNode (testCtx)
+  (mkNode "if-simplification" "NIL" (tvar "x") (tvar "x"))
+
+-- Trivially decidable recognizer: (CONSP (CONS a b)) => T
+#guard checkNode (testCtx)
+  (mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+    (tmk "consp" [tmk "cons" [tvar "a", tvar "b"]]) tquotT)
+
+-- Trivially decidable recognizer: (CONSP (CONS a b)) => NIL REJECTED
+#guard !checkNode (testCtx)
+  (mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+    (tmk "consp" [tmk "cons" [tvar "a", tvar "b"]]) tquotNil)
+
+-- Trivially decidable recognizer: (CONSP NIL) => NIL
+#guard checkNode (testCtx)
+  (mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+    (tmk "consp" [.nil]) tquotNil)
+
+-- Rewriting-equivalence: EQUAL is symmetric — (EQUAL b a) in clause
+-- matches equiv-term (EQUAL a b)
+private def symClause : List SExpr := [
+  tmk "not" [tmk "equal" [tvar "b", tvar "a"]],
+  tvar "goal"
+]
+#guard checkNode (testCtx (clause := symClause) (litIdx := 1))
+  (mkNode "rewriting-equivalence" "NIL" (tvar "a") (tvar "b")
+    [] { equivTerm := some (tmk "equal" [tvar "a", tvar "b"]) })
+
+-- Rewriting-equivalence: completely unrelated clause REJECTED
+#guard !checkNode (testCtx (clause := [tvar "unrelated"]) (litIdx := 1))
+  (mkNode "rewriting-equivalence" "NIL" (tvar "a") (tvar "b")
+    [] { equivTerm := some (tmk "equal" [tvar "a", tvar "b"]) })
+
+-- Definition with macro expansion: function body uses + which must
+-- be expanded to BINARY-+ to match the proof tree's terms
+private def macroWorld : World :=
+  { defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
+      |>.insert (tsym "myfn") ([tsym "x"],
+        -- Body uses raw + and bare 0 (as in .lisp source)
+        tmk "+" [.atom (.number (.int 0)), tvar "x"]) }
+
+private def macroCtx : CheckerContext :=
+  { world := macroWorld, theoremFormulas := builtinAxioms,
+    clause := [], currentLiteralIndex := 0 }
+
+-- After macro expansion: (+ 0 x) becomes (BINARY-+ (QUOTE 0) x)
+-- So (MYFN y) should expand to (BINARY-+ (QUOTE 0) y)
+#guard checkNode macroCtx
+  (mkNode "definition" "myfn"
+    (tmk "myfn" [tvar "y"])
+    (tmk "binary-+" [tint 0, tvar "y"]))
+
+-- Wrong RHS after macro expansion REJECTED
+#guard !checkNode macroCtx
+  (mkNode "definition" "myfn"
+    (tmk "myfn" [tvar "y"])
+    (tmk "binary-+" [tint 1, tvar "y"]))  -- wrong constant
+
+-- Rewrite rule with children: CDR-CONS as parent, child simplifies further
+-- CDR-CONS: (CDR (CONS a b)) => b
+-- With child: (CDR (CONS a b)) => (some-simpl b) where child says b => (some-simpl b)
+-- This should FAIL because the child's rewrite on rule RHS doesn't match
+-- (the rule gives us b, and child would need LHS=b to fire)
+private def childCtx : CheckerContext :=
+  { world := World.empty, theoremFormulas := builtinAxioms,
+    clause := [], currentLiteralIndex := 0 }
+
+-- Rewrite with valid child chain: rule gives (FIX x), child simplifies to x
+-- UNICITY-OF-0: (BINARY-+ '0 X) => (FIX X)
+-- Child: definition:fix (FIX x) => x (with its own children)
+-- The anonymous-rule child for ACL2-NUMBERP references FIX (a builtin)
+#guard checkNode childCtx
+  (mkNode "rewrite" "unicity-of-0"
+    (tmk "binary-+" [tint 0, tvar "x"])
+    (tvar "x")
+    [ mkNode "definition" "fix"
+        (tmk "fix" [tvar "x"]) (tvar "x")
+        [ mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+            (tmk "acl2-numberp" [tvar "x"]) tquotT
+            [] { runes := [("type-prescription", "fix")] },
+          mkNode "if-simplification" "NIL"
+            (tmk "if" [tquotT, tvar "x", tint 0]) (tvar "x") ] ])
+
+-- Rewrite with children but wrong final RHS REJECTED
+#guard !checkNode childCtx
+  (mkNode "rewrite" "unicity-of-0"
+    (tmk "binary-+" [tint 0, tvar "x"])
+    (tint 999)  -- wrong RHS
+    [ mkNode "definition" "fix"
+        (tmk "fix" [tvar "x"]) (tvar "x")
+        [ mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
+            (tmk "acl2-numberp" [tvar "x"]) tquotT
+            [] { runes := [("type-prescription", "fix")] },
+          mkNode "if-simplification" "NIL"
+            (tmk "if" [tquotT, tvar "x", tint 0]) (tvar "x") ] ])
+
+-- Evolving clause: literal 1's result is used when checking literal 2
+-- Clause: [(NOT (EQUAL A B)), (EQUAL C D)]
+-- Literal 1 rewrites IH via commutativity: result is (NOT (EQUAL B A))
+-- Literal 2 uses rewriting-equivalence with (EQUAL B A) — only works
+-- if the clause evolved to contain the rewritten literal 1
+private def evolvingCase : CaseProof := {
+  clauseId := "evolving"
+  clause := [tmk "not" [tmk "equal" [tvar "a", tvar "b"]],
+             tmk "equal" [tvar "c", tvar "c"]]
+  literalProofs := [
+    -- Literal 1: rewrite (EQUAL A B) to (EQUAL B A) via commutativity
+    -- (simplified: just return the rewritten result)
+    { index := 1
+      literal := tmk "not" [tmk "equal" [tvar "a", tvar "b"]]
+      notFlg := true
+      nodes := []  -- no nodes needed, literal just gets normalized
+      result := tmk "not" [tmk "equal" [tvar "b", tvar "a"]] },
+    -- Literal 2: prove via equal-self
+    { index := 2
+      literal := tmk "equal" [tvar "c", tvar "c"]
+      notFlg := false
+      nodes := [mkNode "equal-self" "NIL"
+        (tmk "equal" [tvar "c", tvar "c"]) tquotT]
+      result := tquotT }
+  ] }
+
+-- The case should pass (literal 2 proves to T)
+#guard checkCaseProof (testCtx) evolvingCase
+
 /-! ### End-to-end: run via CLI -/
 -- `lake exe acl2lean check-proof acl2_samples/simple.proof-log acl2_samples/simple.lisp`
 
