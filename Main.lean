@@ -26,6 +26,16 @@ private def printTheoremMetadata (name : ACL2.Symbol) (info : ACL2.TheoremInfo) 
   if !extraKeys.isEmpty then
     IO.println s!"  other-options: {String.intercalate ", " extraKeys}"
 
+private partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat) : IO Unit := do
+  for node in nodes do
+    match node with
+    | .node rune lhs rhs children =>
+      let pad := String.mk (List.replicate (indent * 2) ' ')
+      IO.println s!"{pad}{rune.1}:{rune.2}"
+      IO.println s!"{pad}  {lhs} => {rhs}"
+      if !children.isEmpty then
+        printProofNodes children (indent + 1)
+
 def main (args : List String) : IO Unit := do
   match args with
   | ["report"] => do
@@ -102,8 +112,12 @@ def main (args : List String) : IO Unit := do
                   IO.println s!"    rewrites: {rwSteps.length} steps"
                   for rw in rwSteps do
                     IO.println s!"      {rw.rune.1}:{rw.rune.2}"
-            | .defthm name =>
-                IO.println s!"\n  DEFTHM {name}"
+            | .defthm name formula source =>
+                let srcStr := match source with
+                  | .local => " [local]"
+                  | .includeBook => " [include-book]"
+                  | .unknown => ""
+                IO.println s!"\n  DEFTHM {name}{srcStr}: {formula}"
             | .induction i =>
                 IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
             | .qed =>
@@ -133,23 +147,11 @@ def main (args : List String) : IO Unit := do
                   IO.println s!"\n  Literal {lp.index} (notFlg={lp.notFlg}):"
                   IO.println s!"    Input:  {lp.literal}"
                   IO.println s!"    Result: {lp.result}"
-                  if lp.steps.isEmpty then
+                  if lp.nodes.isEmpty then
                     IO.println "    (no rewrites)"
                   else
-                    IO.println s!"    Steps ({lp.steps.length}):"
-                    let mut si := 0
-                    for s in lp.steps do
-                      let mut line := s!"      [{si}] {s.rune.1}:{s.rune.2}"
-                      IO.println line
-                      IO.println s!"           LHS: {s.lhs}"
-                      IO.println s!"           RHS: {s.rhs}"
-                      for bd in s.branchDecisions do
-                        match bd with
-                        | .true t j =>
-                          IO.println s!"           BRANCH-TRUE  {t}  ({repr j})"
-                        | .false t j =>
-                          IO.println s!"           BRANCH-FALSE {t}  ({repr j})"
-                      si := si + 1
+                    IO.println s!"    Proof tree ({lp.nodes.length} top-level nodes):"
+                    printProofNodes lp.nodes 3
   | _ => do
       IO.println "Usage:"
       IO.println "  acl2lean report"

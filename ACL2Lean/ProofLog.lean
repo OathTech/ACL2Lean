@@ -75,9 +75,16 @@ structure InductionStep where
   scheme : List SExpr
   deriving Repr
 
+/-- Where a theorem comes from in the proof log. -/
+inductive TheoremSource where
+  | local       -- proved in this file
+  | includeBook -- imported from another book
+  | unknown     -- source not specified (old trace format)
+  deriving Repr, BEq
+
 /-- A single event in the proof log. -/
 inductive ProofEvent where
-  | defthm (name : String)
+  | defthm (name : String) (formula : SExpr := .nil) (source : TheoremSource := .unknown)
   | step (s : ProofStep)
   | induction (i : InductionStep)
   | qed
@@ -333,10 +340,20 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
     | none => throw s!"INDUCTION: expected plist, got {repr rest}"
   | .cons (.atom (.keyword "qed")) _ =>
     return .qed
-  | .cons (.atom (.keyword "defthm")) (.cons nameExpr .nil) =>
-    match atomString? nameExpr with
-    | some name => return .defthm name
-    | none => throw s!"DEFTHM: bad name: {repr nameExpr}"
+  | .cons (.atom (.keyword "defthm")) rest =>
+    match rest.toList? with
+    | some (nameExpr :: fields) =>
+      match atomString? nameExpr with
+      | some name =>
+        let formula := (lookupKeyword "formula" fields).getD .nil
+        let source := match lookupKeyword "source" fields with
+          | some (.atom (.keyword "include-book")) => TheoremSource.includeBook
+          | some (.atom (.keyword "local")) => TheoremSource.local
+          | _ => TheoremSource.unknown
+        return .defthm name formula source
+      | none => throw s!"DEFTHM: bad name: {repr nameExpr}"
+    | some [] => throw s!"DEFTHM: missing name"
+    | none => throw s!"DEFTHM: expected plist, got {repr rest}"
   | _ => throw s!"Unknown proof log event: {repr s}"
 
 /-- Parse a proof log from raw ACL2 output.
@@ -361,7 +378,7 @@ def summary (log : ProofLog) : String :=
   let steps := log.events.filter fun e => match e with | .step _ => true | _ => false
   let inductions := log.events.filter fun e => match e with | .induction _ => true | _ => false
   let qeds := log.events.filter fun e => match e with | .qed => true | _ => false
-  let defthms := log.events.filterMap fun e => match e with | .defthm n => some n | _ => none
+  let defthms := log.events.filterMap fun e => match e with | .defthm n _ _ => some n | _ => none
   let processors := steps.filterMap fun e => match e with
     | .step s => some s.processor | _ => none
   let procPairs := processors.foldl (init := ([] : List (String × Nat)))
@@ -392,7 +409,7 @@ def splitByTheorem (log : ProofLog) : List (String × List ProofEvent) :=
       match curName with
       | some n => ((n, current.reverse) :: acc).reverse
       | none => acc.reverse
-    | .defthm name :: rest =>
+    | .defthm name _ _ :: rest =>
       -- Start a new theorem segment; flush any previous
       let acc := match curName with
         | some n => (n, current.reverse) :: acc
