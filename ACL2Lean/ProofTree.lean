@@ -168,48 +168,63 @@ def buildCaseProof (step : ProofStep) : CaseProof :=
     clause := step.inputClause
     literalProofs := buildLiteralProofs step.traceEvents }
 
-/-- Build a TheoremProof from a segment of proof events (between one
-    DEFTHM and the next, or end of log). Returns none if the segment
-    has no theorem name or no formula. -/
-def buildTheoremProof (events : List ProofEvent) : Option TheoremProof := do
-  let name ← events.findSome? fun
-    | .defthm n _ _ => some n
-    | _ => none
-  -- Formula: from the first step's input clause, or .nil for trivial theorems
-  let formula := events.findSome? (fun
-    | .step s =>
-      if s.inputClause.isEmpty then none
-      else match s.inputClause with
-        | [lit] => some lit
-        | lits => some (SExpr.ofList lits)
-    | _ => none) |>.getD .nil
-  let induction := events.findSome? fun
-    | .induction i => some i
-    | _ => none
-  -- Collect steps that proved their goal and have trace events.
-  let cases := events.filterMap fun
-    | .step s =>
-      if s.result == .proved && !s.traceEvents.isEmpty
-      then some (buildCaseProof s)
-      else none
-    | _ => none
-  -- Filter out the pre-induction push-clause step (which has traces
-  -- but just echoes the formula without simplifying).
-  let cases := cases.filter fun c => c.clauseId != "Goal"
-  return { name, formula, induction, cases }
-
-/-- Split a proof event list into per-theorem segments (each starting
-    with a DEFTHM event). -/
-private def splitOnDefthm (events : List ProofEvent) : List (List ProofEvent) :=
-  let (segments, current) := events.foldl (fun (segs, cur) ev =>
+/-- Build all TheoremProofs from a ProofLog by walking the event list
+    sequentially. Each DEFTHM starts a theorem; events up to QED (or
+    the next DEFTHM) are its proof. Imported theorems (no QED) are
+    leaf nodes with no cases. -/
+def buildAllTheoremProofs (log : ProofLog) : List TheoremProof := Id.run do
+  let mut result : Array TheoremProof := #[]
+  let mut curName : Option String := none
+  let mut curFormula : SExpr := .nil
+  let mut curSource : TheoremSource := .unknown
+  let mut curInduction : Option InductionStep := none
+  let mut curCases : Array CaseProof := #[]
+  let mut fuel := log.events.length + 1
+  for ev in log.events do
+    fuel := fuel - 1
+    if fuel == 0 then break
     match ev with
-    | .defthm _ => (if cur.isEmpty then segs else segs ++ [cur.reverse], [ev])
-    | _ => (segs, ev :: cur)) ([], [])
-  if current.isEmpty then segments else segments ++ [current.reverse]
-
-/-- Build TheoremProofs for all theorems in a ProofLog. -/
-def buildAllTheoremProofs (log : ProofLog) : List TheoremProof :=
-  (splitOnDefthm log.events).filterMap buildTheoremProof
+    | .defthm name formula source =>
+      -- Close previous theorem if any
+      if let some prevName := curName then
+        let cases := curCases.toList.filter fun c => c.clauseId != "Goal"
+        result := result.push {
+          name := prevName, formula := curFormula,
+          induction := curInduction, cases }
+      -- Start new theorem
+      curName := some name
+      curFormula := formula
+      curSource := source
+      curInduction := none
+      curCases := #[]
+    | .induction i =>
+      curInduction := some i
+    | .step s =>
+      if s.result == .proved && !s.traceEvents.isEmpty then
+        curCases := curCases.push (buildCaseProof s)
+      -- Also extract formula from first step if not in DEFTHM
+      if curFormula == .nil && !s.inputClause.isEmpty then
+        curFormula := match s.inputClause with
+          | [lit] => lit
+          | lits => SExpr.ofList lits
+    | .qed =>
+      -- Close current theorem
+      if let some prevName := curName then
+        let cases := curCases.toList.filter fun c => c.clauseId != "Goal"
+        result := result.push {
+          name := prevName, formula := curFormula,
+          induction := curInduction, cases }
+      curName := none
+      curFormula := .nil
+      curInduction := none
+      curCases := #[]
+  -- Close final theorem if no QED
+  if let some prevName := curName then
+    let cases := curCases.toList.filter fun c => c.clauseId != "Goal"
+    result := result.push {
+      name := prevName, formula := curFormula,
+      induction := curInduction, cases }
+  return result.toList
 
 /-! ## Tests -/
 
@@ -219,7 +234,7 @@ private def proofLogText : String := include_str "../acl2_samples/simple.proof-l
 
 private def getProof : Option TheoremProof := do
   let log ← (ProofLog.parse proofLogText).toOption
-  buildTheoremProof log.events
+  (buildAllTheoremProofs log).head?
 
 -- Theorem name (lowercased by parser)
 #guard (getProof.map (·.name)) == some "my-len-my-app"
