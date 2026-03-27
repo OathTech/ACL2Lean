@@ -15,6 +15,7 @@ import ACL2Lean.PrettyPrinter
 import ACL2Lean.ProofLog
 -- import ACL2Lean.Rewriter  -- temporarily disabled: tests use old proof-log format
 import ACL2Lean.ProofTree
+import ACL2Lean.ProofChecker
 import ACL2Lean.Imported.Log2Replay
 import ACL2Lean.Imported.SimpleWorld
 import ACL2Lean.Lexorder

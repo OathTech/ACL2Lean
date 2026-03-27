@@ -172,6 +172,68 @@ def main (args : List String) : IO Unit := do
                   else
                     IO.println s!"    Proof tree ({lp.nodes.length} top-level nodes):"
                     printProofNodes lp.nodes 3
+  | ["check-proof", logPath, srcPath] => do
+      let contents ← IO.FS.readFile logPath
+      match ACL2.ProofLog.parse contents with
+      | .error e => IO.eprintln s!"Parse error: {e}"
+      | .ok log =>
+          -- Build world from the source .lisp file
+          let events ← ACL2.loadEventsFromFile srcPath
+          match events with
+          | .error e => IO.eprintln s!"Load error: {e}"
+          | .ok evs =>
+            let world := ACL2.World.replay evs
+            let formulas := ACL2.ProofChecker.buildFormulaMap log
+            let proofs := ACL2.buildAllTheoremProofs log
+            IO.println s!"Checking {logPath} ({proofs.length} theorems, {formulas.size} formulas)"
+            let mut passed := 0
+            let mut failed := 0
+            for proof in proofs do
+              if proof.cases.isEmpty then
+                passed := passed + 1
+              else
+                let ctx : ACL2.ProofChecker.CheckerContext := {
+                  world, theoremFormulas := formulas
+                  clause := [], currentLiteralIndex := 0
+                }
+                if ACL2.ProofChecker.checkTheoremProof ctx proof then
+                  IO.println s!"  ✓ {proof.name}"
+                  passed := passed + 1
+                else
+                  IO.println s!"  ✗ {proof.name}"
+                  -- Debug: check each case
+                  for cp in proof.cases do
+                    IO.println s!"    Case {cp.clauseId}: {cp.literalProofs.length} literals"
+                    for lp in cp.literalProofs do
+                      let ctx' := { ctx with clause := cp.clause, currentLiteralIndex := lp.index }
+                      let nodesOk := lp.nodes.all (ACL2.ProofChecker.checkNode ctx')
+                      let resultOk := ACL2.ProofChecker.isQuotedT lp.result ||
+                                      ACL2.ProofChecker.isEqualSelf lp.result ||
+                                      lp.result == lp.literal
+                      IO.println s!"      Lit {lp.index}: nodes={nodesOk} result={resultOk} ({lp.nodes.length} nodes)"
+                      if !nodesOk then
+                        for node in lp.nodes do
+                          match node with
+                          | .node (rt, rn) _ _ children _ =>
+                            let ok := ACL2.ProofChecker.checkNode ctx' node
+                            if !ok then
+                              IO.println s!"        FAIL: {rt}:{rn} (children={children.length})"
+                              for child in children do
+                                match child with
+                                | .node (ct, cn) _ _ _ _ =>
+                                  let cok := ACL2.ProofChecker.checkNode ctx' child
+                                  if !cok then
+                                    IO.println s!"          CHILD FAIL: {ct}:{cn}"
+                                    match child with
+                                    | .node _ _ _ grandchildren _ =>
+                                      for gc in grandchildren do
+                                        match gc with
+                                        | .node (gt, gn) _ _ _ _ =>
+                                          let gok := ACL2.ProofChecker.checkNode ctx' gc
+                                          if !gok then
+                                            IO.println s!"            GRANDCHILD FAIL: {gt}:{gn}"
+                  failed := failed + 1
+            IO.println s!"Result: {passed} passed, {failed} failed"
   | _ => do
       IO.println "Usage:"
       IO.println "  acl2lean report"
