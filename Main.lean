@@ -130,8 +130,8 @@ def main (args : List String) : IO Unit := do
                   | .includeBook => " [include-book]"
                   | .unknown => ""
                 IO.println s!"\n  DEFTHM {name}{srcStr}: {formula}"
-            | .typePrescription name corollary =>
-                IO.println s!"\n  TYPE-PRESCRIPTION {name}: {corollary}"
+            | .typePrescription name corollary basicTs leaves =>
+                IO.println s!"\n  TYPE-PRESCRIPTION {name}: {corollary} (basicts={basicTs}, {leaves.length} leaves)"
             | .induction i =>
                 IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
             | .qed =>
@@ -195,6 +195,7 @@ def main (args : List String) : IO Unit := do
       | .ok log =>
           world := ACL2.ProofChecker.buildWorldFromLog log world
           formulas := ACL2.ProofChecker.buildFormulaMap log formulas
+          let tpProofs := ACL2.ProofChecker.buildTypePrescriptionMap log
           let proofs := ACL2.buildAllTheoremProofs log
           IO.println s!"Checking {logPath} ({proofs.length} theorems, {formulas.size} formulas)"
           let mut passed := 0
@@ -205,6 +206,7 @@ def main (args : List String) : IO Unit := do
             else
               let ctx : ACL2.ProofChecker.CheckerContext := {
                 world, theoremFormulas := formulas
+                typePrescriptions := tpProofs
                 clause := [], currentLiteralIndex := 0
               }
               if ACL2.ProofChecker.checkTheoremProof ctx proof then

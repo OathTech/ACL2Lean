@@ -101,6 +101,7 @@ inductive ProofEvent where
   | defun (name : String) (formals : List Symbol) (body : SExpr)
   | defthm (name : String) (formula : SExpr := .nil) (source : TheoremSource := .unknown)
   | typePrescription (name : String) (corollary : SExpr)
+      (basicTs : Option Int := none) (leaves : List SExpr := [])
   | step (s : ProofStep)
   | induction (i : InductionStep)
   | qed
@@ -423,7 +424,15 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
       match atomString? nameExpr with
       | some name =>
         let corollary := (lookupKeyword "corollary" fields).getD .nil
-        return .typePrescription name corollary
+        let basicTs := match lookupKeyword "basicts" fields with
+          | some (.atom (.number (.int n))) => some n
+          | _ => none
+        let leaves := match lookupKeyword "leaves" fields with
+          | some l => match l.toList? with
+            | some items => items
+            | none => []
+          | none => []
+        return .typePrescription name corollary basicTs leaves
       | none => throw s!"TYPE-PRESCRIPTION: bad name: {repr nameExpr}"
     | _ => throw s!"TYPE-PRESCRIPTION: expected plist, got {repr rest}"
   | _ => throw s!"Unknown proof log event: {repr s}"

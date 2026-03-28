@@ -335,10 +335,37 @@ def buildFormulaMap (log : ProofLog)
     | .defthm name formula _ =>
       if formula != .nil then acc.insert (name.map Char.toLower) formula
       else acc
-    | .typePrescription name corollary =>
+    | .typePrescription name corollary _ _ =>
       if corollary != .nil then
         acc.insert (s!"type-prescription:{name.map Char.toLower}") corollary
       else acc
+    | _ => acc) base
+
+/-- Stored type-prescription proof data: the type-set bits and the
+    leaf terms from the function body's IF tree. -/
+structure TypePrescriptionProof where
+  basicTs : Int
+  leaves : List SExpr
+  deriving Repr
+
+/-- Collect leaf terms from an IF-normalized body.
+    Walks the IF tree and returns the non-IF leaf terms in order.
+    This mirrors ACL2's tp-collect-if-leaves. -/
+partial def collectIfLeaves : SExpr → List SExpr
+  | .cons (.atom (.symbol fn)) (.cons _test (.cons thn (.cons els .nil))) =>
+    if fn.isNamed "if" then
+      collectIfLeaves thn ++ collectIfLeaves els
+    else [.cons (.atom (.symbol fn)) (.cons _test (.cons thn (.cons els .nil)))]
+  | s => [s]
+
+/-- Build a map of type-prescription proofs from the proof log. -/
+def buildTypePrescriptionMap (log : ProofLog)
+    (base : Std.HashMap String TypePrescriptionProof := {})
+    : Std.HashMap String TypePrescriptionProof :=
+  log.events.foldl (fun acc ev =>
+    match ev with
+    | .typePrescription name _ (some basicTs) leaves =>
+      acc.insert (name.map Char.toLower) { basicTs, leaves }
     | _ => acc) base
 
 /-- Build a World from DEFUN events in the proof log.
@@ -363,6 +390,7 @@ def buildWorldFromLog (log : ProofLog) (base : World := { defs := {} }) : World 
 structure CheckerContext where
   world : World
   theoremFormulas : Std.HashMap String SExpr
+  typePrescriptions : Std.HashMap String TypePrescriptionProof := {}
   clause : List SExpr
   currentLiteralIndex : Nat
   fuel : Nat := 100000
@@ -448,16 +476,53 @@ def checkAnonymousRule (ctx : CheckerContext) (node : ProofNode) : Bool :=
           -- Replay ACL2's type-set subsumption check.
           -- For recognizer/true: ts intersects trueTs, and ts does NOT
           -- intersect the complement of trueTs (i.e., ts is a subset of trueTs).
-          -- In bit arithmetic: (ts &&& trueTs) ≠ 0 and (ts &&& ~~~trueTs) = 0.
-          -- Since ACL2 already verified this and we're replaying, we check:
-          -- the result is T iff ts ∩ trueTs ≠ 0 ∧ ts ⊆ trueTs (no bits outside trueTs).
+          -- For recognizer/false: ts does NOT intersect trueTs.
           let tsIntersectsTrueTs := (ts.toInt64 &&& trueTs.toInt64) != 0
           let tsSubsetOfTrueTs := (ts.toInt64 &&& ~~~trueTs.toInt64) == 0
-          if isQuotedT rhs then
+          let bitsOk := if isQuotedT rhs then
             tsIntersectsTrueTs && tsSubsetOfTrueTs
           else -- isQuotedNil rhs
-            -- For recognizer/false: ts does NOT intersect trueTs
             !tsIntersectsTrueTs
+          if !bitsOk then false
+          else
+            -- Verify the type-set is backed by a type-prescription proof.
+            -- The argument's head function must have a TP proof with basicts
+            -- that is consistent with the claimed type-set.
+            -- For now: verify the TP proof EXISTS for the relevant function.
+            -- TODO: verify leaves match body and per-leaf type-sets are valid.
+            let argHeadFn := match lhs.toList? with
+              | some [_, arg] => arg.headSymbol?
+              | _ => none
+            match argHeadFn with
+            | some fnSym =>
+              let fnName := fnSym.name.map Char.toLower
+              match ctx.typePrescriptions.get? fnName with
+              | some tpProof =>
+                -- Verify: the claimed type-set `ts` is a subset of the
+                -- TP proof's basicts (the function returns at most basicts).
+                let tsWithinBasicTs := (ts.toInt64 &&& ~~~tpProof.basicTs.toInt64) == 0
+                if !tsWithinBasicTs then false
+                else
+                  -- Verify: the TP proof's leaves match the function body.
+                  -- Walk the DEFUN body's IF tree and check the leaves match.
+                  let fnSym' : Symbol := { name := fnName }
+                  match ctx.world.defs.get? fnSym' with
+                  | some (_, body) =>
+                    let bodyLeaves := collectIfLeaves body
+                    bodyLeaves == tpProof.leaves
+                  | none =>
+                    -- No body available (built-in) — accept if bits check passes
+                    true
+              | none =>
+                -- No TP proof for this function. For built-in functions
+                -- (like CONSP, ATOM), accept if the bits check passes —
+                -- these have well-known type-sets.
+                -- TODO: register built-in TP proofs.
+                true
+            | none =>
+              -- Can't extract head function from argument — accept if
+              -- bits check passes (could be a variable or complex term).
+              true
         | _, _ =>
           dbg_trace s!"ProofChecker: anonymous rule not verified (no type-set data): {lhs} => {rhs}"
           false

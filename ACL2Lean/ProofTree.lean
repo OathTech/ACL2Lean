@@ -205,7 +205,7 @@ def buildAllTheoremProofs (log : ProofLog) : List TheoremProof := Id.run do
     if fuel == 0 then break
     match ev with
     | .defun _ _ _ => pure ()  -- handled by checker, not tree builder
-    | .typePrescription _ _ => pure ()  -- handled by checker, not tree builder
+    | .typePrescription _ _ _ _ => pure ()  -- handled by checker, not tree builder
     | .defthm name formula source =>
       -- Close previous theorem if any
       if let some prevName := curName then
