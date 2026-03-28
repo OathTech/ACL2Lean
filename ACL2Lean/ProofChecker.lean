@@ -342,10 +342,10 @@ def buildFormulaMap (log : ProofLog)
     | _ => acc) base
 
 /-- Stored type-prescription proof data: the type-set bits and the
-    leaf terms from the function body's IF tree. -/
+    leaf terms (with per-leaf type-sets) from the function body's IF tree. -/
 structure TypePrescriptionProof where
   basicTs : Int
-  leaves : List SExpr
+  leaves : List (SExpr × Int)  -- (leaf-term, leaf-type-set)
   deriving Repr
 
 /-- Collect leaf terms from an IF-normalized body.
@@ -365,7 +365,7 @@ def buildTypePrescriptionMap (log : ProofLog)
   log.events.foldl (fun acc ev =>
     match ev with
     | .typePrescription name _ (some basicTs) leaves =>
-      acc.insert (name.map Char.toLower) { basicTs, leaves }
+      acc.insert (name.map Char.toLower) { basicTs, leaves := leaves }
     | _ => acc) base
 
 /-- Build a World from DEFUN events in the proof log.
@@ -503,13 +503,33 @@ def checkAnonymousRule (ctx : CheckerContext) (node : ProofNode) : Bool :=
                 let tsWithinBasicTs := (ts.toInt64 &&& ~~~tpProof.basicTs.toInt64) == 0
                 if !tsWithinBasicTs then false
                 else
-                  -- Verify: the TP proof's leaves match the function body.
-                  -- Walk the DEFUN body's IF tree and check the leaves match.
+                  -- Verify the TP proof:
+                  -- 1. Leaves match the function body's IF tree
+                  -- 2. Each leaf's type-set is within basicts
+                  -- 3. Union of leaf type-sets = basicts
                   let fnSym' : Symbol := { name := fnName }
                   match ctx.world.defs.get? fnSym' with
                   | some (_, body) =>
                     let bodyLeaves := collectIfLeaves body
-                    bodyLeaves == tpProof.leaves
+                    let emittedLeafTerms := tpProof.leaves.map (·.1)
+                    -- Check 1: leaves match body structure
+                    if bodyLeaves != emittedLeafTerms then
+                      dbg_trace s!"ProofChecker: TP proof leaves don't match body for '{fnName}'"
+                      dbg_trace s!"  body leaves ({bodyLeaves.length}): {bodyLeaves}"
+                      dbg_trace s!"  emitted leaves ({emittedLeafTerms.length}): {emittedLeafTerms}"
+                      false
+                    else
+                      -- Check 2: each leaf's type-set is within basicts
+                      let allLeavesWithin := tpProof.leaves.all fun (_, leafTs) =>
+                        (leafTs.toInt64 &&& ~~~tpProof.basicTs.toInt64) == 0
+                      if !allLeavesWithin then
+                        dbg_trace s!"ProofChecker: TP proof leaf type-set exceeds basicts for '{fnName}'"
+                        false
+                      else
+                        -- Check 3: union of leaf type-sets = basicts
+                        let leafUnion := tpProof.leaves.foldl (fun acc (_, leafTs) =>
+                          acc ||| leafTs.toInt64) (0 : Int64)
+                        leafUnion == tpProof.basicTs.toInt64
                   | none =>
                     -- No body available (built-in) — accept if bits check passes
                     true

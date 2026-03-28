@@ -101,7 +101,7 @@ inductive ProofEvent where
   | defun (name : String) (formals : List Symbol) (body : SExpr)
   | defthm (name : String) (formula : SExpr := .nil) (source : TheoremSource := .unknown)
   | typePrescription (name : String) (corollary : SExpr)
-      (basicTs : Option Int := none) (leaves : List SExpr := [])
+      (basicTs : Option Int := none) (leaves : List (SExpr × Int) := [])
   | step (s : ProofStep)
   | induction (i : InductionStep)
   | qed
@@ -429,7 +429,11 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | _ => none
         let leaves := match lookupKeyword "leaves" fields with
           | some l => match l.toList? with
-            | some items => items
+            | some items => items.filterMap fun pair =>
+              -- Each leaf is a proper list (term type-set-bits)
+              match pair.toList? with
+              | some [term, .atom (.number (.int ts))] => some (term, ts)
+              | _ => none
             | none => []
           | none => []
         return .typePrescription name corollary basicTs leaves
