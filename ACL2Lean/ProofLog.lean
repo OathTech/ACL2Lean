@@ -27,6 +27,10 @@ structure RewriteStep where
   subst : List (SExpr × SExpr) := []
   /-- The equivalence formula for rewriting-equivalence steps. -/
   equivTerm : Option SExpr := none
+  /-- Type-set of the argument (for recognizer steps). -/
+  typeSet : Option Int := none
+  /-- True type-set of the recognizer (type-set bits where it returns T). -/
+  trueTs : Option Int := none
   deriving Repr
 
 /-- A trace event from ACL2's detailed rewriter output.
@@ -96,6 +100,7 @@ inductive TheoremSource where
 inductive ProofEvent where
   | defun (name : String) (formals : List Symbol) (body : SExpr)
   | defthm (name : String) (formula : SExpr := .nil) (source : TheoremSource := .unknown)
+  | typePrescription (name : String) (corollary : SExpr)
   | step (s : ProofStep)
   | induction (i : InductionStep)
   | qed
@@ -179,7 +184,13 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
           | none => []
         | none => []
       let equivTerm := lookupKeyword "equiv-term" rest
-      pure { rune, lhs, rhs, origin, runes, parents, subst, equivTerm }
+      let typeSet := match lookupKeyword "typeset" rest with
+        | some (.atom (.number (.int n))) => some n
+        | _ => none
+      let trueTs := match lookupKeyword "truets" rest with
+        | some (.atom (.number (.int n))) => some n
+        | _ => none
+      pure { rune, lhs, rhs, origin, runes, parents, subst, equivTerm, typeSet, trueTs }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
@@ -406,6 +417,15 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         return .defun name formals body
       | none => throw s!"DEFUN: bad name: {repr nameExpr}"
     | _ => throw s!"DEFUN: expected plist, got {repr rest}"
+  | .cons (.atom (.keyword "type-prescription")) rest =>
+    match rest.toList? with
+    | some (nameExpr :: fields) =>
+      match atomString? nameExpr with
+      | some name =>
+        let corollary := (lookupKeyword "corollary" fields).getD .nil
+        return .typePrescription name corollary
+      | none => throw s!"TYPE-PRESCRIPTION: bad name: {repr nameExpr}"
+    | _ => throw s!"TYPE-PRESCRIPTION: expected plist, got {repr rest}"
   | _ => throw s!"Unknown proof log event: {repr s}"
 
 /-- Parse a proof log from raw ACL2 output.

@@ -130,6 +130,8 @@ def main (args : List String) : IO Unit := do
                   | .includeBook => " [include-book]"
                   | .unknown => ""
                 IO.println s!"\n  DEFTHM {name}{srcStr}: {formula}"
+            | .typePrescription name corollary =>
+                IO.println s!"\n  TYPE-PRESCRIPTION {name}: {corollary}"
             | .induction i =>
                 IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
             | .qed =>

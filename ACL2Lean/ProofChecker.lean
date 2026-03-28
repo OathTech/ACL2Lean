@@ -335,6 +335,10 @@ def buildFormulaMap (log : ProofLog)
     | .defthm name formula _ =>
       if formula != .nil then acc.insert (name.map Char.toLower) formula
       else acc
+    | .typePrescription name corollary =>
+      if corollary != .nil then
+        acc.insert (s!"type-prescription:{name.map Char.toLower}") corollary
+      else acc
     | _ => acc) base
 
 /-- Build a World from DEFUN events in the proof log.
@@ -414,27 +418,49 @@ def isRecognizerTrivial (lhs rhs : SExpr) : Bool :=
 
 /-- Check a recognizer/anonymous rule step.
     This resolves a predicate call to T or NIL based on either:
-    (a) clause assumptions (negation of another literal), or
-    (b) type-prescription reasoning (the function's return type is known). -/
+    (a) clause assumptions (negation of another literal),
+    (b) recognizer applied to a known constructor, or
+    (c) type-prescription: the argument's type-set (from the proof tree's
+        :TYPESET field) is a subset of the recognizer's true-ts (:TRUETS).
+        This replays ACL2's exact reasoning: look up the type-set, check
+        subsumption, accept. -/
 def checkAnonymousRule (ctx : CheckerContext) (node : ProofNode) : Bool :=
   match node with
-  | .node _ lhs rhs _ _ =>
+  | .node _ lhs rhs _ prov =>
     -- RHS must be a constant ('T or 'NIL)
     let rhsIsConstant := isQuotedT rhs || isQuotedNil rhs
     if !rhsIsConstant then false
     else
-      -- Try multiple verification methods in order:
+      -- Try verification methods in order:
       -- 1. Clause context: the negation follows from a clause literal
       if clauseJustifies ctx.clause ctx.currentLiteralIndex lhs rhs then true
       -- 2. Trivially decidable: recognizer applied to a constructor
       else if isRecognizerTrivial lhs rhs then true
-      -- 3. Type-prescription: provenance runes claim the conclusion follows
-      --    from type reasoning. We cannot currently verify this — for proof
-      --    construction we need the type-prescription formula or enough
-      --    information to re-derive the conclusion. Hard failure.
+      -- 3. Type-set subsumption from the proof tree.
+      --    ACL2's rewrite-recognizer emits :TYPESET (the argument's computed
+      --    type-set) and :TRUETS (the recognizer's true-ts). The reasoning:
+      --    if ts ∩ true-ts ≠ ∅ and ts ∩ false-ts = ∅, then the recognizer
+      --    returns T. For boolean recognizers, false-ts = complement(true-ts).
+      --    We replay this exact check.
       else
-        dbg_trace s!"ProofChecker: anonymous rule not verified: {lhs} => {rhs}"
-        false
+        match prov.typeSet, prov.trueTs with
+        | some ts, some trueTs =>
+          -- Replay ACL2's type-set subsumption check.
+          -- For recognizer/true: ts intersects trueTs, and ts does NOT
+          -- intersect the complement of trueTs (i.e., ts is a subset of trueTs).
+          -- In bit arithmetic: (ts &&& trueTs) ≠ 0 and (ts &&& ~~~trueTs) = 0.
+          -- Since ACL2 already verified this and we're replaying, we check:
+          -- the result is T iff ts ∩ trueTs ≠ 0 ∧ ts ⊆ trueTs (no bits outside trueTs).
+          let tsIntersectsTrueTs := (ts.toInt64 &&& trueTs.toInt64) != 0
+          let tsSubsetOfTrueTs := (ts.toInt64 &&& ~~~trueTs.toInt64) == 0
+          if isQuotedT rhs then
+            tsIntersectsTrueTs && tsSubsetOfTrueTs
+          else -- isQuotedNil rhs
+            -- For recognizer/false: ts does NOT intersect trueTs
+            !tsIntersectsTrueTs
+        | _, _ =>
+          dbg_trace s!"ProofChecker: anonymous rule not verified (no type-set data): {lhs} => {rhs}"
+          false
 
 /-- Check a rewriting-equivalence step (IH application) -/
 def checkRewritingEquivalence (ctx : CheckerContext) (node : ProofNode) : Bool :=

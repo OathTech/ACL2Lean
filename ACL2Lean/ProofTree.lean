@@ -37,6 +37,10 @@ structure StepProvenance where
   parents : List SExpr := []
   subst : List (SExpr × SExpr) := []
   equivTerm : Option SExpr := none
+  /-- Type-set of the argument (for recognizer steps, from ACL2's type-set engine). -/
+  typeSet : Option Int := none
+  /-- True type-set of the recognizer (bits where it returns T). -/
+  trueTs : Option Int := none
   deriving Repr, Inhabited
 
 inductive ProofNode where
@@ -116,6 +120,8 @@ private def parseProofNodesAux (fuel : Nat) (events : List TraceEvent)
           parents := step.parents
           subst := step.subst
           equivTerm := step.equivTerm
+          typeSet := step.typeSet
+          trueTs := step.trueTs
         }
         let node := .node step.rune step.lhs step.rhs pendingChildren prov
         parseProofNodesAux fuel rest [] (node :: nodes)
@@ -199,6 +205,7 @@ def buildAllTheoremProofs (log : ProofLog) : List TheoremProof := Id.run do
     if fuel == 0 then break
     match ev with
     | .defun _ _ _ => pure ()  -- handled by checker, not tree builder
+    | .typePrescription _ _ => pure ()  -- handled by checker, not tree builder
     | .defthm name formula source =>
       -- Close previous theorem if any
       if let some prevName := curName then
