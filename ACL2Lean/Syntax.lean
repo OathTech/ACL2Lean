@@ -17,8 +17,15 @@ namespace Symbol
 @[inline] def normalizedName (s : Symbol) : String :=
   s.name.map Char.toLower
 
+/-- Compare a symbol's name against a target string.
+    The symbol's name is already lowercased by the parser. The target
+    `name` must also be lowercase for the comparison to work. We use
+    direct string comparison which is kernel-reducible (unlike
+    String.map Char.toLower which goes through @[irreducible]
+    String.mapAux and blocks kernel reduction in proofs).
+    All call sites in the codebase use lowercase target strings. -/
 @[inline] def isNamed (s : Symbol) (name : String) : Bool :=
-  s.normalizedName = name.map Char.toLower
+  s.name == name
 
 end Symbol
 

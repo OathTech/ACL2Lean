@@ -37,7 +37,8 @@ private def int (n : Int) : SExpr := .atom (.number (.int n))
 -- === Symbol ===
 
 #guard ({ name := "CAR" : Symbol }).normalizedName = "car"
-#guard ({ name := "car" : Symbol }).isNamed "CAR"
+-- isNamed uses direct comparison (kernel-reducible). All symbol names
+-- and target strings must be lowercase (parser lowercases symbols).
 #guard ({ name := "car" : Symbol }).isNamed "car"
 #guard !({ name := "car" : Symbol }).isNamed "cdr"
 
