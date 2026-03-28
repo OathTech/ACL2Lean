@@ -453,11 +453,11 @@ private theorem lexorder_atom_trans (a b c : Atom)
                     · simp [show ea < ec by omega, Logic.toBool]
                     · simp [h2, h3, Logic.toBool] at hbc
                 · by_cases h2 : ea = eb
-                  · simp [h1, h2, Logic.toBool] at hab ⊢
+                  · simp [h2] at hab ⊢
                     by_cases h3 : eb < ec
-                    · simp [h3, Logic.toBool]
+                    · simp [h3]
                     · by_cases h4 : eb = ec
-                      · simp [h3, h4, Logic.toBool] at hbc ⊢
+                      · simp [h4] at hbc ⊢
                         by_cases h5 : ma ≤ mb
                         · by_cases h6 : mb ≤ mc
                           · simp [show ma ≤ mc by omega]
@@ -505,11 +505,11 @@ private theorem lexorder_atom_trans (a b c : Atom)
               · simp [show sa.name < sc.name by rwa [← h3], Logic.toBool]
               · simp [h2, h3, Logic.toBool] at hbc
           · by_cases h2 : sa.name = sb.name
-            · simp [h1, h2, Logic.toBool] at hab ⊢
+            · simp [h2] at hab ⊢
               by_cases h3 : sb.name < sc.name
-              · simp [h3, Logic.toBool]
+              · simp [h3]
               · by_cases h4 : sb.name = sc.name
-                · simp [h3, h4, Logic.toBool] at hbc ⊢
+                · simp [h4] at hbc ⊢
                   by_cases h5 : sa.package ≤ sb.package
                   · by_cases h6 : sb.package ≤ sc.package
                     · simp [String.le_trans h5 h6]

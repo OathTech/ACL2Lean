@@ -8,6 +8,16 @@ NEVER specialize the translator on particular examples.
 
 NEVER silently skip or ignore malformed input. All parsers and processors must hard-crash on unexpected input — no default-case swallowing, no `| _ => none`, no "skip unknown forms". If something doesn't parse, that is an error, not something to paper over. This applies everywhere: s-expression parsing, proof log parsing, event classification, rune mapping. Unexpected input means either the input is wrong or the code is incomplete — both must be surfaced immediately, never hidden.
 
+## Proof checker design philosophy
+
+The proof checker does NOT do inference. ACL2 already did the reasoning — Lean replays it deterministically, step by step. No heuristics, no search, no "figure it out" logic. Every reasoning step must be directed by the proof tree. If the proof tree doesn't contain enough information to replay a step, that is a bug in ACL2's instrumentation, not a reason to add inference to the checker. The checker follows instructions; it does not improvise.
+
+When data is missing, the checker MUST hard-fail. Never paper over gaps with heuristic fallbacks. Failures point to missing ACL2 instrumentation, which we fix at the source. This keeps the checker simple, deterministic, and provably sound.
+
+## Code quality
+
+Warnings (other than `sorry` in theorem stubs) are unacceptable. Fix all warnings. NEVER disable linters — if a linter flags something, fix the underlying code.
+
 ## Architecture
 
 ```

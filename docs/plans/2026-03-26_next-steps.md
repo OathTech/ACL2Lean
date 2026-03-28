@@ -1,810 +1,670 @@
-# Next Steps: Foundations First
+# Next Steps: From Bool Checker to Proof Replay
 
 Created: 2026-03-26
-Updated: 2026-03-26 — Completed workstream A. Dropped `eval` in favor of `evalOpt`.
+Updated: 2026-03-27 — Rewrote with accurate failure analysis and architectural roadmap.
 
-## Where we are
+## End goal
 
-The soundness experiment (branch `mdd/soundness-experiment`) explored
-a "check-and-replace" architecture: evaluate both sides of a rewrite
-step, compare them, apply syntactic replacement, prove this preserves
-evaluation. The top-level chain (`replaySteps_sound`) was proved by
-induction on the step list, conditional on a congruence lemma
-`evalReplace_sound`.
-
-**That congruence lemma is false.** See the analysis below and the
-counterexample.
-
-The operational rewriter (Rewriter.lean) works fine — it applies trace
-steps and produces correct results (357/371 on sorting corpus). The
-issue is purely in the soundness proof layer.
-
-## The evalReplace_sound counterexample
-
-The theorem:
-```lean
-theorem evalReplace_sound (f : Nat) (w : World) (env : Env)
-    (term lhs rhs : SExpr)
-    (h_eq : evalOpt f w env lhs = evalOpt f w env rhs) :
-    evalOpt f w env (evalReplace term lhs rhs) = evalOpt f w env term
-```
-
-is false because of eval's fuel decrement. When `evalOpt` processes a
-compound term at fuel `f+1`, it evaluates subexpressions at fuel `f`.
-So `lhs` as a standalone term is evaluated at fuel `f`, but `lhs` as a
-subterm of `term` is evaluated at fuel `f - k` (where k ≥ 1 is the
-nesting depth). The hypothesis gives the equality at the wrong fuel
-level.
-
-**Counterexample:** Let `f(x) = x` and `g(x) = x` be identity
-functions. Let `env = {x ↦ 42}`, fuel = 2.
-
-- `lhs = (f x)`, `rhs = x`, `term = (g (f x))`
-- Hypothesis (fuel 2): `evalOpt 2 (f x) = some 42 = evalOpt 2 x` ✓
-- `evalReplace (g (f x)) (f x) x = (g x)`
-- `evalOpt 2 (g x)`: fuel'=1, eval `x` at 1 → 42, result `some 42`
-- `evalOpt 2 (g (f x))`: fuel'=1, eval `(f x)` at 1: fuel'=0,
-  eval `x` at 0 → `none`. Result: `none`
-- `some 42 ≠ none` ∎
-
-This affects the original `eval` too (same structure, different
-failure value).
-
-## The correct theorem (from soundness-property.md)
-
-The soundness property doc already identified the right form:
-
-```
-∀ env, ∃ N, ∀ f ≥ N, eval f w env result = eval f w env formula
-```
-
-The existential fuel is essential: pick a fuel level large enough that
-everything converges. A correct congruence lemma:
-
-```lean
-theorem evalReplace_sound_corrected
-    (w : World) (env : Env) (term lhs rhs : SExpr)
-    (h_eq : ∃ N, ∀ f ≥ N, evalOpt f w env lhs = evalOpt f w env rhs) :
-    ∃ M, ∀ f ≥ M, evalOpt f w env (evalReplace term lhs rhs)
-                  = evalOpt f w env term
-```
-
-This requires **fuel monotonicity** as infrastructure.
-
-## Plan
-
-Two independent workstreams, then a dependent third.
-
-### Workstream A: Evaluator properties
-
-Goal: establish the basic metatheory of `eval`/`evalOpt`. These
-properties are reusable infrastructure regardless of how the proof
-replay is structured.
-
-**A1. Fuel monotonicity for evalOpt**
-
-```lean
-theorem evalOpt_fuel_mono (f : Nat) (w : World) (env : Env) (t : SExpr) (v : SExpr) :
-    evalOpt f w env t = some v → evalOpt (f + 1) w env t = some v
-```
-
-Once eval converges, more fuel doesn't change the result. Proof by
-structural induction on `f` and case analysis on `t`, mirroring
-evalOpt's definition. Standard but tedious — each case of evalOpt
-(atoms, IF, LET, function call, builtins) needs its own lemma or
-sub-case.
-
-Estimated: 100-200 lines. This is the single most important
-infrastructure lemma.
-
-**A2. evalOpt agrees with eval**
-
-```lean
-theorem evalOpt_some_eq_eval (fuel : Nat) (w : World) (env : Env)
-    (term : SExpr) (v : SExpr) :
-    evalOpt fuel w env term = some v → eval fuel w env term = v
-```
-
-Already stubbed in EvalOpt.lean:82 with sorry. Same proof structure
-as A1 — induction on fuel, case analysis, use the fact that evalOpt
-and eval have identical structure.
-
-Estimated: 50-100 lines.
-
-**A3. Convergence composition**
-
-Corollary of A1. If `evalOpt N t = some v`, then for all `f ≥ N`,
-`evalOpt f t = some v`. This is the usable form of monotonicity.
-
-```lean
-theorem evalOpt_ge_fuel (f N : Nat) (w : World) (env : Env) (t : SExpr) (v : SExpr) :
-    evalOpt N w env t = some v → f ≥ N → evalOpt f w env t = some v
-```
-
-Estimated: 10-20 lines (iterated application of A1).
-
-**A4. Audit eval/evalOpt structural agreement**
-
-Currently, evalOpt is claimed to be "structurally identical" to eval.
-Verify this holds for all cases, especially:
-- LET/LET* binding evaluation
-- Builtin dispatch (does evalOpt call the same `callBuiltin`?)
-- Arity mismatch handling
-
-This is a review task, not a coding task.
-
-### Workstream B: Corrected congruence
-
-Goal: prove the correct version of the replacement-preserves-eval
-theorem.
-
-**B1. Corrected evalReplace_sound**
-
-Using the existential-fuel formulation from above. The proof:
-1. From `h_eq`, extract N such that lhs and rhs agree at all fuel ≥ N
-2. By induction on `term`, show that for large enough fuel (accounting
-   for nesting depth), the replacement preserves evalOpt
-3. Each inductive case uses fuel monotonicity (A1/A3) to shift from
-   the top-level fuel down to the sub-expression fuel
-
-Key sub-cases:
-- **Whole-term match** (term = lhs): immediate from h_eq
-- **QUOTE**: evalReplace skips inside QUOTE, so trivial
-- **Symbol-headed cons** (function call / IF / LET): recurse into
-  arguments. Need to show evalOpt of the argument list is preserved.
-  Uses A1 to align fuel levels.
-- **Non-symbol-headed cons**: needs well-formedness precondition (all
-  real ACL2 terms have symbol heads on function calls)
-
-Depends on: A1, A3
-Estimated: 100-150 lines
-
-**B2. Corrected replaySteps_sound**
-
-Restate and re-prove the step-chain theorem with existential fuel.
-The current proof structure (induction on step list) should carry over
-with minimal changes — the key difference is that each step produces
-an existential fuel bound, and we take the max.
-
-```lean
-theorem replaySteps_sound (w : World) (env : Env)
-    (steps : List RewriteStep) (term result : SExpr) (fuel : Nat)
-    (h : replaySteps w env steps term fuel = some result) :
-    ∃ M, ∀ f ≥ M, evalOpt f w env result = evalOpt f w env term
-```
-
-Depends on: B1
-Estimated: 30-50 lines (adaptation of existing proof)
-
-**B3. checkStep at sufficient fuel**
-
-The current `checkStep` evaluates at a single fuel level. With
-monotonicity, this is fine: if `checkStep` passes at fuel N, then the
-equality holds at all fuel ≥ N.
-
-```lean
-theorem checkStep_sufficient (w : World) (env : Env)
-    (step : RewriteStep) (N : Nat)
-    (h : checkStep w env step N = true) :
-    ∀ f ≥ N, evalOpt f w env step.lhs = evalOpt f w env step.rhs
-```
-
-Depends on: A1
-Estimated: 10-20 lines
-
-### Workstream C: Proof tree replay (future)
-
-This is the larger refactor. NOT part of the immediate plan, but
-worth scoping now so that A and B are designed to support it.
-
-The flat trace (a list of RewriteStep) has two independent problems:
-1. **4% failure rate** on the sorting corpus (14/371 cases) due to
-   information loss when serializing the tree to a sequence
-2. **Soundness architecture** — the correct proof is a tree with
-   scoped hypothesis contexts, not a fold over a flat list
-
-The soundness-property doc (2026-03-24) describes the right
-architecture:
-- Per-rule soundness (one theorem per rule type)
-- Referential transparency (the congruence from B1)
-- Simulation invariant (induction over the proof tree)
-
-What this requires on the ACL2 side:
-- Explicit sub-proof boundaries in the trace (BEGIN-SUBPROOF /
-  END-SUBPROOF)
-- Scope information (which hypotheses are active)
-- Assumption bindings (variable substitutions in effect)
-
-What this requires on the Lean side:
-- A tree-shaped proof trace type (replacing the flat List RewriteStep)
-- A tree-walking replay function (replacing the fold)
-- Per-rule soundness theorems
-- Context/hypothesis management
-
-The work in A and B directly supports C:
-- Fuel monotonicity (A1) is needed for composing fuel bounds across
-  tree nodes
-- The corrected congruence (B1) is the "referential transparency"
-  component
-- evalOpt agreement (A2) bridges back to the user-facing eval
-
-## What was done (2026-03-26)
-
-### Workstream A: completed
-
-**A1. Fuel monotonicity** — proved. The key insight: factor `evalOpt`
-into `evalOptStep` (non-recursive body) + `evalOpt` (fuel-bounded
-recursion). Then `evalOptStep_mono` is a one-shot proof about a
-non-recursive function, and `evalOpt_fuel_mono` is a 5-line corollary.
-
-**A2. evalOpt_some_eq_eval** — dropped. We decided to standardize on
-`evalOpt` as the sole evaluator. `eval` (plain SExpr return) was
-deleted. The bridge lemma is no longer needed.
-
-**A3. evalOpt_ge_fuel** — proved. 3-line proof using `Nat.le` induction.
-
-### Consolidation: eval → evalOpt
-
-`eval` and `Evaluator.eval` were both deleted. `evalOpt` is now the
-canonical ACL2 evaluator. Rationale: `evalOpt` distinguishes fuel
-exhaustion (`none`) from legitimate nil (`some .nil`), which is
-essential for soundness proofs. Having two evaluators created a bridge
-obligation with no payoff.
-
-Files removed:
-- `ACL2Lean/Eval.lean` — replaced by `EvalOpt.lean`
-- `ACL2Lean/Evaluator.lean` — legacy partial evaluator
-- `Tests/EvaluatorTest.lean` — tests for old evaluator
-
-`bindArgs` and `callBuiltin` (pure utilities) were moved into
-`EvalOpt.lean`. All downstream code (`Rewriter.lean`, `WorldGen.lean`,
-`SimpleWorld.lean`, `Main.lean`) updated to use `evalOpt`.
-
-### Current sorry inventory
-
-| File | Sorry | Status |
-|------|-------|--------|
-| `EvalOpt.lean` | (none) | Clean |
-| `RewriterSoundness.lean` | `evalReplace_sound` | Known false; left for proof-tree refactor |
-| `SimpleWorld.lean` | `my_len_my_app` | Generated stub |
-| `WorldGen.lean` | Template generates sorry | By design |
-| `DSL.lean` | Test/example code | Not proof-relevant |
-
-### What's next
-
-Workstream C: proof checker + soundness.
-
-## What was done (2026-03-27)
-
-### Workstream C steps 1-2, 4-5: completed
-
-**Proof tree types and parser** — `ProofTree.lean` defines recursive
-`ProofNode` tree with `StepProvenance` (origin, runes, parents, subst,
-equivTerm). Parser uses `BEGIN/END-INNER-REWRITE` markers to build
-tree from flat trace. `dump-proof-tree` CLI command for inspection.
-
-**ACL2 structured trace** — complete instrumentation:
-- 44 logging points with unique `:ORIGIN` tags and `TRACE-LOG[id]`
-  comments across `rewrite.lisp` (31) and `simplify.lisp` (13)
-- `BEGIN/END-INNER-REWRITE` markers scope definition body/RHS rewriting
-- `BEGIN/END-IF-REWRITE` markers scope unknown-case IF branch processing
-- Transaction rollback for abandoned definition expansions
-- All depth-zero suppression removed; events emit at all depths
-- `:RUNES` (type-prescription provenance) on type-alist/recognizer/
-  lemma steps
-- `:SUBST` (formal→actual mapping) on definition expansion steps
-- `:EQUIV-TERM` on rewriting-equivalence steps
-- `:FORMULA` and `:SOURCE` on DEFTHM events (imported vs local)
-- Hyphenated keywords renamed to prevent printer line-wrapping
-
-**Corpus validation** — 648 theorems across 10 sorting corpus books,
-0 parse errors. Proof tree audit on simple.lisp confirms correct
-structure with full provenance.
-
-### Files deprecated by the new architecture
-
-The old flat rewriter and its soundness proof are superseded:
-- `Rewriter.lean` — `replaceFirst`/`evalReplace`/`applyRewriteSteps`
-  replaced by proof tree checker (the checker verifies steps, not
-  computes them)
-- `RewriterSoundness.lean` — `evalReplace_sound` (known false) and
-  `replaySteps_sound` replaced by soundness theorem over the checker
-
-These should be deleted when the checker is working.
-
-## Workstream C step 3: Proof checker
-
-### Architecture
-
-The checker replaces the old rewriter. Instead of:
-```
-trace → flat steps → replaceFirst fold → result term
-```
-the new pipeline is:
-```
-trace → ProofNode tree → checker verifies each node → accept/reject
-```
-
-The checker doesn't transform terms. The proof tree already contains
-the LHS/RHS of every step. The checker verifies that each step is
-VALID — that the claimed equality holds under the proof context.
-
-### What the checker verifies per node type
-
-For each `ProofNode` with `rune`, `lhs`, `rhs`, `children`, and
-`provenance`:
-
-**definition expansion** (rune = `(:DEFINITION fn)`):
-1. Look up `fn` in World → formals, body
-2. `provenance.subst` gives the formal→actual mapping
-3. Verify: applying the substitution to the body and following the
-   branch decisions (from children) yields the RHS
-4. Children are sub-proof nodes that justify the body simplification
-
-**rewrite rule** (rune = `(:REWRITE name)`):
-1. Look up `name` in the World's proved theorems (or axiom library)
-2. Extract the rule's formula (e.g., `(EQUAL (+ 0 X) (FIX X))`)
-3. Match the rule's LHS pattern against the step's LHS → substitution σ
-4. Verify: σ applied to the rule's RHS gives (the start of) the step's
-   RHS. Children may further simplify the RHS.
-
-**recognizer / anonymous rule** (rune = `(:FAKE-RUNE-FOR-...)`):
-1. If `provenance.runes` has type-prescription runes: verify the
-   type-prescription is in the World and the conclusion follows
-2. If `provenance.runes` is empty: this is a clause assumption.
-   Verify: the negation of the step's conclusion matches a clause
-   literal (the literal being assumed false).
-
-**equal-self** (rune = `(:EQUAL-SELF)`):
-1. Verify: LHS is `(EQUAL x x)` and RHS is `T`
-
-**if-simplification** (rune = `(:IF-SIMPLIFICATION)`):
-1. Verify: LHS is `(IF test then else)` where test is a constant
-   (`'T` or `'NIL`), and RHS is the appropriate branch
-
-**executable-counterpart** (rune = `(:EXECUTABLE-COUNTERPART fn)`):
-1. Verify: LHS is a ground term (no variables), evaluate it via
-   `evalOpt` with sufficient fuel, check result matches RHS
-
-**rewriting-equivalence** (rune = `(:REWRITING-EQUIVALENCE)`):
-1. `provenance.equivTerm` gives the equality formula
-2. Verify: the equiv-term matches a negated clause literal (the IH
-   or a branch assumption)
-
-**clause-context-resolution** (rune = `(:CLAUSE-CONTEXT-RESOLUTION)`):
-1. The literal was resolved by the clause context. Verify: the
-   result follows from the other clause literals.
-
-### What the checker needs beyond the proof tree
-
-**A World with:**
-- Function definitions (already in `World.defs`)
-- Proved theorem formulas (from DEFTHM events with `:SOURCE :LOCAL`)
-- Imported theorem formulas (from DEFTHM events with `:SOURCE :INCLUDE-BOOK`)
-- Built-in axiom formulas (CAR-CONS, CDR-CONS, UNICITY-OF-0, etc.)
-
-Many built-in axioms already exist in `Logic.lean` as simp lemmas.
-We need to register them as rewrite rule formulas in the World.
-
-**Pattern matching:**
-First-order matching of a rule's LHS pattern against a step's LHS
-to extract the substitution σ. This is decidable and straightforward
-for SExpr terms.
-
-### Implementation plan
-
-**Step 3a: ProofChecker.lean — checker function**
-
-New file. Takes `World` + `TheoremProof` → `Bool`.
-Walk the proof tree, verify each node by the rules above.
-Start with just simple.lisp: definition expansion, rewrite rules,
-equal-self, if-simplification, executable-counterpart.
-
-Test: `checkTheoremProof simpleWorld simpleProof = true`
-
-**Step 3b: Axiom library**
-
-Register built-in ACL2 axioms as theorem formulas accessible to the
-checker. Start with the ones used in simple.lisp:
-- UNICITY-OF-0: `(EQUAL (+ 0 X) (FIX X))`
-- CDR-CONS: `(EQUAL (CDR (CONS X Y)) Y)`
-- COMMUTATIVITY-OF-+: `(EQUAL (+ X Y) (+ Y X))`
-- COMMUTATIVITY-2-OF-+: `(EQUAL (+ X (+ Y Z)) (+ Y (+ X Z)))`
-
-**Step 3c: Pattern matching**
-
-First-order matching for rewrite rule application:
-`match? (pattern : SExpr) (term : SExpr) : Option (List (Symbol × SExpr))`
-Returns the substitution if the pattern matches.
-
-**Step 3d: End-to-end test on simple.lisp**
-
-Parse simple.proof-log → build TheoremProof → check with World →
-should return true for all cases.
-
-### After the checker: proof-producing replay (steps 6-8)
-
-The direct approach: write a function (or tactic) that walks the
-proof tree and **constructs Lean proof terms** for each node. The
-Lean kernel checks each constructed proof. No separate soundness
-theorem is needed — if the proof type-checks, it's correct.
-
-This is strictly better than the checker+soundness approach:
-- No need to state or prove a soundness theorem
-- A bug in the replay produces a type error, not a false theorem
-- The Lean kernel IS the soundness checker
-- Less code, smaller trusted base
+For every theorem in an ACL2 book, produce a Lean proof term that the
+kernel checks. ACL2 is an untrusted oracle; Lean is the sole trust
+anchor. No `sorry`.
 
 ```lean
 theorem my_len_my_app (env : Env) :
-    ∃ N, ∀ f ≥ N, evalOpt f simpleWorld env formula = some SExpr.t := by
+    ∃ N, ∀ f ≥ N, evalOpt f world env formula = some SExpr.t := by
+  acl2_replay "acl2_samples/simple.proof-log"
+```
+
+## Where we are
+
+### Infrastructure (complete)
+
+- **Evaluator**: `evalOpt` (fuel-bounded, Option-returning). Sole
+  canonical evaluator. `eval` and `Evaluator` deleted.
+- **Fuel monotonicity**: `evalOpt_fuel_mono` and `evalOpt_ge_fuel`
+  proved, sorry-free. Factored via `evalOptStep` (non-recursive body).
+- **Proof tree types**: `ProofNode` (recursive tree with
+  `StepProvenance`), `LiteralProof`, `CaseProof`, `TheoremProof`.
+- **ACL2 instrumentation**: 46 logging points with unique `:ORIGIN`
+  tags. `BEGIN/END-INNER-REWRITE` markers for tree structure.
+  Transaction rollback for abandoned explorations. Full provenance
+  (origin, runes, parents, subst, equivTerm).
+- **DEFUN emission**: ACL2 emits macro-expanded function bodies
+  using `(body name t (w state))`. The Lean parser builds World
+  from proof log DEFUN events — no source files needed.
+- **425 `#guard` tests** across 14 files. `just ci` is the
+  conformance gate.
+
+### Bool checker (ProofChecker.lean)
+
+A per-node checker that dispatches on rune type. 57 guard tests.
+Validates that proof tree nodes are sound reasoning steps. Handles:
+
+| Rule type | What it checks |
+|---|---|
+| `definition` | Unfold body, apply subst, chain children → match RHS |
+| `rewrite` | Look up formula, pattern-match LHS, apply subst → match RHS |
+| `executable-counterpart` | Ground eval via `evalOpt`, match result |
+| `equal-self` | `(EQUAL x x) → 'T` |
+| `if-simplification` | `(IF const then else) → branch` |
+| `if-same-branches` | `(IF test x x) → x` |
+| `type-set-equality` | `(EQUAL a b) → 'T` or `'NIL` (well-formedness only) |
+| `fake-rune-for-anonymous-enabled-rule` | Clause context, recognizer, or type-prescription |
+| `rewriting-equivalence` | equiv-term matches negated clause literal (IH) |
+| `clause-context-resolution` | Literal resolved by clause context |
+| `type-alist` | Same as anonymous rule |
+
+### Corpus results
+
+**591 passed, 58 failed** out of 649 theorems (91%).
+
+| Book | Pass | Fail | Total | Notes |
+|---|---|---|---|---|
+| simple | 1 | 0 | 1 | Baseline: fully checked |
+| qsort | 543 | 12 | 555 | 98% — best large book |
+| isort | 15 | 3 | 18 | Missing axioms + body mismatch |
+| bsort | 14 | 9 | 23 | Included book deps |
+| msort | 15 | 7 | 22 | Included book deps |
+| convert-perm-to-how-many | 1 | 13 | 14 | Included book deps |
+| perm | 0 | 8 | 8 | All functions from included book |
+| ordered-perms | 2 | 6 | 8 | Included book deps |
+
+Books with 0 local theorems (definitions only): orderedp, how-many,
+sorts-equivalent.
+
+### Failure analysis (1,991 debug trace lines)
+
+| Category | Count | % | Root cause |
+|---|---|---|---|
+| Unknown function | 1,403 | 70.5% | DEFUN from included book not in proof log |
+| Unknown rewrite rule | 417 | 20.9% | Formula from included book or missing axiom |
+| Rewrite RHS mismatch | 85 | 4.3% | Conditional rewrite hypotheses not checked |
+| Defn body mismatch | 28 | 1.4% | IF branch resolution not replayed |
+| Can't extract rewrite | 23 | 1.2% | Non-EQUAL conclusion formulas |
+| Pattern match failed | 18 | 0.9% | Formula needs macro expansion |
+| Rewrite+children mismatch | 15 | 0.8% | Cascading IF resolution in children |
+| Unknown rune type | 2 | 0.1% | `compound-recognizer` not handled |
+
+**91% of failures are missing data, not missing logic.** Functions and
+theorems from included books aren't available because we process each
+book in isolation. The remaining 9% are genuine checker capability gaps.
+
+#### Missing data: functions (top 10)
+
+memb (356), all-rel (152), rel (131), merge2 (126), rm (121),
+orderedp (100), perm (78), how-many (71), true-listp (51), bnext (33)
+
+#### Missing data: axioms/rules
+
+lexorder-reflexive (147), lexorder-transitive (138), default-cdr (57),
+default-car (51), fold-consts-in-+ (16), cons-car-cdr (8)
+
+## Architecture
+
+### The soundness argument
+
+The soundness of the replay rests on two properties:
+
+**Referential transparency** (property of `evalOpt`): if
+`evalOpt f w env a = evalOpt f w env b`, then
+`evalOpt f w env (C[a]) = evalOpt f w env (C[b])` for any
+enclosing term `C[·]`. This is unconditional — proved once, used at
+every rewrite step. It is the corrected form of the false
+`evalReplace_sound` lemma, using existential fuel.
+
+**Per-rule proof construction**: for each rule type, a function
+that constructs a Lean proof term establishing the step's claimed
+equality under the proof context (clause assumptions, branch
+conditions, IH).
+
+These compose: per-rule construction gives contextual equality
+proofs; referential transparency lifts them to the enclosing term;
+fuel monotonicity composes fuel bounds across the tree. The Lean
+kernel checks every constructed proof term — no metatheorem needed.
+
+### Architecture: direct proof-term construction
+
+The replay constructs proof terms directly. A tactic walks the proof
+tree and, for each node, calls a per-rule proof constructor. If the
+constructed term type-checks, the theorem is proved. Lean's kernel
+is the sole trust anchor.
+
+```lean
+theorem my_len_my_app (env : Env) :
+    ∃ N, ∀ f ≥ N, evalOpt f world env formula = some SExpr.t := by
+  acl2_replay "acl2_samples/simple.proof-log"
+```
+
+**Why not a reflected checker + soundness metatheorem?** A reflected
+checker requires proving a complex metatheorem: "if this function
+returns true, then the semantic property holds." That metatheorem is
+an inductive proof over the checker code, with one case per rule
+type — each case requiring exactly the same per-rule proof
+construction that direct construction uses. The metatheorem adds an
+indirection layer with no payoff: the per-rule knowledge is
+identical either way, but the reflected approach wraps it in an
+extra proof obligation about the checker function itself.
+
+Direct construction is simpler: same per-rule proof work, no
+metatheorem overhead, and bugs produce type errors (safe) rather
+than soundness proof breakage (hard to debug).
+
+**The Bool checker's role**: The existing `ProofChecker.lean` is a
+debugging and validation tool. It validates that the proof tree
+contains sufficient information before we invest in constructing
+proof terms. It shares the same dispatch structure as the tactic
+(dispatch on rune type, process children, compose). The checker is
+the dry run; the tactic is the real thing.
+
+**Designing the checker for proof construction makes it correct.**
+If each Bool check answers "could I construct a proof term from
+this node?", then the checker's correctness condition is
+self-evident — it checks precisely the preconditions of the
+corresponding proof constructor. There is no gap between what the
+checker validates and what the tactic needs. A checker designed in
+isolation might verify the wrong things; one designed as a dry run
+of proof construction can't. This means Phase 1 (completing the
+checker) directly shapes the proof constructors in Phase 3.
+
+### Dependency chain architecture
+
+ACL2 books form a DAG via `include-book`. To prove theorem T in book
+B that references theorem R from included book A, we need R's proof
+available as a Lean lemma.
+
+Processing order: bottom-up through the DAG.
+
+```
+orderedp.lisp   (definitions only, no theorems to prove)
+perm.lisp       (memb, rm, perm — prove 8 theorems)
+how-many.lisp   (definitions only)
+isort.lisp      (uses orderedp + perm + how-many — prove 18 theorems)
+bsort.lisp      (uses orderedp + perm + how-many — prove 23 theorems)
+...
+```
+
+Each book's proof log provides both DEFUNs and DEFTHMs. The checker/
+replay processes books in dependency order, accumulating a World and
+a set of proved theorems.
+
+**For the Bool checker (immediate)**: accept multiple proof logs on
+the CLI. Build the World and formula map cumulatively. Only check
+theorems from the final log.
+
+**For the replay (future)**: process each book's proof log to produce
+a Lean file with proved theorems. Later books `import` earlier ones.
+
+### Definition expansion: the hard problem
+
+The checker treats children as flat find-and-replace rewrites. This
+works for 98% of cases but fails when the expanded body contains IF
+branches that the children resolve.
+
+Example: expanding `memb` with args `(x1, it)` produces:
+```
+(IF (EQUAL x1 (CAR it)) 'T (MEMB x1 (CDR it)))
+```
+
+ACL2's rewriter knows from the clause context that `(EQUAL x1 (CAR it))`
+is false, so it takes the else-branch, yielding `(MEMB x1 (CDR it))`.
+
+The children in the proof tree contain nodes that resolve this IF test
+(via clause assumption or type reasoning) and take the branch. The
+checker needs to actually walk the IF structure, match children against
+IF tests, and collapse branches.
+
+This is the core of "guided evaluation" — and it's exactly what the
+proof-producing replay will need to do. The Bool checker's IF walk is
+the prototype for the proof term construction.
+
+For proof replay, definition expansion decomposes into:
+1. `evalOpt f w env (fn a1..an) = evalOpt (f-1) w env body[formals/actuals]`
+   (definitional, from evalOpt's function-call case)
+2. For each IF in the body: prove the test evaluates to T or NIL
+   (from clause assumptions or type reasoning), take the branch
+3. Recursively handle sub-simplifications in the branch
+
+### Induction
+
+ACL2's induction scheme tells us:
+- The recursion variable and pattern
+- Base case conditions
+- Step case conditions and recursive call structure
+
+We need to construct a Lean induction principle from this. The
+natural approach: well-founded recursion on `acl2Count` (SExpr
+structural size). ACL2's scheme tells us how the recursive call
+decreases size; we prove the measure decreases.
+
+This is the least-explored area. The existing `acl2Count` and
+termination lemmas in `Count.lean` are the foundation, but the
+mechanism for converting ACL2 schemes to Lean induction is open.
+
+### Clause semantics
+
+ACL2 proves theorems by showing clauses are valid. A clause
+`{L₁, ..., Lₙ}` is a disjunction: at least one literal evaluates
+to non-NIL. When working on literal Lᵢ, the prover assumes ¬Lⱼ
+for j ≠ i.
+
+The formal bridge:
+```
+∀ env, ∃ N, ∀ f ≥ N,
+  evalOpt f w env L₁ ≠ some .nil ∨
+  evalOpt f w env L₂ ≠ some .nil ∨ ... ∨
+  evalOpt f w env Lₙ ≠ some .nil
+```
+
+Simplifying one literal Lᵢ to T, under the assumption that all other
+literals evaluate to NIL, establishes the disjunction. The clause
+structure maps directly to Lean's `Or` type.
+
+## Work plan
+
+### Phase 1: Complete the Bool checker
+
+Goal: 649/649 pass. This validates that the proof tree contains
+sufficient information for replay.
+
+**Every failure in the Bool checker is a gap that would also block
+proof-producing replay.** Phase 1 isn't busywork — it validates the
+data pipeline.
+
+#### 1a. Multi-proof-log loading
+
+Change `check-proof` to accept dependency proof logs:
+```
+lake exe acl2lean check-proof target.proof-log dep1.proof-log dep2.proof-log ...
+```
+
+Build World (DEFUNs) and formula map (DEFTHMs) cumulatively from all
+logs. Only check theorems from the target (last) log.
+
+*Fixes*: 1,403 unknown-function + ~300 unknown-rewrite-rule errors.
+*Expected impact*: ~70% of failures resolved.
+
+#### 1b. Add missing built-in axioms
+
+Add to `builtinAxioms`:
+- `lexorder-reflexive`: `(IMPLIES (NOT (CONSP X)) (LEXORDER X X))`
+  and the consp cases
+- `lexorder-transitive`: `(IMPLIES (AND (LEXORDER X Y) (LEXORDER Y Z)) (LEXORDER X Z))`
+- `default-car`: `(IMPLIES (NOT (CONSP X)) (EQUAL (CAR X) NIL))`
+- `default-cdr`: `(IMPLIES (NOT (CONSP X)) (EQUAL (CDR X) NIL))`
+- `fold-consts-in-+`: `(EQUAL (+ c1 (+ c2 X)) (+ (+ c1 c2) X))`
+  where c1, c2 are constants
+- `cons-car-cdr`: `(IMPLIES (CONSP X) (EQUAL (CONS (CAR X) (CDR X)) X))`
+
+Note: some of these are conditional rewrites (IMPLIES with non-trivial
+hypotheses). This overlaps with 1d.
+
+*Fixes*: remaining ~120 unknown-rewrite-rule errors.
+
+#### 1c. Conditional rewrite rules
+
+`extractRewriteRule` currently only handles:
+- `(EQUAL lhs rhs)`
+- `(IMPLIES hyp (EQUAL lhs rhs))`
+
+Extend to handle:
+- `(IMPLIES (AND h1 h2 ...) (EQUAL lhs rhs))` — multiple hypotheses
+- `(IMPLIES hyps conclusion)` where conclusion is not EQUAL — rewrite
+  `conclusion` to `'T` when hypotheses hold
+- Hypothesis discharge: verify each hypothesis is satisfied by the
+  clause context (negated clause literal matches, or ground-true)
+
+*Fixes*: 23 can't-extract + 85 RHS-mismatch errors.
+
+#### 1d. Definition expansion with IF resolution
+
+Replace the flat find-and-replace child application with a structured
+IF walk:
+
+1. Expand body and apply formal→actual substitution
+2. Walk the result looking for IF nodes
+3. For each IF: check if a child resolves the test (child's LHS is
+   the test, child's RHS is `'T` or `'NIL`)
+4. If resolved: replace the IF with the taken branch
+5. Continue walking the branch
+6. Apply remaining children as term rewrites
+
+This must handle nested IFs (cascading branch resolution).
+
+*Fixes*: 28 defn-body-mismatch + 15 rewrite+children-mismatch errors.
+
+#### 1e. Formula macro expansion
+
+Apply `macroExpand` to formula LHS patterns before pattern matching.
+The formulas from the proof log use expanded forms (BINARY-+), but
+built-in axiom formulas may use raw forms (+).
+
+*Fixes*: 18 pattern-match-failed errors.
+
+#### 1f. Compound recognizer
+
+Add handler for `compound-recognizer` rune type. These derive type
+information from recognizer predicates.
+
+*Fixes*: 2 unknown-rune-type errors.
+
+#### 1g. Validation
+
+After all fixes:
+- Run checker on full sorting corpus: all 649 theorems pass
+- Run `just ci`: all 425+ guard tests pass
+- The proof tree contains sufficient information for every step
+
+### Phase 2: Foundational lemmas
+
+Prove the building blocks that the per-rule proof constructors will
+use. These are reusable infrastructure.
+
+#### 2a. Referential transparency (congruence)
+
+The corrected form of the false `evalReplace_sound`:
+
+```lean
+theorem evalOpt_congr (w : World) (env : Env) (term lhs rhs : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env lhs = evalOpt f w env rhs) :
+    ∃ M, ∀ f ≥ M, evalOpt f w env (replace term lhs rhs)
+                  = evalOpt f w env term
+```
+
+Proof by structural induction on `term`. Each case uses
+`evalOpt_fuel_mono` to align fuel levels across sub-expressions.
+The key insight: choose M = max(N, depth(term)) to ensure all
+sub-evaluations converge.
+
+Depends on: `evalOpt_fuel_mono`, `evalOpt_ge_fuel` (both proved).
+
+This is used by the tactic at every step to lift a local equality
+to the enclosing expression.
+
+#### 2b. Clause semantics bridge
+
+Formalize the bridge between clause-level reasoning and the evaluator:
+
+```lean
+-- A clause is valid iff for all env, at least one literal is non-NIL
+def clauseValid (w : World) (clause : List SExpr) : Prop :=
+  ∀ env, ∃ N, ∀ f ≥ N,
+    clause.any (fun lit => evalOpt f w env lit ≠ some .nil)
+
+-- If one literal simplifies to T assuming others are NIL, clause is valid
+theorem clause_valid_of_literal_true (w : World) (clause : List SExpr)
+    (i : Nat) (hi : i < clause.length)
+    (h : ∀ env, (∀ j, j ≠ i → j < clause.length →
+            ∃ N, ∀ f ≥ N, evalOpt f w env clause[j] = some .nil) →
+          ∃ N, ∀ f ≥ N, evalOpt f w env clause[i] = some SExpr.t) :
+    clauseValid w clause
+```
+
+This connects the per-literal proof construction to the theorem's
+universal statement. The tactic uses it to assemble per-case proofs
+into the full theorem.
+
+#### 2c. Definition expansion lemma
+
+The tactic's definition expansion constructor needs:
+
+```lean
+theorem evalOpt_defn_unfold (w : World) (env : Env) (fn : Symbol)
+    (formals : List Symbol) (body : SExpr) (args : List SExpr)
+    (h_def : w.defs.get? fn = some (formals, body))
+    (h_arity : args.length = formals.length) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (mkCall fn args) =
+      evalOpt f w (bindFormals formals args env) body
+```
+
+This unfolds `evalOpt`'s function-call case. The tactic then
+constructs proofs about the body (IF resolution, sub-rewrites)
+guided by the proof tree's children.
+
+#### 2d. IF branch resolution lemma
+
+```lean
+theorem evalOpt_if_true (w : World) (env : Env) (test thn els : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env test ≠ some .nil) :
+    ∃ M, ∀ f ≥ M,
+      evalOpt f w env (mkIf test thn els) = evalOpt f w env thn
+```
+
+(And the symmetric `evalOpt_if_false`.) Used during definition
+expansion to follow IF branches as directed by the proof tree.
+
+#### 2e. Built-in axioms as Lean theorems
+
+Each built-in axiom (CAR-CONS, CDR-CONS, etc.) needs a Lean proof:
+
+```lean
+theorem car_cons_eval (w : World) (env : Env) (x y : SExpr) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (mkCall "car" [mkCall "cons" [x, y]]) =
+      evalOpt f w env x
+```
+
+These are used by the tactic when a rewrite step cites a built-in.
+Many already exist as simp lemmas in `Logic.lean`; they need to be
+restated in the `evalOpt`-with-fuel form.
+
+### Phase 3: Per-rule proof constructors
+
+Each rule type gets a tactic/function that constructs the proof term
+for that step. These mirror the Bool checker's dispatch but produce
+proofs instead of booleans.
+
+#### 3a. Easy constructors (start here)
+
+These are direct applications of foundational lemmas:
+
+- **equal-self**: `(EQUAL x x) → T`. Proof: unfold evalOpt for
+  EQUAL, apply decidable equality. Nearly `rfl`.
+- **if-simplification**: `(IF 'T a b) → a`. Proof: apply
+  `evalOpt_if_true` with the constant test.
+- **if-same-branches**: `(IF test x x) → x`. Proof: case split on
+  test, both branches give `x`.
+- **executable-counterpart**: Ground eval. Proof: `evalOpt` on the
+  ground term produces `some result`, which is definitional.
+
+These are the proving ground for the tactic infrastructure: how
+does the tactic receive the proof context, construct the term, and
+return it? Get this working on simple.lisp first.
+
+#### 3b. Rewrite rule constructor
+
+Given a proved theorem `thm : ∀ env, ∃ N, ∀ f ≥ N, evalOpt f w env formula = some SExpr.t`
+and a pattern match producing substitution σ:
+
+1. Instantiate the theorem with the substituted environment
+2. Extract the equality `evalOpt f w env lhs = evalOpt f w env rhs`
+3. Apply congruence to lift to the enclosing term
+
+This handles both built-in axioms (Phase 2e) and previously proved
+user theorems. The substitution σ from pattern matching becomes
+environment manipulation in the proof term.
+
+#### 3c. Definition expansion constructor
+
+The most complex constructor. For a step `(fn a1..an) → rhs`:
+
+1. Apply `evalOpt_defn_unfold` to get `eval(call) = eval(body[subst])`
+2. Walk the body's IF structure guided by children:
+   - Each child that resolves an IF test contributes a sub-proof
+     (via `evalOpt_if_true`/`evalOpt_if_false`)
+   - Each child that rewrites a subterm contributes via congruence
+3. Compose sub-proofs into `eval(body[subst]) = eval(rhs)`
+4. Chain: `eval(call) = eval(body[subst]) = eval(rhs)`
+
+The Bool checker's IF-walk (Phase 1d) is the prototype for this
+constructor. Every check the Bool version performs maps to a proof
+obligation in this constructor.
+
+#### 3d. Clause assumption / IH constructors
+
+- **anonymous-rule** (clause assumption): The proof term negates a
+  clause literal. Since we're working under the assumption that
+  literal Lⱼ evaluates to NIL, the step follows directly.
+- **rewriting-equivalence** (IH application): The equiv-term matches
+  a negated clause literal. The IH is available as a hypothesis in
+  the Lean proof context (introduced by the induction step).
+
+These are straightforward once the clause semantics bridge (2b) is
+in place, but require the tactic to track hypotheses correctly.
+
+### Phase 4: Tactic composition
+
+#### 4a. Single-theorem replay on simple.lisp
+
+Prove `my_len_my_app` with no sorry:
+
+```lean
+theorem my_len_my_app (env : Env) :
+    ∃ N, ∀ f ≥ N, evalOpt f world env formula = some SExpr.t := by
   acl2_replay "acl2_samples/simple.proof-log"
 ```
 
 The `acl2_replay` tactic:
-1. Parses the proof log at elaboration time
-2. Builds the `TheoremProof` value
-3. Walks the tree, constructing proof terms for each node:
-   - Definition expansion → unfold evalOpt, follow IF branches
-   - Rewrite rule → instantiate the proved theorem, apply
-   - Equal-self → `rfl`
-   - Recognizer/clause assumption → derive from clause context
-   - etc.
-4. Composes per-node proofs into the full theorem proof
-5. The Lean kernel checks the result
+1. Reads and parses the proof log at elaboration time
+2. Builds proof context (world, clause, etc.)
+3. For each case: applies induction (if needed), then for each
+   literal: chains per-rule proof constructors
+4. Lean's kernel checks the composed proof term
 
-The per-node proof constructions use `evalOpt_fuel_mono` and
-`evalOpt_ge_fuel` to compose fuel bounds across the tree.
+#### 4b. Book-level replay
 
-The Bool checker (step 3) is still useful as a **debugging tool** —
-it validates the proof tree has enough information before we invest
-in constructing proof terms. But it's not load-bearing for
-soundness.
-
-The trajectory:
-1. Bool checker — validates completeness, catches design bugs
-2. Per-node proof construction — for each node type, build the
-   Lean proof term
-3. Tactic — `acl2_replay` composes everything
-
-### Open questions (carried forward)
-
-1. **Induction**: The trace gives the scheme (case clauses). How do
-   we construct a Lean induction principle from this? Likely via
-   `acl2Count` well-founded recursion.
-
-2. **Clause-to-disjunction**: How do we formally state that a clause
-   `{L₁, ..., Lₙ}` is valid iff for all env, at least one Lᵢ is
-   non-NIL? This is the bridge between clause-level reasoning and
-   the evaluator.
-
-3. **Book dependencies**: Theorems from included books are axioms in
-   the current book's proof. Processing books in dependency order
-   (perm → isort → etc.) ensures each theorem is either proved or
-   imported.
-
-## Workstream C historical design notes (superseded)
-
-Updated: 2026-03-26
-
-### Why the flat model fails (recap)
-
-The current rewriter applies a flat list of `RewriteStep` values via
-`replaceFirst` in a fold. This serialization loses three kinds of
-information:
-
-1. **Scope**: Branch assumptions (e.g., `X1 = A`) are scoped to a
-   branch. Steps that use these assumptions only make sense inside
-   that scope. The flat model can't express this.
-
-2. **Nesting**: Definition expansion creates a sub-proof. Steps inside
-   the expansion reference subterms that exist only in the expanded
-   body, not in the literal. The flat model leaks these into the
-   literal-level step list.
-
-3. **Combination**: When both IF branches are processed (UNKNOWN
-   case), the combined result is a new term that the flat model can't
-   compose from the branch results.
-
-All 14/371 (4%) failures are caused by these. The tree model fixes
-all three by making the nesting explicit.
-
-### ACL2's proof structure (what the tree represents)
-
-ACL2's simplifier processes a theorem through these levels:
-
-```
-Theorem
-  └── Induction (optional)
-      └── Case₁ (clause: disjunction of literals)
-      │   └── Literal₁: no rewrites needed (passes through)
-      │   └── Literal₂: rewrite chain → T
-      │       ├── Step: defn-expand MY-APP → body
-      │       │   └── IF branch decision: (CONSP X) false
-      │       ├── Step: defn-expand MY-LEN → '0
-      │       │   └── IF branch decision: (CONSP X) false
-      │       ├── Step: rewrite UNICITY-OF-0
-      │       └── Result: (EQUAL (MY-LEN Y) (MY-LEN Y)) = T
-      └── Case₂ (with IH)
-          └── ...
-```
-
-Key structural observation: the trace we already emit contains
-almost all of this. The current events — BEGIN/END-LITERAL,
-BEGIN/END-BRANCH, CASE-SPLIT, IF-TEST-TRUE/FALSE/UNKNOWN,
-REWRITE-STEP, REWRITTEN-LITERAL — form the SKELETON of this tree.
-What's missing is sub-proof boundaries inside the rewriter.
-
-### What the trace currently provides vs. what we need
-
-**Already emitted:**
-- Clause structure: `:INPUT-CLAUSE` gives the literal list
-- Literal boundaries: `BEGIN-LITERAL`/`END-LITERAL`
-- Branch structure: `BEGIN-BRANCH`/`END-BRANCH`, `CASE-SPLIT`
-- IF decisions: `IF-TEST-TRUE/FALSE/UNKNOWN` with test and justification
-- Rewrite steps: `REWRITE-STEP` with rune, LHS, RHS
-- Literal results: `REWRITTEN-LITERAL` with original and result
-- Induction: `:INDUCTION` with scheme and subgoal count
-- Branch substitutions: `BRANCH-SUBSTITUTION`, `CONTEXT-SUBST`
-
-**Not emitted (causes the 4% failures):**
-- Sub-proof boundaries for definition expansion (where the body
-  rewriting begins and ends)
-- IF branch rewriting boundaries (when UNKNOWN, both branches are
-  rewritten; the sub-proofs for each branch are invisible)
-- Steps inside definition expansions (suppressed by depth counter)
-
-### Proposed representation: two levels
-
-Rather than emitting the full rewriter recursion tree (which would
-be enormous and fragile), we propose a two-level design:
-
-**Outer level (already exists, minor changes):**
-```
-Theorem → Induction → [Case]
-Case → Clause → [LiteralProof]
-LiteralProof → Literal → [JustifiedStep] → Result
-```
-
-This maps directly to the existing trace structure. No ACL2 changes
-needed for this level.
-
-**Inner level (the new part):**
-
-Each `JustifiedStep` is a rewrite step enriched with its
-justification. The current flat `RewriteStep` (rune + LHS + RHS)
-becomes:
+Generate a Lean file for each book in dependency order:
 
 ```lean
-structure JustifiedStep where
-  rune : String × String
-  lhs : SExpr
-  rhs : SExpr
-  branchDecisions : List BranchDecision  -- IF decisions inside this step
+-- Generated: IsortWorld.lean
+import ACL2Lean.Imported.PermWorld
+import ACL2Lean.Imported.HowManyWorld
 
-inductive BranchDecision where
-  | true (test : SExpr) (justification : BranchJustification)
-  | false (test : SExpr) (justification : BranchJustification)
-
-inductive BranchJustification where
-  | clauseAssumption   -- test's truth follows from a negated literal
-  | typeSet            -- test's truth follows from type reasoning
-  | rewrittenConstant  -- test rewrote to 'T or 'NIL
-  | hypothesis         -- test matches an assumption from a branch
+namespace ACL2.Imported.Isort
+def world : World := ...  -- extends perm + how-many worlds
+theorem orderedp_insert (env : Env) : ... := by acl2_replay ...
+theorem orderedp_isort  (env : Env) : ... := by acl2_replay ...
+...
 ```
 
-The key insight: **the IF-TEST events that currently precede each
-REWRITE-STEP in the flat trace ARE the branch decisions**. They're
-already emitted in the right order. We just need to associate them
-with their step instead of treating them as independent events.
+Each theorem becomes a Lean lemma available for later books'
+proofs. The dependency chain is enforced by Lean's import system.
 
-This association can be done entirely in the Lean parser — no ACL2
-changes for 96% of cases.
+#### 4c. Induction (the open frontier)
 
-### Handling the 4% failures
+For theorems proved by induction, we need to construct the induction
+principle. ACL2's scheme gives us case splits and recursive call
+patterns. We need to map these to well-founded recursion on
+`acl2Count`.
 
-The three failure types need different solutions:
+This is the least-understood part of the architecture. Possible
+approaches:
 
-**Scope loss (bsort, 1 case):** An equivalence from
-`find-rewriting-equivalence` fires inside a definition expansion.
-The depth counter suppresses it.
+- **Structural**: If ACL2 inducts on `(CDR x)`, map to Lean
+  induction on list-like structure via `acl2Count` decrease.
+- **Custom measure**: ACL2's measure function (if available in the
+  proof log) could be lifted to Lean as a well-founded measure.
+- **Reflection**: Encode the induction scheme as data, prove a
+  generic induction principle parameterized by the scheme.
 
-Fix: Remove the depth counter for `find-rewriting-equivalence`
-logging. These events are lightweight (just variable substitutions)
-and carry their own justification. Emit them at all depths, and let
-the Lean parser associate them with the enclosing step.
+This needs investigation. The existing `acl2Count` infrastructure
+and termination lemmas in `Count.lean` are the starting point.
 
-**Inner step leakage (qsort, 6 cases):** Steps reference subterms
-from inside a definition expansion.
+## Soundness gaps to close
 
-Fix: Add `BEGIN-EXPANSION`/`END-EXPANSION` markers around definition
-body rewriting in `rewrite-fncall`. Steps inside the expansion are
-grouped into the expansion node. The Lean parser builds a sub-tree
-for the expansion; only the outermost LHS/RHS are visible at the
-literal level.
+Current known gaps in the Bool checker where we accept steps without
+fully verifying them. For proof-producing replay, each gap must be
+resolved — either by constructing a proof, or by getting additional
+information from ACL2.
 
-**Branch combination loss (qsort, 7 cases):** Both IF branches are
-rewritten but the combined result requires further simplification.
+1. **Type-prescription anonymous rules**: Accepted if provenance
+   runes reference known functions. We don't re-derive the type
+   conclusion. For replay: we need either (a) the type-prescription
+   formula from ACL2 (so we can instantiate it as a lemma), or
+   (b) enough information to derive the conclusion from first
+   principles.
 
-Fix: Add `BEGIN-IF-BRANCH`/`END-IF-BRANCH` markers around the
-TRUE/FALSE branch rewriting in `rewrite-if-finish` (the UNKNOWN
-case). The combined result is already logged. The Lean parser builds
-a sub-tree for the IF processing.
+2. **Type-set-equality**: Accepted if LHS is EQUAL and RHS is
+   constant. Don't verify the type reasoning. For replay: need to
+   construct a proof that `(EQUAL a b)` evaluates to T or NIL.
+   May require type information from ACL2 (e.g., "a and b are both
+   integers" → EQUAL by computation).
 
-### ACL2 changes (acl2/ submodule)
+3. **Type-alist**: Delegated to anonymous rule logic. Same gap as #1.
 
-Three targeted changes in `rewrite.lisp`:
+These gaps likely require additional ACL2 instrumentation — the
+proof tree must carry enough information for independent
+reconstruction. The Bool checker identifies where these gaps are;
+the replay will force us to close them.
 
-1. **`rewrite-fncall`** (~line 19766): Add `BEGIN-EXPANSION`/
-   `END-EXPANSION` markers around the definition body rewriting.
-   Remove the depth increment (or keep it but don't use it to
-   suppress logging).
+## What was completed
 
-2. **`rewrite-if-finish`** (~line 17277): Add `BEGIN-IF-BRANCH`/
-   `END-IF-BRANCH` markers around the UNKNOWN-case branch rewriting.
-   The existing `IF-TEST-UNKNOWN` + combined-result logging stays.
+### 2026-03-26
 
-3. **`rewrite-solidify-rec`** (~line 4750): Remove the depth check
-   for `find-rewriting-equivalence` logging so it emits at all
-   depths.
+- **Fuel monotonicity** (`evalOpt_fuel_mono`, `evalOpt_ge_fuel`):
+  proved sorry-free via `evalOptStep` factoring
+- **Evaluator consolidation**: dropped `eval` and `Evaluator`,
+  standardized on `evalOpt`
 
-Estimated: ~30 lines of changes across 3 functions. All existing
-logging stays; we're adding boundary markers and removing
-suppressions.
+### 2026-03-27 (early)
 
-### Lean types
+- **Proof tree types and parser**: `ProofNode`, `LiteralProof`,
+  `CaseProof`, `TheoremProof` in `ProofTree.lean`
+- **ACL2 instrumentation**: 46 logging points, transaction rollback,
+  full provenance
+- **DEFUN emission**: ACL2 emits expanded bodies, Lean builds World
+  from proof log
+- **Bool checker**: Per-node checking, 57 guard tests, 591/649
+  theorems pass on sorting corpus
 
-```lean
-/-- A proof of a single theorem. -/
-structure TheoremProof where
-  name : String
-  formula : SExpr
-  induction : Option InductionScheme
-  cases : List CaseProof
+### Files deprecated
 
-/-- Proof of one induction case (or the single case if no induction). -/
-structure CaseProof where
-  clauseId : String
-  clause : List SExpr        -- input clause (disjunction)
-  targetLiteral : Nat        -- which literal simplifies to T
-  literalProof : LiteralProof
+- `Rewriter.lean` — `replaceFirst`/`evalReplace`/`applyRewriteSteps`
+  (import commented out)
+- `RewriterSoundness.lean` — `evalReplace_sound` (known false)
+- `Eval.lean`, `Evaluator.lean`, `Tests/EvaluatorTest.lean` — deleted
 
-/-- Proof that a literal simplifies to T under clause assumptions. -/
-structure LiteralProof where
-  literal : SExpr
-  steps : List JustifiedStep
-  result : SExpr              -- should be 'T or (EQUAL X X)
-```
+### Current sorry inventory
 
-### Lean proof checker
+| File | Sorry | Status |
+|---|---|---|
+| `EvalOpt.lean` | (none) | Clean |
+| `RewriterSoundness.lean` | `evalReplace_sound` | Known false, to be deleted |
+| `SimpleWorld.lean` | `my_len_my_app` | Target for Phase 4a |
+| `WorldGen.lean` | Template generates sorry | By design (stubs) |
+| `DSL.lean` | Test/example code | Not proof-relevant |
+| `Log2Replay.lean` | (none) | Clean (hand-written replay) |
 
-```lean
-/-- Check a theorem proof. Returns true if all steps are valid. -/
-def checkTheoremProof (w : World) (proof : TheoremProof) : Bool
+## Open questions
 
-/-- Check a single justified step against the world. -/
-def checkStep (w : World) (step : JustifiedStep)
-    (clauseAssumptions : List SExpr) : Bool
-```
+1. **Induction principle construction**: How does ACL2's induction
+   scheme (case splits + recursive call patterns) map to Lean
+   well-founded recursion? See Phase 4c.
 
-The checker verifies:
-- For `defn-expand`: function exists in world, branch decisions are
-  consistent with unfolding the body under clause assumptions
-- For `rewrite`: rule exists (in world's proved theorems or as an
-  axiom), LHS matches the rule's LHS pattern
-- For `type-set`: the type reasoning is valid
-- For `equal-self`, `if-simplify`, `exec-counterpart`: trivially
-  checkable
+2. **Type-prescription verification**: Can we construct proofs for
+   type-prescription conclusions from the proof tree data, or do
+   we need additional ACL2 instrumentation? See soundness gaps.
 
-### Lean soundness theorem
+3. **Tactic performance**: Will elaboration-time proof construction
+   be fast enough for large books (qsort has 555 theorems)? If not,
+   we may need caching, compiled tactic code, or incremental
+   elaboration.
 
-```lean
-theorem checkTheoremProof_sound (w : World) (proof : TheoremProof) :
-    checkTheoremProof w proof = true →
-    ∀ env, ∃ N, ∀ f ≥ N,
-      evalOpt f w env proof.formula = some SExpr.t
-```
+4. **Macro expansion completeness**: The current `macroExpand` handles
+   `+`, `*`, `-`, and bare integers. Are there other ACL2 macros that
+   appear in function bodies but not in the expanded trace form?
 
-Proved by structural induction on the proof:
-1. **Induction**: from the scheme, derive a Lean induction principle
-   on SExpr (using acl2Count). Apply it to decompose into cases.
-2. **Per case**: the clause is `{L₁, ..., Lₙ}`. Assume `¬Lⱼ` for
-   j ≠ targetLiteral. Show the target literal evaluates to T.
-3. **Per step**: per-rule soundness. Each rule type gets its own
-   lemma (proved once):
-   - `defnExpand_sound`: unfolding + branch decisions preserve eval
-   - `rewriteRule_sound`: rule application preserves eval
-   - `typeSetResolve_sound`: type reasoning preserves eval
-4. **Composition**: chain steps using evalReplace + fuel monotonicity
-   (from workstream A).
+5. **Book DAG discovery**: Currently the dependency order must be
+   specified manually on the CLI. Should we parse `include-book`
+   events to discover the DAG automatically?
 
-### Per-rule soundness lemmas needed
+6. **Previously proved theorems as rewrites**: When theorem T from
+   book A is used as a rewrite rule in book B's proof, the replay
+   for B needs T as a Lean lemma. This creates a compile-time
+   dependency — book B's Lean file must import book A's. The
+   generation pipeline must respect this order.
 
-**`defnExpand_sound`**: If `f` is defined with body `b` and formals
-`xs`, and the branch decisions are consistent with evaluating `b`
-under the clause assumptions, then
-`evalOpt f w env (f args) = evalOpt f w env result`.
-
-This is the most complex per-rule lemma. It requires:
-- Unfolding evalOpt for function calls
-- Following IF branches according to the branch decisions
-- Using clause assumptions to justify the branch choices
-- Composing fuel bounds
-
-**`rewriteRule_sound`**: If theorem `thm` is proved (in the world or
-as an axiom), and LHS matches `thm`'s LHS under substitution σ,
-then `evalOpt f w env LHS = evalOpt f w env RHS`.
-
-This requires:
-- Pattern matching to extract σ
-- Instantiating the theorem with σ
-- Showing the instantiation is correct
-
-**`equalSelf_sound`**: `(EQUAL X X)` evaluates to T. Trivial.
-
-**`ifSimplify_sound`**: IF with constant test simplifies. Trivial
-from evalOpt's IF case.
-
-**`execCounterpart_sound`**: Ground function application evaluates
-to a known result. Follows from evalOpt + callBuiltin.
-
-### Implementation order
-
-1. **Lean types**: Define `TheoremProof`, `CaseProof`,
-   `LiteralProof`, `JustifiedStep`, `BranchDecision` types.
-   No dependencies.
-
-2. **Lean parser**: Parse the current trace format into the new
-   types. The parser associates IF-TEST events with REWRITE-STEPs.
-   Test on simple.lisp (should work with current trace).
-
-3. **Lean checker**: Implement `checkTheoremProof`. Start with a
-   simple version that just verifies syntactic conditions. Test on
-   simple.lisp.
-
-4. **ACL2 changes**: Add `BEGIN-EXPANSION`/`END-EXPANSION` markers.
-   Remove depth-counter suppressions. Re-capture proof logs for the
-   sorting corpus.
-
-5. **Lean parser update**: Handle the new markers, build sub-trees
-   for expansions. Test on the 4% failure cases.
-
-6. **Per-rule soundness**: Prove `defnExpand_sound`,
-   `rewriteRule_sound`, etc. These use `evalOpt_fuel_mono` and
-   `evalOpt_ge_fuel` from workstream A.
-
-7. **Main soundness theorem**: Prove `checkTheoremProof_sound` by
-   composing the per-rule lemmas.
-
-8. **End-to-end**: Prove `my_len_my_app` from simple.lisp with no
-   sorry.
-
-9. **Scale**: Run on sorting corpus. Debug remaining issues.
-
-### Open questions
-
-1. **Induction**: How does the induction scheme from the trace map
-   to a Lean induction principle? The trace gives us the recursion
-   pattern and case conditions, but we need to construct a
-   well-founded recursion argument in Lean.
-
-2. **Rule instantiation**: When a rewrite rule is applied, the trace
-   gives us LHS/RHS but not the substitution explicitly. We need to
-   reconstruct it by matching the rule's pattern against the step's
-   LHS. This is first-order matching (not unification) — decidable
-   and straightforward.
-
-3. **Hypothesis tracking**: When a rewrite step uses the induction
-   hypothesis (which is a negated literal in the clause), how do we
-   formally connect this to the Lean IH? The IH is `¬Lᵢ`, which
-   gives us `evalOpt f w env Lᵢ = some .nil`, which is equivalent
-   to the equality the step claims.
-
-4. **Axioms**: Built-in ACL2 axioms (CAR-CONS, CDR-CONS, etc.) need
-   to be proved once in Lean and made available to the checker. Many
-   already exist in Logic.lean as simp lemmas.
-
-5. **Previously proved theorems**: When a rewrite references a
-   user-proved theorem from the same book, we need that theorem's
-   proof to be available. This creates a dependency order — theorems
-   must be proved in book order.
+7. **Proof term size**: Do constructed proof terms stay manageable,
+   or do they blow up for complex theorems? If terms become large,
+   we may need intermediate lemmas or proof irrelevance to keep
+   the kernel check tractable.

@@ -242,9 +242,9 @@ theorem evalOptStep_mono
           | some cv =>
             simp [hc] at h; simp [hmono w env c cv hc]
             cases cv with
-            | nil => simp [Logic.toBool] at h ⊢; exact hmono w env e v h
-            | atom _ => simp [Logic.toBool] at h ⊢; exact hmono w env t' v h
-            | cons _ _ => simp [Logic.toBool] at h ⊢; exact hmono w env t' v h
+            | nil => simp at h ⊢; exact hmono w env e v h
+            | atom _ => simp at h ⊢; exact hmono w env t' v h
+            | cons _ _ => simp at h ⊢; exact hmono w env t' v h
         | none | some [] | some [_] | some [_, _]
         | some (_ :: _ :: _ :: _ :: _) => simp only [htl] at h; exact h
       · simp [hif] at h ⊢

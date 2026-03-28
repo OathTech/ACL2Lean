@@ -155,15 +155,57 @@ partial def applySubst (subst : Std.HashMap Symbol SExpr) (term : SExpr) : SExpr
     else .cons (applySubst subst (.atom (.symbol q))) (applySubst subst (.cons v .nil))
   | .cons a b => .cons (applySubst subst a) (applySubst subst b)
 
-/-- Extract (LHS, RHS) from a rewrite rule formula.
-    Handles: (EQUAL lhs rhs) and (IMPLIES hyp (EQUAL lhs rhs)) -/
-def extractRewriteRule (formula : SExpr) : Option (SExpr × SExpr) :=
+/-- A rewrite rule extracted from a formula: hypotheses, LHS pattern, RHS pattern. -/
+structure RewriteRule where
+  hypotheses : List SExpr  -- empty for unconditional rules
+  lhsPattern : SExpr
+  rhsPattern : SExpr
+  deriving Repr
+
+private def mkQuotedT : SExpr :=
+  SExpr.cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil)
+
+/-- Flatten nested (AND h1 (AND h2 h3)) or (IF h1 h2 'NIL) into a list. -/
+private def flattenConjunction : SExpr → List SExpr
+  | .cons (.atom (.symbol fn)) (.cons a (.cons b .nil)) =>
+    if fn.isNamed "and" then flattenConjunction a ++ flattenConjunction b
+    else [.cons (.atom (.symbol fn)) (.cons a (.cons b .nil))]
+  | .cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil))) =>
+    if fn.isNamed "if" then
+      -- (IF a b 'NIL) is ACL2's internal form of (AND a b)
+      match c with
+      | .nil => flattenConjunction a ++ flattenConjunction b
+      | .cons (.atom (.symbol q)) (.cons .nil .nil) =>
+        if q.isNamed "quote" then flattenConjunction a ++ flattenConjunction b
+        else [.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil)))]
+      | _ => [.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil)))]
+    else [.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil)))]
+  | s => [s]
+
+/-- Extract a rewrite rule from a formula.
+    Returns hypotheses (to be verified), LHS pattern, and RHS pattern.
+    Handles:
+    - (EQUAL lhs rhs) → hyps=[], lhs, rhs
+    - (IMPLIES hyps (EQUAL lhs rhs)) → hyps from IMPLIES, lhs, rhs
+    - (IMPLIES hyps concl) → hyps, concl, 'T  [non-EQUAL conclusion]
+    - (P args) → hyps=[], formula, 'T  [bare fact] -/
+def extractRewriteRule (formula : SExpr) : Option RewriteRule :=
   match isEqual? formula with
-  | some pair => some pair
+  | some (lhs, rhs) => some { hypotheses := [], lhsPattern := lhs, rhsPattern := rhs }
   | none =>
     match formula with
-    | .cons (.atom (.symbol imp)) (.cons _ (.cons concl .nil)) =>
-      if imp.isNamed "implies" then isEqual? concl else none
+    | .cons (.atom (.symbol imp)) (.cons hyp (.cons concl .nil)) =>
+      if imp.isNamed "implies" then
+        let hyps := flattenConjunction hyp
+        match isEqual? concl with
+        | some (lhs, rhs) => some { hypotheses := hyps, lhsPattern := lhs, rhsPattern := rhs }
+        | none => some { hypotheses := hyps, lhsPattern := concl, rhsPattern := mkQuotedT }
+      else
+        -- Not IMPLIES — bare function call with two args
+        some { hypotheses := [], lhsPattern := formula, rhsPattern := mkQuotedT }
+    | .cons (.atom (.symbol _)) _ =>
+      -- Bare predicate application: rewrites to T
+      some { hypotheses := [], lhsPattern := formula, rhsPattern := mkQuotedT }
     | _ => none
 
 /-! ## Axiom library -/
@@ -198,6 +240,31 @@ def builtinAxioms : Std.HashMap String SExpr :=
   |> mk "commutativity-2-of-+"
       (mkCall "equal" [mkCall "binary-+" [mkVar "x", mkCall "binary-+" [mkVar "y", mkVar "z"]],
                         mkCall "binary-+" [mkVar "y", mkCall "binary-+" [mkVar "x", mkVar "z"]]])
+  -- LEXORDER-REFLEXIVE: (lexorder x x)  — bare fact, rewrites (LEXORDER a a) to T
+  |> mk "lexorder-reflexive"
+      (mkCall "lexorder" [mkVar "x", mkVar "x"])
+  -- LEXORDER-TRANSITIVE: (implies (and (lexorder x y) (lexorder y z)) (lexorder x z))
+  |> mk "lexorder-transitive"
+      (mkCall "implies" [mkCall "if" [mkCall "lexorder" [mkVar "x", mkVar "y"],
+                            mkCall "lexorder" [mkVar "y", mkVar "z"], quoted .nil],
+                          mkCall "lexorder" [mkVar "x", mkVar "z"]])
+  -- DEFAULT-CAR: (implies (not (consp x)) (equal (car x) 'nil))
+  |> mk "default-car"
+      (mkCall "implies" [mkCall "not" [mkCall "consp" [mkVar "x"]],
+                          mkCall "equal" [mkCall "car" [mkVar "x"], quoted .nil]])
+  -- DEFAULT-CDR: (implies (not (consp x)) (equal (cdr x) 'nil))
+  |> mk "default-cdr"
+      (mkCall "implies" [mkCall "not" [mkCall "consp" [mkVar "x"]],
+                          mkCall "equal" [mkCall "cdr" [mkVar "x"], quoted .nil]])
+  -- FOLD-CONSTS-IN-+: (equal (+ x (+ y z)) (+ (+ x y) z)) — ignoring syntaxp guards
+  |> mk "fold-consts-in-+"
+      (mkCall "equal" [mkCall "binary-+" [mkVar "x", mkCall "binary-+" [mkVar "y", mkVar "z"]],
+                        mkCall "binary-+" [mkCall "binary-+" [mkVar "x", mkVar "y"], mkVar "z"]])
+  -- CONS-CAR-CDR: (equal (cons (car x) (cdr x)) (if (consp x) x (cons nil nil)))
+  |> mk "cons-car-cdr"
+      (mkCall "equal" [mkCall "cons" [mkCall "car" [mkVar "x"], mkCall "cdr" [mkVar "x"]],
+                        mkCall "if" [mkCall "consp" [mkVar "x"], mkVar "x",
+                                      mkCall "cons" [.nil, .nil]]])
 
 /-- Built-in ACL2 function definitions. These are always available
     but don't appear as DEFUN events in user .lisp files. -/
@@ -216,33 +283,73 @@ def builtinDefs : Std.HashMap Symbol (List Symbol × SExpr) :=
   -- IMPLIES: (defun implies (p q) (if p (if q t nil) t))
   |>.insert (sym "implies") ([sym "p", sym "q"],
     mkCall "if" [mkVar "p", mkCall "if" [mkVar "q", SExpr.t, .nil], SExpr.t])
+  -- TRUE-LISTP: (defun true-listp (x) (if (consp x) (true-listp (cdr x)) (equal x nil)))
+  |>.insert (sym "true-listp") ([sym "x"],
+    mkCall "if" [mkCall "consp" [mkVar "x"],
+                  mkCall "true-listp" [mkCall "cdr" [mkVar "x"]],
+                  mkCall "equal" [mkVar "x", .nil]])
+  -- BINARY-APPEND: (defun binary-append (x y) (if (endp x) y (cons (car x) (binary-append (cdr x) y))))
+  |>.insert (sym "binary-append") ([sym "x", sym "y"],
+    mkCall "if" [mkCall "endp" [mkVar "x"],
+                  mkVar "y",
+                  mkCall "cons" [mkCall "car" [mkVar "x"],
+                                  mkCall "binary-append" [mkCall "cdr" [mkVar "x"], mkVar "y"]]])
+  -- EVENS: (defun evens (l) (if (endp l) nil (cons (car l) (evens (cddr l)))))
+  |>.insert (sym "evens") ([sym "l"],
+    mkCall "if" [mkCall "endp" [mkVar "l"],
+                  .nil,
+                  mkCall "cons" [mkCall "car" [mkVar "l"],
+                                  mkCall "evens" [mkCall "cdr" [mkCall "cdr" [mkVar "l"]]]]])
+  -- ODDS: (defun odds (l) (evens (cdr l)))
+  |>.insert (sym "odds") ([sym "l"],
+    mkCall "evens" [mkCall "cdr" [mkVar "l"]])
+  -- O-FINP: (defun o-finp (x) (atom x))
+  |>.insert (sym "o-finp") ([sym "x"],
+    mkCall "atom" [mkVar "x"])
+  -- ACL2-COUNT: (defun acl2-count (x) (if (consp x) (+ 1 (acl2-count (car x)) (acl2-count (cdr x))) ...))
+  -- Simplified: only the CONSP case matters for the sorting corpus
+  |>.insert (sym "acl2-count") ([sym "x"],
+    mkCall "if" [mkCall "consp" [mkVar "x"],
+                  mkCall "binary-+" [quoted (.atom (.number (.int 1))),
+                    mkCall "binary-+" [mkCall "acl2-count" [mkCall "car" [mkVar "x"]],
+                                        mkCall "acl2-count" [mkCall "cdr" [mkVar "x"]]]],
+                  mkCall "if" [mkCall "rationalp" [mkVar "x"],
+                    mkCall "if" [mkCall "integerp" [mkVar "x"],
+                      mkCall "integer-abs" [mkVar "x"],
+                      quoted (.atom (.number (.int 0)))],
+                    mkCall "if" [mkCall "complex-rationalp" [mkVar "x"],
+                      quoted (.atom (.number (.int 0))),
+                      quoted (.atom (.number (.int 0)))]]])
 
 /-- Add built-in definitions to a World. -/
 def addBuiltinDefs (w : World) : World :=
   { w with defs := builtinDefs.fold (fun acc k v =>
       if acc.get? k |>.isNone then acc.insert k v else acc) w.defs }
 
-/-- Build a formula map from a ProofLog, collecting all DEFTHM formulas. -/
-def buildFormulaMap (log : ProofLog) : Std.HashMap String SExpr :=
+/-- Build a formula map from a ProofLog, collecting all DEFTHM formulas.
+    Extends an existing map (defaults to builtinAxioms). -/
+def buildFormulaMap (log : ProofLog)
+    (base : Std.HashMap String SExpr := builtinAxioms) : Std.HashMap String SExpr :=
   log.events.foldl (fun acc ev =>
     match ev with
     | .defthm name formula _ =>
       if formula != .nil then acc.insert (name.map Char.toLower) formula
       else acc
-    | _ => acc) builtinAxioms
+    | _ => acc) base
 
 /-- Build a World from DEFUN events in the proof log.
     These contain the macro-expanded, normalized bodies that ACL2's
-    rewriter operates on. -/
-def buildWorldFromLog (log : ProofLog) : World :=
+    rewriter operates on. Extends an existing world (defaults to
+    builtinDefs only). -/
+def buildWorldFromLog (log : ProofLog) (base : World := { defs := {} }) : World :=
   let defs := log.events.foldl (fun acc ev =>
     match ev with
     | .defun name formals body =>
       let sym : Symbol := { name := name.map Char.toLower }
       let formalSyms := formals.map fun s => { name := s.name.map Char.toLower : Symbol }
       acc.insert sym (formalSyms, body)
-    | _ => acc) ({} : Std.HashMap Symbol (List Symbol × SExpr))
-  -- Merge with built-in definitions
+    | _ => acc) base.defs
+  -- Merge with built-in definitions (don't override log definitions)
   let defs := builtinDefs.fold (fun acc k v =>
     if (acc.get? k).isNone then acc.insert k v else acc) defs
   { defs := defs }
@@ -311,7 +418,7 @@ def isRecognizerTrivial (lhs rhs : SExpr) : Bool :=
     (b) type-prescription reasoning (the function's return type is known). -/
 def checkAnonymousRule (ctx : CheckerContext) (node : ProofNode) : Bool :=
   match node with
-  | .node _ lhs rhs _ prov =>
+  | .node _ lhs rhs _ _ =>
     -- RHS must be a constant ('T or 'NIL)
     let rhsIsConstant := isQuotedT rhs || isQuotedNil rhs
     if !rhsIsConstant then false
@@ -321,18 +428,13 @@ def checkAnonymousRule (ctx : CheckerContext) (node : ProofNode) : Bool :=
       if clauseJustifies ctx.clause ctx.currentLiteralIndex lhs rhs then true
       -- 2. Trivially decidable: recognizer applied to a constructor
       else if isRecognizerTrivial lhs rhs then true
-      -- 3. Type-prescription: provenance runes reference known functions
-      else if !prov.runes.isEmpty then
-        -- SOUNDNESS GAP: we verify the runes reference known functions
-        -- but don't re-prove the type-prescription itself.
-        match lhs.headSymbol? with
-        | some fn =>
-          prov.runes.any fun (_, runeName) =>
-            let rn := { name := runeName.map Char.toLower : Symbol }
-            (ctx.world.defs.get? rn).isSome || (builtinDefs.get? rn).isSome ||
-            fn.isNamed runeName
-        | none => false
-      else false
+      -- 3. Type-prescription: provenance runes claim the conclusion follows
+      --    from type reasoning. We cannot currently verify this — for proof
+      --    construction we need the type-prescription formula or enough
+      --    information to re-derive the conclusion. Hard failure.
+      else
+        dbg_trace s!"ProofChecker: anonymous rule not verified: {lhs} => {rhs}"
+        false
 
 /-- Check a rewriting-equivalence step (IH application) -/
 def checkRewritingEquivalence (ctx : CheckerContext) (node : ProofNode) : Bool :=
@@ -403,20 +505,13 @@ partial def replaceInTerm (term pattern replacement : SExpr) : SExpr :=
 
 /-- Apply a chain of child rewrites to a term.
     Each child's LHS is found in the current term and replaced with its RHS.
-    Returns the final term after all children are applied.
-    Set `trace := true` for debug output. -/
-def applyChildRewrites (term : SExpr) (children : List ProofNode)
-    (trace : Bool := false) : SExpr :=
+    Pure replay: no simplification, no inference. Every transformation must
+    be directed by a child node in the proof tree. -/
+def applyChildRewrites (term : SExpr) (children : List ProofNode) : SExpr :=
   children.foldl (fun t child =>
     match child with
     | .node _ childLhs childRhs _ _ =>
-      let result := replaceInTerm t childLhs childRhs
-      (if trace && result == t then
-        dbg_trace s!"  applyChildRewrites: LHS not found in term"
-        dbg_trace s!"    childLhs: {childLhs}"
-        dbg_trace s!"    term:     {t}"
-        result
-      else result)) term
+      replaceInTerm t childLhs childRhs) term
 
 /-- Check a clause-context-resolution step -/
 def checkClauseContextResolution (ctx : CheckerContext) (node : ProofNode) : Bool :=
@@ -440,7 +535,7 @@ def checkTypeAlist (ctx : CheckerContext) (node : ProofNode) : Bool :=
     Uses fuel for termination of recursive tree walk. -/
 partial def checkNode (ctx : CheckerContext) (node : ProofNode) : Bool :=
   match node with
-  | .node (runeType, runeName) lhs rhs children prov =>
+  | .node (runeType, runeName) lhs rhs children _prov =>
     let childrenOk := fun () => children.all (checkNode ctx)
     match runeType with
     | "definition" =>
@@ -464,10 +559,9 @@ partial def checkNode (ctx : CheckerContext) (node : ProofNode) : Bool :=
             (fun acc (f, a) => acc.insert f a) ({} : Std.HashMap Symbol SExpr)
           -- Macro-expand and substitute the body
           let instBody := applySubst substMap (macroExpand body)
-          -- Apply children as hints: each child's LHS/RHS may be in
-          -- formal scope (ACL2's lazy substitution). We apply the
-          -- alist to each child's LHS to find it in the substituted
-          -- body, then replace with the alist-applied RHS.
+          -- Apply children as directed rewrites. Each child's LHS/RHS
+          -- is found in the current term and replaced. No inference —
+          -- every transformation is directed by the proof tree.
           let simplified := children.foldl (fun t child =>
             match child with
             | .node _ cLhs cRhs _ _ =>
@@ -490,42 +584,78 @@ partial def checkNode (ctx : CheckerContext) (node : ProofNode) : Bool :=
           false
     | "rewrite" =>
       -- Rewrite rule: formula must exist, pattern must match,
-      -- and substituted RHS must match step RHS (or be further
-      -- simplified by children).
+      -- hypotheses must be verified, and substituted RHS must match
+      -- step RHS (or be further simplified by children).
       let name := runeName.map Char.toLower
       match ctx.theoremFormulas.get? name with
       | some formula =>
         match extractRewriteRule formula with
-        | some (patLhs, patRhs) =>
-          match patternMatch patLhs lhs with
+        | some rule =>
+          match patternMatch rule.lhsPattern lhs with
           | some substResult =>
-            -- Apply substitution to rule's RHS
-            let expectedRhs := applySubst substResult patRhs
-            if children.isEmpty then
-              -- No children: substituted RHS must match exactly
-              if expectedRhs == rhs then true
-              else
-                dbg_trace s!"ProofChecker: rewrite RHS mismatch for '{runeName}'"
-                false
-            else
-              -- Children further simplify expectedRhs → rhs.
-              -- Apply child rewrites (same approach as defn expansion).
-              let simplified := children.foldl (fun t child =>
-                match child with
+            -- Verify hypotheses. May contain free variables (not bound
+            -- by the LHS match). We extend the substitution by matching
+            -- hypothesis patterns against clause literals and children.
+            let verifyHyp (subst : Std.HashMap Symbol SExpr) (hyp : SExpr)
+                : Option (Std.HashMap Symbol SExpr) :=
+              let instHyp := applySubst subst hyp
+              -- 1. Fully instantiated and trivially true
+              if isQuotedT instHyp then some subst
+              -- 2. Clause context justifies the hypothesis being true
+              else if clauseJustifies ctx.clause ctx.currentLiteralIndex instHyp (quoted SExpr.t) then
+                some subst
+              -- 3. Negation of hypothesis is in clause (NOT inner → inner is false)
+              else if (match isNot? instHyp with
+                | some inner => clauseJustifies ctx.clause ctx.currentLiteralIndex inner (quoted .nil)
+                | none => false) then some subst
+              -- 4. Children prove the hypothesis
+              else if children.any (fun c => match c with
                 | .node _ cLhs cRhs _ _ =>
-                  let t1 := replaceInTerm t cLhs cRhs
-                  if t1 != t then t1
-                  else
-                    -- Try with pattern substitution applied
-                    let substLhs := applySubst substResult cLhs
-                    let substRhs := applySubst substResult cRhs
-                    replaceInTerm t substLhs substRhs) expectedRhs
-              if simplified == rhs then childrenOk ()
+                  (cLhs == instHyp && isQuotedT cRhs) ||
+                  (match isNot? instHyp with
+                   | some inner => cLhs == inner && isQuotedNil cRhs
+                   | none => false)) then some subst
+              -- 5. Unverified: the hypothesis can't be discharged from the
+              --    information in the proof tree. This typically means ACL2 used
+              --    forward chaining or free-variable matching whose conclusions
+              --    aren't in the trace. Hard failure — ACL2 must emit more data.
+              else none
+            -- Thread substitution through all hypotheses
+            let hypsResult := rule.hypotheses.foldl (init := some substResult) fun acc hyp =>
+              match acc with
+              | none => none
+              | some subst => verifyHyp subst hyp
+            match hypsResult with
+            | none =>
+              dbg_trace s!"ProofChecker: rewrite hypothesis not verified for '{runeName}'"
+              false
+            | some finalSubst =>
+            -- Apply substitution (extended with free variable bindings) to rule's RHS
+            let expectedRhs := applySubst finalSubst rule.rhsPattern
+            if children.isEmpty then
+                -- No children: substituted RHS must match exactly
+                if expectedRhs == rhs then true
+                else
+                  dbg_trace s!"ProofChecker: rewrite RHS mismatch for '{runeName}'"
+                  false
               else
-                dbg_trace s!"ProofChecker: rewrite+children mismatch for '{runeName}'"
-                dbg_trace s!"  expected: {rhs}"
-                dbg_trace s!"  got:      {simplified}"
-                false
+                -- Children further simplify expectedRhs → rhs.
+                -- Pure replay: each child is a directed rewrite.
+                let simplified := children.foldl (fun t child =>
+                  match child with
+                  | .node _ cLhs cRhs _ _ =>
+                    let t1 := replaceInTerm t cLhs cRhs
+                    if t1 != t then t1
+                    else
+                      let substLhs := applySubst finalSubst cLhs
+                      let substRhs := applySubst finalSubst cRhs
+                      replaceInTerm t substLhs substRhs) expectedRhs
+                if simplified == rhs then childrenOk ()
+                else
+                  dbg_trace s!"ProofChecker: rewrite+children mismatch for '{runeName}'"
+                  dbg_trace s!"  expected: {rhs}"
+                  dbg_trace s!"  got:      {simplified}"
+                  false
           | none =>
             dbg_trace s!"ProofChecker: pattern match failed for '{runeName}'"
             false
@@ -548,10 +678,25 @@ partial def checkNode (ctx : CheckerContext) (node : ProofNode) : Bool :=
       | some (_, thn, els) => thn == els && rhs == thn
       | none => false
     | "type-set-equality" =>
-      -- Type-set equality: (EQUAL a b) = T or NIL based on type reasoning.
-      -- Verify the step is well-formed: LHS is an EQUAL, RHS is constant.
+      -- Type-set equality: (EQUAL a b) resolves to T or NIL via type reasoning.
+      -- We verify what we can prove; anything else is a hard failure.
       match isEqual? lhs with
-      | some _ => isQuotedT rhs || isQuotedNil rhs
+      | some (a, b) =>
+        if isQuotedT rhs then
+          -- Claiming a = b. Verify structurally.
+          a == b
+        else if isQuotedNil rhs then
+          -- Claiming a ≠ b. Verify:
+          -- 1. Both are ground constants that differ
+          match unquote? a, unquote? b with
+          | some va, some vb => va != vb
+          | _, _ =>
+            -- 2. Clause context justifies the inequality
+            if clauseJustifies ctx.clause ctx.currentLiteralIndex lhs (quoted .nil) then true
+            else
+              dbg_trace s!"ProofChecker: type-set-equality not verified: {lhs} => {rhs}"
+              false
+        else false
       | none => false
     | other =>
       dbg_trace s!"ProofChecker: unknown rune type '{other}'"
@@ -900,8 +1045,13 @@ private def childCtx : CheckerContext :=
 -- Rewrite with valid child chain: rule gives (FIX x), child simplifies to x
 -- UNICITY-OF-0: (BINARY-+ '0 X) => (FIX X)
 -- Child: definition:fix (FIX x) => x (with its own children)
--- The anonymous-rule child for ACL2-NUMBERP references FIX (a builtin)
-#guard checkNode childCtx
+-- The anonymous-rule child uses clause context to verify (ACL2-NUMBERP x)
+private def childCtxWithNumberp : CheckerContext :=
+  { world := World.empty, theoremFormulas := builtinAxioms,
+    -- Clause has (NOT (ACL2-NUMBERP x)), so ACL2-NUMBERP x is assumed true
+    clause := [tmk "not" [tmk "acl2-numberp" [tvar "x"]]], currentLiteralIndex := 1 }
+
+#guard checkNode childCtxWithNumberp
   (mkNode "rewrite" "unicity-of-0"
     (tmk "binary-+" [tint 0, tvar "x"])
     (tvar "x")
@@ -909,12 +1059,12 @@ private def childCtx : CheckerContext :=
         (tmk "fix" [tvar "x"]) (tvar "x")
         [ mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
             (tmk "acl2-numberp" [tvar "x"]) tquotT
-            [] { runes := [("type-prescription", "fix")] },
+            [],
           mkNode "if-simplification" "NIL"
             (tmk "if" [tquotT, tvar "x", tint 0]) (tvar "x") ] ])
 
 -- Rewrite with children but wrong final RHS REJECTED
-#guard !checkNode childCtx
+#guard !checkNode childCtxWithNumberp
   (mkNode "rewrite" "unicity-of-0"
     (tmk "binary-+" [tint 0, tvar "x"])
     (tint 999)  -- wrong RHS
@@ -922,7 +1072,7 @@ private def childCtx : CheckerContext :=
         (tmk "fix" [tvar "x"]) (tvar "x")
         [ mkNode "fake-rune-for-anonymous-enabled-rule" "NIL"
             (tmk "acl2-numberp" [tvar "x"]) tquotT
-            [] { runes := [("type-prescription", "fix")] },
+            [],
           mkNode "if-simplification" "NIL"
             (tmk "if" [tquotT, tvar "x", tint 0]) (tvar "x") ] ])
 
