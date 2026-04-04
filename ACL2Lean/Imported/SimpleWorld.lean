@@ -8,8 +8,18 @@ namespace ACL2.Worlds.Simple
 
 private def sym (name : String) : Symbol := ⟨"ACL2", name⟩
 
+-- Body uses macro-expanded form (matching ACL2's DEFUN emission):
+-- (IF (CONSP X) (BINARY-+ (QUOTE 1) (MY-LEN (CDR X))) (QUOTE 0))
 def my_lenBody : SExpr :=
-  (SExpr.cons (SExpr.atom (.symbol { name := "if" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "consp" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "+" })) (SExpr.cons (SExpr.atom (.number (.int (1)))) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-len" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cdr" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) SExpr.nil)) SExpr.nil))) (SExpr.cons (SExpr.atom (.number (.int (0)))) SExpr.nil))))
+  .cons (.atom (.symbol { name := "if" }))
+    (.cons (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+      (.cons (.cons (.atom (.symbol { name := "binary-+" }))
+              (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 1))) .nil))
+                (.cons (.cons (.atom (.symbol { name := "my-len" }))
+                        (.cons (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil)) .nil))
+                  .nil)))
+        (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 0))) .nil))
+          .nil)))
 
 def my_appBody : SExpr :=
   (SExpr.cons (SExpr.atom (.symbol { name := "if" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "consp" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cons" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "car" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-app" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cdr" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))))
@@ -24,8 +34,21 @@ private def y_sym : Symbol := sym "y"
 private def my_len_sym : Symbol := sym "my-len"
 private def my_app_sym : Symbol := sym "my-app"
 
+-- Formula uses macro-expanded form:
+-- (EQUAL (MY-LEN (MY-APP X Y)) (BINARY-+ (MY-LEN X) (MY-LEN Y)))
 def my_len_my_appFormula : SExpr :=
-  (SExpr.cons (SExpr.atom (.symbol { name := "equal" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-len" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-app" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "+" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-len" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-len" })) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil)) SExpr.nil))) SExpr.nil)))
+  .cons (.atom (.symbol { name := "equal" }))
+    (.cons (.cons (.atom (.symbol { name := "my-len" }))
+            (.cons (.cons (.atom (.symbol { name := "my-app" }))
+                    (.cons (.atom (.symbol { name := "x" })) (.cons (.atom (.symbol { name := "y" })) .nil)))
+              .nil))
+      (.cons (.cons (.atom (.symbol { name := "binary-+" }))
+              (.cons (.cons (.atom (.symbol { name := "my-len" }))
+                      (.cons (.atom (.symbol { name := "x" })) .nil))
+                (.cons (.cons (.atom (.symbol { name := "my-len" }))
+                        (.cons (.atom (.symbol { name := "y" })) .nil))
+                  .nil)))
+        .nil))
 
 /-! ## Proof rules: isNamed facts (by decide) -/
 
@@ -53,9 +76,13 @@ theorem my_len_my_app_generic
     -- Definition hypotheses (from the "verify definitions" branch)
     (h_my_app : w.defs[my_app_sym]? = some ([x_sym, y_sym], my_appBody))
     (h_my_len : w.defs[my_len_sym]? = some ([x_sym], my_lenBody))
-    -- Builtin non-shadowing
+    -- Builtin non-shadowing (builtins used in proof must not be in w.defs)
     (h_no_equal : w.defs[({ name := "equal" } : Symbol)]? = none)
-    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none) :
+    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none)
+    (h_no_plus  : w.defs[({ name := "binary-+" } : Symbol)]? = none)
+    (h_no_cdr   : w.defs[({ name := "cdr" } : Symbol)]? = none)
+    (h_no_car   : w.defs[({ name := "car" } : Symbol)]? = none)
+    (h_no_cons  : w.defs[({ name := "cons" } : Symbol)]? = none) :
     ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t := by
   -- The proof follows the ACL2 proof tree: induction on acl2Count of env(x),
   -- then for each case, a chain of rewrites ending in equal-self.
@@ -108,14 +135,12 @@ theorem my_len_my_app_generic
     -- NODE 1 (definition:my-app): eval(MY-APP x y) = eval(y) in env
     -- Both sides evaluate to yv. Proof: T4 unfolds my-app, T5 resolves
     -- IF (consp=nil → else), T7 looks up y in bodyEnv → yv.
+    -- NODE 1 (definition:my-app): eval(MY-APP x y) = eval(y)
+    -- Proof tree children: anonymous-rule (consp x → nil), if-simplification
+    -- Composes: T4 (defn expand) + T6 (builtin consp) + T7 (var) + T5 (if-false)
     have h_node1 : ∃ N, ∀ f ≥ N,
         evalOpt f w env my_app_xy = evalOpt f w env y_var := by
-      -- Both evaluate to yv at sufficient fuel
-      exact ⟨5, fun f hf => by
-        -- LHS: eval(MY-APP x y) = some yv
-        -- T4 at fuel f: needs args eval'd at f-1, body at f-1
-        -- T5 + T7 inside body at f-2, f-3
-        sorry⟩
+      sorry -- T4 + children: both sides evaluate to yv
 
     -- NODE 2 (definition:my-len): eval(MY-LEN x) = eval(QUOTE 0) in env
     -- MY-LEN with consp(xv)=nil → body takes else-branch → 0
@@ -194,8 +219,23 @@ theorem world_no_equal :
 
 theorem world_no_consp :
     world.defs[({ name := "consp" } : Symbol)]? = none := by
-  unfold world
-  rw [Std.HashMap.getElem?_insert]; simp [sym]
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+theorem world_no_plus :
+    world.defs[({ name := "binary-+" } : Symbol)]? = none := by
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+theorem world_no_cdr :
+    world.defs[({ name := "cdr" } : Symbol)]? = none := by
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+theorem world_no_car :
+    world.defs[({ name := "car" } : Symbol)]? = none := by
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+theorem world_no_cons :
+    world.defs[({ name := "cons" } : Symbol)]? = none := by
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
 
 /-- The final theorem: combines the definition verification branch
     with the proof replay branch. Zero sorry in this theorem. -/
@@ -203,5 +243,6 @@ theorem my_len_my_app (env : Env) :
     ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t :=
   my_len_my_app_generic world env
     world_has_my_app world_has_my_len world_no_equal world_no_consp
+    world_no_plus world_no_cdr world_no_car world_no_cons
 
 end ACL2.Worlds.Simple

@@ -389,26 +389,18 @@ theorem acl2_induction_consp (P : SExpr → Prop)
 /-- Substitute a variable with a quoted value in a term.
     Replaces free occurrences of symbol `s` with `(QUOTE v)`.
     Does not recurse into QUOTE bodies or replace head symbols. -/
-partial def substVar (term : SExpr) (s : Symbol) (v : SExpr) : SExpr :=
+def substVar (term : SExpr) (s : Symbol) (v : SExpr) : SExpr :=
   match term with
   | .nil => .nil
   | .atom (.symbol sym) =>
     if sym == s then
-      -- Replace with quoted value
       .cons (.atom (.symbol { name := "quote" })) (.cons v .nil)
     else term
   | .atom _ => term
   | .cons (.atom (.symbol q)) rest =>
-    if q.isNamed "quote" then term  -- Don't substitute inside QUOTE
-    else
-      -- Head symbol is NOT substituted (it's a function name, not a variable)
-      .cons (.atom (.symbol q)) (substVarList rest s v)
+    if q.isNamed "quote" then term
+    else .cons (.atom (.symbol q)) (substVar rest s v)
   | .cons a b => .cons (substVar a s v) (substVar b s v)
-where
-  substVarList : SExpr → Symbol → SExpr → SExpr
-    | .nil, _, _ => .nil
-    | .cons a b, s, v => .cons (substVar a s v) (substVarList b s v)
-    | s', _, _ => substVar s' (by exact s) (by exact v)
 
 /-- T15: Variable substitution respects evaluation.
     Evaluating `term` in `env[s := v]` equals evaluating `substVar term s v`
@@ -428,26 +420,18 @@ theorem evalOpt_substVar (f : Nat) (w : World) (env : Env) (s : Symbol)
 
 /-- Replace the first occurrence of `a` in `term` with `b`.
     Depth-first left-to-right. Does NOT descend into QUOTE bodies.
-    Does NOT replace head symbols. -/
-partial def replaceSubterm (term a b : SExpr) : SExpr :=
+    Does NOT replace head symbols (the head of a function-call cons). -/
+def replaceSubterm (term a b : SExpr) : SExpr :=
   if term == a then b
   else match term with
   | .cons (.atom (.symbol q)) rest =>
-    if q.isNamed "quote" then term  -- Don't replace inside QUOTE
-    else .cons (.atom (.symbol q)) (replaceSubtermList rest a b)
+    if q.isNamed "quote" then term
+    else .cons (.atom (.symbol q)) (replaceSubterm rest a b)
   | .cons x y =>
     let x' := replaceSubterm x a b
     if x' != x then .cons x' y
     else .cons x (replaceSubterm y a b)
   | _ => term
-where
-  replaceSubtermList : SExpr → SExpr → SExpr → SExpr
-    | .nil, _, _ => .nil
-    | .cons x xs, a, b =>
-      let x' := replaceSubterm x a b
-      if x' != x then .cons x' xs
-      else .cons x (replaceSubtermList xs a b)
-    | s, a, b => replaceSubterm s a b
 
 /-- T1: Subterm replacement congruence.
     If `a` and `b` evaluate to the same value (at sufficient fuel),
