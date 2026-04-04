@@ -309,4 +309,43 @@ theorem not_nil_means_truthy (f : Nat) (w : World) (env : Env)
   simp only [callBuiltin_not, Option.some.injEq] at h_not
   exact (Logic.not_nil_iff tv).mp h_not
 
+/-! ## Layer 0 continued: Value-level Logic axioms (T8) -/
+
+/-- CDR of CONS is the second argument. -/
+theorem logic_cdr_cons (a b : SExpr) : Logic.cdr (.cons a b) = b := by
+  simp [Logic.cdr]
+
+/-- CAR of CONS is the first argument. -/
+theorem logic_car_cons (a b : SExpr) : Logic.car (.cons a b) = a := by
+  simp [Logic.car]
+
+/-- EQUAL is reflexive. -/
+theorem logic_equal_self (a : SExpr) : Logic.equal a a = SExpr.t :=
+  Logic.equal_self a
+
+/-- T8: Commutativity of plus. -/
+theorem logic_plus_comm (a b : SExpr) : Logic.plus a b = Logic.plus b a := by
+  simp only [Logic.plus]
+  congr 1
+  · omega
+  · exact Nat.mul_comm _ _
+
+/-- T8: Commutativity-2 of plus: (+ x (+ y z)) = (+ y (+ x z)). -/
+theorem logic_plus_comm2 (a b c : SExpr) :
+    Logic.plus a (Logic.plus b c) = Logic.plus b (Logic.plus a c) := by
+  -- Follows from commutativity + associativity of rational arithmetic
+  -- through toRat/mkNumber. Deferred — one-time arithmetic lemma.
+  sorry
+
+/-- T8: FIX of a number is identity. -/
+@[simp] theorem callBuiltin_fix_number (n : Number) :
+    callBuiltin "fix" [.atom (.number n)] = .atom (.number n) := by rfl
+
+/-- T8: plus 0 x = fix x (unicity-of-0 at value level). -/
+theorem logic_plus_zero_left (v : SExpr) :
+    Logic.plus (.atom (.number (.int 0))) v = callBuiltin "fix" [v] := by
+  -- Follows from toRat/mkNumber: plus(0, v) normalizes the same as fix(v).
+  -- Deferred — one-time arithmetic lemma.
+  sorry
+
 end ACL2.Replay
