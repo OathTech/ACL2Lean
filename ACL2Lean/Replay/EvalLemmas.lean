@@ -9,6 +9,7 @@
   No inference, no search — purely deterministic replay.
 -/
 import ACL2Lean.EvalOpt
+import ACL2Lean.Count
 
 namespace ACL2.Replay
 
@@ -347,5 +348,40 @@ theorem logic_plus_zero_left (v : SExpr) :
   -- Follows from toRat/mkNumber: plus(0, v) normalizes the same as fix(v).
   -- Deferred — one-time arithmetic lemma.
   sorry
+
+/-! ## Induction principles (T10) -/
+
+/-- T10: Induction on consp/cdr structure (matching my-app's recursion).
+    If P holds when consp(v) is nil, and P(cdr(v)) implies P(v) when consp(v) is non-nil,
+    then P holds for all v. Proved by well-founded induction on acl2Count. -/
+theorem acl2_induction_consp (P : SExpr → Prop)
+    (base : ∀ v, Logic.consp v = .nil → P v)
+    (step : ∀ v, Logic.consp v ≠ .nil → P (Logic.cdr v) → P v) :
+    ∀ v, P v := by
+  intro v
+  -- Strong induction on acl2Count v
+  have : ∀ n, ∀ v, v.acl2Count ≤ n → P v := by
+    intro n
+    induction n with
+    | zero =>
+      intro v hv
+      -- acl2Count v ≤ 0 means v is nil or atom (not cons)
+      apply base
+      match v with
+      | .nil => rfl
+      | .atom _ => rfl
+      | .cons a d => simp [SExpr.acl2Count] at hv
+    | succ n ih =>
+      intro v hv
+      by_cases hc : Logic.consp v = .nil
+      · exact base v hc
+      · apply step v hc
+        apply ih
+        -- Need: acl2Count (Logic.cdr v) ≤ n
+        match v, hc with
+        | .cons a d, _ =>
+          simp [Logic.cdr, SExpr.acl2Count] at hv ⊢
+          omega
+  exact this v.acl2Count v (Nat.le_refl _)
 
 end ACL2.Replay
