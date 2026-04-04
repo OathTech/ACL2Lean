@@ -466,4 +466,21 @@ theorem evalOpt_replace_congr (w : World) (env : Env)
       evalOpt f w env term := by
   sorry
 
+/-- T1 (forward direction): eval of the original equals eval of the replaced.
+    This is the direction needed for chaining rewrites forward. -/
+theorem evalOpt_replace_congr_fwd (w : World) (env : Env)
+    (term a b : SExpr)
+    (h_eq : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
+    ∃ M, ∀ f ≥ M,
+      evalOpt f w env term =
+      evalOpt f w env (replaceSubterm term a b) := by
+  have h := evalOpt_replace_congr w env term a b h_eq
+  exact ⟨h.choose, fun f hf => (h.choose_spec f hf).symm⟩
+
+/-- Symmetry for fuel-existential equalities. -/
+theorem fuel_eq_symm {a b : Nat → Option SExpr}
+    (h : ∃ N, ∀ f ≥ N, a f = b f) :
+    ∃ N, ∀ f ≥ N, b f = a f :=
+  ⟨h.choose, fun f hf => (h.choose_spec f hf).symm⟩
+
 end ACL2.Replay

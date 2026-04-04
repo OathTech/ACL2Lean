@@ -57,10 +57,112 @@ theorem my_len_my_app_generic
     (h_no_equal : w.defs[({ name := "equal" } : Symbol)]? = none)
     (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none) :
     ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t := by
-  -- Induction on acl2Count of the value bound to x.
-  -- We need to handle both the case where x is in env and where it isn't.
-  -- Strategy: case split on env.get? x_sym, then induct on the value.
-  sorry
+  -- The proof follows the ACL2 proof tree: induction on acl2Count of env(x),
+  -- then for each case, a chain of rewrites ending in equal-self.
+  --
+  -- Each rewrite establishes eval(lhs) = some v and eval(rhs) = some v
+  -- (both sides evaluate to the same value). Then T1 lifts this to the
+  -- enclosing formula, and T16 chains the steps.
+
+  -- First: what does env map x and y to?
+  -- We case-split on whether x is bound and extract its value.
+  -- If x is unbound, evalOpt returns nil for it, so consp(nil)=nil → base case.
+  have h_x : ∃ xv, ∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv := by
+    match hx : env.get? x_sym with
+    | some v => exact ⟨v, fun f => evalOpt_var f w env x_sym v hx⟩
+    | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w env x_sym hx (by decide)⟩
+  obtain ⟨xv, h_xv⟩ := h_x
+
+  have h_y : ∃ yv, ∀ f, evalOpt (f + 1) w env (.atom (.symbol y_sym)) = some yv := by
+    match hy : env.get? y_sym with
+    | some v => exact ⟨v, fun f => evalOpt_var f w env y_sym v hy⟩
+    | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w env y_sym hy (by decide)⟩
+  obtain ⟨yv, h_yv⟩ := h_y
+
+  -- Induction on xv using T10 (acl2_induction_consp).
+  -- P(xv) = the formula evaluates to T when env maps x to xv (and y to yv).
+  suffices h_ind : ∀ xv,
+      (∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv) →
+      ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t from
+    h_ind xv h_xv
+  -- Apply T10: induction on consp/cdr structure of xv
+  apply acl2_induction_consp (fun xv =>
+    (∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv) →
+    ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t)
+
+  -- Base case: consp(xv) = nil
+  · intro xv h_consp h_xv'
+    -- Abbreviations for the SExpr subterms referenced by the proof tree
+    let my_app_xy := SExpr.cons (.atom (.symbol my_app_sym))
+          (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))
+    let y_var := SExpr.atom (.symbol y_sym)
+    let my_len_x := SExpr.cons (.atom (.symbol my_len_sym))
+          (.cons (.atom (.symbol x_sym)) .nil)
+    let quote_0 := SExpr.cons (.atom (.symbol { name := "quote" }))
+          (.cons (.atom (.number (.int 0))) .nil)
+    let my_len_y := SExpr.cons (.atom (.symbol my_len_sym))
+          (.cons y_var .nil)
+    let plus_0_len_y := SExpr.cons (.atom (.symbol { name := "binary-+" }))
+          (.cons quote_0 (.cons my_len_y .nil))
+
+    -- NODE 1 (definition:my-app): eval(MY-APP x y) = eval(y) in env
+    -- Both sides evaluate to yv. Proof: T4 unfolds my-app, T5 resolves
+    -- IF (consp=nil → else), T7 looks up y in bodyEnv → yv.
+    have h_node1 : ∃ N, ∀ f ≥ N,
+        evalOpt f w env my_app_xy = evalOpt f w env y_var := by
+      -- Both evaluate to yv at sufficient fuel
+      exact ⟨5, fun f hf => by
+        -- LHS: eval(MY-APP x y) = some yv
+        -- T4 at fuel f: needs args eval'd at f-1, body at f-1
+        -- T5 + T7 inside body at f-2, f-3
+        sorry⟩
+
+    -- NODE 2 (definition:my-len): eval(MY-LEN x) = eval(QUOTE 0) in env
+    -- MY-LEN with consp(xv)=nil → body takes else-branch → 0
+    have h_node2 : ∃ N, ∀ f ≥ N,
+        evalOpt f w env my_len_x = evalOpt f w env quote_0 := by
+      exact ⟨5, fun f hf => by sorry⟩
+
+    -- NODE 3 (rewrite:unicity-of-0): eval(BINARY-+ '0 (MY-LEN y)) = eval(MY-LEN y)
+    -- Uses unicity-of-0 axiom + fix elimination via type-prescription
+    have h_node3 : ∃ N, ∀ f ≥ N,
+        evalOpt f w env plus_0_len_y = evalOpt f w env my_len_y := by
+      exact ⟨5, fun f hf => by sorry⟩
+
+    -- NODE 4 (equal-self): eval(EQUAL (MY-LEN y) (MY-LEN y)) = some T
+    -- After the 3 rewrites, the formula becomes (EQUAL (MY-LEN y) (MY-LEN y)).
+    -- T3 says this evaluates to T if (MY-LEN y) converges.
+    -- We compute: F1 = replaceSubterm formula (MY-APP x y) y
+    --             F2 = replaceSubterm F1 (MY-LEN x) (QUOTE 0)
+    --             F3 = replaceSubterm F2 (BINARY-+ '0 (MY-LEN y)) (MY-LEN y)
+    -- Then F3 should be (EQUAL (MY-LEN y) (MY-LEN y)).
+    let F1 := replaceSubterm my_len_my_appFormula my_app_xy y_var
+    let F2 := replaceSubterm F1 my_len_x quote_0
+    let F3 := replaceSubterm F2 plus_0_len_y my_len_y
+
+    -- The equal-self step: eval(F3) = some T
+    -- F3 should be (EQUAL (MY-LEN y) (MY-LEN y))
+    have h_node4 : ∃ N, ∀ f ≥ N, evalOpt f w env F3 = some SExpr.t := by
+      exact ⟨5, fun f hf => by sorry⟩
+
+    -- CHAIN: T1 (congruence) + T16 (transitivity)
+    -- eval(formula) = eval(F1) by T1 using h_node1
+    -- eval(F1) = eval(F2) by T1 using h_node2
+    -- eval(F2) = eval(F3) by T1 using h_node3
+    -- eval(F3) = some T by h_node4
+    exact fuel_chain_eq
+      (fuel_chain_eq
+        (fuel_chain_eq
+          (evalOpt_replace_congr_fwd w env my_len_my_appFormula my_app_xy y_var h_node1)
+          (evalOpt_replace_congr_fwd w env F1 my_len_x quote_0 h_node2))
+        (evalOpt_replace_congr_fwd w env F2 plus_0_len_y my_len_y h_node3))
+      h_node4
+
+  -- Step case: consp(xv) ≠ nil, IH available
+  · intro xv h_consp ih h_xv'
+    -- Same structure: 5 nodes + equal-self, chained by T1 + T16.
+    -- The IH connects via T15 (env substitution).
+    sorry
 
 /-! ## The concrete instantiation (definition verification branch) -/
 
