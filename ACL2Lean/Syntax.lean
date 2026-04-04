@@ -12,6 +12,16 @@ structure Symbol where
   name : String
   deriving DecidableEq, BEq, Hashable, Inhabited
 
+-- LawfulBEq for Symbol: derived BEq agrees with derived DecidableEq.
+-- Needed for Std.HashMap.getElem?_insert lemma.
+-- We override the derived BEq with one that uses DecidableEq directly.
+instance : BEq Symbol where
+  beq a b := decide (a = b)
+
+instance : LawfulBEq Symbol where
+  eq_of_beq h := of_decide_eq_true h
+  rfl := decide_eq_true rfl
+
 namespace Symbol
 
 @[inline] def normalizedName (s : Symbol) : String :=
