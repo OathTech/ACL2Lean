@@ -131,7 +131,7 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
                 if formals.length = argVals.length then
                   rec w (bindArgs formals argVals) body
                 else some .nil
-            | none => some (callBuiltin s.normalizedName argVals)
+            | none => some (callBuiltin s.name argVals)
         | none => some .nil
   | _ => some .nil
 

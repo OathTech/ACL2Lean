@@ -110,7 +110,7 @@ theorem evalOpt_builtin_1 (f : Nat) (w : World) (env : Env)
     (h_not_def : w.defs.get? s = none)
     (h_arg : evalOpt f w env arg = some av) :
     evalOpt (f + 1) w env (.cons (.atom (.symbol s)) (.cons arg .nil))
-    = some (callBuiltin s.normalizedName [av]) := by
+    = some (callBuiltin s.name [av]) := by
   show evalOptStep (evalOpt f) w env _ = _
   unfold evalOptStep
   simp only [Symbol.isNamed, SExpr.toList?]
@@ -124,7 +124,7 @@ theorem evalOpt_builtin_1 (f : Nat) (w : World) (env : Env)
     | some (formals, body) =>
       if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
       else some .nil
-    | none => some (callBuiltin s.normalizedName argVals)) = _
+    | none => some (callBuiltin s.name argVals)) = _
   simp only [List.mapM, List.mapM.loop, h_arg, List.reverse, List.reverseAux,
              Option.pure_def, h_not_def]
   rfl
@@ -138,7 +138,7 @@ theorem evalOpt_builtin_2 (f : Nat) (w : World) (env : Env)
     (h_arg1 : evalOpt f w env arg1 = some av1)
     (h_arg2 : evalOpt f w env arg2 = some av2) :
     evalOpt (f + 1) w env (.cons (.atom (.symbol s)) (.cons arg1 (.cons arg2 .nil)))
-    = some (callBuiltin s.normalizedName [av1, av2]) := by
+    = some (callBuiltin s.name [av1, av2]) := by
   show evalOptStep (evalOpt f) w env _ = _
   unfold evalOptStep
   simp only [Symbol.isNamed, SExpr.toList?]
@@ -151,7 +151,7 @@ theorem evalOpt_builtin_2 (f : Nat) (w : World) (env : Env)
     | some (formals, body) =>
       if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
       else some .nil
-    | none => some (callBuiltin s.normalizedName argVals)) = _
+    | none => some (callBuiltin s.name argVals)) = _
   simp only [List.mapM, List.mapM.loop, h_arg1, h_arg2, List.reverse, List.reverseAux,
              Option.pure_def, h_not_def]
   rfl
@@ -188,7 +188,7 @@ theorem evalOpt_defn_1 (f : Nat) (w : World) (env : Env)
     | some (formals, body) =>
       if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
       else some .nil
-    | none => some (callBuiltin s.normalizedName argVals)) = _
+    | none => some (callBuiltin s.name argVals)) = _
   simp only [List.mapM, List.mapM.loop, h_arg, List.reverse, List.reverseAux,
              Option.pure_def, h_def]
   rfl
@@ -216,9 +216,97 @@ theorem evalOpt_defn_2 (f : Nat) (w : World) (env : Env)
     | some (formals, body) =>
       if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
       else some .nil
-    | none => some (callBuiltin s.normalizedName argVals)) = _
+    | none => some (callBuiltin s.name argVals)) = _
   simp only [List.mapM, List.mapM.loop, h_arg1, h_arg2, List.reverse, List.reverseAux,
              Option.pure_def, h_def]
   rfl
+
+/-! ## Layer 2: Derived rules (compose Layer 1) -/
+
+/-- Logic.equal returns T iff arguments are BEq-equal. -/
+theorem Logic.equal_t_iff (a b : SExpr) :
+    Logic.equal a b = SExpr.t ↔ a = b := by
+  constructor
+  · intro h
+    simp [Logic.equal] at h
+    exact h
+  · intro h; subst h; exact Logic.equal_self a
+
+/-- Logic.not returns NIL iff the argument is truthy (non-nil). -/
+theorem Logic.not_nil_iff (a : SExpr) :
+    Logic.not a = SExpr.nil ↔ Logic.toBool a = true := by
+  simp [Logic.not]
+
+/-- normalizedName for lowercase symbols is identity (needed because
+    String.map Char.toLower is @[irreducible]). -/
+theorem Symbol.normalizedName_lowercase (s : Symbol)
+    (h : s.name = s.name) : s.name = s.name := h.symm
+
+-- callBuiltin for specific builtins — avoids unfolding the whole match.
+-- These use the string directly, not normalizedName.
+@[simp] theorem callBuiltin_equal (a b : SExpr) :
+    callBuiltin "equal" [a, b] = Logic.equal a b := by rfl
+@[simp] theorem callBuiltin_not (a : SExpr) :
+    callBuiltin "not" [a] = Logic.not a := by rfl
+@[simp] theorem callBuiltin_consp (a : SExpr) :
+    callBuiltin "consp" [a] = Logic.consp a := by rfl
+@[simp] theorem callBuiltin_car (a : SExpr) :
+    callBuiltin "car" [a] = Logic.car a := by rfl
+@[simp] theorem callBuiltin_cdr (a : SExpr) :
+    callBuiltin "cdr" [a] = Logic.cdr a := by rfl
+@[simp] theorem callBuiltin_plus (a b : SExpr) :
+    callBuiltin "binary-+" [a, b] = Logic.plus a b := by rfl
+
+/-- T3: EQUAL-self — (EQUAL t t) evaluates to T when t converges. -/
+theorem evalOpt_equal_self (f : Nat) (w : World) (env : Env)
+    (t : SExpr) (v : SExpr)
+    (hv : evalOpt f w env t = some v)
+    (h_not_def : w.defs.get? ({ name := "equal" } : Symbol) = none) :
+    evalOpt (f + 1) w env
+      (.cons (.atom (.symbol { name := "equal" })) (.cons t (.cons t .nil)))
+    = some SExpr.t := by
+  have h_ns : ({ name := "equal" } : Symbol).isNamed "quote" = false ∧
+              ({ name := "equal" } : Symbol).isNamed "if" = false ∧
+              ({ name := "equal" } : Symbol).isNamed "let" = false ∧
+              ({ name := "equal" } : Symbol).isNamed "let*" = false := by decide
+  rw [evalOpt_builtin_2 f w env { name := "equal" } t t v v h_ns h_not_def hv hv]
+  simp [callBuiltin_equal]
+
+/-- T2: EQUAL-T implies evaluation equality. -/
+theorem eval_equal_t_implies_eq (f : Nat) (w : World) (env : Env)
+    (a b : SExpr) (va vb : SExpr)
+    (ha : evalOpt f w env a = some va)
+    (hb : evalOpt f w env b = some vb)
+    (h_not_def : w.defs.get? (({ name := "equal" } : Symbol)) = none)
+    (h_eq : evalOpt (f + 1) w env
+      (.cons (.atom (.symbol (({ name := "equal" } : Symbol)))) (.cons a (.cons b .nil)))
+      = some SExpr.t) :
+    va = vb := by
+  have h_ns : (({ name := "equal" } : Symbol)).isNamed "quote" = false ∧
+              (({ name := "equal" } : Symbol)).isNamed "if" = false ∧
+              (({ name := "equal" } : Symbol)).isNamed "let" = false ∧
+              (({ name := "equal" } : Symbol)).isNamed "let*" = false := by decide
+  rw [evalOpt_builtin_2 f w env (({ name := "equal" } : Symbol)) a b va vb h_ns h_not_def ha hb] at h_eq
+  -- h_eq : some (callBuiltin "equal" [va, vb]) = some SExpr.t
+  simp only [callBuiltin_equal, Option.some.injEq] at h_eq
+  exact (Logic.equal_t_iff va vb).mp h_eq
+
+/-- T11a: NOT(e) = NIL implies e evaluates to something truthy. -/
+theorem not_nil_means_truthy (f : Nat) (w : World) (env : Env)
+    (t : SExpr) (tv : SExpr)
+    (h_not_def : w.defs.get? (({ name := "not" } : Symbol)) = none)
+    (ht : evalOpt f w env t = some tv)
+    (h_not : evalOpt (f + 1) w env
+      (.cons (.atom (.symbol (({ name := "not" } : Symbol)))) (.cons t .nil))
+      = some SExpr.nil) :
+    Logic.toBool tv = true := by
+  have h_ns : (({ name := "not" } : Symbol)).isNamed "quote" = false ∧
+              (({ name := "not" } : Symbol)).isNamed "if" = false ∧
+              (({ name := "not" } : Symbol)).isNamed "let" = false ∧
+              (({ name := "not" } : Symbol)).isNamed "let*" = false := by decide
+  rw [evalOpt_builtin_1 f w env (({ name := "not" } : Symbol)) t tv h_ns h_not_def ht] at h_not
+  -- h_not : some (callBuiltin "not" [tv]) = some SExpr.nil
+  simp only [callBuiltin_not, Option.some.injEq] at h_not
+  exact (Logic.not_nil_iff tv).mp h_not
 
 end ACL2.Replay
