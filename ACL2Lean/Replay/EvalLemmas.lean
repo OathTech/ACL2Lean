@@ -418,20 +418,39 @@ theorem evalOpt_substVar (f : Nat) (w : World) (env : Env) (s : Symbol)
 
 /-! ## Congruence (T1) -/
 
-/-- Replace the first occurrence of `a` in `term` with `b`.
-    Depth-first left-to-right. Does NOT descend into QUOTE bodies.
-    Does NOT replace head symbols (the head of a function-call cons). -/
+/-- Replace the first occurrence of `a` in `term` with `b`, at
+    evaluation positions only. Does NOT descend into QUOTE bodies.
+    Does NOT replace head symbols. For symbol-headed conses (function
+    calls, IF, LET), recurses into individual arguments — never
+    replaces spine fragments. This ensures the replacement only
+    targets positions where evalOpt evaluates a complete expression.
+
+    The previous version recursed on raw cons spines, which could
+    replace spine fragments (e.g., the tail `.cons t (.cons e .nil)`
+    of an IF), breaking arity and making the congruence theorem false. -/
 def replaceSubterm (term a b : SExpr) : SExpr :=
   if term == a then b
   else match term with
   | .cons (.atom (.symbol q)) rest =>
     if q.isNamed "quote" then term
-    else .cons (.atom (.symbol q)) (replaceSubterm rest a b)
+    else
+      -- Recurse into individual arguments, preserving spine structure
+      .cons (.atom (.symbol q)) (replaceArgs rest a b)
   | .cons x y =>
     let x' := replaceSubterm x a b
     if x' != x then .cons x' y
     else .cons x (replaceSubterm y a b)
   | _ => term
+where
+  /-- Replace in an argument list (cons spine), recursing into each
+      argument individually. Preserves the spine structure. -/
+  replaceArgs (args : SExpr) (a b : SExpr) : SExpr :=
+    match args with
+    | .cons arg rest =>
+      let arg' := replaceSubterm arg a b
+      if arg' != arg then .cons arg' rest  -- found in this arg, stop
+      else .cons arg (replaceArgs rest a b) -- try next arg
+    | _ => args  -- nil or malformed: leave unchanged
 
 /-- T1: Subterm replacement congruence.
     If `a` and `b` evaluate to the same value (at sufficient fuel),
