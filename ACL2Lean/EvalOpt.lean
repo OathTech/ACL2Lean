@@ -135,6 +135,47 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
         | none => some .nil
   | _ => some .nil
 
+/-- Equation lemma for evalOptStep on symbol-headed cons. -/
+@[simp] theorem evalOptStep_cons_symbol (rec : World → Env → SExpr → Option SExpr)
+    (w : World) (env : Env) (s : Symbol) (argsExpr : SExpr) :
+    evalOptStep rec w env (.cons (.atom (.symbol s)) argsExpr) =
+    if s.isNamed "quote" then
+      match argsExpr with
+      | .cons v .nil => some v
+      | _ => some .nil
+    else if s.isNamed "if" then
+      match argsExpr.toList? with
+      | some [c, t, e] => do
+          let cv ← rec w env c
+          if Logic.toBool cv then rec w env t else rec w env e
+      | _ => some .nil
+    else if s.isNamed "let" || s.isNamed "let*" then
+      match argsExpr.toList? with
+      | some [bindings, body] =>
+          match bindings.toList? with
+          | some bList => do
+              let env' ← bList.foldlM (fun acc b =>
+                match b.toList? with
+                | some [.atom (.symbol var), valExpr] => do
+                    let v ← rec w acc valExpr
+                    pure (acc.insert var v)
+                | _ => some acc) env
+              rec w env' body
+          | none => some .nil
+      | _ => some .nil
+    else
+      match argsExpr.toList? with
+      | some args => do
+          let argVals ← args.mapM (fun a => rec w env a)
+          match w.defs.get? s with
+          | some (formals, body) =>
+              if formals.length = argVals.length then
+                rec w (bindArgs formals argVals) body
+              else some .nil
+          | none => some (callBuiltin s.name argVals)
+      | none => some .nil := by
+  rfl
+
 /-- Option-returning ACL2 evaluator. `none` = fuel exhaustion.
     Structurally mirrors `eval` exactly. -/
 def evalOpt (fuel : Nat) (w : World) (env : Env) (term : SExpr) : Option SExpr :=

@@ -577,19 +577,31 @@ theorem evalOpt_ctx_pcEq (w : World) (env : Env)
       -- evalOptStep dispatches on fn, processes args via (evalOpt f).
       -- Need to show evalOptStep gives pcEq.
       --
-      -- This case requires unfolding evalOptStep and showing each dispatch
-      -- (quote, if, let, function call) preserves pcEq when one arg differs.
-      -- The proof uses pcEqG_mapM for the argument evaluation and pcEq_bind
-      -- for the monadic composition.
-      --
-      -- The unfolding is large (~100 lines) because evalOptStep has many cases.
-      -- Each case is handled by the same pattern:
-      -- 1. toList? gives the same-length list (before ++ [x] ++ after)
-      -- 2. pcEqG_mapM shows arg evaluation gives pcEqG results
-      -- 3. pcEq_bind / pcEqG_bind pushes through the dispatch
-      --
-      -- Sorry for now — the proof is mechanical but large.
-      sorry
+      -- Both sides: evalOptStep (evalOpt f) w env (.cons (.atom (.symbol fn)) argsExpr)
+      -- where argsExpr differs. evalOptStep matches on the .cons (.atom (.symbol s))
+      -- pattern and dispatches on s.
+      -- Show both sides equal by showing the match fires the same way.
+      show pcEq
+        (evalOptStep (evalOpt f) w env (.cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug a] ++ after))))
+        (evalOptStep (evalOpt f) w env (.cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug b] ++ after))))
+      simp only [evalOptStep_cons_symbol]
+      -- Now the goal has the if-then-else chain on fn.isNamed.
+      -- Both sides have the SAME fn, so the dispatch is identical.
+      -- The args differ: SExpr.ofList (before ++ [ctx.plug a] ++ after)
+      --              vs  SExpr.ofList (before ++ [ctx.plug b] ++ after)
+      -- Case split on fn dispatch:
+      split -- quote case
+      · -- quote: returns literal value, no rec call
+        -- Both sides return same thing only if argsExpr is identical.
+        -- This case should not arise from replaceSubterm (skips quote).
+        sorry
+      · split -- if case
+        · sorry -- IF dispatch
+        · split -- let case
+          · sorry -- LET dispatch
+          · -- Function call case: mapM rec over args, then dispatch
+            -- toList? of SExpr.ofList gives back the list
+            sorry
 
 /-- T1 bridge: replaceSubterm corresponds to some evaluation context.
     If replaceSubterm finds `a` in `term`, there exists a context C
