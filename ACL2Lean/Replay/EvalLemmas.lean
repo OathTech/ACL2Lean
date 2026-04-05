@@ -612,7 +612,13 @@ theorem evalOpt_ctx_pcEq (w : World) (env : Env)
         -- This case should not arise from replaceSubterm (skips quote).
         sorry
       · split -- if case
-        · sorry -- IF dispatch
+        · -- IF case: toList? gives [c, t, e], eval test, branch.
+          -- Both sides have same toList? structure.
+          simp only [SExpr.ofList_toList?]
+          -- The arg list (before ++ [hole] ++ after) should be length 3.
+          -- The hole is at one position. Same structure as fn-call.
+          -- Uses pcEq_bind for the test eval, then identical branch logic.
+          sorry
         · split -- let case
           · sorry -- LET dispatch
           · -- Function call case
@@ -626,11 +632,19 @@ theorem evalOpt_ctx_pcEq (w : World) (env : Env)
             · -- mapM gives pcEqG: lists differ at one position
               apply pcEqG_mapM (by simp)
               intro i hi
-              -- Position i in (before ++ [ctx.plug a/b] ++ after)
-              -- If i < before.length: same element, pcEqG_refl
-              -- If i = before.length: hole position, ih gives pcEq = pcEqG
-              -- If i > before.length: same element, pcEqG_refl
-              sorry
+              -- Position i in (before ++ [ctx.plug a/b] ++ after).
+              -- Both lists are identical except at index before.length.
+              -- If the elements are the same: pcEqG_refl.
+              -- If at the hole position: ih gives pcEq.
+              have h_same_or_hole :
+                  (before ++ [ctx.plug a] ++ after).get ⟨i, hi⟩ =
+                  (before ++ [ctx.plug b] ++ after).get ⟨i, by simp at hi ⊢; omega⟩
+                ∨ ((before ++ [ctx.plug a] ++ after).get ⟨i, hi⟩ = ctx.plug a ∧
+                   (before ++ [ctx.plug b] ++ after).get ⟨i, by simp at hi ⊢; omega⟩ = ctx.plug b) := by
+                sorry -- list indexing: elements match except at before.length
+              rcases h_same_or_hole with h_same | ⟨ha, hb⟩
+              · rw [h_same]; exact pcEqG_refl' _
+              · rw [ha, hb]; rw [← pcEq_eq_pcEqG]; exact ih f
             · -- dispatch: argVals equal → same result
               intro argVals _
               exact pcEqG_refl' _
