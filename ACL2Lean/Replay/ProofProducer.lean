@@ -250,6 +250,218 @@ def proveVar (ctx : ProofCtx) (f : Nat)
     #[mkNatLit f, ctx.worldExpr, ctx.envExpr,
       reflectSymbol s, reflectSExpr v, hLookup]
 
+/-! ## Fuel management -/
+
+/-- Build the predicate `fun N => ∀ f ≥ N, evalOpt f w env a = rhs`
+    where `rhs` is an Expr (either `evalOpt f w env b` or `some v`). -/
+private def mkFuelPred (ctx : ProofCtx) (aExpr : Expr)
+    (mkRhs : Expr → Expr) : MetaM Expr := do
+  withLocalDeclD `N (Lean.mkConst ``Nat) fun nVar => do
+    withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
+      let geType ← mkAppM ``GE.ge #[fVar, nVar]
+      withLocalDeclD `hf geType fun hfVar => do
+        let lhsEval := mkAppN (Lean.mkConst ``evalOpt) #[fVar, ctx.worldExpr, ctx.envExpr, aExpr]
+        let eqType ← mkAppM ``Eq #[lhsEval, mkRhs fVar]
+        let forall_ ← mkForallFVars #[fVar, hfVar] eqType
+        mkLambdaFVars #[nVar] forall_
+
+/-- Wrap concrete-fuel proofs into existential form.
+    Given `hA : evalOpt N w env a = some v` and `hB : evalOpt N w env b = some v`,
+    produce `∃ M, ∀ f ≥ M, evalOpt f w env a = evalOpt f w env b`.
+    Uses `evalOpt_ge_fuel` to lift from fuel N to arbitrary fuel ≥ N. -/
+def mkFuelEqExist (ctx : ProofCtx) (N : Nat)
+    (a b v : SExpr) (hA hB : Expr) : MetaM Expr := do
+  let NE := mkNatLit N
+  let aE := reflectSExpr a
+  let bE := reflectSExpr b
+  -- Build predicate: fun N => ∀ f ≥ N, eval f w env a = eval f w env b
+  let pred ← mkFuelPred ctx aE fun fVar =>
+    mkAppN (Lean.mkConst ``evalOpt) #[fVar, ctx.worldExpr, ctx.envExpr, bE]
+  -- Build proof body: fun f hf => geA.trans geB.symm
+  withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
+    let geType ← mkAppM ``GE.ge #[fVar, NE]
+    withLocalDeclD `hf geType fun hfVar => do
+      let geA := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+        #[NE, fVar, ctx.worldExpr, ctx.envExpr,
+          aE, reflectSExpr v, hA, hfVar]
+      let geB := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+        #[NE, fVar, ctx.worldExpr, ctx.envExpr,
+          bE, reflectSExpr v, hB, hfVar]
+      let eqProof ← mkAppM ``Eq.trans #[geA, ← mkAppM ``Eq.symm #[geB]]
+      let body ← mkLambdaFVars #[fVar, hfVar] eqProof
+      return mkApp4 (Lean.mkConst ``Exists.intro [1])
+        (Lean.mkConst ``Nat) pred NE body
+
+/-- Wrap a convergence proof into existential "= some v" form.
+    Given `hA : evalOpt N w env a = some v`,
+    produce `∃ M, ∀ f ≥ M, evalOpt f w env a = some v`. -/
+def mkFuelConvergeExist (ctx : ProofCtx) (N : Nat)
+    (a : SExpr) (v : SExpr) (hA : Expr) : MetaM Expr := do
+  let NE := mkNatLit N
+  let aE := reflectSExpr a
+  let vE := reflectSExpr v
+  let someV := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) vE
+  -- Build predicate: fun N => ∀ f ≥ N, eval f w env a = some v
+  let pred ← mkFuelPred ctx aE fun _ => someV
+  -- Build proof body
+  withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
+    let geType ← mkAppM ``GE.ge #[fVar, NE]
+    withLocalDeclD `hf geType fun hfVar => do
+      let geA := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+        #[NE, fVar, ctx.worldExpr, ctx.envExpr,
+          aE, vE, hA, hfVar]
+      let body ← mkLambdaFVars #[fVar, hfVar] geA
+      return mkApp4 (Lean.mkConst ``Exists.intro [1])
+        (Lean.mkConst ``Nat) pred NE body
+
+/-! ## Proof tree walking -/
+
+/-- Evaluate an SExpr at meta-time using the world's evaluator.
+    Returns the value if the term converges at the given fuel. -/
+def metaEval (w : World) (env : Env) (fuel : Nat) (term : SExpr) :
+    Option SExpr :=
+  evalOpt fuel w env term
+
+/-- Prove a single proof node. Returns an existential fuel proof:
+    `∃ N, ∀ f ≥ N, evalOpt f w env node.lhs = evalOpt f w env node.rhs`
+    Dispatches on the rune type, mirroring the Bool checker. -/
+partial def proveNode (ctx : ProofCtx) (node : ProofNode) : MetaM Expr :=
+  match node with
+  | .node (runeType, _runeName) lhs rhs _children _prov =>
+    match runeType with
+    | "equal-self" => proveEqualSelfNode ctx lhs rhs
+    | "if-simplification" => proveIfSimplNode ctx lhs rhs
+    | "executable-counterpart" => proveExecCounterpart ctx lhs rhs
+    | other => throwError "proveNode: unsupported rune type '{other}'"
+where
+  /-- Find the minimum fuel at which a ground term converges. -/
+  findFuel (w : World) (term : SExpr) (maxFuel : Nat := 20) : Option Nat := do
+    for f in List.range (maxFuel + 1) do
+      if (evalOpt f w {} term).isSome then return f
+    none
+
+  /-- equal-self: (EQUAL X X) → (QUOTE T) -/
+  proveEqualSelfNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
+    -- Decompose LHS as (EQUAL X X)
+    let x := match lhs with
+      | .cons _ (.cons x (.cons _ .nil)) => x
+      | _ => panic! "equal-self: LHS is not (EQUAL X X)"
+    -- Find minimum fuel for X to converge
+    let some fuel := findFuel ctx.world x
+      | throwError "equal-self: subterm does not converge"
+    let some xVal := metaEval ctx.world {} fuel x
+      | throwError "equal-self: unreachable"
+    -- hConv: evalOpt fuel w env X = some xVal
+    let hConv ← proveGroundEval ctx fuel x xVal
+    -- hA: evalOpt (fuel+1) w env (EQUAL X X) = some T
+    let hA ← proveEqualSelf ctx fuel x xVal hConv
+    -- hB: evalOpt (fuel+1) w env (QUOTE T) = some T (rhs is QUOTE T)
+    let hB ← proveQuoteEval ctx fuel SExpr.t
+    -- Wrap into existential
+    mkFuelEqExist ctx (fuel + 1) lhs rhs SExpr.t hA hB
+
+  /-- if-simplification: (IF (QUOTE NIL) A B) → B or (IF (QUOTE T) A B) → A -/
+  proveIfSimplNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
+    let (c, t, e) := match lhs with
+      | .cons _ (.cons c (.cons t (.cons e .nil))) => (c, t, e)
+      | _ => panic! "if-simplification: LHS is not (IF c t e)"
+    let some fuel := findFuel ctx.world c
+      | throwError "if-simplification: test does not converge"
+    let some cVal := metaEval ctx.world {} fuel c
+      | throwError "if-simplification: unreachable"
+    let hTestEval ← proveGroundEval ctx fuel c cVal
+    if cVal == SExpr.nil then
+      let hIfFalse ← proveIfFalse ctx fuel c t e hTestEval
+      if e == rhs then
+        let some eVal := metaEval ctx.world {} fuel e
+          | throwError "if-simplification: else branch does not converge"
+        let hElse ← proveGroundEval ctx fuel e eVal
+        let hA ← mkAppM ``Eq.trans #[hIfFalse, hElse]
+        let hB ← proveGroundEval ctx (fuel + 1) rhs eVal
+        mkFuelEqExist ctx (fuel + 1) lhs rhs eVal hA hB
+      else
+        throwError "if-simplification: else branch {e} ≠ rhs {rhs}"
+    else
+      throwError "if-simplification: truthy test not yet supported"
+
+  /-- executable-counterpart: ground eval -/
+  proveExecCounterpart (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
+    let some fuelL := findFuel ctx.world lhs
+      | throwError "executable-counterpart: LHS does not converge"
+    let some fuelR := findFuel ctx.world rhs
+      | throwError "executable-counterpart: RHS does not converge"
+    let fuel := max fuelL fuelR
+    let some lhsVal := metaEval ctx.world {} fuel lhs
+      | throwError "executable-counterpart: unreachable"
+    let some rhsVal := metaEval ctx.world {} fuel rhs
+      | throwError "executable-counterpart: unreachable"
+    unless lhsVal == rhsVal do
+      throwError "executable-counterpart: LHS evaluates to {repr lhsVal} but RHS to {repr rhsVal}"
+    let hA ← proveGroundEval ctx fuel lhs lhsVal
+    let hB ← proveGroundEval ctx fuel rhs rhsVal
+    mkFuelEqExist ctx fuel lhs rhs lhsVal hA hB
+
+/-- Compose a chain of node proofs for a literal.
+    Given nodes `[n1, n2, ..., nk]` and the literal term,
+    produces `∃ N, ∀ f ≥ N, evalOpt f w env literal = some T`.
+
+    Each node proves `eval lhs_i = eval rhs_i`. T1 (congruence) lifts
+    this to the enclosing term, and T16 (chain) composes successive steps. -/
+def proveLiteralChain (ctx : ProofCtx) (literal : SExpr)
+    (nodes : List ProofNode) : MetaM Expr := do
+  -- Process each node to get its proof
+  let mut currentTerm := literal
+  let mut chainProof : Option Expr := none
+
+  for node in nodes do
+    match node with
+    | .node _ nodeLhs nodeRhs _ _ =>
+      -- Prove this node: ∃ N, ∀ f ≥ N, eval nodeLhs = eval nodeRhs
+      let nodeProof ← proveNode ctx node
+      -- Lift to enclosing term via T1 (congruence):
+      -- ∃ N, ∀ f ≥ N, eval currentTerm = eval (replace currentTerm nodeLhs nodeRhs)
+      let stepProof ← mkAppM ``evalOpt_replace_congr_fwd
+        #[ctx.worldExpr, ctx.envExpr,
+          reflectSExpr currentTerm, reflectSExpr nodeLhs,
+          reflectSExpr nodeRhs, nodeProof]
+      -- Chain with previous steps via T16
+      match chainProof with
+      | none => chainProof := some stepProof
+      | some prev =>
+        chainProof := some (← mkAppM ``fuel_chain_eq #[prev, stepProof])
+      -- Update current term
+      currentTerm := replaceSubterm currentTerm nodeLhs nodeRhs
+
+  -- After all nodes, currentTerm should be (QUOTE T) or similar.
+  -- The chain proof gives: ∃ N, ∀ f ≥ N, eval literal = eval currentTerm
+  -- We need: ∃ N, ∀ f ≥ N, eval literal = some T
+  -- Prove: ∃ N, ∀ f ≥ N, eval currentTerm = some T
+  let hFinalExist ← proveTermConverges ctx currentTerm
+
+  -- Chain: eval literal = eval currentTerm = some T
+  match chainProof with
+  | none => return hFinalExist  -- no nodes, literal is already the final term
+  | some chain => mkAppM ``fuel_chain_eq #[chain, hFinalExist]
+where
+  /-- Prove ∃ N, ∀ f ≥ N, evalOpt f w env term = some value
+      by dispatching on the term structure and using structured lemmas. -/
+  proveTermConverges (ctx : ProofCtx) (term : SExpr) : MetaM Expr := do
+    match term with
+    | .nil =>
+      let h ← proveNilEval ctx 0
+      mkFuelConvergeExist ctx 1 term .nil h
+    | .atom (.number n) =>
+      let h ← proveNumberEval ctx 0 n
+      mkFuelConvergeExist ctx 1 term (.atom (.number n)) h
+    | .cons (.atom (.symbol q)) (.cons v .nil) =>
+      if q.isNamed "quote" then
+        let h ← proveQuoteEval ctx 0 v
+        mkFuelConvergeExist ctx 1 term v h
+      else
+        throwError "proveLiteralChain: final term is not a simple value: {repr term}"
+    | _ =>
+      throwError "proveLiteralChain: final term is not a simple value: {repr term}"
+
 -- ============================================================
 -- Validation: term-mode proofs using our lemmas directly.
 -- These demonstrate what the proof-producing checker emits.
@@ -488,6 +700,52 @@ elab "#test_prove_builtin1" : command => do
     logInfo m!"builtin-1 proof OK: {← inferType proof}"
 
 #test_prove_builtin1
+
+-- Test: proveNode dispatch for equal-self
+-- Proof tree node: (EQUAL 1 1) → (QUOTE T)
+elab "#test_prove_node_equal_self" : command => do
+  Elab.Command.liftTermElabM do
+    let emptyEnv ← mkEmptyEnv
+    let ctx : ProofCtx := {
+      worldExpr := Lean.mkConst ``World.empty
+      world := World.empty
+      envExpr := emptyEnv
+      worldUnfoldNames := #[``World.empty]
+    }
+    let one : SExpr := .atom (.number (.int 1))
+    let equal_1_1 : SExpr := .cons (.atom (.symbol { name := "equal" }))
+      (.cons one (.cons one .nil))
+    let quote_t : SExpr := .cons (.atom (.symbol { name := "quote" }))
+      (.cons SExpr.t .nil)
+    let node : ProofNode := .node ("equal-self", "NIL") equal_1_1 quote_t []
+    let proof ← proveNode ctx node
+    let _ ← check proof
+    logInfo m!"proveNode equal-self OK: {← inferType proof}"
+
+#test_prove_node_equal_self
+
+-- Test: proveLiteralChain with a single equal-self node
+-- Literal: (EQUAL 1 1), nodes: [equal-self], result: (QUOTE T)
+elab "#test_literal_chain" : command => do
+  Elab.Command.liftTermElabM do
+    let emptyEnv ← mkEmptyEnv
+    let ctx : ProofCtx := {
+      worldExpr := Lean.mkConst ``World.empty
+      world := World.empty
+      envExpr := emptyEnv
+      worldUnfoldNames := #[``World.empty]
+    }
+    let one : SExpr := .atom (.number (.int 1))
+    let equal_1_1 : SExpr := .cons (.atom (.symbol { name := "equal" }))
+      (.cons one (.cons one .nil))
+    let quote_t : SExpr := .cons (.atom (.symbol { name := "quote" }))
+      (.cons SExpr.t .nil)
+    let node : ProofNode := .node ("equal-self", "NIL") equal_1_1 quote_t []
+    let proof ← proveLiteralChain ctx equal_1_1 [node]
+    let _ ← check proof
+    logInfo m!"literal chain OK: {← inferType proof}"
+
+#test_literal_chain
 
 end MetaMTests
 
