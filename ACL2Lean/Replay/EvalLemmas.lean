@@ -486,6 +486,13 @@ theorem pcEq_bind {x y : Option SExpr}
     simp [pcEq] at h_xy; subst h_xy
     simp [Option.bind]; exact h_fg vx rfl
 
+/-- Round-trip: toList? of ofList gives back the list. -/
+@[simp] theorem SExpr.ofList_toList? (l : List SExpr) :
+    (SExpr.ofList l).toList? = some l := by
+  induction l with
+  | nil => simp [SExpr.ofList, SExpr.toList?]
+  | cons x xs ih => simp [SExpr.ofList, SExpr.toList?, ih]
+
 /-! ### T1: Congruence via evaluation contexts -/
 
 /-- An evaluation context: a term with a hole at an evaluation position.
@@ -599,8 +606,11 @@ theorem evalOpt_ctx_pcEq (w : World) (env : Env)
         · sorry -- IF dispatch
         · split -- let case
           · sorry -- LET dispatch
-          · -- Function call case: mapM rec over args, then dispatch
-            -- toList? of SExpr.ofList gives back the list
+          · -- Function call case
+            simp only [SExpr.ofList_toList?]
+            -- Both sides: mapM (evalOpt f) over (before++[hole a/b]++after),
+            -- then dispatch. The mapM gives pcEqG results (pcEqG_mapM),
+            -- the dispatch is identical when argVals are equal.
             sorry
 
 /-- T1 bridge: replaceSubterm corresponds to some evaluation context.
