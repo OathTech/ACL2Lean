@@ -452,15 +452,124 @@ where
       else .cons arg (replaceArgs rest a b) -- try next arg
     | _ => args  -- nil or malformed: leave unchanged
 
-/-- T1: Subterm replacement congruence.
-    If `a` and `b` evaluate to the same value (at sufficient fuel),
-    then replacing the first occurrence of `a` with `b` in `term`
-    preserves evaluation.
+/-! ### Partial-correctness equality (pcEq) -/
 
-    SORRY: Requires structural induction on `term` following evalOpt's
-    recursion pattern. The IF case requires showing replacement in the
-    untaken branch doesn't affect evaluation. This is the hardest
-    theorem in the replay infrastructure. -/
+/-- Partial-correctness equality: when both sides converge, they agree.
+    none is ⊤ — fuel exhaustion trivially satisfies any equality. -/
+def pcEq (x y : Option SExpr) : Prop :=
+  match x, y with
+  | some a, some b => a = b
+  | _, _ => True
+
+@[simp] theorem pcEq_none_left (y : Option SExpr) : pcEq none y = True := by
+  cases y <;> rfl
+@[simp] theorem pcEq_none_right (x : Option SExpr) : pcEq x none = True := by
+  cases x <;> rfl
+@[simp] theorem pcEq_some_some (a b : SExpr) : pcEq (some a) (some b) ↔ a = b := by
+  simp [pcEq]
+theorem pcEq_refl (x : Option SExpr) : pcEq x x := by
+  cases x <;> simp [pcEq]
+theorem pcEq_symm {x y : Option SExpr} (h : pcEq x y) : pcEq y x := by
+  cases x <;> cases y <;> simp_all [pcEq]
+
+/-- pcEq is a congruence for Option.bind: if inputs agree (pcEq),
+    and continuations agree on the common value, outputs agree. -/
+theorem pcEq_bind {x y : Option SExpr}
+    {f g : SExpr → Option SExpr}
+    (h_xy : pcEq x y)
+    (h_fg : ∀ v, x = some v → pcEq (f v) (g v)) :
+    pcEq (x.bind f) (y.bind g) := by
+  match x, y with
+  | none, _ => simp [Option.bind]
+  | _, none => simp [Option.bind]
+  | some vx, some vy =>
+    simp [pcEq] at h_xy; subst h_xy
+    simp [Option.bind]; exact h_fg vx rfl
+
+/-! ### T1: Congruence via evaluation contexts -/
+
+/-- An evaluation context: a term with a hole at an evaluation position.
+    Each constructor corresponds to one evalOptStep dispatch case.
+    The hole is where a subexpression gets evaluated by `rec`. -/
+inductive EvalCtx where
+  | hole
+  | arg (fn : Symbol) (argsBefore : List SExpr) (ctx : EvalCtx) (argsAfter : List SExpr)
+  deriving Repr
+
+/-- Plug a term into the hole of a context. -/
+def EvalCtx.plug : EvalCtx → SExpr → SExpr
+  | .hole, t => t
+  | .arg fn before ctx after, t =>
+    .cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug t] ++ after))
+
+/-- Thin-context lemma for function arguments:
+    If the i-th argument gives pcEq results under `rec`, and all
+    other arguments are identical, then evalOptStep gives pcEq.
+
+    This is the core semantic property: evaluation is compositional
+    in its argument positions. -/
+theorem evalOptStep_arg_pcEq
+    (rec : World → Env → SExpr → Option SExpr)
+    (w : World) (env : Env)
+    (fn : Symbol) (args1 args2 : List SExpr)
+    (h_len : args1.length = args2.length)
+    (h_pcEq : ∀ i (h : i < args1.length),
+      pcEq (rec w env (args1.get ⟨i, h⟩))
+           (rec w env (args2.get ⟨i, by omega⟩))) :
+    pcEq (evalOptStep rec w env (.cons (.atom (.symbol fn)) (SExpr.ofList args1)))
+         (evalOptStep rec w env (.cons (.atom (.symbol fn)) (SExpr.ofList args2))) := by
+  sorry
+
+/-- T1 core: contextual equivalence.
+    If a and b are pcEq at all fuel levels, then C[a] and C[b] are
+    pcEq at all fuel levels, for any evaluation context C.
+
+    Proof by induction on the context. Each constructor is one
+    evalOptStep layer. The thin-context lemma handles each layer.
+    Fuel is universally quantified, not inducted on. -/
+theorem evalOpt_ctx_pcEq (w : World) (env : Env)
+    (a b : SExpr)
+    (h_eq : ∀ f, pcEq (evalOpt f w env a) (evalOpt f w env b))
+    (ctx : EvalCtx) :
+    ∀ f, pcEq (evalOpt f w env (ctx.plug a))
+              (evalOpt f w env (ctx.plug b)) := by
+  induction ctx with
+  | hole => exact h_eq
+  | arg fn before ctx after ih =>
+    intro f
+    match f with
+    | 0 => simp [evalOpt]
+    | f + 1 =>
+      simp only [evalOpt, EvalCtx.plug]
+      -- Goal: pcEq (evalOptStep (evalOpt f) w env (fn before++[ctx.plug a]++after))
+      --            (evalOptStep (evalOpt f) w env (fn before++[ctx.plug b]++after))
+      -- Apply thin-context lemma: args differ only at the ctx position.
+      -- Before-args and after-args are identical. The ctx position: ih gives pcEq at fuel f.
+      sorry
+
+/-- T1 bridge: replaceSubterm corresponds to some evaluation context.
+    If replaceSubterm finds `a` in `term`, there exists a context C
+    such that term = C[a] and replaceSubterm term a b = C[b]. -/
+theorem replaceSubterm_ctx (term a b : SExpr)
+    (h_found : replaceSubterm term a b ≠ term) :
+    ∃ ctx : EvalCtx, term = ctx.plug a ∧ replaceSubterm term a b = ctx.plug b := by
+  sorry
+
+/-- T1 full: replaceSubterm preserves pcEq. -/
+theorem evalOpt_replace_pcEq (w : World) (env : Env)
+    (term a b : SExpr)
+    (h_eq : ∀ f, pcEq (evalOpt f w env a) (evalOpt f w env b)) :
+    ∀ f, pcEq (evalOpt f w env (replaceSubterm term a b))
+              (evalOpt f w env term) := by
+  by_cases h : replaceSubterm term a b = term
+  · -- No replacement happened: trivial
+    intro f; rw [h]; exact pcEq_refl _
+  · -- Replacement happened: find the context and apply contextual equivalence
+    obtain ⟨ctx, h_orig, h_repl⟩ := replaceSubterm_ctx term a b h
+    intro f; rw [h_repl, h_orig]
+    exact pcEq_symm (evalOpt_ctx_pcEq w env a b h_eq ctx f)
+
+/-- T1 (existential version, used in proof chains). Derived from pcEq version. -/
 theorem evalOpt_replace_congr (w : World) (env : Env)
     (term a b : SExpr)
     (h_eq : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
