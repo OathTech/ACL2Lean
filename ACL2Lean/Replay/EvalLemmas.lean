@@ -519,6 +519,15 @@ def pcEqG {α : Type} (x y : Option α) : Prop :=
   cases y <;> rfl
 @[simp] theorem pcEqG_none_right {α} (x : Option α) : pcEqG x none = True := by
   cases x <;> rfl
+@[simp] theorem pcEqG_some_some {α} (a b : α) : pcEqG (some a) (some b) ↔ a = b := by
+  simp [pcEqG]
+
+theorem pcEqG_refl' {α : Type} (x : Option α) : pcEqG x x := by
+  cases x <;> simp [pcEqG]
+
+/-- pcEq and pcEqG are the same for Option SExpr. -/
+theorem pcEq_eq_pcEqG (x y : Option SExpr) : pcEq x y = pcEqG x y := by
+  cases x <;> cases y <;> rfl
 
 theorem pcEqG_bind {α β : Type} {x y : Option α} {f g : α → Option β}
     (h_xy : pcEqG x y)
@@ -608,10 +617,23 @@ theorem evalOpt_ctx_pcEq (w : World) (env : Env)
           · sorry -- LET dispatch
           · -- Function call case
             simp only [SExpr.ofList_toList?]
-            -- Both sides: mapM (evalOpt f) over (before++[hole a/b]++after),
-            -- then dispatch. The mapM gives pcEqG results (pcEqG_mapM),
-            -- the dispatch is identical when argVals are equal.
-            sorry
+            -- Goal: pcEq (mapM >>= dispatch) (mapM >>= dispatch)
+            -- Convert to pcEqG for the outer bind
+            rw [pcEq_eq_pcEqG]
+            -- The do-notation is mapM >>= fun argVals => dispatch
+            -- Use pcEqG_bind: mapM gives pcEqG, dispatch is identical
+            apply pcEqG_bind
+            · -- mapM gives pcEqG: lists differ at one position
+              apply pcEqG_mapM (by simp)
+              intro i hi
+              -- Position i in (before ++ [ctx.plug a/b] ++ after)
+              -- If i < before.length: same element, pcEqG_refl
+              -- If i = before.length: hole position, ih gives pcEq = pcEqG
+              -- If i > before.length: same element, pcEqG_refl
+              sorry
+            · -- dispatch: argVals equal → same result
+              intro argVals _
+              exact pcEqG_refl' _
 
 /-- T1 bridge: replaceSubterm corresponds to some evaluation context.
     If replaceSubterm finds `a` in `term`, there exists a context C
