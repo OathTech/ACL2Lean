@@ -502,23 +502,53 @@ def EvalCtx.plug : EvalCtx → SExpr → SExpr
   | .arg fn before ctx after, t =>
     .cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug t] ++ after))
 
-/-- Thin-context lemma for function arguments:
-    If the i-th argument gives pcEq results under `rec`, and all
-    other arguments are identical, then evalOptStep gives pcEq.
+/-- Generalized pcEq for any type. -/
+def pcEqG {α : Type} (x y : Option α) : Prop :=
+  match x, y with
+  | some a, some b => a = b
+  | _, _ => True
 
-    This is the core semantic property: evaluation is compositional
-    in its argument positions. -/
-theorem evalOptStep_arg_pcEq
-    (rec : World → Env → SExpr → Option SExpr)
-    (w : World) (env : Env)
-    (fn : Symbol) (args1 args2 : List SExpr)
-    (h_len : args1.length = args2.length)
-    (h_pcEq : ∀ i (h : i < args1.length),
-      pcEq (rec w env (args1.get ⟨i, h⟩))
-           (rec w env (args2.get ⟨i, by omega⟩))) :
-    pcEq (evalOptStep rec w env (.cons (.atom (.symbol fn)) (SExpr.ofList args1)))
-         (evalOptStep rec w env (.cons (.atom (.symbol fn)) (SExpr.ofList args2))) := by
-  sorry
+@[simp] theorem pcEqG_none_left {α} (y : Option α) : pcEqG none y = True := by
+  cases y <;> rfl
+@[simp] theorem pcEqG_none_right {α} (x : Option α) : pcEqG x none = True := by
+  cases x <;> rfl
+
+theorem pcEqG_bind {α β : Type} {x y : Option α} {f g : α → Option β}
+    (h_xy : pcEqG x y)
+    (h_fg : ∀ v, x = some v → pcEqG (f v) (g v)) :
+    pcEqG (x.bind f) (y.bind g) := by
+  match x, y with
+  | none, _ => simp [Option.bind]
+  | _, none => simp [Option.bind]
+  | some vx, some vy =>
+    simp [pcEqG] at h_xy; subst h_xy
+    simp [Option.bind]; exact h_fg vx rfl
+
+/-- mapM preserves pcEqG: if corresponding elements give pcEq results,
+    mapM gives pcEqG results (equal lists when both converge). -/
+theorem pcEqG_mapM {f g : SExpr → Option SExpr}
+    {l1 l2 : List SExpr}
+    (h_len : l1.length = l2.length)
+    (h_pcEq : ∀ i (h : i < l1.length),
+      pcEqG (f (l1.get ⟨i, h⟩)) (g (l2.get ⟨i, by omega⟩))) :
+    pcEqG (l1.mapM f) (l2.mapM g) := by
+  induction l1 generalizing l2 with
+  | nil =>
+    match l2, h_len with | [], _ => simp [pcEqG]
+  | cons x xs ih_xs =>
+    match l2, h_len with
+    | y :: ys, h_len =>
+      simp only [List.mapM_cons]
+      have h_len' : xs.length = ys.length := by simp [List.length] at h_len; exact h_len
+      have h_head : pcEqG (f x) (g y) := by
+        have := h_pcEq 0 (by simp)
+        simpa using this
+      have h_tail : pcEqG (xs.mapM f) (ys.mapM g) :=
+        ih_xs h_len' (fun i hi => by
+          have := h_pcEq (i + 1) (by simp; omega)
+          simpa using this)
+      exact pcEqG_bind h_head (fun vx _ =>
+        pcEqG_bind h_tail (fun vs _ => by simp [pcEqG]))
 
 /-- T1 core: contextual equivalence.
     If a and b are pcEq at all fuel levels, then C[a] and C[b] are
@@ -541,10 +571,24 @@ theorem evalOpt_ctx_pcEq (w : World) (env : Env)
     | 0 => simp [evalOpt]
     | f + 1 =>
       simp only [evalOpt, EvalCtx.plug]
-      -- Goal: pcEq (evalOptStep (evalOpt f) w env (fn before++[ctx.plug a]++after))
-      --            (evalOptStep (evalOpt f) w env (fn before++[ctx.plug b]++after))
-      -- Apply thin-context lemma: args differ only at the ctx position.
-      -- Before-args and after-args are identical. The ctx position: ih gives pcEq at fuel f.
+      -- Both sides have the same head fn, same before/after.
+      -- They differ at one arg: ctx.plug a vs ctx.plug b.
+      -- ih: ∀ f, pcEq (evalOpt f w env (ctx.plug a)) (evalOpt f w env (ctx.plug b))
+      -- evalOptStep dispatches on fn, processes args via (evalOpt f).
+      -- Need to show evalOptStep gives pcEq.
+      --
+      -- This case requires unfolding evalOptStep and showing each dispatch
+      -- (quote, if, let, function call) preserves pcEq when one arg differs.
+      -- The proof uses pcEqG_mapM for the argument evaluation and pcEq_bind
+      -- for the monadic composition.
+      --
+      -- The unfolding is large (~100 lines) because evalOptStep has many cases.
+      -- Each case is handled by the same pattern:
+      -- 1. toList? gives the same-length list (before ++ [x] ++ after)
+      -- 2. pcEqG_mapM shows arg evaluation gives pcEqG results
+      -- 3. pcEq_bind / pcEqG_bind pushes through the dispatch
+      --
+      -- Sorry for now — the proof is mechanical but large.
       sorry
 
 /-- T1 bridge: replaceSubterm corresponds to some evaluation context.
