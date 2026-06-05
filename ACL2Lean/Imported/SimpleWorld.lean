@@ -189,19 +189,22 @@ theorem my_len_my_app_generic
     | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w env y_sym hy (by decide)⟩
   obtain ⟨yv, h_yv⟩ := h_y
 
-  -- Induction on xv using T10 (acl2_induction_consp).
-  -- P(xv) = the formula evaluates to T when env maps x to xv (and y to yv).
-  suffices h_ind : ∀ xv,
+  -- Generalised induction predicate (T10): the formula holds in ANY env that
+  -- binds x to the induction value and y to yv. Quantifying over the env
+  -- (rather than fixing it) is what makes the step-case IH usable — the IH
+  -- gets applied at a DIFFERENT env (x ↦ cdr xv) than the goal's.
+  suffices key : ∀ xv, ∀ env : Env,
       (∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv) →
+      (∀ f, evalOpt (f + 1) w env (.atom (.symbol y_sym)) = some yv) →
       ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t from
-    h_ind xv h_xv
-  -- Apply T10: induction on consp/cdr structure of xv
-  apply acl2_induction_consp (fun xv =>
-    (∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv) →
-    ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t)
+    key xv env h_xv h_yv
+  apply acl2_induction_consp (fun xv => ∀ env : Env,
+      (∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv) →
+      (∀ f, evalOpt (f + 1) w env (.atom (.symbol y_sym)) = some yv) →
+      ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t)
 
   -- Base case: consp(xv) = nil
-  · intro xv h_consp h_xv'
+  · intro xv h_consp env h_xv' h_yv'
     -- Abbreviations for the SExpr subterms referenced by the proof tree
     let my_app_xy := SExpr.cons (.atom (.symbol my_app_sym))
           (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))
@@ -249,11 +252,11 @@ theorem my_len_my_app_generic
           (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))) = _
         rw [evalOpt_defn_2 (g + 4) w env my_app_sym (.atom (.symbol x_sym))
               (.atom (.symbol y_sym)) xv yv x_sym y_sym my_appBody (by decide) h_my_app
-              (h_xv' (g + 3)) (h_yv (g + 3))]
+              (h_xv' (g + 3)) (h_yv' (g + 3))]
         unfold my_appBody
         rw [evalOpt_if_false (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv]) _ _ _ hc]
         exact evalOpt_var (g + 2) w _ { name := "y" } yv hylook
-      have hrhs : evalOpt (g + 5) w env y_var = some yv := h_yv (g + 4)
+      have hrhs : evalOpt (g + 5) w env y_var = some yv := h_yv' (g + 4)
       rw [hlhs, hrhs]
 
     -- NODE 2 (definition:my-len): eval(MY-LEN x) = eval(QUOTE 0) in env
@@ -295,7 +298,7 @@ theorem my_len_my_app_generic
       show evalOpt (g + 2) w env
         (.cons (.atom (.symbol my_len_sym)) (.cons (.atom (.symbol y_sym)) .nil)) = _
       rw [evalOpt_defn_1 (g + 1) w env my_len_sym (.atom (.symbol y_sym)) yv x_sym
-            my_lenBody (by decide) h_my_len (h_yv g)]
+            my_lenBody (by decide) h_my_len (h_yv' g)]
       exact hb (g + 1) (by omega)
 
     -- NODE 3 (rewrite:unicity-of-0): eval(BINARY-+ '0 (MY-LEN y)) = eval(MY-LEN y)
@@ -343,10 +346,9 @@ theorem my_len_my_app_generic
     -- CHAIN: formula ~ (EQUAL (MY-LEN y) rhs) ~ (EQUAL (MY-LEN y)(MY-LEN y)) ~ some T
     exact fuel_chain_eq (fuel_chain_eq hIII hIV) hV
 
-  -- Step case: consp(xv) ≠ nil, IH available
-  · intro xv h_consp ih h_xv'
-    -- Same structure: 5 nodes + equal-self, chained by T1 + T16.
-    -- The IH connects via T15 (env substitution).
+  -- Step case: consp(xv) ≠ nil, IH available at (cdr xv)
+  · intro xv h_consp ih env h_xv' h_yv'
+    -- ih : ∀ env, (x ↦ cdr xv) → (y ↦ yv) → formula holds in env
     sorry
 
 /-! ## The concrete instantiation (definition verification branch) -/
