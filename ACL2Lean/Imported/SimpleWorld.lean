@@ -144,13 +144,64 @@ theorem my_len_my_app_generic
     -- exist in a proof-producing checker (which generates Expr directly).
     have h_node1 : ∃ N, ∀ f ≥ N,
         evalOpt f w env my_app_xy = evalOpt f w env y_var := by
-      sorry -- T4(defn_2) + T5(if_false) + T6(builtin consp) + T7(var)
+      refine ⟨5, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 5 := ⟨f - 5, by omega⟩
+      have hxlook : (bindArgs [x_sym, y_sym] [xv, yv]).get? { name := "x" } = some xv := by
+        simp [bindArgs, x_sym, y_sym, sym]
+      have hylook : (bindArgs [x_sym, y_sym] [xv, yv]).get? { name := "y" } = some yv := by
+        show (bindArgs [x_sym, y_sym] [xv, yv])[({ name := "y" } : Symbol)]? = some yv
+        simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+        rw [if_neg (by decide), if_pos (by decide)]
+      -- test (consp x) → nil in body env (x ↦ xv)
+      have hc : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv])
+          (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+          = some .nil := by
+        rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "consp" }
+              (.atom (.symbol { name := "x" })) xv (by decide) h_no_consp
+              (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "x" } xv hxlook)]
+        rw [callBuiltin_consp, h_consp]
+      -- LHS: (MY-APP x y) unfolds, takes else-branch → y → yv
+      have hlhs : evalOpt (g + 5) w env my_app_xy = some yv := by
+        show evalOpt (g + 5) w env (.cons (.atom (.symbol my_app_sym))
+          (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))) = _
+        rw [evalOpt_defn_2 (g + 4) w env my_app_sym (.atom (.symbol x_sym))
+              (.atom (.symbol y_sym)) xv yv x_sym y_sym my_appBody (by decide) h_my_app
+              (h_xv' (g + 3)) (h_yv (g + 3))]
+        unfold my_appBody
+        rw [evalOpt_if_false (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv]) _ _ _ hc]
+        exact evalOpt_var (g + 2) w _ { name := "y" } yv hylook
+      have hrhs : evalOpt (g + 5) w env y_var = some yv := h_yv (g + 4)
+      rw [hlhs, hrhs]
 
     -- NODE 2 (definition:my-len): eval(MY-LEN x) = eval(QUOTE 0) in env
     -- MY-LEN with consp(xv)=nil → body takes else-branch → 0
     have h_node2 : ∃ N, ∀ f ≥ N,
         evalOpt f w env my_len_x = evalOpt f w env quote_0 := by
-      exact ⟨5, fun f hf => by sorry⟩
+      refine ⟨5, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 5 := ⟨f - 5, by omega⟩
+      -- variable x looks up to xv in the body env (formal x_sym ↦ xv)
+      have hxlook : (bindArgs [x_sym] [xv]).get? { name := "x" } = some xv := by
+        simp [bindArgs, x_sym, sym]
+      -- the test (consp x) evaluates to nil in the body env (x ↦ xv)
+      have hc : evalOpt (g + 3) w (bindArgs [x_sym] [xv])
+          (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+          = some .nil := by
+        rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym] [xv]) { name := "consp" }
+              (.atom (.symbol { name := "x" })) xv (by decide) h_no_consp
+              (evalOpt_var (g + 1) w (bindArgs [x_sym] [xv]) { name := "x" } xv hxlook)]
+        rw [callBuiltin_consp, h_consp]
+      -- LHS: (MY-LEN x) unfolds, takes else-branch → (QUOTE 0) → 0
+      have hlhs : evalOpt (g + 5) w env my_len_x = some (.atom (.number (.int 0))) := by
+        show evalOpt (g + 5) w env (.cons (.atom (.symbol my_len_sym))
+          (.cons (.atom (.symbol x_sym)) .nil)) = _
+        rw [evalOpt_defn_1 (g + 4) w env my_len_sym (.atom (.symbol x_sym)) xv x_sym
+              my_lenBody (by decide) h_my_len (h_xv' (g + 3))]
+        unfold my_lenBody
+        rw [evalOpt_if_false (g + 3) w (bindArgs [x_sym] [xv]) _ _ _ hc]
+        exact evalOpt_quote (g + 2) w _ (.atom (.number (.int 0)))
+      have hrhs : evalOpt (g + 5) w env quote_0 = some (.atom (.number (.int 0))) :=
+        evalOpt_quote (g + 4) w env (.atom (.number (.int 0)))
+      rw [hlhs, hrhs]
 
     -- NODE 3 (rewrite:unicity-of-0): eval(BINARY-+ '0 (MY-LEN y)) = eval(MY-LEN y)
     -- Uses unicity-of-0 axiom + fix elimination via type-prescription
@@ -244,7 +295,9 @@ theorem world_no_cons :
   unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
 
 /-- The final theorem: combines the definition verification branch
-    with the proof replay branch. Zero sorry in this theorem. -/
+    (sorry-free HashMap lookups) with the proof replay branch.
+    NOTE: still transitively depends on sorries in `my_len_my_app_generic`
+    (base case: h_node3/h_conv; the step case). Not yet a complete proof. -/
 theorem my_len_my_app (env : Env) :
     ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t :=
   my_len_my_app_generic world env
