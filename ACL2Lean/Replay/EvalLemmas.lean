@@ -524,4 +524,51 @@ theorem evalOpt_cong_bin2 (w : World) (env : Env) (s : Symbol) (c a b : SExpr)
                 = evalOpt f w env (.cons (.atom (.symbol s)) (.cons c (.cons b .nil))) :=
   evalOpt_arg_congr w env s [c] [] a b h_nq h_ni h_nl h_nl2 h
 
+/-! ### Call congruence across envs (induction-hypothesis bridge)
+
+    Two calls to the same defined function whose arguments evaluate to the
+    SAME values — even in different environments or from different argument
+    expressions — are eventually-equal, because both definition-expand to
+    evaluating the same `bindArgs` body. This is what connects an inductive
+    hypothesis (stated at one binding of the recursion variable) to the
+    recursive subterm in the goal (at another binding), WITHOUT a general
+    substitution lemma. -/
+
+/-- IH bridge, 1-ary defined function. -/
+theorem evalOpt_defn1_call_congr (w : World) (E1 E2 : Env) (s : Symbol)
+    (f1 : Symbol) (body : SExpr) (A C : SExpr) (av : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([f1], body))
+    (hA : ∃ N, ∀ f ≥ N, evalOpt f w E1 A = some av)
+    (hC : ∃ N, ∀ f ≥ N, evalOpt f w E2 C = some av) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w E1 (.cons (.atom (.symbol s)) (.cons A .nil))
+        = evalOpt f w E2 (.cons (.atom (.symbol s)) (.cons C .nil)) := by
+  obtain ⟨Na, ha⟩ := hA; obtain ⟨Nc, hc⟩ := hC
+  refine ⟨max Na Nc + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_defn_1 g w E1 s A av f1 body h_ns h_def (ha g (by omega)),
+      evalOpt_defn_1 g w E2 s C av f1 body h_ns h_def (hc g (by omega))]
+
+/-- IH bridge, 2-ary defined function. -/
+theorem evalOpt_defn2_call_congr (w : World) (E1 E2 : Env) (s : Symbol)
+    (f1 f2 : Symbol) (body : SExpr) (A B C D : SExpr) (av bv : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([f1, f2], body))
+    (hA : ∃ N, ∀ f ≥ N, evalOpt f w E1 A = some av)
+    (hB : ∃ N, ∀ f ≥ N, evalOpt f w E1 B = some bv)
+    (hC : ∃ N, ∀ f ≥ N, evalOpt f w E2 C = some av)
+    (hD : ∃ N, ∀ f ≥ N, evalOpt f w E2 D = some bv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w E1 (.cons (.atom (.symbol s)) (.cons A (.cons B .nil)))
+        = evalOpt f w E2 (.cons (.atom (.symbol s)) (.cons C (.cons D .nil))) := by
+  obtain ⟨Na, ha⟩ := hA; obtain ⟨Nb, hb⟩ := hB
+  obtain ⟨Nc, hc⟩ := hC; obtain ⟨Nd, hd⟩ := hD
+  refine ⟨max (max Na Nb) (max Nc Nd) + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_defn_2 g w E1 s A B av bv f1 f2 body h_ns h_def (ha g (by omega)) (hb g (by omega)),
+      evalOpt_defn_2 g w E2 s C D av bv f1 f2 body h_ns h_def (hc g (by omega)) (hd g (by omega))]
+
 end ACL2.Replay
