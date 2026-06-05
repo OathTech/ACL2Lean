@@ -379,6 +379,12 @@ theorem logic_plus_zero_left_int (k : Int) :
     = .atom (.number (.int k)) := by
   simp [Logic.plus, Logic.toRat, mkNumber_one]
 
+/-- T8: integer addition: (+ a b) = a + b for integer arguments. -/
+theorem logic_plus_int (a b : Int) :
+    Logic.plus (.atom (.number (.int a))) (.atom (.number (.int b)))
+    = .atom (.number (.int (a + b))) := by
+  simp [Logic.plus, Logic.toRat, mkNumber_one]
+
 /-! ## Induction principles (T10) -/
 
 /-- T10: Induction on consp/cdr structure (matching my-app's recursion).

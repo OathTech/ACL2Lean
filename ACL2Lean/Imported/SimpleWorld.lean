@@ -66,6 +66,89 @@ private theorem consp_not_special :
     ({ name := "consp" } : Symbol).isNamed "let" = false ∧
     ({ name := "consp" } : Symbol).isNamed "let*" = false := by decide
 
+/-! ## Totality + type-prescription for my-len -/
+
+/-- Applied to any value, the my-len body converges to a (non-negative)
+    integer. By induction on acl2Count via `acl2_induction_consp`; the
+    recursive call `(my-len (cdr x))` is discharged by the IH on `(cdr val)`.
+    This combines ACL2's termination (totality) and its type-prescription
+    (`integerp (my-len x)`) into the one fact the replay needs. -/
+theorem my_len_total (w : World)
+    (h_my_len : w.defs[my_len_sym]? = some ([x_sym], my_lenBody))
+    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none)
+    (h_no_cdr : w.defs[({ name := "cdr" } : Symbol)]? = none)
+    (h_no_plus : w.defs[({ name := "binary-+" } : Symbol)]? = none) :
+    ∀ val : SExpr, ∃ k : Int, ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs [x_sym] [val]) my_lenBody
+        = some (.atom (.number (.int k))) := by
+  apply acl2_induction_consp
+  · -- BASE: consp val = nil → body takes else-branch → 0
+    intro val hconsp
+    have hxlook : (bindArgs [x_sym] [val]).get? { name := "x" } = some val := by
+      simp [bindArgs, x_sym, sym]
+    refine ⟨0, 4, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 4 := ⟨f - 4, by omega⟩
+    have hc : evalOpt (g + 3) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some .nil := by
+      rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym] [val]) { name := "consp" }
+            (.atom (.symbol { name := "x" })) val (by decide) h_no_consp
+            (evalOpt_var (g + 1) w (bindArgs [x_sym] [val]) { name := "x" } val hxlook)]
+      rw [callBuiltin_consp, hconsp]
+    unfold my_lenBody
+    rw [evalOpt_if_false (g + 3) w (bindArgs [x_sym] [val]) _ _ _ hc]
+    exact evalOpt_quote (g + 2) w _ (.atom (.number (.int 0)))
+  · -- STEP: consp val ≠ nil, IH gives convergence of (my-len (cdr val))
+    intro val hconsp ih
+    obtain ⟨k', N', hrec⟩ := ih
+    have hxlook : (bindArgs [x_sym] [val]).get? { name := "x" } = some val := by
+      simp [bindArgs, x_sym, sym]
+    have htrue : Logic.toBool (Logic.consp val) = true := by
+      cases val with
+      | cons a d => rfl
+      | nil => exact absurd rfl hconsp
+      | atom a => exact absurd rfl hconsp
+    refine ⟨1 + k', N' + 5, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 5 := ⟨f - 5, by omega⟩
+    -- (consp x) → consp val (truthy)
+    have hc : evalOpt (g + 4) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.consp val) := by
+      rw [evalOpt_builtin_1 (g + 3) w (bindArgs [x_sym] [val]) { name := "consp" }
+            (.atom (.symbol { name := "x" })) val (by decide) h_no_consp
+            (evalOpt_var (g + 2) w (bindArgs [x_sym] [val]) { name := "x" } val hxlook)]
+      rw [callBuiltin_consp]
+    -- (cdr x) → cdr val
+    have hcdr : evalOpt (g + 2) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.cdr val) := by
+      rw [evalOpt_builtin_1 (g + 1) w (bindArgs [x_sym] [val]) { name := "cdr" }
+            (.atom (.symbol { name := "x" })) val (by decide) h_no_cdr
+            (evalOpt_var g w (bindArgs [x_sym] [val]) { name := "x" } val hxlook)]
+      rw [callBuiltin_cdr]
+    -- (my-len (cdr x)) → int k' (via IH)
+    have hmylen : evalOpt (g + 3) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "my-len" }))
+          (.cons (.cons (.atom (.symbol { name := "cdr" }))
+                   (.cons (.atom (.symbol { name := "x" })) .nil)) .nil))
+        = some (.atom (.number (.int k'))) := by
+      rw [evalOpt_defn_1 (g + 2) w (bindArgs [x_sym] [val]) { name := "my-len" }
+            (.cons (.atom (.symbol { name := "cdr" }))
+              (.cons (.atom (.symbol { name := "x" })) .nil))
+            (Logic.cdr val) x_sym my_lenBody (by decide) h_my_len hcdr]
+      exact hrec (g + 2) (by omega)
+    -- '1 → int 1
+    have hone : evalOpt (g + 3) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 1))) .nil))
+        = some (.atom (.number (.int 1))) :=
+      evalOpt_quote (g + 2) w _ (.atom (.number (.int 1)))
+    unfold my_lenBody
+    rw [evalOpt_if_true (g + 4) w (bindArgs [x_sym] [val]) _ _ _ (Logic.consp val) hc htrue]
+    rw [evalOpt_builtin_2 (g + 3) w (bindArgs [x_sym] [val]) { name := "binary-+" }
+          _ _ (.atom (.number (.int 1))) (.atom (.number (.int k'))) (by decide) h_no_plus
+          hone hmylen]
+    rw [callBuiltin_plus, logic_plus_int]
+
 /-! ## The generic proof (parameterized by world + definition hypotheses) -/
 
 /-- The main theorem, parameterized by a world and proofs that the
@@ -203,15 +286,35 @@ theorem my_len_my_app_generic
         evalOpt_quote (g + 4) w env (.atom (.number (.int 0)))
       rw [hlhs, hrhs]
 
+    -- (MY-LEN y) converges to an integer k (totality + type-prescription).
+    have h_conv : ∃ k : Int, ∃ N, ∀ f ≥ N,
+        evalOpt f w env my_len_y = some (.atom (.number (.int k))) := by
+      obtain ⟨k, Nb, hb⟩ := my_len_total w h_my_len h_no_consp h_no_cdr h_no_plus yv
+      refine ⟨k, Nb + 2, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
+      show evalOpt (g + 2) w env
+        (.cons (.atom (.symbol my_len_sym)) (.cons (.atom (.symbol y_sym)) .nil)) = _
+      rw [evalOpt_defn_1 (g + 1) w env my_len_sym (.atom (.symbol y_sym)) yv x_sym
+            my_lenBody (by decide) h_my_len (h_yv g)]
+      exact hb (g + 1) (by omega)
+
     -- NODE 3 (rewrite:unicity-of-0): eval(BINARY-+ '0 (MY-LEN y)) = eval(MY-LEN y)
-    -- Uses unicity-of-0 axiom + fix elimination via type-prescription
+    -- (+ 0 k) = k via logic_plus_zero_left_int, using h_conv (MY-LEN y → int k).
     have h_node3 : ∃ N, ∀ f ≥ N,
         evalOpt f w env plus_0_len_y = evalOpt f w env my_len_y := by
-      exact ⟨5, fun f hf => by sorry⟩
-
-    -- NODE 4 (equal-self): (MY-LEN y) converges, so (EQUAL (MY-LEN y)(MY-LEN y)) = T.
-    have h_conv : ∃ v N, ∀ f ≥ N, evalOpt f w env my_len_y = some v := by
-      sorry -- totality of my-len applied to y (Phase 1: induction on acl2Count)
+      obtain ⟨k, Nc, hc⟩ := h_conv
+      refine ⟨Nc + 2, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
+      have hlhs : evalOpt (g + 2) w env plus_0_len_y = some (.atom (.number (.int k))) := by
+        show evalOpt (g + 2) w env (.cons (.atom (.symbol { name := "binary-+" }))
+          (.cons quote_0 (.cons my_len_y .nil))) = _
+        rw [evalOpt_builtin_2 (g + 1) w env { name := "binary-+" } quote_0 my_len_y
+              (.atom (.number (.int 0))) (.atom (.number (.int k))) (by decide) h_no_plus
+              (evalOpt_quote g w env (.atom (.number (.int 0)))) (hc (g + 1) (by omega))]
+        rw [callBuiltin_plus, logic_plus_zero_left_int]
+      have hrhs : evalOpt (g + 2) w env my_len_y = some (.atom (.number (.int k))) :=
+        hc (g + 2) (by omega)
+      rw [hlhs, hrhs]
 
     -- Lift each node fact through its evaluation context via one-step
     -- argument congruence, then chain with fuel_chain_eq. No replaceSubterm,
@@ -233,10 +336,10 @@ theorem my_len_my_app_generic
     have hV : ∃ N, ∀ f ≥ N,
         evalOpt f w env (SExpr.cons (.atom (.symbol { name := "equal" }))
           (.cons my_len_y (.cons my_len_y .nil))) = some SExpr.t := by
-      obtain ⟨v, Nc, hc⟩ := h_conv
+      obtain ⟨k, Nc, hc⟩ := h_conv
       refine ⟨Nc + 1, fun f hf => ?_⟩
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-      exact evalOpt_equal_self g w env my_len_y v (hc g (by omega)) h_no_equal
+      exact evalOpt_equal_self g w env my_len_y (.atom (.number (.int k))) (hc g (by omega)) h_no_equal
     -- CHAIN: formula ~ (EQUAL (MY-LEN y) rhs) ~ (EQUAL (MY-LEN y)(MY-LEN y)) ~ some T
     exact fuel_chain_eq (fuel_chain_eq hIII hIV) hV
 
