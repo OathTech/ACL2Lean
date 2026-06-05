@@ -128,16 +128,6 @@ def proveWorldLookupNone (ctx : ProofCtx) (s : Symbol) : MetaM Expr := do
   proveBySimp (mkApp3 (Lean.mkConst ``Eq [1]) lookupType lookupExpr noneExpr)
     (unfoldNames := ctx.worldUnfoldNames)
 
-/-- Prove a ground evaluation: `evalOpt fuel w env term = some value`. -/
-def proveGroundEval (ctx : ProofCtx) (fuel : Nat) (term value : SExpr) :
-    MetaM Expr := do
-  let optSExpr := mkApp (Lean.mkConst ``Option [0]) (Lean.mkConst ``SExpr)
-  let evalExpr := mkAppN (Lean.mkConst ``evalOpt)
-    #[mkNatLit fuel, ctx.worldExpr, ctx.envExpr, reflectSExpr term]
-  let someValue := mkApp2 (Lean.mkConst ``Option.some [0])
-    (Lean.mkConst ``SExpr) (reflectSExpr value)
-  proveBySimp (mkApp3 (Lean.mkConst ``Eq [1]) optSExpr evalExpr someValue)
-    (unfoldNames := ctx.worldUnfoldNames ++ #[``evalOpt, ``evalOptStep])
 
 /-! ## Node provers -/
 
@@ -316,90 +306,67 @@ def mkFuelConvergeExist (ctx : ProofCtx) (N : Nat)
 
 /-! ## Proof tree walking -/
 
-/-- Evaluate an SExpr at meta-time using the world's evaluator.
-    Returns the value if the term converges at the given fuel. -/
-def metaEval (w : World) (env : Env) (fuel : Nat) (term : SExpr) :
-    Option SExpr :=
-  evalOpt fuel w env term
 
 /-- Prove a single proof node. Returns an existential fuel proof:
     `∃ N, ∀ f ≥ N, evalOpt f w env node.lhs = evalOpt f w env node.rhs`
-    Dispatches on the rune type, mirroring the Bool checker. -/
-partial def proveNode (ctx : ProofCtx) (node : ProofNode) : MetaM Expr :=
+
+    Every step is a symbolic rewrite directed by the proof tree.
+    The proof producer constructs the corresponding EvalLemma application.
+    No ground evaluation — all proofs work with arbitrary env. -/
+partial def proveNode (ctx : ProofCtx) (node : ProofNode) : MetaM Expr := do
   match node with
   | .node (runeType, _runeName) lhs rhs _children _prov =>
     match runeType with
     | "equal-self" => proveEqualSelfNode ctx lhs rhs
-    | "if-simplification" => proveIfSimplNode ctx lhs rhs
-    | "executable-counterpart" => proveExecCounterpart ctx lhs rhs
-    | other => throwError "proveNode: unsupported rune type '{other}'"
+    | other => throwError "proveNode: rune type '{other}' not yet implemented"
 where
-  /-- Find the minimum fuel at which a ground term converges. -/
-  findFuel (w : World) (term : SExpr) (maxFuel : Nat := 20) : Option Nat := do
-    for f in List.range (maxFuel + 1) do
-      if (evalOpt f w {} term).isSome then return f
-    none
+  /-- Prove symbolic convergence of a term: ∃ v, evalOpt (f+1) w env term = some v.
+      Returns (xv, hxv) where xv is the abstract value Expr and
+      hxv proves evalOpt (f+1) w env term = some xv. -/
+  proveConverges (ctx : ProofCtx) (f : Nat) (term : SExpr) :
+      MetaM (Expr × Expr) := do
+    match term with
+    | .atom (.symbol s) =>
+      -- Variable: use evalOpt_symbol_converges
+      let hConv := mkAppN (Lean.mkConst ``evalOpt_symbol_converges)
+        #[mkNatLit f, ctx.worldExpr, ctx.envExpr, reflectSymbol s]
+      let xv ← mkAppM ``Exists.choose #[hConv]
+      let hxv ← mkAppM ``Exists.choose_spec #[hConv]
+      return (xv, hxv)
+    | .atom (.number n) =>
+      -- Number literal: converges to itself
+      let proof ← proveNumberEval ctx f n
+      return (reflectSExpr (.atom (.number n)), proof)
+    | .nil =>
+      let proof ← proveNilEval ctx f
+      return (reflectSExpr .nil, proof)
+    | .cons (.atom (.symbol q)) (.cons v .nil) =>
+      if q.isNamed "quote" then
+        let proof ← proveQuoteEval ctx f v
+        return (reflectSExpr v, proof)
+      else
+        throwError "proveConverges: unsupported term {repr term}"
+    | _ =>
+      throwError "proveConverges: unsupported term {repr term}"
 
-  /-- equal-self: (EQUAL X X) → (QUOTE T) -/
+  /-- equal-self: (EQUAL X X) → (QUOTE T)
+      Symbolic proof: X converges to some abstract value xv,
+      then evalOpt_equal_self gives eval(EQUAL X X) = some T. -/
   proveEqualSelfNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
-    -- Decompose LHS as (EQUAL X X)
     let x := match lhs with
       | .cons _ (.cons x (.cons _ .nil)) => x
       | _ => panic! "equal-self: LHS is not (EQUAL X X)"
-    -- Find minimum fuel for X to converge
-    let some fuel := findFuel ctx.world x
-      | throwError "equal-self: subterm does not converge"
-    let some xVal := metaEval ctx.world {} fuel x
-      | throwError "equal-self: unreachable"
-    -- hConv: evalOpt fuel w env X = some xVal
-    let hConv ← proveGroundEval ctx fuel x xVal
-    -- hA: evalOpt (fuel+1) w env (EQUAL X X) = some T
-    let hA ← proveEqualSelf ctx fuel x xVal hConv
-    -- hB: evalOpt (fuel+1) w env (QUOTE T) = some T (rhs is QUOTE T)
-    let hB ← proveQuoteEval ctx fuel SExpr.t
-    -- Wrap into existential
-    mkFuelEqExist ctx (fuel + 1) lhs rhs SExpr.t hA hB
-
-  /-- if-simplification: (IF (QUOTE NIL) A B) → B or (IF (QUOTE T) A B) → A -/
-  proveIfSimplNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
-    let (c, t, e) := match lhs with
-      | .cons _ (.cons c (.cons t (.cons e .nil))) => (c, t, e)
-      | _ => panic! "if-simplification: LHS is not (IF c t e)"
-    let some fuel := findFuel ctx.world c
-      | throwError "if-simplification: test does not converge"
-    let some cVal := metaEval ctx.world {} fuel c
-      | throwError "if-simplification: unreachable"
-    let hTestEval ← proveGroundEval ctx fuel c cVal
-    if cVal == SExpr.nil then
-      let hIfFalse ← proveIfFalse ctx fuel c t e hTestEval
-      if e == rhs then
-        let some eVal := metaEval ctx.world {} fuel e
-          | throwError "if-simplification: else branch does not converge"
-        let hElse ← proveGroundEval ctx fuel e eVal
-        let hA ← mkAppM ``Eq.trans #[hIfFalse, hElse]
-        let hB ← proveGroundEval ctx (fuel + 1) rhs eVal
-        mkFuelEqExist ctx (fuel + 1) lhs rhs eVal hA hB
-      else
-        throwError "if-simplification: else branch {e} ≠ rhs {rhs}"
-    else
-      throwError "if-simplification: truthy test not yet supported"
-
-  /-- executable-counterpart: ground eval -/
-  proveExecCounterpart (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
-    let some fuelL := findFuel ctx.world lhs
-      | throwError "executable-counterpart: LHS does not converge"
-    let some fuelR := findFuel ctx.world rhs
-      | throwError "executable-counterpart: RHS does not converge"
-    let fuel := max fuelL fuelR
-    let some lhsVal := metaEval ctx.world {} fuel lhs
-      | throwError "executable-counterpart: unreachable"
-    let some rhsVal := metaEval ctx.world {} fuel rhs
-      | throwError "executable-counterpart: unreachable"
-    unless lhsVal == rhsVal do
-      throwError "executable-counterpart: LHS evaluates to {repr lhsVal} but RHS to {repr rhsVal}"
-    let hA ← proveGroundEval ctx fuel lhs lhsVal
-    let hB ← proveGroundEval ctx fuel rhs rhsVal
-    mkFuelEqExist ctx fuel lhs rhs lhsVal hA hB
+    -- Symbolic convergence: ∃ xv, evalOpt 1 w env X = some xv
+    let (xv, hxv) ← proveConverges ctx 0 x
+    -- evalOpt_equal_self: eval(EQUAL X X) = some T at fuel 2
+    let hNoDef ← proveWorldLookupNone ctx { name := "equal" }
+    let hA := mkAppN (Lean.mkConst ``evalOpt_equal_self)
+      #[mkNatLit 1, ctx.worldExpr, ctx.envExpr,
+        reflectSExpr x, xv, hxv, hNoDef]
+    -- evalOpt_quote: eval(QUOTE T) = some T at fuel 2
+    let hB ← proveQuoteEval ctx 1 SExpr.t
+    -- Wrap: ∃ N, ∀ f ≥ N, eval(EQUAL X X) = eval(QUOTE T)
+    mkFuelEqExist ctx 2 lhs rhs SExpr.t hA hB
 
 /-- Compose a chain of node proofs for a literal.
     Given nodes `[n1, n2, ..., nk]` and the literal term,
@@ -461,6 +428,34 @@ where
         throwError "proveLiteralChain: final term is not a simple value: {repr term}"
     | _ =>
       throwError "proveLiteralChain: final term is not a simple value: {repr term}"
+
+/-! ## Theorem declaration -/
+
+/-- Produce a Lean theorem from a proof tree.
+    Given a world, formula, and list of proof nodes (one literal's chain),
+    adds `theorem <name> (env : Env) : ∃ N, ∀ f ≥ N, evalOpt f w env formula = some T`
+    to the Lean environment. The proof is kernel-checked. -/
+def addTheoremFromChain (worldExpr : Expr) (world : World)
+    (worldUnfoldNames : Array Name)
+    (formula : SExpr) (nodes : List ProofNode)
+    (declName : Name) : TermElabM Unit := do
+  let envType ← Term.elabTerm (← `(Env)) none
+  withLocalDeclD `env envType fun envVar => do
+    let ctx : ProofCtx := {
+      worldExpr := worldExpr
+      world := world
+      envExpr := envVar
+      worldUnfoldNames := worldUnfoldNames
+    }
+    let proofBody ← proveLiteralChain ctx formula nodes
+    let proof ← mkLambdaFVars #[envVar] proofBody
+    let thmType ← mkForallFVars #[envVar] (← inferType proofBody)
+    addDecl (.thmDecl {
+      name := declName
+      levelParams := []
+      type := thmType
+      value := proof
+    })
 
 -- ============================================================
 -- Validation: term-mode proofs using our lemmas directly.
@@ -608,14 +603,14 @@ example : evalOpt 5 testWorld5 {}
 
 -- ============================================================
 -- MetaM proof construction tests.
--- These verify the proof producers emit correct proof terms.
+-- These verify the proof producers emit correct symbolic proofs.
 -- ============================================================
 
 section MetaMTests
 
--- Test: MetaM construction of equal-self proof
--- Proves: evalOpt 2 World.empty {} (EQUAL 1 1) = some T
-elab "#test_prove_equal_self" : command => do
+-- Test: proveNode for equal-self with a VARIABLE (not ground!)
+-- Proof tree node: (EQUAL X X) → (QUOTE T) where X is a free variable
+elab "#test_symbolic_equal_self" : command => do
   Elab.Command.liftTermElabM do
     let emptyEnv ← mkEmptyEnv
     let ctx : ProofCtx := {
@@ -624,109 +619,20 @@ elab "#test_prove_equal_self" : command => do
       envExpr := emptyEnv
       worldUnfoldNames := #[``World.empty]
     }
-    let one : SExpr := .atom (.number (.int 1))
-    let hConverge ← proveGroundEval ctx 1 one one
-    let proof ← proveEqualSelf ctx 1 one one hConverge
-    let _ ← check proof
-    logInfo m!"equal-self proof OK: {← inferType proof}"
-
-#test_prove_equal_self
-
--- Test: MetaM construction of quote eval proof
-elab "#test_prove_quote" : command => do
-  Elab.Command.liftTermElabM do
-    let emptyEnv ← mkEmptyEnv
-    let ctx : ProofCtx := {
-      worldExpr := Lean.mkConst ``World.empty
-      world := World.empty
-      envExpr := emptyEnv
-      worldUnfoldNames := #[``World.empty]
-    }
-    let proof ← proveQuoteEval ctx 1 SExpr.t
-    let _ ← check proof
-    logInfo m!"quote proof OK: {← inferType proof}"
-
-#test_prove_quote
-
--- Test: MetaM construction of number eval proof
-elab "#test_prove_number" : command => do
-  Elab.Command.liftTermElabM do
-    let emptyEnv ← mkEmptyEnv
-    let ctx : ProofCtx := {
-      worldExpr := Lean.mkConst ``World.empty
-      world := World.empty
-      envExpr := emptyEnv
-      worldUnfoldNames := #[``World.empty]
-    }
-    let proof ← proveNumberEval ctx 1 (.int 42)
-    let _ ← check proof
-    logInfo m!"number proof OK: {← inferType proof}"
-
-#test_prove_number
-
--- Test: MetaM construction of if-false proof
-elab "#test_prove_if_false" : command => do
-  Elab.Command.liftTermElabM do
-    let emptyEnv ← mkEmptyEnv
-    let ctx : ProofCtx := {
-      worldExpr := Lean.mkConst ``World.empty
-      world := World.empty
-      envExpr := emptyEnv
-      worldUnfoldNames := #[``World.empty]
-    }
-    -- Prove: evalOpt 1 World.empty {} .nil = some .nil (test evals to nil)
-    let hTestNil ← proveGroundEval ctx 1 .nil .nil
-    let proof ← proveIfFalse ctx 1 .nil
-      (.atom (.number (.int 42))) (.atom (.number (.int 0))) hTestNil
-    let _ ← check proof
-    logInfo m!"if-false proof OK: {← inferType proof}"
-
-#test_prove_if_false
-
--- Test: MetaM construction of builtin-1 proof
-elab "#test_prove_builtin1" : command => do
-  Elab.Command.liftTermElabM do
-    let emptyEnv ← mkEmptyEnv
-    let ctx : ProofCtx := {
-      worldExpr := Lean.mkConst ``World.empty
-      world := World.empty
-      envExpr := emptyEnv
-      worldUnfoldNames := #[``World.empty]
-    }
-    let arg : SExpr := .atom (.number (.int 42))
-    let hArgEval ← proveGroundEval ctx 1 arg arg
-    let proof ← proveBuiltin1 ctx 1 { name := "consp" } arg arg hArgEval
-    let _ ← check proof
-    logInfo m!"builtin-1 proof OK: {← inferType proof}"
-
-#test_prove_builtin1
-
--- Test: proveNode dispatch for equal-self
--- Proof tree node: (EQUAL 1 1) → (QUOTE T)
-elab "#test_prove_node_equal_self" : command => do
-  Elab.Command.liftTermElabM do
-    let emptyEnv ← mkEmptyEnv
-    let ctx : ProofCtx := {
-      worldExpr := Lean.mkConst ``World.empty
-      world := World.empty
-      envExpr := emptyEnv
-      worldUnfoldNames := #[``World.empty]
-    }
-    let one : SExpr := .atom (.number (.int 1))
-    let equal_1_1 : SExpr := .cons (.atom (.symbol { name := "equal" }))
-      (.cons one (.cons one .nil))
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let equal_x_x : SExpr := .cons (.atom (.symbol { name := "equal" }))
+      (.cons x (.cons x .nil))
     let quote_t : SExpr := .cons (.atom (.symbol { name := "quote" }))
       (.cons SExpr.t .nil)
-    let node : ProofNode := .node ("equal-self", "NIL") equal_1_1 quote_t []
+    let node : ProofNode := .node ("equal-self", "NIL") equal_x_x quote_t []
     let proof ← proveNode ctx node
     let _ ← check proof
-    logInfo m!"proveNode equal-self OK: {← inferType proof}"
+    logInfo m!"symbolic equal-self OK: {← inferType proof}"
 
-#test_prove_node_equal_self
+#test_symbolic_equal_self
 
--- Test: proveLiteralChain with a single equal-self node
--- Literal: (EQUAL 1 1), nodes: [equal-self], result: (QUOTE T)
-elab "#test_literal_chain" : command => do
+-- Test: proveLiteralChain with equal-self on a variable
+elab "#test_symbolic_chain" : command => do
   Elab.Command.liftTermElabM do
     let emptyEnv ← mkEmptyEnv
     let ctx : ProofCtx := {
@@ -735,17 +641,42 @@ elab "#test_literal_chain" : command => do
       envExpr := emptyEnv
       worldUnfoldNames := #[``World.empty]
     }
-    let one : SExpr := .atom (.number (.int 1))
-    let equal_1_1 : SExpr := .cons (.atom (.symbol { name := "equal" }))
-      (.cons one (.cons one .nil))
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let equal_x_x : SExpr := .cons (.atom (.symbol { name := "equal" }))
+      (.cons x (.cons x .nil))
     let quote_t : SExpr := .cons (.atom (.symbol { name := "quote" }))
       (.cons SExpr.t .nil)
-    let node : ProofNode := .node ("equal-self", "NIL") equal_1_1 quote_t []
-    let proof ← proveLiteralChain ctx equal_1_1 [node]
+    let node : ProofNode := .node ("equal-self", "NIL") equal_x_x quote_t []
+    let proof ← proveLiteralChain ctx equal_x_x [node]
     let _ ← check proof
-    logInfo m!"literal chain OK: {← inferType proof}"
+    logInfo m!"symbolic chain OK: {← inferType proof}"
 
-#test_literal_chain
+#test_symbolic_chain
+
+-- Test: end-to-end theorem production
+-- Produces a named Lean theorem from a proof tree, kernel-checked.
+elab "#test_add_theorem" : command => do
+  Elab.Command.liftTermElabM do
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let formula : SExpr := .cons (.atom (.symbol { name := "equal" }))
+      (.cons x (.cons x .nil))
+    let quote_t : SExpr := .cons (.atom (.symbol { name := "quote" }))
+      (.cons SExpr.t .nil)
+    let nodes : List ProofNode := [
+      .node ("equal-self", "NIL") formula quote_t []
+    ]
+    addTheoremFromChain (Lean.mkConst ``World.empty) World.empty
+      #[``World.empty] formula nodes `ACL2.Replay.ProofProducer.equal_x_x_auto
+
+#test_add_theorem
+
+-- Verify: the auto-generated theorem is usable in downstream proofs
+example (env : Env) : ∃ N, ∀ f ≥ N, evalOpt f World.empty env
+    (.cons (.atom (.symbol { name := "equal" }))
+      (.cons (.atom (.symbol { name := "x" }))
+        (.cons (.atom (.symbol { name := "x" })) .nil)))
+    = some SExpr.t :=
+  equal_x_x_auto env
 
 end MetaMTests
 

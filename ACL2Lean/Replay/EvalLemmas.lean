@@ -74,6 +74,19 @@ theorem evalOpt_var_unbound (f : Nat) (w : World) (env : Env) (s : Symbol)
   rw [show env[s]? = env.get? s from rfl, h]
   simp [h_not_t]
 
+/-- Variable convergence: any symbol evaluates to some value at fuel ≥ 1.
+    The value depends on the env but convergence is unconditional. -/
+theorem evalOpt_symbol_converges (f : Nat) (w : World) (env : Env) (s : Symbol) :
+    ∃ v, evalOpt (f + 1) w env (.atom (.symbol s)) = some v := by
+  simp [evalOpt, evalOptStep]
+  match h : env[s]? with
+  | some v => exact ⟨v, by rfl⟩
+  | none =>
+    simp
+    match ht : s.isNamed "t" with
+    | true => exact ⟨SExpr.t, by rfl⟩
+    | false => exact ⟨.nil, by rfl⟩
+
 /-- T5a: IF with truthy test takes the then-branch. -/
 theorem evalOpt_if_true (f : Nat) (w : World) (env : Env)
     (c t e : SExpr) (cv : SExpr)
