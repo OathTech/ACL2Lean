@@ -149,6 +149,103 @@ theorem my_len_total (w : World)
           hone hmylen]
     rw [callBuiltin_plus, logic_plus_int]
 
+/-- Totality for my-app: applied to any (xval, yval), the my-app body
+    converges to a value. Induction on acl2Count of xval (yval fixed); the
+    recursive (my-app (cdr x) y) is discharged by the IH on (cdr xval). -/
+theorem my_app_total (w : World)
+    (h_my_app : w.defs[my_app_sym]? = some ([x_sym, y_sym], my_appBody))
+    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none)
+    (h_no_cdr : w.defs[({ name := "cdr" } : Symbol)]? = none)
+    (h_no_car : w.defs[({ name := "car" } : Symbol)]? = none)
+    (h_no_cons : w.defs[({ name := "cons" } : Symbol)]? = none) :
+    ∀ yval xval : SExpr, ∃ v : SExpr, ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs [x_sym, y_sym] [xval, yval]) my_appBody = some v := by
+  intro yval
+  apply acl2_induction_consp
+  · -- BASE: consp xval = nil → else-branch → y → yval
+    intro xval hconsp
+    have hxlook : (bindArgs [x_sym, y_sym] [xval, yval]).get? { name := "x" } = some xval := by
+      show (bindArgs [x_sym, y_sym] [xval, yval])[({ name := "x" } : Symbol)]? = some xval
+      simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+      rw [if_pos (by decide)]
+    have hylook : (bindArgs [x_sym, y_sym] [xval, yval]).get? { name := "y" } = some yval := by
+      show (bindArgs [x_sym, y_sym] [xval, yval])[({ name := "y" } : Symbol)]? = some yval
+      simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+      rw [if_neg (by decide), if_pos (by decide)]
+    refine ⟨yval, 4, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 4 := ⟨f - 4, by omega⟩
+    have hc : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some .nil := by
+      rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "consp" }
+            (.atom (.symbol { name := "x" })) xval (by decide) h_no_consp
+            (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "x" } xval hxlook)]
+      rw [callBuiltin_consp, hconsp]
+    unfold my_appBody
+    rw [evalOpt_if_false (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval]) _ _ _ hc]
+    exact evalOpt_var (g + 2) w _ { name := "y" } yval hylook
+  · -- STEP: consp xval ≠ nil → CONS (CAR x) (MY-APP (CDR x) y)
+    intro xval hconsp ih
+    obtain ⟨v', N', hrec⟩ := ih
+    have hxlook : (bindArgs [x_sym, y_sym] [xval, yval]).get? { name := "x" } = some xval := by
+      show (bindArgs [x_sym, y_sym] [xval, yval])[({ name := "x" } : Symbol)]? = some xval
+      simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+      rw [if_pos (by decide)]
+    have hylook : (bindArgs [x_sym, y_sym] [xval, yval]).get? { name := "y" } = some yval := by
+      show (bindArgs [x_sym, y_sym] [xval, yval])[({ name := "y" } : Symbol)]? = some yval
+      simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+      rw [if_neg (by decide), if_pos (by decide)]
+    have htrue : Logic.toBool (Logic.consp xval) = true := by
+      cases xval with
+      | cons a d => rfl
+      | nil => exact absurd rfl hconsp
+      | atom a => exact absurd rfl hconsp
+    refine ⟨.cons (Logic.car xval) v', N' + 5, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 5 := ⟨f - 5, by omega⟩
+    -- (consp x) → consp xval (truthy)
+    have hc : evalOpt (g + 4) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.consp xval) := by
+      rw [evalOpt_builtin_1 (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "consp" }
+            (.atom (.symbol { name := "x" })) xval (by decide) h_no_consp
+            (evalOpt_var (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "x" } xval hxlook)]
+      rw [callBuiltin_consp]
+    -- (car x) → car xval
+    have hcar : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "car" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.car xval) := by
+      rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "car" }
+            (.atom (.symbol { name := "x" })) xval (by decide) h_no_car
+            (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "x" } xval hxlook)]
+      rw [callBuiltin_car]
+    -- (cdr x) → cdr xval
+    have hcdr : evalOpt (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.cdr xval) := by
+      rw [evalOpt_builtin_1 (g + 1) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "cdr" }
+            (.atom (.symbol { name := "x" })) xval (by decide) h_no_cdr
+            (evalOpt_var g w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "x" } xval hxlook)]
+      rw [callBuiltin_cdr]
+    -- (MY-APP (cdr x) y) → v' via IH
+    have happ : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "my-app" }))
+          (.cons (.cons (.atom (.symbol { name := "cdr" }))
+                   (.cons (.atom (.symbol { name := "x" })) .nil))
+            (.cons (.atom (.symbol { name := "y" })) .nil)))
+        = some v' := by
+      rw [evalOpt_defn_2 (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "my-app" }
+            (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+            (.atom (.symbol { name := "y" })) (Logic.cdr xval) yval x_sym y_sym my_appBody
+            (by decide) h_my_app hcdr
+            (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "y" } yval hylook)]
+      exact hrec (g + 2) (by omega)
+    unfold my_appBody
+    rw [evalOpt_if_true (g + 4) w (bindArgs [x_sym, y_sym] [xval, yval]) _ _ _
+          (Logic.consp xval) hc htrue]
+    rw [evalOpt_builtin_2 (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "cons" }
+          _ _ (Logic.car xval) v' (by decide) h_no_cons hcar happ]
+    rfl
+
 /-! ## The generic proof (parameterized by world + definition hypotheses) -/
 
 /-- The main theorem, parameterized by a world and proofs that the
