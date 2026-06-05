@@ -429,285 +429,76 @@ theorem evalOpt_substVar (f : Nat) (w : World) (env : Env) (s : Symbol)
     evalOpt f w env (substVar term s v) := by
   sorry
 
-/-! ## Congruence (T1) -/
+/-\! ## Congruence (T1): one-step argument congruence
 
-/-- Replace the first occurrence of `a` in `term` with `b`, at
-    evaluation positions only. Does NOT descend into QUOTE bodies.
-    Does NOT replace head symbols. For symbol-headed conses (function
-    calls, IF, LET), recurses into individual arguments — never
-    replaces spine fragments. This ensures the replacement only
-    targets positions where evalOpt evaluates a complete expression.
+    The proof producer descends the term structure at meta-level, so the
+    only congruence lemma it needs is a SINGLE step: replacing one argument
+    of a function call with an eventually-equal term. This is stated in
+    existential-equality form (transitive, composes via `fuel_chain_eq`),
+    needs no `pcEq`/`EvalCtx`/`replaceSubterm`, and is sound for recursive
+    subterms (no concrete fuel bound required). -/
 
-    The previous version recursed on raw cons spines, which could
-    replace spine fragments (e.g., the tail `.cons t (.cons e .nil)`
-    of an IF), breaking arity and making the congruence theorem false. -/
-def replaceSubterm (term a b : SExpr) : SExpr :=
-  if term == a then b
-  else match term with
-  | .cons (.atom (.symbol q)) rest =>
-    if q.isNamed "quote" then term
-    else
-      -- Recurse into individual arguments, preserving spine structure
-      .cons (.atom (.symbol q)) (replaceArgs rest a b)
-  | .cons x y =>
-    let x' := replaceSubterm x a b
-    if x' != x then .cons x' y
-    else .cons x (replaceSubterm y a b)
-  | _ => term
-where
-  /-- Replace in an argument list (cons spine), recursing into each
-      argument individually. Preserves the spine structure. -/
-  replaceArgs (args : SExpr) (a b : SExpr) : SExpr :=
-    match args with
-    | .cons arg rest =>
-      let arg' := replaceSubterm arg a b
-      if arg' != arg then .cons arg' rest  -- found in this arg, stop
-      else .cons arg (replaceArgs rest a b) -- try next arg
-    | _ => args  -- nil or malformed: leave unchanged
-
-/-! ### Partial-correctness equality (pcEq) -/
-
-/-- Partial-correctness equality: when both sides converge, they agree.
-    none is ⊤ — fuel exhaustion trivially satisfies any equality. -/
-def pcEq (x y : Option SExpr) : Prop :=
-  match x, y with
-  | some a, some b => a = b
-  | _, _ => True
-
-@[simp] theorem pcEq_none_left (y : Option SExpr) : pcEq none y = True := by
-  cases y <;> rfl
-@[simp] theorem pcEq_none_right (x : Option SExpr) : pcEq x none = True := by
-  cases x <;> rfl
-@[simp] theorem pcEq_some_some (a b : SExpr) : pcEq (some a) (some b) ↔ a = b := by
-  simp [pcEq]
-theorem pcEq_refl (x : Option SExpr) : pcEq x x := by
-  cases x <;> simp [pcEq]
-theorem pcEq_symm {x y : Option SExpr} (h : pcEq x y) : pcEq y x := by
-  cases x <;> cases y <;> simp_all [pcEq]
-
-/-- pcEq is a congruence for Option.bind: if inputs agree (pcEq),
-    and continuations agree on the common value, outputs agree. -/
-theorem pcEq_bind {x y : Option SExpr}
-    {f g : SExpr → Option SExpr}
-    (h_xy : pcEq x y)
-    (h_fg : ∀ v, x = some v → pcEq (f v) (g v)) :
-    pcEq (x.bind f) (y.bind g) := by
-  match x, y with
-  | none, _ => simp [Option.bind]
-  | _, none => simp [Option.bind]
-  | some vx, some vy =>
-    simp [pcEq] at h_xy; subst h_xy
-    simp [Option.bind]; exact h_fg vx rfl
-
-/-- Round-trip: toList? of ofList gives back the list. -/
+/-- Round-trip: `toList?` of `ofList` gives back the list. -/
 @[simp] theorem SExpr.ofList_toList? (l : List SExpr) :
     (SExpr.ofList l).toList? = some l := by
   induction l with
   | nil => simp [SExpr.ofList, SExpr.toList?]
   | cons x xs ih => simp [SExpr.ofList, SExpr.toList?, ih]
 
-/-! ### T1: Congruence via evaluation contexts -/
+/-- `mapM` agrees when one element's image agrees. -/
+theorem mapM_eq_of_single {α β : Type} {g : α → Option β}
+    (l1 l2 : List α) (a b : α) (hab : g a = g b) :
+    (l1 ++ a :: l2).mapM g = (l1 ++ b :: l2).mapM g := by
+  induction l1 with
+  | nil => simp only [List.nil_append, List.mapM_cons, hab]
+  | cons x xs ih => simp only [List.cons_append, List.mapM_cons, ih]
 
-/-- An evaluation context: a term with a hole at an evaluation position.
-    Each constructor corresponds to one evalOptStep dispatch case.
-    The hole is where a subexpression gets evaluated by `rec`. -/
-inductive EvalCtx where
-  | hole
-  | arg (fn : Symbol) (argsBefore : List SExpr) (ctx : EvalCtx) (argsAfter : List SExpr)
-  deriving Repr
-
-/-- Plug a term into the hole of a context. -/
-def EvalCtx.plug : EvalCtx → SExpr → SExpr
-  | .hole, t => t
-  | .arg fn before ctx after, t =>
-    .cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug t] ++ after))
-
-/-- Generalized pcEq for any type. -/
-def pcEqG {α : Type} (x y : Option α) : Prop :=
-  match x, y with
-  | some a, some b => a = b
-  | _, _ => True
-
-@[simp] theorem pcEqG_none_left {α} (y : Option α) : pcEqG none y = True := by
-  cases y <;> rfl
-@[simp] theorem pcEqG_none_right {α} (x : Option α) : pcEqG x none = True := by
-  cases x <;> rfl
-@[simp] theorem pcEqG_some_some {α} (a b : α) : pcEqG (some a) (some b) ↔ a = b := by
-  simp [pcEqG]
-
-theorem pcEqG_refl' {α : Type} (x : Option α) : pcEqG x x := by
-  cases x <;> simp [pcEqG]
-
-/-- pcEq and pcEqG are the same for Option SExpr. -/
-theorem pcEq_eq_pcEqG (x y : Option SExpr) : pcEq x y = pcEqG x y := by
-  cases x <;> cases y <;> rfl
-
-theorem pcEqG_bind {α β : Type} {x y : Option α} {f g : α → Option β}
-    (h_xy : pcEqG x y)
-    (h_fg : ∀ v, x = some v → pcEqG (f v) (g v)) :
-    pcEqG (x.bind f) (y.bind g) := by
-  match x, y with
-  | none, _ => simp [Option.bind]
-  | _, none => simp [Option.bind]
-  | some vx, some vy =>
-    simp [pcEqG] at h_xy; subst h_xy
-    simp [Option.bind]; exact h_fg vx rfl
-
-/-- mapM preserves pcEqG: if corresponding elements give pcEq results,
-    mapM gives pcEqG results (equal lists when both converge). -/
-theorem pcEqG_mapM {f g : SExpr → Option SExpr}
-    {l1 l2 : List SExpr}
-    (h_len : l1.length = l2.length)
-    (h_pcEq : ∀ i (h : i < l1.length),
-      pcEqG (f (l1.get ⟨i, h⟩)) (g (l2.get ⟨i, by omega⟩))) :
-    pcEqG (l1.mapM f) (l2.mapM g) := by
-  induction l1 generalizing l2 with
-  | nil =>
-    match l2, h_len with | [], _ => simp [pcEqG]
-  | cons x xs ih_xs =>
-    match l2, h_len with
-    | y :: ys, h_len =>
-      simp only [List.mapM_cons]
-      have h_len' : xs.length = ys.length := by simp [List.length] at h_len; exact h_len
-      have h_head : pcEqG (f x) (g y) := by
-        have := h_pcEq 0 (by simp)
-        simpa using this
-      have h_tail : pcEqG (xs.mapM f) (ys.mapM g) :=
-        ih_xs h_len' (fun i hi => by
-          have := h_pcEq (i + 1) (by simp; omega)
-          simpa using this)
-      exact pcEqG_bind h_head (fun vx _ =>
-        pcEqG_bind h_tail (fun vs _ => by simp [pcEqG]))
-
-/-- T1 core: contextual equivalence.
-    If a and b are pcEq at all fuel levels, then C[a] and C[b] are
-    pcEq at all fuel levels, for any evaluation context C.
-
-    Proof by induction on the context. Each constructor is one
-    evalOptStep layer. The thin-context lemma handles each layer.
-    Fuel is universally quantified, not inducted on. -/
-theorem evalOpt_ctx_pcEq (w : World) (env : Env)
-    (a b : SExpr)
-    (h_eq : ∀ f, pcEq (evalOpt f w env a) (evalOpt f w env b))
-    (ctx : EvalCtx) :
-    ∀ f, pcEq (evalOpt f w env (ctx.plug a))
-              (evalOpt f w env (ctx.plug b)) := by
-  induction ctx with
-  | hole => exact h_eq
-  | arg fn before ctx after ih =>
-    intro f
-    match f with
-    | 0 => simp [evalOpt]
-    | f + 1 =>
-      simp only [evalOpt, EvalCtx.plug]
-      -- Both sides have the same head fn, same before/after.
-      -- They differ at one arg: ctx.plug a vs ctx.plug b.
-      -- ih: ∀ f, pcEq (evalOpt f w env (ctx.plug a)) (evalOpt f w env (ctx.plug b))
-      -- evalOptStep dispatches on fn, processes args via (evalOpt f).
-      -- Need to show evalOptStep gives pcEq.
-      --
-      -- Both sides: evalOptStep (evalOpt f) w env (.cons (.atom (.symbol fn)) argsExpr)
-      -- where argsExpr differs. evalOptStep matches on the .cons (.atom (.symbol s))
-      -- pattern and dispatches on s.
-      -- Show both sides equal by showing the match fires the same way.
-      show pcEq
-        (evalOptStep (evalOpt f) w env (.cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug a] ++ after))))
-        (evalOptStep (evalOpt f) w env (.cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug b] ++ after))))
-      simp only [evalOptStep_cons_symbol]
-      -- Now the goal has the if-then-else chain on fn.isNamed.
-      -- Both sides have the SAME fn, so the dispatch is identical.
-      -- The args differ: SExpr.ofList (before ++ [ctx.plug a] ++ after)
-      --              vs  SExpr.ofList (before ++ [ctx.plug b] ++ after)
-      -- Case split on fn dispatch:
-      split -- quote case
-      · -- quote: returns literal value, no rec call
-        -- Both sides return same thing only if argsExpr is identical.
-        -- This case should not arise from replaceSubterm (skips quote).
-        sorry
-      · split -- if case
-        · -- IF case: toList? gives [c, t, e], eval test, branch.
-          -- Both sides have same toList? structure.
-          simp only [SExpr.ofList_toList?]
-          -- The arg list (before ++ [hole] ++ after) should be length 3.
-          -- The hole is at one position. Same structure as fn-call.
-          -- Uses pcEq_bind for the test eval, then identical branch logic.
-          sorry
-        · split -- let case
-          · sorry -- LET dispatch
-          · -- Function call case
-            simp only [SExpr.ofList_toList?]
-            -- Goal: pcEq (mapM >>= dispatch) (mapM >>= dispatch)
-            -- Convert to pcEqG for the outer bind
-            rw [pcEq_eq_pcEqG]
-            -- The do-notation is mapM >>= fun argVals => dispatch
-            -- Use pcEqG_bind: mapM gives pcEqG, dispatch is identical
-            apply pcEqG_bind
-            · -- mapM gives pcEqG: lists differ at one position
-              apply pcEqG_mapM (by simp)
-              intro i hi
-              -- Position i in (before ++ [ctx.plug a/b] ++ after).
-              -- Both lists are identical except at index before.length.
-              -- If the elements are the same: pcEqG_refl.
-              -- If at the hole position: ih gives pcEq.
-              have h_same_or_hole :
-                  (before ++ [ctx.plug a] ++ after).get ⟨i, hi⟩ =
-                  (before ++ [ctx.plug b] ++ after).get ⟨i, by simp at hi ⊢; omega⟩
-                ∨ ((before ++ [ctx.plug a] ++ after).get ⟨i, hi⟩ = ctx.plug a ∧
-                   (before ++ [ctx.plug b] ++ after).get ⟨i, by simp at hi ⊢; omega⟩ = ctx.plug b) := by
-                sorry -- list indexing: elements match except at before.length
-              rcases h_same_or_hole with h_same | ⟨ha, hb⟩
-              · rw [h_same]; exact pcEqG_refl' _
-              · rw [ha, hb]; rw [← pcEq_eq_pcEqG]; exact ih f
-            · -- dispatch: argVals equal → same result
-              intro argVals _
-              exact pcEqG_refl' _
-
-/-- T1 bridge: replaceSubterm corresponds to some evaluation context.
-    If replaceSubterm finds `a` in `term`, there exists a context C
-    such that term = C[a] and replaceSubterm term a b = C[b]. -/
-theorem replaceSubterm_ctx (term a b : SExpr)
-    (h_found : replaceSubterm term a b ≠ term) :
-    ∃ ctx : EvalCtx, term = ctx.plug a ∧ replaceSubterm term a b = ctx.plug b := by
-  sorry
-
-/-- T1 full: replaceSubterm preserves pcEq. -/
-theorem evalOpt_replace_pcEq (w : World) (env : Env)
-    (term a b : SExpr)
-    (h_eq : ∀ f, pcEq (evalOpt f w env a) (evalOpt f w env b)) :
-    ∀ f, pcEq (evalOpt f w env (replaceSubterm term a b))
-              (evalOpt f w env term) := by
-  by_cases h : replaceSubterm term a b = term
-  · -- No replacement happened: trivial
-    intro f; rw [h]; exact pcEq_refl _
-  · -- Replacement happened: find the context and apply contextual equivalence
-    obtain ⟨ctx, h_orig, h_repl⟩ := replaceSubterm_ctx term a b h
-    intro f; rw [h_repl, h_orig]
-    exact pcEq_symm (evalOpt_ctx_pcEq w env a b h_eq ctx f)
-
-/-- T1 (existential version, used in proof chains). Derived from pcEq version. -/
-theorem evalOpt_replace_congr (w : World) (env : Env)
-    (term a b : SExpr)
-    (h_eq : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
+/-- One-step argument congruence: if `a` and `b` are eventually-equal, then
+    a function call with `a` at one argument position is eventually-equal to
+    the same call with `b` there. `s` must be a non-special symbol (a user
+    function or builtin — not quote/if/let). -/
+theorem evalOpt_arg_congr (w : World) (env : Env) (s : Symbol)
+    (before after : List SExpr) (a b : SExpr)
+    (h_nq : s.isNamed "quote" = false) (h_ni : s.isNamed "if" = false)
+    (h_nl : s.isNamed "let" = false) (h_nl2 : s.isNamed "let*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
     ∃ M, ∀ f ≥ M,
-      evalOpt f w env (replaceSubterm term a b) =
-      evalOpt f w env term := by
-  sorry
+      evalOpt f w env (.cons (.atom (.symbol s)) (SExpr.ofList (before ++ a :: after))) =
+      evalOpt f w env (.cons (.atom (.symbol s)) (SExpr.ofList (before ++ b :: after))) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  have hg : g ≥ N := by omega
+  show evalOptStep (evalOpt g) w env _ = evalOptStep (evalOpt g) w env _
+  simp only [evalOptStep_cons_symbol, h_nq, h_ni, h_nl, h_nl2]
+  simp only [Bool.false_eq_true, if_false, Bool.or_self, SExpr.ofList_toList?]
+  rw [mapM_eq_of_single before after a b (hN g hg)]
 
-/-- T1 (forward direction): eval of the original equals eval of the replaced.
-    This is the direction needed for chaining rewrites forward. -/
-theorem evalOpt_replace_congr_fwd (w : World) (env : Env)
-    (term a b : SExpr)
-    (h_eq : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
-    ∃ M, ∀ f ≥ M,
-      evalOpt f w env term =
-      evalOpt f w env (replaceSubterm term a b) := by
-  have h := evalOpt_replace_congr w env term a b h_eq
-  exact ⟨h.choose, fun f hf => (h.choose_spec f hf).symm⟩
+/-- Unary specialization: congruence in the sole argument of `(s a)`. -/
+theorem evalOpt_cong_unary (w : World) (env : Env) (s : Symbol) (a b : SExpr)
+    (h_nq : s.isNamed "quote" = false) (h_ni : s.isNamed "if" = false)
+    (h_nl : s.isNamed "let" = false) (h_nl2 : s.isNamed "let*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
+    ∃ M, ∀ f ≥ M, evalOpt f w env (.cons (.atom (.symbol s)) (.cons a .nil))
+                = evalOpt f w env (.cons (.atom (.symbol s)) (.cons b .nil)) :=
+  evalOpt_arg_congr w env s [] [] a b h_nq h_ni h_nl h_nl2 h
 
-/-- Symmetry for fuel-existential equalities. -/
-theorem fuel_eq_symm {a b : Nat → Option SExpr}
-    (h : ∃ N, ∀ f ≥ N, a f = b f) :
-    ∃ N, ∀ f ≥ N, b f = a f :=
-  ⟨h.choose, fun f hf => (h.choose_spec f hf).symm⟩
+/-- Binary specialization: congruence in the FIRST argument of `(s a c)`. -/
+theorem evalOpt_cong_bin1 (w : World) (env : Env) (s : Symbol) (a b c : SExpr)
+    (h_nq : s.isNamed "quote" = false) (h_ni : s.isNamed "if" = false)
+    (h_nl : s.isNamed "let" = false) (h_nl2 : s.isNamed "let*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
+    ∃ M, ∀ f ≥ M, evalOpt f w env (.cons (.atom (.symbol s)) (.cons a (.cons c .nil)))
+                = evalOpt f w env (.cons (.atom (.symbol s)) (.cons b (.cons c .nil))) :=
+  evalOpt_arg_congr w env s [] [c] a b h_nq h_ni h_nl h_nl2 h
+
+/-- Binary specialization: congruence in the SECOND argument of `(s c a)`. -/
+theorem evalOpt_cong_bin2 (w : World) (env : Env) (s : Symbol) (c a b : SExpr)
+    (h_nq : s.isNamed "quote" = false) (h_ni : s.isNamed "if" = false)
+    (h_nl : s.isNamed "let" = false) (h_nl2 : s.isNamed "let*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
+    ∃ M, ∀ f ≥ M, evalOpt f w env (.cons (.atom (.symbol s)) (.cons c (.cons a .nil)))
+                = evalOpt f w env (.cons (.atom (.symbol s)) (.cons c (.cons b .nil))) :=
+  evalOpt_arg_congr w env s [c] [] a b h_nq h_ni h_nl h_nl2 h
 
 end ACL2.Replay

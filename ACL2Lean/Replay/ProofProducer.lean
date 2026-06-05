@@ -383,21 +383,21 @@ def proveLiteralChain (ctx : ProofCtx) (literal : SExpr)
   for node in nodes do
     match node with
     | .node _ nodeLhs nodeRhs _ _ =>
-      -- Prove this node: ∃ N, ∀ f ≥ N, eval nodeLhs = eval nodeRhs
+      -- The node proves: ∃ N, ∀ f ≥ N, eval nodeLhs = eval nodeRhs
       let nodeProof ← proveNode ctx node
-      -- Lift to enclosing term via T1 (congruence):
-      -- ∃ N, ∀ f ≥ N, eval currentTerm = eval (replace currentTerm nodeLhs nodeRhs)
-      let stepProof ← mkAppM ``evalOpt_replace_congr_fwd
-        #[ctx.worldExpr, ctx.envExpr,
-          reflectSExpr currentTerm, reflectSExpr nodeLhs,
-          reflectSExpr nodeRhs, nodeProof]
-      -- Chain with previous steps via T16
+      -- Lift to the enclosing term. Currently only TOP-LEVEL rewrites are
+      -- supported: the node's LHS is the whole current term, so the node
+      -- proof already has the right shape. Subterm rewrites need explicit
+      -- one-step congruence (`evalOpt_arg_congr`) built from the rewrite
+      -- position — that wiring is the next phase of the producer.
+      unless nodeLhs == currentTerm do
+        throwError "proveLiteralChain: subterm congruence not yet implemented \
+          (node LHS is not the whole current term); needs evalOpt_arg_congr wiring"
       match chainProof with
-      | none => chainProof := some stepProof
+      | none => chainProof := some nodeProof
       | some prev =>
-        chainProof := some (← mkAppM ``fuel_chain_eq #[prev, stepProof])
-      -- Update current term
-      currentTerm := replaceSubterm currentTerm nodeLhs nodeRhs
+        chainProof := some (← mkAppM ``fuel_chain_eq #[prev, nodeProof])
+      currentTerm := nodeRhs
 
   -- After all nodes, currentTerm should be (QUOTE T) or similar.
   -- The chain proof gives: ∃ N, ∀ f ≥ N, eval literal = eval currentTerm

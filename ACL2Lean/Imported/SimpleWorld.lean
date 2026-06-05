@@ -131,6 +131,8 @@ theorem my_len_my_app_generic
           (.cons y_var .nil)
     let plus_0_len_y := SExpr.cons (.atom (.symbol { name := "binary-+" }))
           (.cons quote_0 (.cons my_len_y .nil))
+    let rhs_term := SExpr.cons (.atom (.symbol { name := "binary-+" }))
+          (.cons my_len_x (.cons my_len_y .nil))
 
     -- NODE 1 (definition:my-app): eval(MY-APP x y) = eval(y) in env
     -- Both sides evaluate to yv. Proof: T4 unfolds my-app, T5 resolves
@@ -156,34 +158,36 @@ theorem my_len_my_app_generic
         evalOpt f w env plus_0_len_y = evalOpt f w env my_len_y := by
       exact ⟨5, fun f hf => by sorry⟩
 
-    -- NODE 4 (equal-self): eval(EQUAL (MY-LEN y) (MY-LEN y)) = some T
-    -- After the 3 rewrites, the formula becomes (EQUAL (MY-LEN y) (MY-LEN y)).
-    -- T3 says this evaluates to T if (MY-LEN y) converges.
-    -- We compute: F1 = replaceSubterm formula (MY-APP x y) y
-    --             F2 = replaceSubterm F1 (MY-LEN x) (QUOTE 0)
-    --             F3 = replaceSubterm F2 (BINARY-+ '0 (MY-LEN y)) (MY-LEN y)
-    -- Then F3 should be (EQUAL (MY-LEN y) (MY-LEN y)).
-    let F1 := replaceSubterm my_len_my_appFormula my_app_xy y_var
-    let F2 := replaceSubterm F1 my_len_x quote_0
-    let F3 := replaceSubterm F2 plus_0_len_y my_len_y
+    -- NODE 4 (equal-self): (MY-LEN y) converges, so (EQUAL (MY-LEN y)(MY-LEN y)) = T.
+    have h_conv : ∃ v N, ∀ f ≥ N, evalOpt f w env my_len_y = some v := by
+      sorry -- totality of my-len applied to y (Phase 1: induction on acl2Count)
 
-    -- The equal-self step: eval(F3) = some T
-    -- F3 should be (EQUAL (MY-LEN y) (MY-LEN y))
-    have h_node4 : ∃ N, ∀ f ≥ N, evalOpt f w env F3 = some SExpr.t := by
-      exact ⟨5, fun f hf => by sorry⟩
-
-    -- CHAIN: T1 (congruence) + T16 (transitivity)
-    -- eval(formula) = eval(F1) by T1 using h_node1
-    -- eval(F1) = eval(F2) by T1 using h_node2
-    -- eval(F2) = eval(F3) by T1 using h_node3
-    -- eval(F3) = some T by h_node4
-    exact fuel_chain_eq
-      (fuel_chain_eq
-        (fuel_chain_eq
-          (evalOpt_replace_congr_fwd w env my_len_my_appFormula my_app_xy y_var h_node1)
-          (evalOpt_replace_congr_fwd w env F1 my_len_x quote_0 h_node2))
-        (evalOpt_replace_congr_fwd w env F2 plus_0_len_y my_len_y h_node3))
-      h_node4
+    -- Lift each node fact through its evaluation context via one-step
+    -- argument congruence, then chain with fuel_chain_eq. No replaceSubterm,
+    -- no pcEq — the context is built explicitly here.
+    -- LHS: (MY-LEN (MY-APP x y)) ~ (MY-LEN y)
+    have hLHS := evalOpt_cong_unary w env { name := "my-len" } my_app_xy y_var
+      (by decide) (by decide) (by decide) (by decide) h_node1
+    -- RHS: (BINARY-+ (MY-LEN x)(MY-LEN y)) ~ (BINARY-+ '0 (MY-LEN y)) ~ (MY-LEN y)
+    have hII := evalOpt_cong_bin1 w env { name := "binary-+" } my_len_x quote_0 my_len_y
+      (by decide) (by decide) (by decide) (by decide) h_node2
+    have hRHS := fuel_chain_eq hII h_node3
+    -- Formula congruence in each EQUAL argument.
+    have hIII := evalOpt_cong_bin1 w env { name := "equal" }
+      (SExpr.cons (.atom (.symbol my_len_sym)) (.cons my_app_xy .nil)) my_len_y rhs_term
+      (by decide) (by decide) (by decide) (by decide) hLHS
+    have hIV := evalOpt_cong_bin2 w env { name := "equal" } my_len_y rhs_term my_len_y
+      (by decide) (by decide) (by decide) (by decide) hRHS
+    -- equal-self finish (needs (MY-LEN y) to converge).
+    have hV : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (SExpr.cons (.atom (.symbol { name := "equal" }))
+          (.cons my_len_y (.cons my_len_y .nil))) = some SExpr.t := by
+      obtain ⟨v, Nc, hc⟩ := h_conv
+      refine ⟨Nc + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      exact evalOpt_equal_self g w env my_len_y v (hc g (by omega)) h_no_equal
+    -- CHAIN: formula ~ (EQUAL (MY-LEN y) rhs) ~ (EQUAL (MY-LEN y)(MY-LEN y)) ~ some T
+    exact fuel_chain_eq (fuel_chain_eq hIII hIV) hV
 
   -- Step case: consp(xv) ≠ nil, IH available
   · intro xv h_consp ih h_xv'
