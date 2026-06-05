@@ -571,4 +571,26 @@ theorem evalOpt_defn2_call_congr (w : World) (E1 E2 : Env) (s : Symbol)
   rw [evalOpt_defn_2 g w E1 s A B av bv f1 f2 body h_ns h_def (ha g (by omega)) (hb g (by omega)),
       evalOpt_defn_2 g w E2 s C D av bv f1 f2 body h_ns h_def (hc g (by omega)) (hd g (by omega))]
 
+/-- IH bridge, 2-ary builtin (not in world.defs). Same idea as the defn
+    version: both calls reduce to `callBuiltin s [av, bv]`. Used to bridge the
+    `BINARY-+` side of an inductive hypothesis across environments. -/
+theorem evalOpt_builtin2_call_congr (w : World) (E1 E2 : Env) (s : Symbol)
+    (A B C D : SExpr) (av bv : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_nodef : w.defs.get? s = none)
+    (hA : ∃ N, ∀ f ≥ N, evalOpt f w E1 A = some av)
+    (hB : ∃ N, ∀ f ≥ N, evalOpt f w E1 B = some bv)
+    (hC : ∃ N, ∀ f ≥ N, evalOpt f w E2 C = some av)
+    (hD : ∃ N, ∀ f ≥ N, evalOpt f w E2 D = some bv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w E1 (.cons (.atom (.symbol s)) (.cons A (.cons B .nil)))
+        = evalOpt f w E2 (.cons (.atom (.symbol s)) (.cons C (.cons D .nil))) := by
+  obtain ⟨Na, ha⟩ := hA; obtain ⟨Nb, hb⟩ := hB
+  obtain ⟨Nc, hc⟩ := hC; obtain ⟨Nd, hd⟩ := hD
+  refine ⟨max (max Na Nb) (max Nc Nd) + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_builtin_2 g w E1 s A B av bv h_ns h_nodef (ha g (by omega)) (hb g (by omega)),
+      evalOpt_builtin_2 g w E2 s C D av bv h_ns h_nodef (hc g (by omega)) (hd g (by omega))]
+
 end ACL2.Replay
