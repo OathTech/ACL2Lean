@@ -344,23 +344,40 @@ theorem logic_plus_comm (a b : SExpr) : Logic.plus a b = Logic.plus b a := by
   · omega
   · exact Nat.mul_comm _ _
 
-/-- T8: Commutativity-2 of plus: (+ x (+ y z)) = (+ y (+ x z)). -/
-theorem logic_plus_comm2 (a b c : SExpr) :
-    Logic.plus a (Logic.plus b c) = Logic.plus b (Logic.plus a c) := by
-  -- Follows from commutativity + associativity of rational arithmetic
-  -- through toRat/mkNumber. Deferred — one-time arithmetic lemma.
-  sorry
+/-- `mkNumber` with denominator 1 yields the plain integer. -/
+theorem mkNumber_one (n : Int) :
+    Logic.mkNumber n 1 = .atom (.number (.int n)) := by
+  simp [Logic.mkNumber]
+
+/-- T8: Commutativity-2 of plus, integer form: (+ a (+ b c)) = (+ b (+ a c)).
+
+    Stated for integer arguments. The general rational statement is also
+    true but requires reasoning about `mkNumber`'s gcd-normalization
+    (value-level ℚ equality); deferred until non-integer arithmetic appears
+    in the corpus. The sorting books' recursion produces only integers. -/
+theorem logic_plus_comm2_int (a b c : Int) :
+    Logic.plus (.atom (.number (.int a)))
+      (Logic.plus (.atom (.number (.int b))) (.atom (.number (.int c))))
+    = Logic.plus (.atom (.number (.int b)))
+      (Logic.plus (.atom (.number (.int a))) (.atom (.number (.int c)))) := by
+  simp [Logic.plus, Logic.toRat, mkNumber_one]
+  omega
 
 /-- T8: FIX of a number is identity. -/
 @[simp] theorem callBuiltin_fix_number (n : Number) :
     callBuiltin "fix" [.atom (.number n)] = .atom (.number n) := by rfl
 
-/-- T8: plus 0 x = fix x (unicity-of-0 at value level). -/
-theorem logic_plus_zero_left (v : SExpr) :
-    Logic.plus (.atom (.number (.int 0))) v = callBuiltin "fix" [v] := by
-  -- Follows from toRat/mkNumber: plus(0, v) normalizes the same as fix(v).
-  -- Deferred — one-time arithmetic lemma.
-  sorry
+/-- T8: unicity-of-0, integer form: (+ 0 k) = k.
+
+    Stated for integer `k`. The general `plus 0 v = fix v` (∀ v) is FALSE
+    in this model: `plus` normalizes via `mkNumber` (2/4 → 1/2, 5/0 → 0)
+    whereas `fix` returns `v` unchanged — they agree only on canonical
+    numbers. ACL2 numbers are always canonical and `my-len` returns
+    integers, so the integer form is what the replay needs. -/
+theorem logic_plus_zero_left_int (k : Int) :
+    Logic.plus (.atom (.number (.int 0))) (.atom (.number (.int k)))
+    = .atom (.number (.int k)) := by
+  simp [Logic.plus, Logic.toRat, mkNumber_one]
 
 /-! ## Induction principles (T10) -/
 
