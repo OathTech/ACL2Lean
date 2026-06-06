@@ -31,6 +31,13 @@ structure ProofCtx where
   envExpr : Expr
   /-- Names to unfold when using simp (world definition name, etc.). -/
   worldUnfoldNames : Array Name := #[]
+  /-- Per-case variable context: each clause variable's SHARED abstract value
+      and a convergence proof `∀ f, evalOpt (f+1) w env (.atom (.symbol s)) =
+      some value`. Populated by the case/induction setup so every node in a
+      case sees the same value for a given variable. Empty ⇒ a variable falls
+      back to `evalOpt_symbol_converges` (a fresh abstract value per call,
+      fine for context-free nodes like equal-self). No hardcoded names. -/
+  vars : List (Symbol × Expr × Expr) := []
 
 /-! ## Reflection: SExpr → Lean Expr -/
 
@@ -327,12 +334,17 @@ where
       MetaM (Expr × Expr) := do
     match term with
     | .atom (.symbol s) =>
-      -- Variable: use evalOpt_symbol_converges
-      let hConv := mkAppN (Lean.mkConst ``evalOpt_symbol_converges)
-        #[mkNatLit f, ctx.worldExpr, ctx.envExpr, reflectSymbol s]
-      let xv ← mkAppM ``Exists.choose #[hConv]
-      let hxv ← mkAppM ``Exists.choose_spec #[hConv]
-      return (xv, hxv)
+      match ctx.vars.find? (fun (s', _, _) => s' == s) with
+      | some (_, val, conv) =>
+        -- shared case value: `conv f : eval (f+1) w env s = some val`
+        return (val, mkApp conv (mkNatLit f))
+      | none =>
+        -- no case binding: a fresh abstract value via evalOpt_symbol_converges
+        let hConv := mkAppN (Lean.mkConst ``evalOpt_symbol_converges)
+          #[mkNatLit f, ctx.worldExpr, ctx.envExpr, reflectSymbol s]
+        let xv ← mkAppM ``Exists.choose #[hConv]
+        let hxv ← mkAppM ``Exists.choose_spec #[hConv]
+        return (xv, hxv)
     | .atom (.number n) =>
       -- Number literal: converges to itself
       let proof ← proveNumberEval ctx f n
