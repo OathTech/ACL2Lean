@@ -19,6 +19,120 @@ namespace ACL2.Replay.ProofProducer
 
 open ACL2 ACL2.Replay Lean Elab Meta
 
+/-! ## Totality / type-prescription synthesis (1-arg structural recursion)
+
+  ACL2 proves termination and type-prescription before admitting a recursive
+  function; the proof replay needs that fact (recursive calls converge to an
+  integer) to discharge a recursive branch. For the restricted-but-real shape
+
+      (defun fn (formal)
+        (if (consp formal)
+            (binary-+ 'step (fn (cdr formal)))
+            'base))
+
+  — 1-arg structural recursion on the single formal, recursing only as
+  `(fn (cdr formal))`, integer-valued — totality is a fixed induction proof
+  (induction on `acl2Count` via `acl2_induction_consp`), parameterized by the
+  function-specific data. `totality1_generic` IS that proof; `synthTotality1`
+  detects the shape from a function's body and instantiates it. No hardcoded
+  function/formal names; hard-fail (throwError) at the frontier. -/
+
+/-- Generic totality + type-prescription for a 1-arg structurally-recursive
+    function `fn` whose body is `(IF (CONSP formal) (BINARY-+ 'step (fn (CDR
+    formal))) 'base)`. Applied to any value, the body converges to an integer.
+
+    This is the generalization of `SimpleWorld.my_len_total`: the SAME proof
+    skeleton works for an arbitrary such function once `fn`, `formal`, `step`,
+    `base`, and `body` are supplied. `synthTotality1` instantiates it. -/
+theorem totality1_generic (w : World) (fnSym formal : Symbol) (base step : Int)
+    (body : SExpr)
+    (hbody : body =
+      .cons (.atom (.symbol { name := "if" }))
+        (.cons (.cons (.atom (.symbol { name := "consp" }))
+                 (.cons (.atom (.symbol formal)) .nil))
+          (.cons (.cons (.atom (.symbol { name := "binary-+" }))
+                   (.cons (.cons (.atom (.symbol { name := "quote" }))
+                            (.cons (.atom (.number (.int step))) .nil))
+                     (.cons (.cons (.atom (.symbol fnSym))
+                              (.cons (.cons (.atom (.symbol { name := "cdr" }))
+                                       (.cons (.atom (.symbol formal)) .nil)) .nil)) .nil)))
+            (.cons (.cons (.atom (.symbol { name := "quote" }))
+                     (.cons (.atom (.number (.int base))) .nil)) .nil))))
+    (h_fn : w.defs[fnSym]? = some ([formal], body))
+    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none)
+    (h_no_cdr : w.defs[({ name := "cdr" } : Symbol)]? = none)
+    (h_no_plus : w.defs[({ name := "binary-+" } : Symbol)]? = none)
+    (h_fn_ns : fnSym.isNamed "quote" = false ∧ fnSym.isNamed "if" = false ∧
+               fnSym.isNamed "let" = false ∧ fnSym.isNamed "let*" = false) :
+    ∀ val : SExpr, ∃ k : Int, ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal] [val]) body
+        = some (.atom (.number (.int k))) := by
+  apply acl2_induction_consp
+  · -- BASE: consp val = nil → body takes else-branch → base
+    intro val hconsp
+    have hxlook : (bindArgs [formal] [val]).get? formal = some val := by
+      show (bindArgs [formal] [val])[formal]? = some val
+      simp [bindArgs]
+    refine ⟨base, 4, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 4 := ⟨f - 4, by omega⟩
+    have hc : evalOpt (g + 3) w (bindArgs [formal] [val])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol formal)) .nil))
+        = some .nil := by
+      rw [evalOpt_builtin_1 (g + 2) w (bindArgs [formal] [val]) { name := "consp" }
+            (.atom (.symbol formal)) val (by decide) h_no_consp
+            (evalOpt_var (g + 1) w (bindArgs [formal] [val]) formal val hxlook)]
+      rw [callBuiltin_consp, hconsp]
+    rw [hbody]
+    rw [evalOpt_if_false (g + 3) w (bindArgs [formal] [val]) _ _ _ hc]
+    exact evalOpt_quote (g + 2) w _ (.atom (.number (.int base)))
+  · -- STEP: consp val ≠ nil → then-branch, recursive call via IH on (cdr val)
+    intro val hconsp ih
+    obtain ⟨k', N', hrec⟩ := ih
+    have hxlook : (bindArgs [formal] [val]).get? formal = some val := by
+      show (bindArgs [formal] [val])[formal]? = some val
+      simp [bindArgs]
+    have htrue : Logic.toBool (Logic.consp val) = true := by
+      cases val with
+      | cons a d => rfl
+      | nil => exact absurd rfl hconsp
+      | atom a => exact absurd rfl hconsp
+    refine ⟨step + k', N' + 5, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 5 := ⟨f - 5, by omega⟩
+    have hc : evalOpt (g + 4) w (bindArgs [formal] [val])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol formal)) .nil))
+        = some (Logic.consp val) := by
+      rw [evalOpt_builtin_1 (g + 3) w (bindArgs [formal] [val]) { name := "consp" }
+            (.atom (.symbol formal)) val (by decide) h_no_consp
+            (evalOpt_var (g + 2) w (bindArgs [formal] [val]) formal val hxlook)]
+      rw [callBuiltin_consp]
+    have hcdr : evalOpt (g + 2) w (bindArgs [formal] [val])
+        (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol formal)) .nil))
+        = some (Logic.cdr val) := by
+      rw [evalOpt_builtin_1 (g + 1) w (bindArgs [formal] [val]) { name := "cdr" }
+            (.atom (.symbol formal)) val (by decide) h_no_cdr
+            (evalOpt_var g w (bindArgs [formal] [val]) formal val hxlook)]
+      rw [callBuiltin_cdr]
+    have hrecCall : evalOpt (g + 3) w (bindArgs [formal] [val])
+        (.cons (.atom (.symbol fnSym))
+          (.cons (.cons (.atom (.symbol { name := "cdr" }))
+                   (.cons (.atom (.symbol formal)) .nil)) .nil))
+        = some (.atom (.number (.int k'))) := by
+      rw [evalOpt_defn_1 (g + 2) w (bindArgs [formal] [val]) fnSym
+            (.cons (.atom (.symbol { name := "cdr" }))
+              (.cons (.atom (.symbol formal)) .nil))
+            (Logic.cdr val) formal body h_fn_ns h_fn hcdr]
+      exact hrec (g + 2) (by omega)
+    have hstep : evalOpt (g + 3) w (bindArgs [formal] [val])
+        (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int step))) .nil))
+        = some (.atom (.number (.int step))) :=
+      evalOpt_quote (g + 2) w _ (.atom (.number (.int step)))
+    rw [hbody]
+    rw [evalOpt_if_true (g + 4) w (bindArgs [formal] [val]) _ _ _ (Logic.consp val) hc htrue]
+    rw [evalOpt_builtin_2 (g + 3) w (bindArgs [formal] [val]) { name := "binary-+" }
+          _ _ (.atom (.number (.int step))) (.atom (.number (.int k'))) (by decide) h_no_plus
+          hstep hrecCall]
+    rw [callBuiltin_plus, logic_plus_int]
+
 /-! ## Context -/
 
 /-- Context for proof production. -/
@@ -941,6 +1055,124 @@ def addTheoremFromChain (worldExpr : Expr) (world : World)
       value := proof
     })
 
+/-! ## Totality synthesis routine
+
+  `synthTotality1` detects the 1-arg structural-recursion shape of `fnSym`'s
+  body in `w` and produces a kernel-checked proof of its totality / integer
+  type-prescription by instantiating `totality1_generic`. Detection-driven:
+  hard-fails (throwError) for any function not of the supported shape. -/
+
+/-- Parse an integer-quote `(QUOTE (int n))`; fail otherwise. -/
+private def parseIntQuote (e : SExpr) (what : String) : MetaM Int := do
+  match e with
+  | .cons (.atom (.symbol q)) (.cons (.atom (.number (.int n))) .nil) =>
+    if q.isNamed "quote" then pure n
+    else throwError "synthTotality1: {what} is not a quoted integer: {repr e}"
+  | _ => throwError "synthTotality1: {what} is not a quoted integer: {repr e}"
+
+/-- Synthesize a totality/type-prescription proof for a 1-arg structurally
+    recursive function `fnSym` defined in `w`. The body must have the shape
+
+        (IF (CONSP formal) (BINARY-+ 'step (fnSym (CDR formal))) 'base)
+
+    (1-arg, structural recursion on the single formal, recursing only as
+    `(fnSym (CDR formal))`, integer-valued). Returns a kernel-checkable `Expr`
+    of type
+
+        ∀ val, ∃ k : Int, ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [formal] [val]) body
+            = some (.atom (.number (.int k)))
+
+    `worldExpr` is the reflected World; `worldUnfoldNames` are the definition
+    names to unfold when discharging the HashMap-lookup side conditions.
+    Hard-fails at the frontier (wrong arity, non-structural recursion, multiple
+    recursive calls, non-integer base/step, etc.). No hardcoded names. -/
+def synthTotality1 (w : World) (worldExpr : Expr) (worldUnfoldNames : Array Name)
+    (fnSym : Symbol) : MetaM Expr := do
+  -- Look up the definition; require exactly one formal.
+  let some (formals, body) := w.defs.get? fnSym
+    | throwError "synthTotality1: {repr fnSym} not in world.defs (frontier)"
+  let formal ← match formals with
+    | [f] => pure f
+    | _ => throwError "synthTotality1: {repr fnSym} is not 1-arg \
+        (formals = {repr formals}); only 1-arg structural recursion supported (frontier)"
+  -- Body must be (IF test thenB elseB).
+  let (test, thenB, elseB) ← match body with
+    | .cons (.atom (.symbol ifSym))
+        (.cons test (.cons thenB (.cons elseB .nil))) =>
+      if ifSym.isNamed "if" then pure (test, thenB, elseB)
+      else throwError "synthTotality1: body head is not IF: {repr body}"
+    | _ => throwError "synthTotality1: body is not a 4-element IF: {repr body} (frontier)"
+  -- Test must be (CONSP formal): structural recursion on the single formal.
+  match test with
+  | .cons (.atom (.symbol cs)) (.cons (.atom (.symbol tv)) .nil) =>
+    unless cs.isNamed "consp" && tv == formal do
+      throwError "synthTotality1: test is not (CONSP formal): {repr test} (frontier)"
+  | _ => throwError "synthTotality1: test is not a 1-arg recognizer on the formal: \
+      {repr test} (frontier)"
+  -- Else-branch must be a quoted integer `base` (the type-prescription base).
+  let base ← parseIntQuote elseB "else-branch (base case)"
+  -- Then-branch must be (BINARY-+ 'step (fnSym (CDR formal))): the single
+  -- structural recursive call combined with a constant integer.
+  let recCallExpected : SExpr :=
+    .cons (.atom (.symbol fnSym))
+      (.cons (.cons (.atom (.symbol { name := "cdr" }))
+               (.cons (.atom (.symbol formal)) .nil)) .nil)
+  let step ← match thenB with
+    | .cons (.atom (.symbol plusSym)) (.cons stepQ (.cons recCall .nil)) =>
+      unless plusSym.isNamed "binary-+" do
+        throwError "synthTotality1: then-branch head is not BINARY-+: {repr thenB} (frontier)"
+      unless recCall == recCallExpected do
+        throwError "synthTotality1: recursive call is not (fnSym (CDR formal)): \
+          {repr recCall}; only structural recursion on the formal supported (frontier)"
+      parseIntQuote stepQ "then-branch step constant"
+    | _ => throwError "synthTotality1: then-branch is not (BINARY-+ 'step (rec)): \
+        {repr thenB} (frontier)"
+  -- Reject any *other* recursive calls (multiple recursion is the frontier):
+  -- the only legal call to fnSym is the one we matched in `recCall`.
+  let elseHasRec := callsDefinedFn [fnSym] elseB
+  if elseHasRec then
+    throwError "synthTotality1: recursive call in else-branch unsupported (frontier)"
+  -- All checks passed. Instantiate `totality1_generic`.
+  -- Side conditions:
+  --   hbody : body = <reflected generic shape>  — `rfl` (same reflected term).
+  --   h_fn  : w.defs[fnSym]? = some ([formal], body)
+  --   h_no_* : builtins not shadowed
+  --   h_fn_ns : fnSym not special
+  let ctx : ProofCtx := {
+    worldExpr := worldExpr, world := w, envExpr := worldExpr /- unused here -/,
+    worldUnfoldNames := worldUnfoldNames }
+  let hBody ← do
+    let bodyE := reflectSExpr body
+    mkAppM ``Eq.refl #[bodyE]
+  let hFn ← proveWorldDefnLookup ctx fnSym [formal] body
+  let hNoConsp ← proveWorldLookupNone ctx { name := "consp" }
+  let hNoCdr ← proveWorldLookupNone ctx { name := "cdr" }
+  let hNoPlus ← proveWorldLookupNone ctx { name := "binary-+" }
+  let hFnNs ← proveNotSpecial fnSym
+  return mkAppN (Lean.mkConst ``totality1_generic)
+    #[worldExpr, reflectSymbol fnSym, reflectSymbol formal,
+      reflectInt base, reflectInt step, reflectSExpr body,
+      hBody, hFn, hNoConsp, hNoCdr, hNoPlus, hFnNs]
+where
+  /-- Local copies of the world-lookup provers (the proof-tree handlers are in
+      the `proveNode` where-block and not in scope here). -/
+  proveWorldDefnLookup (ctx : ProofCtx) (fnSym : Symbol)
+      (formals : List Symbol) (body : SExpr) : MetaM Expr := do
+    let worldDefs := mkApp (Lean.mkConst ``World.defs) ctx.worldExpr
+    let lookupExpr ← mkAppM ``Std.HashMap.get? #[worldDefs, reflectSymbol fnSym]
+    let formalsListExpr := formals.foldr
+      (fun s acc => mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``Symbol)
+        (reflectSymbol s) acc)
+      (mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``Symbol))
+    let pairExpr := mkApp4 (Lean.mkConst ``Prod.mk [0, 0])
+      (← mkAppM ``List #[Lean.mkConst ``Symbol]) (Lean.mkConst ``SExpr)
+      formalsListExpr (reflectSExpr body)
+    let pairTy ← inferType pairExpr
+    let someE := mkApp2 (Lean.mkConst ``Option.some [0]) pairTy pairExpr
+    proveBySimp (← mkAppM ``Eq #[lookupExpr, someE])
+      (unfoldNames := ctx.worldUnfoldNames) (useDecide := true)
+
 -- ============================================================
 -- Validation: term-mode proofs using our lemmas directly.
 -- These demonstrate what the proof-producing checker emits.
@@ -1322,6 +1554,70 @@ elab "#test_definition_node" : command => do
     logInfo m!"definition node OK: {← inferType proof}"
 
 #test_definition_node
+
+-- synthTotality1: synthesize the totality / type-prescription theorem for a
+-- 1-arg structurally recursive function and kernel-check it. Uses a small
+-- test world holding `my-len` (same body as SimpleWorld's), demonstrating the
+-- SAME routine reproduces what `my_len_total` proves by hand — no hardcoded
+-- function/formal names; detection-driven from the body shape.
+private def totalityTestBody : SExpr :=
+  .cons (.atom (.symbol { name := "if" }))
+    (.cons (.cons (.atom (.symbol { name := "consp" }))
+            (.cons (.atom (.symbol { name := "x" })) .nil))
+      (.cons (.cons (.atom (.symbol { name := "binary-+" }))
+              (.cons (.cons (.atom (.symbol { name := "quote" }))
+                       (.cons (.atom (.number (.int 1))) .nil))
+                (.cons (.cons (.atom (.symbol { name := "my-len" }))
+                         (.cons (.cons (.atom (.symbol { name := "cdr" }))
+                                  (.cons (.atom (.symbol { name := "x" })) .nil)) .nil))
+                  .nil)))
+        (.cons (.cons (.atom (.symbol { name := "quote" }))
+                (.cons (.atom (.number (.int 0))) .nil)) .nil)))
+
+private def totalityTestWorld : World where
+  defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
+    |>.insert { name := "my-len" } ([{ name := "x" }], totalityTestBody)
+
+elab "#test_synth_totality1" : command => do
+  Elab.Command.liftTermElabM do
+    let proof ← synthTotality1 totalityTestWorld (Lean.mkConst ``totalityTestWorld)
+      #[``totalityTestWorld, ``totalityTestBody] { name := "my-len" }
+    let _ ← check proof
+    let ty ← inferType proof
+    logInfo m!"synthTotality1 OK: {ty}"
+    -- Confirm the produced type matches the `my_len_total`-shaped statement:
+    -- ∀ val, ∃ k, ∃ N, ∀ f ≥ N,
+    --   evalOpt f w (bindArgs [x] [val]) totalityTestBody = some (int k).
+    let expected ← Term.elabTerm
+      (← `(∀ val : SExpr, ∃ k : Int, ∃ N, ∀ f ≥ N,
+            evalOpt f totalityTestWorld (bindArgs [({ name := "x" } : Symbol)] [val])
+              totalityTestBody = some (.atom (.number (.int k))))) none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let expected ← instantiateMVars expected
+    unless ← Meta.isDefEq ty expected do
+      throwError "synthTotality1: produced type does not match expected statement:\n\
+        produced: {ty}\n  expected: {expected}"
+    logInfo m!"synthTotality1: produced type matches the my_len_total statement shape."
+
+#test_synth_totality1
+
+-- Frontier hard-fail check: a non-structural / wrong-shape function must be
+-- rejected (no sorry, no hardcoding). Here `id` is not of the IF/CONSP shape.
+private def idTestWorld : World where
+  defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
+    |>.insert { name := "id" } ([{ name := "x" }], .atom (.symbol { name := "x" }))
+
+elab "#test_synth_totality1_frontier" : command => do
+  Elab.Command.liftTermElabM do
+    let ok ← (do
+      let _ ← synthTotality1 idTestWorld (Lean.mkConst ``idTestWorld)
+        #[``idTestWorld] { name := "id" }
+      pure true) <|> pure false
+    if ok then
+      throwError "synthTotality1 should have hard-failed on non-recursive `id`"
+    logInfo m!"synthTotality1 correctly hard-failed at the frontier (non-IF body)."
+
+#test_synth_totality1_frontier
 
 end MetaMTests
 
