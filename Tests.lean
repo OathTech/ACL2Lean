@@ -5,3 +5,4 @@ import Tests.SyntaxTest
 import Tests.CountTest
 import Tests.LexorderTest
 import Tests.TermOrderTest
+import Tests.ProofProducerTest
