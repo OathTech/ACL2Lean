@@ -87,14 +87,15 @@ def mkEmptyEnv : TermElabM Expr := do
 /-- Prove a proposition using simp with the default simp set plus
     optional definition unfolding. -/
 def proveBySimp (goalType : Expr) (unfoldNames : Array Name := #[])
-    (extraLemmas : Array Name := #[]) : MetaM Expr := do
+    (extraLemmas : Array Name := #[]) (useDecide : Bool := false) : MetaM Expr := do
   let defaultCtx ← Simp.Context.mkDefault
   let mut simpThms := defaultCtx.simpTheorems[0]!
   for n in unfoldNames do
     simpThms ← simpThms.addDeclToUnfold n
   for n in extraLemmas do
     simpThms ← simpThms.addConst n
-  let ctx ← Simp.mkContext (simpTheorems := #[simpThms])
+  let cfg : Simp.Config := { decide := useDecide }
+  let ctx ← Simp.mkContext cfg (simpTheorems := #[simpThms])
   let (result, _) ← Meta.simp goalType ctx
   match result.proof? with
   | some proof =>
@@ -139,7 +140,7 @@ def proveWorldLookupNone (ctx : ProofCtx) (s : Symbol) : MetaM Expr := do
   let lookupType ← inferType lookupExpr
   let noneExpr := mkApp (Lean.mkConst ``Option.none [0]) lookupType.appArg!
   proveBySimp (mkApp3 (Lean.mkConst ``Eq [1]) lookupType lookupExpr noneExpr)
-    (unfoldNames := ctx.worldUnfoldNames)
+    (unfoldNames := ctx.worldUnfoldNames) (useDecide := true)
 
 /-- Search `ctx.facts` for a proof whose inferred type is defeq to
     `targetType`. Returns the proof term if found, else `none`. Used by the
@@ -331,6 +332,16 @@ def mkFuelConvergeExist (ctx : ProofCtx) (N : Nat)
 /-! ## Proof tree walking -/
 
 
+/-- Does `t` (syntactically) contain a call to one of `definedNames`?
+    A call is a cons whose head is a symbol in `definedNames`. Used to detect a
+    recursive branch (which needs totality, not handled by `proveDefinitionNode`). -/
+partial def callsDefinedFn (definedNames : List Symbol) (t : SExpr) : Bool :=
+  match t with
+  | .cons (.atom (.symbol s)) rest =>
+    definedNames.any (fun d => d == s) || callsDefinedFn definedNames rest
+  | .cons a d => callsDefinedFn definedNames a || callsDefinedFn definedNames d
+  | _ => false
+
 /-- Prove a single proof node. Returns an existential fuel proof:
     `∃ N, ∀ f ≥ N, evalOpt f w env node.lhs = evalOpt f w env node.rhs`
 
@@ -339,10 +350,11 @@ def mkFuelConvergeExist (ctx : ProofCtx) (N : Nat)
     No ground evaluation — all proofs work with arbitrary env. -/
 partial def proveNode (ctx : ProofCtx) (node : ProofNode) : MetaM Expr := do
   match node with
-  | .node (runeType, _runeName) lhs rhs _children _prov =>
+  | .node (runeType, runeName) lhs rhs children _prov =>
     match runeType with
     | "equal-self" => proveEqualSelfNode ctx lhs rhs
     | "fake-rune-for-anonymous-enabled-rule" => proveRecognizerNode ctx lhs rhs
+    | "definition" => proveDefinitionNode ctx runeName lhs rhs children
     | other => throwError "proveNode: rune type '{other}' not yet implemented"
 where
   /-- Prove symbolic convergence of a term: ∃ v, evalOpt (f+1) w env term = some v.
@@ -519,6 +531,279 @@ where
     match ← findFact ctx targetTy with
     | some pf => return pf
     | none => throwError "recognizer: no justification for {repr arg} → {repr c}"
+
+  /-- Reflect a `List Symbol` as a Lean `Expr` of type `List Symbol`. -/
+  reflectSymbolList (ss : List Symbol) : Expr :=
+    match ss with
+    | [] => mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``Symbol)
+    | s :: rest => mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``Symbol)
+        (reflectSymbol s) (reflectSymbolList rest)
+
+  /-- Prove `(bindArgs formals argVals).get? p = some pv` for a concrete formal
+      `p` bound (with distinct concrete formals) to value Expr `pv` at its
+      position. `formalsExpr`/`argValsExpr` are the reflected `List Symbol` /
+      `List SExpr` Exprs. Discharged by `simp [bindArgs, getElem?_insert]` +
+      `decide` on the symbol-equality conditions — the same mechanism as the
+      hand proof's `hxlook`/`hylook`. -/
+  proveBindLookup (formalsExpr argValsExpr : Expr) (p : Symbol) (pv : Expr) :
+      MetaM Expr := do
+    let bindEnv ← mkAppM ``bindArgs #[formalsExpr, argValsExpr]
+    let lookup ← mkAppM ``Std.HashMap.get? #[bindEnv, reflectSymbol p]
+    let someV := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) pv
+    let goalTy ← mkAppM ``Eq #[lookup, someV]
+    proveBySimp goalTy (unfoldNames := #[``bindArgs])
+      (extraLemmas := #[``Std.HashMap.getElem?_insert]) (useDecide := true)
+
+  /-- definition node: `(fn a1 … an) → rhs` (n = 1 or 2), where `rhs` is the
+      simplified body after its IF was resolved. Produces
+      `∃N∀f≥N, eval (fn args) = eval rhs`.
+
+      General mechanism (no hardcoded names), scoped to the non-recursive
+      (base-case) shape: unfold the call (`evalOpt_defn_*`), resolve the body's
+      IF using the `if-simplification` child to learn the branch and the
+      recognizer mechanism to evaluate the test, then evaluate the chosen
+      branch. Both the call and `rhs` converge to the same value `V`. -/
+  proveDefinitionNode (ctx : ProofCtx) (fnName : String) (lhs rhs : SExpr)
+      (children : List ProofNode) : MetaM Expr := do
+    -- Parse the call `(fn a1 … an)`.
+    let (fnSym, args) ← match lhs with
+      | .cons (.atom (.symbol s)) rest =>
+        match rest.toList? with
+        | some as => pure (s, as)
+        | none => throwError "definition: malformed call argument list: {repr lhs}"
+      | _ => throwError "definition: LHS is not a call: {repr lhs}"
+    unless fnSym.isNamed fnName do
+      throwError "definition: rune name {fnName} ≠ call head {repr fnSym}"
+    -- Look up the definition in the world (hard-fail if absent).
+    let some (formals, body) := ctx.world.defs.get? fnSym
+      | throwError "definition: function {repr fnSym} not in world.defs (frontier)"
+    unless formals.length == args.length do
+      throwError "definition: arity mismatch for {repr fnSym}"
+    -- Support arity 1 and 2 only (evalOpt_defn_1/2); hard-fail otherwise.
+    unless formals.length == 1 || formals.length == 2 do
+      throwError "definition: arity {formals.length} unsupported (frontier)"
+    -- The body must be (IF test thenB elseB).
+    let (test, thenB, elseB) ← match body with
+      | .cons (.atom (.symbol ifSym))
+          (.cons test (.cons thenB (.cons elseB .nil))) =>
+        if ifSym.isNamed "if" then pure (test, thenB, elseB)
+        else throwError "definition: body head is not IF: {repr body}"
+      | _ => throwError "definition: body is not a 4-element IF: {repr body}"
+    -- Find the if-simplification child to learn which branch was taken.
+    let chosenB ← do
+      let mut found : Option SExpr := none
+      for c in children do
+        match c with
+        | .node (rt, _) _ crhs _ _ => if rt == "if-simplification" then found := some crhs
+      match found with
+      | some r => pure r
+      | none => throwError "definition: no if-simplification child (frontier)"
+    let isThen ← if chosenB == thenB then pure true
+      else if chosenB == elseB then pure false
+      else throwError "definition: if-simplification rhs {repr chosenB} \
+        matches neither branch"
+    -- Hard-fail if the chosen branch calls a user-defined (recursive) function:
+    -- that needs totality, which is the next step, not this one.
+    let definedNames := ctx.world.defs.toList.map (fun (s, _) => s)
+    if callsDefinedFn definedNames chosenB then
+      throwError "definition: recursive branch needs totality (frontier)"
+    -- Reflect formals and build the argument-value list + arg-eval proofs.
+    let formalsExpr := reflectSymbolList formals
+    -- The body env evaluates the chosen branch at fuel `bcf+1`; the test must
+    -- evaluate at fuel `bcf` ≥ 1 (it contains the formal variable lookup).
+    let bcf := Nat.max (convergeFuel chosenB) 1
+    -- We will prove `eval (M+1) w env (fn args) = some V` where M = bcf+2 is the
+    -- fuel the body's IF needs. Arg-eval proofs feed `evalOpt_defn_*` at fuel M.
+    let bodyFuel := bcf + 2
+    -- Argument values + proofs `eval bodyFuel w env aᵢ = some avᵢ`.
+    let mut argVals : List Expr := []
+    let mut argProofs : List Expr := []
+    for a in args do
+      let af := convergeFuel a
+      unless af + 1 ≤ bodyFuel do
+        throwError "definition: argument {repr a} needs more fuel than allotted (frontier)"
+      -- proveConverges gives `eval (af+1) ... a = some av`; bump to `eval bodyFuel`
+      -- via evalOpt_ge_fuel (bodyFuel ≥ af+1) so it feeds `evalOpt_defn_*`.
+      let (av, hRaw) ← proveConverges ctx af a
+      let hBumped := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+        #[mkNatLit (af + 1), mkNatLit bodyFuel, ctx.worldExpr, ctx.envExpr,
+          reflectSExpr a, av, hRaw, ← mkGeProof bodyFuel (af + 1)]
+      argVals := argVals ++ [av]
+      argProofs := argProofs ++ [hBumped]
+    -- Build the body env Expr: bindArgs formals argVals.
+    let argValsListExpr ← mkListLitSExpr argVals
+    let bodyEnvExpr ← mkAppM ``bindArgs #[formalsExpr, argValsListExpr]
+    -- Build the body-env context: each formal looks up to its arg value, with a
+    -- convergence proof `fun f => eval (f+1) w bodyEnv pᵢ = some avᵢ`.
+    let mut bodyVars : List (Symbol × Expr × Expr) := []
+    for (p, pv) in formals.zip argVals do
+      let hLookup ← proveBindLookup formalsExpr argValsListExpr p pv
+      -- conv : fun (f : Nat) => evalOpt_var f w bodyEnv p pv hLookup
+      let conv ← withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
+        let body := mkAppN (Lean.mkConst ``evalOpt_var)
+          #[fVar, ctx.worldExpr, bodyEnvExpr, reflectSymbol p, pv, hLookup]
+        mkLambdaFVars #[fVar] body
+      bodyVars := bodyVars ++ [(p, pv, conv)]
+    let ctx' : ProofCtx := { ctx with envExpr := bodyEnvExpr, vars := bodyVars }
+    -- Parse the test as a recognizer call `(RECOG p)`.
+    let (recogSym, recogArg) ← match test with
+      | .cons (.atom (.symbol s)) (.cons a .nil) => pure (s, a)
+      | _ => throwError "definition: test is not a 1-arg recognizer: {repr test}"
+    -- Evaluate the test argument at fuel `bcf` (needs the formal lookup).
+    let targFuel := bcf - 1   -- proveConverges gives eval (targFuel+1) = eval bcf
+    let (recogArgVal, hRecogArg) ← proveConverges ctx' targFuel recogArg
+    -- eval (bcf+1) bodyEnv (RECOG p) = some (callBuiltin RECOG [recogArgVal]).
+    let hNotSpecial ← proveNotSpecial recogSym
+    let hNoDef ← proveWorldLookupNone ctx' recogSym
+    let hTestRaw := mkAppN (Lean.mkConst ``evalOpt_builtin_1)
+      #[mkNatLit bcf, ctx.worldExpr, bodyEnvExpr,
+        reflectSymbol recogSym, reflectSExpr recogArg, recogArgVal,
+        hNotSpecial, hNoDef, hRecogArg]
+    -- Resolve the IF branch.
+    -- Chosen branch convergence: eval (bcf+1) bodyEnv chosenB = some V.
+    let (vVal, hChosen) ← proveConverges ctx' bcf chosenB
+    let ifResult ←
+      if isThen then
+        -- Truthy: need `callBuiltin RECOG [recogArgVal] = cv` and `toBool cv = true`.
+        -- The recognizer value for the then-branch must be a concrete truthy
+        -- constant or come from a fact; here we resolve it structurally for
+        -- `consp` of a cons form (value T) — the only truthy recognizer the
+        -- base/step shapes produce without extra instrumentation.
+        let callExpr ← mkAppM ``callBuiltin
+          #[mkStrLit recogSym.name, ← mkListLitSExpr [recogArgVal]]
+        -- The truthy constant value: try the structural consp-of-cons fact (T).
+        let cExpr := reflectSExpr SExpr.t
+        let hCall ← proveCallEqConst ctx' recogSym recogArg callExpr cExpr SExpr.t
+        let hSomeEq ← mkAppM ``congrArg
+          #[mkApp (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr), hCall]
+        let hTest ← mkAppM ``Eq.trans #[hTestRaw, hSomeEq]
+        -- toBool T = true by decide.
+        let hTruthy ← proveByDecide (← mkAppM ``Eq
+          #[← mkAppM ``Logic.toBool #[cExpr], Lean.mkConst ``Bool.true])
+        -- evalOpt_if_true (bcf+1) ... gives eval (bcf+2) (IF) = eval (bcf+1) thenB.
+        pure <| mkAppN (Lean.mkConst ``evalOpt_if_true)
+          #[mkNatLit (bcf + 1), ctx.worldExpr, bodyEnvExpr,
+            reflectSExpr test, reflectSExpr thenB, reflectSExpr elseB,
+            cExpr, hTest, hTruthy]
+      else
+        -- Nil: need `callBuiltin RECOG [recogArgVal] = nil`.
+        let callExpr ← mkAppM ``callBuiltin
+          #[mkStrLit recogSym.name, ← mkListLitSExpr [recogArgVal]]
+        let cExpr := reflectSExpr SExpr.nil
+        let hCall ← proveCallEqConst ctx' recogSym recogArg callExpr cExpr SExpr.nil
+        let hSomeEq ← mkAppM ``congrArg
+          #[mkApp (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr), hCall]
+        let hTest ← mkAppM ``Eq.trans #[hTestRaw, hSomeEq]
+        -- evalOpt_if_false (bcf+1) ... gives eval (bcf+2) (IF) = eval (bcf+1) elseB.
+        pure <| mkAppN (Lean.mkConst ``evalOpt_if_false)
+          #[mkNatLit (bcf + 1), ctx.worldExpr, bodyEnvExpr,
+            reflectSExpr test, reflectSExpr thenB, reflectSExpr elseB, hTest]
+    -- Chain: eval (bcf+2) bodyEnv (IF ...) = eval (bcf+1) bodyEnv chosenB = some V.
+    let hBody ← mkAppM ``Eq.trans #[ifResult, hChosen]
+    -- Unfold the call: eval (bodyFuel+1) w env (fn args)
+    --   = eval bodyFuel w bodyEnv body  (bodyFuel = bcf+2).
+    let hDef ← proveWorldDefnLookup ctx fnSym formals body
+    let hUnfold ←
+      if formals.length == 1 then
+        let formal := formals[0]!
+        let arg := args[0]!
+        let av := argVals[0]!
+        let hArg := argProofs[0]!
+        let hns ← proveNotSpecial fnSym
+        pure <| mkAppN (Lean.mkConst ``evalOpt_defn_1)
+          #[mkNatLit bodyFuel, ctx.worldExpr, ctx.envExpr,
+            reflectSymbol fnSym, reflectSExpr arg, av,
+            reflectSymbol formal, reflectSExpr body,
+            hns, hDef, hArg]
+      else
+        let f1 := formals[0]!
+        let f2 := formals[1]!
+        let a1 := args[0]!
+        let a2 := args[1]!
+        let av1 := argVals[0]!
+        let av2 := argVals[1]!
+        let hA1 := argProofs[0]!
+        let hA2 := argProofs[1]!
+        let hns ← proveNotSpecial fnSym
+        pure <| mkAppN (Lean.mkConst ``evalOpt_defn_2)
+          #[mkNatLit bodyFuel, ctx.worldExpr, ctx.envExpr,
+            reflectSymbol fnSym, reflectSExpr a1, reflectSExpr a2, av1, av2,
+            reflectSymbol f1, reflectSymbol f2, reflectSExpr body,
+            hns, hDef, hA1, hA2]
+    -- LHS: eval (bodyFuel+1) w env (fn args) = some V.
+    let hLHS ← mkAppM ``Eq.trans #[hUnfold, hBody]
+    -- RHS: eval (bodyFuel+1) w env rhs = some V (both sides converge to V).
+    let lhsFuel := bodyFuel + 1
+    let (vRhs, hRhsRaw) ← proveConverges ctx (convergeFuel rhs) rhs
+    -- Bump the RHS proof to fuel lhsFuel.
+    let hRHS := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+      #[mkNatLit (convergeFuel rhs + 1), mkNatLit lhsFuel, ctx.worldExpr, ctx.envExpr,
+        reflectSExpr rhs, vRhs, hRhsRaw, ← mkGeProof lhsFuel (convergeFuel rhs + 1)]
+    -- The two value Exprs (vVal from the LHS branch, vRhs from RHS) must be the
+    -- same value. We retype both `= some <vVal>` so mkFuelEqExist sees one V.
+    let someVVal := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) vVal
+    let lhsEvalTy ← mkAppM ``Eq
+      #[mkAppN (Lean.mkConst ``evalOpt)
+          #[mkNatLit lhsFuel, ctx.worldExpr, ctx.envExpr, reflectSExpr lhs], someVVal]
+    let rhsEvalTy ← mkAppM ``Eq
+      #[mkAppN (Lean.mkConst ``evalOpt)
+          #[mkNatLit lhsFuel, ctx.worldExpr, ctx.envExpr, reflectSExpr rhs], someVVal]
+    let hLHS' ← mkExpectedTypeHint hLHS lhsEvalTy
+    let hRHS' ← mkExpectedTypeHint hRHS rhsEvalTy
+    -- Wrap into ∃ N, ∀ f ≥ N, eval (fn args) = eval rhs.
+    mkFuelEqExistE ctx lhsFuel lhs rhs vVal hLHS' hRHS'
+
+  /-- Prove `w.defs.get? fnSym = some (formals, body)` by simp + world unfold. -/
+  proveWorldDefnLookup (ctx : ProofCtx) (fnSym : Symbol)
+      (formals : List Symbol) (body : SExpr) : MetaM Expr := do
+    let worldDefs := mkApp (Lean.mkConst ``World.defs) ctx.worldExpr
+    let lookupExpr ← mkAppM ``Std.HashMap.get? #[worldDefs, reflectSymbol fnSym]
+    let pairExpr := mkApp4 (Lean.mkConst ``Prod.mk [0, 0])
+      (← mkAppM ``List #[Lean.mkConst ``Symbol]) (Lean.mkConst ``SExpr)
+      (reflectSymbolList formals) (reflectSExpr body)
+    let pairTy ← inferType pairExpr
+    let someE := mkApp2 (Lean.mkConst ``Option.some [0]) pairTy pairExpr
+    proveBySimp (← mkAppM ``Eq #[lookupExpr, someE])
+      (unfoldNames := ctx.worldUnfoldNames) (useDecide := true)
+
+  /-- `mkFuelEqExist` accepting value Exprs directly (rather than reflecting a
+      `SExpr v`). Same construction as `mkFuelEqExist` but `v` is an Expr. -/
+  mkFuelEqExistE (ctx : ProofCtx) (N : Nat) (a b : SExpr) (vE : Expr)
+      (hA hB : Expr) : MetaM Expr := do
+    let NE := mkNatLit N
+    let aE := reflectSExpr a
+    let bE := reflectSExpr b
+    let pred ← mkFuelPredE ctx aE fun fVar =>
+      mkAppN (Lean.mkConst ``evalOpt) #[fVar, ctx.worldExpr, ctx.envExpr, bE]
+    withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
+      let geType ← mkAppM ``GE.ge #[fVar, NE]
+      withLocalDeclD `hf geType fun hfVar => do
+        let geA := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+          #[NE, fVar, ctx.worldExpr, ctx.envExpr, aE, vE, hA, hfVar]
+        let geB := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+          #[NE, fVar, ctx.worldExpr, ctx.envExpr, bE, vE, hB, hfVar]
+        let eqProof ← mkAppM ``Eq.trans #[geA, ← mkAppM ``Eq.symm #[geB]]
+        let body ← mkLambdaFVars #[fVar, hfVar] eqProof
+        return mkApp4 (Lean.mkConst ``Exists.intro [1])
+          (Lean.mkConst ``Nat) pred NE body
+
+  /-- `mkFuelPred` inlined into the where-block (private top-level `mkFuelPred`
+      is not in scope here). -/
+  mkFuelPredE (ctx : ProofCtx) (aExpr : Expr) (mkRhs : Expr → Expr) :
+      MetaM Expr := do
+    withLocalDeclD `N (Lean.mkConst ``Nat) fun nVar => do
+      withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
+        let geType ← mkAppM ``GE.ge #[fVar, nVar]
+        withLocalDeclD `hf geType fun hfVar => do
+          let lhsEval := mkAppN (Lean.mkConst ``evalOpt)
+            #[fVar, ctx.worldExpr, ctx.envExpr, aExpr]
+          let eqType ← mkAppM ``Eq #[lhsEval, mkRhs fVar]
+          let forall_ ← mkForallFVars #[fVar, hfVar] eqType
+          mkLambdaFVars #[nVar] forall_
+
+  /-- Prove `m ≥ n` for concrete Nat literals (m ≥ n) by decide. -/
+  mkGeProof (m n : Nat) : MetaM Expr := do
+    proveByDecide (← mkAppM ``GE.ge #[mkNatLit m, mkNatLit n])
 
 /-- Does `a` occur as a subterm of `term`? -/
 partial def occursIn (a term : SExpr) : Bool :=
@@ -973,6 +1258,70 @@ elab "#test_recognizer_context_fact" : command => do
     logInfo m!"recognizer context-fact OK: {← inferType proof}"
 
 #test_recognizer_context_fact
+
+-- definition node (base-case shape), reproducing the hand proof `h_node2`:
+-- world has `my-len` with body (IF (CONSP X) (BINARY-+ '1 (MY-LEN (CDR X))) (QUOTE 0));
+-- node (MY-LEN X) → (QUOTE 0); ctx binds X to nil with a `consp nil = nil` fact.
+-- The IF takes the else (constant) branch, so the recursive then-branch is
+-- never entered. Handler must produce ∃N∀f≥N, eval (MY-LEN X) = eval (QUOTE 0).
+private def defnTestBody : SExpr :=
+  .cons (.atom (.symbol { name := "if" }))
+    (.cons (.cons (.atom (.symbol { name := "consp" }))
+            (.cons (.atom (.symbol { name := "x" })) .nil))
+      (.cons (.cons (.atom (.symbol { name := "binary-+" }))
+              (.cons (.cons (.atom (.symbol { name := "quote" }))
+                       (.cons (.atom (.number (.int 1))) .nil))
+                (.cons (.cons (.atom (.symbol { name := "my-len" }))
+                         (.cons (.cons (.atom (.symbol { name := "cdr" }))
+                                  (.cons (.atom (.symbol { name := "x" })) .nil)) .nil))
+                  .nil)))
+        (.cons (.cons (.atom (.symbol { name := "quote" }))
+                (.cons (.atom (.number (.int 0))) .nil))
+          .nil)))
+
+private def defnTestWorld : World where
+  defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
+    |>.insert { name := "my-len" } ([{ name := "x" }], defnTestBody)
+
+elab "#test_definition_node" : command => do
+  Elab.Command.liftTermElabM do
+    let emptyEnv ← mkEmptyEnv
+    let xSym : Symbol := { name := "x" }
+    -- Shared value of X: nil. Convergence proof ∀ f, eval (f+1) ... X = some nil.
+    let convProof ← Term.elabTerm
+      (← `(fun (f : Nat) => evalOpt_var_unbound f defnTestWorld {} { name := "x" }
+            (by simp) (by decide))) none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let convProof ← instantiateMVars convProof
+    let nilVal := reflectSExpr SExpr.nil
+    -- Fact: Logic.consp nil = nil (defeq to callBuiltin "consp" [nil] = nil).
+    let factProof ← Term.elabTerm
+      (← `((by decide : Logic.consp SExpr.nil = SExpr.nil))) none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let factProof ← instantiateMVars factProof
+    let ctx : ProofCtx := {
+      worldExpr := Lean.mkConst ``defnTestWorld
+      world := defnTestWorld
+      envExpr := emptyEnv
+      worldUnfoldNames := #[``defnTestWorld, ``defnTestBody]
+      vars := [(xSym, nilVal, convProof)]
+      facts := [factProof]
+    }
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let my_len_x : SExpr := .cons (.atom (.symbol { name := "my-len" }))
+      (.cons x .nil)
+    let quote_0 : SExpr := .cons (.atom (.symbol { name := "quote" }))
+      (.cons (.atom (.number (.int 0))) .nil)
+    -- if-simplification child: rhs is the chosen (else) branch (QUOTE 0).
+    let ifChild : ProofNode :=
+      .node ("if-simplification", "NIL") defnTestBody quote_0 []
+    let node : ProofNode :=
+      .node ("definition", "my-len") my_len_x quote_0 [ifChild]
+    let proof ← proveNode ctx node
+    let _ ← check proof
+    logInfo m!"definition node OK: {← inferType proof}"
+
+#test_definition_node
 
 end MetaMTests
 
