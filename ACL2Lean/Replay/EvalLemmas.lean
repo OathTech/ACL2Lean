@@ -420,38 +420,6 @@ theorem acl2_induction_consp (P : SExpr → Prop)
           omega
   exact this v.acl2Count v (Nat.le_refl _)
 
-/-! ## Variable substitution (T15) -/
-
-/-- Substitute a variable with a quoted value in a term.
-    Replaces free occurrences of symbol `s` with `(QUOTE v)`.
-    Does not recurse into QUOTE bodies or replace head symbols. -/
-def substVar (term : SExpr) (s : Symbol) (v : SExpr) : SExpr :=
-  match term with
-  | .nil => .nil
-  | .atom (.symbol sym) =>
-    if sym == s then
-      .cons (.atom (.symbol { name := "quote" })) (.cons v .nil)
-    else term
-  | .atom _ => term
-  | .cons (.atom (.symbol q)) rest =>
-    if q.isNamed "quote" then term
-    else .cons (.atom (.symbol q)) (substVar rest s v)
-  | .cons a b => .cons (substVar a s v) (substVar b s v)
-
-/-- T15: Variable substitution respects evaluation.
-    Evaluating `term` in `env[s := v]` equals evaluating `substVar term s v`
-    in `env`. This bridges function body evaluation (in the body env) back
-    to the caller's env.
-
-    SORRY: This requires structural induction on `term` following evalOpt's
-    recursion, handling each case (variable lookup, IF, function call, etc.).
-    It is comparable in difficulty to T1 (congruence). -/
-theorem evalOpt_substVar (f : Nat) (w : World) (env : Env) (s : Symbol)
-    (v : SExpr) (term : SExpr) :
-    evalOpt f w (env.insert s v) term =
-    evalOpt f w env (substVar term s v) := by
-  sorry
-
 /-\! ## Congruence (T1): one-step argument congruence
 
     The proof producer descends the term structure at meta-level, so the
