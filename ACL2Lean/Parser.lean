@@ -37,7 +37,7 @@ partial def skipWS : Stream → Stream
         | '|' :: rest =>
             let rec skipBlock : Nat → Stream → Stream
               | 0, r => skipWS r
-              | _, [] => []
+              | _, [] => panic! "unterminated block comment"
               | d, '#' :: '|' :: r => skipBlock (d + 1) r
               | d, '|' :: '#' :: r => skipBlock (d - 1) r
               | d, _ :: r => skipBlock d r
@@ -133,6 +133,8 @@ mutual
         match parseSExpr rest with
         | .error e => .error e
         | .ok (_, rest2) => parseSExpr rest2
+    | '#' :: c :: _ => .error s!"unrecognized reader macro: #{String.ofList [c]}"
+    | '#' :: [] => .error "unexpected # at end of input"
     | ':' :: _ =>
         let (tok, rest) := readAtom cs
         let kw := ((tok.drop 1).toString).map Char.toLower
@@ -140,33 +142,31 @@ mutual
     | _ =>
         let (rawTok, rest) := readAtom cs
         let tok := normalizeSymbolName rawTok
-        let atom : Atom :=
-          if tok = "t" then .bool true
-          else if tok = "nil" then .bool false
-          else
-            match tok.toInt? with
-            | some n => .number (.int n)
-            | none =>
-              if tok.contains '/' then
-                let parts := tok.splitOn "/"
-                match parts with
-                | [numStr, denStr] =>
-                    match numStr.toInt?, denStr.toNat? with
-                    | some n, some d => .number (.rational n d)
-                    | _, _ => .symbol { name := tok }
-                | _ => .symbol { name := tok }
-              else if tok.contains '.' then
-                -- very crude decimal parsing
-                .symbol { name := tok }
-              else
-                let parts := rawTok.splitOn "::"
-                match parts with
-                | [pkg, name] =>
-                    .symbol
-                      { package := normalizePackageName pkg
-                        name := normalizeSymbolName name }
-                | _ => .symbol { name := tok }
-        .ok (SExpr.atom atom, rest)
+        if tok = "nil" then .ok (SExpr.nil, rest)
+        else if tok = "t" then .ok (SExpr.t, rest)
+        else
+          match tok.toInt? with
+          | some n => .ok (SExpr.atom (.number (.int n)), rest)
+          | none =>
+            if tok.contains '/' then
+              let parts := tok.splitOn "/"
+              match parts with
+              | [numStr, denStr] =>
+                  match numStr.toInt?, denStr.toNat? with
+                  | some n, some d => .ok (SExpr.atom (.number (.rational n d)), rest)
+                  | _, _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
+              | _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
+            else if tok.contains '.' then
+              .ok (SExpr.atom (.symbol { name := tok }), rest)
+            else
+              let parts := rawTok.splitOn "::"
+              match parts with
+              | [_] => .ok (SExpr.atom (.symbol { name := tok }), rest)
+              | [pkg, name] =>
+                  .ok (SExpr.atom (.symbol
+                    { package := normalizePackageName pkg
+                      name := normalizeSymbolName name }), rest)
+              | _ => .error s!"malformed package-qualified symbol: {rawTok}"
 end
 
 /-- Parse all s-expressions from a string. -/

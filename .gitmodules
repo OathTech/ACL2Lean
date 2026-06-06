@@ -1,0 +1,3 @@
+[submodule "acl2"]
+	path = acl2
+	url = git@github.com:septract/acl2-lean.git

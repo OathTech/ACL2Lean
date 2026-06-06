@@ -1,0 +1,815 @@
+import ACL2Lean.EvalOpt
+import ACL2Lean.Replay.EvalLemmas
+import ACL2Lean.Count
+
+open ACL2 ACL2.Replay
+
+namespace ACL2.Worlds.Simple
+
+private def sym (name : String) : Symbol := ⟨"ACL2", name⟩
+
+-- Body uses macro-expanded form (matching ACL2's DEFUN emission):
+-- (IF (CONSP X) (BINARY-+ (QUOTE 1) (MY-LEN (CDR X))) (QUOTE 0))
+def my_lenBody : SExpr :=
+  .cons (.atom (.symbol { name := "if" }))
+    (.cons (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+      (.cons (.cons (.atom (.symbol { name := "binary-+" }))
+              (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 1))) .nil))
+                (.cons (.cons (.atom (.symbol { name := "my-len" }))
+                        (.cons (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil)) .nil))
+                  .nil)))
+        (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 0))) .nil))
+          .nil)))
+
+def my_appBody : SExpr :=
+  (SExpr.cons (SExpr.atom (.symbol { name := "if" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "consp" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cons" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "car" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-app" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cdr" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))))
+
+def world : World where
+  defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
+    |>.insert (sym "my-len") ([sym "x"], my_lenBody)
+    |>.insert (sym "my-app") ([sym "x", sym "y"], my_appBody)
+
+private def x_sym : Symbol := sym "x"
+private def y_sym : Symbol := sym "y"
+private def my_len_sym : Symbol := sym "my-len"
+private def my_app_sym : Symbol := sym "my-app"
+
+-- Formula uses macro-expanded form:
+-- (EQUAL (MY-LEN (MY-APP X Y)) (BINARY-+ (MY-LEN X) (MY-LEN Y)))
+def my_len_my_appFormula : SExpr :=
+  .cons (.atom (.symbol { name := "equal" }))
+    (.cons (.cons (.atom (.symbol { name := "my-len" }))
+            (.cons (.cons (.atom (.symbol { name := "my-app" }))
+                    (.cons (.atom (.symbol { name := "x" })) (.cons (.atom (.symbol { name := "y" })) .nil)))
+              .nil))
+      (.cons (.cons (.atom (.symbol { name := "binary-+" }))
+              (.cons (.cons (.atom (.symbol { name := "my-len" }))
+                      (.cons (.atom (.symbol { name := "x" })) .nil))
+                (.cons (.cons (.atom (.symbol { name := "my-len" }))
+                        (.cons (.atom (.symbol { name := "y" })) .nil))
+                  .nil)))
+        .nil))
+
+/-! ## Proof rules: isNamed facts (by decide) -/
+
+private theorem my_app_not_special :
+    my_app_sym.isNamed "quote" = false ∧ my_app_sym.isNamed "if" = false ∧
+    my_app_sym.isNamed "let" = false ∧ my_app_sym.isNamed "let*" = false := by decide
+
+private theorem my_len_not_special :
+    my_len_sym.isNamed "quote" = false ∧ my_len_sym.isNamed "if" = false ∧
+    my_len_sym.isNamed "let" = false ∧ my_len_sym.isNamed "let*" = false := by decide
+
+private theorem consp_not_special :
+    ({ name := "consp" } : Symbol).isNamed "quote" = false ∧
+    ({ name := "consp" } : Symbol).isNamed "if" = false ∧
+    ({ name := "consp" } : Symbol).isNamed "let" = false ∧
+    ({ name := "consp" } : Symbol).isNamed "let*" = false := by decide
+
+/-! ## Totality + type-prescription for my-len -/
+
+/-- Applied to any value, the my-len body converges to a (non-negative)
+    integer. By induction on acl2Count via `acl2_induction_consp`; the
+    recursive call `(my-len (cdr x))` is discharged by the IH on `(cdr val)`.
+    This combines ACL2's termination (totality) and its type-prescription
+    (`integerp (my-len x)`) into the one fact the replay needs. -/
+theorem my_len_total (w : World)
+    (h_my_len : w.defs[my_len_sym]? = some ([x_sym], my_lenBody))
+    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none)
+    (h_no_cdr : w.defs[({ name := "cdr" } : Symbol)]? = none)
+    (h_no_plus : w.defs[({ name := "binary-+" } : Symbol)]? = none) :
+    ∀ val : SExpr, ∃ k : Int, ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs [x_sym] [val]) my_lenBody
+        = some (.atom (.number (.int k))) := by
+  apply acl2_induction_consp
+  · -- BASE: consp val = nil → body takes else-branch → 0
+    intro val hconsp
+    have hxlook : (bindArgs [x_sym] [val]).get? { name := "x" } = some val := by
+      simp [bindArgs, x_sym, sym]
+    refine ⟨0, 4, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 4 := ⟨f - 4, by omega⟩
+    have hc : evalOpt (g + 3) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some .nil := by
+      rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym] [val]) { name := "consp" }
+            (.atom (.symbol { name := "x" })) val (by decide) h_no_consp
+            (evalOpt_var (g + 1) w (bindArgs [x_sym] [val]) { name := "x" } val hxlook)]
+      rw [callBuiltin_consp, hconsp]
+    unfold my_lenBody
+    rw [evalOpt_if_false (g + 3) w (bindArgs [x_sym] [val]) _ _ _ hc]
+    exact evalOpt_quote (g + 2) w _ (.atom (.number (.int 0)))
+  · -- STEP: consp val ≠ nil, IH gives convergence of (my-len (cdr val))
+    intro val hconsp ih
+    obtain ⟨k', N', hrec⟩ := ih
+    have hxlook : (bindArgs [x_sym] [val]).get? { name := "x" } = some val := by
+      simp [bindArgs, x_sym, sym]
+    have htrue : Logic.toBool (Logic.consp val) = true := by
+      cases val with
+      | cons a d => rfl
+      | nil => exact absurd rfl hconsp
+      | atom a => exact absurd rfl hconsp
+    refine ⟨1 + k', N' + 5, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 5 := ⟨f - 5, by omega⟩
+    -- (consp x) → consp val (truthy)
+    have hc : evalOpt (g + 4) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.consp val) := by
+      rw [evalOpt_builtin_1 (g + 3) w (bindArgs [x_sym] [val]) { name := "consp" }
+            (.atom (.symbol { name := "x" })) val (by decide) h_no_consp
+            (evalOpt_var (g + 2) w (bindArgs [x_sym] [val]) { name := "x" } val hxlook)]
+      rw [callBuiltin_consp]
+    -- (cdr x) → cdr val
+    have hcdr : evalOpt (g + 2) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.cdr val) := by
+      rw [evalOpt_builtin_1 (g + 1) w (bindArgs [x_sym] [val]) { name := "cdr" }
+            (.atom (.symbol { name := "x" })) val (by decide) h_no_cdr
+            (evalOpt_var g w (bindArgs [x_sym] [val]) { name := "x" } val hxlook)]
+      rw [callBuiltin_cdr]
+    -- (my-len (cdr x)) → int k' (via IH)
+    have hmylen : evalOpt (g + 3) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "my-len" }))
+          (.cons (.cons (.atom (.symbol { name := "cdr" }))
+                   (.cons (.atom (.symbol { name := "x" })) .nil)) .nil))
+        = some (.atom (.number (.int k'))) := by
+      rw [evalOpt_defn_1 (g + 2) w (bindArgs [x_sym] [val]) { name := "my-len" }
+            (.cons (.atom (.symbol { name := "cdr" }))
+              (.cons (.atom (.symbol { name := "x" })) .nil))
+            (Logic.cdr val) x_sym my_lenBody (by decide) h_my_len hcdr]
+      exact hrec (g + 2) (by omega)
+    -- '1 → int 1
+    have hone : evalOpt (g + 3) w (bindArgs [x_sym] [val])
+        (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 1))) .nil))
+        = some (.atom (.number (.int 1))) :=
+      evalOpt_quote (g + 2) w _ (.atom (.number (.int 1)))
+    unfold my_lenBody
+    rw [evalOpt_if_true (g + 4) w (bindArgs [x_sym] [val]) _ _ _ (Logic.consp val) hc htrue]
+    rw [evalOpt_builtin_2 (g + 3) w (bindArgs [x_sym] [val]) { name := "binary-+" }
+          _ _ (.atom (.number (.int 1))) (.atom (.number (.int k'))) (by decide) h_no_plus
+          hone hmylen]
+    rw [callBuiltin_plus, logic_plus_int]
+
+/-- Totality for my-app: applied to any (xval, yval), the my-app body
+    converges to a value. Induction on acl2Count of xval (yval fixed); the
+    recursive (my-app (cdr x) y) is discharged by the IH on (cdr xval). -/
+theorem my_app_total (w : World)
+    (h_my_app : w.defs[my_app_sym]? = some ([x_sym, y_sym], my_appBody))
+    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none)
+    (h_no_cdr : w.defs[({ name := "cdr" } : Symbol)]? = none)
+    (h_no_car : w.defs[({ name := "car" } : Symbol)]? = none)
+    (h_no_cons : w.defs[({ name := "cons" } : Symbol)]? = none) :
+    ∀ yval xval : SExpr, ∃ v : SExpr, ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs [x_sym, y_sym] [xval, yval]) my_appBody = some v := by
+  intro yval
+  apply acl2_induction_consp
+  · -- BASE: consp xval = nil → else-branch → y → yval
+    intro xval hconsp
+    have hxlook : (bindArgs [x_sym, y_sym] [xval, yval]).get? { name := "x" } = some xval := by
+      show (bindArgs [x_sym, y_sym] [xval, yval])[({ name := "x" } : Symbol)]? = some xval
+      simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+      rw [if_pos (by decide)]
+    have hylook : (bindArgs [x_sym, y_sym] [xval, yval]).get? { name := "y" } = some yval := by
+      show (bindArgs [x_sym, y_sym] [xval, yval])[({ name := "y" } : Symbol)]? = some yval
+      simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+      rw [if_neg (by decide), if_pos (by decide)]
+    refine ⟨yval, 4, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 4 := ⟨f - 4, by omega⟩
+    have hc : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some .nil := by
+      rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "consp" }
+            (.atom (.symbol { name := "x" })) xval (by decide) h_no_consp
+            (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "x" } xval hxlook)]
+      rw [callBuiltin_consp, hconsp]
+    unfold my_appBody
+    rw [evalOpt_if_false (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval]) _ _ _ hc]
+    exact evalOpt_var (g + 2) w _ { name := "y" } yval hylook
+  · -- STEP: consp xval ≠ nil → CONS (CAR x) (MY-APP (CDR x) y)
+    intro xval hconsp ih
+    obtain ⟨v', N', hrec⟩ := ih
+    have hxlook : (bindArgs [x_sym, y_sym] [xval, yval]).get? { name := "x" } = some xval := by
+      show (bindArgs [x_sym, y_sym] [xval, yval])[({ name := "x" } : Symbol)]? = some xval
+      simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+      rw [if_pos (by decide)]
+    have hylook : (bindArgs [x_sym, y_sym] [xval, yval]).get? { name := "y" } = some yval := by
+      show (bindArgs [x_sym, y_sym] [xval, yval])[({ name := "y" } : Symbol)]? = some yval
+      simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+      rw [if_neg (by decide), if_pos (by decide)]
+    have htrue : Logic.toBool (Logic.consp xval) = true := by
+      cases xval with
+      | cons a d => rfl
+      | nil => exact absurd rfl hconsp
+      | atom a => exact absurd rfl hconsp
+    refine ⟨.cons (Logic.car xval) v', N' + 5, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 5 := ⟨f - 5, by omega⟩
+    -- (consp x) → consp xval (truthy)
+    have hc : evalOpt (g + 4) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.consp xval) := by
+      rw [evalOpt_builtin_1 (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "consp" }
+            (.atom (.symbol { name := "x" })) xval (by decide) h_no_consp
+            (evalOpt_var (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "x" } xval hxlook)]
+      rw [callBuiltin_consp]
+    -- (car x) → car xval
+    have hcar : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "car" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.car xval) := by
+      rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "car" }
+            (.atom (.symbol { name := "x" })) xval (by decide) h_no_car
+            (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "x" } xval hxlook)]
+      rw [callBuiltin_car]
+    -- (cdr x) → cdr xval
+    have hcdr : evalOpt (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+        = some (Logic.cdr xval) := by
+      rw [evalOpt_builtin_1 (g + 1) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "cdr" }
+            (.atom (.symbol { name := "x" })) xval (by decide) h_no_cdr
+            (evalOpt_var g w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "x" } xval hxlook)]
+      rw [callBuiltin_cdr]
+    -- (MY-APP (cdr x) y) → v' via IH
+    have happ : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval])
+        (.cons (.atom (.symbol { name := "my-app" }))
+          (.cons (.cons (.atom (.symbol { name := "cdr" }))
+                   (.cons (.atom (.symbol { name := "x" })) .nil))
+            (.cons (.atom (.symbol { name := "y" })) .nil)))
+        = some v' := by
+      rw [evalOpt_defn_2 (g + 2) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "my-app" }
+            (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+            (.atom (.symbol { name := "y" })) (Logic.cdr xval) yval x_sym y_sym my_appBody
+            (by decide) h_my_app hcdr
+            (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "y" } yval hylook)]
+      exact hrec (g + 2) (by omega)
+    unfold my_appBody
+    rw [evalOpt_if_true (g + 4) w (bindArgs [x_sym, y_sym] [xval, yval]) _ _ _
+          (Logic.consp xval) hc htrue]
+    rw [evalOpt_builtin_2 (g + 3) w (bindArgs [x_sym, y_sym] [xval, yval]) { name := "cons" }
+          _ _ (Logic.car xval) v' (by decide) h_no_cons hcar happ]
+    rfl
+
+/-! ## The generic proof (parameterized by world + definition hypotheses) -/
+
+/-- The main theorem, parameterized by a world and proofs that the
+    relevant definitions are present and builtins are not shadowed.
+    This is the "use definitions" branch of the proof tree. -/
+theorem my_len_my_app_generic
+    (w : World) (env : Env)
+    -- Definition hypotheses (from the "verify definitions" branch)
+    (h_my_app : w.defs[my_app_sym]? = some ([x_sym, y_sym], my_appBody))
+    (h_my_len : w.defs[my_len_sym]? = some ([x_sym], my_lenBody))
+    -- Builtin non-shadowing (builtins used in proof must not be in w.defs)
+    (h_no_equal : w.defs[({ name := "equal" } : Symbol)]? = none)
+    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none)
+    (h_no_plus  : w.defs[({ name := "binary-+" } : Symbol)]? = none)
+    (h_no_cdr   : w.defs[({ name := "cdr" } : Symbol)]? = none)
+    (h_no_car   : w.defs[({ name := "car" } : Symbol)]? = none)
+    (h_no_cons  : w.defs[({ name := "cons" } : Symbol)]? = none) :
+    ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t := by
+  -- The proof follows the ACL2 proof tree: induction on acl2Count of env(x),
+  -- then for each case, a chain of rewrites ending in equal-self.
+  --
+  -- Each rewrite establishes eval(lhs) = some v and eval(rhs) = some v
+  -- (both sides evaluate to the same value). Then T1 lifts this to the
+  -- enclosing formula, and T16 chains the steps.
+
+  -- First: what does env map x and y to?
+  -- We case-split on whether x is bound and extract its value.
+  -- If x is unbound, evalOpt returns nil for it, so consp(nil)=nil → base case.
+  have h_x : ∃ xv, ∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv := by
+    match hx : env.get? x_sym with
+    | some v => exact ⟨v, fun f => evalOpt_var f w env x_sym v hx⟩
+    | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w env x_sym hx (by decide)⟩
+  obtain ⟨xv, h_xv⟩ := h_x
+
+  have h_y : ∃ yv, ∀ f, evalOpt (f + 1) w env (.atom (.symbol y_sym)) = some yv := by
+    match hy : env.get? y_sym with
+    | some v => exact ⟨v, fun f => evalOpt_var f w env y_sym v hy⟩
+    | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w env y_sym hy (by decide)⟩
+  obtain ⟨yv, h_yv⟩ := h_y
+
+  -- Generalised induction predicate (T10): the formula holds in ANY env that
+  -- binds x to the induction value and y to yv. Quantifying over the env
+  -- (rather than fixing it) is what makes the step-case IH usable — the IH
+  -- gets applied at a DIFFERENT env (x ↦ cdr xv) than the goal's.
+  suffices key : ∀ xv, ∀ env : Env,
+      (∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv) →
+      (∀ f, evalOpt (f + 1) w env (.atom (.symbol y_sym)) = some yv) →
+      ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t from
+    key xv env h_xv h_yv
+  apply acl2_induction_consp (fun xv => ∀ env : Env,
+      (∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv) →
+      (∀ f, evalOpt (f + 1) w env (.atom (.symbol y_sym)) = some yv) →
+      ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t)
+
+  -- Base case: consp(xv) = nil
+  · intro xv h_consp env h_xv' h_yv'
+    -- Abbreviations for the SExpr subterms referenced by the proof tree
+    let my_app_xy := SExpr.cons (.atom (.symbol my_app_sym))
+          (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))
+    let y_var := SExpr.atom (.symbol y_sym)
+    let my_len_x := SExpr.cons (.atom (.symbol my_len_sym))
+          (.cons (.atom (.symbol x_sym)) .nil)
+    let quote_0 := SExpr.cons (.atom (.symbol { name := "quote" }))
+          (.cons (.atom (.number (.int 0))) .nil)
+    let my_len_y := SExpr.cons (.atom (.symbol my_len_sym))
+          (.cons y_var .nil)
+    let plus_0_len_y := SExpr.cons (.atom (.symbol { name := "binary-+" }))
+          (.cons quote_0 (.cons my_len_y .nil))
+    let rhs_term := SExpr.cons (.atom (.symbol { name := "binary-+" }))
+          (.cons my_len_x (.cons my_len_y .nil))
+
+    -- NODE 1 (definition:my-app): eval(MY-APP x y) = eval(y) in env
+    -- Both sides evaluate to yv. Proof: T4 unfolds my-app, T5 resolves
+    -- IF (consp=nil → else), T7 looks up y in bodyEnv → yv.
+    -- NODE 1 (definition:my-app): eval(MY-APP x y) = eval(y)
+    -- Proof: T4 + T5 + T6 + T7 composed. Both sides = some yv.
+    -- The composition is correct but fighting Lean's tactic mode on
+    -- fuel arithmetic and symbol name matching. These issues would not
+    -- exist in a proof-producing checker (which generates Expr directly).
+    have h_node1 : ∃ N, ∀ f ≥ N,
+        evalOpt f w env my_app_xy = evalOpt f w env y_var := by
+      refine ⟨5, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 5 := ⟨f - 5, by omega⟩
+      have hxlook : (bindArgs [x_sym, y_sym] [xv, yv]).get? { name := "x" } = some xv := by
+        simp [bindArgs, x_sym, y_sym, sym]
+      have hylook : (bindArgs [x_sym, y_sym] [xv, yv]).get? { name := "y" } = some yv := by
+        show (bindArgs [x_sym, y_sym] [xv, yv])[({ name := "y" } : Symbol)]? = some yv
+        simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+        rw [if_neg (by decide), if_pos (by decide)]
+      -- test (consp x) → nil in body env (x ↦ xv)
+      have hc : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv])
+          (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+          = some .nil := by
+        rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "consp" }
+              (.atom (.symbol { name := "x" })) xv (by decide) h_no_consp
+              (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "x" } xv hxlook)]
+        rw [callBuiltin_consp, h_consp]
+      -- LHS: (MY-APP x y) unfolds, takes else-branch → y → yv
+      have hlhs : evalOpt (g + 5) w env my_app_xy = some yv := by
+        show evalOpt (g + 5) w env (.cons (.atom (.symbol my_app_sym))
+          (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))) = _
+        rw [evalOpt_defn_2 (g + 4) w env my_app_sym (.atom (.symbol x_sym))
+              (.atom (.symbol y_sym)) xv yv x_sym y_sym my_appBody (by decide) h_my_app
+              (h_xv' (g + 3)) (h_yv' (g + 3))]
+        unfold my_appBody
+        rw [evalOpt_if_false (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv]) _ _ _ hc]
+        exact evalOpt_var (g + 2) w _ { name := "y" } yv hylook
+      have hrhs : evalOpt (g + 5) w env y_var = some yv := h_yv' (g + 4)
+      rw [hlhs, hrhs]
+
+    -- NODE 2 (definition:my-len): eval(MY-LEN x) = eval(QUOTE 0) in env
+    -- MY-LEN with consp(xv)=nil → body takes else-branch → 0
+    have h_node2 : ∃ N, ∀ f ≥ N,
+        evalOpt f w env my_len_x = evalOpt f w env quote_0 := by
+      refine ⟨5, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 5 := ⟨f - 5, by omega⟩
+      -- variable x looks up to xv in the body env (formal x_sym ↦ xv)
+      have hxlook : (bindArgs [x_sym] [xv]).get? { name := "x" } = some xv := by
+        simp [bindArgs, x_sym, sym]
+      -- the test (consp x) evaluates to nil in the body env (x ↦ xv)
+      have hc : evalOpt (g + 3) w (bindArgs [x_sym] [xv])
+          (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+          = some .nil := by
+        rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym] [xv]) { name := "consp" }
+              (.atom (.symbol { name := "x" })) xv (by decide) h_no_consp
+              (evalOpt_var (g + 1) w (bindArgs [x_sym] [xv]) { name := "x" } xv hxlook)]
+        rw [callBuiltin_consp, h_consp]
+      -- LHS: (MY-LEN x) unfolds, takes else-branch → (QUOTE 0) → 0
+      have hlhs : evalOpt (g + 5) w env my_len_x = some (.atom (.number (.int 0))) := by
+        show evalOpt (g + 5) w env (.cons (.atom (.symbol my_len_sym))
+          (.cons (.atom (.symbol x_sym)) .nil)) = _
+        rw [evalOpt_defn_1 (g + 4) w env my_len_sym (.atom (.symbol x_sym)) xv x_sym
+              my_lenBody (by decide) h_my_len (h_xv' (g + 3))]
+        unfold my_lenBody
+        rw [evalOpt_if_false (g + 3) w (bindArgs [x_sym] [xv]) _ _ _ hc]
+        exact evalOpt_quote (g + 2) w _ (.atom (.number (.int 0)))
+      have hrhs : evalOpt (g + 5) w env quote_0 = some (.atom (.number (.int 0))) :=
+        evalOpt_quote (g + 4) w env (.atom (.number (.int 0)))
+      rw [hlhs, hrhs]
+
+    -- (MY-LEN y) converges to an integer k (totality + type-prescription).
+    have h_conv : ∃ k : Int, ∃ N, ∀ f ≥ N,
+        evalOpt f w env my_len_y = some (.atom (.number (.int k))) := by
+      obtain ⟨k, Nb, hb⟩ := my_len_total w h_my_len h_no_consp h_no_cdr h_no_plus yv
+      refine ⟨k, Nb + 2, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
+      show evalOpt (g + 2) w env
+        (.cons (.atom (.symbol my_len_sym)) (.cons (.atom (.symbol y_sym)) .nil)) = _
+      rw [evalOpt_defn_1 (g + 1) w env my_len_sym (.atom (.symbol y_sym)) yv x_sym
+            my_lenBody (by decide) h_my_len (h_yv' g)]
+      exact hb (g + 1) (by omega)
+
+    -- NODE 3 (rewrite:unicity-of-0): eval(BINARY-+ '0 (MY-LEN y)) = eval(MY-LEN y)
+    -- (+ 0 k) = k via logic_plus_zero_left_int, using h_conv (MY-LEN y → int k).
+    have h_node3 : ∃ N, ∀ f ≥ N,
+        evalOpt f w env plus_0_len_y = evalOpt f w env my_len_y := by
+      obtain ⟨k, Nc, hc⟩ := h_conv
+      refine ⟨Nc + 2, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
+      have hlhs : evalOpt (g + 2) w env plus_0_len_y = some (.atom (.number (.int k))) := by
+        show evalOpt (g + 2) w env (.cons (.atom (.symbol { name := "binary-+" }))
+          (.cons quote_0 (.cons my_len_y .nil))) = _
+        rw [evalOpt_builtin_2 (g + 1) w env { name := "binary-+" } quote_0 my_len_y
+              (.atom (.number (.int 0))) (.atom (.number (.int k))) (by decide) h_no_plus
+              (evalOpt_quote g w env (.atom (.number (.int 0)))) (hc (g + 1) (by omega))]
+        rw [callBuiltin_plus, logic_plus_zero_left_int]
+      have hrhs : evalOpt (g + 2) w env my_len_y = some (.atom (.number (.int k))) :=
+        hc (g + 2) (by omega)
+      rw [hlhs, hrhs]
+
+    -- Lift each node fact through its evaluation context via one-step
+    -- argument congruence, then chain with fuel_chain_eq. No replaceSubterm,
+    -- no pcEq — the context is built explicitly here.
+    -- LHS: (MY-LEN (MY-APP x y)) ~ (MY-LEN y)
+    have hLHS := evalOpt_cong_unary w env { name := "my-len" } my_app_xy y_var
+      (by decide) (by decide) (by decide) (by decide) h_node1
+    -- RHS: (BINARY-+ (MY-LEN x)(MY-LEN y)) ~ (BINARY-+ '0 (MY-LEN y)) ~ (MY-LEN y)
+    have hII := evalOpt_cong_bin1 w env { name := "binary-+" } my_len_x quote_0 my_len_y
+      (by decide) (by decide) (by decide) (by decide) h_node2
+    have hRHS := fuel_chain_eq hII h_node3
+    -- Formula congruence in each EQUAL argument.
+    have hIII := evalOpt_cong_bin1 w env { name := "equal" }
+      (SExpr.cons (.atom (.symbol my_len_sym)) (.cons my_app_xy .nil)) my_len_y rhs_term
+      (by decide) (by decide) (by decide) (by decide) hLHS
+    have hIV := evalOpt_cong_bin2 w env { name := "equal" } my_len_y rhs_term my_len_y
+      (by decide) (by decide) (by decide) (by decide) hRHS
+    -- equal-self finish (needs (MY-LEN y) to converge).
+    have hV : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (SExpr.cons (.atom (.symbol { name := "equal" }))
+          (.cons my_len_y (.cons my_len_y .nil))) = some SExpr.t := by
+      obtain ⟨k, Nc, hc⟩ := h_conv
+      refine ⟨Nc + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      exact evalOpt_equal_self g w env my_len_y (.atom (.number (.int k))) (hc g (by omega)) h_no_equal
+    -- CHAIN: formula ~ (EQUAL (MY-LEN y) rhs) ~ (EQUAL (MY-LEN y)(MY-LEN y)) ~ some T
+    exact fuel_chain_eq (fuel_chain_eq hIII hIV) hV
+
+  -- Step case: consp(xv) ≠ nil, IH available at (cdr xv)
+  · intro xv h_consp ih env h_xv' h_yv'
+    -- Values from the totality lemmas (obtained once so the witnesses are shared).
+    obtain ⟨appv, Napp, happ⟩ :=
+      my_app_total w h_my_app h_no_consp h_no_cdr h_no_car h_no_cons yv (Logic.cdr xv)
+    obtain ⟨kr, Nr, hkr⟩ :=
+      my_len_total w h_my_len h_no_consp h_no_cdr h_no_plus appv
+    obtain ⟨kp, Np, hkp⟩ :=
+      my_len_total w h_my_len h_no_consp h_no_cdr h_no_plus (Logic.cdr xv)
+    obtain ⟨kq, Nq, hkq⟩ :=
+      my_len_total w h_my_len h_no_consp h_no_cdr h_no_plus yv
+    -- consp xv is truthy
+    have htrue : Logic.toBool (Logic.consp xv) = true := by
+      cases xv with
+      | cons a d => rfl
+      | nil => exact absurd rfl h_consp
+      | atom a => exact absurd rfl h_consp
+    -- Leaf evaluation facts (all in `env`, x ↦ xv, y ↦ yv).
+    have hxT : ∀ f ≥ 1, evalOpt f w env (.atom (.symbol x_sym)) = some xv := by
+      intro f hf; obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact h_xv' g
+    have hyT : ∀ f ≥ 1, evalOpt f w env (.atom (.symbol y_sym)) = some yv := by
+      intro f hf; obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact h_yv' g
+    have h_cdrX : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol x_sym)) .nil))
+          = some (Logic.cdr xv) := by
+      refine ⟨2, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
+      rw [evalOpt_builtin_1 (g + 1) w env { name := "cdr" } (.atom (.symbol x_sym)) xv
+            (by decide) h_no_cdr (h_xv' g)]
+      rw [callBuiltin_cdr]
+    -- my-len helper: MY-LEN of a term that converges to `val` is `my_len_total val`.
+    -- (MY-LEN (cdr x)) = int kp
+    have h_mlen_cdrx : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol { name := "my-len" }))
+          (.cons (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol x_sym)) .nil)) .nil))
+          = some (.atom (.number (.int kp))) := by
+      obtain ⟨Ncdr, hcdr⟩ := h_cdrX
+      refine ⟨max Ncdr Np + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rw [evalOpt_defn_1 g w env { name := "my-len" }
+            (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol x_sym)) .nil))
+            (Logic.cdr xv) x_sym my_lenBody (by decide) h_my_len (hcdr g (by omega))]
+      exact hkp g (by omega)
+    -- (MY-LEN y) = int kq
+    have h_mlen_y : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol { name := "my-len" }))
+          (.cons (.atom (.symbol y_sym)) .nil)) = some (.atom (.number (.int kq))) := by
+      refine ⟨max 1 Nq + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rw [evalOpt_defn_1 g w env { name := "my-len" } (.atom (.symbol y_sym)) yv x_sym
+            my_lenBody (by decide) h_my_len (hyT g (by omega))]
+      exact hkq g (by omega)
+    -- (MY-APP (cdr x) y) = appv
+    have h_mapp_cdrx : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol { name := "my-app" }))
+          (.cons (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol x_sym)) .nil))
+            (.cons (.atom (.symbol y_sym)) .nil))) = some appv := by
+      obtain ⟨Ncdr, hcdr⟩ := h_cdrX
+      refine ⟨max (max Ncdr 1) Napp + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rw [evalOpt_defn_2 g w env { name := "my-app" }
+            (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol x_sym)) .nil))
+            (.atom (.symbol y_sym)) (Logic.cdr xv) yv x_sym y_sym my_appBody
+            (by decide) h_my_app (hcdr g (by omega)) (hyT g (by omega))]
+      exact happ g (by omega)
+    -- (MY-LEN (MY-APP (cdr x) y)) = int kr
+    have h_mlen_mapp_cdrx : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol { name := "my-len" }))
+          (.cons (.cons (.atom (.symbol { name := "my-app" }))
+            (.cons (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol x_sym)) .nil))
+              (.cons (.atom (.symbol y_sym)) .nil))) .nil))
+          = some (.atom (.number (.int kr))) := by
+      obtain ⟨Nm, hm⟩ := h_mapp_cdrx
+      refine ⟨max Nm Nr + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rw [evalOpt_defn_1 g w env { name := "my-len" }
+            (.cons (.atom (.symbol { name := "my-app" }))
+              (.cons (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol x_sym)) .nil))
+                (.cons (.atom (.symbol y_sym)) .nil)))
+            appv x_sym my_lenBody (by decide) h_my_len (hm g (by omega))]
+      exact hkr g (by omega)
+    -- HELPER: MY-LEN of a term T that converges to a cons `cval` equals
+    -- 1 + (my-len of cdr cval). Replays the recursive `definition MY-LEN` step.
+    have mlen_of_cons : ∀ (T cval : SExpr) (kd : Int),
+        (∃ N, ∀ f ≥ N, evalOpt f w env T = some cval) →
+        Logic.consp cval ≠ SExpr.nil →
+        (∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [x_sym] [Logic.cdr cval]) my_lenBody
+          = some (.atom (.number (.int kd)))) →
+        ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol { name := "my-len" })) (.cons T .nil))
+          = some (.atom (.number (.int (1 + kd)))) := by
+      intro T cval kd hT hcons hkd
+      obtain ⟨NT, hT'⟩ := hT; obtain ⟨Nd, hd'⟩ := hkd
+      have htc : Logic.toBool (Logic.consp cval) = true := by
+        cases cval with
+        | cons a d => rfl
+        | nil => exact absurd rfl hcons
+        | atom a => exact absurd rfl hcons
+      have hlook : (bindArgs [x_sym] [cval]).get? { name := "x" } = some cval := by
+        show (bindArgs [x_sym] [cval])[({ name := "x" } : Symbol)]? = some cval
+        simp only [bindArgs, x_sym, sym, Std.HashMap.getElem?_insert]
+        rw [if_pos (by decide)]
+      refine ⟨max NT Nd + 6, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 6 := ⟨f - 6, by omega⟩
+      rw [evalOpt_defn_1 (g + 5) w env { name := "my-len" } T cval x_sym my_lenBody
+            (by decide) h_my_len (hT' (g + 5) (by omega))]
+      unfold my_lenBody
+      have hc : evalOpt (g + 4) w (bindArgs [x_sym] [cval])
+          (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+          = some (Logic.consp cval) := by
+        rw [evalOpt_builtin_1 (g + 3) w (bindArgs [x_sym] [cval]) { name := "consp" }
+              (.atom (.symbol { name := "x" })) cval (by decide) h_no_consp
+              (evalOpt_var (g + 2) w (bindArgs [x_sym] [cval]) { name := "x" } cval hlook)]
+        rw [callBuiltin_consp]
+      rw [evalOpt_if_true (g + 4) w (bindArgs [x_sym] [cval]) _ _ _ (Logic.consp cval) hc htc]
+      have hcdrx : evalOpt (g + 2) w (bindArgs [x_sym] [cval])
+          (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+          = some (Logic.cdr cval) := by
+        rw [evalOpt_builtin_1 (g + 1) w (bindArgs [x_sym] [cval]) { name := "cdr" }
+              (.atom (.symbol { name := "x" })) cval (by decide) h_no_cdr
+              (evalOpt_var g w (bindArgs [x_sym] [cval]) { name := "x" } cval hlook)]
+        rw [callBuiltin_cdr]
+      have hmlcdr : evalOpt (g + 3) w (bindArgs [x_sym] [cval])
+          (.cons (.atom (.symbol { name := "my-len" }))
+            (.cons (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil)) .nil))
+          = some (.atom (.number (.int kd))) := by
+        rw [evalOpt_defn_1 (g + 2) w (bindArgs [x_sym] [cval]) { name := "my-len" }
+              (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+              (Logic.cdr cval) x_sym my_lenBody (by decide) h_my_len hcdrx]
+        exact hd' (g + 2) (by omega)
+      have hone : evalOpt (g + 3) w (bindArgs [x_sym] [cval])
+          (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 1))) .nil))
+          = some (.atom (.number (.int 1))) := evalOpt_quote (g + 2) w _ (.atom (.number (.int 1)))
+      rw [evalOpt_builtin_2 (g + 3) w (bindArgs [x_sym] [cval]) { name := "binary-+" }
+            _ _ (.atom (.number (.int 1))) (.atom (.number (.int kd))) (by decide) h_no_plus hone hmlcdr]
+      rw [callBuiltin_plus, logic_plus_int]
+    -- (CAR x) → car xv
+    have h_carX : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol { name := "car" })) (.cons (.atom (.symbol x_sym)) .nil))
+          = some (Logic.car xv) := by
+      refine ⟨2, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
+      rw [evalOpt_builtin_1 (g + 1) w env { name := "car" } (.atom (.symbol x_sym)) xv
+            (by decide) h_no_car (h_xv' g)]
+      rw [callBuiltin_car]
+    -- (MY-APP x y) → cons(car xv) appv  (replays `definition MY-APP`, consp true)
+    have h_mapp_xy : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol { name := "my-app" }))
+          (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil)))
+          = some (.cons (Logic.car xv) appv) := by
+      have hlookx : (bindArgs [x_sym, y_sym] [xv, yv]).get? { name := "x" } = some xv := by
+        show (bindArgs [x_sym, y_sym] [xv, yv])[({ name := "x" } : Symbol)]? = some xv
+        simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+        rw [if_pos (by decide)]
+      have hlooky : (bindArgs [x_sym, y_sym] [xv, yv]).get? { name := "y" } = some yv := by
+        show (bindArgs [x_sym, y_sym] [xv, yv])[({ name := "y" } : Symbol)]? = some yv
+        simp only [bindArgs, x_sym, y_sym, sym, Std.HashMap.getElem?_insert]
+        rw [if_neg (by decide), if_pos (by decide)]
+      obtain ⟨Ncdr, hcdr⟩ := h_cdrX
+      refine ⟨max Ncdr Napp + 6, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 6 := ⟨f - 6, by omega⟩
+      rw [evalOpt_defn_2 (g + 5) w env { name := "my-app" } (.atom (.symbol x_sym))
+            (.atom (.symbol y_sym)) xv yv x_sym y_sym my_appBody (by decide) h_my_app
+            (hxT (g + 5) (by omega)) (hyT (g + 5) (by omega))]
+      unfold my_appBody
+      have hc : evalOpt (g + 4) w (bindArgs [x_sym, y_sym] [xv, yv])
+          (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+          = some (Logic.consp xv) := by
+        rw [evalOpt_builtin_1 (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "consp" }
+              (.atom (.symbol { name := "x" })) xv (by decide) h_no_consp
+              (evalOpt_var (g + 2) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "x" } xv hlookx)]
+        rw [callBuiltin_consp]
+      rw [evalOpt_if_true (g + 4) w (bindArgs [x_sym, y_sym] [xv, yv]) _ _ _ (Logic.consp xv) hc htrue]
+      -- then-branch: CONS (CAR x) (MY-APP (CDR x) y)
+      have hcar : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv])
+          (.cons (.atom (.symbol { name := "car" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+          = some (Logic.car xv) := by
+        rw [evalOpt_builtin_1 (g + 2) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "car" }
+              (.atom (.symbol { name := "x" })) xv (by decide) h_no_car
+              (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "x" } xv hlookx)]
+        rw [callBuiltin_car]
+      have hcdrb : evalOpt (g + 2) w (bindArgs [x_sym, y_sym] [xv, yv])
+          (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+          = some (Logic.cdr xv) := by
+        rw [evalOpt_builtin_1 (g + 1) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "cdr" }
+              (.atom (.symbol { name := "x" })) xv (by decide) h_no_cdr
+              (evalOpt_var g w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "x" } xv hlookx)]
+        rw [callBuiltin_cdr]
+      have happ2 : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv])
+          (.cons (.atom (.symbol { name := "my-app" }))
+            (.cons (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+              (.cons (.atom (.symbol { name := "y" })) .nil)))
+          = some appv := by
+        rw [evalOpt_defn_2 (g + 2) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "my-app" }
+              (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+              (.atom (.symbol { name := "y" })) (Logic.cdr xv) yv x_sym y_sym my_appBody
+              (by decide) h_my_app hcdrb
+              (evalOpt_var (g + 1) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "y" } yv hlooky)]
+        exact happ (g + 2) (by omega)
+      rw [evalOpt_builtin_2 (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv]) { name := "cons" }
+            _ _ (Logic.car xv) appv (by decide) h_no_cons hcar happ2]
+      rfl
+    -- EV_LHS: (MY-LEN (MY-APP x y)) = int (1 + kr)
+    have EV_LHS : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol { name := "my-len" }))
+          (.cons (.cons (.atom (.symbol { name := "my-app" }))
+            (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))) .nil))
+          = some (.atom (.number (.int (1 + kr)))) :=
+      mlen_of_cons _ (.cons (Logic.car xv) appv) kr h_mapp_xy (by rw [consp_cons]; decide) ⟨Nr, hkr⟩
+    -- h_mlen_x: (MY-LEN x) = int (1 + kp)
+    have h_mlen_x : ∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol { name := "my-len" })) (.cons (.atom (.symbol x_sym)) .nil))
+          = some (.atom (.number (.int (1 + kp)))) :=
+      mlen_of_cons _ xv kp ⟨1, hxT⟩ h_consp ⟨Np, hkp⟩
+    -- IH NODE: instantiate ih at E' = bindArgs[x↦cdr xv, y↦yv]; the two sides of
+    -- the IH formula evaluate to int kr and int (kp+kq); EQUAL=T forces kr = kp+kq.
+    let E' := bindArgs [x_sym, y_sym] [Logic.cdr xv, yv]
+    have hlx : E'.get? x_sym = some (Logic.cdr xv) := by
+      show (bindArgs [x_sym, y_sym] [Logic.cdr xv, yv])[x_sym]? = some (Logic.cdr xv)
+      simp only [bindArgs, Std.HashMap.getElem?_insert]; rw [if_pos (by decide)]
+    have hly : E'.get? y_sym = some yv := by
+      show (bindArgs [x_sym, y_sym] [Logic.cdr xv, yv])[y_sym]? = some yv
+      simp only [bindArgs, Std.HashMap.getElem?_insert]
+      rw [if_neg (by decide), if_pos (by decide)]
+    have hx_E : ∀ f, evalOpt (f + 1) w E' (.atom (.symbol x_sym)) = some (Logic.cdr xv) :=
+      fun f => evalOpt_var f w E' x_sym (Logic.cdr xv) hlx
+    have hy_E : ∀ f, evalOpt (f + 1) w E' (.atom (.symbol y_sym)) = some yv :=
+      fun f => evalOpt_var f w E' y_sym yv hly
+    obtain ⟨Nih, hih⟩ := ih E' hx_E hy_E
+    -- eval E' (MY-LEN (MY-APP x y)) = int kr
+    have hA' : ∃ N, ∀ f ≥ N, evalOpt f w E' (.cons (.atom (.symbol { name := "my-len" }))
+        (.cons (.cons (.atom (.symbol { name := "my-app" }))
+          (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))) .nil))
+        = some (.atom (.number (.int kr))) := by
+      have hmapp : ∃ N, ∀ f ≥ N, evalOpt f w E' (.cons (.atom (.symbol { name := "my-app" }))
+          (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))) = some appv := by
+        refine ⟨max 1 Napp + 2, fun f hf => ?_⟩
+        obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
+        rw [evalOpt_defn_2 (g + 1) w E' { name := "my-app" } (.atom (.symbol x_sym))
+              (.atom (.symbol y_sym)) (Logic.cdr xv) yv x_sym y_sym my_appBody (by decide) h_my_app
+              (hx_E g) (hy_E g)]
+        exact happ (g + 1) (by omega)
+      obtain ⟨Nm, hm⟩ := hmapp
+      refine ⟨max Nm Nr + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rw [evalOpt_defn_1 g w E' { name := "my-len" } (.cons (.atom (.symbol { name := "my-app" }))
+            (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil)))
+            appv x_sym my_lenBody (by decide) h_my_len (hm g (by omega))]
+      exact hkr g (by omega)
+    -- eval E' (BINARY-+ (MY-LEN x) (MY-LEN y)) = int (kp + kq)
+    have hB' : ∃ N, ∀ f ≥ N, evalOpt f w E' (.cons (.atom (.symbol { name := "binary-+" }))
+        (.cons (.cons (.atom (.symbol { name := "my-len" })) (.cons (.atom (.symbol x_sym)) .nil))
+          (.cons (.cons (.atom (.symbol { name := "my-len" })) (.cons (.atom (.symbol y_sym)) .nil)) .nil)))
+        = some (.atom (.number (.int (kp + kq)))) := by
+      have hmlx : ∃ N, ∀ f ≥ N, evalOpt f w E' (.cons (.atom (.symbol { name := "my-len" }))
+          (.cons (.atom (.symbol x_sym)) .nil)) = some (.atom (.number (.int kp))) := by
+        refine ⟨max 1 Np + 2, fun f hf => ?_⟩
+        obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
+        rw [evalOpt_defn_1 (g + 1) w E' { name := "my-len" } (.atom (.symbol x_sym)) (Logic.cdr xv) x_sym
+              my_lenBody (by decide) h_my_len (hx_E g)]
+        exact hkp (g + 1) (by omega)
+      have hmly : ∃ N, ∀ f ≥ N, evalOpt f w E' (.cons (.atom (.symbol { name := "my-len" }))
+          (.cons (.atom (.symbol y_sym)) .nil)) = some (.atom (.number (.int kq))) := by
+        refine ⟨max 1 Nq + 2, fun f hf => ?_⟩
+        obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
+        rw [evalOpt_defn_1 (g + 1) w E' { name := "my-len" } (.atom (.symbol y_sym)) yv x_sym
+              my_lenBody (by decide) h_my_len (hy_E g)]
+        exact hkq (g + 1) (by omega)
+      obtain ⟨Nx, hx⟩ := hmlx; obtain ⟨Ny, hy⟩ := hmly
+      refine ⟨max Nx Ny + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rw [evalOpt_builtin_2 g w E' { name := "binary-+" } _ _ (.atom (.number (.int kp)))
+            (.atom (.number (.int kq))) (by decide) h_no_plus (hx g (by omega)) (hy g (by omega))]
+      rw [callBuiltin_plus, logic_plus_int]
+    -- EQUAL = T forces the two values equal: kr = kp + kq
+    have h_kr : kr = kp + kq := by
+      obtain ⟨NA, hA⟩ := hA'; obtain ⟨NB, hB⟩ := hB'
+      have key := eval_equal_t_implies_eq (max (max NA NB) Nih) w E' _ _
+        (.atom (.number (.int kr))) (.atom (.number (.int (kp + kq))))
+        (hA _ (by omega)) (hB _ (by omega)) h_no_equal (hih _ (by omega))
+      injection key with key; injection key with key; injection key
+    -- EV_RHS: (BINARY-+ (MY-LEN x) (MY-LEN y)) = int (1 + kr).
+    -- ACL2 reaches this via COMMUTATIVITY-OF-+ / COMMUTATIVITY-2-OF-+ on terms;
+    -- here the rearrangement is integer arithmetic over the established values.
+    have EV_RHS : ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" }))
+        (.cons (.cons (.atom (.symbol { name := "my-len" })) (.cons (.atom (.symbol x_sym)) .nil))
+          (.cons (.cons (.atom (.symbol { name := "my-len" })) (.cons (.atom (.symbol y_sym)) .nil)) .nil)))
+        = some (.atom (.number (.int (1 + kr)))) := by
+      obtain ⟨Nx, hx⟩ := h_mlen_x; obtain ⟨Ny, hy⟩ := h_mlen_y
+      refine ⟨max Nx Ny + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rw [evalOpt_builtin_2 g w env { name := "binary-+" } _ _ (.atom (.number (.int (1 + kp))))
+            (.atom (.number (.int kq))) (by decide) h_no_plus (hx g (by omega)) (hy g (by omega))]
+      rw [callBuiltin_plus, logic_plus_int]
+      have : (1 + kp) + kq = 1 + kr := by omega
+      rw [this]
+    -- FINISH: both sides of the EQUAL evaluate to int (1 + kr) → EQUAL = T.
+    obtain ⟨Nl, hl⟩ := EV_LHS; obtain ⟨Nr', hr⟩ := EV_RHS
+    refine ⟨max Nl Nr' + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    show evalOpt (g + 1) w env (.cons (.atom (.symbol { name := "equal" }))
+      (.cons (.cons (.atom (.symbol { name := "my-len" }))
+              (.cons (.cons (.atom (.symbol { name := "my-app" }))
+                      (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))) .nil))
+        (.cons (.cons (.atom (.symbol { name := "binary-+" }))
+                (.cons (.cons (.atom (.symbol { name := "my-len" })) (.cons (.atom (.symbol x_sym)) .nil))
+                  (.cons (.cons (.atom (.symbol { name := "my-len" })) (.cons (.atom (.symbol y_sym)) .nil)) .nil)))
+          .nil))) = some SExpr.t
+    rw [evalOpt_builtin_2 g w env { name := "equal" } _ _ (.atom (.number (.int (1 + kr))))
+          (.atom (.number (.int (1 + kr)))) (by decide) h_no_equal (hl g (by omega)) (hr g (by omega))]
+    rw [callBuiltin_equal, logic_equal_self]
+
+/-! ## The concrete instantiation (definition verification branch) -/
+
+/-- Prove the definition hypotheses for the concrete world.
+    This is the "verify definitions" branch of the proof tree —
+    it establishes that the HashMap contains what we expect. -/
+-- Definition verification branch: prove HashMap lookup facts.
+-- Pattern: rw [getElem?_insert] peels off one insert, simp resolves key comparison.
+
+-- Definition verification: prove HashMap lookup facts.
+-- Pattern: unfold world, rw [getElem?_insert], simp to resolve key comparisons.
+
+theorem world_has_my_app :
+    world.defs[my_app_sym]? = some ([x_sym, y_sym], my_appBody) := by
+  unfold world
+  rw [Std.HashMap.getElem?_insert]
+  simp [my_app_sym, x_sym, y_sym, sym]
+
+theorem world_has_my_len :
+    world.defs[my_len_sym]? = some ([x_sym], my_lenBody) := by
+  unfold world
+  rw [Std.HashMap.getElem?_insert]; simp [my_len_sym, sym]
+  simp [x_sym, sym]
+
+theorem world_no_equal :
+    world.defs[({ name := "equal" } : Symbol)]? = none := by
+  unfold world
+  rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+theorem world_no_consp :
+    world.defs[({ name := "consp" } : Symbol)]? = none := by
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+theorem world_no_plus :
+    world.defs[({ name := "binary-+" } : Symbol)]? = none := by
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+theorem world_no_cdr :
+    world.defs[({ name := "cdr" } : Symbol)]? = none := by
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+theorem world_no_car :
+    world.defs[({ name := "car" } : Symbol)]? = none := by
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+theorem world_no_cons :
+    world.defs[({ name := "cons" } : Symbol)]? = none := by
+  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+
+/-- The final theorem: combines the definition verification branch
+    (sorry-free HashMap lookups) with the proof replay branch.
+    Both induction cases are fully proved — this is a complete, sorry-free,
+    kernel-checked replay of ACL2's proof of my-len-my-app. -/
+theorem my_len_my_app (env : Env) :
+    ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t :=
+  my_len_my_app_generic world env
+    world_has_my_app world_has_my_len world_no_equal world_no_consp
+    world_no_plus world_no_cdr world_no_car world_no_cons
+
+end ACL2.Worlds.Simple

@@ -1,14 +1,13 @@
 name = "ACL2Lean"
 version = "0.1.0"
-defaultTargets = ["acl2lean"]
+defaultTargets = ["acl2lean", "Tests"]
 
 [[lean_lib]]
 name = "ACL2Lean"
 
+[[lean_lib]]
+name = "Tests"
+
 [[lean_exe]]
 name = "acl2lean"
 root = "Main"
-
-[[lean_exe]]
-name = "test_dsl"
-root = "test_dsl"

@@ -1,7 +1,6 @@
 import Lean
 import ACL2Lean.DSL.SyntaxCategories
 import ACL2Lean.Logic
-import ACL2Lean.Tactics
 
 open Lean Elab Command Term Meta
 
@@ -73,6 +72,14 @@ def mapBuiltinStx (s : String) : Ident :=
     | "logxor" => `_root_.ACL2.Logic.logxor
     | "lognot" => `_root_.ACL2.Logic.lognot
     | "ash" => `_root_.ACL2.Logic.ash
+    | "append" => `_root_.ACL2.Logic.append
+    | "len" => `_root_.ACL2.Logic.len
+    | "true-listp" => `_root_.ACL2.Logic.trueListp
+    | "iff" => `_root_.ACL2.Logic.iff
+    | "force" => `_root_.ACL2.Logic.force
+    | "double-rewrite" => `_root_.ACL2.Logic.double_rewrite
+    | "evens" => `_root_.ACL2.Logic.evens
+    | "odds" => `_root_.ACL2.Logic.odds
     | s' => sanitize s'
   mkIdent name
 
@@ -102,7 +109,7 @@ partial def translateSExprValue (stx : Syntax) : MacroM (TSyntax `term) := do
        let nStx := Lean.quote n
        return (← `(_root_.ACL2.SExpr.atom (_root_.ACL2.Atom.number (_root_.ACL2.Number.int (Int.ofNat $nStx)))))
     else if name != "" && !name.contains '(' && !name.contains ')' && !name.contains ' ' then
-      if name == "t" then return (← `(_root_.ACL2.SExpr.atom (_root_.ACL2.Atom.bool true)))
+      if name == "t" then return (← `(_root_.ACL2.SExpr.t))
       else if name == "nil" then return (← `(_root_.ACL2.SExpr.nil))
       else if name == "_" || name == "?" then return (← `(_))
       else
@@ -120,7 +127,7 @@ partial def translateSExprValue (stx : Syntax) : MacroM (TSyntax `term) := do
 
 /-- Detect built-ins to avoid collecting them as variables. -/
 def isBuiltin (s : String) : Bool :=
-  ["+", "-", "*", "/", "<", ">", "=", "<=", ">=", "if", "zp", "evenp", "equal", "consp", "atom", "car", "cdr", "cons", "not", "and", "or", "implies", "t", "nil", "quote", "let", "declare", "stringp", "string-append", "logand", "logor", "logxor", "lognot", "ash"].contains s
+  ["+", "-", "*", "/", "<", ">", "=", "<=", ">=", "if", "zp", "evenp", "equal", "consp", "atom", "car", "cdr", "cons", "not", "and", "or", "implies", "t", "nil", "quote", "let", "declare", "stringp", "string-append", "logand", "logor", "logxor", "lognot", "ash", "append", "len", "true-listp", "iff", "force", "double-rewrite", "evens", "odds"].contains s
 
 /-- Collect free variables. -/
 partial def collectFreeVars (stx : Syntax) : MacroM (List Ident) := do
@@ -161,7 +168,7 @@ partial def translateSExpr (stx : Syntax) : MacroM (TSyntax `term) := do
        let nStx := Lean.quote n
        return (← `(_root_.ACL2.SExpr.atom (_root_.ACL2.Atom.number (ACL2.Number.int (Int.ofNat $nStx)))))
     else if name != "" && !name.contains '(' && !name.contains ')' && !name.contains ' ' then
-      if name == "t" then return (← `(_root_.ACL2.SExpr.atom (_root_.ACL2.Atom.bool true)))
+      if name == "t" then return (← `(_root_.ACL2.SExpr.t))
       else if name == "nil" then return (← `(_root_.ACL2.SExpr.nil))
       else if name == "_" || name == "?" then return (← `(_))
       else return mkIdent (sanitize name)
@@ -297,7 +304,7 @@ def elabAclEvent : CommandElab := fun stx => do
           elabCommand cmd
         else
           let cmd ← `(set_option maxHeartbeats 1000000 in theorem $nameId $[$binders]* : _root_.ACL2.Logic.toBool $prop' = true := by
-            first | acl2_grind | sorry)
+            sorry)
           elabCommand cmd
     | `(acl2_event| (defconst $id:acl2_id $val:acl2_sexpr)) =>
         let nameId := mkIdent (sanitize (getLeafVal id.raw |>.trimAscii.toString))

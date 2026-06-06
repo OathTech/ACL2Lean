@@ -16,12 +16,9 @@ def unexpandSExprAtom : Unexpander := fun stx =>
   | `($_ $a) => pure a
   | _ => throw ()
 
-@[app_unexpander Atom.bool]
-def unexpandAtomBool : Unexpander := fun stx =>
-  match stx with
-  | `($_ true) => `(t)
-  | `($_ false) => `(nil)
-  | _ => throw ()
+@[app_unexpander SExpr.t]
+def unexpandSExprT : Unexpander := fun _ =>
+  `(t)
 
 @[app_unexpander Atom.number]
 def unexpandAtomNumber : Unexpander := fun stx =>

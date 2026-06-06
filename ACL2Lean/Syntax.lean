@@ -12,13 +12,30 @@ structure Symbol where
   name : String
   deriving DecidableEq, BEq, Hashable, Inhabited
 
+-- LawfulBEq for Symbol: derived BEq agrees with derived DecidableEq.
+-- Needed for Std.HashMap.getElem?_insert lemma.
+-- We override the derived BEq with one that uses DecidableEq directly.
+instance : BEq Symbol where
+  beq a b := decide (a = b)
+
+instance : LawfulBEq Symbol where
+  eq_of_beq h := of_decide_eq_true h
+  rfl := decide_eq_true rfl
+
 namespace Symbol
 
 @[inline] def normalizedName (s : Symbol) : String :=
   s.name.map Char.toLower
 
+/-- Compare a symbol's name against a target string.
+    The symbol's name is already lowercased by the parser. The target
+    `name` must also be lowercase for the comparison to work. We use
+    direct string comparison which is kernel-reducible (unlike
+    String.map Char.toLower which goes through @[irreducible]
+    String.mapAux and blocks kernel reduction in proofs).
+    All call sites in the codebase use lowercase target strings. -/
 @[inline] def isNamed (s : Symbol) (name : String) : Bool :=
-  s.normalizedName = name.map Char.toLower
+  s.name == name
 
 end Symbol
 
@@ -46,7 +63,6 @@ inductive Atom
   | symbol (value : Symbol)
   | keyword (value : Keyword)
   | string (value : String)
-  | bool (value : Bool)
   | number (value : Number)
   deriving DecidableEq
 
@@ -55,8 +71,6 @@ instance : Repr Atom where
     | .symbol s => repr s
     | .keyword k => ":" ++ k
     | .string s => repr s
-    | .bool true => "T"
-    | .bool false => "NIL"
     | .number n => repr n
 
 /-- Minimal s-expression structure to model ACL2 source. -/
@@ -65,6 +79,9 @@ inductive SExpr
   | atom (a : Atom)
   | cons (car : SExpr) (cdr : SExpr)
   deriving DecidableEq, Inhabited
+
+/-- ACL2 `t` — the canonical truthy value. -/
+abbrev SExpr.t : SExpr := .atom (.symbol { name := "t" })
 
 namespace SExpr
 
@@ -148,8 +165,9 @@ namespace TheoremOption
 def fromSExprs : List SExpr → List TheoremOption
   | .atom (.keyword key) :: value :: rest =>
       { key := normalizeKey key, value } :: fromSExprs rest
-  | _ :: rest => fromSExprs rest
   | [] => []
+  | [.atom (.keyword key)] => panic! s!"keyword without value in theorem options: :{key}"
+  | item :: _ => panic! s!"expected keyword in theorem options, got: {repr item}"
 
 def findValue? (options : List TheoremOption) (key : Keyword) : Option SExpr :=
   let key := normalizeKey key
@@ -471,7 +489,7 @@ private partial def unwrapGeneratedEventExpr (expr : SExpr) : SExpr :=
         expr
   | _ => expr
 
-/-- Quick best-effort to stratify an ACL2 event from its raw syntax. -/
+/-- Classify an ACL2 event from its raw syntax. Panics on malformed or unrecognized forms. -/
 partial def classify (sexpr : SExpr) : Event :=
   match sexpr with
   | .cons (.atom (.symbol sym)) rest =>
@@ -480,104 +498,109 @@ partial def classify (sexpr : SExpr) : Event :=
           match rest.toList? with
           | some [SExpr.atom (.string pkg)] => .inPackage pkg
           | some [SExpr.atom (.symbol pkg)] => .inPackage pkg.name
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed in-package: {repr sexpr}"
       | "include-book" =>
           match rest.toList? with
           | some (SExpr.atom (.string path) :: tail) =>
-              let dirs := tail.map fun
-                | SExpr.atom (.keyword kw) => kw
-                | _ => ""
+              -- include-book tail is keyword-value pairs; extract just the keywords
+              let dirs := tail.filterMap fun
+                | SExpr.atom (.keyword kw) => some kw
+                | _ => none
               .includeBook path dirs
           | some (SExpr.atom (.symbol path) :: tail) =>
-              let dirs := tail.map fun
-                | SExpr.atom (.keyword kw) => kw
-                | _ => ""
+              let dirs := tail.filterMap fun
+                | SExpr.atom (.keyword kw) => some kw
+                | _ => none
               .includeBook path.name dirs
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed include-book: {repr sexpr}"
       | "defun" =>
           match rest.toList? with
           | some (SExpr.atom (.symbol name) :: params :: rest) =>
               let fmls :=
                 match params.toList? with
                 | some lst =>
-                    lst.filterMap
+                    lst.map
                       (fun
-                        | SExpr.atom (.symbol s) => some s
-                        | _ => none)
-                | none => []
+                        | SExpr.atom (.symbol s) => s
+                        | other => panic! s!"non-symbol formal in defun: {repr other}")
+                | none => panic! s!"non-list formals in defun: {repr params}"
               let (doc, decls, bodyExpr) := parseDefunBody none [] rest
               .defun name fmls doc decls bodyExpr
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed defun: {repr sexpr}"
       | "defthm" =>
           match rest.toList? with
           | some (SExpr.atom (.symbol name) :: body :: options) =>
               .defthm name { body, options := TheoremOption.fromSExprs options }
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed defthm: {repr sexpr}"
       | "defmacro" =>
           match rest.toList? with
           | some (SExpr.atom (.symbol name) :: params :: rest) =>
               let fmls :=
                 match params.toList? with
                 | some lst =>
-                    lst.filterMap
+                    lst.map
                       (fun
-                        | SExpr.atom (.symbol s) => some s
-                        | _ => none)
-                | none => []
+                        | SExpr.atom (.symbol s) => s
+                        | other => panic! s!"non-symbol formal in defmacro: {repr other}")
+                | none => panic! s!"non-list formals in defmacro: {repr params}"
               let (doc, decls, bodyExpr) := parseDefunBody none [] rest
               .defmacro name fmls doc decls bodyExpr
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed defmacro: {repr sexpr}"
       | "local" =>
           match rest.toList? with
           | some [inner] => .local (classify inner)
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed local: {repr sexpr}"
       | "with-output" =>
           match rest.toList? with
           | some args =>
               match args.reverse with
               | inner :: _ => classify inner
-              | [] => .skip sexpr
-          | _ => .skip sexpr
+              | [] => panic! s!"empty with-output: {repr sexpr}"
+          | _ => panic! s!"malformed with-output: {repr sexpr}"
       | "in-theory" =>
           match rest.toList? with
           | some [expr] => .inTheory expr
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed in-theory: {repr sexpr}"
       | "mutual-recursion" =>
           match rest.toList? with
           | some lst => .mutualRecursion (lst.map classify)
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed mutual-recursion: {repr sexpr}"
       | "encapsulate" =>
           match rest.toList? with
           | some (_ :: events) => .encapsulate (events.map classify)
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed encapsulate: {repr sexpr}"
       | "make-event" => .makeEvent rest
       | "defrec" =>
           match rest.toList? with
           | some (SExpr.atom (.symbol name) :: params :: _) =>
               let fmls := match params.toList? with
-                | some lst => lst.filterMap (fun | SExpr.atom (.symbol s) => some s | _ => none)
-                | none => []
+                | some lst => lst.map (fun | SExpr.atom (.symbol s) => s
+                                           | other => panic! s!"non-symbol field in defrec: {repr other}")
+                | none => panic! s!"non-list fields in defrec: {repr params}"
               .defrec name fmls
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed defrec: {repr sexpr}"
       | "defconst" =>
           match rest.toList? with
           | some [SExpr.atom (.symbol name), val] => .defconst name val
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed defconst: {repr sexpr}"
       | "defstobj" =>
           match rest.toList? with
           | some (SExpr.atom (.symbol name) :: fields) => .defstobj name fields
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed defstobj: {repr sexpr}"
       | "table" =>
           match rest.toList? with
           | some (SExpr.atom (.symbol name) :: args) => .table name args
-          | _ => .skip sexpr
-      | "program" =>
-          match rest with
-          | .nil => .skip sexpr
-          | _ => .skip sexpr
+          | _ => panic! s!"malformed table: {repr sexpr}"
+      -- Known no-ops: explicitly listed ACL2 forms we intentionally skip
+      | "program" => .skip sexpr
       | "set-verify-guards-eagerness" => .skip sexpr
-      | _ => .skip sexpr
-  | _ => .skip sexpr
+      | "defequiv" => .skip sexpr
+      | "defcong" => .skip sexpr
+      | "comp" => .skip sexpr
+      | "verify-guards" => .skip sexpr
+      | "verify-termination" => .skip sexpr
+      | other => panic! s!"unrecognized ACL2 event: {other} in {repr sexpr}"
+  | _ => panic! s!"expected event form (cons), got: {repr sexpr}"
 
 /-- Recover statically visible nested events from a `make-event`. -/
 def generatedEvents (body : SExpr) : List Event :=
@@ -650,10 +673,17 @@ partial def step (w : World) (event : Event) : World :=
 /-- Replay a script of events. -/
 def empty : World := { package := {}, defs := {}, macros := {} }
 
-/-- Replay a script of events. -/
+/-- Replay a script of events starting from an empty world. -/
 def replay (events : List Event) : World :=
   events.foldl step empty
 
+/-- Replay events extending an existing world. -/
+def extend (w : World) (events : List Event) : World :=
+  events.foldl step w
+
 end World
+
+/-- Environment maps variable symbols to their values. -/
+abbrev Env := Std.HashMap Symbol SExpr
 
 end ACL2
