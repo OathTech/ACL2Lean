@@ -1116,6 +1116,99 @@ def proveDefinitionNode (ctx : ProofCtx) (fnName : String) (lhs rhs : SExpr)
   -- Wrap into ∃ N, ∀ f ≥ N, eval (fn args) = eval rhs.
   mkFuelEqExist ctx lhsFuel lhs rhs vVal hLHS' hRHS'
 
+/-! ## Rewrite node handler -/
+
+/-- rewrite node: apply a STRUCTURAL built-in ACL2 rewrite rule, dispatched by
+    the rune name. Currently implements the two structural cons accessors:
+
+      `cdr-cons`: `(cdr (cons A B)) → B`
+      `car-cons`: `(car (cons A B)) → A`
+
+    for ANY subterms `A`, `B` (the handler matches the rule's general shape, not
+    a specific instance). Produces `∃ N, ∀ f ≥ N, eval lhs = eval rhs`.
+
+    Mechanism (mirrors `proveRecognizerNode`): the call's argument is the
+    `(cons A B)` form. `proveConverges` evaluates it to `some (.cons va vb)`
+    (it handles the cons structural case), then `evalOpt_builtin_1` for the
+    accessor symbol gives `eval (accessor (cons A B)) = some (callBuiltin
+    "cdr"/"car" [.cons va vb])`, which is defeq to `some vb`/`some va` via
+    `Logic.cdr`/`Logic.car` (`logic_cdr_cons`/`logic_car_cons`). The rule's RHS
+    (`B` for cdr, `A` for car) also converges to that same value; the two
+    `= some V` proofs are combined and wrapped with `mkFuelEqExist`.
+
+    Hard-fails (throwError, "(frontier)") on: an unknown rune name (arithmetic
+    rules and user DEFTHM rules are a later step), an lhs not matching the
+    rule's `(accessor (cons A B))` shape, or an rhs not matching the expected
+    side. NEVER papers over a mismatch with a default. -/
+def proveRewriteNode (ctx : ProofCtx) (runeName : String) (lhs rhs : SExpr)
+    (_children : List ProofNode) : MetaM Expr := do
+  -- Dispatch by rune name to the accessor symbol ("cdr"/"car") and the side of
+  -- the cons that the rule selects (true ⇒ B / cdr-side, false ⇒ A / car-side).
+  let (accessorName, takeCdr) ← match runeName with
+    | "cdr-cons" => pure ("cdr", true)
+    | "car-cons" => pure ("car", false)
+    | other => throwError "rewrite: rune '{other}' not a supported \
+        structural rule (cdr-cons/car-cons) (frontier)"
+  -- Parse lhs as `(accessor consArg)` with head symbol = accessorName.
+  let (accSym, consArg) ← match lhs with
+    | .cons (.atom (.symbol s)) (.cons a .nil) => pure (s, a)
+    | _ => throwError "rewrite {runeName}: lhs is not a 1-arg accessor call: \
+        {repr lhs} (frontier)"
+  unless accSym.isNamed accessorName do
+    throwError "rewrite {runeName}: lhs head {repr accSym} is not '{accessorName}' \
+      (frontier)"
+  -- consArg must be a `(cons A B)` form; capture A, B.
+  let (aTerm, bTerm) ← match consArg with
+    | .cons (.atom (.symbol c)) (.cons aTerm (.cons bTerm .nil)) =>
+      if c.isNamed "cons" then pure (aTerm, bTerm)
+      else throwError "rewrite {runeName}: argument is not a (cons A B) form: \
+        {repr consArg} (frontier)"
+    | _ => throwError "rewrite {runeName}: argument is not a (cons A B) form: \
+        {repr consArg} (frontier)"
+  -- rhs must be the selected side of the cons.
+  let expectedRhs := if takeCdr then bTerm else aTerm
+  unless rhs == expectedRhs do
+    throwError "rewrite {runeName}: rhs {repr rhs} ≠ expected \
+      {if takeCdr then "B" else "A"} = {repr expectedRhs} (frontier)"
+  -- Converge the (cons A B) argument: eval (fc+1) (cons A B) = some (.cons va vb).
+  let fc := convergeFuel consArg
+  let (consVal, hConsEval) ← proveConverges ctx fc consArg
+  -- `consVal` is the literal `SExpr.cons va vb`; extract the selected component.
+  -- (proveConverges' cons case returns `mkApp2 SExpr.cons v1 v2`.)
+  let va := consVal.appFn!.appArg!
+  let vb := consVal.appArg!
+  let selVal := if takeCdr then vb else va
+  -- eval (fc+2) (accessor (cons A B)) = some (callBuiltin accessorName [consVal]).
+  let hNotSpecial ← proveNotSpecial accSym
+  let hNoDef ← proveWorldLookupNone ctx accSym
+  let hAccRaw := mkAppN (Lean.mkConst ``evalOpt_builtin_1)
+    #[mkNatLit (fc + 1), ctx.worldExpr, ctx.envExpr,
+      reflectSymbol accSym, reflectSExpr consArg, consVal,
+      hNotSpecial, hNoDef, hConsEval]
+  -- `some (callBuiltin "cdr"/"car" [.cons va vb])` is defeq to `some selVal`
+  -- (via Logic.cdr/Logic.car on a literal cons); retype the proof.
+  let someSel := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) selVal
+  let lhsEvalTy ← mkAppM ``Eq
+    #[mkAppN (Lean.mkConst ``evalOpt)
+        #[mkNatLit (fc + 2), ctx.worldExpr, ctx.envExpr, reflectSExpr lhs], someSel]
+  let hA ← mkExpectedTypeHint hAccRaw lhsEvalTy
+  -- RHS: eval (fc+2) w env rhs = some selVal (both sides converge to selVal).
+  let fr := convergeFuel rhs
+  let (vRhs, hRhsRaw) ← proveConverges ctx fr rhs
+  -- Bump the rhs proof from fuel (fr+1) to fuel (fc+2) via evalOpt_ge_fuel.
+  unless fr + 1 ≤ fc + 2 do
+    throwError "rewrite {runeName}: rhs needs more fuel than the lhs allots (frontier)"
+  let hRhsBumped := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+    #[mkNatLit (fr + 1), mkNatLit (fc + 2), ctx.worldExpr, ctx.envExpr,
+      reflectSExpr rhs, vRhs, hRhsRaw, ← mkGeProof (fc + 2) (fr + 1)]
+  -- Retype the bumped rhs proof so its value Expr is `selVal` (defeq).
+  let rhsEvalTy ← mkAppM ``Eq
+    #[mkAppN (Lean.mkConst ``evalOpt)
+        #[mkNatLit (fc + 2), ctx.worldExpr, ctx.envExpr, reflectSExpr rhs], someSel]
+  let hB ← mkExpectedTypeHint hRhsBumped rhsEvalTy
+  -- Wrap: ∃ N, ∀ f ≥ N, eval lhs = eval rhs.
+  mkFuelEqExist ctx (fc + 2) lhs rhs selVal hA hB
+
 /-! ## Driver -/
 
 /-- Prove a single proof node. Returns an existential fuel proof:
@@ -1131,6 +1224,7 @@ partial def proveNode (ctx : ProofCtx) (node : ProofNode) : MetaM Expr := do
     | "equal-self" => proveEqualSelfNode ctx lhs rhs
     | "fake-rune-for-anonymous-enabled-rule" => proveRecognizerNode ctx lhs rhs
     | "definition" => proveDefinitionNode ctx runeName lhs rhs children
+    | "rewrite" => proveRewriteNode ctx runeName lhs rhs children
     | other => throwError "proveNode: rune type '{other}' not yet implemented"
 
 /-- Does `a` occur as a subterm of `term`? -/

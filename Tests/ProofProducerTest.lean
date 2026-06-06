@@ -494,6 +494,77 @@ elab "#test_equal_self_on_recursive_call" : command => do
 
 #test_equal_self_on_recursive_call
 
+-- rewrite (structural): (CDR (CONS X Y)) → Y, no context facts.
+-- The handler converges (CONS X Y) to (.cons xv yv), applies cdr via
+-- evalOpt_builtin_1, and matches the rhs Y to the cdr-side.
+elab "#test_rewrite_cdr_cons" : command => do
+  Elab.Command.liftTermElabM do
+    let emptyEnv ← mkEmptyEnv
+    let ctx : ProofCtx := {
+      worldExpr := Lean.mkConst ``World.empty
+      world := World.empty
+      envExpr := emptyEnv
+      worldUnfoldNames := #[``World.empty]
+    }
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let y : SExpr := .atom (.symbol { name := "y" })
+    let cons_x_y : SExpr := .cons (.atom (.symbol { name := "cons" }))
+      (.cons x (.cons y .nil))
+    let cdr_cons : SExpr := .cons (.atom (.symbol { name := "cdr" }))
+      (.cons cons_x_y .nil)
+    let node : ProofNode :=
+      .node ("rewrite", "cdr-cons") cdr_cons y []
+    let proof ← proveNode ctx node
+    let _ ← check proof
+    logInfo m!"rewrite cdr-cons OK: {← inferType proof}"
+
+#test_rewrite_cdr_cons
+
+-- rewrite (structural): (CAR (CONS X Y)) → X.
+elab "#test_rewrite_car_cons" : command => do
+  Elab.Command.liftTermElabM do
+    let emptyEnv ← mkEmptyEnv
+    let ctx : ProofCtx := {
+      worldExpr := Lean.mkConst ``World.empty
+      world := World.empty
+      envExpr := emptyEnv
+      worldUnfoldNames := #[``World.empty]
+    }
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let y : SExpr := .atom (.symbol { name := "y" })
+    let cons_x_y : SExpr := .cons (.atom (.symbol { name := "cons" }))
+      (.cons x (.cons y .nil))
+    let car_cons : SExpr := .cons (.atom (.symbol { name := "car" }))
+      (.cons cons_x_y .nil)
+    let node : ProofNode :=
+      .node ("rewrite", "car-cons") car_cons x []
+    let proof ← proveNode ctx node
+    let _ ← check proof
+    logInfo m!"rewrite car-cons OK: {← inferType proof}"
+
+#test_rewrite_car_cons
+
+-- Frontier hard-fail check: an unsupported rewrite rune (here `unicity-of-0`,
+-- an arithmetic rule) must be rejected — no sorry, no default fallback.
+elab "#test_rewrite_frontier" : command => do
+  Elab.Command.liftTermElabM do
+    let emptyEnv ← mkEmptyEnv
+    let ctx : ProofCtx := {
+      worldExpr := Lean.mkConst ``World.empty
+      world := World.empty
+      envExpr := emptyEnv
+      worldUnfoldNames := #[``World.empty]
+    }
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let node : ProofNode :=
+      .node ("rewrite", "unicity-of-0") x x []
+    let ok ← (do let _ ← proveNode ctx node; pure true) <|> pure false
+    if ok then
+      throwError "proveRewriteNode should have hard-failed on unsupported rune"
+    logInfo m!"rewrite correctly hard-failed at the frontier (unsupported rune)."
+
+#test_rewrite_frontier
+
 end MetaMTests
 
 end ACL2.Replay.ProofProducer
