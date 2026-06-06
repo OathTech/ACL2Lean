@@ -331,7 +331,7 @@ theorem logic_plus_comm (a b : SExpr) : Logic.plus a b = Logic.plus b a := by
   · omega
   · exact Nat.mul_comm _ _
 
-/-- T8: Commutativity-2 of plus: (+ x (+ y z)) = (+ y (+ x z)). -/
+/-- ⚠ UNPROVEN (`sorry`). T8: Commutativity-2 of plus: (+ x (+ y z)) = (+ y (+ x z)). -/
 theorem logic_plus_comm2 (a b c : SExpr) :
     Logic.plus a (Logic.plus b c) = Logic.plus b (Logic.plus a c) := by
   -- Follows from commutativity + associativity of rational arithmetic
@@ -342,7 +342,7 @@ theorem logic_plus_comm2 (a b c : SExpr) :
 @[simp] theorem callBuiltin_fix_number (n : Number) :
     callBuiltin "fix" [.atom (.number n)] = .atom (.number n) := by rfl
 
-/-- T8: plus 0 x = fix x (unicity-of-0 at value level). -/
+/-- ⚠ UNPROVEN (`sorry`). T8: plus 0 x = fix x (unicity-of-0 at value level). -/
 theorem logic_plus_zero_left (v : SExpr) :
     Logic.plus (.atom (.number (.int 0))) v = callBuiltin "fix" [v] := by
   -- Follows from toRat/mkNumber: plus(0, v) normalizes the same as fix(v).
@@ -566,13 +566,14 @@ theorem pcEqG_mapM {f g : SExpr → Option SExpr}
       exact pcEqG_bind h_head (fun vx _ =>
         pcEqG_bind h_tail (fun vs _ => by simp [pcEqG]))
 
-/-- T1 core: contextual equivalence.
-    If a and b are pcEq at all fuel levels, then C[a] and C[b] are
-    pcEq at all fuel levels, for any evaluation context C.
+/-- ⚠ UNPROVEN (`sorry`, incl. quote/let/list-index sub-cases). THE LINCHPIN —
+    every chained replay proof funnels through this; nothing on the replay path is
+    sorry-free until it is discharged. T1 core: contextual equivalence — if a and b
+    are pcEq at all fuel levels, then C[a] and C[b] are pcEq at all fuel levels, for
+    any evaluation context C.
 
-    Proof by induction on the context. Each constructor is one
-    evalOptStep layer. The thin-context lemma handles each layer.
-    Fuel is universally quantified, not inducted on. -/
+    INTENDED proof: induction on the context, each constructor one evalOptStep
+    layer, fuel universally quantified (not inducted on). NOT done. -/
 theorem evalOpt_ctx_pcEq (w : World) (env : Env)
     (a b : SExpr)
     (h_eq : ∀ f, pcEq (evalOpt f w env a) (evalOpt f w env b))
@@ -649,7 +650,7 @@ theorem evalOpt_ctx_pcEq (w : World) (env : Env)
               intro argVals _
               exact pcEqG_refl' _
 
-/-- T1 bridge: replaceSubterm corresponds to some evaluation context.
+/-- ⚠ UNPROVEN (`sorry`). T1 bridge: replaceSubterm corresponds to some evaluation context.
     If replaceSubterm finds `a` in `term`, there exists a context C
     such that term = C[a] and replaceSubterm term a b = C[b]. -/
 theorem replaceSubterm_ctx (term a b : SExpr)
@@ -671,7 +672,8 @@ theorem evalOpt_replace_pcEq (w : World) (env : Env)
     intro f; rw [h_repl, h_orig]
     exact pcEq_symm (evalOpt_ctx_pcEq w env a b h_eq ctx f)
 
-/-- T1 (existential version, used in proof chains). Derived from pcEq version. -/
+/-- ⚠ UNPROVEN (`sorry`). T1 (existential version, used in proof chains);
+    intended to derive from the pcEq version. -/
 theorem evalOpt_replace_congr (w : World) (env : Env)
     (term a b : SExpr)
     (h_eq : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :

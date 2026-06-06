@@ -1,14 +1,19 @@
 /-
   Proof checker for ACL2 proof trees.
 
-  Walks the parsed proof tree and verifies each node is a valid
-  reasoning step under the ACL2 evaluation semantics. This is a
-  proof-guided rewriter: it unfolds definitions, applies substitutions,
-  follows IF branches, and matches rewrite rules, all directed by the
-  proof tree structure.
+  ⚠ NOT KERNEL-CHECKED — heuristic Boolean only. `checkTheoremProof` returns a
+  `Bool` and constructs NO Lean proof term; there is NO soundness theorem linking
+  `checkTheoremProof = true` to `evalOpt`/the mirror theorem. So a green result
+  (including the CLI's `check-proof ✓`) certifies NOTHING in the kernel — it is a
+  Lean *program asserting true*. It also contains accept-on-gap fallbacks (see
+  `checkAnonymousRule`) that return `true` on incomplete verification, violating
+  the project's hard-fail rule. Treat this as a debugging oracle, not evidence of
+  a sound import; the kernel-checked proof producer (`Replay/ProofProducer.lean`)
+  is meant to supersede it.
 
-  Each per-rule check is a separate function, designed to be later
-  replaced by a proof-producing version that constructs Lean proof terms.
+  Walks the parsed proof tree and (heuristically) checks each node as a reasoning
+  step under the ACL2 evaluation semantics: unfolds definitions, applies
+  substitutions, follows IF branches, matches rewrite rules — directed by the tree.
 -/
 import ACL2Lean.Syntax
 import ACL2Lean.ProofLog
@@ -531,17 +536,19 @@ def checkAnonymousRule (ctx : CheckerContext) (node : ProofNode) : Bool :=
                           acc ||| leafTs.toInt64) (0 : Int64)
                         leafUnion == tpProof.basicTs.toInt64
                   | none =>
-                    -- No body available (built-in) — accept if bits check passes
+                    -- ⚠ KNOWN-UNSOUND (accept-on-gap): no body available
+                    -- (built-in) — accepts WITHOUT verifying. Violates the
+                    -- hard-fail rule; must be fixed or removed.
                     true
               | none =>
-                -- No TP proof for this function. For built-in functions
-                -- (like CONSP, ATOM), accept if the bits check passes —
-                -- these have well-known type-sets.
+                -- ⚠ KNOWN-UNSOUND (accept-on-gap): no TP proof for this
+                -- function — accepts WITHOUT verifying (assumes a well-known
+                -- built-in type-set). Violates hard-fail; fix or remove.
                 -- TODO: register built-in TP proofs.
                 true
             | none =>
-              -- Can't extract head function from argument — accept if
-              -- bits check passes (could be a variable or complex term).
+              -- ⚠ KNOWN-UNSOUND (accept-on-gap): can't extract head function —
+              -- accepts WITHOUT verifying. Violates hard-fail; fix or remove.
               true
         | _, _ =>
           dbg_trace s!"ProofChecker: anonymous rule not verified (no type-set data): {lhs} => {rhs}"

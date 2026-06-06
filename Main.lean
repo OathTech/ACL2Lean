@@ -198,10 +198,13 @@ def main (args : List String) : IO Unit := do
           let tpProofs := ACL2.ProofChecker.buildTypePrescriptionMap log
           let proofs := ACL2.buildAllTheoremProofs log
           IO.println s!"Checking {logPath} ({proofs.length} theorems, {formulas.size} formulas)"
+          IO.println "  ⚠ HEURISTIC Boolean checker — NOT kernel-verified. A ✓ here certifies"
+          IO.println "    NOTHING in the Lean kernel (no proof term, no soundness theorem)."
           let mut passed := 0
           let mut failed := 0
           for proof in proofs do
             if proof.cases.isEmpty then
+              -- ⚠ counts a case-less theorem as passed WITHOUT any check.
               passed := passed + 1
             else
               let ctx : ACL2.ProofChecker.CheckerContext := {

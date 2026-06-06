@@ -1,3 +1,26 @@
+/-
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ REFERENCE ONLY — NOT TRUSTED, NOT BUILT, NOT A PIPELINE REPLAY.          │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  This file is parked outside the `ACL2Lean` library on purpose: it is NOT
+  compiled, NOT imported, and NOT part of any trusted result.
+
+  It proves call-count bounds about a HAND-WRITTEN Lean function (`clog2`/`flog2`,
+  using Lean's own recursion) — it does NOT go through the pipeline: no `World`,
+  no `evalOpt`, no reconstructed proof tree. So it is a *direct Lean restatement*
+  of an ACL2 theorem, NOT a replay of ACL2's proof, and is NOT evidence that the
+  import pipeline works. Per CLAUDE.md ("mirror the tree; never shortcut to the
+  goal"), it is exactly the kind of shortcut the project does not accept as an
+  import.
+
+  Kept only as a worked example of the *native-Lean target* shape that the
+  eventual native-theorem bridge (see CLAUDE.md "End goal") would one day derive
+  FROM a real mirror theorem. The real pipeline target for this theorem is the
+  ACL2 source `acl2_samples/2009-log2.lisp` (replay that, don't reuse this).
+
+  Do not cite, import, or build on this file. (It will not compile as-is.)
+-/
 import ACL2Lean.Logic
 
 open ACL2 ACL2.Logic

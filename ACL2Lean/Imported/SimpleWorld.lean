@@ -68,9 +68,14 @@ private theorem consp_not_special :
 
 /-! ## The generic proof (parameterized by world + definition hypotheses) -/
 
-/-- The main theorem, parameterized by a world and proofs that the
-    relevant definitions are present and builtins are not shadowed.
-    This is the "use definitions" branch of the proof tree. -/
+/-- ⚠ BROKEN / UNPROVEN — every node is `sorry` (the base-case nodes AND the
+    entire step case). This is the intended faithful node-by-node skeleton (the
+    right SHAPE), but NONE of it is proved. Do not rely on it or on anything that
+    consumes it. Fix only with real, proof-tree-reflecting proofs — never by
+    weakening the statement.
+
+    Parameterized by a world and proofs that the relevant definitions are present
+    and builtins are not shadowed (the "use definitions" branch of the tree). -/
 theorem my_len_my_app_generic
     (w : World) (env : Env)
     -- Definition hypotheses (from the "verify definitions" branch)
@@ -239,8 +244,10 @@ theorem world_no_cons :
     world.defs[({ name := "cons" } : Symbol)]? = none := by
   unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
 
-/-- The final theorem: combines the definition verification branch
-    with the proof replay branch. Zero sorry in this theorem. -/
+/-- ⚠ NOT PROVEN. This theorem has no literal `sorry`, but it is *defined as*
+    `my_len_my_app_generic …`, whose body is entirely `sorry` — so
+    `#print axioms my_len_my_app` reports `sorryAx`. It is NOT a working import
+    and must never be cited as evidence that the pipeline works. -/
 theorem my_len_my_app (env : Env) :
     ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t :=
   my_len_my_app_generic world env

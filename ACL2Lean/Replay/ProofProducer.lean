@@ -1,15 +1,25 @@
 /-
-  Proof-producing checker for ACL2 proof trees.
+  Proof-producing checker for ACL2 proof trees (stage 7 — the eventual
+  `acl2_replay` tactic).
 
-  Walks the parsed proof tree and constructs Lean proof terms (Expr)
-  for each node. Mirrors the Bool checker (ProofChecker.lean) but
-  returns proofs instead of booleans.
+  ⚠ WIP / NOT WIRED IN / CANNOT REPLAY A REAL TREE YET. Status (2026-06):
+  - Orphaned: imported by NOTHING (not in `ACL2Lean.lean`, not in `Main`, not in
+    `Tests`); exercised only by in-file `#eval`/`example` tests on synthetic
+    ground terms over the empty world. Discharges ZERO real nodes of any
+    `.proof-log`.
+  - `proveNode` covers only `equal-self` / `if-simplification` /
+    `executable-counterpart` and `throwError`s on `definition` / `recognizer` /
+    `rewrite` / `rewriting-equivalence` — i.e. the rune types that actually
+    dominate real trees (e.g. `simple.proof-log`) are unhandled.
+  - Its chain path goes through `evalOpt_replace_congr_fwd` → `evalOpt_ctx_pcEq`
+    (T1), which is `sorry` — so any multi-node proof it builds contains `sorryAx`.
+  This is the intended real (kernel-checked) path and is SAVABLE, but it is not
+  functional today. Do not treat anything it returns as a real proof.
 
-  Architecture:
-  - Reflection layer: SExpr → Lean Expr
-  - Side condition provers: decide (symbol checks), simp (HashMap lookups)
-  - Node provers: one per rune type, applies the corresponding EvalLemma
-  - Composition: T1 (congruence) + T16 (chain) compose node proofs
+  Walks the parsed proof tree and constructs Lean proof terms (Expr) for each
+  node. Architecture: reflection (SExpr → Expr); side-condition provers (decide /
+  simp); per-rune node provers (apply the corresponding EvalLemma); composition
+  via T1 (congruence) + T16 (chain).
 -/
 import ACL2Lean.Replay.EvalLemmas
 import ACL2Lean.ProofTree
