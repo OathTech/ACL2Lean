@@ -38,6 +38,12 @@ structure ProofCtx where
       back to `evalOpt_symbol_converges` (a fresh abstract value per call,
       fine for context-free nodes like equal-self). No hardcoded names. -/
   vars : List (Symbol × Expr × Expr) := []
+  /-- Per-case fact PROOFS available to discharge frontier obligations. Each
+      entry is a proof term whose type is some equation the node needs (e.g. a
+      proof of `Logic.consp xv = SExpr.nil` established by the clause context).
+      Searched by `findFact` (defeq up to the target type). Empty ⇒ only
+      context-free justifications (structural facts) are available. -/
+  facts : List Expr := []
 
 /-! ## Reflection: SExpr → Lean Expr -/
 
@@ -134,6 +140,17 @@ def proveWorldLookupNone (ctx : ProofCtx) (s : Symbol) : MetaM Expr := do
   let noneExpr := mkApp (Lean.mkConst ``Option.none [0]) lookupType.appArg!
   proveBySimp (mkApp3 (Lean.mkConst ``Eq [1]) lookupType lookupExpr noneExpr)
     (unfoldNames := ctx.worldUnfoldNames)
+
+/-- Search `ctx.facts` for a proof whose inferred type is defeq to
+    `targetType`. Returns the proof term if found, else `none`. Used by the
+    recognizer handler to discharge a `callBuiltin RECOG [argVal] = c`
+    obligation from a clause-context fact. -/
+def findFact (ctx : ProofCtx) (targetType : Expr) : MetaM (Option Expr) := do
+  for fact in ctx.facts do
+    let factType ← inferType fact
+    if ← isDefEq factType targetType then
+      return some fact
+  return none
 
 
 /-! ## Node provers -/
@@ -325,6 +342,7 @@ partial def proveNode (ctx : ProofCtx) (node : ProofNode) : MetaM Expr := do
   | .node (runeType, _runeName) lhs rhs _children _prov =>
     match runeType with
     | "equal-self" => proveEqualSelfNode ctx lhs rhs
+    | "fake-rune-for-anonymous-enabled-rule" => proveRecognizerNode ctx lhs rhs
     | other => throwError "proveNode: rune type '{other}' not yet implemented"
 where
   /-- Prove symbolic convergence of a term: ∃ v, evalOpt (f+1) w env term = some v.
@@ -358,6 +376,39 @@ where
         return (reflectSExpr v, proof)
       else
         throwError "proveConverges: unsupported term {repr term}"
+    | .cons (.atom (.symbol c)) (.cons a1 (.cons a2 .nil)) =>
+      -- General 2-arg builtin call. The only structural value we can name
+      -- without a context fact is CONS: `(cons a1 a2)` evaluates to the cons
+      -- of the argument values. `callBuiltin "cons" [v1,v2]` is defeq to
+      -- `.cons v1 v2`, so we expose the literal cons as the value Expr.
+      if c.isNamed "cons" then
+        -- Args evaluate at fuel `g = f-1`; the call lands at fuel `g+1 = f+1`.
+        -- Requires `f ≥ 1` (the argument values must converge first).
+        let g ← match f with
+          | 0 => throwError "proveConverges: (cons ..) needs fuel ≥ 1"
+          | g + 1 => pure g
+        let (v1, h1) ← proveConverges ctx g a1
+        let (v2, h2) ← proveConverges ctx g a2
+        -- evalOpt_builtin_2: eval (f+1) (cons a1 a2)
+        --   = some (callBuiltin "cons" [v1, v2])
+        let hNotSpecial ← proveNotSpecial c
+        let hNoDef ← proveWorldLookupNone ctx c
+        let hRaw := mkAppN (Lean.mkConst ``evalOpt_builtin_2)
+          #[mkNatLit f, ctx.worldExpr, ctx.envExpr,
+            reflectSymbol c, reflectSExpr a1, reflectSExpr a2, v1, v2,
+            hNotSpecial, hNoDef, h1, h2]
+        -- `some (callBuiltin "cons" [v1,v2])` is defeq to `some (.cons v1 v2)`;
+        -- retype the proof so the named value is the literal cons.
+        let consVal := mkApp2 (Lean.mkConst ``SExpr.cons) v1 v2
+        let someConsVal := mkApp2 (Lean.mkConst ``Option.some [0])
+          (Lean.mkConst ``SExpr) consVal
+        let lhsEval := mkAppN (Lean.mkConst ``evalOpt)
+          #[mkNatLit (f + 1), ctx.worldExpr, ctx.envExpr, reflectSExpr term]
+        let targetTy ← mkAppM ``Eq #[lhsEval, someConsVal]
+        let hEval ← mkExpectedTypeHint hRaw targetTy
+        return (consVal, hEval)
+      else
+        throwError "proveConverges: unsupported term {repr term}"
     | _ =>
       throwError "proveConverges: unsupported term {repr term}"
 
@@ -379,6 +430,95 @@ where
     let hB ← proveQuoteEval ctx 1 SExpr.t
     -- Wrap: ∃ N, ∀ f ≥ N, eval(EQUAL X X) = eval(QUOTE T)
     mkFuelEqExist ctx 2 lhs rhs SExpr.t hA hB
+
+  /-- Minimum fuel `f` such that `proveConverges ctx f term` succeeds: the
+      nesting depth of evaluated calls (leaves need fuel 0 ⇒ `eval (f+1)`;
+      each `(cons ..)` layer needs one more). General over term shape. -/
+  convergeFuel (term : SExpr) : Nat :=
+    match term with
+    | .cons (.atom (.symbol _)) (.cons a1 (.cons a2 .nil)) =>
+      1 + max (convergeFuel a1) (convergeFuel a2)
+    | _ => 0
+
+  /-- Parse a quoted constant `(QUOTE c)` into `c`; fail otherwise. -/
+  parseQuotedConst (e : SExpr) : MetaM SExpr := do
+    match e with
+    | .cons (.atom (.symbol q)) (.cons c .nil) =>
+      if q.isNamed "quote" then pure c
+      else throwError "recognizer: RHS is not a quoted constant: {repr e}"
+    | _ => throwError "recognizer: RHS is not a quoted constant: {repr e}"
+
+  /-- recognizer node: `(RECOG arg) → 'c` (c = NIL or T).
+      Meaning: `eval(RECOG arg) = eval('c)`. General over the recognizer
+      builtin and the argument. Justification of `callBuiltin RECOG [argVal] = c`
+      comes from (a) a structural fact (consp of a CONS form) or (b) a clause
+      context fact in `ctx.facts`; otherwise hard-fail at the frontier. -/
+  proveRecognizerNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
+    -- Parse `(RECOG arg)`.
+    let (recogSym, arg) ← match lhs with
+      | .cons (.atom (.symbol s)) (.cons arg .nil) => pure (s, arg)
+      | _ => throwError "recognizer: LHS is not a 1-arg call: {repr lhs}"
+    -- Parse the quoted result constant.
+    let c ← parseQuotedConst rhs
+    let cExpr := reflectSExpr c
+    -- Evaluate the argument symbolically (fuel sized to its call nesting).
+    let fa := convergeFuel arg
+    let (argVal, hArgEval) ← proveConverges ctx fa arg
+    -- eval (fa+2) (RECOG arg) = some (callBuiltin recogSym.name [argVal]).
+    -- `proveBuiltin1` reflects its `av : SExpr`, but `argVal` is already a value
+    -- Expr (possibly opaque), so build the `evalOpt_builtin_1` application
+    -- directly to pass the Expr value.
+    let hNotSpecial ← proveNotSpecial recogSym
+    let hNoDef ← proveWorldLookupNone ctx recogSym
+    let hRecog := mkAppN (Lean.mkConst ``evalOpt_builtin_1)
+      #[mkNatLit (fa + 1), ctx.worldExpr, ctx.envExpr,
+        reflectSymbol recogSym, reflectSExpr arg, argVal,
+        hNotSpecial, hNoDef, hArgEval]
+    -- Build the obligation `callBuiltin recogSym.name [argVal] = c`.
+    let callExpr ← mkAppM ``callBuiltin
+      #[mkStrLit recogSym.name, ← mkListLitSExpr [argVal]]
+    let hCall ← proveCallEqConst ctx recogSym arg callExpr cExpr c
+    -- some (callBuiltin ..) = some c, then eval (RECOG arg) = some c.
+    let hSomeEq ← mkAppM ``congrArg
+      #[mkApp (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr), hCall]
+    let hA ← mkAppM ``Eq.trans #[hRecog, hSomeEq]
+    -- eval ('c) = some c.
+    let hB ← proveQuoteEval ctx (fa + 1) c
+    -- Wrap: ∃ N, ∀ f ≥ N, eval(RECOG arg) = eval('c).
+    mkFuelEqExist ctx (fa + 2) lhs rhs c hA hB
+
+  /-- Build a `List SExpr` Lean Expr literal from value Exprs. -/
+  mkListLitSExpr (vs : List Expr) : MetaM Expr := do
+    let mut acc := mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``SExpr)
+    for v in vs.reverse do
+      acc := mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``SExpr) v acc
+    return acc
+
+  /-- Prove `callBuiltin recogSym.name [argVal] = c`.
+      (a) Structural: `arg` is a CONS form and the call is `consp` of a cons
+          value ⇒ reduces by defeq (`callBuiltin_consp`/`consp_cons`) to `T`
+          (a general fact, no context needed).
+      (b) Context fact: a proof in `ctx.facts` whose type is defeq to the
+          equation. A fact stated at the `Logic.*` level (e.g.
+          `Logic.consp argVal = nil`) is defeq to the `callBuiltin` form and is
+          accepted by `findFact` directly.
+      Otherwise hard-fail at the frontier. -/
+  proveCallEqConst (ctx : ProofCtx) (recogSym : Symbol) (arg : SExpr)
+      (callExpr cExpr : Expr) (c : SExpr) : MetaM Expr := do
+    let targetTy ← mkAppM ``Eq #[callExpr, cExpr]
+    -- (a) Structural: consp of a syntactic CONS form, result T. `callExpr`
+    -- (`callBuiltin "consp" [.cons v1 v2]`) is defeq to `SExpr.t`, so a defeq
+    -- retype of `rfl` discharges the equation.
+    let isConsForm := match arg with
+      | .cons (.atom (.symbol cs)) (.cons _ (.cons _ .nil)) => cs.isNamed "cons"
+      | _ => false
+    if recogSym.isNamed "consp" && isConsForm && c == SExpr.t then
+      let pf ← mkAppM ``Eq.refl #[cExpr]
+      return ← mkExpectedTypeHint pf targetTy
+    -- (b) Context fact (callBuiltin- or Logic-level, matched up to defeq).
+    match ← findFact ctx targetTy with
+    | some pf => return pf
+    | none => throwError "recognizer: no justification for {repr arg} → {repr c}"
 
 /-- Does `a` occur as a subterm of `term`? -/
 partial def occursIn (a term : SExpr) : Bool :=
@@ -765,6 +905,74 @@ elab "#test_lift_congr_subterm" : command => do
     logInfo m!"liftCongr OK: rewrote to {repr newTerm}\n  {← inferType stepProof}"
 
 #test_lift_congr_subterm
+
+-- Recognizer (structural): (CONSP (CONS X Y)) → 'T, no context facts.
+-- The handler discharges the call via the general consp-of-cons fact.
+elab "#test_recognizer_structural" : command => do
+  Elab.Command.liftTermElabM do
+    let emptyEnv ← mkEmptyEnv
+    let ctx : ProofCtx := {
+      worldExpr := Lean.mkConst ``World.empty
+      world := World.empty
+      envExpr := emptyEnv
+      worldUnfoldNames := #[``World.empty]
+    }
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let y : SExpr := .atom (.symbol { name := "y" })
+    let cons_x_y : SExpr := .cons (.atom (.symbol { name := "cons" }))
+      (.cons x (.cons y .nil))
+    let consp_cons_xy : SExpr := .cons (.atom (.symbol { name := "consp" }))
+      (.cons cons_x_y .nil)
+    let quote_t : SExpr := .cons (.atom (.symbol { name := "quote" }))
+      (.cons SExpr.t .nil)
+    let node : ProofNode :=
+      .node ("fake-rune-for-anonymous-enabled-rule", "NIL") consp_cons_xy quote_t []
+    let proof ← proveNode ctx node
+    let _ ← check proof
+    logInfo m!"recognizer structural OK: {← inferType proof}"
+
+#test_recognizer_structural
+
+-- Recognizer (context fact): (CONSP X) → 'NIL where X is a variable.
+-- ctx carries the shared value of X (= nil, via evalOpt_var_unbound) and a
+-- fact proof `Logic.consp nil = nil`. The handler matches the fact (defeq to
+-- the callBuiltin-level equation) to discharge the call.
+elab "#test_recognizer_context_fact" : command => do
+  Elab.Command.liftTermElabM do
+    let emptyEnv ← mkEmptyEnv
+    let xSym : Symbol := { name := "x" }
+    -- Shared value of X: nil. Convergence proof: ∀ f, evalOpt (f+1) ... = some nil.
+    let convProof ← Term.elabTerm
+      (← `(fun (f : Nat) => evalOpt_var_unbound f World.empty {} { name := "x" }
+            (by simp) (by decide))) none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let convProof ← instantiateMVars convProof
+    let nilVal := reflectSExpr SExpr.nil
+    -- Fact: Logic.consp nil = nil (defeq to callBuiltin "consp" [nil] = nil).
+    let factProof ← Term.elabTerm
+      (← `((by decide : Logic.consp SExpr.nil = SExpr.nil))) none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let factProof ← instantiateMVars factProof
+    let ctx : ProofCtx := {
+      worldExpr := Lean.mkConst ``World.empty
+      world := World.empty
+      envExpr := emptyEnv
+      worldUnfoldNames := #[``World.empty]
+      vars := [(xSym, nilVal, convProof)]
+      facts := [factProof]
+    }
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let consp_x : SExpr := .cons (.atom (.symbol { name := "consp" }))
+      (.cons x .nil)
+    let quote_nil : SExpr := .cons (.atom (.symbol { name := "quote" }))
+      (.cons SExpr.nil .nil)
+    let node : ProofNode :=
+      .node ("fake-rune-for-anonymous-enabled-rule", "NIL") consp_x quote_nil []
+    let proof ← proveNode ctx node
+    let _ ← check proof
+    logInfo m!"recognizer context-fact OK: {← inferType proof}"
+
+#test_recognizer_context_fact
 
 end MetaMTests
 
