@@ -5,6 +5,24 @@
   for each node. Mirrors the Bool checker (ProofChecker.lean) but
   returns proofs instead of booleans.
 
+  ⚠️ STATUS (2026-06-05): BROKEN ON REAL DATA — DO NOT TRUST ANY HANDLER YET.
+  Against the REAL reconstructed proof tree for `acl2_samples/simple.proof-log`,
+  this producer currently discharges 0 of 10 top-level nodes. Every handler
+  below was developed and "validated" against SYNTHETIC hand-built nodes (now
+  deleted) and FAILS on real data. The source of truth is the real-tree harness
+  `Tests/ProofProducerRealLog.lean`; treat a handler as working ONLY when that
+  harness reports it OK. Known gaps (from the real run):
+    • base-case nodes need a per-case CONTEXT DRIVER that does not exist yet
+      (clause facts like `consp x = nil`, variable bindings) + world/symbol
+      reflection alignment (the simp side-conditions don't discharge for the
+      real world);
+    • recursive nodes hard-fail ("needs totality") — need 2-arg totality + the IH;
+    • arithmetic rewrites (unicity-of-0, commutativity[-2]-of-+) are unimplemented;
+    • the converger does not handle builtin/2-arg/`binary-+` call args that
+      pervade real nodes.
+  See docs/audits/2026-06-05_producer-triage.md. Do NOT re-introduce
+  synthetic-node tests or treat the hand proof as a working blueprint.
+
   Architecture:
   - Reflection layer: SExpr → Lean Expr
   - Side condition provers: decide (symbol checks), simp (HashMap lookups)
