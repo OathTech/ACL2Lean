@@ -368,15 +368,68 @@ where
     -- Wrap: ∃ N, ∀ f ≥ N, eval(EQUAL X X) = eval(QUOTE T)
     mkFuelEqExist ctx 2 lhs rhs SExpr.t hA hB
 
+/-- Does `a` occur as a subterm of `term`? -/
+partial def occursIn (a term : SExpr) : Bool :=
+  term == a || match term with
+    | .cons x y => occursIn a x || occursIn a y
+    | _ => false
+
+/-- Reflect a `List SExpr` as a Lean `Expr` of type `List SExpr`. -/
+def reflectSExprList : List SExpr → Expr
+  | [] => mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``SExpr)
+  | x :: xs => mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``SExpr)
+      (reflectSExpr x) (reflectSExprList xs)
+
+/-- Prove `s.isNamed name = false` by decision. -/
+def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
+  proveByDecide (mkApp3 (Lean.mkConst ``Eq [1]) (Lean.mkConst ``Bool)
+    (mkApp2 (Lean.mkConst ``Symbol.isNamed) (reflectSymbol s) (mkStrLit name))
+    (Lean.mkConst ``Bool.false))
+
+/-- Lift a node proof `∃ N, ∀ f ≥ N, eval a = eval b` to the enclosing term:
+    given `term` containing `a` at an evaluation (function-argument) position,
+    produce the rewritten term and a proof
+    `∃ N, ∀ f ≥ N, eval term = eval (term with first occurrence of a → b)`.
+    Composes `evalOpt_arg_congr` from the outside in. Hard-fails if the target
+    sits in a non-evaluation position (QUOTE/IF/LET) — those are resolved by
+    a child node, not a literal-chain rewrite. -/
+partial def liftCongr (ctx : ProofCtx) (term a b : SExpr) (innerProof : Expr) :
+    MetaM (SExpr × Expr) := do
+  if term == a then
+    return (b, innerProof)
+  else match term with
+  | .cons (.atom (.symbol s)) argsExpr =>
+    if s.isNamed "quote" then
+      throwError "liftCongr: rewrite target inside QUOTE: {repr term}"
+    else if s.isNamed "if" || s.isNamed "let" || s.isNamed "let*" then
+      throwError "liftCongr: rewrite target inside IF/LET (should be a child): {repr term}"
+    else
+      let some args := argsExpr.toList?
+        | throwError "liftCongr: malformed argument list in {repr term}"
+      let some i := args.findIdx? (occursIn a)
+        | throwError "liftCongr: target {repr a} not found in {repr term}"
+      let before := args.take i
+      let after := args.drop (i + 1)
+      let argTerm := args[i]!
+      let (newArg, argProof) ← liftCongr ctx argTerm a b innerProof
+      let proof := mkAppN (Lean.mkConst ``evalOpt_arg_congr)
+        #[ctx.worldExpr, ctx.envExpr, reflectSymbol s,
+          reflectSExprList before, reflectSExprList after,
+          reflectSExpr argTerm, reflectSExpr newArg,
+          ← proveIsNamedFalse s "quote", ← proveIsNamedFalse s "if",
+          ← proveIsNamedFalse s "let", ← proveIsNamedFalse s "let*", argProof]
+      return (.cons (.atom (.symbol s)) (SExpr.ofList (before ++ newArg :: after)), proof)
+  | _ => throwError "liftCongr: target not at an evaluation position: {repr term}"
+
 /-- Compose a chain of node proofs for a literal.
     Given nodes `[n1, n2, ..., nk]` and the literal term,
     produces `∃ N, ∀ f ≥ N, evalOpt f w env literal = some T`.
 
-    Each node proves `eval lhs_i = eval rhs_i`. T1 (congruence) lifts
-    this to the enclosing term, and T16 (chain) composes successive steps. -/
+    Each node proves `eval lhs_i = eval rhs_i`; `liftCongr` lifts it to the
+    enclosing term (finding the rewrite position automatically), and
+    `fuel_chain_eq` composes successive steps. -/
 def proveLiteralChain (ctx : ProofCtx) (literal : SExpr)
     (nodes : List ProofNode) : MetaM Expr := do
-  -- Process each node to get its proof
   let mut currentTerm := literal
   let mut chainProof : Option Expr := none
 
@@ -385,19 +438,13 @@ def proveLiteralChain (ctx : ProofCtx) (literal : SExpr)
     | .node _ nodeLhs nodeRhs _ _ =>
       -- The node proves: ∃ N, ∀ f ≥ N, eval nodeLhs = eval nodeRhs
       let nodeProof ← proveNode ctx node
-      -- Lift to the enclosing term. Currently only TOP-LEVEL rewrites are
-      -- supported: the node's LHS is the whole current term, so the node
-      -- proof already has the right shape. Subterm rewrites need explicit
-      -- one-step congruence (`evalOpt_arg_congr`) built from the rewrite
-      -- position — that wiring is the next phase of the producer.
-      unless nodeLhs == currentTerm do
-        throwError "proveLiteralChain: subterm congruence not yet implemented \
-          (node LHS is not the whole current term); needs evalOpt_arg_congr wiring"
+      -- Lift to the enclosing term at the rewrite position, then chain.
+      let (newTerm, stepProof) ← liftCongr ctx currentTerm nodeLhs nodeRhs nodeProof
       match chainProof with
-      | none => chainProof := some nodeProof
+      | none => chainProof := some stepProof
       | some prev =>
-        chainProof := some (← mkAppM ``fuel_chain_eq #[prev, nodeProof])
-      currentTerm := nodeRhs
+        chainProof := some (← mkAppM ``fuel_chain_eq #[prev, stepProof])
+      currentTerm := newTerm
 
   -- After all nodes, currentTerm should be (QUOTE T) or similar.
   -- The chain proof gives: ∃ N, ∀ f ≥ N, eval literal = eval currentTerm
@@ -677,6 +724,35 @@ example (env : Env) : ∃ N, ∀ f ≥ N, evalOpt f World.empty env
         (.cons (.atom (.symbol { name := "x" })) .nil)))
     = some SExpr.t :=
   equal_x_x_auto env
+
+-- B0 test: liftCongr lifts a node proof at a SUBTERM position.
+-- equal-self rewrites (EQUAL X X) → (QUOTE T) inside (CONSP (EQUAL X X));
+-- liftCongr must produce eval(CONSP (EQUAL X X)) = eval(CONSP (QUOTE T)).
+elab "#test_lift_congr_subterm" : command => do
+  Elab.Command.liftTermElabM do
+    let emptyEnv ← mkEmptyEnv
+    let ctx : ProofCtx := {
+      worldExpr := Lean.mkConst ``World.empty
+      world := World.empty
+      envExpr := emptyEnv
+      worldUnfoldNames := #[``World.empty]
+    }
+    let x : SExpr := .atom (.symbol { name := "x" })
+    let equal_x_x : SExpr := .cons (.atom (.symbol { name := "equal" }))
+      (.cons x (.cons x .nil))
+    let quote_t : SExpr := .cons (.atom (.symbol { name := "quote" }))
+      (.cons SExpr.t .nil)
+    -- the node proof: eval(EQUAL X X) = eval(QUOTE T)
+    let node : ProofNode := .node ("equal-self", "NIL") equal_x_x quote_t []
+    let nodeProof ← proveNode ctx node
+    -- the enclosing term: (CONSP (EQUAL X X))
+    let consp_eq : SExpr := .cons (.atom (.symbol { name := "consp" }))
+      (.cons equal_x_x .nil)
+    let (newTerm, stepProof) ← liftCongr ctx consp_eq equal_x_x quote_t nodeProof
+    let _ ← check stepProof
+    logInfo m!"liftCongr OK: rewrote to {repr newTerm}\n  {← inferType stepProof}"
+
+#test_lift_congr_subterm
 
 end MetaMTests
 
