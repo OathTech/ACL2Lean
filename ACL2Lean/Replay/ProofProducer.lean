@@ -258,6 +258,18 @@ def reflectSExpr : SExpr → Expr
   | .cons car cdr =>
     mkApp2 (Lean.mkConst ``SExpr.cons) (reflectSExpr car) (reflectSExpr cdr)
 
+/-- Reflect a `List SExpr` as a Lean `Expr` of type `List SExpr`. -/
+def reflectSExprList : List SExpr → Expr
+  | [] => mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``SExpr)
+  | x :: xs => mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``SExpr)
+      (reflectSExpr x) (reflectSExprList xs)
+
+/-- Reflect a `List Symbol` as a Lean `Expr` of type `List Symbol`. -/
+def reflectSymbolList : List Symbol → Expr
+  | [] => mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``Symbol)
+  | s :: rest => mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``Symbol)
+      (reflectSymbol s) (reflectSymbolList rest)
+
 /-- Construct the Expr for an empty Env (`{} : Env`). -/
 def mkEmptyEnv : TermElabM Expr := do
   Term.elabTerm (← `(({} : Env))) none
@@ -320,6 +332,19 @@ def proveWorldLookupNone (ctx : ProofCtx) (s : Symbol) : MetaM Expr := do
   let lookupType ← inferType lookupExpr
   let noneExpr := mkApp (Lean.mkConst ``Option.none [0]) lookupType.appArg!
   proveBySimp (mkApp3 (Lean.mkConst ``Eq [1]) lookupType lookupExpr noneExpr)
+    (unfoldNames := ctx.worldUnfoldNames) (useDecide := true)
+
+/-- Prove `w.defs.get? fnSym = some (formals, body)` by simp + world unfold. -/
+def proveWorldDefnLookup (ctx : ProofCtx) (fnSym : Symbol)
+    (formals : List Symbol) (body : SExpr) : MetaM Expr := do
+  let worldDefs := mkApp (Lean.mkConst ``World.defs) ctx.worldExpr
+  let lookupExpr ← mkAppM ``Std.HashMap.get? #[worldDefs, reflectSymbol fnSym]
+  let pairExpr := mkApp4 (Lean.mkConst ``Prod.mk [0, 0])
+    (← mkAppM ``List #[Lean.mkConst ``Symbol]) (Lean.mkConst ``SExpr)
+    (reflectSymbolList formals) (reflectSExpr body)
+  let pairTy ← inferType pairExpr
+  let someE := mkApp2 (Lean.mkConst ``Option.some [0]) pairTy pairExpr
+  proveBySimp (← mkAppM ``Eq #[lookupExpr, someE])
     (unfoldNames := ctx.worldUnfoldNames) (useDecide := true)
 
 /-- Search `ctx.facts` for a proof whose inferred type is defeq to
@@ -465,7 +490,7 @@ private def mkFuelPred (ctx : ProofCtx) (aExpr : Expr)
     produce `∃ M, ∀ f ≥ M, evalOpt f w env a = evalOpt f w env b`.
     Uses `evalOpt_ge_fuel` to lift from fuel N to arbitrary fuel ≥ N. -/
 def mkFuelEqExist (ctx : ProofCtx) (N : Nat)
-    (a b v : SExpr) (hA hB : Expr) : MetaM Expr := do
+    (a b : SExpr) (vE : Expr) (hA hB : Expr) : MetaM Expr := do
   let NE := mkNatLit N
   let aE := reflectSExpr a
   let bE := reflectSExpr b
@@ -478,10 +503,10 @@ def mkFuelEqExist (ctx : ProofCtx) (N : Nat)
     withLocalDeclD `hf geType fun hfVar => do
       let geA := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
         #[NE, fVar, ctx.worldExpr, ctx.envExpr,
-          aE, reflectSExpr v, hA, hfVar]
+          aE, vE, hA, hfVar]
       let geB := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
         #[NE, fVar, ctx.worldExpr, ctx.envExpr,
-          bE, reflectSExpr v, hB, hfVar]
+          bE, vE, hB, hfVar]
       let eqProof ← mkAppM ``Eq.trans #[geA, ← mkAppM ``Eq.symm #[geB]]
       let body ← mkLambdaFVars #[fVar, hfVar] eqProof
       return mkApp4 (Lean.mkConst ``Exists.intro [1])
@@ -491,10 +516,9 @@ def mkFuelEqExist (ctx : ProofCtx) (N : Nat)
     Given `hA : evalOpt N w env a = some v`,
     produce `∃ M, ∀ f ≥ M, evalOpt f w env a = some v`. -/
 def mkFuelConvergeExist (ctx : ProofCtx) (N : Nat)
-    (a : SExpr) (v : SExpr) (hA : Expr) : MetaM Expr := do
+    (a : SExpr) (vE : Expr) (hA : Expr) : MetaM Expr := do
   let NE := mkNatLit N
   let aE := reflectSExpr a
-  let vE := reflectSExpr v
   let someV := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) vE
   -- Build predicate: fun N => ∀ f ≥ N, eval f w env a = some v
   let pred ← mkFuelPred ctx aE fun _ => someV
@@ -508,6 +532,10 @@ def mkFuelConvergeExist (ctx : ProofCtx) (N : Nat)
       let body ← mkLambdaFVars #[fVar, hfVar] geA
       return mkApp4 (Lean.mkConst ``Exists.intro [1])
         (Lean.mkConst ``Nat) pred NE body
+
+/-- Prove `m ≥ n` for concrete Nat literals (m ≥ n) by decide. -/
+def mkGeProof (m n : Nat) : MetaM Expr := do
+  proveByDecide (← mkAppM ``GE.ge #[mkNatLit m, mkNatLit n])
 
 /-! ## Proof tree walking -/
 
@@ -621,24 +649,530 @@ def synthTotality1 (w : World) (worldExpr : Expr) (worldUnfoldNames : Array Name
     #[worldExpr, reflectSymbol fnSym, reflectSymbol formal,
       reflectInt base, reflectInt step, reflectSExpr body,
       hBody, hFn, hNoConsp, hNoCdr, hNoPlus, hFnNs]
-where
-  /-- Local copies of the world-lookup provers (the proof-tree handlers are in
-      the `proveNode` where-block and not in scope here). -/
-  proveWorldDefnLookup (ctx : ProofCtx) (fnSym : Symbol)
-      (formals : List Symbol) (body : SExpr) : MetaM Expr := do
-    let worldDefs := mkApp (Lean.mkConst ``World.defs) ctx.worldExpr
-    let lookupExpr ← mkAppM ``Std.HashMap.get? #[worldDefs, reflectSymbol fnSym]
-    let formalsListExpr := formals.foldr
-      (fun s acc => mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``Symbol)
-        (reflectSymbol s) acc)
-      (mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``Symbol))
-    let pairExpr := mkApp4 (Lean.mkConst ``Prod.mk [0, 0])
-      (← mkAppM ``List #[Lean.mkConst ``Symbol]) (Lean.mkConst ``SExpr)
-      formalsListExpr (reflectSExpr body)
-    let pairTy ← inferType pairExpr
-    let someE := mkApp2 (Lean.mkConst ``Option.some [0]) pairTy pairExpr
-    proveBySimp (← mkAppM ``Eq #[lookupExpr, someE])
-      (unfoldNames := ctx.worldUnfoldNames) (useDecide := true)
+
+/-! ## Convergence -/
+
+/-- Prove symbolic convergence of a term: ∃ v, evalOpt (f+1) w env term = some v.
+    Returns (xv, hxv) where xv is the abstract value Expr and
+    hxv proves evalOpt (f+1) w env term = some xv. -/
+partial def proveConverges (ctx : ProofCtx) (f : Nat) (term : SExpr) :
+    MetaM (Expr × Expr) := do
+  match term with
+  | .atom (.symbol s) =>
+    match ctx.vars.find? (fun (s', _, _) => s' == s) with
+    | some (_, val, conv) =>
+      -- shared case value: `conv f : eval (f+1) w env s = some val`
+      return (val, mkApp conv (mkNatLit f))
+    | none =>
+      -- no case binding: a fresh abstract value via evalOpt_symbol_converges
+      let hConv := mkAppN (Lean.mkConst ``evalOpt_symbol_converges)
+        #[mkNatLit f, ctx.worldExpr, ctx.envExpr, reflectSymbol s]
+      let xv ← mkAppM ``Exists.choose #[hConv]
+      let hxv ← mkAppM ``Exists.choose_spec #[hConv]
+      return (xv, hxv)
+  | .atom (.number n) =>
+    -- Number literal: converges to itself
+    let proof ← proveNumberEval ctx f n
+    return (reflectSExpr (.atom (.number n)), proof)
+  | .nil =>
+    let proof ← proveNilEval ctx f
+    return (reflectSExpr .nil, proof)
+  | .cons (.atom (.symbol q)) (.cons v .nil) =>
+    if q.isNamed "quote" then
+      let proof ← proveQuoteEval ctx f v
+      return (reflectSExpr v, proof)
+    else
+      throwError "proveConverges: unsupported term {repr term}"
+  | .cons (.atom (.symbol c)) (.cons a1 (.cons a2 .nil)) =>
+    -- General 2-arg builtin call. The only structural value we can name
+    -- without a context fact is CONS: `(cons a1 a2)` evaluates to the cons
+    -- of the argument values. `callBuiltin "cons" [v1,v2]` is defeq to
+    -- `.cons v1 v2`, so we expose the literal cons as the value Expr.
+    if c.isNamed "cons" then
+      -- Args evaluate at fuel `g = f-1`; the call lands at fuel `g+1 = f+1`.
+      -- Requires `f ≥ 1` (the argument values must converge first).
+      let g ← match f with
+        | 0 => throwError "proveConverges: (cons ..) needs fuel ≥ 1"
+        | g + 1 => pure g
+      let (v1, h1) ← proveConverges ctx g a1
+      let (v2, h2) ← proveConverges ctx g a2
+      -- evalOpt_builtin_2: eval (f+1) (cons a1 a2)
+      --   = some (callBuiltin "cons" [v1, v2])
+      let hNotSpecial ← proveNotSpecial c
+      let hNoDef ← proveWorldLookupNone ctx c
+      let hRaw := mkAppN (Lean.mkConst ``evalOpt_builtin_2)
+        #[mkNatLit f, ctx.worldExpr, ctx.envExpr,
+          reflectSymbol c, reflectSExpr a1, reflectSExpr a2, v1, v2,
+          hNotSpecial, hNoDef, h1, h2]
+      -- `some (callBuiltin "cons" [v1,v2])` is defeq to `some (.cons v1 v2)`;
+      -- retype the proof so the named value is the literal cons.
+      let consVal := mkApp2 (Lean.mkConst ``SExpr.cons) v1 v2
+      let someConsVal := mkApp2 (Lean.mkConst ``Option.some [0])
+        (Lean.mkConst ``SExpr) consVal
+      let lhsEval := mkAppN (Lean.mkConst ``evalOpt)
+        #[mkNatLit (f + 1), ctx.worldExpr, ctx.envExpr, reflectSExpr term]
+      let targetTy ← mkAppM ``Eq #[lhsEval, someConsVal]
+      let hEval ← mkExpectedTypeHint hRaw targetTy
+      return (consVal, hEval)
+    else
+      throwError "proveConverges: unsupported term {repr term}"
+  | _ =>
+    throwError "proveConverges: unsupported term {repr term}"
+
+mutual
+
+/-- Existential-fuel convergence: returns `(value, proof)` where
+    `proof : ∃ N, ∀ f ≥ N, evalOpt f w env term = some value`.
+
+    Strictly more capable than the fixed-fuel `proveConverges`: it additionally
+    handles a CALL `(fnSym arg)` to a 1-arg structurally-recursive,
+    integer-valued function (detected and proven total by `synthTotality1`),
+    whose convergence holds only for fuel `≥ N` with `N` existential — which a
+    fixed-fuel proof cannot express. Leaf/structural cases mirror
+    `proveConverges`, lifted to the existential form via `mkFuelConvergeExist`
+    / `consConverges`. Hard-fails at the frontier (anything `synthTotality1`
+    rejects, or any unsupported shape). -/
+partial def proveConvergesExist (ctx : ProofCtx) (term : SExpr) :
+    MetaM (Expr × Expr) := do
+  match term with
+  | .atom (.symbol s) =>
+    match ctx.vars.find? (fun (s', _, _) => s' == s) with
+    | some (_, val, conv) =>
+      -- `conv 0 : eval (0+1) w env s = some val`; lift fuel-1 proof to ∃-form.
+      -- `val` is an Expr (possibly opaque); `mkFuelConvergeExist` takes it directly.
+      let h0 := mkApp conv (mkNatLit 0)
+      let hExist ← mkFuelConvergeExist ctx 1 term val h0
+      return (val, hExist)
+    | none =>
+      -- No case binding: a fresh abstract value via evalOpt_symbol_converges.
+      let hConv := mkAppN (Lean.mkConst ``evalOpt_symbol_converges)
+        #[mkNatLit 0, ctx.worldExpr, ctx.envExpr, reflectSymbol s]
+      let xv ← mkAppM ``Exists.choose #[hConv]
+      let h0 ← mkAppM ``Exists.choose_spec #[hConv]
+      let hExist ← mkFuelConvergeExist ctx 1 term xv h0
+      return (xv, hExist)
+  | .atom (.number n) =>
+    let h0 ← proveNumberEval ctx 0 n
+    let hExist ← mkFuelConvergeExist ctx 1 term (reflectSExpr (.atom (.number n))) h0
+    return (reflectSExpr (.atom (.number n)), hExist)
+  | .nil =>
+    let h0 ← proveNilEval ctx 0
+    let hExist ← mkFuelConvergeExist ctx 1 term (reflectSExpr .nil) h0
+    return (reflectSExpr .nil, hExist)
+  | .cons (.atom (.symbol q)) (.cons v .nil) =>
+    if q.isNamed "quote" then
+      let h0 ← proveQuoteEval ctx 0 v
+      let hExist ← mkFuelConvergeExist ctx 1 term (reflectSExpr v) h0
+      return (reflectSExpr v, hExist)
+    else
+      -- 1-arg call. If the head is a defined function that `synthTotality1`
+      -- accepts, the call converges to an integer (totality fact). Otherwise
+      -- the frontier: let synthTotality1's own throwError propagate.
+      proveCallConvergesExist ctx q v
+  | .cons (.atom (.symbol c)) (.cons a1 (.cons a2 .nil)) =>
+    if c.isNamed "cons" then
+      let (v1, h1) ← proveConvergesExist ctx a1
+      let (v2, h2) ← proveConvergesExist ctx a2
+      let hNotSpecial ← proveNotSpecial c
+      let hNoDef ← proveWorldLookupNone ctx c
+      let hName ← proveByDecide (mkApp3 (Lean.mkConst ``Eq [1])
+        (Lean.mkConst ``String)
+        (mkApp (Lean.mkConst ``Symbol.name) (reflectSymbol c)) (mkStrLit "cons"))
+      let consVal := mkApp2 (Lean.mkConst ``SExpr.cons) v1 v2
+      let hExist := mkAppN (Lean.mkConst ``consConverges)
+        #[ctx.worldExpr, ctx.envExpr, reflectSymbol c,
+          reflectSExpr a1, reflectSExpr a2, v1, v2,
+          hNotSpecial, hNoDef, hName, h1, h2]
+      return (consVal, hExist)
+    else
+      throwError "proveConvergesExist: unsupported term {repr term}"
+  | _ =>
+    throwError "proveConvergesExist: unsupported term {repr term}"
+
+/-- CALL `(fnSym arg)` (1-arg) convergence in existential-fuel form. Drives off
+    `synthTotality1` to obtain the body-totality fact for `fnSym`; if the
+    function is off-shape, `synthTotality1` hard-fails (frontier). The argument
+    converges (recursively), and `callConverges1` composes the unfold step with
+    the totality fact. The integer value is existential, so it is exposed via
+    `Exists.choose`. -/
+partial def proveCallConvergesExist (ctx : ProofCtx) (fnSym : Symbol)
+    (arg : SExpr) : MetaM (Expr × Expr) := do
+  let some (formals, body) := ctx.world.defs.get? fnSym
+    | throwError "proveConvergesExist: {repr fnSym} not in world.defs (frontier)"
+  let formal ← match formals with
+    | [f] => pure f
+    | _ => throwError "proveConvergesExist: {repr fnSym} is not 1-arg (frontier)"
+  -- Totality fact: ∀ val, ∃ k, ∃ N, ∀ f ≥ N, eval f (bindArgs [formal] [val]) body
+  --   = some (int k). Off-shape ⇒ synthTotality1 hard-fails (frontier).
+  let totGeneric ← synthTotality1 ctx.world ctx.worldExpr ctx.worldUnfoldNames fnSym
+  -- Argument convergence (existential).
+  let (argVal, hArg) ← proveConvergesExist ctx arg
+  -- Specialize the totality fact at argVal: ∃ k, ∃ N, ∀ f ≥ N, … = some (int k).
+  let hTot := mkApp totGeneric argVal
+  let hNs ← proveNotSpecial fnSym
+  let hDef ← proveWorldDefnLookup ctx fnSym [formal] body
+  -- callConverges1: ∃ v, ∃ N, ∀ f ≥ N, eval f w env (fnSym arg) = some v.
+  let hCall := mkAppN (Lean.mkConst ``callConverges1)
+    #[ctx.worldExpr, ctx.envExpr, reflectSymbol fnSym, reflectSymbol formal,
+      reflectSExpr arg, argVal, reflectSExpr body, hNs, hDef, hArg, hTot]
+  -- Expose the value existentially.
+  let v ← mkAppM ``Exists.choose #[hCall]
+  let hExist ← mkAppM ``Exists.choose_spec #[hCall]
+  return (v, hExist)
+
+end
+
+/-! ## Node handlers -/
+
+/-- equal-self: (EQUAL X X) → (QUOTE T)
+    Symbolic proof: X converges to some abstract value xv,
+    then evalOpt_equal_self gives eval(EQUAL X X) = some T.
+
+    Uses the existential-fuel converger so that `X` may itself be a CALL to a
+    recursive function (e.g. `(MY-LEN X)`): `proveConvergesExist` gives
+    `∃ N, ∀ f ≥ N, eval f w env X = some xv`; we obtain a concrete-fuel witness
+    from it via `Exists.choose`/`choose_spec` rebased through `evalOpt_ge_fuel`
+    is unnecessary — instead compose at the existential level throughout. -/
+def proveEqualSelfNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
+  let x := match lhs with
+    | .cons _ (.cons x (.cons _ .nil)) => x
+    | _ => panic! "equal-self: LHS is not (EQUAL X X)"
+  -- Existential convergence of X: ∃ N, ∀ f ≥ N, eval f w env X = some xv.
+  let (xv, hxvExist) ← proveConvergesExist ctx x
+  -- Obtain a concrete-fuel witness from the existential: choose N, get the
+  -- ∀ f ≥ N fact, then instantiate at N to feed evalOpt_equal_self at N.
+  let hNoDef ← proveWorldLookupNone ctx { name := "equal" }
+  -- We build the equal-self proof at the existential level: for each f ≥ N,
+  -- eval (f) X = some xv, and eval (f+1) (EQUAL X X) = some T (equal_self),
+  -- eval (f+1) (QUOTE T) = some T (quote). Compose into ∃ M, ∀ f≥M, lhs = rhs.
+  let xExpr := reflectSExpr x
+  -- N from the existential.
+  let hN ← mkAppM ``Exists.choose #[hxvExist]
+  let hSpec ← mkAppM ``Exists.choose_spec #[hxvExist]
+  -- predicate: fun N => ∀ f ≥ N, eval f w env lhs = eval f w env rhs
+  let lhsE := reflectSExpr lhs
+  let rhsE := reflectSExpr rhs
+  let pred ← mkFuelPred ctx lhsE fun fVar =>
+    mkAppN (Lean.mkConst ``evalOpt) #[fVar, ctx.worldExpr, ctx.envExpr, rhsE]
+  -- witness M = N + 1.
+  let mExpr ← mkAppM ``HAdd.hAdd #[hN, mkNatLit 1]
+  let proofBody ← withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
+    let geType ← mkAppM ``GE.ge #[fVar, mExpr]
+    withLocalDeclD `hf geType fun hfVar => do
+      -- f = g + 1 with g ≥ N.
+      -- We get g via f - 1; supply (f-1 ≥ N) and rewrite eval f = eval ((f-1)+1).
+      -- Simpler: use a helper lemma to avoid manual Nat surgery in Expr-land.
+      let body ← mkAppM ``equalSelfStep
+        #[ctx.worldExpr, ctx.envExpr, xExpr, hN, xv, hNoDef, hSpec, fVar, hfVar]
+      mkLambdaFVars #[fVar, hfVar] body
+  let exbuilt := mkApp4 (Lean.mkConst ``Exists.intro [1])
+    (Lean.mkConst ``Nat) pred mExpr proofBody
+  return exbuilt
+
+/-- Minimum fuel `f` such that `proveConverges ctx f term` succeeds: the
+    nesting depth of evaluated calls (leaves need fuel 0 ⇒ `eval (f+1)`;
+    each `(cons ..)` layer needs one more). General over term shape. -/
+def convergeFuel (term : SExpr) : Nat :=
+  match term with
+  | .cons (.atom (.symbol _)) (.cons a1 (.cons a2 .nil)) =>
+    1 + max (convergeFuel a1) (convergeFuel a2)
+  | _ => 0
+
+/-- Parse a quoted constant `(QUOTE c)` into `c`; fail otherwise. -/
+def parseQuotedConst (e : SExpr) : MetaM SExpr := do
+  match e with
+  | .cons (.atom (.symbol q)) (.cons c .nil) =>
+    if q.isNamed "quote" then pure c
+    else throwError "recognizer: RHS is not a quoted constant: {repr e}"
+  | _ => throwError "recognizer: RHS is not a quoted constant: {repr e}"
+
+/-- Build a `List SExpr` Lean Expr literal from value Exprs. -/
+def mkListLitSExpr (vs : List Expr) : MetaM Expr := do
+  let mut acc := mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``SExpr)
+  for v in vs.reverse do
+    acc := mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``SExpr) v acc
+  return acc
+
+/-- Prove `callBuiltin recogSym.name [argVal] = c`.
+      (a) Structural: `arg` is a CONS form and the call is `consp` of a cons
+          value ⇒ reduces by defeq (`callBuiltin_consp`/`consp_cons`) to `T`
+          (a general fact, no context needed).
+      (b) Context fact: a proof in `ctx.facts` whose type is defeq to the
+          equation. A fact stated at the `Logic.*` level (e.g.
+          `Logic.consp argVal = nil`) is defeq to the `callBuiltin` form and is
+          accepted by `findFact` directly.
+      Otherwise hard-fail at the frontier. -/
+def proveCallEqConst (ctx : ProofCtx) (recogSym : Symbol) (arg : SExpr)
+    (callExpr cExpr : Expr) (c : SExpr) : MetaM Expr := do
+  let targetTy ← mkAppM ``Eq #[callExpr, cExpr]
+  -- (a) Structural: consp of a syntactic CONS form, result T. `callExpr`
+  -- (`callBuiltin "consp" [.cons v1 v2]`) is defeq to `SExpr.t`, so a defeq
+  -- retype of `rfl` discharges the equation.
+  let isConsForm := match arg with
+    | .cons (.atom (.symbol cs)) (.cons _ (.cons _ .nil)) => cs.isNamed "cons"
+    | _ => false
+  if recogSym.isNamed "consp" && isConsForm && c == SExpr.t then
+    let pf ← mkAppM ``Eq.refl #[cExpr]
+    return ← mkExpectedTypeHint pf targetTy
+  -- (b) Context fact (callBuiltin- or Logic-level, matched up to defeq).
+  match ← findFact ctx targetTy with
+  | some pf => return pf
+  | none => throwError "recognizer: no justification for {repr arg} → {repr c}"
+
+/-- recognizer node: `(RECOG arg) → 'c` (c = NIL or T).
+    Meaning: `eval(RECOG arg) = eval('c)`. General over the recognizer
+    builtin and the argument. Justification of `callBuiltin RECOG [argVal] = c`
+    comes from (a) a structural fact (consp of a CONS form) or (b) a clause
+    context fact in `ctx.facts`; otherwise hard-fail at the frontier. -/
+def proveRecognizerNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
+  -- Parse `(RECOG arg)`.
+  let (recogSym, arg) ← match lhs with
+    | .cons (.atom (.symbol s)) (.cons arg .nil) => pure (s, arg)
+    | _ => throwError "recognizer: LHS is not a 1-arg call: {repr lhs}"
+  -- Parse the quoted result constant.
+  let c ← parseQuotedConst rhs
+  let cExpr := reflectSExpr c
+  -- Evaluate the argument symbolically (fuel sized to its call nesting).
+  let fa := convergeFuel arg
+  let (argVal, hArgEval) ← proveConverges ctx fa arg
+  -- eval (fa+2) (RECOG arg) = some (callBuiltin recogSym.name [argVal]).
+  -- `proveBuiltin1` reflects its `av : SExpr`, but `argVal` is already a value
+  -- Expr (possibly opaque), so build the `evalOpt_builtin_1` application
+  -- directly to pass the Expr value.
+  let hNotSpecial ← proveNotSpecial recogSym
+  let hNoDef ← proveWorldLookupNone ctx recogSym
+  let hRecog := mkAppN (Lean.mkConst ``evalOpt_builtin_1)
+    #[mkNatLit (fa + 1), ctx.worldExpr, ctx.envExpr,
+      reflectSymbol recogSym, reflectSExpr arg, argVal,
+      hNotSpecial, hNoDef, hArgEval]
+  -- Build the obligation `callBuiltin recogSym.name [argVal] = c`.
+  let callExpr ← mkAppM ``callBuiltin
+    #[mkStrLit recogSym.name, ← mkListLitSExpr [argVal]]
+  let hCall ← proveCallEqConst ctx recogSym arg callExpr cExpr c
+  -- some (callBuiltin ..) = some c, then eval (RECOG arg) = some c.
+  let hSomeEq ← mkAppM ``congrArg
+    #[mkApp (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr), hCall]
+  let hA ← mkAppM ``Eq.trans #[hRecog, hSomeEq]
+  -- eval ('c) = some c.
+  let hB ← proveQuoteEval ctx (fa + 1) c
+  -- Wrap: ∃ N, ∀ f ≥ N, eval(RECOG arg) = eval('c).
+  mkFuelEqExist ctx (fa + 2) lhs rhs cExpr hA hB
+
+/-- Prove `(bindArgs formals argVals).get? p = some pv` for a concrete formal
+    `p` bound (with distinct concrete formals) to value Expr `pv` at its
+    position. `formalsExpr`/`argValsExpr` are the reflected `List Symbol` /
+    `List SExpr` Exprs. Discharged by `simp [bindArgs, getElem?_insert]` +
+    `decide` on the symbol-equality conditions — the same mechanism as the
+    hand proof's `hxlook`/`hylook`. -/
+def proveBindLookup (formalsExpr argValsExpr : Expr) (p : Symbol) (pv : Expr) :
+    MetaM Expr := do
+  let bindEnv ← mkAppM ``bindArgs #[formalsExpr, argValsExpr]
+  let lookup ← mkAppM ``Std.HashMap.get? #[bindEnv, reflectSymbol p]
+  let someV := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) pv
+  let goalTy ← mkAppM ``Eq #[lookup, someV]
+  proveBySimp goalTy (unfoldNames := #[``bindArgs])
+    (extraLemmas := #[``Std.HashMap.getElem?_insert]) (useDecide := true)
+
+/-- definition node: `(fn a1 … an) → rhs` (n = 1 or 2), where `rhs` is the
+    simplified body after its IF was resolved. Produces
+    `∃N∀f≥N, eval (fn args) = eval rhs`.
+
+    General mechanism (no hardcoded names), scoped to the non-recursive
+    (base-case) shape: unfold the call (`evalOpt_defn_*`), resolve the body's
+    IF using the `if-simplification` child to learn the branch and the
+    recognizer mechanism to evaluate the test, then evaluate the chosen
+    branch. Both the call and `rhs` converge to the same value `V`. -/
+def proveDefinitionNode (ctx : ProofCtx) (fnName : String) (lhs rhs : SExpr)
+    (children : List ProofNode) : MetaM Expr := do
+  -- Parse the call `(fn a1 … an)`.
+  let (fnSym, args) ← match lhs with
+    | .cons (.atom (.symbol s)) rest =>
+      match rest.toList? with
+      | some as => pure (s, as)
+      | none => throwError "definition: malformed call argument list: {repr lhs}"
+    | _ => throwError "definition: LHS is not a call: {repr lhs}"
+  unless fnSym.isNamed fnName do
+    throwError "definition: rune name {fnName} ≠ call head {repr fnSym}"
+  -- Look up the definition in the world (hard-fail if absent).
+  let some (formals, body) := ctx.world.defs.get? fnSym
+    | throwError "definition: function {repr fnSym} not in world.defs (frontier)"
+  unless formals.length == args.length do
+    throwError "definition: arity mismatch for {repr fnSym}"
+  -- Support arity 1 and 2 only (evalOpt_defn_1/2); hard-fail otherwise.
+  unless formals.length == 1 || formals.length == 2 do
+    throwError "definition: arity {formals.length} unsupported (frontier)"
+  -- The body must be (IF test thenB elseB).
+  let (test, thenB, elseB) ← match body with
+    | .cons (.atom (.symbol ifSym))
+        (.cons test (.cons thenB (.cons elseB .nil))) =>
+      if ifSym.isNamed "if" then pure (test, thenB, elseB)
+      else throwError "definition: body head is not IF: {repr body}"
+    | _ => throwError "definition: body is not a 4-element IF: {repr body}"
+  -- Find the if-simplification child to learn which branch was taken.
+  let chosenB ← do
+    let mut found : Option SExpr := none
+    for c in children do
+      match c with
+      | .node (rt, _) _ crhs _ _ => if rt == "if-simplification" then found := some crhs
+    match found with
+    | some r => pure r
+    | none => throwError "definition: no if-simplification child (frontier)"
+  let isThen ← if chosenB == thenB then pure true
+    else if chosenB == elseB then pure false
+    else throwError "definition: if-simplification rhs {repr chosenB} \
+      matches neither branch"
+  -- Hard-fail if the chosen branch calls a user-defined (recursive) function:
+  -- that needs totality, which is the next step, not this one.
+  let definedNames := ctx.world.defs.toList.map (fun (s, _) => s)
+  if callsDefinedFn definedNames chosenB then
+    throwError "definition: recursive branch needs totality (frontier)"
+  -- Reflect formals and build the argument-value list + arg-eval proofs.
+  let formalsExpr := reflectSymbolList formals
+  -- The body env evaluates the chosen branch at fuel `bcf+1`; the test must
+  -- evaluate at fuel `bcf` ≥ 1 (it contains the formal variable lookup).
+  let bcf := Nat.max (convergeFuel chosenB) 1
+  -- We will prove `eval (M+1) w env (fn args) = some V` where M = bcf+2 is the
+  -- fuel the body's IF needs. Arg-eval proofs feed `evalOpt_defn_*` at fuel M.
+  let bodyFuel := bcf + 2
+  -- Argument values + proofs `eval bodyFuel w env aᵢ = some avᵢ`.
+  let mut argVals : List Expr := []
+  let mut argProofs : List Expr := []
+  for a in args do
+    let af := convergeFuel a
+    unless af + 1 ≤ bodyFuel do
+      throwError "definition: argument {repr a} needs more fuel than allotted (frontier)"
+    -- proveConverges gives `eval (af+1) ... a = some av`; bump to `eval bodyFuel`
+    -- via evalOpt_ge_fuel (bodyFuel ≥ af+1) so it feeds `evalOpt_defn_*`.
+    let (av, hRaw) ← proveConverges ctx af a
+    let hBumped := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+      #[mkNatLit (af + 1), mkNatLit bodyFuel, ctx.worldExpr, ctx.envExpr,
+        reflectSExpr a, av, hRaw, ← mkGeProof bodyFuel (af + 1)]
+    argVals := argVals ++ [av]
+    argProofs := argProofs ++ [hBumped]
+  -- Build the body env Expr: bindArgs formals argVals.
+  let argValsListExpr ← mkListLitSExpr argVals
+  let bodyEnvExpr ← mkAppM ``bindArgs #[formalsExpr, argValsListExpr]
+  -- Build the body-env context: each formal looks up to its arg value, with a
+  -- convergence proof `fun f => eval (f+1) w bodyEnv pᵢ = some avᵢ`.
+  let mut bodyVars : List (Symbol × Expr × Expr) := []
+  for (p, pv) in formals.zip argVals do
+    let hLookup ← proveBindLookup formalsExpr argValsListExpr p pv
+    -- conv : fun (f : Nat) => evalOpt_var f w bodyEnv p pv hLookup
+    let conv ← withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
+      let body := mkAppN (Lean.mkConst ``evalOpt_var)
+        #[fVar, ctx.worldExpr, bodyEnvExpr, reflectSymbol p, pv, hLookup]
+      mkLambdaFVars #[fVar] body
+    bodyVars := bodyVars ++ [(p, pv, conv)]
+  let ctx' : ProofCtx := { ctx with envExpr := bodyEnvExpr, vars := bodyVars }
+  -- Parse the test as a recognizer call `(RECOG p)`.
+  let (recogSym, recogArg) ← match test with
+    | .cons (.atom (.symbol s)) (.cons a .nil) => pure (s, a)
+    | _ => throwError "definition: test is not a 1-arg recognizer: {repr test}"
+  -- Evaluate the test argument at fuel `bcf` (needs the formal lookup).
+  let targFuel := bcf - 1   -- proveConverges gives eval (targFuel+1) = eval bcf
+  let (recogArgVal, hRecogArg) ← proveConverges ctx' targFuel recogArg
+  -- eval (bcf+1) bodyEnv (RECOG p) = some (callBuiltin RECOG [recogArgVal]).
+  let hNotSpecial ← proveNotSpecial recogSym
+  let hNoDef ← proveWorldLookupNone ctx' recogSym
+  let hTestRaw := mkAppN (Lean.mkConst ``evalOpt_builtin_1)
+    #[mkNatLit bcf, ctx.worldExpr, bodyEnvExpr,
+      reflectSymbol recogSym, reflectSExpr recogArg, recogArgVal,
+      hNotSpecial, hNoDef, hRecogArg]
+  -- Resolve the IF branch.
+  -- Chosen branch convergence: eval (bcf+1) bodyEnv chosenB = some V.
+  let (vVal, hChosen) ← proveConverges ctx' bcf chosenB
+  let ifResult ←
+    if isThen then
+      -- Truthy: need `callBuiltin RECOG [recogArgVal] = cv` and `toBool cv = true`.
+      -- The recognizer value for the then-branch must be a concrete truthy
+      -- constant or come from a fact; here we resolve it structurally for
+      -- `consp` of a cons form (value T) — the only truthy recognizer the
+      -- base/step shapes produce without extra instrumentation.
+      let callExpr ← mkAppM ``callBuiltin
+        #[mkStrLit recogSym.name, ← mkListLitSExpr [recogArgVal]]
+      -- The truthy constant value: try the structural consp-of-cons fact (T).
+      let cExpr := reflectSExpr SExpr.t
+      let hCall ← proveCallEqConst ctx' recogSym recogArg callExpr cExpr SExpr.t
+      let hSomeEq ← mkAppM ``congrArg
+        #[mkApp (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr), hCall]
+      let hTest ← mkAppM ``Eq.trans #[hTestRaw, hSomeEq]
+      -- toBool T = true by decide.
+      let hTruthy ← proveByDecide (← mkAppM ``Eq
+        #[← mkAppM ``Logic.toBool #[cExpr], Lean.mkConst ``Bool.true])
+      -- evalOpt_if_true (bcf+1) ... gives eval (bcf+2) (IF) = eval (bcf+1) thenB.
+      pure <| mkAppN (Lean.mkConst ``evalOpt_if_true)
+        #[mkNatLit (bcf + 1), ctx.worldExpr, bodyEnvExpr,
+          reflectSExpr test, reflectSExpr thenB, reflectSExpr elseB,
+          cExpr, hTest, hTruthy]
+    else
+      -- Nil: need `callBuiltin RECOG [recogArgVal] = nil`.
+      let callExpr ← mkAppM ``callBuiltin
+        #[mkStrLit recogSym.name, ← mkListLitSExpr [recogArgVal]]
+      let cExpr := reflectSExpr SExpr.nil
+      let hCall ← proveCallEqConst ctx' recogSym recogArg callExpr cExpr SExpr.nil
+      let hSomeEq ← mkAppM ``congrArg
+        #[mkApp (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr), hCall]
+      let hTest ← mkAppM ``Eq.trans #[hTestRaw, hSomeEq]
+      -- evalOpt_if_false (bcf+1) ... gives eval (bcf+2) (IF) = eval (bcf+1) elseB.
+      pure <| mkAppN (Lean.mkConst ``evalOpt_if_false)
+        #[mkNatLit (bcf + 1), ctx.worldExpr, bodyEnvExpr,
+          reflectSExpr test, reflectSExpr thenB, reflectSExpr elseB, hTest]
+  -- Chain: eval (bcf+2) bodyEnv (IF ...) = eval (bcf+1) bodyEnv chosenB = some V.
+  let hBody ← mkAppM ``Eq.trans #[ifResult, hChosen]
+  -- Unfold the call: eval (bodyFuel+1) w env (fn args)
+  --   = eval bodyFuel w bodyEnv body  (bodyFuel = bcf+2).
+  let hDef ← proveWorldDefnLookup ctx fnSym formals body
+  let hUnfold ←
+    if formals.length == 1 then
+      let formal := formals[0]!
+      let arg := args[0]!
+      let av := argVals[0]!
+      let hArg := argProofs[0]!
+      let hns ← proveNotSpecial fnSym
+      pure <| mkAppN (Lean.mkConst ``evalOpt_defn_1)
+        #[mkNatLit bodyFuel, ctx.worldExpr, ctx.envExpr,
+          reflectSymbol fnSym, reflectSExpr arg, av,
+          reflectSymbol formal, reflectSExpr body,
+          hns, hDef, hArg]
+    else
+      let f1 := formals[0]!
+      let f2 := formals[1]!
+      let a1 := args[0]!
+      let a2 := args[1]!
+      let av1 := argVals[0]!
+      let av2 := argVals[1]!
+      let hA1 := argProofs[0]!
+      let hA2 := argProofs[1]!
+      let hns ← proveNotSpecial fnSym
+      pure <| mkAppN (Lean.mkConst ``evalOpt_defn_2)
+        #[mkNatLit bodyFuel, ctx.worldExpr, ctx.envExpr,
+          reflectSymbol fnSym, reflectSExpr a1, reflectSExpr a2, av1, av2,
+          reflectSymbol f1, reflectSymbol f2, reflectSExpr body,
+          hns, hDef, hA1, hA2]
+  -- LHS: eval (bodyFuel+1) w env (fn args) = some V.
+  let hLHS ← mkAppM ``Eq.trans #[hUnfold, hBody]
+  -- RHS: eval (bodyFuel+1) w env rhs = some V (both sides converge to V).
+  let lhsFuel := bodyFuel + 1
+  let (vRhs, hRhsRaw) ← proveConverges ctx (convergeFuel rhs) rhs
+  -- Bump the RHS proof to fuel lhsFuel.
+  let hRHS := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
+    #[mkNatLit (convergeFuel rhs + 1), mkNatLit lhsFuel, ctx.worldExpr, ctx.envExpr,
+      reflectSExpr rhs, vRhs, hRhsRaw, ← mkGeProof lhsFuel (convergeFuel rhs + 1)]
+  -- The two value Exprs (vVal from the LHS branch, vRhs from RHS) must be the
+  -- same value. We retype both `= some <vVal>` so mkFuelEqExist sees one V.
+  let someVVal := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) vVal
+  let lhsEvalTy ← mkAppM ``Eq
+    #[mkAppN (Lean.mkConst ``evalOpt)
+        #[mkNatLit lhsFuel, ctx.worldExpr, ctx.envExpr, reflectSExpr lhs], someVVal]
+  let rhsEvalTy ← mkAppM ``Eq
+    #[mkAppN (Lean.mkConst ``evalOpt)
+        #[mkNatLit lhsFuel, ctx.worldExpr, ctx.envExpr, reflectSExpr rhs], someVVal]
+  let hLHS' ← mkExpectedTypeHint hLHS lhsEvalTy
+  let hRHS' ← mkExpectedTypeHint hRHS rhsEvalTy
+  -- Wrap into ∃ N, ∀ f ≥ N, eval (fn args) = eval rhs.
+  mkFuelEqExist ctx lhsFuel lhs rhs vVal hLHS' hRHS'
+
+/-! ## Driver -/
 
 /-- Prove a single proof node. Returns an existential fuel proof:
     `∃ N, ∀ f ≥ N, evalOpt f w env node.lhs = evalOpt f w env node.rhs`
@@ -654,643 +1188,12 @@ partial def proveNode (ctx : ProofCtx) (node : ProofNode) : MetaM Expr := do
     | "fake-rune-for-anonymous-enabled-rule" => proveRecognizerNode ctx lhs rhs
     | "definition" => proveDefinitionNode ctx runeName lhs rhs children
     | other => throwError "proveNode: rune type '{other}' not yet implemented"
-where
-  /-- Prove symbolic convergence of a term: ∃ v, evalOpt (f+1) w env term = some v.
-      Returns (xv, hxv) where xv is the abstract value Expr and
-      hxv proves evalOpt (f+1) w env term = some xv. -/
-  proveConverges (ctx : ProofCtx) (f : Nat) (term : SExpr) :
-      MetaM (Expr × Expr) := do
-    match term with
-    | .atom (.symbol s) =>
-      match ctx.vars.find? (fun (s', _, _) => s' == s) with
-      | some (_, val, conv) =>
-        -- shared case value: `conv f : eval (f+1) w env s = some val`
-        return (val, mkApp conv (mkNatLit f))
-      | none =>
-        -- no case binding: a fresh abstract value via evalOpt_symbol_converges
-        let hConv := mkAppN (Lean.mkConst ``evalOpt_symbol_converges)
-          #[mkNatLit f, ctx.worldExpr, ctx.envExpr, reflectSymbol s]
-        let xv ← mkAppM ``Exists.choose #[hConv]
-        let hxv ← mkAppM ``Exists.choose_spec #[hConv]
-        return (xv, hxv)
-    | .atom (.number n) =>
-      -- Number literal: converges to itself
-      let proof ← proveNumberEval ctx f n
-      return (reflectSExpr (.atom (.number n)), proof)
-    | .nil =>
-      let proof ← proveNilEval ctx f
-      return (reflectSExpr .nil, proof)
-    | .cons (.atom (.symbol q)) (.cons v .nil) =>
-      if q.isNamed "quote" then
-        let proof ← proveQuoteEval ctx f v
-        return (reflectSExpr v, proof)
-      else
-        throwError "proveConverges: unsupported term {repr term}"
-    | .cons (.atom (.symbol c)) (.cons a1 (.cons a2 .nil)) =>
-      -- General 2-arg builtin call. The only structural value we can name
-      -- without a context fact is CONS: `(cons a1 a2)` evaluates to the cons
-      -- of the argument values. `callBuiltin "cons" [v1,v2]` is defeq to
-      -- `.cons v1 v2`, so we expose the literal cons as the value Expr.
-      if c.isNamed "cons" then
-        -- Args evaluate at fuel `g = f-1`; the call lands at fuel `g+1 = f+1`.
-        -- Requires `f ≥ 1` (the argument values must converge first).
-        let g ← match f with
-          | 0 => throwError "proveConverges: (cons ..) needs fuel ≥ 1"
-          | g + 1 => pure g
-        let (v1, h1) ← proveConverges ctx g a1
-        let (v2, h2) ← proveConverges ctx g a2
-        -- evalOpt_builtin_2: eval (f+1) (cons a1 a2)
-        --   = some (callBuiltin "cons" [v1, v2])
-        let hNotSpecial ← proveNotSpecial c
-        let hNoDef ← proveWorldLookupNone ctx c
-        let hRaw := mkAppN (Lean.mkConst ``evalOpt_builtin_2)
-          #[mkNatLit f, ctx.worldExpr, ctx.envExpr,
-            reflectSymbol c, reflectSExpr a1, reflectSExpr a2, v1, v2,
-            hNotSpecial, hNoDef, h1, h2]
-        -- `some (callBuiltin "cons" [v1,v2])` is defeq to `some (.cons v1 v2)`;
-        -- retype the proof so the named value is the literal cons.
-        let consVal := mkApp2 (Lean.mkConst ``SExpr.cons) v1 v2
-        let someConsVal := mkApp2 (Lean.mkConst ``Option.some [0])
-          (Lean.mkConst ``SExpr) consVal
-        let lhsEval := mkAppN (Lean.mkConst ``evalOpt)
-          #[mkNatLit (f + 1), ctx.worldExpr, ctx.envExpr, reflectSExpr term]
-        let targetTy ← mkAppM ``Eq #[lhsEval, someConsVal]
-        let hEval ← mkExpectedTypeHint hRaw targetTy
-        return (consVal, hEval)
-      else
-        throwError "proveConverges: unsupported term {repr term}"
-    | _ =>
-      throwError "proveConverges: unsupported term {repr term}"
-
-  /-- Existential-fuel convergence: returns `(value, proof)` where
-      `proof : ∃ N, ∀ f ≥ N, evalOpt f w env term = some value`.
-
-      Strictly more capable than the fixed-fuel `proveConverges`: it additionally
-      handles a CALL `(fnSym arg)` to a 1-arg structurally-recursive,
-      integer-valued function (detected and proven total by `synthTotality1`),
-      whose convergence holds only for fuel `≥ N` with `N` existential — which a
-      fixed-fuel proof cannot express. Leaf/structural cases mirror
-      `proveConverges`, lifted to the existential form via `mkFuelConvergeExist`
-      / `consConverges`. Hard-fails at the frontier (anything `synthTotality1`
-      rejects, or any unsupported shape). -/
-  proveConvergesExist (ctx : ProofCtx) (term : SExpr) :
-      MetaM (Expr × Expr) := do
-    match term with
-    | .atom (.symbol s) =>
-      match ctx.vars.find? (fun (s', _, _) => s' == s) with
-      | some (_, val, conv) =>
-        -- `conv 0 : eval (0+1) w env s = some val`; lift fuel-1 proof to ∃-form.
-        -- `val` is an Expr (possibly opaque), so use the Expr-valued wrapper.
-        let h0 := mkApp conv (mkNatLit 0)
-        let hExist ← mkFuelConvergeExistTermE ctx 1 term val h0
-        return (val, hExist)
-      | none =>
-        -- No case binding: a fresh abstract value via evalOpt_symbol_converges.
-        let hConv := mkAppN (Lean.mkConst ``evalOpt_symbol_converges)
-          #[mkNatLit 0, ctx.worldExpr, ctx.envExpr, reflectSymbol s]
-        let xv ← mkAppM ``Exists.choose #[hConv]
-        let h0 ← mkAppM ``Exists.choose_spec #[hConv]
-        let hExist ← mkFuelConvergeExistTermE ctx 1 term xv h0
-        return (xv, hExist)
-    | .atom (.number n) =>
-      let h0 ← proveNumberEval ctx 0 n
-      let hExist ← mkFuelConvergeExistTerm ctx 1 term (.atom (.number n)) h0
-      return (reflectSExpr (.atom (.number n)), hExist)
-    | .nil =>
-      let h0 ← proveNilEval ctx 0
-      let hExist ← mkFuelConvergeExistTerm ctx 1 term .nil h0
-      return (reflectSExpr .nil, hExist)
-    | .cons (.atom (.symbol q)) (.cons v .nil) =>
-      if q.isNamed "quote" then
-        let h0 ← proveQuoteEval ctx 0 v
-        let hExist ← mkFuelConvergeExistTerm ctx 1 term v h0
-        return (reflectSExpr v, hExist)
-      else
-        -- 1-arg call. If the head is a defined function that `synthTotality1`
-        -- accepts, the call converges to an integer (totality fact). Otherwise
-        -- the frontier: let synthTotality1's own throwError propagate.
-        proveCallConvergesExist ctx q v
-    | .cons (.atom (.symbol c)) (.cons a1 (.cons a2 .nil)) =>
-      if c.isNamed "cons" then
-        let (v1, h1) ← proveConvergesExist ctx a1
-        let (v2, h2) ← proveConvergesExist ctx a2
-        let hNotSpecial ← proveNotSpecial c
-        let hNoDef ← proveWorldLookupNone ctx c
-        let hName ← proveByDecide (mkApp3 (Lean.mkConst ``Eq [1])
-          (Lean.mkConst ``String)
-          (mkApp (Lean.mkConst ``Symbol.name) (reflectSymbol c)) (mkStrLit "cons"))
-        let consVal := mkApp2 (Lean.mkConst ``SExpr.cons) v1 v2
-        let hExist := mkAppN (Lean.mkConst ``consConverges)
-          #[ctx.worldExpr, ctx.envExpr, reflectSymbol c,
-            reflectSExpr a1, reflectSExpr a2, v1, v2,
-            hNotSpecial, hNoDef, hName, h1, h2]
-        return (consVal, hExist)
-      else
-        throwError "proveConvergesExist: unsupported term {repr term}"
-    | _ =>
-      throwError "proveConvergesExist: unsupported term {repr term}"
-
-  /-- CALL `(fnSym arg)` (1-arg) convergence in existential-fuel form. Drives off
-      `synthTotality1` to obtain the body-totality fact for `fnSym`; if the
-      function is off-shape, `synthTotality1` hard-fails (frontier). The argument
-      converges (recursively), and `callConverges1` composes the unfold step with
-      the totality fact. The integer value is existential, so it is exposed via
-      `Exists.choose`. -/
-  proveCallConvergesExist (ctx : ProofCtx) (fnSym : Symbol)
-      (arg : SExpr) : MetaM (Expr × Expr) := do
-    let some (formals, body) := ctx.world.defs.get? fnSym
-      | throwError "proveConvergesExist: {repr fnSym} not in world.defs (frontier)"
-    let formal ← match formals with
-      | [f] => pure f
-      | _ => throwError "proveConvergesExist: {repr fnSym} is not 1-arg (frontier)"
-    -- Totality fact: ∀ val, ∃ k, ∃ N, ∀ f ≥ N, eval f (bindArgs [formal] [val]) body
-    --   = some (int k). Off-shape ⇒ synthTotality1 hard-fails (frontier).
-    let totGeneric ← synthTotality1 ctx.world ctx.worldExpr ctx.worldUnfoldNames fnSym
-    -- Argument convergence (existential).
-    let (argVal, hArg) ← proveConvergesExist ctx arg
-    -- Specialize the totality fact at argVal: ∃ k, ∃ N, ∀ f ≥ N, … = some (int k).
-    let hTot := mkApp totGeneric argVal
-    let hNs ← proveNotSpecial fnSym
-    let hDef ← proveWorldDefnLookupExist ctx fnSym formal body
-    -- callConverges1: ∃ v, ∃ N, ∀ f ≥ N, eval f w env (fnSym arg) = some v.
-    let hCall := mkAppN (Lean.mkConst ``callConverges1)
-      #[ctx.worldExpr, ctx.envExpr, reflectSymbol fnSym, reflectSymbol formal,
-        reflectSExpr arg, argVal, reflectSExpr body, hNs, hDef, hArg, hTot]
-    -- Expose the value existentially.
-    let v ← mkAppM ``Exists.choose #[hCall]
-    let hExist ← mkAppM ``Exists.choose_spec #[hCall]
-    return (v, hExist)
-
-  /-- `proveWorldDefnLookup` for the totality/call path (the where-bound one
-      below has the same body; this keeps it usable inside the converger). -/
-  proveWorldDefnLookupExist (ctx : ProofCtx) (fnSym : Symbol)
-      (formal : Symbol) (body : SExpr) : MetaM Expr := do
-    let worldDefs := mkApp (Lean.mkConst ``World.defs) ctx.worldExpr
-    let lookupExpr ← mkAppM ``Std.HashMap.get? #[worldDefs, reflectSymbol fnSym]
-    let formalsListExpr := mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``Symbol)
-      (reflectSymbol formal) (mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``Symbol))
-    let pairExpr := mkApp4 (Lean.mkConst ``Prod.mk [0, 0])
-      (← mkAppM ``List #[Lean.mkConst ``Symbol]) (Lean.mkConst ``SExpr)
-      formalsListExpr (reflectSExpr body)
-    let pairTy ← inferType pairExpr
-    let someE := mkApp2 (Lean.mkConst ``Option.some [0]) pairTy pairExpr
-    proveBySimp (← mkAppM ``Eq #[lookupExpr, someE])
-      (unfoldNames := ctx.worldUnfoldNames) (useDecide := true)
-
-  /-- Wrap a fixed-fuel proof `eval N w env term = some v` (SExpr value `v`) into
-      `∃ M, ∀ f ≥ M, eval f w env term = some v`, via `mkFuelConvergeExist`. -/
-  mkFuelConvergeExistTerm (ctx : ProofCtx) (N : Nat) (term v : SExpr)
-      (h : Expr) : MetaM Expr :=
-    mkFuelConvergeExist ctx N term v h
-
-  /-- As `mkFuelConvergeExistTerm` but the value is an Expr (possibly opaque),
-      not a reflectable SExpr. -/
-  mkFuelConvergeExistTermE (ctx : ProofCtx) (N : Nat) (term : SExpr) (vE : Expr)
-      (h : Expr) : MetaM Expr := do
-    let NE := mkNatLit N
-    let aE := reflectSExpr term
-    let someV := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) vE
-    let pred ← mkFuelPredLocal ctx aE fun _ => someV
-    withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
-      let geType ← mkAppM ``GE.ge #[fVar, NE]
-      withLocalDeclD `hf geType fun hfVar => do
-        let geA := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
-          #[NE, fVar, ctx.worldExpr, ctx.envExpr, aE, vE, h, hfVar]
-        let body ← mkLambdaFVars #[fVar, hfVar] geA
-        return mkApp4 (Lean.mkConst ``Exists.intro [1])
-          (Lean.mkConst ``Nat) pred NE body
-
-  /-- `mkFuelPred` inlined (the private top-level one is not in scope here). -/
-  mkFuelPredLocal (ctx : ProofCtx) (aExpr : Expr) (mkRhs : Expr → Expr) :
-      MetaM Expr := do
-    withLocalDeclD `N (Lean.mkConst ``Nat) fun nVar => do
-      withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
-        let geType ← mkAppM ``GE.ge #[fVar, nVar]
-        withLocalDeclD `hf geType fun hfVar => do
-          let lhsEval := mkAppN (Lean.mkConst ``evalOpt)
-            #[fVar, ctx.worldExpr, ctx.envExpr, aExpr]
-          let eqType ← mkAppM ``Eq #[lhsEval, mkRhs fVar]
-          let forall_ ← mkForallFVars #[fVar, hfVar] eqType
-          mkLambdaFVars #[nVar] forall_
-
-  /-- equal-self: (EQUAL X X) → (QUOTE T)
-      Symbolic proof: X converges to some abstract value xv,
-      then evalOpt_equal_self gives eval(EQUAL X X) = some T.
-
-      Uses the existential-fuel converger so that `X` may itself be a CALL to a
-      recursive function (e.g. `(MY-LEN X)`): `proveConvergesExist` gives
-      `∃ N, ∀ f ≥ N, eval f w env X = some xv`; we obtain a concrete-fuel witness
-      from it via `Exists.choose`/`choose_spec` rebased through `evalOpt_ge_fuel`
-      is unnecessary — instead compose at the existential level throughout. -/
-  proveEqualSelfNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
-    let x := match lhs with
-      | .cons _ (.cons x (.cons _ .nil)) => x
-      | _ => panic! "equal-self: LHS is not (EQUAL X X)"
-    -- Existential convergence of X: ∃ N, ∀ f ≥ N, eval f w env X = some xv.
-    let (xv, hxvExist) ← proveConvergesExist ctx x
-    -- Obtain a concrete-fuel witness from the existential: choose N, get the
-    -- ∀ f ≥ N fact, then instantiate at N to feed evalOpt_equal_self at N.
-    let hNoDef ← proveWorldLookupNone ctx { name := "equal" }
-    -- We build the equal-self proof at the existential level: for each f ≥ N,
-    -- eval (f) X = some xv, and eval (f+1) (EQUAL X X) = some T (equal_self),
-    -- eval (f+1) (QUOTE T) = some T (quote). Compose into ∃ M, ∀ f≥M, lhs = rhs.
-    let xExpr := reflectSExpr x
-    -- N from the existential.
-    let hN ← mkAppM ``Exists.choose #[hxvExist]
-    let hSpec ← mkAppM ``Exists.choose_spec #[hxvExist]
-    -- predicate: fun N => ∀ f ≥ N, eval f w env lhs = eval f w env rhs
-    let lhsE := reflectSExpr lhs
-    let rhsE := reflectSExpr rhs
-    let pred ← mkFuelPredLocal ctx lhsE fun fVar =>
-      mkAppN (Lean.mkConst ``evalOpt) #[fVar, ctx.worldExpr, ctx.envExpr, rhsE]
-    -- witness M = N + 1.
-    let mExpr ← mkAppM ``HAdd.hAdd #[hN, mkNatLit 1]
-    let proofBody ← withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
-      let geType ← mkAppM ``GE.ge #[fVar, mExpr]
-      withLocalDeclD `hf geType fun hfVar => do
-        -- f = g + 1 with g ≥ N.
-        -- We get g via f - 1; supply (f-1 ≥ N) and rewrite eval f = eval ((f-1)+1).
-        -- Simpler: use a helper lemma to avoid manual Nat surgery in Expr-land.
-        let body ← mkAppM ``equalSelfStep
-          #[ctx.worldExpr, ctx.envExpr, xExpr, hN, xv, hNoDef, hSpec, fVar, hfVar]
-        mkLambdaFVars #[fVar, hfVar] body
-    let exbuilt := mkApp4 (Lean.mkConst ``Exists.intro [1])
-      (Lean.mkConst ``Nat) pred mExpr proofBody
-    return exbuilt
-
-  /-- Minimum fuel `f` such that `proveConverges ctx f term` succeeds: the
-      nesting depth of evaluated calls (leaves need fuel 0 ⇒ `eval (f+1)`;
-      each `(cons ..)` layer needs one more). General over term shape. -/
-  convergeFuel (term : SExpr) : Nat :=
-    match term with
-    | .cons (.atom (.symbol _)) (.cons a1 (.cons a2 .nil)) =>
-      1 + max (convergeFuel a1) (convergeFuel a2)
-    | _ => 0
-
-  /-- Parse a quoted constant `(QUOTE c)` into `c`; fail otherwise. -/
-  parseQuotedConst (e : SExpr) : MetaM SExpr := do
-    match e with
-    | .cons (.atom (.symbol q)) (.cons c .nil) =>
-      if q.isNamed "quote" then pure c
-      else throwError "recognizer: RHS is not a quoted constant: {repr e}"
-    | _ => throwError "recognizer: RHS is not a quoted constant: {repr e}"
-
-  /-- recognizer node: `(RECOG arg) → 'c` (c = NIL or T).
-      Meaning: `eval(RECOG arg) = eval('c)`. General over the recognizer
-      builtin and the argument. Justification of `callBuiltin RECOG [argVal] = c`
-      comes from (a) a structural fact (consp of a CONS form) or (b) a clause
-      context fact in `ctx.facts`; otherwise hard-fail at the frontier. -/
-  proveRecognizerNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
-    -- Parse `(RECOG arg)`.
-    let (recogSym, arg) ← match lhs with
-      | .cons (.atom (.symbol s)) (.cons arg .nil) => pure (s, arg)
-      | _ => throwError "recognizer: LHS is not a 1-arg call: {repr lhs}"
-    -- Parse the quoted result constant.
-    let c ← parseQuotedConst rhs
-    let cExpr := reflectSExpr c
-    -- Evaluate the argument symbolically (fuel sized to its call nesting).
-    let fa := convergeFuel arg
-    let (argVal, hArgEval) ← proveConverges ctx fa arg
-    -- eval (fa+2) (RECOG arg) = some (callBuiltin recogSym.name [argVal]).
-    -- `proveBuiltin1` reflects its `av : SExpr`, but `argVal` is already a value
-    -- Expr (possibly opaque), so build the `evalOpt_builtin_1` application
-    -- directly to pass the Expr value.
-    let hNotSpecial ← proveNotSpecial recogSym
-    let hNoDef ← proveWorldLookupNone ctx recogSym
-    let hRecog := mkAppN (Lean.mkConst ``evalOpt_builtin_1)
-      #[mkNatLit (fa + 1), ctx.worldExpr, ctx.envExpr,
-        reflectSymbol recogSym, reflectSExpr arg, argVal,
-        hNotSpecial, hNoDef, hArgEval]
-    -- Build the obligation `callBuiltin recogSym.name [argVal] = c`.
-    let callExpr ← mkAppM ``callBuiltin
-      #[mkStrLit recogSym.name, ← mkListLitSExpr [argVal]]
-    let hCall ← proveCallEqConst ctx recogSym arg callExpr cExpr c
-    -- some (callBuiltin ..) = some c, then eval (RECOG arg) = some c.
-    let hSomeEq ← mkAppM ``congrArg
-      #[mkApp (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr), hCall]
-    let hA ← mkAppM ``Eq.trans #[hRecog, hSomeEq]
-    -- eval ('c) = some c.
-    let hB ← proveQuoteEval ctx (fa + 1) c
-    -- Wrap: ∃ N, ∀ f ≥ N, eval(RECOG arg) = eval('c).
-    mkFuelEqExist ctx (fa + 2) lhs rhs c hA hB
-
-  /-- Build a `List SExpr` Lean Expr literal from value Exprs. -/
-  mkListLitSExpr (vs : List Expr) : MetaM Expr := do
-    let mut acc := mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``SExpr)
-    for v in vs.reverse do
-      acc := mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``SExpr) v acc
-    return acc
-
-  /-- Prove `callBuiltin recogSym.name [argVal] = c`.
-      (a) Structural: `arg` is a CONS form and the call is `consp` of a cons
-          value ⇒ reduces by defeq (`callBuiltin_consp`/`consp_cons`) to `T`
-          (a general fact, no context needed).
-      (b) Context fact: a proof in `ctx.facts` whose type is defeq to the
-          equation. A fact stated at the `Logic.*` level (e.g.
-          `Logic.consp argVal = nil`) is defeq to the `callBuiltin` form and is
-          accepted by `findFact` directly.
-      Otherwise hard-fail at the frontier. -/
-  proveCallEqConst (ctx : ProofCtx) (recogSym : Symbol) (arg : SExpr)
-      (callExpr cExpr : Expr) (c : SExpr) : MetaM Expr := do
-    let targetTy ← mkAppM ``Eq #[callExpr, cExpr]
-    -- (a) Structural: consp of a syntactic CONS form, result T. `callExpr`
-    -- (`callBuiltin "consp" [.cons v1 v2]`) is defeq to `SExpr.t`, so a defeq
-    -- retype of `rfl` discharges the equation.
-    let isConsForm := match arg with
-      | .cons (.atom (.symbol cs)) (.cons _ (.cons _ .nil)) => cs.isNamed "cons"
-      | _ => false
-    if recogSym.isNamed "consp" && isConsForm && c == SExpr.t then
-      let pf ← mkAppM ``Eq.refl #[cExpr]
-      return ← mkExpectedTypeHint pf targetTy
-    -- (b) Context fact (callBuiltin- or Logic-level, matched up to defeq).
-    match ← findFact ctx targetTy with
-    | some pf => return pf
-    | none => throwError "recognizer: no justification for {repr arg} → {repr c}"
-
-  /-- Reflect a `List Symbol` as a Lean `Expr` of type `List Symbol`. -/
-  reflectSymbolList (ss : List Symbol) : Expr :=
-    match ss with
-    | [] => mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``Symbol)
-    | s :: rest => mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``Symbol)
-        (reflectSymbol s) (reflectSymbolList rest)
-
-  /-- Prove `(bindArgs formals argVals).get? p = some pv` for a concrete formal
-      `p` bound (with distinct concrete formals) to value Expr `pv` at its
-      position. `formalsExpr`/`argValsExpr` are the reflected `List Symbol` /
-      `List SExpr` Exprs. Discharged by `simp [bindArgs, getElem?_insert]` +
-      `decide` on the symbol-equality conditions — the same mechanism as the
-      hand proof's `hxlook`/`hylook`. -/
-  proveBindLookup (formalsExpr argValsExpr : Expr) (p : Symbol) (pv : Expr) :
-      MetaM Expr := do
-    let bindEnv ← mkAppM ``bindArgs #[formalsExpr, argValsExpr]
-    let lookup ← mkAppM ``Std.HashMap.get? #[bindEnv, reflectSymbol p]
-    let someV := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) pv
-    let goalTy ← mkAppM ``Eq #[lookup, someV]
-    proveBySimp goalTy (unfoldNames := #[``bindArgs])
-      (extraLemmas := #[``Std.HashMap.getElem?_insert]) (useDecide := true)
-
-  /-- definition node: `(fn a1 … an) → rhs` (n = 1 or 2), where `rhs` is the
-      simplified body after its IF was resolved. Produces
-      `∃N∀f≥N, eval (fn args) = eval rhs`.
-
-      General mechanism (no hardcoded names), scoped to the non-recursive
-      (base-case) shape: unfold the call (`evalOpt_defn_*`), resolve the body's
-      IF using the `if-simplification` child to learn the branch and the
-      recognizer mechanism to evaluate the test, then evaluate the chosen
-      branch. Both the call and `rhs` converge to the same value `V`. -/
-  proveDefinitionNode (ctx : ProofCtx) (fnName : String) (lhs rhs : SExpr)
-      (children : List ProofNode) : MetaM Expr := do
-    -- Parse the call `(fn a1 … an)`.
-    let (fnSym, args) ← match lhs with
-      | .cons (.atom (.symbol s)) rest =>
-        match rest.toList? with
-        | some as => pure (s, as)
-        | none => throwError "definition: malformed call argument list: {repr lhs}"
-      | _ => throwError "definition: LHS is not a call: {repr lhs}"
-    unless fnSym.isNamed fnName do
-      throwError "definition: rune name {fnName} ≠ call head {repr fnSym}"
-    -- Look up the definition in the world (hard-fail if absent).
-    let some (formals, body) := ctx.world.defs.get? fnSym
-      | throwError "definition: function {repr fnSym} not in world.defs (frontier)"
-    unless formals.length == args.length do
-      throwError "definition: arity mismatch for {repr fnSym}"
-    -- Support arity 1 and 2 only (evalOpt_defn_1/2); hard-fail otherwise.
-    unless formals.length == 1 || formals.length == 2 do
-      throwError "definition: arity {formals.length} unsupported (frontier)"
-    -- The body must be (IF test thenB elseB).
-    let (test, thenB, elseB) ← match body with
-      | .cons (.atom (.symbol ifSym))
-          (.cons test (.cons thenB (.cons elseB .nil))) =>
-        if ifSym.isNamed "if" then pure (test, thenB, elseB)
-        else throwError "definition: body head is not IF: {repr body}"
-      | _ => throwError "definition: body is not a 4-element IF: {repr body}"
-    -- Find the if-simplification child to learn which branch was taken.
-    let chosenB ← do
-      let mut found : Option SExpr := none
-      for c in children do
-        match c with
-        | .node (rt, _) _ crhs _ _ => if rt == "if-simplification" then found := some crhs
-      match found with
-      | some r => pure r
-      | none => throwError "definition: no if-simplification child (frontier)"
-    let isThen ← if chosenB == thenB then pure true
-      else if chosenB == elseB then pure false
-      else throwError "definition: if-simplification rhs {repr chosenB} \
-        matches neither branch"
-    -- Hard-fail if the chosen branch calls a user-defined (recursive) function:
-    -- that needs totality, which is the next step, not this one.
-    let definedNames := ctx.world.defs.toList.map (fun (s, _) => s)
-    if callsDefinedFn definedNames chosenB then
-      throwError "definition: recursive branch needs totality (frontier)"
-    -- Reflect formals and build the argument-value list + arg-eval proofs.
-    let formalsExpr := reflectSymbolList formals
-    -- The body env evaluates the chosen branch at fuel `bcf+1`; the test must
-    -- evaluate at fuel `bcf` ≥ 1 (it contains the formal variable lookup).
-    let bcf := Nat.max (convergeFuel chosenB) 1
-    -- We will prove `eval (M+1) w env (fn args) = some V` where M = bcf+2 is the
-    -- fuel the body's IF needs. Arg-eval proofs feed `evalOpt_defn_*` at fuel M.
-    let bodyFuel := bcf + 2
-    -- Argument values + proofs `eval bodyFuel w env aᵢ = some avᵢ`.
-    let mut argVals : List Expr := []
-    let mut argProofs : List Expr := []
-    for a in args do
-      let af := convergeFuel a
-      unless af + 1 ≤ bodyFuel do
-        throwError "definition: argument {repr a} needs more fuel than allotted (frontier)"
-      -- proveConverges gives `eval (af+1) ... a = some av`; bump to `eval bodyFuel`
-      -- via evalOpt_ge_fuel (bodyFuel ≥ af+1) so it feeds `evalOpt_defn_*`.
-      let (av, hRaw) ← proveConverges ctx af a
-      let hBumped := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
-        #[mkNatLit (af + 1), mkNatLit bodyFuel, ctx.worldExpr, ctx.envExpr,
-          reflectSExpr a, av, hRaw, ← mkGeProof bodyFuel (af + 1)]
-      argVals := argVals ++ [av]
-      argProofs := argProofs ++ [hBumped]
-    -- Build the body env Expr: bindArgs formals argVals.
-    let argValsListExpr ← mkListLitSExpr argVals
-    let bodyEnvExpr ← mkAppM ``bindArgs #[formalsExpr, argValsListExpr]
-    -- Build the body-env context: each formal looks up to its arg value, with a
-    -- convergence proof `fun f => eval (f+1) w bodyEnv pᵢ = some avᵢ`.
-    let mut bodyVars : List (Symbol × Expr × Expr) := []
-    for (p, pv) in formals.zip argVals do
-      let hLookup ← proveBindLookup formalsExpr argValsListExpr p pv
-      -- conv : fun (f : Nat) => evalOpt_var f w bodyEnv p pv hLookup
-      let conv ← withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
-        let body := mkAppN (Lean.mkConst ``evalOpt_var)
-          #[fVar, ctx.worldExpr, bodyEnvExpr, reflectSymbol p, pv, hLookup]
-        mkLambdaFVars #[fVar] body
-      bodyVars := bodyVars ++ [(p, pv, conv)]
-    let ctx' : ProofCtx := { ctx with envExpr := bodyEnvExpr, vars := bodyVars }
-    -- Parse the test as a recognizer call `(RECOG p)`.
-    let (recogSym, recogArg) ← match test with
-      | .cons (.atom (.symbol s)) (.cons a .nil) => pure (s, a)
-      | _ => throwError "definition: test is not a 1-arg recognizer: {repr test}"
-    -- Evaluate the test argument at fuel `bcf` (needs the formal lookup).
-    let targFuel := bcf - 1   -- proveConverges gives eval (targFuel+1) = eval bcf
-    let (recogArgVal, hRecogArg) ← proveConverges ctx' targFuel recogArg
-    -- eval (bcf+1) bodyEnv (RECOG p) = some (callBuiltin RECOG [recogArgVal]).
-    let hNotSpecial ← proveNotSpecial recogSym
-    let hNoDef ← proveWorldLookupNone ctx' recogSym
-    let hTestRaw := mkAppN (Lean.mkConst ``evalOpt_builtin_1)
-      #[mkNatLit bcf, ctx.worldExpr, bodyEnvExpr,
-        reflectSymbol recogSym, reflectSExpr recogArg, recogArgVal,
-        hNotSpecial, hNoDef, hRecogArg]
-    -- Resolve the IF branch.
-    -- Chosen branch convergence: eval (bcf+1) bodyEnv chosenB = some V.
-    let (vVal, hChosen) ← proveConverges ctx' bcf chosenB
-    let ifResult ←
-      if isThen then
-        -- Truthy: need `callBuiltin RECOG [recogArgVal] = cv` and `toBool cv = true`.
-        -- The recognizer value for the then-branch must be a concrete truthy
-        -- constant or come from a fact; here we resolve it structurally for
-        -- `consp` of a cons form (value T) — the only truthy recognizer the
-        -- base/step shapes produce without extra instrumentation.
-        let callExpr ← mkAppM ``callBuiltin
-          #[mkStrLit recogSym.name, ← mkListLitSExpr [recogArgVal]]
-        -- The truthy constant value: try the structural consp-of-cons fact (T).
-        let cExpr := reflectSExpr SExpr.t
-        let hCall ← proveCallEqConst ctx' recogSym recogArg callExpr cExpr SExpr.t
-        let hSomeEq ← mkAppM ``congrArg
-          #[mkApp (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr), hCall]
-        let hTest ← mkAppM ``Eq.trans #[hTestRaw, hSomeEq]
-        -- toBool T = true by decide.
-        let hTruthy ← proveByDecide (← mkAppM ``Eq
-          #[← mkAppM ``Logic.toBool #[cExpr], Lean.mkConst ``Bool.true])
-        -- evalOpt_if_true (bcf+1) ... gives eval (bcf+2) (IF) = eval (bcf+1) thenB.
-        pure <| mkAppN (Lean.mkConst ``evalOpt_if_true)
-          #[mkNatLit (bcf + 1), ctx.worldExpr, bodyEnvExpr,
-            reflectSExpr test, reflectSExpr thenB, reflectSExpr elseB,
-            cExpr, hTest, hTruthy]
-      else
-        -- Nil: need `callBuiltin RECOG [recogArgVal] = nil`.
-        let callExpr ← mkAppM ``callBuiltin
-          #[mkStrLit recogSym.name, ← mkListLitSExpr [recogArgVal]]
-        let cExpr := reflectSExpr SExpr.nil
-        let hCall ← proveCallEqConst ctx' recogSym recogArg callExpr cExpr SExpr.nil
-        let hSomeEq ← mkAppM ``congrArg
-          #[mkApp (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr), hCall]
-        let hTest ← mkAppM ``Eq.trans #[hTestRaw, hSomeEq]
-        -- evalOpt_if_false (bcf+1) ... gives eval (bcf+2) (IF) = eval (bcf+1) elseB.
-        pure <| mkAppN (Lean.mkConst ``evalOpt_if_false)
-          #[mkNatLit (bcf + 1), ctx.worldExpr, bodyEnvExpr,
-            reflectSExpr test, reflectSExpr thenB, reflectSExpr elseB, hTest]
-    -- Chain: eval (bcf+2) bodyEnv (IF ...) = eval (bcf+1) bodyEnv chosenB = some V.
-    let hBody ← mkAppM ``Eq.trans #[ifResult, hChosen]
-    -- Unfold the call: eval (bodyFuel+1) w env (fn args)
-    --   = eval bodyFuel w bodyEnv body  (bodyFuel = bcf+2).
-    let hDef ← proveWorldDefnLookup ctx fnSym formals body
-    let hUnfold ←
-      if formals.length == 1 then
-        let formal := formals[0]!
-        let arg := args[0]!
-        let av := argVals[0]!
-        let hArg := argProofs[0]!
-        let hns ← proveNotSpecial fnSym
-        pure <| mkAppN (Lean.mkConst ``evalOpt_defn_1)
-          #[mkNatLit bodyFuel, ctx.worldExpr, ctx.envExpr,
-            reflectSymbol fnSym, reflectSExpr arg, av,
-            reflectSymbol formal, reflectSExpr body,
-            hns, hDef, hArg]
-      else
-        let f1 := formals[0]!
-        let f2 := formals[1]!
-        let a1 := args[0]!
-        let a2 := args[1]!
-        let av1 := argVals[0]!
-        let av2 := argVals[1]!
-        let hA1 := argProofs[0]!
-        let hA2 := argProofs[1]!
-        let hns ← proveNotSpecial fnSym
-        pure <| mkAppN (Lean.mkConst ``evalOpt_defn_2)
-          #[mkNatLit bodyFuel, ctx.worldExpr, ctx.envExpr,
-            reflectSymbol fnSym, reflectSExpr a1, reflectSExpr a2, av1, av2,
-            reflectSymbol f1, reflectSymbol f2, reflectSExpr body,
-            hns, hDef, hA1, hA2]
-    -- LHS: eval (bodyFuel+1) w env (fn args) = some V.
-    let hLHS ← mkAppM ``Eq.trans #[hUnfold, hBody]
-    -- RHS: eval (bodyFuel+1) w env rhs = some V (both sides converge to V).
-    let lhsFuel := bodyFuel + 1
-    let (vRhs, hRhsRaw) ← proveConverges ctx (convergeFuel rhs) rhs
-    -- Bump the RHS proof to fuel lhsFuel.
-    let hRHS := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
-      #[mkNatLit (convergeFuel rhs + 1), mkNatLit lhsFuel, ctx.worldExpr, ctx.envExpr,
-        reflectSExpr rhs, vRhs, hRhsRaw, ← mkGeProof lhsFuel (convergeFuel rhs + 1)]
-    -- The two value Exprs (vVal from the LHS branch, vRhs from RHS) must be the
-    -- same value. We retype both `= some <vVal>` so mkFuelEqExist sees one V.
-    let someVVal := mkApp2 (Lean.mkConst ``Option.some [0]) (Lean.mkConst ``SExpr) vVal
-    let lhsEvalTy ← mkAppM ``Eq
-      #[mkAppN (Lean.mkConst ``evalOpt)
-          #[mkNatLit lhsFuel, ctx.worldExpr, ctx.envExpr, reflectSExpr lhs], someVVal]
-    let rhsEvalTy ← mkAppM ``Eq
-      #[mkAppN (Lean.mkConst ``evalOpt)
-          #[mkNatLit lhsFuel, ctx.worldExpr, ctx.envExpr, reflectSExpr rhs], someVVal]
-    let hLHS' ← mkExpectedTypeHint hLHS lhsEvalTy
-    let hRHS' ← mkExpectedTypeHint hRHS rhsEvalTy
-    -- Wrap into ∃ N, ∀ f ≥ N, eval (fn args) = eval rhs.
-    mkFuelEqExistE ctx lhsFuel lhs rhs vVal hLHS' hRHS'
-
-  /-- Prove `w.defs.get? fnSym = some (formals, body)` by simp + world unfold. -/
-  proveWorldDefnLookup (ctx : ProofCtx) (fnSym : Symbol)
-      (formals : List Symbol) (body : SExpr) : MetaM Expr := do
-    let worldDefs := mkApp (Lean.mkConst ``World.defs) ctx.worldExpr
-    let lookupExpr ← mkAppM ``Std.HashMap.get? #[worldDefs, reflectSymbol fnSym]
-    let pairExpr := mkApp4 (Lean.mkConst ``Prod.mk [0, 0])
-      (← mkAppM ``List #[Lean.mkConst ``Symbol]) (Lean.mkConst ``SExpr)
-      (reflectSymbolList formals) (reflectSExpr body)
-    let pairTy ← inferType pairExpr
-    let someE := mkApp2 (Lean.mkConst ``Option.some [0]) pairTy pairExpr
-    proveBySimp (← mkAppM ``Eq #[lookupExpr, someE])
-      (unfoldNames := ctx.worldUnfoldNames) (useDecide := true)
-
-  /-- `mkFuelEqExist` accepting value Exprs directly (rather than reflecting a
-      `SExpr v`). Same construction as `mkFuelEqExist` but `v` is an Expr. -/
-  mkFuelEqExistE (ctx : ProofCtx) (N : Nat) (a b : SExpr) (vE : Expr)
-      (hA hB : Expr) : MetaM Expr := do
-    let NE := mkNatLit N
-    let aE := reflectSExpr a
-    let bE := reflectSExpr b
-    let pred ← mkFuelPredE ctx aE fun fVar =>
-      mkAppN (Lean.mkConst ``evalOpt) #[fVar, ctx.worldExpr, ctx.envExpr, bE]
-    withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
-      let geType ← mkAppM ``GE.ge #[fVar, NE]
-      withLocalDeclD `hf geType fun hfVar => do
-        let geA := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
-          #[NE, fVar, ctx.worldExpr, ctx.envExpr, aE, vE, hA, hfVar]
-        let geB := mkAppN (Lean.mkConst ``evalOpt_ge_fuel)
-          #[NE, fVar, ctx.worldExpr, ctx.envExpr, bE, vE, hB, hfVar]
-        let eqProof ← mkAppM ``Eq.trans #[geA, ← mkAppM ``Eq.symm #[geB]]
-        let body ← mkLambdaFVars #[fVar, hfVar] eqProof
-        return mkApp4 (Lean.mkConst ``Exists.intro [1])
-          (Lean.mkConst ``Nat) pred NE body
-
-  /-- `mkFuelPred` inlined into the where-block (private top-level `mkFuelPred`
-      is not in scope here). -/
-  mkFuelPredE (ctx : ProofCtx) (aExpr : Expr) (mkRhs : Expr → Expr) :
-      MetaM Expr := do
-    withLocalDeclD `N (Lean.mkConst ``Nat) fun nVar => do
-      withLocalDeclD `f (Lean.mkConst ``Nat) fun fVar => do
-        let geType ← mkAppM ``GE.ge #[fVar, nVar]
-        withLocalDeclD `hf geType fun hfVar => do
-          let lhsEval := mkAppN (Lean.mkConst ``evalOpt)
-            #[fVar, ctx.worldExpr, ctx.envExpr, aExpr]
-          let eqType ← mkAppM ``Eq #[lhsEval, mkRhs fVar]
-          let forall_ ← mkForallFVars #[fVar, hfVar] eqType
-          mkLambdaFVars #[nVar] forall_
-
-  /-- Prove `m ≥ n` for concrete Nat literals (m ≥ n) by decide. -/
-  mkGeProof (m n : Nat) : MetaM Expr := do
-    proveByDecide (← mkAppM ``GE.ge #[mkNatLit m, mkNatLit n])
 
 /-- Does `a` occur as a subterm of `term`? -/
 partial def occursIn (a term : SExpr) : Bool :=
   term == a || match term with
     | .cons x y => occursIn a x || occursIn a y
     | _ => false
-
-/-- Reflect a `List SExpr` as a Lean `Expr` of type `List SExpr`. -/
-def reflectSExprList : List SExpr → Expr
-  | [] => mkApp (Lean.mkConst ``List.nil [0]) (Lean.mkConst ``SExpr)
-  | x :: xs => mkApp3 (Lean.mkConst ``List.cons [0]) (Lean.mkConst ``SExpr)
-      (reflectSExpr x) (reflectSExprList xs)
 
 /-- Prove `s.isNamed name = false` by decision. -/
 def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
@@ -1375,14 +1278,14 @@ where
     match term with
     | .nil =>
       let h ← proveNilEval ctx 0
-      mkFuelConvergeExist ctx 1 term .nil h
+      mkFuelConvergeExist ctx 1 term (reflectSExpr .nil) h
     | .atom (.number n) =>
       let h ← proveNumberEval ctx 0 n
-      mkFuelConvergeExist ctx 1 term (.atom (.number n)) h
+      mkFuelConvergeExist ctx 1 term (reflectSExpr (.atom (.number n))) h
     | .cons (.atom (.symbol q)) (.cons v .nil) =>
       if q.isNamed "quote" then
         let h ← proveQuoteEval ctx 0 v
-        mkFuelConvergeExist ctx 1 term v h
+        mkFuelConvergeExist ctx 1 term (reflectSExpr v) h
       else
         throwError "proveLiteralChain: final term is not a simple value: {repr term}"
     | _ =>
