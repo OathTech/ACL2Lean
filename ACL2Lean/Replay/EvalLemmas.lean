@@ -5,8 +5,10 @@
   building blocks: the proof-producing checker applies one theorem
   per proof tree node, composing them to prove the target theorem.
 
-  Every theorem is proved once, used for all ACL2 theorems.
+  Each PROVED theorem is proved once and reused for all ACL2 theorems.
   No inference, no search — purely deterministic replay.
+  ⚠ Several composition lemmas below are still `sorry` / `sorryAx`-backed
+  (notably the T1 congruence layer) — see the per-theorem ⚠ markers.
 -/
 import ACL2Lean.EvalOpt
 import ACL2Lean.Count
@@ -658,7 +660,8 @@ theorem replaceSubterm_ctx (term a b : SExpr)
     ∃ ctx : EvalCtx, term = ctx.plug a ∧ replaceSubterm term a b = ctx.plug b := by
   sorry
 
-/-- T1 full: replaceSubterm preserves pcEq. -/
+/-- ⚠ UNPROVEN — no literal `sorry`, but `sorryAx`-backed (depends on the sorried
+    `replaceSubterm_ctx` and `evalOpt_ctx_pcEq`). T1 full: replaceSubterm preserves pcEq. -/
 theorem evalOpt_replace_pcEq (w : World) (env : Env)
     (term a b : SExpr)
     (h_eq : ∀ f, pcEq (evalOpt f w env a) (evalOpt f w env b)) :
@@ -682,8 +685,9 @@ theorem evalOpt_replace_congr (w : World) (env : Env)
       evalOpt f w env term := by
   sorry
 
-/-- T1 (forward direction): eval of the original equals eval of the replaced.
-    This is the direction needed for chaining rewrites forward. -/
+/-- ⚠ UNPROVEN — no literal `sorry`, but `sorryAx`-backed (calls the sorried
+    `evalOpt_replace_congr`). T1 (forward direction): eval of the original equals
+    eval of the replaced; the direction needed for chaining rewrites forward. -/
 theorem evalOpt_replace_congr_fwd (w : World) (env : Env)
     (term a b : SExpr)
     (h_eq : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :

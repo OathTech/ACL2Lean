@@ -18,10 +18,14 @@ namespace ACL2
 /-- Bind function formals to argument values, producing a new environment. -/
 def bindArgs : List Symbol → List SExpr → Env
   | f :: fs, v :: vs => (bindArgs fs vs).insert f v
-  | _, _ => {}
+  | _, _ => {}  -- ⚠ silent default on formals/args length mismatch (no hard-fail); see callBuiltin note
 
 /-- Dispatch an ACL2 built-in primitive by normalized name.
-    Returns SExpr.nil for unknown functions or wrong arity. -/
+    ⚠ KNOWN FIDELITY GAP (trusted core): the `| _, _ => .nil` default SILENTLY
+    returns nil for unknown functions / wrong arity instead of hard-failing —
+    contra the "never silently skip / hard-fail at frontiers" rule. Left as
+    build-out (fixing it changes trusted-core semantics); flagged here so it is
+    not mistaken for a faithful total model. -/
 def callBuiltin (name : String) (args : List SExpr) : SExpr :=
   match name, args with
   | "cons", [a, b] => .cons a b
