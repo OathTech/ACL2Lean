@@ -157,30 +157,6 @@ theorem callConverges1 (w : World) (env : Env) (fnSym formal : Symbol)
   rw [evalOpt_defn_1 g w env fnSym arg argVal formal body h_ns h_def (ha g (by omega))]
   exact hb g (by omega)
 
-/-- A `(cons a1 a2)` call converges to `.cons v1 v2` (the cons of the two
-    argument values), given both arguments converge (existential-fuel form).
-    Composes `evalOpt_builtin_2`; `callBuiltin "cons" [v1, v2]` is defeq to
-    `.cons v1 v2`. The head symbol must be the `cons` builtin (not special, not
-    shadowed). -/
-theorem consConverges (w : World) (env : Env) (consSym : Symbol)
-    (a1 a2 v1 v2 : SExpr)
-    (h_ns : consSym.isNamed "quote" = false ∧ consSym.isNamed "if" = false ∧
-            consSym.isNamed "let" = false ∧ consSym.isNamed "let*" = false)
-    (h_no_def : w.defs.get? consSym = none)
-    (h_cons : consSym.name = "cons")
-    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env a1 = some v1)
-    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env a2 = some v2) :
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol consSym)) (.cons a1 (.cons a2 .nil)))
-        = some (.cons v1 v2) := by
-  obtain ⟨N1, h1⟩ := h1
-  obtain ⟨N2, h2⟩ := h2
-  refine ⟨max N1 N2 + 1, fun f hf => ?_⟩
-  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-  rw [evalOpt_builtin_2 g w env consSym a1 a2 v1 v2 h_ns h_no_def
-        (h1 g (by omega)) (h2 g (by omega))]
-  rw [h_cons]; rfl
-
 /-- One `f ≥ N+1` step of an `equal-self` proof, given the argument `x`
     converges to `v` for all fuel `≥ N`. Used by the existential-fuel
     `proveEqualSelfNode`: for any `f ≥ N+1`, write `f = g+1` with `g ≥ N`, then
@@ -719,75 +695,52 @@ partial def proveConverges (ctx : ProofCtx) (f : Nat) (term : SExpr) :
   | _ =>
     throwError "proveConverges: unsupported term {repr term}"
 
+/-- Minimum fuel `f` such that `proveConverges ctx f term` succeeds: the
+    nesting depth of evaluated calls (leaves need fuel 0 ⇒ `eval (f+1)`;
+    each `(cons ..)` layer needs one more). General over term shape. -/
+def convergeFuel (term : SExpr) : Nat :=
+  match term with
+  | .cons (.atom (.symbol _)) (.cons a1 (.cons a2 .nil)) =>
+    1 + max (convergeFuel a1) (convergeFuel a2)
+  | _ => 0
+
+/-- Lift the fixed-fuel `proveConverges` result for a NON-recursive `term` to the
+    existential-fuel form `∃ N, ∀ f ≥ N, evalOpt f w env term = some v`.
+    `proveConverges` is the single source of truth for base-case convergence;
+    this bridges its fixed-fuel `eval (f+1) = some v` to the ∃-form via
+    `mkFuelConvergeExist`. -/
+def liftConvergeToExist (ctx : ProofCtx) (term : SExpr) : MetaM (Expr × Expr) := do
+  let f := convergeFuel term
+  let (v, h) ← proveConverges ctx f term
+  let hExist ← mkFuelConvergeExist ctx (f + 1) term v h
+  return (v, hExist)
+
 mutual
 
 /-- Existential-fuel convergence: returns `(value, proof)` where
     `proof : ∃ N, ∀ f ≥ N, evalOpt f w env term = some value`.
 
-    Strictly more capable than the fixed-fuel `proveConverges`: it additionally
-    handles a CALL `(fnSym arg)` to a 1-arg structurally-recursive,
-    integer-valued function (detected and proven total by `synthTotality1`),
-    whose convergence holds only for fuel `≥ N` with `N` existential — which a
-    fixed-fuel proof cannot express. Leaf/structural cases mirror
-    `proveConverges`, lifted to the existential form via `mkFuelConvergeExist`
-    / `consConverges`. Hard-fails at the frontier (anything `synthTotality1`
-    rejects, or any unsupported shape). -/
+    Thin wrapper over the fixed-fuel `proveConverges`, which is the single
+    source of truth for base-case convergence. The ONE case `proveConverges`
+    cannot express is a CALL `(fn arg)` to a 1-arg structurally-recursive,
+    integer-valued function (proven total by `synthTotality1`), whose
+    convergence holds only for fuel `≥ N` with `N` data-dependent / existential.
+    Every other shape (variable / number / nil / quote / `(cons ..)` of base
+    values) is non-recursive and delegated to `proveConverges`, lifted to ∃-form
+    by `liftConvergeToExist`. Hard-fails at the frontier (anything
+    `synthTotality1` rejects, or anything `proveConverges` rejects — including
+    `(cons ..)` whose arguments are themselves recursive calls). -/
 partial def proveConvergesExist (ctx : ProofCtx) (term : SExpr) :
     MetaM (Expr × Expr) := do
   match term with
-  | .atom (.symbol s) =>
-    match ctx.vars.find? (fun (s', _, _) => s' == s) with
-    | some (_, val, conv) =>
-      -- `conv 0 : eval (0+1) w env s = some val`; lift fuel-1 proof to ∃-form.
-      -- `val` is an Expr (possibly opaque); `mkFuelConvergeExist` takes it directly.
-      let h0 := mkApp conv (mkNatLit 0)
-      let hExist ← mkFuelConvergeExist ctx 1 term val h0
-      return (val, hExist)
-    | none =>
-      -- No case binding: a fresh abstract value via evalOpt_symbol_converges.
-      let hConv := mkAppN (Lean.mkConst ``evalOpt_symbol_converges)
-        #[mkNatLit 0, ctx.worldExpr, ctx.envExpr, reflectSymbol s]
-      let xv ← mkAppM ``Exists.choose #[hConv]
-      let h0 ← mkAppM ``Exists.choose_spec #[hConv]
-      let hExist ← mkFuelConvergeExist ctx 1 term xv h0
-      return (xv, hExist)
-  | .atom (.number n) =>
-    let h0 ← proveNumberEval ctx 0 n
-    let hExist ← mkFuelConvergeExist ctx 1 term (reflectSExpr (.atom (.number n))) h0
-    return (reflectSExpr (.atom (.number n)), hExist)
-  | .nil =>
-    let h0 ← proveNilEval ctx 0
-    let hExist ← mkFuelConvergeExist ctx 1 term (reflectSExpr .nil) h0
-    return (reflectSExpr .nil, hExist)
-  | .cons (.atom (.symbol q)) (.cons v .nil) =>
-    if q.isNamed "quote" then
-      let h0 ← proveQuoteEval ctx 0 v
-      let hExist ← mkFuelConvergeExist ctx 1 term (reflectSExpr v) h0
-      return (reflectSExpr v, hExist)
-    else
-      -- 1-arg call. If the head is a defined function that `synthTotality1`
-      -- accepts, the call converges to an integer (totality fact). Otherwise
-      -- the frontier: let synthTotality1's own throwError propagate.
-      proveCallConvergesExist ctx q v
-  | .cons (.atom (.symbol c)) (.cons a1 (.cons a2 .nil)) =>
-    if c.isNamed "cons" then
-      let (v1, h1) ← proveConvergesExist ctx a1
-      let (v2, h2) ← proveConvergesExist ctx a2
-      let hNotSpecial ← proveNotSpecial c
-      let hNoDef ← proveWorldLookupNone ctx c
-      let hName ← proveByDecide (mkApp3 (Lean.mkConst ``Eq [1])
-        (Lean.mkConst ``String)
-        (mkApp (Lean.mkConst ``Symbol.name) (reflectSymbol c)) (mkStrLit "cons"))
-      let consVal := mkApp2 (Lean.mkConst ``SExpr.cons) v1 v2
-      let hExist := mkAppN (Lean.mkConst ``consConverges)
-        #[ctx.worldExpr, ctx.envExpr, reflectSymbol c,
-          reflectSExpr a1, reflectSExpr a2, v1, v2,
-          hNotSpecial, hNoDef, hName, h1, h2]
-      return (consVal, hExist)
-    else
-      throwError "proveConvergesExist: unsupported term {repr term}"
+  | .cons (.atom (.symbol q)) (.cons arg .nil) =>
+    -- 1-arg head-symbol form. `(QUOTE c)` is a base case; any other head is a
+    -- CALL `(fn arg)` needing the existential (data-dependent) fuel path.
+    if q.isNamed "quote" then liftConvergeToExist ctx term
+    else proveCallConvergesExist ctx q arg
   | _ =>
-    throwError "proveConvergesExist: unsupported term {repr term}"
+    -- Non-recursive base case: delegate to the single source of truth.
+    liftConvergeToExist ctx term
 
 /-- CALL `(fnSym arg)` (1-arg) convergence in existential-fuel form. Drives off
     `synthTotality1` to obtain the body-totality fact for `fnSym`; if the
@@ -868,15 +821,6 @@ def proveEqualSelfNode (ctx : ProofCtx) (lhs rhs : SExpr) : MetaM Expr := do
   let exbuilt := mkApp4 (Lean.mkConst ``Exists.intro [1])
     (Lean.mkConst ``Nat) pred mExpr proofBody
   return exbuilt
-
-/-- Minimum fuel `f` such that `proveConverges ctx f term` succeeds: the
-    nesting depth of evaluated calls (leaves need fuel 0 ⇒ `eval (f+1)`;
-    each `(cons ..)` layer needs one more). General over term shape. -/
-def convergeFuel (term : SExpr) : Nat :=
-  match term with
-  | .cons (.atom (.symbol _)) (.cons a1 (.cons a2 .nil)) =>
-    1 + max (convergeFuel a1) (convergeFuel a2)
-  | _ => 0
 
 /-- Parse a quoted constant `(QUOTE c)` into `c`; fail otherwise. -/
 def parseQuotedConst (e : SExpr) : MetaM SExpr := do
