@@ -1,0 +1,101 @@
+
+══ THEOREM my-len-my-app ══
+  goal: (equal (my-len (my-app x y)) (+ (my-len x) (my-len y)))
+  proved by INDUCTION on (my-app x y)  (2 cases → subgoals below)
+    induction scheme (each case is a clause):
+      case 0:
+        (consp x)
+        (equal (my-len (my-app x y)) (binary-+ (my-len x) (my-len y)))
+      case 1:
+        (not (consp x))
+        (not (equal (my-len (my-app (cdr x) y)) (binary-+ (my-len (cdr x)) (my-len y))))
+        (equal (my-len (my-app x y)) (binary-+ (my-len x) (my-len y)))
+
+  Subgoal *1/2   (one case of the induction above)
+    clause = disjunction of 2 literals:
+      [0] (consp x)
+      [1] (equal (my-len (my-app x y)) (binary-+ (my-len x) (my-len y)))
+    literal 1 [carried, no rewrite]: (consp x)
+    literal 2 [rewritten ⇒ (quote t)]:
+      (equal (my-len (my-app x y)) (binary-+ (my-len x) (my-len y)))
+      rewrite chain (4 steps):
+        definition:my-app [fncall/abbreviation]
+          (my-app x y) => y
+          subst: y → (. y), x → (. x)
+          fake-rune-for-anonymous-enabled-rule:NIL [recognizer/false]
+            (consp x) => (quote NIL)
+          if-simplification:NIL [rewrite-if/constant-test]
+            (if (quote NIL) (cons (car x) (my-app (cdr x) y)) y) => y
+        definition:my-len [fncall/abbreviation]
+          (my-len x) => (quote 0)
+          subst: x → (. x)
+          fake-rune-for-anonymous-enabled-rule:NIL [recognizer/false]
+            (consp x) => (quote NIL)
+            runes: definition:my-app
+          if-simplification:NIL [rewrite-if/constant-test]
+            (if (quote NIL) (binary-+ (quote 1) (my-len (cdr x))) (quote 0)) => (quote 0)
+        rewrite:unicity-of-0 [with-lemma]
+          (binary-+ (quote 0) (my-len y)) => (my-len y)
+          runes: definition:fix, type-prescription:my-len, definition:my-len, definition:my-app
+          definition:fix [fncall/non-recursive]
+            (fix (my-len y)) => (my-len y)
+            subst: x → (my-len y)
+            fake-rune-for-anonymous-enabled-rule:NIL [recognizer/true]
+              (acl2-numberp (my-len y)) => (quote t)
+              runes: type-prescription:my-len, definition:my-len, definition:my-app
+            if-simplification:NIL [rewrite-if/constant-test]
+              (if (quote t) x (quote 0)) => x
+        equal-self:NIL [equal/self]
+          (equal (my-len y) (my-len y)) => (quote t)
+
+  Subgoal *1/1   (one case of the induction above)
+    clause = disjunction of 3 literals:
+      [0] (not (consp x))
+      [1] (not (equal (my-len (my-app (cdr x) y)) (binary-+ (my-len (cdr x)) (my-len y))))
+      [2] (equal (my-len (my-app x y)) (binary-+ (my-len x) (my-len y)))
+    literal 1 [carried, no rewrite]: (not (consp x))
+    literal 2 [rewritten ⇒ (not (equal (my-len (my-app (cdr x) y)) (binary-+ (my-len y) (my-len (cdr x)))))]:
+      (not (equal (my-len (my-app (cdr x) y)) (binary-+ (my-len (cdr x)) (my-len y))))
+      rewrite chain (1 steps):
+        rewrite:commutativity-of-+ [with-lemma]
+          (binary-+ (my-len (cdr x)) (my-len y)) => (binary-+ (my-len y) (my-len (cdr x)))
+    literal 3 [rewritten ⇒ (quote t)]:
+      (equal (my-len (my-app x y)) (binary-+ (my-len x) (my-len y)))
+      rewrite chain (5 steps):
+        definition:my-app [fncall/abbreviation]
+          (my-app x y) => (cons (car x) (my-app (cdr x) y))
+          subst: y → (. y), x → (. x)
+          fake-rune-for-anonymous-enabled-rule:NIL [recognizer/true]
+            (consp x) => (quote t)
+          if-simplification:NIL [rewrite-if/constant-test]
+            (if (quote t) (cons (car x) (my-app (cdr x) y)) y) => (cons (car x) (my-app (cdr x) y))
+        definition:my-len [fncall/recursive]
+          (my-len (cons (car x) (my-app (cdr x) y))) => (binary-+ (quote 1) (my-len (my-app (cdr x) y)))
+          subst: x → (cons (car x) (my-app (cdr x) y))
+          fake-rune-for-anonymous-enabled-rule:NIL [recognizer/true]
+            (consp (cons (car x) (my-app (cdr x) y))) => (quote t)
+            runes: fake-rune-for-type-set:NIL, definition:my-app
+          if-simplification:NIL [rewrite-if/constant-test]
+            (if (quote t) (binary-+ (quote 1) (my-len (cdr x))) (quote 0)) => (binary-+ (quote 1) (my-len (cdr x)))
+          rewrite:cdr-cons [with-lemma]
+            (cdr (cons (car x) (my-app (cdr x) y))) => (my-app (cdr x) y)
+            runes: fake-rune-for-type-set:NIL, definition:my-app
+        definition:my-len [fncall/abbreviation]
+          (my-len x) => (binary-+ (quote 1) (my-len (cdr x)))
+          subst: x → (. x)
+          fake-rune-for-anonymous-enabled-rule:NIL [recognizer/true]
+            (consp x) => (quote t)
+            runes: definition:my-len, rewrite:cdr-cons, fake-rune-for-type-set:NIL, definition:my-app
+          if-simplification:NIL [rewrite-if/constant-test]
+            (if (quote t) (binary-+ (quote 1) (my-len (cdr x))) (quote 0)) => (binary-+ (quote 1) (my-len (cdr x)))
+        rewrite:commutativity-of-+ [with-lemma]
+          (binary-+ (binary-+ (quote 1) (my-len (cdr x))) (my-len y)) => (binary-+ (quote 1) (my-len (my-app (cdr x) y)))
+          runes: rewrite:commutativity-2-of-+, definition:my-len, rewrite:cdr-cons, fake-rune-for-type-set:NIL, definition:my-app
+          rewrite:commutativity-2-of-+ [with-lemma]
+            (binary-+ (my-len y) (binary-+ (quote 1) (my-len (cdr x)))) => (binary-+ (quote 1) (my-len (my-app (cdr x) y)))
+            runes: definition:my-len, rewrite:cdr-cons, fake-rune-for-type-set:NIL, definition:my-app
+            rewriting-equivalence:NIL [solidify/rewriting-equiv]
+              (binary-+ (my-len y) (my-len (cdr x))) => (my-len (my-app (cdr x) y))
+              equiv: (equal (binary-+ (my-len y) (my-len (cdr x))) (my-len (my-app (cdr x) y)))
+        equal-self:NIL [equal/self]
+          (equal (binary-+ (quote 1) (my-len (my-app (cdr x) y))) (binary-+ (quote 1) (my-len (my-app (cdr x) y)))) => (quote t)

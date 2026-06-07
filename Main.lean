@@ -147,36 +147,42 @@ def main (args : List String) : IO Unit := do
             IO.eprintln "No theorems found in proof log"
           else
             for proof in proofs do
-              IO.println s!"\n══ {proof.name} ══"
-              if let some ind := proof.induction then
-                IO.println s!"  Induction on {ind.term} → {ind.subgoalCount} subgoals"
-                IO.println "  Scheme:"
+              IO.println s!"\n══ THEOREM {proof.name} ══"
+              IO.println s!"  goal: {proof.formula}"
+              -- The TOP-LEVEL structure of the proof is the induction; the
+              -- subgoals below are its cases. (A literal's node list is a local
+              -- rewrite chain, NOT the proof's top level.)
+              match proof.induction with
+              | some ind =>
+                IO.println s!"  proved by INDUCTION on {ind.term}  ({ind.subgoalCount} cases → subgoals below)"
+                IO.println "    induction scheme (each case is a clause):"
                 let mut ci := 0
                 for clause in ind.scheme do
                   match clause.toList? with
                   | some lits =>
-                    IO.println s!"    Case {ci}:"
+                    IO.println s!"      case {ci}:"
                     for lit in lits do
-                      IO.println s!"      {lit}"
+                      IO.println s!"        {lit}"
                   | none =>
-                    IO.println s!"    Case {ci}: {clause}"
+                    IO.println s!"      case {ci}: {clause}"
                   ci := ci + 1
+              | none =>
+                IO.println "  (no induction — direct proof)"
               for c in proof.cases do
-                IO.println s!"\n  ── {c.clauseId} ──"
-                IO.println s!"  Clause ({c.clause.length} literals):"
+                IO.println s!"\n  {c.clauseId}   (one case of the induction above)"
+                IO.println s!"    clause = disjunction of {c.clause.length} literals:"
                 let mut li := 0
                 for lit in c.clause do
-                  IO.println s!"    [{li}] {lit}"
+                  IO.println s!"      [{li}] {lit}"
                   li := li + 1
                 for lp in c.literalProofs do
-                  IO.println s!"\n  Literal {lp.index} (notFlg={lp.notFlg}):"
-                  IO.println s!"    Input:  {lp.literal}"
-                  IO.println s!"    Result: {lp.result}"
                   if lp.nodes.isEmpty then
-                    IO.println "    (no rewrites)"
+                    IO.println s!"    literal {lp.index} [carried, no rewrite]: {lp.literal}"
                   else
-                    IO.println s!"    Proof tree ({lp.nodes.length} top-level nodes):"
-                    printProofNodes lp.nodes 3
+                    IO.println s!"    literal {lp.index} [rewritten ⇒ {lp.result}]:"
+                    IO.println s!"      {lp.literal}"
+                    IO.println s!"      rewrite chain ({lp.nodes.length} steps):"
+                    printProofNodes lp.nodes 4
   | "check-proof" :: logPath :: depPaths => do
       -- Load dependency proof logs first to build cumulative world/formulas
       let mut world : ACL2.World := { defs := {} }
