@@ -35,7 +35,15 @@ for INPUT in "$@"; do
   printf '(set-raw-proof-format :structured)
 (ld "%s")
 (good-bye)
-' "$INPUT_ABS" | "$ACL2" 2>&1 > "$OUTPUT"
+' "$INPUT_ABS" | "$ACL2" > "$OUTPUT" 2>&1
+
+  # `ld` halts with (:STOP-LD ...) on the first failed event, and the
+  # :structured format suppresses ACL2's error text, so a truncated log can
+  # look like a clean one. Surface the abort loudly rather than letting the
+  # log silently end early.
+  if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED" "$OUTPUT"; then
+    echo "WARNING: $(basename "$INPUT") — ACL2 aborted an event (:STOP-LD); log is INCOMPLETE." >&2
+  fi
 
   echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines → $OUTPUT"
 done
