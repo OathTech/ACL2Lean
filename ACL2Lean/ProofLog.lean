@@ -15,11 +15,20 @@ structure RewriteStep where
   rune : String × String
   /-- The term before rewriting. -/
   lhs : SExpr
-  /-- The term after rewriting. -/
+  /-- The term AFTER rewriting — note (B3): for a `with-lemma`/recursive-definition
+      step this is the rule's instantiated RHS *after it is itself recursively
+      rewritten* (those inner rewrites are logged separately as this step's
+      children, under BEGIN/END-INNER-REWRITE). So `rhs` is the cumulative result,
+      NOT `(apply rune once to lhs)`. A replay must treat the children as the
+      sub-derivation that produced `rhs`. -/
   rhs : SExpr
   /-- Which code path produced this step (e.g., "fncall/non-recursive"). -/
   origin : String := ""
-  /-- Actual runes used in the justification (e.g., type-prescription runes). -/
+  /-- Note (B2): this is the CUMULATIVE rune set in the ttree on ENTRY to the
+      step (`all-runes-in-ttree`), i.e. rules accumulated by prior steps — NOT
+      the rule this step applied. THIS step's rule is `rune`. Do not read `runes`
+      as "this step's dependencies." (Exception: on a `type-set` node — built by
+      ProofTree, not from a RewriteStep — `runes` IS the per-step justification.) -/
   runes : List (String × String) := []
   /-- Clause literal parent indices from the ttree. -/
   parents : List SExpr := []

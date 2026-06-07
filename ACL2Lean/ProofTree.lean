@@ -19,6 +19,10 @@ namespace ACL2
 /-- Provenance for a proof node: what justified this reasoning step. -/
 structure StepProvenance where
   origin : String := ""
+  /-- For a rewrite-step node (B2): the CUMULATIVE ttree rune set on entry, NOT
+      this step's rule — the rule is the node's own `rune`. For a `type-set`
+      node: the per-step justification runes. A replay must not read this as the
+      single rule applied here (use the node's rune for that). -/
   runes : List (String × String) := []
   parents : List SExpr := []
   subst : List (SExpr × SExpr) := []
