@@ -60,8 +60,11 @@ private partial def printClauseItems (items : List ACL2.ClauseItem)
       else
         IO.println s!"{pad}  │    literal {lp.index}: {lp.literal} ⇒ {lp.result}  ({lp.nodes.length}-step rewrite)"
         printProofNodes lp.nodes rwIndent
-    | .step (.node rune lhs rhs _ _) =>
+    | .step (.node rune lhs rhs children _) =>
       IO.println s!"{pad}  │    {rune.1}: {lhs} ⇒ {rhs}"
+      -- A clause-level step (e.g. a termination conjecture's bare rewrite chain)
+      -- can have adopted inner-rewrite children; render them too.
+      if !children.isEmpty then printProofNodes children rwIndent
     | .branch segment subitems =>
       IO.println s!"{pad}  │    ┌ case branch: {segment}"
       printClauseItems subitems (pad ++ "    ") rwIndent
