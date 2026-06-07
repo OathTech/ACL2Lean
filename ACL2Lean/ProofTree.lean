@@ -16,20 +16,6 @@ namespace ACL2
 
 /-! ## Proof tree types -/
 
-/-- Why an IF branch decision was made. -/
-inductive BranchJustification where
-  | clauseAssumption   -- test's truth follows from a negated clause literal
-  | typeSet            -- test's truth follows from type reasoning
-  | rewrittenConstant  -- test rewrote to a constant ('T or 'NIL)
-  | unknown            -- justification not captured
-  deriving Repr, BEq, Inhabited
-
-/-- A branch decision made during IF processing inside a rewrite step. -/
-inductive BranchDecision where
-  | true (test : SExpr) (justification : BranchJustification)
-  | false (test : SExpr) (justification : BranchJustification)
-  deriving Repr, BEq, Inhabited
-
 /-- Provenance for a proof node: what justified this reasoning step. -/
 structure StepProvenance where
   origin : String := ""

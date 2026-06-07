@@ -11,6 +11,34 @@ at the end so we don't re-litigate them.**
 > may make some logs fail — that's the point; each failure surfaces an unmodeled
 > case to handle. Convert incrementally.
 
+## Status (2026-06-07)
+
+- ✅ **F1, F4** — fixed by the branch-tree work (parseProofNodesAux exhaustive,
+  buildClauseItems captures inter-literal/branch/type-set; trailing pendingChildren
+  flushed not dropped).
+- ✅ **F8** — `:FORMULA`/`:BODY`/`:COROLLARY` now hard-fail when missing.
+- ✅ **F9** — runes / subst / leaves now hard-fail on a malformed entry or non-list
+  (parseRunes, parseRewriteStep?'s :RUNES/:SUBST, type-prescription :LEAVES).
+- ✅ **F5** — `collectFlat` hard-fails on a non-step/induction event in a theorem block.
+- ✅ **F11** — `:INPUTCLAUSE`/`:NEWCLAUSES`/`:SCHEME` hard-fail on a non-list value.
+- ✅ **F2** — dead `BranchDecision`/`BranchJustification` removed.
+  (All of the above: zero corpus regressions — the sample logs are well-formed, so
+  the hard-fails don't fire; they now guard against malformed input.)
+- ⏸ **F7** (`lookupKeyword`) — left as-is: the `| _ :: rest` arm means "key not at
+  this position," and `lookupKeyword` is used for *optional* keys too (absence is
+  normal). Hard-failing risks breaking valid optional-key lookups; low value.
+- ⏸ **F10** (`not-flg` default `_ => true`) — left: `:NOT-FLG` is plausibly
+  omittable with `true` the intended default; converting risks breaking valid logs.
+- ⚠ **F3** — partially addressed (findLiteralResult now reads the type-set result);
+  the fallback to the unrewritten literal is *correct* for a carried/unchanged
+  literal, so not converted.
+- ⚠ **F13/F14/F15 (EvalOpt — the TRUSTED CORE)** — NOT converted. These need care:
+  the evaluator is total (`Option SExpr`, `none` = non-convergence); a silent `.nil`
+  for an unknown primitive (F13) is the real soundness concern, but fixing it means
+  changing `callBuiltin`'s signature (`SExpr → Option SExpr`) and rippling through
+  `evalOptStep` — a change to the semantic model that defines the mirror theorem.
+  Handle as a separate, discussed step, not a blind conversion.
+
 ## Tier 1 — reconstruction path, genuinely drops data
 
 - **F1 `ProofTree.lean` `parseProofNodesAux` catch-all** — drops any unmodeled

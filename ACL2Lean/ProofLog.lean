@@ -137,11 +137,14 @@ private def parseRune? : SExpr → Option (String × String)
     | none => some (runeType, toString (repr nameExpr))
   | _ => none
 
-/-- Parse a rune list like `((:REWRITE FOO) (:DEFINITION BAR))`. -/
-private def parseRunes (s : SExpr) : List (String × String) :=
+/-- Parse a rune list like `((:REWRITE FOO) (:DEFINITION BAR))`. Hard-fails on a
+    malformed rune or a non-list (no silent drop). -/
+private def parseRunes (s : SExpr) : Except String (List (String × String)) :=
   match s.toList? with
-  | some items => items.filterMap parseRune?
-  | none => []
+  | some items => items.mapM fun r => match parseRune? r with
+    | some rune => pure rune
+    | none => throw s!"bad rune in rune list: {repr r}"
+  | none => throw s!"rune list is not a list: {repr s}"
 
 /-- Parse a single (:REWRITE-STEP :RUNE r :LHS l :RHS r) s-expression. -/
 private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
@@ -164,26 +167,28 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let origin := match lookupKeyword "origin" rest with
         | some (.atom (.symbol s)) => s.name
         | _ => ""
-      let runes := match lookupKeyword "runes" rest with
+      let runes ← match lookupKeyword "runes" rest with
         | some r => match r.toList? with
-          | some items => items.filterMap (fun r => parseRune? r)
-          | none => []
-        | none => []
+          | some items => items.mapM fun r => match parseRune? r with
+            | some rune => pure rune
+            | none => throw s!"REWRITE-STEP: bad rune in :RUNES: {repr r}"
+          | none => throw s!"REWRITE-STEP: :RUNES not a list: {repr r}"
+        | none => pure []
       let parents := match lookupKeyword "parents" rest with
         | some r => match r.toList? with
           | some items => items
           | none => []
         | none => []
-      let subst := match lookupKeyword "subst" rest with
+      let subst ← match lookupKeyword "subst" rest with
         | some r => match r.toList? with
-          | some items => items.filterMap fun pair =>
+          | some items => items.mapM fun pair =>
             match pair.toList? with
-            | some [k, v] => some (k, v)
-            | _ => match pair with  -- dotted pair (k . v)
-              | .cons k v => some (k, v)
-              | _ => none
-          | none => []
-        | none => []
+            | some [k, v] => pure (k, v)
+            | _ => match pair with  -- dotted pair (k . v) or (k . (v ...))
+              | .cons k v => pure (k, v)
+              | _ => throw s!"REWRITE-STEP: bad :SUBST pair: {repr pair}"
+          | none => throw s!"REWRITE-STEP: :SUBST not a list: {repr r}"
+        | none => pure []
       let equivTerm := lookupKeyword "equiv-term" rest
       let typeSet := match lookupKeyword "typeset" rest with
         | some (.atom (.number (.int n))) => some n
@@ -341,22 +346,22 @@ private def parseStep? (items : List SExpr) : Except String ProofStep := do
     | some (.atom (.keyword "subgoals")) => pure ProofResult.subgoals
     | some s => throw s!"STEP: bad :RESULT value: {repr s}"
     | none => throw "STEP: missing :RESULT"
-  let runes := match lookupKeyword "runes" items with
+  let runes ← match lookupKeyword "runes" items with
     | some s => parseRunes s
-    | none => []
+    | none => pure []
   let traceEvents ← match lookupKeyword "rewrites" items with
     | some s => parseTraceEvents s
     | none => pure []
-  let inputClause := match lookupKeyword "inputclause" items with
+  let inputClause ← match lookupKeyword "inputclause" items with
     | some s => match s.toList? with
-      | some cs => cs
-      | none => [s]
-    | none => []
-  let newClauses := match lookupKeyword "newclauses" items with
+      | some cs => pure cs
+      | none => throw s!"STEP: :INPUTCLAUSE is not a list: {repr s}"
+    | none => pure []
+  let newClauses ← match lookupKeyword "newclauses" items with
     | some s => match s.toList? with
-      | some cs => cs
-      | none => [s]
-    | none => []
+      | some cs => pure cs
+      | none => throw s!"STEP: :NEWCLAUSES is not a list: {repr s}"
+    | none => pure []
   pure { clauseId, processor, result, runes, traceEvents, inputClause, newClauses }
 
 /-- Parse a (:INDUCTION ...) s-expression. -/
@@ -368,11 +373,11 @@ private def parseInduction? (items : List SExpr) : Except String InductionStep :
     | some (.atom (.number (.int n))) => pure n.toNat
     | some s => throw s!"INDUCTION: bad :SUBGOALS: {repr s}"
     | none => throw "INDUCTION: missing :SUBGOALS"
-  let scheme := match lookupKeyword "scheme" items with
+  let scheme ← match lookupKeyword "scheme" items with
     | some s => match s.toList? with
-      | some cs => cs
-      | none => [s]
-    | none => []
+      | some cs => pure cs
+      | none => throw s!"INDUCTION: :SCHEME is not a list: {repr s}"
+    | none => pure []
   pure { term, subgoalCount, scheme }
 
 /-- Parse a single top-level s-expression from the proof log. -/
@@ -393,7 +398,8 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
     | some (nameExpr :: fields) =>
       match atomString? nameExpr with
       | some name =>
-        let formula := (lookupKeyword "formula" fields).getD .nil
+        let formula ← (lookupKeyword "formula" fields).elim
+          (throw s!"DEFTHM {name}: missing :FORMULA") pure
         let source := match lookupKeyword "source" fields with
           | some (.atom (.keyword "include-book")) => TheoremSource.includeBook
           | some (.atom (.keyword "local")) => TheoremSource.local
@@ -414,7 +420,8 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
               | _ => none
             | none => []
           | none => []
-        let body := (lookupKeyword "body" fields).getD .nil
+        let body ← (lookupKeyword "body" fields).elim
+          (throw s!"DEFUN {name}: missing :BODY") pure
         return .defun name formals body
       | none => throw s!"DEFUN: bad name: {repr nameExpr}"
     | _ => throw s!"DEFUN: expected plist, got {repr rest}"
@@ -423,19 +430,20 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
     | some (nameExpr :: fields) =>
       match atomString? nameExpr with
       | some name =>
-        let corollary := (lookupKeyword "corollary" fields).getD .nil
+        let corollary ← (lookupKeyword "corollary" fields).elim
+          (throw s!"TYPE-PRESCRIPTION {name}: missing :COROLLARY") pure
         let basicTs := match lookupKeyword "basicts" fields with
           | some (.atom (.number (.int n))) => some n
           | _ => none
-        let leaves := match lookupKeyword "leaves" fields with
+        let leaves ← match lookupKeyword "leaves" fields with
           | some l => match l.toList? with
-            | some items => items.filterMap fun pair =>
+            | some items => items.mapM fun pair =>
               -- Each leaf is a proper list (term type-set-bits)
               match pair.toList? with
-              | some [term, .atom (.number (.int ts))] => some (term, ts)
-              | _ => none
-            | none => []
-          | none => []
+              | some [term, .atom (.number (.int ts))] => pure (term, ts)
+              | _ => throw s!"TYPE-PRESCRIPTION {name}: bad leaf: {repr pair}"
+            | none => throw s!"TYPE-PRESCRIPTION {name}: :LEAVES not a list: {repr l}"
+          | none => pure []
         return .typePrescription name corollary basicTs leaves
       | none => throw s!"TYPE-PRESCRIPTION: bad name: {repr nameExpr}"
     | _ => throw s!"TYPE-PRESCRIPTION: expected plist, got {repr rest}"

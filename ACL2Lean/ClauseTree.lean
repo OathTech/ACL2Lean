@@ -256,7 +256,11 @@ private def collectFlat (events : List ProofEvent)
         lastPushClause := s.inputClause
     | .induction i =>
       inductions := inductions.push (lastPush.getD "", lastPushClause, i)
-    | _ => pure ()
+    | other =>
+      -- buildDevelopment routes defun/type-prescription/defthm/qed elsewhere, so
+      -- a theorem block should contain only steps and inductions; anything else
+      -- is a mis-sliced block — surface it rather than swallow it.
+      throw s!"collectFlat: unexpected event in a theorem block: {repr other}"
   return (flats, inductions)
 
 /-- Synthesize the induction pool-root nodes (`*1`, `*1.1`, …) that ACL2 does
