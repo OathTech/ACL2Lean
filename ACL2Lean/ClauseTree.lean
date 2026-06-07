@@ -39,6 +39,10 @@ structure WaterfallStep where
   /-- Rewriter detail (the clause's `:REWRITES` branch tree), present for steps
       that carry one — chiefly SIMPLIFY-CLAUSE. Empty for processors that don't. -/
   items : List ClauseItem
+  /-- Processor-specific justification fields (verbatim), e.g. fertilize's
+      target/bullet, eliminate-destructors' elim sequence, generalize's term→var
+      map — carried so the derivation of a non-rewriter step isn't dropped. -/
+  extraFields : List (String × SExpr) := []
   deriving Repr, Inhabited
 
 /-- A node of the reconstructed clause tree: one clause (addressed by its
@@ -241,7 +245,7 @@ private def collectFlat (events : List ProofEvent)
     | .step s =>
       let wstep : WaterfallStep := {
         processor := s.processor, result := s.result, runes := s.runes,
-        newClauses := s.newClauses,
+        newClauses := s.newClauses, extraFields := s.extraFields,
         items := ← linkEquivSources (← buildClauseItems s.traceEvents) }
       match findIdx flats s.clauseId with
       | some i =>

@@ -77,6 +77,13 @@ structure ProofStep where
   inputClause : List SExpr := []
   /-- Output clauses if result is subgoals. -/
   newClauses : List SExpr := []
+  /-- Every STEP plist field not otherwise modeled above, captured verbatim as
+      (keyword, value) — so nothing is silently dropped. This is where the
+      processor-specific justifications live: `:FERTILIZE` (:bullet/:target/
+      :equiv), `:ELIMSEQUENCE`/`:ELIMVARS` (destructor elimination), `:GENERALIZE`
+      (:terms/:vars). The replay reads these to mirror fertilize/eliminate/
+      generalize steps. -/
+  extraFields : List (String × SExpr) := []
   deriving Repr
 
 namespace ProofStep
@@ -130,6 +137,15 @@ private def lookupKeyword (kw : String) : List SExpr → Option SExpr
     if k == kw then some v else lookupKeyword kw rest
   | _ :: rest => lookupKeyword kw rest
   | [] => none
+
+/-- All (keyword, value) pairs of a plist whose key is NOT in `known` — used to
+    capture unmodeled fields verbatim rather than silently dropping them. -/
+private def plistExtras (known : List String) : List SExpr → List (String × SExpr)
+  | .atom (.keyword k) :: v :: rest =>
+    if known.contains k then plistExtras known rest
+    else (k, v) :: plistExtras known rest
+  | _ :: rest => plistExtras known rest
+  | [] => []
 
 /-- Extract a string from a symbol or string atom. -/
 private def atomString? : SExpr → Option String
@@ -371,7 +387,9 @@ private def parseStep? (items : List SExpr) : Except String ProofStep := do
       | some cs => pure cs
       | none => throw s!"STEP: :NEWCLAUSES is not a list: {repr s}"
     | none => pure []
-  pure { clauseId, processor, result, runes, traceEvents, inputClause, newClauses }
+  let extraFields := plistExtras
+    ["clauseid", "processor", "result", "runes", "rewrites", "inputclause", "newclauses"] items
+  pure { clauseId, processor, result, runes, traceEvents, inputClause, newClauses, extraFields }
 
 /-- Parse a (:INDUCTION ...) s-expression. -/
 private def parseInduction? (items : List SExpr) : Except String InductionStep := do

@@ -83,6 +83,10 @@ private partial def printClauseNode (node : ACL2.ClauseNode) (indent : Nat) : IO
     let runeStr := if st.runes.isEmpty then "" else
       "  runes: " ++ String.intercalate ", " (st.runes.map fun (t, n) => s!"{t}:{n}")
     IO.println s!"{pad}  ├─ {st.processor} ⇒ {res}{runeStr}"
+    -- Processor-specific justification (fertilize target/bullet, eliminate-
+    -- destructors elim sequence, generalize term→var map, …).
+    for (k, v) in st.extraFields do
+      IO.println s!"{pad}  │    {k}: {v}"
     -- Rewriter detail: the clause's branch tree (literals, clause-level steps,
     -- nested case branches).
     printClauseItems st.items pad (indent / 2 + 4)
