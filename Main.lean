@@ -42,6 +42,8 @@ private partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat)
         IO.println s!"{pad}  subst: {String.intercalate ", " substStrs}"
       if let some eq := prov.equivTerm then
         IO.println s!"{pad}  equiv: {eq}"
+      if let some idx := prov.equivSource then
+        IO.println s!"{pad}  ⮑ justified by hypothesis literal {idx} (the induction hypothesis)"
       if !children.isEmpty then
         printProofNodes children (indent + 1)
 

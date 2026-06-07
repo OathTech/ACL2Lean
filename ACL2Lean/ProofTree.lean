@@ -37,6 +37,13 @@ structure StepProvenance where
   parents : List SExpr := []
   subst : List (SExpr × SExpr) := []
   equivTerm : Option SExpr := none
+  /-- For a `rewriting-equivalence` (solidify) node: the index of the clause
+      hypothesis literal whose (post-rewrite) equality justifies this step — the
+      induction hypothesis, in an induction step case. Set by the clause-tree
+      builder by matching `equivTerm` to a sibling literal's result (up to the
+      equivalence relation's symmetry). `none` when not a solidify node, or when
+      the source is a forward-chained/linear fact already named in `parents`. -/
+  equivSource : Option Nat := none
   /-- Type-set of the argument (for recognizer steps, from ACL2's type-set engine). -/
   typeSet : Option Int := none
   /-- True type-set of the recognizer (bits where it returns T). -/

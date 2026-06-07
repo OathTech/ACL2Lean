@@ -224,7 +224,24 @@ with-lemma-arithmetic/equal-self, plus the induction `:SCHEME`) carry sufficient
 data — **with one blocking gap**, and a set of corpus-wide producer gaps that
 don't bite the target theorem but bite the rest.
 
-### R-A — LINCHPIN (producer): the induction hypothesis is never linked to its use
+### R-A — ✅ RESOLVED (reconstruction-side, 2026-06-06): IH now linked to its solidify use
+**Resolution.** Investigated why `:PARENTS` is `NIL`: `'pt` ttree tags are written
+only by linear arithmetic (`linear-a.lisp:539`), and a whole clause hypothesis is
+assumed into the type-alist with a `nil` ttree (`simplify.lisp:5010-5013`), so the
+IH carries no `'pt`. Rather than the deep prover change, we link it
+deterministically in reconstruction: a `rewriting-equivalence` (solidify) node's
+`equivTerm` equals — up to the equivalence relation's symmetry (orientation only,
+because the hypothesis's *post-rewrite* result already has ACL2's normalization
+applied) — the result of a sibling clause literal. `ClauseTree.linkEquivSources`/
+`linkNode` set `StepProvenance.equivSource` to that literal index; it hard-fails on
+a solidify with no matching hypothesis and no `'pt` parents (the detectable edge).
+Verified: `my-len-my-app`'s solidify links to hypothesis literal 2 (the IH); all 8
+recon-test logs link with **zero hard-fails**. The remaining edge — an equality
+pulled out of a hypothesis by `assume-true-false` decomposition (no whole-literal
+match) — is deferred to the producer source-tag at `simplify.lisp:5012`, and will
+hard-fail loudly when first encountered. *(Original analysis below.)*
+
+
 The step case discharges its conclusion via a `:REWRITING-EQUIVALENCE`
 (solidify) node whose `:EQUIV-TERM` is the IH — but ACL2 logs `:PARENTS NIL`, so
 nothing records *that this rewrite is justified by the IH assumption*. Verified

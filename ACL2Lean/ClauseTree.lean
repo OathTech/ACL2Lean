@@ -101,6 +101,82 @@ private def parentId (allIds : List ClauseId) (id : ClauseId) : Option ClauseId 
     -- (linked via the induction, not here).
     none
 
+/-! ### Linking solidify (rewriting-equivalence) nodes to the hypothesis used
+
+A `rewriting-equivalence` node rewrites a term using an equivalence assumed in
+the clause context — in an induction step case, the induction hypothesis. ACL2
+logs `:PARENTS NIL` for assumptions that are whole clause hypotheses (only
+forward-chained/linear facts get `'pt` parents; see the notes). We recover the
+link deterministically: the node's `equivTerm` equals, up to the equivalence
+relation's symmetry, the (post-rewrite) result of a sibling clause literal. -/
+
+/-- Peel a leading `(not X)`. -/
+private def peelNot (e : SExpr) : Option SExpr :=
+  match e.toList? with
+  | some [h, x] => match h with
+    | .atom (.symbol s) => if s.name.toLower == "not" then some x else none
+    | _ => none
+  | _ => none
+
+/-- View `(equiv a b)` as `(equiv, a, b)`. -/
+private def asBinApp (e : SExpr) : Option (SExpr × SExpr × SExpr) :=
+  match e.toList? with
+  | some [h, a, b] => some (h, a, b)
+  | _ => none
+
+/-- Two equivalence terms match iff same relation and same operands up to swap
+    (valid by the symmetry of any equivalence relation). -/
+private def equivMatch (e1 e2 : SExpr) : Bool :=
+  match asBinApp e1, asBinApp e2 with
+  | some (h1, a1, b1), some (h2, a2, b2) =>
+    h1 == h2 && ((a1 == a2 && b1 == b2) || (a1 == b2 && b1 == a2))
+  | _, _ => false
+
+/-- The equivalence a clause literal contributes as an available hypothesis:
+    if its (rewritten) result is `(not (equiv a b))`, the assumption `(equiv a b)`
+    holds. -/
+private def hypEquiv (lp : LiteralProof) : Option SExpr :=
+  match peelNot lp.result with
+  | some e => match asBinApp e with | some _ => some e | none => none
+  | none => none
+
+/-- Set `equivSource` on every `rewriting-equivalence` node in this proof-node
+    tree by matching its `equivTerm` against the candidate hypotheses
+    `(literalIndex, equiv)`. Hard-fails on a solidify with no matching
+    hypothesis (and no `'pt` parents) — the detectable frontier. -/
+private partial def linkNode (cands : List (Nat × SExpr)) (n : ProofNode)
+    : Except String ProofNode := do
+  match n with
+  | .node rune lhs rhs children prov =>
+    let children ← children.mapM (linkNode cands)
+    if rune.1 == "rewriting-equivalence" && prov.parents.isEmpty then
+      match prov.equivTerm with
+      | some e =>
+        match cands.find? (fun (_, c) => equivMatch e c) with
+        | some (idx, _) =>
+          return .node rune lhs rhs children { prov with equivSource := some idx }
+        | none =>
+          throw s!"ClauseTree: rewriting-equivalence node {repr e} matches no clause \
+                   hypothesis (assume-true-false-decomposed source? needs the producer \
+                   source-tag at simplify.lisp:5012)"
+      | none => return .node rune lhs rhs children prov
+    else
+      return .node rune lhs rhs children prov
+
+/-- Within one SIMPLIFY step, link each literal's solidify nodes to the OTHER
+    literals' hypotheses (a literal cannot justify rewriting itself — matching
+    ACL2's parent-tree loop-avoidance). -/
+private def linkEquivSources (lps : List LiteralProof) : Except String (List LiteralProof) := do
+  let mut out : Array LiteralProof := #[]
+  for lp in lps do
+    let cands : List (Nat × SExpr) :=
+      lps.filterMap fun other =>
+        if other.index == lp.index then none
+        else (hypEquiv other).map (fun e => (other.index, e))
+    let nodes ← lp.nodes.mapM (linkNode cands)
+    out := out.push { lp with nodes := nodes }
+  return out.toList
+
 /-- Find the index of the flat node with the given printed id. -/
 private def findIdx (flats : Array FlatNode) (idStr : String) : Option Nat :=
   flats.findIdx? (·.idStr == idStr)
@@ -120,7 +196,7 @@ private def collectFlat (events : List ProofEvent)
       let wstep : WaterfallStep := {
         processor := s.processor, result := s.result, runes := s.runes,
         newClauses := s.newClauses,
-        literalProofs := buildLiteralProofs s.traceEvents }
+        literalProofs := ← linkEquivSources (buildLiteralProofs s.traceEvents) }
       match findIdx flats s.clauseId with
       | some i =>
         flats := flats.modify i (fun fn => { fn with steps := fn.steps.push wstep })
