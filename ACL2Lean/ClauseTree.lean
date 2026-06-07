@@ -63,6 +63,35 @@ structure ClauseProof where
   root : Option ClauseNode
   deriving Repr, Inhabited
 
+/-- One world-extending event of an ACL2 development, in file order. In the
+    logical world each event scopes over everything after it — definitions are
+    let-bindings over the later definitions and theorems that may use them. -/
+inductive WorldEvent where
+  /-- A function definition. `body` is the (translated) form ACL2 reasons about.
+      `measure` is the termination measure when ACL2 emits one (producer gap —
+      currently always `none`). `termination` is the admission (measure-
+      conjecture) proof, present when the admission was non-trivial. -/
+  | defun (name : String) (formals : List Symbol) (body : SExpr)
+          (measure : Option SExpr) (termination : Option ClauseProof)
+  /-- A type-prescription corollary ACL2 derived for a function. -/
+  | typePrescription (name : String) (corollary : SExpr)
+          (basicTs : Option Int) (leaves : List (SExpr × Int))
+  /-- A proved theorem and its clause-tree proof. -/
+  | theorem (proof : ClauseProof)
+  deriving Repr, Inhabited
+
+/-- An ACL2 development reconstructed as a SINGLE proof tree: a right-nested
+    sequence of world events, each binding (scoping) over the rest — definitions
+    as let-bindings over the later definitions/theorems that use them. This is
+    the structure a replay folds over: extend the world with each definition,
+    then discharge each theorem in that world. The proof *branching* lives inside
+    each event (a theorem's clause tree, a defun's termination clause tree); the
+    backbone here is the linear file order. -/
+inductive Development where
+  | bind (event : WorldEvent) (rest : Development)
+  | done
+  deriving Repr, Inhabited
+
 namespace ClauseTree
 
 /-- A flat node before tree assembly: its parsed id, the printed id, the input
@@ -186,10 +215,14 @@ private def findIdx (flats : Array FlatNode) (idStr : String) : Option Nat :=
     plus the (pushed-clause-id, induction) pairs in occurrence order. Fails if a
     clause-id does not parse (no silent skip). -/
 private def collectFlat (events : List ProofEvent)
-    : Except String (Array FlatNode × Array (String × InductionStep)) := do
+    : Except String (Array FlatNode × Array (String × List SExpr × InductionStep)) := do
   let mut flats : Array FlatNode := #[]
-  let mut inductions : Array (String × InductionStep) := #[]
+  let mut inductions : Array (String × List SExpr × InductionStep) := #[]
   let mut lastPush : Option String := none
+  -- The clause the most recent PUSH-CLAUSE pushed to the pool. This is the
+  -- actual induction subject — NOT a clause node's first-step inputClause, which
+  -- may be a pre-NNF form (e.g. `(implies h c)` before preprocess splits it).
+  let mut lastPushClause : List SExpr := []
   for ev in events do
     match ev with
     | .step s =>
@@ -207,8 +240,9 @@ private def collectFlat (events : List ProofEvent)
           steps := #[wstep] }
       if s.processor.toLower == "push-clause" then
         lastPush := some s.clauseId
+        lastPushClause := s.inputClause
     | .induction i =>
-      inductions := inductions.push (lastPush.getD "", i)
+      inductions := inductions.push (lastPush.getD "", lastPushClause, i)
     | _ => pure ()
   return (flats, inductions)
 
@@ -217,13 +251,13 @@ private def collectFlat (events : List ProofEvent)
     creates a pool root at P ++ [m]; it becomes a child of the pushed clause and
     parent of the `*P++[m]/k` case subgoals. Returns the synthetic nodes paired
     with their pushed-parent id. Fails if an induction has no pushed clause. -/
-private def synthesizePoolRoots (logged : Array FlatNode)
-    (inductions : Array (String × InductionStep))
+private def synthesizePoolRoots
+    (inductions : Array (String × List SExpr × InductionStep))
     : Except String (Array (FlatNode × String)) := do
   let mut out : Array (FlatNode × String) := #[]
   -- Count, per parent pool-lst, how many inductions have fired so far.
   let mut counts : Array (List Nat × Nat) := #[]
-  for (pid, ind) in inductions do
+  for (pid, pushClause, ind) in inductions do
     if pid.isEmpty then
       throw "ClauseTree: :INDUCTION with no preceding PUSH-CLAUSE"
     let pcid ← ClauseId.parse pid
@@ -232,12 +266,8 @@ private def synthesizePoolRoots (logged : Array FlatNode)
     counts := (counts.filter (·.1 != key)).push (key, m + 1)
     let poolLst := key ++ [m + 1]
     let idStr := "*" ++ String.intercalate "." (poolLst.map toString)
-    -- The pool goal IS the clause that was pushed; recover its clause from the
-    -- pushed (parent) node so the synthesized node shows the goal being proved
-    -- by induction rather than a placeholder.
-    let pushClause ← match logged.find? (·.idStr == pid) with
-      | some pushNode => pure pushNode.inputClause
-      | none => throw s!"ClauseTree: pushed clause {repr pid} for :INDUCTION not found in log"
+    -- The pool goal IS the clause the PUSH-CLAUSE pushed (the real induction
+    -- subject), captured from that step — not the node's first-step inputClause.
     let node : FlatNode := {
       id := { forcingRound := pcid.forcingRound, poolLst := poolLst },
       idStr := idStr, inputClause := pushClause, steps := #[],
@@ -266,7 +296,7 @@ private def buildOne (name : String) (formula : SExpr) (events : List ProofEvent
   let (logged, inductions) ← collectFlat events
   if logged.isEmpty then
     return { name, formula, root := none }
-  let synth ← synthesizePoolRoots logged inductions
+  let synth ← synthesizePoolRoots inductions
   let allFlats := logged ++ synth.map (·.1)
   let allIds := (allFlats.map (·.id)).toList
   -- Parent key for each node: synthetic → its pushed clause; logged → inverse
@@ -307,30 +337,49 @@ private def closeBlock (name : Option String) (formula : SExpr)
     else
       return (none, anon)
 
-/-- Build the reconstructed clause proof for every theorem (and admission proof)
-    in a proof log. Walks the event stream, slicing it at each `:DEFTHM`/`:QED`. -/
-def buildClauseProofs (log : ProofLog) : Except String (List ClauseProof) := do
-  let mut out : Array ClauseProof := #[]
+/-- Build the whole development as a single proof tree (`Development`): a
+    right-nested sequence of world events in file order. `:DEFUN` /
+    `:TYPE-PRESCRIPTION` become world-extending bindings; a `:DEFTHM` block
+    becomes a `theorem` node; an anonymous proof block (steps with no `:DEFTHM`
+    name) is an admission/termination proof, held and attached to the next
+    `:DEFUN` it admits. -/
+def buildDevelopment (log : ProofLog) : Except String Development := do
+  let mut events : Array WorldEvent := #[]
   let mut curName : Option String := none
   let mut curFormula : SExpr := .nil
   let mut curEvents : Array ProofEvent := #[]
   let mut anon : Nat := 0
+  let mut pendingTermination : Option ClauseProof := none
   for ev in log.events do
     match ev with
-    | .defthm name formula _ =>
+    | .defthm name formula _ | .qed =>
+      -- Close the current block: named → a theorem event; anonymous with steps
+      -- → the pending termination proof for the next defun.
       let (p?, a) ← closeBlock curName curFormula curEvents anon
       anon := a
-      if let some p := p? then out := out.push p
-      curName := some name; curFormula := formula; curEvents := #[]
-    | .qed =>
-      let (p?, a) ← closeBlock curName curFormula curEvents anon
-      anon := a
-      if let some p := p? then out := out.push p
-      curName := none; curFormula := .nil; curEvents := #[]
-    | other => curEvents := curEvents.push other
+      if let some p := p? then
+        if curName.isSome then events := events.push (.theorem p)
+        else pendingTermination := some p
+      -- A :DEFTHM opens the next block; a :QED closes to the between-blocks state.
+      match ev with
+      | .defthm name formula _ => curName := some name; curFormula := formula; curEvents := #[]
+      | _ => curName := none; curFormula := .nil; curEvents := #[]
+    | .defun n formals body =>
+      let termination := pendingTermination.map fun t => { t with name := s!"termination of {n}" }
+      events := events.push (.defun n formals body none termination)
+      pendingTermination := none
+    | .typePrescription n cor bts leaves =>
+      events := events.push (.typePrescription n cor bts leaves)
+    | .step _ | .induction _ => curEvents := curEvents.push ev
+  -- Close any trailing block.
   let (p?, _) ← closeBlock curName curFormula curEvents anon
-  if let some p := p? then out := out.push p
-  return out.toList
+  if let some p := p? then
+    if curName.isSome then events := events.push (.theorem p)
+    else pendingTermination := some p
+  -- A termination proof with no following :DEFUN (unexpected; e.g. a guard proof
+  -- after its defun) — surface it standalone rather than drop it.
+  if let some t := pendingTermination then events := events.push (.theorem t)
+  return events.foldr Development.bind Development.done
 
 end ClauseTree
 
@@ -339,9 +388,22 @@ section Tests
 
 private def simpleLog : String := include_str "../acl2_samples/simple.proof-log"
 
+private def simpleDev : Option Development := do
+  (ClauseTree.buildDevelopment (← (ProofLog.parse simpleLog).toOption)).toOption
+
+/-- The world events of a development, in order. -/
+private partial def devEvents : Development → List WorldEvent
+  | .bind e rest => e :: devEvents rest
+  | .done => []
+
+private def devTheorems (d : Development) : List ClauseProof :=
+  (devEvents d).filterMap fun | .theorem p => some p | _ => none
+
+private def devDefunNames (d : Development) : List String :=
+  (devEvents d).filterMap fun | .defun n _ _ _ _ => some n | _ => none
+
 private def simpleProof : Option ClauseProof := do
-  let log ← (ProofLog.parse simpleLog).toOption
-  (ClauseTree.buildClauseProofs log).toOption.bind (·.head?)
+  (devTheorems (← simpleDev)).head?
 
 /-- All clause nodes in a subtree (pre-order). -/
 private partial def clauseNodes (n : ClauseNode) : List ClauseNode :=
@@ -384,6 +446,11 @@ private def equivSrcOf : ProofNode → Option Nat | .node _ _ _ _ p => p.equivSo
 -- hypothesis literal 2 in the step case.
 #guard (simpleProof.map fun p =>
   (allProofNodes p).any (equivSrcOf · == some 2)) == some true
+
+-- Development structure: my-len and my-app are world-event bindings (they scope
+-- over the theorem that uses them); exactly one theorem.
+#guard (simpleDev.map fun d => devDefunNames d) == some ["my-len", "my-app"]
+#guard (simpleDev.map fun d => (devTheorems d).length) == some 1
 
 end Tests
 

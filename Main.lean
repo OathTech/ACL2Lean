@@ -82,6 +82,38 @@ private partial def printClauseNode (node : ACL2.ClauseNode) (indent : Nat) : IO
   for c in node.children do
     printClauseNode c (indent + 4)
 
+/-- Render a theorem/termination clause proof (its goal + clause-tree root). -/
+private def printClauseProof (cp : ACL2.ClauseProof) (indent : Nat) : IO Unit := do
+  let pad := String.ofList (List.replicate indent ' ')
+  -- The formula is the defthm statement for theorems; for termination proofs it
+  -- is nil (the measure conjecture shows as the root clause below), so skip it.
+  if cp.formula != .nil then IO.println s!"{pad}goal: {cp.formula}"
+  match cp.root with
+  | none => IO.println s!"{pad}(no logged proof — imported or trivial)"
+  | some root => printClauseNode root (indent + 2)
+
+/-- Render the whole development as one scoped proof tree: each world event in
+    file order (definitions bind over the theorems that follow). -/
+private partial def printDevelopment : ACL2.Development → IO Unit
+  | .done => pure ()
+  | .bind event rest => do
+    match event with
+    | .defun name formals body measure termination =>
+      let fs := String.intercalate " " (formals.map (·.name))
+      IO.println s!"\n── def {name} ({fs}) ──"
+      IO.println s!"  body: {body}"
+      if let some m := measure then IO.println s!"  measure: {m}"
+      if let some t := termination then
+        IO.println "  termination proof:"
+        printClauseProof t 4
+    | .typePrescription name cor _ _ =>
+      IO.println s!"\n── type-prescription {name} ──"
+      IO.println s!"  {cor}"
+    | .theorem proof =>
+      IO.println s!"\n══ THEOREM {proof.name} ══"
+      printClauseProof proof 2
+    printDevelopment rest
+
 def main (args : List String) : IO Unit := do
   match args with
   | ["report"] => do
@@ -179,18 +211,9 @@ def main (args : List String) : IO Unit := do
       match ACL2.ProofLog.parse contents with
       | .error e => IO.eprintln s!"Parse error: {e}"
       | .ok log =>
-          match ACL2.ClauseTree.buildClauseProofs log with
+          match ACL2.ClauseTree.buildDevelopment log with
           | .error e => IO.eprintln s!"Reconstruction error: {e}"
-          | .ok proofs =>
-            if proofs.isEmpty then
-              IO.eprintln "No theorems found in proof log"
-            else
-              for proof in proofs do
-                IO.println s!"\n══ THEOREM {proof.name} ══"
-                IO.println s!"  goal: {proof.formula}"
-                match proof.root with
-                | none => IO.println "  (no logged proof — imported or trivial)"
-                | some root => printClauseNode root 2
+          | .ok dev => printDevelopment dev
   | _ => do
       IO.println "Usage:"
       IO.println "  acl2lean report"

@@ -23,16 +23,21 @@ those failures are invisible to the Lean kernel (see the trust note below).
    and the per-literal rewrite chains.
 3. **Proof-log parser** — `ProofLog.lean` (`ProofLog.parse`): proof-log text →
    structured trace events.
-4. **Proof-tree reconstruction** — `ClauseTree.lean` (`buildClauseProofs`):
-   events → the **clause tree** ACL2's waterfall actually is, addressed by
-   clause-ids: `ClauseProof → ClauseNode` (each clause processed by a sequence of
-   processors, with child clauses; induction pool-roots like `*1` are synthesized
-   from the push→induct adjacency). The per-literal **rewriter detail** that
-   hangs off SIMPLIFY nodes (`ProofNode`/`LiteralProof`, with the IH linked to its
-   solidify use) is built by `ProofTree.lean` (`buildLiteralProofs`). Linking is
-   deterministic — clause-id lineage is the inverse of ACL2's `waterfall1-lst`;
-   unlinkable structure hard-fails. This tree — not the flat log — is what the
-   replay consumes.
+4. **Proof-tree reconstruction** — `ClauseTree.lean` (`buildDevelopment`):
+   events → a **single proof tree** for the whole development, `Development`: a
+   right-nested sequence of world events in file order (`defun` /
+   `type-prescription` / `theorem`), each binding (scoping) over the rest —
+   definitions as let-bindings over the later theorems that use them. Each
+   theorem's proof, and each defun's termination proof, is the **clause tree**
+   ACL2's waterfall actually is, addressed by clause-ids: `ClauseProof →
+   ClauseNode` (each clause processed by a sequence of processors, with child
+   clauses; induction pool-roots like `*1` are synthesized from the push→induct
+   adjacency). The per-literal **rewriter detail** that hangs off SIMPLIFY nodes
+   (`ProofNode`/`LiteralProof`, with the IH linked to its solidify use) is built
+   by `ProofTree.lean` (`buildLiteralProofs`). Linking is deterministic —
+   clause-id lineage is the inverse of ACL2's `waterfall1-lst`; unlinkable
+   structure hard-fails. This tree — not the flat log — is what the replay
+   consumes.
 5. **Source translation** — `WorldGen.lean` / `Translator.lean` (`gen-world`):
    translates the *same* ACL2 source into a Lean **`World`** (function name →
    (formals, body) as `SExpr`) and the **mirror-theorem statement**, of the form
@@ -71,7 +76,7 @@ something slightly different. Do not assume the bug is where it is most convenie
 to look; only ACL2's proof *search* is off the table.
 
 **Current status.** Stages 1–4 — ACL2 instrumentation, proof-log parsing, and
-clause-tree reconstruction (`buildClauseProofs`) — are built and validated against
+proof-tree reconstruction (`buildDevelopment`) — are built and validated against
 the sample corpus (`acl2_samples/`, incl. `recon-tests/`): `my-len-my-app`
 reconstructs as a faithful clause tree with the induction hypothesis linked to its
 solidify use. Not yet built: the proof-object builder (stage 7) does not replay
