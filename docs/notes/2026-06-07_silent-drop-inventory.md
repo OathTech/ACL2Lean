@@ -32,12 +32,26 @@ at the end so we don't re-litigate them.**
 - ⚠ **F3** — partially addressed (findLiteralResult now reads the type-set result);
   the fallback to the unrewritten literal is *correct* for a carried/unchanged
   literal, so not converted.
-- ⚠ **F13/F14/F15 (EvalOpt — the TRUSTED CORE)** — NOT converted. These need care:
-  the evaluator is total (`Option SExpr`, `none` = non-convergence); a silent `.nil`
-  for an unknown primitive (F13) is the real soundness concern, but fixing it means
-  changing `callBuiltin`'s signature (`SExpr → Option SExpr`) and rippling through
-  `evalOptStep` — a change to the semantic model that defines the mirror theorem.
-  Handle as a separate, discussed step, not a blind conversion.
+- ✅ **F13** — `callBuiltin : … → Option SExpr`. An unmodeled/unknown primitive
+  now yields `none` (non-convergence), propagated by `evalOpt`, instead of silently
+  returning the wrong value `nil`. So an unmodeled-but-real primitive (`numerator`,
+  `complex-rationalp`, `o<`, …) **surfaces** (must be modeled with its faithful
+  value) rather than poisoning a proof. Validated the modeled primitives against
+  ACL2's LOGICAL (guard-checking-off) semantics: `zp`/`+`/`<`/`car`/`cdr`/`fix`/
+  `nfix` all match exactly. Monotonicity proofs (`evalOptStep_mono`,
+  `evalOpt_fuel_mono`) survive the change; `EvalLemmas` builtin lemmas updated.
+- ✅ **F14** — `evalOptStep`'s arity-mismatch branch now `none` (was `some .nil`).
+  (`bindArgs`'s internal `_,_ => {}` is reached only with equal lengths, guarded.)
+- ⏸ **F15** — `evalOptStep`'s `| _ => some .nil` for *malformed* `quote`/`if`/`let`
+  syntax left as-is: such terms don't occur in a faithfully-translated World, and
+  converting risks the monotonicity proofs for marginal value.
+
+**Key framing for ongoing EvalOpt work:** `evalOpt` mirrors ACL2's LOGICAL
+(axiomatic, total) semantics — what theorems reason about — NOT its guarded
+top-level execution. Validate primitives with `(set-guard-checking nil)`. The
+remaining faithfulness work is modeling primitives as real artifacts demand
+(each `none` surfaced is a primitive to add with its exact ACL2 value) and
+auditing the modeled ones — see [[project_evalopt_next_focus]].
 
 ## Tier 1 — reconstruction path, genuinely drops data
 

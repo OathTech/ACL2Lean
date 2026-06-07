@@ -20,70 +20,71 @@ def bindArgs : List Symbol → List SExpr → Env
   | f :: fs, v :: vs => (bindArgs fs vs).insert f v
   | _, _ => {}  -- ⚠ silent default on formals/args length mismatch (no hard-fail); see callBuiltin note
 
-/-- Dispatch an ACL2 built-in primitive by normalized name.
-    ⚠ KNOWN FIDELITY GAP (trusted core): the `| _, _ => .nil` default SILENTLY
-    returns nil for unknown functions / wrong arity instead of hard-failing —
-    contra the "never silently skip / hard-fail at frontiers" rule. Left as
-    build-out (fixing it changes trusted-core semantics); flagged here so it is
-    not mistaken for a faithful total model. -/
-def callBuiltin (name : String) (args : List SExpr) : SExpr :=
+/-- Dispatch an ACL2 built-in primitive by normalized name, modeling ACL2's
+    LOGICAL (total) semantics. Returns `none` for a primitive we do not yet model
+    or a wrong arity — a frontier the evaluator surfaces as non-convergence rather
+    than silently returning a wrong value (`nil`). A genuinely undefined function
+    cannot occur in a faithfully-translated admitted term (ACL2's translate
+    rejects it); an unmodeled-but-real primitive (`numerator`, `integer-abs`, …)
+    must be added here with its faithful value, not left to default. -/
+def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   match name, args with
-  | "cons", [a, b] => .cons a b
-  | "car", [a] => Logic.car a
-  | "cdr", [a] => Logic.cdr a
-  | "consp", [a] => Logic.consp a
-  | "atom", [a] => Logic.atom a
-  | "endp", [a] => Logic.endp a
-  | "equal", [a, b] => Logic.equal a b
-  | "eql", [a, b] => Logic.equal a b
-  | "not", [a] => Logic.not a
-  | "binary-+", [a, b] => Logic.plus a b
-  | "binary-*", [a, b] => Logic.times a b
+  | "cons", [a, b] => some (.cons a b)
+  | "car", [a] => some (Logic.car a)
+  | "cdr", [a] => some (Logic.cdr a)
+  | "consp", [a] => some (Logic.consp a)
+  | "atom", [a] => some (Logic.atom a)
+  | "endp", [a] => some (Logic.endp a)
+  | "equal", [a, b] => some (Logic.equal a b)
+  | "eql", [a, b] => some (Logic.equal a b)
+  | "not", [a] => some (Logic.not a)
+  | "binary-+", [a, b] => some (Logic.plus a b)
+  | "binary-*", [a, b] => some (Logic.times a b)
   | "unary--", [a] =>
       let (n, d) := Logic.toRat a
-      Logic.mkNumber (-n) d
+      some (Logic.mkNumber (-n) d)
   | "unary-/", [a] =>
       let (n, d) := Logic.toRat a
-      if n == 0 then .atom (.number (.int 0))
-      else if n > 0 then Logic.mkNumber (Int.ofNat d) n.natAbs
-      else Logic.mkNumber (-(Int.ofNat d)) n.natAbs
-  | "+", [a, b] => Logic.plus a b
+      some (if n == 0 then .atom (.number (.int 0))
+        else if n > 0 then Logic.mkNumber (Int.ofNat d) n.natAbs
+        else Logic.mkNumber (-(Int.ofNat d)) n.natAbs)
+  | "+", [a, b] => some (Logic.plus a b)
   | "-", [a] =>
       let (n, d) := Logic.toRat a
-      Logic.mkNumber (-n) d
-  | "-", [a, b] => Logic.minus a b
-  | "*", [a, b] => Logic.times a b
-  | "1+", [a] => Logic.plus (.atom (.number (.int 1))) a
-  | "1-", [a] => Logic.minus a (.atom (.number (.int 1)))
-  | "<", [a, b] => Logic.lt a b
-  | "integerp", [a] => Logic.integerp a
-  | "natp", [a] => Logic.natp a
-  | "posp", [a] => Logic.posp a
+      some (Logic.mkNumber (-n) d)
+  | "-", [a, b] => some (Logic.minus a b)
+  | "*", [a, b] => some (Logic.times a b)
+  | "1+", [a] => some (Logic.plus (.atom (.number (.int 1))) a)
+  | "1-", [a] => some (Logic.minus a (.atom (.number (.int 1))))
+  | "<", [a, b] => some (Logic.lt a b)
+  | "integerp", [a] => some (Logic.integerp a)
+  | "natp", [a] => some (Logic.natp a)
+  | "posp", [a] => some (Logic.posp a)
   | "rationalp", [a] =>
-      match a with | .atom (.number _) => .t | _ => .nil
+      some (match a with | .atom (.number _) => .t | _ => .nil)
   | "acl2-numberp", [a] =>
-      match a with | .atom (.number _) => .t | _ => .nil
-  | "zp", [a] => Logic.zp a
+      some (match a with | .atom (.number _) => .t | _ => .nil)
+  | "zp", [a] => some (Logic.zp a)
   | "symbolp", [a] =>
-      match a with | .atom (.symbol _) | .nil => .t | _ => .nil
-  | "stringp", [a] => Logic.stringp a
+      some (match a with | .atom (.symbol _) | .nil => .t | _ => .nil)
+  | "stringp", [a] => some (Logic.stringp a)
   | "fix", [a] =>
-      match a with | .atom (.number _) => a | _ => .atom (.number (.int 0))
+      some (match a with | .atom (.number _) => a | _ => .atom (.number (.int 0)))
   | "nfix", [a] =>
-      match a with
+      some (match a with
       | .atom (.number (.int n)) => if n >= 0 then a else .atom (.number (.int 0))
-      | _ => .atom (.number (.int 0))
+      | _ => .atom (.number (.int 0)))
   | "ifix", [a] =>
-      match a with | .atom (.number (.int _)) => a | _ => .atom (.number (.int 0))
-  | "implies", [a, b] => Logic.implies a b
-  | "iff", [a, b] => Logic.iff a b
-  | "true-listp", [a] => Logic.trueListp a
-  | "len", [a] => Logic.len a
-  | "list", xs => SExpr.ofList xs
-  | "force", [a] => a
-  | "double-rewrite", [a] => a
-  | "hide", [a] => a
-  | _, _ => .nil
+      some (match a with | .atom (.number (.int _)) => a | _ => .atom (.number (.int 0)))
+  | "implies", [a, b] => some (Logic.implies a b)
+  | "iff", [a, b] => some (Logic.iff a b)
+  | "true-listp", [a] => some (Logic.trueListp a)
+  | "len", [a] => some (Logic.len a)
+  | "list", xs => some (SExpr.ofList xs)
+  | "force", [a] => some a
+  | "double-rewrite", [a] => some a
+  | "hide", [a] => some a
+  | _, _ => none
 
 /-- One step of the option-returning evaluator, parameterized by the
     recursive evaluator function. Factored out so that monotonicity
@@ -134,8 +135,8 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
             | some (formals, body) =>
                 if formals.length = argVals.length then
                   rec w (bindArgs formals argVals) body
-                else some .nil
-            | none => some (callBuiltin s.name argVals)
+                else none
+            | none => callBuiltin s.name argVals
         | none => some .nil
   | _ => some .nil
 
@@ -175,8 +176,8 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
           | some (formals, body) =>
               if formals.length = argVals.length then
                 rec w (bindArgs formals argVals) body
-              else some .nil
-          | none => some (callBuiltin s.name argVals)
+              else none
+          | none => callBuiltin s.name argVals
       | none => some .nil := by
   rfl
 
@@ -334,7 +335,7 @@ theorem evalOptStep_mono
                 by_cases hlen : formals.length = argVals.length
                 · simp [hlen] at h ⊢
                   exact hmono w (bindArgs formals argVals) body v h
-                · simp [hlen] at h ⊢; exact h
+                · simp [hlen] at h
               | none => simp [hdef] at h ⊢; exact h
           | none => simp only [htl] at h; exact h
 
@@ -446,6 +447,12 @@ private def list2 : SExpr := .cons (.atom (.number (.int 1))) (.cons (.atom (.nu
 
 -- With enough fuel, it succeeds
 #guard evalOpt 20 simpleWorld (({} : Env).insert (sym "x") list2) (mkCall "my-len" [mkVar "x"]) == some (.atom (.number (.int 2)))
+
+-- An unmodeled / unknown primitive does NOT silently evaluate to nil; it fails
+-- to converge (none), surfacing that the primitive needs a faithful model rather
+-- than producing a wrong value.
+#guard evalOpt 2 simpleWorld {} (mkCall "no-such-primitive" [.atom (.number (.int 1))]) == none
+#guard evalOpt 2 simpleWorld {} (mkCall "complex-rationalp" [.atom (.number (.int 3))]) == none
 
 end Tests
 

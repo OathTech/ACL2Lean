@@ -113,7 +113,7 @@ theorem evalOpt_builtin_1 (f : Nat) (w : World) (env : Env)
     (h_not_def : w.defs.get? s = none)
     (h_arg : evalOpt f w env arg = some av) :
     evalOpt (f + 1) w env (.cons (.atom (.symbol s)) (.cons arg .nil))
-    = some (callBuiltin s.name [av]) := by
+    = callBuiltin s.name [av] := by
   show evalOptStep (evalOpt f) w env _ = _
   unfold evalOptStep
   simp only [Symbol.isNamed, SExpr.toList?]
@@ -126,8 +126,8 @@ theorem evalOpt_builtin_1 (f : Nat) (w : World) (env : Env)
     match w.defs.get? s with
     | some (formals, body) =>
       if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
-      else some .nil
-    | none => some (callBuiltin s.name argVals)) = _
+      else none
+    | none => callBuiltin s.name argVals) = _
   simp only [List.mapM, List.mapM.loop, h_arg, List.reverse, List.reverseAux,
              Option.pure_def, h_not_def]
   rfl
@@ -141,7 +141,7 @@ theorem evalOpt_builtin_2 (f : Nat) (w : World) (env : Env)
     (h_arg1 : evalOpt f w env arg1 = some av1)
     (h_arg2 : evalOpt f w env arg2 = some av2) :
     evalOpt (f + 1) w env (.cons (.atom (.symbol s)) (.cons arg1 (.cons arg2 .nil)))
-    = some (callBuiltin s.name [av1, av2]) := by
+    = callBuiltin s.name [av1, av2] := by
   show evalOptStep (evalOpt f) w env _ = _
   unfold evalOptStep
   simp only [Symbol.isNamed, SExpr.toList?]
@@ -153,8 +153,8 @@ theorem evalOpt_builtin_2 (f : Nat) (w : World) (env : Env)
     match w.defs.get? s with
     | some (formals, body) =>
       if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
-      else some .nil
-    | none => some (callBuiltin s.name argVals)) = _
+      else none
+    | none => callBuiltin s.name argVals) = _
   simp only [List.mapM, List.mapM.loop, h_arg1, h_arg2, List.reverse, List.reverseAux,
              Option.pure_def, h_not_def]
   rfl
@@ -190,8 +190,8 @@ theorem evalOpt_defn_1 (f : Nat) (w : World) (env : Env)
     match w.defs.get? s with
     | some (formals, body) =>
       if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
-      else some .nil
-    | none => some (callBuiltin s.name argVals)) = _
+      else none
+    | none => callBuiltin s.name argVals) = _
   simp only [List.mapM, List.mapM.loop, h_arg, List.reverse, List.reverseAux,
              Option.pure_def, h_def]
   rfl
@@ -218,8 +218,8 @@ theorem evalOpt_defn_2 (f : Nat) (w : World) (env : Env)
     match w.defs.get? s with
     | some (formals, body) =>
       if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
-      else some .nil
-    | none => some (callBuiltin s.name argVals)) = _
+      else none
+    | none => callBuiltin s.name argVals) = _
   simp only [List.mapM, List.mapM.loop, h_arg1, h_arg2, List.reverse, List.reverseAux,
              Option.pure_def, h_def]
   rfl
@@ -248,17 +248,17 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
 -- callBuiltin for specific builtins — avoids unfolding the whole match.
 -- These use the string directly, not normalizedName.
 @[simp] theorem callBuiltin_equal (a b : SExpr) :
-    callBuiltin "equal" [a, b] = Logic.equal a b := by rfl
+    callBuiltin "equal" [a, b] = some (Logic.equal a b) := by rfl
 @[simp] theorem callBuiltin_not (a : SExpr) :
-    callBuiltin "not" [a] = Logic.not a := by rfl
+    callBuiltin "not" [a] = some (Logic.not a) := by rfl
 @[simp] theorem callBuiltin_consp (a : SExpr) :
-    callBuiltin "consp" [a] = Logic.consp a := by rfl
+    callBuiltin "consp" [a] = some (Logic.consp a) := by rfl
 @[simp] theorem callBuiltin_car (a : SExpr) :
-    callBuiltin "car" [a] = Logic.car a := by rfl
+    callBuiltin "car" [a] = some (Logic.car a) := by rfl
 @[simp] theorem callBuiltin_cdr (a : SExpr) :
-    callBuiltin "cdr" [a] = Logic.cdr a := by rfl
+    callBuiltin "cdr" [a] = some (Logic.cdr a) := by rfl
 @[simp] theorem callBuiltin_plus (a b : SExpr) :
-    callBuiltin "binary-+" [a, b] = Logic.plus a b := by rfl
+    callBuiltin "binary-+" [a, b] = some (Logic.plus a b) := by rfl
 
 /-- T3: EQUAL-self — (EQUAL t t) evaluates to T when t converges. -/
 theorem evalOpt_equal_self (f : Nat) (w : World) (env : Env)
@@ -342,11 +342,11 @@ theorem logic_plus_comm2 (a b c : SExpr) :
 
 /-- T8: FIX of a number is identity. -/
 @[simp] theorem callBuiltin_fix_number (n : Number) :
-    callBuiltin "fix" [.atom (.number n)] = .atom (.number n) := by rfl
+    callBuiltin "fix" [.atom (.number n)] = some (.atom (.number n)) := by rfl
 
 /-- ⚠ UNPROVEN (`sorry`). T8: plus 0 x = fix x (unicity-of-0 at value level). -/
 theorem logic_plus_zero_left (v : SExpr) :
-    Logic.plus (.atom (.number (.int 0))) v = callBuiltin "fix" [v] := by
+    some (Logic.plus (.atom (.number (.int 0))) v) = callBuiltin "fix" [v] := by
   -- Follows from toRat/mkNumber: plus(0, v) normalizes the same as fix(v).
   -- Deferred — one-time arithmetic lemma.
   sorry
