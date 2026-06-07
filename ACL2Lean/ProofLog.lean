@@ -139,7 +139,7 @@ private def parseRune? : SExpr → Option (String × String)
 
 /-- Parse a rune list like `((:REWRITE FOO) (:DEFINITION BAR))`. Hard-fails on a
     malformed rune or a non-list (no silent drop). -/
-private def parseRunes (s : SExpr) : Except String (List (String × String)) :=
+def parseRunes (s : SExpr) : Except String (List (String × String)) :=
   match s.toList? with
   | some items => items.mapM fun r => match parseRune? r with
     | some rune => pure rune

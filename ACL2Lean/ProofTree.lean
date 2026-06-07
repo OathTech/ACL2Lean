@@ -103,9 +103,13 @@ partial def parseProofNodesAux (events : List TraceEvent)
       return (nodes.reverse ++ pendingChildren, rest)
   | .rewriteStep step :: rest =>
       parseProofNodesAux rest [] (rewriteStepNode step pendingChildren :: nodes)
-  | .typeSetReasoning term result _ _ :: rest =>
-      -- a term closed by type-set reasoning (e.g. a literal forced true/false)
-      parseProofNodesAux rest [] (.node ("type-set", "") term result pendingChildren {} :: nodes)
+  | .typeSetReasoning term result _ justification :: rest =>
+      -- a term closed by type-set reasoning (e.g. a literal forced true/false);
+      -- the :JUSTIFICATION is the rune list of supporting rules — carry it so the
+      -- type fact's provenance (which ACL2 supplied) isn't dropped.
+      let runes ← ProofLog.parseRunes justification
+      parseProofNodesAux rest []
+        (.node ("type-set", "") term result pendingChildren { runes } :: nodes)
   | .branchSubstitution equiv lhs rhs :: rest =>
       parseProofNodesAux rest []
         (.node ("branch-substitution", "") lhs rhs pendingChildren { equivTerm := equiv } :: nodes)
