@@ -7,7 +7,7 @@ namespace ACL2
 inductive ProofResult where
   | proved
   | subgoals
-  deriving Repr, BEq
+  deriving Repr, BEq, Inhabited
 
 /-- A single rewrite application from ACL2's rewriter. -/
 structure RewriteStep where

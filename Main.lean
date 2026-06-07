@@ -45,6 +45,41 @@ private partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat)
       if !children.isEmpty then
         printProofNodes children (indent + 1)
 
+/-- Render one node of the reconstructed clause tree (and its subtree). -/
+private partial def printClauseNode (node : ACL2.ClauseNode) (indent : Nat) : IO Unit := do
+  let pad := String.ofList (List.replicate indent ' ')
+  -- The clause this node proves.
+  let clauseStr := match node.inputClause with
+    | [] => "(no clause recorded — synthesized)"
+    | [lit] => s!"{lit}"
+    | lits => "{" ++ String.intercalate " ∨ " (lits.map (s!"{·}")) ++ "}"
+  IO.println s!"{pad}{node.idStr}:  {clauseStr}"
+  -- The processors applied to this clause, in order.
+  for st in node.steps do
+    let res := match st.result with | .proved => "proved" | .subgoals => s!"{st.newClauses.length} subgoal(s)"
+    let runeStr := if st.runes.isEmpty then "" else
+      "  runes: " ++ String.intercalate ", " (st.runes.map fun (t, n) => s!"{t}:{n}")
+    IO.println s!"{pad}  ├─ {st.processor} ⇒ {res}{runeStr}"
+    -- Rewriter detail (SIMPLIFY only): per-literal rewrite chains.
+    for lp in st.literalProofs do
+      if !lp.nodes.isEmpty then
+        IO.println s!"{pad}  │    literal {lp.index}: {lp.literal} ⇒ {lp.result}  ({lp.nodes.length}-step rewrite)"
+        printProofNodes lp.nodes (indent / 2 + 4)
+    -- For processors with no rewriter trace (generalize, eliminate-destructors,
+    -- fertilize, …), show the clauses they produced so the step isn't opaque.
+    if st.result == ACL2.ProofResult.subgoals && st.literalProofs.all (·.nodes.isEmpty) then
+      for nc in st.newClauses do
+        IO.println s!"{pad}  │    ⇒ {nc}"
+  -- Induction applied here: its scheme (the generated case clauses); the
+  -- subgoals are the children below.
+  if let some ind := node.induction then
+    IO.println s!"{pad}  ╫ INDUCTION on {ind.term}  ({ind.subgoalCount} subgoals)"
+    for cl in ind.scheme do
+      IO.println s!"{pad}      scheme case: {cl}"
+  -- Children (subgoal clauses).
+  for c in node.children do
+    printClauseNode c (indent + 4)
+
 def main (args : List String) : IO Unit := do
   match args with
   | ["report"] => do
@@ -183,6 +218,23 @@ def main (args : List String) : IO Unit := do
                     IO.println s!"      {lp.literal}"
                     IO.println s!"      rewrite chain ({lp.nodes.length} steps):"
                     printProofNodes lp.nodes 4
+  | ["dump-clause-tree", path] => do
+      let contents ← IO.FS.readFile path
+      match ACL2.ProofLog.parse contents with
+      | .error e => IO.eprintln s!"Parse error: {e}"
+      | .ok log =>
+          match ACL2.ClauseTree.buildClauseProofs log with
+          | .error e => IO.eprintln s!"Reconstruction error: {e}"
+          | .ok proofs =>
+            if proofs.isEmpty then
+              IO.eprintln "No theorems found in proof log"
+            else
+              for proof in proofs do
+                IO.println s!"\n══ THEOREM {proof.name} ══"
+                IO.println s!"  goal: {proof.formula}"
+                match proof.root with
+                | none => IO.println "  (no logged proof — imported or trivial)"
+                | some root => printClauseNode root 2
   | "check-proof" :: logPath :: depPaths => do
       -- Load dependency proof logs first to build cumulative world/formulas
       let mut world : ACL2.World := { defs := {} }

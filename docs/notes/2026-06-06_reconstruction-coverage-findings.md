@@ -210,3 +210,62 @@ ClauseTree := node (clauseId, inputClause, processor,
 clause-id scheme + `:NEWCLAUSES`, never by fuzzy term matching; unknown
 processor / missing QED / theorem-without-proof ⇒ hard-fail; no inference in the
 checker — when data is missing, emit it from ACL2.
+
+---
+
+## Replay-sufficiency review (2026-06-06, after the clause-tree rebuild)
+
+Second review, different angle: does the reconstructed clause tree carry
+*everything the eventual Lean replay needs* to push a kernel-checked proof in the
+same shape? Verdict: **`my-len-my-app`'s tree is a well-formed, complete proof
+skeleton** (induction → 2 case subgoals → per-literal rewrite chains, every leaf
+a closed goal); all its node types (definition/recognizer/if-simplification/
+with-lemma-arithmetic/equal-self, plus the induction `:SCHEME`) carry sufficient
+data — **with one blocking gap**, and a set of corpus-wide producer gaps that
+don't bite the target theorem but bite the rest.
+
+### R-A — LINCHPIN (producer): the induction hypothesis is never linked to its use
+The step case discharges its conclusion via a `:REWRITING-EQUIVALENCE`
+(solidify) node whose `:EQUIV-TERM` is the IH — but ACL2 logs `:PARENTS NIL`, so
+nothing records *that this rewrite is justified by the IH assumption*. Verified
+against `acl2_samples/simple.proof-log`:
+- step-case IH literal (index 2, negated): `(my-len (my-app (cdr x) y)) =
+  (binary-+ (my-len (cdr x)) (my-len y))`
+- solidify `:EQUIV-TERM`: `(binary-+ (my-len y) (my-len (cdr x))) =
+  (my-len (my-app (cdr x) y))`
+
+These match only up to orientation **and** `commutativity-of-+`, so a
+reconstruction-side structural match would require AC reasoning = inference =
+forbidden. `:PARENTS` is `NIL` on *every* step in the log (the slot exists, is
+never populated). **Fix (producer):** populate `:PARENTS` on
+`rewriting-equivalence`/solidify steps with the clause literal / assumption id
+the solidify used. This is the single most important fix to make the target
+theorem's step case replayable faithfully.
+
+### Corpus-wide replay gaps (producer; do not block `my-len-my-app`)
+- **R-B `WITH-LEMMA` rewrites carry no `:SUBST`.** Fine for builtin-arithmetic
+  axioms (my-len-my-app), but a rewrite by a *prior user theorem* (e.g.
+  `app-assoc` inside `rev-app`) needs the instantiating substitution to invoke
+  the imported Lean lemma. Emit `:SUBST`/`:UNIFY-SUBST` on `WITH-LEMMA` steps.
+- **R-C `eliminate-destructors`** loses the `car/cdr`→fresh-var elim
+  substitution. Emit it.
+- **R-D `generalize`** records no term→var map or restrictions. Emit them.
+- **R-E `fertilize`** records neither the equality used nor its direction. Emit
+  the literal id + orientation.
+- **R-F `preprocess` that closes by an external rune** has no per-literal trace
+  (just the rune name). Route its closing rewrite through the SIMPLIFY trace.
+- **R-G `clause-context-resolution`** (literal true by a context assumption)
+  carries only lhs/rhs, not which assumption (same shape as R-A).
+
+### Could not verify
+- That the replay machinery consumes these fields end-to-end — `ProofProducer`
+  handles only 3 node types and throws on definition/recognizer/rewrite/
+  rewriting-equivalence; its chaining bottoms out at a `sorry` (T1 in
+  `EvalLemmas`). The *tree* carries the data; no consumer exercises it yet. The
+  reference hand-proof (`SimpleWorld.lean`) is itself all `sorry`.
+- Whether the recognizer `typeSet`/`trueTs` bit-encodings are load-bearing for
+  replay or redundant with the structural `lhs⇒rhs`.
+- Whether `:SCHEME` alone suffices to derive the *exact* Lean induction principle
+  for multi-case schemes (e.g. the 3-subgoal inductions in `02-rev`), with no
+  `:MEASURE` emitted.
+- Forcing-round / `Dk` linking (no sample exercises them).
