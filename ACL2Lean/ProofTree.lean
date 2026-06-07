@@ -67,70 +67,85 @@ structure LiteralProof where
   result : SExpr
   deriving Repr, Inhabited
 
-/-! ## Parser: flat trace → proof tree
+/-- One item in a clause-level proof step's branch tree (ACL2's `:REWRITES`), in
+    log order. A `literal` is one disjunct reduced via its rewrite chain; a `step`
+    is a clause-level rewrite or branch substitution between literals; a `branch`
+    is a case split (its `segment` is the clause segment) whose items are proved
+    under that case. This is the structure a Lean replay folds over: recurse the
+    branches (case analysis), apply substitutions, replay each literal's chain. -/
+inductive ClauseItem where
+  | literal (lp : LiteralProof)
+  | step (node : ProofNode)
+  | branch (segment : SExpr) (items : List ClauseItem)
+  deriving Repr, Inhabited
 
-    This module provides the rewriter-detail layer — `ProofNode` / `LiteralProof`
-    and the builders below — which `ClauseTree` consumes as the per-literal
-    rewrite sub-trees hanging off SIMPLIFY clause nodes. The clause-level proof
-    tree (theorem → induction → case subgoals) lives in `ClauseTree.lean`. -/
+/-! ## Parser: flat trace → rewriter-detail tree
 
-/-- Map an IF-TEST justification SExpr to a BranchJustification. -/
-private def parseBranchJustification (j : SExpr) : BranchJustification :=
-  match j with
-  | .atom (.keyword "rewritten-to-constant") => .rewrittenConstant
-  | .atom (.keyword "type-set") => .typeSet
-  | .atom (.keyword "clause") => .clauseAssumption
-  | _ => .unknown
+    `ProofNode` / `LiteralProof` / `ClauseItem` and the builders below are the
+    rewriter-detail layer that `ClauseTree` hangs off each SIMPLIFY clause node.
+    The clause-level proof tree (theorem → induction → case subgoals) lives in
+    `ClauseTree.lean`. Every known trace event is handled explicitly; the parser
+    hard-fails on anything else (no silent drop). -/
 
-/-- Recursively parse a flat event list into a proof tree.
-    Returns the parsed nodes and any remaining (unconsumed) events.
+/-- Build a `ProofNode` from a rewrite step and its (already-parsed) children. -/
+private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : ProofNode :=
+  .node step.rune step.lhs step.rhs children
+    { origin := step.origin, runes := step.runes, parents := step.parents,
+      subst := step.subst, equivTerm := step.equivTerm,
+      typeSet := step.typeSet, trueTs := step.trueTs }
 
-    The tree structure comes from BEGIN/END-INNER-REWRITE markers:
-    events inside a BEGIN/END block become children of the next
-    REWRITE-STEP at the enclosing level.
-
-    Uses a fuel parameter for termination. -/
-private def parseProofNodesAux (fuel : Nat) (events : List TraceEvent)
+/-- Parse the events of ONE literal's rewrite chain into proof nodes, returning
+    the nodes and the events after this block. `BEGIN/END-INNER-REWRITE` and
+    `BEGIN/END-IF-REWRITE` delimit a child block (its nodes become children of
+    the next rewrite step). Every known in-literal event is handled; anything
+    else hard-fails. -/
+partial def parseProofNodesAux (events : List TraceEvent)
     (pendingChildren : List ProofNode) (nodes : List ProofNode)
-    : List ProofNode × List TraceEvent :=
-  match fuel with
-  | 0 => (nodes.reverse, events)
-  | fuel + 1 =>
-    match events with
-    | [] => (nodes.reverse, [])
-    | .beginInnerRewrite _ :: rest =>
-        let (innerNodes, rest') := parseProofNodesAux fuel rest [] []
-        parseProofNodesAux fuel rest' (pendingChildren ++ innerNodes) nodes
-    | .endInnerRewrite _ :: rest =>
-        (nodes.reverse, rest)
-    | .beginIfRewrite _ _ :: rest =>
-        let (innerNodes, rest') := parseProofNodesAux fuel rest [] []
-        parseProofNodesAux fuel rest' (pendingChildren ++ innerNodes) nodes
-    | .endIfRewrite _ _ :: rest =>
-        (nodes.reverse, rest)
-    | .rewriteStep step :: rest =>
-        let prov : StepProvenance := {
-          origin := step.origin
-          runes := step.runes
-          parents := step.parents
-          subst := step.subst
-          equivTerm := step.equivTerm
-          typeSet := step.typeSet
-          trueTs := step.trueTs
-        }
-        let node := .node step.rune step.lhs step.rhs pendingChildren prov
-        parseProofNodesAux fuel rest [] (node :: nodes)
-    | .ifTestTrue _ _ _ :: rest | .ifTestFalse _ _ _ :: rest
-    | .ifTestUnknown _ _ _ :: rest =>
-        parseProofNodesAux fuel rest pendingChildren nodes
-    | _ :: rest =>
-        parseProofNodesAux fuel rest pendingChildren nodes
+    : Except String (List ProofNode × List TraceEvent) := do
+  -- `pendingChildren` are inner-rewrite-block nodes awaiting the rewrite step
+  -- that adopts them as children. At every return we FLUSH them onto the result
+  -- (`nodes.reverse ++ pendingChildren`): if no rewrite step adopted them — a
+  -- bare clause-level chain that ends inside an inner block — they are real
+  -- steps and become standalone nodes, never dropped. (Normally `pendingChildren`
+  -- is already empty at a return, so the flush is a no-op.)
+  match events with
+  | [] => return (nodes.reverse ++ pendingChildren, [])
+  | .beginInnerRewrite _ :: rest | .beginIfRewrite _ _ :: rest =>
+      let (innerNodes, rest') ← parseProofNodesAux rest [] []
+      parseProofNodesAux rest' (pendingChildren ++ innerNodes) nodes
+  | .endInnerRewrite _ :: rest | .endIfRewrite _ _ :: rest =>
+      return (nodes.reverse ++ pendingChildren, rest)
+  | .rewriteStep step :: rest =>
+      parseProofNodesAux rest [] (rewriteStepNode step pendingChildren :: nodes)
+  | .typeSetReasoning term result _ _ :: rest =>
+      -- a term closed by type-set reasoning (e.g. a literal forced true/false)
+      parseProofNodesAux rest [] (.node ("type-set", "") term result pendingChildren {} :: nodes)
+  | .branchSubstitution equiv lhs rhs :: rest =>
+      parseProofNodesAux rest []
+        (.node ("branch-substitution", "") lhs rhs pendingChildren { equivTerm := equiv } :: nodes)
+  | .contextSubst var value _ :: rest =>
+      parseProofNodesAux rest [] (.node ("context-subst", "") var value pendingChildren {} :: nodes)
+  | .ifTestTrue _ _ _ :: rest | .ifTestFalse _ _ _ :: rest | .ifTestUnknown _ _ _ :: rest =>
+      -- IF-test markers delimit the if-rewrite block; not standalone nodes.
+      parseProofNodesAux rest pendingChildren nodes
+  | .rewrittenLiteral _ _ :: rest =>
+      -- the literal's net result, captured separately by findLiteralResult.
+      parseProofNodesAux rest pendingChildren nodes
+  | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
+  | .endBranch :: _ | .caseSplit _ _ :: _ =>
+      -- A clause-structure boundary: stop and hand the remaining events back to
+      -- the clause-level parser. (This match is exhaustive over TraceEvent, so a
+      -- new event kind becomes a compile error here — never a silent drop.)
+      return (nodes.reverse ++ pendingChildren, events)
 
-/-- Parse a flat event list into a proof tree using BEGIN/END-INNER-REWRITE
-    markers for tree structure. Events inside a BEGIN/END block become
-    children of the next REWRITE-STEP at the enclosing level. -/
-def buildProofNodes (events : List TraceEvent) : List ProofNode × List TraceEvent :=
-  parseProofNodesAux (events.length + 1) events [] []
+/-- Parse a literal's rewrite chain into proof nodes. Hard-fails if any
+    clause-structure event is left unconsumed (a literal should not contain a
+    branch/literal boundary). -/
+def buildProofNodes (events : List TraceEvent) : Except String (List ProofNode) := do
+  let (nodes, rest) ← parseProofNodesAux events [] []
+  if !rest.isEmpty then
+    throw s!"buildProofNodes: unexpected clause-structure event inside a literal: {repr rest.head?}"
+  return nodes
 
 /-- Collect events for a single literal from the trace. Returns events
     between BEGIN-LITERAL and END-LITERAL, and the remaining events.
@@ -155,26 +170,45 @@ private def findLiteralResult (events : List TraceEvent) (original : SExpr) : SE
   events.foldl (fun acc ev =>
     match ev with
     | .rewrittenLiteral _ result => result
+    | .typeSetReasoning _ result _ _ => result
     | _ => acc) original
 
-/-- Build LiteralProofs from a flat event list. Extracts events between
-    BEGIN-LITERAL/END-LITERAL boundaries and converts each to a
-    LiteralProof with JustifiedSteps. -/
-def buildLiteralProofs (events : List TraceEvent) : List LiteralProof := Id.run do
-  let mut result : Array LiteralProof := #[]
-  let mut remaining := events
-  let mut fuel := events.length + 1  -- termination bound
-  while remaining.length > 0 && fuel > 0 do
-    fuel := fuel - 1
-    match remaining with
-    | .beginLiteral index literal notFlg :: rest =>
+/-- Parse a clause-level event list (ACL2's `:REWRITES`) into its branch tree, in
+    log order, returning the items and the events after this branch. A
+    `BEGIN-BRANCH`/`END-BRANCH` pair is a case split; `BEGIN-LITERAL`/
+    `END-LITERAL` is one literal reduced via its chain; rewrite-steps and branch
+    substitutions between literals are clause-level `step` items. Hard-fails on
+    any other clause-level event (no silent drop). -/
+partial def parseClauseItems (events : List TraceEvent)
+    : Except String (List ClauseItem × List TraceEvent) := do
+  match events with
+  | [] => return ([], [])
+  | .endBranch :: rest => return ([], rest)
+  | .beginBranch segment :: rest =>
+      let (inner, rest') ← parseClauseItems rest
+      let (more, rest'') ← parseClauseItems rest'
+      return (.branch segment inner :: more, rest'')
+  | .beginLiteral index literal notFlg :: rest =>
       let (litEvents, rest') := collectLiteralEvents index rest (rest.length + 1)
-      let (nodes, _) := buildProofNodes litEvents
+      let nodes ← buildProofNodes litEvents
       let litResult := findLiteralResult litEvents literal
-      result := result.push ⟨index, literal, notFlg, nodes, litResult⟩
-      remaining := rest'
-    | _ :: rest => remaining := rest
-    | [] => break
-  return result.toList
+      let (more, rest'') ← parseClauseItems rest'
+      return (.literal ⟨index, literal, notFlg, nodes, litResult⟩ :: more, rest'')
+  | _ =>
+      -- A clause-level rewrite chain not wrapped in a literal — e.g. a
+      -- termination conjecture being simplified, or the inter-literal ground
+      -- rewrites / branch substitutions inside a branch. Parse the maximal
+      -- rewrite-chain prefix (stops at the next literal/branch boundary) and
+      -- emit each node as a clause-level `step`.
+      let (nodes, rest) ← parseProofNodesAux events [] []
+      if rest.length == events.length then
+        throw s!"parseClauseItems: no progress on clause-level event {repr events.head?}"
+      let (more, rest') ← parseClauseItems rest
+      return (nodes.map ClauseItem.step ++ more, rest')
+
+/-- Build the branch tree (`ClauseItem`s) for one clause-level proof step. -/
+def buildClauseItems (events : List TraceEvent) : Except String (List ClauseItem) := do
+  let (items, _) ← parseClauseItems events
+  return items
 
 end ACL2

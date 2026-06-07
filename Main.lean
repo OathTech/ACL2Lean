@@ -47,7 +47,25 @@ private partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat)
       if !children.isEmpty then
         printProofNodes children (indent + 1)
 
-/-- Render one node of the reconstructed clause tree (and its subtree). -/
+/-- Render a clause step's branch tree: literals (with their rewrite chains),
+    clause-level steps (branch substitutions / rewrites), and nested case
+    branches. -/
+private partial def printClauseItems (items : List ACL2.ClauseItem)
+    (pad : String) (rwIndent : Nat) : IO Unit := do
+  for item in items do
+    match item with
+    | .literal lp =>
+      if lp.nodes.isEmpty then
+        IO.println s!"{pad}  │    literal {lp.index}: {lp.literal} ⇒ {lp.result}"
+      else
+        IO.println s!"{pad}  │    literal {lp.index}: {lp.literal} ⇒ {lp.result}  ({lp.nodes.length}-step rewrite)"
+        printProofNodes lp.nodes rwIndent
+    | .step (.node rune lhs rhs _ _) =>
+      IO.println s!"{pad}  │    {rune.1}: {lhs} ⇒ {rhs}"
+    | .branch segment subitems =>
+      IO.println s!"{pad}  │    ┌ case branch: {segment}"
+      printClauseItems subitems (pad ++ "    ") rwIndent
+
 private partial def printClauseNode (node : ACL2.ClauseNode) (indent : Nat) : IO Unit := do
   let pad := String.ofList (List.replicate indent ' ')
   -- The clause this node proves.
@@ -62,14 +80,12 @@ private partial def printClauseNode (node : ACL2.ClauseNode) (indent : Nat) : IO
     let runeStr := if st.runes.isEmpty then "" else
       "  runes: " ++ String.intercalate ", " (st.runes.map fun (t, n) => s!"{t}:{n}")
     IO.println s!"{pad}  ├─ {st.processor} ⇒ {res}{runeStr}"
-    -- Rewriter detail (SIMPLIFY only): per-literal rewrite chains.
-    for lp in st.literalProofs do
-      if !lp.nodes.isEmpty then
-        IO.println s!"{pad}  │    literal {lp.index}: {lp.literal} ⇒ {lp.result}  ({lp.nodes.length}-step rewrite)"
-        printProofNodes lp.nodes (indent / 2 + 4)
-    -- For processors with no rewriter trace (generalize, eliminate-destructors,
+    -- Rewriter detail: the clause's branch tree (literals, clause-level steps,
+    -- nested case branches).
+    printClauseItems st.items pad (indent / 2 + 4)
+    -- For processors with no branch tree (generalize, eliminate-destructors,
     -- fertilize, …), show the clauses they produced so the step isn't opaque.
-    if st.result == ACL2.ProofResult.subgoals && st.literalProofs.all (·.nodes.isEmpty) then
+    if st.result == ACL2.ProofResult.subgoals && st.items.isEmpty then
       for nc in st.newClauses do
         IO.println s!"{pad}  │    ⇒ {nc}"
   -- Induction applied here: its scheme (the generated case clauses); the

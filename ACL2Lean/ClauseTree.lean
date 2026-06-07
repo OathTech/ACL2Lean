@@ -36,9 +36,9 @@ structure WaterfallStep where
   result : ProofResult
   runes : List (String × String)
   newClauses : List SExpr
-  /-- Rewriter detail, present only for SIMPLIFY-CLAUSE steps (the per-literal
-      rewrite sub-trees). Empty for every other processor. -/
-  literalProofs : List LiteralProof
+  /-- Rewriter detail (the clause's `:REWRITES` branch tree), present for steps
+      that carry one — chiefly SIMPLIFY-CLAUSE. Empty for processors that don't. -/
+  items : List ClauseItem
   deriving Repr, Inhabited
 
 /-- A node of the reconstructed clause tree: one clause (addressed by its
@@ -192,19 +192,32 @@ private partial def linkNode (cands : List (Nat × SExpr)) (n : ProofNode)
     else
       return .node rune lhs rhs children prov
 
-/-- Within one SIMPLIFY step, link each literal's solidify nodes to the OTHER
-    literals' hypotheses (a literal cannot justify rewriting itself — matching
-    ACL2's parent-tree loop-avoidance). -/
-private def linkEquivSources (lps : List LiteralProof) : Except String (List LiteralProof) := do
-  let mut out : Array LiteralProof := #[]
-  for lp in lps do
-    let cands : List (Nat × SExpr) :=
-      lps.filterMap fun other =>
-        if other.index == lp.index then none
-        else (hypEquiv other).map (fun e => (other.index, e))
-    let nodes ← lp.nodes.mapM (linkNode cands)
-    out := out.push { lp with nodes := nodes }
-  return out.toList
+/-- Collect the hypotheses (literal index, available equivalence) from every
+    `literal` item in a clause's branch tree — the IH is a clause-level
+    hypothesis, available in all branches. -/
+private partial def collectHypEquivs : List ClauseItem → List (Nat × SExpr)
+  | [] => []
+  | .literal lp :: rest =>
+      (match hypEquiv lp with | some e => [(lp.index, e)] | none => []) ++ collectHypEquivs rest
+  | .step _ :: rest => collectHypEquivs rest
+  | .branch _ items :: rest => collectHypEquivs items ++ collectHypEquivs rest
+
+/-- Link each `literal`'s solidify nodes to a sibling literal's hypothesis (a
+    literal cannot justify rewriting itself — matching ACL2's parent-tree
+    loop-avoidance), recursing through branches. -/
+private partial def linkItems (cands : List (Nat × SExpr))
+    : List ClauseItem → Except String (List ClauseItem)
+  | [] => return []
+  | .literal lp :: rest => do
+      let nodes ← lp.nodes.mapM (linkNode (cands.filter (·.1 != lp.index)))
+      return .literal { lp with nodes } :: (← linkItems cands rest)
+  | .step n :: rest => do return .step n :: (← linkItems cands rest)
+  | .branch seg items :: rest => do
+      return .branch seg (← linkItems cands items) :: (← linkItems cands rest)
+
+/-- Link the solidify nodes in a clause's branch tree to their hypotheses. -/
+private def linkEquivSources (items : List ClauseItem) : Except String (List ClauseItem) := do
+  linkItems (collectHypEquivs items) items
 
 /-- Find the index of the flat node with the given printed id. -/
 private def findIdx (flats : Array FlatNode) (idStr : String) : Option Nat :=
@@ -229,7 +242,7 @@ private def collectFlat (events : List ProofEvent)
       let wstep : WaterfallStep := {
         processor := s.processor, result := s.result, runes := s.runes,
         newClauses := s.newClauses,
-        literalProofs := ← linkEquivSources (buildLiteralProofs s.traceEvents) }
+        items := ← linkEquivSources (← buildClauseItems s.traceEvents) }
       match findIdx flats s.clauseId with
       | some i =>
         flats := flats.modify i (fun fn => { fn with steps := fn.steps.push wstep })
@@ -414,11 +427,17 @@ private partial def clauseNodes (n : ClauseNode) : List ClauseNode :=
 private partial def proofNodesOf : ProofNode → List ProofNode
   | n@(.node _ _ _ cs _) => n :: cs.flatMap proofNodesOf
 
+/-- Every rewriter proof-node reachable from a clause's branch-tree items. -/
+private partial def itemNodes : List ClauseItem → List ProofNode
+  | [] => []
+  | .literal lp :: rest => lp.nodes.flatMap proofNodesOf ++ itemNodes rest
+  | .step n :: rest => proofNodesOf n ++ itemNodes rest
+  | .branch _ items :: rest => itemNodes items ++ itemNodes rest
+
 private def allProofNodes (cp : ClauseProof) : List ProofNode :=
   match cp.root with
   | none => []
-  | some r => (clauseNodes r).flatMap fun n =>
-      n.steps.flatMap fun s => s.literalProofs.flatMap fun lp => lp.nodes.flatMap proofNodesOf
+  | some r => (clauseNodes r).flatMap fun n => n.steps.flatMap fun s => itemNodes s.items
 
 private def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
 private def equivSrcOf : ProofNode → Option Nat | .node _ _ _ _ p => p.equivSource
