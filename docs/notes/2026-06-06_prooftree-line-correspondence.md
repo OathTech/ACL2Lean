@@ -4,11 +4,13 @@ Created 2026-06-06. Source dump: `docs/notes/2026-06-06_simple-prooftree.txt`
 (the complete `dump-proof-tree acl2_samples/simple.proof-log` output; one theorem
 section, nothing before/after it).
 
-> ⚠ The **line numbers below reference the ORIGINAL dump format**. The renderer was
-> subsequently improved (per §E.1–E.2: honest labels + induction-as-parent), so the
-> committed `…_simple-prooftree.txt` now looks different — the tree *content* is
-> identical, only headers/labels/line-numbers shifted. The analysis (the proof
-> structure, the §D.1 substitution defect, and §E improvements) is unchanged.
+> ⚠ **Snapshot/line-number note.** The line numbers below reference the dump as it
+> was *during* this analysis. Both fixes this analysis motivated have since been
+> applied: §E.1–E.2 (renderer: honest labels + induction-as-parent) and §D.1 (ACL2
+> source: instantiate `if-simplification` branches via `sublis-var`). The committed
+> `…_simple-prooftree.txt` reflects the FIXED state, so its layout/line-numbers and
+> the once-formal `(my-len (cdr x))` term differ from the references below; the
+> tree structure and this analysis's conclusions are otherwise unchanged.
 
 Goal of this note: account for **every** line of the dump, state its role, and
 check that **every** step contributes to justifying the top-level theorem
@@ -193,6 +195,14 @@ child step; it must be checked whether the underlying `ProofNode` data carries t
 wrong (unsubstituted) `lhs`/`rhs` for that child, because a replay driver consuming
 that child term verbatim would be misled by the `x`-capture. **This is exactly the
 class of "misleading input" to fix before driving replay off these terms.**
+
+> ✅ **D.1 RESOLVED at the ACL2 source (2026-06-06).** Root cause: ACL2 logged the
+> `if-simplification` branches at the *formal* level. `rewrite.lisp`'s
+> `rewrite-if/constant-test` step now applies the rewrite alist (`sublis-var`)
+> before logging, so branches are emitted instantiated. The regenerated log shows
+> `(my-len (cdr (cons (car x) (my-app (cdr x) y))))` — consistent with the sibling
+> `cdr-cons`; the `fix` sub-tree is likewise corrected; identity-subst (base-case)
+> steps are unchanged. Logging-only — does not affect ACL2's proving.
 
 ---
 

@@ -44,7 +44,7 @@
               (acl2-numberp (my-len y)) => (quote t)
               runes: type-prescription:my-len, definition:my-len, definition:my-app
             if-simplification:NIL [rewrite-if/constant-test]
-              (if (quote t) x (quote 0)) => x
+              (if (quote t) (my-len y) (quote 0)) => (my-len y)
         equal-self:NIL [equal/self]
           (equal (my-len y) (my-len y)) => (quote t)
 
@@ -76,7 +76,7 @@
             (consp (cons (car x) (my-app (cdr x) y))) => (quote t)
             runes: fake-rune-for-type-set:NIL, definition:my-app
           if-simplification:NIL [rewrite-if/constant-test]
-            (if (quote t) (binary-+ (quote 1) (my-len (cdr x))) (quote 0)) => (binary-+ (quote 1) (my-len (cdr x)))
+            (if (quote t) (binary-+ (quote 1) (my-len (cdr (cons (car x) (my-app (cdr x) y))))) (quote 0)) => (binary-+ (quote 1) (my-len (cdr (cons (car x) (my-app (cdr x) y)))))
           rewrite:cdr-cons [with-lemma]
             (cdr (cons (car x) (my-app (cdr x) y))) => (my-app (cdr x) y)
             runes: fake-rune-for-type-set:NIL, definition:my-app
