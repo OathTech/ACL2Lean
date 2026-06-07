@@ -16,7 +16,6 @@ import ACL2Lean.ProofLog
 import ACL2Lean.ClauseId
 import ACL2Lean.ProofTree
 import ACL2Lean.ClauseTree
-import ACL2Lean.ProofChecker
 import ACL2Lean.Imported.SimpleWorld
 import ACL2Lean.Lexorder
 import ACL2Lean.TermOrder

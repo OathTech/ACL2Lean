@@ -67,24 +67,12 @@ structure LiteralProof where
   result : SExpr
   deriving Repr, Inhabited
 
-/-- Proof of one clause (one induction case or a direct simplification).
-    A clause is a disjunction of literals; the proof simplifies each
-    literal, showing the clause is valid. -/
-structure CaseProof where
-  clauseId : String
-  clause : List SExpr
-  literalProofs : List LiteralProof
-  deriving Repr, Inhabited
+/-! ## Parser: flat trace → proof tree
 
-/-- A complete proof of a theorem. -/
-structure TheoremProof where
-  name : String
-  formula : SExpr
-  induction : Option InductionStep
-  cases : List CaseProof
-  deriving Repr, Inhabited
-
-/-! ## Parser: flat trace → proof tree -/
+    This module provides the rewriter-detail layer — `ProofNode` / `LiteralProof`
+    and the builders below — which `ClauseTree` consumes as the per-literal
+    rewrite sub-trees hanging off SIMPLIFY clause nodes. The clause-level proof
+    tree (theorem → induction → case subgoals) lives in `ClauseTree.lean`. -/
 
 /-- Map an IF-TEST justification SExpr to a BranchJustification. -/
 private def parseBranchJustification (j : SExpr) : BranchJustification :=
@@ -188,138 +176,5 @@ def buildLiteralProofs (events : List TraceEvent) : List LiteralProof := Id.run 
     | _ :: rest => remaining := rest
     | [] => break
   return result.toList
-
-/-- Build a CaseProof from a ProofStep. -/
-def buildCaseProof (step : ProofStep) : CaseProof :=
-  { clauseId := step.clauseId
-    clause := step.inputClause
-    literalProofs := buildLiteralProofs step.traceEvents }
-
-/-- Build all TheoremProofs from a ProofLog by walking the event list
-    sequentially. Each DEFTHM starts a theorem; events up to QED (or
-    the next DEFTHM) are its proof. Imported theorems (no QED) are
-    leaf nodes with no cases. -/
-def buildAllTheoremProofs (log : ProofLog) : List TheoremProof := Id.run do
-  let mut result : Array TheoremProof := #[]
-  let mut curName : Option String := none
-  let mut curFormula : SExpr := .nil
-  let mut curSource : TheoremSource := .unknown
-  let mut curInduction : Option InductionStep := none
-  let mut curCases : Array CaseProof := #[]
-  let mut fuel := log.events.length + 1
-  for ev in log.events do
-    fuel := fuel - 1
-    if fuel == 0 then break
-    match ev with
-    | .defun _ _ _ => pure ()  -- handled by checker, not tree builder
-    | .typePrescription _ _ _ _ => pure ()  -- handled by checker, not tree builder
-    | .defthm name formula source =>
-      -- Close previous theorem if any
-      if let some prevName := curName then
-        let cases := curCases.toList.filter fun c => c.clauseId != "Goal"
-        result := result.push {
-          name := prevName, formula := curFormula,
-          induction := curInduction, cases }
-      -- Start new theorem
-      curName := some name
-      curFormula := formula
-      curSource := source
-      curInduction := none
-      curCases := #[]
-    | .induction i =>
-      curInduction := some i
-    | .step s =>
-      if s.result == .proved && !s.traceEvents.isEmpty then
-        curCases := curCases.push (buildCaseProof s)
-      -- Also extract formula from first step if not in DEFTHM
-      if curFormula == .nil && !s.inputClause.isEmpty then
-        curFormula := match s.inputClause with
-          | [lit] => lit
-          | lits => SExpr.ofList lits
-    | .qed =>
-      -- Close current theorem
-      if let some prevName := curName then
-        let cases := curCases.toList.filter fun c => c.clauseId != "Goal"
-        result := result.push {
-          name := prevName, formula := curFormula,
-          induction := curInduction, cases }
-      curName := none
-      curFormula := .nil
-      curInduction := none
-      curCases := #[]
-  -- Close final theorem if no QED
-  if let some prevName := curName then
-    let cases := curCases.toList.filter fun c => c.clauseId != "Goal"
-    result := result.push {
-      name := prevName, formula := curFormula,
-      induction := curInduction, cases }
-  return result.toList
-
-/-! ## Tests -/
-
-section Tests
-
-private def proofLogText : String := include_str "../acl2_samples/simple.proof-log"
-
-private def getProof : Option TheoremProof := do
-  let log ← (ProofLog.parse proofLogText).toOption
-  (buildAllTheoremProofs log).head?
-
--- Theorem name (lowercased by parser)
-#guard (getProof.map (·.name)) == some "my-len-my-app"
-
--- Has induction
-#guard (getProof.map (·.induction.isSome)) == some true
-
--- Induction on MY-APP with 2 subgoals
-#guard (getProof.bind (·.induction) |>.map (·.subgoalCount)) == some 2
-
--- Two proved cases (base + step)
-#guard (getProof.map (·.cases.length)) == some 2
-
--- Base case is Subgoal *1/2
-#guard (getProof.map fun p => p.cases[0]!.clauseId) == some "Subgoal *1/2"
-
--- Base case has literal proofs
-#guard (getProof.map fun p => p.cases[0]!.literalProofs.length) == some 2
-
--- Base case literal 2 (the EQUAL literal) has proof nodes
-private def baseCaseLit2Nodes : List ProofNode :=
-  match getProof with
-  | some proof =>
-    match proof.cases[0]!.literalProofs.find? (·.index == 2) with
-    | some lp => lp.nodes
-    | none => []
-  | none => []
-
-private def nodeRune : ProofNode → String × String
-  | .node r _ _ _ _ => r
-
-private def nodeChildren : ProofNode → List ProofNode
-  | .node _ _ _ cs _ => cs
-
-private def nodeProvenance : ProofNode → StepProvenance
-  | .node _ _ _ _ p => p
-
--- Proof tree has nodes at the top level
-#guard baseCaseLit2Nodes.length > 0
-
--- definition:my-app and definition:my-len are top-level nodes
--- (inner steps are now children, not siblings)
-#guard baseCaseLit2Nodes.any (nodeRune · == ("definition", "my-app"))
-#guard baseCaseLit2Nodes.any (nodeRune · == ("definition", "my-len"))
-
--- Definition expansion nodes have children (the inner proof steps)
-#guard baseCaseLit2Nodes.any fun n => (nodeChildren n).length > 0
-
--- Step case is Subgoal *1/1
-#guard (getProof.map fun p => p.cases[1]!.clauseId) == some "Subgoal *1/1"
-
-/-! ### Multi-theorem book tests -/
-
--- Multi-theorem tests use the CLI: `lake exe acl2lean dump-proof-tree`
--- rather than include_str, since proof logs change with ACL2 rebuilds.
-
-end Tests
 
 end ACL2

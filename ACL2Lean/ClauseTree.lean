@@ -334,4 +334,57 @@ def buildClauseProofs (log : ProofLog) : Except String (List ClauseProof) := do
 
 end ClauseTree
 
+/-! ## Tests — the reconstructed clause tree of `my-len-my-app`. -/
+section Tests
+
+private def simpleLog : String := include_str "../acl2_samples/simple.proof-log"
+
+private def simpleProof : Option ClauseProof := do
+  let log ← (ProofLog.parse simpleLog).toOption
+  (ClauseTree.buildClauseProofs log).toOption.bind (·.head?)
+
+/-- All clause nodes in a subtree (pre-order). -/
+private partial def clauseNodes (n : ClauseNode) : List ClauseNode :=
+  n :: n.children.flatMap clauseNodes
+
+/-- Every rewriter proof-node reachable from a clause proof (across all steps,
+    all literals, recursively). -/
+private partial def proofNodesOf : ProofNode → List ProofNode
+  | n@(.node _ _ _ cs _) => n :: cs.flatMap proofNodesOf
+
+private def allProofNodes (cp : ClauseProof) : List ProofNode :=
+  match cp.root with
+  | none => []
+  | some r => (clauseNodes r).flatMap fun n =>
+      n.steps.flatMap fun s => s.literalProofs.flatMap fun lp => lp.nodes.flatMap proofNodesOf
+
+private def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
+private def equivSrcOf : ProofNode → Option Nat | .node _ _ _ _ p => p.equivSource
+
+-- The theorem and its root clause.
+#guard (simpleProof.map (·.name)) == some "my-len-my-app"
+#guard (simpleProof.bind (·.root) |>.map (·.idStr)) == some "Goal"
+
+-- A synthesized induction node (`*1`) with two case subgoals.
+#guard (simpleProof.bind (·.root) |>.map fun r =>
+  (clauseNodes r).any fun n => n.induction.isSome && n.children.length == 2) == some true
+
+-- Both induction subgoals are present (base *1/2 and step *1/1).
+#guard (simpleProof.bind (·.root) |>.map fun r =>
+  let ids := (clauseNodes r).map (·.idStr)
+  ids.contains "Subgoal *1/1" && ids.contains "Subgoal *1/2") == some true
+
+-- The rewriter detail is attached: my-app / my-len definition unfoldings appear.
+#guard (simpleProof.map fun p =>
+  (allProofNodes p).any (runeOf · == ("definition", "my-app"))) == some true
+#guard (simpleProof.map fun p =>
+  (allProofNodes p).any (runeOf · == ("definition", "my-len"))) == some true
+
+-- The induction hypothesis link (R-A): a solidify node is justified by
+-- hypothesis literal 2 in the step case.
+#guard (simpleProof.map fun p =>
+  (allProofNodes p).any (equivSrcOf · == some 2)) == some true
+
+end Tests
+
 end ACL2

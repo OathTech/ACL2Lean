@@ -23,10 +23,16 @@ those failures are invisible to the Lean kernel (see the trust note below).
    and the per-literal rewrite chains.
 3. **Proof-log parser** — `ProofLog.lean` (`ProofLog.parse`): proof-log text →
    structured trace events.
-4. **Proof-tree reconstruction** — `ProofTree.lean` (`buildAllTheoremProofs`):
-   events → the recursive tree `TheoremProof → CaseProof → LiteralProof →
-   ProofNode` (nodes have children; the IH flows from the induction into the step
-   case). This tree — not the flat log — is what the replay consumes.
+4. **Proof-tree reconstruction** — `ClauseTree.lean` (`buildClauseProofs`):
+   events → the **clause tree** ACL2's waterfall actually is, addressed by
+   clause-ids: `ClauseProof → ClauseNode` (each clause processed by a sequence of
+   processors, with child clauses; induction pool-roots like `*1` are synthesized
+   from the push→induct adjacency). The per-literal **rewriter detail** that
+   hangs off SIMPLIFY nodes (`ProofNode`/`LiteralProof`, with the IH linked to its
+   solidify use) is built by `ProofTree.lean` (`buildLiteralProofs`). Linking is
+   deterministic — clause-id lineage is the inverse of ACL2's `waterfall1-lst`;
+   unlinkable structure hard-fails. This tree — not the flat log — is what the
+   replay consumes.
 5. **Source translation** — `WorldGen.lean` / `Translator.lean` (`gen-world`):
    translates the *same* ACL2 source into a Lean **`World`** (function name →
    (formals, body) as `SExpr`) and the **mirror-theorem statement**, of the form
@@ -39,9 +45,7 @@ those failures are invisible to the Lean kernel (see the trust note below).
 7. **Proof-object builder** — `Replay/ProofProducer.lean` (a `MetaM` procedure,
    the eventual `acl2_replay` tactic) + `Replay/EvalLemmas.lean` (atomic step
    lemmas): recurses the proof tree and emits a Lean **`Expr`** discharging the
-   mirror theorem; the **Lean kernel** then checks it. *(A transitional Boolean
-   checker, `ProofChecker.lean`, returns pass/fail instead of a kernel-checked
-   term; the producer supersedes it.)*
+   mirror theorem; the **Lean kernel** then checks it.
 
 **End goal — ACL2 as an untrusted Lean tactic.** The reason to produce the mirror
 theorem is to discharge a *native Lean theorem* we actually want. Given a desired
@@ -66,11 +70,15 @@ mirror statement, an `evalOpt` that diverges from ACL2, or a replay that proves
 something slightly different. Do not assume the bug is where it is most convenient
 to look; only ACL2's proof *search* is off the table.
 
-**Current status — assume nothing works.** Several stages are partial, broken, or
-not yet built — in particular the proof-object builder (stage 7) does not replay
+**Current status.** Stages 1–4 — ACL2 instrumentation, proof-log parsing, and
+clause-tree reconstruction (`buildClauseProofs`) — are built and validated against
+the sample corpus (`acl2_samples/`, incl. `recon-tests/`): `my-len-my-app`
+reconstructs as a faithful clause tree with the induction hypothesis linked to its
+solidify use. Not yet built: the proof-object builder (stage 7) does not replay
 real trees end-to-end, and the native-theorem bridge (the end-goal step) does not
-exist. Treat every stage as unverified: check it against the real artifact before
-relying on it.
+exist. The trust note still applies — a kernel-accepted proof object would certify
+only the mirror theorem as stated, not that the mirror/`evalOpt` faithfully model
+ACL2 — so keep checking each stage against the real artifact.
 
 ## Fidelity (non-negotiable)
 
@@ -122,8 +130,9 @@ large investment. The failure mode is structural, not a knowledge gap — guard
 against it structurally:
 
 - **Drive off the real artifact, never synthetic or mental-model shapes.** The
-  ACL2 output is a *recursive tree* (`TheoremProof → CaseProof → LiteralProof →
-  ProofNode`, with children), not a flat list. Inspect the real thing —
+  ACL2 output is a *recursive clause tree* (`ClauseProof → ClauseNode`, with
+  child clauses, induction pool-roots, and the per-literal `ProofNode` rewrite
+  detail), not a flat list. Inspect the real thing —
   `lake exe acl2lean dump-proof-tree <file>` — before reasoning. Never validate
   against hand-built nodes or the flat `:REWRITE-STEP` log; both mislead about
   real shapes and how nodes compose.
