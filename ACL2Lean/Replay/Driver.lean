@@ -75,8 +75,21 @@ def reflectSExpr : SExpr → Expr
   | .cons car cdr =>
     mkApp2 (mkConst ``SExpr.cons) (reflectSExpr car) (reflectSExpr cdr)
 
+/-- Prove a decidable proposition `p` by **kernel decision** — deterministic ground
+    computation (evaluate the `Decidable` instance via `whnf`, then `of_decide_eq_true`).
+    NOT heuristic: no simp set, no search. The single side-condition discharger the
+    driver uses for all ground facts (non-special symbols, world non-shadowing, …).
+    Hard-fails if `p` does not reduce to `true`. -/
+def proveByDecide (p : Expr) (label : String) : MetaM Expr := do
+  let inst ← synthInstance (mkApp (mkConst ``Decidable) p)
+  let reduced ← withTransparency .all <| whnf (mkApp2 (mkConst ``decide) p inst)
+  unless reduced == mkConst ``Bool.true do
+    throwError "proveByDecide ({label}): {← ppExpr p} did not reduce to true"
+  return mkApp3 (mkConst ``of_decide_eq_true) p inst
+    (mkApp2 (mkConst ``Eq.refl [1]) (mkConst ``Bool) (mkConst ``Bool.true))
+
 /-- Prove `fn.isNamed "quote" = false ∧ "if" = false ∧ "let" = false ∧ "let*" = false`
-    by kernel decision — the `…_not_special` side-condition every congruence wants. -/
+    — the `…_not_special` side-condition every congruence wants. -/
 def proveNotSpecial (s : Symbol) : MetaM Expr := do
   let sExpr := reflectSymbol s
   let boolType := mkConst ``Bool
@@ -85,14 +98,8 @@ def proveNotSpecial (s : Symbol) : MetaM Expr := do
     mkApp3 (mkConst ``Eq [1]) boolType
       (mkApp2 (mkConst ``Symbol.isNamed) sExpr (mkStrLit name)) falseExpr
   let mkAnd (a b : Expr) : Expr := mkApp2 (mkConst ``And) a b
-  let p := mkAnd (mkEqFalse "quote")
-    (mkAnd (mkEqFalse "if") (mkAnd (mkEqFalse "let") (mkEqFalse "let*")))
-  let inst ← synthInstance (mkApp (mkConst ``Decidable) p)
-  let reduced ← withTransparency .all <| whnf (mkApp2 (mkConst ``decide) p inst)
-  unless reduced == mkConst ``Bool.true do
-    throwError "proveNotSpecial: {← ppExpr p} does not decide true"
-  return mkApp3 (mkConst ``of_decide_eq_true) p inst
-    (mkApp2 (mkConst ``Eq.refl [1]) boolType (mkConst ``Bool.true))
+  proveByDecide (mkAnd (mkEqFalse "quote")
+    (mkAnd (mkEqFalse "if") (mkAnd (mkEqFalse "let") (mkEqFalse "let*")))) "not-special"
 
 /-! ## Goal-type builders -/
 
@@ -219,22 +226,6 @@ def chainEqs (proofs : List Expr) : MetaM Expr := do
   | [] => throwError "chainEqs: empty"
   | p :: ps => ps.foldlM (fun acc q => mkAppM ``fuel_chain_eq #[acc, q]) p
 
-/-! ## Side-condition provers (framing-neutral; kept from the old producer) -/
-
-/-- Prove a proposition that `simp` (default set + `unfoldNames`) reduces to `True`. -/
-def proveBySimp (goalType : Expr) (unfoldNames : Array Name := #[]) : MetaM Expr := do
-  let defaultCtx ← Simp.Context.mkDefault
-  let mut simpThms := defaultCtx.simpTheorems[0]!
-  for n in unfoldNames do
-    simpThms ← simpThms.addDeclToUnfold n
-  let ctx ← Simp.mkContext (simpTheorems := #[simpThms])
-  let (result, _) ← Meta.simp goalType ctx
-  match result.proof? with
-  | some proof =>
-    if result.expr == mkConst ``True then mkAppM ``of_eq_true #[proof]
-    else throwError "proveBySimp: reduced to {result.expr}, not True"
-  | none => mkAppM ``of_eq_true #[← mkEqRefl (mkConst ``True)]
-
 /-! ## The recursive driver (`replayClause` / `replayNode`).
 
 A recursive function over the reconstructed tree, per
@@ -244,12 +235,16 @@ kernel-checkable `Expr` or `throwError`s; NEVER `sorry`.
 
 S1 (dummy) = every node `throwError`s. S2 adds the single `equal-self` terminal. -/
 
-/-- Ambient config: the `World`/`Env` as `Expr`s, plus the names to unfold when
-    discharging world-lookup side-conditions (the `gen-world` `def`s). -/
+/-- Ambient config: the `World`/`Env` as `Expr`s, plus the **carried world-structure
+    facts** — proofs that `worldExpr.defs.get? s = none` for each builtin the proof
+    uses (i.e. it is not shadowed by a `defun`). These are fixed properties of the
+    concrete world, established ONCE when the config is built (by the test harness now,
+    by `gen-world` later) and looked up here — the driver NEVER re-derives them, and
+    runs no `simp`/search of its own. -/
 structure ReplayConfig where
   worldExpr : Expr
   envExpr : Expr
-  worldUnfoldNames : Array Name := #[]
+  noShadow : List (Symbol × Expr) := []
 
 /-- The proof context in scope at a node (design note). Grows as stages land; S1/S2
     populate none of it. -/
@@ -273,24 +268,20 @@ def asEqualSelf : SExpr → Option SExpr
 def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
 def nodeLhsRhs : ProofNode → SExpr × SExpr | .node _ lhs rhs _ _ => (lhs, rhs)
 
-/-- Prove `w.defs.get? s = none` (builtin not shadowed) by simp over the world def. -/
-def proveDefsGetNone (cfg : ReplayConfig) (s : Symbol) : MetaM Expr := do
-  let worldDefs := mkApp (mkConst ``World.defs) cfg.worldExpr
-  let lookupExpr ← mkAppM ``Std.HashMap.get? #[worldDefs, reflectSymbol s]
-  let lookupType ← inferType lookupExpr
-  let noneExpr := mkApp (mkConst ``Option.none [0]) lookupType.appArg!
-  proveBySimp (← mkEq lookupExpr noneExpr) (unfoldNames := cfg.worldUnfoldNames)
+/-- The carried `worldExpr.defs.get? s = none` fact (builtin not shadowed). Looked up
+    from `cfg.noShadow`; hard-fails if absent (the config didn't supply it — a frontier,
+    NOT something the driver re-derives). -/
+def noShadowFact (cfg : ReplayConfig) (s : Symbol) : MetaM Expr := do
+  match cfg.noShadow.find? (·.1 == s) with
+  | some (_, pf) => return pf
+  | none => throwError "noShadowFact: no `defs.get? {s.name} = none` fact in ReplayConfig.noShadow"
 
 /-- Prove `s.isNamed name = false` by kernel decision. -/
-def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr := do
-  let p := mkApp3 (mkConst ``Eq [1]) (mkConst ``Bool)
-    (mkApp2 (mkConst ``Symbol.isNamed) (reflectSymbol s) (mkStrLit name)) (mkConst ``Bool.false)
-  let inst ← synthInstance (mkApp (mkConst ``Decidable) p)
-  let reduced ← withTransparency .all <| whnf (mkApp2 (mkConst ``decide) p inst)
-  unless reduced == mkConst ``Bool.true do
-    throwError "proveIsNamedFalse: {s.name}.isNamed {name} is not false"
-  return mkApp3 (mkConst ``of_decide_eq_true) p inst
-    (mkApp2 (mkConst ``Eq.refl [1]) (mkConst ``Bool) (mkConst ``Bool.true))
+def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
+  proveByDecide
+    (mkApp3 (mkConst ``Eq [1]) (mkConst ``Bool)
+      (mkApp2 (mkConst ``Symbol.isNamed) (reflectSymbol s) (mkStrLit name)) (mkConst ``Bool.false))
+    s!"{s.name}.isNamed {name} = false"
 
 /-- Prove a term CONVERGES (totality form): `∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env t = some v`.
     The witness is existential — callers need no concrete value (it may be env-dependent,
@@ -347,7 +338,7 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
           throwError "replayLiteral: rewrite chain reached {repr curTerm}, \
                       expected equal-self redex {repr clhs}"
         let hX ← proveConv cfg ctx X
-        let hNoEqual ← proveDefsGetNone cfg { name := "equal" }
+        let hNoEqual ← noShadowFact cfg { name := "equal" }
         let closeProof ← mkAppM ``re_equal_self
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
         match chainOpt with

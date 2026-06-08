@@ -57,6 +57,12 @@ The mirror theorem is `∀ env, ∃ N, ∀ f ≥ N, evalOpt f w env formula = so
 variables). The driver emits the body for an `env` PARAMETER (an fvar); the frontend
 λ-abstracts over it to produce the universal fact. -/
 
+/-- A carried world-structure fact: `equal` is not shadowed in the empty world.
+    Established ONCE here (the driver never re-derives it). For the real pipeline this
+    is what `gen-world` would emit alongside the world def. -/
+theorem empty_no_equal : World.empty.defs.get? ({ name := "equal" } : Symbol) = none := by
+  simp [World.empty]
+
 /-- `acl2_replay% <clauseProofTerm>` — elaborates the tree value, runs the driver over
     the empty world for a universally-quantified `env`, and returns the emitted proof
     of `∀ env, <mirror>`. Fails to elaborate if the driver `throwError`s. -/
@@ -66,7 +72,7 @@ elab "acl2_replay% " t:term : term => do
   withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``World.empty, envExpr := env,
-        worldUnfoldNames := #[``World.empty] }
+        noShadow := [({ name := "equal" }, mkConst ``empty_no_equal)] }
     let proof ← replayProof cfg cp
     mkLambdaFVars #[env] proof
 
@@ -137,7 +143,7 @@ private def expectDriverFails (label : String) (cp : ClauseProof) : Elab.Command
     let emptyEnv ← Term.elabTerm (← `(({} : Env))) none
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``World.empty, envExpr := emptyEnv,
-        worldUnfoldNames := #[``World.empty] }
+        noShadow := [({ name := "equal" }, mkConst ``empty_no_equal)] }
     try
       let _ ← replayProof cfg cp
       throwError "NEGATIVE TEST FAILED ({label}): driver SUCCEEDED but should have failed"
