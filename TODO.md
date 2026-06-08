@@ -70,6 +70,17 @@ end-to-end via the driver, not the hand proofs.
 - [ ] Generalize the over-specialized `re_unfold*_var` (driver should always use the
       compound unfold).
 
+## ACL2 submodule (instrumentation hygiene)
+
+- [ ] **Comprehensive `TRACE-LOG` tag review.** The scheme is `TRACE-LOG[<origin>]`
+      above each output site, `<origin>` = the emitted `:origin` value (one unique tag
+      per site). Review the whole `acl2/` submodule: (1) every output site is tagged and
+      the tag matches its `:origin`; (2) no duplicate/orphan tags; (3) **ratify a
+      convention for INFRA tags** — the new non-output tags `structured-rewrite-path`
+      and `set-raw-proof-format/gstackp[-off]` (and the `:path` field, documented at the
+      helper) are the first non-origin tags; decide how infra is tagged vs outputs.
+      Goal: keep the logging infra cleanly trackable for eventual upstreaming.
+
 ## Track B — type-set / decision-procedure instrumentation (separate track)
 
 ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic) by
