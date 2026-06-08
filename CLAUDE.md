@@ -161,6 +161,11 @@ against it structurally:
   decisions and seek review before committing a proof as done or before building
   further on new infrastructure. Verify green + check `#print axioms` before any
   "done" claim. Commit/claim only what is verified.
+- **Keep `TODO.md` current.** The repo-root `TODO.md` is the running backlog across
+  all tracks (A: the rewriting-replay driver; B: type-set/decision-procedure
+  instrumentation; and the rest of the pipeline). Update it whenever a milestone
+  lands, scope changes, or a new gap/frontier is found — don't let it drift from
+  reality.
 
 ## Audit practices
 
