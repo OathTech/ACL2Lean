@@ -7,11 +7,26 @@
 
   Each PROVED theorem is proved once and reused for all ACL2 theorems.
   No inference, no search — purely deterministic replay.
-  ⚠ Several composition lemmas below are still `sorry` / `sorryAx`-backed
-  (notably the T1 congruence layer) — see the per-theorem ⚠ markers.
+
+  Every lemma here is sorry-free. (The old generic `replaceSubterm` / `pcEq` /
+  `EvalCtx` / `evalOpt_ctx_pcEq` "T1 congruence" cluster and the `substVar`
+  value-substitution layer were deleted — they were dead code from an earlier
+  value-computation framing, superseded by the arity-specific congruence lemmas
+  and the `substTerm` term-substitution layer.)
+
+  ⚠ SCHEMATIC DISCIPLINE (the bar these lemmas must meet): the eventual replay
+  driver is a fixed function from a proof-tree node `(rune, lhs, rhs, subst)` to
+  a Lean proof term. So each node must be replayed by a FIXED per-rune procedure
+  applying that rune's rule (definition unfold via `substTerm`; with-lemma via
+  the imported lemma's value-equality; recognizer/if/equal-self via step lemmas)
+  lifted by congruence — NOT by computing concrete values and matching them, and
+  NOT by invoking a "functionality" fact the rune does not supply. Lemmas/uses
+  that compute-and-match values are non-schematic and must be reworked; see the
+  ⚠ NON-SCHEMATIC tags in Imported/SimpleWorld.lean.
 -/
 import ACL2Lean.EvalOpt
 import ACL2Lean.Count
+import Mathlib.Tactic
 
 namespace ACL2.Replay
 
@@ -224,6 +239,1046 @@ theorem evalOpt_defn_2 (f : Nat) (w : World) (env : Env)
              Option.pure_def, h_def]
   rfl
 
+/-! ## Layer 1b: Arity-specific congruence (faithful T1 replacement)
+
+  ACL2's rewriting lifts a subterm rewrite through the surrounding term by
+  *congruence*: if a sub-expression `a` rewrites to `a'`, then `(fn … a …)`
+  rewrites to `(fn … a' …)`. We replay this with one congruence lemma per
+  application shape (unary / binary-left / binary-right). Each is provable
+  directly from `evalOptStep`: a non-special application's value depends on
+  its argument expression only through that argument's evaluation, so equal
+  argument-evaluations give equal application-evaluations — UNCONDITIONALLY
+  (no convergence side-condition). This is the deterministic, sorry-free
+  congruence the driver uses to lift a rule's value-equality through the
+  surrounding term (replacing the deleted generic-context machinery). -/
+
+/-- One-step unary congruence: `(fn a)` and `(fn a')` agree at `f+1`
+    whenever `a` and `a'` agree at `f`. -/
+theorem evalOpt_congr_unary_step (f : Nat) (w : World) (env : Env)
+    (fn : Symbol) (a a' : SExpr)
+    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h : evalOpt f w env a = evalOpt f w env a') :
+    evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a .nil))
+    = evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a' .nil)) := by
+  show evalOptStep (evalOpt f) w env _ = evalOptStep (evalOpt f) w env _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self, ↓reduceIte]
+  show (do
+    let argVals ← [a].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals) = (do
+    let argVals ← [a'].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals)
+  simp only [List.mapM_cons, List.mapM_nil, bind_assoc, pure_bind, h]
+
+/-- One-step binary left-congruence: `(fn a b)` and `(fn a' b)` agree at `f+1`
+    whenever `a` and `a'` agree at `f`. -/
+theorem evalOpt_congr_binary_left_step (f : Nat) (w : World) (env : Env)
+    (fn : Symbol) (a a' b : SExpr)
+    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h : evalOpt f w env a = evalOpt f w env a') :
+    evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b .nil)))
+    = evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a' (.cons b .nil))) := by
+  show evalOptStep (evalOpt f) w env _ = evalOptStep (evalOpt f) w env _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self, ↓reduceIte]
+  show (do
+    let argVals ← [a, b].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals) = (do
+    let argVals ← [a', b].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals)
+  simp only [List.mapM_cons, List.mapM_nil, bind_assoc, pure_bind, h]
+
+/-- One-step binary right-congruence: `(fn a b)` and `(fn a b')` agree at `f+1`
+    whenever `b` and `b'` agree at `f`. -/
+theorem evalOpt_congr_binary_right_step (f : Nat) (w : World) (env : Env)
+    (fn : Symbol) (a b b' : SExpr)
+    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h : evalOpt f w env b = evalOpt f w env b') :
+    evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b .nil)))
+    = evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b' .nil))) := by
+  show evalOptStep (evalOpt f) w env _ = evalOptStep (evalOpt f) w env _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self, ↓reduceIte]
+  show (do
+    let argVals ← [a, b].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals) = (do
+    let argVals ← [a, b'].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals)
+  simp only [List.mapM_cons, List.mapM_nil, bind_assoc, pure_bind, h]
+
+/-- Fuel-existential unary congruence (for chaining with `fuel_chain_eq`). -/
+theorem evalOpt_congr_unary (w : World) (env : Env)
+    (fn : Symbol) (a a' : SExpr)
+    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env a') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a .nil))
+      = evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a' .nil)) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  match f with
+  | f + 1 => exact evalOpt_congr_unary_step f w env fn a a' h_ns (hN f (by omega))
+
+/-- Fuel-existential binary left-congruence. -/
+theorem evalOpt_congr_binary_left (w : World) (env : Env)
+    (fn : Symbol) (a a' b : SExpr)
+    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env a') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a' (.cons b .nil))) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  match f with
+  | f + 1 => exact evalOpt_congr_binary_left_step f w env fn a a' b h_ns (hN f (by omega))
+
+/-- Fuel-existential binary right-congruence. -/
+theorem evalOpt_congr_binary_right (w : World) (env : Env)
+    (fn : Symbol) (a b b' : SExpr)
+    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env b = evalOpt f w env b') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b' .nil))) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  match f with
+  | f + 1 => exact evalOpt_congr_binary_right_step f w env fn a b b' h_ns (hN f (by omega))
+
+/-! ## Free-variable congruence (relate a function body's `bindArgs` env to the
+    caller env on the term's free variables)
+
+  Ported from the prior hand-proof branch (sorry-free there); the call-case
+  `show` is adapted to the current `callBuiltin : … → Option SExpr` shape. Used by
+  the step case to relate `evalOpt … (bindArgs …) body` (after a definition
+  unfold) back to `evalOpt … e body` — both read the env only at the body's free
+  variables, which agree. -/
+
+/-! Free variables of a term that `evalOpt` may read. Head symbols and `quote`
+    bodies are not reads. (Over-approximates inside LET; combined with `NoLet`.) -/
+mutual
+def freeVars : SExpr → List Symbol
+  | .atom (.symbol s) => [s]
+  | .cons (.atom (.symbol q)) rest => if q.isNamed "quote" then [] else freeVarsSpine rest
+  | _ => []
+def freeVarsSpine : SExpr → List Symbol
+  | .cons a rest => freeVars a ++ freeVarsSpine rest
+  | _ => []
+end
+
+/-! A term with no LET/LET* anywhere it is evaluated. -/
+mutual
+def NoLet : SExpr → Bool
+  | .cons (.atom (.symbol q)) rest =>
+      if q.isNamed "let" || q.isNamed "let*" then false
+      else if q.isNamed "quote" then true else NoLetSpine rest
+  | _ => true
+def NoLetSpine : SExpr → Bool
+  | .cons a rest => NoLet a && NoLetSpine rest
+  | _ => true
+end
+
+/-- `mapM` agrees when the functions agree on every list element. -/
+theorem mapM_congr_mem {g1 g2 : SExpr → Option SExpr} :
+    ∀ {l : List SExpr}, (∀ a ∈ l, g1 a = g2 a) → l.mapM g1 = l.mapM g2
+  | [], _ => rfl
+  | x :: xs, h => by
+    simp only [List.mapM_cons, h x (List.mem_cons_self ..),
+      mapM_congr_mem (fun a ha => h a (List.mem_cons_of_mem _ ha))]
+
+/-- The spine's free vars are the union of its elements' free vars. -/
+theorem freeVarsSpine_eq : ∀ {argsExpr : SExpr} {args : List SExpr},
+    argsExpr.toList? = some args → freeVarsSpine argsExpr = args.flatMap freeVars
+  | .nil, _, h => by simp_all [SExpr.toList?, freeVarsSpine]
+  | .atom _, _, h => by simp_all [SExpr.toList?]
+  | .cons hd tl, args, h => by
+      simp only [SExpr.toList?] at h
+      match htl : tl.toList? with
+      | some rest =>
+        simp only [htl, bind, Option.bind, Option.some.injEq] at h
+        subst_vars
+        simp [freeVarsSpine, List.flatMap_cons, freeVarsSpine_eq htl]
+      | none => simp [htl, bind, Option.bind] at h
+
+/-- An element of an argument spine's `toList?` has its free vars within the
+    spine's free vars. -/
+theorem freeVars_subset_spine {a : SExpr} {s : Symbol} {argsExpr : SExpr} {args : List SExpr}
+    (h : argsExpr.toList? = some args) (ha : a ∈ args) (hs : s ∈ freeVars a) :
+    s ∈ freeVarsSpine argsExpr := by
+  rw [freeVarsSpine_eq h]; exact List.mem_flatMap.mpr ⟨a, ha, hs⟩
+
+/-- If a spine is LET-free, so is each of its `toList?` elements. -/
+theorem NoLet_of_mem_spine : ∀ {argsExpr : SExpr} {args : List SExpr},
+    argsExpr.toList? = some args → NoLetSpine argsExpr = true → ∀ a ∈ args, NoLet a = true
+  | .nil, _, h, _ => by simp_all [SExpr.toList?]
+  | .atom _, _, h, _ => by simp_all [SExpr.toList?]
+  | .cons hd tl, args, h, hnl => by
+      simp only [SExpr.toList?] at h
+      match htl : tl.toList? with
+      | some rest =>
+        simp only [htl, bind, Option.bind, Option.some.injEq] at h
+        subst_vars
+        simp only [NoLetSpine, Bool.and_eq_true] at hnl
+        intro a ha
+        rcases List.mem_cons.mp ha with rfl | ha'
+        · exact hnl.1
+        · exact NoLet_of_mem_spine htl hnl.2 a ha'
+      | none => simp [htl, bind, Option.bind] at h
+
+/-- FREE-VARIABLE CONGRUENCE: `evalOpt` reads the env only at a term's free
+    variables, so two envs agreeing there evaluate the (LET-free) term equally. -/
+theorem evalOpt_freevar_congr (w : World) :
+    ∀ (n : Nat) (e1 e2 : Env) (term : SExpr), NoLet term = true →
+      (∀ s ∈ freeVars term,
+        evalOpt 1 w e1 (.atom (.symbol s)) = evalOpt 1 w e2 (.atom (.symbol s))) →
+      evalOpt n w e1 term = evalOpt n w e2 term := by
+  intro n
+  induction n with
+  | zero => intro _ _ _ _ _; rfl
+  | succ n ih =>
+    intro e1 e2 term hnl hfv
+    match term with
+    | .nil => rfl
+    | .atom (.number _) => rfl
+    | .atom (.string _) => rfl
+    | .atom (.keyword _) => rfl
+    | .atom (.symbol s) => exact hfv s (by simp [freeVars])
+    | .cons (.atom (.number _)) _ => rfl
+    | .cons (.atom (.string _)) _ => rfl
+    | .cons (.atom (.keyword _)) _ => rfl
+    | .cons .nil _ => rfl
+    | .cons (.cons _ _) _ => rfl
+    | .cons (.atom (.symbol s)) argsExpr =>
+      show evalOptStep (evalOpt n) w e1 (.cons (.atom (.symbol s)) argsExpr)
+         = evalOptStep (evalOpt n) w e2 (.cons (.atom (.symbol s)) argsExpr)
+      simp only [evalOptStep_cons_symbol]
+      cases hq : s.isNamed "quote" with
+      | true => simp only [↓reduceIte]
+      | false =>
+        have hkey : ∀ args, argsExpr.toList? = some args →
+            ∀ a ∈ args, evalOpt n w e1 a = evalOpt n w e2 a := by
+          intro args htl a ha
+          have hnls : NoLetSpine argsExpr = true := by
+            simp only [NoLet, hq] at hnl
+            by_cases hl : (s.isNamed "let" || s.isNamed "let*") = true
+            · simp [hl] at hnl
+            · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl
+              simpa using hnl
+          exact ih e1 e2 a (NoLet_of_mem_spine htl hnls a ha)
+            (fun s' hs' => hfv s' (by simp only [freeVars, hq]; exact freeVars_subset_spine htl ha hs'))
+        cases hif : s.isNamed "if" with
+        | true =>
+          simp only [↓reduceIte]
+          match htl : argsExpr.toList? with
+          | some [c, t, e] =>
+            show (evalOpt n w e1 c).bind
+                   (fun cv => if Logic.toBool cv = true then evalOpt n w e1 t else evalOpt n w e1 e)
+               = (evalOpt n w e2 c).bind
+                   (fun cv => if Logic.toBool cv = true then evalOpt n w e2 t else evalOpt n w e2 e)
+            rw [hkey _ htl c (by simp)]
+            cases hc : evalOpt n w e2 c with
+            | none => rfl
+            | some cv =>
+              show (if Logic.toBool cv = true then evalOpt n w e1 t else evalOpt n w e1 e)
+                 = (if Logic.toBool cv = true then evalOpt n w e2 t else evalOpt n w e2 e)
+              by_cases hb : Logic.toBool cv = true
+              · rw [if_pos hb, if_pos hb]; exact hkey _ htl t (by simp)
+              · rw [if_neg hb, if_neg hb]; exact hkey _ htl e (by simp)
+          | none => rfl
+          | some [] => rfl
+          | some [_] => rfl
+          | some [_, _] => rfl
+          | some (_ :: _ :: _ :: _ :: _) => rfl
+        | false =>
+          cases hlet : (s.isNamed "let" || s.isNamed "let*") with
+          | true =>
+            exfalso; simp only [NoLet, hq, hlet, if_true, Bool.false_eq_true] at hnl
+          | false =>
+            simp only [Bool.false_eq_true, if_false]
+            match htl : argsExpr.toList? with
+            | some args =>
+              show (args.mapM (fun a => evalOpt n w e1 a)).bind
+                     (fun argVals => match w.defs.get? s with
+                       | some (formals, body) =>
+                         if formals.length = argVals.length then
+                           evalOpt n w (bindArgs formals argVals) body else none
+                       | none => callBuiltin s.name argVals)
+                 = (args.mapM (fun a => evalOpt n w e2 a)).bind
+                     (fun argVals => match w.defs.get? s with
+                       | some (formals, body) =>
+                         if formals.length = argVals.length then
+                           evalOpt n w (bindArgs formals argVals) body else none
+                       | none => callBuiltin s.name argVals)
+              rw [mapM_congr_mem (hkey args htl)]
+            | none => rfl
+
+/-! ## Convergence combinators (build "term converges to value v" facts)
+
+  In the value-evaluation model, a rewrite node's fact `evalOpt … A = evalOpt … B`
+  is discharged by showing A and B converge to equal values. These combinators
+  build the convergence facts compositionally from the atomic step lemmas. -/
+
+/-- Two terms that converge to equal values are fuel-eventually equal. -/
+theorem fuel_eq_of_conv {a b : Nat → Option SExpr} {u v : SExpr}
+    (ha : ∃ N, ∀ f ≥ N, a f = some u) (hb : ∃ N, ∀ f ≥ N, b f = some v)
+    (huv : u = v) : ∃ N, ∀ f ≥ N, a f = b f := by
+  obtain ⟨na, ha⟩ := ha; obtain ⟨nb, hb⟩ := hb
+  exact ⟨max na nb, fun f hf => by rw [ha f (by omega), hb f (by omega), huv]⟩
+
+/-- A 1-arg builtin application converges to `callBuiltin`'s result on the
+    converged argument. -/
+theorem conv_builtin1 (w : World) (env : Env) (s : Symbol) (a : SExpr) (av rv : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_def : w.defs.get? s = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hr : callBuiltin s.name [av] = some rv) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol s)) (.cons a .nil)) = some rv := by
+  obtain ⟨na, ha⟩ := ha
+  refine ⟨na + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_builtin_1 g w env s a av h_ns h_not_def (ha g (by omega)), hr]
+
+/-- A 2-arg builtin application converges to `callBuiltin`'s result on the
+    converged arguments. -/
+theorem conv_builtin2 (w : World) (env : Env) (s : Symbol) (a b : SExpr) (av bv rv : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_def : w.defs.get? s = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv)
+    (hr : callBuiltin s.name [av, bv] = some rv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) (.cons a (.cons b .nil))) = some rv := by
+  obtain ⟨na, ha⟩ := ha; obtain ⟨nb, hb⟩ := hb
+  refine ⟨max na nb + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_builtin_2 g w env s a b av bv h_ns h_not_def (ha g (by omega)) (hb g (by omega)), hr]
+
+/-- IF with a converging truthy test converges to the then-branch's value. -/
+theorem conv_if_true (w : World) (env : Env) (c t el cv v : SExpr)
+    (htest : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv) (hcv : Logic.toBool cv = true)
+    (hthen : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons el .nil)))) = some v := by
+  obtain ⟨Nc, hc⟩ := htest; obtain ⟨Nt, ht⟩ := hthen
+  refine ⟨max Nc Nt + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_if_true g w env c t el cv (hc g (by omega)) hcv]
+  exact ht g (by omega)
+
+/-- A 1-arg user-defined call converges to the body's value (in `bindArgs`). -/
+theorem conv_defn_1 (w : World) (env : Env) (s : Symbol) (arg av : SExpr)
+    (formal : Symbol) (body v : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal], body))
+    (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
+    (hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol s)) (.cons arg .nil)) = some v := by
+  obtain ⟨Na, ha⟩ := harg; obtain ⟨Nb, hb⟩ := hbody
+  refine ⟨max Na Nb + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_defn_1 g w env s arg av formal body h_ns h_def (ha g (by omega))]
+  exact hb g (by omega)
+
+/-- A 2-arg user-defined call converges to the body's value (in `bindArgs`). -/
+theorem conv_defn_2 (w : World) (env : Env) (s : Symbol)
+    (arg1 arg2 av1 av2 : SExpr) (formal1 formal2 : Symbol) (body v : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
+    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
+    (hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) (.cons arg1 (.cons arg2 .nil))) = some v := by
+  obtain ⟨N1, hN1⟩ := h1; obtain ⟨N2, hN2⟩ := h2; obtain ⟨Nb, hb⟩ := hbody
+  refine ⟨max (max N1 N2) Nb + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_defn_2 g w env s arg1 arg2 av1 av2 formal1 formal2 body h_ns h_def
+        (hN1 g (by omega)) (hN2 g (by omega))]
+  exact hb g (by omega)
+
+/-! ## Term substitution (definition-unfold / IH replay)
+
+  Ported sorry-free from the prior hand-proof branch; dispatch-agnostic (they
+  factor through mapM/argument congruence), so unchanged by callBuiltin->Option.
+  substTerm is first-order formal->arg-term substitution (intrinsic :DEFINITION
+  replay); evalOpt_substTerm_eq / evalOpt_substTerm_quote / evalOpt_envUpdate_bindArgs
+  are the substitution lemma the driver needs for definition unfolds and the IH. -/
+
+/-- Positional lookup of a symbol in parallel formals/args lists; first match. -/
+def lookupSubst (s : Symbol) : List Symbol → List SExpr → Option SExpr
+  | f :: fs, a :: as => if s == f then some a else lookupSubst s fs as
+  | _, _ => none
+
+/-- Wrap a value as a self-evaluating `(quote v)` term. -/
+def quoteVal (v : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "quote" })) (.cons v .nil)
+
+mutual
+/-- Substitute each formal by its corresponding arg term throughout `term`.
+    Quote-opaque; rewrites bare variable positions and function-call spines. -/
+def substTerm (formals : List Symbol) (args : List SExpr) : SExpr → SExpr
+  | .atom (.symbol s) => (lookupSubst s formals args).getD (.atom (.symbol s))
+  | .cons (.atom (.symbol q)) rest =>
+      if q.isNamed "quote" then .cons (.atom (.symbol q)) rest
+      else .cons (.atom (.symbol q)) (substSpine formals args rest)
+  | t => t
+/-- Map `substTerm` across an argument spine. -/
+def substSpine (formals : List Symbol) (args : List SExpr) : SExpr → SExpr
+  | .cons a rest => .cons (substTerm formals args a) (substSpine formals args rest)
+  | t => t
+end
+
+/-- Extend `env` by binding each formal to its value (first formal wins, as in
+    `bindArgs`). `bindArgs` is the empty-base instance (see below). -/
+def envUpdate (env : Env) : List Symbol → List SExpr → Env
+  | f :: fs, v :: vs => (envUpdate env fs vs).insert f v
+  | _, _ => env
+
+/-- Looking up a quote-mapped arg list = quoting the plain lookup. -/
+theorem lookupSubst_map_quoteVal (s : Symbol) :
+    ∀ (formals : List Symbol) (vals : List SExpr),
+      lookupSubst s formals (vals.map quoteVal)
+        = (lookupSubst s formals vals).map quoteVal
+  | [], _ => rfl
+  | _ :: _, [] => rfl
+  | f :: fs, v :: vs => by
+      simp only [List.map_cons, lookupSubst]
+      cases h : s == f with
+      | true => simp
+      | false => simp [lookupSubst_map_quoteVal s fs vs]
+
+/-- `bindArgs` is `envUpdate` over the empty environment. -/
+theorem bindArgs_eq_envUpdate_empty :
+    ∀ (formals : List Symbol) (vals : List SExpr),
+      bindArgs formals vals = envUpdate (∅ : Env) formals vals
+  | [], _ => rfl
+  | _ :: _, [] => rfl
+  | f :: fs, v :: vs => by
+      show (bindArgs fs vs).insert f v = (envUpdate (∅ : Env) fs vs).insert f v
+      rw [bindArgs_eq_envUpdate_empty fs vs]
+
+/-- Looking up a symbol in `envUpdate` = the substitution lookup, falling back to
+    the base env. -/
+theorem envUpdate_get (env : Env) (s : Symbol) :
+    ∀ (formals : List Symbol) (vals : List SExpr),
+      (envUpdate env formals vals)[s]?
+        = match lookupSubst s formals vals with
+          | some v => some v
+          | none => env[s]?
+  | [], _ => rfl
+  | _ :: _, [] => rfl
+  | f :: fs, v :: vs => by
+      show ((envUpdate env fs vs).insert f v)[s]? = _
+      rw [Std.HashMap.getElem?_insert, envUpdate_get env s fs vs]
+      simp only [lookupSubst]
+      by_cases h : s = f
+      · subst h; simp
+      · have h1 : (s == f) = false := by simp [h]
+        have h2 : (f == s) = false := by simp [Ne.symm h]
+        simp only [h1, h2, Bool.false_eq_true, if_false]
+
+/-- `substSpine` commutes with `toList?` (mapping `substTerm` over the list). -/
+theorem substSpine_toList (formals : List Symbol) (args : List SExpr) :
+    ∀ (spine : SExpr),
+      (substSpine formals args spine).toList?
+        = (spine.toList?).map (List.map (substTerm formals args))
+  | .nil => rfl
+  | .atom _ => rfl
+  | .cons hd tl => by
+      simp only [substSpine, SExpr.toList?, substSpine_toList formals args tl]
+      cases htl : tl.toList? with
+      | none => rfl
+      | some rest => rfl
+
+/-- Two envs that agree at `s` evaluate the variable `s` identically. -/
+theorem evalOpt_symbol_of_get (f : Nat) (w : World) (e1 e2 : Env) (s : Symbol)
+    (h : e1.get? s = e2.get? s) :
+    evalOpt (f + 1) w e1 (.atom (.symbol s)) = evalOpt (f + 1) w e2 (.atom (.symbol s)) := by
+  simp only [evalOpt, evalOptStep, h]
+
+/-- SUBSTITUTION (quoted values): substituting each formal by `(quote vᵢ)` in a
+    LET-free body, evaluated in `env`, equals evaluating the body in the env
+    extended with the formals bound to the `vᵢ`. Fixed fuel — no convergence
+    needed, since quoted values evaluate immediately. The bridge from this to
+    `bindArgs` is `evalOpt_freevar_congr` (when the body is closed under the
+    formals). -/
+theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List SExpr) :
+    ∀ (m : Nat) (env : Env) (body : SExpr), NoLet body = true →
+      evalOpt m w env (substTerm formals (vals.map quoteVal) body)
+        = evalOpt m w (envUpdate env formals vals) body := by
+  intro m
+  induction m with
+  | zero => intro _ _ _; rfl
+  | succ n ih =>
+    intro env body hnl
+    match body with
+    | .nil => rfl
+    | .atom (.number _) => rfl
+    | .atom (.string _) => rfl
+    | .atom (.keyword _) => rfl
+    | .atom (.symbol s) =>
+      show evalOpt (n + 1) w env
+            ((lookupSubst s formals (vals.map quoteVal)).getD (.atom (.symbol s)))
+         = evalOpt (n + 1) w (envUpdate env formals vals) (.atom (.symbol s))
+      rw [lookupSubst_map_quoteVal]
+      cases hl : lookupSubst s formals vals with
+      | some vi =>
+        simp only [Option.map_some, Option.getD_some, quoteVal]
+        rw [evalOpt_quote n w env vi]
+        have hg : (envUpdate env formals vals).get? s = some vi := by
+          have he := envUpdate_get env s formals vals; rw [hl] at he; exact he
+        rw [evalOpt_var n w (envUpdate env formals vals) s vi hg]
+      | none =>
+        simp only [Option.map_none, Option.getD_none]
+        have hg : env.get? s = (envUpdate env formals vals).get? s := by
+          have he := envUpdate_get env s formals vals; rw [hl] at he; exact he.symm
+        exact evalOpt_symbol_of_get n w env (envUpdate env formals vals) s hg
+    | .cons (.atom (.number _)) _ => rfl
+    | .cons (.atom (.string _)) _ => rfl
+    | .cons (.atom (.keyword _)) _ => rfl
+    | .cons .nil _ => rfl
+    | .cons (.cons _ _) _ => rfl
+    | .cons (.atom (.symbol q)) rest =>
+      by_cases hq : q.isNamed "quote" = true
+      · rw [show substTerm formals (vals.map quoteVal) (.cons (.atom (.symbol q)) rest)
+              = .cons (.atom (.symbol q)) rest from by simp only [substTerm, hq, if_true]]
+        show evalOptStep (evalOpt n) w env (.cons (.atom (.symbol q)) rest)
+           = evalOptStep (evalOpt n) w (envUpdate env formals vals) (.cons (.atom (.symbol q)) rest)
+        simp only [evalOptStep_cons_symbol, hq, ↓reduceIte]
+      · have hqf : q.isNamed "quote" = false := by
+          simp only [Bool.not_eq_true] at hq; exact hq
+        rw [show substTerm formals (vals.map quoteVal) (.cons (.atom (.symbol q)) rest)
+              = .cons (.atom (.symbol q)) (substSpine formals (vals.map quoteVal) rest)
+            from by simp only [substTerm, hqf, Bool.false_eq_true, if_false]]
+        show evalOptStep (evalOpt n) w env
+              (.cons (.atom (.symbol q)) (substSpine formals (vals.map quoteVal) rest))
+           = evalOptStep (evalOpt n) w (envUpdate env formals vals)
+              (.cons (.atom (.symbol q)) rest)
+        simp only [evalOptStep_cons_symbol, hqf, Bool.false_eq_true, if_false]
+        -- Per-element bridge: substituted arg in `env` = original arg in `envUpdate`.
+        have hnls : NoLetSpine rest = true := by
+          simp only [NoLet, hqf] at hnl
+          by_cases hl : (q.isNamed "let" || q.isNamed "let*") = true
+          · simp [hl] at hnl
+          · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl; simpa using hnl
+        have ihkey : ∀ a ∈ (rest.toList?).getD [],
+            evalOpt n w env (substTerm formals (vals.map quoteVal) a)
+              = evalOpt n w (envUpdate env formals vals) a := by
+          intro a ha
+          cases htl : rest.toList? with
+          | none => simp [htl] at ha
+          | some l =>
+            simp only [htl, Option.getD_some] at ha
+            exact ih env a (NoLet_of_mem_spine htl hnls a ha)
+        rw [substSpine_toList]
+        by_cases hif : q.isNamed "if" = true
+        · simp only [hif, ↓reduceIte]
+          match htl : rest.toList? with
+          | some [c, t, e] =>
+            show (evalOpt n w env (substTerm formals (vals.map quoteVal) c)).bind
+                   (fun cv => if Logic.toBool cv = true
+                     then evalOpt n w env (substTerm formals (vals.map quoteVal) t)
+                     else evalOpt n w env (substTerm formals (vals.map quoteVal) e))
+               = (evalOpt n w (envUpdate env formals vals) c).bind
+                   (fun cv => if Logic.toBool cv = true
+                     then evalOpt n w (envUpdate env formals vals) t
+                     else evalOpt n w (envUpdate env formals vals) e)
+            simp only [ihkey c (by simp [htl]), ihkey t (by simp [htl]), ihkey e (by simp [htl])]
+          | none => rfl
+          | some [] => rfl
+          | some [_] => rfl
+          | some [_, _] => rfl
+          | some (_ :: _ :: _ :: _ :: _) => rfl
+        · have hiff : q.isNamed "if" = false := by
+            simp only [Bool.not_eq_true] at hif; exact hif
+          by_cases hlet : (q.isNamed "let" || q.isNamed "let*") = true
+          · exfalso; simp only [NoLet, hqf, hlet, if_true, Bool.false_eq_true] at hnl
+          · have hletf : (q.isNamed "let" || q.isNamed "let*") = false := by
+              simp only [Bool.not_eq_true] at hlet; exact hlet
+            simp only [hiff, hletf, Bool.false_eq_true, if_false]
+            match htl : rest.toList? with
+            | some l =>
+              simp only [Option.map_some]
+              rw [show List.mapM (fun a => evalOpt n w env a)
+                      (List.map (substTerm formals (List.map quoteVal vals)) l)
+                    = List.mapM (fun a => evalOpt n w (envUpdate env formals vals) a) l from by
+                  rw [List.mapM_map]
+                  exact mapM_congr_mem
+                    (fun a ha => ihkey a (by simp only [htl, Option.getD_some]; exact ha))]
+            | none => rfl
+
+/-- SUBSTITUTION congruence: substituting two argument lists that agree at every
+    fuel (per substituted variable) gives equal evaluations of a LET-free body.
+    Fixed fuel. The all-fuel hypothesis holds e.g. when corresponding args are
+    interchangeable terms (variables bound to the same value, or a term and the
+    `(quote v)` of its value) — the regime that arises replaying a `:DEFINITION`
+    unfold whose argument terms are already in the goal's context. -/
+theorem evalOpt_substTerm_eq (w : World) (env : Env) (formals : List Symbol)
+    (args args' : List SExpr)
+    (hpw : ∀ (s : Symbol) (g : Nat),
+      evalOpt g w env ((lookupSubst s formals args).getD (.atom (.symbol s)))
+        = evalOpt g w env ((lookupSubst s formals args').getD (.atom (.symbol s)))) :
+    ∀ (f : Nat) (body : SExpr), NoLet body = true →
+      evalOpt f w env (substTerm formals args body)
+        = evalOpt f w env (substTerm formals args' body) := by
+  intro f
+  induction f with
+  | zero => intro _ _; rfl
+  | succ n ih =>
+    intro body hnl
+    match body with
+    | .nil => rfl
+    | .atom (.number _) => rfl
+    | .atom (.string _) => rfl
+    | .atom (.keyword _) => rfl
+    | .atom (.symbol s) => exact hpw s (n + 1)
+    | .cons (.atom (.number _)) _ => rfl
+    | .cons (.atom (.string _)) _ => rfl
+    | .cons (.atom (.keyword _)) _ => rfl
+    | .cons .nil _ => rfl
+    | .cons (.cons _ _) _ => rfl
+    | .cons (.atom (.symbol q)) rest =>
+      by_cases hq : q.isNamed "quote" = true
+      · rw [show substTerm formals args (.cons (.atom (.symbol q)) rest)
+              = .cons (.atom (.symbol q)) rest from by simp only [substTerm, hq, if_true],
+            show substTerm formals args' (.cons (.atom (.symbol q)) rest)
+              = .cons (.atom (.symbol q)) rest from by simp only [substTerm, hq, if_true]]
+      · have hqf : q.isNamed "quote" = false := by
+          simp only [Bool.not_eq_true] at hq; exact hq
+        rw [show substTerm formals args (.cons (.atom (.symbol q)) rest)
+              = .cons (.atom (.symbol q)) (substSpine formals args rest)
+            from by simp only [substTerm, hqf, Bool.false_eq_true, if_false],
+            show substTerm formals args' (.cons (.atom (.symbol q)) rest)
+              = .cons (.atom (.symbol q)) (substSpine formals args' rest)
+            from by simp only [substTerm, hqf, Bool.false_eq_true, if_false]]
+        show evalOptStep (evalOpt n) w env
+              (.cons (.atom (.symbol q)) (substSpine formals args rest))
+           = evalOptStep (evalOpt n) w env
+              (.cons (.atom (.symbol q)) (substSpine formals args' rest))
+        simp only [evalOptStep_cons_symbol, hqf, Bool.false_eq_true, if_false]
+        have hnls : NoLetSpine rest = true := by
+          simp only [NoLet, hqf] at hnl
+          by_cases hl : (q.isNamed "let" || q.isNamed "let*") = true
+          · simp [hl] at hnl
+          · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl; simpa using hnl
+        have ihkey : ∀ a ∈ (rest.toList?).getD [],
+            evalOpt n w env (substTerm formals args a)
+              = evalOpt n w env (substTerm formals args' a) := by
+          intro a ha
+          cases htl : rest.toList? with
+          | none => simp [htl] at ha
+          | some l =>
+            simp only [htl, Option.getD_some] at ha
+            exact ih a (NoLet_of_mem_spine htl hnls a ha)
+        rw [substSpine_toList, substSpine_toList]
+        by_cases hif : q.isNamed "if" = true
+        · simp only [hif, ↓reduceIte]
+          match htl : rest.toList? with
+          | some [c, t, e] =>
+            show (evalOpt n w env (substTerm formals args c)).bind
+                   (fun cv => if Logic.toBool cv = true
+                     then evalOpt n w env (substTerm formals args t)
+                     else evalOpt n w env (substTerm formals args e))
+               = (evalOpt n w env (substTerm formals args' c)).bind
+                   (fun cv => if Logic.toBool cv = true
+                     then evalOpt n w env (substTerm formals args' t)
+                     else evalOpt n w env (substTerm formals args' e))
+            simp only [ihkey c (by simp [htl]), ihkey t (by simp [htl]), ihkey e (by simp [htl])]
+          | none => rfl
+          | some [] => rfl
+          | some [_] => rfl
+          | some [_, _] => rfl
+          | some (_ :: _ :: _ :: _ :: _) => rfl
+        · have hiff : q.isNamed "if" = false := by
+            simp only [Bool.not_eq_true] at hif; exact hif
+          by_cases hlet : (q.isNamed "let" || q.isNamed "let*") = true
+          · exfalso; simp only [NoLet, hqf, hlet, if_true, Bool.false_eq_true] at hnl
+          · have hletf : (q.isNamed "let" || q.isNamed "let*") = false := by
+              simp only [Bool.not_eq_true] at hlet; exact hlet
+            simp only [hiff, hletf, Bool.false_eq_true, if_false]
+            match htl : rest.toList? with
+            | some l =>
+              simp only [Option.map_some]
+              rw [show List.mapM (fun a => evalOpt n w env a)
+                      (List.map (substTerm formals args) l)
+                    = List.mapM (fun a => evalOpt n w env a)
+                      (List.map (substTerm formals args') l) from by
+                  rw [List.mapM_map, List.mapM_map]
+                  exact mapM_congr_mem
+                    (fun a ha => ihkey a (by simp only [htl, Option.getD_some]; exact ha))]
+            | none => rfl
+
+/-! ### Eventual substitution congruence (for compound-argument `:DEFINITION`)
+
+  `evalOpt_substTerm_eq` needs the substituted args to agree with `args'` at ALL
+  fuel — true only for fuel-1 args (variables, `(cdr x)`). For a compound arg
+  (e.g. `(cons (car x) (my-app (cdr x) y))`) agreement is only EVENTUAL, so the
+  driver needs this eventual version (fuel bound = agreement-bound + body depth).
+  Proved by induction on a `sizeOf` bound over the body. -/
+
+/-- Finite-`max` of per-element fuel bounds. -/
+theorem exists_bound_forall_mem {α : Type} (l : List α)
+    (P : α → Nat → Prop) (h : ∀ a ∈ l, ∃ N, ∀ f ≥ N, P a f) :
+    ∃ N, ∀ f ≥ N, ∀ a ∈ l, P a f := by
+  induction l with
+  | nil => exact ⟨0, fun f _ a ha => by simp at ha⟩
+  | cons x xs ih =>
+    obtain ⟨Nx, hx⟩ := h x (List.mem_cons_self ..)
+    obtain ⟨Nxs, hxs⟩ := ih (fun a ha => h a (List.mem_cons_of_mem _ ha))
+    refine ⟨max Nx Nxs, fun f hf a ha => ?_⟩
+    rcases List.mem_cons.mp ha with rfl | ha'
+    · exact hx f (by omega)
+    · exact hxs f (by omega) a ha'
+
+/-- A `toList?` element is structurally smaller than the spine. -/
+theorem sizeOf_mem_toList : ∀ {rest a : SExpr},
+    a ∈ (rest.toList?).getD [] → sizeOf a < sizeOf rest
+  | .nil, a, ha => by simp [SExpr.toList?] at ha
+  | .atom _, a, ha => by simp [SExpr.toList?] at ha
+  | .cons hd tl, a, ha => by
+    simp only [SExpr.toList?] at ha
+    match htl : tl.toList? with
+    | none => simp [htl] at ha
+    | some l =>
+      simp only [htl] at ha
+      rcases List.mem_cons.mp ha with rfl | ha'
+      · have : 0 < sizeOf tl := by cases tl <;> simp_all
+        simp only [SExpr.cons.sizeOf_spec]; omega
+      · have hsub : a ∈ (tl.toList?).getD [] := by rw [htl]; exact ha'
+        have := sizeOf_mem_toList hsub
+        simp only [SExpr.cons.sizeOf_spec]; omega
+
+/-- EVENTUAL substitution congruence: if the substituted args agree with `args'`
+    EVENTUALLY (per substituted variable, for fuel ≥ Nag), then for a LET-free
+    body the two substituted bodies evaluate equally for fuel ≥ Nag + body-depth.
+    (The all-fuel `evalOpt_substTerm_eq` is the `Nag = 0` special case.) -/
+theorem evalOpt_substTerm_conv (w : World) (env : Env) (formals : List Symbol)
+    (args args' : List SExpr) (Nag : Nat)
+    (hag : ∀ (s : Symbol) (g : Nat), g ≥ Nag →
+      evalOpt g w env ((lookupSubst s formals args).getD (.atom (.symbol s)))
+        = evalOpt g w env ((lookupSubst s formals args').getD (.atom (.symbol s)))) :
+    ∀ (n : Nat) (body : SExpr), sizeOf body ≤ n → NoLet body = true →
+      ∃ N, ∀ f ≥ N, evalOpt f w env (substTerm formals args body)
+        = evalOpt f w env (substTerm formals args' body) := by
+  intro n
+  induction n with
+  | zero => intro body hb _; exact absurd hb (by cases body <;> simp)
+  | succ n ih =>
+    intro body hb hnl
+    match body with
+    | .nil => exact ⟨0, fun f _ => rfl⟩
+    | .atom (.number _) => exact ⟨0, fun f _ => rfl⟩
+    | .atom (.string _) => exact ⟨0, fun f _ => rfl⟩
+    | .atom (.keyword _) => exact ⟨0, fun f _ => rfl⟩
+    | .atom (.symbol s) => exact ⟨Nag, fun f hf => hag s f hf⟩
+    | .cons (.atom (.number _)) _ => exact ⟨0, fun f _ => rfl⟩
+    | .cons (.atom (.string _)) _ => exact ⟨0, fun f _ => rfl⟩
+    | .cons (.atom (.keyword _)) _ => exact ⟨0, fun f _ => rfl⟩
+    | .cons .nil _ => exact ⟨0, fun f _ => rfl⟩
+    | .cons (.cons _ _) _ => exact ⟨0, fun f _ => rfl⟩
+    | .cons (.atom (.symbol q)) rest =>
+      by_cases hq : q.isNamed "quote" = true
+      · exact ⟨0, fun f _ => by simp only [substTerm, hq, ↓reduceIte]⟩
+      · have hqf : q.isNamed "quote" = false := by
+          simp only [Bool.not_eq_true] at hq; exact hq
+        have hnls : NoLetSpine rest = true := by
+          simp only [NoLet, hqf] at hnl
+          by_cases hl : (q.isNamed "let" || q.isNamed "let*") = true
+          · simp [hl] at hnl
+          · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl; simpa using hnl
+        -- each spine element agrees eventually (it is structurally smaller)
+        obtain ⟨Ns, hs⟩ : ∃ Ns, ∀ f ≥ Ns, ∀ a ∈ (rest.toList?).getD [],
+            evalOpt f w env (substTerm formals args a)
+              = evalOpt f w env (substTerm formals args' a) := by
+          apply exists_bound_forall_mem
+          intro a ha
+          have hsz : sizeOf a ≤ n := by
+            have h1 := sizeOf_mem_toList ha
+            simp only [SExpr.cons.sizeOf_spec] at hb; omega
+          have hnl_a : NoLet a = true := by
+            match htl : rest.toList? with
+            | some l => exact NoLet_of_mem_spine htl hnls a (by rw [htl] at ha; simpa using ha)
+            | none => rw [htl] at ha; simp at ha
+          exact ih a hsz hnl_a
+        refine ⟨Ns + 1, fun f hf => ?_⟩
+        obtain ⟨m, rfl⟩ : ∃ m, f = m + 1 := ⟨f - 1, by omega⟩
+        have ihkey := hs m (by omega)
+        rw [show substTerm formals args (.cons (.atom (.symbol q)) rest)
+              = .cons (.atom (.symbol q)) (substSpine formals args rest)
+            from by simp only [substTerm, hqf, Bool.false_eq_true, if_false],
+            show substTerm formals args' (.cons (.atom (.symbol q)) rest)
+              = .cons (.atom (.symbol q)) (substSpine formals args' rest)
+            from by simp only [substTerm, hqf, Bool.false_eq_true, if_false]]
+        show evalOptStep (evalOpt m) w env
+              (.cons (.atom (.symbol q)) (substSpine formals args rest))
+           = evalOptStep (evalOpt m) w env
+              (.cons (.atom (.symbol q)) (substSpine formals args' rest))
+        simp only [evalOptStep_cons_symbol, hqf, Bool.false_eq_true, if_false]
+        rw [substSpine_toList, substSpine_toList]
+        by_cases hif : q.isNamed "if" = true
+        · simp only [hif, ↓reduceIte]
+          match htl : rest.toList? with
+          | some [c, t, e] =>
+            show (evalOpt m w env (substTerm formals args c)).bind
+                   (fun cv => if Logic.toBool cv = true
+                     then evalOpt m w env (substTerm formals args t)
+                     else evalOpt m w env (substTerm formals args e))
+               = (evalOpt m w env (substTerm formals args' c)).bind
+                   (fun cv => if Logic.toBool cv = true
+                     then evalOpt m w env (substTerm formals args' t)
+                     else evalOpt m w env (substTerm formals args' e))
+            simp only [ihkey c (by simp [htl]), ihkey t (by simp [htl]), ihkey e (by simp [htl])]
+          | none => rfl
+          | some [] => rfl
+          | some [_] => rfl
+          | some [_, _] => rfl
+          | some (_ :: _ :: _ :: _ :: _) => rfl
+        · have hiff : q.isNamed "if" = false := by
+            simp only [Bool.not_eq_true] at hif; exact hif
+          by_cases hlet : (q.isNamed "let" || q.isNamed "let*") = true
+          · exfalso; simp only [NoLet, hqf, hlet, if_true, Bool.false_eq_true] at hnl
+          · have hletf : (q.isNamed "let" || q.isNamed "let*") = false := by
+              simp only [Bool.not_eq_true] at hlet; exact hlet
+            simp only [hiff, hletf, Bool.false_eq_true, if_false]
+            match htl : rest.toList? with
+            | some l =>
+              simp only [Option.map_some]
+              rw [show List.mapM (fun a => evalOpt m w env a)
+                      (List.map (substTerm formals args) l)
+                    = List.mapM (fun a => evalOpt m w env a)
+                      (List.map (substTerm formals args') l) from by
+                  rw [List.mapM_map, List.mapM_map]
+                  exact mapM_congr_mem
+                    (fun a ha => ihkey a (by simp only [htl, Option.getD_some]; exact ha))]
+            | none => rfl
+
+/-- A formal present in `formals` (with a matching-length value list) has a
+    substitution binding. -/
+theorem lookupSubst_some_of_mem (s : Symbol) :
+    ∀ (formals : List Symbol) (vals : List SExpr), s ∈ formals → formals.length = vals.length →
+      ∃ v, lookupSubst s formals vals = some v
+  | [], _, hmem, _ => by simp at hmem
+  | _ :: _, [], _, hlen => by simp at hlen
+  | f :: fs, v :: vs, hmem, hlen => by
+      simp only [lookupSubst]
+      by_cases h : s == f
+      · exact ⟨v, by simp [h]⟩
+      · simp only [h, Bool.false_eq_true, if_false]
+        have hsf : s ∈ fs := by
+          rcases List.mem_cons.mp hmem with rfl | h' <;> simp_all
+        exact lookupSubst_some_of_mem s fs vs hsf (by simpa using hlen)
+
+/-- The per-variable hypothesis `evalOpt_substTerm_eq` needs, derived from each
+    arg agreeing with the quoted value of its position at every fuel. -/
+theorem lookupSubst_eval_congr (w : World) (env : Env) :
+    ∀ (formals : List Symbol) (args vals : List SExpr), args.length = vals.length →
+      (∀ a v, (a, v) ∈ args.zip vals → ∀ g, evalOpt g w env a = evalOpt g w env (quoteVal v)) →
+      ∀ (s : Symbol) (g : Nat),
+        evalOpt g w env ((lookupSubst s formals args).getD (.atom (.symbol s)))
+          = evalOpt g w env
+              ((lookupSubst s formals (vals.map quoteVal)).getD (.atom (.symbol s)))
+  | [], _, _, _, _, _, _ => by simp [lookupSubst]
+  | _ :: _, [], [], _, _, _, _ => by simp [lookupSubst]
+  | f :: fs, a :: as, v :: vs, hlen, hz, s, g => by
+      rw [lookupSubst_map_quoteVal]
+      simp only [lookupSubst]
+      by_cases h : s == f
+      · simp only [h, if_true, Option.map_some]
+        exact hz a v (by simp [List.zip_cons_cons]) g
+      · simp only [h, Bool.false_eq_true, if_false, ← lookupSubst_map_quoteVal]
+        exact lookupSubst_eval_congr w env fs as vs (by simpa using hlen)
+          (fun a' v' hmem => hz a' v' (by rw [List.zip_cons_cons]; exact List.mem_cons_of_mem _ hmem))
+          s g
+  | _ :: _, [], _ :: _, hlen, _, _, _ => by simp at hlen
+  | _ :: _, _ :: _, [], hlen, _, _, _ => by simp at hlen
+
+/-- Evaluating a closed (under `formals`) LET-free body in `envUpdate env` is the
+    same as in `bindArgs` — the base env is invisible past the formals. -/
+theorem evalOpt_envUpdate_bindArgs (w : World) (env : Env) (formals : List Symbol)
+    (vals : List SExpr) (hlen : formals.length = vals.length) (g : Nat) (body : SExpr)
+    (hnl : NoLet body = true) (hcl : ∀ s ∈ freeVars body, s ∈ formals) :
+    evalOpt g w (envUpdate env formals vals) body = evalOpt g w (bindArgs formals vals) body := by
+  rw [bindArgs_eq_envUpdate_empty]
+  refine evalOpt_freevar_congr w g (envUpdate env formals vals) (envUpdate ∅ formals vals) body hnl
+    (fun s hs => ?_)
+  obtain ⟨v, hv⟩ := lookupSubst_some_of_mem s formals vals (hcl s hs) hlen
+  have h1 := envUpdate_get env s formals vals
+  have h2 := envUpdate_get (∅ : Env) s formals vals
+  rw [hv] at h1 h2
+  exact evalOpt_symbol_of_get 0 w _ _ s (h1.trans h2.symm)
+
+/-- Compound-argument `:DEFINITION` unfold (1-arg): the schematic replay of a
+    `definition:fn` node whose argument is an arbitrary (possibly compound) term.
+    `eval(fn arg) = eval(substTerm [formal] [arg] body)` eventually — both sides
+    converge to the body's value in `bindArgs`. No functionality: `arg` converges
+    to SOME value `av` (totality), the body converges in `bindArgs` (totality of
+    the body's calls), and the substitution lemma bridges the substituted body to
+    the `bindArgs` evaluation. -/
+theorem evalOpt_unfold1_conv (w : World) (env : Env) (fn formal : Symbol)
+    (body arg av v : SExpr)
+    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hdef : w.defs.get? fn = some ([formal], body))
+    (hclosed : ∀ s ∈ freeVars body, s ∈ [formal]) (hnolet : NoLet body = true)
+    (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
+    (hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol fn)) (.cons arg .nil))
+      = evalOpt f w env (substTerm [formal] [arg] body) := by
+  -- LHS ⇒ v  (definition unfold, call-by-value, body converges in bindArgs)
+  have hlhs : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons arg .nil)) = some v :=
+    conv_defn_1 w env fn arg av formal body v hns hdef harg hbody
+  -- RHS ⇒ v : substTerm [formal][arg] body ≈ substTerm [formal][quoteVal av] body
+  --          = body in (envUpdate = bindArgs) ⇒ v
+  obtain ⟨Narg, harg'⟩ := harg
+  obtain ⟨Ncong, hcong⟩ := evalOpt_substTerm_conv w env [formal] (List.map quoteVal [av]) [arg]
+    (max Narg 1)
+    (by
+      intro s g hg
+      by_cases hsf : s = formal
+      · subst hsf
+        simp only [List.map_cons, List.map_nil, lookupSubst, beq_self_eq_true,
+                   ↓reduceIte, Option.getD_some, quoteVal]
+        obtain ⟨k, rfl⟩ : ∃ k, g = k + 1 := ⟨g - 1, by omega⟩
+        rw [evalOpt_quote k w env av, harg' (k + 1) (by omega)]
+      · simp only [List.map_cons, List.map_nil, lookupSubst,
+                   show (s == formal) = false from by simpa using hsf, Bool.false_eq_true,
+                   ↓reduceIte, Option.getD_none])
+    (sizeOf body) body (Nat.le_refl _) hnolet
+  have hrhs : ∃ N, ∀ f ≥ N, evalOpt f w env (substTerm [formal] [arg] body) = some v := by
+    obtain ⟨Nb, hb⟩ := hbody
+    refine ⟨max Ncong Nb, fun f hf => ?_⟩
+    rw [← hcong f (by omega), evalOpt_substTerm_quote w [formal] [av] f env body hnolet,
+        evalOpt_envUpdate_bindArgs w env [formal] [av] rfl f body hnolet hclosed]
+    exact hb f (by omega)
+  obtain ⟨Nl, hl⟩ := hlhs; obtain ⟨Nr, hr⟩ := hrhs
+  exact ⟨max Nl Nr, fun f hf => by rw [hl f (by omega), hr f (by omega)]⟩
+
+/-- Compound-argument `:DEFINITION` unfold (2-arg): the 2-formal analogue of
+    `evalOpt_unfold1_conv`. `eval(fn arg1 arg2) = eval(substTerm [f1,f2] [arg1,arg2] body)`
+    eventually, when both args converge. Requires the formals distinct. -/
+theorem evalOpt_unfold2_conv (w : World) (env : Env) (fn formal1 formal2 : Symbol)
+    (body arg1 arg2 av1 av2 v : SExpr)
+    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hdef : w.defs.get? fn = some ([formal1, formal2], body))
+    (hclosed : ∀ s ∈ freeVars body, s ∈ [formal1, formal2]) (hnolet : NoLet body = true)
+    (harg1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
+    (harg2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
+    (hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol fn)) (.cons arg1 (.cons arg2 .nil)))
+      = evalOpt f w env (substTerm [formal1, formal2] [arg1, arg2] body) := by
+  have hlhs : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons arg1 (.cons arg2 .nil))) = some v :=
+    conv_defn_2 w env fn arg1 arg2 av1 av2 formal1 formal2 body v hns hdef harg1 harg2 hbody
+  obtain ⟨Narg1, harg1'⟩ := harg1
+  obtain ⟨Narg2, harg2'⟩ := harg2
+  obtain ⟨Ncong, hcong⟩ := evalOpt_substTerm_conv w env [formal1, formal2]
+    (List.map quoteVal [av1, av2]) [arg1, arg2] (max (max Narg1 Narg2) 1)
+    (by
+      intro s g hg
+      by_cases h1 : s = formal1
+      · simp only [List.map_cons, List.map_nil, lookupSubst,
+                   show (s == formal1) = true from by simp [h1],
+                   ↓reduceIte, Option.getD_some, quoteVal]
+        obtain ⟨k, rfl⟩ : ∃ k, g = k + 1 := ⟨g - 1, by omega⟩
+        rw [evalOpt_quote k w env av1, harg1' (k + 1) (by omega)]
+      · by_cases h2 : s = formal2
+        · simp only [List.map_cons, List.map_nil, lookupSubst,
+                     show (s == formal1) = false from by simpa using h1,
+                     show (s == formal2) = true from by simp [h2],
+                     Bool.false_eq_true, ↓reduceIte, Option.getD_some, quoteVal]
+          obtain ⟨k, rfl⟩ : ∃ k, g = k + 1 := ⟨g - 1, by omega⟩
+          rw [evalOpt_quote k w env av2, harg2' (k + 1) (by omega)]
+        · simp only [List.map_cons, List.map_nil, lookupSubst,
+                     show (s == formal1) = false from by simpa using h1,
+                     show (s == formal2) = false from by simpa using h2,
+                     Bool.false_eq_true, ↓reduceIte, Option.getD_none])
+    (sizeOf body) body (Nat.le_refl _) hnolet
+  have hrhs : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (substTerm [formal1, formal2] [arg1, arg2] body) = some v := by
+    obtain ⟨Nb, hb⟩ := hbody
+    refine ⟨max Ncong Nb, fun f hf => ?_⟩
+    rw [← hcong f (by omega), evalOpt_substTerm_quote w [formal1, formal2] [av1, av2] f env body hnolet,
+        evalOpt_envUpdate_bindArgs w env [formal1, formal2] [av1, av2] rfl f body hnolet hclosed]
+    exact hb f (by omega)
+  obtain ⟨Nl, hl⟩ := hlhs; obtain ⟨Nr, hr⟩ := hrhs
+  exact ⟨max Nl Nr, fun f hf => by rw [hl f (by omega), hr f (by omega)]⟩
+
+/-- The (1-formal) SUBSTITUTION LEMMA: evaluating `substTerm [s] [arg] body` in
+    `env` agrees (eventually) with evaluating `body` in `env` extended by `s ↦ av`,
+    whenever `arg` converges to `av`. Composes the args-agreement congruence
+    (`evalOpt_substTerm_conv`, with `arg` vs `quoteVal av`) and the quoted-value
+    bridge (`evalOpt_substTerm_quote`). Unlike `evalOpt_unfold1_conv` it does NOT
+    require `body` closed under `[s]` — the base `env` survives for the other free
+    variables. This is how the driver converts an induction hypothesis (stated over
+    the induction variable) into the goal-env terms it must rewrite. -/
+theorem evalOpt_substTerm_subst1 (w : World) (env : Env) (s : Symbol)
+    (arg av body : SExpr) (hnl : NoLet body = true)
+    (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (substTerm [s] [arg] body)
+      = evalOpt f w (envUpdate env [s] [av]) body := by
+  obtain ⟨Narg, harg'⟩ := harg
+  obtain ⟨Ncong, hcong⟩ := evalOpt_substTerm_conv w env [s] (List.map quoteVal [av]) [arg]
+    (max Narg 1)
+    (by
+      intro s' g hg
+      by_cases hsf : s' = s
+      · subst hsf
+        simp only [List.map_cons, List.map_nil, lookupSubst, beq_self_eq_true,
+                   ↓reduceIte, Option.getD_some, quoteVal]
+        obtain ⟨k, rfl⟩ : ∃ k, g = k + 1 := ⟨g - 1, by omega⟩
+        rw [evalOpt_quote k w env av, harg' (k + 1) (by omega)]
+      · simp only [List.map_cons, List.map_nil, lookupSubst,
+                   show (s' == s) = false from by simpa using hsf, Bool.false_eq_true,
+                   ↓reduceIte, Option.getD_none])
+    (sizeOf body) body (Nat.le_refl _) hnl
+  refine ⟨Ncong, fun f hf => ?_⟩
+  rw [← hcong f hf, evalOpt_substTerm_quote w [s] [av] f env body hnl]
+
 /-! ## Layer 2: Derived rules (compose Layer 1) -/
 
 /-- Logic.equal returns T iff arguments are BEq-equal. -/
@@ -333,23 +1388,312 @@ theorem logic_plus_comm (a b : SExpr) : Logic.plus a b = Logic.plus b a := by
   · omega
   · exact Nat.mul_comm _ _
 
-/-- ⚠ UNPROVEN (`sorry`). T8: Commutativity-2 of plus: (+ x (+ y z)) = (+ y (+ x z)). -/
+/-- Plus of two integers is the integer sum (my-len/+ values are integers,
+    so the proof can work at the integer level). -/
+theorem logic_plus_int (a b : Int) :
+    Logic.plus (.atom (.number (.int a))) (.atom (.number (.int b)))
+    = .atom (.number (.int (a + b))) := by
+  simp [Logic.plus, Logic.toRat, Logic.mkNumber]
+
+/-- `(+ 0 k) = k` for an integer `k` (the unicity-of-0 fact specialized to the
+    integer value `my-len` returns, via `type-prescription:my-len`). -/
+theorem logic_plus_zero_int (k : Int) :
+    Logic.plus (.atom (.number (.int 0))) (.atom (.number (.int k)))
+    = .atom (.number (.int k)) := by
+  rw [logic_plus_int, Int.zero_add]
+
+/-! ### Unconditional rational arithmetic for `Logic.plus`
+
+ACL2's `commutativity-of-+` and `commutativity-2-of-+` are UNCONDITIONAL rewrite
+rules (`binary-+` coerces non-numbers via `fix`), so a faithful replay must hold
+for all values — not just integers. We prove `Logic.plus` is associative
+(hence comm-2) over arbitrary `SExpr`. Strategy: `mkNumber` is invariant under
+scaling numerator+denominator (`mkNumber_scale`); composing with the reduced
+form of `toRat (mkNumber ..)` (`toRat_mkNumber`) gives the *unreduced*
+`plus (mkNumber n d) c` (`plus_mkNumber_left`), after which associativity is a
+ring identity on numerators and a `Nat`-comm identity on denominators. -/
+
+/-- `toRat` always yields a positive denominator. -/
+theorem toRat_den_pos (s : SExpr) : 0 < (Logic.toRat s).2 := by
+  unfold Logic.toRat
+  split
+  · exact Nat.one_pos
+  · split
+    · exact Nat.one_pos
+    · omega
+  · split
+    · exact Nat.one_pos
+    · positivity
+  · exact Nat.one_pos
+
+/-- `Logic.plus` in terms of the rational components (definitional). -/
+theorem plus_eq (a c : SExpr) :
+    Logic.plus a c = Logic.mkNumber
+      ((Logic.toRat a).1 * ((Logic.toRat c).2 : Int) + (Logic.toRat c).1 * ((Logic.toRat a).2 : Int))
+      ((Logic.toRat a).2 * (Logic.toRat c).2) := rfl
+
+/-- The reduced form produced by `mkNumber` (positive denominator). -/
+theorem toRat_mkNumber (n : Int) (d : Nat) (hd : 0 < d) :
+    Logic.toRat (Logic.mkNumber n d)
+      = (n / (Nat.gcd n.natAbs d : Int), d / Nat.gcd n.natAbs d) := by
+  have hdg : 0 < d / Nat.gcd n.natAbs d :=
+    Nat.div_pos (Nat.le_of_dvd hd (Nat.gcd_dvd_right _ _)) (Nat.gcd_pos_of_pos_right _ hd)
+  simp only [Logic.mkNumber, Int.ofNat_eq_natCast, if_neg (show ¬ d = 0 by omega)]
+  by_cases h1 : d / Nat.gcd n.natAbs d = 1
+  · simp [Logic.toRat, h1]
+  · simp [Logic.toRat, h1, (show d / Nat.gcd n.natAbs d ≠ 0 by omega)]
+
+/-- `mkNumber` is invariant under scaling numerator and denominator by `k > 0`. -/
+theorem mkNumber_scale (n : Int) (d k : Nat) (hk : 0 < k) :
+    Logic.mkNumber (n * (k : Int)) (d * k) = Logic.mkNumber n d := by
+  by_cases hd : d = 0
+  · subst hd; simp [Logic.mkNumber]
+  · have hdk : ¬ (d * k = 0) := Nat.mul_ne_zero hd (by omega)
+    have hnat : (n * (k : Int)).natAbs = n.natAbs * k := by rw [Int.natAbs_mul]; simp
+    have hd2 : d * k / (Nat.gcd n.natAbs d * k) = d / Nat.gcd n.natAbs d :=
+      Nat.mul_div_mul_right d (Nat.gcd n.natAbs d) hk
+    have hn2 : n * (k : Int) / ((Nat.gcd n.natAbs d * k : Nat) : Int)
+             = n / (Nat.gcd n.natAbs d : Int) := by
+      push_cast
+      exact Int.mul_ediv_mul_of_pos_left n _ (by exact_mod_cast hk)
+    simp only [Logic.mkNumber, Int.ofNat_eq_natCast, if_neg hd, if_neg hdk, hnat,
+               Nat.gcd_mul_right, hd2, hn2]
+
+/-- The UNREDUCED form of `plus (mkNumber n d) c`: scaling collapses `mkNumber`'s
+    internal gcd reduction, so the result is `mkNumber (n·cd + cn·d) (d·cd)` with
+    `(cn, cd) = toRat c`. The key lemma for proving associativity. -/
+theorem plus_mkNumber_left (n : Int) (d : Nat) (hd : 0 < d) (c : SExpr) :
+    Logic.plus (Logic.mkNumber n d) c
+      = Logic.mkNumber (n * ((Logic.toRat c).2 : Int) + (Logic.toRat c).1 * (d : Int))
+                       (d * (Logic.toRat c).2) := by
+  have hg : 0 < Nat.gcd n.natAbs d := Nat.gcd_pos_of_pos_right _ hd
+  have hgn : (Nat.gcd n.natAbs d : Int) ∣ n := Int.ofNat_dvd_left.mpr (Nat.gcd_dvd_left _ _)
+  have hgd : Nat.gcd n.natAbs d ∣ d := Nat.gcd_dvd_right _ _
+  have hn : n / (Nat.gcd n.natAbs d : Int) * (Nat.gcd n.natAbs d : Int) = n :=
+    Int.ediv_mul_cancel hgn
+  have hdd : ((d / Nat.gcd n.natAbs d : Nat) : Int) * (Nat.gcd n.natAbs d : Int) = (d : Int) := by
+    rw [← Nat.cast_mul, Nat.div_mul_cancel hgd]
+  rw [plus_eq, toRat_mkNumber n d hd]
+  dsimp only
+  rw [← mkNumber_scale
+        (n / (Nat.gcd n.natAbs d : Int) * ((Logic.toRat c).2 : Int)
+          + (Logic.toRat c).1 * ((d / Nat.gcd n.natAbs d : Nat) : Int))
+        (d / Nat.gcd n.natAbs d * (Logic.toRat c).2) (Nat.gcd n.natAbs d) hg]
+  congr 1
+  · have hrw : (n / (Nat.gcd n.natAbs d : Int) * ((Logic.toRat c).2 : Int)
+          + (Logic.toRat c).1 * ((d / Nat.gcd n.natAbs d : Nat) : Int)) * (Nat.gcd n.natAbs d : Int)
+        = (n / (Nat.gcd n.natAbs d : Int) * (Nat.gcd n.natAbs d : Int)) * ((Logic.toRat c).2 : Int)
+          + (Logic.toRat c).1 * (((d / Nat.gcd n.natAbs d : Nat) : Int) * (Nat.gcd n.natAbs d : Int)) := by
+      ring
+    rw [hrw, hn, hdd]
+  · rw [Nat.mul_right_comm, Nat.div_mul_cancel hgd]
+
+/-- Associativity of `Logic.plus` (unconditional). -/
+theorem logic_plus_assoc (a b c : SExpr) :
+    Logic.plus (Logic.plus a b) c = Logic.plus a (Logic.plus b c) := by
+  have hab : 0 < (Logic.toRat a).2 * (Logic.toRat b).2 :=
+    Nat.mul_pos (toRat_den_pos a) (toRat_den_pos b)
+  have hbc : 0 < (Logic.toRat b).2 * (Logic.toRat c).2 :=
+    Nat.mul_pos (toRat_den_pos b) (toRat_den_pos c)
+  rw [plus_eq a b, plus_mkNumber_left _ _ hab, logic_plus_comm a (Logic.plus b c),
+      plus_eq b c, plus_mkNumber_left _ _ hbc]
+  congr 1
+  · push_cast; ring
+  · ring
+
+/-- `commutativity-2-of-+` (unconditional): `(+ a (+ b c)) = (+ b (+ a c))`. -/
 theorem logic_plus_comm2 (a b c : SExpr) :
     Logic.plus a (Logic.plus b c) = Logic.plus b (Logic.plus a c) := by
-  -- Follows from commutativity + associativity of rational arithmetic
-  -- through toRat/mkNumber. Deferred — one-time arithmetic lemma.
-  sorry
+  rw [← logic_plus_assoc, ← logic_plus_assoc, logic_plus_comm a b]
 
-/-- T8: FIX of a number is identity. -/
-@[simp] theorem callBuiltin_fix_number (n : Number) :
-    callBuiltin "fix" [.atom (.number n)] = some (.atom (.number n)) := by rfl
+/-! ## With-lemma replay combinators (driver dispatch entries)
 
-/-- ⚠ UNPROVEN (`sorry`). T8: plus 0 x = fix x (unicity-of-0 at value level). -/
-theorem logic_plus_zero_left (v : SExpr) :
-    some (Logic.plus (.atom (.number (.int 0))) v) = callBuiltin "fix" [v] := by
-  -- Follows from toRat/mkNumber: plus(0, v) normalizes the same as fix(v).
-  -- Deferred — one-time arithmetic lemma.
-  sorry
+  One schematic combinator per imported rewrite rule (rune). Each takes the
+  rewrite-site terms and EXISTENTIAL convergence facts about their operands
+  (totality / type-prescription — never a function's specific value), and
+  returns the node's eval-equality, discharged by the rune's proven value-
+  equality. The driver applies these to the terms; values stay opaque. There is
+  deliberately NO computational inhabitant of these eval-equalities for symbolic
+  terms — the rune's lemma is the only route. -/
+
+/-- RUNE `cdr-cons`: `(cdr (cons a b)) ⇒ b`. -/
+theorem re_cdr_cons (w : World) (env : Env) (a b av bv : SExpr)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "cdr" }))
+        (.cons (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))) .nil))
+      = evalOpt f w env b :=
+  fuel_eq_of_conv
+    (conv_builtin1 w env { name := "cdr" }
+      (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil)))
+      (.cons av bv) bv (by decide) h_no_cdr
+      (conv_builtin2 w env { name := "cons" } a b av bv (.cons av bv) (by decide) h_no_cons ha hb rfl)
+      (by rw [callBuiltin_cdr, logic_cdr_cons]))
+    hb rfl
+
+/-- RUNE `car-cons`: `(car (cons a b)) ⇒ a`. Operands existential. -/
+theorem re_car_cons (w : World) (env : Env) (a b av bv : SExpr)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "car" }))
+        (.cons (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))) .nil))
+      = evalOpt f w env a :=
+  fuel_eq_of_conv
+    (conv_builtin1 w env { name := "car" }
+      (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil)))
+      (.cons av bv) av (by decide) h_no_car
+      (conv_builtin2 w env { name := "cons" } a b av bv (.cons av bv) (by decide) h_no_cons ha hb rfl)
+      (by rw [callBuiltin_car, logic_car_cons]))
+    ha rfl
+
+/-- RUNE `commutativity-of-+`: `(+ a b) ⇒ (+ b a)`. -/
+theorem re_plus_comm (w : World) (env : Env) (a b av bv : SExpr)
+    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons b .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" })) (.cons b (.cons a .nil))) :=
+  fuel_eq_of_conv
+    (conv_builtin2 w env { name := "binary-+" } a b av bv (Logic.plus av bv)
+      (by decide) h_no_plus ha hb (callBuiltin_plus _ _))
+    (conv_builtin2 w env { name := "binary-+" } b a bv av (Logic.plus bv av)
+      (by decide) h_no_plus hb ha (callBuiltin_plus _ _))
+    (logic_plus_comm av bv)
+
+/-- RUNE `commutativity-2-of-+`: `(+ a (+ b c)) ⇒ (+ b (+ a c))`. Unconditional —
+    faithful to ACL2's `(defthm commutativity-2-of-+ …)`, which has no type
+    hypothesis (`binary-+` coerces via `fix`). Operands converge to SOME value;
+    the value-equality is `logic_plus_comm2`. -/
+theorem re_plus_comm2 (w : World) (env : Env) (a b c : SExpr) (av bv cv : SExpr)
+    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" }))
+        (.cons a (.cons (.cons (.atom (.symbol { name := "binary-+" })) (.cons b (.cons c .nil))) .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" }))
+        (.cons b (.cons (.cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons c .nil))) .nil))) := by
+  have hbc : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "binary-+" })) (.cons b (.cons c .nil)))
+      = some (Logic.plus bv cv) :=
+    conv_builtin2 w env { name := "binary-+" } b c _ _ _ (by decide) h_no_plus hb hc (callBuiltin_plus _ _)
+  have hac : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons c .nil)))
+      = some (Logic.plus av cv) :=
+    conv_builtin2 w env { name := "binary-+" } a c _ _ _ (by decide) h_no_plus ha hc (callBuiltin_plus _ _)
+  exact fuel_eq_of_conv
+    (conv_builtin2 w env { name := "binary-+" } a _ _ _ _ (by decide) h_no_plus ha hbc (callBuiltin_plus _ _))
+    (conv_builtin2 w env { name := "binary-+" } b _ _ _ _ (by decide) h_no_plus hb hac (callBuiltin_plus _ _))
+    (logic_plus_comm2 av bv cv)
+
+/-- RUNE `if-simplification` (true test): `(if c t e) ⇒ t` when the test converges
+    to a truthy value. Term-to-term; the then-branch's value stays existential. -/
+theorem re_if_true (w : World) (env : Env) (c t e cv tv : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv) (hcv : Logic.toBool cv = true)
+    (ht : ∃ N, ∀ f ≥ N, evalOpt f w env t = some tv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = evalOpt f w env t :=
+  fuel_eq_of_conv (conv_if_true w env c t e cv tv hc hcv ht) ht rfl
+
+/-- RUNE `if-simplification` (false test): `(if c t e) ⇒ e` when the test
+    converges to `nil`. Term-to-term; the else-branch's value stays existential. -/
+theorem re_if_false (w : World) (env : Env) (c t e ev : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some .nil)
+    (he : ∃ N, ∀ f ≥ N, evalOpt f w env e = some ev) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = evalOpt f w env e := by
+  have hconv : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil)))) = some ev := by
+    obtain ⟨Nc, hc'⟩ := hc; obtain ⟨Ne, he'⟩ := he
+    refine ⟨max Nc Ne + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    rw [evalOpt_if_false g w env c t e (hc' g (by omega))]
+    exact he' g (by omega)
+  exact fuel_eq_of_conv hconv he rfl
+
+/-- `(bindArgs [s] [v]).get? s = some v`. -/
+theorem bindArgs_single_get_self (s : Symbol) (v : SExpr) :
+    (bindArgs [s] [v]).get? s = some v := by
+  show (({} : Env).insert s v)[s]? = some v
+  rw [Std.HashMap.getElem?_insert]; simp
+
+/-- `(bindArgs [f1,f2] [v1,v2]).get? f1 = some v1`. -/
+theorem bindArgs_pair_get_fst (f1 f2 : Symbol) (v1 v2 : SExpr) :
+    (bindArgs [f1, f2] [v1, v2]).get? f1 = some v1 := by
+  show ((({} : Env).insert f2 v2).insert f1 v1)[f1]? = some v1
+  rw [Std.HashMap.getElem?_insert]; simp
+
+/-- `(bindArgs [f1,f2] [v1,v2]).get? f2 = some v2` (distinct formals). -/
+theorem bindArgs_pair_get_snd (f1 f2 : Symbol) (v1 v2 : SExpr) (hne : f1 ≠ f2) :
+    (bindArgs [f1, f2] [v1, v2]).get? f2 = some v2 := by
+  show ((({} : Env).insert f2 v2).insert f1 v1)[f2]? = some v2
+  rw [Std.HashMap.getElem?_insert]
+  simp only [beq_iff_eq]
+  rw [if_neg hne, Std.HashMap.getElem?_insert]
+  simp
+
+/-- RUNE `:DEFINITION fn` on a VARIABLE argument: `(fn x) ⇒ body` (the formal is
+    the call's variable, so the substitution is the identity). Term-to-term; the
+    body's value `v` stays existential (totality). -/
+theorem re_unfold1_var (w : World) (env : Env) (fn formal : Symbol) (av body v : SExpr)
+    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hdef : w.defs.get? fn = some ([formal], body))
+    (hclosed : ∀ s ∈ freeVars body, s = formal) (hnolet : NoLet body = true)
+    (hbind : ∀ f, evalOpt (f + 1) w env (.atom (.symbol formal)) = some av)
+    (hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons (.atom (.symbol formal)) .nil))
+      = evalOpt f w env body := by
+  refine fuel_eq_of_conv
+    (conv_defn_1 w env fn (.atom (.symbol formal)) av formal body v hns hdef
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact hbind g⟩ hbody)
+    ?_ rfl
+  obtain ⟨Nb, hb⟩ := hbody
+  refine ⟨Nb, fun f hf => ?_⟩
+  rw [evalOpt_freevar_congr w f env (bindArgs [formal] [av]) body hnolet (fun s hs => ?_)]
+  · exact hb f hf
+  · rw [hclosed s hs]
+    exact (hbind 0).trans (evalOpt_var 0 w _ formal av (bindArgs_single_get_self formal av)).symm
+
+/-- RUNE `:DEFINITION fn` on two VARIABLE arguments: `(fn x y) ⇒ body`. -/
+theorem re_unfold2_var (w : World) (env : Env) (fn f1 f2 : Symbol) (av1 av2 body v : SExpr)
+    (hne : f1 ≠ f2)
+    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hdef : w.defs.get? fn = some ([f1, f2], body))
+    (hclosed : ∀ s ∈ freeVars body, s = f1 ∨ s = f2) (hnolet : NoLet body = true)
+    (hbind1 : ∀ f, evalOpt (f + 1) w env (.atom (.symbol f1)) = some av1)
+    (hbind2 : ∀ f, evalOpt (f + 1) w env (.atom (.symbol f2)) = some av2)
+    (hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [f1, f2] [av1, av2]) body = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn))
+        (.cons (.atom (.symbol f1)) (.cons (.atom (.symbol f2)) .nil)))
+      = evalOpt f w env body := by
+  refine fuel_eq_of_conv
+    (conv_defn_2 w env fn (.atom (.symbol f1)) (.atom (.symbol f2)) av1 av2 f1 f2 body v hns hdef
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact hbind1 g⟩
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact hbind2 g⟩ hbody)
+    ?_ rfl
+  obtain ⟨Nb, hb⟩ := hbody
+  refine ⟨Nb, fun f hf => ?_⟩
+  rw [evalOpt_freevar_congr w f env (bindArgs [f1, f2] [av1, av2]) body hnolet (fun s hs => ?_)]
+  · exact hb f hf
+  · rcases hclosed s hs with h | h
+    · rw [h]; exact (hbind1 0).trans
+        (evalOpt_var 0 w _ f1 av1 (bindArgs_pair_get_fst f1 f2 av1 av2)).symm
+    · rw [h]; exact (hbind2 0).trans
+        (evalOpt_var 0 w _ f2 av2 (bindArgs_pair_get_snd f1 f2 av1 av2 hne)).symm
 
 /-! ## Induction principles (T10) -/
 
@@ -385,322 +1729,5 @@ theorem acl2_induction_consp (P : SExpr → Prop)
           simp [Logic.cdr, SExpr.acl2Count] at hv ⊢
           omega
   exact this v.acl2Count v (Nat.le_refl _)
-
-/-! ## Variable substitution (T15) -/
-
-/-- Substitute a variable with a quoted value in a term.
-    Replaces free occurrences of symbol `s` with `(QUOTE v)`.
-    Does not recurse into QUOTE bodies or replace head symbols. -/
-def substVar (term : SExpr) (s : Symbol) (v : SExpr) : SExpr :=
-  match term with
-  | .nil => .nil
-  | .atom (.symbol sym) =>
-    if sym == s then
-      .cons (.atom (.symbol { name := "quote" })) (.cons v .nil)
-    else term
-  | .atom _ => term
-  | .cons (.atom (.symbol q)) rest =>
-    if q.isNamed "quote" then term
-    else .cons (.atom (.symbol q)) (substVar rest s v)
-  | .cons a b => .cons (substVar a s v) (substVar b s v)
-
-/-- T15: Variable substitution respects evaluation.
-    Evaluating `term` in `env[s := v]` equals evaluating `substVar term s v`
-    in `env`. This bridges function body evaluation (in the body env) back
-    to the caller's env.
-
-    SORRY: This requires structural induction on `term` following evalOpt's
-    recursion, handling each case (variable lookup, IF, function call, etc.).
-    It is comparable in difficulty to T1 (congruence). -/
-theorem evalOpt_substVar (f : Nat) (w : World) (env : Env) (s : Symbol)
-    (v : SExpr) (term : SExpr) :
-    evalOpt f w (env.insert s v) term =
-    evalOpt f w env (substVar term s v) := by
-  sorry
-
-/-! ## Congruence (T1) -/
-
-/-- Replace the first occurrence of `a` in `term` with `b`, at
-    evaluation positions only. Does NOT descend into QUOTE bodies.
-    Does NOT replace head symbols. For symbol-headed conses (function
-    calls, IF, LET), recurses into individual arguments — never
-    replaces spine fragments. This ensures the replacement only
-    targets positions where evalOpt evaluates a complete expression.
-
-    The previous version recursed on raw cons spines, which could
-    replace spine fragments (e.g., the tail `.cons t (.cons e .nil)`
-    of an IF), breaking arity and making the congruence theorem false. -/
-def replaceSubterm (term a b : SExpr) : SExpr :=
-  if term == a then b
-  else match term with
-  | .cons (.atom (.symbol q)) rest =>
-    if q.isNamed "quote" then term
-    else
-      -- Recurse into individual arguments, preserving spine structure
-      .cons (.atom (.symbol q)) (replaceArgs rest a b)
-  | .cons x y =>
-    let x' := replaceSubterm x a b
-    if x' != x then .cons x' y
-    else .cons x (replaceSubterm y a b)
-  | _ => term
-where
-  /-- Replace in an argument list (cons spine), recursing into each
-      argument individually. Preserves the spine structure. -/
-  replaceArgs (args : SExpr) (a b : SExpr) : SExpr :=
-    match args with
-    | .cons arg rest =>
-      let arg' := replaceSubterm arg a b
-      if arg' != arg then .cons arg' rest  -- found in this arg, stop
-      else .cons arg (replaceArgs rest a b) -- try next arg
-    | _ => args  -- nil or malformed: leave unchanged
-
-/-! ### Partial-correctness equality (pcEq) -/
-
-/-- Partial-correctness equality: when both sides converge, they agree.
-    none is ⊤ — fuel exhaustion trivially satisfies any equality. -/
-def pcEq (x y : Option SExpr) : Prop :=
-  match x, y with
-  | some a, some b => a = b
-  | _, _ => True
-
-@[simp] theorem pcEq_none_left (y : Option SExpr) : pcEq none y = True := by
-  cases y <;> rfl
-@[simp] theorem pcEq_none_right (x : Option SExpr) : pcEq x none = True := by
-  cases x <;> rfl
-@[simp] theorem pcEq_some_some (a b : SExpr) : pcEq (some a) (some b) ↔ a = b := by
-  simp [pcEq]
-theorem pcEq_refl (x : Option SExpr) : pcEq x x := by
-  cases x <;> simp [pcEq]
-theorem pcEq_symm {x y : Option SExpr} (h : pcEq x y) : pcEq y x := by
-  cases x <;> cases y <;> simp_all [pcEq]
-
-/-- pcEq is a congruence for Option.bind: if inputs agree (pcEq),
-    and continuations agree on the common value, outputs agree. -/
-theorem pcEq_bind {x y : Option SExpr}
-    {f g : SExpr → Option SExpr}
-    (h_xy : pcEq x y)
-    (h_fg : ∀ v, x = some v → pcEq (f v) (g v)) :
-    pcEq (x.bind f) (y.bind g) := by
-  match x, y with
-  | none, _ => simp [Option.bind]
-  | _, none => simp [Option.bind]
-  | some vx, some vy =>
-    simp [pcEq] at h_xy; subst h_xy
-    simp [Option.bind]; exact h_fg vx rfl
-
-/-- Round-trip: toList? of ofList gives back the list. -/
-@[simp] theorem SExpr.ofList_toList? (l : List SExpr) :
-    (SExpr.ofList l).toList? = some l := by
-  induction l with
-  | nil => simp [SExpr.ofList, SExpr.toList?]
-  | cons x xs ih => simp [SExpr.ofList, SExpr.toList?, ih]
-
-/-! ### T1: Congruence via evaluation contexts -/
-
-/-- An evaluation context: a term with a hole at an evaluation position.
-    Each constructor corresponds to one evalOptStep dispatch case.
-    The hole is where a subexpression gets evaluated by `rec`. -/
-inductive EvalCtx where
-  | hole
-  | arg (fn : Symbol) (argsBefore : List SExpr) (ctx : EvalCtx) (argsAfter : List SExpr)
-  deriving Repr
-
-/-- Plug a term into the hole of a context. -/
-def EvalCtx.plug : EvalCtx → SExpr → SExpr
-  | .hole, t => t
-  | .arg fn before ctx after, t =>
-    .cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug t] ++ after))
-
-/-- Generalized pcEq for any type. -/
-def pcEqG {α : Type} (x y : Option α) : Prop :=
-  match x, y with
-  | some a, some b => a = b
-  | _, _ => True
-
-@[simp] theorem pcEqG_none_left {α} (y : Option α) : pcEqG none y = True := by
-  cases y <;> rfl
-@[simp] theorem pcEqG_none_right {α} (x : Option α) : pcEqG x none = True := by
-  cases x <;> rfl
-@[simp] theorem pcEqG_some_some {α} (a b : α) : pcEqG (some a) (some b) ↔ a = b := by
-  simp [pcEqG]
-
-theorem pcEqG_refl' {α : Type} (x : Option α) : pcEqG x x := by
-  cases x <;> simp [pcEqG]
-
-/-- pcEq and pcEqG are the same for Option SExpr. -/
-theorem pcEq_eq_pcEqG (x y : Option SExpr) : pcEq x y = pcEqG x y := by
-  cases x <;> cases y <;> rfl
-
-theorem pcEqG_bind {α β : Type} {x y : Option α} {f g : α → Option β}
-    (h_xy : pcEqG x y)
-    (h_fg : ∀ v, x = some v → pcEqG (f v) (g v)) :
-    pcEqG (x.bind f) (y.bind g) := by
-  match x, y with
-  | none, _ => simp [Option.bind]
-  | _, none => simp [Option.bind]
-  | some vx, some vy =>
-    simp [pcEqG] at h_xy; subst h_xy
-    simp [Option.bind]; exact h_fg vx rfl
-
-/-- mapM preserves pcEqG: if corresponding elements give pcEq results,
-    mapM gives pcEqG results (equal lists when both converge). -/
-theorem pcEqG_mapM {f g : SExpr → Option SExpr}
-    {l1 l2 : List SExpr}
-    (h_len : l1.length = l2.length)
-    (h_pcEq : ∀ i (h : i < l1.length),
-      pcEqG (f (l1.get ⟨i, h⟩)) (g (l2.get ⟨i, by omega⟩))) :
-    pcEqG (l1.mapM f) (l2.mapM g) := by
-  induction l1 generalizing l2 with
-  | nil =>
-    match l2, h_len with | [], _ => simp [pcEqG]
-  | cons x xs ih_xs =>
-    match l2, h_len with
-    | y :: ys, h_len =>
-      simp only [List.mapM_cons]
-      have h_len' : xs.length = ys.length := by simp [List.length] at h_len; exact h_len
-      have h_head : pcEqG (f x) (g y) := by
-        have := h_pcEq 0 (by simp)
-        simpa using this
-      have h_tail : pcEqG (xs.mapM f) (ys.mapM g) :=
-        ih_xs h_len' (fun i hi => by
-          have := h_pcEq (i + 1) (by simp; omega)
-          simpa using this)
-      exact pcEqG_bind h_head (fun vx _ =>
-        pcEqG_bind h_tail (fun vs _ => by simp [pcEqG]))
-
-/-- ⚠ UNPROVEN (`sorry`, incl. quote/let/list-index sub-cases). THE LINCHPIN —
-    every chained replay proof funnels through this; nothing on the replay path is
-    sorry-free until it is discharged. T1 core: contextual equivalence — if a and b
-    are pcEq at all fuel levels, then C[a] and C[b] are pcEq at all fuel levels, for
-    any evaluation context C.
-
-    INTENDED proof: induction on the context, each constructor one evalOptStep
-    layer, fuel universally quantified (not inducted on). NOT done. -/
-theorem evalOpt_ctx_pcEq (w : World) (env : Env)
-    (a b : SExpr)
-    (h_eq : ∀ f, pcEq (evalOpt f w env a) (evalOpt f w env b))
-    (ctx : EvalCtx) :
-    ∀ f, pcEq (evalOpt f w env (ctx.plug a))
-              (evalOpt f w env (ctx.plug b)) := by
-  induction ctx with
-  | hole => exact h_eq
-  | arg fn before ctx after ih =>
-    intro f
-    match f with
-    | 0 => simp [evalOpt]
-    | f + 1 =>
-      simp only [evalOpt, EvalCtx.plug]
-      -- Both sides have the same head fn, same before/after.
-      -- They differ at one arg: ctx.plug a vs ctx.plug b.
-      -- ih: ∀ f, pcEq (evalOpt f w env (ctx.plug a)) (evalOpt f w env (ctx.plug b))
-      -- evalOptStep dispatches on fn, processes args via (evalOpt f).
-      -- Need to show evalOptStep gives pcEq.
-      --
-      -- Both sides: evalOptStep (evalOpt f) w env (.cons (.atom (.symbol fn)) argsExpr)
-      -- where argsExpr differs. evalOptStep matches on the .cons (.atom (.symbol s))
-      -- pattern and dispatches on s.
-      -- Show both sides equal by showing the match fires the same way.
-      show pcEq
-        (evalOptStep (evalOpt f) w env (.cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug a] ++ after))))
-        (evalOptStep (evalOpt f) w env (.cons (.atom (.symbol fn)) (SExpr.ofList (before ++ [ctx.plug b] ++ after))))
-      simp only [evalOptStep_cons_symbol]
-      -- Now the goal has the if-then-else chain on fn.isNamed.
-      -- Both sides have the SAME fn, so the dispatch is identical.
-      -- The args differ: SExpr.ofList (before ++ [ctx.plug a] ++ after)
-      --              vs  SExpr.ofList (before ++ [ctx.plug b] ++ after)
-      -- Case split on fn dispatch:
-      split -- quote case
-      · -- quote: returns literal value, no rec call
-        -- Both sides return same thing only if argsExpr is identical.
-        -- This case should not arise from replaceSubterm (skips quote).
-        sorry
-      · split -- if case
-        · -- IF case: toList? gives [c, t, e], eval test, branch.
-          -- Both sides have same toList? structure.
-          simp only [SExpr.ofList_toList?]
-          -- The arg list (before ++ [hole] ++ after) should be length 3.
-          -- The hole is at one position. Same structure as fn-call.
-          -- Uses pcEq_bind for the test eval, then identical branch logic.
-          sorry
-        · split -- let case
-          · sorry -- LET dispatch
-          · -- Function call case
-            simp only [SExpr.ofList_toList?]
-            -- Goal: pcEq (mapM >>= dispatch) (mapM >>= dispatch)
-            -- Convert to pcEqG for the outer bind
-            rw [pcEq_eq_pcEqG]
-            -- The do-notation is mapM >>= fun argVals => dispatch
-            -- Use pcEqG_bind: mapM gives pcEqG, dispatch is identical
-            apply pcEqG_bind
-            · -- mapM gives pcEqG: lists differ at one position
-              apply pcEqG_mapM (by simp)
-              intro i hi
-              -- Position i in (before ++ [ctx.plug a/b] ++ after).
-              -- Both lists are identical except at index before.length.
-              -- If the elements are the same: pcEqG_refl.
-              -- If at the hole position: ih gives pcEq.
-              have h_same_or_hole :
-                  (before ++ [ctx.plug a] ++ after).get ⟨i, hi⟩ =
-                  (before ++ [ctx.plug b] ++ after).get ⟨i, by simp at hi ⊢; omega⟩
-                ∨ ((before ++ [ctx.plug a] ++ after).get ⟨i, hi⟩ = ctx.plug a ∧
-                   (before ++ [ctx.plug b] ++ after).get ⟨i, by simp at hi ⊢; omega⟩ = ctx.plug b) := by
-                sorry -- list indexing: elements match except at before.length
-              rcases h_same_or_hole with h_same | ⟨ha, hb⟩
-              · rw [h_same]; exact pcEqG_refl' _
-              · rw [ha, hb]; rw [← pcEq_eq_pcEqG]; exact ih f
-            · -- dispatch: argVals equal → same result
-              intro argVals _
-              exact pcEqG_refl' _
-
-/-- ⚠ UNPROVEN (`sorry`). T1 bridge: replaceSubterm corresponds to some evaluation context.
-    If replaceSubterm finds `a` in `term`, there exists a context C
-    such that term = C[a] and replaceSubterm term a b = C[b]. -/
-theorem replaceSubterm_ctx (term a b : SExpr)
-    (h_found : replaceSubterm term a b ≠ term) :
-    ∃ ctx : EvalCtx, term = ctx.plug a ∧ replaceSubterm term a b = ctx.plug b := by
-  sorry
-
-/-- ⚠ UNPROVEN — no literal `sorry`, but `sorryAx`-backed (depends on the sorried
-    `replaceSubterm_ctx` and `evalOpt_ctx_pcEq`). T1 full: replaceSubterm preserves pcEq. -/
-theorem evalOpt_replace_pcEq (w : World) (env : Env)
-    (term a b : SExpr)
-    (h_eq : ∀ f, pcEq (evalOpt f w env a) (evalOpt f w env b)) :
-    ∀ f, pcEq (evalOpt f w env (replaceSubterm term a b))
-              (evalOpt f w env term) := by
-  by_cases h : replaceSubterm term a b = term
-  · -- No replacement happened: trivial
-    intro f; rw [h]; exact pcEq_refl _
-  · -- Replacement happened: find the context and apply contextual equivalence
-    obtain ⟨ctx, h_orig, h_repl⟩ := replaceSubterm_ctx term a b h
-    intro f; rw [h_repl, h_orig]
-    exact pcEq_symm (evalOpt_ctx_pcEq w env a b h_eq ctx f)
-
-/-- ⚠ UNPROVEN (`sorry`). T1 (existential version, used in proof chains);
-    intended to derive from the pcEq version. -/
-theorem evalOpt_replace_congr (w : World) (env : Env)
-    (term a b : SExpr)
-    (h_eq : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
-    ∃ M, ∀ f ≥ M,
-      evalOpt f w env (replaceSubterm term a b) =
-      evalOpt f w env term := by
-  sorry
-
-/-- ⚠ UNPROVEN — no literal `sorry`, but `sorryAx`-backed (calls the sorried
-    `evalOpt_replace_congr`). T1 (forward direction): eval of the original equals
-    eval of the replaced; the direction needed for chaining rewrites forward. -/
-theorem evalOpt_replace_congr_fwd (w : World) (env : Env)
-    (term a b : SExpr)
-    (h_eq : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b) :
-    ∃ M, ∀ f ≥ M,
-      evalOpt f w env term =
-      evalOpt f w env (replaceSubterm term a b) := by
-  have h := evalOpt_replace_congr w env term a b h_eq
-  exact ⟨h.choose, fun f hf => (h.choose_spec f hf).symm⟩
-
-/-- Symmetry for fuel-existential equalities. -/
-theorem fuel_eq_symm {a b : Nat → Option SExpr}
-    (h : ∃ N, ∀ f ≥ N, a f = b f) :
-    ∃ N, ∀ f ≥ N, b f = a f :=
-  ⟨h.choose, fun f hf => (h.choose_spec f hf).symm⟩
 
 end ACL2.Replay

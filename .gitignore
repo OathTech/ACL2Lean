@@ -5,3 +5,4 @@ ACL2Lean/Translated/
 *.proof-log
 *.dump
 .claude/
+/.tmp

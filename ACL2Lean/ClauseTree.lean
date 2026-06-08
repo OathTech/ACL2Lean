@@ -373,7 +373,7 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
   let mut pendingTermination : Option ClauseProof := none
   for ev in log.events do
     match ev with
-    | .defthm name formula _ | .qed =>
+    | .defthm _ _ _ | .qed =>
       -- Close the current block: named → a theorem event; anonymous with steps
       -- → the pending termination proof for the next defun.
       let (p?, a) ← closeBlock curName curFormula curEvents anon

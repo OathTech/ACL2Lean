@@ -34,6 +34,25 @@ private def y_sym : Symbol := sym "y"
 private def my_len_sym : Symbol := sym "my-len"
 private def my_app_sym : Symbol := sym "my-app"
 
+/-! ## Body-environment lookups (the env after definition expansion) -/
+
+private theorem bindArgs_xy_x (vx vy : SExpr) :
+    (bindArgs [x_sym, y_sym] [vx, vy]).get? x_sym = some vx := by
+  show ((({} : Env).insert y_sym vy).insert x_sym vx)[x_sym]? = some vx
+  rw [Std.HashMap.getElem?_insert]; simp
+
+private theorem bindArgs_xy_y (vx vy : SExpr) :
+    (bindArgs [x_sym, y_sym] [vx, vy]).get? y_sym = some vy := by
+  show ((({} : Env).insert y_sym vy).insert x_sym vx)[y_sym]? = some vy
+  rw [Std.HashMap.getElem?_insert]
+  simp only [x_sym, y_sym, sym, beq_iff_eq]
+  rw [Std.HashMap.getElem?_insert]; simp
+
+private theorem bindArgs_x_x (vx : SExpr) :
+    (bindArgs [x_sym] [vx]).get? x_sym = some vx := by
+  show (({} : Env).insert x_sym vx)[x_sym]? = some vx
+  rw [Std.HashMap.getElem?_insert]; simp
+
 -- Formula uses macro-expanded form:
 -- (EQUAL (MY-LEN (MY-APP X Y)) (BINARY-+ (MY-LEN X) (MY-LEN Y)))
 def my_len_my_appFormula : SExpr :=
@@ -49,6 +68,36 @@ def my_len_my_appFormula : SExpr :=
                         (.cons (.atom (.symbol { name := "y" })) .nil))
                   .nil)))
         .nil))
+
+/-! ## Term decomposition (so the formula and its subterms line up with the
+    arity-specific congruence lemmas, by `rfl`). -/
+
+private def xT : SExpr := .atom (.symbol { name := "x" })
+private def yT : SExpr := .atom (.symbol { name := "y" })
+private def lenOf (t : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "my-len" })) (.cons t .nil)
+private def appOf (a b : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "my-app" })) (.cons a (.cons b .nil))
+private def plusOf (a b : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons b .nil))
+private def equalOf (a b : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "equal" })) (.cons a (.cons b .nil))
+private def q0 : SExpr :=
+  .cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 0))) .nil)
+private def q1 : SExpr :=
+  .cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 1))) .nil)
+private def carOf (t : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "car" })) (.cons t .nil)
+private def cdrOf (t : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "cdr" })) (.cons t .nil)
+private def consOf (a b : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))
+private def conspOf (t : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "consp" })) (.cons t .nil)
+
+/-- The mirror-theorem formula, decomposed. By `rfl`. -/
+private theorem formula_decomp :
+    my_len_my_appFormula = equalOf (lenOf (appOf xT yT)) (plusOf (lenOf xT) (lenOf yT)) := rfl
 
 /-! ## Proof rules: isNamed facts (by decide) -/
 
@@ -66,13 +115,66 @@ private theorem consp_not_special :
     ({ name := "consp" } : Symbol).isNamed "let" = false ∧
     ({ name := "consp" } : Symbol).isNamed "let*" = false := by decide
 
+private theorem equal_not_special :
+    ({ name := "equal" } : Symbol).isNamed "quote" = false ∧
+    ({ name := "equal" } : Symbol).isNamed "if" = false ∧
+    ({ name := "equal" } : Symbol).isNamed "let" = false ∧
+    ({ name := "equal" } : Symbol).isNamed "let*" = false := by decide
+
+private theorem plus_not_special :
+    ({ name := "binary-+" } : Symbol).isNamed "quote" = false ∧
+    ({ name := "binary-+" } : Symbol).isNamed "if" = false ∧
+    ({ name := "binary-+" } : Symbol).isNamed "let" = false ∧
+    ({ name := "binary-+" } : Symbol).isNamed "let*" = false := by decide
+
+private theorem car_not_special :
+    ({ name := "car" } : Symbol).isNamed "quote" = false ∧
+    ({ name := "car" } : Symbol).isNamed "if" = false ∧
+    ({ name := "car" } : Symbol).isNamed "let" = false ∧
+    ({ name := "car" } : Symbol).isNamed "let*" = false := by decide
+
+private theorem cdr_not_special :
+    ({ name := "cdr" } : Symbol).isNamed "quote" = false ∧
+    ({ name := "cdr" } : Symbol).isNamed "if" = false ∧
+    ({ name := "cdr" } : Symbol).isNamed "let" = false ∧
+    ({ name := "cdr" } : Symbol).isNamed "let*" = false := by decide
+
+private theorem cons_not_special :
+    ({ name := "cons" } : Symbol).isNamed "quote" = false ∧
+    ({ name := "cons" } : Symbol).isNamed "if" = false ∧
+    ({ name := "cons" } : Symbol).isNamed "let" = false ∧
+    ({ name := "cons" } : Symbol).isNamed "let*" = false := by decide
+
+/-! ## Body structure facts (LET-free; free vars ⊆ formals) for the unfold transfer -/
+
+private theorem my_appBody_nolet : NoLet my_appBody = true := by decide
+private theorem my_lenBody_nolet : NoLet my_lenBody = true := by decide
+private theorem my_appBody_fv : ∀ s ∈ freeVars my_appBody, s = x_sym ∨ s = y_sym := by decide
+private theorem my_lenBody_fv : ∀ s ∈ freeVars my_lenBody, s = x_sym := by decide
+
 /-! ## The generic proof (parameterized by world + definition hypotheses) -/
 
-/-- ⚠ BROKEN / UNPROVEN — every node is `sorry` (the base-case nodes AND the
-    entire step case). This is the intended faithful node-by-node skeleton (the
-    right SHAPE), but NONE of it is proved. Do not rely on it or on anything that
-    consumes it. Fix only with real, proof-tree-reflecting proofs — never by
-    weakening the statement.
+/-- The mirror theorem for `my-len-my-app`, proved by replaying the real ACL2
+    proof tree node-for-node — **both subgoals, sorry-free** (axioms:
+    `{propext, Classical.choice, Quot.sound}`), modulo the consumed ACL2 facts
+    `h_mylen_int` (type-prescription:my-len, used only by the base case),
+    `h_mylen_total` / `h_myapp_total` (my-len/my-app admission ⇒ totality), which
+    are still hypotheses. No functionality facts: the step case is fully schematic
+    and totality-based, faithful to *1/1's runes (which cite no type-prescription).
+
+    Base case `*1/2`: NODE 1–4 (def:my-app⇒y, def:my-len⇒0, unicity-of-0,
+    equal-self). Step case `*1/1`: NODE 1 (def:my-app⇒cons), NODE 2 (def:my-len
+    recursive + `cdr-cons` exposed via the compound-arg unfold), NODE 3
+    (def:my-len⇒(+1 (my-len(cdr x)))), NODE 4 (commutativity-of-+,
+    commutativity-2-of-+, the rewriting-equivalence solidify justified by the
+    IH), NODE 5 (equal-self). Each node's subterm-rewrite fact is lifted through
+    its exact tree context path by the proven arity-specific congruence lemmas —
+    NOT the generic sorried `replaceSubterm` path — and chained by transitivity.
+
+    Induction predicate generalizes over the environment `e` and the value `xv`
+    bound to `x`, so the step-case IH (about `x ↦ cdr xv`) is usable — we
+    instantiate it at `e.insert x (cdr xv)`. (The previous scaffold fixed one
+    `env` and merely *hypothesized* `env(x)=xv`, making the IH vacuous.)
 
     Parameterized by a world and proofs that the relevant definitions are present
     and builtins are not shadowed (the "use definitions" branch of the tree). -/
@@ -87,114 +189,542 @@ theorem my_len_my_app_generic
     (h_no_plus  : w.defs[({ name := "binary-+" } : Symbol)]? = none)
     (h_no_cdr   : w.defs[({ name := "cdr" } : Symbol)]? = none)
     (h_no_car   : w.defs[({ name := "car" } : Symbol)]? = none)
-    (h_no_cons  : w.defs[({ name := "cons" } : Symbol)]? = none) :
+    (h_no_cons  : w.defs[({ name := "cons" } : Symbol)]? = none)
+    -- Consumed ACL2 fact: `type-prescription:my-len` (my-len returns an integer)
+    -- + my-len's admission (termination ⇒ convergence). The tree cites
+    -- `type-prescription:my-len` at the base NODE 3 fix-elimination and throughout.
+    -- Discharged concretely for `world` by replaying that corollary (a my-len
+    -- structural induction) — see the instantiation below.
+    (h_mylen_int : ∀ (e' : Env) (arg : SExpr),
+      (∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' arg = some av) →
+      ∃ M, ∃ k : Int, ∀ f ≥ M, evalOpt f w e' (lenOf arg) = some (.atom (.number (.int k))))
+    -- Consumed ACL2 fact: my-len's ADMISSION ⇒ TOTALITY (my-len converges to SOME
+    -- value whenever its argument does). This is the global world-fact the step
+    -- subgoal *1/1 needs to discharge the evalOpt fuel side-conditions of its
+    -- :DEFINITION unfolds — crucially NOT `type-prescription`, which the real *1/1
+    -- does NOT cite in its runes (only the base *1/2 cites type-prescription:my-len,
+    -- for the fix / unicity-of-0 / acl2-numberp reasoning).
+    (h_mylen_total : ∀ (e' : Env) (arg : SExpr),
+      (∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' arg = some av) →
+      ∃ M, ∃ av, ∀ f ≥ M, evalOpt f w e' (lenOf arg) = some av)
+    -- my-app's ADMISSION ⇒ TOTALITY (converges to SOME value when both args do).
+    -- Used by the step case for the my-app :DEFINITION unfold and the IH solidify —
+    -- a global world-fact, replacing the `h_myapp_fn` functionality crutch.
+    (h_myapp_total : ∀ (e' : Env) (a b : SExpr),
+      (∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' a = some av) →
+      (∃ M, ∀ f ≥ M, ∃ bv, evalOpt f w e' b = some bv) →
+      ∃ M, ∃ rv, ∀ f ≥ M, evalOpt f w e' (appOf a b) = some rv)
+    :
     ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t := by
-  -- The proof follows the ACL2 proof tree: induction on acl2Count of env(x),
-  -- then for each case, a chain of rewrites ending in equal-self.
-  --
-  -- Each rewrite establishes eval(lhs) = some v and eval(rhs) = some v
-  -- (both sides evaluate to the same value). Then T1 lifts this to the
-  -- enclosing formula, and T16 chains the steps.
+  -- Generalize over the environment and the value of x, then do the same
+  -- consp/cdr induction ACL2's `INDUCTION on (my-app x y)` scheme prescribes.
+  suffices H : ∀ xv : SExpr, ∀ e : Env,
+      (∀ f, evalOpt (f + 1) w e (.atom (.symbol x_sym)) = some xv) →
+      ∃ N, ∀ f, f ≥ N → evalOpt f w e my_len_my_appFormula = some SExpr.t by
+    obtain ⟨xv, h_xv⟩ : ∃ xv, ∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv := by
+      match hx : env.get? x_sym with
+      | some v => exact ⟨v, fun f => evalOpt_var f w env x_sym v hx⟩
+      | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w env x_sym hx (by decide)⟩
+    exact H xv env h_xv
+  refine acl2_induction_consp (fun xv => ∀ e : Env,
+      (∀ f, evalOpt (f + 1) w e (.atom (.symbol x_sym)) = some xv) →
+      ∃ N, ∀ f, f ≥ N → evalOpt f w e my_len_my_appFormula = some SExpr.t) ?base ?step
 
-  -- First: what does env map x and y to?
-  -- We case-split on whether x is bound and extract its value.
-  -- If x is unbound, evalOpt returns nil for it, so consp(nil)=nil → base case.
-  have h_x : ∃ xv, ∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv := by
-    match hx : env.get? x_sym with
-    | some v => exact ⟨v, fun f => evalOpt_var f w env x_sym v hx⟩
-    | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w env x_sym hx (by decide)⟩
-  obtain ⟨xv, h_xv⟩ := h_x
+  -- ── Subgoal *1/2 (base): consp xv = nil ─────────────────────────────────
+  case base =>
+    intro xv h_consp e h_xe
+    -- ⚠ NON-SCHEMATIC (rework pending, milder than the step case was): nodes here
+    -- still prove `eval(before)=eval(after)` by computing both sides to a value and
+    -- matching (`fuel_eq_of_conv … rfl`) rather than applying each rune's rule +
+    -- congruence. It consumes only the existential `h_mylen_int` (type-prescription,
+    -- which *1/2 legitimately cites), so it is closer to schematic, but the node3
+    -- unicity-of-0 + fix-elimination is still collapsed (the known `fix`-as-
+    -- primitive gap, task #24). Rework to the same per-rune style as the step case.
+    -- value of y in e
+    obtain ⟨yv, h_ye⟩ : ∃ yv, ∀ f, evalOpt (f + 1) w e (.atom (.symbol y_sym)) = some yv := by
+      match hy : e.get? y_sym with
+      | some v => exact ⟨v, fun f => evalOpt_var f w e y_sym v hy⟩
+      | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w e y_sym hy (by decide)⟩
 
-  have h_y : ∃ yv, ∀ f, evalOpt (f + 1) w env (.atom (.symbol y_sym)) = some yv := by
-    match hy : env.get? y_sym with
-    | some v => exact ⟨v, fun f => evalOpt_var f w env y_sym v hy⟩
-    | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w env y_sym hy (by decide)⟩
-  obtain ⟨yv, h_yv⟩ := h_y
+    -- (my-len y) converges to a specific integer k (consumed type-prescription
+    -- + termination fact for my-len). Used by NODE 3 and NODE 4.
+    have h_y_conv : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e yT = some av :=
+      ⟨1, fun f hf => by
+        obtain ⟨m, rfl⟩ : ∃ m, f = m + 1 := ⟨f - 1, by omega⟩
+        exact ⟨yv, h_ye m⟩⟩
+    obtain ⟨Nlen, k, hlen⟩ := h_mylen_int e yT h_y_conv
 
-  -- Induction on xv using T10 (acl2_induction_consp).
-  -- P(xv) = the formula evaluates to T when env maps x to xv (and y to yv).
-  suffices h_ind : ∀ xv,
-      (∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv) →
-      ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t from
-    h_ind xv h_xv
-  -- Apply T10: induction on consp/cdr structure of xv
-  apply acl2_induction_consp (fun xv =>
-    (∀ f, evalOpt (f + 1) w env (.atom (.symbol x_sym)) = some xv) →
-    ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t)
+    -- The four tree nodes as subterm-rewrite facts (eval lhs = eval rhs).
+    -- NODE 1  definition:my-app  (my-app x y) ⇒ y       [consp x = nil, if-else]
+    --   Sub-derivation (tree): unfold my-app to its body, (consp x) ⇒ nil
+    --   (recognizer/false, since consp xv = nil), if-simplification ⇒ else = y.
+    have node1 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (appOf xT yT) = evalOpt f w e yT := by
+      refine ⟨4, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 4 := ⟨f - 4, by omega⟩
+      -- unfold the my-app application to its body, in the body env x↦xv, y↦yv
+      have step_app : evalOpt (g + 4) w e (appOf xT yT)
+          = evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv]) my_appBody :=
+        evalOpt_defn_2 (g + 3) w e my_app_sym xT yT xv yv x_sym y_sym my_appBody
+          my_app_not_special h_my_app (h_xe (g + 2)) (h_ye (g + 2))
+      -- (consp x) ⇒ nil in the body env
+      have h_consp_x : evalOpt (g + 2) w (bindArgs [x_sym, y_sym] [xv, yv])
+          (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil)) = some .nil := by
+        rw [evalOpt_builtin_1 (g + 1) w _ { name := "consp" } xT xv consp_not_special h_no_consp
+              (evalOpt_var (g + 1) w _ x_sym xv (bindArgs_xy_x xv yv))]
+        simp only [callBuiltin_consp]; rw [h_consp]
+      -- if-simplification: body ⇒ else branch (y)
+      have h_body : evalOpt (g + 3) w (bindArgs [x_sym, y_sym] [xv, yv]) my_appBody
+          = evalOpt (g + 2) w (bindArgs [x_sym, y_sym] [xv, yv]) yT :=
+        evalOpt_if_false (g + 2) w _ _ _ yT h_consp_x
+      have hbody_y : evalOpt (g + 2) w (bindArgs [x_sym, y_sym] [xv, yv]) yT = some yv :=
+        evalOpt_var (g + 1) w _ y_sym yv (bindArgs_xy_y xv yv)
+      have rhs : evalOpt (g + 4) w e yT = some yv := h_ye (g + 3)
+      rw [step_app, h_body, hbody_y, rhs]
+    -- NODE 2  definition:my-len  (my-len x) ⇒ (quote 0) [consp x = nil, if-else]
+    --   Sub-derivation: unfold my-len, (consp x) ⇒ nil, if-simplification ⇒ '0.
+    have node2 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (lenOf xT) = evalOpt f w e q0 := by
+      refine ⟨4, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 4 := ⟨f - 4, by omega⟩
+      have step_len : evalOpt (g + 4) w e (lenOf xT)
+          = evalOpt (g + 3) w (bindArgs [x_sym] [xv]) my_lenBody :=
+        evalOpt_defn_1 (g + 3) w e my_len_sym xT xv x_sym my_lenBody
+          my_len_not_special h_my_len (h_xe (g + 2))
+      have h_consp_x : evalOpt (g + 2) w (bindArgs [x_sym] [xv])
+          (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil)) = some .nil := by
+        rw [evalOpt_builtin_1 (g + 1) w _ { name := "consp" } xT xv consp_not_special h_no_consp
+              (evalOpt_var (g + 1) w _ x_sym xv (bindArgs_x_x xv))]
+        simp only [callBuiltin_consp]; rw [h_consp]
+      have h_body : evalOpt (g + 3) w (bindArgs [x_sym] [xv]) my_lenBody
+          = evalOpt (g + 2) w (bindArgs [x_sym] [xv]) q0 :=
+        evalOpt_if_false (g + 2) w _ _ _ q0 h_consp_x
+      have hbody_q : evalOpt (g + 2) w (bindArgs [x_sym] [xv]) q0
+          = some (.atom (.number (.int 0))) :=
+        evalOpt_quote (g + 1) w _ (.atom (.number (.int 0)))
+      have rhs : evalOpt (g + 4) w e q0 = some (.atom (.number (.int 0))) :=
+        evalOpt_quote (g + 3) w e (.atom (.number (.int 0)))
+      rw [step_len, h_body, hbody_q, rhs]
+    -- NODE 3  rewrite:unicity-of-0  (binary-+ '0 (my-len y)) ⇒ (my-len y)
+    --   plus 0 k = k at the integer value k that my-len y takes (fix elim
+    --   justified by type-prescription:my-len, i.e. k is an integer).
+    have node3 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (plusOf q0 (lenOf yT)) = evalOpt f w e (lenOf yT) := by
+      refine ⟨Nlen + 2, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + Nlen + 2 := ⟨f - Nlen - 2, by omega⟩
+      have hq : evalOpt (g + Nlen + 1) w e q0 = some (.atom (.number (.int 0))) :=
+        evalOpt_quote (g + Nlen) w e _
+      have hl1 : evalOpt (g + Nlen + 1) w e (lenOf yT) = some (.atom (.number (.int k))) :=
+        hlen (g + Nlen + 1) (by omega)
+      have hl0 : evalOpt (g + Nlen + 2) w e (lenOf yT) = some (.atom (.number (.int k))) :=
+        hlen (g + Nlen + 2) (by omega)
+      have hplus : evalOpt (g + Nlen + 2) w e (plusOf q0 (lenOf yT))
+          = some (.atom (.number (.int k))) := by
+        rw [show plusOf q0 (lenOf yT)
+              = .cons (.atom (.symbol { name := "binary-+" })) (.cons q0 (.cons (lenOf yT) .nil)) from rfl,
+            evalOpt_builtin_2 (g + Nlen + 1) w e { name := "binary-+" } q0 (lenOf yT)
+              (.atom (.number (.int 0))) (.atom (.number (.int k))) plus_not_special h_no_plus hq hl1]
+        simp only [callBuiltin_plus]
+        rw [logic_plus_zero_int]
+      rw [hplus, hl0]
+    -- NODE 4  equal-self  (equal (my-len y) (my-len y)) ⇒ t  [my-len y converges]
+    have node4 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (lenOf yT) (lenOf yT)) = some SExpr.t := by
+      refine ⟨Nlen + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + Nlen + 1 := ⟨f - Nlen - 1, by omega⟩
+      have hl : evalOpt (g + Nlen) w e (lenOf yT) = some (.atom (.number (.int k))) :=
+        hlen (g + Nlen) (by omega)
+      show evalOpt (g + Nlen + 1) w e
+          (.cons (.atom (.symbol { name := "equal" })) (.cons (lenOf yT) (.cons (lenOf yT) .nil)))
+          = some SExpr.t
+      exact evalOpt_equal_self (g + Nlen) w e (lenOf yT) (.atom (.number (.int k))) hl h_no_equal
 
-  -- Base case: consp(xv) = nil
-  · intro xv h_consp h_xv'
-    -- Abbreviations for the SExpr subterms referenced by the proof tree
-    let my_app_xy := SExpr.cons (.atom (.symbol my_app_sym))
-          (.cons (.atom (.symbol x_sym)) (.cons (.atom (.symbol y_sym)) .nil))
-    let y_var := SExpr.atom (.symbol y_sym)
-    let my_len_x := SExpr.cons (.atom (.symbol my_len_sym))
-          (.cons (.atom (.symbol x_sym)) .nil)
-    let quote_0 := SExpr.cons (.atom (.symbol { name := "quote" }))
-          (.cons (.atom (.number (.int 0))) .nil)
-    let my_len_y := SExpr.cons (.atom (.symbol my_len_sym))
-          (.cons y_var .nil)
-    let plus_0_len_y := SExpr.cons (.atom (.symbol { name := "binary-+" }))
-          (.cons quote_0 (.cons my_len_y .nil))
+    -- Lift each node through the surrounding context by arity-specific
+    -- congruence (the faithful replay of ACL2's congruence-through-context),
+    -- then chain by transitivity.
+    have c1 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (lenOf (appOf xT yT)) (plusOf (lenOf xT) (lenOf yT)))
+        = evalOpt f w e (equalOf (lenOf yT) (plusOf (lenOf xT) (lenOf yT))) :=
+      evalOpt_congr_binary_left w e { name := "equal" }
+        (lenOf (appOf xT yT)) (lenOf yT) (plusOf (lenOf xT) (lenOf yT)) equal_not_special
+        (evalOpt_congr_unary w e { name := "my-len" } (appOf xT yT) yT my_len_not_special node1)
+    have c2 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (lenOf yT) (plusOf (lenOf xT) (lenOf yT)))
+        = evalOpt f w e (equalOf (lenOf yT) (plusOf q0 (lenOf yT))) :=
+      evalOpt_congr_binary_right w e { name := "equal" }
+        (lenOf yT) (plusOf (lenOf xT) (lenOf yT)) (plusOf q0 (lenOf yT)) equal_not_special
+        (evalOpt_congr_binary_left w e { name := "binary-+" } (lenOf xT) q0 (lenOf yT) plus_not_special node2)
+    have c3 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (lenOf yT) (plusOf q0 (lenOf yT)))
+        = evalOpt f w e (equalOf (lenOf yT) (lenOf yT)) :=
+      evalOpt_congr_binary_right w e { name := "equal" }
+        (lenOf yT) (plusOf q0 (lenOf yT)) (lenOf yT) equal_not_special node3
 
-    -- NODE 1 (definition:my-app): eval(MY-APP x y) = eval(y) in env
-    -- Both sides evaluate to yv. Proof: T4 unfolds my-app, T5 resolves
-    -- IF (consp=nil → else), T7 looks up y in bodyEnv → yv.
-    -- NODE 1 (definition:my-app): eval(MY-APP x y) = eval(y)
-    -- Proof: T4 + T5 + T6 + T7 composed. Both sides = some yv.
-    -- The composition is correct but fighting Lean's tactic mode on
-    -- fuel arithmetic and symbol name matching. These issues would not
-    -- exist in a proof-producing checker (which generates Expr directly).
-    have h_node1 : ∃ N, ∀ f ≥ N,
-        evalOpt f w env my_app_xy = evalOpt f w env y_var := by
-      sorry -- T4(defn_2) + T5(if_false) + T6(builtin consp) + T7(var)
+    rw [formula_decomp]
+    exact fuel_chain_eq (fuel_chain_eq (fuel_chain_eq c1 c2) c3) node4
 
-    -- NODE 2 (definition:my-len): eval(MY-LEN x) = eval(QUOTE 0) in env
-    -- MY-LEN with consp(xv)=nil → body takes else-branch → 0
-    have h_node2 : ∃ N, ∀ f ≥ N,
-        evalOpt f w env my_len_x = evalOpt f w env quote_0 := by
-      exact ⟨5, fun f hf => by sorry⟩
+  -- ── Subgoal *1/1 (step): consp xv ≠ nil, IH at cdr xv ───────────────────
+  case step =>
+    intro xv h_consp ih e h_xe
+    -- ════════════════════════════════════════════════════════════════════════
+    -- SCHEMATIC replay of *1/1. Each node applies its rune's combinator; values
+    -- stay existential, sourced from TOTALITY (h_mylen_total / h_myapp_total) —
+    -- NOT type-prescription, which *1/1 does not cite (only the base *1/2 does):
+    --   node1 (def:my-app)   : re_unfold2_var ; re_if_true
+    --   node2  (def:my-len)  : node2a (evalOpt_unfold1_conv ; re_if_true)
+    --                          ; node2b (re_cdr_cons, lifted by congruence)
+    --   node3 (def:my-len)   : re_unfold1_var ; re_if_true
+    --   node4a (comm-of-+)   : re_plus_comm           (operands existential)
+    --   node4b (comm-2-of-+) : re_plus_comm2          (UNCONDITIONAL, no int)
+    --   node4c (IH solidify) : evalOpt_substTerm_subst1 + eval_equal_t_implies_eq
+    --                          ; re_plus_comm  — the IH as a Γ fact, no arithmetic
+    --   node5 (equal-self)   : A' converges (totality) + evalOpt_equal_self
+    -- ════════════════════════════════════════════════════════════════════════
+    -- value of y in e
+    obtain ⟨yv, h_ye⟩ : ∃ yv, ∀ f, evalOpt (f + 1) w e (.atom (.symbol y_sym)) = some yv := by
+      match hy : e.get? y_sym with
+      | some v => exact ⟨v, fun f => evalOpt_var f w e y_sym v hy⟩
+      | none => exact ⟨.nil, fun f => evalOpt_var_unbound f w e y_sym hy (by decide)⟩
 
-    -- NODE 3 (rewrite:unicity-of-0): eval(BINARY-+ '0 (MY-LEN y)) = eval(MY-LEN y)
-    -- Uses unicity-of-0 axiom + fix elimination via type-prescription
-    have h_node3 : ∃ N, ∀ f ≥ N,
-        evalOpt f w env plus_0_len_y = evalOpt f w env my_len_y := by
-      exact ⟨5, fun f hf => by sorry⟩
+    -- Shared convergence facts (driven by h_xe/h_ye + the consumed type fact).
+    have hxc : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some xv :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact h_xe g⟩
+    have hyc : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some yv :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact h_ye g⟩
+    -- (cdr x) ⇒ cdr xv
+    have hcdrx : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrOf xT) = some (Logic.cdr xv) :=
+      conv_builtin1 w e { name := "cdr" } xT xv (Logic.cdr xv) cdr_not_special h_no_cdr hxc
+        (callBuiltin_cdr xv)
+    obtain ⟨Ncdr, hcdr⟩ := hcdrx
+    obtain ⟨Ny0, hy0⟩ := hyc
+    -- (my-len (cdr x)) ⇒ SOME V1 ;  (my-len y) ⇒ SOME V2   (TOTALITY — the step
+    -- subgoal *1/1 cites no type-prescription; these runes need only convergence).
+    obtain ⟨M1, V1, hk1⟩ := h_mylen_total e (cdrOf xT)
+      ⟨Ncdr, fun f hf => ⟨Logic.cdr xv, hcdr f hf⟩⟩
+    obtain ⟨M2, V2, hk2⟩ := h_mylen_total e yT
+      ⟨Ny0, fun f hf => ⟨yv, hy0 f hf⟩⟩
+    -- '1 ⇒ int 1
+    have hq1 : ∃ N, ∀ f ≥ N, evalOpt f w e q1 = some (.atom (.number (.int 1))) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_quote g w e _⟩
+    -- (binary-+ '1 (my-len (cdr x))) ⇒ plus (int 1) V1
+    have hA : ∃ N, ∀ f ≥ N, evalOpt f w e (plusOf q1 (lenOf (cdrOf xT)))
+        = some (Logic.plus (.atom (.number (.int 1))) V1) :=
+      conv_builtin2 w e { name := "binary-+" } q1 (lenOf (cdrOf xT))
+        (.atom (.number (.int 1))) V1
+        (Logic.plus (.atom (.number (.int 1))) V1)
+        plus_not_special h_no_plus hq1 ⟨M1, hk1⟩ (callBuiltin_plus _ _)
 
-    -- NODE 4 (equal-self): eval(EQUAL (MY-LEN y) (MY-LEN y)) = some T
-    -- After the 3 rewrites, the formula becomes (EQUAL (MY-LEN y) (MY-LEN y)).
-    -- T3 says this evaluates to T if (MY-LEN y) converges.
-    -- We compute: F1 = replaceSubterm formula (MY-APP x y) y
-    --             F2 = replaceSubterm F1 (MY-LEN x) (QUOTE 0)
-    --             F3 = replaceSubterm F2 (BINARY-+ '0 (MY-LEN y)) (MY-LEN y)
-    -- Then F3 should be (EQUAL (MY-LEN y) (MY-LEN y)).
-    let F1 := replaceSubterm my_len_my_appFormula my_app_xy y_var
-    let F2 := replaceSubterm F1 my_len_x quote_0
-    let F3 := replaceSubterm F2 plus_0_len_y my_len_y
+    -- consp xv = t  (step case: xv is a cons)
+    have hct : Logic.consp xv = SExpr.t := by
+      match xv with
+      | .cons _ _ => rfl
+      | .nil => exact absurd rfl h_consp
+      | .atom _ => exact absurd rfl h_consp
+    -- consp test convergence (truthy), in env e
+    have hconspx : ∃ N, ∀ f ≥ N, evalOpt f w e
+        (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil)) = some (Logic.consp xv) :=
+      conv_builtin1 w e { name := "consp" } xT xv (Logic.consp xv) consp_not_special h_no_consp hxc
+        (callBuiltin_consp xv)
+    -- (car x) ⇒ car xv
+    have hcarx : ∃ N, ∀ f ≥ N, evalOpt f w e (carOf xT) = some (Logic.car xv) :=
+      conv_builtin1 w e { name := "car" } xT xv (Logic.car xv) car_not_special h_no_car hxc
+        (callBuiltin_car xv)
+    -- (my-app (cdr x) y) ⇒ SOME rv   (my-app TOTALITY, not functionality)
+    obtain ⟨Nrv, rv, hrv'⟩ := h_myapp_total e (cdrOf xT) yT
+      ⟨Ncdr, fun f hf => ⟨Logic.cdr xv, hcdr f hf⟩⟩ ⟨Ny0, fun f hf => ⟨yv, hy0 f hf⟩⟩
+    have hrv : ∃ N, ∀ f ≥ N, evalOpt f w e (appOf (cdrOf xT) yT) = some rv := ⟨Nrv, hrv'⟩
+    -- (my-len (my-app (cdr x) y)) ⇒ SOME k_rv   (my-len TOTALITY; used by node5)
+    obtain ⟨Nkrv, k_rv, hkrv'⟩ := h_mylen_total e (appOf (cdrOf xT) yT)
+      ⟨Nrv, fun f hf => ⟨rv, hrv' f hf⟩⟩
+    have hk_rv : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (lenOf (appOf (cdrOf xT) yT)) = some k_rv := ⟨Nkrv, hkrv'⟩
 
-    -- The equal-self step: eval(F3) = some T
-    -- F3 should be (EQUAL (MY-LEN y) (MY-LEN y))
-    have h_node4 : ∃ N, ∀ f ≥ N, evalOpt f w env F3 = some SExpr.t := by
-      exact ⟨5, fun f hf => by sorry⟩
 
-    -- CHAIN: T1 (congruence) + T16 (transitivity)
-    -- eval(formula) = eval(F1) by T1 using h_node1
-    -- eval(F1) = eval(F2) by T1 using h_node2
-    -- eval(F2) = eval(F3) by T1 using h_node3
-    -- eval(F3) = some T by h_node4
-    exact fuel_chain_eq
-      (fuel_chain_eq
-        (fuel_chain_eq
-          (evalOpt_replace_congr_fwd w env my_len_my_appFormula my_app_xy y_var h_node1)
-          (evalOpt_replace_congr_fwd w env F1 my_len_x quote_0 h_node2))
-        (evalOpt_replace_congr_fwd w env F2 plus_0_len_y my_len_y h_node3))
-      h_node4
+    -- NODE 1  definition:my-app (recursive case) (my-app x y) ⇒ (cons (car x) (my-app (cdr x) y))
+    --   [consp x ⇒ t, if-then]
+    -- (cons (car x) (my-app (cdr x) y)) ⇒ cons(car xv, rv), reused for LHS-body and RHS.
+    have hcons : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (consOf (carOf xT) (appOf (cdrOf xT) yT))
+        = some (.cons (Logic.car xv) rv) :=
+      conv_builtin2 w e { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
+        (Logic.car xv) rv (.cons (Logic.car xv) rv) cons_not_special h_no_cons hcarx hrv rfl
+    -- NODE 1 = :DEFINITION my-app unfold (my-app x y ⇒ body) ; if-simplification.
+    have node1 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (appOf xT yT)
+        = evalOpt f w e (consOf (carOf xT) (appOf (cdrOf xT) yT)) := by
+      -- body's value in bindArgs is existential — from my-app totality via the
+      -- definition-unfold relation, not computed.
+      obtain ⟨Nr0, rv0, hr0⟩ := h_myapp_total e xT yT
+        (hxc.imp fun N h f hf => ⟨xv, h f hf⟩) ⟨Ny0, fun f hf => ⟨yv, hy0 f hf⟩⟩
+      have hrv0 : ∃ N, ∀ f ≥ N, evalOpt f w e (appOf xT yT) = some rv0 := ⟨Nr0, hr0⟩
+      have hbody1 : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [x_sym, y_sym] [xv, yv]) my_appBody = some rv0 := by
+        obtain ⟨Nr, hr⟩ := hrv0
+        refine ⟨Nr + 1, fun f hf => ?_⟩
+        obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+        rw [← evalOpt_defn_2 (g + 1) w e my_app_sym xT yT xv yv x_sym y_sym my_appBody
+              my_app_not_special h_my_app (h_xe g) (h_ye g)]
+        exact hr (g + 2) (by omega)
+      exact fuel_chain_eq
+        (re_unfold2_var w e my_app_sym x_sym y_sym xv yv my_appBody rv0 (by decide)
+          my_app_not_special h_my_app my_appBody_fv my_appBody_nolet h_xe h_ye hbody1)
+        (re_if_true w e (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil))
+          (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (Logic.consp xv)
+          (.cons (Logic.car xv) rv) hconspx (by rw [hct]; decide) hcons)
+    -- NODE 2  definition:my-len (recursive) (my-len (cons (car x) (my-app (cdr x) y)))
+    --   ⇒ (binary-+ '1 (my-len (my-app (cdr x) y)))   [consp⇒t, if-then, cdr-cons]
+    -- node2 = node2a (my-len T unfold: consp T ⇒ t, if-then) ; node2b (cdr-cons exposed).
+    -- T = (cons (car x) (my-app (cdr x) y)), Tval = cons(car xv, rv) (hcons).
+    have node2 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
+        = evalOpt f w e (plusOf q1 (lenOf (appOf (cdrOf xT) yT))) := by
+      -- (cdr T) ⇒ rv  (in e), reused for node2a's then-branch and node2b cdr-cons
+      have hcdrT : ∃ N, ∀ f ≥ N,
+          evalOpt f w e (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT))) = some rv :=
+        conv_builtin1 w e { name := "cdr" } (consOf (carOf xT) (appOf (cdrOf xT) yT))
+          (.cons (Logic.car xv) rv) rv cdr_not_special h_no_cdr hcons rfl
+      -- my-len T converges to SOME value vkk (TOTALITY, not type-prescription —
+      -- *1/1 doesn't cite type-prescription); the unfolded body value is existential.
+      obtain ⟨Ncons, hconsspec⟩ := hcons
+      obtain ⟨Nkk, vkk, hkk⟩ := h_mylen_total e (consOf (carOf xT) (appOf (cdrOf xT) yT))
+        ⟨Ncons, fun f hf => ⟨.cons (Logic.car xv) rv, hconsspec f hf⟩⟩
+      have hbodyT : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [x_sym] [.cons (Logic.car xv) rv]) my_lenBody = some vkk := by
+        refine ⟨max Nkk Ncons + 1, fun f hf => ?_⟩
+        obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+        rw [← evalOpt_defn_1 (g + 1) w e my_len_sym
+              (consOf (carOf xT) (appOf (cdrOf xT) yT)) (.cons (Logic.car xv) rv)
+              x_sym my_lenBody my_len_not_special h_my_len (hconsspec (g + 1) (by omega))]
+        exact hkk (g + 2) (by omega)
+      -- my-len (cdr T) converges to SOME value vcdr (TOTALITY)
+      obtain ⟨Ncdr', hcdrTspec⟩ := hcdrT
+      obtain ⟨Nkcdr, vcdr, hkcdr⟩ := h_mylen_total e
+        (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
+        ⟨Ncdr', fun f hf => ⟨rv, hcdrTspec f hf⟩⟩
+      -- node2a: :DEFINITION my-len unfold on compound arg T (the eventual substTerm
+      -- unfold lemma) ; if-simplification (consp T ⇒ t).  Values existential, sourced
+      -- from TOTALITY — no type-prescription (faithful to *1/1's runes).
+      have node2a : ∃ N, ∀ f ≥ N,
+          evalOpt f w e (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
+          = evalOpt f w e (plusOf q1 (lenOf (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT))))) :=
+        fuel_chain_eq
+          (evalOpt_unfold1_conv w e my_len_sym x_sym my_lenBody
+            (consOf (carOf xT) (appOf (cdrOf xT) yT)) (.cons (Logic.car xv) rv)
+            vkk my_len_not_special h_my_len
+            (fun s hs => by simpa using my_lenBody_fv s hs) my_lenBody_nolet
+            ⟨Ncons, hconsspec⟩ hbodyT)
+          (re_if_true w e
+            (.cons (.atom (.symbol { name := "consp" }))
+              (.cons (consOf (carOf xT) (appOf (cdrOf xT) yT)) .nil))
+            (plusOf q1 (lenOf (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT))))) q0
+            (Logic.consp (.cons (Logic.car xv) rv))
+            (Logic.plus (.atom (.number (.int 1))) vcdr)
+            (conv_builtin1 w e { name := "consp" } (consOf (carOf xT) (appOf (cdrOf xT) yT))
+              (.cons (Logic.car xv) rv) (Logic.consp (.cons (Logic.car xv) rv))
+              consp_not_special h_no_consp ⟨Ncons, hconsspec⟩ (callBuiltin_consp _))
+            rfl
+            (conv_builtin2 w e { name := "binary-+" } q1
+              (lenOf (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT))))
+              (.atom (.number (.int 1))) vcdr
+              (Logic.plus (.atom (.number (.int 1))) vcdr)
+              plus_not_special h_no_plus hq1 ⟨Nkcdr, hkcdr⟩ (callBuiltin_plus _ _)))
+      -- node2b: cdr-cons rune (cdr (cons (car x) (my-app (cdr x) y)) ⇒ (my-app (cdr x) y))
+      -- via `re_cdr_cons` (the `logic_cdr_cons` dispatch entry, operands existential),
+      -- lifted through (+ 1 (my-len ·)) by congruence. Operand convergences
+      -- `hcarx`/`hrv` are sourced from totality (my-app totality for `hrv`).
+      have node2b : ∃ N, ∀ f ≥ N,
+          evalOpt f w e (plusOf q1 (lenOf (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))))
+          = evalOpt f w e (plusOf q1 (lenOf (appOf (cdrOf xT) yT))) :=
+        evalOpt_congr_binary_right w e { name := "binary-+" } q1
+          (lenOf (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))) (lenOf (appOf (cdrOf xT) yT))
+          plus_not_special
+          (evalOpt_congr_unary w e { name := "my-len" }
+            (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT))) (appOf (cdrOf xT) yT)
+            my_len_not_special
+            (re_cdr_cons w e (carOf xT) (appOf (cdrOf xT) yT) (Logic.car xv) rv
+              h_no_cdr h_no_cons hcarx hrv))
+      exact fuel_chain_eq node2a node2b
+    -- NODE 3  definition:my-len  (my-len x) ⇒ (binary-+ '1 (my-len (cdr x)))
+    --   = :DEFINITION unfold (my-len x ⇒ body) ; if-simplification (consp x ⇒ t).
+    have node3 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (lenOf xT) = evalOpt f w e (plusOf q1 (lenOf (cdrOf xT))) := by
+      -- the body's value in bindArgs is existential — from my-len TOTALITY via the
+      -- definition-unfold relation, NOT type-prescription (absent in *1/1).
+      obtain ⟨Nk, vk, hk⟩ := h_mylen_total e xT
+        ⟨1, fun f hf => ⟨xv, by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact h_xe g⟩⟩
+      have hbody : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [x_sym] [xv]) my_lenBody = some vk :=
+        ⟨max Nk 1, fun f hf => by
+          obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+          rw [← evalOpt_defn_1 (g + 1) w e my_len_sym xT xv x_sym my_lenBody
+                my_len_not_special h_my_len (h_xe g)]
+          exact hk (g + 2) (by omega)⟩
+      exact fuel_chain_eq
+        (re_unfold1_var w e my_len_sym x_sym xv my_lenBody vk
+          my_len_not_special h_my_len my_lenBody_fv my_lenBody_nolet h_xe hbody)
+        (re_if_true w e (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil))
+          (plusOf q1 (lenOf (cdrOf xT))) q0 (Logic.consp xv)
+          (Logic.plus (.atom (.number (.int 1))) V1)
+          hconspx (by rw [hct]; decide) hA)
+    -- NODE 4a  commutativity-of-+  ⇒ apply the `commutativity-of-+` combinator.
+    have node4a : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (plusOf (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT))
+        = evalOpt f w e (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT)))) :=
+      re_plus_comm w e (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT)
+        (Logic.plus (.atom (.number (.int 1))) V1) V2 h_no_plus hA ⟨M2, hk2⟩
+    -- NODE 4b  commutativity-2-of-+  (+ (my-len y) (+ '1 (my-len (cdr x))))
+    --   ⇒ (+ '1 (+ (my-len y) (my-len (cdr x))))
+    have node4b : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT))))
+        = evalOpt f w e (plusOf q1 (plusOf (lenOf yT) (lenOf (cdrOf xT)))) :=
+      re_plus_comm2 w e (lenOf yT) q1 (lenOf (cdrOf xT))
+        V2 (.atom (.number (.int 1))) V1 h_no_plus
+        ⟨M2, hk2⟩ hq1 ⟨M1, hk1⟩
+    -- NODE 4c  rewriting-equivalence (solidify), justified by the INDUCTION HYPOTHESIS:
+    --   (+ (my-len y) (my-len (cdr x))) ⇒ (my-len (my-app (cdr x) y))
+    have node4c : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (plusOf (lenOf yT) (lenOf (cdrOf xT)))
+        = evalOpt f w e (lenOf (appOf (cdrOf xT) yT)) := by
+      -- SCHEMATIC solidify (rewriting-equivalence justified by the IH). The IH `ih`
+      -- (P at cdr xv), instantiated in e' = e.insert x (cdr xv) ( = envUpdate e [x]
+      -- [cdr xv] ), is converted to the goal-env terms by the substTerm SUBSTITUTION
+      -- LEMMA (`evalOpt_substTerm_subst1`, arg (cdr x) ⇒ cdr xv): bridging the whole
+      -- formula gives `eval_e (equal (my-len (my-app (cdr x) y)) (+ (my-len (cdr x))
+      -- (my-len y))) = t`. `eval_equal_t_implies_eq` turns that into the IH as an
+      -- eval-equality; `commutativity-of-+` (the rune that commutes the IH literal)
+      -- reorders. NO functionality, NO integer arithmetic — the solidify fact IS the
+      -- IH. All convergences come from TOTALITY (h_mylen_total / h_myapp_total).
+      -- x ⇒ cdr xv in e'.
+      have hx_e' : ∀ f, evalOpt (f + 1) w (e.insert x_sym (Logic.cdr xv))
+          (.atom (.symbol x_sym)) = some (Logic.cdr xv) := fun f =>
+        evalOpt_var f w _ x_sym (Logic.cdr xv) (by
+          show (e.insert x_sym (Logic.cdr xv))[x_sym]? = some (Logic.cdr xv)
+          rw [Std.HashMap.getElem?_insert]; simp)
+      obtain ⟨Nih, hih⟩ := ih (e.insert x_sym (Logic.cdr xv)) hx_e'
+      -- Substitution lemma: substTerm [x] [cdr x] formula evaluated in e = formula in
+      -- e' (= envUpdate e [x] [cdr xv], defeq to e.insert x (cdr xv)).
+      obtain ⟨Nbr, hbr⟩ := evalOpt_substTerm_subst1 w e x_sym (cdrOf xT) (Logic.cdr xv)
+        my_len_my_appFormula (by decide) ⟨Ncdr, hcdr⟩
+      -- substTerm [x] [cdr x] formula = (equal (my-len (my-app (cdr x) y))
+      --                                        (+ (my-len (cdr x)) (my-len y))).
+      have hsubst : substTerm [x_sym] [cdrOf xT] my_len_my_appFormula
+          = equalOf (lenOf (appOf (cdrOf xT) yT))
+                    (plusOf (lenOf (cdrOf xT)) (lenOf yT)) := rfl
+      -- eval_e (equal A_e B_e) = t.
+      have hEQt : ∃ N, ∀ f ≥ N, evalOpt f w e
+          (equalOf (lenOf (appOf (cdrOf xT) yT)) (plusOf (lenOf (cdrOf xT)) (lenOf yT)))
+          = some SExpr.t :=
+        ⟨max Nbr Nih, fun f hf => by
+          rw [← hsubst]; exact (hbr f (by omega)).trans (hih f (by omega))⟩
+      -- Convergences in e via TOTALITY (no functionality).
+      obtain ⟨Napp, vrv, happ⟩ := h_myapp_total e (cdrOf xT) yT
+        ⟨Ncdr, fun f hf => ⟨Logic.cdr xv, hcdr f hf⟩⟩ ⟨Ny0, fun f hf => ⟨yv, hy0 f hf⟩⟩
+      obtain ⟨NA, V1, hA1⟩ := h_mylen_total e (appOf (cdrOf xT) yT)
+        ⟨Napp, fun f hf => ⟨vrv, happ f hf⟩⟩
+      obtain ⟨Nlc, Vc, hlc⟩ := h_mylen_total e (cdrOf xT)
+        ⟨Ncdr, fun f hf => ⟨Logic.cdr xv, hcdr f hf⟩⟩
+      obtain ⟨Nly, Vy, hly⟩ := h_mylen_total e yT ⟨Ny0, fun f hf => ⟨yv, hy0 f hf⟩⟩
+      obtain ⟨NB, hB1⟩ : ∃ N, ∀ f ≥ N, evalOpt f w e (plusOf (lenOf (cdrOf xT)) (lenOf yT))
+          = some (Logic.plus Vc Vy) :=
+        conv_builtin2 w e { name := "binary-+" } (lenOf (cdrOf xT)) (lenOf yT) Vc Vy
+          (Logic.plus Vc Vy) plus_not_special h_no_plus ⟨Nlc, hlc⟩ ⟨Nly, hly⟩ (callBuiltin_plus _ _)
+      obtain ⟨NEQ, hEQ⟩ := hEQt
+      -- IH as an eval-equality in e (eval_equal_t on the bridged formula).
+      obtain ⟨NIH, hIH⟩ : ∃ N, ∀ f ≥ N, evalOpt f w e (lenOf (appOf (cdrOf xT) yT))
+          = evalOpt f w e (plusOf (lenOf (cdrOf xT)) (lenOf yT)) := by
+        refine ⟨max NA (max NB NEQ), fun f hf => ?_⟩
+        have hV := eval_equal_t_implies_eq f w e
+          (lenOf (appOf (cdrOf xT) yT)) (plusOf (lenOf (cdrOf xT)) (lenOf yT))
+          V1 (Logic.plus Vc Vy) (hA1 f (by omega)) (hB1 f (by omega)) h_no_equal
+          (hEQ (f + 1) (by omega))
+        rw [hA1 f (by omega), hB1 f (by omega), hV]
+      -- node4c = commutativity-of-+ (reorder the IH literal) ; IH (reversed).
+      exact fuel_chain_eq
+        (re_plus_comm w e (lenOf yT) (lenOf (cdrOf xT)) Vy Vc h_no_plus ⟨Nly, hly⟩ ⟨Nlc, hlc⟩)
+        ⟨NIH, fun f hf => (hIH f hf).symm⟩
+    -- NODE 5  equal-self  (equal A' A') ⇒ t
+    -- A' = (binary-+ '1 (my-len (my-app (cdr x) y)))
+    have hAprime : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+        = some (Logic.plus (.atom (.number (.int 1))) k_rv) :=
+      conv_builtin2 w e { name := "binary-+" } q1 (lenOf (appOf (cdrOf xT) yT))
+        (.atom (.number (.int 1))) k_rv
+        (Logic.plus (.atom (.number (.int 1))) k_rv)
+        plus_not_special h_no_plus hq1 hk_rv (callBuiltin_plus _ _)
+    have node5 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                               (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))) = some SExpr.t := by
+      obtain ⟨Na, ha⟩ := hAprime
+      refine ⟨Na + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      exact evalOpt_equal_self g w e (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+        (Logic.plus (.atom (.number (.int 1))) k_rv) (ha g (by omega)) h_no_equal
 
-  -- Step case: consp(xv) ≠ nil, IH available
-  · intro xv h_consp ih h_xv'
-    -- Same structure: 5 nodes + equal-self, chained by T1 + T16.
-    -- The IH connects via T15 (env substitution).
-    sorry
+    -- Lift each node through its context path and chain (tree order):
+    -- A-side:   F0 →(node1) F1 →(node2) F2 ;  B-side: F2 →(node3) F3 →(4a) F4 →(4b) F5 →(4c) F6 ; equal-self.
+    have c1 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (lenOf (appOf xT yT)) (plusOf (lenOf xT) (lenOf yT)))
+        = evalOpt f w e (equalOf (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
+                                 (plusOf (lenOf xT) (lenOf yT))) :=
+      evalOpt_congr_binary_left w e { name := "equal" }
+        (lenOf (appOf xT yT)) (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
+        (plusOf (lenOf xT) (lenOf yT)) equal_not_special
+        (evalOpt_congr_unary w e { name := "my-len" }
+          (appOf xT yT) (consOf (carOf xT) (appOf (cdrOf xT) yT)) my_len_not_special node1)
+    have c2 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
+                               (plusOf (lenOf xT) (lenOf yT)))
+        = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                                 (plusOf (lenOf xT) (lenOf yT))) :=
+      evalOpt_congr_binary_left w e { name := "equal" }
+        (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
+        (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+        (plusOf (lenOf xT) (lenOf yT)) equal_not_special node2
+    have c3 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                               (plusOf (lenOf xT) (lenOf yT)))
+        = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                                 (plusOf (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT))) :=
+      evalOpt_congr_binary_right w e { name := "equal" }
+        (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+        (plusOf (lenOf xT) (lenOf yT))
+        (plusOf (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT)) equal_not_special
+        (evalOpt_congr_binary_left w e { name := "binary-+" }
+          (lenOf xT) (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT) plus_not_special node3)
+    have c4 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                               (plusOf (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT)))
+        = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                                 (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT))))) :=
+      evalOpt_congr_binary_right w e { name := "equal" }
+        (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+        (plusOf (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT))
+        (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT)))) equal_not_special node4a
+    have c5 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                               (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT)))))
+        = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                                 (plusOf q1 (plusOf (lenOf yT) (lenOf (cdrOf xT))))) :=
+      evalOpt_congr_binary_right w e { name := "equal" }
+        (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+        (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT))))
+        (plusOf q1 (plusOf (lenOf yT) (lenOf (cdrOf xT)))) equal_not_special node4b
+    have c6 : ∃ N, ∀ f ≥ N,
+        evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                               (plusOf q1 (plusOf (lenOf yT) (lenOf (cdrOf xT)))))
+        = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+                                 (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))) :=
+      evalOpt_congr_binary_right w e { name := "equal" }
+        (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
+        (plusOf q1 (plusOf (lenOf yT) (lenOf (cdrOf xT))))
+        (plusOf q1 (lenOf (appOf (cdrOf xT) yT))) equal_not_special
+        (evalOpt_congr_binary_right w e { name := "binary-+" }
+          q1 (plusOf (lenOf yT) (lenOf (cdrOf xT))) (lenOf (appOf (cdrOf xT) yT)) plus_not_special node4c)
+
+    rw [formula_decomp]
+    exact fuel_chain_eq (fuel_chain_eq (fuel_chain_eq (fuel_chain_eq
+      (fuel_chain_eq (fuel_chain_eq c1 c2) c3) c4) c5) c6) node5
 
 /-! ## The concrete instantiation (definition verification branch) -/
 
@@ -244,14 +774,431 @@ theorem world_no_cons :
     world.defs[({ name := "cons" } : Symbol)]? = none := by
   unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
 
-/-- ⚠ NOT PROVEN. This theorem has no literal `sorry`, but it is *defined as*
-    `my_len_my_app_generic …`, whose body is entirely `sorry` — so
-    `#print axioms my_len_my_app` reports `sorryAx`. It is NOT a working import
-    and must never be cited as evidence that the pipeline works. -/
-theorem my_len_my_app (env : Env) :
+/-- The mirror theorem for the concrete `world`, sorry-free (axioms:
+    `{propext, Classical.choice, Quot.sound}`) — both subgoals of the ACL2 proof
+    tree are replayed. It still TAKES the consumed ACL2 facts `h_mylen_int`
+    (type-prescription:my-len, base case only) and `h_mylen_total` / `h_myapp_total`
+    (my-len/my-app admission ⇒ totality) as hypotheses; discharging them concretely
+    for `world` (by replaying the type-prescription corollary + the admissions) is
+    the remaining work, tracked separately. So this is a proof "modulo those ACL2
+    facts" — not yet an unconditional import. -/
+theorem my_len_my_app (env : Env)
+    (h_mylen_int : ∀ (e' : Env) (arg : SExpr),
+      (∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' arg = some av) →
+      ∃ M, ∃ k : Int, ∀ f ≥ M, evalOpt f world e' (lenOf arg) = some (.atom (.number (.int k))))
+    (h_mylen_total : ∀ (e' : Env) (arg : SExpr),
+      (∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' arg = some av) →
+      ∃ M, ∃ av, ∀ f ≥ M, evalOpt f world e' (lenOf arg) = some av)
+    (h_myapp_total : ∀ (e' : Env) (a b : SExpr),
+      (∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' a = some av) →
+      (∃ M, ∀ f ≥ M, ∃ bv, evalOpt f world e' b = some bv) →
+      ∃ M, ∃ rv, ∀ f ≥ M, evalOpt f world e' (appOf a b) = some rv) :
     ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t :=
   my_len_my_app_generic world env
     world_has_my_app world_has_my_len world_no_equal world_no_consp
     world_no_plus world_no_cdr world_no_car world_no_cons
+    h_mylen_int h_mylen_total h_myapp_total
+
+/-! ## Native-theorem bridge
+
+We lift the ACL2 mirror to an IDIOMATIC Lean theorem about `List`:
+`(xs ++ ys).length = xs.length + ys.length`. The recipe (per
+`docs/comms/2026-03-22_acl2-lean-bridge.md`): a TYPE morphism `enc : List SExpr
+→ SExpr` plus a SIMULATION over the function structure (correspondence lemmas:
+`evalOpt`'s `my-app`/`my-len` simulate `++`/`length` under `enc`). This lifts the
+ACL2 theorem without redoing the property proof.
+
+First, DISCHARGERS for the consumed facts (so the mirror for `world` is
+UNCONDITIONAL): ACL2 functions are total over all objects, so these are
+existential inductions over arbitrary `SExpr` — proofs, not s-expr algorithms. -/
+
+/-- Convergence to SOME value (value possibly per-fuel) ⇒ to a FIXED value. -/
+private theorem conv_fix {w : World} {e : Env} {t : SExpr}
+    (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e t = some av) :
+    ∃ av, ∃ M, ∀ f ≥ M, evalOpt f w e t = some av := by
+  obtain ⟨M, hM⟩ := h
+  obtain ⟨av, hav⟩ := hM M (Nat.le_refl M)
+  exact ⟨av, M, fun f hf => evalOpt_ge_fuel M f w e t av hav hf⟩
+
+/-- `my-len arg` returns an integer (induction on the argument VALUE). -/
+private theorem dis_mylen_int_val : ∀ (av : SExpr) (e' : Env) (arg : SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f world e' arg = some av) →
+    ∃ N, ∃ k : Int, ∀ f ≥ N, evalOpt f world e' (lenOf arg) = some (.atom (.number (.int k))) := by
+  refine acl2_induction_consp (fun av => ∀ (e' : Env) (arg : SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f world e' arg = some av) →
+    ∃ N, ∃ k : Int, ∀ f ≥ N, evalOpt f world e' (lenOf arg)
+      = some (.atom (.number (.int k)))) ?base ?step
+  · intro av hconsp e' arg harg
+    have hx_ba : ∃ N, ∀ f ≥ N, evalOpt f world (bindArgs [x_sym] [av]) xT = some av :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ x_sym av (bindArgs_x_x av)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [av]) (conspOf xT) = some .nil := by
+      have h := conv_builtin1 world _ { name := "consp" } xT av (Logic.consp av)
+        consp_not_special world_no_consp hx_ba (callBuiltin_consp av)
+      rwa [hconsp] at h
+    have hq0_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [av]) q0 = some (.atom (.number (.int 0))) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_quote g world _ _⟩
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [av]) my_lenBody = some (.atom (.number (.int 0))) := by
+      obtain ⟨Ni, hi⟩ := re_if_false world (bindArgs [x_sym] [av]) (conspOf xT)
+        (plusOf q1 (lenOf (cdrOf xT))) q0 (.atom (.number (.int 0))) hconspx_ba hq0_ba
+      obtain ⟨Nq, hq⟩ := hq0_ba
+      exact ⟨max Ni Nq, fun f hf => (hi f (by omega)).trans (hq f (by omega))⟩
+    obtain ⟨N, h⟩ := conv_defn_1 world e' my_len_sym arg av x_sym my_lenBody
+      (.atom (.number (.int 0))) my_len_not_special world_has_my_len harg hbody
+    exact ⟨N, 0, h⟩
+  · intro av hconsp ih e' arg harg
+    obtain ⟨hd, tl, rfl⟩ : ∃ hd tl, av = .cons hd tl := by
+      match av with
+      | .cons a d => exact ⟨a, d, rfl⟩
+      | .nil => exact absurd rfl hconsp
+      | .atom _ => exact absurd rfl hconsp
+    have hx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [.cons hd tl]) xT = some (.cons hd tl) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ x_sym _ (bindArgs_x_x _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [.cons hd tl]) (conspOf xT)
+        = some (Logic.consp (.cons hd tl)) :=
+      conv_builtin1 world _ { name := "consp" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
+        consp_not_special world_no_consp hx_ba (callBuiltin_consp _)
+    have hcdrx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [.cons hd tl]) (cdrOf xT) = some tl := by
+      have h := conv_builtin1 world _ { name := "cdr" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
+        cdr_not_special world_no_cdr hx_ba (callBuiltin_cdr _)
+      simpa [Logic.cdr] using h
+    have hq1_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [.cons hd tl]) q1 = some (.atom (.number (.int 1))) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_quote g world _ _⟩
+    obtain ⟨Nk, k, hk⟩ := ih (bindArgs [x_sym] [.cons hd tl]) (cdrOf xT) hcdrx_ba
+    have hsum : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [.cons hd tl]) (plusOf q1 (lenOf (cdrOf xT)))
+        = some (.atom (.number (.int (1 + k)))) := by
+      have h := conv_builtin2 world _ { name := "binary-+" } q1 (lenOf (cdrOf xT))
+        (.atom (.number (.int 1))) (.atom (.number (.int k)))
+        (Logic.plus (.atom (.number (.int 1))) (.atom (.number (.int k))))
+        plus_not_special world_no_plus hq1_ba ⟨Nk, hk⟩ (callBuiltin_plus _ _)
+      rwa [logic_plus_int] at h
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [.cons hd tl]) my_lenBody
+        = some (.atom (.number (.int (1 + k)))) := by
+      obtain ⟨Ni, hi⟩ := re_if_true world (bindArgs [x_sym] [.cons hd tl]) (conspOf xT)
+        (plusOf q1 (lenOf (cdrOf xT))) q0 (Logic.consp (.cons hd tl))
+        (.atom (.number (.int (1 + k)))) hconspx_ba rfl hsum
+      obtain ⟨Ns, hs⟩ := hsum
+      exact ⟨max Ni Ns, fun f hf => (hi f (by omega)).trans (hs f (by omega))⟩
+    obtain ⟨N, h⟩ := conv_defn_1 world e' my_len_sym arg (.cons hd tl) x_sym my_lenBody
+      (.atom (.number (.int (1 + k)))) my_len_not_special world_has_my_len harg hbody
+    exact ⟨N, 1 + k, h⟩
+
+/-- `my-app a b` converges (induction on the first argument's VALUE). -/
+private theorem dis_myapp_total_val : ∀ (av1 : SExpr) (e' : Env) (a b av2 : SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f world e' a = some av1) →
+    (∃ N, ∀ f ≥ N, evalOpt f world e' b = some av2) →
+    ∃ rv, ∃ N, ∀ f ≥ N, evalOpt f world e' (appOf a b) = some rv := by
+  refine acl2_induction_consp (fun av1 => ∀ (e' : Env) (a b av2 : SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f world e' a = some av1) →
+    (∃ N, ∀ f ≥ N, evalOpt f world e' b = some av2) →
+    ∃ rv, ∃ N, ∀ f ≥ N, evalOpt f world e' (appOf a b) = some rv) ?base ?step
+  · intro av1 hconsp e' a b av2 ha hb
+    refine ⟨av2, ?_⟩
+    have hx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [av1, av2]) xT = some av1 :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ x_sym av1 (bindArgs_xy_x av1 av2)⟩
+    have hy_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [av1, av2]) yT = some av2 :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ y_sym av2 (bindArgs_xy_y av1 av2)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [av1, av2]) (conspOf xT) = some .nil := by
+      have h := conv_builtin1 world _ { name := "consp" } xT av1 (Logic.consp av1)
+        consp_not_special world_no_consp hx_ba (callBuiltin_consp av1)
+      rwa [hconsp] at h
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [av1, av2]) my_appBody = some av2 := by
+      obtain ⟨Ni, hi⟩ := re_if_false world (bindArgs [x_sym, y_sym] [av1, av2]) (conspOf xT)
+        (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT av2 hconspx_ba hy_ba
+      obtain ⟨Ny, hy⟩ := hy_ba
+      exact ⟨max Ni Ny, fun f hf => (hi f (by omega)).trans (hy f (by omega))⟩
+    exact conv_defn_2 world e' my_app_sym a b av1 av2 x_sym y_sym my_appBody av2
+      my_app_not_special world_has_my_app ha hb hbody
+  · intro av1 hconsp ih e' a b av2 ha hb
+    obtain ⟨hd, tl, rfl⟩ : ∃ hd tl, av1 = .cons hd tl := by
+      match av1 with
+      | .cons p q => exact ⟨p, q, rfl⟩
+      | .nil => exact absurd rfl hconsp
+      | .atom _ => exact absurd rfl hconsp
+    have hx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) xT = some (.cons hd tl) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ x_sym _ (bindArgs_xy_x _ _)⟩
+    have hy_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) yT = some av2 :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ y_sym _ (bindArgs_xy_y _ _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (conspOf xT)
+        = some (Logic.consp (.cons hd tl)) :=
+      conv_builtin1 world _ { name := "consp" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
+        consp_not_special world_no_consp hx_ba (callBuiltin_consp _)
+    have hcarx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (carOf xT) = some hd := by
+      have h := conv_builtin1 world _ { name := "car" } xT (.cons hd tl) (Logic.car (.cons hd tl))
+        car_not_special world_no_car hx_ba (callBuiltin_car _)
+      simpa [Logic.car] using h
+    have hcdrx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (cdrOf xT) = some tl := by
+      have h := conv_builtin1 world _ { name := "cdr" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
+        cdr_not_special world_no_cdr hx_ba (callBuiltin_cdr _)
+      simpa [Logic.cdr] using h
+    obtain ⟨rv', hrec⟩ := ih (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (cdrOf xT) yT av2
+      hcdrx_ba hy_ba
+    refine ⟨.cons hd rv', ?_⟩
+    have hthen : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2])
+          (consOf (carOf xT) (appOf (cdrOf xT) yT)) = some (.cons hd rv') :=
+      conv_builtin2 world _ { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
+        hd rv' (.cons hd rv') cons_not_special world_no_cons hcarx_ba hrec rfl
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) my_appBody
+        = some (.cons hd rv') := by
+      obtain ⟨Ni, hi⟩ := re_if_true world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (conspOf xT)
+        (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (Logic.consp (.cons hd tl))
+        (.cons hd rv') hconspx_ba rfl hthen
+      obtain ⟨Nt, ht⟩ := hthen
+      exact ⟨max Ni Nt, fun f hf => (hi f (by omega)).trans (ht f (by omega))⟩
+    exact conv_defn_2 world e' my_app_sym a b (.cons hd tl) av2 x_sym y_sym my_appBody
+      (.cons hd rv') my_app_not_special world_has_my_app ha hb hbody
+
+private theorem dis_mylen_int (e' : Env) (arg : SExpr)
+    (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' arg = some av) :
+    ∃ M, ∃ k : Int, ∀ f ≥ M, evalOpt f world e' (lenOf arg)
+      = some (.atom (.number (.int k))) := by
+  obtain ⟨av, hav⟩ := conv_fix h; exact dis_mylen_int_val av e' arg hav
+
+private theorem dis_mylen_total (e' : Env) (arg : SExpr)
+    (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' arg = some av) :
+    ∃ M, ∃ av, ∀ f ≥ M, evalOpt f world e' (lenOf arg) = some av := by
+  obtain ⟨M, k, hk⟩ := dis_mylen_int e' arg h
+  exact ⟨M, .atom (.number (.int k)), hk⟩
+
+private theorem dis_myapp_total (e' : Env) (a b : SExpr)
+    (ha : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' a = some av)
+    (hb : ∃ M, ∀ f ≥ M, ∃ bv, evalOpt f world e' b = some bv) :
+    ∃ M, ∃ rv, ∀ f ≥ M, evalOpt f world e' (appOf a b) = some rv := by
+  obtain ⟨av, hav⟩ := conv_fix ha; obtain ⟨bv, hbv⟩ := conv_fix hb
+  obtain ⟨rv, N, h⟩ := dis_myapp_total_val av e' a b bv hav hbv
+  exact ⟨N, rv, h⟩
+
+/-- The mirror for `world`, UNCONDITIONAL (consumed facts discharged — closes #23). -/
+theorem my_len_my_app_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t :=
+  my_len_my_app env dis_mylen_int dis_mylen_total dis_myapp_total
+
+/-! ### The type morphism + simulation -/
+
+/-- The TYPE morphism: a Lean `List SExpr` ↦ the ACL2 proper cons-list. -/
+def enc (xs : List SExpr) : SExpr := xs.foldr SExpr.cons SExpr.nil
+
+/-- SIMULATION: `evalOpt`'s `my-app` over encoded lists computes `++` under `enc`.
+    Induction on the Lean list `xs`. -/
+private theorem corr_app_enc : ∀ (xs : List SExpr) (e' : Env) (a b : SExpr) (ys : List SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f world e' a = some (enc xs)) →
+    (∃ N, ∀ f ≥ N, evalOpt f world e' b = some (enc ys)) →
+    ∃ N, ∀ f ≥ N, evalOpt f world e' (appOf a b) = some (enc (xs ++ ys)) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro e' a b ys ha hb
+    have hx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc [], enc ys]) xT = some (enc []) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ x_sym _ (bindArgs_xy_x _ _)⟩
+    have hy_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc [], enc ys]) yT = some (enc ys) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ y_sym _ (bindArgs_xy_y _ _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc [], enc ys]) (conspOf xT) = some .nil :=
+      conv_builtin1 world _ { name := "consp" } xT (enc []) (Logic.consp (enc []))
+        consp_not_special world_no_consp hx_ba (callBuiltin_consp _)
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc [], enc ys]) my_appBody = some (enc ys) := by
+      obtain ⟨Ni, hi⟩ := re_if_false world (bindArgs [x_sym, y_sym] [enc [], enc ys]) (conspOf xT)
+        (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (enc ys) hconspx_ba hy_ba
+      obtain ⟨Ny, hy⟩ := hy_ba
+      exact ⟨max Ni Ny, fun f hf => (hi f (by omega)).trans (hy f (by omega))⟩
+    exact conv_defn_2 world e' my_app_sym a b (enc []) (enc ys) x_sym y_sym my_appBody (enc ys)
+      my_app_not_special world_has_my_app ha hb hbody
+  | cons hd tl ih =>
+    intro e' a b ys ha hb
+    have hx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) xT
+        = some (.cons hd (enc tl)) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ x_sym _ (bindArgs_xy_x _ _)⟩
+    have hy_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) yT = some (enc ys) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ y_sym _ (bindArgs_xy_y _ _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (conspOf xT)
+        = some (Logic.consp (.cons hd (enc tl))) :=
+      conv_builtin1 world _ { name := "consp" } xT (.cons hd (enc tl))
+        (Logic.consp (.cons hd (enc tl))) consp_not_special world_no_consp hx_ba (callBuiltin_consp _)
+    have hcarx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (carOf xT) = some hd := by
+      have h := conv_builtin1 world _ { name := "car" } xT (.cons hd (enc tl))
+        (Logic.car (.cons hd (enc tl))) car_not_special world_no_car hx_ba (callBuiltin_car _)
+      simpa [Logic.car] using h
+    have hcdrx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (cdrOf xT)
+        = some (enc tl) := by
+      have h := conv_builtin1 world _ { name := "cdr" } xT (.cons hd (enc tl))
+        (Logic.cdr (.cons hd (enc tl))) cdr_not_special world_no_cdr hx_ba (callBuiltin_cdr _)
+      simpa [Logic.cdr] using h
+    have hrec : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (appOf (cdrOf xT) yT)
+        = some (enc (tl ++ ys)) :=
+      ih (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (cdrOf xT) yT ys hcdrx_ba hy_ba
+    have hthen : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys])
+          (consOf (carOf xT) (appOf (cdrOf xT) yT)) = some (.cons hd (enc (tl ++ ys))) :=
+      conv_builtin2 world _ { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
+        hd (enc (tl ++ ys)) (.cons hd (enc (tl ++ ys))) cons_not_special world_no_cons
+        hcarx_ba hrec rfl
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) my_appBody
+        = some (.cons hd (enc (tl ++ ys))) := by
+      obtain ⟨Ni, hi⟩ := re_if_true world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys])
+        (conspOf xT) (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (Logic.consp (.cons hd (enc tl)))
+        (.cons hd (enc (tl ++ ys))) hconspx_ba rfl hthen
+      obtain ⟨Nt, ht⟩ := hthen
+      exact ⟨max Ni Nt, fun f hf => (hi f (by omega)).trans (ht f (by omega))⟩
+    exact conv_defn_2 world e' my_app_sym a b (.cons hd (enc tl)) (enc ys) x_sym y_sym my_appBody
+      (.cons hd (enc (tl ++ ys))) my_app_not_special world_has_my_app ha hb hbody
+
+/-- SIMULATION: `evalOpt`'s `my-len` over an encoded list computes `List.length`
+    under `enc`. Induction on the Lean list `xs`. -/
+private theorem corr_len_enc : ∀ (xs : List SExpr) (e' : Env) (a : SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f world e' a = some (enc xs)) →
+    ∃ N, ∀ f ≥ N, evalOpt f world e' (lenOf a) = some (.atom (.number (.int xs.length))) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro e' a ha
+    have hx_ba : ∃ N, ∀ f ≥ N, evalOpt f world (bindArgs [x_sym] [enc []]) xT = some (enc []) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ x_sym _ (bindArgs_x_x _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [enc []]) (conspOf xT) = some .nil :=
+      conv_builtin1 world _ { name := "consp" } xT (enc []) (Logic.consp (enc []))
+        consp_not_special world_no_consp hx_ba (callBuiltin_consp _)
+    have hq0_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [enc []]) q0 = some (.atom (.number (.int 0))) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_quote g world _ _⟩
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [enc []]) my_lenBody = some (.atom (.number (.int 0))) := by
+      obtain ⟨Ni, hi⟩ := re_if_false world (bindArgs [x_sym] [enc []]) (conspOf xT)
+        (plusOf q1 (lenOf (cdrOf xT))) q0 (.atom (.number (.int 0))) hconspx_ba hq0_ba
+      obtain ⟨Nq, hq⟩ := hq0_ba
+      exact ⟨max Ni Nq, fun f hf => (hi f (by omega)).trans (hq f (by omega))⟩
+    exact conv_defn_1 world e' my_len_sym a (enc []) x_sym my_lenBody (.atom (.number (.int 0)))
+      my_len_not_special world_has_my_len ha hbody
+  | cons hd tl ih =>
+    intro e' a ha
+    have hx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [enc (hd :: tl)]) xT = some (.cons hd (enc tl)) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g world _ x_sym _ (bindArgs_x_x _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [enc (hd :: tl)]) (conspOf xT)
+        = some (Logic.consp (.cons hd (enc tl))) :=
+      conv_builtin1 world _ { name := "consp" } xT (.cons hd (enc tl))
+        (Logic.consp (.cons hd (enc tl))) consp_not_special world_no_consp hx_ba (callBuiltin_consp _)
+    have hcdrx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [enc (hd :: tl)]) (cdrOf xT) = some (enc tl) := by
+      have h := conv_builtin1 world _ { name := "cdr" } xT (.cons hd (enc tl))
+        (Logic.cdr (.cons hd (enc tl))) cdr_not_special world_no_cdr hx_ba (callBuiltin_cdr _)
+      simpa [Logic.cdr] using h
+    have hq1_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [enc (hd :: tl)]) q1 = some (.atom (.number (.int 1))) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_quote g world _ _⟩
+    obtain ⟨Nk, hk⟩ := ih (bindArgs [x_sym] [enc (hd :: tl)]) (cdrOf xT) hcdrx_ba
+    have hsum : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [enc (hd :: tl)]) (plusOf q1 (lenOf (cdrOf xT)))
+        = some (.atom (.number (.int (1 + (tl.length : Int))))) := by
+      have h := conv_builtin2 world _ { name := "binary-+" } q1 (lenOf (cdrOf xT))
+        (.atom (.number (.int 1))) (.atom (.number (.int (tl.length : Int))))
+        (Logic.plus (.atom (.number (.int 1))) (.atom (.number (.int (tl.length : Int)))))
+        plus_not_special world_no_plus hq1_ba ⟨Nk, hk⟩ (callBuiltin_plus _ _)
+      rwa [logic_plus_int] at h
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f world (bindArgs [x_sym] [enc (hd :: tl)]) my_lenBody
+        = some (.atom (.number (.int (1 + (tl.length : Int))))) := by
+      obtain ⟨Ni, hi⟩ := re_if_true world (bindArgs [x_sym] [enc (hd :: tl)]) (conspOf xT)
+        (plusOf q1 (lenOf (cdrOf xT))) q0 (Logic.consp (.cons hd (enc tl)))
+        (.atom (.number (.int (1 + (tl.length : Int))))) hconspx_ba rfl hsum
+      obtain ⟨Ns, hs⟩ := hsum
+      exact ⟨max Ni Ns, fun f hf => (hi f (by omega)).trans (hs f (by omega))⟩
+    have hlen : (1 + (tl.length : Int)) = ((hd :: tl).length : Int) := by
+      rw [List.length_cons]; push_cast; ring
+    rw [hlen] at hbody
+    exact conv_defn_1 world e' my_len_sym a (.cons hd (enc tl)) x_sym my_lenBody
+      (.atom (.number (.int ((hd :: tl).length : Int)))) my_len_not_special world_has_my_len ha hbody
+
+/-- **The native theorem we want**, in idiomatic Lean — `List.length_append`,
+    proved via the ACL2 oracle (NOT by the native list induction). A bug anywhere
+    in stages 1–7 of the pipeline makes this fail to typecheck. -/
+theorem my_len_my_app_native (xs ys : List SExpr) :
+    (xs ++ ys).length = xs.length + ys.length := by
+  -- env binding x ↦ enc xs, y ↦ enc ys
+  let e : Env := (({} : Env).insert y_sym (enc ys)).insert x_sym (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f world e xT = some (enc xs) :=
+    ⟨1, fun f hf => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      exact evalOpt_var g world e x_sym (enc xs) (by
+        show e[x_sym]? = some (enc xs); rw [Std.HashMap.getElem?_insert]; simp)⟩
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f world e yT = some (enc ys) :=
+    ⟨1, fun f hf => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      exact evalOpt_var g world e y_sym (enc ys) (by
+        show e[y_sym]? = some (enc ys)
+        rw [Std.HashMap.getElem?_insert]; simp only [x_sym, y_sym, sym, beq_iff_eq]
+        rw [if_neg (by decide), Std.HashMap.getElem?_insert]; simp)⟩
+  -- LHS value: my-len (my-app x y) ⇒ int ↑(xs ++ ys).length   (simulation)
+  obtain ⟨NL, hL⟩ := corr_len_enc (xs ++ ys) e (appOf xT yT) (corr_app_enc xs e xT yT ys hx hy)
+  -- RHS value: (+ (my-len x) (my-len y)) ⇒ int (↑xs.length + ↑ys.length)
+  obtain ⟨NLx, hLx⟩ := corr_len_enc xs e xT hx
+  obtain ⟨NLy, hLy⟩ := corr_len_enc ys e yT hy
+  obtain ⟨NR, hR⟩ : ∃ N, ∀ f ≥ N, evalOpt f world e (plusOf (lenOf xT) (lenOf yT))
+      = some (.atom (.number (.int ((xs.length : Int) + (ys.length : Int))))) := by
+    have h := conv_builtin2 world e { name := "binary-+" } (lenOf xT) (lenOf yT)
+      (.atom (.number (.int (xs.length : Int)))) (.atom (.number (.int (ys.length : Int))))
+      (Logic.plus (.atom (.number (.int (xs.length : Int)))) (.atom (.number (.int (ys.length : Int)))))
+      plus_not_special world_no_plus ⟨NLx, hLx⟩ ⟨NLy, hLy⟩ (callBuiltin_plus _ _)
+    rwa [logic_plus_int] at h
+  -- mirror: formula ⇒ t ; eval_equal_t splits the equality, the two values coincide
+  obtain ⟨Nm, hm⟩ := my_len_my_app_uncond e
+  have hval : (.atom (.number (.int ((xs ++ ys).length : Int))) : SExpr)
+            = .atom (.number (.int ((xs.length : Int) + (ys.length : Int)))) := by
+    set f := max (max NL NR) Nm
+    refine eval_equal_t_implies_eq f world e
+      (lenOf (appOf xT yT)) (plusOf (lenOf xT) (lenOf yT))
+      (.atom (.number (.int ((xs ++ ys).length : Int))))
+      (.atom (.number (.int ((xs.length : Int) + (ys.length : Int)))))
+      (hL f (by omega)) (hR f (by omega)) world_no_equal ?_
+    have := hm (f + 1) (by omega); rwa [formula_decomp] at this
+  -- cast the SExpr int-equality down to the Nat goal
+  have : ((xs ++ ys).length : Int) = (xs.length : Int) + (ys.length : Int) := by
+    injection hval with h; injection h with h; injection h with h
+  omega
 
 end ACL2.Worlds.Simple
