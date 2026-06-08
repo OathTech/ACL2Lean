@@ -1730,4 +1730,47 @@ theorem acl2_induction_consp (P : SExpr → Prop)
           omega
   exact this v.acl2Count v (Nat.le_refl _)
 
+/-! ## Driver combinators for terminal nodes (fuel-existential form)
+
+These package a terminal rune as the `∃N∀f≥N` fact the driver emits, so `replayNode`
+just applies the combinator (no inline fuel plumbing). Kernel-checked once here. -/
+
+/-- Convergence (totality form) of a `quote`: `(quote v)` converges to SOME value
+    (namely `v`) for all sufficient fuel. The witness is existential so callers need
+    no concrete value. -/
+theorem re_conv_quote (w : World) (env : Env) (v : SExpr) :
+    ∃ N, ∀ f ≥ N, ∃ v',
+      evalOpt f w env (.cons (.atom (.symbol { name := "quote" })) (.cons v .nil)) = some v' := by
+  refine ⟨1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  exact ⟨v, evalOpt_quote g w env v⟩
+
+/-- Convergence (totality form) of a VARIABLE: `(var s)` converges to SOME value in
+    ANY environment — its binding if bound, else `nil` (provided `s` is not the
+    constant `t`). This is the variable-convergence fact the mirror theorem's
+    `∀ env` quantification needs. -/
+theorem re_conv_var (w : World) (env : Env) (s : Symbol) (h_not_t : s.isNamed "t" = false) :
+    ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env (.atom (.symbol s)) = some v := by
+  refine ⟨1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  match h : env.get? s with
+  | some v => exact ⟨v, evalOpt_var g w env s v h⟩
+  | none => exact ⟨.nil, evalOpt_var_unbound g w env s h h_not_t⟩
+
+/-- equal-self, fuel-robust closing form: if `A` converges to SOME value (totality)
+    and `equal` is not shadowed, then `(equal A A)` converges to `t`. The witness
+    `v` is handled INSIDE (existential), so the driver supplies only `A`'s
+    convergence — no concrete value. -/
+theorem re_equal_self (w : World) (env : Env) (A : SExpr)
+    (hconv : ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env A = some v)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "equal" })) (.cons A (.cons A .nil))) = some SExpr.t := by
+  obtain ⟨N, hN⟩ := hconv
+  refine ⟨N + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  obtain ⟨v, hv⟩ := hN g (by omega)
+  exact evalOpt_equal_self g w env A v hv h_no_equal
+
 end ACL2.Replay
