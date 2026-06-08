@@ -37,13 +37,21 @@ for INPUT in "$@"; do
 (good-bye)
 ' "$INPUT_ABS" | "$ACL2" > "$OUTPUT" 2>&1
 
-  # `ld` halts with (:STOP-LD ...) on the first failed event, and the
-  # :structured format suppresses ACL2's error text, so a truncated log can
-  # look like a clean one. Surface the abort loudly rather than letting the
-  # log silently end early.
+  # Failure detection. `ld` halts on the first failed event (e.g. a defthm whose
+  # PROOF succeeds but whose rule STORAGE is rejected — `:rule-classes nil` avoids
+  # that). Under `:structured`, ACL2 suppresses the `:STOP-LD` / `******** FAILED`
+  # text, so that grep alone can MISS a halt — a truncated log then looks clean.
+  # The robust signal: ACL2 emits one `(:DEFTHM …)` per theorem it actually starts,
+  # so fewer `(:DEFTHM` in the log than `(defthm` forms in the source means it
+  # halted/failed partway. (Comments/`defthmd` make the source count approximate —
+  # a mismatch is a loud warning, not a hard error.)
+  want_defthm=$(grep -ciE '\(defthmd?\b' "$INPUT_ABS" || true)
+  got_defthm=$(grep -c '(:DEFTHM' "$OUTPUT" || true)
   if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED" "$OUTPUT"; then
     echo "WARNING: $(basename "$INPUT") — ACL2 aborted an event (:STOP-LD); log is INCOMPLETE." >&2
+  elif [ "$got_defthm" -lt "$want_defthm" ]; then
+    echo "WARNING: $(basename "$INPUT") — logged $got_defthm of $want_defthm defthm proof(s); ACL2 likely FAILED/halted an event (error text suppressed by :structured). Log is INCOMPLETE." >&2
   fi
 
-  echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines → $OUTPUT"
+  echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines, $got_defthm/$want_defthm defthm(s) → $OUTPUT"
 done

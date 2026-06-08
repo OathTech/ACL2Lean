@@ -172,4 +172,25 @@ private def treeBadTerminal : ClauseProof :=
       items := [.literal { litProof with nodes := [rewriteNode] }] }] } }
 #expect_driver_fails "non-equal-self terminal" treeBadTerminal
 
+-- (N4) the TYPE-SET frontier: a clause closed by `fake-rune-for-type-set` at
+-- preprocess-clause, with NO rewrite detail / no closing literal — exactly the shape
+-- ACL2 emits for `equal-trans` (transitivity by type-set; see recon-tests/
+-- 08-equality-reasoning). The driver must hard-fail (we do NOT re-derive type-set in
+-- Lean — that would be inference). Becomes replayable only with type-set
+-- instrumentation (the "(B)" track), never by a Lean-side decision.
+private def varY : SExpr := sym "y"
+private def varZ : SExpr := sym "z"
+/-- `(implies (and (equal x y) (equal y z)) (equal x z))`. -/
+private def transFormula : SExpr :=
+  .cons (sym "implies")
+    (.cons (.cons (sym "and") (.cons (equalOf varX varY) (.cons (equalOf varY varZ) .nil)))
+      (.cons (equalOf varX varZ) .nil))
+private def typeSetStep : WaterfallStep :=
+  { processor := "preprocess-clause", result := default,
+    runes := [("fake-rune-for-type-set", "NIL")], newClauses := [], items := [], extraFields := [] }
+private def treeTypeSet : ClauseProof :=
+  { name := "neg-type-set", formula := transFormula,
+    root := some { goalNode with inputClause := [transFormula], steps := [typeSetStep] } }
+#expect_driver_fails "type-set-closed clause (fake-rune-for-type-set)" treeTypeSet
+
 end ACL2.Tests.Driver
