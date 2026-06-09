@@ -449,6 +449,7 @@ private def allProofNodes (cp : ClauseProof) : List ProofNode :=
 
 private def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
 private def equivSrcOf : ProofNode → Option Nat | .node _ _ _ _ p => p.equivSource
+private def pathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 
 -- The theorem and its root clause.
 #guard (simpleProof.map (·.name)) == some "my-len-my-app"
@@ -473,6 +474,11 @@ private def equivSrcOf : ProofNode → Option Nat | .node _ _ _ _ p => p.equivSo
 -- hypothesis literal 2 in the step case.
 #guard (simpleProof.map fun p =>
   (allProofNodes p).any (equivSrcOf · == some 2)) == some true
+
+-- The congruence path (:PATH) is threaded onto rewrite nodes (e.g. def:my-app at
+-- equal arg1 → my-len arg1). Confirms the ACL2 → ProofLog → ProofTree path plumbing.
+#guard (simpleProof.map fun p =>
+  (allProofNodes p).any fun n => !(pathOf n).isEmpty) == some true
 
 -- Development structure: my-len and my-app are world-event bindings (they scope
 -- over the theorem that uses them); exactly one theorem.

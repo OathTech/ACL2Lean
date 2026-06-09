@@ -38,6 +38,10 @@ structure StepProvenance where
   typeSet : Option Int := none
   /-- True type-set of the recognizer (bits where it returns T). -/
   trueTs : Option Int := none
+  /-- The redex's congruence path within the literal (from `:PATH`),
+      literal-root-first — see `PathFrame`. The replay lifts this node by composing
+      congruences along the path rather than locating the redex by subterm match. -/
+  path : List PathFrame := []
   deriving Repr, Inhabited
 
 inductive ProofNode where
@@ -82,7 +86,7 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
   .node step.rune step.lhs step.rhs children
     { origin := step.origin, runes := step.runes, parents := step.parents,
       subst := step.subst, equivTerm := step.equivTerm,
-      typeSet := step.typeSet, trueTs := step.trueTs }
+      typeSet := step.typeSet, trueTs := step.trueTs, path := step.path }
 
 /-- Parse the events of ONE literal's rewrite chain into proof nodes, returning
     the nodes and the events after this block. `BEGIN/END-INNER-REWRITE` and

@@ -9,6 +9,18 @@ inductive ProofResult where
   | subgoals
   deriving Repr, BEq, Inhabited
 
+/-- One frame of a rewrite's congruence path (from the log's `:PATH`),
+    literal-root-first. `.arg n fn` = this frame's term (head `fn`) sits at the
+    one-based argument position `n` of its parent — a real congruence position.
+    `.boundary kind fn` = a descent through an unfold / rule-RHS (symbolic bkptr,
+    e.g. `BODY`/`RHS`/`EXPANSION`), where the term structure changed; these align
+    with the proof tree's child-nesting. Emitted by `structured-rewrite-path` in
+    the instrumented ACL2 (read from the rewriter's gstack). -/
+inductive PathFrame where
+  | arg (idx : Nat) (fn : Symbol)
+  | boundary (kind : Symbol) (fn : Symbol)
+  deriving Repr, Inhabited, BEq
+
 /-- A single rewrite application from ACL2's rewriter. -/
 structure RewriteStep where
   /-- The rune applied, as (type, name) e.g. ("rewrite", "car-cons"). -/
@@ -40,6 +52,10 @@ structure RewriteStep where
   typeSet : Option Int := none
   /-- True type-set of the recognizer (type-set bits where it returns T). -/
   trueTs : Option Int := none
+  /-- The redex's congruence path within the literal (from `:PATH`),
+      literal-root-first. Lets a replay lift this step by composing congruences
+      along the path instead of locating the redex by subterm match. -/
+  path : List PathFrame := []
   deriving Repr
 
 /-- A trace event from ACL2's detailed rewriter output.
@@ -171,7 +187,28 @@ def parseRunes (s : SExpr) : Except String (List (String × String)) :=
     | none => throw s!"bad rune in rune list: {repr r}"
   | none => throw s!"rune list is not a list: {repr s}"
 
-/-- Parse a single (:REWRITE-STEP :RUNE r :LHS l :RHS r) s-expression. -/
+/-- Parse one `(bkptr . fn)` frame of a `:PATH`. Numeric `bkptr` → `.arg`; symbolic
+    `bkptr` (BODY/RHS/EXPANSION/…) → `.boundary`. Hard-fails on a non-symbol `fn`
+    (lambda/quote paths not yet supported) or a malformed pair (no silent drop). -/
+private def parsePathFrame (pair : SExpr) : Except String PathFrame := do
+  -- ACL2 prints `(cons bkptr fn)` as a dotted pair `(bkptr . fn)`, but our SExpr
+  -- reader reads `.` as an ordinary symbol, so a frame arrives as the 3-element
+  -- list `[bkptr, <dot>, fn]` (the same artifact the `:SUBST` handling lives with).
+  -- Accept that, and also a genuine dotted `.cons bkptr fn`.
+  let (bk, fn) ← match pair.toList? with
+    | some [bk, _dot, fn] => pure (bk, fn)
+    | _ => match pair with
+      | .cons bk fn => pure (bk, fn)
+      | _ => throw s!"REWRITE-STEP :PATH frame not a (bkptr . fn) pair: {repr pair}"
+  let fsym ← match fn with
+    | .atom (.symbol s) => pure s
+    | _ => throw s!"REWRITE-STEP :PATH frame fn not a symbol (lambda/quote unsupported): {repr fn}"
+  match bk with
+  | .atom (.number (.int n)) => pure (.arg n.toNat fsym)
+  | .atom (.symbol k) => pure (.boundary k fsym)
+  | _ => throw s!"REWRITE-STEP :PATH frame bkptr not a number/symbol: {repr bk}"
+
+/-- Parse a single (:REWRITE-STEP :RUNE r :LHS l :RHS r …) s-expression. -/
 private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
   match s.toList? with
   | some items =>
@@ -221,7 +258,12 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let trueTs := match lookupKeyword "truets" rest with
         | some (.atom (.number (.int n))) => some n
         | _ => none
-      pure { rune, lhs, rhs, origin, runes, parents, subst, equivTerm, typeSet, trueTs }
+      let path ← match lookupKeyword "path" rest with
+        | some r => match r.toList? with
+          | some items => items.mapM parsePathFrame
+          | none => throw s!"REWRITE-STEP: :PATH not a list: {repr r}"
+        | none => pure []
+      pure { rune, lhs, rhs, origin, runes, parents, subst, equivTerm, typeSet, trueTs, path }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 

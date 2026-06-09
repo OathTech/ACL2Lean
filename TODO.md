@@ -46,6 +46,16 @@ end-to-end via the driver, not the hand proofs.
       from ACL2** (the rewriter knows it), thread it through the proof tree, and carry
       it schematically so the driver never matches. (Track-A instrumentation; decide
       before/with S3.)
+- [ ] **Driver: consume `:path` (retire `findPath`).** `:path` is now parsed
+      (`PathFrame`) and threaded onto every `ProofNode` (`StepProvenance.path`). Next:
+      `Driver.emitCongruence` should build the congruence chain from the node's `path`
+      (numeric `.arg` frames → `congr_unary/_binary_left/_binary_right`; `.boundary`
+      frames = unfold/rule-RHS, align with tree nesting) instead of `findPath`'s
+      subterm match; delete `findPath`/`occursIn`.
+- [ ] **SExpr reader: dotted-pair `.` support.** The reader reads `.` as an ordinary
+      symbol, so `(a . b)` becomes the 3-list `[a, <dot>, b]`; `:subst` values and
+      `:path` frames carry the `(. x)` artifact (handled locally in the parsers).
+      Fixing the reader to support true dotted pairs would clean up both.
 - [ ] **convergence analyzer (G1)** — general: builtins over known structure +
       defined-fn totality, threading opaque (existential) witnesses for recursive
       calls. (currently: variable + quote only)
