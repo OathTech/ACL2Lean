@@ -69,6 +69,16 @@ private def parseFails (input : String) : Bool :=
 #guard parseOne "(1 2 3)" = some (SExpr.ofList
   [.atom (.number (.int 1)), .atom (.number (.int 2)), .atom (.number (.int 3))])
 
+-- Dotted pairs: a lone `.` is the dotted-cdr separator (true cons), not a symbol.
+#guard parseOne "(a . b)" =
+  some (.cons (.atom (.symbol { name := "a" })) (.atom (.symbol { name := "b" })))
+#guard parseOne "(1 2 . 3)" =
+  some (.cons (.atom (.number (.int 1)))
+    (.cons (.atom (.number (.int 2))) (.atom (.number (.int 3)))))
+-- `(a . (b))` is the proper list `(a b)`.
+#guard parseOne "(a . (b))" = some (SExpr.ofList
+  [.atom (.symbol { name := "a" }), .atom (.symbol { name := "b" })])
+
 -- Nested list
 #guard parseOne "(a (b c))" = some (SExpr.ofList
   [.atom (.symbol { name := "a" }),

@@ -191,15 +191,10 @@ def parseRunes (s : SExpr) : Except String (List (String × String)) :=
     `bkptr` (BODY/RHS/EXPANSION/…) → `.boundary`. Hard-fails on a non-symbol `fn`
     (lambda/quote paths not yet supported) or a malformed pair (no silent drop). -/
 private def parsePathFrame (pair : SExpr) : Except String PathFrame := do
-  -- ACL2 prints `(cons bkptr fn)` as a dotted pair `(bkptr . fn)`, but our SExpr
-  -- reader reads `.` as an ordinary symbol, so a frame arrives as the 3-element
-  -- list `[bkptr, <dot>, fn]` (the same artifact the `:SUBST` handling lives with).
-  -- Accept that, and also a genuine dotted `.cons bkptr fn`.
-  let (bk, fn) ← match pair.toList? with
-    | some [bk, _dot, fn] => pure (bk, fn)
-    | _ => match pair with
-      | .cons bk fn => pure (bk, fn)
-      | _ => throw s!"REWRITE-STEP :PATH frame not a (bkptr . fn) pair: {repr pair}"
+  -- Each frame is the dotted pair `(bkptr . fn)` = `.cons bkptr fn`.
+  let (bk, fn) ← match pair with
+    | .cons bk fn => pure (bk, fn)
+    | _ => throw s!"REWRITE-STEP :PATH frame not a (bkptr . fn) pair: {repr pair}"
   let fsym ← match fn with
     | .atom (.symbol s) => pure s
     | _ => throw s!"REWRITE-STEP :PATH frame fn not a symbol (lambda/quote unsupported): {repr fn}"

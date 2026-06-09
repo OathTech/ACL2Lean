@@ -52,10 +52,6 @@ end-to-end via the driver, not the hand proofs.
       (numeric `.arg` frames → `congr_unary/_binary_left/_binary_right`; `.boundary`
       frames = unfold/rule-RHS, align with tree nesting) instead of `findPath`'s
       subterm match; delete `findPath`/`occursIn`.
-- [ ] **SExpr reader: dotted-pair `.` support.** The reader reads `.` as an ordinary
-      symbol, so `(a . b)` becomes the 3-list `[a, <dot>, b]`; `:subst` values and
-      `:path` frames carry the `(. x)` artifact (handled locally in the parsers).
-      Fixing the reader to support true dotted pairs would clean up both.
 - [ ] **convergence analyzer (G1)** — general: builtins over known structure +
       defined-fn totality, threading opaque (existential) witnesses for recursive
       calls. (currently: variable + quote only)
@@ -134,6 +130,8 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
 - Differential testing of `evalOpt` vs real ACL2 (51/51).
 - Driver S1+S2 + native Nat bridge (first real proof-tree replay).
 - `capture-proof-log.sh` failure detection hardened.
+- SExpr reader now supports dotted pairs (`(a . b)` → true `.cons`); fixes the `(. x)`
+  artifact in `:subst` and `:path` frames (previously `.` was read as a symbol).
 - Driver made heuristic-free: removed `proveBySimp` (default-simp); all side-conditions
   via kernel `decide` (`proveByDecide`); world non-shadowing facts now CARRIED in
   `ReplayConfig.noShadow` (established once, never re-derived).

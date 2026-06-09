@@ -76,6 +76,24 @@ mutual
     match cs with
     | [] => .error "unterminated list"
     | ')' :: rest => .ok (SExpr.ofList acc.reverse, rest)
+    | '.' :: rest =>
+        -- A lone `.` (followed by a delimiter/EOF) with a head already read is the
+        -- dotted-cdr separator: `(a … z . tl)` ⇒ the improper list with final cdr
+        -- `tl`. (A bare `.` is never a legal Lisp symbol, so this is unambiguous; a
+        -- `.` that begins an atom — e.g. `.5` — is followed by an atom char and is
+        -- parsed normally below.)
+        let lone := match rest with | [] => true | c :: _ => !isAtomChar c
+        if lone && !acc.isEmpty then
+          match parseSExpr rest with
+          | .error e => .error e
+          | .ok (tl, rest2) =>
+              match skipWS rest2 with
+              | ')' :: rest3 => .ok (acc.reverse.foldr SExpr.cons tl, rest3)
+              | _ => .error "malformed dotted list: expected ) after dotted cdr"
+        else
+          match parseSExpr cs with
+          | .error e => .error e
+          | .ok (sx, rest') => parseList rest' (sx :: acc)
     | _ =>
         match parseSExpr cs with
         | .error e => .error e
