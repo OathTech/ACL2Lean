@@ -39,3 +39,8 @@ capture-all-logs:
 # Parse and display a proof log
 parse-proof-log file:
     lake exe acl2lean parse-proof-log {{file}}
+
+# Run the replay driver over the whole sample corpus; prints REPLAYED-vs-frontier per
+# theorem. Hard-fails if any proof-log is absent (regenerate with capture-all-logs first).
+driver-coverage:
+    lake build Tests.DriverCoverage
