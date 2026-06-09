@@ -245,10 +245,12 @@ def main (args : List String) : IO Unit := do
   | ["dump-proof-tree", path] => do
       let contents ← IO.FS.readFile path
       match ACL2.ProofLog.parse contents with
-      | .error e => IO.eprintln s!"Parse error: {e}"
+      | .error e => throw (IO.userError s!"Parse error: {e}")
       | .ok log =>
           match ACL2.ClauseTree.buildDevelopment log with
-          | .error e => IO.eprintln s!"Reconstruction error: {e}"
+          -- Exit non-zero so callers/CI detect the failure (a failed/truncated
+          -- ACL2 proof must not look like a clean run).
+          | .error e => throw (IO.userError s!"Reconstruction error: {e}")
           | .ok dev => printDevelopment dev
   | _ => do
       IO.println "Usage:"

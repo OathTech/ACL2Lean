@@ -41,17 +41,28 @@ for INPUT in "$@"; do
   # PROOF succeeds but whose rule STORAGE is rejected — `:rule-classes nil` avoids
   # that). Under `:structured`, ACL2 suppresses the `:STOP-LD` / `******** FAILED`
   # text, so that grep alone can MISS a halt — a truncated log then looks clean.
-  # The robust signal: ACL2 emits one `(:DEFTHM …)` per theorem it actually starts,
-  # so fewer `(:DEFTHM` in the log than `(defthm` forms in the source means it
-  # halted/failed partway. (Comments/`defthmd` make the source count approximate —
-  # a mismatch is a loud warning, not a hard error.)
+  #
+  # The PRIMARY signal is QED-per-DEFTHM: a successful proof emits one `(:QED)` per
+  # `(:DEFTHM …)` it started, but a FAILED proof emits the `(:DEFTHM …)` (at proof
+  # START) with NO matching `(:QED)` — so `got_qed < got_defthm` means a proof
+  # failed even though every theorem was *attempted*. (The old `got_defthm` vs
+  # source-count check only catches a halt BEFORE a later defthm starts, not a
+  # defthm that starts and then fails — which is the common case.) We also grep
+  # ACL2's "proof attempt has failed" prose, which DOES survive :structured mode.
+  # NOTE: this is a heuristic backstop — the load-bearing guard is downstream, in
+  # buildDevelopment, which hard-fails on any :DEFTHM block lacking its :QED. The
+  # proper positive signal (an explicit emit/proof-failed event) is a tracked
+  # infra-revision item; see TODO.md.
   want_defthm=$(grep -ciE '\(defthmd?\b' "$INPUT_ABS" || true)
   got_defthm=$(grep -c '(:DEFTHM' "$OUTPUT" || true)
-  if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED" "$OUTPUT"; then
-    echo "WARNING: $(basename "$INPUT") — ACL2 aborted an event (:STOP-LD); log is INCOMPLETE." >&2
+  got_qed=$(grep -c '(:QED' "$OUTPUT" || true)
+  if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED\|proof attempt has failed" "$OUTPUT"; then
+    echo "WARNING: $(basename "$INPUT") — ACL2 reported a FAILED/aborted event; log is INCOMPLETE." >&2
+  elif [ "$got_qed" -lt "$got_defthm" ]; then
+    echo "WARNING: $(basename "$INPUT") — $got_qed (:QED) for $got_defthm (:DEFTHM): a proof started but did NOT complete (no closing :QED). ACL2 FAILED a proof. Log is INCOMPLETE." >&2
   elif [ "$got_defthm" -lt "$want_defthm" ]; then
-    echo "WARNING: $(basename "$INPUT") — logged $got_defthm of $want_defthm defthm proof(s); ACL2 likely FAILED/halted an event (error text suppressed by :structured). Log is INCOMPLETE." >&2
+    echo "WARNING: $(basename "$INPUT") — logged $got_defthm of $want_defthm defthm proof(s); ACL2 likely FAILED/halted before a later event. Log is INCOMPLETE." >&2
   fi
 
-  echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines, $got_defthm/$want_defthm defthm(s) → $OUTPUT"
+  echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines, $got_qed/$got_defthm qed/defthm (source: $want_defthm) → $OUTPUT"
 done

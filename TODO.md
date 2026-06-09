@@ -161,6 +161,24 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
       correctness for new theorems the driver targets.
 - [ ] **Reconstruction coverage** — work through `docs/notes/2026-06-07_silent-drop-inventory.md`
       and the recon-tests findings; ensure no silent drops.
+- [ ] **Careful revision of the capture / emission infra (2026-06-09).** Repeated issues
+      have surfaced here (the `:DEFTHM`-count heuristic was fooled by a FAILED proof —
+      a non-theorem rendered a full tree and exited 0; `let`/`let*` semantics diverged;
+      untagged ACL2 insertions; measure-instantiation bug). Do a deliberate end-to-end
+      pass over stages 2–4 infra, not piecemeal patches. Known sub-items:
+    - **Explicit `emit/proof-failed` (the proper positive failure signal).** ACL2 knows
+      when a proof fails; emit a structured `(:PROOF-FAILED :NAME …)` (or `:RESULT :FAILED`
+      on the `:DEFTHM`-close) at the single event-summary choke point — there are many
+      failure paths in `prove.lisp` (≈L202/610/4537/5177/7758), so find the common one.
+      Then parse it (`ProofEvent`) and hard-fail reconstruction on it. **Backstop already
+      in place** (2026-06-09): `buildDevelopment` hard-fails on any `:DEFTHM` block lacking
+      its `:QED`; the CLI exits non-zero; `capture-proof-log.sh` warns on `qed < defthm`
+      and on the "proof attempt has failed" prose. The explicit emit upgrades inference→positive.
+    - Re-audit the capture script's other heuristics (source `(defthm` count vs logged,
+      `:STOP-LD` suppression under `:structured`) and the `recon-test-dump.sh` `|| true`
+      (which swallows the new non-zero dump exit — decide if that should surface).
+    - Differential-test the emission itself, not just `evalOpt` (does the log faithfully
+      reflect the proof? a failed/odd proof should be detectable from the log alone).
 - [x] **#24** — `fix` modeled as a defined function in the hand-proof world (ACL2 ground-zero
       body); base-case node3 unfolds it via `definition:fix`. (Other `definition:`-runed
       ground-zero fns: add as needed.)

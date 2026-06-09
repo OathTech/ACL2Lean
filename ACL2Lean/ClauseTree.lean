@@ -388,6 +388,14 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
   for ev in log.events do
     match ev with
     | .defthm _ _ _ | .qed =>
+      -- A named (:DEFTHM) block is a completed proof ONLY if it ends with its
+      -- (:QED). If a NEW :DEFTHM closes it instead, ACL2 never emitted QED for the
+      -- open theorem — its proof FAILED/aborted (the log is truncated mid-proof).
+      -- Hard-fail: a failed proof must never flow through as a reconstructed
+      -- theorem (the no-silent-skip rule; a failed ACL2 run is not a theorem).
+      if let some openName := curName then
+        if (match ev with | .defthm _ _ _ => true | _ => false) then
+          throw s!"buildDevelopment: theorem '{openName}' has no closing (:QED) before the next (:DEFTHM) — ACL2 proof incomplete or FAILED (log truncated mid-proof)."
       -- Close the current block: named → a theorem event; anonymous with steps
       -- → the pending termination proof for the next defun.
       let (p?, a) ← closeBlock curName curFormula curEvents anon
@@ -406,6 +414,11 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
     | .typePrescription n cor bts leaves =>
       events := events.push (.typePrescription n cor bts leaves)
     | .step _ | .induction _ => curEvents := curEvents.push ev
+  -- Close any trailing block. A still-open NAMED block at end-of-log means the
+  -- final theorem never emitted its (:QED) — ACL2's proof FAILED or the log was
+  -- truncated mid-proof. Hard-fail rather than accept it as a proven theorem.
+  if let some openName := curName then
+    throw s!"buildDevelopment: theorem '{openName}' has no closing (:QED) at end of log — ACL2 proof incomplete or FAILED (log truncated mid-proof)."
   -- Close any trailing block.
   let (p?, _) ← closeBlock curName curFormula curEvents anon
   if let some p := p? then
@@ -468,6 +481,19 @@ private def pathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 -- The theorem and its root clause.
 #guard (simpleProof.map (·.name)) == some "my-len-my-app"
 #guard (simpleProof.bind (·.root) |>.map (·.idStr)) == some "Goal"
+
+-- Regression: a FAILED/incomplete ACL2 proof must be REJECTED, never accepted as
+-- a theorem. ACL2 emits (:DEFTHM …) at proof START and (:QED) only on SUCCESS, so a
+-- :DEFTHM block with no closing :QED is a failed/truncated proof. buildDevelopment
+-- must hard-fail on it (previously it silently rendered a full tree, exit 0).
+-- A lone :DEFTHM, no :QED → rejected at end-of-log (trailing-block check).
+#guard (ClauseTree.buildDevelopment { events := [.defthm "bogus"] }).toOption.isNone
+-- Same theorem WITH its :QED → accepted (control: the gate is the missing :QED, not the block).
+#guard (ClauseTree.buildDevelopment { events := [.defthm "ok", .qed] }).toOption.isSome
+-- A :DEFTHM whose :QED never comes before the NEXT :DEFTHM → rejected (mid-stream check).
+#guard (ClauseTree.buildDevelopment { events := [.defthm "bad", .defthm "next", .qed] }).toOption.isNone
+-- Two fully-completed theorems in sequence → accepted (no false positive).
+#guard (ClauseTree.buildDevelopment { events := [.defthm "a", .qed, .defthm "b", .qed] }).toOption.isSome
 
 -- A synthesized induction node (`*1`) with two case subgoals.
 #guard (simpleProof.bind (·.root) |>.map fun r =>
