@@ -166,27 +166,41 @@ private def asApp (t : SExpr) : Option (Symbol × List SExpr) :=
   | some (.atom (.symbol fn) :: args) => some (fn, args)
   | _ => none
 
-/-- Build the congruence steps from the node's `:PATH` (`PathFrame`s, literal-root
-    first) by NAVIGATING `term`: the head frame is the literal itself, and each later
-    `.arg bkptr fn` frame descends into argument `bkptr`. Returns the steps outer→inner
-    (whose composition lifts the redex to `term`), and verifies the navigated subterm
-    is `lhs`. Position comes entirely from the path — no subterm search, no ambiguity.
-    `.boundary` frames (child nodes inside an unfold) and arity > 2 are not yet
-    supported — hard-fail. -/
-private def pathStepsFromFrames (term : SExpr) (frames : List PathFrame) (lhs : SExpr)
+/-- Relativize a node's `:PATH` to its nesting depth: at depth 0 (a top-level chain
+    node) drop the literal-root descriptor frame; at depth d > 0 (a child d unfold/
+    rule boundaries deep) drop everything through the d-th `.boundary` frame — the
+    remainder navigates within the chain's start term (the substituted body /
+    rule rhs). -/
+def relativizeFrames (frames : List PathFrame) (depth : Nat) : Except String (List PathFrame) :=
+  if depth == 0 then pure (frames.drop 1)
+  else go frames depth
+where
+  go : List PathFrame → Nat → Except String (List PathFrame)
+    | fs, 0 => pure fs
+    | [], d => throw s!"relativizeFrames: path exhausted with {d} boundaries still expected"
+    | .boundary _ _ :: rest, d => go rest (d - 1)
+    | _ :: rest, d => go rest d
+
+private def pathStepsFromFrames (term : SExpr) (descentFrames : List PathFrame) (lhs : SExpr)
     : Except String (List PathStep) := do
   let mut cur := term
   let mut steps : List PathStep := []
-  for fr in frames.drop 1 do          -- drop the literal-root frame; descend the rest
+  for fr in descentFrames do
     match fr with
     | .boundary k _ =>
-      throw s!"pathStepsFromFrames: boundary frame {k.name} (child-node congruence unsupported)"
+      throw s!"pathStepsFromFrames: unexpected residual boundary frame {k.name} \
+              (nesting deeper than the chain's depth)"
     | .arg idx _ =>
       match asApp cur with
       | none => throw s!"pathStepsFromFrames: path descends into non-application {repr cur}"
       | some (fn, args) =>
-        if args.length > 2 then
-          throw s!"pathStepsFromFrames: arity {args.length} application unsupported (only ≤ 2): {repr cur}"
+        if args.length == 3 then
+          -- only the lazy `if`'s TEST position admits congruence
+          unless fn.name == "if" && idx == 1 do
+            throw s!"pathStepsFromFrames: arity-3 congruence only into an if's test \
+                    (got {fn.name} arg {idx}): {repr cur}"
+        else if args.length > 3 then
+          throw s!"pathStepsFromFrames: arity {args.length} application unsupported: {repr cur}"
         if idx < 1 || idx > args.length then
           throw s!"pathStepsFromFrames: arg index {idx} out of range for {repr cur}"
         let siblings := (args.zipIdx).filterMap (fun (a, i) => if i + 1 == idx then none else some a)
@@ -203,6 +217,7 @@ private def rebuild (fn : Symbol) (arity argIdx : Nat) (sub : SExpr) (siblings :
     | 1, 0, _ => [sub]
     | 2, 0, [s] => [sub, s]
     | 2, 1, [s] => [s, sub]
+    | 3, 0, [t, e] => [sub, t, e]   -- if-test position
     | _, _, _ => panic! "rebuild: bad arity/argIdx"
   -- build (fn args...) as a proper s-expression list
   .cons (.atom (.symbol fn)) (args.foldr SExpr.cons .nil)
@@ -222,14 +237,21 @@ private def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : E
   | 2, 1, [a] =>
     return mkAppN (mkConst ``evalOpt_congr_binary_right)
       #[w, e, fnE, reflectSExpr a, reflectSExpr sub, reflectSExpr sub', ns, inner]
+  | 3, 0, [t, el] =>
+    -- the lazy if's TEST position (the only sound arity-3 congruence)
+    unless st.fn.name == "if" do
+      throwError "applyStep: arity-3 congruence only for if (got {st.fn.name})"
+    return mkAppN (mkConst ``evalOpt_congr_if_test)
+      #[w, e, reflectSExpr sub, reflectSExpr sub', reflectSExpr t, reflectSExpr el, inner]
   | _, _, _ => throwError "applyStep: unsupported arity/argIdx {st.arity}/{st.argIdx}"
 
 /-- Lift a node proof `nodeProof : ∃N∀f≥N, eval lhs = eval rhs` to the whole literal
     `term`, DIRECTED by the node's `:PATH` (`frames`) — no subterm search. Returns the
     lifted proof and the rewritten term `term[lhs := rhs]`. -/
 def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
-    (lhs rhs : SExpr) (nodeProof : Expr) : MetaM (Expr × SExpr) := do
-  let path ← ofExcept (pathStepsFromFrames term frames lhs)
+    (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0) : MetaM (Expr × SExpr) := do
+  let rel ← ofExcept (relativizeFrames frames depth)
+  let path ← ofExcept (pathStepsFromFrames term rel lhs)
   -- Fold from the innermost path step outward.
   let mut inner := nodeProof
   let mut curL := lhs
@@ -300,10 +322,13 @@ structure ReplayConfig where
 structure ReplayCtx where
   varVals : List (Symbol × Expr × Expr) := []
   vals : List (SExpr × Expr × Expr) := []
-  nilFacts : List (SExpr × Expr × Expr) := []
   ih : Option Expr := none
 
 def ReplayCtx.empty : ReplayCtx := {}
+
+/-- Look up a pinned value fact for `t` in the context. -/
+def ReplayCtx.val? (ctx : ReplayCtx) (t : SExpr) : Option (Expr × Expr) :=
+  (ctx.vals.find? (fun (o, _, _) => o == t)).map fun (_, v, p) => (v, p)
 
 /-- `(quote t)`, the result an equal-self literal reduces to. -/
 def quoteT : SExpr := .cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil)
@@ -371,174 +396,6 @@ def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
       (mkApp2 (mkConst ``Symbol.isNamed) (reflectSymbol s) (mkStrLit name)) (mkConst ``Bool.false))
     s!"{s.name}.isNamed {name} = false"
 
-/-- Prove a term CONVERGES (v-fixed totality): `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v`
-    — a single definite value (`evalOpt` is fuel-monotone), so callers can `obtain` the
-    witness and feed any value-specific lemma. The value may be env-dependent (a free
-    variable) but is still fixed across fuel. S2 handles a free variable (via `re_conv_var`,
-    valid for ALL `env`) and a `(quote v)` constant; any other shape is an unimplemented
-    frontier → `throwError` (the full convergence analyzer, G1, lands in a later stage). -/
-partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t : SExpr) :
-    MetaM Expr := do
-  match t with
-  | .atom (.symbol s) =>
-    let hNotT ← proveIsNamedFalse s "t"
-    mkAppM ``re_conv_var #[cfg.worldExpr, envExpr, reflectSymbol s, hNotT]
-  | .cons (.atom (.symbol qs)) (.cons v .nil) =>
-    if qs.name == "quote" then
-      mkAppM ``re_conv_quote #[cfg.worldExpr, envExpr, reflectSExpr v]
-    else if qs.name == "car" || qs.name == "cdr" || qs.name == "consp" then
-      -- unary builtin: recurse on the operand, apply that builtin's conv wrapper.
-      let ha ← proveConv cfg envExpr ctx v
-      let hNo ← proveNoShadow cfg qs
-      let lem := match qs.name with
-        | "car" => ``re_conv_car | "cdr" => ``re_conv_cdr | _ => ``re_conv_consp
-      mkAppM lem #[cfg.worldExpr, envExpr, reflectSExpr v, hNo, ha]
-    else throwError "proveConv: no convergence rule for unary {qs.name}: {repr t}"
-  | .cons (.atom (.symbol bs)) (.cons a (.cons b .nil)) =>
-    -- builtin application — recurse on operands, apply that builtin's conv wrapper.
-    if bs.name == "cons" then
-      let ha ← proveConv cfg envExpr ctx a
-      let hb ← proveConv cfg envExpr ctx b
-      let hNoCons ← proveNoShadow cfg { name := "cons" }
-      mkAppM ``re_conv_cons #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoCons, ha, hb]
-    else if bs.name == "binary-*" then
-      let ha ← proveConv cfg envExpr ctx a
-      let hb ← proveConv cfg envExpr ctx b
-      let hNoTimes ← proveNoShadow cfg { name := "binary-*" }
-      mkAppM ``re_conv_times #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoTimes, ha, hb]
-    else if bs.name == "binary-+" then
-      let ha ← proveConv cfg envExpr ctx a
-      let hb ← proveConv cfg envExpr ctx b
-      let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
-      mkAppM ``re_conv_plus #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoPlus, ha, hb]
-    else throwError "proveConv: no convergence rule for binary {bs.name}: {repr t}"
-  | _ => throwError "proveConv: no convergence rule for {repr t}"
-
-/-- Prove a term converges in EVERY environment: `∀ env', ∃ N, ∃ v, ∀ f ≥ N,
-    evalOpt f w env' t = some v`. Runs `proveConv` under a quantified `env'` and
-    λ-abstracts. (Used for a definition body, whose convergence `re_unfold1_conv` needs
-    at the `bindArgs` env.) -/
-def proveConvAllEnv (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) : MetaM Expr := do
-  withLocalDeclD `env' (mkConst ``Env) fun env' => do
-    let p ← proveConv cfg env' ctx t
-    mkLambdaFVars #[env'] p
-
-/-- Replay one rewrite node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`, by
-    applying that rune's combinator. (equal-self is the literal closer, handled in
-    `replayLiteral`, not here.) Unhandled runes hard-fail (fail-closed). -/
-def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) : MetaM Expr := do
-  let (rty, rname) := runeOf n
-  let (lhs, rhs) := nodeLhsRhs n
-  match rty, rname with
-  | "rewrite", "cdr-cons" =>
-    -- `(cdr (cons a b)) ⇒ b`.
-    match lhs with
-    | .cons (.atom (.symbol cdrS))
-        (.cons (.cons (.atom (.symbol consS)) (.cons a (.cons b .nil))) .nil) =>
-      unless cdrS.name == "cdr" && consS.name == "cons" do
-        throwError "cdr-cons: lhs head not (cdr (cons …)): {repr lhs}"
-      unless rhs == b do
-        throwError "cdr-cons: rhs {repr rhs} ≠ the cons's cdr operand {repr b}"
-      let ha ← proveConv cfg cfg.envExpr ctx a
-      let hb ← proveConv cfg cfg.envExpr ctx b
-      let hNoCdr ← proveNoShadow cfg { name := "cdr" }
-      let hNoCons ← proveNoShadow cfg { name := "cons" }
-      mkAppM ``re_cdr_cons_conv
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
-    | _ => throwError "cdr-cons: lhs not (cdr (cons a b)): {repr lhs}"
-  | "definition", _ =>
-    -- `(fn arg) ⇒ substTerm [formal] [arg] body`. DefInfo (def/closed/no-let facts) is
-    -- DERIVED from the world on the fly — no carried config.
-    match lhs with
-    | .cons (.atom (.symbol fn)) (.cons arg .nil) =>
-      let di ← deriveDefInfo cfg fn
-      let hns ← proveNotSpecial fn
-      let harg ← proveConv cfg cfg.envExpr ctx arg
-      let hbodyAll ← proveConvAllEnv cfg ctx di.body
-      mkAppM ``re_unfold1_conv
-        #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol di.formal,
-          reflectSExpr di.body, reflectSExpr arg, hns,
-          di.defFact, di.closedFact, di.noLetFact, harg, hbodyAll]
-    | _ => throwError "definition: lhs not a 1-arg application (fn arg): {repr lhs}"
-  | _, _ =>
-    throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
-
-/-- Replay a chain of rewrite nodes, lifting each through the literal context and
-    chaining. Returns the composed `∃N∀f≥N, eval start = eval finalTerm` (or `none`
-    if the chain is empty) and the final term. -/
-partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr) :
-    List ProofNode → MetaM (Option Expr × SExpr)
-  | [] => return (none, start)
-  | n :: rest => do
-    let (lhs, rhs) := nodeLhsRhs n
-    let nodeEq ← replayNode cfg ctx n
-    let (lifted, newTerm) ← emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq
-    let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest
-    match restProof with
-    | none => return (some lifted, finalTerm)
-    | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
-
-/-- Replay a literal that closes to `t`: chain its rewrite nodes, then close with the
-    terminal `equal-self` node. Returns `∃N∀f≥N, eval lp.literal = some t`. -/
-def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : MetaM Expr := do
-  match lp.nodes.reverse with
-  | [] => throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
-  | closer :: revRest =>
-    match closer with
-    | .node ("equal-self", _) clhs _ _ _ =>
-      match asEqualSelf clhs with
-      | none => throwError "replayLiteral: equal-self lhs is not (equal X X): {repr clhs}"
-      | some X =>
-        let (chainOpt, curTerm) ← replayRewrites cfg ctx lp.literal revRest.reverse
-        unless curTerm == clhs do
-          throwError "replayLiteral: rewrite chain reached {repr curTerm}, \
-                      expected equal-self redex {repr clhs}"
-        let hX ← proveConv cfg cfg.envExpr ctx X
-        let hNoEqual ← proveNoShadow cfg { name := "equal" }
-        let closeProof ← mkAppM ``re_equal_self
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
-        match chainOpt with
-        | none => return closeProof
-        | some ch => mkAppM ``fuel_chain_eq #[ch, closeProof]
-    | _ => throwError "replayLiteral: terminal node is not equal-self (rune {repr (runeOf closer)})"
-
-/-- The first literal in a clause's items that reduces to `(quote t)` (the disjunct
-    that makes the clause true). -/
-partial def findClosingLiteral : List ClauseItem → Option LiteralProof
-  | [] => none
-  | .literal lp :: rest => if lp.result == quoteT then some lp else findClosingLiteral rest
-  | .step _ :: rest => findClosingLiteral rest
-  | .branch _ items :: rest =>
-    match findClosingLiteral items with
-    | some lp => some lp
-    | none => findClosingLiteral rest
-
-/-- Replay a clause node: prove `∃N∀f≥N, eval clauseFormula = some t`. S2: no
-    induction, no case-split children — find the literal that closes to `t` and
-    replay it. Induction / multi-clause structure hard-fails (lands in S3+). -/
-partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) : MetaM Expr := do
-  if cn.induction.isSome then
-    throwError "replayClause: induction scheme not yet supported (clause {cn.idStr})"
-  let allItems := cn.steps.flatMap (·.items)
-  match findClosingLiteral allItems with
-  | some lp => replayLiteral cfg ctx lp
-  | none => throwError "replayClause: no literal closing to (quote t) in clause {cn.idStr}"
-
-/-- Replay a whole theorem's proof tree to its mirror statement
-    `∃N∀f≥N, eval cp.formula = some t`. -/
-def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
-  match cp.root with
-  | none => throwError "replayProof: theorem {cp.name} has no proof tree"
-  | some root => replayClause cfg ReplayCtx.empty root
-
-/-! ## Value characterization (shared by clause-spine replay and the DP lift)
-
-The driver's value layer: every primitive-only term (with opaque user-fn
-occurrences and scaffold-bound variables resolved through the `ReplayCtx`) has an
-explicit `Logic`-primitive VALUE expression, and a proof that it evaluates to that
-value. Moved here from `DischargeLeaf` and generalized with a variable override so
-the induction scaffold can pin the controller's value (`xv`). -/
-
 /-- DP-lift primitives (unary): ACL2 name → (Logic function, `callBuiltin` rfl lemma). -/
 def dpUnary : List (String × Name × Name) :=
   [("not",      ``Logic.not,      ``callBuiltin_not),
@@ -553,6 +410,8 @@ def dpBinary : List (String × Name × Name) :=
   [("equal",    ``Logic.equal,   ``callBuiltin_equal),
    ("<",        ``Logic.lt,      ``callBuiltin_lt),
    ("binary-+", ``Logic.plus,    ``callBuiltin_plus),
+   ("binary-*", ``Logic.times,   ``callBuiltin_times),
+   ("cons",     ``SExpr.cons,    ``callBuiltin_cons),
    ("implies",  ``Logic.implies, ``callBuiltin_implies),
    ("iff",      ``Logic.iff,     ``callBuiltin_iff)]
 
@@ -561,6 +420,81 @@ def dpBinary : List (String × Name × Name) :=
 def dpKnownHead (name : String) : Bool :=
   name == "quote" || name == "if" ||
   (dpUnary.lookup name).isSome || (dpBinary.lookup name).isSome
+
+
+/-- Prove a term CONVERGES (v-fixed totality): `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v`
+    — a single definite value (`evalOpt` is fuel-monotone), so callers can `obtain` the
+    witness and feed any value-specific lemma. The value may be env-dependent (a free
+    variable) but is still fixed across fuel. S2 handles a free variable (via `re_conv_var`,
+    valid for ALL `env`) and a `(quote v)` constant; any other shape is an unimplemented
+    frontier → `throwError` (the full convergence analyzer, G1, lands in a later stage). -/
+partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t : SExpr) :
+    MetaM Expr := do
+  -- a pinned ctx fact covers any term (uniform with the value layer)
+  if let some (_, p) := ctx.val? t then
+    return ← mkAppM ``conv_vfix_of_val #[p]
+  match t with
+  | .atom (.symbol s) =>
+    let hNotT ← proveIsNamedFalse s "t"
+    mkAppM ``re_conv_var #[cfg.worldExpr, envExpr, reflectSymbol s, hNotT]
+  | .cons (.atom (.symbol qs)) (.cons v .nil) =>
+    if qs.name == "quote" then
+      mkAppM ``re_conv_quote #[cfg.worldExpr, envExpr, reflectSExpr v]
+    else match dpUnary.lookup qs.name with
+      | some (fn, cbLemma) =>
+        -- REGISTRY-GENERIC: any registered (total) builtin converges when its
+        -- operand does; the registry equation supplies the value function.
+        let ha ← proveConv cfg envExpr ctx v
+        let hNs ← proveNotSpecial qs
+        let hNo ← proveNoShadow cfg qs
+        let hReg ← withLocalDeclD `av (mkConst ``SExpr) fun av => do
+          mkLambdaFVars #[av] (← mkAppM cbLemma #[av])
+        mkAppM ``re_conv_builtin1_reg
+          #[cfg.worldExpr, envExpr, reflectSymbol qs, reflectSExpr v,
+            mkConst fn, hNs, hNo, hReg, ha]
+      | none => throwError "proveConv: unary {qs.name} not in the builtin registry \
+                            (frontier): {repr t}"
+  | .cons (.atom (.symbol bs)) (.cons a (.cons b .nil)) =>
+    match dpBinary.lookup bs.name with
+    | some (fn, cbLemma) =>
+      let ha ← proveConv cfg envExpr ctx a
+      let hb ← proveConv cfg envExpr ctx b
+      let hNs ← proveNotSpecial bs
+      let hNo ← proveNoShadow cfg bs
+      let hReg ← withLocalDeclD `av (mkConst ``SExpr) fun av =>
+        withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
+          mkLambdaFVars #[av, bv] (← mkAppM cbLemma #[av, bv])
+      mkAppM ``re_conv_builtin2_reg
+        #[cfg.worldExpr, envExpr, reflectSymbol bs, reflectSExpr a, reflectSExpr b,
+          mkConst fn, hNs, hNo, hReg, ha, hb]
+    | none => throwError "proveConv: binary {bs.name} not in the builtin registry \
+                          (frontier): {repr t}"
+  | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
+    if fs.name == "if" then
+      let hc ← proveConv cfg envExpr ctx c
+      let ht ← proveConv cfg envExpr ctx th
+      let he ← proveConv cfg envExpr ctx e
+      mkAppM ``re_conv_if
+        #[cfg.worldExpr, envExpr, reflectSExpr c, reflectSExpr th, reflectSExpr e, hc, ht, he]
+    else throwError "proveConv: ternary {fs.name} not supported (frontier): {repr t}"
+  | _ => throwError "proveConv: no convergence rule for {repr t}"
+
+/-- Prove a term converges in EVERY environment: `∀ env', ∃ N, ∃ v, ∀ f ≥ N,
+    evalOpt f w env' t = some v`. Runs `proveConv` under a quantified `env'` and
+    λ-abstracts. (Used for a definition body, whose convergence `re_unfold1_conv` needs
+    at the `bindArgs` env.) -/
+def proveConvAllEnv (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) : MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``Env) fun env' => do
+    let p ← proveConv cfg env' ctx t
+    mkLambdaFVars #[env'] p
+
+/-! ## Value characterization (shared by clause-spine replay and the DP lift)
+
+The driver's value layer: every primitive-only term (with opaque user-fn
+occurrences and scaffold-bound variables resolved through the `ReplayCtx`) has an
+explicit `Logic`-primitive VALUE expression, and a proof that it evaluates to that
+value. Moved here from `DischargeLeaf` and generalized with a variable override so
+the induction scaffold can pin the controller's value (`xv`). -/
 
 /-- Collect the MAXIMAL opaque subterms (user-fn applications) of a term, in
     first-occurrence order, deduplicated. -/
@@ -689,5 +623,361 @@ def ctxValProof (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) : MetaM Expr 
     (ctx.vals.map fun (o, _, p) => (o, p))
     (fun s => (ctx.varVals.find? (fun (v, _, _) => v == s)).map fun (_, v, p) => (v, p))
     t
+
+
+/-- N-ary definition info (the c3 generalization of `DefInfo`). -/
+structure DefInfoN where
+  formals : List Symbol
+  body : SExpr
+  defFact : Expr
+  closedFact : Expr
+  noLetFact : Expr
+
+/-- Derive an n-ary defined function's facts on demand (kernel decision). -/
+def deriveDefInfoN (cfg : ReplayConfig) (fn : Symbol) : MetaM DefInfoN := do
+  match cfg.worldVal.defs.get? fn with
+  | none => throwError "deriveDefInfoN: {fn.name} not defined in the world"
+  | some (formals, body) =>
+    let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
+    let bodyE := reflectSExpr body
+    let someE ← mkAppM ``Option.some #[← mkAppM ``Prod.mk #[formalsE, bodyE]]
+    let defFact ← proveByDecide (← mkEq (← mkDefsGet cfg fn) someE) s!"def {fn.name}"
+    let fvE ← mkAppM ``ACL2.Replay.freeVars #[bodyE]
+    let closedProp ← withLocalDeclD `s (mkConst ``ACL2.Symbol) fun sv => do
+      let memFv ← mkAppM ``Membership.mem #[fvE, sv]
+      let memFm ← mkAppM ``Membership.mem #[formalsE, sv]
+      mkForallFVars #[sv] (← mkArrow memFv memFm)
+    let closedFact ← proveByDecide closedProp s!"closed {fn.name}"
+    let noLetFact ← proveByDecide
+      (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[bodyE]) (mkConst ``Bool.true)) s!"nolet {fn.name}"
+    return { formals, body, defFact, closedFact, noLetFact }
+
+/-- Destructure an int-atom value `Expr` (`SExpr.atom (Atom.number (Number.int k))`)
+    into its `k`. Hard-fails on any other shape. -/
+def intValExpr? (v : Expr) : MetaM Expr := do
+  let v ← instantiateMVars v
+  unless v.isAppOfArity ``SExpr.atom 1 do throwError "expected int-atom value, got {v}"
+  let a := v.appArg!
+  unless a.isAppOfArity ``Atom.number 1 do throwError "expected int-atom value, got {v}"
+  let n := a.appArg!
+  unless n.isAppOfArity ``Number.int 1 do throwError "expected int-atom value, got {v}"
+  return n.appArg!
+
+mutual
+
+/-- Recognizer fact `∃N∀f≥N, eval term = some verdict` (verdict the node's recorded
+    `(quote t)`/`(quote nil)` value). Sources, in order: a fact pinned in the ctx by
+    the scaffold/spine (e.g. `(consp x)` under a case hypothesis); the
+    `acl2-numberp`-of-pinned-int recipe (the TP bridge); a structurally-computing
+    value (e.g. `consp (cons …) = t`, where the cast is definitional). -/
+partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (term : SExpr) (verdict : SExpr) : MetaM Expr := do
+  let verdictE := reflectSExpr verdict
+  if let some (v, p) := ctx.val? term then
+    unless ← isDefEq v verdictE do
+      throwError "replayRecognizer: pinned value of {repr term} ≠ verdict {repr verdict}"
+    return p
+  match term with
+  | .cons (.atom (.symbol rs)) (.cons z .nil) =>
+    if rs.name == "acl2-numberp" then
+      let some (vz, pz) := ctx.val? z
+        | throwError "replayRecognizer: acl2-numberp argument {repr z} has no pinned value"
+      let k ← intValExpr? vz
+      unless verdict == SExpr.t do
+        throwError "replayRecognizer: acl2-numberp of a pinned int must have verdict t"
+      let hNo ← proveNoShadow cfg { name := "acl2-numberp" }
+      mkAppM ``re_acl2_numberp_int #[cfg.worldExpr, cfg.envExpr, reflectSExpr z, k, hNo, pz]
+    else
+      let p ← ctxValProof cfg ctx term
+      let v ← ctxValExpr cfg ctx term
+      unless ← isDefEq v verdictE do
+        throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict}"
+      let hv ← mkEqRefl verdictE
+      mkAppM ``re_val_cast
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hv]
+  | _ => throwError "replayRecognizer: not a recognizer application: {repr term}"
+
+/-- The DEFINITION-node recipe, UNIFORM: unfold `(fn args) ⇒ substTerm formals args
+    body`, then chain the node's children (recognizer / if-simplification / deeper
+    rewrites) over the substituted body via the ordinary path-directed congruence
+    machinery (`replayRewrites` at depth+1 — their `:PATH`s carry the boundary
+    frame), checking the chain reaches the node's recorded rhs.
+
+    The unfold's body-convergence side condition has two ordered evidence sources:
+    the application's PINNED value (totality — required for recursive fns), else the
+    ∀-env convergence analyzer (sufficient for non-recursive bodies: direct, builtin,
+    or if-shaped). -/
+partial def replayDefinition (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
+    (depth : Nat) : MetaM Expr := do
+  let (lhs, rhs) := nodeLhsRhs n
+  let .node _ _ _ children _ := n
+  let .cons (.atom (.symbol fn)) argSpine := lhs
+    | throwError "definition: lhs is not an application: {repr lhs}"
+  let args := (argSpine.toList?).getD []
+  let di ← deriveDefInfoN cfg fn
+  unless di.formals.length == args.length do
+    throwError "definition: {fn.name} arity {di.formals.length} ≠ {args.length} args"
+  let hns ← proveNotSpecial fn
+  -- the unfold: eval lhs = eval (substTerm formals args body), with the body
+  -- convergence from the ordered evidence sources
+  let unfold ←
+    match ctx.val? lhs with
+    | some (rv, papp) =>
+      -- evidence 1: pinned application value (totality)
+      let argVals ← args.mapM (ctxValExpr cfg ctx)
+      let argConvs ← args.mapM (ctxValProof cfg ctx)
+      match di.formals, args, argVals, argConvs with
+      | [f1], [a1], [v1], [p1] =>
+        let hbody ← mkAppM ``re_body_conv1
+          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
+            reflectSExpr di.body, reflectSExpr a1, v1, rv, hns, di.defFact, p1, papp]
+        mkAppM ``evalOpt_unfold1_conv
+          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
+            reflectSExpr di.body, reflectSExpr a1, v1, rv, hns,
+            di.defFact, di.closedFact, di.noLetFact, p1, hbody]
+      | [f1, f2], [a1, a2], [v1, v2], [p1, p2] =>
+        let hbody ← mkAppM ``re_body_conv2
+          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
+            reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, v1, v2, rv, hns,
+            di.defFact, p1, p2, papp]
+        mkAppM ``evalOpt_unfold2_conv
+          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
+            reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, v1, v2, rv, hns,
+            di.defFact, di.closedFact, di.noLetFact, p1, p2, hbody]
+      | _, _, _, _ => throwError "definition: only 1/2-arg unfolds supported (frontier)"
+    | none =>
+      -- evidence 2: the ∀-env convergence analyzer
+      let hbodyAll ← proveConvAllEnv cfg ctx di.body
+      match di.formals, args with
+      | [f1], [a1] =>
+        let harg ← proveConv cfg cfg.envExpr ctx a1
+        mkAppM ``re_unfold1_conv
+          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
+            reflectSExpr di.body, reflectSExpr a1, hns,
+            di.defFact, di.closedFact, di.noLetFact, harg, hbodyAll]
+      | [f1, f2], [a1, a2] =>
+        let h1 ← proveConv cfg cfg.envExpr ctx a1
+        let h2 ← proveConv cfg cfg.envExpr ctx a2
+        mkAppM ``re_unfold2_conv
+          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
+            reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, hns,
+            di.defFact, di.closedFact, di.noLetFact, h1, h2, hbodyAll]
+      | _, _ => throwError "definition: only 1/2-arg unfolds supported (frontier)"
+  -- children chain over the substituted body (depth+1: their paths carry one more
+  -- boundary frame), reaching the node's recorded rhs
+  let substBody := ACL2.Replay.substTerm di.formals args di.body
+  let (chainOpt, finalTerm) ← replayRewrites cfg ctx substBody children (depth + 1)
+  unless finalTerm == rhs do
+    throwError "definition: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
+  match chainOpt with
+  | none => return unfold
+  | some ch => mkAppM ``fuel_chain_eq #[unfold, ch]
+
+/-- Replay one rewrite node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`, by
+    applying that rune's recipe. (equal-self is the literal closer, handled in
+    `replayLiteral`, not here.) `depth` = the number of unfold/rule boundaries
+    above this node (relativizes child `:PATH`s). Unhandled runes hard-fail. -/
+partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
+    (depth : Nat := 0) : MetaM Expr := do
+  let (rty, rname) := runeOf n
+  let (lhs, rhs) := nodeLhsRhs n
+  let .node _ _ _ children _ := n
+  match rty, rname with
+  | "rewrite", "cdr-cons" =>
+    -- `(cdr (cons a b)) ⇒ b`.
+    match lhs with
+    | .cons (.atom (.symbol cdrS))
+        (.cons (.cons (.atom (.symbol consS)) (.cons a (.cons b .nil))) .nil) =>
+      unless cdrS.name == "cdr" && consS.name == "cons" do
+        throwError "cdr-cons: lhs head not (cdr (cons …)): {repr lhs}"
+      unless rhs == b do
+        throwError "cdr-cons: rhs {repr rhs} ≠ the cons's cdr operand {repr b}"
+      let ha ← proveConv cfg cfg.envExpr ctx a
+      let hb ← proveConv cfg cfg.envExpr ctx b
+      let hNoCdr ← proveNoShadow cfg { name := "cdr" }
+      let hNoCons ← proveNoShadow cfg { name := "cons" }
+      mkAppM ``re_cdr_cons_conv
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
+    | _ => throwError "cdr-cons: lhs not (cdr (cons a b)): {repr lhs}"
+  | "rewrite", "unicity-of-0" =>
+    -- `(binary-+ '0 z) ⇒ z` via the REAL intermediate `(fix z)` (the def:fix child
+    -- subtree is REPLAYED, not collapsed): (A) `(+ '0 z) ⇒ (fix z)` by both
+    -- converging to z's pinned int value; (B) the child `(fix z) ⇒ z`.
+    match lhs with
+    | .cons (.atom (.symbol plusS)) (.cons q0 (.cons z .nil)) =>
+      unless plusS.name == "binary-+" && rhs == z do
+        throwError "unicity-of-0: unexpected shape {repr lhs} ⇒ {repr rhs}"
+      let some (vz, pz) := ctx.val? z
+        | throwError "unicity-of-0: {repr z} has no pinned value (need the TP int fact)"
+      let k ← intValExpr? vz
+      let some fixChild := children.find? (fun c => (runeOf c).1 == "definition")
+        | throwError "unicity-of-0: missing the definition:fix child"
+      let (_fixLhs, fixRhs) := nodeLhsRhs fixChild
+      unless fixRhs == z do
+        throwError "unicity-of-0: fix child rhs {repr fixRhs} ≠ {repr z}"
+      let fixEq ← replayNode cfg ctx fixChild (depth + 1)
+      let fixConv ← mkAppM ``fuel_conv_of_eq #[fixEq, pz]
+      let hq0 ← ctxValProof cfg ctx q0
+      let vq0 ← ctxValExpr cfg ctx q0
+      let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
+      let hNsPlus ← proveNotSpecial { name := "binary-+" }
+      let hr ← mkAppM ``callBuiltin_plus #[vq0, vz]
+      let plusConvRaw ← mkAppM ``conv_builtin2
+        #[cfg.worldExpr, cfg.envExpr, reflectSymbol { name := "binary-+" },
+          reflectSExpr q0, reflectSExpr z, vq0, vz,
+          mkApp2 (mkConst ``Logic.plus) vq0 vz, hNsPlus, hNoPlus, hq0, pz, hr]
+      let hzero ← mkAppM ``logic_plus_zero_int #[k]
+      let plusConv ← mkAppM ``re_val_cast
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr lhs,
+          mkApp2 (mkConst ``Logic.plus) vq0 vz, vz, plusConvRaw, hzero]
+      let stepA ← mkAppM ``fuel_eq_of_conv #[plusConv, fixConv, ← mkEqRefl vz]
+      mkAppM ``fuel_chain_eq #[stepA, fixEq]
+    | _ => throwError "unicity-of-0: lhs not (binary-+ '0 z): {repr lhs}"
+  | "rewrite", "commutativity-of-+" =>
+    match lhs with
+    | .cons (.atom (.symbol plusS)) (.cons a (.cons b .nil)) =>
+      unless plusS.name == "binary-+" do
+        throwError "commutativity-of-+: head {plusS.name}"
+      let ha ← ctxValProof cfg ctx a
+      let hb ← ctxValProof cfg ctx b
+      let va ← ctxValExpr cfg ctx a
+      let vb ← ctxValExpr cfg ctx b
+      let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
+      mkAppM ``re_plus_comm
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, va, vb, hNoPlus, ha, hb]
+    | _ => throwError "commutativity-of-+: lhs not (binary-+ a b): {repr lhs}"
+  | "rewrite", "commutativity-2-of-+" =>
+    match lhs with
+    | .cons (.atom (.symbol plusS))
+        (.cons a (.cons (.cons (.atom (.symbol plusS2)) (.cons b (.cons c .nil))) .nil)) =>
+      unless plusS.name == "binary-+" && plusS2.name == "binary-+" do
+        throwError "commutativity-2-of-+: heads"
+      let ha ← ctxValProof cfg ctx a
+      let hb ← ctxValProof cfg ctx b
+      let hc ← ctxValProof cfg ctx c
+      let va ← ctxValExpr cfg ctx a
+      let vb ← ctxValExpr cfg ctx b
+      let vc ← ctxValExpr cfg ctx c
+      let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
+      mkAppM ``re_plus_comm2
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, reflectSExpr c,
+          va, vb, vc, hNoPlus, ha, hb, hc]
+    | _ => throwError "commutativity-2-of-+: lhs not (+ a (+ b c)): {repr lhs}"
+  | "definition", _ => replayDefinition cfg ctx n depth
+  | "fake-rune-for-anonymous-enabled-rule", _ =>
+    -- recognizer node: term-eq form (eval lhs = eval rhs, rhs the quoted verdict).
+    let verdictV := match rhs with
+      | .cons (.atom (.symbol q)) (.cons v .nil) => if q.name == "quote" then v else rhs
+      | v => v
+    let fact ← replayRecognizer cfg ctx lhs verdictV
+    let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr verdictV]
+    mkAppM ``fuel_eq_of_conv #[fact, hq, ← mkEqRefl (reflectSExpr verdictV)]
+  | "if-simplification", _ =>
+    -- `(if 'c thn els) ⇒ branch` — the test is already a quoted constant (a
+    -- preceding recognizer rewrote it via if-test congruence).
+    match lhs with
+    | .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) =>
+      unless ifS.name == "if" do
+        throwError "if-simplification: head {ifS.name}"
+      let .cons (.atom (.symbol q)) (.cons cv .nil) := c
+        | throwError "if-simplification: test is not a quoted constant: {repr c}"
+      unless q.name == "quote" do
+        throwError "if-simplification: test is not a quoted constant: {repr c}"
+      let hc ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+      if cv == SExpr.nil then
+        unless rhs == els do
+          throwError "if-simplification: nil test but rhs ≠ else branch"
+        let pEls ← ctxValProof cfg ctx els
+        let vEls ← ctxValExpr cfg ctx els
+        mkAppM ``re_if_false
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn, reflectSExpr els,
+            vEls, hc, pEls]
+      else
+        unless rhs == thn do
+          throwError "if-simplification: non-nil test but rhs ≠ then branch"
+        let pThn ← ctxValProof cfg ctx thn
+        let vThn ← ctxValExpr cfg ctx thn
+        let hcv ← proveByDecide
+          (← mkEq (mkApp (mkConst ``Logic.toBool) (reflectSExpr cv)) (mkConst ``Bool.true))
+          "toBool verdict = true"
+        mkAppM ``re_if_true
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn, reflectSExpr els,
+            reflectSExpr cv, vThn, hc, hcv, pThn]
+    | _ => throwError "if-simplification: lhs not an if: {repr lhs}"
+  | _, _ =>
+    throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
+
+/-- Replay a chain of rewrite nodes, lifting each through the chain's start term by
+    path-directed congruence (paths relativized to `depth`) and chaining. Returns
+    the composed `∃N∀f≥N, eval start = eval finalTerm` (or `none` if the chain is
+    empty) and the final term. -/
+partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr) :
+    List ProofNode → (depth : Nat := 0) → MetaM (Option Expr × SExpr)
+  | [], _ => return (none, start)
+  | n :: rest, depth => do
+    let (lhs, rhs) := nodeLhsRhs n
+    let nodeEq ← replayNode cfg ctx n depth
+    let (lifted, newTerm) ←
+      emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth
+    let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth
+    match restProof with
+    | none => return (some lifted, finalTerm)
+    | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
+
+end
+
+
+/-- Replay a literal that closes to `t`: chain its rewrite nodes, then close with the
+    terminal `equal-self` node. Returns `∃N∀f≥N, eval lp.literal = some t`. -/
+def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : MetaM Expr := do
+  match lp.nodes.reverse with
+  | [] => throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
+  | closer :: revRest =>
+    match closer with
+    | .node ("equal-self", _) clhs _ _ _ =>
+      match asEqualSelf clhs with
+      | none => throwError "replayLiteral: equal-self lhs is not (equal X X): {repr clhs}"
+      | some X =>
+        let (chainOpt, curTerm) ← replayRewrites cfg ctx lp.literal revRest.reverse
+        unless curTerm == clhs do
+          throwError "replayLiteral: rewrite chain reached {repr curTerm}, \
+                      expected equal-self redex {repr clhs}"
+        let hX ← proveConv cfg cfg.envExpr ctx X
+        let hNoEqual ← proveNoShadow cfg { name := "equal" }
+        let closeProof ← mkAppM ``re_equal_self
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
+        match chainOpt with
+        | none => return closeProof
+        | some ch => mkAppM ``fuel_chain_eq #[ch, closeProof]
+    | _ => throwError "replayLiteral: terminal node is not equal-self (rune {repr (runeOf closer)})"
+
+/-- The first literal in a clause's items that reduces to `(quote t)` (the disjunct
+    that makes the clause true). -/
+partial def findClosingLiteral : List ClauseItem → Option LiteralProof
+  | [] => none
+  | .literal lp :: rest => if lp.result == quoteT then some lp else findClosingLiteral rest
+  | .step _ :: rest => findClosingLiteral rest
+  | .branch _ items :: rest =>
+    match findClosingLiteral items with
+    | some lp => some lp
+    | none => findClosingLiteral rest
+
+/-- Replay a clause node: prove `∃N∀f≥N, eval clauseFormula = some t`. S2: no
+    induction, no case-split children — find the literal that closes to `t` and
+    replay it. Induction / multi-clause structure hard-fails (lands in S3+). -/
+partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) : MetaM Expr := do
+  if cn.induction.isSome then
+    throwError "replayClause: induction scheme not yet supported (clause {cn.idStr})"
+  let allItems := cn.steps.flatMap (·.items)
+  match findClosingLiteral allItems with
+  | some lp => replayLiteral cfg ctx lp
+  | none => throwError "replayClause: no literal closing to (quote t) in clause {cn.idStr}"
+
+/-- Replay a whole theorem's proof tree to its mirror statement
+    `∃N∀f≥N, eval cp.formula = some t`. -/
+def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
+  match cp.root with
+  | none => throwError "replayProof: theorem {cp.name} has no proof tree"
+  | some root => replayClause cfg ReplayCtx.empty root
 
 end ACL2.Replay.Driver

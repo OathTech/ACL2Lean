@@ -1314,6 +1314,22 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
     callBuiltin "cdr" [a] = some (Logic.cdr a) := by rfl
 @[simp] theorem callBuiltin_plus (a b : SExpr) :
     callBuiltin "binary-+" [a, b] = some (Logic.plus a b) := by rfl
+@[simp] theorem callBuiltin_times (a b : SExpr) :
+    callBuiltin "binary-*" [a, b] = some (Logic.times a b) := by rfl
+@[simp] theorem callBuiltin_acl2_numberp (a : SExpr) :
+    callBuiltin "acl2-numberp" [a] = some (Logic.acl2Numberp a) := by
+  cases a with
+  | atom x => cases x <;> rfl
+  | nil => rfl
+  | cons _ _ => rfl
+@[simp] theorem callBuiltin_atom (a : SExpr) :
+    callBuiltin "atom" [a] = some (Logic.atom a) := by rfl
+@[simp] theorem callBuiltin_endp (a : SExpr) :
+    callBuiltin "endp" [a] = some (Logic.endp a) := by rfl
+@[simp] theorem callBuiltin_natp (a : SExpr) :
+    callBuiltin "natp" [a] = some (Logic.natp a) := by rfl
+@[simp] theorem callBuiltin_posp (a : SExpr) :
+    callBuiltin "posp" [a] = some (Logic.posp a) := by rfl
 
 /-- T3: EQUAL-self — (EQUAL t t) evaluates to T when t converges. -/
 theorem evalOpt_equal_self (f : Nat) (w : World) (env : Env)
@@ -1924,6 +1940,8 @@ theorem re_acl2_numberp_int (w : World) (env : Env) (z : SExpr) (k : Int)
     callBuiltin "<" [a, b] = some (Logic.lt a b) := by rfl
 @[simp] theorem callBuiltin_integerp (a : SExpr) :
     callBuiltin "integerp" [a] = some (Logic.integerp a) := by rfl
+@[simp] theorem callBuiltin_cons (a b : SExpr) :
+    callBuiltin "cons" [a, b] = some (SExpr.cons a b) := by rfl
 @[simp] theorem callBuiltin_implies (a b : SExpr) :
     callBuiltin "implies" [a, b] = some (Logic.implies a b) := by rfl
 @[simp] theorem callBuiltin_iff (a b : SExpr) :
@@ -1984,6 +2002,192 @@ theorem re_val_cast (w : World) (env : Env) (a v v' : SExpr)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = some v) (hv : v = v') :
     ∃ N, ∀ f ≥ N, evalOpt f w env a = some v' := hv ▸ h
 
+/-- TOTALITY → BODY convergence (1-arg): if the application `(fn arg)` converges to
+    `rv`, its body converges to `rv` at the bound-argument environment. (The inverse
+    reading of the defn equation — the c3 unfold recipe's first step.) -/
+theorem re_body_conv1 (w : World) (env : Env) (fn formal : Symbol)
+    (body arg av rv : SExpr)
+    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_def : w.defs.get? fn = some ([formal], body))
+    (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
+    (happ : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons arg .nil)) = some rv) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some rv := by
+  obtain ⟨Na, ha⟩ := harg; obtain ⟨Nr, hr⟩ := happ
+  refine ⟨max Na Nr + 1, fun f hf => ?_⟩
+  have heq := evalOpt_defn_1 f w env fn arg av formal body h_ns h_def (ha f (by omega))
+  rw [← heq]
+  exact hr (f + 1) (by omega)
+
+/-- TOTALITY → BODY convergence (2-arg). -/
+theorem re_body_conv2 (w : World) (env : Env) (fn f1 f2 : Symbol)
+    (body a1 a2 av1 av2 rv : SExpr)
+    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_def : w.defs.get? fn = some ([f1, f2], body))
+    (ha1 : ∃ N, ∀ f ≥ N, evalOpt f w env a1 = some av1)
+    (ha2 : ∃ N, ∀ f ≥ N, evalOpt f w env a2 = some av2)
+    (happ : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a1 (.cons a2 .nil))) = some rv) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [f1, f2] [av1, av2]) body = some rv := by
+  obtain ⟨N1, h1⟩ := ha1; obtain ⟨N2, h2⟩ := ha2; obtain ⟨Nr, hr⟩ := happ
+  refine ⟨max N1 (max N2 Nr) + 1, fun f hf => ?_⟩
+  have heq := evalOpt_defn_2 f w env fn a1 a2 av1 av2 f1 f2 body h_ns h_def
+    (h1 f (by omega)) (h2 f (by omega))
+  rw [← heq]
+  exact hr (f + 1) (by omega)
+
+/-- A variable's value at a 1-arg `bindArgs` env (the unfold recipe's env'-side
+    variable resolution). -/
+theorem re_val_var_bind1 (w : World) (s : Symbol) (av : SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [s] [av]) (.atom (.symbol s)) = some av :=
+  ⟨1, fun f hf => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact evalOpt_var g w _ s av (bindArgs_single_get_self s av)⟩
+
+/-- First variable's value at a 2-arg `bindArgs` env. -/
+theorem re_val_var_bind2_fst (w : World) (f1 f2 : Symbol) (v1 v2 : SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [f1, f2] [v1, v2]) (.atom (.symbol f1)) = some v1 :=
+  ⟨1, fun f hf => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact evalOpt_var g w _ f1 v1 (bindArgs_pair_get_fst f1 f2 v1 v2)⟩
+
+/-- Second variable's value at a 2-arg `bindArgs` env (distinct formals). -/
+theorem re_val_var_bind2_snd (w : World) (f1 f2 : Symbol) (v1 v2 : SExpr)
+    (hne : f1 ≠ f2) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [f1, f2] [v1, v2]) (.atom (.symbol f2)) = some v2 :=
+  ⟨1, fun f hf => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact evalOpt_var g w _ f2 v2 (bindArgs_pair_get_snd f1 f2 v1 v2 hne)⟩
+
+/-- GENERIC total-builtin convergence (1-arg): a builtin whose `callBuiltin` is
+    total on its arity converges whenever its argument does. The totality witness
+    is built from the registry (`fun av => ⟨Logic.zp av, rfl⟩`) — ONE lemma for
+    every registered builtin, replacing the per-builtin `re_conv_*` family. -/
+theorem re_conv_builtin1_reg (w : World) (env : Env) (s : Symbol) (a : SExpr)
+    (g : SExpr → SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_def : w.defs.get? s = none)
+    (h_reg : ∀ av : SExpr, callBuiltin s.name [av] = some (g av))
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) (.cons a .nil)) = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨N, h⟩ := conv_builtin1 w env s a av (g av) h_ns h_not_def ⟨Na, ha⟩ (h_reg av)
+  exact ⟨N, g av, h⟩
+
+/-- GENERIC total-builtin convergence (2-arg). -/
+theorem re_conv_builtin2_reg (w : World) (env : Env) (s : Symbol) (a b : SExpr)
+    (g : SExpr → SExpr → SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_def : w.defs.get? s = none)
+    (h_reg : ∀ av bv : SExpr, callBuiltin s.name [av, bv] = some (g av bv))
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) (.cons a (.cons b .nil))) = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨Nb, bv, hb⟩ := hb
+  obtain ⟨N, h⟩ := conv_builtin2 w env s a b av bv (g av bv) h_ns h_not_def
+    ⟨Na, ha⟩ ⟨Nb, hb⟩ (h_reg av bv)
+  exact ⟨N, g av bv, h⟩
+
+/-- Congruence into an `if`'s TEST position: equal test evaluations give equal
+    `if` evaluations (sound for the lazy `if` — both sides bind the test first).
+    The `(1 . IF)` path frame's congruence step. -/
+theorem evalOpt_congr_if_test (w : World) (env : Env) (c c' t e : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env c = evalOpt f w env c') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c' (.cons t (.cons e .nil)))) := by
+  obtain ⟨N, h⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  show evalOptStep (evalOpt g) w env _ = evalOptStep (evalOpt g) w env _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  show (evalOpt g w env c).bind _ = (evalOpt g w env c').bind _
+  rw [h g (by omega)]
+
+/-- RUNE `:DEFINITION fn` on two general arguments, body convergence supplied for
+    EVERY environment (the ∀-env analyzer form — the 2-arg sibling of
+    `re_unfold1_conv`). -/
+theorem re_unfold2_conv (w : World) (env : Env) (fn f1 f2 : Symbol)
+    (body arg1 arg2 : SExpr)
+    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hdef : w.defs.get? fn = some ([f1, f2], body))
+    (hclosed : ∀ s ∈ freeVars body, s ∈ [f1, f2]) (hnolet : NoLet body = true)
+    (harg1 : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env arg1 = some av)
+    (harg2 : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env arg2 = some av)
+    (hbodyAll : ∀ env', ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' body = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons arg1 (.cons arg2 .nil)))
+      = evalOpt f w env (substTerm [f1, f2] [arg1, arg2] body) := by
+  obtain ⟨N1, av1, h1⟩ := harg1
+  obtain ⟨N2, av2, h2⟩ := harg2
+  obtain ⟨Nb, v, hb⟩ := hbodyAll (bindArgs [f1, f2] [av1, av2])
+  exact evalOpt_unfold2_conv w env fn f1 f2 body arg1 arg2 av1 av2 v hns hdef hclosed hnolet
+    ⟨N1, h1⟩ ⟨N2, h2⟩ ⟨Nb, hb⟩
+
+/-- The solidify value bridge: a FALSE `(not (equal a b))` literal value makes the
+    two values EQUAL. (The clause hypothesis the `rewriting-equivalence` node cites:
+    its falsity in the case branch is exactly the equation.) -/
+theorem logic_not_equal_nil_eq (a b : SExpr)
+    (h : Logic.not (Logic.equal a b) = SExpr.nil) : a = b := by
+  by_cases hab : a = b
+  · exact hab
+  · exfalso
+    have hbeq : (a == b) = false := beq_eq_false_iff_ne.mpr hab
+    simp [Logic.not, Logic.equal, Logic.toBool, hbeq, SExpr.t] at h
+
+/-- A FALSE `(not P)` literal value makes `P`'s value non-nil. (The step case's
+    `(not (consp x))` literal: its falsity gives `consp xv ≠ nil`.) -/
+theorem logic_not_nil_ne (p : SExpr) (h : Logic.not p = SExpr.nil) : p ≠ SExpr.nil := by
+  intro hp
+  simp [Logic.not, Logic.toBool, hp, SExpr.t] at h
+
+/-- `consp` is two-valued: non-nil means `t`. -/
+theorem logic_consp_ne_nil_t (v : SExpr) (h : Logic.consp v ≠ SExpr.nil) :
+    Logic.consp v = SExpr.t := by
+  cases v <;> simp_all [Logic.consp]
+
+/-- Transport a convergence along an eval-equality: `eval a = eval b` and
+    `eval b = some v` give `eval a = some v`. -/
+theorem fuel_conv_of_eq {a b : Nat → Option SExpr} {v : SExpr}
+    (hab : ∃ N, ∀ f ≥ N, a f = b f) (hb : ∃ N, ∀ f ≥ N, b f = some v) :
+    ∃ N, ∀ f ≥ N, a f = some v := by
+  obtain ⟨n1, h1⟩ := hab; obtain ⟨n2, h2⟩ := hb
+  exact ⟨max n1 n2, fun f hf => (h1 f (by omega)).trans (h2 f (by omega))⟩
+
+/-- Weaken a value-characterized convergence to the v-existential form
+    (`proveConv`'s shape, consumed by `re_equal_self` etc.). -/
+theorem conv_vfix_of_val {w : World} {env : Env} {a v : SExpr}
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = some v) :
+    ∃ N, ∃ v', ∀ f ≥ N, evalOpt f w env a = some v' := by
+  obtain ⟨N, h⟩ := h
+  exact ⟨N, v, h⟩
+
+/-- Extract the integer witness from a true `integerp` value fact (the TP bridge:
+    the lifted type-prescription gives `Logic.integerp v = t`; recognizers like
+    `acl2-numberp` need the int shape). -/
+theorem logic_integerp_int (v : SExpr) (h : Logic.integerp v = SExpr.t) :
+    ∃ k : Int, v = .atom (.number (.int k)) := by
+  match v with
+  | .atom (.number (.int k)) => exact ⟨k, rfl⟩
+  | .atom (.number (.rational _ _)) => simp [Logic.integerp, SExpr.t] at h
+  | .atom (.number (.decimal _ _)) => simp [Logic.integerp, SExpr.t] at h
+  | .atom (.symbol _) => simp [Logic.integerp, SExpr.t] at h
+  | .atom (.keyword _) => simp [Logic.integerp, SExpr.t] at h
+  | .atom (.string _) => simp [Logic.integerp, SExpr.t] at h
+  | .nil => simp [Logic.integerp, SExpr.t] at h
+  | .cons _ _ => simp [Logic.integerp, SExpr.t] at h
+
 /-- Value-characterized convergence of an `if` INSIDE a literal: the value is
     `cond (toBool cv) tv ev` (both branches must converge — their values are
     needed whichever way the test goes, since the DP fact reasons over all
@@ -2006,5 +2210,21 @@ theorem re_val_if (w : World) (env : Env) (c t e cv tv ev : SExpr)
     have htb : Logic.toBool cv = false := by simp [hnil, Logic.toBool]
     rw [evalOpt_if_false g w env c t e (hnil ▸ hc g (by omega)), he g (by omega), htb]
     rfl
+
+/-- `if` convergence: all three parts converging makes the `if` converge (to the
+    branch the test selects — existential, the analyzer doesn't need which). -/
+theorem re_conv_if (w : World) (env : Env) (c t e : SExpr)
+    (hc : ∃ N, ∃ cv, ∀ f ≥ N, evalOpt f w env c = some cv)
+    (ht : ∃ N, ∃ tv, ∀ f ≥ N, evalOpt f w env t = some tv)
+    (he : ∃ N, ∃ ev, ∀ f ≥ N, evalOpt f w env e = some ev) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = some v := by
+  obtain ⟨Nc, cv, hc⟩ := hc
+  obtain ⟨Nt, tv, ht⟩ := ht
+  obtain ⟨Ne, ev, he⟩ := he
+  obtain ⟨N, h⟩ := re_val_if w env c t e cv tv ev ⟨Nc, hc⟩ ⟨Nt, ht⟩ ⟨Ne, he⟩
+  exact ⟨N, cond (Logic.toBool cv) tv ev, h⟩
 
 end ACL2.Replay

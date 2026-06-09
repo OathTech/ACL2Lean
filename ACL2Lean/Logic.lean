@@ -100,6 +100,13 @@ open ACL2
   | .cons _ _ => .t
   | _ => .nil
 
+/-- ACL2 `acl2-numberp`: true exactly on numbers. (The Logic-level twin of
+    `callBuiltin`'s inline match, for the driver's uniform value layer.) -/
+@[inline, simp] def acl2Numberp (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number _) => .t
+  | _ => .nil
+
 /-- ACL2 `atom`. -/
 @[inline, simp] def atom (s : SExpr) : SExpr :=
   match s with
