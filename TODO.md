@@ -179,6 +179,12 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
       (which swallows the new non-zero dump exit — decide if that should surface).
     - Differential-test the emission itself, not just `evalOpt` (does the log faithfully
       reflect the proof? a failed/odd proof should be detectable from the log alone).
+    - **`abbreviation-expansion` rewrite steps emit a PLACEHOLDER RHS** (`:RHS
+      :ABBREVIATION-EXPANSION` literally — see `08-equality-reasoning.proof-log`, the
+      `cdr-cons` step) instead of the actual rewritten term (`y` for `(cdr (cons x y))`).
+      The reconstruction faithfully renders the placeholder, but the real RHS is lost at
+      the emission layer — fix the `emit/abbreviation-expansion` instrumentation to emit
+      the true RHS. (Found by the 2026-06-09 dump audit.)
 - [x] **#24** — `fix` modeled as a defined function in the hand-proof world (ACL2 ground-zero
       body); base-case node3 unfolds it via `definition:fix`. (Other `definition:`-runed
       ground-zero fns: add as needed.)

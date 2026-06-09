@@ -75,22 +75,37 @@ elab "#driver_coverage" : command => do
     let mut lines : Array String := #[]
     let mut replayed := 0
     let mut total := 0
+    -- Reconstruction-INTEGRITY failures (distinct from the expected driver-replay
+    -- frontier): a parse-fail, a recon-fail, or a log that reconstructs to ZERO
+    -- theorems (a failed/empty capture — every recon-test .lisp has ≥1 defthm). These
+    -- HARD-FAIL the build below, so a broken/empty corpus log can't slip through as a
+    -- silent "0 theorem(s)" line (as a header-only 00-direct capture once did). The
+    -- per-theorem replay FAILs are NOT integrity failures — they are the expected frontier.
+    let mut integrityFails : Array String := #[]
     for (name, content) in corpus do
       match ProofLog.parse content with
-      | .error msg => lines := lines.push s!"• {name}: PARSE-FAIL {msg}"
+      | .error msg =>
+        lines := lines.push s!"• {name}: PARSE-FAIL {msg}"
+        integrityFails := integrityFails.push s!"{name}: PARSE-FAIL {msg}"
       | .ok log =>
         match ClauseTree.buildDevelopment log with
-        | .error msg => lines := lines.push s!"• {name}: RECON-FAIL {msg}"
+        | .error msg =>
+          lines := lines.push s!"• {name}: RECON-FAIL {msg}"
+          integrityFails := integrityFails.push s!"{name}: RECON-FAIL {msg}"
         | .ok dev =>
           let w := dev.toWorld
           let thms := developmentTheorems dev
           lines := lines.push s!"• {name}  (world: {w.defs.size} defun(s), {thms.length} theorem(s))"
+          if thms.isEmpty then
+            integrityFails := integrityFails.push s!"{name}: 0 theorems reconstructed (failed/empty capture?)"
           for cp in thms do
             total := total + 1
             let status ← tryReplay w cp
             if status == "REPLAYED ✓" then replayed := replayed + 1
             lines := lines.push s!"    {cp.name} → {status}"
     logInfo m!"Driver coverage — REPLAYED {replayed}/{total}:\n{"\n".intercalate lines.toList}"
+    unless integrityFails.isEmpty do
+      throwError m!"Reconstruction-integrity failures (not the replay frontier):\n{"\n".intercalate integrityFails.toList}"
 
 #driver_coverage
 
