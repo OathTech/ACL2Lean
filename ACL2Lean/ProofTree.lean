@@ -192,6 +192,13 @@ partial def parseClauseItems (events : List TraceEvent)
       let litResult := findLiteralResult litEvents literal
       let (more, rest'') ← parseClauseItems rest'
       return (.literal ⟨index, literal, notFlg, nodes, litResult⟩ :: more, rest'')
+  | .caseSplit _ _ :: rest =>
+      -- Informational header (`clause/case-split`): the preceding literal split the
+      -- clause into N branches. The branches themselves follow as BEGIN-BRANCH/
+      -- END-BRANCH (parsed by the `.beginBranch` case), which carry the case structure
+      -- — so the marker consumes to nothing here, losing no tree structure. (A function
+      -- with a multi-way `if` body, e.g. cd2's zp/=1/else, triggers this.)
+      parseClauseItems rest
   | _ =>
       -- A clause-level rewrite chain not wrapped in a literal — e.g. a
       -- termination conjecture being simplified, or the inter-literal ground

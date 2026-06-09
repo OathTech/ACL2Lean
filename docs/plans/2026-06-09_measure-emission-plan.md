@@ -113,10 +113,25 @@ alist; emit `:CONTROLLERS` (the candidate's already-instantiated controllers). V
   3-subgoal induction still has 2 scheme cases; do NOT assert cases.length = subgoalCount).
 - `01`, `05` (app on `x`).
 
-**Unverified (no corpus example exercises them):** a step case with MULTIPLE IHs (2+ recursive
-calls → 2+ `:ALISTS`; the parser maps over alists so it *should* handle it); a custom
-non-`acl2-count` measure inside a *proof* induction (`06-measure` declares custom measures but
-proves by simplification, 0 inductions — that's the admission-time/defun-measure path, deferred).
+**Boundary tests added (10/11/12) — formerly-unverified paths now verified:**
+- `10-tree-induction` (`flatten` over a binary tree): step case `[(consp x)]` with TWO IHs —
+  `x:=(car x)` AND `x:=(cdr x)` (multiple `:ALISTS` per case). **Multi-IH-per-case verified.**
+- `11-custom-measure` (`cd2`, `:measure (nfix n)`): dump shows `measure (nfix n)` (the DECLARED
+  measure, not acl2-count) with step IH `n := (binary-+ (quote -2) n)`. **Custom non-acl2-count
+  measure inside a proof induction verified** (this is the proof-induction path, distinct from the
+  deferred defun-admission measure conjecture).
+- `12-multi-controller` (`zip2`, simultaneous cdr/cdr): step IH substitutes BOTH controllers,
+  `x:=(cdr x), y:=(cdr y)` (multi-variable IH alist). **Multi-var IH substitution verified.**
+
+These three drive the coverage harness (`Tests/DriverCoverage.lean`) — parse→reconstruct→World all
+green; driver-replay still the expected induction frontier.
+
+**Reconstruction fix surfaced by 11/12:** their arith-heavy multi-way-`if` bodies emit a clause-level
+`CLAUSE/CASE-SPLIT` marker (`TraceEvent.caseSplit i n`) that `parseClauseItems` didn't handle →
+hard-failed "no progress" (correct fail-closed, but blocked the dump). Fixed in `ProofTree.lean`:
+`.caseSplit` is an informational header for the `BEGIN-BRANCH`/`END-BRANCH` events that follow (which
+already carry the case structure), so it consumes to nothing — no tree structure lost. Orthogonal to
+measure-emission; it lives in the rewriter-detail layer.
 
 ### Next (not yet done)
 - **Case↔child linking (reconstruction):** correlate each `:CASES` case with its `*1/k` child
