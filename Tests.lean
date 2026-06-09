@@ -3,6 +3,7 @@ import Tests.LogicTest
 import Tests.TranslatorTest
 import Tests.SyntaxTest
 import Tests.WorldDefsTest
+import Tests.EvalOptTest
 import Tests.CountTest
 import Tests.LexorderTest
 import Tests.TermOrderTest

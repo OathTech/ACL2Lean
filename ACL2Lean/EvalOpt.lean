@@ -118,10 +118,12 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
         | some [bindings, body] =>
             match bindings.toList? with
             | some bList => do
+                -- `let*` is sequential (each value sees prior bindings: eval in `acc`);
+                -- `let` is parallel (every value sees the outer env: eval in `env`).
                 let env' ← bList.foldlM (fun acc b =>
                   match b.toList? with
                   | some [.atom (.symbol var), valExpr] => do
-                      let v ← rec w acc valExpr
+                      let v ← rec w (if s.isNamed "let*" then acc else env) valExpr
                       pure (acc.insert var v)
                   | _ => some acc) env
                 rec w env' body
@@ -162,7 +164,7 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
               let env' ← bList.foldlM (fun acc b =>
                 match b.toList? with
                 | some [.atom (.symbol var), valExpr] => do
-                    let v ← rec w acc valExpr
+                    let v ← rec w (if s.isNamed "let*" then acc else env) valExpr
                     pure (acc.insert var v)
                 | _ => some acc) env
               rec w env' body
@@ -229,24 +231,28 @@ theorem List.foldlM_option_mono {f g : β → α → Option β} {l : List α} {i
 /-! ## evalOptStep monotonicity helpers -/
 
 /-- Monotonicity of the LET binding fold step. -/
+-- `valEnv` is the environment a binding's value is evaluated in: the accumulator `acc`
+-- for `let*` (sequential — each value sees the prior bindings), or the original `env` for
+-- `let` (parallel — every value sees the outer env). The new bindings are always added on
+-- top of `acc`. Generalizing over `valEnv` lets one lemma cover both.
 private theorem letFoldStep_mono
     (f g : World → Env → SExpr → Option SExpr)
     (hmono : ∀ w env t v, f w env t = some v → g w env t = some v)
-    (w : World) (acc : Env) (b : SExpr) (mid : Env)
+    (w : World) (valEnv acc : Env) (b : SExpr) (mid : Env)
     (hmid : (match b.toList? with
       | some [.atom (.symbol var), valExpr] =>
-          (f w acc valExpr).bind fun v => some (acc.insert var v)
+          (f w valEnv valExpr).bind fun v => some (acc.insert var v)
       | _ => some acc) = some mid) :
     (match b.toList? with
       | some [.atom (.symbol var), valExpr] =>
-          (g w acc valExpr).bind fun v => some (acc.insert var v)
+          (g w valEnv valExpr).bind fun v => some (acc.insert var v)
       | _ => some acc) = some mid := by
   match hbl : b.toList? with
   | some [.atom (.symbol var), valExpr] =>
     simp only [hbl] at hmid ⊢
-    cases hval : f w acc valExpr with
+    cases hval : f w valEnv valExpr with
     | none => simp [hval] at hmid
-    | some val => simp [hval] at hmid; simp [hmono w acc valExpr val hval, hmid]
+    | some val => simp [hval] at hmid; simp [hmono w valEnv valExpr val hval, hmid]
   | some [.nil, _] | some [.atom (.number _), _] | some [.atom (.string _), _]
   | some [.atom (.keyword _), _] | some [.cons _ _, _]
   | some (_ :: _ :: _ :: _) | some [_] | some [] | none =>
@@ -306,13 +312,16 @@ theorem evalOptStep_mono
               simp only [hbl] at h ⊢
               cases hfold : List.foldlM (fun acc b => match b.toList? with
                 | some [.atom (.symbol var), valExpr] =>
-                    (f w acc valExpr).bind fun v => some (acc.insert var v)
+                    (f w (if s.isNamed "let*" then acc else env) valExpr).bind
+                      fun v => some (acc.insert var v)
                 | _ => some acc) env bList with
               | none => simp [hfold] at h
               | some env' =>
                 simp [hfold] at h
                 have hfold' := List.foldlM_option_mono
-                  (fun acc b _ mid hmid => letFoldStep_mono f g hmono w acc b mid hmid) hfold
+                  (fun acc b _ mid hmid =>
+                    letFoldStep_mono f g hmono w (if s.isNamed "let*" then acc else env) acc b mid hmid)
+                  hfold
                 simp [hfold', hmono w env' _ v h]
             | none => simp only [hbl] at h; exact h
           | none | some [] | some [_]
