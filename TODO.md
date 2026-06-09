@@ -103,8 +103,12 @@ end-to-end via the driver, not the hand proofs.
         `reflectWorld` + `derive_world` emit it as a concrete def. sq frontend derives BOTH
         theorem and world from one `sqDevelopment` — only input is the log. (`pairWorld`
         stays a synthetic fixture: the pair test drives a hand-built tree, no proof-log.)
-  - [ ] **Coverage harness** (now nearly free): run the driver over every parsed sample,
-        deriving each world via `derive_world`/`toWorld`; print replayed-vs-frontier.
+  - [x] **Coverage harness** (`Tests/DriverCoverage.lean`, `just driver-coverage`): runs the
+        driver over the whole corpus, world derived per sample via `toWorld`/`reflectWorld`;
+        prints REPLAYED-vs-frontier per theorem (currently 1/27 — `sq-rewrites`; the rest are
+        clean frontiers: induction, multi-arg unfold, exec-counterpart). Logs `include_str`'d
+        so an absent log is a HARD failure (no silent skip). Shook out the new derive/toWorld
+        code across 0/2/3-defun worlds with zero dirty failures. Fills in as node kinds land.
 - [ ] Replace the hardcoded `World.empty`/empty-env frontend with **`gen-world`** output;
       feed the **real parsed `simple.proof-log`** (drop the hand-built test trees once
       the real tree replays).
