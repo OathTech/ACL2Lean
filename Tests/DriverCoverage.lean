@@ -36,6 +36,13 @@ partial def developmentTheorems : Development → List ClauseProof
   | .bind _ rest => developmentTheorems rest
   | .done => []
 
+/-- The emitted type-prescription corollaries of a development (fn name ↦
+    corollary term) — the type facts the DP lift may consume as hypotheses. -/
+partial def developmentTPs : Development → List (String × SExpr)
+  | .bind (.typePrescription n cor _ _) rest => (n, cor) :: developmentTPs rest
+  | .bind _ rest => developmentTPs rest
+  | .done => []
+
 /-- Clause-ids of BLACK-BOX leaves under a clause node: a leaf clause (no child
     clauses, no induction) that ACL2 marks PROVED but for which NO replayable proof
     structure was emitted (every step's rewriter detail `items` is empty). These are
@@ -122,20 +129,27 @@ def tryReplay (w : World) (cp : ClauseProof) : TermElabM String := do
 /-- Attempt the DP-lift replay of one discharge leaf: prove the discharge node's
     claim `∃N∀f≥N, eval (disjoin clause) = some t` over a QUANTIFIED env (the
     obligation must hold for every environment), and kernel-check the proof. -/
-def tryDischarge (w : World) (id origin : String) (clause : SExpr) : TermElabM String := do
+def tryDischarge (w : World) (tps : List (String × SExpr)) (id origin : String)
+    (clause : SExpr) : TermElabM String := do
   let wExpr ← reflectWorld w
   -- fresh, BOUNDED heartbeat budget per leaf (the command itself runs unlimited;
   -- one pathological leaf must neither hang nor poison the rest), and runtime
   -- (timeout) exceptions report ✗ instead of failing the build.
-  withOptions (fun o => o.set `maxHeartbeats (400000 : Nat)) <|
+  withOptions (fun o => o.set `maxHeartbeats (200000 : Nat)) <|
     Core.withCurrHeartbeats <| tryCatchRuntimeEx
     (try
-      let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
+      let (p, conds) ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
-        let prf ← replayDischargeLeaf cfg clause
-        Meta.mkLambdaFVars #[envFV] prf
+        let (prf, conds) ← replayDischargeLeaf cfg clause tps (assumeFact := true)
+        return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p
-      return s!"{id}:{origin} ✓"
+      -- An ASSUMED leaf (the DP fact is a bound hypothesis of the returned
+      -- CONDITIONAL proof — its type states the missing obligation; no sorryAx;
+      -- the lift/spine pipeline ran end-to-end) is reported as ◌, never as ✓.
+      let assumed := conds.contains "ASSUMED:dp-fact"
+      let condStr := if conds.isEmpty then "" else s!" cond[{", ".intercalate conds}]"
+      if assumed then return s!"{id}:{origin} ◌ assumed{condStr}"
+      else return s!"{id}:{origin} ✓{condStr}"
     catch e =>
       return s!"{id}:{origin} ✗ ({(← e.toMessageData.toString).replace "\n" " "})")
     (fun e =>
@@ -156,9 +170,10 @@ elab "#driver_coverage" : command => do
     -- EMISSION-FRONTIER failures: theorems containing a black-box PROVED leaf (Track B
     -- gap). Deliberately HARD-FAIL until the preprocess/eval/type-set emission lands.
     let mut emissionFrontiers : Array String := #[]
-    -- DP-lift replay (c1) tally over discharge leaves.
+    -- DP-lift replay (c1/c2) tally over discharge leaves.
     let mut dpTotal := 0
     let mut dpReplayed := 0
+    let mut dpAssumed := 0
     for (name, content) in corpus do
       match ProofLog.parse content with
       | .error msg =>
@@ -189,16 +204,18 @@ elab "#driver_coverage" : command => do
             let status ← tryReplay w cp
             if status == "REPLAYED ✓" then replayed := replayed + 1
             let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
+            let tps := developmentTPs dev
             let mut disParts : List String := []
             for (id, o, clause) in dis do
               dpTotal := dpTotal + 1
-              let r ← tryDischarge w id o clause
-              if r.endsWith "✓" then dpReplayed := dpReplayed + 1
+              let r ← tryDischarge w tps id o clause
+              if (r.splitOn "✓").length > 1 then dpReplayed := dpReplayed + 1
+              if (r.splitOn "◌").length > 1 then dpAssumed := dpAssumed + 1
               disParts := disParts ++ [r]
             let disTag := if disParts.isEmpty then "" else
               s!"  [DISCHARGE: {", ".intercalate disParts}]"
             lines := lines.push s!"    {cp.name} → {status}{tag}{disTag}"
-    logInfo m!"Driver coverage — REPLAYED {replayed}/{total}; DP-discharge leaves {dpReplayed}/{dpTotal}:\n{"\n".intercalate lines.toList}"
+    logInfo m!"Driver coverage — REPLAYED {replayed}/{total}; DP-discharge leaves ✓{dpReplayed} ◌{dpAssumed} ✗{dpTotal - dpReplayed - dpAssumed} of {dpTotal}:\n{"\n".intercalate lines.toList}"
     unless integrityFails.isEmpty do
       throwError m!"Reconstruction-integrity failures (not the replay frontier):\n{"\n".intercalate integrityFails.toList}"
     unless emissionFrontiers.isEmpty do

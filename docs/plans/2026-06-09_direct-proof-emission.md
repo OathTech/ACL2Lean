@@ -259,9 +259,32 @@ Sequencing approved by MDD: (a) carve-out → (b) discharge nodes → (c1) drive
     totality + type-prescription hypotheses) + `03/linear-chain` (`<`-transitivity
     over RATIONALS — nonlinear after `toRat` cross-multiplication, genuinely beyond
     `omega`: the concrete (d)/lean-smt case) + composition wiring.
-- **(c2) NEXT** — opaque subterms: converge user-fn applications via totality
-  (Driver Stage 5) and feed the emitted type-prescription corollaries as DP-fact
-  hypotheses (`len ≥ 0` etc.).
+- **(c2) DONE — opaque subterms + CONDITIONAL proofs (✓6 of 19; rest assumed).**
+  A user-fn application becomes a quantified value `vop` with a CONVERGENCE
+  hypothesis (`∃N∀f≥N eval opTerm = some vop` — totality, discharged at
+  composition time / Driver Stage 5) and, when the development emitted a
+  `:TYPE-PRESCRIPTION` for the fn, a TYPE hypothesis (the corollary instantiated
+  at the occurrence's actuals, lifted, `= t`). Newly ✓ (kernel-checked,
+  conditions reported as `cond[total:…, tp:…]`): **03/len2-nonneg**,
+  **03/len2-cdr-smaller** (legitimate — expand-abbreviations had already unfolded
+  `(len2 x)` once, so the discharged clause is `c < 1+c`, true for all SExpr
+  values through the coercions; verified against the dump), **11/\*1/3**.
+  - **Conditional proofs (MDD's design, replacing a brief sorry-stub draft):**
+    with `assumeFact := true` (harness mode), a DP fact the fixed tactic cannot
+    close becomes a further BOUND HYPOTHESIS of the returned proof — the proof's
+    TYPE states the exact missing obligation, NO `sorryAx`, and a later prover
+    (lean-smt, richer emission) completes it by application. Reported `◌ assumed`,
+    never ✓. The lift/spine pipeline runs end-to-end on every leaf.
+  - Cost bounds: the exponential split fallback is policy-capped at 3 quantified
+    values; per-leaf heartbeats capped (200k) with the command unlimited, so one
+    expensive leaf cannot poison the sweep.
+  - **Assumed remainder (the obligations are now explicit in the proof types):**
+    12/16 need `len`'s type facts — `len` is GROUND-ZERO, no TP event in the logs
+    (ground-zero type-fact emission = open instrumentation decision); 01/02
+    (true-listp) need the type-set DERIVATION (`true-listp x ∧ consp x →
+    true-listp (cdr x)` — Track B emission); 11/\*1/4+\*1/5' have a tactic
+    residue (simp leaves a non-omega goal in some case — debuggable); 04 needs
+    ts-bits lifting; 03/linear-chain → (d) lean-smt (rational linear arith).
 - **(d) GATED** — lean-smt as a separate Lake package once (c1) shows what omega
   can't reach; check toolchain pinning, cvc5 availability, axiom hygiene first.
 
