@@ -130,6 +130,10 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
 - Driver S1+S2 + native Nat bridge (first real proof-tree replay).
 - Driver S3 (first real rewrite rune): `(equal (cdr (cons a b)) b)` via a `cdr-cons`
   node + path-directed congruence (`equal arg1`) + equal-self — axiom-clean mirror.
+- Driver 3a(i) convergence analyzer recurses into compound operands (`cons`).
+- Driver 3a(ii) DEFINITION-UNFOLD node: `(defun pair (x) (cons x x))`,
+  `(equal (pair x) (cons x x))` via `re_unfold1_conv` (body ∀-env convergence threaded
+  to the bindArgs env) + carried `DefInfo` (def/closed/no-let) + equal-self. Axiom-clean.
 - `capture-proof-log.sh` failure detection hardened.
 - SExpr reader now supports dotted pairs (`(a . b)` → true `.cons`); fixes the `(. x)`
   artifact in `:subst` and `:path` frames (previously `.` was read as a symbol).

@@ -1811,4 +1811,23 @@ theorem re_conv_cons (w : World) (env : Env) (a b : SExpr)
     (by decide) h_no_cons ⟨Na, ha⟩ ⟨Nb, hb⟩ rfl
   exact ⟨N, .cons av bv, h⟩
 
+/-- RUNE `definition` (1-arg), driver-facing: `(fn arg) ⇒ substTerm [formal] [arg] body`.
+    Takes `arg`'s convergence (v-fixed) and the body's convergence in EVERY env
+    (`hbodyAll` — the driver proves this by running the convergence analyzer under a
+    quantified env). A wrapper over `evalOpt_unfold1_conv` that instantiates the body
+    convergence at the `bindArgs` env (which mentions the obtained arg value `av`), so
+    the driver needs no `Exists.elim` of its own. -/
+theorem re_unfold1_conv (w : World) (env : Env) (fn formal : Symbol) (body arg : SExpr)
+    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
+           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hdef : w.defs.get? fn = some ([formal], body))
+    (hclosed : ∀ s ∈ freeVars body, s ∈ [formal]) (hnolet : NoLet body = true)
+    (harg : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env arg = some av)
+    (hbodyAll : ∀ env', ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' body = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol fn)) (.cons arg .nil))
+      = evalOpt f w env (substTerm [formal] [arg] body) := by
+  obtain ⟨Na, av, ha⟩ := harg
+  obtain ⟨Nb, v, hb⟩ := hbodyAll (bindArgs [formal] [av])
+  exact evalOpt_unfold1_conv w env fn formal body arg av v hns hdef hclosed hnolet ⟨Na, ha⟩ ⟨Nb, hb⟩
+
 end ACL2.Replay

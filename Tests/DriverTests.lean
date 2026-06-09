@@ -158,6 +158,78 @@ example :
 
 #print axioms consEq_mirror
 
+/-! ## POSITIVE — 3a(ii): the DEFINITION-UNFOLD node (a defined function in the world).
+
+`(defun pair (x) (cons x x))`, theorem `(equal (pair x) (cons x x))`: the `definition`
+node unfolds `(pair x) ⇒ (cons x x)` (lifted through `equal arg1`), then equal-self
+closes `(equal (cons x x) (cons x x))`. Exercises `replayNode`'s definition handler
+(`re_unfold1_conv`) — incl. the body's ∀-env convergence (`proveConvAllEnv`) that the
+unfold needs at the `bindArgs` env — plus the carried `DefInfo` (def/closed/no-let
+facts). A real def-unfold shape (cons body avoids needing `binary-*` convergence). -/
+
+/-- Body of `pair`: `(cons x x)`. -/
+private def pairBody : SExpr :=
+  .cons (.atom (.symbol { name := "cons" }))
+    (.cons (.atom (.symbol { name := "x" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+
+/-- A world with just `(defun pair (x) (cons x x))`. -/
+def pairWorld : World :=
+  { World.empty with defs := World.empty.defs.insert { name := "pair" } ([{ name := "x" }], pairBody) }
+
+theorem pair_def :
+    pairWorld.defs.get? ({ name := "pair" } : Symbol) = some ([{ name := "x" }], pairBody) := by
+  show pairWorld.defs[({ name := "pair" } : Symbol)]? = _
+  simp [pairWorld, World.empty]
+theorem pair_closed : ∀ s ∈ freeVars pairBody, s ∈ [({ name := "x" } : Symbol)] := by decide
+theorem pair_nolet : NoLet pairBody = true := by decide
+theorem pairWorld_no_equal : pairWorld.defs.get? ({ name := "equal" } : Symbol) = none := by
+  show pairWorld.defs[({ name := "equal" } : Symbol)]? = _
+  simp [pairWorld, World.empty]
+theorem pairWorld_no_cons : pairWorld.defs.get? ({ name := "cons" } : Symbol) = none := by
+  show pairWorld.defs[({ name := "cons" } : Symbol)]? = _
+  simp [pairWorld, World.empty]
+
+/-- Run the driver over `pairWorld` (carries `pair`'s DefInfo + non-shadowing facts). -/
+elab "acl2_replay_pair% " t:term : term => do
+  let cpExpr ← Term.elabTermAndSynthesize t (some (mkConst ``ACL2.ClauseProof))
+  let cp ← unsafe evalExpr ClauseProof (mkConst ``ACL2.ClauseProof) cpExpr
+  withLocalDeclD `env (mkConst ``Env) fun env => do
+    let di : DefInfo :=
+      { formal := { name := "x" }, body := pairBody,
+        defFact := mkConst ``pair_def, closedFact := mkConst ``pair_closed,
+        noLetFact := mkConst ``pair_nolet }
+    let cfg : ReplayConfig :=
+      { worldExpr := mkConst ``pairWorld, envExpr := env,
+        noShadow := [({ name := "equal" }, mkConst ``pairWorld_no_equal),
+                     ({ name := "cons" },  mkConst ``pairWorld_no_cons)],
+        defs := [({ name := "pair" }, di)] }
+    let proof ← replayProof cfg cp
+    mkLambdaFVars #[env] proof
+
+private def varXp : SExpr := sym "x"
+/-- `(equal (pair x) (cons x x))`. -/
+private def litPair : SExpr := equalOf (ap1 "pair" varXp) (ap2 "cons" varXp varXp)
+private def pairDefNode : ProofNode :=
+  .node ("definition", "pair") (ap1 "pair" varXp) (ap2 "cons" varXp varXp) []
+    { path := [.arg 1 { name := "equal" }, .arg 1 { name := "pair" }] }
+private def pairEqSelf : ProofNode :=
+  .node ("equal-self", "NIL") (equalOf (ap2 "cons" varXp varXp) (ap2 "cons" varXp varXp)) Driver.quoteT [] {}
+private def pairGoal : ClauseNode :=
+  { id := default, idStr := "Goal", inputClause := [litPair],
+    steps := [{ simplifyStep with
+      items := [.literal { index := 1, literal := litPair, notFlg := false,
+                           nodes := [pairDefNode, pairEqSelf], result := Driver.quoteT }] }],
+    induction := none, children := [] }
+private def pairTree : ClauseProof := { name := "pair-rewrites", formula := litPair, root := some pairGoal }
+
+def pair_mirror := acl2_replay_pair% pairTree
+
+example :
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, evalOpt f pairWorld env litPair = some SExpr.t :=
+  pair_mirror
+
+#print axioms pair_mirror
+
 /-! ## BRIDGE — use the driver's output to prove the corresponding NATIVE Lean fact.
 
 The ACL2 theorem `(equal x x)` corresponds, over a standard Lean type, to reflexivity

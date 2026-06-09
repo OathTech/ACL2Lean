@@ -240,16 +240,29 @@ kernel-checkable `Expr` or `throwError`s; NEVER `sorry`.
 
 S1 (dummy) = every node `throwError`s. S2 adds the single `equal-self` terminal. -/
 
+/-- Carried info for a defined (1-arg) function `fn`: its formal and body, plus the
+    proof terms about the concrete world that `re_unfold1_conv` needs. Established once
+    when the config is built (test harness now, `gen-world` later). -/
+structure DefInfo where
+  formal : Symbol
+  body : SExpr
+  /-- `w.defs.get? fn = some ([formal], body)`. -/
+  defFact : Expr
+  /-- `∀ s ∈ freeVars body, s ∈ [formal]`. -/
+  closedFact : Expr
+  /-- `NoLet body = true`. -/
+  noLetFact : Expr
+
 /-- Ambient config: the `World`/`Env` as `Expr`s, plus the **carried world-structure
-    facts** — proofs that `worldExpr.defs.get? s = none` for each builtin the proof
-    uses (i.e. it is not shadowed by a `defun`). These are fixed properties of the
-    concrete world, established ONCE when the config is built (by the test harness now,
-    by `gen-world` later) and looked up here — the driver NEVER re-derives them, and
-    runs no `simp`/search of its own. -/
+    facts** — `noShadow` (proofs `worldExpr.defs.get? s = none` for each builtin used)
+    and `defs` (per defined-function `DefInfo`). Fixed properties of the concrete world,
+    established ONCE when the config is built and looked up here — the driver NEVER
+    re-derives them, and runs no `simp`/search of its own. -/
 structure ReplayConfig where
   worldExpr : Expr
   envExpr : Expr
   noShadow : List (Symbol × Expr) := []
+  defs : List (Symbol × DefInfo) := []
 
 /-- The proof context in scope at a node (design note). Grows as stages land; S1/S2
     populate none of it. -/
@@ -295,24 +308,34 @@ def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
     variable) but is still fixed across fuel. S2 handles a free variable (via `re_conv_var`,
     valid for ALL `env`) and a `(quote v)` constant; any other shape is an unimplemented
     frontier → `throwError` (the full convergence analyzer, G1, lands in a later stage). -/
-partial def proveConv (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) : MetaM Expr := do
+partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t : SExpr) :
+    MetaM Expr := do
   match t with
   | .atom (.symbol s) =>
     let hNotT ← proveIsNamedFalse s "t"
-    mkAppM ``re_conv_var #[cfg.worldExpr, cfg.envExpr, reflectSymbol s, hNotT]
+    mkAppM ``re_conv_var #[cfg.worldExpr, envExpr, reflectSymbol s, hNotT]
   | .cons (.atom (.symbol qs)) (.cons v .nil) =>
     if qs.name == "quote" then
-      mkAppM ``re_conv_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
+      mkAppM ``re_conv_quote #[cfg.worldExpr, envExpr, reflectSExpr v]
     else throwError "proveConv: no convergence rule for unary {qs.name}: {repr t}"
   | .cons (.atom (.symbol bs)) (.cons a (.cons b .nil)) =>
     -- builtin application — recurse on operands, apply that builtin's conv wrapper.
     if bs.name == "cons" then
-      let ha ← proveConv cfg ctx a
-      let hb ← proveConv cfg ctx b
+      let ha ← proveConv cfg envExpr ctx a
+      let hb ← proveConv cfg envExpr ctx b
       let hNoCons ← noShadowFact cfg { name := "cons" }
-      mkAppM ``re_conv_cons #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCons, ha, hb]
+      mkAppM ``re_conv_cons #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoCons, ha, hb]
     else throwError "proveConv: no convergence rule for binary {bs.name}: {repr t}"
   | _ => throwError "proveConv: no convergence rule for {repr t}"
+
+/-- Prove a term converges in EVERY environment: `∀ env', ∃ N, ∃ v, ∀ f ≥ N,
+    evalOpt f w env' t = some v`. Runs `proveConv` under a quantified `env'` and
+    λ-abstracts. (Used for a definition body, whose convergence `re_unfold1_conv` needs
+    at the `bindArgs` env.) -/
+def proveConvAllEnv (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) : MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``Env) fun env' => do
+    let p ← proveConv cfg env' ctx t
+    mkLambdaFVars #[env'] p
 
 /-- Replay one rewrite node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`, by
     applying that rune's combinator. (equal-self is the literal closer, handled in
@@ -330,13 +353,28 @@ def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) : MetaM Ex
         throwError "cdr-cons: lhs head not (cdr (cons …)): {repr lhs}"
       unless rhs == b do
         throwError "cdr-cons: rhs {repr rhs} ≠ the cons's cdr operand {repr b}"
-      let ha ← proveConv cfg ctx a
-      let hb ← proveConv cfg ctx b
+      let ha ← proveConv cfg cfg.envExpr ctx a
+      let hb ← proveConv cfg cfg.envExpr ctx b
       let hNoCdr ← noShadowFact cfg { name := "cdr" }
       let hNoCons ← noShadowFact cfg { name := "cons" }
       mkAppM ``re_cdr_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
     | _ => throwError "cdr-cons: lhs not (cdr (cons a b)): {repr lhs}"
+  | "definition", _ =>
+    -- `(fn arg) ⇒ substTerm [formal] [arg] body`, via the carried DefInfo.
+    match lhs with
+    | .cons (.atom (.symbol fn)) (.cons arg .nil) =>
+      match cfg.defs.find? (·.1 == fn) with
+      | some (_, di) =>
+        let hns ← proveNotSpecial fn
+        let harg ← proveConv cfg cfg.envExpr ctx arg
+        let hbodyAll ← proveConvAllEnv cfg ctx di.body
+        mkAppM ``re_unfold1_conv
+          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol di.formal,
+            reflectSExpr di.body, reflectSExpr arg, hns,
+            di.defFact, di.closedFact, di.noLetFact, harg, hbodyAll]
+      | none => throwError "definition: no DefInfo carried for {fn.name}"
+    | _ => throwError "definition: lhs not a 1-arg application (fn arg): {repr lhs}"
   | _, _ =>
     throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
 
@@ -370,7 +408,7 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
         unless curTerm == clhs do
           throwError "replayLiteral: rewrite chain reached {repr curTerm}, \
                       expected equal-self redex {repr clhs}"
-        let hX ← proveConv cfg ctx X
+        let hX ← proveConv cfg cfg.envExpr ctx X
         let hNoEqual ← noShadowFact cfg { name := "equal" }
         let closeProof ← mkAppM ``re_equal_self
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
