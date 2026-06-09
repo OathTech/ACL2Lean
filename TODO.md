@@ -88,15 +88,18 @@ end-to-end via the driver, not the hand proofs.
 - [ ] **preprocess-clause + `:ABBREVIATION-EXPANSION`** idiom (car/cdr-cons real shape)
       + implicit `(equal x x)` tautology closure (no equal-self node).
 - [ ] **executable-counterpart / ground eval** node.
-- [ ] **gen-world ReplayConfig (retire hand-marshalled facts)** (QoL). Today the test
-      harness hand-writes per-theorem `<fn>_def/_closed/_nolet` + `world_no_<builtin>`
-      facts and a `ReplayConfig`. `generateWorld` emits the World/Body/Formula but NOT
-      these structural facts. Fork: (A) extend `generateWorld` to also emit the fact
-      theorems (generated world carries its own config; elaborator references them by a
-      predictable name scheme), or (B) prove them on-the-fly in the MetaM elaborator
-      (`Meta.simp`/`decide` at replay time, no generated theorems). Either retires the
-      per-example hand step and unblocks the coverage harness. NOTE: only STRUCTURAL facts
-      are decoupled — totality/type-prescription world facts (G3 below) are measure-coupled.
+- [ ] **Eliminate ALL hand-marshalling — driver derives facts on demand** (the chosen
+      full-design direction; see `docs/plans/2026-06-08_defmap-refactor.md`). Architecture:
+      the driver, recursing the tree, derives every fact it needs from the World/Development
+      — nobody enumerates anything. Structural facts by kernel computation; semantic facts
+      (totality/type-prescription) from admission data later (measure track).
+  - [x] **P0** coverage: World.defs contract characterization + `#guard_msgs` axiom gates.
+  - [x] **P1+P2** `World.defs : HashMap → DefMap` (assoc list, same interface, lookups
+        reduce); all concrete world facts now `by decide`. Build/contract/axiom-gates green.
+  - [ ] **P3** driver derives `defs.get?`/no-shadow + `DefInfo` on the fly (via the existing
+        `proveByDecide`), removing the hand `sq_def`/`empty_no_*`/`DefInfo` from the harness.
+  - [ ] **P4** build the `evalOpt` World as a projection of the `Development`'s defuns →
+        single input (parsed proof-log); then the coverage harness is nearly free.
 - [ ] Replace the hardcoded `World.empty`/empty-env frontend with **`gen-world`** output;
       feed the **real parsed `simple.proof-log`** (drop the hand-built test trees once
       the real tree replays).
