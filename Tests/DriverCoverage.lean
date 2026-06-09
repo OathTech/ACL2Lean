@@ -53,7 +53,9 @@ def corpus : List (String × String) :=
    ("11-custom-measure",       include_str "../acl2_samples/recon-tests/11-custom-measure.proof-log"),
    ("12-multi-controller",     include_str "../acl2_samples/recon-tests/12-multi-controller.proof-log"),
    ("13-multi-measured-var",   include_str "../acl2_samples/recon-tests/13-multi-measured-var.proof-log"),
-   ("14-accumulator",          include_str "../acl2_samples/recon-tests/14-accumulator.proof-log")]
+   ("14-accumulator",          include_str "../acl2_samples/recon-tests/14-accumulator.proof-log"),
+   ("15-nested-induction",     include_str "../acl2_samples/recon-tests/15-nested-induction.proof-log"),
+   ("16-three-way",            include_str "../acl2_samples/recon-tests/16-three-way.proof-log")]
 
 /-- Run the driver on one theorem over its derived world; return a one-line status. The
     world is PROJECTED from the development and REFLECTED concretely (P4); structural facts

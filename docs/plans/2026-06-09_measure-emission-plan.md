@@ -132,7 +132,15 @@ alist; emit `:CONTROLLERS` (the candidate's already-instantiated controllers). V
   test's IH maps to smaller sub-terms). Also a **merged scheme** (ACL2 inducts on `(len x)` but
   carries `rev-acc`'s `acc` substitution). **Constructor-term IH substitution verified.**
 
-These five drive the coverage harness (`Tests/DriverCoverage.lean`) — parse→reconstruct→World all
+- `15-nested-induction` (`app`+`dup` conjunction): TWO inductions in ONE theorem — `*1` inducts
+  on `(len z)`, then a SECOND induction `*1.1` on `(app x y)` is synthesized nested inside a
+  subgoal of `*1`. **Reconstruction's push→induct adjacency for a nested/second pool-root
+  verified** (every prior test had exactly one induction per theorem).
+- `16-three-way` (`zip3`, simultaneous cdr×3): 3-element IH alist `x:=(cdr x), y:=(cdr y),
+  z:=(cdr z)` and a 3-disjunct governing test. **Multi-variable IH/case reconstruction scales
+  past two variables.**
+
+These seven drive the coverage harness (`Tests/DriverCoverage.lean`) — parse→reconstruct→World all
 green; driver-replay still the expected induction frontier.
 
 **Patterns tried but NOT addable book-free (→ deferred / emission gaps):**
