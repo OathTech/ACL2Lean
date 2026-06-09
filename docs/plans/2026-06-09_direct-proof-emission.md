@@ -150,6 +150,69 @@ Remaining 13 (still intentionally red): the **tau-system / forward-chain / linea
 01/app-nil, 02×3, 03×2, 04/evenlen-booleanp, 07/termination, 08/equal-symm+equal-trans,
 11×1, 12×1, 16×1. Next chunks: E (tau detail), A (built-in-clausep), linear arithmetic.
 
+## Tau/type-set survey (2026-06-09): the remaining 13, and the replay design fork
+
+**Classification of the 13** (by the discharge step's runes, verified per leaf in the dumps):
+- **tau-system** (`executable-counterpart:tau-system`): 03/len2-cdr-smaller, 07/termination
+  (`{(zp n) ∨ (< (- n 1) n)}` — tau decides this by zp's recognizer + INTERVAL arithmetic),
+  11/*1/5'+*1/4, 12/*1/2'+*1/1', 16×3.
+- **type-set / forward-chain contradiction** (`fake-rune-for-type-set` /
+  `compound-recognizer:*` / `type-prescription:*`, via `built-in-clausep`'s
+  forward-chain branch, simplify.lisp:6856): 01/app-nil, 02×3, 03/len2-nonneg,
+  04/evenlen-booleanp, 08/equal-symm+equal-trans, 11/*1/3.
+
+Both are **decision procedures**: they return a verdict + a rune set, with NO internal
+step record (tau returns the constant `*tau-ttree*`; the fc-contradiction a ttree of
+runes). ACL2 itself has no finer-grained proof of these leaves than the algorithm run.
+
+**What full algorithm-level emission would take (Option 1):** `tau-term`/`tau-assume`
+(tau.lisp:11163/12030) form a small interpreter with ~13 deduction kinds (alist lookup,
+quote→singleton-interval, lambda expand, NOT, IF must-true/false branching, recognizer,
+EQUAL-via-intervals, <-via-intervals, bounder+signature rules, big-switch, …), visiting
+every subterm; discharge via `tau-clause1p` (tau.lisp:12387) = per-literal
+`tau-assume`-the-negation until contradiction/must-be-false. Emitting its deduction tree
+is the same job we did for the rewriter — feasible, well-localized — but the Lean side
+must then MODEL tau semantics (recognizer sets, implicant closure, interval arithmetic,
+signature-rule application) as a checker. Same again, bigger, for type-set
+(type-set-b.lisp — Track B's core). Estimated as the dominant cost; weeks.
+
+**Option 2 (proposed by MDD): emit the top-level discharge node; discharge in Lean by a
+kernel-checked decision procedure (lean-smt / omega).** Emit per leaf: the mechanism
+(tau / type-set-fc / linear), the input clause (already on the `:STEP`), the closing
+literal if cheaply available, and the CONSUMED FACTS — the runes' corollaries
+(type-prescriptions are already emitted+parsed; compound-recognizer corollaries may need
+emitting). The Lean driver lifts the leaf clause from `evalOpt`-world to a native
+proposition (the established native-bridge/enc move, mechanized), supplies the emitted
+type facts as hypotheses, and closes it with a proof-producing decision procedure —
+`lean-smt` (cvc5 + proof reconstruction, kernel-checked) or core `omega` where linear
+arithmetic suffices. Fidelity framing: **faithful at clause granularity** — the clause
+tree (which IS ACL2's proof) is mirrored exactly, and decision-procedure leaves are
+discharged the way ACL2 itself regards them (a closed-form check), with the obligation
+stated precisely and the check kernel-validated. This needs an explicit, ratified
+amendment to the fidelity rules (CLAUDE.md "checker does no inference" / the omega
+anti-example) carving out decision-procedure LEAVES — the anti-example was about
+shortcutting REWRITE chains, which remain fully mirrored.
+
+Why Option 2 is attractive here: ONE mechanism covers BOTH classes (and later 03's
+linear class — same shape); it unblocks the frontier without weeks of tau/type-set
+modeling; and it preserves the kernel as sole trust anchor (lean-smt reconstructs
+proofs; if reconstruction fails, the leaf fails loudly).
+
+Open risks to spike before committing:
+1. **The lift**: leaf clauses quantify over SExpr (e.g. `{(zp n) ∨ (< (- n 1) n)}` is
+   true for CONS n because `(zp n)=T` there) — the lifted obligation must carry ACL2's
+   defaulting semantics (Logic.lean primitives), then split integer/other before ℤ
+   reasoning. Does smt/omega handle the lifted form mechanically?
+2. **lean-smt integration**: toolchain pinning vs ours; verify `#print axioms` of a
+   reconstructed proof is clean (no `native_decide`, no trust axioms).
+3. Whether core `omega` alone suffices for most of the 13 (no new dependency), with
+   lean-smt reserved for leaves needing UF congruence.
+
+**Spike plan**: hand-lift ONE representative of each class — 07's `Subgoal 1'`
+(tau/interval) and 02/app-nil's `*1/1` (type-set/fc) — state the native obligation in
+Lean with the emitted type facts as hypotheses, attempt `omega` then `lean-smt`, check
+axioms. Then decide and mechanize.
+
 ## Approach (emit → parse → reconstruct → eventually replay)
 
 1. **Locate the discharge points in ACL2** (`acl2/`): `preprocess-clause`
