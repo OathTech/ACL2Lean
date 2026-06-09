@@ -5,7 +5,16 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-06-08._
+_Last updated: 2026-06-09._
+
+> **⚠️ `just ci` is INTENTIONALLY RED (2026-06-09).** The driver-coverage harness now
+> hard-fails on any **black-box `PROVED` leaf** — a clause ACL2 discharged via
+> `preprocess-clause` / `tau-system` / evaluation, for which NO replayable proof
+> structure is emitted (19 theorems / 11 tests; the residual-clause tip of most proofs).
+> This is the **direct-proof / decision-procedure EMISSION gap**, deliberately failing
+> until that instrumentation lands — NOT a regression. See
+> `docs/plans/2026-06-09_direct-proof-emission.md`. Clean (green) tests: `simple`, 05,
+> 09, 10, 13, 14, 15.
 
 ## Where we are
 

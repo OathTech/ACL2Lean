@@ -9,8 +9,12 @@ build:
 test:
     lake build Tests
 
-# Full conformance: build + unit tests
-ci: build test
+# Full conformance: build + unit tests + driver-coverage (the latter gates on
+# reconstruction integrity AND the black-box-leaf emission frontier — see
+# docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage include_str's the
+# gitignored .proof-log corpus, so regenerate it first (scripts/recon-test-dump.sh)
+# if a fresh checkout reports a missing-log compile error rather than the frontier.
+ci: build test driver-coverage
 
 # Run the corpus report
 report:

@@ -35,6 +35,25 @@ partial def developmentTheorems : Development → List ClauseProof
   | .bind _ rest => developmentTheorems rest
   | .done => []
 
+/-- Clause-ids of BLACK-BOX leaves under a clause node: a leaf clause (no child
+    clauses, no induction) that ACL2 marks PROVED but for which NO replayable proof
+    structure was emitted (every step's rewriter detail `items` is empty). These are
+    `preprocess-clause` / type-set / evaluation / linear-arithmetic discharges that the
+    instrumentation does not yet emit a sub-proof for — a known EMISSION gap (Track B;
+    see docs/plans/2026-06-09_direct-proof-emission.md). There is nothing to mirror, so
+    such a leaf must NOT be reported as handled. (A SIMPLIFY-CLAUSE-proved leaf carries
+    `items`; a PUSH-CLAUSE-proved node carries an induction / child pool-root — neither
+    is flagged.) -/
+partial def blackBoxLeafIds (n : ClauseNode) : List String :=
+  let isLeaf := n.children.isEmpty && n.induction.isNone
+  let noDetail := n.steps.all (fun s => s.items.isEmpty)
+  let here := if isLeaf && noDetail then [n.idStr] else []
+  here ++ n.children.flatMap blackBoxLeafIds
+
+/-- Black-box leaves of a whole theorem proof (empty if its root is unset). -/
+def theoremBlackBoxLeaves (cp : ClauseProof) : List String :=
+  (cp.root.map blackBoxLeafIds).getD []
+
 /-- The corpus as `(name, log-content)` pairs. Each log is `include_str`'d (a missing one
     is a hard compile error here — no silent skip — and lake re-runs on change). -/
 def corpus : List (String × String) :=
@@ -82,6 +101,9 @@ elab "#driver_coverage" : command => do
     -- silent "0 theorem(s)" line (as a header-only 00-direct capture once did). The
     -- per-theorem replay FAILs are NOT integrity failures — they are the expected frontier.
     let mut integrityFails : Array String := #[]
+    -- EMISSION-FRONTIER failures: theorems containing a black-box PROVED leaf (Track B
+    -- gap). Deliberately HARD-FAIL until the preprocess/eval/type-set emission lands.
+    let mut emissionFrontiers : Array String := #[]
     for (name, content) in corpus do
       match ProofLog.parse content with
       | .error msg =>
@@ -100,12 +122,24 @@ elab "#driver_coverage" : command => do
             integrityFails := integrityFails.push s!"{name}: 0 theorems reconstructed (failed/empty capture?)"
           for cp in thms do
             total := total + 1
+            -- EMISSION FRONTIER (Track B): a black-box PROVED leaf — ACL2 discharged
+            -- the clause by preprocess/eval/type-set but emitted no replayable
+            -- structure. Marked unhandled and HARD-FAILED below (not a silent green).
+            let bb := theoremBlackBoxLeaves cp
+            unless bb.isEmpty do
+              emissionFrontiers := emissionFrontiers.push s!"{name}/{cp.name}: black-box PROVED leaf(s) [{", ".intercalate bb}]"
             let status ← tryReplay w cp
             if status == "REPLAYED ✓" then replayed := replayed + 1
-            lines := lines.push s!"    {cp.name} → {status}"
+            let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
+            lines := lines.push s!"    {cp.name} → {status}{tag}"
     logInfo m!"Driver coverage — REPLAYED {replayed}/{total}:\n{"\n".intercalate lines.toList}"
     unless integrityFails.isEmpty do
       throwError m!"Reconstruction-integrity failures (not the replay frontier):\n{"\n".intercalate integrityFails.toList}"
+    unless emissionFrontiers.isEmpty do
+      -- HARD RED until the Track B emission lands (docs/plans/2026-06-09_direct-proof-emission.md).
+      -- A black-box PROVED leaf has no emitted proof structure to replay; treating it as
+      -- handled would be a fidelity lie. These FAIL the build deliberately.
+      throwError m!"Unhandled EMISSION FRONTIER — {emissionFrontiers.size} theorem(s) discharged by an uninstrumented preprocess/eval/type-set path (black-box PROVED leaf, no replayable structure emitted). This is the Track B emission gap (docs/plans/2026-06-09_direct-proof-emission.md), deliberately failing until that instrumentation lands:\n{"\n".intercalate emissionFrontiers.toList}"
 
 #driver_coverage
 
