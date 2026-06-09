@@ -21,6 +21,7 @@
   the corpus with `scripts/capture-proof-log.sh` before building this.
 -/
 import ACL2Lean.Replay.Driver
+import ACL2Lean.Replay.DischargeLeaf
 import ACL2Lean.ProofLog
 import ACL2Lean.ClauseTree
 import Lean
@@ -64,20 +65,21 @@ def dischargeOrigins : List String :=
   ["preprocess/tau", "preprocess/tau-contradiction", "preprocess/type-set-fc",
    "preprocess/trivial-clause", "preprocess/built-in-clause"]
 
-private def itemDischargeOrigins : ClauseItem → List String
+private def itemDischargeOrigins : ClauseItem → List (String × SExpr)
   | .literal _ => []
-  | .step (.node _ _ _ _ prov) =>
-      if dischargeOrigins.contains prov.origin then [prov.origin] else []
+  | .step (.node _ lhs _ _ prov) =>
+      if dischargeOrigins.contains prov.origin then [(prov.origin, lhs)] else []
   | .branch _ items => items.flatMap itemDischargeOrigins
 
-/-- Per-theorem: the discharge-node origins on PROVED leaves — these leaves are
-    emission-complete but await driver replay (the c1/c2 omega/lean-smt work).
-    Reported as a tag, not a hard failure. -/
-partial def theoremDischargeLeaves (cp : ClauseProof) : List (String × String) :=
-  let rec go (n : ClauseNode) : List (String × String) :=
+/-- Per-theorem: the discharge nodes on PROVED leaves — `(clauseId, origin, the
+    discharged clause)`. These leaves are emission-complete; their replay is the
+    DP lift (`replayDischargeLeaf`), attempted below per leaf. -/
+partial def theoremDischargeLeaves (cp : ClauseProof) : List (String × String × SExpr) :=
+  let rec go (n : ClauseNode) : List (String × String × SExpr) :=
     let here :=
       if n.children.isEmpty && n.induction.isNone then
-        (n.steps.flatMap (·.items.flatMap itemDischargeOrigins)).map (n.idStr, ·)
+        (n.steps.flatMap (·.items.flatMap itemDischargeOrigins)).map
+          (fun (o, lhs) => (n.idStr, o, lhs))
       else []
     here ++ n.children.flatMap go
   (cp.root.map go).getD []
@@ -117,6 +119,28 @@ def tryReplay (w : World) (cp : ClauseProof) : TermElabM String := do
     return "REPLAYED ✓"
   catch e => return s!"FAIL: {(← e.toMessageData.toString).replace "\n" " "}"
 
+/-- Attempt the DP-lift replay of one discharge leaf: prove the discharge node's
+    claim `∃N∀f≥N, eval (disjoin clause) = some t` over a QUANTIFIED env (the
+    obligation must hold for every environment), and kernel-check the proof. -/
+def tryDischarge (w : World) (id origin : String) (clause : SExpr) : TermElabM String := do
+  let wExpr ← reflectWorld w
+  -- fresh, BOUNDED heartbeat budget per leaf (the command itself runs unlimited;
+  -- one pathological leaf must neither hang nor poison the rest), and runtime
+  -- (timeout) exceptions report ✗ instead of failing the build.
+  withOptions (fun o => o.set `maxHeartbeats (400000 : Nat)) <|
+    Core.withCurrHeartbeats <| tryCatchRuntimeEx
+    (try
+      let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
+        let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
+        let prf ← replayDischargeLeaf cfg clause
+        Meta.mkLambdaFVars #[envFV] prf
+      Meta.check p
+      return s!"{id}:{origin} ✓"
+    catch e =>
+      return s!"{id}:{origin} ✗ ({(← e.toMessageData.toString).replace "\n" " "})")
+    (fun e =>
+      return s!"{id}:{origin} ✗ (runtime: {(← e.toMessageData.toString).replace "\n" " "})")
+
 elab "#driver_coverage" : command => do
   liftTermElabM do
     let mut lines : Array String := #[]
@@ -132,6 +156,9 @@ elab "#driver_coverage" : command => do
     -- EMISSION-FRONTIER failures: theorems containing a black-box PROVED leaf (Track B
     -- gap). Deliberately HARD-FAIL until the preprocess/eval/type-set emission lands.
     let mut emissionFrontiers : Array String := #[]
+    -- DP-lift replay (c1) tally over discharge leaves.
+    let mut dpTotal := 0
+    let mut dpReplayed := 0
     for (name, content) in corpus do
       match ProofLog.parse content with
       | .error msg =>
@@ -157,15 +184,21 @@ elab "#driver_coverage" : command => do
             unless bb.isEmpty do
               emissionFrontiers := emissionFrontiers.push s!"{name}/{cp.name}: black-box PROVED leaf(s) [{", ".intercalate bb}]"
             -- Discharge leaves (decision-procedure nodes): emission-complete under the
-            -- ratified carve-out; awaiting driver replay (omega/lean-smt) — tag, not red.
+            -- ratified carve-out; attempt the DP-lift replay (c1) per leaf.
             let dis := theoremDischargeLeaves cp
             let status ← tryReplay w cp
             if status == "REPLAYED ✓" then replayed := replayed + 1
             let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
-            let disTag := if dis.isEmpty then "" else
-              s!"  [DISCHARGE-LEAF (replay pending): {", ".intercalate (dis.map fun (id, o) => s!"{id}:{o}")}]"
+            let mut disParts : List String := []
+            for (id, o, clause) in dis do
+              dpTotal := dpTotal + 1
+              let r ← tryDischarge w id o clause
+              if r.endsWith "✓" then dpReplayed := dpReplayed + 1
+              disParts := disParts ++ [r]
+            let disTag := if disParts.isEmpty then "" else
+              s!"  [DISCHARGE: {", ".intercalate disParts}]"
             lines := lines.push s!"    {cp.name} → {status}{tag}{disTag}"
-    logInfo m!"Driver coverage — REPLAYED {replayed}/{total}:\n{"\n".intercalate lines.toList}"
+    logInfo m!"Driver coverage — REPLAYED {replayed}/{total}; DP-discharge leaves {dpReplayed}/{dpTotal}:\n{"\n".intercalate lines.toList}"
     unless integrityFails.isEmpty do
       throwError m!"Reconstruction-integrity failures (not the replay frontier):\n{"\n".intercalate integrityFails.toList}"
     unless emissionFrontiers.isEmpty do
@@ -174,6 +207,10 @@ elab "#driver_coverage" : command => do
       -- handled would be a fidelity lie. These FAIL the build deliberately.
       throwError m!"Unhandled EMISSION FRONTIER — {emissionFrontiers.size} theorem(s) discharged by an uninstrumented preprocess/eval/type-set path (black-box PROVED leaf, no replayable structure emitted). This is the Track B emission gap (docs/plans/2026-06-09_direct-proof-emission.md), deliberately failing until that instrumentation lands:\n{"\n".intercalate emissionFrontiers.toList}"
 
+-- Unlimited at the command level: per-leaf budgets are enforced INSIDE
+-- `tryDischarge` (withCurrHeartbeats + a 400k cap), so one expensive leaf cannot
+-- poison the rest of the sweep.
+set_option maxHeartbeats 0 in
 #driver_coverage
 
 end ACL2.Tests.Coverage

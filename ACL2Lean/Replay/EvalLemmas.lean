@@ -1907,4 +1907,104 @@ theorem re_acl2_numberp_int (w : World) (env : Env) (z : SExpr) (k : Int)
   conv_builtin1 w env { name := "acl2-numberp" } z (.atom (.number (.int k))) .t
     (by decide) h_no hz (by rfl)
 
+/-! ## Decision-procedure discharge leaves (the ratified carve-out)
+
+    A clause ACL2 closed by a verdict-only decision procedure (tau / type-set
+    forward-chain) carries an emitted discharge node `(disjoin clause) ⇒ t`. The
+    driver replays it by VALUE-characterized evaluation of the if-spine
+    (`proveVal`): every subterm's value is an explicit `Logic`-primitive
+    expression over the clause variables' env values, the spine splits on each
+    literal's value via `re_dp_if_split`, and the residual fact
+    `∀ vars, v₁ = nil → … → vₖ = t` is closed by a kernel-checked decision
+    procedure (`omega` after SExpr case-split — see the carve-out in CLAUDE.md). -/
+
+@[simp] theorem callBuiltin_zp (a : SExpr) :
+    callBuiltin "zp" [a] = some (Logic.zp a) := by rfl
+@[simp] theorem callBuiltin_lt (a b : SExpr) :
+    callBuiltin "<" [a, b] = some (Logic.lt a b) := by rfl
+@[simp] theorem callBuiltin_integerp (a : SExpr) :
+    callBuiltin "integerp" [a] = some (Logic.integerp a) := by rfl
+@[simp] theorem callBuiltin_implies (a b : SExpr) :
+    callBuiltin "implies" [a, b] = some (Logic.implies a b) := by rfl
+@[simp] theorem callBuiltin_iff (a b : SExpr) :
+    callBuiltin "iff" [a, b] = some (Logic.iff a b) := by rfl
+
+/-- Value-characterized convergence of a quoted constant: `(quote v) ⇒ v`. -/
+theorem re_val_quote (w : World) (env : Env) (v : SExpr) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "quote" })) (.cons v .nil)) = some v :=
+  ⟨1, fun f hf => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact evalOpt_quote g w env v⟩
+
+/-- Value-characterized convergence of a variable: `(var s) ⇒ (env.get? s).getD nil`
+    (the binding, or `nil` if unbound — requires `s ≠ t`, the self-evaluating symbol). -/
+theorem re_val_var (w : World) (env : Env) (s : Symbol)
+    (h_not_t : s.isNamed "t" = false) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol s)) = some ((env.get? s).getD .nil) := by
+  match h : env.get? s with
+  | some v => exact ⟨1, fun f _ => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      simpa [h] using evalOpt_var g w env s v h⟩
+  | none => exact ⟨1, fun f _ => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      simpa [h] using evalOpt_var_unbound g w env s h h_not_t⟩
+
+/-- Discharge-leaf if-split: `(if c t e) ⇒ t` (the value `t`) given the test's
+    VALUE-characterized convergence to `cv` and t-convergence of the branch selected
+    by EITHER case of `cv` (both implications supplied; the proof case-splits on
+    `cv = nil`). The spine combinator for a decision-procedure discharge: the driver
+    cannot know which literal of the disjunction is true for a given env, so both
+    branches are discharged hypothetically. -/
+theorem re_dp_if_split (w : World) (env : Env) (c t e cv : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
+    (hthen : cv ≠ .nil → ∃ N, ∀ f ≥ N, evalOpt f w env t = some .t)
+    (helse : cv = .nil → ∃ N, ∀ f ≥ N, evalOpt f w env e = some .t) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = some .t := by
+  obtain ⟨Nc, hc⟩ := hc
+  by_cases hcv : cv = .nil
+  · obtain ⟨Ne, he⟩ := helse hcv
+    refine ⟨max Nc Ne + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    rw [evalOpt_if_false g w env c t e (hcv ▸ hc g (by omega))]
+    exact he g (by omega)
+  · obtain ⟨Nt, ht⟩ := hthen hcv
+    refine ⟨max Nc Nt + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    rw [evalOpt_if_true g w env c t e cv (hc g (by omega))
+      (by cases cv <;> simp_all [Logic.toBool])]
+    exact ht g (by omega)
+
+/-- Rewrite a value-characterized convergence along a value equality (used to close
+    the spine's last literal with the decision-procedure fact `vk = t`). -/
+theorem re_val_cast (w : World) (env : Env) (a v v' : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = some v) (hv : v = v') :
+    ∃ N, ∀ f ≥ N, evalOpt f w env a = some v' := hv ▸ h
+
+/-- Value-characterized convergence of an `if` INSIDE a literal: the value is
+    `cond (toBool cv) tv ev` (both branches must converge — their values are
+    needed whichever way the test goes, since the DP fact reasons over all
+    variable values). -/
+theorem re_val_if (w : World) (env : Env) (c t e cv tv ev : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
+    (ht : ∃ N, ∀ f ≥ N, evalOpt f w env t = some tv)
+    (he : ∃ N, ∀ f ≥ N, evalOpt f w env e = some ev) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = some (cond (Logic.toBool cv) tv ev) := by
+  obtain ⟨Nc, hc⟩ := hc; obtain ⟨Nt, ht⟩ := ht; obtain ⟨Ne, he⟩ := he
+  refine ⟨max Nc (max Nt Ne) + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  by_cases hcv : Logic.toBool cv = true
+  · rw [evalOpt_if_true g w env c t e cv (hc g (by omega)) hcv, ht g (by omega), hcv]
+    rfl
+  · have hnil : cv = .nil := by cases cv <;> simp_all [Logic.toBool]
+    have htb : Logic.toBool cv = false := by simp [hnil, Logic.toBool]
+    rw [evalOpt_if_false g w env c t e (hnil ▸ hc g (by omega)), he g (by omega), htb]
+    rfl
+
 end ACL2.Replay

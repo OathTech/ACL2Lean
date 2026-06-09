@@ -234,12 +234,34 @@ Sequencing approved by MDD: (a) carve-out → (b) discharge nodes → (c1) drive
   there. The coverage harness hard-fails only on item-LESS PROVED leaves now (true
   emission gaps) and tags discharge leaves `[DISCHARGE-LEAF (replay pending)]`.
   **`just ci` is GREEN again**; the pressure moves to driver replay (c1/c2).
-- **(c1) NEXT** — driver: for a leaf whose step carries a discharge node, mechanically
-  unfold `evalOpt` over the clause disjunction, reduce to the native Logic-primitive
-  proposition, close via `omega` (the `Tests/SpikeTauOmega.lean` pattern, mechanized;
-  spike is kernel-clean `[propext, Quot.sound]`). Scope: primitive-only deciding
-  literals (07/termination, 08×2, 11's arith leaves). **(c2)** opaque-subterm leaves
-  need totality + TP consumption (Driver Stage 5; 12/16/02/03/04).
+- **(c1) DONE — first DP leaves replayed (3/19 ✓, kernel-checked).** New machinery:
+  - `EvalLemmas`: `re_val_quote`/`re_val_var`/`re_val_if`/`re_val_cast` (VALUE-
+    characterized convergence — the value is an explicit Logic-primitive expression
+    over `(env.get? s).getD nil`), `re_dp_if_split` (the spine combinator: both
+    branches discharged hypothetically since the true literal is env-dependent), and
+    `callBuiltin_{zp,lt,integerp,implies,iff}` rfl lemmas.
+  - `Replay/DischargeLeaf.lean`: `dpValExpr`/`dpValProof` (the lift; primitive map =
+    not/zp/consp/integerp/car/cdr + equal/</binary-+/implies/iff + value-level `if`
+    as `cond`), `dpSpine`, `proveDpFact` (the DP FACT `∀ vars, v₁=nil → … → vₖ=t`
+    proved by the carved-out decision procedure: try the fixed simp/split_ifs/omega
+    tactic unsplit first, else one-level SExpr case-split per var + per-leaf tactic;
+    name-free `MVarId.cases`; hard-fails if any case survives),
+    `replayDischargeLeaf` (folds the spine, closes the last literal with the fact).
+  - Coverage: `tryDischarge` proves each discharge leaf's exact claim
+    `∃N∀f≥N, eval (disjoin clause) = some t` over a QUANTIFIED env, `Meta.check`s
+    the proof; per-leaf bounded heartbeats (one pathological leaf can't poison the
+    sweep). Report column `DP-discharge leaves m/n`.
+  - **✓ replayed**: 07/termination `Subgoal 1'` (tau interval arithmetic, via the
+    case-split+omega path) and 08 `equal-symm` + `equal-trans` (type-set-fc
+    propositional, via the unsplit simp/split_ifs path — incl. a value-level `if`
+    from the and-translation). **✗ remaining 16**: 14× the **c2 frontier** (opaque
+    user-fn subterms — `len`/`len2`/`cd2`/`true-listp`/`evenlen`/`booleanp` — need
+    totality + type-prescription hypotheses) + `03/linear-chain` (`<`-transitivity
+    over RATIONALS — nonlinear after `toRat` cross-multiplication, genuinely beyond
+    `omega`: the concrete (d)/lean-smt case) + composition wiring.
+- **(c2) NEXT** — opaque subterms: converge user-fn applications via totality
+  (Driver Stage 5) and feed the emitted type-prescription corollaries as DP-fact
+  hypotheses (`len ≥ 0` etc.).
 - **(d) GATED** — lean-smt as a separate Lake package once (c1) shows what omega
   can't reach; check toolchain pinning, cvc5 availability, axiom hygiene first.
 
