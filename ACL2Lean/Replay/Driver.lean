@@ -306,13 +306,31 @@ def proveConv (cfg : ReplayConfig) (_ctx : ReplayCtx) (t : SExpr) : MetaM Expr :
     else throwError "proveConv: no convergence rule for {repr t}"
   | _ => throwError "proveConv: no convergence rule for {repr t}"
 
-/-- Replay one rewrite node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`.
-    S1/S2: no rewrite rune is implemented yet — every rewrite node hard-fails
-    (fail-closed). Per-rune handlers land in S3+. (equal-self is the literal closer,
-    handled in `replayLiteral`, not here.) -/
-def replayNode (_cfg : ReplayConfig) (_ctx : ReplayCtx) (n : ProofNode) : MetaM Expr := do
+/-- Replay one rewrite node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`, by
+    applying that rune's combinator. (equal-self is the literal closer, handled in
+    `replayLiteral`, not here.) Unhandled runes hard-fail (fail-closed). -/
+def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) : MetaM Expr := do
   let (rty, rname) := runeOf n
-  throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
+  let (lhs, rhs) := nodeLhsRhs n
+  match rty, rname with
+  | "rewrite", "cdr-cons" =>
+    -- `(cdr (cons a b)) ⇒ b`.
+    match lhs with
+    | .cons (.atom (.symbol cdrS))
+        (.cons (.cons (.atom (.symbol consS)) (.cons a (.cons b .nil))) .nil) =>
+      unless cdrS.name == "cdr" && consS.name == "cons" do
+        throwError "cdr-cons: lhs head not (cdr (cons …)): {repr lhs}"
+      unless rhs == b do
+        throwError "cdr-cons: rhs {repr rhs} ≠ the cons's cdr operand {repr b}"
+      let ha ← proveConv cfg ctx a
+      let hb ← proveConv cfg ctx b
+      let hNoCdr ← noShadowFact cfg { name := "cdr" }
+      let hNoCons ← noShadowFact cfg { name := "cons" }
+      mkAppM ``re_cdr_cons_conv
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
+    | _ => throwError "cdr-cons: lhs not (cdr (cons a b)): {repr lhs}"
+  | _, _ =>
+    throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
 
 /-- Replay a chain of rewrite nodes, lifting each through the literal context and
     chaining. Returns the composed `∃N∀f≥N, eval start = eval finalTerm` (or `none`

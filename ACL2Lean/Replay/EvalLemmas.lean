@@ -1778,4 +1778,21 @@ theorem re_equal_self (w : World) (env : Env) (A : SExpr)
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
   exact evalOpt_equal_self g w env A v (hN g (by omega)) h_no_equal
 
+/-- RUNE `cdr-cons`, driver-facing (v-fixed convergence): `(cdr (cons a b)) ⇒ b` given
+    `a`, `b` converge. A thin wrapper over the value-specific `re_cdr_cons` that
+    `obtain`s the fixed operand witnesses — so the driver passes `proveConv`'s output
+    straight in (no `Exists.elim` threading). -/
+theorem re_cdr_cons_conv (w : World) (env : Env) (a b : SExpr)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "cdr" }))
+        (.cons (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))) .nil))
+      = evalOpt f w env b := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨Nb, bv, hb⟩ := hb
+  exact re_cdr_cons w env a b av bv h_no_cdr h_no_cons ⟨Na, ha⟩ ⟨Nb, hb⟩
+
 end ACL2.Replay

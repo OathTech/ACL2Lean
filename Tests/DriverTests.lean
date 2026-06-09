@@ -64,6 +64,16 @@ variables). The driver emits the body for an `env` PARAMETER (an fvar); the fron
     is what `gen-world` would emit alongside the world def. -/
 theorem empty_no_equal : World.empty.defs.get? ({ name := "equal" } : Symbol) = none := by
   simp [World.empty]
+theorem empty_no_cdr : World.empty.defs.get? ({ name := "cdr" } : Symbol) = none := by
+  simp [World.empty]
+theorem empty_no_cons : World.empty.defs.get? ({ name := "cons" } : Symbol) = none := by
+  simp [World.empty]
+
+/-- The carried world-structure facts for the empty world (builtins not shadowed). -/
+def emptyNoShadow : List (Symbol × Expr) :=
+  [({ name := "equal" }, mkConst ``empty_no_equal),
+   ({ name := "cdr" },   mkConst ``empty_no_cdr),
+   ({ name := "cons" },  mkConst ``empty_no_cons)]
 
 /-- `acl2_replay% <clauseProofTerm>` — elaborates the tree value, runs the driver over
     the empty world for a universally-quantified `env`, and returns the emitted proof
@@ -73,8 +83,7 @@ elab "acl2_replay% " t:term : term => do
   let cp ← unsafe evalExpr ClauseProof (mkConst ``ACL2.ClauseProof) cpExpr
   withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
-      { worldExpr := mkConst ``World.empty, envExpr := env,
-        noShadow := [({ name := "equal" }, mkConst ``empty_no_equal)] }
+      { worldExpr := mkConst ``World.empty, envExpr := env, noShadow := emptyNoShadow }
     let proof ← replayProof cfg cp
     mkLambdaFVars #[env] proof
 
@@ -92,6 +101,39 @@ example :
 
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
 #print axioms s2_mirror
+
+/-! ## POSITIVE — S3: a real rewrite rune (`cdr-cons`) + path-directed congruence.
+
+Hand-built tree for `(equal (cdr (cons a b)) b)`: a `cdr-cons` node rewrites
+`(cdr (cons a b)) ⇒ b` (lifted through `equal arg1` via its `:PATH`), then equal-self
+closes `(equal b b)`. The first node that is a real rewrite, not just a closer —
+exercises `replayNode`'s cdr-cons handler + `proveConv` of the (variable) operands +
+the path-directed `emitCongruence`. -/
+private def varA : SExpr := sym "a"
+private def varB : SExpr := sym "b"
+/-- `(equal (cdr (cons a b)) b)`. -/
+private def litCdrCons : SExpr := equalOf (ap1 "cdr" (ap2 "cons" varA varB)) varB
+private def cdrConsNode : ProofNode :=
+  .node ("rewrite", "cdr-cons") (ap1 "cdr" (ap2 "cons" varA varB)) varB []
+    { path := [.arg 1 { name := "equal" }, .arg 1 { name := "cdr" }] }
+private def eqSelfBB : ProofNode :=
+  .node ("equal-self", "NIL") (equalOf varB varB) Driver.quoteT [] {}
+private def s3Goal : ClauseNode :=
+  { id := default, idStr := "Goal", inputClause := [litCdrCons],
+    steps := [{ simplifyStep with
+      items := [.literal { index := 1, literal := litCdrCons, notFlg := false,
+                           nodes := [cdrConsNode, eqSelfBB], result := Driver.quoteT }] }],
+    induction := none, children := [] }
+private def s3Tree : ClauseProof := { name := "cdr-cons-refl", formula := litCdrCons, root := some s3Goal }
+
+/-- Driver-emitted proof that `(equal (cdr (cons a b)) b)` evaluates to `t` for every env. -/
+def s3_mirror := acl2_replay% s3Tree
+
+example :
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, evalOpt f World.empty env litCdrCons = some SExpr.t :=
+  s3_mirror
+
+#print axioms s3_mirror
 
 /-! ## BRIDGE — use the driver's output to prove the corresponding NATIVE Lean fact.
 
@@ -186,8 +228,7 @@ private def expectDriverFails (label : String) (cp : ClauseProof) : Elab.Command
   Elab.Command.liftTermElabM do
     let emptyEnv ← Term.elabTerm (← `(({} : Env))) none
     let cfg : ReplayConfig :=
-      { worldExpr := mkConst ``World.empty, envExpr := emptyEnv,
-        noShadow := [({ name := "equal" }, mkConst ``empty_no_equal)] }
+      { worldExpr := mkConst ``World.empty, envExpr := emptyEnv, noShadow := emptyNoShadow }
     try
       let _ ← replayProof cfg cp
       throwError "NEGATIVE TEST FAILED ({label}): driver SUCCEEDED but should have failed"

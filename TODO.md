@@ -128,6 +128,8 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
   pipeline untrusted for both.
 - Differential testing of `evalOpt` vs real ACL2 (51/51).
 - Driver S1+S2 + native Nat bridge (first real proof-tree replay).
+- Driver S3 (first real rewrite rune): `(equal (cdr (cons a b)) b)` via a `cdr-cons`
+  node + path-directed congruence (`equal arg1`) + equal-self — axiom-clean mirror.
 - `capture-proof-log.sh` failure detection hardened.
 - SExpr reader now supports dotted pairs (`(a . b)` → true `.cons`); fixes the `(. x)`
   artifact in `:subst` and `:path` frames (previously `.` was read as a symbol).
