@@ -99,8 +99,12 @@ end-to-end via the driver, not the hand proofs.
   - [x] **P3** driver derives `defs.get?`/no-shadow + `DefInfo` on the fly (`proveNoShadow`/
         `deriveDefInfo` via `proveByDecide`); ALL hand world facts + `DefInfo` deleted from
         the harness. `ReplayConfig` = `{worldExpr, envExpr, worldVal}`. Mirrors axiom-clean.
-  - [ ] **P4** build the `evalOpt` World as a projection of the `Development`'s defuns →
-        single input (parsed proof-log); then the coverage harness is nearly free.
+  - [x] **P4** `Development.toWorld` projects the World from the parsed development;
+        `reflectWorld` + `derive_world` emit it as a concrete def. sq frontend derives BOTH
+        theorem and world from one `sqDevelopment` — only input is the log. (`pairWorld`
+        stays a synthetic fixture: the pair test drives a hand-built tree, no proof-log.)
+  - [ ] **Coverage harness** (now nearly free): run the driver over every parsed sample,
+        deriving each world via `derive_world`/`toWorld`; print replayed-vs-frontier.
 - [ ] Replace the hardcoded `World.empty`/empty-env frontend with **`gen-world`** output;
       feed the **real parsed `simple.proof-log`** (drop the hand-built test trees once
       the real tree replays).

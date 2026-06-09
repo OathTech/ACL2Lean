@@ -96,6 +96,20 @@ inductive Development where
   | done
   deriving Repr, Inhabited
 
+/-- Project the `evalOpt` `World` from a reconstructed `Development`: fold each `defun`
+    event's `(name, formals, body)` into `World.defs`. The world the replay reasons over is
+    thus DERIVED from the parsed proof-log, not hand-written — so the only input to a replay
+    is the log. (`typePrescription`/`theorem` events don't extend `defs`.) The `defun` name
+    is a `String`; the key uses the default `Symbol` package, matching the symbols the parser
+    produces in bodies/calls. -/
+def Development.toWorld : Development → World
+  | .done => World.empty
+  | .bind ev rest =>
+    let w := rest.toWorld
+    match ev with
+    | .defun name formals body _ _ => { w with defs := w.defs.insert { name := name } (formals, body) }
+    | _ => w
+
 namespace ClauseTree
 
 /-- A flat node before tree assembly: its parsed id, the printed id, the input

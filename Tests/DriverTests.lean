@@ -251,20 +251,44 @@ private partial def findThm : Development → String → Option ClauseProof
   | .bind _ rest, nm => findThm rest nm
   | .done, _ => none
 
-/-- The REAL parsed `sq-rewrites` proof tree (ACL2 output → parse → reconstruct). -/
-def sqRealProof : Option ClauseProof := do
-  let log ← (ProofLog.parse sqLog).toOption
-  let dev ← (ClauseTree.buildDevelopment log).toOption
-  findThm dev "sq-rewrites"
+/-- The REAL parsed development (ACL2 output → parse → reconstruct). Both the WORLD
+    (`derive_world` below) and the theorem (`sqRealProof`) are projected from THIS — the
+    only input is the log. -/
+def sqDevelopment : Development :=
+  (((ProofLog.parse sqLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
 
-/-- `(defun sq (n) (* n n))` — body `(binary-* n n)` (ACL2 normalizes `*`). -/
+/-- The REAL parsed `sq-rewrites` proof tree, extracted from the development. -/
+def sqRealProof : Option ClauseProof := findThm sqDevelopment "sq-rewrites"
+
+/-- Expected body of `(defun sq (n) (* n n))` — `(binary-* n n)` (ACL2 normalizes `*`).
+    Used only to VALIDATE the derived world below (a test expectation, not the source). -/
 private def sqBody : SExpr :=
   .cons (.atom (.symbol { name := "binary-*" }))
     (.cons (.atom (.symbol { name := "n" })) (.cons (.atom (.symbol { name := "n" })) .nil))
-def sqWorld : World :=
-  { World.empty with defs := World.empty.defs.insert { name := "sq" } ([{ name := "n" }], sqBody) }
-/-- Drive the REAL parsed `sq-rewrites` tree over `sqWorld`. `sq`'s DefInfo + the
-    non-shadowing facts are DERIVED from `worldVal` by the driver — no hand facts. -/
+
+-- `derive_world name from devTerm` — define `name : World` as the world PROJECTED from a
+-- `Development` (`Development.toWorld`), REFLECTED to a concrete (fast-reducing) def. The
+-- world is thus derived from the parsed proof-log, never hand-written.
+open Lean Lean.Elab Lean.Elab.Command in
+elab "derive_world " id:ident " from " t:term : command => do
+  let ns ← getCurrNamespace
+  liftTermElabM do
+    let devE ← Term.elabTermAndSynthesize t (some (mkConst ``ACL2.Development))
+    let dev ← unsafe evalExpr ACL2.Development (mkConst ``ACL2.Development) devE
+    addAndCompile <| .defnDecl
+      { name := ns ++ id.getId, levelParams := [], type := mkConst ``ACL2.World,
+        value := ← Driver.reflectWorld dev.toWorld, hints := .abbrev, safety := .safe }
+
+-- `sqWorld` DERIVED from the parsed development — no hand-written world.
+derive_world sqWorld from sqDevelopment
+
+-- Validate the projection: the derived world has `sq ↦ ([n], (binary-* n n))`.
+#guard sqWorld.defs.get? { name := "sq" } = some ([{ name := "n" }], sqBody)
+
+/-- Drive the REAL parsed `sq-rewrites` tree over the DERIVED `sqWorld`. The DefInfo +
+    non-shadowing facts are derived by the driver (P3); the world itself is derived from
+    the development (P4) — the only input is the log. -/
 elab "acl2_replay_sq_real% " : term => do
   let cpOpt ← unsafe evalExpr (Option ClauseProof)
     (mkApp (mkConst ``Option [0]) (mkConst ``ACL2.ClauseProof)) (mkConst ``sqRealProof)

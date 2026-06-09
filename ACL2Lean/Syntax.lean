@@ -719,6 +719,12 @@ partial def step (w : World) (event : Event) : World :=
 /-- Replay a script of events. -/
 def empty : World := { package := {}, defs := {}, macros := {} }
 
+/-- A world that is just its function map (all other fields default/empty). `evalOpt`
+    reads only `defs`, so this is the world the replay reasons over — used as the concrete
+    target when projecting a `World` from a reconstructed `Development` (the reflected form
+    a generated world def takes). -/
+def ofDefs (defs : DefMap) : World := { defs }
+
 /-- Replay a script of events starting from an empty world. -/
 def replay (events : List Event) : World :=
   events.foldl step empty

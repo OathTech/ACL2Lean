@@ -75,6 +75,23 @@ def reflectSExpr : SExpr → Expr
   | .cons car cdr =>
     mkApp2 (mkConst ``SExpr.cons) (reflectSExpr car) (reflectSExpr cdr)
 
+/-- Reflect a concrete `DefMap` value to an `Expr` (`DefMap.mk [(s, (formals, body)), …]`).
+    `mkAppM`/`mkListLit` infer the implicit type args. Used to emit a CONCRETE world def
+    (fast-reducing under `decide`) projected from a parsed `Development` — see
+    `Development.toWorld` / `reflectWorld`. -/
+def reflectDefMap (m : DefMap) : MetaM Expr := do
+  let symTy := mkConst ``Symbol
+  let entryTy ← mkAppM ``Prod #[symTy, ← mkAppM ``Prod #[← mkAppM ``List #[symTy], mkConst ``SExpr]]
+  let entries ← m.entries.mapM fun (s, formals, body) => do
+    let formalsE ← mkListLit symTy (formals.map reflectSymbol)
+    mkAppM ``Prod.mk #[reflectSymbol s, ← mkAppM ``Prod.mk #[formalsE, reflectSExpr body]]
+  mkAppM ``ACL2.DefMap.mk #[← mkListLit entryTy entries]
+
+/-- Reflect a concrete `World` to an `Expr` as `World.ofDefs <reflected defs>` — only `defs`
+    matters to `evalOpt`. -/
+def reflectWorld (w : World) : MetaM Expr := do
+  mkAppM ``ACL2.World.ofDefs #[← reflectDefMap w.defs]
+
 /-- Prove a decidable proposition `p` by **kernel decision** — deterministic ground
     computation (evaluate the `Decidable` instance via `whnf`, then `of_decide_eq_true`).
     NOT heuristic: no simp set, no search. The single side-condition discharger the
