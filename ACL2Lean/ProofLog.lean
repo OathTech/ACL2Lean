@@ -112,13 +112,38 @@ def rewriteSteps (s : ProofStep) : List RewriteStep :=
 
 end ProofStep
 
-/-- An induction scheme choice from ACL2. -/
+/-- One case of an induction scheme: the governing `tests` (the conditions under which this
+    case applies) and, per induction hypothesis, the substitution `alist` (var ↦ term) giving
+    the IH instance. A base case has `alists = []`; a step case has one alist per recursive call.
+    From ACL2's `tests-and-alists`. -/
+structure InductionCase where
+  tests : List SExpr
+  alists : List (List (Symbol × SExpr))
+  deriving Repr, Inhabited
+
+/-- An induction scheme choice from ACL2, with its MEASURE JUSTIFICATION (from the winning
+    candidate's `justification`): what decreases (`measure`) under the well-founded relation
+    `rel` on domain `mp`, over the measured formals `subset`; plus the per-case structure
+    (`cases`: tests + IH substitutions). The justification fields default to empty so legacy
+    proof-logs (pre measure-emission) still parse. -/
 structure InductionStep where
   /-- The function call that triggered induction, e.g. (MY-APP A B). -/
   term : SExpr
   subgoalCount : Nat
   /-- The generated clause set (each clause is a disjunction of literals). -/
   scheme : List SExpr
+  /-- User-level induction term (`:XTERM`; `term` may be an induction-rule alias). -/
+  xterm : SExpr := .nil
+  /-- The measure term that decreases, e.g. `(acl2-count x)`. -/
+  measure : SExpr := .nil
+  /-- The well-founded relation, e.g. `o<`. -/
+  rel : SExpr := .nil
+  /-- The relation's domain predicate, e.g. `o-p`. -/
+  mp : SExpr := .nil
+  /-- The measured formals (the subset the measure depends on). -/
+  subset : List Symbol := []
+  /-- Per-case tests + IH substitution alists. -/
+  cases : List InductionCase := []
   deriving Repr
 
 /-- Where a theorem comes from in the proof log. -/
@@ -428,7 +453,32 @@ private def parseStep? (items : List SExpr) : Except String ProofStep := do
     ["clauseid", "processor", "result", "runes", "rewrites", "inputclause", "newclauses"] items
   pure { clauseId, processor, result, runes, traceEvents, inputClause, newClauses, extraFields }
 
-/-- Parse a (:INDUCTION ...) s-expression. -/
+/-- Parse one IH substitution alist `((var . term) …)`. ACL2 prints a pair `(v . t)` as
+    `(v . t)` or, when `t` is a list, as `(v t…)` — both are `.cons (symbol v) t`. -/
+private def parseAlist (s : SExpr) : Except String (List (Symbol × SExpr)) := do
+  match s.toList? with
+  | some pairs => pairs.mapM fun p => match p with
+      | .cons (.atom (.symbol v)) term => pure (v, term)
+      | _ => throw s!"INDUCTION :ALISTS: bad pair (expected (var . term)): {repr p}"
+  | none => throw s!"INDUCTION :ALISTS: alist not a list: {repr s}"
+
+/-- Parse one `(:TESTS (test…) :ALISTS (alist…))` induction case. -/
+private def parseCase (s : SExpr) : Except String InductionCase := do
+  match s.toList? with
+  | some items =>
+    let tests ← match lookupKeyword "tests" items with
+      | some t => t.toList?.elim (throw s!"INDUCTION case :TESTS not a list: {repr t}") pure
+      | none => pure []
+    let alists ← match lookupKeyword "alists" items with
+      | some a => match a.toList? with
+        | some als => als.mapM parseAlist
+        | none => throw s!"INDUCTION case :ALISTS not a list: {repr a}"
+      | none => pure []
+    pure { tests, alists }
+  | none => throw s!"INDUCTION case not a plist: {repr s}"
+
+/-- Parse a (:INDUCTION ...) s-expression. The measure-justification fields
+    (:XTERM/:MEASURE/:REL/:MP/:SUBSET/:CASES) are optional — absent in legacy logs. -/
 private def parseInduction? (items : List SExpr) : Except String InductionStep := do
   let term ← match lookupKeyword "term" items with
     | some s => pure s
@@ -442,7 +492,23 @@ private def parseInduction? (items : List SExpr) : Except String InductionStep :
       | some cs => pure cs
       | none => throw s!"INDUCTION: :SCHEME is not a list: {repr s}"
     | none => pure []
-  pure { term, subgoalCount, scheme }
+  let xterm := (lookupKeyword "xterm" items).getD .nil
+  let measure := (lookupKeyword "measure" items).getD .nil
+  let rel := (lookupKeyword "rel" items).getD .nil
+  let mp := (lookupKeyword "mp" items).getD .nil
+  let subset ← match lookupKeyword "subset" items with
+    | some s => match s.toList? with
+      | some xs => xs.mapM fun x => match x with
+        | .atom (.symbol v) => pure v
+        | _ => throw s!"INDUCTION: :SUBSET non-symbol element: {repr x}"
+      | none => throw s!"INDUCTION: :SUBSET not a list: {repr s}"
+    | none => pure []
+  let cases ← match lookupKeyword "cases" items with
+    | some c => match c.toList? with
+      | some cs => cs.mapM parseCase
+      | none => throw s!"INDUCTION: :CASES not a list: {repr c}"
+    | none => pure []
+  pure { term, subgoalCount, scheme, xterm, measure, rel, mp, subset, cases }
 
 /-- Parse a single top-level s-expression from the proof log. -/
 private def parseEvent (s : SExpr) : Except String ProofEvent := do

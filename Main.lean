@@ -95,12 +95,25 @@ private partial def printClauseNode (node : ACL2.ClauseNode) (indent : Nat) : IO
     if st.result == ACL2.ProofResult.subgoals && st.items.isEmpty then
       for nc in st.newClauses do
         IO.println s!"{pad}  │    ⇒ {nc}"
-  -- Induction applied here: its scheme (the generated case clauses); the
+  -- Induction applied here: the measure justification (what decreases, under which
+  -- well-founded relation) and the per-case structure (tests + IH substitutions); the
   -- subgoals are the children below.
   if let some ind := node.induction then
     IO.println s!"{pad}  ╫ INDUCTION on {ind.term}  ({ind.subgoalCount} subgoals)"
+    if ind.measure != .nil then
+      let subsetStr := String.intercalate ", " (ind.subset.map (·.name))
+      IO.println s!"{pad}      measure {ind.measure} decreases under {ind.mp}/{ind.rel}; measured: {subsetStr}"
+    for c in ind.cases do
+      let testsStr := String.intercalate " ∧ " (c.tests.map (·.toString))
+      if c.alists.isEmpty then
+        IO.println s!"{pad}      case [{testsStr}]: base (no IH)"
+      else
+        IO.println s!"{pad}      case [{testsStr}]:"
+        for al in c.alists do
+          let subst := String.intercalate ", " (al.map (fun (v, t) => s!"{v.name} := {t}"))
+          IO.println s!"{pad}        IH: {subst}"
     for cl in ind.scheme do
-      IO.println s!"{pad}      scheme case: {cl}"
+      IO.println s!"{pad}      scheme clause: {cl}"
   -- Children (subgoal clauses).
   for c in node.children do
     printClauseNode c (indent + 4)
