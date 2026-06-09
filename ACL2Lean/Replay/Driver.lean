@@ -253,16 +253,17 @@ structure DefInfo where
   /-- `NoLet body = true`. -/
   noLetFact : Expr
 
-/-- Ambient config: the `World`/`Env` as `Expr`s, plus the **carried world-structure
-    facts** — `noShadow` (proofs `worldExpr.defs.get? s = none` for each builtin used)
-    and `defs` (per defined-function `DefInfo`). Fixed properties of the concrete world,
-    established ONCE when the config is built and looked up here — the driver NEVER
-    re-derives them, and runs no `simp`/search of its own. -/
+/-- Ambient config: the `World` (as both an `Expr` for proof terms and a `World` value
+    so the driver can read formals/bodies) and the `Env` `Expr`. The structural world
+    facts (`defs.get? fn = …`, builtin-not-shadowed, freeVars⊆formals, NoLet) are NOT
+    carried — the driver **derives each one on demand by kernel decision**
+    (`proveNoShadow` / `deriveDefInfo`), since `World.defs` is now a reduction-friendly
+    `DefMap`. No hand-marshalled facts, no per-example config. This is NOT inference: a
+    `decide` over a concrete map is evaluation, not search. -/
 structure ReplayConfig where
   worldExpr : Expr
   envExpr : Expr
-  noShadow : List (Symbol × Expr) := []
-  defs : List (Symbol × DefInfo) := []
+  worldVal : World := {}
 
 /-- The proof context in scope at a node (design note). Grows as stages land; S1/S2
     populate none of it. -/
@@ -287,13 +288,51 @@ def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
 def nodeLhsRhs : ProofNode → SExpr × SExpr | .node _ lhs rhs _ _ => (lhs, rhs)
 def nodePath : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 
-/-- The carried `worldExpr.defs.get? s = none` fact (builtin not shadowed). Looked up
-    from `cfg.noShadow`; hard-fails if absent (the config didn't supply it — a frontier,
-    NOT something the driver re-derives). -/
-def noShadowFact (cfg : ReplayConfig) (s : Symbol) : MetaM Expr := do
-  match cfg.noShadow.find? (·.1 == s) with
-  | some (_, pf) => return pf
-  | none => throwError "noShadowFact: no `defs.get? {s.name} = none` fact in ReplayConfig.noShadow"
+/-- `worldExpr.defs.get? s` as an `Expr` (a `DefMap.get?` application). -/
+private def mkDefsGet (cfg : ReplayConfig) (s : Symbol) : MetaM Expr := do
+  mkAppM ``ACL2.DefMap.get? #[← mkAppM ``ACL2.World.defs #[cfg.worldExpr], reflectSymbol s]
+
+/-- Derive `worldExpr.defs.get? s = none` (builtin `s` not shadowed by a defun) by kernel
+    decision. Replaces the hand-carried `noShadow` fact: the lookup REDUCES on the concrete
+    `DefMap`, so `decide` settles it. Hard-fails (via `proveByDecide`) if `s` IS defined. -/
+def proveNoShadow (cfg : ReplayConfig) (s : Symbol) : MetaM Expr := do
+  let lookup ← mkDefsGet cfg s
+  let elemTy := (← inferType lookup).appArg!
+  let noneE := mkApp (mkConst ``Option.none [0]) elemTy
+  proveByDecide (← mkEq lookup noneE) s!"no-shadow {s.name}"
+
+/-- Derive a defined (1-arg) function's `DefInfo` on demand from the World, with all three
+    structural facts proved by kernel decision (no hand-written theorems):
+    - `defFact`   : `worldExpr.defs.get? fn = some ([formal], body)`
+    - `closedFact`: `∀ s ∈ freeVars body, s ∈ [formal]`
+    - `noLetFact` : `NoLet body = true`
+    `formal`/`body` are read from `cfg.worldVal` (the concrete World); `proveByDecide`
+    re-checks each fact against `worldExpr`, so a `worldVal`/`worldExpr` mismatch hard-fails.
+    Multi-arg / not-defined hard-fail (1-arg unfold is the current frontier). -/
+def deriveDefInfo (cfg : ReplayConfig) (fn : Symbol) : MetaM DefInfo := do
+  match cfg.worldVal.defs.get? fn with
+  | none => throwError "deriveDefInfo: {fn.name} not defined in the world"
+  | some (formals, body) =>
+    let formal ← match formals with
+      | [f] => pure f
+      | _ => throwError "deriveDefInfo: {fn.name} has {formals.length} formals; only 1-arg \
+                         definition-unfold is supported (frontier)"
+    let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
+    let bodyE := reflectSExpr body
+    -- defFact : worldExpr.defs.get? fn = some (formals, body)
+    let someE ← mkAppM ``Option.some #[← mkAppM ``Prod.mk #[formalsE, bodyE]]
+    let defFact ← proveByDecide (← mkEq (← mkDefsGet cfg fn) someE) s!"def {fn.name}"
+    -- closedFact : ∀ s ∈ freeVars body, s ∈ formals
+    let fvE ← mkAppM ``ACL2.Replay.freeVars #[bodyE]
+    let closedProp ← withLocalDeclD `s (mkConst ``ACL2.Symbol) fun sv => do
+      let memFv ← mkAppM ``Membership.mem #[fvE, sv]
+      let memFm ← mkAppM ``Membership.mem #[formalsE, sv]
+      mkForallFVars #[sv] (← mkArrow memFv memFm)
+    let closedFact ← proveByDecide closedProp s!"closed {fn.name}"
+    -- noLetFact : NoLet body = true
+    let noLetFact ← proveByDecide
+      (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[bodyE]) (mkConst ``Bool.true)) s!"nolet {fn.name}"
+    return { formal, body, defFact, closedFact, noLetFact }
 
 /-- Prove `s.isNamed name = false` by kernel decision. -/
 def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
@@ -320,7 +359,7 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
     else if qs.name == "car" || qs.name == "cdr" || qs.name == "consp" then
       -- unary builtin: recurse on the operand, apply that builtin's conv wrapper.
       let ha ← proveConv cfg envExpr ctx v
-      let hNo ← noShadowFact cfg qs
+      let hNo ← proveNoShadow cfg qs
       let lem := match qs.name with
         | "car" => ``re_conv_car | "cdr" => ``re_conv_cdr | _ => ``re_conv_consp
       mkAppM lem #[cfg.worldExpr, envExpr, reflectSExpr v, hNo, ha]
@@ -330,17 +369,17 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
     if bs.name == "cons" then
       let ha ← proveConv cfg envExpr ctx a
       let hb ← proveConv cfg envExpr ctx b
-      let hNoCons ← noShadowFact cfg { name := "cons" }
+      let hNoCons ← proveNoShadow cfg { name := "cons" }
       mkAppM ``re_conv_cons #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoCons, ha, hb]
     else if bs.name == "binary-*" then
       let ha ← proveConv cfg envExpr ctx a
       let hb ← proveConv cfg envExpr ctx b
-      let hNoTimes ← noShadowFact cfg { name := "binary-*" }
+      let hNoTimes ← proveNoShadow cfg { name := "binary-*" }
       mkAppM ``re_conv_times #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoTimes, ha, hb]
     else if bs.name == "binary-+" then
       let ha ← proveConv cfg envExpr ctx a
       let hb ← proveConv cfg envExpr ctx b
-      let hNoPlus ← noShadowFact cfg { name := "binary-+" }
+      let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
       mkAppM ``re_conv_plus #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoPlus, ha, hb]
     else throwError "proveConv: no convergence rule for binary {bs.name}: {repr t}"
   | _ => throwError "proveConv: no convergence rule for {repr t}"
@@ -372,25 +411,24 @@ def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) : MetaM Ex
         throwError "cdr-cons: rhs {repr rhs} ≠ the cons's cdr operand {repr b}"
       let ha ← proveConv cfg cfg.envExpr ctx a
       let hb ← proveConv cfg cfg.envExpr ctx b
-      let hNoCdr ← noShadowFact cfg { name := "cdr" }
-      let hNoCons ← noShadowFact cfg { name := "cons" }
+      let hNoCdr ← proveNoShadow cfg { name := "cdr" }
+      let hNoCons ← proveNoShadow cfg { name := "cons" }
       mkAppM ``re_cdr_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
     | _ => throwError "cdr-cons: lhs not (cdr (cons a b)): {repr lhs}"
   | "definition", _ =>
-    -- `(fn arg) ⇒ substTerm [formal] [arg] body`, via the carried DefInfo.
+    -- `(fn arg) ⇒ substTerm [formal] [arg] body`. DefInfo (def/closed/no-let facts) is
+    -- DERIVED from the world on the fly — no carried config.
     match lhs with
     | .cons (.atom (.symbol fn)) (.cons arg .nil) =>
-      match cfg.defs.find? (·.1 == fn) with
-      | some (_, di) =>
-        let hns ← proveNotSpecial fn
-        let harg ← proveConv cfg cfg.envExpr ctx arg
-        let hbodyAll ← proveConvAllEnv cfg ctx di.body
-        mkAppM ``re_unfold1_conv
-          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol di.formal,
-            reflectSExpr di.body, reflectSExpr arg, hns,
-            di.defFact, di.closedFact, di.noLetFact, harg, hbodyAll]
-      | none => throwError "definition: no DefInfo carried for {fn.name}"
+      let di ← deriveDefInfo cfg fn
+      let hns ← proveNotSpecial fn
+      let harg ← proveConv cfg cfg.envExpr ctx arg
+      let hbodyAll ← proveConvAllEnv cfg ctx di.body
+      mkAppM ``re_unfold1_conv
+        #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol di.formal,
+          reflectSExpr di.body, reflectSExpr arg, hns,
+          di.defFact, di.closedFact, di.noLetFact, harg, hbodyAll]
     | _ => throwError "definition: lhs not a 1-arg application (fn arg): {repr lhs}"
   | _, _ =>
     throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
@@ -426,7 +464,7 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
           throwError "replayLiteral: rewrite chain reached {repr curTerm}, \
                       expected equal-self redex {repr clhs}"
         let hX ← proveConv cfg cfg.envExpr ctx X
-        let hNoEqual ← noShadowFact cfg { name := "equal" }
+        let hNoEqual ← proveNoShadow cfg { name := "equal" }
         let closeProof ← mkAppM ``re_equal_self
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
         match chainOpt with

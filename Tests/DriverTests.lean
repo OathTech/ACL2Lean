@@ -59,25 +59,10 @@ The mirror theorem is `∀ env, ∃ N, ∀ f ≥ N, evalOpt f w env formula = so
 variables). The driver emits the body for an `env` PARAMETER (an fvar); the frontend
 λ-abstracts over it to produce the universal fact. -/
 
-/-- A carried world-structure fact: `equal` is not shadowed in the empty world.
-    Established ONCE here (the driver never re-derives it). For the real pipeline this
-    is what `gen-world` would emit alongside the world def. -/
--- Reduction-friendly `DefMap`: every concrete world lookup fact is `by decide`.
-theorem empty_no_equal : World.empty.defs.get? ({ name := "equal" } : Symbol) = none := by decide
-theorem empty_no_cdr : World.empty.defs.get? ({ name := "cdr" } : Symbol) = none := by decide
-theorem empty_no_cons : World.empty.defs.get? ({ name := "cons" } : Symbol) = none := by decide
-theorem empty_no_car : World.empty.defs.get? ({ name := "car" } : Symbol) = none := by decide
-theorem empty_no_consp : World.empty.defs.get? ({ name := "consp" } : Symbol) = none := by decide
-theorem empty_no_plus : World.empty.defs.get? ({ name := "binary-+" } : Symbol) = none := by decide
-
-/-- The carried world-structure facts for the empty world (builtins not shadowed). -/
-def emptyNoShadow : List (Symbol × Expr) :=
-  [({ name := "equal" },    mkConst ``empty_no_equal),
-   ({ name := "cdr" },      mkConst ``empty_no_cdr),
-   ({ name := "cons" },     mkConst ``empty_no_cons),
-   ({ name := "car" },      mkConst ``empty_no_car),
-   ({ name := "consp" },    mkConst ``empty_no_consp),
-   ({ name := "binary-+" }, mkConst ``empty_no_plus)]
+-- NO hand-marshalled world facts: the driver DERIVES every `defs.get? … = none` /
+-- `= some (…)` / freeVars⊆formals / NoLet by kernel decision from `cfg.worldVal`
+-- (`World.defs` is a reduction-friendly `DefMap`). The config carries only the world
+-- (as `Expr` + value) and env.
 
 /-- `acl2_replay% <clauseProofTerm>` — elaborates the tree value, runs the driver over
     the empty world for a universally-quantified `env`, and returns the emitted proof
@@ -87,7 +72,7 @@ elab "acl2_replay% " t:term : term => do
   let cp ← unsafe evalExpr ClauseProof (mkConst ``ACL2.ClauseProof) cpExpr
   withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
-      { worldExpr := mkConst ``World.empty, envExpr := env, noShadow := emptyNoShadow }
+      { worldExpr := mkConst ``World.empty, envExpr := env, worldVal := World.empty }
     let proof ← replayProof cfg cp
     mkLambdaFVars #[env] proof
 
@@ -209,27 +194,14 @@ private def pairBody : SExpr :=
 def pairWorld : World :=
   { World.empty with defs := World.empty.defs.insert { name := "pair" } ([{ name := "x" }], pairBody) }
 
-theorem pair_def :
-    pairWorld.defs.get? ({ name := "pair" } : Symbol) = some ([{ name := "x" }], pairBody) := by decide
-theorem pair_closed : ∀ s ∈ freeVars pairBody, s ∈ [({ name := "x" } : Symbol)] := by decide
-theorem pair_nolet : NoLet pairBody = true := by decide
-theorem pairWorld_no_equal : pairWorld.defs.get? ({ name := "equal" } : Symbol) = none := by decide
-theorem pairWorld_no_cons : pairWorld.defs.get? ({ name := "cons" } : Symbol) = none := by decide
-
-/-- Run the driver over `pairWorld` (carries `pair`'s DefInfo + non-shadowing facts). -/
+/-- Run the driver over `pairWorld`. `pair`'s DefInfo + non-shadowing facts are DERIVED
+    from `worldVal` by the driver — no hand-written theorems. -/
 elab "acl2_replay_pair% " t:term : term => do
   let cpExpr ← Term.elabTermAndSynthesize t (some (mkConst ``ACL2.ClauseProof))
   let cp ← unsafe evalExpr ClauseProof (mkConst ``ACL2.ClauseProof) cpExpr
   withLocalDeclD `env (mkConst ``Env) fun env => do
-    let di : DefInfo :=
-      { formal := { name := "x" }, body := pairBody,
-        defFact := mkConst ``pair_def, closedFact := mkConst ``pair_closed,
-        noLetFact := mkConst ``pair_nolet }
     let cfg : ReplayConfig :=
-      { worldExpr := mkConst ``pairWorld, envExpr := env,
-        noShadow := [({ name := "equal" }, mkConst ``pairWorld_no_equal),
-                     ({ name := "cons" },  mkConst ``pairWorld_no_cons)],
-        defs := [({ name := "pair" }, di)] }
+      { worldExpr := mkConst ``pairWorld, envExpr := env, worldVal := pairWorld }
     let proof ← replayProof cfg cp
     mkLambdaFVars #[env] proof
 
@@ -291,27 +263,16 @@ private def sqBody : SExpr :=
     (.cons (.atom (.symbol { name := "n" })) (.cons (.atom (.symbol { name := "n" })) .nil))
 def sqWorld : World :=
   { World.empty with defs := World.empty.defs.insert { name := "sq" } ([{ name := "n" }], sqBody) }
-theorem sq_def : sqWorld.defs.get? ({ name := "sq" } : Symbol) = some ([{ name := "n" }], sqBody) := by decide
-theorem sq_closed : ∀ s ∈ freeVars sqBody, s ∈ [({ name := "n" } : Symbol)] := by decide
-theorem sq_nolet : NoLet sqBody = true := by decide
-theorem sqWorld_no_equal : sqWorld.defs.get? ({ name := "equal" } : Symbol) = none := by decide
-theorem sqWorld_no_times : sqWorld.defs.get? ({ name := "binary-*" } : Symbol) = none := by decide
-
-/-- Drive the REAL parsed `sq-rewrites` tree over `sqWorld`. -/
+/-- Drive the REAL parsed `sq-rewrites` tree over `sqWorld`. `sq`'s DefInfo + the
+    non-shadowing facts are DERIVED from `worldVal` by the driver — no hand facts. -/
 elab "acl2_replay_sq_real% " : term => do
   let cpOpt ← unsafe evalExpr (Option ClauseProof)
     (mkApp (mkConst ``Option [0]) (mkConst ``ACL2.ClauseProof)) (mkConst ``sqRealProof)
   let some cp := cpOpt
     | throwError "sqRealProof: parse/extract failed (is 09-defn-unfold.proof-log present?)"
   withLocalDeclD `env (mkConst ``Env) fun env => do
-    let di : DefInfo :=
-      { formal := { name := "n" }, body := sqBody,
-        defFact := mkConst ``sq_def, closedFact := mkConst ``sq_closed, noLetFact := mkConst ``sq_nolet }
     let cfg : ReplayConfig :=
-      { worldExpr := mkConst ``sqWorld, envExpr := env,
-        noShadow := [({ name := "equal" }, mkConst ``sqWorld_no_equal),
-                     ({ name := "binary-*" }, mkConst ``sqWorld_no_times)],
-        defs := [({ name := "sq" }, di)] }
+      { worldExpr := mkConst ``sqWorld, envExpr := env, worldVal := sqWorld }
     let proof ← replayProof cfg cp
     mkLambdaFVars #[env] proof
 
@@ -446,7 +407,7 @@ private def expectDriverFails (label : String) (cp : ClauseProof) : Elab.Command
   Elab.Command.liftTermElabM do
     let emptyEnv ← Term.elabTerm (← `(({} : Env))) none
     let cfg : ReplayConfig :=
-      { worldExpr := mkConst ``World.empty, envExpr := emptyEnv, noShadow := emptyNoShadow }
+      { worldExpr := mkConst ``World.empty, envExpr := emptyEnv, worldVal := World.empty }
     try
       let _ ← replayProof cfg cp
       throwError "NEGATIVE TEST FAILED ({label}): driver SUCCEEDED but should have failed"
