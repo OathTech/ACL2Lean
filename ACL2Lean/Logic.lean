@@ -5,7 +5,7 @@ namespace Logic
 
 open ACL2
 
-/-- ACL2 truthiness: everything except `nil` is falsy. -/
+/-- ACL2 truthiness: everything except `nil` is truthy (only `nil` is false). -/
 @[inline, simp] def toBool (s : SExpr) : Bool :=
   match s with
   | .nil => false
