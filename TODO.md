@@ -53,8 +53,17 @@ end-to-end via the driver, not the hand proofs.
       acl2_induction_consp) → children`, threading `ReplayCtx` (case-hyp + IH). Then
       recognizer / if-simplification / with-lemma(comm) / solidify nodes (the `*1/1`,`*1/2`
       chains) + def-unfold for if-bodies.
-- [ ] **`car`/`cdr`/`consp`/`binary-+` convergence** in `proveConv` — same wrapper shape
-      as `re_conv_cons`/`re_conv_times` (the latter two done).
+- [x] **`car`/`cdr`/`consp`/`binary-+` convergence** in `proveConv` — `re_conv_car/cdr/
+      consp` (unary) + `re_conv_plus` (binary), wired in; tested by `builtinsEq_mirror`.
+- [ ] **recognizer + if-simplification nodes** (`re_if_true/false` + the recognizer that
+      feeds the test value). NOT decoupled: `re_if_true/false` need the test's value, which
+      in real trees comes from the recognizer child reading the **case hypothesis**
+      (`consp x = nil/t`). They consume `ReplayCtx.caseHyps` → land WITH the induction
+      scaffold, not before it.
+- [ ] **Driver coverage harness** (QoL). One command/test that runs the driver over every
+      `.proof-log` in the corpus and prints replayed-vs-frontier per theorem. DEPENDS on
+      gen-world config below (a meaningful harness needs per-theorem `ReplayConfig`, not
+      hand-marshalled facts).
 - [ ] **def-unfold for REAL def shapes.** The current handler only does the *easy* case
       (1-arg fn, direct non-`if` body, no children). Real `def:my-app`/`def:my-len` are
       2-arg and/or have an `if`-body whose recognizer + if-simplification CHILDREN do the
@@ -79,6 +88,15 @@ end-to-end via the driver, not the hand proofs.
 - [ ] **preprocess-clause + `:ABBREVIATION-EXPANSION`** idiom (car/cdr-cons real shape)
       + implicit `(equal x x)` tautology closure (no equal-self node).
 - [ ] **executable-counterpart / ground eval** node.
+- [ ] **gen-world ReplayConfig (retire hand-marshalled facts)** (QoL). Today the test
+      harness hand-writes per-theorem `<fn>_def/_closed/_nolet` + `world_no_<builtin>`
+      facts and a `ReplayConfig`. `generateWorld` emits the World/Body/Formula but NOT
+      these structural facts. Fork: (A) extend `generateWorld` to also emit the fact
+      theorems (generated world carries its own config; elaborator references them by a
+      predictable name scheme), or (B) prove them on-the-fly in the MetaM elaborator
+      (`Meta.simp`/`decide` at replay time, no generated theorems). Either retires the
+      per-example hand step and unblocks the coverage harness. NOTE: only STRUCTURAL facts
+      are decoupled — totality/type-prescription world facts (G3 below) are measure-coupled.
 - [ ] Replace the hardcoded `World.empty`/empty-env frontend with **`gen-world`** output;
       feed the **real parsed `simple.proof-log`** (drop the hand-built test trees once
       the real tree replays).
