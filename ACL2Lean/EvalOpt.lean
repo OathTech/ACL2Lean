@@ -329,7 +329,7 @@ theorem evalOptStep_mono
               simp [hmap] at h
               simp [List.mapM_option_mono (fun a _ val hval =>
                 hmono w env a val hval) hmap]
-              match hdef : w.defs[s]? with
+              match hdef : w.defs.get? s with
               | some (formals, body) =>
                 simp [hdef] at h ⊢
                 by_cases hlen : formals.length = argVals.length
@@ -391,7 +391,7 @@ private def myAppBody : SExpr :=
                mkVar "y"]
 
 private def simpleWorld : World :=
-  { defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
+  { defs := ({} : DefMap)
       |>.insert (sym "my-len") ([sym "x"], myLenBody)
       |>.insert (sym "my-app") ([sym "x", sym "y"], myAppBody) }
 

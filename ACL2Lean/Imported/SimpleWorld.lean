@@ -25,7 +25,7 @@ def my_appBody : SExpr :=
   (SExpr.cons (SExpr.atom (.symbol { name := "if" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "consp" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cons" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "car" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-app" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cdr" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))))
 
 def world : World where
-  defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
+  defs := ({} : DefMap)
     |>.insert (sym "my-len") ([sym "x"], my_lenBody)
     |>.insert (sym "my-app") ([sym "x", sym "y"], my_appBody)
 
@@ -737,42 +737,32 @@ theorem my_len_my_app_generic
 -- Definition verification: prove HashMap lookup facts.
 -- Pattern: unfold world, rw [getElem?_insert], simp to resolve key comparisons.
 
+-- With the reduction-friendly `DefMap`, every concrete world lookup is `by decide`
+-- (the lookup REDUCES) — no `unfold`/`getElem?_insert`/`simp` needed. This is exactly
+-- the property that lets the driver derive these facts on the fly (P3).
 theorem world_has_my_app :
-    world.defs[my_app_sym]? = some ([x_sym, y_sym], my_appBody) := by
-  unfold world
-  rw [Std.HashMap.getElem?_insert]
-  simp [my_app_sym, x_sym, y_sym, sym]
+    world.defs[my_app_sym]? = some ([x_sym, y_sym], my_appBody) := by decide
 
 theorem world_has_my_len :
-    world.defs[my_len_sym]? = some ([x_sym], my_lenBody) := by
-  unfold world
-  rw [Std.HashMap.getElem?_insert]; simp [my_len_sym, sym]
-  simp [x_sym, sym]
+    world.defs[my_len_sym]? = some ([x_sym], my_lenBody) := by decide
 
 theorem world_no_equal :
-    world.defs[({ name := "equal" } : Symbol)]? = none := by
-  unfold world
-  rw [Std.HashMap.getElem?_insert]; simp [sym]
+    world.defs[({ name := "equal" } : Symbol)]? = none := by decide
 
 theorem world_no_consp :
-    world.defs[({ name := "consp" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+    world.defs[({ name := "consp" } : Symbol)]? = none := by decide
 
 theorem world_no_plus :
-    world.defs[({ name := "binary-+" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+    world.defs[({ name := "binary-+" } : Symbol)]? = none := by decide
 
 theorem world_no_cdr :
-    world.defs[({ name := "cdr" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+    world.defs[({ name := "cdr" } : Symbol)]? = none := by decide
 
 theorem world_no_car :
-    world.defs[({ name := "car" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+    world.defs[({ name := "car" } : Symbol)]? = none := by decide
 
 theorem world_no_cons :
-    world.defs[({ name := "cons" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+    world.defs[({ name := "cons" } : Symbol)]? = none := by decide
 
 /-- The mirror theorem for the concrete `world`, sorry-free (axioms:
     `{propext, Classical.choice, Quot.sound}`) — both subgoals of the ACL2 proof

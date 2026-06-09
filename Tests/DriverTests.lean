@@ -62,18 +62,13 @@ variables). The driver emits the body for an `env` PARAMETER (an fvar); the fron
 /-- A carried world-structure fact: `equal` is not shadowed in the empty world.
     Established ONCE here (the driver never re-derives it). For the real pipeline this
     is what `gen-world` would emit alongside the world def. -/
-theorem empty_no_equal : World.empty.defs.get? ({ name := "equal" } : Symbol) = none := by
-  simp [World.empty]
-theorem empty_no_cdr : World.empty.defs.get? ({ name := "cdr" } : Symbol) = none := by
-  simp [World.empty]
-theorem empty_no_cons : World.empty.defs.get? ({ name := "cons" } : Symbol) = none := by
-  simp [World.empty]
-theorem empty_no_car : World.empty.defs.get? ({ name := "car" } : Symbol) = none := by
-  simp [World.empty]
-theorem empty_no_consp : World.empty.defs.get? ({ name := "consp" } : Symbol) = none := by
-  simp [World.empty]
-theorem empty_no_plus : World.empty.defs.get? ({ name := "binary-+" } : Symbol) = none := by
-  simp [World.empty]
+-- Reduction-friendly `DefMap`: every concrete world lookup fact is `by decide`.
+theorem empty_no_equal : World.empty.defs.get? ({ name := "equal" } : Symbol) = none := by decide
+theorem empty_no_cdr : World.empty.defs.get? ({ name := "cdr" } : Symbol) = none := by decide
+theorem empty_no_cons : World.empty.defs.get? ({ name := "cons" } : Symbol) = none := by decide
+theorem empty_no_car : World.empty.defs.get? ({ name := "car" } : Symbol) = none := by decide
+theorem empty_no_consp : World.empty.defs.get? ({ name := "consp" } : Symbol) = none := by decide
+theorem empty_no_plus : World.empty.defs.get? ({ name := "binary-+" } : Symbol) = none := by decide
 
 /-- The carried world-structure facts for the empty world (builtins not shadowed). -/
 def emptyNoShadow : List (Symbol × Expr) :=
@@ -215,17 +210,11 @@ def pairWorld : World :=
   { World.empty with defs := World.empty.defs.insert { name := "pair" } ([{ name := "x" }], pairBody) }
 
 theorem pair_def :
-    pairWorld.defs.get? ({ name := "pair" } : Symbol) = some ([{ name := "x" }], pairBody) := by
-  show pairWorld.defs[({ name := "pair" } : Symbol)]? = _
-  simp [pairWorld, World.empty]
+    pairWorld.defs.get? ({ name := "pair" } : Symbol) = some ([{ name := "x" }], pairBody) := by decide
 theorem pair_closed : ∀ s ∈ freeVars pairBody, s ∈ [({ name := "x" } : Symbol)] := by decide
 theorem pair_nolet : NoLet pairBody = true := by decide
-theorem pairWorld_no_equal : pairWorld.defs.get? ({ name := "equal" } : Symbol) = none := by
-  show pairWorld.defs[({ name := "equal" } : Symbol)]? = _
-  simp [pairWorld, World.empty]
-theorem pairWorld_no_cons : pairWorld.defs.get? ({ name := "cons" } : Symbol) = none := by
-  show pairWorld.defs[({ name := "cons" } : Symbol)]? = _
-  simp [pairWorld, World.empty]
+theorem pairWorld_no_equal : pairWorld.defs.get? ({ name := "equal" } : Symbol) = none := by decide
+theorem pairWorld_no_cons : pairWorld.defs.get? ({ name := "cons" } : Symbol) = none := by decide
 
 /-- Run the driver over `pairWorld` (carries `pair`'s DefInfo + non-shadowing facts). -/
 elab "acl2_replay_pair% " t:term : term => do
@@ -302,17 +291,11 @@ private def sqBody : SExpr :=
     (.cons (.atom (.symbol { name := "n" })) (.cons (.atom (.symbol { name := "n" })) .nil))
 def sqWorld : World :=
   { World.empty with defs := World.empty.defs.insert { name := "sq" } ([{ name := "n" }], sqBody) }
-theorem sq_def : sqWorld.defs.get? ({ name := "sq" } : Symbol) = some ([{ name := "n" }], sqBody) := by
-  show sqWorld.defs[({ name := "sq" } : Symbol)]? = _
-  simp [sqWorld, World.empty]
+theorem sq_def : sqWorld.defs.get? ({ name := "sq" } : Symbol) = some ([{ name := "n" }], sqBody) := by decide
 theorem sq_closed : ∀ s ∈ freeVars sqBody, s ∈ [({ name := "n" } : Symbol)] := by decide
 theorem sq_nolet : NoLet sqBody = true := by decide
-theorem sqWorld_no_equal : sqWorld.defs.get? ({ name := "equal" } : Symbol) = none := by
-  show sqWorld.defs[({ name := "equal" } : Symbol)]? = _
-  simp [sqWorld, World.empty]
-theorem sqWorld_no_times : sqWorld.defs.get? ({ name := "binary-*" } : Symbol) = none := by
-  show sqWorld.defs[({ name := "binary-*" } : Symbol)]? = _
-  simp [sqWorld, World.empty]
+theorem sqWorld_no_equal : sqWorld.defs.get? ({ name := "equal" } : Symbol) = none := by decide
+theorem sqWorld_no_times : sqWorld.defs.get? ({ name := "binary-*" } : Symbol) = none := by decide
 
 /-- Drive the REAL parsed `sq-rewrites` tree over `sqWorld`. -/
 elab "acl2_replay_sq_real% " : term => do
@@ -403,7 +386,7 @@ theorem native_nat_refl (n : Nat) : n = n := by
   have hvar : evalOpt (N + 1) World.empty (envOf n) (.atom (.symbol { name := "x" }))
       = some (enc n) :=
     evalOpt_var N World.empty (envOf n) { name := "x" } (enc n) (envOf_get n)
-  have hno : World.empty.defs.get? ({ name := "equal" } : Symbol) = none := by simp [World.empty]
+  have hno : World.empty.defs.get? ({ name := "equal" } : Symbol) = none := by decide
   have heq : evalOpt (N + 2) World.empty (envOf n) litEqXX = some SExpr.t := hN (N + 2) (by omega)
   have hval : enc n = enc n :=
     eval_equal_t_implies_eq (N + 1) World.empty (envOf n)

@@ -630,10 +630,56 @@ def flattenList (events : List Event) : List Event :=
 
 end Event
 
+/-- Reduction-friendly finite map: function name → (formals, body). An association
+    list that mirrors the `HashMap` interface the world used (`get?` / `insert` /
+    `[k]?` / `contains` / `size` / `{}`), but whose lookups **reduce by `decide`/`rfl`
+    on a concrete map**. This is what lets the replay driver *derive* the structural
+    facts `w.defs.get? fn = some (formals, body)` / `= none` on the fly, instead of
+    consuming hand-written `simp [World.empty]` theorems.
+
+    `evalOpt` does one lookup per function call — O(n) on the assoc list vs O(1) on a
+    `HashMap` — but the corpus has a handful of functions and `evalOpt` is fuel-bounded
+    (proof/test use, not production execution), so this is immaterial. -/
+structure DefMap where
+  entries : List (Symbol × (List Symbol × SExpr)) := []
+  deriving Repr, Inhabited, DecidableEq
+
+namespace DefMap
+
+/-- Lookup by key: the first matching entry. Since `insert` prepends and drops the
+    prior binding, that is the latest insert. Reduces on a concrete map. -/
+def get? (m : DefMap) (s : Symbol) : Option (List Symbol × SExpr) :=
+  let rec go : List (Symbol × (List Symbol × SExpr)) → Option (List Symbol × SExpr)
+    | [] => none
+    | (k, v) :: rest => if k == s then some v else go rest
+  go m.entries
+
+/-- Insert/overwrite: drop any existing binding for `s`, then prepend. Matches
+    `HashMap.insert` (latest wins) while keeping the list duplicate-free. -/
+def insert (m : DefMap) (s : Symbol) (v : List Symbol × SExpr) : DefMap :=
+  ⟨(s, v) :: m.entries.filter (fun kv => kv.1 != s)⟩
+
+/-- Whether a key is bound. -/
+def contains (m : DefMap) (s : Symbol) : Bool := (m.get? s).isSome
+
+/-- Number of distinct bound keys (the assoc list is kept duplicate-free). -/
+def size (m : DefMap) : Nat := m.entries.length
+
+/-- `m[s]?` is `m.get? s` (and so also reduces on a concrete map). -/
+instance : GetElem? DefMap Symbol (List Symbol × SExpr) (fun _ _ => True) where
+  getElem m s _ := (m.get? s).getD default
+  getElem? m s := m.get? s
+
+/-- Bridge `[s]?` and `get?` for `simp` (they are definitionally equal). The `HashMap`
+    repr had an analogous simp normal form; keep proofs that wrote `w.defs[s]?` working. -/
+@[simp] theorem getElem?_eq_get? (m : DefMap) (s : Symbol) : m[s]? = m.get? s := rfl
+
+end DefMap
+
 /-- Semantics: interpret events into a growing environment. -/
 structure World where
   package : PackageState := {}
-  defs : Std.HashMap Symbol (List Symbol × SExpr) := {}
+  defs : DefMap := {}
   macros : Std.HashMap Symbol (List Symbol × SExpr) := {}
   theorems : Std.HashMap Symbol TheoremInfo := {}
   theories : List TheoryExpr := []

@@ -79,7 +79,7 @@ def generateWorld (bookName : String) (events : List Event) : String := Id.run d
     lines := lines.push "  defs := {}"
   else
     lines := lines.push "def world : World where"
-    lines := lines.push "  defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))"
+    lines := lines.push "  defs := ({} : DefMap)"
     for entry in defuns do
       let name := entry.1
       let formals := entry.2.1

@@ -32,7 +32,7 @@ def appBody : SExpr :=
   (SExpr.cons (SExpr.atom (.symbol { name := "if" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "consp" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cons" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "car" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "app" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cdr" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))))
 
 def world : World where
-  defs := ({} : Std.HashMap Symbol (List Symbol × SExpr))
+  defs := ({} : DefMap)
     |>.insert (sym "app") ([sym "x", sym "y"], appBody)
 
 private def x_sym : Symbol := sym "x"
@@ -445,18 +445,13 @@ equality needs `enc` INJECTIVITY. -/
 private def xT : SExpr := .atom (.symbol { name := "x" })
 private def yT : SExpr := .atom (.symbol { name := "y" })
 
-theorem world_has_app : world.defs[app_sym]? = some ([x_sym, y_sym], appBody) := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [app_sym, x_sym, y_sym, sym]
-theorem world_no_equal : world.defs[({ name := "equal" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
-theorem world_no_consp : world.defs[({ name := "consp" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
-theorem world_no_cdr : world.defs[({ name := "cdr" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
-theorem world_no_car : world.defs[({ name := "car" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
-theorem world_no_cons : world.defs[({ name := "cons" } : Symbol)]? = none := by
-  unfold world; rw [Std.HashMap.getElem?_insert]; simp [sym]
+-- Reduction-friendly `DefMap`: every concrete world lookup is `by decide`.
+theorem world_has_app : world.defs[app_sym]? = some ([x_sym, y_sym], appBody) := by decide
+theorem world_no_equal : world.defs[({ name := "equal" } : Symbol)]? = none := by decide
+theorem world_no_consp : world.defs[({ name := "consp" } : Symbol)]? = none := by decide
+theorem world_no_cdr : world.defs[({ name := "cdr" } : Symbol)]? = none := by decide
+theorem world_no_car : world.defs[({ name := "car" } : Symbol)]? = none := by decide
+theorem world_no_cons : world.defs[({ name := "cons" } : Symbol)]? = none := by decide
 
 private theorem bindArgs_xy_x (vx vy : SExpr) :
     (bindArgs [x_sym, y_sym] [vx, vy]).get? x_sym = some vx := by
