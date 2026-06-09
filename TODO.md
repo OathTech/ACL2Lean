@@ -7,22 +7,29 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 
 _Last updated: 2026-06-09._
 
-> **`just ci` is GREEN again (2026-06-09).** The black-box-leaf emission frontier is
-> CLOSED: the evaluation chunk emits the preprocess reduction chains, and every
-> decision-procedure discharge (tau / type-set-forward-chain) now emits an explicit
-> **discharge node** (clause ⇒ t, mechanism origin) under the ratified
-> decision-procedure-leaf carve-out (CLAUDE.md). The coverage harness still hard-fails
-> on any item-less PROVED leaf (emission gap) and tags discharge leaves
-> `[DISCHARGE-LEAF (replay pending)]` — their DRIVER replay (lift + omega/lean-smt,
-> c1/c2) is the next work. See `docs/plans/2026-06-09_direct-proof-emission.md`.
+> **`just ci` is GREEN** and now includes the driver-coverage sweep: it hard-fails
+> on any item-less PROVED leaf (emission gap), on reconstruction-integrity
+> failures, and reports per-theorem replay + per-leaf DP-discharge status
+> (✓ proved / ◌ conditional with the missing obligation in the proof's type /
+> ✗ failed — currently ✓6 ◌13 ✗0). See
+> `docs/plans/2026-06-09_direct-proof-emission.md`.
 
 ## Where we are
 
 Stages 1–4 of the pipeline (ACL2 instrumentation → proof-log parse → proof-tree
-reconstruction) are built and validated on the sample corpus. The **proof-producing
-driver** (stage 7) now exists and has replayed its first real proof-tree node kind
-end-to-end (`equal-self`), with the result lifted to a native Lean fact. See
-`docs/plans/2026-06-08_driver-build-plan.md` for the driver methodology.
+reconstruction) are built and validated on the sample corpus (recon-tests 00–16,
+incl. boundary inductions). The instrumentation now emits the **full induction
+justification** (measure/rel/controllers/per-case IH substitutions), the
+**preprocess evaluation chains**, and an explicit **discharge node** for every
+verdict-only decision-procedure closure. The **proof-producing driver** (stage 7)
+replays single-literal rewrite trees end-to-end (`sq-rewrites` from the real log)
+and, under the ratified decision-procedure-leaf carve-out, replays discharge
+leaves (✓6 ◌13-conditional ✗0 of 19 — the ◌ proofs carry their missing fact as an
+explicit bound hypothesis, no `sorry`). **CURRENT FOCUS: c3 composition** — wire
+preprocess chains + the WF-induction scaffold + discharge leaves into
+whole-theorem replay; target: `my-len-my-app` end-to-end via the driver. See
+`docs/plans/2026-06-08_driver-build-plan.md` and
+`docs/plans/2026-06-09_direct-proof-emission.md`.
 
 ---
 
@@ -33,129 +40,119 @@ complexity, each step driven by a real (or faithfully-synthesized) tree, with
 positive + negative tests. Goal: replay `my-len-my-app` (then `app-assoc`)
 end-to-end via the driver, not the hand proofs.
 
-- [x] **S1** — dummy driver, correct type, fail-closed (`throwError`, never `sorry`).
-- [x] **S2** — one `equal-self` node → universal mirror fact
-      `∀ env, ∃N ∀f≥N, evalOpt … (equal x x) = some t`; native `∀ n:Nat, n=n` via the
-      `enc:Nat→SExpr` bridge. Axiom-clean.
-- [ ] **S3** — congruence + one with-lemma rewrite (`cdr-cons`): activate the
-      built-but-unused congruence-path emitter (`emitCongruence`) on a real rewrite
-      node; multi-node literal chaining. (task #39)
-- [ ] **S4** — solidify / `rewriting-equivalence`: a clause-hypothesis (or IH) equality
-      consumed by a solidify node (`equivSource`); `ReplayCtx.caseHyps`; the
-      `evalOpt_substTerm_subst1` + `eval_equal_t_implies_eq` bridge. (task #36)
-- [ ] **definition-unfold** nodes — `evalOpt_unfold{1,2}_conv` (compound-arg form
-      ALWAYS; never the over-specialized `re_unfold*_var`). (task #34)
-- [ ] **recognizer / if-simplification** nodes (`re_if_true/false`, builtin step
-      lemmas). (task #33)
-- [ ] **Position threading (retire `findPath`).** The congruence path is NOT in the
-      ACL2 log (no rule fires at congruence nodes, so they're unlogged); the driver
-      currently recovers it by locating the node's `lhs` as a unique subterm
-      (`findPath`, hard-fail on ambiguity) — deterministic but it's recovery in the
-      checker and fragile on ambiguous redexes. Fix: **emit the rewrite address/focus
-      from ACL2** (the rewriter knows it), thread it through the proof tree, and carry
-      it schematically so the driver never matches. (Track-A instrumentation; decide
-      before/with S3.)
-- [ ] **Inductive clause structure (next big gap).** `replayClause` only handles a clause
-      that closes via a literal; the real `my-len-my-app` `Goal` is pushed to an induction
-      pool root (`*1`) with case-subgoal children (`*1/1`, `*1/2`) — the driver fail-closes
-      at `Goal` ("no literal closing to (quote t)"). Needs: recurse `push-clause → *1 (emit
-      acl2_induction_consp) → children`, threading `ReplayCtx` (case-hyp + IH). Then
-      recognizer / if-simplification / with-lemma(comm) / solidify nodes (the `*1/1`,`*1/2`
-      chains) + def-unfold for if-bodies.
-- [x] **`car`/`cdr`/`consp`/`binary-+` convergence** in `proveConv` — `re_conv_car/cdr/
-      consp` (unary) + `re_conv_plus` (binary), wired in; tested by `builtinsEq_mirror`.
-- [ ] **recognizer + if-simplification nodes** (`re_if_true/false` + the recognizer that
-      feeds the test value). NOT decoupled: `re_if_true/false` need the test's value, which
-      in real trees comes from the recognizer child reading the **case hypothesis**
-      (`consp x = nil/t`). They consume `ReplayCtx.caseHyps` → land WITH the induction
-      scaffold, not before it.
-- [ ] **Driver coverage harness** (QoL). One command/test that runs the driver over every
-      `.proof-log` in the corpus and prints replayed-vs-frontier per theorem. DEPENDS on
-      gen-world config below (a meaningful harness needs per-theorem `ReplayConfig`, not
-      hand-marshalled facts).
-- [ ] **def-unfold for REAL def shapes.** The current handler only does the *easy* case
-      (1-arg fn, direct non-`if` body, no children). Real `def:my-app`/`def:my-len` are
-      2-arg and/or have an `if`-body whose recognizer + if-simplification CHILDREN do the
-      simplification — `re_unfold1_conv`'s `substTerm`-of-the-`if`-body ≠ the node's
-      simplified rhs there. Needs: multi-arg unfold + replaying the def node's children
-      (recognizer/if) to reach the net rhs.
-- [ ] **Driver: `.boundary` path frames (child-node congruence).** `emitCongruence` is
-      now path-directed (`pathStepsFromFrames` navigates the literal via `:PATH`; numeric
-      `.arg` → `congr_unary/_binary_left/_binary_right`); `findPath`/`occursIn` retired.
-      Remaining: handle `.boundary` (BODY/RHS) frames — child nodes inside an unfold /
-      rule-RHS — which currently hard-fail (they align with the tree's child-nesting).
-- [ ] **convergence analyzer (G1)** — general: builtins over known structure +
-      defined-fn totality, threading opaque (existential) witnesses for recursive
-      calls. (currently: variable + quote only)
-- [ ] **world facts (G3)** — produce per-function totality from the admission
-      (`WorldEvent.defun.termination`) and the integer/type fact from the emitted
-      `:TYPE-PRESCRIPTION` corollary, so the driver is self-contained. (task #37)
-- [ ] **induction scaffold (G5)** — `replayClause` emits `acl2_induction_consp` for the
-      `consp/cdr` scheme by reading the `InductionStep`; threads case-hyp + IH down via
-      `ReplayCtx`; multi-literal clauses & case-split children. Non-`consp` schemes
-      hard-fail.
-- [ ] **preprocess-clause + `:ABBREVIATION-EXPANSION`** idiom (car/cdr-cons real shape)
-      + implicit `(equal x x)` tautology closure (no equal-self node).
-- [ ] **executable-counterpart / ground eval** node.
-- [ ] **Eliminate ALL hand-marshalling — driver derives facts on demand** (the chosen
-      full-design direction; see `docs/plans/2026-06-08_defmap-refactor.md`). Architecture:
-      the driver, recursing the tree, derives every fact it needs from the World/Development
-      — nobody enumerates anything. Structural facts by kernel computation; semantic facts
-      (totality/type-prescription) from admission data later (measure track).
-  - [x] **P0** coverage: World.defs contract characterization + `#guard_msgs` axiom gates.
-  - [x] **P1+P2** `World.defs : HashMap → DefMap` (assoc list, same interface, lookups
-        reduce); all concrete world facts now `by decide`. Build/contract/axiom-gates green.
-  - [x] **P3** driver derives `defs.get?`/no-shadow + `DefInfo` on the fly (`proveNoShadow`/
-        `deriveDefInfo` via `proveByDecide`); ALL hand world facts + `DefInfo` deleted from
-        the harness. `ReplayConfig` = `{worldExpr, envExpr, worldVal}`. Mirrors axiom-clean.
-  - [x] **P4** `Development.toWorld` projects the World from the parsed development;
-        `reflectWorld` + `derive_world` emit it as a concrete def. sq frontend derives BOTH
-        theorem and world from one `sqDevelopment` — only input is the log. (`pairWorld`
-        stays a synthetic fixture: the pair test drives a hand-built tree, no proof-log.)
-  - [x] **Coverage harness** (`Tests/DriverCoverage.lean`, `just driver-coverage`): runs the
-        driver over the whole corpus, world derived per sample via `toWorld`/`reflectWorld`;
-        prints REPLAYED-vs-frontier per theorem (currently 1/27 — `sq-rewrites`; the rest are
-        clean frontiers: induction, multi-arg unfold, exec-counterpart). Logs `include_str`'d
-        so an absent log is a HARD failure (no silent skip). Shook out the new derive/toWorld
-        code across 0/2/3-defun worlds with zero dirty failures. Fills in as node kinds land.
-- [ ] Replace the hardcoded `World.empty`/empty-env frontend with **`gen-world`** output;
-      feed the **real parsed `simple.proof-log`** (drop the hand-built test trees once
-      the real tree replays).
-- [ ] The **`acl2_replay` tactic** frontend (read the Lean goal, emit the proof, close
-      it) — vs the current term-elaborator test harness.
-- [ ] Replay **`my-len-my-app` end-to-end** via the driver; then **`app-assoc`**;
-      `#print axioms` clean.
-- [ ] **`Expr` blowup** — `let`-bind shared convergence subproofs in emitted terms.
-- [ ] Generalize the over-specialized `re_unfold*_var` (driver should always use the
-      compound unfold).
+### Done (driver foundations)
+
+- [x] **S1/S2** — fail-closed dummy; `equal-self` node → universal mirror fact; native
+      `Nat` bridge. Axiom-clean.
+- [x] **S3** — congruence + with-lemma rewrite (`cdr-cons`) via the PATH-DIRECTED
+      congruence emitter (`:PATH` emitted from ACL2, threaded, navigated —
+      `findPath`/`occursIn` retired); multi-node literal chaining.
+- [x] **definition-unfold (basic)** — 1-arg, direct body (`re_unfold1_conv`,
+      ∀-env body convergence). FIRST REAL TREE replayed: `sq-rewrites` from
+      `09-defn-unfold.proof-log`.
+- [x] **convergence (easy shapes)** — var/quote/`car`/`cdr`/`consp`/`cons`/
+      `binary-+`/`binary-*` in `proveConv`; value-characterized variants
+      (`re_val_*`, incl. value-level `if` as `cond`) in the DP lift.
+- [x] **Eliminate hand-marshalling (P0–P4)** — `DefMap` repr; driver derives
+      no-shadow/`DefInfo` by kernel `decide`; `Development.toWorld` +
+      `reflectWorld` derive everything from the log; coverage harness
+      (`just driver-coverage`, in `just ci`) sweeps the corpus per theorem.
+- [x] **Decision-procedure discharge leaves (c1+c2, ratified carve-out)** —
+      `Replay/DischargeLeaf.lean`: lift to Logic primitives, spine fold
+      (`re_dp_if_split`), DP fact closed by fixed simp/split_ifs/omega; opaque
+      user-fn subterms as quantified values with totality + emitted-TP
+      hypotheses; unclosable facts become BOUND HYPOTHESES (conditional proofs,
+      no `sorryAx`). ✓6 ◌13 ✗0 of 19; obligations explicit in the proof types.
+
+### c3 — COMPOSITION (current focus; first end-to-end inductive proof)
+
+Target: `my-len-my-app` (then `app-assoc`) replayed by the driver from the real
+log, `#print axioms` clean. The pieces exist; c3 wires them:
+
+- [ ] **Induction scaffold (WF)** — `replayClause` recurses `push-clause → *1 →
+      case children`, building the induction from the EMITTED measure
+      justification (measure/rel/controllers/`:CASES` tests + IH substitutions —
+      the measure-emission track's output), threading case-hyp + IH via
+      `ReplayCtx`. Includes case↔child linking (match `:CASES` tests to `*1/k`
+      input clauses — NOT by order). (task #52)
+- [ ] **Preprocess-chain replay** — the emitted preprocess items (final-implies
+      expansion, if-folds, abbreviation steps, clause-level chains) compose
+      formula → clause, so `Goal'`-style steps and discharge-leaf statements
+      connect to the theorem formula. Includes the implicit clausify gap
+      (IF-flattening is not emitted — assess whether more emission is needed).
+- [ ] **Solidify / IH bridge in the driver** (`equivSource` → `ReplayCtx.caseHyps`;
+      the hand proofs' `evalOpt_substTerm_subst1` + `eval_equal_t_implies_eq`
+      machinery, mechanized). (task #36)
+- [ ] **recognizer + if-simplification nodes** — `re_if_true/false` + recognizer
+      reading the CASE HYPOTHESIS (`consp x = nil/t`); lands WITH the scaffold.
+- [ ] **def-unfold for REAL def shapes** — multi-arg unfold + if-body whose
+      recognizer/if children do the simplification (real `my-app`/`my-len`).
+      (task #34)
+- [ ] **Totality from admission** — produce per-function totality from the
+      termination proof (`WorldEvent.defun.termination` + the emitted measure),
+      discharging the DP leaves' `total:…` hypotheses; TP corollaries are
+      already consumed as hypotheses. (task #37)
+- [ ] **Discharge-leaf composition** — attach `replayDischargeLeaf` proofs as
+      clause children inside `replayClause` (today they are validated standalone
+      per leaf in the harness).
+
+### Later (Track A backlog)
+
+- [ ] **convergence analyzer (G1), general** — defined-fn totality threading
+      opaque witnesses for recursive calls (subsumes the c2 `hConv` hypotheses).
+- [ ] **`.boundary` path frames** — child-node congruence inside an unfold /
+      rule-RHS (currently hard-fail; aligns with tree child-nesting).
+- [ ] Replace the hardcoded frontend with **`gen-world`** output; drop hand-built
+      test trees once the real tree replays.
+- [ ] The **`acl2_replay` tactic** frontend (read the Lean goal, emit the proof,
+      close it).
+- [ ] **`Expr` blowup** — `let`-bind shared convergence subproofs.
+- [ ] Retire/generalize the over-specialized `re_unfold*_var`.
+- [ ] **DP-leaf debt:** 11/\*1/4+\*1/5' tactic residue (simp leaves a non-omega
+      goal in one case — likely closable); ground-zero type facts (`len`) —
+      emission decision; 03/linear-chain rationals → lean-smt (task #50).
 
 ## ACL2 submodule (instrumentation hygiene)
 
-- [ ] **Comprehensive `TRACE-LOG` tag review.** The scheme is `TRACE-LOG[<origin>]`
-      above each output site, `<origin>` = the emitted `:origin` value (one unique tag
-      per site). Review the whole `acl2/` submodule: (1) every output site is tagged and
-      the tag matches its `:origin`; (2) no duplicate/orphan tags; (3) **ratify a
-      convention for INFRA tags** — the new non-output tags `structured-rewrite-path`
-      and `set-raw-proof-format/gstackp[-off]` (and the `:path` field, documented at the
-      helper) are the first non-origin tags; decide how infra is tagged vs outputs.
-      Goal: keep the logging infra cleanly trackable for eventual upstreaming.
+- [x] **Comprehensive `TRACE-LOG` tag review** — DONE 2026-06-09: full systematic
+      survey (all 81 hunks vs upstream, with context), ratified namespaced
+      convention (`emit/` round-trips `:origin`; `suppress/`; `infra/`), enforced
+      by `just check-acl2-tags` (bidirectional). Convention documented in
+      CLAUDE.md + `docs/notes/2026-06-09_acl2-tagging-survey.md`; reviewed by two
+      decorrelated agents (conformance + semantic accuracy).
+- [ ] **Emission backlog** (each is a known, documented gap):
+    - **Ground-zero type facts** — `len` etc. have no emitted `:TYPE-PRESCRIPTION`
+      (their facts live in ACL2's bootstrap world); decide emit-at-use vs curated
+      ground-zero defuns. Blocks 5 assumed DP leaves (12/16).
+    - **Non-default well-founded relation / `include-book`** — lexicographic `l<`
+      measures need the ordinals book; `include-book` is untested in capture.
+      (See the measure plan's deferred section.)
+    - **Termination-proof emission** — the admission's measure-conjecture clause
+      tree (`WorldEvent.defun.termination` is parsed but ACL2 doesn't yet emit
+      the per-case decrease proofs structured) — needed for c3's
+      totality-from-admission.
 
-## Track B — type-set / decision-procedure instrumentation (separate track)
+## Track B — type-set / decision-procedure facts (richer emission)
 
-ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic) by
-**type-set / linear** decision procedures at `preprocess-clause`, logged atomically as
-`fake-rune-for-type-set` (or linear) with **no derivation** — see
-`acl2_samples/recon-tests/08-equality-reasoning.lisp`. These are currently a driver
-**frontier (hard-fail)**, NOT replayable.
+Status change 2026-06-09: every verdict-only decision-procedure closure now emits
+an explicit **discharge node** (`preprocess/tau*`, `preprocess/type-set-fc`, …),
+and the driver replays these leaves under the ratified carve-out (✓6 ◌13 of 19).
+What remains is the RICHER fact emission for the ◌-assumed leaves — each missing
+obligation is stated precisely in its conditional proof's type:
 
-- [ ] Instrument ACL2's `preprocess-clause` / type-set path to emit the type-set facts
-      (type-alist entries, type-set bitmasks) that justify a whole-clause closure.
-      (within-rewriter recognizer type-set IS already logged — `:TYPESET`/`:TRUETS`.)
-- [ ] Consume those facts in Lean to **replay** the closure as a decision *from the
-      logged facts* — NEVER re-derive type-set in Lean (that would be inference).
-- [ ] Same treatment for **linear arithmetic** (`fake-rune-for-linear`) and other
-      `fake-rune-*` decision steps.
-- [ ] Decide the modeling: how a type-set closure becomes an `evalOpt`-level fact.
+- [ ] **Type-set derivation facts** — e.g. `true-listp x ∧ consp x → true-listp
+      (cdr x)` (a recursive-definition type-set fact; closes 01/02's 4 leaves).
+      Emit the type-alist entries / rules the forward-chain contradiction used;
+      consume as DP-fact hypotheses — NEVER re-derive type-set in Lean.
+- [ ] **ts-bits lifting** — `:BASICTS`/`:LEAVES` bitmask facts (04's booleanp
+      leaf) as DP hypotheses.
+- [ ] **Linear arithmetic over rationals** — 03/linear-chain (`<`-transitivity,
+      nonlinear after `toRat` cross-multiplication): beyond `omega`; the concrete
+      **lean-smt** target (task #50, gated: toolchain pinning, cvc5, axiom
+      hygiene).
+- [ ] Tau detail (`tau-clause1p` signature/bounder rules) if the above ever
+      proves insufficient — Option 1 of the direct-proof plan, deliberately
+      deferred.
 
 ## Other pipeline / cross-cutting work
 
@@ -170,6 +167,35 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
       correctness for new theorems the driver targets.
 - [ ] **Reconstruction coverage** — work through `docs/notes/2026-06-07_silent-drop-inventory.md`
       and the recon-tests findings; ensure no silent drops.
+
+### Audit / correctness debt (revisit — do not drop)
+
+- [ ] **Systematic log↔dump fidelity checker.** The 2026-06-09 dump audit found no
+      reconstruction defects, BUT the clause-tree/waterfall layer was verified
+      mainly by SELF-consistency (re-dump matches `.dump`), not against the raw
+      log — one reviewer over-claimed "byte-identical to expected." Two reviewers
+      independently recommended a mechanical checker that re-derives every dump
+      claim (steps, ids, results, runes, LHS/RHS) from the raw `.proof-log`.
+      Build it; run in ci.
+- [ ] **DP-proof sorry/axiom gate.** The coverage harness `Meta.check`s each
+      DP-leaf proof, but `Meta.check` does NOT reject `sorryAx` — with
+      `assumeFact` there is no `mkSorry` path left, but guard it mechanically:
+      scan emitted DP proof terms for `sorryAx`/`Lean.ofReduceBool` (and keep the
+      `#guard_msgs` axiom gates on the spike/test theorems).
+- [ ] **c3 end-to-end audit.** Before claiming the first driver-replayed
+      inductive theorem: ground-truth build + `#print axioms`, then decorrelated
+      adversarial reviewers per the CLAUDE.md audit practice (genuine-replay /
+      answer-smuggling / statement-fidelity dimensions), as was done for S2/S3.
+      (task #38)
+- [ ] **Verify the conditional-proof obligations are REAL statements.** The
+      ◌-assumed DP facts are bound hypotheses whose statements were machine-built
+      (`dpFactStmt`); spot-audit a sample against the source clauses (a malformed
+      lift could state a vacuous obligation and "complete" later against the
+      wrong fact).
+- [ ] (carried) **Careful capture/emission infra revision** — see the item below;
+      includes `emit/proof-failed` (positive failure signal),
+      `recon-test-dump.sh`'s `|| true` (now swallows the non-zero dump exit),
+      capture-heuristic re-audit, and differential-testing the EMISSION itself.
 - [ ] **Careful revision of the capture / emission infra (2026-06-09).** Repeated issues
       have surfaced here (the `:DEFTHM`-count heuristic was fooled by a FAILED proof —
       a non-theorem rendered a full tree and exited 0; `let`/`let*` semantics diverged;
@@ -200,6 +226,23 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
 
 ## Done (recent milestones, for context)
 
+- **2026-06-09 (the measure/emission/discharge arc, merged to main):**
+  - Measure emission: `(:INDUCTION …)` carries measure/rel/mp/controllers/per-case
+    tests + IH substitutions, instantiated at the conjecture; dump renders it;
+    validated on boundary recon-tests 10–16 (multi-IH, custom measure,
+    multi-controller, swap/constructor IHs, nested induction, 3-way).
+  - Failed-proof safety net: QED-less `:DEFTHM` hard-fails reconstruction; CLI
+    exits non-zero; capture script keys on QED-per-DEFTHM.
+  - Black-box-leaf emission gap CLOSED: preprocess eval chains emitted
+    (cons-term folds, ev-fncall, if/equal-self, real abbreviation RHS) +
+    explicit discharge nodes at all verdict-only decision-procedure sites;
+    harness hard-fails item-less PROVED leaves; `just ci` gates it.
+  - Decision-procedure-leaf carve-out ratified (CLAUDE.md); DP-lift replay
+    (`Replay/DischargeLeaf.lean`): ✓6 ◌13-conditional ✗0 of 19, kernel-checked,
+    no `sorryAx`; missing obligations explicit in proof types (MDD's
+    conditional-proof design).
+  - ACL2 tag convention ratified + enforced (`just check-acl2-tags`); 4-reviewer
+    dump audit (found: 00-direct empty-capture bug → fixed + integrity gate).
 - Faithful sorry-free hand proofs of `my-len-my-app` and `app-assoc` (schematic;
   no functionality facts), each lifted to an idiomatic native Lean theorem; ACL2
   pipeline untrusted for both.
