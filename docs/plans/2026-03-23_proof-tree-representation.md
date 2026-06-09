@@ -158,10 +158,15 @@ All modifications are in the `acl2/` submodule (branch `acl2-lean-output`):
 - `simplify.lisp` — 9 logging points for literal/branch/clause events
 - `axioms.lisp` — 18 function registrations for `#-acl2-loop-only` code
 
-Every logging point has a `; TRACE-LOG:` comment tag. To find all:
+Every fork insertion carries a namespaced tag `; TRACE-LOG[<ns>/<label>]:` (`<ns>` ∈
+`emit`/`suppress`/`infra`) in a comment that explains its purpose — the ratified convention
+is in `docs/notes/2026-06-09_acl2-tagging-survey.md` (and `CLAUDE.md`). To find all deltas
+vs upstream:
 ```
-grep "TRACE-LOG:" acl2/rewrite.lisp acl2/simplify.lisp
+grep -rn "TRACE-LOG\[" acl2/*.lisp
 ```
+(Historical note: this originally specified a bare `; TRACE-LOG:` form; the bracketed,
+namespaced form supersedes it.)
 
 ### ACL2 code patterns discovered
 - **rewrite-entry macro** (rewrite.lisp ~7038): central dispatch for

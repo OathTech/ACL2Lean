@@ -94,3 +94,43 @@ and for (a)-mechanism sites the bracket equals the emitted `:origin`. The `set-r
 gstackp` and `structured-rewrite-path` tags are model examples (tag + rich *why*). Normalization
 = extend this practice to the (b) emits, (c) suppressions, and the untagged infra; fix the
 straggler + the origin mismatch; pick how infra/suppression labels are namespaced; re-converge the docs.
+
+---
+
+## RATIFIED CONVENTION (the normalization target)
+
+Every region this fork inserts/changes vs upstream `master` carries exactly one tag, in a
+comment directly above it, that names AND explains it:
+
+```
+; TRACE-LOG[<ns>/<label>]: <one-line purpose — what this instruments and why>
+```
+
+`<ns>` is one of three namespaces:
+
+- **`emit/`** — writes to the structured proof log. Two sub-kinds, both `emit/`:
+  - rewrite-step log (pushed to `*structured-rewrite-log*` with `:origin '<sym>`):
+    label = `<sym>` (e.g. `emit/with-lemma`, `emit/recognizer/true`, `emit/fncall/recursive`).
+    **Round-trip rule:** for these, `<label>` (the part after `emit/`) MUST equal the emitted
+    `:origin` symbol.
+  - direct top-level `fms` events: label = the emitted keyword, lower-cased
+    (`emit/step`, `emit/defthm`, `emit/induction`, `emit/defun`, `emit/type-prescription`,
+    `emit/qed`, `emit/begin-proof-log`, `emit/abbreviation-expansion`).
+- **`suppress/`** — silences normal ACL2 output in `:structured` mode so stdout stays
+  machine-parseable (`suppress/warnings`, `suppress/clause-body`, `suppress/hint-note`,
+  `suppress/pop-clause`, `suppress/forcing-round`, `suppress/nested-ld-output`).
+- **`infra/`** — plumbing that produces no output itself (globals, depth/path helpers, gstackp
+  forcing, speculative rollback, the safe-mode list) — `infra/rewrite-log`, `infra/rewrite-depth`,
+  `infra/rewrite-path`, `infra/gstackp`, `infra/gstackp-off`, `infra/saved-log-tail`,
+  `infra/tp-leaves`, `infra/oneify-primitives`, `infra/structured-setup`.
+
+Rules:
+- **Tag EVERYTHING** the fork inserts — emits, suppressions, infra, plumbing — so
+  `grep TRACE-LOG` finds every delta vs upstream (the maintenance/upstreaming invariant).
+- One `;`-comment, directly **above** the region (not inline), with a real purpose sentence
+  (the `infra/gstackp` and `infra/rewrite-path` tags are the model for "tag + rich why").
+- Comments are inert in Lisp, so tagging is a zero-behavior change.
+- **P4 check** (to add): every fork insertion has a tag; every `emit/<x>` round-trips to its
+  emitted origin/keyword; no bare `; TRACE-LOG:` and no other markers remain.
+
+This is the convention to be copied into the repo `CLAUDE.md` once the normalization lands.
