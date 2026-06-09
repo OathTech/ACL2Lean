@@ -68,12 +68,21 @@ theorem empty_no_cdr : World.empty.defs.get? ({ name := "cdr" } : Symbol) = none
   simp [World.empty]
 theorem empty_no_cons : World.empty.defs.get? ({ name := "cons" } : Symbol) = none := by
   simp [World.empty]
+theorem empty_no_car : World.empty.defs.get? ({ name := "car" } : Symbol) = none := by
+  simp [World.empty]
+theorem empty_no_consp : World.empty.defs.get? ({ name := "consp" } : Symbol) = none := by
+  simp [World.empty]
+theorem empty_no_plus : World.empty.defs.get? ({ name := "binary-+" } : Symbol) = none := by
+  simp [World.empty]
 
 /-- The carried world-structure facts for the empty world (builtins not shadowed). -/
 def emptyNoShadow : List (Symbol × Expr) :=
-  [({ name := "equal" }, mkConst ``empty_no_equal),
-   ({ name := "cdr" },   mkConst ``empty_no_cdr),
-   ({ name := "cons" },  mkConst ``empty_no_cons)]
+  [({ name := "equal" },    mkConst ``empty_no_equal),
+   ({ name := "cdr" },      mkConst ``empty_no_cdr),
+   ({ name := "cons" },     mkConst ``empty_no_cons),
+   ({ name := "car" },      mkConst ``empty_no_car),
+   ({ name := "consp" },    mkConst ``empty_no_consp),
+   ({ name := "binary-+" }, mkConst ``empty_no_plus)]
 
 /-- `acl2_replay% <clauseProofTerm>` — elaborates the tree value, runs the driver over
     the empty world for a universally-quantified `env`, and returns the emitted proof
@@ -157,6 +166,35 @@ example :
   consEq_mirror
 
 #print axioms consEq_mirror
+
+/-! ## POSITIVE — convergence analyzer on car/cdr/consp/binary-+ builtins.
+
+`(equal T T)` with `T = (binary-+ (consp (cons a b)) (car (cdr (cons a b))))`: equal-self
+forces `proveConv` through every new builtin convergence case at once — `re_conv_plus`
+over `re_conv_consp`/`re_conv_car` over `re_conv_cdr`/`re_conv_cons` over the variables.
+These are the decoupled (non-case-dependent) convergence builtins; recognizer/
+if-simplification need the case context (`ReplayCtx`) and land with the induction scaffold. -/
+private def litBuiltinsEq : SExpr :=
+  let t := ap2 "binary-+" (ap1 "consp" (ap2 "cons" varA varB))
+                          (ap1 "car" (ap1 "cdr" (ap2 "cons" varA varB)))
+  equalOf t t
+private def builtinsEqGoal : ClauseNode :=
+  { id := default, idStr := "Goal", inputClause := [litBuiltinsEq],
+    steps := [{ simplifyStep with
+      items := [.literal { index := 1, literal := litBuiltinsEq, notFlg := false,
+                           nodes := [.node ("equal-self", "NIL") litBuiltinsEq Driver.quoteT [] {}],
+                           result := Driver.quoteT }] }],
+    induction := none, children := [] }
+private def builtinsEqTree : ClauseProof :=
+  { name := "builtins-self", formula := litBuiltinsEq, root := some builtinsEqGoal }
+
+def builtinsEq_mirror := acl2_replay% builtinsEqTree
+
+example :
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, evalOpt f World.empty env litBuiltinsEq = some SExpr.t :=
+  builtinsEq_mirror
+
+#print axioms builtinsEq_mirror
 
 /-! ## POSITIVE — 3a(ii): the DEFINITION-UNFOLD node (a defined function in the world).
 

@@ -1826,6 +1826,56 @@ theorem re_conv_times (w : World) (env : Env) (a b : SExpr)
     (by decide) h_no_times ⟨Na, ha⟩ ⟨Nb, hb⟩ rfl
   exact ⟨N, Logic.times av bv, h⟩
 
+/-- Convergence (v-fixed) of a `(binary-+ a b)` application: converges to `plus av bv`
+    when `a`, `b` converge. (Same shape as `re_conv_times`.) -/
+theorem re_conv_plus (w : World) (env : Env) (a b : SExpr)
+    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons b .nil)))
+      = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨Nb, bv, hb⟩ := hb
+  obtain ⟨N, h⟩ := conv_builtin2 w env { name := "binary-+" } a b av bv (Logic.plus av bv)
+    (by decide) h_no_plus ⟨Na, ha⟩ ⟨Nb, hb⟩ rfl
+  exact ⟨N, Logic.plus av bv, h⟩
+
+/-- Convergence (v-fixed) of a UNARY builtin application `(car a)`: converges to
+    `car av` when `a` converges. The convergence-analyzer's unary-builtin shape;
+    `cdr`/`consp` follow identically via their `callBuiltin` lemma. -/
+theorem re_conv_car (w : World) (env : Env) (a : SExpr)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "car" })) (.cons a .nil)) = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨N, h⟩ := conv_builtin1 w env { name := "car" } a av (Logic.car av)
+    (by decide) h_no_car ⟨Na, ha⟩ (callBuiltin_car av)
+  exact ⟨N, Logic.car av, h⟩
+
+/-- Convergence (v-fixed) of `(cdr a)`: converges to `cdr av` when `a` converges. -/
+theorem re_conv_cdr (w : World) (env : Env) (a : SExpr)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "cdr" })) (.cons a .nil)) = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨N, h⟩ := conv_builtin1 w env { name := "cdr" } a av (Logic.cdr av)
+    (by decide) h_no_cdr ⟨Na, ha⟩ (callBuiltin_cdr av)
+  exact ⟨N, Logic.cdr av, h⟩
+
+/-- Convergence (v-fixed) of `(consp a)`: converges to `consp av` when `a` converges. -/
+theorem re_conv_consp (w : World) (env : Env) (a : SExpr)
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "consp" })) (.cons a .nil)) = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨N, h⟩ := conv_builtin1 w env { name := "consp" } a av (Logic.consp av)
+    (by decide) h_no_consp ⟨Na, ha⟩ (callBuiltin_consp av)
+  exact ⟨N, Logic.consp av, h⟩
+
 /-- RUNE `definition` (1-arg), driver-facing: `(fn arg) ⇒ substTerm [formal] [arg] body`.
     Takes `arg`'s convergence (v-fixed) and the body's convergence in EVERY env
     (`hbodyAll` — the driver proves this by running the convergence analyzer under a

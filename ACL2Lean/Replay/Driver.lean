@@ -317,6 +317,13 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
   | .cons (.atom (.symbol qs)) (.cons v .nil) =>
     if qs.name == "quote" then
       mkAppM ``re_conv_quote #[cfg.worldExpr, envExpr, reflectSExpr v]
+    else if qs.name == "car" || qs.name == "cdr" || qs.name == "consp" then
+      -- unary builtin: recurse on the operand, apply that builtin's conv wrapper.
+      let ha ← proveConv cfg envExpr ctx v
+      let hNo ← noShadowFact cfg qs
+      let lem := match qs.name with
+        | "car" => ``re_conv_car | "cdr" => ``re_conv_cdr | _ => ``re_conv_consp
+      mkAppM lem #[cfg.worldExpr, envExpr, reflectSExpr v, hNo, ha]
     else throwError "proveConv: no convergence rule for unary {qs.name}: {repr t}"
   | .cons (.atom (.symbol bs)) (.cons a (.cons b .nil)) =>
     -- builtin application — recurse on operands, apply that builtin's conv wrapper.
@@ -330,6 +337,11 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
       let hb ← proveConv cfg envExpr ctx b
       let hNoTimes ← noShadowFact cfg { name := "binary-*" }
       mkAppM ``re_conv_times #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoTimes, ha, hb]
+    else if bs.name == "binary-+" then
+      let ha ← proveConv cfg envExpr ctx a
+      let hb ← proveConv cfg envExpr ctx b
+      let hNoPlus ← noShadowFact cfg { name := "binary-+" }
+      mkAppM ``re_conv_plus #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoPlus, ha, hb]
     else throwError "proveConv: no convergence rule for binary {bs.name}: {repr t}"
   | _ => throwError "proveConv: no convergence rule for {repr t}"
 
