@@ -322,6 +322,11 @@ structure ReplayConfig where
 structure ReplayCtx where
   varVals : List (Symbol × Expr × Expr) := []
   vals : List (SExpr × Expr × Expr) := []
+  /-- The clause spine's accumulated falsity facts: (1-based literal index, the
+      literal's current — post-rewrite — term, proof that its `dpValExpr` value
+      `= .nil`). Solidify nodes consume by `equivSource` index; recognizer nodes
+      by term (directly, or through a `(not …)` wrapper). -/
+  litFacts : List (Nat × SExpr × Expr) := []
   ih : Option Expr := none
 
 def ReplayCtx.empty : ReplayCtx := {}
@@ -329,6 +334,12 @@ def ReplayCtx.empty : ReplayCtx := {}
 /-- Look up a pinned value fact for `t` in the context. -/
 def ReplayCtx.val? (ctx : ReplayCtx) (t : SExpr) : Option (Expr × Expr) :=
   (ctx.vals.find? (fun (o, _, _) => o == t)).map fun (_, v, p) => (v, p)
+
+/-- Look up a spine falsity fact by literal index / by term. -/
+def ReplayCtx.litFact? (ctx : ReplayCtx) (idx : Nat) : Option (SExpr × Expr) :=
+  (ctx.litFacts.find? (fun (i, _, _) => i == idx)).map fun (_, t, p) => (t, p)
+def ReplayCtx.litFactByTerm? (ctx : ReplayCtx) (t : SExpr) : Option Expr :=
+  (ctx.litFacts.find? (fun (_, lt, _) => lt == t)).map fun (_, _, p) => p
 
 /-- `(quote t)`, the result an equal-self literal reduces to. -/
 def quoteT : SExpr := .cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil)
@@ -677,6 +688,34 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
     unless ← isDefEq v verdictE do
       throwError "replayRecognizer: pinned value of {repr term} ≠ verdict {repr verdict}"
     return p
+  -- spine falsity facts: the literal IS this recognizer (verdict nil), or wraps it
+  -- in (not …) (the literal's falsity makes the recognizer non-nil → t, by its
+  -- two-valued range).
+  if let some hNil := ctx.litFactByTerm? term then
+    unless verdict == SExpr.nil do
+      throwError "replayRecognizer: spine says {repr term} is nil but verdict is {repr verdict}"
+    let p ← ctxValProof cfg ctx term
+    let v ← ctxValExpr cfg ctx term
+    return ← mkAppM ``re_val_cast
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hNil]
+  let notTerm : SExpr :=
+    .cons (.atom (.symbol { name := "not" })) (.cons term .nil)
+  if let some hNil := ctx.litFactByTerm? notTerm then
+    match term with
+    | .cons (.atom (.symbol rs)) _ =>
+      unless rs.name == "consp" && verdict == SExpr.t do
+        throwError "replayRecognizer: not-literal elimination only for consp⇒t \
+                    (got {rs.name} ⇒ {repr verdict}, frontier)"
+      let v ← ctxValExpr cfg ctx term       -- Logic.consp xv
+      unless v.isAppOfArity ``Logic.consp 1 do
+        throwError "replayRecognizer: value of {repr term} is not (Logic.consp _)"
+      let xv := v.appArg!
+      let hne ← mkAppM ``logic_not_nil_ne #[v, hNil]
+      let hT ← mkAppM ``logic_consp_ne_nil_t #[xv, hne]
+      let p ← ctxValProof cfg ctx term
+      return ← mkAppM ``re_val_cast
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hT]
+    | _ => throwError "replayRecognizer: not-literal over a non-application"
   match term with
   | .cons (.atom (.symbol rs)) (.cons z .nil) =>
     if rs.name == "acl2-numberp" then
@@ -781,8 +820,37 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     (depth : Nat := 0) : MetaM Expr := do
   let (rty, rname) := runeOf n
   let (lhs, rhs) := nodeLhsRhs n
-  let .node _ _ _ children _ := n
+  let .node _ _ _ children prov := n
   match rty, rname with
+  | "rewriting-equivalence", _ =>
+    -- SOLIDIFY: the rewrite `lhs ⇒ rhs` is justified by a clause hypothesis — the
+    -- (post-rewrite) literal named by `equivSource`, whose falsity in the spine
+    -- branch IS the equation. Value-level: the literal `(not (equal A B))` being
+    -- nil gives `vA = vB`; the node's sides converge to those values.
+    let some idx := prov.equivSource
+      | throwError "solidify: node has no equivSource (unlinked rewriting-equivalence)"
+    let some (litTerm, hNil) := ctx.litFact? idx
+      | throwError "solidify: no spine fact for literal {idx} (clause context missing)"
+    let .cons (.atom (.symbol notS))
+        (.cons (.cons (.atom (.symbol eqS)) (.cons ta (.cons tb .nil))) .nil) := litTerm
+      | throwError "solidify: source literal is not (not (equal A B)): {repr litTerm}"
+    unless notS.name == "not" && eqS.name == "equal" do
+      throwError "solidify: source literal heads {notS.name}/{eqS.name}"
+    -- orientation: the node rewrites one side of the equation to the other
+    let (flip : Bool) ←
+      if lhs == tb && rhs == ta then pure true
+      else if lhs == ta && rhs == tb then pure false
+      else throwError "solidify: node sides {repr lhs} ⇒ {repr rhs} do not match the \
+                       source equation ({repr ta} = {repr tb})"
+    let va ← ctxValExpr cfg ctx ta
+    let vb ← ctxValExpr cfg ctx tb
+    -- hNil : Logic.not (Logic.equal va vb) = nil  (the spine built the literal's
+    -- value with the same builder, so this is its exact type)
+    let hEq ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]   -- va = vb
+    let valueEq ← if flip then mkAppM ``Eq.symm #[hEq] else pure hEq
+    let pl ← ctxValProof cfg ctx lhs
+    let pr ← ctxValProof cfg ctx rhs
+    mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
   | "rewrite", "cdr-cons" =>
     -- `(cdr (cons a b)) ⇒ b`.
     match lhs with
@@ -951,27 +1019,108 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
         | some ch => mkAppM ``fuel_chain_eq #[ch, closeProof]
     | _ => throwError "replayLiteral: terminal node is not equal-self (rune {repr (runeOf closer)})"
 
-/-- The first literal in a clause's items that reduces to `(quote t)` (the disjunct
-    that makes the clause true). -/
-partial def findClosingLiteral : List ClauseItem → Option LiteralProof
-  | [] => none
-  | .literal lp :: rest => if lp.result == quoteT then some lp else findClosingLiteral rest
-  | .step _ :: rest => findClosingLiteral rest
-  | .branch _ items :: rest =>
-    match findClosingLiteral items with
-    | some lp => some lp
-    | none => findClosingLiteral rest
+/-- The clause's literal items in order, with their 1-based indices, descending
+    into case branches (a branch's items continue the same clause's literals). -/
+partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
+  | [] => []
+  | .literal lp :: rest => (lp.index, lp) :: flattenLiterals rest
+  | .step _ :: rest => flattenLiterals rest
+  | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
 
-/-- Replay a clause node: prove `∃N∀f≥N, eval clauseFormula = some t`. S2: no
-    induction, no case-split children — find the literal that closes to `t` and
-    replay it. Induction / multi-clause structure hard-fails (lands in S3+). -/
+/-- ACL2's `disjoin` of a literal list: `(if l₁ 't (if l₂ 't … lₖ))`; a singleton
+    is the literal itself; the empty clause is `'nil` (false). -/
+def disjoinTerm : List SExpr → SExpr
+  | [] => .cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil)
+  | [l] => l
+  | l :: rest =>
+    .cons (.atom (.symbol { name := "if" }))
+      (.cons l (.cons quoteT (.cons (disjoinTerm rest) .nil)))
+
+/-- Replay a clause as its LITERAL SPINE: prove
+    `∃N∀f≥N, eval (disjoinTerm lits) = some t`. Each non-closing literal splits
+    via `re_dp_if_split` — its truth closes the clause outright; its falsity
+    descends with the value fact accumulated in `ctx.litFacts` (bridged across the
+    literal's own rewrite chain to the post-rewrite form — what recognizer and
+    solidify nodes downstream consume). The CLOSING literal (result `'t`) replays
+    its chain under the accumulated context. The spine's own split IS the case
+    hypothesis — no external case facts are needed for the clause itself. -/
+partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (lits : List (Nat × LiteralProof)) : MetaM Expr := do
+  match lits with
+  | [] => throwError "replayClauseSpine: ran out of literals with no closer"
+  | (idx, lp) :: rest =>
+    if lp.result == quoteT then
+      -- the closer: its chain proves it `t`; any later literals are short-circuited.
+      let pclose ← replayLiteral cfg ctx lp
+      if rest.isEmpty then
+        return pclose
+      else
+        -- `(if litᵢ 't rest)` with the test KNOWN `t`
+        let restTerm := disjoinTerm (rest.map (·.2.literal))
+        let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+        let hcv ← proveByDecide
+          (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t)) (mkConst ``Bool.true))
+          "toBool t"
+        let hIf ← mkAppM ``conv_if_true
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
+            reflectSExpr restTerm, mkConst ``SExpr.t, mkConst ``SExpr.t, pclose, hcv, hq]
+        return hIf
+    else
+      -- a non-closing literal: split on its value
+      let vLit ← ctxValExpr cfg ctx lp.literal
+      let pLit ← ctxValProof cfg ctx lp.literal
+      -- its rewrite chain (if any): literal ⇒ result, and the falsity fact bridges
+      let (chainOpt, finalT) ← replayRewrites cfg ctx lp.literal lp.nodes 0
+      unless finalT == lp.result do
+        throwError "replayClauseSpine: literal {idx} chain reached {repr finalT}, \
+                    recorded result is {repr lp.result}"
+      let restTerm := disjoinTerm (rest.map (·.2.literal))
+      let neTy ← mkAppM ``Ne #[vLit, mkConst ``SExpr.nil]
+      let hthen ← withLocalDeclD `h neTy fun h => do
+        let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+        let p ← mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
+            mkConst ``SExpr.t, hq, ← mkEqRefl (mkConst ``SExpr.t)]
+        let _ := h
+        mkLambdaFVars #[h] p
+      let eqTy ← mkEq vLit (mkConst ``SExpr.nil)
+      let helse ← withLocalDeclD `h eqTy fun h => do
+        let (factTerm, factProof) ←
+          match chainOpt with
+          | none => pure (lp.literal, h)
+          | some ch => do
+            -- bridge the falsity to the post-rewrite literal
+            let _vLit' ← ctxValExpr cfg ctx lp.result
+            let pLit' ← ctxValProof cfg ctx lp.result
+            let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLit']
+            pure (lp.result, ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h])
+        let ctx' := { ctx with litFacts := ctx.litFacts ++ [(idx, factTerm, factProof)] }
+        let p ← replayClauseSpine cfg ctx' rest
+        mkLambdaFVars #[h] p
+      mkAppM ``re_dp_if_split
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
+          reflectSExpr restTerm, vLit, pLit, hthen, helse]
+
+/-- Replay a clause node: prove `∃N∀f≥N, eval (disjoinTerm inputClause) = some t`
+    (for a single-literal clause this IS the literal/formula statement).
+    Induction nodes hard-fail (the scaffold lands next); a pushed clause delegates
+    to its pool-root child when the clauses coincide. -/
 partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) : MetaM Expr := do
   if cn.induction.isSome then
     throwError "replayClause: induction scheme not yet supported (clause {cn.idStr})"
-  let allItems := cn.steps.flatMap (·.items)
-  match findClosingLiteral allItems with
-  | some lp => replayLiteral cfg ctx lp
-  | none => throwError "replayClause: no literal closing to (quote t) in clause {cn.idStr}"
+  -- a push-clause node defers to its pool-root child (same clause)
+  if cn.steps.any (fun s => s.processor.toLower == "push-clause") then
+    match cn.children with
+    | [child] =>
+      unless child.inputClause == cn.inputClause do
+        throwError "replayClause: pushed clause ≠ pool-root clause at {cn.idStr}"
+      return ← replayClause cfg ctx child
+    | _ => throwError "replayClause: push-clause with {cn.children.length} children at {cn.idStr}"
+  let lits := flattenLiterals (cn.steps.flatMap (·.items))
+  if lits.isEmpty then
+    throwError "replayClause: no literal items in clause {cn.idStr} (preprocess-chain \
+                or discharge composition frontier)"
+  replayClauseSpine cfg ctx lits
 
 /-- Replay a whole theorem's proof tree to its mirror statement
     `∃N∀f≥N, eval cp.formula = some t`. -/

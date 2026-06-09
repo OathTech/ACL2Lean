@@ -2165,6 +2165,33 @@ theorem fuel_conv_of_eq {a b : Nat → Option SExpr} {v : SExpr}
   obtain ⟨n1, h1⟩ := hab; obtain ⟨n2, h2⟩ := hb
   exact ⟨max n1 n2, fun f hf => (h1 f (by omega)).trans (h2 f (by omega))⟩
 
+/-- Two value characterizations across an eval-equality pin the SAME value (the
+    spine's bridge from a literal's pre-rewrite falsity to its post-rewrite form). -/
+theorem val_eq_of_eval_eq {a b : Nat → Option SExpr} {u v : SExpr}
+    (hab : ∃ N, ∀ f ≥ N, a f = b f)
+    (ha : ∃ N, ∀ f ≥ N, a f = some u) (hb : ∃ N, ∀ f ≥ N, b f = some v) : u = v := by
+  obtain ⟨n1, h1⟩ := hab; obtain ⟨n2, h2⟩ := ha; obtain ⟨n3, h3⟩ := hb
+  have := ((h2 (n1+n2+n3) (by omega)).symm.trans (h1 (n1+n2+n3) (by omega))).trans
+    (h3 (n1+n2+n3) (by omega))
+  exact Option.some.inj this
+
+/-- EXTRACT the else-branch's convergence from a converged `if` with a nil test
+    (the induction scaffold's per-case step: the case fact discharges the case
+    literal, leaving the pushed clause). -/
+theorem re_extract_else (w : World) (env : Env) (c t e : SExpr) (r : SExpr)
+    (hif : ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = some r)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some .nil) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env e = some r := by
+  obtain ⟨Ni, hi⟩ := hif; obtain ⟨Nc, hc⟩ := hc
+  refine ⟨max Ni Nc + 1, fun f hf => ?_⟩
+  have heq := evalOpt_if_false f w env c t e (hc f (by omega))
+  have := hi (f + 1) (by omega)
+  rw [heq] at this
+  exact this
+
 /-- Weaken a value-characterized convergence to the v-existential form
     (`proveConv`'s shape, consumed by `re_equal_self` etc.). -/
 theorem conv_vfix_of_val {w : World} {env : Env} {a v : SExpr}
