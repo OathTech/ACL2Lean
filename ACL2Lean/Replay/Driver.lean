@@ -295,7 +295,7 @@ def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
     variable) but is still fixed across fuel. S2 handles a free variable (via `re_conv_var`,
     valid for ALL `env`) and a `(quote v)` constant; any other shape is an unimplemented
     frontier → `throwError` (the full convergence analyzer, G1, lands in a later stage). -/
-def proveConv (cfg : ReplayConfig) (_ctx : ReplayCtx) (t : SExpr) : MetaM Expr := do
+partial def proveConv (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) : MetaM Expr := do
   match t with
   | .atom (.symbol s) =>
     let hNotT ← proveIsNamedFalse s "t"
@@ -303,7 +303,15 @@ def proveConv (cfg : ReplayConfig) (_ctx : ReplayCtx) (t : SExpr) : MetaM Expr :
   | .cons (.atom (.symbol qs)) (.cons v .nil) =>
     if qs.name == "quote" then
       mkAppM ``re_conv_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
-    else throwError "proveConv: no convergence rule for {repr t}"
+    else throwError "proveConv: no convergence rule for unary {qs.name}: {repr t}"
+  | .cons (.atom (.symbol bs)) (.cons a (.cons b .nil)) =>
+    -- builtin application — recurse on operands, apply that builtin's conv wrapper.
+    if bs.name == "cons" then
+      let ha ← proveConv cfg ctx a
+      let hb ← proveConv cfg ctx b
+      let hNoCons ← noShadowFact cfg { name := "cons" }
+      mkAppM ``re_conv_cons #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCons, ha, hb]
+    else throwError "proveConv: no convergence rule for binary {bs.name}: {repr t}"
   | _ => throwError "proveConv: no convergence rule for {repr t}"
 
 /-- Replay one rewrite node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`, by

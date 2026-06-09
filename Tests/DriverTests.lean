@@ -135,6 +135,29 @@ example :
 
 #print axioms s3_mirror
 
+/-! ## POSITIVE — convergence analyzer on a COMPOUND operand.
+
+`(equal (cons a b) (cons a b))`: equal-self on a compound term forces `proveConv` to
+recurse into the `(cons a b)` application (`re_conv_cons` over the two variable
+operands) rather than handle only a bare variable/quote. -/
+private def litConsEq : SExpr := equalOf (ap2 "cons" varA varB) (ap2 "cons" varA varB)
+private def consEqGoal : ClauseNode :=
+  { id := default, idStr := "Goal", inputClause := [litConsEq],
+    steps := [{ simplifyStep with
+      items := [.literal { index := 1, literal := litConsEq, notFlg := false,
+                           nodes := [.node ("equal-self", "NIL") litConsEq Driver.quoteT [] {}],
+                           result := Driver.quoteT }] }],
+    induction := none, children := [] }
+private def consEqTree : ClauseProof := { name := "cons-self", formula := litConsEq, root := some consEqGoal }
+
+def consEq_mirror := acl2_replay% consEqTree
+
+example :
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, evalOpt f World.empty env litConsEq = some SExpr.t :=
+  consEq_mirror
+
+#print axioms consEq_mirror
+
 /-! ## BRIDGE — use the driver's output to prove the corresponding NATIVE Lean fact.
 
 The ACL2 theorem `(equal x x)` corresponds, over a standard Lean type, to reflexivity

@@ -1795,4 +1795,20 @@ theorem re_cdr_cons_conv (w : World) (env : Env) (a b : SExpr)
   obtain ⟨Nb, bv, hb⟩ := hb
   exact re_cdr_cons w env a b av bv h_no_cdr h_no_cons ⟨Na, ha⟩ ⟨Nb, hb⟩
 
+/-- Convergence (v-fixed) of a `(cons a b)` application: converges to `(cons av bv)`
+    when `a`, `b` converge. The convergence-analyzer's compound-term case for `cons`
+    (`car`/`cdr`/`binary-*`/… follow the same shape via their `callBuiltin` lemma). -/
+theorem re_conv_cons (w : World) (env : Env) (a b : SExpr)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil)))
+      = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨Nb, bv, hb⟩ := hb
+  obtain ⟨N, h⟩ := conv_builtin2 w env { name := "cons" } a b av bv (.cons av bv)
+    (by decide) h_no_cons ⟨Na, ha⟩ ⟨Nb, hb⟩ rfl
+  exact ⟨N, .cons av bv, h⟩
+
 end ACL2.Replay
