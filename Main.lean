@@ -101,8 +101,8 @@ private partial def printClauseNode (node : ACL2.ClauseNode) (indent : Nat) : IO
   if let some ind := node.induction then
     IO.println s!"{pad}  ╫ INDUCTION on {ind.term}  ({ind.subgoalCount} subgoals)"
     if ind.measure != .nil then
-      let subsetStr := String.intercalate ", " (ind.subset.map (·.name))
-      IO.println s!"{pad}      measure {ind.measure} decreases under {ind.mp}/{ind.rel}; measured: {subsetStr}"
+      let ctrlStr := String.intercalate ", " (ind.controllers.map (·.name))
+      IO.println s!"{pad}      measure {ind.measure} decreases under {ind.mp}/{ind.rel}; on: {ctrlStr}"
     for c in ind.cases do
       let testsStr := String.intercalate " ∧ " (c.tests.map (·.toString))
       if c.alists.isEmpty then

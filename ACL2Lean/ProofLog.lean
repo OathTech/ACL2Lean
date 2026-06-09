@@ -123,7 +123,7 @@ structure InductionCase where
 
 /-- An induction scheme choice from ACL2, with its MEASURE JUSTIFICATION (from the winning
     candidate's `justification`): what decreases (`measure`) under the well-founded relation
-    `rel` on domain `mp`, over the measured formals `subset`; plus the per-case structure
+    `rel` on domain `mp`, over the controller variables `controllers`; plus the per-case structure
     (`cases`: tests + IH substitutions). The justification fields default to empty so legacy
     proof-logs (pre measure-emission) still parse. -/
 structure InductionStep where
@@ -140,8 +140,9 @@ structure InductionStep where
   rel : SExpr := .nil
   /-- The relation's domain predicate, e.g. `o-p`. -/
   mp : SExpr := .nil
-  /-- The measured formals (the subset the measure depends on). -/
-  subset : List Symbol := []
+  /-- The conjecture-level controller variables the induction is on (the measure's measured
+      formals, instantiated to the conjecture's actuals). -/
+  controllers : List Symbol := []
   /-- Per-case tests + IH substitution alists. -/
   cases : List InductionCase := []
   deriving Repr
@@ -496,19 +497,19 @@ private def parseInduction? (items : List SExpr) : Except String InductionStep :
   let measure := (lookupKeyword "measure" items).getD .nil
   let rel := (lookupKeyword "rel" items).getD .nil
   let mp := (lookupKeyword "mp" items).getD .nil
-  let subset ← match lookupKeyword "subset" items with
+  let controllers ← match lookupKeyword "controllers" items with
     | some s => match s.toList? with
       | some xs => xs.mapM fun x => match x with
         | .atom (.symbol v) => pure v
-        | _ => throw s!"INDUCTION: :SUBSET non-symbol element: {repr x}"
-      | none => throw s!"INDUCTION: :SUBSET not a list: {repr s}"
+        | _ => throw s!"INDUCTION: :CONTROLLERS non-symbol element: {repr x}"
+      | none => throw s!"INDUCTION: :CONTROLLERS not a list: {repr s}"
     | none => pure []
   let cases ← match lookupKeyword "cases" items with
     | some c => match c.toList? with
       | some cs => cs.mapM parseCase
       | none => throw s!"INDUCTION: :CASES not a list: {repr c}"
     | none => pure []
-  pure { term, subgoalCount, scheme, xterm, measure, rel, mp, subset, cases }
+  pure { term, subgoalCount, scheme, xterm, measure, rel, mp, controllers, cases }
 
 /-- Parse a single top-level s-expression from the proof log. -/
 private def parseEvent (s : SExpr) : Except String ProofEvent := do
