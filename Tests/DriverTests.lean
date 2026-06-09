@@ -22,6 +22,8 @@ private def sym (n : String) : SExpr := .atom (.symbol { name := n })
 private def quo (v : SExpr) : SExpr := .cons (sym "quote") (.cons v .nil)
 private def numv (k : Int) : SExpr := .atom (.number (.int k))
 private def equalOf (a b : SExpr) : SExpr := .cons (sym "equal") (.cons a (.cons b .nil))
+private def ap1 (f : String) (a : SExpr) : SExpr := .cons (sym f) (.cons a .nil)
+private def ap2 (f : String) (a b : SExpr) : SExpr := .cons (sym f) (.cons a (.cons b .nil))
 
 /-! ## The minimal USEFUL tree: one `equal-self` node proving `(equal x x)` for a
     FREE VARIABLE `x` — universally over the environment. -/
@@ -134,6 +136,48 @@ theorem native_nat_refl (n : Nat) : n = n := by
 
 -- Sorry-free, and it genuinely depends on `s2_mirror` (the driver output).
 #print axioms native_nat_refl
+
+/-! ## emitCongruence — path-directed lifting (consumes :PATH, no subterm search).
+
+Lifts a node eval-equality to the whole literal by navigating the node's `:PATH`
+(`PathFrame`s), not by locating the redex. Exercised here on a real (sorry-free)
+node proof: reflexivity of `(cdr (cons a b))` lifted through `(equal · b)` via the
+path `[arg 1 EQUAL, arg 1 CDR]` — i.e. the `binary_left equal` congruence — yielding
+`eval (equal (cdr (cons a b)) b) = eval (equal …)`. (The per-rune node proofs that
+feed this — cdr-cons etc. — are S3.) -/
+elab "#emitcongr_pathdirected_test" : command => Elab.Command.liftTermElabM do
+  withLocalDeclD `w (mkConst ``World) fun w =>
+  withLocalDeclD `e (mkConst ``Env) fun e => do
+    let X := ap1 "cdr" (ap2 "cons" (sym "a") (sym "b"))
+    let lit := equalOf X (sym "b")
+    let nodeTy ← mkEvalEqExist w e X X
+    let nodeProof ← Term.elabTermAndSynthesize (← `(⟨0, fun _ _ => rfl⟩)) (some nodeTy)
+    let frames : List PathFrame := [.arg 1 { name := "equal" }, .arg 1 { name := "cdr" }]
+    let (lifted, _) ← emitCongruence w e lit frames X X nodeProof
+    let _ ← check lifted
+    let expected ← mkEvalEqExist w e lit lit
+    unless ← isDefEq (← inferType lifted) expected do
+      throwError "emitCongruence path-directed: type\n{← ppExpr (← inferType lifted)}\n≠ expected\n{← ppExpr expected}"
+    logInfo "emitCongruence path-directed OK (cdr-cons lifted through equal arg1)"
+
+#emitcongr_pathdirected_test
+
+-- NEGATIVE: a `.boundary` path frame (child node inside an unfold) is not yet
+-- supported — emitCongruence must hard-fail cleanly.
+elab "#emitcongr_boundary_fails" : command => Elab.Command.liftTermElabM do
+  withLocalDeclD `w (mkConst ``World) fun w =>
+  withLocalDeclD `e (mkConst ``Env) fun e => do
+    let X := ap1 "cdr" (ap2 "cons" (sym "a") (sym "b"))
+    let lit := equalOf X (sym "b")
+    let nodeProof ← Term.elabTermAndSynthesize (← `(⟨0, fun _ _ => rfl⟩)) (some (← mkEvalEqExist w e X X))
+    let frames : List PathFrame :=
+      [.arg 1 { name := "equal" }, .boundary { name := "BODY" } { name := "if" }, .arg 1 { name := "cdr" }]
+    try
+      let _ ← emitCongruence w e lit frames X X nodeProof
+      throwError "NEGATIVE TEST FAILED: boundary frame accepted"
+    catch e => logInfo m!"negative test OK (boundary path frame): {e.toMessageData}"
+
+#emitcongr_boundary_fails
 
 /-! ## NEGATIVE — the driver must fail cleanly (fail-closed, never sorry). -/
 

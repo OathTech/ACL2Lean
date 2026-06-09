@@ -128,10 +128,11 @@ def mkEvalSomeExist (w e : Expr) (a : SExpr) (v : Expr) : MetaM Expr := do
 
 /-! ## G2: the congruence-path emitter
 
-A literal term is `(fn arg₀ … argₖ)`; a node rewrites a unique subterm `lhs ⇒ rhs`.
-We locate `lhs`'s path from the literal root and wrap the node's eval-equality in the
-arity-specific congruences, discharging each head's `…_not_special` by `decide`. The
-redex must be UNIQUE — ambiguity is a hard error (no guessing). -/
+A literal term is `(fn arg₀ … argₖ)`; a node rewrites a subterm `lhs ⇒ rhs` at the
+position ACL2 recorded in the node's `:PATH`. We NAVIGATE the literal along that path
+(no search) and wrap the node's eval-equality in the arity-specific congruences,
+discharging each head's `…_not_special` by `decide`. Position comes from ACL2; the
+sibling subterms come from the literal as we descend. -/
 
 /-- One step on the path from a term down to the redex: the head symbol, its arity,
     the argument index we descend into, and the sibling args (unchanged). -/
@@ -148,31 +149,35 @@ private def asApp (t : SExpr) : Option (Symbol × List SExpr) :=
   | some (.atom (.symbol fn) :: args) => some (fn, args)
   | _ => none
 
-/-- Does `redex` occur as a subterm of `t`? -/
-private partial def occursIn (redex t : SExpr) : Bool :=
-  t == redex || (match t with
-    | .cons a d => occursIn redex a || occursIn redex d
-    | _ => false)
-
-/-- The path from `t` down to the unique occurrence of `redex`. Hard-fails if the
-    redex is absent, occurs more than once (ambiguous context), or sits under a
-    non-symbol head or an arity > 2 application (unsupported congruence). -/
-private partial def findPath (t redex : SExpr) : Except String (List PathStep) := do
-  if t == redex then return []
-  match asApp t with
-  | none => throw s!"findPath: redex {repr redex} not reachable in {repr t} (non-symbol head)"
-  | some (fn, args) =>
-    let hits := (args.zipIdx).filter (fun (a, _) => occursIn redex a)
-    match hits with
-    | [] => throw s!"findPath: redex {repr redex} does not occur in {repr t}"
-    | [(arg, idx)] =>
-      if args.length > 2 then
-        throw s!"findPath: arity {args.length} application unsupported (only ≤ 2): {repr t}"
-      let siblings := (args.zipIdx).filterMap (fun (a, i) => if i == idx then none else some a)
-      let rest ← findPath arg redex
-      return { fn, arity := args.length, argIdx := idx, siblings } :: rest
-    | _ =>
-      throw s!"findPath: redex {repr redex} occurs in multiple args of {repr t} (ambiguous context)"
+/-- Build the congruence steps from the node's `:PATH` (`PathFrame`s, literal-root
+    first) by NAVIGATING `term`: the head frame is the literal itself, and each later
+    `.arg bkptr fn` frame descends into argument `bkptr`. Returns the steps outer→inner
+    (whose composition lifts the redex to `term`), and verifies the navigated subterm
+    is `lhs`. Position comes entirely from the path — no subterm search, no ambiguity.
+    `.boundary` frames (child nodes inside an unfold) and arity > 2 are not yet
+    supported — hard-fail. -/
+private def pathStepsFromFrames (term : SExpr) (frames : List PathFrame) (lhs : SExpr)
+    : Except String (List PathStep) := do
+  let mut cur := term
+  let mut steps : List PathStep := []
+  for fr in frames.drop 1 do          -- drop the literal-root frame; descend the rest
+    match fr with
+    | .boundary k _ =>
+      throw s!"pathStepsFromFrames: boundary frame {k.name} (child-node congruence unsupported)"
+    | .arg idx _ =>
+      match asApp cur with
+      | none => throw s!"pathStepsFromFrames: path descends into non-application {repr cur}"
+      | some (fn, args) =>
+        if args.length > 2 then
+          throw s!"pathStepsFromFrames: arity {args.length} application unsupported (only ≤ 2): {repr cur}"
+        if idx < 1 || idx > args.length then
+          throw s!"pathStepsFromFrames: arg index {idx} out of range for {repr cur}"
+        let siblings := (args.zipIdx).filterMap (fun (a, i) => if i + 1 == idx then none else some a)
+        steps := steps ++ [{ fn, arity := args.length, argIdx := idx - 1, siblings }]
+        cur := args[idx - 1]!
+  unless cur == lhs do
+    throw s!"pathStepsFromFrames: navigated to {repr cur}, expected redex {repr lhs}"
+  return steps
 
 /-- Reconstruct the parent term `(fn …)` placing `sub` at `argIdx`, siblings elsewhere. -/
 private def rebuild (fn : Symbol) (arity argIdx : Nat) (sub : SExpr) (siblings : List SExpr) : SExpr :=
@@ -203,11 +208,11 @@ private def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : E
   | _, _, _ => throwError "applyStep: unsupported arity/argIdx {st.arity}/{st.argIdx}"
 
 /-- Lift a node proof `nodeProof : ∃N∀f≥N, eval lhs = eval rhs` to the whole literal
-    `term`, returning the lifted proof and the rewritten term `term[lhs := rhs]`.
-    Validates that the reconstructed outer-lhs equals the input `term`. -/
-def emitCongruence (w e : Expr) (term lhs rhs : SExpr) (nodeProof : Expr) :
-    MetaM (Expr × SExpr) := do
-  let path ← ofExcept (findPath term lhs)
+    `term`, DIRECTED by the node's `:PATH` (`frames`) — no subterm search. Returns the
+    lifted proof and the rewritten term `term[lhs := rhs]`. -/
+def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
+    (lhs rhs : SExpr) (nodeProof : Expr) : MetaM (Expr × SExpr) := do
+  let path ← ofExcept (pathStepsFromFrames term frames lhs)
   -- Fold from the innermost path step outward.
   let mut inner := nodeProof
   let mut curL := lhs
@@ -267,6 +272,7 @@ def asEqualSelf : SExpr → Option SExpr
 
 def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
 def nodeLhsRhs : ProofNode → SExpr × SExpr | .node _ lhs rhs _ _ => (lhs, rhs)
+def nodePath : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 
 /-- The carried `worldExpr.defs.get? s = none` fact (builtin not shadowed). Looked up
     from `cfg.noShadow`; hard-fails if absent (the config didn't supply it — a frontier,
@@ -316,7 +322,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
   | n :: rest => do
     let (lhs, rhs) := nodeLhsRhs n
     let nodeEq ← replayNode cfg ctx n
-    let (lifted, newTerm) ← emitCongruence cfg.worldExpr cfg.envExpr start lhs rhs nodeEq
+    let (lifted, newTerm) ← emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq
     let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest
     match restProof with
     | none => return (some lifted, finalTerm)

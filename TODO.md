@@ -46,12 +46,11 @@ end-to-end via the driver, not the hand proofs.
       from ACL2** (the rewriter knows it), thread it through the proof tree, and carry
       it schematically so the driver never matches. (Track-A instrumentation; decide
       before/with S3.)
-- [ ] **Driver: consume `:path` (retire `findPath`).** `:path` is now parsed
-      (`PathFrame`) and threaded onto every `ProofNode` (`StepProvenance.path`). Next:
-      `Driver.emitCongruence` should build the congruence chain from the node's `path`
-      (numeric `.arg` frames → `congr_unary/_binary_left/_binary_right`; `.boundary`
-      frames = unfold/rule-RHS, align with tree nesting) instead of `findPath`'s
-      subterm match; delete `findPath`/`occursIn`.
+- [ ] **Driver: `.boundary` path frames (child-node congruence).** `emitCongruence` is
+      now path-directed (`pathStepsFromFrames` navigates the literal via `:PATH`; numeric
+      `.arg` → `congr_unary/_binary_left/_binary_right`); `findPath`/`occursIn` retired.
+      Remaining: handle `.boundary` (BODY/RHS) frames — child nodes inside an unfold /
+      rule-RHS — which currently hard-fail (they align with the tree's child-nesting).
 - [ ] **convergence analyzer (G1)** — general: builtins over known structure +
       defined-fn totality, threading opaque (existential) witnesses for recursive
       calls. (currently: variable + quote only)
