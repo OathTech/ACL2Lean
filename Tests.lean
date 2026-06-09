@@ -2,6 +2,7 @@ import Tests.ParserTest
 import Tests.LogicTest
 import Tests.TranslatorTest
 import Tests.SyntaxTest
+import Tests.WorldDefsTest
 import Tests.CountTest
 import Tests.LexorderTest
 import Tests.TermOrderTest
