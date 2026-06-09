@@ -100,6 +100,24 @@ two cases with the cdr-x IH — cross-checked against ACL2's actual `my-app` mea
   across controllers. `just ci` green; coverage harness parses+reconstructs the whole (new-format)
   corpus; tag check OK.
 
+### Verified against the inducting corpus (after the instantiation fix)
+Checking other examples caught a real bug: the justification's measure/subset are in the
+inducting FUNCTION's formals, so the first cut emitted e.g. `(app a b)` → `:MEASURE
+(acl2-count x) :SUBSET (x)` while `:CASES` were about `a` (only `my-len-my-app` looked right,
+reusing `app`'s formal `x`). **Fixed:** instantiate the measure via the term's formals→actuals
+alist; emit `:CONTROLLERS` (the candidate's already-instantiated controllers). Verified:
+- `simple` `(my-app x y)`: measure `(acl2-count x)`, on `x`, IH `x:=(cdr x)`.
+- `02-rev` (6 inductions): `(app a b)`→`(acl2-count a)` on `a`; `(rev x)`→on `x`;
+  `(app rv (cons x1 'nil))`→`(acl2-count rv)` on `rv`. Varied controllers all instantiated.
+- 2- and 3-subgoal inductions both render (cases = scheme cases, NOT = subgoalCount — a
+  3-subgoal induction still has 2 scheme cases; do NOT assert cases.length = subgoalCount).
+- `01`, `05` (app on `x`).
+
+**Unverified (no corpus example exercises them):** a step case with MULTIPLE IHs (2+ recursive
+calls → 2+ `:ALISTS`; the parser maps over alists so it *should* handle it); a custom
+non-`acl2-count` measure inside a *proof* induction (`06-measure` declares custom measures but
+proves by simplification, 0 inductions — that's the admission-time/defun-measure path, deferred).
+
 ### Next (not yet done)
 - **Case↔child linking (reconstruction):** correlate each `:CASES` case with its `*1/k` child
   subgoal **by tests** (NOT by order — ACL2 emits cases consp-first while subgoals are *1/2 base-first),
