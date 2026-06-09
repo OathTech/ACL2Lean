@@ -1738,39 +1738,44 @@ just applies the combinator (no inline fuel plumbing). Kernel-checked once here.
 /-- Convergence (totality form) of a `quote`: `(quote v)` converges to SOME value
     (namely `v`) for all sufficient fuel. The witness is existential so callers need
     no concrete value. -/
+-- CONVENTION: convergence is stated in **v-fixed totality** form
+-- `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v` — a single definite value `v`
+-- (`evalOpt` is fuel-monotone, so a converging term HAS one value). This feeds any
+-- value-specific lemma: `obtain ⟨N, v, h⟩` gives `∀ f ≥ N, … = some v`. (The weaker
+-- v-inside form `∃ N, ∀ f ≥ N, ∃ v` supplies no usable witness.)
+
 theorem re_conv_quote (w : World) (env : Env) (v : SExpr) :
-    ∃ N, ∀ f ≥ N, ∃ v',
-      evalOpt f w env (.cons (.atom (.symbol { name := "quote" })) (.cons v .nil)) = some v' := by
-  refine ⟨1, fun f hf => ?_⟩
-  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-  exact ⟨v, evalOpt_quote g w env v⟩
+    ∃ N, ∃ v', ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "quote" })) (.cons v .nil)) = some v' :=
+  ⟨1, v, fun f _ => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact evalOpt_quote g w env v⟩
 
-/-- Convergence (totality form) of a VARIABLE: `(var s)` converges to SOME value in
-    ANY environment — its binding if bound, else `nil` (provided `s` is not the
-    constant `t`). This is the variable-convergence fact the mirror theorem's
-    `∀ env` quantification needs. -/
+/-- Convergence (v-fixed) of a VARIABLE: `(var s)` converges to its binding (or `nil`
+    if unbound, provided `s` is not the constant `t`) in ANY environment — the
+    variable-convergence fact the mirror theorem's `∀ env` quantification needs. -/
 theorem re_conv_var (w : World) (env : Env) (s : Symbol) (h_not_t : s.isNamed "t" = false) :
-    ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env (.atom (.symbol s)) = some v := by
-  refine ⟨1, fun f hf => ?_⟩
-  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env (.atom (.symbol s)) = some v := by
   match h : env.get? s with
-  | some v => exact ⟨v, evalOpt_var g w env s v h⟩
-  | none => exact ⟨.nil, evalOpt_var_unbound g w env s h h_not_t⟩
+  | some v => exact ⟨1, v, fun f _ => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      exact evalOpt_var g w env s v h⟩
+  | none => exact ⟨1, .nil, fun f _ => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      exact evalOpt_var_unbound g w env s h h_not_t⟩
 
-/-- equal-self, fuel-robust closing form: if `A` converges to SOME value (totality)
-    and `equal` is not shadowed, then `(equal A A)` converges to `t`. The witness
-    `v` is handled INSIDE (existential), so the driver supplies only `A`'s
-    convergence — no concrete value. -/
+/-- equal-self, fuel-robust closing form: if `A` converges (v-fixed) and `equal` is
+    not shadowed, then `(equal A A)` converges to `t`. The driver supplies only `A`'s
+    convergence. -/
 theorem re_equal_self (w : World) (env : Env) (A : SExpr)
-    (hconv : ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env A = some v)
+    (hconv : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env A = some v)
     (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none) :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env
         (.cons (.atom (.symbol { name := "equal" })) (.cons A (.cons A .nil))) = some SExpr.t := by
-  obtain ⟨N, hN⟩ := hconv
+  obtain ⟨N, v, hN⟩ := hconv
   refine ⟨N + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-  obtain ⟨v, hv⟩ := hN g (by omega)
-  exact evalOpt_equal_self g w env A v hv h_no_equal
+  exact evalOpt_equal_self g w env A v (hN g (by omega)) h_no_equal
 
 end ACL2.Replay

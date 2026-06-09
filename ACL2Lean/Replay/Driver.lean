@@ -289,11 +289,12 @@ def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
       (mkApp2 (mkConst ``Symbol.isNamed) (reflectSymbol s) (mkStrLit name)) (mkConst ``Bool.false))
     s!"{s.name}.isNamed {name} = false"
 
-/-- Prove a term CONVERGES (totality form): `∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env t = some v`.
-    The witness is existential — callers need no concrete value (it may be env-dependent,
-    e.g. for a free variable). S2 handles a free variable (via `re_conv_var`, valid for
-    ALL `env`) and a `(quote v)` constant; any other shape is an unimplemented frontier
-    → `throwError` (the full convergence analyzer, G1, lands in a later stage). -/
+/-- Prove a term CONVERGES (v-fixed totality): `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v`
+    — a single definite value (`evalOpt` is fuel-monotone), so callers can `obtain` the
+    witness and feed any value-specific lemma. The value may be env-dependent (a free
+    variable) but is still fixed across fuel. S2 handles a free variable (via `re_conv_var`,
+    valid for ALL `env`) and a `(quote v)` constant; any other shape is an unimplemented
+    frontier → `throwError` (the full convergence analyzer, G1, lands in a later stage). -/
 def proveConv (cfg : ReplayConfig) (_ctx : ReplayCtx) (t : SExpr) : MetaM Expr := do
   match t with
   | .atom (.symbol s) =>
