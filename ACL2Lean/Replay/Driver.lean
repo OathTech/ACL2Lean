@@ -282,13 +282,26 @@ structure ReplayConfig where
   envExpr : Expr
   worldVal : World := {}
 
-/-- The proof context in scope at a node (design note). Grows as stages land; S1/S2
-    populate none of it. -/
+/-- The proof context in scope at a node. All entries are VALUE-CHARACTERIZED
+    facts over the ambient env, established by the surrounding structure (the
+    induction scaffold, the clause spine) and consumed by the node replays:
+
+    - `varVals`: variable ↦ (value `Expr`, proof `∃N∀f≥N, eval (var s) = some value`).
+      The induction scaffold binds the controller's value here (`xv`); unlisted
+      variables are resolved on demand (`re_val_var`, value `(env.get? s).getD nil`).
+    - `vals`: term ↦ (value, convergence proof) — opaque user-fn occurrences
+      (obtained from totality hypotheses at clause entry) and any other term whose
+      value is pinned in scope.
+    - `nilFacts`: literal term ↦ (its value `Expr`, proof `value = .nil`) — the
+      clause spine's accumulated "earlier literals are false" hypotheses; feeds
+      recognizer/false nodes and the solidify IH bridge.
+    - `ih`: the induction hypothesis (the scaffold's `P (cdr xv)` instance), when
+      inside a step case. -/
 structure ReplayCtx where
-  caseHyps : List Expr := []
+  varVals : List (Symbol × Expr × Expr) := []
+  vals : List (SExpr × Expr × Expr) := []
+  nilFacts : List (SExpr × Expr × Expr) := []
   ih : Option Expr := none
-  typeFacts : List Expr := []
-  envBindings : List (Symbol × Expr) := []
 
 def ReplayCtx.empty : ReplayCtx := {}
 
@@ -517,5 +530,164 @@ def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
   match cp.root with
   | none => throwError "replayProof: theorem {cp.name} has no proof tree"
   | some root => replayClause cfg ReplayCtx.empty root
+
+/-! ## Value characterization (shared by clause-spine replay and the DP lift)
+
+The driver's value layer: every primitive-only term (with opaque user-fn
+occurrences and scaffold-bound variables resolved through the `ReplayCtx`) has an
+explicit `Logic`-primitive VALUE expression, and a proof that it evaluates to that
+value. Moved here from `DischargeLeaf` and generalized with a variable override so
+the induction scaffold can pin the controller's value (`xv`). -/
+
+/-- DP-lift primitives (unary): ACL2 name → (Logic function, `callBuiltin` rfl lemma). -/
+def dpUnary : List (String × Name × Name) :=
+  [("not",      ``Logic.not,      ``callBuiltin_not),
+   ("zp",       ``Logic.zp,       ``callBuiltin_zp),
+   ("consp",    ``Logic.consp,    ``callBuiltin_consp),
+   ("integerp", ``Logic.integerp, ``callBuiltin_integerp),
+   ("car",      ``Logic.car,      ``callBuiltin_car),
+   ("cdr",      ``Logic.cdr,      ``callBuiltin_cdr)]
+
+/-- DP-lift primitives (binary). -/
+def dpBinary : List (String × Name × Name) :=
+  [("equal",    ``Logic.equal,   ``callBuiltin_equal),
+   ("<",        ``Logic.lt,      ``callBuiltin_lt),
+   ("binary-+", ``Logic.plus,    ``callBuiltin_plus),
+   ("implies",  ``Logic.implies, ``callBuiltin_implies),
+   ("iff",      ``Logic.iff,     ``callBuiltin_iff)]
+
+/-- Is this head a DP-lift special form or primitive? (Anything else with a symbol
+    head is an OPAQUE user-fn application.) -/
+def dpKnownHead (name : String) : Bool :=
+  name == "quote" || name == "if" ||
+  (dpUnary.lookup name).isSome || (dpBinary.lookup name).isSome
+
+/-- Collect the MAXIMAL opaque subterms (user-fn applications) of a term, in
+    first-occurrence order, deduplicated. -/
+partial def collectOpaques (t : SExpr) : List SExpr :=
+  go t |>.eraseDups
+where
+  go : SExpr → List SExpr
+    | .cons (.atom (.symbol fs)) args =>
+      if dpKnownHead fs.name then goSpine args
+      else [.cons (.atom (.symbol fs)) args]
+    | _ => []
+  goSpine : SExpr → List SExpr
+    | .cons a rest => go a ++ goSpine rest
+    | _ => []
+
+/-- The `Logic`-primitive VALUE of a term: opaque subterms via `opq` (term ↦ value
+    expr), variables via `varVal`. -/
+partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Expr)
+    (t : SExpr) : MetaM Expr := do
+  if let some (_, v) := opq.find? (fun (o, _) => o == t) then return v
+  match t with
+  | .atom (.symbol s) => varVal s
+  | .cons (.atom (.symbol fs)) (.cons a .nil) =>
+    if fs.name == "quote" then return reflectSExpr a
+    else match dpUnary.lookup fs.name with
+      | some (fn, _) => return mkApp (mkConst fn) (← dpValExpr opq varVal a)
+      | none => throwError "dpValExpr: unary {fs.name} is not a DP-lift primitive: {repr t}"
+  | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
+    match dpBinary.lookup fs.name with
+    | some (fn, _) =>
+      return mkApp2 (mkConst fn) (← dpValExpr opq varVal a) (← dpValExpr opq varVal b)
+    | none => throwError "dpValExpr: binary {fs.name} is not a DP-lift primitive: {repr t}"
+  | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
+    if fs.name == "if" then
+      let vc ← dpValExpr opq varVal c
+      let vt ← dpValExpr opq varVal th
+      let ve ← dpValExpr opq varVal e
+      mkAppM ``cond #[mkApp (mkConst ``Logic.toBool) vc, vt, ve]
+    else throwError "dpValExpr: ternary {fs.name} is not a DP-lift primitive: {repr t}"
+  | _ => throwError "dpValExpr: unsupported term shape: {repr t}"
+
+/-- A clause variable's default concrete value: `(env.get? s).getD nil`. -/
+def dpConcVar (envExpr : Expr) (s : Symbol) : MetaM Expr := do
+  mkAppM ``Option.getD
+    #[← mkAppM ``Std.HashMap.get? #[envExpr, reflectSymbol s], mkConst ``SExpr.nil]
+
+/-- Value-characterized convergence of a term:
+    `∃N ∀f≥N, evalOpt f w env t = some (dpValExpr concrete t)`. Opaque subterms use
+    their convergence proofs (`opqP`); variables use `varP` when bound (the
+    scaffold's controller) else `re_val_var`. -/
+partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
+    (opq : List (SExpr × Expr)) (opqP : List (SExpr × Expr))
+    (varP : Symbol → Option (Expr × Expr) := fun _ => none)
+    (t : SExpr) : MetaM Expr := do
+  if let some (_, h) := opqP.find? (fun (o, _) => o == t) then return h
+  match t with
+  | .atom (.symbol s) =>
+    match varP s with
+    | some (_, h) => return h
+    | none =>
+      let hNotT ← proveIsNamedFalse s "t"
+      mkAppM ``re_val_var #[cfg.worldExpr, envExpr, reflectSymbol s, hNotT]
+  | .cons (.atom (.symbol fs)) (.cons a .nil) =>
+    if fs.name == "quote" then
+      mkAppM ``re_val_quote #[cfg.worldExpr, envExpr, reflectSExpr a]
+    else match dpUnary.lookup fs.name with
+      | some (fn, cbLemma) =>
+        let pa ← dpValProof cfg envExpr opq opqP varP a
+        let va ← dpValExpr opq (dpVarVal envExpr varP) a
+        let rv := mkApp (mkConst fn) va
+        let hNs ← proveNotSpecial fs
+        let hNo ← proveNoShadow cfg fs
+        let hr ← mkAppM cbLemma #[va]
+        mkAppM ``conv_builtin1
+          #[cfg.worldExpr, envExpr, reflectSymbol fs, reflectSExpr a, va, rv, hNs, hNo, pa, hr]
+      | none => throwError "dpValProof: unary {fs.name} is not a DP-lift primitive"
+  | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
+    match dpBinary.lookup fs.name with
+    | some (fn, cbLemma) =>
+      let pa ← dpValProof cfg envExpr opq opqP varP a
+      let pb ← dpValProof cfg envExpr opq opqP varP b
+      let va ← dpValExpr opq (dpVarVal envExpr varP) a
+      let vb ← dpValExpr opq (dpVarVal envExpr varP) b
+      let rv := mkApp2 (mkConst fn) va vb
+      let hNs ← proveNotSpecial fs
+      let hNo ← proveNoShadow cfg fs
+      let hr ← mkAppM cbLemma #[va, vb]
+      mkAppM ``conv_builtin2
+        #[cfg.worldExpr, envExpr, reflectSymbol fs, reflectSExpr a, reflectSExpr b,
+          va, vb, rv, hNs, hNo, pa, pb, hr]
+    | none =>
+      if fs.name == "if" then throwError "dpValProof: malformed if (2 args): {repr t}"
+      else throwError "dpValProof: binary {fs.name} is not a DP-lift primitive"
+  | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
+    if fs.name == "if" then
+      let pc ← dpValProof cfg envExpr opq opqP varP c
+      let pt ← dpValProof cfg envExpr opq opqP varP th
+      let pe ← dpValProof cfg envExpr opq opqP varP e
+      let vc ← dpValExpr opq (dpVarVal envExpr varP) c
+      let vt ← dpValExpr opq (dpVarVal envExpr varP) th
+      let ve ← dpValExpr opq (dpVarVal envExpr varP) e
+      mkAppM ``re_val_if
+        #[cfg.worldExpr, envExpr, reflectSExpr c, reflectSExpr th, reflectSExpr e,
+          vc, vt, ve, pc, pt, pe]
+    else throwError "dpValProof: ternary {fs.name} is not a DP-lift primitive"
+  | _ => throwError "dpValProof: unsupported term shape: {repr t}"
+where
+  /-- Variable values consistent with `varP` (fall back to the env lookup). -/
+  dpVarVal (envExpr : Expr) (varP : Symbol → Option (Expr × Expr)) (s : Symbol) :
+      MetaM Expr :=
+    match varP s with
+    | some (v, _) => pure v
+    | none => dpConcVar envExpr s
+
+/-- Ctx-driven value/proof for a term: ctx.vals as the opaque maps, ctx.varVals as
+    the variable override. -/
+def ctxValExpr (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) : MetaM Expr :=
+  dpValExpr (ctx.vals.map fun (o, v, _) => (o, v))
+    (fun s => match ctx.varVals.find? (fun (v, _, _) => v == s) with
+      | some (_, v, _) => pure v
+      | none => dpConcVar cfg.envExpr s) t
+
+def ctxValProof (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) : MetaM Expr :=
+  dpValProof cfg cfg.envExpr
+    (ctx.vals.map fun (o, v, _) => (o, v))
+    (ctx.vals.map fun (o, _, p) => (o, p))
+    (fun s => (ctx.varVals.find? (fun (v, _, _) => v == s)).map fun (_, v, p) => (v, p))
+    t
 
 end ACL2.Replay.Driver
