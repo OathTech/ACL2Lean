@@ -96,8 +96,9 @@ end-to-end via the driver, not the hand proofs.
   - [x] **P0** coverage: World.defs contract characterization + `#guard_msgs` axiom gates.
   - [x] **P1+P2** `World.defs : HashMap → DefMap` (assoc list, same interface, lookups
         reduce); all concrete world facts now `by decide`. Build/contract/axiom-gates green.
-  - [ ] **P3** driver derives `defs.get?`/no-shadow + `DefInfo` on the fly (via the existing
-        `proveByDecide`), removing the hand `sq_def`/`empty_no_*`/`DefInfo` from the harness.
+  - [x] **P3** driver derives `defs.get?`/no-shadow + `DefInfo` on the fly (`proveNoShadow`/
+        `deriveDefInfo` via `proveByDecide`); ALL hand world facts + `DefInfo` deleted from
+        the harness. `ReplayConfig` = `{worldExpr, envExpr, worldVal}`. Mirrors axiom-clean.
   - [ ] **P4** build the `evalOpt` World as a projection of the `Development`'s defuns →
         single input (parsed proof-log); then the coverage harness is nearly free.
 - [ ] Replace the hardcoded `World.empty`/empty-env frontend with **`gen-world`** output;
