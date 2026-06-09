@@ -123,8 +123,27 @@ alist; emit `:CONTROLLERS` (the candidate's already-instantiated controllers). V
 - `12-multi-controller` (`zip2`, simultaneous cdr/cdr): step IH substitutes BOTH controllers,
   `x:=(cdr x), y:=(cdr y)` (multi-variable IH alist). **Multi-var IH substitution verified.**
 
-These three drive the coverage harness (`Tests/DriverCoverage.lean`) — parse→reconstruct→World all
+- `13-multi-measured-var` (`interleave`, `:measure (+ (acl2-count x) (acl2-count y))`): dump shows
+  `measure (binary-+ (acl2-count x) (acl2-count y)) … on: y, x` — a **2-element measured subset**
+  (unlike 12's `{x}`) with a compound measure term, and a **variable-swapping** IH `x:=y,
+  y:=(cdr x)`. **Multi-measured-variable subset + compound measure verified.**
+- `14-accumulator` (`rev-acc`, tail-recursive): step IH `acc := (cons (car x) acc), x := (cdr x)`
+  — the accumulator substitutes to a **constructed (growing)** term, not a selector (every other
+  test's IH maps to smaller sub-terms). Also a **merged scheme** (ACL2 inducts on `(len x)` but
+  carries `rev-acc`'s `acc` substitution). **Constructor-term IH substitution verified.**
+
+These five drive the coverage harness (`Tests/DriverCoverage.lean`) — parse→reconstruct→World all
 green; driver-replay still the expected induction frontier.
+
+**Patterns tried but NOT addable book-free (→ deferred / emission gaps):**
+- *Lexicographic / ordinal `l<` measure* (`llist`): needs the `ordinals/lexicographic-ordering`
+  book (an `l<` `:well-founded-relation`); `include-book` is itself untested here. The genuinely
+  new thing — emitting a **non-default well-founded relation** — is an emission gap for the infra
+  pass. A book-free single-ordinal `make-ord` measure is possible but forces an ugly conditional
+  and keeps `rel = o<` (no novelty over 11).
+- *Mutual-recursion induction*: ACL2 does not induct directly on a mutual-recursion nest's merged
+  scheme (`(:induct (my-evenp n))` → "no schemes suggested"); the real idiom is a flag function
+  (`make-flag`, a book) or a hand-flag single recursion (not structurally a merged scheme).
 
 **Reconstruction fix surfaced by 11/12:** their arith-heavy multi-way-`if` bodies emit a clause-level
 `CLAUSE/CASE-SPLIT` marker (`TraceEvent.caseSplit i n`) that `parseClauseItems` didn't handle →

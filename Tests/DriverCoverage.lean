@@ -51,7 +51,9 @@ def corpus : List (String × String) :=
    ("09-defn-unfold",          include_str "../acl2_samples/recon-tests/09-defn-unfold.proof-log"),
    ("10-tree-induction",       include_str "../acl2_samples/recon-tests/10-tree-induction.proof-log"),
    ("11-custom-measure",       include_str "../acl2_samples/recon-tests/11-custom-measure.proof-log"),
-   ("12-multi-controller",     include_str "../acl2_samples/recon-tests/12-multi-controller.proof-log")]
+   ("12-multi-controller",     include_str "../acl2_samples/recon-tests/12-multi-controller.proof-log"),
+   ("13-multi-measured-var",   include_str "../acl2_samples/recon-tests/13-multi-measured-var.proof-log"),
+   ("14-accumulator",          include_str "../acl2_samples/recon-tests/14-accumulator.proof-log")]
 
 /-- Run the driver on one theorem over its derived world; return a one-line status. The
     world is PROJECTED from the development and REFLECTED concretely (P4); structural facts
