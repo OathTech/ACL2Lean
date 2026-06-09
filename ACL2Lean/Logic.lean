@@ -309,65 +309,65 @@ instance : OfNat SExpr n where
         · simp [minus, toRat, mkNumber, toNat, toInt]
           omega
 
-@[simp, grind] theorem car_cons (a d : SExpr) : car (cons a d) = a := rfl
+@[simp, grind =] theorem car_cons (a d : SExpr) : car (cons a d) = a := rfl
 
-@[simp, grind] theorem cdr_cons (a d : SExpr) : cdr (cons a d) = d := rfl
+@[simp, grind =] theorem cdr_cons (a d : SExpr) : cdr (cons a d) = d := rfl
 
-@[simp, grind] theorem toBool_true : toBool (.t) = true := rfl
+@[simp, grind =] theorem toBool_true : toBool (.t) = true := rfl
 
-@[simp, grind] theorem toBool_nil : toBool .nil = false := rfl
+@[simp, grind =] theorem toBool_nil : toBool .nil = false := rfl
 
-@[simp, grind] theorem if_true (t e : SExpr) : if_ (.t) t e = t := rfl
+@[simp, grind =] theorem if_true (t e : SExpr) : if_ (.t) t e = t := rfl
 
-@[simp, grind] theorem if_nil (t e : SExpr) : if_ .nil t e = e := rfl
+@[simp, grind =] theorem if_nil (t e : SExpr) : if_ .nil t e = e := rfl
 
-@[grind] theorem equal_self (x : SExpr) : equal x x = .t := by
+@[grind =] theorem equal_self (x : SExpr) : equal x x = .t := by
   simp [equal]
 
-@[simp, grind] theorem toInt_plus_int (m n : Int) :
+@[simp, grind =] theorem toInt_plus_int (m n : Int) :
     toInt (plus (.atom (.number (.int m))) (.atom (.number (.int n)))) = m + n := by
   simp [plus, toRat, mkNumber, toInt]
 
-@[simp, grind] theorem toInt_int (n : Int) : toInt (.atom (.number (.int n))) = n := rfl
+@[simp, grind =] theorem toInt_int (n : Int) : toInt (.atom (.number (.int n))) = n := rfl
 
-@[simp, grind] theorem toInt_nil : toInt .nil = 0 := rfl
+@[simp, grind =] theorem toInt_nil : toInt .nil = 0 := rfl
 
-@[simp, grind] theorem toInt_cons (a d : SExpr) : toInt (.cons a d) = 0 := rfl
+@[simp, grind =] theorem toInt_cons (a d : SExpr) : toInt (.cons a d) = 0 := rfl
 
-@[simp, grind] theorem plus_int (m n : Int) :
+@[simp, grind =] theorem plus_int (m n : Int) :
     plus (.atom (.number (.int m))) (.atom (.number (.int n))) =
     .atom (.number (.int (m + n))) := by
   simp [plus, toRat, mkNumber]
 
-@[simp, grind] theorem minus_int (m n : Int) :
+@[simp, grind =] theorem minus_int (m n : Int) :
     minus (.atom (.number (.int m))) (.atom (.number (.int n))) =
     .atom (.number (.int (m - n))) := by
   simp [minus, toRat, mkNumber]
 
-@[simp, grind] theorem times_int (m n : Int) :
+@[simp, grind =] theorem times_int (m n : Int) :
     times (.atom (.number (.int m))) (.atom (.number (.int n))) =
     .atom (.number (.int (m * n))) := by
   simp [times, toRat, mkNumber]
 
-@[simp, grind] theorem lt_int (m n : Int) :
+@[simp, grind =] theorem lt_int (m n : Int) :
     lt (.atom (.number (.int m))) (.atom (.number (.int n))) =
     if m < n then .t else .nil := by
   simp [lt, toRat]
 
-@[simp, grind] theorem equal_atom_int (n m : Int) : equal (.atom (.number (.int n))) (.atom (.number (.int m))) = (if n = m then .t else .nil) := by
+@[simp, grind =] theorem equal_atom_int (n m : Int) : equal (.atom (.number (.int n))) (.atom (.number (.int m))) = (if n = m then .t else .nil) := by
   simp [equal]
 
-@[grind] theorem toBool_equal (a b : SExpr) : toBool (equal a b) = true ↔ a = b := by
+@[grind =] theorem toBool_equal (a b : SExpr) : toBool (equal a b) = true ↔ a = b := by
   unfold equal; split
   · simp_all [toBool]
   · simp_all [toBool]
 
-@[grind] theorem toBool_eq (a b : SExpr) : toBool (eq a b) = true ↔ a = b := by
+@[grind =] theorem toBool_eq (a b : SExpr) : toBool (eq a b) = true ↔ a = b := by
   unfold eq; split
   · simp_all [toBool]
   · simp_all [toBool]
 
-@[grind] theorem equal_toInt (x : SExpr) : toBool (integerp x) = true → equal x (.atom (.number (.int (toInt x)))) = .t := by
+@[grind =] theorem equal_toInt (x : SExpr) : toBool (integerp x) = true → equal x (.atom (.number (.int (toInt x)))) = .t := by
   intro h
   cases x with
   | nil => simp [integerp, toBool] at h
@@ -380,7 +380,7 @@ instance : OfNat SExpr n where
       | rational _ _ | decimal _ _ => simp [integerp, toBool] at h
       | int k => simp [equal, toInt]
 
-@[grind] theorem integerp_toInt (x : SExpr) : toBool (integerp x) = true → x = .atom (.number (.int (toInt x))) := by
+@[grind →] theorem integerp_toInt (x : SExpr) : toBool (integerp x) = true → x = .atom (.number (.int (toInt x))) := by
   intro h
   cases x with
   | nil => simp [integerp, toBool] at h
@@ -401,15 +401,15 @@ instance : OfNat SExpr n where
     toInt (times (.atom (.number (.int m))) (.atom (.number (.int n)))) = m * n := by
   simp [times, toRat, mkNumber, toInt]
 
-@[simp, grind] theorem consp_cons (a d : SExpr) : consp (cons a d) = .t := rfl
+@[simp, grind =] theorem consp_cons (a d : SExpr) : consp (cons a d) = .t := rfl
 
-@[simp, grind] theorem consp_nil : consp .nil = .nil := rfl
+@[simp, grind =] theorem consp_nil : consp .nil = .nil := rfl
 
-@[simp, grind] theorem car_nil : car .nil = .nil := rfl
+@[simp, grind =] theorem car_nil : car .nil = .nil := rfl
 
-@[simp, grind] theorem cdr_nil : cdr .nil = .nil := rfl
+@[simp, grind =] theorem cdr_nil : cdr .nil = .nil := rfl
 
-@[simp, grind] theorem toBool_consp (s : SExpr) : toBool (consp s) = true ↔ ∃ a d, s = cons a d := by
+@[simp, grind =] theorem toBool_consp (s : SExpr) : toBool (consp s) = true ↔ ∃ a d, s = cons a d := by
   constructor
   · intro h
     cases s with
@@ -418,7 +418,7 @@ instance : OfNat SExpr n where
     | cons a d => exact ⟨a, d, rfl⟩
   · intro ⟨a, d, h⟩; subst h; simp [consp, toBool]
 
-@[simp, grind] theorem toBool_integerp (s : SExpr) : toBool (integerp s) = true ↔ ∃ n, s = .atom (.number (.int n)) := by
+@[simp, grind =] theorem toBool_integerp (s : SExpr) : toBool (integerp s) = true ↔ ∃ n, s = .atom (.number (.int n)) := by
   constructor
   · intro h
     cases s with
