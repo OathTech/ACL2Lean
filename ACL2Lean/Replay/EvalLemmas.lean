@@ -1811,6 +1811,21 @@ theorem re_conv_cons (w : World) (env : Env) (a b : SExpr)
     (by decide) h_no_cons ⟨Na, ha⟩ ⟨Nb, hb⟩ rfl
   exact ⟨N, .cons av bv, h⟩
 
+/-- Convergence (v-fixed) of a `(binary-* a b)` application: converges to `times av bv`
+    when `a`, `b` converge. (Same shape as `re_conv_cons`.) -/
+theorem re_conv_times (w : World) (env : Env) (a b : SExpr)
+    (h_no_times : w.defs.get? ({ name := "binary-*" } : Symbol) = none)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "binary-*" })) (.cons a (.cons b .nil)))
+      = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨Nb, bv, hb⟩ := hb
+  obtain ⟨N, h⟩ := conv_builtin2 w env { name := "binary-*" } a b av bv (Logic.times av bv)
+    (by decide) h_no_times ⟨Na, ha⟩ ⟨Nb, hb⟩ rfl
+  exact ⟨N, Logic.times av bv, h⟩
+
 /-- RUNE `definition` (1-arg), driver-facing: `(fn arg) ⇒ substTerm [formal] [arg] body`.
     Takes `arg`'s convergence (v-fixed) and the body's convergence in EVERY env
     (`hbodyAll` — the driver proves this by running the convergence analyzer under a

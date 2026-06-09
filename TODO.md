@@ -46,6 +46,21 @@ end-to-end via the driver, not the hand proofs.
       from ACL2** (the rewriter knows it), thread it through the proof tree, and carry
       it schematically so the driver never matches. (Track-A instrumentation; decide
       before/with S3.)
+- [ ] **Inductive clause structure (next big gap).** `replayClause` only handles a clause
+      that closes via a literal; the real `my-len-my-app` `Goal` is pushed to an induction
+      pool root (`*1`) with case-subgoal children (`*1/1`, `*1/2`) — the driver fail-closes
+      at `Goal` ("no literal closing to (quote t)"). Needs: recurse `push-clause → *1 (emit
+      acl2_induction_consp) → children`, threading `ReplayCtx` (case-hyp + IH). Then
+      recognizer / if-simplification / with-lemma(comm) / solidify nodes (the `*1/1`,`*1/2`
+      chains) + def-unfold for if-bodies.
+- [ ] **`car`/`cdr`/`consp`/`binary-+` convergence** in `proveConv` — same wrapper shape
+      as `re_conv_cons`/`re_conv_times` (the latter two done).
+- [ ] **def-unfold for REAL def shapes.** The current handler only does the *easy* case
+      (1-arg fn, direct non-`if` body, no children). Real `def:my-app`/`def:my-len` are
+      2-arg and/or have an `if`-body whose recognizer + if-simplification CHILDREN do the
+      simplification — `re_unfold1_conv`'s `substTerm`-of-the-`if`-body ≠ the node's
+      simplified rhs there. Needs: multi-arg unfold + replaying the def node's children
+      (recognizer/if) to reach the net rhs.
 - [ ] **Driver: `.boundary` path frames (child-node congruence).** `emitCongruence` is
       now path-directed (`pathStepsFromFrames` navigates the literal via `:PATH`; numeric
       `.arg` → `congr_unary/_binary_left/_binary_right`); `findPath`/`occursIn` retired.
@@ -134,6 +149,12 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
 - Driver 3a(ii) DEFINITION-UNFOLD node: `(defun pair (x) (cons x x))`,
   `(equal (pair x) (cons x x))` via `re_unfold1_conv` (body ∀-env convergence threaded
   to the bindArgs env) + carried `DefInfo` (def/closed/no-let) + equal-self. Axiom-clean.
+- Adversarial audit (3 decorrelated reviewers): driver confirmed GENUINE replay — no
+  hand-hacking, no answer-smuggling, axiom-clean, fail-closed.
+- **FIRST REAL TREE replayed end-to-end**: `sq-rewrites` (`(equal (sq n) (* n n))`)
+  parsed from the real `09-defn-unfold.proof-log` → driver → `sq_real_mirror`, axiom-clean
+  (`binary-*` convergence + def-unfold + equal-self). The hard real tree `my-len-my-app`
+  fail-closes cleanly at the `Goal` (push→induction) frontier.
 - `capture-proof-log.sh` failure detection hardened.
 - SExpr reader now supports dotted pairs (`(a . b)` → true `.cons`); fixes the `(. x)`
   artifact in `:subst` and `:path` frames (previously `.` was read as a symbol).

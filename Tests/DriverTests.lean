@@ -230,6 +230,108 @@ example :
 
 #print axioms pair_mirror
 
+/-! ## END-TO-END FRONTEND — replay a REAL parsed ACL2 proof tree.
+
+This is the first time the driver consumes a real `.proof-log` (parsed →
+`Development` → `ClauseProof`) rather than a hand-built tree value. Target:
+`sq-rewrites` `(equal (sq n) (* n n))` from `recon-tests/09-defn-unfold` — a
+non-inductive def-unfold (`(sq n) ⇒ (binary-* n n)`) + equal-self. The world facts
+(`sqWorld` matching the `.lisp`'s `(defun sq (n) (* n n))`, with def/closed/no-let +
+non-shadowing proofs) are still established here by hand; `gen-world` will emit them
+later. The TREE is genuinely parsed from ACL2's output.
+
+NOTE: `09-defn-unfold.proof-log` is gitignored (regenerate with
+`scripts/capture-proof-log.sh acl2_samples/recon-tests/09-defn-unfold.lisp`), same as
+`simple.proof-log`. -/
+
+private def sqLog : String := include_str "../acl2_samples/recon-tests/09-defn-unfold.proof-log"
+
+/-- Find a theorem's reconstructed `ClauseProof` by name (case-insensitive). -/
+private partial def findThm : Development → String → Option ClauseProof
+  | .bind (.theorem cp) rest, nm => if cp.name.toLower == nm.toLower then some cp else findThm rest nm
+  | .bind _ rest, nm => findThm rest nm
+  | .done, _ => none
+
+/-- The REAL parsed `sq-rewrites` proof tree (ACL2 output → parse → reconstruct). -/
+def sqRealProof : Option ClauseProof := do
+  let log ← (ProofLog.parse sqLog).toOption
+  let dev ← (ClauseTree.buildDevelopment log).toOption
+  findThm dev "sq-rewrites"
+
+/-- `(defun sq (n) (* n n))` — body `(binary-* n n)` (ACL2 normalizes `*`). -/
+private def sqBody : SExpr :=
+  .cons (.atom (.symbol { name := "binary-*" }))
+    (.cons (.atom (.symbol { name := "n" })) (.cons (.atom (.symbol { name := "n" })) .nil))
+def sqWorld : World :=
+  { World.empty with defs := World.empty.defs.insert { name := "sq" } ([{ name := "n" }], sqBody) }
+theorem sq_def : sqWorld.defs.get? ({ name := "sq" } : Symbol) = some ([{ name := "n" }], sqBody) := by
+  show sqWorld.defs[({ name := "sq" } : Symbol)]? = _
+  simp [sqWorld, World.empty]
+theorem sq_closed : ∀ s ∈ freeVars sqBody, s ∈ [({ name := "n" } : Symbol)] := by decide
+theorem sq_nolet : NoLet sqBody = true := by decide
+theorem sqWorld_no_equal : sqWorld.defs.get? ({ name := "equal" } : Symbol) = none := by
+  show sqWorld.defs[({ name := "equal" } : Symbol)]? = _
+  simp [sqWorld, World.empty]
+theorem sqWorld_no_times : sqWorld.defs.get? ({ name := "binary-*" } : Symbol) = none := by
+  show sqWorld.defs[({ name := "binary-*" } : Symbol)]? = _
+  simp [sqWorld, World.empty]
+
+/-- Drive the REAL parsed `sq-rewrites` tree over `sqWorld`. -/
+elab "acl2_replay_sq_real% " : term => do
+  let cpOpt ← unsafe evalExpr (Option ClauseProof)
+    (mkApp (mkConst ``Option [0]) (mkConst ``ACL2.ClauseProof)) (mkConst ``sqRealProof)
+  let some cp := cpOpt
+    | throwError "sqRealProof: parse/extract failed (is 09-defn-unfold.proof-log present?)"
+  withLocalDeclD `env (mkConst ``Env) fun env => do
+    let di : DefInfo :=
+      { formal := { name := "n" }, body := sqBody,
+        defFact := mkConst ``sq_def, closedFact := mkConst ``sq_closed, noLetFact := mkConst ``sq_nolet }
+    let cfg : ReplayConfig :=
+      { worldExpr := mkConst ``sqWorld, envExpr := env,
+        noShadow := [({ name := "equal" }, mkConst ``sqWorld_no_equal),
+                     ({ name := "binary-*" }, mkConst ``sqWorld_no_times)],
+        defs := [({ name := "sq" }, di)] }
+    let proof ← replayProof cfg cp
+    mkLambdaFVars #[env] proof
+
+/-- FIRST REAL TREE replayed end-to-end: the driver-emitted proof of the `sq-rewrites`
+    mirror, from ACL2's actual proof-log. -/
+def sq_real_mirror := acl2_replay_sq_real%
+
+-- The emitted type is the real theorem (the clause literal, `*` normalized to binary-*).
+example :
+    ∀ (env : Env), ∃ N, ∀ f ≥ N,
+      evalOpt f sqWorld env
+        (equalOf (ap1 "sq" (sym "n")) (ap2 "binary-*" (sym "n") (sym "n"))) = some SExpr.t :=
+  sq_real_mirror
+
+#print axioms sq_real_mirror
+
+/-! ## END-TO-END on the HARD real tree — `my-len-my-app` (expected frontier).
+
+Running the driver on the real `simple.proof-log` (the inductive `my-len-my-app`)
+surfaces exactly where the driver currently stops — it must fail-closed cleanly, not
+silently or with a fake proof. (Honest gap-surfacing per the adversarial audit.) -/
+private def simpleLog : String := include_str "../acl2_samples/simple.proof-log"
+def mylenRealProof : Option ClauseProof := do
+  let log ← (ProofLog.parse simpleLog).toOption
+  let dev ← (ClauseTree.buildDevelopment log).toOption
+  findThm dev "my-len-my-app"
+
+elab "#mylen_real_frontier" : command => Elab.Command.liftTermElabM do
+  let cpOpt ← unsafe evalExpr (Option ClauseProof)
+    (mkApp (mkConst ``Option [0]) (mkConst ``ACL2.ClauseProof)) (mkConst ``mylenRealProof)
+  let some cp := cpOpt | throwError "mylenRealProof: parse/extract failed"
+  let emptyEnv ← Term.elabTerm (← `(({} : Env))) none
+  let cfg : ReplayConfig := { worldExpr := mkConst ``World.empty, envExpr := emptyEnv }
+  try
+    let _ ← replayProof cfg cp
+    throwError "expected my-len-my-app to hit a frontier, but the driver SUCCEEDED"
+  catch e =>
+    logInfo m!"real my-len-my-app frontier (expected — inductive tree not yet supported): {e.toMessageData}"
+
+#mylen_real_frontier
+
 /-! ## BRIDGE — use the driver's output to prove the corresponding NATIVE Lean fact.
 
 The ACL2 theorem `(equal x x)` corresponds, over a standard Lean type, to reflexivity

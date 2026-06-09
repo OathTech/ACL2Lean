@@ -325,6 +325,11 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
       let hb ← proveConv cfg envExpr ctx b
       let hNoCons ← noShadowFact cfg { name := "cons" }
       mkAppM ``re_conv_cons #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoCons, ha, hb]
+    else if bs.name == "binary-*" then
+      let ha ← proveConv cfg envExpr ctx a
+      let hb ← proveConv cfg envExpr ctx b
+      let hNoTimes ← noShadowFact cfg { name := "binary-*" }
+      mkAppM ``re_conv_times #[cfg.worldExpr, envExpr, reflectSExpr a, reflectSExpr b, hNoTimes, ha, hb]
     else throwError "proveConv: no convergence rule for binary {bs.name}: {repr t}"
   | _ => throwError "proveConv: no convergence rule for {repr t}"
 
