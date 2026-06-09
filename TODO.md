@@ -161,10 +161,12 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
       correctness for new theorems the driver targets.
 - [ ] **Reconstruction coverage** — work through `docs/notes/2026-06-07_silent-drop-inventory.md`
       and the recon-tests findings; ensure no silent drops.
-- [ ] **#24** — model `fix` (+ `definition:`-runed ground-zero fns) as defined functions
-      (also de-collapses the base-case `node3`).
-- [ ] **#29** — rework `my-len-my-app` base case *1/2 to schematic + totality (currently
-      compute-and-match; blocked partly on #24).
+- [x] **#24** — `fix` modeled as a defined function in the hand-proof world (ACL2 ground-zero
+      body); base-case node3 unfolds it via `definition:fix`. (Other `definition:`-runed
+      ground-zero fns: add as needed.)
+- [x] **#29** — `my-len-my-app` base case *1/2 reworked to schematic per-rune replay (driver
+      combinators: re_unfold{1,2}_var ; recognizer ; re_if_false/true ; unicity-of-0 + fix
+      unfold ; equal-self) — no more compute-and-match. Found+fixed via the adversarial audit.
 
 ## Done (recent milestones, for context)
 
