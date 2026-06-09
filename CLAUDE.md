@@ -161,6 +161,13 @@ against it structurally:
   decisions and seek review before committing a proof as done or before building
   further on new infrastructure. Verify green + check `#print axioms` before any
   "done" claim. Commit/claim only what is verified.
+- **Never merge (or push) without explicit, direct sign-off at the point of merge.**
+  Do feature work on a branch (`mdd/...`), never directly on `main`. When a branch is
+  ready to integrate, **pause, report it, and ask** — then merge ONLY if approved right
+  then. Approval is never inferred from an earlier "merge it" or from the branch being
+  green; it must be given at the moment of merge, for that specific merge. Same for
+  `git push`. Prefer linear history (fast-forward merges); `--no-ff` is allowed but not
+  the default.
 - **Keep `TODO.md` current.** The repo-root `TODO.md` is the running backlog across
   all tracks (A: the rewriting-replay driver; B: type-set/decision-procedure
   instrumentation; and the rest of the pipeline). Update it whenever a milestone
@@ -195,6 +202,36 @@ sibling `libsignal-theory` project):
    adjudicate disagreement, and **spot-check the highest-stakes survivors
    yourself** before acting (a confident reviewer can be confidently wrong, and
    can miss things by searching one subtree). Credit what is genuinely strong.
+
+## ACL2 instrumentation tagging (the `acl2/` submodule)
+
+Our additions to ACL2 (stage 2) live in the `acl2/` submodule (branch
+`acl2-lean-output`) as the diff vs upstream `master`. **Every region we insert carries
+exactly one tag**, in a comment directly above it, that names and explains it:
+
+```
+; TRACE-LOG[<ns>/<label>]: <one-line purpose — what this instruments and why>
+```
+
+`<ns>` is one of three namespaces:
+- **`emit/`** — writes to the structured proof log. Rewrite-step pushes (to
+  `*structured-rewrite-log*` with `:origin '<sym>`) use `emit/<sym>` and obey the
+  **round-trip rule**: the part after `emit/` MUST equal the emitted `:origin`. Direct
+  top-level `fms` events use the keyword, lower-cased (`emit/step`, `emit/defthm`,
+  `emit/induction`, `emit/defun`, `emit/qed`, …).
+- **`suppress/`** — silences normal ACL2 output in `:structured` mode so stdout stays
+  machine-parseable (`suppress/warnings`, `suppress/clause-body`, …).
+- **`infra/`** — plumbing that emits nothing itself (globals, depth/path helpers, gstackp
+  forcing, speculative rollback, the safe-mode list) — `infra/rewrite-log`,
+  `infra/gstackp`, `infra/saved-log-tail`, …
+
+Rules: **tag EVERYTHING** the fork inserts (so `grep -rn "TRACE-LOG\[" acl2/*.lisp` finds
+every delta vs upstream — the maintenance/upstreaming invariant); one `;`-comment, above
+the region, with a real purpose sentence; comments are inert in Lisp so tagging is a
+zero-behavior change. The convention + the full survey are in
+`docs/notes/2026-06-09_acl2-tagging-survey.md`; `just check-acl2-tags` enforces it
+(no bare `; TRACE-LOG:`, all tags namespaced, every emitted origin round-trips) — run it
+when adding instrumentation.
 
 ## Architecture
 

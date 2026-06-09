@@ -134,3 +134,12 @@ Rules:
   emitted origin/keyword; no bare `; TRACE-LOG:` and no other markers remain.
 
 This is the convention to be copied into the repo `CLAUDE.md` once the normalization lands.
+
+## STATUS: normalized (2026-06-09)
+Applied across the submodule (`acl2-lean-output`): P1 namespaced the 50 existing tags +
+deleted the bare straggler; P2 tagged every untagged region (emit/suppress/infra); P3
+dropped the vestigial `:ORIGIN` fields; P4 added `scripts/check-acl2-tags.sh`
+(`just check-acl2-tags`), which caught one untagged emitted origin (`if-finish/end-if`,
+fixed) and now passes: 74 tags (54 emit / 13 infra / 7 suppress), all namespaced, no bare
+forms, all 46 rewrite-step origins round-trip. Convention recorded in `CLAUDE.md`.
+All changes are comment-only except P3 (drops a Lean-unread emitted field).

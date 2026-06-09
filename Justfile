@@ -44,3 +44,7 @@ parse-proof-log file:
 # theorem. Hard-fails if any proof-log is absent (regenerate with capture-all-logs first).
 driver-coverage:
     lake build Tests.DriverCoverage
+
+# Verify the ACL2 instrumentation tagging convention (namespaced TRACE-LOG, round-trip).
+check-acl2-tags:
+    bash scripts/check-acl2-tags.sh
