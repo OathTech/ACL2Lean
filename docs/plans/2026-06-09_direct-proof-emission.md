@@ -60,6 +60,96 @@ just for the three direct-proof tests.
 - **Linear arithmetic** (`03-linear`): the linear pot / `add-poly` decision procedure.
   Heaviest to instrument; emit the linear lemmas + the contradiction.
 
+## M1 survey (2026-06-09): the discharge inventory + event design
+
+Traced the actual code paths (`trace$` probe on ground-arith confirmed empirically).
+`preprocess-clause` (induct.lisp:1070) runs, in order:
+
+**A. `built-in-clausep`** (simplify.lisp:6813) — 3 sub-paths: built-in-clause rune match
+   (`push-lemma rune`); `trivial-clause-p` tautology (**returns `(mv t nil)` — NO ttree**);
+   forward-chain contradiction. (ground-arith does NOT discharge here — traced.)
+
+**B. `(disjoin (expand-any-final-implies cl wrld))`** (induct.lisp:841) — **THE silent
+   evaluator**: line 853 `(cons-term fn expanded-args)` folds ground primitive
+   applications as a side effect of term construction, with NO ttree and NO rune —
+   ground-arith's whole proof (`(binary-+ '2 '3)→'5`, `(binary-+ '1 '5)→'6`,
+   `(equal '6 '6)→'T`) happens HERE (confirmed: `expand-abbreviations` was entered with
+   `'T`). Also expands a final IMPLIES, explicitly unreported ("Note that we fail to
+   report…", line 890). Explains the `:RUNES NIL` on ground-arith's `:STEP`.
+
+**C. `expand-abbreviations`** (induct.lisp:162) — the light rewriter; reduction kinds:
+   1. return-last drop (+rune)
+   2. cons-term constant fold (+exec rune, induct.lisp:256)
+   3. `ev-fncall+` ground evaluation (+exec rune, :316) ← sq-of-3, 06/07 constants
+   4. lambda/beta expansion (no rune)
+   5. boot-strap non-rec expansion (iff…; +def rune, :408)
+   6. IF folds (same-branches / constant-test / iff-shortcut, no rune, :424)
+   7. equal-self (no rune, :457)
+   8. abbreviation :rewrite rules (:460 → `expand-abbreviations-with-lemma`,
+      **already emitted** but with the `:rhs :abbreviation-expansion` placeholder)
+
+**D. `clausify-input`** — clausification + tautology deletion (also calls
+   expand-abbreviations again, so C-pushes fire there too — faithful).
+
+**E. `tau-clausep-lst`** (induct.lisp:987) — tau decision procedure; returns only
+   `*tau-ttree*` (the `exec-counterpart:tau-system` rune), no detail. ← the residual
+   tips (01/02/04/11/12/16) and 08.
+
+**Key architectural fact:** `waterfall-msg1` (emit/step, prove.lisp:2645) drains
+`*structured-rewrite-log*` into `:REWRITES` for ANY processor — including preprocess —
+and the Lean side already parses clause-level `:REWRITES` chains into `ClauseItem.step`s
+(08's abbreviation-expansion already flows this way). So **the event shape is the
+existing `:REWRITE-STEP`** (`:RUNE :ORIGIN :LHS :RHS`, no `:path` — no gstack in
+preprocess), pushed at each reduction; push order = chronological = inner-first, exactly
+the replay order. No new parser machinery; the leaf gains `items` and `blackBoxLeafIds`
+un-flags it per-path.
+
+**Event design (origins; tag `emit/<origin>` round-trips):**
+| site | origin | rune |
+|---|---|---|
+| B cons-term fold | `final-implies/eval` | `(:executable-counterpart fn)` |
+| B IMPLIES expand | `final-implies/expand` | `(:definition implies)` |
+| C.2 const fold | `preprocess/const-fold` | `(:executable-counterpart fn)` |
+| C.3 ev-fncall | `preprocess/eval` | `(:executable-counterpart fn)` |
+| C.6 if same-branches | `preprocess/if-same` | `(:if-same-branches nil)` |
+| C.6 if constant-test | `preprocess/if-constant-test` | `(:if-simplification nil)` |
+| C.6 if iff-shortcut | `preprocess/if-iff` | `(:if-simplification nil)` |
+| C.7 equal-self | `preprocess/equal-self` | `(:equal-self nil)` |
+| C.8 placeholder fix | `abbreviation-expansion` (unchanged) | rule rune (unchanged) |
+
+(rune conventions copied from the rewriter's existing pushes: `rewrite/exec-counterpart`,
+`if1/same-branches`, `equal/self`.) C.8's `:RHS` becomes the INSTANTIATED rule RHS
+`(sublis-var unify-subst (access rewrite-rule lemma :rhs))` — the faithful per-step
+result (further expansion of it is its own steps).
+
+**M2 scope (eval chunk):** B + C.2 + C.3 + C.6 + C.7 + C.8-fix. Covers 00-direct fully
++ 06/07 constants. NOT in this chunk (each stays a red frontier until instrumented):
+C.1/C.4/C.5 (nothing in the corpus exercises them in a discharge — no speculative
+emission we can't validate), A (built-in-clausep), D tautology deletion, E tau.
+Functions gaining raw-code pushes must be added to the tagged
+`program-fns-with-raw-code` list (axioms.lisp:14330, `; *structured-rewrite-log*`
+entries): `expand-any-final-implies1`, `expand-abbreviations`.
+
+## STATUS (2026-06-09): M2+M3 eval chunk DONE — frontier 19 → 13
+
+Instrumented exactly the M2 scope (B, C.2, C.3, C.6×3, C.7, C.8-fix; tags green;
+`expand-abbreviations` + `expand-any-final-implies1` added to the raw-code list). ACL2
+rebuilt; corpus regenerated. M3 needed **zero Lean changes** — the new events flow
+through the existing `:REWRITES` → `ClauseItem.step` path (as designed).
+
+Verified:
+- `ground-arith` dump: `(binary-+ '2 '3)⇒'5`, `(binary-+ '1 '5)⇒'6`, `(equal '6 '6)⇒'t`
+  (the formerly-silent cons-term chain, inner-first). `sq-of-3`: `(sq '3)⇒'9` + equal-self.
+- 08 `cdr-cons-refl`: real RHS (`(cdr (cons x y)) ⇒ y`, placeholder gone) + the new
+  preprocess equal-self step — whole theorem off the frontier.
+- All 18 corpus logs parse/reconstruct/dump cleanly (no integrity failures).
+- **Frontier 19 → 13 theorems** (9 tests). Newly clean: 00-direct (both), 03/linear-chain,
+  06/count-down-zero, 07's two constants, 08/cdr-cons-refl.
+
+Remaining 13 (still intentionally red): the **tau-system / forward-chain / linear** class —
+01/app-nil, 02×3, 03×2, 04/evenlen-booleanp, 07/termination, 08/equal-symm+equal-trans,
+11×1, 12×1, 16×1. Next chunks: E (tau detail), A (built-in-clausep), linear arithmetic.
+
 ## Approach (emit → parse → reconstruct → eventually replay)
 
 1. **Locate the discharge points in ACL2** (`acl2/`): `preprocess-clause`

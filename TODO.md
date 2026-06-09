@@ -7,13 +7,14 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 
 _Last updated: 2026-06-09._
 
-> **⚠️ `just ci` is INTENTIONALLY RED (2026-06-09).** The driver-coverage harness now
-> hard-fails on any **black-box `PROVED` leaf** — a clause ACL2 discharged via
-> `preprocess-clause` / `tau-system` / evaluation, for which NO replayable proof
-> structure is emitted (19 theorems / 11 tests; the residual-clause tip of most proofs).
-> This is the **direct-proof / decision-procedure EMISSION gap**, deliberately failing
-> until that instrumentation lands — NOT a regression. See
-> `docs/plans/2026-06-09_direct-proof-emission.md`. Clean (green) tests: `simple`, 05,
+> **⚠️ `just ci` is INTENTIONALLY RED (2026-06-09).** The driver-coverage harness
+> hard-fails on any **black-box `PROVED` leaf** — a clause ACL2 discharged via an
+> uninstrumented path with NO replayable structure emitted. The **evaluation chunk is
+> emitted** (cons-term folds, ev-fncall, preprocess if/equal-self, abbreviation RHS),
+> cutting the frontier **19 → 13 theorems (9 tests)**; the remainder is the
+> **tau-system / forward-chain / linear-arithmetic** class, deliberately failing until
+> instrumented — NOT a regression. See
+> `docs/plans/2026-06-09_direct-proof-emission.md`. Clean tests: `simple`, 00, 05, 06,
 > 09, 10, 13, 14, 15.
 
 ## Where we are
@@ -188,12 +189,9 @@ ACL2 closes many goals (e.g. equality transitivity/symmetry, and much arithmetic
       (which swallows the new non-zero dump exit — decide if that should surface).
     - Differential-test the emission itself, not just `evalOpt` (does the log faithfully
       reflect the proof? a failed/odd proof should be detectable from the log alone).
-    - **`abbreviation-expansion` rewrite steps emit a PLACEHOLDER RHS** (`:RHS
-      :ABBREVIATION-EXPANSION` literally — see `08-equality-reasoning.proof-log`, the
-      `cdr-cons` step) instead of the actual rewritten term (`y` for `(cdr (cons x y))`).
-      The reconstruction faithfully renders the placeholder, but the real RHS is lost at
-      the emission layer — fix the `emit/abbreviation-expansion` instrumentation to emit
-      the true RHS. (Found by the 2026-06-09 dump audit.)
+    - [x] ~~`abbreviation-expansion` placeholder RHS~~ — FIXED 2026-06-09: the emit now
+      carries the instantiated rule RHS (`sublis-var unify-subst rhs`); 08's `cdr-cons`
+      step shows `(cdr (cons x y)) ⇒ y`.
 - [x] **#24** — `fix` modeled as a defined function in the hand-proof world (ACL2 ground-zero
       body); base-case node3 unfolds it via `definition:fix`. (Other `definition:`-runed
       ground-zero fns: add as needed.)
