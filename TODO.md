@@ -7,15 +7,14 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 
 _Last updated: 2026-06-09._
 
-> **⚠️ `just ci` is INTENTIONALLY RED (2026-06-09).** The driver-coverage harness
-> hard-fails on any **black-box `PROVED` leaf** — a clause ACL2 discharged via an
-> uninstrumented path with NO replayable structure emitted. The **evaluation chunk is
-> emitted** (cons-term folds, ev-fncall, preprocess if/equal-self, abbreviation RHS),
-> cutting the frontier **19 → 13 theorems (9 tests)**; the remainder is the
-> **tau-system / forward-chain / linear-arithmetic** class, deliberately failing until
-> instrumented — NOT a regression. See
-> `docs/plans/2026-06-09_direct-proof-emission.md`. Clean tests: `simple`, 00, 05, 06,
-> 09, 10, 13, 14, 15.
+> **`just ci` is GREEN again (2026-06-09).** The black-box-leaf emission frontier is
+> CLOSED: the evaluation chunk emits the preprocess reduction chains, and every
+> decision-procedure discharge (tau / type-set-forward-chain) now emits an explicit
+> **discharge node** (clause ⇒ t, mechanism origin) under the ratified
+> decision-procedure-leaf carve-out (CLAUDE.md). The coverage harness still hard-fails
+> on any item-less PROVED leaf (emission gap) and tags discharge leaves
+> `[DISCHARGE-LEAF (replay pending)]` — their DRIVER replay (lift + omega/lean-smt,
+> c1/c2) is the next work. See `docs/plans/2026-06-09_direct-proof-emission.md`.
 
 ## Where we are
 

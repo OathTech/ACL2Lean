@@ -54,6 +54,34 @@ partial def blackBoxLeafIds (n : ClauseNode) : List String :=
 def theoremBlackBoxLeaves (cp : ClauseProof) : List String :=
   (cp.root.map blackBoxLeafIds).getD []
 
+/-- Origins of the DECISION-PROCEDURE DISCHARGE nodes (emitted at the discharge
+    sites in `tau-clausep` / `built-in-clausep`): the top-level node recording that
+    ACL2 closed the clause by a verdict-only decision procedure. Under the ratified
+    carve-out (CLAUDE.md, 2026-06-09) such a leaf is EMISSION-complete — the replay
+    obligation is to discharge the recorded clause by a kernel-checked decision
+    procedure (omega / lean-smt) in the driver. -/
+def dischargeOrigins : List String :=
+  ["preprocess/tau", "preprocess/tau-contradiction", "preprocess/type-set-fc",
+   "preprocess/trivial-clause", "preprocess/built-in-clause"]
+
+private def itemDischargeOrigins : ClauseItem → List String
+  | .literal _ => []
+  | .step (.node _ _ _ _ prov) =>
+      if dischargeOrigins.contains prov.origin then [prov.origin] else []
+  | .branch _ items => items.flatMap itemDischargeOrigins
+
+/-- Per-theorem: the discharge-node origins on PROVED leaves — these leaves are
+    emission-complete but await driver replay (the c1/c2 omega/lean-smt work).
+    Reported as a tag, not a hard failure. -/
+partial def theoremDischargeLeaves (cp : ClauseProof) : List (String × String) :=
+  let rec go (n : ClauseNode) : List (String × String) :=
+    let here :=
+      if n.children.isEmpty && n.induction.isNone then
+        (n.steps.flatMap (·.items.flatMap itemDischargeOrigins)).map (n.idStr, ·)
+      else []
+    here ++ n.children.flatMap go
+  (cp.root.map go).getD []
+
 /-- The corpus as `(name, log-content)` pairs. Each log is `include_str`'d (a missing one
     is a hard compile error here — no silent skip — and lake re-runs on change). -/
 def corpus : List (String × String) :=
@@ -128,10 +156,15 @@ elab "#driver_coverage" : command => do
             let bb := theoremBlackBoxLeaves cp
             unless bb.isEmpty do
               emissionFrontiers := emissionFrontiers.push s!"{name}/{cp.name}: black-box PROVED leaf(s) [{", ".intercalate bb}]"
+            -- Discharge leaves (decision-procedure nodes): emission-complete under the
+            -- ratified carve-out; awaiting driver replay (omega/lean-smt) — tag, not red.
+            let dis := theoremDischargeLeaves cp
             let status ← tryReplay w cp
             if status == "REPLAYED ✓" then replayed := replayed + 1
             let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
-            lines := lines.push s!"    {cp.name} → {status}{tag}"
+            let disTag := if dis.isEmpty then "" else
+              s!"  [DISCHARGE-LEAF (replay pending): {", ".intercalate (dis.map fun (id, o) => s!"{id}:{o}")}]"
+            lines := lines.push s!"    {cp.name} → {status}{tag}{disTag}"
     logInfo m!"Driver coverage — REPLAYED {replayed}/{total}:\n{"\n".intercalate lines.toList}"
     unless integrityFails.isEmpty do
       throwError m!"Reconstruction-integrity failures (not the replay frontier):\n{"\n".intercalate integrityFails.toList}"

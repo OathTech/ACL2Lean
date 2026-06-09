@@ -213,6 +213,36 @@ Open risks to spike before committing:
 Lean with the emitted type facts as hypotheses, attempt `omega` then `lean-smt`, check
 axioms. Then decide and mechanize.
 
+## STATUS (2026-06-09, later): carve-out ratified; discharge nodes emitted; ci GREEN
+
+Sequencing approved by MDD: (a) carve-out → (b) discharge nodes → (c1) driver lift+omega
+→ (d, gated) lean-smt package.
+
+- **(a) DONE** — CLAUDE.md "checker does no inference" now carries the ratified
+  decision-procedure-LEAF carve-out (discharge by kernel-checked omega/lean-smt on the
+  emitted leaf obligation; rewrite chains/inductions still fully mirrored).
+- **(b) DONE** — discharge nodes emitted at all verdict-only sites:
+  `emit/preprocess/tau` + `emit/preprocess/tau-contradiction` (tau-clausep),
+  `emit/preprocess/type-set-fc` + `emit/preprocess/trivial-clause` +
+  `emit/preprocess/built-in-clause` (built-in-clausep, gated to the preprocess-clause
+  caller so admission-time uses don't pollute the waterfall log). Node shape: the
+  standard rewrite-step, `:LHS (disjoin clause) :RHS *t*` + mechanism origin + rune.
+  Corpus census after regen: `type-set-fc` ×8, `tau-contradiction` ×8 — NOTE: every
+  "tau" discharge in this corpus comes from the `cheap-type-alist-and-pot-lst`
+  CONTRADICTION preamble (type-alist + linear POTS), not `tau-clause1p` proper; the
+  pot-lst is linear arithmetic, which is why e.g. `{(zp n) ∨ (< (- n 1) n)}` closes
+  there. The coverage harness hard-fails only on item-LESS PROVED leaves now (true
+  emission gaps) and tags discharge leaves `[DISCHARGE-LEAF (replay pending)]`.
+  **`just ci` is GREEN again**; the pressure moves to driver replay (c1/c2).
+- **(c1) NEXT** — driver: for a leaf whose step carries a discharge node, mechanically
+  unfold `evalOpt` over the clause disjunction, reduce to the native Logic-primitive
+  proposition, close via `omega` (the `Tests/SpikeTauOmega.lean` pattern, mechanized;
+  spike is kernel-clean `[propext, Quot.sound]`). Scope: primitive-only deciding
+  literals (07/termination, 08×2, 11's arith leaves). **(c2)** opaque-subterm leaves
+  need totality + TP consumption (Driver Stage 5; 12/16/02/03/04).
+- **(d) GATED** — lean-smt as a separate Lake package once (c1) shows what omega
+  can't reach; check toolchain pinning, cvc5 availability, axiom hygiene first.
+
 ## Approach (emit → parse → reconstruct → eventually replay)
 
 1. **Locate the discharge points in ACL2** (`acl2/`): `preprocess-clause`

@@ -113,6 +113,20 @@ ACL2 — so keep checking each stage against the real artifact.
   tree lacks the information to replay a step, that is missing ACL2 instrumentation
   to fix at the source (emit more), NOT a license to infer or paper over in Lean.
   **Hard-fail at frontiers.**
+  - **Sole carve-out — decision-procedure LEAVES (ratified 2026-06-09).** Where ACL2
+    itself closes a clause by a decision procedure with no internal proof record
+    (tau-system, type-set/forward-chain contradiction, linear arithmetic — ACL2
+    records only a verdict + rune set), the replay discharges that LEAF by a
+    kernel-checked decision procedure in Lean (`omega`; `lean-smt` where needed) on
+    the leaf's precisely-stated obligation (the emitted clause, lifted to the Logic
+    primitives, with ACL2-emitted type facts as hypotheses). This is faithful at
+    clause granularity — the clause tree, which IS ACL2's proof, stays mirrored
+    exactly, and the leaf is discharged the way ACL2 itself regards it (a
+    closed-form check). The carve-out applies ONLY to such leaves: rewrite chains,
+    inductions, and every step ACL2 does record remain fully mirrored, and using
+    `omega`/`decide`/SMT to shortcut THOSE is still forbidden (the anti-example
+    above). A leaf with no emitted discharge node at all is still an emission gap —
+    hard-fail. See `docs/plans/2026-06-09_direct-proof-emission.md`.
 - **Type facts come from ACL2, not Lean inference.** Consume the emitted
   `:TYPE-PRESCRIPTION` / type-set data (already parsed); if it is insufficient,
   add instrumentation rather than re-deriving types in the checker.
