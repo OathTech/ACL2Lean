@@ -24,10 +24,22 @@ def my_lenBody : SExpr :=
 def my_appBody : SExpr :=
   (SExpr.cons (SExpr.atom (.symbol { name := "if" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "consp" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cons" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "car" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-app" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cdr" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))))
 
+-- ACL2's ground-zero `fix`: (defun fix (x) (if (acl2-numberp x) x 0)). Modeling it as a
+-- defined function (task #24) lets the base case replay `definition:fix` schematically
+-- (def-unfold + acl2-numberp recognizer + if-simplification) instead of value-matching.
+-- evalOpt computes the same value either way (def-unfold vs the `fix` builtin), so this is
+-- additive; the base-case rework consumes it.
+def fixBody : SExpr :=
+  .cons (.atom (.symbol { name := "if" }))
+    (.cons (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+      (.cons (.atom (.symbol { name := "x" }))
+        (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 0))) .nil)) .nil)))
+
 def world : World where
   defs := ({} : DefMap)
     |>.insert (sym "my-len") ([sym "x"], my_lenBody)
     |>.insert (sym "my-app") ([sym "x", sym "y"], my_appBody)
+    |>.insert (sym "fix") ([sym "x"], fixBody)
 
 private def x_sym : Symbol := sym "x"
 private def y_sym : Symbol := sym "y"

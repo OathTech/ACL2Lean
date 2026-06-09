@@ -1895,4 +1895,16 @@ theorem re_unfold1_conv (w : World) (env : Env) (fn formal : Symbol) (body arg :
   obtain ⟨Nb, v, hb⟩ := hbodyAll (bindArgs [formal] [av])
   exact evalOpt_unfold1_conv w env fn formal body arg av v hns hdef hclosed hnolet ⟨Na, ha⟩ ⟨Nb, hb⟩
 
+/-- RUNE recognizer (true): `(acl2-numberp z) ⇒ t` when `z` converges to an integer — the
+    form `type-prescription:my-len` supplies. Mirrors the recognizer node that feeds
+    `definition:fix`'s `if` test in the base case (a builtin recognizer like the step
+    case's `consp`; the operand value stays existential). -/
+theorem re_acl2_numberp_int (w : World) (env : Env) (z : SExpr) (k : Int)
+    (h_no : w.defs.get? ({ name := "acl2-numberp" } : Symbol) = none)
+    (hz : ∃ N, ∀ f ≥ N, evalOpt f w env z = some (.atom (.number (.int k)))) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons z .nil)) = some .t :=
+  conv_builtin1 w env { name := "acl2-numberp" } z (.atom (.number (.int k))) .t
+    (by decide) h_no hz (by rfl)
+
 end ACL2.Replay
