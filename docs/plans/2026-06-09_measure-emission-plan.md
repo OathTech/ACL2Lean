@@ -86,6 +86,29 @@ two cases with the cdr-x IH — cross-checked against ACL2's actual `my-app` mea
 - **Driver**: `replayClause` recurses push→pool-root→children, emits WF induction from
   (measure, rel, cases), threads case-hyps + IH per `:ALISTS`. (Track A induction scaffold.)
 
+## STATUS (2026-06-09): M1–M4 done — milestone reached
+
+- **M1 ✓** `induct.lisp`: `(:INDUCTION …)` now emits `:MEASURE :REL :MP :SUBSET :CASES` (+`:XTERM`),
+  via `structured-induction-cases` (infra/induction-cases). ACL2 rebuilt (compiles); `check-acl2-tags` green.
+- **M2 ✓** Rebuilt ACL2 + regenerated the corpus (`simple` + all `recon-tests`).
+- **M3 ✓** `ProofLog`: `InductionStep` + `InductionCase`; `parseInduction?`/`parseCase`/`parseAlist`
+  read the new fields (optional → legacy logs still parse). Fields ride through `buildDevelopment`
+  on the synthesized pool-root.
+- **M4 ✓** `dump-proof-tree` renders the measure justification + per-case tests + IH substitutions.
+  Verified: `my-len-my-app` → `measure (acl2-count x) decreases under o-p/o<; measured: x`, step
+  `[(consp x)]` IH `x:=(cdr x)`, base `[(not (consp x))]` no IH. `02-rev`'s 6 inductions render
+  across controllers. `just ci` green; coverage harness parses+reconstructs the whole (new-format)
+  corpus; tag check OK.
+
+### Next (not yet done)
+- **Case↔child linking (reconstruction):** correlate each `:CASES` case with its `*1/k` child
+  subgoal **by tests** (NOT by order — ACL2 emits cases consp-first while subgoals are *1/2 base-first),
+  so the driver knows which child gets which case-hyp + IH. A real design step (how to match the
+  case's tests against the child's input clause); did NOT add a `cases.length = subgoalCount`
+  hard-fail since merge/split may break that invariant on other theorems — verify before asserting.
+- **Termination-proof emission** (deferred, for the driver's WF-fix decrease proof).
+- **Driver** WF-induction replay (Track A scaffold).
+
 ## Sequencing
 M1 → M2 (rebuild+regen) → M3 → M4, then verify the dump. M1 is the ACL2-side core; M3/M4 are the
 Lean reconstruction+display. The dump milestone is reached at M4. Keep `just check-acl2-tags` green
