@@ -80,16 +80,13 @@ theorem evalOpt_quote (f : Nat) (w : World) (env : Env) (v : SExpr) :
 theorem evalOpt_var (f : Nat) (w : World) (env : Env) (s : Symbol) (v : SExpr)
     (h : env.get? s = some v) :
     evalOpt (f + 1) w env (.atom (.symbol s)) = some v := by
-  simp [evalOpt, evalOptStep]
-  rw [show env[s]? = env.get? s from rfl, h]
+  simp [evalOpt, evalOptStep, h]
 
 /-- T18: Variable lookup (unbound, not t). -/
 theorem evalOpt_var_unbound (f : Nat) (w : World) (env : Env) (s : Symbol)
     (h : env.get? s = none) (h_not_t : s.isNamed "t" = false) :
     evalOpt (f + 1) w env (.atom (.symbol s)) = some .nil := by
-  simp [evalOpt, evalOptStep]
-  rw [show env[s]? = env.get? s from rfl, h]
-  simp [h_not_t]
+  simp [evalOpt, evalOptStep, h, h_not_t]
 
 /-- T5a: IF with truthy test takes the then-branch. -/
 theorem evalOpt_if_true (f : Nat) (w : World) (env : Env)
@@ -704,21 +701,20 @@ theorem bindArgs_eq_envUpdate_empty :
     the base env. -/
 theorem envUpdate_get (env : Env) (s : Symbol) :
     ∀ (formals : List Symbol) (vals : List SExpr),
-      (envUpdate env formals vals)[s]?
+      (envUpdate env formals vals).get? s
         = match lookupSubst s formals vals with
           | some v => some v
-          | none => env[s]?
+          | none => env.get? s
   | [], _ => rfl
   | _ :: _, [] => rfl
   | f :: fs, v :: vs => by
-      show ((envUpdate env fs vs).insert f v)[s]? = _
-      rw [Std.HashMap.getElem?_insert, envUpdate_get env s fs vs]
+      show ((envUpdate env fs vs).insert f v).get? s = _
+      rw [Env.get?_insert, envUpdate_get env s fs vs]
       simp only [lookupSubst]
       by_cases h : s = f
       · subst h; simp
       · have h1 : (s == f) = false := by simp [h]
-        have h2 : (f == s) = false := by simp [Ne.symm h]
-        simp only [h1, h2, Bool.false_eq_true, if_false]
+        simp only [h1, Bool.false_eq_true, if_false]
 
 /-- `substSpine` commutes with `toList?` (mapping `substTerm` over the list). -/
 theorem substSpine_toList (formals : List Symbol) (args : List SExpr) :
@@ -1640,22 +1636,21 @@ theorem re_if_false (w : World) (env : Env) (c t e ev : SExpr)
 /-- `(bindArgs [s] [v]).get? s = some v`. -/
 theorem bindArgs_single_get_self (s : Symbol) (v : SExpr) :
     (bindArgs [s] [v]).get? s = some v := by
-  show (({} : Env).insert s v)[s]? = some v
-  rw [Std.HashMap.getElem?_insert]; simp
+  show (({} : Env).insert s v).get? s = some v
+  simp
 
 /-- `(bindArgs [f1,f2] [v1,v2]).get? f1 = some v1`. -/
 theorem bindArgs_pair_get_fst (f1 f2 : Symbol) (v1 v2 : SExpr) :
     (bindArgs [f1, f2] [v1, v2]).get? f1 = some v1 := by
-  show ((({} : Env).insert f2 v2).insert f1 v1)[f1]? = some v1
-  rw [Std.HashMap.getElem?_insert]; simp
+  show ((({} : Env).insert f2 v2).insert f1 v1).get? f1 = some v1
+  simp
 
 /-- `(bindArgs [f1,f2] [v1,v2]).get? f2 = some v2` (distinct formals). -/
 theorem bindArgs_pair_get_snd (f1 f2 : Symbol) (v1 v2 : SExpr) (hne : f1 ≠ f2) :
     (bindArgs [f1, f2] [v1, v2]).get? f2 = some v2 := by
-  show ((({} : Env).insert f2 v2).insert f1 v1)[f2]? = some v2
-  rw [Std.HashMap.getElem?_insert]
-  simp only [beq_iff_eq]
-  rw [if_neg hne, Std.HashMap.getElem?_insert]
+  show ((({} : Env).insert f2 v2).insert f1 v1).get? f2 = some v2
+  simp only [Env.get?_insert, beq_iff_eq]
+  rw [if_neg (Ne.symm hne)]
   simp
 
 /-- RUNE `:DEFINITION fn` on a VARIABLE argument: `(fn x) ⇒ body` (the formal is
@@ -2157,6 +2152,15 @@ theorem logic_consp_ne_nil_t (v : SExpr) (h : Logic.consp v ≠ SExpr.nil) :
     Logic.consp v = SExpr.t := by
   cases v <;> simp_all [Logic.consp]
 
+/-- A concrete-fuel evaluation lifts to the fuel-robust form (fuel monotonicity) —
+    the replay form of an `executable-counterpart` PREPROCESS step: ACL2 COMPUTED
+    the value, and the kernel re-checks the same computation by reduction of
+    `evalOpt` at the recorded fuel. -/
+theorem conv_of_eval_at (N : Nat) (w : World) (env : Env) (t v : SExpr)
+    (h : evalOpt N w env t = some v) :
+    ∃ N', ∀ f ≥ N', evalOpt f w env t = some v :=
+  ⟨N, fun f hf => evalOpt_ge_fuel N f w env t v h hf⟩
+
 /-- Transport a convergence along an eval-equality: `eval a = eval b` and
     `eval b = some v` give `eval a = some v`. -/
 theorem fuel_conv_of_eq {a b : Nat → Option SExpr} {v : SExpr}
@@ -2203,10 +2207,7 @@ theorem re_val_var_insert (w : World) (env : Env) (s : Symbol) (v : SExpr) :
     ∃ N, ∀ f ≥ N, evalOpt f w (env.insert s v) (.atom (.symbol s)) = some v :=
   ⟨1, fun f hf => by
     obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-    exact evalOpt_var g w _ s v (by
-      show (env.insert s v)[s]? = some v
-      rw [Std.HashMap.getElem?_insert]
-      simp)⟩
+    exact evalOpt_var g w _ s v (by simp)⟩
 
 /-- Two value characterizations across an eval-equality pin the SAME value (the
     spine's bridge from a literal's pre-rewrite falsity to its post-rewrite form). -/

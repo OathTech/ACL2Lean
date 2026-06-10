@@ -362,9 +362,7 @@ theorem app_assoc_generic
       -- IH instantiated in e' = e.insert a (cdr av)
       have h_ae' : ∀ f, evalOpt (f + 1) w (e.insert a_sym (Logic.cdr av))
           (.atom (.symbol a_sym)) = some (Logic.cdr av) := fun f =>
-        evalOpt_var f w _ a_sym (Logic.cdr av) (by
-          show (e.insert a_sym (Logic.cdr av))[a_sym]? = some (Logic.cdr av)
-          rw [Std.HashMap.getElem?_insert]; simp)
+        evalOpt_var f w _ a_sym (Logic.cdr av) (by simp)
       obtain ⟨Nih, hih⟩ := ih (e.insert a_sym (Logic.cdr av)) h_ae'
       obtain ⟨Nbr, hbr⟩ := evalOpt_substTerm_subst1 w e a_sym (cdrOf aT) (Logic.cdr av)
         app_assocFormula (by decide) hcdr
@@ -455,14 +453,14 @@ theorem world_no_cons : world.defs[({ name := "cons" } : Symbol)]? = none := by 
 
 private theorem bindArgs_xy_x (vx vy : SExpr) :
     (bindArgs [x_sym, y_sym] [vx, vy]).get? x_sym = some vx := by
-  show ((({} : Env).insert y_sym vy).insert x_sym vx)[x_sym]? = some vx
-  rw [Std.HashMap.getElem?_insert]; simp
+  show ((({} : Env).insert y_sym vy).insert x_sym vx).get? x_sym = some vx
+  simp
 private theorem bindArgs_xy_y (vx vy : SExpr) :
     (bindArgs [x_sym, y_sym] [vx, vy]).get? y_sym = some vy := by
-  show ((({} : Env).insert y_sym vy).insert x_sym vx)[y_sym]? = some vy
-  rw [Std.HashMap.getElem?_insert]
+  show ((({} : Env).insert y_sym vy).insert x_sym vx).get? y_sym = some vy
+  simp only [Env.get?_insert]
   simp only [x_sym, y_sym, sym, beq_iff_eq]
-  rw [if_neg (by decide), Std.HashMap.getElem?_insert]; simp
+  rw [if_neg (by decide)]; simp
 
 private theorem conv_fix {w : World} {e : Env} {t : SExpr}
     (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e t = some av) :
@@ -668,23 +666,21 @@ theorem app_assoc_native (xs ys zs : List SExpr) :
     ⟨1, fun f hf => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
       exact evalOpt_var g world e a_sym (enc xs) (by
-        show e[a_sym]? = some (enc xs); rw [Std.HashMap.getElem?_insert]; simp)⟩
+        show e.get? a_sym = some (enc xs); simp [e])⟩
   have hb : ∃ N, ∀ f ≥ N, evalOpt f world e bT = some (enc ys) :=
     ⟨1, fun f hf => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
       exact evalOpt_var g world e b_sym (enc ys) (by
-        show e[b_sym]? = some (enc ys)
-        rw [Std.HashMap.getElem?_insert]; simp only [a_sym, b_sym, sym, beq_iff_eq]
-        rw [if_neg (by decide), Std.HashMap.getElem?_insert]; simp)⟩
+        show e.get? b_sym = some (enc ys)
+        simp only [e, Env.get?_insert, a_sym, b_sym, sym, beq_iff_eq]
+        rw [if_neg (by decide)]; simp)⟩
   have hc : ∃ N, ∀ f ≥ N, evalOpt f world e cT = some (enc zs) :=
     ⟨1, fun f hf => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
       exact evalOpt_var g world e c_sym (enc zs) (by
-        show e[c_sym]? = some (enc zs)
-        rw [Std.HashMap.getElem?_insert]; simp only [a_sym, c_sym, sym, beq_iff_eq]
-        rw [if_neg (by decide), Std.HashMap.getElem?_insert]
-        simp only [b_sym, sym, beq_iff_eq]
-        rw [if_neg (by decide), Std.HashMap.getElem?_insert]; simp)⟩
+        show e.get? c_sym = some (enc zs)
+        simp only [e, Env.get?_insert, a_sym, b_sym, c_sym, sym, beq_iff_eq]
+        rw [if_neg (by decide), if_neg (by decide)]; simp)⟩
   obtain ⟨NL, hL⟩ := corr_app_enc (xs ++ ys) e (appOf aT bT) cT zs
     (corr_app_enc xs e aT bT ys ha hb) hc
   obtain ⟨NR, hR⟩ := corr_app_enc xs e aT (appOf bT cT) (ys ++ zs) ha

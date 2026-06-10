@@ -735,7 +735,34 @@ def extend (w : World) (events : List Event) : World :=
 
 end World
 
-/-- Environment maps variable symbols to their values. -/
-abbrev Env := Std.HashMap Symbol SExpr
+/-- Environment maps variable symbols to their values. A minimal ASSOC LIST —
+    deliberately NOT a hash map: the trusted core (Layer 1) must stay small and
+    auditable, and the KERNEL must be able to REDUCE evaluation (the
+    executable-counterpart replay re-checks ACL2's computations by reduction;
+    `Std.HashMap`'s string hashing is opaque to the kernel). `insert` prepends,
+    so `get?` (first match) sees the newest binding — observationally the
+    hash-map `insert`/`get?` semantics. -/
+structure Env where
+  entries : List (Symbol × SExpr)
+  deriving Repr
+
+namespace Env
+
+def get? (e : Env) (s : Symbol) : Option SExpr :=
+  e.entries.lookup s
+
+def insert (e : Env) (s : Symbol) (v : SExpr) : Env :=
+  ⟨(s, v) :: e.entries⟩
+
+instance : EmptyCollection Env := ⟨⟨[]⟩⟩
+instance : Inhabited Env := ⟨{}⟩
+
+@[simp] theorem get?_insert (e : Env) (s s' : Symbol) (v : SExpr) :
+    (e.insert s v).get? s' = if s' == s then some v else e.get? s' := by
+  cases h : s' == s <;> simp [get?, insert, List.lookup, h]
+
+@[simp] theorem get?_empty (s : Symbol) : ({} : Env).get? s = none := rfl
+
+end Env
 
 end ACL2

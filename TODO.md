@@ -79,11 +79,23 @@ log, `#print axioms` clean. The pieces exist; c3 wires them:
       rewrite-if branch-frame STRIP, comm-rune children chaining,
       `groundZeroDefs` (fix) in `toWorld`, uniform pinning in `replayClause`.
       (task #52; details in docs/plans/2026-06-09_c3-composition-plan.md)
-- [ ] **Preprocess-chain replay** — the emitted preprocess items (final-implies
-      expansion, if-folds, abbreviation steps, clause-level chains) compose
-      formula → clause, so `Goal'`-style steps and discharge-leaf statements
-      connect to the theorem formula. Includes the implicit clausify gap
-      (IF-flattening is not emitted — assess whether more emission is needed).
+- [ ] **Preprocess-chain replay** — PART A LANDED (`replayPreprocessChain`):
+      clause-level eval/abbreviation chains (formula → 't) replay with
+      deterministic unique-occurrence positioning (no `:PATH` at preprocess
+      sites; ambiguity hard-fails) and `executable-counterpart` nodes re-checked
+      by KERNEL REDUCTION of `evalOpt` (enabled by the Env assoc-list change —
+      see Layer-1 note below). Coverage 9/38 (ground-arith, sq-of-3,
+      cdr-cons-refl, idf-rewrites). REMAINING: (B) verdict-only discharge leaves
+      composed into `replayClause` (TermElabM lift + DischargeLeaf fold-in);
+      (C) clausify splits (preprocess ⇒ N subgoals, e.g. 07's admission proof);
+      `mutual-recursion` emits NO `:DEFUN` events (stage-2 emission gap → Track
+      B backlog).
+- [x] **Env made kernel-reducible (Layer-1 trusted-core change, 2026-06-09).**
+      `Env` was `Std.HashMap Symbol SExpr`; string hashing is kernel-opaque, so
+      `evalOpt` of defined-fn calls could not be re-checked by reduction.
+      Replaced with a minimal assoc list (`Syntax.lean`) — smaller trusted core,
+      same observable insert/get? semantics, all kernel proofs rebuilt,
+      differential test vs real ACL2 re-run as the semantic guard.
 - [ ] **Solidify / IH bridge in the driver** (`equivSource` → `ReplayCtx.caseHyps`;
       the hand proofs' `evalOpt_substTerm_subst1` + `eval_equal_t_implies_eq`
       machinery, mechanized). (task #36)

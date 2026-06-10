@@ -414,7 +414,7 @@ private def simpleWorld : World :=
 
 -- Variable lookup
 private def testEnv : Env :=
-  ({} : Std.HashMap Symbol SExpr).insert (sym "x") (.atom (.number (.int 7)))
+  ({} : Env).insert (sym "x") (.atom (.number (.int 7)))
 
 #guard evalOpt 1 simpleWorld testEnv (mkVar "x") == some (.atom (.number (.int 7)))
 

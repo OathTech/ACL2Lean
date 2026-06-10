@@ -583,7 +583,7 @@ partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Ex
 /-- A clause variable's default concrete value: `(env.get? s).getD nil`. -/
 def dpConcVar (envExpr : Expr) (s : Symbol) : MetaM Expr := do
   mkAppM ``Option.getD
-    #[← mkAppM ``Std.HashMap.get? #[envExpr, reflectSymbol s], mkConst ``SExpr.nil]
+    #[← mkAppM ``Env.get? #[envExpr, reflectSymbol s], mkConst ``SExpr.nil]
 
 /-- Value-characterized convergence of a term:
     `∃N ∀f≥N, evalOpt f w env t = some (dpValExpr concrete t)`. Opaque subterms use
@@ -1198,6 +1198,124 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
           reflectSExpr restTerm, vLit, pLit, hthen, helse]
 
+/-! ## Preprocess-chain replay (a clause discharged at PREPROCESS, formula → 't)
+
+ACL2's preprocess (`final-implies/eval`, `preprocess/eval`, abbreviation
+expansion, const-fold, equal-self) logs clause-level `:REWRITE-STEP`s with NO
+`:PATH` — preprocess has no rewriter gstack. Each step's position is therefore
+reconstructed DETERMINISTICALLY: the node's lhs must occur EXACTLY ONCE in the
+current term; zero or multiple occurrences hard-fail (nothing is guessed — the
+same inverse-discipline standard as clause-id lineage). -/
+
+/-- All occurrences of `lhs` in `cur`, as congruence path-step descents.
+    Quoted subterms are opaque (no descent). -/
+partial def findOccurrences (cur lhs : SExpr) : List (List PathStep) :=
+  let here : List (List PathStep) := if cur == lhs then [[]] else []
+  let inside : List (List PathStep) :=
+    match asApp cur with
+    | some (fn, args) =>
+      if fn.name == "quote" then []
+      else
+        (args.zipIdx).flatMap fun (a, i) =>
+          (findOccurrences a lhs).map fun p =>
+            ({ fn, arity := args.length, argIdx := i,
+               siblings := (args.zipIdx).filterMap fun (b, j) =>
+                 if j == i then none else some b } : PathStep) :: p
+    | none => []
+  here ++ inside
+
+/-- Replay one PREPROCESS node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`.
+    `executable-counterpart` steps are GROUND computations: ACL2 ran the
+    executable counterpart; the kernel re-checks the SAME computation by
+    reduction of `evalOpt` at a sufficient concrete fuel (found by running the
+    evaluator), lifted by fuel monotonicity. Other runes use their ordinary
+    node recipes. -/
+def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
+    MetaM Expr := do
+  let (rty, _) := runeOf n
+  let (lhs, rhs) := nodeLhsRhs n
+  match rty with
+  | "executable-counterpart" =>
+    unless (ACL2.Replay.freeVars lhs).isEmpty do
+      throwError "executable-counterpart: lhs {repr lhs} has free variables"
+    let .cons (.atom (.symbol q)) (.cons v .nil) := rhs
+      | throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
+    unless q.name == "quote" do
+      throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
+    -- find a sufficient fuel by running the SAME evaluator the theorem is about
+    -- (ground term: the env is never consulted, so any env works)
+    let mut F := 8
+    let mut v? : Option SExpr := none
+    while v?.isNone && F ≤ 65536 do
+      v? := ACL2.evalOpt F cfg.worldVal {} lhs
+      if v?.isNone then F := F * 2
+    let some vComputed := v?
+      | throwError "executable-counterpart: {repr lhs} does not converge by fuel 65536"
+    unless vComputed == v do
+      throwError "executable-counterpart: evalOpt computes {repr vComputed}, \
+                  the recorded result is {repr v} — evaluator/ACL2 divergence on {repr lhs}"
+    let lhsApp := mkApp4 (mkConst ``evalOpt) (mkNatLit F) cfg.worldExpr cfg.envExpr
+      (reflectSExpr lhs)
+    let someV ← mkAppM ``Option.some #[reflectSExpr v]
+    unless ← isDefEq lhsApp someV do
+      throwError "executable-counterpart: evalOpt {F} … {repr lhs} does not REDUCE \
+                  to {repr v} (env-dependence or reflected-world mismatch?)"
+    let hAt ← mkExpectedTypeHint (← mkEqRefl someV) (← mkEq lhsApp someV)
+    let convLhs ← mkAppM ``conv_of_eval_at
+      #[mkNatLit F, cfg.worldExpr, cfg.envExpr, reflectSExpr lhs, reflectSExpr v, hAt]
+    let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
+    mkAppM ``fuel_eq_of_conv #[convLhs, hq, ← mkEqRefl (reflectSExpr v)]
+  | "equal-self" =>
+    let some X := asEqualSelf lhs
+      | throwError "preprocess equal-self: lhs is not (equal X X): {repr lhs}"
+    unless rhs == quoteT do
+      throwError "preprocess equal-self: rhs {repr rhs} ≠ (quote t)"
+    let hX ← proveConv cfg cfg.envExpr ctx X
+    let hNoEqual ← proveNoShadow cfg { name := "equal" }
+    let closeProof ← mkAppM ``re_equal_self
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
+    let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+    mkAppM ``fuel_eq_of_conv #[closeProof, hq, ← mkEqRefl (reflectSExpr SExpr.t)]
+  | _ => replayNode cfg ctx n 0
+
+/-- Replay a clause discharged by PREPROCESS: the clause-level step nodes chain
+    the single-literal clause's formula to `(quote t)`. Returns
+    `∃N∀f≥N, eval formula = some t`. -/
+def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (formula : SExpr) (nodes : List ProofNode) : MetaM Expr := do
+  let mut cur := formula
+  let mut acc : Option Expr := none
+  for n in nodes do
+    let (lhs, rhs) := nodeLhsRhs n
+    let nodeEq ← replayPreprocessNode cfg ctx n
+    let path ← match findOccurrences cur lhs with
+      | [p] => pure p
+      | [] => throwError "replayPreprocessChain: node lhs {repr lhs} does not occur \
+                          in the current term {repr cur}"
+      | ps => throwError "replayPreprocessChain: node lhs {repr lhs} occurs \
+                          {ps.length} times in {repr cur} — ambiguous position \
+                          (needs :PATH emission at the preprocess site)"
+    -- lift innermost-out (the same congruence fold as emitCongruence)
+    let mut inner := nodeEq
+    let mut curL := lhs
+    let mut curR := rhs
+    for st in path.reverse do
+      inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+      curL := rebuild st.fn st.arity st.argIdx curL st.siblings
+      curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+    unless curL == cur do
+      throwError "replayPreprocessChain: reconstructed {repr curL} ≠ current {repr cur}"
+    acc := some (← match acc with
+      | none => pure inner
+      | some a => mkAppM ``fuel_chain_eq #[a, inner])
+    cur := curR
+  unless cur == quoteT do
+    throwError "replayPreprocessChain: chain ended at {repr cur}, expected (quote t)"
+  let some chain := acc
+    | throwError "replayPreprocessChain: no step nodes"
+  let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+  mkAppM ``fuel_conv_of_eq #[chain, hq]
+
 /-! ## The c3 induction scaffold + the conditional-mirror harness
 
 The WF-induction scaffold consumes the EMITTED justification (measure / rel /
@@ -1374,16 +1492,28 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
         throwError "replayClause: pushed clause ≠ pool-root clause at {cn.idStr}"
       return ← replayClause cfg ctx child
     | _ => throwError "replayClause: push-clause with {cn.children.length} children at {cn.idStr}"
-  let lits := flattenLiterals (cn.steps.flatMap (·.items))
-  if lits.isEmpty then
-    throwError "replayClause: no literal items in clause {cn.idStr} (preprocess-chain \
-                or discharge composition frontier)"
   -- pin every user-fn application in this clause's subtree from the totality/TP
-  -- hypotheses (idempotent — already-pinned terms are skipped), so the spine's
-  -- value layer can lift opaque subterms under a quantified env
+  -- hypotheses (idempotent — already-pinned terms are skipped), so the value
+  -- layer can lift opaque subterms under a quantified env
   let mut ctx := ctx
   for tm in (clauseSubtreeTerms cn).eraseDups do
     ctx ← pinTermOpaques cfg cfg.envExpr ctx tm
+  let lits := flattenLiterals (cn.steps.flatMap (·.items))
+  if lits.isEmpty then
+    -- a clause discharged entirely at PREPROCESS: clause-level step nodes chain
+    -- the formula to 't (no literal bracketing is emitted at preprocess sites)
+    let stepNodes := (cn.steps.flatMap (·.items)).filterMap fun
+      | .step n => some n | _ => none
+    if stepNodes.isEmpty then
+      throwError "replayClause: no literal or step items in clause {cn.idStr} \
+                  (discharge composition frontier)"
+    unless cn.children.isEmpty do
+      throwError "replayClause: preprocess chain with child clauses at {cn.idStr} \
+                  (clausify-split frontier)"
+    let [formula] := cn.inputClause
+      | throwError "replayClause: preprocess chain on a multi-literal clause at \
+                    {cn.idStr} (frontier)"
+    return ← replayPreprocessChain cfg ctx formula stepNodes
   replayClauseSpine cfg ctx lits
 
 
@@ -1503,7 +1633,7 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
                 reflectSExpr restTerm, tC, pCl, pNotCnil]
             -- the IH at e' = e.insert cvar (cdr v), bridged to e
             let cdrVal := mkApp (mkConst ``Logic.cdr) vV
-            let e' ← mkAppM ``Std.HashMap.insert #[eV, reflectSymbol cvar, cdrVal]
+            let e' ← mkAppM ``Env.insert #[eV, reflectSymbol cvar, cdrVal]
             let hx' ← mkAppM ``re_val_var_insert #[w, eV, reflectSymbol cvar, cdrVal]
             let pIH' := mkAppN ihV #[e', hx']
             let hCdrConv ← ctxValProof cfg' ctxS cdrT

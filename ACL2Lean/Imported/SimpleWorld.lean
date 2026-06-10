@@ -51,20 +51,19 @@ private def fix_sym : Symbol := sym "fix"
 
 private theorem bindArgs_xy_x (vx vy : SExpr) :
     (bindArgs [x_sym, y_sym] [vx, vy]).get? x_sym = some vx := by
-  show ((({} : Env).insert y_sym vy).insert x_sym vx)[x_sym]? = some vx
-  rw [Std.HashMap.getElem?_insert]; simp
+  show ((({} : Env).insert y_sym vy).insert x_sym vx).get? x_sym = some vx
+  simp
 
 private theorem bindArgs_xy_y (vx vy : SExpr) :
     (bindArgs [x_sym, y_sym] [vx, vy]).get? y_sym = some vy := by
-  show ((({} : Env).insert y_sym vy).insert x_sym vx)[y_sym]? = some vy
-  rw [Std.HashMap.getElem?_insert]
-  simp only [x_sym, y_sym, sym, beq_iff_eq]
-  rw [Std.HashMap.getElem?_insert]; simp
+  show ((({} : Env).insert y_sym vy).insert x_sym vx).get? y_sym = some vy
+  simp only [Env.get?_insert, x_sym, y_sym, sym, beq_iff_eq]
+  rw [if_neg (by decide)]; simp
 
 private theorem bindArgs_x_x (vx : SExpr) :
     (bindArgs [x_sym] [vx]).get? x_sym = some vx := by
-  show (({} : Env).insert x_sym vx)[x_sym]? = some vx
-  rw [Std.HashMap.getElem?_insert]; simp
+  show (({} : Env).insert x_sym vx).get? x_sym = some vx
+  simp
 
 -- Formula uses macro-expanded form:
 -- (EQUAL (MY-LEN (MY-APP X Y)) (BINARY-+ (MY-LEN X) (MY-LEN Y)))
@@ -664,9 +663,7 @@ theorem my_len_my_app_generic
       -- x ⇒ cdr xv in e'.
       have hx_e' : ∀ f, evalOpt (f + 1) w (e.insert x_sym (Logic.cdr xv))
           (.atom (.symbol x_sym)) = some (Logic.cdr xv) := fun f =>
-        evalOpt_var f w _ x_sym (Logic.cdr xv) (by
-          show (e.insert x_sym (Logic.cdr xv))[x_sym]? = some (Logic.cdr xv)
-          rw [Std.HashMap.getElem?_insert]; simp)
+        evalOpt_var f w _ x_sym (Logic.cdr xv) (by simp)
       obtain ⟨Nih, hih⟩ := ih (e.insert x_sym (Logic.cdr xv)) hx_e'
       -- Substitution lemma: substTerm [x] [cdr x] formula evaluated in e = formula in
       -- e' (= envUpdate e [x] [cdr xv], defeq to e.insert x (cdr xv)).
@@ -1226,14 +1223,14 @@ theorem my_len_my_app_native (xs ys : List SExpr) :
     ⟨1, fun f hf => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
       exact evalOpt_var g world e x_sym (enc xs) (by
-        show e[x_sym]? = some (enc xs); rw [Std.HashMap.getElem?_insert]; simp)⟩
+        show e.get? x_sym = some (enc xs); simp [e])⟩
   have hy : ∃ N, ∀ f ≥ N, evalOpt f world e yT = some (enc ys) :=
     ⟨1, fun f hf => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
       exact evalOpt_var g world e y_sym (enc ys) (by
-        show e[y_sym]? = some (enc ys)
-        rw [Std.HashMap.getElem?_insert]; simp only [x_sym, y_sym, sym, beq_iff_eq]
-        rw [if_neg (by decide), Std.HashMap.getElem?_insert]; simp)⟩
+        show e.get? y_sym = some (enc ys)
+        simp only [e, Env.get?_insert, x_sym, y_sym, sym, beq_iff_eq]
+        rw [if_neg (by decide)]; simp)⟩
   -- LHS value: my-len (my-app x y) ⇒ int ↑(xs ++ ys).length   (simulation)
   obtain ⟨NL, hL⟩ := corr_len_enc (xs ++ ys) e (appOf xT yT) (corr_app_enc xs e xT yT ys hx hy)
   -- RHS value: (+ (my-len x) (my-len y)) ⇒ int (↑xs.length + ↑ys.length)

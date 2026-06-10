@@ -112,7 +112,33 @@ Landed (branch `mdd/c3-composition`, all green + committed):
   plumbing), re_extract_else, logic_not_t_nil, re_val_var_insert,
   evalOpt_substTerm_subst1 confirmed.
 
-## STATUS UPDATE (2026-06-09, later): END-TO-END LANDED (pending audit #38)
+## STATUS UPDATE (2026-06-09, #53 part A): preprocess CHAINS + reducible Env
+
+Branch `mdd/c3-preprocess`. The "no literal items in clause" frontier split into
+shapes (real-artifact review of 00/05/07/08):
+- **Preprocess eval/abbreviation chains** (ground-arith, sq-of-3, cdr-cons-refl,
+  idf-rewrites): clause-level `:REWRITE-STEP`s with NO `:PATH` (preprocess has no
+  gstack) composing formula → 't. LANDED: `replayPreprocessChain` — positions
+  reconstructed DETERMINISTICALLY (lhs must occur EXACTLY ONCE in the current
+  term; 0/≥2 hard-fail), `executable-counterpart` nodes re-checked by KERNEL
+  REDUCTION of `evalOpt` at a concrete fuel (`conv_of_eval_at`), other runes via
+  their ordinary recipes. Coverage: REPLAYED 9/38 (ground-arith, sq-of-3,
+  cdr-cons-refl unconditional).
+- **Env made kernel-reducible (trusted-core change, deliberate).** `Env` was
+  `Std.HashMap Symbol SExpr` — string hashing is opaque to the kernel, so
+  `evalOpt` of any defined-fn call could NOT be re-checked by reduction (rfl
+  definitively stuck). Replaced with a minimal assoc list (insert-prepend /
+  first-match get?) in `Syntax.lean` — smaller trusted core, same observable
+  semantics, all existing kernel proofs rebuilt, differential test vs real ACL2
+  re-run as the semantic guard.
+- **Verdict-only discharge leaves at Goal** (equal-symm, equal-trans,
+  len2-nonneg): need the DP machinery composed into `replayClause`
+  (TermElabM lift + DischargeLeaf fold-in) — #53 part B, NEXT.
+- **Clausify splits** (preprocess ⇒ N subgoals, e.g. 07's admission proof) and
+  `mutual-recursion` defun emission (07 logs ZERO `:DEFUN` events — stage-2
+  emission gap, Track B) — recorded, later.
+
+## STATUS UPDATE (2026-06-09, later): END-TO-END LANDED (audited, #38 done)
 
 `my_len_my_app_real_mirror` (Tests/DriverTests.lean) — the driver replays the REAL
 `simple.proof-log` end-to-end; `#print axioms` = `[propext, Classical.choice,

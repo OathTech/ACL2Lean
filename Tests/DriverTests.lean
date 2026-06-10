@@ -410,8 +410,7 @@ private theorem enc_inj {a b : Nat} (h : enc a = enc b) : a = b := by
 private def envOf (n : Nat) : Env := ({} : Env).insert { name := "x" } (enc n)
 
 private theorem envOf_get (n : Nat) : (envOf n).get? { name := "x" } = some (enc n) := by
-  show (envOf n)[({ name := "x" } : Symbol)]? = some (enc n)
-  unfold envOf; rw [Std.HashMap.getElem?_insert]; simp
+  unfold envOf; simp
 
 /-- The native Lean fact `∀ n : Nat, n = n`, proven THROUGH the driver's mirror output
     `s2_mirror` (via the `Nat → SExpr` encoding), not by `rfl`. -/
