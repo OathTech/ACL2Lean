@@ -5,40 +5,60 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-06-09._
+_Last updated: 2026-06-10._
 
-> **`just ci` is GREEN** and now includes the driver-coverage sweep: it hard-fails
-> on any item-less PROVED leaf (emission gap), on reconstruction-integrity
-> failures, and reports per-theorem replay + per-leaf DP-discharge status
-> (✓ proved / ◌ conditional with the missing obligation in the proof's type /
-> ✗ failed — currently ✓6 ◌13 ✗0). See
-> `docs/plans/2026-06-09_direct-proof-emission.md`.
+> **`just ci` is GREEN** and includes the driver-coverage sweep: hard-fails on
+> any item-less PROVED leaf (emission gap) and reconstruction-integrity
+> failures; reports per-theorem replay + per-leaf DP-discharge status —
+> currently **REPLAYED 17/37**, DP leaves ✓9 ◌9 ✗0 of 18.
 
-## Where we are
+## THE GOVERNING PLAN — `docs/plans/2026-06-10_generality-design.md` (ratified)
 
-Stages 1–4 of the pipeline (ACL2 instrumentation → proof-log parse → proof-tree
-reconstruction) are built and validated on the sample corpus (recon-tests 00–16,
-incl. boundary inductions). The instrumentation now emits the **full induction
-justification** (measure/rel/controllers/per-case IH substitutions), the
-**preprocess evaluation chains**, and an explicit **discharge node** for every
-verdict-only decision-procedure closure. The **proof-producing driver** (stage 7)
-replays single-literal rewrite trees end-to-end (`sq-rewrites` from the real log)
-and, under the ratified decision-procedure-leaf carve-out, replays discharge
-leaves (✓6 ◌13-conditional ✗0 of 19 — the ◌ proofs carry their missing fact as an
-explicit bound hypothesis, no `sorry`). **CURRENT FOCUS: c3 composition** — wire
-preprocess chains + the WF-induction scaffold + discharge leaves into
-whole-theorem replay; target: `my-len-my-app` end-to-end via the driver. See
-`docs/plans/2026-06-08_driver-build-plan.md` and
-`docs/plans/2026-06-09_direct-proof-emission.md`.
+The architecture is the HYBRID: certifying walkers as the production/discovery
+lane; stable fragments consolidate into verified functions FRAGMENT-LOCALLY.
+**Binding invariants (plan §7, mirrored in CLAUDE.md): L1 judgments are the
+open interface (no monolithic Derivation inductive); L2 `R` is an abstract
+relation, never an enum; L3 mandatory world-parametricity.** The sequencing —
+each step lands with the standing discipline (real artifact first, fail
+closed, ci as scoreboard, audits at milestones):
+
+- [ ] **G1 — R-parameterized rewrite judgment + geneqv emission.** One rewrite
+      judgment family over an abstract value-level relation (equal/iff
+      instances; congruence lemmas indexed by fn/position/R-in/R-out; emit the
+      geneqv per instrumented step). Unblocks the LIVE frontier: the
+      preprocess iff-chain (app-nil, rev-rev, true-listp-app stop exactly
+      here). Absorbs the remainder of c3 #53.
+- [ ] **G2 — `EvTrue` migration.** Clause/mirror judgments move to truthiness
+      (`∃v, eval = some v ∧ v ≠ nil`), ACL2's own semantics; `= some t` kept
+      as a derived strengthening. Removes the boolean-valuedness restriction
+      (and subsumes the mirror-statement validity check below).
+- [ ] **G3 — Tier-1 consolidations.** Clausify bridge lemma proved once by
+      induction (replacing the per-leaf walkers); value-layer lift as a
+      verified function + soundness lemma. Per invariant L1: fragment-local.
+- [ ] **G4 — Forcing-round emission + composition.** Emit per-assumption
+      `(type-alist, term, assumnotes)` + the round-(k+1) clause list at
+      extract-and-clausify-assumptions (single hook); replay rounds locally
+      and discharge force-site hypotheses with the round proofs (the
+      conditional-proof shape).
+- [ ] **G5 — Induction generality.** 3-subgoal/merged schemes, multi-variable
+      measures, mutual-recursion flag schemes — scaffold extensions,
+      corpus-driven (true-listp-flatten, len-interleave, len-zip2/3 name the
+      frontiers).
+- [ ] **G6 — Measured book sweep.** Grep-based mechanism-frequency counts over
+      a diverse community-books sample to confirm the CORE/EXTENDED/OUT cut
+      (the survey's honest gap); revisit the design doc with data.
+
+Parallel tracks unchanged below (emission infra revision, audit debt, #37
+totality-from-admission — which G4's machinery also feeds, gated lean-smt).
 
 ---
 
-## Track A — the rewriting-replay driver (`ACL2Lean/Replay/Driver.lean`) — CURRENT FOCUS
+## Track A — the rewriting-replay driver (`ACL2Lean/Replay/Driver.lean`)
 
-A recursive, fail-closed `replayClause`/`replayNode` over the real tree; grow by tree
-complexity, each step driven by a real (or faithfully-synthesized) tree, with
-positive + negative tests. Goal: replay `my-len-my-app` (then `app-assoc`)
-end-to-end via the driver, not the hand proofs.
+A recursive, fail-closed `replayClause`/`replayNode` over the real tree; grow by
+tree complexity, each step driven by a real tree, with positive + negative
+tests. The c3 goal (replay `my-len-my-app`, then `app-assoc`, end-to-end via
+the driver) is DONE; the track now serves the G-steps above.
 
 ### Done (driver foundations)
 

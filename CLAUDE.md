@@ -76,20 +76,35 @@ something slightly different. Do not assume the bug is where it is most convenie
 to look; only ACL2's proof *search* is off the table.
 
 **Current status.** Stages 1–4 — ACL2 instrumentation (incl. induction measure
-justifications, preprocess evaluation chains, and decision-procedure discharge
-nodes), proof-log parsing, and proof-tree reconstruction (`buildDevelopment`) —
-are built and validated against the sample corpus (`acl2_samples/`, incl.
-`recon-tests/` 00–16). The proof-object builder (stage 7) replays SIMPLE real
-trees end-to-end (`sq-rewrites` from the real log, kernel-checked) and, under the
-ratified decision-procedure-leaf carve-out, discharges DP leaves (conditional on
-their emitted facts); the native-theorem bridge exists as validated HAND proofs
-for `my-len-my-app`/`app-assoc` (`Imported/`). The current frontier is c3
-COMPOSITION: the WF-induction scaffold and preprocess-chain replay that connect
-these into whole-theorem driver replays (see
-`docs/plans/2026-06-09_c3-composition-plan.md`). The trust note still applies — a
-kernel-accepted proof object certifies only the mirror theorem as stated, not
-that the mirror/`evalOpt` faithfully model ACL2 — so keep checking each stage
-against the real artifact.
+justifications, preprocess chains + clausify checkpoints, and decision-procedure
+discharge nodes), proof-log parsing, and proof-tree reconstruction
+(`buildDevelopment`) — are built and validated against the sample corpus
+(`acl2_samples/`, incl. `recon-tests/` 00–16). The proof-object builder (stage 7)
+replays whole theorems end-to-end from the real logs — including WF-induction
+(`my-len-my-app`, `app-assoc`), preprocess/clausify composition, and (under the
+ratified carve-out) DP leaves — kernel-checked, conditional on emitted
+totality/TP facts; the coverage harness (`just ci`) is the scoreboard. The
+native-theorem bridge exists as validated HAND proofs (`Imported/`).
+**The governing plan is `docs/plans/2026-06-10_generality-design.md`** (ratified;
+built on `docs/notes/2026-06-10_acl2-architecture-survey.md`): the hybrid
+architecture (certifying walkers as the lane, fragment-local consolidation), the
+six-step sequencing, and the core/extended/out import tiers. The trust note still
+applies — a kernel-accepted proof object certifies only the mirror theorem as
+stated, not that the mirror/`evalOpt` faithfully model ACL2 — so keep checking
+each stage against the real artifact.
+
+## Design invariants (binding — from the generality plan §7)
+
+- **L1 — the open interface is the JUDGMENT layer.** Consolidations are
+  fragment-local (own datatype, own soundness lemma) behind judgment `Prop`s;
+  a monolithic `Derivation` inductive with one soundness theorem is prohibited.
+- **L2 — `R` is an abstract relation, never an enum.** The rewrite judgment is
+  parameterized by a value-level equivalence relation (equal/iff as instances);
+  congruence lemmas indexed by (fn, position, R-in, R-out); user equivalences
+  must land additively as congruence-rune recipes.
+- **L3 — mandatory world-parametricity.** Every lemma/fragment is stated over
+  an arbitrary `w : World`; concrete-world constants inside fragments are
+  prohibited (keeps the encapsulate trajectory a statement-builder change).
 
 ## Fidelity (non-negotiable)
 
