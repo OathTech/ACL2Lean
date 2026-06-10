@@ -25,6 +25,10 @@ inductive PathFrame where
 structure RewriteStep where
   /-- The rune applied, as (type, name) e.g. ("rewrite", "car-cons"). -/
   rune : String × String
+  /-- The rule's equivalence relation ("equal", "iff", or a user equivalence) —
+      non-"equal" steps route through the R-parameterized judgment (G1).
+      Absent on events from sites not yet emitting `:EQUIV` (defaults equal). -/
+  equiv : String := "equal"
   /-- The term before rewriting. -/
   lhs : SExpr
   /-- The term AFTER rewriting — note (B3): for a `with-lemma`/recursive-definition
@@ -258,6 +262,9 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let origin := match lookupKeyword "origin" rest with
         | some (.atom (.symbol s)) => s.name
         | _ => ""
+      let equiv := match lookupKeyword "equiv" rest with
+        | some (.atom (.symbol s)) => s.name
+        | _ => "equal"
       let runes ← match lookupKeyword "runes" rest with
         | some r => match r.toList? with
           | some items => items.mapM fun r => match parseRune? r with
@@ -292,7 +299,7 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
           | some items => items.mapM parsePathFrame
           | none => throw s!"REWRITE-STEP: :PATH not a list: {repr r}"
         | none => pure []
-      pure { rune, lhs, rhs, origin, runes, parents, subst, equivTerm, typeSet, trueTs, path }
+      pure { rune, equiv, lhs, rhs, origin, runes, parents, subst, equivTerm, typeSet, trueTs, path }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 

@@ -242,5 +242,3 @@ set_option maxHeartbeats 0 in
 end ACL2.Tests.Coverage
 
 
-
-

@@ -19,6 +19,10 @@ namespace ACL2
 /-- Provenance for a proof node: what justified this reasoning step. -/
 structure StepProvenance where
   origin : String := ""
+  /-- The applied rule's equivalence relation ("equal" unless emitted
+      otherwise) — non-"equal" steps route through the R-parameterized
+      judgment (G1) or fail closed. -/
+  equiv : String := "equal"
   /-- For a rewrite-step node (B2): the CUMULATIVE ttree rune set on entry, NOT
       this step's rule — the rule is the node's own `rune`. For a `type-set`
       node: the per-step justification runes. A replay must not read this as the
@@ -100,8 +104,8 @@ inductive ClauseItem where
 /-- Build a `ProofNode` from a rewrite step and its (already-parsed) children. -/
 private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : ProofNode :=
   .node step.rune step.lhs step.rhs children
-    { origin := step.origin, runes := step.runes, parents := step.parents,
-      subst := step.subst, equivTerm := step.equivTerm,
+    { origin := step.origin, equiv := step.equiv, runes := step.runes,
+      parents := step.parents, subst := step.subst, equivTerm := step.equivTerm,
       typeSet := step.typeSet, trueTs := step.trueTs, path := step.path }
 
 /-- Parse the events of ONE literal's rewrite chain into proof nodes, returning

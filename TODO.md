@@ -48,6 +48,22 @@ closed, ci as scoreboard, audits at milestones):
       a diverse community-books sample to confirm the CORE/EXTENDED/OUT cut
       (the survey's honest gap); revisit the design doc with data.
 
+Alongside the G-steps: **the NATIVE MIRROR CATALOG** (task #62, MDD-ratified) —
+`ACL2Lean/Imported/NativeMirrors.lean`, one section per corpus theorem: the
+native Lean statement proved THROUGH the driver's mirror (mirror → hypothesis
+discharge → enc/`corr_*` simulation → native, axiom-gated), else an explicit
+PENDING(blocking frontier) marker; the header table is the native-layer
+scoreboard and proved entries are build-enforced regressions. The growing
+`enc`/`corr_*` pattern library is the seed of a future STANDARD LIFTING
+LIBRARY.
+
+- [ ] **Future work — polymorphic native statements.** The catalog states
+      list-family results over `List SExpr` (what the current encoding
+      proves). The idiomatic polymorphic forms (`∀ α, (xs ys : List α), …`)
+      follow via a per-element embedding `α ↪ SExpr` (injectivity transports
+      the SExpr result) — a systematic lifting-library layer, deliberately
+      deferred until several `List SExpr` patterns exist to abstract from.
+
 Parallel tracks unchanged below (emission infra revision, audit debt, #37
 totality-from-admission — which G4's machinery also feeds, gated lean-smt).
 

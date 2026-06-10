@@ -218,6 +218,8 @@ private def rebuild (fn : Symbol) (arity argIdx : Nat) (sub : SExpr) (siblings :
     | 2, 0, [s] => [sub, s]
     | 2, 1, [s] => [s, sub]
     | 3, 0, [t, e] => [sub, t, e]   -- if-test position
+    | 3, 1, [c, e] => [c, sub, e]   -- if-then position (iff congruence path)
+    | 3, 2, [c, t] => [c, t, sub]   -- if-else position (iff congruence path)
     | _, _, _ => panic! "rebuild: bad arity/argIdx"
   -- build (fn args...) as a proper s-expression list
   .cons (.atom (.symbol fn)) (args.foldr SExpr.cons .nil)
@@ -896,6 +898,11 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
   let (rty, rname) := runeOf n
   let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ children prov := n
+  -- a non-EQUAL rule application is IFF/user-equivalence rewriting — it must
+  -- route through the R-parameterized judgment, not the eval-equality recipes
+  unless prov.equiv == "equal" do
+    throwError "replayNode: rune ({rty}, {rname}) applied under equivalence \
+                {prov.equiv} — R-parameterized recipe pending (G1 frontier)"
   match rty, rname with
   | "rewriting-equivalence", _ =>
     -- SOLIDIFY: the rewrite `lhs ⇒ rhs` is justified by a clause hypothesis — the
@@ -1607,9 +1614,15 @@ def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) 
     MetaM Expr := do
   let (rty, _) := runeOf n
   let (lhs, rhs) := nodeLhsRhs n
+  let .node _ _ _ _ prov := n
+  -- a non-EQUAL preprocess rule application must route through the
+  -- R-parameterized judgment (the if-iff shape is handled by the chain core;
+  -- anything else is the G1 frontier)
+  unless prov.equiv == "equal" || prov.origin == "preprocess/if-iff" do
+    throwError "replayPreprocessNode: step under equivalence {prov.equiv} — \
+                R-parameterized recipe pending (G1 frontier)"
   -- a verdict-only DISCHARGE node (keyed by ORIGIN, not rune): the carved-out
   -- decision-procedure replay, composed from the ambient ctx pins
-  let .node _ _ _ _ prov := n
   if dischargeOrigins.contains prov.origin then
     unless rhs == quoteT do
       throwError "discharge node: rhs {repr rhs} ≠ (quote t)"
@@ -1660,16 +1673,75 @@ def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) 
     mkAppM ``fuel_eq_of_conv #[closeProof, hq, ← mkEqRefl (reflectSExpr SExpr.t)]
   | _ => replayNode cfg ctx n 0
 
-/-- Replay a preprocess chain's eval-equality CORE: the composed
-    `∃N∀f≥N, eval formula = eval final` (`none` for an empty chain) and the
-    final term. -/
+/-- The `PREPROCESS/IF-IFF` node: `(if A 't 'nil) ⇒ A` — IFF-only, NOT
+    value-preserving (the chain runs under `*geneqv-iff*`). Returns
+    `EvRel SIff w env lhs rhs`. -/
+def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
+    MetaM Expr := do
+  let (lhs, rhs) := nodeLhsRhs n
+  let expectedLhs : SExpr :=
+    .cons (.atom (.symbol { name := "if" }))
+      (.cons rhs (.cons quoteT (.cons quoteNil .nil)))
+  unless lhs == expectedLhs do
+    throwError "preprocess/if-iff: lhs {repr lhs} is not (if rhs 't 'nil)"
+  let vA ← ctxValExpr cfg ctx rhs
+  let pA ← ctxValProof cfg ctx rhs
+  mkAppM ``evrel_siff_if_t_nil
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr rhs, vA, pA]
+
+/-- Lift an `EvRel SIff` node proof through ONE position step, per the
+    congruence table (G1): if-THEN and if-ELSE positions preserve SIff (the
+    untaken branch relates by reflexivity — needs the test's and the other
+    branch's convergence); the if-TEST position COLLAPSES SIff to an
+    eval-equality (the lazy `if` consults only `toBool`). Returns the lifted
+    proof and whether it is still SIff (`true`) or collapsed to Eq (`false`).
+    Any other position under an iff payload is a frontier. -/
+def applyStepSIff (cfg : ReplayConfig) (ctx : ReplayCtx) (st : PathStep)
+    (inner : Expr) : MetaM (Expr × Bool) := do
+  unless st.fn.name == "if" && st.arity == 3 do
+    throwError "iff congruence: position {st.fn.name}/{st.argIdx} does not \
+                propagate IFF (frontier — only if-test/branch positions do)"
+  match st.argIdx, st.siblings with
+  | 0, [thn, els] =>
+    -- TEST position: SIff collapses to eval-equality
+    let _ := thn; let _ := els
+    let p ← mkAppM ``evrel_if_test_siff_collapse #[inner]
+    return (p, false)
+  | 1, [c, els] =>
+    -- THEN position
+    let pc ← ctxValProof cfg ctx c
+    let pels ← ctxValProof cfg ctx els
+    let p ← mkAppM ``evrel_if_then_congr
+      #[mkConst ``siff_refl, pc, pels, inner]
+    return (p, true)
+  | 2, [c, thn] =>
+    -- ELSE position
+    let pc ← ctxValProof cfg ctx c
+    let pthn ← ctxValProof cfg ctx thn
+    let p ← mkAppM ``evrel_if_else_congr
+      #[mkConst ``siff_refl, pc, pthn, inner]
+    return (p, true)
+  | _, _ => throwError "iff congruence: bad if position {st.argIdx}"
+
+/-- Replay a preprocess chain's CORE: the composed relation between the
+    formula and the final term — `(proof, isIff)` where the proof is the
+    eval-equality `∃N∀f≥N, eval formula = eval final` when `isIff = false`,
+    and `EvRel SIff w env formula final` when any step was IFF-only
+    (`isIff = true`). `none` for an empty chain. R is threaded per the
+    binding invariant L2: equal steps inject into the iff composite by
+    refinement (`evrel_of_fuel_eq` + `siff_refl`). -/
 def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (formula : SExpr) (nodes : List ProofNode) : MetaM (Option Expr × SExpr) := do
+    (formula : SExpr) (nodes : List ProofNode) :
+    MetaM (Option (Expr × Bool) × SExpr) := do
   let mut cur := formula
-  let mut acc : Option Expr := none
+  let mut acc : Option (Expr × Bool) := none
   for n in nodes do
     let (lhs, rhs) := nodeLhsRhs n
-    let nodeEq ← replayPreprocessNode cfg ctx n
+    let .node _ _ _ _ prov := n
+    let isIffNode := prov.origin == "preprocess/if-iff"
+    let nodeP ←
+      if isIffNode then replayIfIffNode cfg ctx n
+      else replayPreprocessNode cfg ctx n
     let path ← match findOccurrences cur lhs with
       | [p] => pure p
       | [] => throwError "replayPreprocessChain: node lhs {repr lhs} does not occur \
@@ -1677,21 +1749,68 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
       | ps => throwError "replayPreprocessChain: node lhs {repr lhs} occurs \
                           {ps.length} times in {repr cur} — ambiguous position \
                           (needs :PATH emission at the preprocess site)"
-    -- lift innermost-out (the same congruence fold as emitCongruence)
-    let mut inner := nodeEq
+    -- lift innermost-out; iff payloads use the R congruence table and may
+    -- COLLAPSE to an eval-equality at an if-test position
+    let mut inner := nodeP
+    let mut innerIff := isIffNode
     let mut curL := lhs
     let mut curR := rhs
     for st in path.reverse do
-      inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+      if innerIff then
+        let (p, stillIff) ← applyStepSIff cfg ctx st inner
+        inner := p
+        innerIff := stillIff
+      else
+        inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
       curL := rebuild st.fn st.arity st.argIdx curL st.siblings
       curR := rebuild st.fn st.arity st.argIdx curR st.siblings
     unless curL == cur do
       throwError "replayPreprocessChain: reconstructed {repr curL} ≠ current {repr cur}"
-    acc := some (← match acc with
-      | none => pure inner
-      | some a => mkAppM ``fuel_chain_eq #[a, inner])
+    -- compose
+    acc := some (← match acc, innerIff with
+      | none, _ => pure (inner, innerIff)
+      | some (a, false), false =>
+        return (← mkAppM ``fuel_chain_eq #[a, inner], false)
+      | some (a, aIff), _ => do
+        -- iff composite: inject any eval-equality side via refinement
+        let aS ← if aIff then pure a else do
+          let pConv ← ctxValProof cfg ctx curL
+          mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, a, pConv]
+        let iS ← if innerIff then pure inner else do
+          let pConv ← ctxValProof cfg ctx curR
+          mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, inner, pConv]
+        return (← mkAppM ``evrel_trans #[mkConst ``siff_trans, aS, iS], true))
     cur := curR
   return (acc, cur)
+
+/-- The boolean-valuedness fact for a chain-start formula's PINNED value —
+    the interim strengthening an IFF chain needs to recover `= some t` at the
+    mirror statement (G2's `EvTrue` migration removes this). v1: `implies`-
+    headed formulas (their lifted value is `Logic.implies vA vB`). -/
+def formulaBooleanFact (cfg : ReplayConfig) (ctx : ReplayCtx) (formula : SExpr) :
+    MetaM Expr := do
+  match formula with
+  | .cons (.atom (.symbol fs)) (.cons A (.cons B .nil)) =>
+    if fs.name == "implies" then
+      let vA ← ctxValExpr cfg ctx A
+      let vB ← ctxValExpr cfg ctx B
+      mkAppM ``logic_implies_boolean #[vA, vB]
+    else
+      throwError "iff chain: boolean-valuedness of head {fs.name} unknown \
+                  (frontier until the EvTrue migration, G2)"
+  | _ =>
+    throwError "iff chain: boolean-valuedness of {repr formula} unknown \
+                (frontier until the EvTrue migration, G2)"
+
+/-- Recover `∃N∀f≥N, eval formula = some t` from an IFF chain
+    (`EvRel SIff formula final`) and the final term's exact truth, via
+    backward truth transport + the boolean-head strengthening. -/
+def strengthenIffChain (cfg : ReplayConfig) (ctx : ReplayCtx) (formula : SExpr)
+    (chainS : Expr) (pEnd : Expr) : MetaM Expr := do
+  let truthy ← mkAppM ``truthy_of_evrel_siff #[chainS, pEnd]
+  let pF ← ctxValProof cfg ctx formula
+  let boolFact ← formulaBooleanFact cfg ctx formula
+  mkAppM ``eq_t_of_truthy_boolean #[pF, boolFact, truthy]
 
 /-- Replay a clause discharged ENTIRELY by a preprocess chain: the step nodes
     compose the single-literal clause's formula to `(quote t)`. Returns
@@ -1701,10 +1820,19 @@ def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
   let (acc, cur) ← replayPreprocessChainCore cfg ctx formula nodes
   unless cur == quoteT do
     throwError "replayPreprocessChain: chain ended at {repr cur}, expected (quote t)"
-  let some chain := acc
+  let some (chain, isIff) := acc
     | throwError "replayPreprocessChain: no step nodes"
-  let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-  mkAppM ``fuel_conv_of_eq #[chain, hq]
+  if isIff then
+    let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+    let hv ← proveByDecide
+      (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
+    let pEnd ← mkAppM ``re_val_cast
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
+        mkConst ``SExpr.t, pq, hv]
+    strengthenIffChain cfg ctx formula chain pEnd
+  else
+    let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+    mkAppM ``fuel_conv_of_eq #[chain, hq]
 
 /-! ## The clausify BRIDGE (#53C): proved child clause → the clausify input
 
@@ -2345,7 +2473,8 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
     let pInput ← bridgeClausify cfg ctx info pChild
     match chainOpt with
     | none => return pInput
-    | some ch => return ← mkAppM ``fuel_conv_of_eq #[ch, pInput]
+    | some (ch, false) => return ← mkAppM ``fuel_conv_of_eq #[ch, pInput]
+    | some (ch, true) => return ← strengthenIffChain cfg ctx formula ch pInput
   | _ :: _ :: _ =>
     throwError "replayClause: multiple clausify records at {cn.idStr} (frontier)"
   | [] =>

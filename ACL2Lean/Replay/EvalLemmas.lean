@@ -2299,6 +2299,189 @@ theorem logic_implies_cond (p q : SExpr) :
          else SExpr.t) := by
   simp only [Logic.implies, Bool.cond_eq_ite]
 
+/-! ## The R-parameterized rewrite judgment (G1, binding invariant L2)
+
+ACL2's rewriter is generic over equivalence relations (geneqv); the preprocess
+chain runs under IFF, so its `(if X 't 'nil) ⇒ X` simplifications are
+iff-only, not value-preserving. `EvRel R` is the rewrite judgment over an
+ABSTRACT value relation — `Eq` (the convergent eval-equality) and `SIff`
+(ACL2's iff) are the first two instances; user equivalence relations land as
+further instances with congruence lemmas indexed by
+(function, position, R-in, R-out), mirroring ACL2's congruence runes. Note
+the COLLAPSE rows of that table: an iff-related test or `not` argument makes
+the surrounding term eval-EQUAL (the lazy `if` consults only `toBool`). -/
+
+/-- Value-level truthiness equivalence — ACL2's `iff` on values. -/
+def SIff (u v : SExpr) : Prop := (u = SExpr.nil) ↔ (v = SExpr.nil)
+
+theorem siff_refl (u : SExpr) : SIff u u := Iff.rfl
+
+theorem siff_trans {u v x : SExpr} (h1 : SIff u v) (h2 : SIff v x) : SIff u x :=
+  Iff.trans h1 h2
+
+/-- The R-parameterized rewrite judgment: both sides CONVERGE, values
+    R-related. `EvRel Eq` strengthens the bare eval-equality chain form by
+    convergence (every replay step is convergence-backed anyway). -/
+def EvRel (R : SExpr → SExpr → Prop) (w : World) (env : Env) (a b : SExpr) : Prop :=
+  ∃ N, ∀ f ≥ N, ∃ u v,
+    evalOpt f w env a = some u ∧ evalOpt f w env b = some v ∧ R u v
+
+theorem evrel_trans {R : SExpr → SExpr → Prop}
+    (htrans : ∀ {x y z}, R x y → R y z → R x z)
+    {w : World} {env : Env} {a b c : SExpr}
+    (h1 : EvRel R w env a b) (h2 : EvRel R w env b c) : EvRel R w env a c := by
+  obtain ⟨n1, h1⟩ := h1; obtain ⟨n2, h2⟩ := h2
+  refine ⟨n1 + n2, fun f hf => ?_⟩
+  obtain ⟨u, v, hau, hbv, huv⟩ := h1 f (by omega)
+  obtain ⟨v', x, hbv', hcx, hvx⟩ := h2 f (by omega)
+  have hvv' : v = v' := Option.some.inj (hbv.symm.trans hbv')
+  exact ⟨u, x, hau, hcx, htrans huv (by rw [hvv']; exact hvx)⟩
+
+/-- A (convergent) eval-equality chain is an `EvRel R` for reflexive R —
+    the injection of today's equal-steps into an iff composite. -/
+theorem evrel_of_fuel_eq {R : SExpr → SExpr → Prop} (hrefl : ∀ x, R x x)
+    {w : World} {env : Env} {a b v : SExpr}
+    (hab : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some v) : EvRel R w env a b := by
+  obtain ⟨n1, h1⟩ := hab; obtain ⟨n2, h2⟩ := hb
+  refine ⟨n1 + n2, fun f hf => ?_⟩
+  exact ⟨v, v, (h1 f (by omega)).trans (h2 f (by omega)), h2 f (by omega), hrefl v⟩
+
+/-- The `PREPROCESS/IF-IFF` node: `(if A 't 'nil) ⇒ A` under IFF. The lhs's
+    value is `t`/`nil` by A's truthiness — iff-related to A's own value but
+    NOT equal to it (A may be truthy-non-t). -/
+theorem evrel_siff_if_t_nil (w : World) (env : Env) (A vA : SExpr)
+    (hA : ∃ N, ∀ f ≥ N, evalOpt f w env A = some vA) :
+    EvRel SIff w env
+      (.cons (.atom (.symbol { name := "if" }))
+        (.cons A (.cons
+          (.cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil))
+          (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+            .nil)))) A := by
+  obtain ⟨N, hA⟩ := hA
+  refine ⟨N + 2, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  have hAg := hA g (by omega)
+  by_cases hv : vA = SExpr.nil
+  · refine ⟨SExpr.nil, vA, ?_, hA (g + 1) (by omega), by simp [SIff, hv]⟩
+    rw [evalOpt_if_false g w env A _ _ (by rw [hAg, hv])]
+    obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
+    simp [evalOpt, evalOptStep, Symbol.isNamed]
+  · refine ⟨SExpr.t, vA, ?_, hA (g + 1) (by omega), by simp [SIff, hv, SExpr.t]⟩
+    rw [evalOpt_if_true g w env A _ _ vA hAg (toBool_true_of_ne_nil hv)]
+    obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
+    simp [evalOpt, evalOptStep, Symbol.isNamed]
+
+/-- Congruence (if, THEN-position, R-in → R-out = R): needs the test's and the
+    OTHER branch's convergence (the untaken branch's value relates by
+    reflexivity). Works uniformly for every reflexive R — one lemma serves the
+    whole table column. -/
+theorem evrel_if_then_congr {R : SExpr → SExpr → Prop} (hrefl : ∀ x, R x x)
+    {w : World} {env : Env} {c thn thn' els vc vEls : SExpr}
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some vc)
+    (hels : ∃ N, ∀ f ≥ N, evalOpt f w env els = some vEls)
+    (hthn : EvRel R w env thn thn') :
+    EvRel R w env
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil))))
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn' (.cons els .nil)))) := by
+  obtain ⟨n1, hc⟩ := hc; obtain ⟨n2, hels⟩ := hels; obtain ⟨n3, hthn⟩ := hthn
+  refine ⟨n1 + n2 + n3 + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  have hcg := hc g (by omega)
+  by_cases hv : vc = SExpr.nil
+  · refine ⟨vEls, vEls, ?_, ?_, hrefl vEls⟩
+    · rw [evalOpt_if_false g w env c thn els (by rw [hcg, hv])]
+      exact hels g (by omega)
+    · rw [evalOpt_if_false g w env c thn' els (by rw [hcg, hv])]
+      exact hels g (by omega)
+  · obtain ⟨u, v, hu, hv', huv⟩ := hthn g (by omega)
+    refine ⟨u, v, ?_, ?_, huv⟩
+    · rw [evalOpt_if_true g w env c thn els vc hcg (toBool_true_of_ne_nil hv)]
+      exact hu
+    · rw [evalOpt_if_true g w env c thn' els vc hcg (toBool_true_of_ne_nil hv)]
+      exact hv'
+
+/-- Congruence (if, ELSE-position, R-in → R-out = R). -/
+theorem evrel_if_else_congr {R : SExpr → SExpr → Prop} (hrefl : ∀ x, R x x)
+    {w : World} {env : Env} {c thn els els' vc vThn : SExpr}
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some vc)
+    (hthn : ∃ N, ∀ f ≥ N, evalOpt f w env thn = some vThn)
+    (hels : EvRel R w env els els') :
+    EvRel R w env
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil))))
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els' .nil)))) := by
+  obtain ⟨n1, hc⟩ := hc; obtain ⟨n2, hthn⟩ := hthn; obtain ⟨n3, hels⟩ := hels
+  refine ⟨n1 + n2 + n3 + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  have hcg := hc g (by omega)
+  by_cases hv : vc = SExpr.nil
+  · obtain ⟨u, v, hu, hv', huv⟩ := hels g (by omega)
+    refine ⟨u, v, ?_, ?_, huv⟩
+    · rw [evalOpt_if_false g w env c thn els (by rw [hcg, hv])]; exact hu
+    · rw [evalOpt_if_false g w env c thn els' (by rw [hcg, hv])]; exact hv'
+  · refine ⟨vThn, vThn, ?_, ?_, hrefl vThn⟩
+    · rw [evalOpt_if_true g w env c thn els vc hcg (toBool_true_of_ne_nil hv)]
+      exact hthn g (by omega)
+    · rw [evalOpt_if_true g w env c thn els' vc hcg (toBool_true_of_ne_nil hv)]
+      exact hthn g (by omega)
+
+/-- COLLAPSE row (if, TEST-position, SIff-in → Eq-out): iff-related tests make
+    the surrounding ifs eval-EQUAL — the lazy `if` consults only `toBool`. -/
+theorem evrel_if_test_siff_collapse {w : World} {env : Env} {c c' thn els : SExpr}
+    (hcc' : EvRel SIff w env c c') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil))))
+      = evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c' (.cons thn (.cons els .nil)))) := by
+  obtain ⟨n1, hcc'⟩ := hcc'
+  refine ⟨n1 + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  obtain ⟨u, v, hu, hv, huv⟩ := hcc' g (by omega)
+  by_cases hnu : u = SExpr.nil
+  · rw [evalOpt_if_false g w env c thn els (by rw [hu, hnu]),
+        evalOpt_if_false g w env c' thn els (by rw [hv, Iff.mp huv hnu])]
+  · rw [evalOpt_if_true g w env c thn els u hu (toBool_true_of_ne_nil hnu),
+        evalOpt_if_true g w env c' thn els v hv
+          (toBool_true_of_ne_nil (fun hnv => hnu (Iff.mpr huv hnv)))]
+
+/-- Transport exact truth BACKWARDS along an iff: the chain's end is `some t`,
+    so the chain's start is TRUTHY (its value need not be `t`). -/
+theorem truthy_of_evrel_siff {w : World} {env : Env} {a b : SExpr}
+    (hab : EvRel SIff w env a b)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some SExpr.t) :
+    ∃ N, ∀ f ≥ N, ∃ u, evalOpt f w env a = some u ∧ u ≠ SExpr.nil := by
+  obtain ⟨n1, hab⟩ := hab; obtain ⟨n2, hb⟩ := hb
+  refine ⟨n1 + n2, fun f hf => ?_⟩
+  obtain ⟨u, v, hau, hbv, huv⟩ := hab f (by omega)
+  have : v = SExpr.t := Option.some.inj ((hbv.symm.trans (hb f (by omega))))
+  refine ⟨u, hau, fun hnu => ?_⟩
+  have hvnil : v = SExpr.nil := Iff.mp huv hnu
+  simp_all [SExpr.t]
+
+/-- Strengthen truthiness to `= some t` at a pinned BOOLEAN value (the chain
+    start's head is boolean-valued, e.g. `implies`). G2's `EvTrue` migration
+    removes the need for this. -/
+theorem eq_t_of_truthy_boolean {w : World} {env : Env} {a va : SExpr}
+    (hconv : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
+    (hbool : va = SExpr.t ∨ va = SExpr.nil)
+    (htruthy : ∃ N, ∀ f ≥ N, ∃ u, evalOpt f w env a = some u ∧ u ≠ SExpr.nil) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env a = some SExpr.t := by
+  obtain ⟨n1, hconv⟩ := hconv; obtain ⟨n2, htruthy⟩ := htruthy
+  refine ⟨n1 + n2, fun f hf => ?_⟩
+  obtain ⟨u, hau, hnu⟩ := htruthy f (by omega)
+  have hva : u = va := Option.some.inj ((hau.symm.trans (hconv f (by omega))))
+  rcases hbool with h | h
+  · rwa [hva, h] at hau
+  · exact absurd (hva.trans h) hnu
+
+/-- `Logic.implies` is boolean-valued (the chain-start head fact). -/
+theorem logic_implies_boolean (p q : SExpr) :
+    Logic.implies p q = SExpr.t ∨ Logic.implies p q = SExpr.nil := by
+  rw [logic_implies_cond]
+  cases Logic.toBool p <;> cases Logic.toBool q <;> simp
+
+
 /-- Extract `integerp v = t` from a TRUE type-prescription corollary of the
     standard `(IF (INTEGERP v) … 'NIL)` shape (lifted: `cond (toBool (integerp v))
     X nil = t`): the recognizer is two-valued, and a false test would make the
