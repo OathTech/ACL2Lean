@@ -2165,6 +2165,32 @@ theorem fuel_conv_of_eq {a b : Nat → Option SExpr} {v : SExpr}
   obtain ⟨n1, h1⟩ := hab; obtain ⟨n2, h2⟩ := hb
   exact ⟨max n1 n2, fun f hf => (h1 f (by omega)).trans (h2 f (by omega))⟩
 
+/-- PIN an existential convergence: the (choice-selected) value a term converges
+    to. The driver pins each opaque user-fn occurrence's value this way from the
+    bound totality hypotheses — no `Exists.elim` plumbing in the proof terms. -/
+noncomputable def pinVal {w : World} {env : Env} {t : SExpr}
+    (h : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v) : SExpr :=
+  h.choose_spec.choose
+
+theorem pinVal_spec {w : World} {env : Env} {t : SExpr}
+    (h : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env t = some (pinVal h) :=
+  ⟨h.choose, h.choose_spec.choose_spec⟩
+
+/-- `(not t) = nil` (the step case's discharged test literal). -/
+theorem logic_not_t_nil : Logic.not SExpr.t = SExpr.nil := by
+  simp [Logic.not, Logic.toBool]
+
+/-- A variable's value at an `insert`-updated env (the IH instantiation env). -/
+theorem re_val_var_insert (w : World) (env : Env) (s : Symbol) (v : SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (env.insert s v) (.atom (.symbol s)) = some v :=
+  ⟨1, fun f hf => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact evalOpt_var g w _ s v (by
+      show (env.insert s v)[s]? = some v
+      rw [Std.HashMap.getElem?_insert]
+      simp)⟩
+
 /-- Two value characterizations across an eval-equality pin the SAME value (the
     spine's bridge from a literal's pre-rewrite falsity to its post-rewrite form). -/
 theorem val_eq_of_eval_eq {a b : Nat → Option SExpr} {u v : SExpr}
