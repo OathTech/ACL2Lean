@@ -186,11 +186,26 @@ obligation is stated precisely in its conditional proof's type:
       `assumeFact` there is no `mkSorry` path left, but guard it mechanically:
       scan emitted DP proof terms for `sorryAx`/`Lean.ofReduceBool` (and keep the
       `#guard_msgs` axiom gates on the spike/test theorems).
-- [ ] **c3 end-to-end audit.** Before claiming the first driver-replayed
-      inductive theorem: ground-truth build + `#print axioms`, then decorrelated
-      adversarial reviewers per the CLAUDE.md audit practice (genuine-replay /
-      answer-smuggling / statement-fidelity dimensions), as was done for S2/S3.
-      (task #38)
+- [x] **c3 end-to-end audit (2026-06-09, task #38) — DONE.** 3 decorrelated
+      adversarial reviewers (schematic fidelity / statement / lemma soundness) +
+      per-finding independent verification. Statement + lemma dimensions: CLEAN
+      (statement = the genuine defthm mirror; hypotheses honest and non-vacuous;
+      `fix` matches axioms.lisp; axioms `[propext, Classical.choice, Quot.sound]`,
+      no cheats on the path). Fidelity: 1 critical refuted (relativizeFrames does
+      NOT over-strip — paths are absolute, verified against the raw log); the
+      solidify litFact "incoherence" finding refuted by spot-check (the spine
+      stores the BRIDGED proof at the post-rewrite value, Driver.lean
+      `replayClauseSpine`; any mismatch is a kernel type error). Actionable
+      residue landed: strip-scope docstring, strip-mismatch negative test, and a
+      type-PINNING `example` asserting the mirror's exact conditional statement
+      in Tests/DriverTests.lean.
+- [ ] **Audit residue: relativizeFrames prefix frames are contextual, unvalidated.**
+      Frames ABOVE the d-th boundary (the parent-context navigation) are dropped
+      without cross-checking them against the actual nesting position; a
+      log↔replay fidelity checker (see the fidelity-checker item) should
+      cross-validate them. Also: strip×boundary composition (a consumed branch
+      frame interleaved between residual boundary frames) is unsupported —
+      fails loudly today; revisit when a real tree exercises it.
 - [ ] **Verify the conditional-proof obligations are REAL statements.** The
       ◌-assumed DP facts are bound hypotheses whose statements were machine-built
       (`dpFactStmt`); spot-audit a sample against the source clauses (a malformed

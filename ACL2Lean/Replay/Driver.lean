@@ -255,7 +255,14 @@ private def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : E
     `rewrite-if` recurses into a resolved if's surviving branch with the if still
     on its gstack, so a node logged after an if-simplification carries the
     branch's `:PATH` frame even though the chain's current term no longer has the
-    if — each `k ∈ strip` (in order) must match and is dropped. -/
+    if — each `k ∈ strip` (in order) must match and is dropped.
+
+    SCOPE: `strip` covers exactly the chain-ROOT if-simplification case (the only
+    place `replayRewrites` records one); unfold/rule-RHS nesting is the SEPARATE
+    `.boundary`/`depth` mechanism in `relativizeFrames`. Their composition
+    (a branch frame interleaved between residual boundary frames) is NOT handled —
+    and cannot mis-navigate silently: a strip/frame mismatch throws here, and any
+    leftover misalignment fails `pathStepsFromFrames`' final redex check. -/
 def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
     (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0) (strip : List Nat := [])
     : MetaM (Expr × SExpr) := do

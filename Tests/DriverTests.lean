@@ -356,6 +356,34 @@ elab "acl2_replay_mylen_real% " : term => do
     totality/TP facts — the obligations are explicit in the type). -/
 def my_len_my_app_real_mirror := acl2_replay_mylen_real%
 
+/-- PIN the machine-generated statement (audit #38): the conclusion is the genuine
+    mirror of the ACL2 defthm `(equal (my-len (my-app x y)) (+ (my-len x) (my-len y)))`,
+    and the hypotheses are exactly the four used obligations — totality of
+    my-len/my-app/fix and my-len's emitted TP corollary, lifted value-only. -/
+example :
+    ∀ (env : Env),
+      (∀ (env' : Env) (a0 : SExpr),
+          (∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' a0 = some v) →
+          ∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' (ap1 "my-len" a0) = some v) →
+      (∀ (env' : Env) (a0 a1 : SExpr),
+          (∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' a0 = some v) →
+          (∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' a1 = some v) →
+          ∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' (ap2 "my-app" a0 a1) = some v) →
+      (∀ (env' : Env) (a0 : SExpr),
+          (∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' a0 = some v) →
+          ∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' (ap1 "fix" a0) = some v) →
+      (∀ (env' : Env) (a0 v : SExpr),
+          (∃ N, ∀ f ≥ N, evalOpt f simpleWorld env' (ap1 "my-len" a0) = some v) →
+          (bif Logic.toBool (Logic.integerp v) then
+            Logic.not (Logic.lt v (SExpr.atom (Atom.number (Number.int 0))))
+          else SExpr.nil) = SExpr.t) →
+      ∃ N, ∀ f ≥ N,
+        evalOpt f simpleWorld env
+          (equalOf (ap1 "my-len" (ap2 "my-app" (sym "x") (sym "y")))
+                   (ap2 "binary-+" (ap1 "my-len" (sym "x")) (ap1 "my-len" (sym "y"))))
+          = some SExpr.t :=
+  my_len_my_app_real_mirror
+
 #print axioms my_len_my_app_real_mirror
 
 
@@ -428,8 +456,8 @@ elab "#emitcongr_pathdirected_test" : command => Elab.Command.liftTermElabM do
 
 #emitcongr_pathdirected_test
 
--- NEGATIVE: a `.boundary` path frame (child node inside an unfold) is not yet
--- supported — emitCongruence must hard-fail cleanly.
+-- NEGATIVE: a RESIDUAL `.boundary` path frame (more nesting in the path than the
+-- chain's declared depth) — emitCongruence must hard-fail cleanly, never navigate past.
 elab "#emitcongr_boundary_fails" : command => Elab.Command.liftTermElabM do
   withLocalDeclD `w (mkConst ``World) fun w =>
   withLocalDeclD `e (mkConst ``Env) fun e => do
@@ -444,6 +472,24 @@ elab "#emitcongr_boundary_fails" : command => Elab.Command.liftTermElabM do
     catch e => logInfo m!"negative test OK (boundary path frame): {e.toMessageData}"
 
 #emitcongr_boundary_fails
+
+-- NEGATIVE: a consumed-branch `strip` index that does not match the node's path
+-- frame (rewrite-if gstack discipline violated) — must hard-fail, never mis-navigate.
+elab "#emitcongr_strip_mismatch_fails" : command => Elab.Command.liftTermElabM do
+  withLocalDeclD `w (mkConst ``World) fun w =>
+  withLocalDeclD `e (mkConst ``Env) fun e => do
+    let X := ap1 "cdr" (ap2 "cons" (sym "a") (sym "b"))
+    let lit := equalOf X (sym "b")
+    let nodeProof ← Term.elabTermAndSynthesize (← `(⟨0, fun _ _ => rfl⟩)) (some (← mkEvalEqExist w e X X))
+    -- the chain consumed branch frame 2, but the node's path descends arg 1
+    let frames : List PathFrame :=
+      [.arg 1 { name := "equal" }, .arg 1 { name := "equal" }, .arg 1 { name := "cdr" }]
+    try
+      let _ ← emitCongruence w e lit frames X X nodeProof (strip := [2])
+      throwError "NEGATIVE TEST FAILED: strip mismatch accepted"
+    catch e => logInfo m!"negative test OK (strip mismatch): {e.toMessageData}"
+
+#emitcongr_strip_mismatch_fails
 
 /-! ## NEGATIVE — the driver must fail cleanly (fail-closed, never sorry). -/
 
