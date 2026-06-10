@@ -376,6 +376,9 @@ def ReplayCtx.litFactByTerm? (ctx : ReplayCtx) (t : SExpr) : Option Expr :=
 /-- `(quote t)`, the result an equal-self literal reduces to. -/
 def quoteT : SExpr := .cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil)
 
+/-- `(quote nil)`. -/
+def quoteNil : SExpr := .cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil)
+
 /-- View `(equal X X)` as `X`. -/
 def asEqualSelf : SExpr → Option SExpr
   | .cons (.atom (.symbol s)) (.cons x (.cons x' .nil)) =>
@@ -446,6 +449,7 @@ def dpUnary : List (String × Name × Name) :=
    ("consp",    ``Logic.consp,    ``callBuiltin_consp),
    ("integerp", ``Logic.integerp, ``callBuiltin_integerp),
    ("acl2-numberp", ``Logic.acl2Numberp, ``callBuiltin_acl2_numberp),
+   ("true-listp", ``Logic.trueListp, ``callBuiltin_true_listp),
    ("car",      ``Logic.car,      ``callBuiltin_car),
    ("cdr",      ``Logic.cdr,      ``callBuiltin_cdr)]
 
@@ -706,6 +710,44 @@ def intValExpr? (v : Expr) : MetaM Expr := do
   let n := a.appArg!
   unless n.isAppOfArity ``Number.int 1 do throwError "expected int-atom value, got {v}"
   return n.appArg!
+
+/-- The `(:DEFINITION implies)` GROUND-ZERO recipe: `(implies A B) ⇒
+    (if A (if B 't 'nil) 't)` — ACL2's bootstrap defun unfold, proved against
+    the BUILTIN semantics (`Logic.implies` + `logic_implies_cond`), because
+    `evalOpt` models `implies` as a builtin; adding it to the world would
+    shadow the `callBuiltin`/no-shadow facts. The recorded rhs must be EXACTLY
+    the unfold body instance. -/
+def replayImpliesDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
+    MetaM Expr := do
+  let (lhs, rhs) := nodeLhsRhs n
+  let .node _ _ _ children _ := n
+  unless children.isEmpty do
+    throwError "definition:implies — children on the ground-zero unfold (frontier)"
+  let .cons (.atom (.symbol impS)) (.cons A (.cons B .nil)) := lhs
+    | throwError "definition:implies — lhs is not (implies A B): {repr lhs}"
+  unless impS.name == "implies" do
+    throwError "definition:implies — lhs head {impS.name}"
+  let expectedRhs : SExpr :=
+    .cons (.atom (.symbol { name := "if" }))
+      (.cons A (.cons (.cons (.atom (.symbol { name := "if" }))
+        (.cons B (.cons quoteT (.cons quoteNil .nil))))
+        (.cons quoteT .nil)))
+  unless rhs == expectedRhs do
+    throwError "definition:implies — rhs {repr rhs} is not the unfold body instance"
+  let vA ← ctxValExpr cfg ctx A
+  let vB ← ctxValExpr cfg ctx B
+  let pA ← ctxValProof cfg ctx A
+  let pB ← ctxValProof cfg ctx B
+  let hNs ← proveNotSpecial { name := "implies" }
+  let hNo ← proveNoShadow cfg { name := "implies" }
+  let hr ← mkAppM ``callBuiltin_implies #[vA, vB]
+  let pL ← mkAppM ``conv_builtin2
+    #[cfg.worldExpr, cfg.envExpr, reflectSymbol { name := "implies" },
+      reflectSExpr A, reflectSExpr B, vA, vB,
+      mkApp2 (mkConst ``Logic.implies) vA vB, hNs, hNo, pA, pB, hr]
+  let pR ← ctxValProof cfg ctx rhs
+  let valueEq ← mkAppM ``logic_implies_cond #[vA, vB]
+  mkAppM ``fuel_eq_of_conv #[pL, pR, valueEq]
 
 mutual
 
@@ -1003,7 +1045,12 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       | none => return ruleEq
       | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "commutativity-2-of-+: lhs not (+ a (+ b c)): {repr lhs}"
-  | "definition", _ => replayDefinition cfg ctx n depth
+  | "definition", dname =>
+    -- `implies` is an evalOpt BUILTIN modeled by `callBuiltin`, not a world
+    -- definition — its :DEFINITION rune gets the ground-zero recipe.
+    if dname == "implies" && (cfg.worldVal.defs.get? { name := "implies" }).isNone then
+      replayImpliesDef cfg ctx n
+    else replayDefinition cfg ctx n depth
   | "fake-rune-for-anonymous-enabled-rule", _ =>
     -- recognizer node: term-eq form (eval lhs = eval rhs, rhs the quoted verdict).
     let verdictV := match rhs with
@@ -1613,11 +1660,11 @@ def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) 
     mkAppM ``fuel_eq_of_conv #[closeProof, hq, ← mkEqRefl (reflectSExpr SExpr.t)]
   | _ => replayNode cfg ctx n 0
 
-/-- Replay a clause discharged by PREPROCESS: the clause-level step nodes chain
-    the single-literal clause's formula to `(quote t)`. Returns
-    `∃N∀f≥N, eval formula = some t`. -/
-def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (formula : SExpr) (nodes : List ProofNode) : MetaM Expr := do
+/-- Replay a preprocess chain's eval-equality CORE: the composed
+    `∃N∀f≥N, eval formula = eval final` (`none` for an empty chain) and the
+    final term. -/
+def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (formula : SExpr) (nodes : List ProofNode) : MetaM (Option Expr × SExpr) := do
   let mut cur := formula
   let mut acc : Option Expr := none
   for n in nodes do
@@ -1644,12 +1691,425 @@ def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
       | none => pure inner
       | some a => mkAppM ``fuel_chain_eq #[a, inner])
     cur := curR
+  return (acc, cur)
+
+/-- Replay a clause discharged ENTIRELY by a preprocess chain: the step nodes
+    compose the single-literal clause's formula to `(quote t)`. Returns
+    `∃N∀f≥N, eval formula = some t`. -/
+def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (formula : SExpr) (nodes : List ProofNode) : MetaM Expr := do
+  let (acc, cur) ← replayPreprocessChainCore cfg ctx formula nodes
   unless cur == quoteT do
     throwError "replayPreprocessChain: chain ended at {repr cur}, expected (quote t)"
   let some chain := acc
     | throwError "replayPreprocessChain: no step nodes"
   let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
   mkAppM ``fuel_conv_of_eq #[chain, hq]
+
+/-! ## The clausify BRIDGE (#53C): proved child clause → the clausify input
+
+`bridgeClausify` proves `∃N∀f≥N, eval input = some t` from the PROVED output
+clause (`eval (disjoinTerm cl) = some t` — the pool-root/child replay), by
+mirroring `clausify-input1`'s PURE if-recursion. The recorded checkpoints
+validate every joint (recomputed neg-clause/split/out must equal the record;
+an `expand-and-or` marker is a frontier — that expansion is ens-dependent and
+not recomputable). Mechanism: `if_fact_elim` peels the proved disjunction one
+literal at a time — one proof LEAF per firing literal — and in each leaf the
+`val*` walkers derive the test-value facts that drive the input's if-tree
+through `re_dp_if_split` (each leaf's impossible branch closes by
+contradiction with the known value fact). The walkers stay in lockstep with
+`clausifyPure`'s case selection; the exact-`t` value needed at the very top
+flows from the spine's LAST literal (regions are suffix-closed), every other
+position needs only nil/truthy facts. -/
+
+/-- ACL2's `dumb-negate-lit` (the pure fragment: strip a `not`, else wrap). -/
+def dumbNegateLit (t : SExpr) : SExpr :=
+  match t with
+  | .cons (.atom (.symbol ns)) (.cons _ .nil) =>
+    if ns.name == "not" then
+      match t with
+      | .cons _ (.cons inner .nil) => inner
+      | _ => t
+    else .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
+  | _ => .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
+
+/-- The PURE fragment of `clausify-input1` (no `expand-and-or`): `pos` is
+    ACL2's `bool`. Recomputed for the walk and VALIDATED against the recorded
+    checkpoints — divergence (an expansion fired) hard-fails upstream. -/
+partial def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
+  if t == (if pos then quoteNil else quoteT) then []
+  else match t with
+  | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
+    if ifS.name == "if" then
+      if pos then
+        if t3 == quoteT then clausifyPure t1 false ++ clausifyPure t2 true
+        else if t2 == quoteT then clausifyPure t1 true ++ clausifyPure t3 true
+        else [t]
+      else
+        if t3 == quoteNil then clausifyPure t1 false ++ clausifyPure t2 false
+        else if t2 == quoteNil then clausifyPure t1 true ++ clausifyPure t3 false
+        else [dumbNegateLit t]
+    else if pos then [t] else [dumbNegateLit t]
+  | _ => if pos then [t] else [dumbNegateLit t]
+
+/-- Per-literal knowledge in one elimination LEAF of a proved clause. -/
+inductive LeafFact where
+  /-- the literal's value is nil (`h : v = nil`). -/
+  | isNil (h : Expr)
+  /-- the literal FIRED mid-spine: its value is non-nil (`h : v ≠ nil`). -/
+  | truthy (h : Expr)
+  /-- the literal FIRED as the spine's last: the full fact
+      (`h : ∃N∀f≥N, eval lit = some t`). -/
+  | exactT (h : Expr)
+  /-- after the firing literal: nothing known. -/
+  | unknown
+  deriving Inhabited
+
+/-- Index of the firing fact in a region (`none` = the all-nil region). -/
+def leafFiring (facts : List LeafFact) : Option Nat :=
+  facts.findIdx? fun f => match f with
+    | .truthy _ | .exactT _ => true | _ => false
+
+/-- `∃N∀f≥N, eval (quote t) = some SExpr.t` (the constant, not the reflection). -/
+def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
+  let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+  let hv ← proveByDecide
+    (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
+  mkAppM ``re_val_cast
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
+      mkConst ``SExpr.t, pq, hv]
+
+/-- `SExpr.t ≠ SExpr.nil` as a proof. -/
+def tNeNilFact : MetaM Expr := do
+  proveByDecide (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
+
+mutual
+
+/-- POSITIVE walk: `∃N∀f≥N, eval term = some SExpr.t`, given one leaf's facts
+    over `term`'s pos-clause region (the firing literal IS inside it; the
+    region's last literal is the clause's last — the `exactT` invariant). -/
+partial def walkPosT (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (facts : List LeafFact) : MetaM Expr := do
+  match term with
+  | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
+    if ifS.name == "if" && t3 == quoteT then
+      -- region = neg(t1) ++ pos(t2); term = (if t1 t2 't)
+      let (fA, fB) := facts.splitAt (clausifyPure t1 false).length
+      let v1 ← ctxValExpr cfg ctx t1
+      let p1 ← ctxValProof cfg ctx t1
+      let nilTy ← mkEq v1 (mkConst ``SExpr.nil)
+      let neTy ← mkAppM ``Ne #[v1, mkConst ``SExpr.nil]
+      match leafFiring fA with
+      | some _ =>
+        -- v(t1) = nil: the term takes the 't branch
+        let h1nil ← valNegNil cfg ctx t1 fA
+        let hthen ← withLocalDeclD `hne neTy fun hne => do
+          mkLambdaFVars #[hne] (← mkAppM ``absurd #[h1nil, hne])
+        let helse ← withLocalDeclD `heq nilTy fun heq => do
+          let _ := heq
+          mkLambdaFVars #[heq] (← quoteTFact cfg)
+        mkAppM ``re_dp_if_split
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr t1, reflectSExpr t2,
+            reflectSExpr quoteT, v1, p1, hthen, helse]
+      | none =>
+        -- v(t1) ≠ nil: the term takes the t2 branch
+        let h1ne ← valNegTruthy cfg ctx t1 fA
+        let pB ← walkPosT cfg ctx t2 fB
+        let hthen ← withLocalDeclD `hne neTy fun hne => do
+          let _ := hne
+          mkLambdaFVars #[hne] pB
+        let helse ← withLocalDeclD `heq nilTy fun heq => do
+          mkLambdaFVars #[heq] (← mkAppM ``absurd #[heq, h1ne])
+        mkAppM ``re_dp_if_split
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr t1, reflectSExpr t2,
+            reflectSExpr quoteT, v1, p1, hthen, helse]
+    else if ifS.name == "if" && t2 == quoteT then
+      -- region = pos(t1) ++ pos(t3); term = (if t1 't t3)
+      let (fA, fC) := facts.splitAt (clausifyPure t1 true).length
+      let v1 ← ctxValExpr cfg ctx t1
+      let p1 ← ctxValProof cfg ctx t1
+      let nilTy ← mkEq v1 (mkConst ``SExpr.nil)
+      let neTy ← mkAppM ``Ne #[v1, mkConst ``SExpr.nil]
+      match leafFiring fA with
+      | some _ =>
+        let h1ne ← valPosTruthy cfg ctx t1 fA
+        let hthen ← withLocalDeclD `hne neTy fun hne => do
+          let _ := hne
+          mkLambdaFVars #[hne] (← quoteTFact cfg)
+        let helse ← withLocalDeclD `heq nilTy fun heq => do
+          mkLambdaFVars #[heq] (← mkAppM ``absurd #[heq, h1ne])
+        mkAppM ``re_dp_if_split
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr t1, reflectSExpr quoteT,
+            reflectSExpr t3, v1, p1, hthen, helse]
+      | none =>
+        let h1nil ← valPosNil cfg ctx t1 fA
+        let pC ← walkPosT cfg ctx t3 fC
+        let hthen ← withLocalDeclD `hne neTy fun hne => do
+          mkLambdaFVars #[hne] (← mkAppM ``absurd #[h1nil, hne])
+        let helse ← withLocalDeclD `heq nilTy fun heq => do
+          let _ := heq
+          mkLambdaFVars #[heq] pC
+        mkAppM ``re_dp_if_split
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr t1, reflectSExpr quoteT,
+            reflectSExpr t3, v1, p1, hthen, helse]
+    else walkPosTLit term facts
+  | _ => walkPosTLit term facts
+
+/-- Fallback literal of a positive walk: the region is `[term]` and its fact
+    must be the spine-last `exactT` (the eval fact itself). -/
+partial def walkPosTLit (term : SExpr) (facts : List LeafFact) : MetaM Expr := do
+  match facts with
+  | [.exactT h] => return h
+  | _ => throwError "clausify bridge: pos literal {repr term} fired mid-spine — \
+                     a non-last positive fallback literal cannot pin value t \
+                     (invariant violation / unsupported shape)"
+
+/-- Value fact `v(term) = nil`, given the firing literal in `term`'s NEG region. -/
+partial def valNegNil (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (facts : List LeafFact) : MetaM Expr := do
+  match term with
+  | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
+    if ifS.name == "if" && t3 == quoteNil then
+      -- neg region = neg(t1) ++ neg(t2); v(term) = cond (toBool v1) v2 nil
+      let (fA, fB) := facts.splitAt (clausifyPure t1 false).length
+      match leafFiring fA with
+      | some _ =>
+        let h1nil ← valNegNil cfg ctx t1 fA
+        mkAppM ``cond_val_false #[← mkAppM ``toBool_false_of_nil #[h1nil]]
+      | none =>
+        let h1ne ← valNegTruthy cfg ctx t1 fA
+        let h2nil ← valNegNil cfg ctx t2 fB
+        let hcond ← mkAppM ``cond_val_true #[← mkAppM ``toBool_true_of_ne_nil #[h1ne]]
+        mkAppM ``Eq.trans #[hcond, h2nil]
+    else if ifS.name == "if" && t2 == quoteNil then
+      -- neg region = pos(t1) ++ neg(t3); v(term) = cond (toBool v1) nil v3
+      let (fA, fC) := facts.splitAt (clausifyPure t1 true).length
+      match leafFiring fA with
+      | some _ =>
+        let h1ne ← valPosTruthy cfg ctx t1 fA
+        mkAppM ``cond_val_true #[← mkAppM ``toBool_true_of_ne_nil #[h1ne]]
+      | none =>
+        let h1nil ← valPosNil cfg ctx t1 fA
+        let h3nil ← valNegNil cfg ctx t3 fC
+        let hcond ← mkAppM ``cond_val_false #[← mkAppM ``toBool_false_of_nil #[h1nil]]
+        mkAppM ``Eq.trans #[hcond, h3nil]
+    else valNegNilLit cfg ctx term facts
+  | _ => valNegNilLit cfg ctx term facts
+
+/-- Fallback NEG literal firing: the clause literal is `dumbNegateLit term`. -/
+partial def valNegNilLit (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (facts : List LeafFact) : MetaM Expr := do
+  let fact ← match facts with
+    | [f] => pure f
+    | _ => throwError "valNegNilLit: region/fact mismatch for {repr term}"
+  match term with
+  | .cons (.atom (.symbol ns)) (.cons inner .nil) =>
+    if ns.name == "not" then
+      -- literal = inner (not stripped); v(term) = Logic.not v(inner)
+      match fact with
+      | .truthy h => mkAppM ``not_nil_of_truthy #[h]
+      | .exactT h => do
+        let pInner ← ctxValProof cfg ctx inner
+        let vEq ← mkAppM ``val_unique #[pInner, h]
+        mkAppM ``not_nil_of_truthy #[← mkAppM ``ne_nil_of_eq_t #[vEq]]
+      | _ => throwError "valNegNilLit: expected a firing fact for {repr term}"
+    else valNegNilWrapped cfg ctx term fact
+  | _ => valNegNilWrapped cfg ctx term fact
+
+/-- Fallback NEG literal `(not term)` firing: derive `v(term) = nil`. -/
+partial def valNegNilWrapped (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (fact : LeafFact) : MetaM Expr := do
+  match fact with
+  | .truthy h => mkAppM ``arg_nil_of_not_truthy #[h]
+  | .exactT h => do
+    let notTerm : SExpr := .cons (.atom (.symbol { name := "not" })) (.cons term .nil)
+    let pNot ← ctxValProof cfg ctx notTerm
+    let vEq ← mkAppM ``val_unique #[pNot, h]
+    mkAppM ``arg_nil_of_not_t #[vEq]
+  | _ => throwError "valNegNilWrapped: expected a firing fact for {repr term}"
+
+/-- Value fact `v(term) ≠ nil`, given ALL-NIL facts over `term`'s NEG region. -/
+partial def valNegTruthy (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (facts : List LeafFact) : MetaM Expr := do
+  if term == quoteT then
+    -- empty neg region; v(term) = reflect t ≠ nil
+    return ← mkAppM ``ne_nil_of_eq #[← mkEqRefl (reflectSExpr SExpr.t), ← tNeNilFact]
+  match term with
+  | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
+    if ifS.name == "if" && t3 == quoteNil then
+      let (fA, fB) := facts.splitAt (clausifyPure t1 false).length
+      let h1ne ← valNegTruthy cfg ctx t1 fA
+      let h2ne ← valNegTruthy cfg ctx t2 fB
+      let hcond ← mkAppM ``cond_val_true #[← mkAppM ``toBool_true_of_ne_nil #[h1ne]]
+      mkAppM ``ne_nil_of_eq #[hcond, h2ne]
+    else if ifS.name == "if" && t2 == quoteNil then
+      let (fA, fC) := facts.splitAt (clausifyPure t1 true).length
+      let h1nil ← valPosNil cfg ctx t1 fA
+      let h3ne ← valNegTruthy cfg ctx t3 fC
+      let hcond ← mkAppM ``cond_val_false #[← mkAppM ``toBool_false_of_nil #[h1nil]]
+      mkAppM ``ne_nil_of_eq #[hcond, h3ne]
+    else valNegTruthyLit cfg ctx term facts
+  | _ => valNegTruthyLit cfg ctx term facts
+
+/-- Fallback NEG literal all-nil: literal `dumbNegateLit term` has value nil. -/
+partial def valNegTruthyLit (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (facts : List LeafFact) : MetaM Expr := do
+  let _ := cfg; let _ := ctx
+  let h ← match facts with
+    | [.isNil h] => pure h
+    | _ => throwError "valNegTruthyLit: region/fact mismatch for {repr term}"
+  match term with
+  | .cons (.atom (.symbol ns)) (.cons _ .nil) =>
+    if ns.name == "not" then
+      -- literal = inner with v(inner) = nil; v(term) = Logic.not nil = t ≠ nil
+      let hnotT ← mkAppM ``not_t_of_nil #[h]
+      mkAppM ``ne_nil_of_eq #[hnotT, ← tNeNilFact]
+    else
+      -- literal = (not term) with value Logic.not v(term) = nil
+      mkAppM ``arg_truthy_of_not_nil #[h]
+  | _ => mkAppM ``arg_truthy_of_not_nil #[h]
+
+/-- Value fact `v(term) ≠ nil`, given the firing literal in `term`'s POS region. -/
+partial def valPosTruthy (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (facts : List LeafFact) : MetaM Expr := do
+  match term with
+  | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
+    if ifS.name == "if" && t3 == quoteT then
+      let (fA, fB) := facts.splitAt (clausifyPure t1 false).length
+      match leafFiring fA with
+      | some _ =>
+        let h1nil ← valNegNil cfg ctx t1 fA
+        let hcond ← mkAppM ``cond_val_false #[← mkAppM ``toBool_false_of_nil #[h1nil]]
+        mkAppM ``ne_nil_of_eq #[hcond, ← mkAppM ``ne_nil_of_eq
+          #[← mkEqRefl (reflectSExpr SExpr.t), ← tNeNilFact]]
+      | none =>
+        let h1ne ← valNegTruthy cfg ctx t1 fA
+        let h2ne ← valPosTruthy cfg ctx t2 fB
+        let hcond ← mkAppM ``cond_val_true #[← mkAppM ``toBool_true_of_ne_nil #[h1ne]]
+        mkAppM ``ne_nil_of_eq #[hcond, h2ne]
+    else if ifS.name == "if" && t2 == quoteT then
+      let (fA, fC) := facts.splitAt (clausifyPure t1 true).length
+      match leafFiring fA with
+      | some _ =>
+        let h1ne ← valPosTruthy cfg ctx t1 fA
+        let hcond ← mkAppM ``cond_val_true #[← mkAppM ``toBool_true_of_ne_nil #[h1ne]]
+        mkAppM ``ne_nil_of_eq #[hcond, ← mkAppM ``ne_nil_of_eq
+          #[← mkEqRefl (reflectSExpr SExpr.t), ← tNeNilFact]]
+      | none =>
+        let h1nil ← valPosNil cfg ctx t1 fA
+        let h3ne ← valPosTruthy cfg ctx t3 fC
+        let hcond ← mkAppM ``cond_val_false #[← mkAppM ``toBool_false_of_nil #[h1nil]]
+        mkAppM ``ne_nil_of_eq #[hcond, h3ne]
+    else valPosTruthyLit cfg ctx term facts
+  | _ => valPosTruthyLit cfg ctx term facts
+
+/-- Fallback POS literal firing: the literal is `term` itself. -/
+partial def valPosTruthyLit (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (facts : List LeafFact) : MetaM Expr := do
+  match facts with
+  | [.truthy h] => return h
+  | [.exactT h] => do
+    let pTerm ← ctxValProof cfg ctx term
+    mkAppM ``ne_nil_of_eq_t #[← mkAppM ``val_unique #[pTerm, h]]
+  | _ => throwError "valPosTruthyLit: region/fact mismatch for {repr term}"
+
+/-- Value fact `v(term) = nil`, given ALL-NIL facts over `term`'s POS region. -/
+partial def valPosNil (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (facts : List LeafFact) : MetaM Expr := do
+  if term == quoteNil then
+    return ← mkEqRefl (mkConst ``SExpr.nil)
+  match term with
+  | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
+    if ifS.name == "if" && t3 == quoteT then
+      let (fA, fB) := facts.splitAt (clausifyPure t1 false).length
+      let h1ne ← valNegTruthy cfg ctx t1 fA
+      let h2nil ← valPosNil cfg ctx t2 fB
+      let hcond ← mkAppM ``cond_val_true #[← mkAppM ``toBool_true_of_ne_nil #[h1ne]]
+      mkAppM ``Eq.trans #[hcond, h2nil]
+    else if ifS.name == "if" && t2 == quoteT then
+      let (fA, fC) := facts.splitAt (clausifyPure t1 true).length
+      let h1nil ← valPosNil cfg ctx t1 fA
+      let h3nil ← valPosNil cfg ctx t3 fC
+      let hcond ← mkAppM ``cond_val_false #[← mkAppM ``toBool_false_of_nil #[h1nil]]
+      mkAppM ``Eq.trans #[hcond, h3nil]
+    else valPosNilLit term facts
+  | _ => valPosNilLit term facts
+
+/-- Fallback POS literal all-nil: the literal is `term`, valued nil. -/
+partial def valPosNilLit (term : SExpr) (facts : List LeafFact) : MetaM Expr := do
+  match facts with
+  | [.isNil h] => return h
+  | _ => throwError "valPosNilLit: region/fact mismatch for {repr term}"
+
+end
+
+/-- Peel a PROVED clause fact (`pFact : ∃N∀f≥N, eval (disjoinTerm lits) = some t`)
+    literal by literal with `if_fact_elim` — one leaf per firing literal — and
+    in each leaf invoke `mkLeaf` with the aligned `LeafFact`s (all leaves prove
+    the same target). -/
+partial def peelClause (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (lits : List SExpr) (pFact : Expr)
+    (mkLeaf : List LeafFact → MetaM Expr) (prefixFacts : List LeafFact := []) :
+    MetaM Expr := do
+  match lits with
+  | [] => throwError "peelClause: empty clause"
+  | [_] =>
+    -- disjoinTerm [l] = l : the fact IS the literal's exact-t evaluation
+    mkLeaf (prefixFacts ++ [.exactT pFact])
+  | l :: rest =>
+    let vl ← ctxValExpr cfg ctx l
+    let pl ← ctxValProof cfg ctx l
+    let nilTy ← mkEq vl (mkConst ``SExpr.nil)
+    let neTy ← mkAppM ``Ne #[vl, mkConst ``SExpr.nil]
+    let unknowns := rest.map fun _ => LeafFact.unknown
+    let thnTy ← mkEvalSomeExist cfg.worldExpr cfg.envExpr quoteT (mkConst ``SExpr.t)
+    let restTy ← mkEvalSomeExist cfg.worldExpr cfg.envExpr (disjoinTerm rest)
+      (mkConst ``SExpr.t)
+    let hthen ← withLocalDeclD `hne neTy fun hne => do
+      let inner ← withLocalDeclD `hq thnTy fun hq => do
+        let _ := hq
+        mkLambdaFVars #[hq] (← mkLeaf (prefixFacts ++ [.truthy hne] ++ unknowns))
+      mkLambdaFVars #[hne] inner
+    let helse ← withLocalDeclD `heq nilTy fun heq => do
+      let inner ← withLocalDeclD `hrest restTy fun hrest => do
+        let pRec ← peelClause cfg ctx rest hrest mkLeaf (prefixFacts ++ [.isNil heq])
+        mkLambdaFVars #[hrest] pRec
+      mkLambdaFVars #[heq] inner
+    mkAppM ``if_fact_elim #[pl, pFact, hthen, helse]
+
+/-- Bridge a clausify record: prove `∃N∀f≥N, eval info.input = some t` from
+    `pOut : eval (disjoinTerm cl₀) = some t` (the proved single output clause).
+    Validates the WHOLE record against the pure recomputation; any divergence
+    (an `expand-and-or` expansion, a structured neg-clause, multiple outputs)
+    is a hard frontier error. -/
+def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
+    (pOut : Expr) : MetaM Expr := do
+  if info.expanded then
+    throwError "clausify bridge: expand-and-or fired inside clausify-input \
+                (ens-dependent expansion — frontier)"
+  let negRecomputed := clausifyPure info.input false
+  unless negRecomputed == info.negClause do
+    throwError "clausify bridge: recomputed neg-clause {repr negRecomputed} ≠ \
+                recorded {repr info.negClause} (expansion divergence?)"
+  let [l0] := info.negClause
+    | throwError "clausify bridge: structured (multi-literal) neg-clause — \
+                  frontier: {repr info.negClause}"
+  let [(splitLit, cl0)] := info.splits
+    | throwError "clausify bridge: expected exactly one split (frontier)"
+  unless splitLit == dumbNegateLit l0 do
+    throwError "clausify bridge: split literal {repr splitLit} ≠ \
+                (dumb-negate {repr l0})"
+  unless dumbNegateLit l0 == info.input do
+    throwError "clausify bridge: negation round-trip {repr (dumbNegateLit l0)} ≠ \
+                input {repr info.input} (frontier)"
+  unless clausifyPure info.input true == cl0 do
+    throwError "clausify bridge: recomputed split clause \
+                {repr (clausifyPure info.input true)} ≠ recorded {repr cl0} \
+                (expansion divergence?)"
+  unless info.out == [cl0] do
+    throwError "clausify bridge: output set {repr info.out} ≠ [the split clause] \
+                (multi-clause output — frontier)"
+  peelClause cfg ctx cl0 pOut fun facts => walkPosT cfg ctx info.input facts
 
 /-! ## The c3 induction scaffold + the conditional-mirror harness
 
@@ -1822,8 +2282,23 @@ mutual
 partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) : MetaM Expr := do
   if cn.induction.isSome then
     return ← replayInduction cfg ctx cn
-  -- a push-clause node defers to its pool-root child (same clause)
-  if cn.steps.any (fun s => s.processor.toLower == "push-clause") then
+  -- EFFECTIVE clausify records: clausify-input emits its checkpoints on every
+  -- preprocess pass, including 'miss passes (whose events flush into the NEXT
+  -- step's :REWRITES) and identity re-clausifications — a record whose single
+  -- output clause disjoins back to exactly its input, or whose input is the
+  -- trivially-true `(quote t)` with an EMPTY output set, certifies that the
+  -- pass changed nothing the replay must mirror.
+  let isNoopClausify : ClausifyInfo → Bool := fun i =>
+    match i.out with
+    | [cl] => disjoinTerm cl == i.input
+    | [] => i.input == quoteT
+    | _ => false
+  let clausifyInfos := ((cn.steps.flatMap (·.items)).filterMap fun
+    | .clausify i => some i | _ => none).filter (fun i => !(isNoopClausify i))
+  -- a push-clause node defers to its pool-root child (same clause) — UNLESS an
+  -- effective clausify record changed the clause first (the clausify path
+  -- below replays the chain + split and consumes the child itself)
+  if clausifyInfos.isEmpty && cn.steps.any (fun s => s.processor.toLower == "push-clause") then
     match cn.children with
     | [child] =>
       unless child.inputClause == cn.inputClause do
@@ -1837,6 +2312,43 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
   for tm in (clauseSubtreeTerms cn).eraseDups do
     ctx ← pinTermOpaques cfg cfg.envExpr ctx tm
   let lits := flattenLiterals (cn.steps.flatMap (·.items))
+  -- a preprocess CLAUSIFY split: chain to the recorded input, bridge the proved
+  -- output clause (the pushed/pool-root child) back through the if-recursion
+  match clausifyInfos with
+  | [info] =>
+    -- literal items on the same (merged) node come from the PUSH step's
+    -- per-literal scan — identity displays only; real rewriting here is a
+    -- frontier
+    for (_, lp) in lits do
+      unless lp.nodes.isEmpty && lp.result == lp.literal do
+        throwError "replayClause: non-identity literal item alongside a \
+                    clausify record at {cn.idStr} (frontier): {repr lp.literal}"
+    let stepNodes := (cn.steps.flatMap (·.items)).filterMap fun
+      | .step n => some n | _ => none
+    let [formula] := cn.inputClause
+      | throwError "replayClause: clausify on a multi-literal clause at \
+                    {cn.idStr} (frontier)"
+    let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula stepNodes
+    unless finalT == info.input do
+      throwError "replayClause: preprocess chain reached {repr finalT}, the \
+                  clausify input is {repr info.input}"
+    let [outClause] := info.out
+      | throwError "replayClause: clausify produced {info.out.length} clauses at \
+                    {cn.idStr} (multi-clause frontier)"
+    let [child] := cn.children
+      | throwError "replayClause: clausify with {cn.children.length} children at \
+                    {cn.idStr} (frontier)"
+    unless child.inputClause == outClause do
+      throwError "replayClause: child clause {repr child.inputClause} ≠ the \
+                  clausify output {repr outClause}"
+    let pChild ← replayClause cfg ctx child
+    let pInput ← bridgeClausify cfg ctx info pChild
+    match chainOpt with
+    | none => return pInput
+    | some ch => return ← mkAppM ``fuel_conv_of_eq #[ch, pInput]
+  | _ :: _ :: _ =>
+    throwError "replayClause: multiple clausify records at {cn.idStr} (frontier)"
+  | [] =>
   if lits.isEmpty then
     -- a clause discharged entirely at PREPROCESS: clause-level step nodes chain
     -- the formula to 't (no literal bracketing is emitted at preprocess sites)

@@ -1312,6 +1312,10 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
     callBuiltin "binary-+" [a, b] = some (Logic.plus a b) := by rfl
 @[simp] theorem callBuiltin_times (a b : SExpr) :
     callBuiltin "binary-*" [a, b] = some (Logic.times a b) := by rfl
+@[simp] theorem callBuiltin_true_listp (a : SExpr) :
+    callBuiltin "true-listp" [a] = some (Logic.trueListp a) := by
+  rfl
+
 @[simp] theorem callBuiltin_acl2_numberp (a : SExpr) :
     callBuiltin "acl2-numberp" [a] = some (Logic.acl2Numberp a) := by
   cases a with
@@ -2198,6 +2202,102 @@ theorem pinVal_spec {w : World} {env : Env} {t : SExpr}
 /-- `(not t) = nil` (the step case's discharged test literal). -/
 theorem logic_not_t_nil : Logic.not SExpr.t = SExpr.nil := by
   simp [Logic.not, Logic.toBool]
+
+/-! ## Clausify-bridge helpers (formula → clause composition, #53C)
+
+The bridge consumes a PROVED child clause (`eval (disjoin cl) = some t`) and
+rebuilds the truth of the clausify INPUT term by mirroring `clausify-input1`'s
+pure if-recursion: `if_fact_elim` peels the proved disjunction literal by
+literal (one leaf per firing literal), the value helpers below convert each
+leaf's literal facts into test-value facts, and `re_dp_if_split` re-composes
+the input term's if-tree (the impossible branch in each leaf is vacuous). -/
+
+/-- ELIMINATE a proved `if` fact by its test's value: from
+    `eval (if c thn els) = some v` and the test's value, either the test is
+    truthy and the THEN branch carries the value, or it is nil and the ELSE
+    branch does. The dual of `re_dp_if_split`. -/
+theorem if_fact_elim {w : World} {env : Env} {c thn els cv v : SExpr} {C : Prop}
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
+    (hfact : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "if" }))
+        (.cons c (.cons thn (.cons els .nil)))) = some v)
+    (hthen : cv ≠ SExpr.nil → (∃ N, ∀ f ≥ N, evalOpt f w env thn = some v) → C)
+    (helse : cv = SExpr.nil → (∃ N, ∀ f ≥ N, evalOpt f w env els = some v) → C) :
+    C := by
+  obtain ⟨Nc, hcf⟩ := hc
+  obtain ⟨Nf, hff⟩ := hfact
+  by_cases hcv : cv = SExpr.nil
+  · refine helse hcv ⟨Nc + Nf + 1, fun f hge => ?_⟩
+    have h1 := hff (f + 1) (by omega)
+    rwa [evalOpt_if_false f w env c thn els (by rw [hcf f (by omega), hcv])] at h1
+  · refine hthen hcv ⟨Nc + Nf + 1, fun f hge => ?_⟩
+    have h1 := hff (f + 1) (by omega)
+    rwa [evalOpt_if_true f w env c thn els cv (hcf f (by omega))
+          (by cases cv <;> simp_all [Logic.toBool])] at h1
+
+/-- `toBool` of a non-nil value is `true`. -/
+theorem toBool_true_of_ne_nil {v : SExpr} (h : v ≠ SExpr.nil) :
+    Logic.toBool v = true := by cases v <;> simp_all [Logic.toBool]
+
+/-- `toBool` of nil is `false`. -/
+theorem toBool_false_of_nil {v : SExpr} (h : v = SExpr.nil) :
+    Logic.toBool v = false := by subst h; rfl
+
+/-- A truthy `not` pins its argument to nil. -/
+theorem arg_nil_of_not_truthy {v : SExpr} (h : Logic.not v ≠ SExpr.nil) :
+    v = SExpr.nil := by
+  cases v <;> simp_all [Logic.not, Logic.toBool]
+
+/-- A `not` valued exactly `t` pins its argument to nil. -/
+theorem arg_nil_of_not_t {v : SExpr} (h : Logic.not v = SExpr.t) :
+    v = SExpr.nil := by
+  cases v <;> simp_all [Logic.not, Logic.toBool, SExpr.t]
+
+/-- A nil `not` pins its argument truthy. -/
+theorem arg_truthy_of_not_nil {v : SExpr} (h : Logic.not v = SExpr.nil) :
+    v ≠ SExpr.nil := by
+  cases v <;> simp_all [Logic.not, Logic.toBool, SExpr.t]
+
+/-- Two value characterizations of the SAME evaluation pin the same value. -/
+theorem val_unique {a : Nat → Option SExpr} {u v : SExpr}
+    (hu : ∃ N, ∀ f ≥ N, a f = some u) (hv : ∃ N, ∀ f ≥ N, a f = some v) : u = v := by
+  obtain ⟨n1, h1⟩ := hu; obtain ⟨n2, h2⟩ := hv
+  exact Option.some.inj ((h1 (n1+n2) (by omega)).symm.trans (h2 (n1+n2) (by omega)))
+
+/-- Transport non-nil-ness along a value equation. -/
+theorem ne_nil_of_eq {v w : SExpr} (h : v = w) (hw : w ≠ SExpr.nil) :
+    v ≠ SExpr.nil := h ▸ hw
+
+/-- A value equal to `t` is non-nil. -/
+theorem ne_nil_of_eq_t {v : SExpr} (h : v = SExpr.t) : v ≠ SExpr.nil := by
+  subst h; simp [SExpr.t]
+
+/-- A nil argument makes `not` exactly `t`. -/
+theorem not_t_of_nil {v : SExpr} (h : v = SExpr.nil) :
+    Logic.not v = SExpr.t := by subst h; rfl
+
+/-- A truthy argument makes `not` nil. -/
+theorem not_nil_of_truthy {v : SExpr} (h : v ≠ SExpr.nil) :
+    Logic.not v = SExpr.nil := by
+  cases v <;> simp_all [Logic.not, Logic.toBool]
+
+/-- Reduce a `cond` value by a known-true test. -/
+theorem cond_val_true {b : Bool} {x y : SExpr} (h : b = true) :
+    (bif b then x else y) = x := by subst h; rfl
+
+/-- Reduce a `cond` value by a known-false test. -/
+theorem cond_val_false {b : Bool} {x y : SExpr} (h : b = false) :
+    (bif b then x else y) = y := by subst h; rfl
+
+/-- `Logic.implies` IS the value of its ground-zero unfold body
+    `(if p (if q 't 'nil) 't)` under the `cond` value lift — the recipe fact
+    for the `:DEFINITION implies` rune (`implies` is an `evalOpt` builtin, not
+    a world definition; adding it to the world would shadow the builtin). -/
+theorem logic_implies_cond (p q : SExpr) :
+    Logic.implies p q
+      = (bif Logic.toBool p then (bif Logic.toBool q then SExpr.t else SExpr.nil)
+         else SExpr.t) := by
+  simp only [Logic.implies, Bool.cond_eq_ite]
 
 /-- Extract `integerp v = t` from a TRUE type-prescription corollary of the
     standard `(IF (INTEGERP v) … 'NIL)` shape (lifted: `cond (toBool (integerp v))

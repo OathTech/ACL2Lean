@@ -110,6 +110,19 @@ log, `#print axioms` clean. The pieces exist; c3 wires them:
       pseudo-theorem (what #37 consumes). Follow-up: the coverage harness
       should also sweep `WorldEvent.defun.termination` trees for DP leaves
       (one ✓ leaf moved out of the theorem sweep).
+- [ ] **IFF-aware preprocess chain (the next #53C frontier).** The preprocess
+      chain runs under `*geneqv-iff*` (`expand-abbreviations term nil
+      *geneqv-iff* …`), so its `(if A 't 'nil) ⇒ A` if-simplifications are
+      IFF-only, NOT value-preserving — the current eval-EQUALITY chain
+      composition cannot replay them (app-nil / rev-rev / true-listp-app stop
+      here, honestly). Design options to discuss: (a) BACKWARD truth-transport
+      (compose `eval rhs = some t → eval lhs = some t` per node, with
+      iff-position-aware congruence through if-branches — value-sound, needs a
+      transport walker like the clausify bridge's); (b) an iff-chain judgment
+      (truthiness-iff composition) + boolean-valuedness at the formula end.
+      ALSO: gate the clausify-checkpoint emission on preprocess HIT (today a
+      'miss pass's events flush into the NEXT step's :REWRITES — handled by
+      validated no-op drops in the driver, but gating at the source is cleaner).
 - [ ] **Mirror-statement boolean-validity check.** The mirror form
       `eval formula = some t` is STRONGER than ACL2's `formula ≠ nil` — equal
       only for boolean-valued formulas (all of the current corpus). The
