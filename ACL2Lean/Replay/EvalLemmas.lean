@@ -1806,6 +1806,20 @@ theorem re_cdr_cons_conv (w : World) (env : Env) (a b : SExpr)
   obtain ⟨Nb, bv, hb⟩ := hb
   exact re_cdr_cons w env a b av bv h_no_cdr h_no_cons ⟨Na, ha⟩ ⟨Nb, hb⟩
 
+/-- RUNE `car-cons` (conv form): `(car (cons a b)) ⇒ a`, term-to-term. -/
+theorem re_car_cons_conv (w : World) (env : Env) (a b : SExpr)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "car" }))
+        (.cons (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))) .nil))
+      = evalOpt f w env a := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨Nb, bv, hb⟩ := hb
+  exact re_car_cons w env a b av bv h_no_car h_no_cons ⟨Na, ha⟩ ⟨Nb, hb⟩
+
 /-- Convergence (v-fixed) of a `(cons a b)` application: converges to `(cons av bv)`
     when `a`, `b` converge. The convergence-analyzer's compound-term case for `cons`
     (`car`/`cdr`/`binary-*`/… follow the same shape via their `callBuiltin` lemma). -/

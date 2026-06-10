@@ -900,6 +900,22 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       mkAppM ``re_cdr_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
     | _ => throwError "cdr-cons: lhs not (cdr (cons a b)): {repr lhs}"
+  | "rewrite", "car-cons" =>
+    -- `(car (cons a b)) ⇒ a`.
+    match lhs with
+    | .cons (.atom (.symbol carS))
+        (.cons (.cons (.atom (.symbol consS)) (.cons a (.cons b .nil))) .nil) =>
+      unless carS.name == "car" && consS.name == "cons" do
+        throwError "car-cons: lhs head not (car (cons …)): {repr lhs}"
+      unless rhs == a do
+        throwError "car-cons: rhs {repr rhs} ≠ the cons's car operand {repr a}"
+      let ha ← proveConv cfg cfg.envExpr ctx a
+      let hb ← proveConv cfg cfg.envExpr ctx b
+      let hNoCar ← proveNoShadow cfg { name := "car" }
+      let hNoCons ← proveNoShadow cfg { name := "cons" }
+      mkAppM ``re_car_cons_conv
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCar, hNoCons, ha, hb]
+    | _ => throwError "car-cons: lhs not (car (cons a b)): {repr lhs}"
   | "rewrite", "unicity-of-0" =>
     -- `(binary-+ '0 z) ⇒ z` via the REAL intermediate `(fix z)` (the def:fix child
     -- subtree is REPLAYED, not collapsed): (A) `(+ '0 z) ⇒ (fix z)` by both
