@@ -112,7 +112,40 @@ Landed (branch `mdd/c3-composition`, all green + committed):
   plumbing), re_extract_else, logic_not_t_nil, re_val_var_insert,
   evalOpt_substTerm_subst1 confirmed.
 
-REMAINING for end-to-end (precise recipe, designed and ready to implement):
+## STATUS UPDATE (2026-06-09, later): END-TO-END LANDED (pending audit #38)
+
+`my_len_my_app_real_mirror` (Tests/DriverTests.lean) — the driver replays the REAL
+`simple.proof-log` end-to-end; `#print axioms` = `[propext, Classical.choice,
+Quot.sound]` (no sorryAx); type = the conditional generic mirror
+`∀ env, total:my-len → total:my-app → total:fix → tp:my-len → ∃N∀f≥N, eval
+(equal (my-len (my-app x y)) (+ (my-len x) (my-len y))) = some t`, conclusion
+machine-generated from the parsed formula. Coverage (kernel-checked, quantified
+env): REPLAYED 5/38 — my-len-my-app, sq-rewrites ×2 (`cond[total:sq]`), len2-app,
+len2-app-helper (the scaffold generalized to 01/04 without target-specific work).
+
+Final pieces landed beyond the planned recipe (all driven by real-tree errors):
+- `replayLiteralChain`: `:NOT-FLG T` literals — ACL2's rewriter works on the ATOM
+  (paths are atom-relative); chain the atom, lift through `not` by unary congruence.
+- Branch-frame STRIP: ACL2's `rewrite-if` keeps a resolved if on the gstack, so
+  nodes after a chain-root if-simplification carry the surviving branch's path
+  frame; `replayRewrites` records consumed branch indices, `emitCongruence`
+  validates+drops them.
+- `commutativity-of-+`/`-2-` nodes chain their CHILDREN at depth+1 (the rule step
+  alone is not the recorded rhs — same recipe as definition nodes).
+- `groundZeroDefs` (fix) folded into `Development.toWorld`.
+- `replayProofConditional` binds ONLY hypotheses the proof actually uses
+  (unused offers must not weaken the statement).
+- Pinning is PROVISIONING: moved uniformly into `replayClause` (case lambdas no
+  longer pin); no-hypothesis → skip, the value layer hard-fails at use.
+- `acl2-numberp` added to the dpUnary registry.
+- Coverage `tryReplay` → the conditional harness over a QUANTIFIED env,
+  `Meta.check`ed, conditions reported per theorem.
+
+Remaining in c3: #38 audit (next, before claiming), then #53 preprocess-chain
+composition; frontier list per coverage (car-cons rune, pushed≠pool-root on
+multi-literal pushes, 2-IH/multi-var measures, clause-context-resolution, …).
+
+## The original remaining-work recipe (now landed, kept for the record):
 1. **replayInduction** (in replayClause's induction branch):
    - validate the emitted justification shape: measure `(acl2-count v)`, rel `o<`,
      single controller, step case tests `[(consp v)]` with IH `v:=(cdr v)` (other

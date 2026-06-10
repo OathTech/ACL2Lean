@@ -117,14 +117,23 @@ def corpus : List (String × String) :=
     world is PROJECTED from the development and REFLECTED concretely (P4); structural facts
     are DERIVED by the driver (P3). A message that is neither a `replayClause`/`replayNode`/
     `replayLiteral` frontier flags a real bug in the new code, not an expected frontier. -/
-def tryReplay (w : World) (cp : ClauseProof) : TermElabM String := do
+def tryReplay (w : World) (tps : List (String × SExpr)) (cp : ClauseProof) :
+    TermElabM String := do
   let wExpr ← reflectWorld w
-  let emptyEnv ← Term.elabTerm (← `(({} : Env))) none
-  let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := emptyEnv, worldVal := w }
-  try
-    let _ ← replayProof cfg cp
-    return "REPLAYED ✓"
-  catch e => return s!"FAIL: {(← e.toMessageData.toString).replace "\n" " "}"
+  -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge
+  withOptions (fun o => o.set `maxHeartbeats (1000000 : Nat)) <|
+    Core.withCurrHeartbeats <| tryCatchRuntimeEx
+    (try
+      let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
+        let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
+        let (prf, conds) ← replayProofConditional cfg tps cp
+        return (← Meta.mkLambdaFVars #[envFV] prf, conds)
+      Meta.check p.1
+      let condStr := if p.2.isEmpty then "" else s!" cond[{", ".intercalate p.2}]"
+      return s!"REPLAYED ✓{condStr}"
+    catch e => return s!"FAIL: {(← e.toMessageData.toString).replace "\n" " "}")
+    (fun e =>
+      return s!"FAIL: (runtime: {(← e.toMessageData.toString).replace "\n" " "})")
 
 /-- Attempt the DP-lift replay of one discharge leaf: prove the discharge node's
     claim `∃N∀f≥N, eval (disjoin clause) = some t` over a QUANTIFIED env (the
@@ -201,10 +210,10 @@ elab "#driver_coverage" : command => do
             -- Discharge leaves (decision-procedure nodes): emission-complete under the
             -- ratified carve-out; attempt the DP-lift replay (c1) per leaf.
             let dis := theoremDischargeLeaves cp
-            let status ← tryReplay w cp
-            if status == "REPLAYED ✓" then replayed := replayed + 1
-            let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
             let tps := developmentTPs dev
+            let status ← tryReplay w tps cp
+            if status.startsWith "REPLAYED ✓" then replayed := replayed + 1
+            let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
             let mut disParts : List String := []
             for (id, o, clause) in dis do
               dpTotal := dpTotal + 1

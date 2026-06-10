@@ -313,30 +313,51 @@ example :
 
 #print axioms sq_real_mirror
 
-/-! ## END-TO-END on the HARD real tree — `my-len-my-app` (expected frontier).
+/-! ## END-TO-END on the real inductive tree — `my-len-my-app`.
 
-Running the driver on the real `simple.proof-log` (the inductive `my-len-my-app`)
-surfaces exactly where the driver currently stops — it must fail-closed cleanly, not
-silently or with a fake proof. (Honest gap-surfacing per the adversarial audit.) -/
+The driver replays the REAL `simple.proof-log` end-to-end: WF-induction scaffold from
+the emitted measure justification, both case-clause spines, the solidify IH bridge —
+producing the CONDITIONAL generic mirror (totality + TP obligations explicit in the
+type, machine-generated from the development; no sorryAx). -/
 private def simpleLog : String := include_str "../acl2_samples/simple.proof-log"
 def mylenRealProof : Option ClauseProof := do
   let log ← (ProofLog.parse simpleLog).toOption
   let dev ← (ClauseTree.buildDevelopment log).toOption
   findThm dev "my-len-my-app"
 
-elab "#mylen_real_frontier" : command => Elab.Command.liftTermElabM do
+/-- The parsed development of `simple.proof-log` (world + theorem + TPs all
+    projected from THIS — the only input is the log). -/
+def simpleDevelopment : Development :=
+  (((ProofLog.parse simpleLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world simpleWorld from simpleDevelopment
+
+/-- The emitted TP corollaries of the development (my-len, my-app). -/
+def simpleTPs : List (String × SExpr) := simpleDevelopment.typePrescriptions
+
+/-- THE c3 TARGET: drive the REAL `my-len-my-app` tree end-to-end — the WF-induction
+    scaffold from the EMITTED measure justification, the clause spines, the solidify
+    IH bridge — as the CONDITIONAL generic mirror (totality + TP hypotheses
+    machine-generated from the development; the c2 pattern). -/
+elab "acl2_replay_mylen_real% " : term => do
   let cpOpt ← unsafe evalExpr (Option ClauseProof)
     (mkApp (mkConst ``Option [0]) (mkConst ``ACL2.ClauseProof)) (mkConst ``mylenRealProof)
   let some cp := cpOpt | throwError "mylenRealProof: parse/extract failed"
-  let emptyEnv ← Term.elabTerm (← `(({} : Env))) none
-  let cfg : ReplayConfig := { worldExpr := mkConst ``World.empty, envExpr := emptyEnv }
-  try
-    let _ ← replayProof cfg cp
-    throwError "expected my-len-my-app to hit a frontier, but the driver SUCCEEDED"
-  catch e =>
-    logInfo m!"real my-len-my-app frontier (expected — inductive tree not yet supported): {e.toMessageData}"
+  withLocalDeclD `env (mkConst ``Env) fun env => do
+    let cfg : ReplayConfig :=
+      { worldExpr := mkConst ``simpleWorld, envExpr := env,
+        worldVal := simpleDevelopment.toWorld }
+    let (proof, conds) ← replayProofConditional cfg simpleTPs cp
+    logInfo m!"my-len-my-app replayed; conditions: {conds}"
+    mkLambdaFVars #[env] proof
 
-#mylen_real_frontier
+/-- The first DRIVER-replayed INDUCTIVE theorem (conditional on the emitted
+    totality/TP facts — the obligations are explicit in the type). -/
+def my_len_my_app_real_mirror := acl2_replay_mylen_real%
+
+#print axioms my_len_my_app_real_mirror
+
 
 /-! ## BRIDGE — use the driver's output to prove the corresponding NATIVE Lean fact.
 

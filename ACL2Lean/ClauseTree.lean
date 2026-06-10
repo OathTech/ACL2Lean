@@ -95,20 +95,45 @@ inductive Development where
   | bind (event : WorldEvent) (rest : Development)
   | done
   deriving Repr, Inhabited
+/-- ACL2 GROUND-ZERO definitions present in EVERY session's world (the bootstrap
+    defuns the replay's `definition:` runes can cite without a logged `(:DEFUN …)`).
+    Transcribed from the ACL2 sources; each entry's provenance is its comment.
+    The eventual alternative is emission-at-use (TODO emission backlog) — until
+    then this curated list is the Lean model of ACL2's ground zero, like
+    `callBuiltin`. -/
+def groundZeroDefs : List (Symbol × List Symbol × SExpr) :=
+  [ -- (defun fix (x) (if (acl2-numberp x) x 0))   [ACL2 axioms.lisp]
+    ({ name := "fix" }, [{ name := "x" }],
+      .cons (.atom (.symbol { name := "if" }))
+        (.cons (.cons (.atom (.symbol { name := "acl2-numberp" }))
+                 (.cons (.atom (.symbol { name := "x" })) .nil))
+          (.cons (.atom (.symbol { name := "x" }))
+            (.cons (.cons (.atom (.symbol { name := "quote" }))
+                     (.cons (.atom (.number (.int 0))) .nil)) .nil))))]
+
 
 /-- Project the `evalOpt` `World` from a reconstructed `Development`: fold each `defun`
     event's `(name, formals, body)` into `World.defs`. The world the replay reasons over is
     thus DERIVED from the parsed proof-log, not hand-written — so the only input to a replay
     is the log. (`typePrescription`/`theorem` events don't extend `defs`.) The `defun` name
-    is a `String`; the key uses the default `Symbol` package, matching the symbols the parser
-    produces in bodies/calls. -/
+    is a `String`; the key uses the default `Symbol` package, matching the symbols the parser produces in bodies/calls. -/
 def Development.toWorld : Development → World
-  | .done => World.empty
+  | .done =>
+    { defs := groundZeroDefs.foldl (fun m (s, fb) => m.insert s fb) (DefMap.mk []) }
   | .bind ev rest =>
     let w := rest.toWorld
     match ev with
     | .defun name formals body _ _ => { w with defs := w.defs.insert { name := name } (formals, body) }
     | _ => w
+
+/-- The emitted type-prescription corollaries of a development (fn name ↦
+    corollary term) — the type facts the replay consumes as hypotheses. -/
+def Development.typePrescriptions : Development → List (String × SExpr)
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .typePrescription n cor _ _ => (n, cor) :: rest.typePrescriptions
+    | _ => rest.typePrescriptions
 
 namespace ClauseTree
 

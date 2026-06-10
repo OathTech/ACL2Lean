@@ -2181,6 +2181,23 @@ theorem pinVal_spec {w : World} {env : Env} {t : SExpr}
 theorem logic_not_t_nil : Logic.not SExpr.t = SExpr.nil := by
   simp [Logic.not, Logic.toBool]
 
+/-- Extract `integerp v = t` from a TRUE type-prescription corollary of the
+    standard `(IF (INTEGERP v) … 'NIL)` shape (lifted: `cond (toBool (integerp v))
+    X nil = t`): the recognizer is two-valued, and a false test would make the
+    cond `nil ≠ t`. -/
+theorem tp_cond_integerp_t (v X : SExpr)
+    (h : cond (Logic.toBool (Logic.integerp v)) X SExpr.nil = SExpr.t) :
+    Logic.integerp v = SExpr.t := by
+  match v with
+  | .atom (.number (.int _)) => rfl
+  | .atom (.number (.rational _ _)) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+  | .atom (.number (.decimal _ _)) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+  | .atom (.symbol _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+  | .atom (.keyword _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+  | .atom (.string _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+  | .nil => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+  | .cons _ _ => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+
 /-- A variable's value at an `insert`-updated env (the IH instantiation env). -/
 theorem re_val_var_insert (w : World) (env : Env) (s : Symbol) (v : SExpr) :
     ∃ N, ∀ f ≥ N, evalOpt f w (env.insert s v) (.atom (.symbol s)) = some v :=

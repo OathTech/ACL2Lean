@@ -69,12 +69,16 @@ end-to-end via the driver, not the hand proofs.
 Target: `my-len-my-app` (then `app-assoc`) replayed by the driver from the real
 log, `#print axioms` clean. The pieces exist; c3 wires them:
 
-- [ ] **Induction scaffold (WF)** — `replayClause` recurses `push-clause → *1 →
-      case children`, building the induction from the EMITTED measure
-      justification (measure/rel/controllers/`:CASES` tests + IH substitutions —
-      the measure-emission track's output), threading case-hyp + IH via
-      `ReplayCtx`. Includes case↔child linking (match `:CASES` tests to `*1/k`
-      input clauses — NOT by order). (task #52)
+- [x] **Induction scaffold (WF)** — LANDED (pending audit #38):
+      `my_len_my_app_real_mirror` replays the real `simple.proof-log` end-to-end
+      as the conditional generic mirror (`total:my-len/my-app/fix + tp:my-len`
+      bound hypotheses; only USED hypotheses bound); axioms
+      `[propext, Classical.choice, Quot.sound]`. Coverage (quantified env,
+      `Meta.check`ed): REPLAYED 5/38 — + sq-rewrites ×2, len2-app,
+      len2-app-helper. Includes `replayLiteralChain` (`:NOT-FLG` atom chains),
+      rewrite-if branch-frame STRIP, comm-rune children chaining,
+      `groundZeroDefs` (fix) in `toWorld`, uniform pinning in `replayClause`.
+      (task #52; details in docs/plans/2026-06-09_c3-composition-plan.md)
 - [ ] **Preprocess-chain replay** — the emitted preprocess items (final-implies
       expansion, if-folds, abbreviation steps, clause-level chains) compose
       formula → clause, so `Goal'`-style steps and discharge-leaf statements

@@ -225,16 +225,18 @@ private def rebuild (fn : Symbol) (arity argIdx : Nat) (sub : SExpr) (siblings :
 /-- Apply one congruence step. `inner : ∃N∀f≥N, eval (sub) = eval (sub')`; returns
     `∃N∀f≥N, eval (fn … sub …) = eval (fn … sub' …)`. -/
 private def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : Expr) : MetaM Expr := do
-  let ns ← proveNotSpecial st.fn
   let fnE := reflectSymbol st.fn
   match st.arity, st.argIdx, st.siblings with
   | 1, 0, _ =>
+    let ns ← proveNotSpecial st.fn
     return mkAppN (mkConst ``evalOpt_congr_unary)
       #[w, e, fnE, reflectSExpr sub, reflectSExpr sub', ns, inner]
   | 2, 0, [b] =>
+    let ns ← proveNotSpecial st.fn
     return mkAppN (mkConst ``evalOpt_congr_binary_left)
       #[w, e, fnE, reflectSExpr sub, reflectSExpr sub', reflectSExpr b, ns, inner]
   | 2, 1, [a] =>
+    let ns ← proveNotSpecial st.fn
     return mkAppN (mkConst ``evalOpt_congr_binary_right)
       #[w, e, fnE, reflectSExpr a, reflectSExpr sub, reflectSExpr sub', ns, inner]
   | 3, 0, [t, el] =>
@@ -247,10 +249,27 @@ private def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : E
 
 /-- Lift a node proof `nodeProof : ∃N∀f≥N, eval lhs = eval rhs` to the whole literal
     `term`, DIRECTED by the node's `:PATH` (`frames`) — no subterm search. Returns the
-    lifted proof and the rewritten term `term[lhs := rhs]`. -/
+    lifted proof and the rewritten term `term[lhs := rhs]`.
+
+    `strip`: branch frames already CONSUMED by earlier chain steps. ACL2's
+    `rewrite-if` recurses into a resolved if's surviving branch with the if still
+    on its gstack, so a node logged after an if-simplification carries the
+    branch's `:PATH` frame even though the chain's current term no longer has the
+    if — each `k ∈ strip` (in order) must match and is dropped. -/
 def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
-    (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0) : MetaM (Expr × SExpr) := do
-  let rel ← ofExcept (relativizeFrames frames depth)
+    (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0) (strip : List Nat := [])
+    : MetaM (Expr × SExpr) := do
+  let mut rel ← ofExcept (relativizeFrames frames depth)
+  for k in strip do
+    match rel with
+    | .arg idx _ :: restF =>
+      unless idx == k do
+        throwError "emitCongruence: chain consumed branch frame {k}, but the node's \
+                    path has arg {idx} there"
+      rel := restF
+    | _ =>
+      throwError "emitCongruence: chain consumed branch frame {k}, but the node's \
+                  path has no arg frame there"
   let path ← ofExcept (pathStepsFromFrames term rel lhs)
   -- Fold from the innermost path step outward.
   let mut inner := nodeProof
@@ -327,6 +346,12 @@ structure ReplayCtx where
       `= .nil`). Solidify nodes consume by `equivSource` index; recognizer nodes
       by term (directly, or through a `(not …)` wrapper). -/
   litFacts : List (Nat × SExpr × Expr) := []
+  /-- The bound CONDITIONAL hypotheses (the generic mirror's telescope):
+      per defined fn, its totality hypothesis; and — when the development emitted
+      a :TYPE-PRESCRIPTION — its lifted-corollary hypothesis (with the corollary
+      term). The pinning step consumes these. -/
+  totalHyps : List (String × Expr) := []
+  tpHyps : List (String × SExpr × Expr) := []
   ih : Option Expr := none
 
 def ReplayCtx.empty : ReplayCtx := {}
@@ -413,6 +438,7 @@ def dpUnary : List (String × Name × Name) :=
    ("zp",       ``Logic.zp,       ``callBuiltin_zp),
    ("consp",    ``Logic.consp,    ``callBuiltin_consp),
    ("integerp", ``Logic.integerp, ``callBuiltin_integerp),
+   ("acl2-numberp", ``Logic.acl2Numberp, ``callBuiltin_acl2_numberp),
    ("car",      ``Logic.car,      ``callBuiltin_car),
    ("cdr",      ``Logic.cdr,      ``callBuiltin_cdr)]
 
@@ -902,6 +928,8 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       mkAppM ``fuel_chain_eq #[stepA, fixEq]
     | _ => throwError "unicity-of-0: lhs not (binary-+ '0 z): {repr lhs}"
   | "rewrite", "commutativity-of-+" =>
+    -- `(+ a b) ⇒ (+ b a)`, then the node's children chain on the rule's rhs
+    -- (their paths carry an `(RHS . …)` boundary frame — depth+1) to the recorded rhs.
     match lhs with
     | .cons (.atom (.symbol plusS)) (.cons a (.cons b .nil)) =>
       unless plusS.name == "binary-+" do
@@ -911,10 +939,21 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       let va ← ctxValExpr cfg ctx a
       let vb ← ctxValExpr cfg ctx b
       let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
-      mkAppM ``re_plus_comm
+      let ruleEq ← mkAppM ``re_plus_comm
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, va, vb, hNoPlus, ha, hb]
+      let swapped : SExpr :=
+        .cons (.atom (.symbol plusS)) (.cons b (.cons a .nil))
+      let (chainOpt, finalTerm) ← replayRewrites cfg ctx swapped children (depth + 1)
+      unless finalTerm == rhs do
+        throwError "commutativity-of-+: children chain reached {repr finalTerm}, \
+                    node rhs is {repr rhs}"
+      match chainOpt with
+      | none => return ruleEq
+      | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "commutativity-of-+: lhs not (binary-+ a b): {repr lhs}"
   | "rewrite", "commutativity-2-of-+" =>
+    -- `(+ a (+ b c)) ⇒ (+ b (+ a c))`, then the children chain on the rule's rhs
+    -- at depth+1 to the recorded rhs.
     match lhs with
     | .cons (.atom (.symbol plusS))
         (.cons a (.cons (.cons (.atom (.symbol plusS2)) (.cons b (.cons c .nil))) .nil)) =>
@@ -927,9 +966,19 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       let vb ← ctxValExpr cfg ctx b
       let vc ← ctxValExpr cfg ctx c
       let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
-      mkAppM ``re_plus_comm2
+      let ruleEq ← mkAppM ``re_plus_comm2
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, reflectSExpr c,
           va, vb, vc, hNoPlus, ha, hb, hc]
+      let swapped : SExpr :=
+        .cons (.atom (.symbol plusS))
+          (.cons b (.cons (.cons (.atom (.symbol plusS2)) (.cons a (.cons c .nil))) .nil))
+      let (chainOpt, finalTerm) ← replayRewrites cfg ctx swapped children (depth + 1)
+      unless finalTerm == rhs do
+        throwError "commutativity-2-of-+: children chain reached {repr finalTerm}, \
+                    node rhs is {repr rhs}"
+      match chainOpt with
+      | none => return ruleEq
+      | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "commutativity-2-of-+: lhs not (+ a (+ b c)): {repr lhs}"
   | "definition", _ => replayDefinition cfg ctx n depth
   | "fake-rune-for-anonymous-enabled-rule", _ =>
@@ -980,14 +1029,27 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     the composed `∃N∀f≥N, eval start = eval finalTerm` (or `none` if the chain is
     empty) and the final term. -/
 partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr) :
-    List ProofNode → (depth : Nat := 0) → MetaM (Option Expr × SExpr)
-  | [], _ => return (none, start)
-  | n :: rest, depth => do
+    List ProofNode → (depth : Nat := 0) → (strip : List Nat := []) →
+    MetaM (Option Expr × SExpr)
+  | [], _, _ => return (none, start)
+  | n :: rest, depth, strip => do
     let (lhs, rhs) := nodeLhsRhs n
     let nodeEq ← replayNode cfg ctx n depth
     let (lifted, newTerm) ←
-      emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth
-    let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth
+      emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth strip
+    -- an if-simplification AT THE CHAIN ROOT selects a branch; ACL2's rewrite-if
+    -- keeps the if on the gstack while rewriting inside that branch, so the
+    -- remaining nodes' paths carry the branch frame — record it for stripping.
+    let strip' ←
+      if (runeOf n).1 == "if-simplification" && lhs == start then
+        match lhs with
+        | .cons _ (.cons _ (.cons thn (.cons els .nil))) =>
+          if rhs == thn then pure (strip ++ [2])
+          else if rhs == els then pure (strip ++ [3])
+          else throwError "replayRewrites: root if-simplification rhs is neither branch"
+        | _ => throwError "replayRewrites: root if-simplification lhs not a 3-arg if"
+      else pure strip
+    let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth strip'
     match restProof with
     | none => return (some lifted, finalTerm)
     | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
@@ -995,9 +1057,37 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
 end
 
 
+/-- Replay a literal's rewrite chain at the LITERAL level. ACL2's rewriter works on
+    the literal's ATOM (`rewrite-atm`): for a `:NOT-FLG T` literal `(not atm)` the
+    node `:PATH`s are atom-relative, so chain on the atom and lift the composed
+    eval-equality back through the `not` wrapper by unary congruence. Returns the
+    literal-level chain (if any) and the final literal. -/
+def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof)
+    : MetaM (Option Expr × SExpr) := do
+  if lp.notFlg then
+    let .cons (.atom (.symbol notS)) (.cons atm .nil) := lp.literal
+      | throwError "replayLiteralChain: notFlg literal is not (not atm): {repr lp.literal}"
+    unless notS.name == "not" do
+      throwError "replayLiteralChain: notFlg literal head {notS.name} ≠ not"
+    let (chainOpt, finalAtom) ← replayRewrites cfg ctx atm lp.nodes 0
+    let finalLit := SExpr.cons (.atom (.symbol notS)) (.cons finalAtom .nil)
+    match chainOpt with
+    | none => return (none, finalLit)
+    | some ch =>
+      let ns ← proveNotSpecial notS
+      let lifted := mkAppN (mkConst ``evalOpt_congr_unary)
+        #[cfg.worldExpr, cfg.envExpr, reflectSymbol notS, reflectSExpr atm,
+          reflectSExpr finalAtom, ns, ch]
+      return (some lifted, finalLit)
+  else
+    replayRewrites cfg ctx lp.literal lp.nodes 0
+
 /-- Replay a literal that closes to `t`: chain its rewrite nodes, then close with the
     terminal `equal-self` node. Returns `∃N∀f≥N, eval lp.literal = some t`. -/
 def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : MetaM Expr := do
+  if lp.notFlg then
+    throwError "replayLiteral: notFlg closing literal unsupported (frontier) — \
+                {repr lp.literal}"
   match lp.nodes.reverse with
   | [] => throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
   | closer :: revRest =>
@@ -1070,7 +1160,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
       let vLit ← ctxValExpr cfg ctx lp.literal
       let pLit ← ctxValProof cfg ctx lp.literal
       -- its rewrite chain (if any): literal ⇒ result, and the falsity fact bridges
-      let (chainOpt, finalT) ← replayRewrites cfg ctx lp.literal lp.nodes 0
+      let (chainOpt, finalT) ← replayLiteralChain cfg ctx lp
       unless finalT == lp.result do
         throwError "replayClauseSpine: literal {idx} chain reached {repr finalT}, \
                     recorded result is {repr lp.result}"
@@ -1101,13 +1191,174 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
           reflectSExpr restTerm, vLit, pLit, hthen, helse]
 
+/-! ## The c3 induction scaffold + the conditional-mirror harness
+
+The WF-induction scaffold consumes the EMITTED justification (measure / rel /
+controllers / per-case tests + IH substitutions — the measure-emission track's
+output) and instantiates `acl2_induction_consp` (strong induction on
+`SExpr.acl2Count` — the well-foundedness construction Lean owns; everything else
+is read off the tree). Case children are SELF-CONTAINED clause proofs (the spine's
+split is the case hypothesis); the scaffold only peels the case literals
+(`re_extract_else`) and bridges the IH (`evalOpt_substTerm_subst1`).
+
+Opaque user-fn values are PINNED from the bound totality hypotheses (`pinVal` —
+choice-based, no Exists.elim plumbing), refined to int-atom shape when the fn's
+emitted `:TYPE-PRESCRIPTION` corollary has the standard `(IF (INTEGERP …) … 'NIL)`
+shape. The hypotheses themselves are machine-generated from the development
+(`replayProofConditional`) — the c2 conditional-proof pattern: the obligations are
+explicit in the returned proof's type, reported as conditions. -/
+
+/-- Expr-level SExpr application `(fn a₁ … aₙ)` from argument `Expr`s. -/
+def mkAppListExpr (fn : Symbol) (args : Array Expr) : Expr :=
+  let spine := args.foldr (fun a acc => mkApp2 (mkConst ``SExpr.cons) a acc)
+    (mkConst ``SExpr.nil)
+  mkApp2 (mkConst ``SExpr.cons)
+    (mkApp (mkConst ``SExpr.atom) (mkApp (mkConst ``Atom.symbol) (reflectSymbol fn)))
+    spine
+
+/-- `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w e t = some v` with the term as an `Expr`. -/
+def mkConvPropEx (w e tE : Expr) : MetaM Expr := do
+  withLocalDeclD `N (mkConst ``Nat) fun nV => do
+    let inner ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+      let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+        let ge ← mkAppM ``GE.ge #[fV, nV]
+        let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
+        let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vV
+        mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
+      mkAppM ``Exists #[← mkLambdaFVars #[vV] body]
+    mkAppM ``Exists #[← mkLambdaFVars #[nV] inner]
+
+/-- `∃ N, ∀ f ≥ N, evalOpt f w e t = some v` with term and value as `Expr`s. -/
+def mkValConvPropEx (w e tE vE : Expr) : MetaM Expr := do
+  withLocalDeclD `N (mkConst ``Nat) fun nV => do
+    let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+      let ge ← mkAppM ``GE.ge #[fV, nV]
+      let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
+      let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
+      mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
+    mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
+
+/-- The totality-hypothesis TYPE for an n-ary defined fn:
+    `∀ env' (a₁…aₙ : SExpr), conv a₁ → … → ∃N ∃v ∀f≥N, eval env' (fn a…) = some v`. -/
+def mkTotalityHypType (cfg : ReplayConfig) (fn : Symbol) (arity : Nat) : MetaM Expr := do
+  let _ := cfg
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let decls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      (Array.range arity).map fun i =>
+        (Name.mkSimple s!"a{i}", .default, fun _ => pure (mkConst ``SExpr))
+    withLocalDecls decls fun argVs => do
+      let appT := mkAppListExpr fn argVs
+      let prems ← argVs.toList.mapM (fun a => mkConvPropEx cfg.worldExpr envV a)
+      let concl ← mkConvPropEx cfg.worldExpr envV appT
+      let body ← prems.foldrM (fun h acc => mkArrow h acc) concl
+      mkForallFVars (#[envV] ++ argVs) body
+
+/-- The TP-corollary hypothesis TYPE: `∀ env' args… (v : SExpr),
+    (∃N∀f≥N, eval env' (fn args) = some v) → <corollary lifted, (fn formals) ↦ v> = t`.
+    The lift hard-fails if the corollary mentions anything but the application
+    (the supported corollary shape — frontier otherwise). -/
+def mkTpHypType (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
+    (cor : SExpr) : MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let decls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      (Array.range formals.length).map fun i =>
+        (Name.mkSimple s!"a{i}", .default, fun _ => pure (mkConst ``SExpr))
+    withLocalDecls decls fun argVs => do
+      withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+        let appT := mkAppListExpr fn argVs
+        let prem ← mkValConvPropEx cfg.worldExpr envV appT vV
+        -- the corollary's application pattern: (fn formals…)
+        let appPat : SExpr :=
+          .cons (.atom (.symbol fn))
+            ((formals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
+        let lifted ← dpValExpr [(appPat, vV)]
+          (fun s => throwError "mkTpHypType: corollary of {fn.name} has a free \
+                                variable {s.name} outside the application (frontier)")
+          cor
+        let concl ← mkEq lifted (mkConst ``SExpr.t)
+        mkForallFVars (#[envV] ++ argVs ++ #[vV]) (← mkArrow prem concl)
+
+/-- PIN the value of every user-fn application occurring in `t` (bottom-up) from
+    the bound totality hypotheses, refining to the int-atom shape when the fn's
+    emitted TP corollary has the standard `(IF (INTEGERP app) … 'NIL)` shape. -/
+partial def pinTermOpaques (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx)
+    (t : SExpr) : MetaM ReplayCtx := do
+  match t with
+  | .cons (.atom (.symbol fs)) argSpine =>
+    if fs.name == "quote" then return ctx
+    let args := (argSpine.toList?).getD []
+    let mut ctx := ctx
+    for a in args do
+      ctx ← pinTermOpaques cfg envExpr ctx a
+    if (cfg.worldVal.defs.get? fs).isNone then return ctx
+    if (ctx.val? t).isSome then return ctx
+    -- PROVISIONING, not consumption: with no totality hypothesis bound (the
+    -- unconditional harness) the value is simply not offered — a replay that
+    -- NEEDS it hard-fails at the use site (`dpValExpr`), never silently.
+    let some hyp := ctx.totalHyps.lookup fs.name
+      | return ctx
+    let argConvs ← args.mapM (fun a => proveConv cfg envExpr ctx a)
+    let exConv := mkAppN hyp
+      ((#[envExpr] : Array Expr) ++ (args.map reflectSExpr).toArray ++ argConvs.toArray)
+    let value ← mkAppM ``pinVal #[exConv]
+    let conv ← mkAppM ``pinVal_spec #[exConv]
+    match ctx.tpHyps.find? (fun (n, _, _) => n == fs.name) with
+    | some (_, cor, tpHyp) =>
+      match cor with
+      | .cons (.atom (.symbol ifS))
+          (.cons (.cons (.atom (.symbol intS)) (.cons _ .nil))
+            (.cons thenC (.cons _ .nil))) =>
+        unless ifS.name == "if" && intS.name == "integerp" do
+          -- unsupported corollary shape: pin unrefined
+          return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
+        -- fact : lifted-corollary(value) = t
+        let fact := mkAppN tpHyp
+          ((#[envExpr] : Array Expr) ++ (args.map reflectSExpr).toArray ++ #[value, conv])
+        -- X = the lifted then-branch at `value` (for the extraction lemma);
+        -- the application pattern is the corollary's integerp argument
+        let .cons _ (.cons (.cons _ (.cons appPat2 .nil)) _) := cor
+          | throwError "pinTermOpaques: corollary destructure failed: {repr cor}"
+        let xLift ← dpValExpr [(appPat2, value)]
+          (fun s => throwError "pinTermOpaques: corollary free var {s.name}") thenC
+        let hInt ← mkAppM ``tp_cond_integerp_t #[value, xLift, fact]
+        let hkEx ← mkAppM ``logic_integerp_int #[value, hInt]
+        let k ← mkAppM ``Exists.choose #[hkEx]
+        let hvk ← mkAppM ``Exists.choose_spec #[hkEx]
+        let value' := mkApp (mkConst ``SExpr.atom)
+          (mkApp (mkConst ``Atom.number) (mkApp (mkConst ``Number.int) k))
+        let conv' ← mkAppM ``re_val_cast
+          #[cfg.worldExpr, envExpr, reflectSExpr t, value, value', conv, hvk]
+        return { ctx with vals := ctx.vals ++ [(t, value', conv')] }
+      | _ => return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
+    | none => return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
+  | _ => return ctx
+
+/-- Every term mentioned in a clause subtree (input clauses, node lhs/rhs, literal
+    results) — the pin-collection universe for a case child. -/
+partial def clauseSubtreeTerms (cn : ClauseNode) : List SExpr :=
+  let nodeTerms : ProofNode → List SExpr := fun n =>
+    let rec go : ProofNode → List SExpr
+      | .node _ lhs rhs cs _ => lhs :: rhs :: cs.flatMap go
+    go n
+  let itemTerms : ClauseItem → List SExpr := fun it =>
+    let rec goI : ClauseItem → List SExpr
+      | .literal lp => lp.literal :: lp.result :: lp.nodes.flatMap nodeTerms
+      | .step n => nodeTerms n
+      | .branch _ items => items.flatMap goI
+    goI it
+  cn.inputClause ++ cn.steps.flatMap (·.items.flatMap itemTerms)
+    ++ cn.children.flatMap clauseSubtreeTerms
+
+
+mutual
+
 /-- Replay a clause node: prove `∃N∀f≥N, eval (disjoinTerm inputClause) = some t`
     (for a single-literal clause this IS the literal/formula statement).
     Induction nodes hard-fail (the scaffold lands next); a pushed clause delegates
     to its pool-root child when the clauses coincide. -/
 partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) : MetaM Expr := do
   if cn.induction.isSome then
-    throwError "replayClause: induction scheme not yet supported (clause {cn.idStr})"
+    return ← replayInduction cfg ctx cn
   -- a push-clause node defers to its pool-root child (same clause)
   if cn.steps.any (fun s => s.processor.toLower == "push-clause") then
     match cn.children with
@@ -1120,7 +1371,168 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
   if lits.isEmpty then
     throwError "replayClause: no literal items in clause {cn.idStr} (preprocess-chain \
                 or discharge composition frontier)"
+  -- pin every user-fn application in this clause's subtree from the totality/TP
+  -- hypotheses (idempotent — already-pinned terms are skipped), so the spine's
+  -- value layer can lift opaque subterms under a quantified env
+  let mut ctx := ctx
+  for tm in (clauseSubtreeTerms cn).eraseDups do
+    ctx ← pinTermOpaques cfg cfg.envExpr ctx tm
   replayClauseSpine cfg ctx lits
+
+
+/-- Replay an INDUCTION pool-root from its EMITTED justification. v1 shape:
+    measure `(acl2-count v)` under `o<`, one controller, step case `[(consp v)]`
+    with IH `v := (cdr v)` (other variables identity), base `[(not (consp v))]`,
+    single-literal pushed clause. Anything else hard-fails (frontier). -/
+partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) :
+    MetaM Expr := do
+  let some ind := cn.induction | throwError "replayInduction: no induction"
+  -- 1. validate the justification shape
+  let .cons (.atom (.symbol acS)) (.cons (.atom (.symbol cvar)) .nil) := ind.measure
+    | throwError "replayInduction: measure {repr ind.measure} is not (acl2-count v) (frontier)"
+  unless acS.name == "acl2-count" do
+    throwError "replayInduction: measure head {acS.name} (frontier)"
+  let relOk := match ind.rel with
+    | .atom (.symbol r) => r.name == "o<"
+    | _ => false
+  unless relOk do throwError "replayInduction: rel {repr ind.rel} ≠ o< (frontier)"
+  unless ind.controllers == [cvar] do
+    throwError "replayInduction: controllers {repr ind.controllers} ≠ [{cvar.name}] (frontier)"
+  let cvarT : SExpr := .atom (.symbol cvar)
+  let consT : SExpr := .cons (.atom (.symbol { name := "consp" })) (.cons cvarT .nil)
+  let notConsT : SExpr := .cons (.atom (.symbol { name := "not" })) (.cons consT .nil)
+  let cdrT : SExpr := .cons (.atom (.symbol { name := "cdr" })) (.cons cvarT .nil)
+  let some stepCase := ind.cases.find? (·.tests == [consT])
+    | throwError "replayInduction: no step case with tests [(consp {cvar.name})] (frontier)"
+  unless ind.cases.any (·.tests == [notConsT]) do
+    throwError "replayInduction: no base case with tests [(not (consp {cvar.name}))] (frontier)"
+  let [alist] := stepCase.alists
+    | throwError "replayInduction: step case has {stepCase.alists.length} IHs (frontier: exactly 1)"
+  for (v, tm) in alist do
+    if v == cvar then
+      unless tm == cdrT do
+        throwError "replayInduction: IH maps {v.name} to {repr tm}, expected (cdr {cvar.name})"
+    else
+      unless tm == .atom (.symbol v) do
+        throwError "replayInduction: IH maps non-controller {v.name} to {repr tm} (frontier)"
+  -- 2. the pushed clause (v1: single literal) and IH instantiation
+  let [pushedLit] := cn.inputClause
+    | throwError "replayInduction: multi-literal pushed clause (frontier)"
+  let ihInst := ACL2.Replay.substTerm [cvar] [cdrT] pushedLit
+  let notIhInst : SExpr := .cons (.atom (.symbol { name := "not" })) (.cons ihInst .nil)
+  -- 3. link children by their first literal
+  let some stepChild := cn.children.find? (·.inputClause.head? == some notConsT)
+    | throwError "replayInduction: no step child (first literal (not (consp {cvar.name})))"
+  let some baseChild := cn.children.find? (·.inputClause.head? == some consT)
+    | throwError "replayInduction: no base child (first literal (consp {cvar.name}))"
+  unless cn.children.length == 2 do
+    throwError "replayInduction: {cn.children.length} children (frontier: exactly 2)"
+  unless baseChild.inputClause == [consT, pushedLit] do
+    throwError "replayInduction: base child clause {repr baseChild.inputClause} ≠ \
+                [(consp v), pushed]"
+  unless stepChild.inputClause == [notConsT, notIhInst, pushedLit] do
+    throwError "replayInduction: step child clause {repr stepChild.inputClause} ≠ \
+                [(not (consp v)), (not IH), pushed]"
+  let w := cfg.worldExpr
+  let pushedE := reflectSExpr pushedLit
+  let tC := mkConst ``SExpr.t
+  let nilC := mkConst ``SExpr.nil
+  -- 4. P : SExpr → Prop
+  let P ← withLocalDeclD `xv (mkConst ``SExpr) fun xvV => do
+    let body ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
+      let hxTy ← mkValConvPropEx w eV (reflectSExpr cvarT) xvV
+      let goal ← mkValConvPropEx w eV pushedE tC
+      mkForallFVars #[eV] (← mkArrow hxTy goal)
+    mkLambdaFVars #[xvV] body
+  let conspOf := fun (v : Expr) => mkApp (mkConst ``Logic.consp) v
+  -- 5. the BASE lambda: ∀ v, consp v = nil → P v
+  let base ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+    let hcTy ← mkEq (conspOf vV) nilC
+    let inner ← withLocalDeclD `hc hcTy fun hC => do
+      let inner2 ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
+        let hxTy ← mkValConvPropEx w eV (reflectSExpr cvarT) vV
+        let inner3 ← withLocalDeclD `hx hxTy fun hX => do
+          let cfg' := { cfg with envExpr := eV }
+          -- opaque pinning happens inside replayClause (under THIS case env)
+          let ctxB : ReplayCtx :=
+            { ctx with varVals := [(cvar, vV, hX)], vals := [], litFacts := [] }
+          let pCl ← replayClause cfg' ctxB baseChild
+          -- peel the case literal: eval (consp v-term) = some nil (cast by hc)
+          let pTest ← ctxValProof cfg' ctxB consT
+          let pTestNil ← mkAppM ``re_val_cast
+            #[w, eV, reflectSExpr consT, conspOf vV, nilC, pTest, hC]
+          let pPushed ← mkAppM ``re_extract_else
+            #[w, eV, reflectSExpr consT, reflectSExpr quoteT, pushedE, tC, pCl, pTestNil]
+          mkLambdaFVars #[hX] pPushed
+        mkLambdaFVars #[eV] inner3
+      mkLambdaFVars #[hC] inner2
+    mkLambdaFVars #[vV] inner
+  -- 6. the STEP lambda: ∀ v, consp v ≠ nil → P (cdr v) → P v
+  let step ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+    let hneTy ← mkAppM ``Ne #[conspOf vV, nilC]
+    let inner ← withLocalDeclD `hne hneTy fun hNe => do
+      let ihTy := (mkApp P (mkApp (mkConst ``Logic.cdr) vV)).headBeta
+      let inner2 ← withLocalDeclD `ihp ihTy fun ihV => do
+        let inner3 ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
+          let hxTy ← mkValConvPropEx w eV (reflectSExpr cvarT) vV
+          let inner4 ← withLocalDeclD `hx hxTy fun hX => do
+            let cfg' := { cfg with envExpr := eV }
+            -- opaque pinning happens inside replayClause (under THIS case env)
+            let ctxS : ReplayCtx :=
+              { ctx with varVals := [(cvar, vV, hX)], vals := [], litFacts := [] }
+            let pCl ← replayClause cfg' ctxS stepChild
+            -- peel literal 1: (not (consp v-term)) value = Logic.not t = nil
+            let conspT ← mkAppM ``logic_consp_ne_nil_t #[vV, hNe]
+            let pNotC ← ctxValProof cfg' ctxS notConsT
+            let valEq ← mkAppM ``Eq.trans
+              #[← mkAppM ``congrArg #[mkConst ``Logic.not, conspT],
+                mkConst ``logic_not_t_nil]
+            let pNotCnil ← mkAppM ``re_val_cast
+              #[w, eV, reflectSExpr notConsT,
+                mkApp (mkConst ``Logic.not) (conspOf vV), nilC, pNotC, valEq]
+            let restTerm := disjoinTerm [notIhInst, pushedLit]
+            let p2 ← mkAppM ``re_extract_else
+              #[w, eV, reflectSExpr notConsT, reflectSExpr quoteT,
+                reflectSExpr restTerm, tC, pCl, pNotCnil]
+            -- the IH at e' = e.insert cvar (cdr v), bridged to e
+            let cdrVal := mkApp (mkConst ``Logic.cdr) vV
+            let e' ← mkAppM ``Std.HashMap.insert #[eV, reflectSymbol cvar, cdrVal]
+            let hx' ← mkAppM ``re_val_var_insert #[w, eV, reflectSymbol cvar, cdrVal]
+            let pIH' := mkAppN ihV #[e', hx']
+            let hCdrConv ← ctxValProof cfg' ctxS cdrT
+            let hNoLet ← proveByDecide
+              (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[pushedE]) (mkConst ``Bool.true))
+              "NoLet pushed"
+            let pBridge ← mkAppM ``evalOpt_substTerm_subst1
+              #[w, eV, reflectSymbol cvar, reflectSExpr cdrT, cdrVal, pushedE,
+                hNoLet, hCdrConv]
+            let pIHe ← mkAppM ``fuel_conv_of_eq #[pBridge, pIH']
+            -- (not ihInst) ⇒ some nil
+            let hNsNot ← proveNotSpecial { name := "not" }
+            let hNoNot ← proveNoShadow cfg { name := "not" }
+            let hrNot ← mkAppM ``callBuiltin_not #[tC]
+            let pNotIH ← mkAppM ``conv_builtin1
+              #[w, eV, reflectSymbol { name := "not" }, reflectSExpr ihInst, tC,
+                mkApp (mkConst ``Logic.not) tC, hNsNot, hNoNot, pIHe, hrNot]
+            let pNotIHnil ← mkAppM ``re_val_cast
+              #[w, eV, reflectSExpr notIhInst, mkApp (mkConst ``Logic.not) tC, nilC,
+                pNotIH, mkConst ``logic_not_t_nil]
+            let p3 ← mkAppM ``re_extract_else
+              #[w, eV, reflectSExpr notIhInst, reflectSExpr quoteT, pushedE, tC,
+                p2, pNotIHnil]
+            mkLambdaFVars #[hX] p3
+          mkLambdaFVars #[eV] inner4
+        mkLambdaFVars #[ihV] inner3
+      mkLambdaFVars #[hNe] inner2
+    mkLambdaFVars #[vV] inner
+  -- 7. apply the induction and instantiate at the ambient env's controller value
+  let indP ← mkAppM ``acl2_induction_consp #[P, base, step]
+  let hNotT ← proveIsNamedFalse cvar "t"
+  let hxv ← mkAppM ``re_val_var #[w, cfg.envExpr, reflectSymbol cvar, hNotT]
+  let xv0 ← dpConcVar cfg.envExpr cvar
+  return mkAppN indP #[xv0, cfg.envExpr, ← pure hxv] |>.headBeta
+
+end
 
 /-- Replay a whole theorem's proof tree to its mirror statement
     `∃N∀f≥N, eval cp.formula = some t`. -/
@@ -1128,5 +1540,60 @@ def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
   match cp.root with
   | none => throwError "replayProof: theorem {cp.name} has no proof tree"
   | some root => replayClause cfg ReplayCtx.empty root
+
+
+/-- The CONDITIONAL generic mirror: bind the machine-generated hypothesis
+    telescope (per defined fn: totality; plus the lifted TP corollary when one was
+    emitted), replay the theorem under it, and λ-abstract. Returns the proof and
+    the condition descriptions (the c2 pattern — obligations explicit in the
+    type, discharged later by termination emission / Driver Stage 5). -/
+def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
+    (cp : ClauseProof) : MetaM (Expr × List String) := do
+  let fns := cfg.worldVal.defs.entries
+  -- hypothesis declarations: totality for every defined fn, TP where emitted
+  let totalDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+    (fns.map fun (s, formals, _) =>
+      (Name.mkSimple s!"htotal_{s.name}", BinderInfo.default,
+       fun (_ : Array Expr) => mkTotalityHypType cfg s formals.length)).toArray
+  -- only LIFTABLE corollaries become hypotheses: every variable occurrence must be
+  -- inside the (fn formals) application (the value-only hypothesis shape). An
+  -- unliftable corollary (e.g. my-app's (EQUAL (MY-APP X Y) Y), which mentions Y
+  -- bare) is SKIPPED — the fact is simply not offered, never mis-stated.
+  let liftable := fun (fn : Symbol) (formals : List Symbol) (cor : SExpr) =>
+    let appPat : SExpr :=
+      .cons (.atom (.symbol fn))
+        ((formals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
+    let rec scrub : SExpr → SExpr := fun t =>
+      if t == appPat then .nil
+      else match t with
+        | .cons a b => .cons (scrub a) (scrub b)
+        | t => t
+    (ACL2.Replay.freeVars (scrub cor)).isEmpty
+  let tpFns := fns.filterMap fun (s, formals, _) =>
+    (tps.lookup s.name).bind fun cor =>
+      if liftable s formals cor then some (s, formals, cor) else none
+  let tpDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+    (tpFns.map fun (s, formals, cor) =>
+      (Name.mkSimple s!"htp_{s.name}", BinderInfo.default,
+       fun (_ : Array Expr) => mkTpHypType cfg s formals cor)).toArray
+  let condsAll :=
+    fns.map (fun (s, _, _) => s!"total:{s.name}") ++
+    tpFns.map (fun (s, _, _) => s!"tp:{s.name}")
+  withLocalDecls totalDecls fun totalVs => do
+    withLocalDecls tpDecls fun tpVs => do
+      let ctx : ReplayCtx :=
+        { totalHyps := (fns.map (fun (s, _, _) => s.name)).zip totalVs.toList,
+          tpHyps := (tpFns.zip tpVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h) }
+      let some root := cp.root
+        | throwError "replayProofConditional: theorem {cp.name} has no proof tree"
+      let prf ← instantiateMVars (← replayClause cfg ctx root)
+      -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
+      -- not weaken the statement (hypothesis types are mutually independent, so
+      -- dropping unused ones is well-formed).
+      let used := (condsAll.zip (totalVs ++ tpVs).toList).filter
+        fun (_, v) => prf.containsFVar v.fvarId!
+      let p ← mkLambdaFVars (used.map (·.2)).toArray prf
+      return (p, used.map (·.1))
+
 
 end ACL2.Replay.Driver
