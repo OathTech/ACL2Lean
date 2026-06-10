@@ -85,11 +85,19 @@ log, `#print axioms` clean. The pieces exist; c3 wires them:
       sites; ambiguity hard-fails) and `executable-counterpart` nodes re-checked
       by KERNEL REDUCTION of `evalOpt` (enabled by the Env assoc-list change —
       see Layer-1 note below). Coverage 9/38 (ground-arith, sq-of-3,
-      cdr-cons-refl, idf-rewrites). REMAINING: (B) verdict-only discharge leaves
-      composed into `replayClause` (TermElabM lift + DischargeLeaf fold-in);
-      (C) clausify splits (preprocess ⇒ N subgoals, e.g. 07's admission proof);
-      `mutual-recursion` emits NO `:DEFUN` events (stage-2 emission gap → Track
-      B backlog).
+      cdr-cons-refl, idf-rewrites). PART B LANDED: verdict-only discharge nodes
+      compose as ordinary preprocess-node recipes (keyed by ORIGIN) —
+      `replayDischargeNode` instantiates the DP machinery from the ambient
+      ReplayCtx PINS + TP hypotheses (DischargeLeaf.lean folded into Driver.lean,
+      all MetaM; the standalone quantified-telescope harness kept for coverage).
+      Coverage 12/38 (equal-symm, equal-trans unconditional; len2-nonneg
+      cond[total:len2, tp:len2]). REMAINING: (C) clausify splits (preprocess ⇒
+      N subgoals, e.g. 07's admission proof); condition THREADING for ◌-class
+      (assumed-fact) discharge composition; `definition:implies`-style
+      ground-zero rune recipes (implies is an evalOpt BUILTIN — must not enter
+      `groundZeroDefs`, it would shadow `callBuiltin`/no-shadow facts;
+      linear-chain blocked on this); `mutual-recursion` emits NO `:DEFUN`
+      events (stage-2 emission gap → Track B backlog).
 - [x] **Env made kernel-reducible (Layer-1 trusted-core change, 2026-06-09).**
       `Env` was `Std.HashMap Symbol SExpr`; string hashing is kernel-opaque, so
       `evalOpt` of defined-fn calls could not be re-checked by reduction.

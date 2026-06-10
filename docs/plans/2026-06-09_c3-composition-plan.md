@@ -131,9 +131,17 @@ shapes (real-artifact review of 00/05/07/08):
   first-match get?) in `Syntax.lean` — smaller trusted core, same observable
   semantics, all existing kernel proofs rebuilt, differential test vs real ACL2
   re-run as the semantic guard.
-- **Verdict-only discharge leaves at Goal** (equal-symm, equal-trans,
-  len2-nonneg): need the DP machinery composed into `replayClause`
-  (TermElabM lift + DischargeLeaf fold-in) — #53 part B, NEXT.
+- **Verdict-only discharge leaves at Goal** — #53B LANDED: discharge nodes are
+  ordinary preprocess-node recipes keyed by ORIGIN; `replayDischargeNode`
+  instantiates the DP machinery from the ambient ReplayCtx PINS + bound TP
+  hypotheses (no quantified telescope at composition). DischargeLeaf.lean folded
+  into Driver.lean, all MetaM (`Lean.Elab.runTactic` works in MetaM); the
+  standalone telescope/assumeFact form kept for the coverage harness. Coverage
+  12/38 — equal-symm/equal-trans UNCONDITIONAL, len2-nonneg
+  cond[total:len2, tp:len2]. Conditional (◌, assumed-fact) leaves at composition
+  need CONDITION THREADING — recorded, later. linear-chain needs a
+  `definition:implies` recipe (implies is an evalOpt builtin; must NOT enter
+  groundZeroDefs — would shadow the no-shadow/callBuiltin facts).
 - **Clausify splits** (preprocess ⇒ N subgoals, e.g. 07's admission proof) and
   `mutual-recursion` defun emission (07 logs ZERO `:DEFUN` events — stage-2
   emission gap, Track B) — recorded, later.

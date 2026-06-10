@@ -21,7 +21,6 @@
   the corpus with `scripts/capture-proof-log.sh` before building this.
 -/
 import ACL2Lean.Replay.Driver
-import ACL2Lean.Replay.DischargeLeaf
 import ACL2Lean.ProofLog
 import ACL2Lean.ClauseTree
 import Lean
