@@ -91,13 +91,31 @@ log, `#print axioms` clean. The pieces exist; c3 wires them:
       ReplayCtx PINS + TP hypotheses (DischargeLeaf.lean folded into Driver.lean,
       all MetaM; the standalone quantified-telescope harness kept for coverage).
       Coverage 12/38 (equal-symm, equal-trans unconditional; len2-nonneg
-      cond[total:len2, tp:len2]). REMAINING: (C) clausify splits (preprocess ⇒
-      N subgoals, e.g. 07's admission proof); condition THREADING for ◌-class
+      cond[total:len2, tp:len2]). REMAINING: (C) clausify splits — APPROVED
+      DESIGN: emit clausify-input CHECKPOINTS from ACL2 (clausify-input1 is a
+      pure 6-case if-recursion in acl2 induct.lisp:754, but its expand-and-or
+      fallback consults the ens — recompute-in-Lean cannot be faithful;
+      emission is the durable route); condition THREADING for ◌-class
       (assumed-fact) discharge composition; `definition:implies`-style
       ground-zero rune recipes (implies is an evalOpt BUILTIN — must not enter
       `groundZeroDefs`, it would shadow `callBuiltin`/no-shadow facts;
-      linear-chain blocked on this); `mutual-recursion` emits NO `:DEFUN`
-      events (stage-2 emission gap → Track B backlog).
+      linear-chain blocked on this).
+- [x] **`mutual-recursion` `:DEFUN` emission (2026-06-09).** mutual-recursion
+      reaches defuns-fn directly, bypassing defun-fn's emitter — a clique
+      produced ZERO (:DEFUN …) events. Fixed at the source: shared
+      emit-structured-defuns hooked after install-event-defuns (acl2 submodule
+      2e797e9bfd); corpus re-captured. my-evenp-3-is-nil / my-oddp-3-is-t now
+      REPLAY UNCONDITIONALLY (16/37); the clique's admission proof now attaches
+      to its defun's `termination` field instead of orphaning as a
+      pseudo-theorem (what #37 consumes). Follow-up: the coverage harness
+      should also sweep `WorldEvent.defun.termination` trees for DP leaves
+      (one ✓ leaf moved out of the theorem sweep).
+- [ ] **Mirror-statement boolean-validity check.** The mirror form
+      `eval formula = some t` is STRONGER than ACL2's `formula ≠ nil` — equal
+      only for boolean-valued formulas (all of the current corpus). The
+      statement builder should hard-fail on a formula not provably
+      boolean-valued (or the mirror moves to a `≠ nil` form) — surfaced by the
+      clausify-bridge design, where clausify-input1's invariant is iff.
 - [x] **Env made kernel-reducible (Layer-1 trusted-core change, 2026-06-09).**
       `Env` was `Std.HashMap Symbol SExpr`; string hashing is kernel-opaque, so
       `evalOpt` of defined-fn calls could not be re-checked by reduction.
