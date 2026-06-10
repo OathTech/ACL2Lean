@@ -86,3 +86,63 @@ The full dump (114 lines) is structurally complete for replay:
 
 Throughout: fail-closed, no sorry, every step read off the tree; the hand proof
 (`Imported/SimpleWorld.lean`) is the lemma quarry, NOT the driver's input.
+
+## STATUS (2026-06-09, end of session): P1–P2 done + P3 prep; scaffold next
+
+Landed (branch `mdd/c3-composition`, all green + committed):
+- **P0** tree review + this plan; ReplayCtx v2; dpVal value layer moved into the
+  driver core.
+- **P1 UNIFORM CORE** (per MDD's directive): registry-generic `proveConv`
+  (re_conv_builtin{1,2}_reg + re_conv_if; per-builtin special cases DELETED);
+  `.boundary` path frames + if-test congruence (relativizeFrames, depth threading,
+  evalOpt_congr_if_test — the old backlog item retired); ONE definition recipe
+  (unfold with two ORDERED EVIDENCE sources — pinned totality value, else the
+  ∀-env analyzer — then children as an ordinary path-directed chain at depth+1);
+  replayBodyConvViaIf and all special-casing DELETED; recipes for recognizer /
+  standalone if-simplification / unicity-of-0 (with the REPLAYED fix child) /
+  commutativity-of-+ / commutativity-2-of-+.
+- **P2 CLAUSE SPINE + SOLIDIFY**: replayClause proves the CLAUSE
+  (`eval (disjoinTerm inputClause) = some t`); the spine's own split IS the case
+  hypothesis (induction children are SELF-CONTAINED clause proofs); falsity facts
+  accumulate in ctx.litFacts, bridged across literal rewrite chains; SOLIDIFY
+  consumes the equivSource literal's spine fact (logic_not_equal_nil_eq) — more
+  faithful than the hand proof's scaffold-IH route; push-clause defers to the pool
+  root. sq/pair regress green through the uniform machinery.
+- **P3 prep**: pinVal/pinVal_spec (choice-based opaque pinning — no Exists.elim
+  plumbing), re_extract_else, logic_not_t_nil, re_val_var_insert,
+  evalOpt_substTerm_subst1 confirmed.
+
+REMAINING for end-to-end (precise recipe, designed and ready to implement):
+1. **replayInduction** (in replayClause's induction branch):
+   - validate the emitted justification shape: measure `(acl2-count v)`, rel `o<`,
+     single controller, step case tests `[(consp v)]` with IH `v:=(cdr v)` (other
+     vars identity), base `[(not (consp v))]`; anything else → frontier error.
+   - link children BY first literal: step child's literal 1 == `(not (consp v))`;
+     base child's literal 1 == `(consp v)` (strict, validated).
+   - P xv := ∀ e, (eval_e (var v) = some xv) → eval_e (disjoin pushedClause) = some t.
+   - instantiate `acl2_induction_consp P base step`:
+     - base (v, h_consp, e, h_xe): pin opaques (pinVal over the totality hyps,
+       inside-out; TP-int refinement via logic_integerp_int .choose where the fn
+       has a TP hyp) → ctx_b; `replayClause ctx_b baseChild`; then
+       `re_extract_else` with `eval (consp x) = some nil` (ctxValProof + cast
+       h_consp) peels literal 1, leaving the pushed clause. Verify term equality.
+     - step (v, h_ne, ihP, e, h_xe): consp-t via logic_consp_ne_nil_t; pin → ctx_s;
+       `replayClause ctx_s stepChild`; extract literal 1 (value
+       `Logic.not (Logic.consp v) = nil` via logic_not_t_nil after consp-t);
+       IH: ihP (Logic.cdr v) at e' := e.insert v (cdr-value) with
+       re_val_var_insert; bridge eval_e (substTerm [v] [(cdr v)] pushedLit) =
+       eval_{e'} pushedLit via evalOpt_substTerm_subst1 (cdr-of-var conv from
+       h_xe); verify the substTerm result == the clause's IH literal body; then
+       eval (not IH-term) = some nil (conv_builtin1 + logic_not_t_nil-style cast)
+       → re_extract_else peels literal 2, leaving the pushed clause.
+2. **The conditional-mirror harness** (`replayProofConditional`): generate the
+   hypothesis telescope from the development — per defined fn: a totality
+   hypothesis `∀ env' args…, (each arg converges) → ∃M ∃v ∀f≥M eval (fn args…) =
+   some v`, and (when a `:TYPE-PRESCRIPTION` was emitted) a lifted-corollary
+   hypothesis `∀ env' args… v, (eval (fn args…) = some v) → <lift, (fn formals)↦v>
+   = t`; bind with withLocalDecls; pin per clause entry; λ-abstract; report the
+   conditions (the c2 pattern — same shape as the hand proof's generic theorem).
+3. **DriverTests**: `my_len_my_app_generic_mirror` via the driver from the REAL
+   parsed simple.proof-log, `#print axioms` gate; coverage flips my-len-my-app to
+   REPLAYED (conditional).
+4. **P7 audit** (task #38) before claiming.
