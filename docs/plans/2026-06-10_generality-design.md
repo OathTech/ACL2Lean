@@ -210,7 +210,81 @@ the replay architecture; it should grow per imported theorem family, and is
 where `EvTrue` (§1.1) pays again — truthiness is what encodings naturally
 produce for non-boolean ACL2 functions.
 
-## 7. Recommendation and sequencing
+## 7. Lock-in analysis and the extension trajectory (beyond Milawa)
+
+The core in §5 will eventually be exceeded (full geneqv, apply$, deeper
+encapsulate/functional-instantiation use, possibly emitted derivations for
+today's carve-out leaves). This section records where lock-in could occur and
+the INVARIANTS that prevent it. These invariants are binding on all work under
+this plan — they only protect us if the next implementer reads them.
+
+Note first that the "Milawa alignment" is about the proof-step KERNEL
+(induction-as-certificate, iff in traces, trace-then-compile), where ACL2
+itself agrees with Milawa — our proposed core already exceeds Milawa
+(forcing, structural processors, tau/linear carve-outs, mutual recursion,
+constraints). Milawa is evidence, not a ceiling. The genuine lock-in surfaces
+are the four below.
+
+### Invariant L1 — the open interface is the JUDGMENT layer; no monolithic
+derivation datatype
+
+Consolidation (§2C) must stay FRAGMENT-LOCAL: each consolidated fragment gets
+its own datatype/function and its own soundness lemma, hidden behind a
+judgment (`EvTrue`, `EvRel R`, clause truth — Lean `Prop`s, which compose
+openly). A single closed `Derivation` inductive with one soundness theorem is
+PROHIBITED: it would reintroduce architecture B's closed-world cost — every
+new mechanism reopening a monolithic proof — through the back door. New
+mechanisms must always be addable as new walkers/fragments composing at the
+judgment level, without touching consolidated fragments.
+
+### Invariant L2 — `R` is an abstract relation, not an enum
+
+The parameterized rewrite judgment (§1.2) takes `R` as a value-level relation
+(with equal/iff as INSTANCES), congruence lemmas indexed by
+(fn, position, R-in, R-out), and refinement lemmas (`equal` refines every R)
+mirroring ACL2's refinement lattice. ACL2's geneqv is a SET of relations (the
+generated join): "preserve some R in the set" must be expressible. An
+equal/iff enum would make the first user equivalence relation a refactor of
+every congruence site; the abstract form makes it ADDITIVE — one recipe per
+congruence rune. Patterned equivalences (pequiv) likewise land as additional
+recipes.
+
+### Invariant L3 — mandatory world-parametricity
+
+Every lemma and every consolidated fragment is stated over an arbitrary
+`w : World` (true today; keep it true — concrete-world constants inside
+fragments are prohibited). This is what keeps the encapsulate trajectory
+harness-level: constrained functions have no body to put in `World.defs`, and
+encapsulate theorems quantify over ALL constraint-satisfying worlds — the
+future mirror shape is `∀ w' ⊒ w, constraints w' → Mirror w' φ`, a change to
+the STATEMENT BUILDER only, provided no fragment ever baked in a fixed world.
+
+### Watch-item L4 — the evaluator's first-order closed world vs apply$
+
+`evalOpt` has no higher-order story. ACL2's apply$/badges/warrants would be a
+Layer-1 extension (an `apply$` builtin + warrant hypotheses, which fit the
+conditional-proof shape) — additive, but trusted-core-touching; the
+differential test against real ACL2 is the guard, as with the Env change.
+Nothing in this design makes it harder later; it is simply real work when a
+corpus demands it. (Stobjs need NO model change — their logical definitions
+are ordinary; defattach remains ignorable for theorem import, §5 OUT.)
+
+### The general anti-lock-in assets
+
+- **The conditional-proof discipline**: any mechanism not yet built degrades
+  to a named, explicit hypothesis — never designed out. Later machinery
+  discharges hypotheses, yielding a strictly stronger theorem that serves all
+  consumers of the weaker one. Beyond-core features are deferred, never
+  foreclosed.
+- **Replaceable carve-out leaves**: if full fidelity is later wanted for
+  tau/linear (emitted derivations instead of `omega`/SMT), each leaf is
+  upgradeable in place — clause statements do not move.
+- **Emission-first**: every gap so far (paths, measures, discharge nodes,
+  clausify, mutual-recursion defuns) was closed durably at the source; the
+  instrumented sites compose, and the fail-closed parsers make stale emission
+  loud, so emission upgrades never silently strand the Lean side.
+
+## 8. Recommendation and sequencing
 
 **Adopt C** (walkers as the lane, progressive consolidation), with §1's two
 decisions taken now. Concretely, in order:
