@@ -65,6 +65,14 @@ private partial def printClauseItems (items : List ACL2.ClauseItem)
       -- A clause-level step (e.g. a termination conjecture's bare rewrite chain)
       -- can have adopted inner-rewrite children; render them too.
       if !children.isEmpty then printProofNodes children rwIndent
+    | .clausify info =>
+      IO.println s!"{pad}  │    clausify: {info.input}"
+      IO.println s!"{pad}  │      ¬-clause: {info.negClause}"
+      for (lit, cl) in info.splits do
+        IO.println s!"{pad}  │      split {lit} ⇒ {cl}"
+      IO.println s!"{pad}  │      out: {info.out}"
+      if info.expanded then
+        IO.println s!"{pad}  │      (expand-and-or fired — replay frontier)"
     | .branch segment subitems =>
       IO.println s!"{pad}  │    ┌ case branch: {segment}"
       printClauseItems subitems (pad ++ "    ") rwIndent

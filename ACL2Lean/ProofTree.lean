@@ -61,6 +61,20 @@ structure LiteralProof where
   result : SExpr
   deriving Repr, Inhabited
 
+/-- The recorded CLAUSIFY checkpoints (preprocess formula → clause set;
+    `emit/clausify/*`): the input term (the preprocess chain's final term), the
+    neg-clause (its disjunction ≡ the NEGATION of the input), the per-negated-
+    literal split clauses, the conjoined output clause set, and whether
+    `expand-and-or` fired inside (an ens-dependent expansion — a replay
+    frontier until its steps are bridged). -/
+structure ClausifyInfo where
+  input : SExpr
+  negClause : List SExpr
+  splits : List (SExpr × List SExpr)
+  out : List (List SExpr)
+  expanded : Bool := false
+  deriving Repr, Inhabited
+
 /-- One item in a clause-level proof step's branch tree (ACL2's `:REWRITES`), in
     log order. A `literal` is one disjunct reduced via its rewrite chain; a `step`
     is a clause-level rewrite or branch substitution between literals; a `branch`
@@ -71,6 +85,8 @@ inductive ClauseItem where
   | literal (lp : LiteralProof)
   | step (node : ProofNode)
   | branch (segment : SExpr) (items : List ClauseItem)
+  /-- The clausification record of a preprocess step that SPLIT the clause. -/
+  | clausify (info : ClausifyInfo)
   deriving Repr, Inhabited
 
 /-! ## Parser: flat trace → rewriter-detail tree
@@ -130,7 +146,9 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- the literal's net result, captured separately by findLiteralResult.
       parseProofNodesAux rest pendingChildren nodes
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
-  | .endBranch :: _ | .caseSplit _ _ :: _ =>
+  | .endBranch :: _ | .caseSplit _ _ :: _
+  | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
+  | .clausifyOut _ :: _ | .clausifyExpand _ :: _ =>
       -- A clause-structure boundary: stop and hand the remaining events back to
       -- the clause-level parser. (This match is exhaustive over TraceEvent, so a
       -- new event kind becomes a compile error here — never a silent drop.)
@@ -171,6 +189,33 @@ private def findLiteralResult (events : List TraceEvent) (original : SExpr) : SE
     | .typeSetReasoning _ result _ _ => result
     | _ => acc) original
 
+/-- Collect a CLAUSIFY checkpoint block following a `:CLAUSIFY-INPUT` event:
+    optional `:CLAUSIFY-EXPAND` markers (flagged), then `:CLAUSIFY-NEG`, the
+    `:CLAUSIFY-SPLIT`s (markers may interleave), then `:CLAUSIFY-OUT`.
+    Out-of-order structure hard-fails. -/
+private def collectClausify (input : SExpr) (evs : List TraceEvent)
+    : Except String (ClausifyInfo × List TraceEvent) := do
+  -- phase 1: expand markers before the neg event
+  let rec dropExpands : List TraceEvent → (Bool × List TraceEvent)
+    | .clausifyExpand _ :: rest => let (_, r) := dropExpands rest; (true, r)
+    | rest => (false, rest)
+  let (exp1, evs) := dropExpands evs
+  let (negClause, evs) ← match evs with
+    | .clausifyNeg cl :: rest => pure (cl, rest)
+    | ev :: _ => throw s!"collectClausify: expected :CLAUSIFY-NEG, got {repr ev}"
+    | [] => throw "collectClausify: events ended before :CLAUSIFY-NEG"
+  -- phase 2: splits (expand markers may interleave), then out
+  let rec go (acc : List (SExpr × List SExpr)) (exp : Bool)
+      : List TraceEvent → Except String (ClausifyInfo × List TraceEvent)
+    | .clausifyExpand _ :: rest => go acc true rest
+    | .clausifySplit lit cl :: rest => go (acc ++ [(lit, cl)]) exp rest
+    | .clausifyOut clauses :: rest =>
+        return ({ input, negClause, splits := acc, out := clauses,
+                  expanded := exp }, rest)
+    | ev :: _ => throw s!"collectClausify: expected split/out, got {repr ev}"
+    | [] => throw "collectClausify: events ended before :CLAUSIFY-OUT"
+  go [] exp1 evs
+
 /-- Parse a clause-level event list (ACL2's `:REWRITES`) into its branch tree, in
     log order, returning the items and the events after this branch. A
     `BEGIN-BRANCH`/`END-BRANCH` pair is a case split; `BEGIN-LITERAL`/
@@ -192,6 +237,11 @@ partial def parseClauseItems (events : List TraceEvent)
       let litResult := findLiteralResult litEvents literal
       let (more, rest'') ← parseClauseItems rest'
       return (.literal ⟨index, literal, notFlg, nodes, litResult⟩ :: more, rest'')
+  | .clausifyInput input :: rest =>
+      -- collect the contiguous clausify block: [expand*] neg ([expand*] split)* out
+      let (info, rest') ← collectClausify input rest
+      let (more, rest'') ← parseClauseItems rest'
+      return (.clausify info :: more, rest'')
   | .caseSplit _ _ :: rest =>
       -- Informational header (`clause/case-split`): the preceding literal split the
       -- clause into N branches. The branches themselves follow as BEGIN-BRANCH/

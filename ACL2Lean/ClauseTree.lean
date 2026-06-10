@@ -243,6 +243,7 @@ private partial def collectHypEquivs : List ClauseItem → List (Nat × SExpr)
   | .literal lp :: rest =>
       (match hypEquiv lp with | some e => [(lp.index, e)] | none => []) ++ collectHypEquivs rest
   | .step _ :: rest => collectHypEquivs rest
+  | .clausify _ :: rest => collectHypEquivs rest
   | .branch _ items :: rest => collectHypEquivs items ++ collectHypEquivs rest
 
 /-- Link each `literal`'s solidify nodes to a sibling literal's hypothesis (a
@@ -255,6 +256,7 @@ private partial def linkItems (cands : List (Nat × SExpr))
       let nodes ← lp.nodes.mapM (linkNode (cands.filter (·.1 != lp.index)))
       return .literal { lp with nodes } :: (← linkItems cands rest)
   | .step n :: rest => do return .step n :: (← linkItems cands rest)
+  | .clausify info :: rest => do return .clausify info :: (← linkItems cands rest)
   | .branch seg items :: rest => do
       return .branch seg (← linkItems cands items) :: (← linkItems cands rest)
 
@@ -492,6 +494,7 @@ private partial def itemNodes : List ClauseItem → List ProofNode
   | [] => []
   | .literal lp :: rest => lp.nodes.flatMap proofNodesOf ++ itemNodes rest
   | .step n :: rest => proofNodesOf n ++ itemNodes rest
+  | .clausify _ :: rest => itemNodes rest
   | .branch _ items :: rest => itemNodes items ++ itemNodes rest
 
 private def allProofNodes (cp : ClauseProof) : List ProofNode :=

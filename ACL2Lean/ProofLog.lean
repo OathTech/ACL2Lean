@@ -78,6 +78,14 @@ inductive TraceEvent where
   | endInnerRewrite (kind : String)
   | beginIfRewrite (test : SExpr) (unrewrittenTest : SExpr)
   | endIfRewrite (test : SExpr) (result : SExpr)
+  /-- Clausify checkpoints (preprocess formula → clause set; emit/clausify/*):
+      the input term, the neg-clause pass, per-negated-literal splits, the
+      conjoined output set, and the expand-and-or marker (a replay frontier). -/
+  | clausifyInput (term : SExpr)
+  | clausifyNeg (clause : List SExpr)
+  | clausifySplit (lit : SExpr) (clause : List SExpr)
+  | clausifyOut (clauses : List (List SExpr))
+  | clausifyExpand (toTerm : SExpr)
   deriving Repr
 
 /-- A single waterfall step from ACL2's structured proof output. -/
@@ -404,6 +412,39 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           |>.elim (throw "END-IF-REWRITE: missing :TEST") pure
         let result := (lookupKeyword "result" rest).getD .nil
         pure (.endIfRewrite test result)
+    | .atom (.keyword "clausify-input") :: rest =>
+        let term ← lookupKeyword "term" rest
+          |>.elim (throw "CLAUSIFY-INPUT: missing :TERM") pure
+        pure (.clausifyInput term)
+    | .atom (.keyword "clausify-neg") :: rest =>
+        let cl ← lookupKeyword "clause" rest
+          |>.elim (throw "CLAUSIFY-NEG: missing :CLAUSE") pure
+        match cl.toList? with
+        | some lits => pure (.clausifyNeg lits)
+        | none => throw s!"CLAUSIFY-NEG: clause is not a proper list: {repr cl}"
+    | .atom (.keyword "clausify-split") :: rest =>
+        let lit ← lookupKeyword "lit" rest
+          |>.elim (throw "CLAUSIFY-SPLIT: missing :LIT") pure
+        let cl ← lookupKeyword "clause" rest
+          |>.elim (throw "CLAUSIFY-SPLIT: missing :CLAUSE") pure
+        match cl.toList? with
+        | some lits => pure (.clausifySplit lit lits)
+        | none => throw s!"CLAUSIFY-SPLIT: clause is not a proper list: {repr cl}"
+    | .atom (.keyword "clausify-out") :: rest =>
+        let cls ← lookupKeyword "clauses" rest
+          |>.elim (throw "CLAUSIFY-OUT: missing :CLAUSES") pure
+        match cls.toList? with
+        | some clList =>
+          let parsed ← clList.mapM fun c =>
+            match c.toList? with
+            | some lits => pure lits
+            | none => throw s!"CLAUSIFY-OUT: clause is not a proper list: {repr c}"
+          pure (.clausifyOut parsed)
+        | none => throw s!"CLAUSIFY-OUT: clauses is not a proper list: {repr cls}"
+    | .atom (.keyword "clausify-expand") :: rest =>
+        let toTerm ← lookupKeyword "to" rest
+          |>.elim (throw "CLAUSIFY-EXPAND: missing :TO") pure
+        pure (.clausifyExpand toTerm)
     | _ => throw s!"Unknown trace event: {repr s}"
   | none => throw s!"Expected list trace event, got: {repr s}"
 

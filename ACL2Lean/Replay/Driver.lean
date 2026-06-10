@@ -1138,6 +1138,7 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | [] => []
   | .literal lp :: rest => (lp.index, lp) :: flattenLiterals rest
   | .step _ :: rest => flattenLiterals rest
+  | .clausify _ :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
 
 /-- ACL2's `disjoin` of a literal list: `(if l₁ 't (if l₂ 't … lₖ))`; a singleton
@@ -1803,6 +1804,9 @@ partial def clauseSubtreeTerms (cn : ClauseNode) : List SExpr :=
     let rec goI : ClauseItem → List SExpr
       | .literal lp => lp.literal :: lp.result :: lp.nodes.flatMap nodeTerms
       | .step n => nodeTerms n
+      | .clausify info =>
+          info.input :: (info.negClause ++ info.splits.flatMap (fun (l, c) => l :: c)
+            ++ info.out.flatMap id)
       | .branch _ items => items.flatMap goI
     goI it
   cn.inputClause ++ cn.steps.flatMap (·.items.flatMap itemTerms)
