@@ -542,19 +542,29 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
   | .cons (.atom (.keyword "defun")) rest =>
     match rest.toList? with
     | some (nameExpr :: fields) =>
-      match atomString? nameExpr with
-      | some name =>
-        let formals := match lookupKeyword "formals" fields with
-          | some f => match f.toList? with
-            | some syms => syms.filterMap fun
-              | .atom (.symbol s) => some s
-              | _ => none
-            | none => []
-          | none => []
+      match nameExpr with
+      | .atom (.symbol nameSym) =>
+        -- The name's PACKAGE is discarded downstream (`WorldEvent.defun.name` is a
+        -- String; `Development.toWorld` rebuilds the symbol in the default package)
+        -- — so a non-default package would silently rename the function. Hard-fail
+        -- instead (frontier; no corpus example uses one).
+        unless nameSym.package == ({ name := "x" } : Symbol).package do
+          throw s!"DEFUN {nameSym.name}: non-default package \
+                  {nameSym.package} unsupported (would be lost downstream)"
+        let name := nameSym.name
+        -- :FORMALS is REQUIRED and every formal must be a symbol — a malformed or
+        -- absent list hard-fails (no silent drop, no default-to-nullary).
+        let formalsSExpr ← (lookupKeyword "formals" fields).elim
+          (throw s!"DEFUN {name}: missing :FORMALS") pure
+        let formalsList ← formalsSExpr.toList?.elim
+          (throw s!"DEFUN {name}: :FORMALS is not a list: {repr formalsSExpr}") pure
+        let formals ← formalsList.mapM fun
+          | .atom (.symbol s) => pure s
+          | other => throw s!"DEFUN {name}: non-symbol formal: {repr other}"
         let body ← (lookupKeyword "body" fields).elim
           (throw s!"DEFUN {name}: missing :BODY") pure
         return .defun name formals body
-      | none => throw s!"DEFUN: bad name: {repr nameExpr}"
+      | _ => throw s!"DEFUN: bad name: {repr nameExpr}"
     | _ => throw s!"DEFUN: expected plist, got {repr rest}"
   | .cons (.atom (.keyword "type-prescription")) rest =>
     match rest.toList? with

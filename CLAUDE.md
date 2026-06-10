@@ -75,15 +75,21 @@ mirror statement, an `evalOpt` that diverges from ACL2, or a replay that proves
 something slightly different. Do not assume the bug is where it is most convenient
 to look; only ACL2's proof *search* is off the table.
 
-**Current status.** Stages 1–4 — ACL2 instrumentation, proof-log parsing, and
-proof-tree reconstruction (`buildDevelopment`) — are built and validated against
-the sample corpus (`acl2_samples/`, incl. `recon-tests/`): `my-len-my-app`
-reconstructs as a faithful clause tree with the induction hypothesis linked to its
-solidify use. Not yet built: the proof-object builder (stage 7) does not replay
-real trees end-to-end, and the native-theorem bridge (the end-goal step) does not
-exist. The trust note still applies — a kernel-accepted proof object would certify
-only the mirror theorem as stated, not that the mirror/`evalOpt` faithfully model
-ACL2 — so keep checking each stage against the real artifact.
+**Current status.** Stages 1–4 — ACL2 instrumentation (incl. induction measure
+justifications, preprocess evaluation chains, and decision-procedure discharge
+nodes), proof-log parsing, and proof-tree reconstruction (`buildDevelopment`) —
+are built and validated against the sample corpus (`acl2_samples/`, incl.
+`recon-tests/` 00–16). The proof-object builder (stage 7) replays SIMPLE real
+trees end-to-end (`sq-rewrites` from the real log, kernel-checked) and, under the
+ratified decision-procedure-leaf carve-out, discharges DP leaves (conditional on
+their emitted facts); the native-theorem bridge exists as validated HAND proofs
+for `my-len-my-app`/`app-assoc` (`Imported/`). The current frontier is c3
+COMPOSITION: the WF-induction scaffold and preprocess-chain replay that connect
+these into whole-theorem driver replays (see
+`docs/plans/2026-06-09_c3-composition-plan.md`). The trust note still applies — a
+kernel-accepted proof object certifies only the mirror theorem as stated, not
+that the mirror/`evalOpt` faithfully model ACL2 — so keep checking each stage
+against the real artifact.
 
 ## Fidelity (non-negotiable)
 
