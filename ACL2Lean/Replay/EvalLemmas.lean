@@ -1788,6 +1788,80 @@ theorem acl2_induction_consp (P : SExpr → Prop)
 These package a terminal rune as the `∃N∀f≥N` fact the driver emits, so `replayNode`
 just applies the combinator (no inline fuel plumbing). Kernel-checked once here. -/
 
+/-! ## Totality-from-admission walk lemmas (#37)
+
+The body-convergence walk for admission-derived totality proofs: the walk is
+CASE-SPLIT style — at each `if`, the test's value is characterized and the
+two branch walks proceed under an explicit `toBool`-fact hypothesis (which is
+exactly what the emitted decrease obligations consume at recursive call
+sites). Conclusions are in the ∃N∃v totality shape of the driver's
+`total:fn` hypotheses. -/
+
+/-- Split an `if` on its test's VALUE: each branch converges under its
+    branch fact, so the `if` converges. -/
+theorem conv_if_split (w : World) (env : Env) (c t e vc : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some vc)
+    (ht : Logic.toBool vc = true →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v)
+    (he : Logic.toBool vc = false →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env e = some v) :
+    ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = some v := by
+  obtain ⟨Nc, hc'⟩ := hc
+  cases hb : Logic.toBool vc with
+  | true =>
+    obtain ⟨Nt, v, ht'⟩ := ht hb
+    refine ⟨max Nc Nt + 1, v, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    rw [evalOpt_if_true g w env c t e vc (hc' g (by omega)) hb]
+    exact ht' g (by omega)
+  | false =>
+    obtain ⟨Ne, v, he'⟩ := he hb
+    have hnil : vc = SExpr.nil := by
+      cases vc with
+      | nil => rfl
+      | atom a => simp [Logic.toBool] at hb
+      | cons a b => simp [Logic.toBool] at hb
+    refine ⟨max Nc Ne + 1, v, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    rw [evalOpt_if_false g w env c t e (hnil ▸ hc' g (by omega))]
+    exact he' g (by omega)
+
+/-- A 1-ary defined call converges when its argument and its body (at the
+    argument's value) converge — ∃N∃v walk form. -/
+theorem conv_defn_1_ex (w : World) (env : Env) (s : Symbol) (formal : Symbol)
+    (body arg av : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal], body))
+    (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
+    (hbody : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) (.cons arg .nil)) = some v := by
+  obtain ⟨Nb, v, hb⟩ := hbody
+  obtain ⟨N, h⟩ := conv_defn_1 w env s arg av formal body v h_ns h_def harg ⟨Nb, hb⟩
+  exact ⟨N, v, h⟩
+
+/-- A 2-ary defined call converges when its arguments and its body (at the
+    argument values) converge — ∃N∃v walk form. -/
+theorem conv_defn_2_ex (w : World) (env : Env) (s : Symbol)
+    (formal1 formal2 : Symbol) (body arg1 arg2 av1 av2 : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
+    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
+    (hbody : ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) (.cons arg1 (.cons arg2 .nil)))
+        = some v := by
+  obtain ⟨Nb, v, hb⟩ := hbody
+  obtain ⟨N, h⟩ := conv_defn_2 w env s arg1 arg2 av1 av2 formal1 formal2 body v
+    h_ns h_def h1 h2 ⟨Nb, hb⟩
+  exact ⟨N, v, h⟩
+
 /-- WELL-FOUNDED (strong) induction on `acl2Count` — the spine of
     admission-derived totality proofs (#37). The driver instantiates the
     motive `P av := the function converges at argument VALUE av`; the

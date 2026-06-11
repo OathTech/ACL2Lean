@@ -131,3 +131,35 @@ by construction. The prover SHAPE-CHECKS the clause (must be exactly
 ((o-p <the measure term>)); anything else hard-fails) and records it as
 absorbed rather than proving an o-p fact. Not a silent skip: the clause is
 consumed by the choice of measure type, and a mismatch fails closed.
+
+## 2c progress (state at this checkpoint)
+DONE: Development.justifications projection; walk lemmas in EvalLemmas —
+conv_if_split (case-split walk: branch hypotheses `toBool vc = true/false`
+in scope for each branch, exactly what the decrease discharge consumes),
+conv_defn_1_ex / conv_defn_2_ex (∃N∃v defn-unfold steps),
+acl2Count_strong_induction (the WF spine).
+
+REMAINING — the walker proveTotality (Driver.lean), design refined:
+- The walk is CASE-SPLIT style (conv_if_split), NOT whole-body value
+  characterization: a recursive call converges only under its ruling tests,
+  so branch facts must be hypotheses. At each if: characterize the TEST's
+  value via the existing dpValProof machinery (varP := formals ↦ av values),
+  then walk both branches under the branch-fact fvar.
+- Subterm classes inside a branch: var (re_conv_var/varP), quote
+  (re_conv_quote), dp-known builtin (conv_builtin1/2 via dpUnary/dpBinary —
+  value-characterized where the args are), defined fn:
+  * earlier fn → totalEnv proof applied at the arg conv facts,
+  * SELF → the IH, applied at the measured arg's VALUE; its `<` premise is
+    discharged by matching the emitted clause for this call site (CALLARG
+    term match), interpreting (acl2-count t) ↦ Count.acl2Count (value-of t)
+    and using Count.acl2Count_cdr_lt_of_consp-class lemmas + the in-scope
+    branch facts (+ omega for arithmetic composition),
+  * unknown call shape / unmatched site → hard-fail (named frontier).
+- Non-recursive fns: same walk, no IH (validates first on total:fix).
+- Wiring: replayProofConditional takes justs (Development.justifications);
+  per fn try proveTotality (development order, accumulating totalEnv); on
+  success ctx.totalHyps gets the PROOF TERM (the used-filter only sees
+  fvars, so the hypothesis vanishes); frontier ⇒ hypothesis as today.
+- First validation target: simple.proof-log — total:fix (non-recursive),
+  then total:my-len (recursive, the cdr/consp shape), then the corpus
+  coverage table's cond[] shrinkage + catalog entry 1 simplification.
