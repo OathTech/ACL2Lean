@@ -174,3 +174,15 @@ catalog entries simplified accordingly (entry 1 keeps only the TP
 hypothesis; entries 2/8's mirrors are now UNCONDITIONAL), the audit-#38
 pinned statement in DriverTests was updated to the stronger type, and
 axioms remain clean on all driver-backed native theorems.
+
+## Leaf-harness wire (in progress at handoff)
+The composed replay path already consumes auto-totality via ctx.totalHyps
+(theorem-level cond[] shrinkage validated). The remaining surface — the
+STANDALONE per-leaf diagnostic harness (replayDischargeLeaf, reported in the
+coverage table's [DISCHARGE: …] lines) — now derives each opaque
+application's convergence via totWalk + buildTotalEnv where possible and
+consumes it with exists_conv_elim instead of binding a total:(…) hypothesis;
+underived opaques and tp:/ASSUMED:dp-fact entries are unchanged. Validation
+target: leaf lines like "✓ cond[total:(len2 x), tp:len2]" become
+"✓ cond[tp:len2]". buildTotalEnv extracted (shared by
+replayProofConditional and the harness).

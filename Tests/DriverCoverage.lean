@@ -142,7 +142,8 @@ def tryReplay (w : World) (tps : List (String × SExpr))
 /-- Attempt the DP-lift replay of one discharge leaf: prove the discharge node's
     claim `∃N∀f≥N, eval (disjoin clause) = some t` over a QUANTIFIED env (the
     obligation must hold for every environment), and kernel-check the proof. -/
-def tryDischarge (w : World) (tps : List (String × SExpr)) (id origin : String)
+def tryDischarge (w : World) (tps : List (String × SExpr))
+    (justs : List (String × ACL2.Justification)) (id origin : String)
     (clause : SExpr) : TermElabM String := do
   let wExpr ← reflectWorld w
   -- fresh, BOUNDED heartbeat budget per leaf (the command itself runs unlimited;
@@ -153,7 +154,9 @@ def tryDischarge (w : World) (tps : List (String × SExpr)) (id origin : String)
     (try
       let (p, conds) ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
+        let totalEnv ← buildTotalEnv cfg justs
         let (prf, conds) ← replayDischargeLeaf cfg clause tps (assumeFact := true)
+          (totalEnv := totalEnv)
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p
       -- An ASSUMED leaf (the DP fact is a bound hypothesis of the returned
@@ -221,7 +224,7 @@ elab "#driver_coverage" : command => do
             let mut disParts : List String := []
             for (id, o, clause) in dis do
               dpTotal := dpTotal + 1
-              let r ← tryDischarge w tps id o clause
+              let r ← tryDischarge w tps dev.justifications id o clause
               if (r.splitOn "✓").length > 1 then dpReplayed := dpReplayed + 1
               if (r.splitOn "◌").length > 1 then dpAssumed := dpAssumed + 1
               disParts := disParts ++ [r]

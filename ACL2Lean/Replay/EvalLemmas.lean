@@ -1884,6 +1884,16 @@ theorem re_val_var_get (w : World) (env : Env) (s : Symbol) (v : SExpr)
     obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
     exact evalOpt_var g w env s v h⟩
 
+/-- Eliminate a derived ∃N∃v convergence into a continuation expecting the
+    value and its v-fixed convergence — the DP-leaf harness consumes
+    admission-derived totality this way (#37): the leaf's per-opaque
+    `total:(fn args)` hypothesis becomes a DERIVATION instead. -/
+theorem exists_conv_elim {w : World} {env : Env} {t : SExpr} {motive : Prop}
+    (h : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v)
+    (k : ∀ v, (∃ N, ∀ f ≥ N, evalOpt f w env t = some v) → motive) : motive := by
+  obtain ⟨N, v, hv⟩ := h
+  exact k v ⟨N, hv⟩
+
 /-- Pack a value-characterized convergence into the ∃N∃v walk shape. -/
 theorem conv_ex_of_vfix {w : World} {env : Env} {t v : SExpr}
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v) :
