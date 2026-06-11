@@ -186,3 +186,32 @@ underived opaques and tp:/ASSUMED:dp-fact entries are unchanged. Validation
 target: leaf lines like "✓ cond[total:(len2 x), tp:len2]" become
 "✓ cond[tp:len2]". buildTotalEnv extracted (shared by
 replayProofConditional and the harness).
+
+## Solo error-focused audit (2026-06-11, pre-adversarial-audit)
+Findings (none blocking; all fail-closed or cosmetic):
+- A1 (improvement): the IH applications use RAW mkApp2/mkApp3 (unchecked at
+  construction); a value-alignment bug would surface only at the final
+  Meta.check/kernel rather than at the construction site. The alignment is
+  by construction (dpValExpr of (cdr m) = Logic.cdr av = the Count lemma's
+  subject), and the backstop catches any drift — but switching to mkAppM
+  would fail earlier with a better message.
+- A2 (improvement): buildTotalEnv's catch-all `catch _ => pure ()` swallows
+  REAL walker bugs along with frontier errors (fail-closed direction — the
+  hypothesis stays — but masks defects). Should distinguish frontier
+  messages from unexpected exceptions, at least via trace.
+- A3 (improvement): the leaf harness rebuilds the totality environment PER
+  LEAF (buildTotalEnv inside tryDischarge); correct but wasteful — hoist
+  per development.
+- A4 (cosmetic): totDischargeDecrease's callArgVal/avE params are dead
+  (`let _ :=`); the value-alignment argument they were meant to carry is
+  implicit. Either use them for an explicit defeq assertion or drop them.
+- Verified clean: clause-literal polarity logic (ruling (not T) ⇔ fact
+  T=true; positive literal ⇔ refutation); fact keying (test terms come from
+  the same translation on both sides); capper statements match walker uses
+  (the checked mkAppM applications enforce the v-fixed shapes); the
+  liftable fast-path for ifs is sound (re_val_if requires all three
+  subterm convergences — vacuously safe, and self-calls are excluded by
+  liftability); leaf derivations are scoped OUTSIDE the vop binders (no
+  capture); the lisp stash is consume-once incl. the non-structured path;
+  the gitlink matches the submodule HEAD; no sorry/admit/axiom/
+  native_decide in the diff; zero warnings in the gate.

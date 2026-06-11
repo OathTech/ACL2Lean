@@ -139,8 +139,24 @@ LIBRARY.
       hypotheses on inputs) for partial/conditional ACL2 functions, fed by
       the emitted TP facts.
 
-Parallel tracks unchanged below (emission infra revision, audit debt, #37
-totality-from-admission — which G4's machinery also feeds, gated lean-smt).
+- [x] **#37 totality from admission (2026-06-11, branch
+      mdd/totality-from-admission).** Recursive :DEFUN events emit the
+      admission justification + RAW termination clauses (fail-closed parse);
+      the driver's totality prover (proveTotality/totWalk, WF-induction on
+      acl2Count with case-split body walks, decrease obligations matched
+      against the EMITTED clauses and discharged via the Count library per
+      the carve-out) auto-discharges EVERY total: hypothesis on every
+      replayed theorem (17/37, theorem-level cond[] now tp:-only) and the
+      TP-free per-leaf total:(…) conds in the DP-leaf diagnostics
+      (exists_conv_elim). Decision log:
+      docs/notes/2026-06-10_totality-from-admission-decisions.md (D1–D9 +
+      solo-audit findings A1–A4). Follow-ups (next task): leaf TP hyps in
+      fn-level shape (lifts the TP-paired retention), measured-formal
+      permutation, sum/custom measures (interleave/cd2 frontiers),
+      non-trivial admission waterfall replay (the termination field).
+
+Parallel tracks unchanged below (emission infra revision, audit debt, gated
+lean-smt).
 
 ---
 
