@@ -1,6 +1,7 @@
 import ACL2Lean.EvalOpt
 import ACL2Lean.Replay.EvalLemmas
 import ACL2Lean.Count
+import ACL2Lean.Imported.Lifting
 
 open ACL2 ACL2.Replay
 
@@ -597,23 +598,11 @@ theorem app_assoc_uncond (env : Env) :
     (dis_app_total world world_has_app world_no_consp world_no_cdr
       world_no_car world_no_cons)
 
-/-- TYPE morphism: `List SExpr` ↦ ACL2 proper cons-list. -/
-def enc (xs : List SExpr) : SExpr := xs.foldr SExpr.cons SExpr.nil
+-- TYPE morphism + injectivity: the shared library's (`Imported/Lifting`).
+open ACL2.Lifting (enc enc_inj)
 
-theorem enc_inj : ∀ {l1 l2 : List SExpr}, enc l1 = enc l2 → l1 = l2 := by
-  intro l1
-  induction l1 with
-  | nil => intro l2 h; cases l2 with
-    | nil => rfl
-    | cons b t => simp [enc] at h
-  | cons a s ih => intro l2 h; cases l2 with
-    | nil => simp [enc] at h
-    | cons b t =>
-      simp only [enc, List.foldr_cons, SExpr.cons.injEq] at h
-      obtain ⟨rfl, htl⟩ := h
-      rw [ih htl]
-
-/-- SIMULATION: evalOpt's `app` over encoded lists computes `++` under `enc`. -/
+/-- SIMULATION: `app` over encoded lists computes `++` under `enc` — ONE
+    instantiation of the library's name-generic `corr_append_enc`. -/
 private theorem corr_app_enc (w : World)
     (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
     (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
@@ -623,78 +612,9 @@ private theorem corr_app_enc (w : World)
     ∀ (xs : List SExpr) (e' : Env) (a b : SExpr) (ys : List SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some (enc xs)) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' b = some (enc ys)) →
-    ∃ N, ∀ f ≥ N, evalOpt f w e' (appOf a b) = some (enc (xs ++ ys)) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro e' a b ys ha hb
-    have hx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc [], enc ys]) xT = some (enc []) :=
-      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g w _ x_sym _ (bindArgs_xy_x _ _)⟩
-    have hy_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc [], enc ys]) yT = some (enc ys) :=
-      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g w _ y_sym _ (bindArgs_xy_y _ _)⟩
-    have hconspx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc [], enc ys]) (conspOf xT) = some .nil :=
-      conv_builtin1 w _ { name := "consp" } xT (enc []) (Logic.consp (enc []))
-        consp_not_special h_no_consp hx_ba (callBuiltin_consp _)
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc [], enc ys]) appBody = some (enc ys) := by
-      obtain ⟨Ni, hi⟩ := re_if_false w (bindArgs [x_sym, y_sym] [enc [], enc ys]) (conspOf xT)
-        (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (enc ys) hconspx_ba hy_ba
-      obtain ⟨Ny, hy⟩ := hy_ba
-      exact ⟨max Ni Ny, fun f hf => (hi f (by omega)).trans (hy f (by omega))⟩
-    exact conv_defn_2 w e' app_sym a b (enc []) (enc ys) x_sym y_sym appBody (enc ys)
-      app_not_special h_app ha hb hbody
-  | cons hd tl ih =>
-    intro e' a b ys ha hb
-    have hx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) xT
-        = some (.cons hd (enc tl)) :=
-      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g w _ x_sym _ (bindArgs_xy_x _ _)⟩
-    have hy_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) yT = some (enc ys) :=
-      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g w _ y_sym _ (bindArgs_xy_y _ _)⟩
-    have hconspx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (conspOf xT)
-        = some (Logic.consp (.cons hd (enc tl))) :=
-      conv_builtin1 w _ { name := "consp" } xT (.cons hd (enc tl))
-        (Logic.consp (.cons hd (enc tl))) consp_not_special h_no_consp hx_ba (callBuiltin_consp _)
-    have hcarx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (carOf xT) = some hd := by
-      have h := conv_builtin1 w _ { name := "car" } xT (.cons hd (enc tl))
-        (Logic.car (.cons hd (enc tl))) car_not_special h_no_car hx_ba (callBuiltin_car _)
-      simpa [Logic.car] using h
-    have hcdrx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (cdrOf xT)
-        = some (enc tl) := by
-      have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd (enc tl))
-        (Logic.cdr (.cons hd (enc tl))) cdr_not_special h_no_cdr hx_ba (callBuiltin_cdr _)
-      simpa [Logic.cdr] using h
-    have hrec : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (appOf (cdrOf xT) yT)
-        = some (enc (tl ++ ys)) :=
-      ih (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (cdrOf xT) yT ys hcdrx_ba hy_ba
-    have hthen : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys])
-          (consOf (carOf xT) (appOf (cdrOf xT) yT)) = some (.cons hd (enc (tl ++ ys))) :=
-      conv_builtin2 w _ { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
-        hd (enc (tl ++ ys)) (.cons hd (enc (tl ++ ys))) cons_not_special h_no_cons
-        hcarx_ba hrec rfl
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) appBody
-        = some (.cons hd (enc (tl ++ ys))) := by
-      obtain ⟨Ni, hi⟩ := re_if_true w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys])
-        (conspOf xT) (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (Logic.consp (.cons hd (enc tl)))
-        (.cons hd (enc (tl ++ ys))) hconspx_ba rfl hthen
-      obtain ⟨Nt, ht⟩ := hthen
-      exact ⟨max Ni Nt, fun f hf => (hi f (by omega)).trans (ht f (by omega))⟩
-    exact conv_defn_2 w e' app_sym a b (.cons hd (enc tl)) (enc ys) x_sym y_sym appBody
-      (.cons hd (enc (tl ++ ys))) app_not_special h_app ha hb hbody
+    ∃ N, ∀ f ≥ N, evalOpt f w e' (appOf a b) = some (enc (xs ++ ys)) :=
+  ACL2.Lifting.corr_append_enc w "app" (by decide) h_app
+    h_no_consp h_no_cdr h_no_car h_no_cons
 
 /-- The native assembly, PARAMETERIZED by the world and the mirror: any proof
     of the mirror statement over a world carrying the `app` definition (hand or

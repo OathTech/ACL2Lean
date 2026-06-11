@@ -45,10 +45,11 @@
 import ACL2Lean.Replay.Driver
 import ACL2Lean.Imported.SimpleWorld
 import ACL2Lean.Imported.AppAssoc
+import ACL2Lean.Imported.Lifting
 
 namespace ACL2.Imported.Mirrors
 
-open ACL2 ACL2.Replay ACL2.Replay.Driver Lean Lean.Meta Lean.Elab
+open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
 /-! ## Entry 1 — `my-len-my-app`: `(xs ++ ys).length = xs.length + ys.length`
 
@@ -183,31 +184,6 @@ derive_world directWorldD from directDev
     discharge, so the driver emits no hypotheses). -/
 def groundArithMirrorCond := driver_mirror% directDev directWorldD "ground-arith"
 
-private def qInt (n : Int) : SExpr :=
-  .cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int n))) .nil)
-private def plusT (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons b .nil))
-
-/-- Ground quote convergence. -/
-private theorem conv_qInt (w : World) (e : Env) (n : Int) :
-    ∃ N, ∀ f ≥ N, evalOpt f w e (qInt n) = some (.atom (.number (.int n))) :=
-  ⟨1, fun f hf => by
-    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-    exact evalOpt_quote g w e _⟩
-
-/-- Ground `binary-+` convergence to the SYMBOLIC sum. -/
-private theorem conv_plus_int (w : World) (e : Env) (a b : SExpr) (m n : Int)
-    (h_no : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (ha : ∃ N, ∀ f ≥ N, evalOpt f w e a = some (.atom (.number (.int m))))
-    (hb : ∃ N, ∀ f ≥ N, evalOpt f w e b = some (.atom (.number (.int n)))) :
-    ∃ N, ∀ f ≥ N, evalOpt f w e (plusT a b)
-      = some (.atom (.number (.int (m + n)))) := by
-  have h := conv_builtin2 w e { name := "binary-+" } a b
-    (.atom (.number (.int m))) (.atom (.number (.int n)))
-    (Logic.plus (.atom (.number (.int m))) (.atom (.number (.int n))))
-    (by decide) h_no ha hb (callBuiltin_plus _ _)
-  rwa [logic_plus_int] at h
-
 /-- ENTRY 3, PROVED — the ground arithmetic fact through the DRIVER's
     replayed mirror (executable-counterpart class). -/
 theorem ground_arith_native : (1 + (2 + 3) : Int) = 6 := by
@@ -228,7 +204,7 @@ theorem ground_arith_native : (1 + (2 + 3) : Int) = 6 := by
       (.atom (.number (.int (1 + (2 + 3))))) (.atom (.number (.int 6)))
       (hL' f (by omega)) (hR' f (by omega)) (by decide)
       (hm (f + 1) (by omega))
-  injection hval with h; injection h with h; injection h with h
+  exact int_atom_inj hval
 
 /-! ## Entry 4 — `sq-of-3`: `(3 * 3 : Int) = 9`
 
@@ -245,20 +221,6 @@ private def n_sym : Symbol := ⟨"ACL2", "n"⟩
 private def nT : SExpr := .atom (.symbol { name := "n" })
 private def sqBody : SExpr :=
   .cons (.atom (.symbol { name := "binary-*" })) (.cons nT (.cons nT .nil))
-
-/-- Ground `binary-*` convergence to the SYMBOLIC product. -/
-private theorem conv_times_int (w : World) (e : Env) (a b : SExpr) (m n : Int)
-    (h_no : w.defs.get? ({ name := "binary-*" } : Symbol) = none)
-    (ha : ∃ N, ∀ f ≥ N, evalOpt f w e a = some (.atom (.number (.int m))))
-    (hb : ∃ N, ∀ f ≥ N, evalOpt f w e b = some (.atom (.number (.int n)))) :
-    ∃ N, ∀ f ≥ N, evalOpt f w e
-      (.cons (.atom (.symbol { name := "binary-*" })) (.cons a (.cons b .nil)))
-      = some (.atom (.number (.int (m * n)))) := by
-  have h := conv_builtin2 w e { name := "binary-*" } a b
-    (.atom (.number (.int m))) (.atom (.number (.int n)))
-    (Logic.times (.atom (.number (.int m))) (.atom (.number (.int n))))
-    (by decide) h_no ha hb (callBuiltin_times _ _)
-  rwa [Logic.times_int] at h
 
 /-- ENTRY 4, PROVED — the ground fact about the user-defined `sq` through the
     DRIVER's replayed mirror (definition unfold + symbolic body evaluation). -/
@@ -292,7 +254,7 @@ theorem sq_of_3_native : (3 * 3 : Int) = 9 := by
       (.atom (.number (.int (3 * 3)))) (.atom (.number (.int 9)))
       (hL' f (by omega)) (hR' f (by omega)) (by decide)
       (hm (f + 1) (by omega))
-  injection hval with h; injection h with h; injection h with h
+  exact int_atom_inj hval
 
 /-! ## Entries 5–7 — the equality-reasoning trio (`08-equality-reasoning`)
 
@@ -322,37 +284,6 @@ def equalTransMirrorCond := driver_mirror% eqDev eqWorldD "equal-trans"
 private def xT : SExpr := .atom (.symbol { name := "x" })
 private def yT : SExpr := .atom (.symbol { name := "y" })
 private def zT : SExpr := .atom (.symbol { name := "z" })
-private def equalT (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "equal" })) (.cons a (.cons b .nil))
-private def impliesT (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "implies" })) (.cons a (.cons b .nil))
-
-/-- Variable convergence from a concrete env binding. -/
-private theorem conv_var_of_get (w : World) (e : Env) (s : Symbol) (v : SExpr)
-    (h : e.get? s = some v) :
-    ∃ N, ∀ f ≥ N, evalOpt f w e (.atom (.symbol s)) = some v :=
-  ⟨1, fun f hf => by
-    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-    exact evalOpt_var g w e s v h⟩
-
-/-- `(equal a b)` converges to the SYMBOLIC `Logic.equal` of the values. -/
-private theorem conv_equalT (w : World) (e : Env) (a b av bv : SExpr)
-    (h_no : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (ha : ∃ N, ∀ f ≥ N, evalOpt f w e a = some av)
-    (hb : ∃ N, ∀ f ≥ N, evalOpt f w e b = some bv) :
-    ∃ N, ∀ f ≥ N, evalOpt f w e (equalT a b) = some (Logic.equal av bv) :=
-  conv_builtin2 w e { name := "equal" } a b av bv _ (by decide) h_no ha hb
-    (callBuiltin_equal _ _)
-
-/-- `(implies a b)` converges to the SYMBOLIC `Logic.implies` of the values. -/
-private theorem conv_impliesT (w : World) (e : Env) (a b av bv : SExpr)
-    (h_no : w.defs.get? ({ name := "implies" } : Symbol) = none)
-    (ha : ∃ N, ∀ f ≥ N, evalOpt f w e a = some av)
-    (hb : ∃ N, ∀ f ≥ N, evalOpt f w e b = some bv) :
-    ∃ N, ∀ f ≥ N, evalOpt f w e (impliesT a b) = some (Logic.implies av bv) :=
-  conv_builtin2 w e { name := "implies" } a b av bv _ (by decide) h_no ha hb
-    (callBuiltin_implies _ _)
-
 /-- ENTRY 5, PROVED — `cdr ∘ cons = snd` at the `Logic` layer, through the
     DRIVER's mirror: the lhs is evaluated only SYMBOLICALLY (to
     `Logic.cdr (cons u v)`), so the equation is the mirror's content. -/
@@ -386,9 +317,6 @@ theorem cdr_cons_native (u v : SExpr) : Logic.cdr (SExpr.cons u v) = v := by
     mirror (the HYPOTHESIS decode: `h` truthifies the antecedent, the mirror's
     `implies ⇒ t` forces the conclusion). -/
 theorem equal_symm_native (u v : SExpr) (h : u = v) : v = u := by
-  by_cases hvu : v = u
-  · exact hvu
-  exfalso
   let e : Env := (({} : Env).insert ⟨"ACL2", "y"⟩ v).insert ⟨"ACL2", "x"⟩ u
   have hx : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e xT = some u :=
     conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
@@ -405,19 +333,13 @@ theorem equal_symm_native (u v : SExpr) (h : u = v) : v = u := by
   set f := max Ni Nm
   have hval : Logic.implies (Logic.equal u v) (Logic.equal v u) = SExpr.t :=
     Option.some.inj ((hi f (by omega)).symm.trans (hm f (by omega)))
-  rw [logic_implies_cond, (Logic.equal_t_iff _ _).mpr h] at hval
-  rw [show Logic.equal v u = SExpr.nil by
-    simp [Logic.equal, beq_iff_eq, hvu]] at hval
-  exact absurd hval (by decide)
+  exact eq_of_equal_truthy (truthy_of_implies_t hval (equal_truthy_of_eq h))
 
 /-- ENTRY 7, PROVED — transitivity of equality over `SExpr`, through the
     DRIVER's mirror (hypothesis decode through the formula's `if`-spine:
     `(implies (if (equal x y) (equal y z) 'nil) (equal x z))`). -/
 theorem equal_trans_native (u v w' : SExpr) (h1 : u = v) (h2 : v = w') :
     u = w' := by
-  by_cases huw : u = w'
-  · exact huw
-  exfalso
   let e : Env := ((({} : Env).insert ⟨"ACL2", "z"⟩ w').insert ⟨"ACL2", "y"⟩ v).insert
     ⟨"ACL2", "x"⟩ u
   have hx : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e xT = some u :=
@@ -440,7 +362,7 @@ theorem equal_trans_native (u v w' : SExpr) (h1 : u = v) (h2 : v = w') :
     conv_if_true eqWorldD e (equalT xT yT) (equalT yT zT) _
       (Logic.equal u v) (Logic.equal v w')
       (conv_equalT eqWorldD e xT yT u v (by decide) hx hy)
-      (by rw [(Logic.equal_t_iff _ _).mpr h1]; decide)
+      (equal_truthy_of_eq h1)
       (conv_equalT eqWorldD e yT zT v w' (by decide) hy hz)
   have himp := conv_impliesT eqWorldD e _ (equalT xT zT)
     (Logic.equal v w') (Logic.equal u w') (by decide) hif
@@ -450,10 +372,7 @@ theorem equal_trans_native (u v w' : SExpr) (h1 : u = v) (h2 : v = w') :
   set f := max Ni Nm
   have hval : Logic.implies (Logic.equal v w') (Logic.equal u w') = SExpr.t :=
     Option.some.inj ((hi f (by omega)).symm.trans (hm f (by omega)))
-  rw [logic_implies_cond, (Logic.equal_t_iff _ _).mpr h2] at hval
-  rw [show Logic.equal u w' = SExpr.nil by
-    simp [Logic.equal, beq_iff_eq, huw]] at hval
-  exact absurd hval (by decide)
+  exact eq_of_equal_truthy (truthy_of_implies_t hval (equal_truthy_of_eq h2))
 
 /-! ## Entry 8 — `app-cons-car`: `Logic.car (cons u v) = u`
 
@@ -477,14 +396,6 @@ def appConsCarMirrorCond := driver_mirror% multiDev multiWorldD "app-cons-car"
 
 private def aT : SExpr := .atom (.symbol { name := "a" })
 private def bT : SExpr := .atom (.symbol { name := "b" })
-private def consT (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))
-private def carT (a : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "car" })) (.cons a .nil)
-private def cdrT (a : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "cdr" })) (.cons a .nil)
-private def conspT (a : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "consp" })) (.cons a .nil)
 private def appT (a b : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "app" })) (.cons a (.cons b .nil))
 private def xS : Symbol := ⟨"ACL2", "x"⟩
