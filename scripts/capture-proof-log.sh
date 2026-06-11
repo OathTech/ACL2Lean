@@ -66,3 +66,23 @@ for INPUT in "$@"; do
 
   echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines, $got_qed/$got_defthm qed/defthm (source: $want_defthm) → $OUTPUT"
 done
+
+# include_str does NOT register a Lake file dependency, and Lake hashes module
+# CONTENT (touch does not invalidate), so a recaptured log silently leaves the
+# STALE embedded copy inside the consumer's .olean (verified empirically
+# 2026-06-10: modifying an embedded log triggers ZERO rebuilds). Force the
+# consumers to recompile by deleting their build artifacts. Keep this list in
+# sync with `grep -rl include_str ACL2Lean Tests`.
+ROOT="$(dirname "$0")/.."
+echo "invalidating include_str consumers (Lake does not track embedded logs):"
+for m in ACL2Lean/ClauseTree ACL2Lean/Imported/NativeMirrors \
+         Tests/DriverTests Tests/DriverCoverage; do
+  if [ -f "$ROOT/$m.lean" ]; then
+    rm -f "$ROOT/.lake/build/lib/lean/$m.olean" \
+          "$ROOT/.lake/build/lib/lean/$m.ilean" \
+          "$ROOT/.lake/build/lib/lean/$m.trace"
+    echo "  invalidated $m"
+  else
+    echo "  WARNING: include_str consumer $m.lean not found — list is stale" >&2
+  fi
+done

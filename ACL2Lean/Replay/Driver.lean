@@ -2719,12 +2719,22 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
 hand-written); `findThm` extracts a theorem's reconstructed proof from a
 development by name. -/
 
-/-- Find a theorem's reconstructed `ClauseProof` by name (case-insensitive). -/
-partial def findThm : Development → String → Option ClauseProof
+/-- All theorems matching a name (case-insensitive), in development order. -/
+partial def findThms : Development → String → List ClauseProof
   | .bind (.theorem cp) rest, nm =>
-    if cp.name.toLower == nm.toLower then some cp else findThm rest nm
-  | .bind _ rest, nm => findThm rest nm
-  | .done, _ => none
+    if cp.name.toLower == nm.toLower then cp :: findThms rest nm
+    else findThms rest nm
+  | .bind _ rest, nm => findThms rest nm
+  | .done, _ => []
+
+/-- The UNIQUE theorem named `nm` (case-insensitive). `none` when absent — and
+    also when AMBIGUOUS (two theorems differing only in case): selecting the
+    first match would silently pick a theorem the caller did not name, so we
+    refuse to guess (fail-closed; audited 2026-06-10). -/
+def findThm (dev : Development) (nm : String) : Option ClauseProof :=
+  match findThms dev nm with
+  | [cp] => some cp
+  | _ => none
 
 open Lean.Elab Lean.Elab.Command in
 /-- `derive_world name from devTerm` — define `name : World` as the world

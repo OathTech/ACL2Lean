@@ -15,10 +15,13 @@
       lake build Tests.DriverCoverage
   reads the table from the build output.
 
-  NO SILENT SKIPS: each log is `include_str`'d, so (a) an ABSENT log is a HARD compile
-  error naming the file (never silently skipped, never cached away), and (b) lake tracks
-  the logs as dependencies and re-runs when they change. Logs are gitignored; regenerate
-  the corpus with `scripts/capture-proof-log.sh` before building this.
+  NO SILENT SKIPS: each log is `include_str`'d, so an ABSENT log is a HARD compile
+  error naming the file (never silently skipped). CAVEAT (audited 2026-06-10): Lake
+  does NOT track the embedded files as dependencies — a CHANGED log does not trigger
+  a rebuild, and the stale embedded copy survives in the .olean. The capture script
+  (`scripts/capture-proof-log.sh`) therefore force-invalidates every include_str
+  consumer's build artifacts after recapture; regenerate the corpus with it (never
+  by hand) before building this.
 -/
 import ACL2Lean.Replay.Driver
 import ACL2Lean.ProofLog

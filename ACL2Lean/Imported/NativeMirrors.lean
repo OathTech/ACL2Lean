@@ -78,7 +78,8 @@ elab "driver_mirror%" devId:ident worldId:ident nm:str : term => do
   let dev ← unsafe Meta.evalExpr Development (mkConst ``ACL2.Development)
     (mkConst devName)
   let some cp := Driver.findThm dev nm.getString
-    | throwError "{nm.getString} not found in the development"
+    | throwError "{nm.getString}: not found in the development (or ambiguous \
+                  up to case — findThm refuses to guess)"
   Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst worldName, envExpr := env, worldVal := dev.toWorld }
