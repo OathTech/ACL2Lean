@@ -85,6 +85,16 @@ LIBRARY.
       UNREDUCED Lean arithmetic, equated by the mirror's equal⇒t fact — the
       arithmetic comes from ACL2's replayed evaluation, not a Lean decision
       procedure.
+- [x] **Entries 4–7 (2026-06-10).** sq-of-3 `(3 * 3 : Int) = 9` (DEFN-UNFOLD
+      decode: `conv_defn_1` + symbolic body evaluation); cdr-cons-refl
+      `Logic.cdr (cons u v) = v` (SYMBOLIC-VALUE decode — the lhs is
+      deliberately left unreduced so the mirror's equality is the content);
+      equal-symm / equal-trans (HYPOTHESIS decode: the native hypothesis
+      truthifies the `implies` antecedent via `Logic.equal_t_iff`, the
+      mirror's implies⇒t fact forces the conclusion; equal-trans adds the
+      formula's if-spine via `conv_if_true`). All axioms clean. Also: the
+      four bespoke per-entry mirror elaborators were unified into ONE
+      parametric `driver_mirror% dev world "name"` elaborator.
 
 - [ ] **Future work — polymorphic native statements.** The catalog states
       list-family results over `List SExpr` (what the current encoding
