@@ -1,6 +1,5 @@
 import Std.Data.HashMap
 import Lean
-import ACL2Lean.DSL.SyntaxCategories
 
 open Lean
 
@@ -397,9 +396,6 @@ def instructions (info : TheoremInfo) : List ProofInstruction :=
   | none => []
 
 end TheoremInfo
-
--- DSL-like notation for S-expressions in Lean code
-syntax "sexpr!{" acl2_sexpr "}" : term
 
 /-- Capture the ACL2 package context for events. -/
 structure PackageState where
