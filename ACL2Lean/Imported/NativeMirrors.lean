@@ -18,20 +18,26 @@
     5. cdr-cons-refl   Logic.cdr (cons u v) = v                   [symbolic-value]
     6. equal-symm      u = v → v = u                              [hypothesis decode]
     7. equal-trans     u = v → v = w → u = w                      [hypothesis + if]
+    8. app-cons-car    Logic.car (cons u v) = u                   [nested unfold +
+                                                                   symbolic-value]
   PROVED (via the HAND mirror — driver upgrade pending):
     -  my-len-my-app   ACL2Lean/Imported/SimpleWorld.lean (the original)
     -  nat-refl        Tests/DriverTests.lean `native_nat_refl` (trivial, driver)
+  MIRROR-ONLY (replayed by the driver — DriverCoverage regression — but the
+  decode is REFLEXIVE: our own evaluation of both sides computes the same
+  value, so no non-vacuous native fact exists to extract):
+    -  sq-rewrites, idf-rewrites, count-down-zero, my-evenp-3-is-nil,
+       my-oddp-3-is-t
   PENDING:
     -  app-nil          xs ++ [] = xs                        [G5: multi-literal
                         pushed clause induction]
     -  rev-rev          xs.reverse.reverse = xs              [G5 + rev corr]
-    -  len2-app family  length_append via len2               [corr_len2 +
-                        hypothesis discharge for the 04/05 worlds]
-    -  sq-rewrites / idf-rewrites  conditional rewrite facts [hypothesis decode
-                        over the sq/idf worlds; entries 4+6's patterns compose]
+    -  len2-app family  length_append via len2               [needs the len2
+                        world's dischargers (totality inductions + TP) — the
+                        entry-1 recipe over the 01 world]
     -  linear-chain     Int order transitivity               [#50 DP tactic]
     -  len2-nonneg      0 ≤ (xs.length : Int)                [decode; the Nat
-                        form is type-absorbed]
+                        form is type-absorbed; needs len2 dischargers]
     -  true-listp-*     type-absorbed natively (List is well-formed by type) —
                         documented, mirror-only
   ──────────────────────────────────────────────────────────────────────────
@@ -477,5 +483,167 @@ theorem equal_trans_native (u v w' : SExpr) (h1 : u = v) (h2 : v = w') :
   rw [show Logic.equal u w' = SExpr.nil by
     simp [Logic.equal, beq_iff_eq, huw]] at hval
   exact absurd hval (by decide)
+
+/-! ## Entry 8 — `app-cons-car`: `Logic.car (cons u v) = u`
+
+From `recon-tests/01-multi-theorem.proof-log` (`(equal (car (app (cons a b) y))
+a)`, cond[total:app]). The deepest decode so far: instantiating `b ↦ nil`
+makes the app-value collapse to `cons u v` — the decode layer UNFOLDS `app`
+twice (cons-case then nil-case of the body's if) — while the outer `car` is
+kept SYMBOLIC, so the mirror's equality yields the fully generic
+`Logic.car (cons u v) = u`. -/
+
+private def multiLog : String := include_str "../../acl2_samples/recon-tests/01-multi-theorem.proof-log"
+
+/-- The parsed development — the ONLY input is the log. -/
+def multiDev : Development :=
+  (((ProofLog.parse multiLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world multiWorldD from multiDev
+
+def appConsCarMirrorCond := driver_mirror% multiDev multiWorldD "app-cons-car"
+
+private def aT : SExpr := .atom (.symbol { name := "a" })
+private def bT : SExpr := .atom (.symbol { name := "b" })
+private def consT (a b : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))
+private def carT (a : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "car" })) (.cons a .nil)
+private def cdrT (a : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "cdr" })) (.cons a .nil)
+private def conspT (a : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "consp" })) (.cons a .nil)
+private def appT (a b : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "app" })) (.cons a (.cons b .nil))
+private def xS : Symbol := ⟨"ACL2", "x"⟩
+private def yS : Symbol := ⟨"ACL2", "y"⟩
+
+/-- `app`'s body converges to `v` when `x ↦ nil, y ↦ v` (the if's else). -/
+private theorem appBody_nil_case (v : SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.nil, v])
+      Worlds.AppAssoc.appBody = some v := by
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.nil, v]) xT
+      = some SExpr.nil :=
+    conv_var_of_get _ _ _ _ (by
+      show (((({} : Env).insert yS v).insert xS SExpr.nil)).get? xS = some SExpr.nil
+      simp [Env.get?_insert])
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.nil, v]) yT
+      = some v :=
+    conv_var_of_get _ _ _ _ (by
+      show (((({} : Env).insert yS v).insert xS SExpr.nil)).get? yS = some v
+      simp only [Env.get?_insert]
+      rw [if_neg (by decide)]; simp)
+  have hconsp : ∃ N, ∀ f ≥ N,
+      evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.nil, v]) (conspT xT)
+      = some (Logic.consp SExpr.nil) :=
+    conv_builtin1 multiWorldD _ { name := "consp" } xT SExpr.nil _ (by decide)
+      (by decide) hx (callBuiltin_consp _)
+  obtain ⟨Nc, hc⟩ := hconsp
+  obtain ⟨Ny, hyv⟩ := hy
+  refine ⟨max Nc Ny + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  show evalOpt (g + 1) multiWorldD (bindArgs [xS, yS] [SExpr.nil, v])
+    (.cons (.atom (.symbol { name := "if" }))
+      (.cons (conspT xT)
+        (.cons (consT (carT xT) (appT (cdrT xT) yT)) (.cons yT .nil))))
+    = some v
+  rw [evalOpt_if_false g multiWorldD _ _ _ yT (by rw [hc g (by omega)]; rfl)]
+  exact hyv g (by omega)
+
+/-- `app`'s body converges to `cons u v` when `x ↦ cons u nil, y ↦ v` (the
+    if's then-branch; the recursive `app` call lands in the nil case). -/
+private theorem appBody_cons_case (u v : SExpr) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v])
+        Worlds.AppAssoc.appBody = some (SExpr.cons u v) := by
+  have hx : ∃ N, ∀ f ≥ N,
+      evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v]) xT
+      = some (SExpr.cons u SExpr.nil) :=
+    conv_var_of_get _ _ _ _ (by
+      show (((({} : Env).insert yS v).insert xS (SExpr.cons u SExpr.nil))).get? xS
+        = some (SExpr.cons u SExpr.nil)
+      simp [Env.get?_insert])
+  have hy : ∃ N, ∀ f ≥ N,
+      evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v]) yT
+      = some v :=
+    conv_var_of_get _ _ _ _ (by
+      show (((({} : Env).insert yS v).insert xS (SExpr.cons u SExpr.nil))).get? yS
+        = some v
+      simp only [Env.get?_insert]
+      rw [if_neg (by decide)]; simp)
+  have hconsp : ∃ N, ∀ f ≥ N,
+      evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v]) (conspT xT)
+      = some (Logic.consp (SExpr.cons u SExpr.nil)) :=
+    conv_builtin1 multiWorldD _ { name := "consp" } xT _ _ (by decide)
+      (by decide) hx (callBuiltin_consp _)
+  -- (car x) ⇒ u, (cdr x) ⇒ nil
+  have hcar : ∃ N, ∀ f ≥ N,
+      evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v]) (carT xT)
+      = some u := by
+    have h := conv_builtin1 multiWorldD _ { name := "car" } xT
+      (SExpr.cons u SExpr.nil) _ (by decide) (by decide) hx (callBuiltin_car _)
+    rwa [logic_car_cons] at h
+  have hcdr : ∃ N, ∀ f ≥ N,
+      evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v]) (cdrT xT)
+      = some SExpr.nil := by
+    have h := conv_builtin1 multiWorldD _ { name := "cdr" } xT
+      (SExpr.cons u SExpr.nil) _ (by decide) (by decide) hx (callBuiltin_cdr _)
+    rwa [logic_cdr_cons] at h
+  -- the recursive call: app nil v ⇒ v  (definition unfold into the nil case)
+  have hinner : ∃ N, ∀ f ≥ N,
+      evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v])
+        (appT (cdrT xT) yT) = some v :=
+    conv_defn_2 multiWorldD _ { name := "app" } (cdrT xT) yT SExpr.nil v xS yS
+      Worlds.AppAssoc.appBody v (by decide) (by decide) hcdr hy (appBody_nil_case v)
+  -- then-branch: (cons (car x) (app (cdr x) y)) ⇒ cons u v
+  have hthen : ∃ N, ∀ f ≥ N,
+      evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v])
+        (consT (carT xT) (appT (cdrT xT) yT)) = some (SExpr.cons u v) :=
+    conv_builtin2 multiWorldD _ { name := "cons" } _ _ u v _ (by decide)
+      (by decide) hcar hinner (callBuiltin_cons _ _)
+  exact conv_if_true multiWorldD _ (conspT xT) (consT (carT xT) (appT (cdrT xT) yT))
+    yT (Logic.consp (SExpr.cons u SExpr.nil)) (SExpr.cons u v) hconsp rfl hthen
+
+/-- ENTRY 8, PROVED — the fully generic `car ∘ cons = fst` at the `Logic`
+    layer, through the DRIVER's mirror: instantiate `b ↦ nil` so
+    `(app (cons a b) y)` collapses to `cons u v` (two definition unfolds in
+    the decode), keep the outer `car` symbolic, and the mirror equates. -/
+theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
+  let e : Env := ((({} : Env).insert ⟨"ACL2", "y"⟩ v).insert
+    ⟨"ACL2", "b"⟩ SExpr.nil).insert ⟨"ACL2", "a"⟩ u
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e aT = some u :=
+    conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
+  have hb : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e bT = some SExpr.nil :=
+    conv_var_of_get _ _ _ _ (by
+      simp only [e, Env.get?_insert]
+      rw [if_neg (by decide)]; simp)
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e yT = some v :=
+    conv_var_of_get _ _ _ _ (by
+      simp only [e, Env.get?_insert]
+      rw [if_neg (by decide), if_neg (by decide)]; simp)
+  have hcons : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e (consT aT bT)
+      = some (SExpr.cons u SExpr.nil) :=
+    conv_builtin2 multiWorldD e { name := "cons" } aT bT u SExpr.nil _ (by decide)
+      (by decide) ha hb (callBuiltin_cons _ _)
+  have happ : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e (appT (consT aT bT) yT)
+      = some (SExpr.cons u v) :=
+    conv_defn_2 multiWorldD e { name := "app" } (consT aT bT) yT
+      (SExpr.cons u SExpr.nil) v xS yS Worlds.AppAssoc.appBody (SExpr.cons u v)
+      (by decide) (by decide) hcons hy (appBody_cons_case u v)
+  -- the outer car: kept SYMBOLIC — the mirror's equality is the content
+  have hL : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e (carT (appT (consT aT bT) yT))
+      = some (Logic.car (SExpr.cons u v)) :=
+    conv_builtin1 multiWorldD e { name := "car" } _ (SExpr.cons u v) _ (by decide)
+      (by decide) happ (callBuiltin_car _)
+  obtain ⟨NL, hL'⟩ := hL
+  obtain ⟨NR, hR'⟩ := ha
+  obtain ⟨Nm, hm⟩ := appConsCarMirrorCond e
+    (fun e' a0 a1 h0 h1 =>
+      Worlds.AppAssoc.drv_total_app multiWorldD (by decide) (by decide)
+        (by decide) (by decide) (by decide) e' a0 a1 h0 h1)
+  set f := max (max NL NR) Nm
+  exact eval_equal_t_implies_eq f multiWorldD e _ aT (Logic.car (SExpr.cons u v)) u
+    (hL' f (by omega)) (hR' f (by omega)) (by decide) (hm (f + 1) (by omega))
 
 end ACL2.Imported.Mirrors

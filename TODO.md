@@ -95,6 +95,17 @@ LIBRARY.
       formula's if-spine via `conv_if_true`). All axioms clean. Also: the
       four bespoke per-entry mirror elaborators were unified into ONE
       parametric `driver_mirror% dev world "name"` elaborator.
+- [x] **Entry 8 — app-cons-car (2026-06-10).** `Logic.car (cons u v) = u`
+      (`car_cons_native`): instantiate `b ↦ nil` so the app-value collapses,
+      unfold `app` TWICE in the decode layer (cons-case then nil-case), keep
+      the outer `car` symbolic. The deepest decode; axioms clean.
+- [x] **Honest classification of the rest (2026-06-10).** sq-rewrites,
+      idf-rewrites, count-down-zero, my-evenp/oddp-3 are MIRROR-ONLY: their
+      decode is reflexive (our own evaluation computes both sides to the
+      same value), so no non-vacuous native fact exists; DriverCoverage is
+      their regression. Still pending with real frontiers: app-nil/rev-rev/
+      true-listp-* (G5), linear-chain (#50), len2 family (needs that world's
+      dischargers — the entry-1 recipe).
 
 - [ ] **Future work — polymorphic native statements.** The catalog states
       list-family results over `List SExpr` (what the current encoding
