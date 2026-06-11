@@ -166,9 +166,21 @@ inductive TheoremSource where
   | unknown     -- source not specified (old trace format)
   deriving Repr, BEq
 
+/-- The admission JUSTIFICATION a recursive defun carries (emitted from the
+    world's `justification` record at admission): the measure term, the
+    well-founded relation, and the measured formal subset — the data the
+    replay needs to discharge `total:fn` hypotheses by well-founded induction
+    on the admitted measure. -/
+structure Justification where
+  measure : SExpr
+  wfRel : Symbol
+  measuredSubset : List Symbol
+  deriving Repr
+
 /-- A single event in the proof log. -/
 inductive ProofEvent where
   | defun (name : String) (formals : List Symbol) (body : SExpr)
+          (just : Option Justification := none)
   | defthm (name : String) (formula : SExpr := .nil) (source : TheoremSource := .unknown)
   | typePrescription (name : String) (corollary : SExpr)
       (basicTs : Option Int := none) (leaves : List (SExpr × Int) := [])
@@ -618,7 +630,26 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | other => throw s!"DEFUN {name}: non-symbol formal: {repr other}"
         let body ← (lookupKeyword "body" fields).elim
           (throw s!"DEFUN {name}: missing :BODY") pure
-        return .defun name formals body
+        -- The admission justification: :MEASURE/:WFREL/:MEASURED travel
+        -- together (recursive defun) or are all absent (non-recursive); a
+        -- PARTIAL set is a malformed emission and hard-fails.
+        let just ← match lookupKeyword "measure" fields,
+                         lookupKeyword "wfrel" fields,
+                         lookupKeyword "measured" fields with
+          | none, none, none => pure none
+          | some m, some r, some sub => do
+            let rel ← match r with
+              | .atom (.symbol s) => pure s
+              | other => throw s!"DEFUN {name}: :WFREL is not a symbol: {repr other}"
+            let subL ← sub.toList?.elim
+              (throw s!"DEFUN {name}: :MEASURED is not a list: {repr sub}") pure
+            let subSyms ← subL.mapM fun
+              | .atom (.symbol s) => pure s
+              | other => throw s!"DEFUN {name}: non-symbol measured formal: {repr other}"
+            pure (some { measure := m, wfRel := rel, measuredSubset := subSyms })
+          | _, _, _ => throw s!"DEFUN {name}: partial admission justification \
+                               (:MEASURE/:WFREL/:MEASURED must travel together)"
+        return .defun name formals body just
       | _ => throw s!"DEFUN: bad name: {repr nameExpr}"
     | _ => throw s!"DEFUN: expected plist, got {repr rest}"
   | .cons (.atom (.keyword "type-prescription")) rest =>

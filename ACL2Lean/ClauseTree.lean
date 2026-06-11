@@ -72,11 +72,12 @@ structure ClauseProof where
     let-bindings over the later definitions and theorems that may use them. -/
 inductive WorldEvent where
   /-- A function definition. `body` is the (translated) form ACL2 reasons about.
-      `measure` is the termination measure when ACL2 emits one (producer gap —
-      currently always `none`). `termination` is the admission (measure-
-      conjecture) proof, present when the admission was non-trivial. -/
+      `just` is the admission justification (measure/well-founded relation/
+      measured subset), present exactly when the defun is recursive.
+      `termination` is the admission (measure-conjecture) proof, present when
+      the admission was non-trivial. -/
   | defun (name : String) (formals : List Symbol) (body : SExpr)
-          (measure : Option SExpr) (termination : Option ClauseProof)
+          (just : Option Justification) (termination : Option ClauseProof)
   /-- A type-prescription corollary ACL2 derived for a function. -/
   | typePrescription (name : String) (corollary : SExpr)
           (basicTs : Option Int) (leaves : List (SExpr × Int))
@@ -434,9 +435,9 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       match ev with
       | .defthm name formula _ => curName := some name; curFormula := formula; curEvents := #[]
       | _ => curName := none; curFormula := .nil; curEvents := #[]
-    | .defun n formals body =>
+    | .defun n formals body just =>
       let termination := pendingTermination.map fun t => { t with name := s!"termination of {n}" }
-      events := events.push (.defun n formals body none termination)
+      events := events.push (.defun n formals body just termination)
       pendingTermination := none
     | .typePrescription n cor bts leaves =>
       events := events.push (.typePrescription n cor bts leaves)

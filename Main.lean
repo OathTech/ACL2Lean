@@ -142,11 +142,13 @@ private partial def printDevelopment : ACL2.Development → IO Unit
   | .done => pure ()
   | .bind event rest => do
     match event with
-    | .defun name formals body measure termination =>
+    | .defun name formals body just termination =>
       let fs := String.intercalate " " (formals.map (·.name))
       IO.println s!"\n── def {name} ({fs}) ──"
       IO.println s!"  body: {body}"
-      if let some m := measure then IO.println s!"  measure: {m}"
+      if let some j := just then
+        let ms := String.intercalate " " (j.measuredSubset.map (·.name))
+        IO.println s!"  admission: measure {j.measure} under {j.wfRel.name}; measured: ({ms})"
       if let some t := termination then
         IO.println "  termination proof:"
         printClauseProof t 4
@@ -234,9 +236,11 @@ def main (args : List String) : IO Unit := do
                   IO.println s!"    rewrites: {rwSteps.length} steps"
                   for rw in rwSteps do
                     IO.println s!"      {rw.rune.1}:{rw.rune.2}"
-            | .defun name formals body =>
+            | .defun name formals body just =>
                 let formalStr := String.intercalate " " (formals.map (·.name))
                 IO.println s!"\n  DEFUN {name} ({formalStr}) = {body}"
+                if let some j := just then
+                  IO.println s!"    admission: measure {j.measure} under {j.wfRel.name}"
             | .defthm name formula source =>
                 let srcStr := match source with
                   | .local => " [local]"

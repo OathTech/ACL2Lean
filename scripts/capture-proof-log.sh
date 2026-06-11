@@ -74,14 +74,14 @@ done
 # consumers to recompile by deleting their build artifacts. Keep this list in
 # sync with `grep -rl include_str ACL2Lean Tests`.
 ROOT="$(dirname "$0")/.."
-echo "invalidating include_str consumers (Lake does not track embedded logs):"
+echo "forcing rebuild of include_str consumers (Lake does not track embedded logs):"
 for m in ACL2Lean/ClauseTree ACL2Lean/Imported/NativeMirrors \
          Tests/DriverTests Tests/DriverCoverage; do
   if [ -f "$ROOT/$m.lean" ]; then
     rm -f "$ROOT/.lake/build/lib/lean/$m.olean" \
           "$ROOT/.lake/build/lib/lean/$m.ilean" \
           "$ROOT/.lake/build/lib/lean/$m.trace"
-    echo "  invalidated $m"
+    echo "  will rebuild: $m"
   else
     echo "  WARNING: include_str consumer $m.lean not found — list is stale" >&2
   fi
