@@ -6,3 +6,4 @@ ACL2Lean/Translated/
 *.dump
 .claude/
 /.tmp
+Tests/driver-coverage.actual

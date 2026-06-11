@@ -168,6 +168,20 @@ def tryDischarge (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (fun e =>
       return s!"{id}:{origin} ✗ (runtime: {(← e.toMessageData.toString).replace "\n" " "})")
 
+/-- The committed GOLDEN coverage table (audit-debt item, #37 full audit): the
+    whole report — every per-theorem status line and the summary counts — is
+    diffed against this checked-in baseline, so a refactor's "coverage
+    unchanged" claim is a build-enforced diff against a saved artifact, not a
+    re-asserted number. `include_str` makes an absent golden a hard compile
+    error. A mismatch FAILS elaboration, so no stale .olean caches the old
+    embed — the re-run after updating the golden re-reads the file. -/
+def goldenTable : String := include_str "driver-coverage.golden"
+
+/-- Where the freshly computed table is written on every run (gitignored), so
+    an INTENDED coverage change is updated by
+    `cp Tests/driver-coverage.actual Tests/driver-coverage.golden`. -/
+def actualTablePath : System.FilePath := "Tests/driver-coverage.actual"
+
 elab "#driver_coverage" : command => do
   liftTermElabM do
     let mut lines : Array String := #[]
@@ -237,7 +251,24 @@ elab "#driver_coverage" : command => do
             let disTag := if disParts.isEmpty then "" else
               s!"  [DISCHARGE: {", ".intercalate disParts}]"
             lines := lines.push s!"    {cp.name} → {status}{tag}{disTag}"
-    logInfo m!"Driver coverage — REPLAYED {replayed}/{total}; DP-discharge leaves ✓{dpReplayed} ◌{dpAssumed} ✗{dpTotal - dpReplayed - dpAssumed} of {dpTotal}:\n{"\n".intercalate lines.toList}"
+    let report := s!"Driver coverage — REPLAYED {replayed}/{total}; DP-discharge leaves ✓{dpReplayed} ◌{dpAssumed} ✗{dpTotal - dpReplayed - dpAssumed} of {dpTotal}:\n{"\n".intercalate lines.toList}"
+    logInfo report
+    -- GOLDEN-TABLE GATE: write the fresh table, then diff against the committed
+    -- baseline. Runs BEFORE the integrity/emission gates so the .actual file is
+    -- always produced, but only THROWS after them (their failures are the
+    -- primary signal; a golden mismatch alongside them is a symptom).
+    IO.FS.writeFile actualTablePath (report ++ "\n")
+    let goldenLines := goldenTable.trimAsciiEnd.toString.splitOn "\n"
+    let reportLines := report.splitOn "\n"
+    let tableDrift : Option String :=
+      if goldenLines == reportLines then none
+      else
+        let n := max goldenLines.length reportLines.length
+        let diffs := (List.range n).filterMap fun i =>
+          let g := goldenLines.getD i "<absent>"
+          let r := reportLines.getD i "<absent>"
+          if g == r then none else some s!"  line {i + 1}:\n    golden: {g}\n    actual: {r}"
+        some ("\n".intercalate diffs)
     unless integrityFails.isEmpty do
       throwError m!"Reconstruction-integrity failures (not the replay frontier):\n{"\n".intercalate integrityFails.toList}"
     unless emissionFrontiers.isEmpty do
@@ -245,6 +276,8 @@ elab "#driver_coverage" : command => do
       -- A black-box PROVED leaf has no emitted proof structure to replay; treating it as
       -- handled would be a fidelity lie. These FAIL the build deliberately.
       throwError m!"Unhandled EMISSION FRONTIER — {emissionFrontiers.size} theorem(s) discharged by an uninstrumented preprocess/eval/type-set path (black-box PROVED leaf, no replayable structure emitted). This is the Track B emission gap (docs/plans/2026-06-09_direct-proof-emission.md), deliberately failing until that instrumentation lands:\n{"\n".intercalate emissionFrontiers.toList}"
+    if let some drift := tableDrift then
+      throwError m!"Coverage table DIFFERS from the committed golden (Tests/driver-coverage.golden) — coverage changed. If UNINTENDED, this is a regression: fix it. If intended, review the diff and update the baseline:\n  cp Tests/driver-coverage.actual Tests/driver-coverage.golden\nDiffering lines:\n{drift}"
 
 -- Unlimited at the command level: per-leaf budgets are enforced INSIDE
 -- `tryDischarge` (withCurrHeartbeats + a 400k cap), so one expensive leaf cannot

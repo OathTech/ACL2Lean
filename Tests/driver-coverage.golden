@@ -1,0 +1,56 @@
+Driver coverage — REPLAYED 17/37; DP-discharge leaves ✓9 ◌9 ✗0 of 18:
+• simple  (world: 3 defun(s), 1 theorem(s))
+    my-len-my-app → REPLAYED ✓ cond[tp:my-len]
+• 00-direct  (world: 2 defun(s), 3 theorem(s))
+    ground-arith → REPLAYED ✓
+    sq-of-3 → REPLAYED ✓
+    sq-rewrites → REPLAYED ✓
+• 01-multi-theorem  (world: 3 defun(s), 3 theorem(s))
+    app-cons-car → REPLAYED ✓
+    app-nil → FAIL: replayInduction: multi-literal pushed clause (frontier)  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(app x (quote NIL)), tp:app]]
+    len2-app → REPLAYED ✓ cond[tp:len2]
+• 02-rev  (world: 3 defun(s), 5 theorem(s))
+    app-assoc → REPLAYED ✓
+    true-listp-rev → FAIL: replayLiteral: terminal node is not equal-self (rune ("clause-context-resolution", "NIL"))  [DISCHARGE: Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(app rv (cons x1 (quote NIL))), tp:app]]
+    app-nil → FAIL: replayInduction: multi-literal pushed clause (frontier)  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(app x (quote NIL)), tp:app]]
+    rev-app → FAIL: replayNode: no rule for rune (rewrite, true-listp-rev) — unimplemented frontier
+    rev-rev → FAIL: replayInduction: multi-literal pushed clause (frontier)  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(rev (rev x)), tp:rev]]
+• 03-linear  (world: 2 defun(s), 3 theorem(s))
+    len2-nonneg → REPLAYED ✓ cond[tp:len2]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(len2 x), tp:len2]]
+    len2-cdr-smaller → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (< (len2 (cdr x)) (len2 x))  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(len2 (cdr x)), tp:len2]]
+    linear-chain → FAIL: omega could not prove the goal: No usable constraints found. You may need to unfold definitions so `omega` can see linear arithmetic facts about `Nat` and `Int`, which may also involve multiplication, division, and modular remainder by constants.  [DISCHARGE: Goal:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+• 04-multi-case-induction  (world: 3 defun(s), 2 theorem(s))
+    evenlen-booleanp → FAIL: dpValExpr: unary symbolp is not a DP-lift primitive: (symbolp (classify n))  [DISCHARGE: Goal:preprocess/type-set-fc ◌ assumed cond[total:(booleanp (evenlen x)), ASSUMED:dp-fact]]
+    classify-pos → FAIL: dpValExpr: unary symbolp is not a DP-lift primitive: (symbolp (classify n))
+• 05-hints  (world: 3 defun(s), 4 theorem(s))
+    len2-app-helper → REPLAYED ✓ cond[tp:len2]
+    len2-app-via-use → FAIL: replayClause: preprocess chain with child clauses at Goal (clausify-split frontier)
+    len2-app-via-induct → FAIL: replayClause: preprocess chain on a multi-literal clause at Subgoal *1/2 (frontier)
+    len2-app-no-helper → FAIL: replayNode: no rule for rune (rewrite, len2-app-via-induct) — unimplemented frontier
+• 06-measure  (world: 4 defun(s), 1 theorem(s))
+    count-down-zero → REPLAYED ✓
+• 07-mutual-recursion  (world: 3 defun(s), 2 theorem(s))
+    my-evenp-3-is-nil → REPLAYED ✓
+    my-oddp-3-is-t → REPLAYED ✓
+• 08-equality-reasoning  (world: 1 defun(s), 3 theorem(s))
+    cdr-cons-refl → REPLAYED ✓
+    equal-symm → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓]
+    equal-trans → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓]
+• 09-defn-unfold  (world: 3 defun(s), 2 theorem(s))
+    sq-rewrites → REPLAYED ✓
+    idf-rewrites → REPLAYED ✓
+• 10-tree-induction  (world: 3 defun(s), 2 theorem(s))
+    true-listp-app → FAIL: replayInduction: multi-literal pushed clause (frontier)
+    true-listp-flatten → FAIL: replayInduction: step case has 2 IHs (frontier: exactly 1)
+• 11-custom-measure  (world: 2 defun(s), 1 theorem(s))
+    cd2-bound → FAIL: dpValExpr: unary nfix is not a DP-lift primitive: (nfix n)  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ◌ assumed cond[total:(cd2 (binary-+ (quote -2) n)), tp:cd2, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau-contradiction ◌ assumed cond[total:(cd2 n), tp:cd2, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(cd2 n), tp:cd2]]
+• 12-multi-controller  (world: 2 defun(s), 1 theorem(s))
+    len-zip2 → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(len (cdr x)), total:(len (zip2 (cdr x) (cdr y))), ASSUMED:dp-fact], Subgoal *1/1':preprocess/tau-contradiction ◌ assumed cond[total:(len (cdr x)), ASSUMED:dp-fact]]
+• 13-multi-measured-var  (world: 2 defun(s), 1 theorem(s))
+    len-interleave → FAIL: replayInduction: measure (binary-+ (acl2-count x) (acl2-count y)) is not (acl2-count v) (frontier)
+• 14-accumulator  (world: 2 defun(s), 1 theorem(s))
+    len-rev-acc → FAIL: proveConv: unary len not in the builtin registry (frontier): (len acc)
+• 15-nested-induction  (world: 3 defun(s), 1 theorem(s))
+    nested-induction → FAIL: proveConv: unary len not in the builtin registry (frontier): (len y)
+• 16-three-way  (world: 2 defun(s), 1 theorem(s))
+    len-zip3 → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(len (cdr x)), total:(len (zip3 (cdr x) (cdr y) (cdr z))), ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[total:(len (cdr x)), ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[total:(len (cdr x)), ASSUMED:dp-fact]]

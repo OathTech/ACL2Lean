@@ -5,7 +5,7 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-06-10._
+_Last updated: 2026-06-11._
 
 > **`just ci` is GREEN** and includes the driver-coverage sweep: hard-fails on
 > any item-less PROVED leaf (emission gap) and reconstruction-integrity
@@ -22,12 +22,16 @@ relation, never an enum; L3 mandatory world-parametricity.** The sequencing —
 each step lands with the standing discipline (real artifact first, fail
 closed, ci as scoreboard, audits at milestones):
 
-- [ ] **G1 — R-parameterized rewrite judgment + geneqv emission.** One rewrite
-      judgment family over an abstract value-level relation (equal/iff
-      instances; congruence lemmas indexed by fn/position/R-in/R-out; emit the
-      geneqv per instrumented step). Unblocks the LIVE frontier: the
-      preprocess iff-chain (app-nil, rev-rev, true-listp-app stop exactly
-      here). Absorbs the remainder of c3 #53.
+- [x] **G1 — R-parameterized rewrite judgment + geneqv emission (DONE
+      2026-06-10, commit 3ae8352).** `EvRel R` over an abstract value relation
+      (L2), Eq/SIff instances; congruence-table rows by (fn, position, R-in,
+      R-out) — if-then/if-else preserve SIff, if-test collapses it; equal
+      steps inject by refinement; `:EQUIV` emitted at all sites and REQUIRED
+      by the parser (fail-closed); iff/user-equivalence RULE applications are
+      precise named frontiers. THE IFF FRONTIER IS RETIRED: app-nil, rev-rev,
+      true-listp-app compose through chain + clausify bridge and now stop at
+      the G5 induction frontier (multi-literal pushed clauses). The interim
+      boolean-head strengthening (`formulaBooleanFact`) is removed by G2.
 - [ ] **G2 — `EvTrue` migration.** Clause/mirror judgments move to truthiness
       (`∃v, eval = some v ∧ v ≠ nil`), ACL2's own semantics; `= some t` kept
       as a derived strengthening. Removes the boolean-valuedness restriction
@@ -251,17 +255,12 @@ log, `#print axioms` clean. The pieces exist; c3 wires them:
       pseudo-theorem (what #37 consumes). Follow-up: the coverage harness
       should also sweep `WorldEvent.defun.termination` trees for DP leaves
       (one ✓ leaf moved out of the theorem sweep).
-- [ ] **IFF-aware preprocess chain (the next #53C frontier).** The preprocess
-      chain runs under `*geneqv-iff*` (`expand-abbreviations term nil
-      *geneqv-iff* …`), so its `(if A 't 'nil) ⇒ A` if-simplifications are
-      IFF-only, NOT value-preserving — the current eval-EQUALITY chain
-      composition cannot replay them (app-nil / rev-rev / true-listp-app stop
-      here, honestly). Design options to discuss: (a) BACKWARD truth-transport
-      (compose `eval rhs = some t → eval lhs = some t` per node, with
-      iff-position-aware congruence through if-branches — value-sound, needs a
-      transport walker like the clausify bridge's); (b) an iff-chain judgment
-      (truthiness-iff composition) + boolean-valuedness at the formula end.
-      ALSO: gate the clausify-checkpoint emission on preprocess HIT (today a
+- [x] **IFF-aware preprocess chain — RETIRED by G1 (2026-06-10, 3ae8352).**
+      The `*geneqv-iff*` chain replays via `EvRel SIff` + the congruence table
+      + backward truth transport (`truthy_of_evrel_siff`) + the interim
+      boolean-head strengthening; app-nil / rev-rev / true-listp-app now stop
+      at the G5 induction frontier instead.
+- [ ] **Gate the clausify-checkpoint emission on preprocess HIT** (today a
       'miss pass's events flush into the NEXT step's :REWRITES — handled by
       validated no-op drops in the driver, but gating at the source is cleaner).
 - [ ] **Mirror-statement boolean-validity check.** The mirror form
