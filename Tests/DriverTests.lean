@@ -332,29 +332,23 @@ elab "acl2_replay_mylen_real% " : term => do
       { worldExpr := mkConst ``simpleWorld, envExpr := env,
         worldVal := simpleDevelopment.toWorld }
     let (proof, conds) ← replayProofConditional cfg simpleTPs cp
+      simpleDevelopment.justifications
     logInfo m!"my-len-my-app replayed; conditions: {conds}"
     mkLambdaFVars #[env] proof
 
-/-- The first DRIVER-replayed INDUCTIVE theorem (conditional on the emitted
-    totality/TP facts — the obligations are explicit in the type). -/
+/-- The first DRIVER-replayed INDUCTIVE theorem. As of #37 the driver
+    AUTO-DISCHARGES the totality hypotheses from the emitted admission data
+    (justification + raw termination clauses), so only the TP hypothesis
+    remains explicit in the type. -/
 def my_len_my_app_real_mirror := acl2_replay_mylen_real%
 
-/-- PIN the machine-generated statement (audit #38): the conclusion is the genuine
-    mirror of the ACL2 defthm `(equal (my-len (my-app x y)) (+ (my-len x) (my-len y)))`,
-    and the hypotheses are exactly the four used obligations — totality of
-    my-len/my-app/fix and my-len's emitted TP corollary, lifted value-only. -/
+/-- PIN the machine-generated statement (audit #38, updated for #37): the
+    conclusion is the genuine mirror of the ACL2 defthm
+    `(equal (my-len (my-app x y)) (+ (my-len x) (my-len y)))`, and the sole
+    remaining hypothesis is my-len's emitted TP corollary, lifted value-only
+    (totality of my-len/my-app/fix is auto-discharged from admission). -/
 example :
     ∀ (env : Env),
-      (∀ (env' : Env) (a0 : SExpr),
-          (∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' a0 = some v) →
-          ∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' (ap1 "my-len" a0) = some v) →
-      (∀ (env' : Env) (a0 a1 : SExpr),
-          (∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' a0 = some v) →
-          (∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' a1 = some v) →
-          ∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' (ap2 "my-app" a0 a1) = some v) →
-      (∀ (env' : Env) (a0 : SExpr),
-          (∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' a0 = some v) →
-          ∃ N v, ∀ f ≥ N, evalOpt f simpleWorld env' (ap1 "fix" a0) = some v) →
       (∀ (env' : Env) (a0 v : SExpr),
           (∃ N, ∀ f ≥ N, evalOpt f simpleWorld env' (ap1 "my-len" a0) = some v) →
           (bif Logic.toBool (Logic.integerp v) then

@@ -120,7 +120,8 @@ def corpus : List (String × String) :=
     world is PROJECTED from the development and REFLECTED concretely (P4); structural facts
     are DERIVED by the driver (P3). A message that is neither a `replayClause`/`replayNode`/
     `replayLiteral` frontier flags a real bug in the new code, not an expected frontier. -/
-def tryReplay (w : World) (tps : List (String × SExpr)) (cp : ClauseProof) :
+def tryReplay (w : World) (tps : List (String × SExpr))
+    (justs : List (String × ACL2.Justification)) (cp : ClauseProof) :
     TermElabM String := do
   let wExpr ← reflectWorld w
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge
@@ -129,7 +130,7 @@ def tryReplay (w : World) (tps : List (String × SExpr)) (cp : ClauseProof) :
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
-        let (prf, conds) ← replayProofConditional cfg tps cp
+        let (prf, conds) ← replayProofConditional cfg tps cp justs
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       let condStr := if p.2.isEmpty then "" else s!" cond[{", ".intercalate p.2}]"
@@ -214,7 +215,7 @@ elab "#driver_coverage" : command => do
             -- ratified carve-out; attempt the DP-lift replay (c1) per leaf.
             let dis := theoremDischargeLeaves cp
             let tps := developmentTPs dev
-            let status ← tryReplay w tps cp
+            let status ← tryReplay w tps dev.justifications cp
             if status.startsWith "REPLAYED ✓" then replayed := replayed + 1
             let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
             let mut disParts : List String := []

@@ -84,6 +84,7 @@ elab "driver_mirror%" devId:ident worldId:ident nm:str : term => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst worldName, envExpr := env, worldVal := dev.toWorld }
     let (proof, _conds) ← replayProofConditional cfg dev.typePrescriptions cp
+      dev.justifications
     Meta.mkLambdaFVars #[env] proof
 
 /-- The conditional mirror as a definition (the driver's proof OBJECT). -/
@@ -102,12 +103,9 @@ term, so the proof closes definitionally. -/
 theorem mylenMirror_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → evalOpt f simpleWorldD env
       Worlds.Simple.my_len_my_appFormula = some SExpr.t :=
+  -- the total:my-len/my-app/fix hypotheses are AUTO-DISCHARGED by the driver
+  -- from the emitted admission data (#37); only the TP hypothesis remains
   mylenMirrorCond env
-    (Worlds.Simple.drv_total_mylen simpleWorldD (by decide) (by decide)
-      (by decide) (by decide))
-    (Worlds.Simple.drv_total_myapp simpleWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide))
-    (Worlds.Simple.drv_total_fix simpleWorldD (by decide) (by decide))
     (Worlds.Simple.drv_tp_mylen simpleWorldD (by decide) (by decide)
       (by decide) (by decide))
 
@@ -144,15 +142,12 @@ derive_world revWorldD from revDev
     (app a (app b c))) = some t`. -/
 def appAssocMirrorCond := driver_mirror% revDev revWorldD "app-assoc"
 
-/-- The driver mirror, its `total:app` hypothesis DISCHARGED — unconditional
-    over the log-derived world. -/
+/-- The driver mirror — UNCONDITIONAL: its sole `total:app` hypothesis is
+    AUTO-DISCHARGED by the driver from the emitted admission data (#37). -/
 theorem appAssocMirror_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → evalOpt f revWorldD env
       Worlds.AppAssoc.app_assocFormula = some SExpr.t :=
   appAssocMirrorCond env
-    (fun e' a0 a1 h0 h1 =>
-      Worlds.AppAssoc.drv_total_app revWorldD (by decide) (by decide)
-        (by decide) (by decide) (by decide) e' a0 a1 h0 h1)
 
 /-- ENTRY 2, PROVED — `List.append_assoc` (over `SExpr`) through the DRIVER's
     replayed mirror, with the world-parametric native assembly instantiated
@@ -495,9 +490,6 @@ theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
   exact native_of_mirror_equal multiWorldD e idRep
     (carT (appT (consT aT bT) yT)) aT (Logic.car (SExpr.cons u v)) u
     (by decide) hL ha
-    (appConsCarMirrorCond e
-      (fun e' a0 a1 h0 h1 =>
-        Worlds.AppAssoc.drv_total_app multiWorldD (by decide) (by decide)
-          (by decide) (by decide) (by decide) e' a0 a1 h0 h1))
+    (appConsCarMirrorCond e)
 
 end ACL2.Imported.Mirrors

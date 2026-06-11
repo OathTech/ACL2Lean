@@ -163,3 +163,14 @@ REMAINING — the walker proveTotality (Driver.lean), design refined:
 - First validation target: simple.proof-log — total:fix (non-recursive),
   then total:my-len (recursive, the cdr/consp shape), then the corpus
   coverage table's cond[] shrinkage + catalog entry 1 simplification.
+
+## 2c VALIDATED (2026-06-11)
+The walker (proveTotality + totWalk + totDischargeDecrease, Driver.lean) is
+built and wired. First-build validation EXCEEDED the plan: building the
+catalog auto-discharged ALL FOUR in-scope totality classes at once —
+total:fix (non-recursive 1-ary), total:my-len (1-ary recursive, cdr/consp),
+total:my-app and total:app (2-ary recursive, measured first formal). The
+catalog entries simplified accordingly (entry 1 keeps only the TP
+hypothesis; entries 2/8's mirrors are now UNCONDITIONAL), the audit-#38
+pinned statement in DriverTests was updated to the stronger type, and
+axioms remain clean on all driver-backed native theorems.

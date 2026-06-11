@@ -1875,6 +1875,141 @@ theorem acl2Count_strong_induction (P : SExpr → Prop)
   induction n using Nat.strong_induction_on generalizing x with
   | _ n ih => exact step x (fun y hy => ih y.acl2Count (h ▸ hy) y rfl)
 
+/-- Value-characterized convergence of a VARIABLE from a concrete env-get
+    fact (the formals of a `bindArgs` env during the totality walk). -/
+theorem re_val_var_get (w : World) (env : Env) (s : Symbol) (v : SExpr)
+    (h : env.get? s = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol s)) = some v :=
+  ⟨1, fun f hf => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact evalOpt_var g w env s v h⟩
+
+/-- Pack a value-characterized convergence into the ∃N∃v walk shape. -/
+theorem conv_ex_of_vfix {w : World} {env : Env} {t v : SExpr}
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v) :
+    ∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env t = some u := by
+  obtain ⟨N, h⟩ := h; exact ⟨N, v, h⟩
+
+/-- A 1-ary BUILTIN call converges when its argument does (∃N∃v walk form);
+    `g`/`hg` are the primitive's total value function and its `callBuiltin`
+    characterization (the dpUnary rfl lemma). -/
+theorem conv_builtin1_ex (w : World) (env : Env) (s : Symbol) (a : SExpr)
+    (g : SExpr → SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_no : w.defs.get? s = none)
+    (hg : ∀ v, callBuiltin s.name [v] = some (g v))
+    (ha : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env a = some v) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) (.cons a .nil)) = some v := by
+  obtain ⟨Na, av, ha'⟩ := ha
+  obtain ⟨N, h⟩ := conv_builtin1 w env s a av (g av) h_ns h_no ⟨Na, ha'⟩ (hg av)
+  exact ⟨N, g av, h⟩
+
+/-- A 2-ary BUILTIN call converges when its arguments do (∃N∃v walk form). -/
+theorem conv_builtin2_ex (w : World) (env : Env) (s : Symbol) (a b : SExpr)
+    (g : SExpr → SExpr → SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_no : w.defs.get? s = none)
+    (hg : ∀ u v, callBuiltin s.name [u, v] = some (g u v))
+    (ha : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env a = some v)
+    (hb : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env b = some v) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) (.cons a (.cons b .nil)))
+        = some v := by
+  obtain ⟨Na, av, ha'⟩ := ha
+  obtain ⟨Nb, bv, hb'⟩ := hb
+  obtain ⟨N, h⟩ := conv_builtin2 w env s a b av bv (g av bv) h_ns h_no
+    ⟨Na, ha'⟩ ⟨Nb, hb'⟩ (hg av bv)
+  exact ⟨N, g av bv, h⟩
+
+/-- TOTALITY of a NON-RECURSIVE 1-ary defined fn from its body's convergence
+    at every argument value — the capper the totality prover applies; the
+    driver supplies `hbody` as the body walk λ-abstracted over the value. -/
+theorem totality_1_of_body (w : World) (s : Symbol) (formal : Symbol) (body : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal], body))
+    (hbody : ∀ av : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal] [av]) body = some v) :
+    ∀ (env' : Env) (a0 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 .nil)) = some v := by
+  intro env' a0 h0
+  obtain ⟨N0, av, h0'⟩ := h0
+  exact conv_defn_1_ex w env' s formal body a0 av h_ns h_def ⟨N0, h0'⟩ (hbody av)
+
+/-- TOTALITY of a NON-RECURSIVE 2-ary defined fn (see `totality_1_of_body`). -/
+theorem totality_2_of_body (w : World) (s : Symbol) (formal1 formal2 : Symbol)
+    (body : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (hbody : ∀ av1 av2 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
+    ∀ (env' : Env) (a0 a1 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil)))
+          = some v := by
+  intro env' a0 a1 h0 h1
+  obtain ⟨N0, av1, h0'⟩ := h0
+  obtain ⟨N1, av2, h1'⟩ := h1
+  exact conv_defn_2_ex w env' s formal1 formal2 body a0 a1 av1 av2 h_ns h_def
+    ⟨N0, h0'⟩ ⟨N1, h1'⟩ (hbody av1 av2)
+
+/-- TOTALITY of a RECURSIVE 1-ary defined fn by WELL-FOUNDED induction on the
+    argument value's `acl2Count` (the admitted measure, D5 scope): the driver
+    supplies `step` — the body walk under the inductive hypothesis, which it
+    applies at each self-call's argument value justified by the emitted
+    decrease obligation. -/
+theorem totality_1_rec (w : World) (s : Symbol) (formal : Symbol) (body : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal], body))
+    (step : ∀ av : SExpr,
+      (∀ bv : SExpr, bv.acl2Count < av.acl2Count →
+        ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [bv]) body = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
+    ∀ (env' : Env) (a0 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 .nil)) = some v := by
+  have hbody := acl2Count_strong_induction
+    (fun av => ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal] [av]) body = some v) step
+  exact totality_1_of_body w s formal body h_ns h_def hbody
+
+/-- TOTALITY of a RECURSIVE 2-ary defined fn, measure on the FIRST formal
+    (the measured one; the driver permutes when the measured formal is the
+    second). The second argument's value is universally quantified INSIDE the
+    induction, so self-calls may pass any second argument. -/
+theorem totality_2_rec (w : World) (s : Symbol) (formal1 formal2 : Symbol)
+    (body : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (step : ∀ av1 : SExpr,
+      (∀ bv : SExpr, bv.acl2Count < av1.acl2Count → ∀ cv : SExpr,
+        ∃ N, ∃ v, ∀ f ≥ N,
+          evalOpt f w (bindArgs [formal1, formal2] [bv, cv]) body = some v) →
+      ∀ av2 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
+    ∀ (env' : Env) (a0 a1 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil)))
+          = some v := by
+  have hbody := acl2Count_strong_induction
+    (fun av1 => ∀ av2 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) step
+  exact totality_2_of_body w s formal1 formal2 body h_ns h_def
+    (fun av1 av2 => hbody av1 av2)
+
 /-- Convergence (totality form) of a `quote`: `(quote v)` converges to SOME value
     (namely `v`) for all sufficient fuel. The witness is existential so callers need
     no concrete value. -/

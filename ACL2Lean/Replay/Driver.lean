@@ -2658,17 +2658,370 @@ def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
   | some root => replayClause cfg ReplayCtx.empty root
 
 
+/-! ## Totality from admission (#37)
+
+Discharge the driver's `total:fn` hypotheses from the EMITTED admission data:
+the justification (measure/wfrel/measured subset) and the RAW termination
+clauses (the per-call-site decrease obligations). The body-convergence walk
+is CASE-SPLIT style (`conv_if_split`): each `if` branch proceeds under an
+explicit `toBool` fact, which is exactly what the decrease discharge consumes
+at recursive call sites. Scope (decision log D5): measure
+`(acl2-count <single-formal>)` under `o<`; everything else is a named
+frontier and the `total:` hypothesis stays in the mirror's type (D6). -/
+
+/-- Is every head of `t` walk-liftable (vars/quote/dp-primitives only)? -/
+def totLiftable (t : SExpr) : Bool := (collectOpaques t).isEmpty
+
+/-- The decrease discharge (D5/D7'): prove
+    `(value-of callArg).acl2Count < av.acl2Count` from the in-scope branch
+    facts, AFTER verifying the EMITTED clause for this call site (its `o<`
+    literal mentions exactly `callArg`, and every ruling literal's test has a
+    matching in-scope fact). Supported value shape: `callArg = (cdr m)` for
+    the measured formal `m` under an in-scope `(consp m) = true` fact. -/
+def totDischargeDecrease (just : Justification)
+    (measuredFormal : Symbol)
+    (facts : List (SExpr × Bool × Expr))
+    (callArg : SExpr) (callArgVal : Expr) (avE : Expr) : MetaM Expr := do
+  let _ := callArgVal
+  let _ := avE
+  -- the emitted obligation for THIS call site
+  let countOf (t : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "acl2-count" })) (.cons t .nil)
+  let wanted : SExpr :=
+    .cons (.atom (.symbol { name := "o<" }))
+      (.cons (countOf callArg)
+        (.cons (countOf (.atom (.symbol { name := measuredFormal.name }))) .nil))
+  let some clause := just.terminationClauses.find? fun c =>
+      match c.toList? with
+      | some lits => lits.any (· == wanted)
+      | none => false
+    | throwError "proveTotality: no emitted decrease obligation for call \
+        argument {repr callArg} (emission gap or unsupported call shape)"
+  let some lits := clause.toList?
+    | throwError "proveTotality: malformed obligation clause {repr clause}"
+  -- every ruling literal must be justified by an in-scope branch fact:
+  -- (not T) requires fact (T, true); a bare positive literal T requires (T, false)
+  for lit in lits do
+    if lit == wanted then continue
+    match lit with
+    | .cons (.atom (.symbol n)) (.cons tst .nil) =>
+      if n.name == "not" then
+        unless facts.any (fun (f, pos, _) => f == tst && pos) do
+          throwError "proveTotality: ruling test {repr tst} not established \
+              on this branch (obligation {repr clause})"
+      else
+        unless facts.any (fun (f, pos, _) => f == lit && !pos) do
+          throwError "proveTotality: ruling literal {repr lit} not refuted \
+              on this branch (obligation {repr clause})"
+    | _ =>
+      unless facts.any (fun (f, pos, _) => f == lit && !pos) do
+        throwError "proveTotality: ruling literal {repr lit} not refuted \
+            on this branch (obligation {repr clause})"
+  -- the Lean-side decrease: supported shapes (frontier otherwise)
+  match callArg with
+  | .cons (.atom (.symbol c)) (.cons (.atom (.symbol m)) .nil) =>
+    if c.name == "cdr" && m == measuredFormal then
+      let conspTest : SExpr :=
+        .cons (.atom (.symbol { name := "consp" }))
+          (.cons (.atom (.symbol { name := m.name })) .nil)
+      let some (_, _, factPf) := facts.find?
+          (fun (f, pos, _) => f == conspTest && pos)
+        | throwError "proveTotality: decrease for (cdr {m.name}) needs an \
+            in-scope (consp {m.name}) fact (frontier)"
+      mkAppM ``ACL2.acl2Count_cdr_lt_of_consp #[factPf]
+    else if c.name == "car" && m == measuredFormal then
+      let conspTest : SExpr :=
+        .cons (.atom (.symbol { name := "consp" }))
+          (.cons (.atom (.symbol { name := m.name })) .nil)
+      let some (_, _, factPf) := facts.find?
+          (fun (f, pos, _) => f == conspTest && pos)
+        | throwError "proveTotality: decrease for (car {m.name}) needs an \
+            in-scope (consp {m.name}) fact (frontier)"
+      mkAppM ``ACL2.acl2Count_car_lt_of_consp #[factPf]
+    else
+      throwError "proveTotality: decrease shape {repr callArg} unsupported \
+          (frontier: cdr/car of the measured formal)"
+  | _ =>
+    throwError "proveTotality: decrease shape {repr callArg} unsupported \
+        (frontier: cdr/car of the measured formal)"
+
+/-- The body-convergence walk: a proof of `∃N∃v ∀f≥N, eval envE t = some v`.
+    `vals` carries each formal's VALUE expr and var-convergence proof;
+    `facts` the branch context; `totalEnv` earlier functions' totality
+    proofs (hypothesis-shaped); `selfC` the recursion data (the IH plus the
+    justification whose emitted clauses license its use). -/
+partial def totWalk (cfg : ReplayConfig) (envE : Expr)
+    (vals : List (Symbol × Expr × Expr))
+    (facts : List (SExpr × Bool × Expr))
+    (totalEnv : List (String × Nat × Expr))
+    (selfC : Option (String × Symbol × Expr × Justification))
+    (t : SExpr) : MetaM Expr := do
+  let varP : Symbol → Option (Expr × Expr) := fun s =>
+    (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
+  if totLiftable t then
+    -- vars / quote / dp-primitive tree: value-characterize and ∃-pack
+    let pf ← dpValProof cfg envE [] [] varP t
+    return ← mkAppM ``conv_ex_of_vfix #[pf]
+  match t with
+  | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
+    if fs.name == "if" then
+      unless totLiftable c do
+        throwError "proveTotality: if-test {repr c} is not liftable (frontier)"
+      let vc ← dpValExpr [] (dpValProof.dpVarVal envE varP) c
+      let hc ← dpValProof cfg envE [] [] varP c
+      let toBoolVc ← mkAppM ``Logic.toBool #[vc]
+      let tTrue ← mkEq toBoolVc (mkConst ``Bool.true)
+      let tFalse ← mkEq toBoolVc (mkConst ``Bool.false)
+      let ht ← withLocalDeclD `hb tTrue fun hb => do
+        let p ← totWalk cfg envE vals ((c, true, hb) :: facts) totalEnv selfC th
+        mkLambdaFVars #[hb] p
+      let he ← withLocalDeclD `hb tFalse fun hb => do
+        let p ← totWalk cfg envE vals ((c, false, hb) :: facts) totalEnv selfC e
+        mkLambdaFVars #[hb] p
+      return ← mkAppM ``conv_if_split
+        #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th, reflectSExpr e,
+          vc, hc, ht, he]
+    else
+      throwError "proveTotality: ternary {fs.name} unsupported (frontier)"
+  | .cons (.atom (.symbol fs)) argsSpine =>
+    let args := (argsSpine.toList?).getD []
+    -- dp-known BUILTIN over non-liftable args (e.g. a self-call inside
+    -- binary-+): walk the args and compose in the ∃∃ shape
+    if args.length == 1 then
+      if let some (fn, cb) := dpUnary.lookup fs.name then
+        let pa ← totWalk cfg envE vals facts totalEnv selfC args[0]!
+        let hNs ← proveNotSpecial fs
+        let hNo ← proveNoShadow cfg fs
+        return ← mkAppM ``conv_builtin1_ex
+          #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr args[0]!,
+            mkConst fn, hNs, hNo, mkConst cb, pa]
+    if args.length == 2 then
+      if let some (fn, cb) := dpBinary.lookup fs.name then
+        let pa ← totWalk cfg envE vals facts totalEnv selfC args[0]!
+        let pb ← totWalk cfg envE vals facts totalEnv selfC args[1]!
+        let hNs ← proveNotSpecial fs
+        let hNo ← proveNoShadow cfg fs
+        return ← mkAppM ``conv_builtin2_ex
+          #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr args[0]!,
+            reflectSExpr args[1]!, mkConst fn, hNs, hNo, mkConst cb, pa, pb]
+    -- SELF-call: the IH, licensed by the emitted decrease obligation
+    if let some (selfName, measuredFormal, ih, just) := selfC then
+      if fs.name == selfName then
+        match cfg.worldVal.defs.get? fs with
+        | some (formals, body) =>
+          unless args.length == formals.length do
+            throwError "proveTotality: self-call arity mismatch {repr t}"
+          unless args.all totLiftable do
+            throwError "proveTotality: self-call argument not liftable \
+                {repr t} (frontier)"
+          let argVals ← args.mapM (dpValExpr [] (dpValProof.dpVarVal envE varP))
+          let argPfs ← args.mapM (dpValProof cfg envE [] [] varP)
+          let mIdx := formals.findIdx (· == measuredFormal)
+          let some av := (vals.find? (fun (f, _, _) => f == measuredFormal)).map
+              (fun (_, v, _) => v)
+            | throwError "proveTotality: measured formal has no bound value"
+          let dec ← totDischargeDecrease just measuredFormal facts
+            args[mIdx]! argVals[mIdx]! av
+          let hNs ← proveNotSpecial fs
+          let hDef ← totDefFact cfg fs formals body
+          match formals, args with
+          | [f1], [a1] =>
+            let hbody := mkApp2 ih argVals[0]! dec
+            return ← mkAppM ``conv_defn_1_ex
+              #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
+                reflectSExpr body, reflectSExpr a1, argVals[0]!, hNs, hDef,
+                argPfs[0]!, hbody]
+          | [f1, f2], [a1, a2] =>
+            unless mIdx == 0 do
+              throwError "proveTotality: measured formal must be the first \
+                  formal (frontier: permutation pending)"
+            let hbody := mkApp3 ih argVals[0]! dec argVals[1]!
+            return ← mkAppM ``conv_defn_2_ex
+              #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
+                reflectSymbol f2, reflectSExpr body, reflectSExpr a1,
+                reflectSExpr a2, argVals[0]!, argVals[1]!, hNs, hDef,
+                argPfs[0]!, argPfs[1]!, hbody]
+          | _, _ =>
+            throwError "proveTotality: self-call arity {args.length} \
+                unsupported (frontier)"
+        | none => throwError "proveTotality: self {fs.name} not in world"
+    -- EARLIER defined fn: its accumulated totality proof
+    if let some (_, arity, pf) := totalEnv.find? (fun (n, _, _) => n == fs.name) then
+      unless args.length == arity do
+        throwError "proveTotality: call arity mismatch {repr t}"
+      let argPfs ← args.mapM (totWalk cfg envE vals facts totalEnv selfC)
+      let argsR := args.map reflectSExpr
+      return ← mkAppM' pf (#[envE] ++ argsR.toArray ++ argPfs.toArray)
+    throwError "proveTotality: call to {fs.name} with no totality fact \
+        in scope (frontier: development-order dependency or unsupported head)"
+  | _ => throwError "proveTotality: term shape {repr t} unsupported (frontier)"
+where
+  /-- `w.defs.get? fn = some (formals, body)` by `decide` on the reflected world. -/
+  totDefFact (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
+      (body : SExpr) : MetaM Expr := do
+    let defsE ← mkAppM ``World.defs #[cfg.worldExpr]
+    let lhs ← mkAppM ``DefMap.get? #[defsE, reflectSymbol fn]
+    let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
+    let pairE ← mkAppM ``Prod.mk #[formalsE, reflectSExpr body]
+    let rhs ← mkAppM ``Option.some #[pairE]
+    mkDecideProof (← mkEq lhs rhs)
+
+/-- Prove `total:fn` (the `mkTotalityHypType` statement) from the admission
+    data; throws a named-frontier error when out of the D5 scope. -/
+def proveTotality (cfg : ReplayConfig)
+    (totalEnv : List (String × Nat × Expr))
+    (name : String) (formals : List Symbol) (body : SExpr)
+    (just? : Option Justification) : MetaM Expr := do
+  let fs : Symbol := { name := name }
+  let hNs ← proveNotSpecial fs
+  let hDef ← totWalk.totDefFact cfg fs formals body
+  let mkEnvE (avs : List Expr) : MetaM Expr := do
+    let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
+    let avsE ← mkListLit (mkConst ``SExpr) avs
+    mkAppM ``bindArgs #[formalsE, avsE]
+  let varProofs (envE : Expr) (avs : List Expr) : MetaM (List (Symbol × Expr × Expr)) := do
+    match formals, avs with
+    | [f], [av] =>
+      let g ← mkAppM ``bindArgs_single_get_self #[reflectSymbol f, av]
+      let p ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f, av, g]
+      return [(f, av, p)]
+    | [f1, f2], [av1, av2] =>
+      let hne ← mkDecideProof (← mkAppM ``Ne #[reflectSymbol f1, reflectSymbol f2])
+      let g1 ← mkAppM ``bindArgs_pair_get_fst #[reflectSymbol f1, reflectSymbol f2, av1, av2]
+      let g2 ← mkAppM ``bindArgs_pair_get_snd #[reflectSymbol f1, reflectSymbol f2, av1, av2, hne]
+      let p1 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f1, av1, g1]
+      let p2 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f2, av2, g2]
+      return [(f1, av1, p1), (f2, av2, p2)]
+    | _, _ => throwError "proveTotality: arity {formals.length} unsupported (frontier)"
+  match just? with
+  | none =>
+    -- NON-RECURSIVE: the body walk alone
+    match formals with
+    | [_] =>
+      let hbody ← withLocalDeclD `av (mkConst ``SExpr) fun av => do
+        let envE ← mkEnvE [av]
+        let vals ← varProofs envE [av]
+        let p ← totWalk cfg envE vals [] totalEnv none body
+        mkLambdaFVars #[av] p
+      mkAppM ``totality_1_of_body
+        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol formals[0]!,
+          reflectSExpr body, hNs, hDef, hbody]
+    | [_, _] =>
+      let hbody ← withLocalDeclD `av1 (mkConst ``SExpr) fun av1 =>
+        withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+          let envE ← mkEnvE [av1, av2]
+          let vals ← varProofs envE [av1, av2]
+          let p ← totWalk cfg envE vals [] totalEnv none body
+          mkLambdaFVars #[av1, av2] p
+      mkAppM ``totality_2_of_body
+        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol formals[0]!,
+          reflectSymbol formals[1]!, reflectSExpr body, hNs, hDef, hbody]
+    | _ => throwError "proveTotality: arity {formals.length} unsupported (frontier)"
+  | some just =>
+    -- RECURSIVE (D5 scope): measure (acl2-count m), o<, single measured formal
+    unless just.wfRel.name == "o<" do
+      throwError "proveTotality: well-founded relation {just.wfRel.name} \
+          unsupported (frontier: o< only)"
+    let some measuredFormal := just.measuredSubset.head?
+      | throwError "proveTotality: empty measured subset"
+    unless just.measuredSubset.length == 1 do
+      throwError "proveTotality: multi-formal measured subset unsupported \
+          (frontier)"
+    let wantedMeasure : SExpr :=
+      .cons (.atom (.symbol { name := "acl2-count" }))
+        (.cons (.atom (.symbol { name := measuredFormal.name })) .nil)
+    unless just.measure == wantedMeasure do
+      throwError "proveTotality: measure {repr just.measure} unsupported \
+          (frontier: (acl2-count <measured-formal>) only)"
+    -- D9: the (o-p (measure)) obligation is absorbed by the Nat-typed
+    -- measure; SHAPE-CHECK it (hard-fail on anything unexpected)
+    let opClause : SExpr :=
+      .cons (.cons (.atom (.symbol { name := "o-p" }))
+        (.cons wantedMeasure .nil)) .nil
+    unless just.terminationClauses.any (· == opClause) do
+      throwError "proveTotality: expected (o-p {repr wantedMeasure}) \
+          obligation not found (emission shape changed?)"
+    let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.acl2Count #[e]
+    match formals with
+    | [f1] =>
+      unless measuredFormal == f1 do
+        throwError "proveTotality: measured formal mismatch"
+      let step ← withLocalDeclD `av (mkConst ``SExpr) fun av => do
+        let envEat := fun (bv : Expr) => do
+          let formalsE ← mkListLit (mkConst ``Symbol) [reflectSymbol f1]
+          let avsE ← mkListLit (mkConst ``SExpr) [bv]
+          mkAppM ``bindArgs #[formalsE, avsE]
+        let ihType ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
+          let lt ← mkAppM ``Nat.lt #[← countOf bv, ← countOf av]
+          let envB ← envEat bv
+          let conv ← mkConvPropEx cfg.worldExpr envB (reflectSExpr body)
+          mkForallFVars #[bv] (← mkArrow lt conv)
+        withLocalDeclD `ih ihType fun ih => do
+          let envE ← envEat av
+          let vals ← varProofs envE [av]
+          let p ← totWalk cfg envE vals [] totalEnv
+            (some (name, measuredFormal, ih, just)) body
+          mkLambdaFVars #[av, ih] p
+      mkAppM ``totality_1_rec
+        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+          reflectSExpr body, hNs, hDef, step]
+    | [f1, f2] =>
+      unless measuredFormal == f1 do
+        throwError "proveTotality: measured formal must be the first formal \
+            (frontier: permutation pending)"
+      let step ← withLocalDeclD `av1 (mkConst ``SExpr) fun av1 => do
+        let envEat := fun (bv cv : Expr) => do
+          let formalsE ← mkListLit (mkConst ``Symbol)
+            [reflectSymbol f1, reflectSymbol f2]
+          let avsE ← mkListLit (mkConst ``SExpr) [bv, cv]
+          mkAppM ``bindArgs #[formalsE, avsE]
+        let ihType ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
+          let lt ← mkAppM ``Nat.lt #[← countOf bv, ← countOf av1]
+          let inner ← withLocalDeclD `cv (mkConst ``SExpr) fun cv => do
+            let envB ← envEat bv cv
+            let conv ← mkConvPropEx cfg.worldExpr envB (reflectSExpr body)
+            mkForallFVars #[cv] conv
+          mkForallFVars #[bv] (← mkArrow lt inner)
+        withLocalDeclD `ih ihType fun ih =>
+          withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+            let envE ← envEat av1 av2
+            let vals ← varProofs envE [av1, av2]
+            let p ← totWalk cfg envE vals [] totalEnv
+              (some (name, measuredFormal, ih, just)) body
+            mkLambdaFVars #[av1, ih, av2] p
+      mkAppM ``totality_2_rec
+        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1, reflectSymbol f2,
+          reflectSExpr body, hNs, hDef, step]
+    | _ => throwError "proveTotality: recursive arity {formals.length} \
+        unsupported (frontier)"
+
 /-- The CONDITIONAL generic mirror: bind the machine-generated hypothesis
     telescope (per defined fn: totality; plus the lifted TP corollary when one was
     emitted), replay the theorem under it, and λ-abstract. Returns the proof and
     the condition descriptions (the c2 pattern — obligations explicit in the
     type, discharged later by termination emission / Driver Stage 5). -/
 def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
-    (cp : ClauseProof) : MetaM (Expr × List String) := do
+    (cp : ClauseProof) (justs : List (String × Justification) := []) :
+    MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
-  -- hypothesis declarations: totality for every defined fn, TP where emitted
+  -- #37 totality from admission: per fn (DEVELOPMENT order — defs.entries is
+  -- insertion-reversed), try the admission-derived totality proof; a frontier
+  -- failure keeps the fn hypothesis-backed (D6 — visible in the type).
+  let mut totalEnv : List (String × Nat × Expr) := []
+  for (s, formals, body) in fns.reverse do
+    try
+      let pf ← proveTotality cfg totalEnv s.name formals body
+        (justs.lookup s.name)
+      totalEnv := (s.name, formals.length, pf) :: totalEnv
+    catch _ =>
+      pure ()
+  let autoTotal := totalEnv
+  let hypFns := fns.filter fun (s, _, _) =>
+    !(autoTotal.any (fun (n, _, _) => n == s.name))
+  -- hypothesis declarations: totality for the fns the prover could NOT
+  -- discharge, TP where emitted
   let totalDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
-    (fns.map fun (s, formals, _) =>
+    (hypFns.map fun (s, formals, _) =>
       (Name.mkSimple s!"htotal_{s.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkTotalityHypType cfg s formals.length)).toArray
   -- only LIFTABLE corollaries become hypotheses: every variable occurrence must be
@@ -2693,12 +3046,14 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       (Name.mkSimple s!"htp_{s.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkTpHypType cfg s formals cor)).toArray
   let condsAll :=
-    fns.map (fun (s, _, _) => s!"total:{s.name}") ++
+    hypFns.map (fun (s, _, _) => s!"total:{s.name}") ++
     tpFns.map (fun (s, _, _) => s!"tp:{s.name}")
   withLocalDecls totalDecls fun totalVs => do
     withLocalDecls tpDecls fun tpVs => do
       let ctx : ReplayCtx :=
-        { totalHyps := (fns.map (fun (s, _, _) => s.name)).zip totalVs.toList,
+        { totalHyps :=
+            autoTotal.map (fun (n, _, pf) => (n, pf)) ++
+            (hypFns.map (fun (s, _, _) => s.name)).zip totalVs.toList,
           tpHyps := (tpFns.zip tpVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h) }
       let some root := cp.root
         | throwError "replayProofConditional: theorem {cp.name} has no proof tree"
