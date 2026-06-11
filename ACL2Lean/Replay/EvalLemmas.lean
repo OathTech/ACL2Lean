@@ -1788,6 +1788,19 @@ theorem acl2_induction_consp (P : SExpr → Prop)
 These package a terminal rune as the `∃N∀f≥N` fact the driver emits, so `replayNode`
 just applies the combinator (no inline fuel plumbing). Kernel-checked once here. -/
 
+/-- WELL-FOUNDED (strong) induction on `acl2Count` — the spine of
+    admission-derived totality proofs (#37). The driver instantiates the
+    motive `P av := the function converges at argument VALUE av`; the
+    inductive hypothesis covers every value of strictly smaller `acl2Count`,
+    and the admission's emitted decrease obligations justify applying it at
+    each recursive call's argument value. -/
+theorem acl2Count_strong_induction (P : SExpr → Prop)
+    (step : ∀ x, (∀ y, y.acl2Count < x.acl2Count → P y) → P x) : ∀ x, P x := by
+  intro x
+  generalize h : x.acl2Count = n
+  induction n using Nat.strong_induction_on generalizing x with
+  | _ n ih => exact step x (fun y hy => ih y.acl2Count (h ▸ hy) y rfl)
+
 /-- Convergence (totality form) of a `quote`: `(quote v)` converges to SOME value
     (namely `v`) for all sufficient fuel. The witness is existential so callers need
     no concrete value. -/

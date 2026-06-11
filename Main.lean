@@ -149,6 +149,8 @@ private partial def printDevelopment : ACL2.Development → IO Unit
       if let some j := just then
         let ms := String.intercalate " " (j.measuredSubset.map (·.name))
         IO.println s!"  admission: measure {j.measure} under {j.wfRel.name}; measured: ({ms})"
+        for c in j.terminationClauses do
+          IO.println s!"    obligation: {c}"
       if let some t := termination then
         IO.println "  termination proof:"
         printClauseProof t 4

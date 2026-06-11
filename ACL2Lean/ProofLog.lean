@@ -175,6 +175,11 @@ structure Justification where
   measure : SExpr
   wfRel : Symbol
   measuredSubset : List Symbol
+  /-- The clique's RAW measure clauses (the complete per-recursive-call-site
+      decrease obligations ACL2's termination-machine produced at admission,
+      BEFORE clean-up could drop trivially-true members). Each entry is one
+      clause (a disjunction of literals, as an s-expression list). -/
+  terminationClauses : List SExpr
   deriving Repr
 
 /-- A single event in the proof log. -/
@@ -636,7 +641,12 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         let just ← match lookupKeyword "measure" fields,
                          lookupKeyword "wfrel" fields,
                          lookupKeyword "measured" fields with
-          | none, none, none => pure none
+          | none, none, none =>
+            -- a non-recursive defun also has no obligations
+            match lookupKeyword "termination-clauses" fields with
+            | none => pure none
+            | some c => throw s!"DEFUN {name}: :TERMINATION-CLAUSES without a \
+                                justification: {repr c}"
           | some m, some r, some sub => do
             let rel ← match r with
               | .atom (.symbol s) => pure s
@@ -646,7 +656,17 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
             let subSyms ← subL.mapM fun
               | .atom (.symbol s) => pure s
               | other => throw s!"DEFUN {name}: non-symbol measured formal: {repr other}"
-            pure (some { measure := m, wfRel := rel, measuredSubset := subSyms })
+            -- a RECURSIVE defun must carry its decrease obligations — an
+            -- admission the log cannot justify is an emission gap (hard-fail;
+            -- the emitter attaches the clique's RAW measure clauses)
+            let clausesExpr ← (lookupKeyword "termination-clauses" fields).elim
+              (throw s!"DEFUN {name}: recursive (has a justification) but no \
+                       :TERMINATION-CLAUSES — emission gap") pure
+            let clauses ← clausesExpr.toList?.elim
+              (throw s!"DEFUN {name}: :TERMINATION-CLAUSES is not a list: \
+                       {repr clausesExpr}") pure
+            pure (some { measure := m, wfRel := rel, measuredSubset := subSyms,
+                         terminationClauses := clauses })
           | _, _, _ => throw s!"DEFUN {name}: partial admission justification \
                                (:MEASURE/:WFREL/:MEASURED must travel together)"
         return .defun name formals body just
