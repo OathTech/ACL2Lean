@@ -1,83 +1,116 @@
-# ACL2 EDSL Bridge for Lean 4
+# ACL2Lean
 
-This project provides a bridge between ACL2 and Lean 4, allowing for parsing, evaluating, and translating ACL2 books into Lean 4 code.
+**Replaying ACL2 proofs as kernel-checked Lean 4 proofs.**
 
-## Key Features
+ACL2Lean imports theorems from [ACL2](https://www.cs.utexas.edu/users/moore/acl2/)
+into Lean 4 with the **Lean kernel as the sole trust anchor**: ACL2 acts as an
+untrusted proof-search oracle, and every imported result is re-certified by a
+Lean proof object that *mirrors ACL2's own proof* — the actual clause tree its
+waterfall produced, replayed step by step. Genuine, faithful replay is the
+product: a proof that passes the kernel but does not mirror ACL2's reasoning
+does not count here.
 
-- **Robust Parser**: Supports block comments, reader macros, escaped symbols, and complex numeric literals.
-- **Semantic Evaluator**: A verified evaluator in Lean that matches ACL2 behavior for core primitives.
-- **Automated Translator**: Translates ACL2 `defun` and `defthm` into Lean `def` and `theorem` statements.
-- **Proving Support**: Includes `acl2_simp` and `acl2_grind` tactics.
-- **Internal SMT Solver**: Leverages Lean's `grind` tactic with linear integer arithmetic (`cutsat`) support for automated proofs of arithmetic properties.
-- **Checked Imported Theorem Bundle**: `ACL2.Imported.Log2Replay` now reconstructs a larger ACL2 theorem cluster from `acl2_samples/2009-log2.lisp`, including `clog2_is_correct`, `clog2_is_correct_upper`, `clog2_is_correct_lower`, `natp_clog2`, `posp_clog2`, `nbr_calls_clog2_eq_1_plus_clog2`, `nbr_calls_flog2_lower_bound`, `nbr_calls_flog2_upper_bound`, and `nbr_calls_flog2_is_logarithmic`.
+## How it works
 
-## Getting Started
+Importing a theorem runs through a pipeline; every stage except ACL2's own
+proof search is this repo's code:
 
-1.  **Build**: `just build`
-2.  **Launch TUI Proof View**: `just tui`
-3.  **Open Proof Mode Demo**: inspect `ACL2Lean/ProofModeDemo.lean` in your editor to see the first ACL-oriented infoview panel and a matching proof that `lean-tui` can follow.
-4.  **Report Coverage**: `just report`
-5.  **Verify Evaluator**: `just verify` (Requires ACL2)
-6.  **Translate Book**: `just translate acl2_samples/2009-log2.lisp`
+1. **ACL2 source** — a `.lisp` file of `defun`s and `defthm`s; ACL2 searches
+   for proofs (untrusted oracle).
+2. **Instrumented ACL2** — the `acl2/` submodule (branch `acl2-lean-output`)
+   adds logging to ACL2's rewriter/simplifier that emits a structured
+   **proof log**: runes, rewrite steps, substitutions, induction schemes,
+   type-prescription corollaries, decision-procedure discharge nodes. Every
+   inserted region carries a `TRACE-LOG[...]` tag (`just check-acl2-tags`
+   enforces the convention).
+3. **Proof-log parser** (`ACL2Lean/ProofLog.lean`) — log text → structured
+   trace events.
+4. **Proof-tree reconstruction** (`ACL2Lean/ClauseTree.lean`,
+   `ACL2Lean/ProofTree.lean`) — events → a single proof tree for the whole
+   development: the clause tree ACL2's waterfall actually is, with per-literal
+   rewriter detail. Unlinkable structure hard-fails.
+5. **Source translation** (`ACL2Lean/WorldGen.lean`,
+   `ACL2Lean/Translator.lean`) — the same ACL2 source → a Lean `World`
+   (function definitions) and the **mirror-theorem statement**
+   (`∃ N, ∀ f ≥ N, evalOpt f world env <formula> = some t`).
+6. **ACL2-logic interpreter** (`ACL2Lean/EvalOpt.lean`,
+   `ACL2Lean/Logic.lean`) — the fuel-bounded semantic model that defines what
+   the mirror theorem means (differential-tested against real ACL2).
+7. **Proof replay** (`ACL2Lean/Replay/Driver.lean`,
+   `ACL2Lean/Replay/EvalLemmas.lean`) — recurses the reconstructed tree and
+   emits a Lean proof object for the mirror theorem, node by node; the Lean
+   kernel checks it. The replay does **no inference**: if the tree lacks the
+   information to replay a step, the fix is more instrumentation at the ACL2
+   source, never a heuristic in Lean. The sole ratified exception is
+   decision-procedure *leaves* (clauses ACL2 itself closes by a verdict-only
+   procedure), which are discharged by a kernel-checked decision procedure on
+   the precisely-stated leaf obligation.
+8. **Native bridge** (`ACL2Lean/Imported/`) — the mirror theorem is decoded
+   into a *native Lean statement* (e.g. `(xs ++ ys).length = xs.length +
+   ys.length`), so the imported fact is usable as an ordinary Lean theorem.
+   `Imported/Lifting.lean` is the lifting library: representations of Lean
+   types in ACL2's value space (`Rep`, with ACL2 recognizers as the type
+   discipline), correspondences between ACL2 functions and Lean operations
+   (`Implements`), and the generic decode lemmas. `Imported/NativeMirrors.lean`
+   is the catalog of native theorems proved end-to-end through the driver —
+   its header scoreboard is the live status.
 
-## ACL Proof Mode UI
+## Trust model
 
-The repo now carries two early UI integration paths for co-designing an ACL-flavored proof workflow:
+The kernel certifies the proof object *for the mirror theorem exactly as
+stated by stages 5–6*. Until a native-theorem bridge exists for a given
+result, a bug in stages 2–6 could yield a kernel-accepted proof of a subtly
+wrong statement — so each stage is validated against the real artifacts
+(differential testing of the interpreter, log↔tree fidelity checks,
+adversarial audits). Once a result is decoded to a native Lean statement, the
+entire ACL2 pipeline becomes untrusted for it: a bug anywhere makes the
+composed proof fail to typecheck; it can never certify a false native theorem.
 
-- **`lean-tui` + `LeanPrism`**: a terminal infoview that follows the active proof/function from your editor.
-- **ProofWidgets infoview panel**: `ACL2Lean/ProofMode.lean` and `ACL2Lean/ProofModeDemo.lean` provide the first ACL-specific panel layout for checkpoints, rune/fact lists, and next moves.
-- **Dynamic ACL2 hint bridge**: `scripts/acl2_hint_bridge.py`, `ACL2Lean/HintBridge.lean`, `acl2lean hints ...`, and `#acl_hint_panel ...` expose theorem-local ACL2-emitted checkpoints, warnings, and induction summaries inside Lean-side tooling, even when multiple `DEFTHM` summaries share a single ACL2 prompt inside larger `encapsulate` output.
-- **Dynamic rule/hint summary capture**: the same bridge now also preserves ACL2 summary rules, hint-events, warning categories, and prover-step counts, and it can recover theorem-local `:HINTS` directives from ACL2’s echoed `DEFTHM` transcript when the summary omits `Hint-events:`; transcript-recovered hint actions now also keep their ACL2 goal target, so Lean can distinguish `Goal`-level guidance from `Goal'''` or `Subgoal ...`-specific advice instead of flattening everything into goal-less actions.
-- **Structured replay actions**: the dynamic bridge now turns `:USE` hint-events, including multi-item `:USE` lists that ACL2 emits as theorem/instance bundles, splitter notes, warning-driven disable advice, free-variable warnings, non-recursive-definition warnings (including plural definition lists, free-variable-search/non-rec combinations, non-`:REWRITE` rule classes, and forward-chaining trigger-term guidance), rewrite-rule subsumption warnings (including quoted ACL2 rune names and plural prior-rule lists), `:TYPED-TERM` observations, and ACL2 induction choices into typed candidate replay actions that both the CLI and proof-mode panel can surface.
-- **Dynamic payload normalization**: Lean-side consumers now parse dynamic ACL2 `:IN-THEORY` action payloads back into the shared `TheoryExpr` model, reparse dynamic `:USE` payloads into theorem-vs-instance structure plus explicit instance bindings, normalize `Rules:` summary entries into structured rule-kind/target data, normalize `split-goal` splitter payloads and `typed-term` observations into dedicated Lean-side structure, reparse dynamic `:EXPAND` plus `:DO-NOT-INDUCT` payloads into structured ACL2 terms, surface clause-processor plus induction payloads as structured items (`clause-processor`, `induct-term`, `induction-rule`) in the CLI and proof-mode notes/checkpoint views instead of leaving them trapped in flat summaries, preserve transcript-echoed theorem-level `:OTF-FLG` as a first-class `transcript-option` action when ACL2 exposes it, and decode warning-derived replay actions such as disable-rule, disable-definition, free-variable binding, and rewrite-overlap pairs back into structured Lean payloads instead of only positional target lists.
-- **Replay-state interpretation**: `ACL2Lean.HintBridge` now folds those structured dynamic actions into a Lean-side replay summary with a theory timeline, use timeline, split timeline, typed-term foci, selected induction, `do-not-induct`, and `otf-flg`, and both `acl2lean hints` and `ACL2Lean.ProofMode` surface that interpreted state instead of only a flat action log.
-- **Rune-profile interpretation**: the dynamic bridge now also turns ACL2 `Rules:` summaries plus parsed theory enable/disable guidance into a Lean-side rune profile, grouping used runes by ACL2 rule class and surfacing `lean-simp-candidates`, `lean-grind-candidates`, and concrete theory toggles instead of leaving rule usage and theory hints as unrelated flat strings.
-- **Explicit checkpoint targeting**: dynamic actions now carry an explicit ACL2 goal/subgoal target when ACL2 emitted one, including splitter notes such as `Splitter note ... for Goal''`, so Lean-side replay consumers no longer need to infer checkpoint scoping from a flat target list.
-- **Goal-targeted `Use` guidance**: when ACL2 warns that a `:USE` hint is relying on an enabled rewrite or definition rule, the dynamic bridge now keeps both pieces of advice: the disable suggestion and a goal-specific `use ... in Subgoal ...` action that preserves which emitted checkpoint the hint was attached to.
-- **Raw goal/subgoal trace capture**: when ACL2 emits lightweight `Goal'` / `Subgoal ...` progress lines without a full `A key checkpoint` block, the dynamic bridge now promotes those markers into structured checkpoints instead of leaving them trapped in `raw_excerpt`.
-- **Transcript hardening for ACL2 pretty-print quirks**: prompt-adjacent goal markers like `ACL2 !>>Goal'` are now normalized before parsing, and multiline splitter/hint payloads stay grouped as single dynamic guidance entries instead of being shredded into bogus fragments.
-- **Complete induction guidance blocks**: ACL2 induction summaries now retain the emitted subgoal-count line, so Lean-side tooling can see how many subgoals ACL2 predicted before the transcript fans out into `Subgoal ...` markers.
-- **Lifecycle progress capture**: the dynamic bridge now also preserves ACL2 lifecycle lines such as induction-push markers and checkpoint/subproof completion notices, so the CLI and proof-mode panel can distinguish static checkpoint text from emitted proof progress.
-- **Excerpted sample fallback**: when a repo sample is only a local excerpt of a larger ACL2 book, the dynamic hint bridge can now resolve it to the loadable upstream book and required preludes so real ACL2 proof output still reaches Lean, including the `apply-model/apply` path that needs both the `MODAPP` portcullis and the upstream `apply-constraints.lisp` prelude.
-- **`tri-sq` dynamic coverage**: the same fallback path now also resolves `acl2_samples/2009-tri-sq.lisp` to the canonical upstream triangle-square workshop book, so the hint bridge can inspect `pair-pow-log-is-correct` and similar theorems instead of failing on the excerpt’s missing local `log2.lisp`.
-- **Imported theorem panel**: `#acl_imported_panel "acl2_samples/apply-model-apply-prim.lisp" "apply$-prim-meta-fn-correct"` now renders a proof-mode snapshot from real imported ACL2 metadata instead of only hand-written demo props.
-- **Structured theory context**: imported `in-theory` metadata now decomposes nested ACL2 combinators like `union-theories` and `set-difference-theories` in the CLI, translated Lean comments, and proof-mode rune panel.
+## Building and commands
 
-The intended split is:
+The toolchain is pinned in `lean-toolchain`; build with
+[Lake](https://github.com/leanprover/lean4/tree/master/src/lake) and
+[just](https://github.com/casey/just):
 
-- `lean-tui` owns proof navigation and graph structure.
-- The infoview panel owns ACL-specific metadata that Lean’s default view does not surface well, such as runes, checkpoints, and hint provenance.
-
-## Imported Theorem Replay
-
-`ACL2Lean/Imported/Log2Replay.lean` now provides the first checked reconstruction of an imported ACL2 theorem cluster in this repo:
-
-- source book: `acl2_samples/2009-log2.lisp`
-- Lean theorems:
-  - `ACL2.Imported.Log2Replay.natp_clog2`
-  - `ACL2.Imported.Log2Replay.posp_clog2`
-  - `ACL2.Imported.Log2Replay.clog2_is_correct_lower`
-  - `ACL2.Imported.Log2Replay.clog2_is_correct_upper`
-  - `ACL2.Imported.Log2Replay.clog2_is_correct`
-  - `ACL2.Imported.Log2Replay.nbr_calls_clog2_eq_1_plus_clog2`
-  - `ACL2.Imported.Log2Replay.nbr_calls_flog2_lower_bound`
-  - `ACL2.Imported.Log2Replay.nbr_calls_flog2_upper_bound`
-  - `ACL2.Imported.Log2Replay.nbr_calls_flog2_is_logarithmic`
-
-The current replay strategy lowers the positive-integer execution path of the imported ACL2 functions into a small `Nat` semantic mirror, proves the central `clog2` bounds there, and lifts those facts back to the ACL2 `SExpr` encoding. This is not yet a generic replay engine, but it is a real kernel-checked imported theorem bundle rather than another metadata-only placeholder.
-
-That bundle now also covers the `nbr-calls-flog2` bounds used by ACL2's own proof search. In particular, the dynamic hint bridge's theorem-local `:USE NBR-CALLS-FLOG2-UPPER-BOUND` guidance for `nbr-calls-flog2-is-logarithmic` now points at a corresponding kernel-checked Lean theorem in `ACL2.Imported.Log2Replay`.
-
-## Automated Proving with `grind`
-
-The `acl2_grind` tactic is specifically designed to handle ACL2 proof obligations by combining congruence closure with powerful theory solvers like linear arithmetic.
-
-Example of a proven theorem:
-```lean
-theorem plus_comm (x y : SExpr) : 
-  Logic.toBool (integerp x) = true → 
-  Logic.toBool (integerp y) = true → 
-  Logic.toBool (Logic.equal (Logic.plus x y) (Logic.plus y x)) = true := by
-  acl2_grind
+```sh
+lake build                              # type-check everything (incl. tests)
+just test                               # unit tests
+just ci                                 # conformance gate: build + tests + driver coverage
+just driver-coverage                    # replay the driver over the whole sample corpus
+lake exe acl2lean dump-proof-tree <f>   # inspect a reconstructed proof tree
+lake exe acl2lean parse-proof-log <f>   # parse/display a raw proof log
+lake exe acl2lean gen-world <file>      # generate World + theorem stubs from .lisp
+lake exe acl2lean eval "<expr>"         # evaluate an s-expression
 ```
-This is proven automatically by Lean's `grind` tactic!
+
+Proof logs (`acl2_samples/**/*.proof-log`) are gitignored; regenerate them
+with the instrumented ACL2 image:
+
+```sh
+just build-acl2                         # build the instrumented ACL2 (submodule)
+just capture-all-logs                   # recapture the corpus (also invalidates
+                                        # the Lean modules that embed logs)
+```
+
+## Repository layout
+
+| Path | Contents |
+| --- | --- |
+| `acl2/` | The instrumented ACL2 fork (submodule, branch `acl2-lean-output`) |
+| `ACL2Lean/` | Parser, s-expression core, interpreter, translator |
+| `ACL2Lean/Replay/` | The replay driver and its atomic evaluation lemmas |
+| `ACL2Lean/Imported/` | The lifting library and the native mirror catalog |
+| `Tests/` | Unit tests, driver tests, the corpus-wide coverage harness |
+| `acl2_samples/` | The sample corpus (`recon-tests/` is the reconstruction suite) |
+| `docs/plans/` | Design plans — `2026-06-10_generality-design.md` is the governing plan |
+| `docs/notes/` | Investigation notes and surveys |
+| `TODO.md` | The running backlog across all tracks |
+| `CLAUDE.md` | The working rules (fidelity requirements, audit practices) |
+
+## Status
+
+Live status lives in the repo, not here: the scoreboard at the top of
+`ACL2Lean/Imported/NativeMirrors.lean` lists the native theorems proved
+through the driver (each is a build-enforced regression), the coverage table
+from `just driver-coverage` reports per-theorem replay status over the whole
+corpus, and `TODO.md` tracks the frontiers.
