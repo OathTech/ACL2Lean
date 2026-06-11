@@ -2800,6 +2800,65 @@ theorem ne_nil_of_evtrue_conv {w : World} {env : Env} {a va : SExpr}
   have : v = va := Option.some.inj (hav.symm.trans (hconv (n1 + n2) (by omega)))
   exact this ▸ hnv
 
+/-- A TRUE term is iff-equivalent to `'t` (D10): the honest chain-step form
+    of a verdict-only discharge node — `EvTrue lhs` composes in the SIff lane
+    instead of being strengthened to an eval-equality with `'t` (which held
+    only for boolean-valued clauses). -/
+theorem evrel_siff_qt_of_evtrue {w : World} {env : Env} {a : SExpr}
+    (ha : EvTrue w env a) :
+    EvRel SIff w env a
+      (.cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil)) := by
+  obtain ⟨N, ha⟩ := ha
+  refine ⟨N + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  obtain ⟨u, hau, hnu⟩ := ha (g + 1) (by omega)
+  refine ⟨u, SExpr.t, hau, ?_, by simp [SIff, hnu, SExpr.t]⟩
+  exact evalOpt_quote g w env SExpr.t
+
+/-- Extract the REST of a disjunction from its `EvTrue` when the head literal
+    is valued nil — the induction scaffold's per-case peel (`re_extract_else`'s
+    `EvTrue` twin, fixed to the disjoin shape `(if c 't rest)`). -/
+theorem evtrue_extract_else {w : World} {env : Env} {c rest : SExpr}
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some SExpr.nil)
+    (hif : EvTrue w env
+      (.cons (.atom (.symbol { name := "if" }))
+        (.cons c (.cons
+          (.cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil))
+          (.cons rest .nil))))) : EvTrue w env rest := by
+  obtain ⟨n1, hc⟩ := hc; obtain ⟨n2, hif⟩ := hif
+  refine ⟨n1 + n2 + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  obtain ⟨v, hifv, hnv⟩ := hif (g + 1) (by omega)
+  rw [evalOpt_if_false g w env c _ rest (hc g (by omega))] at hifv
+  exact ⟨v, evalOpt_fuel_mono g w env rest v hifv, hnv⟩
+
+/-- A TRUE term's negation converges to nil (the step case's IH literal:
+    `EvTrue ihInst` pins `(not ihInst) ⇒ nil` WITHOUT pinning the IH's own
+    value — `Logic.not v = nil` for every non-nil `v`). -/
+theorem conv_not_nil_of_evtrue {w : World} {env : Env} {X : SExpr}
+    (h_noshadow : w.defs.get? { name := "not" } = none)
+    (hX : EvTrue w env X) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "not" })) (.cons X .nil))
+      = some SExpr.nil := by
+  obtain ⟨N, hX⟩ := hX
+  refine ⟨N + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  obtain ⟨v, hv, hnv⟩ := hX g (by omega)
+  rw [evalOpt_builtin_1 g w env { name := "not" } X v
+    (by simp [Symbol.isNamed]) h_noshadow hv]
+  rw [callBuiltin_not, not_nil_of_truthy hnv]
+
+/-- Transport `EvTrue` backwards along an EVAL-EQUALITY chain (the
+    equal-steps composition entering the truthiness judgment). -/
+theorem evtrue_of_fuel_eq {w : World} {env : Env} {a b : SExpr}
+    (hab : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b)
+    (hb : EvTrue w env b) : EvTrue w env a := by
+  obtain ⟨n1, hab⟩ := hab; obtain ⟨n2, hb⟩ := hb
+  refine ⟨n1 + n2, fun f hf => ?_⟩
+  obtain ⟨v, hbv, hnv⟩ := hb f (by omega)
+  exact ⟨v, (hab f (by omega)).trans hbv, hnv⟩
+
 /-- The converse: a pinned non-nil value IS `EvTrue` (the positive-literal
     fallback of the clausify walk — truthiness anywhere in the spine, D9). -/
 theorem evtrue_of_conv_ne_nil {w : World} {env : Env} {a va : SExpr}

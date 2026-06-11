@@ -185,13 +185,24 @@ the golden gate as the checker.
       `.truthy (ne_nil_of_evtrue_conv pFact pl)`; `thnTy` binder gone,
       `restTy` is now the `EvTrue` Prop
 - [ ] `bridgeClausify` (~2448): target `EvTrue info.input`
-- [ ] `dischargeSpine` (~1419) / `dischargeClose` (~1452)
-- [ ] `replayDischargeLeaf` (~1673) / `replayDischargeNode` (~1779):
-      conclusions → `EvTrue (disjoin clause)`
-- [ ] `replayPreprocessNode` discharge wrap (~1861) + chain end
-      `replayPreprocessChain` (~2053): iff case ends via
-      `evtrue_of_evrel_siff`; DELETE `strengthenIffChain` (~2043) +
-      `formulaBooleanFact` (~2025)
+- [x] `dischargeSpine` / `dischargeClose`: `evtrue_dp_if_split` + boundary
+      injection; DP fact stays value-level (`concVal = SExpr.t`)
+- [x] `replayDischargeLeaf` / `replayDischargeNode`: conclusions are now
+      `EvTrue (disjoin clause)` automatically (they end via the spine);
+      docstrings updated with the wrap below
+- [ ] **D10 — discharge nodes compose as SIff chain steps.** The old
+      preprocess wrap strengthened the discharge verdict to the
+      eval-equality `eval lhs = eval 't` (`fuel_eq_of_conv`) — valid only
+      for boolean lhs. The honest content is `EvTrue lhs`, which as a chain
+      step is `EvRel SIff lhs 't` (new lemma `evrel_siff_qt_of_evtrue`).
+      So: `replayPreprocessNode`'s discharge case moves into the chain
+      core's IFF lane (`isIffNode` extended to the discharge origins), and
+      the boolean strengthening disappears here too. Check OTHER
+      `replayDischargeNode` call sites (replayClause leaf composition) —
+      those consume `EvTrue` directly, no relabeling.
+- [ ] chain end `replayPreprocessChain`: iff case ends via
+      `evtrue_of_evrel_siff` + `EvTrue (quote t)`; equal case ends via
+      `evtrue_of_eq_t`; DELETE `strengthenIffChain` + `formulaBooleanFact`
 - [ ] `replayClause` (~2645): clausify/spine composition
 - [ ] `replayInduction` (~2738): motive `P` → `EvTrue` of pushed clause
       (new `mkEvTruePropEx` builder next to `mkConvPropEx` ~2503); IH

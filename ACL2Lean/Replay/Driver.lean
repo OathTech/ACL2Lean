@@ -1422,8 +1422,10 @@ def proveDpFact (stmt : Expr) (total : Nat) : MetaM Expr := do
   instantiateMVars mv
 
 mutual
-/-- Fold `re_dp_if_split` over the discharge clause's spine, feeding
-    nil-hypotheses to the partially-applied DP fact. -/
+/-- Fold `evtrue_dp_if_split` over the discharge clause's spine, feeding
+    nil-hypotheses to the partially-applied DP fact; result `EvTrue` of the
+    spine (G2). The DP FACT itself stays value-level (`concVal = SExpr.t`) —
+    only the clause boundary wraps. -/
 partial def dischargeSpine (cfg : ReplayConfig) (opqMap opqP : List (SExpr × Expr))
     (t : SExpr) (fPartial : Expr) : MetaM Expr := do
   match t with
@@ -1431,38 +1433,34 @@ partial def dischargeSpine (cfg : ReplayConfig) (opqMap opqP : List (SExpr × Ex
     if fs.name == "if" && th == quoteT then
       let pc ← dpValProof cfg cfg.envExpr opqMap opqP (t := c)
       let vc ← dpValExpr opqMap (dpConcVar cfg.envExpr) c
-      -- hthen : vc ≠ nil → eval 't ⇒ some SExpr.t
+      -- hthen : vc ≠ nil → EvTrue (quote t)
       let neTy ← mkAppM ``Ne #[vc, mkConst ``SExpr.nil]
       let hthen ← withLocalDeclD `h neTy fun h => do
-        let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-        -- cast the quoted value to SExpr.t (decidable equality, robust to symbol pkg)
-        let hv ← proveByDecide
-          (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
-        let p ← mkAppM ``re_val_cast
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr th, reflectSExpr SExpr.t,
-            mkConst ``SExpr.t, pq, hv]
-        mkLambdaFVars #[h] p
-      -- helse : vc = nil → eval e ⇒ some SExpr.t   (descend, feeding the hyp to F)
+        let _ := h
+        mkLambdaFVars #[h] (← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg])
+      -- helse : vc = nil → EvTrue e   (descend, feeding the hyp to F)
       let fTy ← whnf (← inferType fPartial)
       let .forallE _ dom _ _ := fTy
         | throwError "dischargeSpine: DP fact arity mismatch at {repr c}"
       let helse ← withLocalDeclD `h dom fun h => do
         let p ← dischargeSpine cfg opqMap opqP e (mkApp fPartial h)
         mkLambdaFVars #[h] p
-      mkAppM ``re_dp_if_split
+      mkAppM ``evtrue_dp_if_split
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr th, reflectSExpr e,
           vc, pc, hthen, helse]
     else dischargeClose cfg opqMap opqP t fPartial
   | _ => dischargeClose cfg opqMap opqP t fPartial
 
 /-- Close the spine's last literal: cast its value-characterized convergence by
-    the DP fact's conclusion `concVal(t) = SExpr.t`. -/
+    the DP fact's conclusion `concVal(t) = SExpr.t`, entering `EvTrue` via the
+    exact-t injection. -/
 partial def dischargeClose (cfg : ReplayConfig) (opqMap opqP : List (SExpr × Expr))
     (t : SExpr) (fPartial : Expr) : MetaM Expr := do
   let pt ← dpValProof cfg cfg.envExpr opqMap opqP (t := t)
   let vt ← dpValExpr opqMap (dpConcVar cfg.envExpr) t
-  mkAppM ``re_val_cast
+  let pExact ← mkAppM ``re_val_cast
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr t, vt, mkConst ``SExpr.t, pt, fPartial]
+  mkAppM ``evtrue_of_eq_t #[pExact]
 end
 
 /-! ## Totality from admission (#37)
@@ -1670,7 +1668,7 @@ where
     mkDecideProof (← mkEq lhs rhs)
 
 /-- Replay a decision-procedure DISCHARGE LEAF standalone: prove the discharge
-    node's claim `∃N ∀f≥N, evalOpt f w env (disjoin clause) = some t`,
+    node's claim `EvTrue w env (disjoin clause)` (G2),
     CONDITIONAL on, per opaque user-fn subterm: its convergence (totality) and —
     when the development carries one — its emitted type-prescription corollary.
     `tps` maps fn name ↦ corollary (from the parsed `:TYPE-PRESCRIPTION` events).
@@ -1778,7 +1776,7 @@ def replayDischargeLeaf (cfg : ReplayConfig) (clauseTerm : SExpr)
   return (p, if assumed then conds ++ ["ASSUMED:dp-fact"] else conds)
 
 /-- COMPOSE a verdict-only discharge node into a clause/preprocess replay: prove
-    `∃N∀f≥N, eval (disjoin clause) = some t` under the AMBIENT `ReplayCtx` —
+    `EvTrue w env (disjoin clause)` (G2) under the AMBIENT `ReplayCtx` —
     opaque user-fn values come from the ctx PINS (placed there by
     `replayClause`'s uniform pinning), TP facts from the bound TP hypotheses.
     An unclosable DP fact is a frontier error here (the standalone harness
@@ -1864,14 +1862,13 @@ def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) 
   unless prov.equiv == "equal" || prov.origin == "preprocess/if-iff" do
     throwError "replayPreprocessNode: step under equivalence {prov.equiv} — \
                 R-parameterized recipe pending (G1 frontier)"
-  -- a verdict-only DISCHARGE node (keyed by ORIGIN, not rune): the carved-out
-  -- decision-procedure replay, composed from the ambient ctx pins
+  -- a verdict-only DISCHARGE node routes through the chain core's IFF lane
+  -- (D10): its honest content is `EvTrue lhs`, an SIff step to 't — NOT an
+  -- eval-equality (that strengthening held only for boolean-valued clauses)
   if dischargeOrigins.contains prov.origin then
-    unless rhs == quoteT do
-      throwError "discharge node: rhs {repr rhs} ≠ (quote t)"
-    let conv ← replayDischargeNode cfg ctx lhs
-    let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-    return ← mkAppM ``fuel_eq_of_conv #[conv, hq, ← mkEqRefl (reflectSExpr SExpr.t)]
+    throwError "replayPreprocessNode: discharge node {prov.origin} must \
+                compose via the chain core's SIff lane (D10) — direct \
+                eval-equality replay is gone"
   match rty with
   | "executable-counterpart" =>
     unless (ACL2.Replay.freeVars lhs).isEmpty do
@@ -1981,9 +1978,18 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
   for n in nodes do
     let (lhs, rhs) := nodeLhsRhs n
     let .node _ _ _ _ prov := n
-    let isIffNode := prov.origin == "preprocess/if-iff"
+    -- D10: a verdict-only discharge node is an SIff step `lhs ~iff~ 't`
+    -- (its honest content is `EvTrue lhs`); if-iff nodes stay; everything
+    -- else is an eval-equality step
+    let isDischarge := dischargeOrigins.contains prov.origin
+    let isIffNode := prov.origin == "preprocess/if-iff" || isDischarge
     let nodeP ←
-      if isIffNode then replayIfIffNode cfg ctx n
+      if isDischarge then do
+        unless rhs == quoteT do
+          throwError "discharge node: rhs {repr rhs} ≠ (quote t)"
+        let ev ← replayDischargeNode cfg ctx lhs
+        mkAppM ``evrel_siff_qt_of_evtrue #[ev]
+      else if isIffNode then replayIfIffNode cfg ctx n
       else replayPreprocessNode cfg ctx n
     let path ← match findOccurrences cur lhs with
       | [p] => pure p
@@ -2026,38 +2032,11 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
     cur := curR
   return (acc, cur)
 
-/-- The boolean-valuedness fact for a chain-start formula's PINNED value —
-    the interim strengthening an IFF chain needs to recover `= some t` at the
-    mirror statement (G2's `EvTrue` migration removes this). v1: `implies`-
-    headed formulas (their lifted value is `Logic.implies vA vB`). -/
-def formulaBooleanFact (cfg : ReplayConfig) (ctx : ReplayCtx) (formula : SExpr) :
-    MetaM Expr := do
-  match formula with
-  | .cons (.atom (.symbol fs)) (.cons A (.cons B .nil)) =>
-    if fs.name == "implies" then
-      let vA ← ctxValExpr cfg ctx A
-      let vB ← ctxValExpr cfg ctx B
-      mkAppM ``logic_implies_boolean #[vA, vB]
-    else
-      throwError "iff chain: boolean-valuedness of head {fs.name} unknown \
-                  (frontier until the EvTrue migration, G2)"
-  | _ =>
-    throwError "iff chain: boolean-valuedness of {repr formula} unknown \
-                (frontier until the EvTrue migration, G2)"
-
-/-- Recover `∃N∀f≥N, eval formula = some t` from an IFF chain
-    (`EvRel SIff formula final`) and the final term's exact truth, via
-    backward truth transport + the boolean-head strengthening. -/
-def strengthenIffChain (cfg : ReplayConfig) (ctx : ReplayCtx) (formula : SExpr)
-    (chainS : Expr) (pEnd : Expr) : MetaM Expr := do
-  let truthy ← mkAppM ``truthy_of_evrel_siff #[chainS, pEnd]
-  let pF ← ctxValProof cfg ctx formula
-  let boolFact ← formulaBooleanFact cfg ctx formula
-  mkAppM ``eq_t_of_truthy_boolean #[pF, boolFact, truthy]
-
 /-- Replay a clause discharged ENTIRELY by a preprocess chain: the step nodes
     compose the single-literal clause's formula to `(quote t)`. Returns
-    `∃N∀f≥N, eval formula = some t`. -/
+    `EvTrue w env formula` — an IFF chain ends by backward truth transport
+    with NO boolean-valuedness side condition (the G1-interim
+    `strengthenIffChain`/`formulaBooleanFact` pair is gone, G2). -/
 def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
     (formula : SExpr) (nodes : List ProofNode) : MetaM Expr := do
   let (acc, cur) ← replayPreprocessChainCore cfg ctx formula nodes
@@ -2066,32 +2045,26 @@ def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
   let some (chain, isIff) := acc
     | throwError "replayPreprocessChain: no step nodes"
   if isIff then
-    let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-    let hv ← proveByDecide
-      (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
-    let pEnd ← mkAppM ``re_val_cast
-      #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
-        mkConst ``SExpr.t, pq, hv]
-    strengthenIffChain cfg ctx formula chain pEnd
+    let pEnd ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]
+    mkAppM ``evtrue_of_evrel_siff #[chain, pEnd]
   else
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-    mkAppM ``fuel_conv_of_eq #[chain, hq]
+    mkAppM ``evtrue_of_eq_t #[← mkAppM ``fuel_conv_of_eq #[chain, hq]]
 
 /-! ## The clausify BRIDGE (#53C): proved child clause → the clausify input
 
-`bridgeClausify` proves `∃N∀f≥N, eval input = some t` from the PROVED output
-clause (`eval (disjoinTerm cl) = some t` — the pool-root/child replay), by
+`bridgeClausify` proves `EvTrue w env input` from the PROVED output
+clause (`EvTrue w env (disjoinTerm cl)` — the pool-root/child replay), by
 mirroring `clausify-input1`'s PURE if-recursion. The recorded checkpoints
 validate every joint (recomputed neg-clause/split/out must equal the record;
 an `expand-and-or` marker is a frontier — that expansion is ens-dependent and
-not recomputable). Mechanism: `if_fact_elim` peels the proved disjunction one
+not recomputable). Mechanism: `evtrue_if_fact_elim` peels the proved disjunction one
 literal at a time — one proof LEAF per firing literal — and in each leaf the
 `val*` walkers derive the test-value facts that drive the input's if-tree
-through `re_dp_if_split` (each leaf's impossible branch closes by
+through `evtrue_dp_if_split` (each leaf's impossible branch closes by
 contradiction with the known value fact). The walkers stay in lockstep with
-`clausifyPure`'s case selection; the exact-`t` value needed at the very top
-flows from the spine's LAST literal (regions are suffix-closed), every other
-position needs only nil/truthy facts. -/
+`clausifyPure`'s case selection; every position needs only nil/truthy facts
+(G2/D9 -- the old spine-last exact-`t` requirement is gone). -/
 
 /-- ACL2's `dumb-negate-lit` (the pure fragment: strip a `not`, else wrap). -/
 def dumbNegateLit (t : SExpr) : SExpr :=
@@ -2269,7 +2242,7 @@ partial def valNegNilLit (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
     | [f] => pure f
     | _ => throwError "valNegNilLit: region/fact mismatch for {repr term}"
   match term with
-  | .cons (.atom (.symbol ns)) (.cons inner .nil) =>
+  | .cons (.atom (.symbol ns)) (.cons _inner .nil) =>
     if ns.name == "not" then
       -- literal = inner (not stripped); v(term) = Logic.not v(inner)
       match fact with
@@ -2281,6 +2254,7 @@ partial def valNegNilLit (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
 /-- Fallback NEG literal `(not term)` firing: derive `v(term) = nil`. -/
 partial def valNegNilWrapped (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
     (fact : LeafFact) : MetaM Expr := do
+  let _ := cfg; let _ := ctx
   match fact with
   | .truthy h => mkAppM ``arg_nil_of_not_truthy #[h]
   | _ => throwError "valNegNilWrapped: expected a firing fact for {repr term}"
@@ -2363,6 +2337,7 @@ partial def valPosTruthy (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
 /-- Fallback POS literal firing: the literal is `term` itself. -/
 partial def valPosTruthyLit (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
     (facts : List LeafFact) : MetaM Expr := do
+  let _ := cfg; let _ := ctx
   match facts with
   | [.truthy h] => return h
   | _ => throwError "valPosTruthyLit: region/fact mismatch for {repr term}"
@@ -2431,8 +2406,8 @@ partial def peelClause (cfg : ReplayConfig) (ctx : ReplayCtx)
       mkLambdaFVars #[heq] inner
     mkAppM ``evtrue_if_fact_elim #[pl, pFact, hthen, helse]
 
-/-- Bridge a clausify record: prove `∃N∀f≥N, eval info.input = some t` from
-    `pOut : eval (disjoinTerm cl₀) = some t` (the proved single output clause).
+/-- Bridge a clausify record: prove `EvTrue w env info.input` from
+    `pOut : EvTrue w env (disjoinTerm cl₀)` (the proved single output clause).
     Validates the WHOLE record against the pure recomputation; any divergence
     (an `expand-and-or` expansion, a structured neg-clause, multiple outputs)
     is a hard frontier error. -/
@@ -2629,7 +2604,7 @@ partial def clauseSubtreeTerms (cn : ClauseNode) : List SExpr :=
 
 mutual
 
-/-- Replay a clause node: prove `∃N∀f≥N, eval (disjoinTerm inputClause) = some t`
+/-- Replay a clause node: prove `EvTrue w env (disjoinTerm inputClause)`
     (for a single-literal clause this IS the literal/formula statement).
     Induction nodes hard-fail (the scaffold lands next); a pushed clause delegates
     to its pool-root child when the clauses coincide. -/
@@ -2699,8 +2674,8 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
     let pInput ← bridgeClausify cfg ctx info pChild
     match chainOpt with
     | none => return pInput
-    | some (ch, false) => return ← mkAppM ``fuel_conv_of_eq #[ch, pInput]
-    | some (ch, true) => return ← strengthenIffChain cfg ctx formula ch pInput
+    | some (ch, false) => return ← mkAppM ``evtrue_of_fuel_eq #[ch, pInput]
+    | some (ch, true) => return ← mkAppM ``evtrue_of_evrel_siff #[ch, pInput]
   | _ :: _ :: _ =>
     throwError "replayClause: multiple clausify records at {cn.idStr} (frontier)"
   | [] =>
@@ -2777,13 +2752,12 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
                 [(not (consp v)), (not IH), pushed]"
   let w := cfg.worldExpr
   let pushedE := reflectSExpr pushedLit
-  let tC := mkConst ``SExpr.t
   let nilC := mkConst ``SExpr.nil
-  -- 4. P : SExpr → Prop
+  -- 4. P : SExpr → Prop — the pushed clause's truth is `EvTrue` (G2)
   let P ← withLocalDeclD `xv (mkConst ``SExpr) fun xvV => do
     let body ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
       let hxTy ← mkValConvPropEx w eV (reflectSExpr cvarT) xvV
-      let goal ← mkValConvPropEx w eV pushedE tC
+      let goal ← mkAppM ``EvTrue #[w, eV, pushedE]
       mkForallFVars #[eV] (← mkArrow hxTy goal)
     mkLambdaFVars #[xvV] body
   let conspOf := fun (v : Expr) => mkApp (mkConst ``Logic.consp) v
@@ -2803,8 +2777,7 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
           let pTest ← ctxValProof cfg' ctxB consT
           let pTestNil ← mkAppM ``re_val_cast
             #[w, eV, reflectSExpr consT, conspOf vV, nilC, pTest, hC]
-          let pPushed ← mkAppM ``re_extract_else
-            #[w, eV, reflectSExpr consT, reflectSExpr quoteT, pushedE, tC, pCl, pTestNil]
+          let pPushed ← mkAppM ``evtrue_extract_else #[pTestNil, pCl]
           mkLambdaFVars #[hX] pPushed
         mkLambdaFVars #[eV] inner3
       mkLambdaFVars #[hC] inner2
@@ -2832,10 +2805,7 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
             let pNotCnil ← mkAppM ``re_val_cast
               #[w, eV, reflectSExpr notConsT,
                 mkApp (mkConst ``Logic.not) (conspOf vV), nilC, pNotC, valEq]
-            let restTerm := disjoinTerm [notIhInst, pushedLit]
-            let p2 ← mkAppM ``re_extract_else
-              #[w, eV, reflectSExpr notConsT, reflectSExpr quoteT,
-                reflectSExpr restTerm, tC, pCl, pNotCnil]
+            let p2 ← mkAppM ``evtrue_extract_else #[pNotCnil, pCl]
             -- the IH at e' = e.insert cvar (cdr v), bridged to e
             let cdrVal := mkApp (mkConst ``Logic.cdr) vV
             let e' ← mkAppM ``Env.insert #[eV, reflectSymbol cvar, cdrVal]
@@ -2848,20 +2818,12 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
             let pBridge ← mkAppM ``evalOpt_substTerm_subst1
               #[w, eV, reflectSymbol cvar, reflectSExpr cdrT, cdrVal, pushedE,
                 hNoLet, hCdrConv]
-            let pIHe ← mkAppM ``fuel_conv_of_eq #[pBridge, pIH']
-            -- (not ihInst) ⇒ some nil
-            let hNsNot ← proveNotSpecial { name := "not" }
+            let pIHe ← mkAppM ``evtrue_of_fuel_eq #[pBridge, pIH']
+            -- (not ihInst) ⇒ some nil — from the IH's TRUTHINESS alone
+            -- (Logic.not v = nil for every non-nil v; no exact-t pin, G2)
             let hNoNot ← proveNoShadow cfg { name := "not" }
-            let hrNot ← mkAppM ``callBuiltin_not #[tC]
-            let pNotIH ← mkAppM ``conv_builtin1
-              #[w, eV, reflectSymbol { name := "not" }, reflectSExpr ihInst, tC,
-                mkApp (mkConst ``Logic.not) tC, hNsNot, hNoNot, pIHe, hrNot]
-            let pNotIHnil ← mkAppM ``re_val_cast
-              #[w, eV, reflectSExpr notIhInst, mkApp (mkConst ``Logic.not) tC, nilC,
-                pNotIH, mkConst ``logic_not_t_nil]
-            let p3 ← mkAppM ``re_extract_else
-              #[w, eV, reflectSExpr notIhInst, reflectSExpr quoteT, pushedE, tC,
-                p2, pNotIHnil]
+            let pNotIHnil ← mkAppM ``conv_not_nil_of_evtrue #[hNoNot, pIHe]
+            let p3 ← mkAppM ``evtrue_extract_else #[pNotIHnil, p2]
             mkLambdaFVars #[hX] p3
           mkLambdaFVars #[eV] inner4
         mkLambdaFVars #[ihV] inner3
@@ -2877,7 +2839,7 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
 end
 
 /-- Replay a whole theorem's proof tree to its mirror statement
-    `∃N∀f≥N, eval cp.formula = some t`. -/
+    `EvTrue w env cp.formula` (G2: ACL2's own truthiness claim). -/
 def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
   match cp.root with
   | none => throwError "replayProof: theorem {cp.name} has no proof tree"
