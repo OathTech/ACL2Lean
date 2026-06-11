@@ -1204,14 +1204,25 @@ def disjoinTerm : List SExpr → SExpr
     .cons (.atom (.symbol { name := "if" }))
       (.cons l (.cons quoteT (.cons (disjoinTerm rest) .nil)))
 
-/-- Replay a clause as its LITERAL SPINE: prove
-    `∃N∀f≥N, eval (disjoinTerm lits) = some t`. Each non-closing literal splits
-    via `re_dp_if_split` — its truth closes the clause outright; its falsity
-    descends with the value fact accumulated in `ctx.litFacts` (bridged across the
-    literal's own rewrite chain to the post-rewrite form — what recognizer and
-    solidify nodes downstream consume). The CLOSING literal (result `'t`) replays
-    its chain under the accumulated context. The spine's own split IS the case
-    hypothesis — no external case facts are needed for the clause itself. -/
+/-- `∃N∀f≥N, eval (quote t) = some SExpr.t` (the constant, not the reflection). -/
+def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
+  let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+  let hv ← proveByDecide
+    (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
+  mkAppM ``re_val_cast
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
+      mkConst ``SExpr.t, pq, hv]
+
+/-- Replay a clause as its LITERAL SPINE: prove `EvTrue w env (disjoinTerm
+    lits)`. Each non-closing literal splits via `evtrue_dp_if_split` — its
+    truth closes the clause outright; its falsity descends with the value fact
+    accumulated in `ctx.litFacts` (bridged across the literal's own rewrite
+    chain to the post-rewrite form — what recognizer and solidify nodes
+    downstream consume). The CLOSING literal (result `'t`) replays its chain
+    under the accumulated context and enters via `evtrue_of_eq_t` (a recorded
+    truthy-non-t closer is a frontier until a real tree produces one). The
+    spine's own split IS the case hypothesis — no external case facts are
+    needed for the clause itself. -/
 partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
     (lits : List (Nat × LiteralProof)) : MetaM Expr := do
   match lits with
@@ -1221,7 +1232,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
       -- the closer: its chain proves it `t`; any later literals are short-circuited.
       let pclose ← replayLiteral cfg ctx lp
       if rest.isEmpty then
-        return pclose
+        mkAppM ``evtrue_of_eq_t #[pclose]
       else
         -- `(if litᵢ 't rest)` with the test KNOWN `t`
         let restTerm := disjoinTerm (rest.map (·.2.literal))
@@ -1232,7 +1243,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
         let hIf ← mkAppM ``conv_if_true
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
             reflectSExpr restTerm, mkConst ``SExpr.t, mkConst ``SExpr.t, pclose, hcv, hq]
-        return hIf
+        mkAppM ``evtrue_of_eq_t #[hIf]
     else
       -- a non-closing literal: split on its value
       let vLit ← ctxValExpr cfg ctx lp.literal
@@ -1245,10 +1256,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
       let restTerm := disjoinTerm (rest.map (·.2.literal))
       let neTy ← mkAppM ``Ne #[vLit, mkConst ``SExpr.nil]
       let hthen ← withLocalDeclD `h neTy fun h => do
-        let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-        let p ← mkAppM ``re_val_cast
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
-            mkConst ``SExpr.t, hq, ← mkEqRefl (mkConst ``SExpr.t)]
+        let p ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]
         let _ := h
         mkLambdaFVars #[h] p
       let eqTy ← mkEq vLit (mkConst ``SExpr.nil)
@@ -1265,7 +1273,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
         let ctx' := { ctx with litFacts := ctx.litFacts ++ [(idx, factTerm, factProof)] }
         let p ← replayClauseSpine cfg ctx' rest
         mkLambdaFVars #[h] p
-      mkAppM ``re_dp_if_split
+      mkAppM ``evtrue_dp_if_split
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
           reflectSExpr restTerm, vLit, pLit, hthen, helse]
 
@@ -2115,15 +2123,16 @@ partial def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
     else if pos then [t] else [dumbNegateLit t]
   | _ => if pos then [t] else [dumbNegateLit t]
 
-/-- Per-literal knowledge in one elimination LEAF of a proved clause. -/
+/-- Per-literal knowledge in one elimination LEAF of a proved clause. Under
+    `EvTrue` (G2/D9) a firing literal carries TRUTHINESS uniformly — the old
+    spine-last `exactT` (which pinned value `t` and made a mid-spine positive
+    firing a frontier) is gone; the last literal's `.truthy` is recovered from
+    the clause fact + its value characterization (`ne_nil_of_evtrue_conv`). -/
 inductive LeafFact where
   /-- the literal's value is nil (`h : v = nil`). -/
   | isNil (h : Expr)
-  /-- the literal FIRED mid-spine: its value is non-nil (`h : v ≠ nil`). -/
+  /-- the literal FIRED: its value is non-nil (`h : v ≠ nil`). -/
   | truthy (h : Expr)
-  /-- the literal FIRED as the spine's last: the full fact
-      (`h : ∃N∀f≥N, eval lit = some t`). -/
-  | exactT (h : Expr)
   /-- after the firing literal: nothing known. -/
   | unknown
   deriving Inhabited
@@ -2131,16 +2140,7 @@ inductive LeafFact where
 /-- Index of the firing fact in a region (`none` = the all-nil region). -/
 def leafFiring (facts : List LeafFact) : Option Nat :=
   facts.findIdx? fun f => match f with
-    | .truthy _ | .exactT _ => true | _ => false
-
-/-- `∃N∀f≥N, eval (quote t) = some SExpr.t` (the constant, not the reflection). -/
-def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
-  let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-  let hv ← proveByDecide
-    (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
-  mkAppM ``re_val_cast
-    #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
-      mkConst ``SExpr.t, pq, hv]
+    | .truthy _ => true | _ => false
 
 /-- `SExpr.t ≠ SExpr.nil` as a proof. -/
 def tNeNilFact : MetaM Expr := do
@@ -2148,9 +2148,9 @@ def tNeNilFact : MetaM Expr := do
 
 mutual
 
-/-- POSITIVE walk: `∃N∀f≥N, eval term = some SExpr.t`, given one leaf's facts
-    over `term`'s pos-clause region (the firing literal IS inside it; the
-    region's last literal is the clause's last — the `exactT` invariant). -/
+/-- POSITIVE walk: `EvTrue w env term`, given one leaf's facts over `term`'s
+    pos-clause region (the firing literal IS inside it; under G2/D9 a positive
+    firing carries truthiness uniformly — no spine-last restriction). -/
 partial def walkPosT (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
     (facts : List LeafFact) : MetaM Expr := do
   match term with
@@ -2170,8 +2170,8 @@ partial def walkPosT (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
           mkLambdaFVars #[hne] (← mkAppM ``absurd #[h1nil, hne])
         let helse ← withLocalDeclD `heq nilTy fun heq => do
           let _ := heq
-          mkLambdaFVars #[heq] (← quoteTFact cfg)
-        mkAppM ``re_dp_if_split
+          mkLambdaFVars #[heq] (← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg])
+        mkAppM ``evtrue_dp_if_split
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr t1, reflectSExpr t2,
             reflectSExpr quoteT, v1, p1, hthen, helse]
       | none =>
@@ -2183,7 +2183,7 @@ partial def walkPosT (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
           mkLambdaFVars #[hne] pB
         let helse ← withLocalDeclD `heq nilTy fun heq => do
           mkLambdaFVars #[heq] (← mkAppM ``absurd #[heq, h1ne])
-        mkAppM ``re_dp_if_split
+        mkAppM ``evtrue_dp_if_split
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr t1, reflectSExpr t2,
             reflectSExpr quoteT, v1, p1, hthen, helse]
     else if ifS.name == "if" && t2 == quoteT then
@@ -2198,10 +2198,10 @@ partial def walkPosT (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
         let h1ne ← valPosTruthy cfg ctx t1 fA
         let hthen ← withLocalDeclD `hne neTy fun hne => do
           let _ := hne
-          mkLambdaFVars #[hne] (← quoteTFact cfg)
+          mkLambdaFVars #[hne] (← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg])
         let helse ← withLocalDeclD `heq nilTy fun heq => do
           mkLambdaFVars #[heq] (← mkAppM ``absurd #[heq, h1ne])
-        mkAppM ``re_dp_if_split
+        mkAppM ``evtrue_dp_if_split
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr t1, reflectSExpr quoteT,
             reflectSExpr t3, v1, p1, hthen, helse]
       | none =>
@@ -2212,20 +2212,23 @@ partial def walkPosT (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
         let helse ← withLocalDeclD `heq nilTy fun heq => do
           let _ := heq
           mkLambdaFVars #[heq] pC
-        mkAppM ``re_dp_if_split
+        mkAppM ``evtrue_dp_if_split
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr t1, reflectSExpr quoteT,
             reflectSExpr t3, v1, p1, hthen, helse]
-    else walkPosTLit term facts
-  | _ => walkPosTLit term facts
+    else walkPosTLit cfg ctx term facts
+  | _ => walkPosTLit cfg ctx term facts
 
-/-- Fallback literal of a positive walk: the region is `[term]` and its fact
-    must be the spine-last `exactT` (the eval fact itself). -/
-partial def walkPosTLit (term : SExpr) (facts : List LeafFact) : MetaM Expr := do
+/-- Fallback literal of a positive walk: the firing literal is `term` itself;
+    its truthiness + value characterization give `EvTrue` (D9 — works at ANY
+    spine position, the old "cannot pin value t mid-spine" frontier is gone). -/
+partial def walkPosTLit (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
+    (facts : List LeafFact) : MetaM Expr := do
   match facts with
-  | [.exactT h] => return h
-  | _ => throwError "clausify bridge: pos literal {repr term} fired mid-spine — \
-                     a non-last positive fallback literal cannot pin value t \
-                     (invariant violation / unsupported shape)"
+  | [.truthy h] => do
+    let pTerm ← ctxValProof cfg ctx term
+    mkAppM ``evtrue_of_conv_ne_nil #[pTerm, h]
+  | _ => throwError "clausify bridge: pos literal {repr term} — expected its \
+                     firing truthiness fact (region/fact mismatch)"
 
 /-- Value fact `v(term) = nil`, given the firing literal in `term`'s NEG region. -/
 partial def valNegNil (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
@@ -2271,10 +2274,6 @@ partial def valNegNilLit (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr)
       -- literal = inner (not stripped); v(term) = Logic.not v(inner)
       match fact with
       | .truthy h => mkAppM ``not_nil_of_truthy #[h]
-      | .exactT h => do
-        let pInner ← ctxValProof cfg ctx inner
-        let vEq ← mkAppM ``val_unique #[pInner, h]
-        mkAppM ``not_nil_of_truthy #[← mkAppM ``ne_nil_of_eq_t #[vEq]]
       | _ => throwError "valNegNilLit: expected a firing fact for {repr term}"
     else valNegNilWrapped cfg ctx term fact
   | _ => valNegNilWrapped cfg ctx term fact
@@ -2284,11 +2283,6 @@ partial def valNegNilWrapped (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExp
     (fact : LeafFact) : MetaM Expr := do
   match fact with
   | .truthy h => mkAppM ``arg_nil_of_not_truthy #[h]
-  | .exactT h => do
-    let notTerm : SExpr := .cons (.atom (.symbol { name := "not" })) (.cons term .nil)
-    let pNot ← ctxValProof cfg ctx notTerm
-    let vEq ← mkAppM ``val_unique #[pNot, h]
-    mkAppM ``arg_nil_of_not_t #[vEq]
   | _ => throwError "valNegNilWrapped: expected a firing fact for {repr term}"
 
 /-- Value fact `v(term) ≠ nil`, given ALL-NIL facts over `term`'s NEG region. -/
@@ -2371,9 +2365,6 @@ partial def valPosTruthyLit (cfg : ReplayConfig) (ctx : ReplayCtx) (term : SExpr
     (facts : List LeafFact) : MetaM Expr := do
   match facts with
   | [.truthy h] => return h
-  | [.exactT h] => do
-    let pTerm ← ctxValProof cfg ctx term
-    mkAppM ``ne_nil_of_eq_t #[← mkAppM ``val_unique #[pTerm, h]]
   | _ => throwError "valPosTruthyLit: region/fact mismatch for {repr term}"
 
 /-- Value fact `v(term) = nil`, given ALL-NIL facts over `term`'s POS region. -/
@@ -2406,39 +2397,39 @@ partial def valPosNilLit (term : SExpr) (facts : List LeafFact) : MetaM Expr := 
 
 end
 
-/-- Peel a PROVED clause fact (`pFact : ∃N∀f≥N, eval (disjoinTerm lits) = some t`)
-    literal by literal with `if_fact_elim` — one leaf per firing literal — and
-    in each leaf invoke `mkLeaf` with the aligned `LeafFact`s (all leaves prove
-    the same target). -/
+/-- Peel a PROVED clause fact (`pFact : EvTrue w env (disjoinTerm lits)`)
+    literal by literal with `evtrue_if_fact_elim` — one leaf per firing
+    literal — and in each leaf invoke `mkLeaf` with the aligned `LeafFact`s
+    (all leaves prove the same target). The last literal's firing fact is its
+    TRUTHINESS, recovered from the clause fact + its value characterization
+    (D9 — no exact-t pin). -/
 partial def peelClause (cfg : ReplayConfig) (ctx : ReplayCtx)
     (lits : List SExpr) (pFact : Expr)
     (mkLeaf : List LeafFact → MetaM Expr) (prefixFacts : List LeafFact := []) :
     MetaM Expr := do
   match lits with
   | [] => throwError "peelClause: empty clause"
-  | [_] =>
-    -- disjoinTerm [l] = l : the fact IS the literal's exact-t evaluation
-    mkLeaf (prefixFacts ++ [.exactT pFact])
+  | [l] =>
+    -- disjoinTerm [l] = l : the fact is the literal's own EvTrue
+    let pl ← ctxValProof cfg ctx l
+    let hne ← mkAppM ``ne_nil_of_evtrue_conv #[pFact, pl]
+    mkLeaf (prefixFacts ++ [.truthy hne])
   | l :: rest =>
     let vl ← ctxValExpr cfg ctx l
     let pl ← ctxValProof cfg ctx l
     let nilTy ← mkEq vl (mkConst ``SExpr.nil)
     let neTy ← mkAppM ``Ne #[vl, mkConst ``SExpr.nil]
     let unknowns := rest.map fun _ => LeafFact.unknown
-    let thnTy ← mkEvalSomeExist cfg.worldExpr cfg.envExpr quoteT (mkConst ``SExpr.t)
-    let restTy ← mkEvalSomeExist cfg.worldExpr cfg.envExpr (disjoinTerm rest)
-      (mkConst ``SExpr.t)
+    let restTy ← mkAppM ``EvTrue
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr (disjoinTerm rest)]
     let hthen ← withLocalDeclD `hne neTy fun hne => do
-      let inner ← withLocalDeclD `hq thnTy fun hq => do
-        let _ := hq
-        mkLambdaFVars #[hq] (← mkLeaf (prefixFacts ++ [.truthy hne] ++ unknowns))
-      mkLambdaFVars #[hne] inner
+      mkLambdaFVars #[hne] (← mkLeaf (prefixFacts ++ [.truthy hne] ++ unknowns))
     let helse ← withLocalDeclD `heq nilTy fun heq => do
       let inner ← withLocalDeclD `hrest restTy fun hrest => do
         let pRec ← peelClause cfg ctx rest hrest mkLeaf (prefixFacts ++ [.isNil heq])
         mkLambdaFVars #[hrest] pRec
       mkLambdaFVars #[heq] inner
-    mkAppM ``if_fact_elim #[pl, pFact, hthen, helse]
+    mkAppM ``evtrue_if_fact_elim #[pl, pFact, hthen, helse]
 
 /-- Bridge a clausify record: prove `∃N∀f≥N, eval info.input = some t` from
     `pOut : eval (disjoinTerm cl₀) = some t` (the proved single output clause).

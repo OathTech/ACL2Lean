@@ -2800,6 +2800,14 @@ theorem ne_nil_of_evtrue_conv {w : World} {env : Env} {a va : SExpr}
   have : v = va := Option.some.inj (hav.symm.trans (hconv (n1 + n2) (by omega)))
   exact this ▸ hnv
 
+/-- The converse: a pinned non-nil value IS `EvTrue` (the positive-literal
+    fallback of the clausify walk — truthiness anywhere in the spine, D9). -/
+theorem evtrue_of_conv_ne_nil {w : World} {env : Env} {a va : SExpr}
+    (hconv : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
+    (hne : va ≠ SExpr.nil) : EvTrue w env a := by
+  obtain ⟨N, hconv⟩ := hconv
+  exact ⟨N, fun f hf => ⟨va, hconv f hf, hne⟩⟩
+
 /-- The `EvTrue` spine combinator (D9): VALUE-characterized convergence of the
     test and truth of the branch selected by EITHER case of `cv` (both
     implications supplied; the proof case-splits on `cv = nil`). One lemma

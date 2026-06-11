@@ -170,6 +170,44 @@ DriverTests and the catalog entries, which are statically elaborated. The
 migration loop is therefore edit → build → coverage sweep per batch, with
 the golden gate as the checker.
 
+## 7b. Phase-2 working checklist (line anchors at branch time; tick as done)
+
+- [x] `LeafFact`: `.exactT` deleted; consumers `walkPosTLit`,
+      `valNegNilLit`, `valNegNilWrapped`, `valPosTruthyLit` collapsed to
+      `.truthy`. `walkPosTLit` now takes cfg/ctx (`evtrue_of_conv_ne_nil`).
+      `quoteTFact` moved up next to `disjoinTerm` (forward ref).
+- [x] `replayClauseSpine`: closer → `evtrue_of_eq_t` (singleton AND
+      with-rest `conv_if_true` cases); split → `evtrue_dp_if_split`;
+      hthen simplifies to `evtrue_of_eq_t (quoteTFact)`
+- [x] `walkPosT`: both if-shapes → `evtrue_dp_if_split`; `quoteTFact`
+      branches inject
+- [x] `peelClause`: `evtrue_if_fact_elim`; last literal →
+      `.truthy (ne_nil_of_evtrue_conv pFact pl)`; `thnTy` binder gone,
+      `restTy` is now the `EvTrue` Prop
+- [ ] `bridgeClausify` (~2448): target `EvTrue info.input`
+- [ ] `dischargeSpine` (~1419) / `dischargeClose` (~1452)
+- [ ] `replayDischargeLeaf` (~1673) / `replayDischargeNode` (~1779):
+      conclusions → `EvTrue (disjoin clause)`
+- [ ] `replayPreprocessNode` discharge wrap (~1861) + chain end
+      `replayPreprocessChain` (~2053): iff case ends via
+      `evtrue_of_evrel_siff`; DELETE `strengthenIffChain` (~2043) +
+      `formulaBooleanFact` (~2025)
+- [ ] `replayClause` (~2645): clausify/spine composition
+- [ ] `replayInduction` (~2738): motive `P` → `EvTrue` of pushed clause
+      (new `mkEvTruePropEx` builder next to `mkConvPropEx` ~2503); IH
+      consumption (solidify `eval_equal_t_implies_eq` path) via equal
+      two-valuedness
+- [ ] `replayProof` (~2890) / `replayProofConditional` (~3054): mirror
+      conclusion → unfolded `EvTrue` form
+- [ ] Phase 3: `driver_mirror%` (NativeMirrors.lean:71), WorldGen stub
+      (:103), DriverTests pins, harness docstrings
+- [ ] Phase 4: Lifting enders + catalog entries + `*_native_of_mirror`
+      assembly lemmas; per-entry `#print axioms`
+- [ ] Phase 5: delete dead exact-t clause lemmas
+      (`truthy_of_evrel_siff`? `eq_t_of_truthy_boolean`,
+      `logic_implies_boolean` if unconsumed); golden table re-baseline if
+      any status text moved; update this doc with the as-built record
+
 ## 8. Risks / what to watch (D8)
 
 - **The mirror gets WEAKER.** `EvTrue` is implied by exact-t, so every
