@@ -1,5 +1,4 @@
 -- Root `ACL2Lean` library entry point.
-import ACL2Lean.Basic
 import ACL2Lean.DSL.SyntaxCategories
 import ACL2Lean.Syntax
 import ACL2Lean.Parser
