@@ -1480,9 +1480,7 @@ def totLiftable (t : SExpr) : Bool := (collectOpaques t).isEmpty
 def totDischargeDecrease (just : Justification)
     (measuredFormal : Symbol)
     (facts : List (SExpr × Bool × Expr))
-    (callArg : SExpr) (callArgVal : Expr) (avE : Expr) : MetaM Expr := do
-  let _ := callArgVal
-  let _ := avE
+    (callArg : SExpr) : MetaM Expr := do
   -- the emitted obligation for THIS call site
   let countOf (t : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := "acl2-count" })) (.cons t .nil)
@@ -1616,16 +1614,14 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
           let argVals ← args.mapM (dpValExpr [] (dpValProof.dpVarVal envE varP))
           let argPfs ← args.mapM (dpValProof cfg envE [] [] varP)
           let mIdx := formals.findIdx (· == measuredFormal)
-          let some av := (vals.find? (fun (f, _, _) => f == measuredFormal)).map
-              (fun (_, v, _) => v)
-            | throwError "proveTotality: measured formal has no bound value"
-          let dec ← totDischargeDecrease just measuredFormal facts
-            args[mIdx]! argVals[mIdx]! av
+          unless vals.any (fun (f, _, _) => f == measuredFormal) do
+            throwError "proveTotality: measured formal has no bound value"
+          let dec ← totDischargeDecrease just measuredFormal facts args[mIdx]!
           let hNs ← proveNotSpecial fs
           let hDef ← totDefFact cfg fs formals body
           match formals, args with
           | [f1], [a1] =>
-            let hbody := mkApp2 ih argVals[0]! dec
+            let hbody ← mkAppM' ih #[argVals[0]!, dec]
             return ← mkAppM ``conv_defn_1_ex
               #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
                 reflectSExpr body, reflectSExpr a1, argVals[0]!, hNs, hDef,
@@ -1634,7 +1630,7 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
             unless mIdx == 0 do
               throwError "proveTotality: measured formal must be the first \
                   formal (frontier: permutation pending)"
-            let hbody := mkApp3 ih argVals[0]! dec argVals[1]!
+            let hbody ← mkAppM' ih #[argVals[0]!, dec, argVals[1]!]
             return ← mkAppM ``conv_defn_2_ex
               #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
                 reflectSymbol f2, reflectSExpr body, reflectSExpr a1,
@@ -3031,7 +3027,8 @@ def proveTotality (cfg : ReplayConfig)
     accumulating proofs for later fns' calls. A frontier failure leaves the
     fn out (it stays hypothesis-backed downstream — D6). -/
 def buildTotalEnv (cfg : ReplayConfig)
-    (justs : List (String × Justification)) :
+    (justs : List (String × Justification))
+    (upTo : Option String := none) :
     MetaM (List (String × Nat × Expr)) := do
   let mut totalEnv : List (String × Nat × Expr) := []
   for (s, formals, body) in cfg.worldVal.defs.entries.reverse do
@@ -3039,8 +3036,14 @@ def buildTotalEnv (cfg : ReplayConfig)
       let pf ← proveTotality cfg totalEnv s.name formals body
         (justs.lookup s.name)
       totalEnv := (s.name, formals.length, pf) :: totalEnv
-    catch _ =>
-      pure ()
+    catch e =>
+      -- keep ONLY the prover's own frontier-class failures (the fn stays
+      -- hypothesis-backed — D6); anything else is a real defect: surface it
+      let msg ← e.toMessageData.toString
+      unless msg.startsWith "proveTotality:" do
+        throw e
+    if upTo == some s.name then
+      break
   return totalEnv
 
 /-- The CONDITIONAL generic mirror: bind the machine-generated hypothesis
@@ -3052,13 +3055,12 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (cp : ClauseProof) (justs : List (String × Justification) := []) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
-  let autoTotal ← buildTotalEnv cfg justs
-  let hypFns := fns.filter fun (s, _, _) =>
-    !(autoTotal.any (fun (n, _, _) => n == s.name))
-  -- hypothesis declarations: totality for the fns the prover could NOT
-  -- discharge, TP where emitted
+  -- hypothesis declarations: totality for every defined fn, TP where
+  -- emitted. #37 discharges USED totality hypotheses LAZILY after the
+  -- replay (prove + substitute) — so theorems that consume no totality pay
+  -- nothing, and the per-theorem prover cost is proportional to use.
   let totalDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
-    (hypFns.map fun (s, formals, _) =>
+    (fns.map fun (s, formals, _) =>
       (Name.mkSimple s!"htotal_{s.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkTotalityHypType cfg s formals.length)).toArray
   -- only LIFTABLE corollaries become hypotheses: every variable occurrence must be
@@ -3083,14 +3085,12 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       (Name.mkSimple s!"htp_{s.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkTpHypType cfg s formals cor)).toArray
   let condsAll :=
-    hypFns.map (fun (s, _, _) => s!"total:{s.name}") ++
+    fns.map (fun (s, _, _) => s!"total:{s.name}") ++
     tpFns.map (fun (s, _, _) => s!"tp:{s.name}")
   withLocalDecls totalDecls fun totalVs => do
     withLocalDecls tpDecls fun tpVs => do
       let ctx : ReplayCtx :=
-        { totalHyps :=
-            autoTotal.map (fun (n, _, pf) => (n, pf)) ++
-            (hypFns.map (fun (s, _, _) => s.name)).zip totalVs.toList,
+        { totalHyps := (fns.map (fun (s, _, _) => s.name)).zip totalVs.toList,
           tpHyps := (tpFns.zip tpVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h) }
       let some root := cp.root
         | throwError "replayProofConditional: theorem {cp.name} has no proof tree"
@@ -3100,8 +3100,28 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- dropping unused ones is well-formed).
       let used := (condsAll.zip (totalVs ++ tpVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
-      let p ← mkLambdaFVars (used.map (·.2)).toArray prf
-      return (p, used.map (·.1))
+      -- #37 LAZY discharge: prove admission totality only for the USED
+      -- total: hypotheses (the dev-order dependency prefix, once, up to the
+      -- last used fn) and SUBSTITUTE; frontier failures keep the hypothesis
+      -- (D6 — visible in the type).
+      let usedTotalNames := used.filterMap fun (c, _) =>
+        if c.startsWith "total:" then some ((c.drop "total:".length).toString) else none
+      let totalEnv ←
+        if usedTotalNames.isEmpty then pure []
+        else
+          let lastUsed? := (cfg.worldVal.defs.entries.reverse.filter
+            (fun (s, _, _) => usedTotalNames.contains s.name)).getLast?
+          buildTotalEnv cfg justs (upTo := lastUsed?.map (fun (s, _, _) => s.name))
+      let mut prf := prf
+      let mut kept : List (String × Expr) := []
+      for (c, v) in used do
+        match (if c.startsWith "total:" then
+                totalEnv.find? (fun (n, _, _) => s!"total:{n}" == c)
+              else none) with
+        | some (_, _, pf) => prf := prf.replaceFVar v pf
+        | none => kept := kept ++ [(c, v)]
+      let p ← mkLambdaFVars (kept.map (·.2)).toArray prf
+      return (p, kept.map (·.1))
 
 
 /-! ## Importer front-end helpers (promoted from the test harness)

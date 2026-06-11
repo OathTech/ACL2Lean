@@ -120,10 +120,9 @@ def corpus : List (String × String) :=
     world is PROJECTED from the development and REFLECTED concretely (P4); structural facts
     are DERIVED by the driver (P3). A message that is neither a `replayClause`/`replayNode`/
     `replayLiteral` frontier flags a real bug in the new code, not an expected frontier. -/
-def tryReplay (w : World) (tps : List (String × SExpr))
+def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (justs : List (String × ACL2.Justification)) (cp : ClauseProof) :
     TermElabM String := do
-  let wExpr ← reflectWorld w
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge
   withOptions (fun o => o.set `maxHeartbeats (1000000 : Nat)) <|
     Core.withCurrHeartbeats <| tryCatchRuntimeEx
@@ -142,10 +141,9 @@ def tryReplay (w : World) (tps : List (String × SExpr))
 /-- Attempt the DP-lift replay of one discharge leaf: prove the discharge node's
     claim `∃N∀f≥N, eval (disjoin clause) = some t` over a QUANTIFIED env (the
     obligation must hold for every environment), and kernel-check the proof. -/
-def tryDischarge (w : World) (tps : List (String × SExpr))
-    (justs : List (String × ACL2.Justification)) (id origin : String)
+def tryDischarge (w : World) (wExpr : Expr) (tps : List (String × SExpr))
+    (totalEnv : List (String × Nat × Expr)) (id origin : String)
     (clause : SExpr) : TermElabM String := do
-  let wExpr ← reflectWorld w
   -- fresh, BOUNDED heartbeat budget per leaf (the command itself runs unlimited;
   -- one pathological leaf must neither hang nor poison the rest), and runtime
   -- (timeout) exceptions report ✗ instead of failing the build.
@@ -154,7 +152,6 @@ def tryDischarge (w : World) (tps : List (String × SExpr))
     (try
       let (p, conds) ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
-        let totalEnv ← buildTotalEnv cfg justs
         let (prf, conds) ← replayDischargeLeaf cfg clause tps (assumeFact := true)
           (totalEnv := totalEnv)
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
@@ -202,6 +199,15 @@ elab "#driver_coverage" : command => do
           integrityFails := integrityFails.push s!"{name}: RECON-FAIL {msg}"
         | .ok dev =>
           let w := dev.toWorld
+          -- per-FILE hoists (A3): the reflected world and the leaf harness's
+          -- totality environment are env-independent — build each ONCE here
+          -- instead of per theorem / per leaf
+          let wExpr ← reflectWorld w
+          let leafTotalEnv ←
+            Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
+              let cfg : ReplayConfig :=
+                { worldExpr := wExpr, envExpr := envFV, worldVal := w }
+              buildTotalEnv cfg dev.justifications
           let thms := developmentTheorems dev
           lines := lines.push s!"• {name}  (world: {w.defs.size} defun(s), {thms.length} theorem(s))"
           if thms.isEmpty then
@@ -218,13 +224,13 @@ elab "#driver_coverage" : command => do
             -- ratified carve-out; attempt the DP-lift replay (c1) per leaf.
             let dis := theoremDischargeLeaves cp
             let tps := developmentTPs dev
-            let status ← tryReplay w tps dev.justifications cp
+            let status ← tryReplay w wExpr tps dev.justifications cp
             if status.startsWith "REPLAYED ✓" then replayed := replayed + 1
             let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
             let mut disParts : List String := []
             for (id, o, clause) in dis do
               dpTotal := dpTotal + 1
-              let r ← tryDischarge w tps dev.justifications id o clause
+              let r ← tryDischarge w wExpr tps leafTotalEnv id o clause
               if (r.splitOn "✓").length > 1 then dpReplayed := dpReplayed + 1
               if (r.splitOn "◌").length > 1 then dpAssumed := dpAssumed + 1
               disParts := disParts ++ [r]

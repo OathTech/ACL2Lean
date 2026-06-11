@@ -215,3 +215,23 @@ Findings (none blocking; all fail-closed or cosmetic):
   capture); the lisp stash is consume-once incl. the non-structured path;
   the gitlink matches the submodule HEAD; no sorry/admit/axiom/
   native_decide in the diff; zero warnings in the gate.
+
+## Audit-fix + efficiency pass (2026-06-11, pre-adversarial baseline)
+All solo-audit findings fixed:
+- A1: IH applications via checked mkAppM' (construction-time failure).
+- A2: buildTotalEnv's catch keeps only "proveTotality:"-prefixed
+  (frontier-class) errors; anything else rethrows.
+- A3: per-FILE hoists in the coverage harness — reflectWorld once per file
+  (was per theorem AND per leaf) and the leaf totality environment once per
+  file (was per leaf; it is env-independent).
+- A4: dead params dropped; the measured-formal presence guard kept.
+The structural efficiency win (the slow-proof complaint): LAZY totality —
+replayProofConditional replays against hypothesis fvars exactly as pre-#37
+(cheap), then proves admission totality ONLY for the USED total: hypotheses
+(building the dev-order dependency prefix once, bounded by buildTotalEnv's
+new upTo) and substitutes via replaceFVar. Theorems consuming no totality
+pay nothing; prover cost is proportional to use. Coverage outcomes verified
+IDENTICAL (17/37; ✓9 ◌9 ✗0; same cond lists). TODO.md gains the general
+performance-pass item with MDD's optimization model (pipeline latency for a
+fresh/updated ACL2 proof is the core OODA loop; library build time is
+secondary).

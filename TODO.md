@@ -155,6 +155,20 @@ LIBRARY.
       permutation, sum/custom measures (interleave/cd2 frontiers),
       non-trivial admission waterfall replay (the termination field).
 
+- [ ] **Performance pass (general).** Optimization model: LIBRARY build time
+      (EvalLemmas, Lifting, the lemma stack) matters little — it is built
+      once and cached. What must be MINIMIZED is the pipeline latency for a
+      FRESH OR UPDATED ACL2 proof: capture → parse → reconstruct → replay →
+      kernel check. That is the core OODA loop for using the tool. Known
+      candidates: the per-theorem lazy-totality prefix still rebuilds decide
+      facts per theorem (memoize get?-fact proofs per world); reflected
+      worlds are inlined as literals in harness proofs (constants would
+      shrink terms and kernel time — the catalog's derive_world pattern);
+      mkDecideProof over big worlds is O(world) kernel evaluation per fact;
+      proof-term sharing across a development's theorems (totality proofs
+      re-proved per theorem — hoist per development behind a cache); profile
+      before optimizing (lean_profile_proof / coverage wall-times per file).
+
 Parallel tracks unchanged below (emission infra revision, audit debt, gated
 lean-smt).
 
