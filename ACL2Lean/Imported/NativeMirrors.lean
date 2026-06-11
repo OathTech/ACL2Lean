@@ -186,25 +186,16 @@ def groundArithMirrorCond := driver_mirror% directDev directWorldD "ground-arith
 
 /-- ENTRY 3, PROVED — the ground arithmetic fact through the DRIVER's
     replayed mirror (executable-counterpart class). -/
-theorem ground_arith_native : (1 + (2 + 3) : Int) = 6 := by
-  let e : Env := {}
-  have hL := conv_plus_int directWorldD e (qInt 1) (plusT (qInt 2) (qInt 3)) 1 (2 + 3)
-    (by decide) (conv_qInt _ _ 1)
-    (conv_plus_int directWorldD e (qInt 2) (qInt 3) 2 3 (by decide)
-      (conv_qInt _ _ 2) (conv_qInt _ _ 3))
-  have hR := conv_qInt directWorldD e 6
-  obtain ⟨NL, hL'⟩ := hL
-  obtain ⟨NR, hR'⟩ := hR
-  obtain ⟨Nm, hm⟩ := groundArithMirrorCond e
-  set f := max (max NL NR) Nm
-  have hval : (.atom (.number (.int (1 + (2 + 3)))) : SExpr)
-            = .atom (.number (.int 6)) :=
-    eval_equal_t_implies_eq f directWorldD e
-      (plusT (qInt 1) (plusT (qInt 2) (qInt 3))) (qInt 6)
-      (.atom (.number (.int (1 + (2 + 3))))) (.atom (.number (.int 6)))
-      (hL' f (by omega)) (hR' f (by omega)) (by decide)
-      (hm (f + 1) (by omega))
-  exact int_atom_inj hval
+theorem ground_arith_native : (1 + (2 + 3) : Int) = 6 :=
+  native_of_mirror_equal directWorldD {} intRep
+    (plusT (qInt 1) (plusT (qInt 2) (qInt 3))) (qInt 6) (1 + (2 + 3)) 6
+    (by decide)
+    (implements_plus directWorldD (by decide) {} (qInt 1) (plusT (qInt 2) (qInt 3))
+      1 (2 + 3) (conv_qInt _ _ 1)
+      (implements_plus directWorldD (by decide) {} (qInt 2) (qInt 3) 2 3
+        (conv_qInt _ _ 2) (conv_qInt _ _ 3)))
+    (conv_qInt _ _ 6)
+    (groundArithMirrorCond {})
 
 /-! ## Entry 4 — `sq-of-3`: `(3 * 3 : Int) = 9`
 
@@ -244,17 +235,8 @@ theorem sq_of_3_native : (3 * 3 : Int) = 9 := by
       n_sym sqBody (.atom (.number (.int (3 * 3))))
       (by decide) (by decide) (conv_qInt _ _ 3) hbody
   have hR := conv_qInt directWorldD e 9
-  obtain ⟨NL, hL'⟩ := hL
-  obtain ⟨NR, hR'⟩ := hR
-  obtain ⟨Nm, hm⟩ := sqOf3MirrorCond e
-  set f := max (max NL NR) Nm
-  have hval : (.atom (.number (.int (3 * 3))) : SExpr) = .atom (.number (.int 9)) :=
-    eval_equal_t_implies_eq f directWorldD e
-      (.cons (.atom (.symbol { name := "sq" })) (.cons (qInt 3) .nil)) (qInt 9)
-      (.atom (.number (.int (3 * 3)))) (.atom (.number (.int 9)))
-      (hL' f (by omega)) (hR' f (by omega)) (by decide)
-      (hm (f + 1) (by omega))
-  exact int_atom_inj hval
+  exact native_of_mirror_equal directWorldD e intRep
+    (app1 "sq" (qInt 3)) (qInt 9) (3 * 3) 9 (by decide) hL hR (sqOf3MirrorCond e)
 
 /-! ## Entries 5–7 — the equality-reasoning trio (`08-equality-reasoning`)
 
@@ -306,12 +288,9 @@ theorem cdr_cons_native (u v : SExpr) : Logic.cdr (SExpr.cons u v) = v := by
       = some (Logic.cdr (SExpr.cons u v)) :=
     conv_builtin1 eqWorldD e { name := "cdr" } _ (SExpr.cons u v) _ (by decide)
       (by decide) hcons (callBuiltin_cdr _)
-  obtain ⟨NL, hL'⟩ := hcdr
-  obtain ⟨NR, hR'⟩ := hy
-  obtain ⟨Nm, hm⟩ := cdrConsMirrorCond e
-  set f := max (max NL NR) Nm
-  exact eval_equal_t_implies_eq f eqWorldD e _ yT (Logic.cdr (SExpr.cons u v)) v
-    (hL' f (by omega)) (hR' f (by omega)) (by decide) (hm (f + 1) (by omega))
+  exact native_of_mirror_equal eqWorldD e idRep
+    (cdrT (consT xT yT)) yT (Logic.cdr (SExpr.cons u v)) v
+    (by decide) hcdr hy (cdrConsMirrorCond e)
 
 /-- ENTRY 6, PROVED — symmetry of equality over `SExpr`, through the DRIVER's
     mirror (the HYPOTHESIS decode: `h` truthifies the antecedent, the mirror's
@@ -328,11 +307,8 @@ theorem equal_symm_native (u v : SExpr) (h : u = v) : v = u := by
     (Logic.equal u v) (Logic.equal v u) (by decide)
     (conv_equalT eqWorldD e xT yT u v (by decide) hx hy)
     (conv_equalT eqWorldD e yT xT v u (by decide) hy hx)
-  obtain ⟨Ni, hi⟩ := himp
-  obtain ⟨Nm, hm⟩ := equalSymmMirrorCond e
-  set f := max Ni Nm
   have hval : Logic.implies (Logic.equal u v) (Logic.equal v u) = SExpr.t :=
-    Option.some.inj ((hi f (by omega)).symm.trans (hm f (by omega)))
+    conv_unique himp (equalSymmMirrorCond e)
   exact eq_of_equal_truthy (truthy_of_implies_t hval (equal_truthy_of_eq h))
 
 /-- ENTRY 7, PROVED — transitivity of equality over `SExpr`, through the
@@ -367,11 +343,8 @@ theorem equal_trans_native (u v w' : SExpr) (h1 : u = v) (h2 : v = w') :
   have himp := conv_impliesT eqWorldD e _ (equalT xT zT)
     (Logic.equal v w') (Logic.equal u w') (by decide) hif
     (conv_equalT eqWorldD e xT zT u w' (by decide) hx hz)
-  obtain ⟨Ni, hi⟩ := himp
-  obtain ⟨Nm, hm⟩ := equalTransMirrorCond e
-  set f := max Ni Nm
   have hval : Logic.implies (Logic.equal v w') (Logic.equal u w') = SExpr.t :=
-    Option.some.inj ((hi f (by omega)).symm.trans (hm f (by omega)))
+    conv_unique himp (equalTransMirrorCond e)
   exact eq_of_equal_truthy (truthy_of_implies_t hval (equal_truthy_of_eq h2))
 
 /-! ## Entry 8 — `app-cons-car`: `Logic.car (cons u v) = u`
@@ -518,14 +491,12 @@ theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
       = some (Logic.car (SExpr.cons u v)) :=
     conv_builtin1 multiWorldD e { name := "car" } _ (SExpr.cons u v) _ (by decide)
       (by decide) happ (callBuiltin_car _)
-  obtain ⟨NL, hL'⟩ := hL
-  obtain ⟨NR, hR'⟩ := ha
-  obtain ⟨Nm, hm⟩ := appConsCarMirrorCond e
-    (fun e' a0 a1 h0 h1 =>
-      Worlds.AppAssoc.drv_total_app multiWorldD (by decide) (by decide)
-        (by decide) (by decide) (by decide) e' a0 a1 h0 h1)
-  set f := max (max NL NR) Nm
-  exact eval_equal_t_implies_eq f multiWorldD e _ aT (Logic.car (SExpr.cons u v)) u
-    (hL' f (by omega)) (hR' f (by omega)) (by decide) (hm (f + 1) (by omega))
+  exact native_of_mirror_equal multiWorldD e idRep
+    (carT (appT (consT aT bT) yT)) aT (Logic.car (SExpr.cons u v)) u
+    (by decide) hL ha
+    (appConsCarMirrorCond e
+      (fun e' a0 a1 h0 h1 =>
+        Worlds.AppAssoc.drv_total_app multiWorldD (by decide) (by decide)
+          (by decide) (by decide) (by decide) e' a0 a1 h0 h1))
 
 end ACL2.Imported.Mirrors

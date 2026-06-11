@@ -111,12 +111,33 @@ LIBRARY.
       true-listp-* (G5), linear-chain (#50), len2 family (needs that world's
       dischargers — the entry-1 recipe).
 
+- [x] **The lifting library + its SPINE (2026-06-10, MDD-ratified).**
+      `Imported/Lifting.lean`: `Conv` (eventual convergence) / `Rep α` (a
+      Lean type represented in ACL2's value space — injective encoding onto
+      an ACL2 RECOGNIZER; `idRep`, `intRep`/`integerp`,
+      `listRep`/`true-listp` with the genuine isomorphism
+      `List SExpr ≃ {s // trueListp s = t}`) / `Implements₁/₂` (an ACL2
+      function symbol computes a Lean operation along representations) +
+      `native_of_mirror_equal`, the generic equational ender every
+      equational entry now finishes with. Instances: `implements_plus`,
+      `implements_times` (builtins), `implements_append`, `implements_len`
+      (NAME-GENERIC over append/length-shaped defuns — `corr_append_enc`
+      proved once replaced the two ~100-line per-world copies; the len
+      instance pre-builds the pending len2 family). Both native assemblies
+      and catalog entries 3–8 run through the spine. Target theorems remain
+      user-supplied; the algebra only structures decodes.
 - [ ] **Future work — polymorphic native statements.** The catalog states
       list-family results over `List SExpr` (what the current encoding
       proves). The idiomatic polymorphic forms (`∀ α, (xs ys : List α), …`)
-      follow via a per-element embedding `α ↪ SExpr` (injectivity transports
-      the SExpr result) — a systematic lifting-library layer, deliberately
-      deferred until several `List SExpr` patterns exist to abstract from.
+      follow via `Rep` TRANSFORMERS (`Rep α → Rep (List α)`) — `Rep`
+      composes, so this layer drops in without rework; deferred until a
+      target theorem needs it.
+- [ ] **Future work — `lift_decode` automation.** The per-theorem formula-
+      spine walk (composing `Implements` facts up the formula tree) is still
+      manual; a small elab recursing the formula (as the driver's `proveConv`
+      does) could emit it. Also: a GUARDED `Implements` variant (recognizer
+      hypotheses on inputs) for partial/conditional ACL2 functions, fed by
+      the emitted TP facts.
 
 Parallel tracks unchanged below (emission infra revision, audit debt, #37
 totality-from-admission — which G4's machinery also feeds, gated lean-smt).

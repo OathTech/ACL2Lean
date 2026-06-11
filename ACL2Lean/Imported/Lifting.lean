@@ -4,24 +4,37 @@
 
   Built BY EXAMPLE from the catalog (`Imported/NativeMirrors.lean`): every
   lemma here was first proved inline for a concrete catalog entry and then
-  generalized when a second entry needed the same shape. Three layers:
+  generalized when a second entry needed the same shape.
 
-  1. THE LIST MORPHISM — `enc : List SExpr → SExpr` (+ injectivity), the
-     type morphism every list-family decode factors through.
+  THE SPINE (MDD-ratified 2026-06-10) is `Conv` / `Rep` / `Implements`:
+  `Rep α` represents a Lean type in ACL2's value space (injective encoding
+  onto an ACL2 RECOGNIZER — `idRep`, `intRep`/`integerp`,
+  `listRep`/`true-listp`), `Implements` says an ACL2 function symbol computes
+  a Lean operation along representations, and `native_of_mirror_equal` is the
+  generic equational ender (replayed `equal ⇒ t` mirror + a representation of
+  each side ⇒ the NATIVE equality). Around the spine:
+
+  1. THE LIST MORPHISM — `enc : List SExpr → SExpr`, injective and surjective
+     onto `true-listp` (`enc_inj`, `trueListp_enc`,
+     `exists_enc_of_trueListp`): the genuine isomorphism
+     `List SExpr ≃ {s // trueListp s = t}` underlying `listRep`.
   2. THE DECODE KIT — term builders (`qInt`, `app1`/`app2` + abbreviations),
      variable/ground/builtin convergence lemmas (`conv_var_of_get`,
      `conv_qInt`, `conv_plus_int`, …), and decode ENDERS (`int_atom_inj`,
-     `truthy_of_implies_t`, `eq_of_equal_truthy`) that finish the
-     hypothesis-decode and ground-decode patterns.
+     `truthy_of_implies_t`, `eq_of_equal_truthy`, `conv_unique`).
   3. NAME-GENERIC STRUCTURAL CORRESPONDENCES — simulation lemmas proved once
      over the function NAME: `corr_append_enc` (any 2-formal append-shaped
      defun: `app`, `my-app`, …) and `corr_len_enc` (any 1-formal
-     length-shaped defun: `my-len`, `len2`, …). The body shapes
+     length-shaped defun: `my-len`, `len2`, …), surfaced as `Implements`
+     instances (`implements_append`, `implements_len`) alongside the builtin
+     ones (`implements_plus`, `implements_times`). The body shapes
      (`appendBody fn` / `lenBody fn`) mirror ACL2's macroexpanded DEFUN
      emission exactly; a world fact `w.defs.get? ⟨"ACL2", fn⟩ = some (…)`
      instantiates them at any hand or log-derived world by `decide`.
 
-  Polymorphic `α ↪ SExpr` statements remain deliberately deferred (TODO.md).
+  The TARGET theorems stay user-supplied — this algebra only structures their
+  decodes. Polymorphic `Rep` transformers (`Rep α → Rep (List α)`) remain
+  deliberately deferred (TODO.md); `Rep` composes, so they drop in later.
 -/
 import ACL2Lean.EvalOpt
 import ACL2Lean.Replay.EvalLemmas
@@ -70,6 +83,116 @@ abbrev consT (a b : SExpr) : SExpr := app2 "cons" a b
 abbrev carT (a : SExpr) : SExpr := app1 "car" a
 abbrev cdrT (a : SExpr) : SExpr := app1 "cdr" a
 abbrev conspT (a : SExpr) : SExpr := app1 "consp" a
+
+/-- Peel the `atom/number/int` constructors off a value equation. -/
+theorem int_atom_inj {m n : Int}
+    (h : (.atom (.number (.int m)) : SExpr) = .atom (.number (.int n))) :
+    m = n := by
+  injection h with h; injection h with h; injection h with h
+
+/-! ## The spine: `Conv` / `Rep` / `Implements`
+
+`Conv` names the catalog's ubiquitous eventual-convergence form. `Rep α` is a
+Lean type REPRESENTED in ACL2's value space: an injective encoding landing in
+the ACL2 RECOGNIZER that carves out its image — NOT an isomorphism with all
+of `SExpr` (the value space is untyped), but an isomorphism ONTO the
+recognizer, which is exactly how ACL2 itself speaks types (and what the
+type-prescription machinery talks about). `Implements` says an ACL2 function
+symbol computes a Lean operation along representations — "lifting an
+operation between the worlds". `Implements` facts compose up a formula
+spine, and `native_of_mirror_equal` is the generic equational ender: a
+replayed `equal ⇒ t` mirror plus a representation of each side yields the
+NATIVE equality. The target theorems stay user-supplied; this algebra only
+structures their decodes. -/
+
+/-- Eventual convergence of a term to a VALUE. -/
+def Conv (w : World) (e : Env) (t v : SExpr) : Prop :=
+  ∃ N, ∀ f ≥ N, evalOpt f w e t = some v
+
+/-- Converged values are unique. -/
+theorem conv_unique {w : World} {e : Env} {t u v : SExpr}
+    (hu : Conv w e t u) (hv : Conv w e t v) : u = v :=
+  val_unique hu hv
+
+/-- A Lean type represented in ACL2's value space. -/
+structure Rep (α : Type) where
+  /-- The encoding. -/
+  enc : α → SExpr
+  /-- Distinct Lean values encode distinctly (the decode direction). -/
+  inj : ∀ {a b : α}, enc a = enc b → a = b
+  /-- The ACL2 recognizer carving out the image. -/
+  recog : SExpr → Prop
+  /-- Encodings satisfy the recognizer. -/
+  mem : ∀ a, recog (enc a)
+
+/-- The identity representation: raw ACL2 values, no recognizer constraint —
+    for native facts stated directly at the `SExpr`/`Logic` layer. -/
+def idRep : Rep SExpr where
+  enc := id
+  inj := id
+  recog _ := True
+  mem _ := trivial
+
+/-- Integers, recognized by `integerp`. -/
+def intRep : Rep Int where
+  enc n := .atom (.number (.int n))
+  inj := int_atom_inj
+  recog s := Logic.integerp s = SExpr.t
+  mem _ := rfl
+
+/-- `enc` lands in `true-listp`. -/
+theorem trueListp_enc (xs : List SExpr) : Logic.trueListp (enc xs) = SExpr.t := by
+  induction xs with
+  | nil => rfl
+  | cons h t ih => simpa [enc, Logic.trueListp] using ih
+
+/-- `enc` is SURJECTIVE onto `true-listp` — together with injectivity, the
+    genuine isomorphism `List SExpr ≃ {s // trueListp s = t}`. -/
+theorem exists_enc_of_trueListp : ∀ {s : SExpr},
+    Logic.trueListp s = SExpr.t → ∃ xs : List SExpr, enc xs = s := by
+  intro s
+  induction s with
+  | nil => exact fun _ => ⟨[], rfl⟩
+  | atom a => intro h; simp [Logic.trueListp, SExpr.t] at h
+  | cons a b _ ihb =>
+    intro h
+    obtain ⟨xs, rfl⟩ := ihb (by simpa [Logic.trueListp] using h)
+    exact ⟨a :: xs, rfl⟩
+
+/-- Lists of ACL2 values, recognized by `true-listp`. -/
+def listRep : Rep (List SExpr) where
+  enc := enc
+  inj := enc_inj
+  recog s := Logic.trueListp s = SExpr.t
+  mem := trueListp_enc
+
+/-- `fn` IMPLEMENTS the unary operation `g` along the representations. -/
+def Implements₁ (w : World) (fn : String) (ra : Rep α) (rb : Rep β)
+    (g : α → β) : Prop :=
+  ∀ (e : Env) (a : SExpr) (x : α),
+    Conv w e a (ra.enc x) → Conv w e (app1 fn a) (rb.enc (g x))
+
+/-- `fn` IMPLEMENTS the binary operation `g` along the representations. -/
+def Implements₂ (w : World) (fn : String) (ra : Rep α) (rb : Rep β) (rc : Rep γ)
+    (g : α → β → γ) : Prop :=
+  ∀ (e : Env) (a b : SExpr) (x : α) (y : β),
+    Conv w e a (ra.enc x) → Conv w e b (rb.enc y) →
+    Conv w e (app2 fn a b) (rc.enc (g x y))
+
+/-- THE GENERIC EQUATIONAL ENDER: a replayed `equal ⇒ t` mirror plus a
+    representation of each side's value yields the NATIVE equality. Every
+    equational catalog entry finishes here. -/
+theorem native_of_mirror_equal {γ : Type} (w : World) (e : Env) (r : Rep γ)
+    (lhs rhs : SExpr) (x y : γ)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (hL : Conv w e lhs (r.enc x)) (hR : Conv w e rhs (r.enc y))
+    (hmirror : Conv w e (equalT lhs rhs) SExpr.t) : x = y := by
+  obtain ⟨NL, hL'⟩ := hL
+  obtain ⟨NR, hR'⟩ := hR
+  obtain ⟨Nm, hm⟩ := hmirror
+  set f := max (max NL NR) Nm
+  exact r.inj (eval_equal_t_implies_eq f w e lhs rhs _ _
+    (hL' f (by omega)) (hR' f (by omega)) h_no_equal (hm (f + 1) (by omega)))
 
 /-! ## Variable / ground convergence kit -/
 
@@ -133,12 +256,6 @@ theorem conv_impliesT (w : World) (e : Env) (a b av bv : SExpr)
     (callBuiltin_implies _ _)
 
 /-! ## Decode enders -/
-
-/-- Peel the `atom/number/int` constructors off a value equation. -/
-theorem int_atom_inj {m n : Int}
-    (h : (.atom (.number (.int m)) : SExpr) = .atom (.number (.int n))) :
-    m = n := by
-  injection h with h; injection h with h; injection h with h
 
 /-- The HYPOTHESIS-decode ender: a truthy antecedent forces the consequent
     of a replayed `implies ⇒ t` fact to be truthy. -/
@@ -390,5 +507,50 @@ theorem corr_len_enc (w : World) (fn : String)
     rw [hlen] at hbody
     exact conv_defn_1 w e' ⟨"ACL2", fn⟩ a (.cons hd (enc tl)) xS (lenBody fn)
       (.atom (.number (.int ((hd :: tl).length : Int)))) h_ns h_fn ha hbody
+
+/-! ## `Implements` instances — the operations lifted so far -/
+
+/-- `binary-+` (unshadowed) implements integer addition. -/
+theorem implements_plus (w : World)
+    (h_no : w.defs.get? ({ name := "binary-+" } : Symbol) = none) :
+    Implements₂ w "binary-+" intRep intRep intRep (· + ·) :=
+  fun e a b x y ha hb => conv_plus_int w e a b x y h_no ha hb
+
+/-- `binary-*` (unshadowed) implements integer multiplication. -/
+theorem implements_times (w : World)
+    (h_no : w.defs.get? ({ name := "binary-*" } : Symbol) = none) :
+    Implements₂ w "binary-*" intRep intRep intRep (· * ·) :=
+  fun e a b x y ha hb => conv_times_int w e a b x y h_no ha hb
+
+/-- Any append-shaped defun implements `List.append`. -/
+theorem implements_append (w : World) (fn : String)
+    (h_ns : ({ name := fn } : Symbol).isNamed "quote" = false ∧
+            ({ name := fn } : Symbol).isNamed "if" = false ∧
+            ({ name := fn } : Symbol).isNamed "let" = false ∧
+            ({ name := fn } : Symbol).isNamed "let*" = false)
+    (h_fn : w.defs.get? ⟨"ACL2", fn⟩
+      = some ([⟨"ACL2", "x"⟩, ⟨"ACL2", "y"⟩], appendBody fn))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    Implements₂ w fn listRep listRep listRep (· ++ ·) :=
+  fun e a b xs ys ha hb =>
+    corr_append_enc w fn h_ns h_fn h_no_consp h_no_cdr h_no_car h_no_cons
+      xs e a b ys ha hb
+
+/-- Any length-shaped defun implements (integer-valued) `List.length`. -/
+theorem implements_len (w : World) (fn : String)
+    (h_ns : ({ name := fn } : Symbol).isNamed "quote" = false ∧
+            ({ name := fn } : Symbol).isNamed "if" = false ∧
+            ({ name := fn } : Symbol).isNamed "let" = false ∧
+            ({ name := fn } : Symbol).isNamed "let*" = false)
+    (h_fn : w.defs.get? ⟨"ACL2", fn⟩ = some ([⟨"ACL2", "x"⟩], lenBody fn))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    Implements₁ w fn listRep intRep (fun xs => (xs.length : Int)) :=
+  fun e a xs ha =>
+    corr_len_enc w fn h_ns h_fn h_no_consp h_no_plus h_no_cdr xs e a ha
 
 end ACL2.Lifting

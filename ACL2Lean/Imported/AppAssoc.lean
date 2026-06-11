@@ -656,15 +656,10 @@ theorem app_assoc_native_of_mirror (w : World)
     (corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons xs e aT bT ys ha hb) hc
   obtain ⟨NR, hR⟩ := corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons xs e aT (appOf bT cT) (ys ++ zs) ha
     (corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons ys e bT cT zs hb hc)
-  obtain ⟨Nm, hm⟩ := hmirror e
-  have hval : enc ((xs ++ ys) ++ zs) = enc (xs ++ (ys ++ zs)) := by
-    set f := max (max NL NR) Nm
-    refine eval_equal_t_implies_eq f w e
-      (appOf (appOf aT bT) cT) (appOf aT (appOf bT cT))
-      (enc ((xs ++ ys) ++ zs)) (enc (xs ++ (ys ++ zs)))
-      (hL f (by omega)) (hR f (by omega)) h_no_equal ?_
-    have := hm (f + 1) (by omega); rwa [formula_decomp] at this
-  exact enc_inj hval
+  -- the spine ender: the mirror's equal ⇒ t + listRep decode both sides
+  exact ACL2.Lifting.native_of_mirror_equal w e ACL2.Lifting.listRep
+    (appOf (appOf aT bT) cT) (appOf aT (appOf bT cT))
+    ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs)) h_no_equal ⟨NL, hL⟩ ⟨NR, hR⟩ (hmirror e)
 
 
 /-- **The native theorem**, idiomatic Lean (`List.append_assoc`), proven via

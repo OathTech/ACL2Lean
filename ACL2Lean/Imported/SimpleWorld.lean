@@ -1292,19 +1292,12 @@ theorem my_len_my_app_native_of_mirror (w : World)
       plus_not_special h_no_plus ⟨NLx, hLx⟩ ⟨NLy, hLy⟩ (callBuiltin_plus _ _)
     rwa [logic_plus_int] at h
   -- mirror: formula ⇒ t ; eval_equal_t splits the equality, the two values coincide
-  obtain ⟨Nm, hm⟩ := hmirror e
-  have hval : (.atom (.number (.int ((xs ++ ys).length : Int))) : SExpr)
-            = .atom (.number (.int ((xs.length : Int) + (ys.length : Int)))) := by
-    set f := max (max NL NR) Nm
-    refine eval_equal_t_implies_eq f w e
+  -- the spine ender: the mirror's equal ⇒ t + intRep decode, then the Nat cast
+  have hint : ((xs ++ ys).length : Int) = (xs.length : Int) + (ys.length : Int) :=
+    ACL2.Lifting.native_of_mirror_equal w e ACL2.Lifting.intRep
       (lenOf (appOf xT yT)) (plusOf (lenOf xT) (lenOf yT))
-      (.atom (.number (.int ((xs ++ ys).length : Int))))
-      (.atom (.number (.int ((xs.length : Int) + (ys.length : Int)))))
-      (hL f (by omega)) (hR f (by omega)) h_no_equal ?_
-    have := hm (f + 1) (by omega); rwa [formula_decomp] at this
-  -- cast the SExpr int-equality down to the Nat goal
-  have : ((xs ++ ys).length : Int) = (xs.length : Int) + (ys.length : Int) := by
-    injection hval with h; injection h with h; injection h with h
+      ((xs ++ ys).length : Int) ((xs.length : Int) + (ys.length : Int))
+      h_no_equal ⟨NL, hL⟩ ⟨NR, hR⟩ (hmirror e)
   omega
 
 /-- **The native theorem we want**, in idiomatic Lean — `List.length_append`,
