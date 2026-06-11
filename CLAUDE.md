@@ -148,6 +148,17 @@ each stage against the real artifact.
     `omega`/`decide`/SMT to shortcut THOSE is still forbidden (the anti-example
     above). A leaf with no emitted discharge node at all is still an emission gap —
     hard-fail. See `docs/plans/2026-06-09_direct-proof-emission.md`.
+    **Extension — admission decrease obligations (MDD-ratified 2026-06-11).**
+    The carve-out also covers a defun's ADMISSION decrease obligations: the
+    EMITTED raw termination clauses (the per-recursive-call-site
+    `(o< (acl2-count …) (acl2-count …))` facts under their ruling tests),
+    which ACL2 closes at admission by the same verdict-only procedures. The
+    totality prover discharges each emitted clause by the Count library +
+    the in-scope branch facts — never an obligation ACL2 did not emit, and a
+    call site with no covering emitted clause hard-fails. When ACL2 runs a
+    REAL waterfall for a non-trivial admission, that proof should be logged
+    and replayed instead (the `termination` field; tracked follow-up) — the
+    carve-out covers only the verdict-class obligations.
 - **Type facts come from ACL2, not Lean inference.** Consume the emitted
   `:TYPE-PRESCRIPTION` / type-set data (already parsed); if it is insufficient,
   add instrumentation rather than re-deriving types in the checker.

@@ -366,6 +366,10 @@ obligation is stated precisely in its conditional proof's type:
 
 ### Audit / correctness debt (revisit — do not drop)
 
+- [ ] **Committed golden coverage-table snapshot.** Persist the DriverCoverage
+      table as a checked artifact so refactor claims of unchanged coverage
+      diff against a saved baseline instead of re-asserted numbers (from the
+      #37 full-audit finding).
 - [ ] **Systematic log↔dump fidelity checker.** The 2026-06-09 dump audit found no
       reconstruction defects, BUT the clause-tree/waterfall layer was verified
       mainly by SELF-consistency (re-dump matches `.dump`), not against the raw

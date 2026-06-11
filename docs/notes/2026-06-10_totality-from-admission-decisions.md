@@ -2,8 +2,12 @@
 
 Arguable calls made while MDD afk, for review. Ratified beforehand: emit
 ACL2's own termination clauses (no Lean-side derivation of obligations);
-discharge per the DP-leaf carve-out; replay logged admission trees when
-present; Lean-side inference only in extremis.
+discharge per the DP-leaf carve-out — NOTE this is a WIDENING of the
+carve-out's originally ratified scope (theorem-proof leaves, 2026-06-09) to
+admission-time obligations; flagged in the briefing, blessed by MDD
+2026-06-11, and recorded in CLAUDE.md's carve-out section per the
+full-audit finding; replay logged admission trees when present; Lean-side
+inference only in extremis.
 
 ## D1 — emit the RAW measure clauses, not the cleaned set
 `prove-termination` computes `measure-clauses-for-clique` then runs
@@ -230,8 +234,29 @@ replayProofConditional replays against hypothesis fvars exactly as pre-#37
 (cheap), then proves admission totality ONLY for the USED total: hypotheses
 (building the dev-order dependency prefix once, bounded by buildTotalEnv's
 new upTo) and substitutes via replaceFVar. Theorems consuming no totality
-pay nothing; prover cost is proportional to use. Coverage outcomes verified
-IDENTICAL (17/37; ✓9 ◌9 ✗0; same cond lists). TODO.md gains the general
+pay nothing; prover cost is proportional to use. Coverage outcomes after
+the refactor REPRODUCE the documented pre-refactor table (17/37; leaves
+✓9 ◌9 ✗0; theorem-level conds tp:-only; TP-paired leaf retentions) — per
+the full-audit finding, no pre-refactor baseline artifact was persisted, so
+this is reproduction of recorded numbers, not a diff of saved outputs; a
+committed golden coverage snapshot folds into #54's audit-debt checker.
+TODO.md gains the general
 performance-pass item with MDD's optimization model (pipeline latency for a
 fresh/updated ACL2 proof is the core OODA loop; library build time is
 secondary).
+
+## Full adversarial audit (2026-06-11) — RESULT
+5 decorrelated reviewers (emission fidelity incl. live-image adversarial
+runs, prover fidelity, lemma layer with scratch instantiations, fail-closed
+plumbing with handcrafted malformed events, outside-view claims audit) +
+refute-by-default verification. ZERO technical findings survived across the
+four code dimensions (prover fidelity: 17 checks, none; lemma layer: 8
+positive notes, none; fail-closed: 9 checks, none; emission: 11 checks,
+none confirmed). Refuted: a lazy-dependency gap (used fns' callees
+necessarily register as used + the hard-fail backstop) and a D8 multi-clique
+stash edge case (guard flow traced). CONFIRMED (both documentation-class,
+both fixed in this commit): the carve-out widening was blessed in
+conversation but unrecorded in CLAUDE.md (now recorded, with the
+non-trivial-admission boundary stated); the "verified IDENTICAL" coverage
+claim lacked a persisted baseline (reworded to reproduction-of-recorded-
+numbers; golden snapshot → #54).
