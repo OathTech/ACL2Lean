@@ -2751,6 +2751,106 @@ theorem logic_implies_boolean (p q : SExpr) :
   rw [logic_implies_cond]
   cases Logic.toBool p <;> cases Logic.toBool q <;> simp
 
+/-! ## The truthiness judgment `EvTrue` (G2)
+
+ACL2's notion of clause/theorem truth is *the term is non-nil*; the exact-t
+form is strictly stronger (they coincide only on boolean-valued terms, and
+the exact-t mirror is false-as-stated for non-boolean formulas). G2 states
+the CLAUSE and MIRROR judgments as `EvTrue`; exact-t facts survive at the
+VALUE level and inject at the clause boundary (`evtrue_of_eq_t`). The
+quantifier shape matches `EvRel` (∃N∀f∃v), so the G1 iff layer transports
+`EvTrue` directly (`evtrue_of_evrel_siff`) with no boolean-valuedness side
+condition. Design + decision log:
+`docs/plans/2026-06-11_g2-evtrue-migration.md`. -/
+
+/-- ACL2's clause/theorem truth: the term eventually converges to a NON-NIL
+    value. -/
+def EvTrue (w : World) (env : Env) (t : SExpr) : Prop :=
+  ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env t = some v ∧ v ≠ SExpr.nil
+
+/-- Exact-t injection at the clause boundary: a value-pinned `= some t` fact
+    IS truthiness. Every existing exact-t producer enters the `EvTrue` layer
+    through this single lemma. -/
+theorem evtrue_of_eq_t {w : World} {env : Env} {a : SExpr}
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = some SExpr.t) : EvTrue w env a := by
+  obtain ⟨N, h⟩ := h
+  exact ⟨N, fun f hf => ⟨SExpr.t, h f hf, by simp [SExpr.t]⟩⟩
+
+/-- Transport `EvTrue` BACKWARDS along an iff chain: `a` iff-rewrites to `b`
+    and `b` is true, so `a` is true. Replaces the G1 interim end-game
+    (`truthy_of_evrel_siff` + the boolean-head strengthening) — truthiness is
+    the statement now, so no strengthening is needed. -/
+theorem evtrue_of_evrel_siff {w : World} {env : Env} {a b : SExpr}
+    (hab : EvRel SIff w env a b) (hb : EvTrue w env b) : EvTrue w env a := by
+  obtain ⟨n1, hab⟩ := hab; obtain ⟨n2, hb⟩ := hb
+  refine ⟨n1 + n2, fun f hf => ?_⟩
+  obtain ⟨u, v, hau, hbv, huv⟩ := hab f (by omega)
+  obtain ⟨v', hbv', hnv'⟩ := hb f (by omega)
+  have : v = v' := Option.some.inj (hbv.symm.trans hbv')
+  exact ⟨u, hau, fun hnu => hnv' (this ▸ Iff.mp huv hnu)⟩
+
+/-- A pinned value under `EvTrue` is non-nil (the last-literal leaf fact:
+    the clause fact + the literal's value characterization give `.truthy`
+    uniformly — `.exactT` is gone, D9). -/
+theorem ne_nil_of_evtrue_conv {w : World} {env : Env} {a va : SExpr}
+    (ht : EvTrue w env a)
+    (hconv : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va) : va ≠ SExpr.nil := by
+  obtain ⟨n1, ht⟩ := ht; obtain ⟨n2, hconv⟩ := hconv
+  obtain ⟨v, hav, hnv⟩ := ht (n1 + n2) (by omega)
+  have : v = va := Option.some.inj (hav.symm.trans (hconv (n1 + n2) (by omega)))
+  exact this ▸ hnv
+
+/-- The `EvTrue` spine combinator (D9): VALUE-characterized convergence of the
+    test and truth of the branch selected by EITHER case of `cv` (both
+    implications supplied; the proof case-splits on `cv = nil`). One lemma
+    serves `replayClauseSpine`, the clausify-bridge positive walk, and the
+    discharge spine; an exact-t branch enters via `evtrue_of_eq_t`. -/
+theorem evtrue_dp_if_split (w : World) (env : Env) (c t e cv : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
+    (hthen : cv ≠ .nil → EvTrue w env t)
+    (helse : cv = .nil → EvTrue w env e) :
+    EvTrue w env
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil)))) := by
+  obtain ⟨Nc, hc⟩ := hc
+  by_cases hcv : cv = .nil
+  · obtain ⟨Ne, he⟩ := helse hcv
+    refine ⟨max Nc Ne + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    obtain ⟨v, hev, hnv⟩ := he g (by omega)
+    exact ⟨v, by
+      rw [evalOpt_if_false g w env c t e (hcv ▸ hc g (by omega))]; exact hev, hnv⟩
+  · obtain ⟨Nt, ht⟩ := hthen hcv
+    refine ⟨max Nc Nt + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    obtain ⟨v, htv, hnv⟩ := ht g (by omega)
+    exact ⟨v, by
+      rw [evalOpt_if_true g w env c t e cv (hc g (by omega))
+        (toBool_true_of_ne_nil hcv)]; exact htv, hnv⟩
+
+/-- Eliminate an `EvTrue` clause fact ONE spine literal at a time (the peel
+    direction, D9): the spine head's pinned value is either truthy (the
+    firing case) or nil, in which case the REST of the disjunction is true.
+    `(if l 't rest)` with `v(l) = nil` takes the else branch. -/
+theorem evtrue_if_fact_elim {w : World} {env : Env} {l rest vl : SExpr}
+    {motive : Prop}
+    (hl : ∃ N, ∀ f ≥ N, evalOpt f w env l = some vl)
+    (hFact : EvTrue w env
+      (.cons (.atom (.symbol { name := "if" }))
+        (.cons l (.cons
+          (.cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil))
+          (.cons rest .nil)))))
+    (hthen : vl ≠ SExpr.nil → motive)
+    (helse : vl = SExpr.nil → EvTrue w env rest → motive) : motive := by
+  by_cases hv : vl = SExpr.nil
+  · refine helse hv ?_
+    obtain ⟨n1, hl⟩ := hl; obtain ⟨n2, hFact⟩ := hFact
+    refine ⟨n1 + n2 + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    obtain ⟨v, hifv, hnv⟩ := hFact (g + 1) (by omega)
+    rw [evalOpt_if_false g w env l _ rest (by rw [hl g (by omega), hv])] at hifv
+    exact ⟨v, evalOpt_fuel_mono g w env rest v hifv, hnv⟩
+  · exact hthen hv
+
 
 /-- Extract `integerp v = t` from a TRUE type-prescription corollary of the
     standard `(IF (INTEGERP v) … 'NIL)` shape (lifted: `cond (toBool (integerp v))
