@@ -6,7 +6,7 @@ open ACL2 ACL2.Replay
 
 namespace ACL2.Worlds.Simple
 
-private def sym (name : String) : Symbol := ⟨"ACL2", name⟩
+def sym (name : String) : Symbol := ⟨"ACL2", name⟩
 
 -- Body uses macro-expanded form (matching ACL2's DEFUN emission):
 -- (IF (CONSP X) (BINARY-+ (QUOTE 1) (MY-LEN (CDR X))) (QUOTE 0))
@@ -881,10 +881,11 @@ private theorem conv_fix {w : World} {e : Env} {t : SExpr}
 /-- `my-len arg` returns an integer (induction on the argument VALUE). -/
 private theorem dis_mylen_int_val : ∀ (av : SExpr) (e' : Env) (arg : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f world e' arg = some av) →
-    ∃ N, ∃ k : Int, ∀ f ≥ N, evalOpt f world e' (lenOf arg) = some (.atom (.number (.int k))) := by
+    ∃ N, ∃ k : Int, 0 ≤ k ∧
+      ∀ f ≥ N, evalOpt f world e' (lenOf arg) = some (.atom (.number (.int k))) := by
   refine acl2_induction_consp (fun av => ∀ (e' : Env) (arg : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f world e' arg = some av) →
-    ∃ N, ∃ k : Int, ∀ f ≥ N, evalOpt f world e' (lenOf arg)
+    ∃ N, ∃ k : Int, 0 ≤ k ∧ ∀ f ≥ N, evalOpt f world e' (lenOf arg)
       = some (.atom (.number (.int k)))) ?base ?step
   · intro av hconsp e' arg harg
     have hx_ba : ∃ N, ∀ f ≥ N, evalOpt f world (bindArgs [x_sym] [av]) xT = some av :=
@@ -907,7 +908,7 @@ private theorem dis_mylen_int_val : ∀ (av : SExpr) (e' : Env) (arg : SExpr),
       exact ⟨max Ni Nq, fun f hf => (hi f (by omega)).trans (hq f (by omega))⟩
     obtain ⟨N, h⟩ := conv_defn_1 world e' my_len_sym arg av x_sym my_lenBody
       (.atom (.number (.int 0))) my_len_not_special world_has_my_len harg hbody
-    exact ⟨N, 0, h⟩
+    exact ⟨N, 0, by omega, h⟩
   · intro av hconsp ih e' arg harg
     obtain ⟨hd, tl, rfl⟩ : ∃ hd tl, av = .cons hd tl := by
       match av with
@@ -932,7 +933,7 @@ private theorem dis_mylen_int_val : ∀ (av : SExpr) (e' : Env) (arg : SExpr),
         evalOpt f world (bindArgs [x_sym] [.cons hd tl]) q1 = some (.atom (.number (.int 1))) :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
                          exact evalOpt_quote g world _ _⟩
-    obtain ⟨Nk, k, hk⟩ := ih (bindArgs [x_sym] [.cons hd tl]) (cdrOf xT) hcdrx_ba
+    obtain ⟨Nk, k, hknn, hk⟩ := ih (bindArgs [x_sym] [.cons hd tl]) (cdrOf xT) hcdrx_ba
     have hsum : ∃ N, ∀ f ≥ N,
         evalOpt f world (bindArgs [x_sym] [.cons hd tl]) (plusOf q1 (lenOf (cdrOf xT)))
         = some (.atom (.number (.int (1 + k)))) := by
@@ -951,7 +952,7 @@ private theorem dis_mylen_int_val : ∀ (av : SExpr) (e' : Env) (arg : SExpr),
       exact ⟨max Ni Ns, fun f hf => (hi f (by omega)).trans (hs f (by omega))⟩
     obtain ⟨N, h⟩ := conv_defn_1 world e' my_len_sym arg (.cons hd tl) x_sym my_lenBody
       (.atom (.number (.int (1 + k)))) my_len_not_special world_has_my_len harg hbody
-    exact ⟨N, 1 + k, h⟩
+    exact ⟨N, 1 + k, by omega, h⟩
 
 /-- `my-app a b` converges (induction on the first argument's VALUE). -/
 private theorem dis_myapp_total_val : ∀ (av1 : SExpr) (e' : Env) (a b av2 : SExpr),
@@ -1037,7 +1038,19 @@ private theorem dis_mylen_int (e' : Env) (arg : SExpr)
     (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' arg = some av) :
     ∃ M, ∃ k : Int, ∀ f ≥ M, evalOpt f world e' (lenOf arg)
       = some (.atom (.number (.int k))) := by
-  obtain ⟨av, hav⟩ := conv_fix h; exact dis_mylen_int_val av e' arg hav
+  obtain ⟨av, hav⟩ := conv_fix h
+  obtain ⟨N, k, _, hk⟩ := dis_mylen_int_val av e' arg hav
+  exact ⟨N, k, hk⟩
+
+/-- The NONNEGATIVE-integer discharge for `my-len` — the full content of its
+    emitted type-prescription corollary (integerp AND ≥ 0), consumed by the
+    native-bridge validation of the DRIVER's conditional mirror. -/
+theorem dis_mylen_int_nonneg (e' : Env) (arg : SExpr)
+    (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' arg = some av) :
+    ∃ M, ∃ k : Int, 0 ≤ k ∧
+      ∀ f ≥ M, evalOpt f world e' (lenOf arg) = some (.atom (.number (.int k))) := by
+  obtain ⟨av, hav⟩ := conv_fix h
+  exact dis_mylen_int_val av e' arg hav
 
 private theorem dis_mylen_total (e' : Env) (arg : SExpr)
     (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' arg = some av) :
@@ -1057,6 +1070,91 @@ private theorem dis_myapp_total (e' : Env) (a b : SExpr)
 theorem my_len_my_app_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t :=
   my_len_my_app env dis_mylen_int dis_mylen_total dis_myapp_total
+
+/-! ### Driver-form dischargers (consumed by `Imported/NativeMirrors`)
+
+The DRIVER's conditional mirror states its hypotheses in v-FIXED form
+(`∃ N v, ∀ f ≥ N, … = some v`) and its type-prescription hypothesis with the
+function-application convergence as antecedent. These restate the hand
+dischargers above in exactly those shapes (over `world`; the catalog transfers
+them to the log-derived world by `evalOpt_defs_ext`). -/
+
+/-- `fix`'s body converges in `bindArgs` for an ARBITRARY argument value
+    (`acl2-numberp` decides the branch; both branches converge). -/
+private theorem fixBody_conv (av : SExpr) :
+    ∃ bv, ∃ N, ∀ f ≥ N, evalOpt f world (bindArgs [x_sym] [av]) fixBody = some bv := by
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f world (bindArgs [x_sym] [av]) xT = some av :=
+    ⟨1, fun f hf => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      exact evalOpt_var g world _ x_sym _ (bindArgs_x_x _)⟩
+  have hcond : ∃ N, ∀ f ≥ N, evalOpt f world (bindArgs [x_sym] [av])
+      (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons xT .nil))
+      = some (Logic.acl2Numberp av) :=
+    conv_builtin1 world _ { name := "acl2-numberp" } xT av (Logic.acl2Numberp av)
+      acl2numberp_not_special world_no_acl2numberp hx (callBuiltin_acl2_numberp av)
+  by_cases hb : Logic.toBool (Logic.acl2Numberp av) = true
+  · -- truthy test: the then-branch is `x` itself
+    exact ⟨av, conv_if_true world _ _ xT q0 (Logic.acl2Numberp av) av hcond hb hx⟩
+  · -- nil test: the else-branch is `'0`
+    have hnil : Logic.acl2Numberp av = SExpr.nil := by
+      revert hb; generalize Logic.acl2Numberp av = c
+      intro hb; cases c <;> simp_all
+    obtain ⟨Nc, hc⟩ := hcond
+    refine ⟨.atom (.number (.int 0)), Nc + 2, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    show evalOpt (g + 1) world (bindArgs [x_sym] [av])
+      (.cons (.atom (.symbol { name := "if" }))
+        (.cons (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons xT .nil))
+          (.cons xT (.cons q0 .nil)))) = some (.atom (.number (.int 0)))
+    rw [evalOpt_if_false g world _ _ xT q0 (by rw [hc g (by omega), hnil])]
+    obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
+    exact evalOpt_quote g2 world _ _
+
+/-- Driver-shape totality for `my-len`. -/
+theorem drv_total_mylen (e' : Env) (a0 : SExpr)
+    (h : ∃ N v, ∀ f ≥ N, evalOpt f world e' a0 = some v) :
+    ∃ N v, ∀ f ≥ N, evalOpt f world e' (lenOf a0) = some v := by
+  obtain ⟨N, v, hv⟩ := h
+  exact dis_mylen_total e' a0 ⟨N, fun f hf => ⟨v, hv f hf⟩⟩
+
+/-- Driver-shape totality for `my-app`. -/
+theorem drv_total_myapp (e' : Env) (a0 a1 : SExpr)
+    (h0 : ∃ N v, ∀ f ≥ N, evalOpt f world e' a0 = some v)
+    (h1 : ∃ N v, ∀ f ≥ N, evalOpt f world e' a1 = some v) :
+    ∃ N v, ∀ f ≥ N, evalOpt f world e' (appOf a0 a1) = some v := by
+  obtain ⟨N0, v0, hv0⟩ := h0; obtain ⟨N1, v1, hv1⟩ := h1
+  exact dis_myapp_total e' a0 a1 ⟨N0, fun f hf => ⟨v0, hv0 f hf⟩⟩
+    ⟨N1, fun f hf => ⟨v1, hv1 f hf⟩⟩
+
+/-- Driver-shape totality for `fix` (non-recursive: definition unfold + the
+    body's convergence on the argument's value). -/
+theorem drv_total_fix (e' : Env) (a0 : SExpr)
+    (h : ∃ N v, ∀ f ≥ N, evalOpt f world e' a0 = some v) :
+    ∃ N v, ∀ f ≥ N, evalOpt f world e' (fixOf a0) = some v := by
+  obtain ⟨N, av, hav⟩ := h
+  obtain ⟨bv, hbody⟩ := fixBody_conv av
+  obtain ⟨Nf, hNf⟩ := conv_defn_1 world e' fix_sym a0 av x_sym fixBody bv
+    fix_not_special world_has_fix ⟨N, hav⟩ hbody
+  exact ⟨Nf, bv, hNf⟩
+
+/-- Driver-shape type prescription for `my-len`: any value `(my-len a0)`
+    converges to satisfies the emitted TP corollary (an integer, not below 0).
+    The antecedent asserts only the APPLICATION's convergence; argument
+    strictness (`conv_arg1_of_conv_app`) recovers `a0`'s, and the nonnegative
+    discharge pins the value. -/
+theorem drv_tp_mylen (e' : Env) (a0 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f world e' (lenOf a0) = some v) :
+    (bif Logic.toBool (Logic.integerp v) then
+        Logic.not (Logic.lt v (.atom (.number (.int 0))))
+      else SExpr.nil) = SExpr.t := by
+  have harg : ∃ N, ∀ f ≥ N, ∃ u, evalOpt f world e' a0 = some u :=
+    conv_arg1_of_conv_app world e' { name := "my-len" } a0 v (by decide) h
+  obtain ⟨M, k, hk0, hk⟩ := dis_mylen_int_nonneg e' a0 harg
+  have hv : v = .atom (.number (.int k)) := val_unique h ⟨M, hk⟩
+  subst hv
+  simp only [Logic.integerp, Logic.toBool, Logic.lt_int, Logic.not, cond_true]
+  rw [if_neg (by omega : ¬ k < 0)]
+  rfl
 
 /-! ### The type morphism + simulation -/
 
@@ -1212,10 +1310,14 @@ private theorem corr_len_enc : ∀ (xs : List SExpr) (e' : Env) (a : SExpr),
     exact conv_defn_1 world e' my_len_sym a (.cons hd (enc tl)) x_sym my_lenBody
       (.atom (.number (.int ((hd :: tl).length : Int)))) my_len_not_special world_has_my_len ha hbody
 
-/-- **The native theorem we want**, in idiomatic Lean — `List.length_append`,
-    proved via the ACL2 oracle (NOT by the native list induction). A bug anywhere
-    in stages 1–7 of the pipeline makes this fail to typecheck. -/
-theorem my_len_my_app_native (xs ys : List SExpr) :
+/-- The native assembly, PARAMETERIZED by the mirror: any proof of the mirror
+    statement over `world` (hand-built or driver-replayed) yields the native
+    theorem. The mirror is consumed at exactly ONE point — this is the seam the
+    catalog (`Imported/NativeMirrors`) plugs the driver's mirror into. -/
+theorem my_len_my_app_native_of_mirror
+    (hmirror : ∀ env : Env,
+      ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t)
+    (xs ys : List SExpr) :
     (xs ++ ys).length = xs.length + ys.length := by
   -- env binding x ↦ enc xs, y ↦ enc ys
   let e : Env := (({} : Env).insert y_sym (enc ys)).insert x_sym (enc xs)
@@ -1244,7 +1346,7 @@ theorem my_len_my_app_native (xs ys : List SExpr) :
       plus_not_special world_no_plus ⟨NLx, hLx⟩ ⟨NLy, hLy⟩ (callBuiltin_plus _ _)
     rwa [logic_plus_int] at h
   -- mirror: formula ⇒ t ; eval_equal_t splits the equality, the two values coincide
-  obtain ⟨Nm, hm⟩ := my_len_my_app_uncond e
+  obtain ⟨Nm, hm⟩ := hmirror e
   have hval : (.atom (.number (.int ((xs ++ ys).length : Int))) : SExpr)
             = .atom (.number (.int ((xs.length : Int) + (ys.length : Int)))) := by
     set f := max (max NL NR) Nm
@@ -1258,5 +1360,13 @@ theorem my_len_my_app_native (xs ys : List SExpr) :
   have : ((xs ++ ys).length : Int) = (xs.length : Int) + (ys.length : Int) := by
     injection hval with h; injection h with h; injection h with h
   omega
+
+/-- **The native theorem we want**, in idiomatic Lean — `List.length_append`,
+    proved via the ACL2 oracle (NOT by the native list induction), here
+    instantiated with the HAND mirror. A bug anywhere in stages 1–7 of the
+    pipeline makes this fail to typecheck. -/
+theorem my_len_my_app_native (xs ys : List SExpr) :
+    (xs ++ ys).length = xs.length + ys.length :=
+  my_len_my_app_native_of_mirror my_len_my_app_uncond xs ys
 
 end ACL2.Worlds.Simple

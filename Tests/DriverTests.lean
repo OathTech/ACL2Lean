@@ -245,12 +245,6 @@ NOTE: `09-defn-unfold.proof-log` is gitignored (regenerate with
 
 private def sqLog : String := include_str "../acl2_samples/recon-tests/09-defn-unfold.proof-log"
 
-/-- Find a theorem's reconstructed `ClauseProof` by name (case-insensitive). -/
-private partial def findThm : Development → String → Option ClauseProof
-  | .bind (.theorem cp) rest, nm => if cp.name.toLower == nm.toLower then some cp else findThm rest nm
-  | .bind _ rest, nm => findThm rest nm
-  | .done, _ => none
-
 /-- The REAL parsed development (ACL2 output → parse → reconstruct). Both the WORLD
     (`derive_world` below) and the theorem (`sqRealProof`) are projected from THIS — the
     only input is the log. -/
@@ -267,18 +261,7 @@ private def sqBody : SExpr :=
   .cons (.atom (.symbol { name := "binary-*" }))
     (.cons (.atom (.symbol { name := "n" })) (.cons (.atom (.symbol { name := "n" })) .nil))
 
--- `derive_world name from devTerm` — define `name : World` as the world PROJECTED from a
--- `Development` (`Development.toWorld`), REFLECTED to a concrete (fast-reducing) def. The
--- world is thus derived from the parsed proof-log, never hand-written.
-open Lean Lean.Elab Lean.Elab.Command in
-elab "derive_world " id:ident " from " t:term : command => do
-  let ns ← getCurrNamespace
-  liftTermElabM do
-    let devE ← Term.elabTermAndSynthesize t (some (mkConst ``ACL2.Development))
-    let dev ← unsafe evalExpr ACL2.Development (mkConst ``ACL2.Development) devE
-    addAndCompile <| .defnDecl
-      { name := ns ++ id.getId, levelParams := [], type := mkConst ``ACL2.World,
-        value := ← Driver.reflectWorld dev.toWorld, hints := .abbrev, safety := .safe }
+-- (`derive_world` and `findThm` are promoted product helpers — Replay/Driver.lean.)
 
 -- `sqWorld` DERIVED from the parsed development — no hand-written world.
 derive_world sqWorld from sqDevelopment

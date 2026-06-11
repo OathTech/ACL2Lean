@@ -2712,4 +2712,32 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       return (p, used.map (·.1))
 
 
+/-! ## Importer front-end helpers (promoted from the test harness)
+
+`derive_world` defines a `World` constant PROJECTED from a parsed
+`Development` (the world the replay reasons over is derived from the log, not
+hand-written); `findThm` extracts a theorem's reconstructed proof from a
+development by name. -/
+
+/-- Find a theorem's reconstructed `ClauseProof` by name (case-insensitive). -/
+partial def findThm : Development → String → Option ClauseProof
+  | .bind (.theorem cp) rest, nm =>
+    if cp.name.toLower == nm.toLower then some cp else findThm rest nm
+  | .bind _ rest, nm => findThm rest nm
+  | .done, _ => none
+
+open Lean.Elab Lean.Elab.Command in
+/-- `derive_world name from devTerm` — define `name : World` as the world
+    PROJECTED from a `Development` (`Development.toWorld`), REFLECTED to a
+    concrete (fast-reducing) def. -/
+elab "derive_world " id:ident " from " t:term : command => do
+  let ns ← Lean.getCurrNamespace
+  liftTermElabM do
+    let devE ← Lean.Elab.Term.elabTermAndSynthesize t (some (mkConst ``ACL2.Development))
+    let dev ← unsafe Lean.Meta.evalExpr ACL2.Development (mkConst ``ACL2.Development) devE
+    Lean.addAndCompile <| .defnDecl
+      { name := ns ++ id.getId, levelParams := [], type := mkConst ``ACL2.World,
+        value := ← reflectWorld dev.toWorld, hints := .abbrev, safety := .safe }
+    Lean.enableRealizationsForConst (ns ++ id.getId)
+
 end ACL2.Replay.Driver

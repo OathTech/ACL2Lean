@@ -57,6 +57,18 @@ scoreboard and proved entries are build-enforced regressions. The growing
 `enc`/`corr_*` pattern library is the seed of a future STANDARD LIFTING
 LIBRARY.
 
+- [x] **Entry 1 — my-len-my-app (2026-06-10).** `(xs ++ ys).length = xs.length
+      + ys.length` (`my_len_my_app_native_driver`) proved through the DRIVER's
+      conditional mirror over the LOG-DERIVED world; axioms clean. The pattern
+      pieces, all reusable: `evalOpt_defs_ext` (worlds `get?`-equal ⇒
+      evaluation-equal) transports between the hand world and the derived
+      world; driver-shape dischargers (`drv_total_*`, `drv_tp_mylen`) restate
+      the hand dischargers in the driver's v-fixed hypothesis forms;
+      `evalOpt_app1_arg`/`conv_arg1_of_conv_app` (argument strictness,
+      inversion) recover argument convergence from the TP hypothesis's
+      application convergence; `my_len_my_app_native_of_mirror` is the
+      single-seam native assembly any mirror proof plugs into.
+
 - [ ] **Future work — polymorphic native statements.** The catalog states
       list-family results over `List SExpr` (what the current encoding
       proves). The idiomatic polymorphic forms (`∀ α, (xs ys : List α), …`)

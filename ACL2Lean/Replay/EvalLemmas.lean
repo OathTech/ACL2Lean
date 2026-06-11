@@ -171,6 +171,44 @@ theorem evalOpt_builtin_2 (f : Nat) (w : World) (env : Env)
              Option.pure_def, h_not_def]
   rfl
 
+/-- T6c: ARGUMENT STRICTNESS (1-arg application, INVERSION): a non-special
+    1-arg application that converges at fuel `f+1` evaluated its argument at
+    fuel `f` (call-by-value — the argument is forced before the defn/builtin
+    dispatch). Consumed by the type-prescription hypothesis adapters: the
+    driver's `htp` antecedent asserts only that `(fn a0)` converges, and the
+    hand dischargers need `a0`'s convergence. -/
+theorem evalOpt_app1_arg (f : Nat) (w : World) (env : Env)
+    (s : Symbol) (arg v : SExpr)
+    (h_not_special : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+                     s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h : evalOpt (f + 1) w env (.cons (.atom (.symbol s)) (.cons arg .nil)) = some v) :
+    ∃ u, evalOpt f w env arg = some u := by
+  cases hu : evalOpt f w env arg with
+  | some u => exact ⟨u, rfl⟩
+  | none =>
+    exfalso
+    rw [show evalOpt (f + 1) w env (.cons (.atom (.symbol s)) (.cons arg .nil))
+          = evalOptStep (evalOpt f) w env (.cons (.atom (.symbol s)) (.cons arg .nil)) from rfl] at h
+    unfold evalOptStep at h
+    simp only [Symbol.isNamed, SExpr.toList?] at h
+    obtain ⟨hq, hi, hl, hls⟩ := h_not_special
+    simp only [Symbol.isNamed] at hq hi hl hls
+    simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
+               ↓reduceIte] at h
+    simp [List.mapM, List.mapM.loop, hu] at h
+
+/-- `evalOpt_app1_arg`, lifted to eventual convergence: if the application
+    converges (to a fixed value), the argument converges at every sufficiently
+    large fuel (value possibly per-fuel — `conv_fix`/`dis_*` re-fix it). -/
+theorem conv_arg1_of_conv_app (w : World) (env : Env) (s : Symbol) (arg v : SExpr)
+    (h_not_special : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+                     s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol s)) (.cons arg .nil)) = some v) :
+    ∃ N, ∀ f ≥ N, ∃ u, evalOpt f w env arg = some u := by
+  obtain ⟨N, hN⟩ := h
+  exact ⟨N, fun f hf => evalOpt_app1_arg f w env s arg v h_not_special
+    (hN (f + 1) (by omega))⟩
+
 /-- T7c: Number literal evaluates to itself. -/
 theorem evalOpt_number (f : Nat) (w : World) (env : Env) (n : Number) :
     evalOpt (f + 1) w env (.atom (.number n)) = some (.atom (.number n)) := by

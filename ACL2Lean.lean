@@ -17,6 +17,7 @@ import ACL2Lean.ClauseId
 import ACL2Lean.ProofTree
 import ACL2Lean.ClauseTree
 import ACL2Lean.Imported.SimpleWorld
+import ACL2Lean.Imported.NativeMirrors
 import ACL2Lean.Lexorder
 import ACL2Lean.TermOrder
 import ACL2Lean.Replay.Driver

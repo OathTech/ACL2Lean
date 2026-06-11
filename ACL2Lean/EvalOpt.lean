@@ -348,6 +348,42 @@ theorem evalOptStep_mono
               | none => simp [hdef] at h ⊢; exact h
           | none => simp only [htl] at h; exact h
 
+/-! ## Defs-extensionality
+
+`evalOpt` consults the world ONLY through `defs.get?`, so worlds that agree on
+every lookup are observationally identical. This is the transfer principle for
+results proved over one concrete world (e.g. the hand-proof dischargers) to a
+`get?`-equal world (e.g. the log-derived one, which may list the same defs in
+a different order). It is also the semantic content of binding invariant L3:
+world-parametric lemmas can never depend on entry order. -/
+
+theorem evalOptStep_defs_ext
+    (f g : World → Env → SExpr → Option SExpr)
+    (w1 w2 : World)
+    (hdefs : ∀ s, w1.defs.get? s = w2.defs.get? s)
+    (hrec : ∀ env t, f w1 env t = g w2 env t)
+    (env : Env) (t : SExpr) :
+    evalOptStep f w1 env t = evalOptStep g w2 env t := by
+  -- Unlike the monotonicity congruence (an implication, needing the case
+  -- bash above), the EQUALITY version collapses: the recursive calls rewrite
+  -- uniformly by the function-level equality, and the world is consulted
+  -- ONLY through `defs.get?`.
+  have hfun : f w1 = g w2 := funext fun e => funext fun u => hrec e u
+  unfold evalOptStep
+  simp only [hfun, hdefs]
+
+/-- Worlds that agree on every `defs.get?` evaluate identically. -/
+theorem evalOpt_defs_ext {w1 w2 : World}
+    (hdefs : ∀ s, w1.defs.get? s = w2.defs.get? s) :
+    ∀ (f : Nat) (env : Env) (t : SExpr), evalOpt f w1 env t = evalOpt f w2 env t := by
+  intro f
+  induction f with
+  | zero => intro env t; rfl
+  | succ n ih =>
+    intro env t
+    exact evalOptStep_defs_ext (evalOpt n) (evalOpt n) w1 w2 hdefs
+      (fun env t => ih env t) env t
+
 /-! ## Fuel monotonicity -/
 
 /-- Once evalOpt converges, more fuel doesn't change the result. -/
