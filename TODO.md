@@ -78,6 +78,13 @@ LIBRARY.
       `evalOpt_defs_ext` transfer, is the preferred catalog pattern going
       forward (entry 1's transfer route remains as the fallback when hand
       machinery is world-concrete).
+- [x] **Entry 3 — ground-arith (2026-06-10).** `(1 + (2 + 3) : Int) = 6`
+      (`ground_arith_native`) via the driver's unconditional mirror over the
+      00-direct log (executable-counterpart class); axioms clean. The GROUND
+      DECODE pattern: both sides evaluated symbolically to `int`-values over
+      UNREDUCED Lean arithmetic, equated by the mirror's equal⇒t fact — the
+      arithmetic comes from ACL2's replayed evaluation, not a Lean decision
+      procedure.
 
 - [ ] **Future work — polymorphic native statements.** The catalog states
       list-family results over `List SExpr` (what the current encoding

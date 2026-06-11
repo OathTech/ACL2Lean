@@ -13,6 +13,7 @@
   PROVED (via the driver's mirror):
     1. my-len-my-app   (xs ++ ys).length = xs.length + ys.length  [List SExpr]
     2. app-assoc       (xs ++ ys) ++ zs = xs ++ (ys ++ zs)        [List SExpr]
+    3. ground-arith    (1 + (2 + 3) : Int) = 6                    [ground decode]
   PROVED (via the HAND mirror — driver upgrade pending):
     -  my-len-my-app   ACL2Lean/Imported/SimpleWorld.lean (the original)
     -  nat-refl        Tests/DriverTests.lean `native_nat_refl` (trivial, driver)
@@ -24,8 +25,8 @@
     -  rev-rev          xs.reverse.reverse = xs              [G5 + rev corr]
     -  len2-app family  length_append via len2               [corr_len2 +
                         hypothesis discharge for the 04/05 worlds]
-    -  ground-arith / sq-of-3 / sq-rewrites  Int facts       [ground decode
-                        pattern]
+    -  sq-of-3 / sq-rewrites  Int facts                      [ground decode +
+                        sq unfold; ground-arith's pattern extends]
     -  linear-chain     Int order transitivity               [#50 DP tactic]
     -  len2-nonneg      0 ≤ (xs.length : Int)                [decode; the Nat
                         form is type-absorbed]
@@ -190,5 +191,88 @@ theorem app_assoc_native_driver (xs ys zs : List SExpr) :
     (xs ++ ys) ++ zs = xs ++ (ys ++ zs) :=
   Worlds.AppAssoc.app_assoc_native_of_mirror revWorldD (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) appAssocMirror_uncond xs ys zs
+
+/-! ## Entry 3 — `ground-arith`: `(1 + (2 + 3) : Int) = 6`
+
+From `recon-tests/00-direct.proof-log` (the executable-counterpart/preprocess
+class — no waterfall reasoning, no hypotheses on the mirror). The GROUND
+DECODE pattern: both formula sides are evaluated SYMBOLICALLY to
+`Logic`-primitive values over UNREDUCED Lean arithmetic (`int (1 + (2 + 3))`,
+`int 6`), and the mirror's `equal ⇒ t` fact equates them — the arithmetic
+fact comes from ACL2's replayed evaluation, never from a Lean decision
+procedure. -/
+
+private def directLog : String := include_str "../../acl2_samples/recon-tests/00-direct.proof-log"
+
+/-- The parsed development — the ONLY input is the log. -/
+def directDev : Development :=
+  (((ProofLog.parse directLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world directWorldD from directDev
+
+/-- The driver's mirror for `ground-arith` (UNCONDITIONAL — the tree is a
+    pure preprocess discharge, so the driver emits no hypotheses). -/
+elab "ground_arith_driver_mirror%" : term => do
+  let devE := mkConst ``directDev
+  let dev ← unsafe evalExpr Development (mkConst ``ACL2.Development) devE
+  let some cp := Driver.findThm dev "ground-arith"
+    | throwError "ground-arith not found in the development"
+  Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
+    let cfg : ReplayConfig :=
+      { worldExpr := mkConst ``directWorldD, envExpr := env,
+        worldVal := directDev.toWorld }
+    let (proof, _conds) ← replayProofConditional cfg dev.typePrescriptions cp
+    Meta.mkLambdaFVars #[env] proof
+
+/-- The mirror as a definition (the driver's proof OBJECT). -/
+def groundArithMirrorCond := ground_arith_driver_mirror%
+
+private def qInt (n : Int) : SExpr :=
+  .cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int n))) .nil)
+private def plusT (a b : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons b .nil))
+
+/-- Ground quote convergence. -/
+private theorem conv_qInt (w : World) (e : Env) (n : Int) :
+    ∃ N, ∀ f ≥ N, evalOpt f w e (qInt n) = some (.atom (.number (.int n))) :=
+  ⟨1, fun f hf => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact evalOpt_quote g w e _⟩
+
+/-- Ground `binary-+` convergence to the SYMBOLIC sum. -/
+private theorem conv_plus_int (w : World) (e : Env) (a b : SExpr) (m n : Int)
+    (h_no : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w e a = some (.atom (.number (.int m))))
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w e b = some (.atom (.number (.int n)))) :
+    ∃ N, ∀ f ≥ N, evalOpt f w e (plusT a b)
+      = some (.atom (.number (.int (m + n)))) := by
+  have h := conv_builtin2 w e { name := "binary-+" } a b
+    (.atom (.number (.int m))) (.atom (.number (.int n)))
+    (Logic.plus (.atom (.number (.int m))) (.atom (.number (.int n))))
+    (by decide) h_no ha hb (callBuiltin_plus _ _)
+  rwa [logic_plus_int] at h
+
+/-- ENTRY 3, PROVED — the ground arithmetic fact through the DRIVER's
+    replayed mirror (executable-counterpart class). -/
+theorem ground_arith_native : (1 + (2 + 3) : Int) = 6 := by
+  let e : Env := {}
+  have hL := conv_plus_int directWorldD e (qInt 1) (plusT (qInt 2) (qInt 3)) 1 (2 + 3)
+    (by decide) (conv_qInt _ _ 1)
+    (conv_plus_int directWorldD e (qInt 2) (qInt 3) 2 3 (by decide)
+      (conv_qInt _ _ 2) (conv_qInt _ _ 3))
+  have hR := conv_qInt directWorldD e 6
+  obtain ⟨NL, hL'⟩ := hL
+  obtain ⟨NR, hR'⟩ := hR
+  obtain ⟨Nm, hm⟩ := groundArithMirrorCond e
+  set f := max (max NL NR) Nm
+  have hval : (.atom (.number (.int (1 + (2 + 3)))) : SExpr)
+            = .atom (.number (.int 6)) :=
+    eval_equal_t_implies_eq f directWorldD e
+      (plusT (qInt 1) (plusT (qInt 2) (qInt 3))) (qInt 6)
+      (.atom (.number (.int (1 + (2 + 3))))) (.atom (.number (.int 6)))
+      (hL' f (by omega)) (hR' f (by omega)) (by decide)
+      (hm (f + 1) (by omega))
+  injection hval with h; injection h with h; injection h with h
 
 end ACL2.Imported.Mirrors
