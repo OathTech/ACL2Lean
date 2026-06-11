@@ -68,6 +68,16 @@ LIBRARY.
       inversion) recover argument convergence from the TP hypothesis's
       application convergence; `my_len_my_app_native_of_mirror` is the
       single-seam native assembly any mirror proof plugs into.
+- [x] **Entry 2 — app-assoc (2026-06-10).** `(xs ++ ys) ++ zs = xs ++ (ys ++
+      zs)` (`app_assoc_native_driver`) via the driver's mirror over the
+      02-rev log-derived world (`app` AND `rev`); axioms clean. The L3
+      payoff, demonstrated: the `AppAssoc` support lemmas were generalized to
+      world-PARAMETRIC form (any `w` with the `app` def + unshadowed
+      builtins), so NO world-transfer was needed — they instantiate directly
+      at the log-derived world with `by decide` facts. This, not
+      `evalOpt_defs_ext` transfer, is the preferred catalog pattern going
+      forward (entry 1's transfer route remains as the fallback when hand
+      machinery is world-concrete).
 
 - [ ] **Future work — polymorphic native statements.** The catalog states
       list-family results over `List SExpr` (what the current encoding

@@ -12,12 +12,11 @@
   ── SCOREBOARD ────────────────────────────────────────────────────────────
   PROVED (via the driver's mirror):
     1. my-len-my-app   (xs ++ ys).length = xs.length + ys.length  [List SExpr]
+    2. app-assoc       (xs ++ ys) ++ zs = xs ++ (ys ++ zs)        [List SExpr]
   PROVED (via the HAND mirror — driver upgrade pending):
     -  my-len-my-app   ACL2Lean/Imported/SimpleWorld.lean (the original)
     -  nat-refl        Tests/DriverTests.lean `native_nat_refl` (trivial, driver)
   PENDING:
-    -  app-assoc       (xs ++ ys) ++ zs = xs ++ (ys ++ zs)   [needs: corr_app
-                        chain decode for the 3-var formula; machinery exists]
     -  equal-symm, equal-trans, cdr-cons-refl  generic SExpr facts   [needs: generic-
                         equality decode pattern — no simulation layer, direct]
     -  app-nil          xs ++ [] = xs                        [G5: multi-literal
@@ -36,6 +35,7 @@
 -/
 import ACL2Lean.Replay.Driver
 import ACL2Lean.Imported.SimpleWorld
+import ACL2Lean.Imported.AppAssoc
 
 namespace ACL2.Imported.Mirrors
 
@@ -136,5 +136,59 @@ theorem mylenMirror_world (env : Env) :
 theorem my_len_my_app_native_driver (xs ys : List SExpr) :
     (xs ++ ys).length = xs.length + ys.length :=
   Worlds.Simple.my_len_my_app_native_of_mirror mylenMirror_world xs ys
+
+/-! ## Entry 2 — `app-assoc`: `(xs ++ ys) ++ zs = xs ++ (ys ++ zs)`
+
+From the REAL `recon-tests/02-rev.proof-log` (app-assoc is its first theorem;
+the log's world carries `app` AND `rev`). Unlike entry 1, NO world-transfer
+is needed: the `AppAssoc` support lemmas are world-PARAMETRIC (invariant L3),
+so they instantiate directly at the log-derived world — every world fact is a
+`decide` on the derived world, and the driver mirror's single hypothesis
+(`total:app`) is discharged by the generic driver-shape totality. -/
+
+private def revLog : String := include_str "../../acl2_samples/recon-tests/02-rev.proof-log"
+
+/-- The parsed development — the ONLY input is the log. -/
+def revDev : Development :=
+  (((ProofLog.parse revLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world revWorldD from revDev
+
+/-- The driver's CONDITIONAL mirror for `app-assoc`, over the log-derived
+    world: `∀ env, total:app → ∃N∀f≥N, eval (equal (app (app a b) c)
+    (app a (app b c))) = some t`. -/
+elab "app_assoc_driver_mirror%" : term => do
+  let devE := mkConst ``revDev
+  let dev ← unsafe evalExpr Development (mkConst ``ACL2.Development) devE
+  let some cp := Driver.findThm dev "app-assoc"
+    | throwError "app-assoc not found in the development"
+  Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
+    let cfg : ReplayConfig :=
+      { worldExpr := mkConst ``revWorldD, envExpr := env,
+        worldVal := revDev.toWorld }
+    let (proof, _conds) ← replayProofConditional cfg dev.typePrescriptions cp
+    Meta.mkLambdaFVars #[env] proof
+
+/-- The conditional mirror as a definition (the driver's proof OBJECT). -/
+def appAssocMirrorCond := app_assoc_driver_mirror%
+
+/-- The driver mirror, its `total:app` hypothesis DISCHARGED — unconditional
+    over the log-derived world. -/
+theorem appAssocMirror_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → evalOpt f revWorldD env
+      Worlds.AppAssoc.app_assocFormula = some SExpr.t :=
+  appAssocMirrorCond env
+    (fun e' a0 a1 h0 h1 =>
+      Worlds.AppAssoc.drv_total_app revWorldD (by decide) (by decide)
+        (by decide) (by decide) (by decide) e' a0 a1 h0 h1)
+
+/-- ENTRY 2, PROVED — `List.append_assoc` (over `SExpr`) through the DRIVER's
+    replayed mirror, with the world-parametric native assembly instantiated
+    directly at the log-derived world. -/
+theorem app_assoc_native_driver (xs ys zs : List SExpr) :
+    (xs ++ ys) ++ zs = xs ++ (ys ++ zs) :=
+  Worlds.AppAssoc.app_assoc_native_of_mirror revWorldD (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) appAssocMirror_uncond xs ys zs
 
 end ACL2.Imported.Mirrors

@@ -471,37 +471,43 @@ private theorem conv_fix {w : World} {e : Env} {t : SExpr}
 
 /-- `app a b` converges (induction on the first argument's VALUE). Discharges
     `h_app_total`. -/
-private theorem dis_app_total_val : ∀ (av1 : SExpr) (e' : Env) (a b av2 : SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f world e' a = some av1) →
-    (∃ N, ∀ f ≥ N, evalOpt f world e' b = some av2) →
-    ∃ rv, ∃ N, ∀ f ≥ N, evalOpt f world e' (appOf a b) = some rv := by
+private theorem dis_app_total_val (w : World)
+    (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    ∀ (av1 : SExpr) (e' : Env) (a b av2 : SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f w e' a = some av1) →
+    (∃ N, ∀ f ≥ N, evalOpt f w e' b = some av2) →
+    ∃ rv, ∃ N, ∀ f ≥ N, evalOpt f w e' (appOf a b) = some rv := by
   refine acl2_induction_consp (fun av1 => ∀ (e' : Env) (a b av2 : SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f world e' a = some av1) →
-    (∃ N, ∀ f ≥ N, evalOpt f world e' b = some av2) →
-    ∃ rv, ∃ N, ∀ f ≥ N, evalOpt f world e' (appOf a b) = some rv) ?base ?step
+    (∃ N, ∀ f ≥ N, evalOpt f w e' a = some av1) →
+    (∃ N, ∀ f ≥ N, evalOpt f w e' b = some av2) →
+    ∃ rv, ∃ N, ∀ f ≥ N, evalOpt f w e' (appOf a b) = some rv) ?base ?step
   · intro av1 hconsp e' a b av2 ha hb
     refine ⟨av2, ?_⟩
     have hx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [av1, av2]) xT = some av1 :=
+        evalOpt f w (bindArgs [x_sym, y_sym] [av1, av2]) xT = some av1 :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g world _ x_sym av1 (bindArgs_xy_x av1 av2)⟩
+                         exact evalOpt_var g w _ x_sym av1 (bindArgs_xy_x av1 av2)⟩
     have hy_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [av1, av2]) yT = some av2 :=
+        evalOpt f w (bindArgs [x_sym, y_sym] [av1, av2]) yT = some av2 :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g world _ y_sym av2 (bindArgs_xy_y av1 av2)⟩
+                         exact evalOpt_var g w _ y_sym av2 (bindArgs_xy_y av1 av2)⟩
     have hconspx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [av1, av2]) (conspOf xT) = some .nil := by
-      have h := conv_builtin1 world _ { name := "consp" } xT av1 (Logic.consp av1)
-        consp_not_special world_no_consp hx_ba (callBuiltin_consp av1)
+        evalOpt f w (bindArgs [x_sym, y_sym] [av1, av2]) (conspOf xT) = some .nil := by
+      have h := conv_builtin1 w _ { name := "consp" } xT av1 (Logic.consp av1)
+        consp_not_special h_no_consp hx_ba (callBuiltin_consp av1)
       rwa [hconsp] at h
     have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [av1, av2]) appBody = some av2 := by
-      obtain ⟨Ni, hi⟩ := re_if_false world (bindArgs [x_sym, y_sym] [av1, av2]) (conspOf xT)
+        evalOpt f w (bindArgs [x_sym, y_sym] [av1, av2]) appBody = some av2 := by
+      obtain ⟨Ni, hi⟩ := re_if_false w (bindArgs [x_sym, y_sym] [av1, av2]) (conspOf xT)
         (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT av2 hconspx_ba hy_ba
       obtain ⟨Ny, hy⟩ := hy_ba
       exact ⟨max Ni Ny, fun f hf => (hi f (by omega)).trans (hy f (by omega))⟩
-    exact conv_defn_2 world e' app_sym a b av1 av2 x_sym y_sym appBody av2
-      app_not_special world_has_app ha hb hbody
+    exact conv_defn_2 w e' app_sym a b av1 av2 x_sym y_sym appBody av2
+      app_not_special h_app ha hb hbody
   · intro av1 hconsp ih e' a b av2 ha hb
     obtain ⟨hd, tl, rfl⟩ : ∃ hd tl, av1 = .cons hd tl := by
       match av1 with
@@ -509,60 +515,87 @@ private theorem dis_app_total_val : ∀ (av1 : SExpr) (e' : Env) (a b av2 : SExp
       | .nil => exact absurd rfl hconsp
       | .atom _ => exact absurd rfl hconsp
     have hx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) xT = some (.cons hd tl) :=
+        evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) xT = some (.cons hd tl) :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g world _ x_sym _ (bindArgs_xy_x _ _)⟩
+                         exact evalOpt_var g w _ x_sym _ (bindArgs_xy_x _ _)⟩
     have hy_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) yT = some av2 :=
+        evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) yT = some av2 :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g world _ y_sym _ (bindArgs_xy_y _ _)⟩
+                         exact evalOpt_var g w _ y_sym _ (bindArgs_xy_y _ _)⟩
     have hconspx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (conspOf xT)
+        evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (conspOf xT)
         = some (Logic.consp (.cons hd tl)) :=
-      conv_builtin1 world _ { name := "consp" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
-        consp_not_special world_no_consp hx_ba (callBuiltin_consp _)
+      conv_builtin1 w _ { name := "consp" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
+        consp_not_special h_no_consp hx_ba (callBuiltin_consp _)
     have hcarx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (carOf xT) = some hd := by
-      have h := conv_builtin1 world _ { name := "car" } xT (.cons hd tl) (Logic.car (.cons hd tl))
-        car_not_special world_no_car hx_ba (callBuiltin_car _)
+        evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (carOf xT) = some hd := by
+      have h := conv_builtin1 w _ { name := "car" } xT (.cons hd tl) (Logic.car (.cons hd tl))
+        car_not_special h_no_car hx_ba (callBuiltin_car _)
       simpa [Logic.car] using h
     have hcdrx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (cdrOf xT) = some tl := by
-      have h := conv_builtin1 world _ { name := "cdr" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
-        cdr_not_special world_no_cdr hx_ba (callBuiltin_cdr _)
+        evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (cdrOf xT) = some tl := by
+      have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
+        cdr_not_special h_no_cdr hx_ba (callBuiltin_cdr _)
       simpa [Logic.cdr] using h
     obtain ⟨rv', hrec⟩ := ih (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (cdrOf xT) yT av2
       hcdrx_ba hy_ba
     refine ⟨.cons hd rv', ?_⟩
     have hthen : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2])
+        evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2])
           (consOf (carOf xT) (appOf (cdrOf xT) yT)) = some (.cons hd rv') :=
-      conv_builtin2 world _ { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
-        hd rv' (.cons hd rv') cons_not_special world_no_cons hcarx_ba hrec rfl
+      conv_builtin2 w _ { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
+        hd rv' (.cons hd rv') cons_not_special h_no_cons hcarx_ba hrec rfl
     have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) appBody
+        evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) appBody
         = some (.cons hd rv') := by
-      obtain ⟨Ni, hi⟩ := re_if_true world (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (conspOf xT)
+      obtain ⟨Ni, hi⟩ := re_if_true w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (conspOf xT)
         (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (Logic.consp (.cons hd tl))
         (.cons hd rv') hconspx_ba rfl hthen
       obtain ⟨Nt, ht⟩ := hthen
       exact ⟨max Ni Nt, fun f hf => (hi f (by omega)).trans (ht f (by omega))⟩
-    exact conv_defn_2 world e' app_sym a b (.cons hd tl) av2 x_sym y_sym appBody
-      (.cons hd rv') app_not_special world_has_app ha hb hbody
+    exact conv_defn_2 w e' app_sym a b (.cons hd tl) av2 x_sym y_sym appBody
+      (.cons hd rv') app_not_special h_app ha hb hbody
 
-private theorem dis_app_total (e' : Env) (a b : SExpr)
-    (ha : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f world e' a = some av)
-    (hb : ∃ M, ∀ f ≥ M, ∃ bv, evalOpt f world e' b = some bv) :
-    ∃ M, ∃ rv, ∀ f ≥ M, evalOpt f world e' (appOf a b) = some rv := by
+private theorem dis_app_total (w : World)
+    (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (e' : Env) (a b : SExpr)
+    (ha : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' a = some av)
+    (hb : ∃ M, ∀ f ≥ M, ∃ bv, evalOpt f w e' b = some bv) :
+    ∃ M, ∃ rv, ∀ f ≥ M, evalOpt f w e' (appOf a b) = some rv := by
   obtain ⟨av, hav⟩ := conv_fix ha; obtain ⟨bv, hbv⟩ := conv_fix hb
-  obtain ⟨rv, N, h⟩ := dis_app_total_val av e' a b bv hav hbv
+  obtain ⟨rv, N, h⟩ := dis_app_total_val w h_app h_no_consp h_no_cdr h_no_car h_no_cons
+    av e' a b bv hav hbv
   exact ⟨N, rv, h⟩
+
+
+/-- Driver-shape totality for `app` (v-FIXED hypothesis forms, any world with
+    the `app` definition and unshadowed builtins) — discharges the driver
+    mirror's `total:app` hypothesis in `Imported/NativeMirrors`. -/
+theorem drv_total_app (w : World)
+    (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (e' : Env) (a0 a1 : SExpr)
+    (h0 : ∃ N v, ∀ f ≥ N, evalOpt f w e' a0 = some v)
+    (h1 : ∃ N v, ∀ f ≥ N, evalOpt f w e' a1 = some v) :
+    ∃ N v, ∀ f ≥ N, evalOpt f w e' (appOf a0 a1) = some v := by
+  obtain ⟨N0, v0, hv0⟩ := h0; obtain ⟨N1, v1, hv1⟩ := h1
+  exact dis_app_total w h_app h_no_consp h_no_cdr h_no_car h_no_cons e' a0 a1
+    ⟨N0, fun f hf => ⟨v0, hv0 f hf⟩⟩ ⟨N1, fun f hf => ⟨v1, hv1 f hf⟩⟩
 
 /-- The mirror for `world`, UNCONDITIONAL (my-app totality discharged). -/
 theorem app_assoc_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → evalOpt f world env app_assocFormula = some SExpr.t :=
   app_assoc_generic world env world_has_app world_no_equal world_no_consp
-    world_no_cdr world_no_car world_no_cons dis_app_total
+    world_no_cdr world_no_car world_no_cons
+    (dis_app_total world world_has_app world_no_consp world_no_cdr
+      world_no_car world_no_cons)
 
 /-- TYPE morphism: `List SExpr` ↦ ACL2 proper cons-list. -/
 def enc (xs : List SExpr) : SExpr := xs.foldr SExpr.cons SExpr.nil
@@ -581,118 +614,144 @@ theorem enc_inj : ∀ {l1 l2 : List SExpr}, enc l1 = enc l2 → l1 = l2 := by
       rw [ih htl]
 
 /-- SIMULATION: evalOpt's `app` over encoded lists computes `++` under `enc`. -/
-private theorem corr_app_enc : ∀ (xs : List SExpr) (e' : Env) (a b : SExpr) (ys : List SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f world e' a = some (enc xs)) →
-    (∃ N, ∀ f ≥ N, evalOpt f world e' b = some (enc ys)) →
-    ∃ N, ∀ f ≥ N, evalOpt f world e' (appOf a b) = some (enc (xs ++ ys)) := by
+private theorem corr_app_enc (w : World)
+    (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    ∀ (xs : List SExpr) (e' : Env) (a b : SExpr) (ys : List SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f w e' a = some (enc xs)) →
+    (∃ N, ∀ f ≥ N, evalOpt f w e' b = some (enc ys)) →
+    ∃ N, ∀ f ≥ N, evalOpt f w e' (appOf a b) = some (enc (xs ++ ys)) := by
   intro xs
   induction xs with
   | nil =>
     intro e' a b ys ha hb
     have hx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc [], enc ys]) xT = some (enc []) :=
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc [], enc ys]) xT = some (enc []) :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g world _ x_sym _ (bindArgs_xy_x _ _)⟩
+                         exact evalOpt_var g w _ x_sym _ (bindArgs_xy_x _ _)⟩
     have hy_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc [], enc ys]) yT = some (enc ys) :=
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc [], enc ys]) yT = some (enc ys) :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g world _ y_sym _ (bindArgs_xy_y _ _)⟩
+                         exact evalOpt_var g w _ y_sym _ (bindArgs_xy_y _ _)⟩
     have hconspx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc [], enc ys]) (conspOf xT) = some .nil :=
-      conv_builtin1 world _ { name := "consp" } xT (enc []) (Logic.consp (enc []))
-        consp_not_special world_no_consp hx_ba (callBuiltin_consp _)
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc [], enc ys]) (conspOf xT) = some .nil :=
+      conv_builtin1 w _ { name := "consp" } xT (enc []) (Logic.consp (enc []))
+        consp_not_special h_no_consp hx_ba (callBuiltin_consp _)
     have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc [], enc ys]) appBody = some (enc ys) := by
-      obtain ⟨Ni, hi⟩ := re_if_false world (bindArgs [x_sym, y_sym] [enc [], enc ys]) (conspOf xT)
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc [], enc ys]) appBody = some (enc ys) := by
+      obtain ⟨Ni, hi⟩ := re_if_false w (bindArgs [x_sym, y_sym] [enc [], enc ys]) (conspOf xT)
         (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (enc ys) hconspx_ba hy_ba
       obtain ⟨Ny, hy⟩ := hy_ba
       exact ⟨max Ni Ny, fun f hf => (hi f (by omega)).trans (hy f (by omega))⟩
-    exact conv_defn_2 world e' app_sym a b (enc []) (enc ys) x_sym y_sym appBody (enc ys)
-      app_not_special world_has_app ha hb hbody
+    exact conv_defn_2 w e' app_sym a b (enc []) (enc ys) x_sym y_sym appBody (enc ys)
+      app_not_special h_app ha hb hbody
   | cons hd tl ih =>
     intro e' a b ys ha hb
     have hx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) xT
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) xT
         = some (.cons hd (enc tl)) :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g world _ x_sym _ (bindArgs_xy_x _ _)⟩
+                         exact evalOpt_var g w _ x_sym _ (bindArgs_xy_x _ _)⟩
     have hy_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) yT = some (enc ys) :=
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) yT = some (enc ys) :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g world _ y_sym _ (bindArgs_xy_y _ _)⟩
+                         exact evalOpt_var g w _ y_sym _ (bindArgs_xy_y _ _)⟩
     have hconspx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (conspOf xT)
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (conspOf xT)
         = some (Logic.consp (.cons hd (enc tl))) :=
-      conv_builtin1 world _ { name := "consp" } xT (.cons hd (enc tl))
-        (Logic.consp (.cons hd (enc tl))) consp_not_special world_no_consp hx_ba (callBuiltin_consp _)
+      conv_builtin1 w _ { name := "consp" } xT (.cons hd (enc tl))
+        (Logic.consp (.cons hd (enc tl))) consp_not_special h_no_consp hx_ba (callBuiltin_consp _)
     have hcarx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (carOf xT) = some hd := by
-      have h := conv_builtin1 world _ { name := "car" } xT (.cons hd (enc tl))
-        (Logic.car (.cons hd (enc tl))) car_not_special world_no_car hx_ba (callBuiltin_car _)
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (carOf xT) = some hd := by
+      have h := conv_builtin1 w _ { name := "car" } xT (.cons hd (enc tl))
+        (Logic.car (.cons hd (enc tl))) car_not_special h_no_car hx_ba (callBuiltin_car _)
       simpa [Logic.car] using h
     have hcdrx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (cdrOf xT)
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (cdrOf xT)
         = some (enc tl) := by
-      have h := conv_builtin1 world _ { name := "cdr" } xT (.cons hd (enc tl))
-        (Logic.cdr (.cons hd (enc tl))) cdr_not_special world_no_cdr hx_ba (callBuiltin_cdr _)
+      have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd (enc tl))
+        (Logic.cdr (.cons hd (enc tl))) cdr_not_special h_no_cdr hx_ba (callBuiltin_cdr _)
       simpa [Logic.cdr] using h
     have hrec : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (appOf (cdrOf xT) yT)
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (appOf (cdrOf xT) yT)
         = some (enc (tl ++ ys)) :=
       ih (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) (cdrOf xT) yT ys hcdrx_ba hy_ba
     have hthen : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys])
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys])
           (consOf (carOf xT) (appOf (cdrOf xT) yT)) = some (.cons hd (enc (tl ++ ys))) :=
-      conv_builtin2 world _ { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
-        hd (enc (tl ++ ys)) (.cons hd (enc (tl ++ ys))) cons_not_special world_no_cons
+      conv_builtin2 w _ { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
+        hd (enc (tl ++ ys)) (.cons hd (enc (tl ++ ys))) cons_not_special h_no_cons
         hcarx_ba hrec rfl
     have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) appBody
+        evalOpt f w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys]) appBody
         = some (.cons hd (enc (tl ++ ys))) := by
-      obtain ⟨Ni, hi⟩ := re_if_true world (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys])
+      obtain ⟨Ni, hi⟩ := re_if_true w (bindArgs [x_sym, y_sym] [enc (hd :: tl), enc ys])
         (conspOf xT) (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (Logic.consp (.cons hd (enc tl)))
         (.cons hd (enc (tl ++ ys))) hconspx_ba rfl hthen
       obtain ⟨Nt, ht⟩ := hthen
       exact ⟨max Ni Nt, fun f hf => (hi f (by omega)).trans (ht f (by omega))⟩
-    exact conv_defn_2 world e' app_sym a b (.cons hd (enc tl)) (enc ys) x_sym y_sym appBody
-      (.cons hd (enc (tl ++ ys))) app_not_special world_has_app ha hb hbody
+    exact conv_defn_2 w e' app_sym a b (.cons hd (enc tl)) (enc ys) x_sym y_sym appBody
+      (.cons hd (enc (tl ++ ys))) app_not_special h_app ha hb hbody
 
-/-- **The native theorem**, idiomatic Lean (`List.append_assoc`), proven via the
-    ACL2 oracle. -/
-theorem app_assoc_native (xs ys zs : List SExpr) :
+/-- The native assembly, PARAMETERIZED by the world and the mirror: any proof
+    of the mirror statement over a world carrying the `app` definition (hand or
+    log-derived, hand-proved or driver-replayed) yields the native theorem.
+    The mirror is consumed at exactly ONE point — the seam the catalog
+    (`Imported/NativeMirrors`) plugs the driver's mirror into. -/
+theorem app_assoc_native_of_mirror (w : World)
+    (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (hmirror : ∀ env : Env,
+      ∃ N, ∀ f, f ≥ N → evalOpt f w env app_assocFormula = some SExpr.t)
+    (xs ys zs : List SExpr) :
     (xs ++ ys) ++ zs = xs ++ (ys ++ zs) := by
   let e : Env := ((({} : Env).insert c_sym (enc zs)).insert b_sym (enc ys)).insert a_sym (enc xs)
-  have ha : ∃ N, ∀ f ≥ N, evalOpt f world e aT = some (enc xs) :=
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some (enc xs) :=
     ⟨1, fun f hf => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-      exact evalOpt_var g world e a_sym (enc xs) (by
+      exact evalOpt_var g w e a_sym (enc xs) (by
         show e.get? a_sym = some (enc xs); simp [e])⟩
-  have hb : ∃ N, ∀ f ≥ N, evalOpt f world e bT = some (enc ys) :=
+  have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some (enc ys) :=
     ⟨1, fun f hf => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-      exact evalOpt_var g world e b_sym (enc ys) (by
+      exact evalOpt_var g w e b_sym (enc ys) (by
         show e.get? b_sym = some (enc ys)
         simp only [e, Env.get?_insert, a_sym, b_sym, sym, beq_iff_eq]
         rw [if_neg (by decide)]; simp)⟩
-  have hc : ∃ N, ∀ f ≥ N, evalOpt f world e cT = some (enc zs) :=
+  have hc : ∃ N, ∀ f ≥ N, evalOpt f w e cT = some (enc zs) :=
     ⟨1, fun f hf => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-      exact evalOpt_var g world e c_sym (enc zs) (by
+      exact evalOpt_var g w e c_sym (enc zs) (by
         show e.get? c_sym = some (enc zs)
         simp only [e, Env.get?_insert, a_sym, b_sym, c_sym, sym, beq_iff_eq]
         rw [if_neg (by decide), if_neg (by decide)]; simp)⟩
-  obtain ⟨NL, hL⟩ := corr_app_enc (xs ++ ys) e (appOf aT bT) cT zs
-    (corr_app_enc xs e aT bT ys ha hb) hc
-  obtain ⟨NR, hR⟩ := corr_app_enc xs e aT (appOf bT cT) (ys ++ zs) ha
-    (corr_app_enc ys e bT cT zs hb hc)
-  obtain ⟨Nm, hm⟩ := app_assoc_uncond e
+  obtain ⟨NL, hL⟩ := corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons (xs ++ ys) e (appOf aT bT) cT zs
+    (corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons xs e aT bT ys ha hb) hc
+  obtain ⟨NR, hR⟩ := corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons xs e aT (appOf bT cT) (ys ++ zs) ha
+    (corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons ys e bT cT zs hb hc)
+  obtain ⟨Nm, hm⟩ := hmirror e
   have hval : enc ((xs ++ ys) ++ zs) = enc (xs ++ (ys ++ zs)) := by
     set f := max (max NL NR) Nm
-    refine eval_equal_t_implies_eq f world e
+    refine eval_equal_t_implies_eq f w e
       (appOf (appOf aT bT) cT) (appOf aT (appOf bT cT))
       (enc ((xs ++ ys) ++ zs)) (enc (xs ++ (ys ++ zs)))
-      (hL f (by omega)) (hR f (by omega)) world_no_equal ?_
+      (hL f (by omega)) (hR f (by omega)) h_no_equal ?_
     have := hm (f + 1) (by omega); rwa [formula_decomp] at this
   exact enc_inj hval
+
+
+/-- **The native theorem**, idiomatic Lean (`List.append_assoc`), proven via
+    the ACL2 oracle — here instantiated with the HAND mirror. -/
+theorem app_assoc_native (xs ys zs : List SExpr) :
+    (xs ++ ys) ++ zs = xs ++ (ys ++ zs) :=
+  app_assoc_native_of_mirror world world_has_app world_no_consp world_no_cdr
+    world_no_car world_no_cons world_no_equal app_assoc_uncond xs ys zs
 
 end ACL2.Worlds.AppAssoc
