@@ -115,3 +115,19 @@ development order, accumulating `totalEnv : List (String × Expr)`:
    etc. disappear); catalog entry 1's by-decide discharges become redundant
    (switch mylenMirror_uncond to consume the now-unconditional mirror —
    or keep both as regression); axioms stay clean.
+
+## D7' — revision: the obligations are VALUE-level, not evalOpt-level
+The decrease clauses never pass through evalOpt (no callBuiltin for
+acl2-count/o< needed): the prover interprets them directly over the walk's
+VALUE assignment — (acl2-count t) ↦ Count.acl2Count (value-of t) : Nat,
+(o< a b) ↦ <, ruling-test literals ↦ the branch context's toBool facts —
+and discharges with the Count library (acl2Count_cdr_lt_of_consp etc.).
+dpUnary/dpBinary are untouched.
+
+## D9 — the (o-p (measure)) obligation is absorbed by construction
+For acl2-count measures the o-p clause asserts the measure is an ordinal;
+in Lean the measure lands in Nat and the WF spine is Nat.lt — well-founded
+by construction. The prover SHAPE-CHECKS the clause (must be exactly
+((o-p <the measure term>)); anything else hard-fails) and records it as
+absorbed rather than proving an o-p fact. Not a silent skip: the clause is
+consumed by the choice of measure type, and a mismatch fails closed.

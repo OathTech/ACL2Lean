@@ -136,6 +136,16 @@ def Development.typePrescriptions : Development → List (String × SExpr)
     | .typePrescription n cor _ _ => (n, cor) :: rest.typePrescriptions
     | _ => rest.typePrescriptions
 
+/-- The admission justifications of a development's RECURSIVE defuns
+    (fn name ↦ measure/wfrel/measured-subset + the raw termination clauses),
+    in development order — the data the totality prover consumes (#37). -/
+def Development.justifications : Development → List (String × Justification)
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .defun n _ _ (some j) _ => (n, j) :: rest.justifications
+    | _ => rest.justifications
+
 namespace ClauseTree
 
 /-- A flat node before tree assembly: its parsed id, the printed id, the input
