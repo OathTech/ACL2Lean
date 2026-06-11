@@ -54,10 +54,9 @@ open ACL2 ACL2.Replay ACL2.Replay.Driver Lean Lean.Meta Lean.Elab
 
 The full chain, end to end: the REAL `simple.proof-log` → parse → reconstruct
 → the log-DERIVED world → the driver's conditional mirror (totality/TP
-hypotheses) → hypotheses DISCHARGED (the hand-proof dischargers, transferred
-by defs-extensionality — the two worlds list the same definitions in a
-different order) → instantiated at encoded lists → the simulation lemmas →
-the native statement. -/
+hypotheses) → hypotheses DISCHARGED (the WORLD-PARAMETRIC hand dischargers,
+instantiated directly at the log-derived world) → instantiated at encoded
+lists → the simulation lemmas → the native statement. -/
 
 private def simpleLog : String := include_str "../../acl2_samples/simple.proof-log"
 
@@ -88,65 +87,37 @@ elab "driver_mirror%" devId:ident worldId:ident nm:str : term => do
 /-- The conditional mirror as a definition (the driver's proof OBJECT). -/
 def mylenMirrorCond := driver_mirror% simpleDev simpleWorldD "my-len-my-app"
 
-/-! ### The world-agreement transfer
+/-! ### The unconditional driver mirror — direct world-parametric discharge
 
-The hand-proof world (`ACL2.Worlds.Simple.world`) and the log-derived
-`simpleWorldD` contain the SAME three definitions in different list order —
-`get?`-equal, so `evalOpt_defs_ext` transfers every result between them. -/
+The driver's four hypotheses are discharged by the WORLD-PARAMETRIC hand
+dischargers (invariant L3) instantiated directly at the log-derived world —
+every world fact a `decide` on the reflected world. No defs-extensionality
+transfer is needed; the `evalOpt_defs_ext` route remains in `EvalOpt` as the
+documented fallback for world-concrete machinery. The stated formula is the
+hand `my_len_my_appFormula` — it and the log-derived statement are the same
+term, so the proof closes definitionally. -/
 
-private theorem worlds_get_eq :
-    ∀ s, ACL2.Worlds.Simple.world.defs.get? s = simpleWorldD.defs.get? s := by
-  intro s
-  by_cases h1 : s = { name := "my-len" }
-  · subst h1; decide
-  · by_cases h2 : s = { name := "my-app" }
-    · subst h2; decide
-    · by_cases h3 : s = { name := "fix" }
-      · subst h3; decide
-      · -- s matches none of the three keys: both lookups run off the end
-        have b1 : ¬({ name := "my-len" } : Symbol) = s := fun h => h1 h.symm
-        have b2 : ¬({ name := "my-app" } : Symbol) = s := fun h => h2 h.symm
-        have b3 : ¬({ name := "fix" } : Symbol) = s := fun h => h3 h.symm
-        simp [ACL2.Worlds.Simple.world, ACL2.Worlds.Simple.sym, simpleWorldD,
-              World.ofDefs, DefMap.get?, DefMap.get?.go, DefMap.insert, b1, b2, b3]
-
-/-- `evalOpt` cannot distinguish the hand world from the log-derived world. -/
-private theorem eval_eq (f : Nat) (env : Env) (t : SExpr) :
-    evalOpt f Worlds.Simple.world env t = evalOpt f simpleWorldD env t :=
-  evalOpt_defs_ext worlds_get_eq f env t
-
-/-! ### The unconditional driver mirror, over the hand world
-
-Each of the driver's four hypotheses is discharged by the corresponding
-driver-form hand discharger, transported between the worlds by
-defs-extensionality. The formula is the hand `my_len_my_appFormula` — it and
-the log-derived statement are the same term (the translation produced exactly
-the hand-written formula), so `exact` closes the gap definitionally. -/
-
-theorem mylenMirror_world (env : Env) :
-    ∃ N, ∀ f, f ≥ N → evalOpt f Worlds.Simple.world env
-      Worlds.Simple.my_len_my_appFormula = some SExpr.t := by
-  simp only [eval_eq]
-  exact mylenMirrorCond env
-    (fun e' a0 h => by
-      simp only [← eval_eq] at h ⊢
-      exact Worlds.Simple.drv_total_mylen e' a0 h)
-    (fun e' a0 a1 h0 h1 => by
-      simp only [← eval_eq] at h0 h1 ⊢
-      exact Worlds.Simple.drv_total_myapp e' a0 a1 h0 h1)
-    (fun e' a0 h => by
-      simp only [← eval_eq] at h ⊢
-      exact Worlds.Simple.drv_total_fix e' a0 h)
-    (fun e' a0 v h => by
-      simp only [← eval_eq] at h
-      exact Worlds.Simple.drv_tp_mylen e' a0 v h)
+theorem mylenMirror_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → evalOpt f simpleWorldD env
+      Worlds.Simple.my_len_my_appFormula = some SExpr.t :=
+  mylenMirrorCond env
+    (Worlds.Simple.drv_total_mylen simpleWorldD (by decide) (by decide)
+      (by decide) (by decide))
+    (Worlds.Simple.drv_total_myapp simpleWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide))
+    (Worlds.Simple.drv_total_fix simpleWorldD (by decide) (by decide))
+    (Worlds.Simple.drv_tp_mylen simpleWorldD (by decide) (by decide)
+      (by decide) (by decide))
 
 /-- ENTRY 1, PROVED — the native statement through the DRIVER's replayed
     mirror: log → parse → reconstruct → derived world → conditional replay →
-    discharged hypotheses → simulation decode. -/
+    discharged hypotheses → simulation decode, all directly over the
+    log-derived world. -/
 theorem my_len_my_app_native_driver (xs ys : List SExpr) :
     (xs ++ ys).length = xs.length + ys.length :=
-  Worlds.Simple.my_len_my_app_native_of_mirror mylenMirror_world xs ys
+  Worlds.Simple.my_len_my_app_native_of_mirror simpleWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) mylenMirror_uncond xs ys
 
 /-! ## Entry 2 — `app-assoc`: `(xs ++ ys) ++ zs = xs ++ (ys ++ zs)`
 

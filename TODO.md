@@ -60,14 +60,18 @@ LIBRARY.
 - [x] **Entry 1 — my-len-my-app (2026-06-10).** `(xs ++ ys).length = xs.length
       + ys.length` (`my_len_my_app_native_driver`) proved through the DRIVER's
       conditional mirror over the LOG-DERIVED world; axioms clean. The pattern
-      pieces, all reusable: `evalOpt_defs_ext` (worlds `get?`-equal ⇒
-      evaluation-equal) transports between the hand world and the derived
-      world; driver-shape dischargers (`drv_total_*`, `drv_tp_mylen`) restate
-      the hand dischargers in the driver's v-fixed hypothesis forms;
-      `evalOpt_app1_arg`/`conv_arg1_of_conv_app` (argument strictness,
-      inversion) recover argument convergence from the TP hypothesis's
-      application convergence; `my_len_my_app_native_of_mirror` is the
-      single-seam native assembly any mirror proof plugs into.
+      pieces, all reusable: driver-shape dischargers (`drv_total_*`,
+      `drv_tp_mylen`) restate the hand dischargers in the driver's v-fixed
+      hypothesis forms; `evalOpt_app1_arg`/`conv_arg1_of_conv_app` (argument
+      strictness, inversion) recover argument convergence from the TP
+      hypothesis's application convergence; `my_len_my_app_native_of_mirror`
+      is the single-seam native assembly any mirror proof plugs into.
+      RETROFITTED same day to the world-parametric route: all SimpleWorld
+      dischargers/`corr_*`/assembly generalized over any `w` with def-facts
+      (L3), instantiated at `simpleWorldD` by `decide`; the
+      `worlds_get_eq`/`eval_eq` transfer glue is deleted. `evalOpt_defs_ext`
+      stays in EvalOpt as the documented fallback for world-concrete
+      machinery.
 - [x] **Entry 2 — app-assoc (2026-06-10).** `(xs ++ ys) ++ zs = xs ++ (ys ++
       zs)` (`app_assoc_native_driver`) via the driver's mirror over the
       02-rev log-derived world (`app` AND `rev`); axioms clean. The L3
