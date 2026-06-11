@@ -262,9 +262,16 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let origin := match lookupKeyword "origin" rest with
         | some (.atom (.symbol s)) => s.name
         | _ => ""
-      let equiv := match lookupKeyword "equiv" rest with
-        | some (.atom (.symbol s)) => s.name
-        | _ => "equal"
+      -- :EQUIV is REQUIRED: the emitter states every step's equivalence
+      -- relation explicitly (all 65 push sites emit it; the two IFF-flavored
+      -- ones are labeled 'iff). The checker does NO inference — a missing or
+      -- malformed :EQUIV is an emission gap and hard-fails (audited 2026-06-10;
+      -- the old default-to-"equal" was fail-open).
+      let equiv ← match lookupKeyword "equiv" rest with
+        | some (.atom (.symbol s)) => pure s.name
+        | some other => throw s!"REWRITE-STEP: malformed :EQUIV {repr other}"
+        | none => throw "REWRITE-STEP: missing :EQUIV — the emitter must state \
+                         the step's equivalence; the checker does not infer it"
       let runes ← match lookupKeyword "runes" rest with
         | some r => match r.toList? with
           | some items => items.mapM fun r => match parseRune? r with
