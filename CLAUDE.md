@@ -225,6 +225,11 @@ against it structurally:
 Reviewers add the most value exactly where you cannot self-certify — and on this
 project self-certification has been unreliable, so audit early and adversarially.
 Run the audit *before* claiming a milestone, not after building a mountain on it.
+**Seek sign-off on the audit plan BEFORE triggering any subagent**: present the
+plan (dimensions, agent count, model choice) together with a clean read on the
+relative cost tradeoffs (e.g. N parallel reviewers + verification vs a couple of
+Opus agents vs a single Fable agent), and launch only after approval. Audits are
+token-expensive; the scale is the user's call, not an inferred default.
 The proven pattern (encode it as a `Workflow` script; worked examples live in the
 sibling `libsignal-theory` project):
 
