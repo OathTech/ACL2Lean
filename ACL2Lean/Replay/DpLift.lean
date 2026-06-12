@@ -92,6 +92,14 @@ theorem dpLiftHeads_not_special :
       ((n == "quote") = false) ∧ ((n == "if") = false) ∧
       ((n == "let") = false) ∧ ((n == "let*") = false) := by decide
 
+/-- The world shadows none of the DP-lift primitive heads — DECIDABLE, so
+    the driver discharges it with one kernel `decide` per world. -/
+def dpNoShadow (w : World) : Prop :=
+  ∀ n ∈ dpLiftHeads, w.defs.get? { name := n } = none
+
+instance (w : World) : Decidable (dpNoShadow w) := by
+  unfold dpNoShadow; infer_instance
+
 /-- G3 Fragment A, THE soundness lemma (once-proved; replaces the walker's
     per-node proof chains): a `dpLiftF` value is the term's eventual
     evaluation, given the variable and opaque convergences and that the
@@ -101,7 +109,7 @@ theorem dpLiftF_sound (w : World) (env : Env)
     (hvars : ∀ q ∈ vars,
       ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol q.1)) = some q.2)
     (hopq : ∀ p ∈ opq, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
-    (hns : ∀ n ∈ dpLiftHeads, w.defs.get? { name := n } = none) :
+    (hns : dpNoShadow w) :
     ∀ t v, dpLiftF vars opq t = some v →
       ∃ N, ∀ f ≥ N, evalOpt f w env t = some v := by
   intro t

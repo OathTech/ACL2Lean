@@ -39,6 +39,7 @@
   chaining, goal-type builders) the recursion is built from.
 -/
 import ACL2Lean.Replay.EvalLemmas
+import ACL2Lean.Replay.DpLift
 import ACL2Lean.ProofTree
 import ACL2Lean.ClauseTree
 import Lean
@@ -1470,18 +1471,119 @@ where proveDpFactCore (stmt : Expr) (total : Nat) : MetaM Expr := do
                   (clause fact: {stmt})"
   instantiateMVars mv
 
+/-! ## G3 Fragment A wiring — the consolidated value-layer proof
+
+`DpLiftBundle` carries the REFLECTED `vars`/`opq` lists and the premises of
+`dpLiftF_sound`; `dpLiftProof` then certifies any liftable term's
+value-characterized convergence by ONE lemma instantiation, the
+`dpLiftF … = some v` fact discharged by defeq (D-A5: concrete keys reduce;
+symbolic values are carried opaquely). Replaces `dpValProof`'s per-node
+proof chains in the discharge path. -/
+
+/-- `∃ N, ∀ f ≥ N, evalOpt f w e t = some v`, term and value as `Expr`s
+    (the per-entry premise shape of the bundle). -/
+private def mkValConvPropE (w e tE vE : Expr) : MetaM Expr := do
+  withLocalDeclD `N (mkConst ``Nat) fun nV => do
+    let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+      let ge ← mkAppM ``GE.ge #[fV, nV]
+      let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
+      let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
+      mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
+    mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
+
+/-- The reflected lists + premise proofs feeding `dpLiftF_sound`. -/
+structure DpLiftBundle where
+  varsE : Expr
+  hvars : Expr
+  opqE : Expr
+  hopq : Expr
+  hns : Expr
+
+/-- Fold per-entry proofs into a reflected list + its `∀ x ∈ list, P x`
+    proof (`forall_mem_nil`/`forall_mem_cons` chain). -/
+private def mkForallMemProof (entryTy P : Expr) (entries : List (Expr × Expr)) :
+    MetaM (Expr × Expr) := do
+  match entries with
+  | [] =>
+    let listE ← mkAppOptM ``List.nil #[some entryTy]
+    let prf ← mkAppOptM ``List.forall_mem_nil #[some entryTy, some P]
+    return (listE, prf)
+  | (e, h) :: rest =>
+    let (restE, restP) ← mkForallMemProof entryTy P rest
+    let listE ← mkAppM ``List.cons #[e, restE]
+    let andP ← mkAppM ``And.intro #[h, restP]
+    let consIff ← mkAppOptM ``List.forall_mem_cons
+      #[some entryTy, some P, some e, some restE]
+    return (listE, ← mkAppM ``Iff.mpr #[consIff, andP])
+
+/-- Build the bundle: clause variables ↦ their `dpConcVar` values (premises
+    by `re_val_var`), opaques ↦ their pinned values (premises supplied),
+    no-shadow by one kernel `decide` on the world. -/
+def mkDpLiftBundle (cfg : ReplayConfig) (envExpr : Expr)
+    (vars : List Symbol) (opqMap opqP : List (SExpr × Expr)) :
+    MetaM DpLiftBundle := do
+  let symTy := mkConst ``Symbol
+  let sexprTy := mkConst ``SExpr
+  -- vars: pair + per-entry re_val_var proof
+  let varPairTy ← mkAppM ``Prod #[symTy, sexprTy]
+  let varEntries ← vars.mapM fun sym => do
+    let vE ← dpConcVar envExpr sym
+    let pairE ← mkAppM ``Prod.mk #[reflectSymbol sym, vE]
+    let hNotT ← proveIsNamedFalse sym "t"
+    let h ← mkAppM ``re_val_var #[cfg.worldExpr, envExpr, reflectSymbol sym, hNotT]
+    return (pairE, h)
+  let varP ← withLocalDeclD `q varPairTy fun qV => do
+    let fst ← mkAppM ``Prod.fst #[qV]
+    let snd ← mkAppM ``Prod.snd #[qV]
+    let atomE ← mkAppM ``SExpr.atom #[← mkAppM ``Atom.symbol #[fst]]
+    mkLambdaFVars #[qV] (← mkValConvPropE cfg.worldExpr envExpr atomE snd)
+  let (varsE, hvars) ← mkForallMemProof varPairTy varP varEntries
+  -- opq: pair + the supplied convergence proof (zipped by the opaque term)
+  let opqPairTy ← mkAppM ``Prod #[sexprTy, sexprTy]
+  let opqEntries ← opqMap.mapM fun (op, vE) => do
+    let some (_, h) := opqP.find? (fun (o, _) => o == op)
+      | throwError "mkDpLiftBundle: opaque {repr op} has a value but no proof"
+    let pairE ← mkAppM ``Prod.mk #[reflectSExpr op, vE]
+    return (pairE, h)
+  let opqProp ← withLocalDeclD `p opqPairTy fun pV => do
+    let fst ← mkAppM ``Prod.fst #[pV]
+    let snd ← mkAppM ``Prod.snd #[pV]
+    mkLambdaFVars #[pV] (← mkValConvPropE cfg.worldExpr envExpr fst snd)
+  let (opqE, hopq) ← mkForallMemProof opqPairTy opqProp opqEntries
+  -- no-shadow: one decide on the (concrete) world
+  let hns ← mkDecideProof (mkApp (mkConst ``dpNoShadow) cfg.worldExpr)
+  return { varsE, hvars, opqE, hopq, hns }
+
+/-- Value-characterized convergence of `t` to `vE` by ONE `dpLiftF_sound`
+    instantiation; `vE` must be the walker-computed value (`dpValExpr`), and
+    the `dpLiftF … = some vE` fact must hold by REDUCTION — a mismatch is a
+    hard error naming the term (the consolidated function and the walker
+    disagreeing would be a defect, not a recoverable state). -/
+def dpLiftProof (cfg : ReplayConfig) (envExpr : Expr) (b : DpLiftBundle)
+    (t : SExpr) (vE : Expr) : MetaM Expr := do
+  let someV := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
+  let liftApp := mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE (reflectSExpr t)
+  unless ← isDefEq liftApp someV do
+    throwError "dpLiftProof: dpLiftF does not reduce to the walker's value \
+                for {repr t} (function/walker divergence — a defect)"
+  let hfact ← mkExpectedTypeHint (← mkEqRefl someV) (← mkEq liftApp someV)
+  mkAppM ``dpLiftF_sound
+    #[cfg.worldExpr, envExpr, b.varsE, b.opqE, b.hvars, b.hopq, b.hns,
+      reflectSExpr t, vE, hfact]
+
 mutual
 /-- Fold `evtrue_dp_if_split` over the discharge clause's spine, feeding
     nil-hypotheses to the partially-applied DP fact; result `EvTrue` of the
     spine (G2). The DP FACT itself stays value-level (`concVal = SExpr.t`) —
     only the clause boundary wraps. -/
-partial def dischargeSpine (cfg : ReplayConfig) (opqMap opqP : List (SExpr × Expr))
+partial def dischargeSpine (cfg : ReplayConfig) (b : DpLiftBundle)
+    (opqMap : List (SExpr × Expr))
     (t : SExpr) (fPartial : Expr) : MetaM Expr := do
   match t with
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
     if fs.name == "if" && th == quoteT then
-      let pc ← dpValProof cfg cfg.envExpr opqMap opqP (t := c)
       let vc ← dpValExpr opqMap (dpConcVar cfg.envExpr) c
+      let pc ← dpLiftProof cfg cfg.envExpr b c vc
       -- hthen : vc ≠ nil → EvTrue (quote t)
       let neTy ← mkAppM ``Ne #[vc, mkConst ``SExpr.nil]
       let hthen ← withLocalDeclD `h neTy fun h => do
@@ -1492,21 +1594,22 @@ partial def dischargeSpine (cfg : ReplayConfig) (opqMap opqP : List (SExpr × Ex
       let .forallE _ dom _ _ := fTy
         | throwError "dischargeSpine: DP fact arity mismatch at {repr c}"
       let helse ← withLocalDeclD `h dom fun h => do
-        let p ← dischargeSpine cfg opqMap opqP e (mkApp fPartial h)
+        let p ← dischargeSpine cfg b opqMap e (mkApp fPartial h)
         mkLambdaFVars #[h] p
       mkAppM ``evtrue_dp_if_split
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr th, reflectSExpr e,
           vc, pc, hthen, helse]
-    else dischargeClose cfg opqMap opqP t fPartial
-  | _ => dischargeClose cfg opqMap opqP t fPartial
+    else dischargeClose cfg b opqMap t fPartial
+  | _ => dischargeClose cfg b opqMap t fPartial
 
 /-- Close the spine's last literal: cast its value-characterized convergence by
     the DP fact's conclusion `concVal(t) = SExpr.t`, entering `EvTrue` via the
     exact-t injection. -/
-partial def dischargeClose (cfg : ReplayConfig) (opqMap opqP : List (SExpr × Expr))
+partial def dischargeClose (cfg : ReplayConfig) (b : DpLiftBundle)
+    (opqMap : List (SExpr × Expr))
     (t : SExpr) (fPartial : Expr) : MetaM Expr := do
-  let pt ← dpValProof cfg cfg.envExpr opqMap opqP (t := t)
   let vt ← dpValExpr opqMap (dpConcVar cfg.envExpr) t
+  let pt ← dpLiftProof cfg cfg.envExpr b t vt
   let pExact ← mkAppM ``re_val_cast
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr t, vt, mkConst ``SExpr.t, pt, fPartial]
   mkAppM ``evtrue_of_eq_t #[pExact]
@@ -1811,17 +1914,18 @@ def replayDischargeLeaf (cfg : ReplayConfig) (clauseTerm : SExpr)
             | _, _ =>
               prf ← mkLambdaFVars #[vops[i]!, hconvs[i]!] prf
           return prf
+        let bundle ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
         match fact? with
         | some fact =>
           -- instantiate the fact: concrete var values, opaque value fvars, TP hyps
           let factConc := mkAppN fact (concArgs.toArray ++ vops ++ htps)
-          let prf ← dischargeSpine cfg opqMap opqP clauseTerm factConc
+          let prf ← dischargeSpine cfg bundle opqMap clauseTerm factConc
           let r ← closeOver prf #[]
           return (r, false)
         | none =>
           withLocalDeclD `hfact stmt fun hFact => do
             let factConc := mkAppN hFact (concArgs.toArray ++ vops ++ htps)
-            let prf ← dischargeSpine cfg opqMap opqP clauseTerm factConc
+            let prf ← dischargeSpine cfg bundle opqMap clauseTerm factConc
             let r ← closeOver prf #[hFact]
             return (r, true)
   return (p, if assumed then conds ++ ["ASSUMED:dp-fact"] else conds)
@@ -1868,7 +1972,8 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
   let concArgs ← vars.mapM (dpConcVar cfg.envExpr)
   let factConc := mkAppN fact (concArgs.toArray ++ (opqMap.map (·.2)).toArray
     ++ (tpData.map (·.2)).toArray)
-  dischargeSpine cfg opqMap opqP clauseTerm factConc
+  let bundle ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
+  dischargeSpine cfg bundle opqMap clauseTerm factConc
 
 /-! ## Preprocess-chain replay (a clause discharged at PREPROCESS, formula → 't)
 
