@@ -2,18 +2,27 @@
   G3 Fragment A — the DP value lift as a VERIFIED PURE FUNCTION.
 
   `dpLiftF` computes the lifted `Logic`-primitive value of a clause term over
-  the env's variable values and a pinned-opaque assoc list — the pure twin of
-  the driver's `dpValExpr` meta-walker, with the SAME fixed primitive table
-  and the SAME frontiers (an unknown head returns `none`; the caller
-  hard-fails exactly as the walker did). `dpLiftF_sound` is the once-proved
-  soundness lemma (G3: the walker's per-node `mkAppM` proof chains are
-  replaced by ONE lemma instantiation over a kernel-computable function).
+  explicit VARIABLE and OPAQUE value assoc lists — the pure twin of the
+  driver's `dpValExpr` meta-walker, with the SAME fixed primitive table and
+  the SAME frontiers (an unknown head returns `none`; the caller hard-fails
+  exactly as the walker did). `dpLiftF_sound` is the once-proved soundness
+  lemma (G3: the walker's per-node `mkAppM` proof chains are replaced by ONE
+  lemma instantiation).
 
   D-A4: primitive/special heads are recognized by FULL symbol equality
   against the default-package (`ACL2`) symbols — a non-ACL2-package `if`/
   `car`/… occurrence is a FRONTIER (`none`), not a lift. (The walker
   de-facto rejected those too: its lemma applications only unify at the
   default-package symbols; the whole corpus is ACL2-package.)
+
+  D-A5 (discovered at consumer wiring): variables take their values from an
+  explicit assoc list `vars` — NOT from an `Env` parameter — because the
+  harness's env is a QUANTIFIED FVAR: `env.get?` would be symbolically
+  stuck, while assoc lookup over CONCRETE keys reduces even with symbolic
+  (fvar) VALUES embedded, so the driver discharges the
+  `dpLiftF vars opq t = some v` fact by `Eq.refl`/defeq. The lemma's
+  premise ties each entry to its variable's convergence; a variable absent
+  from `vars` is a frontier (`none`).
 
   Fragment-local per invariant L1 (own function, own lemma, composes at the
   convergence-judgment layer); world-parametric per L3 (the world enters
@@ -34,23 +43,22 @@ def dpLiftHeads : List String :=
 
 /-- The DP value lift (G3 Fragment A): opaque application values from `opq`
     (syntactic `==` lookup, checked FIRST — the walker's order), variable
-    values from `env` (with ACL2's t/nil self-evaluation for unbound symbols,
-    mirroring `evalOpt`'s variable case exactly), `quote` transparent, `if`
-    STRICT in both branches (the walker's value-characterized form:
+    values from `vars` (D-A5), `quote` transparent, `if` STRICT in both
+    branches (the walker's value-characterized form:
     `cond (toBool cv) tv ev`), and the fixed primitive table via
     `callBuiltin` (alignment with the evaluator by construction). An unknown
     shape is `none` — the FRONTIER, not a default: the caller hard-fails on
     it exactly as `dpValExpr` did. -/
-def dpLiftF (env : Env) (opq : List (SExpr × SExpr)) (t : SExpr) :
-    Option SExpr :=
+def dpLiftF (vars : List (Symbol × SExpr)) (opq : List (SExpr × SExpr))
+    (t : SExpr) : Option SExpr :=
   match opq.find? (fun p => p.1 == t) with
   | some p => some p.2
   | none =>
     match t with
     | .atom (.symbol s) =>
-      match env.get? s with
-      | some v => some v
-      | none => if s.isNamed "t" then some SExpr.t else some SExpr.nil
+      match vars.find? (fun q => q.1 == s) with
+      | some q => some q.2
+      | none => none
     | .cons (.atom (.symbol fs)) args =>
       if fs == { name := "quote" } then
         match args with
@@ -59,19 +67,19 @@ def dpLiftF (env : Env) (opq : List (SExpr × SExpr)) (t : SExpr) :
       else if fs == { name := "if" } then
         match args with
         | .cons c (.cons thn (.cons els .nil)) => do
-          let cv ← dpLiftF env opq c
-          let tv ← dpLiftF env opq thn
-          let ev ← dpLiftF env opq els
+          let cv ← dpLiftF vars opq c
+          let tv ← dpLiftF vars opq thn
+          let ev ← dpLiftF vars opq els
           some (cond (Logic.toBool cv) tv ev)
         | _ => none
       else if fs.package == "ACL2" && dpLiftHeads.contains fs.name then
         match args with
         | .cons a .nil => do
-          let av ← dpLiftF env opq a
+          let av ← dpLiftF vars opq a
           callBuiltin fs.name [av]
         | .cons a (.cons b .nil) => do
-          let av ← dpLiftF env opq a
-          let bv ← dpLiftF env opq b
+          let av ← dpLiftF vars opq a
+          let bv ← dpLiftF vars opq b
           callBuiltin fs.name [av, bv]
         | _ => none
       else none
@@ -86,15 +94,18 @@ theorem dpLiftHeads_not_special :
 
 /-- G3 Fragment A, THE soundness lemma (once-proved; replaces the walker's
     per-node proof chains): a `dpLiftF` value is the term's eventual
-    evaluation, given the opaque convergences and that the world shadows no
-    primitive head. World-parametric (L3). -/
-theorem dpLiftF_sound (w : World) (env : Env) (opq : List (SExpr × SExpr))
+    evaluation, given the variable and opaque convergences and that the
+    world shadows no primitive head. World-parametric (L3). -/
+theorem dpLiftF_sound (w : World) (env : Env)
+    (vars : List (Symbol × SExpr)) (opq : List (SExpr × SExpr))
+    (hvars : ∀ q ∈ vars,
+      ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol q.1)) = some q.2)
     (hopq : ∀ p ∈ opq, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
     (hns : ∀ n ∈ dpLiftHeads, w.defs.get? { name := n } = none) :
-    ∀ t v, dpLiftF env opq t = some v →
+    ∀ t v, dpLiftF vars opq t = some v →
       ∃ N, ∀ f ≥ N, evalOpt f w env t = some v := by
   intro t
-  induction t using dpLiftF.induct (env := env) (opq := opq) with
+  induction t using dpLiftF.induct (vars := vars) (opq := opq) with
   | case1 t p hfind =>
     -- opaque hit: the value is the pinned one; convergence from `hopq`
     intro v h
@@ -103,34 +114,22 @@ theorem dpLiftF_sound (w : World) (env : Env) (opq : List (SExpr × SExpr))
     have hmem := List.mem_of_find?_eq_some hfind
     have hpred : p.1 == t := by simpa using List.find?_some hfind
     exact eq_of_beq hpred ▸ hopq p hmem
-  | case2 s v0 hget hfind =>
-    -- bound variable
+  | case2 s q hfindv hfind =>
+    -- variable hit: convergence from `hvars`
     intro v h
     rw [dpLiftF.eq_def, hfind] at h
-    simp only [hget] at h
+    simp only [hfindv] at h
     obtain rfl := Option.some.inj h
-    exact ⟨1, fun f hf => by
-      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-      exact evalOpt_var g w env s _ hget⟩
-  | case3 s hget hT hfind =>
-    -- unbound, self-evaluating `t`
+    have hmem := List.mem_of_find?_eq_some hfindv
+    have hpred : q.1 == s := by simpa using List.find?_some hfindv
+    exact eq_of_beq hpred ▸ hvars q hmem
+  | case3 s hfindv hfind =>
+    -- variable miss: frontier
     intro v h
     rw [dpLiftF.eq_def, hfind] at h
-    simp only [hget, hT, if_true] at h
-    obtain rfl := Option.some.inj h
-    refine ⟨1, fun f hf => ?_⟩
-    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-    simp [evalOpt, evalOptStep, hget, hT]
-  | case4 s hget hnT hfind =>
-    -- unbound, nil-evaluating
-    intro v h
-    rw [dpLiftF.eq_def, hfind] at h
-    simp only [hget, hnT] at h
-    obtain rfl := Option.some.inj h
-    exact ⟨1, fun f hf => by
-      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-      exact evalOpt_var_unbound g w env s hget (by simpa using hnT)⟩
-  | case5 fs hq v0 hfind =>
+    simp only [hfindv] at h
+    cases h
+  | case4 fs hq v0 hfind =>
     -- well-formed quote
     obtain rfl : fs = { name := "quote" } := eq_of_beq hq
     intro v h
@@ -140,13 +139,13 @@ theorem dpLiftF_sound (w : World) (env : Env) (opq : List (SExpr × SExpr))
     exact ⟨1, fun f hf => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
       exact evalOpt_quote g w env _⟩
-  | case6 fs args hq hmal hfind =>
+  | case5 fs args hq hmal hfind =>
     -- malformed quote: the lift is `none` (frontier)
     intro v h
     rw [dpLiftF.eq_def, hfind] at h
     simp only [hq, if_true] at h
     cases h
-  | case7 fs hnq hif c thn els hfind ih3 ih2 ih1 =>
+  | case6 fs hnq hif c thn els hfind ih3 ih2 ih1 =>
     -- well-formed if: strict both-branch lift, `re_val_if`
     obtain rfl : fs = { name := "if" } := eq_of_beq hif
     intro v h
@@ -157,13 +156,13 @@ theorem dpLiftF_sound (w : World) (env : Env) (opq : List (SExpr × SExpr))
     obtain ⟨ev, hev, h⟩ := Option.bind_eq_some_iff.mp h
     obtain rfl := Option.some.inj h
     exact re_val_if w env c thn els cv tv ev (ih3 _ hcv) (ih2 _ htv) (ih1 _ hev)
-  | case8 fs args hnq hif hmal hfind =>
+  | case7 fs args hnq hif hmal hfind =>
     -- malformed if
     intro v h
     rw [dpLiftF.eq_def, hfind] at h
     simp only [hnq, hif, if_true] at h
     split at h <;> first | cases h | simp_all
-  | case9 fs hnq hnif hprim a hfind ih1 =>
+  | case8 fs hnq hnif hprim a hfind ih1 =>
     -- unary primitive via callBuiltin
     have hsplit := hprim
     simp only [Bool.and_eq_true] at hsplit
@@ -181,7 +180,7 @@ theorem dpLiftF_sound (w : World) (env : Env) (opq : List (SExpr × SExpr))
       ⟨by simpa [Symbol.isNamed] using h1, by simpa [Symbol.isNamed] using h2,
        by simpa [Symbol.isNamed] using h3, by simpa [Symbol.isNamed] using h4⟩
       (hns name hmem) (ih1 _ hav) hcb
-  | case10 fs hnq hnif hprim a b hfind ih2 ih1 =>
+  | case9 fs hnq hnif hprim a b hfind ih2 ih1 =>
     -- binary primitive via callBuiltin
     have hsplit := hprim
     simp only [Bool.and_eq_true] at hsplit
@@ -200,19 +199,19 @@ theorem dpLiftF_sound (w : World) (env : Env) (opq : List (SExpr × SExpr))
       ⟨by simpa [Symbol.isNamed] using h1, by simpa [Symbol.isNamed] using h2,
        by simpa [Symbol.isNamed] using h3, by simpa [Symbol.isNamed] using h4⟩
       (hns name hmem) (ih2 _ hav) (ih1 _ hbv) hcb
-  | case11 fs args hnq hnif hprim hmal1 hmal2 hfind =>
+  | case10 fs args hnq hnif hprim hmal1 hmal2 hfind =>
     -- primitive with malformed arity
     intro v h
     rw [dpLiftF.eq_def, hfind] at h
     simp only [hnq, hnif, hprim, if_true] at h
     split at h <;> cases h
-  | case12 fs args hnq hnif hnprim hfind =>
+  | case11 fs args hnq hnif hnprim hfind =>
     -- unknown head: frontier
     intro v h
     rw [dpLiftF.eq_def, hfind] at h
     simp only [hnq, hnif, hnprim] at h
     cases h
-  | case13 t hfind hnatom hncons =>
+  | case12 t hfind hnatom hncons =>
     -- non-symbol shapes: frontier
     intro v h
     rw [dpLiftF.eq_def, hfind] at h
