@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 17/37; DP-discharge leaves ✓9 ◌9 ✗0 of 18:
+Driver coverage — REPLAYED 17/45; DP-discharge leaves ✓9 ◌9 ✗0 of 18:
 • simple  (world: 3 defun(s), 1 theorem(s))
     my-len-my-app → REPLAYED ✓ cond[tp:my-len]
 • 00-direct  (world: 2 defun(s), 3 theorem(s))
@@ -54,3 +54,12 @@ Driver coverage — REPLAYED 17/37; DP-discharge leaves ✓9 ◌9 ✗0 of 18:
     nested-induction → FAIL: replayClause: clausify produced 2 clauses at Goal (multi-clause frontier)
 • 16-three-way  (world: 2 defun(s), 1 theorem(s))
     len-zip3 → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip3 (cdr x) (cdr y) (cdr z)), tp:zip3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+• sorting/perm  (world: 4 defun(s), 8 theorem(s))
+    perm-cons → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
+    perm-symmetric → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
+    memb-rm → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
+    perm-memb → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
+    comm-rm → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
+    perm-rm → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
+    perm-transitive → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
+    perm-is-an-equivalence → FAIL: applyStep: unsupported arity/argIdx 3/1

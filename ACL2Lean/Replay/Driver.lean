@@ -917,8 +917,18 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     -- (post-rewrite) literal named by `equivSource`, whose falsity in the spine
     -- branch IS the equation. Value-level: the literal `(not (equal A B))` being
     -- nil gives `vA = vB`; the node's sides converge to those values.
-    let some idx := prov.equivSource
+    let some src := prov.equivSource
       | throwError "solidify: node has no equivSource (unlinked rewriting-equivalence)"
+    let idx ← match src with
+      | .literal idx => pure idx
+      | .branchTest =>
+        throwError "solidify: equivalence is an enclosing unresolved-if's test \
+                    (assume-true-false branch context) — conditional-congruence \
+                    frontier (R1, docs/plans/2026-06-12_sorting-corpus-roadmap.md)"
+      | .segment =>
+        throwError "solidify: equivalence is an enclosing clausify-branch \
+                    segment hypothesis (:CONTEXT-SUBST) — branch-segment-fact \
+                    frontier (R1, docs/plans/2026-06-12_sorting-corpus-roadmap.md)"
     let some (litTerm, hNil) := ctx.litFact? idx
       | throwError "solidify: no spine fact for literal {idx} (clause context missing)"
     let .cons (.atom (.symbol notS))

@@ -114,7 +114,14 @@ def corpus : List (String × String) :=
    ("13-multi-measured-var",   include_str "../acl2_samples/recon-tests/13-multi-measured-var.proof-log"),
    ("14-accumulator",          include_str "../acl2_samples/recon-tests/14-accumulator.proof-log"),
    ("15-nested-induction",     include_str "../acl2_samples/recon-tests/15-nested-induction.proof-log"),
-   ("16-three-way",            include_str "../acl2_samples/recon-tests/16-three-way.proof-log")]
+   ("16-three-way",            include_str "../acl2_samples/recon-tests/16-three-way.proof-log"),
+   -- The DRIVING CORPUS (sorting roadmap R0a): leaf books with theorems only.
+   -- orderedp/how-many are defun-only (0 theorems) — the integrity net cannot
+   -- distinguish a theorem-less book from a TRUNCATED capture, so they stay
+   -- out until R2 consumes their defuns via include-book composition. The
+   -- include-book books are gated by R2 (their logs do not parse yet:
+   -- included defuns carry no admission data, a named parse frontier).
+   ("sorting/perm",            include_str "../acl2_samples/sorting/perm.proof-log")]
 
 /-- Run the driver on one theorem over its derived world; return a one-line status. The
     world is PROJECTED from the development and REFLECTED concretely (P4); structural facts

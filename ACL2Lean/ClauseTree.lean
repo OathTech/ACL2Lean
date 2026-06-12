@@ -225,9 +225,11 @@ private def hypEquiv (lp : LiteralProof) : Option SExpr :=
 
 /-- Set `equivSource` on every `rewriting-equivalence` node in this proof-node
     tree by matching its `equivTerm` against the candidate hypotheses
-    `(literalIndex, equiv)`. Hard-fails on a solidify with no matching
-    hypothesis (and no `'pt` parents) — the detectable frontier. -/
-private partial def linkNode (cands : List (Nat × SExpr)) (n : ProofNode)
+    `(source, equiv)` — clause literals first, then enclosing clausify-branch
+    segments (list order is match priority). Hard-fails on a solidify with no
+    matching hypothesis, no if-branch `:PATH` frame, and no `'pt` parents —
+    the detectable frontier. -/
+private partial def linkNode (cands : List (EquivSource × SExpr)) (n : ProofNode)
     : Except String ProofNode := do
   match n with
   | .node rune lhs rhs children prov =>
@@ -236,40 +238,69 @@ private partial def linkNode (cands : List (Nat × SExpr)) (n : ProofNode)
       match prov.equivTerm with
       | some e =>
         match cands.find? (fun (_, c) => equivMatch e c) with
-        | some (idx, _) =>
-          return .node rune lhs rhs children { prov with equivSource := some idx }
+        | some (src, _) =>
+          return .node rune lhs rhs children { prov with equivSource := some src }
         | none =>
-          throw s!"ClauseTree: rewriting-equivalence node {repr e} matches no clause \
-                   hypothesis (assume-true-false-decomposed source? needs the producer \
-                   source-tag at simplify.lisp:5012)"
+          -- No clause-literal/segment hypothesis matches. If the node's :PATH
+          -- descends through an UNRESOLVED if's then/else ARGUMENT (frame
+          -- `(2 . IF)` / `(3 . IF)`), the equivalence is that if's test,
+          -- assumed by assume-true-false in the branch — tag it; the replay
+          -- validates the test term during its path walk (conditional
+          -- congruence, R1) or fails closed there.
+          if prov.path.any (fun f => match f with
+              | .arg i s => (i == 2 || i == 3) && s.name.toLower == "if"
+              | .boundary _ _ => false) then
+            return .node rune lhs rhs children
+              { prov with equivSource := some .branchTest }
+          else
+            throw s!"ClauseTree: rewriting-equivalence node {repr e} matches no \
+                     clause/segment hypothesis and its :PATH has no if-branch \
+                     frame — unknown equivalence source (frontier)"
       | none => return .node rune lhs rhs children prov
     else
       return .node rune lhs rhs children prov
 
-/-- Collect the hypotheses (literal index, available equivalence) from every
+/-- Collect the hypotheses (source, available equivalence) from every
     `literal` item in a clause's branch tree — the IH is a clause-level
     hypothesis, available in all branches. -/
-private partial def collectHypEquivs : List ClauseItem → List (Nat × SExpr)
+private partial def collectHypEquivs : List ClauseItem → List (EquivSource × SExpr)
   | [] => []
   | .literal lp :: rest =>
-      (match hypEquiv lp with | some e => [(lp.index, e)] | none => []) ++ collectHypEquivs rest
+      (match hypEquiv lp with | some e => [(.literal lp.index, e)] | none => [])
+        ++ collectHypEquivs rest
   | .step _ :: rest => collectHypEquivs rest
   | .clausify _ :: rest => collectHypEquivs rest
   | .branch _ items :: rest => collectHypEquivs items ++ collectHypEquivs rest
 
+/-- The hypotheses a clausify-branch SEGMENT contributes inside its branch:
+    each segment literal `(not (equiv a b))` makes `(equiv a b)` assumable
+    (this is what ACL2's `:CONTEXT-SUBST` substitutes with — perm/PERM-CONS). -/
+private def segmentHypEquivs (seg : SExpr) : List (EquivSource × SExpr) :=
+  match seg.toList? with
+  | some lits => lits.filterMap fun l =>
+      match peelNot l with
+      | some e => match asBinApp e with
+        | some _ => some (.segment, e)
+        | none => none
+      | none => none
+  | none => []
+
 /-- Link each `literal`'s solidify nodes to a sibling literal's hypothesis (a
     literal cannot justify rewriting itself — matching ACL2's parent-tree
-    loop-avoidance), recursing through branches. -/
-private partial def linkItems (cands : List (Nat × SExpr))
+    loop-avoidance), recursing through branches; inside a branch, the branch
+    SEGMENT's hypotheses are additionally in scope (appended AFTER the clause
+    literals — literal matches keep priority). -/
+private partial def linkItems (cands : List (EquivSource × SExpr))
     : List ClauseItem → Except String (List ClauseItem)
   | [] => return []
   | .literal lp :: rest => do
-      let nodes ← lp.nodes.mapM (linkNode (cands.filter (·.1 != lp.index)))
+      let nodes ← lp.nodes.mapM (linkNode (cands.filter (·.1 != .literal lp.index)))
       return .literal { lp with nodes } :: (← linkItems cands rest)
   | .step n :: rest => do return .step n :: (← linkItems cands rest)
   | .clausify info :: rest => do return .clausify info :: (← linkItems cands rest)
   | .branch seg items :: rest => do
-      return .branch seg (← linkItems cands items) :: (← linkItems cands rest)
+      return .branch seg (← linkItems (cands ++ segmentHypEquivs seg) items)
+        :: (← linkItems cands rest)
 
 /-- Link the solidify nodes in a clause's branch tree to their hypotheses. -/
 private def linkEquivSources (items : List ClauseItem) : Except String (List ClauseItem) := do
@@ -514,7 +545,8 @@ private def allProofNodes (cp : ClauseProof) : List ProofNode :=
   | some r => (clauseNodes r).flatMap fun n => n.steps.flatMap fun s => itemNodes s.items
 
 private def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
-private def equivSrcOf : ProofNode → Option Nat | .node _ _ _ _ p => p.equivSource
+private def equivSrcOf : ProofNode → Option EquivSource
+  | .node _ _ _ _ p => p.equivSource
 private def pathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 
 -- The theorem and its root clause.
@@ -552,7 +584,7 @@ private def pathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 -- The induction hypothesis link (R-A): a solidify node is justified by
 -- hypothesis literal 2 in the step case.
 #guard (simpleProof.map fun p =>
-  (allProofNodes p).any (equivSrcOf · == some 2)) == some true
+  (allProofNodes p).any (equivSrcOf · == some (.literal 2))) == some true
 
 -- The congruence path (:PATH) is threaded onto rewrite nodes (e.g. def:my-app at
 -- equal arg1 → my-len arg1). Confirms the ACL2 → ProofLog → ProofTree path plumbing.

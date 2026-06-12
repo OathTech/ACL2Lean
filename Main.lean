@@ -42,8 +42,14 @@ private partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat)
         IO.println s!"{pad}  subst: {String.intercalate ", " substStrs}"
       if let some eq := prov.equivTerm then
         IO.println s!"{pad}  equiv: {eq}"
-      if let some idx := prov.equivSource then
-        IO.println s!"{pad}  ⮑ justified by hypothesis literal {idx} (the induction hypothesis)"
+      if let some src := prov.equivSource then
+        match src with
+        | .literal idx =>
+          IO.println s!"{pad}  ⮑ justified by hypothesis literal {idx} (the induction hypothesis)"
+        | .branchTest =>
+          IO.println s!"{pad}  ⮑ justified by the enclosing unresolved-if's test (assume-true-false branch)"
+        | .segment =>
+          IO.println s!"{pad}  ⮑ justified by the enclosing clausify-branch segment hypothesis (:CONTEXT-SUBST)"
       if !children.isEmpty then
         printProofNodes children (indent + 1)
 
@@ -195,7 +201,9 @@ def main (args : List String) : IO Unit := do
       | .error e => IO.eprintln s!"Load error: {e}"
       | .ok evs =>
           let bookName := ACL2.WorldGen.bookNameFromPath path
-          IO.println (ACL2.WorldGen.generateWorld bookName evs)
+          match ACL2.WorldGen.generateWorld bookName evs with
+          | .error e => throw (IO.userError e)
+          | .ok src => IO.println src
   | ["metadata", path] => do
       let events ← ACL2.loadEventsFromFile path
       match events with

@@ -16,6 +16,28 @@ namespace ACL2
 
 /-! ## Proof tree types -/
 
+/-- Where a `rewriting-equivalence` (solidify) node's equivalence hypothesis
+    lives. Both kinds reach ACL2's rewriter through the same type-alist, so
+    the LOG does not discriminate them — the clause-tree builder does, by
+    deterministic matching (literal results first, then the node's `:PATH`
+    if-branch frames). -/
+inductive EquivSource where
+  /-- A clause hypothesis: literal `idx`'s (post-rewrite) result is
+      `(not (equiv a b))`, so the spine branch assumes `(equiv a b)` —
+      the induction hypothesis, in an induction step case. -/
+  | literal (idx : Nat)
+  /-- An ENCLOSING UNRESOLVED-IF's test, assumed true/false in the branch the
+      node's `:PATH` descends through (ACL2's assume-true-false). Replay needs
+      conditional congruence through if-branch positions — R1 of the
+      sorting-corpus roadmap. -/
+  | branchTest
+  /-- An enclosing CLAUSIFY-BRANCH's segment literal `(not (equiv a b))` —
+      the hypothesis ACL2's `:CONTEXT-SUBST` substitutes with inside that
+      branch (clause-lst branch context). Replay needs branch-segment facts
+      in scope — R1 of the sorting-corpus roadmap. -/
+  | segment
+  deriving Repr, Inhabited, BEq
+
 /-- Provenance for a proof node: what justified this reasoning step. -/
 structure StepProvenance where
   origin : String := ""
@@ -31,13 +53,13 @@ structure StepProvenance where
   parents : List SExpr := []
   subst : List (SExpr × SExpr) := []
   equivTerm : Option SExpr := none
-  /-- For a `rewriting-equivalence` (solidify) node: the index of the clause
-      hypothesis literal whose (post-rewrite) equality justifies this step — the
-      induction hypothesis, in an induction step case. Set by the clause-tree
+  /-- For a `rewriting-equivalence` (solidify) node: the source of the
+      equivalence hypothesis (see `EquivSource`). Set by the clause-tree
       builder by matching `equivTerm` to a sibling literal's result (up to the
-      equivalence relation's symmetry). `none` when not a solidify node, or when
-      the source is a forward-chained/linear fact already named in `parents`. -/
-  equivSource : Option Nat := none
+      equivalence relation's symmetry), falling back to the `:PATH`'s
+      if-branch frames. `none` when not a solidify node, or when the source is
+      a forward-chained/linear fact already named in `parents`. -/
+  equivSource : Option EquivSource := none
   /-- Type-set of the argument (for recognizer steps, from ACL2's type-set engine). -/
   typeSet : Option Int := none
   /-- True type-set of the recognizer (bits where it returns T). -/

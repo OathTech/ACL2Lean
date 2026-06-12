@@ -40,9 +40,42 @@ private def renderFormals (formals : List Symbol) : String :=
 private def leanName (name : Symbol) : String :=
   Translator.sanitizeName (Translator.translateSymbol name)
 
-/-- Generate the complete Lean source for a World + theorem statements. -/
-def generateWorld (bookName : String) (events : List Event) : String := Id.run do
-  let flat := Event.flattenList events
+/-- Reject events the world generator cannot translate FAITHFULLY — fail
+    closed (never silently skip; CLAUDE.md). Checked on the UNFLATTENED list:
+    `Event.flattenList` unwraps `encapsulate` transparently, which is wrong
+    for world semantics (constrained functions are an abstract interface, not
+    global defuns), so the check must run first. `local`/`mutual-recursion`
+    recurse; `in-package`/`in-theory` are explicitly world-irrelevant (they
+    change no function definition and no theorem statement). -/
+private partial def checkTranslatable (ev : Event) : Except String Unit :=
+  match ev with
+  | .inPackage _ | .defun .. | .defthm .. | .inTheory _ => .ok ()
+  | .local inner => checkTranslatable inner
+  | .mutualRecursion evs => evs.forM checkTranslatable
+  | .includeBook path _ =>
+      .error s!"gen-world: include-book \"{path}\" is not supported yet — the \
+                included book's world does not exist here, so the generated \
+                world/statements would be silently WRONG (R2 of \
+                docs/plans/2026-06-12_sorting-corpus-roadmap.md)"
+  | .encapsulate _ =>
+      .error "gen-world: encapsulate is not supported yet — constrained \
+              functions are an abstract interface, not global defuns (R6 of \
+              the sorting-corpus roadmap)"
+  | .defmacro name .. => .error s!"gen-world: defmacro {name.name} is not supported"
+  | .defconst name _ => .error s!"gen-world: defconst {name.name} is not supported"
+  | .defrec name _ => .error s!"gen-world: defrec {name.name} is not supported"
+  | .defstobj name _ => .error s!"gen-world: defstobj {name.name} is not supported"
+  | .table name _ => .error s!"gen-world: table event {name.name} is not supported"
+  | .makeEvent body =>
+      .error s!"gen-world: unexpanded make-event is not supported: \
+                {(body.headSymbol?.map (·.name)).getD "?"}"
+  | .skip raw =>
+      .error s!"gen-world: unrecognized/skipped top-level form (never silently \
+                drop): {(raw.headSymbol?.map (·.name)).getD "?"}"
+
+/-- Render the Lean source for a World + theorem statements from the
+    flattened, pre-validated event list. -/
+private def renderWorld (bookName : String) (flat : List Event) : String := Id.run do
   let mut defuns : Array (Symbol × List Symbol × SExpr) := #[]
   let mut defthms : Array (Symbol × SExpr) := #[]
 
@@ -109,6 +142,12 @@ def generateWorld (bookName : String) (events : List Event) : String := Id.run d
   lines := lines.push ""
 
   return "\n".intercalate lines.toList
+
+/-- Generate the complete Lean source for a World + theorem statements.
+    Fails closed on any event it cannot translate faithfully. -/
+def generateWorld (bookName : String) (events : List Event) : Except String String := do
+  events.forM checkTranslatable
+  return renderWorld bookName (Event.flattenList events)
 
 end WorldGen
 

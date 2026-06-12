@@ -67,8 +67,17 @@ for INPUT in "$@"; do
   # buildDevelopment, which hard-fails on any :DEFTHM block lacking its :QED. The
   # proper positive signal (an explicit emit/proof-failed event) is a tracked
   # infra-revision item; see TODO.md.
-  want_defthm=$(grep -ciE '\(defthmd?\b' "$INPUT_ABS" || true)
-  got_defthm=$(grep -c '(:DEFTHM' "$OUTPUT" || true)
+  # Count only UNCOMMENTED defthms in the source (a leading `;` comments the
+  # form out — isort's perm-isort taught us this), and only :SOURCE :LOCAL
+  # theorem events in the log: theorems arriving via include-book are
+  # announced as `(:DEFTHM … :SOURCE :INCLUDE-BOOK)` with NO proof and NO
+  # :QED (include skips proofs), so counting them against :QED is a false
+  # alarm. Events line-wrap arbitrarily (`:SOURCE` and `:LOCAL` can land on
+  # different lines), so normalize whitespace before counting. Note the log
+  # count can legitimately EXCEED the source count (defequiv/defcong generate
+  # theorems, e.g. PERM-IS-AN-EQUIVALENCE); only a SHORTFALL warns.
+  want_defthm=$(grep -cE '^[^;]*\(defthmd?\b' "$INPUT_ABS" || true)
+  got_defthm=$(tr -s ' \n' '  ' < "$OUTPUT" | grep -o ':SOURCE :LOCAL' | wc -l | tr -d ' ')
   got_qed=$(grep -c '(:QED' "$OUTPUT" || true)
   if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED\|proof attempt has failed" "$OUTPUT"; then
     echo "WARNING: $(basename "$INPUT") — ACL2 reported a FAILED/aborted event; log is INCOMPLETE." >&2
