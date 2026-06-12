@@ -167,18 +167,23 @@ LIBRARY.
       permutation, sum/custom measures (interleave/cd2 frontiers),
       non-trivial admission waterfall replay (the termination field).
 
-- [ ] **Performance pass (general) — PRIORITY BUMPED (MDD, 2026-06-11): do
-      in a near-future session, ahead of the remaining G-steps, to raise
-      iteration velocity.** New data from the G2 migration session: the
-      driver-coverage sweep costs ~5 min per `just ci` (37 replays + 18
-      leaf discharges + per-file totality envs, all MetaM elaboration), and
-      any change to EvalLemmas recompiles the whole dependent chain
-      (Driver → NativeMirrors re-elaborating all ten mirrors → DriverTests
-      replaying trees) — so a base-layer edit-test cycle is ~10 min.
-      Candidate additions to the list below: an incremental/per-file
-      coverage mode (sweep only developments whose inputs changed); cache
-      the reflected-world + totality-env construction across harness runs.
-      Optimization model: LIBRARY build time
+- [x] **Performance pass, STAGE 1 — DONE (2026-06-11, branch mdd/perf-pass,
+      commits 8628466+3e9dc1b): sweep 1361 s → ~82 s (16.5×), golden gate
+      byte-identical.** Profile-driven (the full campaign:
+      `docs/notes/2026-06-11_perf-profile.md`): 99% of the sweep was the
+      DP-leaf machinery — P5 (proveDpFact's failing DIRECT simp_all attempt,
+      ~40–860 s each → SPLIT-FIRST, direct only past the split bound) and
+      P6 (the caller's telescope hypotheses riding into every split leaf's
+      simp_all → prove the closed fact statement in a PRISTINE context;
+      worst leaf 23.2 s → 0.99 s). The old candidate list (caching reflected
+      worlds/totality envs, world constants vs literals) measured as NOISE
+      and is retired. Remaining residuals (stage-2, recorded in the note):
+      08-equality's direct-success regression (3→18 s; bounded-direct-first
+      hybrid, blocked on P1 — heartbeat caps bind only loosely); 16/12's
+      ~17 s leaves (not proveDpFact; suspects: totWalk walking zip bodies,
+      hasFVar fail-safe); per-attempt cap tuning (P1).
+- [ ] **Performance, residuals (stage 2 / opportunistic).** See the note's
+      as-built section. Optimization model unchanged: LIBRARY build time
       (EvalLemmas, Lifting, the lemma stack) matters little — it is built
       once and cached. What must be MINIMIZED is the pipeline latency for a
       FRESH OR UPDATED ACL2 proof: capture → parse → reconstruct → replay →

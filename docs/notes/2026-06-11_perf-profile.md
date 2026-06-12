@@ -147,9 +147,35 @@ Projected effect: per-leaf 5–67 s → ~2 s; linear-chain's composed attempt
 860 s → seconds (the split loop aborts at the first unclosable leaf);
 sweep ~22 min → ~2 min; the substantive edit→gate cycle collapses with it.
 
-Deferred/secondary: P1 (heartbeat caps bind only loosely — 200k user-units
-≈ tens of seconds; re-tune AFTER the reorder against the golden gate);
-the known-failing leaf still pays twice (composed + standalone) but at
-seconds, acceptable; G3 consolidations confirmed NOT the bottleneck
-(successful replay is 128 ms end-to-end for app-assoc) — G3 proceeds on its
-own merits as stage 2, not as a perf fix.
+## As built (2026-06-11, commits 8628466 + 3e9dc1b)
+
+Split-first ALONE was insufficient (a gated sweep still ran 20+ min): the
+heavy leaves' cost was NOT the tactic but **P6 — the ambient context**.
+`proveDpFact` runs inside the caller's vop/hconv/htp telescopes, and
+`simp_all` on EVERY split leaf re-churned those hypotheses (types carrying
+the reflected world): 23 s vs 1.7 s for the SAME closed statement
+(literal-vs-constant world measured as noise, ~8% — that TODO candidate is
+refuted). Fix: prove the (always-closed) fact statement under
+`Meta.withLCtx {} #[]`; a `stmt.hasFVar` branch is a defensive fail-safe.
+
+**Final: sweep elaboration 1361 s → ~82 s (16.5×), wall 119 s including the
+Driver rebuild; golden gate BYTE-IDENTICAL outcomes.** Worst leaf
+23.2 s → 0.99 s. New per-file distribution: 16-three-way 21.3 s,
+12-multi-controller 20.3 s, 08-equality 18.1 s, 03-linear 14.4 s, 02-rev
+3.4 s, 11-custom-measure 2.8 s, everything else ≤ 0.7 s.
+
+Residuals / follow-ups (stage-2 material, diminishing returns for now):
+- **08-equality REGRESSED 3.1 → 18.1 s (the known trade):** its four
+  proveDpFact calls were fast DIRECT successes; equal-trans's total=3 fact
+  now enumerates 512 splits ≈ 15 s (×2: composed + standalone). Candidate:
+  a bounded-direct-first hybrid — blocked on P1 (making per-attempt
+  heartbeat caps actually BIND; today 200k user-units ≈ tens of seconds).
+- **16/12's ~17 s leaves did not get the P6 win** — their cost is
+  apparently NOT proveDpFact (under investigation: suspects are the
+  totWalk derivation attempts walking zip2/zip3 bodies before failing, or
+  a stmt that trips the hasFVar fail-safe).
+- The known-failing linear-chain leaf still pays twice (composed +
+  standalone) at ~seconds each — acceptable.
+- G3 consolidations confirmed NOT the bottleneck (successful replay is
+  128 ms end-to-end for app-assoc) — G3 proceeds on its own merits as
+  stage 2, not as a perf fix.
