@@ -33,7 +33,13 @@ def disjoinTerm : List SExpr → SExpr
     .cons (.atom (.symbol { name := "if" }))
       (.cons l (.cons quoteT (.cons (disjoinTerm rest) .nil)))
 
-/-- ACL2's `dumb-negate-lit` (the pure fragment: strip a `not`, else wrap). -/
+/-- ACL2's `dumb-negate-lit`, two of its four arms (strip a `not`, else
+    wrap). The other two arms (quote-fold `'nil`↔`'t`, `(equal x 'nil)` →
+    `x`) are pure too but not mirrored; a log taking them diverges from this
+    recomputation and hard-fails at `bridgeClausify`'s record validation.
+    ACL2 strips `(not x)` by exact symbol while we strip by NAME (any
+    package); the bridge lemma handles the wrong-package case vacuously and
+    the record check catches any behavioral divergence. -/
 def dumbNegateLit (t : SExpr) : SExpr :=
   match t with
   | .cons (.atom (.symbol ns)) (.cons _ .nil) =>
@@ -44,9 +50,12 @@ def dumbNegateLit (t : SExpr) : SExpr :=
     else .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
   | _ => .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
 
-/-- The PURE fragment of `clausify-input1` (no `expand-and-or`): `pos` is
-    ACL2's `bool`. Recomputed for the walk and VALIDATED against the recorded
-    checkpoints — divergence (an expansion fired) hard-fails upstream. -/
+/-- The PURE fragment of `clausify-input1` (no `expand-and-or`; sub-clauses
+    joined by plain `++` where ACL2's `disjoin-clauses`/`add-literal` may
+    also dedupe or detect complementary pairs): `pos` is ACL2's `bool`.
+    Recomputed for the walk and VALIDATED against the recorded checkpoints —
+    any divergence (an expansion fired, a literal merged, an unmirrored
+    `dumb-negate-lit` arm) hard-fails upstream. -/
 def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
   if t == (if pos then quoteNil else quoteT) then []
   else match t with

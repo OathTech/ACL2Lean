@@ -11,9 +11,12 @@
 
   D-A4: primitive/special heads are recognized by FULL symbol equality
   against the default-package (`ACL2`) symbols — a non-ACL2-package `if`/
-  `car`/… occurrence is a FRONTIER (`none`), not a lift. (The walker
-  de-facto rejected those too: its lemma applications only unify at the
-  default-package symbols; the whole corpus is ACL2-package.)
+  `car`/… occurrence is a FRONTIER (`none`), not a lift. (For `if` the old
+  walker behaved the same — `re_val_if` only unifies at the default-package
+  symbol — but for primitives it dispatched by NAME (`conv_builtin1/2` take
+  an arbitrary symbol), so this is a deliberate frontier NARROWING:
+  fail-closed, and the whole corpus is ACL2-package so the golden table is
+  unaffected.)
 
   D-A5 (discovered at consumer wiring): variables take their values from an
   explicit assoc list `vars` — NOT from an `Env` parameter — because the

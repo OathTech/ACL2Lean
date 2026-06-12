@@ -234,10 +234,50 @@ byte-identical at every step (REPLAYED 17/37; DP-discharge leaves
   convergence fact — it is not a lift-fact consumer. Discharge spine +
   close were the real consumers; both migrated.
 - `ClausifyGoal` carries the neg case as raw nil-convergence (not
-  `EvTrue (not t)`) — strictly what `dischargeSpine` consumes.
+  `EvTrue (not t)`). The neg case exists to make the mutual
+  `clausifyPure` induction go through — the only driver instantiation
+  is `bridgeClausify` at `pos = true` (the `EvTrue` case).
 
 ### Evidence
 
 - Gate: `just ci` green, golden byte-identical, zero warnings.
 - Axioms: `dpLiftF_sound`, `clausifyPure_lifts`, `clausifyPure_sound`
   all `[propext, Classical.choice, Quot.sound]`.
+
+### Audit disposition (2026-06-12)
+
+Single Fable agent, read-only, full surface (statement fidelity /
+totalization fidelity vs the ACL2 sources / validation+frontier parity /
+invariants+carve-out), per the audit-plan sign-off rule (MDD approved the
+single-agent shape). **Zero critical, zero major.** Four minors, all
+documentation accuracy, all fixed in the follow-up commit:
+
+- A1 (minor): the D-A4 header claimed the old walker also rejected
+  wrong-package PRIMITIVE heads — false (`conv_builtin1/2` dispatch by
+  name); the new behavior is a deliberate fail-closed frontier
+  narrowing. Comment corrected (`DpLift.lean`).
+- A2 (minor): `dumbNegateLit` docstring overstated "the pure fragment"
+  — ACL2's quote-fold and equal-nil arms are pure too, just unmirrored
+  (divergence hard-fails at record validation). Docstring corrected.
+- A3 (minor): `clausifyPure` joins sub-clauses with `++` where ACL2's
+  `disjoin-clauses`/`add-literal` may dedupe or detect complements — a
+  second divergence class beyond `expand-and-or`, previously
+  undocumented and mislabeled "(expansion divergence?)" in two error
+  texts. Docstring + both error messages corrected.
+- A4 (minor): the as-built record mis-attributed `ClausifyGoal`'s neg
+  case to `dischargeSpine` (it serves the induction only). Corrected
+  above.
+
+Affirmative verifications (auditor, anchored): validation parity — all
+eight pre-existing `bridgeClausify` checks retained verbatim plus three
+new gates; walker errors impossible-by-construction; `ClausifyGoal w env
+t true` literally defeq `EvTrue w env t`; the D-B4 name/symbol matrix
+closed (no non-vacuous mismatched lemma case); both `isDefEq` gates
+fail-closed with the `mkEqRefl`+`mkExpectedTypeHint` kernel backstop;
+all new `decide`/`mkDecideProof` uses are encoding side conditions
+(carve-out intact); L1/L3 clean (grep: no concrete-world constants).
+Noted parity deltas (accepted, fail-closed or sound-vacuous): the
+wrong-package-primitive frontier narrowing (A1) and the empty-clause
+input now discharged vacuously by `not_evtrue_disjoin_nil` instead of
+the old `peelClause` hard error (degenerate input no corpus log
+produces).

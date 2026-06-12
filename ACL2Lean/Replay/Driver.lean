@@ -2220,7 +2220,9 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
   let negRecomputed := clausifyPure info.input false
   unless negRecomputed == info.negClause do
     throwError "clausify bridge: recomputed neg-clause {repr negRecomputed} ≠ \
-                recorded {repr info.negClause} (expansion divergence?)"
+                recorded {repr info.negClause} (divergence: expand-and-or, \
+                disjoin-clauses literal merging, or an unmirrored \
+                dumb-negate-lit arm)"
   let [l0] := info.negClause
     | throwError "clausify bridge: structured (multi-literal) neg-clause — \
                   frontier: {repr info.negClause}"
@@ -2235,7 +2237,8 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
   unless clausifyPure info.input true == cl0 do
     throwError "clausify bridge: recomputed split clause \
                 {repr (clausifyPure info.input true)} ≠ recorded {repr cl0} \
-                (expansion divergence?)"
+                (divergence: expand-and-or, disjoin-clauses literal merging, \
+                or an unmirrored dumb-negate-lit arm)"
   unless info.out == [cl0] do
     throwError "clausify bridge: output set {repr info.out} ≠ [the split clause] \
                 (multi-clause output — frontier)"
