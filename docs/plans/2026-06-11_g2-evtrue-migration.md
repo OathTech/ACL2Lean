@@ -236,6 +236,28 @@ the golden gate as the checker.
       reworded. Golden table: expected UNCHANGED (statuses don't encode
       statement shapes) — verified by the gate.
 
+## 7c. Audit result (2026-06-11, post-implementation)
+
+Full adversarial audit run per the standing pattern: 5 decorrelated read-only
+reviewers (statement fidelity vs raw logs; the new EvTrue lemma layer; replay
+fidelity of the migrated driver; the G1 lemma layer RETRO-dimension — G1 had
+no recorded audit of its own; an outside reviewer with minimal framing), each
+finding independently re-verified refute-by-default. Result: **ONE minor
+finding total (a docstring-nuance complaint on `replayLiteral`), REFUTED by
+its verifier** (the docstring is factually accurate — the function genuinely
+returns the value-level exact-t fact). Zero surviving findings.
+
+Highlights from the positive verification: every DriverTests pin matches the
+raw `.proof-log` defthm formulas verbatim (spot-checked independently by the
+synthesizer against `simple.proof-log`); the hypothesis sides are unchanged
+(value-level only); the deleted-lemma list grep-verified consumer-free; the
+G1 retro-dimension confirmed SIff/EvRel/the congruence rows faithful to
+ACL2's lazy-if iff semantics and the refinement injection sound; D9 and D10
+judged honest re-expressions, not fidelity weakenings. Reviewer
+could-not-verify items on record in the workflow output (notably: per-fuel
+value variation admitted by the ∃N∀f∃v form is unnecessary-but-harmless
+weakness given determinism; full per-primitive two-valuedness trace deferred).
+
 ## 8. Risks / what to watch (D8)
 
 - **The mirror gets WEAKER.** `EvTrue` is implied by exact-t, so every

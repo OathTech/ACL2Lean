@@ -32,10 +32,18 @@ closed, ci as scoreboard, audits at milestones):
       true-listp-app compose through chain + clausify bridge and now stop at
       the G5 induction frontier (multi-literal pushed clauses). The interim
       boolean-head strengthening (`formulaBooleanFact`) is removed by G2.
-- [ ] **G2 — `EvTrue` migration.** Clause/mirror judgments move to truthiness
-      (`∃v, eval = some v ∧ v ≠ nil`), ACL2's own semantics; `= some t` kept
-      as a derived strengthening. Removes the boolean-valuedness restriction
-      (and subsumes the mirror-statement validity check below).
+- [x] **G2 — `EvTrue` migration (DONE 2026-06-11, branch mdd/g2-evtrue,
+      audit-passed).** Clause/mirror judgments state ACL2's truthiness
+      (`∃N∀f≥N ∃v, eval = some v ∧ v ≠ nil`); exact-t survives at the VALUE
+      level, injected at the clause boundary (`evtrue_of_eq_t`). The
+      boolean-valuedness frontier class is GONE: `formulaBooleanFact`/
+      `strengthenIffChain` deleted (iff chains end natively), the clausify
+      walk's mid-spine positive-literal restriction dissolved
+      (`LeafFact.exactT` deleted, D9), discharge verdicts compose honestly
+      as SIff steps (D10). Mirror-statement validity check SUBSUMED. Golden
+      table byte-identical (17/37, ✓9 ◌9 ✗0); audit: 5 reviewers + verify,
+      zero surviving findings (incl. the G1 retro-dimension). Design +
+      decisions: docs/plans/2026-06-11_g2-evtrue-migration.md.
 - [ ] **G3 — Tier-1 consolidations.** Clausify bridge lemma proved once by
       induction (replacing the per-leaf walkers); value-layer lift as a
       verified function + soundness lemma. Per invariant L1: fragment-local.
