@@ -1324,6 +1324,15 @@ theorem Logic.equal_t_iff (a b : SExpr) :
     exact h
   · intro h; subst h; exact Logic.equal_self a
 
+/-- A truthy `Logic.equal` pins genuine equality — the two-valued decode
+    every `EvTrue` consumer of an `equal`-headed fact uses (G2: no exact-t
+    pin needed; `Logic.equal` returns `t` or `nil` by definition). -/
+theorem Logic.eq_of_equal_ne_nil {a b : SExpr}
+    (h : Logic.equal a b ≠ SExpr.nil) : a = b := by
+  by_cases hab : a == b
+  · exact eq_of_beq hab
+  · simp [Logic.equal, hab] at h
+
 /-- Logic.not returns NIL iff the argument is truthy (non-nil). -/
 theorem Logic.not_nil_iff (a : SExpr) :
     Logic.not a = SExpr.nil ↔ Logic.toBool a = true := by
@@ -2850,10 +2859,12 @@ theorem conv_not_nil_of_evtrue {w : World} {env : Env} {X : SExpr}
   rw [callBuiltin_not, not_nil_of_truthy hnv]
 
 /-- Transport `EvTrue` backwards along an EVAL-EQUALITY chain (the
-    equal-steps composition entering the truthiness judgment). -/
-theorem evtrue_of_fuel_eq {w : World} {env : Env} {a b : SExpr}
-    (hab : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env b)
-    (hb : EvTrue w env b) : EvTrue w env a := by
+    equal-steps composition entering the truthiness judgment). The two sides
+    may sit at DIFFERENT envs — the IH bridge's `evalOpt_substTerm_subst1`
+    relates the goal env to the IH-instantiation env. -/
+theorem evtrue_of_fuel_eq {w : World} {env env' : Env} {a b : SExpr}
+    (hab : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env' b)
+    (hb : EvTrue w env' b) : EvTrue w env a := by
   obtain ⟨n1, hab⟩ := hab; obtain ⟨n2, hb⟩ := hb
   refine ⟨n1 + n2, fun f hf => ?_⟩
   obtain ⟨v, hbv, hnv⟩ := hb f (by omega)

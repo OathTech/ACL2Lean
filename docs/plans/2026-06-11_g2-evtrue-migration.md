@@ -190,26 +190,27 @@ the golden gate as the checker.
 - [x] `replayDischargeLeaf` / `replayDischargeNode`: conclusions are now
       `EvTrue (disjoin clause)` automatically (they end via the spine);
       docstrings updated with the wrap below
-- [ ] **D10 — discharge nodes compose as SIff chain steps.** The old
-      preprocess wrap strengthened the discharge verdict to the
-      eval-equality `eval lhs = eval 't` (`fuel_eq_of_conv`) — valid only
-      for boolean lhs. The honest content is `EvTrue lhs`, which as a chain
-      step is `EvRel SIff lhs 't` (new lemma `evrel_siff_qt_of_evtrue`).
-      So: `replayPreprocessNode`'s discharge case moves into the chain
-      core's IFF lane (`isIffNode` extended to the discharge origins), and
-      the boolean strengthening disappears here too. Check OTHER
-      `replayDischargeNode` call sites (replayClause leaf composition) —
-      those consume `EvTrue` directly, no relabeling.
-- [ ] chain end `replayPreprocessChain`: iff case ends via
-      `evtrue_of_evrel_siff` + `EvTrue (quote t)`; equal case ends via
-      `evtrue_of_eq_t`; DELETE `strengthenIffChain` + `formulaBooleanFact`
-- [ ] `replayClause` (~2645): clausify/spine composition
-- [ ] `replayInduction` (~2738): motive `P` → `EvTrue` of pushed clause
-      (new `mkEvTruePropEx` builder next to `mkConvPropEx` ~2503); IH
-      consumption (solidify `eval_equal_t_implies_eq` path) via equal
-      two-valuedness
-- [ ] `replayProof` (~2890) / `replayProofConditional` (~3054): mirror
-      conclusion → unfolded `EvTrue` form
+- [x] **D10 — discharge nodes compose as SIff chain steps** (DONE as
+      designed): `evrel_siff_qt_of_evtrue`; `replayPreprocessNode`'s
+      discharge case is a named hard-fail; the chain core's iff lane keys
+      on the discharge origins. `replayDischargeNode`'s only other
+      consumer path is the chain core itself (verified by grep);
+      Driver.lean:~1068 (`fake-rune` recognizer) is value-level, stays.
+- [x] chain end: both branches end in `EvTrue`; `strengthenIffChain` +
+      `formulaBooleanFact` DELETED
+- [x] `replayClause` clausify composition: `evtrue_of_fuel_eq` /
+      `evtrue_of_evrel_siff`
+- [x] `replayInduction`: motive `P` is `EvTrue` of the pushed clause
+      (mkAppM ``EvTrue — no separate builder needed); case peels via
+      `evtrue_extract_else` (one lemma serves base + both step peels);
+      the IH literal's `(not ihInst) ⇒ nil` derives from TRUTHINESS alone
+      (`conv_not_nil_of_evtrue` — the old `conv_builtin1`-at-`t` block,
+      which consumed the IH's exact `t`, is gone). NOTE: the solidify/IH
+      bridge inside literal chains (`equivSource`) consumes litFacts —
+      value-level, unchanged; only the pushed-clause motive moved.
+- [x] `replayProof` / `replayProofConditional`: migrated by construction
+      (conclusion = `replayClause`'s judgment; hypothesis telescope is
+      value-level, unchanged); docstrings updated
 - [ ] Phase 3: `driver_mirror%` (NativeMirrors.lean:71), WorldGen stub
       (:103), DriverTests pins, harness docstrings
 - [ ] Phase 4: Lifting enders + catalog entries + `*_native_of_mirror`

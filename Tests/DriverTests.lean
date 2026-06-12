@@ -54,7 +54,8 @@ def s2Tree : ClauseProof := { name := "refl-equal-x-x", formula := litEqXX, root
 
 /-! ## Frontend: run the driver over `World.empty`, UNIVERSALLY over the env.
 
-The mirror theorem is `∀ env, ∃ N, ∀ f ≥ N, evalOpt f w env formula = some t` — the
+The mirror theorem is `∀ env, ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env formula = some v ∧
+v ≠ nil` (ACL2's truthiness claim, G2) — the
 `env` is universally quantified (it ranges over every assignment to the formula's free
 variables). The driver emits the body for an `env` PARAMETER (an fvar); the frontend
 λ-abstracts over it to produce the universal fact. -/
@@ -85,7 +86,8 @@ def s2_mirror := acl2_replay% s2Tree
 -- The emitted type IS the intended universal mirror statement (no weakening: `env`
 -- universally quantified, `x` a free variable).
 example :
-    ∀ (env : Env), ∃ N, ∀ f ≥ N, evalOpt f World.empty env litEqXX = some SExpr.t :=
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
+      evalOpt f World.empty env litEqXX = some v ∧ v ≠ SExpr.nil :=
   s2_mirror
 
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
@@ -119,7 +121,8 @@ private def s3Tree : ClauseProof := { name := "cdr-cons-refl", formula := litCdr
 def s3_mirror := acl2_replay% s3Tree
 
 example :
-    ∀ (env : Env), ∃ N, ∀ f ≥ N, evalOpt f World.empty env litCdrCons = some SExpr.t :=
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
+      evalOpt f World.empty env litCdrCons = some v ∧ v ≠ SExpr.nil :=
   s3_mirror
 
 #print axioms s3_mirror
@@ -142,7 +145,8 @@ private def consEqTree : ClauseProof := { name := "cons-self", formula := litCon
 def consEq_mirror := acl2_replay% consEqTree
 
 example :
-    ∀ (env : Env), ∃ N, ∀ f ≥ N, evalOpt f World.empty env litConsEq = some SExpr.t :=
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
+      evalOpt f World.empty env litConsEq = some v ∧ v ≠ SExpr.nil :=
   consEq_mirror
 
 #print axioms consEq_mirror
@@ -171,7 +175,8 @@ private def builtinsEqTree : ClauseProof :=
 def builtinsEq_mirror := acl2_replay% builtinsEqTree
 
 example :
-    ∀ (env : Env), ∃ N, ∀ f ≥ N, evalOpt f World.empty env litBuiltinsEq = some SExpr.t :=
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
+      evalOpt f World.empty env litBuiltinsEq = some v ∧ v ≠ SExpr.nil :=
   builtinsEq_mirror
 
 #print axioms builtinsEq_mirror
@@ -224,7 +229,8 @@ private def pairTree : ClauseProof := { name := "pair-rewrites", formula := litP
 def pair_mirror := acl2_replay_pair% pairTree
 
 example :
-    ∀ (env : Env), ∃ N, ∀ f ≥ N, evalOpt f pairWorld env litPair = some SExpr.t :=
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
+      evalOpt f pairWorld env litPair = some v ∧ v ≠ SExpr.nil :=
   pair_mirror
 
 #print axioms pair_mirror
@@ -289,9 +295,10 @@ def sq_real_mirror := acl2_replay_sq_real%
 
 -- The emitted type is the real theorem (the clause literal, `*` normalized to binary-*).
 example :
-    ∀ (env : Env), ∃ N, ∀ f ≥ N,
+    ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
       evalOpt f sqWorld env
-        (equalOf (ap1 "sq" (sym "n")) (ap2 "binary-*" (sym "n") (sym "n"))) = some SExpr.t :=
+        (equalOf (ap1 "sq" (sym "n")) (ap2 "binary-*" (sym "n") (sym "n")))
+        = some v ∧ v ≠ SExpr.nil :=
   sq_real_mirror
 
 #print axioms sq_real_mirror
@@ -354,11 +361,11 @@ example :
           (bif Logic.toBool (Logic.integerp v) then
             Logic.not (Logic.lt v (SExpr.atom (Atom.number (Number.int 0))))
           else SExpr.nil) = SExpr.t) →
-      ∃ N, ∀ f ≥ N,
+      ∃ N, ∀ f ≥ N, ∃ v,
         evalOpt f simpleWorld env
           (equalOf (ap1 "my-len" (ap2 "my-app" (sym "x") (sym "y")))
                    (ap2 "binary-+" (ap1 "my-len" (sym "x")) (ap1 "my-len" (sym "y"))))
-          = some SExpr.t :=
+          = some v ∧ v ≠ SExpr.nil :=
   my_len_my_app_real_mirror
 
 #print axioms my_len_my_app_real_mirror
@@ -397,12 +404,16 @@ theorem native_nat_refl (n : Nat) : n = n := by
       = some (enc n) :=
     evalOpt_var N World.empty (envOf n) { name := "x" } (enc n) (envOf_get n)
   have hno : World.empty.defs.get? ({ name := "equal" } : Symbol) = none := by decide
-  have heq : evalOpt (N + 2) World.empty (envOf n) litEqXX = some SExpr.t := hN (N + 2) (by omega)
-  have hval : enc n = enc n :=
-    eval_equal_t_implies_eq (N + 1) World.empty (envOf n)
-      (.atom (.symbol { name := "x" })) (.atom (.symbol { name := "x" }))
-      (enc n) (enc n) hvar hvar hno heq
-  exact enc_inj hval
+  -- the mirror is EvTrue (G2): destructure the truthy value, pin it to the
+  -- equal-application's value, decode via equal's two-valuedness
+  obtain ⟨v, heq, hnv⟩ := hN (N + 2) (by omega)
+  have hev : evalOpt (N + 2) World.empty (envOf n) litEqXX
+      = callBuiltin "equal" [enc n, enc n] :=
+    evalOpt_builtin_2 (N + 1) World.empty (envOf n) { name := "equal" }
+      _ _ (enc n) (enc n) (by simp [Symbol.isNamed]) hno hvar hvar
+  have hveq : v = Logic.equal (enc n) (enc n) :=
+    Option.some.inj ((heq.symm.trans hev).trans (callBuiltin_equal (enc n) (enc n)))
+  exact enc_inj (Logic.eq_of_equal_ne_nil (hveq ▸ hnv))
 
 -- Sorry-free, and it genuinely depends on `s2_mirror` (the driver output).
 #print axioms native_nat_refl

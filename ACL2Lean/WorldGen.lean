@@ -100,7 +100,8 @@ def generateWorld (bookName : String) (events : List Event) : String := Id.run d
     lines := lines.push s!"  {Translator.translateLiteral body}"
     lines := lines.push ""
     lines := lines.push s!"theorem {ln} (env : Env) :"
-    lines := lines.push s!"    ∃ N, ∀ f, f ≥ N → evalOpt f world env {ln}Formula = some SExpr.t := sorry"
+    lines := lines.push
+      s!"    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f world env {ln}Formula = some v ∧ v ≠ SExpr.nil := sorry"
     lines := lines.push ""
 
   -- Footer
