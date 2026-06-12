@@ -1385,9 +1385,23 @@ def dpFactStmt (tests : List SExpr) (last : SExpr) (vars : List Symbol)
     let body ← (tpTys ++ hypTys).foldrM (fun h acc => mkArrow h acc) conclTy
     mkForallFVars fvars body
 
-/-- PROVE the DP fact by the carved-out decision procedure: the fixed tactic on
-    the unsplit goal first, else a one-level value split (policy-bounded) and the
-    fixed tactic per leaf. Hard-fails if any case survives. -/
+/-- Run `x` under a REAL heartbeat bound of `n` USER units (×1000 internal).
+    `withOptions (maxHeartbeats := …)` is a NO-OP for this purpose —
+    `Core.Context.maxHeartbeats` is fixed when the command context is created
+    (perf profile P1); this is the toolchain's own idiom (cf. Grind/Canon). -/
+def withRealMaxHeartbeats (n : Nat) (x : MetaM α) : MetaM α :=
+  withTheReader Core.Context (fun ctx => { ctx with maxHeartbeats := n * 1000 }) <|
+    Core.withCurrHeartbeats x
+
+/-- The direct attempt's heartbeat budget (user units; ≈ a couple of seconds
+    of tactic work by the session's calibration — generous for every observed
+    direct SUCCESS, tiny against the 40–860 s unbounded failures). -/
+def dpDirectBudget : Nat := 50000
+
+/-- PROVE the DP fact by the carved-out decision procedure: one BOUNDED run
+    of the fixed tactic on the unsplit goal, else a one-level value split
+    (policy-bounded) and the fixed tactic per leaf. Hard-fails if any case
+    survives. -/
 def proveDpFact (stmt : Expr) (total : Nat) : MetaM Expr := do
   -- PRISTINE-CONTEXT (perf profile P6): the fact statement is CLOSED
   -- (∀-quantified over its values), but the caller invokes this inside the
@@ -1402,43 +1416,43 @@ def proveDpFact (stmt : Expr) (total : Nat) : MetaM Expr := do
     Meta.withLCtx {} #[] do proveDpFactCore stmt total
 where proveDpFactCore (stmt : Expr) (total : Nat) : MetaM Expr := do
   let tac ← dpLeafTactic
-  -- SPLIT-FIRST (perf profile, docs/notes/2026-06-11_perf-profile.md P5):
-  -- case-split the quantified values and close each CONCRETE leaf (~26 ms
-  -- each; a failing leaf aborts immediately). The un-split DIRECT attempt is
-  -- reserved for arities past the split bound — on a goal it cannot close,
-  -- the big simp_all burns ~40 s before failing, and that failing direct
-  -- attempt was ~96% of the corpus sweep's DP cost. Splitting is sound case
-  -- analysis and each leaf carries strictly more constructor information
-  -- than the un-split goal. Still a FIXED policy, not search: split ≤ 3
-  -- values (≈9 cases each — 9⁴ ≈ 6500 leaves is not a viable check), one
-  -- direct attempt above that.
-  if total ≤ 3 then
-    let mv ← mkFreshExprMVar stmt
-    let (_, g) ← mv.mvarId!.intros
-    let leaves ← dpSplitVars g total
-    for leaf in leaves do
-      let remaining ← Lean.Elab.runTactic leaf tac
-      unless remaining.1.isEmpty do
-        throwError "proveDpFact: the DP leaf tactic left {remaining.1.length} goal(s) — \
-                    the discharged clause's lift is not closable by simp+omega \
-                    (clause fact: {stmt})"
-    instantiateMVars mv
-  else
-    -- Each attempt uses a FRESH metavariable (a failed attempt may leave its
-    -- mvar half-assigned).
-    let direct? ←
-      tryCatchRuntimeEx
-        (try
-          let mv ← mkFreshExprMVar stmt
-          let (_, g) ← mv.mvarId!.intros
-          let remaining ← Lean.Elab.runTactic g tac
-          if remaining.1.isEmpty then pure (some (← instantiateMVars mv)) else pure none
-        catch _ => pure none)
-        (fun _ => pure none)
-    if let some p := direct? then return p
-    throwError "proveDpFact: {total} quantified values exceed the split bound \
-                (3) and the direct tactic failed — DP-fact frontier \
-                (fact: {stmt})"
+  -- BOUNDED-DIRECT-FIRST (perf profile P5 + the 08-equality trade): the
+  -- whole-goal simp_all is the fastest path when it works (sub-second on
+  -- propositional/equality facts) and catastrophic when it fails UNBOUNDED
+  -- (40–860 s measured) — so try it once under a REAL small budget, then
+  -- fall back to the case-split enumeration (~30 ms per concrete leaf; a
+  -- failing leaf aborts immediately). Splitting is sound case analysis and
+  -- each leaf carries strictly more constructor information than the
+  -- un-split goal. FIXED policy, not search: one bounded direct attempt;
+  -- split ≤ 3 values (≈9 cases each — 9⁴ ≈ 6500 leaves is not a viable
+  -- check); past the bound the bounded direct attempt is all there is.
+  -- Each attempt uses a FRESH metavariable (a failed attempt may leave its
+  -- mvar half-assigned).
+  let direct? ←
+    withRealMaxHeartbeats dpDirectBudget <|
+    tryCatchRuntimeEx
+      (try
+        let mv ← mkFreshExprMVar stmt
+        let (_, g) ← mv.mvarId!.intros
+        let remaining ← Lean.Elab.runTactic g tac
+        if remaining.1.isEmpty then pure (some (← instantiateMVars mv)) else pure none
+      catch _ => pure none)
+      (fun _ => pure none)
+  if let some p := direct? then return p
+  if total > 3 then
+    throwError "proveDpFact: the bounded direct tactic failed and {total} \
+                quantified values exceed the split bound (3) — DP-fact \
+                frontier (fact: {stmt})"
+  let mv ← mkFreshExprMVar stmt
+  let (_, g) ← mv.mvarId!.intros
+  let leaves ← dpSplitVars g total
+  for leaf in leaves do
+    let remaining ← Lean.Elab.runTactic leaf tac
+    unless remaining.1.isEmpty do
+      throwError "proveDpFact: the DP leaf tactic left {remaining.1.length} goal(s) — \
+                  the discharged clause's lift is not closable by simp+omega \
+                  (clause fact: {stmt})"
+  instantiateMVars mv
 
 mutual
 /-- Fold `evtrue_dp_if_split` over the discharge clause's spine, feeding

@@ -164,12 +164,31 @@ Driver rebuild; golden gate BYTE-IDENTICAL outcomes.** Worst leaf
 12-multi-controller 20.3 s, 08-equality 18.1 s, 03-linear 14.4 s, 02-rev
 3.4 s, 11-custom-measure 2.8 s, everything else ≤ 0.7 s.
 
+## Round 2 — P1's mechanism + the bounded-direct-first hybrid (final)
+
+Split-first alone BROKE the full `just ci`: NativeMirrors' driver_mirror%
+elaborations (equal-symm/equal-trans composed discharge nodes, previously
+fast direct successes) tripped the file-level 200k heartbeat budget on the
+split enumeration. Chasing it found **P1's mechanism: `withOptions
+(maxHeartbeats := …)` is a NO-OP** — `Core.Context.maxHeartbeats` is fixed
+when the command context is created; every per-call "cap" in the harness
+and proveDpFact had never bound. The real idiom (the toolchain's own, cf.
+Grind/Canon): `withTheReader Core.Context (fun c => { c with maxHeartbeats
+:= n * 1000 })` + `withCurrHeartbeats` — now `withRealMaxHeartbeats` in
+Driver.lean.
+
+**Final policy (fixed, data-calibrated): BOUNDED-DIRECT-FIRST** — one
+direct whole-goal tactic run under a REAL 50k-user-unit budget (≈2 s;
+covers every observed direct success, tiny against the 40–860 s unbounded
+failures), then the split enumeration (≤ 3 values; failing leaf aborts).
+Harness budgets made real at 1M units (~40 s runaway guards).
+
+**Final numbers (full `just ci`, all green, golden byte-identical, zero
+warnings): 175 s wall for the ENTIRE gate; sweep elaboration ~55 s vs the
+1361 s baseline = 24.7×.** 08-equality restored to 1.0 s; distribution:
+03-linear 24.4 s, 11 9.2 s, 16 8.3 s, 12 5.3 s, everything else ≤ 1 s.
+
 Residuals / follow-ups (stage-2 material, diminishing returns for now):
-- **08-equality REGRESSED 3.1 → 18.1 s (the known trade):** its four
-  proveDpFact calls were fast DIRECT successes; equal-trans's total=3 fact
-  now enumerates 512 splits ≈ 15 s (×2: composed + standalone). Candidate:
-  a bounded-direct-first hybrid — blocked on P1 (making per-attempt
-  heartbeat caps actually BIND; today 200k user-units ≈ tens of seconds).
 - **16/12's ~17 s leaves did not get the P6 win** — their cost is
   apparently NOT proveDpFact (under investigation: suspects are the
   totWalk derivation attempts walking zip2/zip3 bodies before failing, or

@@ -123,9 +123,11 @@ def corpus : List (String × String) :=
 def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (justs : List (String × ACL2.Justification)) (cp : ClauseProof) :
     TermElabM String := do
-  -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge
-  withOptions (fun o => o.set `maxHeartbeats (1000000 : Nat)) <|
-    Core.withCurrHeartbeats <| tryCatchRuntimeEx
+  -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
+  -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
+  -- pins it at command-context creation; ~1M user units ≈ 40 s, a runaway
+  -- guard with margin over the slowest legitimate replay (~9 s observed).
+  withRealMaxHeartbeats 1000000 <| tryCatchRuntimeEx
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
@@ -146,9 +148,10 @@ def tryDischarge (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (clause : SExpr) : TermElabM String := do
   -- fresh, BOUNDED heartbeat budget per leaf (the command itself runs unlimited;
   -- one pathological leaf must neither hang nor poison the rest), and runtime
-  -- (timeout) exceptions report ✗ instead of failing the build.
-  withOptions (fun o => o.set `maxHeartbeats (200000 : Nat)) <|
-    Core.withCurrHeartbeats <| tryCatchRuntimeEx
+  -- (timeout) exceptions report ✗ instead of failing the build. REAL bound
+  -- (P1, see tryReplay): ~1M user units ≈ 40 s, margin over the slowest
+  -- legitimate leaf (~17 s observed).
+  withRealMaxHeartbeats 1000000 <| tryCatchRuntimeEx
     (try
       let (p, conds) ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
