@@ -35,11 +35,11 @@ private def litEqXX : SExpr := equalOf varX varX
 
 /-- One `equal-self` node: `(equal x x) ⇒ (quote t)`. -/
 private def equalSelfNode : ProofNode :=
-  .node ("equal-self", "NIL") litEqXX Driver.quoteT [] {}
+  .node ("equal-self", "NIL") litEqXX quoteT [] {}
 
 private def litProof : LiteralProof :=
   { index := 1, literal := litEqXX, notFlg := false,
-    nodes := [equalSelfNode], result := Driver.quoteT }
+    nodes := [equalSelfNode], result := quoteT }
 
 private def simplifyStep : WaterfallStep :=
   { processor := "simplify-clause", result := default, runes := [],
@@ -108,12 +108,12 @@ private def cdrConsNode : ProofNode :=
   .node ("rewrite", "cdr-cons") (ap1 "cdr" (ap2 "cons" varA varB)) varB []
     { path := [.arg 1 { name := "equal" }, .arg 1 { name := "cdr" }] }
 private def eqSelfBB : ProofNode :=
-  .node ("equal-self", "NIL") (equalOf varB varB) Driver.quoteT [] {}
+  .node ("equal-self", "NIL") (equalOf varB varB) quoteT [] {}
 private def s3Goal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litCdrCons],
     steps := [{ simplifyStep with
       items := [.literal { index := 1, literal := litCdrCons, notFlg := false,
-                           nodes := [cdrConsNode, eqSelfBB], result := Driver.quoteT }] }],
+                           nodes := [cdrConsNode, eqSelfBB], result := quoteT }] }],
     induction := none, children := [] }
 private def s3Tree : ClauseProof := { name := "cdr-cons-refl", formula := litCdrCons, root := some s3Goal }
 
@@ -137,8 +137,8 @@ private def consEqGoal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litConsEq],
     steps := [{ simplifyStep with
       items := [.literal { index := 1, literal := litConsEq, notFlg := false,
-                           nodes := [.node ("equal-self", "NIL") litConsEq Driver.quoteT [] {}],
-                           result := Driver.quoteT }] }],
+                           nodes := [.node ("equal-self", "NIL") litConsEq quoteT [] {}],
+                           result := quoteT }] }],
     induction := none, children := [] }
 private def consEqTree : ClauseProof := { name := "cons-self", formula := litConsEq, root := some consEqGoal }
 
@@ -166,8 +166,8 @@ private def builtinsEqGoal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litBuiltinsEq],
     steps := [{ simplifyStep with
       items := [.literal { index := 1, literal := litBuiltinsEq, notFlg := false,
-                           nodes := [.node ("equal-self", "NIL") litBuiltinsEq Driver.quoteT [] {}],
-                           result := Driver.quoteT }] }],
+                           nodes := [.node ("equal-self", "NIL") litBuiltinsEq quoteT [] {}],
+                           result := quoteT }] }],
     induction := none, children := [] }
 private def builtinsEqTree : ClauseProof :=
   { name := "builtins-self", formula := litBuiltinsEq, root := some builtinsEqGoal }
@@ -217,12 +217,12 @@ private def pairDefNode : ProofNode :=
   .node ("definition", "pair") (ap1 "pair" varXp) (ap2 "cons" varXp varXp) []
     { path := [.arg 1 { name := "equal" }, .arg 1 { name := "pair" }] }
 private def pairEqSelf : ProofNode :=
-  .node ("equal-self", "NIL") (equalOf (ap2 "cons" varXp varXp) (ap2 "cons" varXp varXp)) Driver.quoteT [] {}
+  .node ("equal-self", "NIL") (equalOf (ap2 "cons" varXp varXp) (ap2 "cons" varXp varXp)) quoteT [] {}
 private def pairGoal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litPair],
     steps := [{ simplifyStep with
       items := [.literal { index := 1, literal := litPair, notFlg := false,
-                           nodes := [pairDefNode, pairEqSelf], result := Driver.quoteT }] }],
+                           nodes := [pairDefNode, pairEqSelf], result := quoteT }] }],
     induction := none, children := [] }
 private def pairTree : ClauseProof := { name := "pair-rewrites", formula := litPair, root := some pairGoal }
 

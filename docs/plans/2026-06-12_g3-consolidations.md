@@ -167,3 +167,77 @@ is proved — any status drift is a defect by definition).
   lemma + `dpLiftF_quote` + lift-none-for-wrong-package lemma (DpLift);
   `clausifyPure_lifts`, `ClausifyGoal`, `clausifyPure_sound`
   (ClausifyBridge); then the bridgeClausify rewire + walker retirement.
+
+## 4. As-built record (2026-06-12)
+
+Both fragments landed on `mdd/g3-consolidations`; golden coverage gate
+byte-identical at every step (REPLAYED 17/37; DP-discharge leaves
+9/9/0 of 18 throughout — outcomes never moved, only HOW).
+
+### Fragment A — as built (`ACL2Lean/Replay/DpLift.lean`)
+
+- `dpLiftF (vars : List (Symbol × SExpr)) (opq : List (SExpr × SExpr))
+  (t : SExpr) : Option SExpr` — opaque-table lookup first, then
+  quote / strict if / primitive table (`callBuiltin`, guarded by
+  `dpLiftHeads` + ACL2 package, D-A4); variable values via the explicit
+  `vars` assoc list (D-A5 — adopted at wiring time when the original
+  `env : Env` parameterization proved undischargeable: `env` is a
+  quantified fvar, so `env.get?` is symbolically stuck, while concrete
+  list keys reduce and the lift fact discharges by `Eq.refl`/defeq).
+- `dpLiftF_sound` — the once-proved soundness lemma (12-case
+  `dpLiftF.induct`), premises: per-entry convergence proofs for `vars`
+  (`hvars`) and `opq` (`hopq`), plus `dpNoShadow w` (no world def
+  shadows a lift primitive; discharged by `mkDecideProof`).
+- Driver consumers: `DpLiftBundle` (varsE/hvars/opqE/hopq/hns built by
+  `mkDpLiftBundle`; per-entry proofs assembled by `mkForallMemProof`'s
+  `List.forall_mem_cons` chain), `dpLiftProof` (defeq lift-fact +
+  ONE `dpLiftF_sound` instantiation). Wired into `dischargeSpine` /
+  `dischargeClose` (both DP discharge paths).
+- `dpValProof`'s per-node `mkAppM` chain is DEAD on the discharge path;
+  it retains non-discharge consumers (totality walk, TP-corollary
+  instantiation, congruence-arg values) — retire when consumer-free
+  (follow-up).
+
+### Fragment B — as built (`ACL2Lean/Replay/ClausifyBridge.lean`)
+
+- `clausifyPure` moved in and made TOTAL (D-B3); returns ONE clause's
+  literal list (D-B2 corrected).
+- Helper ladder: `not_evtrue_disjoin_nil`, `evtrue_quoteT`,
+  `evtrue_disjoin_cons` (uniform cons characterization),
+  `evtrue_disjoin_append_elim`; `dumbNegateLit_eq` (shape-driven);
+  `lifts_leaf_pos/neg`; `sound_neg_leaf`.
+- Extraction layer (D-B4 refined): `dpOpqKeyOk` bans special heads by
+  NAME in any package (matching `collectOpaques`); `dpOpqWF`;
+  `dpLiftF_quote` / `dpLiftF_if_inv` / `dpLiftF_not_intro/inv` /
+  `dpLiftF_app_none_of_banned_name` (the wrong-package refuter — those
+  cases of the lemma discharge vacuously because the lift premise is
+  refuted).
+- `clausifyPure_lifts` — every clause literal lifts when the input does
+  (11-case `clausifyPure.induct`).
+- `clausifyPure_sound` — THE bridge lemma (11 cases): lift premise +
+  `EvTrue (disjoinTerm (clausifyPure t pos))` ⇒ `ClausifyGoal t pos`
+  (pos ⇒ `EvTrue t`; neg ⇒ t converges to nil). Value route is pure
+  cond-algebra off `dpLiftF_if_inv`; IHs supply only nil/truthiness
+  (G2/D9 honored — no exact-`t` anywhere).
+- `bridgeClausify` rewired to ONE `clausifyPure_sound` instantiation
+  (record validation unchanged); the peel/walk kit DELETED (~318 lines:
+  `LeafFact`, `leafFiring`, `peelClause`, `walkPosT(Lit)`, the eight
+  `val*` walkers). Dead walker-era lemmas cut from `EvalLemmas.lean`
+  (`evtrue_if_fact_elim`, `toBool_false_of_nil`,
+  `arg_truthy_of_not_nil`, `not_t_of_nil`, `cond_val_true/false`).
+
+### Deviations from plan
+
+- Step 2 of the sequencing (Fragment A "remaining consumers": TP
+  instantiation) intentionally NOT migrated: the TP-corollary path
+  consumes `dpValExpr` values inside an `Eq` statement, not a
+  convergence fact — it is not a lift-fact consumer. Discharge spine +
+  close were the real consumers; both migrated.
+- `ClausifyGoal` carries the neg case as raw nil-convergence (not
+  `EvTrue (not t)`) — strictly what `dischargeSpine` consumes.
+
+### Evidence
+
+- Gate: `just ci` green, golden byte-identical, zero warnings.
+- Axioms: `dpLiftF_sound`, `clausifyPure_lifts`, `clausifyPure_sound`
+  all `[propext, Classical.choice, Quot.sound]`.

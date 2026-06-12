@@ -2458,29 +2458,19 @@ theorem logic_not_t_nil : Logic.not SExpr.t = SExpr.nil := by
 
 The bridge consumes a PROVED child clause (`EvTrue w env (disjoin cl)`, G2)
 and rebuilds the truth of the clausify INPUT term by mirroring
-`clausify-input1`'s pure if-recursion: `evtrue_if_fact_elim` peels the proved
-disjunction literal by literal (one leaf per firing literal), the value
-helpers below convert each leaf's literal facts into test-value facts, and
-`evtrue_dp_if_split` re-composes the input term's if-tree (the impossible
-branch in each leaf is vacuous). -/
+`clausify-input1`'s pure if-recursion. Since G3 Fragment B the recomposition
+is ONE instantiation of the once-proved `clausifyPure_sound` bridge lemma
+(`Replay/ClausifyBridge.lean`); the value helpers below serve its proof and
+the rest of the replay layer. -/
 
 /-- `toBool` of a non-nil value is `true`. -/
 theorem toBool_true_of_ne_nil {v : SExpr} (h : v ≠ SExpr.nil) :
     Logic.toBool v = true := by cases v <;> simp_all [Logic.toBool]
 
-/-- `toBool` of nil is `false`. -/
-theorem toBool_false_of_nil {v : SExpr} (h : v = SExpr.nil) :
-    Logic.toBool v = false := by subst h; rfl
-
 /-- A truthy `not` pins its argument to nil. -/
 theorem arg_nil_of_not_truthy {v : SExpr} (h : Logic.not v ≠ SExpr.nil) :
     v = SExpr.nil := by
   cases v <;> simp_all [Logic.not, Logic.toBool]
-
-/-- A nil `not` pins its argument truthy. -/
-theorem arg_truthy_of_not_nil {v : SExpr} (h : Logic.not v = SExpr.nil) :
-    v ≠ SExpr.nil := by
-  cases v <;> simp_all [Logic.not, Logic.toBool, SExpr.t]
 
 /-- Two value characterizations of the SAME evaluation pin the same value. -/
 theorem val_unique {a : Nat → Option SExpr} {u v : SExpr}
@@ -2492,22 +2482,10 @@ theorem val_unique {a : Nat → Option SExpr} {u v : SExpr}
 theorem ne_nil_of_eq {v w : SExpr} (h : v = w) (hw : w ≠ SExpr.nil) :
     v ≠ SExpr.nil := h ▸ hw
 
-/-- A nil argument makes `not` exactly `t`. -/
-theorem not_t_of_nil {v : SExpr} (h : v = SExpr.nil) :
-    Logic.not v = SExpr.t := by subst h; rfl
-
 /-- A truthy argument makes `not` nil. -/
 theorem not_nil_of_truthy {v : SExpr} (h : v ≠ SExpr.nil) :
     Logic.not v = SExpr.nil := by
   cases v <;> simp_all [Logic.not, Logic.toBool]
-
-/-- Reduce a `cond` value by a known-true test. -/
-theorem cond_val_true {b : Bool} {x y : SExpr} (h : b = true) :
-    (bif b then x else y) = x := by subst h; rfl
-
-/-- Reduce a `cond` value by a known-false test. -/
-theorem cond_val_false {b : Bool} {x y : SExpr} (h : b = false) :
-    (bif b then x else y) = y := by subst h; rfl
 
 /-- `Logic.implies` IS the value of its ground-zero unfold body
     `(if p (if q 't 'nil) 't)` under the `cond` value lift — the recipe fact
@@ -2815,31 +2793,6 @@ theorem evtrue_dp_if_split (w : World) (env : Env) (c t e cv : SExpr)
     exact ⟨v, by
       rw [evalOpt_if_true g w env c t e cv (hc g (by omega))
         (toBool_true_of_ne_nil hcv)]; exact htv, hnv⟩
-
-/-- Eliminate an `EvTrue` clause fact ONE spine literal at a time (the peel
-    direction, D9): the spine head's pinned value is either truthy (the
-    firing case) or nil, in which case the REST of the disjunction is true.
-    `(if l 't rest)` with `v(l) = nil` takes the else branch. -/
-theorem evtrue_if_fact_elim {w : World} {env : Env} {l rest vl : SExpr}
-    {motive : Prop}
-    (hl : ∃ N, ∀ f ≥ N, evalOpt f w env l = some vl)
-    (hFact : EvTrue w env
-      (.cons (.atom (.symbol { name := "if" }))
-        (.cons l (.cons
-          (.cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil))
-          (.cons rest .nil)))))
-    (hthen : vl ≠ SExpr.nil → motive)
-    (helse : vl = SExpr.nil → EvTrue w env rest → motive) : motive := by
-  by_cases hv : vl = SExpr.nil
-  · refine helse hv ?_
-    obtain ⟨n1, hl⟩ := hl; obtain ⟨n2, hFact⟩ := hFact
-    refine ⟨n1 + n2 + 1, fun f hf => ?_⟩
-    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-    obtain ⟨v, hifv, hnv⟩ := hFact (g + 1) (by omega)
-    rw [evalOpt_if_false g w env l _ rest (by rw [hl g (by omega), hv])] at hifv
-    exact ⟨v, evalOpt_fuel_mono g w env rest v hifv, hnv⟩
-  · exact hthen hv
-
 
 /-- Extract `integerp v = t` from a TRUE type-prescription corollary of the
     standard `(IF (INTEGERP v) … 'NIL)` shape (lifted: `cond (toBool (integerp v))

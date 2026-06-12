@@ -44,9 +44,22 @@ closed, ci as scoreboard, audits at milestones):
       table byte-identical (17/37, ✓9 ◌9 ✗0); audit: 5 reviewers + verify,
       zero surviving findings (incl. the G1 retro-dimension). Design +
       decisions: docs/plans/2026-06-11_g2-evtrue-migration.md.
-- [ ] **G3 — Tier-1 consolidations.** Clausify bridge lemma proved once by
-      induction (replacing the per-leaf walkers); value-layer lift as a
-      verified function + soundness lemma. Per invariant L1: fragment-local.
+- [x] **G3 — Tier-1 consolidations (2026-06-12, branch
+      mdd/g3-consolidations).** Fragment A: `dpLiftF` (the DP value lift
+      as a pure function over an explicit vars assoc list, D-A5) +
+      `dpLiftF_sound` proved once (12-case induct); discharge spine/close
+      consume ONE lemma instantiation with a defeq lift fact. Fragment B:
+      `clausifyPure` made total, `clausifyPure_sound` proved once
+      (11-case induct, cond-algebra value route, nil/truthiness only —
+      G2/D9 honored); `bridgeClausify` on ONE instantiation; the
+      peel/walk kit (~318 lines: `peelClause`, `walkPosT`, eight `val*`
+      walkers, `LeafFact`) + six dead walker-era `EvalLemmas` lemmas
+      DELETED. Per invariant L1: both fragments local
+      (`Replay/DpLift.lean`, `Replay/ClausifyBridge.lean`). Golden table
+      byte-identical throughout (17/37, ✓9 ◌9 ✗0). Follow-up: retire
+      `dpValProof` when consumer-free (totality walk + TP instantiation
+      remain). Design + as-built:
+      docs/plans/2026-06-12_g3-consolidations.md.
 - [ ] **G4 — Forcing-round emission + composition.** Emit per-assumption
       `(type-alist, term, assumnotes)` + the round-(k+1) clause list at
       extract-and-clausify-assumptions (single hook); replay rounds locally
