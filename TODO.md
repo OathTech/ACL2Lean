@@ -408,6 +408,14 @@ obligation is stated precisely in its conditional proof's type:
 
 ## Other pipeline / cross-cutting work
 
+- [ ] **Rebase the `acl2/` fork on upstream (2026-06-12).** The submodule's
+      `acl2-lean-output` branch is based on an aging upstream `master`; rebase
+      (or merge upstream forward) at some point. The TRACE-LOG tagging
+      convention exists for exactly this — `grep -rn "TRACE-LOG\[" acl2/*.lisp`
+      enumerates every inserted region, and `just check-acl2-tags` validates
+      the result. After rebasing: rebuild the image, recapture the corpus
+      (capture is deterministic — byte-diff the logs to detect upstream
+      behavior drift), and rerun the differential harness + `just ci`.
 - [ ] **Native-theorem bridge — generalize.** Currently hand-built for `my-len-my-app`
       (List.length_append) and `app-assoc` (List.append_assoc). Systematize the
       type-morphism + simulation recipe (`docs/comms/2026-03-22_acl2-lean-bridge.md`),
