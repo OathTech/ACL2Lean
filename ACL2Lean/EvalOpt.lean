@@ -65,15 +65,11 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "acl2-numberp", [a] =>
       some (match a with | .atom (.number _) => .t | _ => .nil)
   | "zp", [a] => some (Logic.zp a)
-  | "symbolp", [a] =>
-      some (match a with | .atom (.symbol _) | .nil => .t | _ => .nil)
+  | "symbolp", [a] => some (Logic.symbolp a)
   | "stringp", [a] => some (Logic.stringp a)
   | "fix", [a] =>
       some (match a with | .atom (.number _) => a | _ => .atom (.number (.int 0)))
-  | "nfix", [a] =>
-      some (match a with
-      | .atom (.number (.int n)) => if n >= 0 then a else .atom (.number (.int 0))
-      | _ => .atom (.number (.int 0)))
+  | "nfix", [a] => some (Logic.nfix a)
   | "ifix", [a] =>
       some (match a with | .atom (.number (.int _)) => a | _ => .atom (.number (.int 0)))
   | "implies", [a, b] => some (Logic.implies a b)

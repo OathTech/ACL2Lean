@@ -31,8 +31,10 @@ proof search is this repo's code:
    rewriter detail. Unlinkable structure hard-fails.
 5. **Source translation** (`ACL2Lean/WorldGen.lean`,
    `ACL2Lean/Translator.lean`) — the same ACL2 source → a Lean `World`
-   (function definitions) and the **mirror-theorem statement**
-   (`∃ N, ∀ f ≥ N, evalOpt f world env <formula> = some t`).
+   (function definitions) and the **mirror-theorem statement**: that the
+   formula is eventually *true* in ACL2's sense — `∃ N, ∀ f ≥ N, ∃ v,
+   evalOpt f world env <formula> = some v ∧ v ≠ nil` (truthiness, not
+   exact-`t`; non-`nil` is ACL2's notion of truth).
 6. **ACL2-logic interpreter** (`ACL2Lean/EvalOpt.lean`,
    `ACL2Lean/Logic.lean`) — the fuel-bounded semantic model that defines what
    the mirror theorem means (differential-tested against real ACL2).
@@ -66,6 +68,38 @@ adversarial audits). Once a result is decoded to a native Lean statement, the
 entire ACL2 pipeline becomes untrusted for it: a bug anywhere makes the
 composed proof fail to typecheck; it can never certify a false native theorem.
 
+## Getting started
+
+**Prerequisites.** [Lake + the pinned Lean toolchain](lean-toolchain)
+(installed automatically by [`elan`](https://github.com/leanprover/elan)),
+[`just`](https://github.com/casey/just) for the convenience recipes, and a
+Common Lisp (SBCL is what the build uses) to build the instrumented ACL2.
+
+**Clone with the submodule** (the `acl2/` fork is required):
+
+```sh
+git clone --recursive https://github.com/septract/ACL2Lean.git
+# or, in an existing clone:  git submodule update --init --recursive
+```
+
+**Important — proof logs are a build input.** The Lean sources embed proof
+logs at compile time (`include_str`), and the logs (`acl2_samples/**/*.proof-log`)
+are *gitignored generated artifacts*. A fresh clone therefore will **not**
+`lake build` until the logs are generated. Build the instrumented ACL2 once,
+then capture the logs:
+
+```sh
+just build-acl2                         # build the instrumented ACL2 (submodule;
+                                        # SBCL + a full ACL2 build — this is slow)
+./scripts/capture-proof-log.sh \        # regenerate the compile-critical logs
+  acl2_samples/simple.lisp \            #   (uses only the ACL2 image, no Lean —
+  acl2_samples/recon-tests/*.lisp       #    avoids the build bootstrap cycle)
+lake build                              # now type-checks everything
+```
+
+`just capture-all-logs` additionally recaptures the larger `books.txt` corpus
+(needed for the full coverage sweep); it is not required just to build.
+
 ## Building and commands
 
 The toolchain is pinned in `lean-toolchain`; build with
@@ -83,14 +117,9 @@ lake exe acl2lean gen-world <file>      # generate World + theorem stubs from .l
 lake exe acl2lean eval "<expr>"         # evaluate an s-expression
 ```
 
-Proof logs (`acl2_samples/**/*.proof-log`) are gitignored; regenerate them
-with the instrumented ACL2 image:
-
-```sh
-just build-acl2                         # build the instrumented ACL2 (submodule)
-just capture-all-logs                   # recapture the corpus (also invalidates
-                                        # the Lean modules that embed logs)
-```
+If a build fails with a missing-`.proof-log` error, regenerate the logs as in
+*Getting started* above (the capture script force-invalidates the Lean modules
+that embed them, so there is no silent staleness).
 
 ## Repository layout
 
@@ -107,11 +136,36 @@ just capture-all-logs                   # recapture the corpus (also invalidates
 | `TODO.md` | The running backlog across all tracks |
 | `CLAUDE.md` | The working rules (fidelity requirements, audit practices) |
 
-## Status
+## Status & limitations
 
-Live status lives in the repo, not here: the scoreboard at the top of
+**This is a research prototype.** The architecture is validated end-to-end —
+proof logs are parsed and reconstructed into the real clause tree, whole
+theorems (including well-founded induction with induction hypotheses,
+preprocess/clausify composition, and decision-procedure leaves) replay into
+kernel-checked Lean proof objects, and a catalog of results is decoded to
+native Lean statements. What remains is *breadth*, and the frontiers are
+enumerable rather than open-ended.
+
+Concretely, on the sample corpus the driver fully replays a subset of
+theorems; every theorem it cannot yet replay stops at a **named frontier**
+(an explicit `throwError`, never a silent skip or a `sorry`) that maps to a
+specific backlog item. The largest open area is **induction generality**
+(multi-literal pushed clauses, multiple induction hypotheses, multi-variable
+and non-`acl2-count` measures, merged/mutual schemes). Other frontiers:
+previously-proved theorems used as rewrite rules, some `:use`/`:induct` hint
+shapes, and a handful of decision-procedure leaves awaiting an SMT backend.
+
+Beyond the corpus, the **translator** (stage 5) currently handles
+`defun`/`defthm`/`mutual-recursion`; `encapsulate`, `include-book`,
+`defconst`, macros, and guard verification are not yet supported, so the
+larger ACL2 books in `acl2_samples/` are aspirational targets, not passing
+imports. The intended scope (a CORE tier targeting roughly the Milawa
+fragment plus the ratified decision-procedure carve-out, with EXTENDED and
+OUT tiers) is set out in `docs/plans/2026-06-10_generality-design.md`.
+
+**Live status lives in the repo, not here:** the scoreboard at the top of
 `ACL2Lean/Imported/NativeMirrors.lean` lists the native theorems proved
-through the driver (each is a build-enforced regression), the coverage table
+through the driver (each a build-enforced regression), the coverage table
 from `just driver-coverage` reports per-theorem replay status over the whole
 corpus, and `TODO.md` tracks the frontiers.
 

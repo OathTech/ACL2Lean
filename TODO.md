@@ -5,7 +5,7 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-06-11._
+_Last updated: 2026-06-12._
 
 > **`just ci` is GREEN** and includes the driver-coverage sweep: hard-fails on
 > any item-less PROVED leaf (emission gap) and reconstruction-integrity
@@ -72,6 +72,18 @@ closed, ci as scoreboard, audits at milestones):
 - [ ] **G6 — Measured book sweep.** Grep-based mechanism-frequency counts over
       a diverse community-books sample to confirm the CORE/EXTENDED/OUT cut
       (the survey's honest gap); revisit the design doc with data.
+
+Kestrel-readiness polish (2026-06-12, branch mdd/kestrel-polish): README
+getting-started/bootstrap + Status & limitations sections; mirror-statement
+text corrected to truthiness (post-G2); `.gitmodules` ssh→https. Primitives
+`symbolp`/`nfix`/`len` added to the lift (`Logic` defs + `callBuiltin`
+routing + `callBuiltin_*` rfl-lemmas + `dpUnary`/`dpLiftHeads`); cheap because
+G3's `dpLiftF_sound` is generic over `dpLiftHeads`. Coverage unchanged
+(17/37, ✓9 ◌9 ✗0) — the six affected theorems advanced PAST the
+missing-primitive walls to their real next frontiers (mostly G5 induction).
+NOTE: `len` was misfiled as a "user defun, refute" candidate — it is a
+primitive (`Logic.len`), just unregistered; the build investigation caught
+the error.
 
 Alongside the G-steps: **the NATIVE MIRROR CATALOG** (task #62, MDD-ratified) —
 `ACL2Lean/Imported/NativeMirrors.lean`, one section per corpus theorem: the

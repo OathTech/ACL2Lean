@@ -1377,6 +1377,12 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
     callBuiltin "natp" [a] = some (Logic.natp a) := by rfl
 @[simp] theorem callBuiltin_posp (a : SExpr) :
     callBuiltin "posp" [a] = some (Logic.posp a) := by rfl
+@[simp] theorem callBuiltin_symbolp (a : SExpr) :
+    callBuiltin "symbolp" [a] = some (Logic.symbolp a) := by rfl
+@[simp] theorem callBuiltin_nfix (a : SExpr) :
+    callBuiltin "nfix" [a] = some (Logic.nfix a) := by rfl
+@[simp] theorem callBuiltin_len (a : SExpr) :
+    callBuiltin "len" [a] = some (Logic.len a) := by rfl
 
 /-- T3: EQUAL-self — (EQUAL t t) evaluates to T when t converges. -/
 theorem evalOpt_equal_self (f : Nat) (w : World) (env : Env)

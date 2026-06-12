@@ -236,6 +236,19 @@ open ACL2
   | .atom (.string _) => .t
   | _ => .nil
 
+/-- ACL2 `symbolp` (`nil` is a symbol). -/
+@[inline, simp] def symbolp (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.symbol _) | .nil => .t
+  | _ => .nil
+
+/-- ACL2 `nfix` — coerce to a natural: a non-negative integer is itself,
+    anything else (negative int, non-int) becomes `0`. -/
+@[inline, simp] def nfix (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number (.int n)) => if n >= 0 then s else .atom (.number (.int 0))
+  | _ => .atom (.number (.int 0))
+
 /-- ACL2 `string-append`. Returns empty string on non-string inputs. -/
 @[inline, simp] def string_append (a b : SExpr) : SExpr :=
   match a, b with

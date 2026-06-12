@@ -449,7 +449,10 @@ def dpUnary : List (String × Name × Name) :=
    ("acl2-numberp", ``Logic.acl2Numberp, ``callBuiltin_acl2_numberp),
    ("true-listp", ``Logic.trueListp, ``callBuiltin_true_listp),
    ("car",      ``Logic.car,      ``callBuiltin_car),
-   ("cdr",      ``Logic.cdr,      ``callBuiltin_cdr)]
+   ("cdr",      ``Logic.cdr,      ``callBuiltin_cdr),
+   ("symbolp",  ``Logic.symbolp,  ``callBuiltin_symbolp),
+   ("nfix",     ``Logic.nfix,     ``callBuiltin_nfix),
+   ("len",      ``Logic.len,      ``callBuiltin_len)]
 
 /-- DP-lift primitives (binary). -/
 def dpBinary : List (String × Name × Name) :=
