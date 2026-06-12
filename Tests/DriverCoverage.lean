@@ -201,7 +201,11 @@ elab "#driver_coverage" : command => do
     let mut dpTotal := 0
     let mut dpReplayed := 0
     let mut dpAssumed := 0
+    -- per-file wall times, logged SEPARATELY from the golden-compared report
+    -- (timings vary run to run; the baseline must stay deterministic)
+    let mut timings : Array String := #[]
     for (name, content) in corpus do
+      let tFile0 ← IO.monoMsNow
       match ProofLog.parse content with
       | .error msg =>
         lines := lines.push s!"• {name}: PARSE-FAIL {msg}"
@@ -251,8 +255,11 @@ elab "#driver_coverage" : command => do
             let disTag := if disParts.isEmpty then "" else
               s!"  [DISCHARGE: {", ".intercalate disParts}]"
             lines := lines.push s!"    {cp.name} → {status}{tag}{disTag}"
+      let tFile1 ← IO.monoMsNow
+      timings := timings.push s!"  {name}: {tFile1 - tFile0} ms"
     let report := s!"Driver coverage — REPLAYED {replayed}/{total}; DP-discharge leaves ✓{dpReplayed} ◌{dpAssumed} ✗{dpTotal - dpReplayed - dpAssumed} of {dpTotal}:\n{"\n".intercalate lines.toList}"
     logInfo report
+    logInfo m!"per-file wall times (informational — NOT golden-compared):\n{"\n".intercalate timings.toList}"
     -- GOLDEN-TABLE GATE: write the fresh table, then diff against the committed
     -- baseline. Runs BEFORE the integrity/emission gates so the .actual file is
     -- always produced, but only THROWS after them (their failures are the
