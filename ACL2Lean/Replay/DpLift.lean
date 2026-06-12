@@ -243,12 +243,13 @@ applications — never special forms or table primitives (matching
 `collectOpaques`' construction; DECIDABLE, one check per leaf) — and
 (b) inversion/introduction lemmas for the `if` and `not` arms. -/
 
-/-- An opaque key must be an application whose head is neither a special
-    form nor a table primitive. -/
+/-- An opaque key must be an application whose head NAME is neither a
+    special form's nor a table primitive's (NAME-based, any package —
+    matching `collectOpaques`' name-based collection, D-B4 refined). -/
 def dpOpqKeyOk : SExpr → Bool
   | .cons (.atom (.symbol fs)) _ =>
-    !(fs == { name := "quote" }) && !(fs == { name := "if" }) &&
-    !(fs.package == "ACL2" && dpLiftHeads.contains fs.name)
+    !(fs.isNamed "quote") && !(fs.isNamed "if") &&
+    !(dpLiftHeads.contains fs.name)
   | _ => false
 
 /-- All opaque keys well-formed (decidable; the driver checks it once per
@@ -264,31 +265,63 @@ abbrev ifT (c thn els : SExpr) : SExpr :=
 abbrev notT (x : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "not" })) (.cons x .nil)
 
-/-- An if-term is never an opaque key under WF. -/
-theorem dpOpqWF_find_if (opq : List (SExpr × SExpr))
-    (hwf : dpOpqWF opq = true) (c thn els : SExpr) :
-    opq.find? (fun p => p.1 == ifT c thn els) = none := by
-  cases hfind : opq.find? (fun p => p.1 == ifT c thn els) with
+/-- A banned-NAME application is never an opaque key under WF. -/
+theorem dpOpqWF_find_banned (opq : List (SExpr × SExpr))
+    (hwf : dpOpqWF opq = true) {fs : Symbol} (args : SExpr)
+    (hban : (fs.isNamed "quote" || fs.isNamed "if" ||
+             dpLiftHeads.contains fs.name) = true) :
+    opq.find? (fun p => p.1 == .cons (.atom (.symbol fs)) args) = none := by
+  cases hfind : opq.find? (fun p => p.1 == .cons (.atom (.symbol fs)) args) with
   | none => rfl
   | some p =>
     have hmem := List.mem_of_find?_eq_some hfind
-    have hpred : p.1 == ifT c thn els := by simpa using List.find?_some hfind
+    have hpred : p.1 == .cons (.atom (.symbol fs)) args := by
+      simpa using List.find?_some hfind
     have hkey := List.all_eq_true.mp hwf p hmem
     rw [eq_of_beq hpred] at hkey
-    simp [dpOpqKeyOk] at hkey
+    simp only [dpOpqKeyOk, Bool.and_eq_true, Bool.not_eq_eq_eq_not,
+      Bool.not_true] at hkey
+    obtain ⟨⟨h1, h2⟩, h3⟩ := hkey
+    simp only [h1, h2, Bool.false_or] at hban
+    exact absurd hban (by simpa using h3)
+
+/-- An if-term is never an opaque key under WF. -/
+theorem dpOpqWF_find_if (opq : List (SExpr × SExpr))
+    (hwf : dpOpqWF opq = true) (c thn els : SExpr) :
+    opq.find? (fun p => p.1 == ifT c thn els) = none :=
+  dpOpqWF_find_banned opq hwf _ (by decide)
 
 /-- A not-term is never an opaque key under WF. -/
 theorem dpOpqWF_find_not (opq : List (SExpr × SExpr))
     (hwf : dpOpqWF opq = true) (x : SExpr) :
-    opq.find? (fun p => p.1 == notT x) = none := by
-  cases hfind : opq.find? (fun p => p.1 == notT x) with
-  | none => rfl
-  | some p =>
-    have hmem := List.mem_of_find?_eq_some hfind
-    have hpred : p.1 == notT x := by simpa using List.find?_some hfind
-    have hkey := List.all_eq_true.mp hwf p hmem
-    rw [eq_of_beq hpred] at hkey
-    simp [dpOpqKeyOk, dpLiftHeads] at hkey
+    opq.find? (fun p => p.1 == notT x) = none :=
+  dpOpqWF_find_banned opq hwf _ (by decide)
+
+/-- A (default-package) quote-term lifts transparently under WF. -/
+theorem dpLiftF_quote {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) (x : SExpr) :
+    dpLiftF vars opq
+      (.cons (.atom (.symbol { name := "quote" })) (.cons x .nil)) = some x := by
+  rw [dpLiftF.eq_def, dpOpqWF_find_banned opq hwf _ (by decide)]
+  simp
+
+/-- A banned-NAME head that is NOT the default-package special/primitive
+    cannot lift at all (the structural arms all miss and WF bans the key) —
+    the refuter for the wrong-package vacuous cases in the clausify
+    induction (D-B4). -/
+theorem dpLiftF_app_none_of_banned_name {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
+    {fs : Symbol} (args : SExpr)
+    (hban : (fs.isNamed "quote" || fs.isNamed "if" ||
+             dpLiftHeads.contains fs.name) = true)
+    (hnq : (fs == { name := "quote" }) = false)
+    (hnif : (fs == { name := "if" }) = false)
+    (hnprim : (fs.package == "ACL2" && dpLiftHeads.contains fs.name) = false) :
+    dpLiftF vars opq (.cons (.atom (.symbol fs)) args) = none := by
+  rw [dpLiftF.eq_def, dpOpqWF_find_banned opq hwf args hban]
+  simp [hnq, hnif]
+  intro hpkg hmem
+  simp [hpkg, hmem] at hnprim
 
 /-- INVERT a lifted if: the three components lift, and the value is the
     `cond` of theirs. -/
