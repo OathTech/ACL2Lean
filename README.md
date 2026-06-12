@@ -114,3 +114,9 @@ Live status lives in the repo, not here: the scoreboard at the top of
 through the driver (each is a build-enforced regression), the coverage table
 from `just driver-coverage` reports per-theorem replay status over the whole
 corpus, and `TODO.md` tracks the frontiers.
+
+## License
+
+BSD 3-Clause — see [LICENSE](LICENSE). Copyright (c) The ACL2Lean Authors.
+(The `acl2/` submodule is upstream ACL2 plus our instrumentation and carries
+its own license — see `acl2/LICENSE`.)
