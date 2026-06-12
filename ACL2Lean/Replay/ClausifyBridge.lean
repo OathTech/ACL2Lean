@@ -63,4 +63,70 @@ def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
     else if pos then [t] else [dumbNegateLit t]
   | _ => if pos then [t] else [dumbNegateLit t]
 
+/-! ## The disjoin characterization ladder (design doc, Fragment B helpers) -/
+
+/-- The empty clause's disjunction (`(quote nil)`) is never true. -/
+theorem not_evtrue_disjoin_nil (w : World) (env : Env) :
+    ¬ EvTrue w env (disjoinTerm []) := by
+  intro h
+  obtain ⟨N, h⟩ := h
+  obtain ⟨v, hv, hnv⟩ := h (N + 1) (by omega)
+  have hq : evalOpt (N + 1) w env (disjoinTerm []) = some SExpr.nil :=
+    evalOpt_quote N w env SExpr.nil
+  exact hnv (Option.some.inj (hv.symm.trans hq))
+
+/-- `EvTrue` of `(quote t)` (the spine's then-branch). -/
+theorem evtrue_quoteT (w : World) (env : Env) : EvTrue w env quoteT :=
+  ⟨1, fun f hf => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact ⟨SExpr.t, evalOpt_quote g w env SExpr.t, by simp [SExpr.t]⟩⟩
+
+/-- The UNIFORM cons characterization: a disjunction headed by a converging
+    literal is true iff the literal is truthy or the rest is true.
+    (`disjoinTerm`'s singleton special case dissolves: for `rest = []` the
+    right disjunct is refuted by `not_evtrue_disjoin_nil`.) -/
+theorem evtrue_disjoin_cons (w : World) (env : Env) (l : SExpr)
+    (rest : List SExpr) (vl : SExpr)
+    (hconv : ∃ N, ∀ f ≥ N, evalOpt f w env l = some vl) :
+    EvTrue w env (disjoinTerm (l :: rest)) ↔
+      (vl ≠ SExpr.nil ∨ EvTrue w env (disjoinTerm rest)) := by
+  cases rest with
+  | nil =>
+    constructor
+    · intro h
+      exact Or.inl (ne_nil_of_evtrue_conv h hconv)
+    · rintro (hne | habs)
+      · exact evtrue_of_conv_ne_nil hconv hne
+      · exact absurd habs (not_evtrue_disjoin_nil w env)
+  | cons r rs =>
+    constructor
+    · intro h
+      by_cases hv : vl = SExpr.nil
+      · exact Or.inr (evtrue_extract_else (hv ▸ hconv) h)
+      · exact Or.inl hv
+    · rintro (hne | hrest)
+      · exact evtrue_dp_if_split w env l quoteT (disjoinTerm (r :: rs)) vl
+          hconv (fun _ => evtrue_quoteT w env) (fun h0 => absurd h0 hne)
+      · exact evtrue_dp_if_split w env l quoteT (disjoinTerm (r :: rs)) vl
+          hconv (fun _ => evtrue_quoteT w env) (fun _ => hrest)
+
+/-- Split a true disjoined APPEND into a true side (needs the left
+    literals' convergences to walk the spine). -/
+theorem evtrue_disjoin_append_elim (w : World) (env : Env) :
+    ∀ (xs ys : List SExpr),
+      (∀ l ∈ xs, ∃ vl, ∃ N, ∀ f ≥ N, evalOpt f w env l = some vl) →
+      EvTrue w env (disjoinTerm (xs ++ ys)) →
+      EvTrue w env (disjoinTerm xs) ∨ EvTrue w env (disjoinTerm ys)
+  | [], _, _, h => Or.inr (by simpa using h)
+  | l :: xs, ys, hconv, h => by
+    obtain ⟨vl, hvl⟩ := hconv l List.mem_cons_self
+    rw [List.cons_append,
+        evtrue_disjoin_cons w env l (xs ++ ys) vl hvl] at h
+    rcases h with hne | hrest
+    · exact Or.inl ((evtrue_disjoin_cons w env l xs vl hvl).mpr (Or.inl hne))
+    · rcases evtrue_disjoin_append_elim w env xs ys
+        (fun l' hl' => hconv l' (List.mem_cons_of_mem _ hl')) hrest with h1 | h2
+      · exact Or.inl ((evtrue_disjoin_cons w env l xs vl hvl).mpr (Or.inr h1))
+      · exact Or.inr h2
+
 end ACL2.Replay

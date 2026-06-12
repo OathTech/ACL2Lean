@@ -102,6 +102,26 @@ Decisions settled at implementation (2026-06-12):
   behavior-identical. Fragment B lives in its own file
   (`Replay/ClausifyBridge.lean`, importing DpLift) per L1.
 
+### Fragment B helper decomposition (sketched 2026-06-12)
+
+1. `not_evtrue_disjoin_nil : ¬ EvTrue w env (disjoinTerm [])` — disjoin of
+   the empty clause is `(quote nil)`, whose value is pinned nil.
+2. `evtrue_disjoin_cons (hconv : conv l vl) :
+   EvTrue (disjoinTerm (l :: rest)) ↔ vl ≠ nil ∨ EvTrue (disjoinTerm rest)`
+   — UNIFORM across `rest = []` (LHS is `EvTrue l`, RHS's right disjunct
+   refuted by (1)) and `rest = _::_` (the spine if-split). This dissolves
+   `disjoinTerm`'s singleton special case.
+3. `evtrue_disjoin_append_elim` by list induction on xs over (2), premised
+   on each xs-literal's convergence.
+4. The `dumbNegateLit` arm lemmas: `(not X)`-shaped literals via
+   `conv_not_nil_of_evtrue` (exists, G2); the wrap arm needs the dual
+   (`EvTrue (not t)` + `conv t vt` → `eval t ⇒ some nil` via
+   `arg_nil_of_not_truthy`).
+5. `clausifyPure_sound` via `clausifyPure.induct`, motive
+   `(t, pos) ↦ EvTrue (disjoin (clausifyPure t pos)) →
+   (pos: EvTrue t | neg: eval t ⇒ some nil)`, lift-fact premise threaded
+   to subterms through the bind extraction.
+
 ## 3. Sequencing
 
 1. Fragment A: function + soundness lemma, wired into ONE consumer
