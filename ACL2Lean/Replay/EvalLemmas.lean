@@ -2222,7 +2222,7 @@ theorem re_acl2_numberp_int (w : World) (env : Env) (z : SExpr) (k : Int)
     driver replays it by VALUE-characterized evaluation of the if-spine
     (`proveVal`): every subterm's value is an explicit `Logic`-primitive
     expression over the clause variables' env values, the spine splits on each
-    literal's value via `re_dp_if_split`, and the residual fact
+    literal's value via `evtrue_dp_if_split`, and the residual fact
     `∀ vars, v₁ = nil → … → vₖ = t` is closed by a kernel-checked decision
     procedure (`omega` after SExpr case-split — see the carve-out in CLAUDE.md). -/
 
@@ -2259,34 +2259,6 @@ theorem re_val_var (w : World) (env : Env) (s : Symbol)
   | none => exact ⟨1, fun f _ => by
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
       simpa [h] using evalOpt_var_unbound g w env s h h_not_t⟩
-
-/-- Discharge-leaf if-split: `(if c t e) ⇒ t` (the value `t`) given the test's
-    VALUE-characterized convergence to `cv` and t-convergence of the branch selected
-    by EITHER case of `cv` (both implications supplied; the proof case-splits on
-    `cv = nil`). The spine combinator for a decision-procedure discharge: the driver
-    cannot know which literal of the disjunction is true for a given env, so both
-    branches are discharged hypothetically. -/
-theorem re_dp_if_split (w : World) (env : Env) (c t e cv : SExpr)
-    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
-    (hthen : cv ≠ .nil → ∃ N, ∀ f ≥ N, evalOpt f w env t = some .t)
-    (helse : cv = .nil → ∃ N, ∀ f ≥ N, evalOpt f w env e = some .t) :
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
-      = some .t := by
-  obtain ⟨Nc, hc⟩ := hc
-  by_cases hcv : cv = .nil
-  · obtain ⟨Ne, he⟩ := helse hcv
-    refine ⟨max Nc Ne + 1, fun f hf => ?_⟩
-    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-    rw [evalOpt_if_false g w env c t e (hcv ▸ hc g (by omega))]
-    exact he g (by omega)
-  · obtain ⟨Nt, ht⟩ := hthen hcv
-    refine ⟨max Nc Nt + 1, fun f hf => ?_⟩
-    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-    rw [evalOpt_if_true g w env c t e cv (hc g (by omega))
-      (by cases cv <;> simp_all [Logic.toBool])]
-    exact ht g (by omega)
 
 /-- Rewrite a value-characterized convergence along a value equality (used to close
     the spine's last literal with the decision-procedure fact `vk = t`). -/
@@ -2484,35 +2456,13 @@ theorem logic_not_t_nil : Logic.not SExpr.t = SExpr.nil := by
 
 /-! ## Clausify-bridge helpers (formula → clause composition, #53C)
 
-The bridge consumes a PROVED child clause (`eval (disjoin cl) = some t`) and
-rebuilds the truth of the clausify INPUT term by mirroring `clausify-input1`'s
-pure if-recursion: `if_fact_elim` peels the proved disjunction literal by
-literal (one leaf per firing literal), the value helpers below convert each
-leaf's literal facts into test-value facts, and `re_dp_if_split` re-composes
-the input term's if-tree (the impossible branch in each leaf is vacuous). -/
-
-/-- ELIMINATE a proved `if` fact by its test's value: from
-    `eval (if c thn els) = some v` and the test's value, either the test is
-    truthy and the THEN branch carries the value, or it is nil and the ELSE
-    branch does. The dual of `re_dp_if_split`. -/
-theorem if_fact_elim {w : World} {env : Env} {c thn els cv v : SExpr} {C : Prop}
-    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
-    (hfact : ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "if" }))
-        (.cons c (.cons thn (.cons els .nil)))) = some v)
-    (hthen : cv ≠ SExpr.nil → (∃ N, ∀ f ≥ N, evalOpt f w env thn = some v) → C)
-    (helse : cv = SExpr.nil → (∃ N, ∀ f ≥ N, evalOpt f w env els = some v) → C) :
-    C := by
-  obtain ⟨Nc, hcf⟩ := hc
-  obtain ⟨Nf, hff⟩ := hfact
-  by_cases hcv : cv = SExpr.nil
-  · refine helse hcv ⟨Nc + Nf + 1, fun f hge => ?_⟩
-    have h1 := hff (f + 1) (by omega)
-    rwa [evalOpt_if_false f w env c thn els (by rw [hcf f (by omega), hcv])] at h1
-  · refine hthen hcv ⟨Nc + Nf + 1, fun f hge => ?_⟩
-    have h1 := hff (f + 1) (by omega)
-    rwa [evalOpt_if_true f w env c thn els cv (hcf f (by omega))
-          (by cases cv <;> simp_all [Logic.toBool])] at h1
+The bridge consumes a PROVED child clause (`EvTrue w env (disjoin cl)`, G2)
+and rebuilds the truth of the clausify INPUT term by mirroring
+`clausify-input1`'s pure if-recursion: `evtrue_if_fact_elim` peels the proved
+disjunction literal by literal (one leaf per firing literal), the value
+helpers below convert each leaf's literal facts into test-value facts, and
+`evtrue_dp_if_split` re-composes the input term's if-tree (the impossible
+branch in each leaf is vacuous). -/
 
 /-- `toBool` of a non-nil value is `true`. -/
 theorem toBool_true_of_ne_nil {v : SExpr} (h : v ≠ SExpr.nil) :
@@ -2526,11 +2476,6 @@ theorem toBool_false_of_nil {v : SExpr} (h : v = SExpr.nil) :
 theorem arg_nil_of_not_truthy {v : SExpr} (h : Logic.not v ≠ SExpr.nil) :
     v = SExpr.nil := by
   cases v <;> simp_all [Logic.not, Logic.toBool]
-
-/-- A `not` valued exactly `t` pins its argument to nil. -/
-theorem arg_nil_of_not_t {v : SExpr} (h : Logic.not v = SExpr.t) :
-    v = SExpr.nil := by
-  cases v <;> simp_all [Logic.not, Logic.toBool, SExpr.t]
 
 /-- A nil `not` pins its argument truthy. -/
 theorem arg_truthy_of_not_nil {v : SExpr} (h : Logic.not v = SExpr.nil) :
@@ -2546,10 +2491,6 @@ theorem val_unique {a : Nat → Option SExpr} {u v : SExpr}
 /-- Transport non-nil-ness along a value equation. -/
 theorem ne_nil_of_eq {v w : SExpr} (h : v = w) (hw : w ≠ SExpr.nil) :
     v ≠ SExpr.nil := h ▸ hw
-
-/-- A value equal to `t` is non-nil. -/
-theorem ne_nil_of_eq_t {v : SExpr} (h : v = SExpr.t) : v ≠ SExpr.nil := by
-  subst h; simp [SExpr.t]
 
 /-- A nil argument makes `not` exactly `t`. -/
 theorem not_t_of_nil {v : SExpr} (h : v = SExpr.nil) :
@@ -2724,36 +2665,6 @@ theorem evrel_if_test_siff_collapse {w : World} {env : Env} {c c' thn els : SExp
         evalOpt_if_true g w env c' thn els v hv
           (toBool_true_of_ne_nil (fun hnv => hnu (Iff.mpr huv hnv)))]
 
-/-- Transport exact truth BACKWARDS along an iff: the chain's end is `some t`,
-    so the chain's start is TRUTHY (its value need not be `t`). -/
-theorem truthy_of_evrel_siff {w : World} {env : Env} {a b : SExpr}
-    (hab : EvRel SIff w env a b)
-    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some SExpr.t) :
-    ∃ N, ∀ f ≥ N, ∃ u, evalOpt f w env a = some u ∧ u ≠ SExpr.nil := by
-  obtain ⟨n1, hab⟩ := hab; obtain ⟨n2, hb⟩ := hb
-  refine ⟨n1 + n2, fun f hf => ?_⟩
-  obtain ⟨u, v, hau, hbv, huv⟩ := hab f (by omega)
-  have : v = SExpr.t := Option.some.inj ((hbv.symm.trans (hb f (by omega))))
-  refine ⟨u, hau, fun hnu => ?_⟩
-  have hvnil : v = SExpr.nil := Iff.mp huv hnu
-  simp_all [SExpr.t]
-
-/-- Strengthen truthiness to `= some t` at a pinned BOOLEAN value (the chain
-    start's head is boolean-valued, e.g. `implies`). G2's `EvTrue` migration
-    removes the need for this. -/
-theorem eq_t_of_truthy_boolean {w : World} {env : Env} {a va : SExpr}
-    (hconv : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
-    (hbool : va = SExpr.t ∨ va = SExpr.nil)
-    (htruthy : ∃ N, ∀ f ≥ N, ∃ u, evalOpt f w env a = some u ∧ u ≠ SExpr.nil) :
-    ∃ N, ∀ f ≥ N, evalOpt f w env a = some SExpr.t := by
-  obtain ⟨n1, hconv⟩ := hconv; obtain ⟨n2, htruthy⟩ := htruthy
-  refine ⟨n1 + n2, fun f hf => ?_⟩
-  obtain ⟨u, hau, hnu⟩ := htruthy f (by omega)
-  have hva : u = va := Option.some.inj ((hau.symm.trans (hconv f (by omega))))
-  rcases hbool with h | h
-  · rwa [hva, h] at hau
-  · exact absurd (hva.trans h) hnu
-
 /-- `Logic.implies` is boolean-valued (the chain-start head fact). -/
 theorem logic_implies_boolean (p q : SExpr) :
     Logic.implies p q = SExpr.t ∨ Logic.implies p q = SExpr.nil := by
@@ -2786,9 +2697,9 @@ theorem evtrue_of_eq_t {w : World} {env : Env} {a : SExpr}
   exact ⟨N, fun f hf => ⟨SExpr.t, h f hf, by simp [SExpr.t]⟩⟩
 
 /-- Transport `EvTrue` BACKWARDS along an iff chain: `a` iff-rewrites to `b`
-    and `b` is true, so `a` is true. Replaces the G1 interim end-game
-    (`truthy_of_evrel_siff` + the boolean-head strengthening) — truthiness is
-    the statement now, so no strengthening is needed. -/
+    and `b` is true, so `a` is true. Replaces the deleted G1-interim
+    end-game (backward truth transport + the boolean-head strengthening) —
+    truthiness is the statement now, so no strengthening is needed. -/
 theorem evtrue_of_evrel_siff {w : World} {env : Env} {a b : SExpr}
     (hab : EvRel SIff w env a b) (hb : EvTrue w env b) : EvTrue w env a := by
   obtain ⟨n1, hab⟩ := hab; obtain ⟨n2, hb⟩ := hb
@@ -2825,8 +2736,8 @@ theorem evrel_siff_qt_of_evtrue {w : World} {env : Env} {a : SExpr}
   exact evalOpt_quote g w env SExpr.t
 
 /-- Extract the REST of a disjunction from its `EvTrue` when the head literal
-    is valued nil — the induction scaffold's per-case peel (`re_extract_else`'s
-    `EvTrue` twin, fixed to the disjoin shape `(if c 't rest)`). -/
+    is valued nil — the induction scaffold's per-case peel, fixed to the
+    disjoin shape `(if c 't rest)`. -/
 theorem evtrue_extract_else {w : World} {env : Env} {c rest : SExpr}
     (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some SExpr.nil)
     (hif : EvTrue w env
@@ -2963,23 +2874,6 @@ theorem val_eq_of_eval_eq {a b : Nat → Option SExpr} {u v : SExpr}
   have := ((h2 (n1+n2+n3) (by omega)).symm.trans (h1 (n1+n2+n3) (by omega))).trans
     (h3 (n1+n2+n3) (by omega))
   exact Option.some.inj this
-
-/-- EXTRACT the else-branch's convergence from a converged `if` with a nil test
-    (the induction scaffold's per-case step: the case fact discharges the case
-    literal, leaving the pushed clause). -/
-theorem re_extract_else (w : World) (env : Env) (c t e : SExpr) (r : SExpr)
-    (hif : ∃ N, ∀ f ≥ N,
-      evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
-      = some r)
-    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some .nil) :
-    ∃ N, ∀ f ≥ N, evalOpt f w env e = some r := by
-  obtain ⟨Ni, hi⟩ := hif; obtain ⟨Nc, hc⟩ := hc
-  refine ⟨max Ni Nc + 1, fun f hf => ?_⟩
-  have heq := evalOpt_if_false f w env c t e (hc f (by omega))
-  have := hi (f + 1) (by omega)
-  rw [heq] at this
-  exact this
 
 /-- Weaken a value-characterized convergence to the v-existential form
     (`proveConv`'s shape, consumed by `re_equal_self` etc.). -/

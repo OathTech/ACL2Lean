@@ -211,14 +211,30 @@ the golden gate as the checker.
 - [x] `replayProof` / `replayProofConditional`: migrated by construction
       (conclusion = `replayClause`'s judgment; hypothesis telescope is
       value-level, unchanged); docstrings updated
-- [ ] Phase 3: `driver_mirror%` (NativeMirrors.lean:71), WorldGen stub
-      (:103), DriverTests pins, harness docstrings
-- [ ] Phase 4: Lifting enders + catalog entries + `*_native_of_mirror`
-      assembly lemmas; per-entry `#print axioms`
-- [ ] Phase 5: delete dead exact-t clause lemmas
-      (`truthy_of_evrel_siff`? `eq_t_of_truthy_boolean`,
-      `logic_implies_boolean` if unconsumed); golden table re-baseline if
-      any status text moved; update this doc with the as-built record
+- [x] Phase 3: all 7 DriverTests pins in the unfolded truthiness form
+      (hypothesis sides untouched); WorldGen stub; `native_nat_refl`
+      decodes via `Logic.eq_of_equal_ne_nil` (NOTE: `rw`'s implicit `rfl`
+      silently closed the `n = n` goal, bypassing the mirror — replaced by
+      explicit `Eq` composition; axioms confirm the mirror dependence).
+      The IH-bridge regression (4 inductive theorems) was caught by the
+      GOLDEN GATE — `evtrue_of_fuel_eq` generalized over the rhs env
+      (`evalOpt_substTerm_subst1` relates two envs).
+- [x] Phase 4: `native_of_mirror_equal` consumes `EvTrue` (moved after
+      `conv_equalT` — forward ref); new `implies_t_of_ne_nil`; assembly
+      lemmas take the truthiness mirror, hand mirrors inject via
+      `evtrue_of_eq_t`; entries 6/7 `conv_unique`-against-mirror →
+      `ne_nil_of_evtrue_conv` + `implies_t_of_ne_nil`; entries 3/4/5/8
+      align through the ender unchanged.
+- [x] Phase 5: DELETED `re_dp_if_split`, `if_fact_elim`,
+      `re_extract_else`, `truthy_of_evrel_siff`, `eq_t_of_truthy_boolean`,
+      `arg_nil_of_not_t`, `ne_nil_of_eq_t` (all consumer-free after the
+      migration; grep-verified). KEPT with consumers:
+      `eval_equal_t_implies_eq` + `fuel_conv_of_eq` (hand proofs,
+      value-level recipes), `logic_implies_boolean` (feeds
+      `implies_t_of_ne_nil`), `logic_not_t_nil` (step-case literal peel),
+      `conv_unique` (generic Conv-kit utility). Dangling docstrings
+      reworded. Golden table: expected UNCHANGED (statuses don't encode
+      statement shapes) — verified by the gate.
 
 ## 8. Risks / what to watch (D8)
 

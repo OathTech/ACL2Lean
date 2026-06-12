@@ -159,7 +159,18 @@ LIBRARY.
       permutation, sum/custom measures (interleave/cd2 frontiers),
       non-trivial admission waterfall replay (the termination field).
 
-- [ ] **Performance pass (general).** Optimization model: LIBRARY build time
+- [ ] **Performance pass (general) — PRIORITY BUMPED (MDD, 2026-06-11): do
+      in a near-future session, ahead of the remaining G-steps, to raise
+      iteration velocity.** New data from the G2 migration session: the
+      driver-coverage sweep costs ~5 min per `just ci` (37 replays + 18
+      leaf discharges + per-file totality envs, all MetaM elaboration), and
+      any change to EvalLemmas recompiles the whole dependent chain
+      (Driver → NativeMirrors re-elaborating all ten mirrors → DriverTests
+      replaying trees) — so a base-layer edit-test cycle is ~10 min.
+      Candidate additions to the list below: an incremental/per-file
+      coverage mode (sweep only developments whose inputs changed); cache
+      the reflected-world + totality-env construction across harness runs.
+      Optimization model: LIBRARY build time
       (EvalLemmas, Lifting, the lemma stack) matters little — it is built
       once and cached. What must be MINIMIZED is the pipeline latency for a
       FRESH OR UPDATED ACL2 proof: capture → parse → reconstruct → replay →

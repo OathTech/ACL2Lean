@@ -2448,7 +2448,7 @@ output) and instantiates `acl2_induction_consp` (strong induction on
 `SExpr.acl2Count` — the well-foundedness construction Lean owns; everything else
 is read off the tree). Case children are SELF-CONTAINED clause proofs (the spine's
 split is the case hypothesis); the scaffold only peels the case literals
-(`re_extract_else`) and bridges the IH (`evalOpt_substTerm_subst1`).
+(`evtrue_extract_else`) and bridges the IH (`evalOpt_substTerm_subst1`).
 
 Opaque user-fn values are PINNED from the bound totality hypotheses (`pinVal` —
 choice-based, no Exists.elim plumbing), refined to int-atom shape when the fn's
