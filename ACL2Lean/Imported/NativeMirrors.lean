@@ -70,8 +70,9 @@ derive_world simpleWorldD from simpleDev
 
 /-- `driver_mirror% dev world "thm-name"` — the DRIVER's conditional mirror
     for the named theorem of the development `dev`, over the derived world
-    constant `world`: a `∀ env, <hypotheses> → ∃N∀f≥N, eval = some t` proof
-    OBJECT produced by `replayProofConditional` from the reconstructed tree. -/
+    constant `world`: a `∀ env, <hypotheses> → ∃N∀f≥N ∃v, eval = some v ∧
+    v ≠ nil` proof OBJECT (ACL2's truthiness claim, G2) produced by
+    `replayProofConditional` from the reconstructed tree. -/
 elab "driver_mirror%" devId:ident worldId:ident nm:str : term => do
   let devName ← Lean.resolveGlobalConstNoOverload devId
   let worldName ← Lean.resolveGlobalConstNoOverload worldId
@@ -101,8 +102,8 @@ hand `my_len_my_appFormula` — it and the log-derived statement are the same
 term, so the proof closes definitionally. -/
 
 theorem mylenMirror_uncond (env : Env) :
-    ∃ N, ∀ f, f ≥ N → evalOpt f simpleWorldD env
-      Worlds.Simple.my_len_my_appFormula = some SExpr.t :=
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f simpleWorldD env
+      Worlds.Simple.my_len_my_appFormula = some v ∧ v ≠ SExpr.nil :=
   -- the total:my-len/my-app/fix hypotheses are AUTO-DISCHARGED by the driver
   -- from the emitted admission data (#37); only the TP hypothesis remains
   mylenMirrorCond env
@@ -138,15 +139,15 @@ def revDev : Development :=
 derive_world revWorldD from revDev
 
 /-- The conditional mirror as a definition (the driver's proof OBJECT):
-    `∀ env, total:app → ∃N∀f≥N, eval (equal (app (app a b) c)
-    (app a (app b c))) = some t`. -/
+    `∀ env, total:app → <EvTrue of (equal (app (app a b) c)
+    (app a (app b c)))>` (truthiness, G2). -/
 def appAssocMirrorCond := driver_mirror% revDev revWorldD "app-assoc"
 
 /-- The driver mirror — UNCONDITIONAL: its sole `total:app` hypothesis is
     AUTO-DISCHARGED by the driver from the emitted admission data (#37). -/
 theorem appAssocMirror_uncond (env : Env) :
-    ∃ N, ∀ f, f ≥ N → evalOpt f revWorldD env
-      Worlds.AppAssoc.app_assocFormula = some SExpr.t :=
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f revWorldD env
+      Worlds.AppAssoc.app_assocFormula = some v ∧ v ≠ SExpr.nil :=
   appAssocMirrorCond env
 
 /-- ENTRY 2, PROVED — `List.append_assoc` (over `SExpr`) through the DRIVER's
@@ -304,7 +305,7 @@ theorem equal_symm_native (u v : SExpr) (h : u = v) : v = u := by
     (conv_equalT eqWorldD e xT yT u v (by decide) hx hy)
     (conv_equalT eqWorldD e yT xT v u (by decide) hy hx)
   have hval : Logic.implies (Logic.equal u v) (Logic.equal v u) = SExpr.t :=
-    conv_unique himp (equalSymmMirrorCond e)
+    implies_t_of_ne_nil (ne_nil_of_evtrue_conv (equalSymmMirrorCond e) himp)
   exact eq_of_equal_truthy (truthy_of_implies_t hval (equal_truthy_of_eq h))
 
 /-- ENTRY 7, PROVED — transitivity of equality over `SExpr`, through the
@@ -340,7 +341,7 @@ theorem equal_trans_native (u v w' : SExpr) (h1 : u = v) (h2 : v = w') :
     (Logic.equal v w') (Logic.equal u w') (by decide) hif
     (conv_equalT eqWorldD e xT zT u w' (by decide) hx hz)
   have hval : Logic.implies (Logic.equal v w') (Logic.equal u w') = SExpr.t :=
-    conv_unique himp (equalTransMirrorCond e)
+    implies_t_of_ne_nil (ne_nil_of_evtrue_conv (equalTransMirrorCond e) himp)
   exact eq_of_equal_truthy (truthy_of_implies_t hval (equal_truthy_of_eq h2))
 
 /-! ## Entry 8 — `app-cons-car`: `Logic.car (cons u v) = u`

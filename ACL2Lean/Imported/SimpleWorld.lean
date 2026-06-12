@@ -1262,7 +1262,8 @@ theorem my_len_my_app_native_of_mirror (w : World)
     (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
     (hmirror : ∀ env : Env,
-      ∃ N, ∀ f, f ≥ N → evalOpt f w env my_len_my_appFormula = some SExpr.t)
+      ∃ N, ∀ f, f ≥ N → ∃ v,
+        evalOpt f w env my_len_my_appFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys : List SExpr) :
     (xs ++ ys).length = xs.length + ys.length := by
   -- env binding x ↦ enc xs, y ↦ enc ys
@@ -1308,6 +1309,8 @@ theorem my_len_my_app_native (xs ys : List SExpr) :
     (xs ++ ys).length = xs.length + ys.length :=
   my_len_my_app_native_of_mirror world world_has_my_len world_has_my_app
     world_no_equal world_no_consp world_no_plus world_no_cdr world_no_car
-    world_no_cons my_len_my_app_uncond xs ys
+    world_no_cons
+    -- the HAND mirror pins exact t; inject into the truthiness form (G2)
+    (fun env => evtrue_of_eq_t (my_len_my_app_uncond env)) xs ys
 
 end ACL2.Worlds.Simple

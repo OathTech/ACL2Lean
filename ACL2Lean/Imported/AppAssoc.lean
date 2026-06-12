@@ -629,7 +629,8 @@ theorem app_assoc_native_of_mirror (w : World)
     (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
     (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
     (hmirror : ∀ env : Env,
-      ∃ N, ∀ f, f ≥ N → evalOpt f w env app_assocFormula = some SExpr.t)
+      ∃ N, ∀ f, f ≥ N → ∃ v,
+        evalOpt f w env app_assocFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys zs : List SExpr) :
     (xs ++ ys) ++ zs = xs ++ (ys ++ zs) := by
   let e : Env := ((({} : Env).insert c_sym (enc zs)).insert b_sym (enc ys)).insert a_sym (enc xs)
@@ -667,6 +668,8 @@ theorem app_assoc_native_of_mirror (w : World)
 theorem app_assoc_native (xs ys zs : List SExpr) :
     (xs ++ ys) ++ zs = xs ++ (ys ++ zs) :=
   app_assoc_native_of_mirror world world_has_app world_no_consp world_no_cdr
-    world_no_car world_no_cons world_no_equal app_assoc_uncond xs ys zs
+    world_no_car world_no_cons world_no_equal
+    -- the HAND mirror pins exact t; inject into the truthiness form (G2)
+    (fun env => evtrue_of_eq_t (app_assoc_uncond env)) xs ys zs
 
 end ACL2.Worlds.AppAssoc

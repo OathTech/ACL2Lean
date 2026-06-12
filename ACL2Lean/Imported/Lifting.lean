@@ -179,21 +179,6 @@ def Implements₂ (w : World) (fn : String) (ra : Rep α) (rb : Rep β) (rc : Re
     Conv w e a (ra.enc x) → Conv w e b (rb.enc y) →
     Conv w e (app2 fn a b) (rc.enc (g x y))
 
-/-- THE GENERIC EQUATIONAL ENDER: a replayed `equal ⇒ t` mirror plus a
-    representation of each side's value yields the NATIVE equality. Every
-    equational catalog entry finishes here. -/
-theorem native_of_mirror_equal {γ : Type} (w : World) (e : Env) (r : Rep γ)
-    (lhs rhs : SExpr) (x y : γ)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (hL : Conv w e lhs (r.enc x)) (hR : Conv w e rhs (r.enc y))
-    (hmirror : Conv w e (equalT lhs rhs) SExpr.t) : x = y := by
-  obtain ⟨NL, hL'⟩ := hL
-  obtain ⟨NR, hR'⟩ := hR
-  obtain ⟨Nm, hm⟩ := hmirror
-  set f := max (max NL NR) Nm
-  exact r.inj (eval_equal_t_implies_eq f w e lhs rhs _ _
-    (hL' f (by omega)) (hR' f (by omega)) h_no_equal (hm (f + 1) (by omega)))
-
 /-! ## Variable / ground convergence kit -/
 
 /-- Variable convergence from a concrete env binding. -/
@@ -257,6 +242,19 @@ theorem conv_impliesT (w : World) (e : Env) (a b av bv : SExpr)
 
 /-! ## Decode enders -/
 
+/-- THE GENERIC EQUATIONAL ENDER: a replayed TRUE `equal` mirror (truthiness,
+    G2) plus a representation of each side's value yields the NATIVE equality
+    — via `equal`'s two-valuedness, no exact-t pin. Every equational catalog
+    entry finishes here. -/
+theorem native_of_mirror_equal {γ : Type} (w : World) (e : Env) (r : Rep γ)
+    (lhs rhs : SExpr) (x y : γ)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (hL : Conv w e lhs (r.enc x)) (hR : Conv w e rhs (r.enc y))
+    (hmirror : EvTrue w e (equalT lhs rhs)) : x = y :=
+  r.inj (Logic.eq_of_equal_ne_nil
+    (ne_nil_of_evtrue_conv hmirror
+      (conv_equalT w e lhs rhs _ _ h_no_equal hL hR)))
+
 /-- The HYPOTHESIS-decode ender: a truthy antecedent forces the consequent
     of a replayed `implies ⇒ t` fact to be truthy. -/
 theorem truthy_of_implies_t {p q : SExpr}
@@ -266,6 +264,14 @@ theorem truthy_of_implies_t {p q : SExpr}
   cases hq : Logic.toBool q
   · rw [hq, cond_false] at h; exact absurd h (by decide)
   · rfl
+
+/-- A non-nil `Logic.implies` IS `t` (two-valued) — the G2 decode of an
+    `implies`-headed mirror fact: truthiness recovers the exact value. -/
+theorem implies_t_of_ne_nil {p q : SExpr}
+    (h : Logic.implies p q ≠ SExpr.nil) : Logic.implies p q = SExpr.t := by
+  rcases logic_implies_boolean p q with ht | hnil
+  · exact ht
+  · exact absurd hnil h
 
 /-- A truthy `Logic.equal` is a real equality. -/
 theorem eq_of_equal_truthy {a b : SExpr}
