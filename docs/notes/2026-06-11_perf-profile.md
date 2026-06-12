@@ -188,6 +188,29 @@ warnings): 175 s wall for the ENTIRE gate; sweep elaboration ~55 s vs the
 1361 s baseline = 24.7×.** 08-equality restored to 1.0 s; distribution:
 03-linear 24.4 s, 11 9.2 s, 16 8.3 s, 12 5.3 s, everything else ≤ 1 s.
 
+## Round 3 — the two-tier budget policy (MDD review, 2026-06-11)
+
+MDD's objection to budget tuning, sustained: "lowering the bar until just
+above the failure area — what about the next time?" A corpus-calibrated
+constant must never gate FUTURE coverage. Resolution — budgets are split by
+ROLE, not by timing:
+
+- **`dpDirectBudget` (15k, tunable):** applies ONLY where the split
+  fallback exists (`total ≤ 3`). A pure latency knob: on timeout the split
+  path still proves everything provable — the constant cannot change an
+  outcome, so tuning it is harmless by construction. (Named premise: split
+  ⊇ direct in proving power — empirically true for every corpus leaf, not
+  a theorem; golden gate = corpus tripwire; new-book failure mode = a loud
+  conditional, never a wrong verdict.)
+- **`dpOnlyProverGuard` (1M ≈ 40 s, NOT tunable-to-the-corpus):** where
+  the direct attempt is the only prover (`total > 3`), the budget is
+  outcome-determining, so it is a generous RUNAWAY GUARD (the same role as
+  the harness guards), a stated policy boundary rather than a tuned cliff.
+  Known cost, paid knowingly: the corpus's two total=5 always-failing
+  leaves (16/12 `*1/2'`) return to their natural ~18 s failure price
+  (sweep ≈ +35 s vs the all-tuned variant) — the price of not gating
+  future books' coverage on today's timings.
+
 Residuals / follow-ups (stage-2 material, diminishing returns for now):
 - **16/12's ~17 s leaves did not get the P6 win** — their cost is
   apparently NOT proveDpFact (under investigation: suspects are the

@@ -1393,10 +1393,24 @@ def withRealMaxHeartbeats (n : Nat) (x : MetaM α) : MetaM α :=
   withTheReader Core.Context (fun ctx => { ctx with maxHeartbeats := n * 1000 }) <|
     Core.withCurrHeartbeats x
 
-/-- The direct attempt's heartbeat budget (user units; ≈ a couple of seconds
-    of tactic work by the session's calibration — generous for every observed
-    direct SUCCESS, tiny against the 40–860 s unbounded failures). -/
-def dpDirectBudget : Nat := 50000
+/-- The direct attempt's budget where the SPLIT FALLBACK exists
+    (`total ≤` the split bound): a pure LATENCY knob, free to tune — on
+    timeout the split enumeration still proves everything provable, so this
+    constant can never change an OUTCOME, only how fast a failing attempt
+    gives up. (Premise, stated honestly: "the split path closes whatever
+    the direct path closes" is empirically true for every corpus leaf —
+    the pure-split-first run was golden-byte-identical — but not a theorem;
+    the golden gate is the corpus tripwire, and for new books the failure
+    mode is a LOUD conditional hypothesis, never a wrong verdict.) -/
+def dpDirectBudget : Nat := 15000
+
+/-- The direct attempt's budget where it is the ONLY prover (`total >` the
+    split bound): OUTCOME-determining, so deliberately NOT a tuned constant —
+    a generous runaway guard (~40 s, the same role as the harness's per-leaf
+    guards). A true fact needing more than this from the fixed tactic is
+    reported as an honest frontier; a corpus-calibrated bar here would
+    silently gate FUTURE books' coverage on today's timings. -/
+def dpOnlyProverGuard : Nat := 1000000
 
 /-- PROVE the DP fact by the carved-out decision procedure: one BOUNDED run
     of the fixed tactic on the unsplit goal, else a one-level value split
@@ -1429,7 +1443,7 @@ where proveDpFactCore (stmt : Expr) (total : Nat) : MetaM Expr := do
   -- Each attempt uses a FRESH metavariable (a failed attempt may leave its
   -- mvar half-assigned).
   let direct? ←
-    withRealMaxHeartbeats dpDirectBudget <|
+    withRealMaxHeartbeats (if total ≤ 3 then dpDirectBudget else dpOnlyProverGuard) <|
     tryCatchRuntimeEx
       (try
         let mv ← mkFreshExprMVar stmt
