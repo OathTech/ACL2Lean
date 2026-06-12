@@ -1389,37 +1389,56 @@ def dpFactStmt (tests : List SExpr) (last : SExpr) (vars : List Symbol)
     the unsplit goal first, else a one-level value split (policy-bounded) and the
     fixed tactic per leaf. Hard-fails if any case survives. -/
 def proveDpFact (stmt : Expr) (total : Nat) : MetaM Expr := do
+  -- PRISTINE-CONTEXT (perf profile P6): the fact statement is CLOSED
+  -- (∀-quantified over its values), but the caller invokes this inside the
+  -- vop/hconv/htp telescopes — and `simp_all` on EVERY split leaf re-churns
+  -- those ambient hypotheses (whose types carry the reflected world):
+  -- measured 23 s vs 1.7 s for the same statement. Run the whole proof in
+  -- an empty local context when the statement is closed (it always is —
+  -- the fvar check is a defensive fail-safe, not a policy branch).
+  if stmt.hasFVar then
+    proveDpFactCore stmt total
+  else
+    Meta.withLCtx {} #[] do proveDpFactCore stmt total
+where proveDpFactCore (stmt : Expr) (total : Nat) : MetaM Expr := do
   let tac ← dpLeafTactic
-  -- Each attempt uses a FRESH metavariable (a failed attempt may leave its mvar
-  -- half-assigned).
-  let direct? ←
-    tryCatchRuntimeEx
-      (try
-        let mv ← mkFreshExprMVar stmt
-        let (_, g) ← mv.mvarId!.intros
-        let remaining ← Lean.Elab.runTactic g tac
-        if remaining.1.isEmpty then pure (some (← instantiateMVars mv)) else pure none
-      catch _ => pure none)
-      (fun _ => pure none)
-  if let some p := direct? then return p
-  -- The split fallback is exponential in the quantified values (≈9 cases each).
-  -- Past 3 values it is impractical whether or not the fact is true — fail fast
-  -- with an honest frontier error instead of grinding (a fixed policy, not a
-  -- heuristic: 9⁴ ≈ 6500 leaf goals × simp_all is not a viable check).
-  if total > 3 then
-    throwError "proveDpFact: direct tactic failed and {total} quantified values \
-                exceed the split-fallback bound (3) — DP-fact frontier \
+  -- SPLIT-FIRST (perf profile, docs/notes/2026-06-11_perf-profile.md P5):
+  -- case-split the quantified values and close each CONCRETE leaf (~26 ms
+  -- each; a failing leaf aborts immediately). The un-split DIRECT attempt is
+  -- reserved for arities past the split bound — on a goal it cannot close,
+  -- the big simp_all burns ~40 s before failing, and that failing direct
+  -- attempt was ~96% of the corpus sweep's DP cost. Splitting is sound case
+  -- analysis and each leaf carries strictly more constructor information
+  -- than the un-split goal. Still a FIXED policy, not search: split ≤ 3
+  -- values (≈9 cases each — 9⁴ ≈ 6500 leaves is not a viable check), one
+  -- direct attempt above that.
+  if total ≤ 3 then
+    let mv ← mkFreshExprMVar stmt
+    let (_, g) ← mv.mvarId!.intros
+    let leaves ← dpSplitVars g total
+    for leaf in leaves do
+      let remaining ← Lean.Elab.runTactic leaf tac
+      unless remaining.1.isEmpty do
+        throwError "proveDpFact: the DP leaf tactic left {remaining.1.length} goal(s) — \
+                    the discharged clause's lift is not closable by simp+omega \
+                    (clause fact: {stmt})"
+    instantiateMVars mv
+  else
+    -- Each attempt uses a FRESH metavariable (a failed attempt may leave its
+    -- mvar half-assigned).
+    let direct? ←
+      tryCatchRuntimeEx
+        (try
+          let mv ← mkFreshExprMVar stmt
+          let (_, g) ← mv.mvarId!.intros
+          let remaining ← Lean.Elab.runTactic g tac
+          if remaining.1.isEmpty then pure (some (← instantiateMVars mv)) else pure none
+        catch _ => pure none)
+        (fun _ => pure none)
+    if let some p := direct? then return p
+    throwError "proveDpFact: {total} quantified values exceed the split bound \
+                (3) and the direct tactic failed — DP-fact frontier \
                 (fact: {stmt})"
-  let mv ← mkFreshExprMVar stmt
-  let (_, g) ← mv.mvarId!.intros
-  let leaves ← dpSplitVars g total
-  for leaf in leaves do
-    let remaining ← Lean.Elab.runTactic leaf tac
-    unless remaining.1.isEmpty do
-      throwError "proveDpFact: the DP leaf tactic left {remaining.1.length} goal(s) — \
-                  the discharged clause's lift is not closable by simp+omega \
-                  (clause fact: {stmt})"
-  instantiateMVars mv
 
 mutual
 /-- Fold `evtrue_dp_if_split` over the discharge clause's spine, feeding
@@ -1767,12 +1786,14 @@ def replayDischargeLeaf (cfg : ReplayConfig) (clauseTerm : SExpr)
           -- instantiate the fact: concrete var values, opaque value fvars, TP hyps
           let factConc := mkAppN fact (concArgs.toArray ++ vops ++ htps)
           let prf ← dischargeSpine cfg opqMap opqP clauseTerm factConc
-          return (← closeOver prf #[], false)
+          let r ← closeOver prf #[]
+          return (r, false)
         | none =>
           withLocalDeclD `hfact stmt fun hFact => do
             let factConc := mkAppN hFact (concArgs.toArray ++ vops ++ htps)
             let prf ← dischargeSpine cfg opqMap opqP clauseTerm factConc
-            return (← closeOver prf #[hFact], true)
+            let r ← closeOver prf #[hFact]
+            return (r, true)
   return (p, if assumed then conds ++ ["ASSUMED:dp-fact"] else conds)
 
 /-- COMPOSE a verdict-only discharge node into a clause/preprocess replay: prove
