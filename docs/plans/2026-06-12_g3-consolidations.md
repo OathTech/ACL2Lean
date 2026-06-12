@@ -136,3 +136,34 @@ Decisions settled at implementation (2026-06-12):
 The golden coverage gate is the scoreboard throughout: outcomes must stay
 byte-identical (this is a refactor of HOW proofs are built, never of what
 is proved — any status drift is a defect by definition).
+
+### Fragment B main-proof case plan (as worked out, 2026-06-12)
+
+- **D-B4 refined:** `dpOpqKeyOk` bans by NAME (quote/if/table names,
+  any package) — matching `collectOpaques`' name-based collection. Then
+  wrong-package special-named heads (CL::IF, CL::NOT…) can be neither
+  keys nor structural lifts, so `dpLiftF t = some v` REFUTES those cases
+  (the name-only checks in `clausifyPure`/`dumbNegateLit` still fire for
+  them, but the lemma's cases discharge vacuously).
+- **The value route:** in every if-split case, the lift premise itself
+  gives `v = cond (toBool cv) tv ev` (`dpLiftF_if_inv`) and `conv t v`
+  (`dpLiftF_sound` on t directly — no `re_val_if` needed); the els/thn
+  quote values compute by `dpLiftF_quote`. The IHs supply only
+  nil/truthiness of cv/tv/ev (via `val_unique` against the IH's
+  conclusion), and the goal is pure `cond`-algebra: e.g. neg-(if t1 t2
+  'nil): left IH → cv=nil → v=nil; right IH → tv=nil → v=cond b nil nil
+  = nil.
+- **Hypothesis splitting:** `evtrue_disjoin_append_elim` with literal
+  convergences from `clausifyPure_lifts` (a preliminary induction: every
+  clause literal lifts when t does, via if_inv/not_intro/not_inv) +
+  `dpLiftF_sound`.
+- **dumbNegate arms:** strip-arm (t = (not x)): EvTrue x + conv → xv ≠
+  nil → `not_nil_of_truthy` → conv t nil. Wrap-arm: EvTrue (not t) +
+  conv → `arg_nil_of_not_truthy` → v = nil → conv t nil.
+- **Empty-clause cases** (t = 'nil pos / 't neg): hypothesis refuted by
+  `not_evtrue_disjoin_nil` (vacuous, honest — the empty clause is
+  unprovable).
+- Pieces still to write: name-based `dpOpqKeyOk` + generalized find-none
+  lemma + `dpLiftF_quote` + lift-none-for-wrong-package lemma (DpLift);
+  `clausifyPure_lifts`, `ClausifyGoal`, `clausifyPure_sound`
+  (ClausifyBridge); then the bridgeClausify rewire + walker retirement.
