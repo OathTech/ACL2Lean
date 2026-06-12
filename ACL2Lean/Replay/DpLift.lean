@@ -235,4 +235,112 @@ theorem dpLiftF_sound (w : World) (env : Env)
         all_goals cases h
       · cases h
 
+/-! ## Lift-fact extraction (Fragment B's interface, D-B4)
+
+The clausify bridge recurses through `if`-structure and `not`-wraps; to
+thread the lift premise it needs (a) opaque keys to be genuine USER-FN
+applications — never special forms or table primitives (matching
+`collectOpaques`' construction; DECIDABLE, one check per leaf) — and
+(b) inversion/introduction lemmas for the `if` and `not` arms. -/
+
+/-- An opaque key must be an application whose head is neither a special
+    form nor a table primitive. -/
+def dpOpqKeyOk : SExpr → Bool
+  | .cons (.atom (.symbol fs)) _ =>
+    !(fs == { name := "quote" }) && !(fs == { name := "if" }) &&
+    !(fs.package == "ACL2" && dpLiftHeads.contains fs.name)
+  | _ => false
+
+/-- All opaque keys well-formed (decidable; the driver checks it once per
+    leaf alongside `dpNoShadow`). -/
+def dpOpqWF (opq : List (SExpr × SExpr)) : Bool :=
+  opq.all (fun p => dpOpqKeyOk p.1)
+
+/-- The `if` term shape. -/
+abbrev ifT (c thn els : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil)))
+
+/-- The `not` term shape. -/
+abbrev notT (x : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "not" })) (.cons x .nil)
+
+/-- An if-term is never an opaque key under WF. -/
+theorem dpOpqWF_find_if (opq : List (SExpr × SExpr))
+    (hwf : dpOpqWF opq = true) (c thn els : SExpr) :
+    opq.find? (fun p => p.1 == ifT c thn els) = none := by
+  cases hfind : opq.find? (fun p => p.1 == ifT c thn els) with
+  | none => rfl
+  | some p =>
+    have hmem := List.mem_of_find?_eq_some hfind
+    have hpred : p.1 == ifT c thn els := by simpa using List.find?_some hfind
+    have hkey := List.all_eq_true.mp hwf p hmem
+    rw [eq_of_beq hpred] at hkey
+    simp [dpOpqKeyOk] at hkey
+
+/-- A not-term is never an opaque key under WF. -/
+theorem dpOpqWF_find_not (opq : List (SExpr × SExpr))
+    (hwf : dpOpqWF opq = true) (x : SExpr) :
+    opq.find? (fun p => p.1 == notT x) = none := by
+  cases hfind : opq.find? (fun p => p.1 == notT x) with
+  | none => rfl
+  | some p =>
+    have hmem := List.mem_of_find?_eq_some hfind
+    have hpred : p.1 == notT x := by simpa using List.find?_some hfind
+    have hkey := List.all_eq_true.mp hwf p hmem
+    rw [eq_of_beq hpred] at hkey
+    simp [dpOpqKeyOk, dpLiftHeads] at hkey
+
+/-- INVERT a lifted if: the three components lift, and the value is the
+    `cond` of theirs. -/
+theorem dpLiftF_if_inv {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
+    {c thn els v : SExpr}
+    (h : dpLiftF vars opq (ifT c thn els) = some v) :
+    ∃ cv tv ev, dpLiftF vars opq c = some cv ∧
+      dpLiftF vars opq thn = some tv ∧ dpLiftF vars opq els = some ev ∧
+      v = cond (Logic.toBool cv) tv ev := by
+  rw [dpLiftF.eq_def, dpOpqWF_find_if opq hwf c thn els] at h
+  simp only [show (({ name := "if" } : Symbol) == { name := "quote" }) = false
+    from by decide, BEq.rfl, if_true, if_false, Bool.false_eq_true] at h
+  obtain ⟨cv, hcv, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨tv, htv, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨ev, hev, h⟩ := Option.bind_eq_some_iff.mp h
+  exact ⟨cv, tv, ev, hcv, htv, hev, (Option.some.inj h).symm⟩
+
+/-- INTRODUCE a lifted not: a lifted argument gives the wrap's lift. -/
+theorem dpLiftF_not_intro {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
+    {x xv : SExpr} (h : dpLiftF vars opq x = some xv) :
+    dpLiftF vars opq (notT x) = some (Logic.not xv) := by
+  rw [dpLiftF.eq_def, dpOpqWF_find_not opq hwf x]
+  simp only [show (({ name := "not" } : Symbol) == { name := "quote" }) = false
+      from by decide,
+    show (({ name := "not" } : Symbol) == { name := "if" }) = false
+      from by decide,
+    show (({ name := "not" } : Symbol).package == "ACL2" &&
+      dpLiftHeads.contains ({ name := "not" } : Symbol).name) = true
+      from by decide,
+    if_true, if_false, Bool.false_eq_true]
+  rw [h]
+  rfl
+
+/-- INVERT a lifted not: the argument lifts, and the value is `Logic.not`
+    of its. -/
+theorem dpLiftF_not_inv {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
+    {x v : SExpr} (h : dpLiftF vars opq (notT x) = some v) :
+    ∃ xv, dpLiftF vars opq x = some xv ∧ v = Logic.not xv := by
+  rw [dpLiftF.eq_def, dpOpqWF_find_not opq hwf x] at h
+  simp only [show (({ name := "not" } : Symbol) == { name := "quote" }) = false
+      from by decide,
+    show (({ name := "not" } : Symbol) == { name := "if" }) = false
+      from by decide,
+    show (({ name := "not" } : Symbol).package == "ACL2" &&
+      dpLiftHeads.contains ({ name := "not" } : Symbol).name) = true
+      from by decide,
+    if_true, if_false, Bool.false_eq_true] at h
+  obtain ⟨xv, hxv, h⟩ := Option.bind_eq_some_iff.mp h
+  refine ⟨xv, hxv, ?_⟩
+  simpa using (Option.some.inj h).symm
+
 end ACL2.Replay
