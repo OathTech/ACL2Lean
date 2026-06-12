@@ -40,6 +40,7 @@
 -/
 import ACL2Lean.Replay.EvalLemmas
 import ACL2Lean.Replay.DpLift
+import ACL2Lean.Replay.ClausifyBridge
 import ACL2Lean.ProofTree
 import ACL2Lean.ClauseTree
 import Lean
@@ -375,12 +376,6 @@ def ReplayCtx.litFact? (ctx : ReplayCtx) (idx : Nat) : Option (SExpr × Expr) :=
   (ctx.litFacts.find? (fun (i, _, _) => i == idx)).map fun (_, t, p) => (t, p)
 def ReplayCtx.litFactByTerm? (ctx : ReplayCtx) (t : SExpr) : Option Expr :=
   (ctx.litFacts.find? (fun (_, lt, _) => lt == t)).map fun (_, _, p) => p
-
-/-- `(quote t)`, the result an equal-self literal reduces to. -/
-def quoteT : SExpr := .cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil)
-
-/-- `(quote nil)`. -/
-def quoteNil : SExpr := .cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil)
 
 /-- View `(equal X X)` as `X`. -/
 def asEqualSelf : SExpr → Option SExpr
@@ -1195,15 +1190,6 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .step _ :: rest => flattenLiterals rest
   | .clausify _ :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
-
-/-- ACL2's `disjoin` of a literal list: `(if l₁ 't (if l₂ 't … lₖ))`; a singleton
-    is the literal itself; the empty clause is `'nil` (false). -/
-def disjoinTerm : List SExpr → SExpr
-  | [] => .cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil)
-  | [l] => l
-  | l :: rest =>
-    .cons (.atom (.symbol { name := "if" }))
-      (.cons l (.cons quoteT (.cons (disjoinTerm rest) .nil)))
 
 /-- `∃N∀f≥N, eval (quote t) = some SExpr.t` (the constant, not the reflection). -/
 def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
@@ -2221,36 +2207,6 @@ through `evtrue_dp_if_split` (each leaf's impossible branch closes by
 contradiction with the known value fact). The walkers stay in lockstep with
 `clausifyPure`'s case selection; every position needs only nil/truthy facts
 (G2/D9 -- the old spine-last exact-`t` requirement is gone). -/
-
-/-- ACL2's `dumb-negate-lit` (the pure fragment: strip a `not`, else wrap). -/
-def dumbNegateLit (t : SExpr) : SExpr :=
-  match t with
-  | .cons (.atom (.symbol ns)) (.cons _ .nil) =>
-    if ns.name == "not" then
-      match t with
-      | .cons _ (.cons inner .nil) => inner
-      | _ => t
-    else .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
-  | _ => .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
-
-/-- The PURE fragment of `clausify-input1` (no `expand-and-or`): `pos` is
-    ACL2's `bool`. Recomputed for the walk and VALIDATED against the recorded
-    checkpoints — divergence (an expansion fired) hard-fails upstream. -/
-def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
-  if t == (if pos then quoteNil else quoteT) then []
-  else match t with
-  | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
-    if ifS.name == "if" then
-      if pos then
-        if t3 == quoteT then clausifyPure t1 false ++ clausifyPure t2 true
-        else if t2 == quoteT then clausifyPure t1 true ++ clausifyPure t3 true
-        else [t]
-      else
-        if t3 == quoteNil then clausifyPure t1 false ++ clausifyPure t2 false
-        else if t2 == quoteNil then clausifyPure t1 true ++ clausifyPure t3 false
-        else [dumbNegateLit t]
-    else if pos then [t] else [dumbNegateLit t]
-  | _ => if pos then [t] else [dumbNegateLit t]
 
 /-- Per-literal knowledge in one elimination LEAF of a proved clause. Under
     `EvTrue` (G2/D9) a firing literal carries TRUTHINESS uniformly — the old
