@@ -337,4 +337,287 @@ theorem clausifyPure_lifts {vars : List (Symbol × SExpr)}
       obtain ⟨-, rfl⟩ := hmem
       exact lifts_leaf_neg hwf _ hl _ (List.mem_singleton.mpr rfl)
 
+/-! ## THE BRIDGE LEMMA (Fragment B's product) -/
+
+/-- The bridge's per-mode conclusion: pos = the input is TRUE; neg = the
+    input converges to nil (its falsity). -/
+def ClausifyGoal (w : World) (env : Env) (t : SExpr) : Bool → Prop
+  | true => EvTrue w env t
+  | false => ∃ N, ∀ f ≥ N, evalOpt f w env t = some SExpr.nil
+
+/-- The NEG leaf: a true `dumbNegateLit t` makes `t` converge to nil. -/
+theorem sound_neg_leaf (w : World) (env : Env)
+    {vars : List (Symbol × SExpr)} {opq : List (SExpr × SExpr)}
+    (hvars : ∀ q ∈ vars,
+      ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol q.1)) = some q.2)
+    (hopq : ∀ p ∈ opq, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
+    (hns : dpNoShadow w) (hwf : dpOpqWF opq = true) (t : SExpr)
+    (hl : (dpLiftF vars opq t).isSome)
+    (hdis : EvTrue w env (dumbNegateLit t)) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env t = some SExpr.nil := by
+  obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+  rcases dumbNegateLit_eq t with hwrap | ⟨ns, x, hshape, hname, hstrip⟩
+  · -- wrap arm: EvTrue (not t) pins Logic.not v ≠ nil, so v = nil
+    rw [hwrap] at hdis
+    have hnotconv := dpLiftF_sound w env vars opq hvars hopq hns _ _
+      (dpLiftF_not_intro hwf hv)
+    have hne := ne_nil_of_evtrue_conv hdis hnotconv
+    have hvnil := arg_nil_of_not_truthy hne
+    exact hvnil ▸ dpLiftF_sound w env vars opq hvars hopq hns t v hv
+  · -- strip arm: t = (not x); a true x makes (not x) nil
+    rw [hstrip] at hdis
+    subst hshape
+    by_cases hfull : ns = ({ name := "not" } : Symbol)
+    · subst hfull
+      -- after the strip rewrite, the hypothesis IS x's truth; the goal IS
+      -- the not-application's nil convergence
+      exact conv_not_nil_of_evtrue (hns "not" (by simp [dpLiftHeads])) hdis
+    · exfalso
+      have hnn : ns.name = "not" := by simpa [Symbol.isNamed] using hname
+      have hnone : dpLiftF vars opq
+          (.cons (.atom (.symbol ns)) (x.cons SExpr.nil)) = none :=
+        dpLiftF_app_none_of_banned_name hwf (x.cons SExpr.nil)
+          (by simp [Symbol.isNamed, hnn, dpLiftHeads])
+          (symbol_beq_false_of_name_ne (by simp [hnn]))
+          (symbol_beq_false_of_name_ne (by simp [hnn]))
+          (by
+            cases hpkg : ns.package == "ACL2"
+            · simp
+            · exact absurd (by
+                have hp : ns.package = "ACL2" := eq_of_beq hpkg
+                cases ns
+                simp_all) hfull)
+      rw [hnone] at hv
+      cases hv
+
+/-- G3 Fragment B, THE BRIDGE LEMMA (once-proved; replaces the per-leaf
+    `peelClause`/`walkPosT`/`val*` walkers): a true output clause gives the
+    clausify input's truth (pos) / falsity (neg). World-parametric (L3);
+    premised on Fragment A's lift fact (D-B1) and the key well-formedness
+    (D-B4). -/
+theorem clausifyPure_sound (w : World) (env : Env)
+    {vars : List (Symbol × SExpr)} {opq : List (SExpr × SExpr)}
+    (hvars : ∀ q ∈ vars,
+      ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol q.1)) = some q.2)
+    (hopq : ∀ p ∈ opq, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
+    (hns : dpNoShadow w) (hwf : dpOpqWF opq = true) :
+    ∀ t pos, (dpLiftF vars opq t).isSome →
+      EvTrue w env (disjoinTerm (clausifyPure t pos)) →
+      ClausifyGoal w env t pos := by
+  have sound := dpLiftF_sound w env vars opq hvars hopq hns
+  have litconvs : ∀ (u : SExpr) (b : Bool), (dpLiftF vars opq u).isSome →
+      ∀ l ∈ clausifyPure u b, ∃ vl, ∃ N, ∀ f ≥ N, evalOpt f w env l = some vl :=
+    fun u b hu l hl => by
+      obtain ⟨vl, hvl⟩ :=
+        Option.isSome_iff_exists.mp (clausifyPure_lifts hwf u b hu l hl)
+      exact ⟨vl, sound l vl hvl⟩
+  intro t pos
+  induction t, pos using clausifyPure.induct with
+  | case1 t pos hguard =>
+    intro _ hdis
+    rw [clausifyPure.eq_def] at hdis
+    simp only [hguard, if_true] at hdis
+    exact absurd hdis (not_evtrue_disjoin_nil w env)
+  | case2 ifS t1 t2 t3 hname ht3 houter ih2 ih1 =>
+    intro hl hdis
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    · subst hfull
+      obtain rfl : t3 = quoteT := eq_of_beq ht3
+      obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
+      obtain rfl : ev = SExpr.t :=
+        Option.some.inj (hev.symm.trans (dpLiftF_quote hwf SExpr.t))
+      rw [clausifyPure.eq_def] at hdis
+      simp only [hname, ht3, if_true] at hdis
+      rcases evtrue_disjoin_append_elim w env _ _
+        (litconvs t1 false (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩)) hdis
+        with hL | hR
+      · -- t1 false ⇒ cv = nil ⇒ v = 't
+        obtain ⟨N1, hN1⟩ := ih2 (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩) hL
+        have hcvnil : cv = SExpr.nil :=
+          val_unique (sound t1 cv hcv) ⟨N1, hN1⟩
+        have hvt : v = SExpr.t := by
+          rw [hveq, hcvnil]
+          rfl
+        exact evtrue_of_conv_ne_nil (hvt ▸ sound _ v hv) (by simp [SExpr.t])
+      · -- t2 true ⇒ tv ≠ nil ⇒ v ≠ nil either way
+        have htvne : tv ≠ SExpr.nil :=
+          ne_nil_of_evtrue_conv
+            (ih1 (Option.isSome_iff_exists.mpr ⟨tv, htv⟩) hR) (sound t2 tv htv)
+        have hvne : v ≠ SExpr.nil := by
+          rw [hveq]
+          cases Logic.toBool cv
+          · simp [SExpr.t]
+          · simpa using htvne
+        exact evtrue_of_conv_ne_nil (sound _ v hv) hvne
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hname) hfull] at hv
+      cases hv
+  | case3 ifS t1 t2 t3 hname hnt3 ht2 houter ih2 ih1 =>
+    intro hl hdis
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    · subst hfull
+      obtain rfl : t2 = quoteT := eq_of_beq ht2
+      obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
+      obtain rfl : tv = SExpr.t :=
+        Option.some.inj (htv.symm.trans (dpLiftF_quote hwf SExpr.t))
+      rw [clausifyPure.eq_def] at hdis
+      simp only [hname, hnt3, ht2, if_true] at hdis
+      rcases evtrue_disjoin_append_elim w env _ _
+        (litconvs t1 true (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩)) hdis
+        with hL | hR
+      · -- t1 true ⇒ cv ≠ nil ⇒ v = 't
+        have hcvne : cv ≠ SExpr.nil :=
+          ne_nil_of_evtrue_conv
+            (ih2 (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩) hL) (sound t1 cv hcv)
+        have hvt : v = SExpr.t := by
+          rw [hveq, toBool_true_of_ne_nil hcvne]
+          rfl
+        exact evtrue_of_conv_ne_nil (hvt ▸ sound _ v hv) (by simp [SExpr.t])
+      · -- t3 true ⇒ ev ≠ nil ⇒ v ≠ nil either way
+        have hevne : ev ≠ SExpr.nil :=
+          ne_nil_of_evtrue_conv
+            (ih1 (Option.isSome_iff_exists.mpr ⟨ev, hev⟩) hR) (sound t3 ev hev)
+        have hvne : v ≠ SExpr.nil := by
+          rw [hveq]
+          cases Logic.toBool cv
+          · simpa using hevne
+          · simp [SExpr.t]
+        exact evtrue_of_conv_ne_nil (sound _ v hv) hvne
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hname) hfull] at hv
+      cases hv
+  | case4 ifS t1 t2 t3 hname hnt3 hnt2 houter =>
+    intro hl hdis
+    rw [clausifyPure.eq_def] at hdis
+    simp [hname, hnt3, hnt2] at hdis
+    rw [if_neg (show ¬((SExpr.atom (Atom.symbol ifS)).cons
+      (t1.cons (t2.cons (t3.cons SExpr.nil))) = quoteNil) by
+        simpa using houter)] at hdis
+    exact hdis
+  | case5 pos ifS t1 t2 t3 hname hnpos ht3 houter ih2 ih1 =>
+    intro hl hdis
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+    have hposf : pos = false := by simpa using hnpos
+    subst hposf
+    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    · subst hfull
+      obtain rfl : t3 = quoteNil := eq_of_beq ht3
+      obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
+      obtain rfl : ev = SExpr.nil :=
+        Option.some.inj (hev.symm.trans (dpLiftF_quote hwf SExpr.nil))
+      rw [clausifyPure.eq_def] at hdis
+      simp only [houter, hname, ht3, if_true] at hdis
+      rcases evtrue_disjoin_append_elim w env _ _
+        (litconvs t1 false (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩)) hdis
+        with hL | hR
+      · -- t1 false ⇒ cv = nil ⇒ v = nil
+        obtain ⟨N1, hN1⟩ := ih2 (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩) hL
+        have hcvnil : cv = SExpr.nil :=
+          val_unique (sound t1 cv hcv) ⟨N1, hN1⟩
+        have hvnil : v = SExpr.nil := by
+          rw [hveq, hcvnil]
+          rfl
+        have hc := sound _ v hv
+        rw [hvnil] at hc
+        exact hc
+      · -- t2 false ⇒ tv = nil ⇒ v = nil either way
+        obtain ⟨N2, hN2⟩ := ih1 (Option.isSome_iff_exists.mpr ⟨tv, htv⟩) hR
+        have htvnil : tv = SExpr.nil :=
+          val_unique (sound t2 tv htv) ⟨N2, hN2⟩
+        have hvnil : v = SExpr.nil := by
+          rw [hveq, htvnil]
+          cases Logic.toBool cv <;> rfl
+        have hc := sound _ v hv
+        rw [hvnil] at hc
+        exact hc
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hname) hfull] at hv
+      cases hv
+  | case6 pos ifS t1 t2 t3 hname hnpos hnt3 ht2 houter ih2 ih1 =>
+    intro hl hdis
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+    have hposf : pos = false := by simpa using hnpos
+    subst hposf
+    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    · subst hfull
+      obtain rfl : t2 = quoteNil := eq_of_beq ht2
+      obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
+      obtain rfl : tv = SExpr.nil :=
+        Option.some.inj (htv.symm.trans (dpLiftF_quote hwf SExpr.nil))
+      rw [clausifyPure.eq_def] at hdis
+      simp only [houter, hname, hnt3, ht2, if_true] at hdis
+      rcases evtrue_disjoin_append_elim w env _ _
+        (litconvs t1 true (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩)) hdis
+        with hL | hR
+      · -- t1 true ⇒ cv ≠ nil ⇒ v = nil (the then-branch is 'nil)
+        have hcvne : cv ≠ SExpr.nil :=
+          ne_nil_of_evtrue_conv
+            (ih2 (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩) hL) (sound t1 cv hcv)
+        have hvnil : v = SExpr.nil := by
+          rw [hveq, toBool_true_of_ne_nil hcvne]
+          rfl
+        have hc := sound _ v hv
+        rw [hvnil] at hc
+        exact hc
+      · -- t3 false ⇒ ev = nil ⇒ v = nil either way
+        obtain ⟨N2, hN2⟩ := ih1 (Option.isSome_iff_exists.mpr ⟨ev, hev⟩) hR
+        have hevnil : ev = SExpr.nil :=
+          val_unique (sound t3 ev hev) ⟨N2, hN2⟩
+        have hvnil : v = SExpr.nil := by
+          rw [hveq, hevnil]
+          cases Logic.toBool cv <;> rfl
+        have hc := sound _ v hv
+        rw [hvnil] at hc
+        exact hc
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hname) hfull] at hv
+      cases hv
+  | case7 pos ifS t1 t2 t3 hname hnpos hnt3 hnt2 houter =>
+    intro hl hdis
+    have hposf : pos = false := by simpa using hnpos
+    subst hposf
+    rw [clausifyPure.eq_def] at hdis
+    simp [hname, hnt3, hnt2] at hdis
+    rw [if_neg (show ¬((SExpr.atom (Atom.symbol ifS)).cons
+      (t1.cons (t2.cons (t3.cons SExpr.nil))) = quoteT) by
+        simpa using houter)] at hdis
+    exact sound_neg_leaf w env hvars hopq hns hwf _ hl hdis
+  | case8 ifS t1 t2 t3 hnname houter =>
+    intro hl hdis
+    rw [clausifyPure.eq_def] at hdis
+    simp [hnname] at hdis
+    rw [if_neg (show ¬((SExpr.atom (Atom.symbol ifS)).cons
+      (t1.cons (t2.cons (t3.cons SExpr.nil))) = quoteNil) by
+        simpa using houter)] at hdis
+    exact hdis
+  | case9 pos ifS t1 t2 t3 hnname hnpos houter =>
+    intro hl hdis
+    have hposf : pos = false := by simpa using hnpos
+    subst hposf
+    rw [clausifyPure.eq_def] at hdis
+    simp [hnname] at hdis
+    rw [if_neg (show ¬((SExpr.atom (Atom.symbol ifS)).cons
+      (t1.cons (t2.cons (t3.cons SExpr.nil))) = quoteT) by
+        simpa using houter)] at hdis
+    exact sound_neg_leaf w env hvars hopq hns hwf _ hl hdis
+  | case10 t hnshape houter =>
+    intro hl hdis
+    rw [clausifyPure.eq_def] at hdis
+    split at hdis
+    · -- the leaf arm with the outer guard retained
+      have houter' : (t == quoteNil) = false := by simpa using houter
+      rw [houter'] at hdis
+      simp only [Bool.false_eq_true, if_false] at hdis
+      exact hdis
+    · exact absurd rfl (by assumption)
+  | case11 t pos houter hnpos hnshape =>
+    intro hl hdis
+    have hposf : pos = false := by simpa using hnpos
+    subst hposf
+    rw [clausifyPure.eq_def] at hdis
+    split at hdis
+    · exact absurd (by assumption : false = true) (by decide)
+    · have houter' : (t == quoteT) = false := by simpa using houter
+      rw [houter'] at hdis
+      simp only [Bool.false_eq_true, if_false] at hdis
+      exact sound_neg_leaf w env hvars hopq hns hwf _ hl hdis
+
 end ACL2.Replay
