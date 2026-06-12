@@ -129,4 +129,212 @@ theorem evtrue_disjoin_append_elim (w : World) (env : Env) :
       · exact Or.inl ((evtrue_disjoin_cons w env l xs vl hvl).mpr (Or.inr h1))
       · exact Or.inr h2
 
+/-! ## The literal-liftability induction (every clause literal lifts when
+the input does — feeds the literal convergences of the main theorem). -/
+
+/-- Symbols with different names are BEq-distinct. -/
+theorem symbol_beq_false_of_name_ne {a b : Symbol} (h : a.name ≠ b.name) :
+    (a == b) = false := by
+  cases hab : a == b
+  · rfl
+  · exact absurd (congrArg Symbol.name (eq_of_beq hab)) h
+
+/-- BEq-distinct symbols from full inequality. -/
+theorem symbol_beq_false_of_ne {a b : Symbol} (h : a ≠ b) :
+    (a == b) = false := by
+  cases hab : a == b
+  · rfl
+  · exact absurd (eq_of_beq hab) h
+
+/-- A POS leaf `[t]`: the literal is the input itself. -/
+theorem lifts_leaf_pos {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (t : SExpr)
+    (hl : (dpLiftF vars opq t).isSome) :
+    ∀ l ∈ [t], (dpLiftF vars opq l).isSome := by
+  intro l hmem
+  rw [List.mem_singleton.mp hmem]
+  exact hl
+
+/-- `dumbNegateLit` characterized: either the wrap `(not t)`, or the strip
+    of a unary `not`-NAMED application. -/
+theorem dumbNegateLit_eq (t : SExpr) :
+    dumbNegateLit t = notT t ∨
+    ∃ ns x, t = .cons (.atom (.symbol ns)) (.cons x .nil) ∧
+      ns.isNamed "not" = true ∧ dumbNegateLit t = x := by
+  rcases t with _ | a | ⟨hd, tl⟩
+  · exact Or.inl rfl
+  · exact Or.inl rfl
+  · rcases hd with _ | a' | _
+    · exact Or.inl rfl
+    · rcases a' with ns | _ | _ | _
+      · rcases tl with _ | _ | ⟨x, tl2⟩
+        · exact Or.inl rfl
+        · exact Or.inl rfl
+        · rcases tl2 with _ | _ | _
+          · by_cases hname : ns.name = "not"
+            · exact Or.inr ⟨ns, x, rfl, by simp [Symbol.isNamed, hname],
+                by simp [dumbNegateLit, hname]⟩
+            · exact Or.inl (by simp [dumbNegateLit, hname])
+          · exact Or.inl rfl
+          · exact Or.inl rfl
+      · exact Or.inl rfl
+      · exact Or.inl rfl
+      · exact Or.inl rfl
+    · exact Or.inl rfl
+
+/-- A NEG leaf `[dumbNegateLit t]`: the strip arm inverts the `not` (or is
+    vacuous for a wrong-package `not`-named head); the wrap arm introduces
+    one. -/
+theorem lifts_leaf_neg {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) (t : SExpr)
+    (hl : (dpLiftF vars opq t).isSome) :
+    ∀ l ∈ [dumbNegateLit t], (dpLiftF vars opq l).isSome := by
+  intro l hmem
+  rw [List.mem_singleton.mp hmem]
+  obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+  rcases dumbNegateLit_eq t with hwrap | ⟨ns, x, hshape, hname, hstrip⟩
+  · rw [hwrap]
+    exact Option.isSome_iff_exists.mpr ⟨_, dpLiftF_not_intro hwf hv⟩
+  · rw [hstrip]
+    subst hshape
+    by_cases hfull : ns = ({ name := "not" } : Symbol)
+    · subst hfull
+      obtain ⟨xv, hxv, _⟩ := dpLiftF_not_inv hwf hv
+      exact Option.isSome_iff_exists.mpr ⟨xv, hxv⟩
+    · -- wrong-package not: the lift premise is refutable
+      exfalso
+      have hnn : ns.name = "not" := by simpa [Symbol.isNamed] using hname
+      have hnone : dpLiftF vars opq
+          (.cons (.atom (.symbol ns)) (x.cons SExpr.nil)) = none :=
+        dpLiftF_app_none_of_banned_name hwf (x.cons SExpr.nil)
+          (by simp [Symbol.isNamed, hnn, dpLiftHeads])
+          (symbol_beq_false_of_name_ne (by simp [hnn]))
+          (symbol_beq_false_of_name_ne (by simp [hnn]))
+          (by
+            cases hpkg : ns.package == "ACL2"
+            · simp
+            · exact absurd (by
+                have hp : ns.package = "ACL2" := eq_of_beq hpkg
+                cases ns
+                simp_all) hfull)
+      rw [hnone] at hv
+      cases hv
+
+/-- The vacuous-case refuter, packaged: an if-NAMED head that is not the
+    default-package `if` cannot lift. -/
+theorem dpLiftF_ifname_none {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
+    {ifS : Symbol} (args : SExpr) (hnn : ifS.name = "if")
+    (hfull : ifS ≠ ({ name := "if" } : Symbol)) :
+    dpLiftF vars opq (.cons (.atom (.symbol ifS)) args) = none :=
+  dpLiftF_app_none_of_banned_name hwf args
+    (by simp [Symbol.isNamed, hnn])
+    (symbol_beq_false_of_name_ne (by simp [hnn]))
+    (symbol_beq_false_of_ne hfull)
+    (by simp [hnn, dpLiftHeads])
+
+theorem clausifyPure_lifts {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) :
+    ∀ t pos, (dpLiftF vars opq t).isSome →
+      ∀ l ∈ clausifyPure t pos, (dpLiftF vars opq l).isSome := by
+  intro t pos
+  induction t, pos using clausifyPure.induct with
+  | case1 t pos hguard =>
+    intro _ l hmem
+    rw [clausifyPure.eq_def] at hmem
+    simp [hguard] at hmem
+  | case2 ifS t1 t2 t3 hname ht3 houter ih2 ih1 =>
+    intro hl l hmem
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    · subst hfull
+      obtain ⟨cv, tv, ev, hcv, htv, hev, _⟩ := dpLiftF_if_inv hwf hv
+      rw [clausifyPure.eq_def] at hmem
+      simp [ht3] at hmem
+      obtain ⟨-, h | h⟩ := hmem
+      · exact ih2 (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩) l h
+      · exact ih1 (Option.isSome_iff_exists.mpr ⟨tv, htv⟩) l h
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hname) hfull] at hv
+      cases hv
+  | case3 ifS t1 t2 t3 hname hnt3 ht2 houter ih2 ih1 =>
+    intro hl l hmem
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    · subst hfull
+      obtain ⟨cv, tv, ev, hcv, htv, hev, _⟩ := dpLiftF_if_inv hwf hv
+      rw [clausifyPure.eq_def] at hmem
+      simp [hnt3, ht2] at hmem
+      obtain ⟨-, h | h⟩ := hmem
+      · exact ih2 (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩) l h
+      · exact ih1 (Option.isSome_iff_exists.mpr ⟨ev, hev⟩) l h
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hname) hfull] at hv
+      cases hv
+  | case4 ifS t1 t2 t3 hname hnt3 hnt2 houter =>
+    intro hl l hmem
+    rw [clausifyPure.eq_def] at hmem
+    simp [hname, hnt3, hnt2] at hmem
+    obtain ⟨-, rfl⟩ := hmem
+    exact hl
+  | case5 pos ifS t1 t2 t3 hname hnpos ht3 houter ih2 ih1 =>
+    intro hl l hmem
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    · subst hfull
+      obtain ⟨cv, tv, ev, hcv, htv, hev, _⟩ := dpLiftF_if_inv hwf hv
+      rw [clausifyPure.eq_def] at hmem
+      simp [hnpos, ht3] at hmem
+      obtain ⟨-, h | h⟩ := hmem
+      · exact ih2 (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩) l h
+      · exact ih1 (Option.isSome_iff_exists.mpr ⟨tv, htv⟩) l h
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hname) hfull] at hv
+      cases hv
+  | case6 pos ifS t1 t2 t3 hname hnpos hnt3 ht2 houter ih2 ih1 =>
+    intro hl l hmem
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
+    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    · subst hfull
+      obtain ⟨cv, tv, ev, hcv, htv, hev, _⟩ := dpLiftF_if_inv hwf hv
+      rw [clausifyPure.eq_def] at hmem
+      simp [hnpos, hnt3, ht2] at hmem
+      obtain ⟨-, h | h⟩ := hmem
+      · exact ih2 (Option.isSome_iff_exists.mpr ⟨cv, hcv⟩) l h
+      · exact ih1 (Option.isSome_iff_exists.mpr ⟨ev, hev⟩) l h
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hname) hfull] at hv
+      cases hv
+  | case7 pos ifS t1 t2 t3 hname hnpos hnt3 hnt2 houter =>
+    intro hl l hmem
+    rw [clausifyPure.eq_def] at hmem
+    simp [hname, hnpos, hnt3, hnt2] at hmem
+    obtain ⟨-, rfl⟩ := hmem
+    exact lifts_leaf_neg hwf _ hl _ (List.mem_singleton.mpr rfl)
+  | case8 ifS t1 t2 t3 hnname houter =>
+    intro hl l hmem
+    rw [clausifyPure.eq_def] at hmem
+    simp [hnname] at hmem
+    obtain ⟨-, rfl⟩ := hmem
+    exact hl
+  | case9 pos ifS t1 t2 t3 hnname hnpos houter =>
+    intro hl l hmem
+    rw [clausifyPure.eq_def] at hmem
+    simp [hnname, hnpos] at hmem
+    obtain ⟨-, rfl⟩ := hmem
+    exact lifts_leaf_neg hwf _ hl _ (List.mem_singleton.mpr rfl)
+  | case10 t hnshape houter =>
+    intro hl l hmem
+    rw [clausifyPure.eq_def] at hmem
+    split at hmem
+    · simp at hmem
+      obtain ⟨-, rfl⟩ := hmem
+      exact hl
+    · exact absurd rfl (by assumption)
+  | case11 t pos houter hnpos hnshape =>
+    intro hl l hmem
+    rw [clausifyPure.eq_def] at hmem
+    simp only [houter, if_false, Bool.false_eq_true] at hmem
+    split at hmem
+    · exact absurd (by assumption) hnpos
+    · simp at hmem
+      obtain ⟨-, rfl⟩ := hmem
+      exact lifts_leaf_neg hwf _ hl _ (List.mem_singleton.mpr rfl)
+
 end ACL2.Replay
