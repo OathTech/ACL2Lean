@@ -80,14 +80,27 @@ clause (unchanged) → ONE `clausifyPure_sound` instantiation.
 `peelClause`/`walkPosT`/`valNeg*`/`valPos*` and their lemma kit
 (`evtrue_if_fact_elim` etc.) retire if consumer-free afterward.
 
-Decisions to settle:
-- D-B1: the convergence premises' form — strongest candidate: a single
-  premise `dpLift env opq t = some v` (Fragment A makes every clausify
-  input liftable in the current corpus; a non-liftable input hard-fails as
-  today — frontier preserved, not widened).
-- D-B2: the neg-case statement (`clausifyPure t false` relates to `(not t)`
-  truthiness / `t`'s nil-convergence) — read off `clausifyPure`'s actual
-  invariant during the proof, not guessed in advance.
+Decisions settled at implementation (2026-06-12):
+- D-B1: the convergence premise IS Fragment A's — `dpLiftF vars opq t =
+  some v` plus the bundle premises; every clausify literal is a lift of a
+  `t`-subterm (or its `not`-wrap, and `not` is in the table), so one
+  premise covers the whole structure.
+- D-B2 CORRECTED: `clausifyPure t pos` returns ONE clause's LITERAL LIST
+  (this section originally said "∀ cl ∈ clausifyPure" — wrong reading).
+  The invariant: `disjoinTerm (clausifyPure t true)` is iff-equivalent to
+  `t`'s truth; the `false` mode to `t`'s falsity. The paired statement:
+  `EvTrue (disjoin (clausifyPure t true)) → EvTrue t` and
+  `EvTrue (disjoin (clausifyPure t false)) → eval t ⇒ some nil`,
+  proved by ONE mutual structural induction mirroring the 6-case
+  recursion, with a helper `EvTrue (disjoin (xs ++ ys)) →
+  EvTrue (disjoin xs) ∨ EvTrue (disjoin ys)` (needs xs's literal
+  convergences — supplied by the lift premise) and `dumbNegateLit`
+  value lemmas.
+- D-B3: `clausifyPure` (and the proof surface) must be TOTAL — it is
+  `partial` today, which has no induction principle and no equation
+  lemmas; its recursion is structural, so dropping `partial` is
+  behavior-identical. Fragment B lives in its own file
+  (`Replay/ClausifyBridge.lean`, importing DpLift) per L1.
 
 ## 3. Sequencing
 
