@@ -290,7 +290,7 @@ elab "#driver_coverage" : command => do
       throwError m!"Coverage table DIFFERS from the committed golden (Tests/driver-coverage.golden) — coverage changed. If UNINTENDED, this is a regression: fix it. If intended, review the diff and update the baseline:\n  cp Tests/driver-coverage.actual Tests/driver-coverage.golden\nDiffering lines:\n{drift}"
 
 -- Unlimited at the command level: per-leaf budgets are enforced INSIDE
--- `tryDischarge` (withCurrHeartbeats + a 400k cap), so one expensive leaf cannot
+-- `tryDischarge` (withRealMaxHeartbeats, ~1M-unit runaway guards), so one expensive leaf cannot
 -- poison the rest of the sweep.
 set_option maxHeartbeats 0 in
 #driver_coverage

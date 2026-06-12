@@ -211,6 +211,32 @@ ROLE, not by timing:
   (sweep ≈ +35 s vs the all-tuned variant) — the price of not gating
   future books' coverage on today's timings.
 
+## Audit (2026-06-12, single Opus reviewer, correctness-of-optimizations)
+
+Verdict: **no soundness defect; ship-worthy** — budgets gate whether the
+fixed procedure may finish, never what it proves; every term is still
+kernel-checked. Independently confirmed from the toolchain source: the P1
+no-op mechanism (`Context.maxHeartbeats` pinned at creation, CoreM.lean:225/
+476) and that heartbeats are ALLOCATION counts — machine-independent, so no
+outcome can flip across machines. Golden-identity corroborated from VCS
+(the golden last changed pre-range). Policy confirmed FIXED/deterministic
+(tier keyed on the fact's structure; no search). Findings DISPOSED:
+- **F2 (minor, FIXED):** the pristine-context guard checked `hasFVar` only;
+  an unassigned mvar in the statement would carry the outer context. Now
+  `instantiateMVars` + `hasFVar || hasMVar` — the gap is closed by
+  construction, not by the (correct but unenforced) trace argument.
+- **F6 (minor honesty, ACCEPTED):** `withRealMaxHeartbeats` overwrites
+  rather than `min`s with the ambient limit, so a `total > 3` leaf inside a
+  200k-budget catalog command gets a 1M window. Accepted: heartbeat caps
+  gate effort, not truth (kernel checks everything); a `min` would need a
+  0-means-unlimited special case and today no catalog entry exercises the
+  path. Revisit if a catalog entry ever carries a `total > 3` leaf.
+- **F5/F7 (notes, INTENDED):** the `total > 3` and harness paths were
+  STRENGTHENED from de-facto-unlimited to ~1M real — outcome-conservative
+  on the corpus (golden-verified); a future >1M-heartbeat legitimate fact
+  reports as an honest frontier.
+- Stale "400k cap" comment fixed; F1/F4/F8/F9/F10 clean.
+
 Residuals / follow-ups (stage-2 material, diminishing returns for now):
 - **16/12's ~17 s leaves did not get the P6 win** — their cost is
   apparently NOT proveDpFact (under investigation: suspects are the

@@ -1422,9 +1422,11 @@ def proveDpFact (stmt : Expr) (total : Nat) : MetaM Expr := do
   -- vop/hconv/htp telescopes — and `simp_all` on EVERY split leaf re-churns
   -- those ambient hypotheses (whose types carry the reflected world):
   -- measured 23 s vs 1.7 s for the same statement. Run the whole proof in
-  -- an empty local context when the statement is closed (it always is —
-  -- the fvar check is a defensive fail-safe, not a policy branch).
-  if stmt.hasFVar then
+  -- an empty local context when the statement is genuinely closed: no
+  -- fvars AND no mvars (an unassigned mvar would carry the outer context —
+  -- the audit's F2; instantiate first so assigned mvars don't trip it).
+  let stmt ← instantiateMVars stmt
+  if stmt.hasFVar || stmt.hasMVar then
     proveDpFactCore stmt total
   else
     Meta.withLCtx {} #[] do proveDpFactCore stmt total
