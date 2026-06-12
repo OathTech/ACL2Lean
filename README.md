@@ -89,12 +89,17 @@ are *gitignored generated artifacts*. A fresh clone therefore will **not**
 then capture the logs:
 
 ```sh
-just build-acl2                         # build the instrumented ACL2 (submodule;
-                                        # SBCL + a full ACL2 build — this is slow)
-./scripts/capture-proof-log.sh \        # regenerate the compile-critical logs
-  acl2_samples/simple.lisp \            #   (uses only the ACL2 image, no Lean —
-  acl2_samples/recon-tests/*.lisp       #    avoids the build bootstrap cycle)
-lake build                              # now type-checks everything
+# 1. Build the instrumented ACL2 (SBCL + a full ACL2 build — this is slow)
+just build-acl2
+
+# 2. Regenerate the compile-critical proof logs. This uses only the ACL2
+#    image, no Lean — so it avoids the build bootstrap cycle.
+./scripts/capture-proof-log.sh acl2_samples/simple.lisp acl2_samples/recon-tests/*.lisp
+
+# 3. Fetch the prebuilt mathlib cache (otherwise lake builds mathlib from
+#    source, which takes hours), then build.
+lake exe cache get
+lake build
 ```
 
 `just capture-all-logs` additionally recaptures the larger `books.txt` corpus

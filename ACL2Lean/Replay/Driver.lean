@@ -464,6 +464,15 @@ def dpBinary : List (String × Name × Name) :=
    ("implies",  ``Logic.implies, ``callBuiltin_implies),
    ("iff",      ``Logic.iff,     ``callBuiltin_iff)]
 
+-- INVARIANT (load-bearing — the G3 audit's dpOpqKeyOk↔collectOpaques matrix):
+-- `dpLiftHeads` must be EXACTLY the names of `dpUnary ++ dpBinary`. The meta
+-- walkers (`dpValExpr`, `collectOpaques` via `dpKnownHead`) dispatch off the
+-- registries, while the verified lift (`dpLiftF`, `dpOpqKeyOk`) dispatches off
+-- `dpLiftHeads`; extending one side without the other silently desynchronizes
+-- the lift premise from the collected opaque set. Set equality, both directions:
+#guard dpLiftHeads.all (fun n => (dpUnary.lookup n).isSome || (dpBinary.lookup n).isSome)
+#guard (dpUnary.map (·.1) ++ dpBinary.map (·.1)).all (dpLiftHeads.contains ·)
+
 /-- Is this head a DP-lift special form or primitive? (Anything else with a symbol
     head is an OPAQUE user-fn application.) -/
 def dpKnownHead (name : String) : Bool :=
