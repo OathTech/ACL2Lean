@@ -1,12 +1,21 @@
-# ACL2 books to translate and test.
-# One .lisp file per line, relative to repo root.
+# ACL2 books to translate and test — THE DRIVING CORPUS (the classic
+# sorts-equivalent development, upstream acl2/books/sorting/).
+#
+# One .lisp file per line, relative to repo root. Sources live in the acl2/
+# SUBMODULE (the canonical upstream copies — do not duplicate them here);
+# captured logs land in acl2_samples/sorting/ (see justfile capture-all-logs,
+# which sets OUTDIR so the submodule tree stays clean).
+#
 # Lines starting with # are comments. Blank lines are ignored.
-# Order matters: earlier files are loaded before later ones.
-
-acl2_samples/sorting/orderedp.lisp
-acl2_samples/sorting/how-many.lisp
-acl2_samples/sorting/perm.lisp
-acl2_samples/sorting/isort.lisp
-acl2_samples/sorting/msort.lisp
-acl2_samples/sorting/bsort.lisp
-acl2_samples/sorting/qsort.lisp
+# Order matters: include-book dependency order (leaves first).
+acl2/books/sorting/orderedp.lisp
+acl2/books/sorting/how-many.lisp
+acl2/books/sorting/perm.lisp
+acl2/books/sorting/convert-perm-to-how-many.lisp
+acl2/books/sorting/ordered-perms.lisp
+acl2/books/sorting/equisort.lisp
+acl2/books/sorting/isort.lisp
+acl2/books/sorting/msort.lisp
+acl2/books/sorting/bsort.lisp
+acl2/books/sorting/qsort.lisp
+acl2/books/sorting/sorts-equivalent.lisp

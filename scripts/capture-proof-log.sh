@@ -4,13 +4,23 @@
 # Usage:
 #   capture-proof-log.sh file.lisp              # single file
 #   capture-proof-log.sh f1.lisp f2.lisp ...    # multiple files
+#   OUTDIR=dir capture-proof-log.sh f1.lisp ... # logs into dir/ instead
 #
-# Output: file.proof-log alongside each input file.
+# Output: file.proof-log alongside each input file, or in $OUTDIR if set.
+# OUTDIR exists so that books sourced from the acl2/ SUBMODULE (the canonical
+# upstream copies — we no longer duplicate them into acl2_samples/) get their
+# logs captured into acl2_samples/ WITHOUT dirtying the submodule tree.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ACL2="${ACL2:-$SCRIPT_DIR/../acl2/saved_acl2}"
+OUTDIR="${OUTDIR:-}"
+
+if [ -n "$OUTDIR" ] && [ ! -d "$OUTDIR" ]; then
+  echo "Error: OUTDIR=$OUTDIR is not a directory" >&2
+  exit 1
+fi
 
 if [ $# -eq 0 ]; then
   echo "Usage: capture-proof-log.sh file.lisp [file2.lisp ...]" >&2
@@ -25,7 +35,11 @@ fi
 
 for INPUT in "$@"; do
   INPUT_ABS="$(cd "$(dirname "$INPUT")" && pwd)/$(basename "$INPUT")"
-  OUTPUT="${INPUT_ABS%.lisp}.proof-log"
+  if [ -n "$OUTDIR" ]; then
+    OUTPUT="$OUTDIR/$(basename "${INPUT%.lisp}").proof-log"
+  else
+    OUTPUT="${INPUT_ABS%.lisp}.proof-log"
+  fi
 
   if [ ! -f "$INPUT_ABS" ]; then
     echo "Error: $INPUT not found" >&2

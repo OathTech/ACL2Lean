@@ -6,19 +6,21 @@ open ACL2
 
 namespace ACL2
 
-/-- Non-exhaustive list of ACL2 sample files for syntax probing. -/
+/-- Non-exhaustive list of ACL2 sample files for syntax probing. These live in
+    the `acl2/` SUBMODULE (the canonical upstream copies — we no longer keep
+    duplicates under `acl2_samples/`). -/
 def sampleFiles : List System.FilePath :=
-  [ "acl2_samples/2009-log2.lisp"
-  , "acl2_samples/2009-tri-sq.lisp"
-  , "acl2_samples/apply-model-apply.lisp"
-  , "acl2_samples/apply-model-apply-prim.lisp"
-  , "acl2_samples/die-hard-top.lisp"
-  , "acl2_samples/die-hard-work.lisp"
-  , "acl2_samples/bakery-programs.lisp"
-  , "acl2_samples/bakery-inv-sufficient.lisp"
-  , "acl2_samples/execloader-top.lisp"
-  , "acl2_samples/gaussian-big-a-and-b.lsp"
-  , "acl2_samples/gaussian-df-solver-v9.lisp"
+  [ "acl2/books/workshops/2009/cowles-gamboa-triangle-square/materials/log2.lisp"
+  , "acl2/books/workshops/2009/cowles-gamboa-triangle-square/materials/tri-sq.lisp"
+  , "acl2/books/projects/apply-model/apply.lisp"
+  , "acl2/books/projects/apply-model/apply-prim.lisp"
+  , "acl2/books/projects/die-hard-bottle-game/top.lisp"
+  , "acl2/books/projects/die-hard-bottle-game/work.lisp"
+  , "acl2/books/projects/concurrent-programs/bakery/programs.lisp"
+  , "acl2/books/projects/concurrent-programs/bakery/inv-sufficient.lisp"
+  , "acl2/books/projects/execloader/top.lisp"
+  , "acl2/books/projects/gaussian-elim-solvers/big-a-and-b.lsp"
+  , "acl2/books/projects/gaussian-elim-solvers/df-solver-v9.lisp"
   ]
 
 /-- Render a hash map as a friendly string for debugging. -/

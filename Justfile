@@ -36,9 +36,11 @@ build-acl2:
 capture-proof-log file:
     ./scripts/capture-proof-log.sh {{file}}
 
-# Capture proof logs for all books in the manifest
+# Capture proof logs for all books in the manifest. Sources live in the acl2/
+# submodule; OUTDIR keeps the captured logs in acl2_samples/sorting/ so the
+# submodule tree stays clean.
 capture-all-logs:
-    ./scripts/capture-proof-log.sh $(grep -v '^\s*#' {{books}} | grep -v '^\s*$')
+    OUTDIR=acl2_samples/sorting ./scripts/capture-proof-log.sh $(grep -v '^\s*#' {{books}} | grep -v '^\s*$')
 
 # Parse and display a proof log
 parse-proof-log file:

@@ -69,9 +69,17 @@ closed, ci as scoreboard, audits at milestones):
       measures, mutual-recursion flag schemes — scaffold extensions,
       corpus-driven (true-listp-flatten, len-interleave, len-zip2/3 name the
       frontiers).
-- [ ] **G6 — Measured book sweep.** Grep-based mechanism-frequency counts over
-      a diverse community-books sample to confirm the CORE/EXTENDED/OUT cut
-      (the survey's honest gap); revisit the design doc with data.
+- [ ] **G6 (REVISED 2026-06-12, MDD) — the sorting corpus as DRIVING TARGET.**
+      Replace the grep-sweep with one real development:
+      `acl2/books/sorting/` (sorts-equivalent), validated (provenance
+      byte-identical to upstream, logs recaptured fresh, capture
+      deterministic) and roadmapped R0–R7 in
+      docs/plans/2026-06-12_sorting-corpus-roadmap.md. G5 lands incrementally
+      inside R1/R3/R4 (real schemes), G4 inside R5 (qsort is where forcing
+      actually appears). The frequency sweep is demoted to a validation
+      checkpoint before any CORE-tier completeness claim. Next: R0 (wire
+      perm into the harness; translator hard-fail on include-book/
+      encapsulate; include-aware capture warnings).
 
 Kestrel-readiness polish (2026-06-12, branch mdd/kestrel-polish): README
 getting-started/bootstrap + Status & limitations sections; mirror-statement

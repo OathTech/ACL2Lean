@@ -135,7 +135,7 @@ that embed them, so there is no silent staleness).
 | `ACL2Lean/Replay/` | The replay driver and its atomic evaluation lemmas |
 | `ACL2Lean/Imported/` | The lifting library and the native mirror catalog |
 | `Tests/` | Unit tests, driver tests, the corpus-wide coverage harness |
-| `acl2_samples/` | The sample corpus (`recon-tests/` is the reconstruction suite) |
+| `acl2_samples/` | Authored corpus sources (`recon-tests/` is the reconstruction suite) + captured logs; upstream books are referenced directly from the `acl2/` submodule (see `books.txt`) |
 | `docs/plans/` | Design plans — `2026-06-10_generality-design.md` is the governing plan |
 | `docs/notes/` | Investigation notes and surveys |
 | `TODO.md` | The running backlog across all tracks |
