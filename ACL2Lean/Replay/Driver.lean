@@ -2236,7 +2236,7 @@ def dumbNegateLit (t : SExpr) : SExpr :=
 /-- The PURE fragment of `clausify-input1` (no `expand-and-or`): `pos` is
     ACL2's `bool`. Recomputed for the walk and VALIDATED against the recorded
     checkpoints — divergence (an expansion fired) hard-fails upstream. -/
-partial def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
+def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
   if t == (if pos then quoteNil else quoteT) then []
   else match t with
   | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
