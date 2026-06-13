@@ -114,3 +114,37 @@ remains (`evtrue_extract_else` chain, as v1).
 5. Gate: perm rows move (REPLAYED or the next named wall — solidify
    `.segment` / `.branchTest` are expected for some); update golden
    deliberately; record as-built here.
+
+## As-built (2026-06-12, branch mdd/sorting-r0)
+
+Steps 1–4 landed (commits aa871ca, ef9dfd0): the principle + split lemma +
+substN bridge (axioms clean; the induction principle axiom-FREE), the
+decision-tree builder, the scheme/children recompute-validation, and the
+full scaffold rebuild. `just ci` green; ALL 17 previously-REPLAYED rows
+byte-identical through the new generic scaffold (v1 subsumed exactly).
+
+**Result on perm: the scheme wall fell.** All 7 blocked theorems advanced
+past induction into deeper machinery. The measured next walls:
+
+1. **Multi-literal pushed clauses** (perm-symmetric, memb-rm, perm-memb,
+   perm-rm). Measured shape (perm-symmetric): pushed = `[(not (perm x y)),
+   (perm y x)]`; the step case emits ONE SCHEME CLAUSE PER (alist × pushed
+   literal) — ACL2 clausifies the disjunctive IH hypothesis by splitting,
+   each clause carrying `dumbNegateLit` of one substituted pushed literal.
+   Replay design: `P` over `disjoinTerm pushedLits`; at a step leaf the IH
+   gives a truthy DISJUNCTION, eliminated literal-by-literal (per-literal
+   convergence via totality pins; the ClausifyBridge `evtrue_disjoin_*`
+   characterizations), each branch consuming the matching child clause.
+2. **Clausify on multi-literal clauses inside case children** (perm-cons,
+   perm-transitive at Subgoal *1/3) — the preprocess/clausify composition
+   currently requires a single-literal clause; case children carry ruling
+   literals alongside.
+3. **`executable-counterpart` terminal** (comm-rm) — ACL2 closed a ground
+   `(equal …)` by execution; a small new terminal-node recipe.
+4. **`.segment` / `.branchTest` solidify consumers** (perm-is-an-equivalence
+   and inside others) — the conditional-congruence machinery (R1's second
+   wall, unchanged).
+5. true-listp-flatten: now precisely `controller maps to (car x)` — the
+   car-decrease variant (cheap Count extension + per-IH decrease selection).
+   len-zip2/3: merged multi-controller test shape (`(not (if (atom x) …))`)
+   — the G5 multi-controller continuation.
