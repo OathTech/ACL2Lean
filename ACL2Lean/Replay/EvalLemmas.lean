@@ -1313,6 +1313,54 @@ theorem evalOpt_substTerm_subst1 (w : World) (env : Env) (s : Symbol)
   refine ⟨Ncong, fun f hf => ?_⟩
   rw [← hcong f hf, evalOpt_substTerm_quote w [s] [av] f env body hnl]
 
+/-- Eventual version of `lookupSubst_eval_congr` (G5/v2): each arg CONVERGES
+    to its value, so the substituted-variable lookups agree for all fuel past
+    one threshold (the max of the per-arg thresholds). -/
+theorem lookupSubst_eval_congr_conv (w : World) (env : Env) :
+    ∀ (formals : List Symbol) (args vals : List SExpr), args.length = vals.length →
+      (∀ a v, (a, v) ∈ args.zip vals → ∃ N, ∀ f ≥ N, evalOpt f w env a = some v) →
+      ∃ Nag, ∀ (s : Symbol) (g : Nat), g ≥ Nag →
+        evalOpt g w env ((lookupSubst s formals args).getD (.atom (.symbol s)))
+          = evalOpt g w env
+              ((lookupSubst s formals (vals.map quoteVal)).getD (.atom (.symbol s)))
+  | [], _, _, _, _ => ⟨0, fun s g _ => by simp [lookupSubst]⟩
+  | _ :: _, [], [], _, _ => ⟨0, fun s g _ => by simp [lookupSubst]⟩
+  | f :: fs, a :: as, v :: vs, hlen, hz => by
+      obtain ⟨Na, ha⟩ := hz a v (by simp [List.zip_cons_cons])
+      obtain ⟨Nfs, hfs⟩ := lookupSubst_eval_congr_conv w env fs as vs (by simpa using hlen)
+        (fun a' v' hmem => hz a' v' (by rw [List.zip_cons_cons]; exact List.mem_cons_of_mem _ hmem))
+      refine ⟨max (Na + 1) Nfs, fun s g hg => ?_⟩
+      rw [lookupSubst_map_quoteVal]
+      simp only [lookupSubst]
+      by_cases h : s == f
+      · simp only [h, if_true, Option.map_some, Option.getD_some, quoteVal]
+        obtain ⟨k, rfl⟩ : ∃ k, g = k + 1 := ⟨g - 1, by omega⟩
+        rw [evalOpt_quote k w env v, ha (k + 1) (by omega)]
+      · simp only [h, Bool.false_eq_true, if_false, ← lookupSubst_map_quoteVal]
+        exact hfs s g (by omega)
+  | _ :: _, [], _ :: _, hlen, _ => by simp at hlen
+  | _ :: _, _ :: _, [], hlen, _ => by simp at hlen
+
+/-- The N-formal SIMULTANEOUS SUBSTITUTION LEMMA (G5/v2 induction scaffold):
+    evaluating `substTerm formals args body` in `env` agrees eventually with
+    evaluating `body` in `env` extended by the formals bound to the args'
+    VALUES — values computed in the ORIGINAL env, so sequential insertion of
+    the precomputed values IS simultaneous-substitution semantics (ACL2's IH
+    alists, e.g. perm-cons's `x := (cdr x), y := (rm (car x) y)`).
+    `evalOpt_substTerm_subst1` is the singleton case. -/
+theorem evalOpt_substTerm_substN (w : World) (env : Env)
+    (formals : List Symbol) (args vals : List SExpr) (body : SExpr)
+    (hnl : NoLet body = true) (hlen : args.length = vals.length)
+    (hargs : ∀ a v, (a, v) ∈ args.zip vals →
+      ∃ N, ∀ f ≥ N, evalOpt f w env a = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (substTerm formals args body)
+      = evalOpt f w (envUpdate env formals vals) body := by
+  obtain ⟨Nag, hag⟩ := lookupSubst_eval_congr_conv w env formals args vals hlen hargs
+  obtain ⟨Ncong, hcong⟩ := evalOpt_substTerm_conv w env formals (vals.map quoteVal) args
+    Nag (fun s g hg => (hag s g hg).symm) (sizeOf body) body (Nat.le_refl _) hnl
+  refine ⟨Ncong, fun f hf => ?_⟩
+  rw [← hcong f hf, evalOpt_substTerm_quote w formals vals f env body hnl]
+
 /-! ## Layer 2: Derived rules (compose Layer 1) -/
 
 /-- Logic.equal returns T iff arguments are BEq-equal. -/
@@ -1797,6 +1845,39 @@ theorem acl2_induction_consp (P : SExpr → Prop)
           simp [Logic.cdr, SExpr.acl2Count] at hv ⊢
           omega
   exact this v.acl2Count v (Nat.le_refl _)
+
+/-- G5/v2: STRONG induction on `acl2Count` — the general principle for
+    multi-case schemes. The case dispatch (the emitted decision tree) and the
+    per-IH measure decrease (Count lemmas under the in-scope ruling tests)
+    happen inside `step`, mirroring ACL2's induction machine, instead of
+    being baked into a fixed-shape lemma like `acl2_induction_consp`. -/
+theorem acl2_strong_induction_count (P : SExpr → Prop)
+    (step : ∀ v, (∀ u, u.acl2Count < v.acl2Count → P u) → P v) : ∀ v, P v := by
+  intro v
+  have : ∀ n, ∀ v, v.acl2Count ≤ n → P v := by
+    intro n
+    induction n with
+    | zero =>
+      intro v hv
+      exact step v (fun u hu => absurd (Nat.lt_of_lt_of_le hu hv) (Nat.not_lt_zero _))
+    | succ n ih =>
+      intro v hv
+      exact step v (fun u hu => ih u (Nat.le_of_lt_succ (Nat.lt_of_lt_of_le hu hv)))
+  exact this v.acl2Count v (Nat.le_refl _)
+
+/-- G5/v2: case-split on a CONVERGENT test term's value — nil or truthy. The
+    env-level dispatch step of the emitted decision tree: each ruling test
+    must converge (primitive walk or totality-from-admission), then the goal
+    splits classically on its value. -/
+theorem conv_value_split {w : World} {env : Env} {t : SExpr} {motive : Prop}
+    (hconv : ∃ N v, ∀ f ≥ N, evalOpt f w env t = some v)
+    (hnil : (∃ N, ∀ f ≥ N, evalOpt f w env t = some SExpr.nil) → motive)
+    (htruthy : ∀ v, v ≠ SExpr.nil → (∃ N, ∀ f ≥ N, evalOpt f w env t = some v) →
+      motive) : motive := by
+  obtain ⟨N, v, hv⟩ := hconv
+  by_cases h : v = SExpr.nil
+  · exact hnil ⟨N, fun f hf => h ▸ hv f hf⟩
+  · exact htruthy v h ⟨N, hv⟩
 
 /-! ## Driver combinators for terminal nodes (fuel-existential form)
 
