@@ -77,9 +77,20 @@ closed, ci as scoreboard, audits at milestones):
       docs/plans/2026-06-12_sorting-corpus-roadmap.md. G5 lands incrementally
       inside R1/R3/R4 (real schemes), G4 inside R5 (qsort is where forcing
       actually appears). The frequency sweep is demoted to a validation
-      checkpoint before any CORE-tier completeness claim. Next: R0 (wire
-      perm into the harness; translator hard-fail on include-book/
-      encapsulate; include-aware capture warnings).
+      checkpoint before any CORE-tier completeness claim.
+      PROGRESS (2026-06-12, branch mdd/sorting-r0): R0 DONE (perm on the
+      scoreboard, corpus 37→45; EquivSource reconstruction extension;
+      translator fail-closed; include-aware capture warnings). R1 IN
+      PROGRESS: the G5-v2 multi-case induction scaffold landed
+      (docs/plans/2026-06-12_multicase-induction.md) — the scheme wall
+      fell, all 17 prior REPLAYED rows byte-identical. NEXT:
+      multi-literal pushed clauses (4 perm theorems), then
+      clausify-in-children, executable-counterpart terminal, and the
+      .segment/.branchTest conditional-congruence machinery.
+      RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
+      INDUSTRIALIZATION sprint (#63 + the NativeMirrors catalog
+      discipline) with the perm book as driving example; replay→lift
+      becomes the per-book cadence from isort onward.
 
 Kestrel-readiness polish (2026-06-12, branch mdd/kestrel-polish): README
 getting-started/bootstrap + Status & limitations sections; mirror-statement
@@ -177,12 +188,25 @@ LIBRARY.
       follow via `Rep` TRANSFORMERS (`Rep α → Rep (List α)`) — `Rep`
       composes, so this layer drops in without rework; deferred until a
       target theorem needs it.
-- [ ] **Future work — `lift_decode` automation.** The per-theorem formula-
-      spine walk (composing `Implements` facts up the formula tree) is still
-      manual; a small elab recursing the formula (as the driver's `proveConv`
-      does) could emit it. Also: a GUARDED `Implements` variant (recognizer
-      hypotheses on inputs) for partial/conditional ACL2 functions, fed by
-      the emitted TP facts.
+- [ ] **Lifter industrialization (#63 — SEQUENCED 2026-06-12, MDD: after
+      perm replays, with the perm book as the driving example).** The
+      end-state test of the pipeline is theorems LIFTED into Lean; this
+      sprint makes the mirror library a discipline, not an artifact:
+      (a) the NativeMirrors catalog becomes a COVERAGE GATE — every
+      driver-replayed theorem gets a native entry or an explicit
+      PENDING(frontier) marker, so "replayed but never lifted" cannot
+      silently accumulate; (b) Rep transformers — polymorphic
+      `Rep (List α)` from `Rep α` (replacing the monomorphic
+      `listRep : Rep (List SExpr)`); (c) `lift_decode` automation — the
+      per-theorem formula-spine walk (composing `Implements` facts up the
+      formula tree) is still manual; a small elab recursing the formula
+      (as the driver's `proveConv` does) could emit it; (d) a GUARDED
+      `Implements` variant (recognizer hypotheses on inputs) for
+      partial/conditional ACL2 functions, fed by the emitted TP facts.
+      perm's payoff statement: `perm-is-an-equivalence` as a
+      kernel-checked equivalence over a native perm predicate — the seed
+      of the mirror library; replay→lift becomes the per-book cadence
+      from isort onward.
 
 - [x] **#37 totality from admission (2026-06-11, branch
       mdd/totality-from-admission).** Recursive :DEFUN events emit the

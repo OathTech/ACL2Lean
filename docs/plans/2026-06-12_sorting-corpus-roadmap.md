@@ -120,3 +120,26 @@ Guards/`verify-guards`, `defun-sk`/`defchoose`, metafunctions/clause
 processors, stobjs, `apply$`/`loop$`, mutual recursion at scale. The
 mechanism-frequency sweep (old G6) remains the validation step before any
 CORE-tier completeness claim.
+
+## Progress + ratified sequencing (2026-06-12, MDD)
+
+- **R0 DONE** (branch mdd/sorting-r0): perm on the scoreboard (corpus
+  37→45; EquivSource reconstruction extension), translator fail-closed,
+  include-aware capture warnings.
+- **R1 IN PROGRESS:** the multi-case induction scaffold landed (G5 v2,
+  docs/plans/2026-06-12_multicase-induction.md — strong induction +
+  decision-tree dispatch + N-var IH bridge; all 17 prior REPLAYED rows
+  byte-identical). The scheme wall fell; the measured remaining perm
+  walls, in planned order: (a) MULTI-LITERAL PUSHED CLAUSES (next — 4
+  theorems; P over the pushed disjunction, per-(alist×literal) children,
+  disjunctive-IH elimination), (b) clausify-on-multi-literal inside case
+  children (2), (c) executable-counterpart terminal (small), (d) the
+  .segment/.branchTest conditional-congruence machinery
+  (perm-is-an-equivalence).
+- **Lifter industrialization (RATIFIED sequencing):** after perm replays,
+  a mirror-library sprint with the perm book as the driving example —
+  the NativeMirrors catalog discipline extends to every newly-replayed
+  theorem (native entry or explicit PENDING marker), plus the #63 items
+  (Rep transformers, lift_decode elaborator, guarded Implements). The
+  end-state test of the whole pipeline is theorems LIFTED into Lean;
+  the replay→lift loop becomes the per-book cadence from isort onward.
