@@ -41,11 +41,11 @@ Driver coverage — REPLAYED 17/45; DP-discharge leaves ✓9 ◌9 ✗0 of 18:
     idf-rewrites → REPLAYED ✓
 • 10-tree-induction  (world: 3 defun(s), 2 theorem(s))
     true-listp-app → FAIL: replayInduction: multi-literal pushed clause (frontier)
-    true-listp-flatten → FAIL: replayInduction: step case has 2 IHs (frontier: exactly 1)
+    true-listp-flatten → FAIL: replayInduction: IH maps controller x to (car x), expected (cdr x) (frontier)
 • 11-custom-measure  (world: 2 defun(s), 1 theorem(s))
     cd2-bound → FAIL: deriveDefInfoN: nfix not defined in the world  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ◌ assumed cond[total:(cd2 (binary-+ (quote -2) n)), tp:cd2, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau-contradiction ◌ assumed cond[total:(cd2 n), tp:cd2, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(cd2 n), tp:cd2]]
 • 12-multi-controller  (world: 2 defun(s), 1 theorem(s))
-    len-zip2 → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip2 (cdr x) (cdr y)), tp:zip2, ASSUMED:dp-fact], Subgoal *1/1':preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    len-zip2 → FAIL: replayInduction: step case tests [(not (if (atom x) (atom x) (atom y)))] lack (consp x) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip2 (cdr x) (cdr y)), tp:zip2, ASSUMED:dp-fact], Subgoal *1/1':preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 13-multi-measured-var  (world: 2 defun(s), 1 theorem(s))
     len-interleave → FAIL: replayInduction: measure (binary-+ (acl2-count x) (acl2-count y)) is not (acl2-count v) (frontier)
 • 14-accumulator  (world: 2 defun(s), 1 theorem(s))
@@ -53,13 +53,13 @@ Driver coverage — REPLAYED 17/45; DP-discharge leaves ✓9 ◌9 ✗0 of 18:
 • 15-nested-induction  (world: 3 defun(s), 1 theorem(s))
     nested-induction → FAIL: replayClause: clausify produced 2 clauses at Goal (multi-clause frontier)
 • 16-three-way  (world: 2 defun(s), 1 theorem(s))
-    len-zip3 → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip3 (cdr x) (cdr y) (cdr z)), tp:zip3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    len-zip3 → FAIL: replayInduction: step case tests [(not (if (atom x) (atom x) (if (atom y) (atom y) (atom z))))] lack (consp x) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip3 (cdr x) (cdr y) (cdr z)), tp:zip3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • sorting/perm  (world: 4 defun(s), 8 theorem(s))
-    perm-cons → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
-    perm-symmetric → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
-    memb-rm → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
-    perm-memb → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
-    comm-rm → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
-    perm-rm → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
-    perm-transitive → FAIL: replayInduction: no step case with tests [(consp x)] (frontier)
+    perm-cons → FAIL: replayClause: clausify on a multi-literal clause at Subgoal *1/3 (frontier)
+    perm-symmetric → FAIL: replayInduction: multi-literal pushed clause (frontier)
+    memb-rm → FAIL: replayInduction: multi-literal pushed clause (frontier)
+    perm-memb → FAIL: replayInduction: multi-literal pushed clause (frontier)
+    comm-rm → FAIL: replayLiteral: terminal node is not equal-self (rune ("executable-counterpart", "equal"))
+    perm-rm → FAIL: replayInduction: multi-literal pushed clause (frontier)
+    perm-transitive → FAIL: replayClause: clausify on a multi-literal clause at Subgoal *1/3 (frontier)
     perm-is-an-equivalence → FAIL: applyStep: unsupported arity/argIdx 3/1

@@ -1318,7 +1318,7 @@ theorem evalOpt_substTerm_subst1 (w : World) (env : Env) (s : Symbol)
     one threshold (the max of the per-arg thresholds). -/
 theorem lookupSubst_eval_congr_conv (w : World) (env : Env) :
     ∀ (formals : List Symbol) (args vals : List SExpr), args.length = vals.length →
-      (∀ a v, (a, v) ∈ args.zip vals → ∃ N, ∀ f ≥ N, evalOpt f w env a = some v) →
+      (∀ p ∈ args.zip vals, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2) →
       ∃ Nag, ∀ (s : Symbol) (g : Nat), g ≥ Nag →
         evalOpt g w env ((lookupSubst s formals args).getD (.atom (.symbol s)))
           = evalOpt g w env
@@ -1326,9 +1326,9 @@ theorem lookupSubst_eval_congr_conv (w : World) (env : Env) :
   | [], _, _, _, _ => ⟨0, fun s g _ => by simp [lookupSubst]⟩
   | _ :: _, [], [], _, _ => ⟨0, fun s g _ => by simp [lookupSubst]⟩
   | f :: fs, a :: as, v :: vs, hlen, hz => by
-      obtain ⟨Na, ha⟩ := hz a v (by simp [List.zip_cons_cons])
+      obtain ⟨Na, ha⟩ := hz (a, v) (by simp [List.zip_cons_cons])
       obtain ⟨Nfs, hfs⟩ := lookupSubst_eval_congr_conv w env fs as vs (by simpa using hlen)
-        (fun a' v' hmem => hz a' v' (by rw [List.zip_cons_cons]; exact List.mem_cons_of_mem _ hmem))
+        (fun p hmem => hz p (by rw [List.zip_cons_cons]; exact List.mem_cons_of_mem _ hmem))
       refine ⟨max (Na + 1) Nfs, fun s g hg => ?_⟩
       rw [lookupSubst_map_quoteVal]
       simp only [lookupSubst]
@@ -1351,8 +1351,8 @@ theorem lookupSubst_eval_congr_conv (w : World) (env : Env) :
 theorem evalOpt_substTerm_substN (w : World) (env : Env)
     (formals : List Symbol) (args vals : List SExpr) (body : SExpr)
     (hnl : NoLet body = true) (hlen : args.length = vals.length)
-    (hargs : ∀ a v, (a, v) ∈ args.zip vals →
-      ∃ N, ∀ f ≥ N, evalOpt f w env a = some v) :
+    (hargs : ∀ p ∈ args.zip vals,
+      ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2) :
     ∃ N, ∀ f ≥ N, evalOpt f w env (substTerm formals args body)
       = evalOpt f w (envUpdate env formals vals) body := by
   obtain ⟨Nag, hag⟩ := lookupSubst_eval_congr_conv w env formals args vals hlen hargs

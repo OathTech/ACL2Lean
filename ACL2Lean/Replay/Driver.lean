@@ -2457,6 +2457,60 @@ partial def clauseSubtreeTerms (cn : ClauseNode) : List SExpr :=
   cn.inputClause ++ cn.steps.flatMap (·.items.flatMap itemTerms)
     ++ cn.children.flatMap clauseSubtreeTerms
 
+/-- The decision tree recovered from the cases' ruling-test lists (ACL2's
+    induction machine derives the cases from the scheme function's
+    if-structure, so the test lists always form a binary split tree). Leaves
+    carry the case INDEX into `ind.cases`. -/
+private inductive CaseTree where
+  | leaf (caseIdx : Nat)
+  | split (test : SExpr) (pos neg : CaseTree)
+  deriving Repr
+
+/-- Recover the decision tree. Each input is `(caseIdx, remaining tests)`;
+    at each level all nonempty heads must be the same test up to negation.
+    Hard-fails on anything else (no inference — the structure is validated,
+    never guessed). -/
+private partial def buildCaseTree (cases : List (Nat × List SExpr)) :
+    Except String CaseTree := do
+  match cases with
+  | [] => throw "buildCaseTree: empty case set"
+  | [(i, [])] => return .leaf i
+  | _ =>
+    let some (_, t0 :: _) := cases.find? (fun (_, ts) => !ts.isEmpty)
+      | throw "buildCaseTree: multiple cases left but no remaining tests \
+               (overlapping case tests?)"
+    -- the split test, positive form: strip a leading not
+    let test := match t0 with
+      | .cons (.atom (.symbol ns)) (.cons u .nil) =>
+        if ns.name == "not" then u else t0
+      | _ => t0
+    let negT := dumbNegateLit test
+    let mut pos : List (Nat × List SExpr) := []
+    let mut neg : List (Nat × List SExpr) := []
+    for (i, ts) in cases do
+      match ts with
+      | h :: rest =>
+        if h == test then pos := pos ++ [(i, rest)]
+        else if h == negT then neg := neg ++ [(i, rest)]
+        else throw s!"buildCaseTree: case head {repr h} is neither {repr test} \
+                      nor its negation (non-tree case structure, frontier)"
+      | [] => throw "buildCaseTree: a case ran out of tests while siblings \
+                     remain (subsumed case, frontier)"
+    if pos.isEmpty || neg.isEmpty then
+      throw s!"buildCaseTree: one-sided split on {repr test} (non-exhaustive \
+               case structure, frontier)"
+    return .split test (← buildCaseTree pos) (← buildCaseTree neg)
+
+/-- An in-scope ruling-test fact at a decision-tree position: the test term,
+    its walked value `Expr`, the value-convergence proof, and the sign
+    hypothesis (`sign = true` ⇒ `signE : valueE ≠ nil`; `sign = false` ⇒
+    `signE : valueE = nil`). -/
+private structure TestFact where
+  test : SExpr
+  valueE : Expr
+  convE : Expr
+  sign : Bool
+  signE : Expr
 
 mutual
 
@@ -2553,10 +2607,14 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
   replayClauseSpine cfg ctx lits
 
 
-/-- Replay an INDUCTION pool-root from its EMITTED justification. v1 shape:
-    measure `(acl2-count v)` under `o<`, one controller, step case `[(consp v)]`
-    with IH `v := (cdr v)` (other variables identity), base `[(not (consp v))]`,
-    single-literal pushed clause. Anything else hard-fails (frontier). -/
+/-- Replay an INDUCTION pool-root from its EMITTED justification (G5 v2,
+    docs/plans/2026-06-12_multicase-induction.md): measure `(acl2-count v)`
+    under `o<`, one controller; N cases with COMPOUND ruling tests (the
+    emitted decision tree), multiple base cases, multiple IHs per case, IH
+    alists substituting non-controller variables by arbitrary computed terms.
+    The controller's own substitution must be `(cdr controller)` under an
+    in-scope `(consp controller)` ruling test (the Count-library decrease);
+    anything else hard-fails (frontier — msort/qsort move this wall). -/
 partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) :
     MetaM Expr := do
   let some ind := cn.induction | throwError "replayInduction: no induction"
@@ -2573,39 +2631,62 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
     throwError "replayInduction: controllers {repr ind.controllers} ≠ [{cvar.name}] (frontier)"
   let cvarT : SExpr := .atom (.symbol cvar)
   let consT : SExpr := .cons (.atom (.symbol { name := "consp" })) (.cons cvarT .nil)
-  let notConsT : SExpr := .cons (.atom (.symbol { name := "not" })) (.cons consT .nil)
   let cdrT : SExpr := .cons (.atom (.symbol { name := "cdr" })) (.cons cvarT .nil)
-  let some stepCase := ind.cases.find? (·.tests == [consT])
-    | throwError "replayInduction: no step case with tests [(consp {cvar.name})] (frontier)"
-  unless ind.cases.any (·.tests == [notConsT]) do
-    throwError "replayInduction: no base case with tests [(not (consp {cvar.name}))] (frontier)"
-  let [alist] := stepCase.alists
-    | throwError "replayInduction: step case has {stepCase.alists.length} IHs (frontier: exactly 1)"
-  for (v, tm) in alist do
-    if v == cvar then
-      unless tm == cdrT do
-        throwError "replayInduction: IH maps {v.name} to {repr tm}, expected (cdr {cvar.name})"
-    else
-      unless tm == .atom (.symbol v) do
-        throwError "replayInduction: IH maps non-controller {v.name} to {repr tm} (frontier)"
-  -- 2. the pushed clause (v1: single literal) and IH instantiation
+  -- 2. per-case validation: every IH alist must be over DISTINCT variables and
+  -- map the controller to (cdr controller), justified by an in-scope (consp
+  -- controller) ruling test; non-controller substitutions are unrestricted.
+  for c in ind.cases do
+    if c.tests.isEmpty then
+      throwError "replayInduction: a case has no ruling tests (frontier)"
+    unless c.alists.isEmpty do
+      unless c.tests.contains consT do
+        throwError "replayInduction: step case tests {repr c.tests} lack \
+                    (consp {cvar.name}) — non-cdr measure decrease (frontier)"
+      for alist in c.alists do
+        let vars := alist.map (·.1)
+        unless vars.eraseDups.length == vars.length do
+          throwError "replayInduction: IH alist vars {repr vars} not distinct"
+        match alist.lookup cvar with
+        | some tm =>
+          unless tm == cdrT do
+            throwError "replayInduction: IH maps controller {cvar.name} to \
+                        {repr tm}, expected (cdr {cvar.name}) (frontier)"
+        | none =>
+          throwError "replayInduction: IH alist omits the controller \
+                      {cvar.name} (identity on the measured var — frontier)"
+  -- 3. the pushed clause (single literal) and recomputed child clauses
   let [pushedLit] := cn.inputClause
     | throwError "replayInduction: multi-literal pushed clause (frontier)"
-  let ihInst := ACL2.Replay.substTerm [cvar] [cdrT] pushedLit
-  let notIhInst : SExpr := .cons (.atom (.symbol { name := "not" })) (.cons ihInst .nil)
-  -- 3. link children by their first literal
-  let some stepChild := cn.children.find? (·.inputClause.head? == some notConsT)
-    | throwError "replayInduction: no step child (first literal (not (consp {cvar.name})))"
-  let some baseChild := cn.children.find? (·.inputClause.head? == some consT)
-    | throwError "replayInduction: no base child (first literal (consp {cvar.name}))"
-  unless cn.children.length == 2 do
-    throwError "replayInduction: {cn.children.length} children (frontier: exactly 2)"
-  unless baseChild.inputClause == [consT, pushedLit] do
-    throwError "replayInduction: base child clause {repr baseChild.inputClause} ≠ \
-                [(consp v), pushed]"
-  unless stepChild.inputClause == [notConsT, notIhInst, pushedLit] do
-    throwError "replayInduction: step child clause {repr stepChild.inputClause} ≠ \
-                [(not (consp v)), (not IH), pushed]"
+  let expected : List (Nat × InductionCase × List SExpr) :=
+    ind.cases.zipIdx.map fun (c, i) =>
+      let negTests := c.tests.map dumbNegateLit
+      let ihLits := c.alists.map fun alist =>
+        let formals := alist.map (·.1)
+        let args := alist.map (·.2)
+        SExpr.cons (.atom (.symbol { name := "not" }))
+          (.cons (ACL2.Replay.substTerm formals args pushedLit) .nil)
+      (i, c, negTests ++ ihLits ++ [pushedLit])
+  -- validate the recomputation against the EMITTED scheme clause set
+  let schemeClauses ← ind.scheme.mapM fun cl => do
+    let some lits := cl.toList?
+      | throwError "replayInduction: scheme clause {repr cl} is not a list"
+    pure lits
+  unless schemeClauses.length == expected.length do
+    throwError "replayInduction: {schemeClauses.length} scheme clauses for \
+                {expected.length} cases (mismatch)"
+  for (_, _, cl) in expected do
+    unless schemeClauses.contains cl do
+      throwError "replayInduction: recomputed case clause {repr cl} not in \
+                  the emitted :SCHEME (recompute/emission divergence)"
+  -- link children 1:1 by exact clause match
+  unless cn.children.length == expected.length do
+    throwError "replayInduction: {cn.children.length} children for \
+                {expected.length} cases (frontier)"
+  let linked ← expected.mapM fun (i, c, cl) => do
+    let some child := cn.children.find? (·.inputClause == cl)
+      | throwError "replayInduction: no child with clause {repr cl} (case {i})"
+    pure (i, c, cl, child)
+  let tree ← ofExcept (buildCaseTree (ind.cases.zipIdx.map fun (c, i) => (i, c.tests)))
   let w := cfg.worldExpr
   let pushedE := reflectSExpr pushedLit
   let nilC := mkConst ``SExpr.nil
@@ -2617,76 +2698,168 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
       mkForallFVars #[eV] (← mkArrow hxTy goal)
     mkLambdaFVars #[xvV] body
   let conspOf := fun (v : Expr) => mkApp (mkConst ``Logic.consp) v
-  -- 5. the BASE lambda: ∀ v, consp v = nil → P v
-  let base ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
-    let hcTy ← mkEq (conspOf vV) nilC
-    let inner ← withLocalDeclD `hc hcTy fun hC => do
+  let hNoLet ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[pushedE]) (mkConst ``Bool.true))
+    "NoLet pushed"
+  let hNoNot ← proveNoShadow cfg { name := "not" }
+  -- 5. the strong-induction STEP: ∀ xv, (∀ u, count u < count xv → P u) → P xv,
+  -- dispatching the emitted decision tree at the env level.
+  let step ← withLocalDeclD `xv (mkConst ``SExpr) fun xvV => do
+    let countOf := fun (v : Expr) => mkApp (mkConst ``SExpr.acl2Count) v
+    let sihTy ← withLocalDeclD `u (mkConst ``SExpr) fun uV => do
+      let lt ← mkAppM ``LT.lt #[countOf uV, countOf xvV]
+      mkForallFVars #[uV] (← mkArrow lt (mkApp P uV).headBeta)
+    let inner ← withLocalDeclD `sih sihTy fun sihV => do
       let inner2 ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
-        let hxTy ← mkValConvPropEx w eV (reflectSExpr cvarT) vV
+        let hxTy ← mkValConvPropEx w eV (reflectSExpr cvarT) xvV
         let inner3 ← withLocalDeclD `hx hxTy fun hX => do
           let cfg' := { cfg with envExpr := eV }
-          -- opaque pinning happens inside replayClause (under THIS case env)
-          let ctxB : ReplayCtx :=
-            { ctx with varVals := [(cvar, vV, hX)], vals := [], litFacts := [] }
-          let pCl ← replayClause cfg' ctxB baseChild
-          -- peel the case literal: eval (consp v-term) = some nil (cast by hc)
-          let pTest ← ctxValProof cfg' ctxB consT
-          let pTestNil ← mkAppM ``re_val_cast
-            #[w, eV, reflectSExpr consT, conspOf vV, nilC, pTest, hC]
-          let pPushed ← mkAppM ``evtrue_extract_else #[pTestNil, pCl]
-          mkLambdaFVars #[hX] pPushed
-        mkLambdaFVars #[eV] inner3
-      mkLambdaFVars #[hC] inner2
-    mkLambdaFVars #[vV] inner
-  -- 6. the STEP lambda: ∀ v, consp v ≠ nil → P (cdr v) → P v
-  let step ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
-    let hneTy ← mkAppM ``Ne #[conspOf vV, nilC]
-    let inner ← withLocalDeclD `hne hneTy fun hNe => do
-      let ihTy := (mkApp P (mkApp (mkConst ``Logic.cdr) vV)).headBeta
-      let inner2 ← withLocalDeclD `ihp ihTy fun ihV => do
-        let inner3 ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
-          let hxTy ← mkValConvPropEx w eV (reflectSExpr cvarT) vV
-          let inner4 ← withLocalDeclD `hx hxTy fun hX => do
-            let cfg' := { cfg with envExpr := eV }
-            -- opaque pinning happens inside replayClause (under THIS case env)
-            let ctxS : ReplayCtx :=
-              { ctx with varVals := [(cvar, vV, hX)], vals := [], litFacts := [] }
-            let pCl ← replayClause cfg' ctxS stepChild
-            -- peel literal 1: (not (consp v-term)) value = Logic.not t = nil
-            let conspT ← mkAppM ``logic_consp_ne_nil_t #[vV, hNe]
-            let pNotC ← ctxValProof cfg' ctxS notConsT
-            let valEq ← mkAppM ``Eq.trans
-              #[← mkAppM ``congrArg #[mkConst ``Logic.not, conspT],
-                mkConst ``logic_not_t_nil]
-            let pNotCnil ← mkAppM ``re_val_cast
-              #[w, eV, reflectSExpr notConsT,
-                mkApp (mkConst ``Logic.not) (conspOf vV), nilC, pNotC, valEq]
-            let p2 ← mkAppM ``evtrue_extract_else #[pNotCnil, pCl]
-            -- the IH at e' = e.insert cvar (cdr v), bridged to e
-            let cdrVal := mkApp (mkConst ``Logic.cdr) vV
-            let e' ← mkAppM ``Env.insert #[eV, reflectSymbol cvar, cdrVal]
-            let hx' ← mkAppM ``re_val_var_insert #[w, eV, reflectSymbol cvar, cdrVal]
-            let pIH' := mkAppN ihV #[e', hx']
-            let hCdrConv ← ctxValProof cfg' ctxS cdrT
-            let hNoLet ← proveByDecide
-              (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[pushedE]) (mkConst ``Bool.true))
-              "NoLet pushed"
-            let pBridge ← mkAppM ``evalOpt_substTerm_subst1
-              #[w, eV, reflectSymbol cvar, reflectSExpr cdrT, cdrVal, pushedE,
-                hNoLet, hCdrConv]
+          let ctx0 : ReplayCtx :=
+            { ctx with varVals := [(cvar, xvV, hX)], vals := [], litFacts := [] }
+          -- peel one IH literal: instantiate the strong IH at the substituted
+          -- controller value, bridge to this env by substN, nil by truthiness
+          let peelIH (ctxD : ReplayCtx) (facts : List TestFact)
+              (alist : List (Symbol × SExpr)) (p : Expr) :
+              MetaM (ReplayCtx × Expr) := do
+            -- controller FIRST (envUpdate's head insert is outermost — the
+            -- controller-lookup cast below depends on it)
+            let others := alist.filter (·.1 != cvar)
+            let formals := cvar :: others.map (·.1)
+            let args := cdrT :: others.map (·.2)
+            let uVal := mkApp (mkConst ``Logic.cdr) xvV
+            let hCdrConv ← ctxValProof cfg' ctxD cdrT
+            let mut ctxD := ctxD
+            let mut otherVals : List (Expr × Expr) := []
+            for (_, atm) in others do
+              ctxD ← pinTermOpaques cfg' eV ctxD atm
+              let aE ← ctxValExpr cfg' ctxD atm
+              let aP ← ctxValProof cfg' ctxD atm
+              otherVals := otherVals ++ [(aE, aP)]
+            -- measure decrease from the in-scope (consp cvar) ruling fact
+            let some cf := facts.find? (fun f => f.test == consT && f.sign)
+              | throwError "replayInduction: no in-scope truthy (consp \
+                            {cvar.name}) fact for the IH decrease"
+            let neTy ← mkAppM ``Ne #[conspOf xvV, nilC]
+            unless ← isDefEq (← inferType cf.signE) neTy do
+              throwError "replayInduction: the (consp {cvar.name}) fact's \
+                          value is not Logic.consp of the controller pin"
+            let hNeCast ← mkExpectedTypeHint cf.signE neTy
+            let hToBool ← mkAppM ``toBool_true_of_ne_nil #[hNeCast]
+            let hLt ← mkAppM ``acl2Count_cdr_lt_of_consp #[hToBool]
+            let pIHu := mkAppN sihV #[uVal, hLt]
+            -- e' = envUpdate e formals (uVal :: otherVals)
+            let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
+            let valsList := uVal :: otherVals.map (·.1)
+            let valsE ← mkListLit (mkConst ``SExpr) valsList
+            let argsE ← mkListLit (mkConst ``SExpr) (args.map reflectSExpr)
+            let e' ← mkAppM ``envUpdate #[eV, formalsE, valsE]
+            -- eval e' (var cvar) ↦ uVal (head insert is outermost, defeq)
+            let restF ← mkListLit (mkConst ``Symbol)
+              (others.map (fun o => reflectSymbol o.1))
+            let restV ← mkListLit (mkConst ``SExpr) (otherVals.map (·.1))
+            let eInner ← mkAppM ``envUpdate #[eV, restF, restV]
+            let hx'raw ← mkAppM ``re_val_var_insert
+              #[w, eInner, reflectSymbol cvar, uVal]
+            let hx' ← mkExpectedTypeHint hx'raw
+              (← mkValConvPropEx w e' (reflectSExpr cvarT) uVal)
+            let pIH' := mkAppN pIHu #[e', hx']
+            -- substN bridge: eval e (subst pushed) = eval e' pushed
+            let hlenPf ← proveByDecide
+              (← mkEq (← mkAppM ``List.length #[argsE])
+                      (← mkAppM ``List.length #[valsE]))
+              "substN arg/val lengths"
+            let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
+            let pFn ← withLocalDeclD `pr prodTy fun prV => do
+              let fst ← mkAppM ``Prod.fst #[prV]
+              let snd ← mkAppM ``Prod.snd #[prV]
+              mkLambdaFVars #[prV] (← mkValConvPropEx w eV fst snd)
+            let entries ← (args.zip valsList).mapM fun (a, vE) => do
+              let pairE ← mkAppM ``Prod.mk #[reflectSExpr a, vE]
+              pure pairE
+            let proofs := hCdrConv :: otherVals.map (·.2)
+            let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip proofs)
+            let zipE ← mkAppM ``List.zip #[argsE, valsE]
+            let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
+              let mem ← mkAppM ``Membership.mem #[zipE, prV]
+              mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
+            let hargs ← mkExpectedTypeHint hargsRaw hargsTy
+            let pBridge ← mkAppM ``evalOpt_substTerm_substN
+              #[w, eV, formalsE, argsE, valsE, pushedE, hNoLet, hlenPf, hargs]
             let pIHe ← mkAppM ``evtrue_of_fuel_eq #[pBridge, pIH']
-            -- (not ihInst) ⇒ some nil — from the IH's TRUTHINESS alone
-            -- (Logic.not v = nil for every non-nil v; no exact-t pin, G2)
-            let hNoNot ← proveNoShadow cfg { name := "not" }
             let pNotIHnil ← mkAppM ``conv_not_nil_of_evtrue #[hNoNot, pIHe]
-            let p3 ← mkAppM ``evtrue_extract_else #[pNotIHnil, p2]
-            mkLambdaFVars #[hX] p3
-          mkLambdaFVars #[eV] inner4
-        mkLambdaFVars #[ihV] inner3
-      mkLambdaFVars #[hNe] inner2
-    mkLambdaFVars #[vV] inner
-  -- 7. apply the induction and instantiate at the ambient env's controller value
-  let indP ← mkAppM ``acl2_induction_consp #[P, base, step]
+            return (ctxD, ← mkAppM ``evtrue_extract_else #[pNotIHnil, p])
+          -- dispatch the decision tree; at each leaf replay the case child
+          -- and peel ruling literals then IH literals (clause order)
+          let rec go (t : CaseTree) (ctxD : ReplayCtx) (facts : List TestFact) :
+              MetaM Expr := do
+            match t with
+            | .split test posT negT => do
+              let ctxD ← pinTermOpaques cfg' eV ctxD test
+              let vE ← ctxValExpr cfg' ctxD test
+              let pV ← ctxValProof cfg' ctxD test
+              let nilTy ← mkEq vE nilC
+              let negL ← withLocalDeclD `hnil nilTy fun hNil => do
+                let body ← go negT ctxD (facts ++
+                  [{ test, valueE := vE, convE := pV, sign := false, signE := hNil }])
+                mkLambdaFVars #[hNil] body
+              let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vE, nilC]) fun hNe => do
+                let body ← go posT ctxD (facts ++
+                  [{ test, valueE := vE, convE := pV, sign := true, signE := hNe }])
+                mkLambdaFVars #[hNe] body
+              mkAppM ``Classical.byCases #[negL, posL]
+            | .leaf i => do
+              let some (_, c, _, child) := linked.find? (fun (j, _, _, _) => j == i)
+                | throwError "replayInduction: internal — leaf {i} unlinked"
+              let mut ctxD := ctxD
+              let mut p ← replayClause cfg' ctxD child
+              -- ruling-literal peels, clause order
+              for t in c.tests do
+                let (litPos, fact) ← do
+                  match t with
+                  | .cons (.atom (.symbol ns)) (.cons u .nil) =>
+                    if ns.name == "not" then
+                      match facts.find? (fun f => f.test == u && !f.sign) with
+                      | some f => pure (true, f)   -- literal = u, value nil
+                      | none => throwError "replayInduction: no nil fact for \
+                                            ruling test {repr u}"
+                    else
+                      match facts.find? (fun f => f.test == t && f.sign) with
+                      | some f => pure (false, f)  -- literal = (not t), t truthy
+                      | none => throwError "replayInduction: no truthy fact \
+                                            for ruling test {repr t}"
+                  | _ =>
+                    match facts.find? (fun f => f.test == t && f.sign) with
+                    | some f => pure (false, f)
+                    | none => throwError "replayInduction: no truthy fact for \
+                                          ruling test {repr t}"
+                let lit := dumbNegateLit t
+                if litPos then
+                  -- literal value = fact value = nil
+                  let pLit ← ctxValProof cfg' ctxD lit
+                  let pLitNil ← mkAppM ``re_val_cast
+                    #[w, eV, reflectSExpr lit, fact.valueE, nilC, pLit, fact.signE]
+                  p ← mkAppM ``evtrue_extract_else #[pLitNil, p]
+                else
+                  -- literal = (not t); Logic.not (truthy) = nil
+                  let pLit ← ctxValProof cfg' ctxD lit
+                  let hNotNil ← mkAppM ``not_nil_of_truthy #[fact.signE]
+                  let pLitNil ← mkAppM ``re_val_cast
+                    #[w, eV, reflectSExpr lit,
+                      mkApp (mkConst ``Logic.not) fact.valueE, nilC, pLit, hNotNil]
+                  p ← mkAppM ``evtrue_extract_else #[pLitNil, p]
+              -- IH peels, clause order
+              for alist in c.alists do
+                let (ctxD', p') ← peelIH ctxD facts alist p
+                ctxD := ctxD'
+                p := p'
+              return p
+          let body ← go tree ctx0 []
+          mkLambdaFVars #[hX] body
+        mkLambdaFVars #[eV] inner3
+      mkLambdaFVars #[sihV] inner2
+    mkLambdaFVars #[xvV] inner
+  -- 6. apply the induction and instantiate at the ambient env's controller value
+  let indP ← mkAppM ``acl2_strong_induction_count #[P, step]
   let hNotT ← proveIsNamedFalse cvar "t"
   let hxv ← mkAppM ``re_val_var #[w, cfg.envExpr, reflectSymbol cvar, hNotT]
   let xv0 ← dpConcVar cfg.envExpr cvar
