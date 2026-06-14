@@ -759,6 +759,39 @@ def replayImpliesDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
   let valueEq ← mkAppM ``logic_implies_cond #[vA, vB]
   mkAppM ``fuel_eq_of_conv #[pL, pR, valueEq]
 
+/-- Ground `executable-counterpart` computation: ACL2 ran the executable
+    counterpart of a CLOSED term `lhs`, recording the result `v`. The kernel
+    re-checks the SAME computation by reducing `evalOpt` at a concrete fuel
+    (found by running the evaluator) and lifts by fuel monotonicity. Returns
+    `∃N∀f≥N, eval lhs = some v`. Hard-fails if `lhs` is open or the evaluator
+    diverges from ACL2's recorded result — this is the carve-out's faithful
+    mirror (ACL2 records only a verdict; we re-run the same closed computation),
+    NOT a license to compute through open terms. -/
+def replayExecGround (cfg : ReplayConfig) (lhs v : SExpr) : MetaM Expr := do
+  unless (ACL2.Replay.freeVars lhs).isEmpty do
+    throwError "executable-counterpart: lhs {repr lhs} has free variables"
+  -- find a sufficient fuel by running the SAME evaluator the theorem is about
+  -- (ground term: the env is never consulted, so any env works)
+  let mut F := 8
+  let mut v? : Option SExpr := none
+  while v?.isNone && F ≤ 65536 do
+    v? := ACL2.evalOpt F cfg.worldVal {} lhs
+    if v?.isNone then F := F * 2
+  let some vComputed := v?
+    | throwError "executable-counterpart: {repr lhs} does not converge by fuel 65536"
+  unless vComputed == v do
+    throwError "executable-counterpart: evalOpt computes {repr vComputed}, \
+                the recorded result is {repr v} — evaluator/ACL2 divergence on {repr lhs}"
+  let lhsApp := mkApp4 (mkConst ``evalOpt) (mkNatLit F) cfg.worldExpr cfg.envExpr
+    (reflectSExpr lhs)
+  let someV ← mkAppM ``Option.some #[reflectSExpr v]
+  unless ← isDefEq lhsApp someV do
+    throwError "executable-counterpart: evalOpt {F} … {repr lhs} does not REDUCE \
+                to {repr v} (env-dependence or reflected-world mismatch?)"
+  let hAt ← mkExpectedTypeHint (← mkEqRefl someV) (← mkEq lhsApp someV)
+  mkAppM ``conv_of_eval_at
+    #[mkNatLit F, cfg.worldExpr, cfg.envExpr, reflectSExpr lhs, reflectSExpr v, hAt]
+
 mutual
 
 /-- Recognizer fact `∃N∀f≥N, eval term = some verdict` (verdict the node's recorded
@@ -1116,6 +1149,17 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn, reflectSExpr els,
             reflectSExpr cv, vThn, hc, hcv, pThn]
     | _ => throwError "if-simplification: lhs not an if: {repr lhs}"
+  | "executable-counterpart", _ =>
+    -- a GROUND computation step within a rewrite chain (e.g. `(consp 'nil) ⇒ 'nil`):
+    -- ACL2 ran the executable counterpart; re-run the SAME closed computation and
+    -- lift to the node-equality `eval lhs = eval rhs` (rhs the recorded constant).
+    let .cons (.atom (.symbol q)) (.cons v .nil) := rhs
+      | throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
+    unless q.name == "quote" do
+      throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
+    let convLhs ← replayExecGround cfg lhs v
+    let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
+    mkAppM ``fuel_eq_of_conv #[convLhs, hq, ← mkEqRefl (reflectSExpr v)]
   | _, _ =>
     throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
 
@@ -1178,7 +1222,10 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
     replayRewrites cfg ctx lp.literal lp.nodes 0
 
 /-- Replay a literal that closes to `t`: chain its rewrite nodes, then close with the
-    terminal `equal-self` node. Returns `∃N∀f≥N, eval lp.literal = some t`. -/
+    terminal node. The closer is either `equal-self` (reflexivity of `equal`) or an
+    `executable-counterpart` ground computation that reduces the rewritten literal
+    (a closed term, e.g. `(equal 'nil 'nil)`) to `t` — the same way ACL2 closed it.
+    Returns `∃N∀f≥N, eval lp.literal = some t`. -/
 def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : MetaM Expr := do
   if lp.notFlg then
     throwError "replayLiteral: notFlg closing literal unsupported (frontier) — \
@@ -1202,7 +1249,25 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
         match chainOpt with
         | none => return closeProof
         | some ch => mkAppM ``fuel_chain_eq #[ch, closeProof]
-    | _ => throwError "replayLiteral: terminal node is not equal-self (rune {repr (runeOf closer)})"
+    | .node ("executable-counterpart", _) clhs crhs _ _ =>
+      -- the rewrite chain reduces the literal to a CLOSED term (e.g.
+      -- `(equal 'nil 'nil)`) that ACL2 closed by execution; re-run the SAME
+      -- ground computation and require it yield `t` (a closing literal).
+      let .cons (.atom (.symbol q)) (.cons v .nil) := crhs
+        | throwError "replayLiteral: exec-counterpart closer rhs {repr crhs} is not a quoted constant"
+      unless q.name == "quote" && v == SExpr.t do
+        throwError "replayLiteral: exec-counterpart closer must reduce the literal to \
+                    (quote t), got {repr crhs}"
+      let (chainOpt, curTerm) ← replayRewrites cfg ctx lp.literal revRest.reverse
+      unless curTerm == clhs do
+        throwError "replayLiteral: rewrite chain reached {repr curTerm}, \
+                    expected exec-counterpart redex {repr clhs}"
+      let closeProof ← replayExecGround cfg clhs v
+      match chainOpt with
+      | none => return closeProof
+      | some ch => mkAppM ``fuel_chain_eq #[ch, closeProof]
+    | _ => throwError "replayLiteral: terminal node is not equal-self / exec-counterpart \
+                       (rune {repr (runeOf closer)})"
 
 /-- The clause's literal items in order, with their 1-based indices, descending
     into case branches (a branch's items continue the same clause's literals). -/
@@ -2035,33 +2100,11 @@ def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) 
                 eval-equality replay is gone"
   match rty with
   | "executable-counterpart" =>
-    unless (ACL2.Replay.freeVars lhs).isEmpty do
-      throwError "executable-counterpart: lhs {repr lhs} has free variables"
     let .cons (.atom (.symbol q)) (.cons v .nil) := rhs
       | throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
     unless q.name == "quote" do
       throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
-    -- find a sufficient fuel by running the SAME evaluator the theorem is about
-    -- (ground term: the env is never consulted, so any env works)
-    let mut F := 8
-    let mut v? : Option SExpr := none
-    while v?.isNone && F ≤ 65536 do
-      v? := ACL2.evalOpt F cfg.worldVal {} lhs
-      if v?.isNone then F := F * 2
-    let some vComputed := v?
-      | throwError "executable-counterpart: {repr lhs} does not converge by fuel 65536"
-    unless vComputed == v do
-      throwError "executable-counterpart: evalOpt computes {repr vComputed}, \
-                  the recorded result is {repr v} — evaluator/ACL2 divergence on {repr lhs}"
-    let lhsApp := mkApp4 (mkConst ``evalOpt) (mkNatLit F) cfg.worldExpr cfg.envExpr
-      (reflectSExpr lhs)
-    let someV ← mkAppM ``Option.some #[reflectSExpr v]
-    unless ← isDefEq lhsApp someV do
-      throwError "executable-counterpart: evalOpt {F} … {repr lhs} does not REDUCE \
-                  to {repr v} (env-dependence or reflected-world mismatch?)"
-    let hAt ← mkExpectedTypeHint (← mkEqRefl someV) (← mkEq lhsApp someV)
-    let convLhs ← mkAppM ``conv_of_eval_at
-      #[mkNatLit F, cfg.worldExpr, cfg.envExpr, reflectSExpr lhs, reflectSExpr v, hAt]
+    let convLhs ← replayExecGround cfg lhs v
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
     mkAppM ``fuel_eq_of_conv #[convLhs, hq, ← mkEqRefl (reflectSExpr v)]
   | "equal-self" =>
