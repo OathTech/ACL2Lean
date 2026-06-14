@@ -139,8 +139,14 @@ past induction into deeper machinery. The measured next walls:
    perm-transitive at Subgoal *1/3) — the preprocess/clausify composition
    currently requires a single-literal clause; case children carry ruling
    literals alongside.
-3. **`executable-counterpart` terminal** (comm-rm) — ACL2 closed a ground
-   `(equal …)` by execution; a small new terminal-node recipe.
+3. **`executable-counterpart` terminal** (comm-rm) — DONE 2026-06-14
+   (commit 7fe4d38, branch mdd/perm-exec-counterpart): exec-counterpart as
+   chain step AND closing-literal terminal, faithful ground re-execution
+   (`replayExecGround`). comm-rm then revealed a SECOND wall behind it —
+   `sublis-var` display-folding of if-simp branches (logging-only; not a
+   missing-reasoning gap) — **DEFERRED** pending data on live-branch-fold
+   frequency. Mechanism + A/B/C options + keep/throwaway rationale:
+   docs/notes/2026-06-14_exec-counterpart-and-folding-wall.md.
 4. **`.segment` / `.branchTest` solidify consumers** (perm-is-an-equivalence
    and inside others) — the conditional-congruence machinery (R1's second
    wall, unchanged).

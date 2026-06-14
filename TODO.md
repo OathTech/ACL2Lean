@@ -78,15 +78,24 @@ closed, ci as scoreboard, audits at milestones):
       inside R1/R3/R4 (real schemes), G4 inside R5 (qsort is where forcing
       actually appears). The frequency sweep is demoted to a validation
       checkpoint before any CORE-tier completeness claim.
-      PROGRESS (2026-06-12, branch mdd/sorting-r0): R0 DONE (perm on the
-      scoreboard, corpus 37→45; EquivSource reconstruction extension;
-      translator fail-closed; include-aware capture warnings). R1 IN
-      PROGRESS: the G5-v2 multi-case induction scaffold landed
+      PROGRESS (2026-06-12, branch mdd/sorting-r0 → merged main): R0 DONE
+      (perm on the scoreboard, corpus 37→45; EquivSource reconstruction
+      extension; translator fail-closed; include-aware capture warnings).
+      R1 IN PROGRESS: the G5-v2 multi-case induction scaffold landed
       (docs/plans/2026-06-12_multicase-induction.md) — the scheme wall
-      fell, all 17 prior REPLAYED rows byte-identical. NEXT:
-      multi-literal pushed clauses (4 perm theorems), then
-      clausify-in-children, executable-counterpart terminal, and the
-      .segment/.branchTest conditional-congruence machinery.
+      fell, all 17 prior REPLAYED rows byte-identical.
+      PROGRESS (2026-06-14, branch mdd/perm-exec-counterpart, post-Fable
+      buffer-against-mistakes mode): executable-counterpart steps + closer
+      DONE (commit 7fe4d38; faithful ground re-execution, orthogonal/kept).
+      comm-rm then revealed a SECOND wall — `sublis-var` display-folding of
+      if-simp branches (logging-only, not a missing-reasoning gap) — now
+      DEFERRED (A/B/C judgment call, can't measure until earlier walls fall;
+      docs/notes/2026-06-14_exec-counterpart-and-folding-wall.md). comm-rm
+      stands 1-of-2 done.
+      NEXT: clausify-on-multi-literal (perm-cons, perm-transitive) — picked
+      over the 4-theorem multi-literal-pushed induction as the smaller next
+      step. Remaining R1 walls: multi-literal pushed clauses (4 theorems),
+      .segment/.branchTest conditional-congruence machinery, comm-rm wall 2.
       RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
       INDUSTRIALIZATION sprint (#63 + the NativeMirrors catalog
       discipline) with the perm book as driving example; replay→lift

@@ -130,12 +130,25 @@ CORE-tier completeness claim.
   docs/plans/2026-06-12_multicase-induction.md — strong induction +
   decision-tree dispatch + N-var IH bridge; all 17 prior REPLAYED rows
   byte-identical). The scheme wall fell; the measured remaining perm
-  walls, in planned order: (a) MULTI-LITERAL PUSHED CLAUSES (next — 4
-  theorems; P over the pushed disjunction, per-(alist×literal) children,
-  disjunctive-IH elimination), (b) clausify-on-multi-literal inside case
-  children (2), (c) executable-counterpart terminal (small), (d) the
+  walls: (a) MULTI-LITERAL PUSHED CLAUSES (4 theorems; P over the pushed
+  disjunction, per-(alist×literal) children, disjunctive-IH elimination),
+  (b) clausify-on-multi-literal inside case children (perm-cons,
+  perm-transitive), (c) executable-counterpart terminal, (d) the
   .segment/.branchTest conditional-congruence machinery
   (perm-is-an-equivalence).
+- **(c) PARTIAL — comm-rm split into two walls (2026-06-14, branch
+  mdd/perm-exec-counterpart):** exec-counterpart steps + closer DONE
+  (commit 7fe4d38; faithful ground re-execution, orthogonal/kept). Behind
+  it, comm-rm hit a SECOND wall — `sublis-var` display-folding of if-simp
+  branches (logging-only per ACL2's own comment; not a missing-reasoning
+  gap) — now **DEFERRED**: the A/B/C fix is a judgment call that can't be
+  measured until earlier walls fall (live-branch-fold frequency unknown).
+  Full mechanism + options + keep/throwaway rationale:
+  docs/notes/2026-06-14_exec-counterpart-and-folding-wall.md. comm-rm
+  stands 1-of-2 done at a clean named frontier.
+- **NEXT: clausify-on-multi-literal** (perm-cons, perm-transitive) —
+  chosen over the 4-theorem multi-literal-pushed induction as the smaller
+  next step under the post-Fable buffer-against-mistakes mandate.
 - **Lifter industrialization (RATIFIED sequencing):** after perm replays,
   a mirror-library sprint with the perm book as the driving example —
   the NativeMirrors catalog discipline extends to every newly-replayed
