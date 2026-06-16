@@ -244,11 +244,25 @@ private def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : E
     return mkAppN (mkConst ``evalOpt_congr_binary_right)
       #[w, e, fnE, reflectSExpr a, reflectSExpr sub, reflectSExpr sub', ns, inner]
   | 3, 0, [t, el] =>
-    -- the lazy if's TEST position (the only sound arity-3 congruence)
+    -- the lazy if's TEST position
     unless st.fn.name == "if" do
       throwError "applyStep: arity-3 congruence only for if (got {st.fn.name})"
     return mkAppN (mkConst ``evalOpt_congr_if_test)
       #[w, e, reflectSExpr sub, reflectSExpr sub', reflectSExpr t, reflectSExpr el, inner]
+  | 3, 1, [c, el] =>
+    -- the if's THEN branch — sound under the UNCONDITIONAL eval-equality `inner`
+    -- carries (if the test is false the branch is irrelevant; else t = t')
+    unless st.fn.name == "if" do
+      throwError "applyStep: arity-3 then-congruence only for if (got {st.fn.name})"
+    return mkAppN (mkConst ``evalOpt_congr_if_then)
+      #[w, e, reflectSExpr c, reflectSExpr sub, reflectSExpr sub', reflectSExpr el, inner]
+  | 3, 2, [c, t] =>
+    -- the if's ELSE branch (the clause-disjunction TAIL) — sound under the
+    -- unconditional eval-equality `inner`
+    unless st.fn.name == "if" do
+      throwError "applyStep: arity-3 else-congruence only for if (got {st.fn.name})"
+    return mkAppN (mkConst ``evalOpt_congr_if_else)
+      #[w, e, reflectSExpr c, reflectSExpr t, reflectSExpr sub, reflectSExpr sub', inner]
   | _, _, _ => throwError "applyStep: unsupported arity/argIdx {st.arity}/{st.argIdx}"
 
 /-- Lift a node proof `nodeProof : ∃N∀f≥N, eval lhs = eval rhs` to the whole literal
@@ -2148,25 +2162,37 @@ def applyStepSIff (cfg : ReplayConfig) (ctx : ReplayCtx) (st : PathStep)
   unless st.fn.name == "if" && st.arity == 3 do
     throwError "iff congruence: position {st.fn.name}/{st.argIdx} does not \
                 propagate IFF (frontier — only if-test/branch positions do)"
+  -- a composition that does not typecheck (e.g. a branch-congruence result fed
+  -- into a test-collapse — a NESTED conditional structure) is the conditional-
+  -- congruence frontier (R1 wall d, deferred — perm-is-an-equivalence); surface
+  -- it as a CLEAN named frontier rather than leaking `mkAppM` metavariables.
+  -- The original error is PRESERVED in the message: this is still a hard-fail
+  -- (never a false pass), but if a FIXABLE bug (wrong sibling/order) — rather
+  -- than the genuine wall-d nesting — caused the failure, its text stays visible
+  -- so it is not silently misattributed to the deferred frontier.
+  let wallD : Exception → MetaM Expr := fun e => do
+    throwError "applyStepSIff: SIff branch-congruence composition unsupported for \
+      this nesting at if-position {st.argIdx} (conditional-congruence — R1 wall d, \
+      deferred); underlying elaboration error: {e.toMessageData}"
   match st.argIdx, st.siblings with
   | 0, [thn, els] =>
     -- TEST position: SIff collapses to eval-equality
     let _ := thn; let _ := els
-    let p ← mkAppM ``evrel_if_test_siff_collapse #[inner]
+    let p ← (try mkAppM ``evrel_if_test_siff_collapse #[inner] catch e => wallD e)
     return (p, false)
   | 1, [c, els] =>
     -- THEN position
     let pc ← ctxValProof cfg ctx c
     let pels ← ctxValProof cfg ctx els
-    let p ← mkAppM ``evrel_if_then_congr
-      #[mkConst ``siff_refl, pc, pels, inner]
+    let p ← (try mkAppM ``evrel_if_then_congr #[mkConst ``siff_refl, pc, pels, inner]
+             catch e => wallD e)
     return (p, true)
   | 2, [c, thn] =>
     -- ELSE position
     let pc ← ctxValProof cfg ctx c
     let pthn ← ctxValProof cfg ctx thn
-    let p ← mkAppM ``evrel_if_else_congr
-      #[mkConst ``siff_refl, pc, pthn, inner]
+    let p ← (try mkAppM ``evrel_if_else_congr #[mkConst ``siff_refl, pc, pthn, inner]
+             catch e => wallD e)
     return (p, true)
   | _, _ => throwError "iff congruence: bad if position {st.argIdx}"
 
@@ -2607,9 +2633,11 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
                     clausify record at {cn.idStr} (frontier): {repr lp.literal}"
     let stepNodes := (cn.steps.flatMap (·.items)).filterMap fun
       | .step n => some n | _ => none
-    let [formula] := cn.inputClause
-      | throwError "replayClause: clausify on a multi-literal clause at \
-                    {cn.idStr} (frontier)"
+    -- the formula is the clause's DISJUNCTION; for a multi-literal clause the
+    -- preprocess steps rewrite individual literals, lifted into the disjunction
+    -- by path-directed congruence (including the lazy `if`'s then/else branches,
+    -- sound here because each step's eval-equality is unconditional)
+    let formula := disjoinTerm cn.inputClause
     let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula stepNodes
     unless finalT == info.input do
       throwError "replayClause: preprocess chain reached {repr finalT}, the \

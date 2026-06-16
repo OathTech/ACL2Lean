@@ -2465,6 +2465,61 @@ theorem evalOpt_congr_if_test (w : World) (env : Env) (c c' t e : SExpr)
   show (evalOpt g w env c).bind _ = (evalOpt g w env c').bind _
   rw [h g (by omega)]
 
+/-- Congruence into an `if`'s THEN branch under UNCONDITIONAL eval-equality:
+    `eval t = eval t'` (for all sufficient fuel) ⇒ the whole `if` agrees. Sound
+    because the hypothesis is unconditional — when the test is false the THEN
+    branch is irrelevant, when true `t = t'`. The preprocess chain's node proofs
+    are exactly this unconditional shape; this lets the chain lift a rewrite
+    through an `if`'s then-branch (e.g. a clause-disjunction position). -/
+theorem evalOpt_congr_if_then (w : World) (env : Env) (c t t' e : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env t = evalOpt f w env t') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t' (.cons e .nil)))) := by
+  obtain ⟨N, h⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  show evalOptStep (evalOpt g) w env _ = evalOptStep (evalOpt g) w env _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  show (evalOpt g w env c).bind _ = (evalOpt g w env c).bind _
+  cases hc : evalOpt g w env c with
+  | none => rfl
+  | some cv =>
+    simp only [Option.bind_some]
+    by_cases hb : Logic.toBool cv = true
+    · simp only [if_pos hb]; exact h g (by omega)
+    · simp only [if_neg hb]
+
+/-- Congruence into an `if`'s ELSE branch under UNCONDITIONAL eval-equality:
+    `eval e = eval e'` (for all sufficient fuel) ⇒ the whole `if` agrees. Sound
+    because the hypothesis is unconditional — when the test is true the ELSE
+    branch is irrelevant, when false `e = e'`. Lets the preprocess chain lift a
+    rewrite through an `if`'s else-branch (the clause-disjunction TAIL). -/
+theorem evalOpt_congr_if_else (w : World) (env : Env) (c t e e' : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env e = evalOpt f w env e') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e' .nil)))) := by
+  obtain ⟨N, h⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  show evalOptStep (evalOpt g) w env _ = evalOptStep (evalOpt g) w env _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  show (evalOpt g w env c).bind _ = (evalOpt g w env c).bind _
+  cases hc : evalOpt g w env c with
+  | none => rfl
+  | some cv =>
+    simp only [Option.bind_some]
+    by_cases hb : Logic.toBool cv = true
+    · simp only [if_pos hb]
+    · simp only [if_neg hb]; exact h g (by omega)
+
 /-- RUNE `:DEFINITION fn` on two general arguments, body convergence supplied for
     EVERY environment (the ∀-env analyzer form — the 2-arg sibling of
     `re_unfold1_conv`). -/
