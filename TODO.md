@@ -5,12 +5,13 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-06-12._
+_Last updated: 2026-06-16._
 
 > **`just ci` is GREEN** and includes the driver-coverage sweep: hard-fails on
 > any item-less PROVED leaf (emission gap) and reconstruction-integrity
 > failures; reports per-theorem replay + per-leaf DP-discharge status —
-> currently **REPLAYED 17/37**, DP leaves ✓9 ◌9 ✗0 of 18.
+> currently **REPLAYED 17/45** (corpus grew 37→45 when the sorting/perm book
+> joined the scoreboard at R0), DP leaves ✓9 ◌9 ✗0 of 18.
 
 ## THE GOVERNING PLAN — `docs/plans/2026-06-10_generality-design.md` (ratified)
 
@@ -92,10 +93,20 @@ closed, ci as scoreboard, audits at milestones):
       DEFERRED (A/B/C judgment call, can't measure until earlier walls fall;
       docs/notes/2026-06-14_exec-counterpart-and-folding-wall.md). comm-rm
       stands 1-of-2 done.
-      NEXT: clausify-on-multi-literal (perm-cons, perm-transitive) — picked
-      over the 4-theorem multi-literal-pushed induction as the smaller next
-      step. Remaining R1 walls: multi-literal pushed clauses (4 theorems),
-      .segment/.branchTest conditional-congruence machinery, comm-rm wall 2.
+      PROGRESS (2026-06-16): clausify-on-multi-literal DONE (new
+      evalOpt_congr_if_then/if_else lemmas, axiom-clean; applyStep arity-3
+      then/else; replayClause chains disjoinTerm cn.inputClause). perm-cons
+      and perm-transitive both cleared that wall and now stop at deeper real
+      frontiers (notFlg closer; symbolic (consp y) if-test) — neither REPLAYED
+      yet (still 17/45). perm-is-an-equivalence now hard-fails cleanly at the
+      conditional-congruence frontier (R1 wall d). Two-reviewer adversarial
+      audit (opus, read-only) of the exec-counterpart + clausify-multi-literal
+      work: NO soundness/fidelity bug; one MINOR (wall-d catch swallowed the
+      underlying error) fixed (commit 392b208). Branch
+      mdd/perm-exec-counterpart UNMERGED (4 commits, CI-green, audited).
+      Remaining R1 walls: notFlg closer + symbolic if-test (perm-cons,
+      perm-transitive next layer); multi-literal pushed clauses (4 theorems);
+      .segment/.branchTest conditional-congruence (wall d); comm-rm wall 2.
       RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
       INDUSTRIALIZATION sprint (#63 + the NativeMirrors catalog
       discipline) with the perm book as driving example; replay→lift
