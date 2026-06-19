@@ -5,7 +5,7 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-06-16._
+_Last updated: 2026-06-19._
 
 > **`just ci` is GREEN** and includes the driver-coverage sweep: hard-fails on
 > any item-less PROVED leaf (emission gap) and reconstruction-integrity
@@ -102,8 +102,13 @@ closed, ci as scoreboard, audits at milestones):
       conditional-congruence frontier (R1 wall d). Two-reviewer adversarial
       audit (opus, read-only) of the exec-counterpart + clausify-multi-literal
       work: NO soundness/fidelity bug; one MINOR (wall-d catch swallowed the
-      underlying error) fixed (commit 392b208). Branch
-      mdd/perm-exec-counterpart UNMERGED (4 commits, CI-green, audited).
+      underlying error) fixed (commit 392b208). The exec-counterpart +
+      clausify-multi-literal work (incl. the wall-d fix) is now MERGED to
+      main (through commit 5fea3c7); the mdd/perm-exec-counterpart branch
+      is retired. Verified 2026-06-19: main builds clean, `just ci` green,
+      golden coverage byte-identical (REPLAYED 17/45, DP ✓9 ◌9 ✗0 of 18),
+      ACL2 tags conform. No perm theorem replays yet — all 8 fail-close at
+      real R1 frontiers.
       Remaining R1 walls: notFlg closer + symbolic if-test (perm-cons,
       perm-transitive next layer); multi-literal pushed clauses (4 theorems);
       .segment/.branchTest conditional-congruence (wall d); comm-rm wall 2.
