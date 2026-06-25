@@ -5,10 +5,109 @@ on:
   pull_request:
   workflow_dispatch:
 
+# The proof-log corpus is gitignored (see .gitignore) but `include_str`'d by the
+# main ACL2Lean library AND the test suite, so a clean checkout cannot `lake build`
+# until the logs are regenerated. Regenerating them requires running ACL2, whose
+# `saved_acl2.core` image is a large, host-specific binary that is NOT tracked in
+# the submodule. So CI must: build ACL2 from source (cached), capture the logs,
+# then run the Lean conformance gate (`just ci`).
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: leanprover/lean-action@v1
+      - name: Checkout (with acl2 submodule)
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install SBCL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sbcl
+          sbcl --version
+
+      # The ACL2 core image is non-portable (it bakes in the SBCL path/version —
+      # this is exactly why the repo's checked-out image cannot be reused across
+      # machines). Key the cache on (OS, SBCL version, acl2 submodule SHA): any
+      # of those changing invalidates the built image and forces a rebuild.
+      - name: ACL2 submodule SHA
+        id: acl2sha
+        run: echo "sha=$(git -C acl2 rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: SBCL version
+        id: sbcl
+        run: echo "ver=$(sbcl --version | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache ACL2 build
+        id: acl2cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            acl2/saved_acl2
+            acl2/saved_acl2.core
+          key: acl2-${{ runner.os }}-${{ steps.sbcl.outputs.ver }}-${{ steps.acl2sha.outputs.sha }}
+
+      - name: Build ACL2 (only on cache miss)
+        if: steps.acl2cache.outputs.cache-hit != 'true'
+        run: |
+          make -C acl2 LISP=sbcl
+          test -x acl2/saved_acl2
+
+      - name: Capture proof-log corpus from ACL2
+        run: |
+          # Only the `include_str`'d logs are required to build. All 19 source
+          # files are standalone (no `include-book`), so each captures on its own.
+          # `simple` + the recon-tests land alongside their source; `perm` goes
+          # into acl2_samples/sorting/ via OUTDIR.
+          ./scripts/capture-proof-log.sh \
+            acl2_samples/simple.lisp \
+            acl2_samples/recon-tests/*.lisp
+          # acl2_samples/sorting/ holds only gitignored logs, so git (which does not
+          # track empty dirs) omits it from a clean checkout — create it for OUTDIR.
+          mkdir -p acl2_samples/sorting
+          OUTDIR=acl2_samples/sorting ./scripts/capture-proof-log.sh \
+            acl2/books/sorting/perm.lisp
+          echo "Captured logs:"
+          find acl2_samples -name '*.proof-log' | sort
+
+      - name: Install elan (Lean toolchain manager)
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      # Cache the DEPENDENCY packages (Mathlib et al.). `lake exe cache get` only
+      # fetches Mathlib's .olean files, NOT the native .c->.o compilation — and since
+      # we build an executable, Lake natively compiles Mathlib's whole import closure
+      # (~2800 .o files, ~11min) from scratch otherwise. We cache the WHOLE package
+      # dir (source + .git + .lake/build), not just the build subdir: a build dir
+      # without its source clone fails Lake's manifest check ("URL has changed"), so
+      # Lake deletes and re-clones the package, wiping the restored build. Keyed on
+      # the toolchain + manifest (which pin exact dep revisions), so it invalidates
+      # only when deps change, never on our own source. We deliberately do NOT cache
+      # our own .lake/build: it rebuilds fast, and a restored copy would resurrect the
+      # stale embedded proof-logs that capture-proof-log.sh force-invalidates.
+      - name: Cache Lean dependency build
+        uses: actions/cache@v6
+        with:
+          path: .lake/packages
+          # Key on (arch, toolchain, manifest): .o files are arch- and
+          # toolchain-specific, and the manifest pins exact dep revisions. The
+          # restore-key fallback (manifest dropped) lets a dep bump reuse the
+          # prior cache and incrementally re-link, instead of a cold full rebuild.
+          key: lean-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+          restore-keys: |
+            lean-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-
+
+      - name: Get Mathlib build cache
+        run: lake exe cache get
+
+      # `just ci` = lake build + lake build Tests + lake build Tests.DriverCoverage.
+      # The unit tests are compile-time `#guard`s, so building the Tests library IS
+      # the test run; DriverCoverage is the replay-coverage scoreboard.
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Conformance gate (just ci)
+        run: just ci
