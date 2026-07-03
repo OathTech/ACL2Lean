@@ -1187,6 +1187,19 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
   | [], _, _ => return (none, start)
   | n :: rest, depth, strip => do
     let (lhs, rhs) := nodeLhsRhs n
+    -- clause-context-resolution marker: ACL2's rewrite-atm emits this as a
+    -- terminal REPORT ("we have proved the original literal … hence the
+    -- clause", simplify.lisp) — lhs is the ORIGINAL atom, rhs the NET constant
+    -- the preceding chain nodes already produced. It is not a sequential step;
+    -- when it is terminal and the running term already equals its rhs, it adds
+    -- no reasoning, so verify-then-drop. Fail-closed otherwise.
+    if (runeOf n).1 == "clause-context-resolution" then
+      unless rest.isEmpty do
+        throwError "clause-context-resolution: non-terminal marker (frontier)"
+      unless rhs == start do
+        throwError "clause-context-resolution: rhs {repr rhs} ≠ running term {repr start} \
+                    (chain did not reach the reported net result)"
+      return (none, start)
     let nodeEq ← replayNode cfg ctx n depth
     let (lifted, newTerm) ←
       emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth strip
@@ -1242,8 +1255,21 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
     Returns `∃N∀f≥N, eval lp.literal = some t`. -/
 def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : MetaM Expr := do
   if lp.notFlg then
-    throwError "replayLiteral: notFlg closing literal unsupported (frontier) — \
-                {repr lp.literal}"
+    -- A `:NOT-FLG T` closer `(not atm)` reaches `t` because ACL2 rewrote the
+    -- atom to a nil constant and then ran `(not <nil-const>)` implicitly (no
+    -- separate closer node — the negation-of-false is recorded only as the
+    -- literal's `:RESULT 'T`). Replay it the same way: chain the atom and lift
+    -- through `not` exactly as the non-closing notFlg path does
+    -- (`replayLiteralChain`), then close the resulting ground `(not finalAtom)`
+    -- by re-running the SAME computation (`replayExecGround`, the
+    -- exec-counterpart carve-out). Hard-fails cleanly if the lifted literal is
+    -- not ground or does not reduce to `t` — i.e. if ACL2 closed it some other
+    -- way (a new, named frontier, not a guess).
+    let (chainOpt, finalLit) ← replayLiteralChain cfg ctx lp
+    let closeProof ← replayExecGround cfg finalLit SExpr.t
+    match chainOpt with
+    | none => return closeProof
+    | some ch => return (← mkAppM ``fuel_chain_eq #[ch, closeProof])
   match lp.nodes.reverse with
   | [] => throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
   | closer :: revRest =>
@@ -1302,28 +1328,49 @@ def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
       mkConst ``SExpr.t, pq, hv]
 
 /-- Replay a clause as its LITERAL SPINE: prove `EvTrue w env (disjoinTerm
-    lits)`. Each non-closing literal splits via `evtrue_dp_if_split` — its
-    truth closes the clause outright; its falsity descends with the value fact
+    clauseLits)`. The CLAUSE's literal list is the ground truth for the
+    disjunction shape; the literal ITEMS (matched positionally by their
+    1-based index) carry the per-literal proof detail. ACL2 scans literals in
+    clause order and STOPS at the closer — trailing literals have no item, but
+    they are still part of the disjunction being proved (the closer enters via
+    the `(if litᵢ 't rest)` true-test collapse regardless of what follows).
+    Each non-closing literal splits via `evtrue_dp_if_split` — its truth
+    closes the clause outright; its falsity descends with the value fact
     accumulated in `ctx.litFacts` (bridged across the literal's own rewrite
     chain to the post-rewrite form — what recognizer and solidify nodes
     downstream consume). The CLOSING literal (result `'t`) replays its chain
     under the accumulated context and enters via `evtrue_of_eq_t` (a recorded
     truthy-non-t closer is a frontier until a real tree produces one). The
     spine's own split IS the case hypothesis — no external case facts are
-    needed for the clause itself. -/
-partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (lits : List (Nat × LiteralProof)) : MetaM Expr := do
-  match lits with
-  | [] => throwError "replayClauseSpine: ran out of literals with no closer"
-  | (idx, lp) :: rest =>
+    needed for the clause itself. An item that does not walk the clause
+    literals in order (e.g. a duplicate index from an assume-true-false
+    branch split) is a named frontier. -/
+partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
+    (clauseLits : List (Nat × SExpr)) (items : List (Nat × LiteralProof)) :
+    MetaM Expr := do
+  match items with
+  | [] => throwError "replayClauseSpine: ran out of literal items with no closer \
+                      at {idStr}"
+  | (idx, lp) :: restItems =>
+    let (cidx, clit) :: restLits := clauseLits
+      | throwError "replayClauseSpine: literal item {idx} beyond the clause's \
+                    literals at {idStr} (item/clause walk divergence)"
+    unless idx == cidx && lp.literal == clit do
+      throwError "replayClauseSpine: literal item {idx} {repr lp.literal} does \
+                  not walk the clause at {idStr} (next clause literal is {cidx} \
+                  {repr clit}) — branch-split spine frontier"
     if lp.result == quoteT then
-      -- the closer: its chain proves it `t`; any later literals are short-circuited.
+      -- the closer: its chain proves it `t`; any later literals (scanned or
+      -- not) are short-circuited by the true test.
+      unless restItems.isEmpty do
+        throwError "replayClauseSpine: literal items after the closing literal \
+                    {idx} at {idStr} (frontier)"
       let pclose ← replayLiteral cfg ctx lp
-      if rest.isEmpty then
+      if restLits.isEmpty then
         mkAppM ``evtrue_of_eq_t #[pclose]
       else
         -- `(if litᵢ 't rest)` with the test KNOWN `t`
-        let restTerm := disjoinTerm (rest.map (·.2.literal))
+        let restTerm := disjoinTerm (restLits.map (·.2))
         let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
         let hcv ← proveByDecide
           (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t)) (mkConst ``Bool.true))
@@ -1339,9 +1386,9 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
       -- its rewrite chain (if any): literal ⇒ result, and the falsity fact bridges
       let (chainOpt, finalT) ← replayLiteralChain cfg ctx lp
       unless finalT == lp.result do
-        throwError "replayClauseSpine: literal {idx} chain reached {repr finalT}, \
-                    recorded result is {repr lp.result}"
-      let restTerm := disjoinTerm (rest.map (·.2.literal))
+        throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
+                    at {idStr}, recorded result is {repr lp.result}"
+      let restTerm := disjoinTerm (restLits.map (·.2))
       let neTy ← mkAppM ``Ne #[vLit, mkConst ``SExpr.nil]
       let hthen ← withLocalDeclD `h neTy fun h => do
         let p ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]
@@ -1359,7 +1406,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx)
             let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLit']
             pure (lp.result, ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h])
         let ctx' := { ctx with litFacts := ctx.litFacts ++ [(idx, factTerm, factProof)] }
-        let p ← replayClauseSpine cfg ctx' rest
+        let p ← replayClauseSpine cfg ctx' idStr restLits restItems
         mkLambdaFVars #[h] p
       mkAppM ``evtrue_dp_if_split
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
@@ -2675,7 +2722,13 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
       | throwError "replayClause: preprocess chain on a multi-literal clause at \
                     {cn.idStr} (frontier)"
     return ← replayPreprocessChain cfg ctx formula stepNodes
-  replayClauseSpine cfg ctx lits
+  -- destructor elimination replaces the clause's variable by a cons of fresh
+  -- variables (car-cdr-elim) — the child clause is over DIFFERENT variables and
+  -- the bridge (the elim rule's substitution) is not yet replayed.
+  if let some s := cn.steps.find? (fun s => s.processor.toLower == "eliminate-destructors-clause") then
+    throwError "replayClause: {s.processor} at {cn.idStr} — destructor-elimination \
+                replay (frontier, R1)"
+  replayClauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l)) lits
 
 
 /-- Replay an INDUCTION pool-root from its EMITTED justification (G5 v2,

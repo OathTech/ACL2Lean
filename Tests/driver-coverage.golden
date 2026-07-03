@@ -49,13 +49,13 @@ Driver coverage — REPLAYED 17/45; DP-discharge leaves ✓9 ◌9 ✗0 of 18:
 • 13-multi-measured-var  (world: 2 defun(s), 1 theorem(s))
     len-interleave → FAIL: replayInduction: measure (binary-+ (acl2-count x) (acl2-count y)) is not (acl2-count v) (frontier)
 • 14-accumulator  (world: 2 defun(s), 1 theorem(s))
-    len-rev-acc → FAIL: replayClauseSpine: ran out of literals with no closer
+    len-rev-acc → FAIL: replayClauseSpine: ran out of literal items with no closer at Goal
 • 15-nested-induction  (world: 3 defun(s), 1 theorem(s))
     nested-induction → FAIL: replayClause: clausify produced 2 clauses at Goal (multi-clause frontier)
 • 16-three-way  (world: 2 defun(s), 1 theorem(s))
     len-zip3 → FAIL: replayInduction: step case tests [(not (if (atom x) (atom x) (if (atom y) (atom y) (atom z))))] lack (consp x) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip3 (cdr x) (cdr y) (cdr z)), tp:zip3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • sorting/perm  (world: 4 defun(s), 8 theorem(s))
-    perm-cons → FAIL: replayLiteral: notFlg closing literal unsupported (frontier) — (not (memb a x))
+    perm-cons → FAIL: replayClause: eliminate-destructors-clause at Subgoal *1/2' — destructor-elimination replay (frontier, R1)
     perm-symmetric → FAIL: replayInduction: multi-literal pushed clause (frontier)
     memb-rm → FAIL: replayInduction: multi-literal pushed clause (frontier)
     perm-memb → FAIL: replayInduction: multi-literal pushed clause (frontier)
