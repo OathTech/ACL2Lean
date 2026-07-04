@@ -2633,6 +2633,30 @@ theorem toBool_true_of_ne_nil {v : SExpr} (h : v ≠ SExpr.nil) :
 theorem fuel_eq_refl (a : Nat → Option SExpr) : ∃ N, ∀ f ≥ N, a f = a f :=
   ⟨0, fun _ _ => rfl⟩
 
+/-- A standard BOOLEAN type-prescription corollary
+    `(IF (EQUAL v 'T) 'T (EQUAL v 'NIL))` (lifted) being true pins a non-nil
+    value to `t` — the truthy `type-alist` verdict's two-valuedness source
+    (ACL2 recorded the fn's :TYPE-PRESCRIPTION rune on the node). -/
+theorem tp_cond_boolean_t (v : SExpr) {X : SExpr}
+    (h : cond (Logic.toBool (Logic.equal v SExpr.t)) X (Logic.equal v SExpr.nil)
+         = SExpr.t)
+    (hne : v ≠ SExpr.nil) : v = SExpr.t := by
+  by_cases hv : v = SExpr.t
+  · exact hv
+  · have h1 : (v == SExpr.t) = false := beq_eq_false_iff_ne.mpr hv
+    have h2 : (v == SExpr.nil) = false := beq_eq_false_iff_ne.mpr hne
+    simp [Logic.equal, Logic.toBool, h1, h2, SExpr.t] at h
+
+/-- `Logic.equal` is symmetric at the value level — if-interp's COMMUTATIVE
+    assumption matching (`if-interp-assumed-value2`), re-derived by the
+    branch-split composer for `assumed`-verdict tests. -/
+theorem logic_equal_comm (a b : SExpr) : Logic.equal a b = Logic.equal b a := by
+  by_cases h : a = b
+  · subst h; rfl
+  · have h1 : (a == b) = false := beq_eq_false_iff_ne.mpr h
+    have h2 : (b == a) = false := beq_eq_false_iff_ne.mpr (Ne.symm h)
+    simp [Logic.equal, h1, h2]
+
 /-- CONDITIONAL branch congruence for a lazy `if` with an UNRESOLVED test (the
     if-finish recipe, R1 conditional-congruence): each branch is rewritten
     under the test's corresponding assumption — the then-chain may consume the

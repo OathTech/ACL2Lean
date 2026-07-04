@@ -434,6 +434,12 @@ structure ReplayCtx where
       `= nil`), and the value fact. Solidify `.branchTest` nodes consume
       these. -/
   branchFacts : List (SExpr × Expr × Bool × Expr) := []
+  /-- ENCLOSING CLAUSIFY-BRANCH segment facts (the branch-split composer,
+      W3): each entered branch's segment literal with the proof that its
+      `dpValExpr` value `= .nil` (assumed false in the branch's continuation).
+      Consumed by `litFactByTerm?` (recognizer/type-alist nodes) and by
+      solidify `.segment` nodes (ACL2's `:CONTEXT-SUBST` hypotheses). -/
+  segFacts : List (SExpr × Expr) := []
   /-- The bound CONDITIONAL hypotheses (the generic mirror's telescope):
       per defined fn, its totality hypothesis; and — when the development emitted
       a :TYPE-PRESCRIPTION — its lifted-corollary hypothesis (with the corollary
@@ -452,7 +458,8 @@ def ReplayCtx.val? (ctx : ReplayCtx) (t : SExpr) : Option (Expr × Expr) :=
 def ReplayCtx.litFact? (ctx : ReplayCtx) (idx : Nat) : Option (SExpr × Expr) :=
   (ctx.litFacts.find? (fun (i, _, _) => i == idx)).map fun (_, t, p) => (t, p)
 def ReplayCtx.litFactByTerm? (ctx : ReplayCtx) (t : SExpr) : Option Expr :=
-  (ctx.litFacts.find? (fun (_, lt, _) => lt == t)).map fun (_, _, p) => p
+  ((ctx.litFacts.find? (fun (_, lt, _) => lt == t)).map fun (_, _, p) => p).orElse
+    fun _ => (ctx.segFacts.find? (fun (st, _) => st == t)).map (·.2)
 
 /-- View `(equal X X)` as `X`. -/
 def asEqualSelf : SExpr → Option SExpr
@@ -1062,11 +1069,82 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
         let pr ← ctxValProof cfg ctx rhs
         return ← mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
       | .segment =>
-        throwError "solidify: equivalence is an enclosing clausify-branch \
-                    segment hypothesis (:CONTEXT-SUBST) — branch-segment-fact \
-                    frontier (R1, docs/plans/2026-06-12_sorting-corpus-roadmap.md)"
-    let some (litTerm, hNil) := ctx.litFact? idx
+        -- the equivalence IS an enclosing clausify-branch SEGMENT hypothesis
+        -- (ACL2's :CONTEXT-SUBST): the segment literal `(not (equal A B))`,
+        -- assumed false in the branch, gives the equation. The branch-split
+        -- composer put its falsity in scope as a segFact; match the node's
+        -- equiv term against it modulo `equal`'s argument order.
+        let some eqTerm := prov.equivTerm
+          | throwError "solidify: segment node has no :EQUIV-TERM"
+        let .cons (.atom (.symbol eqS)) (.cons ta (.cons tb .nil)) := eqTerm
+          | throwError "solidify: segment equiv {repr eqTerm} is not (equal A B)"
+        unless eqS.name == "equal" do
+          throwError "solidify: segment equiv head {eqS.name} ≠ equal (frontier)"
+        let mkNotEq (x y : SExpr) : SExpr :=
+          .cons (.atom (.symbol { name := "not" }))
+            (.cons (.cons (.atom (.symbol { name := "equal" }))
+              (.cons x (.cons y .nil))) .nil)
+        -- the segment literal, in either argument order
+        let (segLit, (flipArgs : Bool)) ←
+          match ctx.segFacts.find? (fun (st, _) => st == mkNotEq ta tb) with
+          | some f => pure (f, false)
+          | none =>
+            match ctx.segFacts.find? (fun (st, _) => st == mkNotEq tb ta) with
+            | some f => pure (f, true)
+            | none =>
+              throwError "solidify: no in-scope segment fact for \
+                          (not {repr eqTerm}) (frontier)"
+        let (a', b') := if flipArgs then (tb, ta) else (ta, tb)
+        let va ← ctxValExpr cfg ctx a'
+        let vb ← ctxValExpr cfg ctx b'
+        -- segLit.2 : Logic.not (Logic.equal va vb) = nil → va = vb
+        let hEq0 ← mkAppM ``logic_not_equal_nil_eq #[va, vb, segLit.2]
+        -- orient to (ta = tb), then to the node's lhs ⇒ rhs
+        let hEq ← if flipArgs then mkAppM ``Eq.symm #[hEq0] else pure hEq0
+        let (flip : Bool) ←
+          if lhs == tb && rhs == ta then pure true
+          else if lhs == ta && rhs == tb then pure false
+          else throwError "solidify: node sides {repr lhs} ⇒ {repr rhs} do not \
+                           match the segment equation ({repr ta} = {repr tb})"
+        let valueEq ← if flip then mkAppM ``Eq.symm #[hEq] else pure hEq
+        let pl ← ctxValProof cfg ctx lhs
+        let pr ← ctxValProof cfg ctx rhs
+        return ← mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
+    let some (litTerm0, hNil0) := ctx.litFact? idx
       | throwError "solidify: no spine fact for literal {idx} (clause context missing)"
+    -- when the source literal's recorded form is NOT a bare (not (equal A B))
+    -- — e.g. an implies-expanded IH whose equation was clausified out — the
+    -- equation reaches the chain as a BRANCH SEGMENT fact: fall back to the
+    -- segFacts by the node's equiv term (either argument order)
+    let (litTerm, hNil) ←
+      match litTerm0 with
+      | .cons (.atom (.symbol ns))
+          (.cons (.cons (.atom (.symbol es)) (.cons _ (.cons _ .nil))) .nil) =>
+        if ns.name == "not" && es.name == "equal" then pure (litTerm0, hNil0)
+        else pure (litTerm0, hNil0)
+      | _ =>
+        match prov.equivTerm with
+        | some (.cons (.atom (.symbol eqS')) (.cons a' (.cons b' .nil))) => do
+          unless eqS'.name == "equal" do
+            throwError "solidify: source literal is not (not (equal A B)) and \
+                        equiv {repr prov.equivTerm} is not an equal equation: \
+                        {repr litTerm0}"
+          let mk (x y : SExpr) : SExpr :=
+            .cons (.atom (.symbol { name := "not" }))
+              (.cons (.cons (.atom (.symbol { name := "equal" }))
+                (.cons x (.cons y .nil))) .nil)
+          match ctx.segFacts.find? (fun (st, _) => st == mk a' b') with
+          | some (st, h) => pure (st, h)
+          | none =>
+            match ctx.segFacts.find? (fun (st, _) => st == mk b' a') with
+            | some (st, h) => pure (st, h)
+            | none =>
+              throwError "solidify: source literal is not (not (equal A B)) \
+                          and no segment fact matches {repr prov.equivTerm}: \
+                          {repr litTerm0}"
+        | _ =>
+          throwError "solidify: source literal is not (not (equal A B)): \
+                      {repr litTerm0}"
     let .cons (.atom (.symbol notS))
         (.cons (.cons (.atom (.symbol eqS)) (.cons ta (.cons tb .nil))) .nil) := litTerm
       | throwError "solidify: source literal is not (not (equal A B)): {repr litTerm}"
@@ -1304,14 +1382,44 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       | throwError "type-alist: rhs {repr rhs} is not a quoted constant"
     unless q.name == "quote" do
       throwError "type-alist: rhs {repr rhs} is not a quoted constant"
-    unless cv == SExpr.nil do
-      throwError "type-alist: only nil verdicts from spine falsity are \
-                  supported (got {repr rhs}, frontier)"
-    let some hNil := ctx.litFactByTerm? lhs
-      | throwError "type-alist: no spine falsity fact for {repr lhs} (frontier)"
-    let pl ← ctxValProof cfg ctx lhs
-    let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
-    mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
+    if cv == SExpr.nil then
+      let some hNil := ctx.litFactByTerm? lhs
+        | throwError "type-alist: no spine falsity fact for {repr lhs} (frontier)"
+      let pl ← ctxValProof cfg ctx lhs
+      let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+      mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
+    else if cv == SExpr.t then
+      -- TRUTHY verdict: the spine's `(not lhs)`-false fact gives ≠ nil; the
+      -- fn's EMITTED :TYPE-PRESCRIPTION (the rune is on the node) pins the
+      -- non-nil value to exactly `t` (two-valuedness — consumed, not inferred)
+      let notLhs : SExpr := .cons (.atom (.symbol { name := "not" }))
+        (.cons lhs .nil)
+      let some hNotNil := ctx.litFactByTerm? notLhs
+        | throwError "type-alist: no spine (not …)-falsity fact for \
+                      {repr lhs} (frontier)"
+      let vL ← ctxValExpr cfg ctx lhs
+      let hne ← mkAppM ``logic_not_nil_ne #[vL, hNotNil]
+      let .cons (.atom (.symbol fs)) argsSpine := lhs
+        | throwError "type-alist: truthy verdict on a non-application \
+                      {repr lhs} (frontier)"
+      let some (_, _, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
+        | throwError "type-alist: no :TYPE-PRESCRIPTION hypothesis for \
+                      {fs.name} (emit more, frontier)"
+      let some (formals, _) := cfg.worldVal.defs.get? fs
+        | throwError "type-alist: {fs.name} not defined in the world"
+      let args := (argsSpine.toList?).getD []
+      unless formals.length == args.length do
+        throwError "type-alist: arity mismatch instantiating the TP of {fs.name}"
+      let some (v, conv) := ctx.val? lhs
+        | throwError "type-alist: {repr lhs} has no pinned value (frontier)"
+      let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+        ++ (args.map reflectSExpr).toArray ++ #[v, conv])
+      let hT ← mkAppM ``tp_cond_boolean_t #[v, fact, hne]
+      let pl ← ctxValProof cfg ctx lhs
+      let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+      mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
+    else
+      throwError "type-alist: verdict {repr rhs} is neither nil nor t (frontier)"
   | "executable-counterpart", _ =>
     -- a GROUND computation step within a rewrite chain (e.g. `(consp 'nil) ⇒ 'nil`):
     -- ACL2 ran the executable counterpart; re-run the SAME closed computation and
@@ -1336,6 +1444,62 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
   | [], _, _ => return (none, start)
   | n :: rest, depth, strip => do
     let (lhs, rhs) := nodeLhsRhs n
+    -- an if-simplification recorded as an IDENTITY (`X ⇒ X`, no children) is
+    -- ambiguous: either a true no-op, or a DISPLAY-FOLDED constant-test
+    -- collapse (`(if 'c a b) ⇒ branch` logged with the already-collapsed
+    -- term on both sides). The RUNNING term at the node's path is the ground
+    -- truth: equal to rhs → no-op (replay as reflexivity by skipping);
+    -- a constant-test if collapsing to rhs → replay the collapse.
+    if lhs == rhs && (runeOf n).1 == "if-simplification" then
+      if let .node _ _ _ [] _ := n then
+        let rel ← relativizeAndStrip (nodePath n) depth strip
+        let (_, S) ← ofExcept (navigateFrames start rel)
+        if S == rhs then
+          return ← replayRewrites cfg ctx start rest depth strip
+        let .cons (.atom (.symbol ifS))
+            (.cons (.cons (.atom (.symbol q)) (.cons cv .nil))
+              (.cons thn (.cons els .nil))) := S
+          | throwError "replayRewrites: identity if-simplification's running \
+                        subterm {repr S} is neither rhs {repr rhs} nor a \
+                        constant-test if (frontier)"
+        unless ifS.name == "if" && q.name == "quote" do
+          throwError "replayRewrites: identity if-simplification's running \
+                      subterm {repr S} is not a constant-test if (frontier)"
+        let branch := if cv == SExpr.nil then els else thn
+        unless branch == rhs do
+          throwError "replayRewrites: folded constant-test collapse of \
+                      {repr S} selects {repr branch}, node rhs is {repr rhs}"
+        let c : SExpr := .cons (.atom (.symbol q)) (.cons cv .nil)
+        let hc ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+        let nodeEq ←
+          if cv == SExpr.nil then
+            let vb ← ctxValExpr cfg ctx els
+            let hb ← ctxValProof cfg ctx els
+            let hcNil ← mkAppM ``re_val_cast
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr cv,
+                mkConst ``SExpr.nil, hc, ← proveByDecide
+                  (← mkEq (reflectSExpr cv) (mkConst ``SExpr.nil)) "cv is nil"]
+            let _ := vb
+            mkAppM ``re_if_false
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
+                reflectSExpr els, vb, hcNil, hb]
+          else
+            let hcv ← proveByDecide
+              (← mkEq (mkApp (mkConst ``Logic.toBool) (reflectSExpr cv))
+                      (mkConst ``Bool.true)) "toBool of the constant test"
+            let va ← ctxValExpr cfg ctx thn
+            let ha ← ctxValProof cfg ctx thn
+            let _ := va
+            mkAppM ``re_if_true
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
+                reflectSExpr els, reflectSExpr cv, va, hc, hcv, ha]
+        let (lifted, newTerm) ←
+          emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S branch
+            nodeEq depth strip
+        let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth strip
+        match restProof with
+        | none => return (some lifted, finalTerm)
+        | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
     -- clause-context-resolution marker: ACL2's rewrite-atm emits this as a
     -- terminal REPORT ("we have proved the original literal … hence the
     -- clause", simplify.lisp) — lhs is the ORIGINAL atom, rhs the NET constant
@@ -1440,6 +1604,83 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
         match restProof with
         | none => return (some lifted, finalTerm)
         | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
+    -- a CONSTANT-TEST if-simplification whose recorded test does not match
+    -- the running term's test: the test was resolved by an UNEMITTED
+    -- type-alist lookup (a clause/segment fact, possibly through `equal`'s
+    -- commutativity — if-interp-assumed-value2's rule). Mirror the
+    -- resolution as an explicit test-position rewrite, then replay the
+    -- recorded collapse on the reconciled term.
+    let reconciled? ← do
+      if (runeOf n).1 == "if-simplification" then
+        match lhs with
+        | .cons (.atom (.symbol ifS))
+            (.cons (.cons (.atom (.symbol q)) (.cons cv .nil)) _) =>
+          if ifS.name == "if" && q.name == "quote" && cv == SExpr.nil then
+            let rel ← relativizeAndStrip (nodePath n) depth strip
+            let (steps, S) ← ofExcept (navigateFrames start rel)
+            match S with
+            | .cons (.atom (.symbol ifS'))
+                (.cons T (.cons thn (.cons els .nil))) =>
+              if ifS'.name == "if" && S != lhs &&
+                 lhs == SExpr.cons (.atom (.symbol ifS'))
+                   (.cons (.cons (.atom (.symbol q)) (.cons cv .nil))
+                     (.cons thn (.cons els .nil))) then
+                -- derive `value of T = nil` from the in-scope facts
+                let hNil? ← do
+                  match ctx.litFactByTerm? T with
+                  | some h => pure (some h)
+                  | none =>
+                    match T with
+                    | .cons (.atom (.symbol eqS)) (.cons x (.cons y .nil)) =>
+                      if eqS.name == "equal" then
+                        let flipped : SExpr := .cons (.atom (.symbol eqS))
+                          (.cons y (.cons x .nil))
+                        match ctx.litFactByTerm? flipped with
+                        | some h => do
+                          let vx ← ctxValExpr cfg ctx x
+                          let vy ← ctxValExpr cfg ctx y
+                          let comm ← mkAppM ``logic_equal_comm #[vx, vy]
+                          pure (some (← mkAppM ``Eq.trans #[comm, h]))
+                        | none => pure none
+                      else pure none
+                    | _ => pure none
+                let some hNil := hNil?
+                  | throwError "replayRewrites: unemitted test resolution — no \
+                                in-scope nil fact for the if-test {repr T} \
+                                (frontier)"
+                let pT ← ctxValProof cfg ctx T
+                let pQ ← mkAppM ``re_val_quote
+                  #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
+                let testEq ← mkAppM ``fuel_eq_of_conv #[pT, pQ, hNil]
+                -- lift the test rewrite at the node's path + the test position
+                let mut inner := testEq
+                let testStep : PathStep :=
+                  { fn := ifS', arity := 3, argIdx := 0, siblings := [thn, els] }
+                inner ← applyStep cfg.worldExpr cfg.envExpr testStep T
+                  (SExpr.cons (.atom (.symbol q)) (.cons cv .nil)) inner
+                let mut curL := S
+                let mut curR := lhs
+                for st in steps.reverse do
+                  inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+                  curL := rebuild st.fn st.arity st.argIdx curL st.siblings
+                  curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+                unless curL == start do
+                  throwError "replayRewrites: test-resolution lift \
+                              reconstructed {repr curL} ≠ {repr start}"
+                pure (some (inner, curR))
+              else pure none
+            | _ => pure none
+          else pure none
+        | _ => pure none
+      else pure none
+    if let some (testChain, start') := reconciled? then
+      -- eval start ≡ eval start[T := 'nil]; replay THIS node on the
+      -- reconciled term and continue
+      let (restAll, finalT) ← replayRewrites cfg ctx start' (n :: rest) depth strip
+      match restAll with
+      | none => return (some testChain, finalT)
+      | some rp =>
+        return (some (← mkAppM ``fuel_chain_eq #[testChain, rp]), finalT)
     let nodeEq ← replayNode cfg ctx n depth
     let (lifted, newTerm) ←
       emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth strip
@@ -1480,6 +1721,28 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
     unless notS.name == "not" do
       throwError "replayLiteralChain: notFlg literal head {notS.name} ≠ not"
     let (chainOpt, finalAtom) ← replayRewrites cfg ctx atm lp.nodes 0
+    -- HIDDEN definitional `implies` unfold: rewrite-atm expands an implies
+    -- atom with NO emitted node (only the literal's :RESULT shows it) —
+    -- mirror it via the same ground-zero recipe as the preprocess step,
+    -- record-directed (only when the plain chain does not already match).
+    let (chainOpt, finalAtom) ←
+      match finalAtom with
+      | .cons (.atom (.symbol impS)) (.cons A (.cons B .nil)) =>
+        if impS.name == "implies" &&
+           SExpr.cons (.atom (.symbol notS)) (.cons finalAtom .nil) != lp.result then do
+          let expanded : SExpr :=
+            .cons (.atom (.symbol { name := "if" }))
+              (.cons A (.cons (.cons (.atom (.symbol { name := "if" }))
+                (.cons B (.cons quoteT (.cons quoteNil .nil))))
+                (.cons quoteT .nil)))
+          let step ← replayImpliesDef cfg ctx
+            (.node ("definition", "implies") finalAtom expanded [] {})
+          let combined ← match chainOpt with
+            | none => pure step
+            | some c => mkAppM ``fuel_chain_eq #[c, step]
+          pure (some combined, expanded)
+        else pure (chainOpt, finalAtom)
+      | _ => pure (chainOpt, finalAtom)
     let finalLit := SExpr.cons (.atom (.symbol notS)) (.cons finalAtom .nil)
     let lifted ← match chainOpt with
       | none => pure none
@@ -1593,148 +1856,202 @@ def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
       mkConst ``SExpr.t, pq, hv]
 
-/-- Replay a clause as its LITERAL SPINE: prove `EvTrue w env (disjoinTerm
-    clauseLits)`. The CLAUSE's literal list is the ground truth for the
-    disjunction shape; the literal ITEMS (matched positionally by their
-    1-based index) carry the per-literal proof detail. ACL2 scans literals in
-    clause order and STOPS at the closer — trailing literals have no item, but
-    they are still part of the disjunction being proved (the closer enters via
-    the `(if litᵢ 't rest)` true-test collapse regardless of what follows).
-    Each non-closing literal splits via `evtrue_dp_if_split` — its truth
-    closes the clause outright; its falsity descends with the value fact
-    accumulated in `ctx.litFacts` (bridged across the literal's own rewrite
-    chain to the post-rewrite form — what recognizer and solidify nodes
-    downstream consume). The CLOSING literal (result `'t`) replays its chain
-    under the accumulated context and enters via `evtrue_of_eq_t` (a recorded
-    truthy-non-t closer is a frontier until a real tree produces one). The
-    spine's own split IS the case hypothesis — no external case facts are
-    needed for the clause itself. Items are walked STRUCTURALLY: each
-    non-closing literal is followed by its case BRANCHES (`.branch seg items`
-    — the clause scan continues INSIDE them). A literal with a trivial
-    clausify trace (no split-verdict tests) has exactly one branch, the
-    plain continuation; a literal whose trace SPLITS enters the
-    assume-true-false composer (W3). -/
-partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
-    (clauseLits : List (Nat × SExpr)) (items : List ClauseItem) :
-    MetaM Expr := do
-  match items with
-  | [] => throwError "replayClauseSpine: ran out of items with no closer \
-                      at {idStr}"
-  | .clausify _ :: _ =>
-    throwError "replayClauseSpine: clausify record in the spine at {idStr} \
-                (frontier)"
-  | .step n :: _ =>
-    throwError "replayClauseSpine: clause-level step item (rune \
-                {repr (runeOf n)}) in the spine at {idStr} (frontier)"
-  | .branch seg _ :: _ =>
-    throwError "replayClauseSpine: branch item with no preceding literal at \
-                {idStr} (frontier): segment {repr seg}"
-  | .literal lp :: rest =>
-    -- this literal's case branches: the maximal `.branch` prefix; nothing may
-    -- follow at this level (the clause scan continues inside the branches)
-    let branchItems := rest.takeWhile (fun | .branch _ _ => true | _ => false)
-    unless branchItems.length == rest.length do
-      throwError "replayClauseSpine: items after literal {lp.index}'s branches \
-                  at {idStr} (frontier)"
-    let branchSegs ← branchItems.mapM (fun
-      | ClauseItem.branch seg its => pure (seg, its)
-      | _ => throwError "replayClauseSpine: internal — non-branch in the \
-                         branch prefix")
-    let idx := lp.index
-    let (cidx, clit) :: restLits := clauseLits
-      | throwError "replayClauseSpine: literal item {idx} beyond the clause's \
-                    literals at {idStr} (item/clause walk divergence)"
-    unless idx == cidx && lp.literal == clit do
-      throwError "replayClauseSpine: literal item {idx} {repr lp.literal} does \
-                  not walk the clause at {idStr} (next clause literal is {cidx} \
-                  {repr clit})"
-    if lp.result == quoteT then
-      -- the closer: its chain proves it `t`; any later literals (scanned or
-      -- not) are short-circuited by the true test.
-      unless branchSegs.isEmpty do
-        throwError "replayClauseSpine: branches after the closing literal \
-                    {idx} at {idStr} (frontier)"
-      let pclose ← replayLiteral cfg ctx lp
-      if restLits.isEmpty then
-        mkAppM ``evtrue_of_eq_t #[pclose]
-      else
-        -- `(if litᵢ 't rest)` with the test KNOWN `t`
-        let restTerm := disjoinTerm (restLits.map (·.2))
-        let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-        let hcv ← proveByDecide
-          (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t)) (mkConst ``Bool.true))
-          "toBool t"
-        let hIf ← mkAppM ``conv_if_true
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
-            reflectSExpr restTerm, mkConst ``SExpr.t, mkConst ``SExpr.t, pclose, hcv, hq]
-        mkAppM ``evtrue_of_eq_t #[hIf]
+/-- `EvTrue (disjoin lits)` from the TRUTH of the k-th literal (0-based):
+    descend the lazy if-spine by value splits — an earlier literal's truth
+    closes the clause anyway; at `k` the nil case is refuted by `hTrue`
+    (`v(litK) ≠ nil`). -/
+partial def evtrueOfLitTrue (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (lits : List SExpr) (k : Nat) (litK : SExpr) (hTrue : Expr) : MetaM Expr := do
+  match lits with
+  | [] => throwError "evtrueOfLitTrue: index beyond the clause"
+  | [l] =>
+    unless k == 0 && l == litK do
+      throwError "evtrueOfLitTrue: index/literal mismatch at the last literal"
+    let pL ← ctxValProof cfg ctx l
+    mkAppM ``evtrue_of_conv_ne_nil #[pL, hTrue]
+  | l :: rest =>
+    let vL ← ctxValExpr cfg ctx l
+    let pL ← ctxValProof cfg ctx l
+    let restTerm := disjoinTerm rest
+    let nilC := mkConst ``SExpr.nil
+    let hthen ← withLocalDeclD `h (← mkAppM ``Ne #[vL, nilC]) fun h => do
+      let p ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]
+      let _ := h
+      mkLambdaFVars #[h] p
+    let helse ← withLocalDeclD `h (← mkEq vL nilC) fun h => do
+      let p ←
+        if k == 0 then do
+          unless l == litK do
+            throwError "evtrueOfLitTrue: literal at k ≠ the true literal"
+          let goalTy ← mkAppM ``EvTrue
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr restTerm]
+          mkAppOptM ``absurd #[none, some goalTy, some h, some hTrue]
+        else
+          evtrueOfLitTrue cfg ctx rest (k - 1) litK hTrue
+      mkLambdaFVars #[h] p
+    mkAppM ``evtrue_dp_if_split
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, reflectSExpr quoteT,
+        reflectSExpr restTerm, vL, pL, hthen, helse]
+
+/-- The literal-clausify DECISION TREE, reconstructed from the flat
+    `SplitDecision` trace (docs/notes/2026-07-03_branch-split-spine.md).
+    `if-interp` pushes events else-branch-FIRST at splits; every event is
+    self-located by its `path`, which the parser validates against its
+    position (fail-closed). -/
+inductive TraceTree where
+  | leaf (value : SExpr) (outcome : String)
+  | resolved (test : SExpr) (verdict : String) (how : String) (sub : TraceTree)
+  /-- A genuine split: `fSide` (test assumed false — the ELSE branch,
+      logged first) and `tSide`. -/
+  | split (test : SExpr) (fSide tSide : TraceTree)
+  deriving Repr, Inhabited
+
+partial def parseTraceTree (path : List (Bool × SExpr)) :
+    List SplitDecision → Except String (TraceTree × List SplitDecision)
+  | [] => throw "parseTraceTree: trace ended without a leaf"
+  | .test t v h p :: rest => do
+    unless p == path do
+      throw s!"parseTraceTree: test {repr t} at path {repr p}, expected \
+               {repr path}"
+    if v == "split" then
+      let (fSide, rest) ← parseTraceTree (path ++ [(false, t)]) rest
+      let (tSide, rest) ← parseTraceTree (path ++ [(true, t)]) rest
+      return (.split t fSide tSide, rest)
     else
-      -- a non-closing literal: does its clausify decision trace SPLIT?
-      let splitTests := lp.splitTrace.filter fun
-        | .test _ v _ _ => v == "split"
-        | _ => false
-      unless splitTests.isEmpty do
-        throwError "replayClauseSpine: literal {idx} splits into \
-                    {branchSegs.length} case branches at {idStr} — \
-                    assume-true-false composer (frontier, W3)"
-      -- TRIVIAL continuation: exactly one branch, its segment matching the
-      -- single trace leaf's clause segment
-      let contItems ← match branchSegs with
-        | [(seg, cont)] => do
-          match lp.splitTrace.filter (fun | .leaf .. => true | _ => false) with
-          | [.leaf lv outcome _] =>
-            if outcome == "dropped" then
-              throwError "replayClauseSpine: single DROPPED leaf on the \
-                          non-closing literal {idx} at {idStr} (frontier)"
-            let expectedSeg : SExpr :=
-              if outcome == "segment-open" then .cons lp.result .nil else .nil
-            unless seg == expectedSeg &&
-                   (outcome == "segment-false" || lv == lp.result) do
-              throwError "replayClauseSpine: literal {idx}'s branch segment \
-                          {repr seg} does not match its trace leaf \
-                          ({outcome}, {repr lv}) at {idStr}"
-          | [] => pure ()  -- no trace (synthetic/legacy log): tolerated
-          | leaves =>
-            throwError "replayClauseSpine: literal {idx} has {leaves.length} \
-                        trace leaves but no split test at {idStr}"
-          pure cont
-        | [] =>
-          throwError "replayClauseSpine: non-closing literal {idx} with no \
-                      continuation branch at {idStr} (frontier)"
-        | _ =>
-          throwError "replayClauseSpine: {branchSegs.length} branches on \
-                      literal {idx} without a split trace at {idStr} (frontier)"
-      -- split on the literal's value
-      let vLit ← ctxValExpr cfg ctx lp.literal
-      let pLit ← ctxValProof cfg ctx lp.literal
-      -- its rewrite chain (if any): literal ⇒ result, and the falsity fact bridges
-      let (chainOpt, finalT) ← replayLiteralChain cfg ctx lp
-      unless finalT == lp.result do
-        throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
-                    at {idStr}, recorded result is {repr lp.result}"
-      let restTerm := disjoinTerm (restLits.map (·.2))
-      let neTy ← mkAppM ``Ne #[vLit, mkConst ``SExpr.nil]
-      let hthen ← withLocalDeclD `h neTy fun h => do
-        let p ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]
-        let _ := h
-        mkLambdaFVars #[h] p
-      let eqTy ← mkEq vLit (mkConst ``SExpr.nil)
-      let helse ← withLocalDeclD `h eqTy fun h => do
-        let (factTerm, factProof) ←
-          match chainOpt with
-          | none => pure (lp.literal, h)
-          | some ch => do
-            -- bridge the falsity to the post-rewrite literal
-            let _vLit' ← ctxValExpr cfg ctx lp.result
-            let pLit' ← ctxValProof cfg ctx lp.result
-            let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLit']
-            pure (lp.result, ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h])
-        let ctx' := { ctx with litFacts := ctx.litFacts ++ [(idx, factTerm, factProof)] }
-        let p ← replayClauseSpine cfg ctx' idStr restLits contItems
-        mkLambdaFVars #[h] p
-      mkAppM ``evtrue_dp_if_split
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
-          reflectSExpr restTerm, vLit, pLit, hthen, helse]
+      let (sub, rest) ← parseTraceTree path rest
+      return (.resolved t v h sub, rest)
+  | .leaf v o p :: rest => do
+    unless p == path do
+      throw s!"parseTraceTree: leaf {repr v} at path {repr p}, expected \
+               {repr path}"
+    return (.leaf v o, rest)
+
+/-- Collapse `t`'s ifs whose tests are DECIDED by the in-scope facts (the
+    branch-split composer's byCases hypotheses + re-derived resolved
+    verdicts), plus the two `call-stack` folds if-interp applied — `(not 'c)`
+    by ground re-execution, `(equal X X)` by reflexivity — bottom-up,
+    mirroring if-interp's interpretation of the rewritten literal. Returns
+    the fuel-eq chain `eval t ≡ eval t'` and the collapsed `t'`. Anything the
+    enumerated rule set cannot decide is left in place; the composer's
+    leaf-value check fail-closes on divergence from the emitted trace. -/
+partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (facts : List (SExpr × Expr × Bool × Expr)) (t : SExpr) :
+    MetaM (Option Expr × SExpr) := do
+  let w := cfg.worldExpr
+  let e := cfg.envExpr
+  let some (fs, args) := asApp t | return (none, t)
+  if fs.name == "quote" then return (none, t)
+  if fs.name == "if" then
+    match args with
+    | [c, a, b] =>
+      -- collapse the test first; decide; then only the LIVE branch
+      let (chC, c') ← collapseEval cfg ctx facts c
+      let mut acc : Option Expr := none
+      let mut cur := t
+      if let some ch := chC then
+        let st : PathStep := { fn := fs, arity := 3, argIdx := 0, siblings := [a, b] }
+        acc := some (← applyStep w e st c c' ch)
+        cur := .cons (.atom (.symbol fs)) ([c', a, b].foldr .cons .nil)
+      match facts.find? (fun (T, _, _, _) => T == c') with
+      | some (_, vT, sign, h) =>
+        let hc ← ctxValProof cfg ctx c'
+        let step ←
+          if sign then
+            let hcv ← mkAppM ``toBool_true_of_ne_nil #[h]
+            let va ← ctxValExpr cfg ctx a
+            let ha ← ctxValProof cfg ctx a
+            let _ := va
+            mkAppM ``re_if_true
+              #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b, vT, va, hc, hcv, ha]
+          else
+            let hcNil ← mkAppM ``re_val_cast
+              #[w, e, reflectSExpr c', vT, mkConst ``SExpr.nil, hc, h]
+            let vb ← ctxValExpr cfg ctx b
+            let hb ← ctxValProof cfg ctx b
+            let _ := vb
+            mkAppM ``re_if_false
+              #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b, vb, hcNil, hb]
+        let sel := if sign then a else b
+        let acc' ← match acc with
+          | none => pure step
+          | some p => mkAppM ``fuel_chain_eq #[p, step]
+        let (chSel, final) ← collapseEval cfg ctx facts sel
+        match chSel with
+        | none => return (some acc', final)
+        | some m => return (some (← mkAppM ``fuel_chain_eq #[acc', m]), final)
+      | none =>
+        -- unresolved test: collapse both branches in place
+        let (chA, a') ← collapseEval cfg ctx facts a
+        if let some ch := chA then
+          let st : PathStep := { fn := fs, arity := 3, argIdx := 1, siblings := [c', b] }
+          let lifted ← applyStep w e st a a' ch
+          acc ← match acc with
+            | none => pure (some lifted)
+            | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
+          cur := .cons (.atom (.symbol fs)) ([c', a', b].foldr .cons .nil)
+        let (chB, b') ← collapseEval cfg ctx facts b
+        if let some ch := chB then
+          let st : PathStep := { fn := fs, arity := 3, argIdx := 2, siblings := [c', a'] }
+          let lifted ← applyStep w e st b b' ch
+          acc ← match acc with
+            | none => pure (some lifted)
+            | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
+          cur := .cons (.atom (.symbol fs)) ([c', a', b'].foldr .cons .nil)
+        let _ := cur
+        return (acc, .cons (.atom (.symbol fs)) ([c', a', b'].foldr .cons .nil))
+    | _ => throwError "collapseEval: malformed if {repr t}"
+  -- generic application: collapse arguments left-to-right, then head folds
+  let mut curArgs := args.toArray
+  let mut acc : Option Expr := none
+  for i in [0:args.length] do
+    let a := curArgs[i]!
+    let (chA, a') ← collapseEval cfg ctx facts a
+    if let some ch := chA then
+      let siblings := (curArgs.toList.zipIdx.filterMap fun (x, j) =>
+        if j == i then none else some x)
+      let st : PathStep := { fn := fs, arity := args.length, argIdx := i, siblings }
+      let lifted ← applyStep w e st a a' ch
+      acc ← match acc with
+        | none => pure (some lifted)
+        | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
+      curArgs := curArgs.set! i a'
+  let cur : SExpr := .cons (.atom (.symbol fs)) (curArgs.toList.foldr .cons .nil)
+  -- call-stack folds (the enumerated rule set; extend ONLY with rules
+  -- if-interp itself applies — rewrite.lisp:3671-3778)
+  let fold? ← do
+    if fs.name == "not" then
+      match curArgs.toList with
+      | [.cons (.atom (.symbol q)) (.cons cc .nil)] =>
+        if q.name == "quote" then
+          let foldedV : SExpr := if cc == SExpr.nil then SExpr.t else SExpr.nil
+          let foldedT : SExpr :=
+            .cons (.atom (.symbol { name := "quote" })) (.cons foldedV .nil)
+          let pNot ← replayExecGround cfg cur foldedV
+          let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr foldedV]
+          pure (some (← mkAppM ``fuel_eq_of_conv
+            #[pNot, pQ, ← mkEqRefl (reflectSExpr foldedV)], foldedT))
+        else pure none
+      | _ => pure none
+    else if fs.name == "equal" then
+      match curArgs.toList with
+      | [x, y] =>
+        if x == y then
+          let hX ← proveConv cfg e ctx x
+          let hNoEqual ← proveNoShadow cfg { name := "equal" }
+          let pEq ← mkAppM ``re_equal_self #[w, e, reflectSExpr x, hX, hNoEqual]
+          let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.t]
+          pure (some (← mkAppM ``fuel_eq_of_conv
+            #[pEq, pQ, ← mkEqRefl (mkConst ``SExpr.t)], quoteT))
+        else pure none
+      | _ => pure none
+    else pure none
+  match fold? with
+  | none => return (acc, cur)
+  | some (stepPf, next) =>
+    let acc' ← match acc with
+      | none => pure stepPf
+      | some p => mkAppM ``fuel_chain_eq #[p, stepPf]
+    return (some acc', next)
 
 /-! ## Decision-procedure discharge leaves (c1 + c2) — the ratified carve-out
 
@@ -2676,9 +2993,12 @@ decision). -/
     is a hard frontier error. -/
 def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
     (pOut : Expr) : MetaM Expr := do
-  if info.expanded then
-    throwError "clausify bridge: expand-and-or fired inside clausify-input \
-                (ens-dependent expansion — frontier)"
+  -- An `expand-and-or` marker (ens-dependent expansion, e.g. a `not` unfold
+  -- under a test) is NOT a hard frontier by itself: the expansions ACL2
+  -- applies during the walk often ROUND-TRIP (the if-lifting + negation
+  -- folding restore the literal form), and every joint below is validated
+  -- against the pure recomputation — a genuinely diverging expansion still
+  -- fail-closes at the neg/split/out checks.
   let negRecomputed := clausifyPure info.input false
   unless negRecomputed == info.negClause do
     throwError "clausify bridge: recomputed neg-clause {repr negRecomputed} ≠ \
@@ -2972,6 +3292,576 @@ where
 
 mutual
 
+/-- Replay a clause as its LITERAL SPINE: prove `EvTrue w env (disjoinTerm
+    clauseLits)`. Items are walked STRUCTURALLY: each non-closing literal is
+    followed by its case BRANCHES (`.branch seg items` — the clause scan
+    continues INSIDE them). A literal with a trivial clausify trace (no
+    split-verdict tests) has exactly one branch, the plain continuation,
+    entered via `evtrue_dp_if_split` (truth closes the clause; falsity
+    descends with the value fact in `ctx.litFacts`). A literal whose trace
+    SPLITS enters `composeSplit` (the W3 assume-true-false composer).
+    `accClause` mirrors ACL2's `new-clause` (surviving segment literals, for
+    residual-child matching); `children` are the clause node's pushed
+    subgoals. -/
+partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
+    (clauseLits : List (Nat × SExpr)) (items : List ClauseItem)
+    (accClause : List SExpr) (children : List ClauseNode) :
+    MetaM Expr := do
+  match items with
+  | [] => throwError "replayClauseSpine: ran out of items with no closer \
+                      at {idStr}"
+  | .clausify _ :: _ =>
+    throwError "replayClauseSpine: clausify record in the spine at {idStr} \
+                (frontier)"
+  | .step n :: rest =>
+    -- a :CONTEXT-SUBST decoration (clausify-branch segment hypothesis): its
+    -- equation is consumed by solidify `.segment` nodes from the in-scope
+    -- segFacts — no separate proof obligation here
+    if (runeOf n).1 == "context-subst" then
+      return ← replayClauseSpine cfg ctx idStr clauseLits rest accClause children
+    -- a :BRANCH-SUBSTITUTION (remove-trivial-equivalences): ACL2 substitutes
+    -- `var := val` THROUGHOUT the clause, justified by the clause's own
+    -- `(not (equal var val))` literal, and scans the SUBSTITUTED literals.
+    -- Mirror: byCases on that literal's value — truthy closes the clause;
+    -- nil gives the value equality, `diffCollapse` transports the whole
+    -- disjunction to the substituted clause, and the walk continues there.
+    if (runeOf n).1 == "branch-substitution" then
+      let .node _ varT valT _ prov := n
+      -- :EQUIVALENCE is the RELATION name; only `equal` is supported
+      unless prov.equivTerm == some (.atom (.symbol { name := "equal" })) do
+        throwError "replayClauseSpine: branch-substitution under equivalence \
+                    {repr prov.equivTerm} at {idStr} (frontier — equal only)"
+      let .atom (.symbol varSym) := varT
+        | throwError "replayClauseSpine: branch-substitution variable \
+                      {repr varT} is not a variable at {idStr}"
+      -- the justifying clause literal `(not (equal … …))`, either orientation
+      let mkNegEq (x y : SExpr) : SExpr :=
+        .cons (.atom (.symbol { name := "not" }))
+          (.cons (.cons (.atom (.symbol { name := "equal" }))
+            (.cons x (.cons y .nil))) .nil)
+      let ((ta, tb), kIdx) ←
+        match clauseLits.find? (fun (_, l) => l == mkNegEq varT valT) with
+        | some (i, _) => pure ((varT, valT), i)
+        | none =>
+          match clauseLits.find? (fun (_, l) => l == mkNegEq valT varT) with
+          | some (i, _) => pure ((valT, varT), i)
+          | none =>
+            throwError "replayClauseSpine: branch-substitution literal \
+                        (not (equal {repr varT} {repr valT})) is not in the \
+                        clause at {idStr}"
+      let negEq : SExpr := mkNegEq ta tb
+      let mut ctx := ctx
+      ctx ← pinTermOpaques cfg cfg.envExpr ctx valT
+      let vK ← ctxValExpr cfg ctx negEq
+      let pK ← ctxValProof cfg ctx negEq
+      let nilC := mkConst ``SExpr.nil
+      let negL ← withLocalDeclD `hnil (← mkEq vK nilC) fun hNil => do
+        let va ← ctxValExpr cfg ctx ta
+        let vb ← ctxValExpr cfg ctx tb
+        let hEq ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]  -- va = vb
+        -- orient var ⇒ val
+        let hVeq ← if ta == varT then pure hEq else mkAppM ``Eq.symm #[hEq]
+        let pVar ← ctxValProof cfg ctx varT
+        let pVal ← ctxValProof cfg ctx valT
+        let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVar, pVal, hVeq]
+        let substLits := clauseLits.map fun (i, l) =>
+          (i, ACL2.Replay.substTerm [varSym] [valT] l)
+        let chainOpt ← diffCollapse cfg.worldExpr cfg.envExpr varT valT nodeEq
+          (disjoinTerm (clauseLits.map (·.2))) (disjoinTerm (substLits.map (·.2)))
+        -- remove-trivial-equivalences also DELETES the used literal — now the
+        -- trivial `(not (equal v v))` — from the clause it scans; collapse its
+        -- if-frame out of the disjunction (its value is nil by reflexivity)
+        let kPos := clauseLits.findIdx (fun (i, _) => i == kIdx)
+        unless kPos + 1 < clauseLits.length do
+          throwError "replayClauseSpine: branch-substitution literal is the \
+                      clause's LAST literal at {idStr} (frontier)"
+        let shortened := (substLits.eraseIdx kPos).zipIdx.map fun ((_, l), j) =>
+          (j + 1, l)
+        let some (_, trivLit) := substLits[kPos]?
+          | throwError "replayClauseSpine: internal — kPos out of range"
+        let .cons _ (.cons trivEq .nil) := trivLit
+          | throwError "replayClauseSpine: substituted equality literal \
+                        {repr trivLit} is not (not …) at {idStr}"
+        let .cons _ (.cons tx (.cons ty .nil)) := trivEq
+          | throwError "replayClauseSpine: substituted equality \
+                        {repr trivEq} shape at {idStr}"
+        unless tx == ty do
+          throwError "replayClauseSpine: substituted equality {repr trivEq} \
+                      is not reflexive at {idStr}"
+        let vx ← ctxValExpr cfg ctx tx
+        let hEqT ← mkAppM ``Logic.equal_self #[vx]
+        let hNotNil ← mkAppM ``Eq.trans
+          #[← mkAppM ``congrArg #[mkConst ``Logic.not, hEqT],
+            mkConst ``logic_not_t_nil]
+        let pTriv ← ctxValProof cfg ctx trivLit
+        let hcNil ← mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr trivLit,
+            ← ctxValExpr cfg ctx trivLit, nilC, pTriv, hNotNil]
+        -- (if triv 't tail) ≡ tail, lifted through the k-1 else-descents
+        let tailLits := (substLits.drop (kPos + 1)).map (·.2)
+        let tailTerm := disjoinTerm tailLits
+        let vTail ← ctxValExpr cfg ctx tailTerm
+        let hTail ← ctxValProof cfg ctx tailTerm
+        let _ := vTail
+        let mut inner ← mkAppM ``re_if_false
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr trivLit, reflectSExpr quoteT,
+            reflectSExpr tailTerm, vTail, hcNil, hTail]
+        let mut curL : SExpr := .cons (.atom (.symbol { name := "if" }))
+          (.cons trivLit (.cons quoteT (.cons tailTerm .nil)))
+        let mut curR : SExpr := tailTerm
+        for (_, l) in (substLits.take kPos).reverse do
+          let st : PathStep := { fn := { name := "if" }, arity := 3, argIdx := 2,
+                                 siblings := [l, quoteT] }
+          inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+          curL := rebuild st.fn st.arity st.argIdx curL st.siblings
+          curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+        unless curL == disjoinTerm (substLits.map (·.2)) &&
+               curR == disjoinTerm (shortened.map (·.2)) do
+          throwError "replayClauseSpine: branch-substitution shortening lift \
+                      reconstructed {repr curL} / {repr curR} at {idStr}"
+        let chainAll ← match chainOpt with
+          | none => pure inner
+          | some ch => mkAppM ``fuel_chain_eq #[ch, inner]
+        let pRest ← replayClauseSpine cfg ctx idStr shortened rest accClause children
+        let p ← mkAppM ``evtrue_of_fuel_eq #[chainAll, pRest]
+        mkLambdaFVars #[hNil] p
+      let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vK, nilC]) fun hNe => do
+        let p ← evtrueOfLitTrue cfg ctx (clauseLits.map (·.2)) (kIdx - 1) negEq hNe
+        mkLambdaFVars #[hNe] p
+      let _ := pK
+      return ← mkAppM ``Classical.byCases #[negL, posL]
+    throwError "replayClauseSpine: clause-level step item (rune \
+                {repr (runeOf n)}) in the spine at {idStr} (frontier)"
+  | .branch seg _ :: _ =>
+    throwError "replayClauseSpine: branch item with no preceding literal at \
+                {idStr} (frontier): segment {repr seg}"
+  | .literal lp :: rest =>
+    -- this literal's case branches: the maximal `.branch` prefix; nothing may
+    -- follow at this level (the clause scan continues inside the branches)
+    let branchItems := rest.takeWhile (fun | .branch _ _ => true | _ => false)
+    unless branchItems.length == rest.length do
+      throwError "replayClauseSpine: items after literal {lp.index}'s branches \
+                  at {idStr} (frontier)"
+    let branchSegs ← branchItems.mapM (fun
+      | ClauseItem.branch seg its => pure (seg, its)
+      | _ => throwError "replayClauseSpine: internal — non-branch in the \
+                         branch prefix")
+    let idx := lp.index
+    let (cidx, clit) :: restLits := clauseLits
+      | throwError "replayClauseSpine: literal item {idx} beyond the clause's \
+                    literals at {idStr} (item/clause walk divergence)"
+    unless idx == cidx && lp.literal == clit do
+      throwError "replayClauseSpine: literal item {idx} {repr lp.literal} does \
+                  not walk the clause at {idStr} (next clause literal is {cidx} \
+                  {repr clit})"
+    if lp.result == quoteT then
+      -- the closer: its chain proves it `t`; any later literals (scanned or
+      -- not) are short-circuited by the true test.
+      unless branchSegs.isEmpty do
+        throwError "replayClauseSpine: branches after the closing literal \
+                    {idx} at {idStr} (frontier)"
+      let pclose ← replayLiteral cfg ctx lp
+      if restLits.isEmpty then
+        mkAppM ``evtrue_of_eq_t #[pclose]
+      else
+        -- `(if litᵢ 't rest)` with the test KNOWN `t`
+        let restTerm := disjoinTerm (restLits.map (·.2))
+        let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+        let hcv ← proveByDecide
+          (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t)) (mkConst ``Bool.true))
+          "toBool t"
+        let hIf ← mkAppM ``conv_if_true
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
+            reflectSExpr restTerm, mkConst ``SExpr.t, mkConst ``SExpr.t, pclose, hcv, hq]
+        mkAppM ``evtrue_of_eq_t #[hIf]
+    else
+      -- the literal's rewrite chain: literal ⇒ result
+      let (chainOpt, finalT) ← replayLiteralChain cfg ctx lp
+      unless finalT == lp.result do
+        throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
+                    at {idStr}, recorded result is {repr lp.result}"
+      -- does the clausify decision trace SPLIT?
+      let hasSplit := lp.splitTrace.any fun
+        | .test _ v _ _ => v == "split"
+        | _ => false
+      if hasSplit then
+        -- W3: the assume-true-false composer. Post-pass reshaping (the
+        -- Satriani REPLACEMENT, the subsumption loop) is transparent to the
+        -- LEAF-driven composer: branch selection is by derivable segment
+        -- falsity with a uniqueness requirement, so a redistributed literal
+        -- set still links each leaf to its branch, and a missing or
+        -- ambiguous link fails closed at selection. A SUBSUMED-dropped new
+        -- clause leaves its leaf unlinkable — still a clean failure there.
+        unless lp.splitReshaped.all
+            (fun r => r == "satriani-replaced" || r == "subsumption-loop") do
+          throwError "replayClauseSpine: literal {idx}'s segment set was \
+                      reshaped ({lp.splitReshaped}) at {idStr} (frontier)"
+        let (tree, restTrace) ← ofExcept (parseTraceTree [] lp.splitTrace)
+        unless restTrace.isEmpty do
+          throwError "replayClauseSpine: trailing decision-trace events on \
+                      literal {idx} at {idStr}: {repr restTrace.head?}"
+        -- pin the trace leaf values' opaques (collapse intermediates live
+        -- inside them)
+        let mut ctx := ctx
+        for d in lp.splitTrace do
+          if let .leaf v _ _ := d then
+            ctx ← pinTermOpaques cfg cfg.envExpr ctx v
+        return ← composeSplit cfg ctx idStr lp chainOpt clit restLits branchSegs
+          accClause children [] tree
+      -- TRIVIAL continuation: exactly one branch, its segment matching the
+      -- single trace leaf's clause segment
+      let (contItems, segLits) ← match branchSegs with
+        | [(seg, cont)] => do
+          let some segL := seg.toList?
+            | throwError "replayClauseSpine: literal {idx}'s branch segment \
+                          {repr seg} is not a list at {idStr}"
+          match lp.splitTrace.filter (fun | .leaf .. => true | _ => false) with
+          | [.leaf lv outcome _] =>
+            if outcome == "dropped" then
+              throwError "replayClauseSpine: single DROPPED leaf on the \
+                          non-closing literal {idx} at {idStr} (frontier)"
+            let expectedSeg : SExpr :=
+              if outcome == "segment-open" then .cons lp.result .nil else .nil
+            unless seg == expectedSeg &&
+                   (outcome == "segment-false" || lv == lp.result) do
+              throwError "replayClauseSpine: literal {idx}'s branch segment \
+                          {repr seg} does not match its trace leaf \
+                          ({outcome}, {repr lv}) at {idStr}"
+          | [] => pure ()  -- no trace (synthetic/legacy log): tolerated
+          | leaves =>
+            throwError "replayClauseSpine: literal {idx} has {leaves.length} \
+                        trace leaves but no split test at {idStr}"
+          pure (cont, segL)
+        | [] =>
+          throwError "replayClauseSpine: non-closing literal {idx} with no \
+                      continuation branch at {idStr} (frontier)"
+        | _ =>
+          throwError "replayClauseSpine: {branchSegs.length} branches on \
+                      literal {idx} without a split trace at {idStr} (frontier)"
+      -- split on the literal's value
+      let vLit ← ctxValExpr cfg ctx lp.literal
+      let pLit ← ctxValProof cfg ctx lp.literal
+      let restTerm := disjoinTerm (restLits.map (·.2))
+      let neTy ← mkAppM ``Ne #[vLit, mkConst ``SExpr.nil]
+      let hthen ← withLocalDeclD `h neTy fun h => do
+        let p ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]
+        let _ := h
+        mkLambdaFVars #[h] p
+      let eqTy ← mkEq vLit (mkConst ``SExpr.nil)
+      let helse ← withLocalDeclD `h eqTy fun h => do
+        let (factTerm, factProof) ←
+          match chainOpt with
+          | none => pure (lp.literal, h)
+          | some ch => do
+            -- bridge the falsity to the post-rewrite literal
+            let _vLit' ← ctxValExpr cfg ctx lp.result
+            let pLit' ← ctxValProof cfg ctx lp.result
+            let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLit']
+            pure (lp.result, ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h])
+        let ctx' := { ctx with litFacts := ctx.litFacts ++ [(idx, factTerm, factProof)] }
+        let accClause' := accClause ++ segLits.filter (!accClause.contains ·)
+        let p ← replayClauseSpine cfg ctx' idStr restLits contItems accClause' children
+        mkLambdaFVars #[h] p
+      mkAppM ``evtrue_dp_if_split
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
+          reflectSExpr restTerm, vLit, pLit, hthen, helse]
+
+/-- The W3 branch-split COMPOSER: prove `EvTrue w env (disjoin (lit :: rest))`
+    for a literal whose clausify SPLIT (docs/notes/2026-07-03_branch-split-
+    spine.md, ratified partial logging). The byCases tree comes from the
+    emitted decision trace; at each leaf the literal's collapse along the path
+    facts is re-derived by `collapseEval` (fail-closed against the emitted
+    leaf value), then:
+    - a DROPPED leaf ('t): the literal itself is true — the disjunction closes;
+    - a SEGMENT leaf: split on the literal's value (truth closes); under its
+      falsity, select the unique branch whose segment literals are all
+      derivably false, inject the segment facts, and recurse the branch's
+      continuation — or, for an EMPTY continuation, peel the pushed sibling
+      clause down to the surviving literal and bridge it back. -/
+partial def composeSplit (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
+    (lp : LiteralProof) (chainOpt : Option Expr) (clauseLit : SExpr)
+    (restLits : List (Nat × SExpr)) (branches : List (SExpr × List ClauseItem))
+    (accClause : List SExpr) (children : List ClauseNode)
+    (facts : List (SExpr × Expr × Bool × Expr)) (tree : TraceTree) :
+    MetaM Expr := do
+  let w := cfg.worldExpr
+  let e := cfg.envExpr
+  let nilC := mkConst ``SExpr.nil
+  match tree with
+  | .split T fSide tSide =>
+    let ctx ← pinTermOpaques cfg e ctx T
+    let vT ← ctxValExpr cfg ctx T
+    let negL ← withLocalDeclD `hnil (← mkEq vT nilC) fun hNil => do
+      let p ← composeSplit cfg ctx idStr lp chainOpt clauseLit restLits branches
+        accClause children (facts ++ [(T, vT, false, hNil)]) fSide
+      mkLambdaFVars #[hNil] p
+    let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vT, nilC]) fun hNe => do
+      let p ← composeSplit cfg ctx idStr lp chainOpt clauseLit restLits branches
+        accClause children (facts ++ [(T, vT, true, hNe)]) tSide
+      mkLambdaFVars #[hNe] p
+    mkAppM ``Classical.byCases #[negL, posL]
+  | .resolved T verdict how sub =>
+    unless how == "assumed" do
+      throwError "composeSplit: resolved test {repr T} how={how} at {idStr} \
+                  (frontier — only assumption-resolved tests are re-derived)"
+    let ctx ← pinTermOpaques cfg e ctx T
+    let vT ← ctxValExpr cfg ctx T
+    let wantSign := verdict == "true"
+    -- re-derive the resolution: exact match, then commutative equal match
+    -- (if-interp-assumed-value2's rule set; fail-closed beyond)
+    let hFact ←
+      match facts.find? (fun (T', _, _, _) => T' == T) with
+      | some (_, _, sign, h) => do
+        unless sign == wantSign do
+          throwError "composeSplit: fact for {repr T} has sign {sign}, trace \
+                      verdict {verdict} at {idStr}"
+        pure h
+      | none =>
+        match T with
+        | .cons (.atom (.symbol eqS)) (.cons x (.cons y .nil)) => do
+          unless eqS.name == "equal" do
+            throwError "composeSplit: no fact for resolved test {repr T} at \
+                        {idStr} (frontier)"
+          let flipped : SExpr := .cons (.atom (.symbol eqS)) (.cons y (.cons x .nil))
+          let some (_, _, sign, h) :=
+              facts.find? (fun (T', _, _, _) => T' == flipped)
+            | throwError "composeSplit: no fact for resolved test {repr T} \
+                          (or its flip) at {idStr} (frontier)"
+          unless sign == wantSign do
+            throwError "composeSplit: flipped fact for {repr T} has sign \
+                        {sign}, trace verdict {verdict} at {idStr}"
+          -- transport across logic_equal_comm: vT = Logic.equal vx vy,
+          -- fact over Logic.equal vy vx
+          let vx ← ctxValExpr cfg ctx x
+          let vy ← ctxValExpr cfg ctx y
+          let comm ← mkAppM ``logic_equal_comm #[vx, vy]
+          if wantSign then
+            mkAppM ``ne_of_eq_of_ne #[comm, h]
+          else
+            mkAppM ``Eq.trans #[comm, h]
+        | _ =>
+          throwError "composeSplit: no fact for resolved test {repr T} at \
+                      {idStr} (frontier)"
+    composeSplit cfg ctx idStr lp chainOpt clauseLit restLits branches
+      accClause children (facts ++ [(T, vT, wantSign, hFact)]) sub
+  | .leaf value outcome =>
+    -- re-derive the literal's collapse along the path facts
+    let (collapseOpt, collapsed) ← collapseEval cfg ctx facts lp.result
+    unless collapsed == value do
+      throwError "composeSplit: collapse of literal {lp.index} reached \
+                  {repr collapsed}, trace leaf is {repr value} at {idStr}"
+    let fullChain ← match chainOpt, collapseOpt with
+      | none, none => pure none
+      | some c, none => pure (some c)
+      | none, some c => pure (some c)
+      | some c1, some c2 => pure (some (← mkAppM ``fuel_chain_eq #[c1, c2]))
+    let restTerm := disjoinTerm (restLits.map (·.2))
+    if outcome == "dropped" then
+      -- the literal is TRUE on this path: eval lit ≡ eval 't → close
+      unless value == quoteT do
+        throwError "composeSplit: dropped leaf value {repr value} ≠ 't at {idStr}"
+      let some ch := fullChain
+        | throwError "composeSplit: dropped leaf with no chain at {idStr}"
+      let pclose ← mkAppM ``fuel_conv_of_eq #[ch, ← quoteTFact cfg]
+      if restLits.isEmpty then
+        mkAppM ``evtrue_of_eq_t #[pclose]
+      else
+        let hq ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.t]
+        let hcv ← proveByDecide
+          (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t)) (mkConst ``Bool.true))
+          "toBool t"
+        let hIf ← mkAppM ``conv_if_true
+          #[w, e, reflectSExpr clauseLit, reflectSExpr quoteT, reflectSExpr restTerm,
+            mkConst ``SExpr.t, mkConst ``SExpr.t, pclose, hcv, hq]
+        mkAppM ``evtrue_of_eq_t #[hIf]
+    else if restLits.isEmpty then
+      -- SEGMENT leaf on a SINGLETON clause: the disjunction IS the literal,
+      -- and the leaf must be the RESIDUAL (an inline continuation would
+      -- prove an empty disjunction). Peel the pushed sibling clause down to
+      -- the surviving open-leaf literal and bridge it back — no value split.
+      unless outcome == "segment-open" do
+        throwError "composeSplit: {outcome} leaf on a singleton clause at \
+                    {idStr} (frontier)"
+      let deriveFalsity (L : SExpr) : MetaM (Option Expr) := do
+        if let some (_, _, _, hf) :=
+            facts.find? (fun (T, _, sign, _) => !sign && L == T) then
+          return some hf
+        match L with
+        | .cons (.atom (.symbol ns)) (.cons T .nil) =>
+          if ns.name == "not" then
+            match facts.find? (fun (T', _, sign, _) => sign && T' == T) with
+            | some (_, _, _, hf) =>
+              return some (← mkAppM ``not_nil_of_truthy #[hf])
+            | none => return none
+          else return none
+        | _ => return none
+      let mut selected : Option (List SExpr × List Expr) := none
+      for (seg, cont) in branches do
+        -- :CONTEXT-SUBST decorations are inert here (their equations live in
+        -- the segment); a residual branch may still carry them
+        let contCore := cont.dropWhile fun
+          | .step n => (runeOf n).1 == "context-subst"
+          | _ => false
+        unless contCore.isEmpty do continue
+        let some segL := seg.toList?
+          | throwError "composeSplit: branch segment {repr seg} is not a \
+                        list at {idStr}"
+        unless segL.getLast? == some value do continue
+        let mut proofs : List Expr := []
+        let mut ok := true
+        for L in segL.dropLast do
+          match ← deriveFalsity L with
+          | some p => proofs := proofs ++ [p]
+          | none => ok := false
+        if ok then
+          unless selected.isNone do
+            throwError "composeSplit: ambiguous residual selection for the \
+                        open leaf {repr value} at {idStr}"
+          selected := some (segL, proofs)
+      let some (segL, segProofs) := selected
+        | throwError "composeSplit: no residual branch matches the open leaf \
+                      {repr value} at {idStr} (frontier)"
+      let expected := accClause ++ segL.filter (!accClause.contains ·)
+      let some child := children.find? (·.inputClause == expected)
+        | throwError "composeSplit: no child clause matches the residual \
+                      {repr expected} at {idStr}"
+      unless expected.getLast? == some value do
+        throwError "composeSplit: residual survivor is not last at {idStr}"
+      let pChild ← replayClause cfg ctx child
+      let segFactsHere := segL.dropLast.zip segProofs
+      let mut p := pChild
+      for L in expected.dropLast do
+        let hf ← match ctx.litFactByTerm? L,
+                    (segFactsHere.find? (·.1 == L)).map (·.2) with
+          | some hf, _ => pure hf
+          | none, some hf => pure hf
+          | none, none =>
+            throwError "composeSplit: no falsity fact for the residual \
+                        literal {repr L} at {idStr}"
+        let pNil ← mkAppM ``re_val_cast
+          #[w, e, reflectSExpr L, ← ctxValExpr cfg ctx L, nilC,
+            ← ctxValProof cfg ctx L, hf]
+        p ← mkAppM ``evtrue_extract_else #[pNil, p]
+      -- p : EvTrue(value); bridge back to the literal
+      match fullChain with
+      | none => pure p
+      | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, p]
+    else
+      -- SEGMENT leaf: split on the literal's value
+      let vLit ← ctxValExpr cfg ctx clauseLit
+      let pLit ← ctxValProof cfg ctx clauseLit
+      let hthen ← withLocalDeclD `h (← mkAppM ``Ne #[vLit, nilC]) fun h => do
+        let p ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]
+        let _ := h
+        mkLambdaFVars #[h] p
+      let helse ← withLocalDeclD `h (← mkEq vLit nilC) fun h => do
+        -- the leaf value's falsity, bridged along the full chain
+        let hLeafNil ← match fullChain with
+          | none => pure h
+          | some ch => do
+            let pLeaf ← ctxValProof cfg ctx value
+            let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLeaf]
+            mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
+        -- a segment literal's falsity, derivable from the path facts / the
+        -- leaf fact (if-interp's convert-assumptions-to-clause-segment)
+        let deriveFalsity (L : SExpr) : MetaM (Option Expr) := do
+          if outcome == "segment-open" && L == value then
+            return some hLeafNil
+          if let some (_, _, _, hf) :=
+              facts.find? (fun (T, _, sign, _) => !sign && L == T) then
+            return some hf
+          match L with
+          | .cons (.atom (.symbol ns)) (.cons T .nil) =>
+            if ns.name == "not" then
+              match facts.find? (fun (T', _, sign, _) => sign && T' == T) with
+              | some (_, _, _, hf) =>
+                return some (← mkAppM ``not_nil_of_truthy #[hf])
+              | none => return none
+            else return none
+          | _ => return none
+        -- select the UNIQUE branch whose segment is derivably all-false
+        let mut selected : Option (List SExpr × List ClauseItem × List Expr) := none
+        for (seg, cont) in branches do
+          let some segL := seg.toList?
+            | throwError "composeSplit: branch segment {repr seg} is not a \
+                          list at {idStr}"
+          let mut proofs : List Expr := []
+          let mut ok := true
+          for L in segL do
+            match ← deriveFalsity L with
+            | some p => proofs := proofs ++ [p]
+            | none => ok := false
+          if ok then
+            unless selected.isNone do
+              throwError "composeSplit: ambiguous branch selection for the \
+                          {outcome} leaf {repr value} at {idStr}"
+            selected := some (segL, cont, proofs)
+        let some (segL, cont, segProofs) := selected
+          | throwError "composeSplit: no branch matches the {outcome} leaf \
+                        {repr value} at {idStr} (frontier)"
+        let cont := cont.dropWhile fun
+          | .step n => (runeOf n).1 == "context-subst"
+          | _ => false
+        let p ←
+          if cont.isEmpty then do
+            -- RESIDUAL: the branch's clause was pushed as a sibling subgoal
+            let expected := accClause ++ segL.filter (!accClause.contains ·)
+            let some child := children.find? (·.inputClause == expected)
+              | throwError "composeSplit: no child clause matches the residual \
+                            {repr expected} at {idStr}"
+            unless outcome == "segment-open" && expected.getLast? == some value do
+              throwError "composeSplit: residual branch's surviving literal is \
+                          not the open leaf at {idStr} (frontier)"
+            let pChild ← replayClause cfg ctx child
+            -- peel every literal but the survivor
+            let segFactsHere := segL.zip segProofs
+            let mut p := pChild
+            for L in expected.dropLast do
+              let hf ← match ctx.litFactByTerm? L,
+                          (segFactsHere.find? (·.1 == L)).map (·.2) with
+                | some hf, _ => pure hf
+                | none, some hf => pure hf
+                | none, none =>
+                  throwError "composeSplit: no falsity fact for the residual \
+                              literal {repr L} at {idStr}"
+              let pNil ← mkAppM ``re_val_cast
+                #[w, e, reflectSExpr L, ← ctxValExpr cfg ctx L, nilC,
+                  ← ctxValProof cfg ctx L, hf]
+              p ← mkAppM ``evtrue_extract_else #[pNil, p]
+            -- p : EvTrue(value); bridge to the literal and refute h
+            let pLitTrue ← match fullChain with
+              | none => pure p
+              | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, p]
+            let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[pLitTrue, pLit]
+            let goalTy ← mkAppM ``EvTrue #[w, e, reflectSExpr restTerm]
+            mkAppOptM ``absurd #[none, some goalTy, some h, some hNe]
+          else do
+            -- inline continuation: inject the segment facts and recurse;
+            -- leading context-subst steps are the :CONTEXT-SUBST decorations
+            -- (their equations are consumed by solidify .segment nodes)
+            let cont' := cont.dropWhile fun
+              | .step n => (runeOf n).1 == "context-subst"
+              | _ => false
+            -- the literal's own falsity — at its RECORDED rewritten form
+            -- (what the tree linker matched `.literal`-sourced solidify
+            -- nodes against), bridged along the literal chain — joins
+            -- litFacts under its index, exactly as on the non-split path
+            let hResultNil ← match chainOpt with
+              | none => pure h
+              | some ch => do
+                let pLit' ← ctxValProof cfg ctx lp.result
+                let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLit']
+                mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
+            let ctx' := { ctx with
+              litFacts := ctx.litFacts ++ [(lp.index, lp.result, hResultNil)],
+              segFacts := ctx.segFacts ++ segL.zip segProofs }
+            let accClause' := accClause ++ segL.filter (!accClause.contains ·)
+            replayClauseSpine cfg ctx' idStr restLits cont' accClause' children
+        mkLambdaFVars #[h] p
+      mkAppM ``evtrue_dp_if_split
+        #[w, e, reflectSExpr clauseLit, reflectSExpr quoteT, reflectSExpr restTerm,
+          vLit, pLit, hthen, helse]
+
 /-- Replay a clause node: prove `EvTrue w env (disjoinTerm inputClause)`
     (for a single-literal clause this IS the literal/formula statement).
     Induction nodes hard-fail (the scaffold lands next); a pushed clause delegates
@@ -3074,6 +3964,7 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
   replayClauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l))
     ((cn.steps.flatMap (·.items)).filter fun
       | .clausify _ => false | _ => true)
+    [] cn.children
 
 /-- Replay a DESTRUCTOR-ELIMINATION node (`eliminate-destructors-clause`, rune
     `car-cdr-elim`, single elim record): prove `EvTrue w env (disjoin C)` from
@@ -3231,12 +4122,16 @@ partial def replayElim (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode)
     let hargs ← mkExpectedTypeHint hargsRaw hargsTy
     let pBridge ← mkAppM ``evalOpt_substTerm_substN
       #[w, env, formalsE, argsE, valsE, reflectSExpr bodyT, hNoLet, hlenPf, hargs]
-    -- diff-collapse: eval env (disjoin C) ≡ eval env ((disjoin C')σ)
+    -- diff-collapse: eval env (disjoin C) ≡ eval env ((disjoin C')σ) — the
+    -- residual diffs are bare `v` vs the σ-IMAGE of the elim target,
+    -- `(cons (car v) (cdr v))`
     let sTermS := ACL2.Replay.substTerm [v1, v2] argsS bodyT
+    let uSig : SExpr := .cons (.atom (.symbol { name := "cons" }))
+      (.cons carT (.cons cdrT .nil))
     let hVeq ← mkAppM ``Eq.symm #[← mkAppM ``logic_cons_car_cdr_of_consp #[hNe]]
-    let pU ← ctxValProof cfg ctx uT
+    let pU ← ctxValProof cfg ctx uSig
     let nodeEq ← mkAppM ``fuel_eq_of_conv #[pV, pU, hVeq]
-    let chainOpt ← diffCollapse w env vT uT nodeEq (disjoinTerm cn.inputClause) sTermS
+    let chainOpt ← diffCollapse w env vT uSig nodeEq (disjoinTerm cn.inputClause) sTermS
     let pAll ← match chainOpt with
       | none => pure pBridge
       | some c => mkAppM ``fuel_chain_eq #[c, pBridge]
