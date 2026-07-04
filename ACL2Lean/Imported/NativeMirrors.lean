@@ -46,6 +46,7 @@ import ACL2Lean.Replay.Driver
 import ACL2Lean.Imported.SimpleWorld
 import ACL2Lean.Imported.AppAssoc
 import ACL2Lean.Imported.Lifting
+import ACL2Lean.Imported.Perm
 
 namespace ACL2.Imported.Mirrors
 
@@ -492,5 +493,62 @@ theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
     (carT (appT (consT aT bT) yT)) aT (Logic.car (SExpr.cons u v)) u
     (by decide) hL ha
     (appConsCarMirrorCond e)
+
+/-! ## Entry 9 — `perm-cons` (the sorting corpus, R1):
+`a ∈ xs → (xs ~ a :: ys ↔ xs.erase a ~ ys)`
+
+The FULL chain on the perm book's first replayed theorem: the REAL
+`sorting/perm.proof-log` → parse → reconstruct → the log-DERIVED world → the
+driver's conditional mirror (the branch-split composer, destructor
+elimination, the whole R1 node family) → hypotheses discharged (`total:perm`
+and `tp:memb` by the world-parametric HAND dischargers — the ratified
+industrialization demos; rm/memb totality auto-discharged from admission
+data) → the `contains`/`erase`/`isPerm` simulations → the native statement
+over `List.Perm`. -/
+
+private def permLog9 : String := include_str "../../acl2_samples/sorting/perm.proof-log"
+
+/-- The parsed development — the ONLY input is the log. -/
+def permDev : Development :=
+  (((ProofLog.parse permLog9).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world permWorldD from permDev
+
+/-- The conditional mirror as a definition (the driver's proof OBJECT):
+    `∀ env, total:perm → tp:memb → <EvTrue of the perm-cons formula>`. -/
+def permConsMirrorCond := driver_mirror% permDev permWorldD "perm-cons"
+
+/-- The driver mirror — UNCONDITIONAL: `total:perm` and `tp:memb` are
+    discharged by the hand dischargers, instantiated at the log-derived
+    world (every world fact a `decide`). -/
+theorem permConsMirror_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f permWorldD env
+      Worlds.Perm.perm_consFormula = some v ∧ v ≠ SExpr.nil :=
+  permConsMirrorCond env
+    (Worlds.Perm.dis_perm_total permWorldD (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+    (fun env' a0 a1 v h =>
+      Worlds.Perm.dis_memb_tp permWorldD (by decide) (by decide) (by decide)
+        (by decide) (by decide) env' a0 a1 v h)
+
+/-- ENTRY 9, PROVED — the Boolean form through the DRIVER's replayed mirror. -/
+theorem perm_cons_native_driver (a : SExpr) (xs ys : List SExpr)
+    (h : xs.contains a = true) :
+    xs.isPerm (a :: ys) = (xs.erase a).isPerm ys :=
+  Worlds.Perm.perm_cons_native_of_mirror permWorldD (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) permConsMirror_uncond a xs ys h
+
+/-- ENTRY 9, PROVED — the idiomatic `List.Perm` form: a member moves across
+    the permutation relation. -/
+theorem perm_cons_native_perm_driver (a : SExpr) (xs ys : List SExpr)
+    (h : a ∈ xs) :
+    xs.Perm (a :: ys) ↔ (xs.erase a).Perm ys :=
+  Worlds.Perm.perm_cons_native_perm_of_mirror permWorldD (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) permConsMirror_uncond a xs ys h
+
+#print axioms perm_cons_native_perm_driver
 
 end ACL2.Imported.Mirrors
