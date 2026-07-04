@@ -2563,6 +2563,25 @@ theorem logic_consp_ne_nil_t (v : SExpr) (h : Logic.consp v ≠ SExpr.nil) :
     Logic.consp v = SExpr.t := by
   cases v <;> simp_all [Logic.consp]
 
+/-- The car-cdr-elim rule at the VALUE level: a consp value is rebuilt by
+    `cons`/`car`/`cdr` — the destructor-elimination bridge's collapse of
+    `(cons (car v) (cdr v))` back to `v`. -/
+theorem logic_cons_car_cdr_of_consp {v : SExpr} (h : Logic.consp v ≠ SExpr.nil) :
+    SExpr.cons (Logic.car v) (Logic.cdr v) = v := by
+  cases v <;> simp_all [Logic.consp, Logic.car, Logic.cdr]
+
+/-- `Logic.not` of a nil value is `t` (the false-`(consp v)` head literal of
+    the destructor-elimination split). -/
+theorem logic_not_t_of_nil {v : SExpr} (h : v = SExpr.nil) :
+    Logic.not v = SExpr.t := by
+  subst h; simp [Logic.not, Logic.toBool]
+
+/-- `Logic.equal` is two-valued, so the `(if tst 't 'nil)` boolean-identity
+    collapse (an `if1/boolean` node over an `equal` test) IS the test's value. -/
+theorem cond_toBool_equal (a b : SExpr) :
+    cond (Logic.toBool (Logic.equal a b)) SExpr.t SExpr.nil = Logic.equal a b := by
+  by_cases h : a == b <;> simp [Logic.equal, Logic.toBool, h, SExpr.t]
+
 /-- A concrete-fuel evaluation lifts to the fuel-robust form (fuel monotonicity) —
     the replay form of an `executable-counterpart` PREPROCESS step: ACL2 COMPUTED
     the value, and the kernel re-checks the same computation by reduction of
@@ -2608,6 +2627,42 @@ the rest of the replay layer. -/
 /-- `toBool` of a non-nil value is `true`. -/
 theorem toBool_true_of_ne_nil {v : SExpr} (h : v ≠ SExpr.nil) :
     Logic.toBool v = true := by cases v <;> simp_all [Logic.toBool]
+
+/-- The identity fuel-robust eval-equality (an if-finish branch with no
+    effective rewrites). -/
+theorem fuel_eq_refl (a : Nat → Option SExpr) : ∃ N, ∀ f ≥ N, a f = a f :=
+  ⟨0, fun _ _ => rfl⟩
+
+/-- CONDITIONAL branch congruence for a lazy `if` with an UNRESOLVED test (the
+    if-finish recipe, R1 conditional-congruence): each branch is rewritten
+    under the test's corresponding assumption — the then-chain may consume the
+    test's truth (ACL2's assume-true-false), the else-chain its falsity. -/
+theorem evalOpt_congr_if_branches_cond (w : World) (env : Env)
+    (c thn els thn' els' : SExpr) (vc : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some vc)
+    (hthen : vc ≠ SExpr.nil →
+      ∃ N, ∀ f ≥ N, evalOpt f w env thn = evalOpt f w env thn')
+    (helse : vc = SExpr.nil →
+      ∃ N, ∀ f ≥ N, evalOpt f w env els = evalOpt f w env els') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil))))
+      = evalOpt f w env
+        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn' (.cons els' .nil)))) := by
+  obtain ⟨Nc, hc⟩ := hc
+  by_cases hv : vc = SExpr.nil
+  · obtain ⟨Ne, he⟩ := helse hv
+    refine ⟨max Nc Ne + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    rw [evalOpt_if_false g w env c thn els (hv ▸ hc g (by omega)),
+        evalOpt_if_false g w env c thn' els' (hv ▸ hc g (by omega))]
+    exact he g (by omega)
+  · obtain ⟨Nt, ht⟩ := hthen hv
+    refine ⟨max Nc Nt + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    rw [evalOpt_if_true g w env c thn els vc (hc g (by omega)) (toBool_true_of_ne_nil hv),
+        evalOpt_if_true g w env c thn' els' vc (hc g (by omega)) (toBool_true_of_ne_nil hv)]
+    exact ht g (by omega)
 
 /-- A truthy `not` pins its argument to nil. -/
 theorem arg_nil_of_not_truthy {v : SExpr} (h : Logic.not v ≠ SExpr.nil) :

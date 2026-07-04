@@ -183,8 +183,13 @@ where
     | .boundary _ _ :: rest, d => go rest (d - 1)
     | _ :: rest, d => go rest d
 
-private def pathStepsFromFrames (term : SExpr) (descentFrames : List PathFrame) (lhs : SExpr)
-    : Except String (List PathStep) := do
+/-- Navigate `descentFrames` (already relativized/stripped) from `term`,
+    returning the path steps and the subterm reached — the redex-check-free
+    core of `pathStepsFromFrames` (the if-finish recipe navigates to the
+    node's position to learn the REAL redex, since the recorded lhs is
+    display-folded). -/
+private def navigateFrames (term : SExpr) (descentFrames : List PathFrame)
+    : Except String (List PathStep × SExpr) := do
   let mut cur := term
   let mut steps : List PathStep := []
   for fr in descentFrames do
@@ -197,9 +202,11 @@ private def pathStepsFromFrames (term : SExpr) (descentFrames : List PathFrame) 
       | none => throw s!"pathStepsFromFrames: path descends into non-application {repr cur}"
       | some (fn, args) =>
         if args.length == 3 then
-          -- only the lazy `if`'s TEST position admits congruence
-          unless fn.name == "if" && idx == 1 do
-            throw s!"pathStepsFromFrames: arity-3 congruence only into an if's test \
+          -- lazy-`if` descent: test, then, or else — `applyStep`'s branch
+          -- congruences are sound for the UNCONDITIONAL eval-equalities the
+          -- chain carries (a false test makes the branch irrelevant)
+          unless fn.name == "if" do
+            throw s!"pathStepsFromFrames: arity-3 congruence only for if \
                     (got {fn.name} arg {idx}): {repr cur}"
         else if args.length > 3 then
           throw s!"pathStepsFromFrames: arity {args.length} application unsupported: {repr cur}"
@@ -208,6 +215,11 @@ private def pathStepsFromFrames (term : SExpr) (descentFrames : List PathFrame) 
         let siblings := (args.zipIdx).filterMap (fun (a, i) => if i + 1 == idx then none else some a)
         steps := steps ++ [{ fn, arity := args.length, argIdx := idx - 1, siblings }]
         cur := args[idx - 1]!
+  return (steps, cur)
+
+private def pathStepsFromFrames (term : SExpr) (descentFrames : List PathFrame) (lhs : SExpr)
+    : Except String (List PathStep) := do
+  let (steps, cur) ← navigateFrames term descentFrames
   unless cur == lhs do
     throw s!"pathStepsFromFrames: navigated to {repr cur}, expected redex {repr lhs}"
   return steps
@@ -281,20 +293,25 @@ private def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : E
     (a branch frame interleaved between residual boundary frames) is NOT handled —
     and cannot mis-navigate silently: a strip/frame mismatch throws here, and any
     leftover misalignment fails `pathStepsFromFrames`' final redex check. -/
-def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
-    (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0) (strip : List Nat := [])
-    : MetaM (Expr × SExpr) := do
+def relativizeAndStrip (frames : List PathFrame) (depth : Nat) (strip : List Nat) :
+    MetaM (List PathFrame) := do
   let mut rel ← ofExcept (relativizeFrames frames depth)
   for k in strip do
     match rel with
     | .arg idx _ :: restF =>
       unless idx == k do
-        throwError "emitCongruence: chain consumed branch frame {k}, but the node's \
-                    path has arg {idx} there"
+        throwError "relativizeAndStrip: chain consumed branch frame {k}, but the \
+                    node's path has arg {idx} there"
       rel := restF
     | _ =>
-      throwError "emitCongruence: chain consumed branch frame {k}, but the node's \
-                  path has no arg frame there"
+      throwError "relativizeAndStrip: chain consumed branch frame {k}, but the \
+                  node's path has no arg frame there"
+  return rel
+
+def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
+    (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0) (strip : List Nat := [])
+    : MetaM (Expr × SExpr) := do
+  let rel ← relativizeAndStrip frames depth strip
   let path ← ofExcept (pathStepsFromFrames term rel lhs)
   -- Fold from the innermost path step outward.
   let mut inner := nodeProof
@@ -313,6 +330,46 @@ def chainEqs (proofs : List Expr) : MetaM Expr := do
   match proofs with
   | [] => throwError "chainEqs: empty"
   | p :: ps => ps.foldlM (fun acc q => mkAppM ``fuel_chain_eq #[acc, q]) p
+
+/-- Structural diff-collapse (the destructor-elimination bridge's last leg):
+    a fuel-robust eval-equality `eval cur = eval target` where `cur` and
+    `target` differ EXACTLY at occurrences of `vT` (in `cur`) vs `uT` (in
+    `target`), each occurrence discharged by `nodeEq : eval vT ≡ eval uT`
+    lifted through positional congruence (`applyStep`, innermost-out; sibling
+    positions taken from the RUNNING term so multiple diffs in one spine
+    compose left-to-right). Any structural difference that is not exactly
+    `vT` vs `uT` hard-fails. Returns `none` when the terms are identical. -/
+partial def diffCollapse (w e : Expr) (vT uT : SExpr) (nodeEq : Expr) :
+    (cur target : SExpr) → MetaM (Option Expr)
+  | cur, target => do
+    if cur == target then return none
+    if cur == vT && target == uT then return some nodeEq
+    let some (f, args) := asApp cur
+      | throwError "diffCollapse: diff at non-application {repr cur} vs \
+                    {repr target} is not the eliminated variable (frontier)"
+    let some (g, brgs) := asApp target
+      | throwError "diffCollapse: target diff {repr target} is not an \
+                    application (frontier)"
+    unless f == g && args.length == brgs.length do
+      throwError "diffCollapse: head/arity mismatch {repr cur} vs {repr target} \
+                  (frontier)"
+    let mut curArgs := args.toArray
+    let mut acc : Option Expr := none
+    for i in [0:args.length] do
+      let a := curArgs[i]!
+      let b := brgs[i]!
+      if a != b then
+        let some inner ← diffCollapse w e vT uT nodeEq a b
+          | throwError "diffCollapse: internal — unequal args produced no chain"
+        let siblings := (curArgs.toList.zipIdx.filterMap fun (x, j) =>
+          if j == i then none else some x)
+        let st : PathStep := { fn := f, arity := args.length, argIdx := i, siblings }
+        let lifted ← applyStep w e st a b inner
+        acc ← match acc with
+          | none => pure (some lifted)
+          | some c => pure (some (← mkAppM ``fuel_chain_eq #[c, lifted]))
+        curArgs := curArgs.set! i b
+    return acc
 
 /-! ## The recursive driver (`replayClause` / `replayNode`).
 
@@ -371,6 +428,12 @@ structure ReplayCtx where
       `= .nil`). Solidify nodes consume by `equivSource` index; recognizer nodes
       by term (directly, or through a `(not …)` wrapper). -/
   litFacts : List (Nat × SExpr × Expr) := []
+  /-- ENCLOSING UNRESOLVED-IF test facts (the if-finish branch context,
+      ACL2's assume-true-false): the test term, its value expr, the branch
+      sign (`true` = then-branch, value `≠ nil`; `false` = else-branch, value
+      `= nil`), and the value fact. Solidify `.branchTest` nodes consume
+      these. -/
+  branchFacts : List (SExpr × Expr × Bool × Expr) := []
   /-- The bound CONDITIONAL hypotheses (the generic mirror's telescope):
       per defined fn, its totality hypothesis; and — when the development emitted
       a :TYPE-PRESCRIPTION — its lifted-corollary hypothesis (with the corollary
@@ -400,6 +463,7 @@ def asEqualSelf : SExpr → Option SExpr
 def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
 def nodeLhsRhs : ProofNode → SExpr × SExpr | .node _ lhs rhs _ _ => (lhs, rhs)
 def nodePath : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
+def nodeOrigin : ProofNode → String | .node _ _ _ _ p => p.origin
 
 /-- `worldExpr.defs.get? s` as an `Expr` (a `DefMap.get?` application). -/
 private def mkDefsGet (cfg : ReplayConfig) (s : Symbol) : MetaM Expr := do
@@ -969,9 +1033,34 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     let idx ← match src with
       | .literal idx => pure idx
       | .branchTest =>
-        throwError "solidify: equivalence is an enclosing unresolved-if's test \
-                    (assume-true-false branch context) — conditional-congruence \
-                    frontier (R1, docs/plans/2026-06-12_sorting-corpus-roadmap.md)"
+        -- the equivalence IS an enclosing unresolved-if's test, assumed TRUE
+        -- in the then-branch the node's path descends through (ACL2's
+        -- assume-true-false) — the if-finish recipe put the test's truth in
+        -- scope as a branch fact.
+        let some eqTerm := prov.equivTerm
+          | throwError "solidify: branchTest node has no :EQUIV-TERM"
+        let some (_, _, sign, hFact) :=
+            ctx.branchFacts.find? (fun (t, _, _, _) => t == eqTerm)
+          | throwError "solidify: no in-scope branch fact for test \
+                        {repr eqTerm} (frontier)"
+        unless sign do
+          throwError "solidify: branch fact for {repr eqTerm} is the FALSE \
+                      branch — equation unavailable (frontier)"
+        let .cons (.atom (.symbol eqS)) (.cons ta (.cons tb .nil)) := eqTerm
+          | throwError "solidify: branch test {repr eqTerm} is not (equal A B)"
+        unless eqS.name == "equal" do
+          throwError "solidify: branch test head {eqS.name} ≠ equal (frontier)"
+        -- hFact : (Logic.equal va vb) ≠ nil — decode to va = vb
+        let hEq ← mkAppM ``Logic.eq_of_equal_ne_nil #[hFact]
+        let (flip : Bool) ←
+          if lhs == tb && rhs == ta then pure true
+          else if lhs == ta && rhs == tb then pure false
+          else throwError "solidify: node sides {repr lhs} ⇒ {repr rhs} do not \
+                           match the branch test ({repr ta} = {repr tb})"
+        let valueEq ← if flip then mkAppM ``Eq.symm #[hEq] else pure hEq
+        let pl ← ctxValProof cfg ctx lhs
+        let pr ← ctxValProof cfg ctx rhs
+        return ← mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
       | .segment =>
         throwError "solidify: equivalence is an enclosing clausify-branch \
                     segment hypothesis (:CONTEXT-SUBST) — branch-segment-fact \
@@ -1005,14 +1094,20 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
         (.cons (.cons (.atom (.symbol consS)) (.cons a (.cons b .nil))) .nil) =>
       unless cdrS.name == "cdr" && consS.name == "cons" do
         throwError "cdr-cons: lhs head not (cdr (cons …)): {repr lhs}"
-      unless rhs == b do
-        throwError "cdr-cons: rhs {repr rhs} ≠ the cons's cdr operand {repr b}"
       let ha ← proveConv cfg cfg.envExpr ctx a
       let hb ← proveConv cfg cfg.envExpr ctx b
       let hNoCdr ← proveNoShadow cfg { name := "cdr" }
       let hNoCons ← proveNoShadow cfg { name := "cons" }
-      mkAppM ``re_cdr_cons_conv
+      let ruleEq ← mkAppM ``re_cdr_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
+      -- children may rewrite the rule's result further (see car-cons)
+      let (chainOpt, finalTerm) ← replayRewrites cfg ctx b children (depth + 1)
+      unless finalTerm == rhs do
+        throwError "cdr-cons: children chain reached {repr finalTerm}, \
+                    node rhs is {repr rhs}"
+      match chainOpt with
+      | none => return ruleEq
+      | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "cdr-cons: lhs not (cdr (cons a b)): {repr lhs}"
   | "rewrite", "car-cons" =>
     -- `(car (cons a b)) ⇒ a`.
@@ -1021,14 +1116,22 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
         (.cons (.cons (.atom (.symbol consS)) (.cons a (.cons b .nil))) .nil) =>
       unless carS.name == "car" && consS.name == "cons" do
         throwError "car-cons: lhs head not (car (cons …)): {repr lhs}"
-      unless rhs == a do
-        throwError "car-cons: rhs {repr rhs} ≠ the cons's car operand {repr a}"
       let ha ← proveConv cfg cfg.envExpr ctx a
       let hb ← proveConv cfg cfg.envExpr ctx b
       let hNoCar ← proveNoShadow cfg { name := "car" }
       let hNoCons ← proveNoShadow cfg { name := "cons" }
-      mkAppM ``re_car_cons_conv
+      let ruleEq ← mkAppM ``re_car_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCar, hNoCons, ha, hb]
+      -- the rule's result may be FURTHER rewritten by children (e.g. a
+      -- solidify inside the rule's RHS — their paths carry the (RHS . _)
+      -- boundary, consumed at depth+1); the node's rhs is the NET result.
+      let (chainOpt, finalTerm) ← replayRewrites cfg ctx a children (depth + 1)
+      unless finalTerm == rhs do
+        throwError "car-cons: children chain reached {repr finalTerm}, \
+                    node rhs is {repr rhs}"
+      match chainOpt with
+      | none => return ruleEq
+      | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "car-cons: lhs not (car (cons a b)): {repr lhs}"
   | "rewrite", "unicity-of-0" =>
     -- `(binary-+ '0 z) ⇒ z` via the REAL intermediate `(fix z)` (the def:fix child
@@ -1133,11 +1236,26 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     mkAppM ``fuel_eq_of_conv #[fact, hq, ← mkEqRefl (reflectSExpr verdictV)]
   | "if-simplification", _ =>
     -- `(if 'c thn els) ⇒ branch` — the test is already a quoted constant (a
-    -- preceding recognizer rewrote it via if-test congruence).
+    -- preceding recognizer rewrote it via if-test congruence). The
+    -- `if1/boolean` origin instead collapses `(if tst 't 'nil) ⇒ tst` for a
+    -- BOOLEAN-valued symbolic test (ACL2 justifies it by type-set; the replay
+    -- discharges the same claim by the test value's two-valuedness).
     match lhs with
     | .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) =>
       unless ifS.name == "if" do
         throwError "if-simplification: head {ifS.name}"
+      if prov.origin == "if1/boolean" then
+        unless thn == quoteT && els == quoteNil && rhs == c do
+          throwError "if1/boolean: node is not (if tst 't 'nil) ⇒ tst: \
+                      {repr lhs} ⇒ {repr rhs}"
+        let vC ← ctxValExpr cfg ctx c
+        unless vC.isAppOfArity ``Logic.equal 2 do
+          throwError "if1/boolean: test value of {repr c} is not a Logic.equal \
+                      application (two-valuedness source, frontier)"
+        let hBool ← mkAppM ``cond_toBool_equal #[vC.appFn!.appArg!, vC.appArg!]
+        let pl ← ctxValProof cfg ctx lhs
+        let pr ← ctxValProof cfg ctx c
+        return ← mkAppM ``fuel_eq_of_conv #[pl, pr, hBool]
       let .cons (.atom (.symbol q)) (.cons cv .nil) := c
         | throwError "if-simplification: test is not a quoted constant: {repr c}"
       unless q.name == "quote" do
@@ -1163,6 +1281,37 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn, reflectSExpr els,
             reflectSExpr cv, vThn, hc, hcv, pThn]
     | _ => throwError "if-simplification: lhs not an if: {repr lhs}"
+  | "equal-self", _ =>
+    -- `(equal X X) ⇒ 't` as a MID-CHAIN node (reflexivity of `equal`; the
+    -- closing-literal form lives in `replayLiteral`).
+    match asEqualSelf lhs with
+    | none => throwError "equal-self: lhs is not (equal X X): {repr lhs}"
+    | some X =>
+      unless rhs == quoteT do
+        throwError "equal-self: rhs {repr rhs} ≠ (quote t)"
+      let hX ← proveConv cfg cfg.envExpr ctx X
+      let hNoEqual ← proveNoShadow cfg { name := "equal" }
+      let pEq ← mkAppM ``re_equal_self
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
+      let pQ ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+      mkAppM ``fuel_eq_of_conv #[pEq, pQ, ← mkEqRefl (mkConst ``SExpr.t)]
+  | "type-alist", _ =>
+    -- SOLIDIFY from the type-alist: the clause context — a spine literal's
+    -- falsity — pins the term's value; the node rewrites the term to that
+    -- constant. Only the direct-falsity/nil form is supported (a truthy or
+    -- derived type-alist entry is a named frontier).
+    let .cons (.atom (.symbol q)) (.cons cv .nil) := rhs
+      | throwError "type-alist: rhs {repr rhs} is not a quoted constant"
+    unless q.name == "quote" do
+      throwError "type-alist: rhs {repr rhs} is not a quoted constant"
+    unless cv == SExpr.nil do
+      throwError "type-alist: only nil verdicts from spine falsity are \
+                  supported (got {repr rhs}, frontier)"
+    let some hNil := ctx.litFactByTerm? lhs
+      | throwError "type-alist: no spine falsity fact for {repr lhs} (frontier)"
+    let pl ← ctxValProof cfg ctx lhs
+    let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+    mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
   | "executable-counterpart", _ =>
     -- a GROUND computation step within a rewrite chain (e.g. `(consp 'nil) ⇒ 'nil`):
     -- ACL2 ran the executable counterpart; re-run the SAME closed computation and
@@ -1200,6 +1349,97 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
         throwError "clause-context-resolution: rhs {repr rhs} ≠ running term {repr start} \
                     (chain did not reach the reported net result)"
       return (none, start)
+    -- `if-finish/combined`: rewrite-if FINISHED an if whose test stayed
+    -- symbolic — the summary node's recorded lhs is DISPLAY-FOLDED (body
+    -- coordinates), so the running term is the ground truth: navigate to the
+    -- node's position for the REAL redex `S = (if c thn els)`, chain the
+    -- node's CHILDREN over the branch each descends into UNDER that branch's
+    -- test assumption (ACL2's assume-true-false — the conditional-congruence
+    -- lemma discharges the hypotheses), require the result to be the node's
+    -- recorded rhs, and lift by congruence.
+    if let .node ("if-simplification", _) _ _ children prov := n then
+      if prov.origin == "if-finish/combined" then
+        let rel ← relativizeAndStrip (nodePath n) depth strip
+        let (steps, S) ← ofExcept (navigateFrames start rel)
+        let strip' := strip ++ steps.map (·.argIdx + 1)
+        let .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) := S
+          | throwError "if-finish/combined: running subterm {repr S} is not a \
+                        3-arg if"
+        unless ifS.name == "if" do
+          throwError "if-finish/combined: running subterm head {ifS.name} ≠ if"
+        -- partition the children: branch rewrites (path descends arg 2/3),
+        -- then whole-if FINISHING steps (path AT the if, e.g. if1/boolean) —
+        -- ACL2 finishes the branches first, then combines
+        let mut thenCh : List ProofNode := []
+        let mut elseCh : List ProofNode := []
+        let mut postCh : List ProofNode := []
+        for chN in children do
+          let chRel ← relativizeAndStrip (nodePath chN) depth strip'
+          match chRel with
+          | .arg 2 _ :: _ =>
+            unless postCh.isEmpty do
+              throwError "if-finish/combined: branch child after a whole-if \
+                          child (frontier)"
+            thenCh := thenCh ++ [chN]
+          | .arg 3 _ :: _ =>
+            unless postCh.isEmpty do
+              throwError "if-finish/combined: branch child after a whole-if \
+                          child (frontier)"
+            elseCh := elseCh ++ [chN]
+          | [] => postCh := postCh ++ [chN]
+          | _ => throwError "if-finish/combined: child path does not descend \
+                             a branch of the if (frontier): {repr (nodePath chN)}"
+        let w := cfg.worldExpr
+        let e := cfg.envExpr
+        let vC ← ctxValExpr cfg ctx c
+        let pC ← ctxValProof cfg ctx c
+        let nilC := mkConst ``SExpr.nil
+        let mkIdEq (t : SExpr) : MetaM Expr := do
+          let fn ← withLocalDeclD `f (mkConst ``Nat) fun fV =>
+            mkLambdaFVars #[fV] (mkApp4 (mkConst ``evalOpt) fV w e (reflectSExpr t))
+          mkAppM ``fuel_eq_refl #[fn]
+        let (lamT, thn') ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
+          let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
+          let (chT, thn') ← replayRewrites cfg ctx' thn thenCh depth (strip' ++ [2])
+          let prf ← match chT with
+            | some p => pure p
+            | none => mkIdEq thn
+          pure (← mkLambdaFVars #[hNe] prf, thn')
+        let (lamE, els') ← withLocalDeclD `hnil (← mkEq vC nilC) fun hNil => do
+          let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, false, hNil)] }
+          let (chE, els') ← replayRewrites cfg ctx' els elseCh depth (strip' ++ [3])
+          let prf ← match chE with
+            | some p => pure p
+            | none => mkIdEq els
+          pure (← mkLambdaFVars #[hNil] prf, els')
+        let target : SExpr := .cons (.atom (.symbol ifS))
+          (.cons c (.cons thn' (.cons els' .nil)))
+        -- whole-if finishing steps apply AFTER the branch congruence, on the
+        -- rebuilt if
+        let (postOpt, final) ← replayRewrites cfg ctx target postCh depth strip'
+        unless final == rhs do
+          throwError "if-finish/combined: children chains reached {repr final}, \
+                      node rhs is {repr rhs}"
+        let mut proofs : List Expr := []
+        if target != S then
+          proofs := proofs ++ [← mkAppM ``evalOpt_congr_if_branches_cond
+            #[w, e, reflectSExpr c, reflectSExpr thn, reflectSExpr els,
+              reflectSExpr thn', reflectSExpr els', vC, pC, lamT, lamE]]
+        if let some p := postOpt then
+          proofs := proofs ++ [p]
+        if proofs.isEmpty then
+          -- no effective rewrites: a no-op summary node
+          unless S == rhs do
+            throwError "if-finish/combined: no effective children but running \
+                        subterm {repr S} ≠ rhs {repr rhs}"
+          return ← replayRewrites cfg ctx start rest depth strip
+        let nodeProof ← chainEqs proofs
+        let (lifted, newTerm) ←
+          emitCongruence w e start (nodePath n) S final nodeProof depth strip
+        let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth strip
+        match restProof with
+        | none => return (some lifted, finalTerm)
+        | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
     let nodeEq ← replayNode cfg ctx n depth
     let (lifted, newTerm) ←
       emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth strip
@@ -1207,7 +1447,11 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
     -- keeps the if on the gstack while rewriting inside that branch, so the
     -- remaining nodes' paths carry the branch frame — record it for stripping.
     let strip' ←
-      if (runeOf n).1 == "if-simplification" && lhs == start then
+      -- BRANCH-SELECTING root if-simplifications only: an `if1/boolean`
+      -- collapse replaces the if by its (boolean) test — no branch frame
+      -- remains on the gstack, so nothing to strip.
+      if (runeOf n).1 == "if-simplification" && lhs == start &&
+         (nodeOrigin n) != "if1/boolean" then
         match lhs with
         | .cons _ (.cons _ (.cons thn (.cons els .nil))) =>
           if rhs == thn then pure (strip ++ [2])
@@ -1237,14 +1481,36 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
       throwError "replayLiteralChain: notFlg literal head {notS.name} ≠ not"
     let (chainOpt, finalAtom) ← replayRewrites cfg ctx atm lp.nodes 0
     let finalLit := SExpr.cons (.atom (.symbol notS)) (.cons finalAtom .nil)
-    match chainOpt with
-    | none => return (none, finalLit)
-    | some ch =>
-      let ns ← proveNotSpecial notS
-      let lifted := mkAppN (mkConst ``evalOpt_congr_unary)
-        #[cfg.worldExpr, cfg.envExpr, reflectSymbol notS, reflectSExpr atm,
-          reflectSExpr finalAtom, ns, ch]
-      return (some lifted, finalLit)
+    let lifted ← match chainOpt with
+      | none => pure none
+      | some ch =>
+        let ns ← proveNotSpecial notS
+        pure (some (mkAppN (mkConst ``evalOpt_congr_unary)
+          #[cfg.worldExpr, cfg.envExpr, reflectSymbol notS, reflectSExpr atm,
+            reflectSExpr finalAtom, ns, ch]))
+    -- when the atom chain ends at a quoted constant, ACL2 folds `(not 'c)` by
+    -- execution — implicit in the record (only the literal's :RESULT shows it).
+    -- Mirror it: re-run the SAME closed computation (the exec-counterpart
+    -- carve-out) and chain `eval (not 'c) ≡ eval 'folded`. The spine's
+    -- result check then validates the fold against ACL2's recorded :RESULT.
+    match finalAtom with
+    | .cons (.atom (.symbol q)) (.cons c .nil) =>
+      if q.name == "quote" then
+        let foldedV : SExpr := if c == SExpr.nil then SExpr.t else SExpr.nil
+        let foldedT : SExpr :=
+          .cons (.atom (.symbol { name := "quote" })) (.cons foldedV .nil)
+        let pNot ← replayExecGround cfg finalLit foldedV
+        let pQ ← mkAppM ``re_val_quote
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr foldedV]
+        let step ← mkAppM ``fuel_eq_of_conv
+          #[pNot, pQ, ← mkEqRefl (reflectSExpr foldedV)]
+        let chain ← match lifted with
+          | none => pure step
+          | some l => mkAppM ``fuel_chain_eq #[l, step]
+        return (some chain, foldedT)
+      else
+        return (lifted, finalLit)
+    | _ => return (lifted, finalLit)
   else
     replayRewrites cfg ctx lp.literal lp.nodes 0
 
@@ -2628,6 +2894,24 @@ private structure TestFact where
   sign : Bool
   signE : Expr
 
+/-- The destructor-elimination substitution: replace `(car v) ↦ v1`,
+    `(cdr v) ↦ v2`, then remaining bare `v ↦ (cons v1 v2)` — quote-protected,
+    mirroring ACL2's elim rewrite (the recomputation `replayElim` validates
+    the emitted output clause against). -/
+partial def elimReplace (carT cdrT vT uT : SExpr) (v1 v2 : Symbol) (t : SExpr) : SExpr :=
+  if t == carT then .atom (.symbol v1)
+  else if t == cdrT then .atom (.symbol v2)
+  else if t == vT then uT
+  else match t with
+    | .cons (.atom (.symbol q)) rest =>
+      if q.isNamed "quote" then t
+      else .cons (.atom (.symbol q)) (elimSpine rest)
+    | _ => t
+where
+  elimSpine : SExpr → SExpr
+    | .cons a rest => .cons (elimReplace carT cdrT vT uT v1 v2 a) (elimSpine rest)
+    | t => t
+
 mutual
 
 /-- Replay a clause node: prove `EvTrue w env (disjoinTerm inputClause)`
@@ -2660,6 +2944,13 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
         throwError "replayClause: pushed clause ≠ pool-root clause at {cn.idStr}"
       return ← replayClause cfg ctx child
     | _ => throwError "replayClause: push-clause with {cn.children.length} children at {cn.idStr}"
+  -- a DESTRUCTOR-ELIMINATION node: the child clause is over the elim's fresh
+  -- variables; replayElim bridges it back through the emitted ELIMSEQUENCE
+  if let some st := cn.steps.find? (fun s => s.processor.toLower == "eliminate-destructors-clause") then
+    unless clausifyInfos.isEmpty do
+      throwError "replayClause: elim step alongside an effective clausify \
+                  record at {cn.idStr} (frontier)"
+    return ← replayElim cfg ctx cn st
   -- pin every user-fn application in this clause's subtree from the totality/TP
   -- hypotheses (idempotent — already-pinned terms are skipped), so the value
   -- layer can lift opaque subterms under a quantified env
@@ -2722,13 +3013,176 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
       | throwError "replayClause: preprocess chain on a multi-literal clause at \
                     {cn.idStr} (frontier)"
     return ← replayPreprocessChain cfg ctx formula stepNodes
-  -- destructor elimination replaces the clause's variable by a cons of fresh
-  -- variables (car-cdr-elim) — the child clause is over DIFFERENT variables and
-  -- the bridge (the elim rule's substitution) is not yet replayed.
-  if let some s := cn.steps.find? (fun s => s.processor.toLower == "eliminate-destructors-clause") then
-    throwError "replayClause: {s.processor} at {cn.idStr} — destructor-elimination \
-                replay (frontier, R1)"
   replayClauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l)) lits
+
+/-- Replay a DESTRUCTOR-ELIMINATION node (`eliminate-destructors-clause`, rune
+    `car-cdr-elim`, single elim record): prove `EvTrue w env (disjoin C)` from
+    the child clause `C' = C[(car v)↦v1, (cdr v)↦v2, v↦(cons v1 v2)]` — the
+    emitted `:ELIMSEQUENCE`, recomputed and REQUIRED to match, never inferred —
+    by cases on the value of `(consp v)`:
+    - nil: the clause's `(not (consp v))` literal (required to be literal 1 —
+      frontier otherwise) is true and closes the disjunction;
+    - non-nil: replay the child at `env' = env[v1 ↦ car vv, v2 ↦ cdr vv]`;
+      `evalOpt_substTerm_substN` bridges `eval env' (disjoin C')` to
+      `eval env ((disjoin C')σ)` for `σ = v1↦(car v), v2↦(cdr v)`; the residual
+      syntactic gap `disjoin C` vs `(disjoin C')σ` is exactly bare-`v`
+      occurrences vs `(cons (car v) (cdr v))`, collapsed occurrence-by-occurrence
+      by `diffCollapse` under `logic_cons_car_cdr_of_consp` (the elim rule at
+      the value level). -/
+partial def replayElim (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode)
+    (st : WaterfallStep) : MetaM Expr := do
+  -- companions must be inert; literal items are identity displays only
+  for s in cn.steps do
+    unless s.processor.toLower == "eliminate-destructors-clause" ||
+           s.processor.toLower == "settled-down-clause" do
+      throwError "replayElim: processor {s.processor} alongside elim at \
+                  {cn.idStr} (frontier)"
+  for (_, lp) in flattenLiterals (cn.steps.flatMap (·.items)) do
+    unless lp.nodes.isEmpty && lp.result == lp.literal do
+      throwError "replayElim: non-identity literal item at {cn.idStr} \
+                  (frontier): {repr lp.literal}"
+  -- the emitted justification: exactly one round of one car-cdr-elim record
+  let some seqS := st.extraFields.lookup "elimsequence"
+    | throwError "replayElim: no :ELIMSEQUENCE at {cn.idStr}"
+  let some [roundS] := seqS.toList?
+    | throwError "replayElim: :ELIMSEQUENCE is not a single round at {cn.idStr} \
+                  (frontier): {repr seqS}"
+  let some [recS] := roundS.toList?
+    | throwError "replayElim: elim round is not a single record at {cn.idStr} \
+                  (frontier): {repr roundS}"
+  let some [runeS, varS, targetS, destS, crit1, crit2, crit3] := recS.toList?
+    | throwError "replayElim: elim record shape at {cn.idStr}: {repr recS}"
+  unless crit1 == .nil && crit2 == .nil && crit3 == .nil do
+    throwError "replayElim: elim record carries non-nil trailing fields at \
+                {cn.idStr} (frontier): {repr recS}"
+  let some [.atom (.keyword "elim"), .atom (.symbol runeName)] := runeS.toList?
+    | throwError "replayElim: elim record rune {repr runeS} at {cn.idStr}"
+  unless runeName.name == "car-cdr-elim" do
+    throwError "replayElim: elim rule {runeName.name} ≠ car-cdr-elim at \
+                {cn.idStr} (frontier)"
+  let .atom (.symbol v) := varS
+    | throwError "replayElim: eliminated var {repr varS} at {cn.idStr}"
+  let .cons (.atom (.symbol consS))
+      (.cons (.atom (.symbol v1)) (.cons (.atom (.symbol v2)) .nil)) := targetS
+    | throwError "replayElim: elim target {repr targetS} is not (cons v1 v2) \
+                  at {cn.idStr}"
+  unless consS.name == "cons" && v1 != v2 && v1 != v && v2 != v do
+    throwError "replayElim: elim target vars ({consS.name} {v1.name} {v2.name}) \
+                at {cn.idStr}"
+  let vT : SExpr := .atom (.symbol v)
+  let carT : SExpr := .cons (.atom (.symbol { name := "car" })) (.cons vT .nil)
+  let cdrT : SExpr := .cons (.atom (.symbol { name := "cdr" })) (.cons vT .nil)
+  let uT : SExpr := .cons (.atom (.symbol { name := "cons" }))
+    (.cons (.atom (.symbol v1)) (.cons (.atom (.symbol v2)) .nil))
+  let expectedDest : List SExpr :=
+    [.cons carT (.atom (.symbol v1)), .cons cdrT (.atom (.symbol v2))]
+  unless destS.toList? == some expectedDest do
+    throwError "replayElim: destructor map {repr destS} ≠ ((car {v.name}) . \
+                {v1.name}) ((cdr {v.name}) . {v2.name}) at {cn.idStr}"
+  let some varsS := st.extraFields.lookup "elimvars"
+    | throwError "replayElim: no :ELIMVARS at {cn.idStr}"
+  let expectedVars : SExpr :=
+    .cons (.cons (.atom (.symbol v1)) (.cons (.atom (.symbol v2)) .nil)) .nil
+  unless varsS == expectedVars do
+    throwError "replayElim: :ELIMVARS {repr varsS} ≠ (({v1.name} {v2.name})) \
+                at {cn.idStr}"
+  -- structure: one output clause, one child, and they match
+  let [outClause] := st.newClauses
+    | throwError "replayElim: {st.newClauses.length} output clauses at \
+                  {cn.idStr} (frontier)"
+  let some outLits := outClause.toList?
+    | throwError "replayElim: output clause {repr outClause} is not a list"
+  let [child] := cn.children
+    | throwError "replayElim: {cn.children.length} children at {cn.idStr} (frontier)"
+  unless child.inputClause == outLits do
+    throwError "replayElim: child clause ≠ elim output clause at {cn.idStr}"
+  -- recompute the elim substitution on the input clause and REQUIRE the
+  -- emitted output (round-trip validation of the record)
+  unless cn.inputClause.map (elimReplace carT cdrT vT uT v1 v2) == outLits do
+    throwError "replayElim: recomputed elim clause ≠ emitted output at \
+                {cn.idStr} (record/output divergence)"
+  -- the clause's head literal must be (not (consp v)) — the elim split's guard
+  let lit1 : SExpr := .cons (.atom (.symbol { name := "not" }))
+    (.cons (.cons (.atom (.symbol { name := "consp" })) (.cons vT .nil)) .nil)
+  let c0 :: cRest := cn.inputClause
+    | throwError "replayElim: empty input clause at {cn.idStr}"
+  unless c0 == lit1 do
+    throwError "replayElim: clause head {repr c0} is not (not (consp {v.name})) \
+                at {cn.idStr} (frontier — elim literal not first)"
+  if cRest.isEmpty then
+    throwError "replayElim: singleton clause at {cn.idStr} (frontier)"
+  let w := cfg.worldExpr
+  let env := cfg.envExpr
+  let vE ← ctxValExpr cfg ctx vT
+  let pV ← ctxValProof cfg ctx vT
+  let conspVE := mkApp (mkConst ``Logic.consp) vE
+  let nilC := mkConst ``SExpr.nil
+  -- CASE (consp v) = nil: literal 1 is true and closes the disjunction
+  let negL ← withLocalDeclD `hnil (← mkEq conspVE nilC) fun hNil => do
+    let pLit1 ← ctxValProof cfg ctx lit1
+    let hT ← mkAppM ``logic_not_t_of_nil #[hNil]
+    let pLit1T ← mkAppM ``re_val_cast
+      #[w, env, reflectSExpr lit1, mkApp (mkConst ``Logic.not) conspVE,
+        mkConst ``SExpr.t, pLit1, hT]
+    let hToBool ← proveByDecide
+      (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t)) (mkConst ``Bool.true))
+      "toBool t"
+    let hQt ← quoteTFact cfg
+    let hIf ← mkAppM ``conv_if_true
+      #[w, env, reflectSExpr lit1, reflectSExpr quoteT,
+        reflectSExpr (disjoinTerm cRest), mkConst ``SExpr.t, mkConst ``SExpr.t,
+        pLit1T, hToBool, hQt]
+    let p ← mkAppM ``evtrue_of_eq_t #[hIf]
+    mkLambdaFVars #[hNil] p
+  -- CASE (consp v) ≠ nil: replay the child at the elim env and bridge back
+  let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[conspVE, nilC]) fun hNe => do
+    let carV := mkApp (mkConst ``Logic.car) vE
+    let cdrV := mkApp (mkConst ``Logic.cdr) vE
+    let formalsE ← mkListLit (mkConst ``Symbol) [reflectSymbol v1, reflectSymbol v2]
+    let valsE ← mkListLit (mkConst ``SExpr) [carV, cdrV]
+    let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
+    let cfg' := { cfg with envExpr := env' }
+    let ctx' := { ctx with varVals := [], vals := [], litFacts := [] }
+    let pChild ← replayClause cfg' ctx' child
+    -- substN bridge: eval env ((disjoin C')σ) ≡ eval env' (disjoin C')
+    let bodyT := disjoinTerm child.inputClause
+    let argsS : List SExpr := [carT, cdrT]
+    let argsE ← mkListLit (mkConst ``SExpr) (argsS.map reflectSExpr)
+    let hNoLet ← proveByDecide
+      (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr bodyT]) (mkConst ``Bool.true))
+      "NoLet elim child"
+    let hlenPf ← proveByDecide
+      (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
+      "substN arg/val lengths"
+    let pCar ← ctxValProof cfg ctx carT
+    let pCdr ← ctxValProof cfg ctx cdrT
+    let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
+    let pFn ← withLocalDeclD `pr prodTy fun prV => do
+      let fst ← mkAppM ``Prod.fst #[prV]
+      let snd ← mkAppM ``Prod.snd #[prV]
+      mkLambdaFVars #[prV] (← mkValConvPropEx w env fst snd)
+    let entries ← (argsS.zip [carV, cdrV]).mapM fun (a, av) =>
+      mkAppM ``Prod.mk #[reflectSExpr a, av]
+    let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip [pCar, pCdr])
+    let zipE ← mkAppM ``List.zip #[argsE, valsE]
+    let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
+      let mem ← mkAppM ``Membership.mem #[zipE, prV]
+      mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
+    let hargs ← mkExpectedTypeHint hargsRaw hargsTy
+    let pBridge ← mkAppM ``evalOpt_substTerm_substN
+      #[w, env, formalsE, argsE, valsE, reflectSExpr bodyT, hNoLet, hlenPf, hargs]
+    -- diff-collapse: eval env (disjoin C) ≡ eval env ((disjoin C')σ)
+    let sTermS := ACL2.Replay.substTerm [v1, v2] argsS bodyT
+    let hVeq ← mkAppM ``Eq.symm #[← mkAppM ``logic_cons_car_cdr_of_consp #[hNe]]
+    let pU ← ctxValProof cfg ctx uT
+    let nodeEq ← mkAppM ``fuel_eq_of_conv #[pV, pU, hVeq]
+    let chainOpt ← diffCollapse w env vT uT nodeEq (disjoinTerm cn.inputClause) sTermS
+    let pAll ← match chainOpt with
+      | none => pure pBridge
+      | some c => mkAppM ``fuel_chain_eq #[c, pBridge]
+    let p ← mkAppM ``evtrue_of_fuel_eq #[pAll, pChild]
+    mkLambdaFVars #[hNe] p
+  mkAppM ``Classical.byCases #[negL, posL]
 
 
 /-- Replay an INDUCTION pool-root from its EMITTED justification (G5 v2,
