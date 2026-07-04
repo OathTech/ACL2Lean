@@ -90,6 +90,25 @@ inductive TraceEvent where
   | clausifySplit (lit : SExpr) (clause : List SExpr)
   | clausifyOut (clauses : List (List SExpr))
   | clausifyExpand (toTerm : SExpr)
+  /-- Literal-clausify DECISION TRACE (emit/if-interp/test, partial logging —
+      docs/notes/2026-07-03_branch-split-spine.md): one event per if-test
+      decision while `rewrite-clause` clausifies a rewritten literal.
+      `verdict` ∈ split/true/false, `how` ∈ constant/assumed/split; `path` is
+      the tests split so far, outermost-first, as (assumed-true?, test). The
+      justification of an `assumed` verdict is deliberately NOT recorded — the
+      replay re-derives it fail-closed from the closed syntactic rule set. -/
+  | clausifyTest (test : SExpr) (verdict : String) (how : String)
+      (path : List (Bool × SExpr))
+  /-- The LEAF of one assume-true-false path (emit/if-interp/leaf): its value
+      and outcome — `dropped` (true leaf), `segment-false` (false leaf: the
+      path's negations form the segment), `segment-open` (unresolved leaf:
+      joins the segment as a literal). -/
+  | clausifyLeaf (value : SExpr) (outcome : String) (path : List (Bool × SExpr))
+  /-- Fired-marker (emit/if-interp/satriani-fired,
+      emit/clausify/subsumption-loop-fired): a post-pass RESHAPED the segment
+      set beyond the decision trace — the replay hard-fails on it rather than
+      mis-attributing segments. -/
+  | clausifySetReshaped (which : String)
   deriving Repr
 
 /-- A single waterfall step from ACL2's structured proof output. -/
@@ -327,6 +346,17 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
+/-- Parse a clausify decision-trace `:PATH` — a list of `(:t . test)` /
+    `(:f . test)` conses, outermost-first — into (assumed-true?, test)
+    pairs. Hard-fails on any other shape. -/
+private def parseClausifyPath (s : SExpr) : Except String (List (Bool × SExpr)) := do
+  let some items := s.toList?
+    | throw s!"clausify :PATH is not a list: {repr s}"
+  items.mapM fun
+    | .cons (.atom (.keyword "t")) test => pure (true, test)
+    | .cons (.atom (.keyword "f")) test => pure (false, test)
+    | e => throw s!"clausify :PATH entry is not (:t/:f . test): {repr e}"
+
 /-- Parse a single trace event from the :REWRITES field. -/
 private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
   match s.toList? with
@@ -411,6 +441,36 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           |>.elim (throw "CONTEXT-SUBST: missing :VALUE") pure
         let justification := (lookupKeyword "justification" rest).getD .nil
         pure (.contextSubst var value justification)
+    | .atom (.keyword "clausify-test") :: rest =>
+        let test ← lookupKeyword "test" rest
+          |>.elim (throw "CLAUSIFY-TEST: missing :TEST") pure
+        let verdict ← match lookupKeyword "verdict" rest with
+          | some (.atom (.symbol s)) => pure s.name
+          | some s => throw s!"CLAUSIFY-TEST: bad :VERDICT: {repr s}"
+          | none => throw "CLAUSIFY-TEST: missing :VERDICT"
+        let how ← match lookupKeyword "how" rest with
+          | some (.atom (.symbol s)) => pure s.name
+          | some s => throw s!"CLAUSIFY-TEST: bad :HOW: {repr s}"
+          | none => throw "CLAUSIFY-TEST: missing :HOW"
+        let path ← parseClausifyPath ((lookupKeyword "path" rest).getD .nil)
+        pure (.clausifyTest test verdict how path)
+    | .atom (.keyword "clausify-leaf") :: rest =>
+        let value ← lookupKeyword "value" rest
+          |>.elim (throw "CLAUSIFY-LEAF: missing :VALUE") pure
+        let outcome ← match lookupKeyword "outcome" rest with
+          | some (.atom (.symbol s)) => pure s.name
+          | some s => throw s!"CLAUSIFY-LEAF: bad :OUTCOME: {repr s}"
+          | none => throw "CLAUSIFY-LEAF: missing :OUTCOME"
+        let path ← parseClausifyPath ((lookupKeyword "path" rest).getD .nil)
+        pure (.clausifyLeaf value outcome path)
+    | .atom (.keyword "clausify-satriani") :: rest =>
+        let which ← match lookupKeyword "which" rest with
+          | some (.atom (.symbol s)) => pure s.name
+          | some s => throw s!"CLAUSIFY-SATRIANI: bad :WHICH: {repr s}"
+          | none => throw "CLAUSIFY-SATRIANI: missing :WHICH"
+        pure (.clausifySetReshaped s!"satriani-{which}")
+    | .atom (.keyword "clausify-subsumption-loop") :: _ =>
+        pure (.clausifySetReshaped "subsumption-loop")
     | .atom (.keyword "type-set-reasoning") :: rest =>
         let term ← lookupKeyword "term" rest
           |>.elim (throw "TYPE-SET-REASONING: missing :TERM") pure

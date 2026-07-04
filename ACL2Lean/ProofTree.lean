@@ -76,6 +76,21 @@ inductive ProofNode where
          (provenance : StepProvenance := {})
   deriving Repr, Inhabited
 
+/-- One literal-clausify DECISION-TRACE item (partial logging,
+    `emit/if-interp/*` — docs/notes/2026-07-03_branch-split-spine.md): the
+    decision skeleton of the assume-true-false split `rewrite-clause` performs
+    on a rewritten literal. `path` is the tests split so far, outermost-first,
+    as (assumed-true?, test). Justifications are deliberately not recorded —
+    the replay re-derives them fail-closed. -/
+inductive SplitDecision where
+  /-- An if-test decision: `verdict` ∈ split/true/false, `how` ∈
+      constant/assumed/split. -/
+  | test (test : SExpr) (verdict : String) (how : String)
+      (path : List (Bool × SExpr))
+  /-- A path's leaf: `outcome` ∈ dropped/segment-false/segment-open. -/
+  | leaf (value : SExpr) (outcome : String) (path : List (Bool × SExpr))
+  deriving Repr, Inhabited, BEq
+
 /-- Proof that a single literal simplifies to a result under clause
     assumptions. The nodes form a proof tree: top-level nodes are the
     main reasoning chain, and each node may contain sub-proofs. -/
@@ -85,6 +100,12 @@ structure LiteralProof where
   notFlg : Bool
   nodes : List ProofNode
   result : SExpr
+  /-- The literal's clausify decision trace (see `SplitDecision`), log order. -/
+  splitTrace : List SplitDecision := []
+  /-- Fired-markers: a clausify post-pass (Satriani / subsumption loop)
+      RESHAPED the segment set — a replay consuming the decision trace must
+      hard-fail when this is non-empty. -/
+  splitReshaped : List String := []
   deriving Repr, Inhabited
 
 /-- The recorded CLAUSIFY checkpoints (preprocess formula → clause set;
@@ -179,6 +200,13 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- the clause-level parser. (This match is exhaustive over TraceEvent, so a
       -- new event kind becomes a compile error here — never a silent drop.)
       return (nodes.reverse ++ pendingChildren, events)
+  | .clausifyTest .. :: _ | .clausifyLeaf .. :: _ | .clausifySetReshaped _ :: _ =>
+      -- literal-clausify decision-trace events are partitioned out by
+      -- `parseClauseItems` before the chain is parsed; reaching one here means
+      -- it appeared OUTSIDE a literal block — the scoping in the ACL2 fork
+      -- (infra/clausify-trace-scope) guarantees it cannot.
+      throw s!"parseProofNodesAux: clausify decision-trace event outside a \
+               literal block: {repr events.head?}"
 
 /-- Parse a literal's rewrite chain into proof nodes. Hard-fails if any
     clause-structure event is left unconsumed (a literal should not contain a
@@ -259,10 +287,24 @@ partial def parseClauseItems (events : List TraceEvent)
       return (.branch segment inner :: more, rest'')
   | .beginLiteral index literal notFlg :: rest =>
       let (litEvents, rest') := collectLiteralEvents index rest (rest.length + 1)
-      let nodes ← buildProofNodes litEvents
-      let litResult := findLiteralResult litEvents literal
+      -- partition out the literal's clausify DECISION TRACE (all emitted by
+      -- the single clausify call after the chain — their position among the
+      -- chain events carries no information)
+      let splitTrace := litEvents.filterMap fun
+        | .clausifyTest t v h p => some (SplitDecision.test t v h p)
+        | .clausifyLeaf v o p => some (SplitDecision.leaf v o p)
+        | _ => none
+      let splitReshaped := litEvents.filterMap fun
+        | .clausifySetReshaped w => some w
+        | _ => none
+      let chainEvents := litEvents.filter fun
+        | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _ => false
+        | _ => true
+      let nodes ← buildProofNodes chainEvents
+      let litResult := findLiteralResult chainEvents literal
       let (more, rest'') ← parseClauseItems rest'
-      return (.literal ⟨index, literal, notFlg, nodes, litResult⟩ :: more, rest'')
+      return (.literal { index, literal, notFlg, nodes, result := litResult,
+                         splitTrace, splitReshaped } :: more, rest'')
   | .clausifyInput input :: rest =>
       -- collect the contiguous clausify block: [expand*] neg ([expand*] split)* out
       let (info, rest') ← collectClausify input rest

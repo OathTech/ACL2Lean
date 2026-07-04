@@ -45,15 +45,32 @@ l3 (not (memb a (cons x1 x2)))
 ```
 
 **The key fidelity fact:** the emitted segments are NOT pure if-lifting
-output. ACL2's clausify used its assume-true-false **type-alist** while
-lifting `L₄'`'s two ifs:
+output. *(Corrected 2026-07-03 after the clausify-instrumentation
+investigation — an earlier revision wrongly said "type-alist".)* `clausify`
+is deliberately "dumb" (its own comment, `acl2/rewrite.lisp:4611-4617`): NO
+type-alist is passed. `rewrite-clause` calls
+`(clausify val (convert-clause-to-assumptions (cdr tail) (… new-clause nil)) nil sr-limit)`
+(`acl2/simplify.lisp:7543-7550`) — the assumptions are the negations of the
+OTHER clause literals, and both reasoning steps are performed by `if-interp`'s
+purely SYNTACTIC assumptions machinery while lifting `L₄'`'s two ifs:
 - test `(equal x1 a)` TRUE ⇒ the tautologous case
-  `(equal (perm x2 y) (perm x2 y))` was **dropped** (tautology elimination);
+  `(equal (perm x2 y) (perm x2 y))` was **dropped**: `call-stack`'s
+  equal-reflexivity fold (`rewrite.lisp:3707-3710`) made the leaf `*t*`,
+  dropped at `if-interp`'s leaf case (`rewrite.lisp:4000-4011`);
 - under `(equal x1 a)` FALSE, the second test `(equal a x1)` resolved FALSE by
-  the type-alist's **equal-symmetry** — no second split.
+  `if-interp-assumed-value2`'s COMMUTATIVE equal/iff match
+  (`rewrite.lisp:3332-3368`) — no second split.
 
 So a pure `clausifyPure` recomputation cannot reproduce the segments, and
-there is no emitted per-branch clausify record.
+there is no emitted per-branch clausify record. The closed syntactic rule set
+`if-interp` can apply is small and enumerable: commutative EQUAL/IFF matching
+(3332-3368), equal-to-distinct-constants (3282-3330), INTEGERP↔RATIONALP
+(3370-3400), and `call-stack`'s folds — equal-reflexivity/two-quoteps
+(3707-3723), `not` (3684-3706), `iff` (3740-3766), `<` (3728-3739), `mv-nth`
+(3767-3777). Three FURTHER mechanisms can reshape the segment set after
+if-interp: the Satriani subsumption step (`rewrite.lisp:3969-3986`),
+`subsumption-replacement-loop` (`4625-4631`, only ≤ sr-limit), and the
+conjoin dedup (`simplify.lisp:502-519`).
 
 ## The replay obligation
 
@@ -90,15 +107,32 @@ at the cost of instrumenting `clausify`/`if-interp` (a deep, hot ACL2 code
 path — the current instrumentation deliberately avoids it) and a log-format
 extension.
 
-**Recommendation: Option A**, on the grounds that (1) the segment list fully
-determines the case structure — the replay follows the record, it does not
-search; (2) the two re-derived facts are value-level consequences ACL2 itself
-treats as immediate inside clausify (no proof record exists even in
-principle, mirroring the DP-leaf rationale — clausify is one of ACL2's
-closed-form utilities); (3) no new instrumentation on a hot path. The
-counter-argument (checker-does-no-inference) is acknowledged: the re-derived
-facts must be limited to exactly the two clausify-internal rules (tautology
-via if-collapse/equal-self, equal-symmetry), fail-closed on anything else.
+**RESOLUTION (2026-07-03, ratified after the instrumentation investigation):
+Option A with PARTIAL LOGGING.** The investigation found the *decisions* have
+clean single choice-points but the *justifications* are diffused (the
+`call-stack` folds, an 8-function signature change to name the resolving
+assumption, three set-reshaping mechanisms) — and even full Option B would
+still leave the replay re-deriving leaf values. The adopted middle path logs
+the DECISION SKELETON so the replay's byCases tree comes from the record, and
+re-derives only the value-level facts against it (fail-closed on the closed
+rule set above), without committing to zero-inference clausify replay:
+
+- `infra/clausify-trace`: a raw special bound `t` ONLY around
+  `rewrite-clause`'s main clausify call (`simplify.lisp:7543`) — the
+  `if-tautologyp` / preprocess / guard / corollary clausifies never emit.
+- `:if-test` events at `if-interp`'s test case (`rewrite.lisp:4056-4125`):
+  test, verdict (`split | true | false`), how (`constant | assumed`), plus
+  the assumption path above the `:ignore-when-converting-to-clause` marker
+  (self-locating — immune to the else-first evaluation order).
+- `:leaf` events at the leaf case (`4000-4011`): leaf value, outcome
+  (`dropped | segment`), path.
+- FIRED-MARKERS at the Satriani step (`3984`) and
+  `subsumption-replacement-loop` (`4627`) so the replay hard-fails when the
+  segment set was reshaped downstream rather than mis-attributing it.
+- Deliberately NOT logged: which assumption resolved an `assumed` verdict,
+  why a leaf value folded to a constant (`call-stack`), per-clause
+  subsumption records — the replay re-derives these value-level facts from
+  the enumerated rule set, fail-closed.
 
 ## Implementation sketch (Option A)
 
