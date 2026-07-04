@@ -1608,28 +1608,51 @@ def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
     under the accumulated context and enters via `evtrue_of_eq_t` (a recorded
     truthy-non-t closer is a frontier until a real tree produces one). The
     spine's own split IS the case hypothesis — no external case facts are
-    needed for the clause itself. An item that does not walk the clause
-    literals in order (e.g. a duplicate index from an assume-true-false
-    branch split) is a named frontier. -/
+    needed for the clause itself. Items are walked STRUCTURALLY: each
+    non-closing literal is followed by its case BRANCHES (`.branch seg items`
+    — the clause scan continues INSIDE them). A literal with a trivial
+    clausify trace (no split-verdict tests) has exactly one branch, the
+    plain continuation; a literal whose trace SPLITS enters the
+    assume-true-false composer (W3). -/
 partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
-    (clauseLits : List (Nat × SExpr)) (items : List (Nat × LiteralProof)) :
+    (clauseLits : List (Nat × SExpr)) (items : List ClauseItem) :
     MetaM Expr := do
   match items with
-  | [] => throwError "replayClauseSpine: ran out of literal items with no closer \
+  | [] => throwError "replayClauseSpine: ran out of items with no closer \
                       at {idStr}"
-  | (idx, lp) :: restItems =>
+  | .clausify _ :: _ =>
+    throwError "replayClauseSpine: clausify record in the spine at {idStr} \
+                (frontier)"
+  | .step n :: _ =>
+    throwError "replayClauseSpine: clause-level step item (rune \
+                {repr (runeOf n)}) in the spine at {idStr} (frontier)"
+  | .branch seg _ :: _ =>
+    throwError "replayClauseSpine: branch item with no preceding literal at \
+                {idStr} (frontier): segment {repr seg}"
+  | .literal lp :: rest =>
+    -- this literal's case branches: the maximal `.branch` prefix; nothing may
+    -- follow at this level (the clause scan continues inside the branches)
+    let branchItems := rest.takeWhile (fun | .branch _ _ => true | _ => false)
+    unless branchItems.length == rest.length do
+      throwError "replayClauseSpine: items after literal {lp.index}'s branches \
+                  at {idStr} (frontier)"
+    let branchSegs ← branchItems.mapM (fun
+      | ClauseItem.branch seg its => pure (seg, its)
+      | _ => throwError "replayClauseSpine: internal — non-branch in the \
+                         branch prefix")
+    let idx := lp.index
     let (cidx, clit) :: restLits := clauseLits
       | throwError "replayClauseSpine: literal item {idx} beyond the clause's \
                     literals at {idStr} (item/clause walk divergence)"
     unless idx == cidx && lp.literal == clit do
       throwError "replayClauseSpine: literal item {idx} {repr lp.literal} does \
                   not walk the clause at {idStr} (next clause literal is {cidx} \
-                  {repr clit}) — branch-split spine frontier"
+                  {repr clit})"
     if lp.result == quoteT then
       -- the closer: its chain proves it `t`; any later literals (scanned or
       -- not) are short-circuited by the true test.
-      unless restItems.isEmpty do
-        throwError "replayClauseSpine: literal items after the closing literal \
+      unless branchSegs.isEmpty do
+        throwError "replayClauseSpine: branches after the closing literal \
                     {idx} at {idStr} (frontier)"
       let pclose ← replayLiteral cfg ctx lp
       if restLits.isEmpty then
@@ -1646,7 +1669,42 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
             reflectSExpr restTerm, mkConst ``SExpr.t, mkConst ``SExpr.t, pclose, hcv, hq]
         mkAppM ``evtrue_of_eq_t #[hIf]
     else
-      -- a non-closing literal: split on its value
+      -- a non-closing literal: does its clausify decision trace SPLIT?
+      let splitTests := lp.splitTrace.filter fun
+        | .test _ v _ _ => v == "split"
+        | _ => false
+      unless splitTests.isEmpty do
+        throwError "replayClauseSpine: literal {idx} splits into \
+                    {branchSegs.length} case branches at {idStr} — \
+                    assume-true-false composer (frontier, W3)"
+      -- TRIVIAL continuation: exactly one branch, its segment matching the
+      -- single trace leaf's clause segment
+      let contItems ← match branchSegs with
+        | [(seg, cont)] => do
+          match lp.splitTrace.filter (fun | .leaf .. => true | _ => false) with
+          | [.leaf lv outcome _] =>
+            if outcome == "dropped" then
+              throwError "replayClauseSpine: single DROPPED leaf on the \
+                          non-closing literal {idx} at {idStr} (frontier)"
+            let expectedSeg : SExpr :=
+              if outcome == "segment-open" then .cons lp.result .nil else .nil
+            unless seg == expectedSeg &&
+                   (outcome == "segment-false" || lv == lp.result) do
+              throwError "replayClauseSpine: literal {idx}'s branch segment \
+                          {repr seg} does not match its trace leaf \
+                          ({outcome}, {repr lv}) at {idStr}"
+          | [] => pure ()  -- no trace (synthetic/legacy log): tolerated
+          | leaves =>
+            throwError "replayClauseSpine: literal {idx} has {leaves.length} \
+                        trace leaves but no split test at {idStr}"
+          pure cont
+        | [] =>
+          throwError "replayClauseSpine: non-closing literal {idx} with no \
+                      continuation branch at {idStr} (frontier)"
+        | _ =>
+          throwError "replayClauseSpine: {branchSegs.length} branches on \
+                      literal {idx} without a split trace at {idStr} (frontier)"
+      -- split on the literal's value
       let vLit ← ctxValExpr cfg ctx lp.literal
       let pLit ← ctxValProof cfg ctx lp.literal
       -- its rewrite chain (if any): literal ⇒ result, and the falsity fact bridges
@@ -1672,7 +1730,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
             let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLit']
             pure (lp.result, ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h])
         let ctx' := { ctx with litFacts := ctx.litFacts ++ [(idx, factTerm, factProof)] }
-        let p ← replayClauseSpine cfg ctx' idStr restLits restItems
+        let p ← replayClauseSpine cfg ctx' idStr restLits contItems
         mkLambdaFVars #[h] p
       mkAppM ``evtrue_dp_if_split
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
@@ -3013,7 +3071,9 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
       | throwError "replayClause: preprocess chain on a multi-literal clause at \
                     {cn.idStr} (frontier)"
     return ← replayPreprocessChain cfg ctx formula stepNodes
-  replayClauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l)) lits
+  replayClauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l))
+    ((cn.steps.flatMap (·.items)).filter fun
+      | .clausify _ => false | _ => true)
 
 /-- Replay a DESTRUCTOR-ELIMINATION node (`eliminate-destructors-clause`, rune
     `car-cdr-elim`, single elim record): prove `EvTrue w env (disjoin C)` from
