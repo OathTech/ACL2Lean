@@ -541,4 +541,79 @@ private def treeTypeSet : ClauseProof :=
     root := some { goalNode with inputClause := [transFormula], steps := [typeSetStep] } }
 #expect_driver_fails "type-set-closed clause (fake-rune-for-type-set)" treeTypeSet
 
+/-! ## END-TO-END on the real perm book — `perm-cons` (R1, the branch-split
+composer). The coverage harness only `Meta.check`s corpus rows; THIS pins the
+machine-generated statement to the genuine perm-cons mirror and gates the
+axioms (audit 2026-07-03 finding 1) — the same discipline as my-len-my-app. -/
+private def permLog : String := include_str "../acl2_samples/sorting/perm.proof-log"
+
+/-- The parsed development of `perm.proof-log` (world + theorems + TPs all
+    projected from THIS — the only input is the log). -/
+def permDevelopment : Development :=
+  (((ProofLog.parse permLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+def permConsProof : Option ClauseProof := do
+  let log ← (ProofLog.parse permLog).toOption
+  let dev ← (ClauseTree.buildDevelopment log).toOption
+  findThm dev "perm-cons"
+
+derive_world permWorld from permDevelopment
+
+def permTPs : List (String × SExpr) := permDevelopment.typePrescriptions
+
+/-- Drive the REAL `perm-cons` tree end-to-end: destructor elimination, the
+    assume-true-false composer over the emitted clausify decision trace, the
+    sibling-clause residual peel, remove-trivial-equivalences — the whole R1
+    node family — as the CONDITIONAL generic mirror. -/
+elab "acl2_replay_permcons_real% " : term => do
+  let cpOpt ← unsafe evalExpr (Option ClauseProof)
+    (mkApp (mkConst ``Option [0]) (mkConst ``ACL2.ClauseProof)) (mkConst ``permConsProof)
+  let some cp := cpOpt | throwError "permConsProof: parse/extract failed"
+  withLocalDeclD `env (mkConst ``Env) fun env => do
+    let cfg : ReplayConfig :=
+      { worldExpr := mkConst ``permWorld, envExpr := env,
+        worldVal := permDevelopment.toWorld }
+    let (proof, conds) ← replayProofConditional cfg permTPs cp
+      permDevelopment.justifications
+    logInfo m!"perm-cons replayed; conditions: {conds}"
+    mkLambdaFVars #[env] proof
+
+/-- The first replayed theorem of the SORTING corpus (R1). -/
+def perm_cons_real_mirror := acl2_replay_permcons_real%
+
+/-- PIN the machine-generated statement: the conclusion is the genuine mirror
+    of the ACL2 defthm
+    `(implies (memb a x) (equal (perm x (cons a y)) (perm (rm a x) y)))`,
+    under totality of rm/memb/perm and memb's emitted TP corollary (lifted
+    value-only) — no other hypotheses, no weakening. -/
+example :
+    ∀ (env : Env),
+      (∀ (env' : Env) (a0 a1 : SExpr),
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "rm" a0 a1) = some v)) →
+      (∀ (env' : Env) (a0 a1 : SExpr),
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "memb" a0 a1) = some v)) →
+      (∀ (env' : Env) (a0 a1 : SExpr),
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "perm" a0 a1) = some v)) →
+      (∀ (env' : Env) (a0 a1 v : SExpr),
+          (∃ N, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "memb" a0 a1) = some v) →
+          (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+           else Logic.equal v SExpr.nil) = SExpr.t) →
+      ∃ N, ∀ f ≥ N, ∃ v,
+        evalOpt f permWorld env
+          (ap2 "implies" (ap2 "memb" (sym "a") (sym "x"))
+            (equalOf (ap2 "perm" (sym "x") (ap2 "cons" (sym "a") (sym "y")))
+                     (ap2 "perm" (ap2 "rm" (sym "a") (sym "x")) (sym "y"))))
+          = some v ∧ v ≠ SExpr.nil :=
+  perm_cons_real_mirror
+
+-- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
+#print axioms perm_cons_real_mirror
+
 end ACL2.Tests.Driver
