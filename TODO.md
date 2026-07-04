@@ -109,9 +109,43 @@ closed, ci as scoreboard, audits at milestones):
       golden coverage byte-identical (REPLAYED 17/45, DP ✓9 ◌9 ✗0 of 18),
       ACL2 tags conform. No perm theorem replays yet — all 8 fail-close at
       real R1 frontiers.
-      Remaining R1 walls: notFlg closer + symbolic if-test (perm-cons,
-      perm-transitive next layer); multi-literal pushed clauses (4 theorems);
-      .segment/.branchTest conditional-congruence (wall d); comm-rm wall 2.
+      PROGRESS (2026-07-03, branch mdd/perm-r1-frontiers, UNMERGED — 4
+      commits, ci green, 17/45 + golden held at every step): the perm-cons
+      NODE-LEVEL walls fell, each validated by frontier movement in the
+      real tree (never green-in-isolation): notFlg closing literals
+      (implicit (not 'c) fold, both directions) + clause-context-resolution
+      verify-then-drop (12038b0; also fixed a latent spine defect — the
+      disjunction must walk the CLAUSE's literals, ACL2 short-circuits
+      scanning at the closer); destructor elimination (replayElim: consp
+      split, child at env[v1↦car,v2↦cdr], substN bridge, diffCollapse) +
+      if-finish/combined (display-folded lhs → navigate the running term;
+      conditional branch congruence evalOpt_congr_if_branches_cond = the
+      equal-R wall-d machinery; branchFacts ctx channel) + solidify
+      .branchTest + type-alist + if1/boolean + mid-chain equal-self +
+      car/cdr-cons child chaining (7de8af5). perm-cons now stops at the
+      BRANCH-SPLIT SPINE at *1/2'' (the last structural wall of its *1/2
+      subtree). Design + ratified resolution in
+      docs/notes/2026-07-03_branch-split-spine.md: clausify is
+      TYPE-ALIST-FREE (if-interp's closed syntactic rule set), and the
+      adopted PARTIAL LOGGING is LANDED (5043396; submodule 69d4993801):
+      the ACL2 fork emits the literal-clausify DECISION TRACE
+      (emit/if-interp/test|leaf + Satriani/subsumption fired-markers,
+      scoped by infra/clausify-trace; raw-code fns registered in
+      *initial-program-fns-with-raw-code* — required or the build fails),
+      parsed into LiteralProof.splitTrace/.splitReshaped; regenerated
+      corpus is behavior-neutral (golden byte-identical). The Satriani
+      marker fires inside perm-cons's own literal-3 split (replacement
+      resolution, visible in the leaf trace).
+      NEXT: the byCases COMPOSER — structural spine over .branch items +
+      splitTrace (byCases per recorded split; leaves re-derive the
+      literal's collapse fail-closed; branch selection by segment-falsity;
+      empty-continuation branch peels the pushed sibling clause, e.g.
+      *1/2'''). *1/1 reuses the machine (IH solidify already works).
+      Remaining R1 walls after that: multi-literal pushed clauses
+      (4 theorems); perm-is-an-equivalence's SIff wall d; comm-rm wall 2
+      (deferred). Loose end: perm-transitive's frontier moved to
+      "if-simplification: lhs not an if: (quote t)" — root-cause during
+      its pass.
       RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
       INDUSTRIALIZATION sprint (#63 + the NativeMirrors catalog
       discipline) with the perm book as driving example; replay→lift
