@@ -136,16 +136,36 @@ closed, ci as scoreboard, audits at milestones):
       corpus is behavior-neutral (golden byte-identical). The Satriani
       marker fires inside perm-cons's own literal-3 split (replacement
       resolution, visible in the leaf trace).
-      NEXT: the byCases COMPOSER — structural spine over .branch items +
-      splitTrace (byCases per recorded split; leaves re-derive the
-      literal's collapse fail-closed; branch selection by segment-falsity;
-      empty-continuation branch peels the pushed sibling clause, e.g.
-      *1/2'''). *1/1 reuses the machine (IH solidify already works).
-      Remaining R1 walls after that: multi-literal pushed clauses
-      (4 theorems); perm-is-an-equivalence's SIff wall d; comm-rm wall 2
-      (deferred). Loose end: perm-transitive's frontier moved to
-      "if-simplification: lhs not an if: (quote t)" — root-cause during
-      its pass.
+      MILESTONE (2026-07-03/04): the byCases COMPOSER LANDED and
+      **perm-cons REPLAYS — 18/45** (commit 77cb6cf; composeSplit +
+      collapseEval + parseTraceTree; branch selection by derivable
+      segment-falsity with uniqueness — provably transparent to the
+      Satriani replacement and the subsumption loop; residual branches
+      peel the pushed sibling clause; remove-trivial-equivalences via
+      byCases + diffCollapse transport). Adversarial AUDIT passed
+      (claim holds; type independently verified as the verbatim mirror;
+      axioms clean). Audit F1 fixed (6866121): perm-cons's mirror is
+      TYPE-PINNED + axiom-gated in DriverTests (the coverage harness
+      alone only Meta.checks). Audit F2 RATIFIED (MDD 2026-07-04):
+      deterministic fail-closed record-directed reconstruction is in
+      scope; the banned antipattern is introducing SEARCH (recorded in
+      the design note). Totality prover: measured-SECOND formals
+      (8096e13, totality_2_rec_snd) — rm/memb auto-discharge; perm-cons
+      conditions now [total:perm, tp:memb].
+      NATIVE BRIDGE DONE (eef8d77, catalog entry 9): perm-cons lifted
+      end-to-end to `a ∈ xs → (xs ~ a :: ys ↔ xs.erase a ~ ys)`
+      (List.Perm, axiom-clean) via Imported/Perm.lean — memb/rm/perm
+      simulate List.contains/erase/isPerm; total:perm and tp:memb
+      discharged by world-parametric HAND lemmas = the ratified
+      INDUSTRIALIZATION DEMOS for the two named prover extensions:
+      (i) totality over user-fn if-tests (conv_if_split shape),
+      (ii) a TP prover (boolean body induction + arg strictness).
+      Remaining R1 walls: perm-transitive at the display-folded
+      definition-node lhs (formal-coordinate (perm y x) — comm-rm
+      wall-2 family, now with a second exemplar); multi-literal pushed
+      clauses (4 theorems); perm-is-an-equivalence's SIff wall d.
+      NOTE the post-audit commits (6866121, 8096e13, eef8d77) are
+      kernel-gated but not separately adversarially audited.
       RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
       INDUSTRIALIZATION sprint (#63 + the NativeMirrors catalog
       discipline) with the perm book as driving example; replay→lift
