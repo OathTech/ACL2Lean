@@ -585,18 +585,13 @@ def perm_cons_real_mirror := acl2_replay_permcons_real%
 /-- PIN the machine-generated statement: the conclusion is the genuine mirror
     of the ACL2 defthm
     `(implies (memb a x) (equal (perm x (cons a y)) (perm (rm a x) y)))`,
-    under totality of rm/memb/perm and memb's emitted TP corollary (lifted
-    value-only) — no other hypotheses, no weakening. -/
+    under perm's totality and memb's emitted TP corollary (lifted value-only)
+    — no other hypotheses, no weakening. rm/memb's totality is
+    AUTO-DISCHARGED from the emitted admission data (#37; measured-second
+    formals via totality_2_rec_snd); perm's own totality stays conditional
+    (its body's user-fn if-test is a prover frontier). -/
 example :
     ∀ (env : Env),
-      (∀ (env' : Env) (a0 a1 : SExpr),
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "rm" a0 a1) = some v)) →
-      (∀ (env' : Env) (a0 a1 : SExpr),
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "memb" a0 a1) = some v)) →
       (∀ (env' : Env) (a0 a1 : SExpr),
           (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
           (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →

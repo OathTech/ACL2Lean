@@ -55,7 +55,7 @@ Driver coverage — REPLAYED 18/45; DP-discharge leaves ✓9 ◌9 ✗0 of 18:
 • 16-three-way  (world: 2 defun(s), 1 theorem(s))
     len-zip3 → FAIL: replayInduction: step case tests [(not (if (atom x) (atom x) (if (atom y) (atom y) (atom z))))] lack (consp x) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip3 (cdr x) (cdr y) (cdr z)), tp:zip3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • sorting/perm  (world: 4 defun(s), 8 theorem(s))
-    perm-cons → REPLAYED ✓ cond[total:rm, total:memb, total:perm, tp:memb]
+    perm-cons → REPLAYED ✓ cond[total:perm, tp:memb]
     perm-symmetric → FAIL: replayInduction: multi-literal pushed clause (frontier)
     memb-rm → FAIL: replayInduction: multi-literal pushed clause (frontier)
     perm-memb → FAIL: replayInduction: multi-literal pushed clause (frontier)

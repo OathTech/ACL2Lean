@@ -2560,10 +2560,13 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                 reflectSExpr body, reflectSExpr a1, argVals[0]!, hNs, hDef,
                 argPfs[0]!, hbody]
           | [f1, f2], [a1, a2] =>
-            unless mIdx == 0 do
-              throwError "proveTotality: measured formal must be the first \
-                  formal (frontier: permutation pending)"
-            let hbody ← mkAppM' ih #[argVals[0]!, dec, argVals[1]!]
+            -- the IH's binder order follows the MEASURED formal (the strong
+            -- induction is on its count; the other formal is inner-∀)
+            let hbody ←
+              if mIdx == 0 then mkAppM' ih #[argVals[0]!, dec, argVals[1]!]
+              else if mIdx == 1 then mkAppM' ih #[argVals[1]!, dec, argVals[0]!]
+              else throwError "proveTotality: measured formal not among the \
+                               formals (internal)"
             return ← mkAppM ``conv_defn_2_ex
               #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
                 reflectSymbol f2, reflectSExpr body, reflectSExpr a1,
@@ -4508,32 +4511,54 @@ def proveTotality (cfg : ReplayConfig)
         #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
           reflectSExpr body, hNs, hDef, step]
     | [f1, f2] =>
-      unless measuredFormal == f1 do
-        throwError "proveTotality: measured formal must be the first formal \
-            (frontier: permutation pending)"
-      let step ← withLocalDeclD `av1 (mkConst ``SExpr) fun av1 => do
-        let envEat := fun (bv cv : Expr) => do
-          let formalsE ← mkListLit (mkConst ``Symbol)
-            [reflectSymbol f1, reflectSymbol f2]
-          let avsE ← mkListLit (mkConst ``SExpr) [bv, cv]
-          mkAppM ``bindArgs #[formalsE, avsE]
-        let ihType ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
-          let lt ← mkAppM ``Nat.lt #[← countOf bv, ← countOf av1]
-          let inner ← withLocalDeclD `cv (mkConst ``SExpr) fun cv => do
-            let envB ← envEat bv cv
-            let conv ← mkConvPropEx cfg.worldExpr envB (reflectSExpr body)
-            mkForallFVars #[cv] conv
-          mkForallFVars #[bv] (← mkArrow lt inner)
-        withLocalDeclD `ih ihType fun ih =>
-          withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
-            let envE ← envEat av1 av2
-            let vals ← varProofs envE [av1, av2]
-            let p ← totWalk cfg envE vals [] totalEnv
-              (some (name, measuredFormal, ih, just)) body
-            mkLambdaFVars #[av1, ih, av2] p
-      mkAppM ``totality_2_rec
-        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1, reflectSymbol f2,
-          reflectSExpr body, hNs, hDef, step]
+      let envEat := fun (bv cv : Expr) => do
+        let formalsE ← mkListLit (mkConst ``Symbol)
+          [reflectSymbol f1, reflectSymbol f2]
+        let avsE ← mkListLit (mkConst ``SExpr) [bv, cv]
+        mkAppM ``bindArgs #[formalsE, avsE]
+      if measuredFormal == f1 then
+        let step ← withLocalDeclD `av1 (mkConst ``SExpr) fun av1 => do
+          let ihType ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
+            let lt ← mkAppM ``Nat.lt #[← countOf bv, ← countOf av1]
+            let inner ← withLocalDeclD `cv (mkConst ``SExpr) fun cv => do
+              let envB ← envEat bv cv
+              let conv ← mkConvPropEx cfg.worldExpr envB (reflectSExpr body)
+              mkForallFVars #[cv] conv
+            mkForallFVars #[bv] (← mkArrow lt inner)
+          withLocalDeclD `ih ihType fun ih =>
+            withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+              let envE ← envEat av1 av2
+              let vals ← varProofs envE [av1, av2]
+              let p ← totWalk cfg envE vals [] totalEnv
+                (some (name, measuredFormal, ih, just)) body
+              mkLambdaFVars #[av1, ih, av2] p
+        mkAppM ``totality_2_rec
+          #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1, reflectSymbol f2,
+            reflectSExpr body, hNs, hDef, step]
+      else if measuredFormal == f2 then
+        -- measured on the SECOND formal (e.g. (rm e x) / (memb a x) on x):
+        -- strong induction on av2's count, av1 inner-∀ (totality_2_rec_snd)
+        let step ← withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+          let ihType ← withLocalDeclD `cv (mkConst ``SExpr) fun cv => do
+            let lt ← mkAppM ``Nat.lt #[← countOf cv, ← countOf av2]
+            let inner ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
+              let envB ← envEat bv cv
+              let conv ← mkConvPropEx cfg.worldExpr envB (reflectSExpr body)
+              mkForallFVars #[bv] conv
+            mkForallFVars #[cv] (← mkArrow lt inner)
+          withLocalDeclD `ih ihType fun ih =>
+            withLocalDeclD `av1 (mkConst ``SExpr) fun av1 => do
+              let envE ← envEat av1 av2
+              let vals ← varProofs envE [av1, av2]
+              let p ← totWalk cfg envE vals [] totalEnv
+                (some (name, measuredFormal, ih, just)) body
+              mkLambdaFVars #[av2, ih, av1] p
+        mkAppM ``totality_2_rec_snd
+          #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1, reflectSymbol f2,
+            reflectSExpr body, hNs, hDef, step]
+      else
+        throwError "proveTotality: measured formal {measuredFormal.name} is \
+            not among the formals (internal)"
     | _ => throwError "proveTotality: recursive arity {formals.length} \
         unsupported (frontier)"
 

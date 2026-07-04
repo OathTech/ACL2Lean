@@ -134,6 +134,19 @@ rule set above), without committing to zero-inference clausify replay:
   subsumption records — the replay re-derives these value-level facts from
   the enumerated rule set, fail-closed.
 
+**Ratification extension (MDD, 2026-07-04, post-audit).** The adversarial
+audit of the perm-cons replay (finding 2) asked whether this ratification
+covers the two further RECORD-DIRECTED reconstructions the drive required:
+the hidden definitional `implies` unfold (applied only when the recorded
+`:RESULT` demands it) and unemitted type-alist test resolutions (an in-scope
+clause/segment fact, possibly through `equal`'s commutativity, mirrored as an
+explicit test-position rewrite). RATIFIED: deterministic, fail-closed,
+record-validated reconstruction of this kind is within the partial-logging
+decision. The line that must not be crossed is INTRODUCING SEARCH — SMT-like
+proof search, heuristic rule selection, or any step not pinned by the record
+and the enumerated closed rule set. Extensions to the rule set must remain
+enumerable, each justified by a specific if-interp/rewriter code path.
+
 ## Implementation sketch (Option A)
 
 1. `replayClauseSpine` v3: items walked STRUCTURALLY (`.branch seg items`

@@ -2116,6 +2116,32 @@ theorem totality_2_rec (w : World) (s : Symbol) (formal1 formal2 : Symbol)
   exact totality_2_of_body w s formal1 formal2 body h_ns h_def
     (fun av1 av2 => hbody av1 av2)
 
+/-- `totality_2_rec` for a defun measured on its SECOND formal (e.g.
+    `(rm e x)` / `(memb a x)` recurring on `x`): strong induction on the
+    second argument's count, the first universally quantified inside. -/
+theorem totality_2_rec_snd (w : World) (s : Symbol) (formal1 formal2 : Symbol)
+    (body : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (step : ∀ av2 : SExpr,
+      (∀ cv : SExpr, cv.acl2Count < av2.acl2Count → ∀ bv : SExpr,
+        ∃ N, ∃ v, ∀ f ≥ N,
+          evalOpt f w (bindArgs [formal1, formal2] [bv, cv]) body = some v) →
+      ∀ av1 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
+    ∀ (env' : Env) (a0 a1 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil)))
+          = some v := by
+  have hbody := acl2Count_strong_induction
+    (fun av2 => ∀ av1 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) step
+  exact totality_2_of_body w s formal1 formal2 body h_ns h_def
+    (fun av1 av2 => hbody av2 av1)
+
 /-- Convergence (totality form) of a `quote`: `(quote v)` converges to SOME value
     (namely `v`) for all sufficient fuel. The witness is existential so callers need
     no concrete value. -/
