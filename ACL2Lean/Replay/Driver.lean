@@ -1708,6 +1708,15 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
 end
 
 
+/-- `∃N∀f≥N, eval (quote t) = some SExpr.t` (the constant, not the reflection). -/
+def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
+  let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+  let hv ← proveByDecide
+    (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
+  mkAppM ``re_val_cast
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
+      mkConst ``SExpr.t, pq, hv]
+
 /-- Replay a literal's rewrite chain at the LITERAL level. ACL2's rewriter works on
     the literal's ATOM (`rewrite-atm`): for a `:NOT-FLG T` literal `(not atm)` the
     node `:PATH`s are atom-relative, so chain on the atom and lift the composed
@@ -1799,44 +1808,20 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
     match chainOpt with
     | none => return closeProof
     | some ch => return (← mkAppM ``fuel_chain_eq #[ch, closeProof])
-  match lp.nodes.reverse with
-  | [] => throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
-  | closer :: revRest =>
-    match closer with
-    | .node ("equal-self", _) clhs _ _ _ =>
-      match asEqualSelf clhs with
-      | none => throwError "replayLiteral: equal-self lhs is not (equal X X): {repr clhs}"
-      | some X =>
-        let (chainOpt, curTerm) ← replayRewrites cfg ctx lp.literal revRest.reverse
-        unless curTerm == clhs do
-          throwError "replayLiteral: rewrite chain reached {repr curTerm}, \
-                      expected equal-self redex {repr clhs}"
-        let hX ← proveConv cfg cfg.envExpr ctx X
-        let hNoEqual ← proveNoShadow cfg { name := "equal" }
-        let closeProof ← mkAppM ``re_equal_self
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
-        match chainOpt with
-        | none => return closeProof
-        | some ch => mkAppM ``fuel_chain_eq #[ch, closeProof]
-    | .node ("executable-counterpart", _) clhs crhs _ _ =>
-      -- the rewrite chain reduces the literal to a CLOSED term (e.g.
-      -- `(equal 'nil 'nil)`) that ACL2 closed by execution; re-run the SAME
-      -- ground computation and require it yield `t` (a closing literal).
-      let .cons (.atom (.symbol q)) (.cons v .nil) := crhs
-        | throwError "replayLiteral: exec-counterpart closer rhs {repr crhs} is not a quoted constant"
-      unless q.name == "quote" && v == SExpr.t do
-        throwError "replayLiteral: exec-counterpart closer must reduce the literal to \
-                    (quote t), got {repr crhs}"
-      let (chainOpt, curTerm) ← replayRewrites cfg ctx lp.literal revRest.reverse
-      unless curTerm == clhs do
-        throwError "replayLiteral: rewrite chain reached {repr curTerm}, \
-                    expected exec-counterpart redex {repr clhs}"
-      let closeProof ← replayExecGround cfg clhs v
-      match chainOpt with
-      | none => return closeProof
-      | some ch => mkAppM ``fuel_chain_eq #[ch, closeProof]
-    | _ => throwError "replayLiteral: terminal node is not equal-self / exec-counterpart \
-                       (rune {repr (runeOf closer)})"
+  -- non-notFlg closer: the FULL chain — equal-self, executable-counterpart,
+  -- with-lemma-to-'t, clause-context-resolution reports are all ordinary
+  -- node recipes now — must reduce the literal to `(quote t)`; close by the
+  -- chain + the quote's evaluation.
+  if lp.nodes.isEmpty then
+    throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
+  let (chainOpt, finalT) ← replayRewrites cfg ctx lp.literal lp.nodes 0
+  unless finalT == quoteT do
+    throwError "replayLiteral: closing literal's chain reached {repr finalT}, \
+                not (quote t) (frontier)"
+  let some ch := chainOpt
+    | throwError "replayLiteral: closing literal {repr lp.literal} chained to \
+                  't with no effective steps"
+  mkAppM ``fuel_conv_of_eq #[ch, ← quoteTFact cfg]
 
 /-- The clause's literal items in order, with their 1-based indices, descending
     into case branches (a branch's items continue the same clause's literals). -/
@@ -1846,15 +1831,6 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .step _ :: rest => flattenLiterals rest
   | .clausify _ :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
-
-/-- `∃N∀f≥N, eval (quote t) = some SExpr.t` (the constant, not the reflection). -/
-def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
-  let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-  let hv ← proveByDecide
-    (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
-  mkAppM ``re_val_cast
-    #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
-      mkConst ``SExpr.t, pq, hv]
 
 /-- `EvTrue (disjoin lits)` from the TRUTH of the k-th literal (0-based):
     descend the lazy if-spine by value splits — an earlier literal's truth
