@@ -104,3 +104,36 @@ the sibling recognizer/cdr-cons steps"). So the fold/no-fold mismatch is a
 comm-rm therefore stands at the wall-2 frontier (a clean named hard-fail), 1-of-2
 done. Next R1 work moves to clausify-on-multi-literal (perm-cons,
 perm-transitive).
+
+## Update 2026-07-05 — perm-transitive is NOT this wall: the hyp-relief leak
+
+Re-measured after the R1 composer landed (perm-cons replaying). perm-transitive's
+`pathStepsFromFrames: navigated to x, expected redex (perm y x)` looked like the
+folding family but has a DIFFERENT mechanism, found by reading the raw event
+sequence for `*1/3'` literal 2:
+
+`perm-symmetric` is a CONDITIONAL rewrite rule (`(implies (perm x y) (perm y x))`
+→ lhs `(perm y x)`, hyp `(perm x y)`). Trying it on the literal's atom
+`(perm x y)` unifies with subst `{y↦x, x↦y}`; `relieve-hyps` then REWRITES the
+instantiated hypothesis `(perm y x)` (gstack frame `(1 . PERM)` = hyp 1) — a
+full definition-unfold subtree — the hyp does not relieve to `'t`, the rule
+FAILS, and the hyp-relief events were never rolled back: the def-perm node
+leaked into the literal's top-level chain. On SUCCESS (literal 4's
+perm-symmetric) the hyp events leaked too, as unbracketed SIBLINGS preceding
+the with-lemma node. Never exercised before: the 18 replaying theorems use
+only unconditional with-lemmas.
+
+**Fix (this branch, `infra/hyp-log-tail` + `emit/with-lemma/begin-hyps`/
+`end-hyps`):** checkpoint the log tail before `relieve-hyps`; bracket the
+relief's events as an inner block `:KIND HYP` (on success they become the
+with-lemma node's CHILDREN — its justification, mirroring BODY/RHS blocks);
+on failure roll back to the checkpoint (abandoned backchaining leaves no
+trace). Tagged checkpoint (`cons t tail`) so an empty tail restores.
+
+The ORIGINAL wall-2 mechanism (sublis-var display-folding) still stands for
+comm-rm — unchanged by this fix; options A/C above still apply. And behind the
+hyp fix, perm-transitive's next expected wall is the USER-RULE with-lemma
+replay: instantiating a previously-proven theorem (perm-symmetric) by the
+node's `:SUBST`, with its mirror entering the conditional telescope as a
+theorem-dependency hypothesis (rule:<name>, the c2 pattern extended) and the
+HYP children discharging the instantiated hypotheses.
