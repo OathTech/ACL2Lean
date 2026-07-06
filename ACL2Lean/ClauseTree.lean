@@ -323,19 +323,28 @@ private def linkEquivSources (items : List ClauseItem) : Except String (List Cla
 private def findIdx (flats : Array FlatNode) (idStr : String) : Option Nat :=
   flats.findIdx? (·.idStr == idStr)
 
-/-- Collect the steps and inductions of a single theorem from the event list,
-    in order. Returns the flat nodes (one per distinct clause-id, steps merged)
-    plus the (pushed-clause-id, induction) pairs in occurrence order. Fails if a
-    clause-id does not parse (no silent skip). -/
+/-- The pool bookkeeping `collectFlat` extracts alongside the flat nodes:
+    pushes registered by their emitted `:POOLNAME`, inductions paired with the
+    pool root the pop-clause walk was CONSIDERING (from `(:POOL-CONSIDER …)`),
+    and the pool-subsumption discharges. `sawPool` distinguishes a log with
+    pool events (registry linking, fail-closed) from a legacy log (adjacency
+    linking). -/
+private structure PoolData where
+  pushes : Array (List Nat × String × List SExpr) := #[]
+  inductions : Array (Option (List Nat) × String × List SExpr × InductionStep) := #[]
+  subsumptions : Array (List Nat × List Nat) := #[]
+  sawPool : Bool := false
+
 private def collectFlat (events : List ProofEvent)
-    : Except String (Array FlatNode × Array (String × List SExpr × InductionStep)) := do
+    : Except String (Array FlatNode × PoolData) := do
   let mut flats : Array FlatNode := #[]
-  let mut inductions : Array (String × List SExpr × InductionStep) := #[]
+  let mut pd : PoolData := {}
   let mut lastPush : Option String := none
   -- The clause the most recent PUSH-CLAUSE pushed to the pool. This is the
   -- actual induction subject — NOT a clause node's first-step inputClause, which
   -- may be a pre-NNF form (e.g. `(implies h c)` before preprocess splits it).
   let mut lastPushClause : List SExpr := []
+  let mut currentPool : Option (List Nat) := none
   for ev in events do
     match ev with
     | .step s =>
@@ -354,27 +363,83 @@ private def collectFlat (events : List ProofEvent)
       if s.processor.toLower == "push-clause" then
         lastPush := some s.clauseId
         lastPushClause := s.inputClause
+        -- register the push under its emitted pool name (absent only on an
+        -- ABORT push, which produces no pool root)
+        if let some pn := s.extraFields.lookup "poolname" then
+          match pn.toList? with
+          | some items =>
+            let name ← items.mapM fun i => match i with
+              | .atom (.number (.int n)) =>
+                if n ≥ 0 then pure n.toNat
+                else throw s!"collectFlat: negative :POOLNAME entry {repr i}"
+              | _ => throw s!"collectFlat: non-natural :POOLNAME entry {repr i}"
+            pd := { pd with pushes := pd.pushes.push (name, s.clauseId, s.inputClause) }
+          | none => throw s!"collectFlat: :POOLNAME {repr pn} is not a list"
     | .induction i =>
-      inductions := inductions.push (lastPush.getD "", lastPushClause, i)
+      pd := { pd with inductions :=
+        pd.inductions.push (currentPool, lastPush.getD "", lastPushClause, i) }
+    | .poolConsider name =>
+      currentPool := some name
+      pd := { pd with sawPool := true }
+    | .poolSubsumed name byName =>
+      pd := { pd with subsumptions := pd.subsumptions.push (name, byName),
+                      sawPool := true }
     | other =>
       -- buildDevelopment routes defun/type-prescription/defthm/qed elsewhere, so
       -- a theorem block should contain only steps and inductions; anything else
       -- is a mis-sliced block — surface it rather than swallow it.
       throw s!"collectFlat: unexpected event in a theorem block: {repr other}"
-  return (flats, inductions)
+  return (flats, pd)
+
+private def poolIdStr (poolLst : List Nat) : String :=
+  "*" ++ String.intercalate "." (poolLst.map toString)
 
 /-- Synthesize the induction pool-root nodes (`*1`, `*1.1`, …) that ACL2 does
-    not log as steps. The m-th induction whose pushed clause sits at pool-lst P
-    creates a pool root at P ++ [m]; it becomes a child of the pushed clause and
-    parent of the `*P++[m]/k` case subgoals. Returns the synthetic nodes paired
-    with their pushed-parent id. Fails if an induction has no pushed clause. -/
-private def synthesizePoolRoots
-    (inductions : Array (String × List SExpr × InductionStep))
-    : Except String (Array (FlatNode × String)) := do
+    not log as steps, plus SUBSUMED pool roots (a synthetic `pool-subsumed`
+    step naming the subsumer). With pool events (`sawPool`) linking is exact:
+    a push's emitted `:POOLNAME` names the root it creates, and each
+    `(:POOL-CONSIDER …)` names the root the following induction proves —
+    subsumption REORDERS pool processing, so adjacency linking is wrong there.
+    Legacy logs (no pool events) keep the adjacency+counting scheme. Returns
+    the synthetic nodes paired with their pushed-parent id, plus EXTRA
+    child links (subsumer-subtree → subsumed-root, for the replay). -/
+private def synthesizePoolRoots (pd : PoolData)
+    : Except String (Array (FlatNode × String) × Array (String × String)) := do
   let mut out : Array (FlatNode × String) := #[]
-  -- Count, per parent pool-lst, how many inductions have fired so far.
+  let mut extraLinks : Array (String × String) := #[]
+  if pd.sawPool then
+    for (name?, pid, _, ind) in pd.inductions do
+      let some name := name?
+        | throw "ClauseTree: :INDUCTION with no preceding (:POOL-CONSIDER …)                  in a pool-event log"
+      let some (_, pushId, pushClause) := pd.pushes.find? (·.1 == name)
+        | throw s!"ClauseTree: no PUSH-CLAUSE with :POOLNAME {name} for the                    induction the pool considered there"
+      let _ := pid
+      let pcid ← ClauseId.parse pushId
+      out := out.push ({
+        id := { forcingRound := pcid.forcingRound, poolLst := name },
+        idStr := poolIdStr name, inputClause := pushClause, steps := #[],
+        induction := some ind, synthetic := true }, pushId)
+    for (name, byName) in pd.subsumptions do
+      let some (_, pushId, pushClause) := pd.pushes.find? (·.1 == name)
+        | throw s!"ClauseTree: no PUSH-CLAUSE with :POOLNAME {name} for the                    pool-subsumed root"
+      let pcid ← ClauseId.parse pushId
+      let subStep : WaterfallStep := {
+        processor := "pool-subsumed", result := .proved, runes := [],
+        newClauses := [], items := [],
+        extraFields := [("subsumed-by",
+          .atom (.symbol { name := poolIdStr byName }))] }
+      out := out.push ({
+        id := { forcingRound := pcid.forcingRound, poolLst := name },
+        idStr := poolIdStr name, inputClause := pushClause,
+        steps := #[subStep], synthetic := true }, pushId)
+      -- the subsumer's subtree becomes the subsumed root's child so the
+      -- replay can instantiate it
+      extraLinks := extraLinks.push (poolIdStr byName, poolIdStr name)
+    return (out, extraLinks)
+  -- LEGACY (no pool events): the m-th induction whose pushed clause sits at
+  -- pool-lst P creates a pool root at P ++ [m].
   let mut counts : Array (List Nat × Nat) := #[]
-  for (pid, pushClause, ind) in inductions do
+  for (_, pid, pushClause, ind) in pd.inductions do
     if pid.isEmpty then
       throw "ClauseTree: :INDUCTION with no preceding PUSH-CLAUSE"
     let pcid ← ClauseId.parse pid
@@ -382,15 +447,14 @@ private def synthesizePoolRoots
     let m := (counts.find? (·.1 == key)).map (·.2) |>.getD 0
     counts := (counts.filter (·.1 != key)).push (key, m + 1)
     let poolLst := key ++ [m + 1]
-    let idStr := "*" ++ String.intercalate "." (poolLst.map toString)
     -- The pool goal IS the clause the PUSH-CLAUSE pushed (the real induction
     -- subject), captured from that step — not the node's first-step inputClause.
     let node : FlatNode := {
       id := { forcingRound := pcid.forcingRound, poolLst := poolLst },
-      idStr := idStr, inputClause := pushClause, steps := #[],
+      idStr := poolIdStr poolLst, inputClause := pushClause, steps := #[],
       induction := some ind, synthetic := true }
     out := out.push (node, pid)
-  return out
+  return (out, #[])
 
 /-- Assemble the subtree rooted at the node with id `key`. Children are kept in
     the order the clauses appear in the log — ACL2's own emit/processing order
@@ -410,10 +474,10 @@ private partial def assemble (flats : Array FlatNode)
 /-- Build the clause tree for one theorem's events. -/
 private def buildOne (name : String) (formula : SExpr) (events : List ProofEvent)
     : Except String ClauseProof := do
-  let (logged, inductions) ← collectFlat events
+  let (logged, pd) ← collectFlat events
   if logged.isEmpty then
     return { name, formula, root := none }
-  let synth ← synthesizePoolRoots inductions
+  let (synth, extraLinks) ← synthesizePoolRoots pd
   let allFlats := logged ++ synth.map (·.1)
   let allIds := (allFlats.map (·.id)).toList
   -- Parent key for each node: synthetic → its pushed clause; logged → inverse
@@ -422,6 +486,8 @@ private def buildOne (name : String) (formula : SExpr) (events : List ProofEvent
   let mut roots : Array String := #[]
   for (sn, pid) in synth do
     childKeys := childKeys.push (sn.idStr, pid)
+  for (c, p) in extraLinks do
+    childKeys := childKeys.push (c, p)
   for fn in logged do
     if fn.id.isRoot then
       roots := roots.push fn.idStr
@@ -497,7 +563,8 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       events := events.push (.typePrescription n cor bts leaves)
     | .rules specs =>
       events := events.push (.rules specs)
-    | .step _ | .induction _ => curEvents := curEvents.push ev
+    | .step _ | .induction _ | .poolConsider _ | .poolSubsumed _ _ =>
+      curEvents := curEvents.push ev
   -- Close any trailing block. A still-open NAMED block at end-of-log means the
   -- final theorem never emitted its (:QED) — ACL2's proof FAILED or the log was
   -- truncated mid-proof. Hard-fail rather than accept it as a proven theorem.

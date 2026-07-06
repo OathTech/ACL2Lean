@@ -265,6 +265,10 @@ def main (args : List String) : IO Unit := do
                 IO.println s!"\n  DEFTHM {name}{srcStr}: {formula}"
             | .typePrescription name corollary basicTs leaves =>
                 IO.println s!"\n  TYPE-PRESCRIPTION {name}: {corollary} (basicts={basicTs}, {leaves.length} leaves)"
+            | .poolConsider name =>
+                IO.println s!"  POOL-CONSIDER *{String.intercalate "." (name.map toString)}"
+            | .poolSubsumed name byName =>
+                IO.println s!"  POOL-SUBSUMED *{String.intercalate "." (name.map toString)} by *{String.intercalate "." (byName.map toString)}"
             | .rules specs =>
                 IO.println s!"\n  RULES ({specs.length} stored):"
                 for r in specs do

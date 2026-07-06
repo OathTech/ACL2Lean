@@ -988,6 +988,43 @@ partial def pinTermOpaques (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCt
     | none => return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
   | _ => return ctx
 
+/-- ONE-WAY term match: extend `σ` so that `pat`σ `== t` (`pat`'s variables
+    drawn from `vars`; quoted subterms match only literally). Deterministic —
+    the pool-subsumption witness recompute (validated by the caller,
+    recompute-and-check; never a proof search). -/
+partial def termMatch (vars : List Symbol) (pat t : SExpr)
+    (σ : List (Symbol × SExpr)) : Option (List (Symbol × SExpr)) :=
+  match pat with
+  | .atom (.symbol sy) =>
+    if vars.contains sy then
+      match σ.lookup sy with
+      | some b => if b == t then some σ else none
+      | none => some (σ ++ [(sy, t)])
+    else if pat == t then some σ else none
+  | .cons (.atom (.symbol q)) rest =>
+    if q.name == "quote" then (if pat == t then some σ else none)
+    else match t with
+      | .cons t1 t2 =>
+        (termMatch vars (.atom (.symbol q)) t1 σ).bind (termMatch vars rest t2 ·)
+      | _ => none
+  | .cons p1 p2 =>
+    match t with
+    | .cons t1 t2 => (termMatch vars p1 t1 σ).bind (termMatch vars p2 t2 ·)
+    | _ => none
+  | _ => if pat == t then some σ else none
+
+/-- CLAUSE-subsumption witness: a σ under which every literal of `G` (the
+    general clause) σ-instantiates to SOME literal of `C` — first witness in
+    canonical order (G-literal order × C-literal order, backtracking). The
+    caller VALIDATES the result against `C` (fail-closed). -/
+partial def subsumeWitness (vars : List Symbol) (G C : List SExpr)
+    (σ : List (Symbol × SExpr)) : Option (List (Symbol × SExpr)) :=
+  match G with
+  | [] => some σ
+  | g :: rest =>
+    C.findSome? fun c =>
+      (termMatch vars g c σ).bind (subsumeWitness vars rest C ·)
+
 /-- Fold per-entry proofs into a reflected list + its `∀ x ∈ list, P x`
     proof (`forall_mem_nil`/`forall_mem_cons` chain). -/
 private def mkForallMemProof (entryTy P : Expr) (entries : List (Expr × Expr)) :
@@ -4352,6 +4389,10 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
         throwError "replayClause: pushed clause ≠ pool-root clause at {cn.idStr}"
       return ← replayClause cfg ctx child
     | _ => throwError "replayClause: push-clause with {cn.children.length} children at {cn.idStr}"
+  -- a POOL-SUBSUMED root (synthetic; from (:POOL-SUBSUMED …)): its clause is
+  -- an instance-superset of the MORE GENERAL pool root attached as its child
+  if cn.steps.any (fun s => s.processor.toLower == "pool-subsumed") then
+    return ← replaySubsumed cfg ctx cn
   -- a DESTRUCTOR-ELIMINATION node: the child clause is over the elim's fresh
   -- variables; replayElim bridges it back through the emitted ELIMSEQUENCE
   if let some st := cn.steps.find? (fun s => s.processor.toLower == "eliminate-destructors-clause") then
@@ -4714,6 +4755,101 @@ partial def replayGeneralize (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : Clause
   let pBridge ← mkAppM ``evalOpt_substTerm_substN
     #[w, env, formalsE, argsE, valsE, reflectSExpr childTerm, hNoLet, hlenPf, hargs]
   mkAppM ``evtrue_of_fuel_eq #[pBridge, pChild]
+
+/-- Replay a POOL-SUBSUMED root: ACL2 regarded this pool clause `C` as proved
+    pending the MORE GENERAL pool root `G` (its clause attached as the child's
+    subtree by the builder). Recompute the subsumption witness σ (every
+    Gσ-literal ∈ C — validated, fail-closed), replay `G`'s subtree at
+    `env' = env[σvars ↦ σterm values]`, bridge `eval env ((∨G)σ) ≡
+    eval env' (∨G)` by substN, and walk the σ-instance literals: nil peels,
+    the first truthy literal is IN `C` and closes the disjunction. -/
+partial def replaySubsumed (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (cn : ClauseNode) : MetaM Expr := do
+  let [child] := cn.children
+    | throwError "replaySubsumed: {cn.children.length} children at {cn.idStr}"
+  let G := child.inputClause
+  let C := cn.inputClause
+  let gvars := (G.flatMap ACL2.Replay.freeVars).eraseDups
+  let some σ := subsumeWitness gvars G C []
+    | throwError "replaySubsumed: no subsumption witness — {cn.idStr}'s \
+                  clause is not an instance-superset of {child.idStr}'s \
+                  (recompute/emission divergence)"
+  -- VALIDATE the witness (recompute-and-check): every σ-literal is in C
+  let σvars := σ.map (·.1)
+  let σterms := σ.map (·.2)
+  let litsσ := G.map (ACL2.Replay.substTerm σvars σterms)
+  for l in litsσ do
+    unless C.contains l do
+      throwError "replaySubsumed: witness literal {repr l} not in the \
+                  subsumed clause at {cn.idStr}"
+  let w := cfg.worldExpr
+  let env := cfg.envExpr
+  let mut ctx := ctx
+  let mut vals : List Expr := []
+  let mut convs : List Expr := []
+  for t in σterms do
+    ctx ← pinTermOpaques cfg env ctx t
+    vals := vals ++ [← ctxValExpr cfg ctx t]
+    convs := convs ++ [← ctxValProof cfg ctx t]
+  let formalsE ← mkListLit (mkConst ``Symbol) (σvars.map reflectSymbol)
+  let argsE ← mkListLit (mkConst ``SExpr) (σterms.map reflectSExpr)
+  let valsE ← mkListLit (mkConst ``SExpr) vals
+  let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
+  let cfg' := { cfg with envExpr := env' }
+  let ctx' := { ctx with varVals := [], vals := [], litFacts := [] }
+  let pChild ← replayClause cfg' ctx' child
+  let childTerm := disjoinTerm G
+  let hNoLet ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr childTerm])
+            (mkConst ``Bool.true))
+    "NoLet subsumed general clause"
+  let hlenPf ← proveByDecide
+    (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
+    "substN arg/val lengths"
+  let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
+  let pFn ← withLocalDeclD `pr prodTy fun prV => do
+    let fst ← mkAppM ``Prod.fst #[prV]
+    let snd ← mkAppM ``Prod.snd #[prV]
+    mkLambdaFVars #[prV] (← mkValConvPropEx w env fst snd)
+  let entries ← (σterms.zip vals).mapM fun (t, v) =>
+    mkAppM ``Prod.mk #[reflectSExpr t, v]
+  let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip convs)
+  let zipE ← mkAppM ``List.zip #[argsE, valsE]
+  let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
+    let mem ← mkAppM ``Membership.mem #[zipE, prV]
+    mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
+  let hargs ← mkExpectedTypeHint hargsRaw hargsTy
+  let pBridge ← mkAppM ``evalOpt_substTerm_substN
+    #[w, env, formalsE, argsE, valsE, reflectSExpr childTerm, hNoLet, hlenPf, hargs]
+  -- EvTrue of the σ-instance disjunction at THIS env
+  let pInst ← mkAppM ``evtrue_of_fuel_eq #[pBridge, pChild]
+  -- walk the σ-instance literals into the subsumed clause
+  let nilC := mkConst ``SExpr.nil
+  let closeAt (ctxW : ReplayCtx) (l : SExpr) (hne : Expr) : MetaM Expr := do
+    let some m := C.findIdx? (· == l)
+      | throwError "replaySubsumed: internal — witness literal {repr l} \
+                    lost from the clause"
+    evtrueOfLitTrue cfg ctxW C m l hne
+  let rec goW (ctxW : ReplayCtx) (pCur : Expr) : List SExpr → MetaM Expr
+    | [] => throwError "replaySubsumed: empty instance walk"
+    | [l] => do
+      let ctxW ← pinTermOpaques cfg cfg.envExpr ctxW l
+      let pL ← ctxValProof cfg ctxW l
+      let hne ← mkAppM ``ne_nil_of_evtrue_conv #[pCur, pL]
+      closeAt ctxW l hne
+    | l :: restL => do
+      let ctxW ← pinTermOpaques cfg cfg.envExpr ctxW l
+      let vL ← ctxValExpr cfg ctxW l
+      let pL ← ctxValProof cfg ctxW l
+      let negB ← withLocalDeclD `hnil (← mkEq vL nilC) fun hNil => do
+        let pNil ← mkAppM ``re_val_cast
+          #[w, env, reflectSExpr l, vL, nilC, pL, hNil]
+        let pRest ← mkAppM ``evtrue_extract_else #[pNil, pCur]
+        mkLambdaFVars #[hNil] (← goW ctxW pRest restL)
+      let posB ← withLocalDeclD `hne (← mkAppM ``Ne #[vL, nilC]) fun hNe => do
+        mkLambdaFVars #[hNe] (← closeAt ctxW l hNe)
+      mkAppM ``Classical.byCases #[negB, posB]
+  goW ctx pInst litsσ
 
 /-- Replay an ELIMINATE-IRRELEVANCE node: the child clause `C'` is an
     order-preserving SUBSET of this clause `C` (recompute-and-check).

@@ -231,6 +231,13 @@ inductive ProofEvent where
   /-- The stored rewrite rules created since the previous flush (in creation
       order; emitted before the next :DEFTHM, hence before any use). -/
   | rules (specs : List RuleSpec)
+  /-- Pool-processing events (`emit/pool-consider` / `emit/pool-subsumed`):
+      pop-clause CONSIDERS pool roots in its own (subsumption-reordered)
+      order — the steps/induction after a `poolConsider` belong to that pool
+      root; a `poolSubsumed` root was regarded as proved pending the MORE
+      GENERAL `by_` root. Names are pool-lsts, e.g. `[1, 1, 1]` = `*1.1.1`. -/
+  | poolConsider (name : List Nat)
+  | poolSubsumed (name : List Nat) (by_ : List Nat)
   | step (s : ProofStep)
   | induction (i : InductionStep)
   | qed
@@ -617,6 +624,16 @@ private def parseStep? (items : List SExpr) : Except String ProofStep := do
     ["clauseid", "processor", "result", "runes", "rewrites", "inputclause", "newclauses"] items
   pure { clauseId, processor, result, runes, traceEvents, inputClause, newClauses, extraFields }
 
+/-- Parse a pool-lst `(1 1 1)` (naturals). -/
+private def parsePoolLst (s : SExpr) : Except String (List Nat) := do
+  match s.toList? with
+  | some items => items.mapM fun i => match i with
+      | .atom (.number (.int n)) =>
+        if n ≥ 0 then pure n.toNat
+        else throw s!"pool-lst entry negative: {repr i}"
+      | _ => throw s!"pool-lst entry not a natural: {repr i}"
+  | none => throw s!"pool-lst not a list: {repr s}"
+
 /-- Parse one IH substitution alist `((var . term) …)`. ACL2 prints a pair `(v . t)` as
     `(v . t)` or, when `t` is a list, as `(v t…)` — both are `.cons (symbol v) t`. -/
 private def parseAlist (s : SExpr) : Except String (List (Symbol × SExpr)) := do
@@ -786,6 +803,17 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         | _ => throw s!"RULES: bad entry (want (rune hyps equiv lhs rhs)): {repr e}"
       return .rules specs
     | _ => throw s!"RULES: expected a single payload list, got {repr rest}"
+  | .cons (.atom (.keyword "pool-consider")) rest =>
+    let some nameS := lookupKeyword "name" (rest.toList?.getD [])
+      | throw "POOL-CONSIDER: missing :NAME"
+    return .poolConsider (← parsePoolLst nameS)
+  | .cons (.atom (.keyword "pool-subsumed")) rest =>
+    let items := rest.toList?.getD []
+    let some nameS := lookupKeyword "name" items
+      | throw "POOL-SUBSUMED: missing :NAME"
+    let some byS := lookupKeyword "by" items
+      | throw "POOL-SUBSUMED: missing :BY"
+    return .poolSubsumed (← parsePoolLst nameS) (← parsePoolLst byS)
   | .cons (.atom (.keyword "type-prescription")) rest =>
     match rest.toList? with
     | some (nameExpr :: fields) =>
