@@ -94,6 +94,26 @@ def reflectDefMap (m : DefMap) : MetaM Expr := do
 def reflectWorld (w : World) : MetaM Expr := do
   mkAppM ``ACL2.World.ofDefs #[← reflectDefMap w.defs]
 
+/-- Tag marking a DELIBERATE frontier-class failure (fail-closed audit N1):
+    "this is a genuine replay frontier — keep the hypothesis visible (D6)".
+    Catch sites that demote failures to kept hypotheses classify by THIS tag,
+    never by message-string prefix (a prefix is a shared namespace a real
+    defect's message could accidentally inhabit — a masked bug would hide
+    behind a `cond[…]` label on the scoreboard). -/
+def frontierTag : Name := `ACL2Lean.replayFrontier
+
+/-- Throw a TAGGED frontier-class error (see `frontierTag`). Use only where
+    the failure is a known, named frontier whose fail-safe handling is the
+    kept hypothesis; internal invariant violations stay `throwError` so they
+    SURFACE. -/
+def throwFrontier (msg : MessageData) : MetaM α := do
+  throw <| Exception.error (← getRef) (.tagged frontierTag (← addMessageContext msg))
+
+/-- Is this exception a deliberate frontier throw (tagged `frontierTag`)? -/
+def isFrontierErr : Exception → Bool
+  | .error _ md => md.hasTag (· == frontierTag)
+  | _ => false
+
 /-- Prove a decidable proposition `p` by **kernel decision** — deterministic ground
     computation (evaluate the `Decidable` instance via `whnf`, then `of_decide_eq_true`).
     NOT heuristic: no simp set, no search. The single side-condition discharger the
@@ -2907,10 +2927,10 @@ def totDischargeDecrease (just : Justification)
       match c.toList? with
       | some lits => lits.any (· == wanted)
       | none => false
-    | throwError "proveTotality: no emitted decrease obligation for call \
+    | throwFrontier m!"proveTotality: no emitted decrease obligation for call \
         argument {repr callArg} (emission gap or unsupported call shape)"
   let some lits := clause.toList?
-    | throwError "proveTotality: malformed obligation clause {repr clause}"
+    | throwFrontier m!"proveTotality: malformed obligation clause {repr clause}"
   -- every ruling literal must be justified by an in-scope branch fact:
   -- (not T) requires fact (T, true); a bare positive literal T requires (T, false)
   for lit in lits do
@@ -2919,15 +2939,15 @@ def totDischargeDecrease (just : Justification)
     | .cons (.atom (.symbol n)) (.cons tst .nil) =>
       if n.name == "not" then
         unless facts.any (fun (f, pos, _) => f == tst && pos) do
-          throwError "proveTotality: ruling test {repr tst} not established \
+          throwFrontier m!"proveTotality: ruling test {repr tst} not established \
               on this branch (obligation {repr clause})"
       else
         unless facts.any (fun (f, pos, _) => f == lit && !pos) do
-          throwError "proveTotality: ruling literal {repr lit} not refuted \
+          throwFrontier m!"proveTotality: ruling literal {repr lit} not refuted \
               on this branch (obligation {repr clause})"
     | _ =>
       unless facts.any (fun (f, pos, _) => f == lit && !pos) do
-        throwError "proveTotality: ruling literal {repr lit} not refuted \
+        throwFrontier m!"proveTotality: ruling literal {repr lit} not refuted \
             on this branch (obligation {repr clause})"
   -- the Lean-side decrease: supported shapes (frontier otherwise)
   match callArg with
@@ -2938,7 +2958,7 @@ def totDischargeDecrease (just : Justification)
           (.cons (.atom (.symbol { name := m.name })) .nil)
       let some (_, _, factPf) := facts.find?
           (fun (f, pos, _) => f == conspTest && pos)
-        | throwError "proveTotality: decrease for (cdr {m.name}) needs an \
+        | throwFrontier m!"proveTotality: decrease for (cdr {m.name}) needs an \
             in-scope (consp {m.name}) fact (frontier)"
       mkAppM ``ACL2.acl2Count_cdr_lt_of_consp #[factPf]
     else if c.name == "car" && m == measuredFormal then
@@ -2947,14 +2967,14 @@ def totDischargeDecrease (just : Justification)
           (.cons (.atom (.symbol { name := m.name })) .nil)
       let some (_, _, factPf) := facts.find?
           (fun (f, pos, _) => f == conspTest && pos)
-        | throwError "proveTotality: decrease for (car {m.name}) needs an \
+        | throwFrontier m!"proveTotality: decrease for (car {m.name}) needs an \
             in-scope (consp {m.name}) fact (frontier)"
       mkAppM ``ACL2.acl2Count_car_lt_of_consp #[factPf]
     else
-      throwError "proveTotality: decrease shape {repr callArg} unsupported \
+      throwFrontier m!"proveTotality: decrease shape {repr callArg} unsupported \
           (frontier: cdr/car of the measured formal)"
   | _ =>
-    throwError "proveTotality: decrease shape {repr callArg} unsupported \
+    throwFrontier m!"proveTotality: decrease shape {repr callArg} unsupported \
         (frontier: cdr/car of the measured formal)"
 
 /-- The body-convergence walk: a proof of `∃N∃v ∀f≥N, eval envE t = some v`.
@@ -2978,7 +2998,7 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
     if fs.name == "if" then
       unless totLiftable c do
-        throwError "proveTotality: if-test {repr c} is not liftable (frontier)"
+        throwFrontier m!"proveTotality: if-test {repr c} is not liftable (frontier)"
       let vc ← dpValExpr [] (dpValProof.dpVarVal envE varP) c
       let hc ← dpValProof cfg envE [] [] varP c
       let toBoolVc ← mkAppM ``Logic.toBool #[vc]
@@ -2994,7 +3014,7 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
         #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th, reflectSExpr e,
           vc, hc, ht, he]
     else
-      throwError "proveTotality: ternary {fs.name} unsupported (frontier)"
+      throwFrontier m!"proveTotality: ternary {fs.name} unsupported (frontier)"
   | .cons (.atom (.symbol fs)) argsSpine =>
     let args := (argsSpine.toList?).getD []
     -- dp-known BUILTIN over non-liftable args (e.g. a self-call inside
@@ -3022,15 +3042,15 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
         match cfg.worldVal.defs.get? fs with
         | some (formals, body) =>
           unless args.length == formals.length do
-            throwError "proveTotality: self-call arity mismatch {repr t}"
+            throwFrontier m!"proveTotality: self-call arity mismatch {repr t}"
           unless args.all totLiftable do
-            throwError "proveTotality: self-call argument not liftable \
+            throwFrontier m!"proveTotality: self-call argument not liftable \
                 {repr t} (frontier)"
           let argVals ← args.mapM (dpValExpr [] (dpValProof.dpVarVal envE varP))
           let argPfs ← args.mapM (dpValProof cfg envE [] [] varP)
           let mIdx := formals.findIdx (· == measuredFormal)
           unless vals.any (fun (f, _, _) => f == measuredFormal) do
-            throwError "proveTotality: measured formal has no bound value"
+            throwFrontier m!"proveTotality: measured formal has no bound value"
           let dec ← totDischargeDecrease just measuredFormal facts args[mIdx]!
           let hNs ← proveNotSpecial fs
           let hDef ← totDefFact cfg fs formals body
@@ -3055,19 +3075,19 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                 reflectSExpr a2, argVals[0]!, argVals[1]!, hNs, hDef,
                 argPfs[0]!, argPfs[1]!, hbody]
           | _, _ =>
-            throwError "proveTotality: self-call arity {args.length} \
+            throwFrontier m!"proveTotality: self-call arity {args.length} \
                 unsupported (frontier)"
-        | none => throwError "proveTotality: self {fs.name} not in world"
+        | none => throwFrontier m!"proveTotality: self {fs.name} not in world"
     -- EARLIER defined fn: its accumulated totality proof
     if let some (_, arity, pf) := totalEnv.find? (fun (n, _, _) => n == fs.name) then
       unless args.length == arity do
-        throwError "proveTotality: call arity mismatch {repr t}"
+        throwFrontier m!"proveTotality: call arity mismatch {repr t}"
       let argPfs ← args.mapM (totWalk cfg envE vals facts totalEnv selfC)
       let argsR := args.map reflectSExpr
       return ← mkAppM' pf (#[envE] ++ argsR.toArray ++ argPfs.toArray)
-    throwError "proveTotality: call to {fs.name} with no totality fact \
+    throwFrontier m!"proveTotality: call to {fs.name} with no totality fact \
         in scope (frontier: development-order dependency or unsupported head)"
-  | _ => throwError "proveTotality: term shape {repr t} unsupported (frontier)"
+  | _ => throwFrontier m!"proveTotality: term shape {repr t} unsupported (frontier)"
 where
   /-- `w.defs.get? fn = some (formals, body)` by `decide` on the reflected world. -/
   totDefFact (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
@@ -5509,7 +5529,7 @@ def proveTotality (cfg : ReplayConfig)
       let p1 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f1, av1, g1]
       let p2 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f2, av2, g2]
       return [(f1, av1, p1), (f2, av2, p2)]
-    | _, _ => throwError "proveTotality: arity {formals.length} unsupported (frontier)"
+    | _, _ => throwFrontier m!"proveTotality: arity {formals.length} unsupported (frontier)"
   match just? with
   | none =>
     -- NON-RECURSIVE: the body walk alone
@@ -5533,22 +5553,22 @@ def proveTotality (cfg : ReplayConfig)
       mkAppM ``totality_2_of_body
         #[cfg.worldExpr, reflectSymbol fs, reflectSymbol formals[0]!,
           reflectSymbol formals[1]!, reflectSExpr body, hNs, hDef, hbody]
-    | _ => throwError "proveTotality: arity {formals.length} unsupported (frontier)"
+    | _ => throwFrontier m!"proveTotality: arity {formals.length} unsupported (frontier)"
   | some just =>
     -- RECURSIVE (D5 scope): measure (acl2-count m), o<, single measured formal
     unless just.wfRel.name == "o<" do
-      throwError "proveTotality: well-founded relation {just.wfRel.name} \
+      throwFrontier m!"proveTotality: well-founded relation {just.wfRel.name} \
           unsupported (frontier: o< only)"
     let some measuredFormal := just.measuredSubset.head?
-      | throwError "proveTotality: empty measured subset"
+      | throwFrontier m!"proveTotality: empty measured subset"
     unless just.measuredSubset.length == 1 do
-      throwError "proveTotality: multi-formal measured subset unsupported \
+      throwFrontier m!"proveTotality: multi-formal measured subset unsupported \
           (frontier)"
     let wantedMeasure : SExpr :=
       .cons (.atom (.symbol { name := "acl2-count" }))
         (.cons (.atom (.symbol { name := measuredFormal.name })) .nil)
     unless just.measure == wantedMeasure do
-      throwError "proveTotality: measure {repr just.measure} unsupported \
+      throwFrontier m!"proveTotality: measure {repr just.measure} unsupported \
           (frontier: (acl2-count <measured-formal>) only)"
     -- D9: the (o-p (measure)) obligation is absorbed by the Nat-typed
     -- measure; SHAPE-CHECK it (hard-fail on anything unexpected)
@@ -5556,13 +5576,13 @@ def proveTotality (cfg : ReplayConfig)
       .cons (.cons (.atom (.symbol { name := "o-p" }))
         (.cons wantedMeasure .nil)) .nil
     unless just.terminationClauses.any (· == opClause) do
-      throwError "proveTotality: expected (o-p {repr wantedMeasure}) \
+      throwFrontier m!"proveTotality: expected (o-p {repr wantedMeasure}) \
           obligation not found (emission shape changed?)"
     let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.acl2Count #[e]
     match formals with
     | [f1] =>
       unless measuredFormal == f1 do
-        throwError "proveTotality: measured formal mismatch"
+        throwFrontier m!"proveTotality: measured formal mismatch"
       let step ← withLocalDeclD `av (mkConst ``SExpr) fun av => do
         let envEat := fun (bv : Expr) => do
           let formalsE ← mkListLit (mkConst ``Symbol) [reflectSymbol f1]
@@ -5631,7 +5651,7 @@ def proveTotality (cfg : ReplayConfig)
       else
         throwError "proveTotality: measured formal {measuredFormal.name} is \
             not among the formals (internal)"
-    | _ => throwError "proveTotality: recursive arity {formals.length} \
+    | _ => throwFrontier m!"proveTotality: recursive arity {formals.length} \
         unsupported (frontier)"
 
 /-- #37: the admission-derived totality environment — per fn (DEVELOPMENT
@@ -5649,10 +5669,10 @@ def buildTotalEnv (cfg : ReplayConfig)
         (justs.lookup s.name)
       totalEnv := (s.name, formals.length, pf) :: totalEnv
     catch e =>
-      -- keep ONLY the prover's own frontier-class failures (the fn stays
+      -- keep ONLY the prover's TAGGED frontier-class failures (the fn stays
       -- hypothesis-backed — D6); anything else is a real defect: surface it
-      let msg ← e.toMessageData.toString
-      unless msg.startsWith "proveTotality:" do
+      -- (typed tag, not message prefix — fail-closed audit N1)
+      unless isFrontierErr e do
         throw e
     if upTo == some s.name then
       break
@@ -5681,24 +5701,24 @@ partial def flattenAnd : SExpr → List SExpr
 def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
     (depProofs : List (String × ClauseProof)) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
-    | throwError "dischargeRuleHyp: no dependency proof for rule {spec.name}"
+    | throwFrontier m!"dischargeRuleHyp: no dependency proof for rule {spec.name}"
   let some depRoot := cp.root
-    | throwError "dischargeRuleHyp: dependency {spec.name} has no proof tree"
+    | throwFrontier m!"dischargeRuleHyp: dependency {spec.name} has no proof tree"
   let [formula] := depRoot.inputClause
-    | throwError "dischargeRuleHyp: dependency {spec.name}'s Goal is not a                   single-literal clause (frontier)"
+    | throwFrontier m!"dischargeRuleHyp: dependency {spec.name}'s Goal is not a                   single-literal clause (frontier)"
   -- recompute-and-check the create-rewrite-rule normalization
   let (hypsF, concl) := match formula with
     | .cons (.atom (.symbol impS)) (.cons h (.cons c .nil)) =>
       if impS.name == "implies" then (flattenAnd h, c) else ([], formula)
     | _ => ([], formula)
   unless hypsF == spec.hyps do
-    throwError "dischargeRuleHyp: {spec.name}'s flattened antecedent                 {repr hypsF} ≠ the stored rule's :HYPS {repr spec.hyps}                 (normalization divergence — frontier)"
+    throwFrontier m!"dischargeRuleHyp: {spec.name}'s flattened antecedent                 {repr hypsF} ≠ the stored rule's :HYPS {repr spec.hyps}                 (normalization divergence — frontier)"
   let eqForm : SExpr := .cons (.atom (.symbol { name := "equal" }))
     (.cons spec.lhs (.cons spec.rhs .nil))
   let routeEqual := concl == eqForm
   let routeBool := concl == spec.lhs && spec.rhs == quoteT
   unless routeEqual || routeBool do
-    throwError "dischargeRuleHyp: {spec.name}'s conclusion {repr concl}                 matches neither (equal lhs rhs) nor the boolean-strengthened                 lhs ⇒ 'T shape (frontier)"
+    throwFrontier m!"dischargeRuleHyp: {spec.name}'s conclusion {repr concl}                 matches neither (equal lhs rhs) nor the boolean-strengthened                 lhs ⇒ 'T shape (frontier)"
   let w := cfg.worldExpr
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
@@ -5719,7 +5739,7 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
       -- so re-tag it into the discharger's frontier class
       let pDep ←
         try replayClause cfgD ctxDFixed depRoot
-        catch e => throwError "dischargeRuleHyp: dependency {spec.name}'s \
+        catch e => throwFrontier m!"dischargeRuleHyp: dependency {spec.name}'s \
             replay failed (frontier): {e.toMessageData}"
       let convF ← ctxValProof cfgD ctxDFixed formula
       let hFne ← mkAppM ``ne_nil_of_evtrue_conv #[pDep, convF]
@@ -5750,16 +5770,16 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
           -- boolean route: the conclusion's head fn's EMITTED TP pins the
           -- truthy value to exactly t
           let .cons (.atom (.symbol fs)) argsSpine := concl
-            | throwError "dischargeRuleHyp: boolean conclusion {repr concl}                           is not a fn application (frontier)"
+            | throwFrontier m!"dischargeRuleHyp: boolean conclusion {repr concl}                           is not a fn application (frontier)"
           let some (_, _, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
-            | throwError "dischargeRuleHyp: no :TYPE-PRESCRIPTION hypothesis                           for {fs.name} (emit more, frontier)"
+            | throwFrontier m!"dischargeRuleHyp: no :TYPE-PRESCRIPTION hypothesis                           for {fs.name} (emit more, frontier)"
           let some (formals, _) := cfg.worldVal.defs.get? fs
-            | throwError "dischargeRuleHyp: {fs.name} not defined in the world"
+            | throwFrontier m!"dischargeRuleHyp: {fs.name} not defined in the world"
           let args := (argsSpine.toList?).getD []
           unless formals.length == args.length do
-            throwError "dischargeRuleHyp: arity mismatch instantiating the                         TP of {fs.name}"
+            throwFrontier m!"dischargeRuleHyp: arity mismatch instantiating the                         TP of {fs.name}"
           let some (vC, convC) := ctxDFixed.val? concl
-            | throwError "dischargeRuleHyp: conclusion {repr concl} has no                           pinned value (frontier)"
+            | throwFrontier m!"dischargeRuleHyp: conclusion {repr concl} has no                           pinned value (frontier)"
           let fact := mkAppN tpHyp ((#[envV] : Array Expr)
             ++ (args.map reflectSExpr).toArray ++ #[vC, convC])
           let hT ← mkAppM ``tp_cond_boolean_t #[vC, fact, hvC]
@@ -5859,11 +5879,11 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             let pf ← dischargeRuleHyp cfg ctx spec depProofs
             prfR := prfR.replaceFVar hypV pf
           catch e =>
-            -- keep ONLY the discharger's own frontier-class failures (the
+            -- keep ONLY the discharger's TAGGED frontier-class failures (the
             -- hypothesis stays visible in the type — D6, like totality);
-            -- anything else is a real defect: surface it
-            let msg ← e.toMessageData.toString
-            unless msg.startsWith "dischargeRuleHyp:" do
+            -- anything else is a real defect: surface it (typed tag, not
+            -- message prefix — fail-closed audit N1)
+            unless isFrontierErr e do
               throw e
       let prf ← instantiateMVars prfR
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must

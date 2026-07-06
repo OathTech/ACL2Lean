@@ -127,13 +127,13 @@ private def parseFails (input : String) : Bool :=
 #guard parseAll "(+ 1 2)" = some [SExpr.ofList
   [.atom (.symbol { name := "+" }), .atom (.number (.int 1)), .atom (.number (.int 2))]]
 
--- === Discard syntax ===
+-- === Reader conditionals fail CLOSED ===
 
--- #- discards the next form, then parses the one after
-#guard parseOne "#- foo 42" = some (.atom (.number (.int 42)))
-
--- #+ discards TWO forms (feature + body), then parses the one after
-#guard parseOne "#+ acl2 (do-stuff) 42" = some (.atom (.number (.int 42)))
+-- The old implementation ignored the feature test (and had #+/#- backwards
+-- from Common Lisp); rather than mistranslate source silently, both now
+-- hard-fail (fail-closed audit 2026-07-06, N4).
+#guard parseOne "#- foo 42" = none
+#guard parseOne "#+ acl2 (do-stuff) 42" = none
 
 -- === String escapes ===
 

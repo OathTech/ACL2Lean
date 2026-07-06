@@ -5,12 +5,13 @@ import Init.System.IO
 
 namespace ACL2
 
-/-- Parse a raw ACL2 source file into events using the best-effort classifier. -/
+/-- Parse a raw ACL2 source file into events — fails closed on any form the
+    classifier rejects. -/
 def loadEventsFromFile (path : System.FilePath) : IO (Except String (List Event)) := do
   let contents ← IO.FS.readFile path
   pure <| do
     let raw ← Parse.parseAll contents
-    pure (raw.map Event.classify)
+    raw.mapM Event.classify
 
 /-- Count how often each event constructor appears. -/
 def summarizeFile (path : System.FilePath) : IO (Except String (Std.HashMap String Nat)) := do

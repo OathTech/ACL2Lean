@@ -59,15 +59,32 @@ def translateSymbol (s : Symbol) : String :=
     let name := name.replace "=" "_eq_"
     name
 
-/-- Translate an SExpr literal value into Lean SExpr constructor syntax. -/
+/-- Escape `\` and `"` for splicing text into a GENERATED Lean string
+    literal. ACL2 `|…|`-symbols and strings may contain both characters
+    (the parser reads them raw); splicing unescaped can silently produce a
+    *different* well-formed literal — a mirror statement over a corrupted
+    constant (fail-closed audit 2026-07-06, N6). -/
+def escapeStringLit (s : String) : String :=
+  (s.replace "\\" "\\\\").replace "\"" "\\\""
+
+/-- Translate an SExpr literal value into Lean SExpr constructor syntax.
+    Symbols emit their package only when it is not the default `"ACL2"` —
+    faithful either way; foreign packages are hard-rejected upstream by
+    `checkTranslatable` (N5) because cross-package symbol IDENTITY (import
+    lists) is reader state this translator does not model. -/
 partial def translateLiteral : SExpr → String
   | .nil => "SExpr.nil"
-  | .atom (.symbol s) => s!"(SExpr.atom (.symbol \{ name := \"{s.name}\" }))"
+  | .atom (.symbol s) =>
+    if s.package == "ACL2" then
+      s!"(SExpr.atom (.symbol \{ name := \"{escapeStringLit s.name}\" }))"
+    else
+      s!"(SExpr.atom (.symbol \{ package := \"{escapeStringLit s.package}\", \
+name := \"{escapeStringLit s.name}\" }))"
   | .atom (.number (.int n)) => s!"(SExpr.atom (.number (.int ({n}))))"
   | .atom (.number (.rational n d)) => s!"(SExpr.atom (.number (.rational ({n}) ({d}))))"
   | .atom (.number (.decimal m e)) => s!"(SExpr.atom (.number (.decimal ({m}) ({e}))))"
-  | .atom (.string s) => s!"(SExpr.atom (.string \"{s}\"))"
-  | .atom (.keyword k) => s!"(SExpr.atom (.keyword \"{k}\"))"
+  | .atom (.string s) => s!"(SExpr.atom (.string \"{escapeStringLit s}\"))"
+  | .atom (.keyword k) => s!"(SExpr.atom (.keyword \"{escapeStringLit k}\"))"
   | .cons a b => s!"(SExpr.cons {translateLiteral a} {translateLiteral b})"
 
 def sanitizeName (s : String) : String :=

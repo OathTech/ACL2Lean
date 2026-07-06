@@ -29,27 +29,62 @@ def bookNameFromPath (path : String) : String :=
 
 /-- Render a Symbol reference as `(sym "name")`. -/
 private def renderSymbol (s : Symbol) : String :=
-  s!"(sym \"{s.name}\")"
+  s!"(sym \"{Translator.escapeStringLit s.name}\")"
 
 /-- Render a list of formals as `[sym "x", sym "y"]`. -/
 private def renderFormals (formals : List Symbol) : String :=
-  let items := formals.map fun s => s!"sym \"{s.name}\""
+  let items := formals.map fun s => s!"sym \"{Translator.escapeStringLit s.name}\""
   s!"[{String.intercalate ", " items}]"
 
 /-- Sanitized Lean identifier from an ACL2 name. -/
 private def leanName (name : Symbol) : String :=
   Translator.sanitizeName (Translator.translateSymbol name)
 
+/-- First symbol with a non-`ACL2` package in a term, if any. The generated
+    world resolves symbol identity by full `Symbol` `BEq` while `sym`/the
+    statement builder work in the `ACL2` package, and cross-package identity
+    (a package's import list) is reader state we do not model — so ANY
+    foreign-package symbol must hard-fail rather than silently alias or
+    diverge (fail-closed audit 2026-07-06, N5). -/
+private partial def findForeignSym : SExpr → Option Symbol
+  | .atom (.symbol s) => if s.package == "ACL2" then none else some s
+  | .cons a b => (findForeignSym a) <|> findForeignSym b
+  | _ => none
+
+private def checkSyms (ctx : String) (syms : List Symbol) (terms : List SExpr) :
+    Except String Unit := do
+  match syms.find? (fun s => s.package != "ACL2") with
+  | some s => throw s!"gen-world: {ctx}: symbol {s.package}::{s.name} is not \
+                       in the ACL2 package — cross-package identity (import \
+                       lists) is not modeled (fail-closed audit N5)"
+  | none => pure ()
+  match terms.findSome? findForeignSym with
+  | some s => throw s!"gen-world: {ctx}: term mentions {s.package}::{s.name} \
+                       — non-ACL2 packages are not supported (fail-closed \
+                       audit N5)"
+  | none => pure ()
+
 /-- Reject events the world generator cannot translate FAITHFULLY — fail
     closed (never silently skip; CLAUDE.md). Checked on the UNFLATTENED list:
     `Event.flattenList` unwraps `encapsulate` transparently, which is wrong
     for world semantics (constrained functions are an abstract interface, not
     global defuns), so the check must run first. `local`/`mutual-recursion`
-    recurse; `in-package`/`in-theory` are explicitly world-irrelevant (they
-    change no function definition and no theorem statement). -/
+    recurse; `in-theory` is explicitly world-irrelevant; `in-package` is
+    accepted only for the ACL2 package, and defun/defthm contents are scanned
+    for foreign-package symbols (fail-closed audit N5). -/
 private partial def checkTranslatable (ev : Event) : Except String Unit :=
   match ev with
-  | .inPackage _ | .defun .. | .defthm .. | .inTheory _ => .ok ()
+  | .inPackage pkg =>
+      if pkg == "ACL2" then .ok ()
+      else .error s!"gen-world: (in-package \"{pkg}\") is not supported — the \
+                     translator works in the ACL2 package only; honoring a \
+                     foreign package needs its import list (fail-closed \
+                     audit N5)"
+  | .defun name formals _ decls body =>
+      checkSyms s!"defun {name.name}" (name :: formals) (body :: decls)
+  | .defthm name info =>
+      checkSyms s!"defthm {name.name}" [name] [info.body]
+  | .inTheory _ => .ok ()
   | .local inner => checkTranslatable inner
   | .mutualRecursion evs => evs.forM checkTranslatable
   | .includeBook path _ =>

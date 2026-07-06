@@ -85,7 +85,17 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
 
 /-- One step of the option-returning evaluator, parameterized by the
     recursive evaluator function. Factored out so that monotonicity
-    can be proved about this non-recursive function directly. -/
+    can be proved about this non-recursive function directly.
+
+    MALFORMED TERM SHAPES return `none` — fail-closed, indistinguishable
+    from non-convergence, so no mirror theorem over a malformed term is
+    provable (fail-closed audit 2026-07-06, F15; matches the already-`none`
+    unknown-builtin/arity arms F13/F14). The one DELIBERATE total default
+    that stays: an UNBOUND VARIABLE evaluates to `nil` (`t` to itself) —
+    that is the total-env modeling choice the `∀ env` mirror-statement form
+    relies on (an env that omits a theorem variable behaves as binding it
+    to `nil`), mirroring ACL2's total logical semantics, NOT a fail-open
+    default. -/
 def evalOptStep (rec : World → Env → SExpr → Option SExpr)
     (w : World) (env : Env) (term : SExpr) : Option SExpr :=
   match term with
@@ -103,13 +113,13 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
       if s.isNamed "quote" then
         match argsExpr with
         | .cons v .nil => some v
-        | _ => some .nil
+        | _ => none
       else if s.isNamed "if" then
         match argsExpr.toList? with
         | some [c, t, e] => do
             let cv ← rec w env c
             if Logic.toBool cv then rec w env t else rec w env e
-        | _ => some .nil
+        | _ => none
       else if s.isNamed "let" || s.isNamed "let*" then
         match argsExpr.toList? with
         | some [bindings, body] =>
@@ -122,10 +132,10 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
                   | some [.atom (.symbol var), valExpr] => do
                       let v ← rec w (if s.isNamed "let*" then acc else env) valExpr
                       pure (acc.insert var v)
-                  | _ => some acc) env
+                  | _ => none) env
                 rec w env' body
-            | none => some .nil
-        | _ => some .nil
+            | none => none
+        | _ => none
       else
         match argsExpr.toList? with
         | some args => do
@@ -136,8 +146,8 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
                   rec w (bindArgs formals argVals) body
                 else none
             | none => callBuiltin s.name argVals
-        | none => some .nil
-  | _ => some .nil
+        | none => none
+  | _ => none
 
 /-- Equation lemma for evalOptStep on symbol-headed cons. -/
 @[simp] theorem evalOptStep_cons_symbol (rec : World → Env → SExpr → Option SExpr)
@@ -146,13 +156,13 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
     if s.isNamed "quote" then
       match argsExpr with
       | .cons v .nil => some v
-      | _ => some .nil
+      | _ => none
     else if s.isNamed "if" then
       match argsExpr.toList? with
       | some [c, t, e] => do
           let cv ← rec w env c
           if Logic.toBool cv then rec w env t else rec w env e
-      | _ => some .nil
+      | _ => none
     else if s.isNamed "let" || s.isNamed "let*" then
       match argsExpr.toList? with
       | some [bindings, body] =>
@@ -163,10 +173,10 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
                 | some [.atom (.symbol var), valExpr] => do
                     let v ← rec w (if s.isNamed "let*" then acc else env) valExpr
                     pure (acc.insert var v)
-                | _ => some acc) env
+                | _ => none) env
               rec w env' body
-          | none => some .nil
-      | _ => some .nil
+          | none => none
+      | _ => none
     else
       match argsExpr.toList? with
       | some args => do
@@ -177,7 +187,7 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
                 rec w (bindArgs formals argVals) body
               else none
           | none => callBuiltin s.name argVals
-      | none => some .nil := by
+      | none => none := by
   rfl
 
 /-- Option-returning ACL2 evaluator. `none` = fuel exhaustion.
@@ -239,11 +249,11 @@ private theorem letFoldStep_mono
     (hmid : (match b.toList? with
       | some [.atom (.symbol var), valExpr] =>
           (f w valEnv valExpr).bind fun v => some (acc.insert var v)
-      | _ => some acc) = some mid) :
+      | _ => none) = some mid) :
     (match b.toList? with
       | some [.atom (.symbol var), valExpr] =>
           (g w valEnv valExpr).bind fun v => some (acc.insert var v)
-      | _ => some acc) = some mid := by
+      | _ => none) = some mid := by
   match hbl : b.toList? with
   | some [.atom (.symbol var), valExpr] =>
     simp only [hbl] at hmid ⊢
@@ -311,7 +321,7 @@ theorem evalOptStep_mono
                 | some [.atom (.symbol var), valExpr] =>
                     (f w (if s.isNamed "let*" then acc else env) valExpr).bind
                       fun v => some (acc.insert var v)
-                | _ => some acc) env bList with
+                | _ => none) env bList with
               | none => simp [hfold] at h
               | some env' =>
                 simp [hfold] at h

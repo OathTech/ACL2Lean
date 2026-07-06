@@ -140,17 +140,18 @@ mutual
         let (tok, tail) := span isAtomChar rest
         let repr := "#\\" ++ String.ofList tok
         .ok (SExpr.atom (.symbol { name := repr }), tail)
-    | '#' :: '+' :: rest =>
-        match parseSExpr rest with
-        | .error e => .error e
-        | .ok (_, rest2) =>
-            match parseSExpr rest2 with
-            | .error e => .error e
-            | .ok (_, rest3) => parseSExpr rest3
-    | '#' :: '-' :: rest =>
-        match parseSExpr rest with
-        | .error e => .error e
-        | .ok (_, rest2) => parseSExpr rest2
+    -- Reader conditionals: the old implementation ignored the feature test
+    -- (`#+` always dropped the guarded form, `#-` always kept it — both
+    -- backwards from Common Lisp for a present feature). Evaluating feature
+    -- expressions honestly needs a *features* model we don't have, so
+    -- hard-fail instead of silently mistranslating source (fail-closed
+    -- audit N4; no `#+`/`#-` in the current corpus).
+    | '#' :: '+' :: _ =>
+        .error "reader conditional #+ unsupported — the translator has no \
+                *features* model (fail-closed; see 2026-07-06 audit N4)"
+    | '#' :: '-' :: _ =>
+        .error "reader conditional #- unsupported — the translator has no \
+                *features* model (fail-closed; see 2026-07-06 audit N4)"
     | '#' :: c :: _ => .error s!"unrecognized reader macro: #{String.ofList [c]}"
     | '#' :: [] => .error "unexpected # at end of input"
     | ':' :: _ =>
@@ -214,7 +215,7 @@ private def parsedUppercaseDefunLooksRight : Bool :=
   match parseOne "(DEFUN FOO (X) (DECLARE (XARGS :GUARD (INTEGERP X))) (IF T X NIL))" with
   | .ok sx =>
       match Event.classify sx with
-      | .defun { name := "foo", .. } [{ name := "x", .. }] _ decls body =>
+      | .ok (.defun { name := "foo", .. } [{ name := "x", .. }] _ decls body) =>
           decls.length = 1 && body.headSymbol? = some { name := "if" }
       | _ => false
   | .error _ => false
@@ -233,7 +234,7 @@ private def parsedDefthmMetadataLooksRight : Bool :=
   match parseOne "(DEFTHM FOO (EQUAL X X) :RULE-CLASSES (:LINEAR :REWRITE) :HINTS ((\"Goal\" :USE BAR :IN-THEORY (DISABLE BAZ))))" with
   | .ok sx =>
       match Event.classify sx with
-      | .defthm { name := "foo", .. } info =>
+      | .ok (.defthm { name := "foo", .. } info) =>
           info.ruleClasses.map (·.name) = ["linear", "rewrite"] &&
             match info.hintGoals with
             | [hint] =>
@@ -249,7 +250,7 @@ private def parsedTopLevelInTheoryLooksRight : Bool :=
                                  (ASSOCIATIVITY-OF-+)))" with
   | .ok sx =>
       match Event.classify sx with
-      | .inTheory expr =>
+      | .ok (.inTheory expr) =>
           TheoryExpr.ofSExpr expr =
             .e_d
               [.atom (.symbol { name := "commutativity-of-+" })]
@@ -261,7 +262,7 @@ private def parsedWithOutputWrappedDefthmLooksRight : Bool :=
   match parseOne "(WITH-OUTPUT :OFF :ALL (DEFTHM WRAPPED (EQUAL X X)))" with
   | .ok sx =>
       match Event.classify sx with
-      | .defthm { name := "wrapped", .. } info =>
+      | .ok (.defthm { name := "wrapped", .. } info) =>
           info.body = SExpr.ofList
             [ .atom (.symbol { name := "equal" })
             , .atom (.symbol { name := "x" })
@@ -281,7 +282,10 @@ private def parsedMakeEventEncapsulateLooksRight : Bool :=
                                    :HINTS ((\"Goal\"
                                             :IN-THEORY (DISABLE CHECK-IT! HONS-GET))))))" with
   | .ok sx =>
-      match Event.flattenList [Event.classify sx] with
+      match Event.classify sx with
+      | .error _ => false
+      | .ok ev =>
+      match Event.flattenList [ev] with
       | [ .defthm { name := "check-it!-works", .. } checkInfo
         , .defthm { name := "badge-prim-type", .. } badgeInfo
         ] =>
@@ -314,7 +318,7 @@ private def parsedProofBuilderInstructionsLookRight : Bool :=
                      :RULE-CLASSES ((:META :TRIGGER-FNS (APPLY$-PRIM))))" with
   | .ok sx =>
       match Event.classify sx with
-      | .defthm { name := "apply$-prim-meta-fn-correct", .. } info =>
+      | .ok (.defthm { name := "apply$-prim-meta-fn-correct", .. } info) =>
           match info.instructions with
           | [ .block "quiet!" [bashInst, theoryInst, .block "repeat" [.atom "prove"]] ] =>
               let bashOk :=

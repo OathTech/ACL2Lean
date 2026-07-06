@@ -46,40 +46,53 @@ private def int (n : Int) : SExpr := .atom (.number (.int n))
 
 -- defun
 #guard match Event.classify (SExpr.ofList [sym "defun", sym "foo", SExpr.ofList [sym "x"], sym "x"]) with
-  | .defun { name := "foo", .. } [{ name := "x", .. }] _ _ _ => true
+  | .ok (.defun { name := "foo", .. } [{ name := "x", .. }] _ _ _) => true
   | _ => false
 
 -- defthm
 #guard match Event.classify (SExpr.ofList [sym "defthm", sym "my-thm",
     SExpr.ofList [sym "equal", sym "x", sym "x"]]) with
-  | .defthm { name := "my-thm", .. } _ => true
+  | .ok (.defthm { name := "my-thm", .. } _) => true
   | _ => false
 
 -- in-package
 #guard match Event.classify (SExpr.ofList [sym "in-package", .atom (.string "ACL2")]) with
-  | .inPackage "ACL2" => true
+  | .ok (.inPackage "ACL2") => true
   | _ => false
 
 -- include-book
 #guard match Event.classify (SExpr.ofList [sym "include-book", .atom (.string "arithmetic")]) with
-  | .includeBook "arithmetic" _ => true
+  | .ok (.includeBook "arithmetic" _) => true
   | _ => false
 
 -- local wrapping
 #guard match Event.classify (SExpr.ofList [sym "local",
     SExpr.ofList [sym "defthm", sym "helper",
       SExpr.ofList [sym "equal", sym "x", sym "x"]]]) with
-  | .local (.defthm { name := "helper", .. } _) => true
+  | .ok (.local (.defthm { name := "helper", .. } _)) => true
   | _ => false
 
 -- defconst
 #guard match Event.classify (SExpr.ofList [sym "defconst", sym "*c*", int 42]) with
-  | .defconst { name := "*c*", .. } _ => true
+  | .ok (.defconst { name := "*c*", .. } _) => true
   | _ => false
 
 -- known no-ops produce .skip
 #guard match Event.classify (SExpr.ofList [sym "program"]) with
-  | .skip _ => true
+  | .ok (.skip _) => true
+  | _ => false
+
+-- malformed forms fail CLOSED (were panic!-defaults before the 2026-07-06
+-- fail-closed audit)
+#guard match Event.classify (SExpr.ofList [sym "defun", sym "foo"]) with
+  | .error _ => true
+  | _ => false
+#guard match Event.classify (SExpr.ofList [sym "no-such-event", sym "x"]) with
+  | .error _ => true
+  | _ => false
+#guard match Event.classify (SExpr.ofList [sym "defthm", sym "t1",
+    SExpr.ofList [sym "equal", sym "x", sym "x"], .atom (.keyword "hints")]) with
+  | .error _ => true
   | _ => false
 
 -- === Event.flatten ===
@@ -143,7 +156,14 @@ private def int (n : Int) : SExpr := .atom (.number (.int n))
 
 -- === TheoremOption ===
 
-#guard (TheoremOption.fromSExprs [.atom (.keyword "hints"), .nil, .atom (.keyword "rule-classes"), .nil]).length = 2
+#guard match TheoremOption.fromSExprs
+    [.atom (.keyword "hints"), .nil, .atom (.keyword "rule-classes"), .nil] with
+  | .ok opts => opts.length = 2
+  | .error _ => false
+-- malformed plist fails closed
+#guard match TheoremOption.fromSExprs [.atom (.keyword "hints")] with
+  | .error _ => true
+  | _ => false
 
 #guard TheoremOption.findValue? [{ key := "hints", value := int 1 }] "hints" = some (int 1)
 #guard TheoremOption.findValue? [{ key := "hints", value := int 1 }] "other" = none

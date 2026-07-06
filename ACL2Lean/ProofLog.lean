@@ -324,10 +324,14 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let rhs ← match lookupKeyword "rhs" rest with
         | some s => pure s
         | none => throw "REWRITE-STEP: missing :RHS"
-      -- Optional provenance fields
-      let origin := match lookupKeyword "origin" rest with
-        | some (.atom (.symbol s)) => s.name
-        | _ => ""
+      -- Optional provenance fields. ABSENT :ORIGIN is normal (older/plain
+      -- steps); a PRESENT-but-non-symbol :ORIGIN is a malformed emission and
+      -- hard-fails — origin is a primary replay dispatch key, and "" would
+      -- route the node down the wrong recipe (fail-closed audit N2).
+      let origin ← match lookupKeyword "origin" rest with
+        | some (.atom (.symbol s)) => pure s.name
+        | some other => throw s!"REWRITE-STEP: malformed :ORIGIN {repr other}"
+        | none => pure ""
       -- :EQUIV is REQUIRED: the emitter states every step's equivalence
       -- relation explicitly (all 65 push sites emit it; the two IFF-flavored
       -- ones are labeled 'iff). The checker does NO inference — a missing or
@@ -345,11 +349,15 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
             | none => throw s!"REWRITE-STEP: bad rune in :RUNES: {repr r}"
           | none => throw s!"REWRITE-STEP: :RUNES not a list: {repr r}"
         | none => pure []
-      let parents := match lookupKeyword "parents" rest with
+      -- :PARENTS gates solidify/IH linking; a present-but-non-list value
+      -- must hard-fail like :RUNES/:SUBST/:PATH, not default to [] (which
+      -- would push a parent-tagged node into the IH-matching path —
+      -- fail-closed audit N3).
+      let parents ← match lookupKeyword "parents" rest with
         | some r => match r.toList? with
-          | some items => items
-          | none => []
-        | none => []
+          | some items => pure items
+          | none => throw s!"REWRITE-STEP: :PARENTS not a list: {repr r}"
+        | none => pure []
       let subst ← match lookupKeyword "subst" rest with
         | some r => match r.toList? with
           | some items => items.mapM fun pair =>
