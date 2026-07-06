@@ -2322,6 +2322,16 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
   let e := cfg.envExpr
   let some (fs, args) := asApp t | return (none, t)
   if fs.name == "quote" then return (none, t)
+  -- an in-scope SPINE falsity fact resolves the term outright: if-interp
+  -- consults the clause-segment ASSUMPTIONS for the terms it encounters (the
+  -- other literals are assumed false) — e.g. a collapsed residual that IS
+  -- another clause literal. Divergence still fail-closes at the composer's
+  -- leaf-value check.
+  if let some hNil := ctx.litFactByTerm? t then
+    let pl ← ctxValProof cfg ctx t
+    let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
+    let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
+    return (some step, quoteNil)
   if fs.name == "if" then
     match args with
     | [c, a, b] =>
@@ -2397,6 +2407,16 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
         | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
       curArgs := curArgs.set! i a'
   let cur : SExpr := .cons (.atom (.symbol fs)) (curArgs.toList.foldr .cons .nil)
+  -- the POST-COLLAPSE term may be the form an in-scope assumption is about
+  -- (argument collapse rebuilt it into another clause literal)
+  if let some hNil := ctx.litFactByTerm? cur then
+    let pl ← ctxValProof cfg ctx cur
+    let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
+    let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
+    let acc' ← match acc with
+      | none => pure step
+      | some p => mkAppM ``fuel_chain_eq #[p, step]
+    return (some acc', quoteNil)
   -- call-stack folds (the enumerated rule set; extend ONLY with rules
   -- if-interp itself applies — rewrite.lisp:3671-3778)
   let fold? ← do
