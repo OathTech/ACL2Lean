@@ -4217,6 +4217,14 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
       throwError "replayClause: elim step alongside an effective clausify \
                   record at {cn.idStr} (frontier)"
     return ← replayElim cfg ctx cn st
+  -- a GENERALIZE node: the child clause abstracts the emitted :TERMS by fresh
+  -- :VARS; replayGeneralize replays the child at the env binding the fresh
+  -- vars to the terms' values and substN-bridges back
+  if let some st := cn.steps.find? (fun s => s.processor.toLower == "generalize-clause") then
+    unless clausifyInfos.isEmpty do
+      throwError "replayClause: generalize step alongside an effective \
+                  clausify record at {cn.idStr} (frontier)"
+    return ← replayGeneralize cfg ctx cn st
   -- pin every user-fn application in this clause's subtree from the totality/TP
   -- hypotheses (idempotent — already-pinned terms are skipped), so the value
   -- layer can lift opaque subterms under a quantified env
@@ -4458,6 +4466,105 @@ partial def replayElim (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode)
   mkAppM ``Classical.byCases #[negL, posL]
 
 
+/-- Replay a GENERALIZE node (`generalize-clause`): the child clause `C'`
+    abstracts the emitted `:TERMS` by the fresh `:VARS` — substituting the
+    terms back for the vars must recover THIS clause exactly (recompute-and-
+    check; a var that was not fresh fails it). Prove `EvTrue w env (disjoin C)`
+    by replaying the child at `env' = env[vars ↦ term values]` and bridging
+    `eval env ((disjoin C')σ) ≡ eval env' (disjoin C')` by `substN`
+    (σ = vars ↦ terms) — the elim pattern without the case split. -/
+partial def replayGeneralize (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode)
+    (st : WaterfallStep) : MetaM Expr := do
+  for s in cn.steps do
+    unless s.processor.toLower == "generalize-clause" ||
+           s.processor.toLower == "settled-down-clause" do
+      throwError "replayGeneralize: processor {s.processor} alongside \
+                  generalize at {cn.idStr} (frontier)"
+  for (_, lp) in flattenLiterals (cn.steps.flatMap (·.items)) do
+    unless lp.nodes.isEmpty && lp.result == lp.literal do
+      throwError "replayGeneralize: non-identity literal item at {cn.idStr} \
+                  (frontier): {repr lp.literal}"
+  let some genS := st.extraFields.lookup "generalize"
+    | throwError "replayGeneralize: no :GENERALIZE record at {cn.idStr}"
+  let rec plistLookup (k : String) : SExpr → Option SExpr
+    | .cons (.atom (.keyword kw)) (.cons v rest) =>
+      if kw == k then some v else plistLookup k rest
+    | .cons _ rest => plistLookup k rest
+    | _ => none
+  let some termsS := plistLookup "terms" genS
+    | throwError "replayGeneralize: :GENERALIZE without :TERMS at {cn.idStr}"
+  let some varsS := plistLookup "vars" genS
+    | throwError "replayGeneralize: :GENERALIZE without :VARS at {cn.idStr}"
+  -- one round only (a multi-round generalize is a frontier)
+  let some [roundTermsS] := termsS.toList?
+    | throwError "replayGeneralize: :TERMS {repr termsS} is not a single \
+                  round at {cn.idStr} (frontier)"
+  let some [roundVarsS] := varsS.toList?
+    | throwError "replayGeneralize: :VARS {repr varsS} is not a single \
+                  round at {cn.idStr} (frontier)"
+  let some terms := roundTermsS.toList?
+    | throwError "replayGeneralize: round terms {repr roundTermsS} not a list"
+  let some varsL := roundVarsS.toList?
+    | throwError "replayGeneralize: round vars {repr roundVarsS} not a list"
+  let gvars ← varsL.mapM fun v => do
+    let .atom (.symbol s) := v
+      | throwError "replayGeneralize: non-variable {repr v} in :VARS"
+    pure s
+  unless gvars.length == terms.length && !gvars.isEmpty do
+    throwError "replayGeneralize: {gvars.length} vars for {terms.length} \
+                terms at {cn.idStr}"
+  let [child] := cn.children
+    | throwError "replayGeneralize: {cn.children.length} children at \
+                  {cn.idStr} (frontier)"
+  -- recompute-and-check: σ-substituting the child recovers this clause
+  let childTerm := disjoinTerm child.inputClause
+  unless ACL2.Replay.substTerm gvars terms childTerm
+      == disjoinTerm cn.inputClause do
+    throwError "replayGeneralize: substituting the :TERMS back does not \
+                recover the clause at {cn.idStr} (recompute/emission \
+                divergence)"
+  let w := cfg.worldExpr
+  let env := cfg.envExpr
+  -- pin the generalized terms and take their values at THIS env
+  let mut ctx := ctx
+  let mut vals : List Expr := []
+  let mut convs : List Expr := []
+  for t in terms do
+    ctx ← pinTermOpaques cfg env ctx t
+    vals := vals ++ [← ctxValExpr cfg ctx t]
+    convs := convs ++ [← ctxValProof cfg ctx t]
+  let formalsE ← mkListLit (mkConst ``Symbol) (gvars.map reflectSymbol)
+  let argsE ← mkListLit (mkConst ``SExpr) (terms.map reflectSExpr)
+  let valsE ← mkListLit (mkConst ``SExpr) vals
+  let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
+  let cfg' := { cfg with envExpr := env' }
+  let ctx' := { ctx with varVals := [], vals := [], litFacts := [] }
+  let pChild ← replayClause cfg' ctx' child
+  -- substN bridge back to this env
+  let hNoLet ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr childTerm])
+            (mkConst ``Bool.true))
+    "NoLet generalize child"
+  let hlenPf ← proveByDecide
+    (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
+    "substN arg/val lengths"
+  let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
+  let pFn ← withLocalDeclD `pr prodTy fun prV => do
+    let fst ← mkAppM ``Prod.fst #[prV]
+    let snd ← mkAppM ``Prod.snd #[prV]
+    mkLambdaFVars #[prV] (← mkValConvPropEx w env fst snd)
+  let entries ← (terms.zip vals).mapM fun (t, v) =>
+    mkAppM ``Prod.mk #[reflectSExpr t, v]
+  let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip convs)
+  let zipE ← mkAppM ``List.zip #[argsE, valsE]
+  let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
+    let mem ← mkAppM ``Membership.mem #[zipE, prV]
+    mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
+  let hargs ← mkExpectedTypeHint hargsRaw hargsTy
+  let pBridge ← mkAppM ``evalOpt_substTerm_substN
+    #[w, env, formalsE, argsE, valsE, reflectSExpr childTerm, hNoLet, hlenPf, hargs]
+  mkAppM ``evtrue_of_fuel_eq #[pBridge, pChild]
+
 /-- Replay an INDUCTION pool-root from its EMITTED justification (G5 v2,
     docs/plans/2026-06-12_multicase-induction.md): measure `(acl2-count v)`
     under `o<`, one controller; N cases with COMPOUND ruling tests (the
@@ -4530,26 +4637,37 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
       let negTests := c.tests.map dumbNegateLit
       (selectionsOf c).map fun sel =>
         (i, c, sel, negTests ++ sel.map (·.2.2) ++ pushedLits)
+  -- ACL2's induction-formula CLEAN-UP drops trivially-true clauses (a
+  -- complementary literal pair, or a 't literal) — a cross-product clause
+  -- where σ leaves an IH literal UNCHANGED is the standard case (¬Lσ = ¬L
+  -- complements the goal's own L). Mirror the filter exactly; the dropped
+  -- selections are discharged directly at the walk (their truthy literal IS
+  -- a goal literal).
+  let isTaut : List SExpr → Bool := fun cl =>
+    cl.any (fun l => l == quoteT || cl.contains (dumbNegateLit l))
+  let kept := expected.filter (fun (_, _, _, cl) => !isTaut cl)
+  let dropped := expected.filter (fun (_, _, _, cl) => isTaut cl)
   -- validate the recomputation against the EMITTED scheme clause set
   let schemeClauses ← ind.scheme.mapM fun cl => do
     let some lits := cl.toList?
       | throwError "replayInduction: scheme clause {repr cl} is not a list"
     pure lits
-  unless schemeClauses.length == expected.length do
+  unless schemeClauses.length == kept.length do
     throwError "replayInduction: {schemeClauses.length} scheme clauses for \
-                {expected.length} recomputed case clauses (mismatch)"
-  for (_, _, _, cl) in expected do
+                {kept.length} recomputed (non-tautological) case clauses \
+                (mismatch)"
+  for (_, _, _, cl) in kept do
     unless schemeClauses.contains cl do
       throwError "replayInduction: recomputed case clause {repr cl} not in \
                   the emitted :SCHEME (recompute/emission divergence)"
   -- link children 1:1 by exact clause match (duplicate expected clauses would
   -- make the match ambiguous — hard-fail rather than guess)
-  unless (expected.map (·.2.2.2)).eraseDups.length == expected.length do
+  unless (kept.map (·.2.2.2)).eraseDups.length == kept.length do
     throwError "replayInduction: duplicate recomputed case clauses (frontier)"
-  unless cn.children.length == expected.length do
+  unless cn.children.length == kept.length do
     throwError "replayInduction: {cn.children.length} children for \
-                {expected.length} recomputed case clauses (frontier)"
-  let linked ← expected.mapM fun (i, c, sel, cl) => do
+                {kept.length} recomputed case clauses (frontier)"
+  let linked ← kept.mapM fun (i, c, sel, cl) => do
     let some child := cn.children.find? (·.inputClause == cl)
       | throwError "replayInduction: no child with clause {repr cl} (case {i})"
     pure (i, c, sel, cl, child)
@@ -4686,8 +4804,25 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
                 let some (_, _, sel, _, child) := linked.find?
                     (fun (ci, _, sel, _, _) =>
                       ci == i && sel.map (fun (al, j, _) => (al, j)) == key)
-                  | throwError "replayInduction: no child for case {i} \
-                                selection {repr (key.map (·.2))}"
+                  | do
+                    -- a DROPPED (tautological) selection: ACL2's clean-up
+                    -- removed its trivially-true clause. The discharge is
+                    -- direct: some chosen IH literal's σ-instance IS a goal
+                    -- literal, and this branch holds its truthiness.
+                    unless dropped.any (fun (ci, _, sel, _) =>
+                        ci == i && sel.map (fun (al, j, _) => (al, j)) == key) do
+                      throwError "replayInduction: no child for case {i} \
+                                  selection {repr (key.map (·.2))}"
+                    for (al, j, hne) in chosen do
+                      let some lj := pushedLits[j]?
+                        | throwError "replayInduction: internal — selection \
+                                      index {j} out of range"
+                      let ljσ := ACL2.Replay.substTerm
+                        (al.map (·.1)) (al.map (·.2)) lj
+                      if let some m := pushedLits.findIdx? (· == ljσ) then
+                        return ← evtrueOfLitTrue cfg' ctxD pushedLits m ljσ hne
+                    throwError "replayInduction: dropped selection for case \
+                                {i} has no goal-literal witness (frontier)"
                 let mut p ← replayClause cfg' ctxD child
                 -- ruling-literal peels, clause order
                 for t in c.tests do
