@@ -81,6 +81,9 @@ inductive WorldEvent where
   /-- A type-prescription corollary ACL2 derived for a function. -/
   | typePrescription (name : String) (corollary : SExpr)
           (basicTs : Option Int) (leaves : List (SExpr × Int))
+  /-- Stored rewrite rules created by preceding defthms (emitted before any
+      use — the source for `rule:<thm>` dependency hypotheses). -/
+  | rules (specs : List RuleSpec)
   /-- A proved theorem and its clause-tree proof. -/
   | theorem (proof : ClauseProof)
   deriving Repr, Inhabited
@@ -135,6 +138,16 @@ def Development.typePrescriptions : Development → List (String × SExpr)
     match ev with
     | .typePrescription n cor _ _ => (n, cor) :: rest.typePrescriptions
     | _ => rest.typePrescriptions
+
+/-- The STORED rewrite rules of a development, in creation order (rune name ↦
+    spec) — the statements the `rule:<thm>` dependency hypotheses assert
+    (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). -/
+def Development.storedRules : Development → List RuleSpec
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .rules specs => specs ++ rest.storedRules
+    | _ => rest.storedRules
 
 /-- The admission justifications of a development's RECURSIVE defuns
     (fn name ↦ measure/wfrel/measured-subset + the raw termination clauses),
@@ -482,6 +495,8 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       pendingTermination := none
     | .typePrescription n cor bts leaves =>
       events := events.push (.typePrescription n cor bts leaves)
+    | .rules specs =>
+      events := events.push (.rules specs)
     | .step _ | .induction _ => curEvents := curEvents.push ev
   -- Close any trailing block. A still-open NAMED block at end-of-log means the
   -- final theorem never emitted its (:QED) — ACL2's proof FAILED or the log was

@@ -201,6 +201,20 @@ structure Justification where
   terminationClauses : List SExpr
   deriving Repr
 
+/-- A STORED rewrite rule exactly as ACL2 created it (`emit/rule` → the
+    `(:RULES …)` event): the normalized hyps/equiv/lhs/rhs the rewriter
+    actually applies — which can DIFFER from the defthm formula
+    (implies-flattening, iff→equal strengthening, and-splitting;
+    docs/plans/2026-07-05_theorem-dependency-hypotheses.md). The replay's
+    `rule:<thm>` hypotheses state exactly this. -/
+structure RuleSpec where
+  name : String
+  hyps : List SExpr
+  equiv : String
+  lhs : SExpr
+  rhs : SExpr
+  deriving Repr, Inhabited
+
 /-- A single event in the proof log. -/
 inductive ProofEvent where
   | defun (name : String) (formals : List Symbol) (body : SExpr)
@@ -208,6 +222,9 @@ inductive ProofEvent where
   | defthm (name : String) (formula : SExpr := .nil) (source : TheoremSource := .unknown)
   | typePrescription (name : String) (corollary : SExpr)
       (basicTs : Option Int := none) (leaves : List (SExpr × Int) := [])
+  /-- The stored rewrite rules created since the previous flush (in creation
+      order; emitted before the next :DEFTHM, hence before any use). -/
+  | rules (specs : List RuleSpec)
   | step (s : ProofStep)
   | induction (i : InductionStep)
   | qed
@@ -732,6 +749,29 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         return .defun name formals body just
       | _ => throw s!"DEFUN: bad name: {repr nameExpr}"
     | _ => throw s!"DEFUN: expected plist, got {repr rest}"
+  | .cons (.atom (.keyword "rules")) rest =>
+    match rest.toList? with
+    | some [rulesList] =>
+      let some entries := rulesList.toList?
+        | throw s!"RULES: payload is not a list: {repr rulesList}"
+      let specs ← entries.mapM fun e => do
+        match e.toList? with
+        | some [runeS, hypsS, equivS, lhsS, rhsS] =>
+          match runeS.toList? with
+          | some [.atom (.keyword rty), .atom (.symbol rname)] => do
+            unless rty == "rewrite" do
+              throw s!"RULES: rune class {rty} unsupported (frontier)"
+            let hyps ← hypsS.toList?.elim
+              (throw s!"RULES {rname.name}: :HYPS not a list: {repr hypsS}") pure
+            let equiv ← match equivS with
+              | .atom (.symbol s) => pure s.name
+              | other => throw s!"RULES {rname.name}: bad equiv: {repr other}"
+            pure ({ name := rname.name, hyps, equiv,
+                    lhs := lhsS, rhs := rhsS } : RuleSpec)
+          | _ => throw s!"RULES: bad rune: {repr runeS}"
+        | _ => throw s!"RULES: bad entry (want (rune hyps equiv lhs rhs)): {repr e}"
+      return .rules specs
+    | _ => throw s!"RULES: expected a single payload list, got {repr rest}"
   | .cons (.atom (.keyword "type-prescription")) rest =>
     match rest.toList? with
     | some (nameExpr :: fields) =>

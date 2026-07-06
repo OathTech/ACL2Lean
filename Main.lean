@@ -163,6 +163,12 @@ private partial def printDevelopment : ACL2.Development → IO Unit
     | .typePrescription name cor _ _ =>
       IO.println s!"\n── type-prescription {name} ──"
       IO.println s!"  {cor}"
+    | .rules specs =>
+      IO.println s!"\n── stored rules ──"
+      for r in specs do
+        let hs := String.intercalate " ∧ " (r.hyps.map (·.toString))
+        let hyps := if r.hyps.isEmpty then "" else s!" (hyps: {hs})"
+        IO.println s!"  {r.name} [{r.equiv}]: {r.lhs} ⇒ {r.rhs}{hyps}"
     | .theorem proof =>
       IO.println s!"\n══ THEOREM {proof.name} ══"
       printClauseProof proof 2
@@ -259,6 +265,10 @@ def main (args : List String) : IO Unit := do
                 IO.println s!"\n  DEFTHM {name}{srcStr}: {formula}"
             | .typePrescription name corollary basicTs leaves =>
                 IO.println s!"\n  TYPE-PRESCRIPTION {name}: {corollary} (basicts={basicTs}, {leaves.length} leaves)"
+            | .rules specs =>
+                IO.println s!"\n  RULES ({specs.length} stored):"
+                for r in specs do
+                  IO.println s!"    {r.name} [{r.equiv}]: {r.lhs} ⇒ {r.rhs} (hyps: {r.hyps.length})"
             | .induction i =>
                 IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
             | .qed =>

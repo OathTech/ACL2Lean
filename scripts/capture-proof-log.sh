@@ -77,7 +77,10 @@ for INPUT in "$@"; do
   # count can legitimately EXCEED the source count (defequiv/defcong generate
   # theorems, e.g. PERM-IS-AN-EQUIVALENCE); only a SHORTFALL warns.
   want_defthm=$(grep -cE '^[^;]*\(defthmd?\b' "$INPUT_ABS" || true)
-  got_defthm=$(tr -s ' \n' '  ' < "$OUTPUT" | grep -o ':SOURCE :LOCAL' | wc -l | tr -d ' ')
+  # `|| true`: grep exits 1 on zero matches, and under pipefail that would
+  # silently kill the whole run at the first book with no local defthms
+  # (how-many.lisp is all defuns).
+  got_defthm=$(tr -s ' \n' '  ' < "$OUTPUT" | { grep -o ':SOURCE :LOCAL' || true; } | wc -l | tr -d ' ')
   got_qed=$(grep -c '(:QED' "$OUTPUT" || true)
   if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED\|proof attempt has failed" "$OUTPUT"; then
     echo "WARNING: $(basename "$INPUT") — ACL2 reported a FAILED/aborted event; log is INCOMPLETE." >&2
