@@ -3891,6 +3891,27 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
       | throwError "replayClauseSpine: literal item {idx} beyond the clause's \
                     literals at {idStr} (item/clause walk divergence)"
     unless idx == cidx && lp.literal == clit do
+      -- a DUPLICATE literal: ACL2's clause normalization (add-literal) drops
+      -- a literal identical to an earlier one (branch-substitution creates
+      -- these), so its walk skips it. The earlier occurrence's falsity fact
+      -- is in scope — collapse this literal's if-frame by it and continue
+      -- against the SAME item, renumbering the remainder to ACL2's walk.
+      if lp.literal != clit then
+        if let some hNil := ctx.litFactByTerm? clit then
+          let restTerm := disjoinTerm (restLits.map (·.2))
+          let vC ← ctxValExpr cfg ctx clit
+          let pC ← ctxValProof cfg ctx clit
+          let hcNil ← mkAppM ``re_val_cast
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr clit, vC,
+              mkConst ``SExpr.nil, pC, hNil]
+          let hRest ← ctxValProof cfg ctx restTerm
+          let vRest ← ctxValExpr cfg ctx restTerm
+          let hIf ← mkAppM ``re_if_false
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr clit, reflectSExpr quoteT,
+              reflectSExpr restTerm, vRest, hcNil, hRest]
+          let restLits' := restLits.map fun (i, l) => (i - 1, l)
+          let p ← replayClauseSpine cfg ctx idStr restLits' items accClause children
+          return ← mkAppM ``evtrue_of_fuel_eq #[hIf, p]
       throwError "replayClauseSpine: literal item {idx} {repr lp.literal} does \
                   not walk the clause at {idStr} (next clause literal is {cidx} \
                   {repr clit})"
