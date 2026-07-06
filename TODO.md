@@ -5,13 +5,15 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-06-19._
+_Last updated: 2026-07-06._
 
 > **`just ci` is GREEN** and includes the driver-coverage sweep: hard-fails on
 > any item-less PROVED leaf (emission gap) and reconstruction-integrity
 > failures; reports per-theorem replay + per-leaf DP-discharge status —
-> currently **REPLAYED 17/45** (corpus grew 37→45 when the sorting/perm book
-> joined the scoreboard at R0), DP leaves ✓9 ◌9 ✗0 of 18.
+> currently **REPLAYED 23/47 (13 unconditional + 10 conditional)** (corpus
+> 45→47 with recon-tests/17-rule-application), DP leaves ✓9 ◌9 ✗0 of 18,
+> and a replayed ✓ is AXIOM-CLEAN by construction (the harness collects
+> each proof's axioms).
 
 ## THE GOVERNING PLAN — `docs/plans/2026-06-10_generality-design.md` (ratified)
 
