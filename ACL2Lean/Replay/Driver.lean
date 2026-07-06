@@ -3856,6 +3856,27 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
         mkLambdaFVars #[hNe] p
       let _ := pK
       return ← mkAppM ``Classical.byCases #[negL, posL]
+    -- a clause-level EQUAL-SELF step: the literal (equal X X) is TRUE by
+    -- reflexivity and closes the whole disjunction (comm-rm's *1/1.2 after
+    -- its branch-substitution trivializes the conclusion)
+    if (runeOf n).1 == "equal-self" then
+      let (lhs, rhs) := nodeLhsRhs n
+      unless rhs == quoteT do
+        throwError "replayClauseSpine: clause-level equal-self with rhs \
+                    {repr rhs} at {idStr} (frontier)"
+      let some X := asEqualSelf lhs
+        | throwError "replayClauseSpine: clause-level equal-self lhs \
+                      {repr lhs} is not (equal X X) at {idStr}"
+      let some k := clauseLits.findIdx? (·.2 == lhs)
+        | throwError "replayClauseSpine: equal-self literal {repr lhs} not \
+                      in the clause at {idStr}"
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
+      let vX ← ctxValExpr cfg ctx X
+      let hEqT ← mkAppM ``Logic.equal_self #[vX]
+      let tNeNil ← proveByDecide
+        (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
+      let hne ← mkAppM ``ne_of_eq_of_ne #[hEqT, tNeNil]
+      return ← evtrueOfLitTrue cfg ctx (clauseLits.map (·.2)) k lhs hne
     throwError "replayClauseSpine: clause-level step item (rune \
                 {repr (runeOf n)}) in the spine at {idStr} (frontier)"
   | .branch seg _ :: _ =>
@@ -4486,9 +4507,12 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
   | _ :: _ :: _ =>
     throwError "replayClause: multiple clausify records at {cn.idStr} (frontier)"
   | [] =>
-  if lits.isEmpty then
-    -- a clause discharged entirely at PREPROCESS: clause-level step nodes chain
-    -- the formula to 't (no literal bracketing is emitted at preprocess sites)
+  if lits.isEmpty && cn.inputClause.length == 1 then
+    -- a SINGLE-literal clause discharged entirely at PREPROCESS: clause-level
+    -- step nodes chain the formula to 't (no literal bracketing is emitted at
+    -- preprocess sites). A MULTI-literal clause with only step items falls
+    -- through to the SPINE — clause-level branch-substitution/equal-self
+    -- steps are spine shapes (comm-rm's *1/1.2).
     let stepNodes := (cn.steps.flatMap (·.items)).filterMap fun
       | .step n => some n | _ => none
     if stepNodes.isEmpty then
@@ -4498,8 +4522,7 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
       throwError "replayClause: preprocess chain with child clauses at {cn.idStr} \
                   (clausify-split frontier)"
     let [formula] := cn.inputClause
-      | throwError "replayClause: preprocess chain on a multi-literal clause at \
-                    {cn.idStr} (frontier)"
+      | throwError "replayClause: internal — single-literal guard"
     return ← replayPreprocessChain cfg ctx formula stepNodes
   replayClauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l))
     ((cn.steps.flatMap (·.items)).filter fun
