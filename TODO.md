@@ -209,8 +209,17 @@ closed, ci as scoreboard, audits at milestones):
       nested-induction pool roots) + pool-subsumption replay
       (recomputed VALIDATED witness σ, general subtree at the instance
       env, substN bridge, instance walk); duplicate-literal skip
-      (add-literal dedup after branch-substitution). Audit #2 launched
-      2026-07-06 (4 Opus reviewers + verifier, pre-authorized).
+      (add-literal dedup after branch-substitution). AUDIT #2 PASSED
+      2026-07-06 (4 Opus reviewers, findings verified inline): ZERO
+      soundness defects; induction generalization sound-by-validation
+      (non-circular — :SCHEME emit = ACL2's genuine post-cleanup
+      clauses); fixes landed same day (03ab23b): fail-closed pool
+      guards, root-statement type pin in replayProofConditional,
+      coverage ✓ now = AXIOM-CLEAN (collectProofAxioms). Open audit
+      residue (fail-safe): forcing-round on pool events when G4 lands;
+      subsumed-by-parent unemitted; subsumer subtree DUPLICATED in
+      reconstruction (replay proves *1.1.1 twice — revisit if proof
+      size matters).
       Remaining R1 walls: comm-rm's multi-literal preprocess chain
       (*1/1.2); perm-is-an-equivalence's SIff wall d.
       NOTE the post-audit commits (6866121, 8096e13, eef8d77) are

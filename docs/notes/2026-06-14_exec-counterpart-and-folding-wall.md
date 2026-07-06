@@ -137,3 +137,19 @@ replay: instantiating a previously-proven theorem (perm-symmetric) by the
 node's `:SUBST`, with its mirror entering the conditional telescope as a
 theorem-dependency hypothesis (rule:<name>, the c2 pattern extended) and the
 HYP children discharging the instantiated hypotheses.
+
+## Update 2026-07-06 — wall 2 RESOLVED: option A adopted (data-ratified)
+
+The earlier walls fell (multi-literal induction et al.) and the phenomenon
+became measurable: every observed fold in the corpus sits in the DISCARDED
+branch of a constant-test if-simplification — exactly the shape option A
+covers. Adopted as designed (commit 81d4f37): when the recorded lhs differs
+from the running term, require the SAME test and SAME taken branch (strict)
+and replay the collapse on the RUNNING term; anything else falls THROUGH to
+the normal machinery (a first draft that threw instead of falling through
+broke the if-finish family — caught by the golden gate within minutes).
+Audit #2 (2026-07-06) verified the relaxation cannot change which branch is
+taken. comm-rm advanced past this family to the multi-literal preprocess
+chain (*1/1.2); a LIVE-branch fold has still never been observed — if one
+appears, option C (folding substTerm) remains the escalation path and A
+becomes a removable no-op, as analyzed above.

@@ -154,11 +154,14 @@ enumerable rather than open-ended.
 Concretely, on the sample corpus the driver fully replays a subset of
 theorems; every theorem it cannot yet replay stops at a **named frontier**
 (an explicit `throwError`, never a silent skip or a `sorry`) that maps to a
-specific backlog item. The largest open area is **induction generality**
-(multi-literal pushed clauses, multiple induction hypotheses, multi-variable
-and non-`acl2-count` measures, merged/mutual schemes). Other frontiers:
-previously-proved theorems used as rewrite rules, some `:use`/`:induct` hint
-shapes, and a handful of decision-procedure leaves awaiting an SMT backend.
+specific backlog item. Multi-literal pushed clauses, cross-product induction
+schemes, pool subsumption, generalization, and previously-proved theorems
+used as rewrite rules (replayed as conditional mirrors with `rule:<thm>`
+hypotheses) all replay; the largest open areas are **induction-measure
+generality** (multi-variable and non-`acl2-count` measures, merged/mutual
+schemes), discharging the `rule:<thm>` hypotheses from their own replayed
+mirrors, some `:use`/`:induct` hint shapes, and a handful of
+decision-procedure leaves awaiting an SMT backend.
 
 Beyond the corpus, the **translator** (stage 5) currently handles
 `defun`/`defthm`/`mutual-recursion`; `encapsulate`, `include-book`,

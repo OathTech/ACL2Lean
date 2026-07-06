@@ -101,3 +101,18 @@ may be violated by a v1 shortcut)
    dependency's replayed mirror (implies/equal decodes + the TP two-valuedness
    where ACL2's storage strengthened iff→equal), substituting like #37's
    totality discharge.
+
+## Status update 2026-07-06
+
+v1 steps 1–4 are LANDED and audited (two adversarial audits, zero soundness
+defects): rules emit at create-rewrite-rule as (:RULES …) events, parse to
+RuleSpec, bind as rule:<thm> hypotheses (equal-class only — non-equal rules
+are not offered), and the with-lemma recipe replays applications with
+recompute-and-check joints on :SUBST/lhs/rhs, hyp relief from recorded
+:KIND HYP chains, relieve-hyp/* silent-relief markers (incl. the
+free-variable family), the clause context, and RHS-continuation chains.
+perm-transitive AND all four of its dependencies replay conditionally;
+the perm book stands at 6 of 8. Step 5 (lazy discharge from replayed
+dependency mirrors) is the open follow-up — all dependency mirrors are now
+available for it, with full chain closure additionally requiring comm-rm
+(perm-rm cites rule:comm-rm).
