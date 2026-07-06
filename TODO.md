@@ -190,10 +190,29 @@ closed, ci as scoreboard, audits at milestones):
       for R2 include-book import, not single-log replay); forced hyps
       emit no marker (the G4 forcing seam). Rule-hyp lazy discharge from
       replayed dependency mirrors is the tracked follow-up (v1 step 5).
-      Remaining R1 walls: multi-literal pushed clauses (4 theorems:
-      perm-symmetric/memb-rm/perm-memb/perm-rm);
-      perm-is-an-equivalence's SIff wall d; comm-rm's display-folded
-      definition-node lhs (formal-coordinate sublis-var folding).
+      MILESTONE (2026-07-06, branch mdd/multi-literal-induction, tip
+      9b485d8): **6 of 8 perm-book theorems REPLAY — 23/47 (13
+      unconditional + 10 conditional)** — ALL FOUR of perm-transitive's
+      rule dependencies (perm-symmetric, memb-rm, perm-memb, perm-rm)
+      plus perm-cons and perm-transitive. Walls felled, each
+      golden-gated: multi-literal pushed clauses (induction P =
+      disjunction, IH cross-product + ACL2's tautology clean-up
+      mirrored, IH σ-disjunction value-walk); spine regroup;
+      RHS-continuation chains; context demands generalized (type-alist
+      nodes + rule markers drive the later-literal hoist);
+      generalize-clause; eliminate-irrelevance (subset-clause walk);
+      dead-branch display folds (folding-wall option A, data-ratified);
+      collapseEval assumption resolution; CONTEXT-SUBST equality
+      transport; POOL-PROCESSING emission (emit/pool-consider,
+      emit/pool-subsumed, :POOLNAME on pushes — pop-clause's
+      subsumption-reordered pool order was invisible, mis-linking
+      nested-induction pool roots) + pool-subsumption replay
+      (recomputed VALIDATED witness σ, general subtree at the instance
+      env, substN bridge, instance walk); duplicate-literal skip
+      (add-literal dedup after branch-substitution). Audit #2 launched
+      2026-07-06 (4 Opus reviewers + verifier, pre-authorized).
+      Remaining R1 walls: comm-rm's multi-literal preprocess chain
+      (*1/1.2); perm-is-an-equivalence's SIff wall d.
       NOTE the post-audit commits (6866121, 8096e13, eef8d77) are
       kernel-gated but not separately adversarially audited.
       RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
