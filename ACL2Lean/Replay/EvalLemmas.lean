@@ -3073,6 +3073,22 @@ theorem conv_not_nil_of_evtrue {w : World} {env : Env} {X : SExpr}
     (by simp [Symbol.isNamed]) h_noshadow hv]
   rw [callBuiltin_not, not_nil_of_truthy hnv]
 
+/-- The DUAL of `conv_not_nil_of_evtrue`: a nil argument makes `(not X)`
+    converge to `t` (the multi-clause bridge's neg-leaf converter). -/
+theorem conv_not_t_of_conv_nil {w : World} {env : Env} {X : SExpr}
+    (h_noshadow : w.defs.get? { name := "not" } = none)
+    (hX : ∃ N, ∀ f ≥ N, evalOpt f w env X = some SExpr.nil) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "not" })) (.cons X .nil))
+      = some SExpr.t := by
+  obtain ⟨N, hX⟩ := hX
+  refine ⟨N + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_builtin_1 g w env { name := "not" } X SExpr.nil
+    (by simp [Symbol.isNamed]) h_noshadow (hX g (by omega))]
+  rw [callBuiltin_not]
+  rfl
+
 /-- Transport `EvTrue` backwards along an EVAL-EQUALITY chain (the
     equal-steps composition entering the truthiness judgment). The two sides
     may sit at DIFFERENT envs — the IH bridge's `evalOpt_substTerm_subst1`

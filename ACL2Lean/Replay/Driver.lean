@@ -3548,6 +3548,94 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
   mkExpectedTypeHint prf
     (← mkAppM ``EvTrue #[cfg.worldExpr, cfg.envExpr, reflectSExpr info.input])
 
+/-- The MULTI-clause clausify bridge: `EvTrue w env info.input` from one
+    `EvTrue (disjoin outᵢ)` per output clause. The record is validated
+    against the pure recomputation exactly as in the single case, extended:
+    the neg-clause's literals L₁…Lₙ each split (`:CLAUSIFY-SPLIT`) into
+    `clausifyPure (dumbNegateLit Lᵢ) true = outᵢ`; each proved outᵢ gives
+    `EvTrue (¬Lᵢ)` (`clausifyPure_sound`), hence `eval Lᵢ → nil`
+    (`sound_neg_leaf`); all neg-literals false gives the input's truth
+    (`clausifyAllFalse_sound` — the conjunction lemma). -/
+def bridgeClausifyMulti (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (info : ClausifyInfo) (pOuts : List Expr) : MetaM Expr := do
+  let negRecomputed := clausifyPure info.input false
+  unless negRecomputed == info.negClause do
+    throwError "clausify multi-bridge: recomputed neg-clause                 {repr negRecomputed} ≠ recorded {repr info.negClause}"
+  unless info.splits.length == info.negClause.length &&
+         pOuts.length == info.out.length &&
+         info.out == info.splits.map (·.2) do
+    throwError "clausify multi-bridge: splits/out/proofs mismatch at                 {repr info.input}"
+  for (l, (lit, cl)) in info.negClause.zip info.splits do
+    unless lit == dumbNegateLit l do
+      throwError "clausify multi-bridge: split literal {repr lit} ≠                   (dumb-negate {repr l})"
+    unless clausifyPure lit true == cl do
+      throwError "clausify multi-bridge: recomputed split clause for                   {repr lit} ≠ recorded {repr cl}"
+  -- the shared lift bundle (over the input's vars/opaques — every literal is
+  -- built from the input's subterms, negations included)
+  let vars := (ACL2.Replay.freeVars info.input).eraseDups
+  let opaques := (collectOpaques info.input).eraseDups
+  let pinned ← opaques.mapM fun op => do
+    let some (v, p) := ctx.val? op
+      | throwError "bridgeClausifyMulti: opaque {repr op} has no pinned value                     (frontier)"
+    pure (op, v, p)
+  let opqMap := pinned.map fun (op, v, _) => (op, v)
+  let opqP := pinned.map fun (op, _, p) => (op, p)
+  let b ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
+  let hwf ← mkDecideProof
+    (← mkEq (mkApp (mkConst ``dpOpqWF) b.opqE) (mkConst ``Bool.true))
+  let mkIsSome : SExpr → MetaM Expr := fun t => do
+    let vE ← dpValExpr opqMap (dpConcVar cfg.envExpr) t
+    let someV := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
+    let liftApp := mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE (reflectSExpr t)
+    unless ← isDefEq liftApp someV do
+      throwError "bridgeClausifyMulti: {repr t} does not lift to the                   walker's value (function/walker divergence — a defect)"
+    let isSomeApp ← mkAppM ``Option.isSome #[liftApp]
+    mkExpectedTypeHint (← mkEqRefl (mkConst ``Bool.true))
+      (← mkEq isSomeApp (mkConst ``Bool.true))
+  -- per neg-literal: EvTrue(¬Lᵢ) from its proved clause, then eval Lᵢ → nil
+  let mut nilProofs : List Expr := []
+  for (l, ((lit, _), pOut)) in info.negClause.zip (info.splits.zip pOuts) do
+    let hlLit ← mkIsSome lit
+    let pLitTrue ← mkAppM ``clausifyPure_sound
+      #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
+        reflectSExpr lit, mkConst ``Bool.true, hlLit, pOut]
+    -- ClausifyGoal … true IS EvTrue; and reflect(lit) is defeq to
+    -- dumbNegateLit reflect(l) by computation
+    let pLitTrue ← mkExpectedTypeHint pLitTrue
+      (← mkAppM ``EvTrue #[cfg.worldExpr, cfg.envExpr,
+        ← mkAppM ``ACL2.Replay.dumbNegateLit #[reflectSExpr l]])
+    let hlL ← mkIsSome l
+    nilProofs := nilProofs ++ [← mkAppM ``sound_neg_leaf
+      #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
+        reflectSExpr l, hlL, pLitTrue]]
+  -- assemble ∀ L ∈ clausifyPure input false, eval L → nil
+  let nilP ← withLocalDeclD `L (mkConst ``SExpr) fun lV => do
+    let body ← withLocalDeclD `N (mkConst ``Nat) fun nV => do
+      let inner ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+        let ge ← mkAppM ``GE.ge #[fV, nV]
+        let ev := mkAppN (mkConst ``evalOpt)
+          #[fV, cfg.worldExpr, cfg.envExpr, lV]
+        let nilE := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr)
+          (mkConst ``SExpr.nil)
+        mkForallFVars #[fV] (← mkArrow ge (← mkEq ev nilE))
+      mkAppM ``Exists #[← mkLambdaFVars #[nV] inner]
+    mkLambdaFVars #[lV] body
+  let entries ← info.negClause.mapM fun l => pure (reflectSExpr l)
+  let (_, hforallRaw) ← mkForallMemProof (mkConst ``SExpr) nilP
+    (entries.zip nilProofs)
+  let cpList ← mkAppM ``clausifyPure
+    #[reflectSExpr info.input, mkConst ``Bool.false]
+  let hforallTy ← withLocalDeclD `L (mkConst ``SExpr) fun lV => do
+    let mem ← mkAppM ``Membership.mem #[cpList, lV]
+    mkForallFVars #[lV] (← mkArrow mem (mkApp nilP lV).headBeta)
+  let hforall ← mkExpectedTypeHint hforallRaw hforallTy
+  let hisSome ← mkIsSome info.input
+  let prf ← mkAppM ``clausifyAllFalse_sound
+    #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
+      reflectSExpr info.input, mkConst ``Bool.false, hisSome, hforall]
+  mkExpectedTypeHint prf
+    (← mkAppM ``EvTrue #[cfg.worldExpr, cfg.envExpr, reflectSExpr info.input])
+
 /-! ## The c3 induction scaffold + the conditional-mirror harness
 
 The WF-induction scaffold consumes the EMITTED justification (measure / rel /
@@ -4486,28 +4574,57 @@ partial def replayClause (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode
       unless lp.nodes.isEmpty && lp.result == lp.literal do
         throwError "replayClause: non-identity literal item alongside a \
                     clausify record at {cn.idStr} (frontier): {repr lp.literal}"
-    let stepNodes := (cn.steps.flatMap (·.items)).filterMap fun
+    -- steps BEFORE the clausify record chain the formula to its input; steps
+    -- AFTER it discharge dropped output clauses (tau/type-set verdicts on
+    -- trivially-true conjuncts — the ratified DP carve-out)
+    let allItems := cn.steps.flatMap (·.items)
+    let clausifyIdx := allItems.findIdx (fun | .clausify _ => true | _ => false)
+    let preSteps := (allItems.take clausifyIdx).filterMap fun
+      | .step n => some n | _ => none
+    let postSteps := (allItems.drop (clausifyIdx + 1)).filterMap fun
       | .step n => some n | _ => none
     -- the formula is the clause's DISJUNCTION; for a multi-literal clause the
     -- preprocess steps rewrite individual literals, lifted into the disjunction
     -- by path-directed congruence (including the lazy `if`'s then/else branches,
     -- sound here because each step's eval-equality is unconditional)
     let formula := disjoinTerm cn.inputClause
-    let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula stepNodes
+    let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula preSteps
     unless finalT == info.input do
       throwError "replayClause: preprocess chain reached {repr finalT}, the \
                   clausify input is {repr info.input}"
-    let [outClause] := info.out
-      | throwError "replayClause: clausify produced {info.out.length} clauses at \
-                    {cn.idStr} (multi-clause frontier)"
-    let [child] := cn.children
-      | throwError "replayClause: clausify with {cn.children.length} children at \
-                    {cn.idStr} (frontier)"
-    unless child.inputClause == outClause do
-      throwError "replayClause: child clause {repr child.inputClause} ≠ the \
-                  clausify output {repr outClause}"
-    let pChild ← replayClause cfg ctx child
-    let pInput ← bridgeClausify cfg ctx info pChild
+    -- one proof per output clause: a CHILD subgoal, or a post-clausify
+    -- DISCHARGE node on a singleton clause
+    let mut usedChildren : List String := []
+    let mut pOuts : List Expr := []
+    for cl in info.out do
+      match cn.children.find? (·.inputClause == cl) with
+      | some child =>
+        usedChildren := usedChildren ++ [child.idStr]
+        pOuts := pOuts ++ [← replayClause cfg ctx child]
+      | none =>
+        let [lit] := cl
+          | throwError "replayClause: clausify output {repr cl} has no child \
+                        subgoal and is not a singleton dischargeable clause \
+                        at {cn.idStr} (frontier)"
+        let some n := postSteps.find? (fun n =>
+            dischargeOrigins.contains (nodeOrigin n) && (nodeLhsRhs n).1 == lit)
+          | throwError "replayClause: clausify output {repr cl} has no child \
+                        subgoal and no post-clausify discharge node at \
+                        {cn.idStr} (emission gap)"
+        unless (nodeLhsRhs n).2 == quoteT do
+          throwError "replayClause: discharge node for {repr lit} has rhs \
+                      {repr (nodeLhsRhs n).2} ≠ (quote t) at {cn.idStr}"
+        pOuts := pOuts ++ [← replayDischargeNode cfg ctx lit]
+    for child in cn.children do
+      unless usedChildren.contains child.idStr do
+        throwError "replayClause: child {child.idStr} matches no clausify \
+                    output at {cn.idStr} (linking gap)"
+    let pInput ←
+      match pOuts with
+      | [pOut] =>
+        if info.out.length == 1 then bridgeClausify cfg ctx info pOut
+        else bridgeClausifyMulti cfg ctx info pOuts
+      | _ => bridgeClausifyMulti cfg ctx info pOuts
     match chainOpt with
     | none => return pInput
     | some (ch, false) => return ← mkAppM ``evtrue_of_fuel_eq #[ch, pInput]

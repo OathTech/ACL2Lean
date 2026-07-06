@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 25/47 (14 unconditional + 11 conditional); DP-discharge leaves ✓10 ◌8 ✗0 of 18:
+Driver coverage — REPLAYED 26/47 (14 unconditional + 12 conditional); DP-discharge leaves ✓10 ◌8 ✗0 of 18:
 • simple  (world: 3 defun(s), 1 theorem(s))
     my-len-my-app → REPLAYED ✓ cond[tp:my-len]
 • 00-direct  (world: 2 defun(s), 3 theorem(s))
@@ -18,7 +18,7 @@ Driver coverage — REPLAYED 25/47 (14 unconditional + 11 conditional); DP-disch
 • 03-linear  (world: 2 defun(s), 3 theorem(s))
     len2-nonneg → REPLAYED ✓ cond[tp:len2]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(len2 x), tp:len2]]
     len2-cdr-smaller → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (< (len2 (cdr x)) (len2 x))  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(len2 (cdr x)), tp:len2]]
-    linear-chain → FAIL: omega could not prove the goal: No usable constraints found. You may need to unfold definitions so `omega` can see linear arithmetic facts about `Nat` and `Int`, which may also involve multiplication, division, and modular remainder by constants.  [DISCHARGE: Goal:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    linear-chain → FAIL: replayClause: clausify output [(< b a),  (< c b),  (not (integerp a)),  (not (integerp b)),  (not (integerp c)),  (not (< c a))] has no child subgoal and is not a singleton dischargeable clause at Goal (frontier)  [DISCHARGE: Goal:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 04-multi-case-induction  (world: 3 defun(s), 2 theorem(s))
     evenlen-booleanp → REPLAYED ✓ cond[total:evenlen, tp:evenlen]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(evenlen x), tp:evenlen]]
     classify-pos → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (equal (classify n) (quote pos))
@@ -51,7 +51,7 @@ Driver coverage — REPLAYED 25/47 (14 unconditional + 11 conditional); DP-disch
 • 14-accumulator  (world: 2 defun(s), 1 theorem(s))
     len-rev-acc → FAIL: deriveDefInfoN: len not defined in the world
 • 15-nested-induction  (world: 3 defun(s), 1 theorem(s))
-    nested-induction → FAIL: replayClause: clausify produced 2 clauses at Goal (multi-clause frontier)
+    nested-induction → FAIL: replayInduction: 2 scheme clauses for 1 recomputed (non-tautological) case clauses (mismatch)
 • 16-three-way  (world: 2 defun(s), 1 theorem(s))
     len-zip3 → FAIL: replayInduction: step case tests [(not (if (atom x) (atom x) (if (atom y) (atom y) (atom z))))] lack (consp x) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip3 (cdr x) (cdr y) (cdr z)), tp:zip3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 17-rule-application  (world: 3 defun(s), 2 theorem(s))
@@ -65,4 +65,4 @@ Driver coverage — REPLAYED 25/47 (14 unconditional + 11 conditional); DP-disch
     comm-rm → REPLAYED ✓
     perm-rm → REPLAYED ✓ cond[total:perm, tp:memb, tp:perm]
     perm-transitive → REPLAYED ✓ cond[total:perm, tp:memb, tp:perm]
-    perm-is-an-equivalence → FAIL: replayClause: preprocess chain reached (if (quote t) (if (perm x x) (if (if (perm x y) (perm y x) (quote t)) (if (if (perm x y) (perm y z) (quote NIL)) (perm x z) (quote t)) (quote NIL)) (quote NIL)) (quote NIL)), the clausify input is (if (booleanp (perm x y)) (if (perm x x) (if (if (perm x y) (perm y x) (quote t)) (if (if (perm x y) (perm y z) (quote NIL)) (perm x z) (quote t)) (quote NIL)) (quote NIL)) (quote NIL))
+    perm-is-an-equivalence → REPLAYED ✓ cond[total:perm, tp:memb, tp:perm]
