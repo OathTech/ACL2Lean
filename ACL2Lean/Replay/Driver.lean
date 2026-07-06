@@ -933,6 +933,61 @@ def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
       mkConst ``SExpr.t, pq, hv]
 
+/-- PIN the value of every user-fn application occurring in `t` (bottom-up) from
+    the bound totality hypotheses, refining to the int-atom shape when the fn's
+    emitted TP corollary has the standard `(IF (INTEGERP app) … 'NIL)` shape. -/
+partial def pinTermOpaques (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx)
+    (t : SExpr) : MetaM ReplayCtx := do
+  match t with
+  | .cons (.atom (.symbol fs)) argSpine =>
+    if fs.name == "quote" then return ctx
+    let args := (argSpine.toList?).getD []
+    let mut ctx := ctx
+    for a in args do
+      ctx ← pinTermOpaques cfg envExpr ctx a
+    if (cfg.worldVal.defs.get? fs).isNone then return ctx
+    if (ctx.val? t).isSome then return ctx
+    -- PROVISIONING, not consumption: with no totality hypothesis bound (the
+    -- unconditional harness) the value is simply not offered — a replay that
+    -- NEEDS it hard-fails at the use site (`dpValExpr`), never silently.
+    let some hyp := ctx.totalHyps.lookup fs.name
+      | return ctx
+    let argConvs ← args.mapM (fun a => proveConv cfg envExpr ctx a)
+    let exConv := mkAppN hyp
+      ((#[envExpr] : Array Expr) ++ (args.map reflectSExpr).toArray ++ argConvs.toArray)
+    let value ← mkAppM ``pinVal #[exConv]
+    let conv ← mkAppM ``pinVal_spec #[exConv]
+    match ctx.tpHyps.find? (fun (n, _, _) => n == fs.name) with
+    | some (_, cor, tpHyp) =>
+      match cor with
+      | .cons (.atom (.symbol ifS))
+          (.cons (.cons (.atom (.symbol intS)) (.cons _ .nil))
+            (.cons thenC (.cons _ .nil))) =>
+        unless ifS.name == "if" && intS.name == "integerp" do
+          -- unsupported corollary shape: pin unrefined
+          return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
+        -- fact : lifted-corollary(value) = t
+        let fact := mkAppN tpHyp
+          ((#[envExpr] : Array Expr) ++ (args.map reflectSExpr).toArray ++ #[value, conv])
+        -- X = the lifted then-branch at `value` (for the extraction lemma);
+        -- the application pattern is the corollary's integerp argument
+        let .cons _ (.cons (.cons _ (.cons appPat2 .nil)) _) := cor
+          | throwError "pinTermOpaques: corollary destructure failed: {repr cor}"
+        let xLift ← dpValExpr [(appPat2, value)]
+          (fun s => throwError "pinTermOpaques: corollary free var {s.name}") thenC
+        let hInt ← mkAppM ``tp_cond_integerp_t #[value, xLift, fact]
+        let hkEx ← mkAppM ``logic_integerp_int #[value, hInt]
+        let k ← mkAppM ``Exists.choose #[hkEx]
+        let hvk ← mkAppM ``Exists.choose_spec #[hkEx]
+        let value' := mkApp (mkConst ``SExpr.atom)
+          (mkApp (mkConst ``Atom.number) (mkApp (mkConst ``Number.int) k))
+        let conv' ← mkAppM ``re_val_cast
+          #[cfg.worldExpr, envExpr, reflectSExpr t, value, value', conv, hvk]
+        return { ctx with vals := ctx.vals ++ [(t, value', conv')] }
+      | _ => return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
+    | none => return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
+  | _ => return ctx
+
 /-- Fold per-entry proofs into a reflected list + its `∀ x ∈ list, P x`
     proof (`forall_mem_nil`/`forall_mem_cons` chain). -/
 private def mkForallMemProof (entryTy P : Expr) (entries : List (Expr × Expr)) :
@@ -1569,18 +1624,25 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     let [(spec, hypV)] := matched
       | throwError "rule {rname}: {matched.length} stored rules match \
                     substTerm(:SUBST, lhs) == {repr lhs} (need exactly 1)"
-    -- v1 rhs joint: the node's rhs must BE the instantiated rule rhs (a
-    -- non-trivial RHS-block continuation chain is a named frontier)
-    unless ACL2.Replay.substTerm σvars σterms spec.rhs == rhs do
-      throwError "rule {rname}: node rhs {repr rhs} ≠ substTerm(:SUBST, \
-                  rule rhs {repr spec.rhs}) — RHS continuation (frontier)"
     let innerKindOf : ProofNode → String := fun
       | .node _ _ _ _ p => p.innerKind
     let hypKids := children.filter fun c => innerKindOf c == "hyp"
-    let otherKids := children.filter fun c => innerKindOf c != "hyp"
+    let rhsKids := children.filter fun c => innerKindOf c == "rhs"
+    let otherKids := children.filter fun c =>
+      innerKindOf c != "hyp" && innerKindOf c != "rhs"
     unless otherKids.isEmpty do
-      throwError "rule {rname}: {otherKids.length} non-HYP child(ren) \
-                  recorded — unconsumed record (frontier)"
+      throwError "rule {rname}: {otherKids.length} child(ren) outside the \
+                  HYP/RHS blocks — unconsumed record (frontier)"
+    -- rhs joint: the node's rhs is the instantiated rule rhs, possibly
+    -- rewritten FURTHER by the recorded RHS-block chain (with-lemma rewrites
+    -- the instantiated rhs before returning). The chain is replayed below and
+    -- must land exactly on the node's rhs; a mismatch with NO recorded chain
+    -- is a hard-fail.
+    let rhsσ := ACL2.Replay.substTerm σvars σterms spec.rhs
+    if rhsσ != rhs && rhsKids.isEmpty then
+      throwError "rule {rname}: node rhs {repr rhs} ≠ substTerm(:SUBST, \
+                  rule rhs {repr spec.rhs}) and no RHS chain recorded \
+                  (emission gap)"
     -- partition the HYP block: silent-relief MARKERS (emit/relieve-hyp/*)
     -- vs an actual relief rewrite chain
     let (reliefMarkers, chainKids) := hypKids.partition
@@ -1679,12 +1741,27 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       prems := prems.push
         (← mkAppM ``evtrue_of_fuel_eq #[← mkAppM ``fuel_eq_symm #[pB], evTrueEnv])
     -- the rule's mirror at env', premises applied, bridged back to the node:
-    -- eval env lhs ≡ eval env' rule.lhs ≡ eval env' rule.rhs ≡ eval env rhs
+    -- eval env lhs ≡ eval env' rule.lhs ≡ eval env' rule.rhs ≡ eval env rhsσ
+    -- [≡ eval env rhs, by the recorded RHS-block chain when one exists]
     let hRule := mkAppN (mkApp hypV env') prems
     let pL ← bridge spec.lhs
     let pR ← bridge spec.rhs
-    mkAppM ``fuel_chain_eq
+    let pCore ← mkAppM ``fuel_chain_eq
       #[pL, ← mkAppM ``fuel_chain_eq #[hRule, ← mkAppM ``fuel_eq_symm #[pR]]]
+    if rhsKids.isEmpty then
+      unless rhsσ == rhs do
+        throwError "rule {rname}: internal — rhs mismatch with no RHS chain"
+      return pCore
+    -- the RHS continuation: replay the recorded chain from rhsσ; it must land
+    -- exactly on the node's recorded rhs (fail-closed)
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx rhsσ
+    let (chainOpt, finalT) ← replayRewrites cfg ctx rhsσ rhsKids (depth + 1)
+    unless finalT == rhs do
+      throwError "rule {rname}: RHS chain reached {repr finalT}, node rhs is \
+                  {repr rhs}"
+    match chainOpt with
+    | none => return pCore
+    | some ch => mkAppM ``fuel_chain_eq #[pCore, ch]
   | _, _ =>
     throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
 
@@ -3349,61 +3426,6 @@ def mkRuleHypType (cfg : ReplayConfig) (spec : RuleSpec) : MetaM Expr := do
       mkArrow (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr h]) acc)
       concl
     mkForallFVars #[envV] body
-
-/-- PIN the value of every user-fn application occurring in `t` (bottom-up) from
-    the bound totality hypotheses, refining to the int-atom shape when the fn's
-    emitted TP corollary has the standard `(IF (INTEGERP app) … 'NIL)` shape. -/
-partial def pinTermOpaques (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx)
-    (t : SExpr) : MetaM ReplayCtx := do
-  match t with
-  | .cons (.atom (.symbol fs)) argSpine =>
-    if fs.name == "quote" then return ctx
-    let args := (argSpine.toList?).getD []
-    let mut ctx := ctx
-    for a in args do
-      ctx ← pinTermOpaques cfg envExpr ctx a
-    if (cfg.worldVal.defs.get? fs).isNone then return ctx
-    if (ctx.val? t).isSome then return ctx
-    -- PROVISIONING, not consumption: with no totality hypothesis bound (the
-    -- unconditional harness) the value is simply not offered — a replay that
-    -- NEEDS it hard-fails at the use site (`dpValExpr`), never silently.
-    let some hyp := ctx.totalHyps.lookup fs.name
-      | return ctx
-    let argConvs ← args.mapM (fun a => proveConv cfg envExpr ctx a)
-    let exConv := mkAppN hyp
-      ((#[envExpr] : Array Expr) ++ (args.map reflectSExpr).toArray ++ argConvs.toArray)
-    let value ← mkAppM ``pinVal #[exConv]
-    let conv ← mkAppM ``pinVal_spec #[exConv]
-    match ctx.tpHyps.find? (fun (n, _, _) => n == fs.name) with
-    | some (_, cor, tpHyp) =>
-      match cor with
-      | .cons (.atom (.symbol ifS))
-          (.cons (.cons (.atom (.symbol intS)) (.cons _ .nil))
-            (.cons thenC (.cons _ .nil))) =>
-        unless ifS.name == "if" && intS.name == "integerp" do
-          -- unsupported corollary shape: pin unrefined
-          return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
-        -- fact : lifted-corollary(value) = t
-        let fact := mkAppN tpHyp
-          ((#[envExpr] : Array Expr) ++ (args.map reflectSExpr).toArray ++ #[value, conv])
-        -- X = the lifted then-branch at `value` (for the extraction lemma);
-        -- the application pattern is the corollary's integerp argument
-        let .cons _ (.cons (.cons _ (.cons appPat2 .nil)) _) := cor
-          | throwError "pinTermOpaques: corollary destructure failed: {repr cor}"
-        let xLift ← dpValExpr [(appPat2, value)]
-          (fun s => throwError "pinTermOpaques: corollary free var {s.name}") thenC
-        let hInt ← mkAppM ``tp_cond_integerp_t #[value, xLift, fact]
-        let hkEx ← mkAppM ``logic_integerp_int #[value, hInt]
-        let k ← mkAppM ``Exists.choose #[hkEx]
-        let hvk ← mkAppM ``Exists.choose_spec #[hkEx]
-        let value' := mkApp (mkConst ``SExpr.atom)
-          (mkApp (mkConst ``Atom.number) (mkApp (mkConst ``Number.int) k))
-        let conv' ← mkAppM ``re_val_cast
-          #[cfg.worldExpr, envExpr, reflectSExpr t, value, value', conv, hvk]
-        return { ctx with vals := ctx.vals ++ [(t, value', conv')] }
-      | _ => return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
-    | none => return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
-  | _ => return ctx
 
 /-- Every term mentioned in a clause subtree (input clauses, node lhs/rhs, literal
     results) — the pin-collection universe for a case child. -/
