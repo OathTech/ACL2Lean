@@ -2154,12 +2154,22 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .clausify _ :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
 
-/-- All SILENT hyp-relief marker hyps in a node tree (the emitted
-    `relieve-hyp/*` markers), recursively — what a literal's chain demands
-    from the clause context. -/
-partial def collectReliefHyps : ProofNode → List SExpr
-  | .node (rty, _) l _ children _ =>
-    (if rty == "hyp-relief" then [l] else []) ++ children.flatMap collectReliefHyps
+/-- The CLAUSE-CONTEXT falsity demands of a literal's chain, as the exact
+    clause-literal terms whose falsity the chain's nodes consume (ACL2 rewrites
+    literal i under the falsity of ALL other clause literals):
+    - a silent hyp-relief marker for hyp `h` demands `(not h)`;
+    - a `type-alist` nil-verdict node `l ⇒ 'nil` demands `l` itself;
+    - a `type-alist` truthy node `l ⇒ 't` demands `(not l)`. -/
+partial def collectContextDemands : ProofNode → List SExpr
+  | .node (rty, _) l rh children _ =>
+    let notOf : SExpr → SExpr := fun t =>
+      .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
+    (if rty == "hyp-relief" then [notOf l]
+     else if rty == "type-alist" then
+       if rh == quoteNil then [l]
+       else if rh == quoteT then [notOf l]
+       else []
+     else []) ++ children.flatMap collectContextDemands
 
 /-- `EvTrue (disjoin lits)` from the TRUTH of the k-th literal (0-based):
     descend the lazy if-spine by value splits — an earlier literal's truth
@@ -2172,9 +2182,13 @@ partial def evtrueOfLitTrue (cfg : ReplayConfig) (ctx : ReplayCtx)
   | [l] =>
     unless k == 0 && l == litK do
       throwError "evtrueOfLitTrue: index/literal mismatch at the last literal"
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx l
     let pL ← ctxValProof cfg ctx l
     mkAppM ``evtrue_of_conv_ne_nil #[pL, hTrue]
   | l :: rest =>
+    -- pin the literal's user-fn opaques on demand (callers hold facts about
+    -- other literals; this walk may be the first to touch this one)
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx l
     let vL ← ctxValExpr cfg ctx l
     let pL ← ctxValProof cfg ctx l
     let restTerm := disjoinTerm rest
@@ -3595,6 +3609,10 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
         let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVar, pVal, hVeq]
         let substLits := clauseLits.map fun (i, l) =>
           (i, ACL2.Replay.substTerm [varSym] [valT] l)
+        -- the SUBSTITUTED literals are new terms — pin their user-fn opaques
+        -- before any value construction over them
+        let ctx ← pinTermOpaques cfg cfg.envExpr ctx
+          (disjoinTerm (substLits.map (·.2)))
         let chainOpt ← diffCollapse cfg.worldExpr cfg.envExpr varT valT nodeEq
           (disjoinTerm (clauseLits.map (·.2))) (disjoinTerm (substLits.map (·.2)))
         -- remove-trivial-equivalences also DELETES the used literal — now the
@@ -3704,13 +3722,11 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
     -- later clause literal with no fact in scope, case-split on that literal
     -- FIRST — its truth closes the whole disjunction; its falsity joins
     -- litFacts and the walk re-enters (one fewer demand each time).
-    let demanded := (lp.nodes.flatMap collectReliefHyps).eraseDups
-    for hStar in demanded do
-      let notH : SExpr := .cons (.atom (.symbol { name := "not" }))
-        (.cons hStar .nil)
+    let demanded := (lp.nodes.flatMap collectContextDemands).eraseDups
+    for notH in demanded do
       if (ctx.litFactByTerm? notH).isSome then continue
       let some (k, _) := restLits.find? (fun (_, l) => l == notH)
-        | continue  -- not a later literal: the recipe fails precisely if missing
+        | continue  -- not a later literal: the consumer fails precisely if missing
       let ctx ← pinTermOpaques cfg cfg.envExpr ctx notH
       let vL ← ctxValExpr cfg ctx notH
       let pL ← ctxValProof cfg ctx notH
