@@ -611,4 +611,85 @@ example :
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
 #print axioms perm_cons_real_mirror
 
+/-! ### perm-transitive: the theorem-dependency (`rule:<thm>`) conditional mirror
+
+The first theorem replayed THROUGH user-rule applications
+(docs/plans/2026-07-05_theorem-dependency-hypotheses.md). The pin locks the
+machine-generated statement (audit 2026-07-06: the coverage harness only
+`Meta.check`s — nothing else in the repo pins WHAT was proved): the conclusion
+is the genuine perm-transitive mirror, and the three `rule:` hypotheses state
+EXACTLY the STORED rules of perm-symmetric / perm-memb / perm-rm as ACL2
+created them (implies-flattened, iff→equal-strengthened via perm's boolean
+TP), with truthiness premises — nothing stronger, nothing weaker. -/
+
+private def ap3 (f : String) (a b c : SExpr) : SExpr :=
+  .cons (sym f) (.cons a (.cons b (.cons c .nil)))
+
+def permTransProof : Option ClauseProof := do
+  let log ← (ProofLog.parse permLog).toOption
+  let dev ← (ClauseTree.buildDevelopment log).toOption
+  findThm dev "perm-transitive"
+
+elab "acl2_replay_permtrans_real% " : term => do
+  let cpOpt ← unsafe evalExpr (Option ClauseProof)
+    (mkApp (mkConst ``Option [0]) (mkConst ``ACL2.ClauseProof)) (mkConst ``permTransProof)
+  let some cp := cpOpt | throwError "permTransProof: parse/extract failed"
+  withLocalDeclD `env (mkConst ``Env) fun env => do
+    let cfg : ReplayConfig :=
+      { worldExpr := mkConst ``permWorld, envExpr := env,
+        worldVal := permDevelopment.toWorld }
+    let (proof, conds) ← replayProofConditional cfg permTPs cp
+      permDevelopment.justifications
+      (rulesBefore permDevelopment "perm-transitive")
+    logInfo m!"perm-transitive replayed; conditions: {conds}"
+    mkLambdaFVars #[env] proof
+
+/-- The first theorem-to-theorem dependency replay of the sorting corpus. -/
+def perm_transitive_real_mirror := acl2_replay_permtrans_real%
+
+example :
+    ∀ (env : Env),
+      -- total:perm (the admission-carve-out totality offer; a prover frontier)
+      (∀ (env' : Env) (a0 a1 : SExpr),
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →
+          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "perm" a0 a1) = some v)) →
+      -- tp:perm (the emitted boolean TP corollary, lifted value-only)
+      (∀ (env' : Env) (a0 a1 v : SExpr),
+          (∃ N, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "perm" a0 a1) = some v) →
+          (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+           else Logic.equal v SExpr.nil) = SExpr.t) →
+      -- rule:perm-symmetric — STORED: (perm y x) ⇒ 't under hyp (perm x y)
+      (∀ (env' : Env),
+          EvTrue permWorld env' (ap2 "perm" (sym "x") (sym "y")) →
+          ∃ N, ∀ f ≥ N,
+            evalOpt f permWorld env' (ap2 "perm" (sym "y") (sym "x"))
+            = evalOpt f permWorld env' quoteT) →
+      -- rule:perm-memb — STORED: (memb a y) ⇒ 't under hyps (perm x y), (memb a x)
+      (∀ (env' : Env),
+          EvTrue permWorld env' (ap2 "perm" (sym "x") (sym "y")) →
+          EvTrue permWorld env' (ap2 "memb" (sym "a") (sym "x")) →
+          ∃ N, ∀ f ≥ N,
+            evalOpt f permWorld env' (ap2 "memb" (sym "a") (sym "y"))
+            = evalOpt f permWorld env' quoteT) →
+      -- rule:perm-rm — STORED: (perm (rm a x) (rm a y)) ⇒ 't under hyp (perm x y)
+      (∀ (env' : Env),
+          EvTrue permWorld env' (ap2 "perm" (sym "x") (sym "y")) →
+          ∃ N, ∀ f ≥ N,
+            evalOpt f permWorld env'
+              (ap2 "perm" (ap2 "rm" (sym "a") (sym "x")) (ap2 "rm" (sym "a") (sym "y")))
+            = evalOpt f permWorld env' quoteT) →
+      -- conclusion: the genuine perm-transitive mirror (ACL2's and → if _ _ 'nil)
+      ∃ N, ∀ f ≥ N, ∃ v,
+        evalOpt f permWorld env
+          (ap2 "implies"
+            (ap3 "if" (ap2 "perm" (sym "x") (sym "y"))
+                      (ap2 "perm" (sym "y") (sym "z")) quoteNil)
+            (ap2 "perm" (sym "x") (sym "z")))
+          = some v ∧ v ≠ SExpr.nil :=
+  perm_transitive_real_mirror
+
+-- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
+#print axioms perm_transitive_real_mirror
+
 end ACL2.Tests.Driver

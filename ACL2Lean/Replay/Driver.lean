@@ -1640,16 +1640,25 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     for h in spec.hyps do
       let hσ := ACL2.Replay.substTerm σvars σterms h
       let hasMarker := reliefMarkers.any fun c => (nodeLhsRhs c).1 == hσ
+      -- EVERY hyp must have an emitted relief RECORD — a silent-relief marker
+      -- or a rewrite chain. No record at all is an emission gap (audit
+      -- 2026-07-06 finding A): the clause context may well justify the hyp,
+      -- but nothing in the tree says ACL2 relieved it that way — hard-fail
+      -- and emit more, never paper over.
+      if !hasMarker && chainKids.isEmpty then
+        throwError "rule {rname}: hyp {repr hσ} has NO emitted relief record \
+                    (no relieve-hyp marker, no relief chain) — emission gap \
+                    (frontier)"
       let evTrueEnv ←
-        if hasMarker || chainKids.isEmpty then do
+        if hasMarker then do
           -- relieved SILENTLY from the clause context (the emitted marker
           -- names the instantiated hyp): the spine's (not hσ)-falsity fact
           -- (the type-alist source the type-alist recipe also consumes)
           let notH : SExpr := .cons (.atom (.symbol { name := "not" }))
             (.cons hσ .nil)
           let some hNotNil := ctx.litFactByTerm? notH
-            | throwError "rule {rname}: hyp {repr hσ} relieved without \
-                          events and no (not …)-falsity fact in scope (frontier)"
+            | throwError "rule {rname}: marker-relieved hyp {repr hσ} has no \
+                          (not …)-falsity fact in scope (frontier)"
           let vH ← ctxValExpr cfg ctx hσ
           let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
           mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
@@ -3326,6 +3335,13 @@ def mkTpHypType (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
     the rule's stored equality — exactly the emitted rule, nothing else
     (docs/plans/2026-07-05_theorem-dependency-hypotheses.md §v1). -/
 def mkRuleHypType (cfg : ReplayConfig) (spec : RuleSpec) : MetaM Expr := do
+  -- defense-in-depth (audit 2026-07-06 finding E): the caller offers only
+  -- equal-class rules; stating an iff rule as an eval-EQUALITY would be too
+  -- strong, so refuse rather than mis-state.
+  unless spec.equiv == "equal" do
+    throwError "mkRuleHypType: rule {spec.name} is stored under equivalence \
+                {spec.equiv} — the R-parameterized hypothesis shape is an L2 \
+                frontier (equal instance only)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let concl ← mkEvalEqPropEx cfg.worldExpr envV
       (reflectSExpr spec.lhs) (reflectSExpr spec.rhs)
@@ -4877,6 +4893,11 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- creation order, so the same list works for every theorem (unused offers are
   -- dropped by the used-filter below). Binder names are disambiguated by
   -- position when one defthm and-split into several rules of the same name.
+  -- Only EQUAL-class rules are offered (the `liftable` TP precedent): an
+  -- iff/user-equivalence rule's hypothesis shape is an L2 frontier — the fact
+  -- is simply not offered, never mis-stated, and a node applying such a rule
+  -- hard-fails at the use site ("no stored-rule hypothesis in scope").
+  let rules := rules.filter (·.equiv == "equal")
   let ruleDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
     (rules.zipIdx.map fun (r, i) =>
       let nm := if (rules.filter (·.name == r.name)).length > 1 then
