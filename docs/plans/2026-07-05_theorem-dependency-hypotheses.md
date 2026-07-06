@@ -116,3 +116,27 @@ the perm book stands at 6 of 8. Step 5 (lazy discharge from replayed
 dependency mirrors) is the open follow-up — all dependency mirrors are now
 available for it, with full chain closure additionally requiring comm-rm
 (perm-rm cites rule:comm-rm).
+
+## Status update 2026-07-06 (later): step 5 LANDED
+
+`dischargeRuleHyp` (Driver.lean) derives each USED rule:<thm> hypothesis
+from its dependency's mirror, replayed INSIDE the consumer's own hypothesis
+telescope (shared fvars ⇒ transitive conditions compose), substituted in
+reverse creation order (topological — ACL2 admits a defthm only after the
+rules it cites exist). The mirror→rule decode is a recompute-and-check of
+create-rewrite-rule's normalization between two EMITTED artifacts (the
+defthm's Goal formula and the stored rule); a frontier failure keeps the
+hypothesis visible (D6). The perm book composes to 8 of 8 with whole-book
+obligations exactly [total:perm, tp:memb, tp:perm].
+
+**Decode coverage — honest scoping (audit #3, 2026-07-06).** The decode
+handles exactly two conclusion shapes: (a) the conclusion IS
+`(equal lhs rhs)`, and (b) the boolean-strengthened form (conclusion = rule
+lhs, rhs = 'T, pinned by the head fn's EMITTED :TYPE-PRESCRIPTION). This is
+NARROWER than ACL2's create-rewrite-rule normalization, which also produces:
+and-split same-name multi-rules, iff-conclusion rules, `not`-conclusion
+(lhs ⇒ 'NIL) rules, =/eql-alias flattening, lambda-headed conclusions,
+builtin-headed boolean conclusions (no user TP to pin with), and :FORCE'd
+hyps. ALL of those shapes FAIL CLOSED at the decode's recompute-and-check
+joints (the hypothesis stays visible — D6, keep-hyp); none is silently
+mis-decoded. Extend the decode per-shape when a real tree exhibits one.

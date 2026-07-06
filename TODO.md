@@ -10,8 +10,8 @@ _Last updated: 2026-07-06._
 > **`just ci` is GREEN** and includes the driver-coverage sweep: hard-fails on
 > any item-less PROVED leaf (emission gap) and reconstruction-integrity
 > failures; reports per-theorem replay + per-leaf DP-discharge status —
-> currently **REPLAYED 23/47 (13 unconditional + 10 conditional)** (corpus
-> 45→47 with recon-tests/17-rule-application), DP leaves ✓9 ◌9 ✗0 of 18,
+> currently **REPLAYED 26/47 (14 unconditional + 12 conditional)** (corpus
+> 45→47 with recon-tests/17-rule-application), DP leaves ✓10 ◌8 ✗0 of 18,
 > and a replayed ✓ is AXIOM-CLEAN by construction (the harness collects
 > each proof's axioms).
 
@@ -248,11 +248,28 @@ closed, ci as scoreboard, audits at milestones):
       perm-is-an-equivalence replays as cond[total:perm, tp:memb,
       tp:perm] — the WHOLE BOOK's obligation log is exactly the three
       base facts (the two named prover-industrialization frontiers).
-      NOT yet audited (this branch: comm-rm, step-5 discharge, wall d,
-      booleanp, multi-clause bridge). Next per ratified sequencing:
-      audit-and-merge, then the LIFTER INDUSTRIALIZATION sprint.
-      NOTE the post-audit commits (6866121, 8096e13, eef8d77) are
-      kernel-gated but not separately adversarially audited.
+      AUDIT #3 PASSED (2026-07-06, 4 Opus reviewers — bridge, discharge,
+      trusted-core, outside — findings verified inline): ZERO soundness
+      defects across all four. The outside reviewer independently
+      reproduced the scoreboard + golden, decoded all 8 mirror
+      conclusions against perm.lisp (incl. the defequiv 4-conjunct
+      obligation = ACL2's own :INPUTCLAUSE verbatim), verified the
+      step-5 inlining is real (rule hyps gone at HEAD with the
+      dependencies' own conditions surfacing; proof terms grow
+      monotonically with dependency depth), and confirmed none of the
+      3 residual base facts is vacuous (all true, all emitted).
+      booleanp differentially verified against real ACL2. Fixes landed
+      same day: the discharge-pass catch re-throws non-frontier errors
+      (dischargeRuleHyp frontier class tagged; dependency-replay walls
+      re-tagged into it); booleanp probes added to scripts/diff_eval.sh;
+      decode-coverage honesty note in the design doc (and-split/iff/
+      not/lambda/builtin-boolean/force shapes FAIL CLOSED, not
+      discharged — extend per-shape on a real tree); the equal-self
+      closer rejects trailing spine items; the ClausifyBridge
+      unused-simp-arg warning fixed. Known scale note (non-fidelity):
+      proof terms balloon along the dependency chain (perm-equiv
+      ≈557M Expr nodes — inlining + the subsumer-duplication residue;
+      revisit if elaboration time bites).
       RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
       INDUSTRIALIZATION sprint (#63 + the NativeMirrors catalog
       discipline) with the perm book as driving example; replay→lift

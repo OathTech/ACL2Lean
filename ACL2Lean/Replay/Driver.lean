@@ -3956,6 +3956,11 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
     -- reflexivity and closes the whole disjunction (comm-rm's *1/1.2 after
     -- its branch-substitution trivializes the conclusion)
     if (runeOf n).1 == "equal-self" then
+      -- this step CLOSES the clause; trailing spine items would be silently
+      -- unreplayed — fail closed (audit #3 hardening)
+      unless rest.isEmpty do
+        throwError "replayClauseSpine: {rest.length} spine item(s) after a \
+                    closing clause-level equal-self at {idStr} (frontier)"
       let (lhs, rhs) := nodeLhsRhs n
       unless rhs == quoteT do
         throwError "replayClauseSpine: clause-level equal-self with rhs \
@@ -5709,8 +5714,13 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
     let ctxDFixed := ctxD
     withLocalDecls premDecls fun premVs => do
       -- the dependency's mirror at env' (same telescope: its conditions
-      -- remain the shared fvars — transitive composition)
-      let pDep ← replayClause cfgD ctxDFixed depRoot
+      -- remain the shared fvars — transitive composition); a replay wall in
+      -- the dependency's own tree is a FRONTIER for the discharge (keep-hyp),
+      -- so re-tag it into the discharger's frontier class
+      let pDep ←
+        try replayClause cfgD ctxDFixed depRoot
+        catch e => throwError "dischargeRuleHyp: dependency {spec.name}'s \
+            replay failed (frontier): {e.toMessageData}"
       let convF ← ctxValProof cfgD ctxDFixed formula
       let hFne ← mkAppM ``ne_nil_of_evtrue_conv #[pDep, convF]
       -- conclusion-value truthiness: bare conclusion, or through MP
@@ -5838,16 +5848,23 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let prf ← mkExpectedTypeHint prf rootTy
       -- v1 STEP 5 — LAZY rule-hypothesis discharge: derive each USED
       -- rule:<thm> hypothesis from its dependency's replayed mirror,
-      -- REVERSE creation order (a discharge proof can only introduce uses of
-      -- STRICTLY EARLIER rules' fvars, which are then substituted in turn);
-      -- a frontier failure keeps the hypothesis visible (D6, like totality)
+      -- REVERSE creation order. Creation order is TOPOLOGICAL in the
+      -- dependency DAG (ACL2 admits a defthm only after the rules it cites
+      -- exist), so a discharge proof can only introduce uses of STRICTLY
+      -- EARLIER rules' fvars — one reverse pass substitutes them all.
       let mut prfR := prf
       for (spec, hypV) in (rules.zip ruleVs.toList).reverse do
         if prfR.containsFVar hypV.fvarId! then
           try
             let pf ← dischargeRuleHyp cfg ctx spec depProofs
             prfR := prfR.replaceFVar hypV pf
-          catch _ => pure ()
+          catch e =>
+            -- keep ONLY the discharger's own frontier-class failures (the
+            -- hypothesis stays visible in the type — D6, like totality);
+            -- anything else is a real defect: surface it
+            let msg ← e.toMessageData.toString
+            unless msg.startsWith "dischargeRuleHyp:" do
+              throw e
       let prf ← instantiateMVars prfR
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so

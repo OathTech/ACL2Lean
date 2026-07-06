@@ -645,7 +645,7 @@ theorem clausifyAllFalse_sound (w : World) (env : Env)
     have hlist : clausifyPure t false = [dumbNegateLit t] := by
       rw [clausifyPure.eq_def]
       have houter' : (t == quoteT) = false := by simpa using houter
-      simp only [reduceIte, houter', Bool.false_eq_true, if_false]
+      simp only [houter', Bool.false_eq_true, if_false]
     exact neg_leaf_false_sound w env hvars hopq hns hwf _ hl
       (hnil _ (hlist ▸ List.mem_singleton_self _))
 

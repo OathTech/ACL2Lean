@@ -166,6 +166,11 @@ tests=(
   "(symbolp '(1))"
   "(stringp '5)"
   "(stringp 'abc)"
+  "(booleanp 't)"
+  "(booleanp 'nil)"
+  "(booleanp '5)"
+  "(booleanp 'a)"
+  "(booleanp '(t))"
   # implies / iff
   "(implies 'nil '5)"
   "(implies 't 'nil)"
