@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 26/47 (14 unconditional + 12 conditional); DP-discharge leaves ✓10 ◌8 ✗0 of 18:
+Driver coverage — REPLAYED 26/47 (21 unconditional + 5 conditional); DP-discharge leaves ✓10 ◌8 ✗0 of 18:
 • simple  (world: 3 defun(s), 1 theorem(s))
     my-len-my-app → REPLAYED ✓ cond[tp:my-len]
 • 00-direct  (world: 2 defun(s), 3 theorem(s))
@@ -58,11 +58,11 @@ Driver coverage — REPLAYED 26/47 (14 unconditional + 12 conditional); DP-disch
     tlp-app-nil → FAIL: definition: children chain reached (equal x (quote NIL)), node rhs is (if x (quote NIL) (quote t))
     tlp-app-nil-twice → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (equal (app (app x (quote NIL)) (quote NIL)) x)
 • sorting/perm  (world: 4 defun(s), 8 theorem(s))
-    perm-cons → REPLAYED ✓ cond[tp:memb]
-    perm-symmetric → REPLAYED ✓ cond[tp:memb, tp:perm]
-    memb-rm → REPLAYED ✓ cond[tp:memb]
-    perm-memb → REPLAYED ✓ cond[tp:memb]
+    perm-cons → REPLAYED ✓
+    perm-symmetric → REPLAYED ✓
+    memb-rm → REPLAYED ✓
+    perm-memb → REPLAYED ✓
     comm-rm → REPLAYED ✓
-    perm-rm → REPLAYED ✓ cond[tp:memb, tp:perm]
-    perm-transitive → REPLAYED ✓ cond[tp:memb, tp:perm]
-    perm-is-an-equivalence → REPLAYED ✓ cond[tp:memb, tp:perm]
+    perm-rm → REPLAYED ✓
+    perm-transitive → REPLAYED ✓
+    perm-is-an-equivalence → REPLAYED ✓

@@ -2174,9 +2174,6 @@ theorem totality_2_rec_snd (w : World) (s : Symbol) (formal1 formal2 : Symbol)
   exact totality_2_of_body w s formal1 formal2 body h_ns h_def
     (fun av1 av2 => hbody av2 av1)
 
-/-- Convergence (totality form) of a `quote`: `(quote v)` converges to SOME value
-    (namely `v`) for all sufficient fuel. The witness is existential so callers need
-    no concrete value. -/
 -- CONVENTION: convergence is stated in **v-fixed totality** form
 -- `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v` — a single definite value `v`
 -- (`evalOpt` is fuel-monotone, so a converging term HAS one value). This feeds any
@@ -2798,6 +2795,234 @@ theorem val_unique {a : Nat → Option SExpr} {u v : SExpr}
     (hu : ∃ N, ∀ f ≥ N, a f = some u) (hv : ∃ N, ∀ f ≥ N, a f = some v) : u = v := by
   obtain ⟨n1, h1⟩ := hu; obtain ⟨n2, h2⟩ := hv
   exact Option.some.inj ((h1 (n1+n2) (by omega)).symm.trans (h2 (n1+n2) (by omega)))
+
+/-! ## Type-prescription discharge (the TP prover; lifter sprint 2026-07-06)
+
+The value-PREDICATE-carrying analogue of the totality walk: prove
+`∃ v, P v ∧ <conv to v>` FORWARD through the body (quote leaves by ground
+decision, if-branches under the verdict, self-calls by the strong IH), then
+pin ANY convergence value of a call by determinism (`val_unique`) plus
+argument strictness. `P` is the EMITTED `:TYPE-PRESCRIPTION` corollary,
+value-lifted — the prover consumes ACL2's type facts; it never infers types
+(CLAUDE.md). Forward-only: no evaluator inversion beyond argument
+strictness. -/
+
+/-- Strengthened convergence: `t` converges (fuel-stably) to a value
+    satisfying `P`. -/
+def ConvToP (w : World) (env : Env) (t : SExpr) (P : SExpr → Prop) : Prop :=
+  ∃ v, P v ∧ ∃ N, ∀ f ≥ N, evalOpt f w env t = some v
+
+/-- ACL2 two-valuedness of the test verdict: not truthy means exactly nil. -/
+theorem nil_of_toBool_false {v : SExpr} (h : Logic.toBool v = false) :
+    v = SExpr.nil := by
+  cases v <;> simp [Logic.toBool] at h ⊢
+
+theorem convP_quote (w : World) (env : Env) (v : SExpr) (P : SExpr → Prop)
+    (hP : P v) :
+    ConvToP w env
+      (.cons (.atom (.symbol { name := "quote" })) (.cons v .nil)) P :=
+  ⟨v, hP, re_val_quote w env v⟩
+
+/-- `if` under a CHARACTERIZED test verdict: the taken branch's predicate
+    carries to the whole `if`. -/
+theorem convP_if_split (w : World) (env : Env) (c t e vc : SExpr)
+    (P : SExpr → Prop)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some vc)
+    (ht : Logic.toBool vc = true → ConvToP w env t P)
+    (he : Logic.toBool vc = false → ConvToP w env e P) :
+    ConvToP w env
+      (.cons (.atom (.symbol { name := "if" }))
+        (.cons c (.cons t (.cons e .nil)))) P := by
+  cases hb : Logic.toBool vc with
+  | true =>
+    obtain ⟨v, hP, hv⟩ := ht hb
+    exact ⟨v, hP, fuel_conv_of_eq (re_if_true w env c t e vc v hc hb hv) hv⟩
+  | false =>
+    obtain ⟨v, hP, hv⟩ := he hb
+    exact ⟨v, hP,
+      fuel_conv_of_eq (re_if_false w env c t e v
+        (nil_of_toBool_false hb ▸ hc) hv) hv⟩
+
+/-- `convP_if_split` over an EXISTENTIAL test verdict (an opaque user-fn
+    test, converged by the totality walk) — the TP analogue of
+    `conv_if_split_ex`. -/
+theorem convP_if_split_ex (w : World) (env : Env) (c t e : SExpr)
+    (P : SExpr → Prop)
+    (hc : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env c = some v)
+    (ht : ∀ vc, ConvTo w env c vc → Logic.toBool vc = true →
+      ConvToP w env t P)
+    (he : ∀ vc, ConvTo w env c vc → Logic.toBool vc = false →
+      ConvToP w env e P) :
+    ConvToP w env
+      (.cons (.atom (.symbol { name := "if" }))
+        (.cons c (.cons t (.cons e .nil)))) P := by
+  obtain ⟨N, vc, hvc⟩ := hc
+  exact convP_if_split w env c t e vc P ⟨N, hvc⟩
+    (ht vc ⟨N, hvc⟩) (he vc ⟨N, hvc⟩)
+
+/-- A defined 2-ary call inherits the body's predicate (self-calls inside
+    the TP walk: `hbody` is the IH at the argument values). -/
+theorem convP_defn_2 (w : World) (env : Env) (s : Symbol)
+    (arg1 arg2 av1 av2 : SExpr) (formal1 formal2 : Symbol) (body : SExpr)
+    (P : SExpr → Prop)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
+    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
+    (hbody : ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
+    ConvToP w env
+      (.cons (.atom (.symbol s)) (.cons arg1 (.cons arg2 .nil))) P := by
+  obtain ⟨v, hP, hv⟩ := hbody
+  exact ⟨v, hP, conv_defn_2 w env s arg1 arg2 av1 av2 formal1 formal2 body v
+    h_ns h_def h1 h2 hv⟩
+
+/-- A defined 1-ary call inherits the body's predicate. -/
+theorem convP_defn_1 (w : World) (env : Env) (s : Symbol)
+    (arg av : SExpr) (formal : Symbol) (body : SExpr) (P : SExpr → Prop)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal], body))
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
+    (hbody : ConvToP w (bindArgs [formal] [av]) body P) :
+    ConvToP w env (.cons (.atom (.symbol s)) (.cons arg .nil)) P := by
+  obtain ⟨v, hP, hv⟩ := hbody
+  exact ⟨v, hP, conv_defn_1 w env s arg av formal body v h_ns h_def h1 hv⟩
+
+/-- 2-ary argument STRICTNESS at one fuel step: a converged non-special
+    application's arguments each converged. -/
+theorem evalOpt_app2_args (f : Nat) (w : World) (env : Env)
+    (s : Symbol) (a1 a2 v : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h : evalOpt (f + 1) w env
+      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 .nil))) = some v) :
+    (∃ u, evalOpt f w env a1 = some u) ∧
+    (∃ u, evalOpt f w env a2 = some u) := by
+  rw [show evalOpt (f + 1) w env
+        (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 .nil)))
+        = evalOptStep (evalOpt f) w env
+            (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 .nil))) from rfl] at h
+  unfold evalOptStep at h
+  simp only [Symbol.isNamed, SExpr.toList?] at h
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
+             ↓reduceIte] at h
+  cases hu1 : evalOpt f w env a1 with
+  | none => simp [List.mapM, List.mapM.loop, hu1] at h
+  | some u1 =>
+    cases hu2 : evalOpt f w env a2 with
+    | none => simp [List.mapM, List.mapM.loop, hu1, hu2] at h
+    | some u2 => exact ⟨⟨u1, rfl⟩, ⟨u2, rfl⟩⟩
+
+/-- Fix a per-fuel existential value by fuel monotonicity. -/
+theorem conv_fix {w : World} {e : Env} {t : SExpr}
+    (h : ∃ N, ∀ f ≥ N, ∃ u, evalOpt f w e t = some u) :
+    ∃ N, ∃ u, ∀ f ≥ N, evalOpt f w e t = some u := by
+  obtain ⟨N, hN⟩ := h
+  obtain ⟨u, hu⟩ := hN N (le_refl N)
+  exact ⟨N, u, fun f hf => evalOpt_ge_fuel N f w e t u hu hf⟩
+
+/-- 2-ary argument strictness, convergence form. -/
+theorem conv_args2_of_conv_app (w : World) (env : Env) (s : Symbol)
+    (a1 a2 v : SExpr)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 .nil))) = some v) :
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u) ∧
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a2 = some u) := by
+  obtain ⟨N, hN⟩ := h
+  constructor
+  · exact conv_fix ⟨N, fun f hf =>
+      (evalOpt_app2_args f w env s a1 a2 v h_ns (hN (f + 1) (by omega))).1⟩
+  · exact conv_fix ⟨N, fun f hf =>
+      (evalOpt_app2_args f w env s a1 a2 v h_ns (hN (f + 1) (by omega))).2⟩
+
+/-- The TP-HYPOTHESIS assembly, 2-ary: from the predicate-carrying body walk,
+    ANY value a call converges to satisfies `P` — argument strictness recovers
+    the argument values, the walk pins ONE convergent value with `P`, and
+    determinism (`val_unique`) identifies them (the `dis_memb_tp` route,
+    mechanized). The conclusion is EXACTLY the driver's `tp:` hypothesis shape
+    (`mkTpHypType`) with `P v := <lifted corollary> = t`. -/
+theorem tp_hyp_2_of_body (w : World) (s : Symbol) (formal1 formal2 : Symbol)
+    (body : SExpr) (P : SExpr → Prop)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (hbody : ∀ av1 av2 : SExpr,
+      ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
+    ∀ (env' : Env) (a0 a1 v : SExpr),
+      (∃ N, ∀ f ≥ N, evalOpt f w env'
+        (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil))) = some v) →
+      P v := by
+  intro env' a0 a1 v h
+  obtain ⟨⟨N0, u0, h0⟩, ⟨N1, u1, h1⟩⟩ :=
+    conv_args2_of_conv_app w env' s a0 a1 v h_ns h
+  obtain ⟨u, hPu, hu⟩ := hbody u0 u1
+  have happ := conv_defn_2 w env' s a0 a1 u0 u1 formal1 formal2 body u
+    h_ns h_def ⟨N0, h0⟩ ⟨N1, h1⟩ hu
+  exact (val_unique h happ) ▸ hPu
+
+/-- The TP-hypothesis assembly, 1-ary. -/
+theorem tp_hyp_1_of_body (w : World) (s : Symbol) (formal : Symbol)
+    (body : SExpr) (P : SExpr → Prop)
+    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
+            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_def : w.defs.get? s = some ([formal], body))
+    (hbody : ∀ av : SExpr, ConvToP w (bindArgs [formal] [av]) body P) :
+    ∀ (env' : Env) (a0 v : SExpr),
+      (∃ N, ∀ f ≥ N, evalOpt f w env'
+        (.cons (.atom (.symbol s)) (.cons a0 .nil)) = some v) →
+      P v := by
+  intro env' a0 v h
+  obtain ⟨N0, u0, h0⟩ := conv_fix (conv_arg1_of_conv_app w env' s a0 v h_ns h)
+  obtain ⟨u, hPu, hu⟩ := hbody u0
+  have happ := conv_defn_1 w env' s a0 u0 formal body u h_ns h_def ⟨N0, h0⟩ hu
+  exact (val_unique h happ) ▸ hPu
+
+/-- The TP body induction, measure on the FIRST formal: strong induction on
+    its count, the second argument inner-∀ (the `memb_body_bool` spine,
+    predicate-generic). -/
+theorem tp_2_rec (formal1 formal2 : Symbol) (body : SExpr) (w : World)
+    (P : SExpr → Prop)
+    (step : ∀ av1 : SExpr,
+      (∀ bv : SExpr, bv.acl2Count < av1.acl2Count → ∀ cv : SExpr,
+        ConvToP w (bindArgs [formal1, formal2] [bv, cv]) body P) →
+      ∀ av2 : SExpr,
+        ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
+    ∀ av1 av2 : SExpr,
+      ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P :=
+  acl2Count_strong_induction
+    (fun av1 => ∀ av2, ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P)
+    step
+
+/-- The TP body induction, measure on the SECOND formal. -/
+theorem tp_2_rec_snd (formal1 formal2 : Symbol) (body : SExpr) (w : World)
+    (P : SExpr → Prop)
+    (step : ∀ av2 : SExpr,
+      (∀ cv : SExpr, cv.acl2Count < av2.acl2Count → ∀ bv : SExpr,
+        ConvToP w (bindArgs [formal1, formal2] [bv, cv]) body P) →
+      ∀ av1 : SExpr,
+        ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
+    ∀ av1 av2 : SExpr,
+      ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P :=
+  fun av1 av2 =>
+    acl2Count_strong_induction
+      (fun av2 => ∀ av1, ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P)
+      step av2 av1
+
+/-- The TP body induction, 1-ary. -/
+theorem tp_1_rec (formal : Symbol) (body : SExpr) (w : World)
+    (P : SExpr → Prop)
+    (step : ∀ av : SExpr,
+      (∀ bv : SExpr, bv.acl2Count < av.acl2Count →
+        ConvToP w (bindArgs [formal] [bv]) body P) →
+      ConvToP w (bindArgs [formal] [av]) body P) :
+    ∀ av : SExpr, ConvToP w (bindArgs [formal] [av]) body P :=
+  acl2Count_strong_induction
+    (fun av => ConvToP w (bindArgs [formal] [av]) body P) step
 
 /-- Transport non-nil-ness along a value equation. -/
 theorem ne_nil_of_eq {v w : SExpr} (h : v = w) (hw : w ≠ SExpr.nil) :

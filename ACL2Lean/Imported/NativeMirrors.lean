@@ -500,13 +500,12 @@ theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
 
 The FULL chain on the perm book's first replayed theorem: the REAL
 `sorting/perm.proof-log` → parse → reconstruct → the log-DERIVED world → the
-driver's conditional mirror (the branch-split composer, destructor
-elimination, the whole R1 node family) → hypotheses discharged (ALL
-totality now auto-discharged from admission data — the prover's
-user-fn-if-test extension, lifter sprint 2026-07-06; `tp:memb` by the
-world-parametric HAND discharger, TP-prover mechanization pending) → the
-`contains`/`erase`/`isPerm` simulations → the native statement over
-`List.Perm`. -/
+driver's mirror (the branch-split composer, destructor elimination, the
+whole R1 node family) — UNCONDITIONAL: all totality auto-discharged from
+admission data and all TP corollaries by the TP prover (`proveTp`), both
+landed in the 2026-07-06 lifter sprint — → the `contains`/`erase`/`isPerm`
+simulations → the native statement over `List.Perm`. The hand dischargers
+in `Imported/Perm.lean` remain as the provers' validated models. -/
 
 private def permLog9 : String := include_str "../../acl2_samples/sorting/perm.proof-log"
 
@@ -517,21 +516,15 @@ def permDev : Development :=
 
 derive_world permWorldD from permDev
 
-/-- The conditional mirror as a definition (the driver's proof OBJECT):
-    `∀ env, tp:memb → <EvTrue of the perm-cons formula>` (totality
-    auto-discharged by the prover). -/
+/-- The driver's mirror proof OBJECT — UNCONDITIONAL as produced (totality
+    by the admission prover, TP corollaries by the TP prover): no
+    hypotheses left to discharge. -/
 def permConsMirrorCond := driver_mirror% permDev permWorldD "perm-cons"
 
-/-- The driver mirror — UNCONDITIONAL: `tp:memb` is discharged by the hand
-    discharger, instantiated at the log-derived world (every world fact a
-    `decide`). -/
 theorem permConsMirror_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f permWorldD env
       Worlds.Perm.perm_consFormula = some v ∧ v ≠ SExpr.nil :=
   permConsMirrorCond env
-    (fun env' a0 a1 v h =>
-      Worlds.Perm.dis_memb_tp permWorldD (by decide) (by decide) (by decide)
-        (by decide) (by decide) env' a0 a1 v h)
 
 /-- ENTRY 9, PROVED — the Boolean form through the DRIVER's replayed mirror. -/
 theorem perm_cons_native_driver (a : SExpr) (xs ys : List SExpr)

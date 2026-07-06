@@ -582,19 +582,16 @@ elab "acl2_replay_permcons_real% " : term => do
 /-- The first replayed theorem of the SORTING corpus (R1). -/
 def perm_cons_real_mirror := acl2_replay_permcons_real%
 
-/-- PIN the machine-generated statement: the conclusion is the genuine mirror
-    of the ACL2 defthm
-    `(implies (memb a x) (equal (perm x (cons a y)) (perm (rm a x) y)))`,
-    under memb's emitted TP corollary (lifted value-only) — no other
-    hypotheses, no weakening. ALL totality (rm/memb/perm) is AUTO-DISCHARGED
-    from the emitted admission data (#37; perm fell to the user-fn-if-test +
-    opaque-self-call-arg prover extension, lifter sprint 2026-07-06). -/
+/-- PIN the machine-generated statement: the UNCONDITIONAL mirror of the
+    ACL2 defthm
+    `(implies (memb a x) (equal (perm x (cons a y)) (perm (rm a x) y)))` —
+    no hypotheses at all, no weakening. ALL totality is AUTO-DISCHARGED from
+    the emitted admission data (#37; perm fell to the user-fn-if-test +
+    opaque-self-call-arg prover extension) and ALL TP corollaries by the TP
+    prover (proveTp — the emitted corollary proved from the body by the
+    predicate-carrying walk; lifter sprint 2026-07-06). -/
 example :
     ∀ (env : Env),
-      (∀ (env' : Env) (a0 a1 v : SExpr),
-          (∃ N, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "memb" a0 a1) = some v) →
-          (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
-           else Logic.equal v SExpr.nil) = SExpr.t) →
       ∃ N, ∀ f ≥ N, ∃ v,
         evalOpt f permWorld env
           (ap2 "implies" (ap2 "memb" (sym "a") (sym "x"))
@@ -610,11 +607,10 @@ example :
 
 The first theorem replayed THROUGH user-rule applications
 (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). The pin locks the
-machine-generated statement AFTER the v1 step-5 rule-hypothesis DISCHARGE
-and the admission-derived totality discharge (total:perm fell to the
-prover's user-fn-if-test + opaque-self-call-arg extension, lifter sprint
-2026-07-06), leaving only the two emitted boolean TP corollaries
-(tp:memb arriving TRANSITIVELY through memb-rm's discharged mirror). -/
+machine-generated statement AFTER the v1 step-5 rule-hypothesis discharge,
+the admission-derived totality discharge, AND the TP-prover discharge
+(lifter sprint 2026-07-06) — the composed mirror is UNCONDITIONAL: the
+whole dependency chain and every base fact machine-discharged. -/
 
 private def ap3 (f : String) (a b c : SExpr) : SExpr :=
   .cons (sym f) (.cons a (.cons b (.cons c .nil)))
@@ -644,17 +640,8 @@ def perm_transitive_real_mirror := acl2_replay_permtrans_real%
 
 example :
     ∀ (env : Env),
-      -- tp:memb (from memb-rm's discharged mirror — TRANSITIVE composition)
-      (∀ (env' : Env) (a0 a1 v : SExpr),
-          (∃ N, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "memb" a0 a1) = some v) →
-          (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
-           else Logic.equal v SExpr.nil) = SExpr.t) →
-      -- tp:perm (the emitted boolean TP corollary, lifted value-only)
-      (∀ (env' : Env) (a0 a1 v : SExpr),
-          (∃ N, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "perm" a0 a1) = some v) →
-          (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
-           else Logic.equal v SExpr.nil) = SExpr.t) →
-      -- conclusion: the genuine perm-transitive mirror (ACL2's and → if _ _ 'nil)
+      -- the genuine perm-transitive mirror (ACL2's and → if _ _ 'nil),
+      -- UNCONDITIONAL
       ∃ N, ∀ f ≥ N, ∃ v,
         evalOpt f permWorld env
           (ap2 "implies"

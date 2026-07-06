@@ -5747,6 +5747,289 @@ def buildTotalEnv (cfg : ReplayConfig)
     pending := still
   return totalEnv
 
+/-- The TP body walk: a proof of `ConvToP w envE t P` — the body converges
+    to a value SATISFYING the lifted-corollary predicate `P` (the TP prover,
+    lifter sprint 2026-07-06; the `memb_body_bool` route, mechanized).
+    Return-path arms: quote leaves (`P` by kernel decision), `if`-splits
+    (liftable or OPAQUE tests — tests need only CONVERGENCE, from the plain
+    walk over `totalEnv`), and self-calls (the admission-licensed strong
+    IH). Every other body shape is a tagged frontier (D6: the `tp:`
+    hypothesis stays). -/
+partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
+    (vals : List (Symbol × Expr × Expr))
+    (facts : List (SExpr × Bool × Expr))
+    (totalEnv : List (String × Nat × Expr))
+    (self : Option (String × Symbol × Expr × Justification))
+    (P : Expr) (t : SExpr) : MetaM Expr := do
+  let varP : Symbol → Option (Expr × Expr) := fun s =>
+    (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
+  match t with
+  | .cons (.atom (.symbol qs)) (.cons qv .nil) =>
+    if qs.name == "quote" then
+      -- leaf constant: the corollary holds of it by ground kernel decision
+      let hP ← proveByDecide (mkApp P (reflectSExpr qv)).headBeta
+        s!"tp corollary at leaf {repr qv}"
+      return ← mkAppM ``convP_quote
+        #[cfg.worldExpr, envE, reflectSExpr qv, P, hP]
+    else
+      tpWalkCall cfg envE vals facts totalEnv self P t
+  | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
+    if fs.name == "if" then
+      if totLiftable c then
+        let vc ← dpValExpr [] (dpValProof.dpVarVal envE varP) c
+        let hc ← dpValProof cfg envE [] [] varP c
+        let toBoolVc ← mkAppM ``Logic.toBool #[vc]
+        let mkB (bval : Name) (pos : Bool) (branch : SExpr) : MetaM Expr := do
+          withLocalDeclD `hb (← mkEq toBoolVc (mkConst bval)) fun hb => do
+            let p ← tpWalk cfg envE vals ((c, pos, hb) :: facts)
+              totalEnv self P branch
+            mkLambdaFVars #[hb] p
+        let ht ← mkB ``Bool.true true th
+        let he ← mkB ``Bool.false false e
+        return ← mkAppM ``convP_if_split
+          #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th,
+            reflectSExpr e, vc, P, hc, ht, he]
+      else
+        -- OPAQUE (user-fn) test: converge it by the PLAIN walk (the fn's
+        -- own totality is in totalEnv — buildTpEnv runs after totality),
+        -- split on the existential verdict
+        let hcEx ← totWalk cfg envE vals facts totalEnv none c
+        let mkB (bval : Name) (pos : Bool) (branch : SExpr) : MetaM Expr :=
+          withLocalDeclD `vc (mkConst ``SExpr) fun vc => do
+            let convTy ← mkAppM ``ConvTo
+              #[cfg.worldExpr, envE, reflectSExpr c, vc]
+            withLocalDeclD `hcv convTy fun hcv => do
+              let hbTy ← mkEq (← mkAppM ``Logic.toBool #[vc]) (mkConst bval)
+              withLocalDeclD `hb hbTy fun hb => do
+                let p ← tpWalk cfg envE vals ((c, pos, hb) :: facts)
+                  totalEnv self P branch
+                mkLambdaFVars #[vc, hcv, hb] p
+        let ht ← mkB ``Bool.true true th
+        let he ← mkB ``Bool.false false e
+        return ← mkAppM ``convP_if_split_ex
+          #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th,
+            reflectSExpr e, P, hcEx, ht, he]
+    else
+      tpWalkCall cfg envE vals facts totalEnv self P t
+  | _ => tpWalkCall cfg envE vals facts totalEnv self P t
+where
+  /-- Call arms: SELF-calls via the strong IH; everything else a frontier. -/
+  tpWalkCall (cfg : ReplayConfig) (envE : Expr)
+      (vals : List (Symbol × Expr × Expr))
+      (facts : List (SExpr × Bool × Expr))
+      (totalEnv : List (String × Nat × Expr))
+      (self : Option (String × Symbol × Expr × Justification))
+      (P : Expr) (t : SExpr) : MetaM Expr := do
+    let varP : Symbol → Option (Expr × Expr) := fun s =>
+      (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
+    let .cons (.atom (.symbol fs)) argsSpine := t
+      | throwFrontier m!"proveTp: body shape {repr t} unsupported (frontier)"
+    let some (selfName, measuredFormal, ih, just) := self
+      | throwFrontier m!"proveTp: call to {fs.name} on the return path of a \
+          non-recursive body (frontier)"
+    unless fs.name == selfName do
+      throwFrontier m!"proveTp: return-path call to {fs.name} (not the \
+          self-call) unsupported (frontier)"
+    let args := (argsSpine.toList?).getD []
+    match cfg.worldVal.defs.get? fs with
+    | none => throwFrontier m!"proveTp: self {fs.name} not in world"
+    | some (formals, body) =>
+      unless args.length == formals.length do
+        throwFrontier m!"proveTp: self-call arity mismatch {repr t}"
+      let mIdx := formals.findIdx (· == measuredFormal)
+      unless totLiftable args[mIdx]! do
+        throwFrontier m!"proveTp: self-call MEASURED argument not liftable \
+            {repr t} (frontier)"
+      unless vals.any (fun (f, _, _) => f == measuredFormal) do
+        throwFrontier m!"proveTp: measured formal has no bound value"
+      let dec ← totDischargeDecrease just measuredFormal facts args[mIdx]!
+      let hNs ← proveNotSpecial fs
+      let hDef ← totWalk.totDefFact cfg fs formals body
+      match formals, args with
+      | [f1], [a1] =>
+        let av ← dpValExpr [] (dpValProof.dpVarVal envE varP) a1
+        let ap ← dpValProof cfg envE [] [] varP a1
+        let hbody ← mkAppM' ih #[av, dec]
+        return ← mkAppM ``convP_defn_1
+          #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr a1, av,
+            reflectSymbol f1, reflectSExpr body, P, hNs, hDef, ap, hbody]
+      | [f1, f2], [a1, a2] =>
+        let aM := args[mIdx]!
+        let vM ← dpValExpr [] (dpValProof.dpVarVal envE varP) aM
+        let pM ← dpValProof cfg envE [] [] varP aM
+        let aO := args[1 - mIdx]!
+        let assemble (vO pO : Expr) : MetaM Expr := do
+          let hbody ← mkAppM' ih #[vM, dec, vO]
+          let (v1, v2, p1, p2) :=
+            if mIdx == 0 then (vM, vO, pM, pO) else (vO, vM, pO, pM)
+          mkAppM ``convP_defn_2
+            #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr a1,
+              reflectSExpr a2, v1, v2, reflectSymbol f1, reflectSymbol f2,
+              reflectSExpr body, P, hNs, hDef, p1, p2, hbody]
+        if totLiftable aO then
+          let vO ← dpValExpr [] (dpValProof.dpVarVal envE varP) aO
+          let pO ← dpValProof cfg envE [] [] varP aO
+          return ← assemble vO pO
+        else
+          -- opaque non-measured argument: plain-walk convergence, value
+          -- bound by ∃-elimination (as in the totality prover)
+          let hcEx ← totWalk cfg envE vals facts totalEnv none aO
+          let k ← withLocalDeclD `vo (mkConst ``SExpr) fun vO => do
+            let convTy ← mkAppM ``ConvTo
+              #[cfg.worldExpr, envE, reflectSExpr aO, vO]
+            withLocalDeclD `hcv convTy fun hcv => do
+              mkLambdaFVars #[vO, hcv] (← assemble vO hcv)
+          return ← mkAppM ``exists_conv_elim #[hcEx, k]
+      | _, _ =>
+        throwFrontier m!"proveTp: self-call arity {args.length} unsupported \
+            (frontier)"
+
+/-- Prove `tp:fn` (the `mkTpHypType` statement) from the fn's body and its
+    EMITTED `:TYPE-PRESCRIPTION` corollary — the TP prover. The corollary is
+    CONSUMED (ACL2's emitted type fact — never inferred); the walk proves the
+    body's value satisfies it; argument strictness + determinism pin every
+    convergence value (`tp_hyp_*_of_body`). Frontier failures are tagged
+    (D6: the hypothesis stays visible). -/
+def proveTp (cfg : ReplayConfig)
+    (totalEnv : List (String × Nat × Expr))
+    (justs : List (String × Justification))
+    (name : String) (cor : SExpr) : MetaM Expr := do
+  let fs : Symbol := { name := name }
+  let some (formals, body) := cfg.worldVal.defs.get? fs
+    | throwFrontier m!"proveTp: {name} not defined in the world (frontier)"
+  let hNs ← proveNotSpecial fs
+  let hDef ← totWalk.totDefFact cfg fs formals body
+  -- P := fun v => <corollary, (fn formals…) ↦ v, value-lifted> = SExpr.t —
+  -- EXACTLY mkTpHypType's conclusion, so the proof inhabits the offered type
+  let appPat : SExpr :=
+    .cons (.atom (.symbol fs))
+      ((formals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
+  let P ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+    let lifted ← dpValExpr [(appPat, vV)]
+      (fun s => throwFrontier m!"proveTp: corollary of {name} mentions the \
+          free variable {s.name} outside the application (frontier)") cor
+    mkLambdaFVars #[vV] (← mkEq lifted (mkConst ``SExpr.t))
+  let mkEnvE (avs : List Expr) : MetaM Expr := do
+    let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
+    let avsE ← mkListLit (mkConst ``SExpr) avs
+    mkAppM ``bindArgs #[formalsE, avsE]
+  let varProofs (envE : Expr) (avs : List Expr) :
+      MetaM (List (Symbol × Expr × Expr)) := do
+    match formals, avs with
+    | [f], [av] =>
+      let g ← mkAppM ``bindArgs_single_get_self #[reflectSymbol f, av]
+      let p ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f, av, g]
+      return [(f, av, p)]
+    | [f1, f2], [av1, av2] =>
+      let hne ← mkDecideProof (← mkAppM ``Ne #[reflectSymbol f1, reflectSymbol f2])
+      let g1 ← mkAppM ``bindArgs_pair_get_fst #[reflectSymbol f1, reflectSymbol f2, av1, av2]
+      let g2 ← mkAppM ``bindArgs_pair_get_snd #[reflectSymbol f1, reflectSymbol f2, av1, av2, hne]
+      let p1 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f1, av1, g1]
+      let p2 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f2, av2, g2]
+      return [(f1, av1, p1), (f2, av2, p2)]
+    | _, _ => throwFrontier m!"proveTp: arity {formals.length} unsupported (frontier)"
+  let mkConvToPTy (envB : Expr) : MetaM Expr :=
+    mkAppM ``ConvToP #[cfg.worldExpr, envB, reflectSExpr body, P]
+  match justs.lookup name with
+  | none =>
+    -- NON-RECURSIVE: the walk alone gives the ∀-body form
+    match formals with
+    | [f1] =>
+      let hbody ← withLocalDeclD `av (mkConst ``SExpr) fun av => do
+        let envE ← mkEnvE [av]
+        let vals ← varProofs envE [av]
+        let p ← tpWalk cfg envE vals [] totalEnv none P body
+        mkLambdaFVars #[av] p
+      mkAppM ``tp_hyp_1_of_body
+        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+          reflectSExpr body, P, hNs, hDef, hbody]
+    | [f1, f2] =>
+      let hbody ← withLocalDeclD `av1 (mkConst ``SExpr) fun av1 =>
+        withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+          let envE ← mkEnvE [av1, av2]
+          let vals ← varProofs envE [av1, av2]
+          let p ← tpWalk cfg envE vals [] totalEnv none P body
+          mkLambdaFVars #[av1, av2] p
+      mkAppM ``tp_hyp_2_of_body
+        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+          reflectSymbol f2, reflectSExpr body, P, hNs, hDef, hbody]
+    | _ => throwFrontier m!"proveTp: arity {formals.length} unsupported (frontier)"
+  | some just =>
+    -- RECURSIVE (D5 scope, as in proveTotality)
+    unless just.wfRel.name == "o<" do
+      throwFrontier m!"proveTp: well-founded relation {just.wfRel.name} \
+          unsupported (frontier: o< only)"
+    let some measuredFormal := just.measuredSubset.head?
+      | throwFrontier m!"proveTp: empty measured subset"
+    unless just.measuredSubset.length == 1 do
+      throwFrontier m!"proveTp: multi-formal measured subset unsupported (frontier)"
+    unless just.measure ==
+        (.cons (.atom (.symbol { name := "acl2-count" }))
+          (.cons (.atom (.symbol { name := measuredFormal.name })) .nil)) do
+      throwFrontier m!"proveTp: measure {repr just.measure} unsupported \
+          (frontier: (acl2-count <measured-formal>) only)"
+    let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.acl2Count #[e]
+    let selfC := fun (ih : Expr) => some (name, measuredFormal, ih, just)
+    match formals with
+    | [f1] =>
+      unless measuredFormal == f1 do
+        throwFrontier m!"proveTp: measured formal mismatch"
+      let step ← withLocalDeclD `av (mkConst ``SExpr) fun av => do
+        let ihType ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
+          let lt ← mkAppM ``Nat.lt #[← countOf bv, ← countOf av]
+          let cvty ← mkConvToPTy (← mkEnvE [bv])
+          mkForallFVars #[bv] (← mkArrow lt cvty)
+        withLocalDeclD `ih ihType fun ih => do
+          let envE ← mkEnvE [av]
+          let vals ← varProofs envE [av]
+          let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) P body
+          mkLambdaFVars #[av, ih] p
+      let hbody ← mkAppM ``tp_1_rec
+        #[reflectSymbol f1, reflectSExpr body, cfg.worldExpr, P, step]
+      mkAppM ``tp_hyp_1_of_body
+        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+          reflectSExpr body, P, hNs, hDef, hbody]
+    | [f1, f2] =>
+      let step ←
+        if measuredFormal == f1 then
+          withLocalDeclD `av1 (mkConst ``SExpr) fun av1 => do
+            let ihType ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
+              let lt ← mkAppM ``Nat.lt #[← countOf bv, ← countOf av1]
+              let inner ← withLocalDeclD `cv (mkConst ``SExpr) fun cv => do
+                mkForallFVars #[cv] (← mkConvToPTy (← mkEnvE [bv, cv]))
+              mkForallFVars #[bv] (← mkArrow lt inner)
+            withLocalDeclD `ih ihType fun ih =>
+              withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+                let envE ← mkEnvE [av1, av2]
+                let vals ← varProofs envE [av1, av2]
+                let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) P body
+                mkLambdaFVars #[av1, ih, av2] p
+        else if measuredFormal == f2 then
+          withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+            let ihType ← withLocalDeclD `cv (mkConst ``SExpr) fun cv => do
+              let lt ← mkAppM ``Nat.lt #[← countOf cv, ← countOf av2]
+              let inner ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
+                mkForallFVars #[bv] (← mkConvToPTy (← mkEnvE [bv, cv]))
+              mkForallFVars #[cv] (← mkArrow lt inner)
+            withLocalDeclD `ih ihType fun ih =>
+              withLocalDeclD `av1 (mkConst ``SExpr) fun av1 => do
+                let envE ← mkEnvE [av1, av2]
+                let vals ← varProofs envE [av1, av2]
+                let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) P body
+                mkLambdaFVars #[av2, ih, av1] p
+        else
+          throwError "proveTp: measured formal not among the formals (internal)"
+      let recLemma :=
+        if measuredFormal == f1 then ``tp_2_rec else ``tp_2_rec_snd
+      let hbody ← mkAppM recLemma
+        #[reflectSymbol f1, reflectSymbol f2, reflectSExpr body,
+          cfg.worldExpr, P, step]
+      mkAppM ``tp_hyp_2_of_body
+        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+          reflectSymbol f2, reflectSExpr body, P, hNs, hDef, hbody]
+    | _ => throwFrontier m!"proveTp: recursive arity {formals.length} \
+        unsupported (frontier)"
+
 /-- Substitute a hypothesis fvar by LET-BINDING its discharge proof instead
     of textual replacement (`replaceFVar`): `k` uses of the hypothesis share
     ONE copy of the (potentially enormous) discharge term instead of `k`
@@ -5974,28 +6257,48 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let used := (condsAll.zip (totalVs ++ tpVs ++ ruleVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
       -- #37 LAZY discharge: prove admission totality only for the USED
-      -- total: hypotheses (the dev-order dependency prefix, once, up to the
-      -- last used fn) and SUBSTITUTE; frontier failures keep the hypothesis
+      -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
+      -- tp: hypotheses (whose walks also need totality facts — the bound
+      -- covers both name sets). Frontier failures keep the hypothesis
       -- (D6 — visible in the type).
       let usedTotalNames := used.filterMap fun (c, _) =>
         if c.startsWith "total:" then some ((c.drop "total:".length).toString) else none
+      let usedTpNames := used.filterMap fun (c, _) =>
+        if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
+      let neededFns := usedTotalNames ++ usedTpNames
       let totalEnv ←
-        if usedTotalNames.isEmpty then pure []
+        if neededFns.isEmpty then pure []
         else
           -- `defs.entries` is DEV order (user defuns first, ground zero at
-          -- the tail — see buildTotalEnv); the lazy bound is the used fn
+          -- the tail — see buildTotalEnv); the lazy bound is the needed fn
           -- LATEST in dev order
           let lastUsed? := (cfg.worldVal.defs.entries.filter
-            (fun (s, _, _) => usedTotalNames.contains s.name)).getLast?
+            (fun (s, _, _) => neededFns.contains s.name)).getLast?
           buildTotalEnv cfg justs (upTo := lastUsed?.map (fun (s, _, _) => s.name))
       let mut prf := prf
       let mut kept : List (String × Expr) := []
       for (c, v) in used do
-        match (if c.startsWith "total:" then
-                totalEnv.find? (fun (n, _, _) => s!"total:{n}" == c)
-              else none) with
-        | some (_, _, pf) => prf ← letBindFVar prf v pf
-        | none => kept := kept ++ [(c, v)]
+        if c.startsWith "total:" then
+          match totalEnv.find? (fun (n, _, _) => s!"total:{n}" == c) with
+          | some (_, _, pf) => prf ← letBindFVar prf v pf
+          | none => kept := kept ++ [(c, v)]
+        else if c.startsWith "tp:" then
+          -- the TP prover: derive the emitted-corollary hypothesis from the
+          -- fn's body (lifter sprint 2026-07-06); frontier → keep (D6)
+          let fnName := (c.drop "tp:".length).toString
+          match tps.lookup fnName with
+          | some cor =>
+            try
+              let pf ← proveTp cfg totalEnv justs fnName cor
+              let pf ← mkExpectedTypeHint pf (← inferType v)
+              prf ← letBindFVar prf v pf
+            catch e =>
+              unless isFrontierErr e do
+                throw e
+              kept := kept ++ [(c, v)]
+          | none => kept := kept ++ [(c, v)]
+        else
+          kept := kept ++ [(c, v)]
       let p ← mkLambdaFVars (kept.map (·.2)).toArray prf
       return (p, kept.map (·.1))
 
