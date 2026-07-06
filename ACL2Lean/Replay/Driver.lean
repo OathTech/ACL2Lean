@@ -3643,16 +3643,30 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
     throwError "replayClauseSpine: branch item with no preceding literal at \
                 {idStr} (frontier): segment {repr seg}"
   | .literal lp :: rest =>
-    -- this literal's case branches: the maximal `.branch` prefix; nothing may
-    -- follow at this level (the clause scan continues inside the branches)
-    let branchItems := rest.takeWhile (fun | .branch _ _ => true | _ => false)
-    unless branchItems.length == rest.length do
-      throwError "replayClauseSpine: items after literal {lp.index}'s branches \
-                  at {idStr} (frontier)"
-    let branchSegs ← branchItems.mapM (fun
-      | ClauseItem.branch seg its => pure (seg, its)
-      | _ => throwError "replayClauseSpine: internal — non-branch in the \
-                         branch prefix")
+    -- this literal's case branches. Clause-level steps emitted BETWEEN the
+    -- literal and a `┌ branch` (rewrite-clause emits each new clause's
+    -- post-split steps — remove-trivial-equivalences, its evaluations —
+    -- before that clause's BEGIN-BRANCH) belong to the FOLLOWING branch's
+    -- continuation: regroup each maximal `.step` run into the next branch.
+    -- Nothing else may follow at this level; trailing steps with no branch
+    -- hard-fail.
+    let rec regroup : List ClauseItem → Except String (List (SExpr × List ClauseItem))
+      | [] => pure []
+      | items => do
+        let pre := items.takeWhile (fun | .step _ => true | _ => false)
+        match items.drop pre.length with
+        | .branch seg its :: tail => pure ((seg, pre ++ its) :: (← regroup tail))
+        | [] => throw s!"replayClauseSpine: {pre.length} clause-level step(s) \
+                         after literal {lp.index} with no following branch at \
+                         {idStr} (frontier)"
+        | it :: _ =>
+          let tag := match it with
+            | .literal l => s!"literal {l.index}"
+            | .clausify _ => "clausify"
+            | _ => "step"
+          throw s!"replayClauseSpine: non-branch item ({tag}) after literal \
+                   {lp.index}'s branches at {idStr} (frontier)"
+    let branchSegs ← ofExcept (regroup rest)
     let idx := lp.index
     let (cidx, clit) :: restLits := clauseLits
       | throwError "replayClauseSpine: literal item {idx} beyond the clause's \
