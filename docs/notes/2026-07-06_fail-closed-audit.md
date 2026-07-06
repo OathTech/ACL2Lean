@@ -258,3 +258,22 @@ a check against a log where it fired non-trivially.
 
 All findings are read-only pointers. No code, artifacts, or generated files were
 changed by this audit.
+
+---
+
+## Status update 2026-07-06 (later): fix sprint LANDED (branch mdd/fail-closed-fixes)
+
+All five recommended-priority items are in (one commit, ci green, coverage
+golden byte-identical): `panic!`→`Except` (`Event.classify` /
+`TheoremOption.fromSExprs`; `generatedEvents` failure keeps the `.makeEvent`
+so `checkTranslatable` rejects it), the N1 typed frontier tag
+(`throwFrontier`/`isFrontierErr`; `(internal)` throws stay untagged and now
+surface), N2/N3 parser throws, N4 reader-conditional hard-fail, N5/N6
+translator package gate + `escapeStringLit`, F15 malformed-shape `none` (the
+unbound-variable nil default is KEPT deliberately — it is the total-env
+modeling choice the `∀ env` mirror statement form relies on, matching ACL2's
+total logical semantics), and N7's `(cons t …)` checkpoint tag in the fork.
+Open residuals (unchanged): N8, the free-var relief no-marker trace, the
+`built-in-clausep` check, `Parser.lean` unterminated-block-comment panic
+(loud comment-to-EOF default), and `Driver.rebuild`'s panic default (flows
+only into `==` recompute checks, which fail closed).

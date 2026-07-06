@@ -19,17 +19,21 @@ _Last updated: 2026-07-06._
 
 Ordered by project-wide leverage — general machinery over special-case walls:
 
-0. **Fail-closed fix sprint (quick, first).** Land the actionable findings of
-   `docs/notes/2026-07-06_fail-closed-audit.md`: `panic!`→throw in Syntax.lean
-   (loud defaults → fail-closed); a TYPED frontier-exception tag replacing the
-   string-prefix frontier/defect classification (N1 — includes the catch just
-   added by audit #3's fix batch); `:ORIGIN`/`:PARENTS` parser throws (N2/N3);
-   `evalOptStep` malformed-shape fail-open → `none` (F15, trusted core);
-   translator package hard-fail + string escaping (N5/N6, latent);
-   reader-conditional hard-fail (N4); the fncall speculative-rollback empty-tail
-   tag in the fork (N7). Investigation residuals (N8 settled-down-clause,
-   free-var relief no-marker path, built-in-clausep at induct.lisp:1310) stay
-   tracked below, not in the sprint.
+0. **Fail-closed fix sprint — DONE (2026-07-06, branch mdd/fail-closed-fixes).**
+   All actionable findings of `docs/notes/2026-07-06_fail-closed-audit.md`
+   landed: `panic!`→`Except` through `Event.classify`/`fromSExprs`; the TYPED
+   frontier tag (`throwFrontier`/`isFrontierErr`) replacing string-prefix
+   frontier/defect classification in buildTotalEnv + the rule-hyp discharge
+   (N1); `:ORIGIN`/`:PARENTS` parser throws (N2/N3); reader-conditional
+   hard-fail (N4); translator package hard-fail + `escapeStringLit` (N5/N6);
+   `evalOptStep` malformed shapes → `none` — unbound-var nil default kept as
+   the documented ∀-env modeling choice (F15, trusted core); the fncall
+   rollback `(cons t …)` tag in the fork (N7). Gates: ci green, golden
+   byte-identical 26/47, logs regenerated on the patched ACL2, `(quote)`
+   non-convergent via CLI probe. Investigation residuals stay tracked (N8
+   settled-down-clause, free-var relief no-marker path, built-in-clausep at
+   induct.lisp:1310, Parser.lean unterminated-block-comment panic, Driver
+   `rebuild` panic default).
 1. **LIFTER INDUSTRIALIZATION sprint (#63)** — the product lane: extract the
    standard lifting library (`enc`/`corr_*` patterns) from the catalog with the
    perm book as driving example (8 native entries), INCLUDING the base-fact
