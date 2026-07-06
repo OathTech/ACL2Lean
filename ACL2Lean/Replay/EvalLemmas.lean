@@ -2947,6 +2947,26 @@ theorem evrel_if_test_siff_collapse {w : World} {env : Env} {c c' thn els : SExp
         evalOpt_if_true g w env c' thn els v hv
           (toBool_true_of_ne_nil (fun hnv => hnu (Iff.mpr huv hnv)))]
 
+/-- MODUS PONENS at the value level: a truthy `Logic.implies` with a truthy
+    antecedent has a truthy consequent (the rule:<thm> discharge's
+    hypothesis-consumption step). -/
+theorem implies_value_mp {vA vB : SExpr}
+    (h : Logic.implies vA vB ≠ SExpr.nil) (hvA : vA ≠ SExpr.nil) :
+    vB ≠ SExpr.nil := by
+  rw [logic_implies_cond] at h
+  rw [toBool_true_of_ne_nil hvA] at h
+  intro hB
+  rw [hB] at h
+  simp [Logic.toBool] at h
+
+/-- An `and`-antecedent's value (`(if A B 'nil)` lifted) is truthy when both
+    parts are (the two-hypothesis rule antecedent). -/
+theorem and_value_ne_nil {vA vB : SExpr}
+    (hvA : vA ≠ SExpr.nil) (hvB : vB ≠ SExpr.nil) :
+    cond (Logic.toBool vA) vB SExpr.nil ≠ SExpr.nil := by
+  rw [toBool_true_of_ne_nil hvA]
+  exact hvB
+
 /-- `Logic.implies` is boolean-valued (the chain-start head fact). -/
 theorem logic_implies_boolean (p q : SExpr) :
     Logic.implies p q = SExpr.t ∨ Logic.implies p q = SExpr.nil := by

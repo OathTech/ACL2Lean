@@ -145,7 +145,8 @@ def collectProofAxioms (e : Expr) : MetaM (List Name) := do
     `replayLiteral` frontier flags a real bug in the new code, not an expected frontier. -/
 def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (justs : List (String × ACL2.Justification)) (cp : ClauseProof)
-    (rules : List ACL2.RuleSpec := []) :
+    (rules : List ACL2.RuleSpec := [])
+    (depProofs : List (String × ClauseProof) := []) :
     TermElabM String := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -155,7 +156,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
-        let (prf, conds) ← replayProofConditional cfg tps cp justs rules
+        let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts
@@ -279,6 +280,7 @@ elab "#driver_coverage" : command => do
             let dis := theoremDischargeLeaves cp
             let tps := developmentTPs dev
             let status ← tryReplay w wExpr tps dev.justifications cp rules
+              (thms.map fun (c, _) => (c.name, c))
             if status.startsWith "REPLAYED ✓" then
               replayed := replayed + 1
               -- CONDITIONAL replays (undischarged cond[…] hypotheses) counted

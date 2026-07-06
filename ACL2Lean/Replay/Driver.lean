@@ -5528,6 +5528,114 @@ def buildTotalEnv (cfg : ReplayConfig)
       break
   return totalEnv
 
+/-- Flatten an ACL2 `and`-antecedent: `(if A rest 'nil)` right-nesting →
+    `[A, …]`; anything else is a single hypothesis. -/
+partial def flattenAnd : SExpr → List SExpr
+  | t@(.cons (.atom (.symbol ifS)) (.cons a (.cons rest (.cons e .nil)))) =>
+    if ifS.name == "if" && e == quoteNil then a :: flattenAnd rest else [t]
+  | t => [t]
+
+/-- DISCHARGE a `rule:<thm>` hypothesis from its dependency theorem's replayed
+    mirror (v1 step 5, docs/plans/2026-07-05_theorem-dependency-hypotheses.md):
+    replay the dependency INSIDE the same hypothesis telescope (`ctx` — its
+    own conditions stay as the shared fvars, so transitive conditions
+    compose), then DECODE the mirror to the stored-rule statement. The decode
+    recomputes ACL2's create-rewrite-rule normalization between two EMITTED
+    artifacts — the defthm formula (the dependency's Goal clause) and the
+    stored rule — and hard-fails on any mismatch: strip `implies`, flatten
+    the `and`-antecedent (must equal the rule's :HYPS), then either the
+    equality conclusion IS (equal lhs rhs), or the boolean-strengthened form
+    (conclusion = lhs, rhs = 'T) pinned by the head fn's EMITTED
+    :TYPE-PRESCRIPTION. All value-level: MP on `Logic.implies`, two-valued
+    `Logic.equal` decode, TP boolean pin. -/
+def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
+    (depProofs : List (String × ClauseProof)) : MetaM Expr := do
+  let some cp := depProofs.lookup spec.name
+    | throwError "dischargeRuleHyp: no dependency proof for rule {spec.name}"
+  let some depRoot := cp.root
+    | throwError "dischargeRuleHyp: dependency {spec.name} has no proof tree"
+  let [formula] := depRoot.inputClause
+    | throwError "dischargeRuleHyp: dependency {spec.name}'s Goal is not a                   single-literal clause (frontier)"
+  -- recompute-and-check the create-rewrite-rule normalization
+  let (hypsF, concl) := match formula with
+    | .cons (.atom (.symbol impS)) (.cons h (.cons c .nil)) =>
+      if impS.name == "implies" then (flattenAnd h, c) else ([], formula)
+    | _ => ([], formula)
+  unless hypsF == spec.hyps do
+    throwError "dischargeRuleHyp: {spec.name}'s flattened antecedent                 {repr hypsF} ≠ the stored rule's :HYPS {repr spec.hyps}                 (normalization divergence — frontier)"
+  let eqForm : SExpr := .cons (.atom (.symbol { name := "equal" }))
+    (.cons spec.lhs (.cons spec.rhs .nil))
+  let routeEqual := concl == eqForm
+  let routeBool := concl == spec.lhs && spec.rhs == quoteT
+  unless routeEqual || routeBool do
+    throwError "dischargeRuleHyp: {spec.name}'s conclusion {repr concl}                 matches neither (equal lhs rhs) nor the boolean-strengthened                 lhs ⇒ 'T shape (frontier)"
+  let w := cfg.worldExpr
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let cfgD := { cfg with envExpr := envV }
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
+                               branchFacts := [], segFacts := [] }
+    ctxD ← pinTermOpaques cfgD envV ctxD formula
+    -- premises: EvTrue w env' hᵢ for each stored-rule hyp
+    let premDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      (spec.hyps.zipIdx.map fun (h, i) =>
+        (Name.mkSimple s!"h{i}", BinderInfo.default,
+         fun (_ : Array Expr) => do
+           pure (← mkAppM ``EvTrue #[w, envV, reflectSExpr h]))).toArray
+    let ctxDFixed := ctxD
+    withLocalDecls premDecls fun premVs => do
+      -- the dependency's mirror at env' (same telescope: its conditions
+      -- remain the shared fvars — transitive composition)
+      let pDep ← replayClause cfgD ctxDFixed depRoot
+      let convF ← ctxValProof cfgD ctxDFixed formula
+      let hFne ← mkAppM ``ne_nil_of_evtrue_conv #[pDep, convF]
+      -- conclusion-value truthiness: bare conclusion, or through MP
+      let hvC ←
+        if spec.hyps.isEmpty then
+          pure hFne
+        else do
+          -- antecedent truthiness from the premises
+          let hvHs ← (spec.hyps.zipIdx.toArray.mapM fun (h, i) => do
+            let convH ← ctxValProof cfgD ctxDFixed h
+            mkAppM ``ne_nil_of_evtrue_conv #[premVs[i]!, convH])
+          let rec andNe (hs : List Expr) : MetaM Expr := do
+            match hs with
+            | [] => throwError "dischargeRuleHyp: internal — no hyps"
+            | [h1] => pure h1
+            | h1 :: rest => mkAppM ``and_value_ne_nil #[h1, ← andNe rest]
+          let hvH ← andNe hvHs.toList
+          mkAppM ``implies_value_mp #[hFne, hvH]
+      -- the target eval-equality
+      let body ←
+        if routeEqual then do
+          let hEq ← mkAppM ``Logic.eq_of_equal_ne_nil #[hvC]
+          let convL ← ctxValProof cfgD ctxDFixed spec.lhs
+          let convR ← ctxValProof cfgD ctxDFixed spec.rhs
+          mkAppM ``fuel_eq_of_conv #[convL, convR, hEq]
+        else do
+          -- boolean route: the conclusion's head fn's EMITTED TP pins the
+          -- truthy value to exactly t
+          let .cons (.atom (.symbol fs)) argsSpine := concl
+            | throwError "dischargeRuleHyp: boolean conclusion {repr concl}                           is not a fn application (frontier)"
+          let some (_, _, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
+            | throwError "dischargeRuleHyp: no :TYPE-PRESCRIPTION hypothesis                           for {fs.name} (emit more, frontier)"
+          let some (formals, _) := cfg.worldVal.defs.get? fs
+            | throwError "dischargeRuleHyp: {fs.name} not defined in the world"
+          let args := (argsSpine.toList?).getD []
+          unless formals.length == args.length do
+            throwError "dischargeRuleHyp: arity mismatch instantiating the                         TP of {fs.name}"
+          let some (vC, convC) := ctxDFixed.val? concl
+            | throwError "dischargeRuleHyp: conclusion {repr concl} has no                           pinned value (frontier)"
+          let fact := mkAppN tpHyp ((#[envV] : Array Expr)
+            ++ (args.map reflectSExpr).toArray ++ #[vC, convC])
+          let hT ← mkAppM ``tp_cond_boolean_t #[vC, fact, hvC]
+          let pq ← mkAppM ``re_val_quote #[w, envV, reflectSExpr SExpr.t]
+          let hCast ← proveByDecide
+            (← mkEq (mkConst ``SExpr.t) (reflectSExpr SExpr.t)) "t reflects"
+          let hEq ← mkAppM ``Eq.trans #[hT, hCast]
+          mkAppM ``fuel_eq_of_conv #[← ctxValProof cfgD ctxDFixed concl, pq, hEq]
+      let pf ← mkLambdaFVars (#[envV] ++ premVs) body
+      mkExpectedTypeHint pf (← mkRuleHypType cfg spec)
+
 /-- The CONDITIONAL generic mirror: bind the machine-generated hypothesis
     telescope (per defined fn: totality; plus the lifted TP corollary when one was
     emitted), replay the theorem under it, and λ-abstract. Returns the proof and
@@ -5535,7 +5643,7 @@ def buildTotalEnv (cfg : ReplayConfig)
     type, discharged later by termination emission / Driver Stage 5). -/
 def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (cp : ClauseProof) (justs : List (String × Justification) := [])
-    (rules : List RuleSpec := []) :
+    (rules : List RuleSpec := []) (depProofs : List (String × ClauseProof) := []) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
   -- hypothesis declarations: totality for every defined fn, TP where
@@ -5603,6 +5711,19 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let rootTy ← mkAppM ``EvTrue
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr (disjoinTerm root.inputClause)]
       let prf ← mkExpectedTypeHint prf rootTy
+      -- v1 STEP 5 — LAZY rule-hypothesis discharge: derive each USED
+      -- rule:<thm> hypothesis from its dependency's replayed mirror,
+      -- REVERSE creation order (a discharge proof can only introduce uses of
+      -- STRICTLY EARLIER rules' fvars, which are then substituted in turn);
+      -- a frontier failure keeps the hypothesis visible (D6, like totality)
+      let mut prfR := prf
+      for (spec, hypV) in (rules.zip ruleVs.toList).reverse do
+        if prfR.containsFVar hypV.fvarId! then
+          try
+            let pf ← dischargeRuleHyp cfg ctx spec depProofs
+            prfR := prfR.replaceFVar hypV pf
+          catch _ => pure ()
+      let prf ← instantiateMVars prfR
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).

@@ -87,6 +87,7 @@ elab "driver_mirror%" devId:ident worldId:ident nm:str : term => do
       { worldExpr := mkConst worldName, envExpr := env, worldVal := dev.toWorld }
     let (proof, _conds) ← replayProofConditional cfg dev.typePrescriptions cp
       dev.justifications (Driver.rulesBefore dev nm.getString)
+      ((Driver.developmentTheoremsWithRules dev).map fun (c, _) => (c.name, c))
     Meta.mkLambdaFVars #[env] proof
 
 /-- The conditional mirror as a definition (the driver's proof OBJECT). -/

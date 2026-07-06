@@ -615,12 +615,11 @@ example :
 
 The first theorem replayed THROUGH user-rule applications
 (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). The pin locks the
-machine-generated statement (audit 2026-07-06: the coverage harness only
-`Meta.check`s — nothing else in the repo pins WHAT was proved): the conclusion
-is the genuine perm-transitive mirror, and the three `rule:` hypotheses state
-EXACTLY the STORED rules of perm-symmetric / perm-memb / perm-rm as ACL2
-created them (implies-flattened, iff→equal-strengthened via perm's boolean
-TP), with truthiness premises — nothing stronger, nothing weaker. -/
+machine-generated statement AFTER the v1 step-5 rule-hypothesis DISCHARGE:
+every rule:<thm> hypothesis is derived from its dependency's replayed mirror
+(the whole perm dependency chain composes), leaving only the three base
+facts — perm's totality offer and the two emitted boolean TP corollaries
+(tp:memb arriving TRANSITIVELY through memb-rm's discharged mirror). -/
 
 private def ap3 (f : String) (a b c : SExpr) : SExpr :=
   .cons (sym f) (.cons a (.cons b (.cons c .nil)))
@@ -641,6 +640,7 @@ elab "acl2_replay_permtrans_real% " : term => do
     let (proof, conds) ← replayProofConditional cfg permTPs cp
       permDevelopment.justifications
       (rulesBefore permDevelopment "perm-transitive")
+      ((developmentTheoremsWithRules permDevelopment).map fun (c, _) => (c.name, c))
     logInfo m!"perm-transitive replayed; conditions: {conds}"
     mkLambdaFVars #[env] proof
 
@@ -654,31 +654,16 @@ example :
           (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
           (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →
           (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "perm" a0 a1) = some v)) →
+      -- tp:memb (from memb-rm's discharged mirror — TRANSITIVE composition)
+      (∀ (env' : Env) (a0 a1 v : SExpr),
+          (∃ N, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "memb" a0 a1) = some v) →
+          (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+           else Logic.equal v SExpr.nil) = SExpr.t) →
       -- tp:perm (the emitted boolean TP corollary, lifted value-only)
       (∀ (env' : Env) (a0 a1 v : SExpr),
           (∃ N, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "perm" a0 a1) = some v) →
           (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
            else Logic.equal v SExpr.nil) = SExpr.t) →
-      -- rule:perm-symmetric — STORED: (perm y x) ⇒ 't under hyp (perm x y)
-      (∀ (env' : Env),
-          EvTrue permWorld env' (ap2 "perm" (sym "x") (sym "y")) →
-          ∃ N, ∀ f ≥ N,
-            evalOpt f permWorld env' (ap2 "perm" (sym "y") (sym "x"))
-            = evalOpt f permWorld env' quoteT) →
-      -- rule:perm-memb — STORED: (memb a y) ⇒ 't under hyps (perm x y), (memb a x)
-      (∀ (env' : Env),
-          EvTrue permWorld env' (ap2 "perm" (sym "x") (sym "y")) →
-          EvTrue permWorld env' (ap2 "memb" (sym "a") (sym "x")) →
-          ∃ N, ∀ f ≥ N,
-            evalOpt f permWorld env' (ap2 "memb" (sym "a") (sym "y"))
-            = evalOpt f permWorld env' quoteT) →
-      -- rule:perm-rm — STORED: (perm (rm a x) (rm a y)) ⇒ 't under hyp (perm x y)
-      (∀ (env' : Env),
-          EvTrue permWorld env' (ap2 "perm" (sym "x") (sym "y")) →
-          ∃ N, ∀ f ≥ N,
-            evalOpt f permWorld env'
-              (ap2 "perm" (ap2 "rm" (sym "a") (sym "x")) (ap2 "rm" (sym "a") (sym "y")))
-            = evalOpt f permWorld env' quoteT) →
       -- conclusion: the genuine perm-transitive mirror (ACL2's and → if _ _ 'nil)
       ∃ N, ∀ f ≥ N, ∃ v,
         evalOpt f permWorld env
