@@ -222,8 +222,21 @@ closed, ci as scoreboard, audits at milestones):
       subsumed-by-parent unemitted; subsumer subtree DUPLICATED in
       reconstruction (replay proves *1.1.1 twice — revisit if proof
       size matters).
-      Remaining R1 walls: comm-rm's multi-literal preprocess chain
-      (*1/1.2); perm-is-an-equivalence's SIff wall d.
+      MILESTONE (2026-07-06, branch mdd/perm-closure): comm-rm REPLAYS
+      UNCONDITIONALLY (clause-level equal-self closer + spine routing,
+      32dd5d1) and **v1 STEP 5 LANDED (52cc205): every used rule:<thm>
+      hypothesis discharges from its dependency's replayed mirror**
+      (dischargeRuleHyp — dependency replayed inside the consumer's own
+      telescope so conditions compose transitively; mirror→rule decode =
+      recompute-and-check of create-rewrite-rule's normalization between
+      the two emitted artifacts; reverse-creation-order substitution;
+      D6 on failure). THE PERM CHAIN COMPOSES: 7 of 8 theorems replay
+      at 24/47 (14 + 10) and the book's whole obligation log is three
+      base facts (total:perm + tp:memb + tp:perm — the named prover
+      industrialization frontiers). perm-transitive's pin updated to the
+      COMPOSED type and axiom-gated.
+      Remaining R1 wall: perm-is-an-equivalence's SIff wall d (the last
+      perm theorem; defequiv-generated).
       NOTE the post-audit commits (6866121, 8096e13, eef8d77) are
       kernel-gated but not separately adversarially audited.
       RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
