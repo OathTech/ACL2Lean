@@ -15,6 +15,38 @@ _Last updated: 2026-07-06._
 > and a replayed ✓ is AXIOM-CLEAN by construction (the harness collects
 > each proof's axioms).
 
+## CURRENT PRIORITIES (confirmed with MDD 2026-07-06, post-R1)
+
+Ordered by project-wide leverage — general machinery over special-case walls:
+
+0. **Fail-closed fix sprint (quick, first).** Land the actionable findings of
+   `docs/notes/2026-07-06_fail-closed-audit.md`: `panic!`→throw in Syntax.lean
+   (loud defaults → fail-closed); a TYPED frontier-exception tag replacing the
+   string-prefix frontier/defect classification (N1 — includes the catch just
+   added by audit #3's fix batch); `:ORIGIN`/`:PARENTS` parser throws (N2/N3);
+   `evalOptStep` malformed-shape fail-open → `none` (F15, trusted core);
+   translator package hard-fail + string escaping (N5/N6, latent);
+   reader-conditional hard-fail (N4); the fncall speculative-rollback empty-tail
+   tag in the fork (N7). Investigation residuals (N8 settled-down-clause,
+   free-var relief no-marker path, built-in-clausep at induct.lisp:1310) stay
+   tracked below, not in the sprint.
+1. **LIFTER INDUSTRIALIZATION sprint (#63)** — the product lane: extract the
+   standard lifting library (`enc`/`corr_*` patterns) from the catalog with the
+   perm book as driving example (8 native entries), INCLUDING the base-fact
+   provers (general TP prover — design call needed: Lean induction vs carve-out;
+   totality for perm's shape) so lifted books go unconditional. Anti-overfit
+   gauge: entry N+1 must cost less than entry N.
+2. **Proof-term scale — sharing, not inlining.** perm-is-an-equivalence is
+   ≈557M Expr nodes and grows with dependency depth (step-5 inlining + the
+   subsumer-duplication residue); R2 (isort) stacks a book on top. Let-bind
+   dependency proofs / deduplicate subsumer subtrees BEFORE starting R2.
+3. **R2 (isort)** — the replay→lift cadence test on a second book; exercises
+   the include-book rule flush (audit finding C) and the G4 forcing seam.
+
+Explicitly deprioritized: coverage drilling for its own sake (remaining
+failures are deeper walls R2+ reaches naturally); differential expansion
+beyond its current cadence (150/152, 0 mismatch).
+
 ## THE GOVERNING PLAN — `docs/plans/2026-06-10_generality-design.md` (ratified)
 
 The architecture is the HYBRID: certifying walkers as the production/discovery
