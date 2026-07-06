@@ -2661,10 +2661,52 @@ the rest of the replay layer. -/
 theorem toBool_true_of_ne_nil {v : SExpr} (h : v ≠ SExpr.nil) :
     Logic.toBool v = true := by cases v <;> simp_all [Logic.toBool]
 
+/-- RUNE `if-same-branches` (`if1/same-branches`): `(if c a a) ⇒ a` — the
+    branch value is the if value whichever way the test goes; the test must
+    converge (lazy `if` evaluates it first). Term-to-term. -/
+theorem re_if_same (w : World) (env : Env) (c a cv av : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons a (.cons a .nil))))
+      = evalOpt f w env a := by
+  have hconv : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons a (.cons a .nil)))) = some av := by
+    obtain ⟨Nc, hc'⟩ := hc; obtain ⟨Na, ha'⟩ := ha
+    refine ⟨max Nc Na + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    by_cases hnil : cv = SExpr.nil
+    · subst hnil
+      rw [evalOpt_if_false g w env c a a (hc' g (by omega))]
+      exact ha' g (by omega)
+    · rw [evalOpt_if_true g w env c a a cv (hc' g (by omega))
+            (toBool_true_of_ne_nil hnil)]
+      exact ha' g (by omega)
+  exact fuel_eq_of_conv hconv ha rfl
+
 /-- The identity fuel-robust eval-equality (an if-finish branch with no
     effective rewrites). -/
 theorem fuel_eq_refl (a : Nat → Option SExpr) : ∃ N, ∀ f ≥ N, a f = a f :=
   ⟨0, fun _ _ => rfl⟩
+
+/-- A standard BOOLEAN type-prescription corollary (lifted) makes the
+    `(if tst 't 'nil)` identity collapse (an `if1/boolean` node over a
+    USER-FN test) the test's value: `v` is `t` or `nil`, and the cond agrees
+    with `v` in both cases. The `Logic.equal`-test twin is
+    `cond_toBool_equal`. -/
+theorem cond_toBool_of_tp_boolean (v : SExpr) {X : SExpr}
+    (h : cond (Logic.toBool (Logic.equal v SExpr.t)) X (Logic.equal v SExpr.nil)
+         = SExpr.t) :
+    cond (Logic.toBool v) SExpr.t SExpr.nil = v := by
+  by_cases hv : v = SExpr.t
+  · subst hv; simp [Logic.toBool, SExpr.t]
+  · have h1 : (v == SExpr.t) = false := beq_eq_false_iff_ne.mpr hv
+    have hnil : v = SExpr.nil := by
+      by_cases h2 : v = SExpr.nil
+      · exact h2
+      · have h2' : (v == SExpr.nil) = false := beq_eq_false_iff_ne.mpr h2
+        simp [Logic.equal, Logic.toBool, h1, h2', SExpr.t] at h
+    subst hnil; simp [Logic.toBool]
 
 /-- A standard BOOLEAN type-prescription corollary
     `(IF (EQUAL v 'T) 'T (EQUAL v 'NIL))` (lifted) being true pins a non-nil

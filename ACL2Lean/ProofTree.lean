@@ -204,6 +204,14 @@ partial def parseProofNodesAux (events : List TraceEvent)
         (.node ("branch-substitution", "") lhs rhs pendingChildren { equivTerm := equiv } :: nodes)
   | .contextSubst var value _ :: rest =>
       parseProofNodesAux rest [] (.node ("context-subst", "") var value pendingChildren {} :: nodes)
+  | .hypRelief hyp origin :: rest =>
+      -- a silent hyp-relief marker (no rewrite events): recorded as a leaf
+      -- node; the adopting rule step's recipe consumes it in place of a
+      -- relief chain. It never adopts children.
+      unless pendingChildren.isEmpty do
+        throw s!"parseProofNodesAux: hyp-relief marker with pending inner \
+                 nodes: {repr hyp}"
+      parseProofNodesAux rest [] (.node ("hyp-relief", "") hyp hyp [] { origin } :: nodes)
   | .ifTestTrue _ _ _ :: rest | .ifTestFalse _ _ _ :: rest | .ifTestUnknown _ _ _ :: rest =>
       -- IF-test markers delimit the if-rewrite block; not standalone nodes.
       parseProofNodesAux rest pendingChildren nodes

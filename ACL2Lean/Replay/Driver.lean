@@ -1400,10 +1400,32 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
           throwError "if1/boolean: node is not (if tst 't 'nil) ⇒ tst: \
                       {repr lhs} ⇒ {repr rhs}"
         let vC ← ctxValExpr cfg ctx c
-        unless vC.isAppOfArity ``Logic.equal 2 do
-          throwError "if1/boolean: test value of {repr c} is not a Logic.equal \
-                      application (two-valuedness source, frontier)"
-        let hBool ← mkAppM ``cond_toBool_equal #[vC.appFn!.appArg!, vC.appArg!]
+        let hBool ←
+          if vC.isAppOfArity ``Logic.equal 2 then
+            mkAppM ``cond_toBool_equal #[vC.appFn!.appArg!, vC.appArg!]
+          else do
+            -- USER-FN test: two-valuedness from the fn's EMITTED
+            -- :TYPE-PRESCRIPTION hypothesis (the boolean corollary shape),
+            -- instantiated at the test's pinned value — consumed, not
+            -- inferred (same source as the type-alist truthy verdict)
+            let .cons (.atom (.symbol fs)) argsSpine := c
+              | throwError "if1/boolean: test {repr c} is neither a \
+                            Logic.equal value nor a fn application \
+                            (two-valuedness source, frontier)"
+            let some (_, _, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
+              | throwError "if1/boolean: no :TYPE-PRESCRIPTION hypothesis for \
+                            {fs.name} (emit more, frontier)"
+            let some (formals, _) := cfg.worldVal.defs.get? fs
+              | throwError "if1/boolean: {fs.name} not defined in the world"
+            let args := (argsSpine.toList?).getD []
+            unless formals.length == args.length do
+              throwError "if1/boolean: arity mismatch instantiating the TP \
+                          of {fs.name}"
+            let some (v, conv) := ctx.val? c
+              | throwError "if1/boolean: {repr c} has no pinned value (frontier)"
+            let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+              ++ (args.map reflectSExpr).toArray ++ #[v, conv])
+            mkAppM ``cond_toBool_of_tp_boolean #[v, fact]
         let pl ← ctxValProof cfg ctx lhs
         let pr ← ctxValProof cfg ctx c
         return ← mkAppM ``fuel_eq_of_conv #[pl, pr, hBool]
@@ -1432,6 +1454,22 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn, reflectSExpr els,
             reflectSExpr cv, vThn, hc, hcv, pThn]
     | _ => throwError "if-simplification: lhs not an if: {repr lhs}"
+  | "if-same-branches", _ =>
+    -- `(if c a a) ⇒ a` (if1/same-branches): the branch value is the if value
+    -- whichever way the test goes; the test's convergence is the only premise.
+    match lhs with
+    | .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) =>
+      unless ifS.name == "if" do
+        throwError "if-same-branches: head {ifS.name}"
+      unless thn == els && rhs == thn do
+        throwError "if-same-branches: node is not (if c a a) ⇒ a: \
+                    {repr lhs} ⇒ {repr rhs}"
+      let pc ← ctxValProof cfg ctx c
+      let pa ← ctxValProof cfg ctx thn
+      mkAppM ``re_if_same
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
+          ← ctxValExpr cfg ctx c, ← ctxValExpr cfg ctx thn, pc, pa]
+    | _ => throwError "if-same-branches: lhs not an if: {repr lhs}"
   | "equal-self", _ =>
     -- `(equal X X) ⇒ 't` as a MID-CHAIN node (reflexivity of `equal`; the
     -- closing-literal form lives in `replayLiteral`).
@@ -1543,6 +1581,10 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     unless otherKids.isEmpty do
       throwError "rule {rname}: {otherKids.length} non-HYP child(ren) \
                   recorded — unconsumed record (frontier)"
+    -- partition the HYP block: silent-relief MARKERS (emit/relieve-hyp/*)
+    -- vs an actual relief rewrite chain
+    let (reliefMarkers, chainKids) := hypKids.partition
+      fun c => (runeOf c).1 == "hyp-relief"
     -- coverage: every rule variable must be bound by σ (free-var hyps extend
     -- σ at emission; a gap means the emission is incomplete)
     let ruleFrees := ACL2.Replay.freeVars spec.lhs ++
@@ -1583,22 +1625,26 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
         s!"NoLet rule term ({rname})"
       mkAppM ``evalOpt_substTerm_substN
         #[w, env, formalsE, argsE, valsE, reflectSExpr t, hNoLet, hlenPf, hargs]
-    -- premises: EvTrue w env' hᵢ from the recorded relief. v1 source carve:
-    -- one hyp with a recorded chain, or any number relieved from the clause
-    -- context (no events); multi-hyp recorded chains need per-hyp
-    -- bracketing — hard-fail until a real tree shows the shape.
-    if !hypKids.isEmpty && spec.hyps.length != 1 then
-      throwError "rule {rname}: {spec.hyps.length} hyps with a recorded \
-                  relief chain — per-hyp partition (frontier)"
+    -- premises: EvTrue w env' hᵢ from the recorded relief. Sources, per hyp:
+    -- a silent-relief MARKER whose hyp matches hσ (recompute-and-check) —
+    -- clause-context lookup; else the recorded relief chain (v1: one hyp
+    -- with a chain; multi-hyp chains need per-hyp bracketing — hard-fail
+    -- until a real tree shows the shape).
+    if !chainKids.isEmpty && spec.hyps.length != reliefMarkers.length + 1 then
+      throwError "rule {rname}: {spec.hyps.length} hyps with one recorded \
+                  relief chain and {reliefMarkers.length} markers — per-hyp \
+                  partition (frontier)"
     let tNeNil ← proveByDecide
       (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
     let mut prems : Array Expr := #[]
     for h in spec.hyps do
       let hσ := ACL2.Replay.substTerm σvars σterms h
+      let hasMarker := reliefMarkers.any fun c => (nodeLhsRhs c).1 == hσ
       let evTrueEnv ←
-        if hypKids.isEmpty then do
-          -- relieved from the clause context: the spine's (not hσ)-falsity
-          -- fact (the type-alist source the type-alist recipe also consumes)
+        if hasMarker || chainKids.isEmpty then do
+          -- relieved SILENTLY from the clause context (the emitted marker
+          -- names the instantiated hyp): the spine's (not hσ)-falsity fact
+          -- (the type-alist source the type-alist recipe also consumes)
           let notH : SExpr := .cons (.atom (.symbol { name := "not" }))
             (.cons hσ .nil)
           let some hNotNil := ctx.litFactByTerm? notH
@@ -1610,7 +1656,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
         else do
           -- the recorded HYP chain rewrites hσ ⇒ … ⇒ 't (paths carry one
           -- more boundary frame, as definition-body children do)
-          let (chainOpt, finalT) ← replayRewrites cfg ctx hσ hypKids (depth + 1)
+          let (chainOpt, finalT) ← replayRewrites cfg ctx hσ chainKids (depth + 1)
           unless finalT == quoteT do
             throwError "rule {rname}: relief chain for {repr hσ} ends at \
                         {repr finalT}, not (quote t)"
@@ -2021,6 +2067,13 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .step _ :: rest => flattenLiterals rest
   | .clausify _ :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
+
+/-- All SILENT hyp-relief marker hyps in a node tree (the emitted
+    `relieve-hyp/*` markers), recursively — what a literal's chain demands
+    from the clause context. -/
+partial def collectReliefHyps : ProofNode → List SExpr
+  | .node (rty, _) l _ children _ =>
+    (if rty == "hyp-relief" then [l] else []) ++ children.flatMap collectReliefHyps
 
 /-- `EvTrue (disjoin lits)` from the TRUTH of the k-th literal (0-based):
     descend the lazy if-spine by value splits — an earlier literal's truth
@@ -3592,6 +3645,37 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
       throwError "replayClauseSpine: literal item {idx} {repr lp.literal} does \
                   not walk the clause at {idStr} (next clause literal is {cidx} \
                   {repr clit})"
+    -- HOIST later-literal facts demanded by SILENT hyp reliefs in this
+    -- literal's chain (the emitted relieve-hyp/* markers): ACL2 rewrites
+    -- literal i under the falsity of ALL other clause literals, but the walk
+    -- holds only the earlier ones. For each marker hyp whose complement IS a
+    -- later clause literal with no fact in scope, case-split on that literal
+    -- FIRST — its truth closes the whole disjunction; its falsity joins
+    -- litFacts and the walk re-enters (one fewer demand each time).
+    let demanded := (lp.nodes.flatMap collectReliefHyps).eraseDups
+    for hStar in demanded do
+      let notH : SExpr := .cons (.atom (.symbol { name := "not" }))
+        (.cons hStar .nil)
+      if (ctx.litFactByTerm? notH).isSome then continue
+      let some (k, _) := restLits.find? (fun (_, l) => l == notH)
+        | continue  -- not a later literal: the recipe fails precisely if missing
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx notH
+      let vL ← ctxValExpr cfg ctx notH
+      let pL ← ctxValProof cfg ctx notH
+      let _ := pL
+      let nilC := mkConst ``SExpr.nil
+      let allLits := clauseLits.map (·.2)
+      let some pos := clauseLits.findIdx? (fun (i, _) => i == k)
+        | throwError "replayClauseSpine: internal — hoisted literal {k} not \
+                      in the clause at {idStr}"
+      let negL ← withLocalDeclD `hnil (← mkEq vL nilC) fun hNil => do
+        let ctx' := { ctx with litFacts := ctx.litFacts ++ [(k, notH, hNil)] }
+        let p ← replayClauseSpine cfg ctx' idStr clauseLits items accClause children
+        mkLambdaFVars #[hNil] p
+      let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vL, nilC]) fun hNe => do
+        let p ← evtrueOfLitTrue cfg ctx allLits pos notH hNe
+        mkLambdaFVars #[hNe] p
+      return ← mkAppM ``Classical.byCases #[negL, posL]
     if lp.result == quoteT then
       -- the closer: its chain proves it `t`; any later literals (scanned or
       -- not) are short-circuited by the true test.
@@ -3676,6 +3760,34 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
         | _ =>
           throwError "replayClauseSpine: {branchSegs.length} branches on \
                       literal {idx} without a split trace at {idStr} (frontier)"
+      if contItems.isEmpty && restLits.isEmpty then
+        -- LAST literal, non-closing, trivial trace: the SURVIVING clause was
+        -- PUSHED as the sibling subgoal (composeSplit's empty-cont residual,
+        -- on the trivial path). The spine's goal here is the BARE literal
+        -- (singleton disjunction) — no case split: replay the child, peel it
+        -- down to this literal's survivor, and bridge back along the chain.
+        let accClause' := accClause ++ segLits.filter (!accClause.contains ·)
+        let some child := children.find? (·.inputClause == accClause')
+          | throwError "replayClauseSpine: no child clause matches the \
+                        residual {repr accClause'} at {idStr}"
+        unless accClause'.getLast? == some lp.result do
+          throwError "replayClauseSpine: residual's surviving literal is not \
+                      literal {idx}'s result at {idStr} (frontier)"
+        let pChild ← replayClause cfg ctx child
+        let mut p := pChild
+        for L in accClause'.dropLast do
+          let some hf := ctx.litFactByTerm? L
+            | throwError "replayClauseSpine: no falsity fact for the residual \
+                          literal {repr L} at {idStr}"
+          let pNil ← mkAppM ``re_val_cast
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr L,
+              ← ctxValExpr cfg ctx L, mkConst ``SExpr.nil,
+              ← ctxValProof cfg ctx L, hf]
+          p ← mkAppM ``evtrue_extract_else #[pNil, p]
+        -- p : EvTrue(lp.result) — bridge to the pre-rewrite literal
+        match chainOpt with
+        | none => return p
+        | some ch => return ← mkAppM ``evtrue_of_fuel_eq #[ch, p]
       -- split on the literal's value
       let vLit ← ctxValExpr cfg ctx lp.literal
       let pLit ← ctxValProof cfg ctx lp.literal

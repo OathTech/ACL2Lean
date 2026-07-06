@@ -77,6 +77,12 @@ inductive TraceEvent where
   | caseSplit (literalIndex : Nat) (numBranches : Nat)
   | branchSubstitution (equivalence : SExpr) (lhs : SExpr) (rhs : SExpr)
   | contextSubst (var : SExpr) (value : SExpr) (justification : SExpr)
+  /-- A rule hypothesis relieved SILENTLY (no rewrite events): by a type-alist
+      lookup, by type-set under the clause type-alist, or by the backchain
+      ancestors stack (`emit/relieve-hyp/*`). `hyp` is the INSTANTIATED hyp;
+      `origin` says how. Lands inside the adopting step's `:KIND HYP` block —
+      the replay's rule recipe consumes it in place of a relief chain. -/
+  | hypRelief (hyp : SExpr) (origin : String)
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
   | beginInnerRewrite (kind : String)
   | endInnerRewrite (kind : String)
@@ -458,6 +464,14 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           |>.elim (throw "CONTEXT-SUBST: missing :VALUE") pure
         let justification := (lookupKeyword "justification" rest).getD .nil
         pure (.contextSubst var value justification)
+    | .atom (.keyword "hyp-relief") :: rest =>
+        let hyp ← lookupKeyword "hyp" rest
+          |>.elim (throw "HYP-RELIEF: missing :HYP") pure
+        let origin ← match lookupKeyword "origin" rest with
+          | some (.atom (.symbol s)) => pure s.name
+          | some s => throw s!"HYP-RELIEF: bad :ORIGIN: {repr s}"
+          | none => throw "HYP-RELIEF: missing :ORIGIN"
+        pure (.hypRelief hyp origin)
     | .atom (.keyword "clausify-test") :: rest =>
         let test ← lookupKeyword "test" rest
           |>.elim (throw "CLAUSIFY-TEST: missing :TEST") pure
