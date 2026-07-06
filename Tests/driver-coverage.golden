@@ -58,11 +58,11 @@ Driver coverage — REPLAYED 26/47 (14 unconditional + 12 conditional); DP-disch
     tlp-app-nil → FAIL: definition: children chain reached (equal x (quote NIL)), node rhs is (if x (quote NIL) (quote t))
     tlp-app-nil-twice → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (equal (app (app x (quote NIL)) (quote NIL)) x)
 • sorting/perm  (world: 4 defun(s), 8 theorem(s))
-    perm-cons → REPLAYED ✓ cond[total:perm, tp:memb]
-    perm-symmetric → REPLAYED ✓ cond[total:perm, tp:memb, tp:perm]
+    perm-cons → REPLAYED ✓ cond[tp:memb]
+    perm-symmetric → REPLAYED ✓ cond[tp:memb, tp:perm]
     memb-rm → REPLAYED ✓ cond[tp:memb]
-    perm-memb → REPLAYED ✓ cond[total:perm, tp:memb]
+    perm-memb → REPLAYED ✓ cond[tp:memb]
     comm-rm → REPLAYED ✓
-    perm-rm → REPLAYED ✓ cond[total:perm, tp:memb, tp:perm]
-    perm-transitive → REPLAYED ✓ cond[total:perm, tp:memb, tp:perm]
-    perm-is-an-equivalence → REPLAYED ✓ cond[total:perm, tp:memb, tp:perm]
+    perm-rm → REPLAYED ✓ cond[tp:memb, tp:perm]
+    perm-transitive → REPLAYED ✓ cond[tp:memb, tp:perm]
+    perm-is-an-equivalence → REPLAYED ✓ cond[tp:memb, tp:perm]

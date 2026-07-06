@@ -585,17 +585,12 @@ def perm_cons_real_mirror := acl2_replay_permcons_real%
 /-- PIN the machine-generated statement: the conclusion is the genuine mirror
     of the ACL2 defthm
     `(implies (memb a x) (equal (perm x (cons a y)) (perm (rm a x) y)))`,
-    under perm's totality and memb's emitted TP corollary (lifted value-only)
-    — no other hypotheses, no weakening. rm/memb's totality is
-    AUTO-DISCHARGED from the emitted admission data (#37; measured-second
-    formals via totality_2_rec_snd); perm's own totality stays conditional
-    (its body's user-fn if-test is a prover frontier). -/
+    under memb's emitted TP corollary (lifted value-only) — no other
+    hypotheses, no weakening. ALL totality (rm/memb/perm) is AUTO-DISCHARGED
+    from the emitted admission data (#37; perm fell to the user-fn-if-test +
+    opaque-self-call-arg prover extension, lifter sprint 2026-07-06). -/
 example :
     ∀ (env : Env),
-      (∀ (env' : Env) (a0 a1 : SExpr),
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "perm" a0 a1) = some v)) →
       (∀ (env' : Env) (a0 a1 v : SExpr),
           (∃ N, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "memb" a0 a1) = some v) →
           (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
@@ -615,10 +610,10 @@ example :
 
 The first theorem replayed THROUGH user-rule applications
 (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). The pin locks the
-machine-generated statement AFTER the v1 step-5 rule-hypothesis DISCHARGE:
-every rule:<thm> hypothesis is derived from its dependency's replayed mirror
-(the whole perm dependency chain composes), leaving only the three base
-facts — perm's totality offer and the two emitted boolean TP corollaries
+machine-generated statement AFTER the v1 step-5 rule-hypothesis DISCHARGE
+and the admission-derived totality discharge (total:perm fell to the
+prover's user-fn-if-test + opaque-self-call-arg extension, lifter sprint
+2026-07-06), leaving only the two emitted boolean TP corollaries
 (tp:memb arriving TRANSITIVELY through memb-rm's discharged mirror). -/
 
 private def ap3 (f : String) (a b c : SExpr) : SExpr :=
@@ -649,11 +644,6 @@ def perm_transitive_real_mirror := acl2_replay_permtrans_real%
 
 example :
     ∀ (env : Env),
-      -- total:perm (the admission-carve-out totality offer; a prover frontier)
-      (∀ (env' : Env) (a0 a1 : SExpr),
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a0 = some v) →
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' a1 = some v) →
-          (∃ N, ∃ v, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "perm" a0 a1) = some v)) →
       -- tp:memb (from memb-rm's discharged mirror — TRANSITIVE composition)
       (∀ (env' : Env) (a0 a1 v : SExpr),
           (∃ N, ∀ f ≥ N, evalOpt f permWorld env' (ap2 "memb" a0 a1) = some v) →

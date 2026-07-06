@@ -501,11 +501,12 @@ theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
 The FULL chain on the perm book's first replayed theorem: the REAL
 `sorting/perm.proof-log` → parse → reconstruct → the log-DERIVED world → the
 driver's conditional mirror (the branch-split composer, destructor
-elimination, the whole R1 node family) → hypotheses discharged (`total:perm`
-and `tp:memb` by the world-parametric HAND dischargers — the ratified
-industrialization demos; rm/memb totality auto-discharged from admission
-data) → the `contains`/`erase`/`isPerm` simulations → the native statement
-over `List.Perm`. -/
+elimination, the whole R1 node family) → hypotheses discharged (ALL
+totality now auto-discharged from admission data — the prover's
+user-fn-if-test extension, lifter sprint 2026-07-06; `tp:memb` by the
+world-parametric HAND discharger, TP-prover mechanization pending) → the
+`contains`/`erase`/`isPerm` simulations → the native statement over
+`List.Perm`. -/
 
 private def permLog9 : String := include_str "../../acl2_samples/sorting/perm.proof-log"
 
@@ -517,18 +518,17 @@ def permDev : Development :=
 derive_world permWorldD from permDev
 
 /-- The conditional mirror as a definition (the driver's proof OBJECT):
-    `∀ env, total:perm → tp:memb → <EvTrue of the perm-cons formula>`. -/
+    `∀ env, tp:memb → <EvTrue of the perm-cons formula>` (totality
+    auto-discharged by the prover). -/
 def permConsMirrorCond := driver_mirror% permDev permWorldD "perm-cons"
 
-/-- The driver mirror — UNCONDITIONAL: `total:perm` and `tp:memb` are
-    discharged by the hand dischargers, instantiated at the log-derived
-    world (every world fact a `decide`). -/
+/-- The driver mirror — UNCONDITIONAL: `tp:memb` is discharged by the hand
+    discharger, instantiated at the log-derived world (every world fact a
+    `decide`). -/
 theorem permConsMirror_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f permWorldD env
       Worlds.Perm.perm_consFormula = some v ∧ v ≠ SExpr.nil :=
   permConsMirrorCond env
-    (Worlds.Perm.dis_perm_total permWorldD (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
     (fun env' a0 a1 v h =>
       Worlds.Perm.dis_memb_tp permWorldD (by decide) (by decide) (by decide)
         (by decide) (by decide) env' a0 a1 v h)

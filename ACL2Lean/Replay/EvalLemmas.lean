@@ -2005,6 +2005,29 @@ theorem conv_ex_of_vfix {w : World} {env : Env} {t v : SExpr}
     ∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env t = some u := by
   obtain ⟨N, h⟩ := h; exact ⟨N, v, h⟩
 
+/-- `t` evaluates (fuel-stably) to exactly `v`. The totality prover
+    constructs this type when it binds an OPAQUE test verdict. -/
+abbrev ConvTo (w : World) (env : Env) (t v : SExpr) : Prop :=
+  ∃ N, ∀ f ≥ N, evalOpt f w env t = some v
+
+/-- `conv_if_split` over an EXISTENTIAL test verdict: the test converges to
+    some (unknown) value — e.g. a call to an already-total user fn — and
+    each branch converges under the corresponding `toBool` verdict of that
+    value. The totality prover's user-fn-if-test extension: exactly the move
+    `dis_perm_total` made by hand (`conv_if_split` over memb's existential
+    verdict), mechanized. -/
+theorem conv_if_split_ex (w : World) (env : Env) (c t e : SExpr)
+    (hc : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env c = some v)
+    (ht : ∀ vc, ConvTo w env c vc → Logic.toBool vc = true →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v)
+    (he : ∀ vc, ConvTo w env c vc → Logic.toBool vc = false →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env e = some v) :
+    ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      = some v := by
+  obtain ⟨N, vc, hvc⟩ := hc
+  exact conv_if_split w env c t e vc ⟨N, hvc⟩ (ht vc ⟨N, hvc⟩) (he vc ⟨N, hvc⟩)
+
 /-- A 1-ary BUILTIN call converges when its argument does (∃N∃v walk form);
     `g`/`hg` are the primitive's total value function and its `callBuiltin`
     characterization (the dpUnary rfl lemma). -/

@@ -2997,22 +2997,47 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
   match t with
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
     if fs.name == "if" then
-      unless totLiftable c do
-        throwFrontier m!"proveTotality: if-test {repr c} is not liftable (frontier)"
-      let vc ← dpValExpr [] (dpValProof.dpVarVal envE varP) c
-      let hc ← dpValProof cfg envE [] [] varP c
-      let toBoolVc ← mkAppM ``Logic.toBool #[vc]
-      let tTrue ← mkEq toBoolVc (mkConst ``Bool.true)
-      let tFalse ← mkEq toBoolVc (mkConst ``Bool.false)
-      let ht ← withLocalDeclD `hb tTrue fun hb => do
-        let p ← totWalk cfg envE vals ((c, true, hb) :: facts) totalEnv selfC th
-        mkLambdaFVars #[hb] p
-      let he ← withLocalDeclD `hb tFalse fun hb => do
-        let p ← totWalk cfg envE vals ((c, false, hb) :: facts) totalEnv selfC e
-        mkLambdaFVars #[hb] p
-      return ← mkAppM ``conv_if_split
-        #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th, reflectSExpr e,
-          vc, hc, ht, he]
+      if totLiftable c then
+        let vc ← dpValExpr [] (dpValProof.dpVarVal envE varP) c
+        let hc ← dpValProof cfg envE [] [] varP c
+        let toBoolVc ← mkAppM ``Logic.toBool #[vc]
+        let tTrue ← mkEq toBoolVc (mkConst ``Bool.true)
+        let tFalse ← mkEq toBoolVc (mkConst ``Bool.false)
+        let ht ← withLocalDeclD `hb tTrue fun hb => do
+          let p ← totWalk cfg envE vals ((c, true, hb) :: facts) totalEnv selfC th
+          mkLambdaFVars #[hb] p
+        let he ← withLocalDeclD `hb tFalse fun hb => do
+          let p ← totWalk cfg envE vals ((c, false, hb) :: facts) totalEnv selfC e
+          mkLambdaFVars #[hb] p
+        return ← mkAppM ``conv_if_split
+          #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th, reflectSExpr e,
+            vc, hc, ht, he]
+      else
+        -- OPAQUE (user-fn) test — e.g. perm's (memb (car x) y): the walk
+        -- itself converges the test (an already-total earlier fn's call),
+        -- then the branches split on the EXISTENTIAL verdict via
+        -- conv_if_split_ex — the dis_perm_total move, mechanized (lifter
+        -- sprint 2026-07-06). The branch fact binds the OPAQUE verdict
+        -- fvar; safe because decrease discharge only existence-checks
+        -- non-consp ruling tests (their proof Exprs are never consumed),
+        -- and consp tests are always liftable (take the branch above).
+        let hcEx ← totWalk cfg envE vals facts totalEnv selfC c
+        let mkBranch (bval : Name) (pos : Bool) (branch : SExpr) :
+            MetaM Expr :=
+          withLocalDeclD `vc (mkConst ``SExpr) fun vc => do
+            let convTy ← mkAppM ``ConvTo
+              #[cfg.worldExpr, envE, reflectSExpr c, vc]
+            withLocalDeclD `hcv convTy fun hcv => do
+              let hbTy ← mkEq (← mkAppM ``Logic.toBool #[vc]) (mkConst bval)
+              withLocalDeclD `hb hbTy fun hb => do
+                let p ← totWalk cfg envE vals ((c, pos, hb) :: facts)
+                  totalEnv selfC branch
+                mkLambdaFVars #[vc, hcv, hb] p
+        let ht ← mkBranch ``Bool.true true th
+        let he ← mkBranch ``Bool.false false e
+        return ← mkAppM ``conv_if_split_ex
+          #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th,
+            reflectSExpr e, hcEx, ht, he]
     else
       throwFrontier m!"proveTotality: ternary {fs.name} unsupported (frontier)"
   | .cons (.atom (.symbol fs)) argsSpine =>
@@ -3043,12 +3068,12 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
         | some (formals, body) =>
           unless args.length == formals.length do
             throwFrontier m!"proveTotality: self-call arity mismatch {repr t}"
-          unless args.all totLiftable do
-            throwFrontier m!"proveTotality: self-call argument not liftable \
-                {repr t} (frontier)"
-          let argVals ← args.mapM (dpValExpr [] (dpValProof.dpVarVal envE varP))
-          let argPfs ← args.mapM (dpValProof cfg envE [] [] varP)
           let mIdx := formals.findIdx (· == measuredFormal)
+          -- the MEASURED argument must be value-characterized (the decrease
+          -- and the IH's count argument are stated about its value)
+          unless totLiftable args[mIdx]! do
+            throwFrontier m!"proveTotality: self-call MEASURED argument not \
+                liftable {repr t} (frontier)"
           unless vals.any (fun (f, _, _) => f == measuredFormal) do
             throwFrontier m!"proveTotality: measured formal has no bound value"
           let dec ← totDischargeDecrease just measuredFormal facts args[mIdx]!
@@ -3056,24 +3081,44 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
           let hDef ← totDefFact cfg fs formals body
           match formals, args with
           | [f1], [a1] =>
-            let hbody ← mkAppM' ih #[argVals[0]!, dec]
+            let av ← dpValExpr [] (dpValProof.dpVarVal envE varP) a1
+            let ap ← dpValProof cfg envE [] [] varP a1
+            let hbody ← mkAppM' ih #[av, dec]
             return ← mkAppM ``conv_defn_1_ex
               #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
-                reflectSExpr body, reflectSExpr a1, argVals[0]!, hNs, hDef,
-                argPfs[0]!, hbody]
+                reflectSExpr body, reflectSExpr a1, av, hNs, hDef, ap, hbody]
           | [f1, f2], [a1, a2] =>
-            -- the IH's binder order follows the MEASURED formal (the strong
-            -- induction is on its count; the other formal is inner-∀)
-            let hbody ←
-              if mIdx == 0 then mkAppM' ih #[argVals[0]!, dec, argVals[1]!]
-              else if mIdx == 1 then mkAppM' ih #[argVals[1]!, dec, argVals[0]!]
-              else throwError "proveTotality: measured formal not among the \
-                               formals (internal)"
-            return ← mkAppM ``conv_defn_2_ex
-              #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
-                reflectSymbol f2, reflectSExpr body, reflectSExpr a1,
-                reflectSExpr a2, argVals[0]!, argVals[1]!, hNs, hDef,
-                argPfs[0]!, argPfs[1]!, hbody]
+            let aM := args[mIdx]!
+            let vM ← dpValExpr [] (dpValProof.dpVarVal envE varP) aM
+            let pM ← dpValProof cfg envE [] [] varP aM
+            let aO := args[1 - mIdx]!
+            -- assemble conv_defn_2_ex from the two positions' value/conv
+            -- pairs; the IH's binder order follows the MEASURED formal (the
+            -- strong induction is on its count; the other formal is inner-∀)
+            let assemble (vO pO : Expr) : MetaM Expr := do
+              let hbody ← mkAppM' ih #[vM, dec, vO]
+              let (v1, v2, p1, p2) :=
+                if mIdx == 0 then (vM, vO, pM, pO) else (vO, vM, pO, pM)
+              mkAppM ``conv_defn_2_ex
+                #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
+                  reflectSymbol f2, reflectSExpr body, reflectSExpr a1,
+                  reflectSExpr a2, v1, v2, hNs, hDef, p1, p2, hbody]
+            if totLiftable aO then
+              let vO ← dpValExpr [] (dpValProof.dpVarVal envE varP) aO
+              let pO ← dpValProof cfg envE [] [] varP aO
+              return ← assemble vO pO
+            else
+              -- OPAQUE non-measured argument — e.g. perm's self-call
+              -- (perm (cdr x) (rm (car x) y)): converge it by the walk
+              -- itself, then ∃-ELIMINATE (exists_conv_elim) to bind its
+              -- value for the IH (the dis_perm_total move, mechanized)
+              let hcEx ← totWalk cfg envE vals facts totalEnv selfC aO
+              let k ← withLocalDeclD `vo (mkConst ``SExpr) fun vO => do
+                let convTy ← mkAppM ``ConvTo
+                  #[cfg.worldExpr, envE, reflectSExpr aO, vO]
+                withLocalDeclD `hcv convTy fun hcv => do
+                  mkLambdaFVars #[vO, hcv] (← assemble vO hcv)
+              return ← mkAppM ``exists_conv_elim #[hcEx, k]
           | _, _ =>
             throwFrontier m!"proveTotality: self-call arity {args.length} \
                 unsupported (frontier)"
@@ -5654,29 +5699,65 @@ def proveTotality (cfg : ReplayConfig)
     | _ => throwFrontier m!"proveTotality: recursive arity {formals.length} \
         unsupported (frontier)"
 
-/-- #37: the admission-derived totality environment — per fn (DEVELOPMENT
-    order; `defs.entries` is insertion-reversed), try `proveTotality`,
-    accumulating proofs for later fns' calls. A frontier failure leaves the
-    fn out (it stays hypothesis-backed downstream — D6). -/
+/-- #37: the admission-derived totality environment. `defs.entries` lists the
+    USER defuns in DEVELOPMENT order followed by the ground-zero defs
+    (`Development.toWorld` folds ground zero at the bottom and inserts user
+    defuns while unwinding — the old `.reverse` here iterated BACKWARDS, a
+    latent order bug that never bit until a fn depended on another user fn's
+    totality: perm calls memb/rm). Robust fix: FIXPOINT — passes over the
+    candidate set until no progress, so each fn is proved once its
+    dependencies are in scope regardless of entry order. A fn that never
+    proves stays out (hypothesis-backed downstream — D6). -/
 def buildTotalEnv (cfg : ReplayConfig)
     (justs : List (String × Justification))
     (upTo : Option String := none) :
     MetaM (List (String × Nat × Expr)) := do
+  -- candidate set: the dev-order prefix up to `upTo` (the lazy-discharge
+  -- optimization) plus the ground-zero defs (in scope for every fn)
+  let gz := groundZeroDefs.map (fun (s, _, _) => s)
+  let all := cfg.worldVal.defs.entries
+  let cands ← match upTo with
+    | none => pure all
+    | some target => do
+      let userEntries := all.filter (fun (s, _) => !gz.contains s)
+      let rec takeTo : List (Symbol × List Symbol × SExpr) →
+          List (Symbol × List Symbol × SExpr)
+        | [] => []
+        | e :: rest => if e.1.name == target then [e] else e :: takeTo rest
+      pure (takeTo userEntries ++ all.filter (fun (s, _) => gz.contains s))
   let mut totalEnv : List (String × Nat × Expr) := []
-  for (s, formals, body) in cfg.worldVal.defs.entries.reverse do
-    try
-      let pf ← proveTotality cfg totalEnv s.name formals body
-        (justs.lookup s.name)
-      totalEnv := (s.name, formals.length, pf) :: totalEnv
-    catch e =>
-      -- keep ONLY the prover's TAGGED frontier-class failures (the fn stays
-      -- hypothesis-backed — D6); anything else is a real defect: surface it
-      -- (typed tag, not message prefix — fail-closed audit N1)
-      unless isFrontierErr e do
-        throw e
-    if upTo == some s.name then
-      break
+  let mut pending := cands
+  let mut progress := true
+  while progress do
+    progress := false
+    let mut still : List (Symbol × List Symbol × SExpr) := []
+    for (s, formals, body) in pending do
+      try
+        let pf ← proveTotality cfg totalEnv s.name formals body
+          (justs.lookup s.name)
+        totalEnv := (s.name, formals.length, pf) :: totalEnv
+        progress := true
+      catch e =>
+        -- keep ONLY the prover's TAGGED frontier-class failures (the fn
+        -- stays hypothesis-backed — D6); anything else is a real defect:
+        -- surface it (typed tag, not message prefix — fail-closed audit N1)
+        unless isFrontierErr e do
+          throw e
+        still := still ++ [(s, formals, body)]
+    pending := still
   return totalEnv
+
+/-- Substitute a hypothesis fvar by LET-BINDING its discharge proof instead
+    of textual replacement (`replaceFVar`): `k` uses of the hypothesis share
+    ONE copy of the (potentially enormous) discharge term instead of `k`
+    copies. Proof-term scale fix (2026-07-06): perm-is-an-equivalence
+    measured 3.87e9 Expr nodes (without sharing) from duplicated rule-hyp
+    discharge proofs alone. No-op when the fvar does not occur. -/
+def letBindFVar (body v value : Expr) : MetaM Expr := do
+  if !body.containsFVar v.fvarId! then return body
+  let ty ← inferType v
+  let name ← v.fvarId!.getUserName
+  return .letE name ty value (body.abstract #[v]) false
 
 /-- Flatten an ACL2 `and`-antecedent: `(if A rest 'nil)` right-nesting →
     `[A, …]`; anything else is a single hypothesis. -/
@@ -5877,7 +5958,8 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         if prfR.containsFVar hypV.fvarId! then
           try
             let pf ← dischargeRuleHyp cfg ctx spec depProofs
-            prfR := prfR.replaceFVar hypV pf
+            -- LET-bind, don't substitute: every use site shares one copy
+            prfR ← letBindFVar prfR hypV pf
           catch e =>
             -- keep ONLY the discharger's TAGGED frontier-class failures (the
             -- hypothesis stays visible in the type — D6, like totality);
@@ -5900,7 +5982,10 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let totalEnv ←
         if usedTotalNames.isEmpty then pure []
         else
-          let lastUsed? := (cfg.worldVal.defs.entries.reverse.filter
+          -- `defs.entries` is DEV order (user defuns first, ground zero at
+          -- the tail — see buildTotalEnv); the lazy bound is the used fn
+          -- LATEST in dev order
+          let lastUsed? := (cfg.worldVal.defs.entries.filter
             (fun (s, _, _) => usedTotalNames.contains s.name)).getLast?
           buildTotalEnv cfg justs (upTo := lastUsed?.map (fun (s, _, _) => s.name))
       let mut prf := prf
@@ -5909,7 +5994,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         match (if c.startsWith "total:" then
                 totalEnv.find? (fun (n, _, _) => s!"total:{n}" == c)
               else none) with
-        | some (_, _, pf) => prf := prf.replaceFVar v pf
+        | some (_, _, pf) => prf ← letBindFVar prf v pf
         | none => kept := kept ++ [(c, v)]
       let p ← mkLambdaFVars (kept.map (·.2)).toArray prf
       return (p, kept.map (·.1))
