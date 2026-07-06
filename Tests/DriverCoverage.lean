@@ -109,6 +109,7 @@ def corpus : List (String × String) :=
    ("14-accumulator",          include_str "../acl2_samples/recon-tests/14-accumulator.proof-log"),
    ("15-nested-induction",     include_str "../acl2_samples/recon-tests/15-nested-induction.proof-log"),
    ("16-three-way",            include_str "../acl2_samples/recon-tests/16-three-way.proof-log"),
+   ("17-rule-application",     include_str "../acl2_samples/recon-tests/17-rule-application.proof-log"),
    -- The DRIVING CORPUS (sorting roadmap R0a): leaf books with theorems only.
    -- orderedp/how-many are defun-only (0 theorems) — the integrity net cannot
    -- distinguish a theorem-less book from a TRUNCATED capture, so they stay
@@ -191,6 +192,7 @@ elab "#driver_coverage" : command => do
   liftTermElabM do
     let mut lines : Array String := #[]
     let mut replayed := 0
+    let mut replayedCond := 0
     let mut total := 0
     -- Reconstruction-INTEGRITY failures (distinct from the expected driver-replay
     -- frontier): a parse-fail, a recon-fail, or a log that reconstructs to ZERO
@@ -248,7 +250,14 @@ elab "#driver_coverage" : command => do
             let dis := theoremDischargeLeaves cp
             let tps := developmentTPs dev
             let status ← tryReplay w wExpr tps dev.justifications cp rules
-            if status.startsWith "REPLAYED ✓" then replayed := replayed + 1
+            if status.startsWith "REPLAYED ✓" then
+              replayed := replayed + 1
+              -- CONDITIONAL replays (undischarged cond[…] hypotheses) counted
+              -- separately: a rule:<thm>-conditional replay is NOT the same
+              -- claim as an unconditional one (audit 2026-07-06, outside
+              -- reviewer) — the summary must not blend them silently.
+              if (status.splitOn " cond[").length > 1 then
+                replayedCond := replayedCond + 1
             let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
             let mut disParts : List String := []
             for (id, o, clause) in dis do
@@ -262,7 +271,7 @@ elab "#driver_coverage" : command => do
             lines := lines.push s!"    {cp.name} → {status}{tag}{disTag}"
       let tFile1 ← IO.monoMsNow
       timings := timings.push s!"  {name}: {tFile1 - tFile0} ms"
-    let report := s!"Driver coverage — REPLAYED {replayed}/{total}; DP-discharge leaves ✓{dpReplayed} ◌{dpAssumed} ✗{dpTotal - dpReplayed - dpAssumed} of {dpTotal}:\n{"\n".intercalate lines.toList}"
+    let report := s!"Driver coverage — REPLAYED {replayed}/{total} ({replayed - replayedCond} unconditional + {replayedCond} conditional); DP-discharge leaves ✓{dpReplayed} ◌{dpAssumed} ✗{dpTotal - dpReplayed - dpAssumed} of {dpTotal}:\n{"\n".intercalate lines.toList}"
     logInfo report
     logInfo m!"per-file wall times (informational — NOT golden-compared):\n{"\n".intercalate timings.toList}"
     -- GOLDEN-TABLE GATE: write the fresh table, then diff against the committed

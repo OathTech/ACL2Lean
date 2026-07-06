@@ -177,7 +177,18 @@ closed, ci as scoreboard, audits at milestones):
       orphaned-EXPANSION-block emission gap), the trivial-path pushed-
       sibling residual, if1/boolean two-valuedness from emitted TPs,
       if-same-branches (re_if_same), and the capture-script pipefail
-      fix. NOT yet adversarially audited; rule-hyp lazy discharge from
+      fix. AUDITED (2026-07-06, 4 Opus reviewers + verifier): ZERO
+      soundness defects; all findings fidelity/generality, addressed same
+      day (8098579): relief RECORDS now required per rule hyp (finding A;
+      exposed + closed the free-variable relief emission family),
+      non-equal rules not offered (finding E), perm-transitive
+      TYPE-PINNED + axiom-gated in DriverTests, scoreboard splits
+      conditional/unconditional. OPEN audit residue (all fail-safe):
+      hyp relief under add-linear-lemma gets no HYP path frame (finding
+      B — replay hard-fails if hit; instrument when a tree shows it);
+      a book's LAST theorem's rule never flushes (finding C — matters
+      for R2 include-book import, not single-log replay); forced hyps
+      emit no marker (the G4 forcing seam). Rule-hyp lazy discharge from
       replayed dependency mirrors is the tracked follow-up (v1 step 5).
       Remaining R1 walls: multi-literal pushed clauses (4 theorems:
       perm-symmetric/memb-rm/perm-memb/perm-rm);
