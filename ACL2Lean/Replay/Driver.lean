@@ -3891,11 +3891,13 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
       | throwError "replayClauseSpine: literal item {idx} beyond the clause's \
                     literals at {idStr} (item/clause walk divergence)"
     unless idx == cidx && lp.literal == clit do
-      -- a DUPLICATE literal: ACL2's clause normalization (add-literal) drops
-      -- a literal identical to an earlier one (branch-substitution creates
-      -- these), so its walk skips it. The earlier occurrence's falsity fact
-      -- is in scope — collapse this literal's if-frame by it and continue
-      -- against the SAME item, renumbering the remainder to ACL2's walk.
+      -- a SKIPPED literal whose falsity is already an in-scope hypothesis —
+      -- chiefly a DUPLICATE (ACL2's add-literal drops a literal identical to
+      -- an earlier one; branch-substitution creates these), but sound for
+      -- ANY literal with a genuine falsity fact: collapsing its if-frame by
+      -- the fact preserves the disjunction. A spurious fire (e.g. on a
+      -- hoisted later-literal fact) misaligns the walk and hard-fails
+      -- downstream — never a wrong proof (audit 2026-07-06).
       if lp.literal != clit then
         if let some hNil := ctx.litFactByTerm? clit then
           let restTerm := disjoinTerm (restLits.map (·.2))
@@ -4750,7 +4752,11 @@ partial def replayGeneralize (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : Clause
   let valsE ← mkListLit (mkConst ``SExpr) vals
   let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
   let cfg' := { cfg with envExpr := env' }
-  let ctx' := { ctx with varVals := [], vals := [], litFacts := [] }
+  -- clear ALL env-bound fact channels (audit 2026-07-06: branchFacts/segFacts
+  -- carry proofs about THIS env; stale ones at env\' would only kernel-fail,
+  -- but must not be offered)
+  let ctx' := { ctx with varVals := [], vals := [], litFacts := [],
+                         branchFacts := [], segFacts := [] }
   let pChild ← replayClause cfg' ctx' child
   -- substN bridge back to this env
   let hNoLet ← proveByDecide
@@ -4817,7 +4823,8 @@ partial def replaySubsumed (cfg : ReplayConfig) (ctx : ReplayCtx)
   let valsE ← mkListLit (mkConst ``SExpr) vals
   let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
   let cfg' := { cfg with envExpr := env' }
-  let ctx' := { ctx with varVals := [], vals := [], litFacts := [] }
+  let ctx' := { ctx with varVals := [], vals := [], litFacts := [],
+                         branchFacts := [], segFacts := [] }
   let pChild ← replayClause cfg' ctx' child
   let childTerm := disjoinTerm G
   let hNoLet ← proveByDecide
@@ -5004,9 +5011,12 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
   -- ACL2's induction-formula CLEAN-UP drops trivially-true clauses (a
   -- complementary literal pair, or a 't literal) — a cross-product clause
   -- where σ leaves an IH literal UNCHANGED is the standard case (¬Lσ = ¬L
-  -- complements the goal's own L). Mirror the filter exactly; the dropped
-  -- selections are discharged directly at the walk (their truthy literal IS
-  -- a goal literal).
+  -- complements the goal's own L). This mirrors the COMMON arms of ACL2's
+  -- add-literal clean-up (audit 2026-07-06: not all — e.g. non-'t quoted
+  -- constants, commuted-equality complements are not folded here); ANY
+  -- divergence is caught by the scheme-count/containment/children checks
+  -- below, never silent. Dropped selections are discharged directly at the
+  -- walk (their truthy literal IS a goal literal).
   let isTaut : List SExpr → Bool := fun cl =>
     cl.any (fun l => l == quoteT || cl.contains (dumbNegateLit l))
   let kept := expected.filter (fun (_, _, _, cl) => !isTaut cl)
@@ -5564,6 +5574,12 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let some root := cp.root
         | throwError "replayProofConditional: theorem {cp.name} has no proof tree"
       let prf ← instantiateMVars (← replayClause cfg ctx root)
+      -- defense-in-depth (audit 2026-07-06): PIN the replayed proof to the
+      -- root clause's own mirror statement — fidelity must not rest solely
+      -- on each handler targeting cn.inputClause
+      let rootTy ← mkAppM ``EvTrue
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr (disjoinTerm root.inputClause)]
+      let prf ← mkExpectedTypeHint prf rootTy
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).

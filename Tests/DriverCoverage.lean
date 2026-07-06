@@ -118,6 +118,27 @@ def corpus : List (String × String) :=
    -- included defuns carry no admission data, a named parse frontier).
    ("sorting/perm",            include_str "../acl2_samples/sorting/perm.proof-log")]
 
+/-- The transitive AXIOM set of a proof term: axioms among the constants of
+    the expression and everything those constants' definitions depend on
+    (`CollectAxioms` needs a declared constant, so walk the env manually). -/
+def collectProofAxioms (e : Expr) : MetaM (List Name) := do
+  let env ← Lean.getEnv
+  let mut visited : Lean.NameSet := {}
+  let mut axioms : List Name := []
+  let mut work := e.getUsedConstants.toList
+  while !work.isEmpty do
+    let c :: rest := work | break
+    work := rest
+    if visited.contains c then continue
+    visited := visited.insert c
+    match env.find? c with
+    | some (.axiomInfo _) => axioms := axioms ++ [c]
+    | some ci =>
+      if let some v := ci.value? then
+        work := work ++ v.getUsedConstants.toList
+    | none => pure ()
+  return axioms.eraseDups
+
 /-- Run the driver on one theorem over its derived world; return a one-line status. The
     world is PROJECTED from the development and REFLECTED concretely (P4); structural facts
     are DERIVED by the driver (P3). A message that is neither a `replayClause`/`replayNode`/
@@ -137,6 +158,14 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
         let (prf, conds) ← replayProofConditional cfg tps cp justs rules
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
+      -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts
+      -- sorryAx (audit 2026-07-06) — collect the proof's axioms and reject
+      -- anything beyond the classical trio
+      let axioms ← collectProofAxioms p.1
+      let bad := axioms.filter (fun a =>
+        a != ``propext && a != ``Classical.choice && a != ``Quot.sound)
+      unless bad.isEmpty do
+        return s!"FAIL: replay produced a proof using axioms {bad} (sorryAx?)"
       let condStr := if p.2.isEmpty then "" else s!" cond[{", ".intercalate p.2}]"
       return s!"REPLAYED ✓{condStr}"
     catch e => return s!"FAIL: {(← e.toMessageData.toString).replace "\n" " "}")

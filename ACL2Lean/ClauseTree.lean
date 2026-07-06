@@ -408,6 +408,20 @@ private def synthesizePoolRoots (pd : PoolData)
   let mut out : Array (FlatNode × String) := #[]
   let mut extraLinks : Array (String × String) := #[]
   if pd.sawPool then
+    -- FAIL-CLOSED guards (audit 2026-07-06, emission findings 1-2): pool
+    -- names must be UNIQUE within the block — the name-keyed find? would
+    -- silently pick the first of a collision (pool names reset per forcing
+    -- round, and the events do not carry the round; extend the emission
+    -- when forcing rounds appear). And every registered push must be
+    -- CONSUMED by a consider or subsumed event — an unconsumed push (e.g.
+    -- ACL2's subsumed-by-parent arm, currently unemitted) must not drop a
+    -- pool root silently.
+    unless (pd.pushes.map (·.1)).toList.eraseDups.length == pd.pushes.size do
+      throw "ClauseTree: duplicate :POOLNAME within one theorem block              (forcing-round collision? — extend the pool-event emission)"
+    for (name, _, _) in pd.pushes do
+      unless (pd.inductions.any fun (n?, _, _, _) => n? == some name) ||
+             (pd.subsumptions.any fun (n, _) => n == name) do
+        throw s!"ClauseTree: pushed pool root {name} never considered or                  subsumed (unemitted pool outcome — emission gap)"
     for (name?, pid, _, ind) in pd.inductions do
       let some name := name?
         | throw "ClauseTree: :INDUCTION with no preceding (:POOL-CONSIDER …)                  in a pool-event log"
@@ -461,12 +475,18 @@ private def synthesizePoolRoots (pd : PoolData)
     (`*1/N … *1/1`) — so the tree mirrors ACL2 rather than imposing a re-sort.
     A missing key is a hard error (the linking is supposed to be total). -/
 private partial def assemble (flats : Array FlatNode)
-    (childKeys : Array (String × String)) (key : String) : Except String ClauseNode := do
+    (childKeys : Array (String × String)) (key : String)
+    (ancestors : List String := []) : Except String ClauseNode := do
+  -- cycle guard (audit 2026-07-06): the subsumer→subsumed extra links could
+  -- in principle form a cycle (mutual subsumption); recursion must fail
+  -- loudly, not hang
+  if ancestors.contains key then
+    throw s!"ClauseTree: assemble cycle through {repr key} (mutual pool              subsumption?)"
   match (findIdx flats key).bind (flats[·]?) with
   | none => throw s!"ClauseTree: assemble found no node for key {repr key}"
   | some fn =>
     let kids := childKeys.filterMap (fun (c, p) => if p == key then some c else none)
-    let children ← kids.toList.mapM (assemble flats childKeys)
+    let children ← kids.toList.mapM (assemble flats childKeys · (key :: ancestors))
     return {
       id := fn.id, idStr := fn.idStr, inputClause := fn.inputClause,
       steps := fn.steps.toList, induction := fn.induction, children := children }
