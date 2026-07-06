@@ -446,6 +446,12 @@ structure ReplayCtx where
       term). The pinning step consumes these. -/
   totalHyps : List (String × Expr) := []
   tpHyps : List (String × SExpr × Expr) := []
+  /-- Theorem-dependency hypotheses (`rule:<thm>`, the third telescope
+      species): per emitted STORED rewrite rule, the spec and the bound
+      hypothesis stating its mirror (`mkRuleHypType`). Consumed by the
+      with-lemma node recipe; discharged lazily from the dependency's own
+      replayed mirror (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). -/
+  ruleHyps : List (RuleSpec × Expr) := []
   ih : Option Expr := none
 
 def ReplayCtx.empty : ReplayCtx := {}
@@ -876,6 +882,73 @@ def replayExecGround (cfg : ReplayConfig) (lhs v : SExpr) : MetaM Expr := do
   let hAt ← mkExpectedTypeHint (← mkEqRefl someV) (← mkEq lhsApp someV)
   mkAppM ``conv_of_eval_at
     #[mkNatLit F, cfg.worldExpr, cfg.envExpr, reflectSExpr lhs, reflectSExpr v, hAt]
+
+/-- Expr-level SExpr application `(fn a₁ … aₙ)` from argument `Expr`s. -/
+def mkAppListExpr (fn : Symbol) (args : Array Expr) : Expr :=
+  let spine := args.foldr (fun a acc => mkApp2 (mkConst ``SExpr.cons) a acc)
+    (mkConst ``SExpr.nil)
+  mkApp2 (mkConst ``SExpr.cons)
+    (mkApp (mkConst ``SExpr.atom) (mkApp (mkConst ``Atom.symbol) (reflectSymbol fn)))
+    spine
+
+/-- `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w e t = some v` with the term as an `Expr`. -/
+def mkConvPropEx (w e tE : Expr) : MetaM Expr := do
+  withLocalDeclD `N (mkConst ``Nat) fun nV => do
+    let inner ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+      let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+        let ge ← mkAppM ``GE.ge #[fV, nV]
+        let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
+        let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vV
+        mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
+      mkAppM ``Exists #[← mkLambdaFVars #[vV] body]
+    mkAppM ``Exists #[← mkLambdaFVars #[nV] inner]
+
+/-- `∃ N, ∀ f ≥ N, evalOpt f w e t = some v` with term and value as `Expr`s. -/
+def mkValConvPropEx (w e tE vE : Expr) : MetaM Expr := do
+  withLocalDeclD `N (mkConst ``Nat) fun nV => do
+    let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+      let ge ← mkAppM ``GE.ge #[fV, nV]
+      let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
+      let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
+      mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
+    mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
+
+/-- `∃ N, ∀ f ≥ N, evalOpt f w e a = evalOpt f w e b` (the chain Prop) with
+    both terms as `Expr`s. -/
+def mkEvalEqPropEx (w e aE bE : Expr) : MetaM Expr := do
+  withLocalDeclD `N (mkConst ``Nat) fun nV => do
+    let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+      let ge ← mkAppM ``GE.ge #[fV, nV]
+      let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, aE]
+      let rhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, bE]
+      mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
+    mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
+
+/-- `∃N∀f≥N, eval (quote t) = some SExpr.t` (the constant, not the reflection). -/
+def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
+  let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+  let hv ← proveByDecide
+    (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
+  mkAppM ``re_val_cast
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
+      mkConst ``SExpr.t, pq, hv]
+
+/-- Fold per-entry proofs into a reflected list + its `∀ x ∈ list, P x`
+    proof (`forall_mem_nil`/`forall_mem_cons` chain). -/
+private def mkForallMemProof (entryTy P : Expr) (entries : List (Expr × Expr)) :
+    MetaM (Expr × Expr) := do
+  match entries with
+  | [] =>
+    let listE ← mkAppOptM ``List.nil #[some entryTy]
+    let prf ← mkAppOptM ``List.forall_mem_nil #[some entryTy, some P]
+    return (listE, prf)
+  | (e, h) :: rest =>
+    let (restE, restP) ← mkForallMemProof entryTy P rest
+    let listE ← mkAppM ``List.cons #[e, restE]
+    let andP ← mkAppM ``And.intro #[h, restP]
+    let consIff ← mkAppOptM ``List.forall_mem_cons
+      #[some entryTy, some P, some e, some restE]
+    return (listE, ← mkAppM ``Iff.mpr #[consIff, andP])
 
 mutual
 
@@ -1431,6 +1504,132 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     let convLhs ← replayExecGround cfg lhs v
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
     mkAppM ``fuel_eq_of_conv #[convLhs, hq, ← mkEqRefl (reflectSExpr v)]
+  | "rewrite", _ =>
+    -- USER rewrite rule (with-lemma): the THEOREM-DEPENDENCY recipe
+    -- (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). The node
+    -- consumes the bound `rule:<thm>` hypothesis — the STORED rule's mirror —
+    -- instantiated strictly by the emitted :SUBST; hypothesis relief comes
+    -- from the recorded :KIND HYP chain or the clause context, never
+    -- re-searched. (The built-in-axiom runes above keep their hand recipes —
+    -- their formulas are in no log.)
+    unless prov.origin == "with-lemma" do
+      throwError "rewrite rune ({rname}): origin {prov.origin} is not \
+                  with-lemma (frontier)"
+    let σvars ← prov.subst.mapM fun (v, _) => do
+      let .atom (.symbol s) := v
+        | throwError "rule {rname}: :SUBST binds a non-variable {repr v}"
+      pure s
+    let σterms := prov.subst.map (·.2)
+    -- the matching stored rule: recompute-and-check joint —
+    -- substTerm(:SUBST, rule lhs) must BE the node's lhs
+    let candidates := ctx.ruleHyps.filter fun (r, _) => r.name == rname
+    if candidates.isEmpty then
+      throwError "rule {rname}: no stored-rule hypothesis in scope (no \
+                  (:RULES …) entry — emission gap or missing telescope)"
+    let matched := candidates.filter fun (r, _) =>
+      ACL2.Replay.substTerm σvars σterms r.lhs == lhs
+    let [(spec, hypV)] := matched
+      | throwError "rule {rname}: {matched.length} stored rules match \
+                    substTerm(:SUBST, lhs) == {repr lhs} (need exactly 1)"
+    -- v1 rhs joint: the node's rhs must BE the instantiated rule rhs (a
+    -- non-trivial RHS-block continuation chain is a named frontier)
+    unless ACL2.Replay.substTerm σvars σterms spec.rhs == rhs do
+      throwError "rule {rname}: node rhs {repr rhs} ≠ substTerm(:SUBST, \
+                  rule rhs {repr spec.rhs}) — RHS continuation (frontier)"
+    let innerKindOf : ProofNode → String := fun
+      | .node _ _ _ _ p => p.innerKind
+    let hypKids := children.filter fun c => innerKindOf c == "hyp"
+    let otherKids := children.filter fun c => innerKindOf c != "hyp"
+    unless otherKids.isEmpty do
+      throwError "rule {rname}: {otherKids.length} non-HYP child(ren) \
+                  recorded — unconsumed record (frontier)"
+    -- coverage: every rule variable must be bound by σ (free-var hyps extend
+    -- σ at emission; a gap means the emission is incomplete)
+    let ruleFrees := ACL2.Replay.freeVars spec.lhs ++
+      spec.hyps.flatMap ACL2.Replay.freeVars ++ ACL2.Replay.freeVars spec.rhs
+    for s in ruleFrees do
+      unless σvars.contains s do
+        throwError "rule {rname}: rule variable {s.name} not bound by the \
+                    emitted :SUBST (emission gap)"
+    -- σ-term values and the substN bridge scaffold (shared by hyps/lhs/rhs)
+    let w := cfg.worldExpr
+    let env := cfg.envExpr
+    let vals ← σterms.mapM (ctxValExpr cfg ctx)
+    let convs ← σterms.mapM (ctxValProof cfg ctx)
+    let formalsE ← mkListLit (mkConst ``Symbol) (σvars.map reflectSymbol)
+    let argsE ← mkListLit (mkConst ``SExpr) (σterms.map reflectSExpr)
+    let valsE ← mkListLit (mkConst ``SExpr) vals
+    let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
+    let hlenPf ← proveByDecide
+      (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
+      s!"substN lengths ({rname})"
+    let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
+    let pFn ← withLocalDeclD `pr prodTy fun prV => do
+      let fst ← mkAppM ``Prod.fst #[prV]
+      let snd ← mkAppM ``Prod.snd #[prV]
+      mkLambdaFVars #[prV] (← mkValConvPropEx w env fst snd)
+    let entries ← (σterms.zip vals).mapM fun (t, v) =>
+      mkAppM ``Prod.mk #[reflectSExpr t, v]
+    let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip convs)
+    let zipE ← mkAppM ``List.zip #[argsE, valsE]
+    let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
+      let mem ← mkAppM ``Membership.mem #[zipE, prV]
+      mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
+    let hargs ← mkExpectedTypeHint hargsRaw hargsTy
+    -- bridge t : eval env (substTerm σ t) ≡ eval env' t, for any rule-side term
+    let bridge : SExpr → MetaM Expr := fun t => do
+      let hNoLet ← proveByDecide
+        (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr t]) (mkConst ``Bool.true))
+        s!"NoLet rule term ({rname})"
+      mkAppM ``evalOpt_substTerm_substN
+        #[w, env, formalsE, argsE, valsE, reflectSExpr t, hNoLet, hlenPf, hargs]
+    -- premises: EvTrue w env' hᵢ from the recorded relief. v1 source carve:
+    -- one hyp with a recorded chain, or any number relieved from the clause
+    -- context (no events); multi-hyp recorded chains need per-hyp
+    -- bracketing — hard-fail until a real tree shows the shape.
+    if !hypKids.isEmpty && spec.hyps.length != 1 then
+      throwError "rule {rname}: {spec.hyps.length} hyps with a recorded \
+                  relief chain — per-hyp partition (frontier)"
+    let tNeNil ← proveByDecide
+      (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
+    let mut prems : Array Expr := #[]
+    for h in spec.hyps do
+      let hσ := ACL2.Replay.substTerm σvars σterms h
+      let evTrueEnv ←
+        if hypKids.isEmpty then do
+          -- relieved from the clause context: the spine's (not hσ)-falsity
+          -- fact (the type-alist source the type-alist recipe also consumes)
+          let notH : SExpr := .cons (.atom (.symbol { name := "not" }))
+            (.cons hσ .nil)
+          let some hNotNil := ctx.litFactByTerm? notH
+            | throwError "rule {rname}: hyp {repr hσ} relieved without \
+                          events and no (not …)-falsity fact in scope (frontier)"
+          let vH ← ctxValExpr cfg ctx hσ
+          let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
+          mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
+        else do
+          -- the recorded HYP chain rewrites hσ ⇒ … ⇒ 't (paths carry one
+          -- more boundary frame, as definition-body children do)
+          let (chainOpt, finalT) ← replayRewrites cfg ctx hσ hypKids (depth + 1)
+          unless finalT == quoteT do
+            throwError "rule {rname}: relief chain for {repr hσ} ends at \
+                        {repr finalT}, not (quote t)"
+          let some chain := chainOpt
+            | throwError "rule {rname}: relief chain for {repr hσ} \
+                          composed to no steps"
+          let hconv ← mkAppM ``fuel_conv_of_eq #[chain, ← quoteTFact cfg]
+          mkAppM ``evtrue_of_conv_ne_nil #[hconv, tNeNil]
+      -- transport to env': eval env' h ≡ eval env hσ (the bridge, reversed)
+      let pB ← bridge h
+      prems := prems.push
+        (← mkAppM ``evtrue_of_fuel_eq #[← mkAppM ``fuel_eq_symm #[pB], evTrueEnv])
+    -- the rule's mirror at env', premises applied, bridged back to the node:
+    -- eval env lhs ≡ eval env' rule.lhs ≡ eval env' rule.rhs ≡ eval env rhs
+    let hRule := mkAppN (mkApp hypV env') prems
+    let pL ← bridge spec.lhs
+    let pR ← bridge spec.rhs
+    mkAppM ``fuel_chain_eq
+      #[pL, ← mkAppM ``fuel_chain_eq #[hRule, ← mkAppM ``fuel_eq_symm #[pR]]]
   | _, _ =>
     throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
 
@@ -1707,15 +1906,6 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
 
 end
 
-
-/-- `∃N∀f≥N, eval (quote t) = some SExpr.t` (the constant, not the reflection). -/
-def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
-  let pq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-  let hv ← proveByDecide
-    (← mkEq (reflectSExpr SExpr.t) (mkConst ``SExpr.t)) "quote-t is SExpr.t"
-  mkAppM ``re_val_cast
-    #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
-      mkConst ``SExpr.t, pq, hv]
 
 /-- Replay a literal's rewrite chain at the LITERAL level. ACL2's rewriter works on
     the literal's ATOM (`rewrite-atm`): for a `:NOT-FLG T` literal `(not atm)` the
@@ -2249,23 +2439,6 @@ structure DpLiftBundle where
   opqE : Expr
   hopq : Expr
   hns : Expr
-
-/-- Fold per-entry proofs into a reflected list + its `∀ x ∈ list, P x`
-    proof (`forall_mem_nil`/`forall_mem_cons` chain). -/
-private def mkForallMemProof (entryTy P : Expr) (entries : List (Expr × Expr)) :
-    MetaM (Expr × Expr) := do
-  match entries with
-  | [] =>
-    let listE ← mkAppOptM ``List.nil #[some entryTy]
-    let prf ← mkAppOptM ``List.forall_mem_nil #[some entryTy, some P]
-    return (listE, prf)
-  | (e, h) :: rest =>
-    let (restE, restP) ← mkForallMemProof entryTy P rest
-    let listE ← mkAppM ``List.cons #[e, restE]
-    let andP ← mkAppM ``And.intro #[h, restP]
-    let consIff ← mkAppOptM ``List.forall_mem_cons
-      #[some entryTy, some P, some e, some restE]
-    return (listE, ← mkAppM ``Iff.mpr #[consIff, andP])
 
 /-- Build the bundle: clause variables ↦ their `dpConcVar` values (premises
     by `re_val_var`), opaques ↦ their pinned values (premises supplied),
@@ -3052,36 +3225,6 @@ shape. The hypotheses themselves are machine-generated from the development
 (`replayProofConditional`) — the c2 conditional-proof pattern: the obligations are
 explicit in the returned proof's type, reported as conditions. -/
 
-/-- Expr-level SExpr application `(fn a₁ … aₙ)` from argument `Expr`s. -/
-def mkAppListExpr (fn : Symbol) (args : Array Expr) : Expr :=
-  let spine := args.foldr (fun a acc => mkApp2 (mkConst ``SExpr.cons) a acc)
-    (mkConst ``SExpr.nil)
-  mkApp2 (mkConst ``SExpr.cons)
-    (mkApp (mkConst ``SExpr.atom) (mkApp (mkConst ``Atom.symbol) (reflectSymbol fn)))
-    spine
-
-/-- `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w e t = some v` with the term as an `Expr`. -/
-def mkConvPropEx (w e tE : Expr) : MetaM Expr := do
-  withLocalDeclD `N (mkConst ``Nat) fun nV => do
-    let inner ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
-      let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
-        let ge ← mkAppM ``GE.ge #[fV, nV]
-        let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
-        let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vV
-        mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
-      mkAppM ``Exists #[← mkLambdaFVars #[vV] body]
-    mkAppM ``Exists #[← mkLambdaFVars #[nV] inner]
-
-/-- `∃ N, ∀ f ≥ N, evalOpt f w e t = some v` with term and value as `Expr`s. -/
-def mkValConvPropEx (w e tE vE : Expr) : MetaM Expr := do
-  withLocalDeclD `N (mkConst ``Nat) fun nV => do
-    let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
-      let ge ← mkAppM ``GE.ge #[fV, nV]
-      let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
-      let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
-      mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
-    mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
-
 /-- The totality-hypothesis TYPE for an n-ary defined fn:
     `∀ env' (a₁…aₙ : SExpr), conv a₁ → … → ∃N ∃v ∀f≥N, eval env' (fn a…) = some v`. -/
 def mkTotalityHypType (cfg : ReplayConfig) (fn : Symbol) (arity : Nat) : MetaM Expr := do
@@ -3121,6 +3264,22 @@ def mkTpHypType (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
           cor
         let concl ← mkEq lifted (mkConst ``SExpr.t)
         mkForallFVars (#[envV] ++ argVs ++ #[vV]) (← mkArrow prem concl)
+
+/-- The theorem-dependency hypothesis TYPE for a STORED rewrite rule
+    (`rule:<thm>`, the `equal` instance — the rule's own `:EQUIV`; a
+    non-`equal` rule is a frontier at the USE site, `replayNode`):
+    `∀ env', EvTrue w env' h₁ → … → ∃N ∀f≥N, eval env' lhs = eval env' rhs`.
+    The premises are TRUTHINESS (ACL2 relieves hyps under iff), the conclusion
+    the rule's stored equality — exactly the emitted rule, nothing else
+    (docs/plans/2026-07-05_theorem-dependency-hypotheses.md §v1). -/
+def mkRuleHypType (cfg : ReplayConfig) (spec : RuleSpec) : MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let concl ← mkEvalEqPropEx cfg.worldExpr envV
+      (reflectSExpr spec.lhs) (reflectSExpr spec.rhs)
+    let body ← spec.hyps.foldrM (fun h acc => do
+      mkArrow (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr h]) acc)
+      concl
+    mkForallFVars #[envV] body
 
 /-- PIN the value of every user-fn application occurring in `t` (bottom-up) from
     the bound totality hypotheses, refining to the int-atom shape when the fn's
@@ -4568,7 +4727,8 @@ def buildTotalEnv (cfg : ReplayConfig)
     the condition descriptions (the c2 pattern — obligations explicit in the
     type, discharged later by termination emission / Driver Stage 5). -/
 def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
-    (cp : ClauseProof) (justs : List (String × Justification) := []) :
+    (cp : ClauseProof) (justs : List (String × Justification) := [])
+    (rules : List RuleSpec := []) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
   -- hypothesis declarations: totality for every defined fn, TP where
@@ -4600,21 +4760,35 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (tpFns.map fun (s, formals, cor) =>
       (Name.mkSimple s!"htp_{s.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkTpHypType cfg s formals cor)).toArray
+  -- rule:<thm> hypothesis declarations — only rules created BEFORE this theorem
+  -- can be cited by its proof, and the caller passes the development's rules in
+  -- creation order, so the same list works for every theorem (unused offers are
+  -- dropped by the used-filter below). Binder names are disambiguated by
+  -- position when one defthm and-split into several rules of the same name.
+  let ruleDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+    (rules.zipIdx.map fun (r, i) =>
+      let nm := if (rules.filter (·.name == r.name)).length > 1 then
+        s!"hrule_{r.name}_{i}" else s!"hrule_{r.name}"
+      (Name.mkSimple nm, BinderInfo.default,
+       fun (_ : Array Expr) => mkRuleHypType cfg r)).toArray
   let condsAll :=
     fns.map (fun (s, _, _) => s!"total:{s.name}") ++
-    tpFns.map (fun (s, _, _) => s!"tp:{s.name}")
+    tpFns.map (fun (s, _, _) => s!"tp:{s.name}") ++
+    rules.map (fun r => s!"rule:{r.name}")
   withLocalDecls totalDecls fun totalVs => do
     withLocalDecls tpDecls fun tpVs => do
+     withLocalDecls ruleDecls fun ruleVs => do
       let ctx : ReplayCtx :=
         { totalHyps := (fns.map (fun (s, _, _) => s.name)).zip totalVs.toList,
-          tpHyps := (tpFns.zip tpVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h) }
+          tpHyps := (tpFns.zip tpVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h),
+          ruleHyps := rules.zip ruleVs.toList }
       let some root := cp.root
         | throwError "replayProofConditional: theorem {cp.name} has no proof tree"
       let prf ← instantiateMVars (← replayClause cfg ctx root)
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).
-      let used := (condsAll.zip (totalVs ++ tpVs).toList).filter
+      let used := (condsAll.zip (totalVs ++ tpVs ++ ruleVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
       -- #37 LAZY discharge: prove admission totality only for the USED
       -- total: hypotheses (the dev-order dependency prefix, once, up to the
@@ -4646,6 +4820,26 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
 `Development` (the world the replay reasons over is derived from the log, not
 hand-written); `findThm` extracts a theorem's reconstructed proof from a
 development by name. -/
+
+/-- Theorems of a development, each paired with the STORED rules created
+    BEFORE it — the rules its proof could cite (creation order; ACL2's
+    certification order makes citing a later rule impossible, so the offer
+    is exactly the citable set). -/
+partial def developmentTheoremsWithRules (dev : Development)
+    (acc : List RuleSpec := []) : List (ClauseProof × List RuleSpec) :=
+  match dev with
+  | .bind (.theorem cp) rest => (cp, acc) :: developmentTheoremsWithRules rest acc
+  | .bind (.rules specs) rest => developmentTheoremsWithRules rest (acc ++ specs)
+  | .bind _ rest => developmentTheoremsWithRules rest acc
+  | .done => []
+
+/-- The stored rules created BEFORE the first theorem named `nm`
+    (case-insensitive) — the `rules` argument for replaying it by name. -/
+def rulesBefore (dev : Development) (nm : String) : List RuleSpec :=
+  match (developmentTheoremsWithRules dev).find?
+    (fun (cp, _) => cp.name.toLower == nm.toLower) with
+  | some (_, rules) => rules
+  | none => []
 
 /-- All theorems matching a name (case-insensitive), in development order. -/
 partial def findThms : Development → String → List ClauseProof

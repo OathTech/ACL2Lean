@@ -32,12 +32,6 @@ open ACL2 ACL2.Replay.Driver Lean Lean.Elab Lean.Elab.Command Lean.Meta
 
 namespace ACL2.Tests.Coverage
 
-/-- Every theorem (in file order) of a reconstructed development. -/
-partial def developmentTheorems : Development → List ClauseProof
-  | .bind (.theorem cp) rest => cp :: developmentTheorems rest
-  | .bind _ rest => developmentTheorems rest
-  | .done => []
-
 /-- The emitted type-prescription corollaries of a development (fn name ↦
     corollary term) — the type facts the DP lift may consume as hypotheses. -/
 partial def developmentTPs : Development → List (String × SExpr)
@@ -128,7 +122,8 @@ def corpus : List (String × String) :=
     are DERIVED by the driver (P3). A message that is neither a `replayClause`/`replayNode`/
     `replayLiteral` frontier flags a real bug in the new code, not an expected frontier. -/
 def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
-    (justs : List (String × ACL2.Justification)) (cp : ClauseProof) :
+    (justs : List (String × ACL2.Justification)) (cp : ClauseProof)
+    (rules : List ACL2.RuleSpec := []) :
     TermElabM String := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -138,7 +133,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }
-        let (prf, conds) ← replayProofConditional cfg tps cp justs
+        let (prf, conds) ← replayProofConditional cfg tps cp justs rules
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       let condStr := if p.2.isEmpty then "" else s!" cond[{", ".intercalate p.2}]"
@@ -236,11 +231,11 @@ elab "#driver_coverage" : command => do
               let cfg : ReplayConfig :=
                 { worldExpr := wExpr, envExpr := envFV, worldVal := w }
               buildTotalEnv cfg dev.justifications
-          let thms := developmentTheorems dev
+          let thms := developmentTheoremsWithRules dev
           lines := lines.push s!"• {name}  (world: {w.defs.size} defun(s), {thms.length} theorem(s))"
           if thms.isEmpty then
             integrityFails := integrityFails.push s!"{name}: 0 theorems reconstructed (failed/empty capture?)"
-          for cp in thms do
+          for (cp, rules) in thms do
             total := total + 1
             -- EMISSION FRONTIER (Track B): a black-box PROVED leaf — ACL2 discharged
             -- the clause by preprocess/eval/type-set but emitted no replayable
@@ -252,7 +247,7 @@ elab "#driver_coverage" : command => do
             -- ratified carve-out; attempt the DP-lift replay (c1) per leaf.
             let dis := theoremDischargeLeaves cp
             let tps := developmentTPs dev
-            let status ← tryReplay w wExpr tps dev.justifications cp
+            let status ← tryReplay w wExpr tps dev.justifications cp rules
             if status.startsWith "REPLAYED ✓" then replayed := replayed + 1
             let tag := if bb.isEmpty then "" else s!"  [EMISSION-FRONTIER: black-box leaf {", ".intercalate bb}]"
             let mut disParts : List String := []

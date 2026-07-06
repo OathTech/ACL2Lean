@@ -50,6 +50,13 @@ theorem fuel_chain_eq {α : Type} {a b c : Nat → α}
   obtain ⟨n2, h2⟩ := h2
   exact ⟨max n1 n2, fun f hf => (h1 f (by omega)).trans (h2 f (by omega))⟩
 
+/-- Symmetry of a fuel-existential equality (for orienting `fuel_chain_eq`
+    links, e.g. the rule-application recipe's rhs bridge). -/
+theorem fuel_eq_symm {α : Type} {a b : Nat → α}
+    (h : ∃ N, ∀ f ≥ N, a f = b f) : ∃ N, ∀ f ≥ N, b f = a f := by
+  obtain ⟨n, h⟩ := h
+  exact ⟨n, fun f hf => (h f hf).symm⟩
+
 /-- T13: CONSP of a cons cell is T. -/
 theorem consp_cons (a b : SExpr) : Logic.consp (.cons a b) = SExpr.t := by
   simp [Logic.consp]

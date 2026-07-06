@@ -68,6 +68,12 @@ structure StepProvenance where
       literal-root-first — see `PathFrame`. The replay lifts this node by composing
       congruences along the path rather than locating the redex by subterm match. -/
   path : List PathFrame := []
+  /-- The `:KIND` of the inner-rewrite block this node arrived in ("HYP" =
+      hypothesis-relief chain of the adopting rewrite step, "RHS" = its
+      instantiated-rhs continuation, "BODY"/"EXPANSION" = a definition body;
+      "" = not from an inner block). Set on the block's TOP-LEVEL nodes only —
+      the rule-application recipe partitions children by it. -/
+  innerKind : String := ""
   deriving Repr, Inhabited
 
 inductive ProofNode where
@@ -167,7 +173,19 @@ partial def parseProofNodesAux (events : List TraceEvent)
   -- is already empty at a return, so the flush is a no-op.)
   match events with
   | [] => return (nodes.reverse ++ pendingChildren, [])
-  | .beginInnerRewrite _ :: rest | .beginIfRewrite _ _ :: rest =>
+  | .beginInnerRewrite kind :: rest =>
+      -- tag the block's top-level nodes with its :KIND so the adopting step can
+      -- partition its children (HYP-relief chains vs RHS continuation vs body).
+      let (innerNodes, rest') ← parseProofNodesAux rest [] []
+      let tagged := innerNodes.map fun
+        | n@(.node rune lhs rhs children prov) =>
+          -- an already-tagged node is a DEEPER block's unadopted flush-out
+          -- (see the pendingChildren note above) — keep its own kind.
+          if prov.innerKind.isEmpty then
+            .node rune lhs rhs children { prov with innerKind := kind }
+          else n
+      parseProofNodesAux rest' (pendingChildren ++ tagged) nodes
+  | .beginIfRewrite _ _ :: rest =>
       let (innerNodes, rest') ← parseProofNodesAux rest [] []
       parseProofNodesAux rest' (pendingChildren ++ innerNodes) nodes
   | .endInnerRewrite _ :: rest | .endIfRewrite _ _ :: rest =>
