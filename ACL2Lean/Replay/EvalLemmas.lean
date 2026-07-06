@@ -2783,6 +2783,14 @@ theorem not_nil_of_truthy {v : SExpr} (h : v ≠ SExpr.nil) :
     Logic.not v = SExpr.nil := by
   cases v <;> simp_all [Logic.not, Logic.toBool]
 
+/-- The converse two-valued decode: a truthy `Logic.not` pins its argument to
+    `nil` (the multi-literal induction walk's negative-literal peel). -/
+theorem nil_of_logic_not_ne_nil {v : SExpr} (h : Logic.not v ≠ SExpr.nil) :
+    v = SExpr.nil := by
+  by_cases hv : v = SExpr.nil
+  · exact hv
+  · exact absurd (not_nil_of_truthy hv) h
+
 /-- `Logic.implies` IS the value of its ground-zero unfold body
     `(if p (if q 't 'nil) 't)` under the `cond` value lift — the recipe fact
     for the `:DEFINITION implies` rune (`implies` is an `evalOpt` builtin, not
