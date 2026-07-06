@@ -2018,24 +2018,84 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
                  lhs == SExpr.cons (.atom (.symbol ifS'))
                    (.cons (.cons (.atom (.symbol q)) (.cons cv .nil))
                      (.cons thn (.cons els .nil))) then
-                -- derive `value of T = nil` from the in-scope facts
-                let hNil? ← do
-                  match ctx.litFactByTerm? T with
-                  | some h => pure (some h)
+                -- derive `value of T = nil` from the in-scope facts: spine
+                -- falsity (litFacts/segFacts), an enclosing if-test assumed
+                -- FALSE (branchFacts), either through `equal`'s commutativity
+                -- (if-interp-assumed-value2's rule), or through a
+                -- :CONTEXT-SUBST segment equality pinning one `equal` side
+                -- (a false `(not (equal p q))` gives vp = vq; the substituted
+                -- test's falsity is then a direct fact)
+                let nilFactFor : SExpr → Option Expr := fun u =>
+                  (ctx.litFactByTerm? u).orElse fun _ =>
+                    (ctx.branchFacts.find? (fun (t, _, sign, _) =>
+                      t == u && !sign)).map (·.2.2.2)
+                let eqOf : SExpr → SExpr → SExpr := fun x y =>
+                  .cons (.atom (.symbol { name := "equal" }))
+                    (.cons x (.cons y .nil))
+                let directOrFlipped : SExpr → MetaM (Option Expr) := fun u => do
+                  match nilFactFor u with
+                  | some h => return some h
                   | none =>
-                    match T with
+                    match u with
                     | .cons (.atom (.symbol eqS)) (.cons x (.cons y .nil)) =>
                       if eqS.name == "equal" then
-                        let flipped : SExpr := .cons (.atom (.symbol eqS))
-                          (.cons y (.cons x .nil))
-                        match ctx.litFactByTerm? flipped with
+                        match nilFactFor (eqOf y x) with
                         | some h => do
                           let vx ← ctxValExpr cfg ctx x
                           let vy ← ctxValExpr cfg ctx y
                           let comm ← mkAppM ``logic_equal_comm #[vx, vy]
-                          pure (some (← mkAppM ``Eq.trans #[comm, h]))
-                        | none => pure none
-                      else pure none
+                          return some (← mkAppM ``Eq.trans #[comm, h])
+                        | none => return none
+                      else return none
+                    | _ => return none
+                let hNil? ← do
+                  match ← directOrFlipped T with
+                  | some h => pure (some h)
+                  | none =>
+                    match T with
+                    | .cons (.atom (.symbol eqS)) (.cons u (.cons v .nil)) =>
+                      if !(eqS.name == "equal") then pure none else do
+                      let mut found : Option Expr := none
+                      for (st, hSeg) in ctx.segFacts do
+                        if found.isSome then break
+                        let .cons (.atom (.symbol ns))
+                            (.cons pq@(.cons (.atom (.symbol eqS'))
+                              (.cons p (.cons q .nil))) .nil) := st
+                          | continue
+                        unless ns.name == "not" && eqS'.name == "equal" do
+                          continue
+                        -- heq : vp = vq from the false segment literal
+                        let vPQ ← ctxValExpr cfg ctx pq
+                        let hne ← mkAppM ``logic_not_nil_ne #[vPQ, hSeg]
+                        let heq ← mkAppM ``Logic.eq_of_equal_ne_nil #[hne]
+                        let vu ← ctxValExpr cfg ctx u
+                        let vv ← ctxValExpr cfg ctx v
+                        -- the four side-substitution variants; each transports
+                        -- vT to the substituted test's value, then a direct
+                        -- fact finishes
+                        let tryVariant (t' : SExpr) (vEq : Expr) :
+                            MetaM (Option Expr) := do
+                          match ← directOrFlipped t' with
+                          | some h' => return some (← mkAppM ``Eq.trans #[vEq, h'])
+                          | none => return none
+                        let fR ← withLocalDeclD `z (mkConst ``SExpr) fun zV => do
+                          mkLambdaFVars #[zV] (← mkAppM ``Logic.equal #[vu, zV])
+                        let fL ← withLocalDeclD `z (mkConst ``SExpr) fun zV => do
+                          mkLambdaFVars #[zV] (← mkAppM ``Logic.equal #[zV, vv])
+                        if v == p then
+                          -- T = (equal u p): vT = f vp = f vq = v(equal u q)
+                          let vEq ← mkAppM ``congrArg #[fR, heq]
+                          found ← tryVariant (eqOf u q) vEq
+                        if found.isNone && v == q then
+                          let vEq ← mkAppM ``Eq.symm #[← mkAppM ``congrArg #[fR, heq]]
+                          found ← tryVariant (eqOf u p) vEq
+                        if found.isNone && u == p then
+                          let vEq ← mkAppM ``congrArg #[fL, heq]
+                          found ← tryVariant (eqOf q v) vEq
+                        if found.isNone && u == q then
+                          let vEq ← mkAppM ``congrArg #[fL, heq]
+                          found ← tryVariant (eqOf p v) (← mkAppM ``Eq.symm #[vEq])
+                      pure found
                     | _ => pure none
                 let some hNil := hNil?
                   | throwError "replayRewrites: unemitted test resolution — no \

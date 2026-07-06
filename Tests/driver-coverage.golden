@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 21/47 (13 unconditional + 8 conditional); DP-discharge leaves ✓9 ◌9 ✗0 of 18:
+Driver coverage — REPLAYED 22/47 (13 unconditional + 9 conditional); DP-discharge leaves ✓9 ◌9 ✗0 of 18:
 • simple  (world: 3 defun(s), 1 theorem(s))
     my-len-my-app → REPLAYED ✓ cond[tp:my-len]
 • 00-direct  (world: 2 defun(s), 3 theorem(s))
@@ -60,7 +60,7 @@ Driver coverage — REPLAYED 21/47 (13 unconditional + 8 conditional); DP-discha
 • sorting/perm  (world: 4 defun(s), 8 theorem(s))
     perm-cons → REPLAYED ✓ cond[total:perm, tp:memb]
     perm-symmetric → REPLAYED ✓ cond[total:perm, tp:memb, tp:perm, rule:perm-cons]
-    memb-rm → FAIL: replayRewrites: unemitted test resolution — no in-scope nil fact for the if-test (equal a b) (frontier)
+    memb-rm → REPLAYED ✓ cond[tp:memb]
     perm-memb → REPLAYED ✓ cond[total:perm, rule:memb-rm]
     comm-rm → FAIL: replayClause: preprocess chain on a multi-literal clause at Subgoal *1/1.2 (frontier)
     perm-rm → FAIL: replayClauseSpine: no child clause matches the residual [(consp x2),  (equal a x1),  (not (memb x1 y)),  (consp rm),  (memb x1 (rm a y))] at Subgoal *1.1/4''
