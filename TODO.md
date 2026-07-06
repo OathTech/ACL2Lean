@@ -235,8 +235,22 @@ closed, ci as scoreboard, audits at milestones):
       base facts (total:perm + tp:memb + tp:perm — the named prover
       industrialization frontiers). perm-transitive's pin updated to the
       COMPOSED type and axiom-gated.
-      Remaining R1 wall: perm-is-an-equivalence's SIff wall d (the last
-      perm theorem; defequiv-generated).
+      **R1 COMPLETE (2026-07-06, 1836aca): ALL EIGHT perm-book theorems
+      REPLAY — 26/47 (14 + 12).** The finish: wall d was an elaboration
+      artifact (evrel_if_test_siff_collapse's thn/els implicits, supplied
+      explicitly); booleanp added to the trusted core (Kestrel-polish
+      primitive pattern; also flipped evenlen-booleanp's DP leaf to
+      proved); and the MULTI-CLAUSE clausify bridge landed
+      (clausifyAllFalse_sound — the conjunction lemma by the same
+      11-case induct as clausifyPure_sound; bridgeClausifyMulti with
+      every joint recompute-and-checked; post-clausify discharge nodes
+      close dropped singleton clauses via the DP carve-out).
+      perm-is-an-equivalence replays as cond[total:perm, tp:memb,
+      tp:perm] — the WHOLE BOOK's obligation log is exactly the three
+      base facts (the two named prover-industrialization frontiers).
+      NOT yet audited (this branch: comm-rm, step-5 discharge, wall d,
+      booleanp, multi-clause bridge). Next per ratified sequencing:
+      audit-and-merge, then the LIFTER INDUSTRIALIZATION sprint.
       NOTE the post-audit commits (6866121, 8096e13, eef8d77) are
       kernel-gated but not separately adversarially audited.
       RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
