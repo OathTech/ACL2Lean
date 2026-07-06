@@ -1831,6 +1831,68 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
         match restProof with
         | none => return (some lifted, finalTerm)
         | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
+    -- DEAD-BRANCH display folds (option A, docs/notes/2026-06-14_exec-
+    -- counterpart-and-folding-wall.md, data-ratified 2026-07-06: every
+    -- observed fold sits in the DISCARDED branch): a constant-test
+    -- if-simplification's recorded lhs went through sublis-var, whose
+    -- cons-term folds (car 'c)/(cdr 'c) inside the branches — logging-only,
+    -- per ACL2's own comment. The RUNNING term is the ground truth: require
+    -- the SAME test and the SAME taken branch (strict), allow the dead
+    -- branch to differ, and replay the collapse on the RUNNING term —
+    -- `(if 'c a b) = taken` is independent of the discarded branch.
+    if (runeOf n).1 == "if-simplification" && lhs != rhs then
+      if let .node _ _ _ [] _ := n then
+        if let .cons (.atom (.symbol ifS))
+            (.cons c@(.cons (.atom (.symbol q)) (.cons cv .nil))
+              (.cons thn (.cons els .nil))) := lhs then
+          if ifS.name == "if" && q.name == "quote" then
+            let rel ← relativizeAndStrip (nodePath n) depth strip
+            let (_, S) ← ofExcept (navigateFrames start rel)
+            -- take the relaxation ONLY on the exact dead-branch-fold shape:
+            -- same test, same taken branch, difference confined to the dead
+            -- branch. Anything else falls THROUGH to the normal machinery
+            -- (if-finish/combined etc.), which handles or fails precisely.
+            let compatible :=
+              match S with
+              | .cons (.atom (.symbol ifS')) (.cons c' (.cons thn' (.cons els' .nil))) =>
+                let taken := if cv == SExpr.nil then els else thn
+                let taken' := if cv == SExpr.nil then els' else thn'
+                ifS'.name == "if" && c' == c && taken' == taken && rhs == taken
+              | _ => false
+            if S != lhs && compatible then
+              let .cons _ (.cons _ (.cons thn' (.cons els' .nil))) := S
+                | throwError "replayRewrites: internal — compatible running \
+                              subterm lost its if shape"
+              let hc ← mkAppM ``re_val_quote
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+              let nodeEq ←
+                if cv == SExpr.nil then
+                  let hb ← ctxValProof cfg ctx els'
+                  let vb ← ctxValExpr cfg ctx els'
+                  let hcNil ← mkAppM ``re_val_cast
+                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr cv,
+                      mkConst ``SExpr.nil, hc, ← proveByDecide
+                        (← mkEq (reflectSExpr cv) (mkConst ``SExpr.nil)) "cv is nil"]
+                  mkAppM ``re_if_false
+                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn',
+                      reflectSExpr els', vb, hcNil, hb]
+                else
+                  let hcv ← proveByDecide
+                    (← mkEq (mkApp (mkConst ``Logic.toBool) (reflectSExpr cv))
+                            (mkConst ``Bool.true)) "toBool of the constant test"
+                  let ha ← ctxValProof cfg ctx thn'
+                  let va ← ctxValExpr cfg ctx thn'
+                  mkAppM ``re_if_true
+                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn',
+                      reflectSExpr els', reflectSExpr cv, va, hc, hcv, ha]
+              let (lifted, newTerm) ←
+                emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S rhs
+                  nodeEq depth strip
+              let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth strip
+              match restProof with
+              | none => return (some lifted, finalTerm)
+              | some rp =>
+                return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
     -- clause-context-resolution marker: ACL2's rewrite-atm emits this as a
     -- terminal REPORT ("we have proved the original literal … hence the
     -- clause", simplify.lisp) — lhs is the ORIGINAL atom, rhs the NET constant
