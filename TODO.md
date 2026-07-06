@@ -160,10 +160,29 @@ closed, ci as scoreboard, audits at milestones):
       INDUSTRIALIZATION DEMOS for the two named prover extensions:
       (i) totality over user-fn if-tests (conv_if_split shape),
       (ii) a TP prover (boolean body induction + arg strictness).
-      Remaining R1 walls: perm-transitive at the display-folded
-      definition-node lhs (formal-coordinate (perm y x) — comm-rm
-      wall-2 family, now with a second exemplar); multi-literal pushed
-      clauses (4 theorems); perm-is-an-equivalence's SIff wall d.
+      MILESTONE (2026-07-05, branch mdd/perm-display-folding):
+      **perm-transitive REPLAYS — 19/45** (9ed5dc1) via the RATIFIED
+      theorem-dependency design
+      (docs/plans/2026-07-05_theorem-dependency-hypotheses.md):
+      cond[total:perm, tp:perm, rule:perm-symmetric, rule:perm-memb,
+      rule:perm-rm] — rule:<thm> hypotheses (the third telescope
+      species) state the STORED rules emitted at create-rewrite-rule
+      ((:RULES …) events, fork a58670946d..); the with-lemma recipe
+      instantiates strictly by the emitted :SUBST with
+      recompute-and-check joints; hyp relief from the recorded
+      :KIND HYP chain (HYP path boundary frames), the emitted
+      relieve-hyp/* silent-relief markers + spine hoist of
+      later-literal case splits, or the clause context. Also landed:
+      emit/fncall/expand-permission (induction-machine unfolds were an
+      orphaned-EXPANSION-block emission gap), the trivial-path pushed-
+      sibling residual, if1/boolean two-valuedness from emitted TPs,
+      if-same-branches (re_if_same), and the capture-script pipefail
+      fix. NOT yet adversarially audited; rule-hyp lazy discharge from
+      replayed dependency mirrors is the tracked follow-up (v1 step 5).
+      Remaining R1 walls: multi-literal pushed clauses (4 theorems:
+      perm-symmetric/memb-rm/perm-memb/perm-rm);
+      perm-is-an-equivalence's SIff wall d; comm-rm's display-folded
+      definition-node lhs (formal-coordinate sublis-var folding).
       NOTE the post-audit commits (6866121, 8096e13, eef8d77) are
       kernel-gated but not separately adversarially audited.
       RATIFIED SEQUENCING (MDD): after perm replays, a LIFTER
