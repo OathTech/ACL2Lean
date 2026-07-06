@@ -236,6 +236,11 @@ open ACL2
   | .atom (.string _) => .t
   | _ => .nil
 
+/-- ACL2 `booleanp` — `t` iff the value is exactly `t` or `nil`
+    (`(or (equal x t) (equal x nil))`). -/
+@[inline, simp] def booleanp (s : SExpr) : SExpr :=
+  if s == SExpr.t || s == SExpr.nil then .t else .nil
+
 /-- ACL2 `symbolp` (`nil` is a symbol). -/
 @[inline, simp] def symbolp (s : SExpr) : SExpr :=
   match s with

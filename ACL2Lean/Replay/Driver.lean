@@ -542,6 +542,7 @@ def dpUnary : List (String × Name × Name) :=
    ("car",      ``Logic.car,      ``callBuiltin_car),
    ("cdr",      ``Logic.cdr,      ``callBuiltin_cdr),
    ("symbolp",  ``Logic.symbolp,  ``callBuiltin_symbolp),
+   ("booleanp", ``Logic.booleanp, ``callBuiltin_booleanp),
    ("nfix",     ``Logic.nfix,     ``callBuiltin_nfix),
    ("len",      ``Logic.len,      ``callBuiltin_len)]
 
@@ -3348,9 +3349,16 @@ def applyStepSIff (cfg : ReplayConfig) (ctx : ReplayCtx) (st : PathStep)
       deferred); underlying elaboration error: {e.toMessageData}"
   match st.argIdx, st.siblings with
   | 0, [thn, els] =>
-    -- TEST position: SIff collapses to eval-equality
-    let _ := thn; let _ := els
-    let p ← (try mkAppM ``evrel_if_test_siff_collapse #[inner] catch e => wallD e)
+    -- TEST position: SIff collapses to eval-equality. `thn`/`els` occur only
+    -- in the collapse lemma's RESULT type, so they cannot be inferred from
+    -- `inner` — supply them explicitly from the path step's siblings (the
+    -- former mkAppM metavariable failure here was misattributed to the
+    -- wall-d nesting; the lemma is fully general in the tests).
+    let p ← (try
+      mkAppOptM ``evrel_if_test_siff_collapse
+        #[none, none, none, none, some (reflectSExpr thn),
+          some (reflectSExpr els), some inner]
+      catch e => wallD e)
     return (p, false)
   | 1, [c, els] =>
     -- THEN position

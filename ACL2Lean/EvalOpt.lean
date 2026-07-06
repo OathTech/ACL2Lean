@@ -66,6 +66,7 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
       some (match a with | .atom (.number _) => .t | _ => .nil)
   | "zp", [a] => some (Logic.zp a)
   | "symbolp", [a] => some (Logic.symbolp a)
+  | "booleanp", [a] => some (Logic.booleanp a)
   | "stringp", [a] => some (Logic.stringp a)
   | "fix", [a] =>
       some (match a with | .atom (.number _) => a | _ => .atom (.number (.int 0)))

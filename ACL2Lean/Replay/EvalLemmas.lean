@@ -1432,6 +1432,8 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
     callBuiltin "natp" [a] = some (Logic.natp a) := by rfl
 @[simp] theorem callBuiltin_posp (a : SExpr) :
     callBuiltin "posp" [a] = some (Logic.posp a) := by rfl
+@[simp] theorem callBuiltin_booleanp (a : SExpr) :
+    callBuiltin "booleanp" [a] = some (Logic.booleanp a) := by rfl
 @[simp] theorem callBuiltin_symbolp (a : SExpr) :
     callBuiltin "symbolp" [a] = some (Logic.symbolp a) := by rfl
 @[simp] theorem callBuiltin_nfix (a : SExpr) :
