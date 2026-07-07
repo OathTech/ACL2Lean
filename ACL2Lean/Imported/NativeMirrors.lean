@@ -658,4 +658,31 @@ theorem mem_transport_perm_driver {av : SExpr} {xs ys : List SExpr}
 #print axioms comm_rm_native_driver
 #print axioms perm_erase_perm_driver
 
+-- BUILD-FAILING axiom gate (audit #4): `#print axioms` only prints — this
+-- run_cmd THROWS if any native entry ever acquires an axiom beyond the
+-- classical trio (sorryAx, native_decide's ofReduceBool, …), so a future
+-- edit cannot smuggle a hole into the native layer without failing CI.
+open Lean in
+run_cmd Lean.Elab.Command.liftCoreM do
+  let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+  for n in [``ACL2.Imported.Mirrors.perm_cons_native_driver,
+            ``ACL2.Imported.Mirrors.perm_cons_native_perm_driver,
+            ``ACL2.Imported.Mirrors.perm_symmetric_native_driver,
+            ``ACL2.Imported.Mirrors.memb_rm_native_driver,
+            ``ACL2.Imported.Mirrors.comm_rm_native_driver,
+            ``ACL2.Imported.Mirrors.perm_memb_native_driver,
+            ``ACL2.Imported.Mirrors.perm_rm_native_driver,
+            ``ACL2.Imported.Mirrors.perm_transitive_native_driver,
+            ``ACL2.Imported.Mirrors.perm_refl_native_driver,
+            ``ACL2.Imported.Mirrors.isPerm_equivalence_driver,
+            ``ACL2.Imported.Mirrors.perm_symm_perm_driver,
+            ``ACL2.Imported.Mirrors.perm_trans_perm_driver,
+            ``ACL2.Imported.Mirrors.perm_erase_perm_driver,
+            ``ACL2.Imported.Mirrors.mem_transport_perm_driver,
+            ``ACL2.Imported.Mirrors.my_len_my_app_native_driver] do
+    let axs ← collectAxioms n
+    let bad := axs.filter (fun a => !allowed.contains a)
+    unless bad.isEmpty do
+      throwError "native-entry axiom gate: {n} uses forbidden axioms {bad}"
+
 end ACL2.Imported.Mirrors

@@ -309,11 +309,6 @@ theorem bool_of_cond_eq {b1 b2 : Bool}
        = (bif b2 then SExpr.t else SExpr.nil)) : b1 = b2 := by
   cases b1 <;> cases b2 <;> simp_all [SExpr.t]
 
-/-- A non-nil bool-cond's Bool is `true`. -/
-theorem bool_true_of_cond_ne_nil {b : Bool}
-    (h : (bif b then SExpr.t else SExpr.nil) ≠ SExpr.nil) : b = true := by
-  cases b <;> simp_all
-
 /-- A truthy bool-cond's Bool is `true`. -/
 theorem bool_true_of_cond_truthy {b : Bool}
     (h : Logic.toBool (bif b then SExpr.t else SExpr.nil) = true) : b = true := by

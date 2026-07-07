@@ -5713,7 +5713,11 @@ def buildTotalEnv (cfg : ReplayConfig)
     (upTo : Option String := none) :
     MetaM (List (String × Nat × Expr)) := do
   -- candidate set: the dev-order prefix up to `upTo` (the lazy-discharge
-  -- optimization) plus the ground-zero defs (in scope for every fn)
+  -- optimization) plus the ground-zero defs (in scope for every fn).
+  -- ASSUMES define-before-use (ACL2 admission order), so the prefix is
+  -- dependency-closed; if that were ever violated the only effect is a
+  -- frontier failure keeping the hypothesis (D6) — completeness, never
+  -- soundness (audit #4)
   let gz := groundZeroDefs.map (fun (s, _, _) => s)
   let all := cfg.worldVal.defs.entries
   let cands ← match upTo with

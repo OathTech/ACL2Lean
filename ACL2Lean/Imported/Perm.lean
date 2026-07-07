@@ -1030,10 +1030,8 @@ theorem perm_cons_native_of_mirror (w : World)
       (bif xs.isPerm (av :: ys) then SExpr.t else SExpr.nil)
       (bif (xs.erase av).isPerm ys then SExpr.t else SExpr.nil)) = true :=
     truthy_of_implies_t hIt rfl
-  have hEqv := eq_of_equal_truthy hQt
   -- Bool-cond injectivity: t ≠ nil discriminates
-  cases h1 : xs.isPerm (av :: ys) <;> cases h2 : (xs.erase av).isPerm ys <;>
-    simp [h1, h2, SExpr.t] at hEqv <;> rfl
+  exact bool_of_cond_eq (eq_of_equal_truthy hQt)
 
 /-! ## The remaining perm-book native entries (lifter sprint 2026-07-06)
 

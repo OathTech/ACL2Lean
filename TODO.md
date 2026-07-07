@@ -47,7 +47,11 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    the body, forward-only, by the #37 precedent (MDD-confirmed: consuming
    the emitted fact and constructing the proof object ACL2 never had is NOT
    the banned inference); (c) proof-term scale — `letBindFVar` sharing,
-   perm-is-an-equivalence 3.87e9 → 1.09e8 nodes (14–36×); (d) the LIFTING
+   perm-is-an-equivalence 3.87e9 → 1.09e8 nodes (14–36×; both are
+   sizeWithoutSharing of the REPLAY OUTPUT the harness kernel-checks — the
+   STORED NativeMirrors constants are ~10× smaller again via Lean's
+   abstractNestedProofs; audit #4 measured stored permEquivMirror ≈1.0e7);
+   (d) the LIFTING
    DECODE KIT (Lifting.lean: `mirror_pins_ne_nil`, `bool_of_cond_eq`,
    `conv_and_conds`, `mirror_peel_guard`, `booleanp_cond`) — anti-overfit
    gauge held: entries 10–16 ≈40 lines each vs entry 9's ≈130. Open TP
