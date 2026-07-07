@@ -564,7 +564,9 @@ def dpUnary : List (String × Name × Name) :=
    ("symbolp",  ``Logic.symbolp,  ``callBuiltin_symbolp),
    ("booleanp", ``Logic.booleanp, ``callBuiltin_booleanp),
    ("nfix",     ``Logic.nfix,     ``callBuiltin_nfix),
-   ("len",      ``Logic.len,      ``callBuiltin_len)]
+   ("len",      ``Logic.len,      ``callBuiltin_len),
+   ("endp",     ``Logic.endp,     ``callBuiltin_endp),
+   ("atom",     ``Logic.atom,     ``callBuiltin_atom)]
 
 /-- DP-lift primitives (binary). -/
 def dpBinary : List (String × Name × Name) :=
@@ -5178,17 +5180,24 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
     throwError "replayInduction: controllers {repr ind.controllers} ≠ [{cvar.name}] (frontier)"
   let cvarT : SExpr := .atom (.symbol cvar)
   let consT : SExpr := .cons (.atom (.symbol { name := "consp" })) (.cons cvarT .nil)
+  -- `(not (endp v))` is the OTHER ACL2 spelling of the consp ruling test
+  -- (endp = guard-relaxed atom; R2: isort's fns test endp)
+  let notEndpT : SExpr :=
+    .cons (.atom (.symbol { name := "not" }))
+      (.cons (.cons (.atom (.symbol { name := "endp" })) (.cons cvarT .nil)) .nil)
   let cdrT : SExpr := .cons (.atom (.symbol { name := "cdr" })) (.cons cvarT .nil)
   -- 2. per-case validation: every IH alist must be over DISTINCT variables and
   -- map the controller to (cdr controller), justified by an in-scope (consp
-  -- controller) ruling test; non-controller substitutions are unrestricted.
+  -- controller) — or (not (endp controller)) — ruling test; non-controller
+  -- substitutions are unrestricted.
   for c in ind.cases do
     if c.tests.isEmpty then
       throwError "replayInduction: a case has no ruling tests (frontier)"
     unless c.alists.isEmpty do
-      unless c.tests.contains consT do
+      unless c.tests.contains consT || c.tests.contains notEndpT do
         throwError "replayInduction: step case tests {repr c.tests} lack \
-                    (consp {cvar.name}) — non-cdr measure decrease (frontier)"
+                    (consp {cvar.name}) / (not (endp {cvar.name})) — non-cdr \
+                    measure decrease (frontier)"
       for alist in c.alists do
         let vars := alist.map (·.1)
         unless vars.eraseDups.length == vars.length do
@@ -5312,16 +5321,36 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
               let aE ← ctxValExpr cfg' ctxD atm
               let aP ← ctxValProof cfg' ctxD atm
               otherVals := otherVals ++ [(aE, aP)]
-            -- measure decrease from the in-scope (consp cvar) ruling fact
-            let some cf := facts.find? (fun f => f.test == consT && f.sign)
-              | throwError "replayInduction: no in-scope truthy (consp \
-                            {cvar.name}) fact for the IH decrease"
-            let neTy ← mkAppM ``Ne #[conspOf xvV, nilC]
-            unless ← isDefEq (← inferType cf.signE) neTy do
-              throwError "replayInduction: the (consp {cvar.name}) fact's \
-                          value is not Logic.consp of the controller pin"
-            let hNeCast ← mkExpectedTypeHint cf.signE neTy
-            let hToBool ← mkAppM ``toBool_true_of_ne_nil #[hNeCast]
+            -- measure decrease from the in-scope truthy (consp cvar) — or
+            -- (not (endp cvar)) — ruling fact
+            let hToBool ←
+              match facts.find? (fun f => f.test == consT && f.sign) with
+              | some cf => do
+                let neTy ← mkAppM ``Ne #[conspOf xvV, nilC]
+                unless ← isDefEq (← inferType cf.signE) neTy do
+                  throwError "replayInduction: the (consp {cvar.name}) fact's \
+                              value is not Logic.consp of the controller pin"
+                let hNeCast ← mkExpectedTypeHint cf.signE neTy
+                mkAppM ``toBool_true_of_ne_nil #[hNeCast]
+              | none =>
+                -- the case tree strips the leading `not`: the step case's
+                -- fact is the POSITIVE (endp cvar) with sign FALSE
+                -- (signE : Logic.endp _ = nil)
+                let endpT : SExpr :=
+                  .cons (.atom (.symbol { name := "endp" })) (.cons cvarT .nil)
+                match facts.find? (fun f => f.test == endpT && !f.sign) with
+                | some cf => do
+                  let eqTy ← mkEq (mkApp (mkConst ``Logic.endp) xvV) nilC
+                  unless ← isDefEq (← inferType cf.signE) eqTy do
+                    throwError "replayInduction: the falsy (endp {cvar.name}) \
+                                fact's value is not Logic.endp of the \
+                                controller pin"
+                  let hCast ← mkExpectedTypeHint cf.signE eqTy
+                  mkAppM ``consp_toBool_of_endp_nil #[hCast]
+                | none =>
+                  throwError "replayInduction: no in-scope truthy (consp \
+                              {cvar.name}) / falsy (endp {cvar.name}) fact \
+                              for the IH decrease"
             let hLt ← mkAppM ``acl2Count_cdr_lt_of_consp #[hToBool]
             let pIHu := mkAppN sihV #[uVal, hLt]
             -- e' = envUpdate e formals (uVal :: otherVals)

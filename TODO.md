@@ -61,7 +61,29 @@ Ordered by project-wide leverage — general machinery over special-case walls:
 2. **Proof-term scale — DONE within the lifter sprint** (letBindFVar
    sharing, 14–36×; residual: subsumer subtree still replayed twice in
    pool subsumption — revisit if R2 sizes bite).
-3. **R2 (isort) — with the TWO-STAGE LIFT as its first work item.** The
+3. **R2 (isort) — IN PROGRESS (2026-07-07, branch mdd/lifter-sprint tip;
+   include-book composition LANDED).** The isort book parses, reconstructs,
+   and sits in the coverage corpus (26/50): included defuns re-emit with
+   `:INCLUDED T` (fork defuns.lisp — justification, no clauses; total: stays
+   D6-kept until the termination-machine recomputation emission), included
+   theorems reconstruct as `.includedTheorem` events (statement + rules, no
+   proof tree; `rule:<thm>` citations replay, their step-5 DISCHARGE stays
+   hypothesis-backed until cross-book proof import). Walls felled: endp-
+   spelled induction decrease (`consp_toBool_of_endp_nil`; the case tree
+   records the STRIPPED positive test with sign=false), endp/atom DP-lift
+   registration. **CURRENT WALL (all 3 isort theorems): `lexorder` — ACL2's
+   built-in total order — is not in the trusted core.** NEXT (handoff-ready,
+   self-contained): implement `Logic.lexorder` FAITHFULLY from ACL2's
+   lexorder/alphorder source (axioms.lisp; order: numbers by < , then
+   chars, strings, symbols, then conses recursively — check exact rational/
+   symbol-package details against the source), wire `callBuiltin`
+   ("lexorder"), `callBuiltin_lexorder` rfl-lemma, `dpBinary` +
+   `dpLiftHeads` registration (the booleanp/endp precedent, one commit
+   each), and ADD DIFFERENTIAL PROBES to scripts/diff_eval.sh covering
+   every atom-kind pair + nested conses — the differential vs real ACL2 is
+   the acceptance gate for trusted-core growth. Then re-run coverage for
+   the next isort wall.
+   THE TWO-STAGE LIFT as the following work item: The
    lift-automation analysis (MDD-ratified intent 2026-07-06; per-theorem
    cost is now low, per-FUNCTION corr lemmas are the scaling bottleneck):
    (a) **Two-stage lift** — GENERATE the Lean exec function from the ACL2

@@ -2683,6 +2683,16 @@ the rest of the replay layer. -/
 theorem toBool_true_of_ne_nil {v : SExpr} (h : v ≠ SExpr.nil) :
     Logic.toBool v = true := by cases v <;> simp_all [Logic.toBool]
 
+/-- A FALSY `(endp v)` IS a truthy `(consp v)` — `endp` is the
+    guard-relaxed `atom` (logically `(not (consp _))`). The induction
+    decrease consumes ruling tests of either spelling (R2: isort's fns test
+    `endp` where perm's tested `consp`; the case tree records the STRIPPED
+    positive test with a false sign). -/
+theorem consp_toBool_of_endp_nil {v : SExpr}
+    (h : Logic.endp v = SExpr.nil) :
+    Logic.toBool (Logic.consp v) = true := by
+  cases v <;> simp_all [Logic.endp, Logic.consp, Logic.toBool]
+
 /-- RUNE `if-same-branches` (`if1/same-branches`): `(if c a a) ⇒ a` — the
     branch value is the if value whichever way the test goes; the test must
     converge (lazy `if` evaluates it first). Term-to-term. -/

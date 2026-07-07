@@ -86,6 +86,13 @@ inductive WorldEvent where
   | rules (specs : List RuleSpec)
   /-- A proved theorem and its clause-tree proof. -/
   | theorem (proof : ClauseProof)
+  /-- An INCLUDE-BOOK'd theorem (R2): certified in its OWN book — no
+      waterfall runs on include, so this log carries its statement (and,
+      separately, its stored rules via a `.rules` event) but NO proof tree.
+      A `rule:<name>` citation of it replays fine (the rule is offered);
+      only the step-5 DISCHARGE stays hypothesis-backed from this log (D6) —
+      cross-book proof import is the tracked follow-up. -/
+  | includedTheorem (name : String) (formula : SExpr)
   deriving Repr, Inhabited
 
 /-- An ACL2 development reconstructed as a SINGLE proof tree: a right-nested
@@ -555,6 +562,18 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
   let mut pendingTermination : Option ClauseProof := none
   for ev in log.events do
     match ev with
+    | .defthm name formula .includeBook =>
+      -- an INCLUDE-BOOK'd theorem: no waterfall runs, no proof block, no
+      -- QED. An OPEN named block here still means THAT theorem's proof
+      -- never closed — hard-fail exactly as below.
+      if let some openName := curName then
+        throw s!"buildDevelopment: theorem '{openName}' has no closing (:QED) before included theorem '{name}' — ACL2 proof incomplete or FAILED (log truncated mid-proof)."
+      -- flush a pending anonymous (termination) block
+      let (p?, a) ← closeBlock curName curFormula curEvents anon
+      anon := a
+      if let some p := p? then pendingTermination := some p
+      events := events.push (.includedTheorem name formula)
+      curEvents := #[]
     | .defthm _ _ _ | .qed =>
       -- A named (:DEFTHM) block is a completed proof ONLY if it ends with its
       -- (:QED). If a NEW :DEFTHM closes it instead, ACL2 never emitted QED for the

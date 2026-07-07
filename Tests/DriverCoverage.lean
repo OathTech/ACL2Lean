@@ -113,10 +113,14 @@ def corpus : List (String × String) :=
    -- The DRIVING CORPUS (sorting roadmap R0a): leaf books with theorems only.
    -- orderedp/how-many are defun-only (0 theorems) — the integrity net cannot
    -- distinguish a theorem-less book from a TRUNCATED capture, so they stay
-   -- out until R2 consumes their defuns via include-book composition. The
-   -- include-book books are gated by R2 (their logs do not parse yet:
-   -- included defuns carry no admission data, a named parse frontier).
-   ("sorting/perm",            include_str "../acl2_samples/sorting/perm.proof-log")]
+   -- out until R2 consumes their defuns via include-book composition.
+   ("sorting/perm",            include_str "../acl2_samples/sorting/perm.proof-log"),
+   -- R2: the first include-book composition — included defuns re-emit with
+   -- :INCLUDED T (justification, no termination clauses → total: stays
+   -- hypothesis-backed, D6) and included theorems with :SOURCE :INCLUDE-BOOK
+   -- (statement + rules, no proof tree — rule:<thm> citations stay
+   -- hypothesis-backed until cross-book proof import).
+   ("sorting/isort",           include_str "../acl2_samples/sorting/isort.proof-log")]
 
 /-- The transitive AXIOM set of a proof term: axioms among the constants of
     the expression and everything those constants' definitions depend on

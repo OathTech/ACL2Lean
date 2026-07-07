@@ -774,15 +774,34 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
               | other => throw s!"DEFUN {name}: non-symbol measured formal: {repr other}"
             -- a RECURSIVE defun must carry its decrease obligations — an
             -- admission the log cannot justify is an emission gap (hard-fail;
-            -- the emitter attaches the clique's RAW measure clauses)
-            let clausesExpr ← (lookupKeyword "termination-clauses" fields).elim
-              (throw s!"DEFUN {name}: recursive (has a justification) but no \
-                       :TERMINATION-CLAUSES — emission gap") pure
-            let clauses ← clausesExpr.toList?.elim
-              (throw s!"DEFUN {name}: :TERMINATION-CLAUSES is not a list: \
-                       {repr clausesExpr}") pure
-            pure (some { measure := m, wfRel := rel, measuredSubset := subSyms,
-                         terminationClauses := clauses })
+            -- the emitter attaches the clique's RAW measure clauses) — UNLESS
+            -- it is explicitly marked :INCLUDED T (an include-book'd defun:
+            -- ACL2 does not re-run admission, so no clauses exist; R2). Empty
+            -- clauses make the totality prover frontier-fail on the first
+            -- decrease, keeping total:fn visible (D6) — fail-closed.
+            match lookupKeyword "termination-clauses" fields,
+                  lookupKeyword "included" fields with
+            | some clausesExpr, none =>
+              let clauses ← clausesExpr.toList?.elim
+                (throw s!"DEFUN {name}: :TERMINATION-CLAUSES is not a list: \
+                         {repr clausesExpr}") pure
+              pure (some { measure := m, wfRel := rel, measuredSubset := subSyms,
+                           terminationClauses := clauses })
+            | none, some (.atom (.symbol tS)) =>
+              if tS.name == "t" then
+                pure (some { measure := m, wfRel := rel,
+                             measuredSubset := subSyms,
+                             terminationClauses := [] })
+              else
+                throw s!"DEFUN {name}: malformed :INCLUDED value"
+            | none, none =>
+              throw s!"DEFUN {name}: recursive (has a justification) but no \
+                      :TERMINATION-CLAUSES and no :INCLUDED marker — emission gap"
+            | some _, some _ =>
+              throw s!"DEFUN {name}: both :TERMINATION-CLAUSES and :INCLUDED \
+                      (malformed emission)"
+            | none, some other =>
+              throw s!"DEFUN {name}: malformed :INCLUDED value: {repr other}"
           | _, _, _ => throw s!"DEFUN {name}: partial admission justification \
                                (:MEASURE/:WFREL/:MEASURED must travel together)"
         return .defun name formals body just

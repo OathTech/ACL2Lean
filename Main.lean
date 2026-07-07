@@ -172,6 +172,9 @@ private partial def printDevelopment : ACL2.Development → IO Unit
     | .theorem proof =>
       IO.println s!"\n══ THEOREM {proof.name} ══"
       printClauseProof proof 2
+    | .includedTheorem name formula =>
+      IO.println s!"\n── included theorem {name} (certified in its own book) ──"
+      IO.println s!"  {formula}"
     printDevelopment rest
 
 def main (args : List String) : IO Unit := do
