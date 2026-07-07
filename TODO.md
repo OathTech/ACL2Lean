@@ -19,6 +19,12 @@ _Last updated: 2026-07-06._
 
 Ordered by project-wide leverage — general machinery over special-case walls:
 
+> **Long-term roadmap PROPOSAL (2026-07-06, awaiting MDD review):**
+> `docs/plans/2026-07-06_long-term-roadmap.md` — the spine past R2
+> (cross-book rule discharge as the remaining R2 architecture item, R3–R7
+> walls named), the industrialization cadence, the trusted-core growth
+> policy, and the post-corpus arcs (live tactic, breadth sweep, upstreaming).
+
 0. **Fail-closed fix sprint — DONE (2026-07-06, branch mdd/fail-closed-fixes).**
    All actionable findings of `docs/notes/2026-07-06_fail-closed-audit.md`
    landed: `panic!`→`Except` through `Event.classify`/`fromSExprs`; the TYPED
