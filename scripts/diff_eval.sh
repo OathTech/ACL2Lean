@@ -14,9 +14,12 @@
 # builtin / fuel), reported separately from a value MISMATCH.
 #
 # Usage:  bash scripts/diff_eval.sh        (run from repo root)
+# No `-e`: a per-expr eval or the ACL2 session may fail without aborting the
+# whole differential run (we report MISMATCH/STUCK per row and exit non-zero at
+# the end). `cd` is the exception — a silent failure there would run everything
+# against the wrong tree — so guard it explicitly.
 set -uo pipefail
-cd "$(dirname "$0")/.."
-ROOT="$(pwd)"
+cd "$(dirname "$0")/.." || { echo "FATAL: cannot cd to repo root" >&2; exit 2; }
 WORLD="acl2_samples/simple.lisp"
 ACL2_BIN="acl2/saved_acl2"
 export ACL2_CUSTOMIZATION=NONE
@@ -204,13 +207,16 @@ tests=(
   "(binary-+ (len '(a b)) (my-len '(c d e)))"
 )
 
-normalize() { tr 'a-z' 'A-Z' | tr -s ' \t' ' ' | sed 's/^ *//; s/ *$//'; }
+normalize() { tr '[:lower:]' '[:upper:]' | tr -s ' \t' ' ' | sed 's/^ *//; s/ *$//'; }
 
 echo "Building (lake build)…"
 lake build >/dev/null 2>&1 || { echo "lake build FAILED"; exit 1; }
 
 # ── ACL2 side: one session, indexed cw markers ─────────────────────────────
 acl2_in="${TMPDIR:-/tmp}/acl2_diff_$$.lsp"; acl2_out="${TMPDIR:-/tmp}/acl2_diff_$$.out"
+# Clean up the temp files on ANY exit path (mid-script failure, timeout, ^C),
+# not just the happy path at the end.
+trap 'rm -f "$acl2_in" "$acl2_out"' EXIT
 {
   echo '(set-guard-checking nil)'
   echo '(defun my-len (x) (if (consp x) (+ 1 (my-len (cdr x))) 0))'
@@ -246,5 +252,7 @@ for i in "${!tests[@]}"; do
 done
 printf '%s\n' "------------------------------------------------------------------------------------------"
 echo "PASS=$pass  MISMATCH=$mismatch  STUCK/NO-ACL2=$stuck  (total ${#tests[@]})"
-rm -f "$acl2_in" "$acl2_out"
-[[ $mismatch -eq 0 ]]
+# Temp files are removed by the EXIT trap. Exit non-zero iff any MISMATCH.
+# `exit` (not a bare `[[ ]]`) so the intended status is explicit and the trap's
+# `rm` cannot clobber it.
+if [[ $mismatch -eq 0 ]]; then exit 0; else exit 1; fi

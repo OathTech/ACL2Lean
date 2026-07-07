@@ -5,8 +5,12 @@
 #   - no bare `; TRACE-LOG:` (old form)
 #   - round-trip: every emitted rewrite-step `:origin '<sym>` has a matching TRACE-LOG[emit/<sym>]
 # Run from repo root:  bash scripts/check-acl2-tags.sh   (exit !=0 on any violation)
+# No `-e`: the checks below run to completion and aggregate failures into `fail`
+# (we want ALL violations reported, not just the first), so we handle errors
+# explicitly rather than aborting. `cd` is the one place a silent failure would
+# be dangerous (every grep would target the wrong tree), so guard it by hand.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || { echo "FATAL: cannot cd to repo root" >&2; exit 2; }
 ACL2=acl2
 fail=0
 

@@ -9,12 +9,19 @@ build:
 test:
     lake build Tests
 
-# Full conformance: build + unit tests + driver-coverage (the latter gates on
-# reconstruction integrity AND the black-box-leaf emission frontier — see
-# docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage include_str's the
-# gitignored .proof-log corpus, so regenerate it first (scripts/recon-test-dump.sh)
-# if a fresh checkout reports a missing-log compile error rather than the frontier.
-ci: build test driver-coverage
+# Preflight: verify every include_str'd proof-log exists (the corpus is
+# gitignored — this fails loudly and locally with a fix hint BEFORE the opaque
+# Lean "no such file" error, and catches a stale local copy masking a
+# corpus/CI desync). Runs first in `ci`.
+check-proof-logs:
+    ./scripts/check-proof-logs.sh
+
+# Full conformance: preflight + build + unit tests + driver-coverage (the last
+# gates on reconstruction integrity AND the black-box-leaf emission frontier —
+# see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
+# include_str's the gitignored .proof-log corpus; check-proof-logs runs first
+# so a missing log is a clear error, not a deep elaboration-trace failure.
+ci: lint-sh check-proof-logs build test driver-coverage
 
 # Run the corpus report
 report:
@@ -54,3 +61,16 @@ driver-coverage:
 # Verify the ACL2 instrumentation tagging convention (namespaced TRACE-LOG, round-trip).
 check-acl2-tags:
     bash scripts/check-acl2-tags.sh
+
+# Lint the shell scripts (portability + robustness). Config in .shellcheckrc.
+# Skips gracefully if shellcheck is not installed, so `ci` never hard-fails on
+# a missing dev tool — CI installs it explicitly.
+lint-sh:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v shellcheck >/dev/null 2>&1; then
+      echo "shellcheck not installed — skipping (install: brew install shellcheck)"
+      exit 0
+    fi
+    shellcheck scripts/*.sh
+    echo "shellcheck: all scripts clean"

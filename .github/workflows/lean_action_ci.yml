@@ -15,6 +15,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # Pin the shell for every `run:` block to bash under strict mode, so a
+    # snippet's behavior does not depend on the runner's default shell — and
+    # matches what a developer gets from our `#!/usr/bin/env bash` scripts.
+    # `-e` errexit, `-u` nounset, `-o pipefail`: a failing command (or a
+    # failing stage of a pipe, or an unset var) aborts the step instead of
+    # limping on. GitHub's default `bash` already adds `-e`; we make `-u`/
+    # pipefail explicit too, and guarantee bash builtins (the capture step's
+    # `mapfile` into an array relies on it).
+    defaults:
+      run:
+        shell: bash -euo pipefail {0}
+
     steps:
       - name: Checkout (with acl2 submodule)
         uses: actions/checkout@v7
@@ -56,27 +68,40 @@ jobs:
 
       - name: Capture proof-log corpus from ACL2
         run: |
-          # Only the `include_str`'d logs are required to build. `simple` + the
-          # recon-tests are standalone and land alongside their source; the
-          # sorting books go into acl2_samples/sorting/ via OUTDIR.
+          # The .proof-log corpus is gitignored and `include_str`'d at build
+          # time, so it MUST be regenerated on the runner. `simple` + the
+          # recon-tests are standalone and land alongside their source.
           ./scripts/capture-proof-log.sh \
             acl2_samples/simple.lisp \
             acl2_samples/recon-tests/*.lisp
           # acl2_samples/sorting/ holds only gitignored logs, so git (which does not
           # track empty dirs) omits it from a clean checkout — create it for OUTDIR.
           mkdir -p acl2_samples/sorting
-          # `perm` is standalone; `isort` include-book's its siblings (perm,
-          # ordered-perms, convert-perm-to-how-many), which ACL2 resolves
-          # uncertified relative to the book's own dir in the submodule — so
-          # `ld` loads them on the fly, no certification step needed. Every
-          # sorting log `include_str`'d by Tests/DriverCoverage.lean MUST be
-          # captured here or the build fails with "no such file" (that dir is
-          # gitignored). Keep this list in sync with the coverage corpus.
-          OUTDIR=acl2_samples/sorting ./scripts/capture-proof-log.sh \
-            acl2/books/sorting/perm.lisp \
-            acl2/books/sorting/isort.lisp
+          # DERIVE the sorting books to capture from the corpus's own include_str
+          # references, rather than a hardcoded list (a stale hardcoded list is
+          # exactly what let isort's log go uncaptured). This picks up any new
+          # sorting book the moment it's added to a Lean source, and captures
+          # ONLY what's needed — we deliberately do NOT capture the whole
+          # books.txt manifest, since qsort/equisort/sorts-equivalent
+          # include-book foreign system books (arithmetic-3) that aren't
+          # certified in a fresh checkout and so can't be `ld`'d uncertified.
+          # Sibling includes WITHIN sorting/ (e.g. isort→perm) do resolve
+          # uncertified relative to the book dir, so `ld` loads them on the fly.
+          # Build a proper array (mapfile reads line-by-line, no dependence on
+          # IFS/glob word-splitting), then expand "${books[@]}" — robust and
+          # shellcheck-clean, unlike an unquoted $var of space-joined paths.
+          mapfile -t logs < <(git grep -h 'include_str "[^"]*sorting/[^"]*proof-log"' -- '*.lean' \
+                                | grep -oE 'sorting/[a-z0-9-]+\.proof-log' | sort -u)
+          books=()
+          for l in "${logs[@]}"; do books+=("acl2/books/${l%.proof-log}.lisp"); done
+          echo "Sorting books to capture (derived from include_str refs):"
+          printf '  %s\n' "${books[@]}"
+          OUTDIR=acl2_samples/sorting ./scripts/capture-proof-log.sh "${books[@]}"
           echo "Captured logs:"
           find acl2_samples -name '*.proof-log' | sort
+          # Fail HERE (not deep in the Lean build) if any include_str'd log is
+          # still missing after capture — the same preflight `just ci` runs.
+          ./scripts/check-proof-logs.sh
 
       - name: Install elan (Lean toolchain manager)
         run: |
@@ -115,6 +140,16 @@ jobs:
       # the test run; DriverCoverage is the replay-coverage scoreboard.
       - name: Install just
         uses: extractions/setup-just@v4
+
+      # shellcheck lints the build scripts (`just lint-sh`, part of `just ci`).
+      # ubuntu-latest ships it, but install explicitly so the gate never depends
+      # on the runner image — and `just lint-sh` would silently skip if absent.
+      - name: Install shellcheck
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y shellcheck
+          fi
+          shellcheck --version
 
       - name: Conformance gate (just ci)
         run: just ci

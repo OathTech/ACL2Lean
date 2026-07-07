@@ -1,0 +1,14 @@
+# shellcheck configuration (see https://www.shellcheck.net).
+# All scripts under scripts/ are bash (`#!/usr/bin/env bash`); pin the dialect
+# so directives are interpreted consistently regardless of the checker's guess.
+shell=bash
+
+# We run at the DEFAULT severity (warning) — that band is where the real
+# robustness bugs live (SC2164 unguarded `cd`, SC2086 word-splitting in a
+# context that matters). The optional `quote-safe-variables` style check is
+# deliberately NOT enabled: it flags quoting even on pure-integer vars, which
+# is noise for this codebase's style.
+#
+# No global suppressions. If a specific line needs one, add a scoped
+# `# shellcheck disable=SCxxxx` comment ABOVE that line with a reason — never
+# blanket-disable a check here.
