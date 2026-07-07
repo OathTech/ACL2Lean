@@ -564,6 +564,281 @@ theorem dis_perm_total (w : World)
     perm_ns h_perm ⟨N0, h0⟩ ⟨N1, h1⟩ ⟨Nb, hb⟩
   exact ⟨N, v, h⟩
 
+/-! ## Exec functions (the two-stage lift, stage 1)
+
+Design: docs/plans/2026-07-06_two-stage-lift.md. Each `*Exec` is a TOTAL
+Lean mirror of its defun body, shape-exact (D2: ite on
+`Logic.toBool … = true`, `Logic.*` at builtin calls, recursion at the
+self-call). `*_exec_corr` is the stage-1 corr over ALL SExpr argument
+values — the same interface shape as `conv_builtin2`, so exec'd functions
+compose into callers' walks like builtins (D1). The `corr_*_enc`
+simulations below are corollaries (stage 1 ∘ stage 2). -/
+
+/-- `memb`'s body as a total Lean function. -/
+def membExec (a x : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then
+    if Logic.toBool (Logic.equal a (Logic.car x)) = true then SExpr.t
+    else membExec a (Logic.cdr x)
+  else SExpr.nil
+termination_by x.acl2Count
+decreasing_by exact acl2Count_cdr_lt_of_consp (by assumption)
+
+/-- Stage 1: a `memb` call converges to `membExec` of its argument values.
+    Strong induction on the measured formal's count; the body walk is the
+    intended mechanized walk's exact move sequence. -/
+theorem memb_exec_corr (w : World)
+    (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    ∀ (env : Env) (a x av xv : SExpr),
+      ConvTo w env a av → ConvTo w env x xv →
+      ConvTo w env (membT a x) (membExec av xv) := by
+  have hbody : ∀ xv av : SExpr,
+      ConvTo w (bindArgs [aS, xS] [av, xv]) membBody (membExec av xv) := by
+    refine acl2Count_strong_induction
+      (fun xv => ∀ av, ConvTo w (bindArgs [aS, xS] [av, xv]) membBody
+        (membExec av xv)) ?_
+    intro xv ih av
+    have hav := re_val_var_get w (bindArgs [aS, xS] [av, xv])
+      { name := "a" } av (bindArgs_ax_a av xv)
+    have hxv := re_val_var_get w (bindArgs [aS, xS] [av, xv])
+      { name := "x" } xv (bindArgs_ax_x av xv)
+    have hconsp := conv_builtin1 w _ { name := "consp" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "car" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "cdr" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have heq := conv_builtin2 w _ { name := "equal" } aT (carT xT) av
+      (Logic.car xv) (Logic.equal av (Logic.car xv)) (by decide) h_no_equal
+      hav hcar (callBuiltin_equal _ _)
+    have houter := conv_if_lift w (bindArgs [aS, xS] [av, xv]) (conspT xT)
+      (ifT (equalT aT (carT xT)) qT (membT aT (cdrT xT))) qNil
+      (Logic.consp xv)
+      (if Logic.toBool (Logic.equal av (Logic.car xv)) = true then SExpr.t
+       else membExec av (Logic.cdr xv))
+      SExpr.nil hconsp
+      (fun hb =>
+        conv_if_lift w _ (equalT aT (carT xT)) qT (membT aT (cdrT xT))
+          (Logic.equal av (Logic.car xv)) SExpr.t
+          (membExec av (Logic.cdr xv)) heq
+          (fun _ => re_val_quote w _ SExpr.t)
+          (fun _ =>
+            conv_defn_2 w _ memb_sym aT (cdrT xT) av (Logic.cdr xv) aS xS
+              membBody _ memb_ns h_memb hav hcdr
+              (ih (Logic.cdr xv) (acl2Count_cdr_lt_of_consp hb) av)))
+      (fun _ => re_val_quote w _ SExpr.nil)
+    rw [membExec.eq_def]
+    exact houter
+  intro env a x av xv ha hx
+  exact conv_defn_2 w env memb_sym a x av xv aS xS membBody _
+    memb_ns h_memb ha hx (hbody xv av)
+
+/-- Stage 2: `membExec` on an encoded list computes `List.contains` — pure
+    Lean, no evaluator, no fuel. -/
+theorem membExec_enc (a : SExpr) (xs : List SExpr) :
+    membExec a (enc xs) = bif xs.contains a then SExpr.t else SExpr.nil := by
+  induction xs with
+  | nil => rw [membExec.eq_def]; rfl
+  | cons hd tl ih =>
+    rw [membExec.eq_def]
+    have hencx : enc (hd :: tl) = .cons hd (enc tl) := rfl
+    cases hbeq : a == hd with
+    | true =>
+      simp [hencx, Logic.consp, Logic.car, Logic.equal, eq_of_beq hbeq]
+    | false =>
+      simp [hencx, Logic.consp, Logic.car, Logic.cdr, Logic.equal, hbeq,
+        ih, beq_eq_false_iff_ne.mp hbeq]
+
+/-- `rm`'s body as a total Lean function. -/
+def rmExec (e x : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then
+    if Logic.toBool (Logic.equal e (Logic.car x)) = true then Logic.cdr x
+    else Logic.cons (Logic.car x) (rmExec e (Logic.cdr x))
+  else SExpr.nil
+termination_by x.acl2Count
+decreasing_by exact acl2Count_cdr_lt_of_consp (by assumption)
+
+/-- Stage 1: an `rm` call converges to `rmExec` of its argument values. -/
+theorem rm_exec_corr (w : World)
+    (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    ∀ (env : Env) (a x av xv : SExpr),
+      ConvTo w env a av → ConvTo w env x xv →
+      ConvTo w env (rmT a x) (rmExec av xv) := by
+  have hbody : ∀ xv av : SExpr,
+      ConvTo w (bindArgs [eS, xS] [av, xv]) rmBody (rmExec av xv) := by
+    refine acl2Count_strong_induction
+      (fun xv => ∀ av, ConvTo w (bindArgs [eS, xS] [av, xv]) rmBody
+        (rmExec av xv)) ?_
+    intro xv ih av
+    have hav := re_val_var_get w (bindArgs [eS, xS] [av, xv])
+      { name := "e" } av (bindArgs_ex_e av xv)
+    have hxv := re_val_var_get w (bindArgs [eS, xS] [av, xv])
+      { name := "x" } xv (bindArgs_ex_x av xv)
+    have hconsp := conv_builtin1 w _ { name := "consp" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "car" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "cdr" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have heq := conv_builtin2 w _ { name := "equal" } eT (carT xT) av
+      (Logic.car xv) (Logic.equal av (Logic.car xv)) (by decide) h_no_equal
+      hav hcar (callBuiltin_equal _ _)
+    have houter := conv_if_lift w (bindArgs [eS, xS] [av, xv]) (conspT xT)
+      (ifT (equalT eT (carT xT)) (cdrT xT)
+        (consT (carT xT) (rmT eT (cdrT xT))))
+      qNil (Logic.consp xv)
+      (if Logic.toBool (Logic.equal av (Logic.car xv)) = true then
+        Logic.cdr xv
+       else Logic.cons (Logic.car xv) (rmExec av (Logic.cdr xv)))
+      SExpr.nil hconsp
+      (fun hb =>
+        conv_if_lift w _ (equalT eT (carT xT)) (cdrT xT)
+          (consT (carT xT) (rmT eT (cdrT xT)))
+          (Logic.equal av (Logic.car xv)) (Logic.cdr xv)
+          (Logic.cons (Logic.car xv) (rmExec av (Logic.cdr xv))) heq
+          (fun _ => hcdr)
+          (fun _ =>
+            conv_builtin2 w _ { name := "cons" } (carT xT) (rmT eT (cdrT xT))
+              (Logic.car xv) (rmExec av (Logic.cdr xv))
+              (Logic.cons (Logic.car xv) (rmExec av (Logic.cdr xv)))
+              (by decide) h_no_cons hcar
+              (conv_defn_2 w _ rm_sym eT (cdrT xT) av (Logic.cdr xv) eS xS
+                rmBody _ rm_ns h_rm hav hcdr
+                (ih (Logic.cdr xv) (acl2Count_cdr_lt_of_consp hb) av))
+              rfl))
+      (fun _ => re_val_quote w _ SExpr.nil)
+    rw [rmExec.eq_def]
+    exact houter
+  intro env a x av xv ha hx
+  exact conv_defn_2 w env rm_sym a x av xv eS xS rmBody _
+    rm_ns h_rm ha hx (hbody xv av)
+
+/-- Stage 2: `rmExec` on an encoded list computes `List.erase`. -/
+theorem rmExec_enc (a : SExpr) (xs : List SExpr) :
+    rmExec a (enc xs) = enc (xs.erase a) := by
+  induction xs with
+  | nil => rw [rmExec.eq_def]; rfl
+  | cons hd tl ih =>
+    rw [rmExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl]
+    cases hbeq : hd == a with
+    | true =>
+      simp [Logic.consp, Logic.car, Logic.cdr, Logic.equal, eq_of_beq hbeq]
+    | false =>
+      simp [Logic.consp, Logic.car, Logic.cdr, Logic.equal, hbeq, ih,
+        Ne.symm (beq_eq_false_iff_ne.mp hbeq)]
+      rfl
+
+/-- `perm`'s body as a total Lean function — calls the callees' exec
+    functions at their call sites (D1 composition). -/
+def permExec (x y : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then
+    if Logic.toBool (membExec (Logic.car x) y) = true then
+      permExec (Logic.cdr x) (rmExec (Logic.car x) y)
+    else SExpr.nil
+  else if Logic.toBool (Logic.consp y) = true then SExpr.nil else SExpr.t
+termination_by x.acl2Count
+decreasing_by exact acl2Count_cdr_lt_of_consp (by assumption)
+
+/-- Stage 1: a `perm` call converges to `permExec` of its argument values.
+    The walk cites `memb_exec_corr`/`rm_exec_corr` at the callee call sites
+    exactly as it cites `callBuiltin` lemmas at builtin sites. -/
+theorem perm_exec_corr (w : World)
+    (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
+    (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
+    (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    ∀ (env : Env) (x y xv yv : SExpr),
+      ConvTo w env x xv → ConvTo w env y yv →
+      ConvTo w env (permT x y) (permExec xv yv) := by
+  have hbody : ∀ xv yv : SExpr,
+      ConvTo w (bindArgs [xS, yS] [xv, yv]) permBody (permExec xv yv) := by
+    refine acl2Count_strong_induction
+      (fun xv => ∀ yv, ConvTo w (bindArgs [xS, yS] [xv, yv]) permBody
+        (permExec xv yv)) ?_
+    intro xv ih yv
+    have hxv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+      { name := "x" } xv (bindArgs_xy_x xv yv)
+    have hyv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+      { name := "y" } yv (bindArgs_xy_y xv yv)
+    have hconspx := conv_builtin1 w _ { name := "consp" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hconspy := conv_builtin1 w _ { name := "consp" } yT yv
+      (Logic.consp yv) (by decide) h_no_consp hyv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "car" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "cdr" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have hmemb := memb_exec_corr w h_memb h_no_consp h_no_equal h_no_car
+      h_no_cdr _ (carT xT) yT (Logic.car xv) yv hcar hyv
+    have hrm := rm_exec_corr w h_rm h_no_consp h_no_equal h_no_car h_no_cdr
+      h_no_cons _ (carT xT) yT (Logic.car xv) yv hcar hyv
+    have houter := conv_if_lift w (bindArgs [xS, yS] [xv, yv]) (conspT xT)
+      (ifT (membT (carT xT) yT) (permT (cdrT xT) (rmT (carT xT) yT)) qNil)
+      (ifT (conspT yT) qNil qT) (Logic.consp xv)
+      (if Logic.toBool (membExec (Logic.car xv) yv) = true then
+        permExec (Logic.cdr xv) (rmExec (Logic.car xv) yv)
+       else SExpr.nil)
+      (if Logic.toBool (Logic.consp yv) = true then SExpr.nil else SExpr.t)
+      hconspx
+      (fun hb =>
+        conv_if_lift w _ (membT (carT xT) yT)
+          (permT (cdrT xT) (rmT (carT xT) yT)) qNil
+          (membExec (Logic.car xv) yv)
+          (permExec (Logic.cdr xv) (rmExec (Logic.car xv) yv))
+          SExpr.nil hmemb
+          (fun _ =>
+            conv_defn_2 w _ perm_sym (cdrT xT) (rmT (carT xT) yT)
+              (Logic.cdr xv) (rmExec (Logic.car xv) yv) xS yS permBody _
+              perm_ns h_perm hcdr hrm
+              (ih (Logic.cdr xv) (acl2Count_cdr_lt_of_consp hb)
+                (rmExec (Logic.car xv) yv)))
+          (fun _ => re_val_quote w _ SExpr.nil))
+      (fun _ =>
+        conv_if_lift w _ (conspT yT) qNil qT (Logic.consp yv)
+          SExpr.nil SExpr.t hconspy
+          (fun _ => re_val_quote w _ SExpr.nil)
+          (fun _ => re_val_quote w _ SExpr.t))
+    rw [permExec.eq_def]
+    exact houter
+  intro env x y xv yv hx hy
+  exact conv_defn_2 w env perm_sym x y xv yv xS yS permBody _
+    perm_ns h_perm hx hy (hbody xv yv)
+
+/-- Stage 2: `permExec` on encoded lists computes `List.isPerm`. -/
+theorem permExec_enc (xs ys : List SExpr) :
+    permExec (enc xs) (enc ys)
+      = bif xs.isPerm ys then SExpr.t else SExpr.nil := by
+  induction xs generalizing ys with
+  | nil =>
+    rw [permExec.eq_def]
+    cases ys with
+    | nil => rfl
+    | cons h2 t2 =>
+      simp [show enc (h2 :: t2) = .cons h2 (enc t2) from rfl,
+        Logic.consp, List.isPerm, show enc [] = SExpr.nil from rfl]
+  | cons hd tl ih =>
+    rw [permExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl]
+    cases hc : ys.contains hd with
+    | true =>
+      have hm : hd ∈ ys := by simpa using hc
+      simp [Logic.consp, Logic.car, Logic.cdr, membExec_enc, rmExec_enc,
+        ih, List.isPerm, hm]
+    | false =>
+      have hm : ¬hd ∈ ys := by simpa using hc
+      simp [Logic.consp, Logic.car, membExec_enc, List.isPerm, hm]
+
 /-! ## Simulations under `enc` -/
 
 /-- `memb` over an encoded second argument computes `List.contains`. -/
@@ -578,99 +853,10 @@ theorem corr_memb_enc (w : World)
     (∃ N, ∀ f ≥ N, evalOpt f w e' x = some (enc xs)) →
     ∃ N, ∀ f ≥ N, evalOpt f w e' (membT a x)
       = some (bif xs.contains av then SExpr.t else SExpr.nil) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro e' a x av ha hx
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [aS, xS] [av, enc []]) membBody
-        = some SExpr.nil := by
-      have hxv := re_val_var_get w (bindArgs [aS, xS] [av, enc []])
-        { name := "x" } (enc []) (bindArgs_ax_x av (enc []))
-      have hconsp := conv_builtin1 w _ { name := "consp" } xT (enc [])
-        (Logic.consp (enc [])) (by decide) h_no_consp hxv (callBuiltin_consp _)
-      have hq := re_val_quote w (bindArgs [aS, xS] [av, enc []]) SExpr.nil
-      exact fuel_conv_of_eq
-        (re_if_false w _ (conspT xT) _ qNil SExpr.nil hconsp hq) hq
-    have hcc : ([] : List SExpr).contains av = false := rfl
-    simpa only [hcc, cond_false] using
-      conv_defn_2 w e' memb_sym a x av (enc []) aS xS membBody SExpr.nil
-        memb_ns h_memb ha hx hbody
-  | cons hd tl ihl =>
-    intro e' a x av ha hx
-    have hav := re_val_var_get w (bindArgs [aS, xS] [av, enc (hd :: tl)])
-      { name := "a" } av (bindArgs_ax_a av (enc (hd :: tl)))
-    have hxv := re_val_var_get w (bindArgs [aS, xS] [av, enc (hd :: tl)])
-      { name := "x" } (enc (hd :: tl)) (bindArgs_ax_x av (enc (hd :: tl)))
-    have hencx : enc (hd :: tl) = .cons hd (enc tl) := rfl
-    have hconsp : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [aS, xS] [av, enc (hd :: tl)]) (conspT xT)
-        = some SExpr.t := by
-      have h := conv_builtin1 w _ { name := "consp" } xT (enc (hd :: tl))
-        (Logic.consp (enc (hd :: tl))) (by decide) h_no_consp hxv
-        (callBuiltin_consp _)
-      simpa [hencx, Logic.consp] using h
-    have hcar : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [aS, xS] [av, enc (hd :: tl)]) (carT xT)
-        = some hd := by
-      have h := conv_builtin1 w _ { name := "car" } xT (enc (hd :: tl))
-        (Logic.car (enc (hd :: tl))) (by decide) h_no_car hxv (callBuiltin_car _)
-      simpa [hencx, Logic.car] using h
-    have hcdr : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [aS, xS] [av, enc (hd :: tl)]) (cdrT xT)
-        = some (enc tl) := by
-      have h := conv_builtin1 w _ { name := "cdr" } xT (enc (hd :: tl))
-        (Logic.cdr (enc (hd :: tl))) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-      simpa [hencx, Logic.cdr] using h
-    have heq : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [aS, xS] [av, enc (hd :: tl)])
-          (equalT aT (carT xT)) = some (Logic.equal av hd) :=
-      conv_builtin2 w _ { name := "equal" } aT (carT xT) av hd
-        (Logic.equal av hd) (by decide) h_no_equal hav hcar
-        (callBuiltin_equal _ _)
-    have hrec : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [aS, xS] [av, enc (hd :: tl)])
-          (membT aT (cdrT xT))
-        = some (bif tl.contains av then SExpr.t else SExpr.nil) :=
-      ihl (bindArgs [aS, xS] [av, enc (hd :: tl)]) aT (cdrT xT) av hav hcdr
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [aS, xS] [av, enc (hd :: tl)]) membBody
-        = some (bif (hd :: tl).contains av then SExpr.t else SExpr.nil) := by
-      have hInner : ∃ N, ∀ f ≥ N,
-          evalOpt f w (bindArgs [aS, xS] [av, enc (hd :: tl)])
-            (ifT (equalT aT (carT xT)) qT (membT aT (cdrT xT)))
-          = some (bif (hd :: tl).contains av then SExpr.t else SExpr.nil) := by
-        cases hbeq : (av == hd) with
-        | true =>
-          have hq := re_val_quote w
-            (bindArgs [aS, xS] [av, enc (hd :: tl)]) SExpr.t
-          have htb : Logic.toBool (Logic.equal av hd) = true := by
-            simp [Logic.equal, hbeq, Logic.toBool, SExpr.t]
-          have h := fuel_conv_of_eq
-            (re_if_true w _ (equalT aT (carT xT)) qT (membT aT (cdrT xT))
-              (Logic.equal av hd) SExpr.t heq htb hq) hq
-          have hcc : (hd :: tl).contains av = true := by
-            simp only [List.contains_cons, hbeq, Bool.true_or]
-          simpa only [hcc, cond_true] using h
-        | false =>
-          have heqNil : ∃ N, ∀ f ≥ N,
-              evalOpt f w (bindArgs [aS, xS] [av, enc (hd :: tl)])
-                (equalT aT (carT xT)) = some SExpr.nil := by
-            have : Logic.equal av hd = SExpr.nil := by
-              simp [Logic.equal, hbeq]
-            exact this ▸ heq
-          have h := fuel_conv_of_eq
-            (re_if_false w _ (equalT aT (carT xT)) qT (membT aT (cdrT xT))
-              (bif tl.contains av then SExpr.t else SExpr.nil) heqNil hrec) hrec
-          have hcc : (hd :: tl).contains av = tl.contains av := by
-            simp only [List.contains_cons, hbeq, Bool.false_or]
-          simpa only [hcc] using h
-      exact fuel_conv_of_eq
-        (re_if_true w _ (conspT xT)
-          (ifT (equalT aT (carT xT)) qT (membT aT (cdrT xT)))
-          qNil SExpr.t _ hconsp rfl hInner) hInner
-    exact conv_defn_2 w e' memb_sym a x av (enc (hd :: tl)) aS xS membBody _
-      memb_ns h_memb ha hx hbody
+  intro xs e' a x av ha hx
+  have h := memb_exec_corr w h_memb h_no_consp h_no_equal h_no_car h_no_cdr
+    e' a x av (enc xs) ha hx
+  rwa [membExec_enc] at h
 
 /-- `rm` over an encoded second argument computes `List.erase`. -/
 theorem corr_rm_enc (w : World)
@@ -684,114 +870,10 @@ theorem corr_rm_enc (w : World)
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some av) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' x = some (enc xs)) →
     ∃ N, ∀ f ≥ N, evalOpt f w e' (rmT a x) = some (enc (xs.erase av)) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro e' a x av ha hx
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [eS, xS] [av, enc []]) rmBody
-        = some SExpr.nil := by
-      have hxv := re_val_var_get w (bindArgs [eS, xS] [av, enc []])
-        { name := "x" } (enc []) (bindArgs_ex_x av (enc []))
-      have hconsp := conv_builtin1 w _ { name := "consp" } xT (enc [])
-        (Logic.consp (enc [])) (by decide) h_no_consp hxv (callBuiltin_consp _)
-      have hq := re_val_quote w (bindArgs [eS, xS] [av, enc []]) SExpr.nil
-      exact fuel_conv_of_eq
-        (re_if_false w _ (conspT xT) _ qNil SExpr.nil hconsp hq) hq
-    have hee : ([] : List SExpr).erase av = [] := rfl
-    simpa only [hee] using
-      conv_defn_2 w e' rm_sym a x av (enc []) eS xS rmBody SExpr.nil
-        rm_ns h_rm ha hx hbody
-  | cons hd tl ihl =>
-    intro e' a x av ha hx
-    have hav := re_val_var_get w (bindArgs [eS, xS] [av, enc (hd :: tl)])
-      { name := "e" } av (bindArgs_ex_e av (enc (hd :: tl)))
-    have hxv := re_val_var_get w (bindArgs [eS, xS] [av, enc (hd :: tl)])
-      { name := "x" } (enc (hd :: tl)) (bindArgs_ex_x av (enc (hd :: tl)))
-    have hencx : enc (hd :: tl) = .cons hd (enc tl) := rfl
-    have hconsp : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [eS, xS] [av, enc (hd :: tl)]) (conspT xT)
-        = some SExpr.t := by
-      have h := conv_builtin1 w _ { name := "consp" } xT (enc (hd :: tl))
-        (Logic.consp (enc (hd :: tl))) (by decide) h_no_consp hxv
-        (callBuiltin_consp _)
-      simpa [hencx, Logic.consp] using h
-    have hcar : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [eS, xS] [av, enc (hd :: tl)]) (carT xT)
-        = some hd := by
-      have h := conv_builtin1 w _ { name := "car" } xT (enc (hd :: tl))
-        (Logic.car (enc (hd :: tl))) (by decide) h_no_car hxv (callBuiltin_car _)
-      simpa [hencx, Logic.car] using h
-    have hcdr : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [eS, xS] [av, enc (hd :: tl)]) (cdrT xT)
-        = some (enc tl) := by
-      have h := conv_builtin1 w _ { name := "cdr" } xT (enc (hd :: tl))
-        (Logic.cdr (enc (hd :: tl))) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-      simpa [hencx, Logic.cdr] using h
-    have heq : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [eS, xS] [av, enc (hd :: tl)])
-          (equalT eT (carT xT)) = some (Logic.equal av hd) :=
-      conv_builtin2 w _ { name := "equal" } eT (carT xT) av hd
-        (Logic.equal av hd) (by decide) h_no_equal hav hcar
-        (callBuiltin_equal _ _)
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [eS, xS] [av, enc (hd :: tl)]) rmBody
-        = some (enc ((hd :: tl).erase av)) := by
-      have hInner : ∃ N, ∀ f ≥ N,
-          evalOpt f w (bindArgs [eS, xS] [av, enc (hd :: tl)])
-            (ifT (equalT eT (carT xT)) (cdrT xT)
-              (consT (carT xT) (rmT eT (cdrT xT))))
-          = some (enc ((hd :: tl).erase av)) := by
-        cases hbeq : (hd == av) with
-        | true =>
-          have htb : Logic.toBool (Logic.equal av hd) = true := by
-            have : (av == hd) = true := by
-              exact beq_iff_eq.mpr (beq_iff_eq.mp hbeq).symm
-            simp [Logic.equal, this, Logic.toBool, SExpr.t]
-          have h := fuel_conv_of_eq
-            (re_if_true w _ (equalT eT (carT xT)) (cdrT xT)
-              (consT (carT xT) (rmT eT (cdrT xT)))
-              (Logic.equal av hd) (enc tl) heq htb hcdr) hcdr
-          have hee : (hd :: tl).erase av = tl := by
-            rw [List.erase_cons, if_pos hbeq]
-          simpa only [hee] using h
-        | false =>
-          have heqNil : ∃ N, ∀ f ≥ N,
-              evalOpt f w (bindArgs [eS, xS] [av, enc (hd :: tl)])
-                (equalT eT (carT xT)) = some SExpr.nil := by
-            have hne : (av == hd) = false := by
-              cases hav2 : (av == hd) with
-              | false => rfl
-              | true => exact absurd (beq_iff_eq.mpr (beq_iff_eq.mp hav2).symm) (by simp [hbeq])
-            have : Logic.equal av hd = SExpr.nil := by simp [Logic.equal, hne]
-            exact this ▸ heq
-          have hrec : ∃ N, ∀ f ≥ N,
-              evalOpt f w (bindArgs [eS, xS] [av, enc (hd :: tl)])
-                (rmT eT (cdrT xT)) = some (enc (tl.erase av)) :=
-            ihl (bindArgs [eS, xS] [av, enc (hd :: tl)]) eT (cdrT xT) av hav hcdr
-          have hcons : ∃ N, ∀ f ≥ N,
-              evalOpt f w (bindArgs [eS, xS] [av, enc (hd :: tl)])
-                (consT (carT xT) (rmT eT (cdrT xT)))
-              = some (.cons hd (enc (tl.erase av))) :=
-            conv_builtin2 w _ { name := "cons" } (carT xT) (rmT eT (cdrT xT))
-              hd (enc (tl.erase av)) (.cons hd (enc (tl.erase av)))
-              (by decide) h_no_cons hcar hrec rfl
-          have h := fuel_conv_of_eq
-            (re_if_false w _ (equalT eT (carT xT)) (cdrT xT)
-              (consT (carT xT) (rmT eT (cdrT xT)))
-              (.cons hd (enc (tl.erase av))) heqNil hcons) hcons
-          have hee : (hd :: tl).erase av = hd :: tl.erase av := by
-            rw [List.erase_cons, if_neg (by simp [hbeq])]
-          simpa only [hee,
-            show enc (hd :: tl.erase av) = .cons hd (enc (tl.erase av)) from rfl]
-            using h
-      exact fuel_conv_of_eq
-        (re_if_true w _ (conspT xT)
-          (ifT (equalT eT (carT xT)) (cdrT xT)
-            (consT (carT xT) (rmT eT (cdrT xT))))
-          qNil SExpr.t _ hconsp rfl hInner) hInner
-    exact conv_defn_2 w e' rm_sym a x av (enc (hd :: tl)) eS xS rmBody _
-      rm_ns h_rm ha hx hbody
+  intro xs e' a x av ha hx
+  have h := rm_exec_corr w h_rm h_no_consp h_no_equal h_no_car h_no_cdr
+    h_no_cons e' a x av (enc xs) ha hx
+  rwa [rmExec_enc] at h
 
 /-- `perm` over encoded arguments computes `List.isPerm`. -/
 theorem corr_perm_enc (w : World)
@@ -808,125 +890,10 @@ theorem corr_perm_enc (w : World)
     (∃ N, ∀ f ≥ N, evalOpt f w e' y = some (enc ys)) →
     ∃ N, ∀ f ≥ N, evalOpt f w e' (permT x y)
       = some (bif xs.isPerm ys then SExpr.t else SExpr.nil) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro ys e' x y hx hy
-    have hxv := re_val_var_get w (bindArgs [xS, yS] [enc [], enc ys])
-      { name := "x" } (enc []) (bindArgs_xy_x (enc []) (enc ys))
-    have hyv := re_val_var_get w (bindArgs [xS, yS] [enc [], enc ys])
-      { name := "y" } (enc ys) (bindArgs_xy_y (enc []) (enc ys))
-    have hconspx := conv_builtin1 w _ { name := "consp" } xT (enc [])
-      (Logic.consp (enc [])) (by decide) h_no_consp hxv (callBuiltin_consp _)
-    have hconspy := conv_builtin1 w _ { name := "consp" } yT (enc ys)
-      (Logic.consp (enc ys)) (by decide) h_no_consp hyv (callBuiltin_consp _)
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS, yS] [enc [], enc ys]) permBody
-        = some (bif ([] : List SExpr).isPerm ys then SExpr.t else SExpr.nil) := by
-      have hElse : ∃ N, ∀ f ≥ N,
-          evalOpt f w (bindArgs [xS, yS] [enc [], enc ys])
-            (ifT (conspT yT) qNil qT)
-          = some (bif ([] : List SExpr).isPerm ys then SExpr.t else SExpr.nil) := by
-        cases ys with
-        | nil =>
-          have hq := re_val_quote w (bindArgs [xS, yS] [enc [], enc []]) SExpr.t
-          have h := fuel_conv_of_eq
-            (re_if_false w _ (conspT yT) qNil qT SExpr.t
-              (by simpa [enc, Logic.consp] using hconspy) hq) hq
-          simpa only [List.isPerm,
-            show ([] : List SExpr).isEmpty = true from rfl, cond_true] using h
-        | cons h2 t2 =>
-          have hq := re_val_quote w
-            (bindArgs [xS, yS] [enc [], enc (h2 :: t2)]) SExpr.nil
-          have h := fuel_conv_of_eq
-            (re_if_true w _ (conspT yT) qNil qT SExpr.t SExpr.nil
-              (by simpa [enc, Logic.consp] using hconspy) rfl hq) hq
-          simpa only [List.isPerm,
-            show (h2 :: t2).isEmpty = false from rfl, cond_false] using h
-      exact fuel_conv_of_eq
-        (re_if_false w _ (conspT xT) _ (ifT (conspT yT) qNil qT)
-          _ (by simpa [enc, Logic.consp] using hconspx) hElse) hElse
-    exact conv_defn_2 w e' perm_sym x y (enc []) (enc ys) xS yS permBody _
-      perm_ns h_perm hx hy hbody
-  | cons hd tl ihl =>
-    intro ys e' x y hx hy
-    have hxv := re_val_var_get w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
-      { name := "x" } (enc (hd :: tl)) (bindArgs_xy_x (enc (hd :: tl)) (enc ys))
-    have hyv := re_val_var_get w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
-      { name := "y" } (enc ys) (bindArgs_xy_y (enc (hd :: tl)) (enc ys))
-    have hencx : enc (hd :: tl) = .cons hd (enc tl) := rfl
-    have hconspx : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys]) (conspT xT)
-        = some SExpr.t := by
-      have h := conv_builtin1 w _ { name := "consp" } xT (enc (hd :: tl))
-        (Logic.consp (enc (hd :: tl))) (by decide) h_no_consp hxv
-        (callBuiltin_consp _)
-      simpa [hencx, Logic.consp] using h
-    have hcar : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys]) (carT xT)
-        = some hd := by
-      have h := conv_builtin1 w _ { name := "car" } xT (enc (hd :: tl))
-        (Logic.car (enc (hd :: tl))) (by decide) h_no_car hxv (callBuiltin_car _)
-      simpa [hencx, Logic.car] using h
-    have hcdr : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys]) (cdrT xT)
-        = some (enc tl) := by
-      have h := conv_builtin1 w _ { name := "cdr" } xT (enc (hd :: tl))
-        (Logic.cdr (enc (hd :: tl))) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-      simpa [hencx, Logic.cdr] using h
-    have hmemb : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
-          (membT (carT xT) yT)
-        = some (bif ys.contains hd then SExpr.t else SExpr.nil) :=
-      corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car h_no_cdr ys
-        _ (carT xT) yT hd hcar hyv
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys]) permBody
-        = some (bif (hd :: tl).isPerm ys then SExpr.t else SExpr.nil) := by
-      have hInner : ∃ N, ∀ f ≥ N,
-          evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
-            (ifT (membT (carT xT) yT)
-              (permT (cdrT xT) (rmT (carT xT) yT)) qNil)
-          = some (bif (hd :: tl).isPerm ys then SExpr.t else SExpr.nil) := by
-        cases hc : ys.contains hd with
-        | true =>
-          have hmemb' : ∃ N, ∀ f ≥ N,
-              evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
-                (membT (carT xT) yT) = some SExpr.t := by
-            simpa only [hc, cond_true] using hmemb
-          have hrm : ∃ N, ∀ f ≥ N,
-              evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
-                (rmT (carT xT) yT) = some (enc (ys.erase hd)) :=
-            corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr
-              h_no_cons ys _ (carT xT) yT hd hcar hyv
-          have hrec : ∃ N, ∀ f ≥ N,
-              evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
-                (permT (cdrT xT) (rmT (carT xT) yT))
-              = some (bif tl.isPerm (ys.erase hd) then SExpr.t else SExpr.nil) :=
-            ihl (ys.erase hd) _ (cdrT xT) (rmT (carT xT) yT) hcdr hrm
-          have h := fuel_conv_of_eq
-            (re_if_true w _ (membT (carT xT) yT) _ qNil SExpr.t
-              _ hmemb' rfl hrec) hrec
-          simpa only [List.isPerm, hc, Bool.true_and] using h
-        | false =>
-          have hmembNil : ∃ N, ∀ f ≥ N,
-              evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
-                (membT (carT xT) yT) = some SExpr.nil := by
-            simpa only [hc, cond_false] using hmemb
-          have hq := re_val_quote w
-            (bindArgs [xS, yS] [enc (hd :: tl), enc ys]) SExpr.nil
-          have h := fuel_conv_of_eq
-            (re_if_false w _ (membT (carT xT) yT)
-              (permT (cdrT xT) (rmT (carT xT) yT)) qNil SExpr.nil
-              hmembNil hq) hq
-          simpa only [List.isPerm, hc, Bool.false_and, cond_false] using h
-      exact fuel_conv_of_eq
-        (re_if_true w _ (conspT xT)
-          (ifT (membT (carT xT) yT) (permT (cdrT xT) (rmT (carT xT) yT)) qNil)
-          (ifT (conspT yT) qNil qT)
-          SExpr.t _ hconspx rfl hInner) hInner
-    exact conv_defn_2 w e' perm_sym x y (enc (hd :: tl)) (enc ys) xS yS
-      permBody _ perm_ns h_perm hx hy hbody
+  intro xs ys e' x y hx hy
+  have h := perm_exec_corr w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons e' x y (enc xs) (enc ys) hx hy
+  rwa [permExec_enc] at h
 
 /-! ## The assembly -/
 

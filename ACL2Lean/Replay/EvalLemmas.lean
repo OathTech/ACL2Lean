@@ -2870,6 +2870,34 @@ theorem convP_if_split_ex (w : World) (env : Env) (c t e : SExpr)
   exact convP_if_split w env c t e vc P ⟨N, hvc⟩
     (ht vc ⟨N, hvc⟩) (he vc ⟨N, hvc⟩)
 
+/-- The VALUE-DETERMINED `if`: when both branch VALUES are given by total
+    Lean terms, the whole `if` converges to the Lean `ite` of the test
+    verdict. The exec-corr walk's if move (two-stage lift, D1/D2 of
+    docs/plans/2026-07-06_two-stage-lift.md): each branch PROOF is
+    conditional on its verdict (the untaken branch is never demanded — the
+    recursive branch's IH needs the ruling test), but both values exist
+    unconditionally because the exec function is total. -/
+theorem conv_if_lift (w : World) (env : Env) (c t e vc vt ve : SExpr)
+    (hc : ConvTo w env c vc)
+    (ht : Logic.toBool vc = true → ConvTo w env t vt)
+    (he : Logic.toBool vc = false → ConvTo w env e ve) :
+    ConvTo w env
+      (.cons (.atom (.symbol { name := "if" }))
+        (.cons c (.cons t (.cons e .nil))))
+      (if Logic.toBool vc = true then vt else ve) := by
+  cases hb : Logic.toBool vc with
+  | true =>
+    rw [if_pos rfl]
+    exact conv_if_true w env c t e vc vt hc hb (ht hb)
+  | false =>
+    rw [if_neg Bool.false_ne_true]
+    obtain ⟨Nc, hc'⟩ := nil_of_toBool_false hb ▸ hc
+    obtain ⟨Ne, he'⟩ := he hb
+    refine ⟨max Nc Ne + 1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    rw [evalOpt_if_false g w env c t e (hc' g (by omega))]
+    exact he' g (by omega)
+
 /-- A defined 2-ary call inherits the body's predicate (self-calls inside
     the TP walk: `hbody` is the IH at the argument values). -/
 theorem convP_defn_2 (w : World) (env : Env) (s : Symbol)

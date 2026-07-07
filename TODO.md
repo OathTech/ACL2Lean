@@ -86,15 +86,20 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    THE TWO-STAGE LIFT as the following work item: The
    lift-automation analysis (MDD-ratified intent 2026-07-06; per-theorem
    cost is now low, per-FUNCTION corr lemmas are the scaling bottleneck):
-   (a) **Two-stage lift** — GENERATE the Lean exec function from the ACL2
-       body mechanically (SExpr body → `def fooExec : List SExpr → … `),
-       corr TRUE BY CONSTRUCTION via the strengthened-walk machinery
-       (tpWalk with `P v := v = encode (fooExec args)` is the same shape);
-       the only remaining hand work is the PURE-LEAN equivalence
-       `fooExec = <idiomatic Mathlib fn>` — no evalOpt, no fuel, ordinary
-       Lean proving. Splits "hard proof about the evaluator" (automated)
-       from "easy proof about Lean functions" (human). Driving example:
-       isort/insert — never built ahead of a real consumer.
+   (a) **Two-stage lift — HAND-VALIDATED on the perm book (2026-07-06,
+       branch mdd/r2-isort; design docs/plans/2026-07-06_two-stage-lift.md).**
+       The split is real: `membExec`/`rmExec`/`permExec` (total Lean body
+       mirrors, `termination_by acl2Count`) + stage-1 corrs
+       (`ConvTo w env (fooT a…) (fooExec av…)` over ALL SExpr values —
+       the conv_builtin interface shape, so exec'd fns COMPOSE: perm's
+       walk cites memb/rm corrs like builtin lemmas) + stage-2 pure-Lean
+       simulations; the three `corr_*_enc` lemmas are now 4-line
+       corollaries (~325 hand lines deleted, statements byte-identical,
+       ci + native axiom gate green). Kit lemma `conv_if_lift`
+       (EvalLemmas). REMAINING: (i) mechanize stage 1 as an elab command
+       (spec in the design note §Next — walk arms are exactly the three
+       hand proofs' moves; hand-offable); (ii) isort/insert once
+       `lexorder` lands (its exec needs the primitive).
    (b) **Decode-theorem generator** (fold in once TWO books exercise the
        schema): parsed formula + (fn ↦ corr) registry → the whole
        per-theorem decode emitted, fail-closed outside the schema; takes
