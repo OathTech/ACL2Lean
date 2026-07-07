@@ -1035,6 +1035,382 @@ theorem perm_cons_native_of_mirror (w : World)
   cases h1 : xs.isPerm (av :: ys) <;> cases h2 : (xs.erase av).isPerm ys <;>
     simp [h1, h2, SExpr.t] at hEqv <;> rfl
 
+/-! ## The remaining perm-book native entries (lifter sprint 2026-07-06)
+
+Each consumes its theorem's UNCONDITIONAL driver mirror at exactly one seam
+(`hmirror`) and decodes through the `corr_*` simulation layer with the
+Lifting decode kit (`mirror_pins_ne_nil` / `bool_of_cond_eq` /
+`conv_and_conds` / `mirror_peel_guard`). -/
+
+private def bS : Symbol := ⟨"ACL2", "b"⟩
+private def bT : SExpr := .atom (.symbol { name := "b" })
+private def zS : Symbol := ⟨"ACL2", "z"⟩
+private def zT : SExpr := .atom (.symbol { name := "z" })
+
+def perm_symmetricFormula : SExpr := impliesT (permT xT yT) (permT yT xT)
+
+/-- perm-symmetric, natively: `isPerm` is symmetric. -/
+theorem perm_symmetric_native_of_mirror (w : World)
+    (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
+    (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
+    (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env perm_symmetricFormula = some v ∧ v ≠ SExpr.nil)
+    (xs ys : List SExpr) (hp : xs.isPerm ys = true) :
+    ys.isPerm xs = true := by
+  let e : Env := (({} : Env).insert yS (enc ys)).insert xS (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "x" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = (({} : Env).insert yS (enc ys)).insert xS (enc xs) from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
+    re_val_var_get w e { name := "y" } (enc ys) (by
+      show e.get? yS = some (enc ys)
+      rw [show e = (({} : Env).insert yS (enc ys)).insert xS (enc xs) from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hA := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons xs ys e xT yT hx hy
+  have hC := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons ys xs e yT xT hy hx
+  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+    h_no_implies hA hC (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  exact bool_true_of_cond_truthy
+    (truthy_of_implies_t hIt (by rw [cond_t_of_true hp]; rfl))
+
+def memb_rmFormula : SExpr := impliesT (membT aT (rmT bT xT)) (membT aT xT)
+
+/-- memb-rm, natively: membership survives erasing another element. -/
+theorem memb_rm_native_of_mirror (w : World)
+    (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
+    (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env memb_rmFormula = some v ∧ v ≠ SExpr.nil)
+    (av bv : SExpr) (xs : List SExpr)
+    (hmem : (xs.erase bv).contains av = true) :
+    xs.contains av = true := by
+  let e : Env := ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
+    re_val_var_get w e { name := "a" } av (by
+      show e.get? aS = some av
+      rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some bv :=
+    re_val_var_get w e { name := "b" } bv (by
+      show e.get? bS = some bv
+      rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "x" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  have hrm := corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr
+    h_no_cons xs e bT xT bv hb hx
+  have hA := corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car h_no_cdr
+    (xs.erase bv) e aT (rmT bT xT) av ha hrm
+  have hC := corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car h_no_cdr
+    xs e aT xT av ha hx
+  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+    h_no_implies hA hC (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  exact bool_true_of_cond_truthy
+    (truthy_of_implies_t hIt (by rw [cond_t_of_true hmem]; rfl))
+
+def comm_rmFormula : SExpr := equalT (rmT aT (rmT bT xT)) (rmT bT (rmT aT xT))
+
+/-- comm-rm, natively: erasures commute (a LIST equality, decoded via `enc`
+    injectivity). -/
+theorem comm_rm_native_of_mirror (w : World)
+    (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env comm_rmFormula = some v ∧ v ≠ SExpr.nil)
+    (av bv : SExpr) (xs : List SExpr) :
+    (xs.erase bv).erase av = (xs.erase av).erase bv := by
+  let e : Env := ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
+    re_val_var_get w e { name := "a" } av (by
+      show e.get? aS = some av
+      rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some bv :=
+    re_val_var_get w e { name := "b" } bv (by
+      show e.get? bS = some bv
+      rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "x" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  have hL := corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr
+    h_no_cons (xs.erase bv) e aT (rmT bT xT) av ha
+    (corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
+      xs e bT xT bv hb hx)
+  have hR := corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr
+    h_no_cons (xs.erase av) e bT (rmT aT xT) bv hb
+    (corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
+      xs e aT xT av ha hx)
+  have hEq := conv_builtin2 w e { name := "equal" } _ _ _ _ _ (by decide)
+    h_no_equal hL hR (callBuiltin_equal _ _)
+  exact enc_inj (eq_of_equal_truthy (toBool_true_of_ne_nil
+    (mirror_pins_ne_nil (hmirror e) hEq)))
+
+def perm_membFormula : SExpr :=
+  impliesT (ifT (permT xT yT) (membT aT xT) qNil) (membT aT yT)
+
+/-- perm-memb, natively: membership transports across `isPerm`. -/
+theorem perm_memb_native_of_mirror (w : World)
+    (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
+    (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
+    (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env perm_membFormula = some v ∧ v ≠ SExpr.nil)
+    (av : SExpr) (xs ys : List SExpr)
+    (hp : xs.isPerm ys = true) (hmem : xs.contains av = true) :
+    ys.contains av = true := by
+  let e : Env := ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
+    re_val_var_get w e { name := "a" } av (by
+      show e.get? aS = some av
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "x" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
+    re_val_var_get w e { name := "y" } (enc ys) (by
+      show e.get? yS = some (enc ys)
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  have hAnd := conv_and_conds w e (permT xT yT) (membT aT xT)
+    (xs.isPerm ys) (xs.contains av)
+    (corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal h_no_car
+      h_no_cdr h_no_cons xs ys e xT yT hx hy)
+    (corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car h_no_cdr
+      xs e aT xT av ha hx)
+  have hC := corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car h_no_cdr
+    ys e aT yT av ha hy
+  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+    h_no_implies hAnd hC (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  have hb : (xs.isPerm ys && xs.contains av) = true := by rw [hp, hmem]; rfl
+  exact bool_true_of_cond_truthy
+    (truthy_of_implies_t hIt (by rw [cond_t_of_true hb]; rfl))
+
+def perm_rmFormula : SExpr :=
+  impliesT (permT xT yT) (permT (rmT aT xT) (rmT aT yT))
+
+/-- perm-rm, natively: `isPerm` is preserved by erasing the same element. -/
+theorem perm_rm_native_of_mirror (w : World)
+    (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
+    (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
+    (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env perm_rmFormula = some v ∧ v ≠ SExpr.nil)
+    (av : SExpr) (xs ys : List SExpr) (hp : xs.isPerm ys = true) :
+    (xs.erase av).isPerm (ys.erase av) = true := by
+  let e : Env := ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
+    re_val_var_get w e { name := "a" } av (by
+      show e.get? aS = some av
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "x" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
+    re_val_var_get w e { name := "y" } (enc ys) (by
+      show e.get? yS = some (enc ys)
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  have hA := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons xs ys e xT yT hx hy
+  have hC := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons (xs.erase av) (ys.erase av) e
+    (rmT aT xT) (rmT aT yT)
+    (corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
+      xs e aT xT av ha hx)
+    (corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
+      ys e aT yT av ha hy)
+  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+    h_no_implies hA hC (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  exact bool_true_of_cond_truthy
+    (truthy_of_implies_t hIt (by rw [cond_t_of_true hp]; rfl))
+
+def perm_transitiveFormula : SExpr :=
+  impliesT (ifT (permT xT yT) (permT yT zT) qNil) (permT xT zT)
+
+/-- perm-transitive, natively: `isPerm` is transitive. -/
+theorem perm_transitive_native_of_mirror (w : World)
+    (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
+    (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
+    (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env perm_transitiveFormula = some v ∧ v ≠ SExpr.nil)
+    (xs ys zs : List SExpr)
+    (hxy : xs.isPerm ys = true) (hyz : ys.isPerm zs = true) :
+    xs.isPerm zs = true := by
+  let e : Env := ((({} : Env).insert zS (enc zs)).insert yS (enc ys)).insert xS (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "x" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ((({} : Env).insert zS (enc zs)).insert yS (enc ys)).insert xS (enc xs)
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
+    re_val_var_get w e { name := "y" } (enc ys) (by
+      show e.get? yS = some (enc ys)
+      rw [show e = ((({} : Env).insert zS (enc zs)).insert yS (enc ys)).insert xS (enc xs)
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hz : ∃ N, ∀ f ≥ N, evalOpt f w e zT = some (enc zs) :=
+    re_val_var_get w e { name := "z" } (enc zs) (by
+      show e.get? zS = some (enc zs)
+      rw [show e = ((({} : Env).insert zS (enc zs)).insert yS (enc ys)).insert xS (enc xs)
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  have hAnd := conv_and_conds w e (permT xT yT) (permT yT zT)
+    (xs.isPerm ys) (ys.isPerm zs)
+    (corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal h_no_car
+      h_no_cdr h_no_cons xs ys e xT yT hx hy)
+    (corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal h_no_car
+      h_no_cdr h_no_cons ys zs e yT zT hy hz)
+  have hC := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons xs zs e xT zT hx hz
+  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+    h_no_implies hAnd hC (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  have hb : (xs.isPerm ys && ys.isPerm zs) = true := by rw [hxy, hyz]; rfl
+  exact bool_true_of_cond_truthy
+    (truthy_of_implies_t hIt (by rw [cond_t_of_true hb]; rfl))
+
+private abbrev booleanpT (x : SExpr) : SExpr := app1 "booleanp" x
+
+/-- The `defequiv`-generated obligation, macroexpanded exactly as ACL2's
+    Goal input clause states it (audit #3 verified this byte-for-byte
+    against the log's :INPUTCLAUSE). -/
+def perm_equivFormula : SExpr :=
+  ifT (booleanpT (permT xT yT))
+    (ifT (permT xT xT)
+      (ifT (impliesT (permT xT yT) (permT yT xT))
+        (impliesT (ifT (permT xT yT) (permT yT zT) qNil) (permT xT zT))
+        qNil)
+      qNil)
+    qNil
+
+/-- perm-is-an-equivalence, natively — the genuinely NEW conjunct is
+    REFLEXIVITY (the symmetric/transitive conjuncts have their own
+    theorems): peel the `booleanp` guard (type-absorbed), then the `(perm
+    x x)` guard IS the native fact. -/
+theorem perm_refl_native_of_mirror (w : World)
+    (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
+    (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
+    (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_booleanp : w.defs.get? ({ name := "booleanp" } : Symbol) = none)
+    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env perm_equivFormula = some v ∧ v ≠ SExpr.nil)
+    (xs : List SExpr) : xs.isPerm xs = true := by
+  let e : Env := ((({} : Env).insert zS (enc [])).insert yS (enc [])).insert xS (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "x" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ((({} : Env).insert zS (enc [])).insert yS (enc [])).insert xS (enc xs)
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc []) :=
+    re_val_var_get w e { name := "y" } (enc []) (by
+      show e.get? yS = some (enc [])
+      rw [show e = ((({} : Env).insert zS (enc [])).insert yS (enc [])).insert xS (enc xs)
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  -- guard 1: (booleanp (perm x y)) computes to t = bif true (type-absorbed)
+  have hpxy := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons xs [] e xT yT hx hy
+  have hG1 : ∃ N, ∀ f ≥ N, evalOpt f w e (booleanpT (permT xT yT))
+      = some (bif true then SExpr.t else SExpr.nil) := by
+    have h := conv_builtin1 w e { name := "booleanp" } (permT xT yT)
+      (bif xs.isPerm [] then SExpr.t else SExpr.nil)
+      (Logic.booleanp (bif xs.isPerm [] then SExpr.t else SExpr.nil))
+      (by decide) h_no_booleanp hpxy (callBuiltin_booleanp _)
+    rw [booleanp_cond] at h
+    exact h
+  obtain ⟨_, hrest⟩ := mirror_peel_guard (hmirror e) hG1
+  -- guard 2: (perm x x) — its Bool IS the reflexivity fact
+  have hG2 := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons xs xs e xT xT hx hx
+  exact (mirror_peel_guard hrest hG2).1
+
 /-- The idiomatic corollary over `List.Perm`: a member can be moved across —
     `a ∈ xs → (xs ~ a :: ys ↔ xs.erase a ~ ys)`. -/
 theorem perm_cons_native_perm_of_mirror (w : World)

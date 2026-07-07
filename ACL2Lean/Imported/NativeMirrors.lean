@@ -20,6 +20,18 @@
     7. equal-trans     u = v → v = w → u = w                      [hypothesis + if]
     8. app-cons-car    Logic.car (cons u v) = u                   [nested unfold +
                                                                    symbolic-value]
+    9. perm-cons       a ∈ xs → (xs ~ a::ys ↔ xs.erase a ~ ys)    [UNCONDITIONAL
+                                                                   mirror; List.Perm]
+   10. perm-symmetric  isPerm symm (+ Perm corollary)             [decode kit]
+   11. memb-rm         contains survives erase                    [decode kit]
+   12. comm-rm         erase_comm (LIST equality via enc_inj)     [decode kit]
+   13. perm-memb       membership transports across isPerm        [and-cond decode]
+   14. perm-rm         isPerm preserved by erase (+ corollary)    [decode kit]
+   15. perm-transitive isPerm trans (+ Perm corollary)            [and-cond decode]
+   16. perm-refl       isPerm refl, peeled from the defequiv
+                       tower; + isPerm_equivalence_driver bundle  [mirror_peel_guard]
+  THE WHOLE PERM BOOK IS IMPORTED: 8 unconditional mirrors, 8 native facts,
+  zero hypotheses (lifter sprint 2026-07-06).
   PROVED (via the HAND mirror — driver upgrade pending):
     -  my-len-my-app   ACL2Lean/Imported/SimpleWorld.lean (the original)
     -  nat-refl        Tests/DriverTests.lean `native_nat_refl` (trivial, driver)
@@ -544,5 +556,106 @@ theorem perm_cons_native_perm_driver (a : SExpr) (xs ys : List SExpr)
     (by decide) permConsMirror_uncond a xs ys h
 
 #print axioms perm_cons_native_perm_driver
+
+/-! ## Entries 10–16 — the REST of the perm book (lifter sprint 2026-07-06)
+
+Every remaining theorem's UNCONDITIONAL driver mirror, decoded natively
+through the same `corr_*` layer with the Lifting decode kit. The whole ACL2
+book is now imported: 8 mirrors, 8 native facts, zero hypotheses. -/
+
+def permSymmetricMirror := driver_mirror% permDev permWorldD "perm-symmetric"
+def membRmMirror := driver_mirror% permDev permWorldD "memb-rm"
+def permMembMirror := driver_mirror% permDev permWorldD "perm-memb"
+def commRmMirror := driver_mirror% permDev permWorldD "comm-rm"
+def permRmMirror := driver_mirror% permDev permWorldD "perm-rm"
+def permTransitiveMirror := driver_mirror% permDev permWorldD "perm-transitive"
+def permEquivMirror := driver_mirror% permDev permWorldD "perm-is-an-equivalence"
+
+/-- ENTRY 10, PROVED — perm-symmetric: `isPerm` is symmetric. -/
+theorem perm_symmetric_native_driver (xs ys : List SExpr)
+    (h : xs.isPerm ys = true) : ys.isPerm xs = true :=
+  Worlds.Perm.perm_symmetric_native_of_mirror permWorldD (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) permSymmetricMirror xs ys h
+
+/-- ENTRY 11, PROVED — memb-rm: membership survives erasing another element. -/
+theorem memb_rm_native_driver (av bv : SExpr) (xs : List SExpr)
+    (h : (xs.erase bv).contains av = true) : xs.contains av = true :=
+  Worlds.Perm.memb_rm_native_of_mirror permWorldD (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    membRmMirror av bv xs h
+
+/-- ENTRY 12, PROVED — comm-rm: erasures commute (the Mathlib
+    `List.erase_comm` fact, imported from ACL2). -/
+theorem comm_rm_native_driver (av bv : SExpr) (xs : List SExpr) :
+    (xs.erase bv).erase av = (xs.erase av).erase bv :=
+  Worlds.Perm.comm_rm_native_of_mirror permWorldD (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) commRmMirror av bv xs
+
+/-- ENTRY 13, PROVED — perm-memb: membership transports across `isPerm`. -/
+theorem perm_memb_native_driver (av : SExpr) (xs ys : List SExpr)
+    (hp : xs.isPerm ys = true) (hm : xs.contains av = true) :
+    ys.contains av = true :=
+  Worlds.Perm.perm_memb_native_of_mirror permWorldD (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) permMembMirror av xs ys hp hm
+
+/-- ENTRY 14, PROVED — perm-rm: `isPerm` is preserved by erasing the same
+    element from both sides. -/
+theorem perm_rm_native_driver (av : SExpr) (xs ys : List SExpr)
+    (hp : xs.isPerm ys = true) :
+    (xs.erase av).isPerm (ys.erase av) = true :=
+  Worlds.Perm.perm_rm_native_of_mirror permWorldD (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) permRmMirror av xs ys hp
+
+/-- ENTRY 15, PROVED — perm-transitive: `isPerm` is transitive. -/
+theorem perm_transitive_native_driver (xs ys zs : List SExpr)
+    (hxy : xs.isPerm ys = true) (hyz : ys.isPerm zs = true) :
+    xs.isPerm zs = true :=
+  Worlds.Perm.perm_transitive_native_of_mirror permWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) permTransitiveMirror xs ys zs hxy hyz
+
+/-- ENTRY 16, PROVED — perm-is-an-equivalence: reflexivity (the conjunct
+    with no standalone theorem), decoded by peeling the defequiv tower. -/
+theorem perm_refl_native_driver (xs : List SExpr) : xs.isPerm xs = true :=
+  Worlds.Perm.perm_refl_native_of_mirror permWorldD (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) permEquivMirror xs
+
+/-- The BUNDLE — ACL2's defequiv, in Lean's own terms: `isPerm` is an
+    equivalence relation, assembled from entries 10/15/16. -/
+theorem isPerm_equivalence_driver :
+    Equivalence (fun xs ys : List SExpr => xs.isPerm ys = true) where
+  refl := perm_refl_native_driver
+  symm := fun h => perm_symmetric_native_driver _ _ h
+  trans := fun h1 h2 => perm_transitive_native_driver _ _ _ h1 h2
+
+/-- The idiomatic `List.Perm` corollaries. -/
+theorem perm_symm_perm_driver {xs ys : List SExpr} (h : xs.Perm ys) :
+    ys.Perm xs :=
+  List.isPerm_iff.mp
+    (perm_symmetric_native_driver xs ys (List.isPerm_iff.mpr h))
+
+theorem perm_trans_perm_driver {xs ys zs : List SExpr}
+    (h1 : xs.Perm ys) (h2 : ys.Perm zs) : xs.Perm zs :=
+  List.isPerm_iff.mp (perm_transitive_native_driver xs ys zs
+    (List.isPerm_iff.mpr h1) (List.isPerm_iff.mpr h2))
+
+theorem perm_erase_perm_driver (av : SExpr) {xs ys : List SExpr}
+    (h : xs.Perm ys) : (xs.erase av).Perm (ys.erase av) :=
+  List.isPerm_iff.mp
+    (perm_rm_native_driver av xs ys (List.isPerm_iff.mpr h))
+
+theorem mem_transport_perm_driver {av : SExpr} {xs ys : List SExpr}
+    (h : xs.Perm ys) (hm : av ∈ xs) : av ∈ ys := by
+  have := perm_memb_native_driver av xs ys (List.isPerm_iff.mpr h)
+    (by simpa [List.contains_iff_mem] using hm)
+  simpa [List.contains_iff_mem] using this
+
+#print axioms isPerm_equivalence_driver
+#print axioms comm_rm_native_driver
+#print axioms perm_erase_perm_driver
 
 end ACL2.Imported.Mirrors

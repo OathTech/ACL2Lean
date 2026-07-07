@@ -34,12 +34,26 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    settled-down-clause, free-var relief no-marker path, built-in-clausep at
    induct.lisp:1310, Parser.lean unterminated-block-comment panic, Driver
    `rebuild` panic default).
-1. **LIFTER INDUSTRIALIZATION sprint (#63)** — the product lane: extract the
-   standard lifting library (`enc`/`corr_*` patterns) from the catalog with the
-   perm book as driving example (8 native entries), INCLUDING the base-fact
-   provers (general TP prover — design call needed: Lean induction vs carve-out;
-   totality for perm's shape) so lifted books go unconditional. Anti-overfit
-   gauge: entry N+1 must cost less than entry N.
+1. **LIFTER INDUSTRIALIZATION sprint (#63) — LANDED on mdd/lifter-sprint
+   (2026-07-06, UNAUDITED; sprint-end audit next).** THE WHOLE PERM BOOK IS
+   IMPORTED: all 8 mirrors UNCONDITIONAL (obligation log EMPTY; scoreboard
+   26/47 = 21 uncond + 5 cond, was 14+12) and all 8 native facts proved
+   axiom-clean (entries 9–16, incl. `isPerm_equivalence_driver` — ACL2's
+   defequiv as a Lean `Equivalence` — and `comm_rm_native_driver` =
+   List.erase_comm). The machinery, all general: (a) totality prover covers
+   user-fn if-tests (`conv_if_split_ex`) + opaque non-measured self-call
+   args, + the buildTotalEnv dev-order/fixpoint fix; (b) the TP PROVER
+   (`proveTp`/`tpWalk`/`ConvToP` family) — emitted corollaries proved from
+   the body, forward-only, by the #37 precedent (MDD-confirmed: consuming
+   the emitted fact and constructing the proof object ACL2 never had is NOT
+   the banned inference); (c) proof-term scale — `letBindFVar` sharing,
+   perm-is-an-equivalence 3.87e9 → 1.09e8 nodes (14–36×); (d) the LIFTING
+   DECODE KIT (Lifting.lean: `mirror_pins_ne_nil`, `bool_of_cond_eq`,
+   `conv_and_conds`, `mirror_peel_guard`, `booleanp_cond`) — anti-overfit
+   gauge held: entries 10–16 ≈40 lines each vs entry 9's ≈130. Open TP
+   frontiers (honest, named): builtin-headed return paths (tp:my-len /
+   tp:len2 need natp-through-+ value lemmas), evenlen's cddr decrease;
+   pool-subsumption subsumer still replayed twice (scale residual).
 2. **Proof-term scale — sharing, not inlining.** perm-is-an-equivalence is
    ≈557M Expr nodes and grows with dependency depth (step-5 inlining + the
    subsumer-duplication residue); R2 (isort) stacks a book on top. Let-bind

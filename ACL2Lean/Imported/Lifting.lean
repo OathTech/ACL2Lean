@@ -287,6 +287,117 @@ theorem equal_truthy_of_eq {a b : SExpr} (h : a = b) :
     Logic.toBool (Logic.equal a b) = true := by
   rw [(Logic.equal_t_iff a b).mpr h]; rfl
 
+/-! ## The mirror-decode kit (extracted from entry 9's repeated glue —
+lifter sprint 2026-07-06). Every native entry: compute the formula's value
+FORWARD via the `corr_*` layer, PIN it by the mirror's truthiness, then
+project through implies/and/equal down to Bool facts. -/
+
+/-- The mirror's truthiness PINS a computed value: the formula evaluates to
+    a non-nil value, and we computed WHICH value — so that value ≠ nil. -/
+theorem mirror_pins_ne_nil {w : World} {e : Env} {t v : SExpr}
+    (hm : ∃ N, ∀ f, f ≥ N → ∃ u, evalOpt f w e t = some u ∧ u ≠ SExpr.nil)
+    (hv : ∃ N, ∀ f ≥ N, evalOpt f w e t = some v) : v ≠ SExpr.nil := by
+  obtain ⟨Nm, hm'⟩ := hm
+  obtain ⟨Nv, hv'⟩ := hv
+  obtain ⟨u, hu, hune⟩ := hm' (max Nm Nv) (by omega)
+  exact (Option.some.inj ((hv' (max Nm Nv) (by omega)).symm.trans hu)) ▸ hune
+
+/-- Bool-cond DISCRIMINATION: equal `bif _ then t else nil` values have
+    equal Bools (t/nil discriminate). -/
+theorem bool_of_cond_eq {b1 b2 : Bool}
+    (h : (bif b1 then SExpr.t else SExpr.nil)
+       = (bif b2 then SExpr.t else SExpr.nil)) : b1 = b2 := by
+  cases b1 <;> cases b2 <;> simp_all [SExpr.t]
+
+/-- A non-nil bool-cond's Bool is `true`. -/
+theorem bool_true_of_cond_ne_nil {b : Bool}
+    (h : (bif b then SExpr.t else SExpr.nil) ≠ SExpr.nil) : b = true := by
+  cases b <;> simp_all
+
+/-- A truthy bool-cond's Bool is `true`. -/
+theorem bool_true_of_cond_truthy {b : Bool}
+    (h : Logic.toBool (bif b then SExpr.t else SExpr.nil) = true) : b = true := by
+  cases b <;> simp_all [Logic.toBool]
+
+/-- A `true` Bool's cond is `t` (antecedent side). -/
+theorem cond_t_of_true {b : Bool} (h : b = true) :
+    (bif b then SExpr.t else SExpr.nil) = SExpr.t := by subst h; rfl
+
+/-- `booleanp` of a bool-cond is `t` — the type-absorbed conjunct of a
+    `defequiv` obligation. -/
+theorem booleanp_cond (b : Bool) :
+    Logic.booleanp (bif b then SExpr.t else SExpr.nil) = SExpr.t := by
+  cases b <;> rfl
+
+/-- PEEL one guard off a truthy conjunction tower `(if G rest 'nil)`: the
+    guard's Bool is `true` (a native fact) AND the rest stays truthy — the
+    stepwise decode of a `defequiv`-style macroexpanded `and`-nest. -/
+theorem mirror_peel_guard {w : World} {e : Env} {G rest : SExpr} {bg : Bool}
+    (hm : ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w e (.cons (.atom (.symbol { name := "if" }))
+        (.cons G (.cons rest (.cons
+          (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+          .nil)))) = some v ∧ v ≠ SExpr.nil)
+    (hG : ∃ N, ∀ f ≥ N, evalOpt f w e G
+      = some (bif bg then SExpr.t else SExpr.nil)) :
+    bg = true ∧ (∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w e rest = some v ∧ v ≠ SExpr.nil) := by
+  cases hb : bg with
+  | false =>
+    -- guard nil ⟹ the tower IS nil — contradicts the pinned truthiness
+    have hGn : ∃ N, ∀ f ≥ N, evalOpt f w e G = some SExpr.nil := by
+      simpa [hb] using hG
+    have hq := re_val_quote w e SExpr.nil
+    have hnil := fuel_conv_of_eq
+      (re_if_false w e G rest
+        (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+        SExpr.nil hGn hq) hq
+    exact absurd hnil (fun h => mirror_pins_ne_nil hm h rfl)
+  | true =>
+    have hGt : ∃ N, ∀ f ≥ N, evalOpt f w e G = some SExpr.t := by
+      simpa [hb] using hG
+    refine ⟨rfl, ?_⟩
+    obtain ⟨Nm, hm'⟩ := hm
+    obtain ⟨Ng, hg'⟩ := hGt
+    refine ⟨max Nm Ng, fun f hf => ?_⟩
+    -- at fuel f+1 the `if` IS the rest (raw step equation, no branch
+    -- convergence needed) — rest inherits the pinned truthy value
+    obtain ⟨v, hv, hvne⟩ := hm' (f + 1) (by omega)
+    have hstep := evalOpt_if_true f w e G rest
+      (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+      SExpr.t (hg' f (by omega)) rfl
+    exact ⟨v, hstep ▸ hv, hvne⟩
+
+/-- Value of the macroexpanded `and` — `(if A B 'nil)` — of two computed
+    bool-conds: the `&&`-cond. -/
+theorem conv_and_conds (w : World) (e : Env) (A B : SExpr) (b1 b2 : Bool)
+    (hA : ∃ N, ∀ f ≥ N, evalOpt f w e A
+      = some (bif b1 then SExpr.t else SExpr.nil))
+    (hB : ∃ N, ∀ f ≥ N, evalOpt f w e B
+      = some (bif b2 then SExpr.t else SExpr.nil)) :
+    ∃ N, ∀ f ≥ N, evalOpt f w e
+      (.cons (.atom (.symbol { name := "if" }))
+        (.cons A (.cons B (.cons
+          (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+          .nil)))) =
+      some (bif (b1 && b2) then SExpr.t else SExpr.nil) := by
+  cases hb1 : b1 with
+  | true =>
+    have hAt : ∃ N, ∀ f ≥ N, evalOpt f w e A = some SExpr.t := by
+      simpa [hb1] using hA
+    have h := re_if_true w e A B
+      (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+      SExpr.t (bif b2 then SExpr.t else SExpr.nil) hAt rfl hB
+    simpa using fuel_conv_of_eq h hB
+  | false =>
+    have hAn : ∃ N, ∀ f ≥ N, evalOpt f w e A = some SExpr.nil := by
+      simpa [hb1] using hA
+    have hq := re_val_quote w e SExpr.nil
+    have h := re_if_false w e A B
+      (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+      SExpr.nil hAn hq
+    simpa using fuel_conv_of_eq h hq
+
 /-! ## Name-generic structural correspondences
 
 The standard ACL2 list-recursion body shapes, parameterized by the function
