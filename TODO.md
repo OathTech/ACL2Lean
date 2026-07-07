@@ -54,12 +54,35 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    frontiers (honest, named): builtin-headed return paths (tp:my-len /
    tp:len2 need natp-through-+ value lemmas), evenlen's cddr decrease;
    pool-subsumption subsumer still replayed twice (scale residual).
-2. **Proof-term scale — sharing, not inlining.** perm-is-an-equivalence is
-   ≈557M Expr nodes and grows with dependency depth (step-5 inlining + the
-   subsumer-duplication residue); R2 (isort) stacks a book on top. Let-bind
-   dependency proofs / deduplicate subsumer subtrees BEFORE starting R2.
-3. **R2 (isort)** — the replay→lift cadence test on a second book; exercises
-   the include-book rule flush (audit finding C) and the G4 forcing seam.
+2. **Proof-term scale — DONE within the lifter sprint** (letBindFVar
+   sharing, 14–36×; residual: subsumer subtree still replayed twice in
+   pool subsumption — revisit if R2 sizes bite).
+3. **R2 (isort) — with the TWO-STAGE LIFT as its first work item.** The
+   lift-automation analysis (MDD-ratified intent 2026-07-06; per-theorem
+   cost is now low, per-FUNCTION corr lemmas are the scaling bottleneck):
+   (a) **Two-stage lift** — GENERATE the Lean exec function from the ACL2
+       body mechanically (SExpr body → `def fooExec : List SExpr → … `),
+       corr TRUE BY CONSTRUCTION via the strengthened-walk machinery
+       (tpWalk with `P v := v = encode (fooExec args)` is the same shape);
+       the only remaining hand work is the PURE-LEAN equivalence
+       `fooExec = <idiomatic Mathlib fn>` — no evalOpt, no fuel, ordinary
+       Lean proving. Splits "hard proof about the evaluator" (automated)
+       from "easy proof about Lean functions" (human). Driving example:
+       isort/insert — never built ahead of a real consumer.
+   (b) **Decode-theorem generator** (fold in once TWO books exercise the
+       schema): parsed formula + (fn ↦ corr) registry → the whole
+       per-theorem decode emitted, fail-closed outside the schema; takes
+       entries from ~40 lines to a declaration. Kernel-checks everything
+       it emits (certifying-walker pattern; swallows the env/decide
+       boilerplate).
+   (c) **Named frontier lemmas** (steady drip, do opportunistically):
+       natp-through-binary-+ value shapes (flips tp:my-len/tp:len2),
+       the cddr decrease (flips total:evenlen).
+   NOT to be automated: choosing the idiomatic native statement (human
+   judgment — Lifting.lean's "target theorems stay user-supplied"), and
+   anything on the fidelity-critical replay path (done, fail-closed).
+   R2 also exercises the include-book rule flush (audit finding C) and
+   the G4 forcing seam.
 
 Explicitly deprioritized: coverage drilling for its own sake (remaining
 failures are deeper walls R2+ reaches naturally); differential expansion
