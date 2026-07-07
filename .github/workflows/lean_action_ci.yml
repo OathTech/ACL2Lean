@@ -56,18 +56,25 @@ jobs:
 
       - name: Capture proof-log corpus from ACL2
         run: |
-          # Only the `include_str`'d logs are required to build. All 19 source
-          # files are standalone (no `include-book`), so each captures on its own.
-          # `simple` + the recon-tests land alongside their source; `perm` goes
-          # into acl2_samples/sorting/ via OUTDIR.
+          # Only the `include_str`'d logs are required to build. `simple` + the
+          # recon-tests are standalone and land alongside their source; the
+          # sorting books go into acl2_samples/sorting/ via OUTDIR.
           ./scripts/capture-proof-log.sh \
             acl2_samples/simple.lisp \
             acl2_samples/recon-tests/*.lisp
           # acl2_samples/sorting/ holds only gitignored logs, so git (which does not
           # track empty dirs) omits it from a clean checkout — create it for OUTDIR.
           mkdir -p acl2_samples/sorting
+          # `perm` is standalone; `isort` include-book's its siblings (perm,
+          # ordered-perms, convert-perm-to-how-many), which ACL2 resolves
+          # uncertified relative to the book's own dir in the submodule — so
+          # `ld` loads them on the fly, no certification step needed. Every
+          # sorting log `include_str`'d by Tests/DriverCoverage.lean MUST be
+          # captured here or the build fails with "no such file" (that dir is
+          # gitignored). Keep this list in sync with the coverage corpus.
           OUTDIR=acl2_samples/sorting ./scripts/capture-proof-log.sh \
-            acl2/books/sorting/perm.lisp
+            acl2/books/sorting/perm.lisp \
+            acl2/books/sorting/isort.lisp
           echo "Captured logs:"
           find acl2_samples -name '*.proof-log' | sort
 
