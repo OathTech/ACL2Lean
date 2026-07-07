@@ -42,7 +42,18 @@ validation that the split is real.
   recursive calls at self-call sites, calls to other exec functions at
   user-fn call sites. `termination_by (measured formal).acl2Count`;
   the decrease is discharged by the Count library from the ruling ite
-  conditions — the same math as the totality prover's admission discharge.
+  conditions. NOTE (fidelity, audit #5): this `acl2Count` termination
+  proof discharges LEAN's own well-definedness requirement (a recursive
+  `def` cannot exist until it is shown well-founded — a prerequisite for
+  even STATING `foo_exec_corr`), NOT the checker's emitted-clause admission
+  obligation for the ACL2 function. It is the SAME acl2Count arithmetic the
+  totality prover uses, but a DIFFERENT obligation: the replay checker still
+  discharges ACL2's admission from EMITTED clauses on the replay path
+  (hard-failing on a gap); this is Lean-side lifting infrastructure in the
+  Imported/ support layer, never touched by the per-node replay. The
+  distinction is load-bearing for the "not banned inference" claim — if a
+  future mechanized generator ever discharged exec termination AS a replay
+  obligation without consuming emitted clauses, the claim would flip.
   Exact mirroring is load-bearing: the walk folds its ite value tree into
   `fooExec` via the compiler equation lemma (`fooExec.eq_def`; WF defs do
   not unfold by `rfl`), so a def that doesn't match the body shape fails

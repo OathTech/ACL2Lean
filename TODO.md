@@ -74,11 +74,22 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    D6-kept until the termination-machine recomputation emission), included
    theorems reconstruct as `.includedTheorem` events (statement + rules, no
    proof tree; `rule:<thm>` citations replay, their step-5 DISCHARGE stays
-   hypothesis-backed until cross-book proof import). Walls felled: endp-
+   hypothesis-backed until cross-book proof import). Machinery ADDED
+   (proven + guarded, but NOT yet exercised end-to-end — see below): endp-
    spelled induction decrease (`consp_toBool_of_endp_nil`; the case tree
    records the STRIPPED positive test with sign=false), endp/atom DP-lift
    registration. **CURRENT WALL (all 3 isort theorems): `lexorder` — ACL2's
-   built-in total order — is not in the trusted core.** NEXT (handoff-ready,
+   built-in total order — is not in the trusted core.**
+   *Honest status of the endp machinery (audit #5, 2026-07-06): the
+   falsy-endp induction-decrease branch in `replayInduction` +
+   `consp_toBool_of_endp_nil` are proven and triple-guarded, but reached by
+   NO completing replay yet — the isort theorems that would exercise them
+   (orderedp/how-many/true-listp-isort) hard-fail EARLIER at `lexorder`, and
+   the other endp/atom-testing corpus fns fail at unrelated frontiers. So
+   this is built-ahead infrastructure whose consumer (isort induction) is
+   named but blocked; it is validated end-to-end only once `lexorder` lands.
+   The scoreboard is honest about this (those rows show as FAIL). Not "wall
+   felled" until an isort theorem replays THROUGH the endp path.* NEXT (handoff-ready,
    self-contained): implement `Logic.lexorder` FAITHFULLY from ACL2's
    lexorder/alphorder source (axioms.lisp; order: numbers by < , then
    chars, strings, symbols, then conses recursively — check exact rational/

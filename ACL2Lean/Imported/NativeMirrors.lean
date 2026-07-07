@@ -658,10 +658,13 @@ theorem mem_transport_perm_driver {av : SExpr} {xs ys : List SExpr}
 #print axioms comm_rm_native_driver
 #print axioms perm_erase_perm_driver
 
--- BUILD-FAILING axiom gate (audit #4): `#print axioms` only prints — this
--- run_cmd THROWS if any native entry ever acquires an axiom beyond the
--- classical trio (sorryAx, native_decide's ofReduceBool, …), so a future
--- edit cannot smuggle a hole into the native layer without failing CI.
+-- BUILD-FAILING axiom gate (audit #4; completed to ALL native entries in
+-- audit #5): `#print axioms` only prints — this run_cmd THROWS if any native
+-- entry ever acquires an axiom beyond the classical trio (sorryAx,
+-- native_decide's ofReduceBool, …), so a future edit cannot smuggle a hole
+-- into the native layer without failing CI. The list must name EVERY proved
+-- native entry in this file (the earlier list omitted the 7 pre-perm
+-- entries — all clean, but ungated; audit #5 closed that gap).
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
@@ -679,7 +682,14 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.perm_trans_perm_driver,
             ``ACL2.Imported.Mirrors.perm_erase_perm_driver,
             ``ACL2.Imported.Mirrors.mem_transport_perm_driver,
-            ``ACL2.Imported.Mirrors.my_len_my_app_native_driver] do
+            ``ACL2.Imported.Mirrors.my_len_my_app_native_driver,
+            ``ACL2.Imported.Mirrors.app_assoc_native_driver,
+            ``ACL2.Imported.Mirrors.ground_arith_native,
+            ``ACL2.Imported.Mirrors.sq_of_3_native,
+            ``ACL2.Imported.Mirrors.cdr_cons_native,
+            ``ACL2.Imported.Mirrors.equal_symm_native,
+            ``ACL2.Imported.Mirrors.equal_trans_native,
+            ``ACL2.Imported.Mirrors.car_cons_native] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
