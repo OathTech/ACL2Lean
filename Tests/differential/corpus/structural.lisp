@@ -1,6 +1,14 @@
 ; Differential corpus: car/cdr/cons, nesting, control (if/not), let scoping,
 ; nfix/ifix, comparison, list/len, atom/endp (all modeled).
 
+; REGRESSION WITNESS (harness): a value wide enough that ACL2 pretty-prints it
+; across MULTIPLE lines. The manager must rejoin the wrapped continuation lines
+; (only the first carries the `ACL2 >` prompt) — a first-line-only slice would
+; truncate it and could pass a wrong value as a match. Keep this here so that
+; reconstruction stays covered.
+;@ match
+(quote (1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30))
+
 ; car / cdr / cons incl. non-cons (logical: nil)
 ;@ match
 (car '(1 2))

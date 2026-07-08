@@ -86,10 +86,18 @@ classify_form() {
   ln="$(normalize "$lean_raw")"; an="$(normalize "$acl2_raw")"
   case "$class" in
     match)
+      # Both must produce a real value AND agree. A no-value on either side is a
+      # FAIL: Lean stuck/refused is a regression; ACL2 refused/empty means the
+      # form isn't a clean value there (mis-classified — a match entry must be a
+      # genuine agreeing value on both sides, never a both-fail vacuous pass).
       if is_no_value "$lean_raw"; then
         total_fail=$((total_fail+1))
         fail_lines+=("$file: expected MATCH but Lean gave no value ($lean_raw; acl2=$acl2_raw)")
         VERDICT="FAIL(lean $lean_raw)"
+      elif [[ "$acl2_raw" == "<refused>" || -z "$acl2_raw" ]]; then
+        total_fail=$((total_fail+1))
+        fail_lines+=("$file: 'match' entry but ACL2 produced no value ($acl2_raw; lean=$lean_raw) — not a clean value in ACL2; reclassify (refuse/unsupported)")
+        VERDICT="FAIL(acl2 no-value)"
       elif [[ "$ln" == "$an" ]]; then
         total_ok=$((total_ok+1)); VERDICT="ok"
       else
@@ -98,8 +106,15 @@ classify_form() {
         VERDICT="FAIL-MISMATCH"
       fi ;;
     unsupported)
-      # evalOpt does not model this yet; Lean must produce no value.
-      if is_no_value "$lean_raw"; then
+      # evalOpt does not model this yet; Lean must produce no value AND ACL2 must
+      # produce a real value (the class pins the target value a faithful model
+      # must later compute — an `unsupported` form ACL2 ALSO can't evaluate is
+      # ill-formed/mis-classified, not a real target).
+      if [[ "$acl2_raw" == "<refused>" || -z "$acl2_raw" ]]; then
+        total_fail=$((total_fail+1))
+        fail_lines+=("$file: 'unsupported' entry but ACL2 produced no value ($acl2_raw; lean=$lean_raw) — form is ill-formed; reclassify to refuse or fix it")
+        VERDICT="FAIL(acl2 no-value)"
+      elif is_no_value "$lean_raw"; then
         total_unsupported=$((total_unsupported+1))
         target_lines+=("$acl2_raw  ⇐  (unsupported; acl2 value shown)")
         VERDICT="ok-unsupported"
@@ -226,13 +241,41 @@ for file in "${files[@]}"; do
     cat "$tmp/forms.lisp"
   } > "$tmp/acl2.in"
   "$ACL2_BIN" < "$tmp/acl2.in" > "$tmp/acl2.raw" 2>&1
-  # ACL2 echoes each value after its `ACL2 !?>` prompt. Keep only the value
-  # lines strictly AFTER the sentinel line itself, and drop the final `Bye.`.
-  # (`/re/,$p` includes the matching line, whose own `ACL2 >@@SENTINEL@@`
-  # prompt would otherwise count as a spurious leading value — hence the
-  # explicit drop of the sentinel line.)
-  sed -n '/@@SENTINEL@@/,$p' "$tmp/acl2.raw" | grep -av '@@SENTINEL@@' \
-    | grep -aE '^ACL2 !?>' | sed -E 's/^ACL2 !?>//' | grep -av '^Bye\.$' > "$tmp/acl2.vals"
+  # Reconstruct ONE outcome per form from ACL2's output. Each form's output
+  # begins at an `ACL2 !?>` prompt; the value may WRAP onto continuation lines
+  # (ACL2 pretty-prints wide values across lines — only the first has a prompt),
+  # and an ill-formed form emits an `ACL2 Error [...]`/Halt block instead of a
+  # value. So we split on prompts and, per segment: emit `<refused>` if it holds
+  # an error/halt, else JOIN its lines into the single value (whitespace is
+  # collapsed later by normalize). This (a) fixes truncation of wrapped values —
+  # a first-line-only slice could otherwise pass a wrong value as a match — and
+  # (b) surfaces ACL2 errors as `<refused>` uniformly with the isolate path,
+  # instead of the old ambiguous empty line. Everything before the sentinel
+  # (preamble: guard-checking, ld) is skipped; the trailing good-bye prompt is
+  # an empty segment and dropped.
+  awk '
+    /@@SENTINEL@@/ { seen=1; next }
+    !seen { next }
+    /^ACL2 !?>/ {
+      flush()
+      line=$0; sub(/^ACL2 !?>/,"",line)
+      seg=line; started=1; err=0
+      if (line ~ /ACL2 Error|Halted|floating-point input/) err=1
+      next
+    }
+    started {
+      if ($0 ~ /ACL2 Error|Halted|floating-point input/) err=1
+      seg = seg " " $0
+    }
+    function flush() {
+      if (!started) return
+      gsub(/^ +| +$/,"",seg)
+      if (err) print "<refused>"
+      else if (seg != "" && seg != "Bye.") print seg
+      started=0; seg=""; err=0
+    }
+    END { flush() }
+  ' "$tmp/acl2.raw" > "$tmp/acl2.vals"
 
   # ── Lean value stream (one process, whole file) ──
   if [[ -z "$book" ]]; then
@@ -245,11 +288,13 @@ for file in "${files[@]}"; do
   n_acl2=$(wc -l < "$tmp/acl2.vals" | tr -d ' ')
   n_lean=$(wc -l < "$tmp/lean.vals" | tr -d ' ')
 
-  # Alignment self-check: #expectations must equal #values from each side.
+  # Alignment self-check: #expectations must equal #outcomes from each side.
+  # The ACL2 reconstruction emits exactly one outcome per prompt (value, joined
+  # across wrap lines, or <refused>); the Lean stream emits one line per form.
   if [[ "$n_exp" -ne "$n_acl2" ]] || [[ "$n_exp" -ne "$n_lean" ]]; then
-    echo "  FATAL: stream misalignment in $file — $n_exp expectations, $n_acl2 ACL2 values, $n_lean Lean values."
-    echo "         (every form needs exactly one preceding ;@ line; a form that"
-    echo "          errors in ACL2 emits an empty value line — check the form.)"
+    echo "  FATAL: stream misalignment in $file — $n_exp expectations, $n_acl2 ACL2 outcomes, $n_lean Lean outcomes."
+    echo "         (every form needs exactly one preceding ;@ line; batched files"
+    echo "          cannot contain session-fatal forms — floats/radix need ;@isolate.)"
     total_fail=$((total_fail+1))
     continue
   fi

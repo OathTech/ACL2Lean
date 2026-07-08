@@ -74,6 +74,13 @@ converge) / `<refused>` (a read/translate/parse error). `<stuck>` and
 | `known-bug lean <outcome>` | KNOWN divergence: Lean's outcome (a value, or `<refused>`) differs from ACL2 | FAIL if Lean's outcome ≠ `<outcome>` (behavior changed — likely fixed → reclassify) |
 | `refuse`                   | ill-formed / rejected form; BOTH interpreters must decline         | FAIL if either produces a value (ACL2 not actually refusing, or Lean too permissive → known-bug) |
 
+`refuse` is a **both-decline** check, not a **same-reason** check: ACL2 refuses
+at translate time (arity/syntax) while Lean may decline as `<stuck>` (no rule /
+fuel) or `<refused>` (parse error) — the harness does not require the reasons to
+match, only that neither produces a value. Tightening this to reason-matching
+would need the Lean interpreter to distinguish "rejected" from "did not
+converge" per form (an interpreter change, deferred).
+
 The gate stays **green** while `unsupported`/`known-bug`/`refuse` merely
 *document* the not-yet-faithful surface, but goes **red** on any *change* — a
 regression, a new fidelity bug, or a coverage gain that needs the annotation
@@ -89,6 +96,12 @@ BOUNDARY/ill-formed forms that a batched session cannot survive: a float literal
 (`5.0`) halts the ACL2 session, and a radix literal (`#xFF`) aborts Lean's parse
 stream. In an `;@isolate` file every test is one SINGLE-LINE form. See
 `corpus/boundary.lisp`. Regular files stay batched (two processes per file).
+
+Note: a `refuse` entry does NOT by itself require isolation. The batched path
+reconstructs one outcome per ACL2 prompt and maps an `ACL2 Error [...]` block to
+`<refused>`, so RECOVERABLE ill-formed forms (arity, unknown fn, malformed
+`if`/`quote`) can be `refuse`-tested in an ordinary batched file. Isolation is
+only for forms that HALT the session or abort a parse stream (floats, radix).
 
 ## Adding a test
 

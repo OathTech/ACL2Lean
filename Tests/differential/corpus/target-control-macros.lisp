@@ -11,10 +11,8 @@
 (cond ('nil '1))
 ;@ unsupported
 (case '2 (1 'a) (2 'b) (t 'c))
-;@ unsupported
-(when 't '5)
-;@ unsupported
-(unless 'nil '5)
+; NOTE: (when …)/(unless …) are NOT here — ACL2 refuses them at top level
+; (they are refuse-class, both interpreters decline); see boundary.lisp.
 
 ; sequencing / typing / exec-control (logical value is what a model computes)
 ;@ unsupported

@@ -157,9 +157,9 @@ jobs:
       # Differential fidelity gate: the Lean ACL2-logic interpreter vs real
       # ACL2 over Tests/differential/. Separate step so a fidelity divergence
       # reads distinctly from a build/proof failure. ACL2 is already built
-      # (the capture step above used it). `stuck`/`diverge` entries keep this
-      # green while documenting the not-yet-faithful surface; it fails only on
-      # a real divergence, regression, or coverage change (see the corpus
+      # (the capture step above used it). `unsupported`/`known-bug`/`refuse`
+      # entries keep this green while documenting the not-yet-faithful surface;
+      # it fails only on a real divergence, regression, or coverage change (see the corpus
       # README). This is the trusted-core acceptance gate the audit practices
       # assume exists.
       - name: Differential gate (Lean interpreter vs ACL2)

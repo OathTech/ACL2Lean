@@ -25,6 +25,12 @@
 (foobar '1)
 ;@ refuse
 (let ((x)) x)
+; (when …)/(unless …) macroexpand to a form ACL2 refuses at top level (the
+; value context is unbound/ignored); Lean's evaluator also declines.
+;@ refuse
+(when 't '5)
+;@ refuse
+(unless 'nil '5)
 
 ; ── known-bug: FLOAT literals — ACL2's reader REJECTS floats (it has no floats,
 ; suggests the #d prefix); our parser accepts them as a decimal Number. Lean too
