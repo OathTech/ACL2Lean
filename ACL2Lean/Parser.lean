@@ -1,4 +1,5 @@
 import ACL2Lean.Syntax
+import ACL2Lean.Logic
 
 namespace ACL2
 
@@ -172,7 +173,13 @@ mutual
               match parts with
               | [numStr, denStr] =>
                   match numStr.toInt?, denStr.toNat? with
-                  | some n, some d => .ok (SExpr.atom (.number (.rational n d)), rest)
+                  -- Route through `Logic.mkNumber` so the literal is normalized
+                  -- exactly as ACL2's reader does: gcd-reduce, and collapse a
+                  -- denominator-1 rational to the integer (so `4/2` reads as the
+                  -- integer 2 and `2/4` as `1/2`). Building `.rational n d` raw
+                  -- here was the number-normalization divergence the
+                  -- differential suite pinned (5/1 ≠ 5, 2/4 ≠ 1/2).
+                  | some n, some d => .ok (Logic.mkNumber n d, rest)
                   | _, _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
               | _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
             else if tok.contains '.' then

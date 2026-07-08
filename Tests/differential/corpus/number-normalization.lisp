@@ -1,30 +1,26 @@
-; Differential corpus: NUMBER NORMALIZATION — a systematic KNOWN DIVERGENCE
-; found by this harness (2026-07-07). ACL2's READER normalizes rational literals
-; (gcd-reduce, collapse denominator-1 to an integer), so 2/4 IS 1/2 and 4/2 IS
-; the integer 2. Our parser (Parser.lean ~175) builds the rational literal
-; DIRECTLY, bypassing Logic.mkNumber's reduction — so equal/integerp on
-; unreduced literals mismatch. Root cause is one line; the fix (route the parser
-; through mkNumber) is a trusted-core change, out of scope for the testing
-; sprint. NOTE the bug is PARSE-TIME only: arithmetic RESULTS normalize
-; correctly (see (binary-+ '2/4 '0) below and rat-arith.lisp), because
-; Logic.plus/times route through mkNumber. Recorded so the fix is DETECTED
-; (each `known-bug` entry FAILS when Lean's value changes → reclassify to `match`).
+; Differential corpus: NUMBER NORMALIZATION. ACL2's READER normalizes rational
+; literals (gcd-reduce, collapse denominator-1 to an integer), so 2/4 IS 1/2 and
+; 4/2 IS the integer 2. This was a KNOWN DIVERGENCE (the parser built the
+; rational literal directly, bypassing Logic.mkNumber) — FIXED 2026-07-07 by
+; routing the parser's rational construction through Logic.mkNumber. These
+; entries were `known-bug` and are now `match` (the differential ratchet caught
+; the fix and forced the reclassification).
 
 ; -- reduce-to-integer: literal has denominator dividing the numerator --
-;@ known-bug lean NIL
+;@ match
 (equal '3/1 '3)
-;@ known-bug lean NIL
+;@ match
 (equal '4/2 '2)
-;@ known-bug lean NIL
+;@ match
 (integerp '4/2)
-;@ known-bug lean NIL
+;@ match
 (integerp '6/3)
-;@ known-bug lean NIL
+;@ match
 (equal '0/5 '0)
 ; -- reduce-to-lower-terms: gcd(num,den) > 1 --
-;@ known-bug lean NIL
+;@ match
 (equal '2/4 '1/2)
-;@ known-bug lean NIL
+;@ match
 (equal '10/20 '1/2)
 
 ; -- CONTROL: arithmetic through mkNumber normalizes correctly (NOT divergent) --
