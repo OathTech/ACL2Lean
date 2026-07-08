@@ -28,3 +28,41 @@
 (last '(1 2 3))
 ;@ unsupported
 (update-nth '1 'x '(a b c))
+;@ unsupported
+(list* '1 '2 '(3 4))
+;@ unsupported
+(first '(1 2 3))
+;@ unsupported
+(rest '(1 2 3))
+;@ unsupported
+(second '(1 2 3))
+;@ unsupported
+(take '2 '(1 2 3 4))
+;@ unsupported
+(binary-append '(1) '(2))
+; alists
+;@ unsupported
+(acons 'k 'v 'nil)
+;@ unsupported
+(pairlis$ '(a b) '(1 2))
+;@ unsupported
+(assoc 'b '((a . 1) (b . 2)))
+;@ unsupported
+(strip-cars '((1 . 2) (3 . 4)))
+
+; list-structure corners that AGREE (control — cons/car/cdr/len/true-listp are
+; modeled and faithful on improper lists and nesting)
+;@ match
+(cons 'a (cons 'b 'c))
+;@ match
+(list 'a (list 'b 'c) 'd)
+;@ match
+(len (cons '1 '2))
+;@ match
+(true-listp (cons '1 '2))
+;@ match
+(car (car '((1 2) 3)))
+;@ match
+(cons '1 '())
+;@ match
+(equal (cons '1 'nil) (list '1))

@@ -38,16 +38,23 @@ Ordered by project-wide leverage — general machinery over special-case walls:
 > (`scripts/diff-test.sh`, `just diff-test`) with three expectation classes:
 > `match` (must agree), `unsupported` (not modeled yet — pins ACL2's value),
 > `known-bug lean <val>` (known fidelity gap — records the wrong Lean value;
-> fails when it changes → reclassify). Current (edge-case sprint, 2026-07-07):
-> **184 match, 64 unsupported, 10 known-bug, 0 FAIL.** unsupported surface =
-> list-ops, lexorder/ordering, int div/mod + comparison ops (`<=`/`>`/`>=`/`=`,
-> pervasive), bitwise, string/char, `and`/`or`/`eq`/lambda-application,
-> numerator/denominator. known-bug = the number-normalization family (parser
-> builds unreduced rationals, bypassing Logic.mkNumber → `2/4`≠`1/2`, `4/2` not
-> integerp, `5/1`≠`5` — one-line root cause, fix deferred) + `(symbolp :foo)`
-> (keywords ARE symbols in ACL2; Logic.symbolp misses the .keyword variant).
-> Gated in CI as its own step. Data fully separate from process, scales
-> (batched per-file). Spec: `Tests/differential/README.md`.
+> fails when it changes → reclassify). Current (edge-case sprint #2,
+> 2026-07-07): **211 match, 124 unsupported, 15 known-bug, 0 FAIL** across 17
+> category files. unsupported surface = list-ops/alists, lexorder/ordering,
+> int div/mod + comparison ops (`<=`/`>`/`>=`/`=`, pervasive) + expt/mod/floor
+> negatives + numerator/denominator/realpart, bitwise, string/char ops,
+> control MACROS (cond/case/when/mv/mbe/the/ec-call + n-ary `+`/`*` + `and`/
+> `or`/`eq`/lambda). known-bug (real fidelity gaps, pinned NOT fixed): (a) the
+> NUMBER-NORMALIZATION family — parser builds unreduced rationals bypassing
+> Logic.mkNumber → `2/4`≠`1/2`, `4/2`/`5/1` not integerp (one-line root cause);
+> (b) CHARACTERS — no character atom, so `#\a` is a symbol → `(equal #\a #\b)`
+> is t (distinct chars collapse!) and `(symbolp #\a)` is t; (c) `(symbolp
+> :foo)` (keywords ARE symbols); (d) SYMBOL-CASE (parser lowercases, so
+> `|abc|`=`abc`); (e) quote-abbrev printing (`'x` vs `(quote x)`). Parse-level
+> boundary findings (radix literals rejected by our parser though ACL2 accepts;
+> floats accepted though ACL2 rejects; ill-formed forms both refuse) are
+> deferred to a `refuse`-class phase — see Tests/differential/DEFERRED-FINDINGS.md.
+> Gated in CI as its own step. Spec: `Tests/differential/README.md`.
 
 0. **Fail-closed fix sprint — DONE (2026-07-06, branch mdd/fail-closed-fixes).**
    All actionable findings of `docs/notes/2026-07-06_fail-closed-audit.md`

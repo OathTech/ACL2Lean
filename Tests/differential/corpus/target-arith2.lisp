@@ -60,3 +60,44 @@
 (/ '1 '0)
 ;@ unsupported
 (/ '6 '3)
+;@ unsupported
+(/ '5)
+
+; division/rounding with NEGATIVE operands (floor rounds toward -inf; mod
+; follows the divisor's sign — the corners arithmetic books lean on)
+;@ unsupported
+(mod '-7 '3)
+;@ unsupported
+(floor '-7 '3)
+;@ unsupported
+(rem '7 '3)
+;@ unsupported
+(nonnegative-integer-quotient '7 '2)
+;@ unsupported
+(integer-length '255)
+
+; expt corners (negative exponent → rational; 0^0 = 1)
+;@ unsupported
+(expt '2 '-1)
+;@ unsupported
+(expt '0 '0)
+;@ unsupported
+(expt '2 '0)
+
+; rational accessors on negatives / reduced forms
+;@ unsupported
+(numerator '-6/4)
+;@ unsupported
+(denominator '-6/4)
+;@ unsupported
+(abs '3/2)
+
+; zip (distinct from the modeled zp), realpart/imagpart on reals
+;@ unsupported
+(zip '0)
+;@ unsupported
+(zip 'nil)
+;@ unsupported
+(realpart '5)
+;@ unsupported
+(imagpart '5)
