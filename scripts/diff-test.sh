@@ -82,7 +82,7 @@ is_no_value() { [[ "$1" == "<stuck>" || "$1" == "<refused>" ]]; }
 # (isolated) paths, so the classification rules live in exactly one place.
 classify_form() {
   local class="$1" rest="$2" lean_raw="$3" acl2_raw="$4" file="$5"
-  local ln an dval dn _kw
+  local ln an dval dn _kw tok1 rest2
   ln="$(normalize "$lean_raw")"; an="$(normalize "$acl2_raw")"
   case "$class" in
     match)
@@ -143,7 +143,13 @@ classify_form() {
       # Known divergence: the recorded `lean <val>` is what Lean produces (a
       # value, or <stuck>/<refused>), while ACL2 differs. FAILs when Lean's
       # outcome changes — e.g. a fix — forcing reclassification.
-      read -r _kw dval <<<"$rest"
+      #
+      # Metadata forms (an optional `bug:BUG-NNN` links to docs/BUGS.md — the
+      # canonical index; scripts/check-bugs.sh cross-checks the two directions):
+      #   known-bug lean <val>
+      #   known-bug bug:BUG-NNN lean <val>
+      read -r tok1 rest2 <<<"$rest"
+      if [[ "$tok1" == bug:* ]]; then read -r _kw dval <<<"$rest2"; else dval="$rest2"; fi
       dn="$(normalize "$dval")"
       if [[ "$ln" == "$dn" ]]; then
         total_known_bug=$((total_known_bug+1))

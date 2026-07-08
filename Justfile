@@ -16,12 +16,18 @@ test:
 check-proof-logs:
     ./scripts/check-proof-logs.sh
 
+# Cross-check the canonical fidelity-bug index (docs/BUGS.md) against the
+# self-enforcing differential corpus, so a logged bug can't rot in prose or be
+# silently dropped. Static (no ACL2/Lean build needed), so it runs in `ci`.
+check-bugs:
+    ./scripts/check-bugs.sh
+
 # Full conformance: preflight + build + unit tests + driver-coverage (the last
 # gates on reconstruction integrity AND the black-box-leaf emission frontier —
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
 # include_str's the gitignored .proof-log corpus; check-proof-logs runs first
 # so a missing log is a clear error, not a deep elaboration-trace failure.
-ci: lint-sh check-proof-logs build test driver-coverage
+ci: lint-sh check-bugs check-proof-logs build test driver-coverage
 
 # Run the corpus report
 report:

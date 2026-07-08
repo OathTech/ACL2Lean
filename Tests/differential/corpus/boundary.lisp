@@ -35,17 +35,17 @@
 ; ── known-bug: FLOAT literals — ACL2's reader REJECTS floats (it has no floats,
 ; suggests the #d prefix); our parser accepts them as a decimal Number. Lean too
 ; permissive. (ACL2 side is <refused>; recorded Lean value is the float.) ──
-;@ known-bug lean 5.0
+;@ known-bug bug:BUG-004 lean 5.0
 '5.0
-;@ known-bug lean 1.5
+;@ known-bug bug:BUG-004 lean 1.5
 '1.5
 
 ; ── known-bug: RADIX literals — ACL2 accepts #x/#b/#o integers; our parser
 ; errors ("unrecognized reader macro"), so Lean is <refused>. Lean too strict.
 ; (ACL2 has a value; recorded Lean outcome is <refused>.) ──
-;@ known-bug lean <refused>
+;@ known-bug bug:BUG-005 lean <refused>
 '#xFF
-;@ known-bug lean <refused>
+;@ known-bug bug:BUG-005 lean <refused>
 '#b101
-;@ known-bug lean <refused>
+;@ known-bug bug:BUG-005 lean <refused>
 '#o17

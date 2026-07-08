@@ -45,13 +45,13 @@
 ; two spellings collapse differs from ACL2:
 ;   ACL2: |ABC| = abc = ABC  (all become ABC)      → equal T
 ;   Lean: |ABC| stays ABC, abc/ABC become abc      → |ABC| ≠ abc  (NIL)
-;@ known-bug lean NIL
+;@ known-bug bug:BUG-002 lean NIL
 (equal '|ABC| 'abc)
-;@ known-bug lean NIL
+;@ known-bug bug:BUG-002 lean NIL
 (equal '|ABC| 'ABC)
 ; and the mirror: |abc| (preserved lower) vs ABC (bare, lowered to abc) — ACL2
 ; makes these DIFFER (abc vs ABC), we make them EQUAL.
-;@ known-bug lean t
+;@ known-bug bug:BUG-002 lean t
 (equal '|abc| 'ABC)
 
 ; package-qualified symbols — these AGREE (control): acl2:: is the default

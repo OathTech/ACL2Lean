@@ -7,16 +7,16 @@
 ; it as the literal list (quote x). So (quote (quote a)) renders 'A in ACL2 but
 ; (quote a) here. (The comparator case-folds, so the residual difference is the
 ; quote-abbreviation, not the case.)
-;@ known-bug lean (quote a)
+;@ known-bug bug:BUG-003 lean (quote a)
 (quote (quote a))
-;@ known-bug lean (quote quote)
+;@ known-bug bug:BUG-003 lean (quote quote)
 (list 'quote 'quote)
 
 ; KNOWN BUG (symbol case — the pending masquerade item): ACL2 upcases unbarred
 ; symbols but PRESERVES the case of |bar|-escaped symbols, so |abc| (lowercase)
 ; differs from abc (which reads as ABC) → NIL. Our parser lowercases ALL
 ; symbols, collapsing |abc| and abc → t.
-;@ known-bug lean t
+;@ known-bug bug:BUG-002 lean t
 (equal '|abc| 'abc)
 
 ; symbol behavior that AGREES (control): a |bar|-symbol is still a symbol; a

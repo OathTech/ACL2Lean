@@ -119,6 +119,13 @@ each stage against the real artifact.
 
 ## Fidelity (non-negotiable)
 
+- **Known fidelity bugs go in `docs/BUGS.md` — the SINGLE canonical index.**
+  Total faithfulness to ACL2 is the goal, so any interpreter/trusted-core
+  divergence from real ACL2 is definitionally a bug. Log it in `docs/BUGS.md`
+  (numbered `BUG-NNN`), don't scatter it in prose. Where it can be, pin it with
+  a self-enforcing differential `known-bug` entry tagged `bug:BUG-NNN`
+  (`Tests/differential/`); `scripts/check-bugs.sh` (in `just ci`) cross-checks
+  the index against the corpus so a bug can neither rot nor be silently dropped.
 - **No skipped proofs in anything claimed done.** No `sorry`/`admit`/`axiom`/
   `native_decide` (native_decide is unsound) in work reported as complete. A goal
   is closed only when actually closed. `sorry` is allowed *only* as an explicit,

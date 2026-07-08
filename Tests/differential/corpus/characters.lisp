@@ -5,12 +5,12 @@
 ; KNOWN BUG: distinct characters compare EQUAL. ACL2: #\a and #\b are different
 ; character objects → NIL. Ours: both are symbols, and the parser collapses the
 ; token so they end up equal → t. (Serious: two distinct ACL2 objects identified.)
-;@ known-bug lean t
+;@ known-bug bug:BUG-001 lean t
 (equal #\a #\b)
 
 ; KNOWN BUG: a character is not a symbol in ACL2 → NIL; ours models #\a as a
 ; symbol → t.
-;@ known-bug lean t
+;@ known-bug bug:BUG-001 lean t
 (symbolp #\a)
 
 ; behavior that AGREES (control — a char is an atom, not a cons/number/string,
