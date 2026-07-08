@@ -40,6 +40,28 @@
 (take '2 '(1 2 3 4))
 ;@ unsupported
 (binary-append '(1) '(2))
+
+; TOTAL-SEMANTICS edge cases (non-obvious ACL2 answers a faithful model must
+; match): negative/out-of-bounds indices, padding, improper-list inputs.
+;@ unsupported
+(nth '-1 '(a b c))       ; negative index nfixes to 0 → A
+;@ unsupported
+(nthcdr '-1 '(a b))      ; negative → whole list (A B)
+;@ unsupported
+(nthcdr '5 '(a b))       ; past end → NIL
+;@ unsupported
+(take '5 '(a b))         ; pads past end with nil → (A B NIL NIL NIL)
+;@ unsupported
+(take '0 '(a b))         ; → NIL
+;@ unsupported
+(last 'x)                ; last of an atom is the atom → X
+;@ unsupported
+(append '(1 . 2) '(3))   ; append walks the proper structure → (1 3)
+;@ unsupported
+(revappend '(1 2) '3)    ; improper base preserved → (2 1 . 3)
+;@ unsupported
+(nth '0 'x)              ; nth into an atom → NIL
+
 ; alists
 ;@ unsupported
 (acons 'k 'v 'nil)
