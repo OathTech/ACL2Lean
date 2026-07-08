@@ -26,8 +26,22 @@
 (coerce "abc" 'list)
 ;@ unsupported
 (coerce '(#\a #\b) 'string)
+; coerce COMPLETION semantics (completion-of-coerce, axioms.lisp): a type-flag
+; that isn't 'list defaults to the 'string branch; (coerce x 'string) uses
+; make-character-list so non-character elements become the null char; nil→"".
+;@ unsupported
+(coerce "abc" 'foo)
+;@ unsupported
+(coerce 'nil 'string)
+;@ unsupported
+(coerce '(#\a #\1 #\Space) 'string)
+;@ unsupported
+(coerce "" 'list)
+; length works on strings AND lists
 ;@ unsupported
 (length "hello")
+;@ unsupported
+(length '(a b c))
 ;@ unsupported
 (char "hello" '0)
 ;@ unsupported

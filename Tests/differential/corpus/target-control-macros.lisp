@@ -39,7 +39,9 @@
 ;@ unsupported
 (* '2 '3 '4)
 
-; boolean MACROS and / or (expand to if; value is the last / first-true operand)
+; boolean MACROS and / or. They return the EXACT operand value (last operand /
+; first true operand), NOT a booleanized t/nil — so (and '1 '2)=2, (or '3 '5)=3,
+; (and)=T, (or)=NIL, and (booleanp (and '3 '5))=NIL. Pins the precise semantics.
 ;@ unsupported
 (and '1 '2)
 ;@ unsupported
@@ -47,16 +49,18 @@
 ;@ unsupported
 (or 'nil '3)
 ;@ unsupported
+(or '3 '5)
+;@ unsupported
 (or 'nil 'nil)
+;@ unsupported
+(and)
+;@ unsupported
+(or)
+;@ unsupported
+(booleanp (and '3 '5))
 
 ; direct lambda application
 ;@ unsupported
 ((lambda (x) (binary-+ x x)) '5)
 
-; eq (equality function — modeled cousins eql/equal ARE handled)
-;@ unsupported
-(eq 'a 'a)
-;@ unsupported
-(eq 'a 'b)
-;@ unsupported
-(eq '1 '1)
+; (eq is covered in equality-fns.lisp)
