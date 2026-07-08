@@ -63,24 +63,41 @@ may span multiple lines):
 
 ### Expectation classes (the `;@` verdicts)
 
-| class                  | meaning                                                            | manager rule |
-|-------------------------|--------------------------------------------------------------------|--------------|
-| `match`                 | evalOpt models this; Lean and ACL2 MUST agree                      | FAIL if they differ, or Lean produces no value |
-| `unsupported`           | evalOpt does NOT model this yet (target surface); ACL2 has a value | FAIL if Lean produces any value (now modeled → reclassify to `match`) |
-| `known-bug lean <val>`  | KNOWN fidelity gap: Lean produces the wrong `<val>`, ACL2 differs  | FAIL if Lean ≠ `<val>` (behavior changed — likely fixed → reclassify to `match`) |
+An OUTCOME is either a printed value, or `<stuck>` (Lean's evaluator did not
+converge) / `<refused>` (a read/translate/parse error). `<stuck>` and
+`<refused>` both count as "produced no value".
 
-The gate stays **green** while `unsupported`/`known-bug` merely *document* the
-not-yet-faithful surface, but goes **red** on any *change* — a regression, a
-new fidelity bug, or a coverage gain that needs the annotation updated. That is
-how the corpus doubles as a live, checked inventory of exactly how far the
-masquerade currently extends.
+| class                      | meaning                                                            | manager rule |
+|----------------------------|--------------------------------------------------------------------|--------------|
+| `match`                    | evalOpt models this; Lean and ACL2 MUST agree                      | FAIL if they differ, or Lean produces no value |
+| `unsupported`              | evalOpt does NOT model this yet (target surface); ACL2 has a value | FAIL if Lean produces any value (now modeled → reclassify to `match`) |
+| `known-bug lean <outcome>` | KNOWN divergence: Lean's outcome (a value, or `<refused>`) differs from ACL2 | FAIL if Lean's outcome ≠ `<outcome>` (behavior changed — likely fixed → reclassify) |
+| `refuse`                   | ill-formed / rejected form; BOTH interpreters must decline         | FAIL if either produces a value (ACL2 not actually refusing, or Lean too permissive → known-bug) |
+
+The gate stays **green** while `unsupported`/`known-bug`/`refuse` merely
+*document* the not-yet-faithful surface, but goes **red** on any *change* — a
+regression, a new fidelity bug, or a coverage gain that needs the annotation
+updated. That is how the corpus doubles as a live, checked inventory of exactly
+how far the masquerade currently extends.
+
+### Per-form isolation (`;@isolate`)
+
+A file whose first directive is `;@isolate` is run ONE form per
+interpreter-invocation (own ACL2 session, own Lean process), and read/translate/
+parse errors map to the `<refused>` outcome. This is required for
+BOUNDARY/ill-formed forms that a batched session cannot survive: a float literal
+(`5.0`) halts the ACL2 session, and a radix literal (`#xFF`) aborts Lean's parse
+stream. In an `;@isolate` file every test is one SINGLE-LINE form. See
+`corpus/boundary.lisp`. Regular files stay batched (two processes per file).
 
 ## Adding a test
 
 Append two lines to the relevant `corpus/<category>.lisp`: a `;@ <class>` line
 and the form. New builtin not modeled yet? `;@ unsupported` + the form pins the
 target (the manager will show ACL2's value). Found a fidelity bug? `;@ known-bug
-lean <the wrong value>` records it so a future fix is detected.
+lean <the wrong outcome>` records it so a future fix is detected. An ill-formed
+form both interpreters reject? `;@ refuse`. Boundary forms that break a batched
+session go in an `;@isolate` file.
 
 ## Running
 
