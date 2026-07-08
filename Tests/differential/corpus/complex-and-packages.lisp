@@ -47,3 +47,10 @@
 (char-code 'abc)
 ;@ unsupported
 (code-char '256)
+;@ unsupported
+(intern-in-package-of-symbol "NIL" 'foo)
+
+; bad-atom<= : the total order on "bad atoms" (the axiomatic fallback in
+; alphorder for non-standard atoms); on ordinary atoms it is nil.
+;@ unsupported
+(bad-atom<= 'a 'b)

@@ -39,8 +39,34 @@
 ;@ match
 (equal 't t)
 
+; SYMBOL-CASE known bug (both directions of the same root cause). ACL2's reader
+; UPCASES bare symbols and PRESERVES the case of |bar|-escaped ones; our parser
+; LOWERCASES bare symbols and preserves |bar|-escaped ones. So the case at which
+; two spellings collapse differs from ACL2:
+;   ACL2: |ABC| = abc = ABC  (all become ABC)      → equal T
+;   Lean: |ABC| stays ABC, abc/ABC become abc      → |ABC| ≠ abc  (NIL)
+;@ known-bug lean NIL
+(equal '|ABC| 'abc)
+;@ known-bug lean NIL
+(equal '|ABC| 'ABC)
+; and the mirror: |abc| (preserved lower) vs ABC (bare, lowered to abc) — ACL2
+; makes these DIFFER (abc vs ABC), we make them EQUAL.
+;@ known-bug lean t
+(equal '|abc| 'ABC)
+
+; package-qualified symbols — these AGREE (control): acl2:: is the default
+; package, common-lisp:: symbols are still symbols
+;@ match
+(equal 'acl2::foo 'foo)
+;@ match
+(symbolp 'common-lisp::car)
+;@ match
+(symbolp (quote nil))
+
 ; TARGET SURFACE — recognizers/accessors over symbols not modeled yet
 ;@ unsupported
 (keywordp ':k)
 ;@ unsupported
 (symbol-name 'abc)
+;@ unsupported
+(symbol-name 'nil)
