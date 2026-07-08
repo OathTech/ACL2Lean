@@ -70,6 +70,8 @@ def reflectAtom : Atom → Expr
   | .keyword k => mkApp (mkConst ``Atom.keyword) (mkStrLit k)
   | .string s => mkApp (mkConst ``Atom.string) (mkStrLit s)
   | .number n => mkApp (mkConst ``Atom.number) (reflectNumber n)
+  | .char c => mkApp (mkConst ``Atom.char)
+      (mkApp (mkConst ``UInt8.ofNat) (mkNatLit c.toNat))
 
 def reflectSExpr : SExpr → Expr
   | .nil => mkConst ``SExpr.nil

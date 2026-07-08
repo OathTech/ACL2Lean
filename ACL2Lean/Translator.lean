@@ -85,6 +85,7 @@ name := \"{escapeStringLit s.name}\" }))"
   | .atom (.number (.decimal m e)) => s!"(SExpr.atom (.number (.decimal ({m}) ({e}))))"
   | .atom (.string s) => s!"(SExpr.atom (.string \"{escapeStringLit s}\"))"
   | .atom (.keyword k) => s!"(SExpr.atom (.keyword \"{escapeStringLit k}\"))"
+  | .atom (.char c) => s!"(SExpr.atom (.char ({c.toNat} : UInt8)))"
   | .cons a b => s!"(SExpr.cons {translateLiteral a} {translateLiteral b})"
 
 def sanitizeName (s : String) : String :=

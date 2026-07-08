@@ -72,6 +72,7 @@ theorem acl2_numberp_elim (v : SExpr)
   | .atom (.symbol _) => simp [SExpr.t] at h
   | .atom (.string _) => simp [SExpr.t] at h
   | .atom (.keyword _) => simp [SExpr.t] at h
+  | .atom (.char _) => simp [SExpr.t] at h
   | .cons _ _ => simp [SExpr.t] at h
 
 /-! ## Layer 1: evalOpt atomic steps -/
@@ -523,10 +524,12 @@ theorem evalOpt_freevar_congr (w : World) :
     | .atom (.number _) => rfl
     | .atom (.string _) => rfl
     | .atom (.keyword _) => rfl
+    | .atom (.char _) => rfl
     | .atom (.symbol s) => exact hfv s (by simp [freeVars])
     | .cons (.atom (.number _)) _ => rfl
     | .cons (.atom (.string _)) _ => rfl
     | .cons (.atom (.keyword _)) _ => rfl
+    | .cons (.atom (.char _)) _ => rfl
     | .cons .nil _ => rfl
     | .cons (.cons _ _) _ => rfl
     | .cons (.atom (.symbol s)) argsExpr =>
@@ -800,6 +803,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
     | .atom (.number _) => rfl
     | .atom (.string _) => rfl
     | .atom (.keyword _) => rfl
+    | .atom (.char _) => rfl
     | .atom (.symbol s) =>
       show evalOpt (n + 1) w env
             ((lookupSubst s formals (vals.map quoteVal)).getD (.atom (.symbol s)))
@@ -820,6 +824,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
     | .cons (.atom (.number _)) _ => rfl
     | .cons (.atom (.string _)) _ => rfl
     | .cons (.atom (.keyword _)) _ => rfl
+    | .cons (.atom (.char _)) _ => rfl
     | .cons .nil _ => rfl
     | .cons (.cons _ _) _ => rfl
     | .cons (.atom (.symbol q)) rest =>
@@ -915,10 +920,12 @@ theorem evalOpt_substTerm_eq (w : World) (env : Env) (formals : List Symbol)
     | .atom (.number _) => rfl
     | .atom (.string _) => rfl
     | .atom (.keyword _) => rfl
+    | .atom (.char _) => rfl
     | .atom (.symbol s) => exact hpw s (n + 1)
     | .cons (.atom (.number _)) _ => rfl
     | .cons (.atom (.string _)) _ => rfl
     | .cons (.atom (.keyword _)) _ => rfl
+    | .cons (.atom (.char _)) _ => rfl
     | .cons .nil _ => rfl
     | .cons (.cons _ _) _ => rfl
     | .cons (.atom (.symbol q)) rest =>
@@ -1054,10 +1061,12 @@ theorem evalOpt_substTerm_conv (w : World) (env : Env) (formals : List Symbol)
     | .atom (.number _) => exact ⟨0, fun f _ => rfl⟩
     | .atom (.string _) => exact ⟨0, fun f _ => rfl⟩
     | .atom (.keyword _) => exact ⟨0, fun f _ => rfl⟩
+    | .atom (.char _) => exact ⟨0, fun f _ => rfl⟩
     | .atom (.symbol s) => exact ⟨Nag, fun f hf => hag s f hf⟩
     | .cons (.atom (.number _)) _ => exact ⟨0, fun f _ => rfl⟩
     | .cons (.atom (.string _)) _ => exact ⟨0, fun f _ => rfl⟩
     | .cons (.atom (.keyword _)) _ => exact ⟨0, fun f _ => rfl⟩
+    | .cons (.atom (.char _)) _ => exact ⟨0, fun f _ => rfl⟩
     | .cons .nil _ => exact ⟨0, fun f _ => rfl⟩
     | .cons (.cons _ _) _ => exact ⟨0, fun f _ => rfl⟩
     | .cons (.atom (.symbol q)) rest =>
@@ -3435,6 +3444,7 @@ theorem tp_cond_integerp_t (v X : SExpr)
   | .atom (.number (.decimal _ _)) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
   | .atom (.symbol _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
   | .atom (.keyword _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+  | .atom (.char _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
   | .atom (.string _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
   | .nil => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
   | .cons _ _ => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
@@ -3475,6 +3485,7 @@ theorem logic_integerp_int (v : SExpr) (h : Logic.integerp v = SExpr.t) :
   | .atom (.number (.decimal _ _)) => simp [Logic.integerp, SExpr.t] at h
   | .atom (.symbol _) => simp [Logic.integerp, SExpr.t] at h
   | .atom (.keyword _) => simp [Logic.integerp, SExpr.t] at h
+  | .atom (.char _) => simp [Logic.integerp, SExpr.t] at h
   | .atom (.string _) => simp [Logic.integerp, SExpr.t] at h
   | .nil => simp [Logic.integerp, SExpr.t] at h
   | .cons _ _ => simp [Logic.integerp, SExpr.t] at h

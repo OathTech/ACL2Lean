@@ -16,12 +16,21 @@ private abbrev Str (s : String) : SExpr := .atom (.string s)
 #guard lexorder .nil (SExpr.cons .nil .nil) = SExpr.t
 #guard lexorder (I 1) .nil = SExpr.nil
 
--- === Atom kind ordering: number < keyword < string < symbol ===
+-- === Atom kind ordering (faithful to ACL2 alphorder, axioms.lisp:26995):
+--     number < character < string < symbol; keywords ARE symbols (sort in the
+--     symbol class), so keyword > string. ===
 
-#guard lexorder (I 1) (Kw "a") = SExpr.t
-#guard lexorder (Kw "a") (Str "b") = SExpr.t
-#guard lexorder (Str "b") (Sym "c") = SExpr.t
+private abbrev Ch (n : Nat) : SExpr := .atom (.char (UInt8.ofNat n))
+
+#guard lexorder (I 1) (Ch 97) = SExpr.t          -- number < character
+#guard lexorder (Ch 97) (Str "b") = SExpr.t      -- character < string
+#guard lexorder (Str "b") (Sym "c") = SExpr.t    -- string < symbol
+#guard lexorder (Str "b") (Kw "a") = SExpr.t     -- string < keyword (keyword is a symbol)
+#guard lexorder (Kw "a") (Str "b") = SExpr.nil   -- keyword > string (ACL2: (lexorder :a "b")=NIL)
 #guard lexorder (Sym "c") (I 1) = SExpr.nil
+-- character ordering: by char-code
+#guard lexorder (Ch 97) (Ch 98) = SExpr.t
+#guard lexorder (Ch 98) (Ch 97) = SExpr.nil
 
 -- === Integer ordering ===
 

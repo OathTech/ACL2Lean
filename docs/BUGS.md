@@ -27,14 +27,18 @@ Pinned-by: differential | none (<reason>)
 ---
 
 ## BUG-001 — no character type: `#\a` is modeled as a symbol
-Status: open
-Pinned-by: differential
+Status: fixed
+Pinned-by: none (fixed 2026-07-08 — corpus entries reclassified to `match`)
 ACL2 has a character type (code points 0–255). Our `Atom` had no character
 variant, so `#\a` parsed as a symbol named `#\a`. Consequences: `(equal #\a #\b)`
 = t (distinct ACL2 characters collapse) and `(symbolp #\a)` = t (a char is not a
-symbol). Fix in progress: add `Atom.char (UInt8)` + parser + characterp/
-char-code/code-char + faithful printer. See
-docs/notes/2026-07-08_acl2-character-semantics.md.
+symbol). FIXED 2026-07-08: added `Atom.char (UInt8)` + faithful `#\` parser
+(single char + the 6 named chars, error otherwise) + ACL2-faithful printer +
+`characterp`/`char-code`/`code-char` (with completion corners). The
+differential ratchet flipped the two known-bug entries and five now-modeled
+char ops in characters.lisp; all reclassified to `match`. See
+docs/notes/2026-07-08_acl2-character-semantics.md. (Residual: `char-upcase`/
+`char-downcase`/`char<=`/`coerce` char ops remain `unsupported`.)
 
 ## BUG-002 — symbol case: parser lowercases bare symbols
 Status: open
@@ -65,25 +69,34 @@ ACL2 accepts Common-Lisp radix literals: `#xFF`=255, `#b101`=5, `#o17`=15. Our
 parser errors ("unrecognized reader macro"). Too strict.
 
 ## BUG-006 — lexorder atomKind: keyword has its own order class
-Status: open
-Pinned-by: none (lexorder not wired into callBuiltin; shows `unsupported` in the
-differential — Tests/differential/corpus/target-ordering.lisp)
+Status: fixed
+Pinned-by: none (lexorder not wired into callBuiltin — no differential pin)
 ACL2 `alphorder` (axioms.lisp:26995): keywords ARE symbols and sort within the
-symbol class by `symbol<`. `Lexorder.lean`'s `atomKind` gives keyword its own
-slot below strings — wrong. See docs/notes/2026-07-08_lexorder-alphorder-fidelity-bugs.md.
+symbol class by `symbol<`. FIXED 2026-07-08 in the `lexorder`/`atomKind`
+FUNCTION (keyword folded into the symbol kind). NOTE: the order-property PROOFS
+(total/antisym/trans) are commented out pending re-proof — see
+docs/notes/2026-07-08_lexorder-alphorder-fidelity-bugs.md and the TODO in
+Lexorder.lean. Cannot be differentially pinned until lexorder is wired into
+callBuiltin.
 
 ## BUG-007 — lexorder atomKind: no character class
-Status: open
+Status: fixed
 Pinned-by: none (lexorder not wired into callBuiltin)
 `alphorder` orders characters between rationals and strings (by `char-code`).
-Being fixed alongside BUG-001's character type. See the alphorder note.
+FIXED 2026-07-08 in the function (character kind added between number and
+string, compared by char-code), alongside BUG-001's character type. Proofs
+commented out pending re-proof (see BUG-006).
 
 ## BUG-008 — lexorder symbol comparison is not `symbol<`
-Status: open
+Status: fixed
 Pinned-by: none (lexorder not wired into callBuiltin)
-`Lexorder.lean` compares symbols by `name` then `package`; ACL2's `symbol<` has
-its own char/package ordering. Divergence likely on case/package corners. See
-the alphorder note.
+`Lexorder.lean` compared symbols by `name` then `package`; ACL2's `symbol<`
+compares symbol-name via `string<`, tie-break by package-name via `string<`.
+FIXED 2026-07-08 with a faithful `symbolLe` (name via `String.<`, tie-break
+package) covering both symbols and keywords. Proofs commented out pending
+re-proof (see BUG-006). Residual fidelity question: Lean `String.<` vs ACL2
+`string<` char-ordering — validate when lexorder is wired + differentially
+tested.
 
 ## BUG-009 — no complex-rational class (numbers/lexorder)
 Status: open

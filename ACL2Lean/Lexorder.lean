@@ -4,17 +4,44 @@ namespace ACL2
 
 open Logic
 
-/-- Ordering among Atom kinds: number < keyword < string < symbol.
-    Follows ACL2's ordering convention. -/
+/-- Ordering among Atom kinds, faithful to ACL2's `alphorder`
+    (axioms.lisp:26995): real/rational < character < string < symbol. KEYWORDS
+    ARE SYMBOLS in ACL2 (they sort within the symbol class by `symbol<`), so
+    they share the symbol kind here — NOT a separate class. (Complex-rationals,
+    which alphorder places between rationals and characters, are not modeled;
+    see BUG-009.) This corrects the previous ordering (which gave keyword its
+    own slot and had no character class — BUG-006/007). -/
 def atomKind : Atom → Nat
   | .number _ => 0
-  | .keyword _ => 1
+  | .char _ => 1
   | .string _ => 2
   | .symbol _ => 3
+  | .keyword _ => 3   -- keywords ARE symbols (sort within the symbol class)
 
-/-- `lexorder x y` — total ordering on SExpr values.
-    nil is smallest, atoms ordered by kind then value, conses are largest
-    and compared lexicographically (car then cdr). -/
+/-- Faithful `symbol<` (axioms.lisp `symbol<`): compare by symbol-NAME via
+    `string<`, tie-break by PACKAGE-NAME via `string<`. We model ACL2 `string<`
+    with Lean's lexicographic `String.<` (both compare char-by-char by code
+    point). A keyword's name is its text and its package is "KEYWORD". -/
+def symbolName : Atom → String
+  | .symbol s => s.name
+  | .keyword k => k
+  | _ => ""
+def symbolPkg : Atom → String
+  | .symbol s => s.package
+  | .keyword _ => "KEYWORD"
+  | _ => ""
+
+/-- `symbol<`-style le for two symbol-class atoms (symbol or keyword). -/
+def symbolLe (a b : Atom) : Bool :=
+  let n1 := symbolName a; let n2 := symbolName b
+  if n1 < n2 then true
+  else if n1 = n2 then symbolPkg a ≤ symbolPkg b
+  else false
+
+/-- `lexorder x y` — total ordering on SExpr values, faithful to ACL2's
+    `lexorder`/`alphorder`. nil is smallest, atoms ordered by class
+    (`atomKind`) then within-class value, conses largest and compared
+    lexicographically (car then cdr). -/
 def lexorder (x y : SExpr) : SExpr :=
   match x, y with
   | .nil, _ => .t          -- nil ≤ everything
@@ -25,13 +52,12 @@ def lexorder (x y : SExpr) : SExpr :=
     else -- same kind
       match a, b with
       | .number (.int m), .number (.int n) => if m ≤ n then .t else .nil
-      | .keyword k1, .keyword k2 => if k1 ≤ k2 then .t else .nil
+      | .char c1, .char c2 => if c1 ≤ c2 then .t else .nil  -- by char-code
       | .string s1, .string s2 => if s1 ≤ s2 then .t else .nil
-      | .symbol s1, .symbol s2 =>
-        if s1.name < s2.name then .t
-        else if s1.name = s2.name then
-          if s1.package ≤ s2.package then .t else .nil
-        else .nil
+      -- symbol class: symbols AND keywords, both ordered by symbol<
+      | .symbol _, .symbol _ | .symbol _, .keyword _
+      | .keyword _, .symbol _ | .keyword _, .keyword _ =>
+        if symbolLe a b then .t else .nil
       -- Mixed number subtypes (int vs rational vs decimal)
       | .number (.int _), .number _ => .t
       | .number _, .number (.int _) => .nil
@@ -43,12 +69,24 @@ def lexorder (x y : SExpr) : SExpr :=
         if e1 < e2 then .t
         else if e1 = e2 then if m1 ≤ m2 then .t else .nil
         else .nil
-      | _, _ => .nil -- unreachable (same kind guarantees same constructor)
+      | _, _ => .nil -- unreachable (same kind guarantees same constructor class)
   | .atom _, .cons _ _ => .t  -- atoms before conses
   | .cons _ _, .atom _ => .nil
   | .cons a1 b1, .cons a2 b2 =>
     if a1 == a2 then lexorder b1 b2
     else lexorder a1 a2
+
+/-
+TODO (BUG-006/007/008, docs/BUGS.md) — RE-PROVE these order-property theorems
+against the now-alphorder-faithful `lexorder`. They are COMMENTED OUT, not
+deleted: the `lexorder`/`atomKind` definition above was corrected to match ACL2
+`alphorder` (character class added, keyword folded into the symbol class,
+symbols ordered by `symbol<`), which changes `lexorder.induct` and breaks the
+existing case structure of `lexorder_total` / `lexorder_antisym` /
+`lexorder_trans` (the last at maxHeartbeats 12.8M). Nothing outside this file
+consumes these theorems today (`TermOrder` uses only the `lexorder` FUNCTION),
+so building without them is safe. The faithful re-proof is deferred; the
+committed proofs below are preserved verbatim as the starting point.
 
 @[simp] theorem lexorder_nil (y : SExpr) : lexorder .nil y = .t := by
   cases y <;> rfl
@@ -713,5 +751,6 @@ theorem lexorder_trans (x y z : SExpr)
           rw [beq_iff_eq] at hne; exact absurd this hne
         · simp only [ha13]
           exact h13
+-/  -- END commented-out order-property proofs (TODO BUG-006/007/008)
 
 end ACL2

@@ -1,20 +1,18 @@
-; Differential corpus: CHARACTERS. ACL2 has a character type (#\a etc.); our
-; Atom model does NOT (only symbol/keyword/string/number), so #\a is parsed as a
-; symbol named "#\a". This produces real divergences, pinned here.
+; Differential corpus: CHARACTERS. ACL2 has a character type (#\a etc., codes
+; 0–255). This was BUG-001 (no character Atom, so #\a parsed as a symbol);
+; FIXED 2026-07-08 by adding Atom.char (UInt8) + faithful parser/printer +
+; characterp/char-code/code-char. A character is now a distinct, self-equal
+; object that is not a symbol/string/number, matching ACL2.
 
-; KNOWN BUG: distinct characters compare EQUAL. ACL2: #\a and #\b are different
-; character objects → NIL. Ours: both are symbols, and the parser collapses the
-; token so they end up equal → t. (Serious: two distinct ACL2 objects identified.)
-;@ known-bug bug:BUG-001 lean t
+; Was the BUG-001 divergences (distinct chars compared equal; char was a
+; symbol) — now correct.
+;@ match
 (equal #\a #\b)
-
-; KNOWN BUG: a character is not a symbol in ACL2 → NIL; ours models #\a as a
-; symbol → t.
-;@ known-bug bug:BUG-001 lean t
+;@ match
 (symbolp #\a)
 
-; behavior that AGREES (control — a char is an atom, not a cons/number/string,
-; and is self-equal / distinct from the like-named symbol and string)
+; a char is an atom, not a cons/number/string; self-equal; distinct from the
+; like-named symbol and string
 ;@ match
 (atom #\a)
 ;@ match
@@ -29,23 +27,35 @@
 (equal #\a 'a)
 ;@ match
 (equal #\a "a")
-; chars coerce to 0 in arithmetic (both agree — fix semantics)
+; chars coerce to 0 in arithmetic (fix semantics)
 ;@ match
 (binary-+ #\a '1)
 ;@ match
 (binary-+ #\a #\b)
 
-; TARGET SURFACE — character operations not modeled
-;@ unsupported
+; character primitives — now modeled (characterp / char-code / code-char),
+; incl. the completion corners (char-code of a non-char = 0; code-char out of
+; [0,256) = the null char). char-code / code-char are mutual inverses on 0–255.
+;@ match
 (characterp #\a)
-;@ unsupported
+;@ match
 (characterp 'a)
-;@ unsupported
+;@ match
 (char-code #\A)
-;@ unsupported
+;@ match
 (char-code #\0)
-;@ unsupported
+;@ match
+(char-code 'a)
+;@ match
 (code-char '65)
+;@ match
+(code-char '32)
+;@ match
+(code-char '256)
+;@ match
+(char-code (code-char '97))
+
+; TARGET SURFACE — character operations still not modeled
 ;@ unsupported
 (char-upcase #\a)
 ;@ unsupported

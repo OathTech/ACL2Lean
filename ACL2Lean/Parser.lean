@@ -66,6 +66,13 @@ private def readString : Stream → Except String (String × Stream)
 private def isAtomChar (c : Char) : Bool :=
   ¬ (c = '(' ∨ c = ')' ∨ c = ' ' ∨ c = '\n' ∨ c = '\r' ∨ c = '\t')
 
+/-- Chars that CONTINUE a `#\` character token: anything that is not one of
+    ACL2's `*acl2-read-character-terminators*` (acl2.lisp:1871):
+    Tab, Newline, Page, Space, `"`, `'`, `(`, `)`, `;`, backtick, `,`. -/
+private def isCharTokChar (c : Char) : Bool :=
+  ¬ (c = '\t' ∨ c = '\n' ∨ c = '\x0c' ∨ c = ' ' ∨ c = '"' ∨ c = '\'' ∨
+     c = '(' ∨ c = ')' ∨ c = ';' ∨ c = '`' ∨ c = ',')
+
 private def readAtom (cs : Stream) : (String × Stream) :=
   let (tok, rest) := span isAtomChar cs
   (String.ofList tok, rest)
@@ -138,9 +145,34 @@ mutual
         | .error e => .error e
         | .ok (str, rest) => .ok (SExpr.atom (.symbol { name := str }), rest)
     | '#' :: '\\' :: rest =>
-        let (tok, tail) := span isAtomChar rest
-        let repr := "#\\" ++ String.ofList tok
-        .ok (SExpr.atom (.symbol { name := repr }), tail)
+        -- ACL2 character syntax (acl2-fns.lisp `acl2-read-character-string`,
+        -- researched in docs/notes/2026-07-08_acl2-character-semantics.md):
+        -- the FIRST char after `#\` is taken literally (even if it is itself a
+        -- terminator, e.g. `#\(`), then further chars are read up to a
+        -- character terminator. A single char → that character; a multi-char
+        -- token → case-insensitive match against the six names Space/Tab/
+        -- Newline/Page/Rubout/Return (their codes); any other multi-char token
+        -- is a reader ERROR (fail-closed, matching ACL2).
+        match rest with
+        | [] => .error "unexpected end of input after #\\"
+        | c0 :: rest' =>
+            let (more, tail) := span isCharTokChar rest'
+            if more.isEmpty then
+              -- single character: its code point (ACL2 chars are 0–255; a
+              -- literal outside that range cannot arise from a byte source).
+              .ok (SExpr.atom (.char (UInt8.ofNat c0.toNat)), tail)
+            else
+              let name := (String.ofList (c0 :: more)).toUpper
+              match name with
+              | "SPACE"   => .ok (SExpr.atom (.char 32), tail)
+              | "TAB"     => .ok (SExpr.atom (.char 9), tail)
+              | "NEWLINE" => .ok (SExpr.atom (.char 10), tail)
+              | "PAGE"    => .ok (SExpr.atom (.char 12), tail)
+              | "RUBOUT"  => .ok (SExpr.atom (.char 127), tail)
+              | "RETURN"  => .ok (SExpr.atom (.char 13), tail)
+              | _ => .error s!"invalid character name #\\{String.ofList (c0 :: more)} \
+                              (expected a single char or one of Space, Tab, \
+                              Newline, Page, Rubout, Return)"
     -- Reader conditionals: the old implementation ignored the feature test
     -- (`#+` always dropped the guarded form, `#-` always kept it — both
     -- backwards from Common Lisp for a present feature). Evaluating feature

@@ -43,9 +43,11 @@
 (symbol-package-name 'car)
 ;@ unsupported
 (symbol-name '5)
-;@ unsupported
+; char-code/code-char are now modeled (see characters.lisp) — completion
+; corners: char-code of a non-char = 0; code-char out of [0,256) = null char.
+;@ match
 (char-code 'abc)
-;@ unsupported
+;@ match
 (code-char '256)
 ;@ unsupported
 (intern-in-package-of-symbol "NIL" 'foo)

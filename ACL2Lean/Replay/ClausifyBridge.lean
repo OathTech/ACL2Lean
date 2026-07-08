@@ -175,7 +175,7 @@ theorem dumbNegateLit_eq (t : SExpr) :
   · exact Or.inl rfl
   · rcases hd with _ | a' | _
     · exact Or.inl rfl
-    · rcases a' with ns | _ | _ | _
+    · rcases a' with ns | _ | _ | _ | _
       · rcases tl with _ | _ | ⟨x, tl2⟩
         · exact Or.inl rfl
         · exact Or.inl rfl
@@ -189,6 +189,7 @@ theorem dumbNegateLit_eq (t : SExpr) :
       · exact Or.inl rfl
       · exact Or.inl rfl
       · exact Or.inl rfl
+      · exact Or.inl rfl  -- .char-headed cons: not a `not`-application
     · exact Or.inl rfl
 
 /-- A NEG leaf `[dumbNegateLit t]`: the strip arm inverts the `not` (or is

@@ -68,6 +68,9 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "symbolp", [a] => some (Logic.symbolp a)
   | "booleanp", [a] => some (Logic.booleanp a)
   | "stringp", [a] => some (Logic.stringp a)
+  | "characterp", [a] => some (Logic.characterp a)
+  | "char-code", [a] => some (Logic.charCode a)
+  | "code-char", [a] => some (Logic.codeChar a)
   | "fix", [a] =>
       some (match a with | .atom (.number _) => a | _ => .atom (.number (.int 0)))
   | "nfix", [a] => some (Logic.nfix a)
@@ -103,6 +106,7 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
   | .atom (.number n) => some (.atom (.number n))
   | .atom (.string s) => some (.atom (.string s))
   | .atom (.keyword k) => some (.atom (.keyword k))
+  | .atom (.char c) => some (.atom (.char c))  -- characters self-evaluate
   | .atom (.symbol s) =>
       match env.get? s with
       | some v => some v
@@ -261,7 +265,7 @@ private theorem letFoldStep_mono
     | none => simp [hval] at hmid
     | some val => simp [hval] at hmid; simp [hmono w valEnv valExpr val hval, hmid]
   | some [.nil, _] | some [.atom (.number _), _] | some [.atom (.string _), _]
-  | some [.atom (.keyword _), _] | some [.cons _ _, _]
+  | some [.atom (.keyword _), _] | some [.atom (.char _), _] | some [.cons _ _, _]
   | some (_ :: _ :: _ :: _) | some [_] | some [] | none =>
     simp only [hbl] at hmid ⊢; exact hmid
 
@@ -282,9 +286,9 @@ theorem evalOptStep_mono
   -- cases, h and goal are definitionally equal (no f/g calls).
   match t with
   | .nil | .atom (.number _) | .atom (.string _)
-  | .atom (.keyword _) | .atom (.symbol _) => exact h
+  | .atom (.keyword _) | .atom (.char _) | .atom (.symbol _) => exact h
   | .cons (.atom (.number _)) _ | .cons (.atom (.string _)) _
-  | .cons (.atom (.keyword _)) _ | .cons .nil _
+  | .cons (.atom (.keyword _)) _ | .cons (.atom (.char _)) _ | .cons .nil _
   | .cons (.cons _ _) _ => exact h
   | .cons (.atom (.symbol s)) argsExpr =>
     simp only [evalOptStep] at h ⊢

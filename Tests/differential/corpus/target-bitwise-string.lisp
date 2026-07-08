@@ -19,8 +19,8 @@
 ;@ unsupported
 (ash '1 '4)
 
-; string / char
-;@ unsupported
+; string / char. char-code is now modeled (see characters.lisp).
+;@ match
 (char-code #\a)
 ;@ unsupported
 (string-append "ab" "cd")

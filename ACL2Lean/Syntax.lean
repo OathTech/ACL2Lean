@@ -63,7 +63,25 @@ inductive Atom
   | keyword (value : Keyword)
   | string (value : String)
   | number (value : Number)
+  /-- An ACL2 CHARACTER: the code points 0–255 exactly (ACL2's character
+      domain — `char-code` is `< 256`). Stored as the raw code. A character is
+      a DISTINCT object from the like-named symbol/string under `equal`. -/
+  | char (value : UInt8)
   deriving DecidableEq
+
+/-- Render a character the way ACL2's printer does (axioms.lisp:22537, kept in
+    sync with the reader `acl2-read-character-string`): `#\` then, for the six
+    named codes, the NAME; otherwise the raw character. See
+    docs/notes/2026-07-08_acl2-character-semantics.md. -/
+def reprChar (c : UInt8) : String :=
+  "#\\" ++ match c.toNat with
+    | 10  => "Newline"
+    | 32  => "Space"
+    | 12  => "Page"
+    | 9   => "Tab"
+    | 127 => "Rubout"
+    | 13  => "Return"
+    | n   => String.singleton (Char.ofNat n)
 
 instance : Repr Atom where
   reprPrec a _ := match a with
@@ -71,6 +89,7 @@ instance : Repr Atom where
     | .keyword k => ":" ++ k
     | .string s => repr s
     | .number n => repr n
+    | .char c => reprChar c
 
 /-- Minimal s-expression structure to model ACL2 source. -/
 inductive SExpr

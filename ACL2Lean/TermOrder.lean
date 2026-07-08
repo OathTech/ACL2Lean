@@ -54,6 +54,8 @@ private def fnCountEvgAtom (a : Atom) (acc : Nat) : Nat :=
     let len := k.length
     if len >= fnCountEvgMaxVal then fnCountEvgMaxVal
     else Nat.min fnCountEvgMaxVal (acc + 2 + 2 * len)
+  -- ACL2 fn-count-evg-rec (linear-a.lisp): a character counts as `(1+ acc)`.
+  | .char _ => Nat.min fnCountEvgMaxVal (acc + 1)
 
 /-- Port of ACL2's `fn-count-evg-rec`: count the "size" of a quoted constant
     for term ordering. -/

@@ -236,6 +236,29 @@ open ACL2
   | .atom (.string _) => .t
   | _ => .nil
 
+/-- ACL2 `characterp`. -/
+@[inline, simp] def characterp (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.char _) => .t
+  | _ => .nil
+
+/-- ACL2 `char-code`: a character's code (0–255). Completion axiom
+    (axioms.lisp `completion-of-char-code`): a NON-character is 0. -/
+@[inline, simp] def charCode (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.char c) => .atom (.number (.int c.toNat))
+  | _ => .atom (.number (.int 0))
+
+/-- ACL2 `code-char`: the character with the given code, for an integer in
+    [0, 256). Completion axiom (`completion-of-code-char`): a non-integer, or
+    an integer outside [0, 256), maps to `*null-char*` = code 0. -/
+@[inline, simp] def codeChar (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number (.int n)) =>
+    if 0 ≤ n ∧ n < 256 then .atom (.char (UInt8.ofNat n.toNat))
+    else .atom (.char 0)
+  | _ => .atom (.char 0)
+
 /-- ACL2 `booleanp` — `t` iff the value is exactly `t` or `nil`
     (`(or (equal x t) (equal x nil))`). -/
 @[inline, simp] def booleanp (s : SExpr) : SExpr :=
@@ -327,7 +350,7 @@ instance : OfNat SExpr n where
   | cons _ _ => simp [zp, toInt, toBool] at h
   | atom a =>
     cases a with
-    | symbol _ | keyword _ | string _ => simp [zp, toInt, toBool] at h
+    | symbol _ | keyword _ | string _ | char _ => simp [zp, toInt, toBool] at h
     | number num =>
       cases num with
       | rational _ _ | decimal _ _ => simp [zp, toInt, toBool] at h
@@ -403,7 +426,7 @@ instance : OfNat SExpr n where
   | cons _ _ => simp [integerp, toBool] at h
   | atom a =>
     cases a with
-    | symbol _ | keyword _ | string _ => simp [integerp, toBool] at h
+    | symbol _ | keyword _ | string _ | char _ => simp [integerp, toBool] at h
     | number n =>
       cases n with
       | rational _ _ | decimal _ _ => simp [integerp, toBool] at h
@@ -416,7 +439,7 @@ instance : OfNat SExpr n where
   | cons _ _ => simp [integerp, toBool] at h
   | atom a =>
     cases a with
-    | symbol _ | keyword _ | string _ => simp [integerp, toBool] at h
+    | symbol _ | keyword _ | string _ | char _ => simp [integerp, toBool] at h
     | number n =>
       cases n with
       | rational _ _ | decimal _ _ => simp [integerp, toBool] at h
@@ -455,7 +478,7 @@ instance : OfNat SExpr n where
     | cons _ _ => simp [integerp, toBool] at h
     | atom a =>
       cases a with
-      | symbol _ | keyword _ | string _ => simp [integerp, toBool] at h
+      | symbol _ | keyword _ | string _ | char _ => simp [integerp, toBool] at h
       | number n =>
         cases n with
         | rational _ _ | decimal _ _ => simp [integerp, toBool] at h
