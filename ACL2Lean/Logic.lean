@@ -244,7 +244,11 @@ open ACL2
 /-- ACL2 `symbolp` (`nil` is a symbol). -/
 @[inline, simp] def symbolp (s : SExpr) : SExpr :=
   match s with
-  | .atom (.symbol _) | .nil => .t
+  -- Keywords ARE symbols in ACL2 (they live in the KEYWORD package;
+  -- `keywordp-forward-to-symbolp` in axioms.lisp), so `.keyword` is truthy
+  -- here too. `nil` is the symbol NIL. (A keyword stays DISTINCT from the
+  -- like-named symbol under `equal` — only `symbolp` unifies them.)
+  | .atom (.symbol _) | .atom (.keyword _) | .nil => .t
   | _ => .nil
 
 /-- ACL2 `nfix` — coerce to a natural: a non-negative integer is itself,

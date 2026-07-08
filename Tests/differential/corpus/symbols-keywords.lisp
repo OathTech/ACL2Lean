@@ -1,11 +1,11 @@
 ; Differential corpus: symbols and keywords.
 
-; KNOWN DIVERGENCE (found 2026-07-07): in ACL2 a KEYWORD is a symbol (it lives
-; in the KEYWORD package), so (symbolp :foo) = T. Our Logic.symbolp recognizes
-; only the .symbol atom variant, not .keyword, so it returns NIL. Narrow, real
-; fidelity gap. Everything else about keywords agrees (atom/consp/equal/
-; truthiness — see below), so this is isolated to symbolp.
-;@ known-bug lean NIL
+; In ACL2 a KEYWORD is a symbol (it lives in the KEYWORD package;
+; keywordp-forward-to-symbolp), so (symbolp :foo) = T. This was a known
+; divergence (Logic.symbolp recognized only the .symbol variant, not .keyword);
+; FIXED 2026-07-07 by adding .keyword to symbolp's truthy case. Now `match`. A
+; keyword stays DISTINCT from the like-named symbol under equal (below).
+;@ match
 (symbolp ':foo)
 
 ; keyword behavior that AGREES with ACL2 (control — confirms the divergence is
