@@ -36,13 +36,18 @@ Ordered by project-wide leverage — general machinery over special-case walls:
 > file-based corpus (`Tests/differential/corpus/*.lisp`, syntactic ACL2 with
 > `;@` metadata comments both readers skip) + a pure comparator
 > (`scripts/diff-test.sh`, `just diff-test`) with three expectation classes:
-> `match` (must agree), `stuck` (unmodeled target surface — pins ACL2's value),
-> `diverge` (known fidelity gap — records the wrong Lean value; fails when it
-> changes). Current: 165 match, 39 stuck (list-ops, lexorder/ordering, int
-> div/mod, bitwise, string/char — the corpus-driven target surface), 2 diverge
-> (`5/1` reader-normalization). Gated in CI as its own step. Data is now fully
-> separate from process and scales (batched per-file, corpus is just more
-> lines). Spec: `Tests/differential/README.md`.
+> `match` (must agree), `unsupported` (not modeled yet — pins ACL2's value),
+> `known-bug lean <val>` (known fidelity gap — records the wrong Lean value;
+> fails when it changes → reclassify). Current (edge-case sprint, 2026-07-07):
+> **184 match, 64 unsupported, 10 known-bug, 0 FAIL.** unsupported surface =
+> list-ops, lexorder/ordering, int div/mod + comparison ops (`<=`/`>`/`>=`/`=`,
+> pervasive), bitwise, string/char, `and`/`or`/`eq`/lambda-application,
+> numerator/denominator. known-bug = the number-normalization family (parser
+> builds unreduced rationals, bypassing Logic.mkNumber → `2/4`≠`1/2`, `4/2` not
+> integerp, `5/1`≠`5` — one-line root cause, fix deferred) + `(symbolp :foo)`
+> (keywords ARE symbols in ACL2; Logic.symbolp misses the .keyword variant).
+> Gated in CI as its own step. Data fully separate from process, scales
+> (batched per-file). Spec: `Tests/differential/README.md`.
 
 0. **Fail-closed fix sprint — DONE (2026-07-06, branch mdd/fail-closed-fixes).**
    All actionable findings of `docs/notes/2026-07-06_fail-closed-audit.md`
@@ -115,7 +120,7 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    symbol-package details against the source), wire `callBuiltin`
    ("lexorder"), `callBuiltin_lexorder` rfl-lemma, `dpBinary` +
    `dpLiftHeads` registration (the booleanp/endp precedent, one commit
-   each), and FLIP THE `stuck` ENTRIES to `match` in
+   each), and FLIP THE `unsupported` ENTRIES to `match` in
    Tests/differential/corpus/target-ordering.lisp (+ add atom-kind-pair and
    nested-cons cases) — the differential vs real ACL2 is the acceptance gate
    for trusted-core growth. Then re-run coverage for

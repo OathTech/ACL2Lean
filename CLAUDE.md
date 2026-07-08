@@ -54,7 +54,7 @@ those failures are invisible to the Lean kernel (see the trust note below).
    interface: a stream of forms in via stdin, one value per form out —
    `acl2lean eval < forms` mirrors `acl2 < forms`) and differentially tested
    against it. The harness (`Tests/differential/`, `just diff-test`) feeds the
-   same ACL2 forms to both and diffs the value streams; its `stuck`/`diverge`
+   same ACL2 forms to both and diffs the value streams; its `unsupported`/`known-bug`
    corpus classes document exactly how far the masquerade currently reaches.
    Growing a trusted-core primitive means pinning it there first (see the
    corpus README and the roadmap H3).

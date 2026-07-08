@@ -1,21 +1,21 @@
 ; Differential corpus: TARGET SURFACE — ACL2's total order primitives, not
-; modeled yet (all `stuck`). lexorder is the current R2 (isort) wall — insert's
+; modeled yet (all `unsupported`). lexorder is the current R2 (isort) wall — insert's
 ; comparator — built from alphorder over the atom classes. These pin exactly
 ; what a faithful Logic.lexorder must produce, per input kind.
 
-;@ stuck
+;@ unsupported
 (lexorder '1 '2)
-;@ stuck
+;@ unsupported
 (lexorder '2 '1)
-;@ stuck
+;@ unsupported
 (lexorder 'a 'b)
-;@ stuck
+;@ unsupported
 (lexorder '(1) '(2))
-;@ stuck
+;@ unsupported
 (lexorder '(1 2) '(1 3))
-;@ stuck
+;@ unsupported
 (alphorder '1 '2)
-;@ stuck
+;@ unsupported
 (alphorder 'a 'b)
-;@ stuck
+;@ unsupported
 (symbol-name 'abc)

@@ -11,7 +11,7 @@
 # index, and consults the corpus metadata (`;@` comment lines — invisible to
 # both interpreters) to decide whether each result is expected.
 #
-# Corpus format + expectation classes (match / stuck / diverge): see
+# Corpus format + expectation classes (match / unsupported / known-bug): see
 # Tests/differential/README.md. Long-term aim: the Lean interpreter masquerades
 # as ACL2 completely, so this becomes a plain string-diff over random programs.
 #
@@ -67,7 +67,7 @@ fi
 tmp="${TMPDIR:-/tmp}/difftest_$$"; mkdir -p "$tmp"
 trap 'rm -rf "$tmp"' EXIT
 
-total_ok=0 total_stuck=0 total_diverge=0 total_fail=0
+total_ok=0 total_unsupported=0 total_known_bug=0 total_fail=0
 declare -a fail_lines=()
 declare -a target_lines=()
 
@@ -157,24 +157,25 @@ for file in "${files[@]}"; do
           verdict="FAIL-MISMATCH"; total_fail=$((total_fail+1))
           fail_lines+=("$file: MISMATCH lean=$lean_raw acl2=$acl2_raw (fidelity bug)")
         fi ;;
-      stuck)
+      unsupported)
+        # evalOpt does not model this yet; Lean must produce no value.
         if [[ "$lean_raw" == "<stuck>" ]]; then
-          verdict="ok-stuck"; total_stuck=$((total_stuck+1))
-          target_lines+=("$acl2_raw  ⇐  (unmodeled; acl2 value shown)")
+          verdict="ok-unsupported"; total_unsupported=$((total_unsupported+1))
+          target_lines+=("$acl2_raw  ⇐  (unsupported; acl2 value shown)")
         else
           verdict="FAIL-GREW(->match)"; total_fail=$((total_fail+1))
-          fail_lines+=("$file: 'stuck' entry now yields lean=$lean_raw (acl2=$acl2_raw) — reclassify to match")
+          fail_lines+=("$file: 'unsupported' entry now yields lean=$lean_raw (acl2=$acl2_raw) — now modeled, reclassify to match")
         fi ;;
-      diverge)
-        # rest = "lean <val>"
+      known-bug)
+        # Known fidelity gap: Lean produces the recorded WRONG value. rest = "lean <val>".
         read -r _kw dval <<<"$rest"
         dn="$(normalize "$dval")"
         if [[ "$ln" == "$dn" ]]; then
-          verdict="ok-diverge"; total_diverge=$((total_diverge+1))
-          target_lines+=("DIVERGENCE lean=$lean_raw vs acl2=$acl2_raw (known; $file)")
+          verdict="ok-known-bug"; total_known_bug=$((total_known_bug+1))
+          target_lines+=("KNOWN-BUG lean=$lean_raw vs acl2=$acl2_raw ($file)")
         else
-          verdict="FAIL-DIVERGE-CHANGED"; total_fail=$((total_fail+1))
-          fail_lines+=("$file: 'diverge' entry: lean now=$lean_raw, recorded=$dval (divergence changed — reclassify)")
+          verdict="FAIL-BUG-CHANGED"; total_fail=$((total_fail+1))
+          fail_lines+=("$file: 'known-bug' entry: lean now=$lean_raw, recorded=$dval (behavior changed — likely fixed; reclassify to match)")
         fi ;;
       *)
         verdict="FAIL(bad-class:$class)"; total_fail=$((total_fail+1))
@@ -195,5 +196,5 @@ if [[ ${#fail_lines[@]} -gt 0 ]]; then
   printf '  %s\n' "${fail_lines[@]}"
   echo ""
 fi
-echo "SUMMARY: $total_ok match-ok, $total_stuck stuck, $total_diverge diverge, $total_fail FAIL"
+echo "SUMMARY: $total_ok match, $total_unsupported unsupported, $total_known_bug known-bug, $total_fail FAIL"
 if [[ $total_fail -eq 0 ]]; then exit 0; else exit 1; fi

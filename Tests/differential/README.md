@@ -45,10 +45,10 @@ may span multiple lines):
 ;@ match
 (binary-+ '2 '3)
 
-;@ stuck
+;@ unsupported
 (append '(1 2) '(3 4))
 
-;@ diverge lean NIL
+;@ known-bug lean NIL
 (equal '5 '5/1)
 ```
 
@@ -63,13 +63,13 @@ may span multiple lines):
 
 ### Expectation classes (the `;@` verdicts)
 
-| class                 | meaning                                                            | manager rule |
-|-----------------------|--------------------------------------------------------------------|--------------|
-| `match`               | evalOpt models this; Lean and ACL2 MUST agree                      | FAIL if they differ, or Lean is `<stuck>` |
-| `stuck`               | evalOpt does NOT model this yet (target surface); ACL2 has a value | FAIL if Lean produces any value (surface grew → reclassify to `match`) |
-| `diverge lean <val>`  | KNOWN fidelity gap: Lean produces the wrong `<val>`, ACL2 differs  | FAIL if Lean ≠ `<val>` (the divergence changed — e.g. was fixed → reclassify) |
+| class                  | meaning                                                            | manager rule |
+|-------------------------|--------------------------------------------------------------------|--------------|
+| `match`                 | evalOpt models this; Lean and ACL2 MUST agree                      | FAIL if they differ, or Lean produces no value |
+| `unsupported`           | evalOpt does NOT model this yet (target surface); ACL2 has a value | FAIL if Lean produces any value (now modeled → reclassify to `match`) |
+| `known-bug lean <val>`  | KNOWN fidelity gap: Lean produces the wrong `<val>`, ACL2 differs  | FAIL if Lean ≠ `<val>` (behavior changed — likely fixed → reclassify to `match`) |
 
-The gate stays **green** while `stuck`/`diverge` merely *document* the
+The gate stays **green** while `unsupported`/`known-bug` merely *document* the
 not-yet-faithful surface, but goes **red** on any *change* — a regression, a
 new fidelity bug, or a coverage gain that needs the annotation updated. That is
 how the corpus doubles as a live, checked inventory of exactly how far the
@@ -78,9 +78,9 @@ masquerade currently extends.
 ## Adding a test
 
 Append two lines to the relevant `corpus/<category>.lisp`: a `;@ <class>` line
-and the form. New builtin not modeled yet? `;@ stuck` + the form pins the target
-(the manager will show ACL2's value). Found a divergence? `;@ diverge lean <the
-wrong value>` records it so a future fix is detected.
+and the form. New builtin not modeled yet? `;@ unsupported` + the form pins the
+target (the manager will show ACL2's value). Found a fidelity bug? `;@ known-bug
+lean <the wrong value>` records it so a future fix is detected.
 
 ## Running
 

@@ -119,19 +119,19 @@ demands it:
   comparator. Neither interpreter is test-aware; the comparison is a plain
   string diff. We are far from random-program parity today (unmodeled builtins,
   symbol-case rendering, no defun/defthm in stream mode), and the corpus's
-  `stuck`/`diverge` classes document exactly how far the masquerade currently
+  `unsupported`/`known-bug` classes document exactly how far the masquerade currently
   extends. Progress toward it = the sequence of gaps closed:
   (1) interpreter-as-peer stream interface (DONE 2026-07-07); (2) ACL2-faithful
   value printer — dotted-list collapse DONE, symbol-case pending (entangled
   with the parser's deliberate lowercasing; a real masquerade item); (3) wire
-  the unmodeled builtins (the `stuck` inventory); (4) fix known divergences
-  (the `diverge` inventory, e.g. `5/1` reader-normalization); (5) eventually a
+  the unmodeled builtins (the `unsupported` inventory); (4) fix known bugs
+  (the `known-bug` inventory, e.g. `5/1` reader-normalization); (5) eventually a
   random-ACL2-program fuzzer feeding both. Each is corpus-visible and gated.
 - **Policy — trusted-core growth discipline** (make explicit now, since
   `lexorder` is the first big primitive added since the differential
   harness): every new `Logic`/`evalOpt` primitive requires (i) faithful
   implementation read off the ACL2 source, (ii) differential corpus entries
-  in `Tests/differential/` (a `stuck` entry pins the target before wiring;
+  in `Tests/differential/` (an `unsupported` entry pins the target before wiring;
   it flips to `match` when wired) as the acceptance gate, (iii) inclusion in
   the next audit. Propose a `TRUSTED-CORE.md` manifest: every primitive, its
   ACL2 source anchor, its differential coverage. The trusted core is the ONLY

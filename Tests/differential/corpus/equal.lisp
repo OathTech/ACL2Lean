@@ -27,10 +27,10 @@
 ; ACL2's reader normalizes a denominator-1 rational to the integer — 5/1 IS 5 —
 ; so (equal '5 '5/1) is T. Our parser builds a distinct .rational 5/1 that
 ; bypasses Logic.mkNumber's gcd/denominator-1 reduction, so evalOpt says NIL.
-; Recorded as `diverge` (Lean value NIL) so the gate stays green but FAILS the
+; Recorded as `known-bug` (Lean value NIL) so the gate stays green but FAILS the
 ; day the parser is fixed — forcing reclassification to `match`. Fixing the
 ; parser is out of scope for the testing sprint; tracked in TODO.
-;@ diverge lean NIL
+;@ known-bug lean NIL
 (equal '5 '5/1)
-;@ diverge lean NIL
+;@ known-bug lean NIL
 (integerp '5/1)

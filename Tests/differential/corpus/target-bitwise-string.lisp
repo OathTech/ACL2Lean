@@ -1,5 +1,5 @@
 ; Differential corpus: TARGET SURFACE — bitwise ops and string/char primitives,
-; not modeled yet (all `stuck`).
+; not modeled yet (all `unsupported`).
 ;
 ; NOTE: several bitwise ops already HAVE a Logic.* definition (intLogand,
 ; intLogor, intLogxor, lognot, ash) but are not wired into callBuiltin — so
@@ -8,23 +8,23 @@
 ; needed by lexorder's alphorder over strings and characters.
 
 ; bitwise
-;@ stuck
+;@ unsupported
 (logand '12 '10)
-;@ stuck
+;@ unsupported
 (logior '12 '10)
-;@ stuck
+;@ unsupported
 (logxor '12 '10)
-;@ stuck
+;@ unsupported
 (lognot '5)
-;@ stuck
+;@ unsupported
 (ash '1 '4)
 
 ; string / char
-;@ stuck
+;@ unsupported
 (char-code #\a)
-;@ stuck
+;@ unsupported
 (string-append "ab" "cd")
-;@ stuck
+;@ unsupported
 (length "abc")
-;@ stuck
+;@ unsupported
 (coerce "ab" 'list)
