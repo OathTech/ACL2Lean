@@ -7,3 +7,7 @@ ACL2Lean/Translated/
 .claude/
 /.tmp
 Tests/driver-coverage.actual
+
+# scratch diff-test output
+.diff.log
+.difftest.log

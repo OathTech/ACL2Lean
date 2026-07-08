@@ -177,11 +177,35 @@ private partial def printDevelopment : ACL2.Development → IO Unit
       IO.println s!"  {formula}"
     printDevelopment rest
 
+/-- Evaluate a STREAM of s-expression forms against a fixed world, printing one
+    value per form — the same "forms in → values out" interface ACL2 presents
+    when you pipe forms to its stdin. This is what makes the Lean interpreter
+    differentially comparable to ACL2 as a peer: feed both the same corpus of
+    forms, diff the two value streams. Each form's value is printed on its own
+    line (a form that fails to converge prints `<stuck>`), so line N of the
+    output corresponds to form N of the input. NOTE: this is a plain
+    interpreter capability (batch evaluation) — it carries NO test/expectation
+    logic; comparison lives entirely in the external differential manager. -/
+private def evalFormStream (w : ACL2.World) (input : String) : IO Unit := do
+  match ACL2.Parse.parseAll input with
+  | .error e => throw (IO.userError s!"Parse error: {e}")
+  | .ok forms =>
+      let fuel := 100000
+      for form in forms do
+        match ACL2.evalOpt fuel w {} form with
+        | none => IO.println "<stuck>"
+        | some res => IO.println s!"{repr res}"
+
 def main (args : List String) : IO Unit := do
   match args with
   | ["report"] => do
       IO.println "ACL2 to Lean 4 Bridge - Corpus Report"
       ACL2.reportSamples
+  | ["eval"] => do
+      -- Stream mode: forms from stdin → one value per form (empty world).
+      -- Same interface as `acl2 < forms.lisp`; the peer for differential testing.
+      let input ← IO.FS.Stream.readToEnd (← IO.getStdin)
+      evalFormStream ACL2.World.empty input
   | ["eval", exprStr] => do
       match ACL2.Parse.parseSExpr exprStr.toList with
       | .error e => IO.eprintln s!"Parse error: {e}"
@@ -191,6 +215,16 @@ def main (args : List String) : IO Unit := do
           match ACL2.evalOpt fuel w {} sexpr with
           | none => IO.eprintln "Eval: fuel exhaustion (try a larger fuel)"
           | some res => IO.println s!"{repr res}"
+  | ["eval-in", path] => do
+      -- Stream mode against the world loaded from `path`: forms from stdin →
+      -- one value per form. Peer to `acl2 < (book then forms)`.
+      let events ← ACL2.loadEventsFromFile path
+      match events with
+      | .error e => throw (IO.userError s!"Load error: {e}")
+      | .ok evs =>
+          let w := ACL2.World.replay evs
+          let input ← IO.FS.Stream.readToEnd (← IO.getStdin)
+          evalFormStream w input
   | ["eval-in", path, exprStr] => do
       let events ← ACL2.loadEventsFromFile path
       match events with
@@ -294,8 +328,10 @@ def main (args : List String) : IO Unit := do
   | _ => do
       IO.println "Usage:"
       IO.println "  acl2lean report"
-      IO.println "  acl2lean eval \"(expr)\""
-      IO.println "  acl2lean eval-in file.lisp \"(expr)\""
+      IO.println "  acl2lean eval \"(expr)\"            # evaluate one form"
+      IO.println "  acl2lean eval                     # forms from stdin → one value/form (ACL2-peer stream)"
+      IO.println "  acl2lean eval-in file.lisp \"(expr)\"  # one form against a book's world"
+      IO.println "  acl2lean eval-in file.lisp        # forms from stdin against a book's world"
       IO.println "  acl2lean gen-world file.lisp"
       IO.println "  acl2lean metadata file.lisp [theorem]"
       IO.println "  acl2lean parse-proof-log file.proof-log"

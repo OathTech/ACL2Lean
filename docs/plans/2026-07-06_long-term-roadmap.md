@@ -104,17 +104,39 @@ demands it:
 - (e) **Frontier-lemma drip** (steady, opportunistic): natp-through-+
   value shapes (tp:my-len/tp:len2), the cddr decrease (total:evenlen).
 
-## Horizon 3 — trust consolidation (continuous; one policy, one milestone)
+## Horizon 3 — trust consolidation (continuous; one objective, one policy, one milestone)
 
+- **North-star objective — TOTAL ACL2 MASQUERADE (the differential endgame).**
+  The Lean ACL2-logic interpreter (`evalOpt` + `Logic`) should be
+  indistinguishable from real ACL2 as a black box: feed *randomly generated*
+  ACL2 programs to both and string-compare the output, with zero divergence.
+  This is the strongest possible statement of the fidelity the trust story
+  needs — `evalOpt` *defines* what our mirror theorems mean, so any divergence
+  from ACL2 is a latent soundness hole. The mechanism is the differential
+  harness (`Tests/differential/`, `scripts/diff-test.sh`): two PEER
+  interpreters with the SAME interface — a stream of ACL2 forms in, one value
+  per form out (`acl2 < forms` vs `acl2lean eval < forms`) — and an external
+  comparator. Neither interpreter is test-aware; the comparison is a plain
+  string diff. We are far from random-program parity today (unmodeled builtins,
+  symbol-case rendering, no defun/defthm in stream mode), and the corpus's
+  `stuck`/`diverge` classes document exactly how far the masquerade currently
+  extends. Progress toward it = the sequence of gaps closed:
+  (1) interpreter-as-peer stream interface (DONE 2026-07-07); (2) ACL2-faithful
+  value printer — dotted-list collapse DONE, symbol-case pending (entangled
+  with the parser's deliberate lowercasing; a real masquerade item); (3) wire
+  the unmodeled builtins (the `stuck` inventory); (4) fix known divergences
+  (the `diverge` inventory, e.g. `5/1` reader-normalization); (5) eventually a
+  random-ACL2-program fuzzer feeding both. Each is corpus-visible and gated.
 - **Policy — trusted-core growth discipline** (make explicit now, since
   `lexorder` is the first big primitive added since the differential
   harness): every new `Logic`/`evalOpt` primitive requires (i) faithful
-  implementation read off the ACL2 source, (ii) differential probes in
-  `diff_eval.sh` as the acceptance gate, (iii) inclusion in the next audit.
-  Propose a `TRUSTED-CORE.md` manifest: every primitive, its ACL2 source
-  anchor, its differential coverage. The trusted core is the ONLY part of
-  the pipeline a native theorem's correctness rests on (beyond the kernel);
-  its growth should be legible at a glance.
+  implementation read off the ACL2 source, (ii) differential corpus entries
+  in `Tests/differential/` (a `stuck` entry pins the target before wiring;
+  it flips to `match` when wired) as the acceptance gate, (iii) inclusion in
+  the next audit. Propose a `TRUSTED-CORE.md` manifest: every primitive, its
+  ACL2 source anchor, its differential coverage. The trusted core is the ONLY
+  part of the pipeline a native theorem's correctness rests on (beyond the
+  kernel); its growth should be legible at a glance.
 - **Milestone — retiring the trust note for the imported catalog.** Today's
   trust note says stages 2–6 can produce a kernel-accepted proof of a
   subtly wrong MIRROR. Once decode generation (H2c) makes every imported

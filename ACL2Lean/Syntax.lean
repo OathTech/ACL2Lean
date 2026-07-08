@@ -110,11 +110,21 @@ partial def SExpr.toString : SExpr → String
   | .nil => "NIL"
   | .atom a => s!"{repr a}"
   | s@(.cons _ _) =>
-    match s.toList? with
-    | some l => "(" ++ " ".intercalate (l.map toString) ++ ")"
-    | none => match s with
-      | .cons car cdr => s!"({toString car} . {toString cdr})"
-      | _ => ""
+    -- Render a cons like ACL2 (and standard Lisp): walk the list spine,
+    -- printing successive CARs space-separated, and use the dot ONLY for a
+    -- final non-nil atomic cdr — so `(1 . (2 . 3))` prints as `(1 2 . 3)` and
+    -- a proper list `(1 2 3)` has no dot. (The old code special-cased only the
+    -- fully-proper case and emitted nested dotted pairs otherwise, which ACL2
+    -- never prints — a serialization-fidelity gap for the differential surface.)
+    "(" ++ spine s ++ ")"
+where
+  /-- Render the elements of a (possibly improper) list without the enclosing
+      parens: `a b c` for a proper list, `a b . tl` for an improper one. -/
+  spine : SExpr → String
+  | .cons car .nil => SExpr.toString car
+  | .cons car (tl@(.cons _ _)) => SExpr.toString car ++ " " ++ spine tl
+  | .cons car cdr => SExpr.toString car ++ " . " ++ SExpr.toString cdr
+  | other => SExpr.toString other
 
 instance : ToString SExpr where
   toString := SExpr.toString

@@ -62,6 +62,13 @@ driver-coverage:
 check-acl2-tags:
     bash scripts/check-acl2-tags.sh
 
+# Differential test: the Lean ACL2-logic interpreter vs real ACL2, over the
+# Tests/differential/ corpus (see its README). Feeds the same ACL2 forms to
+# both interpreters and diffs the value streams. Needs acl2/saved_acl2
+# (just build-acl2). Pass corpus file paths to run a subset.
+diff-test *files:
+    bash scripts/diff-test.sh {{files}}
+
 # Lint the shell scripts (portability + robustness). Config in .shellcheckrc.
 # Skips gracefully if shellcheck is not installed, so `ci` never hard-fails on
 # a missing dev tool — CI installs it explicitly.

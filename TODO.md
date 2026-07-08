@@ -25,6 +25,25 @@ Ordered by project-wide leverage — general machinery over special-case walls:
 > walls named), the industrialization cadence, the trusted-core growth
 > policy, and the post-corpus arcs (live tactic, breadth sweep, upstreaming).
 
+> **Differential harness rebuilt (2026-07-07, branch mdd/differential-surface).**
+> Toward the TOTAL ACL2 MASQUERADE objective (roadmap H3): the Lean
+> interpreter is now a PEER of ACL2 — `acl2lean eval [eval-in <book>]` reads a
+> STREAM of forms from stdin and emits one value per form, same interface as
+> `acl2 < forms`. The value PRINTER was made ACL2-faithful for dotted/nested
+> lists (`(1 2 . 3)`, not `(1 . (2 . 3))`); symbol-case still diverges
+> (parser lowercases — a pending masquerade item, folded in the comparator).
+> The old single-file `scripts/diff_eval.sh` is RETIRED and replaced by a
+> file-based corpus (`Tests/differential/corpus/*.lisp`, syntactic ACL2 with
+> `;@` metadata comments both readers skip) + a pure comparator
+> (`scripts/diff-test.sh`, `just diff-test`) with three expectation classes:
+> `match` (must agree), `stuck` (unmodeled target surface — pins ACL2's value),
+> `diverge` (known fidelity gap — records the wrong Lean value; fails when it
+> changes). Current: 165 match, 39 stuck (list-ops, lexorder/ordering, int
+> div/mod, bitwise, string/char — the corpus-driven target surface), 2 diverge
+> (`5/1` reader-normalization). Gated in CI as its own step. Data is now fully
+> separate from process and scales (batched per-file, corpus is just more
+> lines). Spec: `Tests/differential/README.md`.
+
 0. **Fail-closed fix sprint — DONE (2026-07-06, branch mdd/fail-closed-fixes).**
    All actionable findings of `docs/notes/2026-07-06_fail-closed-audit.md`
    landed: `panic!`→`Except` through `Event.classify`/`fromSExprs`; the TYPED
@@ -96,9 +115,10 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    symbol-package details against the source), wire `callBuiltin`
    ("lexorder"), `callBuiltin_lexorder` rfl-lemma, `dpBinary` +
    `dpLiftHeads` registration (the booleanp/endp precedent, one commit
-   each), and ADD DIFFERENTIAL PROBES to scripts/diff_eval.sh covering
-   every atom-kind pair + nested conses — the differential vs real ACL2 is
-   the acceptance gate for trusted-core growth. Then re-run coverage for
+   each), and FLIP THE `stuck` ENTRIES to `match` in
+   Tests/differential/corpus/target-ordering.lisp (+ add atom-kind-pair and
+   nested-cons cases) — the differential vs real ACL2 is the acceptance gate
+   for trusted-core growth. Then re-run coverage for
    the next isort wall.
    THE TWO-STAGE LIFT as the following work item: The
    lift-automation analysis (MDD-ratified intent 2026-07-06; per-theorem
@@ -133,8 +153,9 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    the G4 forcing seam.
 
 Explicitly deprioritized: coverage drilling for its own sake (remaining
-failures are deeper walls R2+ reaches naturally); differential expansion
-beyond its current cadence (150/152, 0 mismatch).
+failures are deeper walls R2+ reaches naturally). (Differential expansion is
+NO LONGER deprioritized — the rebuilt harness above makes it cheap and it now
+drives trusted-core growth per roadmap H3.)
 
 ## THE GOVERNING PLAN — `docs/plans/2026-06-10_generality-design.md` (ratified)
 

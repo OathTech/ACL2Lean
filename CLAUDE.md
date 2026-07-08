@@ -46,7 +46,18 @@ those failures are invisible to the Lean kernel (see the trust note below).
 6. **ACL2-logic interpreter** — `EvalOpt.lean` (`evalOpt`, fuel-bounded) +
    `Logic.lean` (the primitives): the Lean semantic model that *defines what the
    mirror theorem means*. If this diverges from ACL2's semantics, a "correct"
-   proof proves the wrong thing.
+   proof proves the wrong thing. **Long-term fidelity objective — TOTAL ACL2
+   MASQUERADE:** this interpreter should be indistinguishable from real ACL2 as
+   a black box (feed randomly-generated ACL2 programs to both, string-compare
+   output). Because `evalOpt` *defines* the mirror's meaning, any divergence is
+   a latent soundness hole — so the interpreter is run as a PEER of ACL2 (same
+   interface: a stream of forms in via stdin, one value per form out —
+   `acl2lean eval < forms` mirrors `acl2 < forms`) and differentially tested
+   against it. The harness (`Tests/differential/`, `just diff-test`) feeds the
+   same ACL2 forms to both and diffs the value streams; its `stuck`/`diverge`
+   corpus classes document exactly how far the masquerade currently reaches.
+   Growing a trusted-core primitive means pinning it there first (see the
+   corpus README and the roadmap H3).
 7. **Proof-object builder** — `Replay/ProofProducer.lean` (a `MetaM` procedure,
    the eventual `acl2_replay` tactic) + `Replay/EvalLemmas.lean` (atomic step
    lemmas): recurses the proof tree and emits a Lean **`Expr`** discharging the
