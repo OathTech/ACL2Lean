@@ -83,6 +83,104 @@ private def readAtom (cs : Stream) : (String × Stream) :=
   let (tok, rest) := span isAtomChar cs
   (String.ofList tok, rest)
 
+/-- Digit value of `c` in `base` (2–36), or `none` if not a digit in that base.
+    Case-insensitive for the letter digits (a–z / A–Z), matching Common Lisp's
+    radix reader. -/
+private def digitInBase (base : Nat) (c : Char) : Option Nat :=
+  let v :=
+    if '0' ≤ c ∧ c ≤ '9' then some (c.toNat - '0'.toNat)
+    else if 'a' ≤ c ∧ c ≤ 'z' then some (c.toNat - 'a'.toNat + 10)
+    else if 'A' ≤ c ∧ c ≤ 'Z' then some (c.toNat - 'A'.toNat + 10)
+    else none
+  match v with
+  | some d => if d < base then some d else none
+  | none => none
+
+/-- Read a radix integer literal body — `[sign] digit+` in `base` — from the
+    token `readAtom` delimits. ACL2 uses the standard CL radix reader
+    (`#x`/`#b`/`#o`/`#Nr`), so a missing/ill-formed body is a reader error
+    (fail-closed, no silent default). Returns the integer and the rest stream. -/
+private def readRadixInt (base : Nat) (cs : Stream) : Except String (Int × Stream) :=
+  let (tok, rest) := readAtom cs
+  let chars := tok.toList
+  let (neg, digits) := match chars with
+    | '-' :: ds => (true, ds)
+    | '+' :: ds => (false, ds)
+    | ds => (false, ds)
+  if digits.isEmpty then
+    .error s!"radix literal (base {base}): no digits in {tok}"
+  else
+    let rec go : List Char → Nat → Option Nat
+      | [], acc => some acc
+      | c :: cs, acc => match digitInBase base c with
+        | some d => go cs (acc * base + d)
+        | none => none
+    match go digits 0 with
+    | some n => .ok ((if neg then -(Int.ofNat n) else Int.ofNat n), rest)
+    | none => .error s!"radix literal (base {base}): bad digit in {tok}"
+
+/-- `[sign] digit+ '.'` — a trailing-dot DECIMAL INTEGER (CL: the dot forces
+    base 10). Returns the integer, or `none` if the (already-upcased) token is
+    not this shape. E.g. `1.`→1, `-5.`→-5, `10.`→10; `1.5`/`1`/`.5`→none. -/
+private def trailingDotInteger? (tok : String) : Option Int :=
+  let chars := tok.toList
+  let (neg, body) := match chars with
+    | '-' :: cs => (true, cs)
+    | '+' :: cs => (false, cs)
+    | cs => (false, cs)
+  match body.reverse with
+  | '.' :: revInit =>
+    let init := revInit.reverse
+    if !init.isEmpty ∧ init.all (fun c => '0' ≤ c ∧ c ≤ '9') then
+      match (String.ofList init).toNat? with
+      | some n => some (if neg then -(Int.ofNat n) else Int.ofNat n)
+      | none => none
+    else none
+  | _ => none
+
+/-- Does the (already-upcased) token match Common Lisp FLOAT syntax? ACL2 has no
+    float type, so its reader REFUSES these (BUG-004). CL float at base 10 is
+    `[sign] {d}* '.' {d}+ [exp]` or `[sign] {d}+ ['.' {d}*] exp`, where the
+    exponent marker is one of E/S/F/D/L (case-insensitive; upcased here) followed
+    by `[sign] {d}+`. A trailing-dot integer (`1.`) is NOT a float — it is handled
+    by `trailingDotInteger?`. -/
+private def numericTokenIsFloat (tok : String) : Bool :=
+  let chars := tok.toList
+  let body := match chars with
+    | '-' :: cs => cs
+    | '+' :: cs => cs
+    | cs => cs
+  let isDigit := fun c => decide ('0' ≤ c ∧ c ≤ '9')
+  let isExp := fun c => c == 'E' || c == 'S' || c == 'F' || c == 'D' || c == 'L'
+  -- split off an optional exponent: mantissa [exp-marker sign? digit+]
+  let rec splitExp : List Char → Option (List Char × List Char)
+    | [] => none
+    | c :: cs => if isExp c then some ([], cs) else
+        match splitExp cs with
+        | some (m, e) => some (c :: m, e)
+        | none => none
+  match splitExp body with
+  | some (mant, exp) =>
+    -- with an exponent: mantissa is digits with at most one '.', ≥1 digit;
+    -- exponent is [sign] digit+ or digit+. (`1E3` is a float too.)
+    let mantOk := mant.any isDigit && mant.all (fun c => isDigit c || c == '.') &&
+                  (mant.filter (· == '.')).length ≤ 1
+    let expOk := match exp with
+      | s :: ds => (s == '-' || s == '+') && !ds.isEmpty && ds.all isDigit
+      | [] => false
+    mantOk && (expOk || (!exp.isEmpty && exp.all isDigit))
+  | none =>
+    -- no exponent: a float needs a '.' with a fractional DIGIT after it. Only
+    -- digits and a single '.', ≥1 digit, and NOT trailing-dot (`1.5`/`.5` are
+    -- floats; `1.` is a trailing-dot integer, handled elsewhere).
+    let hasDot := body.contains '.'
+    let onlyNumChars := body.all (fun c => isDigit c || c == '.')
+    let oneDot := (body.filter (· == '.')).length ≤ 1
+    let notTrailingDot := match body.reverse with
+      | '.' :: _ => false
+      | _ => true
+    hasDot && onlyNumChars && oneDot && body.any isDigit && notTrailingDot
+
 mutual
   partial def parseList (cs : Stream) (acc : List SExpr := [])
       : Except String (SExpr × Stream) :=
@@ -214,7 +312,33 @@ mutual
     | '#' :: '-' :: _ =>
         .error "reader conditional #- unsupported — the translator has no \
                 *features* model (fail-closed; see 2026-07-06 audit N4)"
-    | '#' :: c :: _ => .error s!"unrecognized reader macro: #{String.ofList [c]}"
+    -- Radix integer literals (standard CL reader; *acl2-readtable* leaves these
+    -- to the default reader). `#x`/`#X` hex, `#b`/`#B` binary, `#o`/`#O` octal,
+    -- and `#Nr`/`#NR` arbitrary radix 2–36. Digits and prefix are
+    -- case-insensitive; a sign is allowed; the value is the INTEGER (BUG-005).
+    | '#' :: c :: rest =>
+        let mkInt : Except String (Int × Stream) → Except String (SExpr × Stream) := fun r =>
+          match r with
+          | .error e => .error e
+          | .ok (n, rest') => .ok (SExpr.atom (.number (.int n)), rest')
+        if c = 'x' ∨ c = 'X' then mkInt (readRadixInt 16 rest)
+        else if c = 'b' ∨ c = 'B' then mkInt (readRadixInt 2 rest)
+        else if c = 'o' ∨ c = 'O' then mkInt (readRadixInt 8 rest)
+        else if '0' ≤ c ∧ c ≤ '9' then
+          -- `#Nr<digits>` — read the radix N (base-10, may be >1 digit), then
+          -- `r`/`R`, then the digits in base N.
+          let (radixDigits, afterRadix) := span (fun c => '0' ≤ c ∧ c ≤ '9') rest
+          let radixStr := String.ofList (c :: radixDigits)
+          match radixStr.toNat?, afterRadix with
+          | some base, rc :: body =>
+              if rc ≠ 'r' ∧ rc ≠ 'R' then
+                .error s!"unrecognized reader macro: #{radixStr}… (expected #Nr radix)"
+              else if base < 2 ∨ base > 36 then
+                .error s!"radix literal #{radixStr}r: base must be 2–36"
+              else mkInt (readRadixInt base body)
+          | _, _ =>
+              .error s!"unrecognized reader macro: #{radixStr}… (expected #Nr radix)"
+        else .error s!"unrecognized reader macro: #{String.ofList [c]}"
     | '#' :: [] => .error "unexpected # at end of input"
     | ':' :: '|' :: rest =>
         -- `:|...|` — a keyword whose name is read VERBATIM from the escaped
@@ -279,7 +403,20 @@ mutual
                   | some n, some d => .ok (Logic.mkNumber n d, rest)
                   | _, _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
               | _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
+            else if numericTokenIsFloat tok then
+              -- BUG-004: ACL2 uses the standard CL reader at *read-base* = 10
+              -- (acl2.lisp:2026 / axioms.lisp:21116). A token matching CL FLOAT
+              -- syntax (a fractional digit after '.', or an exponent marker) is
+              -- a float, which ACL2 has no type for — its reader REFUSES it.
+              .error s!"float literal unsupported — ACL2 has no floating-point \
+                        type (its reader refuses '{tok}'); fail-closed (BUG-004)"
+            else if trailingDotInteger? tok |>.isSome then
+              -- [sign] digit+ '.' (trailing dot, no fractional digit) is a
+              -- DECIMAL INTEGER in CL (the dot forces base 10): 1.=1, -5.=-5.
+              .ok (SExpr.atom (.number (.int (trailingDotInteger? tok).get!)), rest)
             else if tok.contains '.' then
+              -- a '.'-bearing token that is neither a float nor a trailing-dot
+              -- integer (e.g. FOO.BAR) is an ordinary symbol.
               .ok (SExpr.atom (.symbol { name := tok }), rest)
             else
               let parts := rawTok.splitOn "::"

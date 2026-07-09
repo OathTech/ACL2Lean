@@ -132,6 +132,14 @@ end SExpr
 partial def SExpr.toString : SExpr → String
   | .nil => "NIL"
   | .atom a => s!"{repr a}"
+  -- ACL2's printer ABBREVIATES a 2-element list whose CAR is the symbol QUOTE:
+  -- `(quote X)` prints as `'X` (BUG-003). This fires ONLY for the exact
+  -- 2-element form (`(quote)`, `(quote a b)`, and improper `(1 quote a)` all
+  -- print literally, handled by the general spine below), and — because the
+  -- recursive `SExpr.toString` call re-enters here — at ANY nesting depth.
+  | .cons (.atom (.symbol s)) (.cons x .nil) =>
+    if s.name == "QUOTE" then "'" ++ SExpr.toString x
+    else "(" ++ SExpr.toString (.atom (.symbol s)) ++ " " ++ SExpr.toString x ++ ")"
   | s@(.cons _ _) =>
     -- Render a cons like ACL2 (and standard Lisp): walk the list spine,
     -- printing successive CARs space-separated, and use the dot ONLY for a

@@ -60,35 +60,39 @@ latent gap the fix also closed: `:|bar|` keywords were not read verbatim
 (`:|ABC|` now equals `:abc`, `:|abc|` stays distinct).
 
 ## BUG-003 — printer does not abbreviate `(quote x)` as `'x`
-Status: open
-Pinned-by: differential
-ACL2's printer renders `(quote x)` as `'x`; ours prints the literal list
-`(quote x)`. E.g. `(quote (quote a))` → ACL2 `'A`, us `(quote a)`.
+Status: fixed
+Pinned-by: none (fixed 2026-07-08 — corpus entries reclassified to `match`)
+ACL2's printer renders a 2-element list whose car is the symbol `QUOTE` as
+`'x`, recursively at any nesting depth; the exact 2-element form only (`(quote)`,
+`(quote a b)`, improper `(1 quote a)` print literally). FIXED 2026-07-08 in
+`SExpr.toString` (Syntax.lean) with a case matching `.cons (QUOTE) (.cons x nil)`
+→ `"'" ++ toString x`; the recursive call re-enters the case so nesting is free.
+Regression guards in printing.lisp (all now `match`).
 
 ## BUG-004 — the '.'-token reader path (floats + trailing-dot integers)
-Status: open
-Pinned-by: differential
-Grounded in the ACL2 source (2026-07-08): `*acl2-readtable* = (copy-readtable
-nil)` is the standard Common Lisp reader, and ACL2 binds `*read-base* = 10`
-always (axioms.lisp:21116). So a `.`-bearing token follows CL base-10 number
-syntax — and our single `tok.contains '.'` → symbol branch (Parser.lean) gets
-it wrong in TWO opposite directions:
-(A) TOO PERMISSIVE on floats — a fractional digit after the dot (`5.0`/`1.5`/
-    `.5`) or an exponent marker (`5e3`/`1d0`) is a FLOAT; ACL2 has no float type
-    and its reader REFUSES, but we build a `.decimal` Number.
-(B) WRONG VALUE on trailing-dot integers — `[sign] digits+ .` with no fractional
-    digit is a DECIMAL INTEGER in CL (`1.`=1, `10.`=10, `-5.`=-5, `(integerp
-    '10.)`=T); we instead make the SYMBOL `1.`/`10.`/… .
-Fix must implement the CL rule (trailing-dot → decimal integer; fractional/
-exponent → refuse), NOT merely reject dotted tokens (which would leave (B)
-wrong, turning `1.` from a symbol into `<refused>`). Pinned in boundary.lisp
-(isolate) with dot-free CONTROLS (`100`/`2/3`) guarding against over-rejection.
+Status: fixed
+Pinned-by: none (fixed 2026-07-08 — corpus entries reclassified to match/refuse)
+Grounded in the ACL2 source: `*acl2-readtable* = (copy-readtable nil)` is the
+standard Common Lisp reader, and ACL2 binds `*read-base* = 10` always
+(axioms.lisp:21116). So a `.`-bearing token follows CL base-10 number syntax.
+FIXED 2026-07-08 in Parser.lean (`numericTokenIsFloat` / `trailingDotInteger?`):
+(A) FLOATS refused — a fractional digit after the dot (`5.0`/`1.5`/`.5`) or an
+    exponent marker (`5e3`/`1d0`; markers E/S/F/D/L) is a FLOAT; ACL2 has no
+    float type and its reader refuses, so we fail-closed (`<refused>`).
+(B) TRAILING-DOT INTEGERS read as integers — `[sign] digits+ .` with no
+    fractional digit is a DECIMAL INTEGER (`1.`=1, `10.`=10, `-5.`=-5,
+    `(integerp '10.)`=T).
+Dot-free numbers (`100`/`2/3`) and dotted non-numbers (`foo.bar`) are unchanged.
+Regression guards in boundary.lisp (floats `refuse`, trailing-dot `match`).
 
 ## BUG-005 — radix integer literals rejected (ACL2 accepts them)
-Status: open
-Pinned-by: differential
-ACL2 accepts Common-Lisp radix literals: `#xFF`=255, `#b101`=5, `#o17`=15. Our
-parser errors ("unrecognized reader macro"). Too strict.
+Status: fixed
+Pinned-by: none (fixed 2026-07-08 — corpus entries reclassified to `match`)
+ACL2 accepts Common-Lisp radix literals: `#xFF`=255, `#b101`=5, `#o17`=15,
+`#Nr…`=radix N. FIXED 2026-07-08 in Parser.lean (`readRadixInt`/`digitInBase`
++ `#`-dispatch cases for `#x/#X`, `#b/#B`, `#o/#O`, `#Nr/#NR`): case-insensitive
+prefix+digits, signed, value is the integer, radix 2–36. Regression guards in
+boundary.lisp (all now `match`).
 
 ## BUG-006 — lexorder atomKind: keyword has its own order class
 Status: fixed

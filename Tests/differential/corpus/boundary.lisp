@@ -32,74 +32,66 @@
 ;@ refuse
 (unless 'nil '5)
 
-; ── BUG-004 — the '.'-token reader path. GROUNDED in the ACL2 source
-; (surveyed 2026-07-08): *acl2-readtable* = (copy-readtable nil) — the STANDARD
-; Common Lisp reader — and ACL2 binds *read-base* = 10 always (axioms.lisp:21116
-; "ACL2 never sets the read-base to other than 10"). So token→number is the CL
-; number syntax at base 10, which splits into TWO opposite-direction bugs in our
-; single `tok.contains '.'` → symbol branch (Parser.lean):
+; ── BUG-004 FIXED 2026-07-08 — the '.'-token reader path. GROUNDED in the ACL2
+; source: *acl2-readtable* = (copy-readtable nil) — the STANDARD Common Lisp
+; reader — and ACL2 binds *read-base* = 10 always (axioms.lisp:21116). Parser.lean
+; now implements the CL base-10 rule (numericTokenIsFloat / trailingDotInteger?):
 ;
-; (A) TOO PERMISSIVE on real FLOATS. A token with a fractional DIGIT after the
-;     dot (`N.N`, `.N`, `N.Ne M`) or an exponent marker (e/E/d/D) is a FLOAT —
-;     ACL2 has no float type, so its reader REFUSES (<refused>). We wrongly build
-;     a decimal Number.
-;@ known-bug bug:BUG-004 lean 5.0
+; (A) FLOATS are refused. A token with a fractional DIGIT after the dot
+;     (`N.N`, `.N`, `N.Ne M`) or an exponent marker (E/S/F/D/L) is a FLOAT —
+;     ACL2 has no float type, its reader REFUSES, and so do we (<refused>).
+;@ refuse
 '5.0
-;@ known-bug bug:BUG-004 lean 1.5
+;@ refuse
 '1.5
-;@ known-bug bug:BUG-004 lean .5
+;@ refuse
 '.5
-;@ known-bug bug:BUG-004 lean 5E3
+;@ refuse
 '5e3
-;@ known-bug bug:BUG-004 lean 5.0E3
+;@ refuse
 '5.0e3
-;@ known-bug bug:BUG-004 lean -1.5
+;@ refuse
 '-1.5
-;@ known-bug bug:BUG-004 lean 1D0
+;@ refuse
 '1d0
 ;
-; (B) WRONG VALUE on TRAILING-DOT INTEGERS. In CL a `[sign] digits+ .` token
-;     with NO fractional digit is a DECIMAL INTEGER (the trailing dot forces
-;     base 10) — so ACL2 reads `1.`=1, `10.`=10, `-5.`=-5, and `(integerp '10.)`
-;     =T. We instead make the SYMBOL `1.`/`10.`/… (integerp NIL). So the fix
-;     must not merely reject dotted tokens (that would still be wrong for these
-;     — and turn `1.` from a symbol into <refused>); it must read them as
-;     integers. Recorded Lean outcome is the current (wrong) symbol.
-;@ known-bug bug:BUG-004 lean 1.
+; (B) TRAILING-DOT INTEGERS. `[sign] digits+ .` with NO fractional digit is a
+;     DECIMAL INTEGER (the trailing dot forces base 10): `1.`=1, `10.`=10,
+;     `-5.`=-5, `(integerp '10.)`=T. Now match.
+;@ match
 '1.
-;@ known-bug bug:BUG-004 lean 10.
+;@ match
 '10.
-;@ known-bug bug:BUG-004 lean -5.
+;@ match
 '-5.
-;@ known-bug bug:BUG-004 lean 0.
+;@ match
 '0.
 ;
 ; CONTROLS — dot-free numbers ACL2 accepts and we already get right; they must
-; STAY accepted through the BUG-004 fix (guard against over-rejection).
+; STAY accepted (guard against over-rejection).
 ;@ match
 '100
 ;@ match
 '2/3
 
-; ── known-bug: RADIX literals — ACL2 accepts #x/#b/#o/#Nr integers; our parser
-; errors ("unrecognized reader macro"), so Lean is <refused>. Lean too strict.
-; (ACL2 has a value; recorded Lean outcome is <refused>.) Surveyed 2026-07-08
-; against real ACL2: prefix + digits are CASE-INSENSITIVE (#x/#X, hex a-f/A-F),
-; the value is the INTEGER (#xFF = 255), signs are allowed (#x-1A = -26), and
-; #Nr / #NR is arbitrary radix 2-36 (#2r101 = 5, #16rFF = 255). ──
-;@ known-bug bug:BUG-005 lean <refused>
+; ── RADIX literals (BUG-005 FIXED 2026-07-08) — the standard CL radix reader,
+; now implemented in Parser.lean: prefix + digits are CASE-INSENSITIVE (#x/#X,
+; hex a-f/A-F), the value is the INTEGER (#xFF = 255), signs are allowed
+; (#x-1A = -26), and #Nr / #NR is arbitrary radix 2-36 (#2r101 = 5,
+; #16rFF = 255). Now match; regression guards. ──
+;@ match
 '#xFF
-;@ known-bug bug:BUG-005 lean <refused>
+;@ match
 '#xff
-;@ known-bug bug:BUG-005 lean <refused>
+;@ match
 '#XA
-;@ known-bug bug:BUG-005 lean <refused>
+;@ match
 '#x-1A
-;@ known-bug bug:BUG-005 lean <refused>
+;@ match
 '#b101
-;@ known-bug bug:BUG-005 lean <refused>
+;@ match
 '#o17
-;@ known-bug bug:BUG-005 lean <refused>
+;@ match
 '#2r101
-;@ known-bug bug:BUG-005 lean <refused>
+;@ match
 '#16rFF
