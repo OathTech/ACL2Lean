@@ -10,10 +10,29 @@
 ; that (quote (quote a)) IS the list (quote a). So BUG-003 is a serializer bug,
 ; not a semantic one. (The comparator case-folds, so the residual difference is
 ; the quote-abbreviation, not the case.)
+; Surveyed 2026-07-08 against real ACL2 — the abbreviation rule is precise:
+; a 2-element list whose CAR is the symbol QUOTE, `(quote X)`, prints as `'X`,
+; RECURSIVELY and at ANY nesting depth. It fires ONLY for the exact 2-element
+; form: `(quote)` (1 elem), `(quote a b)` (3 elems), and an improper/dotted
+; `(1 quote a)` all print LITERALLY. These discriminators pin the rule so a
+; future BUG-003 fix can't over- or under-abbreviate.
 ;@ known-bug bug:BUG-003 lean (quote a)
 (quote (quote a))
 ;@ known-bug bug:BUG-003 lean (quote quote)
 (list 'quote 'quote)
+; recursion / nesting: the abbreviation applies inside other lists too.
+;@ known-bug bug:BUG-003 lean (1 (quote a) 3)
+(list '1 (list 'quote 'a) '3)
+;@ known-bug bug:BUG-003 lean (a (quote b))
+(list 'a (list 'quote 'b))
+; EDGE — NOT abbreviated (these must print literally, both sides): wrong arity
+; and improper shape. `(quote a b)` (3 elems) and `(quote)` (1 elem) print as
+; the literal list; ACL2 and ours already AGREE here (the abbreviation must not
+; fire).
+;@ match
+(list 'quote 'a 'b)
+;@ match
+(list 'quote)
 ; the VALUE is right (these AGREE — proving BUG-003 is display-only):
 ;@ match
 (car (quote (quote a)))
