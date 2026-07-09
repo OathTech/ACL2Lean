@@ -14,7 +14,7 @@ _Last updated: 2026-07-08._
 > callBuiltin keys, world/theorem/rune names); internal DISPATCH TAGS (rune
 > type/equiv/processor/origin/clausify outcome-verdict-how-kind/extraField
 > keys) are lowercased at the ProofLog parse boundary. `just ci` + `just
-> diff-test` green (289 match, 0 FAIL); the 11 BUG-002 discriminators are now
+> diff-test` green (289 match, 0 FAIL); the 12 BUG-002 discriminators are now
 > `match` regression guards. See docs/notes/2026-07-08_symbol-case-semantics.md
 > + docs/BUGS.md BUG-002. This UNBLOCKS lexorder (nil-as-COMMON-LISP-symbol
 > handling depends on faithful names).

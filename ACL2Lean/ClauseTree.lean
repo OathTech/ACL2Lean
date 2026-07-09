@@ -217,7 +217,7 @@ relation's symmetry, the (post-rewrite) result of a sibling clause literal. -/
 private def peelNot (e : SExpr) : Option SExpr :=
   match e.toList? with
   | some [h, x] => match h with
-    | .atom (.symbol s) => if s.name.toLower == "not" then some x else none
+    | .atom (.symbol s) => if s.name == "NOT" then some x else none
     | _ => none
   | _ => none
 
@@ -268,7 +268,7 @@ private partial def linkNode (cands : List (EquivSource × SExpr)) (n : ProofNod
           -- validates the test term during its path walk (conditional
           -- congruence, R1) or fails closed there.
           if prov.path.any (fun f => match f with
-              | .arg i s => (i == 2 || i == 3) && s.name.toLower == "if"
+              | .arg i s => (i == 2 || i == 3) && s.name == "IF"
               | .boundary _ _ => false) then
             return .node rune lhs rhs children
               { prov with equivSource := some .branchTest }

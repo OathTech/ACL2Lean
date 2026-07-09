@@ -82,3 +82,8 @@
 (cdr (assoc-equal 'abc '((|ABC| . hit))))
 ;@ unsupported
 (cdr (assoc-equal 'abc '((|abc| . hit))))
+
+; ── MIXED / PARTIAL escaping within one token (BUG-010) is pinned in the
+;    ISOLATE file symbol-escaping.lisp — our parser fails closed on it (a parse
+;    error aborts the batched Lean stream, so those forms need per-form
+;    isolation). See docs/BUGS.md BUG-010.

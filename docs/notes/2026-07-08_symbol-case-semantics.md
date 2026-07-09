@@ -17,7 +17,7 @@ lowercased at the ProofLog parse boundary (rune NAMES are symbol identities and
 stay uppercase, matching world/theorem/dependency-proof keys); (b) the reader
 had a latent gap the differential ratchet caught — `:|bar|` keywords were not
 read verbatim; now `:|ABC|` = `:abc` and `:|abc|` is distinct. `just ci` +
-`just diff-test` green; the 11 BUG-002 discriminators are now `match`
+`just diff-test` green; the 12 BUG-002 discriminators are now `match`
 (regression guards).
 
 ## 1. What a symbol IS in ACL2's logical core

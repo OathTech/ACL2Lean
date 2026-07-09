@@ -156,9 +156,23 @@ mutual
         -- (equal '|NIL| nil) = T in ACL2), while `|nil|` (name "nil") is a
         -- distinct symbol. Map the verbatim name to the canonical constructors.
         | .ok (str, rest) =>
-            if str = "NIL" then .ok (SExpr.nil, rest)
-            else if str = "T" then .ok (SExpr.t, rest)
-            else .ok (SExpr.atom (.symbol { name := str }), rest)
+            -- FAIL-CLOSED if the closing `|` is followed by more token chars
+            -- (`|ABC|xyz`): that is the mixed-escaping case (per-run escaping
+            -- unimplemented, BUG-010) — reading only `ABC` and leaving `xyz`
+            -- would mis-parse. A proper delimiter/EOF is fine.
+            match rest with
+            | c :: _ =>
+              if isAtomChar c then
+                .error s!"escaped symbol |…| followed by more token chars \
+                          (mixed per-run escaping unsupported; frontier — \
+                          fail-closed, see BUG-010): |{str}|{c}…"
+              else if str = "NIL" then .ok (SExpr.nil, rest)
+              else if str = "T" then .ok (SExpr.t, rest)
+              else .ok (SExpr.atom (.symbol { name := str }), rest)
+            | [] =>
+              if str = "NIL" then .ok (SExpr.nil, rest)
+              else if str = "T" then .ok (SExpr.t, rest)
+              else .ok (SExpr.atom (.symbol { name := str }), rest)
     | '#' :: '\\' :: rest =>
         -- ACL2 character syntax (acl2-fns.lisp `acl2-read-character-string`,
         -- researched in docs/notes/2026-07-08_acl2-character-semantics.md):
@@ -213,7 +227,16 @@ mutual
           | acc, h :: rest => goKw (h :: acc) rest
         match goKw [] rest with
         | .error e => .error e
-        | .ok (str, rest) => .ok (SExpr.atom (.keyword str), rest)
+        | .ok (str, rest) =>
+            -- FAIL-CLOSED on trailing token chars (mixed escaping, BUG-010).
+            match rest with
+            | c :: _ =>
+              if isAtomChar c then
+                .error s!"escaped keyword :|…| followed by more token chars \
+                          (mixed per-run escaping unsupported; frontier — \
+                          fail-closed, see BUG-010): :|{str}|{c}…"
+              else .ok (SExpr.atom (.keyword str), rest)
+            | [] => .ok (SExpr.atom (.keyword str), rest)
     | ':' :: _ =>
         let (tok, rest) := readAtom cs
         -- Bare keywords obey the same :upcase rule (name upcased); the KEYWORD
@@ -222,6 +245,18 @@ mutual
         .ok (SExpr.atom (.keyword kw), rest)
     | _ =>
         let (rawTok, rest) := readAtom cs
+        -- FAIL-CLOSED on mixed/partial escaping within a token (BUG-010).
+        -- `readAtom` treats `|` and `\` as ordinary atom chars, so a token
+        -- with an interior/leading escaped RUN (`a|B|c`, `foo\Bar`) is NOT
+        -- handled by the whole-token `|bar|` branch above — ACL2 upcases the
+        -- UNESCAPED runs and keeps escaped runs verbatim within one token,
+        -- which we do not implement. Rather than silently upcase wholesale
+        -- (a wrong symbol name), hard-fail: this is a frontier, not a value.
+        if rawTok.contains '|' || rawTok.contains '\\' then
+          .error s!"symbol token with interior '|' or '\\' escape unsupported \
+                    (per-run readtable escaping not implemented; frontier — \
+                    fail-closed, see BUG-010): {rawTok}"
+        else
         let tok := normalizeSymbolName rawTok
         -- nil/t recognition against the UPCASED token (ACL2 names "NIL"/"T").
         if tok = "NIL" then .ok (SExpr.nil, rest)

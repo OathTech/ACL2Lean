@@ -54,7 +54,7 @@ symbols). Symbol NAMES are stored uppercase everywhere on the identity path
 internal DISPATCH TAGS that happen to arrive as symbols/keywords (rune TYPE,
 equiv, processor, origin, clausify outcome/verdict/how/kind, extraField keys)
 are lowercased at the ProofLog parse boundary — they are not symbol identities.
-The differential ratchet flipped all 11 BUG-002 known-bug entries (across
+The differential ratchet flipped all 12 BUG-002 known-bug entries (across
 symbol-identity/symbols-keywords/printing.lisp) to `match`, and surfaced a
 latent gap the fix also closed: `:|bar|` keywords were not read verbatim
 (`:|ABC|` now equals `:abc`, `:|abc|` stays distinct).
@@ -113,3 +113,20 @@ Pinned-by: none (complex numbers not modeled; `unsupported` in the differential
 — Tests/differential/corpus/complex-and-packages.lisp)
 `alphorder` places complex/complex-rationals between rationals and characters.
 We do not model complex numbers at all.
+
+## BUG-010 — mixed/partial escaping within a symbol token not implemented
+Status: open
+Pinned-by: differential
+ACL2's reader applies readtable-case :upcase to the UNESCAPED runs of a token
+and keeps `|…|`/`\`-escaped runs VERBATIM, WITHIN a single token — so `a|B|c`
+reads as the symbol named `ABC`, `foo\Bar` as `FOOBAR`, `|ABC|xyz` as `ABCXYZ`.
+Our parser only recognizes `|bar|` when it spans the WHOLE token and never
+treats `\` as an escape. Found in the BUG-002 audit (2026-07-08). The fix (this
+commit) makes the parser FAIL CLOSED — a loud parse error (`<refused>`) — on any
+symbol/keyword token with an interior/leading escaped run or a backslash, rather
+than silently upcasing wholesale (which had returned a WRONG symbol name, e.g.
+`(equal 'a|B|c 'ABC)`=NIL vs ACL2 T) or fuel-looping on trailing chars. Latent
+on the current corpus (no such tokens in acl2_samples/ or the corpus). Proper
+per-run escaping in the tokenizer is the real fix (deferred); until then the
+refusal is faithful-at-the-frontier (never a wrong value). Pinned as
+`known-bug bug:BUG-010 lean <refused>` in symbol-identity.lisp.

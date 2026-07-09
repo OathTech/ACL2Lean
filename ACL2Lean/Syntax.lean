@@ -27,12 +27,15 @@ namespace Symbol
   s.name.map Char.toLower
 
 /-- Compare a symbol's name against a target string.
-    The symbol's name is already lowercased by the parser. The target
-    `name` must also be lowercase for the comparison to work. We use
-    direct string comparison which is kernel-reducible (unlike
-    String.map Char.toLower which goes through @[irreducible]
-    String.mapAux and blocks kernel reduction in proofs).
-    All call sites in the codebase use lowercase target strings. -/
+    The symbol's name is stored UPPERCASE by the parser (ACL2 readtable
+    :upcase; BUG-002). The target `name` must therefore ALSO be uppercase
+    (all call sites use uppercase literals — "QUOTE"/"IF"/"CAR"/…). We use
+    direct string comparison, which is kernel-reducible (unlike
+    String.map Char.toLower, which goes through @[irreducible]
+    String.mapAux and blocks kernel reduction in proofs — so a
+    case-folding comparator would break the by-decide reduction proofs in
+    EvalLemmas/DpLift). This compares against the real stored name; it is
+    NOT a case-insensitive fold. -/
 @[inline] def isNamed (s : Symbol) (name : String) : Bool :=
   s.name == name
 
