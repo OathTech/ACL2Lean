@@ -39,19 +39,17 @@
 ;@ match
 (equal 't t)
 
-; SYMBOL-CASE known bug (both directions of the same root cause). ACL2's reader
+; SYMBOL-CASE (BUG-002 fixed — these are the regression guards). ACL2's reader
 ; UPCASES bare symbols and PRESERVES the case of |bar|-escaped ones; our parser
-; LOWERCASES bare symbols and preserves |bar|-escaped ones. So the case at which
-; two spellings collapse differs from ACL2:
-;   ACL2: |ABC| = abc = ABC  (all become ABC)      → equal T
-;   Lean: |ABC| stays ABC, abc/ABC become abc      → |ABC| ≠ abc  (NIL)
-;@ known-bug bug:BUG-002 lean NIL
+; now does the same, so two spellings collapse at exactly ACL2's point:
+;   |ABC| = abc = ABC  (all become ABC)      → equal T
+;   |abc| (verbatim lower) ≠ ABC (bare → ABC) → NIL
+;@ match
 (equal '|ABC| 'abc)
-;@ known-bug bug:BUG-002 lean NIL
+;@ match
 (equal '|ABC| 'ABC)
-; and the mirror: |abc| (preserved lower) vs ABC (bare, lowered to abc) — ACL2
-; makes these DIFFER (abc vs ABC), we make them EQUAL.
-;@ known-bug bug:BUG-002 lean t
+; and the mirror: |abc| (verbatim lower) vs ABC (bare → ABC) — DIFFER → NIL.
+;@ match
 (equal '|abc| 'ABC)
 
 ; package-qualified symbols — these AGREE (control): acl2:: is the default

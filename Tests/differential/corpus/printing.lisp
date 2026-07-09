@@ -22,11 +22,10 @@
 ;@ match
 (equal (quote (quote a)) (list 'quote 'a))
 
-; KNOWN BUG (symbol case — the pending masquerade item): ACL2 upcases unbarred
-; symbols but PRESERVES the case of |bar|-escaped symbols, so |abc| (lowercase)
-; differs from abc (which reads as ABC) → NIL. Our parser lowercases ALL
-; symbols, collapsing |abc| and abc → t.
-;@ known-bug bug:BUG-002 lean t
+; SYMBOL CASE (BUG-002 fixed — regression guard): ACL2 upcases unbarred symbols
+; but PRESERVES the case of |bar|-escaped symbols, so |abc| (verbatim lower)
+; differs from abc (which reads as ABC) → NIL. Our parser now matches.
+;@ match
 (equal '|abc| 'abc)
 
 ; symbol behavior that AGREES (control): a |bar|-symbol is still a symbol; a

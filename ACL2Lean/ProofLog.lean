@@ -262,6 +262,10 @@ private def lookupKeyword (kw : String) : List SExpr → Option SExpr
     capture unmodeled fields verbatim rather than silently dropping them. -/
 private def plistExtras (known : List String) : List SExpr → List (String × SExpr)
   | .atom (.keyword k) :: v :: rest =>
+    -- keyword names are stored upcased (readtable :upcase); the extra-field
+    -- KEYS are internal dispatch tags looked up with lowercase literals
+    -- (`.lookup "poolname"` etc.), so canonicalize to lowercase here.
+    let k := k.map Char.toLower
     if known.contains k then plistExtras known rest
     else (k, v) :: plistExtras known rest
   | _ :: rest => plistExtras known rest
@@ -274,12 +278,20 @@ private def atomString? : SExpr → Option String
   | .atom (.keyword k) => some k
   | _ => none
 
-/-- Parse a single rune like `(:REWRITE CAR-CONS)` into a (type, name) pair. -/
+/-- Parse a single rune like `(:REWRITE CAR-CONS)` into a (type, name) pair.
+    The rune TYPE (`:REWRITE`/`:DEFINITION`/…) is a fixed keyword-vocabulary
+    dispatch tag — we canonicalize it to LOWERCASE at the boundary (analogous
+    to `normalizeKey` for theorem-option keys). The rune NAME is an ACL2
+    SYMBOL IDENTITY (a theorem/function name — `car-cons`, `perm-symmetric`,
+    `my-app`) that must match the same symbol as it is stored elsewhere
+    (World keys, theorem names, dependency-proof keys), so it stays UPCASED
+    (readtable :upcase) exactly as the parser produced it. -/
 private def parseRune? : SExpr → Option (String × String)
   | .cons (.atom (.keyword runeType)) (.cons nameExpr .nil) =>
+    let ty := runeType.map Char.toLower
     match atomString? nameExpr with
-    | some name => some (runeType, name)
-    | none => some (runeType, toString (repr nameExpr))
+    | some name => some (ty, name)
+    | none => some (ty, toString (repr nameExpr))
   | _ => none
 
 /-- Parse a rune list like `((:REWRITE FOO) (:DEFINITION BAR))`. Hard-fails on a
@@ -312,24 +324,25 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
   match s.toList? with
   | some items =>
     match items with
-    | .atom (.keyword "rewrite-step") :: rest =>
-      let rune ← match lookupKeyword "rune" rest with
+    | .atom (.keyword "REWRITE-STEP") :: rest =>
+      let rune ← match lookupKeyword "RUNE" rest with
         | some r => match parseRune? r with
           | some rune => pure rune
           | none => throw s!"REWRITE-STEP: bad :RUNE: {repr r}"
         | none => throw "REWRITE-STEP: missing :RUNE"
-      let lhs ← match lookupKeyword "lhs" rest with
+      let lhs ← match lookupKeyword "LHS" rest with
         | some s => pure s
         | none => throw "REWRITE-STEP: missing :LHS"
-      let rhs ← match lookupKeyword "rhs" rest with
+      let rhs ← match lookupKeyword "RHS" rest with
         | some s => pure s
         | none => throw "REWRITE-STEP: missing :RHS"
       -- Optional provenance fields. ABSENT :ORIGIN is normal (older/plain
       -- steps); a PRESENT-but-non-symbol :ORIGIN is a malformed emission and
       -- hard-fails — origin is a primary replay dispatch key, and "" would
       -- route the node down the wrong recipe (fail-closed audit N2).
-      let origin ← match lookupKeyword "origin" rest with
-        | some (.atom (.symbol s)) => pure s.name
+      let origin ← match lookupKeyword "ORIGIN" rest with
+        -- origin is a dispatch tag (e.g. "preprocess/if-iff"); lowercase it.
+        | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
         | some other => throw s!"REWRITE-STEP: malformed :ORIGIN {repr other}"
         | none => pure ""
       -- :EQUIV is REQUIRED: the emitter states every step's equivalence
@@ -337,12 +350,12 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       -- ones are labeled 'iff). The checker does NO inference — a missing or
       -- malformed :EQUIV is an emission gap and hard-fails (audited 2026-06-10;
       -- the old default-to-"equal" was fail-open).
-      let equiv ← match lookupKeyword "equiv" rest with
-        | some (.atom (.symbol s)) => pure s.name
+      let equiv ← match lookupKeyword "EQUIV" rest with
+        | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
         | some other => throw s!"REWRITE-STEP: malformed :EQUIV {repr other}"
         | none => throw "REWRITE-STEP: missing :EQUIV — the emitter must state \
                          the step's equivalence; the checker does not infer it"
-      let runes ← match lookupKeyword "runes" rest with
+      let runes ← match lookupKeyword "RUNES" rest with
         | some r => match r.toList? with
           | some items => items.mapM fun r => match parseRune? r with
             | some rune => pure rune
@@ -353,12 +366,12 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       -- must hard-fail like :RUNES/:SUBST/:PATH, not default to [] (which
       -- would push a parent-tagged node into the IH-matching path —
       -- fail-closed audit N3).
-      let parents ← match lookupKeyword "parents" rest with
+      let parents ← match lookupKeyword "PARENTS" rest with
         | some r => match r.toList? with
           | some items => pure items
           | none => throw s!"REWRITE-STEP: :PARENTS not a list: {repr r}"
         | none => pure []
-      let subst ← match lookupKeyword "subst" rest with
+      let subst ← match lookupKeyword "SUBST" rest with
         | some r => match r.toList? with
           | some items => items.mapM fun pair =>
             match pair.toList? with
@@ -368,14 +381,14 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
               | _ => throw s!"REWRITE-STEP: bad :SUBST pair: {repr pair}"
           | none => throw s!"REWRITE-STEP: :SUBST not a list: {repr r}"
         | none => pure []
-      let equivTerm := lookupKeyword "equiv-term" rest
-      let typeSet := match lookupKeyword "typeset" rest with
+      let equivTerm := lookupKeyword "EQUIV-TERM" rest
+      let typeSet := match lookupKeyword "TYPESET" rest with
         | some (.atom (.number (.int n))) => some n
         | _ => none
-      let trueTs := match lookupKeyword "truets" rest with
+      let trueTs := match lookupKeyword "TRUETS" rest with
         | some (.atom (.number (.int n))) => some n
         | _ => none
-      let path ← match lookupKeyword "path" rest with
+      let path ← match lookupKeyword "PATH" rest with
         | some r => match r.toList? with
           | some items => items.mapM parsePathFrame
           | none => throw s!"REWRITE-STEP: :PATH not a list: {repr r}"
@@ -391,8 +404,8 @@ private def parseClausifyPath (s : SExpr) : Except String (List (Bool × SExpr))
   let some items := s.toList?
     | throw s!"clausify :PATH is not a list: {repr s}"
   items.mapM fun
-    | .cons (.atom (.keyword "t")) test => pure (true, test)
-    | .cons (.atom (.keyword "f")) test => pure (false, test)
+    | .cons (.atom (.keyword "T")) test => pure (true, test)
+    | .cons (.atom (.keyword "F")) test => pure (false, test)
     | e => throw s!"clausify :PATH entry is not (:t/:f . test): {repr e}"
 
 /-- Parse a single trace event from the :REWRITES field. -/
@@ -400,175 +413,184 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
   match s.toList? with
   | some items =>
     match items with
-    | .atom (.keyword "rewrite-step") :: _ =>
+    | .atom (.keyword "REWRITE-STEP") :: _ =>
         pure (.rewriteStep (← parseRewriteStep? s))
-    | .atom (.keyword "if-test-true") :: rest =>
-        let test ← lookupKeyword "test" rest |>.elim (throw "IF-TEST-TRUE: missing :TEST") pure
-        let unrewritten ← lookupKeyword "unrewritten-test" rest
+    | .atom (.keyword "IF-TEST-TRUE") :: rest =>
+        let test ← lookupKeyword "TEST" rest |>.elim (throw "IF-TEST-TRUE: missing :TEST") pure
+        let unrewritten ← lookupKeyword "UNREWRITTEN-TEST" rest
           |>.elim (throw "IF-TEST-TRUE: missing :UNREWRITTEN-TEST") pure
-        let justification := (lookupKeyword "justification" rest).getD .nil
+        let justification := (lookupKeyword "JUSTIFICATION" rest).getD .nil
         pure (.ifTestTrue test unrewritten justification)
-    | .atom (.keyword "if-test-false") :: rest =>
-        let test ← lookupKeyword "test" rest |>.elim (throw "IF-TEST-FALSE: missing :TEST") pure
-        let unrewritten ← lookupKeyword "unrewritten-test" rest
+    | .atom (.keyword "IF-TEST-FALSE") :: rest =>
+        let test ← lookupKeyword "TEST" rest |>.elim (throw "IF-TEST-FALSE: missing :TEST") pure
+        let unrewritten ← lookupKeyword "UNREWRITTEN-TEST" rest
           |>.elim (throw "IF-TEST-FALSE: missing :UNREWRITTEN-TEST") pure
-        let justification := (lookupKeyword "justification" rest).getD .nil
+        let justification := (lookupKeyword "JUSTIFICATION" rest).getD .nil
         pure (.ifTestFalse test unrewritten justification)
-    | .atom (.keyword "if-test-unknown") :: rest =>
-        let test ← lookupKeyword "test" rest |>.elim (throw "IF-TEST-UNKNOWN: missing :TEST") pure
-        let unrewritten ← lookupKeyword "unrewritten-test" rest
+    | .atom (.keyword "IF-TEST-UNKNOWN") :: rest =>
+        let test ← lookupKeyword "TEST" rest |>.elim (throw "IF-TEST-UNKNOWN: missing :TEST") pure
+        let unrewritten ← lookupKeyword "UNREWRITTEN-TEST" rest
           |>.elim (throw "IF-TEST-UNKNOWN: missing :UNREWRITTEN-TEST") pure
-        let justification := (lookupKeyword "justification" rest).getD .nil
+        let justification := (lookupKeyword "JUSTIFICATION" rest).getD .nil
         pure (.ifTestUnknown test unrewritten justification)
-    | .atom (.keyword "begin-literal") :: rest =>
-        let index ← match lookupKeyword "index" rest with
+    | .atom (.keyword "BEGIN-LITERAL") :: rest =>
+        let index ← match lookupKeyword "INDEX" rest with
           | some (.atom (.number (.int n))) => pure n.toNat
           | some s => throw s!"BEGIN-LITERAL: bad :INDEX: {repr s}"
           | none => throw "BEGIN-LITERAL: missing :INDEX"
-        let literal ← lookupKeyword "literal" rest
+        let literal ← lookupKeyword "LITERAL" rest
           |>.elim (throw "BEGIN-LITERAL: missing :LITERAL") pure
-        let notFlg := match lookupKeyword "not-flg" rest with
+        let notFlg := match lookupKeyword "NOT-FLG" rest with
           | some .nil => false
           | _ => true
         pure (.beginLiteral index literal notFlg)
-    | .atom (.keyword "end-literal") :: rest =>
-        let index ← match lookupKeyword "index" rest with
+    | .atom (.keyword "END-LITERAL") :: rest =>
+        let index ← match lookupKeyword "INDEX" rest with
           | some (.atom (.number (.int n))) => pure n.toNat
           | some s => throw s!"END-LITERAL: bad :INDEX: {repr s}"
           | none => throw "END-LITERAL: missing :INDEX"
-        let result ← lookupKeyword "result" rest
+        let result ← lookupKeyword "RESULT" rest
           |>.elim (throw "END-LITERAL: missing :RESULT") pure
-        let branches ← match lookupKeyword "branches" rest with
+        let branches ← match lookupKeyword "BRANCHES" rest with
           | some (.atom (.number (.int n))) => pure n.toNat
           | some s => throw s!"END-LITERAL: bad :BRANCHES: {repr s}"
           | none => throw "END-LITERAL: missing :BRANCHES"
         pure (.endLiteral index result branches)
-    | .atom (.keyword "rewritten-literal") :: rest =>
-        let original ← lookupKeyword "original" rest
+    | .atom (.keyword "REWRITTEN-LITERAL") :: rest =>
+        let original ← lookupKeyword "ORIGINAL" rest
           |>.elim (throw "REWRITTEN-LITERAL: missing :ORIGINAL") pure
-        let result ← lookupKeyword "result" rest
+        let result ← lookupKeyword "RESULT" rest
           |>.elim (throw "REWRITTEN-LITERAL: missing :RESULT") pure
         pure (.rewrittenLiteral original result)
-    | .atom (.keyword "begin-branch") :: rest =>
-        let segment := (lookupKeyword "segment" rest).getD .nil
+    | .atom (.keyword "BEGIN-BRANCH") :: rest =>
+        let segment := (lookupKeyword "SEGMENT" rest).getD .nil
         pure (.beginBranch segment)
-    | .atom (.keyword "end-branch") :: _ =>
+    | .atom (.keyword "END-BRANCH") :: _ =>
         pure .endBranch
-    | .atom (.keyword "case-split") :: rest =>
-        let litIdx ← match lookupKeyword "literal-index" rest with
+    | .atom (.keyword "CASE-SPLIT") :: rest =>
+        let litIdx ← match lookupKeyword "LITERAL-INDEX" rest with
           | some (.atom (.number (.int n))) => pure n.toNat
           | some s => throw s!"CASE-SPLIT: bad :LITERAL-INDEX: {repr s}"
           | none => throw "CASE-SPLIT: missing :LITERAL-INDEX"
-        let numBranches ← match lookupKeyword "num-branches" rest with
+        let numBranches ← match lookupKeyword "NUM-BRANCHES" rest with
           | some (.atom (.number (.int n))) => pure n.toNat
           | some s => throw s!"CASE-SPLIT: bad :NUM-BRANCHES: {repr s}"
           | none => throw "CASE-SPLIT: missing :NUM-BRANCHES"
         pure (.caseSplit litIdx numBranches)
-    | .atom (.keyword "branch-substitution") :: rest =>
-        let equivalence ← lookupKeyword "equivalence" rest
+    | .atom (.keyword "BRANCH-SUBSTITUTION") :: rest =>
+        let equivalence ← lookupKeyword "EQUIVALENCE" rest
           |>.elim (throw "BRANCH-SUBSTITUTION: missing :EQUIVALENCE") pure
-        let lhs ← lookupKeyword "lhs" rest
+        let lhs ← lookupKeyword "LHS" rest
           |>.elim (throw "BRANCH-SUBSTITUTION: missing :LHS") pure
-        let rhs ← lookupKeyword "rhs" rest
+        let rhs ← lookupKeyword "RHS" rest
           |>.elim (throw "BRANCH-SUBSTITUTION: missing :RHS") pure
         pure (.branchSubstitution equivalence lhs rhs)
-    | .atom (.keyword "context-subst") :: rest =>
-        let var ← lookupKeyword "variable" rest
+    | .atom (.keyword "CONTEXT-SUBST") :: rest =>
+        let var ← lookupKeyword "VARIABLE" rest
           |>.elim (throw "CONTEXT-SUBST: missing :VARIABLE") pure
-        let value ← lookupKeyword "value" rest
+        let value ← lookupKeyword "VALUE" rest
           |>.elim (throw "CONTEXT-SUBST: missing :VALUE") pure
-        let justification := (lookupKeyword "justification" rest).getD .nil
+        let justification := (lookupKeyword "JUSTIFICATION" rest).getD .nil
         pure (.contextSubst var value justification)
-    | .atom (.keyword "hyp-relief") :: rest =>
-        let hyp ← lookupKeyword "hyp" rest
+    | .atom (.keyword "HYP-RELIEF") :: rest =>
+        let hyp ← lookupKeyword "HYP" rest
           |>.elim (throw "HYP-RELIEF: missing :HYP") pure
-        let origin ← match lookupKeyword "origin" rest with
-          | some (.atom (.symbol s)) => pure s.name
+        let origin ← match lookupKeyword "ORIGIN" rest with
+          | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
           | some s => throw s!"HYP-RELIEF: bad :ORIGIN: {repr s}"
           | none => throw "HYP-RELIEF: missing :ORIGIN"
         pure (.hypRelief hyp origin)
-    | .atom (.keyword "clausify-test") :: rest =>
-        let test ← lookupKeyword "test" rest
+    | .atom (.keyword "CLAUSIFY-TEST") :: rest =>
+        let test ← lookupKeyword "TEST" rest
           |>.elim (throw "CLAUSIFY-TEST: missing :TEST") pure
-        let verdict ← match lookupKeyword "verdict" rest with
-          | some (.atom (.symbol s)) => pure s.name
+        -- VERDICT/HOW are internal dispatch tags (true/false, assumed/…),
+        -- not symbol-identity values — lowercase at the boundary.
+        let verdict ← match lookupKeyword "VERDICT" rest with
+          | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
           | some s => throw s!"CLAUSIFY-TEST: bad :VERDICT: {repr s}"
           | none => throw "CLAUSIFY-TEST: missing :VERDICT"
-        let how ← match lookupKeyword "how" rest with
-          | some (.atom (.symbol s)) => pure s.name
+        let how ← match lookupKeyword "HOW" rest with
+          | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
           | some s => throw s!"CLAUSIFY-TEST: bad :HOW: {repr s}"
           | none => throw "CLAUSIFY-TEST: missing :HOW"
-        let path ← parseClausifyPath ((lookupKeyword "path" rest).getD .nil)
+        let path ← parseClausifyPath ((lookupKeyword "PATH" rest).getD .nil)
         pure (.clausifyTest test verdict how path)
-    | .atom (.keyword "clausify-leaf") :: rest =>
-        let value ← lookupKeyword "value" rest
+    | .atom (.keyword "CLAUSIFY-LEAF") :: rest =>
+        let value ← lookupKeyword "VALUE" rest
           |>.elim (throw "CLAUSIFY-LEAF: missing :VALUE") pure
-        let outcome ← match lookupKeyword "outcome" rest with
-          | some (.atom (.symbol s)) => pure s.name
+        let outcome ← match lookupKeyword "OUTCOME" rest with
+          -- OUTCOME is an internal dispatch tag (segment-open/segment-false/
+          -- dropped), not a symbol-identity value — lowercase at the boundary.
+          | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
           | some s => throw s!"CLAUSIFY-LEAF: bad :OUTCOME: {repr s}"
           | none => throw "CLAUSIFY-LEAF: missing :OUTCOME"
-        let path ← parseClausifyPath ((lookupKeyword "path" rest).getD .nil)
+        let path ← parseClausifyPath ((lookupKeyword "PATH" rest).getD .nil)
         pure (.clausifyLeaf value outcome path)
-    | .atom (.keyword "clausify-satriani") :: rest =>
-        let which ← match lookupKeyword "which" rest with
-          | some (.atom (.symbol s)) => pure s.name
+    | .atom (.keyword "CLAUSIFY-SATRIANI") :: rest =>
+        let which ← match lookupKeyword "WHICH" rest with
+          -- WHICH is an internal dispatch tag, not a symbol-identity value.
+          | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
           | some s => throw s!"CLAUSIFY-SATRIANI: bad :WHICH: {repr s}"
           | none => throw "CLAUSIFY-SATRIANI: missing :WHICH"
         pure (.clausifySetReshaped s!"satriani-{which}")
-    | .atom (.keyword "clausify-subsumption-loop") :: _ =>
+    | .atom (.keyword "CLAUSIFY-SUBSUMPTION-LOOP") :: _ =>
         pure (.clausifySetReshaped "subsumption-loop")
-    | .atom (.keyword "type-set-reasoning") :: rest =>
-        let term ← lookupKeyword "term" rest
+    | .atom (.keyword "TYPE-SET-REASONING") :: rest =>
+        let term ← lookupKeyword "TERM" rest
           |>.elim (throw "TYPE-SET-REASONING: missing :TERM") pure
-        let result ← lookupKeyword "result" rest
+        let result ← lookupKeyword "RESULT" rest
           |>.elim (throw "TYPE-SET-REASONING: missing :RESULT") pure
-        let notFlg := match lookupKeyword "not-flg" rest with
+        let notFlg := match lookupKeyword "NOT-FLG" rest with
           | some .nil => false
           | _ => true
-        let justification := (lookupKeyword "justification" rest).getD .nil
+        let justification := (lookupKeyword "JUSTIFICATION" rest).getD .nil
         pure (.typeSetReasoning term result notFlg justification)
-    | .atom (.keyword "begin-inner-rewrite") :: rest =>
-        let kind := match lookupKeyword "kind" rest with
-          | some (.atom (.symbol s)) => s.name
-          | some (.atom (.keyword k)) => k
+    | .atom (.keyword "BEGIN-INNER-REWRITE") :: rest =>
+        -- KIND is an internal dispatch tag (hyp/rhs/…), not a symbol-identity
+        -- value — lowercase at the boundary.
+        let kind := match lookupKeyword "KIND" rest with
+          | some (.atom (.symbol s)) => s.name.map Char.toLower
+          | some (.atom (.keyword k)) => k.map Char.toLower
           | _ => "unknown"
         pure (.beginInnerRewrite kind)
-    | .atom (.keyword "end-inner-rewrite") :: rest =>
-        let kind := match lookupKeyword "kind" rest with
-          | some (.atom (.symbol s)) => s.name
-          | some (.atom (.keyword k)) => k
+    | .atom (.keyword "END-INNER-REWRITE") :: rest =>
+        -- KIND is an internal dispatch tag (hyp/rhs/…), not a symbol-identity
+        -- value — lowercase at the boundary.
+        let kind := match lookupKeyword "KIND" rest with
+          | some (.atom (.symbol s)) => s.name.map Char.toLower
+          | some (.atom (.keyword k)) => k.map Char.toLower
           | _ => "unknown"
         pure (.endInnerRewrite kind)
-    | .atom (.keyword "begin-if-rewrite") :: rest =>
-        let test ← lookupKeyword "test" rest
+    | .atom (.keyword "BEGIN-IF-REWRITE") :: rest =>
+        let test ← lookupKeyword "TEST" rest
           |>.elim (throw "BEGIN-IF-REWRITE: missing :TEST") pure
-        let unrewrittenTest := (lookupKeyword "unrewritten-test" rest).getD .nil
+        let unrewrittenTest := (lookupKeyword "UNREWRITTEN-TEST" rest).getD .nil
         pure (.beginIfRewrite test unrewrittenTest)
-    | .atom (.keyword "end-if-rewrite") :: rest =>
-        let test ← lookupKeyword "test" rest
+    | .atom (.keyword "END-IF-REWRITE") :: rest =>
+        let test ← lookupKeyword "TEST" rest
           |>.elim (throw "END-IF-REWRITE: missing :TEST") pure
-        let result := (lookupKeyword "result" rest).getD .nil
+        let result := (lookupKeyword "RESULT" rest).getD .nil
         pure (.endIfRewrite test result)
-    | .atom (.keyword "clausify-input") :: rest =>
-        let term ← lookupKeyword "term" rest
+    | .atom (.keyword "CLAUSIFY-INPUT") :: rest =>
+        let term ← lookupKeyword "TERM" rest
           |>.elim (throw "CLAUSIFY-INPUT: missing :TERM") pure
         pure (.clausifyInput term)
-    | .atom (.keyword "clausify-neg") :: rest =>
-        let cl ← lookupKeyword "clause" rest
+    | .atom (.keyword "CLAUSIFY-NEG") :: rest =>
+        let cl ← lookupKeyword "CLAUSE" rest
           |>.elim (throw "CLAUSIFY-NEG: missing :CLAUSE") pure
         match cl.toList? with
         | some lits => pure (.clausifyNeg lits)
         | none => throw s!"CLAUSIFY-NEG: clause is not a proper list: {repr cl}"
-    | .atom (.keyword "clausify-split") :: rest =>
-        let lit ← lookupKeyword "lit" rest
+    | .atom (.keyword "CLAUSIFY-SPLIT") :: rest =>
+        let lit ← lookupKeyword "LIT" rest
           |>.elim (throw "CLAUSIFY-SPLIT: missing :LIT") pure
-        let cl ← lookupKeyword "clause" rest
+        let cl ← lookupKeyword "CLAUSE" rest
           |>.elim (throw "CLAUSIFY-SPLIT: missing :CLAUSE") pure
         match cl.toList? with
         | some lits => pure (.clausifySplit lit lits)
         | none => throw s!"CLAUSIFY-SPLIT: clause is not a proper list: {repr cl}"
-    | .atom (.keyword "clausify-out") :: rest =>
-        let cls ← lookupKeyword "clauses" rest
+    | .atom (.keyword "CLAUSIFY-OUT") :: rest =>
+        let cls ← lookupKeyword "CLAUSES" rest
           |>.elim (throw "CLAUSIFY-OUT: missing :CLAUSES") pure
         match cls.toList? with
         | some clList =>
@@ -578,8 +600,8 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
             | none => throw s!"CLAUSIFY-OUT: clause is not a proper list: {repr c}"
           pure (.clausifyOut parsed)
         | none => throw s!"CLAUSIFY-OUT: clauses is not a proper list: {repr cls}"
-    | .atom (.keyword "clausify-expand") :: rest =>
-        let toTerm ← lookupKeyword "to" rest
+    | .atom (.keyword "CLAUSIFY-EXPAND") :: rest =>
+        let toTerm ← lookupKeyword "TO" rest
           |>.elim (throw "CLAUSIFY-EXPAND: missing :TO") pure
         pure (.clausifyExpand toTerm)
     | _ => throw s!"Unknown trace event: {repr s}"
@@ -597,33 +619,35 @@ private def parseTraceEvents (s : SExpr) : Except String (List TraceEvent) := do
 
 /-- Parse a (:STEP ...) s-expression. -/
 private def parseStep? (items : List SExpr) : Except String ProofStep := do
-  let clauseId ← match lookupKeyword "clauseid" items with
+  let clauseId ← match lookupKeyword "CLAUSEID" items with
     | some s => match atomString? s with
       | some str => pure str
       | none => throw s!"STEP: bad :CLAUSE-ID value: {repr s}"
     | none => throw "STEP: missing :CLAUSE-ID"
-  let processor ← match lookupKeyword "processor" items with
+  let processor ← match lookupKeyword "PROCESSOR" items with
+    -- processor is a dispatch tag (compared against lowercase literals like
+    -- "push-clause"/"preprocess"); lowercase at the boundary (names are upcased).
     | some s => match atomString? s with
-      | some str => pure str
+      | some str => pure (str.map Char.toLower)
       | none => throw s!"STEP: bad :PROCESSOR value: {repr s}"
     | none => throw "STEP: missing :PROCESSOR"
-  let result ← match lookupKeyword "result" items with
-    | some (.atom (.keyword "proved")) => pure ProofResult.proved
-    | some (.atom (.keyword "subgoals")) => pure ProofResult.subgoals
+  let result ← match lookupKeyword "RESULT" items with
+    | some (.atom (.keyword "PROVED")) => pure ProofResult.proved
+    | some (.atom (.keyword "SUBGOALS")) => pure ProofResult.subgoals
     | some s => throw s!"STEP: bad :RESULT value: {repr s}"
     | none => throw "STEP: missing :RESULT"
-  let runes ← match lookupKeyword "runes" items with
+  let runes ← match lookupKeyword "RUNES" items with
     | some s => parseRunes s
     | none => pure []
-  let traceEvents ← match lookupKeyword "rewrites" items with
+  let traceEvents ← match lookupKeyword "REWRITES" items with
     | some s => parseTraceEvents s
     | none => pure []
-  let inputClause ← match lookupKeyword "inputclause" items with
+  let inputClause ← match lookupKeyword "INPUTCLAUSE" items with
     | some s => match s.toList? with
       | some cs => pure cs
       | none => throw s!"STEP: :INPUTCLAUSE is not a list: {repr s}"
     | none => pure []
-  let newClauses ← match lookupKeyword "newclauses" items with
+  let newClauses ← match lookupKeyword "NEWCLAUSES" items with
     | some s => match s.toList? with
       | some cs => pure cs
       | none => throw s!"STEP: :NEWCLAUSES is not a list: {repr s}"
@@ -655,10 +679,10 @@ private def parseAlist (s : SExpr) : Except String (List (Symbol × SExpr)) := d
 private def parseCase (s : SExpr) : Except String InductionCase := do
   match s.toList? with
   | some items =>
-    let tests ← match lookupKeyword "tests" items with
+    let tests ← match lookupKeyword "TESTS" items with
       | some t => t.toList?.elim (throw s!"INDUCTION case :TESTS not a list: {repr t}") pure
       | none => pure []
-    let alists ← match lookupKeyword "alists" items with
+    let alists ← match lookupKeyword "ALISTS" items with
       | some a => match a.toList? with
         | some als => als.mapM parseAlist
         | none => throw s!"INDUCTION case :ALISTS not a list: {repr a}"
@@ -669,30 +693,30 @@ private def parseCase (s : SExpr) : Except String InductionCase := do
 /-- Parse a (:INDUCTION ...) s-expression. The measure-justification fields
     (:XTERM/:MEASURE/:REL/:MP/:SUBSET/:CASES) are optional — absent in legacy logs. -/
 private def parseInduction? (items : List SExpr) : Except String InductionStep := do
-  let term ← match lookupKeyword "term" items with
+  let term ← match lookupKeyword "TERM" items with
     | some s => pure s
     | none => throw "INDUCTION: missing :TERM"
-  let subgoalCount ← match lookupKeyword "subgoals" items with
+  let subgoalCount ← match lookupKeyword "SUBGOALS" items with
     | some (.atom (.number (.int n))) => pure n.toNat
     | some s => throw s!"INDUCTION: bad :SUBGOALS: {repr s}"
     | none => throw "INDUCTION: missing :SUBGOALS"
-  let scheme ← match lookupKeyword "scheme" items with
+  let scheme ← match lookupKeyword "SCHEME" items with
     | some s => match s.toList? with
       | some cs => pure cs
       | none => throw s!"INDUCTION: :SCHEME is not a list: {repr s}"
     | none => pure []
-  let xterm := (lookupKeyword "xterm" items).getD .nil
-  let measure := (lookupKeyword "measure" items).getD .nil
-  let rel := (lookupKeyword "rel" items).getD .nil
-  let mp := (lookupKeyword "mp" items).getD .nil
-  let controllers ← match lookupKeyword "controllers" items with
+  let xterm := (lookupKeyword "XTERM" items).getD .nil
+  let measure := (lookupKeyword "MEASURE" items).getD .nil
+  let rel := (lookupKeyword "REL" items).getD .nil
+  let mp := (lookupKeyword "MP" items).getD .nil
+  let controllers ← match lookupKeyword "CONTROLLERS" items with
     | some s => match s.toList? with
       | some xs => xs.mapM fun x => match x with
         | .atom (.symbol v) => pure v
         | _ => throw s!"INDUCTION: :CONTROLLERS non-symbol element: {repr x}"
       | none => throw s!"INDUCTION: :CONTROLLERS not a list: {repr s}"
     | none => pure []
-  let cases ← match lookupKeyword "cases" items with
+  let cases ← match lookupKeyword "CASES" items with
     | some c => match c.toList? with
       | some cs => cs.mapM parseCase
       | none => throw s!"INDUCTION: :CASES not a list: {repr c}"
@@ -702,32 +726,32 @@ private def parseInduction? (items : List SExpr) : Except String InductionStep :
 /-- Parse a single top-level s-expression from the proof log. -/
 private def parseEvent (s : SExpr) : Except String ProofEvent := do
   match s with
-  | .cons (.atom (.keyword "step")) rest =>
+  | .cons (.atom (.keyword "STEP")) rest =>
     match rest.toList? with
     | some items => return .step (← parseStep? items)
     | none => throw s!"STEP: expected plist, got {repr rest}"
-  | .cons (.atom (.keyword "induction")) rest =>
+  | .cons (.atom (.keyword "INDUCTION")) rest =>
     match rest.toList? with
     | some items => return .induction (← parseInduction? items)
     | none => throw s!"INDUCTION: expected plist, got {repr rest}"
-  | .cons (.atom (.keyword "qed")) _ =>
+  | .cons (.atom (.keyword "QED")) _ =>
     return .qed
-  | .cons (.atom (.keyword "defthm")) rest =>
+  | .cons (.atom (.keyword "DEFTHM")) rest =>
     match rest.toList? with
     | some (nameExpr :: fields) =>
       match atomString? nameExpr with
       | some name =>
-        let formula ← (lookupKeyword "formula" fields).elim
+        let formula ← (lookupKeyword "FORMULA" fields).elim
           (throw s!"DEFTHM {name}: missing :FORMULA") pure
-        let source := match lookupKeyword "source" fields with
-          | some (.atom (.keyword "include-book")) => TheoremSource.includeBook
-          | some (.atom (.keyword "local")) => TheoremSource.local
+        let source := match lookupKeyword "SOURCE" fields with
+          | some (.atom (.keyword "INCLUDE-BOOK")) => TheoremSource.includeBook
+          | some (.atom (.keyword "LOCAL")) => TheoremSource.local
           | _ => TheoremSource.unknown
         return .defthm name formula source
       | none => throw s!"DEFTHM: bad name: {repr nameExpr}"
     | some [] => throw s!"DEFTHM: missing name"
     | none => throw s!"DEFTHM: expected plist, got {repr rest}"
-  | .cons (.atom (.keyword "defun")) rest =>
+  | .cons (.atom (.keyword "DEFUN")) rest =>
     match rest.toList? with
     | some (nameExpr :: fields) =>
       match nameExpr with
@@ -736,30 +760,30 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         -- String; `Development.toWorld` rebuilds the symbol in the default package)
         -- — so a non-default package would silently rename the function. Hard-fail
         -- instead (frontier; no corpus example uses one).
-        unless nameSym.package == ({ name := "x" } : Symbol).package do
+        unless nameSym.package == ({ name := "X" } : Symbol).package do
           throw s!"DEFUN {nameSym.name}: non-default package \
                   {nameSym.package} unsupported (would be lost downstream)"
         let name := nameSym.name
         -- :FORMALS is REQUIRED and every formal must be a symbol — a malformed or
         -- absent list hard-fails (no silent drop, no default-to-nullary).
-        let formalsSExpr ← (lookupKeyword "formals" fields).elim
+        let formalsSExpr ← (lookupKeyword "FORMALS" fields).elim
           (throw s!"DEFUN {name}: missing :FORMALS") pure
         let formalsList ← formalsSExpr.toList?.elim
           (throw s!"DEFUN {name}: :FORMALS is not a list: {repr formalsSExpr}") pure
         let formals ← formalsList.mapM fun
           | .atom (.symbol s) => pure s
           | other => throw s!"DEFUN {name}: non-symbol formal: {repr other}"
-        let body ← (lookupKeyword "body" fields).elim
+        let body ← (lookupKeyword "BODY" fields).elim
           (throw s!"DEFUN {name}: missing :BODY") pure
         -- The admission justification: :MEASURE/:WFREL/:MEASURED travel
         -- together (recursive defun) or are all absent (non-recursive); a
         -- PARTIAL set is a malformed emission and hard-fails.
-        let just ← match lookupKeyword "measure" fields,
-                         lookupKeyword "wfrel" fields,
-                         lookupKeyword "measured" fields with
+        let just ← match lookupKeyword "MEASURE" fields,
+                         lookupKeyword "WFREL" fields,
+                         lookupKeyword "MEASURED" fields with
           | none, none, none =>
             -- a non-recursive defun also has no obligations
-            match lookupKeyword "termination-clauses" fields with
+            match lookupKeyword "TERMINATION-CLAUSES" fields with
             | none => pure none
             | some c => throw s!"DEFUN {name}: :TERMINATION-CLAUSES without a \
                                 justification: {repr c}"
@@ -779,8 +803,8 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
             -- ACL2 does not re-run admission, so no clauses exist; R2). Empty
             -- clauses make the totality prover frontier-fail on the first
             -- decrease, keeping total:fn visible (D6) — fail-closed.
-            match lookupKeyword "termination-clauses" fields,
-                  lookupKeyword "included" fields with
+            match lookupKeyword "TERMINATION-CLAUSES" fields,
+                  lookupKeyword "INCLUDED" fields with
             | some clausesExpr, none =>
               let clauses ← clausesExpr.toList?.elim
                 (throw s!"DEFUN {name}: :TERMINATION-CLAUSES is not a list: \
@@ -788,7 +812,7 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
               pure (some { measure := m, wfRel := rel, measuredSubset := subSyms,
                            terminationClauses := clauses })
             | none, some (.atom (.symbol tS)) =>
-              if tS.name == "t" then
+              if tS.name == "T" then
                 pure (some { measure := m, wfRel := rel,
                              measuredSubset := subSyms,
                              terminationClauses := [] })
@@ -807,7 +831,7 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         return .defun name formals body just
       | _ => throw s!"DEFUN: bad name: {repr nameExpr}"
     | _ => throw s!"DEFUN: expected plist, got {repr rest}"
-  | .cons (.atom (.keyword "rules")) rest =>
+  | .cons (.atom (.keyword "RULES")) rest =>
     match rest.toList? with
     | some [rulesList] =>
       let some entries := rulesList.toList?
@@ -817,41 +841,44 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         | some [runeS, hypsS, equivS, lhsS, rhsS] =>
           match runeS.toList? with
           | some [.atom (.keyword rty), .atom (.symbol rname)] => do
-            unless rty == "rewrite" do
+            -- rune type + equiv are lowercase dispatch tags (see parseRune?).
+            unless rty.map Char.toLower == "rewrite" do
               throw s!"RULES: rune class {rty} unsupported (frontier)"
             let hyps ← hypsS.toList?.elim
               (throw s!"RULES {rname.name}: :HYPS not a list: {repr hypsS}") pure
             let equiv ← match equivS with
-              | .atom (.symbol s) => pure s.name
+              | .atom (.symbol s) => pure (s.name.map Char.toLower)
               | other => throw s!"RULES {rname.name}: bad equiv: {repr other}"
+            -- rune NAME is a symbol identity (theorem name), stored UPCASED
+            -- like parseRune?'s name and the dependency-proof keys.
             pure ({ name := rname.name, hyps, equiv,
                     lhs := lhsS, rhs := rhsS } : RuleSpec)
           | _ => throw s!"RULES: bad rune: {repr runeS}"
         | _ => throw s!"RULES: bad entry (want (rune hyps equiv lhs rhs)): {repr e}"
       return .rules specs
     | _ => throw s!"RULES: expected a single payload list, got {repr rest}"
-  | .cons (.atom (.keyword "pool-consider")) rest =>
-    let some nameS := lookupKeyword "name" (rest.toList?.getD [])
+  | .cons (.atom (.keyword "POOL-CONSIDER")) rest =>
+    let some nameS := lookupKeyword "NAME" (rest.toList?.getD [])
       | throw "POOL-CONSIDER: missing :NAME"
     return .poolConsider (← parsePoolLst nameS)
-  | .cons (.atom (.keyword "pool-subsumed")) rest =>
+  | .cons (.atom (.keyword "POOL-SUBSUMED")) rest =>
     let items := rest.toList?.getD []
-    let some nameS := lookupKeyword "name" items
+    let some nameS := lookupKeyword "NAME" items
       | throw "POOL-SUBSUMED: missing :NAME"
-    let some byS := lookupKeyword "by" items
+    let some byS := lookupKeyword "BY" items
       | throw "POOL-SUBSUMED: missing :BY"
     return .poolSubsumed (← parsePoolLst nameS) (← parsePoolLst byS)
-  | .cons (.atom (.keyword "type-prescription")) rest =>
+  | .cons (.atom (.keyword "TYPE-PRESCRIPTION")) rest =>
     match rest.toList? with
     | some (nameExpr :: fields) =>
       match atomString? nameExpr with
       | some name =>
-        let corollary ← (lookupKeyword "corollary" fields).elim
+        let corollary ← (lookupKeyword "COROLLARY" fields).elim
           (throw s!"TYPE-PRESCRIPTION {name}: missing :COROLLARY") pure
-        let basicTs := match lookupKeyword "basicts" fields with
+        let basicTs := match lookupKeyword "BASICTS" fields with
           | some (.atom (.number (.int n))) => some n
           | _ => none
-        let leaves ← match lookupKeyword "leaves" fields with
+        let leaves ← match lookupKeyword "LEAVES" fields with
           | some l => match l.toList? with
             | some items => items.mapM fun pair =>
               -- Each leaf is a proper list (term type-set-bits)

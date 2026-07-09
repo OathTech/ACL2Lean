@@ -9,6 +9,17 @@ The end state: for symbol reading, identity (`equal`), and every operation that
 observes a symbol, there is NO semantic difference between our Lean ACL2 and the
 original ACL2 — none, for any reason.
 
+**STATUS (2026-07-08): LANDED.** BUG-002 is fixed per §6. Two refinements
+discovered during the sweep, both incorporated: (a) internal DISPATCH TAGS that
+arrive as symbols/keywords but are NOT symbol identities — rune TYPE, equiv,
+processor, origin, clausify outcome/verdict/how/kind, extraField keys — are
+lowercased at the ProofLog parse boundary (rune NAMES are symbol identities and
+stay uppercase, matching world/theorem/dependency-proof keys); (b) the reader
+had a latent gap the differential ratchet caught — `:|bar|` keywords were not
+read verbatim; now `:|ABC|` = `:abc` and `:|abc|` is distinct. `just ci` +
+`just diff-test` green; the 11 BUG-002 discriminators are now `match`
+(regression guards).
+
 ## 1. What a symbol IS in ACL2's logical core
 
 A symbol's identity is its (symbol-name, symbol-package-name) string pair.

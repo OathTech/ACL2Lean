@@ -28,7 +28,7 @@ private def int (n : Int) : SExpr := .atom (.number (.int n))
 -- === SExpr.toString ===
 
 #guard SExpr.nil.toString = "NIL"
-#guard SExpr.t.toString = "t"
+#guard SExpr.t.toString = "T"
 #guard (SExpr.ofList [sym "a", sym "b"]).toString = "(a b)"
 -- Dotted pair
 #guard (SExpr.cons (sym "a") (sym "b")).toString = "(a . b)"

@@ -65,7 +65,7 @@ theorem enc_inj : ∀ {l1 l2 : List SExpr}, enc l1 = enc l2 → l1 = l2 := by
 
 /-- `(quote <n>)` for an integer literal. -/
 def qInt (n : Int) : SExpr :=
-  .cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int n))) .nil)
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons (.atom (.number (.int n))) .nil)
 
 /-- 1-ary application `(fn a)`. -/
 def app1 (fn : String) (a : SExpr) : SExpr :=
@@ -75,14 +75,14 @@ def app1 (fn : String) (a : SExpr) : SExpr :=
 def app2 (fn : String) (a b : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := fn })) (.cons a (.cons b .nil))
 
-abbrev plusT (a b : SExpr) : SExpr := app2 "binary-+" a b
-abbrev timesT (a b : SExpr) : SExpr := app2 "binary-*" a b
-abbrev equalT (a b : SExpr) : SExpr := app2 "equal" a b
-abbrev impliesT (a b : SExpr) : SExpr := app2 "implies" a b
-abbrev consT (a b : SExpr) : SExpr := app2 "cons" a b
-abbrev carT (a : SExpr) : SExpr := app1 "car" a
-abbrev cdrT (a : SExpr) : SExpr := app1 "cdr" a
-abbrev conspT (a : SExpr) : SExpr := app1 "consp" a
+abbrev plusT (a b : SExpr) : SExpr := app2 "BINARY-+" a b
+abbrev timesT (a b : SExpr) : SExpr := app2 "BINARY-*" a b
+abbrev equalT (a b : SExpr) : SExpr := app2 "EQUAL" a b
+abbrev impliesT (a b : SExpr) : SExpr := app2 "IMPLIES" a b
+abbrev consT (a b : SExpr) : SExpr := app2 "CONS" a b
+abbrev carT (a : SExpr) : SExpr := app1 "CAR" a
+abbrev cdrT (a : SExpr) : SExpr := app1 "CDR" a
+abbrev conspT (a : SExpr) : SExpr := app1 "CONSP" a
 
 /-- Peel the `atom/number/int` constructors off a value equation. -/
 theorem int_atom_inj {m n : Int}
@@ -198,12 +198,12 @@ theorem conv_qInt (w : World) (e : Env) (n : Int) :
 
 /-- Ground `binary-+` convergence to the SYMBOLIC sum. -/
 theorem conv_plus_int (w : World) (e : Env) (a b : SExpr) (m n : Int)
-    (h_no : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
+    (h_no : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w e a = some (.atom (.number (.int m))))
     (hb : ∃ N, ∀ f ≥ N, evalOpt f w e b = some (.atom (.number (.int n)))) :
     ∃ N, ∀ f ≥ N, evalOpt f w e (plusT a b)
       = some (.atom (.number (.int (m + n)))) := by
-  have h := conv_builtin2 w e { name := "binary-+" } a b
+  have h := conv_builtin2 w e { name := "BINARY-+" } a b
     (.atom (.number (.int m))) (.atom (.number (.int n)))
     (Logic.plus (.atom (.number (.int m))) (.atom (.number (.int n))))
     (by decide) h_no ha hb (callBuiltin_plus _ _)
@@ -211,12 +211,12 @@ theorem conv_plus_int (w : World) (e : Env) (a b : SExpr) (m n : Int)
 
 /-- Ground `binary-*` convergence to the SYMBOLIC product. -/
 theorem conv_times_int (w : World) (e : Env) (a b : SExpr) (m n : Int)
-    (h_no : w.defs.get? ({ name := "binary-*" } : Symbol) = none)
+    (h_no : w.defs.get? ({ name := "BINARY-*" } : Symbol) = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w e a = some (.atom (.number (.int m))))
     (hb : ∃ N, ∀ f ≥ N, evalOpt f w e b = some (.atom (.number (.int n)))) :
     ∃ N, ∀ f ≥ N, evalOpt f w e (timesT a b)
       = some (.atom (.number (.int (m * n)))) := by
-  have h := conv_builtin2 w e { name := "binary-*" } a b
+  have h := conv_builtin2 w e { name := "BINARY-*" } a b
     (.atom (.number (.int m))) (.atom (.number (.int n)))
     (Logic.times (.atom (.number (.int m))) (.atom (.number (.int n))))
     (by decide) h_no ha hb (callBuiltin_times _ _)
@@ -224,20 +224,20 @@ theorem conv_times_int (w : World) (e : Env) (a b : SExpr) (m n : Int)
 
 /-- `(equal a b)` converges to the SYMBOLIC `Logic.equal` of the values. -/
 theorem conv_equalT (w : World) (e : Env) (a b av bv : SExpr)
-    (h_no : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w e a = some av)
     (hb : ∃ N, ∀ f ≥ N, evalOpt f w e b = some bv) :
     ∃ N, ∀ f ≥ N, evalOpt f w e (equalT a b) = some (Logic.equal av bv) :=
-  conv_builtin2 w e { name := "equal" } a b av bv _ (by decide) h_no ha hb
+  conv_builtin2 w e { name := "EQUAL" } a b av bv _ (by decide) h_no ha hb
     (callBuiltin_equal _ _)
 
 /-- `(implies a b)` converges to the SYMBOLIC `Logic.implies` of the values. -/
 theorem conv_impliesT (w : World) (e : Env) (a b av bv : SExpr)
-    (h_no : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (h_no : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w e a = some av)
     (hb : ∃ N, ∀ f ≥ N, evalOpt f w e b = some bv) :
     ∃ N, ∀ f ≥ N, evalOpt f w e (impliesT a b) = some (Logic.implies av bv) :=
-  conv_builtin2 w e { name := "implies" } a b av bv _ (by decide) h_no ha hb
+  conv_builtin2 w e { name := "IMPLIES" } a b av bv _ (by decide) h_no ha hb
     (callBuiltin_implies _ _)
 
 /-! ## Decode enders -/
@@ -248,7 +248,7 @@ theorem conv_impliesT (w : World) (e : Env) (a b av bv : SExpr)
     entry finishes here. -/
 theorem native_of_mirror_equal {γ : Type} (w : World) (e : Env) (r : Rep γ)
     (lhs rhs : SExpr) (x y : γ)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
     (hL : Conv w e lhs (r.enc x)) (hR : Conv w e rhs (r.enc y))
     (hmirror : EvTrue w e (equalT lhs rhs)) : x = y :=
   r.inj (Logic.eq_of_equal_ne_nil
@@ -329,9 +329,9 @@ theorem booleanp_cond (b : Bool) :
     stepwise decode of a `defequiv`-style macroexpanded `and`-nest. -/
 theorem mirror_peel_guard {w : World} {e : Env} {G rest : SExpr} {bg : Bool}
     (hm : ∃ N, ∀ f, f ≥ N → ∃ v,
-      evalOpt f w e (.cons (.atom (.symbol { name := "if" }))
+      evalOpt f w e (.cons (.atom (.symbol { name := "IF" }))
         (.cons G (.cons rest (.cons
-          (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
           .nil)))) = some v ∧ v ≠ SExpr.nil)
     (hG : ∃ N, ∀ f ≥ N, evalOpt f w e G
       = some (bif bg then SExpr.t else SExpr.nil)) :
@@ -345,7 +345,7 @@ theorem mirror_peel_guard {w : World} {e : Env} {G rest : SExpr} {bg : Bool}
     have hq := re_val_quote w e SExpr.nil
     have hnil := fuel_conv_of_eq
       (re_if_false w e G rest
-        (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+        (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
         SExpr.nil hGn hq) hq
     exact absurd hnil (fun h => mirror_pins_ne_nil hm h rfl)
   | true =>
@@ -359,7 +359,7 @@ theorem mirror_peel_guard {w : World} {e : Env} {G rest : SExpr} {bg : Bool}
     -- convergence needed) — rest inherits the pinned truthy value
     obtain ⟨v, hv, hvne⟩ := hm' (f + 1) (by omega)
     have hstep := evalOpt_if_true f w e G rest
-      (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
       SExpr.t (hg' f (by omega)) rfl
     exact ⟨v, hstep ▸ hv, hvne⟩
 
@@ -371,9 +371,9 @@ theorem conv_and_conds (w : World) (e : Env) (A B : SExpr) (b1 b2 : Bool)
     (hB : ∃ N, ∀ f ≥ N, evalOpt f w e B
       = some (bif b2 then SExpr.t else SExpr.nil)) :
     ∃ N, ∀ f ≥ N, evalOpt f w e
-      (.cons (.atom (.symbol { name := "if" }))
+      (.cons (.atom (.symbol { name := "IF" }))
         (.cons A (.cons B (.cons
-          (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
           .nil)))) =
       some (bif (b1 && b2) then SExpr.t else SExpr.nil) := by
   cases hb1 : b1 with
@@ -381,7 +381,7 @@ theorem conv_and_conds (w : World) (e : Env) (A B : SExpr) (b1 b2 : Bool)
     have hAt : ∃ N, ∀ f ≥ N, evalOpt f w e A = some SExpr.t := by
       simpa [hb1] using hA
     have h := re_if_true w e A B
-      (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
       SExpr.t (bif b2 then SExpr.t else SExpr.nil) hAt rfl hB
     simpa using fuel_conv_of_eq h hB
   | false =>
@@ -389,7 +389,7 @@ theorem conv_and_conds (w : World) (e : Env) (A B : SExpr) (b1 b2 : Bool)
       simpa [hb1] using hA
     have hq := re_val_quote w e SExpr.nil
     have h := re_if_false w e A B
-      (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
       SExpr.nil hAn hq
     simpa using fuel_conv_of_eq h hq
 
@@ -401,17 +401,17 @@ ACL2 emits for the two-formal append and one-formal length defuns, so a
 single `decide` on any world (hand or log-derived) instantiates the
 correspondence lemmas at that world's function. -/
 
-private def xS : Symbol := ⟨"ACL2", "x"⟩
-private def yS : Symbol := ⟨"ACL2", "y"⟩
-private def xT : SExpr := .atom (.symbol { name := "x" })
-private def yT : SExpr := .atom (.symbol { name := "y" })
+private def xS : Symbol := ⟨"ACL2", "X"⟩
+private def yS : Symbol := ⟨"ACL2", "Y"⟩
+private def xT : SExpr := .atom (.symbol { name := "X" })
+private def yT : SExpr := .atom (.symbol { name := "Y" })
 private def q0 : SExpr := qInt 0
 private def q1 : SExpr := qInt 1
 
 /-- `(if (consp x) (cons (car x) (fn (cdr x) y)) y)` — the standard append
     body, the shape of `app`, `my-app`, …. -/
 def appendBody (fn : String) : SExpr :=
-  .cons (.atom (.symbol { name := "if" }))
+  .cons (.atom (.symbol { name := "IF" }))
     (.cons (conspT xT)
       (.cons (consT (carT xT) (app2 fn (cdrT xT) yT))
         (.cons yT .nil)))
@@ -419,7 +419,7 @@ def appendBody (fn : String) : SExpr :=
 /-- `(if (consp x) (binary-+ '1 (fn (cdr x))) '0)` — the standard length
     body, the shape of `my-len`, `len2`, …. -/
 def lenBody (fn : String) : SExpr :=
-  .cons (.atom (.symbol { name := "if" }))
+  .cons (.atom (.symbol { name := "IF" }))
     (.cons (conspT xT)
       (.cons (plusT q1 (app1 fn (cdrT xT)))
         (.cons q0 .nil)))
@@ -441,16 +441,16 @@ private theorem bindArgs_x_x (vx : SExpr) :
 /-- SIMULATION, name-generic: any append-shaped defun over encoded lists
     computes `++` under `enc`. Induction on the Lean list. -/
 theorem corr_append_enc (w : World) (fn : String)
-    (h_ns : ({ name := fn } : Symbol).isNamed "quote" = false ∧
-            ({ name := fn } : Symbol).isNamed "if" = false ∧
-            ({ name := fn } : Symbol).isNamed "let" = false ∧
-            ({ name := fn } : Symbol).isNamed "let*" = false)
+    (h_ns : ({ name := fn } : Symbol).isNamed "QUOTE" = false ∧
+            ({ name := fn } : Symbol).isNamed "IF" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET*" = false)
     (h_fn : w.defs.get? ⟨"ACL2", fn⟩
-      = some ([⟨"ACL2", "x"⟩, ⟨"ACL2", "y"⟩], appendBody fn))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+      = some ([⟨"ACL2", "X"⟩, ⟨"ACL2", "Y"⟩], appendBody fn))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (xs : List SExpr) (e' : Env) (a b : SExpr) (ys : List SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some (enc xs)) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' b = some (enc ys)) →
@@ -469,7 +469,7 @@ theorem corr_append_enc (w : World) (fn : String)
                          exact evalOpt_var g w _ yS _ (bindArgs_xy_y _ _)⟩
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS, yS] [enc [], enc ys]) (conspT xT) = some .nil :=
-      conv_builtin1 w _ { name := "consp" } xT (enc []) (Logic.consp (enc []))
+      conv_builtin1 w _ { name := "CONSP" } xT (enc []) (Logic.consp (enc []))
         (by decide) h_no_consp hx_ba (callBuiltin_consp _)
     have hbody : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS, yS] [enc [], enc ys]) (appendBody fn)
@@ -494,19 +494,19 @@ theorem corr_append_enc (w : World) (fn : String)
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys]) (conspT xT)
         = some (Logic.consp (.cons hd (enc tl))) :=
-      conv_builtin1 w _ { name := "consp" } xT (.cons hd (enc tl))
+      conv_builtin1 w _ { name := "CONSP" } xT (.cons hd (enc tl))
         (Logic.consp (.cons hd (enc tl))) (by decide) h_no_consp hx_ba
         (callBuiltin_consp _)
     have hcarx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys]) (carT xT)
         = some hd := by
-      have h := conv_builtin1 w _ { name := "car" } xT (.cons hd (enc tl))
+      have h := conv_builtin1 w _ { name := "CAR" } xT (.cons hd (enc tl))
         (Logic.car (.cons hd (enc tl))) (by decide) h_no_car hx_ba (callBuiltin_car _)
       simpa [Logic.car] using h
     have hcdrx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys]) (cdrT xT)
         = some (enc tl) := by
-      have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd (enc tl))
+      have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd (enc tl))
         (Logic.cdr (.cons hd (enc tl))) (by decide) h_no_cdr hx_ba (callBuiltin_cdr _)
       simpa [Logic.cdr] using h
     have hrec : ∃ N, ∀ f ≥ N,
@@ -517,7 +517,7 @@ theorem corr_append_enc (w : World) (fn : String)
         evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
           (consT (carT xT) (app2 fn (cdrT xT) yT))
         = some (.cons hd (enc (tl ++ ys))) :=
-      conv_builtin2 w _ { name := "cons" } (carT xT) (app2 fn (cdrT xT) yT)
+      conv_builtin2 w _ { name := "CONS" } (carT xT) (app2 fn (cdrT xT) yT)
         hd (enc (tl ++ ys)) (.cons hd (enc (tl ++ ys))) (by decide) h_no_cons
         hcarx_ba hrec rfl
     have hbody : ∃ N, ∀ f ≥ N,
@@ -535,14 +535,14 @@ theorem corr_append_enc (w : World) (fn : String)
 /-- SIMULATION, name-generic: any length-shaped defun over encoded lists
     computes `List.length` under `enc`. Induction on the Lean list. -/
 theorem corr_len_enc (w : World) (fn : String)
-    (h_ns : ({ name := fn } : Symbol).isNamed "quote" = false ∧
-            ({ name := fn } : Symbol).isNamed "if" = false ∧
-            ({ name := fn } : Symbol).isNamed "let" = false ∧
-            ({ name := fn } : Symbol).isNamed "let*" = false)
-    (h_fn : w.defs.get? ⟨"ACL2", fn⟩ = some ([⟨"ACL2", "x"⟩], lenBody fn))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    (h_ns : ({ name := fn } : Symbol).isNamed "QUOTE" = false ∧
+            ({ name := fn } : Symbol).isNamed "IF" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET*" = false)
+    (h_fn : w.defs.get? ⟨"ACL2", fn⟩ = some ([⟨"ACL2", "X"⟩], lenBody fn))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
     ∀ (xs : List SExpr) (e' : Env) (a : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some (enc xs)) →
     ∃ N, ∀ f ≥ N, evalOpt f w e' (app1 fn a)
@@ -557,7 +557,7 @@ theorem corr_len_enc (w : World) (fn : String)
                          exact evalOpt_var g w _ xS _ (bindArgs_x_x _)⟩
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS] [enc []]) (conspT xT) = some .nil :=
-      conv_builtin1 w _ { name := "consp" } xT (enc []) (Logic.consp (enc []))
+      conv_builtin1 w _ { name := "CONSP" } xT (enc []) (Logic.consp (enc []))
         (by decide) h_no_consp hx_ba (callBuiltin_consp _)
     have hq0_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS] [enc []]) q0 = some (.atom (.number (.int 0))) :=
@@ -583,12 +583,12 @@ theorem corr_len_enc (w : World) (fn : String)
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (conspT xT)
         = some (Logic.consp (.cons hd (enc tl))) :=
-      conv_builtin1 w _ { name := "consp" } xT (.cons hd (enc tl))
+      conv_builtin1 w _ { name := "CONSP" } xT (.cons hd (enc tl))
         (Logic.consp (.cons hd (enc tl))) (by decide) h_no_consp hx_ba
         (callBuiltin_consp _)
     have hcdrx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (cdrT xT) = some (enc tl) := by
-      have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd (enc tl))
+      have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd (enc tl))
         (Logic.cdr (.cons hd (enc tl))) (by decide) h_no_cdr hx_ba (callBuiltin_cdr _)
       simpa [Logic.cdr] using h
     have hq1_ba : ∃ N, ∀ f ≥ N,
@@ -600,7 +600,7 @@ theorem corr_len_enc (w : World) (fn : String)
     have hsum : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (plusT q1 (app1 fn (cdrT xT)))
         = some (.atom (.number (.int (1 + (tl.length : Int))))) := by
-      have h := conv_builtin2 w _ { name := "binary-+" } q1 (app1 fn (cdrT xT))
+      have h := conv_builtin2 w _ { name := "BINARY-+" } q1 (app1 fn (cdrT xT))
         (.atom (.number (.int 1))) (.atom (.number (.int (tl.length : Int))))
         (Logic.plus (.atom (.number (.int 1)))
           (.atom (.number (.int (tl.length : Int)))))
@@ -624,28 +624,28 @@ theorem corr_len_enc (w : World) (fn : String)
 
 /-- `binary-+` (unshadowed) implements integer addition. -/
 theorem implements_plus (w : World)
-    (h_no : w.defs.get? ({ name := "binary-+" } : Symbol) = none) :
-    Implements₂ w "binary-+" intRep intRep intRep (· + ·) :=
+    (h_no : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
+    Implements₂ w "BINARY-+" intRep intRep intRep (· + ·) :=
   fun e a b x y ha hb => conv_plus_int w e a b x y h_no ha hb
 
 /-- `binary-*` (unshadowed) implements integer multiplication. -/
 theorem implements_times (w : World)
-    (h_no : w.defs.get? ({ name := "binary-*" } : Symbol) = none) :
-    Implements₂ w "binary-*" intRep intRep intRep (· * ·) :=
+    (h_no : w.defs.get? ({ name := "BINARY-*" } : Symbol) = none) :
+    Implements₂ w "BINARY-*" intRep intRep intRep (· * ·) :=
   fun e a b x y ha hb => conv_times_int w e a b x y h_no ha hb
 
 /-- Any append-shaped defun implements `List.append`. -/
 theorem implements_append (w : World) (fn : String)
-    (h_ns : ({ name := fn } : Symbol).isNamed "quote" = false ∧
-            ({ name := fn } : Symbol).isNamed "if" = false ∧
-            ({ name := fn } : Symbol).isNamed "let" = false ∧
-            ({ name := fn } : Symbol).isNamed "let*" = false)
+    (h_ns : ({ name := fn } : Symbol).isNamed "QUOTE" = false ∧
+            ({ name := fn } : Symbol).isNamed "IF" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET*" = false)
     (h_fn : w.defs.get? ⟨"ACL2", fn⟩
-      = some ([⟨"ACL2", "x"⟩, ⟨"ACL2", "y"⟩], appendBody fn))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+      = some ([⟨"ACL2", "X"⟩, ⟨"ACL2", "Y"⟩], appendBody fn))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     Implements₂ w fn listRep listRep listRep (· ++ ·) :=
   fun e a b xs ys ha hb =>
     corr_append_enc w fn h_ns h_fn h_no_consp h_no_cdr h_no_car h_no_cons
@@ -653,14 +653,14 @@ theorem implements_append (w : World) (fn : String)
 
 /-- Any length-shaped defun implements (integer-valued) `List.length`. -/
 theorem implements_len (w : World) (fn : String)
-    (h_ns : ({ name := fn } : Symbol).isNamed "quote" = false ∧
-            ({ name := fn } : Symbol).isNamed "if" = false ∧
-            ({ name := fn } : Symbol).isNamed "let" = false ∧
-            ({ name := fn } : Symbol).isNamed "let*" = false)
-    (h_fn : w.defs.get? ⟨"ACL2", fn⟩ = some ([⟨"ACL2", "x"⟩], lenBody fn))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    (h_ns : ({ name := fn } : Symbol).isNamed "QUOTE" = false ∧
+            ({ name := fn } : Symbol).isNamed "IF" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET*" = false)
+    (h_fn : w.defs.get? ⟨"ACL2", fn⟩ = some ([⟨"ACL2", "X"⟩], lenBody fn))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
     Implements₁ w fn listRep intRep (fun xs => (xs.length : Int)) :=
   fun e a xs ha =>
     corr_len_enc w fn h_ns h_fn h_no_consp h_no_plus h_no_cdr xs e a ha

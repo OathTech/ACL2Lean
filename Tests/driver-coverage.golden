@@ -1,72 +1,72 @@
 Driver coverage — REPLAYED 26/50 (21 unconditional + 5 conditional); DP-discharge leaves ✓10 ◌10 ✗0 of 20:
 • simple  (world: 3 defun(s), 1 theorem(s))
-    my-len-my-app → REPLAYED ✓ cond[tp:my-len]
+    MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 2 defun(s), 3 theorem(s))
-    ground-arith → REPLAYED ✓
-    sq-of-3 → REPLAYED ✓
-    sq-rewrites → REPLAYED ✓
+    GROUND-ARITH → REPLAYED ✓
+    SQ-OF-3 → REPLAYED ✓
+    SQ-REWRITES → REPLAYED ✓
 • 01-multi-theorem  (world: 3 defun(s), 3 theorem(s))
-    app-cons-car → REPLAYED ✓
-    app-nil → FAIL: deriveDefInfoN: true-listp not defined in the world  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(app x (quote NIL)), tp:app]]
-    len2-app → REPLAYED ✓ cond[tp:len2]
+    APP-CONS-CAR → REPLAYED ✓
+    APP-NIL → FAIL: deriveDefInfoN: TRUE-LISTP not defined in the world  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(APP X (QUOTE NIL)), tp:APP]]
+    LEN2-APP → REPLAYED ✓ cond[tp:LEN2]
 • 02-rev  (world: 3 defun(s), 5 theorem(s))
-    app-assoc → REPLAYED ✓
-    true-listp-rev → FAIL: deriveDefInfoN: true-listp not defined in the world  [DISCHARGE: Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(app rv (cons x1 (quote NIL))), tp:app]]
-    app-nil → FAIL: deriveDefInfoN: true-listp not defined in the world  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(app x (quote NIL)), tp:app]]
-    rev-app → FAIL: replayClauseSpine: no child clause matches the residual [(not (equal (rev (app a2 b)) (app (rev b) (rev a2)))),  (equal (app (rev (app a2 b)) (cons a1 (quote NIL))) (app (rev b) (app (rev a2) (cons a1 (quote NIL)))))] at Subgoal *1/1'''
-    rev-rev → FAIL: deriveDefInfoN: true-listp not defined in the world  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(rev (rev x)), tp:rev]]
+    APP-ASSOC → REPLAYED ✓
+    TRUE-LISTP-REV → FAIL: deriveDefInfoN: TRUE-LISTP not defined in the world  [DISCHARGE: Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(APP RV (CONS X1 (QUOTE NIL))), tp:APP]]
+    APP-NIL → FAIL: deriveDefInfoN: TRUE-LISTP not defined in the world  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(APP X (QUOTE NIL)), tp:APP]]
+    REV-APP → FAIL: replayClauseSpine: no child clause matches the residual [(NOT (EQUAL (REV (APP A2 B)) (APP (REV B) (REV A2)))),  (EQUAL (APP (REV (APP A2 B)) (CONS A1 (QUOTE NIL))) (APP (REV B) (APP (REV A2) (CONS A1 (QUOTE NIL)))))] at Subgoal *1/1'''
+    REV-REV → FAIL: deriveDefInfoN: TRUE-LISTP not defined in the world  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(REV (REV X)), tp:REV]]
 • 03-linear  (world: 2 defun(s), 3 theorem(s))
-    len2-nonneg → REPLAYED ✓ cond[tp:len2]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(len2 x), tp:len2]]
-    len2-cdr-smaller → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (< (len2 (cdr x)) (len2 x))  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(len2 (cdr x)), tp:len2]]
-    linear-chain → FAIL: replayClause: clausify output [(< b a),  (< c b),  (not (integerp a)),  (not (integerp b)),  (not (integerp c)),  (not (< c a))] has no child subgoal and is not a singleton dischargeable clause at Goal (frontier)  [DISCHARGE: Goal:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    LEN2-NONNEG → REPLAYED ✓ cond[tp:LEN2]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(LEN2 X), tp:LEN2]]
+    LEN2-CDR-SMALLER → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (< (LEN2 (CDR X)) (LEN2 X))  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(LEN2 (CDR X)), tp:LEN2]]
+    LINEAR-CHAIN → FAIL: replayClause: clausify output [(< B A),  (< C B),  (NOT (INTEGERP A)),  (NOT (INTEGERP B)),  (NOT (INTEGERP C)),  (NOT (< C A))] has no child subgoal and is not a singleton dischargeable clause at Goal (frontier)  [DISCHARGE: Goal:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 04-multi-case-induction  (world: 3 defun(s), 2 theorem(s))
-    evenlen-booleanp → REPLAYED ✓ cond[total:evenlen, tp:evenlen]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(evenlen x), tp:evenlen]]
-    classify-pos → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (equal (classify n) (quote pos))
+    EVENLEN-BOOLEANP → REPLAYED ✓ cond[total:EVENLEN, tp:EVENLEN]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(EVENLEN X), tp:EVENLEN]]
+    CLASSIFY-POS → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (EQUAL (CLASSIFY N) (QUOTE POS))
 • 05-hints  (world: 3 defun(s), 4 theorem(s))
-    len2-app-helper → REPLAYED ✓ cond[tp:len2]
-    len2-app-via-use → FAIL: replayClause: preprocess chain with child clauses at Goal (clausify-split frontier)
-    len2-app-via-induct → FAIL: replayClauseSpine: clause-level step item (rune ("rewrite", "len2-app-helper")) in the spine at Subgoal *1/2 (frontier)
-    len2-app-no-helper → FAIL: rewrite rune (len2-app-via-induct): origin abbreviation-expansion is not with-lemma (frontier)
+    LEN2-APP-HELPER → REPLAYED ✓ cond[tp:LEN2]
+    LEN2-APP-VIA-USE → FAIL: replayClause: preprocess chain with child clauses at Goal (clausify-split frontier)
+    LEN2-APP-VIA-INDUCT → FAIL: replayClauseSpine: clause-level step item (rune ("rewrite", "LEN2-APP-HELPER")) in the spine at Subgoal *1/2 (frontier)
+    LEN2-APP-NO-HELPER → FAIL: rewrite rune (LEN2-APP-VIA-INDUCT): origin abbreviation-expansion is not with-lemma (frontier)
 • 06-measure  (world: 4 defun(s), 1 theorem(s))
-    count-down-zero → REPLAYED ✓
+    COUNT-DOWN-ZERO → REPLAYED ✓
 • 07-mutual-recursion  (world: 3 defun(s), 2 theorem(s))
-    my-evenp-3-is-nil → REPLAYED ✓
-    my-oddp-3-is-t → REPLAYED ✓
+    MY-EVENP-3-IS-NIL → REPLAYED ✓
+    MY-ODDP-3-IS-T → REPLAYED ✓
 • 08-equality-reasoning  (world: 1 defun(s), 3 theorem(s))
-    cdr-cons-refl → REPLAYED ✓
-    equal-symm → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓]
-    equal-trans → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓]
+    CDR-CONS-REFL → REPLAYED ✓
+    EQUAL-SYMM → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓]
+    EQUAL-TRANS → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓]
 • 09-defn-unfold  (world: 3 defun(s), 2 theorem(s))
-    sq-rewrites → REPLAYED ✓
-    idf-rewrites → REPLAYED ✓
+    SQ-REWRITES → REPLAYED ✓
+    IDF-REWRITES → REPLAYED ✓
 • 10-tree-induction  (world: 3 defun(s), 2 theorem(s))
-    true-listp-app → FAIL: replayRecognizer: not-literal elimination only for consp⇒t (got true-listp ⇒ t, frontier)
-    true-listp-flatten → FAIL: replayInduction: IH maps controller x to (car x), expected (cdr x) (frontier)
+    TRUE-LISTP-APP → FAIL: replayRecognizer: not-literal elimination only for consp⇒t (got TRUE-LISTP ⇒ T, frontier)
+    TRUE-LISTP-FLATTEN → FAIL: replayInduction: IH maps controller X to (CAR X), expected (cdr X) (frontier)
 • 11-custom-measure  (world: 2 defun(s), 1 theorem(s))
-    cd2-bound → FAIL: deriveDefInfoN: nfix not defined in the world  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ◌ assumed cond[total:(cd2 (binary-+ (quote -2) n)), tp:cd2, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau-contradiction ◌ assumed cond[total:(cd2 n), tp:cd2, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(cd2 n), tp:cd2]]
+    CD2-BOUND → FAIL: deriveDefInfoN: NFIX not defined in the world  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ◌ assumed cond[total:(CD2 (BINARY-+ (QUOTE -2) N)), tp:CD2, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau-contradiction ◌ assumed cond[total:(CD2 N), tp:CD2, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(CD2 N), tp:CD2]]
 • 12-multi-controller  (world: 2 defun(s), 1 theorem(s))
-    len-zip2 → FAIL: replayInduction: step case tests [(not (if (atom x) (atom x) (atom y)))] lack (consp x) / (not (endp x)) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip2 (cdr x) (cdr y)), tp:zip2, ASSUMED:dp-fact], Subgoal *1/1':preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    LEN-ZIP2 → FAIL: replayInduction: step case tests [(NOT (IF (ATOM X) (ATOM X) (ATOM Y)))] lack (consp X) / (not (endp X)) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2, ASSUMED:dp-fact], Subgoal *1/1':preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 13-multi-measured-var  (world: 2 defun(s), 1 theorem(s))
-    len-interleave → FAIL: replayInduction: measure (binary-+ (acl2-count x) (acl2-count y)) is not (acl2-count v) (frontier)
+    LEN-INTERLEAVE → FAIL: replayInduction: measure (BINARY-+ (ACL2-COUNT X) (ACL2-COUNT Y)) is not (acl2-count v) (frontier)
 • 14-accumulator  (world: 2 defun(s), 1 theorem(s))
-    len-rev-acc → FAIL: deriveDefInfoN: len not defined in the world
+    LEN-REV-ACC → FAIL: deriveDefInfoN: LEN not defined in the world
 • 15-nested-induction  (world: 3 defun(s), 1 theorem(s))
-    nested-induction → FAIL: replayInduction: 2 scheme clauses for 1 recomputed (non-tautological) case clauses (mismatch)
+    NESTED-INDUCTION → FAIL: replayInduction: 2 scheme clauses for 1 recomputed (non-tautological) case clauses (mismatch)
 • 16-three-way  (world: 2 defun(s), 1 theorem(s))
-    len-zip3 → FAIL: replayInduction: step case tests [(not (if (atom x) (atom x) (if (atom y) (atom y) (atom z))))] lack (consp x) / (not (endp x)) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(zip3 (cdr x) (cdr y) (cdr z)), tp:zip3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    LEN-ZIP3 → FAIL: replayInduction: step case tests [(NOT (IF (ATOM X) (ATOM X) (IF (ATOM Y) (ATOM Y) (ATOM Z))))] lack (consp X) / (not (endp X)) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP3 (CDR X) (CDR Y) (CDR Z)), tp:ZIP3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 17-rule-application  (world: 3 defun(s), 2 theorem(s))
-    tlp-app-nil → FAIL: definition: children chain reached (equal x (quote NIL)), node rhs is (if x (quote NIL) (quote t))
-    tlp-app-nil-twice → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (equal (app (app x (quote NIL)) (quote NIL)) x)
+    TLP-APP-NIL → FAIL: definition: children chain reached (EQUAL X (QUOTE NIL)), node rhs is (IF X (QUOTE NIL) (QUOTE T))
+    TLP-APP-NIL-TWICE → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (EQUAL (APP (APP X (QUOTE NIL)) (QUOTE NIL)) X)
 • sorting/perm  (world: 4 defun(s), 8 theorem(s))
-    perm-cons → REPLAYED ✓
-    perm-symmetric → REPLAYED ✓
-    memb-rm → REPLAYED ✓
-    perm-memb → REPLAYED ✓
-    comm-rm → REPLAYED ✓
-    perm-rm → REPLAYED ✓
-    perm-transitive → REPLAYED ✓
-    perm-is-an-equivalence → REPLAYED ✓
+    PERM-CONS → REPLAYED ✓
+    PERM-SYMMETRIC → REPLAYED ✓
+    MEMB-RM → REPLAYED ✓
+    PERM-MEMB → REPLAYED ✓
+    COMM-RM → REPLAYED ✓
+    PERM-RM → REPLAYED ✓
+    PERM-TRANSITIVE → REPLAYED ✓
+    PERM-IS-AN-EQUIVALENCE → REPLAYED ✓
 • sorting/isort  (world: 10 defun(s), 3 theorem(s))
-    orderedp-isort → FAIL: proveConv: binary lexorder not in the builtin registry (frontier): (lexorder x1 it3)
-    true-listp-isort → FAIL: dpValExpr: binary lexorder is not a DP-lift primitive: (lexorder x1 (car it))  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ◌ assumed cond[total:(lexorder x1 (car it)), total:(insert x1 it), tp:insert, ASSUMED:dp-fact], Subgoal *1.1/2'':preprocess/tau-contradiction ◌ assumed cond[total:(lexorder x1 (car it)), ASSUMED:dp-fact]]
-    how-many-isort → FAIL: proveConv: binary lexorder not in the builtin registry (frontier): (lexorder x1 (car it))
+    ORDEREDP-ISORT → FAIL: proveConv: binary LEXORDER not in the builtin registry (frontier): (LEXORDER X1 IT3)
+    TRUE-LISTP-ISORT → FAIL: dpValExpr: binary LEXORDER is not a DP-lift primitive: (LEXORDER X1 (CAR IT))  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ◌ assumed cond[total:(LEXORDER X1 (CAR IT)), total:(INSERT X1 IT), tp:INSERT, ASSUMED:dp-fact], Subgoal *1.1/2'':preprocess/tau-contradiction ◌ assumed cond[total:(LEXORDER X1 (CAR IT)), ASSUMED:dp-fact]]
+    HOW-MANY-ISORT → FAIL: proveConv: binary LEXORDER not in the builtin registry (frontier): (LEXORDER X1 (CAR IT))

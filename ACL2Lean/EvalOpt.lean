@@ -29,21 +29,21 @@ def bindArgs : List Symbol → List SExpr → Env
     must be added here with its faithful value, not left to default. -/
 def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   match name, args with
-  | "cons", [a, b] => some (.cons a b)
-  | "car", [a] => some (Logic.car a)
-  | "cdr", [a] => some (Logic.cdr a)
-  | "consp", [a] => some (Logic.consp a)
-  | "atom", [a] => some (Logic.atom a)
-  | "endp", [a] => some (Logic.endp a)
-  | "equal", [a, b] => some (Logic.equal a b)
-  | "eql", [a, b] => some (Logic.equal a b)
-  | "not", [a] => some (Logic.not a)
-  | "binary-+", [a, b] => some (Logic.plus a b)
-  | "binary-*", [a, b] => some (Logic.times a b)
-  | "unary--", [a] =>
+  | "CONS", [a, b] => some (.cons a b)
+  | "CAR", [a] => some (Logic.car a)
+  | "CDR", [a] => some (Logic.cdr a)
+  | "CONSP", [a] => some (Logic.consp a)
+  | "ATOM", [a] => some (Logic.atom a)
+  | "ENDP", [a] => some (Logic.endp a)
+  | "EQUAL", [a, b] => some (Logic.equal a b)
+  | "EQL", [a, b] => some (Logic.equal a b)
+  | "NOT", [a] => some (Logic.not a)
+  | "BINARY-+", [a, b] => some (Logic.plus a b)
+  | "BINARY-*", [a, b] => some (Logic.times a b)
+  | "UNARY--", [a] =>
       let (n, d) := Logic.toRat a
       some (Logic.mkNumber (-n) d)
-  | "unary-/", [a] =>
+  | "UNARY-/", [a] =>
       let (n, d) := Logic.toRat a
       some (if n == 0 then .atom (.number (.int 0))
         else if n > 0 then Logic.mkNumber (Int.ofNat d) n.natAbs
@@ -57,33 +57,33 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "1+", [a] => some (Logic.plus (.atom (.number (.int 1))) a)
   | "1-", [a] => some (Logic.minus a (.atom (.number (.int 1))))
   | "<", [a, b] => some (Logic.lt a b)
-  | "integerp", [a] => some (Logic.integerp a)
-  | "natp", [a] => some (Logic.natp a)
-  | "posp", [a] => some (Logic.posp a)
-  | "rationalp", [a] =>
+  | "INTEGERP", [a] => some (Logic.integerp a)
+  | "NATP", [a] => some (Logic.natp a)
+  | "POSP", [a] => some (Logic.posp a)
+  | "RATIONALP", [a] =>
       some (match a with | .atom (.number _) => .t | _ => .nil)
-  | "acl2-numberp", [a] =>
+  | "ACL2-NUMBERP", [a] =>
       some (match a with | .atom (.number _) => .t | _ => .nil)
-  | "zp", [a] => some (Logic.zp a)
-  | "symbolp", [a] => some (Logic.symbolp a)
-  | "booleanp", [a] => some (Logic.booleanp a)
-  | "stringp", [a] => some (Logic.stringp a)
-  | "characterp", [a] => some (Logic.characterp a)
-  | "char-code", [a] => some (Logic.charCode a)
-  | "code-char", [a] => some (Logic.codeChar a)
-  | "fix", [a] =>
+  | "ZP", [a] => some (Logic.zp a)
+  | "SYMBOLP", [a] => some (Logic.symbolp a)
+  | "BOOLEANP", [a] => some (Logic.booleanp a)
+  | "STRINGP", [a] => some (Logic.stringp a)
+  | "CHARACTERP", [a] => some (Logic.characterp a)
+  | "CHAR-CODE", [a] => some (Logic.charCode a)
+  | "CODE-CHAR", [a] => some (Logic.codeChar a)
+  | "FIX", [a] =>
       some (match a with | .atom (.number _) => a | _ => .atom (.number (.int 0)))
-  | "nfix", [a] => some (Logic.nfix a)
-  | "ifix", [a] =>
+  | "NFIX", [a] => some (Logic.nfix a)
+  | "IFIX", [a] =>
       some (match a with | .atom (.number (.int _)) => a | _ => .atom (.number (.int 0)))
-  | "implies", [a, b] => some (Logic.implies a b)
-  | "iff", [a, b] => some (Logic.iff a b)
-  | "true-listp", [a] => some (Logic.trueListp a)
-  | "len", [a] => some (Logic.len a)
-  | "list", xs => some (SExpr.ofList xs)
-  | "force", [a] => some a
-  | "double-rewrite", [a] => some a
-  | "hide", [a] => some a
+  | "IMPLIES", [a, b] => some (Logic.implies a b)
+  | "IFF", [a, b] => some (Logic.iff a b)
+  | "TRUE-LISTP", [a] => some (Logic.trueListp a)
+  | "LEN", [a] => some (Logic.len a)
+  | "LIST", xs => some (SExpr.ofList xs)
+  | "FORCE", [a] => some a
+  | "DOUBLE-REWRITE", [a] => some a
+  | "HIDE", [a] => some a
   | _, _ => none
 
 /-- One step of the option-returning evaluator, parameterized by the
@@ -111,20 +111,20 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
       match env.get? s with
       | some v => some v
       | none =>
-          if s.isNamed "t" then some SExpr.t
+          if s.isNamed "T" then some SExpr.t
           else some .nil
   | .cons (.atom (.symbol s)) argsExpr =>
-      if s.isNamed "quote" then
+      if s.isNamed "QUOTE" then
         match argsExpr with
         | .cons v .nil => some v
         | _ => none
-      else if s.isNamed "if" then
+      else if s.isNamed "IF" then
         match argsExpr.toList? with
         | some [c, t, e] => do
             let cv ← rec w env c
             if Logic.toBool cv then rec w env t else rec w env e
         | _ => none
-      else if s.isNamed "let" || s.isNamed "let*" then
+      else if s.isNamed "LET" || s.isNamed "LET*" then
         match argsExpr.toList? with
         | some [bindings, body] =>
             match bindings.toList? with
@@ -134,7 +134,7 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
                 let env' ← bList.foldlM (fun acc b =>
                   match b.toList? with
                   | some [.atom (.symbol var), valExpr] => do
-                      let v ← rec w (if s.isNamed "let*" then acc else env) valExpr
+                      let v ← rec w (if s.isNamed "LET*" then acc else env) valExpr
                       pure (acc.insert var v)
                   | _ => none) env
                 rec w env' body
@@ -157,17 +157,17 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
 @[simp] theorem evalOptStep_cons_symbol (rec : World → Env → SExpr → Option SExpr)
     (w : World) (env : Env) (s : Symbol) (argsExpr : SExpr) :
     evalOptStep rec w env (.cons (.atom (.symbol s)) argsExpr) =
-    if s.isNamed "quote" then
+    if s.isNamed "QUOTE" then
       match argsExpr with
       | .cons v .nil => some v
       | _ => none
-    else if s.isNamed "if" then
+    else if s.isNamed "IF" then
       match argsExpr.toList? with
       | some [c, t, e] => do
           let cv ← rec w env c
           if Logic.toBool cv then rec w env t else rec w env e
       | _ => none
-    else if s.isNamed "let" || s.isNamed "let*" then
+    else if s.isNamed "LET" || s.isNamed "LET*" then
       match argsExpr.toList? with
       | some [bindings, body] =>
           match bindings.toList? with
@@ -175,7 +175,7 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
               let env' ← bList.foldlM (fun acc b =>
                 match b.toList? with
                 | some [.atom (.symbol var), valExpr] => do
-                    let v ← rec w (if s.isNamed "let*" then acc else env) valExpr
+                    let v ← rec w (if s.isNamed "LET*" then acc else env) valExpr
                     pure (acc.insert var v)
                 | _ => none) env
               rec w env' body
@@ -292,10 +292,10 @@ theorem evalOptStep_mono
   | .cons (.cons _ _) _ => exact h
   | .cons (.atom (.symbol s)) argsExpr =>
     simp only [evalOptStep] at h ⊢
-    by_cases hq : s.isNamed "quote" = true
+    by_cases hq : s.isNamed "QUOTE" = true
     · simp [hq] at h ⊢; exact h
     · simp [hq] at h ⊢
-      by_cases hif : s.isNamed "if" = true
+      by_cases hif : s.isNamed "IF" = true
       · simp [hif] at h ⊢
         match htl : argsExpr.toList? with
         | some [c, t', e] =>
@@ -311,7 +311,7 @@ theorem evalOptStep_mono
         | none | some [] | some [_] | some [_, _]
         | some (_ :: _ :: _ :: _ :: _) => simp only [htl] at h; exact h
       · simp [hif] at h ⊢
-        by_cases hlet : (s.isNamed "let" || s.isNamed "let*") = true
+        by_cases hlet : (s.isNamed "LET" || s.isNamed "LET*") = true
         · -- LET branch
           simp only [Bool.or_eq_true] at hlet
           simp only [hlet, ite_true] at h ⊢
@@ -323,7 +323,7 @@ theorem evalOptStep_mono
               simp only [hbl] at h ⊢
               cases hfold : List.foldlM (fun acc b => match b.toList? with
                 | some [.atom (.symbol var), valExpr] =>
-                    (f w (if s.isNamed "let*" then acc else env) valExpr).bind
+                    (f w (if s.isNamed "LET*" then acc else env) valExpr).bind
                       fun v => some (acc.insert var v)
                 | _ => none) env bList with
               | none => simp [hfold] at h
@@ -331,7 +331,7 @@ theorem evalOptStep_mono
                 simp [hfold] at h
                 have hfold' := List.foldlM_option_mono
                   (fun acc b _ mid hmid =>
-                    letFoldStep_mono f g hmono w (if s.isNamed "let*" then acc else env) acc b mid hmid)
+                    letFoldStep_mono f g hmono w (if s.isNamed "LET*" then acc else env) acc b mid hmid)
                   hfold
                 simp [hfold', hmono w env' _ v h]
             | none => simp only [hbl] at h; exact h
@@ -425,7 +425,9 @@ theorem evalOpt_ge_fuel (N f : Nat) (w : World) (env : Env)
 
 section Tests
 
-private def sym (name : String) : Symbol := ⟨"ACL2", name⟩
+-- Symbol names are stored UPCASED (readtable :upcase), so these test helpers
+-- construct uppercase names to match how the interpreter looks up defs/builtins.
+private def sym (name : String) : Symbol := ⟨"ACL2", name.map Char.toUpper⟩
 
 private def mkCall (name : String) (args : List SExpr) : SExpr :=
   .cons (.atom (.symbol (sym name))) (SExpr.ofList args)

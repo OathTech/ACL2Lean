@@ -30,72 +30,72 @@ namespace ACL2.Worlds.AppAssoc
 private def sym (name : String) : Symbol := ⟨"ACL2", name⟩
 
 def appBody : SExpr :=
-  (SExpr.cons (SExpr.atom (.symbol { name := "if" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "consp" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cons" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "car" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "app" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cdr" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))))
+  (SExpr.cons (SExpr.atom (.symbol { name := "IF" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "CONSP" })) (SExpr.cons (SExpr.atom (.symbol { name := "X" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "CONS" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "CAR" })) (SExpr.cons (SExpr.atom (.symbol { name := "X" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "APP" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "CDR" })) (SExpr.cons (SExpr.atom (.symbol { name := "X" })) SExpr.nil)) (SExpr.cons (SExpr.atom (.symbol { name := "Y" })) SExpr.nil))) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "Y" })) SExpr.nil))))
 
 def world : World where
   defs := ({} : DefMap)
-    |>.insert (sym "app") ([sym "x", sym "y"], appBody)
+    |>.insert (sym "APP") ([sym "X", sym "Y"], appBody)
 
-private def x_sym : Symbol := sym "x"
-private def y_sym : Symbol := sym "y"
-private def a_sym : Symbol := sym "a"
-private def b_sym : Symbol := sym "b"
-private def c_sym : Symbol := sym "c"
-private def app_sym : Symbol := sym "app"
+private def x_sym : Symbol := sym "X"
+private def y_sym : Symbol := sym "Y"
+private def a_sym : Symbol := sym "A"
+private def b_sym : Symbol := sym "B"
+private def c_sym : Symbol := sym "C"
+private def app_sym : Symbol := sym "APP"
 
-private def aT : SExpr := .atom (.symbol { name := "a" })
-private def bT : SExpr := .atom (.symbol { name := "b" })
-private def cT : SExpr := .atom (.symbol { name := "c" })
+private def aT : SExpr := .atom (.symbol { name := "A" })
+private def bT : SExpr := .atom (.symbol { name := "B" })
+private def cT : SExpr := .atom (.symbol { name := "C" })
 private def appOf (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "app" })) (.cons a (.cons b .nil))
+  .cons (.atom (.symbol { name := "APP" })) (.cons a (.cons b .nil))
 private def equalOf (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "equal" })) (.cons a (.cons b .nil))
+  .cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil))
 private def carOf (t : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "car" })) (.cons t .nil)
+  .cons (.atom (.symbol { name := "CAR" })) (.cons t .nil)
 private def cdrOf (t : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "cdr" })) (.cons t .nil)
+  .cons (.atom (.symbol { name := "CDR" })) (.cons t .nil)
 private def consOf (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))
+  .cons (.atom (.symbol { name := "CONS" })) (.cons a (.cons b .nil))
 private def conspOf (t : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "consp" })) (.cons t .nil)
+  .cons (.atom (.symbol { name := "CONSP" })) (.cons t .nil)
 /-- The then-branch of `app`'s body after substituting args: `(cons (car a)(app (cdr a) b))`. -/
 private def appThen (a b : SExpr) : SExpr := consOf (carOf a) (appOf (cdrOf a) b)
 
 def app_assocFormula : SExpr :=
-  (SExpr.cons (SExpr.atom (.symbol { name := "equal" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "app" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "app" })) (SExpr.cons (SExpr.atom (.symbol { name := "a" })) (SExpr.cons (SExpr.atom (.symbol { name := "b" })) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "c" })) SExpr.nil))) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "app" })) (SExpr.cons (SExpr.atom (.symbol { name := "a" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "app" })) (SExpr.cons (SExpr.atom (.symbol { name := "b" })) (SExpr.cons (SExpr.atom (.symbol { name := "c" })) SExpr.nil))) SExpr.nil))) SExpr.nil)))
+  (SExpr.cons (SExpr.atom (.symbol { name := "EQUAL" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "APP" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "APP" })) (SExpr.cons (SExpr.atom (.symbol { name := "A" })) (SExpr.cons (SExpr.atom (.symbol { name := "B" })) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "C" })) SExpr.nil))) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "APP" })) (SExpr.cons (SExpr.atom (.symbol { name := "A" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "APP" })) (SExpr.cons (SExpr.atom (.symbol { name := "B" })) (SExpr.cons (SExpr.atom (.symbol { name := "C" })) SExpr.nil))) SExpr.nil))) SExpr.nil)))
 
 private theorem formula_decomp :
     app_assocFormula = equalOf (appOf (appOf aT bT) cT) (appOf aT (appOf bT cT)) := rfl
 
 private theorem app_not_special :
-    app_sym.isNamed "quote" = false ∧ app_sym.isNamed "if" = false ∧
-    app_sym.isNamed "let" = false ∧ app_sym.isNamed "let*" = false := by decide
+    app_sym.isNamed "QUOTE" = false ∧ app_sym.isNamed "IF" = false ∧
+    app_sym.isNamed "LET" = false ∧ app_sym.isNamed "LET*" = false := by decide
 private theorem consp_not_special :
-    ({ name := "consp" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "consp" } : Symbol).isNamed "if" = false ∧
-    ({ name := "consp" } : Symbol).isNamed "let" = false ∧
-    ({ name := "consp" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "CONSP" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "CONSP" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "CONSP" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "CONSP" } : Symbol).isNamed "LET*" = false := by decide
 private theorem equal_not_special :
-    ({ name := "equal" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "equal" } : Symbol).isNamed "if" = false ∧
-    ({ name := "equal" } : Symbol).isNamed "let" = false ∧
-    ({ name := "equal" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "EQUAL" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "EQUAL" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "EQUAL" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "EQUAL" } : Symbol).isNamed "LET*" = false := by decide
 
 private theorem car_not_special :
-    ({ name := "car" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "car" } : Symbol).isNamed "if" = false ∧
-    ({ name := "car" } : Symbol).isNamed "let" = false ∧
-    ({ name := "car" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "CAR" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "CAR" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "CAR" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "CAR" } : Symbol).isNamed "LET*" = false := by decide
 private theorem cdr_not_special :
-    ({ name := "cdr" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "cdr" } : Symbol).isNamed "if" = false ∧
-    ({ name := "cdr" } : Symbol).isNamed "let" = false ∧
-    ({ name := "cdr" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "CDR" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "CDR" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "CDR" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "CDR" } : Symbol).isNamed "LET*" = false := by decide
 private theorem cons_not_special :
-    ({ name := "cons" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "cons" } : Symbol).isNamed "if" = false ∧
-    ({ name := "cons" } : Symbol).isNamed "let" = false ∧
-    ({ name := "cons" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "CONS" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "CONS" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "CONS" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "CONS" } : Symbol).isNamed "LET*" = false := by decide
 
 private theorem appBody_nolet : NoLet appBody = true := by decide
 private theorem appBody_fv : ∀ s ∈ freeVars appBody, s ∈ [x_sym, y_sym] := by decide
@@ -105,11 +105,11 @@ private theorem appBody_fv : ∀ s ∈ freeVars appBody, s ∈ [x_sym, y_sym] :=
 theorem app_assoc_generic
     (w : World) (env : Env)
     (h_app : w.defs[app_sym]? = some ([x_sym, y_sym], appBody))
-    (h_no_equal : w.defs[({ name := "equal" } : Symbol)]? = none)
-    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none)
-    (h_no_cdr   : w.defs[({ name := "cdr" } : Symbol)]? = none)
-    (h_no_car   : w.defs[({ name := "car" } : Symbol)]? = none)
-    (h_no_cons  : w.defs[({ name := "cons" } : Symbol)]? = none)
+    (h_no_equal : w.defs[({ name := "EQUAL" } : Symbol)]? = none)
+    (h_no_consp : w.defs[({ name := "CONSP" } : Symbol)]? = none)
+    (h_no_cdr   : w.defs[({ name := "CDR" } : Symbol)]? = none)
+    (h_no_car   : w.defs[({ name := "CAR" } : Symbol)]? = none)
+    (h_no_cons  : w.defs[({ name := "CONS" } : Symbol)]? = none)
     (h_app_total : ∀ (e' : Env) (a b : SExpr),
       (∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' a = some av) →
       (∃ M, ∀ f ≥ M, ∃ bv, evalOpt f w e' b = some bv) →
@@ -146,7 +146,7 @@ theorem app_assoc_generic
     have hcc : ∃ N, ∀ f ≥ N, evalOpt f w e cT = some cv :=
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact h_ce g⟩
     have hconsp_a : ∃ N, ∀ f ≥ N, evalOpt f w e (conspOf aT) = some .nil := by
-      have h := conv_builtin1 w e { name := "consp" } aT av (Logic.consp av)
+      have h := conv_builtin1 w e { name := "CONSP" } aT av (Logic.consp av)
         consp_not_special h_no_consp hac (callBuiltin_consp av)
       rwa [h_consp] at h
     obtain ⟨Nbc, vbc, hbc'⟩ := h_app_total e bT cT
@@ -199,14 +199,14 @@ theorem app_assoc_generic
     have c1 : ∃ N, ∀ f ≥ N,
         evalOpt f w e (equalOf (appOf (appOf aT bT) cT) (appOf aT (appOf bT cT)))
         = evalOpt f w e (equalOf (appOf bT cT) (appOf aT (appOf bT cT))) :=
-      evalOpt_congr_binary_left w e { name := "equal" }
+      evalOpt_congr_binary_left w e { name := "EQUAL" }
         (appOf (appOf aT bT) cT) (appOf bT cT) (appOf aT (appOf bT cT)) equal_not_special
-        (evalOpt_congr_binary_left w e { name := "app" }
+        (evalOpt_congr_binary_left w e { name := "APP" }
           (appOf aT bT) bT cT app_not_special nodeB1)
     have c2 : ∃ N, ∀ f ≥ N,
         evalOpt f w e (equalOf (appOf bT cT) (appOf aT (appOf bT cT)))
         = evalOpt f w e (equalOf (appOf bT cT) (appOf bT cT)) :=
-      evalOpt_congr_binary_right w e { name := "equal" }
+      evalOpt_congr_binary_right w e { name := "EQUAL" }
         (appOf bT cT) (appOf aT (appOf bT cT)) (appOf bT cT) equal_not_special nodeB2
     rw [formula_decomp]
     exact fuel_chain_eq (fuel_chain_eq c1 c2) hself
@@ -234,13 +234,13 @@ theorem app_assoc_generic
       | .nil => exact absurd rfl h_consp
       | .atom _ => exact absurd rfl h_consp
     have hconsp_t : ∃ N, ∀ f ≥ N, evalOpt f w e (conspOf aT) = some (Logic.consp av) :=
-      conv_builtin1 w e { name := "consp" } aT av (Logic.consp av) consp_not_special h_no_consp hac
+      conv_builtin1 w e { name := "CONSP" } aT av (Logic.consp av) consp_not_special h_no_consp hac
         (callBuiltin_consp av)
     have hcar : ∃ N, ∀ f ≥ N, evalOpt f w e (carOf aT) = some (Logic.car av) :=
-      conv_builtin1 w e { name := "car" } aT av (Logic.car av) car_not_special h_no_car hac
+      conv_builtin1 w e { name := "CAR" } aT av (Logic.car av) car_not_special h_no_car hac
         (callBuiltin_car av)
     have hcdr : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrOf aT) = some (Logic.cdr av) :=
-      conv_builtin1 w e { name := "cdr" } aT av (Logic.cdr av) cdr_not_special h_no_cdr hac
+      conv_builtin1 w e { name := "CDR" } aT av (Logic.cdr av) cdr_not_special h_no_cdr hac
         (callBuiltin_cdr av)
     -- (app (cdr a) b) ⇒ vcab ; (app b c) ⇒ vbc   (totality)
     obtain ⟨Ncab, vcab, hcab⟩ := h_app_total e (cdrOf aT) bT
@@ -254,7 +254,7 @@ theorem app_assoc_generic
     -- T2 = (cons (car a) (app (cdr a) b)) ⇒ cons(car av, vcab)
     have hT2 : ∃ N, ∀ f ≥ N,
         evalOpt f w e (appThen aT bT) = some (.cons (Logic.car av) vcab) :=
-      conv_builtin2 w e { name := "cons" } (carOf aT) (appOf (cdrOf aT) bT)
+      conv_builtin2 w e { name := "CONS" } (carOf aT) (appOf (cdrOf aT) bT)
         (Logic.car av) vcab (.cons (Logic.car av) vcab) cons_not_special h_no_cons hcar hvcab rfl
     -- stepN1: (app a b) ⇒ (cons (car a) (app (cdr a) b))   [unfold ; if-TRUE]
     have stepN1 : ∃ N, ∀ f ≥ N, evalOpt f w e (appOf aT bT) = evalOpt f w e (appThen aT bT) := by
@@ -279,12 +279,12 @@ theorem app_assoc_generic
         = evalOpt f w e (consOf (carOf aT) (appOf (appOf (cdrOf aT) bT) cT)) := by
       -- convergences for the then-branch (cons (car T2) (app (cdr T2) c))
       have hcarT2 : ∃ N, ∀ f ≥ N, evalOpt f w e (carOf (appThen aT bT)) = some (Logic.car av) := by
-        have h := conv_builtin1 w e { name := "car" } (appThen aT bT) (.cons (Logic.car av) vcab)
+        have h := conv_builtin1 w e { name := "CAR" } (appThen aT bT) (.cons (Logic.car av) vcab)
           (Logic.car (.cons (Logic.car av) vcab)) car_not_special h_no_car hT2
           (callBuiltin_car (.cons (Logic.car av) vcab))
         simpa [Logic.car] using h
       have hcdrT2 : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrOf (appThen aT bT)) = some vcab := by
-        have h := conv_builtin1 w e { name := "cdr" } (appThen aT bT) (.cons (Logic.car av) vcab)
+        have h := conv_builtin1 w e { name := "CDR" } (appThen aT bT) (.cons (Logic.car av) vcab)
           (Logic.cdr (.cons (Logic.car av) vcab)) cdr_not_special h_no_cdr hT2
           (callBuiltin_cdr (.cons (Logic.car av) vcab))
         simpa [Logic.cdr] using h
@@ -294,7 +294,7 @@ theorem app_assoc_generic
       have hthen : ∃ N, ∀ f ≥ N,
           evalOpt f w e (consOf (carOf (appThen aT bT)) (appOf (cdrOf (appThen aT bT)) cT))
           = some (.cons (Logic.car av) vac) :=
-        conv_builtin2 w e { name := "cons" } (carOf (appThen aT bT)) (appOf (cdrOf (appThen aT bT)) cT)
+        conv_builtin2 w e { name := "CONS" } (carOf (appThen aT bT)) (appOf (cdrOf (appThen aT bT)) cT)
           (Logic.car av) vac (.cons (Logic.car av) vac) cons_not_special h_no_cons hcarT2 ⟨Nac, hacc⟩ rfl
       -- (app T2 c) totality, for the unfold body value
       obtain ⟨NappT2c, vT2c, hT2c⟩ := h_app_total e (appThen aT bT) cT
@@ -314,18 +314,18 @@ theorem app_assoc_generic
         (re_if_true w e (conspOf (appThen aT bT))
           (consOf (carOf (appThen aT bT)) (appOf (cdrOf (appThen aT bT)) cT)) cT
           (Logic.consp (.cons (Logic.car av) vcab)) (.cons (Logic.car av) vac)
-          (conv_builtin1 w e { name := "consp" } (appThen aT bT) (.cons (Logic.car av) vcab)
+          (conv_builtin1 w e { name := "CONSP" } (appThen aT bT) (.cons (Logic.car av) vcab)
             (Logic.consp (.cons (Logic.car av) vcab)) consp_not_special h_no_consp hT2
             (callBuiltin_consp (.cons (Logic.car av) vcab))) rfl hthen))
         -- car-cons lifted under cons-left
-        (evalOpt_congr_binary_left w e { name := "cons" }
+        (evalOpt_congr_binary_left w e { name := "CONS" }
           (carOf (appThen aT bT)) (carOf aT) (appOf (cdrOf (appThen aT bT)) cT) cons_not_special
           (re_car_cons w e (carOf aT) (appOf (cdrOf aT) bT) (Logic.car av) vcab
             h_no_car h_no_cons hcar hvcab)))
         -- cdr-cons lifted under (app · c) then cons-right
-        (evalOpt_congr_binary_right w e { name := "cons" } (carOf aT)
+        (evalOpt_congr_binary_right w e { name := "CONS" } (carOf aT)
           (appOf (cdrOf (appThen aT bT)) cT) (appOf (appOf (cdrOf aT) bT) cT) cons_not_special
-          (evalOpt_congr_binary_left w e { name := "app" }
+          (evalOpt_congr_binary_left w e { name := "APP" }
             (cdrOf (appThen aT bT)) (appOf (cdrOf aT) bT) cT app_not_special
             (re_cdr_cons w e (carOf aT) (appOf (cdrOf aT) bT) (Logic.car av) vcab
               h_no_cdr h_no_cons hcar hvcab)))
@@ -348,7 +348,7 @@ theorem app_assoc_generic
         (by obtain ⟨N, h⟩ := hvbc; exact ⟨N, fun f hf => ⟨vbc, h f hf⟩⟩)
       have hthen : ∃ N, ∀ f ≥ N,
           evalOpt f w e (appThen aT (appOf bT cT)) = some (.cons (Logic.car av) vcdrbc) :=
-        conv_builtin2 w e { name := "cons" } (carOf aT) (appOf (cdrOf aT) (appOf bT cT))
+        conv_builtin2 w e { name := "CONS" } (carOf aT) (appOf (cdrOf aT) (appOf bT cT))
           (Logic.car av) vcdrbc (.cons (Logic.car av) vcdrbc) cons_not_special h_no_cons hcar
           ⟨Ncdrbc, hcdrbc⟩ rfl
       exact fuel_chain_eq
@@ -397,7 +397,7 @@ theorem app_assoc_generic
         evalOpt f w e (appOf (appOf aT bT) cT)
         = evalOpt f w e (consOf (carOf aT) (appOf (appOf (cdrOf aT) bT) cT)) :=
       fuel_chain_eq
-        (evalOpt_congr_binary_left w e { name := "app" }
+        (evalOpt_congr_binary_left w e { name := "APP" }
           (appOf aT bT) (appThen aT bT) cT app_not_special stepN1)
         stepN2
     -- B-side: (app a (app b c)) ⇒ (cons (car a)(app (cdr a)(app b c))) ⇒ SELF.
@@ -405,7 +405,7 @@ theorem app_assoc_generic
         evalOpt f w e (appOf aT (appOf bT cT))
         = evalOpt f w e (consOf (carOf aT) (appOf (appOf (cdrOf aT) bT) cT)) :=
       fuel_chain_eq stepN3
-        (evalOpt_congr_binary_right w e { name := "cons" } (carOf aT)
+        (evalOpt_congr_binary_right w e { name := "CONS" } (carOf aT)
           (appOf (cdrOf aT) (appOf bT cT)) (appOf (appOf (cdrOf aT) bT) cT) cons_not_special hsolid)
     -- equal-self on SELF
     have hself : ∃ N, ∀ f ≥ N,
@@ -417,7 +417,7 @@ theorem app_assoc_generic
       have hSELF : ∃ N, ∀ f ≥ N,
           evalOpt f w e (consOf (carOf aT) (appOf (appOf (cdrOf aT) bT) cT))
           = some (.cons (Logic.car av) vA) :=
-        conv_builtin2 w e { name := "cons" } (carOf aT) (appOf (appOf (cdrOf aT) bT) cT)
+        conv_builtin2 w e { name := "CONS" } (carOf aT) (appOf (appOf (cdrOf aT) bT) cT)
           (Logic.car av) vA (.cons (Logic.car av) vA) cons_not_special h_no_cons hcar ⟨NA, hA⟩ rfl
       obtain ⟨Ns, hs⟩ := hSELF
       refine ⟨Ns + 1, fun f hf => ?_⟩
@@ -426,10 +426,10 @@ theorem app_assoc_generic
         (.cons (Logic.car av) vA) (hs g (by omega)) h_no_equal
     rw [formula_decomp]
     exact fuel_chain_eq (fuel_chain_eq
-      (evalOpt_congr_binary_left w e { name := "equal" }
+      (evalOpt_congr_binary_left w e { name := "EQUAL" }
         (appOf (appOf aT bT) cT) (consOf (carOf aT) (appOf (appOf (cdrOf aT) bT) cT))
         (appOf aT (appOf bT cT)) equal_not_special hAside)
-      (evalOpt_congr_binary_right w e { name := "equal" }
+      (evalOpt_congr_binary_right w e { name := "EQUAL" }
         (consOf (carOf aT) (appOf (appOf (cdrOf aT) bT) cT)) (appOf aT (appOf bT cT))
         (consOf (carOf aT) (appOf (appOf (cdrOf aT) bT) cT)) equal_not_special hBside))
       hself
@@ -441,16 +441,16 @@ SIMULATION (`corr_app_enc`: evalOpt's `app` simulates `++` under `enc`). The
 twist: the result is a LIST, so descending the SExpr equality to the `List`
 equality needs `enc` INJECTIVITY. -/
 
-private def xT : SExpr := .atom (.symbol { name := "x" })
-private def yT : SExpr := .atom (.symbol { name := "y" })
+private def xT : SExpr := .atom (.symbol { name := "X" })
+private def yT : SExpr := .atom (.symbol { name := "Y" })
 
 -- Reduction-friendly `DefMap`: every concrete world lookup is `by decide`.
 theorem world_has_app : world.defs[app_sym]? = some ([x_sym, y_sym], appBody) := by decide
-theorem world_no_equal : world.defs[({ name := "equal" } : Symbol)]? = none := by decide
-theorem world_no_consp : world.defs[({ name := "consp" } : Symbol)]? = none := by decide
-theorem world_no_cdr : world.defs[({ name := "cdr" } : Symbol)]? = none := by decide
-theorem world_no_car : world.defs[({ name := "car" } : Symbol)]? = none := by decide
-theorem world_no_cons : world.defs[({ name := "cons" } : Symbol)]? = none := by decide
+theorem world_no_equal : world.defs[({ name := "EQUAL" } : Symbol)]? = none := by decide
+theorem world_no_consp : world.defs[({ name := "CONSP" } : Symbol)]? = none := by decide
+theorem world_no_cdr : world.defs[({ name := "CDR" } : Symbol)]? = none := by decide
+theorem world_no_car : world.defs[({ name := "CAR" } : Symbol)]? = none := by decide
+theorem world_no_cons : world.defs[({ name := "CONS" } : Symbol)]? = none := by decide
 
 private theorem bindArgs_xy_x (vx vy : SExpr) :
     (bindArgs [x_sym, y_sym] [vx, vy]).get? x_sym = some vx := by
@@ -474,10 +474,10 @@ private theorem conv_fix {w : World} {e : Env} {t : SExpr}
     `h_app_total`. -/
 private theorem dis_app_total_val (w : World)
     (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (av1 : SExpr) (e' : Env) (a b av2 : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some av1) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' b = some av2) →
@@ -498,7 +498,7 @@ private theorem dis_app_total_val (w : World)
                          exact evalOpt_var g w _ y_sym av2 (bindArgs_xy_y av1 av2)⟩
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [av1, av2]) (conspOf xT) = some .nil := by
-      have h := conv_builtin1 w _ { name := "consp" } xT av1 (Logic.consp av1)
+      have h := conv_builtin1 w _ { name := "CONSP" } xT av1 (Logic.consp av1)
         consp_not_special h_no_consp hx_ba (callBuiltin_consp av1)
       rwa [hconsp] at h
     have hbody : ∃ N, ∀ f ≥ N,
@@ -526,16 +526,16 @@ private theorem dis_app_total_val (w : World)
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (conspOf xT)
         = some (Logic.consp (.cons hd tl)) :=
-      conv_builtin1 w _ { name := "consp" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
+      conv_builtin1 w _ { name := "CONSP" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
         consp_not_special h_no_consp hx_ba (callBuiltin_consp _)
     have hcarx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (carOf xT) = some hd := by
-      have h := conv_builtin1 w _ { name := "car" } xT (.cons hd tl) (Logic.car (.cons hd tl))
+      have h := conv_builtin1 w _ { name := "CAR" } xT (.cons hd tl) (Logic.car (.cons hd tl))
         car_not_special h_no_car hx_ba (callBuiltin_car _)
       simpa [Logic.car] using h
     have hcdrx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (cdrOf xT) = some tl := by
-      have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
+      have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
         cdr_not_special h_no_cdr hx_ba (callBuiltin_cdr _)
       simpa [Logic.cdr] using h
     obtain ⟨rv', hrec⟩ := ih (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (cdrOf xT) yT av2
@@ -544,7 +544,7 @@ private theorem dis_app_total_val (w : World)
     have hthen : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2])
           (consOf (carOf xT) (appOf (cdrOf xT) yT)) = some (.cons hd rv') :=
-      conv_builtin2 w _ { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
+      conv_builtin2 w _ { name := "CONS" } (carOf xT) (appOf (cdrOf xT) yT)
         hd rv' (.cons hd rv') cons_not_special h_no_cons hcarx_ba hrec rfl
     have hbody : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) appBody
@@ -559,10 +559,10 @@ private theorem dis_app_total_val (w : World)
 
 private theorem dis_app_total (w : World)
     (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (e' : Env) (a b : SExpr)
     (ha : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' a = some av)
     (hb : ∃ M, ∀ f ≥ M, ∃ bv, evalOpt f w e' b = some bv) :
@@ -578,10 +578,10 @@ private theorem dis_app_total (w : World)
     mirror's `total:app` hypothesis in `Imported/NativeMirrors`. -/
 theorem drv_total_app (w : World)
     (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (e' : Env) (a0 a1 : SExpr)
     (h0 : ∃ N v, ∀ f ≥ N, evalOpt f w e' a0 = some v)
     (h1 : ∃ N v, ∀ f ≥ N, evalOpt f w e' a1 = some v) :
@@ -605,15 +605,15 @@ open ACL2.Lifting (enc enc_inj)
     instantiation of the library's name-generic `corr_append_enc`. -/
 private theorem corr_app_enc (w : World)
     (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (xs : List SExpr) (e' : Env) (a b : SExpr) (ys : List SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some (enc xs)) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' b = some (enc ys)) →
     ∃ N, ∀ f ≥ N, evalOpt f w e' (appOf a b) = some (enc (xs ++ ys)) :=
-  ACL2.Lifting.corr_append_enc w "app" (by decide) h_app
+  ACL2.Lifting.corr_append_enc w "APP" (by decide) h_app
     h_no_consp h_no_cdr h_no_car h_no_cons
 
 /-- The native assembly, PARAMETERIZED by the world and the mirror: any proof
@@ -623,11 +623,11 @@ private theorem corr_app_enc (w : World)
     (`Imported/NativeMirrors`) plugs the driver's mirror into. -/
 theorem app_assoc_native_of_mirror (w : World)
     (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
     (hmirror : ∀ env : Env,
       ∃ N, ∀ f, f ≥ N → ∃ v,
         evalOpt f w env app_assocFormula = some v ∧ v ≠ SExpr.nil)

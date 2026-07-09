@@ -19,18 +19,18 @@ namespace ACL2.Replay
 open ACL2
 
 /-- `(quote t)`, the result an equal-self literal reduces to. -/
-def quoteT : SExpr := .cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil)
+def quoteT : SExpr := .cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)
 
 /-- `(quote nil)`. -/
-def quoteNil : SExpr := .cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil)
+def quoteNil : SExpr := .cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)
 
 /-- ACL2's `disjoin` of a literal list: `(if l₁ 't (if l₂ 't … lₖ))`; a singleton
     is the literal itself; the empty clause is `'nil` (false). -/
 def disjoinTerm : List SExpr → SExpr
-  | [] => .cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil)
+  | [] => .cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)
   | [l] => l
   | l :: rest =>
-    .cons (.atom (.symbol { name := "if" }))
+    .cons (.atom (.symbol { name := "IF" }))
       (.cons l (.cons quoteT (.cons (disjoinTerm rest) .nil)))
 
 /-- ACL2's `dumb-negate-lit`, two of its four arms (strip a `not`, else
@@ -43,12 +43,12 @@ def disjoinTerm : List SExpr → SExpr
 def dumbNegateLit (t : SExpr) : SExpr :=
   match t with
   | .cons (.atom (.symbol ns)) (.cons _ .nil) =>
-    if ns.name == "not" then
+    if ns.name == "NOT" then
       match t with
       | .cons _ (.cons inner .nil) => inner
       | _ => t
-    else .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
-  | _ => .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
+    else .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+  | _ => .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
 
 /-- The PURE fragment of `clausify-input1` (no `expand-and-or`; sub-clauses
     joined by plain `++` where ACL2's `disjoin-clauses`/`add-literal` may
@@ -60,7 +60,7 @@ def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
   if t == (if pos then quoteNil else quoteT) then []
   else match t with
   | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
-    if ifS.name == "if" then
+    if ifS.name == "IF" then
       if pos then
         if t3 == quoteT then clausifyPure t1 false ++ clausifyPure t2 true
         else if t2 == quoteT then clausifyPure t1 true ++ clausifyPure t3 true
@@ -169,7 +169,7 @@ theorem lifts_leaf_pos {vars : List (Symbol × SExpr)}
 theorem dumbNegateLit_eq (t : SExpr) :
     dumbNegateLit t = notT t ∨
     ∃ ns x, t = .cons (.atom (.symbol ns)) (.cons x .nil) ∧
-      ns.isNamed "not" = true ∧ dumbNegateLit t = x := by
+      ns.isNamed "NOT" = true ∧ dumbNegateLit t = x := by
   rcases t with _ | a | ⟨hd, tl⟩
   · exact Or.inl rfl
   · exact Or.inl rfl
@@ -180,7 +180,7 @@ theorem dumbNegateLit_eq (t : SExpr) :
         · exact Or.inl rfl
         · exact Or.inl rfl
         · rcases tl2 with _ | _ | _
-          · by_cases hname : ns.name = "not"
+          · by_cases hname : ns.name = "NOT"
             · exact Or.inr ⟨ns, x, rfl, by simp [Symbol.isNamed, hname],
                 by simp [dumbNegateLit, hname]⟩
             · exact Or.inl (by simp [dumbNegateLit, hname])
@@ -207,13 +207,13 @@ theorem lifts_leaf_neg {vars : List (Symbol × SExpr)}
     exact Option.isSome_iff_exists.mpr ⟨_, dpLiftF_not_intro hwf hv⟩
   · rw [hstrip]
     subst hshape
-    by_cases hfull : ns = ({ name := "not" } : Symbol)
+    by_cases hfull : ns = ({ name := "NOT" } : Symbol)
     · subst hfull
       obtain ⟨xv, hxv, _⟩ := dpLiftF_not_inv hwf hv
       exact Option.isSome_iff_exists.mpr ⟨xv, hxv⟩
     · -- wrong-package not: the lift premise is refutable
       exfalso
-      have hnn : ns.name = "not" := by simpa [Symbol.isNamed] using hname
+      have hnn : ns.name = "NOT" := by simpa [Symbol.isNamed] using hname
       have hnone : dpLiftF vars opq
           (.cons (.atom (.symbol ns)) (x.cons SExpr.nil)) = none :=
         dpLiftF_app_none_of_banned_name hwf (x.cons SExpr.nil)
@@ -234,8 +234,8 @@ theorem lifts_leaf_neg {vars : List (Symbol × SExpr)}
     default-package `if` cannot lift. -/
 theorem dpLiftF_ifname_none {vars : List (Symbol × SExpr)}
     {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
-    {ifS : Symbol} (args : SExpr) (hnn : ifS.name = "if")
-    (hfull : ifS ≠ ({ name := "if" } : Symbol)) :
+    {ifS : Symbol} (args : SExpr) (hnn : ifS.name = "IF")
+    (hfull : ifS ≠ ({ name := "IF" } : Symbol)) :
     dpLiftF vars opq (.cons (.atom (.symbol ifS)) args) = none :=
   dpLiftF_app_none_of_banned_name hwf args
     (by simp [Symbol.isNamed, hnn])
@@ -256,7 +256,7 @@ theorem clausifyPure_lifts {vars : List (Symbol × SExpr)}
   | case2 ifS t1 t2 t3 hname ht3 houter ih2 ih1 =>
     intro hl l hmem
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain ⟨cv, tv, ev, hcv, htv, hev, _⟩ := dpLiftF_if_inv hwf hv
       rw [clausifyPure.eq_def] at hmem
@@ -269,7 +269,7 @@ theorem clausifyPure_lifts {vars : List (Symbol × SExpr)}
   | case3 ifS t1 t2 t3 hname hnt3 ht2 houter ih2 ih1 =>
     intro hl l hmem
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain ⟨cv, tv, ev, hcv, htv, hev, _⟩ := dpLiftF_if_inv hwf hv
       rw [clausifyPure.eq_def] at hmem
@@ -288,7 +288,7 @@ theorem clausifyPure_lifts {vars : List (Symbol × SExpr)}
   | case5 pos ifS t1 t2 t3 hname hnpos ht3 houter ih2 ih1 =>
     intro hl l hmem
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain ⟨cv, tv, ev, hcv, htv, hev, _⟩ := dpLiftF_if_inv hwf hv
       rw [clausifyPure.eq_def] at hmem
@@ -301,7 +301,7 @@ theorem clausifyPure_lifts {vars : List (Symbol × SExpr)}
   | case6 pos ifS t1 t2 t3 hname hnpos hnt3 ht2 houter ih2 ih1 =>
     intro hl l hmem
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain ⟨cv, tv, ev, hcv, htv, hev, _⟩ := dpLiftF_if_inv hwf hv
       rw [clausifyPure.eq_def] at hmem
@@ -377,13 +377,13 @@ theorem sound_neg_leaf (w : World) (env : Env)
   · -- strip arm: t = (not x); a true x makes (not x) nil
     rw [hstrip] at hdis
     subst hshape
-    by_cases hfull : ns = ({ name := "not" } : Symbol)
+    by_cases hfull : ns = ({ name := "NOT" } : Symbol)
     · subst hfull
       -- after the strip rewrite, the hypothesis IS x's truth; the goal IS
       -- the not-application's nil convergence
-      exact conv_not_nil_of_evtrue (hns "not" (by simp [dpLiftHeads])) hdis
+      exact conv_not_nil_of_evtrue (hns "NOT" (by simp [dpLiftHeads])) hdis
     · exfalso
-      have hnn : ns.name = "not" := by simpa [Symbol.isNamed] using hname
+      have hnn : ns.name = "NOT" := by simpa [Symbol.isNamed] using hname
       have hnone : dpLiftF vars opq
           (.cons (.atom (.symbol ns)) (x.cons SExpr.nil)) = none :=
         dpLiftF_app_none_of_banned_name hwf (x.cons SExpr.nil)
@@ -422,13 +422,13 @@ theorem neg_leaf_false_sound (w : World) (env : Env)
   · -- strip arm: t = (not x); a nil x makes (not x) converge to t
     rw [hstrip] at hnil
     subst hshape
-    by_cases hfull : ns = ({ name := "not" } : Symbol)
+    by_cases hfull : ns = ({ name := "NOT" } : Symbol)
     · subst hfull
       have ht := conv_not_t_of_conv_nil
-        (hns "not" (by simp [dpLiftHeads])) hnil
+        (hns "NOT" (by simp [dpLiftHeads])) hnil
       exact evtrue_of_conv_ne_nil ht (by simp [SExpr.t])
     · exfalso
-      have hnn : ns.name = "not" := by simpa [Symbol.isNamed] using hname
+      have hnn : ns.name = "NOT" := by simpa [Symbol.isNamed] using hname
       have hnone : dpLiftF vars opq
           (.cons (.atom (.symbol ns)) (x.cons SExpr.nil)) = none :=
         dpLiftF_app_none_of_banned_name hwf (x.cons SExpr.nil)
@@ -480,7 +480,7 @@ theorem clausifyAllFalse_sound (w : World) (env : Env)
   | case2 ifS t1 t2 t3 hname ht3 houter ih2 ih1 =>
     intro hl hnil
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain rfl : t3 = quoteT := eq_of_beq ht3
       obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
@@ -508,7 +508,7 @@ theorem clausifyAllFalse_sound (w : World) (env : Env)
   | case3 ifS t1 t2 t3 hname hnt3 ht2 houter ih2 ih1 =>
     intro hl hnil
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain rfl : t2 = quoteT := eq_of_beq ht2
       obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
@@ -546,7 +546,7 @@ theorem clausifyAllFalse_sound (w : World) (env : Env)
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
     have hposf : pos = false := by simpa using hnpos
     subst hposf
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain rfl : t3 = quoteNil := eq_of_beq ht3
       obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
@@ -574,7 +574,7 @@ theorem clausifyAllFalse_sound (w : World) (env : Env)
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
     have hposf : pos = false := by simpa using hnpos
     subst hposf
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain rfl : t2 = quoteNil := eq_of_beq ht2
       obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
@@ -681,7 +681,7 @@ theorem clausifyPure_sound (w : World) (env : Env)
   | case2 ifS t1 t2 t3 hname ht3 houter ih2 ih1 =>
     intro hl hdis
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain rfl : t3 = quoteT := eq_of_beq ht3
       obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
@@ -715,7 +715,7 @@ theorem clausifyPure_sound (w : World) (env : Env)
   | case3 ifS t1 t2 t3 hname hnt3 ht2 houter ih2 ih1 =>
     intro hl hdis
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain rfl : t2 = quoteT := eq_of_beq ht2
       obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
@@ -759,7 +759,7 @@ theorem clausifyPure_sound (w : World) (env : Env)
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
     have hposf : pos = false := by simpa using hnpos
     subst hposf
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain rfl : t3 = quoteNil := eq_of_beq ht3
       obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv
@@ -797,7 +797,7 @@ theorem clausifyPure_sound (w : World) (env : Env)
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
     have hposf : pos = false := by simpa using hnpos
     subst hposf
-    by_cases hfull : ifS = ({ name := "if" } : Symbol)
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
     · subst hfull
       obtain rfl : t2 = quoteNil := eq_of_beq ht2
       obtain ⟨cv, tv, ev, hcv, htv, hev, hveq⟩ := dpLiftF_if_inv hwf hv

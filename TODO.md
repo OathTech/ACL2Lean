@@ -5,7 +5,19 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-06._
+_Last updated: 2026-07-08._
+
+> **BUG-002 (symbol case) FIXED (2026-07-08, this branch).** The parser now
+> adopts ACL2's readtable-case :upcase EXACTLY: bare symbols/keywords upcase,
+> `|bar|` (incl. `:|bar|`) reads verbatim, `|NIL|`/`|T|` map to nil/t. Symbol
+> NAMES are stored uppercase on the whole identity path (SExpr.t, isNamed,
+> callBuiltin keys, world/theorem/rune names); internal DISPATCH TAGS (rune
+> type/equiv/processor/origin/clausify outcome-verdict-how-kind/extraField
+> keys) are lowercased at the ProofLog parse boundary. `just ci` + `just
+> diff-test` green (289 match, 0 FAIL); the 11 BUG-002 discriminators are now
+> `match` regression guards. See docs/notes/2026-07-08_symbol-case-semantics.md
+> + docs/BUGS.md BUG-002. This UNBLOCKS lexorder (nil-as-COMMON-LISP-symbol
+> handling depends on faithful names).
 
 > **`just ci` is GREEN** and includes the driver-coverage sweep: hard-fails on
 > any item-less PROVED leaf (emission gap) and reconstruction-integrity

@@ -7,8 +7,14 @@ namespace Parse
 
 abbrev Stream := List Char
 
+-- ACL2 reads unescaped symbol tokens with readtable-case :upcase
+-- (*acl2-readtable* = (copy-readtable nil), acl2.lisp:2026), so a bare token's
+-- name is UPCASED; `|bar|`-escaped tokens are read verbatim (handled on the
+-- `|` path, which does NOT call this). Symbol identity is exact (name,package)
+-- string equality (symbol-equality, axioms.lisp:16884). See
+-- docs/notes/2026-07-08_symbol-case-semantics.md.
 private def normalizeSymbolName (name : String) : String :=
-  name.map Char.toLower
+  name.map Char.toUpper
 
 private def normalizePackageName (name : String) : String :=
   name.map Char.toUpper
@@ -122,15 +128,17 @@ mutual
     | [] => .error "unexpected end of file"
     | '(' :: rest => parseList rest
     | ')' :: _ => .error "unexpected )"
-    | '\'' :: rest => parseQuote "quote" rest
-    | '`' :: rest => parseQuote "quasiquote" rest
+    -- Reader-constructed head symbols use ACL2's uppercase names (`'x` reads as
+    -- `(QUOTE x)`; the symbol is QUOTE, not quote).
+    | '\'' :: rest => parseQuote "QUOTE" rest
+    | '`' :: rest => parseQuote "QUASIQUOTE" rest
     | ',' :: '@' :: rest =>
         match parseSExpr rest with
         | .error e => .error e
         | .ok (sx, tail) =>
-            let sym := SExpr.atom (.symbol { name := "unquote-splicing" })
+            let sym := SExpr.atom (.symbol { name := "UNQUOTE-SPLICING" })
             .ok (SExpr.ofList [sym, sx], tail)
-    | ',' :: rest => parseQuote "unquote" rest
+    | ',' :: rest => parseQuote "UNQUOTE" rest
     | '"' :: _ =>
         match readString cs with
         | .error e => .error e
@@ -143,7 +151,14 @@ mutual
           | acc, h :: rest => go (h :: acc) rest
         match go [] rest with
         | .error e => .error e
-        | .ok (str, rest) => .ok (SExpr.atom (.symbol { name := str }), rest)
+        -- `|bar|` is read VERBATIM (no case change). But nil/t are ordinary
+        -- symbols named "NIL"/"T", so `|NIL|` IS nil and `|T|` IS t (confirmed:
+        -- (equal '|NIL| nil) = T in ACL2), while `|nil|` (name "nil") is a
+        -- distinct symbol. Map the verbatim name to the canonical constructors.
+        | .ok (str, rest) =>
+            if str = "NIL" then .ok (SExpr.nil, rest)
+            else if str = "T" then .ok (SExpr.t, rest)
+            else .ok (SExpr.atom (.symbol { name := str }), rest)
     | '#' :: '\\' :: rest =>
         -- ACL2 character syntax (acl2-fns.lisp `acl2-read-character-string`,
         -- researched in docs/notes/2026-07-08_acl2-character-semantics.md):
@@ -187,15 +202,30 @@ mutual
                 *features* model (fail-closed; see 2026-07-06 audit N4)"
     | '#' :: c :: _ => .error s!"unrecognized reader macro: #{String.ofList [c]}"
     | '#' :: [] => .error "unexpected # at end of input"
+    | ':' :: '|' :: rest =>
+        -- `:|...|` — a keyword whose name is read VERBATIM from the escaped
+        -- token (same rule as the top-level `|bar|` symbol path: no case
+        -- change). ACL2 makes `:|ABC|` and `:abc` the SAME keyword (both name
+        -- "ABC"), and `:|abc|` a DISTINCT one (name "abc").
+        let rec goKw : List Char → Stream → Except String (String × Stream)
+          | _, [] => .error "unterminated escaped keyword"
+          | acc, '|' :: rest => .ok (String.ofList acc.reverse, rest)
+          | acc, h :: rest => goKw (h :: acc) rest
+        match goKw [] rest with
+        | .error e => .error e
+        | .ok (str, rest) => .ok (SExpr.atom (.keyword str), rest)
     | ':' :: _ =>
         let (tok, rest) := readAtom cs
-        let kw := ((tok.drop 1).toString).map Char.toLower
+        -- Bare keywords obey the same :upcase rule (name upcased); the KEYWORD
+        -- package is implicit.
+        let kw := ((tok.drop 1).toString).map Char.toUpper
         .ok (SExpr.atom (.keyword kw), rest)
     | _ =>
         let (rawTok, rest) := readAtom cs
         let tok := normalizeSymbolName rawTok
-        if tok = "nil" then .ok (SExpr.nil, rest)
-        else if tok = "t" then .ok (SExpr.t, rest)
+        -- nil/t recognition against the UPCASED token (ACL2 names "NIL"/"T").
+        if tok = "NIL" then .ok (SExpr.nil, rest)
+        else if tok = "T" then .ok (SExpr.t, rest)
         else
           match tok.toInt? with
           | some n => .ok (SExpr.atom (.number (.int n)), rest)
@@ -254,32 +284,32 @@ private def parsedUppercaseDefunLooksRight : Bool :=
   match parseOne "(DEFUN FOO (X) (DECLARE (XARGS :GUARD (INTEGERP X))) (IF T X NIL))" with
   | .ok sx =>
       match Event.classify sx with
-      | .ok (.defun { name := "foo", .. } [{ name := "x", .. }] _ decls body) =>
-          decls.length = 1 && body.headSymbol? = some { name := "if" }
+      | .ok (.defun { name := "FOO", .. } [{ name := "X", .. }] _ decls body) =>
+          decls.length = 1 && body.headSymbol? = some { name := "IF" }
       | _ => false
   | .error _ => false
 
 private def parsedQualifiedBuiltinLooksRight : Bool :=
   match parseOne "ACL2::CAR" with
-  | .ok (SExpr.atom (.symbol { package := "ACL2", name := "car" })) => true
+  | .ok (SExpr.atom (.symbol { package := "ACL2", name := "CAR" })) => true
   | _ => false
 
 private def parsedUppercaseKeywordLooksRight : Bool :=
   match parseOne ":SYSTEM" with
-  | .ok (SExpr.atom (.keyword "system")) => true
+  | .ok (SExpr.atom (.keyword "SYSTEM")) => true
   | _ => false
 
 private def parsedDefthmMetadataLooksRight : Bool :=
   match parseOne "(DEFTHM FOO (EQUAL X X) :RULE-CLASSES (:LINEAR :REWRITE) :HINTS ((\"Goal\" :USE BAR :IN-THEORY (DISABLE BAZ))))" with
   | .ok sx =>
       match Event.classify sx with
-      | .ok (.defthm { name := "foo", .. } info) =>
+      | .ok (.defthm { name := "FOO", .. } info) =>
           info.ruleClasses.map (·.name) = ["linear", "rewrite"] &&
             match info.hintGoals with
             | [hint] =>
                 hint.goal = "Goal" &&
-                hint.findOption? "use" = some (.atom (.symbol { name := "bar" })) &&
-                hint.inTheory? = some (.disable [.atom (.symbol { name := "baz" })])
+                hint.findOption? "use" = some (.atom (.symbol { name := "BAR" })) &&
+                hint.inTheory? = some (.disable [.atom (.symbol { name := "BAZ" })])
             | _ => false
       | _ => false
   | .error _ => false
@@ -292,8 +322,8 @@ private def parsedTopLevelInTheoryLooksRight : Bool :=
       | .ok (.inTheory expr) =>
           TheoryExpr.ofSExpr expr =
             .e_d
-              [.atom (.symbol { name := "commutativity-of-+" })]
-              [.atom (.symbol { name := "associativity-of-+" })]
+              [.atom (.symbol { name := "COMMUTATIVITY-OF-+" })]
+              [.atom (.symbol { name := "ASSOCIATIVITY-OF-+" })]
       | _ => false
   | .error _ => false
 
@@ -301,11 +331,11 @@ private def parsedWithOutputWrappedDefthmLooksRight : Bool :=
   match parseOne "(WITH-OUTPUT :OFF :ALL (DEFTHM WRAPPED (EQUAL X X)))" with
   | .ok sx =>
       match Event.classify sx with
-      | .ok (.defthm { name := "wrapped", .. } info) =>
+      | .ok (.defthm { name := "WRAPPED", .. } info) =>
           info.body = SExpr.ofList
-            [ .atom (.symbol { name := "equal" })
-            , .atom (.symbol { name := "x" })
-            , .atom (.symbol { name := "x" })
+            [ .atom (.symbol { name := "EQUAL" })
+            , .atom (.symbol { name := "X" })
+            , .atom (.symbol { name := "X" })
             ]
       | _ => false
   | .error _ => false
@@ -325,8 +355,8 @@ private def parsedMakeEventEncapsulateLooksRight : Bool :=
       | .error _ => false
       | .ok ev =>
       match Event.flattenList [ev] with
-      | [ .defthm { name := "check-it!-works", .. } checkInfo
-        , .defthm { name := "badge-prim-type", .. } badgeInfo
+      | [ .defthm { name := "CHECK-IT!-WORKS", .. } checkInfo
+        , .defthm { name := "BADGE-PRIM-TYPE", .. } badgeInfo
         ] =>
           checkInfo.ruleClasses = [] &&
             match badgeInfo.hintGoals with
@@ -334,8 +364,8 @@ private def parsedMakeEventEncapsulateLooksRight : Bool :=
                 hint.goal = "Goal" &&
                 hint.inTheory? =
                   some (.disable
-                    [ .atom (.symbol { name := "check-it!" })
-                    , .atom (.symbol { name := "hons-get" })
+                    [ .atom (.symbol { name := "CHECK-IT!" })
+                    , .atom (.symbol { name := "HONS-GET" })
                     ])
             | _ => false
       | _ => false
@@ -357,7 +387,7 @@ private def parsedProofBuilderInstructionsLookRight : Bool :=
                      :RULE-CLASSES ((:META :TRIGGER-FNS (APPLY$-PRIM))))" with
   | .ok sx =>
       match Event.classify sx with
-      | .ok (.defthm { name := "apply$-prim-meta-fn-correct", .. } info) =>
+      | .ok (.defthm { name := "APPLY$-PRIM-META-FN-CORRECT", .. } info) =>
           match info.instructions with
           | [ .block "quiet!" [bashInst, theoryInst, .block "repeat" [.atom "prove"]] ] =>
               let bashOk :=
@@ -370,7 +400,7 @@ private def parsedProofBuilderInstructionsLookRight : Bool :=
                 match theoryInst.theoryExpr? with
                 | some (.raw expr) =>
                     match expr.toList? with
-                    | some (.atom (.symbol head) :: _) => head.isNamed "union-theories"
+                    | some (.atom (.symbol head) :: _) => head.isNamed "UNION-THEORIES"
                     | _ => false
                 | _ => false
               bashOk && theoryOk

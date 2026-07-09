@@ -114,12 +114,12 @@ inductive Development where
     `callBuiltin`. -/
 def groundZeroDefs : List (Symbol × List Symbol × SExpr) :=
   [ -- (defun fix (x) (if (acl2-numberp x) x 0))   [ACL2 axioms.lisp]
-    ({ name := "fix" }, [{ name := "x" }],
-      .cons (.atom (.symbol { name := "if" }))
-        (.cons (.cons (.atom (.symbol { name := "acl2-numberp" }))
-                 (.cons (.atom (.symbol { name := "x" })) .nil))
-          (.cons (.atom (.symbol { name := "x" }))
-            (.cons (.cons (.atom (.symbol { name := "quote" }))
+    ({ name := "FIX" }, [{ name := "X" }],
+      .cons (.atom (.symbol { name := "IF" }))
+        (.cons (.cons (.atom (.symbol { name := "ACL2-NUMBERP" }))
+                 (.cons (.atom (.symbol { name := "X" })) .nil))
+          (.cons (.atom (.symbol { name := "X" }))
+            (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
                      (.cons (.atom (.number (.int 0))) .nil)) .nil))))]
 
 
@@ -671,7 +671,7 @@ private def equivSrcOf : ProofNode → Option EquivSource
 private def pathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 
 -- The theorem and its root clause.
-#guard (simpleProof.map (·.name)) == some "my-len-my-app"
+#guard (simpleProof.map (·.name)) == some "MY-LEN-MY-APP"
 #guard (simpleProof.bind (·.root) |>.map (·.idStr)) == some "Goal"
 
 -- Regression: a FAILED/incomplete ACL2 proof must be REJECTED, never accepted as
@@ -698,9 +698,9 @@ private def pathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 
 -- The rewriter detail is attached: my-app / my-len definition unfoldings appear.
 #guard (simpleProof.map fun p =>
-  (allProofNodes p).any (runeOf · == ("definition", "my-app"))) == some true
+  (allProofNodes p).any (runeOf · == ("definition", "MY-APP"))) == some true
 #guard (simpleProof.map fun p =>
-  (allProofNodes p).any (runeOf · == ("definition", "my-len"))) == some true
+  (allProofNodes p).any (runeOf · == ("definition", "MY-LEN"))) == some true
 
 -- The induction hypothesis link (R-A): a solidify node is justified by
 -- hypothesis literal 2 in the step case.
@@ -714,7 +714,7 @@ private def pathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 
 -- Development structure: my-len and my-app are world-event bindings (they scope
 -- over the theorem that uses them); exactly one theorem.
-#guard (simpleDev.map fun d => devDefunNames d) == some ["my-len", "my-app"]
+#guard (simpleDev.map fun d => devDefunNames d) == some ["MY-LEN", "MY-APP"]
 #guard (simpleDev.map fun d => (devTheorems d).length) == some 1
 
 end Tests

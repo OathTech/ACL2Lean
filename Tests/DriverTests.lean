@@ -18,10 +18,13 @@ namespace ACL2.Tests.Driver
 
 /-! ## SExpr builders (for hand-building tree values) -/
 
+-- Unescaped ACL2 tokens upcase (readtable :upcase, BUG-002) — the hand-built
+-- trees here mirror parser output, so callers pass UPPERCASE symbol names
+-- (literal, kept kernel-reducible for the `#guard`/`example` defeq checks).
 private def sym (n : String) : SExpr := .atom (.symbol { name := n })
-private def quo (v : SExpr) : SExpr := .cons (sym "quote") (.cons v .nil)
+private def quo (v : SExpr) : SExpr := .cons (sym "QUOTE") (.cons v .nil)
 private def numv (k : Int) : SExpr := .atom (.number (.int k))
-private def equalOf (a b : SExpr) : SExpr := .cons (sym "equal") (.cons a (.cons b .nil))
+private def equalOf (a b : SExpr) : SExpr := .cons (sym "EQUAL") (.cons a (.cons b .nil))
 private def ap1 (f : String) (a : SExpr) : SExpr := .cons (sym f) (.cons a .nil)
 private def ap2 (f : String) (a b : SExpr) : SExpr := .cons (sym f) (.cons a (.cons b .nil))
 
@@ -29,7 +32,7 @@ private def ap2 (f : String) (a b : SExpr) : SExpr := .cons (sym f) (.cons a (.c
     FREE VARIABLE `x` — universally over the environment. -/
 
 /-- The variable `x`. -/
-private def varX : SExpr := sym "x"
+private def varX : SExpr := sym "X"
 /-- `(equal x x)` — the literal (x a free variable, NOT a ground constant). -/
 private def litEqXX : SExpr := equalOf varX varX
 
@@ -50,7 +53,7 @@ private def goalNode : ClauseNode :=
     steps := [simplifyStep], induction := none, children := [] }
 
 /-- The minimal positive tree (faithful `ClauseProof` value). -/
-def s2Tree : ClauseProof := { name := "refl-equal-x-x", formula := litEqXX, root := some goalNode }
+def s2Tree : ClauseProof := { name := "REFL-EQUAL-X-X", formula := litEqXX, root := some goalNode }
 
 /-! ## Frontend: run the driver over `World.empty`, UNIVERSALLY over the env.
 
@@ -100,13 +103,13 @@ Hand-built tree for `(equal (cdr (cons a b)) b)`: a `cdr-cons` node rewrites
 closes `(equal b b)`. The first node that is a real rewrite, not just a closer —
 exercises `replayNode`'s cdr-cons handler + `proveConv` of the (variable) operands +
 the path-directed `emitCongruence`. -/
-private def varA : SExpr := sym "a"
-private def varB : SExpr := sym "b"
+private def varA : SExpr := sym "A"
+private def varB : SExpr := sym "B"
 /-- `(equal (cdr (cons a b)) b)`. -/
-private def litCdrCons : SExpr := equalOf (ap1 "cdr" (ap2 "cons" varA varB)) varB
+private def litCdrCons : SExpr := equalOf (ap1 "CDR" (ap2 "CONS" varA varB)) varB
 private def cdrConsNode : ProofNode :=
-  .node ("rewrite", "cdr-cons") (ap1 "cdr" (ap2 "cons" varA varB)) varB []
-    { path := [.arg 1 { name := "equal" }, .arg 1 { name := "cdr" }] }
+  .node ("rewrite", "CDR-CONS") (ap1 "CDR" (ap2 "CONS" varA varB)) varB []
+    { path := [.arg 1 { name := "EQUAL" }, .arg 1 { name := "CDR" }] }
 private def eqSelfBB : ProofNode :=
   .node ("equal-self", "NIL") (equalOf varB varB) quoteT [] {}
 private def s3Goal : ClauseNode :=
@@ -115,7 +118,7 @@ private def s3Goal : ClauseNode :=
       items := [.literal { index := 1, literal := litCdrCons, notFlg := false,
                            nodes := [cdrConsNode, eqSelfBB], result := quoteT }] }],
     induction := none, children := [] }
-private def s3Tree : ClauseProof := { name := "cdr-cons-refl", formula := litCdrCons, root := some s3Goal }
+private def s3Tree : ClauseProof := { name := "CDR-CONS-REFL", formula := litCdrCons, root := some s3Goal }
 
 /-- Driver-emitted proof that `(equal (cdr (cons a b)) b)` evaluates to `t` for every env. -/
 def s3_mirror := acl2_replay% s3Tree
@@ -132,7 +135,7 @@ example :
 `(equal (cons a b) (cons a b))`: equal-self on a compound term forces `proveConv` to
 recurse into the `(cons a b)` application (`re_conv_cons` over the two variable
 operands) rather than handle only a bare variable/quote. -/
-private def litConsEq : SExpr := equalOf (ap2 "cons" varA varB) (ap2 "cons" varA varB)
+private def litConsEq : SExpr := equalOf (ap2 "CONS" varA varB) (ap2 "CONS" varA varB)
 private def consEqGoal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litConsEq],
     steps := [{ simplifyStep with
@@ -140,7 +143,7 @@ private def consEqGoal : ClauseNode :=
                            nodes := [.node ("equal-self", "NIL") litConsEq quoteT [] {}],
                            result := quoteT }] }],
     induction := none, children := [] }
-private def consEqTree : ClauseProof := { name := "cons-self", formula := litConsEq, root := some consEqGoal }
+private def consEqTree : ClauseProof := { name := "CONS-SELF", formula := litConsEq, root := some consEqGoal }
 
 def consEq_mirror := acl2_replay% consEqTree
 
@@ -159,8 +162,8 @@ over `re_conv_consp`/`re_conv_car` over `re_conv_cdr`/`re_conv_cons` over the va
 These are the decoupled (non-case-dependent) convergence builtins; recognizer/
 if-simplification need the case context (`ReplayCtx`) and land with the induction scaffold. -/
 private def litBuiltinsEq : SExpr :=
-  let t := ap2 "binary-+" (ap1 "consp" (ap2 "cons" varA varB))
-                          (ap1 "car" (ap1 "cdr" (ap2 "cons" varA varB)))
+  let t := ap2 "BINARY-+" (ap1 "CONSP" (ap2 "CONS" varA varB))
+                          (ap1 "CAR" (ap1 "CDR" (ap2 "CONS" varA varB)))
   equalOf t t
 private def builtinsEqGoal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litBuiltinsEq],
@@ -170,7 +173,7 @@ private def builtinsEqGoal : ClauseNode :=
                            result := quoteT }] }],
     induction := none, children := [] }
 private def builtinsEqTree : ClauseProof :=
-  { name := "builtins-self", formula := litBuiltinsEq, root := some builtinsEqGoal }
+  { name := "BUILTINS-SELF", formula := litBuiltinsEq, root := some builtinsEqGoal }
 
 def builtinsEq_mirror := acl2_replay% builtinsEqTree
 
@@ -192,12 +195,12 @@ facts). A real def-unfold shape (cons body avoids needing `binary-*` convergence
 
 /-- Body of `pair`: `(cons x x)`. -/
 private def pairBody : SExpr :=
-  .cons (.atom (.symbol { name := "cons" }))
-    (.cons (.atom (.symbol { name := "x" })) (.cons (.atom (.symbol { name := "x" })) .nil))
+  .cons (.atom (.symbol { name := "CONS" }))
+    (.cons (.atom (.symbol { name := "X" })) (.cons (.atom (.symbol { name := "X" })) .nil))
 
 /-- A world with just `(defun pair (x) (cons x x))`. -/
 def pairWorld : World :=
-  { World.empty with defs := World.empty.defs.insert { name := "pair" } ([{ name := "x" }], pairBody) }
+  { World.empty with defs := World.empty.defs.insert { name := "PAIR" } ([{ name := "X" }], pairBody) }
 
 /-- Run the driver over `pairWorld`. `pair`'s DefInfo + non-shadowing facts are DERIVED
     from `worldVal` by the driver — no hand-written theorems. -/
@@ -210,21 +213,21 @@ elab "acl2_replay_pair% " t:term : term => do
     let proof ← replayProof cfg cp
     mkLambdaFVars #[env] proof
 
-private def varXp : SExpr := sym "x"
+private def varXp : SExpr := sym "X"
 /-- `(equal (pair x) (cons x x))`. -/
-private def litPair : SExpr := equalOf (ap1 "pair" varXp) (ap2 "cons" varXp varXp)
+private def litPair : SExpr := equalOf (ap1 "PAIR" varXp) (ap2 "CONS" varXp varXp)
 private def pairDefNode : ProofNode :=
-  .node ("definition", "pair") (ap1 "pair" varXp) (ap2 "cons" varXp varXp) []
-    { path := [.arg 1 { name := "equal" }, .arg 1 { name := "pair" }] }
+  .node ("definition", "PAIR") (ap1 "PAIR" varXp) (ap2 "CONS" varXp varXp) []
+    { path := [.arg 1 { name := "EQUAL" }, .arg 1 { name := "PAIR" }] }
 private def pairEqSelf : ProofNode :=
-  .node ("equal-self", "NIL") (equalOf (ap2 "cons" varXp varXp) (ap2 "cons" varXp varXp)) quoteT [] {}
+  .node ("equal-self", "NIL") (equalOf (ap2 "CONS" varXp varXp) (ap2 "CONS" varXp varXp)) quoteT [] {}
 private def pairGoal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litPair],
     steps := [{ simplifyStep with
       items := [.literal { index := 1, literal := litPair, notFlg := false,
                            nodes := [pairDefNode, pairEqSelf], result := quoteT }] }],
     induction := none, children := [] }
-private def pairTree : ClauseProof := { name := "pair-rewrites", formula := litPair, root := some pairGoal }
+private def pairTree : ClauseProof := { name := "PAIR-REWRITES", formula := litPair, root := some pairGoal }
 
 def pair_mirror := acl2_replay_pair% pairTree
 
@@ -264,8 +267,8 @@ def sqRealProof : Option ClauseProof := findThm sqDevelopment "sq-rewrites"
 /-- Expected body of `(defun sq (n) (* n n))` — `(binary-* n n)` (ACL2 normalizes `*`).
     Used only to VALIDATE the derived world below (a test expectation, not the source). -/
 private def sqBody : SExpr :=
-  .cons (.atom (.symbol { name := "binary-*" }))
-    (.cons (.atom (.symbol { name := "n" })) (.cons (.atom (.symbol { name := "n" })) .nil))
+  .cons (.atom (.symbol { name := "BINARY-*" }))
+    (.cons (.atom (.symbol { name := "N" })) (.cons (.atom (.symbol { name := "N" })) .nil))
 
 -- (`derive_world` and `findThm` are promoted product helpers — Replay/Driver.lean.)
 
@@ -273,7 +276,7 @@ private def sqBody : SExpr :=
 derive_world sqWorld from sqDevelopment
 
 -- Validate the projection: the derived world has `sq ↦ ([n], (binary-* n n))`.
-#guard sqWorld.defs.get? { name := "sq" } = some ([{ name := "n" }], sqBody)
+#guard sqWorld.defs.get? { name := "SQ" } = some ([{ name := "N" }], sqBody)
 
 /-- Drive the REAL parsed `sq-rewrites` tree over the DERIVED `sqWorld`. The DefInfo +
     non-shadowing facts are derived by the driver (P3); the world itself is derived from
@@ -297,7 +300,7 @@ def sq_real_mirror := acl2_replay_sq_real%
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
       evalOpt f sqWorld env
-        (equalOf (ap1 "sq" (sym "n")) (ap2 "binary-*" (sym "n") (sym "n")))
+        (equalOf (ap1 "SQ" (sym "N")) (ap2 "BINARY-*" (sym "N") (sym "N")))
         = some v ∧ v ≠ SExpr.nil :=
   sq_real_mirror
 
@@ -357,14 +360,14 @@ def my_len_my_app_real_mirror := acl2_replay_mylen_real%
 example :
     ∀ (env : Env),
       (∀ (env' : Env) (a0 v : SExpr),
-          (∃ N, ∀ f ≥ N, evalOpt f simpleWorld env' (ap1 "my-len" a0) = some v) →
+          (∃ N, ∀ f ≥ N, evalOpt f simpleWorld env' (ap1 "MY-LEN" a0) = some v) →
           (bif Logic.toBool (Logic.integerp v) then
             Logic.not (Logic.lt v (SExpr.atom (Atom.number (Number.int 0))))
           else SExpr.nil) = SExpr.t) →
       ∃ N, ∀ f ≥ N, ∃ v,
         evalOpt f simpleWorld env
-          (equalOf (ap1 "my-len" (ap2 "my-app" (sym "x") (sym "y")))
-                   (ap2 "binary-+" (ap1 "my-len" (sym "x")) (ap1 "my-len" (sym "y"))))
+          (equalOf (ap1 "MY-LEN" (ap2 "MY-APP" (sym "X") (sym "Y")))
+                   (ap2 "BINARY-+" (ap1 "MY-LEN" (sym "X")) (ap1 "MY-LEN" (sym "Y"))))
           = some v ∧ v ≠ SExpr.nil :=
   my_len_my_app_real_mirror
 
@@ -391,25 +394,25 @@ private theorem enc_inj {a b : Nat} (h : enc a = enc b) : a = b := by
   exact h
 
 /-- The env binding the ACL2 variable `x` to the encoded `Nat`. -/
-private def envOf (n : Nat) : Env := ({} : Env).insert { name := "x" } (enc n)
+private def envOf (n : Nat) : Env := ({} : Env).insert { name := "X" } (enc n)
 
-private theorem envOf_get (n : Nat) : (envOf n).get? { name := "x" } = some (enc n) := by
+private theorem envOf_get (n : Nat) : (envOf n).get? { name := "X" } = some (enc n) := by
   unfold envOf; simp
 
 /-- The native Lean fact `∀ n : Nat, n = n`, proven THROUGH the driver's mirror output
     `s2_mirror` (via the `Nat → SExpr` encoding), not by `rfl`. -/
 theorem native_nat_refl (n : Nat) : n = n := by
   obtain ⟨N, hN⟩ := s2_mirror (envOf n)
-  have hvar : evalOpt (N + 1) World.empty (envOf n) (.atom (.symbol { name := "x" }))
+  have hvar : evalOpt (N + 1) World.empty (envOf n) (.atom (.symbol { name := "X" }))
       = some (enc n) :=
-    evalOpt_var N World.empty (envOf n) { name := "x" } (enc n) (envOf_get n)
-  have hno : World.empty.defs.get? ({ name := "equal" } : Symbol) = none := by decide
+    evalOpt_var N World.empty (envOf n) { name := "X" } (enc n) (envOf_get n)
+  have hno : World.empty.defs.get? ({ name := "EQUAL" } : Symbol) = none := by decide
   -- the mirror is EvTrue (G2): destructure the truthy value, pin it to the
   -- equal-application's value, decode via equal's two-valuedness
   obtain ⟨v, heq, hnv⟩ := hN (N + 2) (by omega)
   have hev : evalOpt (N + 2) World.empty (envOf n) litEqXX
-      = callBuiltin "equal" [enc n, enc n] :=
-    evalOpt_builtin_2 (N + 1) World.empty (envOf n) { name := "equal" }
+      = callBuiltin "EQUAL" [enc n, enc n] :=
+    evalOpt_builtin_2 (N + 1) World.empty (envOf n) { name := "EQUAL" }
       _ _ (enc n) (enc n) (by simp [Symbol.isNamed]) hno hvar hvar
   have hveq : v = Logic.equal (enc n) (enc n) :=
     Option.some.inj ((heq.symm.trans hev).trans (callBuiltin_equal (enc n) (enc n)))
@@ -429,11 +432,11 @@ feed this — cdr-cons etc. — are S3.) -/
 elab "#emitcongr_pathdirected_test" : command => Elab.Command.liftTermElabM do
   withLocalDeclD `w (mkConst ``World) fun w =>
   withLocalDeclD `e (mkConst ``Env) fun e => do
-    let X := ap1 "cdr" (ap2 "cons" (sym "a") (sym "b"))
-    let lit := equalOf X (sym "b")
+    let X := ap1 "CDR" (ap2 "CONS" (sym "A") (sym "B"))
+    let lit := equalOf X (sym "B")
     let nodeTy ← mkEvalEqExist w e X X
     let nodeProof ← Term.elabTermAndSynthesize (← `(⟨0, fun _ _ => rfl⟩)) (some nodeTy)
-    let frames : List PathFrame := [.arg 1 { name := "equal" }, .arg 1 { name := "cdr" }]
+    let frames : List PathFrame := [.arg 1 { name := "EQUAL" }, .arg 1 { name := "CDR" }]
     let (lifted, _) ← emitCongruence w e lit frames X X nodeProof
     let _ ← check lifted
     let expected ← mkEvalEqExist w e lit lit
@@ -448,11 +451,11 @@ elab "#emitcongr_pathdirected_test" : command => Elab.Command.liftTermElabM do
 elab "#emitcongr_boundary_fails" : command => Elab.Command.liftTermElabM do
   withLocalDeclD `w (mkConst ``World) fun w =>
   withLocalDeclD `e (mkConst ``Env) fun e => do
-    let X := ap1 "cdr" (ap2 "cons" (sym "a") (sym "b"))
-    let lit := equalOf X (sym "b")
+    let X := ap1 "CDR" (ap2 "CONS" (sym "A") (sym "B"))
+    let lit := equalOf X (sym "B")
     let nodeProof ← Term.elabTermAndSynthesize (← `(⟨0, fun _ _ => rfl⟩)) (some (← mkEvalEqExist w e X X))
     let frames : List PathFrame :=
-      [.arg 1 { name := "equal" }, .boundary { name := "BODY" } { name := "if" }, .arg 1 { name := "cdr" }]
+      [.arg 1 { name := "EQUAL" }, .boundary { name := "BODY" } { name := "IF" }, .arg 1 { name := "CDR" }]
     try
       let _ ← emitCongruence w e lit frames X X nodeProof
       throwError "NEGATIVE TEST FAILED: boundary frame accepted"
@@ -465,12 +468,12 @@ elab "#emitcongr_boundary_fails" : command => Elab.Command.liftTermElabM do
 elab "#emitcongr_strip_mismatch_fails" : command => Elab.Command.liftTermElabM do
   withLocalDeclD `w (mkConst ``World) fun w =>
   withLocalDeclD `e (mkConst ``Env) fun e => do
-    let X := ap1 "cdr" (ap2 "cons" (sym "a") (sym "b"))
-    let lit := equalOf X (sym "b")
+    let X := ap1 "CDR" (ap2 "CONS" (sym "A") (sym "B"))
+    let lit := equalOf X (sym "B")
     let nodeProof ← Term.elabTermAndSynthesize (← `(⟨0, fun _ _ => rfl⟩)) (some (← mkEvalEqExist w e X X))
     -- the chain consumed branch frame 2, but the node's path descends arg 1
     let frames : List PathFrame :=
-      [.arg 1 { name := "equal" }, .arg 1 { name := "equal" }, .arg 1 { name := "cdr" }]
+      [.arg 1 { name := "EQUAL" }, .arg 1 { name := "EQUAL" }, .arg 1 { name := "CDR" }]
     try
       let _ ← emitCongruence w e lit frames X X nodeProof (strip := [2])
       throwError "NEGATIVE TEST FAILED: strip mismatch accepted"
@@ -499,23 +502,23 @@ elab "#expect_driver_fails " s:str t:term : command => do
 
 -- (N1) an unsupported rewrite rune before the closer → replayNode hard-fails.
 private def rewriteNode : ProofNode :=
-  .node ("definition", "my-app") (sym "x") (sym "y") [] {}
+  .node ("definition", "MY-APP") (sym "X") (sym "Y") [] {}
 private def treeRewriteFrontier : ClauseProof :=
-  { name := "neg-rewrite", formula := litEqXX,
+  { name := "NEG-REWRITE", formula := litEqXX,
     root := some { goalNode with steps := [{ simplifyStep with
       items := [.literal { litProof with nodes := [rewriteNode, equalSelfNode] }] }] } }
 #expect_driver_fails "unsupported rewrite rune" treeRewriteFrontier
 
 -- (N2) an induction scheme → replayClause hard-fails.
 private def treeInduction : ClauseProof :=
-  { name := "neg-induction", formula := litEqXX,
+  { name := "NEG-INDUCTION", formula := litEqXX,
     root := some { goalNode with
-      induction := some { term := sym "x", subgoalCount := 2, scheme := [] } } }
+      induction := some { term := sym "X", subgoalCount := 2, scheme := [] } } }
 #expect_driver_fails "induction scheme" treeInduction
 
 -- (N3) a non-equal-self terminal node → replayLiteral hard-fails.
 private def treeBadTerminal : ClauseProof :=
-  { name := "neg-bad-terminal", formula := litEqXX,
+  { name := "NEG-BAD-TERMINAL", formula := litEqXX,
     root := some { goalNode with steps := [{ simplifyStep with
       items := [.literal { litProof with nodes := [rewriteNode] }] }] } }
 #expect_driver_fails "non-equal-self terminal" treeBadTerminal
@@ -526,18 +529,18 @@ private def treeBadTerminal : ClauseProof :=
 -- 08-equality-reasoning). The driver must hard-fail (we do NOT re-derive type-set in
 -- Lean — that would be inference). Becomes replayable only with type-set
 -- instrumentation (the "(B)" track), never by a Lean-side decision.
-private def varY : SExpr := sym "y"
-private def varZ : SExpr := sym "z"
+private def varY : SExpr := sym "Y"
+private def varZ : SExpr := sym "Z"
 /-- `(implies (and (equal x y) (equal y z)) (equal x z))`. -/
 private def transFormula : SExpr :=
-  .cons (sym "implies")
-    (.cons (.cons (sym "and") (.cons (equalOf varX varY) (.cons (equalOf varY varZ) .nil)))
+  .cons (sym "IMPLIES")
+    (.cons (.cons (sym "AND") (.cons (equalOf varX varY) (.cons (equalOf varY varZ) .nil)))
       (.cons (equalOf varX varZ) .nil))
 private def typeSetStep : WaterfallStep :=
   { processor := "preprocess-clause", result := default,
     runes := [("fake-rune-for-type-set", "NIL")], newClauses := [], items := [], extraFields := [] }
 private def treeTypeSet : ClauseProof :=
-  { name := "neg-type-set", formula := transFormula,
+  { name := "NEG-TYPE-SET", formula := transFormula,
     root := some { goalNode with inputClause := [transFormula], steps := [typeSetStep] } }
 #expect_driver_fails "type-set-closed clause (fake-rune-for-type-set)" treeTypeSet
 
@@ -594,9 +597,9 @@ example :
     ∀ (env : Env),
       ∃ N, ∀ f ≥ N, ∃ v,
         evalOpt f permWorld env
-          (ap2 "implies" (ap2 "memb" (sym "a") (sym "x"))
-            (equalOf (ap2 "perm" (sym "x") (ap2 "cons" (sym "a") (sym "y")))
-                     (ap2 "perm" (ap2 "rm" (sym "a") (sym "x")) (sym "y"))))
+          (ap2 "IMPLIES" (ap2 "MEMB" (sym "A") (sym "X"))
+            (equalOf (ap2 "PERM" (sym "X") (ap2 "CONS" (sym "A") (sym "Y")))
+                     (ap2 "PERM" (ap2 "RM" (sym "A") (sym "X")) (sym "Y"))))
           = some v ∧ v ≠ SExpr.nil :=
   perm_cons_real_mirror
 
@@ -644,10 +647,10 @@ example :
       -- UNCONDITIONAL
       ∃ N, ∀ f ≥ N, ∃ v,
         evalOpt f permWorld env
-          (ap2 "implies"
-            (ap3 "if" (ap2 "perm" (sym "x") (sym "y"))
-                      (ap2 "perm" (sym "y") (sym "z")) quoteNil)
-            (ap2 "perm" (sym "x") (sym "z")))
+          (ap2 "IMPLIES"
+            (ap3 "IF" (ap2 "PERM" (sym "X") (sym "Y"))
+                      (ap2 "PERM" (sym "Y") (sym "Z")) quoteNil)
+            (ap2 "PERM" (sym "X") (sym "Z")))
           = some v ∧ v ≠ SExpr.nil :=
   perm_transitive_real_mirror
 

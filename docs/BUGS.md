@@ -41,14 +41,23 @@ docs/notes/2026-07-08_acl2-character-semantics.md. (Residual: `char-upcase`/
 `char-downcase`/`char<=`/`coerce` char ops remain `unsupported`.)
 
 ## BUG-002 — symbol case: parser lowercases bare symbols
-Status: open
-Pinned-by: differential
+Status: fixed
+Pinned-by: none (fixed 2026-07-08 — corpus entries reclassified to `match`)
 ACL2's reader UPCASES bare symbols and PRESERVES the case of `|bar|`-escaped
-symbols; our parser LOWERCASES bare symbols (a deliberate internal choice) and
-preserves `|bar|`. So the case at which two spellings collapse differs from
-ACL2: `(equal '|ABC| 'abc)`=T and `(equal '|ABC| 'ABC)`=T in ACL2 but NIL here,
-and `(equal '|abc| 'ABC)`=NIL in ACL2 but t here. High blast radius (world-gen,
-symbol matching, goldens) — deferred.
+symbols; our parser used to LOWERCASE bare symbols, so the case at which two
+spellings collapse differed from ACL2. FIXED 2026-07-08 by adopting ACL2's
+readtable-case :upcase exactly (docs/notes/2026-07-08_symbol-case-semantics.md):
+the parser now upcases bare symbols AND bare keywords and reads `|bar|` (incl.
+`:|bar|`) verbatim; `|NIL|`/`|T|` map to the nil/t constructors (they ARE those
+symbols). Symbol NAMES are stored uppercase everywhere on the identity path
+(`SExpr.t`, `isNamed` literals, `callBuiltin` keys, world/theorem/rune names);
+internal DISPATCH TAGS that happen to arrive as symbols/keywords (rune TYPE,
+equiv, processor, origin, clausify outcome/verdict/how/kind, extraField keys)
+are lowercased at the ProofLog parse boundary — they are not symbol identities.
+The differential ratchet flipped all 11 BUG-002 known-bug entries (across
+symbol-identity/symbols-keywords/printing.lisp) to `match`, and surfaced a
+latent gap the fix also closed: `:|bar|` keywords were not read verbatim
+(`:|ABC|` now equals `:abc`, `:|abc|` stays distinct).
 
 ## BUG-003 — printer does not abbreviate `(quote x)` as `'x`
 Status: open

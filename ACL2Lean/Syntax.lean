@@ -99,7 +99,8 @@ inductive SExpr
   deriving DecidableEq, Inhabited
 
 /-- ACL2 `t` — the canonical truthy value. -/
-abbrev SExpr.t : SExpr := .atom (.symbol { name := "t" })
+-- ACL2's `t` is the symbol with name "T" (readtable :upcase; symbol-name = "T").
+abbrev SExpr.t : SExpr := .atom (.symbol { name := "T" })
 
 namespace SExpr
 
@@ -220,11 +221,11 @@ private def unpackItems (expr : SExpr) : List SExpr :=
 def ofSExpr (expr : SExpr) : TheoryExpr :=
   match expr.toList? with
   | some (SExpr.atom (.symbol head) :: rest) =>
-      if head.isNamed "enable" then
+      if head.isNamed "ENABLE" then
         .enable rest
-      else if head.isNamed "disable" then
+      else if head.isNamed "DISABLE" then
         .disable rest
-      else if head.isNamed "e/d" then
+      else if head.isNamed "E/D" then
         match rest with
         | [enabled, disabled] => .e_d (unpackItems enabled) (unpackItems disabled)
         | _ => .raw expr
@@ -296,7 +297,12 @@ namespace ProofInstruction
   String.ofList (List.replicate indent ' ')
 
 private def instructionName? : SExpr → Option String
-  | .atom (.keyword key) => some key
+  -- Proof-builder instruction names are matched case-INSENSITIVELY against
+  -- lowercase literals (`"bash"`, `"quiet!"`, …) below, so canonicalize to
+  -- lowercase for BOTH keyword and symbol heads. (Symbol/keyword names are now
+  -- stored uppercase — readtable :upcase — so a raw keyword key would be
+  -- uppercase and miss those matches.)
+  | .atom (.keyword key) => some (key.map Char.toLower)
   | .atom (.symbol sym) => some sym.normalizedName
   | _ => none
 
@@ -318,7 +324,7 @@ private def looksLikeInstruction : SExpr → Bool
       | _ => false
 
 partial def ofSExpr : SExpr → ProofInstruction
-  | .atom (.keyword key) => .atom key
+  | .atom (.keyword key) => .atom (key.map Char.toLower)
   | .atom (.symbol sym) => .atom sym.normalizedName
   | expr =>
       match expr.toList? with
@@ -490,12 +496,12 @@ This does not execute ACL2; it only peels away quasiquote syntax so that static
 -/
 private partial def dequasiquote (depth : Nat) : SExpr → SExpr
   | expr@(.cons (.atom (.symbol sym)) (.cons inner .nil)) =>
-      if sym.isNamed "quasiquote" then
+      if sym.isNamed "QUASIQUOTE" then
         if depth = 0 then
           dequasiquote (depth + 1) inner
         else
           SExpr.ofList [SExpr.atom (.symbol sym), dequasiquote (depth + 1) inner]
-      else if sym.isNamed "unquote" || sym.isNamed "unquote-splicing" then
+      else if sym.isNamed "UNQUOTE" || sym.isNamed "UNQUOTE-SPLICING" then
         if depth = 1 then
           inner
         else
@@ -517,7 +523,7 @@ private partial def unwrapGeneratedEventExpr (expr : SExpr) : SExpr :=
   let expr := dequasiquote 0 expr
   match expr.toList? with
   | some (.atom (.symbol sym) :: rest) =>
-      if sym.isNamed "value" || sym.isNamed "value-triple" then
+      if sym.isNamed "VALUE" || sym.isNamed "VALUE-TRIPLE" then
         match rest.reverse with
         | inner :: _ => unwrapGeneratedEventExpr inner
         | [] => expr

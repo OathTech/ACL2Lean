@@ -29,26 +29,26 @@ namespace ACL2.Worlds.Perm
 
 /-! ## The defuns, exactly as the log-derived world carries them -/
 
-private def aS : Symbol := ⟨"ACL2", "a"⟩
-private def eS : Symbol := ⟨"ACL2", "e"⟩
-private def xS : Symbol := ⟨"ACL2", "x"⟩
-private def yS : Symbol := ⟨"ACL2", "y"⟩
+private def aS : Symbol := ⟨"ACL2", "A"⟩
+private def eS : Symbol := ⟨"ACL2", "E"⟩
+private def xS : Symbol := ⟨"ACL2", "X"⟩
+private def yS : Symbol := ⟨"ACL2", "Y"⟩
 
-private def aT : SExpr := .atom (.symbol { name := "a" })
-private def eT : SExpr := .atom (.symbol { name := "e" })
-private def xT : SExpr := .atom (.symbol { name := "x" })
-private def yT : SExpr := .atom (.symbol { name := "y" })
+private def aT : SExpr := .atom (.symbol { name := "A" })
+private def eT : SExpr := .atom (.symbol { name := "E" })
+private def xT : SExpr := .atom (.symbol { name := "X" })
+private def yT : SExpr := .atom (.symbol { name := "Y" })
 
 private def qT : SExpr :=
-  .cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil)
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)
 private def qNil : SExpr :=
-  .cons (.atom (.symbol { name := "quote" })) (.cons SExpr.nil .nil)
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.nil .nil)
 
-abbrev membT (a x : SExpr) : SExpr := app2 "memb" a x
-abbrev rmT (e x : SExpr) : SExpr := app2 "rm" e x
-abbrev permT (x y : SExpr) : SExpr := app2 "perm" x y
+abbrev membT (a x : SExpr) : SExpr := app2 "MEMB" a x
+abbrev rmT (e x : SExpr) : SExpr := app2 "RM" e x
+abbrev permT (x y : SExpr) : SExpr := app2 "PERM" x y
 private abbrev ifT (c t e : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil)))
+  .cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))
 
 /-- `(defun rm (e x) …)`, macroexpanded. -/
 def rmBody : SExpr :=
@@ -68,19 +68,19 @@ def permBody : SExpr :=
     (ifT (membT (carT xT) yT) (permT (cdrT xT) (rmT (carT xT) yT)) qNil)
     (ifT (conspT yT) qNil qT)
 
-private def memb_sym : Symbol := ⟨"ACL2", "memb"⟩
-private def rm_sym : Symbol := ⟨"ACL2", "rm"⟩
-private def perm_sym : Symbol := ⟨"ACL2", "perm"⟩
+private def memb_sym : Symbol := ⟨"ACL2", "MEMB"⟩
+private def rm_sym : Symbol := ⟨"ACL2", "RM"⟩
+private def perm_sym : Symbol := ⟨"ACL2", "PERM"⟩
 
 private theorem memb_ns :
-    (memb_sym.isNamed "quote" = false ∧ memb_sym.isNamed "if" = false ∧
-     memb_sym.isNamed "let" = false ∧ memb_sym.isNamed "let*" = false) := by decide
+    (memb_sym.isNamed "QUOTE" = false ∧ memb_sym.isNamed "IF" = false ∧
+     memb_sym.isNamed "LET" = false ∧ memb_sym.isNamed "LET*" = false) := by decide
 private theorem rm_ns :
-    (rm_sym.isNamed "quote" = false ∧ rm_sym.isNamed "if" = false ∧
-     rm_sym.isNamed "let" = false ∧ rm_sym.isNamed "let*" = false) := by decide
+    (rm_sym.isNamed "QUOTE" = false ∧ rm_sym.isNamed "IF" = false ∧
+     rm_sym.isNamed "LET" = false ∧ rm_sym.isNamed "LET*" = false) := by decide
 private theorem perm_ns :
-    (perm_sym.isNamed "quote" = false ∧ perm_sym.isNamed "if" = false ∧
-     perm_sym.isNamed "let" = false ∧ perm_sym.isNamed "let*" = false) := by decide
+    (perm_sym.isNamed "QUOTE" = false ∧ perm_sym.isNamed "IF" = false ∧
+     perm_sym.isNamed "LET" = false ∧ perm_sym.isNamed "LET*" = false) := by decide
 
 /-! ## Small kit -/
 
@@ -100,8 +100,8 @@ private theorem conv_fix {w : World} {e : Env} {t : SExpr}
     has converging arguments. -/
 private theorem evalOpt_app2_args (f : Nat) (w : World) (env : Env)
     (s : Symbol) (a1 a2 v : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h : evalOpt (f + 1) w env
       (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 .nil))) = some v) :
     (∃ u, evalOpt f w env a1 = some u) ∧ (∃ u, evalOpt f w env a2 = some u) := by
@@ -123,8 +123,8 @@ private theorem evalOpt_app2_args (f : Nat) (w : World) (env : Env)
 
 private theorem conv_args2_of_conv_app (w : World) (env : Env) (s : Symbol)
     (a1 a2 v : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env
       (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 .nil))) = some v) :
     (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u) ∧
@@ -171,10 +171,10 @@ corollary follow. The demo for a future TP prover. -/
 
 private theorem memb_body_bool (w : World)
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
     ∀ vx va : SExpr, ∃ v, (v = SExpr.t ∨ v = SExpr.nil) ∧
       ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [aS, xS] [va, vx]) membBody = some v := by
   intro vx
@@ -182,13 +182,13 @@ private theorem memb_body_bool (w : World)
   | step vx ih =>
     intro va
     have ha := re_val_var_get w (bindArgs [aS, xS] [va, vx])
-      { name := "a" } va (bindArgs_ax_a va vx)
+      { name := "A" } va (bindArgs_ax_a va vx)
     have hx := re_val_var_get w (bindArgs [aS, xS] [va, vx])
-      { name := "x" } vx (bindArgs_ax_x va vx)
+      { name := "X" } vx (bindArgs_ax_x va vx)
     have hconsp : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [aS, xS] [va, vx]) (conspT xT)
         = some (Logic.consp vx) :=
-      conv_builtin1 w _ { name := "consp" } xT vx (Logic.consp vx)
+      conv_builtin1 w _ { name := "CONSP" } xT vx (Logic.consp vx)
         (by decide) h_no_consp hx (callBuiltin_consp _)
     -- the nil path, shared by both non-cons shapes
     have nilCase : Logic.consp vx = SExpr.nil →
@@ -207,21 +207,21 @@ private theorem memb_body_bool (w : World)
       have hcar : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [aS, xS] [va, .cons hd tl]) (carT xT)
           = some hd := by
-        have h := conv_builtin1 w _ { name := "car" } xT (.cons hd tl)
+        have h := conv_builtin1 w _ { name := "CAR" } xT (.cons hd tl)
           (Logic.car (.cons hd tl)) (by decide) h_no_car hx
           (callBuiltin_car _)
         simpa [Logic.car] using h
       have hcdr : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [aS, xS] [va, .cons hd tl]) (cdrT xT)
           = some tl := by
-        have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd tl)
+        have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd tl)
           (Logic.cdr (.cons hd tl)) (by decide) h_no_cdr hx
           (callBuiltin_cdr _)
         simpa [Logic.cdr] using h
       have heq : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [aS, xS] [va, .cons hd tl])
             (equalT aT (carT xT)) = some (Logic.equal va hd) :=
-        conv_builtin2 w _ { name := "equal" } aT (carT xT) va hd
+        conv_builtin2 w _ { name := "EQUAL" } aT (carT xT) va hd
           (Logic.equal va hd) (by decide) h_no_equal ha hcar
           (callBuiltin_equal _ _)
       obtain ⟨vr, hvr, hr⟩ := ih tl (by simp only [acl2Count_cons]; omega) va
@@ -267,10 +267,10 @@ private theorem memb_body_bool (w : World)
 /-- `total:memb`, world-parametric — the driver-shape totality statement. -/
 theorem dis_memb_total (w : World)
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
     ∀ (env' : Env) (a0 a1 : SExpr),
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
@@ -288,16 +288,16 @@ theorem dis_memb_total (w : World)
     body induction pins the value. -/
 theorem dis_memb_tp (w : World)
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (e' : Env) (a0 a1 v : SExpr)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (membT a0 a1) = some v) :
     (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
      else Logic.equal v SExpr.nil) = SExpr.t := by
   obtain ⟨⟨N0, u0, h0⟩, ⟨N1, u1, h1⟩⟩ :=
-    conv_args2_of_conv_app w e' { name := "memb" } a0 a1 v (by decide) h
+    conv_args2_of_conv_app w e' { name := "MEMB" } a0 a1 v (by decide) h
   obtain ⟨u, hu, hb⟩ := memb_body_bool w h_memb h_no_consp h_no_equal
     h_no_car h_no_cdr u1 u0
   have happ := conv_defn_2 w e' memb_sym a0 a1 u0 u1 aS xS membBody u
@@ -312,11 +312,11 @@ theorem dis_memb_tp (w : World)
 
 private theorem rm_body_total (w : World)
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ vx ve : SExpr, ∃ v, ∃ N, ∀ f ≥ N,
       evalOpt f w (bindArgs [eS, xS] [ve, vx]) rmBody = some v := by
   intro vx
@@ -324,13 +324,13 @@ private theorem rm_body_total (w : World)
   | step vx ih =>
     intro ve
     have he := re_val_var_get w (bindArgs [eS, xS] [ve, vx])
-      { name := "e" } ve (bindArgs_ex_e ve vx)
+      { name := "E" } ve (bindArgs_ex_e ve vx)
     have hx := re_val_var_get w (bindArgs [eS, xS] [ve, vx])
-      { name := "x" } vx (bindArgs_ex_x ve vx)
+      { name := "X" } vx (bindArgs_ex_x ve vx)
     have hconsp : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [eS, xS] [ve, vx]) (conspT xT)
         = some (Logic.consp vx) :=
-      conv_builtin1 w _ { name := "consp" } xT vx (Logic.consp vx)
+      conv_builtin1 w _ { name := "CONSP" } xT vx (Logic.consp vx)
         (by decide) h_no_consp hx (callBuiltin_consp _)
     have nilCase : Logic.consp vx = SExpr.nil →
         ∃ v, ∃ N, ∀ f ≥ N,
@@ -346,21 +346,21 @@ private theorem rm_body_total (w : World)
       have hcar : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [eS, xS] [ve, .cons hd tl]) (carT xT)
           = some hd := by
-        have h := conv_builtin1 w _ { name := "car" } xT (.cons hd tl)
+        have h := conv_builtin1 w _ { name := "CAR" } xT (.cons hd tl)
           (Logic.car (.cons hd tl)) (by decide) h_no_car hx
           (callBuiltin_car _)
         simpa [Logic.car] using h
       have hcdr : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [eS, xS] [ve, .cons hd tl]) (cdrT xT)
           = some tl := by
-        have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd tl)
+        have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd tl)
           (Logic.cdr (.cons hd tl)) (by decide) h_no_cdr hx
           (callBuiltin_cdr _)
         simpa [Logic.cdr] using h
       have heq : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [eS, xS] [ve, .cons hd tl])
             (equalT eT (carT xT)) = some (Logic.equal ve hd) :=
-        conv_builtin2 w _ { name := "equal" } eT (carT xT) ve hd
+        conv_builtin2 w _ { name := "EQUAL" } eT (carT xT) ve hd
           (Logic.equal ve hd) (by decide) h_no_equal he hcar
           (callBuiltin_equal _ _)
       obtain ⟨vr, hr⟩ := ih tl (by simp only [acl2Count_cons]; omega) ve
@@ -395,7 +395,7 @@ private theorem rm_body_total (w : World)
             evalOpt f w (bindArgs [eS, xS] [ve, .cons hd tl])
               (consT (carT xT) (rmT eT (cdrT xT)))
             = some (.cons hd vr) :=
-          conv_builtin2 w _ { name := "cons" } (carT xT) (rmT eT (cdrT xT))
+          conv_builtin2 w _ { name := "CONS" } (carT xT) (rmT eT (cdrT xT))
             hd vr (.cons hd vr) (by decide) h_no_cons hcar hrec rfl
         have hInner : ∃ N, ∀ f ≥ N,
             evalOpt f w (bindArgs [eS, xS] [ve, .cons hd tl])
@@ -413,11 +413,11 @@ private theorem rm_body_total (w : World)
 /-- `total:rm`, world-parametric. -/
 theorem dis_rm_total (w : World)
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (env' : Env) (a0 a1 : SExpr),
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
@@ -437,11 +437,11 @@ private theorem perm_body_total (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ vx vy : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
       evalOpt f w (bindArgs [xS, yS] [vx, vy]) permBody = some v := by
   intro vx
@@ -449,13 +449,13 @@ private theorem perm_body_total (w : World)
   | step vx ih =>
     intro vy
     have hx := re_val_var_get w (bindArgs [xS, yS] [vx, vy])
-      { name := "x" } vx (bindArgs_xy_x vx vy)
+      { name := "X" } vx (bindArgs_xy_x vx vy)
     have hy := re_val_var_get w (bindArgs [xS, yS] [vx, vy])
-      { name := "y" } vy (bindArgs_xy_y vx vy)
+      { name := "Y" } vy (bindArgs_xy_y vx vy)
     have hconsp : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS, yS] [vx, vy]) (conspT xT)
         = some (Logic.consp vx) :=
-      conv_builtin1 w _ { name := "consp" } xT vx (Logic.consp vx)
+      conv_builtin1 w _ { name := "CONSP" } xT vx (Logic.consp vx)
         (by decide) h_no_consp hx (callBuiltin_consp _)
     have nilCase : Logic.consp vx = SExpr.nil →
         ∃ N, ∃ v, ∀ f ≥ N,
@@ -464,7 +464,7 @@ private theorem perm_body_total (w : World)
       have hconspy : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [xS, yS] [vx, vy]) (conspT yT)
           = some (Logic.consp vy) :=
-        conv_builtin1 w _ { name := "consp" } yT vy (Logic.consp vy)
+        conv_builtin1 w _ { name := "CONSP" } yT vy (Logic.consp vy)
           (by decide) h_no_consp hy (callBuiltin_consp _)
       have hElse : ∃ N, ∃ v, ∀ f ≥ N,
           evalOpt f w (bindArgs [xS, yS] [vx, vy]) (ifT (conspT yT) qNil qT)
@@ -490,14 +490,14 @@ private theorem perm_body_total (w : World)
       have hcar : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [xS, yS] [.cons hd tl, vy]) (carT xT)
           = some hd := by
-        have h := conv_builtin1 w _ { name := "car" } xT (.cons hd tl)
+        have h := conv_builtin1 w _ { name := "CAR" } xT (.cons hd tl)
           (Logic.car (.cons hd tl)) (by decide) h_no_car hx
           (callBuiltin_car _)
         simpa [Logic.car] using h
       have hcdr : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [xS, yS] [.cons hd tl, vy]) (cdrT xT)
           = some tl := by
-        have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd tl)
+        have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd tl)
           (Logic.cdr (.cons hd tl)) (by decide) h_no_cdr hx
           (callBuiltin_cdr _)
         simpa [Logic.cdr] using h
@@ -548,11 +548,11 @@ theorem dis_perm_total (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (env' : Env) (a0 a1 : SExpr),
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
@@ -588,10 +588,10 @@ decreasing_by exact acl2Count_cdr_lt_of_consp (by assumption)
     intended mechanized walk's exact move sequence. -/
 theorem memb_exec_corr (w : World)
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
     ∀ (env : Env) (a x av xv : SExpr),
       ConvTo w env a av → ConvTo w env x xv →
       ConvTo w env (membT a x) (membExec av xv) := by
@@ -602,16 +602,16 @@ theorem memb_exec_corr (w : World)
         (membExec av xv)) ?_
     intro xv ih av
     have hav := re_val_var_get w (bindArgs [aS, xS] [av, xv])
-      { name := "a" } av (bindArgs_ax_a av xv)
+      { name := "A" } av (bindArgs_ax_a av xv)
     have hxv := re_val_var_get w (bindArgs [aS, xS] [av, xv])
-      { name := "x" } xv (bindArgs_ax_x av xv)
-    have hconsp := conv_builtin1 w _ { name := "consp" } xT xv
+      { name := "X" } xv (bindArgs_ax_x av xv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
       (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
-    have hcar := conv_builtin1 w _ { name := "car" } xT xv
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
       (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
-    have hcdr := conv_builtin1 w _ { name := "cdr" } xT xv
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
       (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-    have heq := conv_builtin2 w _ { name := "equal" } aT (carT xT) av
+    have heq := conv_builtin2 w _ { name := "EQUAL" } aT (carT xT) av
       (Logic.car xv) (Logic.equal av (Logic.car xv)) (by decide) h_no_equal
       hav hcar (callBuiltin_equal _ _)
     have houter := conv_if_lift w (bindArgs [aS, xS] [av, xv]) (conspT xT)
@@ -664,11 +664,11 @@ decreasing_by exact acl2Count_cdr_lt_of_consp (by assumption)
 /-- Stage 1: an `rm` call converges to `rmExec` of its argument values. -/
 theorem rm_exec_corr (w : World)
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (env : Env) (a x av xv : SExpr),
       ConvTo w env a av → ConvTo w env x xv →
       ConvTo w env (rmT a x) (rmExec av xv) := by
@@ -679,16 +679,16 @@ theorem rm_exec_corr (w : World)
         (rmExec av xv)) ?_
     intro xv ih av
     have hav := re_val_var_get w (bindArgs [eS, xS] [av, xv])
-      { name := "e" } av (bindArgs_ex_e av xv)
+      { name := "E" } av (bindArgs_ex_e av xv)
     have hxv := re_val_var_get w (bindArgs [eS, xS] [av, xv])
-      { name := "x" } xv (bindArgs_ex_x av xv)
-    have hconsp := conv_builtin1 w _ { name := "consp" } xT xv
+      { name := "X" } xv (bindArgs_ex_x av xv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
       (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
-    have hcar := conv_builtin1 w _ { name := "car" } xT xv
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
       (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
-    have hcdr := conv_builtin1 w _ { name := "cdr" } xT xv
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
       (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-    have heq := conv_builtin2 w _ { name := "equal" } eT (carT xT) av
+    have heq := conv_builtin2 w _ { name := "EQUAL" } eT (carT xT) av
       (Logic.car xv) (Logic.equal av (Logic.car xv)) (by decide) h_no_equal
       hav hcar (callBuiltin_equal _ _)
     have houter := conv_if_lift w (bindArgs [eS, xS] [av, xv]) (conspT xT)
@@ -706,7 +706,7 @@ theorem rm_exec_corr (w : World)
           (Logic.cons (Logic.car xv) (rmExec av (Logic.cdr xv))) heq
           (fun _ => hcdr)
           (fun _ =>
-            conv_builtin2 w _ { name := "cons" } (carT xT) (rmT eT (cdrT xT))
+            conv_builtin2 w _ { name := "CONS" } (carT xT) (rmT eT (cdrT xT))
               (Logic.car xv) (rmExec av (Logic.cdr xv))
               (Logic.cons (Logic.car xv) (rmExec av (Logic.cdr xv)))
               (by decide) h_no_cons hcar
@@ -754,11 +754,11 @@ theorem perm_exec_corr (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (env : Env) (x y xv yv : SExpr),
       ConvTo w env x xv → ConvTo w env y yv →
       ConvTo w env (permT x y) (permExec xv yv) := by
@@ -769,16 +769,16 @@ theorem perm_exec_corr (w : World)
         (permExec xv yv)) ?_
     intro xv ih yv
     have hxv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
-      { name := "x" } xv (bindArgs_xy_x xv yv)
+      { name := "X" } xv (bindArgs_xy_x xv yv)
     have hyv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
-      { name := "y" } yv (bindArgs_xy_y xv yv)
-    have hconspx := conv_builtin1 w _ { name := "consp" } xT xv
+      { name := "Y" } yv (bindArgs_xy_y xv yv)
+    have hconspx := conv_builtin1 w _ { name := "CONSP" } xT xv
       (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
-    have hconspy := conv_builtin1 w _ { name := "consp" } yT yv
+    have hconspy := conv_builtin1 w _ { name := "CONSP" } yT yv
       (Logic.consp yv) (by decide) h_no_consp hyv (callBuiltin_consp _)
-    have hcar := conv_builtin1 w _ { name := "car" } xT xv
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
       (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
-    have hcdr := conv_builtin1 w _ { name := "cdr" } xT xv
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
       (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
     have hmemb := memb_exec_corr w h_memb h_no_consp h_no_equal h_no_car
       h_no_cdr _ (carT xT) yT (Logic.car xv) yv hcar hyv
@@ -844,10 +844,10 @@ theorem permExec_enc (xs ys : List SExpr) :
 /-- `memb` over an encoded second argument computes `List.contains`. -/
 theorem corr_memb_enc (w : World)
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
     ∀ (xs : List SExpr) (e' : Env) (a x : SExpr) (av : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some av) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' x = some (enc xs)) →
@@ -861,11 +861,11 @@ theorem corr_memb_enc (w : World)
 /-- `rm` over an encoded second argument computes `List.erase`. -/
 theorem corr_rm_enc (w : World)
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (xs : List SExpr) (e' : Env) (a x : SExpr) (av : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some av) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' x = some (enc xs)) →
@@ -880,11 +880,11 @@ theorem corr_perm_enc (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (xs ys : List SExpr) (e' : Env) (x y : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' x = some (enc xs)) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' y = some (enc ys)) →
@@ -910,12 +910,12 @@ theorem perm_cons_native_of_mirror (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
-    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
     (hmirror : ∀ env : Env,
       ∃ N, ∀ f, f ≥ N → ∃ v,
         evalOpt f w env perm_consFormula = some v ∧ v ≠ SExpr.nil)
@@ -923,19 +923,19 @@ theorem perm_cons_native_of_mirror (w : World)
     xs.isPerm (av :: ys) = (xs.erase av).isPerm ys := by
   let e : Env := ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
   have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
-    re_val_var_get w e { name := "a" } av (by
+    re_val_var_get w e { name := "A" } av (by
       show e.get? aS = some av
       rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
             from rfl,
           Env.get?_insert, if_pos (by decide)])
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
-    re_val_var_get w e { name := "x" } (enc xs) (by
+    re_val_var_get w e { name := "X" } (enc xs) (by
       show e.get? xS = some (enc xs)
       rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
             from rfl,
           Env.get?_insert, if_neg (by decide), Env.get?_insert, if_pos (by decide)])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
-    re_val_var_get w e { name := "y" } (enc ys) (by
+    re_val_var_get w e { name := "Y" } (enc ys) (by
       show e.get? yS = some (enc ys)
       rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
             from rfl,
@@ -949,7 +949,7 @@ theorem perm_cons_native_of_mirror (w : World)
   -- (cons a y) encodes (av :: ys)
   have hcons : ∃ N, ∀ f ≥ N,
       evalOpt f w e (consT aT yT) = some (enc (av :: ys)) :=
-    conv_builtin2 w e { name := "cons" } aT yT av (enc ys)
+    conv_builtin2 w e { name := "CONS" } aT yT av (enc ys)
       (enc (av :: ys)) (by decide) h_no_cons ha hy rfl
   -- LHS: (perm x (cons a y)) computes isPerm xs (av :: ys)
   have hL : ∃ N, ∀ f ≥ N, evalOpt f w e (permT xT (consT aT yT))
@@ -971,14 +971,14 @@ theorem perm_cons_native_of_mirror (w : World)
       = some (Logic.equal
           (bif xs.isPerm (av :: ys) then SExpr.t else SExpr.nil)
           (bif (xs.erase av).isPerm ys then SExpr.t else SExpr.nil)) :=
-    conv_builtin2 w e { name := "equal" } _ _ _ _ _ (by decide) h_no_equal
+    conv_builtin2 w e { name := "EQUAL" } _ _ _ _ _ (by decide) h_no_equal
       hL hR (callBuiltin_equal _ _)
   have hImp : ∃ N, ∀ f ≥ N, evalOpt f w e perm_consFormula
       = some (Logic.implies SExpr.t
           (Logic.equal
             (bif xs.isPerm (av :: ys) then SExpr.t else SExpr.nil)
             (bif (xs.erase av).isPerm ys then SExpr.t else SExpr.nil))) :=
-    conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+    conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
       h_no_implies hP hEq (callBuiltin_implies _ _)
   -- decode: the mirror's truthiness pins implies ≠ nil → = t → equal truthy
   obtain ⟨Nm, hm⟩ := hmirror e
@@ -1007,10 +1007,10 @@ Each consumes its theorem's UNCONDITIONAL driver mirror at exactly one seam
 Lifting decode kit (`mirror_pins_ne_nil` / `bool_of_cond_eq` /
 `conv_and_conds` / `mirror_peel_guard`). -/
 
-private def bS : Symbol := ⟨"ACL2", "b"⟩
-private def bT : SExpr := .atom (.symbol { name := "b" })
-private def zS : Symbol := ⟨"ACL2", "z"⟩
-private def zT : SExpr := .atom (.symbol { name := "z" })
+private def bS : Symbol := ⟨"ACL2", "B"⟩
+private def bT : SExpr := .atom (.symbol { name := "B" })
+private def zS : Symbol := ⟨"ACL2", "Z"⟩
+private def zT : SExpr := .atom (.symbol { name := "Z" })
 
 def perm_symmetricFormula : SExpr := impliesT (permT xT yT) (permT yT xT)
 
@@ -1019,24 +1019,24 @@ theorem perm_symmetric_native_of_mirror (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
-    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
     (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_symmetricFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys : List SExpr) (hp : xs.isPerm ys = true) :
     ys.isPerm xs = true := by
   let e : Env := (({} : Env).insert yS (enc ys)).insert xS (enc xs)
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
-    re_val_var_get w e { name := "x" } (enc xs) (by
+    re_val_var_get w e { name := "X" } (enc xs) (by
       show e.get? xS = some (enc xs)
       rw [show e = (({} : Env).insert yS (enc ys)).insert xS (enc xs) from rfl,
           Env.get?_insert, if_pos (by decide)])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
-    re_val_var_get w e { name := "y" } (enc ys) (by
+    re_val_var_get w e { name := "Y" } (enc ys) (by
       show e.get? yS = some (enc ys)
       rw [show e = (({} : Env).insert yS (enc ys)).insert xS (enc xs) from rfl,
           Env.get?_insert, if_neg (by decide), Env.get?_insert,
@@ -1045,7 +1045,7 @@ theorem perm_symmetric_native_of_mirror (w : World)
     h_no_car h_no_cdr h_no_cons xs ys e xT yT hx hy
   have hC := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
     h_no_car h_no_cdr h_no_cons ys xs e yT xT hy hx
-  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hA hC (callBuiltin_implies _ _)
   have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
   exact bool_true_of_cond_truthy
@@ -1057,12 +1057,12 @@ def memb_rmFormula : SExpr := impliesT (membT aT (rmT bT xT)) (membT aT xT)
 theorem memb_rm_native_of_mirror (w : World)
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
-    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
     (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env memb_rmFormula = some v ∧ v ≠ SExpr.nil)
     (av bv : SExpr) (xs : List SExpr)
@@ -1070,20 +1070,20 @@ theorem memb_rm_native_of_mirror (w : World)
     xs.contains av = true := by
   let e : Env := ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
   have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
-    re_val_var_get w e { name := "a" } av (by
+    re_val_var_get w e { name := "A" } av (by
       show e.get? aS = some av
       rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
             from rfl,
           Env.get?_insert, if_pos (by decide)])
   have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some bv :=
-    re_val_var_get w e { name := "b" } bv (by
+    re_val_var_get w e { name := "B" } bv (by
       show e.get? bS = some bv
       rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
             from rfl,
           Env.get?_insert, if_neg (by decide), Env.get?_insert,
           if_pos (by decide)])
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
-    re_val_var_get w e { name := "x" } (enc xs) (by
+    re_val_var_get w e { name := "X" } (enc xs) (by
       show e.get? xS = some (enc xs)
       rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
             from rfl,
@@ -1095,7 +1095,7 @@ theorem memb_rm_native_of_mirror (w : World)
     (xs.erase bv) e aT (rmT bT xT) av ha hrm
   have hC := corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car h_no_cdr
     xs e aT xT av ha hx
-  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hA hC (callBuiltin_implies _ _)
   have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
   exact bool_true_of_cond_truthy
@@ -1107,31 +1107,31 @@ def comm_rmFormula : SExpr := equalT (rmT aT (rmT bT xT)) (rmT bT (rmT aT xT))
     injectivity). -/
 theorem comm_rm_native_of_mirror (w : World)
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env comm_rmFormula = some v ∧ v ≠ SExpr.nil)
     (av bv : SExpr) (xs : List SExpr) :
     (xs.erase bv).erase av = (xs.erase av).erase bv := by
   let e : Env := ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
   have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
-    re_val_var_get w e { name := "a" } av (by
+    re_val_var_get w e { name := "A" } av (by
       show e.get? aS = some av
       rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
             from rfl,
           Env.get?_insert, if_pos (by decide)])
   have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some bv :=
-    re_val_var_get w e { name := "b" } bv (by
+    re_val_var_get w e { name := "B" } bv (by
       show e.get? bS = some bv
       rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
             from rfl,
           Env.get?_insert, if_neg (by decide), Env.get?_insert,
           if_pos (by decide)])
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
-    re_val_var_get w e { name := "x" } (enc xs) (by
+    re_val_var_get w e { name := "X" } (enc xs) (by
       show e.get? xS = some (enc xs)
       rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
             from rfl,
@@ -1145,7 +1145,7 @@ theorem comm_rm_native_of_mirror (w : World)
     h_no_cons (xs.erase av) e bT (rmT aT xT) bv hb
     (corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
       xs e aT xT av ha hx)
-  have hEq := conv_builtin2 w e { name := "equal" } _ _ _ _ _ (by decide)
+  have hEq := conv_builtin2 w e { name := "EQUAL" } _ _ _ _ _ (by decide)
     h_no_equal hL hR (callBuiltin_equal _ _)
   exact enc_inj (eq_of_equal_truthy (toBool_true_of_ne_nil
     (mirror_pins_ne_nil (hmirror e) hEq)))
@@ -1158,12 +1158,12 @@ theorem perm_memb_native_of_mirror (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
-    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
     (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_membFormula = some v ∧ v ≠ SExpr.nil)
     (av : SExpr) (xs ys : List SExpr)
@@ -1171,20 +1171,20 @@ theorem perm_memb_native_of_mirror (w : World)
     ys.contains av = true := by
   let e : Env := ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
   have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
-    re_val_var_get w e { name := "a" } av (by
+    re_val_var_get w e { name := "A" } av (by
       show e.get? aS = some av
       rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
             from rfl,
           Env.get?_insert, if_pos (by decide)])
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
-    re_val_var_get w e { name := "x" } (enc xs) (by
+    re_val_var_get w e { name := "X" } (enc xs) (by
       show e.get? xS = some (enc xs)
       rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
             from rfl,
           Env.get?_insert, if_neg (by decide), Env.get?_insert,
           if_pos (by decide)])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
-    re_val_var_get w e { name := "y" } (enc ys) (by
+    re_val_var_get w e { name := "Y" } (enc ys) (by
       show e.get? yS = some (enc ys)
       rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
             from rfl,
@@ -1198,7 +1198,7 @@ theorem perm_memb_native_of_mirror (w : World)
       xs e aT xT av ha hx)
   have hC := corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car h_no_cdr
     ys e aT yT av ha hy
-  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hAnd hC (callBuiltin_implies _ _)
   have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
   have hb : (xs.isPerm ys && xs.contains av) = true := by rw [hp, hmem]; rfl
@@ -1213,32 +1213,32 @@ theorem perm_rm_native_of_mirror (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
-    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
     (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_rmFormula = some v ∧ v ≠ SExpr.nil)
     (av : SExpr) (xs ys : List SExpr) (hp : xs.isPerm ys = true) :
     (xs.erase av).isPerm (ys.erase av) = true := by
   let e : Env := ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
   have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
-    re_val_var_get w e { name := "a" } av (by
+    re_val_var_get w e { name := "A" } av (by
       show e.get? aS = some av
       rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
             from rfl,
           Env.get?_insert, if_pos (by decide)])
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
-    re_val_var_get w e { name := "x" } (enc xs) (by
+    re_val_var_get w e { name := "X" } (enc xs) (by
       show e.get? xS = some (enc xs)
       rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
             from rfl,
           Env.get?_insert, if_neg (by decide), Env.get?_insert,
           if_pos (by decide)])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
-    re_val_var_get w e { name := "y" } (enc ys) (by
+    re_val_var_get w e { name := "Y" } (enc ys) (by
       show e.get? yS = some (enc ys)
       rw [show e = ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert aS av
             from rfl,
@@ -1253,7 +1253,7 @@ theorem perm_rm_native_of_mirror (w : World)
       xs e aT xT av ha hx)
     (corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
       ys e aT yT av ha hy)
-  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hA hC (callBuiltin_implies _ _)
   have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
   exact bool_true_of_cond_truthy
@@ -1267,12 +1267,12 @@ theorem perm_transitive_native_of_mirror (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
-    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
     (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_transitiveFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys zs : List SExpr)
@@ -1280,20 +1280,20 @@ theorem perm_transitive_native_of_mirror (w : World)
     xs.isPerm zs = true := by
   let e : Env := ((({} : Env).insert zS (enc zs)).insert yS (enc ys)).insert xS (enc xs)
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
-    re_val_var_get w e { name := "x" } (enc xs) (by
+    re_val_var_get w e { name := "X" } (enc xs) (by
       show e.get? xS = some (enc xs)
       rw [show e = ((({} : Env).insert zS (enc zs)).insert yS (enc ys)).insert xS (enc xs)
             from rfl,
           Env.get?_insert, if_pos (by decide)])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
-    re_val_var_get w e { name := "y" } (enc ys) (by
+    re_val_var_get w e { name := "Y" } (enc ys) (by
       show e.get? yS = some (enc ys)
       rw [show e = ((({} : Env).insert zS (enc zs)).insert yS (enc ys)).insert xS (enc xs)
             from rfl,
           Env.get?_insert, if_neg (by decide), Env.get?_insert,
           if_pos (by decide)])
   have hz : ∃ N, ∀ f ≥ N, evalOpt f w e zT = some (enc zs) :=
-    re_val_var_get w e { name := "z" } (enc zs) (by
+    re_val_var_get w e { name := "Z" } (enc zs) (by
       show e.get? zS = some (enc zs)
       rw [show e = ((({} : Env).insert zS (enc zs)).insert yS (enc ys)).insert xS (enc xs)
             from rfl,
@@ -1307,14 +1307,14 @@ theorem perm_transitive_native_of_mirror (w : World)
       h_no_cdr h_no_cons ys zs e yT zT hy hz)
   have hC := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
     h_no_car h_no_cdr h_no_cons xs zs e xT zT hx hz
-  have hImp := conv_builtin2 w e { name := "implies" } _ _ _ _ _ (by decide)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hAnd hC (callBuiltin_implies _ _)
   have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
   have hb : (xs.isPerm ys && ys.isPerm zs) = true := by rw [hxy, hyz]; rfl
   exact bool_true_of_cond_truthy
     (truthy_of_implies_t hIt (by rw [cond_t_of_true hb]; rfl))
 
-private abbrev booleanpT (x : SExpr) : SExpr := app1 "booleanp" x
+private abbrev booleanpT (x : SExpr) : SExpr := app1 "BOOLEANP" x
 
 /-- The `defequiv`-generated obligation, macroexpanded exactly as ACL2's
     Goal input clause states it (audit #3 verified this byte-for-byte
@@ -1336,24 +1336,24 @@ theorem perm_refl_native_of_mirror (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
-    (h_no_booleanp : w.defs.get? ({ name := "booleanp" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_booleanp : w.defs.get? ({ name := "BOOLEANP" } : Symbol) = none)
     (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_equivFormula = some v ∧ v ≠ SExpr.nil)
     (xs : List SExpr) : xs.isPerm xs = true := by
   let e : Env := ((({} : Env).insert zS (enc [])).insert yS (enc [])).insert xS (enc xs)
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
-    re_val_var_get w e { name := "x" } (enc xs) (by
+    re_val_var_get w e { name := "X" } (enc xs) (by
       show e.get? xS = some (enc xs)
       rw [show e = ((({} : Env).insert zS (enc [])).insert yS (enc [])).insert xS (enc xs)
             from rfl,
           Env.get?_insert, if_pos (by decide)])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc []) :=
-    re_val_var_get w e { name := "y" } (enc []) (by
+    re_val_var_get w e { name := "Y" } (enc []) (by
       show e.get? yS = some (enc [])
       rw [show e = ((({} : Env).insert zS (enc [])).insert yS (enc [])).insert xS (enc xs)
             from rfl,
@@ -1364,7 +1364,7 @@ theorem perm_refl_native_of_mirror (w : World)
     h_no_car h_no_cdr h_no_cons xs [] e xT yT hx hy
   have hG1 : ∃ N, ∀ f ≥ N, evalOpt f w e (booleanpT (permT xT yT))
       = some (bif true then SExpr.t else SExpr.nil) := by
-    have h := conv_builtin1 w e { name := "booleanp" } (permT xT yT)
+    have h := conv_builtin1 w e { name := "BOOLEANP" } (permT xT yT)
       (bif xs.isPerm [] then SExpr.t else SExpr.nil)
       (Logic.booleanp (bif xs.isPerm [] then SExpr.t else SExpr.nil))
       (by decide) h_no_booleanp hpxy (callBuiltin_booleanp _)
@@ -1382,12 +1382,12 @@ theorem perm_cons_native_perm_of_mirror (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
-    (h_no_implies : w.defs.get? ({ name := "implies" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
     (hmirror : ∀ env : Env,
       ∃ N, ∀ f, f ≥ N → ∃ v,
         evalOpt f w env perm_consFormula = some v ∧ v ≠ SExpr.nil)

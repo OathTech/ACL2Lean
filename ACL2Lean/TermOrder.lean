@@ -95,7 +95,7 @@ private def varFnCount1 (flg : Bool) (x : SExpr) (vc fc pfc : Nat)
     | .nil => (vc + 1, fc, pfc)
     | .atom _ => (vc + 1, fc, pfc)
     | .cons (.atom (.symbol s)) rest =>
-      if s.isNamed "quote" then
+      if s.isNamed "QUOTE" then
         match rest with
         | .cons v .nil => (vc, fc, pfc + fnCountEvg v)
         | _ => (vc, fc, pfc)

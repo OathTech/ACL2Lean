@@ -41,9 +41,9 @@ open ACL2
 /-- The DP-lift primitive heads (the FIXED table — mirrors the driver's
     `dpUnary`/`dpBinary`; anything else with a symbol head is opaque). -/
 def dpLiftHeads : List String :=
-  ["not", "zp", "consp", "integerp", "acl2-numberp", "true-listp", "car",
-   "cdr", "symbolp", "booleanp", "nfix", "len", "endp", "atom",
-   "equal", "<", "binary-+", "binary-*", "cons", "implies", "iff"]
+  ["NOT", "ZP", "CONSP", "INTEGERP", "ACL2-NUMBERP", "TRUE-LISTP", "CAR",
+   "CDR", "SYMBOLP", "BOOLEANP", "NFIX", "LEN", "ENDP", "ATOM",
+   "EQUAL", "<", "BINARY-+", "BINARY-*", "CONS", "IMPLIES", "IFF"]
 
 /-- The DP value lift (G3 Fragment A): opaque application values from `opq`
     (syntactic `==` lookup, checked FIRST — the walker's order), variable
@@ -64,11 +64,11 @@ def dpLiftF (vars : List (Symbol × SExpr)) (opq : List (SExpr × SExpr))
       | some q => some q.2
       | none => none
     | .cons (.atom (.symbol fs)) args =>
-      if fs == { name := "quote" } then
+      if fs == { name := "QUOTE" } then
         match args with
         | .cons v .nil => some v
         | _ => none
-      else if fs == { name := "if" } then
+      else if fs == { name := "IF" } then
         match args with
         | .cons c (.cons thn (.cons els .nil)) => do
           let cv ← dpLiftF vars opq c
@@ -93,8 +93,8 @@ def dpLiftF (vars : List (Symbol × SExpr)) (opq : List (SExpr × SExpr))
     (the fixed table is closed: one `decide`). -/
 theorem dpLiftHeads_not_special :
     ∀ n ∈ dpLiftHeads,
-      ((n == "quote") = false) ∧ ((n == "if") = false) ∧
-      ((n == "let") = false) ∧ ((n == "let*") = false) := by decide
+      ((n == "QUOTE") = false) ∧ ((n == "IF") = false) ∧
+      ((n == "LET") = false) ∧ ((n == "LET*") = false) := by decide
 
 /-- The world shadows none of the DP-lift primitive heads — DECIDABLE, so
     the driver discharges it with one kernel `decide` per world. -/
@@ -143,7 +143,7 @@ theorem dpLiftF_sound (w : World) (env : Env)
     cases h
   | case4 fs hq v0 hfind =>
     -- well-formed quote
-    obtain rfl : fs = { name := "quote" } := eq_of_beq hq
+    obtain rfl : fs = { name := "QUOTE" } := eq_of_beq hq
     intro v h
     rw [dpLiftF.eq_def, hfind] at h
     simp only [BEq.rfl, if_true] at h
@@ -159,7 +159,7 @@ theorem dpLiftF_sound (w : World) (env : Env)
     cases h
   | case6 fs hnq hif c thn els hfind ih3 ih2 ih1 =>
     -- well-formed if: strict both-branch lift, `re_val_if`
-    obtain rfl : fs = { name := "if" } := eq_of_beq hif
+    obtain rfl : fs = { name := "IF" } := eq_of_beq hif
     intro v h
     rw [dpLiftF.eq_def, hfind] at h
     simp only [hnq, hif, if_true] at h
@@ -252,7 +252,7 @@ applications — never special forms or table primitives (matching
     matching `collectOpaques`' name-based collection, D-B4 refined). -/
 def dpOpqKeyOk : SExpr → Bool
   | .cons (.atom (.symbol fs)) _ =>
-    !(fs.isNamed "quote") && !(fs.isNamed "if") &&
+    !(fs.isNamed "QUOTE") && !(fs.isNamed "IF") &&
     !(dpLiftHeads.contains fs.name)
   | _ => false
 
@@ -263,16 +263,16 @@ def dpOpqWF (opq : List (SExpr × SExpr)) : Bool :=
 
 /-- The `if` term shape. -/
 abbrev ifT (c thn els : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil)))
+  .cons (.atom (.symbol { name := "IF" })) (.cons c (.cons thn (.cons els .nil)))
 
 /-- The `not` term shape. -/
 abbrev notT (x : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "not" })) (.cons x .nil)
+  .cons (.atom (.symbol { name := "NOT" })) (.cons x .nil)
 
 /-- A banned-NAME application is never an opaque key under WF. -/
 theorem dpOpqWF_find_banned (opq : List (SExpr × SExpr))
     (hwf : dpOpqWF opq = true) {fs : Symbol} (args : SExpr)
-    (hban : (fs.isNamed "quote" || fs.isNamed "if" ||
+    (hban : (fs.isNamed "QUOTE" || fs.isNamed "IF" ||
              dpLiftHeads.contains fs.name) = true) :
     opq.find? (fun p => p.1 == .cons (.atom (.symbol fs)) args) = none := by
   cases hfind : opq.find? (fun p => p.1 == .cons (.atom (.symbol fs)) args) with
@@ -305,7 +305,7 @@ theorem dpOpqWF_find_not (opq : List (SExpr × SExpr))
 theorem dpLiftF_quote {vars : List (Symbol × SExpr)}
     {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) (x : SExpr) :
     dpLiftF vars opq
-      (.cons (.atom (.symbol { name := "quote" })) (.cons x .nil)) = some x := by
+      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons x .nil)) = some x := by
   rw [dpLiftF.eq_def, dpOpqWF_find_banned opq hwf _ (by decide)]
   simp
 
@@ -316,10 +316,10 @@ theorem dpLiftF_quote {vars : List (Symbol × SExpr)}
 theorem dpLiftF_app_none_of_banned_name {vars : List (Symbol × SExpr)}
     {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
     {fs : Symbol} (args : SExpr)
-    (hban : (fs.isNamed "quote" || fs.isNamed "if" ||
+    (hban : (fs.isNamed "QUOTE" || fs.isNamed "IF" ||
              dpLiftHeads.contains fs.name) = true)
-    (hnq : (fs == { name := "quote" }) = false)
-    (hnif : (fs == { name := "if" }) = false)
+    (hnq : (fs == { name := "QUOTE" }) = false)
+    (hnif : (fs == { name := "IF" }) = false)
     (hnprim : (fs.package == "ACL2" && dpLiftHeads.contains fs.name) = false) :
     dpLiftF vars opq (.cons (.atom (.symbol fs)) args) = none := by
   rw [dpLiftF.eq_def, dpOpqWF_find_banned opq hwf args hban]
@@ -337,7 +337,7 @@ theorem dpLiftF_if_inv {vars : List (Symbol × SExpr)}
       dpLiftF vars opq thn = some tv ∧ dpLiftF vars opq els = some ev ∧
       v = cond (Logic.toBool cv) tv ev := by
   rw [dpLiftF.eq_def, dpOpqWF_find_if opq hwf c thn els] at h
-  simp only [show (({ name := "if" } : Symbol) == { name := "quote" }) = false
+  simp only [show (({ name := "IF" } : Symbol) == { name := "QUOTE" }) = false
     from by decide, BEq.rfl, if_true, if_false, Bool.false_eq_true] at h
   obtain ⟨cv, hcv, h⟩ := Option.bind_eq_some_iff.mp h
   obtain ⟨tv, htv, h⟩ := Option.bind_eq_some_iff.mp h
@@ -350,12 +350,12 @@ theorem dpLiftF_not_intro {vars : List (Symbol × SExpr)}
     {x xv : SExpr} (h : dpLiftF vars opq x = some xv) :
     dpLiftF vars opq (notT x) = some (Logic.not xv) := by
   rw [dpLiftF.eq_def, dpOpqWF_find_not opq hwf x]
-  simp only [show (({ name := "not" } : Symbol) == { name := "quote" }) = false
+  simp only [show (({ name := "NOT" } : Symbol) == { name := "QUOTE" }) = false
       from by decide,
-    show (({ name := "not" } : Symbol) == { name := "if" }) = false
+    show (({ name := "NOT" } : Symbol) == { name := "IF" }) = false
       from by decide,
-    show (({ name := "not" } : Symbol).package == "ACL2" &&
-      dpLiftHeads.contains ({ name := "not" } : Symbol).name) = true
+    show (({ name := "NOT" } : Symbol).package == "ACL2" &&
+      dpLiftHeads.contains ({ name := "NOT" } : Symbol).name) = true
       from by decide,
     if_true, if_false, Bool.false_eq_true]
   rw [h]
@@ -368,12 +368,12 @@ theorem dpLiftF_not_inv {vars : List (Symbol × SExpr)}
     {x v : SExpr} (h : dpLiftF vars opq (notT x) = some v) :
     ∃ xv, dpLiftF vars opq x = some xv ∧ v = Logic.not xv := by
   rw [dpLiftF.eq_def, dpOpqWF_find_not opq hwf x] at h
-  simp only [show (({ name := "not" } : Symbol) == { name := "quote" }) = false
+  simp only [show (({ name := "NOT" } : Symbol) == { name := "QUOTE" }) = false
       from by decide,
-    show (({ name := "not" } : Symbol) == { name := "if" }) = false
+    show (({ name := "NOT" } : Symbol) == { name := "IF" }) = false
       from by decide,
-    show (({ name := "not" } : Symbol).package == "ACL2" &&
-      dpLiftHeads.contains ({ name := "not" } : Symbol).name) = true
+    show (({ name := "NOT" } : Symbol).package == "ACL2" &&
+      dpLiftHeads.contains ({ name := "NOT" } : Symbol).name) = true
       from by decide,
     if_true, if_false, Bool.false_eq_true] at h
   obtain ⟨xv, hxv, h⟩ := Option.bind_eq_some_iff.mp h

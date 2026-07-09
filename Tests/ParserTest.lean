@@ -43,16 +43,16 @@ private def parseFails (input : String) : Bool :=
 #guard parseOne "\"hello\"" = some (.atom (.string "hello"))
 #guard parseOne "\"\"" = some (.atom (.string ""))
 
--- Keywords
-#guard parseOne ":foo" = some (.atom (.keyword "foo"))
-#guard parseOne ":SYSTEM" = some (.atom (.keyword "system"))
+-- Keywords: unescaped tokens upcase (readtable :upcase, BUG-002)
+#guard parseOne ":foo" = some (.atom (.keyword "FOO"))
+#guard parseOne ":SYSTEM" = some (.atom (.keyword "SYSTEM"))
 
--- Symbols
-#guard parseOne "car" = some (.atom (.symbol { name := "car" }))
-#guard parseOne "CAR" = some (.atom (.symbol { name := "car" }))
+-- Symbols: unescaped tokens upcase (readtable :upcase, BUG-002)
+#guard parseOne "car" = some (.atom (.symbol { name := "CAR" }))
+#guard parseOne "CAR" = some (.atom (.symbol { name := "CAR" }))
 
 -- Package-qualified symbols
-#guard parseOne "ACL2::CAR" = some (.atom (.symbol { package := "ACL2", name := "car" }))
+#guard parseOne "ACL2::CAR" = some (.atom (.symbol { package := "ACL2", name := "CAR" }))
 
 -- Escaped symbols with pipes
 #guard parseOne "|My Symbol|" = some (.atom (.symbol { name := "My Symbol" }))
@@ -71,41 +71,41 @@ private def parseFails (input : String) : Bool :=
 
 -- Dotted pairs: a lone `.` is the dotted-cdr separator (true cons), not a symbol.
 #guard parseOne "(a . b)" =
-  some (.cons (.atom (.symbol { name := "a" })) (.atom (.symbol { name := "b" })))
+  some (.cons (.atom (.symbol { name := "A" })) (.atom (.symbol { name := "B" })))
 #guard parseOne "(1 2 . 3)" =
   some (.cons (.atom (.number (.int 1)))
     (.cons (.atom (.number (.int 2))) (.atom (.number (.int 3)))))
 -- `(a . (b))` is the proper list `(a b)`.
 #guard parseOne "(a . (b))" = some (SExpr.ofList
-  [.atom (.symbol { name := "a" }), .atom (.symbol { name := "b" })])
+  [.atom (.symbol { name := "A" }), .atom (.symbol { name := "B" })])
 
 -- Nested list
 #guard parseOne "(a (b c))" = some (SExpr.ofList
-  [.atom (.symbol { name := "a" }),
-   SExpr.ofList [.atom (.symbol { name := "b" }), .atom (.symbol { name := "c" })]])
+  [.atom (.symbol { name := "A" }),
+   SExpr.ofList [.atom (.symbol { name := "B" }), .atom (.symbol { name := "C" })]])
 
 -- === Quoting ===
 
 -- 'T → (quote t)
-#guard parseOne "'T" = some (SExpr.ofList [.atom (.symbol { name := "quote" }), SExpr.t])
+#guard parseOne "'T" = some (SExpr.ofList [.atom (.symbol { name := "QUOTE" }), SExpr.t])
 
 -- '(1 2 3) → quoted cons chain
 #guard parseOne "'(1 2 3)" = some (SExpr.ofList
-  [ .atom (.symbol { name := "quote" })
+  [ .atom (.symbol { name := "QUOTE" })
   , SExpr.ofList [.atom (.number (.int 1)), .atom (.number (.int 2)), .atom (.number (.int 3))]
   ])
 
 -- Quasiquote
 #guard parseOne "`x" = some (SExpr.ofList
-  [.atom (.symbol { name := "quasiquote" }), .atom (.symbol { name := "x" })])
+  [.atom (.symbol { name := "QUASIQUOTE" }), .atom (.symbol { name := "X" })])
 
 -- Unquote
 #guard parseOne ",x" = some (SExpr.ofList
-  [.atom (.symbol { name := "unquote" }), .atom (.symbol { name := "x" })])
+  [.atom (.symbol { name := "UNQUOTE" }), .atom (.symbol { name := "X" })])
 
 -- Unquote-splicing
 #guard parseOne ",@x" = some (SExpr.ofList
-  [.atom (.symbol { name := "unquote-splicing" }), .atom (.symbol { name := "x" })])
+  [.atom (.symbol { name := "UNQUOTE-SPLICING" }), .atom (.symbol { name := "X" })])
 
 -- === Comments ===
 
@@ -126,6 +126,7 @@ private def parseFails (input : String) : Bool :=
 -- Single expression
 #guard parseAll "(+ 1 2)" = some [SExpr.ofList
   [.atom (.symbol { name := "+" }), .atom (.number (.int 1)), .atom (.number (.int 2))]]
+-- (`+` has no letters, so upcase is a no-op)
 
 -- === Reader conditionals fail CLOSED ===
 

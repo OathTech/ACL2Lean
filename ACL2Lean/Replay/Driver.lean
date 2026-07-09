@@ -129,7 +129,7 @@ def proveByDecide (p : Expr) (label : String) : MetaM Expr := do
   return mkApp3 (mkConst ``of_decide_eq_true) p inst
     (mkApp2 (mkConst ``Eq.refl [1]) (mkConst ``Bool) (mkConst ``Bool.true))
 
-/-- Prove `fn.isNamed "quote" = false ∧ "if" = false ∧ "let" = false ∧ "let*" = false`
+/-- Prove `fn.isNamed "QUOTE" = false ∧ "if" = false ∧ "let" = false ∧ "let*" = false`
     — the `…_not_special` side-condition every congruence wants. -/
 def proveNotSpecial (s : Symbol) : MetaM Expr := do
   let sExpr := reflectSymbol s
@@ -227,7 +227,7 @@ private def navigateFrames (term : SExpr) (descentFrames : List PathFrame)
           -- lazy-`if` descent: test, then, or else — `applyStep`'s branch
           -- congruences are sound for the UNCONDITIONAL eval-equalities the
           -- chain carries (a false test makes the branch irrelevant)
-          unless fn.name == "if" do
+          unless fn.name == "IF" do
             throw s!"pathStepsFromFrames: arity-3 congruence only for if \
                     (got {fn.name} arg {idx}): {repr cur}"
         else if args.length > 3 then
@@ -279,21 +279,21 @@ private def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : E
       #[w, e, fnE, reflectSExpr a, reflectSExpr sub, reflectSExpr sub', ns, inner]
   | 3, 0, [t, el] =>
     -- the lazy if's TEST position
-    unless st.fn.name == "if" do
+    unless st.fn.name == "IF" do
       throwError "applyStep: arity-3 congruence only for if (got {st.fn.name})"
     return mkAppN (mkConst ``evalOpt_congr_if_test)
       #[w, e, reflectSExpr sub, reflectSExpr sub', reflectSExpr t, reflectSExpr el, inner]
   | 3, 1, [c, el] =>
     -- the if's THEN branch — sound under the UNCONDITIONAL eval-equality `inner`
     -- carries (if the test is false the branch is irrelevant; else t = t')
-    unless st.fn.name == "if" do
+    unless st.fn.name == "IF" do
       throwError "applyStep: arity-3 then-congruence only for if (got {st.fn.name})"
     return mkAppN (mkConst ``evalOpt_congr_if_then)
       #[w, e, reflectSExpr c, reflectSExpr sub, reflectSExpr sub', reflectSExpr el, inner]
   | 3, 2, [c, t] =>
     -- the if's ELSE branch (the clause-disjunction TAIL) — sound under the
     -- unconditional eval-equality `inner`
-    unless st.fn.name == "if" do
+    unless st.fn.name == "IF" do
       throwError "applyStep: arity-3 else-congruence only for if (got {st.fn.name})"
     return mkAppN (mkConst ``evalOpt_congr_if_else)
       #[w, e, reflectSExpr c, reflectSExpr t, reflectSExpr sub, reflectSExpr sub', inner]
@@ -492,7 +492,7 @@ def ReplayCtx.litFactByTerm? (ctx : ReplayCtx) (t : SExpr) : Option Expr :=
 /-- View `(equal X X)` as `X`. -/
 def asEqualSelf : SExpr → Option SExpr
   | .cons (.atom (.symbol s)) (.cons x (.cons x' .nil)) =>
-    if s.name == "equal" && x == x' then some x else none
+    if s.name == "EQUAL" && x == x' then some x else none
   | _ => none
 
 def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
@@ -555,30 +555,30 @@ def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
 
 /-- DP-lift primitives (unary): ACL2 name → (Logic function, `callBuiltin` rfl lemma). -/
 def dpUnary : List (String × Name × Name) :=
-  [("not",      ``Logic.not,      ``callBuiltin_not),
-   ("zp",       ``Logic.zp,       ``callBuiltin_zp),
-   ("consp",    ``Logic.consp,    ``callBuiltin_consp),
-   ("integerp", ``Logic.integerp, ``callBuiltin_integerp),
-   ("acl2-numberp", ``Logic.acl2Numberp, ``callBuiltin_acl2_numberp),
-   ("true-listp", ``Logic.trueListp, ``callBuiltin_true_listp),
-   ("car",      ``Logic.car,      ``callBuiltin_car),
-   ("cdr",      ``Logic.cdr,      ``callBuiltin_cdr),
-   ("symbolp",  ``Logic.symbolp,  ``callBuiltin_symbolp),
-   ("booleanp", ``Logic.booleanp, ``callBuiltin_booleanp),
-   ("nfix",     ``Logic.nfix,     ``callBuiltin_nfix),
-   ("len",      ``Logic.len,      ``callBuiltin_len),
-   ("endp",     ``Logic.endp,     ``callBuiltin_endp),
-   ("atom",     ``Logic.atom,     ``callBuiltin_atom)]
+  [("NOT",      ``Logic.not,      ``callBuiltin_not),
+   ("ZP",       ``Logic.zp,       ``callBuiltin_zp),
+   ("CONSP",    ``Logic.consp,    ``callBuiltin_consp),
+   ("INTEGERP", ``Logic.integerp, ``callBuiltin_integerp),
+   ("ACL2-NUMBERP", ``Logic.acl2Numberp, ``callBuiltin_acl2_numberp),
+   ("TRUE-LISTP", ``Logic.trueListp, ``callBuiltin_true_listp),
+   ("CAR",      ``Logic.car,      ``callBuiltin_car),
+   ("CDR",      ``Logic.cdr,      ``callBuiltin_cdr),
+   ("SYMBOLP",  ``Logic.symbolp,  ``callBuiltin_symbolp),
+   ("BOOLEANP", ``Logic.booleanp, ``callBuiltin_booleanp),
+   ("NFIX",     ``Logic.nfix,     ``callBuiltin_nfix),
+   ("LEN",      ``Logic.len,      ``callBuiltin_len),
+   ("ENDP",     ``Logic.endp,     ``callBuiltin_endp),
+   ("ATOM",     ``Logic.atom,     ``callBuiltin_atom)]
 
 /-- DP-lift primitives (binary). -/
 def dpBinary : List (String × Name × Name) :=
-  [("equal",    ``Logic.equal,   ``callBuiltin_equal),
+  [("EQUAL",    ``Logic.equal,   ``callBuiltin_equal),
    ("<",        ``Logic.lt,      ``callBuiltin_lt),
-   ("binary-+", ``Logic.plus,    ``callBuiltin_plus),
-   ("binary-*", ``Logic.times,   ``callBuiltin_times),
-   ("cons",     ``SExpr.cons,    ``callBuiltin_cons),
-   ("implies",  ``Logic.implies, ``callBuiltin_implies),
-   ("iff",      ``Logic.iff,     ``callBuiltin_iff)]
+   ("BINARY-+", ``Logic.plus,    ``callBuiltin_plus),
+   ("BINARY-*", ``Logic.times,   ``callBuiltin_times),
+   ("CONS",     ``SExpr.cons,    ``callBuiltin_cons),
+   ("IMPLIES",  ``Logic.implies, ``callBuiltin_implies),
+   ("IFF",      ``Logic.iff,     ``callBuiltin_iff)]
 
 -- INVARIANT (load-bearing — the G3 audit's dpOpqKeyOk↔collectOpaques matrix):
 -- `dpLiftHeads` must be EXACTLY the names of `dpUnary ++ dpBinary`. The meta
@@ -592,7 +592,7 @@ def dpBinary : List (String × Name × Name) :=
 /-- Is this head a DP-lift special form or primitive? (Anything else with a symbol
     head is an OPAQUE user-fn application.) -/
 def dpKnownHead (name : String) : Bool :=
-  name == "quote" || name == "if" ||
+  name == "QUOTE" || name == "IF" ||
   (dpUnary.lookup name).isSome || (dpBinary.lookup name).isSome
 
 
@@ -612,7 +612,7 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
     let hNotT ← proveIsNamedFalse s "t"
     mkAppM ``re_conv_var #[cfg.worldExpr, envExpr, reflectSymbol s, hNotT]
   | .cons (.atom (.symbol qs)) (.cons v .nil) =>
-    if qs.name == "quote" then
+    if qs.name == "QUOTE" then
       mkAppM ``re_conv_quote #[cfg.worldExpr, envExpr, reflectSExpr v]
     else match dpUnary.lookup qs.name with
       | some (fn, cbLemma) =>
@@ -644,7 +644,7 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
     | none => throwError "proveConv: binary {bs.name} not in the builtin registry \
                           (frontier): {repr t}"
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
-    if fs.name == "if" then
+    if fs.name == "IF" then
       let hc ← proveConv cfg envExpr ctx c
       let ht ← proveConv cfg envExpr ctx th
       let he ← proveConv cfg envExpr ctx e
@@ -692,7 +692,7 @@ partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Ex
   match t with
   | .atom (.symbol s) => varVal s
   | .cons (.atom (.symbol fs)) (.cons a .nil) =>
-    if fs.name == "quote" then return reflectSExpr a
+    if fs.name == "QUOTE" then return reflectSExpr a
     else match dpUnary.lookup fs.name with
       | some (fn, _) => return mkApp (mkConst fn) (← dpValExpr opq varVal a)
       | none => throwError "dpValExpr: unary {fs.name} is not a DP-lift primitive: {repr t}"
@@ -702,7 +702,7 @@ partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Ex
       return mkApp2 (mkConst fn) (← dpValExpr opq varVal a) (← dpValExpr opq varVal b)
     | none => throwError "dpValExpr: binary {fs.name} is not a DP-lift primitive: {repr t}"
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
-    if fs.name == "if" then
+    if fs.name == "IF" then
       let vc ← dpValExpr opq varVal c
       let vt ← dpValExpr opq varVal th
       let ve ← dpValExpr opq varVal e
@@ -732,7 +732,7 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
       let hNotT ← proveIsNamedFalse s "t"
       mkAppM ``re_val_var #[cfg.worldExpr, envExpr, reflectSymbol s, hNotT]
   | .cons (.atom (.symbol fs)) (.cons a .nil) =>
-    if fs.name == "quote" then
+    if fs.name == "QUOTE" then
       mkAppM ``re_val_quote #[cfg.worldExpr, envExpr, reflectSExpr a]
     else match dpUnary.lookup fs.name with
       | some (fn, cbLemma) =>
@@ -760,10 +760,10 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
         #[cfg.worldExpr, envExpr, reflectSymbol fs, reflectSExpr a, reflectSExpr b,
           va, vb, rv, hNs, hNo, pa, pb, hr]
     | none =>
-      if fs.name == "if" then throwError "dpValProof: malformed if (2 args): {repr t}"
+      if fs.name == "IF" then throwError "dpValProof: malformed if (2 args): {repr t}"
       else throwError "dpValProof: binary {fs.name} is not a DP-lift primitive"
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
-    if fs.name == "if" then
+    if fs.name == "IF" then
       let pc ← dpValProof cfg envExpr opq opqP varP c
       let pt ← dpValProof cfg envExpr opq opqP varP th
       let pe ← dpValProof cfg envExpr opq opqP varP e
@@ -851,11 +851,11 @@ def replayImpliesDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     throwError "definition:implies — children on the ground-zero unfold (frontier)"
   let .cons (.atom (.symbol impS)) (.cons A (.cons B .nil)) := lhs
     | throwError "definition:implies — lhs is not (implies A B): {repr lhs}"
-  unless impS.name == "implies" do
+  unless impS.name == "IMPLIES" do
     throwError "definition:implies — lhs head {impS.name}"
   let expectedRhs : SExpr :=
-    .cons (.atom (.symbol { name := "if" }))
-      (.cons A (.cons (.cons (.atom (.symbol { name := "if" }))
+    .cons (.atom (.symbol { name := "IF" }))
+      (.cons A (.cons (.cons (.atom (.symbol { name := "IF" }))
         (.cons B (.cons quoteT (.cons quoteNil .nil))))
         (.cons quoteT .nil)))
   unless rhs == expectedRhs do
@@ -864,11 +864,11 @@ def replayImpliesDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
   let vB ← ctxValExpr cfg ctx B
   let pA ← ctxValProof cfg ctx A
   let pB ← ctxValProof cfg ctx B
-  let hNs ← proveNotSpecial { name := "implies" }
-  let hNo ← proveNoShadow cfg { name := "implies" }
+  let hNs ← proveNotSpecial { name := "IMPLIES" }
+  let hNo ← proveNoShadow cfg { name := "IMPLIES" }
   let hr ← mkAppM ``callBuiltin_implies #[vA, vB]
   let pL ← mkAppM ``conv_builtin2
-    #[cfg.worldExpr, cfg.envExpr, reflectSymbol { name := "implies" },
+    #[cfg.worldExpr, cfg.envExpr, reflectSymbol { name := "IMPLIES" },
       reflectSExpr A, reflectSExpr B, vA, vB,
       mkApp2 (mkConst ``Logic.implies) vA vB, hNs, hNo, pA, pB, hr]
   let pR ← ctxValProof cfg ctx rhs
@@ -965,7 +965,7 @@ partial def pinTermOpaques (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCt
     (t : SExpr) : MetaM ReplayCtx := do
   match t with
   | .cons (.atom (.symbol fs)) argSpine =>
-    if fs.name == "quote" then return ctx
+    if fs.name == "QUOTE" then return ctx
     let args := (argSpine.toList?).getD []
     let mut ctx := ctx
     for a in args do
@@ -988,7 +988,7 @@ partial def pinTermOpaques (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCt
       | .cons (.atom (.symbol ifS))
           (.cons (.cons (.atom (.symbol intS)) (.cons _ .nil))
             (.cons thenC (.cons _ .nil))) =>
-        unless ifS.name == "if" && intS.name == "integerp" do
+        unless ifS.name == "IF" && intS.name == "INTEGERP" do
           -- unsupported corollary shape: pin unrefined
           return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
         -- fact : lifted-corollary(value) = t
@@ -1027,7 +1027,7 @@ partial def termMatch (vars : List Symbol) (pat t : SExpr)
       | none => some (σ ++ [(sy, t)])
     else if pat == t then some σ else none
   | .cons (.atom (.symbol q)) rest =>
-    if q.name == "quote" then (if pat == t then some σ else none)
+    if q.name == "QUOTE" then (if pat == t then some σ else none)
     else match t with
       | .cons t1 t2 =>
         (termMatch vars (.atom (.symbol q)) t1 σ).bind (termMatch vars rest t2 ·)
@@ -1092,11 +1092,11 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
     return ← mkAppM ``re_val_cast
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hNil]
   let notTerm : SExpr :=
-    .cons (.atom (.symbol { name := "not" })) (.cons term .nil)
+    .cons (.atom (.symbol { name := "NOT" })) (.cons term .nil)
   if let some hNil := ctx.litFactByTerm? notTerm then
     match term with
     | .cons (.atom (.symbol rs)) _ =>
-      unless rs.name == "consp" && verdict == SExpr.t do
+      unless rs.name == "CONSP" && verdict == SExpr.t do
         throwError "replayRecognizer: not-literal elimination only for consp⇒t \
                     (got {rs.name} ⇒ {repr verdict}, frontier)"
       let v ← ctxValExpr cfg ctx term       -- Logic.consp xv
@@ -1111,13 +1111,13 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
     | _ => throwError "replayRecognizer: not-literal over a non-application"
   match term with
   | .cons (.atom (.symbol rs)) (.cons z .nil) =>
-    if rs.name == "acl2-numberp" then
+    if rs.name == "ACL2-NUMBERP" then
       let some (vz, pz) := ctx.val? z
         | throwError "replayRecognizer: acl2-numberp argument {repr z} has no pinned value"
       let k ← intValExpr? vz
       unless verdict == SExpr.t do
         throwError "replayRecognizer: acl2-numberp of a pinned int must have verdict t"
-      let hNo ← proveNoShadow cfg { name := "acl2-numberp" }
+      let hNo ← proveNoShadow cfg { name := "ACL2-NUMBERP" }
       mkAppM ``re_acl2_numberp_int #[cfg.worldExpr, cfg.envExpr, reflectSExpr z, k, hNo, pz]
     else
       let p ← ctxValProof cfg ctx term
@@ -1245,7 +1245,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
                       branch — equation unavailable (frontier)"
         let .cons (.atom (.symbol eqS)) (.cons ta (.cons tb .nil)) := eqTerm
           | throwError "solidify: branch test {repr eqTerm} is not (equal A B)"
-        unless eqS.name == "equal" do
+        unless eqS.name == "EQUAL" do
           throwError "solidify: branch test head {eqS.name} ≠ equal (frontier)"
         -- hFact : (Logic.equal va vb) ≠ nil — decode to va = vb
         let hEq ← mkAppM ``Logic.eq_of_equal_ne_nil #[hFact]
@@ -1268,11 +1268,11 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
           | throwError "solidify: segment node has no :EQUIV-TERM"
         let .cons (.atom (.symbol eqS)) (.cons ta (.cons tb .nil)) := eqTerm
           | throwError "solidify: segment equiv {repr eqTerm} is not (equal A B)"
-        unless eqS.name == "equal" do
+        unless eqS.name == "EQUAL" do
           throwError "solidify: segment equiv head {eqS.name} ≠ equal (frontier)"
         let mkNotEq (x y : SExpr) : SExpr :=
-          .cons (.atom (.symbol { name := "not" }))
-            (.cons (.cons (.atom (.symbol { name := "equal" }))
+          .cons (.atom (.symbol { name := "NOT" }))
+            (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
               (.cons x (.cons y .nil))) .nil)
         -- the segment literal, in either argument order
         let (segLit, (flipArgs : Bool)) ←
@@ -1310,18 +1310,18 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       match litTerm0 with
       | .cons (.atom (.symbol ns))
           (.cons (.cons (.atom (.symbol es)) (.cons _ (.cons _ .nil))) .nil) =>
-        if ns.name == "not" && es.name == "equal" then pure (litTerm0, hNil0)
+        if ns.name == "NOT" && es.name == "EQUAL" then pure (litTerm0, hNil0)
         else pure (litTerm0, hNil0)
       | _ =>
         match prov.equivTerm with
         | some (.cons (.atom (.symbol eqS')) (.cons a' (.cons b' .nil))) => do
-          unless eqS'.name == "equal" do
+          unless eqS'.name == "EQUAL" do
             throwError "solidify: source literal is not (not (equal A B)) and \
                         equiv {repr prov.equivTerm} is not an equal equation: \
                         {repr litTerm0}"
           let mk (x y : SExpr) : SExpr :=
-            .cons (.atom (.symbol { name := "not" }))
-              (.cons (.cons (.atom (.symbol { name := "equal" }))
+            .cons (.atom (.symbol { name := "NOT" }))
+              (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
                 (.cons x (.cons y .nil))) .nil)
           match ctx.segFacts.find? (fun (st, _) => st == mk a' b') with
           | some (st, h) => pure (st, h)
@@ -1338,7 +1338,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     let .cons (.atom (.symbol notS))
         (.cons (.cons (.atom (.symbol eqS)) (.cons ta (.cons tb .nil))) .nil) := litTerm
       | throwError "solidify: source literal is not (not (equal A B)): {repr litTerm}"
-    unless notS.name == "not" && eqS.name == "equal" do
+    unless notS.name == "NOT" && eqS.name == "EQUAL" do
       throwError "solidify: source literal heads {notS.name}/{eqS.name}"
     -- orientation: the node rewrites one side of the equation to the other
     let (flip : Bool) ←
@@ -1355,17 +1355,17 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     let pl ← ctxValProof cfg ctx lhs
     let pr ← ctxValProof cfg ctx rhs
     mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
-  | "rewrite", "cdr-cons" =>
+  | "rewrite", "CDR-CONS" =>
     -- `(cdr (cons a b)) ⇒ b`.
     match lhs with
     | .cons (.atom (.symbol cdrS))
         (.cons (.cons (.atom (.symbol consS)) (.cons a (.cons b .nil))) .nil) =>
-      unless cdrS.name == "cdr" && consS.name == "cons" do
+      unless cdrS.name == "CDR" && consS.name == "CONS" do
         throwError "cdr-cons: lhs head not (cdr (cons …)): {repr lhs}"
       let ha ← proveConv cfg cfg.envExpr ctx a
       let hb ← proveConv cfg cfg.envExpr ctx b
-      let hNoCdr ← proveNoShadow cfg { name := "cdr" }
-      let hNoCons ← proveNoShadow cfg { name := "cons" }
+      let hNoCdr ← proveNoShadow cfg { name := "CDR" }
+      let hNoCons ← proveNoShadow cfg { name := "CONS" }
       let ruleEq ← mkAppM ``re_cdr_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
       -- children may rewrite the rule's result further (see car-cons)
@@ -1377,17 +1377,17 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       | none => return ruleEq
       | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "cdr-cons: lhs not (cdr (cons a b)): {repr lhs}"
-  | "rewrite", "car-cons" =>
+  | "rewrite", "CAR-CONS" =>
     -- `(car (cons a b)) ⇒ a`.
     match lhs with
     | .cons (.atom (.symbol carS))
         (.cons (.cons (.atom (.symbol consS)) (.cons a (.cons b .nil))) .nil) =>
-      unless carS.name == "car" && consS.name == "cons" do
+      unless carS.name == "CAR" && consS.name == "CONS" do
         throwError "car-cons: lhs head not (car (cons …)): {repr lhs}"
       let ha ← proveConv cfg cfg.envExpr ctx a
       let hb ← proveConv cfg cfg.envExpr ctx b
-      let hNoCar ← proveNoShadow cfg { name := "car" }
-      let hNoCons ← proveNoShadow cfg { name := "cons" }
+      let hNoCar ← proveNoShadow cfg { name := "CAR" }
+      let hNoCons ← proveNoShadow cfg { name := "CONS" }
       let ruleEq ← mkAppM ``re_car_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCar, hNoCons, ha, hb]
       -- the rule's result may be FURTHER rewritten by children (e.g. a
@@ -1401,13 +1401,13 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       | none => return ruleEq
       | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "car-cons: lhs not (car (cons a b)): {repr lhs}"
-  | "rewrite", "unicity-of-0" =>
+  | "rewrite", "UNICITY-OF-0" =>
     -- `(binary-+ '0 z) ⇒ z` via the REAL intermediate `(fix z)` (the def:fix child
     -- subtree is REPLAYED, not collapsed): (A) `(+ '0 z) ⇒ (fix z)` by both
     -- converging to z's pinned int value; (B) the child `(fix z) ⇒ z`.
     match lhs with
     | .cons (.atom (.symbol plusS)) (.cons q0 (.cons z .nil)) =>
-      unless plusS.name == "binary-+" && rhs == z do
+      unless plusS.name == "BINARY-+" && rhs == z do
         throwError "unicity-of-0: unexpected shape {repr lhs} ⇒ {repr rhs}"
       let some (vz, pz) := ctx.val? z
         | throwError "unicity-of-0: {repr z} has no pinned value (need the TP int fact)"
@@ -1421,11 +1421,11 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       let fixConv ← mkAppM ``fuel_conv_of_eq #[fixEq, pz]
       let hq0 ← ctxValProof cfg ctx q0
       let vq0 ← ctxValExpr cfg ctx q0
-      let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
-      let hNsPlus ← proveNotSpecial { name := "binary-+" }
+      let hNoPlus ← proveNoShadow cfg { name := "BINARY-+" }
+      let hNsPlus ← proveNotSpecial { name := "BINARY-+" }
       let hr ← mkAppM ``callBuiltin_plus #[vq0, vz]
       let plusConvRaw ← mkAppM ``conv_builtin2
-        #[cfg.worldExpr, cfg.envExpr, reflectSymbol { name := "binary-+" },
+        #[cfg.worldExpr, cfg.envExpr, reflectSymbol { name := "BINARY-+" },
           reflectSExpr q0, reflectSExpr z, vq0, vz,
           mkApp2 (mkConst ``Logic.plus) vq0 vz, hNsPlus, hNoPlus, hq0, pz, hr]
       let hzero ← mkAppM ``logic_plus_zero_int #[k]
@@ -1435,18 +1435,18 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       let stepA ← mkAppM ``fuel_eq_of_conv #[plusConv, fixConv, ← mkEqRefl vz]
       mkAppM ``fuel_chain_eq #[stepA, fixEq]
     | _ => throwError "unicity-of-0: lhs not (binary-+ '0 z): {repr lhs}"
-  | "rewrite", "commutativity-of-+" =>
+  | "rewrite", "COMMUTATIVITY-OF-+" =>
     -- `(+ a b) ⇒ (+ b a)`, then the node's children chain on the rule's rhs
     -- (their paths carry an `(RHS . …)` boundary frame — depth+1) to the recorded rhs.
     match lhs with
     | .cons (.atom (.symbol plusS)) (.cons a (.cons b .nil)) =>
-      unless plusS.name == "binary-+" do
+      unless plusS.name == "BINARY-+" do
         throwError "commutativity-of-+: head {plusS.name}"
       let ha ← ctxValProof cfg ctx a
       let hb ← ctxValProof cfg ctx b
       let va ← ctxValExpr cfg ctx a
       let vb ← ctxValExpr cfg ctx b
-      let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
+      let hNoPlus ← proveNoShadow cfg { name := "BINARY-+" }
       let ruleEq ← mkAppM ``re_plus_comm
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, va, vb, hNoPlus, ha, hb]
       let swapped : SExpr :=
@@ -1459,13 +1459,13 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       | none => return ruleEq
       | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "commutativity-of-+: lhs not (binary-+ a b): {repr lhs}"
-  | "rewrite", "commutativity-2-of-+" =>
+  | "rewrite", "COMMUTATIVITY-2-OF-+" =>
     -- `(+ a (+ b c)) ⇒ (+ b (+ a c))`, then the children chain on the rule's rhs
     -- at depth+1 to the recorded rhs.
     match lhs with
     | .cons (.atom (.symbol plusS))
         (.cons a (.cons (.cons (.atom (.symbol plusS2)) (.cons b (.cons c .nil))) .nil)) =>
-      unless plusS.name == "binary-+" && plusS2.name == "binary-+" do
+      unless plusS.name == "BINARY-+" && plusS2.name == "BINARY-+" do
         throwError "commutativity-2-of-+: heads"
       let ha ← ctxValProof cfg ctx a
       let hb ← ctxValProof cfg ctx b
@@ -1473,7 +1473,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       let va ← ctxValExpr cfg ctx a
       let vb ← ctxValExpr cfg ctx b
       let vc ← ctxValExpr cfg ctx c
-      let hNoPlus ← proveNoShadow cfg { name := "binary-+" }
+      let hNoPlus ← proveNoShadow cfg { name := "BINARY-+" }
       let ruleEq ← mkAppM ``re_plus_comm2
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, reflectSExpr c,
           va, vb, vc, hNoPlus, ha, hb, hc]
@@ -1491,13 +1491,13 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
   | "definition", dname =>
     -- `implies` is an evalOpt BUILTIN modeled by `callBuiltin`, not a world
     -- definition — its :DEFINITION rune gets the ground-zero recipe.
-    if dname == "implies" && (cfg.worldVal.defs.get? { name := "implies" }).isNone then
+    if dname == "IMPLIES" && (cfg.worldVal.defs.get? { name := "IMPLIES" }).isNone then
       replayImpliesDef cfg ctx n
     else replayDefinition cfg ctx n depth
   | "fake-rune-for-anonymous-enabled-rule", _ =>
     -- recognizer node: term-eq form (eval lhs = eval rhs, rhs the quoted verdict).
     let verdictV := match rhs with
-      | .cons (.atom (.symbol q)) (.cons v .nil) => if q.name == "quote" then v else rhs
+      | .cons (.atom (.symbol q)) (.cons v .nil) => if q.name == "QUOTE" then v else rhs
       | v => v
     let fact ← replayRecognizer cfg ctx lhs verdictV
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr verdictV]
@@ -1510,7 +1510,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     -- discharges the same claim by the test value's two-valuedness).
     match lhs with
     | .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) =>
-      unless ifS.name == "if" do
+      unless ifS.name == "IF" do
         throwError "if-simplification: head {ifS.name}"
       if prov.origin == "if1/boolean" then
         unless thn == quoteT && els == quoteNil && rhs == c do
@@ -1548,7 +1548,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
         return ← mkAppM ``fuel_eq_of_conv #[pl, pr, hBool]
       let .cons (.atom (.symbol q)) (.cons cv .nil) := c
         | throwError "if-simplification: test is not a quoted constant: {repr c}"
-      unless q.name == "quote" do
+      unless q.name == "QUOTE" do
         throwError "if-simplification: test is not a quoted constant: {repr c}"
       let hc ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
       if cv == SExpr.nil then
@@ -1576,7 +1576,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     -- whichever way the test goes; the test's convergence is the only premise.
     match lhs with
     | .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) =>
-      unless ifS.name == "if" do
+      unless ifS.name == "IF" do
         throwError "if-same-branches: head {ifS.name}"
       unless thn == els && rhs == thn do
         throwError "if-same-branches: node is not (if c a a) ⇒ a: \
@@ -1596,7 +1596,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       unless rhs == quoteT do
         throwError "equal-self: rhs {repr rhs} ≠ (quote t)"
       let hX ← proveConv cfg cfg.envExpr ctx X
-      let hNoEqual ← proveNoShadow cfg { name := "equal" }
+      let hNoEqual ← proveNoShadow cfg { name := "EQUAL" }
       let pEq ← mkAppM ``re_equal_self
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
       let pQ ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
@@ -1608,7 +1608,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     -- derived type-alist entry is a named frontier).
     let .cons (.atom (.symbol q)) (.cons cv .nil) := rhs
       | throwError "type-alist: rhs {repr rhs} is not a quoted constant"
-    unless q.name == "quote" do
+    unless q.name == "QUOTE" do
       throwError "type-alist: rhs {repr rhs} is not a quoted constant"
     if cv == SExpr.nil then
       let some hNil := ctx.litFactByTerm? lhs
@@ -1620,7 +1620,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       -- TRUTHY verdict: the spine's `(not lhs)`-false fact gives ≠ nil; the
       -- fn's EMITTED :TYPE-PRESCRIPTION (the rune is on the node) pins the
       -- non-nil value to exactly `t` (two-valuedness — consumed, not inferred)
-      let notLhs : SExpr := .cons (.atom (.symbol { name := "not" }))
+      let notLhs : SExpr := .cons (.atom (.symbol { name := "NOT" }))
         (.cons lhs .nil)
       let some hNotNil := ctx.litFactByTerm? notLhs
         | throwError "type-alist: no spine (not …)-falsity fact for \
@@ -1654,7 +1654,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     -- lift to the node-equality `eval lhs = eval rhs` (rhs the recorded constant).
     let .cons (.atom (.symbol q)) (.cons v .nil) := rhs
       | throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
-    unless q.name == "quote" do
+    unless q.name == "QUOTE" do
       throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
     let convLhs ← replayExecGround cfg lhs v
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
@@ -1778,7 +1778,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
           -- relieved SILENTLY from the clause context (the emitted marker
           -- names the instantiated hyp): the spine's (not hσ)-falsity fact
           -- (the type-alist source the type-alist recipe also consumes)
-          let notH : SExpr := .cons (.atom (.symbol { name := "not" }))
+          let notH : SExpr := .cons (.atom (.symbol { name := "NOT" }))
             (.cons hσ .nil)
           let some hNotNil := ctx.litFactByTerm? notH
             | throwError "rule {rname}: marker-relieved hyp {repr hσ} has no \
@@ -1855,7 +1855,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
           | throwError "replayRewrites: identity if-simplification's running \
                         subterm {repr S} is neither rhs {repr rhs} nor a \
                         constant-test if (frontier)"
-        unless ifS.name == "if" && q.name == "quote" do
+        unless ifS.name == "IF" && q.name == "QUOTE" do
           throwError "replayRewrites: identity if-simplification's running \
                       subterm {repr S} is not a constant-test if (frontier)"
         let branch := if cv == SExpr.nil then els else thn
@@ -1907,7 +1907,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
         if let .cons (.atom (.symbol ifS))
             (.cons c@(.cons (.atom (.symbol q)) (.cons cv .nil))
               (.cons thn (.cons els .nil))) := lhs then
-          if ifS.name == "if" && q.name == "quote" then
+          if ifS.name == "IF" && q.name == "QUOTE" then
             let rel ← relativizeAndStrip (nodePath n) depth strip
             let (_, S) ← ofExcept (navigateFrames start rel)
             -- take the relaxation ONLY on the exact dead-branch-fold shape:
@@ -1919,7 +1919,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
               | .cons (.atom (.symbol ifS')) (.cons c' (.cons thn' (.cons els' .nil))) =>
                 let taken := if cv == SExpr.nil then els else thn
                 let taken' := if cv == SExpr.nil then els' else thn'
-                ifS'.name == "if" && c' == c && taken' == taken && rhs == taken
+                ifS'.name == "IF" && c' == c && taken' == taken && rhs == taken
               | _ => false
             if S != lhs && compatible then
               let .cons _ (.cons _ (.cons thn' (.cons els' .nil))) := S
@@ -1984,7 +1984,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
         let .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) := S
           | throwError "if-finish/combined: running subterm {repr S} is not a \
                         3-arg if"
-        unless ifS.name == "if" do
+        unless ifS.name == "IF" do
           throwError "if-finish/combined: running subterm head {ifS.name} ≠ if"
         -- partition the children: branch rewrites (path descends arg 2/3),
         -- then whole-if FINISHING steps (path AT the if, e.g. if1/boolean) —
@@ -2070,13 +2070,13 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
         match lhs with
         | .cons (.atom (.symbol ifS))
             (.cons (.cons (.atom (.symbol q)) (.cons cv .nil)) _) =>
-          if ifS.name == "if" && q.name == "quote" && cv == SExpr.nil then
+          if ifS.name == "IF" && q.name == "QUOTE" && cv == SExpr.nil then
             let rel ← relativizeAndStrip (nodePath n) depth strip
             let (steps, S) ← ofExcept (navigateFrames start rel)
             match S with
             | .cons (.atom (.symbol ifS'))
                 (.cons T (.cons thn (.cons els .nil))) =>
-              if ifS'.name == "if" && S != lhs &&
+              if ifS'.name == "IF" && S != lhs &&
                  lhs == SExpr.cons (.atom (.symbol ifS'))
                    (.cons (.cons (.atom (.symbol q)) (.cons cv .nil))
                      (.cons thn (.cons els .nil))) then
@@ -2092,7 +2092,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
                     (ctx.branchFacts.find? (fun (t, _, sign, _) =>
                       t == u && !sign)).map (·.2.2.2)
                 let eqOf : SExpr → SExpr → SExpr := fun x y =>
-                  .cons (.atom (.symbol { name := "equal" }))
+                  .cons (.atom (.symbol { name := "EQUAL" }))
                     (.cons x (.cons y .nil))
                 let directOrFlipped : SExpr → MetaM (Option Expr) := fun u => do
                   match nilFactFor u with
@@ -2100,7 +2100,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
                   | none =>
                     match u with
                     | .cons (.atom (.symbol eqS)) (.cons x (.cons y .nil)) =>
-                      if eqS.name == "equal" then
+                      if eqS.name == "EQUAL" then
                         match nilFactFor (eqOf y x) with
                         | some h => do
                           let vx ← ctxValExpr cfg ctx x
@@ -2116,7 +2116,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
                   | none =>
                     match T with
                     | .cons (.atom (.symbol eqS)) (.cons u (.cons v .nil)) =>
-                      if !(eqS.name == "equal") then pure none else do
+                      if !(eqS.name == "EQUAL") then pure none else do
                       let mut found : Option Expr := none
                       for (st, hSeg) in ctx.segFacts do
                         if found.isSome then break
@@ -2124,7 +2124,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
                             (.cons pq@(.cons (.atom (.symbol eqS'))
                               (.cons p (.cons q .nil))) .nil) := st
                           | continue
-                        unless ns.name == "not" && eqS'.name == "equal" do
+                        unless ns.name == "NOT" && eqS'.name == "EQUAL" do
                           continue
                         -- heq : vp = vq from the false segment literal
                         let vPQ ← ctxValExpr cfg ctx pq
@@ -2233,7 +2233,7 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
   if lp.notFlg then
     let .cons (.atom (.symbol notS)) (.cons atm .nil) := lp.literal
       | throwError "replayLiteralChain: notFlg literal is not (not atm): {repr lp.literal}"
-    unless notS.name == "not" do
+    unless notS.name == "NOT" do
       throwError "replayLiteralChain: notFlg literal head {notS.name} ≠ not"
     let (chainOpt, finalAtom) ← replayRewrites cfg ctx atm lp.nodes 0
     -- HIDDEN definitional `implies` unfold: rewrite-atm expands an implies
@@ -2243,15 +2243,15 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
     let (chainOpt, finalAtom) ←
       match finalAtom with
       | .cons (.atom (.symbol impS)) (.cons A (.cons B .nil)) =>
-        if impS.name == "implies" &&
+        if impS.name == "IMPLIES" &&
            SExpr.cons (.atom (.symbol notS)) (.cons finalAtom .nil) != lp.result then do
           let expanded : SExpr :=
-            .cons (.atom (.symbol { name := "if" }))
-              (.cons A (.cons (.cons (.atom (.symbol { name := "if" }))
+            .cons (.atom (.symbol { name := "IF" }))
+              (.cons A (.cons (.cons (.atom (.symbol { name := "IF" }))
                 (.cons B (.cons quoteT (.cons quoteNil .nil))))
                 (.cons quoteT .nil)))
           let step ← replayImpliesDef cfg ctx
-            (.node ("definition", "implies") finalAtom expanded [] {})
+            (.node ("definition", "IMPLIES") finalAtom expanded [] {})
           let combined ← match chainOpt with
             | none => pure step
             | some c => mkAppM ``fuel_chain_eq #[c, step]
@@ -2273,10 +2273,10 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
     -- result check then validates the fold against ACL2's recorded :RESULT.
     match finalAtom with
     | .cons (.atom (.symbol q)) (.cons c .nil) =>
-      if q.name == "quote" then
+      if q.name == "QUOTE" then
         let foldedV : SExpr := if c == SExpr.nil then SExpr.t else SExpr.nil
         let foldedT : SExpr :=
-          .cons (.atom (.symbol { name := "quote" })) (.cons foldedV .nil)
+          .cons (.atom (.symbol { name := "QUOTE" })) (.cons foldedV .nil)
         let pNot ← replayExecGround cfg finalLit foldedV
         let pQ ← mkAppM ``re_val_quote
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr foldedV]
@@ -2347,7 +2347,7 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
 partial def collectContextDemands : ProofNode → List SExpr
   | .node (rty, _) l rh children _ =>
     let notOf : SExpr → SExpr := fun t =>
-      .cons (.atom (.symbol { name := "not" })) (.cons t .nil)
+      .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
     (if rty == "hyp-relief" then [notOf l]
      else if rty == "type-alist" then
        if rh == quoteNil then [l]
@@ -2443,7 +2443,7 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
   let w := cfg.worldExpr
   let e := cfg.envExpr
   let some (fs, args) := asApp t | return (none, t)
-  if fs.name == "quote" then return (none, t)
+  if fs.name == "QUOTE" then return (none, t)
   -- an in-scope SPINE falsity fact resolves the term outright: if-interp
   -- consults the clause-segment ASSUMPTIONS for the terms it encounters (the
   -- other literals are assumed false) — e.g. a collapsed residual that IS
@@ -2454,7 +2454,7 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
     let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
     let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
     return (some step, quoteNil)
-  if fs.name == "if" then
+  if fs.name == "IF" then
     match args with
     | [c, a, b] =>
       -- collapse the test first; decide; then only the LIVE branch
@@ -2542,25 +2542,25 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- call-stack folds (the enumerated rule set; extend ONLY with rules
   -- if-interp itself applies — rewrite.lisp:3671-3778)
   let fold? ← do
-    if fs.name == "not" then
+    if fs.name == "NOT" then
       match curArgs.toList with
       | [.cons (.atom (.symbol q)) (.cons cc .nil)] =>
-        if q.name == "quote" then
+        if q.name == "QUOTE" then
           let foldedV : SExpr := if cc == SExpr.nil then SExpr.t else SExpr.nil
           let foldedT : SExpr :=
-            .cons (.atom (.symbol { name := "quote" })) (.cons foldedV .nil)
+            .cons (.atom (.symbol { name := "QUOTE" })) (.cons foldedV .nil)
           let pNot ← replayExecGround cfg cur foldedV
           let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr foldedV]
           pure (some (← mkAppM ``fuel_eq_of_conv
             #[pNot, pQ, ← mkEqRefl (reflectSExpr foldedV)], foldedT))
         else pure none
       | _ => pure none
-    else if fs.name == "equal" then
+    else if fs.name == "EQUAL" then
       match curArgs.toList with
       | [x, y] =>
         if x == y then
           let hX ← proveConv cfg e ctx x
-          let hNoEqual ← proveNoShadow cfg { name := "equal" }
+          let hNoEqual ← proveNoShadow cfg { name := "EQUAL" }
           let pEq ← mkAppM ``re_equal_self #[w, e, reflectSExpr x, hX, hNoEqual]
           let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.t]
           pure (some (← mkAppM ``fuel_eq_of_conv
@@ -2603,7 +2603,7 @@ def dischargeOrigins : List String :=
     `([l₁ … l_{k-1}], lₖ)`. A non-spine term is a singleton clause `([], l)`. -/
 partial def dpSpine : SExpr → List SExpr × SExpr
   | t@(.cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil)))) =>
-    if fs.name == "if" && th == quoteT then
+    if fs.name == "IF" && th == quoteT then
       let (lits, last) := dpSpine e
       (c :: lits, last)
     else ([], t)
@@ -2810,7 +2810,7 @@ def mkDpLiftBundle (cfg : ReplayConfig) (envExpr : Expr)
   let varEntries ← vars.mapM fun sym => do
     let vE ← dpConcVar envExpr sym
     let pairE ← mkAppM ``Prod.mk #[reflectSymbol sym, vE]
-    let hNotT ← proveIsNamedFalse sym "t"
+    let hNotT ← proveIsNamedFalse sym "T"
     let h ← mkAppM ``re_val_var #[cfg.worldExpr, envExpr, reflectSymbol sym, hNotT]
     return (pairE, h)
   let varP ← withLocalDeclD `q varPairTy fun qV => do
@@ -2862,7 +2862,7 @@ partial def dischargeSpine (cfg : ReplayConfig) (b : DpLiftBundle)
     (t : SExpr) (fPartial : Expr) : MetaM Expr := do
   match t with
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
-    if fs.name == "if" && th == quoteT then
+    if fs.name == "IF" && th == quoteT then
       let vc ← dpValExpr opqMap (dpConcVar cfg.envExpr) c
       let pc ← dpLiftProof cfg cfg.envExpr b c vc
       -- hthen : vc ≠ nil → EvTrue (quote t)
@@ -2922,9 +2922,9 @@ def totDischargeDecrease (just : Justification)
     (callArg : SExpr) : MetaM Expr := do
   -- the emitted obligation for THIS call site
   let countOf (t : SExpr) : SExpr :=
-    .cons (.atom (.symbol { name := "acl2-count" })) (.cons t .nil)
+    .cons (.atom (.symbol { name := "ACL2-COUNT" })) (.cons t .nil)
   let wanted : SExpr :=
-    .cons (.atom (.symbol { name := "o<" }))
+    .cons (.atom (.symbol { name := "O<" }))
       (.cons (countOf callArg)
         (.cons (countOf (.atom (.symbol { name := measuredFormal.name }))) .nil))
   let some clause := just.terminationClauses.find? fun c =>
@@ -2941,7 +2941,7 @@ def totDischargeDecrease (just : Justification)
     if lit == wanted then continue
     match lit with
     | .cons (.atom (.symbol n)) (.cons tst .nil) =>
-      if n.name == "not" then
+      if n.name == "NOT" then
         unless facts.any (fun (f, pos, _) => f == tst && pos) do
           throwFrontier m!"proveTotality: ruling test {repr tst} not established \
               on this branch (obligation {repr clause})"
@@ -2956,18 +2956,18 @@ def totDischargeDecrease (just : Justification)
   -- the Lean-side decrease: supported shapes (frontier otherwise)
   match callArg with
   | .cons (.atom (.symbol c)) (.cons (.atom (.symbol m)) .nil) =>
-    if c.name == "cdr" && m == measuredFormal then
+    if c.name == "CDR" && m == measuredFormal then
       let conspTest : SExpr :=
-        .cons (.atom (.symbol { name := "consp" }))
+        .cons (.atom (.symbol { name := "CONSP" }))
           (.cons (.atom (.symbol { name := m.name })) .nil)
       let some (_, _, factPf) := facts.find?
           (fun (f, pos, _) => f == conspTest && pos)
         | throwFrontier m!"proveTotality: decrease for (cdr {m.name}) needs an \
             in-scope (consp {m.name}) fact (frontier)"
       mkAppM ``ACL2.acl2Count_cdr_lt_of_consp #[factPf]
-    else if c.name == "car" && m == measuredFormal then
+    else if c.name == "CAR" && m == measuredFormal then
       let conspTest : SExpr :=
-        .cons (.atom (.symbol { name := "consp" }))
+        .cons (.atom (.symbol { name := "CONSP" }))
           (.cons (.atom (.symbol { name := m.name })) .nil)
       let some (_, _, factPf) := facts.find?
           (fun (f, pos, _) => f == conspTest && pos)
@@ -3000,7 +3000,7 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
     return ← mkAppM ``conv_ex_of_vfix #[pf]
   match t with
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
-    if fs.name == "if" then
+    if fs.name == "IF" then
       if totLiftable c then
         let vc ← dpValExpr [] (dpValProof.dpVarVal envE varP) c
         let hc ← dpValProof cfg envE [] [] varP c
@@ -3320,7 +3320,7 @@ partial def findOccurrences (cur lhs : SExpr) : List (List PathStep) :=
   let inside : List (List PathStep) :=
     match asApp cur with
     | some (fn, args) =>
-      if fn.name == "quote" then []
+      if fn.name == "QUOTE" then []
       else
         (args.zipIdx).flatMap fun (a, i) =>
           (findOccurrences a lhs).map fun p =>
@@ -3358,7 +3358,7 @@ def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) 
   | "executable-counterpart" =>
     let .cons (.atom (.symbol q)) (.cons v .nil) := rhs
       | throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
-    unless q.name == "quote" do
+    unless q.name == "QUOTE" do
       throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
     let convLhs ← replayExecGround cfg lhs v
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
@@ -3369,7 +3369,7 @@ def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) 
     unless rhs == quoteT do
       throwError "preprocess equal-self: rhs {repr rhs} ≠ (quote t)"
     let hX ← proveConv cfg cfg.envExpr ctx X
-    let hNoEqual ← proveNoShadow cfg { name := "equal" }
+    let hNoEqual ← proveNoShadow cfg { name := "EQUAL" }
     let closeProof ← mkAppM ``re_equal_self
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
@@ -3383,7 +3383,7 @@ def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     MetaM Expr := do
   let (lhs, rhs) := nodeLhsRhs n
   let expectedLhs : SExpr :=
-    .cons (.atom (.symbol { name := "if" }))
+    .cons (.atom (.symbol { name := "IF" }))
       (.cons rhs (.cons quoteT (.cons quoteNil .nil)))
   unless lhs == expectedLhs do
     throwError "preprocess/if-iff: lhs {repr lhs} is not (if rhs 't 'nil)"
@@ -3401,7 +3401,7 @@ def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     Any other position under an iff payload is a frontier. -/
 def applyStepSIff (cfg : ReplayConfig) (ctx : ReplayCtx) (st : PathStep)
     (inner : Expr) : MetaM (Expr × Bool) := do
-  unless st.fn.name == "if" && st.arity == 3 do
+  unless st.fn.name == "IF" && st.arity == 3 do
     throwError "iff congruence: position {st.fn.name}/{st.argIdx} does not \
                 propagate IFF (frontier — only if-test/branch positions do)"
   -- a composition that does not typecheck (e.g. a branch-congruence result fed
@@ -3829,7 +3829,7 @@ private partial def buildCaseTree (cases : List (Nat × List SExpr)) :
     -- the split test, positive form: strip a leading not
     let test := match t0 with
       | .cons (.atom (.symbol ns)) (.cons u .nil) =>
-        if ns.name == "not" then u else t0
+        if ns.name == "NOT" then u else t0
       | _ => t0
     let negT := dumbNegateLit test
     let mut pos : List (Nat × List SExpr) := []
@@ -3869,7 +3869,7 @@ partial def elimReplace (carT cdrT vT uT : SExpr) (v1 v2 : Symbol) (t : SExpr) :
   else if t == vT then uT
   else match t with
     | .cons (.atom (.symbol q)) rest =>
-      if q.isNamed "quote" then t
+      if q.isNamed "QUOTE" then t
       else .cons (.atom (.symbol q)) (elimSpine rest)
     | _ => t
 where
@@ -3915,7 +3915,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
     if (runeOf n).1 == "branch-substitution" then
       let .node _ varT valT _ prov := n
       -- :EQUIVALENCE is the RELATION name; only `equal` is supported
-      unless prov.equivTerm == some (.atom (.symbol { name := "equal" })) do
+      unless prov.equivTerm == some (.atom (.symbol { name := "EQUAL" })) do
         throwError "replayClauseSpine: branch-substitution under equivalence \
                     {repr prov.equivTerm} at {idStr} (frontier — equal only)"
       let .atom (.symbol varSym) := varT
@@ -3923,8 +3923,8 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
                       {repr varT} is not a variable at {idStr}"
       -- the justifying clause literal `(not (equal … …))`, either orientation
       let mkNegEq (x y : SExpr) : SExpr :=
-        .cons (.atom (.symbol { name := "not" }))
-          (.cons (.cons (.atom (.symbol { name := "equal" }))
+        .cons (.atom (.symbol { name := "NOT" }))
+          (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
             (.cons x (.cons y .nil))) .nil)
       let ((ta, tb), kIdx) ←
         match clauseLits.find? (fun (_, l) => l == mkNegEq varT valT) with
@@ -3997,11 +3997,11 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
         let mut inner ← mkAppM ``re_if_false
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr trivLit, reflectSExpr quoteT,
             reflectSExpr tailTerm, vTail, hcNil, hTail]
-        let mut curL : SExpr := .cons (.atom (.symbol { name := "if" }))
+        let mut curL : SExpr := .cons (.atom (.symbol { name := "IF" }))
           (.cons trivLit (.cons quoteT (.cons tailTerm .nil)))
         let mut curR : SExpr := tailTerm
         for (_, l) in (substLits.take kPos).reverse do
-          let st : PathStep := { fn := { name := "if" }, arity := 3, argIdx := 2,
+          let st : PathStep := { fn := { name := "IF" }, arity := 3, argIdx := 2,
                                  siblings := [l, quoteT] }
           inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
           curL := rebuild st.fn st.arity st.argIdx curL st.siblings
@@ -4330,7 +4330,7 @@ partial def composeSplit (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
       | none =>
         match T with
         | .cons (.atom (.symbol eqS)) (.cons x (.cons y .nil)) => do
-          unless eqS.name == "equal" do
+          unless eqS.name == "EQUAL" do
             throwError "composeSplit: no fact for resolved test {repr T} at \
                         {idStr} (frontier)"
           let flipped : SExpr := .cons (.atom (.symbol eqS)) (.cons y (.cons x .nil))
@@ -4399,7 +4399,7 @@ partial def composeSplit (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
           return some hf
         match L with
         | .cons (.atom (.symbol ns)) (.cons T .nil) =>
-          if ns.name == "not" then
+          if ns.name == "NOT" then
             match facts.find? (fun (T', _, sign, _) => sign && T' == T) with
             | some (_, _, _, hf) =>
               return some (← mkAppM ``not_nil_of_truthy #[hf])
@@ -4483,7 +4483,7 @@ partial def composeSplit (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
             return some hf
           match L with
           | .cons (.atom (.symbol ns)) (.cons T .nil) =>
-            if ns.name == "not" then
+            if ns.name == "NOT" then
               match facts.find? (fun (T', _, sign, _) => sign && T' == T) with
               | some (_, _, _, hf) =>
                 return some (← mkAppM ``not_nil_of_truthy #[hf])
@@ -4768,9 +4768,9 @@ partial def replayElim (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode)
   unless crit1 == .nil && crit2 == .nil && crit3 == .nil do
     throwError "replayElim: elim record carries non-nil trailing fields at \
                 {cn.idStr} (frontier): {repr recS}"
-  let some [.atom (.keyword "elim"), .atom (.symbol runeName)] := runeS.toList?
+  let some [.atom (.keyword "ELIM"), .atom (.symbol runeName)] := runeS.toList?
     | throwError "replayElim: elim record rune {repr runeS} at {cn.idStr}"
-  unless runeName.name == "car-cdr-elim" do
+  unless runeName.name == "CAR-CDR-ELIM" do
     throwError "replayElim: elim rule {runeName.name} ≠ car-cdr-elim at \
                 {cn.idStr} (frontier)"
   let .atom (.symbol v) := varS
@@ -4779,13 +4779,13 @@ partial def replayElim (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode)
       (.cons (.atom (.symbol v1)) (.cons (.atom (.symbol v2)) .nil)) := targetS
     | throwError "replayElim: elim target {repr targetS} is not (cons v1 v2) \
                   at {cn.idStr}"
-  unless consS.name == "cons" && v1 != v2 && v1 != v && v2 != v do
+  unless consS.name == "CONS" && v1 != v2 && v1 != v && v2 != v do
     throwError "replayElim: elim target vars ({consS.name} {v1.name} {v2.name}) \
                 at {cn.idStr}"
   let vT : SExpr := .atom (.symbol v)
-  let carT : SExpr := .cons (.atom (.symbol { name := "car" })) (.cons vT .nil)
-  let cdrT : SExpr := .cons (.atom (.symbol { name := "cdr" })) (.cons vT .nil)
-  let uT : SExpr := .cons (.atom (.symbol { name := "cons" }))
+  let carT : SExpr := .cons (.atom (.symbol { name := "CAR" })) (.cons vT .nil)
+  let cdrT : SExpr := .cons (.atom (.symbol { name := "CDR" })) (.cons vT .nil)
+  let uT : SExpr := .cons (.atom (.symbol { name := "CONS" }))
     (.cons (.atom (.symbol v1)) (.cons (.atom (.symbol v2)) .nil))
   let expectedDest : List SExpr :=
     [.cons carT (.atom (.symbol v1)), .cons cdrT (.atom (.symbol v2))]
@@ -4815,8 +4815,8 @@ partial def replayElim (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode)
     throwError "replayElim: recomputed elim clause ≠ emitted output at \
                 {cn.idStr} (record/output divergence)"
   -- the clause's head literal must be (not (consp v)) — the elim split's guard
-  let lit1 : SExpr := .cons (.atom (.symbol { name := "not" }))
-    (.cons (.cons (.atom (.symbol { name := "consp" })) (.cons vT .nil)) .nil)
+  let lit1 : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+    (.cons (.cons (.atom (.symbol { name := "CONSP" })) (.cons vT .nil)) .nil)
   let c0 :: cRest := cn.inputClause
     | throwError "replayElim: empty input clause at {cn.idStr}"
   unless c0 == lit1 do
@@ -4888,7 +4888,7 @@ partial def replayElim (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode)
     -- residual diffs are bare `v` vs the σ-IMAGE of the elim target,
     -- `(cons (car v) (cdr v))`
     let sTermS := ACL2.Replay.substTerm [v1, v2] argsS bodyT
-    let uSig : SExpr := .cons (.atom (.symbol { name := "cons" }))
+    let uSig : SExpr := .cons (.atom (.symbol { name := "CONS" }))
       (.cons carT (.cons cdrT .nil))
     let hVeq ← mkAppM ``Eq.symm #[← mkAppM ``logic_cons_car_cdr_of_consp #[hNe]]
     let pU ← ctxValProof cfg ctx uSig
@@ -4927,9 +4927,9 @@ partial def replayGeneralize (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : Clause
       if kw == k then some v else plistLookup k rest
     | .cons _ rest => plistLookup k rest
     | _ => none
-  let some termsS := plistLookup "terms" genS
+  let some termsS := plistLookup "TERMS" genS
     | throwError "replayGeneralize: :GENERALIZE without :TERMS at {cn.idStr}"
-  let some varsS := plistLookup "vars" genS
+  let some varsS := plistLookup "VARS" genS
     | throwError "replayGeneralize: :GENERALIZE without :VARS at {cn.idStr}"
   -- one round only (a multi-round generalize is a frontier)
   let some [roundTermsS] := termsS.toList?
@@ -5172,22 +5172,22 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
   -- 1. validate the justification shape
   let .cons (.atom (.symbol acS)) (.cons (.atom (.symbol cvar)) .nil) := ind.measure
     | throwError "replayInduction: measure {repr ind.measure} is not (acl2-count v) (frontier)"
-  unless acS.name == "acl2-count" do
+  unless acS.name == "ACL2-COUNT" do
     throwError "replayInduction: measure head {acS.name} (frontier)"
   let relOk := match ind.rel with
-    | .atom (.symbol r) => r.name == "o<"
+    | .atom (.symbol r) => r.name == "O<"
     | _ => false
   unless relOk do throwError "replayInduction: rel {repr ind.rel} ≠ o< (frontier)"
   unless ind.controllers == [cvar] do
     throwError "replayInduction: controllers {repr ind.controllers} ≠ [{cvar.name}] (frontier)"
   let cvarT : SExpr := .atom (.symbol cvar)
-  let consT : SExpr := .cons (.atom (.symbol { name := "consp" })) (.cons cvarT .nil)
+  let consT : SExpr := .cons (.atom (.symbol { name := "CONSP" })) (.cons cvarT .nil)
   -- `(not (endp v))` is the OTHER ACL2 spelling of the consp ruling test
   -- (endp = guard-relaxed atom; R2: isort's fns test endp)
   let notEndpT : SExpr :=
-    .cons (.atom (.symbol { name := "not" }))
-      (.cons (.cons (.atom (.symbol { name := "endp" })) (.cons cvarT .nil)) .nil)
-  let cdrT : SExpr := .cons (.atom (.symbol { name := "cdr" })) (.cons cvarT .nil)
+    .cons (.atom (.symbol { name := "NOT" }))
+      (.cons (.cons (.atom (.symbol { name := "ENDP" })) (.cons cvarT .nil)) .nil)
+  let cdrT : SExpr := .cons (.atom (.symbol { name := "CDR" })) (.cons cvarT .nil)
   -- 2. per-case validation: every IH alist must be over DISTINCT variables and
   -- map the controller to (cdr controller), justified by an in-scope (consp
   -- controller) — or (not (endp controller)) — ruling test; non-controller
@@ -5339,7 +5339,7 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
                 -- fact is the POSITIVE (endp cvar) with sign FALSE
                 -- (signE : Logic.endp _ = nil)
                 let endpT : SExpr :=
-                  .cons (.atom (.symbol { name := "endp" })) (.cons cvarT .nil)
+                  .cons (.atom (.symbol { name := "ENDP" })) (.cons cvarT .nil)
                 match facts.find? (fun f => f.test == endpT && !f.sign) with
                 | some cf => do
                   let eqTy ← mkEq (mkApp (mkConst ``Logic.endp) xvV) nilC
@@ -5452,7 +5452,7 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
                   let (litPos, fact) ← do
                     match t with
                     | .cons (.atom (.symbol ns)) (.cons u .nil) =>
-                      if ns.name == "not" then
+                      if ns.name == "NOT" then
                         match facts.find? (fun f => f.test == u && !f.sign) with
                         | some f => pure (true, f)   -- literal = u, value nil
                         | none => throwError "replayInduction: no nil fact for \
@@ -5494,7 +5494,7 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
                   let vLjσ ← ctxValExpr cfg' ctxD ljσ
                   let pLit ← ctxValProof cfg' ctxD negLit
                   let pLitNil ←
-                    if negLit == (.cons (.atom (.symbol { name := "not" }))
+                    if negLit == (.cons (.atom (.symbol { name := "NOT" }))
                         (.cons ljσ .nil)) then
                       -- L_j positive: ¬L_jσ = (not L_jσ), Logic.not (truthy) = nil
                       let hNil ← mkAppM ``not_nil_of_truthy #[hne]
@@ -5632,7 +5632,7 @@ def proveTotality (cfg : ReplayConfig)
     | _ => throwFrontier m!"proveTotality: arity {formals.length} unsupported (frontier)"
   | some just =>
     -- RECURSIVE (D5 scope): measure (acl2-count m), o<, single measured formal
-    unless just.wfRel.name == "o<" do
+    unless just.wfRel.name == "O<" do
       throwFrontier m!"proveTotality: well-founded relation {just.wfRel.name} \
           unsupported (frontier: o< only)"
     let some measuredFormal := just.measuredSubset.head?
@@ -5641,7 +5641,7 @@ def proveTotality (cfg : ReplayConfig)
       throwFrontier m!"proveTotality: multi-formal measured subset unsupported \
           (frontier)"
     let wantedMeasure : SExpr :=
-      .cons (.atom (.symbol { name := "acl2-count" }))
+      .cons (.atom (.symbol { name := "ACL2-COUNT" }))
         (.cons (.atom (.symbol { name := measuredFormal.name })) .nil)
     unless just.measure == wantedMeasure do
       throwFrontier m!"proveTotality: measure {repr just.measure} unsupported \
@@ -5649,7 +5649,7 @@ def proveTotality (cfg : ReplayConfig)
     -- D9: the (o-p (measure)) obligation is absorbed by the Nat-typed
     -- measure; SHAPE-CHECK it (hard-fail on anything unexpected)
     let opClause : SExpr :=
-      .cons (.cons (.atom (.symbol { name := "o-p" }))
+      .cons (.cons (.atom (.symbol { name := "O-P" }))
         (.cons wantedMeasure .nil)) .nil
     unless just.terminationClauses.any (· == opClause) do
       throwFrontier m!"proveTotality: expected (o-p {repr wantedMeasure}) \
@@ -5800,7 +5800,7 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
     (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
   match t with
   | .cons (.atom (.symbol qs)) (.cons qv .nil) =>
-    if qs.name == "quote" then
+    if qs.name == "QUOTE" then
       -- leaf constant: the corollary holds of it by ground kernel decision
       let hP ← proveByDecide (mkApp P (reflectSExpr qv)).headBeta
         s!"tp corollary at leaf {repr qv}"
@@ -5809,7 +5809,7 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
     else
       tpWalkCall cfg envE vals facts totalEnv self P t
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
-    if fs.name == "if" then
+    if fs.name == "IF" then
       if totLiftable c then
         let vc ← dpValExpr [] (dpValProof.dpVarVal envE varP) c
         let hc ← dpValProof cfg envE [] [] varP c
@@ -5991,7 +5991,7 @@ def proveTp (cfg : ReplayConfig)
     | _ => throwFrontier m!"proveTp: arity {formals.length} unsupported (frontier)"
   | some just =>
     -- RECURSIVE (D5 scope, as in proveTotality)
-    unless just.wfRel.name == "o<" do
+    unless just.wfRel.name == "O<" do
       throwFrontier m!"proveTp: well-founded relation {just.wfRel.name} \
           unsupported (frontier: o< only)"
     let some measuredFormal := just.measuredSubset.head?
@@ -5999,7 +5999,7 @@ def proveTp (cfg : ReplayConfig)
     unless just.measuredSubset.length == 1 do
       throwFrontier m!"proveTp: multi-formal measured subset unsupported (frontier)"
     unless just.measure ==
-        (.cons (.atom (.symbol { name := "acl2-count" }))
+        (.cons (.atom (.symbol { name := "ACL2-COUNT" }))
           (.cons (.atom (.symbol { name := measuredFormal.name })) .nil)) do
       throwFrontier m!"proveTp: measure {repr just.measure} unsupported \
           (frontier: (acl2-count <measured-formal>) only)"
@@ -6081,7 +6081,7 @@ def letBindFVar (body v value : Expr) : MetaM Expr := do
     `[A, …]`; anything else is a single hypothesis. -/
 partial def flattenAnd : SExpr → List SExpr
   | t@(.cons (.atom (.symbol ifS)) (.cons a (.cons rest (.cons e .nil)))) =>
-    if ifS.name == "if" && e == quoteNil then a :: flattenAnd rest else [t]
+    if ifS.name == "IF" && e == quoteNil then a :: flattenAnd rest else [t]
   | t => [t]
 
 /-- DISCHARGE a `rule:<thm>` hypothesis from its dependency theorem's replayed
@@ -6108,11 +6108,11 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
   -- recompute-and-check the create-rewrite-rule normalization
   let (hypsF, concl) := match formula with
     | .cons (.atom (.symbol impS)) (.cons h (.cons c .nil)) =>
-      if impS.name == "implies" then (flattenAnd h, c) else ([], formula)
+      if impS.name == "IMPLIES" then (flattenAnd h, c) else ([], formula)
     | _ => ([], formula)
   unless hypsF == spec.hyps do
     throwFrontier m!"dischargeRuleHyp: {spec.name}'s flattened antecedent                 {repr hypsF} ≠ the stored rule's :HYPS {repr spec.hyps}                 (normalization divergence — frontier)"
-  let eqForm : SExpr := .cons (.atom (.symbol { name := "equal" }))
+  let eqForm : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
     (.cons spec.lhs (.cons spec.rhs .nil))
   let routeEqual := concl == eqForm
   let routeBool := concl == spec.lhs && spec.rhs == quoteT

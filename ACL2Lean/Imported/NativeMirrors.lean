@@ -219,10 +219,10 @@ unfolds the definition (`conv_defn_1`) and evaluates the body symbolically —
     discharge; `sq`'s unfold is part of the replayed evaluation). -/
 def sqOf3MirrorCond := driver_mirror% directDev directWorldD "sq-of-3"
 
-private def n_sym : Symbol := ⟨"ACL2", "n"⟩
-private def nT : SExpr := .atom (.symbol { name := "n" })
+private def n_sym : Symbol := ⟨"ACL2", "N"⟩
+private def nT : SExpr := .atom (.symbol { name := "N" })
 private def sqBody : SExpr :=
-  .cons (.atom (.symbol { name := "binary-*" })) (.cons nT (.cons nT .nil))
+  .cons (.atom (.symbol { name := "BINARY-*" })) (.cons nT (.cons nT .nil))
 
 /-- ENTRY 4, PROVED — the ground fact about the user-defined `sq` through the
     DRIVER's replayed mirror (definition unfold + symbolic body evaluation). -/
@@ -240,14 +240,14 @@ theorem sq_of_3_native : (3 * 3 : Int) = 9 := by
         exact evalOpt_var g directWorldD _ n_sym _ (bindArgs_single_get_self _ _)⟩
     exact conv_times_int directWorldD _ nT nT 3 3 (by decide) hn hn
   have hL : ∃ N, ∀ f ≥ N, evalOpt f directWorldD e
-      (.cons (.atom (.symbol { name := "sq" })) (.cons (qInt 3) .nil))
+      (.cons (.atom (.symbol { name := "SQ" })) (.cons (qInt 3) .nil))
       = some (.atom (.number (.int (3 * 3)))) :=
-    conv_defn_1 directWorldD e { name := "sq" } (qInt 3) (.atom (.number (.int 3)))
+    conv_defn_1 directWorldD e { name := "SQ" } (qInt 3) (.atom (.number (.int 3)))
       n_sym sqBody (.atom (.number (.int (3 * 3))))
       (by decide) (by decide) (conv_qInt _ _ 3) hbody
   have hR := conv_qInt directWorldD e 9
   exact native_of_mirror_equal directWorldD e intRep
-    (app1 "sq" (qInt 3)) (qInt 9) (3 * 3) 9 (by decide) hL hR (sqOf3MirrorCond e)
+    (app1 "SQ" (qInt 3)) (qInt 9) (3 * 3) 9 (by decide) hL hR (sqOf3MirrorCond e)
 
 /-! ## Entries 5–7 — the equality-reasoning trio (`08-equality-reasoning`)
 
@@ -274,14 +274,14 @@ def cdrConsMirrorCond := driver_mirror% eqDev eqWorldD "cdr-cons-refl"
 def equalSymmMirrorCond := driver_mirror% eqDev eqWorldD "equal-symm"
 def equalTransMirrorCond := driver_mirror% eqDev eqWorldD "equal-trans"
 
-private def xT : SExpr := .atom (.symbol { name := "x" })
-private def yT : SExpr := .atom (.symbol { name := "y" })
-private def zT : SExpr := .atom (.symbol { name := "z" })
+private def xT : SExpr := .atom (.symbol { name := "X" })
+private def yT : SExpr := .atom (.symbol { name := "Y" })
+private def zT : SExpr := .atom (.symbol { name := "Z" })
 /-- ENTRY 5, PROVED — `cdr ∘ cons = snd` at the `Logic` layer, through the
     DRIVER's mirror: the lhs is evaluated only SYMBOLICALLY (to
     `Logic.cdr (cons u v)`), so the equation is the mirror's content. -/
 theorem cdr_cons_native (u v : SExpr) : Logic.cdr (SExpr.cons u v) = v := by
-  let e : Env := (({} : Env).insert ⟨"ACL2", "y"⟩ v).insert ⟨"ACL2", "x"⟩ u
+  let e : Env := (({} : Env).insert ⟨"ACL2", "Y"⟩ v).insert ⟨"ACL2", "X"⟩ u
   have hx : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e xT = some u :=
     conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e yT = some v :=
@@ -289,15 +289,15 @@ theorem cdr_cons_native (u v : SExpr) : Logic.cdr (SExpr.cons u v) = v := by
       simp only [e, Env.get?_insert]
       rw [if_neg (by decide)]; simp)
   have hcons : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e
-      (.cons (.atom (.symbol { name := "cons" })) (.cons xT (.cons yT .nil)))
+      (.cons (.atom (.symbol { name := "CONS" })) (.cons xT (.cons yT .nil)))
       = some (SExpr.cons u v) :=
-    conv_builtin2 eqWorldD e { name := "cons" } xT yT u v _ (by decide)
+    conv_builtin2 eqWorldD e { name := "CONS" } xT yT u v _ (by decide)
       (by decide) hx hy (callBuiltin_cons _ _)
   have hcdr : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e
-      (.cons (.atom (.symbol { name := "cdr" }))
-        (.cons (.cons (.atom (.symbol { name := "cons" })) (.cons xT (.cons yT .nil))) .nil))
+      (.cons (.atom (.symbol { name := "CDR" }))
+        (.cons (.cons (.atom (.symbol { name := "CONS" })) (.cons xT (.cons yT .nil))) .nil))
       = some (Logic.cdr (SExpr.cons u v)) :=
-    conv_builtin1 eqWorldD e { name := "cdr" } _ (SExpr.cons u v) _ (by decide)
+    conv_builtin1 eqWorldD e { name := "CDR" } _ (SExpr.cons u v) _ (by decide)
       (by decide) hcons (callBuiltin_cdr _)
   exact native_of_mirror_equal eqWorldD e idRep
     (cdrT (consT xT yT)) yT (Logic.cdr (SExpr.cons u v)) v
@@ -307,7 +307,7 @@ theorem cdr_cons_native (u v : SExpr) : Logic.cdr (SExpr.cons u v) = v := by
     mirror (the HYPOTHESIS decode: `h` truthifies the antecedent, the mirror's
     `implies ⇒ t` forces the conclusion). -/
 theorem equal_symm_native (u v : SExpr) (h : u = v) : v = u := by
-  let e : Env := (({} : Env).insert ⟨"ACL2", "y"⟩ v).insert ⟨"ACL2", "x"⟩ u
+  let e : Env := (({} : Env).insert ⟨"ACL2", "Y"⟩ v).insert ⟨"ACL2", "X"⟩ u
   have hx : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e xT = some u :=
     conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e yT = some v :=
@@ -327,8 +327,8 @@ theorem equal_symm_native (u v : SExpr) (h : u = v) : v = u := by
     `(implies (if (equal x y) (equal y z) 'nil) (equal x z))`). -/
 theorem equal_trans_native (u v w' : SExpr) (h1 : u = v) (h2 : v = w') :
     u = w' := by
-  let e : Env := ((({} : Env).insert ⟨"ACL2", "z"⟩ w').insert ⟨"ACL2", "y"⟩ v).insert
-    ⟨"ACL2", "x"⟩ u
+  let e : Env := ((({} : Env).insert ⟨"ACL2", "Z"⟩ w').insert ⟨"ACL2", "Y"⟩ v).insert
+    ⟨"ACL2", "X"⟩ u
   have hx : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e xT = some u :=
     conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e yT = some v :=
@@ -342,9 +342,9 @@ theorem equal_trans_native (u v w' : SExpr) (h1 : u = v) (h2 : v = w') :
   -- the if-spine antecedent: test (equal x y) ⇒ t (from h1), so the spine
   -- converges to the then-branch value (equal y z)'s value
   have hif : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e
-      (.cons (.atom (.symbol { name := "if" }))
+      (.cons (.atom (.symbol { name := "IF" }))
         (.cons (equalT xT yT) (.cons (equalT yT zT)
-          (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil)) .nil))))
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) .nil))))
       = some (Logic.equal v w') :=
     conv_if_true eqWorldD e (equalT xT yT) (equalT yT zT) _
       (Logic.equal u v) (Logic.equal v w')
@@ -378,12 +378,12 @@ derive_world multiWorldD from multiDev
 
 def appConsCarMirrorCond := driver_mirror% multiDev multiWorldD "app-cons-car"
 
-private def aT : SExpr := .atom (.symbol { name := "a" })
-private def bT : SExpr := .atom (.symbol { name := "b" })
+private def aT : SExpr := .atom (.symbol { name := "A" })
+private def bT : SExpr := .atom (.symbol { name := "B" })
 private def appT (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "app" })) (.cons a (.cons b .nil))
-private def xS : Symbol := ⟨"ACL2", "x"⟩
-private def yS : Symbol := ⟨"ACL2", "y"⟩
+  .cons (.atom (.symbol { name := "APP" })) (.cons a (.cons b .nil))
+private def xS : Symbol := ⟨"ACL2", "X"⟩
+private def yS : Symbol := ⟨"ACL2", "Y"⟩
 
 /-- `app`'s body converges to `v` when `x ↦ nil, y ↦ v` (the if's else). -/
 private theorem appBody_nil_case (v : SExpr) :
@@ -403,14 +403,14 @@ private theorem appBody_nil_case (v : SExpr) :
   have hconsp : ∃ N, ∀ f ≥ N,
       evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.nil, v]) (conspT xT)
       = some (Logic.consp SExpr.nil) :=
-    conv_builtin1 multiWorldD _ { name := "consp" } xT SExpr.nil _ (by decide)
+    conv_builtin1 multiWorldD _ { name := "CONSP" } xT SExpr.nil _ (by decide)
       (by decide) hx (callBuiltin_consp _)
   obtain ⟨Nc, hc⟩ := hconsp
   obtain ⟨Ny, hyv⟩ := hy
   refine ⟨max Nc Ny + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
   show evalOpt (g + 1) multiWorldD (bindArgs [xS, yS] [SExpr.nil, v])
-    (.cons (.atom (.symbol { name := "if" }))
+    (.cons (.atom (.symbol { name := "IF" }))
       (.cons (conspT xT)
         (.cons (consT (carT xT) (appT (cdrT xT) yT)) (.cons yT .nil))))
     = some v
@@ -441,32 +441,32 @@ private theorem appBody_cons_case (u v : SExpr) :
   have hconsp : ∃ N, ∀ f ≥ N,
       evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v]) (conspT xT)
       = some (Logic.consp (SExpr.cons u SExpr.nil)) :=
-    conv_builtin1 multiWorldD _ { name := "consp" } xT _ _ (by decide)
+    conv_builtin1 multiWorldD _ { name := "CONSP" } xT _ _ (by decide)
       (by decide) hx (callBuiltin_consp _)
   -- (car x) ⇒ u, (cdr x) ⇒ nil
   have hcar : ∃ N, ∀ f ≥ N,
       evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v]) (carT xT)
       = some u := by
-    have h := conv_builtin1 multiWorldD _ { name := "car" } xT
+    have h := conv_builtin1 multiWorldD _ { name := "CAR" } xT
       (SExpr.cons u SExpr.nil) _ (by decide) (by decide) hx (callBuiltin_car _)
     rwa [logic_car_cons] at h
   have hcdr : ∃ N, ∀ f ≥ N,
       evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v]) (cdrT xT)
       = some SExpr.nil := by
-    have h := conv_builtin1 multiWorldD _ { name := "cdr" } xT
+    have h := conv_builtin1 multiWorldD _ { name := "CDR" } xT
       (SExpr.cons u SExpr.nil) _ (by decide) (by decide) hx (callBuiltin_cdr _)
     rwa [logic_cdr_cons] at h
   -- the recursive call: app nil v ⇒ v  (definition unfold into the nil case)
   have hinner : ∃ N, ∀ f ≥ N,
       evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v])
         (appT (cdrT xT) yT) = some v :=
-    conv_defn_2 multiWorldD _ { name := "app" } (cdrT xT) yT SExpr.nil v xS yS
+    conv_defn_2 multiWorldD _ { name := "APP" } (cdrT xT) yT SExpr.nil v xS yS
       Worlds.AppAssoc.appBody v (by decide) (by decide) hcdr hy (appBody_nil_case v)
   -- then-branch: (cons (car x) (app (cdr x) y)) ⇒ cons u v
   have hthen : ∃ N, ∀ f ≥ N,
       evalOpt f multiWorldD (bindArgs [xS, yS] [SExpr.cons u SExpr.nil, v])
         (consT (carT xT) (appT (cdrT xT) yT)) = some (SExpr.cons u v) :=
-    conv_builtin2 multiWorldD _ { name := "cons" } _ _ u v _ (by decide)
+    conv_builtin2 multiWorldD _ { name := "CONS" } _ _ u v _ (by decide)
       (by decide) hcar hinner (callBuiltin_cons _ _)
   exact conv_if_true multiWorldD _ (conspT xT) (consT (carT xT) (appT (cdrT xT) yT))
     yT (Logic.consp (SExpr.cons u SExpr.nil)) (SExpr.cons u v) hconsp rfl hthen
@@ -476,8 +476,8 @@ private theorem appBody_cons_case (u v : SExpr) :
     `(app (cons a b) y)` collapses to `cons u v` (two definition unfolds in
     the decode), keep the outer `car` symbolic, and the mirror equates. -/
 theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
-  let e : Env := ((({} : Env).insert ⟨"ACL2", "y"⟩ v).insert
-    ⟨"ACL2", "b"⟩ SExpr.nil).insert ⟨"ACL2", "a"⟩ u
+  let e : Env := ((({} : Env).insert ⟨"ACL2", "Y"⟩ v).insert
+    ⟨"ACL2", "B"⟩ SExpr.nil).insert ⟨"ACL2", "A"⟩ u
   have ha : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e aT = some u :=
     conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
   have hb : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e bT = some SExpr.nil :=
@@ -490,17 +490,17 @@ theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
       rw [if_neg (by decide), if_neg (by decide)]; simp)
   have hcons : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e (consT aT bT)
       = some (SExpr.cons u SExpr.nil) :=
-    conv_builtin2 multiWorldD e { name := "cons" } aT bT u SExpr.nil _ (by decide)
+    conv_builtin2 multiWorldD e { name := "CONS" } aT bT u SExpr.nil _ (by decide)
       (by decide) ha hb (callBuiltin_cons _ _)
   have happ : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e (appT (consT aT bT) yT)
       = some (SExpr.cons u v) :=
-    conv_defn_2 multiWorldD e { name := "app" } (consT aT bT) yT
+    conv_defn_2 multiWorldD e { name := "APP" } (consT aT bT) yT
       (SExpr.cons u SExpr.nil) v xS yS Worlds.AppAssoc.appBody (SExpr.cons u v)
       (by decide) (by decide) hcons hy (appBody_cons_case u v)
   -- the outer car: kept SYMBOLIC — the mirror's equality is the content
   have hL : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e (carT (appT (consT aT bT) yT))
       = some (Logic.car (SExpr.cons u v)) :=
-    conv_builtin1 multiWorldD e { name := "car" } _ (SExpr.cons u v) _ (by decide)
+    conv_builtin1 multiWorldD e { name := "CAR" } _ (SExpr.cons u v) _ (by decide)
       (by decide) happ (callBuiltin_car _)
   exact native_of_mirror_equal multiWorldD e idRep
     (carT (appT (consT aT bT) yT)) aT (Logic.car (SExpr.cons u v)) u

@@ -80,7 +80,7 @@ theorem acl2_numberp_elim (v : SExpr)
 /-- T7a: Quote evaluates to the quoted value. -/
 theorem evalOpt_quote (f : Nat) (w : World) (env : Env) (v : SExpr) :
     evalOpt (f + 1) w env
-      (.cons (.atom (.symbol { name := "quote" })) (.cons v .nil))
+      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons v .nil))
     = some v := by
   simp [evalOpt, evalOptStep, Symbol.isNamed]
 
@@ -92,7 +92,7 @@ theorem evalOpt_var (f : Nat) (w : World) (env : Env) (s : Symbol) (v : SExpr)
 
 /-- T18: Variable lookup (unbound, not t). -/
 theorem evalOpt_var_unbound (f : Nat) (w : World) (env : Env) (s : Symbol)
-    (h : env.get? s = none) (h_not_t : s.isNamed "t" = false) :
+    (h : env.get? s = none) (h_not_t : s.isNamed "T" = false) :
     evalOpt (f + 1) w env (.atom (.symbol s)) = some .nil := by
   simp [evalOpt, evalOptStep, h, h_not_t]
 
@@ -102,7 +102,7 @@ theorem evalOpt_if_true (f : Nat) (w : World) (env : Env)
     (hc : evalOpt f w env c = some cv)
     (ht : Logic.toBool cv = true) :
     evalOpt (f + 1) w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
     = evalOpt f w env t := by
   show evalOptStep (evalOpt f) w env _ = _
   unfold evalOptStep
@@ -116,7 +116,7 @@ theorem evalOpt_if_false (f : Nat) (w : World) (env : Env)
     (c t e : SExpr)
     (hc : evalOpt f w env c = some .nil) :
     evalOpt (f + 1) w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
     = evalOpt f w env e := by
   show evalOptStep (evalOpt f) w env _ = _
   unfold evalOptStep
@@ -128,8 +128,8 @@ theorem evalOpt_if_false (f : Nat) (w : World) (env : Env)
 /-- T6: Builtin function call (function not in world.defs). -/
 theorem evalOpt_builtin_1 (f : Nat) (w : World) (env : Env)
     (s : Symbol) (arg : SExpr) (av : SExpr)
-    (h_not_special : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-                     s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_special : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+                     s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_not_def : w.defs.get? s = none)
     (h_arg : evalOpt f w env arg = some av) :
     evalOpt (f + 1) w env (.cons (.atom (.symbol s)) (.cons arg .nil))
@@ -155,8 +155,8 @@ theorem evalOpt_builtin_1 (f : Nat) (w : World) (env : Env)
 /-- T6b: Builtin 2-arg function call (for EQUAL, BINARY-+, etc.). -/
 theorem evalOpt_builtin_2 (f : Nat) (w : World) (env : Env)
     (s : Symbol) (arg1 arg2 : SExpr) (av1 av2 : SExpr)
-    (h_not_special : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-                     s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_special : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+                     s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_not_def : w.defs.get? s = none)
     (h_arg1 : evalOpt f w env arg1 = some av1)
     (h_arg2 : evalOpt f w env arg2 = some av2) :
@@ -187,8 +187,8 @@ theorem evalOpt_builtin_2 (f : Nat) (w : World) (env : Env)
     hand dischargers need `a0`'s convergence. -/
 theorem evalOpt_app1_arg (f : Nat) (w : World) (env : Env)
     (s : Symbol) (arg v : SExpr)
-    (h_not_special : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-                     s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_special : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+                     s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h : evalOpt (f + 1) w env (.cons (.atom (.symbol s)) (.cons arg .nil)) = some v) :
     ∃ u, evalOpt f w env arg = some u := by
   cases hu : evalOpt f w env arg with
@@ -209,8 +209,8 @@ theorem evalOpt_app1_arg (f : Nat) (w : World) (env : Env)
     converges (to a fixed value), the argument converges at every sufficiently
     large fuel (value possibly per-fuel — `conv_fix`/`dis_*` re-fix it). -/
 theorem conv_arg1_of_conv_app (w : World) (env : Env) (s : Symbol) (arg v : SExpr)
-    (h_not_special : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-                     s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_special : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+                     s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol s)) (.cons arg .nil)) = some v) :
     ∃ N, ∀ f ≥ N, ∃ u, evalOpt f w env arg = some u := by
   obtain ⟨N, hN⟩ := h
@@ -231,8 +231,8 @@ theorem evalOpt_nil (f : Nat) (w : World) (env : Env) :
 theorem evalOpt_defn_1 (f : Nat) (w : World) (env : Env)
     (s : Symbol) (arg : SExpr) (av : SExpr)
     (formal : Symbol) (body : SExpr)
-    (h_not_special : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-                     s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_special : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+                     s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal], body))
     (h_arg : evalOpt f w env arg = some av) :
     evalOpt (f + 1) w env (.cons (.atom (.symbol s)) (.cons arg .nil))
@@ -258,8 +258,8 @@ theorem evalOpt_defn_1 (f : Nat) (w : World) (env : Env)
 theorem evalOpt_defn_2 (f : Nat) (w : World) (env : Env)
     (s : Symbol) (arg1 arg2 : SExpr) (av1 av2 : SExpr)
     (formal1 formal2 : Symbol) (body : SExpr)
-    (h_not_special : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-                     s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_not_special : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+                     s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (h_arg1 : evalOpt f w env arg1 = some av1)
     (h_arg2 : evalOpt f w env arg2 = some av2) :
@@ -299,8 +299,8 @@ theorem evalOpt_defn_2 (f : Nat) (w : World) (env : Env)
     whenever `a` and `a'` agree at `f`. -/
 theorem evalOpt_congr_unary_step (f : Nat) (w : World) (env : Env)
     (fn : Symbol) (a a' : SExpr)
-    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (h : evalOpt f w env a = evalOpt f w env a') :
     evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a .nil))
     = evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a' .nil)) := by
@@ -329,8 +329,8 @@ theorem evalOpt_congr_unary_step (f : Nat) (w : World) (env : Env)
     whenever `a` and `a'` agree at `f`. -/
 theorem evalOpt_congr_binary_left_step (f : Nat) (w : World) (env : Env)
     (fn : Symbol) (a a' b : SExpr)
-    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (h : evalOpt f w env a = evalOpt f w env a') :
     evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b .nil)))
     = evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a' (.cons b .nil))) := by
@@ -359,8 +359,8 @@ theorem evalOpt_congr_binary_left_step (f : Nat) (w : World) (env : Env)
     whenever `b` and `b'` agree at `f`. -/
 theorem evalOpt_congr_binary_right_step (f : Nat) (w : World) (env : Env)
     (fn : Symbol) (a b b' : SExpr)
-    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (h : evalOpt f w env b = evalOpt f w env b') :
     evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b .nil)))
     = evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b' .nil))) := by
@@ -388,8 +388,8 @@ theorem evalOpt_congr_binary_right_step (f : Nat) (w : World) (env : Env)
 /-- Fuel-existential unary congruence (for chaining with `fuel_chain_eq`). -/
 theorem evalOpt_congr_unary (w : World) (env : Env)
     (fn : Symbol) (a a' : SExpr)
-    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env a') :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a .nil))
@@ -402,8 +402,8 @@ theorem evalOpt_congr_unary (w : World) (env : Env)
 /-- Fuel-existential binary left-congruence. -/
 theorem evalOpt_congr_binary_left (w : World) (env : Env)
     (fn : Symbol) (a a' b : SExpr)
-    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env a') :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b .nil)))
@@ -416,8 +416,8 @@ theorem evalOpt_congr_binary_left (w : World) (env : Env)
 /-- Fuel-existential binary right-congruence. -/
 theorem evalOpt_congr_binary_right (w : World) (env : Env)
     (fn : Symbol) (a b b' : SExpr)
-    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env b = evalOpt f w env b') :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b .nil)))
@@ -441,7 +441,7 @@ theorem evalOpt_congr_binary_right (w : World) (env : Env)
 mutual
 def freeVars : SExpr → List Symbol
   | .atom (.symbol s) => [s]
-  | .cons (.atom (.symbol q)) rest => if q.isNamed "quote" then [] else freeVarsSpine rest
+  | .cons (.atom (.symbol q)) rest => if q.isNamed "QUOTE" then [] else freeVarsSpine rest
   | _ => []
 def freeVarsSpine : SExpr → List Symbol
   | .cons a rest => freeVars a ++ freeVarsSpine rest
@@ -452,8 +452,8 @@ end
 mutual
 def NoLet : SExpr → Bool
   | .cons (.atom (.symbol q)) rest =>
-      if q.isNamed "let" || q.isNamed "let*" then false
-      else if q.isNamed "quote" then true else NoLetSpine rest
+      if q.isNamed "LET" || q.isNamed "LET*" then false
+      else if q.isNamed "QUOTE" then true else NoLetSpine rest
   | _ => true
 def NoLetSpine : SExpr → Bool
   | .cons a rest => NoLet a && NoLetSpine rest
@@ -536,7 +536,7 @@ theorem evalOpt_freevar_congr (w : World) :
       show evalOptStep (evalOpt n) w e1 (.cons (.atom (.symbol s)) argsExpr)
          = evalOptStep (evalOpt n) w e2 (.cons (.atom (.symbol s)) argsExpr)
       simp only [evalOptStep_cons_symbol]
-      cases hq : s.isNamed "quote" with
+      cases hq : s.isNamed "QUOTE" with
       | true => simp only [↓reduceIte]
       | false =>
         have hkey : ∀ args, argsExpr.toList? = some args →
@@ -544,13 +544,13 @@ theorem evalOpt_freevar_congr (w : World) :
           intro args htl a ha
           have hnls : NoLetSpine argsExpr = true := by
             simp only [NoLet, hq] at hnl
-            by_cases hl : (s.isNamed "let" || s.isNamed "let*") = true
+            by_cases hl : (s.isNamed "LET" || s.isNamed "LET*") = true
             · simp [hl] at hnl
             · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl
               simpa using hnl
           exact ih e1 e2 a (NoLet_of_mem_spine htl hnls a ha)
             (fun s' hs' => hfv s' (by simp only [freeVars, hq]; exact freeVars_subset_spine htl ha hs'))
-        cases hif : s.isNamed "if" with
+        cases hif : s.isNamed "IF" with
         | true =>
           simp only [↓reduceIte]
           match htl : argsExpr.toList? with
@@ -574,7 +574,7 @@ theorem evalOpt_freevar_congr (w : World) :
           | some [_, _] => rfl
           | some (_ :: _ :: _ :: _ :: _) => rfl
         | false =>
-          cases hlet : (s.isNamed "let" || s.isNamed "let*") with
+          cases hlet : (s.isNamed "LET" || s.isNamed "LET*") with
           | true =>
             exfalso; simp only [NoLet, hq, hlet, if_true, Bool.false_eq_true] at hnl
           | false =>
@@ -612,8 +612,8 @@ theorem fuel_eq_of_conv {a b : Nat → Option SExpr} {u v : SExpr}
 /-- A 1-arg builtin application converges to `callBuiltin`'s result on the
     converged argument. -/
 theorem conv_builtin1 (w : World) (env : Env) (s : Symbol) (a : SExpr) (av rv : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_not_def : w.defs.get? s = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
     (hr : callBuiltin s.name [av] = some rv) :
@@ -626,8 +626,8 @@ theorem conv_builtin1 (w : World) (env : Env) (s : Symbol) (a : SExpr) (av rv : 
 /-- A 2-arg builtin application converges to `callBuiltin`'s result on the
     converged arguments. -/
 theorem conv_builtin2 (w : World) (env : Env) (s : Symbol) (a b : SExpr) (av bv rv : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_not_def : w.defs.get? s = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv)
@@ -644,7 +644,7 @@ theorem conv_if_true (w : World) (env : Env) (c t el cv v : SExpr)
     (htest : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv) (hcv : Logic.toBool cv = true)
     (hthen : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v) :
     ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons el .nil)))) = some v := by
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons el .nil)))) = some v := by
   obtain ⟨Nc, hc⟩ := htest; obtain ⟨Nt, ht⟩ := hthen
   refine ⟨max Nc Nt + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -654,8 +654,8 @@ theorem conv_if_true (w : World) (env : Env) (c t el cv v : SExpr)
 /-- A 1-arg user-defined call converges to the body's value (in `bindArgs`). -/
 theorem conv_defn_1 (w : World) (env : Env) (s : Symbol) (arg av : SExpr)
     (formal : Symbol) (body v : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal], body))
     (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
     (hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
@@ -669,8 +669,8 @@ theorem conv_defn_1 (w : World) (env : Env) (s : Symbol) (arg av : SExpr)
 /-- A 2-arg user-defined call converges to the body's value (in `bindArgs`). -/
 theorem conv_defn_2 (w : World) (env : Env) (s : Symbol)
     (arg1 arg2 av1 av2 : SExpr) (formal1 formal2 : Symbol) (body v : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
     (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
@@ -699,7 +699,7 @@ def lookupSubst (s : Symbol) : List Symbol → List SExpr → Option SExpr
 
 /-- Wrap a value as a self-evaluating `(quote v)` term. -/
 def quoteVal (v : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "quote" })) (.cons v .nil)
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons v .nil)
 
 mutual
 /-- Substitute each formal by its corresponding arg term throughout `term`.
@@ -707,7 +707,7 @@ mutual
 def substTerm (formals : List Symbol) (args : List SExpr) : SExpr → SExpr
   | .atom (.symbol s) => (lookupSubst s formals args).getD (.atom (.symbol s))
   | .cons (.atom (.symbol q)) rest =>
-      if q.isNamed "quote" then .cons (.atom (.symbol q)) rest
+      if q.isNamed "QUOTE" then .cons (.atom (.symbol q)) rest
       else .cons (.atom (.symbol q)) (substSpine formals args rest)
   | t => t
 /-- Map `substTerm` across an argument spine. -/
@@ -828,13 +828,13 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
     | .cons .nil _ => rfl
     | .cons (.cons _ _) _ => rfl
     | .cons (.atom (.symbol q)) rest =>
-      by_cases hq : q.isNamed "quote" = true
+      by_cases hq : q.isNamed "QUOTE" = true
       · rw [show substTerm formals (vals.map quoteVal) (.cons (.atom (.symbol q)) rest)
               = .cons (.atom (.symbol q)) rest from by simp only [substTerm, hq, if_true]]
         show evalOptStep (evalOpt n) w env (.cons (.atom (.symbol q)) rest)
            = evalOptStep (evalOpt n) w (envUpdate env formals vals) (.cons (.atom (.symbol q)) rest)
         simp only [evalOptStep_cons_symbol, hq, ↓reduceIte]
-      · have hqf : q.isNamed "quote" = false := by
+      · have hqf : q.isNamed "QUOTE" = false := by
           simp only [Bool.not_eq_true] at hq; exact hq
         rw [show substTerm formals (vals.map quoteVal) (.cons (.atom (.symbol q)) rest)
               = .cons (.atom (.symbol q)) (substSpine formals (vals.map quoteVal) rest)
@@ -847,7 +847,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
         -- Per-element bridge: substituted arg in `env` = original arg in `envUpdate`.
         have hnls : NoLetSpine rest = true := by
           simp only [NoLet, hqf] at hnl
-          by_cases hl : (q.isNamed "let" || q.isNamed "let*") = true
+          by_cases hl : (q.isNamed "LET" || q.isNamed "LET*") = true
           · simp [hl] at hnl
           · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl; simpa using hnl
         have ihkey : ∀ a ∈ (rest.toList?).getD [],
@@ -860,7 +860,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
             simp only [htl, Option.getD_some] at ha
             exact ih env a (NoLet_of_mem_spine htl hnls a ha)
         rw [substSpine_toList]
-        by_cases hif : q.isNamed "if" = true
+        by_cases hif : q.isNamed "IF" = true
         · simp only [hif, ↓reduceIte]
           match htl : rest.toList? with
           | some [c, t, e] =>
@@ -878,11 +878,11 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
           | some [_] => rfl
           | some [_, _] => rfl
           | some (_ :: _ :: _ :: _ :: _) => rfl
-        · have hiff : q.isNamed "if" = false := by
+        · have hiff : q.isNamed "IF" = false := by
             simp only [Bool.not_eq_true] at hif; exact hif
-          by_cases hlet : (q.isNamed "let" || q.isNamed "let*") = true
+          by_cases hlet : (q.isNamed "LET" || q.isNamed "LET*") = true
           · exfalso; simp only [NoLet, hqf, hlet, if_true, Bool.false_eq_true] at hnl
-          · have hletf : (q.isNamed "let" || q.isNamed "let*") = false := by
+          · have hletf : (q.isNamed "LET" || q.isNamed "LET*") = false := by
               simp only [Bool.not_eq_true] at hlet; exact hlet
             simp only [hiff, hletf, Bool.false_eq_true, if_false]
             match htl : rest.toList? with
@@ -929,12 +929,12 @@ theorem evalOpt_substTerm_eq (w : World) (env : Env) (formals : List Symbol)
     | .cons .nil _ => rfl
     | .cons (.cons _ _) _ => rfl
     | .cons (.atom (.symbol q)) rest =>
-      by_cases hq : q.isNamed "quote" = true
+      by_cases hq : q.isNamed "QUOTE" = true
       · rw [show substTerm formals args (.cons (.atom (.symbol q)) rest)
               = .cons (.atom (.symbol q)) rest from by simp only [substTerm, hq, if_true],
             show substTerm formals args' (.cons (.atom (.symbol q)) rest)
               = .cons (.atom (.symbol q)) rest from by simp only [substTerm, hq, if_true]]
-      · have hqf : q.isNamed "quote" = false := by
+      · have hqf : q.isNamed "QUOTE" = false := by
           simp only [Bool.not_eq_true] at hq; exact hq
         rw [show substTerm formals args (.cons (.atom (.symbol q)) rest)
               = .cons (.atom (.symbol q)) (substSpine formals args rest)
@@ -949,7 +949,7 @@ theorem evalOpt_substTerm_eq (w : World) (env : Env) (formals : List Symbol)
         simp only [evalOptStep_cons_symbol, hqf, Bool.false_eq_true, if_false]
         have hnls : NoLetSpine rest = true := by
           simp only [NoLet, hqf] at hnl
-          by_cases hl : (q.isNamed "let" || q.isNamed "let*") = true
+          by_cases hl : (q.isNamed "LET" || q.isNamed "LET*") = true
           · simp [hl] at hnl
           · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl; simpa using hnl
         have ihkey : ∀ a ∈ (rest.toList?).getD [],
@@ -962,7 +962,7 @@ theorem evalOpt_substTerm_eq (w : World) (env : Env) (formals : List Symbol)
             simp only [htl, Option.getD_some] at ha
             exact ih a (NoLet_of_mem_spine htl hnls a ha)
         rw [substSpine_toList, substSpine_toList]
-        by_cases hif : q.isNamed "if" = true
+        by_cases hif : q.isNamed "IF" = true
         · simp only [hif, ↓reduceIte]
           match htl : rest.toList? with
           | some [c, t, e] =>
@@ -980,11 +980,11 @@ theorem evalOpt_substTerm_eq (w : World) (env : Env) (formals : List Symbol)
           | some [_] => rfl
           | some [_, _] => rfl
           | some (_ :: _ :: _ :: _ :: _) => rfl
-        · have hiff : q.isNamed "if" = false := by
+        · have hiff : q.isNamed "IF" = false := by
             simp only [Bool.not_eq_true] at hif; exact hif
-          by_cases hlet : (q.isNamed "let" || q.isNamed "let*") = true
+          by_cases hlet : (q.isNamed "LET" || q.isNamed "LET*") = true
           · exfalso; simp only [NoLet, hqf, hlet, if_true, Bool.false_eq_true] at hnl
-          · have hletf : (q.isNamed "let" || q.isNamed "let*") = false := by
+          · have hletf : (q.isNamed "LET" || q.isNamed "LET*") = false := by
               simp only [Bool.not_eq_true] at hlet; exact hlet
             simp only [hiff, hletf, Bool.false_eq_true, if_false]
             match htl : rest.toList? with
@@ -1070,13 +1070,13 @@ theorem evalOpt_substTerm_conv (w : World) (env : Env) (formals : List Symbol)
     | .cons .nil _ => exact ⟨0, fun f _ => rfl⟩
     | .cons (.cons _ _) _ => exact ⟨0, fun f _ => rfl⟩
     | .cons (.atom (.symbol q)) rest =>
-      by_cases hq : q.isNamed "quote" = true
+      by_cases hq : q.isNamed "QUOTE" = true
       · exact ⟨0, fun f _ => by simp only [substTerm, hq, ↓reduceIte]⟩
-      · have hqf : q.isNamed "quote" = false := by
+      · have hqf : q.isNamed "QUOTE" = false := by
           simp only [Bool.not_eq_true] at hq; exact hq
         have hnls : NoLetSpine rest = true := by
           simp only [NoLet, hqf] at hnl
-          by_cases hl : (q.isNamed "let" || q.isNamed "let*") = true
+          by_cases hl : (q.isNamed "LET" || q.isNamed "LET*") = true
           · simp [hl] at hnl
           · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl; simpa using hnl
         -- each spine element agrees eventually (it is structurally smaller)
@@ -1108,7 +1108,7 @@ theorem evalOpt_substTerm_conv (w : World) (env : Env) (formals : List Symbol)
               (.cons (.atom (.symbol q)) (substSpine formals args' rest))
         simp only [evalOptStep_cons_symbol, hqf, Bool.false_eq_true, if_false]
         rw [substSpine_toList, substSpine_toList]
-        by_cases hif : q.isNamed "if" = true
+        by_cases hif : q.isNamed "IF" = true
         · simp only [hif, ↓reduceIte]
           match htl : rest.toList? with
           | some [c, t, e] =>
@@ -1126,11 +1126,11 @@ theorem evalOpt_substTerm_conv (w : World) (env : Env) (formals : List Symbol)
           | some [_] => rfl
           | some [_, _] => rfl
           | some (_ :: _ :: _ :: _ :: _) => rfl
-        · have hiff : q.isNamed "if" = false := by
+        · have hiff : q.isNamed "IF" = false := by
             simp only [Bool.not_eq_true] at hif; exact hif
-          by_cases hlet : (q.isNamed "let" || q.isNamed "let*") = true
+          by_cases hlet : (q.isNamed "LET" || q.isNamed "LET*") = true
           · exfalso; simp only [NoLet, hqf, hlet, if_true, Bool.false_eq_true] at hnl
-          · have hletf : (q.isNamed "let" || q.isNamed "let*") = false := by
+          · have hletf : (q.isNamed "LET" || q.isNamed "LET*") = false := by
               simp only [Bool.not_eq_true] at hlet; exact hlet
             simp only [hiff, hletf, Bool.false_eq_true, if_false]
             match htl : rest.toList? with
@@ -1209,8 +1209,8 @@ theorem evalOpt_envUpdate_bindArgs (w : World) (env : Env) (formals : List Symbo
     the `bindArgs` evaluation. -/
 theorem evalOpt_unfold1_conv (w : World) (env : Env) (fn formal : Symbol)
     (body arg av v : SExpr)
-    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+           fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (hdef : w.defs.get? fn = some ([formal], body))
     (hclosed : ∀ s ∈ freeVars body, s ∈ [formal]) (hnolet : NoLet body = true)
     (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
@@ -1252,8 +1252,8 @@ theorem evalOpt_unfold1_conv (w : World) (env : Env) (fn formal : Symbol)
     eventually, when both args converge. Requires the formals distinct. -/
 theorem evalOpt_unfold2_conv (w : World) (env : Env) (fn formal1 formal2 : Symbol)
     (body arg1 arg2 av1 av2 v : SExpr)
-    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+           fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (hdef : w.defs.get? fn = some ([formal1, formal2], body))
     (hclosed : ∀ s ∈ freeVars body, s ∈ [formal1, formal2]) (hnolet : NoLet body = true)
     (harg1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
@@ -1410,59 +1410,59 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
 -- callBuiltin for specific builtins — avoids unfolding the whole match.
 -- These use the string directly, not normalizedName.
 @[simp] theorem callBuiltin_equal (a b : SExpr) :
-    callBuiltin "equal" [a, b] = some (Logic.equal a b) := by rfl
+    callBuiltin "EQUAL" [a, b] = some (Logic.equal a b) := by rfl
 @[simp] theorem callBuiltin_not (a : SExpr) :
-    callBuiltin "not" [a] = some (Logic.not a) := by rfl
+    callBuiltin "NOT" [a] = some (Logic.not a) := by rfl
 @[simp] theorem callBuiltin_consp (a : SExpr) :
-    callBuiltin "consp" [a] = some (Logic.consp a) := by rfl
+    callBuiltin "CONSP" [a] = some (Logic.consp a) := by rfl
 @[simp] theorem callBuiltin_car (a : SExpr) :
-    callBuiltin "car" [a] = some (Logic.car a) := by rfl
+    callBuiltin "CAR" [a] = some (Logic.car a) := by rfl
 @[simp] theorem callBuiltin_cdr (a : SExpr) :
-    callBuiltin "cdr" [a] = some (Logic.cdr a) := by rfl
+    callBuiltin "CDR" [a] = some (Logic.cdr a) := by rfl
 @[simp] theorem callBuiltin_plus (a b : SExpr) :
-    callBuiltin "binary-+" [a, b] = some (Logic.plus a b) := by rfl
+    callBuiltin "BINARY-+" [a, b] = some (Logic.plus a b) := by rfl
 @[simp] theorem callBuiltin_times (a b : SExpr) :
-    callBuiltin "binary-*" [a, b] = some (Logic.times a b) := by rfl
+    callBuiltin "BINARY-*" [a, b] = some (Logic.times a b) := by rfl
 @[simp] theorem callBuiltin_true_listp (a : SExpr) :
-    callBuiltin "true-listp" [a] = some (Logic.trueListp a) := by
+    callBuiltin "TRUE-LISTP" [a] = some (Logic.trueListp a) := by
   rfl
 
 @[simp] theorem callBuiltin_acl2_numberp (a : SExpr) :
-    callBuiltin "acl2-numberp" [a] = some (Logic.acl2Numberp a) := by
+    callBuiltin "ACL2-NUMBERP" [a] = some (Logic.acl2Numberp a) := by
   cases a with
   | atom x => cases x <;> rfl
   | nil => rfl
   | cons _ _ => rfl
 @[simp] theorem callBuiltin_atom (a : SExpr) :
-    callBuiltin "atom" [a] = some (Logic.atom a) := by rfl
+    callBuiltin "ATOM" [a] = some (Logic.atom a) := by rfl
 @[simp] theorem callBuiltin_endp (a : SExpr) :
-    callBuiltin "endp" [a] = some (Logic.endp a) := by rfl
+    callBuiltin "ENDP" [a] = some (Logic.endp a) := by rfl
 @[simp] theorem callBuiltin_natp (a : SExpr) :
-    callBuiltin "natp" [a] = some (Logic.natp a) := by rfl
+    callBuiltin "NATP" [a] = some (Logic.natp a) := by rfl
 @[simp] theorem callBuiltin_posp (a : SExpr) :
-    callBuiltin "posp" [a] = some (Logic.posp a) := by rfl
+    callBuiltin "POSP" [a] = some (Logic.posp a) := by rfl
 @[simp] theorem callBuiltin_booleanp (a : SExpr) :
-    callBuiltin "booleanp" [a] = some (Logic.booleanp a) := by rfl
+    callBuiltin "BOOLEANP" [a] = some (Logic.booleanp a) := by rfl
 @[simp] theorem callBuiltin_symbolp (a : SExpr) :
-    callBuiltin "symbolp" [a] = some (Logic.symbolp a) := by rfl
+    callBuiltin "SYMBOLP" [a] = some (Logic.symbolp a) := by rfl
 @[simp] theorem callBuiltin_nfix (a : SExpr) :
-    callBuiltin "nfix" [a] = some (Logic.nfix a) := by rfl
+    callBuiltin "NFIX" [a] = some (Logic.nfix a) := by rfl
 @[simp] theorem callBuiltin_len (a : SExpr) :
-    callBuiltin "len" [a] = some (Logic.len a) := by rfl
+    callBuiltin "LEN" [a] = some (Logic.len a) := by rfl
 
 /-- T3: EQUAL-self — (EQUAL t t) evaluates to T when t converges. -/
 theorem evalOpt_equal_self (f : Nat) (w : World) (env : Env)
     (t : SExpr) (v : SExpr)
     (hv : evalOpt f w env t = some v)
-    (h_not_def : w.defs.get? ({ name := "equal" } : Symbol) = none) :
+    (h_not_def : w.defs.get? ({ name := "EQUAL" } : Symbol) = none) :
     evalOpt (f + 1) w env
-      (.cons (.atom (.symbol { name := "equal" })) (.cons t (.cons t .nil)))
+      (.cons (.atom (.symbol { name := "EQUAL" })) (.cons t (.cons t .nil)))
     = some SExpr.t := by
-  have h_ns : ({ name := "equal" } : Symbol).isNamed "quote" = false ∧
-              ({ name := "equal" } : Symbol).isNamed "if" = false ∧
-              ({ name := "equal" } : Symbol).isNamed "let" = false ∧
-              ({ name := "equal" } : Symbol).isNamed "let*" = false := by decide
-  rw [evalOpt_builtin_2 f w env { name := "equal" } t t v v h_ns h_not_def hv hv]
+  have h_ns : ({ name := "EQUAL" } : Symbol).isNamed "QUOTE" = false ∧
+              ({ name := "EQUAL" } : Symbol).isNamed "IF" = false ∧
+              ({ name := "EQUAL" } : Symbol).isNamed "LET" = false ∧
+              ({ name := "EQUAL" } : Symbol).isNamed "LET*" = false := by decide
+  rw [evalOpt_builtin_2 f w env { name := "EQUAL" } t t v v h_ns h_not_def hv hv]
   simp [callBuiltin_equal]
 
 /-- T2: EQUAL-T implies evaluation equality. -/
@@ -1470,35 +1470,35 @@ theorem eval_equal_t_implies_eq (f : Nat) (w : World) (env : Env)
     (a b : SExpr) (va vb : SExpr)
     (ha : evalOpt f w env a = some va)
     (hb : evalOpt f w env b = some vb)
-    (h_not_def : w.defs.get? (({ name := "equal" } : Symbol)) = none)
+    (h_not_def : w.defs.get? (({ name := "EQUAL" } : Symbol)) = none)
     (h_eq : evalOpt (f + 1) w env
-      (.cons (.atom (.symbol (({ name := "equal" } : Symbol)))) (.cons a (.cons b .nil)))
+      (.cons (.atom (.symbol (({ name := "EQUAL" } : Symbol)))) (.cons a (.cons b .nil)))
       = some SExpr.t) :
     va = vb := by
-  have h_ns : (({ name := "equal" } : Symbol)).isNamed "quote" = false ∧
-              (({ name := "equal" } : Symbol)).isNamed "if" = false ∧
-              (({ name := "equal" } : Symbol)).isNamed "let" = false ∧
-              (({ name := "equal" } : Symbol)).isNamed "let*" = false := by decide
-  rw [evalOpt_builtin_2 f w env (({ name := "equal" } : Symbol)) a b va vb h_ns h_not_def ha hb] at h_eq
-  -- h_eq : some (callBuiltin "equal" [va, vb]) = some SExpr.t
+  have h_ns : (({ name := "EQUAL" } : Symbol)).isNamed "QUOTE" = false ∧
+              (({ name := "EQUAL" } : Symbol)).isNamed "IF" = false ∧
+              (({ name := "EQUAL" } : Symbol)).isNamed "LET" = false ∧
+              (({ name := "EQUAL" } : Symbol)).isNamed "LET*" = false := by decide
+  rw [evalOpt_builtin_2 f w env (({ name := "EQUAL" } : Symbol)) a b va vb h_ns h_not_def ha hb] at h_eq
+  -- h_eq : some (callBuiltin "EQUAL" [va, vb]) = some SExpr.t
   simp only [callBuiltin_equal, Option.some.injEq] at h_eq
   exact (Logic.equal_t_iff va vb).mp h_eq
 
 /-- T11a: NOT(e) = NIL implies e evaluates to something truthy. -/
 theorem not_nil_means_truthy (f : Nat) (w : World) (env : Env)
     (t : SExpr) (tv : SExpr)
-    (h_not_def : w.defs.get? (({ name := "not" } : Symbol)) = none)
+    (h_not_def : w.defs.get? (({ name := "NOT" } : Symbol)) = none)
     (ht : evalOpt f w env t = some tv)
     (h_not : evalOpt (f + 1) w env
-      (.cons (.atom (.symbol (({ name := "not" } : Symbol)))) (.cons t .nil))
+      (.cons (.atom (.symbol (({ name := "NOT" } : Symbol)))) (.cons t .nil))
       = some SExpr.nil) :
     Logic.toBool tv = true := by
-  have h_ns : (({ name := "not" } : Symbol)).isNamed "quote" = false ∧
-              (({ name := "not" } : Symbol)).isNamed "if" = false ∧
-              (({ name := "not" } : Symbol)).isNamed "let" = false ∧
-              (({ name := "not" } : Symbol)).isNamed "let*" = false := by decide
-  rw [evalOpt_builtin_1 f w env (({ name := "not" } : Symbol)) t tv h_ns h_not_def ht] at h_not
-  -- h_not : some (callBuiltin "not" [tv]) = some SExpr.nil
+  have h_ns : (({ name := "NOT" } : Symbol)).isNamed "QUOTE" = false ∧
+              (({ name := "NOT" } : Symbol)).isNamed "IF" = false ∧
+              (({ name := "NOT" } : Symbol)).isNamed "LET" = false ∧
+              (({ name := "NOT" } : Symbol)).isNamed "LET*" = false := by decide
+  rw [evalOpt_builtin_1 f w env (({ name := "NOT" } : Symbol)) t tv h_ns h_not_def ht] at h_not
+  -- h_not : some (callBuiltin "NOT" [tv]) = some SExpr.nil
   simp only [callBuiltin_not, Option.some.injEq] at h_not
   exact (Logic.not_nil_iff tv).mp h_not
 
@@ -1653,52 +1653,52 @@ theorem logic_plus_comm2 (a b c : SExpr) :
 
 /-- RUNE `cdr-cons`: `(cdr (cons a b)) ⇒ b`. -/
 theorem re_cdr_cons (w : World) (env : Env) (a b av bv : SExpr)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "cdr" }))
-        (.cons (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))) .nil))
+      evalOpt f w env (.cons (.atom (.symbol { name := "CDR" }))
+        (.cons (.cons (.atom (.symbol { name := "CONS" })) (.cons a (.cons b .nil))) .nil))
       = evalOpt f w env b :=
   fuel_eq_of_conv
-    (conv_builtin1 w env { name := "cdr" }
-      (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil)))
+    (conv_builtin1 w env { name := "CDR" }
+      (.cons (.atom (.symbol { name := "CONS" })) (.cons a (.cons b .nil)))
       (.cons av bv) bv (by decide) h_no_cdr
-      (conv_builtin2 w env { name := "cons" } a b av bv (.cons av bv) (by decide) h_no_cons ha hb rfl)
+      (conv_builtin2 w env { name := "CONS" } a b av bv (.cons av bv) (by decide) h_no_cons ha hb rfl)
       (by rw [callBuiltin_cdr, logic_cdr_cons]))
     hb rfl
 
 /-- RUNE `car-cons`: `(car (cons a b)) ⇒ a`. Operands existential. -/
 theorem re_car_cons (w : World) (env : Env) (a b av bv : SExpr)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "car" }))
-        (.cons (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))) .nil))
+      evalOpt f w env (.cons (.atom (.symbol { name := "CAR" }))
+        (.cons (.cons (.atom (.symbol { name := "CONS" })) (.cons a (.cons b .nil))) .nil))
       = evalOpt f w env a :=
   fuel_eq_of_conv
-    (conv_builtin1 w env { name := "car" }
-      (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil)))
+    (conv_builtin1 w env { name := "CAR" }
+      (.cons (.atom (.symbol { name := "CONS" })) (.cons a (.cons b .nil)))
       (.cons av bv) av (by decide) h_no_car
-      (conv_builtin2 w env { name := "cons" } a b av bv (.cons av bv) (by decide) h_no_cons ha hb rfl)
+      (conv_builtin2 w env { name := "CONS" } a b av bv (.cons av bv) (by decide) h_no_cons ha hb rfl)
       (by rw [callBuiltin_car, logic_car_cons]))
     ha rfl
 
 /-- RUNE `commutativity-of-+`: `(+ a b) ⇒ (+ b a)`. -/
 theorem re_plus_comm (w : World) (env : Env) (a b av bv : SExpr)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons b .nil)))
-      = evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" })) (.cons b (.cons a .nil))) :=
+      evalOpt f w env (.cons (.atom (.symbol { name := "BINARY-+" })) (.cons a (.cons b .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "BINARY-+" })) (.cons b (.cons a .nil))) :=
   fuel_eq_of_conv
-    (conv_builtin2 w env { name := "binary-+" } a b av bv (Logic.plus av bv)
+    (conv_builtin2 w env { name := "BINARY-+" } a b av bv (Logic.plus av bv)
       (by decide) h_no_plus ha hb (callBuiltin_plus _ _))
-    (conv_builtin2 w env { name := "binary-+" } b a bv av (Logic.plus bv av)
+    (conv_builtin2 w env { name := "BINARY-+" } b a bv av (Logic.plus bv av)
       (by decide) h_no_plus hb ha (callBuiltin_plus _ _))
     (logic_plus_comm av bv)
 
@@ -1707,26 +1707,26 @@ theorem re_plus_comm (w : World) (env : Env) (a b av bv : SExpr)
     hypothesis (`binary-+` coerces via `fix`). Operands converge to SOME value;
     the value-equality is `logic_plus_comm2`. -/
 theorem re_plus_comm2 (w : World) (env : Env) (a b c : SExpr) (av bv cv : SExpr)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv)
     (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" }))
-        (.cons a (.cons (.cons (.atom (.symbol { name := "binary-+" })) (.cons b (.cons c .nil))) .nil)))
-      = evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" }))
-        (.cons b (.cons (.cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons c .nil))) .nil))) := by
+      evalOpt f w env (.cons (.atom (.symbol { name := "BINARY-+" }))
+        (.cons a (.cons (.cons (.atom (.symbol { name := "BINARY-+" })) (.cons b (.cons c .nil))) .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "BINARY-+" }))
+        (.cons b (.cons (.cons (.atom (.symbol { name := "BINARY-+" })) (.cons a (.cons c .nil))) .nil))) := by
   have hbc : ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol { name := "binary-+" })) (.cons b (.cons c .nil)))
+      (.cons (.atom (.symbol { name := "BINARY-+" })) (.cons b (.cons c .nil)))
       = some (Logic.plus bv cv) :=
-    conv_builtin2 w env { name := "binary-+" } b c _ _ _ (by decide) h_no_plus hb hc (callBuiltin_plus _ _)
+    conv_builtin2 w env { name := "BINARY-+" } b c _ _ _ (by decide) h_no_plus hb hc (callBuiltin_plus _ _)
   have hac : ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons c .nil)))
+      (.cons (.atom (.symbol { name := "BINARY-+" })) (.cons a (.cons c .nil)))
       = some (Logic.plus av cv) :=
-    conv_builtin2 w env { name := "binary-+" } a c _ _ _ (by decide) h_no_plus ha hc (callBuiltin_plus _ _)
+    conv_builtin2 w env { name := "BINARY-+" } a c _ _ _ (by decide) h_no_plus ha hc (callBuiltin_plus _ _)
   exact fuel_eq_of_conv
-    (conv_builtin2 w env { name := "binary-+" } a _ _ _ _ (by decide) h_no_plus ha hbc (callBuiltin_plus _ _))
-    (conv_builtin2 w env { name := "binary-+" } b _ _ _ _ (by decide) h_no_plus hb hac (callBuiltin_plus _ _))
+    (conv_builtin2 w env { name := "BINARY-+" } a _ _ _ _ (by decide) h_no_plus ha hbc (callBuiltin_plus _ _))
+    (conv_builtin2 w env { name := "BINARY-+" } b _ _ _ _ (by decide) h_no_plus hb hac (callBuiltin_plus _ _))
     (logic_plus_comm2 av bv cv)
 
 /-- RUNE `if-simplification` (true test): `(if c t e) ⇒ t` when the test converges
@@ -1735,7 +1735,7 @@ theorem re_if_true (w : World) (env : Env) (c t e cv tv : SExpr)
     (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv) (hcv : Logic.toBool cv = true)
     (ht : ∃ N, ∀ f ≥ N, evalOpt f w env t = some tv) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      evalOpt f w env (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
       = evalOpt f w env t :=
   fuel_eq_of_conv (conv_if_true w env c t e cv tv hc hcv ht) ht rfl
 
@@ -1745,10 +1745,10 @@ theorem re_if_false (w : World) (env : Env) (c t e ev : SExpr)
     (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some .nil)
     (he : ∃ N, ∀ f ≥ N, evalOpt f w env e = some ev) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      evalOpt f w env (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
       = evalOpt f w env e := by
   have hconv : ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil)))) = some ev := by
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))) = some ev := by
     obtain ⟨Nc, hc'⟩ := hc; obtain ⟨Ne, he'⟩ := he
     refine ⟨max Nc Ne + 1, fun f hf => ?_⟩
     obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -1780,8 +1780,8 @@ theorem bindArgs_pair_get_snd (f1 f2 : Symbol) (v1 v2 : SExpr) (hne : f1 ≠ f2)
     the call's variable, so the substitution is the identity). Term-to-term; the
     body's value `v` stays existential (totality). -/
 theorem re_unfold1_var (w : World) (env : Env) (fn formal : Symbol) (av body v : SExpr)
-    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+           fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (hdef : w.defs.get? fn = some ([formal], body))
     (hclosed : ∀ s ∈ freeVars body, s = formal) (hnolet : NoLet body = true)
     (hbind : ∀ f, evalOpt (f + 1) w env (.atom (.symbol formal)) = some av)
@@ -1803,8 +1803,8 @@ theorem re_unfold1_var (w : World) (env : Env) (fn formal : Symbol) (av body v :
 /-- RUNE `:DEFINITION fn` on two VARIABLE arguments: `(fn x y) ⇒ body`. -/
 theorem re_unfold2_var (w : World) (env : Env) (fn f1 f2 : Symbol) (av1 av2 body v : SExpr)
     (hne : f1 ≠ f2)
-    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+           fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (hdef : w.defs.get? fn = some ([f1, f2], body))
     (hclosed : ∀ s ∈ freeVars body, s = f1 ∨ s = f2) (hnolet : NoLet body = true)
     (hbind1 : ∀ f, evalOpt (f + 1) w env (.atom (.symbol f1)) = some av1)
@@ -1920,7 +1920,7 @@ theorem conv_if_split (w : World) (env : Env) (c t e vc : SExpr)
     (he : Logic.toBool vc = false →
       ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env e = some v) :
     ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
       = some v := by
   obtain ⟨Nc, hc'⟩ := hc
   cases hb : Logic.toBool vc with
@@ -1946,8 +1946,8 @@ theorem conv_if_split (w : World) (env : Env) (c t e vc : SExpr)
     argument's value) converge — ∃N∃v walk form. -/
 theorem conv_defn_1_ex (w : World) (env : Env) (s : Symbol) (formal : Symbol)
     (body arg av : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal], body))
     (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
     (hbody : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
@@ -1961,8 +1961,8 @@ theorem conv_defn_1_ex (w : World) (env : Env) (s : Symbol) (formal : Symbol)
     argument values) converge — ∃N∃v walk form. -/
 theorem conv_defn_2_ex (w : World) (env : Env) (s : Symbol)
     (formal1 formal2 : Symbol) (body arg1 arg2 av1 av2 : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
     (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
@@ -2032,7 +2032,7 @@ theorem conv_if_split_ex (w : World) (env : Env) (c t e : SExpr)
     (he : ∀ vc, ConvTo w env c vc → Logic.toBool vc = false →
       ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env e = some v) :
     ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
       = some v := by
   obtain ⟨N, vc, hvc⟩ := hc
   exact conv_if_split w env c t e vc ⟨N, hvc⟩ (ht vc ⟨N, hvc⟩) (he vc ⟨N, hvc⟩)
@@ -2042,8 +2042,8 @@ theorem conv_if_split_ex (w : World) (env : Env) (c t e : SExpr)
     characterization (the dpUnary rfl lemma). -/
 theorem conv_builtin1_ex (w : World) (env : Env) (s : Symbol) (a : SExpr)
     (g : SExpr → SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_no : w.defs.get? s = none)
     (hg : ∀ v, callBuiltin s.name [v] = some (g v))
     (ha : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env a = some v) :
@@ -2056,8 +2056,8 @@ theorem conv_builtin1_ex (w : World) (env : Env) (s : Symbol) (a : SExpr)
 /-- A 2-ary BUILTIN call converges when its arguments do (∃N∃v walk form). -/
 theorem conv_builtin2_ex (w : World) (env : Env) (s : Symbol) (a b : SExpr)
     (g : SExpr → SExpr → SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_no : w.defs.get? s = none)
     (hg : ∀ u v, callBuiltin s.name [u, v] = some (g u v))
     (ha : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env a = some v)
@@ -2075,8 +2075,8 @@ theorem conv_builtin2_ex (w : World) (env : Env) (s : Symbol) (a b : SExpr)
     at every argument value — the capper the totality prover applies; the
     driver supplies `hbody` as the body walk λ-abstracted over the value. -/
 theorem totality_1_of_body (w : World) (s : Symbol) (formal : Symbol) (body : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal], body))
     (hbody : ∀ av : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
       evalOpt f w (bindArgs [formal] [av]) body = some v) :
@@ -2091,8 +2091,8 @@ theorem totality_1_of_body (w : World) (s : Symbol) (formal : Symbol) (body : SE
 /-- TOTALITY of a NON-RECURSIVE 2-ary defined fn (see `totality_1_of_body`). -/
 theorem totality_2_of_body (w : World) (s : Symbol) (formal1 formal2 : Symbol)
     (body : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (hbody : ∀ av1 av2 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
       evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
@@ -2114,8 +2114,8 @@ theorem totality_2_of_body (w : World) (s : Symbol) (formal1 formal2 : Symbol)
     applies at each self-call's argument value justified by the emitted
     decrease obligation. -/
 theorem totality_1_rec (w : World) (s : Symbol) (formal : Symbol) (body : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal], body))
     (step : ∀ av : SExpr,
       (∀ bv : SExpr, bv.acl2Count < av.acl2Count →
@@ -2136,8 +2136,8 @@ theorem totality_1_rec (w : World) (s : Symbol) (formal : Symbol) (body : SExpr)
     induction, so self-calls may pass any second argument. -/
 theorem totality_2_rec (w : World) (s : Symbol) (formal1 formal2 : Symbol)
     (body : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (step : ∀ av1 : SExpr,
       (∀ bv : SExpr, bv.acl2Count < av1.acl2Count → ∀ cv : SExpr,
@@ -2162,8 +2162,8 @@ theorem totality_2_rec (w : World) (s : Symbol) (formal1 formal2 : Symbol)
     second argument's count, the first universally quantified inside. -/
 theorem totality_2_rec_snd (w : World) (s : Symbol) (formal1 formal2 : Symbol)
     (body : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (step : ∀ av2 : SExpr,
       (∀ cv : SExpr, cv.acl2Count < av2.acl2Count → ∀ bv : SExpr,
@@ -2191,7 +2191,7 @@ theorem totality_2_rec_snd (w : World) (s : Symbol) (formal1 formal2 : Symbol)
 
 theorem re_conv_quote (w : World) (env : Env) (v : SExpr) :
     ∃ N, ∃ v', ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "quote" })) (.cons v .nil)) = some v' :=
+      evalOpt f w env (.cons (.atom (.symbol { name := "QUOTE" })) (.cons v .nil)) = some v' :=
   ⟨1, v, fun f _ => by
     obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
     exact evalOpt_quote g w env v⟩
@@ -2199,7 +2199,7 @@ theorem re_conv_quote (w : World) (env : Env) (v : SExpr) :
 /-- Convergence (v-fixed) of a VARIABLE: `(var s)` converges to its binding (or `nil`
     if unbound, provided `s` is not the constant `t`) in ANY environment — the
     variable-convergence fact the mirror theorem's `∀ env` quantification needs. -/
-theorem re_conv_var (w : World) (env : Env) (s : Symbol) (h_not_t : s.isNamed "t" = false) :
+theorem re_conv_var (w : World) (env : Env) (s : Symbol) (h_not_t : s.isNamed "T" = false) :
     ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env (.atom (.symbol s)) = some v := by
   match h : env.get? s with
   | some v => exact ⟨1, v, fun f _ => by
@@ -2214,10 +2214,10 @@ theorem re_conv_var (w : World) (env : Env) (s : Symbol) (h_not_t : s.isNamed "t
     convergence. -/
 theorem re_equal_self (w : World) (env : Env) (A : SExpr)
     (hconv : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env A = some v)
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none) :
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none) :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env
-        (.cons (.atom (.symbol { name := "equal" })) (.cons A (.cons A .nil))) = some SExpr.t := by
+        (.cons (.atom (.symbol { name := "EQUAL" })) (.cons A (.cons A .nil))) = some SExpr.t := by
   obtain ⟨N, v, hN⟩ := hconv
   refine ⟨N + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -2228,13 +2228,13 @@ theorem re_equal_self (w : World) (env : Env) (A : SExpr)
     `obtain`s the fixed operand witnesses — so the driver passes `proveConv`'s output
     straight in (no `Exists.elim` threading). -/
 theorem re_cdr_cons_conv (w : World) (env : Env) (a b : SExpr)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "cdr" }))
-        (.cons (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))) .nil))
+      evalOpt f w env (.cons (.atom (.symbol { name := "CDR" }))
+        (.cons (.cons (.atom (.symbol { name := "CONS" })) (.cons a (.cons b .nil))) .nil))
       = evalOpt f w env b := by
   obtain ⟨Na, av, ha⟩ := ha
   obtain ⟨Nb, bv, hb⟩ := hb
@@ -2242,13 +2242,13 @@ theorem re_cdr_cons_conv (w : World) (env : Env) (a b : SExpr)
 
 /-- RUNE `car-cons` (conv form): `(car (cons a b)) ⇒ a`, term-to-term. -/
 theorem re_car_cons_conv (w : World) (env : Env) (a b : SExpr)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "car" }))
-        (.cons (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))) .nil))
+      evalOpt f w env (.cons (.atom (.symbol { name := "CAR" }))
+        (.cons (.cons (.atom (.symbol { name := "CONS" })) (.cons a (.cons b .nil))) .nil))
       = evalOpt f w env a := by
   obtain ⟨Na, av, ha⟩ := ha
   obtain ⟨Nb, bv, hb⟩ := hb
@@ -2258,45 +2258,45 @@ theorem re_car_cons_conv (w : World) (env : Env) (a b : SExpr)
     when `a`, `b` converge. The convergence-analyzer's compound-term case for `cons`
     (`car`/`cdr`/`binary-*`/… follow the same shape via their `callBuiltin` lemma). -/
 theorem re_conv_cons (w : World) (env : Env) (a b : SExpr)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
     ∃ N, ∃ v, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil)))
+      evalOpt f w env (.cons (.atom (.symbol { name := "CONS" })) (.cons a (.cons b .nil)))
       = some v := by
   obtain ⟨Na, av, ha⟩ := ha
   obtain ⟨Nb, bv, hb⟩ := hb
-  obtain ⟨N, h⟩ := conv_builtin2 w env { name := "cons" } a b av bv (.cons av bv)
+  obtain ⟨N, h⟩ := conv_builtin2 w env { name := "CONS" } a b av bv (.cons av bv)
     (by decide) h_no_cons ⟨Na, ha⟩ ⟨Nb, hb⟩ rfl
   exact ⟨N, .cons av bv, h⟩
 
 /-- Convergence (v-fixed) of a `(binary-* a b)` application: converges to `times av bv`
     when `a`, `b` converge. (Same shape as `re_conv_cons`.) -/
 theorem re_conv_times (w : World) (env : Env) (a b : SExpr)
-    (h_no_times : w.defs.get? ({ name := "binary-*" } : Symbol) = none)
+    (h_no_times : w.defs.get? ({ name := "BINARY-*" } : Symbol) = none)
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
     ∃ N, ∃ v, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "binary-*" })) (.cons a (.cons b .nil)))
+      evalOpt f w env (.cons (.atom (.symbol { name := "BINARY-*" })) (.cons a (.cons b .nil)))
       = some v := by
   obtain ⟨Na, av, ha⟩ := ha
   obtain ⟨Nb, bv, hb⟩ := hb
-  obtain ⟨N, h⟩ := conv_builtin2 w env { name := "binary-*" } a b av bv (Logic.times av bv)
+  obtain ⟨N, h⟩ := conv_builtin2 w env { name := "BINARY-*" } a b av bv (Logic.times av bv)
     (by decide) h_no_times ⟨Na, ha⟩ ⟨Nb, hb⟩ rfl
   exact ⟨N, Logic.times av bv, h⟩
 
 /-- Convergence (v-fixed) of a `(binary-+ a b)` application: converges to `plus av bv`
     when `a`, `b` converge. (Same shape as `re_conv_times`.) -/
 theorem re_conv_plus (w : World) (env : Env) (a b : SExpr)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
     (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv) :
     ∃ N, ∃ v, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons b .nil)))
+      evalOpt f w env (.cons (.atom (.symbol { name := "BINARY-+" })) (.cons a (.cons b .nil)))
       = some v := by
   obtain ⟨Na, av, ha⟩ := ha
   obtain ⟨Nb, bv, hb⟩ := hb
-  obtain ⟨N, h⟩ := conv_builtin2 w env { name := "binary-+" } a b av bv (Logic.plus av bv)
+  obtain ⟨N, h⟩ := conv_builtin2 w env { name := "BINARY-+" } a b av bv (Logic.plus av bv)
     (by decide) h_no_plus ⟨Na, ha⟩ ⟨Nb, hb⟩ rfl
   exact ⟨N, Logic.plus av bv, h⟩
 
@@ -2304,34 +2304,34 @@ theorem re_conv_plus (w : World) (env : Env) (a b : SExpr)
     `car av` when `a` converges. The convergence-analyzer's unary-builtin shape;
     `cdr`/`consp` follow identically via their `callBuiltin` lemma. -/
 theorem re_conv_car (w : World) (env : Env) (a : SExpr)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av) :
     ∃ N, ∃ v, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "car" })) (.cons a .nil)) = some v := by
+      evalOpt f w env (.cons (.atom (.symbol { name := "CAR" })) (.cons a .nil)) = some v := by
   obtain ⟨Na, av, ha⟩ := ha
-  obtain ⟨N, h⟩ := conv_builtin1 w env { name := "car" } a av (Logic.car av)
+  obtain ⟨N, h⟩ := conv_builtin1 w env { name := "CAR" } a av (Logic.car av)
     (by decide) h_no_car ⟨Na, ha⟩ (callBuiltin_car av)
   exact ⟨N, Logic.car av, h⟩
 
 /-- Convergence (v-fixed) of `(cdr a)`: converges to `cdr av` when `a` converges. -/
 theorem re_conv_cdr (w : World) (env : Env) (a : SExpr)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av) :
     ∃ N, ∃ v, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "cdr" })) (.cons a .nil)) = some v := by
+      evalOpt f w env (.cons (.atom (.symbol { name := "CDR" })) (.cons a .nil)) = some v := by
   obtain ⟨Na, av, ha⟩ := ha
-  obtain ⟨N, h⟩ := conv_builtin1 w env { name := "cdr" } a av (Logic.cdr av)
+  obtain ⟨N, h⟩ := conv_builtin1 w env { name := "CDR" } a av (Logic.cdr av)
     (by decide) h_no_cdr ⟨Na, ha⟩ (callBuiltin_cdr av)
   exact ⟨N, Logic.cdr av, h⟩
 
 /-- Convergence (v-fixed) of `(consp a)`: converges to `consp av` when `a` converges. -/
 theorem re_conv_consp (w : World) (env : Env) (a : SExpr)
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av) :
     ∃ N, ∃ v, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "consp" })) (.cons a .nil)) = some v := by
+      evalOpt f w env (.cons (.atom (.symbol { name := "CONSP" })) (.cons a .nil)) = some v := by
   obtain ⟨Na, av, ha⟩ := ha
-  obtain ⟨N, h⟩ := conv_builtin1 w env { name := "consp" } a av (Logic.consp av)
+  obtain ⟨N, h⟩ := conv_builtin1 w env { name := "CONSP" } a av (Logic.consp av)
     (by decide) h_no_consp ⟨Na, ha⟩ (callBuiltin_consp av)
   exact ⟨N, Logic.consp av, h⟩
 
@@ -2342,8 +2342,8 @@ theorem re_conv_consp (w : World) (env : Env) (a : SExpr)
     convergence at the `bindArgs` env (which mentions the obtained arg value `av`), so
     the driver needs no `Exists.elim` of its own. -/
 theorem re_unfold1_conv (w : World) (env : Env) (fn formal : Symbol) (body arg : SExpr)
-    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+           fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (hdef : w.defs.get? fn = some ([formal], body))
     (hclosed : ∀ s ∈ freeVars body, s ∈ [formal]) (hnolet : NoLet body = true)
     (harg : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env arg = some av)
@@ -2359,11 +2359,11 @@ theorem re_unfold1_conv (w : World) (env : Env) (fn formal : Symbol) (body arg :
     `definition:fix`'s `if` test in the base case (a builtin recognizer like the step
     case's `consp`; the operand value stays existential). -/
 theorem re_acl2_numberp_int (w : World) (env : Env) (z : SExpr) (k : Int)
-    (h_no : w.defs.get? ({ name := "acl2-numberp" } : Symbol) = none)
+    (h_no : w.defs.get? ({ name := "ACL2-NUMBERP" } : Symbol) = none)
     (hz : ∃ N, ∀ f ≥ N, evalOpt f w env z = some (.atom (.number (.int k)))) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons z .nil)) = some .t :=
-  conv_builtin1 w env { name := "acl2-numberp" } z (.atom (.number (.int k))) .t
+      evalOpt f w env (.cons (.atom (.symbol { name := "ACL2-NUMBERP" })) (.cons z .nil)) = some .t :=
+  conv_builtin1 w env { name := "ACL2-NUMBERP" } z (.atom (.number (.int k))) .t
     (by decide) h_no hz (by rfl)
 
 /-! ## Decision-procedure discharge leaves (the ratified carve-out)
@@ -2378,22 +2378,22 @@ theorem re_acl2_numberp_int (w : World) (env : Env) (z : SExpr) (k : Int)
     procedure (`omega` after SExpr case-split — see the carve-out in CLAUDE.md). -/
 
 @[simp] theorem callBuiltin_zp (a : SExpr) :
-    callBuiltin "zp" [a] = some (Logic.zp a) := by rfl
+    callBuiltin "ZP" [a] = some (Logic.zp a) := by rfl
 @[simp] theorem callBuiltin_lt (a b : SExpr) :
     callBuiltin "<" [a, b] = some (Logic.lt a b) := by rfl
 @[simp] theorem callBuiltin_integerp (a : SExpr) :
-    callBuiltin "integerp" [a] = some (Logic.integerp a) := by rfl
+    callBuiltin "INTEGERP" [a] = some (Logic.integerp a) := by rfl
 @[simp] theorem callBuiltin_cons (a b : SExpr) :
-    callBuiltin "cons" [a, b] = some (SExpr.cons a b) := by rfl
+    callBuiltin "CONS" [a, b] = some (SExpr.cons a b) := by rfl
 @[simp] theorem callBuiltin_implies (a b : SExpr) :
-    callBuiltin "implies" [a, b] = some (Logic.implies a b) := by rfl
+    callBuiltin "IMPLIES" [a, b] = some (Logic.implies a b) := by rfl
 @[simp] theorem callBuiltin_iff (a b : SExpr) :
-    callBuiltin "iff" [a, b] = some (Logic.iff a b) := by rfl
+    callBuiltin "IFF" [a, b] = some (Logic.iff a b) := by rfl
 
 /-- Value-characterized convergence of a quoted constant: `(quote v) ⇒ v`. -/
 theorem re_val_quote (w : World) (env : Env) (v : SExpr) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "quote" })) (.cons v .nil)) = some v :=
+      evalOpt f w env (.cons (.atom (.symbol { name := "QUOTE" })) (.cons v .nil)) = some v :=
   ⟨1, fun f hf => by
     obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
     exact evalOpt_quote g w env v⟩
@@ -2401,7 +2401,7 @@ theorem re_val_quote (w : World) (env : Env) (v : SExpr) :
 /-- Value-characterized convergence of a variable: `(var s) ⇒ (env.get? s).getD nil`
     (the binding, or `nil` if unbound — requires `s ≠ t`, the self-evaluating symbol). -/
 theorem re_val_var (w : World) (env : Env) (s : Symbol)
-    (h_not_t : s.isNamed "t" = false) :
+    (h_not_t : s.isNamed "T" = false) :
     ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol s)) = some ((env.get? s).getD .nil) := by
   match h : env.get? s with
   | some v => exact ⟨1, fun f _ => by
@@ -2422,8 +2422,8 @@ theorem re_val_cast (w : World) (env : Env) (a v v' : SExpr)
     reading of the defn equation — the c3 unfold recipe's first step.) -/
 theorem re_body_conv1 (w : World) (env : Env) (fn formal : Symbol)
     (body arg av rv : SExpr)
-    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (h_def : w.defs.get? fn = some ([formal], body))
     (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
     (happ : ∃ N, ∀ f ≥ N,
@@ -2438,8 +2438,8 @@ theorem re_body_conv1 (w : World) (env : Env) (fn formal : Symbol)
 /-- TOTALITY → BODY convergence (2-arg). -/
 theorem re_body_conv2 (w : World) (env : Env) (fn f1 f2 : Symbol)
     (body a1 a2 av1 av2 rv : SExpr)
-    (h_ns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-            fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (h_def : w.defs.get? fn = some ([f1, f2], body))
     (ha1 : ∃ N, ∀ f ≥ N, evalOpt f w env a1 = some av1)
     (ha2 : ∃ N, ∀ f ≥ N, evalOpt f w env a2 = some av2)
@@ -2482,8 +2482,8 @@ theorem re_val_var_bind2_snd (w : World) (f1 f2 : Symbol) (v1 v2 : SExpr)
     every registered builtin, replacing the per-builtin `re_conv_*` family. -/
 theorem re_conv_builtin1_reg (w : World) (env : Env) (s : Symbol) (a : SExpr)
     (g : SExpr → SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_not_def : w.defs.get? s = none)
     (h_reg : ∀ av : SExpr, callBuiltin s.name [av] = some (g av))
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av) :
@@ -2496,8 +2496,8 @@ theorem re_conv_builtin1_reg (w : World) (env : Env) (s : Symbol) (a : SExpr)
 /-- GENERIC total-builtin convergence (2-arg). -/
 theorem re_conv_builtin2_reg (w : World) (env : Env) (s : Symbol) (a b : SExpr)
     (g : SExpr → SExpr → SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_not_def : w.defs.get? s = none)
     (h_reg : ∀ av bv : SExpr, callBuiltin s.name [av, bv] = some (g av bv))
     (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
@@ -2517,9 +2517,9 @@ theorem evalOpt_congr_if_test (w : World) (env : Env) (c c' t e : SExpr)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env c = evalOpt f w env c') :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
       = evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c' (.cons t (.cons e .nil)))) := by
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c' (.cons t (.cons e .nil)))) := by
   obtain ⟨N, h⟩ := h
   refine ⟨N + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -2539,9 +2539,9 @@ theorem evalOpt_congr_if_then (w : World) (env : Env) (c t t' e : SExpr)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env t = evalOpt f w env t') :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
       = evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t' (.cons e .nil)))) := by
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t' (.cons e .nil)))) := by
   obtain ⟨N, h⟩ := h
   refine ⟨N + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -2566,9 +2566,9 @@ theorem evalOpt_congr_if_else (w : World) (env : Env) (c t e e' : SExpr)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env e = evalOpt f w env e') :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
       = evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e' .nil)))) := by
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e' .nil)))) := by
   obtain ⟨N, h⟩ := h
   refine ⟨N + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -2589,8 +2589,8 @@ theorem evalOpt_congr_if_else (w : World) (env : Env) (c t e e' : SExpr)
     `re_unfold1_conv`). -/
 theorem re_unfold2_conv (w : World) (env : Env) (fn f1 f2 : Symbol)
     (body arg1 arg2 : SExpr)
-    (hns : fn.isNamed "quote" = false ∧ fn.isNamed "if" = false ∧
-           fn.isNamed "let" = false ∧ fn.isNamed "let*" = false)
+    (hns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+           fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
     (hdef : w.defs.get? fn = some ([f1, f2], body))
     (hclosed : ∀ s ∈ freeVars body, s ∈ [f1, f2]) (hnolet : NoLet body = true)
     (harg1 : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env arg1 = some av)
@@ -2709,10 +2709,10 @@ theorem re_if_same (w : World) (env : Env) (c a cv av : SExpr)
     (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
     (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av) :
     ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons a (.cons a .nil))))
+      evalOpt f w env (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons a (.cons a .nil))))
       = evalOpt f w env a := by
   have hconv : ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons a (.cons a .nil)))) = some av := by
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons a (.cons a .nil)))) = some av := by
     obtain ⟨Nc, hc'⟩ := hc; obtain ⟨Na, ha'⟩ := ha
     refine ⟨max Nc Na + 1, fun f hf => ?_⟩
     obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -2786,9 +2786,9 @@ theorem evalOpt_congr_if_branches_cond (w : World) (env : Env)
       ∃ N, ∀ f ≥ N, evalOpt f w env els = evalOpt f w env els') :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil))))
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons thn (.cons els .nil))))
       = evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn' (.cons els' .nil)))) := by
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons thn' (.cons els' .nil)))) := by
   obtain ⟨Nc, hc⟩ := hc
   by_cases hv : vc = SExpr.nil
   · obtain ⟨Ne, he⟩ := helse hv
@@ -2839,7 +2839,7 @@ theorem nil_of_toBool_false {v : SExpr} (h : Logic.toBool v = false) :
 theorem convP_quote (w : World) (env : Env) (v : SExpr) (P : SExpr → Prop)
     (hP : P v) :
     ConvToP w env
-      (.cons (.atom (.symbol { name := "quote" })) (.cons v .nil)) P :=
+      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons v .nil)) P :=
   ⟨v, hP, re_val_quote w env v⟩
 
 /-- `if` under a CHARACTERIZED test verdict: the taken branch's predicate
@@ -2850,7 +2850,7 @@ theorem convP_if_split (w : World) (env : Env) (c t e vc : SExpr)
     (ht : Logic.toBool vc = true → ConvToP w env t P)
     (he : Logic.toBool vc = false → ConvToP w env e P) :
     ConvToP w env
-      (.cons (.atom (.symbol { name := "if" }))
+      (.cons (.atom (.symbol { name := "IF" }))
         (.cons c (.cons t (.cons e .nil)))) P := by
   cases hb : Logic.toBool vc with
   | true =>
@@ -2873,7 +2873,7 @@ theorem convP_if_split_ex (w : World) (env : Env) (c t e : SExpr)
     (he : ∀ vc, ConvTo w env c vc → Logic.toBool vc = false →
       ConvToP w env e P) :
     ConvToP w env
-      (.cons (.atom (.symbol { name := "if" }))
+      (.cons (.atom (.symbol { name := "IF" }))
         (.cons c (.cons t (.cons e .nil)))) P := by
   obtain ⟨N, vc, hvc⟩ := hc
   exact convP_if_split w env c t e vc P ⟨N, hvc⟩
@@ -2891,7 +2891,7 @@ theorem conv_if_lift (w : World) (env : Env) (c t e vc vt ve : SExpr)
     (ht : Logic.toBool vc = true → ConvTo w env t vt)
     (he : Logic.toBool vc = false → ConvTo w env e ve) :
     ConvTo w env
-      (.cons (.atom (.symbol { name := "if" }))
+      (.cons (.atom (.symbol { name := "IF" }))
         (.cons c (.cons t (.cons e .nil))))
       (if Logic.toBool vc = true then vt else ve) := by
   cases hb : Logic.toBool vc with
@@ -2912,8 +2912,8 @@ theorem conv_if_lift (w : World) (env : Env) (c t e vc vt ve : SExpr)
 theorem convP_defn_2 (w : World) (env : Env) (s : Symbol)
     (arg1 arg2 av1 av2 : SExpr) (formal1 formal2 : Symbol) (body : SExpr)
     (P : SExpr → Prop)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
     (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
@@ -2927,8 +2927,8 @@ theorem convP_defn_2 (w : World) (env : Env) (s : Symbol)
 /-- A defined 1-ary call inherits the body's predicate. -/
 theorem convP_defn_1 (w : World) (env : Env) (s : Symbol)
     (arg av : SExpr) (formal : Symbol) (body : SExpr) (P : SExpr → Prop)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal], body))
     (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
     (hbody : ConvToP w (bindArgs [formal] [av]) body P) :
@@ -2940,8 +2940,8 @@ theorem convP_defn_1 (w : World) (env : Env) (s : Symbol)
     application's arguments each converged. -/
 theorem evalOpt_app2_args (f : Nat) (w : World) (env : Env)
     (s : Symbol) (a1 a2 v : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h : evalOpt (f + 1) w env
       (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 .nil))) = some v) :
     (∃ u, evalOpt f w env a1 = some u) ∧
@@ -2974,8 +2974,8 @@ theorem conv_fix {w : World} {e : Env} {t : SExpr}
 /-- 2-ary argument strictness, convergence form. -/
 theorem conv_args2_of_conv_app (w : World) (env : Env) (s : Symbol)
     (a1 a2 v : SExpr)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w env
       (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 .nil))) = some v) :
     (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u) ∧
@@ -2995,8 +2995,8 @@ theorem conv_args2_of_conv_app (w : World) (env : Env) (s : Symbol)
     (`mkTpHypType`) with `P v := <lifted corollary> = t`. -/
 theorem tp_hyp_2_of_body (w : World) (s : Symbol) (formal1 formal2 : Symbol)
     (body : SExpr) (P : SExpr → Prop)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (hbody : ∀ av1 av2 : SExpr,
       ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
@@ -3015,8 +3015,8 @@ theorem tp_hyp_2_of_body (w : World) (s : Symbol) (formal1 formal2 : Symbol)
 /-- The TP-hypothesis assembly, 1-ary. -/
 theorem tp_hyp_1_of_body (w : World) (s : Symbol) (formal : Symbol)
     (body : SExpr) (P : SExpr → Prop)
-    (h_ns : s.isNamed "quote" = false ∧ s.isNamed "if" = false ∧
-            s.isNamed "let" = false ∧ s.isNamed "let*" = false)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal], body))
     (hbody : ∀ av : SExpr, ConvToP w (bindArgs [formal] [av]) body P) :
     ∀ (env' : Env) (a0 v : SExpr),
@@ -3152,10 +3152,10 @@ theorem evrel_of_fuel_eq {R : SExpr → SExpr → Prop} (hrefl : ∀ x, R x x)
 theorem evrel_siff_if_t_nil (w : World) (env : Env) (A vA : SExpr)
     (hA : ∃ N, ∀ f ≥ N, evalOpt f w env A = some vA) :
     EvRel SIff w env
-      (.cons (.atom (.symbol { name := "if" }))
+      (.cons (.atom (.symbol { name := "IF" }))
         (.cons A (.cons
-          (.cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil))
-          (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons .nil .nil))
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
             .nil)))) A := by
   obtain ⟨N, hA⟩ := hA
   refine ⟨N + 2, fun f hf => ?_⟩
@@ -3181,8 +3181,8 @@ theorem evrel_if_then_congr {R : SExpr → SExpr → Prop} (hrefl : ∀ x, R x x
     (hels : ∃ N, ∀ f ≥ N, evalOpt f w env els = some vEls)
     (hthn : EvRel R w env thn thn') :
     EvRel R w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil))))
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn' (.cons els .nil)))) := by
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons thn (.cons els .nil))))
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons thn' (.cons els .nil)))) := by
   obtain ⟨n1, hc⟩ := hc; obtain ⟨n2, hels⟩ := hels; obtain ⟨n3, hthn⟩ := hthn
   refine ⟨n1 + n2 + n3 + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -3207,8 +3207,8 @@ theorem evrel_if_else_congr {R : SExpr → SExpr → Prop} (hrefl : ∀ x, R x x
     (hthn : ∃ N, ∀ f ≥ N, evalOpt f w env thn = some vThn)
     (hels : EvRel R w env els els') :
     EvRel R w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil))))
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els' .nil)))) := by
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons thn (.cons els .nil))))
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons thn (.cons els' .nil)))) := by
   obtain ⟨n1, hc⟩ := hc; obtain ⟨n2, hthn⟩ := hthn; obtain ⟨n3, hels⟩ := hels
   refine ⟨n1 + n2 + n3 + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -3230,9 +3230,9 @@ theorem evrel_if_test_siff_collapse {w : World} {env : Env} {c c' thn els : SExp
     (hcc' : EvRel SIff w env c c') :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons thn (.cons els .nil))))
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons thn (.cons els .nil))))
       = evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c' (.cons thn (.cons els .nil)))) := by
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c' (.cons thn (.cons els .nil)))) := by
   obtain ⟨n1, hcc'⟩ := hcc'
   refine ⟨n1 + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -3326,7 +3326,7 @@ theorem ne_nil_of_evtrue_conv {w : World} {env : Env} {a va : SExpr}
 theorem evrel_siff_qt_of_evtrue {w : World} {env : Env} {a : SExpr}
     (ha : EvTrue w env a) :
     EvRel SIff w env a
-      (.cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil)) := by
+      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)) := by
   obtain ⟨N, ha⟩ := ha
   refine ⟨N + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
@@ -3340,9 +3340,9 @@ theorem evrel_siff_qt_of_evtrue {w : World} {env : Env} {a : SExpr}
 theorem evtrue_extract_else {w : World} {env : Env} {c rest : SExpr}
     (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some SExpr.nil)
     (hif : EvTrue w env
-      (.cons (.atom (.symbol { name := "if" }))
+      (.cons (.atom (.symbol { name := "IF" }))
         (.cons c (.cons
-          (.cons (.atom (.symbol { name := "quote" })) (.cons SExpr.t .nil))
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
           (.cons rest .nil))))) : EvTrue w env rest := by
   obtain ⟨n1, hc⟩ := hc; obtain ⟨n2, hif⟩ := hif
   refine ⟨n1 + n2 + 1, fun f hf => ?_⟩
@@ -3355,31 +3355,31 @@ theorem evtrue_extract_else {w : World} {env : Env} {c rest : SExpr}
     `EvTrue ihInst` pins `(not ihInst) ⇒ nil` WITHOUT pinning the IH's own
     value — `Logic.not v = nil` for every non-nil `v`). -/
 theorem conv_not_nil_of_evtrue {w : World} {env : Env} {X : SExpr}
-    (h_noshadow : w.defs.get? { name := "not" } = none)
+    (h_noshadow : w.defs.get? { name := "NOT" } = none)
     (hX : EvTrue w env X) :
     ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol { name := "not" })) (.cons X .nil))
+      (.cons (.atom (.symbol { name := "NOT" })) (.cons X .nil))
       = some SExpr.nil := by
   obtain ⟨N, hX⟩ := hX
   refine ⟨N + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
   obtain ⟨v, hv, hnv⟩ := hX g (by omega)
-  rw [evalOpt_builtin_1 g w env { name := "not" } X v
+  rw [evalOpt_builtin_1 g w env { name := "NOT" } X v
     (by simp [Symbol.isNamed]) h_noshadow hv]
   rw [callBuiltin_not, not_nil_of_truthy hnv]
 
 /-- The DUAL of `conv_not_nil_of_evtrue`: a nil argument makes `(not X)`
     converge to `t` (the multi-clause bridge's neg-leaf converter). -/
 theorem conv_not_t_of_conv_nil {w : World} {env : Env} {X : SExpr}
-    (h_noshadow : w.defs.get? { name := "not" } = none)
+    (h_noshadow : w.defs.get? { name := "NOT" } = none)
     (hX : ∃ N, ∀ f ≥ N, evalOpt f w env X = some SExpr.nil) :
     ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol { name := "not" })) (.cons X .nil))
+      (.cons (.atom (.symbol { name := "NOT" })) (.cons X .nil))
       = some SExpr.t := by
   obtain ⟨N, hX⟩ := hX
   refine ⟨N + 1, fun f hf => ?_⟩
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-  rw [evalOpt_builtin_1 g w env { name := "not" } X SExpr.nil
+  rw [evalOpt_builtin_1 g w env { name := "NOT" } X SExpr.nil
     (by simp [Symbol.isNamed]) h_noshadow (hX g (by omega))]
   rw [callBuiltin_not]
   rfl
@@ -3414,7 +3414,7 @@ theorem evtrue_dp_if_split (w : World) (env : Env) (c t e cv : SExpr)
     (hthen : cv ≠ .nil → EvTrue w env t)
     (helse : cv = .nil → EvTrue w env e) :
     EvTrue w env
-      (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil)))) := by
+      (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))) := by
   obtain ⟨Nc, hc⟩ := hc
   by_cases hcv : cv = .nil
   · obtain ⟨Ne, he⟩ := helse hcv
@@ -3500,7 +3500,7 @@ theorem re_val_if (w : World) (env : Env) (c t e cv tv ev : SExpr)
     (he : ∃ N, ∀ f ≥ N, evalOpt f w env e = some ev) :
     ∃ N, ∀ f ≥ N,
       evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
       = some (cond (Logic.toBool cv) tv ev) := by
   obtain ⟨Nc, hc⟩ := hc; obtain ⟨Nt, ht⟩ := ht; obtain ⟨Ne, he⟩ := he
   refine ⟨max Nc (max Nt Ne) + 1, fun f hf => ?_⟩
@@ -3521,7 +3521,7 @@ theorem re_conv_if (w : World) (env : Env) (c t e : SExpr)
     (he : ∃ N, ∃ ev, ∀ f ≥ N, evalOpt f w env e = some ev) :
     ∃ N, ∃ v, ∀ f ≥ N,
       evalOpt f w env
-        (.cons (.atom (.symbol { name := "if" })) (.cons c (.cons t (.cons e .nil))))
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil))))
       = some v := by
   obtain ⟨Nc, cv, hc⟩ := hc
   obtain ⟨Nt, tv, ht⟩ := ht

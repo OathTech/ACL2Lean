@@ -12,18 +12,18 @@ def sym (name : String) : Symbol := ⟨"ACL2", name⟩
 -- Body uses macro-expanded form (matching ACL2's DEFUN emission):
 -- (IF (CONSP X) (BINARY-+ (QUOTE 1) (MY-LEN (CDR X))) (QUOTE 0))
 def my_lenBody : SExpr :=
-  .cons (.atom (.symbol { name := "if" }))
-    (.cons (.cons (.atom (.symbol { name := "consp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
-      (.cons (.cons (.atom (.symbol { name := "binary-+" }))
-              (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 1))) .nil))
-                (.cons (.cons (.atom (.symbol { name := "my-len" }))
-                        (.cons (.cons (.atom (.symbol { name := "cdr" })) (.cons (.atom (.symbol { name := "x" })) .nil)) .nil))
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "CONSP" })) (.cons (.atom (.symbol { name := "X" })) .nil))
+      (.cons (.cons (.atom (.symbol { name := "BINARY-+" }))
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons (.atom (.number (.int 1))) .nil))
+                (.cons (.cons (.atom (.symbol { name := "MY-LEN" }))
+                        (.cons (.cons (.atom (.symbol { name := "CDR" })) (.cons (.atom (.symbol { name := "X" })) .nil)) .nil))
                   .nil)))
-        (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 0))) .nil))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons (.atom (.number (.int 0))) .nil))
           .nil)))
 
 def my_appBody : SExpr :=
-  (SExpr.cons (SExpr.atom (.symbol { name := "if" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "consp" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cons" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "car" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "my-app" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "cdr" })) (SExpr.cons (SExpr.atom (.symbol { name := "x" })) SExpr.nil)) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "y" })) SExpr.nil))))
+  (SExpr.cons (SExpr.atom (.symbol { name := "IF" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "CONSP" })) (SExpr.cons (SExpr.atom (.symbol { name := "X" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "CONS" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "CAR" })) (SExpr.cons (SExpr.atom (.symbol { name := "X" })) SExpr.nil)) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "MY-APP" })) (SExpr.cons (SExpr.cons (SExpr.atom (.symbol { name := "CDR" })) (SExpr.cons (SExpr.atom (.symbol { name := "X" })) SExpr.nil)) (SExpr.cons (SExpr.atom (.symbol { name := "Y" })) SExpr.nil))) SExpr.nil))) (SExpr.cons (SExpr.atom (.symbol { name := "Y" })) SExpr.nil))))
 
 -- ACL2's ground-zero `fix`: (defun fix (x) (if (acl2-numberp x) x 0)). Modeling it as a
 -- defined function (task #24) lets the base case replay `definition:fix` schematically
@@ -31,22 +31,22 @@ def my_appBody : SExpr :=
 -- evalOpt computes the same value either way (def-unfold vs the `fix` builtin), so this is
 -- additive; the base-case rework consumes it.
 def fixBody : SExpr :=
-  .cons (.atom (.symbol { name := "if" }))
-    (.cons (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons (.atom (.symbol { name := "x" })) .nil))
-      (.cons (.atom (.symbol { name := "x" }))
-        (.cons (.cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 0))) .nil)) .nil)))
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "ACL2-NUMBERP" })) (.cons (.atom (.symbol { name := "X" })) .nil))
+      (.cons (.atom (.symbol { name := "X" }))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons (.atom (.number (.int 0))) .nil)) .nil)))
 
 def world : World where
   defs := ({} : DefMap)
-    |>.insert (sym "my-len") ([sym "x"], my_lenBody)
-    |>.insert (sym "my-app") ([sym "x", sym "y"], my_appBody)
-    |>.insert (sym "fix") ([sym "x"], fixBody)
+    |>.insert (sym "MY-LEN") ([sym "X"], my_lenBody)
+    |>.insert (sym "MY-APP") ([sym "X", sym "Y"], my_appBody)
+    |>.insert (sym "FIX") ([sym "X"], fixBody)
 
-private def x_sym : Symbol := sym "x"
-private def y_sym : Symbol := sym "y"
-private def my_len_sym : Symbol := sym "my-len"
-private def my_app_sym : Symbol := sym "my-app"
-private def fix_sym : Symbol := sym "fix"
+private def x_sym : Symbol := sym "X"
+private def y_sym : Symbol := sym "Y"
+private def my_len_sym : Symbol := sym "MY-LEN"
+private def my_app_sym : Symbol := sym "MY-APP"
+private def fix_sym : Symbol := sym "FIX"
 
 /-! ## Body-environment lookups (the env after definition expansion) -/
 
@@ -69,46 +69,46 @@ private theorem bindArgs_x_x (vx : SExpr) :
 -- Formula uses macro-expanded form:
 -- (EQUAL (MY-LEN (MY-APP X Y)) (BINARY-+ (MY-LEN X) (MY-LEN Y)))
 def my_len_my_appFormula : SExpr :=
-  .cons (.atom (.symbol { name := "equal" }))
-    (.cons (.cons (.atom (.symbol { name := "my-len" }))
-            (.cons (.cons (.atom (.symbol { name := "my-app" }))
-                    (.cons (.atom (.symbol { name := "x" })) (.cons (.atom (.symbol { name := "y" })) .nil)))
+  .cons (.atom (.symbol { name := "EQUAL" }))
+    (.cons (.cons (.atom (.symbol { name := "MY-LEN" }))
+            (.cons (.cons (.atom (.symbol { name := "MY-APP" }))
+                    (.cons (.atom (.symbol { name := "X" })) (.cons (.atom (.symbol { name := "Y" })) .nil)))
               .nil))
-      (.cons (.cons (.atom (.symbol { name := "binary-+" }))
-              (.cons (.cons (.atom (.symbol { name := "my-len" }))
-                      (.cons (.atom (.symbol { name := "x" })) .nil))
-                (.cons (.cons (.atom (.symbol { name := "my-len" }))
-                        (.cons (.atom (.symbol { name := "y" })) .nil))
+      (.cons (.cons (.atom (.symbol { name := "BINARY-+" }))
+              (.cons (.cons (.atom (.symbol { name := "MY-LEN" }))
+                      (.cons (.atom (.symbol { name := "X" })) .nil))
+                (.cons (.cons (.atom (.symbol { name := "MY-LEN" }))
+                        (.cons (.atom (.symbol { name := "Y" })) .nil))
                   .nil)))
         .nil))
 
 /-! ## Term decomposition (so the formula and its subterms line up with the
     arity-specific congruence lemmas, by `rfl`). -/
 
-private def xT : SExpr := .atom (.symbol { name := "x" })
-private def yT : SExpr := .atom (.symbol { name := "y" })
+private def xT : SExpr := .atom (.symbol { name := "X" })
+private def yT : SExpr := .atom (.symbol { name := "Y" })
 private def lenOf (t : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "my-len" })) (.cons t .nil)
+  .cons (.atom (.symbol { name := "MY-LEN" })) (.cons t .nil)
 private def appOf (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "my-app" })) (.cons a (.cons b .nil))
+  .cons (.atom (.symbol { name := "MY-APP" })) (.cons a (.cons b .nil))
 private def plusOf (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "binary-+" })) (.cons a (.cons b .nil))
+  .cons (.atom (.symbol { name := "BINARY-+" })) (.cons a (.cons b .nil))
 private def equalOf (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "equal" })) (.cons a (.cons b .nil))
+  .cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil))
 private def fixOf (z : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "fix" })) (.cons z .nil)
+  .cons (.atom (.symbol { name := "FIX" })) (.cons z .nil)
 private def q0 : SExpr :=
-  .cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 0))) .nil)
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons (.atom (.number (.int 0))) .nil)
 private def q1 : SExpr :=
-  .cons (.atom (.symbol { name := "quote" })) (.cons (.atom (.number (.int 1))) .nil)
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons (.atom (.number (.int 1))) .nil)
 private def carOf (t : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "car" })) (.cons t .nil)
+  .cons (.atom (.symbol { name := "CAR" })) (.cons t .nil)
 private def cdrOf (t : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "cdr" })) (.cons t .nil)
+  .cons (.atom (.symbol { name := "CDR" })) (.cons t .nil)
 private def consOf (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "cons" })) (.cons a (.cons b .nil))
+  .cons (.atom (.symbol { name := "CONS" })) (.cons a (.cons b .nil))
 private def conspOf (t : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "consp" })) (.cons t .nil)
+  .cons (.atom (.symbol { name := "CONSP" })) (.cons t .nil)
 
 /-- The mirror-theorem formula, decomposed. By `rfl`. -/
 private theorem formula_decomp :
@@ -117,48 +117,48 @@ private theorem formula_decomp :
 /-! ## Proof rules: isNamed facts (by decide) -/
 
 private theorem my_app_not_special :
-    my_app_sym.isNamed "quote" = false ∧ my_app_sym.isNamed "if" = false ∧
-    my_app_sym.isNamed "let" = false ∧ my_app_sym.isNamed "let*" = false := by decide
+    my_app_sym.isNamed "QUOTE" = false ∧ my_app_sym.isNamed "IF" = false ∧
+    my_app_sym.isNamed "LET" = false ∧ my_app_sym.isNamed "LET*" = false := by decide
 
 private theorem my_len_not_special :
-    my_len_sym.isNamed "quote" = false ∧ my_len_sym.isNamed "if" = false ∧
-    my_len_sym.isNamed "let" = false ∧ my_len_sym.isNamed "let*" = false := by decide
+    my_len_sym.isNamed "QUOTE" = false ∧ my_len_sym.isNamed "IF" = false ∧
+    my_len_sym.isNamed "LET" = false ∧ my_len_sym.isNamed "LET*" = false := by decide
 
 private theorem consp_not_special :
-    ({ name := "consp" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "consp" } : Symbol).isNamed "if" = false ∧
-    ({ name := "consp" } : Symbol).isNamed "let" = false ∧
-    ({ name := "consp" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "CONSP" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "CONSP" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "CONSP" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "CONSP" } : Symbol).isNamed "LET*" = false := by decide
 
 private theorem equal_not_special :
-    ({ name := "equal" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "equal" } : Symbol).isNamed "if" = false ∧
-    ({ name := "equal" } : Symbol).isNamed "let" = false ∧
-    ({ name := "equal" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "EQUAL" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "EQUAL" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "EQUAL" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "EQUAL" } : Symbol).isNamed "LET*" = false := by decide
 
 private theorem plus_not_special :
-    ({ name := "binary-+" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "binary-+" } : Symbol).isNamed "if" = false ∧
-    ({ name := "binary-+" } : Symbol).isNamed "let" = false ∧
-    ({ name := "binary-+" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "BINARY-+" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "BINARY-+" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "BINARY-+" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "BINARY-+" } : Symbol).isNamed "LET*" = false := by decide
 
 private theorem car_not_special :
-    ({ name := "car" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "car" } : Symbol).isNamed "if" = false ∧
-    ({ name := "car" } : Symbol).isNamed "let" = false ∧
-    ({ name := "car" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "CAR" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "CAR" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "CAR" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "CAR" } : Symbol).isNamed "LET*" = false := by decide
 
 private theorem cdr_not_special :
-    ({ name := "cdr" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "cdr" } : Symbol).isNamed "if" = false ∧
-    ({ name := "cdr" } : Symbol).isNamed "let" = false ∧
-    ({ name := "cdr" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "CDR" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "CDR" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "CDR" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "CDR" } : Symbol).isNamed "LET*" = false := by decide
 
 private theorem cons_not_special :
-    ({ name := "cons" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "cons" } : Symbol).isNamed "if" = false ∧
-    ({ name := "cons" } : Symbol).isNamed "let" = false ∧
-    ({ name := "cons" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "CONS" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "CONS" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "CONS" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "CONS" } : Symbol).isNamed "LET*" = false := by decide
 
 /-! ## Body structure facts (LET-free; free vars ⊆ formals) for the unfold transfer -/
 
@@ -168,21 +168,21 @@ private theorem my_appBody_fv : ∀ s ∈ freeVars my_appBody, s = x_sym ∨ s =
 private theorem my_lenBody_fv : ∀ s ∈ freeVars my_lenBody, s = x_sym := by decide
 
 private theorem fix_not_special :
-    fix_sym.isNamed "quote" = false ∧ fix_sym.isNamed "if" = false ∧
-    fix_sym.isNamed "let" = false ∧ fix_sym.isNamed "let*" = false := by decide
+    fix_sym.isNamed "QUOTE" = false ∧ fix_sym.isNamed "IF" = false ∧
+    fix_sym.isNamed "LET" = false ∧ fix_sym.isNamed "LET*" = false := by decide
 private theorem acl2numberp_not_special :
-    ({ name := "acl2-numberp" } : Symbol).isNamed "quote" = false ∧
-    ({ name := "acl2-numberp" } : Symbol).isNamed "if" = false ∧
-    ({ name := "acl2-numberp" } : Symbol).isNamed "let" = false ∧
-    ({ name := "acl2-numberp" } : Symbol).isNamed "let*" = false := by decide
+    ({ name := "ACL2-NUMBERP" } : Symbol).isNamed "QUOTE" = false ∧
+    ({ name := "ACL2-NUMBERP" } : Symbol).isNamed "IF" = false ∧
+    ({ name := "ACL2-NUMBERP" } : Symbol).isNamed "LET" = false ∧
+    ({ name := "ACL2-NUMBERP" } : Symbol).isNamed "LET*" = false := by decide
 private theorem fixBody_nolet : NoLet fixBody = true := by decide
 private theorem fixBody_fv : ∀ s ∈ freeVars fixBody, s ∈ [x_sym] := by decide
 /-- `substTerm [x] [z] fixBody = (if (acl2-numberp z) z '0)` — the fix body with `x:=z`. -/
 private theorem fixBody_subst (z : SExpr) :
     substTerm [x_sym] [z] fixBody
-      = .cons (.atom (.symbol { name := "if" }))
-          (.cons (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons z .nil))
-            (.cons z (.cons (.cons (.atom (.symbol { name := "quote" }))
+      = .cons (.atom (.symbol { name := "IF" }))
+          (.cons (.cons (.atom (.symbol { name := "ACL2-NUMBERP" })) (.cons z .nil))
+            (.cons z (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
                               (.cons (.atom (.number (.int 0))) .nil)) .nil))) := rfl
 
 /-! ## The generic proof (parameterized by world + definition hypotheses) -/
@@ -217,13 +217,13 @@ theorem my_len_my_app_generic
     (h_my_app : w.defs[my_app_sym]? = some ([x_sym, y_sym], my_appBody))
     (h_my_len : w.defs[my_len_sym]? = some ([x_sym], my_lenBody))
     -- Builtin non-shadowing (builtins used in proof must not be in w.defs)
-    (h_no_equal : w.defs[({ name := "equal" } : Symbol)]? = none)
-    (h_no_consp : w.defs[({ name := "consp" } : Symbol)]? = none)
-    (h_no_plus  : w.defs[({ name := "binary-+" } : Symbol)]? = none)
-    (h_no_cdr   : w.defs[({ name := "cdr" } : Symbol)]? = none)
-    (h_no_car   : w.defs[({ name := "car" } : Symbol)]? = none)
-    (h_no_cons  : w.defs[({ name := "cons" } : Symbol)]? = none)
-    (h_no_acl2numberp : w.defs[({ name := "acl2-numberp" } : Symbol)]? = none)
+    (h_no_equal : w.defs[({ name := "EQUAL" } : Symbol)]? = none)
+    (h_no_consp : w.defs[({ name := "CONSP" } : Symbol)]? = none)
+    (h_no_plus  : w.defs[({ name := "BINARY-+" } : Symbol)]? = none)
+    (h_no_cdr   : w.defs[({ name := "CDR" } : Symbol)]? = none)
+    (h_no_car   : w.defs[({ name := "CAR" } : Symbol)]? = none)
+    (h_no_cons  : w.defs[({ name := "CONS" } : Symbol)]? = none)
+    (h_no_acl2numberp : w.defs[({ name := "ACL2-NUMBERP" } : Symbol)]? = none)
     -- `fix` as a defined function (ACL2 ground-zero): the base case's NODE 3 replays
     -- `definition:fix` by unfolding this, NOT by collapsing `(+ 0 z)` to a value.
     (h_fix : w.defs[fix_sym]? = some ([x_sym], fixBody))
@@ -304,8 +304,8 @@ theorem my_len_my_app_generic
     have hyc' : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e yT = some av := hyc.imp fun _ h f hf => ⟨yv, h f hf⟩
     -- (consp x) ⇒ nil  (recognizer/false: consp xv = nil from the case hypothesis).
     have hconspx : ∃ N, ∀ f ≥ N, evalOpt f w e
-        (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil)) = some .nil := by
-      have h := conv_builtin1 w e { name := "consp" } xT xv (Logic.consp xv)
+        (.cons (.atom (.symbol { name := "CONSP" })) (.cons xT .nil)) = some .nil := by
+      have h := conv_builtin1 w e { name := "CONSP" } xT xv (Logic.consp xv)
         consp_not_special h_no_consp hxc (callBuiltin_consp xv)
       rwa [h_consp] at h
     -- NODE 1  definition:my-app (base): (my-app x y) ⇒ y
@@ -323,7 +323,7 @@ theorem my_len_my_app_generic
       exact fuel_chain_eq
         (re_unfold2_var w e my_app_sym x_sym y_sym xv yv my_appBody rv0 (by decide)
           my_app_not_special h_my_app my_appBody_fv my_appBody_nolet h_xe h_ye hbody1)
-        (re_if_false w e (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil))
+        (re_if_false w e (.cons (.atom (.symbol { name := "CONSP" })) (.cons xT .nil))
           (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT yv hconspx hyc)
     -- NODE 2  definition:my-len (base): (my-len x) ⇒ '0
     --   [def:my-len unfold ; (consp x) ⇒ nil recognizer/false ; if-simplification ⇒ else='0].
@@ -342,7 +342,7 @@ theorem my_len_my_app_generic
       exact fuel_chain_eq
         (re_unfold1_var w e my_len_sym x_sym xv my_lenBody rv0
           my_len_not_special h_my_len my_lenBody_fv my_lenBody_nolet h_xe hbody)
-        (re_if_false w e (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil))
+        (re_if_false w e (.cons (.atom (.symbol { name := "CONSP" })) (.cons xT .nil))
           (plusOf q1 (lenOf (cdrOf xT))) q0 (.atom (.number (.int 0))) hconspx hq0')
     -- NODE 3  rewrite:unicity-of-0  (binary-+ '0 (my-len y)) ⇒ (my-len y)
     --   SCHEMATIC replay of ACL2's two sub-rewrites, with the REAL intermediate `(fix z)`
@@ -366,7 +366,7 @@ theorem my_len_my_app_generic
           evalOpt f w (bindArgs [x_sym] [.atom (.number (.int k))]) fixBody = some (.atom (.number (.int k))) := by
         have hrec := re_acl2_numberp_int w (bindArgs [x_sym] [.atom (.number (.int k))]) xT k h_no_acl2numberp hxk
         have hif := re_if_true w (bindArgs [x_sym] [.atom (.number (.int k))])
-          (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons xT .nil)) xT q0
+          (.cons (.atom (.symbol { name := "ACL2-NUMBERP" })) (.cons xT .nil)) xT q0
           SExpr.t (.atom (.number (.int k))) hrec (by decide) hxk
         obtain ⟨Nif, hif'⟩ := hif; obtain ⟨Nx, hx'⟩ := hxk
         exact ⟨max Nif Nx, fun f hf => (hif' f (by omega)).trans (hx' f (by omega))⟩
@@ -375,7 +375,7 @@ theorem my_len_my_app_generic
       have hif2 : ∃ N, ∀ f ≥ N,
           evalOpt f w e (substTerm [x_sym] [lenOf yT] fixBody) = evalOpt f w e (lenOf yT) := by
         rw [fixBody_subst]
-        exact re_if_true w e (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons (lenOf yT) .nil))
+        exact re_if_true w e (.cons (.atom (.symbol { name := "ACL2-NUMBERP" })) (.cons (lenOf yT) .nil))
           (lenOf yT) q0 SExpr.t (.atom (.number (.int k)))
           (re_acl2_numberp_int w e (lenOf yT) k h_no_acl2numberp hz) (by decide) hz
       exact fuel_chain_eq unfold hif2
@@ -384,7 +384,7 @@ theorem my_len_my_app_generic
         evalOpt f w e (plusOf q0 (lenOf yT)) = evalOpt f w e (fixOf (lenOf yT)) := by
       have hplus : ∃ N, ∀ f ≥ N,
           evalOpt f w e (plusOf q0 (lenOf yT)) = some (.atom (.number (.int k))) :=
-        conv_builtin2 w e { name := "binary-+" } q0 (lenOf yT)
+        conv_builtin2 w e { name := "BINARY-+" } q0 (lenOf yT)
           (.atom (.number (.int 0))) (.atom (.number (.int k))) (.atom (.number (.int k)))
           plus_not_special h_no_plus hq0 hz (by simp only [callBuiltin_plus, logic_plus_zero_int])
       obtain ⟨Npl, hpl⟩ := hplus; obtain ⟨Nb, hb⟩ := node3B; obtain ⟨Nz, hz'⟩ := hz
@@ -401,7 +401,7 @@ theorem my_len_my_app_generic
       have hl : evalOpt (g + Nlen) w e (lenOf yT) = some (.atom (.number (.int k))) :=
         hlen (g + Nlen) (by omega)
       show evalOpt (g + Nlen + 1) w e
-          (.cons (.atom (.symbol { name := "equal" })) (.cons (lenOf yT) (.cons (lenOf yT) .nil)))
+          (.cons (.atom (.symbol { name := "EQUAL" })) (.cons (lenOf yT) (.cons (lenOf yT) .nil)))
           = some SExpr.t
       exact evalOpt_equal_self (g + Nlen) w e (lenOf yT) (.atom (.number (.int k))) hl h_no_equal
 
@@ -411,19 +411,19 @@ theorem my_len_my_app_generic
     have c1 : ∃ N, ∀ f ≥ N,
         evalOpt f w e (equalOf (lenOf (appOf xT yT)) (plusOf (lenOf xT) (lenOf yT)))
         = evalOpt f w e (equalOf (lenOf yT) (plusOf (lenOf xT) (lenOf yT))) :=
-      evalOpt_congr_binary_left w e { name := "equal" }
+      evalOpt_congr_binary_left w e { name := "EQUAL" }
         (lenOf (appOf xT yT)) (lenOf yT) (plusOf (lenOf xT) (lenOf yT)) equal_not_special
-        (evalOpt_congr_unary w e { name := "my-len" } (appOf xT yT) yT my_len_not_special node1)
+        (evalOpt_congr_unary w e { name := "MY-LEN" } (appOf xT yT) yT my_len_not_special node1)
     have c2 : ∃ N, ∀ f ≥ N,
         evalOpt f w e (equalOf (lenOf yT) (plusOf (lenOf xT) (lenOf yT)))
         = evalOpt f w e (equalOf (lenOf yT) (plusOf q0 (lenOf yT))) :=
-      evalOpt_congr_binary_right w e { name := "equal" }
+      evalOpt_congr_binary_right w e { name := "EQUAL" }
         (lenOf yT) (plusOf (lenOf xT) (lenOf yT)) (plusOf q0 (lenOf yT)) equal_not_special
-        (evalOpt_congr_binary_left w e { name := "binary-+" } (lenOf xT) q0 (lenOf yT) plus_not_special node2)
+        (evalOpt_congr_binary_left w e { name := "BINARY-+" } (lenOf xT) q0 (lenOf yT) plus_not_special node2)
     have c3 : ∃ N, ∀ f ≥ N,
         evalOpt f w e (equalOf (lenOf yT) (plusOf q0 (lenOf yT)))
         = evalOpt f w e (equalOf (lenOf yT) (lenOf yT)) :=
-      evalOpt_congr_binary_right w e { name := "equal" }
+      evalOpt_congr_binary_right w e { name := "EQUAL" }
         (lenOf yT) (plusOf q0 (lenOf yT)) (lenOf yT) equal_not_special node3
 
     rw [formula_decomp]
@@ -459,7 +459,7 @@ theorem my_len_my_app_generic
       ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩; exact h_ye g⟩
     -- (cdr x) ⇒ cdr xv
     have hcdrx : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrOf xT) = some (Logic.cdr xv) :=
-      conv_builtin1 w e { name := "cdr" } xT xv (Logic.cdr xv) cdr_not_special h_no_cdr hxc
+      conv_builtin1 w e { name := "CDR" } xT xv (Logic.cdr xv) cdr_not_special h_no_cdr hxc
         (callBuiltin_cdr xv)
     obtain ⟨Ncdr, hcdr⟩ := hcdrx
     obtain ⟨Ny0, hy0⟩ := hyc
@@ -476,7 +476,7 @@ theorem my_len_my_app_generic
     -- (binary-+ '1 (my-len (cdr x))) ⇒ plus (int 1) V1
     have hA : ∃ N, ∀ f ≥ N, evalOpt f w e (plusOf q1 (lenOf (cdrOf xT)))
         = some (Logic.plus (.atom (.number (.int 1))) V1) :=
-      conv_builtin2 w e { name := "binary-+" } q1 (lenOf (cdrOf xT))
+      conv_builtin2 w e { name := "BINARY-+" } q1 (lenOf (cdrOf xT))
         (.atom (.number (.int 1))) V1
         (Logic.plus (.atom (.number (.int 1))) V1)
         plus_not_special h_no_plus hq1 ⟨M1, hk1⟩ (callBuiltin_plus _ _)
@@ -489,12 +489,12 @@ theorem my_len_my_app_generic
       | .atom _ => exact absurd rfl h_consp
     -- consp test convergence (truthy), in env e
     have hconspx : ∃ N, ∀ f ≥ N, evalOpt f w e
-        (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil)) = some (Logic.consp xv) :=
-      conv_builtin1 w e { name := "consp" } xT xv (Logic.consp xv) consp_not_special h_no_consp hxc
+        (.cons (.atom (.symbol { name := "CONSP" })) (.cons xT .nil)) = some (Logic.consp xv) :=
+      conv_builtin1 w e { name := "CONSP" } xT xv (Logic.consp xv) consp_not_special h_no_consp hxc
         (callBuiltin_consp xv)
     -- (car x) ⇒ car xv
     have hcarx : ∃ N, ∀ f ≥ N, evalOpt f w e (carOf xT) = some (Logic.car xv) :=
-      conv_builtin1 w e { name := "car" } xT xv (Logic.car xv) car_not_special h_no_car hxc
+      conv_builtin1 w e { name := "CAR" } xT xv (Logic.car xv) car_not_special h_no_car hxc
         (callBuiltin_car xv)
     -- (my-app (cdr x) y) ⇒ SOME rv   (my-app TOTALITY, not functionality)
     obtain ⟨Nrv, rv, hrv'⟩ := h_myapp_total e (cdrOf xT) yT
@@ -513,7 +513,7 @@ theorem my_len_my_app_generic
     have hcons : ∃ N, ∀ f ≥ N,
         evalOpt f w e (consOf (carOf xT) (appOf (cdrOf xT) yT))
         = some (.cons (Logic.car xv) rv) :=
-      conv_builtin2 w e { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
+      conv_builtin2 w e { name := "CONS" } (carOf xT) (appOf (cdrOf xT) yT)
         (Logic.car xv) rv (.cons (Logic.car xv) rv) cons_not_special h_no_cons hcarx hrv rfl
     -- NODE 1 = :DEFINITION my-app unfold (my-app x y ⇒ body) ; if-simplification.
     have node1 : ∃ N, ∀ f ≥ N,
@@ -535,7 +535,7 @@ theorem my_len_my_app_generic
       exact fuel_chain_eq
         (re_unfold2_var w e my_app_sym x_sym y_sym xv yv my_appBody rv0 (by decide)
           my_app_not_special h_my_app my_appBody_fv my_appBody_nolet h_xe h_ye hbody1)
-        (re_if_true w e (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil))
+        (re_if_true w e (.cons (.atom (.symbol { name := "CONSP" })) (.cons xT .nil))
           (consOf (carOf xT) (appOf (cdrOf xT) yT)) yT (Logic.consp xv)
           (.cons (Logic.car xv) rv) hconspx (by rw [hct]; decide) hcons)
     -- NODE 2  definition:my-len (recursive) (my-len (cons (car x) (my-app (cdr x) y)))
@@ -548,7 +548,7 @@ theorem my_len_my_app_generic
       -- (cdr T) ⇒ rv  (in e), reused for node2a's then-branch and node2b cdr-cons
       have hcdrT : ∃ N, ∀ f ≥ N,
           evalOpt f w e (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT))) = some rv :=
-        conv_builtin1 w e { name := "cdr" } (consOf (carOf xT) (appOf (cdrOf xT) yT))
+        conv_builtin1 w e { name := "CDR" } (consOf (carOf xT) (appOf (cdrOf xT) yT))
           (.cons (Logic.car xv) rv) rv cdr_not_special h_no_cdr hcons rfl
       -- my-len T converges to SOME value vkk (TOTALITY, not type-prescription —
       -- *1/1 doesn't cite type-prescription); the unfolded body value is existential.
@@ -581,16 +581,16 @@ theorem my_len_my_app_generic
             (fun s hs => by simpa using my_lenBody_fv s hs) my_lenBody_nolet
             ⟨Ncons, hconsspec⟩ hbodyT)
           (re_if_true w e
-            (.cons (.atom (.symbol { name := "consp" }))
+            (.cons (.atom (.symbol { name := "CONSP" }))
               (.cons (consOf (carOf xT) (appOf (cdrOf xT) yT)) .nil))
             (plusOf q1 (lenOf (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT))))) q0
             (Logic.consp (.cons (Logic.car xv) rv))
             (Logic.plus (.atom (.number (.int 1))) vcdr)
-            (conv_builtin1 w e { name := "consp" } (consOf (carOf xT) (appOf (cdrOf xT) yT))
+            (conv_builtin1 w e { name := "CONSP" } (consOf (carOf xT) (appOf (cdrOf xT) yT))
               (.cons (Logic.car xv) rv) (Logic.consp (.cons (Logic.car xv) rv))
               consp_not_special h_no_consp ⟨Ncons, hconsspec⟩ (callBuiltin_consp _))
             rfl
-            (conv_builtin2 w e { name := "binary-+" } q1
+            (conv_builtin2 w e { name := "BINARY-+" } q1
               (lenOf (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT))))
               (.atom (.number (.int 1))) vcdr
               (Logic.plus (.atom (.number (.int 1))) vcdr)
@@ -602,10 +602,10 @@ theorem my_len_my_app_generic
       have node2b : ∃ N, ∀ f ≥ N,
           evalOpt f w e (plusOf q1 (lenOf (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))))
           = evalOpt f w e (plusOf q1 (lenOf (appOf (cdrOf xT) yT))) :=
-        evalOpt_congr_binary_right w e { name := "binary-+" } q1
+        evalOpt_congr_binary_right w e { name := "BINARY-+" } q1
           (lenOf (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))) (lenOf (appOf (cdrOf xT) yT))
           plus_not_special
-          (evalOpt_congr_unary w e { name := "my-len" }
+          (evalOpt_congr_unary w e { name := "MY-LEN" }
             (cdrOf (consOf (carOf xT) (appOf (cdrOf xT) yT))) (appOf (cdrOf xT) yT)
             my_len_not_special
             (re_cdr_cons w e (carOf xT) (appOf (cdrOf xT) yT) (Logic.car xv) rv
@@ -629,7 +629,7 @@ theorem my_len_my_app_generic
       exact fuel_chain_eq
         (re_unfold1_var w e my_len_sym x_sym xv my_lenBody vk
           my_len_not_special h_my_len my_lenBody_fv my_lenBody_nolet h_xe hbody)
-        (re_if_true w e (.cons (.atom (.symbol { name := "consp" })) (.cons xT .nil))
+        (re_if_true w e (.cons (.atom (.symbol { name := "CONSP" })) (.cons xT .nil))
           (plusOf q1 (lenOf (cdrOf xT))) q0 (Logic.consp xv)
           (Logic.plus (.atom (.number (.int 1))) V1)
           hconspx (by rw [hct]; decide) hA)
@@ -691,7 +691,7 @@ theorem my_len_my_app_generic
       obtain ⟨Nly, Vy, hly⟩ := h_mylen_total e yT ⟨Ny0, fun f hf => ⟨yv, hy0 f hf⟩⟩
       obtain ⟨NB, hB1⟩ : ∃ N, ∀ f ≥ N, evalOpt f w e (plusOf (lenOf (cdrOf xT)) (lenOf yT))
           = some (Logic.plus Vc Vy) :=
-        conv_builtin2 w e { name := "binary-+" } (lenOf (cdrOf xT)) (lenOf yT) Vc Vy
+        conv_builtin2 w e { name := "BINARY-+" } (lenOf (cdrOf xT)) (lenOf yT) Vc Vy
           (Logic.plus Vc Vy) plus_not_special h_no_plus ⟨Nlc, hlc⟩ ⟨Nly, hly⟩ (callBuiltin_plus _ _)
       obtain ⟨NEQ, hEQ⟩ := hEQt
       -- IH as an eval-equality in e (eval_equal_t on the bridged formula).
@@ -712,7 +712,7 @@ theorem my_len_my_app_generic
     have hAprime : ∃ N, ∀ f ≥ N,
         evalOpt f w e (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
         = some (Logic.plus (.atom (.number (.int 1))) k_rv) :=
-      conv_builtin2 w e { name := "binary-+" } q1 (lenOf (appOf (cdrOf xT) yT))
+      conv_builtin2 w e { name := "BINARY-+" } q1 (lenOf (appOf (cdrOf xT) yT))
         (.atom (.number (.int 1))) k_rv
         (Logic.plus (.atom (.number (.int 1))) k_rv)
         plus_not_special h_no_plus hq1 hk_rv (callBuiltin_plus _ _)
@@ -731,17 +731,17 @@ theorem my_len_my_app_generic
         evalOpt f w e (equalOf (lenOf (appOf xT yT)) (plusOf (lenOf xT) (lenOf yT)))
         = evalOpt f w e (equalOf (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
                                  (plusOf (lenOf xT) (lenOf yT))) :=
-      evalOpt_congr_binary_left w e { name := "equal" }
+      evalOpt_congr_binary_left w e { name := "EQUAL" }
         (lenOf (appOf xT yT)) (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
         (plusOf (lenOf xT) (lenOf yT)) equal_not_special
-        (evalOpt_congr_unary w e { name := "my-len" }
+        (evalOpt_congr_unary w e { name := "MY-LEN" }
           (appOf xT yT) (consOf (carOf xT) (appOf (cdrOf xT) yT)) my_len_not_special node1)
     have c2 : ∃ N, ∀ f ≥ N,
         evalOpt f w e (equalOf (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
                                (plusOf (lenOf xT) (lenOf yT)))
         = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
                                  (plusOf (lenOf xT) (lenOf yT))) :=
-      evalOpt_congr_binary_left w e { name := "equal" }
+      evalOpt_congr_binary_left w e { name := "EQUAL" }
         (lenOf (consOf (carOf xT) (appOf (cdrOf xT) yT)))
         (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
         (plusOf (lenOf xT) (lenOf yT)) equal_not_special node2
@@ -750,18 +750,18 @@ theorem my_len_my_app_generic
                                (plusOf (lenOf xT) (lenOf yT)))
         = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
                                  (plusOf (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT))) :=
-      evalOpt_congr_binary_right w e { name := "equal" }
+      evalOpt_congr_binary_right w e { name := "EQUAL" }
         (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
         (plusOf (lenOf xT) (lenOf yT))
         (plusOf (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT)) equal_not_special
-        (evalOpt_congr_binary_left w e { name := "binary-+" }
+        (evalOpt_congr_binary_left w e { name := "BINARY-+" }
           (lenOf xT) (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT) plus_not_special node3)
     have c4 : ∃ N, ∀ f ≥ N,
         evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
                                (plusOf (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT)))
         = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
                                  (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT))))) :=
-      evalOpt_congr_binary_right w e { name := "equal" }
+      evalOpt_congr_binary_right w e { name := "EQUAL" }
         (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
         (plusOf (plusOf q1 (lenOf (cdrOf xT))) (lenOf yT))
         (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT)))) equal_not_special node4a
@@ -770,7 +770,7 @@ theorem my_len_my_app_generic
                                (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT)))))
         = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
                                  (plusOf q1 (plusOf (lenOf yT) (lenOf (cdrOf xT))))) :=
-      evalOpt_congr_binary_right w e { name := "equal" }
+      evalOpt_congr_binary_right w e { name := "EQUAL" }
         (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
         (plusOf (lenOf yT) (plusOf q1 (lenOf (cdrOf xT))))
         (plusOf q1 (plusOf (lenOf yT) (lenOf (cdrOf xT)))) equal_not_special node4b
@@ -779,11 +779,11 @@ theorem my_len_my_app_generic
                                (plusOf q1 (plusOf (lenOf yT) (lenOf (cdrOf xT)))))
         = evalOpt f w e (equalOf (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
                                  (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))) :=
-      evalOpt_congr_binary_right w e { name := "equal" }
+      evalOpt_congr_binary_right w e { name := "EQUAL" }
         (plusOf q1 (lenOf (appOf (cdrOf xT) yT)))
         (plusOf q1 (plusOf (lenOf yT) (lenOf (cdrOf xT))))
         (plusOf q1 (lenOf (appOf (cdrOf xT) yT))) equal_not_special
-        (evalOpt_congr_binary_right w e { name := "binary-+" }
+        (evalOpt_congr_binary_right w e { name := "BINARY-+" }
           q1 (plusOf (lenOf yT) (lenOf (cdrOf xT))) (lenOf (appOf (cdrOf xT) yT)) plus_not_special node4c)
 
     rw [formula_decomp]
@@ -811,24 +811,24 @@ theorem world_has_my_len :
     world.defs[my_len_sym]? = some ([x_sym], my_lenBody) := by decide
 
 theorem world_no_equal :
-    world.defs[({ name := "equal" } : Symbol)]? = none := by decide
+    world.defs[({ name := "EQUAL" } : Symbol)]? = none := by decide
 
 theorem world_no_consp :
-    world.defs[({ name := "consp" } : Symbol)]? = none := by decide
+    world.defs[({ name := "CONSP" } : Symbol)]? = none := by decide
 
 theorem world_no_plus :
-    world.defs[({ name := "binary-+" } : Symbol)]? = none := by decide
+    world.defs[({ name := "BINARY-+" } : Symbol)]? = none := by decide
 
 theorem world_no_cdr :
-    world.defs[({ name := "cdr" } : Symbol)]? = none := by decide
+    world.defs[({ name := "CDR" } : Symbol)]? = none := by decide
 
 theorem world_no_car :
-    world.defs[({ name := "car" } : Symbol)]? = none := by decide
+    world.defs[({ name := "CAR" } : Symbol)]? = none := by decide
 
 theorem world_no_cons :
-    world.defs[({ name := "cons" } : Symbol)]? = none := by decide
+    world.defs[({ name := "CONS" } : Symbol)]? = none := by decide
 theorem world_no_acl2numberp :
-    world.defs[({ name := "acl2-numberp" } : Symbol)]? = none := by decide
+    world.defs[({ name := "ACL2-NUMBERP" } : Symbol)]? = none := by decide
 theorem world_has_fix :
     world.defs[fix_sym]? = some ([x_sym], fixBody) := by decide
 
@@ -882,9 +882,9 @@ private theorem conv_fix {w : World} {e : Env} {t : SExpr}
 /-- `my-len arg` returns an integer (induction on the argument VALUE). -/
 private theorem dis_mylen_int_val (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
     ∀ (av : SExpr) (e' : Env) (arg : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' arg = some av) →
     ∃ N, ∃ k : Int, 0 ≤ k ∧
@@ -899,7 +899,7 @@ private theorem dis_mylen_int_val (w : World)
                          exact evalOpt_var g w _ x_sym av (bindArgs_x_x av)⟩
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym] [av]) (conspOf xT) = some .nil := by
-      have h := conv_builtin1 w _ { name := "consp" } xT av (Logic.consp av)
+      have h := conv_builtin1 w _ { name := "CONSP" } xT av (Logic.consp av)
         consp_not_special h_no_consp hx_ba (callBuiltin_consp av)
       rwa [hconsp] at h
     have hq0_ba : ∃ N, ∀ f ≥ N,
@@ -928,11 +928,11 @@ private theorem dis_mylen_int_val (w : World)
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym] [.cons hd tl]) (conspOf xT)
         = some (Logic.consp (.cons hd tl)) :=
-      conv_builtin1 w _ { name := "consp" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
+      conv_builtin1 w _ { name := "CONSP" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
         consp_not_special h_no_consp hx_ba (callBuiltin_consp _)
     have hcdrx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym] [.cons hd tl]) (cdrOf xT) = some tl := by
-      have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
+      have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
         cdr_not_special h_no_cdr hx_ba (callBuiltin_cdr _)
       simpa [Logic.cdr] using h
     have hq1_ba : ∃ N, ∀ f ≥ N,
@@ -943,7 +943,7 @@ private theorem dis_mylen_int_val (w : World)
     have hsum : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym] [.cons hd tl]) (plusOf q1 (lenOf (cdrOf xT)))
         = some (.atom (.number (.int (1 + k)))) := by
-      have h := conv_builtin2 w _ { name := "binary-+" } q1 (lenOf (cdrOf xT))
+      have h := conv_builtin2 w _ { name := "BINARY-+" } q1 (lenOf (cdrOf xT))
         (.atom (.number (.int 1))) (.atom (.number (.int k)))
         (Logic.plus (.atom (.number (.int 1))) (.atom (.number (.int k))))
         plus_not_special h_no_plus hq1_ba ⟨Nk, hk⟩ (callBuiltin_plus _ _)
@@ -963,10 +963,10 @@ private theorem dis_mylen_int_val (w : World)
 /-- `my-app a b` converges (induction on the first argument's VALUE). -/
 private theorem dis_myapp_total_val (w : World)
     (h_myapp : w.defs.get? my_app_sym = some ([x_sym, y_sym], my_appBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (av1 : SExpr) (e' : Env) (a b av2 : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some av1) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' b = some av2) →
@@ -987,7 +987,7 @@ private theorem dis_myapp_total_val (w : World)
                          exact evalOpt_var g w _ y_sym av2 (bindArgs_xy_y av1 av2)⟩
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [av1, av2]) (conspOf xT) = some .nil := by
-      have h := conv_builtin1 w _ { name := "consp" } xT av1 (Logic.consp av1)
+      have h := conv_builtin1 w _ { name := "CONSP" } xT av1 (Logic.consp av1)
         consp_not_special h_no_consp hx_ba (callBuiltin_consp av1)
       rwa [hconsp] at h
     have hbody : ∃ N, ∀ f ≥ N,
@@ -1015,16 +1015,16 @@ private theorem dis_myapp_total_val (w : World)
     have hconspx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (conspOf xT)
         = some (Logic.consp (.cons hd tl)) :=
-      conv_builtin1 w _ { name := "consp" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
+      conv_builtin1 w _ { name := "CONSP" } xT (.cons hd tl) (Logic.consp (.cons hd tl))
         consp_not_special h_no_consp hx_ba (callBuiltin_consp _)
     have hcarx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (carOf xT) = some hd := by
-      have h := conv_builtin1 w _ { name := "car" } xT (.cons hd tl) (Logic.car (.cons hd tl))
+      have h := conv_builtin1 w _ { name := "CAR" } xT (.cons hd tl) (Logic.car (.cons hd tl))
         car_not_special h_no_car hx_ba (callBuiltin_car _)
       simpa [Logic.car] using h
     have hcdrx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (cdrOf xT) = some tl := by
-      have h := conv_builtin1 w _ { name := "cdr" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
+      have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd tl) (Logic.cdr (.cons hd tl))
         cdr_not_special h_no_cdr hx_ba (callBuiltin_cdr _)
       simpa [Logic.cdr] using h
     obtain ⟨rv', hrec⟩ := ih (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) (cdrOf xT) yT av2
@@ -1033,7 +1033,7 @@ private theorem dis_myapp_total_val (w : World)
     have hthen : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2])
           (consOf (carOf xT) (appOf (cdrOf xT) yT)) = some (.cons hd rv') :=
-      conv_builtin2 w _ { name := "cons" } (carOf xT) (appOf (cdrOf xT) yT)
+      conv_builtin2 w _ { name := "CONS" } (carOf xT) (appOf (cdrOf xT) yT)
         hd rv' (.cons hd rv') cons_not_special h_no_cons hcarx_ba hrec rfl
     have hbody : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [x_sym, y_sym] [.cons hd tl, av2]) my_appBody
@@ -1048,9 +1048,9 @@ private theorem dis_myapp_total_val (w : World)
 
 private theorem dis_mylen_int (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (e' : Env) (arg : SExpr)
     (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' arg = some av) :
     ∃ M, ∃ k : Int, ∀ f ≥ M, evalOpt f w e' (lenOf arg)
@@ -1064,9 +1064,9 @@ private theorem dis_mylen_int (w : World)
     native-bridge validation of the DRIVER's conditional mirror. -/
 theorem dis_mylen_int_nonneg (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (e' : Env) (arg : SExpr)
     (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' arg = some av) :
     ∃ M, ∃ k : Int, 0 ≤ k ∧
@@ -1076,9 +1076,9 @@ theorem dis_mylen_int_nonneg (w : World)
 
 private theorem dis_mylen_total (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (e' : Env) (arg : SExpr)
     (h : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' arg = some av) :
     ∃ M, ∃ av, ∀ f ≥ M, evalOpt f w e' (lenOf arg) = some av := by
@@ -1087,10 +1087,10 @@ private theorem dis_mylen_total (w : World)
 
 private theorem dis_myapp_total (w : World)
     (h_myapp : w.defs.get? my_app_sym = some ([x_sym, y_sym], my_appBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (e' : Env) (a b : SExpr)
     (ha : ∃ M, ∀ f ≥ M, ∃ av, evalOpt f w e' a = some av)
     (hb : ∃ M, ∀ f ≥ M, ∃ bv, evalOpt f w e' b = some bv) :
@@ -1119,7 +1119,7 @@ them to the log-derived world by `evalOpt_defs_ext`). -/
 /-- `fix`'s body converges in `bindArgs` for an ARBITRARY argument value
     (`acl2-numberp` decides the branch; both branches converge). -/
 private theorem fixBody_conv (w : World)
-    (h_no_acl2numberp : w.defs.get? ({ name := "acl2-numberp" } : Symbol) = none)
+    (h_no_acl2numberp : w.defs.get? ({ name := "ACL2-NUMBERP" } : Symbol) = none)
     (av : SExpr) :
     ∃ bv, ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [x_sym] [av]) fixBody = some bv := by
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [x_sym] [av]) xT = some av :=
@@ -1127,9 +1127,9 @@ private theorem fixBody_conv (w : World)
       obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
       exact evalOpt_var g w _ x_sym _ (bindArgs_x_x _)⟩
   have hcond : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [x_sym] [av])
-      (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons xT .nil))
+      (.cons (.atom (.symbol { name := "ACL2-NUMBERP" })) (.cons xT .nil))
       = some (Logic.acl2Numberp av) :=
-    conv_builtin1 w _ { name := "acl2-numberp" } xT av (Logic.acl2Numberp av)
+    conv_builtin1 w _ { name := "ACL2-NUMBERP" } xT av (Logic.acl2Numberp av)
       acl2numberp_not_special h_no_acl2numberp hx (callBuiltin_acl2_numberp av)
   by_cases hb : Logic.toBool (Logic.acl2Numberp av) = true
   · -- truthy test: the then-branch is `x` itself
@@ -1142,8 +1142,8 @@ private theorem fixBody_conv (w : World)
     refine ⟨.atom (.number (.int 0)), Nc + 2, fun f hf => ?_⟩
     obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
     show evalOpt (g + 1) w (bindArgs [x_sym] [av])
-      (.cons (.atom (.symbol { name := "if" }))
-        (.cons (.cons (.atom (.symbol { name := "acl2-numberp" })) (.cons xT .nil))
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons (.cons (.atom (.symbol { name := "ACL2-NUMBERP" })) (.cons xT .nil))
           (.cons xT (.cons q0 .nil)))) = some (.atom (.number (.int 0)))
     rw [evalOpt_if_false g w _ _ xT q0 (by rw [hc g (by omega), hnil])]
     obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
@@ -1152,9 +1152,9 @@ private theorem fixBody_conv (w : World)
 /-- Driver-shape totality for `my-len`. -/
 theorem drv_total_mylen (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (e' : Env) (a0 : SExpr)
     (h : ∃ N v, ∀ f ≥ N, evalOpt f w e' a0 = some v) :
     ∃ N v, ∀ f ≥ N, evalOpt f w e' (lenOf a0) = some v := by
@@ -1164,10 +1164,10 @@ theorem drv_total_mylen (w : World)
 /-- Driver-shape totality for `my-app`. -/
 theorem drv_total_myapp (w : World)
     (h_myapp : w.defs.get? my_app_sym = some ([x_sym, y_sym], my_appBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (e' : Env) (a0 a1 : SExpr)
     (h0 : ∃ N v, ∀ f ≥ N, evalOpt f w e' a0 = some v)
     (h1 : ∃ N v, ∀ f ≥ N, evalOpt f w e' a1 = some v) :
@@ -1180,7 +1180,7 @@ theorem drv_total_myapp (w : World)
     body's convergence on the argument's value). -/
 theorem drv_total_fix (w : World)
     (h_fix : w.defs.get? fix_sym = some ([x_sym], fixBody))
-    (h_no_acl2numberp : w.defs.get? ({ name := "acl2-numberp" } : Symbol) = none)
+    (h_no_acl2numberp : w.defs.get? ({ name := "ACL2-NUMBERP" } : Symbol) = none)
     (e' : Env) (a0 : SExpr)
     (h : ∃ N v, ∀ f ≥ N, evalOpt f w e' a0 = some v) :
     ∃ N v, ∀ f ≥ N, evalOpt f w e' (fixOf a0) = some v := by
@@ -1197,16 +1197,16 @@ theorem drv_total_fix (w : World)
     discharge pins the value. -/
 theorem drv_tp_mylen (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (e' : Env) (a0 v : SExpr)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (lenOf a0) = some v) :
     (bif Logic.toBool (Logic.integerp v) then
         Logic.not (Logic.lt v (.atom (.number (.int 0))))
       else SExpr.nil) = SExpr.t := by
   have harg : ∃ N, ∀ f ≥ N, ∃ u, evalOpt f w e' a0 = some u :=
-    conv_arg1_of_conv_app w e' { name := "my-len" } a0 v (by decide) h
+    conv_arg1_of_conv_app w e' { name := "MY-LEN" } a0 v (by decide) h
   obtain ⟨M, k, hk0, hk⟩ := dis_mylen_int_nonneg w h_mylen h_no_consp h_no_plus h_no_cdr e' a0 harg
   have hv : v = .atom (.number (.int k)) := val_unique h ⟨M, hk⟩
   subst hv
@@ -1223,29 +1223,29 @@ open ACL2.Lifting (enc)
     instantiation of the library's name-generic `corr_append_enc`. -/
 private theorem corr_app_enc (w : World)
     (h_myapp : w.defs.get? my_app_sym = some ([x_sym, y_sym], my_appBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
     ∀ (xs : List SExpr) (e' : Env) (a b : SExpr) (ys : List SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some (enc xs)) →
     (∃ N, ∀ f ≥ N, evalOpt f w e' b = some (enc ys)) →
     ∃ N, ∀ f ≥ N, evalOpt f w e' (appOf a b) = some (enc (xs ++ ys)) :=
-  ACL2.Lifting.corr_append_enc w "my-app" (by decide) h_myapp
+  ACL2.Lifting.corr_append_enc w "MY-APP" (by decide) h_myapp
     h_no_consp h_no_cdr h_no_car h_no_cons
 
 /-- SIMULATION: `my-len` over encoded lists computes `List.length` under
     `enc` — ONE instantiation of the library's name-generic `corr_len_enc`. -/
 private theorem corr_len_enc (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none) :
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
     ∀ (xs : List SExpr) (e' : Env) (a : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w e' a = some (enc xs)) →
     ∃ N, ∀ f ≥ N, evalOpt f w e' (lenOf a)
       = some (.atom (.number (.int xs.length))) :=
-  ACL2.Lifting.corr_len_enc w "my-len" (by decide) h_mylen
+  ACL2.Lifting.corr_len_enc w "MY-LEN" (by decide) h_mylen
     h_no_consp h_no_plus h_no_cdr
 
 /-- The native assembly, PARAMETERIZED by the mirror: any proof of the mirror
@@ -1255,12 +1255,12 @@ private theorem corr_len_enc (w : World)
 theorem my_len_my_app_native_of_mirror (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
     (h_myapp : w.defs.get? my_app_sym = some ([x_sym, y_sym], my_appBody))
-    (h_no_equal : w.defs.get? ({ name := "equal" } : Symbol) = none)
-    (h_no_consp : w.defs.get? ({ name := "consp" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "binary-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "cdr" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "car" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "cons" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (hmirror : ∀ env : Env,
       ∃ N, ∀ f, f ≥ N → ∃ v,
         evalOpt f w env my_len_my_appFormula = some v ∧ v ≠ SExpr.nil)
@@ -1287,7 +1287,7 @@ theorem my_len_my_app_native_of_mirror (w : World)
   obtain ⟨NLy, hLy⟩ := corr_len_enc w h_mylen h_no_consp h_no_plus h_no_cdr ys e yT hy
   obtain ⟨NR, hR⟩ : ∃ N, ∀ f ≥ N, evalOpt f w e (plusOf (lenOf xT) (lenOf yT))
       = some (.atom (.number (.int ((xs.length : Int) + (ys.length : Int))))) := by
-    have h := conv_builtin2 w e { name := "binary-+" } (lenOf xT) (lenOf yT)
+    have h := conv_builtin2 w e { name := "BINARY-+" } (lenOf xT) (lenOf yT)
       (.atom (.number (.int (xs.length : Int)))) (.atom (.number (.int (ys.length : Int))))
       (Logic.plus (.atom (.number (.int (xs.length : Int)))) (.atom (.number (.int (ys.length : Int)))))
       plus_not_special h_no_plus ⟨NLx, hLx⟩ ⟨NLy, hLy⟩ (callBuiltin_plus _ _)
