@@ -2381,6 +2381,8 @@ theorem re_acl2_numberp_int (w : World) (env : Env) (z : SExpr) (k : Int)
     callBuiltin "ZP" [a] = some (Logic.zp a) := by rfl
 @[simp] theorem callBuiltin_lt (a b : SExpr) :
     callBuiltin "<" [a, b] = some (Logic.lt a b) := by rfl
+@[simp] theorem callBuiltin_lexorder (a b : SExpr) :
+    callBuiltin "LEXORDER" [a, b] = some (lexorder a b) := by rfl
 @[simp] theorem callBuiltin_integerp (a : SExpr) :
     callBuiltin "INTEGERP" [a] = some (Logic.integerp a) := by rfl
 @[simp] theorem callBuiltin_cons (a b : SExpr) :

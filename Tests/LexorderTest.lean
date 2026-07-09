@@ -8,13 +8,20 @@ private abbrev Sym (n : String) : SExpr := .atom (.symbol { name := n })
 private abbrev Kw (k : String) : SExpr := .atom (.keyword k)
 private abbrev Str (s : String) : SExpr := .atom (.string s)
 
--- === nil is smallest ===
+-- === nil / t are ORDINARY SYMBOLS (COMMON-LISP), NOT special "smallest" ===
+-- ACL2 orders nil within the symbol class (name "NIL"): a number sorts BEFORE
+-- it, and nil-vs-symbol goes by name. (Verified vs real ACL2; the old
+-- "nil is smallest" was the bug fixed by lexAtom? — see
+-- docs/notes/2026-07-08_lexorder-semantics.md.)
 
 #guard lexorder .nil .nil = SExpr.t
-#guard lexorder .nil (I 1) = SExpr.t
-#guard lexorder .nil (Sym "x") = SExpr.t
-#guard lexorder .nil (SExpr.cons .nil .nil) = SExpr.t
-#guard lexorder (I 1) .nil = SExpr.nil
+#guard lexorder (I 1) .nil = SExpr.t             -- number < symbol NIL
+#guard lexorder .nil (I 1) = SExpr.nil           -- symbol NIL > number
+#guard lexorder .nil (Sym "x") = SExpr.t         -- "NIL" < "x" by name (N=78 < x=120)
+#guard lexorder .nil (SExpr.cons .nil .nil) = SExpr.t  -- atom < cons
+-- nil vs t: "NIL" < "T" by name
+#guard lexorder .nil SExpr.t = SExpr.t
+#guard lexorder SExpr.t .nil = SExpr.nil
 
 -- === Atom kind ordering (faithful to ACL2 alphorder, axioms.lisp:26995):
 --     number < character < string < symbol; keywords ARE symbols (sort in the

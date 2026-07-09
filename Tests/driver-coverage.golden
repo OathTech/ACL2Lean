@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 26/50 (21 unconditional + 5 conditional); DP-discharge leaves ✓10 ◌10 ✗0 of 20:
+Driver coverage — REPLAYED 26/50 (21 unconditional + 5 conditional); DP-discharge leaves ✓11 ◌9 ✗0 of 20:
 • simple  (world: 3 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 2 defun(s), 3 theorem(s))
@@ -67,6 +67,6 @@ Driver coverage — REPLAYED 26/50 (21 unconditional + 5 conditional); DP-discha
     PERM-TRANSITIVE → REPLAYED ✓
     PERM-IS-AN-EQUIVALENCE → REPLAYED ✓
 • sorting/isort  (world: 10 defun(s), 3 theorem(s))
-    ORDEREDP-ISORT → FAIL: proveConv: binary LEXORDER not in the builtin registry (frontier): (LEXORDER X1 IT3)
-    TRUE-LISTP-ISORT → FAIL: dpValExpr: binary LEXORDER is not a DP-lift primitive: (LEXORDER X1 (CAR IT))  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ◌ assumed cond[total:(LEXORDER X1 (CAR IT)), total:(INSERT X1 IT), tp:INSERT, ASSUMED:dp-fact], Subgoal *1.1/2'':preprocess/tau-contradiction ◌ assumed cond[total:(LEXORDER X1 (CAR IT)), ASSUMED:dp-fact]]
-    HOW-MANY-ISORT → FAIL: proveConv: binary LEXORDER not in the builtin registry (frontier): (LEXORDER X1 (CAR IT))
+    ORDEREDP-ISORT → FAIL: replayRecognizer: value of (CONSP (INSERT X1 (CDR IT))) does not reduce to T
+    TRUE-LISTP-ISORT → FAIL: deriveDefInfoN: TRUE-LISTP not defined in the world  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(INSERT X1 IT), tp:INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    HOW-MANY-ISORT → FAIL: replayClauseSpine: no child clause matches the residual [(EQUAL E X1),  (NOT (EQUAL (HOW-MANY E (ISORT X2)) (HOW-MANY E X2))),  (EQUAL (HOW-MANY E (INSERT X1 (ISORT X2))) (HOW-MANY E X2))] at Subgoal *1/3'4'

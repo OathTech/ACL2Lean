@@ -574,6 +574,7 @@ def dpUnary : List (String × Name × Name) :=
 def dpBinary : List (String × Name × Name) :=
   [("EQUAL",    ``Logic.equal,   ``callBuiltin_equal),
    ("<",        ``Logic.lt,      ``callBuiltin_lt),
+   ("LEXORDER", ``ACL2.lexorder, ``callBuiltin_lexorder),
    ("BINARY-+", ``Logic.plus,    ``callBuiltin_plus),
    ("BINARY-*", ``Logic.times,   ``callBuiltin_times),
    ("CONS",     ``SExpr.cons,    ``callBuiltin_cons),

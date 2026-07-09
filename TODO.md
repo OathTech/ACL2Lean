@@ -121,8 +121,18 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    (proven + guarded, but NOT yet exercised end-to-end — see below): endp-
    spelled induction decrease (`consp_toBool_of_endp_nil`; the case tree
    records the STRIPPED positive test with sign=false), endp/atom DP-lift
-   registration. **CURRENT WALL (all 3 isort theorems): `lexorder` — ACL2's
-   built-in total order — is not in the trusted core.**
+   registration.
+   **`lexorder` WALL FELLED (2026-07-08, Task #7).** lexorder is wired into
+   callBuiltin + dpBinary/dpLiftHeads + callBuiltin_lexorder rfl-lemma; the
+   function was already alphorder-faithful (BUG-006/007/008) and the
+   nil-as-smallest bug is fixed (`lexAtom?`: nil/t are ordinary COMMON-LISP
+   symbols — verified `(lexorder nil 5)`=NIL). Grounded + pinned:
+   docs/notes/2026-07-08_lexorder-semantics.md + target-ordering.lisp
+   (34 match vs real ACL2). All 3 isort theorems now advance PAST lexorder
+   to their NEXT frontiers (coverage golden updated; DP leaves ✓10→✓11):
+   ORDEREDP-ISORT → recognizer `(CONSP (INSERT …))` value; TRUE-LISTP-ISORT
+   → `TRUE-LISTP not defined in the world` (its lexorder total: obligation
+   now discharges ✓); HOW-MANY-ISORT → clausify-spine residual at *1/3'4'.
    *Honest status of the endp machinery (audit #5, 2026-07-06): the
    falsy-endp induction-decrease branch in `replayInduction` +
    `consp_toBool_of_endp_nil` are proven and triple-guarded, but reached by
@@ -131,19 +141,14 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    the other endp/atom-testing corpus fns fail at unrelated frontiers. So
    this is built-ahead infrastructure whose consumer (isort induction) is
    named but blocked; it is validated end-to-end only once `lexorder` lands.
-   The scoreboard is honest about this (those rows show as FAIL). Not "wall
-   felled" until an isort theorem replays THROUGH the endp path.* NEXT (handoff-ready,
-   self-contained): implement `Logic.lexorder` FAITHFULLY from ACL2's
-   lexorder/alphorder source (axioms.lisp; order: numbers by < , then
-   chars, strings, symbols, then conses recursively — check exact rational/
-   symbol-package details against the source), wire `callBuiltin`
-   ("lexorder"), `callBuiltin_lexorder` rfl-lemma, `dpBinary` +
-   `dpLiftHeads` registration (the booleanp/endp precedent, one commit
-   each), and FLIP THE `unsupported` ENTRIES to `match` in
-   Tests/differential/corpus/target-ordering.lisp (+ add atom-kind-pair and
-   nested-cons cases) — the differential vs real ACL2 is the acceptance gate
-   for trusted-core growth. Then re-run coverage for
-   the next isort wall.
+   The scoreboard is honest about this (those rows show as FAIL); still NOT
+   exercised end-to-end — an isort theorem must replay THROUGH the endp path
+   to validate it.* NEXT isort walls (pick up here, now that lexorder is in):
+   (a) the recognizer / `deriveDefInfoN` frontier — INSERT/TRUE-LISTP need
+   world definitions + the `(consp (insert …))` recognizer must reduce
+   (ORDEREDP-ISORT, TRUE-LISTP-ISORT); (b) the how-many clausify-spine
+   residual at Subgoal *1/3'4' (HOW-MANY-ISORT). The endp induction machinery
+   above is the likely consumer once (a)/(b) clear.
    THE TWO-STAGE LIFT as the following work item: The
    lift-automation analysis (MDD-ratified intent 2026-07-06; per-theorem
    cost is now low, per-FUNCTION corr lemmas are the scaling bottleneck):

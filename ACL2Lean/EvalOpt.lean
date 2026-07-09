@@ -12,6 +12,7 @@
 import ACL2Lean.Syntax
 import ACL2Lean.Logic
 import ACL2Lean.Parser
+import ACL2Lean.Lexorder
 
 namespace ACL2
 
@@ -80,6 +81,7 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "IFF", [a, b] => some (Logic.iff a b)
   | "TRUE-LISTP", [a] => some (Logic.trueListp a)
   | "LEN", [a] => some (Logic.len a)
+  | "LEXORDER", [a, b] => some (lexorder a b)
   | "LIST", xs => some (SExpr.ofList xs)
   | "FORCE", [a] => some a
   | "DOUBLE-REWRITE", [a] => some a

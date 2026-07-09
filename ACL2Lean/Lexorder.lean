@@ -38,15 +38,29 @@ def symbolLe (a b : Atom) : Bool :=
   else if n1 = n2 then symbolPkg a ≤ symbolPkg b
   else false
 
+/-- The atom VIEW of an SExpr for `lexorder`: `nil`/`t` are ordinary
+    COMMON-LISP symbols (names "NIL"/"T"), NOT special "smallest" values —
+    ACL2's `lexorder`/`alphorder` orders them within the symbol class
+    (verified: `(lexorder nil 5)` = NIL, since a number < a symbol). A cons is
+    not an atom. (The COMMON-LISP package only ever matters on a NAME tie with a
+    same-named symbol in another package; such a symbol is unconstructible on
+    our surface — `|NIL|`/`|T|` map back to these constructors — so the choice
+    is faithful and not observably testable, see
+    docs/notes/2026-07-08_lexorder-semantics.md.) -/
+def lexAtom? : SExpr → Option Atom
+  | .nil => some (.symbol { package := "COMMON-LISP", name := "NIL" })
+  | .t   => some (.symbol { package := "COMMON-LISP", name := "T" })
+  | .atom a => some a
+  | .cons _ _ => none
+
 /-- `lexorder x y` — total ordering on SExpr values, faithful to ACL2's
-    `lexorder`/`alphorder`. nil is smallest, atoms ordered by class
-    (`atomKind`) then within-class value, conses largest and compared
-    lexicographically (car then cdr). -/
+    `lexorder`/`alphorder` (axioms.lisp:27041/26995): atoms are ordered by class
+    (`atomKind`: number < character < string < symbol) then within-class value,
+    conses are LARGER than any atom and compared lexicographically (car then
+    cdr). `nil`/`t` are ordinary symbols (`lexAtom?`), not special. -/
 def lexorder (x y : SExpr) : SExpr :=
-  match x, y with
-  | .nil, _ => .t          -- nil ≤ everything
-  | _, .nil => .nil                         -- nothing > nil except nil
-  | .atom a, .atom b =>
+  match lexAtom? x, lexAtom? y with
+  | some a, some b =>
     if atomKind a < atomKind b then .t
     else if atomKind a > atomKind b then .nil
     else -- same kind
@@ -70,11 +84,14 @@ def lexorder (x y : SExpr) : SExpr :=
         else if e1 = e2 then if m1 ≤ m2 then .t else .nil
         else .nil
       | _, _ => .nil -- unreachable (same kind guarantees same constructor class)
-  | .atom _, .cons _ _ => .t  -- atoms before conses
-  | .cons _ _, .atom _ => .nil
-  | .cons a1 b1, .cons a2 b2 =>
-    if a1 == a2 then lexorder b1 b2
-    else lexorder a1 a2
+  | some _, none => .t  -- atom < cons
+  | none, some _ => .nil -- cons > atom
+  | none, none => -- both conses
+    match x, y with
+    | .cons a1 b1, .cons a2 b2 =>
+      if a1 == a2 then lexorder b1 b2
+      else lexorder a1 a2
+    | _, _ => .nil -- unreachable (lexAtom? none ⟹ cons)
 
 /-
 TODO (BUG-006/007/008, docs/BUGS.md) — RE-PROVE these order-property theorems

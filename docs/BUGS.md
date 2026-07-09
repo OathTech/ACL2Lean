@@ -96,32 +96,33 @@ boundary.lisp (all now `match`).
 
 ## BUG-006 — lexorder atomKind: keyword has its own order class
 Status: fixed
-Pinned-by: none (lexorder not wired into callBuiltin — no differential pin)
+Pinned-by: differential (Tests/differential/corpus/target-ordering.lisp)
 ACL2 `alphorder` (axioms.lisp:26995): keywords ARE symbols and sort within the
 symbol class by `symbol<`. FIXED 2026-07-08 in the `lexorder`/`atomKind`
-FUNCTION (keyword folded into the symbol kind). NOTE: the order-property PROOFS
-(total/antisym/trans) are commented out pending re-proof — see
-docs/notes/2026-07-08_lexorder-alphorder-fidelity-bugs.md and the TODO in
-Lexorder.lean. Cannot be differentially pinned until lexorder is wired into
-callBuiltin.
+FUNCTION (keyword folded into the symbol kind); lexorder was then WIRED into
+callBuiltin (Task #7, 2026-07-08) and is now differentially pinned vs real ACL2.
+NOTE: the order-property PROOFS (total/antisym/trans) remain commented out
+pending re-proof (Lexorder.lean TODO) — not needed for the evaluator.
 
 ## BUG-007 — lexorder atomKind: no character class
 Status: fixed
-Pinned-by: none (lexorder not wired into callBuiltin)
+Pinned-by: differential (Tests/differential/corpus/target-ordering.lisp)
 `alphorder` orders characters between rationals and strings (by `char-code`).
 FIXED 2026-07-08 in the function (character kind added between number and
-string, compared by char-code), alongside BUG-001's character type. Proofs
-commented out pending re-proof (see BUG-006).
+string, compared by char-code), alongside BUG-001's character type; wired +
+differentially pinned 2026-07-08. Proofs commented out pending re-proof.
 
 ## BUG-008 — lexorder symbol comparison is not `symbol<`
 Status: fixed
-Pinned-by: none (lexorder not wired into callBuiltin)
+Pinned-by: differential (Tests/differential/corpus/target-ordering.lisp)
 `Lexorder.lean` compared symbols by `name` then `package`; ACL2's `symbol<`
 compares symbol-name via `string<`, tie-break by package-name via `string<`.
 FIXED 2026-07-08 with a faithful `symbolLe` (name via `String.<`, tie-break
-package) covering both symbols and keywords. Proofs commented out pending
-re-proof (see BUG-006). Residual fidelity question: Lean `String.<` vs ACL2
-`string<` char-ordering — validate when lexorder is wired + differentially
+package) covering both symbols and keywords; wired + differentially pinned
+2026-07-08 (`:abc` vs `'abc`, `acl2::foo` vs `common-lisp::foo` confirmed).
+Proofs commented out pending re-proof. Residual fidelity question: Lean
+`String.<` vs ACL2 `string<` char-ordering — validate when lexorder is wired +
+differentially
 tested.
 
 ## BUG-009 — no complex-rational class (numbers/lexorder)
