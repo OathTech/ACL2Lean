@@ -143,3 +143,20 @@ on the current corpus (no such tokens in acl2_samples/ or the corpus). Proper
 per-run escaping in the tokenizer is the real fix (deferred); until then the
 refusal is faithful-at-the-frontier (never a wrong value). Pinned as
 `known-bug bug:BUG-010 lean <refused>` in symbol-identity.lisp.
+
+## BUG-011 — ACL2's own numeric reader macros `#f` / `#d` / `#u` unsupported
+Status: open
+Pinned-by: differential
+`*acl2-readtable*` redefines several `#` dispatch chars via
+`modify-acl2-readtable` (acl2.lisp) → `define-sharp-f`/`-d`/`-u`; the source is
+acl2-fns.lisp (`sharp-f-read`:1469, `sharp-d-read`:1531, `sharp-u-read`:1416,
+`read-digits`:1444). These read into EXACT ACL2 numbers, not host floats:
+`#f<float>` rationalizes float syntax (verified vs real ACL2: `#f1.5`=3/2,
+`#f2.0`=2, `#f-1.5`=-3/2, `#fx1.8`=3/2 hex-float, `#f10`=10); `#u<num>` is a
+numeral with `_` digit separators discarded (`#u1_000`=1000); `#d` is
+double-float syntax. Our parser has none — `#` → "unrecognized reader macro" →
+`<refused>`. Found in the BUG-004/005 nearby-surface survey (2026-07-08).
+Fail-closed (never a wrong value); pinned `known-bug bug:BUG-011 lean <refused>`
+in sharp-numeric.lisp. Distinct from BUG-004 (bare `.`-token floats, no `#`)
+and BUG-005 (radix `#x/#b/#o/#Nr`, which are the STANDARD CL reader, not
+ACL2-redefined).
