@@ -32,15 +32,17 @@
 ;@ refuse
 (unless 'nil '5)
 
-; ── known-bug: FLOAT literals — ACL2's reader REJECTS floats (it has no floats,
-; suggests the #d prefix); our parser accepts them as a decimal Number. Lean too
-; permissive. (ACL2 side is <refused>; recorded Lean value is the float.)
-; Surveyed 2026-07-08 against real ACL2: the float SHAPES are `N.N`, `.N`,
-; `N.`? NO — `1.` is the INTEGER 1 (see controls below) — so only a token with
-; a fractional DIGIT after the dot, or an exponent marker (e/E/d/D), is a float
-; ACL2 rejects. All rejected forms below map to <refused>; the CONTROLS at the
-; end must still be ACCEPTED (guarding against over-rejection when BUG-004 is
-; fixed by tightening the number reader). ──
+; ── BUG-004 — the '.'-token reader path. GROUNDED in the ACL2 source
+; (surveyed 2026-07-08): *acl2-readtable* = (copy-readtable nil) — the STANDARD
+; Common Lisp reader — and ACL2 binds *read-base* = 10 always (axioms.lisp:21116
+; "ACL2 never sets the read-base to other than 10"). So token→number is the CL
+; number syntax at base 10, which splits into TWO opposite-direction bugs in our
+; single `tok.contains '.'` → symbol branch (Parser.lean):
+;
+; (A) TOO PERMISSIVE on real FLOATS. A token with a fractional DIGIT after the
+;     dot (`N.N`, `.N`, `N.Ne M`) or an exponent marker (e/E/d/D) is a FLOAT —
+;     ACL2 has no float type, so its reader REFUSES (<refused>). We wrongly build
+;     a decimal Number.
 ;@ known-bug bug:BUG-004 lean 5.0
 '5.0
 ;@ known-bug bug:BUG-004 lean 1.5
@@ -55,15 +57,29 @@
 '-1.5
 ;@ known-bug bug:BUG-004 lean 1D0
 '1d0
-; CONTROLS — these are NOT floats; ACL2 accepts them, and so must we (both
-; before and after the BUG-004 fix). `1.` is the integer 1 (trailing dot,
-; no fractional digit); `2/3` a rational; `100` an integer.
+;
+; (B) WRONG VALUE on TRAILING-DOT INTEGERS. In CL a `[sign] digits+ .` token
+;     with NO fractional digit is a DECIMAL INTEGER (the trailing dot forces
+;     base 10) — so ACL2 reads `1.`=1, `10.`=10, `-5.`=-5, and `(integerp '10.)`
+;     =T. We instead make the SYMBOL `1.`/`10.`/… (integerp NIL). So the fix
+;     must not merely reject dotted tokens (that would still be wrong for these
+;     — and turn `1.` from a symbol into <refused>); it must read them as
+;     integers. Recorded Lean outcome is the current (wrong) symbol.
+;@ known-bug bug:BUG-004 lean 1.
+'1.
+;@ known-bug bug:BUG-004 lean 10.
+'10.
+;@ known-bug bug:BUG-004 lean -5.
+'-5.
+;@ known-bug bug:BUG-004 lean 0.
+'0.
+;
+; CONTROLS — dot-free numbers ACL2 accepts and we already get right; they must
+; STAY accepted through the BUG-004 fix (guard against over-rejection).
 ;@ match
 '100
 ;@ match
 '2/3
-;@ known-bug bug:BUG-004 lean 1.
-'1.
 
 ; ── known-bug: RADIX literals — ACL2 accepts #x/#b/#o/#Nr integers; our parser
 ; errors ("unrecognized reader macro"), so Lean is <refused>. Lean too strict.

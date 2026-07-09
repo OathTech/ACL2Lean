@@ -65,11 +65,24 @@ Pinned-by: differential
 ACL2's printer renders `(quote x)` as `'x`; ours prints the literal list
 `(quote x)`. E.g. `(quote (quote a))` → ACL2 `'A`, us `(quote a)`.
 
-## BUG-004 — float literals accepted (ACL2 rejects them)
+## BUG-004 — the '.'-token reader path (floats + trailing-dot integers)
 Status: open
 Pinned-by: differential
-ACL2 has no floats; its reader REJECTS `5.0` / `1.5` / `.5` / `5e3` (reader
-error). Our parser accepts them as a `.decimal` Number. Too permissive.
+Grounded in the ACL2 source (2026-07-08): `*acl2-readtable* = (copy-readtable
+nil)` is the standard Common Lisp reader, and ACL2 binds `*read-base* = 10`
+always (axioms.lisp:21116). So a `.`-bearing token follows CL base-10 number
+syntax — and our single `tok.contains '.'` → symbol branch (Parser.lean) gets
+it wrong in TWO opposite directions:
+(A) TOO PERMISSIVE on floats — a fractional digit after the dot (`5.0`/`1.5`/
+    `.5`) or an exponent marker (`5e3`/`1d0`) is a FLOAT; ACL2 has no float type
+    and its reader REFUSES, but we build a `.decimal` Number.
+(B) WRONG VALUE on trailing-dot integers — `[sign] digits+ .` with no fractional
+    digit is a DECIMAL INTEGER in CL (`1.`=1, `10.`=10, `-5.`=-5, `(integerp
+    '10.)`=T); we instead make the SYMBOL `1.`/`10.`/… .
+Fix must implement the CL rule (trailing-dot → decimal integer; fractional/
+exponent → refuse), NOT merely reject dotted tokens (which would leave (B)
+wrong, turning `1.` from a symbol into `<refused>`). Pinned in boundary.lisp
+(isolate) with dot-free CONTROLS (`100`/`2/3`) guarding against over-rejection.
 
 ## BUG-005 — radix integer literals rejected (ACL2 accepts them)
 Status: open
