@@ -2771,7 +2771,7 @@ theorem tp_cond_boolean_t (v : SExpr) {X : SExpr}
     (closed after `split`); the cons recursion is closed by the IH. -/
 theorem lexorder_boolean (a b : SExpr) :
     lexorder a b = SExpr.t ∨ lexorder a b = SExpr.nil := by
-  fun_induction lexorder a b <;> (try split) <;>
+  fun_induction lexorder a b <;> (repeat' (first | split | rfl)) <;>
     (first | exact Or.inl rfl | exact Or.inr rfl | assumption)
 
 /-- Two-valuedness of a `lexorder` test: `cond (toBool (lexorder a b)) t nil`

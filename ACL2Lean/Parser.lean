@@ -143,13 +143,19 @@ private def readSharpF (cs : Stream) : Except String (SExpr × Stream) :=
     | '-' :: cs => (true, cs)
     | '+' :: cs => (false, cs)
     | cs => (false, cs)
-  -- accumulate a run of base-`mantBase` digits → (value, count, rest)
-  let rec digs : List Char → Int → Nat → (Int × Nat × List Char)
-    | c :: cs, acc, cnt =>
-      match digitInBase mantBase c with
-      | some d => digs cs (acc * (Int.ofNat mantBase) + Int.ofNat d) (cnt + 1)
-      | none => (acc, cnt, c :: cs)
-    | [], acc, cnt => (acc, cnt, [])
+  -- accumulate a run of base-`b` digits, DISCARDING `_` separators (ACL2
+  -- `read-digits` skips #\_ in every run) → (value, digit-count, rest).
+  let rec digsB : Nat → List Char → Int → Nat → (Int × Nat × List Char)
+    | b, c :: cs, acc, cnt =>
+      if c = '_' then digsB b cs acc cnt
+      else match digitInBase b c with
+        | some d => digsB b cs (acc * (Int.ofNat b) + Int.ofNat d) (cnt + 1)
+        | none => (acc, cnt, c :: cs)
+    | _, [], acc, cnt => (acc, cnt, [])
+  -- mantissa/fraction use base `mantBase`; the EXPONENT is ALWAYS base 10
+  -- (ACL2 read-exp calls read-digits with base-16-p = nil — only the mantissa
+  -- is hex; the p/P exponent's DIGITS are decimal, the exponent BASE is 2).
+  let digs := digsB mantBase
   let (before, beforeCnt, afterDot0) := digs chars2 0 0
   -- fractional part (optional)
   let (numer, denomExp, afterFrac) := match afterDot0 with
@@ -158,13 +164,13 @@ private def readSharpF (cs : Stream) : Except String (SExpr × Stream) :=
       -- significand = before + after / mantBase^afterCnt  = (before*mantBase^cnt + after) / mantBase^cnt
       (before * (Int.ofNat mantBase) ^ afterCnt + afterVal, afterCnt, r)
     | cs => (before, 0, cs)
-  -- exponent (optional)
+  -- exponent (optional) — digits in BASE 10 regardless of mantBase
   let expE : Except String (Int × List Char) := match afterFrac with
     | c :: cs =>
       if isExpMark c then
         let (esign, cs1) := match cs with
           | '-' :: t => (true, t) | '+' :: t => (false, t) | t => (false, t)
-        let (eval, ecnt, r) := digs cs1 0 0
+        let (eval, ecnt, r) := digsB 10 cs1 0 0
         if ecnt == 0 then .error s!"#f literal: empty exponent in {tok}"
         else .ok ((if esign then -eval else eval), r)
       else .error s!"#f literal: unexpected '{c}' in {tok}"
@@ -172,8 +178,10 @@ private def readSharpF (cs : Stream) : Except String (SExpr × Stream) :=
   match expE with
   | .error e => .error e
   | .ok (exp, leftover) =>
+    -- (ACL2 `read-digits` returns 0 for an empty run, so a digitless `#f`/`#fx`
+    -- / `#f.` is 0 — not an error. We follow suit; `beforeCnt`/`denomExp` may
+    -- both be 0.)
     if !leftover.isEmpty then .error s!"#f literal: trailing chars in {tok}"
-    else if beforeCnt == 0 ∧ denomExp == 0 then .error s!"#f literal: no digits in {tok}"
     else
       -- value = ± numer / mantBase^denomExp * expBase^exp
       let signedNum := if neg then -numer else numer

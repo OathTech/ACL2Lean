@@ -20,13 +20,30 @@
 ;@ match
 (lexorder 5 '(a))
 
-; ── numbers by value; rationals; equal ──
+; ── numbers by VALUE (alphorder's single `<=` over all reals — NOT by type or
+;    lexicographic numerator/denominator; audit finding 2026-07-10). ──
 ;@ match
 (lexorder -3 5)
 ;@ match
 (lexorder 1/2 3/4)
 ;@ match
 (lexorder 5 5)
+; int vs rational compared by value (an int is NOT always smaller)
+;@ match
+(lexorder 1 1/2)
+;@ match
+(lexorder 1/2 1)
+;@ match
+(lexorder 5 1/2)
+;@ match
+(lexorder 7/2 3)
+; rational vs rational by value (NOT by (numerator, denominator))
+;@ match
+(lexorder 1/3 1/2)
+;@ match
+(lexorder 2/5 1/2)
+;@ match
+(lexorder 1/2 2/5)
 
 ; ── characters by char-code; strings by string<= (prefix is smaller) ──
 ;@ match

@@ -23,11 +23,23 @@
 '#f-1.5
 ;@ match
 '#f10
-; hex float: mantissa base 16, exponent (p/P) base 2
+; hex float: mantissa base 16, exponent (p/P) base 2 — but the exponent DIGITS
+; are BASE 10 (ACL2 read-exp uses read-digits base-16-p=nil), so a ≥2-digit or
+; hex-letter exponent must NOT be read in hex (audit finding F1, 2026-07-10).
 ;@ match
 '#fx1.8
 ;@ match
 '#fx1p4
+;@ match
+'#fx1p10
+;@ match
+'#fx1p12
+;@ match
+'#fx1.0p-10
+;@ match
+'#fx0.1
+;@ match
+'#fxAp0
 ; exponents (e/E, base 10), incl. negative
 ;@ match
 '#f1e3
@@ -35,6 +47,20 @@
 '#f1.5e2
 ;@ match
 '#f1.5e-2
+; `_` digit separators are discarded in EVERY #f run (audit finding F2).
+;@ match
+'#f1_000
+;@ match
+'#f1_0.5
+;@ match
+'#f1e1_0
+; a digitless #f run is 0, not an error (ACL2 read-digits empty run = 0; F3).
+;@ match
+'#f
+;@ match
+'#fx
+;@ match
+'#f.
 
 ; ── #u — underscore-separated numeral (now match); B/O/X prefix = radix ──
 ;@ match

@@ -46,20 +46,24 @@ private abbrev Ch (n : Nat) : SExpr := .atom (.char (UInt8.ofNat n))
 #guard lexorder (I 3) (I 3) = SExpr.t
 #guard lexorder (I (-1)) (I 0) = SExpr.t
 
--- === Rational ordering (syntactic: numerator first, then denominator) ===
+-- === Rational ordering: by VALUE (ACL2 alphorder's single `<=` over reals,
+--     NOT lexicographic (numerator,denominator); corrected in the 2026-07-10
+--     audit). 1/2 > 1/3, so lexorder(1/2, 1/3) = NIL. ===
 
--- Same numerator: smaller denominator first
-#guard lexorder (R 1 2) (R 1 3) = SExpr.t
-#guard lexorder (R 1 3) (R 1 2) = SExpr.nil
+#guard lexorder (R 1 2) (R 1 3) = SExpr.nil   -- 1/2 > 1/3
+#guard lexorder (R 1 3) (R 1 2) = SExpr.t     -- 1/3 < 1/2
 -- Equal → t (reflexive)
 #guard lexorder (R 1 2) (R 1 2) = SExpr.t
--- Different numerator: smaller numerator first
+-- 1/4 = 0.25 < 2/3 ≈ 0.67
 #guard lexorder (R 1 4) (R 2 3) = SExpr.t
 
--- === Mixed number types: int < rational < decimal ===
+-- === Mixed int/rational: compared by VALUE, NOT by type (an int is not always
+--     smaller). 1 > 1/2, so lexorder(1, 1/2) = NIL. ===
 
-#guard lexorder (I 1) (R 1 2) = SExpr.t
-#guard lexorder (R 1 2) (I 1) = SExpr.nil
+#guard lexorder (I 1) (R 1 2) = SExpr.nil     -- 1 > 1/2
+#guard lexorder (R 1 2) (I 1) = SExpr.t       -- 1/2 < 1
+#guard lexorder (I 1) (R 2 1) = SExpr.t       -- 1 < 2 (2/1)
+#guard lexorder (I 1) (R 1 1) = SExpr.t       -- 1 = 1/1 (equal → t)
 
 -- === String ordering ===
 

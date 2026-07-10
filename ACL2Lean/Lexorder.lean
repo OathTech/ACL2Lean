@@ -65,24 +65,23 @@ def lexorder (x y : SExpr) : SExpr :=
     else if atomKind a > atomKind b then .nil
     else -- same kind
       match a, b with
-      | .number (.int m), .number (.int n) => if m ≤ n then .t else .nil
+      -- NUMBERS: ACL2 `alphorder` (axioms.lisp:26997) compares ALL reals by
+      -- VALUE with a single `(<= x y)` — no int/rational/decimal split and no
+      -- lexicographic (numerator,denominator) compare. Reduce every number
+      -- subtype to its exact rational `(n,d)` (`Logic.toRat`, d > 0) and compare
+      -- `n1/d1 ≤ n2/d2` ⟺ `n1*d2 ≤ n2*d1`. (Audit finding, 2026-07-10: the
+      -- former type-split + lexicographic-rational order gave wrong verdicts,
+      -- e.g. `(lexorder 1 1/2)` = T here but NIL in ACL2.)
+      | .number _, .number _ =>
+        let (n1, d1) := Logic.toRat (.atom a)
+        let (n2, d2) := Logic.toRat (.atom b)
+        if n1 * (Int.ofNat d2) ≤ n2 * (Int.ofNat d1) then .t else .nil
       | .char c1, .char c2 => if c1 ≤ c2 then .t else .nil  -- by char-code
       | .string s1, .string s2 => if s1 ≤ s2 then .t else .nil
       -- symbol class: symbols AND keywords, both ordered by symbol<
       | .symbol _, .symbol _ | .symbol _, .keyword _
       | .keyword _, .symbol _ | .keyword _, .keyword _ =>
         if symbolLe a b then .t else .nil
-      -- Mixed number subtypes (int vs rational vs decimal)
-      | .number (.int _), .number _ => .t
-      | .number _, .number (.int _) => .nil
-      | .number (.rational n1 d1), .number (.rational n2 d2) =>
-        if n1 < n2 ∨ (n1 = n2 ∧ d1 ≤ d2) then .t else .nil
-      | .number (.rational _ _), .number (.decimal _ _) => .t
-      | .number (.decimal _ _), .number (.rational _ _) => .nil
-      | .number (.decimal m1 e1), .number (.decimal m2 e2) =>
-        if e1 < e2 then .t
-        else if e1 = e2 then if m1 ≤ m2 then .t else .nil
-        else .nil
       | _, _ => .nil -- unreachable (same kind guarantees same constructor class)
   | some _, none => .t  -- atom < cons
   | none, some _ => .nil -- cons > atom
