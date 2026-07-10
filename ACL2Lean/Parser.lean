@@ -119,6 +119,70 @@ private def readRadixInt (base : Nat) (cs : Stream) : Except String (Int × Stre
     | some n => .ok ((if neg then -(Int.ofNat n) else Int.ofNat n), rest)
     | none => .error s!"radix literal (base {base}): bad digit in {tok}"
 
+/-- Read an ACL2 `#f<float>` literal body (acl2-fns.lisp `sharp-f-read`:1469),
+    which RATIONALIZES float syntax into an EXACT rational (ACL2 has no host
+    floats). Grammar (already past the `#f`): an optional `x`/`X` selects base
+    16 (mantissa base 16, exponent base 2, exponent marker `p`/`P`); otherwise
+    base 10 (exponent marker `e`/`E`). Then `[sign] digits [. digits] [expmark
+    [sign] digits]`. The value is `± (before + after / mantBase^|after|) *
+    expBase^exp`. Returns the value (via `Logic.mkNumber`, so it reduces to an
+    integer when the denominator is 1) and the rest stream. Malformed → error
+    (fail-closed). Consumes exactly the delimited token (`readAtom`). -/
+private def readSharpF (cs : Stream) : Except String (SExpr × Stream) :=
+  let (tok, rest) := readAtom cs
+  let chars0 := tok.toList
+  -- optional hex selector
+  let (base16, chars1) := match chars0 with
+    | 'x' :: cs | 'X' :: cs => (true, cs)
+    | cs => (false, cs)
+  let mantBase : Nat := if base16 then 16 else 10
+  let expBase : Int := if base16 then 2 else 10
+  let isExpMark := fun c => if base16 then (c = 'p' ∨ c = 'P') else (c = 'e' ∨ c = 'E')
+  -- sign
+  let (neg, chars2) := match chars1 with
+    | '-' :: cs => (true, cs)
+    | '+' :: cs => (false, cs)
+    | cs => (false, cs)
+  -- accumulate a run of base-`mantBase` digits → (value, count, rest)
+  let rec digs : List Char → Int → Nat → (Int × Nat × List Char)
+    | c :: cs, acc, cnt =>
+      match digitInBase mantBase c with
+      | some d => digs cs (acc * (Int.ofNat mantBase) + Int.ofNat d) (cnt + 1)
+      | none => (acc, cnt, c :: cs)
+    | [], acc, cnt => (acc, cnt, [])
+  let (before, beforeCnt, afterDot0) := digs chars2 0 0
+  -- fractional part (optional)
+  let (numer, denomExp, afterFrac) := match afterDot0 with
+    | '.' :: cs =>
+      let (afterVal, afterCnt, r) := digs cs 0 0
+      -- significand = before + after / mantBase^afterCnt  = (before*mantBase^cnt + after) / mantBase^cnt
+      (before * (Int.ofNat mantBase) ^ afterCnt + afterVal, afterCnt, r)
+    | cs => (before, 0, cs)
+  -- exponent (optional)
+  let expE : Except String (Int × List Char) := match afterFrac with
+    | c :: cs =>
+      if isExpMark c then
+        let (esign, cs1) := match cs with
+          | '-' :: t => (true, t) | '+' :: t => (false, t) | t => (false, t)
+        let (eval, ecnt, r) := digs cs1 0 0
+        if ecnt == 0 then .error s!"#f literal: empty exponent in {tok}"
+        else .ok ((if esign then -eval else eval), r)
+      else .error s!"#f literal: unexpected '{c}' in {tok}"
+    | [] => .ok (0, [])
+  match expE with
+  | .error e => .error e
+  | .ok (exp, leftover) =>
+    if !leftover.isEmpty then .error s!"#f literal: trailing chars in {tok}"
+    else if beforeCnt == 0 ∧ denomExp == 0 then .error s!"#f literal: no digits in {tok}"
+    else
+      -- value = ± numer / mantBase^denomExp * expBase^exp
+      let signedNum := if neg then -numer else numer
+      -- fold the exponent into numerator/denominator (exact)
+      let num0 : Int := signedNum * (if exp ≥ 0 then expBase ^ exp.toNat else 1)
+      let den0 : Int := (Int.ofNat mantBase) ^ denomExp * (if exp < 0 then expBase ^ (-exp).toNat else 1)
+      -- Logic.mkNumber reduces gcd + collapses denom 1 → integer
+      .ok (Logic.mkNumber num0 den0.natAbs, rest)
+
 /-- `[sign] digit+ '.'` — a trailing-dot DECIMAL INTEGER (CL: the dot forces
     base 10). Returns the integer, or `none` if the (already-upcased) token is
     not this shape. E.g. `1.`→1, `-5.`→-5, `10.`→10; `1.5`/`1`/`.5`→none. -/
@@ -324,6 +388,30 @@ mutual
         if c = 'x' ∨ c = 'X' then mkInt (readRadixInt 16 rest)
         else if c = 'b' ∨ c = 'B' then mkInt (readRadixInt 2 rest)
         else if c = 'o' ∨ c = 'O' then mkInt (readRadixInt 8 rest)
+        else if c = 'f' ∨ c = 'F' then
+          -- `#f<float>` — ACL2's exact-rational float reader (BUG-011).
+          readSharpF rest
+        else if c = 'u' ∨ c = 'U' then
+          -- `#u<numeral>` — ACL2's underscore-separated numeral (acl2-fns.lisp
+          -- sharp-u-read:1416): read the following token, DISCARD every `_`, and
+          -- parse the result as a number. A leading B/O/X (case-insensitive)
+          -- makes it a radix literal (as if `#`-prefixed); otherwise it is a
+          -- base-10 integer (BUG-011). Floats/rationals in `#u` are not modeled
+          -- (fail-closed).
+          let (rawTok, rest') := readAtom rest
+          let stripped := (rawTok.toList.filter (· ≠ '_'))
+          match stripped with
+          | [] => .error "reader macro #u: no numeral"
+          | d :: ds =>
+            let bodyStr := String.ofList ds
+            let parseIntStr : String → Except String (SExpr × Stream) := fun s =>
+              match s.toInt? with
+              | some n => .ok (SExpr.atom (.number (.int n)), rest')
+              | none => .error s!"reader macro #u: {String.ofList stripped} is not a numeral"
+            if d = 'x' ∨ d = 'X' then mkInt (readRadixInt 16 (bodyStr.toList ++ [' ']))
+            else if d = 'b' ∨ d = 'B' then mkInt (readRadixInt 2 (bodyStr.toList ++ [' ']))
+            else if d = 'o' ∨ d = 'O' then mkInt (readRadixInt 8 (bodyStr.toList ++ [' ']))
+            else parseIntStr (String.ofList stripped)
         else if '0' ≤ c ∧ c ≤ '9' then
           -- `#Nr<digits>` — read the radix N (base-10, may be >1 digit), then
           -- `r`/`R`, then the digits in base N.

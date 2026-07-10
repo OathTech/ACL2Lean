@@ -1,32 +1,55 @@
 ;@isolate
 ; Differential corpus (ISOLATED — a `#`-macro parse error aborts a batched Lean
 ; stream, like the radix literals in boundary.lisp): ACL2's OWN numeric reader
-; macros (BUG-011). *acl2-readtable* redefines several `#` dispatch chars
-; (acl2.lisp modify-acl2-readtable → define-sharp-f / -d / -u); the source is
-; acl2-fns.lisp sharp-f-read:1469, sharp-d-read:1531, sharp-u-read:1416,
-; read-digits:1444. These read into EXACT ACL2 numbers, not host floats:
+; macros. *acl2-readtable* redefines several `#` dispatch chars (acl2.lisp
+; modify-acl2-readtable → define-sharp-f / -d / -u); the source is acl2-fns.lisp
+; sharp-f-read:1469, sharp-d-read:1531, sharp-u-read:1416, read-digits:1444.
+; These read into EXACT ACL2 numbers, not host floats.
 ;
-;   #f<float>  — reads decimal/hex float syntax and RATIONALIZES it: #f1.5 = 3/2,
-;                #f2.0 = 2, #f-1.5 = -3/2, #fx1.8 = 3/2 (hex float), #f10 = 10.
-;   #u<num>    — a numeral with `_` digit separators discarded: #u1_000 = 1000.
-;   #d<num>    — double-float syntax (df feature).
-;
-; Our parser has none of these (`#` → "unrecognized reader macro"), so it FAILS
-; CLOSED (<refused>) while ACL2 has a value. Surveyed 2026-07-08 against real
-; ACL2. Pinned known-bug (lean <refused>) as the target surface — fail-closed is
-; correct-at-the-frontier. See docs/BUGS.md BUG-011.
+; #f<float> and #u<num> are MODELED (BUG-011 fixed 2026-07-09, Parser.lean
+; readSharpF + the #u case): #f rationalizes decimal/hex float syntax to an
+; exact rational; #u discards `_` digit separators. #d (double-float, the `df`
+; feature) is NOT modeled — no double-float type — and stays a frontier
+; (fail-closed <refused>).
 
-;@ known-bug bug:BUG-011 lean <refused>
+; ── #f — exact-rational float reader (now match) ──
+;@ match
 '#f1.5
-;@ known-bug bug:BUG-011 lean <refused>
+;@ match
 (equal '#f1.5 '3/2)
-;@ known-bug bug:BUG-011 lean <refused>
+;@ match
 '#f2.0
-;@ known-bug bug:BUG-011 lean <refused>
+;@ match
 '#f-1.5
-;@ known-bug bug:BUG-011 lean <refused>
+;@ match
+'#f10
+; hex float: mantissa base 16, exponent (p/P) base 2
+;@ match
 '#fx1.8
-;@ known-bug bug:BUG-011 lean <refused>
+;@ match
+'#fx1p4
+; exponents (e/E, base 10), incl. negative
+;@ match
+'#f1e3
+;@ match
+'#f1.5e2
+;@ match
+'#f1.5e-2
+
+; ── #u — underscore-separated numeral (now match); B/O/X prefix = radix ──
+;@ match
 '#u1_000
-;@ known-bug bug:BUG-011 lean <refused>
+;@ match
 '#u1_000_000
+;@ match
+'#u42
+;@ match
+'#ux1F
+;@ match
+'#ub1_0_1
+;@ match
+'#uo17
+
+; ── #d — double-float syntax, NOT modeled (frontier; ACL2 has a value) ──
+;@ known-bug bug:BUG-011 lean <refused>
+'#d1.5

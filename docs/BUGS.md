@@ -149,19 +149,20 @@ per-run escaping in the tokenizer is the real fix (deferred); until then the
 refusal is faithful-at-the-frontier (never a wrong value). Pinned as
 `known-bug bug:BUG-010 lean <refused>` in symbol-identity.lisp.
 
-## BUG-011 — ACL2's own numeric reader macros `#f` / `#d` / `#u` unsupported
+## BUG-011 — ACL2's own numeric reader macros `#f` / `#d` / `#u`
 Status: open
 Pinned-by: differential
 `*acl2-readtable*` redefines several `#` dispatch chars via
 `modify-acl2-readtable` (acl2.lisp) → `define-sharp-f`/`-d`/`-u`; the source is
 acl2-fns.lisp (`sharp-f-read`:1469, `sharp-d-read`:1531, `sharp-u-read`:1416,
-`read-digits`:1444). These read into EXACT ACL2 numbers, not host floats:
-`#f<float>` rationalizes float syntax (verified vs real ACL2: `#f1.5`=3/2,
-`#f2.0`=2, `#f-1.5`=-3/2, `#fx1.8`=3/2 hex-float, `#f10`=10); `#u<num>` is a
-numeral with `_` digit separators discarded (`#u1_000`=1000); `#d` is
-double-float syntax. Our parser has none — `#` → "unrecognized reader macro" →
-`<refused>`. Found in the BUG-004/005 nearby-surface survey (2026-07-08).
-Fail-closed (never a wrong value); pinned `known-bug bug:BUG-011 lean <refused>`
-in sharp-numeric.lisp. Distinct from BUG-004 (bare `.`-token floats, no `#`)
-and BUG-005 (radix `#x/#b/#o/#Nr`, which are the STANDARD CL reader, not
-ACL2-redefined).
+`read-digits`:1444). These read into EXACT ACL2 numbers, not host floats.
+`#f` and `#u` FIXED 2026-07-09 (Parser.lean `readSharpF` + the `#u` case):
+`#f<float>` rationalizes decimal/hex float syntax to an exact rational (verified
+vs real ACL2: `#f1.5`=3/2, `#f2.0`=2, `#f-1.5`=-3/2, `#fx1.8`=3/2, `#fx1p4`=16,
+`#f1e3`=1000, `#f1.5e-2`=3/200); `#u<num>` discards `_` separators, with a
+B/O/X prefix taken as radix (`#u1_000`=1000, `#ux1F`=31, `#ub1_0_1`=5).
+REMAINING (still open): `#d` (double-float / the `df` feature) — no double-float
+type is modeled, so it stays fail-closed (`<refused>`), pinned
+`known-bug bug:BUG-011 lean <refused>` in sharp-numeric.lisp; needs the df type
+first (a modeling decision, deferred). Distinct from BUG-004 (bare `.`-token
+floats, no `#`) and BUG-005 (radix `#x/#b/#o/#Nr`, the standard CL reader).
