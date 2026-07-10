@@ -156,7 +156,7 @@ private def readSharpF (cs : Stream) : Except String (SExpr × Stream) :=
   -- (ACL2 read-exp calls read-digits with base-16-p = nil — only the mantissa
   -- is hex; the p/P exponent's DIGITS are decimal, the exponent BASE is 2).
   let digs := digsB mantBase
-  let (before, beforeCnt, afterDot0) := digs chars2 0 0
+  let (before, _, afterDot0) := digs chars2 0 0
   -- fractional part (optional)
   let (numer, denomExp, afterFrac) := match afterDot0 with
     | '.' :: cs =>
