@@ -143,12 +143,22 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    named but blocked; it is validated end-to-end only once `lexorder` lands.
    The scoreboard is honest about this (those rows show as FAIL); still NOT
    exercised end-to-end — an isort theorem must replay THROUGH the endp path
-   to validate it.* NEXT isort walls (pick up here, now that lexorder is in):
-   (a) the recognizer / `deriveDefInfoN` frontier — INSERT/TRUE-LISTP need
-   world definitions + the `(consp (insert …))` recognizer must reduce
-   (ORDEREDP-ISORT, TRUE-LISTP-ISORT); (b) the how-many clausify-spine
-   residual at Subgoal *1/3'4' (HOW-MANY-ISORT). The endp induction machinery
-   above is the likely consumer once (a)/(b) clear.
+   to validate it.*
+   **Recognizer-via-TP + lexorder-if1/boolean LANDED (2026-07-09).**
+   `replayRecognizer` now discharges `(REC (fn args)) ⇒ t` from `fn`'s emitted
+   :TYPE-PRESCRIPTION corollary (e.g. `(CONSP (INSERT E X))`, ACL2's
+   `type-prescription:INSERT` justification) — consumed, not inferred; and the
+   `if1/boolean` closer handles a LEXORDER-valued test directly via
+   `lexorder_boolean`/`cond_toBool_lexorder` (a builtin boolean, no TP hyp).
+   ORDEREDP-ISORT advanced through BOTH and now sits at the R2(c) wall:
+   `rule LEXORDER-TRANSITIVE: no stored-rule hypothesis in scope` — an
+   INCLUDED/external rewrite rule with no (:RULES) entry in the isort log.
+   NEXT isort walls: (a) **R2(c) cross-book rule discharge** (ORDEREDP-ISORT,
+   blocked on LEXORDER-TRANSITIVE; the roadmap R2(c) item — needs a design doc
+   BEFORE building); (b) TRUE-LISTP-ISORT `deriveDefInfoN: TRUE-LISTP not
+   defined in the world`; (c) HOW-MANY-ISORT clausify-spine residual at
+   Subgoal *1/3'4'. The endp induction machinery above is the likely consumer
+   once these clear.
    THE TWO-STAGE LIFT as the following work item: The
    lift-automation analysis (MDD-ratified intent 2026-07-06; per-theorem
    cost is now low, per-FUNCTION corr lemmas are the scaling bottleneck):

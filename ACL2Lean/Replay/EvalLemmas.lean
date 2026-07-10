@@ -2765,6 +2765,23 @@ theorem tp_cond_boolean_t (v : SExpr) {X : SExpr}
     have h2 : (v == SExpr.nil) = false := beq_eq_false_iff_ne.mpr hne
     simp [Logic.equal, Logic.toBool, h1, h2, SExpr.t] at h
 
+/-- `lexorder` is BOOLEAN-VALUED: every branch returns `.t` or `.nil` (it is
+    ACL2's total-order predicate). By `fun_induction` on `lexorder`'s own case
+    structure: each leaf is a literal `.t`/`.nil` or an `if _ then .t else .nil`
+    (closed after `split`); the cons recursion is closed by the IH. -/
+theorem lexorder_boolean (a b : SExpr) :
+    lexorder a b = SExpr.t ∨ lexorder a b = SExpr.nil := by
+  fun_induction lexorder a b <;> (try split) <;>
+    (first | exact Or.inl rfl | exact Or.inr rfl | assumption)
+
+/-- Two-valuedness of a `lexorder` test: `cond (toBool (lexorder a b)) t nil`
+    is just `lexorder a b` — the `if1/boolean` closer for a LEXORDER-valued
+    test (the builtin twin of `cond_toBool_of_tp_boolean`, no TP needed since
+    `lexorder` is provably boolean). -/
+theorem cond_toBool_lexorder (a b : SExpr) :
+    cond (Logic.toBool (lexorder a b)) SExpr.t SExpr.nil = lexorder a b := by
+  rcases lexorder_boolean a b with h | h <;> simp [h, Logic.toBool, SExpr.t]
+
 /-- `Logic.equal` is symmetric at the value level — if-interp's COMMUTATIVE
     assumption matching (`if-interp-assumed-value2`), re-derived by the
     branch-split composer for `assumed`-verdict tests. -/

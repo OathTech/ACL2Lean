@@ -1120,6 +1120,42 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         throwError "replayRecognizer: acl2-numberp of a pinned int must have verdict t"
       let hNo ← proveNoShadow cfg { name := "ACL2-NUMBERP" }
       mkAppM ``re_acl2_numberp_int #[cfg.worldExpr, cfg.envExpr, reflectSExpr z, k, hNo, pz]
+    -- RECOGNIZER-VIA-TYPE-PRESCRIPTION: `(REC (fn args))` ⇒ t where the verdict
+    -- comes from `fn`'s EMITTED :TYPE-PRESCRIPTION whose corollary is exactly
+    -- `(REC (fn formals))` (e.g. `(CONSP (INSERT E X))` for INSERT — ACL2 tags
+    -- this node `type-prescription:<fn>`). The value of `(REC (fn args))` is
+    -- `<REC-lift> vz` on `fn`'s opaque pinned value `vz`, which will NOT reduce
+    -- to t; the TP hypothesis is what discharges it. Consumed, not inferred —
+    -- exactly the source ACL2 records. (fn must be a user application with a
+    -- matching TP corollary; anything else falls through to the general case.)
+    else if let .cons (.atom (.symbol fs)) argsSpine := z then
+      if let some (_, cor, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name) then
+        let some (formals, _) := cfg.worldVal.defs.get? fs
+          | throwError "replayRecognizer: {fs.name} not defined in the world"
+        let args := (argsSpine.toList?).getD []
+        -- the corollary, instantiated at the actual args, must BE this term
+        -- (so the TP fact proves exactly this recognizer's verdict).
+        unless formals.length == args.length ∧
+               ACL2.Replay.substTerm formals args cor == term ∧ verdict == SExpr.t do
+          throwError "replayRecognizer: TP corollary of {fs.name} ({repr cor}) \
+                      does not match {repr term} ⇒ {repr verdict} (frontier)"
+        let some (vz, convz) := ctx.val? z
+          | throwError "replayRecognizer: {repr z} has no pinned value (TP recognizer, frontier)"
+        -- fact : <lifted corollary at args>[appPat ↦ vz] = t  =  (REC-lift vz) = t
+        let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+          ++ (args.map reflectSExpr).toArray ++ #[vz, convz])
+        let p ← ctxValProof cfg ctx term
+        let v ← ctxValExpr cfg ctx term
+        mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, fact]
+      else
+        let p ← ctxValProof cfg ctx term
+        let v ← ctxValExpr cfg ctx term
+        unless ← isDefEq v verdictE do
+          throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict} \
+                      (no TP hypothesis for {fs.name})"
+        mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, ← mkEqRefl verdictE]
     else
       let p ← ctxValProof cfg ctx term
       let v ← ctxValExpr cfg ctx term
@@ -1521,6 +1557,10 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
         let hBool ←
           if vC.isAppOfArity ``Logic.equal 2 then
             mkAppM ``cond_toBool_equal #[vC.appFn!.appArg!, vC.appArg!]
+          else if vC.isAppOfArity ``ACL2.lexorder 2 then
+            -- LEXORDER test: two-valuedness DIRECTLY from `lexorder_boolean`
+            -- (a builtin boolean predicate — no TP hypothesis needed).
+            mkAppM ``cond_toBool_lexorder #[vC.appFn!.appArg!, vC.appArg!]
           else do
             -- USER-FN test: two-valuedness from the fn's EMITTED
             -- :TYPE-PRESCRIPTION hypothesis (the boolean corollary shape),
