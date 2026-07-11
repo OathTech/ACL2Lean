@@ -219,7 +219,7 @@ unfolds the definition (`conv_defn_1`) and evaluates the body symbolically —
     discharge; `sq`'s unfold is part of the replayed evaluation). -/
 def sqOf3MirrorCond := driver_mirror% directDev directWorldD "sq-of-3"
 
-private def n_sym : Symbol := ⟨"ACL2", "N"⟩
+private def n_sym : Symbol := { package := "ACL2", name := "N" }
 private def nT : SExpr := .atom (.symbol { name := "N" })
 private def sqBody : SExpr :=
   .cons (.atom (.symbol { name := "BINARY-*" })) (.cons nT (.cons nT .nil))
@@ -281,7 +281,7 @@ private def zT : SExpr := .atom (.symbol { name := "Z" })
     DRIVER's mirror: the lhs is evaluated only SYMBOLICALLY (to
     `Logic.cdr (cons u v)`), so the equation is the mirror's content. -/
 theorem cdr_cons_native (u v : SExpr) : Logic.cdr (SExpr.cons u v) = v := by
-  let e : Env := (({} : Env).insert ⟨"ACL2", "Y"⟩ v).insert ⟨"ACL2", "X"⟩ u
+  let e : Env := (({} : Env).insert { package := "ACL2", name := "Y" } v).insert { package := "ACL2", name := "X" } u
   have hx : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e xT = some u :=
     conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e yT = some v :=
@@ -307,7 +307,7 @@ theorem cdr_cons_native (u v : SExpr) : Logic.cdr (SExpr.cons u v) = v := by
     mirror (the HYPOTHESIS decode: `h` truthifies the antecedent, the mirror's
     `implies ⇒ t` forces the conclusion). -/
 theorem equal_symm_native (u v : SExpr) (h : u = v) : v = u := by
-  let e : Env := (({} : Env).insert ⟨"ACL2", "Y"⟩ v).insert ⟨"ACL2", "X"⟩ u
+  let e : Env := (({} : Env).insert { package := "ACL2", name := "Y" } v).insert { package := "ACL2", name := "X" } u
   have hx : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e xT = some u :=
     conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e yT = some v :=
@@ -327,8 +327,8 @@ theorem equal_symm_native (u v : SExpr) (h : u = v) : v = u := by
     `(implies (if (equal x y) (equal y z) 'nil) (equal x z))`). -/
 theorem equal_trans_native (u v w' : SExpr) (h1 : u = v) (h2 : v = w') :
     u = w' := by
-  let e : Env := ((({} : Env).insert ⟨"ACL2", "Z"⟩ w').insert ⟨"ACL2", "Y"⟩ v).insert
-    ⟨"ACL2", "X"⟩ u
+  let e : Env := ((({} : Env).insert { package := "ACL2", name := "Z" } w').insert { package := "ACL2", name := "Y" } v).insert
+    { package := "ACL2", name := "X" } u
   have hx : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e xT = some u :=
     conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
   have hy : ∃ N, ∀ f ≥ N, evalOpt f eqWorldD e yT = some v :=
@@ -382,8 +382,8 @@ private def aT : SExpr := .atom (.symbol { name := "A" })
 private def bT : SExpr := .atom (.symbol { name := "B" })
 private def appT (a b : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "APP" })) (.cons a (.cons b .nil))
-private def xS : Symbol := ⟨"ACL2", "X"⟩
-private def yS : Symbol := ⟨"ACL2", "Y"⟩
+private def xS : Symbol := { package := "ACL2", name := "X" }
+private def yS : Symbol := { package := "ACL2", name := "Y" }
 
 /-- `app`'s body converges to `v` when `x ↦ nil, y ↦ v` (the if's else). -/
 private theorem appBody_nil_case (v : SExpr) :
@@ -476,8 +476,8 @@ private theorem appBody_cons_case (u v : SExpr) :
     `(app (cons a b) y)` collapses to `cons u v` (two definition unfolds in
     the decode), keep the outer `car` symbolic, and the mirror equates. -/
 theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
-  let e : Env := ((({} : Env).insert ⟨"ACL2", "Y"⟩ v).insert
-    ⟨"ACL2", "B"⟩ SExpr.nil).insert ⟨"ACL2", "A"⟩ u
+  let e : Env := ((({} : Env).insert { package := "ACL2", name := "Y" } v).insert
+    { package := "ACL2", name := "B" } SExpr.nil).insert { package := "ACL2", name := "A" } u
   have ha : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e aT = some u :=
     conv_var_of_get _ _ _ _ (by simp [e, Env.get?_insert])
   have hb : ∃ N, ∀ f ≥ N, evalOpt f multiWorldD e bT = some SExpr.nil :=

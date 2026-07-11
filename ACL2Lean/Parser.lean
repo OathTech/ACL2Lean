@@ -519,9 +519,25 @@ mutual
               match parts with
               | [_] => .ok (SExpr.atom (.symbol { name := tok }), rest)
               | [pkg, name] =>
-                  .ok (SExpr.atom (.symbol
-                    { package := normalizePackageName pkg
-                      name := normalizeSymbolName name }), rest)
+                  let p := normalizePackageName pkg
+                  let n := normalizeSymbolName name
+                  -- BUG-013 (minimal fix): the ACL2 package IMPORTS NIL and T
+                  -- from COMMON-LISP, so `common-lisp::nil` / `acl2::nil` ARE
+                  -- nil (same for T) — verified vs running ACL2 2026-07-11.
+                  -- Map the resolved identities to the canonical values; the
+                  -- COMMON-LISP spellings are unrepresentable as Symbols
+                  -- (canonSym). Other packages' NIL/T-named symbols are
+                  -- genuinely distinct objects and pass through.
+                  if (p == "COMMON-LISP" || p == "ACL2") && n == "NIL" then
+                    .ok (SExpr.nil, rest)
+                  else if (p == "COMMON-LISP" || p == "ACL2") && n == "T" then
+                    .ok (SExpr.t, rest)
+                  else if hc : canonSym p n then
+                    .ok (SExpr.atom (.symbol { package := p, name := n, canon := hc }), rest)
+                  else
+                    -- unreachable (only COMMON-LISP::NIL/T fail canonSym and
+                    -- both are mapped above) — fail closed all the same
+                    .error s!"non-canonical symbol identity: {rawTok}"
               | _ => .error s!"malformed package-qualified symbol: {rawTok}"
 end
 

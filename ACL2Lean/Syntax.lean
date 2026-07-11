@@ -5,15 +5,46 @@ open Lean
 
 namespace ACL2
 
-/-- Symbols cover ACL2 package-qualified names (e.g. `ACL2::CAR`). -/
+/-- Decidable symbol-identity CANONICITY (BUG-013, minimal fix): the
+    `COMMON-LISP` package's `NIL` and `T` are exactly ACL2's `nil`/`t`, whose
+    canonical representations are the `SExpr.nil` constructor and `SExpr.t`
+    (the ACL2-package `T` symbol, viewed as COMMON-LISP by `lexorder`). A
+    `Symbol` value spelling them as COMMON-LISP symbols would be a SECOND
+    representation of the same ACL2 object — the BUG-012 duplication pattern
+    in the symbol space (breaking `equal` faithfulness and lexorder
+    antisymmetry/transitivity) — so it is unrepresentable. The parser maps
+    the import-resolved spellings (`common-lisp::nil`, `acl2::nil`, …) to
+    the canonical values. Full package-import modeling (the ~977 COMMON-LISP
+    imports, e.g. `'car`'s true package) remains BUG-013. -/
+def canonSym (pkg name : String) : Bool :=
+  !(pkg == "COMMON-LISP" && (name == "NIL" || name == "T"))
+
+/-- Symbols cover ACL2 package-qualified names (e.g. `ACL2::CAR`).
+    The canonicity field has a tactic default that closes for any literal
+    package (and for the default "ACL2" package with a COMPUTED name, since
+    `canonSym` short-circuits on the package alone) — so existing literal
+    and parser construction sites elaborate unchanged; only a site that
+    computes the PACKAGE must supply the proof (or map to nil/t) itself. -/
 structure Symbol where
   package : String := "ACL2"
   name : String
-  deriving DecidableEq, BEq, Hashable, Inhabited
+  canon : canonSym package name = true := by first | rfl | decide
 
--- LawfulBEq for Symbol: derived BEq agrees with derived DecidableEq.
--- Needed for Std.HashMap.getElem?_insert lemma.
--- We override the derived BEq with one that uses DecidableEq directly.
+instance : Inhabited Symbol := ⟨{ name := "" }⟩
+
+/-- Equality on `Symbol` is equality of the DATA; the canonicity proof is
+    propositionally irrelevant. -/
+instance : DecidableEq Symbol := fun a b =>
+  if h : a.package = b.package ∧ a.name = b.name then
+    .isTrue (by cases a; cases b; obtain ⟨h1, h2⟩ := h; subst h1; subst h2; rfl)
+  else
+    .isFalse (fun hc => by cases hc; exact h ⟨rfl, rfl⟩)
+
+instance : Hashable Symbol where
+  hash s := hash (s.package, s.name)
+
+-- BEq via DecidableEq (kernel-reducible, lawful; needed for
+-- Std.HashMap.getElem?_insert).
 instance : BEq Symbol where
   beq a b := decide (a = b)
 

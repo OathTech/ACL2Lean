@@ -56,7 +56,11 @@ def reflectInt : Int → Expr
   | .negSucc n => mkApp (mkConst ``Int.negSucc) (mkNatLit n)
 
 def reflectSymbol (s : Symbol) : Expr :=
-  mkApp2 (mkConst ``Symbol.mk) (mkStrLit s.package) (mkStrLit s.name)
+  -- canonical Symbol (BUG-013): the runtime value carries its canonicity,
+  -- and the reflected literal re-proves it by kernel computation (defeq
+  -- `rfl : true = true` against `canonSym pkg name = true`).
+  mkApp3 (mkConst ``Symbol.mk) (mkStrLit s.package) (mkStrLit s.name)
+    (mkApp2 (mkConst ``rfl [levelOne]) (mkConst ``Bool) (mkConst ``Bool.true))
 
 def reflectNumber : Number → Expr
   | .int v => mkApp (mkConst ``Number.int) (reflectInt v)

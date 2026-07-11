@@ -29,10 +29,10 @@ namespace ACL2.Worlds.Perm
 
 /-! ## The defuns, exactly as the log-derived world carries them -/
 
-private def aS : Symbol := ⟨"ACL2", "A"⟩
-private def eS : Symbol := ⟨"ACL2", "E"⟩
-private def xS : Symbol := ⟨"ACL2", "X"⟩
-private def yS : Symbol := ⟨"ACL2", "Y"⟩
+private def aS : Symbol := { package := "ACL2", name := "A" }
+private def eS : Symbol := { package := "ACL2", name := "E" }
+private def xS : Symbol := { package := "ACL2", name := "X" }
+private def yS : Symbol := { package := "ACL2", name := "Y" }
 
 private def aT : SExpr := .atom (.symbol { name := "A" })
 private def eT : SExpr := .atom (.symbol { name := "E" })
@@ -68,9 +68,9 @@ def permBody : SExpr :=
     (ifT (membT (carT xT) yT) (permT (cdrT xT) (rmT (carT xT) yT)) qNil)
     (ifT (conspT yT) qNil qT)
 
-private def memb_sym : Symbol := ⟨"ACL2", "MEMB"⟩
-private def rm_sym : Symbol := ⟨"ACL2", "RM"⟩
-private def perm_sym : Symbol := ⟨"ACL2", "PERM"⟩
+private def memb_sym : Symbol := { package := "ACL2", name := "MEMB" }
+private def rm_sym : Symbol := { package := "ACL2", name := "RM" }
+private def perm_sym : Symbol := { package := "ACL2", name := "PERM" }
 
 private theorem memb_ns :
     (memb_sym.isNamed "QUOTE" = false ∧ memb_sym.isNamed "IF" = false ∧
@@ -1007,9 +1007,9 @@ Each consumes its theorem's UNCONDITIONAL driver mirror at exactly one seam
 Lifting decode kit (`mirror_pins_ne_nil` / `bool_of_cond_eq` /
 `conv_and_conds` / `mirror_peel_guard`). -/
 
-private def bS : Symbol := ⟨"ACL2", "B"⟩
+private def bS : Symbol := { package := "ACL2", name := "B" }
 private def bT : SExpr := .atom (.symbol { name := "B" })
-private def zS : Symbol := ⟨"ACL2", "Z"⟩
+private def zS : Symbol := { package := "ACL2", name := "Z" }
 private def zT : SExpr := .atom (.symbol { name := "Z" })
 
 def perm_symmetricFormula : SExpr := impliesT (permT xT yT) (permT yT xT)

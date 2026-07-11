@@ -7,7 +7,7 @@ open ACL2 ACL2.Replay
 
 namespace ACL2.Worlds.Simple
 
-def sym (name : String) : Symbol := ⟨"ACL2", name⟩
+def sym (name : String) : Symbol := { package := "ACL2", name := name }
 
 -- Body uses macro-expanded form (matching ACL2's DEFUN emission):
 -- (IF (CONSP X) (BINARY-+ (QUOTE 1) (MY-LEN (CDR X))) (QUOTE 0))

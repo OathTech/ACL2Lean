@@ -29,7 +29,7 @@
      instances (`implements_append`, `implements_len`) alongside the builtin
      ones (`implements_plus`, `implements_times`). The body shapes
      (`appendBody fn` / `lenBody fn`) mirror ACL2's macroexpanded DEFUN
-     emission exactly; a world fact `w.defs.get? ⟨"ACL2", fn⟩ = some (…)`
+     emission exactly; a world fact `w.defs.get? { package := "ACL2", name := fn } = some (…)`
      instantiates them at any hand or log-derived world by `decide`.
 
   The TARGET theorems stay user-supplied — this algebra only structures their
@@ -401,8 +401,8 @@ ACL2 emits for the two-formal append and one-formal length defuns, so a
 single `decide` on any world (hand or log-derived) instantiates the
 correspondence lemmas at that world's function. -/
 
-private def xS : Symbol := ⟨"ACL2", "X"⟩
-private def yS : Symbol := ⟨"ACL2", "Y"⟩
+private def xS : Symbol := { package := "ACL2", name := "X" }
+private def yS : Symbol := { package := "ACL2", name := "Y" }
 private def xT : SExpr := .atom (.symbol { name := "X" })
 private def yT : SExpr := .atom (.symbol { name := "Y" })
 private def q0 : SExpr := qInt 0
@@ -445,8 +445,8 @@ theorem corr_append_enc (w : World) (fn : String)
             ({ name := fn } : Symbol).isNamed "IF" = false ∧
             ({ name := fn } : Symbol).isNamed "LET" = false ∧
             ({ name := fn } : Symbol).isNamed "LET*" = false)
-    (h_fn : w.defs.get? ⟨"ACL2", fn⟩
-      = some ([⟨"ACL2", "X"⟩, ⟨"ACL2", "Y"⟩], appendBody fn))
+    (h_fn : w.defs.get? { package := "ACL2", name := fn }
+      = some ([{ package := "ACL2", name := "X" }, { package := "ACL2", name := "Y" }], appendBody fn))
     (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
@@ -478,7 +478,7 @@ theorem corr_append_enc (w : World) (fn : String)
         (consT (carT xT) (app2 fn (cdrT xT) yT)) yT (enc ys) hconspx_ba hy_ba
       obtain ⟨Ny, hy⟩ := hy_ba
       exact ⟨max Ni Ny, fun f hf => (hi f (by omega)).trans (hy f (by omega))⟩
-    exact conv_defn_2 w e' ⟨"ACL2", fn⟩ a b (enc []) (enc ys) xS yS (appendBody fn)
+    exact conv_defn_2 w e' { package := "ACL2", name := fn } a b (enc []) (enc ys) xS yS (appendBody fn)
       (enc ys) h_ns h_fn ha hb hbody
   | cons hd tl ih =>
     intro e' a b ys ha hb
@@ -529,7 +529,7 @@ theorem corr_append_enc (w : World) (fn : String)
         (.cons hd (enc (tl ++ ys))) hconspx_ba rfl hthen
       obtain ⟨Nt, ht⟩ := hthen
       exact ⟨max Ni Nt, fun f hf => (hi f (by omega)).trans (ht f (by omega))⟩
-    exact conv_defn_2 w e' ⟨"ACL2", fn⟩ a b (.cons hd (enc tl)) (enc ys) xS yS
+    exact conv_defn_2 w e' { package := "ACL2", name := fn } a b (.cons hd (enc tl)) (enc ys) xS yS
       (appendBody fn) (.cons hd (enc (tl ++ ys))) h_ns h_fn ha hb hbody
 
 /-- SIMULATION, name-generic: any length-shaped defun over encoded lists
@@ -539,7 +539,7 @@ theorem corr_len_enc (w : World) (fn : String)
             ({ name := fn } : Symbol).isNamed "IF" = false ∧
             ({ name := fn } : Symbol).isNamed "LET" = false ∧
             ({ name := fn } : Symbol).isNamed "LET*" = false)
-    (h_fn : w.defs.get? ⟨"ACL2", fn⟩ = some ([⟨"ACL2", "X"⟩], lenBody fn))
+    (h_fn : w.defs.get? { package := "ACL2", name := fn } = some ([{ package := "ACL2", name := "X" }], lenBody fn))
     (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
     (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
@@ -571,7 +571,7 @@ theorem corr_len_enc (w : World) (fn : String)
         hconspx_ba hq0_ba
       obtain ⟨Nq, hq⟩ := hq0_ba
       exact ⟨max Ni Nq, fun f hf => (hi f (by omega)).trans (hq f (by omega))⟩
-    exact conv_defn_1 w e' ⟨"ACL2", fn⟩ a (enc []) xS (lenBody fn)
+    exact conv_defn_1 w e' { package := "ACL2", name := fn } a (enc []) xS (lenBody fn)
       (.atom (.number (.int 0))) h_ns h_fn ha hbody
   | cons hd tl ih =>
     intro e' a ha
@@ -617,7 +617,7 @@ theorem corr_len_enc (w : World) (fn : String)
     have hlen : (1 + (tl.length : Int)) = ((hd :: tl).length : Int) := by
       rw [List.length_cons]; push_cast; ring
     rw [hlen] at hbody
-    exact conv_defn_1 w e' ⟨"ACL2", fn⟩ a (.cons hd (enc tl)) xS (lenBody fn)
+    exact conv_defn_1 w e' { package := "ACL2", name := fn } a (.cons hd (enc tl)) xS (lenBody fn)
       (.atom (.number (.int ((hd :: tl).length : Int)))) h_ns h_fn ha hbody
 
 /-! ## `Implements` instances — the operations lifted so far -/
@@ -640,8 +640,8 @@ theorem implements_append (w : World) (fn : String)
             ({ name := fn } : Symbol).isNamed "IF" = false ∧
             ({ name := fn } : Symbol).isNamed "LET" = false ∧
             ({ name := fn } : Symbol).isNamed "LET*" = false)
-    (h_fn : w.defs.get? ⟨"ACL2", fn⟩
-      = some ([⟨"ACL2", "X"⟩, ⟨"ACL2", "Y"⟩], appendBody fn))
+    (h_fn : w.defs.get? { package := "ACL2", name := fn }
+      = some ([{ package := "ACL2", name := "X" }, { package := "ACL2", name := "Y" }], appendBody fn))
     (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
@@ -657,7 +657,7 @@ theorem implements_len (w : World) (fn : String)
             ({ name := fn } : Symbol).isNamed "IF" = false ∧
             ({ name := fn } : Symbol).isNamed "LET" = false ∧
             ({ name := fn } : Symbol).isNamed "LET*" = false)
-    (h_fn : w.defs.get? ⟨"ACL2", fn⟩ = some ([⟨"ACL2", "X"⟩], lenBody fn))
+    (h_fn : w.defs.get? { package := "ACL2", name := fn } = some ([{ package := "ACL2", name := "X" }], lenBody fn))
     (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
     (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :

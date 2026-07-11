@@ -429,7 +429,7 @@ section Tests
 
 -- Symbol names are stored UPCASED (readtable :upcase), so these test helpers
 -- construct uppercase names to match how the interpreter looks up defs/builtins.
-private def sym (name : String) : Symbol := ⟨"ACL2", name.map Char.toUpper⟩
+private def sym (name : String) : Symbol := { package := "ACL2", name := name.map Char.toUpper }
 
 private def mkCall (name : String) (args : List SExpr) : SExpr :=
   .cons (.atom (.symbol (sym name))) (SExpr.ofList args)
