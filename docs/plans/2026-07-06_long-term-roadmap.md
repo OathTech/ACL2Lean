@@ -53,6 +53,19 @@ statement of the two ARCHITECTURE items still hiding inside it:
   (the R2 rule); do it when the second book-pair (isort ← perm) makes the
   shapes concrete.
 
+  **ADDENDUM (2026-07-10) — R2(c)'s scope was too narrow.** Probing the
+  real isort log (docs/notes/2026-07-10_external-knowledge-assessment.md)
+  showed the wall ORDEREDP-ISORT actually reports — LEXORDER-TRANSITIVE —
+  is a GROUND-ZERO BUILT-IN theorem (axioms.lisp:27162, cited 43×; its
+  sibling lexorder-reflexive 60×), not an included-book rule: no book's
+  log can carry a (:RULES) entry for it, so the cross-book mechanism
+  alone would not discharge it. The design doc must cover the full
+  external-knowledge problem — four species: (1) ground-zero built-in
+  defuns (TRUE-LISTP/NFIX/LEN), (2) ground-zero built-in rules,
+  (3) included-defun totality (= R2b), (4) genuinely cross-book included
+  rules (the original R2(c)). Details + implementation leverage order in
+  the note.
+
 **R3 — the counting argument** (convert-perm-to-how-many + ordered-perms,
 19 theorems): expect `:use`-hint shapes and G5 growth; first sustained
 exercise of the rule-discharge machinery at scale.

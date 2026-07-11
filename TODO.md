@@ -5,7 +5,7 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-08._
+_Last updated: 2026-07-10._
 
 > **BUG-002 (symbol case) FIXED (2026-07-08, this branch).** The parser now
 > adopts ACL2's readtable-case :upcase EXACTLY: bare symbols/keywords upcase,
@@ -150,15 +150,23 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    `type-prescription:INSERT` justification) — consumed, not inferred; and the
    `if1/boolean` closer handles a LEXORDER-valued test directly via
    `lexorder_boolean`/`cond_toBool_lexorder` (a builtin boolean, no TP hyp).
-   ORDEREDP-ISORT advanced through BOTH and now sits at the R2(c) wall:
-   `rule LEXORDER-TRANSITIVE: no stored-rule hypothesis in scope` — an
-   INCLUDED/external rewrite rule with no (:RULES) entry in the isort log.
-   NEXT isort walls: (a) **R2(c) cross-book rule discharge** (ORDEREDP-ISORT,
-   blocked on LEXORDER-TRANSITIVE; the roadmap R2(c) item — needs a design doc
-   BEFORE building); (b) TRUE-LISTP-ISORT `deriveDefInfoN: TRUE-LISTP not
-   defined in the world`; (c) HOW-MANY-ISORT clausify-spine residual at
-   Subgoal *1/3'4'. The endp induction machinery above is the likely consumer
-   once these clear.
+   ORDEREDP-ISORT advanced through BOTH and now sits at
+   `rule LEXORDER-TRANSITIVE: no stored-rule hypothesis in scope`.
+   **CORRECTED FRAMING (2026-07-10, assessment note
+   docs/notes/2026-07-10_external-knowledge-assessment.md):** that rule is a
+   GROUND-ZERO BUILT-IN theorem (axioms.lisp:27162), NOT an included-book
+   rule — no book's log can carry a (:RULES) entry for it. The R2(c) design
+   doc must cover the full EXTERNAL-KNOWLEDGE problem, four species measured
+   from the real isort log: (1) ground-zero built-in defuns
+   (TRUE-LISTP/NFIX/LEN — blocks TRUE-LISTP-ISORT + 6 recon rows),
+   (2) ground-zero built-in rules (LEXORDER-REFLEXIVE/-TRANSITIVE, cited
+   60×/43× — blocks ORDEREDP-ISORT), (3) included-defun totality (= R2b),
+   (4) genuinely cross-book included rules (NOT-MEMB-IMPLIES-HOW-MANY-IS-0
+   17×, HOW-MANY-RM 4× from convert-perm-to-how-many). Design doc BEFORE
+   building (the R2 rule); implement in leverage order 1→2→3/4. Outside the
+   family: HOW-MANY-ISORT clausify-spine residual at Subgoal *1/3'4'
+   (investigate on the real tree, independent of the design). The endp
+   induction machinery above is the likely consumer once these clear.
    THE TWO-STAGE LIFT as the following work item: The
    lift-automation analysis (MDD-ratified intent 2026-07-06; per-theorem
    cost is now low, per-FUNCTION corr lemmas are the scaling bottleneck):
