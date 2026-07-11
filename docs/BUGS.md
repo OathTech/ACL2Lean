@@ -149,6 +149,36 @@ per-run escaping in the tokenizer is the real fix (deferred); until then the
 refusal is faithful-at-the-frontier (never a wrong value). Pinned as
 `known-bug bug:BUG-010 lean <refused>` in symbol-identity.lisp.
 
+## BUG-013 — package-IMPORT symbol identity not modeled (nil/t/car duplicates)
+Status: open
+Pinned-by: differential
+ACL2's ACL2 package IMPORTS ~977 symbols from COMMON-LISP
+(`*common-lisp-symbols-from-main-lisp-package*`): `COMMON-LISP::NIL` IS
+`nil`, `ACL2::NIL` resolves to it by import, and `'car` IS
+`COMMON-LISP::CAR` (`symbol-package-name 'car` = "COMMON-LISP"). Our parser
+stores the literal source-text (package, name) pair UNRESOLVED
+(Parser.lean:518-524, no nil/t/import check), so these are DISTINCT
+symbols — live wrong VALUES (the dangerous class): `(equal
+'common-lisp::nil nil)` = NIL vs ACL2 T; `(if 'common-lisp::nil 'truthy
+'falsy)` = TRUTHY vs ACL2 FALSY; `(equal 'acl2::nil nil)` = NIL vs T;
+`(equal 'car 'common-lisp::car)` = NIL vs T. Pinned in
+complex-and-packages.lisp (5 entries, verified vs running ACL2
+2026-07-11). Found during the lexorder order-proof work: the nil/t
+duplicates are ALSO a second instance of the BUG-012 pattern — two SExpr
+representations of one ACL2 value that `lexorder`'s view collapses but
+`equal` distinguishes — so lexorder antisymmetry/transitivity are FALSE
+over SExpr until the duplicates are unrepresentable (this blocks the
+external-knowledge WP3 order proofs the same way the number junk did).
+Resolution needs an MDD design call (options in the design doc §D5
+addendum #2): (i) minimal canonicalization — parse-map import-resolved
+NIL/T to the canonical constructors + type-level ban of the colliding
+atoms (unblocks the order proofs; remaining import divergences like `car`
+stay pinned known-bugs); (ii) full import-table modeling (the fixed ~977
+list; changes builtin identities' packages and printing — the complete
+fix, big surface); (iii) fail-closed refusal of package-qualified tokens
+naming imports. Related deferred frontier noted at BUG-002 §4 and the
+lexorder note's representation section.
+
 ## BUG-012 — SExpr admits non-canonical numbers outside ACL2's value space
 Status: open
 Pinned-by: none (the junk values are UNREACHABLE from the ACL2-visible

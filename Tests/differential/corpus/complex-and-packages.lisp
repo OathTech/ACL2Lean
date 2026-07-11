@@ -56,3 +56,28 @@
 ; alphorder for non-standard atoms); on ordinary atoms it is nil.
 ;@ unsupported
 (bad-atom<= 'a 'b)
+
+; ── BUG-013: package-IMPORT identity not modeled (found 2026-07-11 during
+;    the lexorder order-proof work). In ACL2 the ACL2 package IMPORTS ~977
+;    symbols from COMMON-LISP (*common-lisp-symbols-from-main-lisp-package*),
+;    so COMMON-LISP::NIL IS nil, ACL2::NIL resolves to it, and 'car IS
+;    COMMON-LISP::CAR. Our parser stores the literal (package, name) pair
+;    UNRESOLVED, so these are distinct symbols — wrong VALUES on equal/if,
+;    and lexorder sees value-equal-but-structurally-distinct duplicates
+;    (breaking antisymmetry/transitivity — the BUG-012 pattern in the
+;    symbol space). ──
+;@ known-bug bug:BUG-013 lean NIL
+(equal 'common-lisp::nil nil)
+;@ known-bug bug:BUG-013 lean NIL
+(equal 'common-lisp::t t)
+;@ known-bug bug:BUG-013 lean TRUTHY
+(if 'common-lisp::nil 'truthy 'falsy)
+;@ known-bug bug:BUG-013 lean NIL
+(equal 'acl2::nil nil)
+;@ known-bug bug:BUG-013 lean NIL
+(equal 'car 'common-lisp::car)
+;@ match
+(lexorder 'common-lisp::nil nil)
+; (that lexorder agrees is COINCIDENCE — lexorder's view collapses the
+; duplicate that equal distinguishes; the mismatch is BETWEEN the two,
+; which is exactly what breaks the order properties)
