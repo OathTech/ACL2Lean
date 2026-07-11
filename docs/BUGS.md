@@ -149,6 +149,36 @@ per-run escaping in the tokenizer is the real fix (deferred); until then the
 refusal is faithful-at-the-frontier (never a wrong value). Pinned as
 `known-bug bug:BUG-010 lean <refused>` in symbol-identity.lisp.
 
+## BUG-012 — SExpr admits non-canonical numbers outside ACL2's value space
+Status: open
+Pinned-by: none (the junk values are UNREACHABLE from the ACL2-visible
+surface — parser and arithmetic canonicalize via `Logic.mkNumber` — so no
+differential form can exhibit them; the divergence lives in the ∀-env
+quantification of mirror statements)
+`Number` (Syntax.lean:52) admits `.rational 2 4`, `.rational 1 1`,
+`.decimal …` — multiple representations of one rational value — while ACL2's
+value space has exactly one (reduced ratio, or integer). Recognizers accept
+the junk, arithmetic normalizes it (`(* 1 x)` canonicalizes), and
+`equal`/`==` are structural — so VALUE-equal junk representations are
+distinguishable. Consequences (found by the external-knowledge WP3 spike,
+2026-07-11, countermodel EXECUTED):
+(a) `lexorder` transitivity is FALSE over all SExpr — x=((2/4) . 5),
+    y=((1/2) . nil), z=((2/4) . 3) gives lexorder x y = T, y z = T,
+    x z = NIL (the cons branch's structural `==` vs value-compare on cars);
+(b) mirrors of canonicity-sensitive ACL2 theorems are FALSE as ∀-env
+    statements — verified `(equal (* 1 q) q)` = NIL for q = `.rational 2 4`,
+    so e.g. `(implies (rationalp x) (equal (* 1 x) x))` (a true ACL2
+    theorem) has a false mirror.
+NOT a proof-of-false-statement unsoundness (a false hypothesis can never be
+discharged — fail-closed), but a statement-meaning divergence of the
+trust-note class: some mirror statements do not mean the ACL2 theorem, and
+the LEXORDER-TRANSITIVE rule hypothesis is undischargeable as stated —
+blocking the ratified external-knowledge D5/WP3. Resolution options (MDD
+decision pending; design doc §D5 addendum): (A) canonical-by-construction
+`Number` (junk unrepresentable — value space = ACL2's, the masquerade
+objective at the type level), or (B) canonical-env hypotheses in mirror/rule
+statements (matches ACL2's quantification over ITS value space).
+
 ## BUG-011 — ACL2's own numeric reader macros `#f` / `#d` / `#u`
 Status: open
 Pinned-by: differential

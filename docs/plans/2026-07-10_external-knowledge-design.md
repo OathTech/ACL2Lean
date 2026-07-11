@@ -206,6 +206,23 @@ spike: re-prove `lexorder_trans` against the corrected definition before
 any plan claims depend on it. D5's policy is ratified; its central kernel
 obligation is real work, not a restore.
 
+**SPIKE RESULT (2026-07-11) — WP3 BLOCKED on BUG-012 (MDD decision
+required).** The spike found the obligation FALSE as currently statable:
+`lexorder` transitivity fails over ALL SExpr (executed countermodel —
+x=((2/4) . 5), y=((1/2) . nil), z=((2/4) . 3): T, T, NIL), because
+`Number` admits non-canonical representations ACL2's value space excludes
+and the cons branch's structural `==` distinguishes value-equal junk. The
+∀-env rule hypothesis mkRuleHypType would state for LEXORDER-TRANSITIVE is
+therefore false — undischargeable, fail-closed, but a statement-meaning
+divergence of the trust-note class that also silently affects any
+canonicity-sensitive ACL2 theorem (verified: `(equal (* 1 q) q)` = NIL for
+q = `.rational 2 4`). Full entry: docs/BUGS.md BUG-012. Resolution options:
+(A) canonical-by-construction `Number` — junk unrepresentable, statements
+unchanged, value space = ACL2's (masquerade-aligned; trusted-core surgery);
+(B) canonical-env hypotheses in mirror/rule statements (statement-builder +
+mkRuleHypType change; matches ACL2's own quantification). WP0-WP2, WP4,
+WP6 are UNAFFECTED and proceed; WP3/WP5's rule discharge waits on the call.
+
 Scope note: of the four ground-zero lexorder theorems, anti-symmetric and
 total are :FORWARD-CHAINING — expected to surface inside DP leaves where
 the ratified carve-out already governs discharge (asserted from rule
