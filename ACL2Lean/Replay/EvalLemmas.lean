@@ -1548,17 +1548,15 @@ form of `toRat (mkNumber ..)` (`toRat_mkNumber`) gives the *unreduced*
 `plus (mkNumber n d) c` (`plus_mkNumber_left`), after which associativity is a
 ring identity on numerators and a `Nat`-comm identity on denominators. -/
 
-/-- `toRat` always yields a positive denominator. -/
+/-- `toRat` always yields a positive denominator (canonical `Number`: a
+    ratio's denominator is ≥ 2 by the carried invariant). -/
 theorem toRat_den_pos (s : SExpr) : 0 < (Logic.toRat s).2 := by
   unfold Logic.toRat
   split
   · exact Nat.one_pos
-  · split
-    · exact Nat.one_pos
-    · omega
-  · split
-    · exact Nat.one_pos
-    · positivity
+  · rename_i n d hc
+    simp only [canonRat, Bool.and_eq_true, decide_eq_true_eq] at hc
+    omega
   · exact Nat.one_pos
 
 /-- `Logic.plus` in terms of the rational components (definitional). -/
@@ -1573,10 +1571,10 @@ theorem toRat_mkNumber (n : Int) (d : Nat) (hd : 0 < d) :
       = (n / (Nat.gcd n.natAbs d : Int), d / Nat.gcd n.natAbs d) := by
   have hdg : 0 < d / Nat.gcd n.natAbs d :=
     Nat.div_pos (Nat.le_of_dvd hd (Nat.gcd_dvd_right _ _)) (Nat.gcd_pos_of_pos_right _ hd)
-  simp only [Logic.mkNumber, Int.ofNat_eq_natCast, if_neg (show ¬ d = 0 by omega)]
+  simp only [Logic.mkNumber, Int.ofNat_eq_natCast, dif_neg (show ¬ d = 0 by omega)]
   by_cases h1 : d / Nat.gcd n.natAbs d = 1
   · simp [Logic.toRat, h1]
-  · simp [Logic.toRat, h1, (show d / Nat.gcd n.natAbs d ≠ 0 by omega)]
+  · simp [Logic.toRat, h1]
 
 /-- `mkNumber` is invariant under scaling numerator and denominator by `k > 0`. -/
 theorem mkNumber_scale (n : Int) (d k : Nat) (hk : 0 < k) :
@@ -1591,7 +1589,7 @@ theorem mkNumber_scale (n : Int) (d k : Nat) (hk : 0 < k) :
              = n / (Nat.gcd n.natAbs d : Int) := by
       push_cast
       exact Int.mul_ediv_mul_of_pos_left n _ (by exact_mod_cast hk)
-    simp only [Logic.mkNumber, Int.ofNat_eq_natCast, if_neg hd, if_neg hdk, hnat,
+    simp only [Logic.mkNumber, Int.ofNat_eq_natCast, dif_neg hd, dif_neg hdk, hnat,
                Nat.gcd_mul_right, hd2, hn2]
 
 /-- The UNREDUCED form of `plus (mkNumber n d) c`: scaling collapses `mkNumber`'s
@@ -3459,8 +3457,7 @@ theorem tp_cond_integerp_t (v X : SExpr)
     Logic.integerp v = SExpr.t := by
   match v with
   | .atom (.number (.int _)) => rfl
-  | .atom (.number (.rational _ _)) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
-  | .atom (.number (.decimal _ _)) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+  | .atom (.number (.rational _ _ _)) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
   | .atom (.symbol _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
   | .atom (.keyword _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
   | .atom (.char _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
@@ -3500,8 +3497,7 @@ theorem logic_integerp_int (v : SExpr) (h : Logic.integerp v = SExpr.t) :
     ∃ k : Int, v = .atom (.number (.int k)) := by
   match v with
   | .atom (.number (.int k)) => exact ⟨k, rfl⟩
-  | .atom (.number (.rational _ _)) => simp [Logic.integerp, SExpr.t] at h
-  | .atom (.number (.decimal _ _)) => simp [Logic.integerp, SExpr.t] at h
+  | .atom (.number (.rational _ _ _)) => simp [Logic.integerp, SExpr.t] at h
   | .atom (.symbol _) => simp [Logic.integerp, SExpr.t] at h
   | .atom (.keyword _) => simp [Logic.integerp, SExpr.t] at h
   | .atom (.char _) => simp [Logic.integerp, SExpr.t] at h

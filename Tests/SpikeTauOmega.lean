@@ -41,8 +41,7 @@ theorem tau_leaf_07_subgoal_1'
       -- k > 0; now (+ -1 k) = k-1 as an int atom, and k-1 < k by omega.
       simp [plus, toRat, negOne, mkNumber, lt]
       omega
-  | .atom (.number (.rational a b)) => simp [zp, toInt] at h
-  | .atom (.number (.decimal m e)) => simp [zp, toInt] at h
+  | .atom (.number (.rational a b _)) => simp [zp, toInt] at h
   | .atom (.symbol s) => simp [zp, toInt] at h
   | .atom (.keyword k) => simp [zp, toInt] at h
   | .atom (.string s) => simp [zp, toInt] at h

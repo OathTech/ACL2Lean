@@ -48,18 +48,43 @@ instance : Repr Symbol where
 /-- Keywords are stored without the leading colon. -/
 abbrev Keyword := String
 
-/-- Numeric literals include integers and common decimal rationals. -/
+/-- Decidable CANONICITY of a ratio: denominator ≥ 2 and the fraction is in
+    lowest terms. This is exactly ACL2's number value space: every ACL2
+    rational with denominator 1 IS an integer, and ratios are always reduced —
+    `2/4` is not a distinct object from `1/2`. -/
+def canonRat (n : Int) (d : Nat) : Bool := 2 ≤ d && n.natAbs.gcd d == 1
+
+/-- ACL2 numbers, CANONICAL BY CONSTRUCTION (BUG-012, Option A —
+    docs/notes/2026-07-11_canonical-number-design.md): one representation per
+    value, mirroring ACL2's value-space restriction at the type level. A
+    `rational` carries the (proof-irrelevant, decidable) canonicity invariant;
+    construct via `Logic.mkNumber`, never raw. There is NO decimal constructor
+    — ACL2 has no such value type (the former `decimal` was unreachable from
+    the parser/evaluator). -/
 inductive Number
   | int (value : Int)
   | rational (numerator : Int) (denominator : Nat)
-  | decimal (mantissa : Int) (exponent : Int)
-  deriving DecidableEq
+             (canon : canonRat numerator denominator = true)
+
+/-- Equality on `Number` is equality of the DATA; the canonicity proofs are
+    propositionally irrelevant. -/
+instance : DecidableEq Number := fun a b =>
+  match a, b with
+  | .int m, .int n =>
+    if h : m = n then .isTrue (by subst h; rfl)
+    else .isFalse (fun hc => by cases hc; exact h rfl)
+  | .rational n1 d1 c1, .rational n2 d2 c2 =>
+    if h : n1 = n2 ∧ d1 = d2 then
+      .isTrue (by obtain ⟨h1, h2⟩ := h; subst h1; subst h2; rfl)
+    else
+      .isFalse (fun hc => by cases hc; exact h ⟨rfl, rfl⟩)
+  | .int _, .rational _ _ _ => .isFalse (by intro h; cases h)
+  | .rational _ _ _, .int _ => .isFalse (by intro h; cases h)
 
 instance : Repr Number where
   reprPrec n _ := match n with
     | .int v => repr v
-    | .rational n d => s!"{n}/{d}"
-    | .decimal m e => s!"{m}E{e}"
+    | .rational n d _ => s!"{n}/{d}"
 
 inductive Atom
   | symbol (value : Symbol)

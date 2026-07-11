@@ -43,9 +43,8 @@ private def fnCountEvgAtom (a : Atom) (acc : Nat) : Nat :=
       if len >= fnCountEvgMaxVal then fnCountEvgMaxVal
       else Nat.min fnCountEvgMaxVal (acc + 2 + 2 * len)
   | .number (.int n) => fnCountEvgInt n acc
-  | .number (.rational n d) =>
+  | .number (.rational n d _) =>
     fnCountEvgInt n (fnCountEvgInt (Int.ofNat d) (acc + 1))
-  | .number (.decimal _ _) => Nat.min fnCountEvgMaxVal (acc + 1)
   | .string s =>
     let len := s.length
     if len >= fnCountEvgMaxVal then fnCountEvgMaxVal

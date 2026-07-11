@@ -36,8 +36,8 @@ private def parseFails (input : String) : Bool :=
 #guard parseOne "0" = some (.atom (.number (.int 0)))
 
 -- Rational literals
-#guard parseOne "3/4" = some (.atom (.number (.rational 3 4)))
-#guard parseOne "-1/3" = some (.atom (.number (.rational (-1) 3)))
+#guard parseOne "3/4" = some (Logic.mkNumber 3 4)
+#guard parseOne "-1/3" = some (Logic.mkNumber (-1) 3)
 
 -- String literals
 #guard parseOne "\"hello\"" = some (.atom (.string "hello"))

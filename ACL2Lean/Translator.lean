@@ -81,8 +81,9 @@ partial def translateLiteral : SExpr → String
       s!"(SExpr.atom (.symbol \{ package := \"{escapeStringLit s.package}\", \
 name := \"{escapeStringLit s.name}\" }))"
   | .atom (.number (.int n)) => s!"(SExpr.atom (.number (.int ({n}))))"
-  | .atom (.number (.rational n d)) => s!"(SExpr.atom (.number (.rational ({n}) ({d}))))"
-  | .atom (.number (.decimal m e)) => s!"(SExpr.atom (.number (.decimal ({m}) ({e}))))"
+  -- canonical Number (BUG-012): emit via the proving smart constructor —
+  -- the parsed value is canonical, so mkNumber reproduces it exactly
+  | .atom (.number (.rational n d _)) => s!"(Logic.mkNumber ({n}) ({d}))"
   | .atom (.string s) => s!"(SExpr.atom (.string \"{escapeStringLit s}\"))"
   | .atom (.keyword k) => s!"(SExpr.atom (.keyword \"{escapeStringLit k}\"))"
   | .atom (.char c) => s!"(SExpr.atom (.char ({c.toNat} : UInt8)))"

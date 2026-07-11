@@ -60,10 +60,13 @@ def reflectSymbol (s : Symbol) : Expr :=
 
 def reflectNumber : Number → Expr
   | .int v => mkApp (mkConst ``Number.int) (reflectInt v)
-  | .rational num den =>
-    mkApp2 (mkConst ``Number.rational) (reflectInt num) (mkNatLit den)
-  | .decimal m e =>
-    mkApp2 (mkConst ``Number.decimal) (reflectInt m) (reflectInt e)
+  | .rational num den _ =>
+    -- canonical Number (BUG-012): the runtime value carries its canonicity,
+    -- and the reflected literal re-proves it by kernel computation —
+    -- `canonRat <num> <den>` whnf-reduces to `true`, so a defeq-cast `rfl`
+    -- (of type `true = true`) checks against `canonRat num den = true`.
+    mkApp3 (mkConst ``Number.rational) (reflectInt num) (mkNatLit den)
+      (mkApp2 (mkConst ``rfl [levelOne]) (mkConst ``Bool) (mkConst ``Bool.true))
 
 def reflectAtom : Atom → Expr
   | .symbol s => mkApp (mkConst ``Atom.symbol) (reflectSymbol s)

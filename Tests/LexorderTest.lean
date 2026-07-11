@@ -3,7 +3,7 @@ import ACL2Lean.Lexorder
 open ACL2
 
 private abbrev I (n : Int) : SExpr := .atom (.number (.int n))
-private abbrev R (n : Int) (d : Nat) : SExpr := .atom (.number (.rational n d))
+private abbrev R (n : Int) (d : Nat) : SExpr := Logic.mkNumber n d
 private abbrev Sym (n : String) : SExpr := .atom (.symbol { name := n })
 private abbrev Kw (k : String) : SExpr := .atom (.keyword k)
 private abbrev Str (s : String) : SExpr := .atom (.string s)

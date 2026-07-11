@@ -3,7 +3,7 @@ import ACL2Lean.Logic
 open ACL2
 
 private abbrev I (n : Int) : SExpr := .atom (.number (.int n))
-private abbrev R (n : Int) (d : Nat) : SExpr := .atom (.number (.rational n d))
+private abbrev R (n : Int) (d : Nat) : SExpr := Logic.mkNumber n d
 private abbrev S (s : String) : SExpr := .atom (.string s)
 private abbrev Sym (n : String) : SExpr := .atom (.symbol { name := n })
 
@@ -216,20 +216,14 @@ private abbrev Sym (n : String) : SExpr := .atom (.symbol { name := n })
 #guard Logic.div (I 6) (I (-3)) = I (-2)
 #guard Logic.div (I 1) (I (-2)) = R (-1) 2
 
--- Rational with zero denominator → (0, 1) via toRat
-private def badRat : SExpr := .atom (.number (.rational 5 0))
-#guard Logic.toRat badRat = (0, 1)
-#guard Logic.plus badRat (I 3) = I 3
+-- (the former zero-denominator and decimal junk-tolerance tests are gone:
+-- such values are UNREPRESENTABLE on the canonical Number type, BUG-012)
 
 -- mkNumber GCD reduction
 #guard Logic.mkNumber 6 3 = I 2
 #guard Logic.mkNumber 2 4 = R 1 2
 #guard Logic.mkNumber 0 5 = I 0
 #guard Logic.mkNumber 5 0 = I 0
-
--- Decimal → rational conversion via toRat
-private def dec : SExpr := .atom (.number (.decimal 1 (-2)))
-#guard Logic.toRat dec = (1, 100)
 
 -- Rational-to-rational arithmetic
 #guard Logic.div (R 1 2) (R 1 3) = R 3 2

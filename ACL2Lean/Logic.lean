@@ -25,26 +25,66 @@ open ACL2
 @[inline, simp] def toNat (s : SExpr) : Nat :=
   (toInt s).toNat
 
-/-- Extract (numerator, denominator) from any SExpr. Non-numbers → (0, 1). -/
+/-- Extract (numerator, denominator) from any SExpr. Non-numbers → (0, 1).
+    On the canonical `Number` type (BUG-012 Option A) the denominator is ≥ 2
+    and the pair is reduced, so `toRat` is INJECTIVE on numbers. -/
 @[inline] def toRat (s : SExpr) : Int × Nat :=
   match s with
   | .atom (.number (.int n)) => (n, 1)
-  | .atom (.number (.rational n d)) => if d = 0 then (0, 1) else (n, d)
-  | .atom (.number (.decimal m e)) =>
-    if e >= 0 then (m * (10 ^ e.toNat), 1)
-    else (m, 10 ^ (-e).toNat)
+  | .atom (.number (.rational n d _)) => (n, d)
   | _ => (0, 1)
 
-/-- Construct a normalized number SExpr from numerator/denominator.
+/-- `natAbs` of an EXACT integer division by a positive `Nat` divisor.
+    (Stated standalone with a clean variable so `subst` applies; proved from
+    core lemmas only — the Mathlib `Int.natAbs_ediv_of_dvd` pulls in
+    `Classical.choice`, which would leak into every proof that computes
+    through `mkNumber`.) -/
+theorem natAbs_ediv_exact (g : Nat) (n : Int) (hg : 0 < g)
+    (h : (Int.ofNat g) ∣ n) : (n / Int.ofNat g).natAbs = n.natAbs / g := by
+  rcases h with ⟨k, hk⟩
+  subst hk
+  rw [Int.mul_ediv_cancel_left _ (by simp only [Int.ofNat_eq_natCast]; omega), Int.natAbs_mul]
+  show k.natAbs = g * k.natAbs / g   -- (Int.ofNat g).natAbs ≡ g definitionally
+  exact (Nat.mul_div_cancel_left _ hg).symm
+
+/-- The gcd-reduction in `mkNumber` yields a CANONICAL ratio: if the reduced
+    denominator is not 1, it is ≥ 2 and coprime to the reduced numerator. -/
+theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
+    (hd' : d / Nat.gcd n.natAbs d ≠ 1) :
+    canonRat (n / Int.ofNat (Nat.gcd n.natAbs d)) (d / Nat.gcd n.natAbs d)
+      = true := by
+  have hg : 0 < Nat.gcd n.natAbs d :=
+    Nat.gcd_pos_of_pos_right _ (Nat.pos_of_ne_zero hd)
+  have hdvd_d : Nat.gcd n.natAbs d ∣ d := Nat.gcd_dvd_right _ _
+  have hdvd_n : (Int.ofNat (Nat.gcd n.natAbs d)) ∣ n := by
+    rcases Nat.gcd_dvd_left n.natAbs d with ⟨c, hc⟩
+    refine Int.dvd_natAbs.mp ⟨Int.ofNat c, ?_⟩
+    conv => lhs; rw [hc]
+    rfl
+  -- denominator ≥ 2: the exact quotient is nonzero (g ∣ d, d ≠ 0) and ≠ 1
+  have hd'pos : 0 < d / Nat.gcd n.natAbs d :=
+    Nat.div_pos (Nat.le_of_dvd (Nat.pos_of_ne_zero hd) hdvd_d) hg
+  have h2 : 2 ≤ d / Nat.gcd n.natAbs d := by omega
+  -- coprimality: |n/g| = |n|/g, and (|n|/g, d/g) is the coprime pair
+  have habs : (n / Int.ofNat (Nat.gcd n.natAbs d)).natAbs
+      = n.natAbs / Nat.gcd n.natAbs d := natAbs_ediv_exact _ _ hg hdvd_n
+  have hcop : Nat.Coprime (n.natAbs / Nat.gcd n.natAbs d)
+      (d / Nat.gcd n.natAbs d) := Nat.coprime_div_gcd_div_gcd hg
+  simp only [canonRat, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq, habs]
+  exact ⟨h2, hcop⟩
+
+/-- Construct a normalized number SExpr from numerator/denominator — THE
+    smart constructor for every ACL2 number (BUG-012 Option A: the canonicity
+    invariant is proved here, so junk representations are unrepresentable).
     Reduces by GCD; returns an integer when denominator divides out. -/
 @[inline] def mkNumber (n : Int) (d : Nat) : SExpr :=
-  if d = 0 then .atom (.number (.int 0))
+  if hd : d = 0 then .atom (.number (.int 0))
   else
     let g := Nat.gcd n.natAbs d
     let n' := n / Int.ofNat g
     let d' := d / g
-    if d' = 1 then .atom (.number (.int n'))
-    else .atom (.number (.rational n' d'))
+    if hd' : d' = 1 then .atom (.number (.int n'))
+    else .atom (.number (.rational n' d' (canonRat_mkNumber hd hd')))
 
 /-- ACL2 `zp`: true if `n` is not a positive integer. -/
 @[inline, simp] def zp (n : SExpr) : SExpr :=
@@ -189,9 +229,13 @@ open ACL2
   let x := toInt a
   let y := toInt b
   if y < 0 then
-    let denom := x ^ (-y).toNat
-    if denom == 0 then .atom (.number (.int 0))
-    else .atom (.number (.rational 1 denom.toNat))
+    -- 1/(x^-y) as an EXACT canonical rational: sign to the numerator
+    -- (1/p = sign(p)/|p|). Fixes the former junk producer (`expt 1 -1` built
+    -- `.rational 1 1`) and its sign bug (`expt -1 -1` lost the sign) — both
+    -- latent, EXPT is not yet wired into callBuiltin.
+    let p := x ^ (-y).toNat
+    if p == 0 then .atom (.number (.int 0))
+    else mkNumber p.sign p.natAbs
   else .atom (.number (.int (x ^ y.toNat)))
 
 /-- ACL2 `le` (<=). Full rational comparison. -/
@@ -211,12 +255,6 @@ open ACL2
   let (an, ad) := toRat a
   let (bn, bd) := toRat b
   if an * bd > bn * ad then .t else .nil
-
-@[inline, simp] def rational (n : Int) (d : Nat) : SExpr :=
-  .atom (.number (.rational n d))
-
-@[inline, simp] def decimal (m : Int) (e : Int) : SExpr :=
-  .atom (.number (.decimal m e))
 
 /-- ACL2 `first`. -/
 @[inline, simp] def first (s : SExpr) : SExpr := car s
@@ -353,7 +391,7 @@ instance : OfNat SExpr n where
     | symbol _ | keyword _ | string _ | char _ => simp [zp, toInt, toBool] at h
     | number num =>
       cases num with
-      | rational _ _ | decimal _ _ => simp [zp, toInt, toBool] at h
+      | rational _ _ _ => simp [zp, toInt, toBool] at h
       | int k =>
         simp only [zp, toInt] at h
         split at h
@@ -429,7 +467,7 @@ instance : OfNat SExpr n where
     | symbol _ | keyword _ | string _ | char _ => simp [integerp, toBool] at h
     | number n =>
       cases n with
-      | rational _ _ | decimal _ _ => simp [integerp, toBool] at h
+      | rational _ _ _ => simp [integerp, toBool] at h
       | int k => simp [equal, toInt]
 
 @[grind →] theorem integerp_toInt (x : SExpr) : toBool (integerp x) = true → x = .atom (.number (.int (toInt x))) := by
@@ -442,7 +480,7 @@ instance : OfNat SExpr n where
     | symbol _ | keyword _ | string _ | char _ => simp [integerp, toBool] at h
     | number n =>
       cases n with
-      | rational _ _ | decimal _ _ => simp [integerp, toBool] at h
+      | rational _ _ _ => simp [integerp, toBool] at h
       | int k => simp [toInt]
 
 @[simp] theorem toInt_minus_int (m n : Int) :
@@ -481,7 +519,7 @@ instance : OfNat SExpr n where
       | symbol _ | keyword _ | string _ | char _ => simp [integerp, toBool] at h
       | number n =>
         cases n with
-        | rational _ _ | decimal _ _ => simp [integerp, toBool] at h
+        | rational _ _ _ => simp [integerp, toBool] at h
         | int k => exact ⟨k, rfl⟩
   · intro ⟨n, h⟩; subst h; simp [integerp, toBool]
 
