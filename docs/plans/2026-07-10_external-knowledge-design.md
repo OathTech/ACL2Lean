@@ -1,10 +1,15 @@
-# External-knowledge discharge — design (PROPOSAL for MDD review)
+# External-knowledge discharge — design (RATIFIED 2026-07-11)
 
 *2026-07-10, branch `mdd/external-knowledge`. Supersedes the roadmap's R2(c)
 paragraph (see its 2026-07-10 addendum); problem statement + measured evidence
-in `docs/notes/2026-07-10_external-knowledge-assessment.md`. Nothing here is
-ratified except D5's justification policy (species-2 = prove-in-Lean-about-
-the-primitive, MDD-ratified 2026-07-10 in discussion).*
+in `docs/notes/2026-07-10_external-knowledge-assessment.md`.*
+
+*RATIFIED (MDD 2026-07-11), post-audit: D5's justification policy
+(prove-in-Lean-about-the-primitive, 2026-07-10) plus all four §9 decisions —
+D3 snapshot scope = CITED-CLOSURE; D4 growth = PER CITED FN with H3 gates;
+D7 obligations = HOME-WORLD, BOOK-TAGGED; sequencing = REGISTRY (WP4)
+BEFORE cross-book (WP5). Work proceeds in WP order, WP3's lexorder_trans
+feasibility spike first (the audit's top open risk).*
 
 ## 1. Problem
 
@@ -341,14 +346,14 @@ remains open: lexorder_trans provability under the corrected definition
 (fail-closed check at WP0), and the FC-rules-only-in-DP-leaves assertion
 (verify against a dumped isort tree at WP3).
 
-## 9. Open questions for MDD (beyond the ratified D5 policy)
+## 9. MDD decisions (RATIFIED 2026-07-11 — all as proposed)
 
-1. D3 snapshot scope: cited-closure (proposed) vs a fixed curated set —
-   cited-closure is fail-closed and corpus-driven; confirm.
-2. D4 fn list growth policy: add per cited fn (proposed), each with its
-   consistency lemma + differential entries per H3.
-3. D7 step 5 obligation surfacing: book-tagged home-world facts (proposed)
-   vs transferring obligations to `w_C` (more uniform-looking telescopes,
-   but requires the reverse transfer direction, which is false in general).
-4. WP4 ordering: registry BEFORE cross-book (proposed — de-risks the scale
-   question on a book that already replays) vs after.
+1. D3 snapshot scope: **CITED-CLOSURE** (fail-closed, corpus-driven; an
+   uncited-but-needed fn hard-fails at replay and drives the next emission).
+2. D4 fn growth: **PER CITED FN**, each with its consistency lemma
+   recompute-checked against the emitted body + differential entries per H3.
+3. D7 obligation surfacing: **HOME-WORLD, BOOK-TAGGED** (discharged once at
+   the source book, shared by all consumers; the reverse transfer direction
+   is false in general, so this is also the only sound uniform choice).
+4. Sequencing: **REGISTRY (WP4) BEFORE CROSS-BOOK (WP5)** — same-book
+   rewire on the perm book first, golden-gated, proof-size measured.
