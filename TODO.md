@@ -5,7 +5,27 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-10._
+_Last updated: 2026-07-12._
+
+> **External-knowledge arc (branch `mdd/external-knowledge`) — design
+> RATIFIED, prerequisites + order proofs DONE (2026-07-11/12).** The design
+> doc `docs/plans/2026-07-10_external-knowledge-design.md` (D1–D8,
+> audit-incorporated, four MDD decisions ratified) governs the arc; work
+> proceeds per its WP0–WP6 queue. Landed so far, each gate-verified
+> (differential 386 match / 0 FAIL; ci golden byte-identical):
+> **BUG-012** canonical-by-construction `Number` (junk unrepresentable);
+> **BUG-013 minimal** canonical nil/t symbol identity (`canonSym`); **BUG-014**
+> KEYWORD-package duplicate eliminated (keywords' home package — third
+> instance of the duplication pattern, found exactly where the antisymmetry
+> proof needed it); and the **four lexorder ORDER THEOREMS**
+> (`LexorderOrder.lean`: `lexorder_refl`/`_antisymm`/`_trans`/`_total`,
+> kernel-checked, core-only imports, axioms ⊆ {propext, Classical.choice,
+> Quot.sound}) — the Lean-proved counterparts of ACL2's boot-admitted
+> ground-zero rules, resting on `lexView?` injectivity (`unview`
+> retraction), which is what the BUG-012/013/014 canonicity fixes bought.
+> NEXT: WP0 (fork rule-flush fix + ground-zero snapshot emission), then
+> WP1–WP6 per the design doc (WP3's prelude constants now have their
+> mathematical footing).
 
 > **BUG-002 (symbol case) FIXED (2026-07-08, this branch).** The parser now
 > adopts ACL2's readtable-case :upcase EXACTLY: bare symbols/keywords upcase,

@@ -17,5 +17,6 @@ import ACL2Lean.Imported.Lifting
 import ACL2Lean.Imported.SimpleWorld
 import ACL2Lean.Imported.NativeMirrors
 import ACL2Lean.Lexorder
+import ACL2Lean.LexorderOrder
 import ACL2Lean.TermOrder
 import ACL2Lean.Replay.Driver

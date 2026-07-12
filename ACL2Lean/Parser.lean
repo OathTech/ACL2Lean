@@ -532,11 +532,18 @@ mutual
                     .ok (SExpr.nil, rest)
                   else if (p == "COMMON-LISP" || p == "ACL2") && n == "T" then
                     .ok (SExpr.t, rest)
+                  -- BUG-014: `keyword::foo` IS the keyword `:foo` (the KEYWORD
+                  -- package is the keywords' home package; verified vs running
+                  -- ACL2 2026-07-12: `(equal :foo 'keyword::foo)` = T). Map to
+                  -- the canonical `.keyword` representation; KEYWORD-package
+                  -- Symbols are unrepresentable (canonSym).
+                  else if p == "KEYWORD" then
+                    .ok (SExpr.atom (.keyword n), rest)
                   else if hc : canonSym p n then
                     .ok (SExpr.atom (.symbol { package := p, name := n, canon := hc }), rest)
                   else
-                    -- unreachable (only COMMON-LISP::NIL/T fail canonSym and
-                    -- both are mapped above) — fail closed all the same
+                    -- unreachable (only COMMON-LISP::NIL/T and KEYWORD::* fail
+                    -- canonSym and all are mapped above) — fail closed all the same
                     .error s!"non-canonical symbol identity: {rawTok}"
               | _ => .error s!"malformed package-qualified symbol: {rawTok}"
 end

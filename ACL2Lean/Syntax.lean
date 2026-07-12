@@ -5,19 +5,23 @@ open Lean
 
 namespace ACL2
 
-/-- Decidable symbol-identity CANONICITY (BUG-013, minimal fix): the
+/-- Decidable symbol-identity CANONICITY (BUG-013 minimal fix + BUG-014): the
     `COMMON-LISP` package's `NIL` and `T` are exactly ACL2's `nil`/`t`, whose
     canonical representations are the `SExpr.nil` constructor and `SExpr.t`
     (the ACL2-package `T` symbol, viewed as COMMON-LISP by `lexorder`). A
     `Symbol` value spelling them as COMMON-LISP symbols would be a SECOND
     representation of the same ACL2 object — the BUG-012 duplication pattern
     in the symbol space (breaking `equal` faithfulness and lexorder
-    antisymmetry/transitivity) — so it is unrepresentable. The parser maps
-    the import-resolved spellings (`common-lisp::nil`, `acl2::nil`, …) to
-    the canonical values. Full package-import modeling (the ~977 COMMON-LISP
-    imports, e.g. `'car`'s true package) remains BUG-013. -/
+    antisymmetry/transitivity) — so it is unrepresentable. Likewise the
+    entire `KEYWORD` package (BUG-014): `keyword::foo` IS `:foo` in ACL2
+    (verified 2026-07-12: `(equal :foo 'keyword::foo)` = `T`), and keywords
+    already have a canonical representation, the `Atom.keyword` constructor —
+    a `Symbol` in package `KEYWORD` would duplicate it. The parser maps all
+    these spellings to the canonical values. Full package-import modeling
+    (the ~977 COMMON-LISP imports, e.g. `'car`'s true package) remains
+    BUG-013. -/
 def canonSym (pkg name : String) : Bool :=
-  !(pkg == "COMMON-LISP" && (name == "NIL" || name == "T"))
+  !(pkg == "COMMON-LISP" && (name == "NIL" || name == "T")) && pkg != "KEYWORD"
 
 /-- Symbols cover ACL2 package-qualified names (e.g. `ACL2::CAR`).
     The canonicity field has a tactic default that closes for any literal

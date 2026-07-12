@@ -40,7 +40,12 @@ def symbolLe (n1 p1 n2 p2 : String) : Bool :=
   else if n1 = n2 then p1 ≤ p2
   else false
 
-/-- The view of an SExpr for `lexorder`; a cons has no view. -/
+/-- The view of an SExpr for `lexorder`; a cons has no view. This map is
+    INJECTIVE on SExpr values (proved: `lexView?_inj`, LexorderOrder.lean),
+    which rests on the canonicity invariants: `SExpr.nil`/`SExpr.t` are the
+    unique representations of the COMMON-LISP `NIL`/`T` views (BUG-013,
+    `canonSym`), and `.keyword` is the unique representation of
+    KEYWORD-package views (BUG-014, `canonSym`). -/
 def lexView? : SExpr → Option LexView
   | .nil => some (.sym "NIL" "COMMON-LISP")
   | .t   => some (.sym "T" "COMMON-LISP")
@@ -51,34 +56,41 @@ def lexView? : SExpr → Option LexView
   | .atom (.string s) => some (.string s)
   | .cons _ _ => none
 
+/-- ACL2 `alphorder` on views (axioms.lisp:26995) as a Bool: order by class
+    (`viewKind`: number < character < string < symbol) then within-class
+    value.
+    NUMBERS: ACL2 `alphorder` (axioms.lisp:26997) compares ALL reals by
+    VALUE with a single `(<= x y)` — no int/rational split and no
+    lexicographic (numerator,denominator) compare. Reduce every number
+    to its exact rational `(n,d)` (`Logic.toRat`, d > 0) and compare
+    `n1/d1 ≤ n2/d2` ⟺ `n1*d2 ≤ n2*d1`. (Audit finding, 2026-07-10: the
+    former type-split + lexicographic-rational order gave wrong
+    verdicts, e.g. `(lexorder 1 1/2)` = T here but NIL in ACL2.) -/
+def alphLe (a b : LexView) : Bool :=
+  if viewKind a < viewKind b then true
+  else if viewKind a > viewKind b then false
+  else -- same kind
+    match a, b with
+    | .number v1, .number v2 =>
+      let r1 := Logic.toRat (.atom (.number v1))
+      let r2 := Logic.toRat (.atom (.number v2))
+      decide (r1.1 * (Int.ofNat r2.2) ≤ r2.1 * (Int.ofNat r1.2))
+    | .char c1, .char c2 => decide (c1 ≤ c2)  -- by char-code
+    | .string s1, .string s2 => decide (s1 ≤ s2)
+    | .sym n1 p1, .sym n2 p2 => symbolLe n1 p1 n2 p2
+    | _, _ => false -- unreachable (same kind guarantees same constructor)
+
 /-- `lexorder x y` — total ordering on SExpr values, faithful to ACL2's
     `lexorder`/`alphorder` (axioms.lisp:27041/26995): atoms are ordered by
-    class (`viewKind`: number < character < string < symbol) then
-    within-class value, conses are LARGER than any atom and compared
+    their views (`alphLe`), conses are LARGER than any atom and compared
     lexicographically (car then cdr). `nil`/`t` are ordinary symbols
-    (`lexView?`), not special. -/
+    (`lexView?`), not special. The order properties ACL2 admits as
+    ground-zero rules (LEXORDER-REFLEXIVE, LEXORDER-ANTI-SYMMETRIC,
+    LEXORDER-TRANSITIVE, LEXORDER-TOTAL — axioms.lisp:27154ff) are PROVED
+    about this implementation in LexorderOrder.lean. -/
 def lexorder (x y : SExpr) : SExpr :=
   match lexView? x, lexView? y with
-  | some a, some b =>
-    if viewKind a < viewKind b then .t
-    else if viewKind a > viewKind b then .nil
-    else -- same kind
-      match a, b with
-      -- NUMBERS: ACL2 `alphorder` (axioms.lisp:26997) compares ALL reals by
-      -- VALUE with a single `(<= x y)` — no int/rational split and no
-      -- lexicographic (numerator,denominator) compare. Reduce every number
-      -- to its exact rational `(n,d)` (`Logic.toRat`, d > 0) and compare
-      -- `n1/d1 ≤ n2/d2` ⟺ `n1*d2 ≤ n2*d1`. (Audit finding, 2026-07-10: the
-      -- former type-split + lexicographic-rational order gave wrong
-      -- verdicts, e.g. `(lexorder 1 1/2)` = T here but NIL in ACL2.)
-      | .number v1, .number v2 =>
-        let (n1, d1) := Logic.toRat (.atom (.number v1))
-        let (n2, d2) := Logic.toRat (.atom (.number v2))
-        if n1 * (Int.ofNat d2) ≤ n2 * (Int.ofNat d1) then .t else .nil
-      | .char c1, .char c2 => if c1 ≤ c2 then .t else .nil  -- by char-code
-      | .string s1, .string s2 => if s1 ≤ s2 then .t else .nil
-      | .sym n1 p1, .sym n2 p2 => if symbolLe n1 p1 n2 p2 then .t else .nil
-      | _, _ => .nil -- unreachable (same kind guarantees same constructor)
+  | some a, some b => if alphLe a b then .t else .nil
   | some _, none => .t  -- atom < cons
   | none, some _ => .nil -- cons > atom
   | none, none => -- both conses

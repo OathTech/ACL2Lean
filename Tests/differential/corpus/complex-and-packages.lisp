@@ -80,3 +80,37 @@
 (equal 'car 'common-lisp::car)
 ;@ match
 (lexorder 'common-lisp::nil nil)
+
+; ── BUG-014: the KEYWORD-package duplicate (found 2026-07-12 during the
+;    lexorder order-proof work). `keyword::foo` IS `:foo` — KEYWORD is the
+;    keywords' HOME package — but the parser built a KEYWORD-package Symbol
+;    for it: a second representation of the keyword (the BUG-012/013
+;    duplication pattern, third instance), giving a live wrong value on
+;    `equal` and breaking lexorder antisymmetry (both representations view
+;    as (name . "KEYWORD")). FIX LANDED 2026-07-12: the parser maps
+;    KEYWORD-package tokens to the canonical `.keyword` representation and
+;    KEYWORD-package Symbols are UNREPRESENTABLE (canonSym). Verified vs
+;    running ACL2 2026-07-12; the rows below are regression guards. ──
+;@ match
+(equal :foo 'keyword::foo)
+;@ match
+(lexorder :foo 'keyword::foo)
+;@ match
+(lexorder 'keyword::foo :foo)
+;@ match
+(equal :nil 'keyword::nil)
+
+; ── BUG-015: SINGLE-colon package markers (found 2026-07-12 while
+;    fidelity-checking the BUG-014 fix against running ACL2). The CL reader
+;    treats `pkg:name` as EXTERNAL-symbol access: `keyword:foo` IS `:foo`
+;    (KEYWORD exports everything) and `common-lisp:car` IS
+;    `common-lisp::car` (the standard symbols are external), while
+;    `acl2:car` is a READER ERROR ("The symbol CAR is not external in the
+;    ACL2 package" — verified 2026-07-12; not stream-pinnable, the abort
+;    emits no value line). Our tokenizer splits on "::" only, so a
+;    single-colon token silently parses as an ordinary ACL2-package symbol
+;    with the colon IN ITS NAME — silent wrong values. ──
+;@ known-bug bug:BUG-015 lean NIL
+(equal :foo 'keyword:foo)
+;@ known-bug bug:BUG-015 lean NIL
+(equal 'common-lisp:car 'common-lisp::car)

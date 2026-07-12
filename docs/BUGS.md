@@ -101,8 +101,9 @@ ACL2 `alphorder` (axioms.lisp:26995): keywords ARE symbols and sort within the
 symbol class by `symbol<`. FIXED 2026-07-08 in the `lexorder`/`atomKind`
 FUNCTION (keyword folded into the symbol kind); lexorder was then WIRED into
 callBuiltin (Task #7, 2026-07-08) and is now differentially pinned vs real ACL2.
-NOTE: the order-property PROOFS (total/antisym/trans) remain commented out
-pending re-proof (Lexorder.lean TODO) — not needed for the evaluator.
+NOTE: the order-property PROOFS (refl/antisym/trans/total) are DONE
+(2026-07-12, LexorderOrder.lean — kernel-checked against the corrected
+lexorder, enabled by the BUG-012/013/014 canonicity fixes).
 
 ## BUG-007 — lexorder atomKind: no character class
 Status: fixed
@@ -152,62 +153,109 @@ refusal is faithful-at-the-frontier (never a wrong value). Pinned as
 ## BUG-013 — package-IMPORT symbol identity not modeled (nil/t/car duplicates)
 Status: open
 Pinned-by: differential
+(MINIMAL fix landed 2026-07-11; the full import table remains — hence open.)
 ACL2's ACL2 package IMPORTS ~977 symbols from COMMON-LISP
 (`*common-lisp-symbols-from-main-lisp-package*`): `COMMON-LISP::NIL` IS
 `nil`, `ACL2::NIL` resolves to it by import, and `'car` IS
-`COMMON-LISP::CAR` (`symbol-package-name 'car` = "COMMON-LISP"). Our parser
-stores the literal source-text (package, name) pair UNRESOLVED
-(Parser.lean:518-524, no nil/t/import check), so these are DISTINCT
-symbols — live wrong VALUES (the dangerous class): `(equal
-'common-lisp::nil nil)` = NIL vs ACL2 T; `(if 'common-lisp::nil 'truthy
-'falsy)` = TRUTHY vs ACL2 FALSY; `(equal 'acl2::nil nil)` = NIL vs T;
-`(equal 'car 'common-lisp::car)` = NIL vs T. Pinned in
-complex-and-packages.lisp (5 entries, verified vs running ACL2
-2026-07-11). Found during the lexorder order-proof work: the nil/t
-duplicates are ALSO a second instance of the BUG-012 pattern — two SExpr
-representations of one ACL2 value that `lexorder`'s view collapses but
-`equal` distinguishes — so lexorder antisymmetry/transitivity are FALSE
-over SExpr until the duplicates are unrepresentable (this blocks the
-external-knowledge WP3 order proofs the same way the number junk did).
-Resolution needs an MDD design call (options in the design doc §D5
-addendum #2): (i) minimal canonicalization — parse-map import-resolved
-NIL/T to the canonical constructors + type-level ban of the colliding
-atoms (unblocks the order proofs; remaining import divergences like `car`
-stay pinned known-bugs); (ii) full import-table modeling (the fixed ~977
-list; changes builtin identities' packages and printing — the complete
-fix, big surface); (iii) fail-closed refusal of package-qualified tokens
-naming imports. Related deferred frontier noted at BUG-002 §4 and the
-lexorder note's representation section.
+`COMMON-LISP::CAR` (`symbol-package-name 'car` = "COMMON-LISP"). The parser
+originally stored the literal source-text (package, name) pair UNRESOLVED,
+so these were DISTINCT symbols — live wrong VALUES (the dangerous class):
+`(equal 'common-lisp::nil nil)` = NIL vs ACL2 T; `(if 'common-lisp::nil
+'truthy 'falsy)` = TRUTHY vs ACL2 FALSY; `(equal 'acl2::nil nil)` = NIL vs
+T; `(equal 'car 'common-lisp::car)` = NIL vs T. Found during the lexorder
+order-proof work: the nil/t duplicates are ALSO a second instance of the
+BUG-012 pattern — two SExpr representations of one ACL2 value that
+`lexorder`'s view collapses but `equal` distinguishes — falsifying
+lexorder antisymmetry/transitivity over SExpr.
+MINIMAL FIX LANDED 2026-07-11 (MDD-ratified option (i)): the parser maps
+the import-resolved NIL/T spellings to the canonical `SExpr.nil`/`SExpr.t`,
+and the COMMON-LISP::NIL/T identities are UNREPRESENTABLE as `Symbol`s
+(`canonSym`, Syntax.lean) — restoring equal/if faithfulness for nil/t and
+the view-injectivity the order proofs rest on (LexorderOrder.lean).
+Regression guards + the still-open `car` row in complex-and-packages.lisp
+(verified vs running ACL2 2026-07-11).
+STILL OPEN — full import-table modeling (the fixed ~977 list; changes
+builtin identities' packages and printing — e.g. `(equal 'car
+'common-lisp::car)` and `symbol-package-name 'car`); options (ii)/(iii) in
+the design doc §D5 addendum #2. Related frontier noted at BUG-002 §4 and
+the lexorder note's representation section.
+
+## BUG-014 — KEYWORD-package symbols duplicate keywords
+Status: fixed
+Pinned-by: none (fixed 2026-07-12 — regression guards `match` in
+complex-and-packages.lisp)
+`keyword::foo` IS `:foo` in ACL2 — KEYWORD is the keywords' HOME package
+(not an import; verified vs running ACL2 2026-07-12: `(equal :foo
+'keyword::foo)` = T, `(symbol-package-name 'keyword::foo)` = "KEYWORD").
+Our parser built `Symbol {package := "KEYWORD", name := "FOO"}` for it — a
+SECOND representation of the keyword `.keyword "FOO"` (the BUG-012/013
+duplication pattern, third instance): a live wrong value (`(equal :foo
+'keyword::foo)` = NIL vs T) and a falsifier of lexorder ANTISYMMETRY (both
+representations have the same lexorder view `(name . "KEYWORD")`, so
+lexorder held both ways between distinct values). Found during the
+lexorder order-proof work — exactly where the memory of the pattern said
+to look (the remaining duplicate-representation class after numbers and
+nil/t). FIXED 2026-07-12: `canonSym` (Syntax.lean) additionally forbids
+package "KEYWORD" (the `.keyword` constructor is the unique
+representation), and the parser maps KEYWORD-package tokens to it
+(Parser.lean). This completed `lexView?` injectivity, on which the order
+proofs (LexorderOrder.lean) rest.
+
+## BUG-015 — single-colon package markers not handled
+Status: open
+Pinned-by: differential
+The CL reader (ACL2's reader) treats `pkg:name` (ONE colon) as
+EXTERNAL-symbol access: `keyword:foo` IS `:foo` (the KEYWORD package
+exports everything), `common-lisp:car` IS `common-lisp::car` (the standard
+symbols are external), and `acl2:car` is a READER ERROR ("The symbol CAR
+is not external in the ACL2 package" — the ACL2 package exports nothing).
+All verified vs running ACL2 2026-07-12 (found while fidelity-checking the
+BUG-014 fix). Our tokenizer splits package markers on `::` ONLY
+(Parser.lean), so a single-colon token silently parses as an ordinary
+ACL2-package symbol with the colon IN ITS NAME (`'keyword:foo` → symbol
+"KEYWORD:FOO") — silent wrong values (the dangerous class): `(equal :foo
+'keyword:foo)` = NIL vs T, `(equal 'common-lisp:car 'common-lisp::car)` =
+NIL vs T. Pinned in complex-and-packages.lisp (2 entries; the `acl2:car`
+error case is not stream-pinnable — the raw-Lisp abort emits no value
+line). Faithful resolution needs external-ness per package: trivial for
+KEYWORD (all external → map to `.keyword` like BUG-014) and ACL2 (none →
+reader error), but COMMON-LISP's external set is exactly the standard-
+symbol list — the BUG-013 import-table surface. Interim option: fail-closed
+refusal of all single-colon package tokens (never silently wrong;
+over-strict where ACL2 accepts, pinned `known-bug lean <refused>`).
 
 ## BUG-012 — SExpr admits non-canonical numbers outside ACL2's value space
-Status: open
-Pinned-by: none (the junk values are UNREACHABLE from the ACL2-visible
-surface — parser and arithmetic canonicalize via `Logic.mkNumber` — so no
-differential form can exhibit them; the divergence lives in the ∀-env
-quantification of mirror statements)
-`Number` (Syntax.lean:52) admits `.rational 2 4`, `.rational 1 1`,
-`.decimal …` — multiple representations of one rational value — while ACL2's
-value space has exactly one (reduced ratio, or integer). Recognizers accept
-the junk, arithmetic normalizes it (`(* 1 x)` canonicalizes), and
-`equal`/`==` are structural — so VALUE-equal junk representations are
-distinguishable. Consequences (found by the external-knowledge WP3 spike,
-2026-07-11, countermodel EXECUTED):
-(a) `lexorder` transitivity is FALSE over all SExpr — x=((2/4) . 5),
-    y=((1/2) . nil), z=((2/4) . 3) gives lexorder x y = T, y z = T,
+Status: fixed
+Pinned-by: none (fixed 2026-07-11; the junk values were UNREACHABLE from
+the ACL2-visible surface, so no differential form could exhibit them — the
+divergence lived in the ∀-env quantification of mirror statements, and the
+fix makes them UNREPRESENTABLE)
+`Number` formerly admitted `.rational 2 4`, `.rational 1 1`, `.decimal …` —
+multiple representations of one rational value — while ACL2's value space
+has exactly one (reduced ratio, or integer). Recognizers accepted the junk,
+arithmetic normalized it (`(* 1 x)` canonicalizes), and `equal`/`==` are
+structural — so VALUE-equal junk representations were distinguishable.
+Consequences (found by the external-knowledge WP3 spike, 2026-07-11,
+countermodel EXECUTED):
+(a) `lexorder` transitivity was FALSE over all SExpr — x=((2/4) . 5),
+    y=((1/2) . nil), z=((2/4) . 3) gave lexorder x y = T, y z = T,
     x z = NIL (the cons branch's structural `==` vs value-compare on cars);
-(b) mirrors of canonicity-sensitive ACL2 theorems are FALSE as ∀-env
+(b) mirrors of canonicity-sensitive ACL2 theorems were FALSE as ∀-env
     statements — verified `(equal (* 1 q) q)` = NIL for q = `.rational 2 4`,
     so e.g. `(implies (rationalp x) (equal (* 1 x) x))` (a true ACL2
-    theorem) has a false mirror.
+    theorem) had a false mirror.
 NOT a proof-of-false-statement unsoundness (a false hypothesis can never be
 discharged — fail-closed), but a statement-meaning divergence of the
-trust-note class: some mirror statements do not mean the ACL2 theorem, and
-the LEXORDER-TRANSITIVE rule hypothesis is undischargeable as stated —
-blocking the ratified external-knowledge D5/WP3. Resolution options (MDD
-decision pending; design doc §D5 addendum): (A) canonical-by-construction
-`Number` (junk unrepresentable — value space = ACL2's, the masquerade
-objective at the type level), or (B) canonical-env hypotheses in mirror/rule
-statements (matches ACL2's quantification over ITS value space).
+trust-note class, blocking the external-knowledge D5/WP3 order proofs.
+FIXED 2026-07-11 (MDD-ratified Option A — mirror ACL2's value-space
+restriction at the type level; docs/notes/2026-07-11_canonical-number-
+design.md): `Number.rational` carries a decidable canonicity invariant
+(`canonRat`: denominator ≥ 2, reduced), the unreachable `.decimal`
+constructor is DELETED, and `Logic.mkNumber` is the proving smart
+constructor (the sole construction route). Junk is unrepresentable; the
+lexorder order proofs (LexorderOrder.lean) rest on the injectivity this
+buys. Gates green with behavior byte-identical (the values were already
+canonicalized dynamically).
 
 ## BUG-011 — ACL2's own numeric reader macros `#f` / `#d` / `#u`
 Status: open
