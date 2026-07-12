@@ -95,3 +95,37 @@
 '#2r101
 ;@ match
 '#16rFF
+
+; ── BUG-015 (single-colon package markers) — INTERIM FAIL-CLOSED FIX
+; (2026-07-12). In the CL reader an unescaped colon is ALWAYS a package
+; marker; `pkg:name` (one colon) is EXTERNAL-symbol access — `keyword:foo`
+; IS `:foo`, `common-lisp:car` IS `common-lisp::car`, and `acl2:car` is a
+; reader ERROR (nothing external in the ACL2 package). A faithful resolution
+; needs per-package export tables (the BUG-013 import-table surface); until
+; then the parser fail-CLOSES on any single-colon (and otherwise malformed)
+; package token — over-strict where ACL2 accepts, but never a silent wrong
+; value. Pinned here (isolate) because a parse error aborts the batched Lean
+; stream; `known-bug lean <refused>` = ACL2 has a value, Lean's parser
+; rejects (too strict). ──
+;@ known-bug bug:BUG-015 lean <refused>
+'keyword:foo
+;@ known-bug bug:BUG-015 lean <refused>
+'common-lisp:car
+; CONTROLS — the forms the fix must NOT over-reject (must stay accepted):
+; double-colon internal access and dotted symbols.
+;@ match
+'acl2::foo
+;@ match
+'keyword::foo
+;@ match
+'foo.bar
+; A colon INSIDE a |…| escape is a genuine colon-in-name symbol (NOT a
+; package marker — the whole-token escape branch handles it before the
+; colon-refusal path, so the parser accepts it correctly: `(equal '|a:b|
+; '|a:b|)` = T). It is pinned `known-bug`, not `match`, only because our
+; PRINTER does not escape the name on output (renders `a:b`, ACL2 renders
+; `|a:b|`) — a separate printer-faithfulness gap, BUG-016. The pin still
+; guards parser over-rejection: if the colon-refusal fix wrongly swallowed
+; this, Lean would go `<refused>` and the pin would FAIL.
+;@ known-bug bug:BUG-016 lean a:b
+'|a:b|

@@ -481,6 +481,58 @@ mutual
         -- nil/t recognition against the UPCASED token (ACL2 names "NIL"/"T").
         if tok = "NIL" then .ok (SExpr.nil, rest)
         else if tok = "T" then .ok (SExpr.t, rest)
+        else if rawTok.contains ':' then
+          -- PACKAGE-QUALIFIED token (BUG-013/014/015). In the CL reader an
+          -- unescaped colon is ALWAYS a package marker; leading-colon keywords
+          -- (`:foo`) and `|…|`-escaped tokens were handled by the branches
+          -- above, so a colon-bearing token HERE is a package reference and
+          -- NEVER a number or dotted symbol. Only the double-colon form
+          -- `pkg::name` (INTERNAL-symbol access) is supported. Single-colon
+          -- `pkg:name` is EXTERNAL-symbol access — `keyword:foo` IS `:foo`,
+          -- `common-lisp:car` IS `common-lisp::car`, `acl2:car` is a reader
+          -- ERROR — which needs per-package export tables (the BUG-013
+          -- import-table surface); until then we fail closed (BUG-015 interim:
+          -- over-strict where ACL2 accepts, never a silent wrong value). Any
+          -- other colon shape (`a:::b`, `a::b::c`, `foo::`, `a:b::c`) is
+          -- malformed. Splitting on "::" cleanly separates the two: a valid
+          -- form yields exactly two nonempty parts with no residual colon.
+          match rawTok.splitOn "::" with
+          | [pkg, name] =>
+              if pkg.isEmpty || name.isEmpty || pkg.contains ':' || name.contains ':' then
+                .error s!"malformed package-qualified symbol: {rawTok}"
+              else
+                let p := normalizePackageName pkg
+                let n := normalizeSymbolName name
+                -- BUG-013 (minimal fix): the ACL2 package IMPORTS NIL and T
+                -- from COMMON-LISP, so `common-lisp::nil` / `acl2::nil` ARE
+                -- nil (same for T) — verified vs running ACL2 2026-07-11.
+                -- Map the resolved identities to the canonical values; the
+                -- COMMON-LISP spellings are unrepresentable as Symbols
+                -- (canonSym). Other packages' NIL/T-named symbols are
+                -- genuinely distinct objects and pass through.
+                if (p == "COMMON-LISP" || p == "ACL2") && n == "NIL" then
+                  .ok (SExpr.nil, rest)
+                else if (p == "COMMON-LISP" || p == "ACL2") && n == "T" then
+                  .ok (SExpr.t, rest)
+                -- BUG-014: `keyword::foo` IS the keyword `:foo` (the KEYWORD
+                -- package is the keywords' home package; verified vs running
+                -- ACL2 2026-07-12: `(equal :foo 'keyword::foo)` = T). Map to
+                -- the canonical `.keyword` representation; KEYWORD-package
+                -- Symbols are unrepresentable (canonSym).
+                else if p == "KEYWORD" then
+                  .ok (SExpr.atom (.keyword n), rest)
+                else if hc : canonSym p n then
+                  .ok (SExpr.atom (.symbol { package := p, name := n, canon := hc }), rest)
+                else
+                  -- unreachable (only COMMON-LISP::NIL/T and KEYWORD::* fail
+                  -- canonSym and all are mapped above) — fail closed all the same
+                  .error s!"non-canonical symbol identity: {rawTok}"
+          | _ =>
+              -- zero `::` (single-colon `pkg:name`) or more than one (`a::b::c`)
+              .error s!"single-colon or malformed package marker unsupported \
+                        (external-symbol access `pkg:name` needs per-package \
+                        export tables; frontier — fail-closed, see BUG-015): \
+                        {rawTok}"
         else
           match tok.toInt? with
           | some n => .ok (SExpr.atom (.number (.int n)), rest)
@@ -515,37 +567,8 @@ mutual
               -- integer (e.g. FOO.BAR) is an ordinary symbol.
               .ok (SExpr.atom (.symbol { name := tok }), rest)
             else
-              let parts := rawTok.splitOn "::"
-              match parts with
-              | [_] => .ok (SExpr.atom (.symbol { name := tok }), rest)
-              | [pkg, name] =>
-                  let p := normalizePackageName pkg
-                  let n := normalizeSymbolName name
-                  -- BUG-013 (minimal fix): the ACL2 package IMPORTS NIL and T
-                  -- from COMMON-LISP, so `common-lisp::nil` / `acl2::nil` ARE
-                  -- nil (same for T) — verified vs running ACL2 2026-07-11.
-                  -- Map the resolved identities to the canonical values; the
-                  -- COMMON-LISP spellings are unrepresentable as Symbols
-                  -- (canonSym). Other packages' NIL/T-named symbols are
-                  -- genuinely distinct objects and pass through.
-                  if (p == "COMMON-LISP" || p == "ACL2") && n == "NIL" then
-                    .ok (SExpr.nil, rest)
-                  else if (p == "COMMON-LISP" || p == "ACL2") && n == "T" then
-                    .ok (SExpr.t, rest)
-                  -- BUG-014: `keyword::foo` IS the keyword `:foo` (the KEYWORD
-                  -- package is the keywords' home package; verified vs running
-                  -- ACL2 2026-07-12: `(equal :foo 'keyword::foo)` = T). Map to
-                  -- the canonical `.keyword` representation; KEYWORD-package
-                  -- Symbols are unrepresentable (canonSym).
-                  else if p == "KEYWORD" then
-                    .ok (SExpr.atom (.keyword n), rest)
-                  else if hc : canonSym p n then
-                    .ok (SExpr.atom (.symbol { package := p, name := n, canon := hc }), rest)
-                  else
-                    -- unreachable (only COMMON-LISP::NIL/T and KEYWORD::* fail
-                    -- canonSym and all are mapped above) — fail closed all the same
-                    .error s!"non-canonical symbol identity: {rawTok}"
-              | _ => .error s!"malformed package-qualified symbol: {rawTok}"
+              -- colon-free, dot-free, non-numeric: a plain ACL2-package symbol.
+              .ok (SExpr.atom (.symbol { name := tok }), rest)
 end
 
 /-- Parse all s-expressions from a string. -/

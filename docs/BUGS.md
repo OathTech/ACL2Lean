@@ -201,28 +201,59 @@ representation), and the parser maps KEYWORD-package tokens to it
 (Parser.lean). This completed `lexView?` injectivity, on which the order
 proofs (LexorderOrder.lean) rest.
 
-## BUG-015 — single-colon package markers not handled
+## BUG-015 — single-colon package markers not fully modeled
 Status: open
 Pinned-by: differential
+(Interim fail-closed fix landed 2026-07-12; full external-set modeling
+remains — hence still open.)
 The CL reader (ACL2's reader) treats `pkg:name` (ONE colon) as
 EXTERNAL-symbol access: `keyword:foo` IS `:foo` (the KEYWORD package
 exports everything), `common-lisp:car` IS `common-lisp::car` (the standard
 symbols are external), and `acl2:car` is a READER ERROR ("The symbol CAR
 is not external in the ACL2 package" — the ACL2 package exports nothing).
 All verified vs running ACL2 2026-07-12 (found while fidelity-checking the
-BUG-014 fix). Our tokenizer splits package markers on `::` ONLY
-(Parser.lean), so a single-colon token silently parses as an ordinary
-ACL2-package symbol with the colon IN ITS NAME (`'keyword:foo` → symbol
-"KEYWORD:FOO") — silent wrong values (the dangerous class): `(equal :foo
-'keyword:foo)` = NIL vs T, `(equal 'common-lisp:car 'common-lisp::car)` =
-NIL vs T. Pinned in complex-and-packages.lisp (2 entries; the `acl2:car`
-error case is not stream-pinnable — the raw-Lisp abort emits no value
-line). Faithful resolution needs external-ness per package: trivial for
-KEYWORD (all external → map to `.keyword` like BUG-014) and ACL2 (none →
-reader error), but COMMON-LISP's external set is exactly the standard-
-symbol list — the BUG-013 import-table surface. Interim option: fail-closed
-refusal of all single-colon package tokens (never silently wrong;
-over-strict where ACL2 accepts, pinned `known-bug lean <refused>`).
+BUG-014 fix). Our tokenizer originally split package markers on `::` ONLY,
+so a single-colon token silently parsed as an ordinary ACL2-package symbol
+with the colon IN ITS NAME (`'keyword:foo` → symbol "KEYWORD:FOO") — silent
+wrong values (the dangerous class): `(equal :foo 'keyword:foo)` = NIL vs T,
+`(equal 'common-lisp:car 'common-lisp::car)` = NIL vs T.
+INTERIM FIX LANDED 2026-07-12 (Parser.lean): an unescaped colon is ALWAYS a
+package marker (leading-colon keywords and `|…|`-escaped tokens are handled
+earlier), so a colon-bearing token is intercepted up front and ONLY the
+double-colon `pkg::name` form is accepted; single-colon `pkg:name` and every
+other colon shape (`a:::b`, `a::b::c`, `foo::`, `pkg::name.x`) FAIL CLOSED
+(parse error). Over-strict where ACL2 accepts external access, but never a
+silent wrong value. Pinned in boundary.lisp (isolate path — a parse error
+aborts the batched Lean stream, so these live with the other `<refused>`
+boundary forms; 2 `known-bug lean <refused>` + control-guards
+(`acl2::foo`/`keyword::foo`/`foo.bar` `match`, `|a:b|` under BUG-016) so
+the fix cannot over-reject double-colon/dotted/escaped forms). The
+`acl2:car` error case is not corpus-pinnable — the raw-Lisp abort emits no
+value line. STILL OPEN — the faithful resolution needs external-ness per
+package: trivial for KEYWORD (all external → map to `.keyword` like
+BUG-014) and ACL2 (none → reader error), but COMMON-LISP's external set is
+exactly the standard-symbol list — the BUG-013 import-table surface. Fold
+into the BUG-013 full fix.
+
+## BUG-016 — printer does not escape non-standard symbol names with `|…|`
+Status: open
+Pinned-by: differential
+ACL2's printer wraps a symbol NAME in `|…|` bars whenever the name is not a
+plain readtable-`:upcase` token — i.e. when it contains a colon, whitespace,
+lowercase, or other special chars — so the printed form reads back as the
+same symbol: `|a:b|` prints `|a:b|`, `|a b|` prints `|a b|`, `|abc|` (name
+"abc", lowercase) prints `|abc|`, while `|FOO|` (name "FOO") prints bare
+`FOO` (all verified vs running ACL2 2026-07-12). Our `Repr Symbol`
+(Syntax.lean:79-81) renders the name VERBATIM (`a:b`, `a b`, `abc`), so the
+printed form is not read-faithful for such names. Distinct from the
+reader-side BUG-014/015 — parsing is CORRECT (`(equal '|a:b| '|a:b|)` = T,
+`(symbol-name '|a:b|)` = "a:b"); only OUTPUT diverges. Surfaced 2026-07-12
+by the BUG-015 control-guard round-trip. Pinned `known-bug bug:BUG-016 lean
+a:b` on `'|a:b|` in boundary.lisp. Fix: teach the printer ACL2's
+`needs-slashes`/`may-need-slashes` logic (axioms.lisp print path) — escape a
+name that is not a bare uppercase token. Keyword printing (`:foo`) and the
+plain-uppercase common case are already faithful; this is the escaped-name
+tail.
 
 ## BUG-012 — SExpr admits non-canonical numbers outside ACL2's value space
 Status: fixed

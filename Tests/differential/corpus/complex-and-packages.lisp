@@ -100,17 +100,8 @@
 ;@ match
 (equal :nil 'keyword::nil)
 
-; ── BUG-015: SINGLE-colon package markers (found 2026-07-12 while
-;    fidelity-checking the BUG-014 fix against running ACL2). The CL reader
-;    treats `pkg:name` as EXTERNAL-symbol access: `keyword:foo` IS `:foo`
-;    (KEYWORD exports everything) and `common-lisp:car` IS
-;    `common-lisp::car` (the standard symbols are external), while
-;    `acl2:car` is a READER ERROR ("The symbol CAR is not external in the
-;    ACL2 package" — verified 2026-07-12; not stream-pinnable, the abort
-;    emits no value line). Our tokenizer splits on "::" only, so a
-;    single-colon token silently parses as an ordinary ACL2-package symbol
-;    with the colon IN ITS NAME — silent wrong values. ──
-;@ known-bug bug:BUG-015 lean NIL
-(equal :foo 'keyword:foo)
-;@ known-bug bug:BUG-015 lean NIL
-(equal 'common-lisp:car 'common-lisp::car)
+; ── BUG-015 (single-colon package markers) is pinned in boundary.lisp, not
+;    here: the interim fix fail-CLOSES the Lean parser on `pkg:name`, and a
+;    parse error aborts the whole batched Lean stream — so those pins need
+;    the per-form `;@isolate` path (boundary.lisp), which maps a parse error
+;    to `<refused>`. See boundary.lisp's BUG-015 block. ──
