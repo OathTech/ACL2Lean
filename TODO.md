@@ -38,8 +38,25 @@ _Last updated: 2026-07-12._
 > `(:REWRITE FLOOR-POSITIVE . 1)` in `(:RULES)` — pre-existing parser
 > frontier, R3 material, verified pre-D8 by flush-position argument);
 > bsort/msort/ordered-perms fail reconstruction on known frontier classes.
-> NEXT: WP1 (D3 world entries + retire `groundZeroDefs`; D6 totality on
-> recomputed clauses), then WP2–WP6 per the design doc.
+> **WP1 DONE (2026-07-15, working tree)**: non-builtin snapshot defuns are
+> World entries at `Development.toWorld`; `groundZeroDefs` RETIRED; the
+> no-shadow exclusion (`builtinNames`, EvalOpt.lean) is CI-enforced
+> (`scripts/check-no-shadow.sh` scrapes `callBuiltin`'s arms and diffs);
+> D6 = snapshot justifications (recomputed clauses) flow to the totality
+> prover; `ReplayConfig.gzNames` feeds the lazy `upTo` bound. **FIX
+> interim keep** (`worldEntryInterimKeeps`, ClauseTree.lean): FIX is the
+> one builtin with a live world-unfold consumer (MY-LEN-MY-APP's step
+> case replays its `definition:` rune — full exclusion regressed it,
+> caught by the native-axiom gate), so its snapshot still world-enters
+> until WP2's D4 definition fact replaces the unfold — REMOVE AT WP2.
+> New frontier class surfaced: LAMBDA (translated LET) applications in
+> snapshot bodies (SYMBOL<) — dpVal walkers now throw it as a TYPED
+> frontier (was an escaping error). Golden updated: exactly the 21
+> predicted world-count rows (audit F1 confirmed — no status/cond flips;
+> REPLAYED 26/50 unchanged). Pins: exclusion/entry/keep/justifications
+> guards in Tests/DriverTests.lean.
+> NEXT: WP2 (D4 builtin definition facts: TRUE-LISTP, LEN, NFIX, + FIX to
+> retire the interim keep), then WP3–WP6 per the design doc.
 
 > **BUG-002 (symbol case) FIXED (2026-07-08, this branch).** The parser now
 > adopts ACL2's readtable-case :upcase EXACTLY: bare symbols/keywords upcase,

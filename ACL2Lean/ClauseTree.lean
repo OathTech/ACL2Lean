@@ -27,6 +27,7 @@
 -/
 import ACL2Lean.ClauseId
 import ACL2Lean.ProofTree
+import ACL2Lean.EvalOpt
 
 namespace ACL2
 
@@ -118,36 +119,51 @@ inductive Development where
   | bind (event : WorldEvent) (rest : Development)
   | done
   deriving Repr, Inhabited
-/-- ACL2 GROUND-ZERO definitions present in EVERY session's world (the bootstrap
-    defuns the replay's `definition:` runes can cite without a logged `(:DEFUN …)`).
-    Transcribed from the ACL2 sources; each entry's provenance is its comment.
-    The eventual alternative is emission-at-use (TODO emission backlog) — until
-    then this curated list is the Lean model of ACL2's ground zero, like
-    `callBuiltin`. -/
-def groundZeroDefs : List (Symbol × List Symbol × SExpr) :=
-  [ -- (defun fix (x) (if (acl2-numberp x) x 0))   [ACL2 axioms.lisp]
-    ({ name := "FIX" }, [{ name := "X" }],
-      .cons (.atom (.symbol { name := "IF" }))
-        (.cons (.cons (.atom (.symbol { name := "ACL2-NUMBERP" }))
-                 (.cons (.atom (.symbol { name := "X" })) .nil))
-          (.cons (.atom (.symbol { name := "X" }))
-            (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
-                     (.cons (.atom (.number (.int 0))) .nil)) .nil))))]
-
+/-- INTERIM (WP1, remove at WP2): builtin names whose ground-zero snapshot
+    STILL enters the world despite the no-shadow exclusion. `FIX` is the one
+    builtin with a live world-unfold consumer today (`MY-LEN-MY-APP`'s step
+    case replays its `definition:` rune) — it was hand-pinned into every
+    world by the old `groundZeroDefs`, so keeping it (now sourced from its
+    own emitted snapshot) preserves the status quo EXACTLY, pre-existing
+    shadow included. WP2's D4 definition fact for FIX replaces the world
+    unfold; this list then empties and the exclusion becomes total. -/
+def worldEntryInterimKeeps : List String := ["FIX"]
 
 /-- Project the `evalOpt` `World` from a reconstructed `Development`: fold each `defun`
     event's `(name, formals, body)` into `World.defs`. The world the replay reasons over is
     thus DERIVED from the parsed proof-log, not hand-written — so the only input to a replay
     is the log. (`typePrescription`/`theorem` events don't extend `defs`.) The `defun` name
-    is a `String`; the key uses the default `Symbol` package, matching the symbols the parser produces in bodies/calls. -/
+    is a `String`; the key uses the default `Symbol` package, matching the symbols the parser produces in bodies/calls.
+
+    Ground-zero SNAPSHOT defuns (design D3, WP1) enter the world the same way —
+    EXCEPT names `callBuiltin` dispatches (`builtinNames`): world-first dispatch
+    would shadow the builtin, changing fuel profiles and falsifying the `hnew`
+    side condition of `evalOpt_world_mono` (D2). Those take the D4
+    definition-fact route (with the `worldEntryInterimKeeps` carve above).
+    This retires the old hand-pinned `groundZeroDefs`. `defs.entries` keeps
+    user defuns in development order with the snapshot defs at the tail
+    (the log emits snapshots after the last theorem). -/
 def Development.toWorld : Development → World
-  | .done =>
-    { defs := groundZeroDefs.foldl (fun m (s, fb) => m.insert s fb) (DefMap.mk []) }
+  | .done => { defs := DefMap.mk [] }
   | .bind ev rest =>
     let w := rest.toWorld
     match ev with
     | .defun name formals body _ _ => { w with defs := w.defs.insert { name := name } (formals, body) }
+    | .groundZeroDefun name formals body _ =>
+      if builtinNames.contains name && !worldEntryInterimKeeps.contains name then w
+      else { w with defs := w.defs.insert { name := name } (formals, body) }
     | _ => w
+
+/-- The names of a development's ground-zero SNAPSHOT defuns (all of them,
+    world-entering or builtin-excluded) — the `ReplayConfig.gzNames` input
+    that lets the totality prover's lazy bound treat snapshot defs as
+    always-in-scope (they logically precede the whole development). -/
+def Development.groundZeroDefunNames : Development → List String
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .groundZeroDefun n _ _ _ => n :: rest.groundZeroDefunNames
+    | _ => rest.groundZeroDefunNames
 
 /-- The emitted type-prescription corollaries of a development (fn name ↦
     corollary term) — the type facts the replay consumes as hypotheses. -/
@@ -170,12 +186,17 @@ def Development.storedRules : Development → List RuleSpec
 
 /-- The admission justifications of a development's RECURSIVE defuns
     (fn name ↦ measure/wfrel/measured-subset + the raw termination clauses),
-    in development order — the data the totality prover consumes (#37). -/
+    in development order — the data the totality prover consumes (#37).
+    Ground-zero snapshot defuns contribute their RECOMPUTED admission
+    clauses the same way (design D6: the totality prover treats them
+    exactly like local defuns; a frontier failure keeps the `total:`
+    hypothesis — completeness, never soundness). -/
 def Development.justifications : Development → List (String × Justification)
   | .done => []
   | .bind ev rest =>
     match ev with
     | .defun n _ _ (some j) _ => (n, j) :: rest.justifications
+    | .groundZeroDefun n _ _ (some j) => (n, j) :: rest.justifications
     | _ => rest.justifications
 
 namespace ClauseTree

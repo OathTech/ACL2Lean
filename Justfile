@@ -22,12 +22,19 @@ check-proof-logs:
 check-bugs:
     ./scripts/check-bugs.sh
 
+# NO-SHADOW gate (D3/D2): builtinNames (the ground-zero world-entry
+# exclusion set) must stay in sync with callBuiltin's match arms — a
+# builtin-named snapshot entering the world would shadow the builtin.
+# Static source scrape; runs in `ci`.
+check-no-shadow:
+    ./scripts/check-no-shadow.sh
+
 # Full conformance: preflight + build + unit tests + driver-coverage (the last
 # gates on reconstruction integrity AND the black-box-leaf emission frontier —
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
 # include_str's the gitignored .proof-log corpus; check-proof-logs runs first
 # so a missing log is a clear error, not a deep elaboration-trace failure.
-ci: lint-sh check-bugs check-proof-logs build test driver-coverage
+ci: lint-sh check-bugs check-no-shadow check-proof-logs build test driver-coverage
 
 # Run the corpus report
 report:

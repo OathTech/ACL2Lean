@@ -63,7 +63,7 @@ private def assertRejected (label expect : String) (cp : ClauseProof)
   Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``ACL2.Tests.Tamper.tamperWorld, envExpr := env,
-        worldVal := permDev.toWorld }
+        worldVal := permDev.toWorld, gzNames := permDev.groundZeroDefunNames }
     try
       let (_, conds) ← replayProofConditional cfg permDev.typePrescriptions cp
         permDev.justifications rules

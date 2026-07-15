@@ -340,7 +340,8 @@ elab "acl2_replay_mylen_real% " : term => do
   withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``simpleWorld, envExpr := env,
-        worldVal := simpleDevelopment.toWorld }
+        worldVal := simpleDevelopment.toWorld,
+        gzNames := simpleDevelopment.groundZeroDefunNames }
     let (proof, conds) ← replayProofConditional cfg simpleTPs cp
       simpleDevelopment.justifications
     logInfo m!"my-len-my-app replayed; conditions: {conds}"
@@ -576,7 +577,8 @@ elab "acl2_replay_permcons_real% " : term => do
   withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``permWorld, envExpr := env,
-        worldVal := permDevelopment.toWorld }
+        worldVal := permDevelopment.toWorld,
+        gzNames := permDevelopment.groundZeroDefunNames }
     let (proof, conds) ← replayProofConditional cfg permTPs cp
       permDevelopment.justifications
     logInfo m!"perm-cons replayed; conditions: {conds}"
@@ -630,7 +632,8 @@ elab "acl2_replay_permtrans_real% " : term => do
   withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``permWorld, envExpr := env,
-        worldVal := permDevelopment.toWorld }
+        worldVal := permDevelopment.toWorld,
+        gzNames := permDevelopment.groundZeroDefunNames }
     let (proof, conds) ← replayProofConditional cfg permTPs cp
       permDevelopment.justifications
       (rulesBefore permDevelopment "perm-transitive")
@@ -707,5 +710,26 @@ private partial def gzRuleSpecs : Development → List RuleSpec
 #guard (gzRuleSpecs isortDevelopment).any fun r =>
   r.name == "LEXORDER-REFLEXIVE" && r.equiv == "equal" && r.rhs == quoteT
     && r.hyps.isEmpty && r.matchFree == none
+
+/-! ### WP1 pins — snapshot world entry + the no-shadow exclusion.
+
+Non-builtin snapshots become World entries; `callBuiltin`-named ones must
+NOT (they would shadow the builtin — D2/hnew), with the ratified `FIX`
+interim keep (its `definition:` rune has a live replayed consumer;
+removed at WP2 when its D4 definition fact lands). -/
+
+-- a non-builtin ground-zero snapshot IS a world entry (with its body)
+#guard (isortDevelopment.toWorld.defs.get? { name := "ACL2-COUNT" }).isSome
+#guard (isortDevelopment.toWorld.defs.get? { name := "ALPHORDER" }).isSome
+-- a builtin-named snapshot is EXCLUDED (no shadow)
+#guard (isortDevelopment.toWorld.defs.get? { name := "LEN" }).isNone
+#guard (isortDevelopment.toWorld.defs.get? { name := "TRUE-LISTP" }).isNone
+#guard (isortDevelopment.toWorld.defs.get? { name := "LEXORDER" }).isNone
+-- the FIX interim keep (WP1 → remove at WP2): world-entered from its own
+-- snapshot wherever cited (simple.proof-log cites it; isort does not)
+#guard (simpleDevelopment.toWorld.defs.get? { name := "FIX" }).isSome
+-- D6: a recursive snapshot's justification (recomputed clauses) reaches
+-- the totality prover's input
+#guard (isortDevelopment.justifications.map (·.1)).contains "ACL2-COUNT"
 
 end ACL2.Tests.Driver

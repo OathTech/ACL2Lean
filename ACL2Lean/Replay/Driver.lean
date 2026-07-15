@@ -433,6 +433,11 @@ structure ReplayConfig where
   worldExpr : Expr
   envExpr : Expr
   worldVal : World := {}
+  /-- Names of the development's ground-zero SNAPSHOT defuns
+      (`Development.groundZeroDefunNames`, D3/WP1) — the totality prover's
+      lazy `upTo` bound treats these as always-in-scope (they logically
+      precede the whole development). Empty for synthetic test worlds. -/
+  gzNames : List String := []
 
 /-- The proof context in scope at a node. All entries are VALUE-CHARACTERIZED
     facts over the ambient env, established by the surrounding structure (the
@@ -716,6 +721,14 @@ partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Ex
       let ve ← dpValExpr opq varVal e
       mkAppM ``cond #[mkApp (mkConst ``Logic.toBool) vc, vt, ve]
     else throwError "dpValExpr: ternary {fs.name} is not a DP-lift primitive: {repr t}"
+  | .cons (.cons (.atom (.symbol lam)) _) _ =>
+    -- a LAMBDA application (ACL2's translated LET) is WELL-FORMED input the
+    -- DP-lift walkers do not support yet (surfaced by ground-zero snapshot
+    -- bodies, e.g. SYMBOL< — WP1): a capability FRONTIER, not a defect.
+    if lam.name == "LAMBDA" then
+      throwFrontier m!"dpValExpr: LAMBDA (translated LET) application \
+                      unsupported (frontier): {repr t}"
+    else throwError "dpValExpr: unsupported term shape: {repr t}"
   | _ => throwError "dpValExpr: unsupported term shape: {repr t}"
 
 /-- A clause variable's default concrete value: `(env.get? s).getD nil`. -/
@@ -782,6 +795,13 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
         #[cfg.worldExpr, envExpr, reflectSExpr c, reflectSExpr th, reflectSExpr e,
           vc, vt, ve, pc, pt, pe]
     else throwError "dpValProof: ternary {fs.name} is not a DP-lift primitive"
+  | .cons (.cons (.atom (.symbol lam)) _) _ =>
+    -- LAMBDA application (translated LET): well-formed, unsupported —
+    -- frontier, not defect (see the dpValExpr twin arm).
+    if lam.name == "LAMBDA" then
+      throwFrontier m!"dpValProof: LAMBDA (translated LET) application \
+                      unsupported (frontier): {repr t}"
+    else throwError "dpValProof: unsupported term shape: {repr t}"
   | _ => throwError "dpValProof: unsupported term shape: {repr t}"
 where
   /-- Variable values consistent with `varP` (fall back to the env lookup). -/
@@ -5797,17 +5817,17 @@ def buildTotalEnv (cfg : ReplayConfig)
   -- dependency-closed; if that were ever violated the only effect is a
   -- frontier failure keeping the hypothesis (D6) — completeness, never
   -- soundness (audit #4)
-  let gz := groundZeroDefs.map (fun (s, _, _) => s)
+  let gz := cfg.gzNames
   let all := cfg.worldVal.defs.entries
   let cands ← match upTo with
     | none => pure all
     | some target => do
-      let userEntries := all.filter (fun (s, _) => !gz.contains s)
+      let userEntries := all.filter (fun (s, _) => !gz.contains s.name)
       let rec takeTo : List (Symbol × List Symbol × SExpr) →
           List (Symbol × List Symbol × SExpr)
         | [] => []
         | e :: rest => if e.1.name == target then [e] else e :: takeTo rest
-      pure (takeTo userEntries ++ all.filter (fun (s, _) => gz.contains s))
+      pure (takeTo userEntries ++ all.filter (fun (s, _) => gz.contains s.name))
   let mut totalEnv : List (String × Nat × Expr) := []
   let mut pending := cands
   let mut progress := true

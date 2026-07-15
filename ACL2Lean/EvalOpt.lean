@@ -88,6 +88,23 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "HIDE", [a] => some a
   | _, _ => none
 
+/-- Every name `callBuiltin` dispatches — one entry per match arm above,
+    KEPT IN SYNC (enforced by `scripts/check-no-shadow.sh` in `just ci`,
+    which scrapes both and diffs). This is the NO-SHADOW exclusion set
+    (design D3/D2): a ground-zero snapshot defun whose name is listed here
+    must NOT become a `World` entry — world-first dispatch (`evalOptStep`)
+    would shadow the builtin, changing fuel profiles (e.g. `LEN` via a
+    world body recurses per element where `Logic.len` is one step) and
+    falsifying the `hnew` side condition of `evalOpt_world_mono`. Such fns
+    take the D4 definition-fact route instead. -/
+def builtinNames : List String :=
+  ["CONS", "CAR", "CDR", "CONSP", "ATOM", "ENDP", "EQUAL", "EQL", "NOT",
+   "BINARY-+", "BINARY-*", "UNARY--", "UNARY-/", "+", "-", "*", "1+", "1-",
+   "<", "INTEGERP", "NATP", "POSP", "RATIONALP", "ACL2-NUMBERP", "ZP",
+   "SYMBOLP", "BOOLEANP", "STRINGP", "CHARACTERP", "CHAR-CODE", "CODE-CHAR",
+   "FIX", "NFIX", "IFIX", "IMPLIES", "IFF", "TRUE-LISTP", "LEN", "LEXORDER",
+   "LIST", "FORCE", "DOUBLE-REWRITE", "HIDE"]
+
 /-- One step of the option-returning evaluator, parameterized by the
     recursive evaluator function. Factored out so that monotonicity
     can be proved about this non-recursive function directly.
