@@ -143,16 +143,23 @@ def collectProofAxioms (e : Expr) : MetaM (List Name) := do
     | none => pure ()
   return axioms.eraseDups
 
-/-- Run the driver on one theorem over its derived world; return a one-line status. The
-    world is PROJECTED from the development and REFLECTED concretely (P4); structural facts
-    are DERIVED by the driver (P3). A message that is neither a `replayClause`/`replayNode`/
-    `replayLiteral` frontier flags a real bug in the new code, not an expected frontier. -/
+/-- Run the driver on one theorem over its derived world; return a one-line
+    status, and — when `mirrorName?` is given and the replay is green — the
+    kept condition strings of the freshly `addDecl`'d D1 MIRROR CONSTANT
+    (design §D1, WP4: subsequent same-book consumers apply the constant via
+    the `MirrorRegistry` instead of re-replaying this theorem's tree). The
+    world is PROJECTED from the development and REFLECTED concretely (P4);
+    structural facts are DERIVED by the driver (P3). A message that is
+    neither a `replayClause`/`replayNode`/`replayLiteral` frontier flags a
+    real bug in the new code, not an expected frontier. -/
 def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (justs : List (String × ACL2.Justification)) (cp : ClauseProof)
     (rules : List ACL2.RuleSpec := [])
     (depProofs : List (String × ClauseProof) := [])
-    (gzDefs : List (Symbol × List Symbol × SExpr) := []) :
-    TermElabM String := do
+    (gzDefs : List (Symbol × List Symbol × SExpr) := [])
+    (mirrors : MirrorRegistry := [])
+    (mirrorName? : Option Name := none) :
+    TermElabM (String × Option (List String)) := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
   -- pins it at command-context creation; ~1M user units ≈ 40 s, a runaway
@@ -163,6 +170,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,
                                     gzDefs := gzDefs }
         let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
+          mirrors
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts
@@ -172,12 +180,19 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
       let bad := axioms.filter (fun a =>
         a != ``propext && a != ``Classical.choice && a != ``Quot.sound)
       unless bad.isEmpty do
-        return s!"FAIL: replay produced a proof using axioms {bad} (sorryAx?)"
+        return (s!"FAIL: replay produced a proof using axioms {bad} (sorryAx?)", none)
+      -- D1: emit the mirror constant (checked + axiom-clean above)
+      let mut registered : Option (List String) := none
+      if let some nm := mirrorName? then
+        let pv ← Lean.instantiateMVars p.1
+        Lean.addDecl <| .thmDecl
+          { name := nm, levelParams := [], type := ← Meta.inferType pv, value := pv }
+        registered := some p.2
       let condStr := if p.2.isEmpty then "" else s!" cond[{", ".intercalate p.2}]"
-      return s!"REPLAYED ✓{condStr}"
-    catch e => return s!"FAIL: {(← e.toMessageData.toString).replace "\n" " "}")
+      return (s!"REPLAYED ✓{condStr}", registered)
+    catch e => return (s!"FAIL: {(← e.toMessageData.toString).replace "\n" " "}", none))
     (fun e =>
-      return s!"FAIL: (runtime: {(← e.toMessageData.toString).replace "\n" " "})")
+      return (s!"FAIL: (runtime: {(← e.toMessageData.toString).replace "\n" " "})", none))
 
 /-- Attempt the DP-lift replay of one discharge leaf: prove the discharge node's
     claim `∃N∀f≥N, eval (disjoin clause) = some t` over a QUANTIFIED env (the
@@ -273,6 +288,13 @@ elab "#driver_coverage" : command => do
           lines := lines.push s!"• {name}  (world: {w.defs.size} defun(s), {thms.length} theorem(s))"
           if thms.isEmpty then
             integrityFails := integrityFails.push s!"{name}: 0 theorems reconstructed (failed/empty capture?)"
+          -- D1 MIRROR REGISTRY, per book (WP4): theorems are replayed in
+          -- creation order (topological in the citation DAG), each green one
+          -- addDecl'd as a mirror constant that later SAME-BOOK consumers
+          -- apply instead of re-replaying its tree. Reset per book — the
+          -- constants are stated over THIS book's world (cross-book reuse is
+          -- WP5's transfer).
+          let mut mirrors : MirrorRegistry := []
           for (cp, rules) in thms do
             total := total + 1
             -- EMISSION FRONTIER (Track B): a black-box PROVED leaf — ACL2 discharged
@@ -285,9 +307,15 @@ elab "#driver_coverage" : command => do
             -- ratified carve-out; attempt the DP-lift replay (c1) per leaf.
             let dis := theoremDischargeLeaves cp
             let tps := developmentTPs dev
-            let status ← tryReplay w wExpr tps dev.justifications cp rules
+            let mName := Name.mkStr2 "CoverageMirrors"
+              (String.map (fun c => if c.isAlphanum then c else '_')
+                s!"mirror_{name}_{cp.name}")
+            let (status, reg?) ← tryReplay w wExpr tps dev.justifications cp rules
               (thms.map fun (c, _) => (c.name, c))
               (gzDefs := dev.groundZeroSnapshotDefs)
+              (mirrors := mirrors) (mirrorName? := some mName)
+            if let some conds := reg? then
+              mirrors := mirrors ++ [(cp.name, mName, conds)]
             if status.startsWith "REPLAYED ✓" then
               replayed := replayed + 1
               -- CONDITIONAL replays (undischarged cond[…] hypotheses) counted

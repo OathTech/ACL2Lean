@@ -6252,21 +6252,34 @@ def dischargeGzRuleHyp (cfg : ReplayConfig) (spec : RuleSpec) (decl : Name)
   mkExpectedTypeHint (mkApp2 (mkConst decl) cfg.worldExpr hno)
     (← mkRuleHypType cfg spec)
 
+/-- D1 MIRROR REGISTRY (design §D1, WP4): replayed theorems as per-theorem
+    Lean CONSTANTS. Entry: theorem name ↦ (the `addDecl`'d constant — type
+    `∀ env, <kept-condition telescope> → EvTrue w ⟪Goal⟫` — and its kept
+    condition strings, `total:`/`tp:`/`rule:` in telescope order).
+    `dischargeRuleHyp` APPLIES the constant instead of re-replaying the
+    dependency's tree per consumer — the kernel checks each proof once and a
+    reference is O(1), collapsing the multiplicative dependency-tree blowup
+    (the ≈557M-node perm-equivalence precedent, design §4). -/
+abbrev MirrorRegistry := List (String × Name × List String)
+
 /-- DISCHARGE a `rule:<thm>` hypothesis from its dependency theorem's replayed
     mirror (v1 step 5, docs/plans/2026-07-05_theorem-dependency-hypotheses.md):
-    replay the dependency INSIDE the same hypothesis telescope (`ctx` — its
-    own conditions stay as the shared fvars, so transitive conditions
-    compose), then DECODE the mirror to the stored-rule statement. The decode
-    recomputes ACL2's create-rewrite-rule normalization between two EMITTED
-    artifacts — the defthm formula (the dependency's Goal clause) and the
-    stored rule — and hard-fails on any mismatch: strip `implies`, flatten
-    the `and`-antecedent (must equal the rule's :HYPS), then either the
-    equality conclusion IS (equal lhs rhs), or the boolean-strengthened form
-    (conclusion = lhs, rhs = 'T) pinned by the head fn's EMITTED
-    :TYPE-PRESCRIPTION. All value-level: MP on `Logic.implies`, two-valued
-    `Logic.equal` decode, TP boolean pin. -/
+    obtain the dependency's mirror — by APPLYING its D1 registry constant at
+    the consumer's own telescope fvars (same world, identical hypothesis
+    statements) when registered, else by replaying the dependency INSIDE the
+    same hypothesis telescope (`ctx` — its own conditions stay as the shared
+    fvars, so transitive conditions compose) — then DECODE the mirror to the
+    stored-rule statement. The decode recomputes ACL2's create-rewrite-rule
+    normalization between two EMITTED artifacts — the defthm formula (the
+    dependency's Goal clause) and the stored rule — and hard-fails on any
+    mismatch: strip `implies`, flatten the `and`-antecedent (must equal the
+    rule's :HYPS), then either the equality conclusion IS (equal lhs rhs), or
+    the boolean-strengthened form (conclusion = lhs, rhs = 'T) pinned by the
+    head fn's EMITTED :TYPE-PRESCRIPTION. All value-level: MP on
+    `Logic.implies`, two-valued `Logic.equal` decode, TP boolean pin. -/
 def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
-    (depProofs : List (String × ClauseProof)) : MetaM Expr := do
+    (depProofs : List (String × ClauseProof))
+    (mirrors : MirrorRegistry := []) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
     | throwFrontier m!"dischargeRuleHyp: no dependency proof for rule {spec.name}"
   let some depRoot := cp.root
@@ -6300,14 +6313,49 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
            pure (← mkAppM ``EvTrue #[w, envV, reflectSExpr h]))).toArray
     let ctxDFixed := ctxD
     withLocalDecls premDecls fun premVs => do
-      -- the dependency's mirror at env' (same telescope: its conditions
-      -- remain the shared fvars — transitive composition); a replay wall in
-      -- the dependency's own tree is a FRONTIER for the discharge (keep-hyp),
-      -- so re-tag it into the discharger's frontier class
+      -- the dependency's mirror at env'. D1 registry hit: APPLY the
+      -- dependency's constant at the consumer's own telescope fvars for its
+      -- kept conditions (same world — identical hypothesis statements; a
+      -- missing/ambiguous mapping is a DEFECT, not a frontier: the consumer
+      -- telescope offers every total:/tp:/rule: the dependency could keep).
+      -- Otherwise re-replay the dependency inside the shared telescope; a
+      -- replay wall in its tree is a FRONTIER for the discharge (keep-hyp).
       let pDep ←
-        try replayClause cfgD ctxDFixed depRoot
-        catch e => throwFrontier m!"dischargeRuleHyp: dependency {spec.name}'s \
-            replay failed (frontier): {e.toMessageData}"
+        match mirrors.find? (fun (n, _, _) => n == spec.name) with
+        | some (_, decl, depConds) => do
+          let condArgs ← depConds.toArray.mapM fun c => do
+            if c.startsWith "total:" then
+              let fn := (c.drop "total:".length).toString
+              let some h := ctx.totalHyps.lookup fn
+                | throwError "dischargeRuleHyp: registry dependency \
+                    {spec.name} keeps {c}, absent from the consumer \
+                    telescope (internal)"
+              pure h
+            else if c.startsWith "tp:" then
+              let fn := (c.drop "tp:".length).toString
+              let some (_, _, h) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fn)
+                | throwError "dischargeRuleHyp: registry dependency \
+                    {spec.name} keeps {c}, absent from the consumer \
+                    telescope (internal)"
+              pure h
+            else if c.startsWith "rule:" then
+              let rn := (c.drop "rule:".length).toString
+              match ctx.ruleHyps.filter (fun (r, _) => r.name == rn) with
+              | [(_, h)] => pure h
+              | [] => throwError "dischargeRuleHyp: registry dependency \
+                  {spec.name} keeps {c}, absent from the consumer \
+                  telescope (internal)"
+              | _ => throwError "dischargeRuleHyp: registry dependency \
+                  {spec.name} keeps {c} but the consumer telescope offers \
+                  several same-named rules (ambiguous — refuse rather than \
+                  guess)"
+            else throwError "dischargeRuleHyp: registry dependency \
+                {spec.name} keeps unrecognized condition {c} (internal)"
+          pure (mkAppN (mkConst decl) (#[envV] ++ condArgs))
+        | none =>
+          try replayClause cfgD ctxDFixed depRoot
+          catch e => throwFrontier m!"dischargeRuleHyp: dependency {spec.name}'s \
+              replay failed (frontier): {e.toMessageData}"
       let convF ← ctxValProof cfgD ctxDFixed formula
       let hFne ← mkAppM ``ne_nil_of_evtrue_conv #[pDep, convF]
       -- conclusion-value truthiness: bare conclusion, or through MP
@@ -6365,7 +6413,8 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
     type, discharged later by termination emission / Driver Stage 5). -/
 def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (cp : ClauseProof) (justs : List (String × Justification) := [])
-    (rules : List RuleSpec := []) (depProofs : List (String × ClauseProof) := []) :
+    (rules : List RuleSpec := []) (depProofs : List (String × ClauseProof) := [])
+    (mirrors : MirrorRegistry := []) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
   -- hypothesis declarations: totality for every defined fn, TP where
@@ -6449,7 +6498,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
               -- discharges it instead
               match d5GzRules.lookup spec.name with
               | some (decl, nsFn) => dischargeGzRuleHyp cfg spec decl nsFn
-              | none => dischargeRuleHyp cfg ctx spec depProofs
+              | none => dischargeRuleHyp cfg ctx spec depProofs mirrors
             -- LET-bind, don't substitute: every use site shares one copy
             prfR ← letBindFVar prfR hypV pf
           catch e =>

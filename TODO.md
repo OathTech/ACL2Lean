@@ -107,7 +107,24 @@ _Last updated: 2026-07-12._
 > fact in scope` (the transitive rule's hyps were relieved by
 > FC/type-set facts whose derivation the replay does not yet consume —
 > the FC-relief frontier).
-> NEXT: WP4 (D1 mirror registry + rewire dischargeRuleHyp), then WP5.
+> **WP4 DONE (2026-07-15, working tree)**: D1 MIRROR REGISTRY. Each green
+> replay in the coverage harness is `addDecl`'d as a per-theorem mirror
+> constant (`∀ env, <kept-condition telescope> → EvTrue w ⟪Goal⟫`;
+> axiom-checked first); `dischargeRuleHyp` APPLIES a registered
+> dependency's constant at the consumer's own telescope fvars instead of
+> re-replaying its tree per consumer (the re-replay path remains as the
+> fallback for unregistered deps — DriverTests/NativeMirrors still use
+> it). Registry is per-book (`MirrorRegistry`), reset per corpus file —
+> cross-book reuse needs WP5's world transfer. The harness was already
+> one-session + dependency-ordered (audit F7's rework amounted to
+> threading the registry through the existing loop).
+> MEASURED (PERM-IS-AN-EQUIVALENCE, the design-§4 baseline):
+> inline 13,506,883 nodes / 5.9s build / 2.0s check → registry
+> 777,719 nodes / 1.2s / 0.4s — 17.4× size, ~5× time; same conds ([]).
+> (The design's ≈557M figure was historical — pre-letBindFVar-era rule
+> hyps; the current inline baseline is already 40× below it.) Golden:
+> BYTE-IDENTICAL (the regression gate); perm coverage wall 21-49s → 13s.
+> NEXT: WP5 (D2 evalOpt_world_mono + D7 cross-book assembly).
 
 > **BUG-002 (symbol case) FIXED (2026-07-08, this branch).** The parser now
 > adopts ACL2's readtable-case :upcase EXACTLY: bare symbols/keywords upcase,
