@@ -82,8 +82,32 @@ _Last updated: 2026-07-12._
 > at a recognizer composition (TP of INSERT through CONS). Pins: emitted
 > bodies of TRUE-LISTP/LEN/FIX guarded against the parsed snapshots in
 > DriverTests.
-> NEXT: WP3 (D5 prelude constants + builtin-boolean discharge branch),
-> then WP4–WP6 per the design doc.
+> **WP3 DONE (2026-07-15, working tree)**: D5 ground-zero rules as PRELUDE
+> CONSTANTS. `Replay/GzRules.lean`: `gz_rule_lexorder_reflexive` /
+> `gz_rule_lexorder_transitive` — the ∀-env mirror statements of the
+> boot-admitted (proofs-SKIPPED) lexorder rules, world-parametric with a
+> LEXORDER no-shadow hypothesis, PROVED from the `LexorderOrder` order
+> theorems + `lexorder_boolean` through `evalOpt` (zero added trust).
+> Wiring: `Development.groundZeroRuleSpecs` seeds the rule-offer telescope
+> (gz rules precede every theorem; the emitted event sits at the log
+> tail); `d5GzRules` registry + `dischargeGzRuleHyp` discharge a used
+> gz-rule hypothesis by instantiating the constant and type-hinting it
+> against `mkRuleHypType` of the EMITTED spec (fail-closed
+> recompute-check) — exercised LIVE by a DriverTests pin (both constants
+> kernel-checked against the parsed isort snapshot specs). Audit F2's
+> anticipated dischargeRuleHyp builtin-boolean branch was NOT needed: the
+> constant route bypasses dischargeRuleHyp; two-valuedness lives in the
+> constants' proofs; the if1/boolean LEXORDER branch already existed.
+> Audit F3 caveat checked on the real isort log: FC rules
+> (LEXORDER-TOTAL) appear only in DP-leaf/step rune SUMMARIES (carve-out
+> territory) and inside with-lemma RELIEF rune sets — never as standalone
+> rewrite nodes. Golden: exactly one row moved — ORDEREDP-ISORT advanced
+> past `no stored-rule hypothesis in scope` to the NEXT wall,
+> `marker-relieved hyp (LEXORDER (CAR IT) X1) has no (not …)-falsity
+> fact in scope` (the transitive rule's hyps were relieved by
+> FC/type-set facts whose derivation the replay does not yet consume —
+> the FC-relief frontier).
+> NEXT: WP4 (D1 mirror registry + rewire dischargeRuleHyp), then WP5.
 
 > **BUG-002 (symbol case) FIXED (2026-07-08, this branch).** The parser now
 > adopts ACL2's readtable-case :upcase EXACTLY: bare symbols/keywords upcase,

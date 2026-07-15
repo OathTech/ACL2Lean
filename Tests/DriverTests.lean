@@ -778,4 +778,34 @@ private def gzBodyOf (d : Development) (n : String) : Option SExpr :=
     (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
       (.cons (.atom (.number (.int 0))) .nil)) .nil))))
 
+/-! ### WP3 pin — the D5 prelude-constant discharge (recompute-check LIVE).
+
+No coverage row yet completes THROUGH a ground-zero-rule discharge (the
+ORDEREDP-ISORT consumer walls earlier, at FC hypothesis relief), so this
+exercises `dischargeGzRuleHyp` directly: for each registered gz rule, the
+hypothesis type is built FROM THE EMITTED isort snapshot spec and the
+instantiated prelude constant is type-checked against it. An emission
+drift or a mis-stated constant fails HERE at elaboration, not at the
+first future replaying consumer. -/
+
+derive_world isortWorld from isortDevelopment
+
+elab "wp3_gz_discharge_pin% " : term => do
+  let dev ← unsafe evalExpr Development (mkConst ``ACL2.Development)
+    (mkConst ``isortDevelopment)
+  let specs := dev.groundZeroRuleSpecs
+  withLocalDeclD `env (mkConst ``Env) fun env => do
+    let cfg : ReplayConfig :=
+      { worldExpr := mkConst ``isortWorld, envExpr := env,
+        worldVal := dev.toWorld, gzDefs := dev.groundZeroSnapshotDefs }
+    for (nm, decl, nsFn) in d5GzRules do
+      let some spec := specs.find? (·.name == nm)
+        | throwError "WP3 pin: no emitted ground-zero rule {nm} in the isort snapshot"
+      let pf ← dischargeGzRuleHyp cfg spec decl nsFn
+      check pf
+    logInfo "WP3 pin: D5 prelude constants discharge the EMITTED gz rule specs"
+    return mkConst ``True.intro
+
+def wp3GzDischargePin : True := wp3_gz_discharge_pin%
+
 end ACL2.Tests.Driver

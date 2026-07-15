@@ -41,6 +41,7 @@
 import ACL2Lean.Replay.EvalLemmas
 import ACL2Lean.Replay.DpLift
 import ACL2Lean.Replay.ClausifyBridge
+import ACL2Lean.Replay.GzRules
 import ACL2Lean.ProofTree
 import ACL2Lean.ClauseTree
 import Lean
@@ -6228,6 +6229,29 @@ partial def flattenAnd : SExpr → List SExpr
     if ifS.name == "IF" && e == quoteNil then a :: flattenAnd rest else [t]
   | t => [t]
 
+/-- D5 PRELUDE-CONSTANT registry (design §D5, WP3): ground-zero rules ACL2
+    admits at boot with proofs SKIPPED (`ld-skip-proofsp`) — no replayable
+    evidence exists, so each is proved ONCE in Lean about the trusted-core
+    primitive (`GzRules.lean`), resting on the `LexorderOrder` theorems.
+    Entry: rule name ↦ (the constant, the primitive's no-shadow fn). A
+    ground-zero rule name can never collide with a user rule — ACL2 refuses
+    the redefinition at admission. -/
+def d5GzRules : List (String × Name × String) :=
+  [("LEXORDER-REFLEXIVE",  (``gz_rule_lexorder_reflexive,  "LEXORDER")),
+   ("LEXORDER-TRANSITIVE", (``gz_rule_lexorder_transitive, "LEXORDER"))]
+
+/-- Discharge a GROUND-ZERO rule's `rule:<name>` hypothesis by its D5
+    prelude constant: instantiate at the theorem's world + the primitive's
+    no-shadow fact, then type-hint against the hypothesis type built FROM
+    THE EMITTED SPEC (`mkRuleHypType`) — a drifted emission or a mis-stated
+    constant fails here (fail-closed recompute-check, kernel-backed at
+    `Meta.check`). -/
+def dischargeGzRuleHyp (cfg : ReplayConfig) (spec : RuleSpec) (decl : Name)
+    (noShadowFn : String) : MetaM Expr := do
+  let hno ← proveNoShadow cfg { name := noShadowFn }
+  mkExpectedTypeHint (mkApp2 (mkConst decl) cfg.worldExpr hno)
+    (← mkRuleHypType cfg spec)
+
 /-- DISCHARGE a `rule:<thm>` hypothesis from its dependency theorem's replayed
     mirror (v1 step 5, docs/plans/2026-07-05_theorem-dependency-hypotheses.md):
     replay the dependency INSIDE the same hypothesis telescope (`ctx` — its
@@ -6419,7 +6443,13 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       for (spec, hypV) in (rules.zip ruleVs.toList).reverse do
         if prfR.containsFVar hypV.fvarId! then
           try
-            let pf ← dischargeRuleHyp cfg ctx spec depProofs
+            let pf ←
+              -- a GROUND-ZERO rule has no dependency theorem to replay
+              -- (boot-admitted, proofs skipped): its D5 prelude constant
+              -- discharges it instead
+              match d5GzRules.lookup spec.name with
+              | some (decl, nsFn) => dischargeGzRuleHyp cfg spec decl nsFn
+              | none => dischargeRuleHyp cfg ctx spec depProofs
             -- LET-bind, don't substitute: every use site shares one copy
             prfR ← letBindFVar prfR hypV pf
           catch e =>
@@ -6489,17 +6519,24 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
 hand-written); `findThm` extracts a theorem's reconstructed proof from a
 development by name. -/
 
+private partial def theoremsWithRulesGo (dev : Development)
+    (acc : List RuleSpec) : List (ClauseProof × List RuleSpec) :=
+  match dev with
+  | .bind (.theorem cp) rest => (cp, acc) :: theoremsWithRulesGo rest acc
+  | .bind (.rules specs) rest => theoremsWithRulesGo rest (acc ++ specs)
+  | .bind _ rest => theoremsWithRulesGo rest acc
+  | .done => []
+
 /-- Theorems of a development, each paired with the STORED rules created
     BEFORE it — the rules its proof could cite (creation order; ACL2's
     certification order makes citing a later rule impossible, so the offer
-    is exactly the citable set). -/
-partial def developmentTheoremsWithRules (dev : Development)
-    (acc : List RuleSpec := []) : List (ClauseProof × List RuleSpec) :=
-  match dev with
-  | .bind (.theorem cp) rest => (cp, acc) :: developmentTheoremsWithRules rest acc
-  | .bind (.rules specs) rest => developmentTheoremsWithRules rest (acc ++ specs)
-  | .bind _ rest => developmentTheoremsWithRules rest acc
-  | .done => []
+    is exactly the citable set). GROUND-ZERO snapshot rules (D5) seed the
+    accumulator: boot-stored, they precede every theorem — the emitted
+    `(:GROUND-ZERO-RULES …)` event itself sits at the log's TAIL (capture
+    end), so it cannot be picked up by the in-order walk. -/
+def developmentTheoremsWithRules (dev : Development) :
+    List (ClauseProof × List RuleSpec) :=
+  theoremsWithRulesGo dev dev.groundZeroRuleSpecs
 
 /-- The stored rules created BEFORE the first theorem named `nm`
     (case-insensitive) — the `rules` argument for replaying it by name. -/

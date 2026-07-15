@@ -180,6 +180,17 @@ def Development.storedRules : Development → List RuleSpec
     | .rules specs => specs ++ rest.storedRules
     | _ => rest.storedRules
 
+/-- A development's ground-zero RULE snapshot entries (the
+    `(:GROUND-ZERO-RULES …)` event, design D5) — boot-stored rules, in
+    emitted (world) order. They logically PRECEDE the whole development:
+    the rule-offer telescope seeds with them ahead of every user rule. -/
+def Development.groundZeroRuleSpecs : Development → List RuleSpec
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .groundZeroRules specs => specs ++ rest.groundZeroRuleSpecs
+    | _ => rest.groundZeroRuleSpecs
+
 /-- The admission justifications of a development's RECURSIVE defuns
     (fn name ↦ measure/wfrel/measured-subset + the raw termination clauses),
     in development order — the data the totality prover consumes (#37).
