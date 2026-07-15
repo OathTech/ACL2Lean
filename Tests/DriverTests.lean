@@ -341,7 +341,7 @@ elab "acl2_replay_mylen_real% " : term => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``simpleWorld, envExpr := env,
         worldVal := simpleDevelopment.toWorld,
-        gzNames := simpleDevelopment.groundZeroDefunNames }
+        gzDefs := simpleDevelopment.groundZeroSnapshotDefs }
     let (proof, conds) ← replayProofConditional cfg simpleTPs cp
       simpleDevelopment.justifications
     logInfo m!"my-len-my-app replayed; conditions: {conds}"
@@ -578,7 +578,7 @@ elab "acl2_replay_permcons_real% " : term => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``permWorld, envExpr := env,
         worldVal := permDevelopment.toWorld,
-        gzNames := permDevelopment.groundZeroDefunNames }
+        gzDefs := permDevelopment.groundZeroSnapshotDefs }
     let (proof, conds) ← replayProofConditional cfg permTPs cp
       permDevelopment.justifications
     logInfo m!"perm-cons replayed; conditions: {conds}"
@@ -633,7 +633,7 @@ elab "acl2_replay_permtrans_real% " : term => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``permWorld, envExpr := env,
         worldVal := permDevelopment.toWorld,
-        gzNames := permDevelopment.groundZeroDefunNames }
+        gzDefs := permDevelopment.groundZeroSnapshotDefs }
     let (proof, conds) ← replayProofConditional cfg permTPs cp
       permDevelopment.justifications
       (rulesBefore permDevelopment "perm-transitive")
@@ -714,9 +714,9 @@ private partial def gzRuleSpecs : Development → List RuleSpec
 /-! ### WP1 pins — snapshot world entry + the no-shadow exclusion.
 
 Non-builtin snapshots become World entries; `callBuiltin`-named ones must
-NOT (they would shadow the builtin — D2/hnew), with the ratified `FIX`
-interim keep (its `definition:` rune has a live replayed consumer;
-removed at WP2 when its D4 definition fact lands). -/
+NOT (they would shadow the builtin — D2/hnew). WP2 made the exclusion
+TOTAL: the WP1 `FIX` interim keep is retired by FIX's D4 definition
+fact. -/
 
 -- a non-builtin ground-zero snapshot IS a world entry (with its body)
 #guard (isortDevelopment.toWorld.defs.get? { name := "ACL2-COUNT" }).isSome
@@ -725,11 +725,57 @@ removed at WP2 when its D4 definition fact lands). -/
 #guard (isortDevelopment.toWorld.defs.get? { name := "LEN" }).isNone
 #guard (isortDevelopment.toWorld.defs.get? { name := "TRUE-LISTP" }).isNone
 #guard (isortDevelopment.toWorld.defs.get? { name := "LEXORDER" }).isNone
--- the FIX interim keep (WP1 → remove at WP2): world-entered from its own
--- snapshot wherever cited (simple.proof-log cites it; isort does not)
-#guard (simpleDevelopment.toWorld.defs.get? { name := "FIX" }).isSome
+-- WP2: FIX too — its cited snapshot (simple.proof-log) stays OUT of the
+-- world; the D4 route reads its body from the snapshot triples instead
+#guard (simpleDevelopment.toWorld.defs.get? { name := "FIX" }).isNone
+#guard simpleDevelopment.groundZeroSnapshotDefs.any fun (s, _, b) =>
+  s == { name := "FIX" } && b != .nil
 -- D6: a recursive snapshot's justification (recomputed clauses) reaches
 -- the totality prover's input
 #guard (isortDevelopment.justifications.map (·.1)).contains "ACL2-COUNT"
+
+/-! ### WP2 pins — D4 definition facts read the EMITTED snapshot bodies.
+
+The `gz_def_<fn>` lemmas (EvalLemmas) state callBuiltin-vs-body agreement
+for EXACTLY these bodies; the guards pin the emitted artifact so a fork
+drift (a changed ground-zero body no longer matching the lemma's value
+composition) is caught here at elaboration, not at replay time. -/
+
+private def gzBodyOf (d : Development) (n : String) : Option SExpr :=
+  d.groundZeroSnapshotDefs.find? (fun e => e.1 == { name := n })
+    |>.map (·.2.2)
+
+-- (IF (CONSP X) (TRUE-LISTP (CDR X)) (EQUAL X 'NIL))
+#guard gzBodyOf isortDevelopment "TRUE-LISTP" ==
+  some (.cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "CONSP" }))
+      (.cons (.atom (.symbol { name := "X" })) .nil))
+    (.cons (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+      (.cons (.cons (.atom (.symbol { name := "CDR" }))
+        (.cons (.atom (.symbol { name := "X" })) .nil)) .nil))
+    (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+      (.cons (.atom (.symbol { name := "X" }))
+      (.cons quoteNil .nil))) .nil))))
+-- (IF (CONSP X) (BINARY-+ '1 (LEN (CDR X))) '0)
+#guard gzBodyOf isortDevelopment "LEN" ==
+  some (.cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "CONSP" }))
+      (.cons (.atom (.symbol { name := "X" })) .nil))
+    (.cons (.cons (.atom (.symbol { name := "BINARY-+" }))
+      (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+        (.cons (.atom (.number (.int 1))) .nil))
+      (.cons (.cons (.atom (.symbol { name := "LEN" }))
+        (.cons (.cons (.atom (.symbol { name := "CDR" }))
+          (.cons (.atom (.symbol { name := "X" })) .nil)) .nil)) .nil)))
+    (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons (.atom (.number (.int 0))) .nil)) .nil))))
+-- (IF (ACL2-NUMBERP X) X '0)
+#guard gzBodyOf simpleDevelopment "FIX" ==
+  some (.cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "ACL2-NUMBERP" }))
+      (.cons (.atom (.symbol { name := "X" })) .nil))
+    (.cons (.atom (.symbol { name := "X" }))
+    (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons (.atom (.number (.int 0))) .nil)) .nil))))
 
 end ACL2.Tests.Driver

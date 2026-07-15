@@ -42,7 +42,7 @@ open ACL2
     `dpUnary`/`dpBinary`; anything else with a symbol head is opaque). -/
 def dpLiftHeads : List String :=
   ["NOT", "ZP", "CONSP", "INTEGERP", "ACL2-NUMBERP", "TRUE-LISTP", "CAR",
-   "CDR", "SYMBOLP", "BOOLEANP", "NFIX", "LEN", "ENDP", "ATOM",
+   "CDR", "SYMBOLP", "BOOLEANP", "NFIX", "FIX", "LEN", "ENDP", "ATOM",
    "EQUAL", "<", "LEXORDER", "BINARY-+", "BINARY-*", "CONS", "IMPLIES", "IFF"]
 
 /-- The DP value lift (G3 Fragment A): opaque application values from `opq`

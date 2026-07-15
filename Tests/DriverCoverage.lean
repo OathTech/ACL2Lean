@@ -151,7 +151,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (justs : List (String × ACL2.Justification)) (cp : ClauseProof)
     (rules : List ACL2.RuleSpec := [])
     (depProofs : List (String × ClauseProof) := [])
-    (gzNames : List String := []) :
+    (gzDefs : List (Symbol × List Symbol × SExpr) := []) :
     TermElabM String := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -161,7 +161,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,
-                                    gzNames := gzNames }
+                                    gzDefs := gzDefs }
         let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
@@ -287,7 +287,7 @@ elab "#driver_coverage" : command => do
             let tps := developmentTPs dev
             let status ← tryReplay w wExpr tps dev.justifications cp rules
               (thms.map fun (c, _) => (c.name, c))
-              (gzNames := dev.groundZeroDefunNames)
+              (gzDefs := dev.groundZeroSnapshotDefs)
             if status.startsWith "REPLAYED ✓" then
               replayed := replayed + 1
               -- CONDITIONAL replays (undischarged cond[…] hypotheses) counted

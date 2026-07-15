@@ -72,8 +72,7 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "CHARACTERP", [a] => some (Logic.characterp a)
   | "CHAR-CODE", [a] => some (Logic.charCode a)
   | "CODE-CHAR", [a] => some (Logic.codeChar a)
-  | "FIX", [a] =>
-      some (match a with | .atom (.number _) => a | _ => .atom (.number (.int 0)))
+  | "FIX", [a] => some (Logic.fix a)
   | "NFIX", [a] => some (Logic.nfix a)
   | "IFIX", [a] =>
       some (match a with | .atom (.number (.int _)) => a | _ => .atom (.number (.int 0)))

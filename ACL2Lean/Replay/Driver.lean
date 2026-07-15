@@ -433,11 +433,15 @@ structure ReplayConfig where
   worldExpr : Expr
   envExpr : Expr
   worldVal : World := {}
-  /-- Names of the development's ground-zero SNAPSHOT defuns
-      (`Development.groundZeroDefunNames`, D3/WP1) — the totality prover's
-      lazy `upTo` bound treats these as always-in-scope (they logically
-      precede the whole development). Empty for synthetic test worlds. -/
-  gzNames : List String := []
+  /-- The development's ground-zero SNAPSHOT defuns — (name, formals, emitted
+      body) as EMITTED (`Development.groundZeroSnapshotDefs`, D3/WP1-WP2).
+      Two consumers: the totality prover's lazy `upTo` bound treats these
+      names as always-in-scope (they logically precede the whole
+      development), and the D4 definition-fact route reads a builtin's
+      recorded body from here (builtin-named snapshots are EXCLUDED from the
+      world — no-shadow — so this is the only place their emission lives).
+      Empty for synthetic test worlds. -/
+  gzDefs : List (Symbol × List Symbol × SExpr) := []
 
 /-- The proof context in scope at a node. All entries are VALUE-CHARACTERIZED
     facts over the ambient env, established by the surrounding structure (the
@@ -578,6 +582,7 @@ def dpUnary : List (String × Name × Name) :=
    ("SYMBOLP",  ``Logic.symbolp,  ``callBuiltin_symbolp),
    ("BOOLEANP", ``Logic.booleanp, ``callBuiltin_booleanp),
    ("NFIX",     ``Logic.nfix,     ``callBuiltin_nfix),
+   ("FIX",      ``Logic.fix,      ``callBuiltin_fix),
    ("LEN",      ``Logic.len,      ``callBuiltin_len),
    ("ENDP",     ``Logic.endp,     ``callBuiltin_endp),
    ("ATOM",     ``Logic.atom,     ``callBuiltin_atom)]
@@ -601,6 +606,27 @@ def dpBinary : List (String × Name × Name) :=
 -- the lift premise from the collected opaque set. Set equality, both directions:
 #guard dpLiftHeads.all (fun n => (dpUnary.lookup n).isSome || (dpBinary.lookup n).isSome)
 #guard (dpUnary.map (·.1) ++ dpBinary.map (·.1)).all (dpLiftHeads.contains ·)
+
+/-- D4 DEFINITION-FACT registry (external-knowledge design §D4, WP2): builtins
+    that ACL2 itself defines by defun. Their `(:DEFINITION <fn>)` runes replay
+    through the registered `gz_def_<fn>` body lemma (EvalLemmas) instead of a
+    world entry — builtin-named ground-zero snapshots are EXCLUDED from the
+    world (no-shadow, `builtinNames`), so `evalOpt` dispatches them to
+    `callBuiltin` and the unfold is the lemma's callBuiltin-vs-emitted-body
+    agreement (`replayBuiltinDefUnfold`). Every entry must also be in
+    `dpUnary` (which supplies the `Logic` value function and the `callBuiltin`
+    rfl lemma) — guarded below. -/
+def d4DefFacts : List (String × Name) :=
+  [("TRUE-LISTP", ``gz_def_true_listp),
+   ("LEN",        ``gz_def_len),
+   ("NFIX",       ``gz_def_nfix),
+   ("FIX",        ``gz_def_fix),
+   ("BOOLEANP",   ``gz_def_booleanp),
+   ("ENDP",       ``gz_def_endp),
+   ("ATOM",       ``gz_def_atom)]
+
+#guard d4DefFacts.all (fun e => (dpUnary.lookup e.1).isSome)
+#guard d4DefFacts.all (fun e => builtinNames.contains e.1)
 
 /-- Is this head a DP-lift special form or primitive? (Anything else with a symbol
     head is an OPAQUE user-fn application.) -/
@@ -1095,6 +1121,49 @@ private def mkForallMemProof (entryTy P : Expr) (entries : List (Expr × Expr)) 
       #[some entryTy, some P, some e, some restE]
     return (listE, ← mkAppM ``Iff.mpr #[consIff, andP])
 
+/-- The D4 BUILTIN-DEFINITION unfold (design §D4, WP2): `(fn a) ⇒ body[a]` for a
+    `callBuiltin` builtin ABSENT from the world, where `body` is the fn's EMITTED
+    ground-zero snapshot body (the only record of it — builtin-named snapshots
+    are excluded from the world by `builtinNames`, no-shadow). The unfold is
+    `fuel_eq_of_conv` of (a) the application's convergence to the builtin value
+    (`conv_builtin1` — the world does not define fn, so `evalOpt` dispatches to
+    `callBuiltin`) and (b) the body instance's value convergence (the ordinary
+    value walker over the emitted body), bridged by the registered
+    `gz_def_<fn>` lemma: `Logic.<fn> v = <body value composition>`. The bridge
+    applies ONLY if the emitted body's composition unifies with the lemma's
+    rhs — the fail-closed recompute-check against the emission; a drifted
+    snapshot hard-fails here. Returns (formals, emitted body, unfold) for
+    `replayDefinition`'s shared children-chaining tail. -/
+def replayBuiltinDefUnfold (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (fn : Symbol) (args : List SExpr) : MetaM (List Symbol × SExpr × Expr) := do
+  let some bodyLemma := d4DefFacts.lookup fn.name
+    | throwError "definition: {fn.name} is not defined in the world and has no \
+                  registered D4 definition fact (frontier)"
+  let some (logicFn, cbLemma) := dpUnary.lookup fn.name
+    | throwError "definition: D4 entry {fn.name} missing from dpUnary (internal)"
+  let some (_, formals, body) := cfg.gzDefs.find? (fun e => e.1 == fn)
+    | throwError "definition: builtin {fn.name} has no emitted ground-zero \
+                  snapshot (emission gap, frontier)"
+  let [f1] := formals
+    | throwError "definition: D4 builtin {fn.name} snapshot arity \
+                  {formals.length} ≠ 1 (frontier)"
+  let [a] := args
+    | throwError "definition: {fn.name} arity 1 ≠ {args.length} args"
+  let substBody := ACL2.Replay.substTerm [f1] [a] body
+  let va ← ctxValExpr cfg ctx a
+  let pa ← ctxValProof cfg ctx a
+  let pBody ← ctxValProof cfg ctx substBody
+  let hNs ← proveNotSpecial fn
+  let hNo ← proveNoShadow cfg fn
+  let rv := mkApp (mkConst logicFn) va
+  let hr ← mkAppM cbLemma #[va]
+  let pL ← mkAppM ``conv_builtin1
+    #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSExpr a, va, rv,
+      hNs, hNo, pa, hr]
+  let valueEq ← mkAppM bodyLemma #[va]
+  let unfold ← mkAppM ``fuel_eq_of_conv #[pL, pBody, valueEq]
+  return ([f1], body, unfold)
+
 mutual
 
 /-- Recognizer fact `∃N∀f≥N, eval term = some verdict` (verdict the node's recorded
@@ -1199,10 +1268,11 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
     machinery (`replayRewrites` at depth+1 — their `:PATH`s carry the boundary
     frame), checking the chain reaches the node's recorded rhs.
 
-    The unfold's body-convergence side condition has two ordered evidence sources:
-    the application's PINNED value (totality — required for recursive fns), else the
-    ∀-env convergence analyzer (sufficient for non-recursive bodies: direct, builtin,
-    or if-shaped). -/
+    Two unfold routes by where the definition lives: a WORLD defun unfolds via
+    the world lemmas (body convergence from two ordered evidence sources: the
+    application's PINNED value — totality, required for recursive fns — else
+    the ∀-env convergence analyzer); a builtin ABSENT from the world takes the
+    D4 definition-fact route (`replayBuiltinDefUnfold`). -/
 partial def replayDefinition (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     (depth : Nat) : MetaM Expr := do
   let (lhs, rhs) := nodeLhsRhs n
@@ -1210,58 +1280,64 @@ partial def replayDefinition (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNo
   let .cons (.atom (.symbol fn)) argSpine := lhs
     | throwError "definition: lhs is not an application: {repr lhs}"
   let args := (argSpine.toList?).getD []
-  let di ← deriveDefInfoN cfg fn
-  unless di.formals.length == args.length do
-    throwError "definition: {fn.name} arity {di.formals.length} ≠ {args.length} args"
-  let hns ← proveNotSpecial fn
-  -- the unfold: eval lhs = eval (substTerm formals args body), with the body
-  -- convergence from the ordered evidence sources
-  let unfold ←
-    match ctx.val? lhs with
-    | some (rv, papp) =>
-      -- evidence 1: pinned application value (totality)
-      let argVals ← args.mapM (ctxValExpr cfg ctx)
-      let argConvs ← args.mapM (ctxValProof cfg ctx)
-      match di.formals, args, argVals, argConvs with
-      | [f1], [a1], [v1], [p1] =>
-        let hbody ← mkAppM ``re_body_conv1
-          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
-            reflectSExpr di.body, reflectSExpr a1, v1, rv, hns, di.defFact, p1, papp]
-        mkAppM ``evalOpt_unfold1_conv
-          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
-            reflectSExpr di.body, reflectSExpr a1, v1, rv, hns,
-            di.defFact, di.closedFact, di.noLetFact, p1, hbody]
-      | [f1, f2], [a1, a2], [v1, v2], [p1, p2] =>
-        let hbody ← mkAppM ``re_body_conv2
-          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
-            reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, v1, v2, rv, hns,
-            di.defFact, p1, p2, papp]
-        mkAppM ``evalOpt_unfold2_conv
-          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
-            reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, v1, v2, rv, hns,
-            di.defFact, di.closedFact, di.noLetFact, p1, p2, hbody]
-      | _, _, _, _ => throwError "definition: only 1/2-arg unfolds supported (frontier)"
-    | none =>
-      -- evidence 2: the ∀-env convergence analyzer
-      let hbodyAll ← proveConvAllEnv cfg ctx di.body
-      match di.formals, args with
-      | [f1], [a1] =>
-        let harg ← proveConv cfg cfg.envExpr ctx a1
-        mkAppM ``re_unfold1_conv
-          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
-            reflectSExpr di.body, reflectSExpr a1, hns,
-            di.defFact, di.closedFact, di.noLetFact, harg, hbodyAll]
-      | [f1, f2], [a1, a2] =>
-        let h1 ← proveConv cfg cfg.envExpr ctx a1
-        let h2 ← proveConv cfg cfg.envExpr ctx a2
-        mkAppM ``re_unfold2_conv
-          #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
-            reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, hns,
-            di.defFact, di.closedFact, di.noLetFact, h1, h2, hbodyAll]
-      | _, _ => throwError "definition: only 1/2-arg unfolds supported (frontier)"
+  let (formals, body, unfold) ←
+    if (cfg.worldVal.defs.get? fn).isNone then
+      -- D4 route: builtin definition fact against the emitted snapshot
+      replayBuiltinDefUnfold cfg ctx fn args
+    else do
+      let di ← deriveDefInfoN cfg fn
+      unless di.formals.length == args.length do
+        throwError "definition: {fn.name} arity {di.formals.length} ≠ {args.length} args"
+      let hns ← proveNotSpecial fn
+      -- the unfold: eval lhs = eval (substTerm formals args body), with the body
+      -- convergence from the ordered evidence sources
+      let unfold ←
+        match ctx.val? lhs with
+        | some (rv, papp) =>
+          -- evidence 1: pinned application value (totality)
+          let argVals ← args.mapM (ctxValExpr cfg ctx)
+          let argConvs ← args.mapM (ctxValProof cfg ctx)
+          match di.formals, args, argVals, argConvs with
+          | [f1], [a1], [v1], [p1] =>
+            let hbody ← mkAppM ``re_body_conv1
+              #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
+                reflectSExpr di.body, reflectSExpr a1, v1, rv, hns, di.defFact, p1, papp]
+            mkAppM ``evalOpt_unfold1_conv
+              #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
+                reflectSExpr di.body, reflectSExpr a1, v1, rv, hns,
+                di.defFact, di.closedFact, di.noLetFact, p1, hbody]
+          | [f1, f2], [a1, a2], [v1, v2], [p1, p2] =>
+            let hbody ← mkAppM ``re_body_conv2
+              #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
+                reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, v1, v2, rv, hns,
+                di.defFact, p1, p2, papp]
+            mkAppM ``evalOpt_unfold2_conv
+              #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
+                reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, v1, v2, rv, hns,
+                di.defFact, di.closedFact, di.noLetFact, p1, p2, hbody]
+          | _, _, _, _ => throwError "definition: only 1/2-arg unfolds supported (frontier)"
+        | none =>
+          -- evidence 2: the ∀-env convergence analyzer
+          let hbodyAll ← proveConvAllEnv cfg ctx di.body
+          match di.formals, args with
+          | [f1], [a1] =>
+            let harg ← proveConv cfg cfg.envExpr ctx a1
+            mkAppM ``re_unfold1_conv
+              #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
+                reflectSExpr di.body, reflectSExpr a1, hns,
+                di.defFact, di.closedFact, di.noLetFact, harg, hbodyAll]
+          | [f1, f2], [a1, a2] =>
+            let h1 ← proveConv cfg cfg.envExpr ctx a1
+            let h2 ← proveConv cfg cfg.envExpr ctx a2
+            mkAppM ``re_unfold2_conv
+              #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
+                reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, hns,
+                di.defFact, di.closedFact, di.noLetFact, h1, h2, hbodyAll]
+          | _, _ => throwError "definition: only 1/2-arg unfolds supported (frontier)"
+      pure (di.formals, di.body, unfold)
   -- children chain over the substituted body (depth+1: their paths carry one more
   -- boundary frame), reaching the node's recorded rhs
-  let substBody := ACL2.Replay.substTerm di.formals args di.body
+  let substBody := ACL2.Replay.substTerm formals args body
   let (chainOpt, finalTerm) ← replayRewrites cfg ctx substBody children (depth + 1)
   unless finalTerm == rhs do
     throwError "definition: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
@@ -5817,7 +5893,7 @@ def buildTotalEnv (cfg : ReplayConfig)
   -- dependency-closed; if that were ever violated the only effect is a
   -- frontier failure keeping the hypothesis (D6) — completeness, never
   -- soundness (audit #4)
-  let gz := cfg.gzNames
+  let gz := cfg.gzDefs.map (·.1.name)
   let all := cfg.worldVal.defs.entries
   let cands ← match upTo with
     | none => pure all

@@ -119,16 +119,6 @@ inductive Development where
   | bind (event : WorldEvent) (rest : Development)
   | done
   deriving Repr, Inhabited
-/-- INTERIM (WP1, remove at WP2): builtin names whose ground-zero snapshot
-    STILL enters the world despite the no-shadow exclusion. `FIX` is the one
-    builtin with a live world-unfold consumer today (`MY-LEN-MY-APP`'s step
-    case replays its `definition:` rune) — it was hand-pinned into every
-    world by the old `groundZeroDefs`, so keeping it (now sourced from its
-    own emitted snapshot) preserves the status quo EXACTLY, pre-existing
-    shadow included. WP2's D4 definition fact for FIX replaces the world
-    unfold; this list then empties and the exclusion becomes total. -/
-def worldEntryInterimKeeps : List String := ["FIX"]
-
 /-- Project the `evalOpt` `World` from a reconstructed `Development`: fold each `defun`
     event's `(name, formals, body)` into `World.defs`. The world the replay reasons over is
     thus DERIVED from the parsed proof-log, not hand-written — so the only input to a replay
@@ -139,7 +129,8 @@ def worldEntryInterimKeeps : List String := ["FIX"]
     EXCEPT names `callBuiltin` dispatches (`builtinNames`): world-first dispatch
     would shadow the builtin, changing fuel profiles and falsifying the `hnew`
     side condition of `evalOpt_world_mono` (D2). Those take the D4
-    definition-fact route (with the `worldEntryInterimKeeps` carve above).
+    definition-fact route instead (WP2: `d4DefFacts`/`replayBuiltinDefUnfold`,
+    reading the emitted body off `Development.groundZeroSnapshotDefs`).
     This retires the old hand-pinned `groundZeroDefs`. `defs.entries` keeps
     user defuns in development order with the snapshot defs at the tail
     (the log emits snapshots after the last theorem). -/
@@ -150,20 +141,25 @@ def Development.toWorld : Development → World
     match ev with
     | .defun name formals body _ _ => { w with defs := w.defs.insert { name := name } (formals, body) }
     | .groundZeroDefun name formals body _ =>
-      if builtinNames.contains name && !worldEntryInterimKeeps.contains name then w
+      if builtinNames.contains name then w
       else { w with defs := w.defs.insert { name := name } (formals, body) }
     | _ => w
 
-/-- The names of a development's ground-zero SNAPSHOT defuns (all of them,
-    world-entering or builtin-excluded) — the `ReplayConfig.gzNames` input
-    that lets the totality prover's lazy bound treat snapshot defs as
-    always-in-scope (they logically precede the whole development). -/
-def Development.groundZeroDefunNames : Development → List String
+/-- A development's ground-zero SNAPSHOT defuns — (name, formals, emitted body)
+    for ALL of them, world-entering or builtin-excluded — the
+    `ReplayConfig.gzDefs` input. Two consumers: the totality prover's lazy
+    bound treats these names as always-in-scope (they logically precede the
+    whole development), and the D4 definition-fact route reads a builtin's
+    recorded body from here (its only record — builtin-named snapshots do not
+    enter the world). -/
+def Development.groundZeroSnapshotDefs :
+    Development → List (Symbol × List Symbol × SExpr)
   | .done => []
   | .bind ev rest =>
     match ev with
-    | .groundZeroDefun n _ _ _ => n :: rest.groundZeroDefunNames
-    | _ => rest.groundZeroDefunNames
+    | .groundZeroDefun n formals body _ =>
+      ({ name := n }, formals, body) :: rest.groundZeroSnapshotDefs
+    | _ => rest.groundZeroSnapshotDefs
 
 /-- The emitted type-prescription corollaries of a development (fn name ↦
     corollary term) — the type facts the replay consumes as hypotheses. -/

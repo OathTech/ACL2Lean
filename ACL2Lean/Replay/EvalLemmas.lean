@@ -1449,6 +1449,100 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
     callBuiltin "NFIX" [a] = some (Logic.nfix a) := by rfl
 @[simp] theorem callBuiltin_len (a : SExpr) :
     callBuiltin "LEN" [a] = some (Logic.len a) := by rfl
+@[simp] theorem callBuiltin_fix (a : SExpr) :
+    callBuiltin "FIX" [a] = some (Logic.fix a) := by rfl
+
+/-! ## D4 — builtin DEFINITION FACTS (external-knowledge design §D4, WP2)
+
+Each `gz_def_<fn>` lemma states that a `callBuiltin` builtin's value function
+agrees, pointwise, with the VALUE COMPOSITION of ACL2's own ground-zero defun
+body for that function — the `(:DEFUN <fn> … :SOURCE :GROUND-ZERO)` snapshot
+emitted at capture start. The rhs is EXACTLY the shape the driver's value
+walker (`dpValExpr`/`re_val_if`: `cond (toBool ·) · ·` for `if`, the `Logic`
+function for a builtin application, the literal for a quote) builds from the
+emitted body, so the D4 route in `replayDefinition` can apply the lemma ONLY
+when the emitted snapshot instance unifies — a drifted emission fails proof
+construction (the fail-closed recompute-check; the statement is never trusted
+free-floating).
+
+Bonus, not incidental (design §D4): each lemma is a kernel-checked proof that
+the trusted-core primitive agrees with ACL2's own definition of the function —
+a fidelity validation the differential harness can only sample. -/
+
+/-- `(DEFUN TRUE-LISTP (X) (IF (CONSP X) (TRUE-LISTP (CDR X)) (EQ X NIL)))`
+    (the snapshot body carries the translated `(EQUAL X 'NIL)`). -/
+theorem gz_def_true_listp (a : SExpr) :
+    Logic.trueListp a
+      = cond (Logic.toBool (Logic.consp a))
+          (Logic.trueListp (Logic.cdr a))
+          (Logic.equal a SExpr.nil) := by
+  cases a <;> rfl
+
+/-- `(DEFUN LEN (X) (IF (CONSP X) (+ 1 (LEN (CDR X))) 0))` (the snapshot
+    body carries the translated `(BINARY-+ '1 (LEN (CDR X)))`). -/
+theorem gz_def_len (a : SExpr) :
+    Logic.len a
+      = cond (Logic.toBool (Logic.consp a))
+          (Logic.plus (.atom (.number (.int 1))) (Logic.len (Logic.cdr a)))
+          (.atom (.number (.int 0))) := by
+  cases a with
+  | cons h t =>
+    -- `len` returns an int atom for every constructor of `t`, so the
+    -- rational `plus` collapses to integer successor.
+    obtain ⟨k, hk⟩ : ∃ k, Logic.len t = .atom (.number (.int k)) := by
+      cases t <;> exact ⟨_, rfl⟩
+    simp [Logic.len, Logic.plus, Logic.mkNumber, Logic.toRat, hk, Int.add_comm]
+  | nil => rfl
+  | atom x => rfl
+
+/-- `(DEFUN NFIX (X) (IF (INTEGERP X) (IF (< X 0) 0 X) 0))`. -/
+theorem gz_def_nfix (a : SExpr) :
+    Logic.nfix a
+      = cond (Logic.toBool (Logic.integerp a))
+          (cond (Logic.toBool (Logic.lt a (.atom (.number (.int 0)))))
+            (.atom (.number (.int 0))) a)
+          (.atom (.number (.int 0))) := by
+  cases a with
+  | atom x =>
+    cases x with
+    | number n =>
+      cases n with
+      | int k =>
+        rcases lt_or_ge k 0 with hk | hk <;>
+          simp [Logic.toRat, hk, Int.not_lt.mpr, Int.not_le.mpr]
+      | rational n d hc => rfl
+    | _ => rfl
+  | _ => rfl
+
+/-- `(DEFUN FIX (X) (IF (ACL2-NUMBERP X) X 0))`. -/
+theorem gz_def_fix (a : SExpr) :
+    Logic.fix a
+      = cond (Logic.toBool (Logic.acl2Numberp a)) a
+          (.atom (.number (.int 0))) := by
+  cases a with
+  | atom x => cases x <;> rfl
+  | _ => rfl
+
+/-- `(DEFUN BOOLEANP (X) (IF (EQUAL X T) T (EQUAL X NIL)))`. -/
+theorem gz_def_booleanp (a : SExpr) :
+    Logic.booleanp a
+      = cond (Logic.toBool (Logic.equal a SExpr.t)) SExpr.t
+          (Logic.equal a SExpr.nil) := by
+  by_cases ht : a == SExpr.t <;> by_cases hn : a == SExpr.nil <;>
+    simp_all [Logic.booleanp, Logic.equal]
+
+/-- `(DEFUN ENDP (X) (IF (CONSP X) NIL T))` (a `defun` in axioms.lisp;
+    guard-trivial body). -/
+theorem gz_def_endp (a : SExpr) :
+    Logic.endp a
+      = cond (Logic.toBool (Logic.consp a)) SExpr.nil SExpr.t := by
+  cases a <;> rfl
+
+/-- `(DEFUN ATOM (X) (IF (CONSP X) NIL T))` — same body shape as `ENDP`. -/
+theorem gz_def_atom (a : SExpr) :
+    Logic.atom a
+      = cond (Logic.toBool (Logic.consp a)) SExpr.nil SExpr.t := by
+  cases a <;> rfl
 
 /-- T3: EQUAL-self — (EQUAL t t) evaluates to T when t converges. -/
 theorem evalOpt_equal_self (f : Nat) (w : World) (env : Env)

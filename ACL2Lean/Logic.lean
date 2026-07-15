@@ -319,6 +319,15 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   | .atom (.number (.int n)) => if n >= 0 then s else .atom (.number (.int 0))
   | _ => .atom (.number (.int 0))
 
+/-- ACL2 `fix` — coerce to a number: a number is itself, anything else
+    becomes `0` (`(if (acl2-numberp x) x 0)`). The Logic-level twin of
+    `callBuiltin`'s former inline match, named so the D4 definition-fact
+    route can state lemmas about it. -/
+@[inline, simp] def fix (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number _) => s
+  | _ => .atom (.number (.int 0))
+
 /-- ACL2 `string-append`. Returns empty string on non-string inputs. -/
 @[inline, simp] def string_append (a b : SExpr) : SExpr :=
   match a, b with

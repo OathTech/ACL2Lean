@@ -55,8 +55,35 @@ _Last updated: 2026-07-12._
 > predicted world-count rows (audit F1 confirmed — no status/cond flips;
 > REPLAYED 26/50 unchanged). Pins: exclusion/entry/keep/justifications
 > guards in Tests/DriverTests.lean.
-> NEXT: WP2 (D4 builtin definition facts: TRUE-LISTP, LEN, NFIX, + FIX to
-> retire the interim keep), then WP3–WP6 per the design doc.
+> **WP2 DONE (2026-07-15, working tree)**: D4 definition facts for
+> TRUE-LISTP, LEN, NFIX, FIX, BOOLEANP, ENDP, ATOM. Per fn a proved
+> `gz_def_<fn>` lemma (EvalLemmas): `Logic.<fn> v = <value composition of
+> ACL2's own ground-zero body>` — each is a kernel-checked
+> callBuiltin-vs-ACL2-definition agreement (a fidelity validation of the
+> trusted core). Replay: `replayBuiltinDefUnfold` (Driver) discharges a
+> `definition:` rune for a world-absent builtin by `conv_builtin1` + the
+> lemma, with formals/body read off the EMITTED snapshot
+> (`ReplayConfig.gzDefs` ← `Development.groundZeroSnapshotDefs`) — a
+> drifted emission fails the lemma application (fail-closed
+> recompute-check); registry `d4DefFacts` guarded in-sync with `dpUnary`/
+> `builtinNames`. `Logic.fix` added (callBuiltin's FIX arm refactored to
+> it, behavior-identical); FIX joined `dpUnary`/`dpLiftHeads`; the WP1
+> FIX interim keep is RETIRED — builtin exclusion from the world is now
+> TOTAL. Golden: 6 world counts −1 (the FIX-citing logs), REPLAYED 26/50
+> and all DISCHARGE columns unchanged, and all 7 target rows ADVANCED to
+> later walls: APP-NIL ×2 / TRUE-LISTP-REV / REV-REV now at the
+> `(EQUAL X 'NIL)` vs `(IF X 'NIL 'T)` chain mismatch (same frontier as
+> TLP-APP-NIL; verified on the real tree: the node's final iff-
+> normalization `(EQUAL X 'NIL) ⇒ (IF X 'NIL 'T)` is NOT recorded as a
+> child — an emission-gap class, fix at the source per the no-inference
+> rule); CD2-BOUND at `compound-recognizer` rune (ZP-COMPOUND-RECOGNIZER,
+> new frontier class, ◌ leaves kept per audit F9); LEN-REV-ACC at
+> unicity-of-0 needing a TP int fact for builtin (LEN …); TRUE-LISTP-ISORT
+> at a recognizer composition (TP of INSERT through CONS). Pins: emitted
+> bodies of TRUE-LISTP/LEN/FIX guarded against the parsed snapshots in
+> DriverTests.
+> NEXT: WP3 (D5 prelude constants + builtin-boolean discharge branch),
+> then WP4–WP6 per the design doc.
 
 > **BUG-002 (symbol case) FIXED (2026-07-08, this branch).** The parser now
 > adopts ACL2's readtable-case :upcase EXACTLY: bare symbols/keywords upcase,
