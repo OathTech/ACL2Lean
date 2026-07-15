@@ -84,6 +84,18 @@ inductive WorldEvent where
   /-- Stored rewrite rules created by preceding defthms (emitted before any
       use — the source for `rule:<thm>` dependency hypotheses). -/
   | rules (specs : List RuleSpec)
+  /-- A ground-zero defun SNAPSHOT (design D3): a boot-strap definition read
+      off ACL2's world at capture end because the captured events cite it
+      (recursive ones carry RECOMPUTED termination clauses in `just`).
+      Emitted at the log's TAIL; logically it precedes the whole development.
+      INERT until WP1 wires snapshots into `toWorld`/the totality prover. -/
+  | groundZeroDefun (name : String) (formals : List Symbol) (body : SExpr)
+      (just : Option Justification)
+  /-- The cited ground-zero REWRITE rules read off ACL2's world at capture
+      end (design D5), match-free flags included. INERT until WP3/WP5 wire
+      them into the rule-discharge registry (deliberately NOT part of
+      `storedRules` — these were not created during capture). -/
+  | groundZeroRules (specs : List RuleSpec)
   /-- A proved theorem and its clause-tree proof. -/
   | theorem (proof : ClauseProof)
   /-- An INCLUDE-BOOK'd theorem (R2): certified in its OWN book — no
@@ -598,6 +610,13 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       let termination := pendingTermination.map fun t => { t with name := s!"termination of {n}" }
       events := events.push (.defun n formals body just termination)
       pendingTermination := none
+    | .groundZeroDefun n formals body just =>
+      -- A world snapshot, not an admission: it must NOT consume a pending
+      -- anonymous proof block as its termination proof (its clauses are
+      -- recomputed, and no waterfall ran for it in this capture).
+      events := events.push (.groundZeroDefun n formals body just)
+    | .groundZeroRules specs =>
+      events := events.push (.groundZeroRules specs)
     | .typePrescription n cor bts leaves =>
       events := events.push (.typePrescription n cor bts leaves)
     | .rules specs =>

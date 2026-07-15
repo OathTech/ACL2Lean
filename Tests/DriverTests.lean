@@ -657,4 +657,55 @@ example :
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
 #print axioms perm_transitive_real_mirror
 
+/-! ## WP0 pins — D8 rule flush + D3/D5 ground-zero snapshots (2026-07-15).
+
+These are EMISSION-layer facts (proof-log content), outside the differential
+harness's surface (it pins evalOpt-vs-ACL2 VALUE semantics only), so they are
+pinned here against the embedded isort log instead: a fork regression — the
+flush lost again, snapshots not emitted, or the stored-rule shape drifting —
+breaks these guards at the next recapture. -/
+
+private def isortLog : String := include_str "../acl2_samples/sorting/isort.proof-log"
+
+/-- The parsed development of `isort.proof-log` (parse failure ⇒ `.done` ⇒
+    every pin below fails loudly). -/
+def isortDevelopment : Development :=
+  (((ProofLog.parse isortLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+private partial def gzDefunEvents :
+    Development → List (String × SExpr × Option Justification)
+  | .bind (.groundZeroDefun n _ b j) rest => (n, b, j) :: gzDefunEvents rest
+  | .bind _ rest => gzDefunEvents rest
+  | .done => []
+
+private partial def gzRuleSpecs : Development → List RuleSpec
+  | .bind (.groundZeroRules specs) rest => specs ++ gzRuleSpecs rest
+  | .bind _ rest => gzRuleSpecs rest
+  | .done => []
+
+-- D8 (audit finding C): the book's LAST theorem's stored rule reaches its
+-- OWN log. Pre-fix, HOW-MANY-ISORT's `(:RULES)` entry was stranded in the
+-- accumulator (flushed only at a NEXT `:DEFTHM` that never came).
+#guard (isortDevelopment.storedRules.map (·.name)).contains "HOW-MANY-ISORT"
+
+-- D3: cited ground-zero defuns are snapshot — TRUE-LISTP with its BODY (the
+-- input WP2's definition-fact recompute-check consumes), and the recursive
+-- LEN with NONEMPTY recomputed admission clauses (the D6 totality input).
+#guard (gzDefunEvents isortDevelopment).any fun (n, b, _) =>
+  n == "TRUE-LISTP" && b != .nil
+#guard (gzDefunEvents isortDevelopment).any fun (n, _, j) =>
+  n == "LEN" && (j.map (·.terminationClauses.length)).getD 0 > 0
+
+-- D5 (audit F2's expected shape, confirmed on the real snapshot): the
+-- lexorder ground-zero rules are stored boolean-strengthened — :EQUIV EQUAL
+-- with rhs 'T — and LEXORDER-TRANSITIVE carries (:match-free :all). WP3's
+-- prelude constants recompute-check against exactly these statements.
+#guard (gzRuleSpecs isortDevelopment).any fun r =>
+  r.name == "LEXORDER-TRANSITIVE" && r.equiv == "equal" && r.rhs == quoteT
+    && r.hyps.length == 2 && r.matchFree == some "all"
+#guard (gzRuleSpecs isortDevelopment).any fun r =>
+  r.name == "LEXORDER-REFLEXIVE" && r.equiv == "equal" && r.rhs == quoteT
+    && r.hyps.isEmpty && r.matchFree == none
+
 end ACL2.Tests.Driver

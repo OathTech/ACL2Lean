@@ -219,6 +219,12 @@ structure RuleSpec where
   equiv : String
   lhs : SExpr
   rhs : SExpr
+  /-- The rule's `:match-free` flag (`some "all"` / `some "once"` — lowercase
+      dispatch tags — or `none`). Carried only by ground-zero rule SNAPSHOTS
+      (design D5: e.g. `LEXORDER-TRANSITIVE` is `(:rewrite :match-free :all)`);
+      the capture-time `(:RULES …)` entries do not emit it (their free-var
+      relief is replayed from the recorded relief chains instead). -/
+  matchFree : Option String := none
   deriving Repr, Inhabited
 
 /-- A single event in the proof log. -/
@@ -231,6 +237,16 @@ inductive ProofEvent where
   /-- The stored rewrite rules created since the previous flush (in creation
       order; emitted before the next :DEFTHM, hence before any use). -/
   | rules (specs : List RuleSpec)
+  /-- A ground-zero defun SNAPSHOT (`(:DEFUN … :SOURCE :GROUND-ZERO)`,
+      design D3): a boot-strap definition read off ACL2's world at capture
+      end because the captured events cite it — same payload as `defun`,
+      with the recursive case carrying RECOMPUTED termination clauses. -/
+  | groundZeroDefun (name : String) (formals : List Symbol) (body : SExpr)
+          (just : Option Justification := none)
+  /-- The cited ground-zero REWRITE rules read off ACL2's world at capture
+      end (`(:GROUND-ZERO-RULES …)`, design D5) — same entry shape as
+      `rules` plus the `:match-free` flag. -/
+  | groundZeroRules (specs : List RuleSpec)
   /-- Pool-processing events (`emit/pool-consider` / `emit/pool-subsumed`):
       pop-clause CONSIDERS pool roots in its own (subsumption-reordered)
       order — the steps/induction after a `poolConsider` belong to that pool
@@ -723,6 +739,46 @@ private def parseInduction? (items : List SExpr) : Except String InductionStep :
     | none => pure []
   pure { term, subgoalCount, scheme, xterm, measure, rel, mp, controllers, cases }
 
+/-- Parse one stored-rule entry: `(rune hyps equiv lhs rhs)` for the
+    capture-time `(:RULES …)` events (`withMatchFree = false`), or
+    `(rune hyps equiv lhs rhs match-free)` for ground-zero rule snapshots
+    (`withMatchFree = true`; match-free is `:ALL`/`:ONCE`/`NIL`). The two
+    arities are exact — a mismatched entry hard-fails. -/
+private def parseRuleSpecEntry (ctx : String) (withMatchFree : Bool)
+    (e : SExpr) : Except String RuleSpec := do
+  let some items := e.toList?
+    | throw s!"{ctx}: bad entry (not a list): {repr e}"
+  let (runeS, hypsS, equivS, lhsS, rhsS, mf?) ←
+    match withMatchFree, items with
+    | false, [r, h, q, l, rh] => pure (r, h, q, l, rh, none)
+    | true, [r, h, q, l, rh, mf] => pure (r, h, q, l, rh, some mf)
+    | false, _ =>
+      throw s!"{ctx}: bad entry (want (rune hyps equiv lhs rhs)): {repr e}"
+    | true, _ =>
+      throw s!"{ctx}: bad entry (want (rune hyps equiv lhs rhs match-free)): \
+              {repr e}"
+  match runeS.toList? with
+  | some [.atom (.keyword rty), .atom (.symbol rname)] => do
+    -- rune type + equiv are lowercase dispatch tags (see parseRune?).
+    unless rty.map Char.toLower == "rewrite" do
+      throw s!"{ctx}: rune class {rty} unsupported (frontier)"
+    let hyps ← hypsS.toList?.elim
+      (throw s!"{ctx} {rname.name}: :HYPS not a list: {repr hypsS}") pure
+    let equiv ← match equivS with
+      | .atom (.symbol s) => pure (s.name.map Char.toLower)
+      | other => throw s!"{ctx} {rname.name}: bad equiv: {repr other}"
+    let matchFree ← match mf? with
+      | none => pure none
+      | some .nil => pure none
+      | some (.atom (.keyword k)) => pure (some (k.map Char.toLower))
+      | some other =>
+        throw s!"{ctx} {rname.name}: bad match-free: {repr other}"
+    -- rune NAME is a symbol identity (theorem name), stored UPCASED
+    -- like parseRune?'s name and the dependency-proof keys.
+    pure ({ name := rname.name, hyps, equiv,
+            lhs := lhsS, rhs := rhsS, matchFree } : RuleSpec)
+  | _ => throw s!"{ctx}: bad rune: {repr runeS}"
+
 /-- Parse a single top-level s-expression from the proof log. -/
 private def parseEvent (s : SExpr) : Except String ProofEvent := do
   match s with
@@ -775,6 +831,14 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | other => throw s!"DEFUN {name}: non-symbol formal: {repr other}"
         let body ← (lookupKeyword "BODY" fields).elim
           (throw s!"DEFUN {name}: missing :BODY") pure
+        -- :SOURCE :GROUND-ZERO marks a boot-strap-world SNAPSHOT (design D3)
+        -- rather than a captured admission. Any other :SOURCE value is
+        -- malformed (fail-closed).
+        let groundZero ← match lookupKeyword "SOURCE" fields with
+          | none => pure false
+          | some (.atom (.keyword "GROUND-ZERO")) => pure true
+          | some other => throw s!"DEFUN {name}: unsupported :SOURCE \
+                                  {repr other}"
         -- The admission justification: :MEASURE/:WFREL/:MEASURED travel
         -- together (recursive defun) or are all absent (non-recursive); a
         -- PARTIAL set is a malformed emission and hard-fails.
@@ -813,9 +877,15 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
                            terminationClauses := clauses })
             | none, some (.atom (.symbol tS)) =>
               if tS.name == "T" then
-                pure (some { measure := m, wfRel := rel,
-                             measuredSubset := subSyms,
-                             terminationClauses := [] })
+                -- a ground-zero SNAPSHOT always carries recomputed clauses;
+                -- :INCLUDED on one is a malformed emission.
+                if groundZero then
+                  throw s!"DEFUN {name}: :SOURCE :GROUND-ZERO with :INCLUDED \
+                          (snapshots recompute their termination clauses)"
+                else
+                  pure (some { measure := m, wfRel := rel,
+                               measuredSubset := subSyms,
+                               terminationClauses := [] })
               else
                 throw s!"DEFUN {name}: malformed :INCLUDED value"
             | none, none =>
@@ -828,7 +898,8 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
               throw s!"DEFUN {name}: malformed :INCLUDED value: {repr other}"
           | _, _, _ => throw s!"DEFUN {name}: partial admission justification \
                                (:MEASURE/:WFREL/:MEASURED must travel together)"
-        return .defun name formals body just
+        return if groundZero then .groundZeroDefun name formals body just
+               else .defun name formals body just
       | _ => throw s!"DEFUN: bad name: {repr nameExpr}"
     | _ => throw s!"DEFUN: expected plist, got {repr rest}"
   | .cons (.atom (.keyword "RULES")) rest =>
@@ -836,27 +907,19 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
     | some [rulesList] =>
       let some entries := rulesList.toList?
         | throw s!"RULES: payload is not a list: {repr rulesList}"
-      let specs ← entries.mapM fun e => do
-        match e.toList? with
-        | some [runeS, hypsS, equivS, lhsS, rhsS] =>
-          match runeS.toList? with
-          | some [.atom (.keyword rty), .atom (.symbol rname)] => do
-            -- rune type + equiv are lowercase dispatch tags (see parseRune?).
-            unless rty.map Char.toLower == "rewrite" do
-              throw s!"RULES: rune class {rty} unsupported (frontier)"
-            let hyps ← hypsS.toList?.elim
-              (throw s!"RULES {rname.name}: :HYPS not a list: {repr hypsS}") pure
-            let equiv ← match equivS with
-              | .atom (.symbol s) => pure (s.name.map Char.toLower)
-              | other => throw s!"RULES {rname.name}: bad equiv: {repr other}"
-            -- rune NAME is a symbol identity (theorem name), stored UPCASED
-            -- like parseRune?'s name and the dependency-proof keys.
-            pure ({ name := rname.name, hyps, equiv,
-                    lhs := lhsS, rhs := rhsS } : RuleSpec)
-          | _ => throw s!"RULES: bad rune: {repr runeS}"
-        | _ => throw s!"RULES: bad entry (want (rune hyps equiv lhs rhs)): {repr e}"
-      return .rules specs
+      return .rules (← entries.mapM (parseRuleSpecEntry "RULES" false))
     | _ => throw s!"RULES: expected a single payload list, got {repr rest}"
+  | .cons (.atom (.keyword "GROUND-ZERO-RULES")) rest =>
+    -- Cited ground-zero rewrite rules read off the world at capture end
+    -- (design D5) — the (:RULES …) entry shape plus the match-free flag.
+    match rest.toList? with
+    | some [rulesList] =>
+      let some entries := rulesList.toList?
+        | throw s!"GROUND-ZERO-RULES: payload is not a list: {repr rulesList}"
+      return .groundZeroRules
+        (← entries.mapM (parseRuleSpecEntry "GROUND-ZERO-RULES" true))
+    | _ => throw s!"GROUND-ZERO-RULES: expected a single payload list, \
+                   got {repr rest}"
   | .cons (.atom (.keyword "POOL-CONSIDER")) rest =>
     let some nameS := lookupKeyword "NAME" (rest.toList?.getD [])
       | throw "POOL-CONSIDER: missing :NAME"

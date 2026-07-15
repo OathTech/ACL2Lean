@@ -23,9 +23,23 @@ _Last updated: 2026-07-12._
 > Quot.sound}) — the Lean-proved counterparts of ACL2's boot-admitted
 > ground-zero rules, resting on `lexView?` injectivity (`unview`
 > retraction), which is what the BUG-012/013/014 canonicity fixes bought.
-> NEXT: WP0 (fork rule-flush fix + ground-zero snapshot emission), then
-> WP1–WP6 per the design doc (WP3's prelude constants now have their
-> mathematical footing).
+> **WP0 DONE (2026-07-14, working tree)**: D8 per-defthm rule flush (the
+> last theorem's `(:RULES)` entry now reaches its own log — verified live:
+> HOW-MANY-ISORT's rule was stranded, now emitted); D3 ground-zero defun
+> SNAPSHOTS (`(:DEFUN … :SOURCE :GROUND-ZERO)`, cited-closure via the
+> prin1$ printed-symbol collector, termination clauses RECOMPUTED by
+> `termination-theorem-clauses` — isort carries 29, perm 19); D5
+> ground-zero rule snapshots (`(:GROUND-ZERO-RULES …)` with `:match-free`;
+> the lexorder rules' stored `:EQUIV EQUAL`/rhs `'T` shape CONFIRMED on
+> the real snapshot — the audit-F2 fail-closed check passes); parser
+> consumes both fail-closed, events INERT in the Development (golden
+> byte-identical; ci exit 0; diff-test 389/8/0). Parse-sweep finding:
+> qsort/sorts-equivalent logs have NEVER parsed (dotted-suffix runes
+> `(:REWRITE FLOOR-POSITIVE . 1)` in `(:RULES)` — pre-existing parser
+> frontier, R3 material, verified pre-D8 by flush-position argument);
+> bsort/msort/ordered-perms fail reconstruction on known frontier classes.
+> NEXT: WP1 (D3 world entries + retire `groundZeroDefs`; D6 totality on
+> recomputed clauses), then WP2–WP6 per the design doc.
 
 > **BUG-002 (symbol case) FIXED (2026-07-08, this branch).** The parser now
 > adopts ACL2's readtable-case :upcase EXACTLY: bare symbols/keywords upcase,
@@ -42,10 +56,10 @@ _Last updated: 2026-07-12._
 > **`just ci` is GREEN** and includes the driver-coverage sweep: hard-fails on
 > any item-less PROVED leaf (emission gap) and reconstruction-integrity
 > failures; reports per-theorem replay + per-leaf DP-discharge status —
-> currently **REPLAYED 26/47 (14 unconditional + 12 conditional)** (corpus
-> 45→47 with recon-tests/17-rule-application), DP leaves ✓10 ◌8 ✗0 of 18,
-> and a replayed ✓ is AXIOM-CLEAN by construction (the harness collects
-> each proof's axioms).
+> currently **REPLAYED 26/50 (21 unconditional + 5 conditional)** (see
+> `Tests/driver-coverage.golden`), DP leaves ✓11 ◌9 ✗0 of 20, and a
+> replayed ✓ is AXIOM-CLEAN by construction (the harness collects each
+> proof's axioms).
 
 ## CURRENT PRIORITIES (confirmed with MDD 2026-07-06, post-R1)
 

@@ -160,6 +160,22 @@ private partial def printDevelopment : ACL2.Development → IO Unit
       if let some t := termination then
         IO.println "  termination proof:"
         printClauseProof t 4
+    | .groundZeroDefun name formals body just =>
+      let fs := String.intercalate " " (formals.map (·.name))
+      IO.println s!"\n── ground-zero def {name} ({fs}) ──"
+      IO.println s!"  body: {body}"
+      if let some j := just then
+        let ms := String.intercalate " " (j.measuredSubset.map (·.name))
+        IO.println s!"  admission: measure {j.measure} under {j.wfRel.name}; measured: ({ms})"
+        for c in j.terminationClauses do
+          IO.println s!"    obligation (recomputed): {c}"
+    | .groundZeroRules specs =>
+      IO.println s!"\n── ground-zero rules ──"
+      for r in specs do
+        let hs := String.intercalate " ∧ " (r.hyps.map (·.toString))
+        let hyps := if r.hyps.isEmpty then "" else s!" (hyps: {hs})"
+        let mf := r.matchFree.elim "" (fun v => s!" (match-free {v})")
+        IO.println s!"  {r.name} [{r.equiv}]: {r.lhs} ⇒ {r.rhs}{hyps}{mf}"
     | .typePrescription name cor _ _ =>
       IO.println s!"\n── type-prescription {name} ──"
       IO.println s!"  {cor}"
@@ -310,6 +326,16 @@ def main (args : List String) : IO Unit := do
                 IO.println s!"\n  RULES ({specs.length} stored):"
                 for r in specs do
                   IO.println s!"    {r.name} [{r.equiv}]: {r.lhs} ⇒ {r.rhs} (hyps: {r.hyps.length})"
+            | .groundZeroDefun name formals body just =>
+                let formalStr := String.intercalate " " (formals.map (·.name))
+                IO.println s!"\n  GROUND-ZERO DEFUN {name} ({formalStr}) = {body}"
+                if let some j := just then
+                  IO.println s!"    admission (recomputed): measure {j.measure} under {j.wfRel.name}"
+            | .groundZeroRules specs =>
+                IO.println s!"\n  GROUND-ZERO-RULES ({specs.length} snapshot):"
+                for r in specs do
+                  let mf := r.matchFree.elim "" (fun v => s!" match-free {v}")
+                  IO.println s!"    {r.name} [{r.equiv}]: {r.lhs} ⇒ {r.rhs} (hyps: {r.hyps.length}){mf}"
             | .induction i =>
                 IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
             | .qed =>

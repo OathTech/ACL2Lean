@@ -46,8 +46,12 @@ for INPUT in "$@"; do
     exit 1
   fi
 
+  # emit-ground-zero-snapshots (fork, ld.lisp): after the book completes,
+  # append the cited-closure ground-zero defun snapshots + rule statements
+  # (external-knowledge design D3/D5) to the log's tail.
   printf '(set-raw-proof-format :structured)
 (ld "%s")
+(emit-ground-zero-snapshots state)
 (good-bye)
 ' "$INPUT_ABS" | "$ACL2" > "$OUTPUT" 2>&1
 
