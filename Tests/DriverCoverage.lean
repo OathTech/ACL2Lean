@@ -184,6 +184,13 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
       -- D1: emit the mirror constant (checked + axiom-clean above)
       let mut registered : Option (List String) := none
       if let some nm := mirrorName? then
+        -- name-collision guard (audit 2026-07-15): the sanitization
+        -- (non-alphanumerics ↦ '_') is not injective across (book, theorem)
+        -- pairs — name the collision instead of surfacing addDecl's
+        -- "already declared" as a bare FAIL on a green replay
+        if (← Lean.getEnv).contains nm then
+          return (s!"FAIL: mirror-constant name collision: {nm} (sanitized \
+                     book/theorem pair duplicates an earlier one)", none)
         let pv ← Lean.instantiateMVars p.1
         Lean.addDecl <| .thmDecl
           { name := nm, levelParams := [], type := ← Meta.inferType pv, value := pv }

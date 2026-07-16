@@ -739,7 +739,13 @@ fact. -/
 The `gz_def_<fn>` lemmas (EvalLemmas) state callBuiltin-vs-body agreement
 for EXACTLY these bodies; the guards pin the emitted artifact so a fork
 drift (a changed ground-zero body no longer matching the lemma's value
-composition) is caught here at elaboration, not at replay time. -/
+composition) is caught here at elaboration, not at replay time. Coverage
+(audit 2026-07-15): 6 of the 7 `d4DefFacts` fns are pinned below —
+TRUE-LISTP/LEN/FIX plus ENDP/ATOM/BOOLEANP from the embedded snapshots.
+NFIX's snapshot appears only in non-embedded logs (11-custom-measure),
+so its drift protection is the replay-time recompute-check alone, which
+the CD2-BOUND coverage row exercises (its status moved past the NFIX
+unfold at WP2). -/
 
 private def gzBodyOf (d : Development) (n : String) : Option SExpr :=
   d.groundZeroSnapshotDefs.find? (fun e => e.1 == { name := n })
@@ -777,6 +783,22 @@ private def gzBodyOf (d : Development) (n : String) : Option SExpr :=
     (.cons (.atom (.symbol { name := "X" }))
     (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
       (.cons (.atom (.number (.int 0))) .nil)) .nil))))
+-- ENDP and ATOM share the body (IF (CONSP X) 'NIL 'T)
+private def gzIfConspNilT : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "CONSP" }))
+      (.cons (.atom (.symbol { name := "X" })) .nil))
+    (.cons quoteNil (.cons quoteT .nil)))
+#guard gzBodyOf isortDevelopment "ENDP" == some gzIfConspNilT
+#guard gzBodyOf isortDevelopment "ATOM" == some gzIfConspNilT
+-- (IF (EQUAL X 'T) 'T (EQUAL X 'NIL))
+#guard gzBodyOf isortDevelopment "BOOLEANP" ==
+  some (.cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+      (.cons (.atom (.symbol { name := "X" })) (.cons quoteT .nil)))
+    (.cons quoteT
+    (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+      (.cons (.atom (.symbol { name := "X" })) (.cons quoteNil .nil))) .nil))))
 
 /-! ### WP3 pin — the D5 prelude-constant discharge (recompute-check LIVE).
 

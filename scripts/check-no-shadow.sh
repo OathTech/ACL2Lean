@@ -22,7 +22,7 @@ SRC=ACL2Lean/EvalOpt.lean
 fail=0
 
 arms=$(awk '/^def callBuiltin/,/^  \| _, _ => none/' "$SRC" \
-  | grep -oE '\| "[^"]+"' | sed 's/| "//; s/"//' | sort -u)
+  | grep -oE '\|[[:space:]]*"[^"]+"' | sed -E 's/\|[[:space:]]*"//; s/"//' | sort -u)
 listed=$(awk '/^def builtinNames/,/\]/' "$SRC" \
   | grep -oE '"[^"]+"' | sed 's/"//g' | sort -u)
 

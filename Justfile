@@ -34,7 +34,7 @@ check-no-shadow:
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
 # include_str's the gitignored .proof-log corpus; check-proof-logs runs first
 # so a missing log is a clear error, not a deep elaboration-trace failure.
-ci: lint-sh check-bugs check-no-shadow check-proof-logs build test driver-coverage
+ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-proof-logs build test driver-coverage
 
 # Run the corpus report
 report:
