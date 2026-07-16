@@ -439,6 +439,159 @@ theorem evalOpt_ge_fuel (N f : Nat) (w : World) (env : Env)
   | refl => exact h
   | step _ ih => exact evalOpt_fuel_mono _ w env t v ih
 
+/-! ## World monotonicity (external-knowledge design §D2, WP5)
+
+A convergent evaluation over `w1` transfers to an EXTENSION `w2` — the
+cross-book lemma (a mirror proved over an included book's world, used in a
+proof over the including book's larger world). `hnew` is NOT bureaucracy:
+world-FIRST dispatch means a `w2` def for a name that `w1` resolved via
+`callBuiltin` (e.g. `LEN`) would send the two evaluations down different
+routes, and the implication would be FALSE — `hnew` is exactly the
+soundness condition that dispatch order forces. Both side conditions are
+decidable per world pair. (ACL2 itself prohibits redefining built-ins, so
+on legal input the shadow case never arises; `hnew` makes that assumption
+explicit and checked rather than ambient.) -/
+
+private theorem letFoldStep_world_mono
+    (f g : World → Env → SExpr → Option SExpr) {w1 w2 : World}
+    (hmono : ∀ env t v, f w1 env t = some v → g w2 env t = some v)
+    (valEnv acc : Env) (b : SExpr) (mid : Env)
+    (hmid : (match b.toList? with
+      | some [.atom (.symbol var), valExpr] =>
+          (f w1 valEnv valExpr).bind fun v => some (acc.insert var v)
+      | _ => none) = some mid) :
+    (match b.toList? with
+      | some [.atom (.symbol var), valExpr] =>
+          (g w2 valEnv valExpr).bind fun v => some (acc.insert var v)
+      | _ => none) = some mid := by
+  match hbl : b.toList? with
+  | some [.atom (.symbol var), valExpr] =>
+    simp only [hbl] at hmid ⊢
+    cases hval : f w1 valEnv valExpr with
+    | none => simp [hval] at hmid
+    | some val => simp [hval] at hmid; simp [hmono valEnv valExpr val hval, hmid]
+  | some [.nil, _] | some [.atom (.number _), _] | some [.atom (.string _), _]
+  | some [.atom (.keyword _), _] | some [.atom (.char _), _] | some [.cons _ _, _]
+  | some (_ :: _ :: _ :: _) | some [_] | some [] | none =>
+    simp only [hbl] at hmid ⊢; exact hmid
+
+/-- The two-world step congruence behind `evalOpt_world_mono` — the
+    `evalOptStep_mono` case bash with the call branch split FOUR ways on
+    `w1.defs.get? s × w2.defs.get? s` (def/def via `hext`, none/… via
+    `hnew`'s disjunction; def/none is impossible by `hext`). -/
+theorem evalOptStep_world_mono
+    (f g : World → Env → SExpr → Option SExpr) {w1 w2 : World}
+    (hext : ∀ s d, w1.defs.get? s = some d → w2.defs.get? s = some d)
+    (hnew : ∀ s, w1.defs.get? s = none →
+      w2.defs.get? s = none ∨ (∀ args, callBuiltin s.name args = none))
+    (hmono : ∀ env t v, f w1 env t = some v → g w2 env t = some v)
+    (env : Env) (t : SExpr) (v : SExpr)
+    (h : evalOptStep f w1 env t = some v) :
+    evalOptStep g w2 env t = some v := by
+  match t with
+  | .nil | .atom (.number _) | .atom (.string _)
+  | .atom (.keyword _) | .atom (.char _) | .atom (.symbol _) => exact h
+  | .cons (.atom (.number _)) _ | .cons (.atom (.string _)) _
+  | .cons (.atom (.keyword _)) _ | .cons (.atom (.char _)) _ | .cons .nil _
+  | .cons (.cons _ _) _ => exact h
+  | .cons (.atom (.symbol s)) argsExpr =>
+    simp only [evalOptStep] at h ⊢
+    by_cases hq : s.isNamed "QUOTE" = true
+    · simp [hq] at h ⊢; exact h
+    · simp [hq] at h ⊢
+      by_cases hif : s.isNamed "IF" = true
+      · simp [hif] at h ⊢
+        match htl : argsExpr.toList? with
+        | some [c, t', e] =>
+          simp [htl] at h ⊢
+          cases hc : f w1 env c with
+          | none => simp [hc] at h
+          | some cv =>
+            simp [hc] at h; simp [hmono env c cv hc]
+            cases cv with
+            | nil => simp at h ⊢; exact hmono env e v h
+            | atom _ => simp at h ⊢; exact hmono env t' v h
+            | cons _ _ => simp at h ⊢; exact hmono env t' v h
+        | none | some [] | some [_] | some [_, _]
+        | some (_ :: _ :: _ :: _ :: _) => simp only [htl] at h; exact h
+      · simp [hif] at h ⊢
+        by_cases hlet : (s.isNamed "LET" || s.isNamed "LET*") = true
+        · -- LET branch
+          simp only [Bool.or_eq_true] at hlet
+          simp only [hlet, ite_true] at h ⊢
+          match htl : argsExpr.toList? with
+          | some [bindings, body] =>
+            simp only [htl] at h ⊢
+            match hbl : bindings.toList? with
+            | some bList =>
+              simp only [hbl] at h ⊢
+              cases hfold : List.foldlM (fun acc b => match b.toList? with
+                | some [.atom (.symbol var), valExpr] =>
+                    (f w1 (if s.isNamed "LET*" then acc else env) valExpr).bind
+                      fun v => some (acc.insert var v)
+                | _ => none) env bList with
+              | none => simp [hfold] at h
+              | some env' =>
+                simp [hfold] at h
+                have hfold' := List.foldlM_option_mono
+                  (fun acc b _ mid hmid =>
+                    letFoldStep_world_mono f g hmono
+                      (if s.isNamed "LET*" then acc else env) acc b mid hmid)
+                  hfold
+                simp [hfold', hmono env' _ v h]
+            | none => simp only [hbl] at h; exact h
+          | none | some [] | some [_]
+          | some (_ :: _ :: _ :: _) => simp only [htl] at h; exact h
+        · -- Function-call branch: the four-way world split
+          simp only [Bool.or_eq_true] at hlet
+          simp only [hlet, ite_false] at h ⊢
+          match htl : argsExpr.toList? with
+          | some args =>
+            simp only [htl] at h ⊢
+            cases hmap : (List.mapM (fun a => f w1 env a) args) with
+            | none => simp [hmap] at h
+            | some argVals =>
+              simp [hmap] at h
+              simp [List.mapM_option_mono (fun a _ val hval =>
+                hmono env a val hval) hmap]
+              match hdef : w1.defs.get? s with
+              | some (formals, body) =>
+                -- def/def: `hext` carries the SAME (formals, body) to w2
+                simp [hdef, hext s _ hdef] at h ⊢
+                by_cases hlen : formals.length = argVals.length
+                · simp [hlen] at h ⊢
+                  exact hmono (bindArgs formals argVals) body v h
+                · simp [hlen] at h
+              | none =>
+                simp [hdef] at h
+                rcases hnew s hdef with h2 | hcb
+                · -- none/none: both dispatch to `callBuiltin`
+                  simp [h2]; exact h
+                · -- none/def would shadow — but then `callBuiltin` returns
+                  -- none on every args, contradicting h's convergence
+                  rw [hcb argVals] at h; cases h
+          | none => simp only [htl] at h; exact h
+
+/-- WORLD MONOTONICITY (design §D2 — the statement is fixed there): a
+    convergent `evalOpt` over `w1` converges identically over any extension
+    `w2` that (a) preserves every `w1` def (`hext`) and (b) adds no def that
+    would SHADOW a builtin `w1` dispatched via `callBuiltin` (`hnew` — the
+    side condition world-first dispatch forces; see the section note).
+    Fuel-shape preserving (per-fuel), so `∃N∀f≥N` facts transfer directly. -/
+theorem evalOpt_world_mono {w1 w2 : World}
+    (hext : ∀ s d, w1.defs.get? s = some d → w2.defs.get? s = some d)
+    (hnew : ∀ s, w1.defs.get? s = none →
+      w2.defs.get? s = none ∨ (∀ args, callBuiltin s.name args = none)) :
+    ∀ (f : Nat) (env : Env) (t : SExpr) (v : SExpr),
+      evalOpt f w1 env t = some v → evalOpt f w2 env t = some v := by
+  intro f
+  induction f with
+  | zero => intro env t v h; simp [evalOpt] at h
+  | succ n ih =>
+    intro env t v h
+    exact evalOptStep_world_mono (evalOpt n) (evalOpt n) hext hnew
+      (fun env t v hv => ih env t v hv) env t v h
+
 /-! ## Smoke tests -/
 
 section Tests

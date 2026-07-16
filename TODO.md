@@ -124,7 +124,33 @@ _Last updated: 2026-07-12._
 > (The design's ≈557M figure was historical — pre-letBindFVar-era rule
 > hyps; the current inline baseline is already 40× below it.) Golden:
 > BYTE-IDENTICAL (the regression gate); perm coverage wall 21-49s → 13s.
-> NEXT: WP5 (D2 evalOpt_world_mono + D7 cross-book assembly).
+> **WP5(a) DONE (2026-07-15, working tree)**: D2 `evalOpt_world_mono`
+> PROVED as stated in the design (EvalOpt.lean): a convergent evaluation
+> over `w1` transfers to any extension `w2` under `hext` (defs preserved)
+> + `hnew` (no builtin shadowing — the side condition world-first
+> dispatch forces). Fuel induction over a two-world `evalOptStep_world_mono`
+> (the `evalOptStep_mono` case bash with the call branch split four ways
+> on `w1/w2 defs.get?`; none/def refuted via `hnew`'s callBuiltin-none
+> disjunct). Fuel-shape preserving — `∃N∀f≥N` facts transfer directly.
+> **WP5(b) D7 assembly DEFERRED — scope finding (2026-07-15, verified on
+> the real logs):** the CURRENT corpus has NO exercisable cross-book rule
+> discharge. Every rewrite rune applied in any isort SIMPLIFY-CLAUSE step
+> is GROUND-ZERO (CAR-CONS ×30, CDR-CONS ×36, DEFAULT-CAR ×1,
+> LEXORDER-REFLEXIVE ×15, LEXORDER-TRANSITIVE ×15); the perm/how-many
+> rule names appear only in `(:RULES)` storage re-emission, never
+> applied. The real D7 consumer is sorts-equivalent.proof-log (applies
+> HOW-MANY-ISORT ×3, ORDEREDP-ISORT ×3, TRUE-LISTP-ISORT ×3 + the
+> msort/qsort/bsort variants in actual steps) — but it (i) never parses
+> (dotted-rune `(:REWRITE F . 1)` entries in `(:RULES)`, pre-existing
+> frontier) and (ii) depends on msort/qsort/bsort theorems, whose books
+> wall at the induction-generality frontier (single-controller
+> `(acl2-count v)` cdr-decrease limit) — both OUTSIDE the ratified WP
+> queue. Building D7 now would be un-validatable machinery (the banned
+> anti-pattern). The D7-enabling path: dotted-rune parse → induction
+> generality → then D7 assembly against sorts-equivalent.
+> WP queue status: WP0-WP4 + WP5(a) landed; WP5(b)/WP6 + the queue-external
+> frontiers (FC-relief, compound-recognizer, unrecorded iff-normalization,
+> builtin-TP pins, dotted runes, induction generality) return to design.
 
 > **BUG-002 (symbol case) FIXED (2026-07-08, this branch).** The parser now
 > adopts ACL2's readtable-case :upcase EXACTLY: bare symbols/keywords upcase,
