@@ -168,7 +168,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,
-                                    gzDefs := gzDefs }
+                                    gzDefs := gzDefs, justs := justs }
         let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
           mirrors
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)

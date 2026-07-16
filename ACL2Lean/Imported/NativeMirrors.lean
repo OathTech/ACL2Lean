@@ -97,7 +97,7 @@ elab "driver_mirror%" devId:ident worldId:ident nm:str : term => do
   Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst worldName, envExpr := env, worldVal := dev.toWorld,
-        gzDefs := dev.groundZeroSnapshotDefs }
+        gzDefs := dev.groundZeroSnapshotDefs, justs := dev.justifications }
     let (proof, _conds) ← replayProofConditional cfg dev.typePrescriptions cp
       dev.justifications (Driver.rulesBefore dev nm.getString)
       ((Driver.developmentTheoremsWithRules dev).map fun (c, _) => (c.name, c))

@@ -443,6 +443,13 @@ structure ReplayConfig where
       world — no-shadow — so this is the only place their emission lives).
       Empty for synthetic test worlds. -/
   gzDefs : List (Symbol × List Symbol × SExpr) := []
+  /-- The development's admission justifications (fn ↦ measure/wfrel/
+      measured-subset + RAW termination clauses) — the I4 covering join
+      reads a scheme fn's emitted decrease clauses from here (J2; the
+      totality prover receives the same data as a parameter). Empty for
+      synthetic test worlds — an induction replay then hard-fails at the
+      covering check, never guesses. -/
+  justs : List (String × Justification) := []
 
 /-- The proof context in scope at a node. All entries are VALUE-CHARACTERIZED
     facts over the ambient env, established by the surrounding structure (the
@@ -4022,6 +4029,91 @@ where
     | .cons a rest => .cons (elimReplace carT cdrT vT uT v1 v2 a) (elimSpine rest)
     | t => t
 
+/-- I1 μ-REGISTRY (induction-generality design, J2): build the TOTAL
+    meta-level `Env → Nat` interpretation of an emitted measure term.
+    Registered heads: `ACL2-COUNT` (of a variable) ↦ `SExpr.acl2Count` of
+    the env value; `BINARY-+` ↦ `Nat.add`. An UNKNOWN head hard-fails — a
+    loud frontier, never a default (extension is additive registration).
+    The measure appears in NO statement (design I1's trust observation):
+    μ is proof bookkeeping, so a registry gap can only fail a proof. -/
+partial def buildMeasureFn (measure : SExpr) : MetaM Expr := do
+  withLocalDeclD `env (mkConst ``ACL2.Env) fun envV => do
+    mkLambdaFVars #[envV] (← go envV measure)
+where
+  go (envV : Expr) : SExpr → MetaM Expr
+    | .cons (.atom (.symbol h)) (.cons arg .nil) => do
+      unless h.name == "ACL2-COUNT" do
+        throwError "μ-registry: unary measure head {h.name} not registered \
+                    (frontier)"
+      let .atom (.symbol v) := arg
+        | throwError "μ-registry: (ACL2-COUNT {repr arg}) — non-variable \
+                      measured argument (frontier)"
+      mkAppM ``SExpr.acl2Count #[← dpConcVar envV v]
+    | .cons (.atom (.symbol h)) (.cons m1 (.cons m2 .nil)) => do
+      unless h.name == "BINARY-+" do
+        throwError "μ-registry: binary measure head {h.name} not registered \
+                    (frontier)"
+      mkAppM ``HAdd.hAdd #[← go envV m1, ← go envV m2]
+    | m => throwError "μ-registry: measure shape {repr m} not registered \
+                       (frontier)"
+
+/-- I4 COVERING JOIN (J2): the IH's measured-subset substitution must be
+    covered by an EMITTED termination clause of the scheme fn, instantiated
+    by ACL2's own flesh-out — `sublis-var (pairlis$ formals (fargs term))`
+    (theory-audit OUT-3; the measured actuals are DISTINCT VARIABLES by
+    ACL2's sound-induction condition, enforced here, never assumed). The
+    expected decrease literal is `(O< measureσ measure)` with σ the alist
+    restricted to the measured variables; a clause containing it must exist.
+    Never an obligation ACL2 did not emit — no cover, hard-fail. -/
+def checkCoveringClause (cfg : ReplayConfig) (ind : InductionStep)
+    (alist : List (Symbol × SExpr)) (measuredVars : List Symbol) :
+    MetaM Unit := do
+  let .cons (.atom (.symbol fn)) argSpine := ind.term
+    | throwError "replayInduction: induction term {repr ind.term} is not an \
+                  application (frontier)"
+  let some actuals := argSpine.toList?
+    | throwError "replayInduction: induction term args not a list (frontier)"
+  -- scheme fn formals: the world, or — for a builtin-named scheme fn,
+  -- world-EXCLUDED by no-shadow (e.g. LEN) — its ground-zero snapshot
+  let some formals :=
+      ((cfg.worldVal.defs.get? fn).map (·.1)).orElse
+        (fun _ => (cfg.gzDefs.find? (·.1 == fn)).map (·.2.1))
+    | throwError "replayInduction: scheme fn {fn.name} neither in the world \
+                  nor a ground-zero snapshot (frontier)"
+  unless formals.length == actuals.length do
+    throwError "replayInduction: induction term arity mismatch (frontier)"
+  -- the flesh-out renaming; measured ACTUALS must be distinct variables
+  let mAlist := alist.filter (fun (v, _) => measuredVars.contains v)
+  let mVarsOfActuals := (formals.zip actuals).filterMap fun (f, a) =>
+    match a with
+    | .atom (.symbol s) => if measuredVars.contains s then some (f, s) else none
+    | _ => none
+  let measuredActuals := mVarsOfActuals.map (·.2)
+  unless measuredVars.all (measuredActuals.contains ·) do
+    throwError "replayInduction: a measured variable is not a distinct-\
+                variable actual of the induction term (sound-induction \
+                condition — frontier)"
+  let some j := cfg.justs.lookup fn.name
+    | throwError "replayInduction: no emitted justification for scheme fn \
+                  {fn.name} (emission gap — frontier)"
+  let expected : SExpr :=
+    .cons (.atom (.symbol { name := "O<" }))
+      (.cons (ACL2.Replay.substTerm (mAlist.map (·.1)) (mAlist.map (·.2))
+        ind.measure)
+      (.cons ind.measure .nil))
+  -- rename PER LITERAL: a clause sexpr's head is a literal (a cons), which
+  -- `substTerm`'s application arm does not enter — map over the literal list
+  let renamed := j.terminationClauses.map fun cl =>
+    match cl.toList? with
+    | some lits => lits.map (ACL2.Replay.substTerm formals actuals)
+    | none => []
+  unless renamed.any (fun lits => lits.contains expected) do
+    throwError "replayInduction: IH substitution {repr mAlist} has no \
+                covering emitted termination clause (expected decrease \
+                {repr expected}) — never an obligation ACL2 did not emit \
+                (frontier)"
+
+
 mutual
 
 /-- Replay a clause as its LITERAL SPINE: prove `EvTrue w env (disjoinTerm
@@ -5303,60 +5395,48 @@ partial def replayEliminateIrrelevance (cfg : ReplayConfig) (ctx : ReplayCtx)
       mkAppM ``Classical.byCases #[negB, posB]
   goSub ctx pChild child.inputClause
 
-/-- Replay an INDUCTION pool-root from its EMITTED justification (G5 v2,
-    docs/plans/2026-06-12_multicase-induction.md): measure `(acl2-count v)`
-    under `o<`, one controller; N cases with COMPOUND ruling tests (the
-    emitted decision tree), multiple base cases, multiple IHs per case, IH
-    alists substituting non-controller variables by arbitrary computed terms.
-    The controller's own substitution must be `(cdr controller)` under an
-    in-scope `(consp controller)` ruling test (the Count-library decrease);
-    anything else hard-fails (frontier — msort/qsort move this wall). -/
+/-- Replay an INDUCTION pool-root from its EMITTED justification
+    (REWIRED at J2 — induction-generality design §I1–I5, spike-validated by
+    `Imported/FlattenSpike.lean` and `Imported/InterleaveSpike.lean`):
+    the motive is ENV-LEVEL (`P env := EvTrue w env ⟪pushed⟫`) under strong
+    induction on the μ-registry interpretation of the EMITTED measure term
+    (`measure_strong_induction`); cases follow the emitted decision tree;
+    each emitted IH alist instantiates the ONE strong hypothesis at the
+    updated env (swaps and ride-along substitutions are plain env updates),
+    justified by a decrease covered by the scheme fn's emitted termination
+    clauses (`checkCoveringClause`) and discharged from the case's ruling
+    facts by the Count library. J2's DISCHARGE FRAGMENT: single measured
+    variable with `(CDR v)`/`(CAR v)` substitution under a direct
+    `(consp v)`/`(not (endp v))` ruling fact; compound-test inversion is J3,
+    sum-measure discharge is J4 — both hard-fail here until then. -/
 partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) :
     MetaM Expr := do
   let some ind := cn.induction | throwError "replayInduction: no induction"
-  -- 1. validate the justification shape
-  let .cons (.atom (.symbol acS)) (.cons (.atom (.symbol cvar)) .nil) := ind.measure
-    | throwError "replayInduction: measure {repr ind.measure} is not (acl2-count v) (frontier)"
-  unless acS.name == "ACL2-COUNT" do
-    throwError "replayInduction: measure head {acS.name} (frontier)"
+  -- 1. validate the justification shape (J2: μ-registry + T3 + I4 covering)
+  let μE ← buildMeasureFn ind.measure
   let relOk := match ind.rel with
     | .atom (.symbol r) => r.name == "O<"
     | _ => false
   unless relOk do throwError "replayInduction: rel {repr ind.rel} ≠ o< (frontier)"
-  unless ind.controllers == [cvar] do
-    throwError "replayInduction: controllers {repr ind.controllers} ≠ [{cvar.name}] (frontier)"
-  let cvarT : SExpr := .atom (.symbol cvar)
-  let consT : SExpr := .cons (.atom (.symbol { name := "CONSP" })) (.cons cvarT .nil)
-  -- `(not (endp v))` is the OTHER ACL2 spelling of the consp ruling test
-  -- (endp = guard-relaxed atom; R2: isort's fns test endp)
-  let notEndpT : SExpr :=
-    .cons (.atom (.symbol { name := "NOT" }))
-      (.cons (.cons (.atom (.symbol { name := "ENDP" })) (.cons cvarT .nil)) .nil)
-  let cdrT : SExpr := .cons (.atom (.symbol { name := "CDR" })) (.cons cvarT .nil)
-  -- 2. per-case validation: every IH alist must be over DISTINCT variables and
-  -- map the controller to (cdr controller), justified by an in-scope (consp
-  -- controller) — or (not (endp controller)) — ruling test; non-controller
-  -- substitutions are unrestricted.
+  -- T3 (theory audit): measured subset := free vars of the FLESHED-OUT
+  -- measure term; must be ⊆ the emitted :CONTROLLERS
+  let measuredVars := ACL2.Replay.freeVars ind.measure
+  if measuredVars.isEmpty then
+    throwError "replayInduction: measure {repr ind.measure} has no measured \
+                variables (frontier)"
+  unless measuredVars.all (ind.controllers.contains ·) do
+    throwError "replayInduction: measured vars {repr measuredVars} ⊄ \
+                :CONTROLLERS {repr ind.controllers} (T3 — frontier)"
+  -- 2. per-case validation: distinct alist vars; every IH's measured
+  -- substitution covered by an EMITTED termination clause (I4)
   for c in ind.cases do
     if c.tests.isEmpty then
       throwError "replayInduction: a case has no ruling tests (frontier)"
-    unless c.alists.isEmpty do
-      unless c.tests.contains consT || c.tests.contains notEndpT do
-        throwError "replayInduction: step case tests {repr c.tests} lack \
-                    (consp {cvar.name}) / (not (endp {cvar.name})) — non-cdr \
-                    measure decrease (frontier)"
-      for alist in c.alists do
-        let vars := alist.map (·.1)
-        unless vars.eraseDups.length == vars.length do
-          throwError "replayInduction: IH alist vars {repr vars} not distinct"
-        match alist.lookup cvar with
-        | some tm =>
-          unless tm == cdrT do
-            throwError "replayInduction: IH maps controller {cvar.name} to \
-                        {repr tm}, expected (cdr {cvar.name}) (frontier)"
-        | none =>
-          throwError "replayInduction: IH alist omits the controller \
-                      {cvar.name} (identity on the measured var — frontier)"
+    for alist in c.alists do
+      let vars := alist.map (·.1)
+      unless vars.eraseDups.length == vars.length do
+        throwError "replayInduction: IH alist vars {repr vars} not distinct"
+      checkCoveringClause cfg ind alist measuredVars
   -- 3. the pushed clause (k literals) and recomputed child clauses. The
   -- induction formula for clause C under IHs σ1…σm is
   -- (tests ∧ (∨C)σ1 ∧ … ∧ (∨C)σm) → (∨C); each IH's ¬(∨C)σi is a
@@ -5423,99 +5503,115 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
   let w := cfg.worldExpr
   let pushedE := reflectSExpr pushedTerm
   let nilC := mkConst ``SExpr.nil
-  -- 4. P : SExpr → Prop — the pushed clause's truth is `EvTrue` (G2)
-  let P ← withLocalDeclD `xv (mkConst ``SExpr) fun xvV => do
-    let body ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
-      let hxTy ← mkValConvPropEx w eV (reflectSExpr cvarT) xvV
-      let goal ← mkAppM ``EvTrue #[w, eV, pushedE]
-      mkForallFVars #[eV] (← mkArrow hxTy goal)
-    mkLambdaFVars #[xvV] body
+  -- 4. P : Env → Prop — the pushed pool entry's truth at the ambient env
+  -- (J2, design I2: the ENV-LEVEL motive — spike-validated)
+  let P ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
+    mkLambdaFVars #[eV] (← mkAppM ``EvTrue #[w, eV, pushedE])
   let conspOf := fun (v : Expr) => mkApp (mkConst ``Logic.consp) v
   let hNoLet ← proveByDecide
     (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[pushedE]) (mkConst ``Bool.true))
     "NoLet pushed"
-  -- 5. the strong-induction STEP: ∀ xv, (∀ u, count u < count xv → P u) → P xv,
-  -- dispatching the emitted decision tree at the env level.
-  let step ← withLocalDeclD `xv (mkConst ``SExpr) fun xvV => do
-    let countOf := fun (v : Expr) => mkApp (mkConst ``SExpr.acl2Count) v
-    let sihTy ← withLocalDeclD `u (mkConst ``SExpr) fun uV => do
-      let lt ← mkAppM ``LT.lt #[countOf uV, countOf xvV]
-      mkForallFVars #[uV] (← mkArrow lt (mkApp P uV).headBeta)
+  -- 5. the strong-induction STEP: ∀ e, (∀ e', μ e' < μ e → P e') → P e,
+  -- dispatching the emitted decision tree.
+  let step ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
+    let sihTy ← withLocalDeclD `e2 (mkConst ``ACL2.Env) fun e2V => do
+      let lt ← mkAppM ``LT.lt #[(mkApp μE e2V).headBeta, (mkApp μE eV).headBeta]
+      mkForallFVars #[e2V] (← mkArrow lt (mkApp P e2V).headBeta)
     let inner ← withLocalDeclD `sih sihTy fun sihV => do
-      let inner2 ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
-        let hxTy ← mkValConvPropEx w eV (reflectSExpr cvarT) xvV
-        let inner3 ← withLocalDeclD `hx hxTy fun hX => do
           let cfg' := { cfg with envExpr := eV }
           let ctx0 : ReplayCtx :=
-            { ctx with varVals := [(cvar, xvV, hX)], vals := [], litFacts := [] }
-          -- ONE IH's truth: instantiate the strong IH at the substituted
-          -- controller value and bridge to this env by substN — EvTrue of the
-          -- σ-instance of the pushed DISJUNCTION (the walk below consumes it)
+            { ctx with varVals := [], vals := [], litFacts := [] }
+          -- ONE IH's truth: instantiate the strong IH at the UPDATED env —
+          -- every alist pair is a plain env update (swaps and arbitrary
+          -- ride-along terms included, design I3) — and bridge to this env
+          -- by substN: EvTrue of the σ-instance of the pushed DISJUNCTION
           let ihDisjTruth (ctxD : ReplayCtx) (facts : List TestFact)
               (alist : List (Symbol × SExpr)) :
               MetaM (ReplayCtx × Expr) := do
-            -- controller FIRST (envUpdate's head insert is outermost — the
-            -- controller-lookup cast below depends on it)
-            let others := alist.filter (·.1 != cvar)
-            let formals := cvar :: others.map (·.1)
-            let args := cdrT :: others.map (·.2)
-            let uVal := mkApp (mkConst ``Logic.cdr) xvV
-            let hCdrConv ← ctxValProof cfg' ctxD cdrT
+            -- pin every substituted term's value IN THIS ENV (simultaneous-
+            -- substitution semantics, J1(b)-validated)
+            let formals := alist.map (·.1)
+            let args := alist.map (·.2)
             let mut ctxD := ctxD
-            let mut otherVals : List (Expr × Expr) := []
-            for (_, atm) in others do
+            let mut vals : List (Expr × Expr) := []
+            for (_, atm) in alist do
               ctxD ← pinTermOpaques cfg' eV ctxD atm
               let aE ← ctxValExpr cfg' ctxD atm
               let aP ← ctxValProof cfg' ctxD atm
-              otherVals := otherVals ++ [(aE, aP)]
-            -- measure decrease from the in-scope truthy (consp cvar) — or
-            -- (not (endp cvar)) — ruling fact
-            let hToBool ←
-              match facts.find? (fun f => f.test == consT && f.sign) with
-              | some cf => do
-                let neTy ← mkAppM ``Ne #[conspOf xvV, nilC]
-                unless ← isDefEq (← inferType cf.signE) neTy do
-                  throwError "replayInduction: the (consp {cvar.name}) fact's \
-                              value is not Logic.consp of the controller pin"
-                let hNeCast ← mkExpectedTypeHint cf.signE neTy
-                mkAppM ``toBool_true_of_ne_nil #[hNeCast]
-              | none =>
-                -- the case tree strips the leading `not`: the step case's
-                -- fact is the POSITIVE (endp cvar) with sign FALSE
-                -- (signE : Logic.endp _ = nil)
+              vals := vals ++ [(aE, aP)]
+            -- J2 DECREASE FRAGMENT (design I4): single measured variable,
+            -- (CDR v)/(CAR v) substitution, direct (consp v)/(not (endp v))
+            -- ruling fact. Compound-test inversion is J3; sum-measure
+            -- discharge is J4 — hard-fail until then.
+            let hLtRaw ←
+              match measuredVars with
+              | [mv] => do
+                let mvT : SExpr := .atom (.symbol mv)
+                let consT : SExpr :=
+                  .cons (.atom (.symbol { name := "CONSP" })) (.cons mvT .nil)
                 let endpT : SExpr :=
-                  .cons (.atom (.symbol { name := "ENDP" })) (.cons cvarT .nil)
-                match facts.find? (fun f => f.test == endpT && !f.sign) with
-                | some cf => do
-                  let eqTy ← mkEq (mkApp (mkConst ``Logic.endp) xvV) nilC
-                  unless ← isDefEq (← inferType cf.signE) eqTy do
-                    throwError "replayInduction: the falsy (endp {cvar.name}) \
-                                fact's value is not Logic.endp of the \
-                                controller pin"
-                  let hCast ← mkExpectedTypeHint cf.signE eqTy
-                  mkAppM ``consp_toBool_of_endp_nil #[hCast]
-                | none =>
-                  throwError "replayInduction: no in-scope truthy (consp \
-                              {cvar.name}) / falsy (endp {cvar.name}) fact \
-                              for the IH decrease"
-            let hLt ← mkAppM ``acl2Count_cdr_lt_of_consp #[hToBool]
-            let pIHu := mkAppN sihV #[uVal, hLt]
-            -- e' = envUpdate e formals (uVal :: otherVals)
+                  .cons (.atom (.symbol { name := "ENDP" })) (.cons mvT .nil)
+                let xvE ← dpConcVar eV mv
+                let some mtm := alist.lookup mv
+                  | throwError "replayInduction: IH omits the measured var \
+                      {mv.name} (identity substitution — frontier)"
+                let hToBool ←
+                  match facts.find? (fun f => f.test == consT && f.sign) with
+                  | some cf => do
+                    let neTy ← mkAppM ``Ne #[conspOf xvE, nilC]
+                    unless ← isDefEq (← inferType cf.signE) neTy do
+                      throwError "replayInduction: the (consp {mv.name}) \
+                                  fact's value is not Logic.consp of the \
+                                  measured var's env value"
+                    let hNeCast ← mkExpectedTypeHint cf.signE neTy
+                    mkAppM ``toBool_true_of_ne_nil #[hNeCast]
+                  | none =>
+                    -- the case tree strips the leading `not`: the step
+                    -- case's fact is the POSITIVE (endp v) with sign FALSE
+                    match facts.find? (fun f => f.test == endpT && !f.sign) with
+                    | some cf => do
+                      let eqTy ← mkEq (mkApp (mkConst ``Logic.endp) xvE) nilC
+                      unless ← isDefEq (← inferType cf.signE) eqTy do
+                        throwError "replayInduction: the falsy (endp \
+                                    {mv.name}) fact's value is not \
+                                    Logic.endp of the measured var's env \
+                                    value"
+                      let hCast ← mkExpectedTypeHint cf.signE eqTy
+                      mkAppM ``consp_toBool_of_endp_nil #[hCast]
+                    | none =>
+                      throwError "replayInduction: no in-scope truthy \
+                                  (consp {mv.name}) / falsy (endp \
+                                  {mv.name}) fact for the IH decrease \
+                                  (compound ruling tests are the J3 \
+                                  inversion frontier)"
+                let cdrT : SExpr :=
+                  .cons (.atom (.symbol { name := "CDR" })) (.cons mvT .nil)
+                let carT : SExpr :=
+                  .cons (.atom (.symbol { name := "CAR" })) (.cons mvT .nil)
+                if mtm == cdrT then
+                  mkAppM ``acl2Count_cdr_lt_of_consp #[hToBool]
+                else if mtm == carT then
+                  mkAppM ``acl2Count_car_lt_of_consp #[hToBool]
+                else
+                  throwError "replayInduction: measured substitution \
+                      {repr mtm} beyond the J2 cdr/car fragment (frontier)"
+              | _ =>
+                throwError "replayInduction: sum-measure decrease discharge \
+                    is the J4 frontier"
+            -- e' and the cast of the decrease to μ e' < μ e (defeq through
+            -- the concrete envUpdate lookups)
             let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
-            let valsList := uVal :: otherVals.map (·.1)
+            let valsList := vals.map (·.1)
             let valsE ← mkListLit (mkConst ``SExpr) valsList
             let argsE ← mkListLit (mkConst ``SExpr) (args.map reflectSExpr)
             let e' ← mkAppM ``envUpdate #[eV, formalsE, valsE]
-            -- eval e' (var cvar) ↦ uVal (head insert is outermost, defeq)
-            let restF ← mkListLit (mkConst ``Symbol)
-              (others.map (fun o => reflectSymbol o.1))
-            let restV ← mkListLit (mkConst ``SExpr) (otherVals.map (·.1))
-            let eInner ← mkAppM ``envUpdate #[eV, restF, restV]
-            let hx'raw ← mkAppM ``re_val_var_insert
-              #[w, eInner, reflectSymbol cvar, uVal]
-            let hx' ← mkExpectedTypeHint hx'raw
-              (← mkValConvPropEx w e' (reflectSExpr cvarT) uVal)
-            let pIH' := mkAppN pIHu #[e', hx']
+            let ltTy ← mkAppM ``LT.lt
+              #[(mkApp μE e').headBeta, (mkApp μE eV).headBeta]
+            unless ← isDefEq (← inferType hLtRaw) ltTy do
+              throwError "replayInduction: the decrease fact does not match \
+                          μ's env-update reduction (internal)"
+            let hLt ← mkExpectedTypeHint hLtRaw ltTy
+            let pIH' := mkAppN sihV #[e', hLt]
             -- substN bridge: eval e (subst pushed) = eval e' pushed
             let hlenPf ← proveByDecide
               (← mkEq (← mkAppM ``List.length #[argsE])
@@ -5529,7 +5625,7 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
             let entries ← (args.zip valsList).mapM fun (a, vE) => do
               let pairE ← mkAppM ``Prod.mk #[reflectSExpr a, vE]
               pure pairE
-            let proofs := hCdrConv :: otherVals.map (·.2)
+            let proofs := vals.map (·.2)
             let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip proofs)
             let zipE ← mkAppM ``List.zip #[argsE, valsE]
             let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
@@ -5703,16 +5799,12 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
                     goIHs ctxD restA (chosen ++ [(alist, j, hne)])
               goIHs ctxD c.alists []
           let body ← go tree ctx0 []
-          mkLambdaFVars #[hX] body
-        mkLambdaFVars #[eV] inner3
-      mkLambdaFVars #[sihV] inner2
-    mkLambdaFVars #[xvV] inner
-  -- 6. apply the induction and instantiate at the ambient env's controller value
-  let indP ← mkAppM ``acl2_strong_induction_count #[P, step]
-  let hNotT ← proveIsNamedFalse cvar "t"
-  let hxv ← mkAppM ``re_val_var #[w, cfg.envExpr, reflectSymbol cvar, hNotT]
-  let xv0 ← dpConcVar cfg.envExpr cvar
-  return mkAppN indP #[xv0, cfg.envExpr, ← pure hxv] |>.headBeta
+          mkLambdaFVars #[sihV] body
+    mkLambdaFVars #[eV] inner
+  -- 6. apply the induction at the ambient env (env-level motive — no
+  -- controller-value instantiation plumbing)
+  let indP ← mkAppM ``measure_strong_induction #[μE, P, step]
+  return (mkApp indP cfg.envExpr).headBeta
 
 end
 

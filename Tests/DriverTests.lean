@@ -341,7 +341,8 @@ elab "acl2_replay_mylen_real% " : term => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``simpleWorld, envExpr := env,
         worldVal := simpleDevelopment.toWorld,
-        gzDefs := simpleDevelopment.groundZeroSnapshotDefs }
+        gzDefs := simpleDevelopment.groundZeroSnapshotDefs,
+        justs := simpleDevelopment.justifications }
     let (proof, conds) ← replayProofConditional cfg simpleTPs cp
       simpleDevelopment.justifications
     logInfo m!"my-len-my-app replayed; conditions: {conds}"
@@ -578,7 +579,8 @@ elab "acl2_replay_permcons_real% " : term => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``permWorld, envExpr := env,
         worldVal := permDevelopment.toWorld,
-        gzDefs := permDevelopment.groundZeroSnapshotDefs }
+        gzDefs := permDevelopment.groundZeroSnapshotDefs,
+        justs := permDevelopment.justifications }
     let (proof, conds) ← replayProofConditional cfg permTPs cp
       permDevelopment.justifications
     logInfo m!"perm-cons replayed; conditions: {conds}"
@@ -633,7 +635,8 @@ elab "acl2_replay_permtrans_real% " : term => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``permWorld, envExpr := env,
         worldVal := permDevelopment.toWorld,
-        gzDefs := permDevelopment.groundZeroSnapshotDefs }
+        gzDefs := permDevelopment.groundZeroSnapshotDefs,
+        justs := permDevelopment.justifications }
     let (proof, conds) ← replayProofConditional cfg permTPs cp
       permDevelopment.justifications
       (rulesBefore permDevelopment "perm-transitive")
@@ -819,7 +822,8 @@ elab "wp3_gz_discharge_pin% " : term => do
   withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst ``isortWorld, envExpr := env,
-        worldVal := dev.toWorld, gzDefs := dev.groundZeroSnapshotDefs }
+        worldVal := dev.toWorld, gzDefs := dev.groundZeroSnapshotDefs,
+        justs := dev.justifications }
     for (nm, decl, nsFn) in d5GzRules do
       let some spec := specs.find? (·.name == nm)
         | throwError "WP3 pin: no emitted ground-zero rule {nm} in the isort snapshot"

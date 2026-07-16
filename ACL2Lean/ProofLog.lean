@@ -861,41 +861,42 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
               | .atom (.symbol s) => pure s
               | other => throw s!"DEFUN {name}: non-symbol measured formal: {repr other}"
             -- a RECURSIVE defun must carry its decrease obligations — an
-            -- admission the log cannot justify is an emission gap (hard-fail;
-            -- the emitter attaches the clique's RAW measure clauses) — UNLESS
-            -- it is explicitly marked :INCLUDED T (an include-book'd defun:
-            -- ACL2 does not re-run admission, so no clauses exist; R2). Empty
-            -- clauses make the totality prover frontier-fail on the first
-            -- decrease, keeping total:fn visible (D6) — fail-closed.
+            -- admission the log cannot justify is an emission gap
+            -- (hard-fail; the emitter attaches the clique's RAW measure
+            -- clauses). Since the J2 fork change (2026-07-16) this holds
+            -- for INCLUDE-BOOK'd defuns too: the re-emission RECOMPUTES the
+            -- clauses (gz-termination-clauses — the R2 follow-up), so
+            -- :INCLUDED T now travels WITH :TERMINATION-CLAUSES; an
+            -- :INCLUDED defun without clauses is a stale-fork capture
+            -- (hard-fail, prompting recapture).
             match lookupKeyword "TERMINATION-CLAUSES" fields,
                   lookupKeyword "INCLUDED" fields with
-            | some clausesExpr, none =>
+            | some clausesExpr, included? =>
+              (do match included? with
+                  | none => pure ()
+                  | some (.atom (.symbol tS)) =>
+                    if tS.name == "T" then
+                      if groundZero then
+                        throw s!"DEFUN {name}: :SOURCE :GROUND-ZERO with \
+                                :INCLUDED (snapshots are not include \
+                                re-emissions)"
+                      else pure ()
+                    else throw s!"DEFUN {name}: malformed :INCLUDED value"
+                  | some other =>
+                    throw s!"DEFUN {name}: malformed :INCLUDED value: \
+                            {repr other}")
               let clauses ← clausesExpr.toList?.elim
                 (throw s!"DEFUN {name}: :TERMINATION-CLAUSES is not a list: \
                          {repr clausesExpr}") pure
               pure (some { measure := m, wfRel := rel, measuredSubset := subSyms,
                            terminationClauses := clauses })
-            | none, some (.atom (.symbol tS)) =>
-              if tS.name == "T" then
-                -- a ground-zero SNAPSHOT always carries recomputed clauses;
-                -- :INCLUDED on one is a malformed emission.
-                if groundZero then
-                  throw s!"DEFUN {name}: :SOURCE :GROUND-ZERO with :INCLUDED \
-                          (snapshots recompute their termination clauses)"
-                else
-                  pure (some { measure := m, wfRel := rel,
-                               measuredSubset := subSyms,
-                               terminationClauses := [] })
-              else
-                throw s!"DEFUN {name}: malformed :INCLUDED value"
+            | none, some _ =>
+              throw s!"DEFUN {name}: :INCLUDED without :TERMINATION-CLAUSES \
+                      — stale-fork capture (the include re-emission \
+                      recomputes clauses since J2); recapture the log"
             | none, none =>
               throw s!"DEFUN {name}: recursive (has a justification) but no \
                       :TERMINATION-CLAUSES and no :INCLUDED marker — emission gap"
-            | some _, some _ =>
-              throw s!"DEFUN {name}: both :TERMINATION-CLAUSES and :INCLUDED \
-                      (malformed emission)"
-            | none, some other =>
-              throw s!"DEFUN {name}: malformed :INCLUDED value: {repr other}"
           | _, _, _ => throw s!"DEFUN {name}: partial admission justification \
                                (:MEASURE/:WFREL/:MEASURED must travel together)"
         return if groundZero then .groundZeroDefun name formals body just

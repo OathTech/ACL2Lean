@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 26/50 (21 unconditional + 5 conditional); DP-discharge leaves ✓11 ◌9 ✗0 of 20:
+Driver coverage — REPLAYED 27/50 (21 unconditional + 6 conditional); DP-discharge leaves ✓11 ◌9 ✗0 of 20:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -41,19 +41,19 @@ Driver coverage — REPLAYED 26/50 (21 unconditional + 5 conditional); DP-discha
     IDF-REWRITES → REPLAYED ✓
 • 10-tree-induction  (world: 12 defun(s), 2 theorem(s))
     TRUE-LISTP-APP → FAIL: replayRecognizer: not-literal elimination only for consp⇒t (got TRUE-LISTP ⇒ T, frontier)
-    TRUE-LISTP-FLATTEN → FAIL: replayInduction: IH maps controller X to (CAR X), expected (cdr X) (frontier)
+    TRUE-LISTP-FLATTEN → REPLAYED ✓ cond[rule:TRUE-LISTP-APP]
 • 11-custom-measure  (world: 12 defun(s), 1 theorem(s))
     CD2-BOUND → FAIL: replayNode: no rule for rune (compound-recognizer, ZP-COMPOUND-RECOGNIZER) — unimplemented frontier  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ◌ assumed cond[total:(CD2 (BINARY-+ '-2 N)), tp:CD2, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau-contradiction ◌ assumed cond[total:(CD2 N), tp:CD2, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(CD2 N), tp:CD2]]
 • 12-multi-controller  (world: 12 defun(s), 1 theorem(s))
-    LEN-ZIP2 → FAIL: replayInduction: step case tests [(NOT (IF (ATOM X) (ATOM X) (ATOM Y)))] lack (consp X) / (not (endp X)) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2, ASSUMED:dp-fact], Subgoal *1/1':preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    LEN-ZIP2 → FAIL: replayInduction: no in-scope truthy (consp X) / falsy (endp X) fact for the IH decrease (compound ruling tests are the J3 inversion frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2, ASSUMED:dp-fact], Subgoal *1/1':preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 13-multi-measured-var  (world: 11 defun(s), 1 theorem(s))
-    LEN-INTERLEAVE → FAIL: replayInduction: measure (BINARY-+ (ACL2-COUNT X) (ACL2-COUNT Y)) is not (acl2-count v) (frontier)
+    LEN-INTERLEAVE → FAIL: replayInduction: sum-measure decrease discharge is the J4 frontier
 • 14-accumulator  (world: 11 defun(s), 1 theorem(s))
     LEN-REV-ACC → FAIL: unicity-of-0: (LEN ACC) has no pinned value (need the TP int fact)
 • 15-nested-induction  (world: 13 defun(s), 1 theorem(s))
     NESTED-INDUCTION → FAIL: replayInduction: 2 scheme clauses for 1 recomputed (non-tautological) case clauses (mismatch)
 • 16-three-way  (world: 12 defun(s), 1 theorem(s))
-    LEN-ZIP3 → FAIL: replayInduction: step case tests [(NOT (IF (ATOM X) (ATOM X) (IF (ATOM Y) (ATOM Y) (ATOM Z))))] lack (consp X) / (not (endp X)) — non-cdr measure decrease (frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP3 (CDR X) (CDR Y) (CDR Z)), tp:ZIP3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    LEN-ZIP3 → FAIL: replayInduction: no in-scope truthy (consp X) / falsy (endp X) fact for the IH decrease (compound ruling tests are the J3 inversion frontier)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP3 (CDR X) (CDR Y) (CDR Z)), tp:ZIP3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 17-rule-application  (world: 12 defun(s), 2 theorem(s))
     TLP-APP-NIL → FAIL: definition: children chain reached (EQUAL X 'NIL), node rhs is (IF X 'NIL 'T)
     TLP-APP-NIL-TWICE → FAIL: replayClause: non-identity literal item alongside a clausify record at Goal (frontier): (EQUAL (APP (APP X 'NIL) 'NIL) X)

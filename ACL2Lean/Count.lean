@@ -83,6 +83,16 @@ theorem acl2Count_cdr_sum_lt_right_consp {x : SExpr} {y : SExpr}
   have := acl2Count_cdr_lt_of_consp h
   omega
 
+/-- The SWAP-sum decrease (INTERLEAVE's scheme, J1(b)-validated): swapping
+    the measured pair to `(y, cdr x)` decreases the sum when `x` is a cons —
+    the emitted clause `((ATOM X) (O< (+ (ac Y) (ac (CDR X)))
+    (+ (ac X) (ac Y))))` at the value level. -/
+theorem acl2Count_swap_cdr_sum_lt_consp {x : SExpr} {y : SExpr}
+    (h : Logic.toBool (consp x) = true) :
+    y.acl2Count + (cdr x).acl2Count < x.acl2Count + y.acl2Count := by
+  have := acl2Count_cdr_lt_of_consp h
+  omega
+
 /-- acl2Count of evens is at most acl2Count of the input. -/
 theorem acl2Count_evens_le (x : SExpr) : (evens x).acl2Count ≤ x.acl2Count := by
   cases x with

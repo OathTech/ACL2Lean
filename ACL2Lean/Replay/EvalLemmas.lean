@@ -2081,6 +2081,45 @@ theorem acl2Count_strong_induction (P : SExpr → Prop)
   induction n using Nat.strong_induction_on generalizing x with
   | _ n ih => exact step x (fun y hy => ih y.acl2Count (h ▸ hy) y rfl)
 
+/-- ENV-LEVEL strong induction over an interpreted MEASURE (the
+    induction-generality scaffold lemma, design §I2 — J1-spike-validated).
+    `μ` is the μ-registry's total meta-level interpretation of the emitted
+    measure term (Nat `MeasureImage` instance); the motive is the pushed
+    pool entry's `EvTrue` at the ambient env. Relation-polymorphic in
+    spirit (per-carrier instances re-prove this lemma over their own wf
+    relation — theory-audit T5). Multiple emitted IH alists instantiate
+    the ONE strong hypothesis (axis A1); swaps and ride-along
+    substitutions are plain env updates (A3). -/
+theorem measure_strong_induction (μ : Env → Nat) (P : Env → Prop)
+    (step : ∀ env, (∀ env', μ env' < μ env → P env') → P env) : ∀ env, P env := by
+  intro env
+  generalize h : μ env = n
+  induction n using Nat.strong_induction_on generalizing env with
+  | _ n ih => exact step env (fun env' hlt => ih (μ env') (h ▸ hlt) env' rfl)
+
+/-- `Logic.trueListp` is two-valued — the TRUE-LISTP twin of
+    `lexorder_boolean` (J1(a)-surfaced; the recognizer/boolean decode for
+    TRUE-LISTP-headed facts). -/
+theorem trueListp_boolean (v : SExpr) :
+    Logic.trueListp v = SExpr.t ∨ Logic.trueListp v = SExpr.nil := by
+  induction v with
+  | cons a b iha ihb => simpa [Logic.trueListp] using ihb
+  | nil => exact .inl rfl
+  | atom x => exact .inr rfl
+
+/-- `Logic.len` always returns an int atom (both arms of its match do) —
+    the value decode the arithmetic recipes need (J1(b)-surfaced). -/
+theorem len_int (v : SExpr) :
+    ∃ k : Int, Logic.len v = .atom (.number (.int k)) := by
+  cases v <;> exact ⟨_, rfl⟩
+
+/-- Integer addition at the value layer: `Logic.plus` on int atoms
+    (J1(b)-surfaced; the arithmetic recipes' decode). -/
+theorem plus_int (j k : Int) :
+    Logic.plus (.atom (.number (.int j))) (.atom (.number (.int k)))
+      = .atom (.number (.int (j + k))) := by
+  simp [Logic.plus, Logic.toRat, Logic.mkNumber]
+
 /-- Value-characterized convergence of a VARIABLE from a concrete env-get
     fact (the formals of a `bindArgs` env during the totality walk). -/
 theorem re_val_var_get (w : World) (env : Env) (s : Symbol) (v : SExpr)
