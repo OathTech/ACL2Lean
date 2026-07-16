@@ -2120,6 +2120,32 @@ theorem plus_int (j k : Int) :
       = .atom (.number (.int (j + k))) := by
   simp [Logic.plus, Logic.toRat, Logic.mkNumber]
 
+/-- J3 compound-test INVERSION, the OR-form step: a nil-valued
+    `(IF a a c)` (ACL2's or-form — the compound ruling tests of
+    multi-controller schemes, e.g. ZIP2's `(IF (ATOM X) (ATOM X) (ATOM Y))`)
+    forces BOTH components nil. Recursing this along the emitted term's
+    shape inverts any or-nesting (ZIP3 = two applications). -/
+theorem cond_or_nil_inv {va vc : SExpr}
+    (h : cond (Logic.toBool va) va vc = SExpr.nil) :
+    va = SExpr.nil ∧ vc = SExpr.nil := by
+  by_cases hb : Logic.toBool va = true
+  · rw [hb] at h
+    simp only [cond] at h
+    subst h
+    simp [Logic.toBool] at hb
+  · have hn : va = SExpr.nil := by
+      cases va <;> simp_all [Logic.toBool]
+    rw [hn] at h ⊢
+    simp only [Logic.toBool, cond] at h
+    exact ⟨rfl, h⟩
+
+/-- J3: a nil `Logic.atom` verdict IS consp-ness of the value — the decode
+    from an inverted `(ATOM v)` leaf to the decrease precondition. -/
+theorem consp_toBool_of_atom_nil {v : SExpr}
+    (h : Logic.atom v = SExpr.nil) :
+    Logic.toBool (Logic.consp v) = true := by
+  cases v <;> simp_all [Logic.atom, Logic.consp, Logic.toBool]
+
 /-- Value-characterized convergence of a VARIABLE from a concrete env-get
     fact (the formals of a `bindArgs` env during the totality walk). -/
 theorem re_val_var_get (w : World) (env : Env) (s : Symbol) (v : SExpr)

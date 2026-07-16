@@ -5578,12 +5578,52 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
                                     value"
                       let hCast ← mkExpectedTypeHint cf.signE eqTy
                       mkAppM ``consp_toBool_of_endp_nil #[hCast]
-                    | none =>
-                      throwError "replayInduction: no in-scope truthy \
-                                  (consp {mv.name}) / falsy (endp \
-                                  {mv.name}) fact for the IH decrease \
-                                  (compound ruling tests are the J3 \
-                                  inversion frontier)"
+                    | none => do
+                      -- J3 (design I5): a COMPOUND or-form ruling test —
+                      -- ACL2's `(IF a a c)` or-normal form (ZIP2/ZIP3) —
+                      -- whose NIL fact or-contains the (ATOM mv) leaf.
+                      -- Invert along the EMITTED term's shape
+                      -- (cond_or_nil_inv per level, consp_toBool_of_atom_nil
+                      -- at the leaf); any other shape hard-fails.
+                      let atomT : SExpr :=
+                        .cons (.atom (.symbol { name := "ATOM" }))
+                          (.cons mvT .nil)
+                      let rec orContains (t : SExpr) : Bool :=
+                        t == atomT ||
+                          match t with
+                          | .cons (.atom (.symbol ifS))
+                              (.cons a (.cons a2 (.cons c .nil))) =>
+                            ifS.name == "IF" && a == a2
+                              && (orContains a || orContains c)
+                          | _ => false
+                      let some cf := facts.find?
+                          (fun f => !f.sign && orContains f.test)
+                        | throwError "replayInduction: no in-scope truthy \
+                            (consp {mv.name}) / falsy (endp {mv.name}) \
+                            fact, and no nil or-form ruling fact contains \
+                            (ATOM {mv.name}) — IH decrease underivable \
+                            (frontier)"
+                      let rec invert (t : SExpr) (hNil : Expr) :
+                          MetaM Expr := do
+                        if t == atomT then
+                          mkAppM ``consp_toBool_of_atom_nil #[hNil]
+                        else match t with
+                          | .cons (.atom (.symbol ifS))
+                              (.cons a (.cons a2 (.cons c .nil))) => do
+                            unless ifS.name == "IF" && a == a2 do
+                              throwError "replayInduction: ruling test \
+                                  {repr t} is not or-form (J3 inversion \
+                                  frontier)"
+                            let hpair ← mkAppM ``cond_or_nil_inv #[hNil]
+                            if orContains a then
+                              invert a (← mkAppM ``And.left #[hpair])
+                            else
+                              invert c (← mkAppM ``And.right #[hpair])
+                          | _ =>
+                            throwError "replayInduction: or-form inversion \
+                                reached a non-if non-(ATOM {mv.name}) \
+                                component {repr t} (frontier)"
+                      invert cf.test cf.signE
                 let cdrT : SExpr :=
                   .cons (.atom (.symbol { name := "CDR" })) (.cons mvT .nil)
                 let carT : SExpr :=
