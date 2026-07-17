@@ -120,7 +120,12 @@ def corpus : List (String × String) :=
    -- hypothesis-backed, D6) and included theorems with :SOURCE :INCLUDE-BOOK
    -- (statement + rules, no proof tree — rule:<thm> citations stay
    -- hypothesis-backed until cross-book proof import).
-   ("sorting/isort",           include_str "../acl2_samples/sorting/isort.proof-log")]
+   ("sorting/isort",           include_str "../acl2_samples/sorting/isort.proof-log"),
+   -- J5: ordered-perms reconstructs (its revert wall fell). msort's revert
+   -- wall fell too but it advances to the J6 equivalence-source RECON wall —
+   -- it enters the corpus when J6 lands (a RECON-FAIL trips the integrity
+   -- gate, correctly).
+   ("sorting/ordered-perms",   include_str "../acl2_samples/sorting/ordered-perms.proof-log")]
 
 /-- The transitive AXIOM set of a proof term: axioms among the constants of
     the expression and everything those constants' definitions depend on

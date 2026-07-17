@@ -380,6 +380,10 @@ private structure PoolData where
   pushes : Array (List Nat × String × List SExpr) := #[]
   inductions : Array (Option (List Nat) × String × List SExpr × InductionStep) := #[]
   subsumptions : Array (List Nat × List Nat) := #[]
+  /-- REVERT-aborted pushes (J5, design I6 as ratified: ACL2 abandons the
+      prior work on the conjecture and REASSIGNS the pool name to the
+      ORIGINAL conjecture): (reassigned pool name, aborting clause id). -/
+  reverts : Array (List Nat × String) := #[]
   sawPool : Bool := false
 
 private def collectFlat (events : List ProofEvent)
@@ -408,20 +412,39 @@ private def collectFlat (events : List ProofEvent)
           id := cid, idStr := s.clauseId, inputClause := s.inputClause,
           steps := #[wstep] }
       if s.processor.toLower == "push-clause" then
-        lastPush := some s.clauseId
-        lastPushClause := s.inputClause
-        -- register the push under its emitted pool name (absent only on an
-        -- ABORT push, which produces no pool root)
-        if let some pn := s.extraFields.lookup "poolname" then
+        let parsePoolName (pn : SExpr) : Except String (List Nat) := do
           match pn.toList? with
           | some items =>
-            let name ← items.mapM fun i => match i with
+            items.mapM fun i => match i with
               | .atom (.number (.int n)) =>
                 if n ≥ 0 then pure n.toNat
                 else throw s!"collectFlat: negative :POOLNAME entry {repr i}"
               | _ => throw s!"collectFlat: non-natural :POOLNAME entry {repr i}"
-            pd := { pd with pushes := pd.pushes.push (name, s.clauseId, s.inputClause) }
           | none => throw s!"collectFlat: :POOLNAME {repr pn} is not a list"
+        match s.extraFields.lookup "abort-cause" with
+        | some (.atom (.symbol c)) =>
+          -- an ABORTED push (J5): REVERT reassigns the emitted pool name to
+          -- the ORIGINAL conjecture; any other cause means a FAILED proof
+          -- inside the log — fail-closed
+          if c.name == "REVERT" || c.name == "MAYBE-REVERT" then
+            let some pn := s.extraFields.lookup "poolname"
+              | throw s!"collectFlat: REVERT push at {s.clauseId} without \
+                        :POOLNAME (emission gap)"
+            let name ← parsePoolName pn
+            pd := { pd with reverts := pd.reverts.push (name, s.clauseId) }
+          else
+            throw s!"collectFlat: push-clause ABORT at {s.clauseId} with \
+                    cause {c.name} — a failed/aborted proof in the log \
+                    (fail-closed)"
+        | some other =>
+          throw s!"collectFlat: malformed :ABORT-CAUSE {repr other}"
+        | none =>
+          lastPush := some s.clauseId
+          lastPushClause := s.inputClause
+          -- register the push under its emitted pool name
+          if let some pn := s.extraFields.lookup "poolname" then
+            let name ← parsePoolName pn
+            pd := { pd with pushes := pd.pushes.push (name, s.clauseId, s.inputClause) }
     | .induction i =>
       pd := { pd with inductions :=
         pd.inductions.push (currentPool, lastPush.getD "", lastPushClause, i) }
@@ -451,6 +474,8 @@ private def poolIdStr (poolLst : List Nat) : String :=
     the synthetic nodes paired with their pushed-parent id, plus EXTRA
     child links (subsumer-subtree → subsumed-root, for the replay). -/
 private def synthesizePoolRoots (pd : PoolData)
+    (goalClause? : Option (List SExpr) := none)
+    (rootIdStr? : Option String := none)
     : Except String (Array (FlatNode × String) × Array (String × String)) := do
   let mut out : Array (FlatNode × String) := #[]
   let mut extraLinks : Array (String × String) := #[]
@@ -472,9 +497,23 @@ private def synthesizePoolRoots (pd : PoolData)
     for (name?, pid, _, ind) in pd.inductions do
       let some name := name?
         | throw "ClauseTree: :INDUCTION with no preceding (:POOL-CONSIDER …)                  in a pool-event log"
+      let _ := pid
+      -- REVERT first (J5): a reassigned pool name's content IS the ORIGINAL
+      -- conjecture, parented to the root (the abandoned pushes are gone)
+      match pd.reverts.find? (·.1 == name) with
+      | some (_, rPushId) =>
+        let some goalClause := goalClause?
+          | throw "ClauseTree: reverted induction with no root Goal clause"
+        let some rootIdStr := rootIdStr?
+          | throw "ClauseTree: reverted induction with no root id"
+        let pcid ← ClauseId.parse rPushId
+        out := out.push ({
+          id := { forcingRound := pcid.forcingRound, poolLst := name },
+          idStr := poolIdStr name, inputClause := goalClause, steps := #[],
+          induction := some ind, synthetic := true }, rootIdStr)
+      | none =>
       let some (_, pushId, pushClause) := pd.pushes.find? (·.1 == name)
         | throw s!"ClauseTree: no PUSH-CLAUSE with :POOLNAME {name} for the                    induction the pool considered there"
-      let _ := pid
       let pcid ← ClauseId.parse pushId
       out := out.push ({
         id := { forcingRound := pcid.forcingRound, poolLst := name },
@@ -544,7 +583,49 @@ private def buildOne (name : String) (formula : SExpr) (events : List ProofEvent
   let (logged, pd) ← collectFlat events
   if logged.isEmpty then
     return { name, formula, root := none }
+  -- J5 REVERT (design I6, ratified reading 2026-07-16): ACL2 "abandons our
+  -- previous work on this conjecture and reassigns the name *1 to the
+  -- ORIGINAL conjecture" — we replay the proof that SUCCEEDED; the
+  -- abandoned pre-revert waterfall is search that never discharged, not
+  -- part of the certifying proof. The tree becomes: root Goal closed by a
+  -- synthetic push of the reverted pool name; kept nodes = the root + the
+  -- reverted pool's subtree; everything else is DETACHED (fail-closed: a
+  -- detached node carrying an induction is a structure we do not expect —
+  -- hard-fail rather than drop silently).
+  let (logged, pd) ←
+    if pd.reverts.isEmpty then pure (logged, pd)
+    else do
+      let #[(rname, _)] := pd.reverts
+        | throw s!"ClauseTree: {pd.reverts.size} reverts in one theorem \
+                  block (frontier)"
+      let some rootFn := logged.find? (·.id.isRoot)
+        | throw "ClauseTree: revert with no root Goal node"
+      let keep := fun (fn : FlatNode) =>
+        fn.id.isRoot || rname.isPrefixOf fn.id.poolLst
+      for fn in logged do
+        unless keep fn do
+          if fn.induction.isSome then
+            throw s!"ClauseTree: revert would detach induction node \
+                    {fn.idStr} (unexpected structure — frontier)"
+      let synthPush : WaterfallStep := {
+        processor := "push-clause", result := .proved, runes := [],
+        newClauses := [], items := [],
+        extraFields := [("poolname",
+          SExpr.ofList (rname.map fun n => .atom (.number (.int (Int.ofNat n))))),
+          ("revert", .atom (.symbol { name := "T" }))] }
+      let logged' := (logged.filter keep).map fun fn =>
+        if fn.id.isRoot then { fn with steps := #[synthPush] } else fn
+      -- the abandoned pushes of the reassigned name (and any other
+      -- abandoned pool names) drop with their nodes
+      let keptIds := (logged'.map (·.idStr)).toList
+      let pd' := { pd with
+        pushes := pd.pushes.filter (fun (n, pid, _) =>
+          keptIds.contains pid && !pd.reverts.any (·.1 == n)),
+        subsumptions := pd.subsumptions }
+      pure (logged', pd')
   let (synth, extraLinks) ← synthesizePoolRoots pd
+    (goalClause? := (logged.find? (·.id.isRoot)).map (·.inputClause))
+    (rootIdStr? := (logged.find? (·.id.isRoot)).map (·.idStr))
   let allFlats := logged ++ synth.map (·.1)
   let allIds := (allFlats.map (·.id)).toList
   -- Parent key for each node: synthetic → its pushed clause; logged → inverse
