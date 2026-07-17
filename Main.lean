@@ -50,6 +50,8 @@ private partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat)
           IO.println s!"{pad}  ⮑ justified by the enclosing unresolved-if's test (assume-true-false branch)"
         | .segment =>
           IO.println s!"{pad}  ⮑ justified by the enclosing clausify-branch segment hypothesis (:CONTEXT-SUBST)"
+        | .typeSetDerived =>
+          IO.println s!"{pad}  ⮑ justified by a type-set verdict under the enclosing branch facts (type-set-derived)"
       if !children.isEmpty then
         printProofNodes children (indent + 1)
 

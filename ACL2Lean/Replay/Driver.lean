@@ -1377,6 +1377,14 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       | throwError "solidify: node has no equivSource (unlinked rewriting-equivalence)"
     let idx ← match src with
       | .literal idx => pure idx
+      | .typeSetDerived =>
+        -- J6: the equivalence was believed by ACL2's TYPE-SET under the
+        -- branch facts (verdict-class, no recorded derivation). The
+        -- value-level discharge recipe (e.g. both sides nil under a
+        -- ¬consp fact) is the named follow-up.
+        throwFrontier m!"solidify: type-set-derived equivalence \
+            {repr (prov.equivTerm.getD .nil)} — value-level discharge from \
+            branch facts not yet implemented (J6 replay frontier)"
       | .branchTest =>
         -- the equivalence IS an enclosing unresolved-if's test, assumed TRUE
         -- in the then-branch the node's path descends through (ACL2's

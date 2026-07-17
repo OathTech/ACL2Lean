@@ -121,11 +121,14 @@ def corpus : List (String × String) :=
    -- (statement + rules, no proof tree — rule:<thm> citations stay
    -- hypothesis-backed until cross-book proof import).
    ("sorting/isort",           include_str "../acl2_samples/sorting/isort.proof-log"),
-   -- J5: ordered-perms reconstructs (its revert wall fell). msort's revert
-   -- wall fell too but it advances to the J6 equivalence-source RECON wall —
-   -- it enters the corpus when J6 lands (a RECON-FAIL trips the integrity
-   -- gate, correctly).
-   ("sorting/ordered-perms",   include_str "../acl2_samples/sorting/ordered-perms.proof-log")]
+   -- J5: ordered-perms reconstructs (its revert wall fell).
+   -- J6: the type-set-derived equivalence source class lets msort
+   -- reconstruct; its rows sit on named decrease-fragment frontiers.
+   -- bsort cleared the equivalence-source wall but hits a clausify-stream
+   -- shape RECON wall (equal-self step inside a clausify record region) —
+   -- it enters the corpus when that frontier falls.
+   ("sorting/ordered-perms",   include_str "../acl2_samples/sorting/ordered-perms.proof-log"),
+   ("sorting/msort",           include_str "../acl2_samples/sorting/msort.proof-log")]
 
 /-- The transitive AXIOM set of a proof term: axioms among the constants of
     the expression and everything those constants' definitions depend on

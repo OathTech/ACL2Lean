@@ -36,6 +36,14 @@ inductive EquivSource where
       branch (clause-lst branch context). Replay needs branch-segment facts
       in scope — R1 of the sorting-corpus roadmap. -/
   | segment
+  /-- TYPE-SET-DERIVED under the enclosing branch/segment facts (J6,
+      induction-generality arc): ACL2's rewriter believed the equivalence by
+      type-set reasoning — verdict-class, `:PARENTS NIL`, no recorded
+      derivation (e.g. both sides reduce to NIL under a `(NOT (CONSP …))`
+      segment fact, msort/bsort). The replay must discharge the equiv-term's
+      truth from the in-scope branch facts at the VALUE level (the ratified
+      carve-out's class) — a named replay frontier until that recipe lands. -/
+  | typeSetDerived
   deriving Repr, Inhabited, BEq
 
 /-- Provenance for a proof node: what justified this reasoning step. -/

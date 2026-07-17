@@ -313,9 +313,13 @@ private partial def linkNode (cands : List (EquivSource × SExpr)) (n : ProofNod
             return .node rune lhs rhs children
               { prov with equivSource := some .branchTest }
           else
-            throw s!"ClauseTree: rewriting-equivalence node {repr e} matches no \
-                     clause/segment hypothesis and its :PATH has no if-branch \
-                     frame — unknown equivalence source (frontier)"
+            -- J6: no hypothesis and no if-branch frame — ACL2 believed the
+            -- equivalence by TYPE-SET reasoning under the enclosing branch
+            -- facts (verdict-class, :PARENTS NIL — msort/bsort's
+            -- car/cdr-of-non-cons collapses). Tag it; the REPLAY discharges
+            -- the equiv-term from branch facts or fails closed there.
+            return .node rune lhs rhs children
+              { prov with equivSource := some .typeSetDerived }
       | none => return .node rune lhs rhs children prov
     else
       return .node rune lhs rhs children prov
