@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 27/63 (21 unconditional + 6 conditional); DP-discharge leaves ✓16 ◌14 ✗0 of 30:
+Driver coverage — REPLAYED 27/79 (21 unconditional + 6 conditional); DP-discharge leaves ✓17 ◌19 ✗0 of 36:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -85,3 +85,21 @@ Driver coverage — REPLAYED 27/63 (21 unconditional + 6 conditional); DP-discha
     HOW-MANY-MERGE2 → FAIL: replayInduction: sum-measure substitution (X := X, Y := (CDR Y)) beyond the J4 swap fragment (frontier)
     HOW-MANY-EVENS-AND-ODDS → FAIL: replayInduction: measured substitution (CDR (CDR X)) beyond the J2 cdr/car fragment (frontier)  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ◌ assumed cond[total:(HOW-MANY E (EVENS X)), total:(HOW-MANY E (EVENS (CDR X))), total:(HOW-MANY E X), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
     HOW-MANY-MSORT → FAIL: replayInduction: measured substitution (EVENS X) beyond the J2 cdr/car fragment (frontier)
+• sorting/qsort  (world: 206 defun(s), 13 theorem(s))
+    HOW-MANY-APPEND → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    HOW-MANY-FILTER-1 → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))  [DISCHARGE: Subgoal *1/3.5:preprocess/tau-contradiction ◌ assumed cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact], Subgoal *1/3.1:preprocess/tau-contradiction ◌ assumed cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
+    HOW-MANY-QSORT → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    PERM-QSORT → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    CAR-APPEND → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    ORDEREDP-APPEND → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ◌ assumed cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP, ASSUMED:dp-fact], Subgoal *1.1/1:preprocess/type-set-fc ◌ assumed cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP, ASSUMED:dp-fact]]
+    ALL-REL-FILTER-1 → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    ALL-REL-FILTER-2 → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    ALL-REL-RM-1 → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    ALL-REL-RM-2 → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    PERM-IMPLIES-EQUAL-ALL-REL-2 → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    ORDEREDP-QSORT → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    TRUE-LISTP-QSORT → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
+• sorting/sorts-equivalent  (world: 216 defun(s), 3 theorem(s))
+    MSORT-IS-ISORT → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    QSORT-IS-ISORT → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
+    BSORT-IS-ISORT → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]

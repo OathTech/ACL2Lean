@@ -519,7 +519,7 @@ def asEqualSelf : SExpr → Option SExpr
     if s.name == "EQUAL" && x == x' then some x else none
   | _ => none
 
-def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
+def runeOf : ProofNode → Rune | .node r _ _ _ _ => r
 def nodeLhsRhs : ProofNode → SExpr × SExpr | .node _ lhs rhs _ _ => (lhs, rhs)
 def nodePath : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 def nodeOrigin : ProofNode → String | .node _ _ _ _ p => p.origin
@@ -1359,7 +1359,8 @@ partial def replayDefinition (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNo
     above this node (relativizes child `:PATH`s). Unhandled runes hard-fail. -/
 partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     (depth : Nat := 0) : MetaM Expr := do
-  let (rty, rname) := runeOf n
+  let rune := runeOf n
+  let (rty, rname) := (rune.ty, rune.name)
   let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ children prov := n
   -- a non-EQUAL rule application is IFF/user-equivalence rewriting — it must
@@ -1568,7 +1569,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       let some (vz, pz) := ctx.val? z
         | throwError "unicity-of-0: {repr z} has no pinned value (need the TP int fact)"
       let k ← intValExpr? vz
-      let some fixChild := children.find? (fun c => (runeOf c).1 == "definition")
+      let some fixChild := children.find? (fun c => (runeOf c).ty == "definition")
         | throwError "unicity-of-0: missing the definition:fix child"
       let (_fixLhs, fixRhs) := nodeLhsRhs fixChild
       unless fixRhs == z do
@@ -1837,7 +1838,10 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     let σterms := prov.subst.map (·.2)
     -- the matching stored rule: recompute-and-check joint —
     -- substTerm(:SUBST, rule lhs) must BE the node's lhs
-    let candidates := ctx.ruleHyps.filter fun (r, _) => r.name == rname
+    -- identity includes the multi-rule index (J7): a step citing
+    -- (:REWRITE FOO . 2) matches only the idx-2 stored rule.
+    let candidates := ctx.ruleHyps.filter fun (r, _) =>
+      r.name == rname && r.idx == rune.idx
     if candidates.isEmpty then
       throwError "rule {rname}: no stored-rule hypothesis in scope (no \
                   (:RULES …) entry — emission gap or missing telescope)"
@@ -1868,7 +1872,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     -- partition the HYP block: silent-relief MARKERS (emit/relieve-hyp/*)
     -- vs an actual relief rewrite chain
     let (reliefMarkers, chainKids) := hypKids.partition
-      fun c => (runeOf c).1 == "hyp-relief"
+      fun c => (runeOf c).ty == "hyp-relief"
     -- coverage: every rule variable must be bound by σ (free-var hyps extend
     -- σ at emission; a gap means the emission is incomplete)
     let ruleFrees := ACL2.Replay.freeVars spec.lhs ++
@@ -2003,7 +2007,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
     -- term on both sides). The RUNNING term at the node's path is the ground
     -- truth: equal to rhs → no-op (replay as reflexivity by skipping);
     -- a constant-test if collapsing to rhs → replay the collapse.
-    if lhs == rhs && (runeOf n).1 == "if-simplification" then
+    if lhs == rhs && (runeOf n).ty == "if-simplification" then
       if let .node _ _ _ [] _ := n then
         let rel ← relativizeAndStrip (nodePath n) depth strip
         let (_, S) ← ofExcept (navigateFrames start rel)
@@ -2062,7 +2066,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
     -- the SAME test and the SAME taken branch (strict), allow the dead
     -- branch to differ, and replay the collapse on the RUNNING term —
     -- `(if 'c a b) = taken` is independent of the discarded branch.
-    if (runeOf n).1 == "if-simplification" && lhs != rhs then
+    if (runeOf n).ty == "if-simplification" && lhs != rhs then
       if let .node _ _ _ [] _ := n then
         if let .cons (.atom (.symbol ifS))
             (.cons c@(.cons (.atom (.symbol q)) (.cons cv .nil))
@@ -2121,7 +2125,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
     -- the preceding chain nodes already produced. It is not a sequential step;
     -- when it is terminal and the running term already equals its rhs, it adds
     -- no reasoning, so verify-then-drop. Fail-closed otherwise.
-    if (runeOf n).1 == "clause-context-resolution" then
+    if (runeOf n).ty == "clause-context-resolution" then
       unless rest.isEmpty do
         throwError "clause-context-resolution: non-terminal marker (frontier)"
       unless rhs == start do
@@ -2136,7 +2140,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
     -- test assumption (ACL2's assume-true-false — the conditional-congruence
     -- lemma discharges the hypotheses), require the result to be the node's
     -- recorded rhs, and lift by congruence.
-    if let .node ("if-simplification", _) _ _ children prov := n then
+    if let .node ⟨"if-simplification", _, _⟩ _ _ children prov := n then
       if prov.origin == "if-finish/combined" then
         let rel ← relativizeAndStrip (nodePath n) depth strip
         let (steps, S) ← ofExcept (navigateFrames start rel)
@@ -2226,7 +2230,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
     -- resolution as an explicit test-position rewrite, then replay the
     -- recorded collapse on the reconciled term.
     let reconciled? ← do
-      if (runeOf n).1 == "if-simplification" then
+      if (runeOf n).ty == "if-simplification" then
         match lhs with
         | .cons (.atom (.symbol ifS))
             (.cons (.cons (.atom (.symbol q)) (.cons cv .nil)) _) =>
@@ -2366,7 +2370,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
       -- BRANCH-SELECTING root if-simplifications only: an `if1/boolean`
       -- collapse replaces the if by its (boolean) test — no branch frame
       -- remains on the gstack, so nothing to strip.
-      if (runeOf n).1 == "if-simplification" && lhs == start &&
+      if (runeOf n).ty == "if-simplification" && lhs == start &&
          (nodeOrigin n) != "if1/boolean" then
         match lhs with
         | .cons _ (.cons _ (.cons thn (.cons els .nil))) =>
@@ -2411,7 +2415,7 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
                 (.cons B (.cons quoteT (.cons quoteNil .nil))))
                 (.cons quoteT .nil)))
           let step ← replayImpliesDef cfg ctx
-            (.node ("definition", "IMPLIES") finalAtom expanded [] {})
+            (.node ⟨"definition", "IMPLIES", none⟩ finalAtom expanded [] {})
           let combined ← match chainOpt with
             | none => pure step
             | some c => mkAppM ``fuel_chain_eq #[c, step]
@@ -2505,7 +2509,7 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
     - a `type-alist` nil-verdict node `l ⇒ 'nil` demands `l` itself;
     - a `type-alist` truthy node `l ⇒ 't` demands `(not l)`. -/
 partial def collectContextDemands : ProofNode → List SExpr
-  | .node (rty, _) l rh children _ =>
+  | .node ⟨rty, _, _⟩ l rh children _ =>
     let notOf : SExpr → SExpr := fun t =>
       .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
     (if rty == "hyp-relief" then [notOf l]
@@ -2851,6 +2855,15 @@ def dpFactStmt (tests : List SExpr) (last : SExpr) (vars : List Symbol)
 def withRealMaxHeartbeats (n : Nat) (x : MetaM α) : MetaM α :=
   withTheReader Core.Context (fun ctx => { ctx with maxHeartbeats := n * 1000 }) <|
     Core.withCurrHeartbeats x
+
+/-- Raise the elaborator recursion limit for a sub-computation. Same gotcha as
+    `withRealMaxHeartbeats`: `withOptions (maxRecDepth := …)` is a no-op here —
+    `Core.Context.maxRecDepth` is fixed when the command context is created.
+    Needed for DP-leaf discharge on large included worlds (qsort's arithmetic
+    books), whose clause terms exceed the default depth (512) during lift and
+    tactic elaboration. A pure engineering limit, not proof search. -/
+def withRealMaxRecDepth (n : Nat) (x : MetaM α) : MetaM α :=
+  withTheReader Core.Context (fun ctx => { ctx with maxRecDepth := n }) x
 
 /-- The direct attempt's budget where the SPLIT FALLBACK exists
     (`total ≤` the split bound): a pure LATENCY knob, free to tune — on
@@ -3498,7 +3511,7 @@ partial def findOccurrences (cur lhs : SExpr) : List (List PathStep) :=
     node recipes. -/
 def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     MetaM Expr := do
-  let (rty, _) := runeOf n
+  let rty := (runeOf n).ty
   let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ _ prov := n
   -- a non-EQUAL preprocess rule application must route through the
@@ -4149,7 +4162,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
     -- a :CONTEXT-SUBST decoration (clausify-branch segment hypothesis): its
     -- equation is consumed by solidify `.segment` nodes from the in-scope
     -- segFacts — no separate proof obligation here
-    if (runeOf n).1 == "context-subst" then
+    if (runeOf n).ty == "context-subst" then
       return ← replayClauseSpine cfg ctx idStr clauseLits rest accClause children
     -- a :BRANCH-SUBSTITUTION (remove-trivial-equivalences): ACL2 substitutes
     -- `var := val` THROUGHOUT the clause, justified by the clause's own
@@ -4157,7 +4170,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
     -- Mirror: byCases on that literal's value — truthy closes the clause;
     -- nil gives the value equality, `diffCollapse` transports the whole
     -- disjunction to the substituted clause, and the walk continues there.
-    if (runeOf n).1 == "branch-substitution" then
+    if (runeOf n).ty == "branch-substitution" then
       let .node _ varT valT _ prov := n
       -- :EQUIVALENCE is the RELATION name; only `equal` is supported
       unless prov.equivTerm == some (.atom (.symbol { name := "EQUAL" })) do
@@ -4269,7 +4282,7 @@ partial def replayClauseSpine (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : St
     -- a clause-level EQUAL-SELF step: the literal (equal X X) is TRUE by
     -- reflexivity and closes the whole disjunction (comm-rm's *1/1.2 after
     -- its branch-substitution trivializes the conclusion)
-    if (runeOf n).1 == "equal-self" then
+    if (runeOf n).ty == "equal-self" then
       -- this step CLOSES the clause; trailing spine items would be silently
       -- unreplayed — fail closed (audit #3 hardening)
       unless rest.isEmpty do
@@ -4656,7 +4669,7 @@ partial def composeSplit (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
         -- :CONTEXT-SUBST decorations are inert here (their equations live in
         -- the segment); a residual branch may still carry them
         let contCore := cont.dropWhile fun
-          | .step n => (runeOf n).1 == "context-subst"
+          | .step n => (runeOf n).ty == "context-subst"
           | _ => false
         unless contCore.isEmpty do continue
         let some segL := seg.toList?
@@ -4756,7 +4769,7 @@ partial def composeSplit (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
           | throwError "composeSplit: no branch matches the {outcome} leaf \
                         {repr value} at {idStr} (frontier)"
         let cont := cont.dropWhile fun
-          | .step n => (runeOf n).1 == "context-subst"
+          | .step n => (runeOf n).ty == "context-subst"
           | _ => false
         let p ←
           if cont.isEmpty then do
@@ -4796,7 +4809,7 @@ partial def composeSplit (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
             -- leading context-subst steps are the :CONTEXT-SUBST decorations
             -- (their equations are consumed by solidify .segment nodes)
             let cont' := cont.dropWhile fun
-              | .step n => (runeOf n).1 == "context-subst"
+              | .step n => (runeOf n).ty == "context-subst"
               | _ => false
             -- the literal's own falsity — at its RECORDED rewritten form
             -- (what the tree linker matched `.literal`-sourced solidify
@@ -6511,7 +6524,7 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
               pure h
             else if c.startsWith "rule:" then
               let rn := (c.drop "rule:".length).toString
-              match ctx.ruleHyps.filter (fun (r, _) => r.name == rn) with
+              match ctx.ruleHyps.filter (fun (r, _) => r.runeKey == rn) with
               | [(_, h)] => pure h
               | [] => throwError "dischargeRuleHyp: registry dependency \
                   {spec.name} keeps {c}, absent from the consumer \
@@ -6636,7 +6649,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   let condsAll :=
     fns.map (fun (s, _, _) => s!"total:{s.name}") ++
     tpFns.map (fun (s, _, _) => s!"tp:{s.name}") ++
-    rules.map (fun r => s!"rule:{r.name}")
+    rules.map (fun r => s!"rule:{r.runeKey}")
   withLocalDecls totalDecls fun totalVs => do
     withLocalDecls tpDecls fun tpVs => do
      withLocalDecls ruleDecls fun ruleVs => do

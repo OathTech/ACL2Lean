@@ -21,10 +21,44 @@ inductive PathFrame where
   | boundary (kind : Symbol) (fn : Symbol)
   deriving Repr, Inhabited, BEq
 
+/-- A rune identity. ACL2 prints a rune as `(:TYPE name)` or — when one event
+    stores SEVERAL rules (a `:rule-classes` with multiple corollaries, e.g.
+    community arithmetic's `FLOOR-ZERO`) — as `(:TYPE name . k)`. The index k
+    selects WHICH stored rule the step applied, so it is part of rune identity:
+    display and RuleSpec matching both carry it (J7). Any other dotted shape is
+    a malformed rune and hard-fails at the parse sites. -/
+structure Rune where
+  /-- Rune type (`:REWRITE`/`:DEFINITION`/…), lowercased at the boundary — a
+      fixed keyword-vocabulary dispatch tag (see `parseRune?`). -/
+  ty : String
+  /-- Rune name — an ACL2 SYMBOL IDENTITY, kept UPCASED (see `parseRune?`). -/
+  name : String
+  /-- The rule index for multi-rule events (`(:REWRITE FOO . 2)`); `none` for
+      the plain two-element rune shape. -/
+  idx : Option Nat := none
+  deriving DecidableEq, Inhabited
+
+instance : ToString Rune where
+  toString r := match r.idx with
+    | none => s!"(\"{r.ty}\", \"{r.name}\")"
+    | some k => s!"(\"{r.ty}\", \"{r.name}\" . {k})"
+
+/-- Repr matches the display format (and the pre-J7 pair rendering for
+    index-free runes), so frontier messages stay stable. -/
+instance : Repr Rune where
+  reprPrec r _ := toString r
+
+/-- Compact display form `ty:name` (with ` . k` appended for indexed runes) —
+    used by the dump commands. -/
+def Rune.tag (r : Rune) : String :=
+  match r.idx with
+  | none => s!"{r.ty}:{r.name}"
+  | some k => s!"{r.ty}:{r.name} . {k}"
+
 /-- A single rewrite application from ACL2's rewriter. -/
 structure RewriteStep where
-  /-- The rune applied, as (type, name) e.g. ("rewrite", "car-cons"). -/
-  rune : String × String
+  /-- The rune applied, e.g. ("rewrite", "car-cons"). -/
+  rune : Rune
   /-- The rule's equivalence relation ("equal", "iff", or a user equivalence) —
       non-"equal" steps route through the R-parameterized judgment (G1).
       Absent on events from sites not yet emitting `:EQUIV` (defaults equal). -/
@@ -45,7 +79,7 @@ structure RewriteStep where
       the rule this step applied. THIS step's rule is `rune`. Do not read `runes`
       as "this step's dependencies." (Exception: on a `type-set` node — built by
       ProofTree, not from a RewriteStep — `runes` IS the per-step justification.) -/
-  runes : List (String × String) := []
+  runes : List Rune := []
   /-- Clause literal parent indices from the ttree. -/
   parents : List SExpr := []
   /-- Formal→actual substitution for definition expansions. -/
@@ -122,8 +156,8 @@ structure ProofStep where
   clauseId : String
   processor : String
   result : ProofResult
-  /-- Runes used in this step, as (type, name) pairs, e.g. ("rewrite", "car-cons"). -/
-  runes : List (String × String)
+  /-- Runes used in this step, e.g. ("rewrite", "car-cons"). -/
+  runes : List Rune
   /-- Full detailed trace events from ACL2's rewriter. -/
   traceEvents : List TraceEvent := []
   /-- Input clause (disjunction of literals). -/
@@ -215,6 +249,9 @@ structure Justification where
     `rule:<thm>` hypotheses state exactly this. -/
 structure RuleSpec where
   name : String
+  /-- The rune index for multi-rule events (J7) — part of the rule's identity:
+      a step citing `(:REWRITE FOO . 2)` matches ONLY the spec with idx 2. -/
+  idx : Option Nat := none
   hyps : List SExpr
   equiv : String
   lhs : SExpr
@@ -226,6 +263,15 @@ structure RuleSpec where
       relief is replayed from the recorded relief chains instead). -/
   matchFree : Option String := none
   deriving Repr, Inhabited
+
+/-- The spec's identity key for name-keyed maps/tags: the rune name, with the
+    multi-rule index appended in ACL2's own print form (`FOO . 2`). Distinct
+    stored rules of one event get distinct keys (spaces cannot occur in an
+    unescaped ACL2 symbol name, so this cannot collide with a plain name). -/
+def RuleSpec.runeKey (r : RuleSpec) : String :=
+  match r.idx with
+  | none => r.name
+  | some k => s!"{r.name} . {k}"
 
 /-- A single event in the proof log. -/
 inductive ProofEvent where
@@ -294,25 +340,32 @@ private def atomString? : SExpr → Option String
   | .atom (.keyword k) => some k
   | _ => none
 
-/-- Parse a single rune like `(:REWRITE CAR-CONS)` into a (type, name) pair.
+/-- Parse a single rune like `(:REWRITE CAR-CONS)` — or the multi-rule shape
+    `(:REWRITE FLOOR-ZERO . 3)` (J7) — into a `Rune`.
     The rune TYPE (`:REWRITE`/`:DEFINITION`/…) is a fixed keyword-vocabulary
     dispatch tag — we canonicalize it to LOWERCASE at the boundary (analogous
     to `normalizeKey` for theorem-option keys). The rune NAME is an ACL2
     SYMBOL IDENTITY (a theorem/function name — `car-cons`, `perm-symmetric`,
     `my-app`) that must match the same symbol as it is stored elsewhere
     (World keys, theorem names, dependency-proof keys), so it stays UPCASED
-    (readtable :upcase) exactly as the parser produced it. -/
-private def parseRune? : SExpr → Option (String × String)
-  | .cons (.atom (.keyword runeType)) (.cons nameExpr .nil) =>
+    (readtable :upcase) exactly as the parser produced it. A dotted tail that
+    is not a nonnegative integer is malformed (fail-closed at the callers). -/
+private def parseRune? : SExpr → Option Rune
+  | .cons (.atom (.keyword runeType)) (.cons nameExpr tail) =>
     let ty := runeType.map Char.toLower
-    match atomString? nameExpr with
-    | some name => some (ty, name)
-    | none => some (ty, toString (repr nameExpr))
+    let name := match atomString? nameExpr with
+      | some name => name
+      | none => toString (repr nameExpr)
+    match tail with
+    | .nil => some { ty, name }
+    | .atom (.number (.int k)) =>
+      if k ≥ 0 then some { ty, name, idx := some k.toNat } else none
+    | _ => none
   | _ => none
 
 /-- Parse a rune list like `((:REWRITE FOO) (:DEFINITION BAR))`. Hard-fails on a
     malformed rune or a non-list (no silent drop). -/
-def parseRunes (s : SExpr) : Except String (List (String × String)) :=
+def parseRunes (s : SExpr) : Except String (List Rune) :=
   match s.toList? with
   | some items => items.mapM fun r => match parseRune? r with
     | some rune => pure rune
@@ -757,25 +810,28 @@ private def parseRuleSpecEntry (ctx : String) (withMatchFree : Bool)
     | true, _ =>
       throw s!"{ctx}: bad entry (want (rune hyps equiv lhs rhs match-free)): \
               {repr e}"
-  match runeS.toList? with
-  | some [.atom (.keyword rty), .atom (.symbol rname)] => do
+  -- The entry's rune goes through the same parse as step runes (J7: the
+  -- dotted multi-rule shape carries the index into the spec's identity).
+  match parseRune? runeS with
+  | some rune => do
+    let rname := rune.name
     -- rune type + equiv are lowercase dispatch tags (see parseRune?).
-    unless rty.map Char.toLower == "rewrite" do
-      throw s!"{ctx}: rune class {rty} unsupported (frontier)"
+    unless rune.ty == "rewrite" do
+      throw s!"{ctx}: rune class {rune.ty} unsupported (frontier)"
     let hyps ← hypsS.toList?.elim
-      (throw s!"{ctx} {rname.name}: :HYPS not a list: {repr hypsS}") pure
+      (throw s!"{ctx} {rname}: :HYPS not a list: {repr hypsS}") pure
     let equiv ← match equivS with
       | .atom (.symbol s) => pure (s.name.map Char.toLower)
-      | other => throw s!"{ctx} {rname.name}: bad equiv: {repr other}"
+      | other => throw s!"{ctx} {rname}: bad equiv: {repr other}"
     let matchFree ← match mf? with
       | none => pure none
       | some .nil => pure none
       | some (.atom (.keyword k)) => pure (some (k.map Char.toLower))
       | some other =>
-        throw s!"{ctx} {rname.name}: bad match-free: {repr other}"
+        throw s!"{ctx} {rname}: bad match-free: {repr other}"
     -- rune NAME is a symbol identity (theorem name), stored UPCASED
     -- like parseRune?'s name and the dependency-proof keys.
-    pure ({ name := rname.name, hyps, equiv,
+    pure ({ name := rname, idx := rune.idx, hyps, equiv,
             lhs := lhsS, rhs := rhsS, matchFree } : RuleSpec)
   | _ => throw s!"{ctx}: bad rune: {repr runeS}"
 

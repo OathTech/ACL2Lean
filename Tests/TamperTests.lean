@@ -98,7 +98,7 @@ elab "run_tamper_tests% " : command => Lean.Elab.Command.liftTermElabM do
   -- lhs joint must reject (substTerm(σ, rule lhs) ≠ node lhs → 0 matches).
   let cpSubst := mapProof (fun n => match n with
     | .node r l rh ch p =>
-      if r == ("rewrite", "perm-symmetric") then
+      if r == (⟨"rewrite", "perm-symmetric", none⟩ : ACL2.Rune) then
         .node r l rh ch { p with subst := p.subst.map fun (v, _) => (v, quoteNil) }
       else n) cp
   assertRejected ":SUBST tampered" "stored rules match" cpSubst rules

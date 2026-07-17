@@ -35,7 +35,7 @@ namespace ACL2
 structure WaterfallStep where
   processor : String
   result : ProofResult
-  runes : List (String × String)
+  runes : List Rune
   newClauses : List SExpr
   /-- Rewriter detail (the clause's `:REWRITES` branch tree), present for steps
       that carry one — chiefly SIMPLIFY-CLAUSE. Empty for processors that don't. -/
@@ -797,7 +797,7 @@ private def allProofNodes (cp : ClauseProof) : List ProofNode :=
   | none => []
   | some r => (clauseNodes r).flatMap fun n => n.steps.flatMap fun s => itemNodes s.items
 
-private def runeOf : ProofNode → String × String | .node r _ _ _ _ => r
+private def runeOf : ProofNode → Rune | .node r _ _ _ _ => r
 private def equivSrcOf : ProofNode → Option EquivSource
   | .node _ _ _ _ p => p.equivSource
 private def pathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
@@ -830,9 +830,9 @@ private def pathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 
 -- The rewriter detail is attached: my-app / my-len definition unfoldings appear.
 #guard (simpleProof.map fun p =>
-  (allProofNodes p).any (runeOf · == ("definition", "MY-APP"))) == some true
+  (allProofNodes p).any (runeOf · == ⟨"definition", "MY-APP", none⟩)) == some true
 #guard (simpleProof.map fun p =>
-  (allProofNodes p).any (runeOf · == ("definition", "MY-LEN"))) == some true
+  (allProofNodes p).any (runeOf · == ⟨"definition", "MY-LEN", none⟩)) == some true
 
 -- The induction hypothesis link (R-A): a solidify node is justified by
 -- hypothesis literal 2 in the step case.

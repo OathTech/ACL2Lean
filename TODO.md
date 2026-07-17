@@ -971,6 +971,18 @@ obligation is stated precisely in its conditional proof's type:
 
 ### Audit / correctness debt (revisit — do not drop)
 
+- [ ] **Sweep for heartbeat/recursion-limit raises ("heartbeat hacking" — a
+      bad smell).** Audit every `withRealMaxHeartbeats` / `withRealMaxRecDepth`
+      site (and any `maxHeartbeats`/`maxRecDepth` option set): each raise can
+      mask a pathological algorithm (exponential blowup, deep non-tail
+      recursion on big worlds) instead of fixing it, and limits tuned to make
+      today's corpus pass can silently gate future books (same trap as
+      corpus-calibrated budgets — see the #65 two-tier budget policy). For
+      each site: justify the bound as a runaway GUARD with stated margin, or
+      profile and fix the underlying recursion/cost. Added 2026-07-17 after
+      raising maxRecDepth to 8192 for qsort's 206-defun world (DP-leaf
+      discharge; default 512 genuinely too small for its clause terms, but
+      the depth driver was not profiled).
 - [ ] **Committed golden coverage-table snapshot.** Persist the DriverCoverage
       table as a checked artifact so refactor claims of unchanged coverage
       diff against a saved baseline instead of re-asserted numbers (from the

@@ -38,7 +38,7 @@ private def litEqXX : SExpr := equalOf varX varX
 
 /-- One `equal-self` node: `(equal x x) ⇒ (quote t)`. -/
 private def equalSelfNode : ProofNode :=
-  .node ("equal-self", "NIL") litEqXX quoteT [] {}
+  .node ⟨"equal-self", "NIL", none⟩ litEqXX quoteT [] {}
 
 private def litProof : LiteralProof :=
   { index := 1, literal := litEqXX, notFlg := false,
@@ -108,10 +108,10 @@ private def varB : SExpr := sym "B"
 /-- `(equal (cdr (cons a b)) b)`. -/
 private def litCdrCons : SExpr := equalOf (ap1 "CDR" (ap2 "CONS" varA varB)) varB
 private def cdrConsNode : ProofNode :=
-  .node ("rewrite", "CDR-CONS") (ap1 "CDR" (ap2 "CONS" varA varB)) varB []
+  .node ⟨"rewrite", "CDR-CONS", none⟩ (ap1 "CDR" (ap2 "CONS" varA varB)) varB []
     { path := [.arg 1 { name := "EQUAL" }, .arg 1 { name := "CDR" }] }
 private def eqSelfBB : ProofNode :=
-  .node ("equal-self", "NIL") (equalOf varB varB) quoteT [] {}
+  .node ⟨"equal-self", "NIL", none⟩ (equalOf varB varB) quoteT [] {}
 private def s3Goal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litCdrCons],
     steps := [{ simplifyStep with
@@ -140,7 +140,7 @@ private def consEqGoal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litConsEq],
     steps := [{ simplifyStep with
       items := [.literal { index := 1, literal := litConsEq, notFlg := false,
-                           nodes := [.node ("equal-self", "NIL") litConsEq quoteT [] {}],
+                           nodes := [.node ⟨"equal-self", "NIL", none⟩ litConsEq quoteT [] {}],
                            result := quoteT }] }],
     induction := none, children := [] }
 private def consEqTree : ClauseProof := { name := "CONS-SELF", formula := litConsEq, root := some consEqGoal }
@@ -169,7 +169,7 @@ private def builtinsEqGoal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litBuiltinsEq],
     steps := [{ simplifyStep with
       items := [.literal { index := 1, literal := litBuiltinsEq, notFlg := false,
-                           nodes := [.node ("equal-self", "NIL") litBuiltinsEq quoteT [] {}],
+                           nodes := [.node ⟨"equal-self", "NIL", none⟩ litBuiltinsEq quoteT [] {}],
                            result := quoteT }] }],
     induction := none, children := [] }
 private def builtinsEqTree : ClauseProof :=
@@ -217,10 +217,10 @@ private def varXp : SExpr := sym "X"
 /-- `(equal (pair x) (cons x x))`. -/
 private def litPair : SExpr := equalOf (ap1 "PAIR" varXp) (ap2 "CONS" varXp varXp)
 private def pairDefNode : ProofNode :=
-  .node ("definition", "PAIR") (ap1 "PAIR" varXp) (ap2 "CONS" varXp varXp) []
+  .node ⟨"definition", "PAIR", none⟩ (ap1 "PAIR" varXp) (ap2 "CONS" varXp varXp) []
     { path := [.arg 1 { name := "EQUAL" }, .arg 1 { name := "PAIR" }] }
 private def pairEqSelf : ProofNode :=
-  .node ("equal-self", "NIL") (equalOf (ap2 "CONS" varXp varXp) (ap2 "CONS" varXp varXp)) quoteT [] {}
+  .node ⟨"equal-self", "NIL", none⟩ (equalOf (ap2 "CONS" varXp varXp) (ap2 "CONS" varXp varXp)) quoteT [] {}
 private def pairGoal : ClauseNode :=
   { id := default, idStr := "Goal", inputClause := [litPair],
     steps := [{ simplifyStep with
@@ -504,7 +504,7 @@ elab "#expect_driver_fails " s:str t:term : command => do
 
 -- (N1) an unsupported rewrite rune before the closer → replayNode hard-fails.
 private def rewriteNode : ProofNode :=
-  .node ("definition", "MY-APP") (sym "X") (sym "Y") [] {}
+  .node ⟨"definition", "MY-APP", none⟩ (sym "X") (sym "Y") [] {}
 private def treeRewriteFrontier : ClauseProof :=
   { name := "NEG-REWRITE", formula := litEqXX,
     root := some { goalNode with steps := [{ simplifyStep with
@@ -540,7 +540,7 @@ private def transFormula : SExpr :=
       (.cons (equalOf varX varZ) .nil))
 private def typeSetStep : WaterfallStep :=
   { processor := "preprocess-clause", result := default,
-    runes := [("fake-rune-for-type-set", "NIL")], newClauses := [], items := [], extraFields := [] }
+    runes := [⟨"fake-rune-for-type-set", "NIL", none⟩], newClauses := [], items := [], extraFields := [] }
 private def treeTypeSet : ClauseProof :=
   { name := "NEG-TYPE-SET", formula := transFormula,
     root := some { goalNode with inputClause := [transFormula], steps := [typeSetStep] } }

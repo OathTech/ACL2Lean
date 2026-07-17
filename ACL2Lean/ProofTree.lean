@@ -57,7 +57,7 @@ structure StepProvenance where
       this step's rule — the rule is the node's own `rune`. For a `type-set`
       node: the per-step justification runes. A replay must not read this as the
       single rule applied here (use the node's rune for that). -/
-  runes : List (String × String) := []
+  runes : List Rune := []
   parents : List SExpr := []
   subst : List (SExpr × SExpr) := []
   equivTerm : Option SExpr := none
@@ -85,7 +85,7 @@ structure StepProvenance where
   deriving Repr, Inhabited
 
 inductive ProofNode where
-  | node (rune : String × String) (lhs rhs : SExpr)
+  | node (rune : Rune) (lhs rhs : SExpr)
          (children : List ProofNode)
          (provenance : StepProvenance := {})
   deriving Repr, Inhabited
@@ -206,12 +206,12 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- type fact's provenance (which ACL2 supplied) isn't dropped.
       let runes ← ProofLog.parseRunes justification
       parseProofNodesAux rest []
-        (.node ("type-set", "") term result pendingChildren { runes } :: nodes)
+        (.node ⟨"type-set", "", none⟩ term result pendingChildren { runes } :: nodes)
   | .branchSubstitution equiv lhs rhs :: rest =>
       parseProofNodesAux rest []
-        (.node ("branch-substitution", "") lhs rhs pendingChildren { equivTerm := equiv } :: nodes)
+        (.node ⟨"branch-substitution", "", none⟩ lhs rhs pendingChildren { equivTerm := equiv } :: nodes)
   | .contextSubst var value _ :: rest =>
-      parseProofNodesAux rest [] (.node ("context-subst", "") var value pendingChildren {} :: nodes)
+      parseProofNodesAux rest [] (.node ⟨"context-subst", "", none⟩ var value pendingChildren {} :: nodes)
   | .hypRelief hyp origin :: rest =>
       -- a silent hyp-relief marker (no rewrite events): recorded as a leaf
       -- node; the adopting rule step's recipe consumes it in place of a
@@ -219,7 +219,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
       unless pendingChildren.isEmpty do
         throw s!"parseProofNodesAux: hyp-relief marker with pending inner \
                  nodes: {repr hyp}"
-      parseProofNodesAux rest [] (.node ("hyp-relief", "") hyp hyp [] { origin } :: nodes)
+      parseProofNodesAux rest [] (.node ⟨"hyp-relief", "", none⟩ hyp hyp [] { origin } :: nodes)
   | .ifTestTrue _ _ _ :: rest | .ifTestFalse _ _ _ :: rest | .ifTestUnknown _ _ _ :: rest =>
       -- IF-test markers delimit the if-rewrite block; not standalone nodes.
       parseProofNodesAux rest pendingChildren nodes

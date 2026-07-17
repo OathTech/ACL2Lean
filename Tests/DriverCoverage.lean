@@ -128,7 +128,11 @@ def corpus : List (String × String) :=
    -- shape RECON wall (equal-self step inside a clausify record region) —
    -- it enters the corpus when that frontier falls.
    ("sorting/ordered-perms",   include_str "../acl2_samples/sorting/ordered-perms.proof-log"),
-   ("sorting/msort",           include_str "../acl2_samples/sorting/msort.proof-log")]
+   ("sorting/msort",           include_str "../acl2_samples/sorting/msort.proof-log"),
+   -- J7: the dotted-rune parse (multi-rule events, (:REWRITE FOO . k)) lets
+   -- qsort and sorts-equivalent — the D7 consumer — reconstruct.
+   ("sorting/qsort",           include_str "../acl2_samples/sorting/qsort.proof-log"),
+   ("sorting/sorts-equivalent", include_str "../acl2_samples/sorting/sorts-equivalent.proof-log")]
 
 /-- The transitive AXIOM set of a proof term: axioms among the constants of
     the expression and everything those constants' definitions depend on
@@ -172,7 +176,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
   -- pins it at command-context creation; ~1M user units ≈ 40 s, a runaway
   -- guard with margin over the slowest legitimate replay (~9 s observed).
-  withRealMaxHeartbeats 1000000 <| tryCatchRuntimeEx
+  withRealMaxHeartbeats 1000000 <| withRealMaxRecDepth 8192 <| tryCatchRuntimeEx
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,
@@ -220,7 +224,7 @@ def tryDischarge (w : World) (wExpr : Expr) (tps : List (String × SExpr))
   -- (timeout) exceptions report ✗ instead of failing the build. REAL bound
   -- (P1, see tryReplay): ~1M user units ≈ 40 s, margin over the slowest
   -- legitimate leaf (~17 s observed).
-  withRealMaxHeartbeats 1000000 <| tryCatchRuntimeEx
+  withRealMaxHeartbeats 1000000 <| withRealMaxRecDepth 8192 <| tryCatchRuntimeEx
     (try
       let (p, conds) ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w }

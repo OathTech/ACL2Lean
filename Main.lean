@@ -32,10 +32,10 @@ private partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat)
     | .node rune lhs rhs children prov =>
       let pad := String.ofList (List.replicate (indent * 2) ' ')
       let originStr := if prov.origin.isEmpty then "" else s!" [{prov.origin}]"
-      IO.println s!"{pad}{rune.1}:{rune.2}{originStr}"
+      IO.println s!"{pad}{rune.tag}{originStr}"
       IO.println s!"{pad}  {lhs} => {rhs}"
       if !prov.runes.isEmpty then
-        let runeStrs := prov.runes.map fun (t, n) => s!"{t}:{n}"
+        let runeStrs := prov.runes.map (·.tag)
         IO.println s!"{pad}  runes: {String.intercalate ", " runeStrs}"
       if !prov.subst.isEmpty then
         let substStrs := prov.subst.map fun (k, v) => s!"{k} → {v}"
@@ -69,7 +69,7 @@ private partial def printClauseItems (items : List ACL2.ClauseItem)
         IO.println s!"{pad}  │    literal {lp.index}: {lp.literal} ⇒ {lp.result}  ({lp.nodes.length}-step rewrite)"
         printProofNodes lp.nodes rwIndent
     | .step (.node rune lhs rhs children _) =>
-      IO.println s!"{pad}  │    {rune.1}: {lhs} ⇒ {rhs}"
+      IO.println s!"{pad}  │    {rune.ty}: {lhs} ⇒ {rhs}"
       -- A clause-level step (e.g. a termination conjecture's bare rewrite chain)
       -- can have adopted inner-rewrite children; render them too.
       if !children.isEmpty then printProofNodes children rwIndent
@@ -97,7 +97,7 @@ private partial def printClauseNode (node : ACL2.ClauseNode) (indent : Nat) : IO
   for st in node.steps do
     let res := match st.result with | .proved => "proved" | .subgoals => s!"{st.newClauses.length} subgoal(s)"
     let runeStr := if st.runes.isEmpty then "" else
-      "  runes: " ++ String.intercalate ", " (st.runes.map fun (t, n) => s!"{t}:{n}")
+      "  runes: " ++ String.intercalate ", " (st.runes.map (·.tag))
     IO.println s!"{pad}  ├─ {st.processor} ⇒ {res}{runeStr}"
     -- Processor-specific justification (fertilize target/bullet, eliminate-
     -- destructors elim sequence, generalize term→var map, …).
@@ -300,13 +300,18 @@ def main (args : List String) : IO Unit := do
             | .step s =>
                 IO.println s!"  STEP {s.clauseId} [{s.processor}] → {repr s.result}"
                 if !s.runes.isEmpty then
-                  let runeStrs := s.runes.map fun (t, n) => s!"(:{t} {n})"
+                  let runeStrs := s.runes.map fun r => match r.idx with
+                    | none => s!"(:{r.ty} {r.name})"
+                    | some k => s!"(:{r.ty} {r.name} . {k})"
                   IO.println s!"    runes: {String.intercalate " " runeStrs}"
                 let rwSteps := s.rewriteSteps
                 if !rwSteps.isEmpty then
                   IO.println s!"    rewrites: {rwSteps.length} steps"
                   for rw in rwSteps do
-                    IO.println s!"      {rw.rune.1}:{rw.rune.2}"
+                    let idxSuffix := match rw.rune.idx with
+                      | none => ""
+                      | some k => s!" . {k}"
+                    IO.println s!"      {rw.rune.ty}:{rw.rune.name}{idxSuffix}"
             | .defun name formals body just =>
                 let formalStr := String.intercalate " " (formals.map (·.name))
                 IO.println s!"\n  DEFUN {name} ({formalStr}) = {body}"
