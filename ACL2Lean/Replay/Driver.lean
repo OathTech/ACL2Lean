@@ -5539,91 +5539,100 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
               let aE ← ctxValExpr cfg' ctxD atm
               let aP ← ctxValProof cfg' ctxD atm
               vals := vals ++ [(aE, aP)]
-            -- J2 DECREASE FRAGMENT (design I4): single measured variable,
-            -- (CDR v)/(CAR v) substitution, direct (consp v)/(not (endp v))
-            -- ruling fact. Compound-test inversion is J3; sum-measure
-            -- discharge is J4 — hard-fail until then.
+            -- DECREASE derivation (design I4/I5): consp-ness of a measured
+            -- variable from the case's ruling facts — direct (consp v),
+            -- falsy (endp v), falsy (atom v), or a NIL or-form compound
+            -- test inverted along the EMITTED term (J3); else hard-fail.
+            let conspToBoolOf (mv : Symbol) : MetaM Expr := do
+              let mvT : SExpr := .atom (.symbol mv)
+              let consT : SExpr :=
+                .cons (.atom (.symbol { name := "CONSP" })) (.cons mvT .nil)
+              let endpT : SExpr :=
+                .cons (.atom (.symbol { name := "ENDP" })) (.cons mvT .nil)
+              let atomT : SExpr :=
+                .cons (.atom (.symbol { name := "ATOM" })) (.cons mvT .nil)
+              let xvE ← dpConcVar eV mv
+              match facts.find? (fun f => f.test == consT && f.sign) with
+              | some cf => do
+                let neTy ← mkAppM ``Ne #[conspOf xvE, nilC]
+                unless ← isDefEq (← inferType cf.signE) neTy do
+                  throwError "replayInduction: the (consp {mv.name}) \
+                              fact's value is not Logic.consp of the \
+                              measured var's env value"
+                let hNeCast ← mkExpectedTypeHint cf.signE neTy
+                mkAppM ``toBool_true_of_ne_nil #[hNeCast]
+              | none =>
+              -- the case tree strips the leading `not`: the step case's
+              -- fact is the POSITIVE recognizer with sign FALSE
+              match facts.find? (fun f => f.test == endpT && !f.sign) with
+              | some cf => do
+                let eqTy ← mkEq (mkApp (mkConst ``Logic.endp) xvE) nilC
+                unless ← isDefEq (← inferType cf.signE) eqTy do
+                  throwError "replayInduction: the falsy (endp {mv.name}) \
+                              fact's value is not Logic.endp of the \
+                              measured var's env value"
+                let hCast ← mkExpectedTypeHint cf.signE eqTy
+                mkAppM ``consp_toBool_of_endp_nil #[hCast]
+              | none =>
+              match facts.find? (fun f => f.test == atomT && !f.sign) with
+              | some cf => do
+                -- direct falsy (atom v) — J4's INTERLEAVE shape
+                let eqTy ← mkEq (mkApp (mkConst ``Logic.atom) xvE) nilC
+                unless ← isDefEq (← inferType cf.signE) eqTy do
+                  throwError "replayInduction: the falsy (atom {mv.name}) \
+                              fact's value is not Logic.atom of the \
+                              measured var's env value"
+                let hCast ← mkExpectedTypeHint cf.signE eqTy
+                mkAppM ``consp_toBool_of_atom_nil #[hCast]
+              | none => do
+                -- J3 (design I5): a COMPOUND or-form ruling test — ACL2's
+                -- `(IF a a c)` or-normal form (ZIP2/ZIP3) — whose NIL fact
+                -- or-contains the (ATOM mv) leaf. Invert along the EMITTED
+                -- term's shape; any other shape hard-fails.
+                let rec orContains (t : SExpr) : Bool :=
+                  t == atomT ||
+                    match t with
+                    | .cons (.atom (.symbol ifS))
+                        (.cons a (.cons a2 (.cons c .nil))) =>
+                      ifS.name == "IF" && a == a2
+                        && (orContains a || orContains c)
+                    | _ => false
+                let some cf := facts.find?
+                    (fun f => !f.sign && orContains f.test)
+                  | throwError "replayInduction: no in-scope truthy \
+                      (consp {mv.name}) / falsy (endp/atom {mv.name}) \
+                      fact, and no nil or-form ruling fact contains \
+                      (ATOM {mv.name}) — IH decrease underivable \
+                      (frontier)"
+                let rec invert (t : SExpr) (hNil : Expr) : MetaM Expr := do
+                  if t == atomT then
+                    mkAppM ``consp_toBool_of_atom_nil #[hNil]
+                  else match t with
+                    | .cons (.atom (.symbol ifS))
+                        (.cons a (.cons a2 (.cons c .nil))) => do
+                      unless ifS.name == "IF" && a == a2 do
+                        throwError "replayInduction: ruling test {repr t} \
+                            is not or-form (J3 inversion frontier)"
+                      let hpair ← mkAppM ``cond_or_nil_inv #[hNil]
+                      if orContains a then
+                        invert a (← mkAppM ``And.left #[hpair])
+                      else
+                        invert c (← mkAppM ``And.right #[hpair])
+                    | _ =>
+                      throwError "replayInduction: or-form inversion \
+                          reached a non-if non-(ATOM {mv.name}) component \
+                          {repr t} (frontier)"
+                invert cf.test cf.signE
+            -- DECREASE FRAGMENTS by measured-subset arity (design I4):
+            -- J2 single-var (CDR/CAR), J4 two-var sum SWAP; beyond = frontier
             let hLtRaw ←
               match measuredVars with
               | [mv] => do
                 let mvT : SExpr := .atom (.symbol mv)
-                let consT : SExpr :=
-                  .cons (.atom (.symbol { name := "CONSP" })) (.cons mvT .nil)
-                let endpT : SExpr :=
-                  .cons (.atom (.symbol { name := "ENDP" })) (.cons mvT .nil)
-                let xvE ← dpConcVar eV mv
                 let some mtm := alist.lookup mv
                   | throwError "replayInduction: IH omits the measured var \
                       {mv.name} (identity substitution — frontier)"
-                let hToBool ←
-                  match facts.find? (fun f => f.test == consT && f.sign) with
-                  | some cf => do
-                    let neTy ← mkAppM ``Ne #[conspOf xvE, nilC]
-                    unless ← isDefEq (← inferType cf.signE) neTy do
-                      throwError "replayInduction: the (consp {mv.name}) \
-                                  fact's value is not Logic.consp of the \
-                                  measured var's env value"
-                    let hNeCast ← mkExpectedTypeHint cf.signE neTy
-                    mkAppM ``toBool_true_of_ne_nil #[hNeCast]
-                  | none =>
-                    -- the case tree strips the leading `not`: the step
-                    -- case's fact is the POSITIVE (endp v) with sign FALSE
-                    match facts.find? (fun f => f.test == endpT && !f.sign) with
-                    | some cf => do
-                      let eqTy ← mkEq (mkApp (mkConst ``Logic.endp) xvE) nilC
-                      unless ← isDefEq (← inferType cf.signE) eqTy do
-                        throwError "replayInduction: the falsy (endp \
-                                    {mv.name}) fact's value is not \
-                                    Logic.endp of the measured var's env \
-                                    value"
-                      let hCast ← mkExpectedTypeHint cf.signE eqTy
-                      mkAppM ``consp_toBool_of_endp_nil #[hCast]
-                    | none => do
-                      -- J3 (design I5): a COMPOUND or-form ruling test —
-                      -- ACL2's `(IF a a c)` or-normal form (ZIP2/ZIP3) —
-                      -- whose NIL fact or-contains the (ATOM mv) leaf.
-                      -- Invert along the EMITTED term's shape
-                      -- (cond_or_nil_inv per level, consp_toBool_of_atom_nil
-                      -- at the leaf); any other shape hard-fails.
-                      let atomT : SExpr :=
-                        .cons (.atom (.symbol { name := "ATOM" }))
-                          (.cons mvT .nil)
-                      let rec orContains (t : SExpr) : Bool :=
-                        t == atomT ||
-                          match t with
-                          | .cons (.atom (.symbol ifS))
-                              (.cons a (.cons a2 (.cons c .nil))) =>
-                            ifS.name == "IF" && a == a2
-                              && (orContains a || orContains c)
-                          | _ => false
-                      let some cf := facts.find?
-                          (fun f => !f.sign && orContains f.test)
-                        | throwError "replayInduction: no in-scope truthy \
-                            (consp {mv.name}) / falsy (endp {mv.name}) \
-                            fact, and no nil or-form ruling fact contains \
-                            (ATOM {mv.name}) — IH decrease underivable \
-                            (frontier)"
-                      let rec invert (t : SExpr) (hNil : Expr) :
-                          MetaM Expr := do
-                        if t == atomT then
-                          mkAppM ``consp_toBool_of_atom_nil #[hNil]
-                        else match t with
-                          | .cons (.atom (.symbol ifS))
-                              (.cons a (.cons a2 (.cons c .nil))) => do
-                            unless ifS.name == "IF" && a == a2 do
-                              throwError "replayInduction: ruling test \
-                                  {repr t} is not or-form (J3 inversion \
-                                  frontier)"
-                            let hpair ← mkAppM ``cond_or_nil_inv #[hNil]
-                            if orContains a then
-                              invert a (← mkAppM ``And.left #[hpair])
-                            else
-                              invert c (← mkAppM ``And.right #[hpair])
-                          | _ =>
-                            throwError "replayInduction: or-form inversion \
-                                reached a non-if non-(ATOM {mv.name}) \
-                                component {repr t} (frontier)"
-                      invert cf.test cf.signE
+                let hToBool ← conspToBoolOf mv
                 let cdrT : SExpr :=
                   .cons (.atom (.symbol { name := "CDR" })) (.cons mvT .nil)
                 let carT : SExpr :=
@@ -5635,9 +5644,31 @@ partial def replayInduction (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseN
                 else
                   throwError "replayInduction: measured substitution \
                       {repr mtm} beyond the J2 cdr/car fragment (frontier)"
+              | [v1, v2] => do
+                -- J4 SUM-measure, the SWAP fragment (INTERLEAVE's scheme,
+                -- J1(b)-validated): v1 := (var v2), v2 := (CDR v1); the sum
+                -- decreases by the named Count lemma from v1's consp-ness.
+                let v1T : SExpr := .atom (.symbol v1)
+                let v2T : SExpr := .atom (.symbol v2)
+                let cdr1T : SExpr :=
+                  .cons (.atom (.symbol { name := "CDR" })) (.cons v1T .nil)
+                let some t1 := alist.lookup v1
+                  | throwError "replayInduction: IH omits measured var \
+                      {v1.name} (frontier)"
+                let some t2 := alist.lookup v2
+                  | throwError "replayInduction: IH omits measured var \
+                      {v2.name} (frontier)"
+                unless t1 == v2T && t2 == cdr1T do
+                  throwError "replayInduction: sum-measure substitution \
+                      ({v1.name} := {repr t1}, {v2.name} := {repr t2}) \
+                      beyond the J4 swap fragment (frontier)"
+                let hToBool ← conspToBoolOf v1
+                let xv2E ← dpConcVar eV v2
+                mkAppOptM ``acl2Count_swap_cdr_sum_lt_consp
+                  #[none, some xv2E, some hToBool]
               | _ =>
-                throwError "replayInduction: sum-measure decrease discharge \
-                    is the J4 frontier"
+                throwError "replayInduction: {measuredVars.length}-variable \
+                    measure decrease discharge (frontier)"
             -- e' and the cast of the decrease to μ e' < μ e (defeq through
             -- the concrete envUpdate lookups)
             let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
