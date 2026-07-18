@@ -16,3 +16,12 @@ name = "Tests"
 [[lean_exe]]
 name = "acl2lean"
 root = "Main"
+
+# The FOCUSED replay CLI (perf arc WP1): minimal import cone (Runner →
+# Driver, no Imported/ catalog, no Tests), logs read from disk at runtime.
+# supportInterpreter: the driver evaluates tactic syntax (dpLeafTactic)
+# against the imported environment.
+[[lean_exe]]
+name = "acl2lean-replay"
+root = "ReplayMain"
+supportInterpreter = true

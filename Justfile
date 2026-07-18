@@ -52,6 +52,13 @@ gen-world file:
 build-acl2:
     cd acl2 && make LISP=sbcl
 
+# FOCUSED replay (the fast OODA loop): one book — optionally stopping after
+# THM — at runtime, from a .proof-log on disk. Row text identical to the
+# coverage sweep's; the full sweep (driver-coverage) remains the gate.
+replay file thm="":
+    lake build acl2lean-replay
+    lake env .lake/build/bin/acl2lean-replay {{file}} {{thm}}
+
 # Capture structured proof log for a single file
 capture-proof-log file:
     ./scripts/capture-proof-log.sh {{file}}
