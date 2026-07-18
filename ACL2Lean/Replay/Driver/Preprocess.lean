@@ -1,0 +1,414 @@
+/-
+  Driver/Preprocess — split from the monolithic Driver.lean (WP2 Stage 1,
+  2026-07-17; see docs/plans/2026-07-18_driver-modular-refactor.md).
+
+  Preprocess-chain replay and the clausify bridge (#53C).
+-/
+import ACL2Lean.Replay.Driver.Totality
+
+namespace ACL2.Replay.Driver
+
+open ACL2 ACL2.Replay Lean Lean.Meta
+
+/-! ## Preprocess-chain replay (a clause discharged at PREPROCESS, formula → 't)
+
+ACL2's preprocess (`final-implies/eval`, `preprocess/eval`, abbreviation
+expansion, const-fold, equal-self) logs clause-level `:REWRITE-STEP`s with NO
+`:PATH` — preprocess has no rewriter gstack. Each step's position is therefore
+reconstructed DETERMINISTICALLY: the node's lhs must occur EXACTLY ONCE in the
+current term; zero or multiple occurrences hard-fail (nothing is guessed — the
+same inverse-discipline standard as clause-id lineage). -/
+
+/-- All occurrences of `lhs` in `cur`, as congruence path-step descents.
+    Quoted subterms are opaque (no descent). -/
+partial def findOccurrences (cur lhs : SExpr) : List (List PathStep) :=
+  let here : List (List PathStep) := if cur == lhs then [[]] else []
+  let inside : List (List PathStep) :=
+    match asApp cur with
+    | some (fn, args) =>
+      if fn.name == "QUOTE" then []
+      else
+        (args.zipIdx).flatMap fun (a, i) =>
+          (findOccurrences a lhs).map fun p =>
+            ({ fn, arity := args.length, argIdx := i,
+               siblings := (args.zipIdx).filterMap fun (b, j) =>
+                 if j == i then none else some b } : PathStep) :: p
+    | none => []
+  here ++ inside
+
+/-- Replay one PREPROCESS node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`.
+    `executable-counterpart` steps are GROUND computations: ACL2 ran the
+    executable counterpart; the kernel re-checks the SAME computation by
+    reduction of `evalOpt` at a sufficient concrete fuel (found by running the
+    evaluator), lifted by fuel monotonicity. Other runes use their ordinary
+    node recipes. -/
+def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
+    MetaM Expr := do
+  let rty := (runeOf n).ty
+  let (lhs, rhs) := nodeLhsRhs n
+  let .node _ _ _ _ prov := n
+  -- a non-EQUAL preprocess rule application must route through the
+  -- R-parameterized judgment (the if-iff shape is handled by the chain core;
+  -- anything else is the G1 frontier)
+  unless prov.equiv == "equal" || prov.origin == "preprocess/if-iff" do
+    throwError "replayPreprocessNode: step under equivalence {prov.equiv} — \
+                R-parameterized recipe pending (G1 frontier)"
+  -- a verdict-only DISCHARGE node routes through the chain core's IFF lane
+  -- (D10): its honest content is `EvTrue lhs`, an SIff step to 't — NOT an
+  -- eval-equality (that strengthening held only for boolean-valued clauses)
+  if dischargeOrigins.contains prov.origin then
+    throwError "replayPreprocessNode: discharge node {prov.origin} must \
+                compose via the chain core's SIff lane (D10) — direct \
+                eval-equality replay is gone"
+  match rty with
+  | "executable-counterpart" =>
+    let .cons (.atom (.symbol q)) (.cons v .nil) := rhs
+      | throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
+    unless q.name == "QUOTE" do
+      throwError "executable-counterpart: rhs {repr rhs} is not a quoted constant"
+    let convLhs ← replayExecGround cfg lhs v
+    let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
+    mkAppM ``fuel_eq_of_conv #[convLhs, hq, ← mkEqRefl (reflectSExpr v)]
+  | "equal-self" =>
+    let some X := asEqualSelf lhs
+      | throwError "preprocess equal-self: lhs is not (equal X X): {repr lhs}"
+    unless rhs == quoteT do
+      throwError "preprocess equal-self: rhs {repr rhs} ≠ (quote t)"
+    let hX ← proveConv cfg cfg.envExpr ctx X
+    let hNoEqual ← proveNoShadow cfg { name := "EQUAL" }
+    let closeProof ← mkAppM ``re_equal_self
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
+    let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+    mkAppM ``fuel_eq_of_conv #[closeProof, hq, ← mkEqRefl (reflectSExpr SExpr.t)]
+  | _ => replayNode cfg ctx n 0
+
+/-- The `PREPROCESS/IF-IFF` node: `(if A 't 'nil) ⇒ A` — IFF-only, NOT
+    value-preserving (the chain runs under `*geneqv-iff*`). Returns
+    `EvRel SIff w env lhs rhs`. -/
+def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
+    MetaM Expr := do
+  let (lhs, rhs) := nodeLhsRhs n
+  let expectedLhs : SExpr :=
+    .cons (.atom (.symbol { name := "IF" }))
+      (.cons rhs (.cons quoteT (.cons quoteNil .nil)))
+  unless lhs == expectedLhs do
+    throwError "preprocess/if-iff: lhs {repr lhs} is not (if rhs 't 'nil)"
+  let vA ← ctxValExpr cfg ctx rhs
+  let pA ← ctxValProof cfg ctx rhs
+  mkAppM ``evrel_siff_if_t_nil
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr rhs, vA, pA]
+
+/-- Lift an `EvRel SIff` node proof through ONE position step, per the
+    congruence table (G1): if-THEN and if-ELSE positions preserve SIff (the
+    untaken branch relates by reflexivity — needs the test's and the other
+    branch's convergence); the if-TEST position COLLAPSES SIff to an
+    eval-equality (the lazy `if` consults only `toBool`). Returns the lifted
+    proof and whether it is still SIff (`true`) or collapsed to Eq (`false`).
+    Any other position under an iff payload is a frontier. -/
+def applyStepSIff (cfg : ReplayConfig) (ctx : ReplayCtx) (st : PathStep)
+    (inner : Expr) : MetaM (Expr × Bool) := do
+  unless st.fn.name == "IF" && st.arity == 3 do
+    throwError "iff congruence: position {st.fn.name}/{st.argIdx} does not \
+                propagate IFF (frontier — only if-test/branch positions do)"
+  -- a composition that does not typecheck (e.g. a branch-congruence result fed
+  -- into a test-collapse — a NESTED conditional structure) is the conditional-
+  -- congruence frontier (R1 wall d, deferred — perm-is-an-equivalence); surface
+  -- it as a CLEAN named frontier rather than leaking `mkAppM` metavariables.
+  -- The original error is PRESERVED in the message: this is still a hard-fail
+  -- (never a false pass), but if a FIXABLE bug (wrong sibling/order) — rather
+  -- than the genuine wall-d nesting — caused the failure, its text stays visible
+  -- so it is not silently misattributed to the deferred frontier.
+  let wallD : Exception → MetaM Expr := fun e => do
+    throwError "applyStepSIff: SIff branch-congruence composition unsupported for \
+      this nesting at if-position {st.argIdx} (conditional-congruence — R1 wall d, \
+      deferred); underlying elaboration error: {e.toMessageData}"
+  match st.argIdx, st.siblings with
+  | 0, [thn, els] =>
+    -- TEST position: SIff collapses to eval-equality. `thn`/`els` occur only
+    -- in the collapse lemma's RESULT type, so they cannot be inferred from
+    -- `inner` — supply them explicitly from the path step's siblings (the
+    -- former mkAppM metavariable failure here was misattributed to the
+    -- wall-d nesting; the lemma is fully general in the tests).
+    let p ← (try
+      mkAppOptM ``evrel_if_test_siff_collapse
+        #[none, none, none, none, some (reflectSExpr thn),
+          some (reflectSExpr els), some inner]
+      catch e => wallD e)
+    return (p, false)
+  | 1, [c, els] =>
+    -- THEN position
+    let pc ← ctxValProof cfg ctx c
+    let pels ← ctxValProof cfg ctx els
+    let p ← (try mkAppM ``evrel_if_then_congr #[mkConst ``siff_refl, pc, pels, inner]
+             catch e => wallD e)
+    return (p, true)
+  | 2, [c, thn] =>
+    -- ELSE position
+    let pc ← ctxValProof cfg ctx c
+    let pthn ← ctxValProof cfg ctx thn
+    let p ← (try mkAppM ``evrel_if_else_congr #[mkConst ``siff_refl, pc, pthn, inner]
+             catch e => wallD e)
+    return (p, true)
+  | _, _ => throwError "iff congruence: bad if position {st.argIdx}"
+
+/-- Replay a preprocess chain's CORE: the composed relation between the
+    formula and the final term — `(proof, isIff)` where the proof is the
+    eval-equality `∃N∀f≥N, eval formula = eval final` when `isIff = false`,
+    and `EvRel SIff w env formula final` when any step was IFF-only
+    (`isIff = true`). `none` for an empty chain. R is threaded per the
+    binding invariant L2: equal steps inject into the iff composite by
+    refinement (`evrel_of_fuel_eq` + `siff_refl`). -/
+def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (formula : SExpr) (nodes : List ProofNode) :
+    MetaM (Option (Expr × Bool) × SExpr) := do
+  let mut cur := formula
+  let mut acc : Option (Expr × Bool) := none
+  for n in nodes do
+    let (lhs, rhs) := nodeLhsRhs n
+    let .node _ _ _ _ prov := n
+    -- D10: a verdict-only discharge node is an SIff step `lhs ~iff~ 't`
+    -- (its honest content is `EvTrue lhs`); if-iff nodes stay; everything
+    -- else is an eval-equality step
+    let isDischarge := dischargeOrigins.contains prov.origin
+    let isIffNode := prov.origin == "preprocess/if-iff" || isDischarge
+    let nodeP ←
+      if isDischarge then do
+        unless rhs == quoteT do
+          throwError "discharge node: rhs {repr rhs} ≠ (quote t)"
+        let ev ← replayDischargeNode cfg ctx lhs
+        mkAppM ``evrel_siff_qt_of_evtrue #[ev]
+      else if isIffNode then replayIfIffNode cfg ctx n
+      else replayPreprocessNode cfg ctx n
+    let path ← match findOccurrences cur lhs with
+      | [p] => pure p
+      | [] => throwError "replayPreprocessChain: node lhs {repr lhs} does not occur \
+                          in the current term {repr cur}"
+      | ps => throwError "replayPreprocessChain: node lhs {repr lhs} occurs \
+                          {ps.length} times in {repr cur} — ambiguous position \
+                          (needs :PATH emission at the preprocess site)"
+    -- lift innermost-out; iff payloads use the R congruence table and may
+    -- COLLAPSE to an eval-equality at an if-test position
+    let mut inner := nodeP
+    let mut innerIff := isIffNode
+    let mut curL := lhs
+    let mut curR := rhs
+    for st in path.reverse do
+      if innerIff then
+        let (p, stillIff) ← applyStepSIff cfg ctx st inner
+        inner := p
+        innerIff := stillIff
+      else
+        inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+      curL := rebuild st.fn st.arity st.argIdx curL st.siblings
+      curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+    unless curL == cur do
+      throwError "replayPreprocessChain: reconstructed {repr curL} ≠ current {repr cur}"
+    -- compose
+    acc := some (← match acc, innerIff with
+      | none, _ => pure (inner, innerIff)
+      | some (a, false), false =>
+        return (← mkAppM ``fuel_chain_eq #[a, inner], false)
+      | some (a, aIff), _ => do
+        -- iff composite: inject any eval-equality side via refinement
+        let aS ← if aIff then pure a else do
+          let pConv ← ctxValProof cfg ctx curL
+          mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, a, pConv]
+        let iS ← if innerIff then pure inner else do
+          let pConv ← ctxValProof cfg ctx curR
+          mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, inner, pConv]
+        return (← mkAppM ``evrel_trans #[mkConst ``siff_trans, aS, iS], true))
+    cur := curR
+  return (acc, cur)
+
+/-- Replay a clause discharged ENTIRELY by a preprocess chain: the step nodes
+    compose the single-literal clause's formula to `(quote t)`. Returns
+    `EvTrue w env formula` — an IFF chain ends by backward truth transport
+    with NO boolean-valuedness side condition (the G1-interim
+    `strengthenIffChain`/`formulaBooleanFact` pair is gone, G2). -/
+def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (formula : SExpr) (nodes : List ProofNode) : MetaM Expr := do
+  let (acc, cur) ← replayPreprocessChainCore cfg ctx formula nodes
+  unless cur == quoteT do
+    throwError "replayPreprocessChain: chain ended at {repr cur}, expected (quote t)"
+  let some (chain, isIff) := acc
+    | throwError "replayPreprocessChain: no step nodes"
+  if isIff then
+    let pEnd ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]
+    mkAppM ``evtrue_of_evrel_siff #[chain, pEnd]
+  else
+    let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+    mkAppM ``evtrue_of_eq_t #[← mkAppM ``fuel_conv_of_eq #[chain, hq]]
+
+/-! ## The clausify BRIDGE (#53C): proved child clause → the clausify input
+
+`bridgeClausify` proves `EvTrue w env input` from the PROVED output
+clause (`EvTrue w env (disjoinTerm cl)` — the pool-root/child replay), by
+mirroring `clausify-input1`'s PURE if-recursion. The recorded checkpoints
+validate every joint (recomputed neg-clause/split/out must equal the record;
+an `expand-and-or` marker is a frontier — that expansion is ens-dependent and
+not recomputable). Mechanism (G3
+Fragment B): ONE `clausifyPure_sound` instantiation — the once-proved bridge
+lemma over the pure recursion — replaces the per-leaf peel/walk proof
+construction entirely; its premises are the Fragment-A bundle, the input's
+lift fact (by reduction), and the opaque-key well-formedness (by kernel
+decision). -/
+
+/-- Bridge a clausify record: prove `EvTrue w env info.input` from
+    `pOut : EvTrue w env (disjoinTerm cl₀)` (the proved single output clause).
+    Validates the WHOLE record against the pure recomputation; any divergence
+    (an `expand-and-or` expansion, a structured neg-clause, multiple outputs)
+    is a hard frontier error. -/
+def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
+    (pOut : Expr) : MetaM Expr := do
+  -- An `expand-and-or` marker (ens-dependent expansion, e.g. a `not` unfold
+  -- under a test) is NOT a hard frontier by itself: the expansions ACL2
+  -- applies during the walk often ROUND-TRIP (the if-lifting + negation
+  -- folding restore the literal form), and every joint below is validated
+  -- against the pure recomputation — a genuinely diverging expansion still
+  -- fail-closes at the neg/split/out checks.
+  let negRecomputed := clausifyPure info.input false
+  unless negRecomputed == info.negClause do
+    throwError "clausify bridge: recomputed neg-clause {repr negRecomputed} ≠ \
+                recorded {repr info.negClause} (divergence: expand-and-or, \
+                disjoin-clauses literal merging, or an unmirrored \
+                dumb-negate-lit arm)"
+  let [l0] := info.negClause
+    | throwError "clausify bridge: structured (multi-literal) neg-clause — \
+                  frontier: {repr info.negClause}"
+  let [(splitLit, cl0)] := info.splits
+    | throwError "clausify bridge: expected exactly one split (frontier)"
+  unless splitLit == dumbNegateLit l0 do
+    throwError "clausify bridge: split literal {repr splitLit} ≠ \
+                (dumb-negate {repr l0})"
+  unless dumbNegateLit l0 == info.input do
+    throwError "clausify bridge: negation round-trip {repr (dumbNegateLit l0)} ≠ \
+                input {repr info.input} (frontier)"
+  unless clausifyPure info.input true == cl0 do
+    throwError "clausify bridge: recomputed split clause \
+                {repr (clausifyPure info.input true)} ≠ recorded {repr cl0} \
+                (divergence: expand-and-or, disjoin-clauses literal merging, \
+                or an unmirrored dumb-negate-lit arm)"
+  unless info.out == [cl0] do
+    throwError "clausify bridge: output set {repr info.out} ≠ [the split clause] \
+                (multi-clause output — frontier)"
+  -- G3 Fragment B: ONE clausifyPure_sound instantiation (the validation
+  -- above is unchanged — stage-(b) recompute-and-validate).
+  let vars := (ACL2.Replay.freeVars info.input).eraseDups
+  let opaques := (collectOpaques info.input).eraseDups
+  let pinned ← opaques.mapM fun op => do
+    let some (v, p) := ctx.val? op
+      | throwError "bridgeClausify: opaque {repr op} has no pinned value \
+                    (frontier)"
+    pure (op, v, p)
+  let opqMap := pinned.map fun (op, v, _) => (op, v)
+  let opqP := pinned.map fun (op, _, p) => (op, p)
+  let b ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
+  let vE ← dpValExpr opqMap (dpConcVar cfg.envExpr) info.input
+  let someV := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
+  let liftApp := mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE
+    (reflectSExpr info.input)
+  unless ← isDefEq liftApp someV do
+    throwError "bridgeClausify: the input does not lift to the walker's \
+                value for {repr info.input} (function/walker divergence — \
+                a defect)"
+  let isSomeApp ← mkAppM ``Option.isSome #[liftApp]
+  let hisSome ← mkExpectedTypeHint (← mkEqRefl (mkConst ``Bool.true))
+    (← mkEq isSomeApp (mkConst ``Bool.true))
+  let hwf ← mkDecideProof
+    (← mkEq (mkApp (mkConst ``dpOpqWF) b.opqE) (mkConst ``Bool.true))
+  let prf ← mkAppM ``clausifyPure_sound
+    #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
+      reflectSExpr info.input, mkConst ``Bool.true, hisSome, pOut]
+  -- `ClausifyGoal … true` IS `EvTrue …` definitionally; cast for consumers
+  mkExpectedTypeHint prf
+    (← mkAppM ``EvTrue #[cfg.worldExpr, cfg.envExpr, reflectSExpr info.input])
+
+/-- The MULTI-clause clausify bridge: `EvTrue w env info.input` from one
+    `EvTrue (disjoin outᵢ)` per output clause. The record is validated
+    against the pure recomputation exactly as in the single case, extended:
+    the neg-clause's literals L₁…Lₙ each split (`:CLAUSIFY-SPLIT`) into
+    `clausifyPure (dumbNegateLit Lᵢ) true = outᵢ`; each proved outᵢ gives
+    `EvTrue (¬Lᵢ)` (`clausifyPure_sound`), hence `eval Lᵢ → nil`
+    (`sound_neg_leaf`); all neg-literals false gives the input's truth
+    (`clausifyAllFalse_sound` — the conjunction lemma). -/
+def bridgeClausifyMulti (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (info : ClausifyInfo) (pOuts : List Expr) : MetaM Expr := do
+  let negRecomputed := clausifyPure info.input false
+  unless negRecomputed == info.negClause do
+    throwError "clausify multi-bridge: recomputed neg-clause                 {repr negRecomputed} ≠ recorded {repr info.negClause}"
+  unless info.splits.length == info.negClause.length &&
+         pOuts.length == info.out.length &&
+         info.out == info.splits.map (·.2) do
+    throwError "clausify multi-bridge: splits/out/proofs mismatch at                 {repr info.input}"
+  for (l, (lit, cl)) in info.negClause.zip info.splits do
+    unless lit == dumbNegateLit l do
+      throwError "clausify multi-bridge: split literal {repr lit} ≠                   (dumb-negate {repr l})"
+    unless clausifyPure lit true == cl do
+      throwError "clausify multi-bridge: recomputed split clause for                   {repr lit} ≠ recorded {repr cl}"
+  -- the shared lift bundle (over the input's vars/opaques — every literal is
+  -- built from the input's subterms, negations included)
+  let vars := (ACL2.Replay.freeVars info.input).eraseDups
+  let opaques := (collectOpaques info.input).eraseDups
+  let pinned ← opaques.mapM fun op => do
+    let some (v, p) := ctx.val? op
+      | throwError "bridgeClausifyMulti: opaque {repr op} has no pinned value                     (frontier)"
+    pure (op, v, p)
+  let opqMap := pinned.map fun (op, v, _) => (op, v)
+  let opqP := pinned.map fun (op, _, p) => (op, p)
+  let b ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
+  let hwf ← mkDecideProof
+    (← mkEq (mkApp (mkConst ``dpOpqWF) b.opqE) (mkConst ``Bool.true))
+  let mkIsSome : SExpr → MetaM Expr := fun t => do
+    let vE ← dpValExpr opqMap (dpConcVar cfg.envExpr) t
+    let someV := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
+    let liftApp := mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE (reflectSExpr t)
+    unless ← isDefEq liftApp someV do
+      throwError "bridgeClausifyMulti: {repr t} does not lift to the                   walker's value (function/walker divergence — a defect)"
+    let isSomeApp ← mkAppM ``Option.isSome #[liftApp]
+    mkExpectedTypeHint (← mkEqRefl (mkConst ``Bool.true))
+      (← mkEq isSomeApp (mkConst ``Bool.true))
+  -- per neg-literal: EvTrue(¬Lᵢ) from its proved clause, then eval Lᵢ → nil
+  let mut nilProofs : List Expr := []
+  for (l, ((lit, _), pOut)) in info.negClause.zip (info.splits.zip pOuts) do
+    let hlLit ← mkIsSome lit
+    let pLitTrue ← mkAppM ``clausifyPure_sound
+      #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
+        reflectSExpr lit, mkConst ``Bool.true, hlLit, pOut]
+    -- ClausifyGoal … true IS EvTrue; and reflect(lit) is defeq to
+    -- dumbNegateLit reflect(l) by computation
+    let pLitTrue ← mkExpectedTypeHint pLitTrue
+      (← mkAppM ``EvTrue #[cfg.worldExpr, cfg.envExpr,
+        ← mkAppM ``ACL2.Replay.dumbNegateLit #[reflectSExpr l]])
+    let hlL ← mkIsSome l
+    nilProofs := nilProofs ++ [← mkAppM ``sound_neg_leaf
+      #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
+        reflectSExpr l, hlL, pLitTrue]]
+  -- assemble ∀ L ∈ clausifyPure input false, eval L → nil
+  let nilP ← withLocalDeclD `L (mkConst ``SExpr) fun lV => do
+    let body ← withLocalDeclD `N (mkConst ``Nat) fun nV => do
+      let inner ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+        let ge ← mkAppM ``GE.ge #[fV, nV]
+        let ev := mkAppN (mkConst ``evalOpt)
+          #[fV, cfg.worldExpr, cfg.envExpr, lV]
+        let nilE := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr)
+          (mkConst ``SExpr.nil)
+        mkForallFVars #[fV] (← mkArrow ge (← mkEq ev nilE))
+      mkAppM ``Exists #[← mkLambdaFVars #[nV] inner]
+    mkLambdaFVars #[lV] body
+  let entries ← info.negClause.mapM fun l => pure (reflectSExpr l)
+  let (_, hforallRaw) ← mkForallMemProof (mkConst ``SExpr) nilP
+    (entries.zip nilProofs)
+  let cpList ← mkAppM ``clausifyPure
+    #[reflectSExpr info.input, mkConst ``Bool.false]
+  let hforallTy ← withLocalDeclD `L (mkConst ``SExpr) fun lV => do
+    let mem ← mkAppM ``Membership.mem #[cpList, lV]
+    mkForallFVars #[lV] (← mkArrow mem (mkApp nilP lV).headBeta)
+  let hforall ← mkExpectedTypeHint hforallRaw hforallTy
+  let hisSome ← mkIsSome info.input
+  let prf ← mkAppM ``clausifyAllFalse_sound
+    #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
+      reflectSExpr info.input, mkConst ``Bool.false, hisSome, hforall]
+  mkExpectedTypeHint prf
+    (← mkAppM ``EvTrue #[cfg.worldExpr, cfg.envExpr, reflectSExpr info.input])
+
+end ACL2.Replay.Driver

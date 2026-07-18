@@ -89,11 +89,27 @@ Local-only (keep `private`): `pathStepsFromFrames`, `mkDefsGet`,
 `mkValConvPropE`, `CaseTree`, `buildCaseTree`, `TestFact`,
 `theoremsWithRulesGo`.
 
-## Stage 1 — free the non-knot members
-Move every non-knotted member out of its mutual (same file first — mutual
-shrink only), then split the FILE at the existing linear section
-boundaries: Reflect / ValueCore / Totality / Preprocess / Core (the 5-way
-split), with `private` re-scoping as needed. Mechanical; golden-gated.
+## Stage 1 — free the non-knot members (EXECUTED 2026-07-17; gates pending)
+1a — mutual shrink (in-file): `replayRecognizer` moved above mutual #1;
+mutual #2 dissolved (`dischargeClose` first as plain def, `dischargeSpine`
+standalone self-recursive). Compiles unchanged (54s full Driver).
+1b — the 6-file split per the Stage 0 section map, root `Driver.lean` =
+header + `import Driver.Core` + importer front-end (all names stay in
+`ACL2.Replay.Driver`, so no client changes). The 6 cross-boundary `private`
+decls de-privatized (kept in the namespace, no sub-namespace — smaller diff).
+
+Import graph: LINEAR CHAIN (Reflect ← NodeCore ← Discharge ← Totality ←
+Preprocess ← Core ← root), deliberately zero-risk. Static analysis suggests
+Preprocess and Core may not need Totality/Discharge (candidate flattening:
+edits to Discharge/Totality then skip Preprocess+Core rebuilds), but
+`where`-bound defs (e.g. `totWalk.totDefFact`, used from Core) defeat
+grep-level certainty — flatten later with the compiler as oracle, one edge
+at a time, if the measured loop justifies it.
+
+Measured module elab (first build): Reflect 26s, NodeCore 10s, Discharge
+5.7s, Totality 8s, Preprocess 9.6s, Core 14s, root 13s (total ≈86s cold vs
+54s monolith — the one-off cost of per-module import loading; the win is
+incremental: a Core edit re-elabs 14+13s, not 54s).
 
 ## Stage 2 — recursion interface
 Define in a new `Driver/Recurse.lean`:

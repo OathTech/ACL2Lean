@@ -233,7 +233,6 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
       -- per-FILE hoists (A3): the reflected world and the leaf harness's
       -- totality environment are env-independent — build each ONCE here
       -- instead of per theorem / per leaf
-      let tW0 ← IO.monoMsNow
       let wExpr ← reflectWorld w
       let tW1 ← IO.monoMsNow
       if timings then IO.println s!"[t] toWorld+reflectWorld: {tW1 - tRecon} ms"
