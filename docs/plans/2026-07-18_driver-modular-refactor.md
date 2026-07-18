@@ -175,10 +175,21 @@ delivered. Structural additivity for NEW node recipes can be had later,
 recipe-by-recipe, when one is actually added (#37-style: wire fragments as
 DATA consumed at runtime, not as new imports upstream of the chain).
 
-Follow-up levers if the tail (~25s) matters later: shorten the
-Core→Harness→root re-export chain; an interpreter-mode `just replay` entry
-(skip exe codegen+link, ~8-11s); DAG-flatten Discharge/Totality off the
-Preprocess/Waterfall path (compiler-verified, one edge at a time).
+Follow-up levers, dispositioned 2026-07-18:
+- Tail shortening — DONE: the importer front-end moved from root
+  `Driver.lean` into `Harness.lean`; root is a pure re-export (49 lines,
+  ~1-3s re-elab, all `import ACL2Lean.Replay.Driver` clients unchanged).
+- Interpreter-mode replay entry — MEASURED AND DROPPED: the exe increment
+  on top of oleans (codegen+link) is only ~12.5s, while
+  `lake env lean --run ReplayMain.lean` costs +10s PER RUN vs the compiled
+  binary (13.7s vs ~4s — ReplayMain's elab loads the env once and its
+  runtime `importModules` loads it again). Net ~2s per iteration, negative
+  for >1 run per edit. A loader-stub variant (evalConst from a Lean-only
+  stub) would save ~5-8s at the cost of a second entry path that can
+  drift — not worth it at the current edit frequency.
+- DAG-flatten Discharge/Totality off the Preprocess/Waterfall path — kept
+  as opportunistic (rarely-edited files; `where`-bound defs mean each edge
+  removal needs the compiler as oracle).
 
 ## Predicted loop after Stage 3 (superseded by MEASURED numbers above)
 The ~20s prediction under-counted the re-elab tail (Core/Harness/root/
