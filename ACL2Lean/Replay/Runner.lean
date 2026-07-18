@@ -210,30 +210,40 @@ structure BookResult where
     mirror registry state at the target must be identical to the sweep's, so a
     focused row is directly comparable to the golden. -/
 def runBook (name : String) (content : String) (upTo : Option String := none)
-    : TermElabM BookResult := do
+    (timings : Bool := false) : TermElabM BookResult := do
   let mut res : BookResult := {}
+  let tParse0 ← IO.monoMsNow
   match ProofLog.parse content with
   | .error msg =>
     res := { res with lines := res.lines.push (s!"• {name}: PARSE-FAIL {msg}"),
                       integrityFails := res.integrityFails.push (s!"{name}: PARSE-FAIL {msg}") }
     return res
   | .ok log =>
+    let tParse1 ← IO.monoMsNow
+    if timings then IO.println s!"[t] parse: {tParse1 - tParse0} ms"
     match ClauseTree.buildDevelopment log with
     | .error msg =>
       res := { res with lines := res.lines.push (s!"• {name}: RECON-FAIL {msg}"),
                         integrityFails := res.integrityFails.push (s!"{name}: RECON-FAIL {msg}") }
       return res
     | .ok dev =>
+      let tRecon ← IO.monoMsNow
+      if timings then IO.println s!"[t] recon: {tRecon - tParse1} ms"
       let w := dev.toWorld
       -- per-FILE hoists (A3): the reflected world and the leaf harness's
       -- totality environment are env-independent — build each ONCE here
       -- instead of per theorem / per leaf
+      let tW0 ← IO.monoMsNow
       let wExpr ← reflectWorld w
-      let leafTotalEnv ←
-        Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
-          let cfg : ReplayConfig :=
-            { worldExpr := wExpr, envExpr := envFV, worldVal := w }
-          buildTotalEnv cfg dev.justifications
+      let tW1 ← IO.monoMsNow
+      if timings then IO.println s!"[t] toWorld+reflectWorld: {tW1 - tRecon} ms"
+      -- LAZY per-book totality environment (perf WP1b, 2026-07-18): built on
+      -- the FIRST DP-leaf attempt, then cached for the book (the A3
+      -- once-per-file property preserved). Eager construction cost ~9 s on a
+      -- 206-defun world before any theorem ran — pure waste for books/target
+      -- runs that never reach a leaf. Same facts, same order — golden text
+      -- unchanged.
+      let mut leafTotalEnv? : Option (List (String × Nat × Expr)) := none
       let thms := developmentTheoremsWithRules dev
       let headerLine := s!"• {name}  (world: {w.defs.size} defun(s), {thms.length} theorem(s))"
       res := { res with lines := res.lines.push headerLine }
@@ -263,10 +273,13 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let mName := Name.mkStr2 "CoverageMirrors"
           (String.map (fun c => if c.isAlphanum then c else '_')
             s!"mirror_{name}_{cp.name}")
+        let tThm0 ← IO.monoMsNow
         let (status, reg?) ← tryReplay w wExpr tps dev.justifications cp rules
           (thms.map fun (c, _) => (c.name, c))
           (gzDefs := dev.groundZeroSnapshotDefs)
           (mirrors := mirrors) (mirrorName? := some mName)
+        let tThm1 ← IO.monoMsNow
+        if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"
         if let some conds := reg? then
           mirrors := mirrors ++ [(cp.name, mName, conds)]
         if status.startsWith "REPLAYED ✓" then
@@ -283,7 +296,19 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         -- non-target theorems (their replays still ran, for the registry)
         let isTarget := upTo.map (· == cp.name) |>.getD true
         let mut disParts : List String := []
-        if isTarget then
+        if isTarget && !dis.isEmpty then
+          let leafTotalEnv ← match leafTotalEnv? with
+            | some te => pure te
+            | none => do
+              let tTE0 ← IO.monoMsNow
+              let te ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
+                let cfg : ReplayConfig :=
+                  { worldExpr := wExpr, envExpr := envFV, worldVal := w }
+                buildTotalEnv cfg dev.justifications
+              let tTE1 ← IO.monoMsNow
+              if timings then IO.println s!"[t] buildTotalEnv (lazy): {tTE1 - tTE0} ms"
+              pure te
+          leafTotalEnv? := some leafTotalEnv
           for (id, o, clause) in dis do
             res := { res with dpTotal := res.dpTotal + 1 }
             let r ← tryDischarge w wExpr tps leafTotalEnv id o clause

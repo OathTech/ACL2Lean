@@ -26,14 +26,20 @@ unsafe def main (args : List String) : IO Unit := do
     | [p] => pure (p, (none : Option String))
     | [p, t] => pure (p, some t)
     | _ => throw <| IO.userError usage
+  let tR0 ← IO.monoMsNow
   let content ← IO.FS.readFile path
+  let tR1 ← IO.monoMsNow
+  IO.println s!"[t] readFile: {tR1 - tR0} ms"
   -- book display name = file stem, matching the sweep's corpus keys closely
   -- enough for eyeball comparison (the sweep prefixes sorting/ manually)
   let name := (System.FilePath.mk path).fileStem.getD path
   Lean.initSearchPath (← Lean.findSysroot)
   enableInitializersExecution
+  let tI0 ← IO.monoMsNow
   let env ← importModules #[{ module := `ACL2Lean.Replay.Runner }] {}
     (trustLevel := 0) (loadExts := true)
+  let tI1 ← IO.monoMsNow
+  IO.println s!"[t] importModules: {tI1 - tI0} ms"
   let coreCtx : Core.Context := {
     fileName := "<acl2lean-replay>", fileMap := default,
     -- per-theorem/per-leaf budgets are enforced INSIDE the harness
@@ -41,7 +47,7 @@ unsafe def main (args : List String) : IO Unit := do
     maxHeartbeats := 0 }
   let t0 ← IO.monoMsNow
   let act : MetaM BookResult :=
-    Elab.Term.TermElabM.run' (runBook name content upTo?)
+    Elab.Term.TermElabM.run' (runBook name content upTo? (timings := true))
   let (res, _) ← (act.run' {} {}).toIO coreCtx { env }
   let t1 ← IO.monoMsNow
   for l in res.lines do IO.println l
