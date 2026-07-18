@@ -111,14 +111,30 @@ Measured module elab (first build): Reflect 26s, NodeCore 10s, Discharge
 54s monolith — the one-off cost of per-module import loading; the win is
 incremental: a Core edit re-elabs 14+13s, not 54s).
 
-## Stage 2 — recursion interface
-Define in a new `Driver/Recurse.lean`:
-  structure ReplayRec where
-    node   : ReplayCtx → ProofNode → Nat → MetaM Expr
-    clause : ... (the replayClause entry)          -- exact fields from Stage 0
-Each recipe becomes a top-level def taking `(rec : ReplayRec)`; the knot is
-tied once in a thin `Driver/Tie.lean` (`partial def`s that instantiate the
-structure). All meta-code is `partial`/MetaM — no termination obligations.
+## Stage 2 — recursion interface (EXECUTED 2026-07-17)
+Deviations from the sketch, all following from the Stage 0 finding that the
+two knots are independent layers:
+- TWO per-knot structures instead of one `ReplayRec`, defined next to their
+  knots (no separate `Recurse.lean`/`Tie.lean` — `ReplayCtx`/`ReplayConfig`
+  live in NodeCore, so a shared types file would be extraction churn for
+  nothing): `NodeRec {node, rewrites}` in NodeCore, `ClauseRec {clause,
+  clauseSpine}` in Core.
+- SELF-recursion stays direct (`partial def …With (rec : …)`); only
+  CROSS-member calls route through `rec`. `composeSplit` and the five
+  processors are plain rec-taking defs (no self-cycles).
+- Each knot's tie is a thin 2-member `mutual` at the end of its file —
+  public names/signatures (`replayNode`, `replayRewrites`, `replayClause`,
+  `replayClauseSpine`, incl. default args) unchanged, so zero client churn;
+  `nodeRec`/`clauseRec` convenience records defined after each tie for
+  future recipe modules. (Ties construct the record inline — a self-
+  referential `partial def rec : NodeRec` value is rejected by Lean, and
+  default args require eta-expansion in the NodeRec literal.)
+- Core's members reordered callee-first (composeSplit, processors, spine,
+  clause, tie); golden confirmed byte-identical through the reorder.
+
+Gates: `just ci` green, golden BYTE-IDENTICAL, diff-test 389/0, zero
+warnings. The recipes/processors are now top-level defs — Stage 3 can move
+them to additive files.
 
 ## Stage 3 — per-recipe modules
 One file per recipe family: Definition, Recognizer (incl. two-valued

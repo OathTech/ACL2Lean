@@ -915,7 +915,17 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hv]
   | _ => throwError "replayRecognizer: not a recognizer application: {repr term}"
 
-mutual
+/-- The node-level recursion interface (WP2 Stage 2): the knot's entry
+    points as a record, so node recipes are top-level defs taking `rec`
+    instead of members of one `mutual` block (new recipes land additively).
+    Tied ONCE below (`replayNode`/`replayRewrites` — the public names and
+    signatures are unchanged from the pre-WP2 mutual). -/
+structure NodeRec where
+  /-- `replayNode` — the per-node rune dispatcher. -/
+  node : ReplayConfig → ReplayCtx → ProofNode → Nat → MetaM Expr
+  /-- `replayRewrites` — the chain walker (explicit depth AND strip). -/
+  rewrites : ReplayConfig → ReplayCtx → SExpr → List ProofNode → Nat →
+    List Nat → MetaM (Option Expr × SExpr)
 
 /-- The DEFINITION-node recipe, UNIFORM: unfold `(fn args) ⇒ substTerm formals args
     body`, then chain the node's children (recognizer / if-simplification / deeper
@@ -928,7 +938,7 @@ mutual
     application's PINNED value — totality, required for recursive fns — else
     the ∀-env convergence analyzer); a builtin ABSENT from the world takes the
     D4 definition-fact route (`replayBuiltinDefUnfold`). -/
-partial def replayDefinition (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
+partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     (depth : Nat) : MetaM Expr := do
   let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ children _ := n
@@ -993,7 +1003,7 @@ partial def replayDefinition (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNo
   -- children chain over the substituted body (depth+1: their paths carry one more
   -- boundary frame), reaching the node's recorded rhs
   let substBody := ACL2.Replay.substTerm formals args body
-  let (chainOpt, finalTerm) ← replayRewrites cfg ctx substBody children (depth + 1)
+  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children (depth + 1) []
   unless finalTerm == rhs do
     throwError "definition: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
   match chainOpt with
@@ -1004,7 +1014,7 @@ partial def replayDefinition (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNo
     applying that rune's recipe. (equal-self is the literal closer, handled in
     `replayLiteral`, not here.) `depth` = the number of unfold/rule boundaries
     above this node (relativizes child `:PATH`s). Unhandled runes hard-fail. -/
-partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
+partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     (depth : Nat := 0) : MetaM Expr := do
   let rune := runeOf n
   let (rty, rname) := (rune.ty, rune.name)
@@ -1173,7 +1183,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       let ruleEq ← mkAppM ``re_cdr_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
       -- children may rewrite the rule's result further (see car-cons)
-      let (chainOpt, finalTerm) ← replayRewrites cfg ctx b children (depth + 1)
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx b children (depth + 1) []
       unless finalTerm == rhs do
         throwError "cdr-cons: children chain reached {repr finalTerm}, \
                     node rhs is {repr rhs}"
@@ -1197,7 +1207,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       -- the rule's result may be FURTHER rewritten by children (e.g. a
       -- solidify inside the rule's RHS — their paths carry the (RHS . _)
       -- boundary, consumed at depth+1); the node's rhs is the NET result.
-      let (chainOpt, finalTerm) ← replayRewrites cfg ctx a children (depth + 1)
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx a children (depth + 1) []
       unless finalTerm == rhs do
         throwError "car-cons: children chain reached {repr finalTerm}, \
                     node rhs is {repr rhs}"
@@ -1221,7 +1231,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       let (_fixLhs, fixRhs) := nodeLhsRhs fixChild
       unless fixRhs == z do
         throwError "unicity-of-0: fix child rhs {repr fixRhs} ≠ {repr z}"
-      let fixEq ← replayNode cfg ctx fixChild (depth + 1)
+      let fixEq ← replayNodeWith rec cfg ctx fixChild (depth + 1)
       let fixConv ← mkAppM ``fuel_conv_of_eq #[fixEq, pz]
       let hq0 ← ctxValProof cfg ctx q0
       let vq0 ← ctxValExpr cfg ctx q0
@@ -1255,7 +1265,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, va, vb, hNoPlus, ha, hb]
       let swapped : SExpr :=
         .cons (.atom (.symbol plusS)) (.cons b (.cons a .nil))
-      let (chainOpt, finalTerm) ← replayRewrites cfg ctx swapped children (depth + 1)
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children (depth + 1) []
       unless finalTerm == rhs do
         throwError "commutativity-of-+: children chain reached {repr finalTerm}, \
                     node rhs is {repr rhs}"
@@ -1284,7 +1294,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
       let swapped : SExpr :=
         .cons (.atom (.symbol plusS))
           (.cons b (.cons (.cons (.atom (.symbol plusS2)) (.cons a (.cons c .nil))) .nil))
-      let (chainOpt, finalTerm) ← replayRewrites cfg ctx swapped children (depth + 1)
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children (depth + 1) []
       unless finalTerm == rhs do
         throwError "commutativity-2-of-+: children chain reached {repr finalTerm}, \
                     node rhs is {repr rhs}"
@@ -1297,7 +1307,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     -- definition — its :DEFINITION rune gets the ground-zero recipe.
     if dname == "IMPLIES" && (cfg.worldVal.defs.get? { name := "IMPLIES" }).isNone then
       replayImpliesDef cfg ctx n
-    else replayDefinition cfg ctx n depth
+    else replayDefinition rec cfg ctx n depth
   | "fake-rune-for-anonymous-enabled-rule", _ =>
     -- recognizer node: term-eq form (eval lhs = eval rhs, rhs the quoted verdict).
     let verdictV := match rhs with
@@ -1600,7 +1610,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
         else do
           -- the recorded HYP chain rewrites hσ ⇒ … ⇒ 't (paths carry one
           -- more boundary frame, as definition-body children do)
-          let (chainOpt, finalT) ← replayRewrites cfg ctx hσ chainKids (depth + 1)
+          let (chainOpt, finalT) ← rec.rewrites cfg ctx hσ chainKids (depth + 1) []
           unless finalT == quoteT do
             throwError "rule {rname}: relief chain for {repr hσ} ends at \
                         {repr finalT}, not (quote t)"
@@ -1628,7 +1638,7 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     -- the RHS continuation: replay the recorded chain from rhsσ; it must land
     -- exactly on the node's recorded rhs (fail-closed)
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx rhsσ
-    let (chainOpt, finalT) ← replayRewrites cfg ctx rhsσ rhsKids (depth + 1)
+    let (chainOpt, finalT) ← rec.rewrites cfg ctx rhsσ rhsKids (depth + 1) []
     unless finalT == rhs do
       throwError "rule {rname}: RHS chain reached {repr finalT}, node rhs is \
                   {repr rhs}"
@@ -1642,8 +1652,8 @@ partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     path-directed congruence (paths relativized to `depth`) and chaining. Returns
     the composed `∃N∀f≥N, eval start = eval finalTerm` (or `none` if the chain is
     empty) and the final term. -/
-partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr) :
-    List ProofNode → (depth : Nat := 0) → (strip : List Nat := []) →
+partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr) :
+    List ProofNode → Nat → List Nat →
     MetaM (Option Expr × SExpr)
   | [], _, _ => return (none, start)
   | n :: rest, depth, strip => do
@@ -1659,7 +1669,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
         let rel ← relativizeAndStrip (nodePath n) depth strip
         let (_, S) ← ofExcept (navigateFrames start rel)
         if S == rhs then
-          return ← replayRewrites cfg ctx start rest depth strip
+          return ← replayRewritesWith rec cfg ctx start rest depth strip
         let .cons (.atom (.symbol ifS))
             (.cons (.cons (.atom (.symbol q)) (.cons cv .nil))
               (.cons thn (.cons els .nil))) := S
@@ -1700,7 +1710,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
         let (lifted, newTerm) ←
           emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S branch
             nodeEq depth strip
-        let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth strip
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip
         match restProof with
         | none => return (some lifted, finalTerm)
         | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
@@ -1761,7 +1771,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
               let (lifted, newTerm) ←
                 emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S rhs
                   nodeEq depth strip
-              let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth strip
+              let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip
               match restProof with
               | none => return (some lifted, finalTerm)
               | some rp =>
@@ -1830,14 +1840,14 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
           mkAppM ``fuel_eq_refl #[fn]
         let (lamT, thn') ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
-          let (chT, thn') ← replayRewrites cfg ctx' thn thenCh depth (strip' ++ [2])
+          let (chT, thn') ← replayRewritesWith rec cfg ctx' thn thenCh depth (strip' ++ [2])
           let prf ← match chT with
             | some p => pure p
             | none => mkIdEq thn
           pure (← mkLambdaFVars #[hNe] prf, thn')
         let (lamE, els') ← withLocalDeclD `hnil (← mkEq vC nilC) fun hNil => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, false, hNil)] }
-          let (chE, els') ← replayRewrites cfg ctx' els elseCh depth (strip' ++ [3])
+          let (chE, els') ← replayRewritesWith rec cfg ctx' els elseCh depth (strip' ++ [3])
           let prf ← match chE with
             | some p => pure p
             | none => mkIdEq els
@@ -1846,7 +1856,7 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
           (.cons c (.cons thn' (.cons els' .nil)))
         -- whole-if finishing steps apply AFTER the branch congruence, on the
         -- rebuilt if
-        let (postOpt, final) ← replayRewrites cfg ctx target postCh depth strip'
+        let (postOpt, final) ← replayRewritesWith rec cfg ctx target postCh depth strip'
         unless final == rhs do
           throwError "if-finish/combined: children chains reached {repr final}, \
                       node rhs is {repr rhs}"
@@ -1862,11 +1872,11 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
           unless S == rhs do
             throwError "if-finish/combined: no effective children but running \
                         subterm {repr S} ≠ rhs {repr rhs}"
-          return ← replayRewrites cfg ctx start rest depth strip
+          return ← replayRewritesWith rec cfg ctx start rest depth strip
         let nodeProof ← chainEqs proofs
         let (lifted, newTerm) ←
           emitCongruence w e start (nodePath n) S final nodeProof depth strip
-        let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth strip
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip
         match restProof with
         | none => return (some lifted, finalTerm)
         | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
@@ -2002,12 +2012,12 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
     if let some (testChain, start') := reconciled? then
       -- eval start ≡ eval start[T := 'nil]; replay THIS node on the
       -- reconciled term and continue
-      let (restAll, finalT) ← replayRewrites cfg ctx start' (n :: rest) depth strip
+      let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) depth strip
       match restAll with
       | none => return (some testChain, finalT)
       | some rp =>
         return (some (← mkAppM ``fuel_chain_eq #[testChain, rp]), finalT)
-    let nodeEq ← replayNode cfg ctx n depth
+    let nodeEq ← rec.node cfg ctx n depth
     let (lifted, newTerm) ←
       emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth strip
     -- an if-simplification AT THE CHAIN ROOT selects a branch; ACL2's rewrite-if
@@ -2026,12 +2036,33 @@ partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr
           else throwError "replayRewrites: root if-simplification rhs is neither branch"
         | _ => throwError "replayRewrites: root if-simplification lhs not a 3-arg if"
       else pure strip
-    let (restProof, finalTerm) ← replayRewrites cfg ctx newTerm rest depth strip'
+    let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip'
     match restProof with
     | none => return (some lifted, finalTerm)
     | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
 
+/- The tied node-level knot — the ONLY remaining mutual at this layer.
+   Public names/signatures identical to the pre-WP2 mutual members. -/
+mutual
+
+partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
+    (depth : Nat := 0) : MetaM Expr :=
+  replayNodeWith ⟨fun c x n' d => replayNode c x n' d,
+                  fun c x s ns d st => replayRewrites c x s ns d st⟩ cfg ctx n depth
+
+partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr) :
+    List ProofNode → (depth : Nat := 0) → (strip : List Nat := []) →
+    MetaM (Option Expr × SExpr) :=
+  fun ns depth strip =>
+    replayRewritesWith ⟨fun c x n d => replayNode c x n d,
+                       fun c x s' ns' d st => replayRewrites c x s' ns' d st⟩ cfg ctx start ns depth strip
+
 end
+
+/-- The tied record itself (recipes outside this file recurse through it). -/
+def nodeRec : NodeRec :=
+  ⟨fun cfg ctx n d => replayNode cfg ctx n d,
+   fun cfg ctx s ns d st => replayRewrites cfg ctx s ns d st⟩
 
 
 /-- Replay a literal's rewrite chain at the LITERAL level. ACL2's rewriter works on
