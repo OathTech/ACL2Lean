@@ -91,13 +91,47 @@ frontier movement only — no regressions on the other 72 rows); diff-test
 
 ## Stages (each gate-checked; commits at ratified milestones)
 
-- S0: probe the msort tree for the EVENS bridge (read-only; answers the
-  hard part before any code).
-- S1: Count.lean additions (`cdr_le`/`car_le`, any sum compositions) —
-  proved, no `sorry`.
-- S2: `dischargeDecrease` in Totality.lean + `totWalk` call-site move
-  (single-var destructor chains first — covers the cddr rows).
-- S3: `replayInduction` rerouted; J2/J4 fragments deleted; cddr rows land.
+- S0: probe the msort tree for the EVENS bridge — DONE 2026-07-18:
+  (a) EVENS/ODDS are WORLD DEFUNS in the corpus (`:DEFUN EVENS` in the
+  msort log); `Logic.evens`/`odds` are UNWIRED models used only by the
+  Count lemmas. The bridge therefore needs per-fn WORLD-PARAMETRIC
+  simulation lemmas (`value-of (EVENS X) = Logic.evens (value-of X)`,
+  proved by fuel induction from the defun body) — registry row = (head,
+  Count lemma, sim lemma). NO new ACL2 instrumentation needed.
+  (b) 4 of the 7 rows are destructor-only, bridge-free: the cddr rows
+  (ACL2-COUNT-EVENS-{STRONG,WEAK}, HOW-MANY-EVENS-AND-ODDS) and MERGE2's
+  sum-right — S2/S3(+S5) land them without sim lemmas; only the 3 msort
+  rows ((EVENS X) substitutions) wait on S4.
+  (c) The real induction node (ACL2-COUNT-EVENS-STRONG) confirms the
+  clause-lookup design: justification formals (L) must be RENAMED to the
+  induction's actual terms (X) before matching; the step-case ruling fact
+  `(NOT (ENDP X))` is exactly the emitted clause's ruler; the IH's
+  substituted measure is exactly the O< literal's lhs.
+- S1 — DONE: `acl2Count_cdr_le`/`car_le` proved (no sorry).
+- S2 — DONE (sum handling folded in so deleting J4 can't regress):
+  `dischargeDecrease` + `chainLe`/`chainLt` in Totality.lean; BOTH former
+  callers rerouted (`totWalk` and `proveTp`'s return-path self-call —
+  a second call site the plan had missed). Sum measures: componentwise
+  (one strict) + the swap pattern.
+  DESIGN REFINEMENT (found by the sweep, HOW-MANY-ISORT): a MERGED
+  induction case (two call sites, same substitution, complementary
+  `(eql …)` polarities) establishes NEITHER polarity, so no single clause
+  fully covers. Faithful rule implemented: accept when some matching
+  clause's rulers are all covered, OR when exactly two clauses match with
+  sole uncovered rulers `T` / `(NOT T)` — ACL2's own merged-case
+  justification (either branch concludes the same `O<`).
+- S3 — DONE: `replayInduction` rerouted through the prover (scheme
+  fn/actuals from `ind.term`, justification from `cfg.justs`, σ = the IH
+  alist, facts = the case's TestFacts, consp via the existing inversion);
+  J2/J4 fragment code DELETED.
+  Sweep outcome (golden updated, reviewed): EVENLEN-BOOLEANP is now
+  REPLAYED UNCONDITIONALLY (24 unconditional, was 23 — the general walk
+  discharges evenlen's cddr admission, the predicted flip); the 7 blocked
+  rows all moved past the decrease — cddr rows to next frontiers
+  (NUMERATOR convergence ×2, DEFAULT-CDR rule hyp), HOW-MANY-MERGE2 to an
+  IH-solidify frontier (its sum-right decrease DISCHARGES), the 3
+  `(EVENS X)` rows to the S4 registry frontier. No other row changed.
+  Gates: ci green, diff-test 389/0, zero warnings.
 - S4: registry (EVENS/ODDS) + bridge; msort rows land.
 - S5: sum measures; MERGE2 row lands. Golden updated + reviewed at each
   landing.

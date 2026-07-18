@@ -24,76 +24,175 @@ frontier and the `total:` hypothesis stays in the mirror's type (D6). -/
 /-- Is every head of `t` walk-liftable (vars/quote/dp-primitives only)? -/
 def totLiftable (t : SExpr) : Bool := (collectOpaques t).isEmpty
 
-/-- The decrease discharge (D5/D7'): prove
-    `(value-of callArg).acl2Count < av.acl2Count` from the in-scope branch
-    facts, AFTER verifying the EMITTED clause for this call site (its `o<`
-    literal mentions exactly `callArg`, and every ruling literal's test has a
-    matching in-scope fact). Supported value shape: `callArg = (cdr m)` for
-    the measured formal `m` under an in-scope `(consp m) = true` fact. -/
-def totDischargeDecrease (just : Justification)
-    (measuredFormal : Symbol)
-    (facts : List (SExpr × Bool × Expr))
-    (callArg : SExpr) : MetaM Expr := do
-  -- the emitted obligation for THIS call site
-  let countOf (t : SExpr) : SExpr :=
-    .cons (.atom (.symbol { name := "ACL2-COUNT" })) (.cons t .nil)
-  let wanted : SExpr :=
-    .cons (.atom (.symbol { name := "O<" }))
-      (.cons (countOf callArg)
-        (.cons (countOf (.atom (.symbol { name := measuredFormal.name }))) .nil))
-  let some clause := just.terminationClauses.find? fun c =>
-      match c.toList? with
-      | some lits => lits.any (· == wanted)
-      | none => false
-    | throwFrontier m!"proveTotality: no emitted decrease obligation for call \
-        argument {repr callArg} (emission gap or unsupported call shape)"
-  let some lits := clause.toList?
-    | throwFrontier m!"proveTotality: malformed obligation clause {repr clause}"
-  -- every ruling literal must be justified by an in-scope branch fact:
-  -- (not T) requires fact (T, true); a bare positive literal T requires (T, false)
-  for lit in lits do
-    if lit == wanted then continue
-    match lit with
-    | .cons (.atom (.symbol n)) (.cons tst .nil) =>
-      if n.name == "NOT" then
-        unless facts.any (fun (f, pos, _) => f == tst && pos) do
-          throwFrontier m!"proveTotality: ruling test {repr tst} not established \
-              on this branch (obligation {repr clause})"
-      else
-        unless facts.any (fun (f, pos, _) => f == lit && !pos) do
-          throwFrontier m!"proveTotality: ruling literal {repr lit} not refuted \
-              on this branch (obligation {repr clause})"
-    | _ =>
-      unless facts.any (fun (f, pos, _) => f == lit && !pos) do
-        throwFrontier m!"proveTotality: ruling literal {repr lit} not refuted \
-            on this branch (obligation {repr clause})"
-  -- the Lean-side decrease: supported shapes (frontier otherwise)
-  match callArg with
-  | .cons (.atom (.symbol c)) (.cons (.atom (.symbol m)) .nil) =>
-    if c.name == "CDR" && m == measuredFormal then
-      let conspTest : SExpr :=
-        .cons (.atom (.symbol { name := "CONSP" }))
-          (.cons (.atom (.symbol { name := m.name })) .nil)
-      let some (_, _, factPf) := facts.find?
-          (fun (f, pos, _) => f == conspTest && pos)
-        | throwFrontier m!"proveTotality: decrease for (cdr {m.name}) needs an \
-            in-scope (consp {m.name}) fact (frontier)"
-      mkAppM ``ACL2.acl2Count_cdr_lt_of_consp #[factPf]
-    else if c.name == "CAR" && m == measuredFormal then
-      let conspTest : SExpr :=
-        .cons (.atom (.symbol { name := "CONSP" }))
-          (.cons (.atom (.symbol { name := m.name })) .nil)
-      let some (_, _, factPf) := facts.find?
-          (fun (f, pos, _) => f == conspTest && pos)
-        | throwFrontier m!"proveTotality: decrease for (car {m.name}) needs an \
-            in-scope (consp {m.name}) fact (frontier)"
-      mkAppM ``ACL2.acl2Count_car_lt_of_consp #[factPf]
+/-- View `(ACL2-COUNT u)` → `u`. -/
+def countOfView (t : SExpr) : Option SExpr :=
+  match t with
+  | .cons (.atom (.symbol c)) (.cons u .nil) =>
+    if c.name == "ACL2-COUNT" then some u else none
+  | _ => none
+
+/-- Count-walk ≤ leg: `(valOf t).acl2Count ≤ (valOf base).acl2Count` for `t`
+    a (possibly empty) cdr/car chain over `base` — unconditional per-step
+    `acl2Count_cdr_le`/`car_le` composed by transitivity. -/
+partial def chainLe (valOf : SExpr → MetaM Expr) (base t : SExpr) :
+    MetaM Expr := do
+  if t == base then
+    mkAppM ``Nat.le_refl #[← mkAppM ``SExpr.acl2Count #[← valOf base]]
+  else match t with
+  | .cons (.atom (.symbol d)) (.cons u .nil) =>
+    if d.name == "CDR" || d.name == "CAR" then
+      let inner ← chainLe valOf base u
+      let vu ← valOf u
+      let hLe ← if d.name == "CDR" then mkAppM ``ACL2.acl2Count_cdr_le #[vu]
+        else mkAppM ``ACL2.acl2Count_car_le #[vu]
+      mkAppM ``Nat.le_trans #[hLe, inner]
     else
-      throwFrontier m!"proveTotality: decrease shape {repr callArg} unsupported \
-          (frontier: cdr/car of the measured formal)"
+      throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
+          the destructor-chain walk over {repr base} (frontier)"
+  | _ => throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
+      the destructor-chain walk over {repr base} (frontier)"
+
+/-- Count-walk strict leg: `(valOf t).acl2Count < (valOf base).acl2Count`
+    for `t` a NON-EMPTY cdr/car chain over `base` — the innermost destructor
+    application to `base` is the ONE strict step (from `base`'s consp fact);
+    every outer layer composes by `≤`. -/
+partial def chainLt (valOf : SExpr → MetaM Expr)
+    (conspProofOf : SExpr → MetaM Expr) (base t : SExpr) : MetaM Expr := do
+  match t with
+  | .cons (.atom (.symbol d)) (.cons u .nil) =>
+    if d.name == "CDR" || d.name == "CAR" then
+      if u == base then
+        let hConsp ← conspProofOf base
+        if d.name == "CDR" then
+          mkAppM ``ACL2.acl2Count_cdr_lt_of_consp #[hConsp]
+        else
+          mkAppM ``ACL2.acl2Count_car_lt_of_consp #[hConsp]
+      else
+        let inner ← chainLt valOf conspProofOf base u
+        let vu ← valOf u
+        let hLe ← if d.name == "CDR" then mkAppM ``ACL2.acl2Count_cdr_le #[vu]
+          else mkAppM ``ACL2.acl2Count_car_le #[vu]
+        mkAppM ``Nat.lt_of_le_of_lt #[hLe, inner]
+    else
+      throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
+          the destructor-chain walk over {repr base} (frontier: candidate \
+          registry head {d.name})"
+  | _ => throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
+      the destructor-chain walk over {repr base} (frontier)"
+
+/-- The GENERAL admission-decrease prover (#37 rework, design I4; plan
+    `docs/plans/2026-07-18_decrease-prover-rework.md`). Proves the strict
+    count decrease of the σ-instance of the measure AT THE VALUE LEVEL:
+
+    1. locate the EMITTED termination clause whose `O<` literal is exactly
+       `(O< σ(μ') μ')` — `μ'` the justification's measure with its formals
+       RENAMED (`rnFormals ↦ rnArgs`) to the caller's actual terms (identity
+       at admission; the induction scheme's actuals at IH time), σ the
+       caller's decrease substitution (`sFormals ↦ sArgs`: call args / the
+       IH alist). A decrease ACL2 did not emit is NEVER proved (carve-out
+       scope) — no matching clause, hard-fail;
+    2. verify every OTHER literal of that clause against an in-scope fact:
+       `(NOT tst)` needs `(tst, true)`, a bare literal needs `(lit, false)`;
+       any uncovered ruler hard-fails;
+    3. discharge the `<` by the COUNT WALK: single-count measures via the
+       destructor-chain walk (`chainLt`); sum measures componentwise (one
+       strict component) or the swap pattern (`acl2Count_swap_…`).
+
+    `valOf` renders an actual-level term's VALUE `Expr` (the caller's value
+    plumbing — dpValExpr at admission, ctxValExpr at IH time);
+    `conspProofOf b` returns `toBool (consp (valOf b)) = true` for a base
+    term (from in-scope facts; the induction caller's endp/atom/or-form
+    inversion lives behind it). -/
+def dischargeDecrease (just : Justification)
+    (rnFormals : List Symbol) (rnArgs : List SExpr)
+    (sFormals : List Symbol) (sArgs : List SExpr)
+    (facts : List (SExpr × Bool))
+    (valOf : SExpr → MetaM Expr)
+    (conspProofOf : SExpr → MetaM Expr) : MetaM Expr := do
+  let rn (t : SExpr) : SExpr := ACL2.Replay.substTerm rnFormals rnArgs t
+  let sub (t : SExpr) : SExpr := ACL2.Replay.substTerm sFormals sArgs t
+  let measure' := rn just.measure
+  let sμ := sub measure'
+  if sμ == measure' then
+    throwFrontier m!"dischargeDecrease: substitution does not move the \
+        measure {repr measure'} (identity — no decrease to prove)"
+  let wanted : SExpr :=
+    .cons (.atom (.symbol { name := "O<" })) (.cons sμ (.cons measure' .nil))
+  let matching := (just.terminationClauses.filterMap
+        (fun c => c.toList?.map (·.map rn))).filter (·.contains wanted)
+  if matching.isEmpty then
+    throwFrontier m!"dischargeDecrease: no emitted decrease obligation \
+        matching {repr wanted} (emission gap or unsupported substitution)"
+  -- a ruling literal is COVERED by an in-scope fact: `(NOT tst)` needs
+  -- `(tst, true)`; a bare literal needs `(lit, false)`
+  let uncoveredOf (lits : List SExpr) : List SExpr :=
+    lits.filter fun lit =>
+      if lit == wanted then false
+      else match lit with
+      | .cons (.atom (.symbol n)) (.cons tst .nil) =>
+        if n.name == "NOT" then !facts.any (fun (f, pos) => f == tst && pos)
+        else !facts.any (fun (f, pos) => f == lit && !pos)
+      | _ => !facts.any (fun (f, pos) => f == lit && !pos)
+  let uncov := matching.map uncoveredOf
+  unless uncov.any (·.isEmpty) do
+    -- MERGED-IH complementary pair (e.g. how-many: two call sites with the
+    -- same substitution under complementary `(eql …)` polarities merge into
+    -- ONE induction case whose facts establish neither). ACL2's own merged-
+    -- case justification: either polarity's emitted clause applies and both
+    -- conclude the SAME `O<` — so exactly two matching clauses whose sole
+    -- uncovered rulers are `T` and `(NOT T)` license the decrease.
+    let notOf (t : SExpr) : SExpr :=
+      .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+    let complementary := match uncov with
+      | [[l1], [l2]] => l1 == notOf l2 || l2 == notOf l1
+      | _ => false
+    unless complementary do
+      throwFrontier m!"dischargeDecrease: no matching emitted obligation has \
+          all ruling literals established on this branch (uncovered, per \
+          clause: {repr uncov}; obligations {repr matching})"
+  -- 3. the Count walk, by measure shape
+  if let some base := countOfView measure' then
+    return ← chainLt valOf conspProofOf base (sub base)
+  match measure' with
+  | .cons (.atom (.symbol plus)) (.cons cx (.cons cy .nil)) =>
+    unless plus.name == "BINARY-+" do
+      throwFrontier m!"dischargeDecrease: measure {repr measure'} beyond \
+          count/sum-of-counts (frontier)"
+    let some x := countOfView cx
+      | throwFrontier m!"dischargeDecrease: sum component {repr cx} is not \
+          (ACL2-COUNT _) (frontier)"
+    let some y := countOfView cy
+      | throwFrontier m!"dischargeDecrease: sum component {repr cy} is not \
+          (ACL2-COUNT _) (frontier)"
+    let (sx, sy) := (sub x, sub y)
+    -- the SWAP pattern (INTERLEAVE's scheme): (x, y) := (y, cdr x)
+    let cdrOf (u : SExpr) : SExpr :=
+      .cons (.atom (.symbol { name := "CDR" })) (.cons u .nil)
+    if sx == y && sy == cdrOf x then
+      let hConsp ← conspProofOf x
+      return ← mkAppOptM ``ACL2.acl2Count_swap_cdr_sum_lt_consp
+        #[none, some (← valOf y), some hConsp]
+    -- componentwise: each component ≤ its original, at least one strict
+    let leg (b t : SExpr) : MetaM (Bool × Expr) := do
+      if t == b then pure (false, ← chainLe valOf b t)
+      else
+        try pure (true, ← chainLt valOf conspProofOf b t)
+        catch e =>
+          if isFrontierErr e then pure (false, ← chainLe valOf b t)
+          else throw e
+    let (strictX, px) ← leg x sx
+    let (strictY, py) ← leg y sy
+    if strictX then
+      mkAppM ``add_lt_add_of_lt_of_le #[px, ← chainLe valOf y sy]
+    else if strictY then
+      mkAppM ``add_lt_add_of_le_of_lt #[px, py]
+    else
+      throwFrontier m!"dischargeDecrease: no strict component in sum \
+          decrease ({repr sx}, {repr sy}) vs ({repr x}, {repr y}) (frontier)"
   | _ =>
-    throwFrontier m!"proveTotality: decrease shape {repr callArg} unsupported \
-        (frontier: cdr/car of the measured formal)"
+    throwFrontier m!"dischargeDecrease: measure {repr measure'} beyond \
+        count/sum-of-counts (frontier)"
+
 
 /-- The body-convergence walk: a proof of `∃N∃v ∀f≥N, eval envE t = some v`.
     `vals` carries each formal's VALUE expr and var-convergence proof;
@@ -194,7 +293,18 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                 liftable {repr t} (frontier)"
           unless vals.any (fun (f, _, _) => f == measuredFormal) do
             throwFrontier m!"proveTotality: measured formal has no bound value"
-          let dec ← totDischargeDecrease just measuredFormal facts args[mIdx]!
+          let dec ← dischargeDecrease just
+            formals (formals.map (fun f => .atom (.symbol f)))
+            formals args
+            (facts.map (fun (f, pos, _) => (f, pos)))
+            (fun u => dpValExpr [] (dpValProof.dpVarVal envE varP) u)
+            (fun b => do
+              let conspTest : SExpr :=
+                .cons (.atom (.symbol { name := "CONSP" })) (.cons b .nil)
+              match facts.find? (fun (f, pos, _) => f == conspTest && pos) with
+              | some (_, _, pf) => pure pf
+              | none => throwFrontier m!"dischargeDecrease: decrease at \
+                  {repr b} needs an in-scope (consp {repr b}) fact (frontier)")
           let hNs ← proveNotSpecial fs
           let hDef ← totDefFact cfg fs formals body
           match formals, args with

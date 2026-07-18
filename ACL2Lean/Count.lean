@@ -46,6 +46,21 @@ theorem acl2Count_cdr_lt_of_consp {x : SExpr}
   | atom _ => simp [consp, Logic.toBool] at h
   | cons a b => simp [cdr, SExpr.acl2Count]; omega
 
+/-- cdr never increases acl2Count (cdr of a non-cons is nil, count 0) —
+    the unconditional ≤ step of destructor-chain decreases (#37 rework). -/
+theorem acl2Count_cdr_le (x : SExpr) : (cdr x).acl2Count ≤ x.acl2Count := by
+  cases x with
+  | nil => simp [cdr]
+  | atom _ => simp [cdr]
+  | cons a b => simp only [cdr, SExpr.acl2Count]; omega
+
+/-- car never increases acl2Count — the unconditional ≤ step (#37 rework). -/
+theorem acl2Count_car_le (x : SExpr) : (car x).acl2Count ≤ x.acl2Count := by
+  cases x with
+  | nil => simp [car]
+  | atom _ => simp [car]
+  | cons a b => simp only [car, SExpr.acl2Count]; omega
+
 /-- acl2Count of cdr decreases when endp is false (not at end of list). -/
 theorem acl2Count_cdr_lt_of_not_endp {x : SExpr}
     (h : Logic.toBool (endp x) = false) :

@@ -239,52 +239,39 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                           reached a non-if non-(ATOM {mv.name}) component \
                           {repr t} (frontier)"
                 invert cf.test cf.signE
-            -- DECREASE FRAGMENTS by measured-subset arity (design I4):
-            -- J2 single-var (CDR/CAR), J4 two-var sum SWAP; beyond = frontier
-            let hLtRaw ←
-              match measuredVars with
-              | [mv] => do
-                let mvT : SExpr := .atom (.symbol mv)
-                let some mtm := alist.lookup mv
-                  | throwError "replayInduction: IH omits the measured var \
-                      {mv.name} (identity substitution — frontier)"
-                let hToBool ← conspToBoolOf mv
-                let cdrT : SExpr :=
-                  .cons (.atom (.symbol { name := "CDR" })) (.cons mvT .nil)
-                let carT : SExpr :=
-                  .cons (.atom (.symbol { name := "CAR" })) (.cons mvT .nil)
-                if mtm == cdrT then
-                  mkAppM ``acl2Count_cdr_lt_of_consp #[hToBool]
-                else if mtm == carT then
-                  mkAppM ``acl2Count_car_lt_of_consp #[hToBool]
-                else
-                  throwError "replayInduction: measured substitution \
-                      {repr mtm} beyond the J2 cdr/car fragment (frontier)"
-              | [v1, v2] => do
-                -- J4 SUM-measure, the SWAP fragment (INTERLEAVE's scheme,
-                -- J1(b)-validated): v1 := (var v2), v2 := (CDR v1); the sum
-                -- decreases by the named Count lemma from v1's consp-ness.
-                let v1T : SExpr := .atom (.symbol v1)
-                let v2T : SExpr := .atom (.symbol v2)
-                let cdr1T : SExpr :=
-                  .cons (.atom (.symbol { name := "CDR" })) (.cons v1T .nil)
-                let some t1 := alist.lookup v1
-                  | throwError "replayInduction: IH omits measured var \
-                      {v1.name} (frontier)"
-                let some t2 := alist.lookup v2
-                  | throwError "replayInduction: IH omits measured var \
-                      {v2.name} (frontier)"
-                unless t1 == v2T && t2 == cdr1T do
-                  throwError "replayInduction: sum-measure substitution \
-                      ({v1.name} := {repr t1}, {v2.name} := {repr t2}) \
-                      beyond the J4 swap fragment (frontier)"
-                let hToBool ← conspToBoolOf v1
-                let xv2E ← dpConcVar eV v2
-                mkAppOptM ``acl2Count_swap_cdr_sum_lt_consp
-                  #[none, some xv2E, some hToBool]
-              | _ =>
-                throwError "replayInduction: {measuredVars.length}-variable \
-                    measure decrease discharge (frontier)"
+            -- DECREASE via the emitted-obligation prover (#37 rework,
+            -- design I4; docs/plans/2026-07-18_decrease-prover-rework.md):
+            -- locate the scheme fn's EMITTED termination clause for THIS
+            -- substitution, verify its ruling literals against the case's
+            -- facts, and discharge the strict count decrease by the Count
+            -- walk. The covering-clause precondition (incl. the sound-
+            -- induction distinct-variable condition) ran in
+            -- checkCoveringClause; a decrease ACL2 did not emit is never
+            -- proved.
+            let .cons (.atom (.symbol schemeFn)) argSpine := ind.term
+              | throwError "replayInduction: induction term {repr ind.term} \
+                  is not an application (frontier)"
+            let some schemeActuals := argSpine.toList?
+              | throwError "replayInduction: induction term args not a list \
+                  (frontier)"
+            let some schemeFormals :=
+                ((cfg.worldVal.defs.get? schemeFn).map (·.1)).orElse
+                  (fun _ => (cfg.gzDefs.find? (·.1 == schemeFn)).map (·.2.1))
+              | throwError "replayInduction: scheme fn {schemeFn.name} \
+                  neither in the world nor a ground-zero snapshot (frontier)"
+            let some just := cfg.justs.lookup schemeFn.name
+              | throwError "replayInduction: no emitted justification for \
+                  scheme fn {schemeFn.name} (emission gap — frontier)"
+            let ctxNow := ctxD
+            let hLtRaw ← dischargeDecrease just
+              schemeFormals schemeActuals
+              (alist.map (·.1)) (alist.map (·.2))
+              (facts.map (fun f => (f.test, f.sign)))
+              (fun u => ctxValExpr cfg' ctxNow u)
+              (fun b => match b with
+                | .atom (.symbol mv) => conspToBoolOf mv
+                | _ => throwFrontier m!"replayInduction: consp of non-var \
+                    measured base {repr b} (frontier)")
             -- e' and the cast of the decrease to μ e' < μ e (defeq through
             -- the concrete envUpdate lookups)
             let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)

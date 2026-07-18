@@ -310,7 +310,18 @@ where
             {repr t} (frontier)"
       unless vals.any (fun (f, _, _) => f == measuredFormal) do
         throwFrontier m!"proveTp: measured formal has no bound value"
-      let dec ← totDischargeDecrease just measuredFormal facts args[mIdx]!
+      let dec ← dischargeDecrease just
+        formals (formals.map (fun f => .atom (.symbol f)))
+        formals args
+        (facts.map (fun (f, pos, _) => (f, pos)))
+        (fun u => dpValExpr [] (dpValProof.dpVarVal envE varP) u)
+        (fun b => do
+          let conspTest : SExpr :=
+            .cons (.atom (.symbol { name := "CONSP" })) (.cons b .nil)
+          match facts.find? (fun (f, pos, _) => f == conspTest && pos) with
+          | some (_, _, pf) => pure pf
+          | none => throwFrontier m!"dischargeDecrease: decrease at \
+              {repr b} needs an in-scope (consp {repr b}) fact (frontier)")
       let hNs ← proveNotSpecial fs
       let hDef ← totWalk.totDefFact cfg fs formals body
       match formals, args with
