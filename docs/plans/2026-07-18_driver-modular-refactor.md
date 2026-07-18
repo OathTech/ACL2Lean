@@ -136,17 +136,57 @@ Gates: `just ci` green, golden BYTE-IDENTICAL, diff-test 389/0, zero
 warnings. The recipes/processors are now top-level defs — Stage 3 can move
 them to additive files.
 
-## Stage 3 — per-recipe modules
-One file per recipe family: Definition, Recognizer (incl. two-valued
-registry), RuleApplication, IfSimplification, Induction (+ a
-`Induction/Fragments.lean` for decrease fragments — the #37 rework's home),
-DischargeLeaves, Telescopes. Root `Driver.lean` becomes re-exports so all
-existing imports keep working.
+## Stage 3 — per-recipe modules (3a EXECUTED 2026-07-17; node-side 3b
+recommended AGAINST on measurement — MDD call)
 
-## Predicted loop after Stage 3
-Fragment/recipe edit: its module (~200-600 lines, ~5s) + Tie (~1s) +
-Runner (4s) + link (11s) ≈ ~20s; vs 55s today. Structural benefit: #37
-rework and future fragments are additive files.
+3a (waterfall side, done): old `Driver/Core.lean` split into
+- `Driver/Waterfall.lean` — induction scaffold + `ClauseRec` (the shared
+  base every processor imports; `CaseTree`/`buildCaseTree`/`TestFact`
+  de-privatized);
+- `Driver/Waterfall/{Compose,Elim,Generalize,Subsumed,
+  EliminateIrrelevance,Induction}.lean` — one processor per file, each
+  importing ONLY Waterfall (they rebuild in parallel; editing one touches
+  no sibling). `Induction.lean` is the #37 rework's home;
+- `Driver/Provers.lean` — the walker-INdependent provers (proveTotality/
+  buildTotalEnv/tpWalk/proveTp + D5 gz dischargers), parallel to the
+  processors (declaration order proved independence: they preceded nothing
+  that references them);
+- `Driver/Core.lean` — walkers + the tie + `clauseRec` (imports the fan);
+- `Driver/Harness.lean` — the walker-dependent entries (replayProof,
+  dischargeRuleHyp, replayProofConditional); root imports Harness.
+
+MEASURED (and a correction): the scary per-module 20s+ numbers are COLD
+page-cache import loading, not elaboration — `replayInduction` elabs in
+409ms (profiler); hot-cache module marginal cost is ~3-6s (import load
+~2-5s + elab usually <1s). Warm loops: processor edit → ~30-35s to a fresh
+`acl2lean-replay` exe (leaf 3-6s + Core/Harness/root/Runner/ReplayMain
+re-elabs + codegen/link — the TAIL now dominates, not the edited code);
+no-op `lake build` floor ~6s.
+
+3b (node side: Definition/Recognizer/RuleApplication/IfSimplification/
+Telescopes out of NodeCore) — RECOMMENDATION: DO NOT EXECUTE. Node recipes
+must precede the dispatcher, which precedes Discharge→…→Harness, so
+extraction puts them at position 3-of-12 in the chain instead of 2-of-11:
+every downstream module still rebuilds and the loop does not improve at
+all; the cost is pervasive arm-extraction churn (each dispatcher match arm
+becomes a def with plumbed locals). The payoff Stage 3 was after — small
+edited file + short tail — exists only on the waterfall side, which 3a
+delivered. Structural additivity for NEW node recipes can be had later,
+recipe-by-recipe, when one is actually added (#37-style: wire fragments as
+DATA consumed at runtime, not as new imports upstream of the chain).
+
+Follow-up levers if the tail (~25s) matters later: shorten the
+Core→Harness→root re-export chain; an interpreter-mode `just replay` entry
+(skip exe codegen+link, ~8-11s); DAG-flatten Discharge/Totality off the
+Preprocess/Waterfall path (compiler-verified, one edge at a time).
+
+## Predicted loop after Stage 3 (superseded by MEASURED numbers above)
+The ~20s prediction under-counted the re-elab tail (Core/Harness/root/
+Runner/ReplayMain each re-elab when an upstream olean changes — ~3-6s
+apiece) and codegen/link. Measured: ~30-35s for a processor edit (warm),
+vs ~55-65s monolith. Structural benefit stands: #37 rework edits
+`Waterfall/Induction.lean` (+ runtime-data fragments) without touching
+any sibling processor.
 
 ## Risks / mitigations
 - Signature churn (every recipe + call sites): staged, golden-gated.

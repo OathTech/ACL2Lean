@@ -38,7 +38,7 @@
   Below are the GENERAL, tree-agnostic helpers (reflection, congruence-path emitter,
   chaining, goal-type builders) the recursion is built from.
 -/
-import ACL2Lean.Replay.Driver.Core
+import ACL2Lean.Replay.Driver.Harness
 
 namespace ACL2.Replay.Driver
 

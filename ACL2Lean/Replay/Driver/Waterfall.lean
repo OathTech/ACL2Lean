@@ -1,0 +1,284 @@
+/-
+  Driver/Waterfall — split from Driver/Core (WP2 Stage 3a, 2026-07-17;
+  see docs/plans/2026-07-18_driver-modular-refactor.md).
+
+  The c3 induction scaffold (CaseTree, measures, covering clauses) and the
+  ClauseRec recursion interface shared by all waterfall processor modules.
+-/
+import ACL2Lean.Replay.Driver.Preprocess
+
+namespace ACL2.Replay.Driver
+
+open ACL2 ACL2.Replay Lean Lean.Meta
+
+/-! ## The c3 induction scaffold + the conditional-mirror harness
+
+The WF-induction scaffold consumes the EMITTED justification (measure / rel /
+controllers / per-case tests + IH substitutions — the measure-emission track's
+output) and instantiates `acl2_induction_consp` (strong induction on
+`SExpr.acl2Count` — the well-foundedness construction Lean owns; everything else
+is read off the tree). Case children are SELF-CONTAINED clause proofs (the spine's
+split is the case hypothesis); the scaffold only peels the case literals
+(`evtrue_extract_else`) and bridges the IH (`evalOpt_substTerm_subst1`).
+
+Opaque user-fn values are PINNED from the bound totality hypotheses (`pinVal` —
+choice-based, no Exists.elim plumbing), refined to int-atom shape when the fn's
+emitted `:TYPE-PRESCRIPTION` corollary has the standard `(IF (INTEGERP …) … 'NIL)`
+shape. The hypotheses themselves are machine-generated from the development
+(`replayProofConditional`) — the c2 conditional-proof pattern: the obligations are
+explicit in the returned proof's type, reported as conditions. -/
+
+/-- The totality-hypothesis TYPE for an n-ary defined fn:
+    `∀ env' (a₁…aₙ : SExpr), conv a₁ → … → ∃N ∃v ∀f≥N, eval env' (fn a…) = some v`. -/
+def mkTotalityHypType (cfg : ReplayConfig) (fn : Symbol) (arity : Nat) : MetaM Expr := do
+  let _ := cfg
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let decls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      (Array.range arity).map fun i =>
+        (Name.mkSimple s!"a{i}", .default, fun _ => pure (mkConst ``SExpr))
+    withLocalDecls decls fun argVs => do
+      let appT := mkAppListExpr fn argVs
+      let prems ← argVs.toList.mapM (fun a => mkConvPropEx cfg.worldExpr envV a)
+      let concl ← mkConvPropEx cfg.worldExpr envV appT
+      let body ← prems.foldrM (fun h acc => mkArrow h acc) concl
+      mkForallFVars (#[envV] ++ argVs) body
+
+/-- The TP-corollary hypothesis TYPE: `∀ env' args… (v : SExpr),
+    (∃N∀f≥N, eval env' (fn args) = some v) → <corollary lifted, (fn formals) ↦ v> = t`.
+    The lift hard-fails if the corollary mentions anything but the application
+    (the supported corollary shape — frontier otherwise). -/
+def mkTpHypType (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
+    (cor : SExpr) : MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let decls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      (Array.range formals.length).map fun i =>
+        (Name.mkSimple s!"a{i}", .default, fun _ => pure (mkConst ``SExpr))
+    withLocalDecls decls fun argVs => do
+      withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+        let appT := mkAppListExpr fn argVs
+        let prem ← mkValConvPropEx cfg.worldExpr envV appT vV
+        -- the corollary's application pattern: (fn formals…)
+        let appPat : SExpr :=
+          .cons (.atom (.symbol fn))
+            ((formals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
+        let lifted ← dpValExpr [(appPat, vV)]
+          (fun s => throwError "mkTpHypType: corollary of {fn.name} has a free \
+                                variable {s.name} outside the application (frontier)")
+          cor
+        let concl ← mkEq lifted (mkConst ``SExpr.t)
+        mkForallFVars (#[envV] ++ argVs ++ #[vV]) (← mkArrow prem concl)
+
+/-- The theorem-dependency hypothesis TYPE for a STORED rewrite rule
+    (`rule:<thm>`, the `equal` instance — the rule's own `:EQUIV`; a
+    non-`equal` rule is a frontier at the USE site, `replayNode`):
+    `∀ env', EvTrue w env' h₁ → … → ∃N ∀f≥N, eval env' lhs = eval env' rhs`.
+    The premises are TRUTHINESS (ACL2 relieves hyps under iff), the conclusion
+    the rule's stored equality — exactly the emitted rule, nothing else
+    (docs/plans/2026-07-05_theorem-dependency-hypotheses.md §v1). -/
+def mkRuleHypType (cfg : ReplayConfig) (spec : RuleSpec) : MetaM Expr := do
+  -- defense-in-depth (audit 2026-07-06 finding E): the caller offers only
+  -- equal-class rules; stating an iff rule as an eval-EQUALITY would be too
+  -- strong, so refuse rather than mis-state.
+  unless spec.equiv == "equal" do
+    throwError "mkRuleHypType: rule {spec.name} is stored under equivalence \
+                {spec.equiv} — the R-parameterized hypothesis shape is an L2 \
+                frontier (equal instance only)"
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let concl ← mkEvalEqPropEx cfg.worldExpr envV
+      (reflectSExpr spec.lhs) (reflectSExpr spec.rhs)
+    let body ← spec.hyps.foldrM (fun h acc => do
+      mkArrow (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr h]) acc)
+      concl
+    mkForallFVars #[envV] body
+
+/-- Every term mentioned in a clause subtree (input clauses, node lhs/rhs, literal
+    results) — the pin-collection universe for a case child. -/
+partial def clauseSubtreeTerms (cn : ClauseNode) : List SExpr :=
+  let nodeTerms : ProofNode → List SExpr := fun n =>
+    let rec go : ProofNode → List SExpr
+      | .node _ lhs rhs cs _ => lhs :: rhs :: cs.flatMap go
+    go n
+  let itemTerms : ClauseItem → List SExpr := fun it =>
+    let rec goI : ClauseItem → List SExpr
+      | .literal lp => lp.literal :: lp.result :: lp.nodes.flatMap nodeTerms
+      | .step n => nodeTerms n
+      | .clausify info =>
+          info.input :: (info.negClause ++ info.splits.flatMap (fun (l, c) => l :: c)
+            ++ info.out.flatMap id)
+      | .branch _ items => items.flatMap goI
+    goI it
+  cn.inputClause ++ cn.steps.flatMap (·.items.flatMap itemTerms)
+    ++ cn.children.flatMap clauseSubtreeTerms
+
+/-- The decision tree recovered from the cases' ruling-test lists (ACL2's
+    induction machine derives the cases from the scheme function's
+    if-structure, so the test lists always form a binary split tree). Leaves
+    carry the case INDEX into `ind.cases`. -/
+inductive CaseTree where
+  | leaf (caseIdx : Nat)
+  | split (test : SExpr) (pos neg : CaseTree)
+  deriving Repr
+
+/-- Recover the decision tree. Each input is `(caseIdx, remaining tests)`;
+    at each level all nonempty heads must be the same test up to negation.
+    Hard-fails on anything else (no inference — the structure is validated,
+    never guessed). -/
+partial def buildCaseTree (cases : List (Nat × List SExpr)) :
+    Except String CaseTree := do
+  match cases with
+  | [] => throw "buildCaseTree: empty case set"
+  | [(i, [])] => return .leaf i
+  | _ =>
+    let some (_, t0 :: _) := cases.find? (fun (_, ts) => !ts.isEmpty)
+      | throw "buildCaseTree: multiple cases left but no remaining tests \
+               (overlapping case tests?)"
+    -- the split test, positive form: strip a leading not
+    let test := match t0 with
+      | .cons (.atom (.symbol ns)) (.cons u .nil) =>
+        if ns.name == "NOT" then u else t0
+      | _ => t0
+    let negT := dumbNegateLit test
+    let mut pos : List (Nat × List SExpr) := []
+    let mut neg : List (Nat × List SExpr) := []
+    for (i, ts) in cases do
+      match ts with
+      | h :: rest =>
+        if h == test then pos := pos ++ [(i, rest)]
+        else if h == negT then neg := neg ++ [(i, rest)]
+        else throw s!"buildCaseTree: case head {repr h} is neither {repr test} \
+                      nor its negation (non-tree case structure, frontier)"
+      | [] => throw "buildCaseTree: a case ran out of tests while siblings \
+                     remain (subsumed case, frontier)"
+    if pos.isEmpty || neg.isEmpty then
+      throw s!"buildCaseTree: one-sided split on {repr test} (non-exhaustive \
+               case structure, frontier)"
+    return .split test (← buildCaseTree pos) (← buildCaseTree neg)
+
+/-- An in-scope ruling-test fact at a decision-tree position: the test term,
+    its walked value `Expr`, the value-convergence proof, and the sign
+    hypothesis (`sign = true` ⇒ `signE : valueE ≠ nil`; `sign = false` ⇒
+    `signE : valueE = nil`). -/
+structure TestFact where
+  test : SExpr
+  valueE : Expr
+  convE : Expr
+  sign : Bool
+  signE : Expr
+
+/-- The destructor-elimination substitution: replace `(car v) ↦ v1`,
+    `(cdr v) ↦ v2`, then remaining bare `v ↦ (cons v1 v2)` — quote-protected,
+    mirroring ACL2's elim rewrite (the recomputation `replayElim` validates
+    the emitted output clause against). -/
+partial def elimReplace (carT cdrT vT uT : SExpr) (v1 v2 : Symbol) (t : SExpr) : SExpr :=
+  if t == carT then .atom (.symbol v1)
+  else if t == cdrT then .atom (.symbol v2)
+  else if t == vT then uT
+  else match t with
+    | .cons (.atom (.symbol q)) rest =>
+      if q.isNamed "QUOTE" then t
+      else .cons (.atom (.symbol q)) (elimSpine rest)
+    | _ => t
+where
+  elimSpine : SExpr → SExpr
+    | .cons a rest => .cons (elimReplace carT cdrT vT uT v1 v2 a) (elimSpine rest)
+    | t => t
+
+/-- I1 μ-REGISTRY (induction-generality design, J2): build the TOTAL
+    meta-level `Env → Nat` interpretation of an emitted measure term.
+    Registered heads: `ACL2-COUNT` (of a variable) ↦ `SExpr.acl2Count` of
+    the env value; `BINARY-+` ↦ `Nat.add`. An UNKNOWN head hard-fails — a
+    loud frontier, never a default (extension is additive registration).
+    The measure appears in NO statement (design I1's trust observation):
+    μ is proof bookkeeping, so a registry gap can only fail a proof. -/
+partial def buildMeasureFn (measure : SExpr) : MetaM Expr := do
+  withLocalDeclD `env (mkConst ``ACL2.Env) fun envV => do
+    mkLambdaFVars #[envV] (← go envV measure)
+where
+  go (envV : Expr) : SExpr → MetaM Expr
+    | .cons (.atom (.symbol h)) (.cons arg .nil) => do
+      unless h.name == "ACL2-COUNT" do
+        throwError "μ-registry: unary measure head {h.name} not registered \
+                    (frontier)"
+      let .atom (.symbol v) := arg
+        | throwError "μ-registry: (ACL2-COUNT {repr arg}) — non-variable \
+                      measured argument (frontier)"
+      mkAppM ``SExpr.acl2Count #[← dpConcVar envV v]
+    | .cons (.atom (.symbol h)) (.cons m1 (.cons m2 .nil)) => do
+      unless h.name == "BINARY-+" do
+        throwError "μ-registry: binary measure head {h.name} not registered \
+                    (frontier)"
+      mkAppM ``HAdd.hAdd #[← go envV m1, ← go envV m2]
+    | m => throwError "μ-registry: measure shape {repr m} not registered \
+                       (frontier)"
+
+/-- I4 COVERING JOIN (J2): the IH's measured-subset substitution must be
+    covered by an EMITTED termination clause of the scheme fn, instantiated
+    by ACL2's own flesh-out — `sublis-var (pairlis$ formals (fargs term))`
+    (theory-audit OUT-3; the measured actuals are DISTINCT VARIABLES by
+    ACL2's sound-induction condition, enforced here, never assumed). The
+    expected decrease literal is `(O< measureσ measure)` with σ the alist
+    restricted to the measured variables; a clause containing it must exist.
+    Never an obligation ACL2 did not emit — no cover, hard-fail. -/
+def checkCoveringClause (cfg : ReplayConfig) (ind : InductionStep)
+    (alist : List (Symbol × SExpr)) (measuredVars : List Symbol) :
+    MetaM Unit := do
+  let .cons (.atom (.symbol fn)) argSpine := ind.term
+    | throwError "replayInduction: induction term {repr ind.term} is not an \
+                  application (frontier)"
+  let some actuals := argSpine.toList?
+    | throwError "replayInduction: induction term args not a list (frontier)"
+  -- scheme fn formals: the world, or — for a builtin-named scheme fn,
+  -- world-EXCLUDED by no-shadow (e.g. LEN) — its ground-zero snapshot
+  let some formals :=
+      ((cfg.worldVal.defs.get? fn).map (·.1)).orElse
+        (fun _ => (cfg.gzDefs.find? (·.1 == fn)).map (·.2.1))
+    | throwError "replayInduction: scheme fn {fn.name} neither in the world \
+                  nor a ground-zero snapshot (frontier)"
+  unless formals.length == actuals.length do
+    throwError "replayInduction: induction term arity mismatch (frontier)"
+  -- the flesh-out renaming; measured ACTUALS must be distinct variables
+  let mAlist := alist.filter (fun (v, _) => measuredVars.contains v)
+  let mVarsOfActuals := (formals.zip actuals).filterMap fun (f, a) =>
+    match a with
+    | .atom (.symbol s) => if measuredVars.contains s then some (f, s) else none
+    | _ => none
+  let measuredActuals := mVarsOfActuals.map (·.2)
+  unless measuredVars.all (measuredActuals.contains ·) do
+    throwError "replayInduction: a measured variable is not a distinct-\
+                variable actual of the induction term (sound-induction \
+                condition — frontier)"
+  let some j := cfg.justs.lookup fn.name
+    | throwError "replayInduction: no emitted justification for scheme fn \
+                  {fn.name} (emission gap — frontier)"
+  let expected : SExpr :=
+    .cons (.atom (.symbol { name := "O<" }))
+      (.cons (ACL2.Replay.substTerm (mAlist.map (·.1)) (mAlist.map (·.2))
+        ind.measure)
+      (.cons ind.measure .nil))
+  -- rename PER LITERAL: a clause sexpr's head is a literal (a cons), which
+  -- `substTerm`'s application arm does not enter — map over the literal list
+  let renamed ← j.terminationClauses.mapM fun cl =>
+    match cl.toList? with
+    | some lits => pure (lits.map (ACL2.Replay.substTerm formals actuals))
+    | none => throwError "checkCoveringClause: malformed emitted termination \
+                clause (not a list): {repr cl}"
+  unless renamed.any (fun lits => lits.contains expected) do
+    throwError "replayInduction: IH substitution {repr mAlist} has no \
+                covering emitted termination clause (expected decrease \
+                {repr expected}) — never an obligation ACL2 did not emit \
+                (frontier)"
+
+
+/-- The clause-level recursion interface (WP2 Stage 2): the waterfall
+    knot's entry points as a record. Every processor and the spine/clause
+    walkers are top-level defs taking `rec` — the knot is tied ONCE below
+    (`replayClause`/`replayClauseSpine`, public names and signatures
+    unchanged from the pre-WP2 mutual). -/
+structure ClauseRec where
+  /-- `replayClause` — the per-clause waterfall dispatcher. -/
+  clause : ReplayConfig → ReplayCtx → ClauseNode → MetaM Expr
+  /-- `replayClauseSpine` — the literal-spine walker. -/
+  clauseSpine : ReplayConfig → ReplayCtx → String → List (Nat × SExpr) →
+    List ClauseItem → List SExpr → List ClauseNode → MetaM Expr
+
+end ACL2.Replay.Driver
