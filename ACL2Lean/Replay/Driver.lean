@@ -4160,10 +4160,11 @@ def checkCoveringClause (cfg : ReplayConfig) (ind : InductionStep)
       (.cons ind.measure .nil))
   -- rename PER LITERAL: a clause sexpr's head is a literal (a cons), which
   -- `substTerm`'s application arm does not enter — map over the literal list
-  let renamed := j.terminationClauses.map fun cl =>
+  let renamed ← j.terminationClauses.mapM fun cl =>
     match cl.toList? with
-    | some lits => lits.map (ACL2.Replay.substTerm formals actuals)
-    | none => []
+    | some lits => pure (lits.map (ACL2.Replay.substTerm formals actuals))
+    | none => throwError "checkCoveringClause: malformed emitted termination \
+                clause (not a list): {repr cl}"
   unless renamed.any (fun lits => lits.contains expected) do
     throwError "replayInduction: IH substitution {repr mAlist} has no \
                 covering emitted termination clause (expected decrease \

@@ -255,6 +255,25 @@ name that is not a bare uppercase token. Keyword printing (`:foo`) and the
 plain-uppercase common case are already faithful; this is the escaped-name
 tail.
 
+## BUG-017 — builtin dispatch keys on symbol NAME only, dropping the package
+Status: open
+Pinned-by: none (packages are only partially modeled — BUG-013/015 interim
+fail-closed handling refuses the multi-package forms that would express a
+divergence, so no differential form currently reaches the dispatch with a
+same-name/foreign-package symbol)
+`evalOpt` resolves an application head world-first, then falls to
+`callBuiltin s.name` (EvalOpt.lean) — the builtin table is keyed by the
+symbol's NAME with the package DROPPED. In real ACL2, `MYPKG::CONSP` (a
+fresh symbol in a package that does NOT import `COMMON-LISP::CONSP`) is an
+undefined function, not the builtin; our interpreter would silently give it
+builtin semantics — the dangerous silent-wrong-value class. Not triggered
+by the current corpus (single-package; the BUG-015 interim parser refuses
+most multi-package forms fail-closed). Surfaced by the 2026-07-18 pre-merge
+audit of the induction-generality arc (inherited, not introduced, by it).
+Fix direction: key the builtin table by full symbol identity (the canonical
+COMMON-LISP/ACL2 homes), which is the same import-table surface as the
+BUG-013 full fix — fold into it.
+
 ## BUG-012 — SExpr admits non-canonical numbers outside ACL2's value space
 Status: fixed
 Pinned-by: none (fixed 2026-07-11; the junk values were UNREACHABLE from

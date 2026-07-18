@@ -2,11 +2,13 @@
   J1(a) SPIKE — the TRUE-LISTP-FLATTEN mirror BY HAND
   (induction-generality design §6b; RATIFIED 2026-07-16).
 
-  ACKNOWLEDGED WIP: this file carries explicit `sorry` placeholders — one
-  per design joint — filled one at a time per the validation strategy. It
-  is deliberately NOT imported by the root `ACL2Lean` module until
-  sorry-free (build during development with
-  `lake env lean ACL2Lean/Imported/FlattenSpike.lean`).
+  COMPLETE (sorry-free; axioms {propext, Classical.choice, Quot.sound}) —
+  a J1 VALIDATION ARTIFACT, deliberately NOT in the root import graph:
+  its role was to validate the design joints by hand before the driver
+  rewire (J2), not to guard against regression. Build standalone with
+  `lake env lean ACL2Lean/Imported/FlattenSpike.lean`.
+  (Header corrected 2026-07-18 — it previously claimed live `sorry`
+  placeholders; audit F4.)
 
   What this spike validates (and what "done" means): the REAL
   TRUE-LISTP-FLATTEN mirror statement — read off the real tree in

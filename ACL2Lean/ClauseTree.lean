@@ -286,9 +286,14 @@ private def hypEquiv (lp : LiteralProof) : Option SExpr :=
 /-- Set `equivSource` on every `rewriting-equivalence` node in this proof-node
     tree by matching its `equivTerm` against the candidate hypotheses
     `(source, equiv)` — clause literals first, then enclosing clausify-branch
-    segments (list order is match priority). Hard-fails on a solidify with no
-    matching hypothesis, no if-branch `:PATH` frame, and no `'pt` parents —
-    the detectable frontier. -/
+    segments (list order is match priority). A solidify with no matching
+    hypothesis, no if-branch `:PATH` frame, and no `'pt` parents is tagged
+    `.typeSetDerived` (J6) — a classification BY ELIMINATION, since ACL2
+    emits no positive marker for type-set-derived equivalences (`:PARENTS
+    NIL`); the replay side refuses the tag (named frontier), so a mis-link
+    landing here fails closed at replay, not silently. Emitting a positive
+    type-set-verdict marker and consuming it here is the tracked follow-up
+    (audit 2026-07-18). -/
 private partial def linkNode (cands : List (EquivSource × SExpr)) (n : ProofNode)
     : Except String ProofNode := do
   match n with
@@ -445,10 +450,16 @@ private def collectFlat (events : List ProofEvent)
         | none =>
           lastPush := some s.clauseId
           lastPushClause := s.inputClause
-          -- register the push under its emitted pool name
-          if let some pn := s.extraFields.lookup "poolname" then
-            let name ← parsePoolName pn
-            pd := { pd with pushes := pd.pushes.push (name, s.clauseId, s.inputClause) }
+          -- register the push under its emitted pool name; the emitter always
+          -- attaches :POOLNAME to a non-abort push, so its absence is an
+          -- emission gap — hard-fail, symmetric with the abort path (a silent
+          -- drop here would only surface later IF an induction consumed the
+          -- pool, and never for an unconsumed one — audit 2026-07-18)
+          let some pn := s.extraFields.lookup "poolname"
+            | throw s!"collectFlat: push-clause at {s.clauseId} without \
+                      :POOLNAME (emission gap)"
+          let name ← parsePoolName pn
+          pd := { pd with pushes := pd.pushes.push (name, s.clauseId, s.inputClause) }
     | .induction i =>
       pd := { pd with inductions :=
         pd.inductions.push (currentPool, lastPush.getD "", lastPushClause, i) }

@@ -811,7 +811,13 @@ private def parseRuleSpecEntry (ctx : String) (withMatchFree : Bool)
       throw s!"{ctx}: bad entry (want (rune hyps equiv lhs rhs match-free)): \
               {repr e}"
   -- The entry's rune goes through the same parse as step runes (J7: the
-  -- dotted multi-rule shape carries the index into the spec's identity).
+  -- dotted multi-rule shape carries the index into the spec's identity) —
+  -- but a rule-spec rune NAME must be a SYMBOL (a theorem name); the step
+  -- path's lenient repr-fallback does not apply here (parse-time hard-fail
+  -- restored, audit 2026-07-18).
+  match runeS with
+  | .cons _ (.cons (.atom (.symbol _)) _) => pure ()
+  | _ => throw s!"{ctx}: rule-spec rune name is not a symbol: {repr runeS}"
   match parseRune? runeS with
   | some rune => do
     let rname := rune.name

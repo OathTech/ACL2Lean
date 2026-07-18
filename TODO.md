@@ -969,6 +969,35 @@ obligation is stated precisely in its conditional proof's type:
 - [ ] **Reconstruction coverage** — work through `docs/notes/2026-06-07_silent-drop-inventory.md`
       and the recon-tests findings; ensure no silent drops.
 
+### Induction-generality arc follow-ups (pre-merge audit 2026-07-18 —
+### full record in docs/notes/2026-07-18_induction-generality-closeout.md)
+
+- [ ] **Decrease discharge via the #37 admission-decrease prover** (audit
+      finding 2, TOP of this queue): the shipped discharge is 3 hardwired
+      fragments (cdr/car, exact swap) — the design's explicitly-REJECTED
+      per-shape tiers; design I4 specified the general #37 prover. Routing
+      through it restores design conformance and should unblock the 7
+      decrease-fragment rows (double-cdr, `(EVENS X)`, sum-right — all
+      emitted-and-covered, Count lemmas exist).
+- [ ] **Positive type-set-verdict marker (the proper J6b).** The
+      `typeSetDerived` tag is classification by ELIMINATION (no positive
+      marker in the log — a linker bug and a genuine type-set verdict are
+      indistinguishable; fails closed at replay). Emit a marker from the
+      fork, consume it in the linker, and build the value-level discharge
+      recipe.
+- [ ] **Capture-harness max-line-length assertion** (audit finding 3):
+      the fmt margin widen is a threshold, not a guarantee — the sorting
+      corpus actively wraps at ~10k cols (qsort max line 9999) and the
+      hyphen-split hazard is live. Assert headroom at capture; consider
+      `write-for-read`.
+- [ ] **STRINGP DP-lift primitive**: unblocks all 16 qsort +
+      sorts-equivalent rows (verified genuine — TO-BE-FOUND's disjunctive
+      TP corollary, not a recon artifact).
+- [ ] Smaller: dotted STEP-rune corpus witness (constructed sample);
+      covering-clause guard↔ruling-test correspondence; differential check
+      of gz-termination-clauses recomputation vs original admissions;
+      pool-shaped (clause-list) induction motive.
+
 ### Iteration-loop performance (MDD 2026-07-17 — "the current loop is
 ### killing our productivity"; consider soon)
 

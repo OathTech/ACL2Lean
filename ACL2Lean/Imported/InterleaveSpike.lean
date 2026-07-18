@@ -2,8 +2,10 @@
   J1(b) SPIKE — the LEN-INTERLEAVE mirror BY HAND
   (induction-generality design §6b; RATIFIED 2026-07-16).
 
-  ACKNOWLEDGED WIP until sorry-free; NOT in the root import graph
-  (build with `lake env lean ACL2Lean/Imported/InterleaveSpike.lean`).
+  COMPLETE (sorry-free; axioms {propext, Classical.choice, Quot.sound}) —
+  a J1 validation artifact, deliberately NOT in the root import graph
+  (build standalone with `lake env lean ACL2Lean/Imported/InterleaveSpike.lean`).
+  (Header corrected 2026-07-18 — it previously read as WIP; audit F4.)
 
   What THIS spike validates (the measure joints, complementing J1(a)):
     - the μ-REGISTRY on a SUM measure: `(BINARY-+ (ACL2-COUNT X)
