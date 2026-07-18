@@ -1001,15 +1001,24 @@ obligation is stated precisely in its conditional proof's type:
 ### Iteration-loop performance (MDD 2026-07-17 — "the current loop is
 ### killing our productivity"; consider soon)
 
-- [ ] **Focused runs.** Today the only replay harness is the FULL corpus
-      sweep (`lake build Tests.DriverCoverage` re-elaborates all books —
-      minutes per iteration; qsort alone ~130 s). Wanted: replay ONE
-      book/theorem in seconds. Candidate design: a runtime CLI
-      (`lake exe acl2lean replay <log> [thm]`) that initializes a Lean env
-      (`withImportModules`) and runs `tryReplay` outside elaboration — no
-      Lake round-trip, no golden coupling; the full sweep stays the gate,
-      the focused run becomes the inner loop. (diff-test already supports
-      subsets: `just diff-test <files…>`.)
+- [x] **Focused runs — DONE (WP1, 2026-07-18 branch mdd/perf-ooda):**
+      `just replay <log> [THM]` (`acl2lean-replay` runtime CLI, shared
+      `Runner.runBook` harness — rows comparable to the golden); lazy
+      per-book totalEnv (WP1b). Per-ACL2-proof loop: was 4-6 min, now ~4 s
+      end-to-end (capture ~1 s + env import 2.4 s + replay ~1 s).
+- [x] **Driver modular refactor — DONE (WP2 Stages 0-3a, 2026-07-17/18,
+      branch mdd/perf-ooda):** Driver.lean (6,868-line monolith, 3 mutuals)
+      → 16 modules; both recursion knots untied behind `NodeRec`/`ClauseRec`
+      (thin 2-member tie mutuals, public signatures unchanged); one
+      waterfall processor per file (`Driver/Waterfall/Induction.lean` = the
+      #37 rework home; siblings untouched by an edit). Every stage golden
+      byte-identical + ci + diff-test 389/0. Measured warm loops: processor
+      edit → fresh exe ~30-35 s (vs ~55-65 s monolith); re-elab tail now
+      dominates. Node-side 3b extraction recommended AGAINST (no loop win)
+      — see docs/plans/2026-07-18_driver-modular-refactor.md, MDD call.
+      Follow-up levers (unscheduled): shorten Core→Harness→root tail;
+      interpreter-mode replay entry (skip codegen+link ~8-11 s); DAG-flatten
+      Discharge/Totality off the Preprocess path (compiler-verified).
 - [ ] **Design-level perf round #2** (sequel to #65, ci 25 min → 190 s).
       New corpus scale changed the profile: 206-defun worlds make
       per-theorem telescope construction + world reflection the likely
