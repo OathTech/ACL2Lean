@@ -969,6 +969,27 @@ obligation is stated precisely in its conditional proof's type:
 - [ ] **Reconstruction coverage** — work through `docs/notes/2026-06-07_silent-drop-inventory.md`
       and the recon-tests findings; ensure no silent drops.
 
+### Iteration-loop performance (MDD 2026-07-17 — "the current loop is
+### killing our productivity"; consider soon)
+
+- [ ] **Focused runs.** Today the only replay harness is the FULL corpus
+      sweep (`lake build Tests.DriverCoverage` re-elaborates all books —
+      minutes per iteration; qsort alone ~130 s). Wanted: replay ONE
+      book/theorem in seconds. Candidate design: a runtime CLI
+      (`lake exe acl2lean replay <log> [thm]`) that initializes a Lean env
+      (`withImportModules`) and runs `tryReplay` outside elaboration — no
+      Lake round-trip, no golden coupling; the full sweep stays the gate,
+      the focused run becomes the inner loop. (diff-test already supports
+      subsets: `just diff-test <files…>`.)
+- [ ] **Design-level perf round #2** (sequel to #65, ci 25 min → 190 s).
+      New corpus scale changed the profile: 206-defun worlds make
+      per-theorem telescope construction + world reflection the likely
+      hotspot (rebuilt per theorem per book — cacheable per book?); DP-leaf
+      discharge and the 8192-depth lifts on big clause terms are the other
+      suspects. Profile FIRST (the heartbeat-hacking sweep above shares
+      this: know WHAT is deep/slow), then optimize; keep the #65 two-tier
+      budget policy (no corpus-tuned gates).
+
 ### Audit / correctness debt (revisit — do not drop)
 
 - [ ] **Sweep for heartbeat/recursion-limit raises ("heartbeat hacking" — a

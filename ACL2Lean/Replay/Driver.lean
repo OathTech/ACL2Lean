@@ -1172,6 +1172,21 @@ def replayBuiltinDefUnfold (cfg : ReplayConfig) (ctx : ReplayCtx)
   let unfold ← mkAppM ``fuel_eq_of_conv #[pL, pBody, valueEq]
   return ([f1], body, unfold)
 
+/-- The `(TRUE-LISTP …)` term and its CONS-peels, outermost first:
+    `(TRUE-LISTP (CONS a d))` also lists `(TRUE-LISTP d)` (recursively). Each
+    peel is a DEFINITIONAL reduction on the value side (`trueListp (cons a d) =
+    trueListp d` is a match-arm equation), so a spine fact about any peel
+    discharges the original term — the type-set reasoning ACL2 records as
+    `fake-rune-for-type-set` on recognizer/true nodes. -/
+partial def trueListpConsPeels (term : SExpr) : List SExpr :=
+  term :: match term with
+  | .cons r@(.atom (.symbol rs))
+      (.cons (.cons (.atom (.symbol cs)) (.cons _ (.cons d .nil))) .nil) =>
+    if rs.name == "TRUE-LISTP" && cs.name == "CONS" then
+      trueListpConsPeels (.cons r (.cons d .nil))
+    else []
+  | _ => []
+
 mutual
 
 /-- Recognizer fact `∃N∀f≥N, eval term = some verdict` (verdict the node's recorded
@@ -1196,20 +1211,41 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
     let v ← ctxValExpr cfg ctx term
     return ← mkAppM ``re_val_cast
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hNil]
-  let notTerm : SExpr :=
-    .cons (.atom (.symbol { name := "NOT" })) (.cons term .nil)
-  if let some hNil := ctx.litFactByTerm? notTerm then
-    match term with
+  -- not-literal elimination, searched over the term AND its true-listp
+  -- CONS-peels (each peel definitional on the value side — see
+  -- `trueListpConsPeels`): the spine's (not REC)-falsity fact at any peel
+  -- depth discharges the original recognizer.
+  let notOf (t : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+  let hit? := (trueListpConsPeels term).findSome? fun c =>
+    (ctx.litFactByTerm? (notOf c)).map (c, ·)
+  if let some (cterm, hNil) := hit? then
+    match cterm with
     | .cons (.atom (.symbol rs)) _ =>
-      unless rs.name == "CONSP" && verdict == SExpr.t do
-        throwError "replayRecognizer: not-literal elimination only for consp⇒t \
-                    (got {rs.name} ⇒ {repr verdict}, frontier)"
-      let v ← ctxValExpr cfg ctx term       -- Logic.consp xv
-      unless v.isAppOfArity ``Logic.consp 1 do
-        throwError "replayRecognizer: value of {repr term} is not (Logic.consp _)"
+      -- TWO-VALUED recognizer registry: the spine's (not REC)-falsity fact
+      -- forces REC ≠ nil, and a boolean-range lemma lifts that to = t. Each
+      -- entry pairs the recognizer's trusted-core lift with its proved
+      -- ne-nil→t lemma; an unlisted recognizer stays a named frontier.
+      let entry? : Option (Name × Name) :=
+        if rs.name == "CONSP" then
+          some (``Logic.consp, ``logic_consp_ne_nil_t)
+        else if rs.name == "TRUE-LISTP" then
+          some (``Logic.trueListp, ``logic_trueListp_ne_nil_t)
+        else none
+      let some (liftC, neLemma) := entry?
+        | throwError "replayRecognizer: not-literal elimination has no \
+                      two-valued entry for {rs.name} (frontier)"
+      unless verdict == SExpr.t do
+        throwError "replayRecognizer: not-literal elimination of {rs.name} \
+                    needs verdict t (got {repr verdict})"
+      let v ← ctxValExpr cfg ctx cterm      -- <lift> xv, at the hit peel
+      unless v.isAppOfArity liftC 1 do
+        throwError "replayRecognizer: value of {repr cterm} is not ({liftC} _)"
       let xv := v.appArg!
       let hne ← mkAppM ``logic_not_nil_ne #[v, hNil]
-      let hT ← mkAppM ``logic_consp_ne_nil_t #[xv, hne]
+      let hT ← mkAppM neLemma #[xv, hne]
+      -- proof/value of the ORIGINAL term; its value is DEFEQ to the peel's
+      -- (trueListp's cons match-arm), so the cast composes.
       let p ← ctxValProof cfg ctx term
       return ← mkAppM ``re_val_cast
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hT]
@@ -6570,18 +6606,36 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
           -- truthy value to exactly t
           let .cons (.atom (.symbol fs)) argsSpine := concl
             | throwFrontier m!"dischargeRuleHyp: boolean conclusion {repr concl}                           is not a fn application (frontier)"
-          let some (_, _, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
-            | throwFrontier m!"dischargeRuleHyp: no :TYPE-PRESCRIPTION hypothesis                           for {fs.name} (emit more, frontier)"
-          let some (formals, _) := cfg.worldVal.defs.get? fs
-            | throwFrontier m!"dischargeRuleHyp: {fs.name} not defined in the world"
-          let args := (argsSpine.toList?).getD []
-          unless formals.length == args.length do
-            throwFrontier m!"dischargeRuleHyp: arity mismatch instantiating the                         TP of {fs.name}"
-          let some (vC, convC) := ctxDFixed.val? concl
-            | throwFrontier m!"dischargeRuleHyp: conclusion {repr concl} has no                           pinned value (frontier)"
-          let fact := mkAppN tpHyp ((#[envV] : Array Expr)
-            ++ (args.map reflectSExpr).toArray ++ #[vC, convC])
-          let hT ← mkAppM ``tp_cond_boolean_t #[vC, fact, hvC]
+          -- TWO-VALUED trusted-core conclusion (same registry as the
+          -- recognizer arm): TRUE-LISTP/CONSP evaluate through their Logic
+          -- lifts, whose boolean range is the core's own PROVED semantics —
+          -- no emitted TP required. USER fns still consume the EMITTED
+          -- :TYPE-PRESCRIPTION (type facts from ACL2, never Lean inference).
+          let coreBool? : Option (Name × Name) :=
+            if fs.name == "TRUE-LISTP" then
+              some (``Logic.trueListp, ``logic_trueListp_ne_nil_t)
+            else if fs.name == "CONSP" then
+              some (``Logic.consp, ``logic_consp_ne_nil_t)
+            else none
+          let hT ← match coreBool? with
+            | some (liftC, neLemma) => do
+              let vC ← ctxValExpr cfgD ctxDFixed concl
+              unless vC.isAppOfArity liftC 1 do
+                throwFrontier m!"dischargeRuleHyp: value of {repr concl} is                               not ({liftC} _) (frontier)"
+              mkAppM neLemma #[vC.appArg!, hvC]
+            | none => do
+              let some (_, _, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
+                | throwFrontier m!"dischargeRuleHyp: no :TYPE-PRESCRIPTION hypothesis                           for {fs.name} (emit more, frontier)"
+              let some (formals, _) := cfg.worldVal.defs.get? fs
+                | throwFrontier m!"dischargeRuleHyp: {fs.name} not defined in the world"
+              let args := (argsSpine.toList?).getD []
+              unless formals.length == args.length do
+                throwFrontier m!"dischargeRuleHyp: arity mismatch instantiating the                         TP of {fs.name}"
+              let some (vC, convC) := ctxDFixed.val? concl
+                | throwFrontier m!"dischargeRuleHyp: conclusion {repr concl} has no                           pinned value (frontier)"
+              let fact := mkAppN tpHyp ((#[envV] : Array Expr)
+                ++ (args.map reflectSExpr).toArray ++ #[vC, convC])
+              mkAppM ``tp_cond_boolean_t #[vC, fact, hvC]
           let pq ← mkAppM ``re_val_quote #[w, envV, reflectSExpr SExpr.t]
           let hCast ← proveByDecide
             (← mkEq (mkConst ``SExpr.t) (reflectSExpr SExpr.t)) "t reflects"
