@@ -72,6 +72,81 @@ def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
     else if pos then [t] else [dumbNegateLit t]
   | _ => if pos then [t] else [dumbNegateLit t]
 
+/-! ## The CHECKED clausify walk (expand-and-or plan S3)
+
+`clausifyChecked` is `clausifyPure` THREADING the recorded expand-and-or
+firings in ACL2's depth-first order (theory-side an expansion is the bare
+`(fromTerm, toTerm, pos)` triple — the parser's `ClausifyExpansion` maps
+down at the driver; runes play no role in the soundness statement): at
+each recursion point, if the head firing's from/pos match the current
+term, step to its target (consuming it) and continue; otherwise take the
+pure arm, threading the list left-to-right through subwalks. Fuel-indexed
+(an adequate fuel is computable; running out yields `none`, a hard-fail
+upstream — never a wrong result). -/
+
+/-- A theory-side expansion instruction: FROM ⇒ TO under polarity. -/
+abbrev CExp := SExpr × SExpr × Bool
+
+/-- Computable structural size (`SExpr`'s `sizeOf` is noncomputable). -/
+def cSize : SExpr → Nat
+  | .nil => 1
+  | .atom _ => 1
+  | .cons a b => 1 + cSize a + cSize b
+
+/-- Adequate fuel: every step either descends the term structure or
+    consumes one expansion and restarts on its target. -/
+def clausifyFuel (exps : List CExp) (t : SExpr) : Nat :=
+  cSize t + (exps.map (fun e => cSize e.2.1 + 1)).sum + 1
+
+mutual
+
+def clausifyChecked (fuel : Nat) (exps : List CExp)
+    (t : SExpr) (pos : Bool) :
+    Option (List SExpr × List CExp) :=
+  match fuel with
+  | 0 => none
+  | fuel + 1 =>
+    match exps with
+    | (fr, dst, ep) :: rest =>
+      if fr == t && ep == pos then
+        clausifyChecked fuel rest dst pos
+      else clausifyCheckedStep fuel exps t pos
+    | [] => clausifyCheckedStep fuel exps t pos
+
+/-- The pure arms of the checked walk (mirrors `clausifyPure` exactly,
+    threading the expansion list through subwalks). -/
+def clausifyCheckedStep (fuel : Nat) (exps : List CExp)
+    (t : SExpr) (pos : Bool) :
+    Option (List SExpr × List CExp) :=
+  if t == (if pos then quoteNil else quoteT) then some ([], exps)
+  else match t with
+  | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
+    if ifS.name == "IF" then
+      if pos then
+        if t3 == quoteT then do
+          let (c1, exps1) ← clausifyChecked fuel exps t1 false
+          let (c2, exps2) ← clausifyChecked fuel exps1 t2 true
+          some (c1 ++ c2, exps2)
+        else if t2 == quoteT then do
+          let (c1, exps1) ← clausifyChecked fuel exps t1 true
+          let (c2, exps2) ← clausifyChecked fuel exps1 t3 true
+          some (c1 ++ c2, exps2)
+        else some ([t], exps)
+      else
+        if t3 == quoteNil then do
+          let (c1, exps1) ← clausifyChecked fuel exps t1 false
+          let (c2, exps2) ← clausifyChecked fuel exps1 t2 false
+          some (c1 ++ c2, exps2)
+        else if t2 == quoteNil then do
+          let (c1, exps1) ← clausifyChecked fuel exps t1 true
+          let (c2, exps2) ← clausifyChecked fuel exps1 t3 false
+          some (c1 ++ c2, exps2)
+        else some ([dumbNegateLit t], exps)
+    else if pos then some ([t], exps) else some ([dumbNegateLit t], exps)
+  | _ => if pos then some ([t], exps) else some ([dumbNegateLit t], exps)
+
+end
+
 /-! ## The disjoin characterization ladder (design doc, Fragment B helpers) -/
 
 /-- The empty clause's disjunction (`(quote nil)`) is never true. -/

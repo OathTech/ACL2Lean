@@ -88,8 +88,28 @@ them. Golden changes at each landing, reviewed per increment.
   facts are near-definitional (`Logic.not/endp/atom` are their ACL2
   def-bodies), discharged by a small per-builtin lemma registry.
 - S2 — ClauseTree ordered attachment (D4).
-- S3 — `clausifyChecked` + the def-body arm bridge (unlocks the ENDP
-  class → the msort rows).
+- S3 — IN PROGRESS. `clausifyChecked`/`clausifyCheckedStep` (fuel-
+  indexed mutual, theory-side `CExp := SExpr × SExpr × Bool` triples,
+  computable `cSize`/`clausifyFuel`) LANDED and compile. SOUNDNESS BY
+  REDUCTION, not by mirroring the 300-line `clausifyPure_sound`:
+  (a) `expandTerm fuel exps t pos : Option (SExpr × List CExp)` — splice
+      each consumed expansion at its walk position, producing the fully
+      expanded term t′;
+  (b) correspondence (syntactic, fuel induction): a successful
+      `clausifyChecked` run equals `clausifyPure t′ pos` with the same
+      leftovers — REQUIRES side condition C1: no expansion's toTerm is
+      `quoteT`/`quoteNil` (else a sibling guard could flip arm selection);
+      C1 is validated at the DRIVER (hard-fail) and hypothesized in the
+      lemma;
+  (c) lift-preservation: `dpLiftF vars opq t′ = dpLiftF vars opq t` given
+      the expansion lift-equalities (hexp);
+  (d) transport: `ClausifyGoal w env t′ pos → ClausifyGoal w env t pos`
+      from lift-equality (via dpLiftF_sound + val_unique /
+      ne_nil_of_evtrue_conv);
+  then `clausifyPure_sound` applies to t′ UNCHANGED. The driver-side
+  hexp facts for the def-body arm are per-builtin value lemmas
+  (Logic.not/endp/atom vs their if-form def-bodies — near-definitional),
+  discharged from a small registry keyed by the FROM head.
 - S4 — lemma/lambda arms as the corpus census demands; anything else
   stays fail-closed with a named frontier.
 - S5 — close-out: golden review, TODO sync, honest status of the S4/#37
