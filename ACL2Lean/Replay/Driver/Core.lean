@@ -547,14 +547,14 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   | _ :: _ :: _ =>
     throwError "replayClause: multiple clausify records at {cn.idStr} (frontier)"
   | [] =>
+  let stepNodes := (cn.steps.flatMap (·.items)).filterMap fun
+    | .step n => some n | _ => none
   if lits.isEmpty && cn.inputClause.length == 1 then
     -- a SINGLE-literal clause discharged entirely at PREPROCESS: clause-level
     -- step nodes chain the formula to 't (no literal bracketing is emitted at
     -- preprocess sites). A MULTI-literal clause with only step items falls
     -- through to the SPINE — clause-level branch-substitution/equal-self
     -- steps are spine shapes (comm-rm's *1/1.2).
-    let stepNodes := (cn.steps.flatMap (·.items)).filterMap fun
-      | .step n => some n | _ => none
     if stepNodes.isEmpty then
       throwError "replayClause: no literal or step items in clause {cn.idStr} \
                   (discharge composition frontier)"
@@ -564,6 +564,28 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     let [formula] := cn.inputClause
       | throwError "replayClause: internal — single-literal guard"
     return ← replayPreprocessChain cfg ctx formula stepNodes
+  -- a MULTI-literal PREPROCESS node whose step chain rewrote the clause and
+  -- whose clausify was a NO-OP relative to its own input (filtered above),
+  -- continuing in a single child (msort *1/3'': the (ODDS X) ⇒
+  -- (EVENS (CDR X)) definition pass): replay the chain over the DISJUNCTION
+  -- from this clause to the child's, then compose with the child's proof.
+  -- Dispatch is on recorded data only — the preprocess processor and the
+  -- one-child shape; spine-shaped clause-level steps (comm-rm's *1/1.2)
+  -- are simplify nodes with no children and still fall through below.
+  if lits.isEmpty && cn.inputClause.length > 1 && !stepNodes.isEmpty
+      && cn.steps.any (fun s => s.processor.toLower == "preprocess-clause") then
+    if let [child] := cn.children then
+      let formula := disjoinTerm cn.inputClause
+      let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula stepNodes
+      unless finalT == disjoinTerm child.inputClause do
+        throwError "replayClause: preprocess chain reached {repr finalT}, the \
+                    single child's clause disjoins to \
+                    {repr (disjoinTerm child.inputClause)} at {cn.idStr}"
+      let pChild ← replayClauseWith rec cfg ctx child
+      match chainOpt with
+      | none => return pChild
+      | some (ch, false) => return ← mkAppM ``evtrue_of_fuel_eq #[ch, pChild]
+      | some (ch, true) => return ← mkAppM ``evtrue_of_evrel_siff #[ch, pChild]
   rec.clauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l))
     ((cn.steps.flatMap (·.items)).filter fun
       | .clausify _ => false | _ => true)
