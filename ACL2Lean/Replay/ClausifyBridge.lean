@@ -74,15 +74,17 @@ def clausifyPure (t : SExpr) (pos : Bool) : List SExpr :=
 
 /-! ## The CHECKED clausify walk (expand-and-or plan S3)
 
-`clausifyChecked` is `clausifyPure` THREADING the recorded expand-and-or
-firings in ACL2's depth-first order (theory-side an expansion is the bare
-`(fromTerm, toTerm, pos)` triple — the parser's `ClausifyExpansion` maps
-down at the driver; runes play no role in the soundness statement): at
-each recursion point, if the head firing's from/pos match the current
-term, step to its target (consuming it) and continue; otherwise take the
-pure arm, threading the list left-to-right through subwalks. Fuel-indexed
-(an adequate fuel is computable; running out yields `none`, a hard-fail
-upstream — never a wrong result). -/
+The recorded expand-and-or firings (theory-side: bare
+`(fromTerm, toTerm, pos)` triples — the parser's `ClausifyExpansion` maps
+down at the driver; runes play no role in the soundness statement) are
+consumed by `expandTerm`, which SPLICES each firing at its walk position
+in ACL2's depth-first order, producing the fully expanded term t′. The
+checked clausification is then DEFINITIONALLY `clausifyPure t′ pos` — so
+`clausifyPure_sound` applies to t′ unchanged, and the only semantic
+obligations are (a) per-firing lift-equality (`dpLiftF` agrees on FROM
+and TO — the driver discharges these from a small per-builtin registry)
+and (b) the goal transport back from t′ to t. A walk/record divergence of
+any kind fails the driver's validation — never a wrong result. -/
 
 /-- A theory-side expansion instruction: FROM ⇒ TO under polarity. -/
 abbrev CExp := SExpr × SExpr × Bool
@@ -98,54 +100,183 @@ def cSize : SExpr → Nat
 def clausifyFuel (exps : List CExp) (t : SExpr) : Nat :=
   cSize t + (exps.map (fun e => cSize e.2.1 + 1)).sum + 1
 
-mutual
-
-def clausifyChecked (fuel : Nat) (exps : List CExp)
-    (t : SExpr) (pos : Bool) :
-    Option (List SExpr × List CExp) :=
+/-- Splice each expansion at its walk position (depth-first, threading the
+    list left-to-right through subwalks), producing the fully expanded
+    term and the leftover instructions. Fuel-indexed; `none` (fuel out)
+    hard-fails upstream — never a wrong result. -/
+def expandTerm (fuel : Nat) (exps : List CExp) (t : SExpr) (pos : Bool) :
+    Option (SExpr × List CExp) :=
   match fuel with
   | 0 => none
   | fuel + 1 =>
     match exps with
     | (fr, dst, ep) :: rest =>
-      if fr == t && ep == pos then
-        clausifyChecked fuel rest dst pos
-      else clausifyCheckedStep fuel exps t pos
-    | [] => clausifyCheckedStep fuel exps t pos
+      if fr == t && ep == pos then expandTerm fuel rest dst pos
+      else expandGo fuel exps t pos
+    | [] => expandGo fuel exps t pos
+where
+  /-- The pure arms (mirrors `clausifyPure`'s recursion shape). -/
+  expandGo (fuel : Nat) (exps : List CExp) (t : SExpr) (pos : Bool) :
+      Option (SExpr × List CExp) :=
+    if t == (if pos then quoteNil else quoteT) then some (t, exps)
+    else match t with
+    | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
+      if ifS.name == "IF" then
+        if pos then
+          if t3 == quoteT then do
+            let (t1', exps1) ← expandTerm fuel exps t1 false
+            let (t2', exps2) ← expandTerm fuel exps1 t2 true
+            some (.cons (.atom (.symbol ifS))
+              (.cons t1' (.cons t2' (.cons t3 .nil))), exps2)
+          else if t2 == quoteT then do
+            let (t1', exps1) ← expandTerm fuel exps t1 true
+            let (t3', exps2) ← expandTerm fuel exps1 t3 true
+            some (.cons (.atom (.symbol ifS))
+              (.cons t1' (.cons t2 (.cons t3' .nil))), exps2)
+          else some (t, exps)
+        else
+          if t3 == quoteNil then do
+            let (t1', exps1) ← expandTerm fuel exps t1 false
+            let (t2', exps2) ← expandTerm fuel exps1 t2 false
+            some (.cons (.atom (.symbol ifS))
+              (.cons t1' (.cons t2' (.cons t3 .nil))), exps2)
+          else if t2 == quoteNil then do
+            let (t1', exps1) ← expandTerm fuel exps t1 true
+            let (t3', exps2) ← expandTerm fuel exps1 t3 false
+            some (.cons (.atom (.symbol ifS))
+              (.cons t1' (.cons t2 (.cons t3' .nil))), exps2)
+          else some (t, exps)
+      else some (t, exps)
+    | _ => some (t, exps)
 
-/-- The pure arms of the checked walk (mirrors `clausifyPure` exactly,
-    threading the expansion list through subwalks). -/
-def clausifyCheckedStep (fuel : Nat) (exps : List CExp)
-    (t : SExpr) (pos : Bool) :
-    Option (List SExpr × List CExp) :=
-  if t == (if pos then quoteNil else quoteT) then some ([], exps)
-  else match t with
-  | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
-    if ifS.name == "IF" then
-      if pos then
-        if t3 == quoteT then do
-          let (c1, exps1) ← clausifyChecked fuel exps t1 false
-          let (c2, exps2) ← clausifyChecked fuel exps1 t2 true
-          some (c1 ++ c2, exps2)
-        else if t2 == quoteT then do
-          let (c1, exps1) ← clausifyChecked fuel exps t1 true
-          let (c2, exps2) ← clausifyChecked fuel exps1 t3 true
-          some (c1 ++ c2, exps2)
-        else some ([t], exps)
-      else
-        if t3 == quoteNil then do
-          let (c1, exps1) ← clausifyChecked fuel exps t1 false
-          let (c2, exps2) ← clausifyChecked fuel exps1 t2 false
-          some (c1 ++ c2, exps2)
-        else if t2 == quoteNil then do
-          let (c1, exps1) ← clausifyChecked fuel exps t1 true
-          let (c2, exps2) ← clausifyChecked fuel exps1 t3 false
-          some (c1 ++ c2, exps2)
-        else some ([dumbNegateLit t], exps)
-    else if pos then some ([t], exps) else some ([dumbNegateLit t], exps)
-  | _ => if pos then some ([t], exps) else some ([dumbNegateLit t], exps)
+/-- The CHECKED clausification, definitionally `clausifyPure` of the
+    expanded term (no correspondence lemma needed: any walk/record
+    divergence fails the driver's validation). -/
+def clausifyChecked (fuel : Nat) (exps : List CExp) (t : SExpr)
+    (pos : Bool) : Option (List SExpr × List CExp) :=
+  (expandTerm fuel exps t pos).map (fun (t', l) => (clausifyPure t' pos, l))
 
-end
+/-! ### The expansion registry facts (S3): per-builtin lift-equality
+between an abbreviation application and its emitted def-body if-form —
+the driver's `hexp` dischargers, keyed by the FROM head. -/
+
+/-- `(ENDP x)` shape. -/
+abbrev endpT (x : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "ENDP" })) (.cons x .nil)
+
+/-- `(ATOM x)` shape. -/
+abbrev atomAppT (x : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "ATOM" })) (.cons x .nil)
+
+/-- `(CONSP x)` shape. -/
+abbrev conspT (x : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "CONSP" })) (.cons x .nil)
+
+private theorem dpLiftF_prim1 {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
+    (n : String) (x : SExpr)
+    (hban : ((({ name := n } : Symbol)).isNamed "QUOTE" ||
+             (({ name := n } : Symbol)).isNamed "IF" ||
+             dpLiftHeads.contains n) = true)
+    (hnq : ((({ name := n } : Symbol)) == { name := "QUOTE" }) = false)
+    (hnif : ((({ name := n } : Symbol)) == { name := "IF" }) = false)
+    (hprim : ((({ name := n } : Symbol)).package == "ACL2" &&
+              dpLiftHeads.contains n) = true) :
+    dpLiftF vars opq (.cons (.atom (.symbol { name := n })) (.cons x .nil))
+      = (dpLiftF vars opq x).bind (fun xv => callBuiltin n [xv]) := by
+  rw [dpLiftF.eq_def, dpOpqWF_find_banned opq hwf _ hban]
+  simp only [hnq, hnif, hprim, if_true, if_false, Bool.false_eq_true]
+  cases hx : dpLiftF vars opq x <;> rfl
+
+private theorem dpLiftF_ifT {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
+    (c thn els : SExpr) :
+    dpLiftF vars opq (ifT c thn els)
+      = (dpLiftF vars opq c).bind (fun cv =>
+          (dpLiftF vars opq thn).bind (fun tv =>
+            (dpLiftF vars opq els).bind (fun ev =>
+              some (cond (Logic.toBool cv) tv ev)))) := by
+  rw [dpLiftF.eq_def, dpOpqWF_find_if opq hwf c thn els]
+  simp only [show (({ name := "IF" } : Symbol) == { name := "QUOTE" }) = false
+      from by decide, BEq.rfl, if_true, if_false, Bool.false_eq_true]
+  rfl
+
+/-- `(NOT x) ⇒ (IF x 'NIL 'T)`: the NOT def-body expansion preserves the
+    lift. -/
+theorem dpLiftF_not_expand {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) (x : SExpr) :
+    dpLiftF vars opq (notT x) = dpLiftF vars opq (ifT x quoteNil quoteT) := by
+  have hqn : dpLiftF vars opq quoteNil = some SExpr.nil := dpLiftF_quote hwf _
+  have hqt : dpLiftF vars opq quoteT = some SExpr.t := dpLiftF_quote hwf _
+  cases hx : dpLiftF vars opq x with
+  | none =>
+    have h1 : dpLiftF vars opq (notT x) = none := by
+      rw [dpLiftF_prim1 hwf "NOT" x (by decide) (by decide) (by decide)
+            (by decide), hx]
+      rfl
+    have h2 : dpLiftF vars opq (ifT x quoteNil quoteT) = none := by
+      rw [dpLiftF_ifT hwf, hx]
+      rfl
+    rw [h1, h2]
+  | some xv =>
+    have h1 := dpLiftF_not_intro hwf hx
+    have h2 : dpLiftF vars opq (ifT x quoteNil quoteT)
+        = some (cond (Logic.toBool xv) SExpr.nil SExpr.t) := by
+      rw [dpLiftF_ifT hwf, hx]
+      simp only [Option.bind_some, hqn, hqt]
+    rw [h1, h2]
+    simp only [Logic.not]
+    cases Logic.toBool xv <;> rfl
+
+/-- `(ENDP x) ⇒ (IF (CONSP x) 'NIL 'T)`. -/
+theorem dpLiftF_endp_expand {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) (x : SExpr) :
+    dpLiftF vars opq (endpT x)
+      = dpLiftF vars opq (ifT (conspT x) quoteNil quoteT) := by
+  have hqn : dpLiftF vars opq quoteNil = some SExpr.nil := dpLiftF_quote hwf _
+  have hqt : dpLiftF vars opq quoteT = some SExpr.t := dpLiftF_quote hwf _
+  have hE := dpLiftF_prim1 (vars := vars) hwf "ENDP" x
+    (by decide) (by decide) (by decide) (by decide)
+  have hC := dpLiftF_prim1 (vars := vars) hwf "CONSP" x
+    (by decide) (by decide) (by decide) (by decide)
+  cases hx : dpLiftF vars opq x with
+  | none =>
+    rw [show endpT x = _ from rfl, hE, hx,
+        dpLiftF_ifT hwf, show conspT x = _ from rfl, hC, hx]
+    rfl
+  | some xv =>
+    rw [show endpT x = _ from rfl, hE, hx,
+        dpLiftF_ifT hwf, show conspT x = _ from rfl, hC, hx]
+    simp only [Option.bind_some]
+    rw [show callBuiltin "CONSP" [xv] = some (Logic.consp xv) from rfl]
+    simp only [Option.bind_some, hqn, hqt]
+    rw [show callBuiltin "ENDP" [xv] = some (Logic.endp xv) from rfl]
+    cases xv <;> rfl
+
+/-- `(ATOM x) ⇒ (IF (CONSP x) 'NIL 'T)`. -/
+theorem dpLiftF_atom_expand {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) (x : SExpr) :
+    dpLiftF vars opq (atomAppT x)
+      = dpLiftF vars opq (ifT (conspT x) quoteNil quoteT) := by
+  have hqn : dpLiftF vars opq quoteNil = some SExpr.nil := dpLiftF_quote hwf _
+  have hqt : dpLiftF vars opq quoteT = some SExpr.t := dpLiftF_quote hwf _
+  have hA := dpLiftF_prim1 (vars := vars) hwf "ATOM" x
+    (by decide) (by decide) (by decide) (by decide)
+  have hC := dpLiftF_prim1 (vars := vars) hwf "CONSP" x
+    (by decide) (by decide) (by decide) (by decide)
+  cases hx : dpLiftF vars opq x with
+  | none =>
+    rw [show atomAppT x = _ from rfl, hA, hx,
+        dpLiftF_ifT hwf, show conspT x = _ from rfl, hC, hx]
+    rfl
+  | some xv =>
+    rw [show atomAppT x = _ from rfl, hA, hx,
+        dpLiftF_ifT hwf, show conspT x = _ from rfl, hC, hx]
+    simp only [Option.bind_some]
+    rw [show callBuiltin "CONSP" [xv] = some (Logic.consp xv) from rfl]
+    simp only [Option.bind_some, hqn, hqt]
+    rw [show callBuiltin "ATOM" [xv] = some (Logic.atom xv) from rfl]
+    cases xv <;> rfl
 
 /-! ## The disjoin characterization ladder (design doc, Fragment B helpers) -/
 
