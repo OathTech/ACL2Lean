@@ -5,7 +5,31 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-12._
+_Last updated: 2026-07-19._
+
+> **Expand-and-or arc (branch `mdd/expand-and-or`, 2026-07-19) — S1–S3
+> LANDED + follow-on relief recipes; scoreboard 32/79 (24 uncond + 8
+> cond), diff-test 389/0.** Plan `docs/plans/2026-07-19_expand-and-or-mirror.md`
+> (status updated inline). Landed: fork emits `:FROM`/`:RUNES`/`:SUBST`
+> on clausify-expand + abbreviation pushes; `expandTerm` (single
+> structural def, kernel-refl walk facts) + definitional
+> `clausifyChecked` + proved registry lift-equalities + 12-case
+> `expandTerm_liftEq` + transport; EVERY corpus clausify-bridge wall
+> fell. Follow-on recipes: negated-hyp relief (atm-rooted chain, lifted
+> through `not`), SYNP definitional discharge (`(:DEFINITION SYNP)`
+> ttree-gated), preprocess-proved full-clause verdict routing,
+> abbreviation-rule consumption (hyp-free enforced). Rows forward this
+> arc: LEN-INTERLEAVE→unicity, TRUE-LISTP-{ISORT,MSORT}→real deep
+> frontiers (type-alist DERIVED entries; ◌-class assumed-fact
+> composition), HOW-MANY-{MERGE2,MSORT} ✓, LEN2-APP-{VIA-INDUCT,
+> NO-HELPER} ✓. S4 lemma arm: NO current consumer (6 events, all in
+> rows failing upstream) — stays fail-closed per the no-unwired-infra
+> rule. Next frontier classes by row count: STRINGP dpValExpr lift (×8
+> qsort-class), definition-chain IF-normalization `(EQUAL X 'NIL)` vs
+> `(IF X 'NIL 'T)` (×5), unicity-of-0 TP int fact (×3),
+> marker-relieved falsity facts (×3, J6b), type-alist derived entries,
+> ◌-class discharge composition, NUMERATOR (H3 pin-first), LEN-ZIP2/3
+> simplify-path off-frame, elim/induction one-offs.
 
 > **External-knowledge arc (branch `mdd/external-knowledge`) — design
 > RATIFIED, prerequisites + order proofs DONE (2026-07-11/12).** The design

@@ -13,6 +13,27 @@ logic `synp` ignores its args and returns `t` (its defun is in the gz
 snapshot), so the discharge is the ground definitional evaluation,
 gated on that rune being in the node's recorded runes. Both rows now
 REPLAY ✓ (30/79). Branch `mdd/expand-and-or`.
+
+Second increment (bc1a7ee + fork f3bd188c09): (1) a multi-literal
+preprocess-clause PROVED with no children routes its clause-level chain
+over the disjoined formula (the type-set-fc verdict leaf spans the full
+clause) — TRUE-LISTP-{ISORT,MSORT} advance to their REAL frontiers
+(type-alist derived entries; ◌-class assumed-fact discharge
+composition — both known deep items, out of this arc's scope);
+(2) `abbreviation-expansion` rewrite-rule steps (rules applied by
+expand-abbreviations) are consumed by the with-lemma recipe: origin
+accepted, hyp-freedom enforced (ACL2's `abbreviation` subclass), and
+the fork now emits `:SUBST` on the push (corpus recaptured) —
+LEN2-APP-{VIA-INDUCT,NO-HELPER} REPLAY ✓. Scoreboard 32/79
+(24 unconditional + 8 conditional).
+
+S4 status (2026-07-19): NO current consumer — the corpus's 6 lemma-arm
+clausify-expand events (bsort CONS-EQUAL ×4, ordered-perms EQUAL-CONS,
+qsort composite) all sit in rows that fail UPSTREAM on other frontiers
+(non-identity-literal-alongside-clausify, STRINGP lift class). Per this
+plan's own "as the corpus census demands" and the no-unwired-infra
+rule, the lemma arm stays fail-closed (named frontier) until a row
+actually demands it.
 Source: the msort-frontiers close-out (the sole remaining wall for
 TRUE-LISTP-MSORT, HOW-MANY-MERGE2, HOW-MANY-MSORT); 5 clausify-bridge
 rows in the golden; the corpus-wide "(expand-and-or fired — replay
