@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 28/79 (24 unconditional + 4 conditional); DP-discharge leaves ✓18 ◌18 ✗0 of 36:
+Driver coverage — REPLAYED 30/79 (24 unconditional + 6 conditional); DP-discharge leaves ✓18 ◌18 ✗0 of 36:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -82,9 +82,9 @@ Driver coverage — REPLAYED 28/79 (24 unconditional + 4 conditional); DP-discha
     ACL2-COUNT-EVENS-WEAK → FAIL: proveConv: unary NUMERATOR not in the builtin registry (frontier): (NUMERATOR (CONS (CAR X) (EVENS (CDR (CDR X)))))  [DISCHARGE: Subgoal *1/1'':preprocess/tau-contradiction ✓ cond[total:(ACL2-COUNT X), tp:ACL2-COUNT]]
     ORDEREDP-MSORT → FAIL: rule LEXORDER-TRANSITIVE: marker-relieved hyp (LEXORDER (CAR MT) (CAR MT0)) has no (not …)-falsity fact in scope (frontier)
     TRUE-LISTP-MSORT → FAIL: replayClauseSpine: clause-level step item (rune ("fake-rune-for-type-set", "NIL")) in the spine at Subgoal *1.1/5 (frontier)  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2], Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2]]
-    HOW-MANY-MERGE2 → FAIL: pathStepsFromFrames: navigated to (NOT (MEMB E Y)), expected redex (MEMB E Y)
+    HOW-MANY-MERGE2 → REPLAYED ✓ cond[total:HOW-MANY, total:MERGE2, tp:HOW-MANY, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]
     HOW-MANY-EVENS-AND-ODDS → FAIL: rule DEFAULT-CDR: marker-relieved hyp (NOT (CONSP (CDR (CDR X)))) has no (not …)-falsity fact in scope (frontier)  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ◌ assumed cond[total:(HOW-MANY E (EVENS X)), total:(HOW-MANY E (EVENS (CDR X))), total:(HOW-MANY E X), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
-    HOW-MANY-MSORT → FAIL: pathStepsFromFrames: navigated to (NOT (MEMB E 'NIL)), expected redex (MEMB E 'NIL)
+    HOW-MANY-MSORT → REPLAYED ✓ cond[total:HOW-MANY, total:MERGE2, total:MSORT, total:EVENS, total:ODDS, tp:HOW-MANY, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0, rule:HOW-MANY-EVENS-AND-ODDS]
 • sorting/qsort  (world: 206 defun(s), 13 theorem(s))
     HOW-MANY-APPEND → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))
     HOW-MANY-FILTER-1 → FAIL: dpValExpr: unary STRINGP is not a DP-lift primitive: (STRINGP (TO-BE-FOUND DENOMINATOR SAVED-DENOMINATOR FACTORS TO-BE-FOUND))  [DISCHARGE: Subgoal *1/3.5:preprocess/tau-contradiction ◌ assumed cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact], Subgoal *1/3.1:preprocess/tau-contradiction ◌ assumed cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]

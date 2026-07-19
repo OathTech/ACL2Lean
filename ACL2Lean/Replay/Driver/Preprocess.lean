@@ -180,7 +180,11 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
       else if isIffNode then replayIfIffNode cfg ctx n
       else replayPreprocessNode cfg ctx n
     let path ←
-      if prov.path.isEmpty then
+      -- ONLY abbreviation-expansion paths are rooted at the FORMULA this
+      -- chain walks (infra/abbrev-path); rewrite-side gstack paths that
+      -- flushed into a preprocess chain are LITERAL-rooted (boundary
+      -- frames, different origin) and must use the position fallback
+      if prov.path.isEmpty || prov.origin != "abbreviation-expansion" then
         match findOccurrences cur lhs with
         | [p] => pure p
         | [] => throwError "replayPreprocessChain: node lhs {repr lhs} does not occur \

@@ -1,6 +1,18 @@
 # Expand-and-or clausify mirror — plan
 
-STATUS: DRAFT, awaiting MDD ratification. Branch `mdd/expand-and-or`.
+STATUS: RATIFIED; S1–S3 LANDED (S3 green a62d5fd — every clausify-bridge
+wall in the corpus fell). Update 2026-07-19: the HOW-MANY-{MERGE2,MSORT}
+follow-on wall was NOT an abbrev-path off-by-one — it was two missing
+hyp-relief recipes in `replayNodeWith` (NodeCore): (1) a negated hyp
+`(NOT atm)` is relieved by ACL2's `relieve-hyp` on the ATM (no gstack
+frame) — the recorded chain is atm-rooted, must land on `'nil`, and is
+lifted through the `not` by unary congruence + exec-ground fold, the
+`replayLiteralChain` recipe; (2) a `SYNP` (syntaxp) hyp is relieved
+meta-level and recorded as `(:DEFINITION SYNP)` in the ttree — in the
+logic `synp` ignores its args and returns `t` (its defun is in the gz
+snapshot), so the discharge is the ground definitional evaluation,
+gated on that rune being in the node's recorded runes. Both rows now
+REPLAY ✓ (30/79). Branch `mdd/expand-and-or`.
 Source: the msort-frontiers close-out (the sole remaining wall for
 TRUE-LISTP-MSORT, HOW-MANY-MERGE2, HOW-MANY-MSORT); 5 clausify-bridge
 rows in the golden; the corpus-wide "(expand-and-or fired — replay

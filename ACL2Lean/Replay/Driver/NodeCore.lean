@@ -1585,17 +1585,33 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     for h in spec.hyps do
       let hσ := ACL2.Replay.substTerm σvars σterms h
       let hasMarker := reliefMarkers.any fun c => (nodeLhsRhs c).1 == hσ
+      -- a SYNP hyp (syntaxp/bind-free): ACL2 relieves it by the meta-level
+      -- syntactic check and records `(:DEFINITION SYNP)` in the ttree — in
+      -- the LOGIC, `synp` ignores its (always-quoted) args and returns `t`,
+      -- so the recorded relief IS the definitional ground evaluation
+      let isSynp := match hσ with
+        | .cons (.atom (.symbol s)) _ => s.name == "SYNP"
+        | _ => false
       -- EVERY hyp must have an emitted relief RECORD — a silent-relief marker
       -- or a rewrite chain. No record at all is an emission gap (audit
       -- 2026-07-06 finding A): the clause context may well justify the hyp,
       -- but nothing in the tree says ACL2 relieved it that way — hard-fail
       -- and emit more, never paper over.
-      if !hasMarker && chainKids.isEmpty then
+      if !hasMarker && chainKids.isEmpty && !isSynp then
         throwError "rule {rname}: hyp {repr hσ} has NO emitted relief record \
                     (no relieve-hyp marker, no relief chain) — emission gap \
                     (frontier)"
       let evTrueEnv ←
-        if hasMarker then do
+        if isSynp then do
+          unless prov.runes.any (fun r => r.ty == "definition" && r.name == "SYNP") do
+            throwError "rule {rname}: SYNP hyp {repr hσ} without \
+                        (:DEFINITION SYNP) in the node's ttree — emission gap \
+                        (frontier)"
+          -- re-run the same closed computation (`synp`'s world body is 'T):
+          -- the exec-counterpart carve-out, exactly how ACL2 regards it
+          let conv ← replayExecGround cfg hσ SExpr.t
+          mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
+        else if hasMarker then do
           -- relieved SILENTLY from the clause context (the emitted marker
           -- names the instantiated hyp): the spine's (not hσ)-falsity fact
           -- (the type-alist source the type-alist recipe also consumes)
@@ -1607,6 +1623,37 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           let vH ← ctxValExpr cfg ctx hσ
           let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
           mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
+        else if let some (notS, atm) := (match hσ with
+            | .cons (.atom (.symbol s)) (.cons a .nil) =>
+              if s.name == "NOT" then some (s, a) else none
+            | _ => none) then do
+          -- NEGATED hyp: ACL2's relieve-hyp strips the `not` and rewrites the
+          -- ATM (obj flipped, NO gstack frame) — the recorded chain is
+          -- atm-rooted and must land on 'nil. Lift the composed atm chain
+          -- through the `not` wrapper by unary congruence and fold
+          -- `(not 'nil) ⇒ 't` by re-running the same closed computation
+          -- (the exec-counterpart carve-out), as `replayLiteralChain` does
+          -- for :NOT-FLG literals.
+          let (chainOpt, finalAtom) ← rec.rewrites cfg ctx atm chainKids (depth + 1) []
+          unless finalAtom == quoteNil do
+            throwError "rule {rname}: negated-hyp relief chain for {repr hσ} \
+                        ends at {repr finalAtom}, not (quote nil)"
+          let some ch := chainOpt
+            | throwError "rule {rname}: negated-hyp relief chain for {repr hσ} \
+                          composed to no steps"
+          let ns ← proveNotSpecial notS
+          let lifted := mkAppN (mkConst ``evalOpt_congr_unary)
+            #[cfg.worldExpr, cfg.envExpr, reflectSymbol notS, reflectSExpr atm,
+              reflectSExpr quoteNil, ns, ch]
+          let notNil : SExpr := .cons (.atom (.symbol notS)) (.cons quoteNil .nil)
+          let pNot ← replayExecGround cfg notNil SExpr.t
+          let pQ ← mkAppM ``re_val_quote
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+          let step ← mkAppM ``fuel_eq_of_conv
+            #[pNot, pQ, ← mkEqRefl (reflectSExpr SExpr.t)]
+          let chain ← mkAppM ``fuel_chain_eq #[lifted, step]
+          let hconv ← mkAppM ``fuel_conv_of_eq #[chain, ← quoteTFact cfg]
+          mkAppM ``evtrue_of_conv_ne_nil #[hconv, tNeNil]
         else do
           -- the recorded HYP chain rewrites hσ ⇒ … ⇒ 't (paths carry one
           -- more boundary frame, as definition-body children do)
