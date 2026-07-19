@@ -1485,7 +1485,12 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- from the recorded :KIND HYP chain or the clause context, never
     -- re-searched. (The built-in-axiom runes above keep their hand recipes —
     -- their formulas are in no log.)
-    unless prov.origin == "with-lemma" do
+    -- `abbreviation-expansion` is the SAME rule application recorded at
+    -- preprocess's expand-abbreviations: ACL2's `abbreviation` subclass is
+    -- hypothesis-free by construction (find-abbreviation-lemma), enforced
+    -- below at the spec — the recipe is otherwise identical
+    unless prov.origin == "with-lemma" ||
+           prov.origin == "abbreviation-expansion" do
       throwError "rewrite rune ({rname}): origin {prov.origin} is not \
                   with-lemma (frontier)"
     let σvars ← prov.subst.mapM fun (v, _) => do
@@ -1507,6 +1512,10 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let [(spec, hypV)] := matched
       | throwError "rule {rname}: {matched.length} stored rules match \
                     substTerm(:SUBST, lhs) == {repr lhs} (need exactly 1)"
+    if prov.origin == "abbreviation-expansion" && !spec.hyps.isEmpty then
+      throwError "rule {rname}: abbreviation-expansion step cites a rule \
+                  with {spec.hyps.length} hypotheses — abbreviations are \
+                  hyp-free (record/world mismatch)"
     let innerKindOf : ProofNode → String := fun
       | .node _ _ _ _ p => p.innerKind
     let hypKids := children.filter fun c => innerKindOf c == "hyp"

@@ -589,6 +589,15 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       | none => return pChild
       | some (ch, false) => return ← mkAppM ``evtrue_of_fuel_eq #[ch, pChild]
       | some (ch, true) => return ← mkAppM ``evtrue_of_evrel_siff #[ch, pChild]
+    -- PROVED at preprocess with NO children: the recorded chain discharges
+    -- the whole DISJOINED formula to 't (msort TRUE-LISTP-MSORT *1.1/5's
+    -- type-set-fc verdict leaf spans the full clause) — the same chain
+    -- composition as the single-literal case, over the disjunction
+    if cn.children.isEmpty &&
+        cn.steps.any (fun s =>
+          s.processor.toLower == "preprocess-clause" && s.result == .proved) then
+      let formula := disjoinTerm cn.inputClause
+      return ← replayPreprocessChain cfg ctx formula stepNodes
   rec.clauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l))
     ((cn.steps.flatMap (·.items)).filter fun
       | .clausify _ => false | _ => true)
