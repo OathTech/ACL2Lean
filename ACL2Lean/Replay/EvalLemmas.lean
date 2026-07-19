@@ -3580,6 +3580,24 @@ theorem evtrue_of_fuel_eq {w : World} {env env' : Env} {a b : SExpr}
   obtain ⟨v, hbv, hnv⟩ := hb f (by omega)
   exact ⟨v, (hab f (by omega)).trans hbv, hnv⟩
 
+/-- Drop a FALSIFIED leading disjunct: `EvTrue (IF c 'T r)` with the test
+    converging to nil is `EvTrue r` (the generalize type-restriction
+    head-drop — msort arc, 2026-07-19). -/
+theorem evtrue_tail_of_if_head_nil {w : World} {env : Env} {c t r : SExpr}
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some SExpr.nil)
+    (h : EvTrue w env (.cons (.atom (.symbol { name := "IF" }))
+          (.cons c (.cons t (.cons r .nil))))) : EvTrue w env r := by
+  obtain ⟨Nc, hc⟩ := hc
+  obtain ⟨Nh, hh⟩ := h
+  refine ⟨Nc + Nh, fun f hf => ?_⟩
+  obtain ⟨v, hv, hnv⟩ := hh (f + 1) (by omega)
+  rw [evalOpt_if_false f w env c t r (hc f (by omega))] at hv
+  exact ⟨v, hv, hnv⟩
+
+/-- `not` of an exact-t value is nil (restriction-literal falsification). -/
+theorem not_of_eq_t {x : SExpr} (h : x = SExpr.t) :
+    Logic.not x = SExpr.nil := by subst h; rfl
+
 /-- The converse: a pinned non-nil value IS `EvTrue` (the positive-literal
     fallback of the clausify walk — truthiness anywhere in the spine, D9). -/
 theorem evtrue_of_conv_ne_nil {w : World} {env : Env} {a va : SExpr}

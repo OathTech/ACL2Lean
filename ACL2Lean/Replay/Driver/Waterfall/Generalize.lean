@@ -60,13 +60,34 @@ partial def replayGeneralize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   let [child] := cn.children
     | throwError "replayGeneralize: {cn.children.length} children at \
                   {cn.idStr} (frontier)"
-  -- recompute-and-check: σ-substituting the child recovers this clause
-  let childTerm := disjoinTerm child.inputClause
-  unless ACL2.Replay.substTerm gvars terms childTerm
-      == disjoinTerm cn.inputClause do
+  -- recompute-and-check, WITH generalize TYPE RESTRICTIONS: ACL2's
+  -- generalize-clause PREPENDS per-var type-restriction literals derived
+  -- from the generalized terms' type prescriptions (the step's cited
+  -- tp runes — msort *1/3'5': (NOT (TRUE-LISTP ES))). The child clause is
+  -- `restr ++ core` where σ-substituting `core` recovers THIS clause
+  -- literal-wise; `restr` may be empty (the pre-existing exact case).
+  let k := child.inputClause.length - cn.inputClause.length
+  let restr := child.inputClause.take k
+  let core := child.inputClause.drop k
+  unless core.map (ACL2.Replay.substTerm gvars terms) == cn.inputClause do
     throwError "replayGeneralize: substituting the :TERMS back does not \
                 recover the clause at {cn.idStr} (recompute/emission \
                 divergence)"
+  -- each restriction literal must be `(NOT (pred ESi))` for a generalize
+  -- var ESi — anything else is a frontier
+  let restrInfo ← restr.mapM fun lit => do
+    let .cons (.atom (.symbol nt))
+        (.cons (.cons (.atom (.symbol p)) (.cons (.atom (.symbol v)) .nil))
+          .nil) := lit
+      | throwError "replayGeneralize: unsupported type-restriction literal \
+                    {repr lit} at {cn.idStr} (frontier: (NOT (pred var)))"
+    unless nt.name == "NOT" do
+      throwError "replayGeneralize: unsupported type-restriction literal \
+                  {repr lit} at {cn.idStr} (frontier: (NOT (pred var)))"
+    let some j := (gvars.zipIdx.find? (fun (g, _) => g == v)).map (·.2)
+      | throwError "replayGeneralize: restriction var {v.name} is not a \
+                    generalize :VARS entry at {cn.idStr}"
+    pure (p, v, j, lit)
   let w := cfg.worldExpr
   let env := cfg.envExpr
   -- pin the generalized terms and take their values at THIS env
@@ -88,9 +109,61 @@ partial def replayGeneralize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   let ctx' := { ctx with varVals := [], vals := [], litFacts := [],
                          branchFacts := [], segFacts := [] }
   let pChild ← rec.clause cfg' ctx' child
-  -- substN bridge back to this env
+  -- DROP the restriction heads: each `(NOT (pred ESi))` is FALSE at env'
+  -- because the generalized term satisfies its type prescription — the
+  -- EMITTED tp hypothesis for the term's head fn, instantiated at THIS
+  -- env with the term's pinned value/convergence (consumed, not inferred),
+  -- gives `⟦pred⟧ val_i = t`; `not` of that is nil, and the leading
+  -- disjunct falls away (`evtrue_tail_of_if_head_nil`).
+  let mut pChild := pChild
+  for (p, _, j, lit) in restrInfo do
+    let termJ := terms[j]!
+    let valJ := vals[j]!
+    let convJ := convs[j]!
+    let .cons (.atom (.symbol fnJ)) argsSpineJ := termJ
+      | throwError "replayGeneralize: generalized term {repr termJ} is not \
+                    an application (restriction source, frontier)"
+    let some (_, cor, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fnJ.name)
+      | throwError "replayGeneralize: no :TYPE-PRESCRIPTION hypothesis for \
+                    {fnJ.name} justifying restriction {repr lit} (emit \
+                    more, frontier)"
+    let some (fnFormals, _) := cfg.worldVal.defs.get? fnJ
+      | throwError "replayGeneralize: restriction fn {fnJ.name} not in the \
+                    world at {cn.idStr}"
+    -- the corollary must be exactly (pred (fn formals…)) — the shape whose
+    -- lift is `⟦pred⟧ v = t`
+    let appPat : SExpr := .cons (.atom (.symbol fnJ))
+      ((fnFormals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
+    unless cor == .cons (.atom (.symbol p)) (.cons appPat .nil) do
+      throwError "replayGeneralize: tp corollary {repr cor} of {fnJ.name} \
+                  does not justify restriction pred {p.name} at {cn.idStr} \
+                  (frontier)"
+    let argsJ := (argsSpineJ.toList?).getD []
+    unless argsJ.length == fnFormals.length do
+      throwError "replayGeneralize: arity mismatch instantiating the TP of \
+                  {fnJ.name}"
+    let fact := mkAppN tpHyp ((#[env] : Array Expr)
+      ++ (argsJ.map reflectSExpr).toArray ++ #[valJ, convJ])
+    -- the literal's value at env': not (pred (lookup ESi)) — defeq
+    -- not (pred val_i) through the concrete envUpdate lookups
+    let vLit ← ctxValExpr cfg' ctx' lit
+    let convLit ← ctxValProof cfg' ctx' lit
+    let hnilRaw ← mkAppM ``not_of_eq_t #[fact]
+    let nilE := mkConst ``SExpr.nil
+    let hnilTy ← mkEq vLit nilE
+    unless ← isDefEq (← inferType hnilRaw) hnilTy do
+      throwError "replayGeneralize: restriction value for {repr lit} does \
+                  not reduce to the tp fact's subject at {cn.idStr} \
+                  (internal)"
+    let hnil ← mkExpectedTypeHint hnilRaw hnilTy
+    let hLitNil ← mkAppM ``re_val_cast
+      #[cfg.worldExpr, env', reflectSExpr lit, vLit, nilE, convLit, hnil]
+    pChild ← mkAppM ``evtrue_tail_of_if_head_nil #[hLitNil, pChild]
+  let coreTerm := disjoinTerm core
+  -- substN bridge back to this env (over the CORE — the restrictions are
+  -- gone and σ(core) is exactly this clause)
   let hNoLet ← proveByDecide
-    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr childTerm])
+    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr coreTerm])
             (mkConst ``Bool.true))
     "NoLet generalize child"
   let hlenPf ← proveByDecide
@@ -110,7 +183,7 @@ partial def replayGeneralize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
   let hargs ← mkExpectedTypeHint hargsRaw hargsTy
   let pBridge ← mkAppM ``evalOpt_substTerm_substN
-    #[w, env, formalsE, argsE, valsE, reflectSExpr childTerm, hNoLet, hlenPf, hargs]
+    #[w, env, formalsE, argsE, valsE, reflectSExpr coreTerm, hNoLet, hlenPf, hargs]
   mkAppM ``evtrue_of_fuel_eq #[pBridge, pChild]
 
 end ACL2.Replay.Driver
