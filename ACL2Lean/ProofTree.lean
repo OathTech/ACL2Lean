@@ -122,18 +122,38 @@ structure LiteralProof where
   splitReshaped : List String := []
   deriving Repr, Inhabited
 
+/-- One `expand-and-or` firing inside clausification (emit/clausify/expand,
+    S1-enriched): a complete instruction FROM ⇒ TO under polarity `pos`,
+    justified by `runes` (the ttree delta — may be EMPTY when the fired
+    rune was already in the incoming ttree; the def-body bridge keys on
+    the FROM head's unique unfold with TO as the checked target). -/
+structure ClausifyExpansion where
+  fromTerm : SExpr
+  toTerm : SExpr
+  pos : Bool
+  runes : List Rune
+  deriving Repr, Inhabited
+
 /-- The recorded CLAUSIFY checkpoints (preprocess formula → clause set;
     `emit/clausify/*`): the input term (the preprocess chain's final term), the
     neg-clause (its disjunction ≡ the NEGATION of the input), the per-negated-
-    literal split clauses, the conjoined output clause set, and whether
-    `expand-and-or` fired inside (an ens-dependent expansion — a replay
-    frontier until its steps are bridged). -/
+    literal split clauses, the conjoined output clause set, and the ORDERED
+    `expand-and-or` firings (S2 attachment; `expanded` retained as the
+    derived flag for existing consumers). -/
 structure ClausifyInfo where
   input : SExpr
   negClause : List SExpr
   splits : List (SExpr × List SExpr)
   out : List (List SExpr)
   expanded : Bool := false
+  /-- Expansions fired during the WHOLE-FORMULA (bool=nil) pass, in
+      clausify-input1's depth-first order. -/
+  negExpands : List ClausifyExpansion := []
+  /-- Expansions fired during the per-negated-literal (bool=t) passes:
+      `(k, e)` = expansion `e` fired while clausifying the literal of the
+      k-th split (0-based, log order — the expansions PRECEDE their split
+      checkpoint). -/
+  splitExpands : List (Nat × ClausifyExpansion) := []
   deriving Repr, Inhabited
 
 /-- One item in a clause-level proof step's branch tree (ACL2's `:REWRITES`), in
@@ -283,26 +303,32 @@ private def findLiteralResult (events : List TraceEvent) (original : SExpr) : SE
     Out-of-order structure hard-fails. -/
 private def collectClausify (input : SExpr) (evs : List TraceEvent)
     : Except String (ClausifyInfo × List TraceEvent) := do
-  -- phase 1: expand markers before the neg event
-  let rec dropExpands : List TraceEvent → (Bool × List TraceEvent)
-    | .clausifyExpand _ _ _ _ :: rest => let (_, r) := dropExpands rest; (true, r)
-    | rest => (false, rest)
-  let (exp1, evs) := dropExpands evs
+  -- phase 1: whole-formula (bool=nil) expansions before the neg event
+  let rec takeExpands (acc : List ClausifyExpansion)
+      : List TraceEvent → (List ClausifyExpansion × List TraceEvent)
+    | .clausifyExpand fr to pos runes :: rest =>
+        takeExpands (acc ++ [⟨fr, to, pos, runes⟩]) rest
+    | rest => (acc, rest)
+  let (negExpands, evs) := takeExpands [] evs
   let (negClause, evs) ← match evs with
     | .clausifyNeg cl :: rest => pure (cl, rest)
     | ev :: _ => throw s!"collectClausify: expected :CLAUSIFY-NEG, got {repr ev}"
     | [] => throw "collectClausify: events ended before :CLAUSIFY-NEG"
-  -- phase 2: splits (expand markers may interleave), then out
-  let rec go (acc : List (SExpr × List SExpr)) (exp : Bool)
+  -- phase 2: splits, with each split's (bool=t) expansions PRECEDING its
+  -- checkpoint; then out
+  let rec go (acc : List (SExpr × List SExpr))
+      (sx : List (Nat × ClausifyExpansion))
       : List TraceEvent → Except String (ClausifyInfo × List TraceEvent)
-    | .clausifyExpand _ _ _ _ :: rest => go acc true rest
-    | .clausifySplit lit cl :: rest => go (acc ++ [(lit, cl)]) exp rest
+    | .clausifyExpand fr to pos runes :: rest =>
+        go acc (sx ++ [(acc.length, ⟨fr, to, pos, runes⟩)]) rest
+    | .clausifySplit lit cl :: rest => go (acc ++ [(lit, cl)]) sx rest
     | .clausifyOut clauses :: rest =>
         return ({ input, negClause, splits := acc, out := clauses,
-                  expanded := exp }, rest)
+                  expanded := !negExpands.isEmpty || !sx.isEmpty,
+                  negExpands, splitExpands := sx }, rest)
     | ev :: _ => throw s!"collectClausify: expected split/out, got {repr ev}"
     | [] => throw "collectClausify: events ended before :CLAUSIFY-OUT"
-  go [] exp1 evs
+  go [] [] evs
 
 /-- Parse a clause-level event list (ACL2's `:REWRITES`) into its branch tree, in
     log order, returning the items and the events after this branch. A
