@@ -856,6 +856,214 @@ theorem clausifyAllFalse_sound (w : World) (env : Env)
     exact neg_leaf_false_sound w env hvars hopq hns hwf _ hl
       (hnil _ (hlist ▸ List.mem_singleton_self _))
 
+/-- Transport a `ClausifyGoal` back through a lift-equality: the expanded
+    term t′ and the original agree on their dpLift value, so the goal
+    proved for t′ holds for the original (truthiness and nil-convergence
+    are value-determined). -/
+theorem ClausifyGoal_of_liftEq (w : World) (env : Env)
+    {vars : List (Symbol × SExpr)} {opq : List (SExpr × SExpr)}
+    (hvars : ∀ q ∈ vars,
+      ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol q.1)) = some q.2)
+    (hopq : ∀ p ∈ opq, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
+    (hns : dpNoShadow w)
+    {a b : SExpr} (heq : dpLiftF vars opq b = dpLiftF vars opq a)
+    (hla : (dpLiftF vars opq a).isSome) (pos : Bool)
+    (h : ClausifyGoal w env b pos) : ClausifyGoal w env a pos := by
+  have sound := dpLiftF_sound w env vars opq hvars hopq hns
+  obtain ⟨v, hva⟩ := Option.isSome_iff_exists.mp hla
+  have hvb : dpLiftF vars opq b = some v := heq.trans hva
+  have ca := sound a v hva
+  have cb := sound b v hvb
+  cases pos with
+  | true =>
+    have hne : v ≠ SExpr.nil := ne_nil_of_evtrue_conv h cb
+    exact evtrue_of_conv_ne_nil ca hne
+  | false =>
+    have hv : v = SExpr.nil := val_unique cb h
+    show ∃ N, ∀ f ≥ N, evalOpt f w env a = some SExpr.nil
+    exact hv ▸ ca
+
+/-- The reduction's semantic backbone: a successful expansion walk leaves
+    a SUFFIX of the instruction list and PRESERVES the dpLift value, given
+    the per-firing lift-equalities (the registry facts). -/
+theorem expandTerm_liftEq {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) :
+    ∀ fuel exps t pos t' l,
+      (∀ e ∈ exps, dpLiftF vars opq e.1 = dpLiftF vars opq e.2.1) →
+      expandTerm fuel exps t pos = some (t', l) →
+      l <:+ exps ∧ dpLiftF vars opq t' = dpLiftF vars opq t := by
+  intro fuel exps t pos
+  refine expandTerm.induct
+    (motive1 := fun fuel exps t pos => ∀ t' l,
+      (∀ e ∈ exps, dpLiftF vars opq e.1 = dpLiftF vars opq e.2.1) →
+      expandTerm.expandGo fuel exps t pos = some (t', l) →
+      l <:+ exps ∧ dpLiftF vars opq t' = dpLiftF vars opq t)
+    (motive2 := fun fuel exps t pos => ∀ t' l,
+      (∀ e ∈ exps, dpLiftF vars opq e.1 = dpLiftF vars opq e.2.1) →
+      expandTerm fuel exps t pos = some (t', l) →
+      l <:+ exps ∧ dpLiftF vars opq t' = dpLiftF vars opq t)
+    ?guard ?arm1 ?arm2 ?leafT ?arm4 ?arm5 ?leafF ?leafName ?leafShape
+    ?zero ?hit ?miss ?nilc fuel exps t pos
+  case guard =>
+    intro fuel exps t pos hg t' l _ h
+    simp only [dite_eq_ite] at hg
+    rw [expandTerm.expandGo.eq_def, if_pos hg] at h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    exact ⟨List.suffix_refl _, rfl⟩
+  case arm1 =>
+    intro fuel exps ifS t1 t2 t3 hifs ht3 houter ih1 ih2 t' l hexp h
+    simp only [dite_eq_ite, if_true, Bool.not_eq_true] at houter
+    rw [expandTerm.expandGo.eq_def] at h
+    simp only [houter, hifs, ht3, if_true, if_false,
+      Bool.false_eq_true] at h
+    obtain ⟨⟨t1', e1⟩, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨⟨t2', e2⟩, h2, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    obtain ⟨hs1, hl1⟩ := ih1 t1' e1 hexp h1
+    obtain ⟨hs2, hl2⟩ := ih2 e1 t2' e2
+      (fun e he => hexp e (hs1.subset he)) h2
+    refine ⟨hs2.trans hs1, ?_⟩
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
+    · subst hfull
+      rw [dpLiftF_ifT hwf t1' t2' t3, dpLiftF_ifT hwf t1 t2 t3, hl1, hl2]
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull,
+          dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull]
+  case arm2 =>
+    intro fuel exps ifS t1 t2 t3 hifs hnt3 ht2 houter ih1 ih2 t' l hexp h
+    simp only [dite_eq_ite, if_true, Bool.not_eq_true] at houter
+    rw [expandTerm.expandGo.eq_def] at h
+    simp only [houter, hifs, hnt3, ht2, if_true, if_false,
+      Bool.false_eq_true] at h
+    obtain ⟨⟨t1', e1⟩, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨⟨t3', e2⟩, h2, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    obtain ⟨hs1, hl1⟩ := ih1 t1' e1 hexp h1
+    obtain ⟨hs2, hl2⟩ := ih2 e1 t3' e2
+      (fun e he => hexp e (hs1.subset he)) h2
+    refine ⟨hs2.trans hs1, ?_⟩
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
+    · subst hfull
+      rw [dpLiftF_ifT hwf t1' t2 t3', dpLiftF_ifT hwf t1 t2 t3, hl1, hl2]
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull,
+          dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull]
+  case leafT =>
+    intro fuel exps ifS t1 t2 t3 hifs hnt3 hnt2 houter t' l _ h
+    simp only [dite_eq_ite, if_true, Bool.not_eq_true] at houter
+    rw [expandTerm.expandGo.eq_def] at h
+    simp only [houter, hifs, hnt3, hnt2, if_true, if_false,
+      Bool.false_eq_true] at h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    exact ⟨List.suffix_refl _, rfl⟩
+  case arm4 =>
+    intro fuel exps pos ifS t1 t2 t3 hifs hnpos ht3 houter ih1 ih2 t' l hexp h
+    obtain rfl : pos = false := by
+      cases pos
+      · rfl
+      · exact absurd rfl hnpos
+    simp only [dite_eq_ite, Bool.false_eq_true, if_false, Bool.not_eq_true]
+      at houter
+    rw [expandTerm.expandGo.eq_def] at h
+    simp only [houter, hifs, ht3, if_true, if_false,
+      Bool.false_eq_true] at h
+    obtain ⟨⟨t1', e1⟩, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨⟨t2', e2⟩, h2, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    obtain ⟨hs1, hl1⟩ := ih1 t1' e1 hexp h1
+    obtain ⟨hs2, hl2⟩ := ih2 e1 t2' e2
+      (fun e he => hexp e (hs1.subset he)) h2
+    refine ⟨hs2.trans hs1, ?_⟩
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
+    · subst hfull
+      rw [dpLiftF_ifT hwf t1' t2' t3, dpLiftF_ifT hwf t1 t2 t3, hl1, hl2]
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull,
+          dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull]
+  case arm5 =>
+    intro fuel exps pos ifS t1 t2 t3 hifs hnpos hnt3 ht2 houter ih1 ih2
+      t' l hexp h
+    obtain rfl : pos = false := by
+      cases pos
+      · rfl
+      · exact absurd rfl hnpos
+    simp only [dite_eq_ite, Bool.false_eq_true, if_false, Bool.not_eq_true]
+      at houter
+    rw [expandTerm.expandGo.eq_def] at h
+    simp only [houter, hifs, hnt3, ht2, if_true, if_false,
+      Bool.false_eq_true] at h
+    obtain ⟨⟨t1', e1⟩, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨⟨t3', e2⟩, h2, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    obtain ⟨hs1, hl1⟩ := ih1 t1' e1 hexp h1
+    obtain ⟨hs2, hl2⟩ := ih2 e1 t3' e2
+      (fun e he => hexp e (hs1.subset he)) h2
+    refine ⟨hs2.trans hs1, ?_⟩
+    by_cases hfull : ifS = ({ name := "IF" } : Symbol)
+    · subst hfull
+      rw [dpLiftF_ifT hwf t1' t2 t3', dpLiftF_ifT hwf t1 t2 t3, hl1, hl2]
+    · rw [dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull,
+          dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull]
+  case leafF =>
+    intro fuel exps pos ifS t1 t2 t3 hifs hnpos hnt3 hnt2 houter t' l _ h
+    obtain rfl : pos = false := by
+      cases pos
+      · rfl
+      · exact absurd rfl hnpos
+    simp only [dite_eq_ite, Bool.false_eq_true, if_false, Bool.not_eq_true]
+      at houter
+    rw [expandTerm.expandGo.eq_def] at h
+    simp only [houter, hifs, hnt3, hnt2, if_true, if_false,
+      Bool.false_eq_true] at h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    exact ⟨List.suffix_refl _, rfl⟩
+  case leafName =>
+    intro fuel exps pos ifS t1 t2 t3 hifs houter t' l _ h
+    simp only [dite_eq_ite, Bool.not_eq_true] at houter
+    rw [expandTerm.expandGo.eq_def] at h
+    simp only [houter, hifs, if_false, Bool.false_eq_true] at h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    exact ⟨List.suffix_refl _, rfl⟩
+  case leafShape =>
+    intro fuel exps t pos hg hshape t' l _ h
+    simp only [dite_eq_ite, Bool.not_eq_true] at hg
+    rw [expandTerm.expandGo.eq_def] at h
+    simp only [hg, if_false, Bool.false_eq_true] at h
+    match t, hshape, h with
+    | .nil, _, h =>
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+      exact ⟨List.suffix_refl _, rfl⟩
+    | .atom a, _, h =>
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+      exact ⟨List.suffix_refl _, rfl⟩
+    | .cons a b, hshape, h =>
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+      exact ⟨List.suffix_refl _, rfl⟩
+  case zero =>
+    intro exps t pos t' l _ h
+    rw [expandTerm.eq_def] at h
+    cases h
+  case hit =>
+    intro t pos fuel fr dst ep rest hg ih t' l hexp h
+    rw [expandTerm.eq_def] at h
+    simp only [hg, if_true] at h
+    obtain ⟨hs, hl⟩ := ih t' l
+      (fun e he => hexp e (List.mem_cons_of_mem _ he)) h
+    have hg' := hg
+    simp only [Bool.and_eq_true] at hg'
+    obtain ⟨hfr, _⟩ := hg' 
+    refine ⟨hs.trans (List.suffix_cons _ _), ?_⟩
+    have hhead := hexp (fr, dst, ep) List.mem_cons_self
+    rw [hl]
+    rw [show dst = ((fr, dst, ep) : CExp).2.1 from rfl, ← hhead]
+    rw [eq_of_beq hfr]
+  case miss =>
+    intro t pos fuel fr dst ep rest hg ih t' l hexp h
+    rw [expandTerm.eq_def] at h
+    simp only [hg, if_false, Bool.false_eq_true] at h
+    exact ih t' l hexp h
+  case nilc =>
+    intro t pos fuel ih t' l hexp h
+    rw [expandTerm.eq_def] at h
+    exact ih t' l hexp h
+
 /-- G3 Fragment B, THE BRIDGE LEMMA (once-proved; replaces the per-leaf
     `peelClause`/`walkPosT`/`val*` walkers): a true output clause gives the
     clausify input's truth (pos) / falsity (neg). World-parametric (L3);
