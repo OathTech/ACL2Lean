@@ -250,7 +250,8 @@ Ordered by project-wide leverage — general machinery over special-case walls:
    `conv_and_conds`, `mirror_peel_guard`, `booleanp_cond`) — anti-overfit
    gauge held: entries 10–16 ≈40 lines each vs entry 9's ≈130. Open TP
    frontiers (honest, named): builtin-headed return paths (tp:my-len /
-   tp:len2 need natp-through-+ value lemmas), evenlen's cddr decrease;
+   tp:len2 need natp-through-+ value lemmas) — evenlen's cddr decrease
+   CLOSED by the #37 decrease-prover rework (2026-07-18);
    pool-subsumption subsumer still replayed twice (scale residual).
 2. **Proof-term scale — DONE within the lifter sprint** (letBindFVar
    sharing, 14–36×; residual: subsumer subtree still replayed twice in
@@ -972,13 +973,20 @@ obligation is stated precisely in its conditional proof's type:
 ### Induction-generality arc follow-ups (pre-merge audit 2026-07-18 —
 ### full record in docs/notes/2026-07-18_induction-generality-closeout.md)
 
-- [ ] **Decrease discharge via the #37 admission-decrease prover** (audit
-      finding 2, TOP of this queue): the shipped discharge is 3 hardwired
-      fragments (cdr/car, exact swap) — the design's explicitly-REJECTED
-      per-shape tiers; design I4 specified the general #37 prover. Routing
-      through it restores design conformance and should unblock the 7
-      decrease-fragment rows (double-cdr, `(EVENS X)`, sum-right — all
-      emitted-and-covered, Count lemmas exist).
+- [x] **Decrease discharge via the #37 admission-decrease prover — DONE
+      (2026-07-18, branch mdd/37-decrease-prover, audited):** general
+      `dischargeDecrease` (emitted-clause match + ruler verification +
+      Count walk) replaced the J2/J4 fragments at all three call sites;
+      EVENS/ODDS sim-lemma registry (CountSim.lean, Route A — models
+      proved, trusted core untouched). HONEST OUTCOME: all 7 decrease rows
+      discharge their decreases and moved to downstream frontiers (none
+      REPLAYED yet — the 4→5→3 follow-up arc targets that); the one
+      coverage flip is EVENLEN-BOOLEANP conditional→unconditional.
+      Follow-ups: (a) S4 registry path gets its end-to-end kernel-checked
+      consumer when an msort row replays (4→5→3 arc); (b) the J4 SWAP
+      branch has NO corpus consumer (LEN-INTERLEAVE fails upstream at the
+      clausify bridge) — revalidate when that frontier falls; (c) NUMERATOR
+      trusted-core growth via the H3 pin-first process (2 rows).
 - [ ] **Positive type-set-verdict marker (the proper J6b).** The
       `typeSetDerived` tag is classification by ELIMINATION (no positive
       marker in the log — a linker bug and a genuine type-set verdict are

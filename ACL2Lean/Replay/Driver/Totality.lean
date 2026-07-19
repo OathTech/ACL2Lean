@@ -187,6 +187,11 @@ def dischargeDecrease (just : Justification)
     (sFormals : List Symbol) (sArgs : List SExpr)
     (kit : DecreaseKit) : MetaM Expr := do
   let facts := kit.facts
+  -- ASSUMPTION (audit R1-3): `substTerm` is binder-blind (treats every
+  -- application uniformly, opaque only to QUOTE). Sound here because ACL2
+  -- measures/rulers in scope are binder-free ((acl2-count _) / sums /
+  -- recognizer-and-equality rulers); a LAMBDA/LET-containing measure would
+  -- mis-rename and then fail the wanted-match (frontier), never mis-prove.
   let rn (t : SExpr) : SExpr := ACL2.Replay.substTerm rnFormals rnArgs t
   let sub (t : SExpr) : SExpr := ACL2.Replay.substTerm sFormals sArgs t
   let measure' := rn just.measure
@@ -196,8 +201,12 @@ def dischargeDecrease (just : Justification)
         measure {repr measure'} (identity — no decrease to prove)"
   let wanted : SExpr :=
     .cons (.atom (.symbol { name := "O<" })) (.cons sμ (.cons measure' .nil))
-  let matching := (just.terminationClauses.filterMap
-        (fun c => c.toList?.map (·.map rn))).filter (·.contains wanted)
+  let renamed ← just.terminationClauses.mapM fun c =>
+    match c.toList? with
+    | some lits => pure (lits.map rn)
+    | none => throwError "dischargeDecrease: malformed emitted termination \
+        clause (not a list): {repr c}"
+  let matching := renamed.filter (·.contains wanted)
   if matching.isEmpty then
     throwFrontier m!"dischargeDecrease: no emitted decrease obligation \
         matching {repr wanted} (emission gap or unsupported substitution)"

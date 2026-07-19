@@ -154,6 +154,33 @@ frontier movement only — no regressions on the other 72 rows); diff-test
   decrease discharges — its remaining failure is an unrelated IH-solidify
   frontier).
 
+## Pre-merge audit (2026-07-19, 3 focused Opus reviewers + orchestrator
+## spot-checks — plan MDD-approved)
+
+ZERO soundness defects across all three dimensions. Key confirmations:
+the Count walk always grounds in real in-scope facts and the `isDefEq`
+casts make matching-stage mistakes unable to mint false proofs (R1); the
+complementary-pair merged-IH rule verified against the real how-many
+clauses (R1); body constants byte-match the real ground-zero defuns and
+the checkShape→defGetFact chain is fail-closed (R2); every old-code
+behavior preserved or made stricter, golden delta re-derived as exactly
+one improvement + seven lateral moves (R3).
+
+Findings dispositioned in-branch:
+- R1-2 (VERBATIM, fixed): malformed termination clauses were silently
+  filterMap-dropped — now hard-fail, matching `checkCoveringClause`.
+- R1-3 (fixed as documented assumption): `substTerm` binder-blindness
+  noted at the rn/sub sites; binder-containing measures mis-rename into a
+  failed match (frontier), never a mis-proof.
+- R1-1/R2-O1 (accepted as known-WIP): the S4 registry has runtime
+  evidence (the decrease frontiers vanished; failures moved downstream)
+  but no end-to-end kernel-checked consumer until an msort row replays —
+  exactly what the 4→5→3 arc delivers. Recorded in TODO.
+- R3-F1 (accepted, recorded): the J4 SWAP branch has NO corpus consumer
+  (LEN-INTERLEAVE fails upstream at the clausify bridge — verified by
+  focused replay, pre-existing); revalidate when that frontier falls.
+- R3 stale-docs: TODO.md decrease item + evenlen line updated.
+
 ## Follow-up frontier classes exposed (out of #37 scope, for the backlog)
 
 MDD-ratified sequencing (2026-07-18) for the next arc, AFTER this branch
