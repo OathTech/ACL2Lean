@@ -132,6 +132,44 @@ frontier movement only — no regressions on the other 72 rows); diff-test
   IH-solidify frontier (its sum-right decrease DISCHARGES), the 3
   `(EVENS X)` rows to the S4 registry frontier. No other row changed.
   Gates: ci green, diff-test 389/0, zero warnings.
-- S4: registry (EVENS/ODDS) + bridge; msort rows land.
-- S5: sum measures; MERGE2 row lands. Golden updated + reviewed at each
-  landing.
+- S4 — DONE (Route A, MDD-ratified in-session: prove the Lean models
+  correct rather than grow the trusted core): `Replay/CountSim.lean` —
+  `evens_body_conv` (strong induction on the argument's count, pure
+  intro-direction over the conv kit; `conv_unique`/`conv_var`/`conv_quote`/
+  `conv_if_false` added as kit completions), `evens_sim`/`odds_sim`
+  (axioms: propext, Classical.choice, Quot.sound — no sorryAx).
+  `DecreaseKit` structure (cfg/envE/facts/valOf/convOf/conspTrueOf/
+  endpFalseOf) replaces the loose callbacks; registry branch in `chainLt`
+  for EVENS/ODDS: world shape byte-checked against the proved constants,
+  `defGetFact`+`proveNoShadow` kernel-decide the lemma's world hypotheses,
+  sim equality casts the model-level `acl2Count_evens/odds_lt`.
+  Sweep outcome (golden updated, reviewed — ONLY the 3 msort rows moved):
+  all 3 `(EVENS X)` decreases now discharge (incl. the ODDS sim on the
+  second IH); the rows surface NEW frontier classes past the induction
+  (clause-level `definition:ODDS` step items ×2; preprocess `:PATH`
+  ambiguity for a twice-occurring lhs). No theorem newly replays in msort
+  — honest outcome: #37's decrease wall is fully gone, the next walls are
+  precise recipe/instrumentation gaps.
+- S5 — SUBSUMED INTO S2 (componentwise sum + swap landed there; MERGE2's
+  decrease discharges — its remaining failure is an unrelated IH-solidify
+  frontier).
+
+## Follow-up frontier classes exposed (out of #37 scope, for the backlog)
+
+MDD-ratified sequencing (2026-07-18) for the next arc, AFTER this branch
+completes the merge protocol (pre-merge audit required): **4 → 5 → 3**
+(clause-level definition step items, then preprocess `:PATH` emission,
+then the IH-solidify instantiation — the path that flips msort rows to
+REPLAYED). 1 (NUMERATOR, trusted-core growth via the H3 pin-first
+process) and 2 (folds into the queued J6b positive type-set marker)
+remain unsequenced backlog.
+1. `proveConv`: unary NUMERATOR not in the builtin registry
+   (ACL2-COUNT-EVENS-{STRONG,WEAK}).
+2. `DEFAULT-CDR` marker-relieved hyp needs a falsity fact
+   (HOW-MANY-EVENS-AND-ODDS).
+3. IH-solidify: instantiated-vs-source equation mismatch on `(CAR Y)` vs
+   `E` (HOW-MANY-MERGE2).
+4. Clause-level `definition` step items in the spine
+   ({ORDEREDP,TRUE-LISTP}-MSORT).
+5. Preprocess `:PATH` emission for ambiguous lhs positions
+   (HOW-MANY-MSORT).

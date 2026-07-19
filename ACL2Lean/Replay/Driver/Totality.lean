@@ -5,6 +5,7 @@
   Totality from admission (#37): the decrease-clause prover.
 -/
 import ACL2Lean.Replay.Driver.Discharge
+import ACL2Lean.Replay.CountSim
 
 namespace ACL2.Replay.Driver
 
@@ -24,6 +25,38 @@ frontier and the `total:` hypothesis stays in the mirror's type (D6). -/
 /-- Is every head of `t` walk-liftable (vars/quote/dp-primitives only)? -/
 def totLiftable (t : SExpr) : Bool := (collectOpaques t).isEmpty
 
+/-- `w.defs.get? fn = some (formals, body)` by kernel decision on the
+    reflected world (hoisted from `totWalk.totDefFact`; the S4 registry
+    needs it ahead of the walk). -/
+def defGetFact (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
+    (body : SExpr) : MetaM Expr := do
+  let defsE ← mkAppM ``World.defs #[cfg.worldExpr]
+  let lhs ← mkAppM ``DefMap.get? #[defsE, reflectSymbol fn]
+  let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
+  let pairE ← mkAppM ``Prod.mk #[formalsE, reflectSExpr body]
+  let rhs ← mkAppM ``Option.some #[pairE]
+  mkDecideProof (← mkEq lhs rhs)
+
+/-- The value/proof plumbing a decrease discharge runs against — provided
+    by each caller (admission walk: `dpVal*`; induction: `ctxVal*` + the
+    case-fact inversions). All value `Expr`s must come from the SAME
+    rendering so composed lemma applications unify definitionally. -/
+structure DecreaseKit where
+  cfg : ReplayConfig
+  /-- The ambient env `Expr` the values/convergences are stated over. -/
+  envE : Expr
+  /-- In-scope branch facts `(test term, positive?)` for ruler verification. -/
+  facts : List (SExpr × Bool)
+  /-- Value `Expr` of an actual-level term. -/
+  valOf : SExpr → MetaM Expr
+  /-- Convergence proof `∃ N, ∀ f ≥ N, evalOpt f w envE t = some (valOf t)`. -/
+  convOf : SExpr → MetaM Expr
+  /-- `toBool (consp (valOf b)) = true` for a base term, from in-scope facts. -/
+  conspTrueOf : SExpr → MetaM Expr
+  /-- `toBool (endp (valOf b)) = false` for a term with a refuted
+      `(ENDP b)` ruler fact in scope. -/
+  endpFalseOf : SExpr → MetaM Expr
+
 /-- View `(ACL2-COUNT u)` → `u`. -/
 def countOfView (t : SExpr) : Option SExpr :=
   match t with
@@ -34,15 +67,15 @@ def countOfView (t : SExpr) : Option SExpr :=
 /-- Count-walk ≤ leg: `(valOf t).acl2Count ≤ (valOf base).acl2Count` for `t`
     a (possibly empty) cdr/car chain over `base` — unconditional per-step
     `acl2Count_cdr_le`/`car_le` composed by transitivity. -/
-partial def chainLe (valOf : SExpr → MetaM Expr) (base t : SExpr) :
+partial def chainLe (kit : DecreaseKit) (base t : SExpr) :
     MetaM Expr := do
   if t == base then
-    mkAppM ``Nat.le_refl #[← mkAppM ``SExpr.acl2Count #[← valOf base]]
+    mkAppM ``Nat.le_refl #[← mkAppM ``SExpr.acl2Count #[← kit.valOf base]]
   else match t with
   | .cons (.atom (.symbol d)) (.cons u .nil) =>
     if d.name == "CDR" || d.name == "CAR" then
-      let inner ← chainLe valOf base u
-      let vu ← valOf u
+      let inner ← chainLe kit base u
+      let vu ← kit.valOf u
       let hLe ← if d.name == "CDR" then mkAppM ``ACL2.acl2Count_cdr_le #[vu]
         else mkAppM ``ACL2.acl2Count_car_le #[vu]
       mkAppM ``Nat.le_trans #[hLe, inner]
@@ -56,23 +89,69 @@ partial def chainLe (valOf : SExpr → MetaM Expr) (base t : SExpr) :
     for `t` a NON-EMPTY cdr/car chain over `base` — the innermost destructor
     application to `base` is the ONE strict step (from `base`'s consp fact);
     every outer layer composes by `≤`. -/
-partial def chainLt (valOf : SExpr → MetaM Expr)
-    (conspProofOf : SExpr → MetaM Expr) (base t : SExpr) : MetaM Expr := do
+partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
   match t with
   | .cons (.atom (.symbol d)) (.cons u .nil) =>
     if d.name == "CDR" || d.name == "CAR" then
       if u == base then
-        let hConsp ← conspProofOf base
+        let hConsp ← kit.conspTrueOf base
         if d.name == "CDR" then
           mkAppM ``ACL2.acl2Count_cdr_lt_of_consp #[hConsp]
         else
           mkAppM ``ACL2.acl2Count_car_lt_of_consp #[hConsp]
       else
-        let inner ← chainLt valOf conspProofOf base u
-        let vu ← valOf u
+        let inner ← chainLt kit base u
+        let vu ← kit.valOf u
         let hLe ← if d.name == "CDR" then mkAppM ``ACL2.acl2Count_cdr_le #[vu]
           else mkAppM ``ACL2.acl2Count_car_le #[vu]
         mkAppM ``Nat.lt_of_le_of_lt #[hLe, inner]
+    else if d.name == "EVENS" || d.name == "ODDS" then
+      -- S4 REGISTRY (#37 plan): measure fns with PROVED Lean models
+      -- (`CountSim`): sim lemma bridges the pinned value to the model,
+      -- Count lemma gives the model-level strict decrease. Only direct
+      -- application to the measured base; the world's shape must be
+      -- byte-equal to the shape the sim lemma was proved against.
+      unless u == base do
+        throwFrontier m!"dischargeDecrease: registry fn {d.name} applied \
+            to {repr u} ≠ the measured base {repr base} (frontier)"
+      let checkShape (fn : Symbol) (expBody : SExpr) : MetaM Unit := do
+        match kit.cfg.worldVal.defs.get? fn with
+        | some (formals, body) =>
+          unless formals == [simL] && body == expBody do
+            throwFrontier m!"dischargeDecrease: the world's {fn.name} \
+                differs from the proved sim shape (frontier)"
+        | none =>
+          throwFrontier m!"dischargeDecrease: registry fn {fn.name} not \
+              in the world (frontier)"
+      checkShape evensSym evensBody
+      let hdefE ← defGetFact kit.cfg evensSym [simL] evensBody
+      let hnC ← proveNoShadow kit.cfg { name := "CONSP" }
+      let hnCar ← proveNoShadow kit.cfg { name := "CAR" }
+      let hnCdr ← proveNoShadow kit.cfg { name := "CDR" }
+      let hnCons ← proveNoShadow kit.cfg { name := "CONS" }
+      let vT ← kit.valOf t
+      let hvT ← kit.convOf t
+      let xvE ← kit.valOf base
+      let hxv ← kit.convOf base
+      let uE := reflectSExpr u
+      let hSim ←
+        if d.name == "EVENS" then
+          mkAppM ``evens_sim
+            #[kit.cfg.worldExpr, kit.envE, hdefE, hnC, hnCar, hnCdr, hnCons,
+              uE, xvE, vT, hxv, hvT]
+        else do
+          checkShape oddsSym oddsBody
+          let hdefO ← defGetFact kit.cfg oddsSym [simL] oddsBody
+          mkAppM ``odds_sim
+            #[kit.cfg.worldExpr, kit.envE, hdefE, hdefO, hnC, hnCar, hnCdr,
+              hnCons, uE, xvE, vT, hxv, hvT]
+      let h1 ← kit.endpFalseOf base
+      let h2 ← kit.endpFalseOf
+        (.cons (.atom (.symbol { name := "CDR" })) (.cons base .nil))
+      let hCnt ←
+        if d.name == "EVENS" then mkAppM ``ACL2.acl2Count_evens_lt #[h1, h2]
+        else mkAppM ``ACL2.acl2Count_odds_lt #[h1, h2]
+      mkAppM ``count_lt_of_eq #[hSim, hCnt]
     else
       throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
           the destructor-chain walk over {repr base} (frontier: candidate \
@@ -106,9 +185,8 @@ partial def chainLt (valOf : SExpr → MetaM Expr)
 def dischargeDecrease (just : Justification)
     (rnFormals : List Symbol) (rnArgs : List SExpr)
     (sFormals : List Symbol) (sArgs : List SExpr)
-    (facts : List (SExpr × Bool))
-    (valOf : SExpr → MetaM Expr)
-    (conspProofOf : SExpr → MetaM Expr) : MetaM Expr := do
+    (kit : DecreaseKit) : MetaM Expr := do
+  let facts := kit.facts
   let rn (t : SExpr) : SExpr := ACL2.Replay.substTerm rnFormals rnArgs t
   let sub (t : SExpr) : SExpr := ACL2.Replay.substTerm sFormals sArgs t
   let measure' := rn just.measure
@@ -152,7 +230,7 @@ def dischargeDecrease (just : Justification)
           clause: {repr uncov}; obligations {repr matching})"
   -- 3. the Count walk, by measure shape
   if let some base := countOfView measure' then
-    return ← chainLt valOf conspProofOf base (sub base)
+    return ← chainLt kit base (sub base)
   match measure' with
   | .cons (.atom (.symbol plus)) (.cons cx (.cons cy .nil)) =>
     unless plus.name == "BINARY-+" do
@@ -169,21 +247,21 @@ def dischargeDecrease (just : Justification)
     let cdrOf (u : SExpr) : SExpr :=
       .cons (.atom (.symbol { name := "CDR" })) (.cons u .nil)
     if sx == y && sy == cdrOf x then
-      let hConsp ← conspProofOf x
+      let hConsp ← kit.conspTrueOf x
       return ← mkAppOptM ``ACL2.acl2Count_swap_cdr_sum_lt_consp
-        #[none, some (← valOf y), some hConsp]
+        #[none, some (← kit.valOf y), some hConsp]
     -- componentwise: each component ≤ its original, at least one strict
     let leg (b t : SExpr) : MetaM (Bool × Expr) := do
-      if t == b then pure (false, ← chainLe valOf b t)
+      if t == b then pure (false, ← chainLe kit b t)
       else
-        try pure (true, ← chainLt valOf conspProofOf b t)
+        try pure (true, ← chainLt kit b t)
         catch e =>
-          if isFrontierErr e then pure (false, ← chainLe valOf b t)
+          if isFrontierErr e then pure (false, ← chainLe kit b t)
           else throw e
     let (strictX, px) ← leg x sx
     let (strictY, py) ← leg y sy
     if strictX then
-      mkAppM ``add_lt_add_of_lt_of_le #[px, ← chainLe valOf y sy]
+      mkAppM ``add_lt_add_of_lt_of_le #[px, ← chainLe kit y sy]
     else if strictY then
       mkAppM ``add_lt_add_of_le_of_lt #[px, py]
     else
@@ -293,18 +371,29 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                 liftable {repr t} (frontier)"
           unless vals.any (fun (f, _, _) => f == measuredFormal) do
             throwFrontier m!"proveTotality: measured formal has no bound value"
-          let dec ← dischargeDecrease just
-            formals (formals.map (fun f => .atom (.symbol f)))
-            formals args
-            (facts.map (fun (f, pos, _) => (f, pos)))
-            (fun u => dpValExpr [] (dpValProof.dpVarVal envE varP) u)
-            (fun b => do
+          let kit : DecreaseKit := {
+            cfg := cfg, envE := envE
+            facts := facts.map (fun (f, pos, _) => (f, pos))
+            valOf := fun u => dpValExpr [] (dpValProof.dpVarVal envE varP) u
+            convOf := fun u => dpValProof cfg envE [] [] varP u
+            conspTrueOf := fun b => do
               let conspTest : SExpr :=
                 .cons (.atom (.symbol { name := "CONSP" })) (.cons b .nil)
               match facts.find? (fun (f, pos, _) => f == conspTest && pos) with
               | some (_, _, pf) => pure pf
               | none => throwFrontier m!"dischargeDecrease: decrease at \
-                  {repr b} needs an in-scope (consp {repr b}) fact (frontier)")
+                  {repr b} needs an in-scope (consp {repr b}) fact (frontier)"
+            endpFalseOf := fun b => do
+              let endpTest : SExpr :=
+                .cons (.atom (.symbol { name := "ENDP" })) (.cons b .nil)
+              match facts.find? (fun (f, pos, _) => f == endpTest && !pos) with
+              | some (_, _, pf) => pure pf
+              | none => throwFrontier m!"dischargeDecrease: registry \
+                  decrease at {repr b} needs a refuted (endp {repr b}) \
+                  fact (frontier)" }
+          let dec ← dischargeDecrease just
+            formals (formals.map (fun f => .atom (.symbol f)))
+            formals args kit
           let hNs ← proveNotSpecial fs
           let hDef ← totDefFact cfg fs formals body
           match formals, args with

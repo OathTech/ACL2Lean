@@ -263,15 +263,37 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
               | throwError "replayInduction: no emitted justification for \
                   scheme fn {schemeFn.name} (emission gap — frontier)"
             let ctxNow := ctxD
-            let hLtRaw ← dischargeDecrease just
-              schemeFormals schemeActuals
-              (alist.map (·.1)) (alist.map (·.2))
-              (facts.map (fun f => (f.test, f.sign)))
-              (fun u => ctxValExpr cfg' ctxNow u)
-              (fun b => match b with
+            let kit : DecreaseKit := {
+              cfg := cfg', envE := eV
+              facts := facts.map (fun f => (f.test, f.sign))
+              valOf := fun u => ctxValExpr cfg' ctxNow u
+              convOf := fun u => ctxValProof cfg' ctxNow u
+              conspTrueOf := fun b => match b with
                 | .atom (.symbol mv) => conspToBoolOf mv
                 | _ => throwFrontier m!"replayInduction: consp of non-var \
-                    measured base {repr b} (frontier)")
+                    measured base {repr b} (frontier)"
+              endpFalseOf := fun b => do
+                -- a refuted (ENDP b) ruling fact, normalized to
+                -- `toBool (endp (val b)) = false` (the falsy TestFact
+                -- carries `endp (val b) = nil`)
+                let endpT : SExpr :=
+                  .cons (.atom (.symbol { name := "ENDP" })) (.cons b .nil)
+                match facts.find? (fun f => f.test == endpT && !f.sign) with
+                | some cf => do
+                  let vB ← ctxValExpr cfg' ctxNow b
+                  let eqTy ← mkEq (mkApp (mkConst ``Logic.endp) vB)
+                    (mkConst ``SExpr.nil)
+                  unless ← isDefEq (← inferType cf.signE) eqTy do
+                    throwError "replayInduction: the falsy (endp {repr b}) \
+                        fact's value is not Logic.endp of the term's value"
+                  let hCast ← mkExpectedTypeHint cf.signE eqTy
+                  mkAppM ``toBool_false_of_eq_nil #[hCast]
+                | none => throwFrontier m!"replayInduction: registry \
+                    decrease needs a refuted (ENDP {repr b}) ruling fact \
+                    in scope (frontier)" }
+            let hLtRaw ← dischargeDecrease just
+              schemeFormals schemeActuals
+              (alist.map (·.1)) (alist.map (·.2)) kit
             -- e' and the cast of the decrease to μ e' < μ e (defeq through
             -- the concrete envUpdate lookups)
             let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
