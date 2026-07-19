@@ -264,6 +264,101 @@ construction entirely; its premises are the Fragment-A bundle, the input's
 lift fact (by reduction), and the opaque-key well-formedness (by kernel
 decision). -/
 
+/-- The CHECKED expansion walk for one clausify pass (expand-and-or plan
+    S3): every recorded firing must be REGISTRY-SHAPED (NOT/ENDP/ATOM
+    def-body expansions with the exact emitted if-form target — anything
+    else is the S4 lemma-arm frontier) and fully consumed by `expandTerm`.
+    Returns the expanded term t′ and the PROOF
+    `dpLiftF vars opq t′ = dpLiftF vars opq input` (via the per-builtin
+    registry lemmas + `expandTerm_liftEq`, with the walk itself
+    kernel-decided). `none` expansions short-circuit to (input, rfl-free). -/
+def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
+    (exps : List ClausifyExpansion) (input : SExpr) (pos : Bool) :
+    MetaM (SExpr × Option Expr) := do
+  if exps.isEmpty then return (input, none)
+  -- registry shape validation (value-level, fail-closed)
+  let mkIfT (c : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "IF" }))
+      (.cons c (.cons quoteNil (.cons quoteT .nil)))
+  let mkConspT (x : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "CONSP" })) (.cons x .nil)
+  for e in exps do
+    match e.fromTerm with
+    | .cons (.atom (.symbol h)) (.cons x .nil) =>
+      if h.name == "NOT" then
+        unless e.toTerm == mkIfT x do
+          throwError "runCheckedExpand: NOT expansion target {repr e.toTerm} \
+              ≠ the registry if-form (frontier)"
+      else if h.name == "ENDP" || h.name == "ATOM" then
+        unless e.toTerm == mkIfT (mkConspT x) do
+          throwError "runCheckedExpand: {h.name} expansion target \
+              {repr e.toTerm} ≠ the registry if-form (frontier)"
+      else
+        throwError "runCheckedExpand: expansion head {h.name} not in the \
+            def-body registry (frontier: the S4 and-or lemma arm)"
+    | _ =>
+      throwError "runCheckedExpand: expansion FROM {repr e.fromTerm} is not \
+          a unary application (frontier)"
+  let cexps : List CExp := exps.map fun e => (e.fromTerm, e.toTerm, e.pos)
+  let fuel := clausifyFuel cexps input
+  let (t', leftover) ← match expandTerm fuel cexps input pos with
+    | some r => pure r
+    | none => throwError "runCheckedExpand: expansion walk ran out of fuel \
+        (internal)"
+  unless leftover.isEmpty do
+    throwError "runCheckedExpand: {leftover.length} recorded expansion(s) \
+        not consumed by the walk at {repr input} (order/position \
+        divergence — frontier)"
+  -- Expr-level: the walk as a kernel-decided fact + the hexp family
+  let sexprTy := mkConst ``SExpr
+  let boolTy := mkConst ``Bool
+  let cexpTy ← mkAppM ``Prod #[sexprTy, ← mkAppM ``Prod #[sexprTy, boolTy]]
+  let reflectCExp (e : ClausifyExpansion) : MetaM Expr := do
+    mkAppM ``Prod.mk #[reflectSExpr e.fromTerm,
+      ← mkAppM ``Prod.mk #[reflectSExpr e.toTerm,
+        if e.pos then mkConst ``Bool.true else mkConst ``Bool.false]]
+  let cexpEs ← exps.mapM reflectCExp
+  let cexpsE ← mkListLit cexpTy cexpEs
+  let fuelE := mkNatLit fuel
+  let posE := if pos then mkConst ``Bool.true else mkConst ``Bool.false
+  let t'E := reflectSExpr t'
+  let nilE ← mkListLit cexpTy []
+  let lhsE ← mkAppM ``expandTerm #[fuelE, cexpsE, reflectSExpr input, posE]
+  let rhsE ← mkAppM ``Option.some #[← mkAppM ``Prod.mk #[t'E, nilE]]
+  let ok ← isDefEq lhsE rhsE
+  let ok ← if ok then pure true else
+    -- the walk reduction on large inputs can exceed the per-theorem
+    -- budget; retry once with a raised ceiling (bounded, not unlimited)
+    Driver.withRealMaxHeartbeats 4000000 (isDefEq lhsE rhsE)
+  unless ok do
+    throwError "runCheckedExpand: the reflected walk does not reduce to \
+        the runtime result at {repr input} (internal)"
+  let hcomp ← mkExpectedTypeHint (← mkEqRefl rhsE) (← mkEq lhsE rhsE)
+  -- hexp : ∀ e ∈ cexps, dpLiftF vars opq e.1 = dpLiftF vars opq e.2.1
+  let pFn ← withLocalDeclD `e cexpTy fun eV => do
+    let fst ← mkAppM ``Prod.fst #[eV]
+    let toFst ← mkAppM ``Prod.fst #[← mkAppM ``Prod.snd #[eV]]
+    mkLambdaFVars #[eV] (← mkEq
+      (mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE fst)
+      (mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE toFst))
+  let entryProofs ← exps.mapM fun e => do
+    let .cons (.atom (.symbol h)) (.cons x .nil) := e.fromTerm
+      | throwError "runCheckedExpand: internal — shape re-check"
+    let lem :=
+      if h.name == "NOT" then ``dpLiftF_not_expand
+      else if h.name == "ENDP" then ``dpLiftF_endp_expand
+      else ``dpLiftF_atom_expand
+    mkAppOptM lem #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x)]
+  let (_, hexpRaw) ← mkForallMemProof cexpTy pFn (cexpEs.zip entryProofs)
+  let memTy ← withLocalDeclD `e cexpTy fun eV => do
+    let mem ← mkAppM ``Membership.mem #[cexpsE, eV]
+    mkForallFVars #[eV] (← mkArrow mem (mkApp pFn eV).headBeta)
+  let hexpE ← mkExpectedTypeHint hexpRaw memTy
+  let conj ← mkAppM ``expandTerm_liftEq
+    #[hwf, fuelE, cexpsE, reflectSExpr input, posE, t'E, nilE, hexpE, hcomp]
+  let heq ← mkAppM ``And.right #[conj]
+  return (t', some heq)
+
 /-- Bridge a clausify record: prove `EvTrue w env info.input` from
     `pOut : EvTrue w env (disjoinTerm cl₀)` (the proved single output clause).
     Validates the WHOLE record against the pure recomputation; any divergence
@@ -271,17 +366,27 @@ decision). -/
     is a hard frontier error. -/
 def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
     (pOut : Expr) : MetaM Expr := do
-  -- An `expand-and-or` marker (ens-dependent expansion, e.g. a `not` unfold
-  -- under a test) is NOT a hard frontier by itself: the expansions ACL2
-  -- applies during the walk often ROUND-TRIP (the if-lifting + negation
-  -- folding restore the literal form), and every joint below is validated
-  -- against the pure recomputation — a genuinely diverging expansion still
-  -- fail-closes at the neg/split/out checks.
-  let negRecomputed := clausifyPure info.input false
+  -- the lift bundle FIRST (the checked expansion walks need it)
+  let vars := (ACL2.Replay.freeVars info.input).eraseDups
+  let opaques := (collectOpaques info.input).eraseDups
+  let pinned ← opaques.mapM fun op => do
+    let some (v, p) := ctx.val? op
+      | throwError "bridgeClausify: opaque {repr op} has no pinned value \
+                    (frontier)"
+    pure (op, v, p)
+  let opqMap := pinned.map fun (op, v, _) => (op, v)
+  let opqP := pinned.map fun (op, _, p) => (op, p)
+  let b ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
+  let hwf ← mkDecideProof
+    (← mkEq (mkApp (mkConst ``dpOpqWF) b.opqE) (mkConst ``Bool.true))
+  -- CHECKED recomputations (expand-and-or plan S3): consume the recorded
+  -- firings; with none recorded these are exactly the pure recomputes
+  let (tNeg, _) ← runCheckedExpand b hwf info.negExpands info.input false
+  let negRecomputed := clausifyPure tNeg false
   unless negRecomputed == info.negClause do
     throwError "clausify bridge: recomputed neg-clause {repr negRecomputed} ≠ \
-                recorded {repr info.negClause} (divergence: expand-and-or, \
-                disjoin-clauses literal merging, or an unmirrored \
+                recorded {repr info.negClause} (divergence: an unregistered \
+                expansion, disjoin-clauses literal merging, or an unmirrored \
                 dumb-negate-lit arm)"
   let [l0] := info.negClause
     | throwError "clausify bridge: structured (multi-literal) neg-clause — \
@@ -294,42 +399,43 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
   unless dumbNegateLit l0 == info.input do
     throwError "clausify bridge: negation round-trip {repr (dumbNegateLit l0)} ≠ \
                 input {repr info.input} (frontier)"
-  unless clausifyPure info.input true == cl0 do
+  unless info.splitExpands.all (·.1 == 0) do
+    throwError "clausify bridge: split-expansion index beyond the single \
+                split (internal)"
+  let (t', heq?) ← runCheckedExpand b hwf (info.splitExpands.map (·.2))
+    info.input true
+  unless clausifyPure t' true == cl0 do
     throwError "clausify bridge: recomputed split clause \
-                {repr (clausifyPure info.input true)} ≠ recorded {repr cl0} \
-                (divergence: expand-and-or, disjoin-clauses literal merging, \
-                or an unmirrored dumb-negate-lit arm)"
+                {repr (clausifyPure t' true)} ≠ recorded {repr cl0} \
+                (divergence: an unregistered expansion, disjoin-clauses \
+                literal merging, or an unmirrored dumb-negate-lit arm)"
   unless info.out == [cl0] do
     throwError "clausify bridge: output set {repr info.out} ≠ [the split clause] \
                 (multi-clause output — frontier)"
-  -- G3 Fragment B: ONE clausifyPure_sound instantiation (the validation
-  -- above is unchanged — stage-(b) recompute-and-validate).
-  let vars := (ACL2.Replay.freeVars info.input).eraseDups
-  let opaques := (collectOpaques info.input).eraseDups
-  let pinned ← opaques.mapM fun op => do
-    let some (v, p) := ctx.val? op
-      | throwError "bridgeClausify: opaque {repr op} has no pinned value \
-                    (frontier)"
-    pure (op, v, p)
-  let opqMap := pinned.map fun (op, v, _) => (op, v)
-  let opqP := pinned.map fun (op, _, p) => (op, p)
-  let b ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
-  let vE ← dpValExpr opqMap (dpConcVar cfg.envExpr) info.input
-  let someV := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
-  let liftApp := mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE
-    (reflectSExpr info.input)
-  unless ← isDefEq liftApp someV do
-    throwError "bridgeClausify: the input does not lift to the walker's \
-                value for {repr info.input} (function/walker divergence — \
-                a defect)"
-  let isSomeApp ← mkAppM ``Option.isSome #[liftApp]
-  let hisSome ← mkExpectedTypeHint (← mkEqRefl (mkConst ``Bool.true))
-    (← mkEq isSomeApp (mkConst ``Bool.true))
-  let hwf ← mkDecideProof
-    (← mkEq (mkApp (mkConst ``dpOpqWF) b.opqE) (mkConst ``Bool.true))
-  let prf ← mkAppM ``clausifyPure_sound
+  -- G3 Fragment B: ONE clausifyPure_sound instantiation at the EXPANDED
+  -- term t′, transported back to the input by the lift-equality when
+  -- expansions fired (expand-and-or plan S3)
+  let mkIsSome : SExpr → MetaM Expr := fun t => do
+    let vE ← dpValExpr opqMap (dpConcVar cfg.envExpr) t
+    let someV := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
+    let liftApp := mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE (reflectSExpr t)
+    unless ← isDefEq liftApp someV do
+      throwError "bridgeClausify: {repr t} does not lift to the walker's \
+                  value (function/walker divergence — a defect)"
+    let isSomeApp ← mkAppM ``Option.isSome #[liftApp]
+    mkExpectedTypeHint (← mkEqRefl (mkConst ``Bool.true))
+      (← mkEq isSomeApp (mkConst ``Bool.true))
+  let hisSomeT' ← mkIsSome t'
+  let prfT' ← mkAppM ``clausifyPure_sound
     #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
-      reflectSExpr info.input, mkConst ``Bool.true, hisSome, pOut]
+      reflectSExpr t', mkConst ``Bool.true, hisSomeT', pOut]
+  let prf ← match heq? with
+    | none => pure prfT'
+    | some heq => do
+      let hisSomeIn ← mkIsSome info.input
+      mkAppM ``ClausifyGoal_of_liftEq
+        #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, heq,
+          hisSomeIn, mkConst ``Bool.true, prfT']
   -- `ClausifyGoal … true` IS `EvTrue …` definitionally; cast for consumers
   mkExpectedTypeHint prf
     (← mkAppM ``EvTrue #[cfg.worldExpr, cfg.envExpr, reflectSExpr info.input])
