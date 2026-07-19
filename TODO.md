@@ -987,6 +987,19 @@ obligation is stated precisely in its conditional proof's type:
       branch has NO corpus consumer (LEN-INTERLEAVE fails upstream at the
       clausify bridge) — revalidate when that frontier falls; (c) NUMERATOR
       trusted-core growth via the H3 pin-first process (2 rows).
+- [x] **msort-frontiers arc (4→5→3 + knock-outs) — DONE (2026-07-19,
+      branch mdd/msort-frontiers, audited):** chain-to-child preprocess
+      route; generalize type-restriction literals + gz snapshot TP
+      emission (EVENS/ODDS had no emitted TP; one DP leaf flipped
+      assumed→discharged); :PATH at preprocess sites (infra/abbrev-path);
+      clause-scoped litFacts (the real item-3 fix). All 7 msort rows'
+      original walls gone; 3 rows now share ONE wall — the clausify
+      recompute's un-mirrored EXPAND-AND-OR normalization ((ENDP x) vs
+      (NOT (CONSP x))) — the next-arc candidate (likely unlocks beyond
+      msort: the annotation appears corpus-wide). Audit: zero soundness
+      defects; the generalize HEAD-DROP construction has no kernel-checked
+      consumer yet (fail-closed infra; the expand-and-or arc is the
+      unlock). Close-out: docs/notes/2026-07-19_msort-frontiers-closeout.md.
 - [ ] **Positive type-set-verdict marker (the proper J6b).** The
       `typeSetDerived` tag is classification by ELIMINATION (no positive
       marker in the log — a linker bug and a genuine type-set verdict are
