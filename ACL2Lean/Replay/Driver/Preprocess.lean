@@ -179,13 +179,24 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
         mkAppM ``evrel_siff_qt_of_evtrue #[ev]
       else if isIffNode then replayIfIffNode cfg ctx n
       else replayPreprocessNode cfg ctx n
-    let path ← match findOccurrences cur lhs with
-      | [p] => pure p
-      | [] => throwError "replayPreprocessChain: node lhs {repr lhs} does not occur \
-                          in the current term {repr cur}"
-      | ps => throwError "replayPreprocessChain: node lhs {repr lhs} occurs \
-                          {ps.length} times in {repr cur} — ambiguous position \
-                          (needs :PATH emission at the preprocess site)"
+    let path ←
+      if prov.path.isEmpty then
+        match findOccurrences cur lhs with
+        | [p] => pure p
+        | [] => throwError "replayPreprocessChain: node lhs {repr lhs} does not occur \
+                            in the current term {repr cur}"
+        | ps => throwError "replayPreprocessChain: node lhs {repr lhs} occurs \
+                            {ps.length} times in {repr cur} — ambiguous position \
+                            (needs :PATH emission at the preprocess site)"
+      else
+        -- the EMITTED :PATH (abbreviation-expansion frames, rooted at the
+        -- formula this chain walks — infra/abbrev-path in the fork):
+        -- navigate and VERIFY the redex; required when the lhs occurs more
+        -- than once (msort HOW-MANY-MSORT's twice-occurring (ODDS X))
+        match pathStepsFromFrames cur prov.path lhs with
+        | .ok p => pure p
+        | .error e => throwError "replayPreprocessChain: emitted :PATH does \
+            not navigate to the redex {repr lhs}: {e}"
     -- lift innermost-out; iff payloads use the R congruence table and may
     -- COLLAPSE to an eval-equality at an if-test position
     let mut inner := nodeP

@@ -213,7 +213,7 @@ def navigateFrames (term : SExpr) (descentFrames : List PathFrame)
         cur := args[idx - 1]!
   return (steps, cur)
 
-private def pathStepsFromFrames (term : SExpr) (descentFrames : List PathFrame) (lhs : SExpr)
+def pathStepsFromFrames (term : SExpr) (descentFrames : List PathFrame) (lhs : SExpr)
     : Except String (List PathStep) := do
   let (steps, cur) ← navigateFrames term descentFrames
   unless cur == lhs do
