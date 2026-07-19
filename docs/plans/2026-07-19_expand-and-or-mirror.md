@@ -70,12 +70,23 @@ them. Golden changes at each landing, reviewed per increment.
 ## Stages (each gate-checked: ci + reviewed golden + diff-test + zero
 ## warnings; commits at green increments)
 
-- S0 — census by arm: after S1's `:FROM`/rune emission + recapture,
-  classify the corpus's expansions (def-body vs lemma vs lambda; which
-  runes) to size S3/S4. (Order note: the census NEEDS the richer event,
-  so S1 comes first.)
-- S1 — fork: extend `emit/clausify/expand` with `:FROM` + fired runes;
-  recapture; parser field.
+- S1 — DONE (2026-07-19): fork emits `:FROM` + `:RUNES` (ttree delta;
+  NOTE the delta dedupes runes already in the incoming ttree — 1,248 of
+  2,237 censused events carry NIL runes for that reason; tolerable
+  because the def-body bridge keys on the FROM head's unique world
+  unfold with TO as the checked target). Parser hard-requires the new
+  fields (stale logs fail closed). Corpus recaptured.
+- S0 — census DONE: 2,229/2,237 events are the DEF-BODY arm on exactly
+  three builtins — NOT (1,943), ENDP (280), ATOM (6); 8 are the and-or
+  LEMMA arm (EQUAL-headed, CONS-EQUAL/EQUAL-CONS); NO lambda arm in the
+  corpus. S3 covers 99.6%.
+  DESIGN CONFIRMATION for S3: `clausifyPure_sound` is a PROVED theorem
+  by functional induction over the dpLift value layer — so
+  `clausifyChecked` extends the FUNCTION with the threaded expansion
+  list and `clausifyChecked_sound` adds one hypothesis family (value-
+  level FROM = TO per consumed expansion). For the def-body arm these
+  facts are near-definitional (`Logic.not/endp/atom` are their ACL2
+  def-bodies), discharged by a small per-builtin lemma registry.
 - S2 — ClauseTree ordered attachment (D4).
 - S3 — `clausifyChecked` + the def-body arm bridge (unlocks the ENDP
   class → the msort rows).

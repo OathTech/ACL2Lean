@@ -229,7 +229,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
   | .endBranch :: _ | .caseSplit _ _ :: _
   | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
-  | .clausifyOut _ :: _ | .clausifyExpand _ :: _ =>
+  | .clausifyOut _ :: _ | .clausifyExpand _ _ _ _ :: _ =>
       -- A clause-structure boundary: stop and hand the remaining events back to
       -- the clause-level parser. (This match is exhaustive over TraceEvent, so a
       -- new event kind becomes a compile error here — never a silent drop.)
@@ -285,7 +285,7 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
     : Except String (ClausifyInfo × List TraceEvent) := do
   -- phase 1: expand markers before the neg event
   let rec dropExpands : List TraceEvent → (Bool × List TraceEvent)
-    | .clausifyExpand _ :: rest => let (_, r) := dropExpands rest; (true, r)
+    | .clausifyExpand _ _ _ _ :: rest => let (_, r) := dropExpands rest; (true, r)
     | rest => (false, rest)
   let (exp1, evs) := dropExpands evs
   let (negClause, evs) ← match evs with
@@ -295,7 +295,7 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
   -- phase 2: splits (expand markers may interleave), then out
   let rec go (acc : List (SExpr × List SExpr)) (exp : Bool)
       : List TraceEvent → Except String (ClausifyInfo × List TraceEvent)
-    | .clausifyExpand _ :: rest => go acc true rest
+    | .clausifyExpand _ _ _ _ :: rest => go acc true rest
     | .clausifySplit lit cl :: rest => go (acc ++ [(lit, cl)]) exp rest
     | .clausifyOut clauses :: rest =>
         return ({ input, negClause, splits := acc, out := clauses,

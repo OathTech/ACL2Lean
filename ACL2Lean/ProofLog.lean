@@ -129,7 +129,7 @@ inductive TraceEvent where
   | clausifyNeg (clause : List SExpr)
   | clausifySplit (lit : SExpr) (clause : List SExpr)
   | clausifyOut (clauses : List (List SExpr))
-  | clausifyExpand (toTerm : SExpr)
+  | clausifyExpand (fromTerm toTerm : SExpr) (pos : Bool) (runes : List Rune)
   /-- Literal-clausify DECISION TRACE (emit/if-interp/test, partial logging —
       docs/notes/2026-07-03_branch-split-spine.md): one event per if-test
       decision while `rewrite-clause` clausifies a rewritten literal.
@@ -672,7 +672,23 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
     | .atom (.keyword "CLAUSIFY-EXPAND") :: rest =>
         let toTerm ← lookupKeyword "TO" rest
           |>.elim (throw "CLAUSIFY-EXPAND: missing :TO") pure
-        pure (.clausifyExpand toTerm)
+        let fromTerm ← lookupKeyword "FROM" rest
+          |>.elim (throw "CLAUSIFY-EXPAND: missing :FROM (stale log — \
+                          recapture with the S1 fork)") pure
+        let boolS ← lookupKeyword "BOOL" rest
+          |>.elim (throw "CLAUSIFY-EXPAND: missing :BOOL") pure
+        let pos ← if boolS == SExpr.t then pure true
+          else if boolS == SExpr.nil then pure false
+          else throw s!"CLAUSIFY-EXPAND: :BOOL {repr boolS} is neither T nor NIL"
+        let runesS ← lookupKeyword "RUNES" rest
+          |>.elim (throw "CLAUSIFY-EXPAND: missing :RUNES (stale log — \
+                          recapture with the S1 fork)") pure
+        let some runeList := runesS.toList?
+          | throw s!"CLAUSIFY-EXPAND: :RUNES not a list: {repr runesS}"
+        let runes ← runeList.mapM fun r =>
+          (parseRune? r).elim
+            (throw s!"CLAUSIFY-EXPAND: bad rune {repr r}") pure
+        pure (.clausifyExpand fromTerm toTerm pos runes)
     | _ => throw s!"Unknown trace event: {repr s}"
   | none => throw s!"Expected list trace event, got: {repr s}"
 
