@@ -63,6 +63,46 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         .cons (.atom (.symbol { name := "NOT" }))
           (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
             (.cons x (.cons y .nil))) .nil)
+      -- SEGMENT-justified variant (msort *1/3.2': the equation is an
+      -- ENCLOSING clausify-branch segment hypothesis — `context-subst:
+      -- E ⇒ (CAR X)` — not a literal of this clause): the segFact already
+      -- gives var = val, so substitute ALL literals (no byCases, no
+      -- literal deletion, indices unchanged) and continue the spine on
+      -- the substituted clause — exactly ACL2's scan of the substituted
+      -- literals under the branch context.
+      let inClause :=
+        (clauseLits.any (fun (_, l) => l == mkNegEq varT valT)) ||
+        (clauseLits.any (fun (_, l) => l == mkNegEq valT varT))
+      let segHit : Option ((SExpr × Expr) × Bool) :=
+        if inClause then none   -- remove-trivial-equivalences (delete) wins
+        else
+          match ctx.segFacts.find? (fun (st, _) => st == mkNegEq varT valT) with
+          | some f => some (f, false)
+          | none =>
+            (ctx.segFacts.find? (fun (st, _) => st == mkNegEq valT varT)).map
+              (fun f => (f, true))
+      if let some ((_, hSegNil), flipArgs) := segHit then
+        let ctx1 ← pinTermOpaques cfg cfg.envExpr ctx valT
+        let (a', b') := if flipArgs then (valT, varT) else (varT, valT)
+        let va ← ctxValExpr cfg ctx1 a'
+        let vb ← ctxValExpr cfg ctx1 b'
+        -- hSegNil : Logic.not (Logic.equal va vb) = nil → va = vb
+        let hEq0 ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hSegNil]
+        let hVeq ← if flipArgs then mkAppM ``Eq.symm #[hEq0] else pure hEq0
+        let pVar ← ctxValProof cfg ctx1 varT
+        let pVal ← ctxValProof cfg ctx1 valT
+        let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVar, pVal, hVeq]
+        let substLits := clauseLits.map fun (i, l) =>
+          (i, ACL2.Replay.substTerm [varSym] [valT] l)
+        let ctx2 ← pinTermOpaques cfg cfg.envExpr ctx1
+          (disjoinTerm (substLits.map (·.2)))
+        let chainOpt ← diffCollapse cfg.worldExpr cfg.envExpr varT valT nodeEq
+          (disjoinTerm (clauseLits.map (·.2))) (disjoinTerm (substLits.map (·.2)))
+        let pRest ← replayClauseSpineWith rec cfg ctx2 idStr substLits rest
+          accClause children
+        match chainOpt with
+        | none => return pRest
+        | some ch => return ← mkAppM ``evtrue_of_fuel_eq #[ch, pRest]
       let ((ta, tb), kIdx) ←
         match clauseLits.find? (fun (_, l) => l == mkNegEq varT valT) with
         | some (i, _) => pure ((varT, valT), i)
@@ -71,8 +111,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           | some (i, _) => pure ((valT, varT), i)
           | none =>
             throwError "replayClauseSpine: branch-substitution literal \
-                        (not (equal {repr varT} {repr valT})) is not in the \
-                        clause at {idStr}"
+                        (not (equal {repr varT} {repr valT})) is neither in \
+                        the clause nor an in-scope segment fact at {idStr}"
       let negEq : SExpr := mkNegEq ta tb
       let mut ctx := ctx
       ctx ← pinTermOpaques cfg cfg.envExpr ctx valT
@@ -371,7 +411,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         unless accClause'.getLast? == some lp.result do
           throwError "replayClauseSpine: residual's surviving literal is not \
                       literal {idx}'s result at {idStr} (frontier)"
-        let pChild ← rec.clause cfg ctx child
+        let pChild ← rec.clause cfg { ctx with litFacts := [] } child
         let mut p := pChild
         for L in accClause'.dropLast do
           let some hf := ctx.litFactByTerm? L
@@ -515,7 +555,10 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       match cn.children.find? (·.inputClause == cl) with
       | some child =>
         usedChildren := usedChildren ++ [child.idStr]
-        pOuts := pOuts ++ [← replayClauseWith rec cfg ctx child]
+        -- litFacts are INDEX-keyed and clause-scoped — clear at every
+        -- child-CLAUSE descent (stale parent entries collide with the
+        -- child's numbering); term-keyed channels flow through
+        pOuts := pOuts ++ [← replayClauseWith rec cfg { ctx with litFacts := [] } child]
       | none =>
         let [lit] := cl
           | throwError "replayClause: clausify output {repr cl} has no child \
@@ -581,7 +624,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         throwError "replayClause: preprocess chain reached {repr finalT}, the \
                     single child's clause disjoins to \
                     {repr (disjoinTerm child.inputClause)} at {cn.idStr}"
-      let pChild ← replayClauseWith rec cfg ctx child
+      let pChild ← replayClauseWith rec cfg { ctx with litFacts := [] } child
       match chainOpt with
       | none => return pChild
       | some (ch, false) => return ← mkAppM ``evtrue_of_fuel_eq #[ch, pChild]
