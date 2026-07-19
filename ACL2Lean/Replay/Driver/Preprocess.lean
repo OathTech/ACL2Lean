@@ -325,12 +325,7 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
   let nilE ← mkListLit cexpTy []
   let lhsE ← mkAppM ``expandTerm #[fuelE, cexpsE, reflectSExpr input, posE]
   let rhsE ← mkAppM ``Option.some #[← mkAppM ``Prod.mk #[t'E, nilE]]
-  let ok ← isDefEq lhsE rhsE
-  let ok ← if ok then pure true else
-    -- the walk reduction on large inputs can exceed the per-theorem
-    -- budget; retry once with a raised ceiling (bounded, not unlimited)
-    Driver.withRealMaxHeartbeats 4000000 (isDefEq lhsE rhsE)
-  unless ok do
+  unless ← isDefEq lhsE rhsE do
     throwError "runCheckedExpand: the reflected walk does not reduce to \
         the runtime result at {repr input} (internal)"
   let hcomp ← mkExpectedTypeHint (← mkEqRefl rhsE) (← mkEq lhsE rhsE)

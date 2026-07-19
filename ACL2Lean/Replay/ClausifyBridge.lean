@@ -100,54 +100,59 @@ def cSize : SExpr → Nat
 def clausifyFuel (exps : List CExp) (t : SExpr) : Nat :=
   cSize t + (exps.map (fun e => cSize e.2.1 + 1)).sum + 1
 
-/-- Splice each expansion at its walk position (depth-first, threading the
-    list left-to-right through subwalks), producing the fully expanded
-    term and the leftover instructions. Fuel-indexed; `none` (fuel out)
-    hard-fails upstream — never a wrong result. -/
+/-- Does the head instruction fire at this term/polarity? -/
+def expHit : List CExp → SExpr → Bool → Bool
+  | (fr, _, ep) :: _, t, pos => fr == t && ep == pos
+  | [], _, _ => false
+
+/-- Splice each consumed expansion at its walk position, producing the
+    fully expanded term — the reduction's t′: a SINGLE STRUCTURAL
+    recursion on fuel (every self-call at the decremented fuel), so
+    applications REDUCE DEFINITIONALLY and the driver's reflected-walk
+    fact is a kernel `rfl`. (A `where`-helper variant compiles via
+    well-founded recursion — `@[irreducible]`, no reduction — because the
+    helper's same-fuel cross-call is not structural; hence the inlined
+    shape.) -/
 def expandTerm (fuel : Nat) (exps : List CExp) (t : SExpr) (pos : Bool) :
     Option (SExpr × List CExp) :=
   match fuel with
   | 0 => none
   | fuel + 1 =>
-    match exps with
-    | (fr, dst, ep) :: rest =>
-      if fr == t && ep == pos then expandTerm fuel rest dst pos
-      else expandGo fuel exps t pos
-    | [] => expandGo fuel exps t pos
-where
-  /-- The pure arms (mirrors `clausifyPure`'s recursion shape). -/
-  expandGo (fuel : Nat) (exps : List CExp) (t : SExpr) (pos : Bool) :
-      Option (SExpr × List CExp) :=
-    if t == (if pos then quoteNil else quoteT) then some (t, exps)
-    else match t with
-    | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
-      if ifS.name == "IF" then
-        if pos then
-          if t3 == quoteT then do
-            let (t1', exps1) ← expandTerm fuel exps t1 false
-            let (t2', exps2) ← expandTerm fuel exps1 t2 true
-            some (.cons (.atom (.symbol ifS))
-              (.cons t1' (.cons t2' (.cons t3 .nil))), exps2)
-          else if t2 == quoteT then do
-            let (t1', exps1) ← expandTerm fuel exps t1 true
-            let (t3', exps2) ← expandTerm fuel exps1 t3 true
-            some (.cons (.atom (.symbol ifS))
-              (.cons t1' (.cons t2 (.cons t3' .nil))), exps2)
-          else some (t, exps)
-        else
-          if t3 == quoteNil then do
-            let (t1', exps1) ← expandTerm fuel exps t1 false
-            let (t2', exps2) ← expandTerm fuel exps1 t2 false
-            some (.cons (.atom (.symbol ifS))
-              (.cons t1' (.cons t2' (.cons t3 .nil))), exps2)
-          else if t2 == quoteNil then do
-            let (t1', exps1) ← expandTerm fuel exps t1 true
-            let (t3', exps2) ← expandTerm fuel exps1 t3 false
-            some (.cons (.atom (.symbol ifS))
-              (.cons t1' (.cons t2 (.cons t3' .nil))), exps2)
-          else some (t, exps)
-      else some (t, exps)
-    | _ => some (t, exps)
+    if expHit exps t pos then
+      match exps with
+      | (_, dst, _) :: rest => expandTerm fuel rest dst pos
+      | [] => none
+    else
+      if t == (if pos then quoteNil else quoteT) then some (t, exps)
+      else match t with
+      | .cons (.atom (.symbol ifS)) (.cons t1 (.cons t2 (.cons t3 .nil))) =>
+        if ifS.name == "IF" then
+          if pos then
+            if t3 == quoteT then do
+              let (t1', exps1) ← expandTerm fuel exps t1 false
+              let (t2', exps2) ← expandTerm fuel exps1 t2 true
+              some (.cons (.atom (.symbol ifS))
+                (.cons t1' (.cons t2' (.cons t3 .nil))), exps2)
+            else if t2 == quoteT then do
+              let (t1', exps1) ← expandTerm fuel exps t1 true
+              let (t3', exps2) ← expandTerm fuel exps1 t3 true
+              some (.cons (.atom (.symbol ifS))
+                (.cons t1' (.cons t2 (.cons t3' .nil))), exps2)
+            else some (t, exps)
+          else
+            if t3 == quoteNil then do
+              let (t1', exps1) ← expandTerm fuel exps t1 false
+              let (t2', exps2) ← expandTerm fuel exps1 t2 false
+              some (.cons (.atom (.symbol ifS))
+                (.cons t1' (.cons t2' (.cons t3 .nil))), exps2)
+            else if t2 == quoteNil then do
+              let (t1', exps1) ← expandTerm fuel exps t1 true
+              let (t3', exps2) ← expandTerm fuel exps1 t3 false
+              some (.cons (.atom (.symbol ifS))
+                (.cons t1' (.cons t2 (.cons t3' .nil))), exps2)
+            else some (t, exps)
+        else some (t, exps)
+      | _ => some (t, exps)
 
 /-- The CHECKED clausification, definitionally `clausifyPure` of the
     expanded term (no correspondence lemma needed: any walk/record
@@ -161,15 +166,15 @@ between an abbreviation application and its emitted def-body if-form —
 the driver's `hexp` dischargers, keyed by the FROM head. -/
 
 /-- `(ENDP x)` shape. -/
-abbrev endpT (x : SExpr) : SExpr :=
+abbrev endpAppCB (x : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "ENDP" })) (.cons x .nil)
 
 /-- `(ATOM x)` shape. -/
-abbrev atomAppT (x : SExpr) : SExpr :=
+abbrev atomAppCB (x : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "ATOM" })) (.cons x .nil)
 
 /-- `(CONSP x)` shape. -/
-abbrev conspT (x : SExpr) : SExpr :=
+abbrev conspAppCB (x : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "CONSP" })) (.cons x .nil)
 
 private theorem dpLiftF_prim1 {vars : List (Symbol × SExpr)}
@@ -231,8 +236,8 @@ theorem dpLiftF_not_expand {vars : List (Symbol × SExpr)}
 /-- `(ENDP x) ⇒ (IF (CONSP x) 'NIL 'T)`. -/
 theorem dpLiftF_endp_expand {vars : List (Symbol × SExpr)}
     {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) (x : SExpr) :
-    dpLiftF vars opq (endpT x)
-      = dpLiftF vars opq (ifT (conspT x) quoteNil quoteT) := by
+    dpLiftF vars opq (endpAppCB x)
+      = dpLiftF vars opq (ifT (conspAppCB x) quoteNil quoteT) := by
   have hqn : dpLiftF vars opq quoteNil = some SExpr.nil := dpLiftF_quote hwf _
   have hqt : dpLiftF vars opq quoteT = some SExpr.t := dpLiftF_quote hwf _
   have hE := dpLiftF_prim1 (vars := vars) hwf "ENDP" x
@@ -241,12 +246,12 @@ theorem dpLiftF_endp_expand {vars : List (Symbol × SExpr)}
     (by decide) (by decide) (by decide) (by decide)
   cases hx : dpLiftF vars opq x with
   | none =>
-    rw [show endpT x = _ from rfl, hE, hx,
-        dpLiftF_ifT hwf, show conspT x = _ from rfl, hC, hx]
+    rw [show endpAppCB x = _ from rfl, hE, hx,
+        dpLiftF_ifT hwf, show conspAppCB x = _ from rfl, hC, hx]
     rfl
   | some xv =>
-    rw [show endpT x = _ from rfl, hE, hx,
-        dpLiftF_ifT hwf, show conspT x = _ from rfl, hC, hx]
+    rw [show endpAppCB x = _ from rfl, hE, hx,
+        dpLiftF_ifT hwf, show conspAppCB x = _ from rfl, hC, hx]
     simp only [Option.bind_some]
     rw [show callBuiltin "CONSP" [xv] = some (Logic.consp xv) from rfl]
     simp only [Option.bind_some, hqn, hqt]
@@ -256,8 +261,8 @@ theorem dpLiftF_endp_expand {vars : List (Symbol × SExpr)}
 /-- `(ATOM x) ⇒ (IF (CONSP x) 'NIL 'T)`. -/
 theorem dpLiftF_atom_expand {vars : List (Symbol × SExpr)}
     {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) (x : SExpr) :
-    dpLiftF vars opq (atomAppT x)
-      = dpLiftF vars opq (ifT (conspT x) quoteNil quoteT) := by
+    dpLiftF vars opq (atomAppCB x)
+      = dpLiftF vars opq (ifT (conspAppCB x) quoteNil quoteT) := by
   have hqn : dpLiftF vars opq quoteNil = some SExpr.nil := dpLiftF_quote hwf _
   have hqt : dpLiftF vars opq quoteT = some SExpr.t := dpLiftF_quote hwf _
   have hA := dpLiftF_prim1 (vars := vars) hwf "ATOM" x
@@ -266,12 +271,12 @@ theorem dpLiftF_atom_expand {vars : List (Symbol × SExpr)}
     (by decide) (by decide) (by decide) (by decide)
   cases hx : dpLiftF vars opq x with
   | none =>
-    rw [show atomAppT x = _ from rfl, hA, hx,
-        dpLiftF_ifT hwf, show conspT x = _ from rfl, hC, hx]
+    rw [show atomAppCB x = _ from rfl, hA, hx,
+        dpLiftF_ifT hwf, show conspAppCB x = _ from rfl, hC, hx]
     rfl
   | some xv =>
-    rw [show atomAppT x = _ from rfl, hA, hx,
-        dpLiftF_ifT hwf, show conspT x = _ from rfl, hC, hx]
+    rw [show atomAppCB x = _ from rfl, hA, hx,
+        dpLiftF_ifT hwf, show conspAppCB x = _ from rfl, hC, hx]
     simp only [Option.bind_some]
     rw [show callBuiltin "CONSP" [xv] = some (Logic.consp xv) from rfl]
     simp only [Option.bind_some, hqn, hqt]
@@ -893,34 +898,48 @@ theorem expandTerm_liftEq {vars : List (Symbol × SExpr)}
       expandTerm fuel exps t pos = some (t', l) →
       l <:+ exps ∧ dpLiftF vars opq t' = dpLiftF vars opq t := by
   intro fuel exps t pos
-  refine expandTerm.induct
-    (motive1 := fun fuel exps t pos => ∀ t' l,
-      (∀ e ∈ exps, dpLiftF vars opq e.1 = dpLiftF vars opq e.2.1) →
-      expandTerm.expandGo fuel exps t pos = some (t', l) →
-      l <:+ exps ∧ dpLiftF vars opq t' = dpLiftF vars opq t)
-    (motive2 := fun fuel exps t pos => ∀ t' l,
-      (∀ e ∈ exps, dpLiftF vars opq e.1 = dpLiftF vars opq e.2.1) →
-      expandTerm fuel exps t pos = some (t', l) →
-      l <:+ exps ∧ dpLiftF vars opq t' = dpLiftF vars opq t)
-    ?guard ?arm1 ?arm2 ?leafT ?arm4 ?arm5 ?leafF ?leafName ?leafShape
-    ?zero ?hit ?miss ?nilc fuel exps t pos
-  case guard =>
-    intro fuel exps t pos hg t' l _ h
-    simp only [dite_eq_ite] at hg
-    rw [expandTerm.expandGo.eq_def, if_pos hg] at h
+  induction fuel, exps, t, pos using expandTerm.induct with
+  | case1 =>
+    intro t' l _ h
+    rw [expandTerm.eq_def] at h
+    cases h
+  | case2 t pos fuel fr dst ep rest hhit ih =>
+    intro t' l hexp h
+    rw [expandTerm.eq_def] at h
+    simp only [hhit, if_true] at h
+    obtain ⟨hs, hl⟩ := ih t' l
+      (fun e he => hexp e (List.mem_cons_of_mem _ he)) h
+    have hg := hhit
+    simp only [expHit, Bool.and_eq_true] at hg
+    obtain ⟨hfr, _⟩ := hg
+    refine ⟨hs.trans (List.suffix_cons _ _), ?_⟩
+    have hhead := hexp (fr, dst, ep) List.mem_cons_self
+    rw [hl]
+    rw [show dst = ((fr, dst, ep) : CExp).2.1 from rfl, ← hhead]
+    rw [eq_of_beq hfr]
+  | case3 t pos fuel hhit =>
+    intro t' l _ _
+    rw [show expHit ([] : List CExp) t pos = false from rfl] at hhit
+    cases hhit
+  | case4 exps t pos fuel hhit hg =>
+    intro t' l _ h
+    simp only [Bool.not_eq_true] at hhit
+    rw [expandTerm.eq_def] at h
+    simp only [hhit, if_false, Bool.false_eq_true, if_pos hg] at h
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
     exact ⟨List.suffix_refl _, rfl⟩
-  case arm1 =>
-    intro fuel exps ifS t1 t2 t3 hifs ht3 houter ih1 ih2 t' l hexp h
-    simp only [dite_eq_ite, if_true, Bool.not_eq_true] at houter
-    rw [expandTerm.expandGo.eq_def] at h
-    simp only [houter, hifs, ht3, if_true, if_false,
+  | case5 exps fuel ifS t1 t2 t3 hifs ht3 hhit houter ihA ihB =>
+    intro t' l hexp h
+    simp only [if_true, Bool.not_eq_true] at houter
+    rw [expandTerm.eq_def] at h
+    simp only [Bool.not_eq_true] at hhit
+    simp only [hhit, houter, hifs, ht3, if_true, if_false,
       Bool.false_eq_true] at h
     obtain ⟨⟨t1', e1⟩, h1, h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨⟨t2', e2⟩, h2, h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
-    obtain ⟨hs1, hl1⟩ := ih1 t1' e1 hexp h1
-    obtain ⟨hs2, hl2⟩ := ih2 e1 t2' e2
+    obtain ⟨hs1, hl1⟩ := ihA t1' e1 hexp h1
+    obtain ⟨hs2, hl2⟩ := ihB e1 t2' e2
       (fun e he => hexp e (hs1.subset he)) h2
     refine ⟨hs2.trans hs1, ?_⟩
     by_cases hfull : ifS = ({ name := "IF" } : Symbol)
@@ -928,17 +947,18 @@ theorem expandTerm_liftEq {vars : List (Symbol × SExpr)}
       rw [dpLiftF_ifT hwf t1' t2' t3, dpLiftF_ifT hwf t1 t2 t3, hl1, hl2]
     · rw [dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull,
           dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull]
-  case arm2 =>
-    intro fuel exps ifS t1 t2 t3 hifs hnt3 ht2 houter ih1 ih2 t' l hexp h
-    simp only [dite_eq_ite, if_true, Bool.not_eq_true] at houter
-    rw [expandTerm.expandGo.eq_def] at h
-    simp only [houter, hifs, hnt3, ht2, if_true, if_false,
+  | case6 exps fuel ifS t1 t2 t3 hifs hnt3 ht2 hhit houter ihA ihB =>
+    intro t' l hexp h
+    simp only [if_true, Bool.not_eq_true] at houter
+    rw [expandTerm.eq_def] at h
+    simp only [Bool.not_eq_true] at hhit
+    simp only [hhit, houter, hifs, hnt3, ht2, if_true, if_false,
       Bool.false_eq_true] at h
     obtain ⟨⟨t1', e1⟩, h1, h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨⟨t3', e2⟩, h2, h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
-    obtain ⟨hs1, hl1⟩ := ih1 t1' e1 hexp h1
-    obtain ⟨hs2, hl2⟩ := ih2 e1 t3' e2
+    obtain ⟨hs1, hl1⟩ := ihA t1' e1 hexp h1
+    obtain ⟨hs2, hl2⟩ := ihB e1 t3' e2
       (fun e he => hexp e (hs1.subset he)) h2
     refine ⟨hs2.trans hs1, ?_⟩
     by_cases hfull : ifS = ({ name := "IF" } : Symbol)
@@ -946,30 +966,32 @@ theorem expandTerm_liftEq {vars : List (Symbol × SExpr)}
       rw [dpLiftF_ifT hwf t1' t2 t3', dpLiftF_ifT hwf t1 t2 t3, hl1, hl2]
     · rw [dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull,
           dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull]
-  case leafT =>
-    intro fuel exps ifS t1 t2 t3 hifs hnt3 hnt2 houter t' l _ h
-    simp only [dite_eq_ite, if_true, Bool.not_eq_true] at houter
-    rw [expandTerm.expandGo.eq_def] at h
-    simp only [houter, hifs, hnt3, hnt2, if_true, if_false,
+  | case7 exps fuel ifS t1 t2 t3 hifs hnt3 hnt2 hhit houter =>
+    intro t' l _ h
+    simp only [if_true, Bool.not_eq_true] at houter
+    rw [expandTerm.eq_def] at h
+    simp only [Bool.not_eq_true] at hhit
+    simp only [hhit, houter, hifs, hnt3, hnt2, if_true, if_false,
       Bool.false_eq_true] at h
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
     exact ⟨List.suffix_refl _, rfl⟩
-  case arm4 =>
-    intro fuel exps pos ifS t1 t2 t3 hifs hnpos ht3 houter ih1 ih2 t' l hexp h
+  | case8 exps pos fuel ifS t1 t2 t3 hifs hnpos ht3 hhit houter ihA ihB =>
+    intro t' l hexp h
     obtain rfl : pos = false := by
       cases pos
       · rfl
       · exact absurd rfl hnpos
-    simp only [dite_eq_ite, Bool.false_eq_true, if_false, Bool.not_eq_true]
-      at houter
-    rw [expandTerm.expandGo.eq_def] at h
-    simp only [houter, hifs, ht3, if_true, if_false,
+    simp only [Bool.false_eq_true, if_false,
+      Bool.not_eq_true] at houter
+    rw [expandTerm.eq_def] at h
+    simp only [Bool.not_eq_true] at hhit
+    simp only [hhit, houter, hifs, ht3, if_true, if_false,
       Bool.false_eq_true] at h
     obtain ⟨⟨t1', e1⟩, h1, h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨⟨t2', e2⟩, h2, h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
-    obtain ⟨hs1, hl1⟩ := ih1 t1' e1 hexp h1
-    obtain ⟨hs2, hl2⟩ := ih2 e1 t2' e2
+    obtain ⟨hs1, hl1⟩ := ihA t1' e1 hexp h1
+    obtain ⟨hs2, hl2⟩ := ihB e1 t2' e2
       (fun e he => hexp e (hs1.subset he)) h2
     refine ⟨hs2.trans hs1, ?_⟩
     by_cases hfull : ifS = ({ name := "IF" } : Symbol)
@@ -977,23 +999,23 @@ theorem expandTerm_liftEq {vars : List (Symbol × SExpr)}
       rw [dpLiftF_ifT hwf t1' t2' t3, dpLiftF_ifT hwf t1 t2 t3, hl1, hl2]
     · rw [dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull,
           dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull]
-  case arm5 =>
-    intro fuel exps pos ifS t1 t2 t3 hifs hnpos hnt3 ht2 houter ih1 ih2
-      t' l hexp h
+  | case9 exps pos fuel ifS t1 t2 t3 hifs hnpos hnt3 ht2 hhit houter ihA ihB =>
+    intro t' l hexp h
     obtain rfl : pos = false := by
       cases pos
       · rfl
       · exact absurd rfl hnpos
-    simp only [dite_eq_ite, Bool.false_eq_true, if_false, Bool.not_eq_true]
-      at houter
-    rw [expandTerm.expandGo.eq_def] at h
-    simp only [houter, hifs, hnt3, ht2, if_true, if_false,
+    simp only [Bool.false_eq_true, if_false,
+      Bool.not_eq_true] at houter
+    rw [expandTerm.eq_def] at h
+    simp only [Bool.not_eq_true] at hhit
+    simp only [hhit, houter, hifs, hnt3, ht2, if_true, if_false,
       Bool.false_eq_true] at h
     obtain ⟨⟨t1', e1⟩, h1, h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨⟨t3', e2⟩, h2, h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
-    obtain ⟨hs1, hl1⟩ := ih1 t1' e1 hexp h1
-    obtain ⟨hs2, hl2⟩ := ih2 e1 t3' e2
+    obtain ⟨hs1, hl1⟩ := ihA t1' e1 hexp h1
+    obtain ⟨hs2, hl2⟩ := ihB e1 t3' e2
       (fun e he => hexp e (hs1.subset he)) h2
     refine ⟨hs2.trans hs1, ?_⟩
     by_cases hfull : ifS = ({ name := "IF" } : Symbol)
@@ -1001,31 +1023,34 @@ theorem expandTerm_liftEq {vars : List (Symbol × SExpr)}
       rw [dpLiftF_ifT hwf t1' t2 t3', dpLiftF_ifT hwf t1 t2 t3, hl1, hl2]
     · rw [dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull,
           dpLiftF_ifname_none hwf _ (by simpa using hifs) hfull]
-  case leafF =>
-    intro fuel exps pos ifS t1 t2 t3 hifs hnpos hnt3 hnt2 houter t' l _ h
+  | case10 exps pos fuel ifS t1 t2 t3 hifs hnpos hnt3 hnt2 hhit houter =>
+    intro t' l _ h
     obtain rfl : pos = false := by
       cases pos
       · rfl
       · exact absurd rfl hnpos
-    simp only [dite_eq_ite, Bool.false_eq_true, if_false, Bool.not_eq_true]
-      at houter
-    rw [expandTerm.expandGo.eq_def] at h
-    simp only [houter, hifs, hnt3, hnt2, if_true, if_false,
+    simp only [Bool.false_eq_true, if_false,
+      Bool.not_eq_true] at houter
+    rw [expandTerm.eq_def] at h
+    simp only [Bool.not_eq_true] at hhit
+    simp only [hhit, houter, hifs, hnt3, hnt2, if_true, if_false,
       Bool.false_eq_true] at h
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
     exact ⟨List.suffix_refl _, rfl⟩
-  case leafName =>
-    intro fuel exps pos ifS t1 t2 t3 hifs houter t' l _ h
-    simp only [dite_eq_ite, Bool.not_eq_true] at houter
-    rw [expandTerm.expandGo.eq_def] at h
-    simp only [houter, hifs, if_false, Bool.false_eq_true] at h
+  | case11 exps pos fuel ifS t1 t2 t3 hnifs hhit houter =>
+    intro t' l _ h
+    simp only [Bool.not_eq_true] at houter
+    rw [expandTerm.eq_def] at h
+    simp only [Bool.not_eq_true] at hhit
+    simp only [hhit, houter, hnifs, if_false, Bool.false_eq_true] at h
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
     exact ⟨List.suffix_refl _, rfl⟩
-  case leafShape =>
-    intro fuel exps t pos hg hshape t' l _ h
-    simp only [dite_eq_ite, Bool.not_eq_true] at hg
-    rw [expandTerm.expandGo.eq_def] at h
-    simp only [hg, if_false, Bool.false_eq_true] at h
+  | case12 exps t pos fuel hhit houter hshape =>
+    intro t' l _ h
+    simp only [Bool.not_eq_true] at houter
+    rw [expandTerm.eq_def] at h
+    simp only [Bool.not_eq_true] at hhit
+    simp only [hhit, houter, if_false, Bool.false_eq_true] at h
     match t, hshape, h with
     | .nil, _, h =>
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
@@ -1036,39 +1061,7 @@ theorem expandTerm_liftEq {vars : List (Symbol × SExpr)}
     | .cons a b, hshape, h =>
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
       exact ⟨List.suffix_refl _, rfl⟩
-  case zero =>
-    intro exps t pos t' l _ h
-    rw [expandTerm.eq_def] at h
-    cases h
-  case hit =>
-    intro t pos fuel fr dst ep rest hg ih t' l hexp h
-    rw [expandTerm.eq_def] at h
-    simp only [hg, if_true] at h
-    obtain ⟨hs, hl⟩ := ih t' l
-      (fun e he => hexp e (List.mem_cons_of_mem _ he)) h
-    have hg' := hg
-    simp only [Bool.and_eq_true] at hg'
-    obtain ⟨hfr, _⟩ := hg' 
-    refine ⟨hs.trans (List.suffix_cons _ _), ?_⟩
-    have hhead := hexp (fr, dst, ep) List.mem_cons_self
-    rw [hl]
-    rw [show dst = ((fr, dst, ep) : CExp).2.1 from rfl, ← hhead]
-    rw [eq_of_beq hfr]
-  case miss =>
-    intro t pos fuel fr dst ep rest hg ih t' l hexp h
-    rw [expandTerm.eq_def] at h
-    simp only [hg, if_false, Bool.false_eq_true] at h
-    exact ih t' l hexp h
-  case nilc =>
-    intro t pos fuel ih t' l hexp h
-    rw [expandTerm.eq_def] at h
-    exact ih t' l hexp h
 
-/-- G3 Fragment B, THE BRIDGE LEMMA (once-proved; replaces the per-leaf
-    `peelClause`/`walkPosT`/`val*` walkers): a true output clause gives the
-    clausify input's truth (pos) / falsity (neg). World-parametric (L3);
-    premised on Fragment A's lift fact (D-B1) and the key well-formedness
-    (D-B4). -/
 theorem clausifyPure_sound (w : World) (env : Env)
     {vars : List (Symbol × SExpr)} {opq : List (SExpr × SExpr)}
     (hvars : ∀ q ∈ vars,
