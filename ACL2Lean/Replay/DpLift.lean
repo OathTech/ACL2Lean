@@ -41,9 +41,10 @@ open ACL2
 /-- The DP-lift primitive heads (the FIXED table — mirrors the driver's
     `dpUnary`/`dpBinary`; anything else with a symbol head is opaque). -/
 def dpLiftHeads : List String :=
-  ["NOT", "ZP", "CONSP", "INTEGERP", "ACL2-NUMBERP", "TRUE-LISTP", "CAR",
-   "CDR", "SYMBOLP", "BOOLEANP", "NFIX", "FIX", "LEN", "ENDP", "ATOM",
-   "EQUAL", "<", "LEXORDER", "BINARY-+", "BINARY-*", "CONS", "IMPLIES", "IFF"]
+  ["NOT", "ZP", "CONSP", "INTEGERP", "ACL2-NUMBERP", "RATIONALP",
+   "TRUE-LISTP", "CAR", "CDR", "SYMBOLP", "STRINGP", "BOOLEANP", "NFIX",
+   "FIX", "LEN", "ENDP", "ATOM", "EQUAL", "<", "LEXORDER", "BINARY-+",
+   "BINARY-*", "CONS", "IMPLIES", "IFF"]
 
 /-- The DP value lift (G3 Fragment A): opaque application values from `opq`
     (syntactic `==` lookup, checked FIRST — the walker's order), variable

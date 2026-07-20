@@ -974,6 +974,41 @@ obligation is stated precisely in its conditional proof's type:
 
 ## Other pipeline / cross-cutting work
 
+- [ ] **Vacuity-guard audit (2026-07-19, MDD-raised).** Do we have
+      SUFFICIENT guards against vacuously-true results across the pipeline?
+      Surfaces to assess systematically: (a) CONDITIONAL replays — a
+      `cond[total:…, tp:…, rule:…]` hypothesis that is unsatisfiable makes
+      the conditional theorem vacuous while displaying ✓-conditional; the
+      totality/TP/rule obligations are stated precisely, but nothing yet
+      demonstrates their SATISFIABILITY (e.g. discharge-on-real-instances
+      spot checks, or the obligation log's eventual full discharge);
+      (b) the MIRROR STATEMENT itself — contradictory/vacuous premises are
+      banned by doctrine ("don't weaken the statement") but not machine-
+      checked; consider a witness-evaluation smoke test per imported
+      theorem (evaluate the theorem formula on concrete instances via
+      `evalOpt` — a false-on-instances mirror can't be vacuously proved);
+      (c) native-lift obligations (the lifter's anti-vacuity notes at the
+      #63 close-out — obligation stated against the real mirror, not a
+      strawman); (d) TamperTests cover statement-tamper detection — extend
+      toward premise-satisfiability tamper (make a cond hypothesis false,
+      expect the SCOREBOARD to show it, not a silent conditional ✓).
+      Inventory existing guards first (TamperTests, native-axiom gate,
+      differential corpus), then close the gaps.
+      SCOPE EXTENSION (MDD): fold this into a GENERAL hardening audit
+      against NON-MALICIOUS errors of all kinds — not just vacuity.
+      Candidate surfaces: silent-success modes (a recipe that "succeeds"
+      by proving something weaker than intended — the proveNotSpecial
+      lowercase bug was exactly this class, caught only by audit);
+      recompute-and-check joints that check one side but not the other;
+      display/scoreboard honesty (does every ✓ mean what a reader thinks
+      it means); parser leniency drift (fields tolerated-if-absent that
+      should be hard-required); golden-review blind spots (error-message
+      churn masking a status flip); stale-cache/partial-build hazards in
+      the dev loop (the conspT lesson — sweeps passing on stale oleans);
+      env/config drift between capture and replay (image version, book
+      set). Method: enumerate the check-joints per pipeline stage,
+      classify each as hard-fail/checked/UNCHECKED, and burn down the
+      UNCHECKED list.
 - [ ] **Rebase the `acl2/` fork on upstream (2026-06-12).** The submodule's
       `acl2-lean-output` branch is based on an aging upstream `master`; rebase
       (or merge upstream forward) at some point. The TRACE-LOG tagging

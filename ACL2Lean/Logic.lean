@@ -147,6 +147,17 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   | .atom (.number _) => .t
   | _ => .nil
 
+/-- ACL2 `rationalp`: true exactly on numbers — the model's `Number` is
+    canonical-rational (BUG-012), and complex numbers are unrepresentable
+    (complex literals are refused upstream), so `rationalp` coincides with
+    `acl2-numberp` ON THE MODEL while remaining a distinct predicate (it
+    must diverge if complex numbers ever land). Logic-level twin of
+    `callBuiltin`'s inline RATIONALP match. -/
+@[inline, simp] def rationalp (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number _) => .t
+  | _ => .nil
+
 /-- ACL2 `atom`. -/
 @[inline, simp] def atom (s : SExpr) : SExpr :=
   match s with

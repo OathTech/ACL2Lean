@@ -201,14 +201,10 @@ def navigateFrames (term : SExpr) (descentFrames : List PathFrame)
       match asApp cur with
       | none => throw s!"pathStepsFromFrames: path descends into non-application {repr cur}"
       | some (fn, args) =>
-        if args.length == 3 then
-          -- lazy-`if` descent: test, then, or else — `applyStep`'s branch
-          -- congruences are sound for the UNCONDITIONAL eval-equalities the
-          -- chain carries (a false test makes the branch irrelevant)
-          unless fn.name == "IF" do
-            throw s!"pathStepsFromFrames: arity-3 congruence only for if \
-                    (got {fn.name} arg {idx}): {repr cur}"
-        else if args.length > 3 then
+        -- arity 3 is either the lazy `if` (branch congruences in `applyStep`,
+        -- sound for the UNCONDITIONAL eval-equalities the chain carries) or a
+        -- STRICT ternary user fn (generic argument congruence)
+        if args.length > 3 then
           throw s!"pathStepsFromFrames: arity {args.length} application unsupported: {repr cur}"
         if idx < 1 || idx > args.length then
           throw s!"pathStepsFromFrames: arg index {idx} out of range for {repr cur}"
@@ -256,25 +252,37 @@ def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : Expr) : M
     return mkAppN (mkConst ``evalOpt_congr_binary_right)
       #[w, e, fnE, reflectSExpr a, reflectSExpr sub, reflectSExpr sub', ns, inner]
   | 3, 0, [t, el] =>
-    -- the lazy if's TEST position
-    unless st.fn.name == "IF" do
-      throwError "applyStep: arity-3 congruence only for if (got {st.fn.name})"
-    return mkAppN (mkConst ``evalOpt_congr_if_test)
-      #[w, e, reflectSExpr sub, reflectSExpr sub', reflectSExpr t, reflectSExpr el, inner]
+    -- the lazy if's TEST position; a non-IF ternary head takes the STRICT
+    -- arg-1 congruence
+    if st.fn.name == "IF" then
+      return mkAppN (mkConst ``evalOpt_congr_if_test)
+        #[w, e, reflectSExpr sub, reflectSExpr sub', reflectSExpr t, reflectSExpr el, inner]
+    let ns ← proveNotSpecial st.fn
+    return mkAppN (mkConst ``evalOpt_congr_ternary1)
+      #[w, e, fnE, reflectSExpr sub, reflectSExpr sub', reflectSExpr t,
+        reflectSExpr el, ns, inner]
   | 3, 1, [c, el] =>
     -- the if's THEN branch — sound under the UNCONDITIONAL eval-equality `inner`
-    -- carries (if the test is false the branch is irrelevant; else t = t')
-    unless st.fn.name == "IF" do
-      throwError "applyStep: arity-3 then-congruence only for if (got {st.fn.name})"
-    return mkAppN (mkConst ``evalOpt_congr_if_then)
-      #[w, e, reflectSExpr c, reflectSExpr sub, reflectSExpr sub', reflectSExpr el, inner]
+    -- carries (if the test is false the branch is irrelevant; else t = t');
+    -- a non-IF ternary head takes the STRICT arg-2 congruence
+    if st.fn.name == "IF" then
+      return mkAppN (mkConst ``evalOpt_congr_if_then)
+        #[w, e, reflectSExpr c, reflectSExpr sub, reflectSExpr sub', reflectSExpr el, inner]
+    let ns ← proveNotSpecial st.fn
+    return mkAppN (mkConst ``evalOpt_congr_ternary2)
+      #[w, e, fnE, reflectSExpr c, reflectSExpr sub, reflectSExpr sub',
+        reflectSExpr el, ns, inner]
   | 3, 2, [c, t] =>
     -- the if's ELSE branch (the clause-disjunction TAIL) — sound under the
-    -- unconditional eval-equality `inner`
-    unless st.fn.name == "IF" do
-      throwError "applyStep: arity-3 else-congruence only for if (got {st.fn.name})"
-    return mkAppN (mkConst ``evalOpt_congr_if_else)
-      #[w, e, reflectSExpr c, reflectSExpr t, reflectSExpr sub, reflectSExpr sub', inner]
+    -- unconditional eval-equality `inner`; a non-IF ternary head takes the
+    -- STRICT arg-3 congruence
+    if st.fn.name == "IF" then
+      return mkAppN (mkConst ``evalOpt_congr_if_else)
+        #[w, e, reflectSExpr c, reflectSExpr t, reflectSExpr sub, reflectSExpr sub', inner]
+    let ns ← proveNotSpecial st.fn
+    return mkAppN (mkConst ``evalOpt_congr_ternary3)
+      #[w, e, fnE, reflectSExpr c, reflectSExpr t, reflectSExpr sub,
+        reflectSExpr sub', ns, inner]
   | _, _, _ => throwError "applyStep: unsupported arity/argIdx {st.arity}/{st.argIdx}"
 
 /-- Lift a node proof `nodeProof : ∃N∀f≥N, eval lhs = eval rhs` to the whole literal

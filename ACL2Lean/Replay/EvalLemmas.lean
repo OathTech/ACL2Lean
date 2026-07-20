@@ -282,6 +282,36 @@ theorem evalOpt_defn_2 (f : Nat) (w : World) (env : Env)
              Option.pure_def, h_def]
   rfl
 
+/-- T4c: Definition expansion for a 3-arg user-defined function. -/
+theorem evalOpt_defn_3 (f : Nat) (w : World) (env : Env)
+    (s : Symbol) (arg1 arg2 arg3 : SExpr) (av1 av2 av3 : SExpr)
+    (formal1 formal2 formal3 : Symbol) (body : SExpr)
+    (h_not_special : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+                     s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2, formal3], body))
+    (h_arg1 : evalOpt f w env arg1 = some av1)
+    (h_arg2 : evalOpt f w env arg2 = some av2)
+    (h_arg3 : evalOpt f w env arg3 = some av3) :
+    evalOpt (f + 1) w env
+      (.cons (.atom (.symbol s)) (.cons arg1 (.cons arg2 (.cons arg3 .nil))))
+    = evalOpt f w (bindArgs [formal1, formal2, formal3] [av1, av2, av3]) body := by
+  show evalOptStep (evalOpt f) w env _ = _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  obtain ⟨hq, hi, hl, hls⟩ := h_not_special
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self, ↓reduceIte]
+  show (do
+    let argVals ← [arg1, arg2, arg3].mapM (evalOpt f w env ·)
+    match w.defs.get? s with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin s.name argVals) = _
+  simp only [List.mapM, List.mapM.loop, h_arg1, h_arg2, h_arg3, List.reverse,
+             List.reverseAux, Option.pure_def, h_def]
+  rfl
+
 /-! ## Layer 1b: Arity-specific congruence (faithful T1 replacement)
 
   ACL2's rewriting lifts a subterm rewrite through the surrounding term by
@@ -426,6 +456,136 @@ theorem evalOpt_congr_binary_right (w : World) (env : Env)
   refine ⟨N + 1, fun f hf => ?_⟩
   match f with
   | f + 1 => exact evalOpt_congr_binary_right_step f w env fn a b b' h_ns (hN f (by omega))
+
+/-- One-step STRICT ternary congruence, arg 1. `h_ns` excludes `IF` (the lazy
+    arity-3 special form), so the strict argument-evaluation path applies. -/
+theorem evalOpt_congr_ternary1_step (f : Nat) (w : World) (env : Env)
+    (fn : Symbol) (a a' b c : SExpr)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (h : evalOpt f w env a = evalOpt f w env a') :
+    evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil))))
+    = evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a' (.cons b (.cons c .nil)))) := by
+  show evalOptStep (evalOpt f) w env _ = evalOptStep (evalOpt f) w env _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self, ↓reduceIte]
+  show (do
+    let argVals ← [a, b, c].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals) = (do
+    let argVals ← [a', b, c].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals)
+  simp only [List.mapM_cons, List.mapM_nil, bind_assoc, pure_bind, h]
+
+/-- One-step STRICT ternary congruence, arg 2. -/
+theorem evalOpt_congr_ternary2_step (f : Nat) (w : World) (env : Env)
+    (fn : Symbol) (a b b' c : SExpr)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (h : evalOpt f w env b = evalOpt f w env b') :
+    evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil))))
+    = evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b' (.cons c .nil)))) := by
+  show evalOptStep (evalOpt f) w env _ = evalOptStep (evalOpt f) w env _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self, ↓reduceIte]
+  show (do
+    let argVals ← [a, b, c].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals) = (do
+    let argVals ← [a, b', c].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals)
+  simp only [List.mapM_cons, List.mapM_nil, bind_assoc, pure_bind, h]
+
+/-- One-step STRICT ternary congruence, arg 3. -/
+theorem evalOpt_congr_ternary3_step (f : Nat) (w : World) (env : Env)
+    (fn : Symbol) (a b c c' : SExpr)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (h : evalOpt f w env c = evalOpt f w env c') :
+    evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil))))
+    = evalOpt (f + 1) w env (.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c' .nil)))) := by
+  show evalOptStep (evalOpt f) w env _ = evalOptStep (evalOpt f) w env _
+  unfold evalOptStep
+  simp only [Symbol.isNamed, SExpr.toList?]
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self, ↓reduceIte]
+  show (do
+    let argVals ← [a, b, c].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals) = (do
+    let argVals ← [a, b, c'].mapM (evalOpt f w env ·)
+    match w.defs.get? fn with
+    | some (formals, body) =>
+      if formals.length = argVals.length then evalOpt f w (bindArgs formals argVals) body
+      else none
+    | none => callBuiltin fn.name argVals)
+  simp only [List.mapM_cons, List.mapM_nil, bind_assoc, pure_bind, h]
+
+/-- Fuel-existential strict ternary congruence, arg 1 (non-IF arity-3 heads). -/
+theorem evalOpt_congr_ternary1 (w : World) (env : Env)
+    (fn : Symbol) (a a' b c : SExpr)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env a') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil))))
+      = evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a' (.cons b (.cons c .nil)))) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  match f with
+  | f + 1 => exact evalOpt_congr_ternary1_step f w env fn a a' b c h_ns (hN f (by omega))
+
+/-- Fuel-existential strict ternary congruence, arg 2. -/
+theorem evalOpt_congr_ternary2 (w : World) (env : Env)
+    (fn : Symbol) (a b b' c : SExpr)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env b = evalOpt f w env b') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil))))
+      = evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b' (.cons c .nil)))) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  match f with
+  | f + 1 => exact evalOpt_congr_ternary2_step f w env fn a b b' c h_ns (hN f (by omega))
+
+/-- Fuel-existential strict ternary congruence, arg 3. -/
+theorem evalOpt_congr_ternary3 (w : World) (env : Env)
+    (fn : Symbol) (a b c c' : SExpr)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env c = evalOpt f w env c') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c .nil))))
+      = evalOpt f w env (.cons (.atom (.symbol fn)) (.cons a (.cons b (.cons c' .nil)))) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  match f with
+  | f + 1 => exact evalOpt_congr_ternary3_step f w env fn a b c c' h_ns (hN f (by omega))
 
 /-! ## Free-variable congruence (relate a function body's `bindArgs` env to the
     caller env on the term's free variables)
@@ -682,6 +842,28 @@ theorem conv_defn_2 (w : World) (env : Env) (s : Symbol)
   obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
   rw [evalOpt_defn_2 g w env s arg1 arg2 av1 av2 formal1 formal2 body h_ns h_def
         (hN1 g (by omega)) (hN2 g (by omega))]
+  exact hb g (by omega)
+
+/-- A 3-arg user-defined call converges to the body's value (in `bindArgs`). -/
+theorem conv_defn_3 (w : World) (env : Env) (s : Symbol)
+    (arg1 arg2 arg3 av1 av2 av3 : SExpr) (formal1 formal2 formal3 : Symbol) (body v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2, formal3], body))
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
+    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
+    (h3 : ∃ N, ∀ f ≥ N, evalOpt f w env arg3 = some av3)
+    (hbody : ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2, formal3] [av1, av2, av3]) body = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol s)) (.cons arg1 (.cons arg2 (.cons arg3 .nil)))) = some v := by
+  obtain ⟨N1, hN1⟩ := h1; obtain ⟨N2, hN2⟩ := h2; obtain ⟨N3, hN3⟩ := h3
+  obtain ⟨Nb, hb⟩ := hbody
+  refine ⟨max (max (max N1 N2) N3) Nb + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  rw [evalOpt_defn_3 g w env s arg1 arg2 arg3 av1 av2 av3 formal1 formal2 formal3 body
+        h_ns h_def (hN1 g (by omega)) (hN2 g (by omega)) (hN3 g (by omega))]
   exact hb g (by omega)
 
 /-! ## Term substitution (definition-unfold / IH replay)
@@ -1298,6 +1480,76 @@ theorem evalOpt_unfold2_conv (w : World) (env : Env) (fn formal1 formal2 : Symbo
   obtain ⟨Nl, hl⟩ := hlhs; obtain ⟨Nr, hr⟩ := hrhs
   exact ⟨max Nl Nr, fun f hf => by rw [hl f (by omega), hr f (by omega)]⟩
 
+/-- Compound-argument `:DEFINITION` unfold (3-arg): the 3-formal analogue of
+    `evalOpt_unfold2_conv`, when all three args converge. -/
+theorem evalOpt_unfold3_conv (w : World) (env : Env) (fn formal1 formal2 formal3 : Symbol)
+    (body arg1 arg2 arg3 av1 av2 av3 v : SExpr)
+    (hns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+           fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (hdef : w.defs.get? fn = some ([formal1, formal2, formal3], body))
+    (hclosed : ∀ s ∈ freeVars body, s ∈ [formal1, formal2, formal3])
+    (hnolet : NoLet body = true)
+    (harg1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
+    (harg2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
+    (harg3 : ∃ N, ∀ f ≥ N, evalOpt f w env arg3 = some av3)
+    (hbody : ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2, formal3] [av1, av2, av3]) body = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol fn)) (.cons arg1 (.cons arg2 (.cons arg3 .nil))))
+      = evalOpt f w env (substTerm [formal1, formal2, formal3] [arg1, arg2, arg3] body) := by
+  have hlhs : ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol fn)) (.cons arg1 (.cons arg2 (.cons arg3 .nil)))) = some v :=
+    conv_defn_3 w env fn arg1 arg2 arg3 av1 av2 av3 formal1 formal2 formal3 body v
+      hns hdef harg1 harg2 harg3 hbody
+  obtain ⟨Narg1, harg1'⟩ := harg1
+  obtain ⟨Narg2, harg2'⟩ := harg2
+  obtain ⟨Narg3, harg3'⟩ := harg3
+  obtain ⟨Ncong, hcong⟩ := evalOpt_substTerm_conv w env [formal1, formal2, formal3]
+    (List.map quoteVal [av1, av2, av3]) [arg1, arg2, arg3] (max (max (max Narg1 Narg2) Narg3) 1)
+    (by
+      intro s g hg
+      by_cases h1 : s = formal1
+      · simp only [List.map_cons, List.map_nil, lookupSubst,
+                   show (s == formal1) = true from by simp [h1],
+                   ↓reduceIte, Option.getD_some, quoteVal]
+        obtain ⟨k, rfl⟩ : ∃ k, g = k + 1 := ⟨g - 1, by omega⟩
+        rw [evalOpt_quote k w env av1, harg1' (k + 1) (by omega)]
+      · by_cases h2 : s = formal2
+        · simp only [List.map_cons, List.map_nil, lookupSubst,
+                     show (s == formal1) = false from by simpa using h1,
+                     show (s == formal2) = true from by simp [h2],
+                     Bool.false_eq_true, ↓reduceIte, Option.getD_some, quoteVal]
+          obtain ⟨k, rfl⟩ : ∃ k, g = k + 1 := ⟨g - 1, by omega⟩
+          rw [evalOpt_quote k w env av2, harg2' (k + 1) (by omega)]
+        · by_cases h3 : s = formal3
+          · simp only [List.map_cons, List.map_nil, lookupSubst,
+                       show (s == formal1) = false from by simpa using h1,
+                       show (s == formal2) = false from by simpa using h2,
+                       show (s == formal3) = true from by simp [h3],
+                       Bool.false_eq_true, ↓reduceIte, Option.getD_some, quoteVal]
+            obtain ⟨k, rfl⟩ : ∃ k, g = k + 1 := ⟨g - 1, by omega⟩
+            rw [evalOpt_quote k w env av3, harg3' (k + 1) (by omega)]
+          · simp only [List.map_cons, List.map_nil, lookupSubst,
+                       show (s == formal1) = false from by simpa using h1,
+                       show (s == formal2) = false from by simpa using h2,
+                       show (s == formal3) = false from by simpa using h3,
+                       Bool.false_eq_true, ↓reduceIte, Option.getD_none])
+    (sizeOf body) body (Nat.le_refl _) hnolet
+  have hrhs : ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (substTerm [formal1, formal2, formal3] [arg1, arg2, arg3] body) = some v := by
+    obtain ⟨Nb, hb⟩ := hbody
+    refine ⟨max Ncong Nb, fun f hf => ?_⟩
+    rw [← hcong f (by omega),
+        evalOpt_substTerm_quote w [formal1, formal2, formal3] [av1, av2, av3] f env body hnolet,
+        evalOpt_envUpdate_bindArgs w env [formal1, formal2, formal3] [av1, av2, av3]
+          rfl f body hnolet hclosed]
+    exact hb f (by omega)
+  obtain ⟨Nl, hl⟩ := hlhs; obtain ⟨Nr, hr⟩ := hrhs
+  exact ⟨max Nl Nr, fun f hf => by rw [hl f (by omega), hr f (by omega)]⟩
+
 /-- The (1-formal) SUBSTITUTION LEMMA: evaluating `substTerm [s] [arg] body` in
     `env` agrees (eventually) with evaluating `body` in `env` extended by `s ↦ av`,
     whenever `arg` converges to `av`. Composes the args-agreement congruence
@@ -1445,6 +1697,14 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
     callBuiltin "BOOLEANP" [a] = some (Logic.booleanp a) := by rfl
 @[simp] theorem callBuiltin_symbolp (a : SExpr) :
     callBuiltin "SYMBOLP" [a] = some (Logic.symbolp a) := by rfl
+@[simp] theorem callBuiltin_stringp (a : SExpr) :
+    callBuiltin "STRINGP" [a] = some (Logic.stringp a) := by rfl
+@[simp] theorem callBuiltin_rationalp (a : SExpr) :
+    callBuiltin "RATIONALP" [a] = some (Logic.rationalp a) := by
+  cases a with
+  | atom x => cases x <;> rfl
+  | nil => rfl
+  | cons _ _ => rfl
 @[simp] theorem callBuiltin_nfix (a : SExpr) :
     callBuiltin "NFIX" [a] = some (Logic.nfix a) := by rfl
 @[simp] theorem callBuiltin_len (a : SExpr) :
@@ -2612,6 +2872,27 @@ theorem re_body_conv2 (w : World) (env : Env) (fn f1 f2 : Symbol)
   rw [← heq]
   exact hr (f + 1) (by omega)
 
+/-- 3-arg body convergence from the application's pinned value. -/
+theorem re_body_conv3 (w : World) (env : Env) (fn f1 f2 f3 : Symbol)
+    (body a1 a2 a3 av1 av2 av3 rv : SExpr)
+    (h_ns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+            fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (h_def : w.defs.get? fn = some ([f1, f2, f3], body))
+    (ha1 : ∃ N, ∀ f ≥ N, evalOpt f w env a1 = some av1)
+    (ha2 : ∃ N, ∀ f ≥ N, evalOpt f w env a2 = some av2)
+    (ha3 : ∃ N, ∀ f ≥ N, evalOpt f w env a3 = some av3)
+    (happ : ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol fn)) (.cons a1 (.cons a2 (.cons a3 .nil)))) = some rv) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [f1, f2, f3] [av1, av2, av3]) body = some rv := by
+  obtain ⟨N1, h1⟩ := ha1; obtain ⟨N2, h2⟩ := ha2; obtain ⟨N3, h3⟩ := ha3
+  obtain ⟨Nr, hr⟩ := happ
+  refine ⟨max N1 (max N2 (max N3 Nr)) + 1, fun f hf => ?_⟩
+  have heq := evalOpt_defn_3 f w env fn a1 a2 a3 av1 av2 av3 f1 f2 f3 body h_ns h_def
+    (h1 f (by omega)) (h2 f (by omega)) (h3 f (by omega))
+  rw [← heq]
+  exact hr (f + 1) (by omega)
+
 /-- A variable's value at a 1-arg `bindArgs` env (the unfold recipe's env'-side
     variable resolution). -/
 theorem re_val_var_bind1 (w : World) (s : Symbol) (av : SExpr) :
@@ -2763,6 +3044,28 @@ theorem re_unfold2_conv (w : World) (env : Env) (fn f1 f2 : Symbol)
   obtain ⟨Nb, v, hb⟩ := hbodyAll (bindArgs [f1, f2] [av1, av2])
   exact evalOpt_unfold2_conv w env fn f1 f2 body arg1 arg2 av1 av2 v hns hdef hclosed hnolet
     ⟨N1, h1⟩ ⟨N2, h2⟩ ⟨Nb, hb⟩
+
+/-- 3-arg ∀-env-route unfold: the `re_unfold2_conv` analogue. -/
+theorem re_unfold3_conv (w : World) (env : Env) (fn f1 f2 f3 : Symbol)
+    (body arg1 arg2 arg3 : SExpr)
+    (hns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+           fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (hdef : w.defs.get? fn = some ([f1, f2, f3], body))
+    (hclosed : ∀ s ∈ freeVars body, s ∈ [f1, f2, f3]) (hnolet : NoLet body = true)
+    (harg1 : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env arg1 = some av)
+    (harg2 : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env arg2 = some av)
+    (harg3 : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env arg3 = some av)
+    (hbodyAll : ∀ env', ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' body = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol fn)) (.cons arg1 (.cons arg2 (.cons arg3 .nil))))
+      = evalOpt f w env (substTerm [f1, f2, f3] [arg1, arg2, arg3] body) := by
+  obtain ⟨N1, av1, h1⟩ := harg1
+  obtain ⟨N2, av2, h2⟩ := harg2
+  obtain ⟨N3, av3, h3⟩ := harg3
+  obtain ⟨Nb, v, hb⟩ := hbodyAll (bindArgs [f1, f2, f3] [av1, av2, av3])
+  exact evalOpt_unfold3_conv w env fn f1 f2 f3 body arg1 arg2 arg3 av1 av2 av3 v
+    hns hdef hclosed hnolet ⟨N1, h1⟩ ⟨N2, h2⟩ ⟨N3, h3⟩ ⟨Nb, hb⟩
 
 /-- The solidify value bridge: a FALSE `(not (equal a b))` literal value makes the
     two values EQUAL. (The clause hypothesis the `rewriting-equivalence` node cites:

@@ -199,6 +199,8 @@ def dpUnary : List (String × Name × Name) :=
    ("CAR",      ``Logic.car,      ``callBuiltin_car),
    ("CDR",      ``Logic.cdr,      ``callBuiltin_cdr),
    ("SYMBOLP",  ``Logic.symbolp,  ``callBuiltin_symbolp),
+   ("STRINGP",  ``Logic.stringp,  ``callBuiltin_stringp),
+   ("RATIONALP", ``Logic.rationalp, ``callBuiltin_rationalp),
    ("BOOLEANP", ``Logic.booleanp, ``callBuiltin_booleanp),
    ("NFIX",     ``Logic.nfix,     ``callBuiltin_nfix),
    ("FIX",      ``Logic.fix,      ``callBuiltin_fix),
@@ -980,7 +982,18 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
                 reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, v1, v2, rv, hns,
                 di.defFact, di.closedFact, di.noLetFact, p1, p2, hbody]
-          | _, _, _, _ => throwError "definition: only 1/2-arg unfolds supported (frontier)"
+          | [f1, f2, f3], [a1, a2, a3], [v1, v2, v3], [p1, p2, p3] =>
+            let hbody ← mkAppM ``re_body_conv3
+              #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
+                reflectSymbol f2, reflectSymbol f3, reflectSExpr di.body,
+                reflectSExpr a1, reflectSExpr a2, reflectSExpr a3,
+                v1, v2, v3, rv, hns, di.defFact, p1, p2, p3, papp]
+            mkAppM ``evalOpt_unfold3_conv
+              #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
+                reflectSymbol f2, reflectSymbol f3, reflectSExpr di.body,
+                reflectSExpr a1, reflectSExpr a2, reflectSExpr a3, v1, v2, v3, rv,
+                hns, di.defFact, di.closedFact, di.noLetFact, p1, p2, p3, hbody]
+          | _, _, _, _ => throwError "definition: only 1/2/3-arg unfolds supported (frontier)"
         | none =>
           -- evidence 2: the ∀-env convergence analyzer
           let hbodyAll ← proveConvAllEnv cfg ctx di.body
@@ -998,7 +1011,16 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
                 reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, hns,
                 di.defFact, di.closedFact, di.noLetFact, h1, h2, hbodyAll]
-          | _, _ => throwError "definition: only 1/2-arg unfolds supported (frontier)"
+          | [f1, f2, f3], [a1, a2, a3] =>
+            let h1 ← proveConv cfg cfg.envExpr ctx a1
+            let h2 ← proveConv cfg cfg.envExpr ctx a2
+            let h3 ← proveConv cfg cfg.envExpr ctx a3
+            mkAppM ``re_unfold3_conv
+              #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
+                reflectSymbol f2, reflectSymbol f3, reflectSExpr di.body,
+                reflectSExpr a1, reflectSExpr a2, reflectSExpr a3, hns,
+                di.defFact, di.closedFact, di.noLetFact, h1, h2, h3, hbodyAll]
+          | _, _ => throwError "definition: only 1/2/3-arg unfolds supported (frontier)"
       pure (di.formals, di.body, unfold)
   -- children chain over the substituted body (depth+1: their paths carry one more
   -- boundary frame), reaching the node's recorded rhs
