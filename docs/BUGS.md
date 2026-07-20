@@ -132,6 +132,12 @@ Pinned-by: none (complex numbers not modeled; `unsupported` in the differential
 — Tests/differential/corpus/complex-and-packages.lisp)
 `alphorder` places complex/complex-rationals between rationals and characters.
 We do not model complex numbers at all.
+Dependency note (2026-07-20, STRINGP-lift audit): `Logic.rationalp` coincides
+with `Logic.acl2Numberp` ON THE MODEL (both true exactly on `.atom (.number _)`)
+precisely because of this bug — and the DP-lift registry now consumes
+`RATIONALP` through that coincidence. If complex numbers are ever modeled,
+`Logic.rationalp` must diverge from `acl2Numberp` (nil on complex) and the
+DP-lift discharge of RATIONALP leaves must be revisited alongside.
 
 ## BUG-010 — mixed/partial escaping within a symbol token not implemented
 Status: open
