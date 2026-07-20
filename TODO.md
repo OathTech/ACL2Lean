@@ -1009,6 +1009,17 @@ obligation is stated precisely in its conditional proof's type:
       set). Method: enumerate the check-joints per pipeline stage,
       classify each as hard-fail/checked/UNCHECKED, and burn down the
       UNCHECKED list.
+      SPRINT 1 LANDED (2026-07-20, branch mdd/hardening-sprint —
+      `docs/notes/2026-07-20_hardening-inventory.md` is the inventory):
+      G1 build-acl2 success-marker + fresh-image gate; G2 capture
+      provenance sidecars + `check-log-provenance` in ci (stale/partial
+      recaptures fail loudly); G3 `just golden-review` structural
+      golden diff (status flips vs message churn); G4 `just
+      recapture-all` whole-surface recapture; G5 proveNotSpecial
+      uppercase-Prop SYNTACTIC pin + special-form rejection tests
+      (DriverTests). REMAINING (design-flavored): vacuity/premise-
+      satisfiability smoke tests, TamperTests premise-tamper,
+      translator/WorldGen joint enumeration.
 - [ ] **Rebase the `acl2/` fork on upstream (2026-06-12).** The submodule's
       `acl2-lean-output` branch is based on an aging upstream `master`; rebase
       (or merge upstream forward) at some point. The TRACE-LOG tagging

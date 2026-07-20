@@ -34,7 +34,7 @@ check-no-shadow:
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
 # include_str's the gitignored .proof-log corpus; check-proof-logs runs first
 # so a missing log is a clear error, not a deep elaboration-trace failure.
-ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-proof-logs build test driver-coverage
+ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-proof-logs check-log-provenance build test driver-coverage
 
 # Run the corpus report
 report:
@@ -48,9 +48,21 @@ eval-in file expr:
 gen-world file:
     lake exe acl2lean gen-world {{file}}
 
-# Build ACL2 from the submodule
+# Build ACL2 from the submodule. Hard-fails unless make actually produced a
+# fresh image: ACL2's make can exit 0 through wrapper layers while the build
+# failed (hardening G1 — a stale saved_acl2 then silently poisons every
+# recapture), so we require the success marker AND a refreshed image file.
 build-acl2:
-    cd acl2 && make LISP=sbcl
+    #!/usr/bin/env bash
+    set -euo pipefail
+    stamp=$(mktemp)
+    out=$(mktemp)
+    trap 'rm -f "$stamp" "$out"' EXIT
+    ( cd acl2 && make LISP=sbcl ) 2>&1 | tee "$out"
+    grep -q "Successfully built .*saved_acl2" "$out" \
+      || { echo "build-acl2: success marker missing — ACL2 build FAILED (read acl2/make.log)" >&2; exit 1; }
+    [ acl2/saved_acl2 -nt "$stamp" ] \
+      || { echo "build-acl2: acl2/saved_acl2 was NOT refreshed — stale image" >&2; exit 1; }
 
 # FOCUSED replay (the fast OODA loop): one book — optionally stopping after
 # THM — at runtime, from a .proof-log on disk. Row text identical to the
@@ -68,6 +80,28 @@ capture-proof-log file:
 # submodule tree stays clean.
 capture-all-logs:
     OUTDIR=acl2_samples/sorting ./scripts/capture-proof-log.sh $(grep -v '^\s*#' {{books}} | grep -v '^\s*$')
+
+# Recapture the WHOLE log surface (hardening G4): sorting corpus +
+# recon-tests + simple, in one shot — a PARTIAL recapture after a fork
+# change leaves stale logs that check-log-provenance then rejects
+# (incident I2: sorting recaptured, recon-tests stale, caught only by
+# luck). This is the one target agents should reach for after any
+# instrumentation change.
+recapture-all: capture-all-logs
+    ./scripts/capture-proof-log.sh acl2_samples/simple.lisp acl2_samples/recon-tests/*.lisp
+
+# STRUCTURAL golden review (hardening G3): classify golden→actual changes
+# into STATUS FLIPS (review first) vs message-only churn, so a regression
+# can't hide in an error-text wall. The ci gate stays byte-exact; this is
+# the review lens for promotions.
+golden-review:
+    bash scripts/golden-diff.sh
+
+# Provenance gate (hardening G2): every corpus log's sidecar must be
+# stamped at the CURRENT acl2 submodule HEAD (stale/partial recaptures
+# fail loudly). Static; runs in `ci`.
+check-log-provenance:
+    bash scripts/check-log-provenance.sh
 
 # Parse and display a proof log
 parse-proof-log file:

@@ -94,6 +94,18 @@ for INPUT in "$@"; do
     echo "WARNING: $(basename "$INPUT") — logged $got_defthm of $want_defthm defthm proof(s); ACL2 likely FAILED/halted before a later event. Log is INCOMPLETE." >&2
   fi
 
+  # Hardening G2: provenance sidecar — bind this log to the fork commit and
+  # image that produced it. check-log-provenance.sh (in `just ci`, static)
+  # hard-fails when a corpus log's stamped commit is not the current
+  # submodule HEAD — catching stale images and PARTIAL recaptures the moment
+  # the fork moves. An ACL2 override outside a git checkout stamps
+  # "unknown", which the checker rejects (fail-closed).
+  {
+    echo "acl2-commit: $(git -C "$(dirname "$ACL2")" rev-parse HEAD 2>/dev/null || echo unknown)"
+    echo "image-mtime: $(stat -f %m "$ACL2" 2>/dev/null || stat -c %Y "$ACL2" 2>/dev/null || echo unknown)"
+    echo "captured-at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  } > "$OUTPUT.meta"
+
   echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines, $got_qed/$got_defthm qed/defthm (source: $want_defthm) → $OUTPUT"
 done
 

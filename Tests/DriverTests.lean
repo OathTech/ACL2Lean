@@ -483,6 +483,37 @@ elab "#emitcongr_strip_mismatch_fails" : command => Elab.Command.liftTermElabM d
 
 #emitcongr_strip_mismatch_fails
 
+-- Hardening G5 (audit 2026-07-19 N1 pin): `proveNotSpecial`'s produced Prop
+-- must state the UPPERCASE special-form literals the congruence lemmas' h_ns
+-- expects. The I5 failure class — a lowercase variant — TYPECHECKS by defeq
+-- coincidence whenever both sides are false, so this pin compares the type
+-- SYNTACTICALLY, not up to defeq. And special-form-named heads must be
+-- REJECTED (proveByDecide fails on the false conjunct), never "proved".
+elab "#prove_not_special_pins" : command => Elab.Command.liftTermElabM do
+  let p ← proveNotSpecial { name := "NOT" }
+  let ty ← instantiateMVars (← inferType p)
+  let sE := reflectSymbol { name := "NOT" }
+  let mkEqF (n : String) : Expr :=
+    mkApp3 (mkConst ``Eq [1]) (mkConst ``Bool)
+      (mkApp2 (mkConst ``Symbol.isNamed) sE (mkStrLit n)) (mkConst ``Bool.false)
+  let expected := mkApp2 (mkConst ``And) (mkEqF "QUOTE")
+    (mkApp2 (mkConst ``And) (mkEqF "IF")
+      (mkApp2 (mkConst ``And) (mkEqF "LET") (mkEqF "LET*")))
+  unless ty == expected do
+    throwError "proveNotSpecial Prop drifted from the congruence h_ns shape \
+                (SYNTACTIC check — defeq is not enough, see audit N1):\n{ty}\n≠\n{expected}"
+  logInfo "proveNotSpecial produces the exact uppercase h_ns Prop"
+  for n in ["QUOTE", "IF", "LET", "LET*"] do
+    let rejected ← try
+      let _ ← proveNotSpecial { name := n }
+      pure false
+    catch _ => pure true
+    unless rejected do
+      throwError "NEGATIVE TEST FAILED: proveNotSpecial accepted special form {n}"
+    logInfo m!"negative test OK (proveNotSpecial rejects {n})"
+
+#prove_not_special_pins
+
 /-! ## NEGATIVE — the driver must fail cleanly (fail-closed, never sorry). -/
 
 /-- Run the driver on a tree and assert it `throwError`s. -/

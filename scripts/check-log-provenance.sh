@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Hardening G2: every corpus .proof-log must carry a provenance sidecar
+# (<log>.meta, written by capture-proof-log.sh) whose acl2-commit matches the
+# CURRENT acl2/ submodule HEAD. This makes two silent-staleness classes loud:
+#   - logs captured with an OLD image after the fork moved (incident I1/I3);
+#   - PARTIAL recaptures (some logs refreshed, others stale — incident I2).
+# Static (no build); runs in `just ci`.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+HEAD="$(git -C "$ROOT/acl2" rev-parse HEAD)"
+
+fail=0
+count=0
+while IFS= read -r log; do
+  count=$((count + 1))
+  meta="$log.meta"
+  if [ ! -f "$meta" ]; then
+    echo "MISSING sidecar: $meta (recapture: just recapture-all)" >&2
+    fail=1
+    continue
+  fi
+  commit="$(sed -n 's/^acl2-commit: //p' "$meta")"
+  if [ "$commit" != "$HEAD" ]; then
+    echo "STALE log: $log — captured at acl2 commit ${commit:-<none>}, submodule HEAD is $HEAD (recapture: just recapture-all)" >&2
+    fail=1
+  fi
+done < <(find "$ROOT/acl2_samples" -name '*.proof-log' | sort)
+
+if [ "$count" -eq 0 ]; then
+  echo "check-log-provenance: found NO .proof-log files under acl2_samples — corpus missing?" >&2
+  exit 1
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "check-log-provenance: FAILED — stale or unstamped logs (see above)." >&2
+  exit 1
+fi
+echo "check-log-provenance: $count log(s) all stamped at submodule HEAD ${HEAD:0:12}."
