@@ -113,8 +113,12 @@ def proveNotSpecial (s : Symbol) : MetaM Expr := do
     mkApp3 (mkConst ``Eq [1]) boolType
       (mkApp2 (mkConst ``Symbol.isNamed) sExpr (mkStrLit name)) falseExpr
   let mkAnd (a b : Expr) : Expr := mkApp2 (mkConst ``And) a b
-  proveByDecide (mkAnd (mkEqFalse "quote")
-    (mkAnd (mkEqFalse "if") (mkAnd (mkEqFalse "let") (mkEqFalse "let*")))) "not-special"
+  -- UPPERCASE literals: symbol NAMES are uppercase on the identity path
+  -- (BUG-002 invariant) and the congruence lemmas' h_ns states them so; a
+  -- lowercase literal here "proves" a different Prop that only coincides
+  -- by defeq when both sides are false (audit 2026-07-19 N1)
+  proveByDecide (mkAnd (mkEqFalse "QUOTE")
+    (mkAnd (mkEqFalse "IF") (mkAnd (mkEqFalse "LET") (mkEqFalse "LET*")))) "not-special"
 
 /-! ## Goal-type builders -/
 

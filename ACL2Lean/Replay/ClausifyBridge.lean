@@ -154,12 +154,12 @@ def expandTerm (fuel : Nat) (exps : List CExp) (t : SExpr) (pos : Bool) :
         else some (t, exps)
       | _ => some (t, exps)
 
-/-- The CHECKED clausification, definitionally `clausifyPure` of the
-    expanded term (no correspondence lemma needed: any walk/record
-    divergence fails the driver's validation). -/
-def clausifyChecked (fuel : Nat) (exps : List CExp) (t : SExpr)
-    (pos : Bool) : Option (List SExpr × List CExp) :=
-  (expandTerm fuel exps t pos).map (fun (t', l) => (clausifyPure t' pos, l))
+/-! The checked clausification is `clausifyPure` OF the expanded term —
+the driver composes `expandTerm` then `clausifyPure` directly
+(`runCheckedExpand`/`bridgeClausify`), validating the walk against the
+recorded checkpoints at each stage; any divergence fails closed. No
+intermediate definition or correspondence lemma is needed (a former
+`clausifyChecked` wrapper was dead code — removed, audit 2026-07-19). -/
 
 /-! ### The expansion registry facts (S3): per-builtin lift-equality
 between an abbreviation application and its emitted def-body if-form —

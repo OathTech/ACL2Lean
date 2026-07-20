@@ -1584,10 +1584,18 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- clause-context lookup; else the recorded relief chain (v1: one hyp
     -- with a chain; multi-hyp chains need per-hyp bracketing — hard-fail
     -- until a real tree shows the shape).
-    if !chainKids.isEmpty && spec.hyps.length != reliefMarkers.length + 1 then
+    -- SYNP hyps are relieved by neither a marker nor a chain (they discharge
+    -- definitionally below) — exclude them from the partition count
+    -- (audit 2026-07-19 R1)
+    let synpHyps := spec.hyps.countP fun h =>
+      match h with
+      | .cons (.atom (.symbol s)) _ => s.name == "SYNP"
+      | _ => false
+    if !chainKids.isEmpty &&
+        spec.hyps.length != reliefMarkers.length + synpHyps + 1 then
       throwError "rule {rname}: {spec.hyps.length} hyps with one recorded \
-                  relief chain and {reliefMarkers.length} markers — per-hyp \
-                  partition (frontier)"
+                  relief chain, {reliefMarkers.length} markers, and \
+                  {synpHyps} synp hyps — per-hyp partition (frontier)"
     let tNeNil ← proveByDecide
       (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
     let mut prems : Array Expr := #[]
@@ -1612,9 +1620,13 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                     (frontier)"
       let evTrueEnv ←
         if isSynp then do
+          -- consistency check on the CUMULATIVE ttree rune set (it can only
+          -- REJECT — ACL2 pushes (:DEFINITION SYNP) on every successful synp
+          -- relief, but the set may also carry it from earlier steps; the
+          -- honest relief record is the definitional evaluation below)
           unless prov.runes.any (fun r => r.ty == "definition" && r.name == "SYNP") do
-            throwError "rule {rname}: SYNP hyp {repr hσ} without \
-                        (:DEFINITION SYNP) in the node's ttree — emission gap \
+            throwError "rule {rname}: SYNP hyp {repr hσ} but no \
+                        (:DEFINITION SYNP) in the node's ttree runes \
                         (frontier)"
           -- re-run the same closed computation (`synp`'s world body is 'T):
           -- the exec-counterpart carve-out, exactly how ACL2 regards it
