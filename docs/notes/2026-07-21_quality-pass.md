@@ -10,7 +10,7 @@ replay (`just replay` per-theorem ms — Lake-cache-proof).
 | # | Pattern | Sites | Disposition |
 |---|---------|-------|-------------|
 | C1 | chain-continuation idiom: `match rest?/chain? with \| none => x \| some p => fuel_chain_eq/evtrue_of_fuel_eq` | ~35 across Driver/ | EXTRACT (Q1): `chainWith`, `chainOptWith`, `evtrueWith` |
-| C2 | lift-and-continue tail in replayRewritesWith arms (emitCongruence → recurse → chain) | 5 | EXTRACT (Q2): `liftAndContinue` |
+| C2 | lift-and-continue tail in replayRewritesWith arms (emitCongruence → recurse → chain) | 5 | SKIPPED after Q1: the tails are now one-liners (`return (some (← chainWith …), …)`); the remaining variance is real per-arm ctx/strip plumbing — extraction would obscure |
 | C3 | nil-cast plumbing `re_val_cast [t, v(t), nil, p(t), hf]` | ~8 of 27 re_val_cast sites share the exact shape | EXTRACT (Q2): `castConvToNil` |
 | C4 | quote-term SExpr spellings in EvalLemmas statements | dozens | REJECTED: lemma statements must stay syntactically stable for mkAppM unification; churn risk ≫ benefit |
 | C5 | litFacts/segFacts transport loop | 1 (already unified in arc inc-7) | none needed |
@@ -59,3 +59,12 @@ proveByDecide ≈ 3.4-4.7 s — i.e. the DOMINANT cost is MetaM proof
 CONSTRUCTION (mkAppM elaboration, dischargeSpine/dpLift defeq,
 replayExecGround isDefEq at large fuel), not kernel checking. P2/P3
 (replayExecGround reduction, pinTermOpaques sweeps) remain unmeasured.
+
+## Status
+
+- Q1 (f48266a), Q2 (51430c4), P1 (b3fbcab) landed, each golden
+  BYTE-IDENTICAL; measured perf −11–18% on the qsort book's hot rows.
+- C2 skipped (post-Q1 the tails are one-liners), C4 rejected (lemma
+  statement stability), P2/P3 left as measured breadcrumbs for a future
+  perf arc.
+- PASS END.
