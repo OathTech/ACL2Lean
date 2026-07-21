@@ -83,8 +83,40 @@ Future recognizer leaves will want the same bridge per recognizer — if a
 third one appears, registry-ize (name ↦ booleanness lemma, dpLiftHeads
 style) instead of growing the simp list ad hoc.
 
+### Increment 3 — the ALL-REL composer walls (2026-07-20)
+
+Three linked fixes, all driven off the ALL-REL-FILTER-1 / ALL-REL-RM-1
+trees (qsort book):
+
+1. **∧-decomposition traces** (`parseTraceTree`): on `(if v X 'nil)`,
+   if-interp emits the SEGMENT-OPEN leaf `v` (the `[v]`-segment child of
+   `lit ≡ v ∧ X`) and CONTINUES at the SAME path — the leaf is not
+   terminal, which our grammar rejected as "trailing events". Reading for
+   the composer: the decision split on `v` (¬v → literal is 'nil and the
+   `[v]` branch is selectable; v → the continuation's decisions).
+   Synthesized as exactly that split; every downstream check stays
+   fail-closed.
+2. **collapseEval takes constant-collapsed tests**: when an if TEST
+   collapses to a quoted constant (litFact-driven), take the branch with
+   `re_if_true/false` instead of leaving the if "in place" (previously
+   only composer-`facts`-resolved tests selected branches). Also: the
+   identity if-simplification arm now delegates symbolic-test running
+   subterms to collapseEval (record folded past the constant — observed
+   `'T ⇒ 'T` with running `(IF (EQUAL (CAR X) E) 'NIL 'T)` under that
+   segment literal's falsity). TraceTree/parseTraceTree/collapseEval
+   moved above replayRewritesWith for this.
+3. **Segment-justified branch-substitution + fact transport** (Core):
+   remove-trivial-equivalences justified by a SEGMENT literal (not in
+   the walked disjunction) — its falsity is already proved (segFacts),
+   so no case split: derive var = val, diffCollapse the disjunction, and
+   TRANSPORT every in-scope litFact/segFact across the substitution
+   (appended; originals keep index bindings), each bridged along the
+   var≡val chain, hard-failing if unbridgeable.
+
+Rows: ALL-REL-FILTER-1 ✓, ALL-REL-RM-1 ✓ (36→38 expected pending sweep).
+ALL-REL-RM-2 unchanged (residual-survivor mismatch — different class).
+
 ## Status
 
-- Fixes 1–5 + the leaf-tactic booleanness bridge landed on the branch;
-  increment-1 sweep verified (36/79, DP ✓22, zero regressions, ci green,
-  commit c947d97); increment-2 sweep pending.
+- Increments 1–2 verified + committed (c947d97, f1a0ee2): 36/79, DP ✓24.
+- Increment 3 landed; sweep + golden review pending.

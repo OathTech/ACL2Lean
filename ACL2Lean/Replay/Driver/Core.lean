@@ -63,16 +63,78 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         .cons (.atom (.symbol { name := "NOT" }))
           (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
             (.cons x (.cons y .nil))) .nil)
-      let ((ta, tb), kIdx) ←
+      let inClause? : Option ((SExpr × SExpr) × Nat) :=
         match clauseLits.find? (fun (_, l) => l == mkNegEq varT valT) with
-        | some (i, _) => pure ((varT, valT), i)
+        | some (i, _) => some ((varT, valT), i)
         | none =>
-          match clauseLits.find? (fun (_, l) => l == mkNegEq valT varT) with
-          | some (i, _) => pure ((valT, varT), i)
+          (clauseLits.find? (fun (_, l) => l == mkNegEq valT varT)).map
+            (fun (i, _) => ((valT, varT), i))
+      -- SEGMENT-justified substitution (observed: ALL-REL-RM-1, Subgoal *1/3):
+      -- inside a clausify-branch continuation the justifying
+      -- `(not (equal var val))` is a SEGMENT literal of the child clause —
+      -- its FALSITY is already proved (segFacts), so no case split: derive
+      -- `var = val`, transport the remaining disjunction, and walk the
+      -- substituted literals. Nothing to delete — the used literal is not
+      -- part of this disjunction.
+      if inClause?.isNone then
+        let segEq? : Option ((SExpr × SExpr) × Expr) :=
+          match ctx.segFacts.find? (fun (st, _) => st == mkNegEq varT valT) with
+          | some (_, hf) => some ((varT, valT), hf)
           | none =>
-            throwError "replayClauseSpine: branch-substitution literal \
-                        (not (equal {repr varT} {repr valT})) is not in the \
-                        clause at {idStr}"
+            (ctx.segFacts.find? (fun (st, _) => st == mkNegEq valT varT)).map
+              (fun (_, hf) => ((valT, varT), hf))
+        let some ((ta, tb), hNil) := segEq?
+          | throwError "replayClauseSpine: branch-substitution literal \
+                        (not (equal {repr varT} {repr valT})) is neither in \
+                        the clause nor a segment fact at {idStr}"
+        let ctx1 ← pinTermOpaques cfg cfg.envExpr ctx valT
+        let va ← ctxValExpr cfg ctx1 ta
+        let vb ← ctxValExpr cfg ctx1 tb
+        let hEq ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]  -- va = vb
+        let hVeq ← if ta == varT then pure hEq else mkAppM ``Eq.symm #[hEq]
+        let pVar ← ctxValProof cfg ctx1 varT
+        let pVal ← ctxValProof cfg ctx1 valT
+        let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVar, pVal, hVeq]
+        let substLits := clauseLits.map fun (i, l) =>
+          (i, ACL2.Replay.substTerm [varSym] [valT] l)
+        let mut ctx2 ← pinTermOpaques cfg cfg.envExpr ctx1
+          (disjoinTerm (substLits.map (·.2)))
+        let chainOpt ← diffCollapse cfg.worldExpr cfg.envExpr varT valT nodeEq
+          (disjoinTerm (clauseLits.map (·.2))) (disjoinTerm (substLits.map (·.2)))
+        -- TRANSPORT the in-scope falsity facts across the substitution: ACL2
+        -- scans the substituted clause under the substituted assumptions, so
+        -- its type-alist consults the `var := val` form of each fact. Each
+        -- transported entry is APPENDED (originals first — index lookups keep
+        -- their original binding) with the fact bridged along the same
+        -- var≡val chain; a fact diffCollapse cannot bridge hard-fails.
+        for (i, l, h) in ctx2.litFacts do
+          let l' := ACL2.Replay.substTerm [varSym] [valT] l
+          if l' != l then
+            ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 l'
+            let some chL ← diffCollapse cfg.worldExpr cfg.envExpr varT valT nodeEq l l'
+              | throwError "replayClauseSpine: branch-substitution fact \
+                            transport of {repr l} produced no chain at {idStr}"
+            let vEq ← mkAppM ``val_eq_of_eval_eq
+              #[chL, ← ctxValProof cfg ctx2 l, ← ctxValProof cfg ctx2 l']
+            let h' ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
+            ctx2 := { ctx2 with litFacts := ctx2.litFacts ++ [(i, l', h')] }
+        for (st, h) in ctx2.segFacts do
+          let st' := ACL2.Replay.substTerm [varSym] [valT] st
+          if st' != st then
+            ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 st'
+            let some chL ← diffCollapse cfg.worldExpr cfg.envExpr varT valT nodeEq st st'
+              | throwError "replayClauseSpine: branch-substitution fact \
+                            transport of {repr st} produced no chain at {idStr}"
+            let vEq ← mkAppM ``val_eq_of_eval_eq
+              #[chL, ← ctxValProof cfg ctx2 st, ← ctxValProof cfg ctx2 st']
+            let h' ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
+            ctx2 := { ctx2 with segFacts := ctx2.segFacts ++ [(st', h')] }
+        let p ← replayClauseSpineWith rec cfg ctx2 idStr substLits rest accClause children
+        return ← match chainOpt with
+          | none => pure p
+          | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, p]
+      let some ((ta, tb), kIdx) := inClause?
+        | throwError "replayClauseSpine: internal — inClause? vanished"
       let negEq : SExpr := mkNegEq ta tb
       let mut ctx := ctx
       ctx ← pinTermOpaques cfg cfg.envExpr ctx valT

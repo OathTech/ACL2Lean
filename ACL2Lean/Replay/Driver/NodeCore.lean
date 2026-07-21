@@ -1738,6 +1738,239 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
   | _, _ =>
     throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
 
+/-- The literal-clausify DECISION TREE, reconstructed from the flat
+    `SplitDecision` trace (docs/notes/2026-07-03_branch-split-spine.md).
+    `if-interp` pushes events else-branch-FIRST at splits; every event is
+    self-located by its `path`, which the parser validates against its
+    position (fail-closed). -/
+inductive TraceTree where
+  | leaf (value : SExpr) (outcome : String)
+  | resolved (test : SExpr) (verdict : String) (how : String) (sub : TraceTree)
+  /-- A genuine split: `fSide` (test assumed false — the ELSE branch,
+      logged first) and `tSide`. -/
+  | split (test : SExpr) (fSide tSide : TraceTree)
+  deriving Repr, Inhabited
+
+partial def parseTraceTree (path : List (Bool × SExpr)) :
+    List SplitDecision → Except String (TraceTree × List SplitDecision)
+  | [] => throw "parseTraceTree: trace ended without a leaf"
+  | .test t v h p :: rest => do
+    unless p == path do
+      throw s!"parseTraceTree: test {repr t} at path {repr p}, expected \
+               {repr path}"
+    if v == "split" then
+      let (fSide, rest) ← parseTraceTree (path ++ [(false, t)]) rest
+      let (tSide, rest) ← parseTraceTree (path ++ [(true, t)]) rest
+      return (.split t fSide tSide, rest)
+    else
+      let (sub, rest) ← parseTraceTree path rest
+      return (.resolved t v h sub, rest)
+  | .leaf v o p :: rest => do
+    unless p == path do
+      throw s!"parseTraceTree: leaf {repr v} at path {repr p}, expected \
+               {repr path}"
+    -- ∧-DECOMPOSITION (observed: ALL-REL-FILTER-1 literal 2): on a term
+    -- `(if v X 'nil)`, if-interp emits the SEGMENT-OPEN leaf `v` (the
+    -- `[v]`-segment child clause of `lit ≡ v ∧ X`) and CONTINUES
+    -- enumerating X's segments at the SAME path — the leaf is not
+    -- terminal. For the composer this is the decision split on `v`:
+    -- under ¬v the literal is 'nil (and the `[v]` branch's segment is
+    -- derivably false right there); under v the continuation's decisions
+    -- apply. Synthesize exactly that split — every downstream check
+    -- (collapse-vs-leaf-value, unique all-false branch selection) stays
+    -- fail-closed, so a wrong shape reading cannot compose silently.
+    let nextSamePath := match rest with
+      | .test _ _ _ p' :: _ => p' == path
+      | .leaf _ _ p' :: _ => p' == path
+      | [] => false
+    if o == "segment-open" && nextSamePath then
+      let (k, rest') ← parseTraceTree path rest
+      return (.split v (.leaf quoteNil "segment-false") k, rest')
+    return (.leaf v o, rest)
+
+/-- Collapse `t`'s ifs whose tests are DECIDED by the in-scope facts (the
+    branch-split composer's byCases hypotheses + re-derived resolved
+    verdicts), plus the two `call-stack` folds if-interp applied — `(not 'c)`
+    by ground re-execution, `(equal X X)` by reflexivity — bottom-up,
+    mirroring if-interp's interpretation of the rewritten literal. Returns
+    the fuel-eq chain `eval t ≡ eval t'` and the collapsed `t'`. Anything the
+    enumerated rule set cannot decide is left in place; the composer's
+    leaf-value check fail-closes on divergence from the emitted trace. -/
+partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (facts : List (SExpr × Expr × Bool × Expr)) (t : SExpr) :
+    MetaM (Option Expr × SExpr) := do
+  let w := cfg.worldExpr
+  let e := cfg.envExpr
+  let some (fs, args) := asApp t | return (none, t)
+  if fs.name == "QUOTE" then return (none, t)
+  -- an in-scope SPINE falsity fact resolves the term outright: if-interp
+  -- consults the clause-segment ASSUMPTIONS for the terms it encounters (the
+  -- other literals are assumed false) — e.g. a collapsed residual that IS
+  -- another clause literal. Divergence still fail-closes at the composer's
+  -- leaf-value check.
+  if let some hNil := ctx.litFactByTerm? t then
+    let pl ← ctxValProof cfg ctx t
+    let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
+    let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
+    return (some step, quoteNil)
+  if fs.name == "IF" then
+    match args with
+    | [c, a, b] =>
+      -- collapse the test first; decide; then only the LIVE branch
+      let (chC, c') ← collapseEval cfg ctx facts c
+      let mut acc : Option Expr := none
+      let mut cur := t
+      if let some ch := chC then
+        let st : PathStep := { fn := fs, arity := 3, argIdx := 0, siblings := [a, b] }
+        acc := some (← applyStep w e st c c' ch)
+        cur := .cons (.atom (.symbol fs)) ([c', a, b].foldr .cons .nil)
+      -- the test collapsed to a QUOTED CONSTANT (an in-scope litFact or fold
+      -- resolved it): take the branch, exactly as if-interp does
+      if let .cons (.atom (.symbol q)) (.cons cv .nil) := c' then
+        if q.name == "QUOTE" then
+          let step ←
+            if cv == SExpr.nil then
+              let hc ← mkAppM ``re_val_quote #[w, e, reflectSExpr cv]
+              let hcNil ← mkAppM ``re_val_cast
+                #[w, e, reflectSExpr c', reflectSExpr cv, mkConst ``SExpr.nil, hc,
+                  ← proveByDecide (← mkEq (reflectSExpr cv) (mkConst ``SExpr.nil))
+                    "collapsed test is nil"]
+              let vb ← ctxValExpr cfg ctx b
+              let hb ← ctxValProof cfg ctx b
+              let _ := vb
+              mkAppM ``re_if_false
+                #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b, vb, hcNil, hb]
+            else
+              let hc ← mkAppM ``re_val_quote #[w, e, reflectSExpr cv]
+              let hcv ← proveByDecide
+                (← mkEq (mkApp (mkConst ``Logic.toBool) (reflectSExpr cv))
+                        (mkConst ``Bool.true)) "toBool of the collapsed test"
+              let va ← ctxValExpr cfg ctx a
+              let ha ← ctxValProof cfg ctx a
+              let _ := va
+              mkAppM ``re_if_true
+                #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b,
+                  reflectSExpr cv, va, hc, hcv, ha]
+          let sel := if cv == SExpr.nil then b else a
+          let acc' ← match acc with
+            | none => pure step
+            | some p => mkAppM ``fuel_chain_eq #[p, step]
+          let (chSel, final) ← collapseEval cfg ctx facts sel
+          match chSel with
+          | none => return (some acc', final)
+          | some m => return (some (← mkAppM ``fuel_chain_eq #[acc', m]), final)
+      match facts.find? (fun (T, _, _, _) => T == c') with
+      | some (_, vT, sign, h) =>
+        let hc ← ctxValProof cfg ctx c'
+        let step ←
+          if sign then
+            let hcv ← mkAppM ``toBool_true_of_ne_nil #[h]
+            let va ← ctxValExpr cfg ctx a
+            let ha ← ctxValProof cfg ctx a
+            let _ := va
+            mkAppM ``re_if_true
+              #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b, vT, va, hc, hcv, ha]
+          else
+            let hcNil ← mkAppM ``re_val_cast
+              #[w, e, reflectSExpr c', vT, mkConst ``SExpr.nil, hc, h]
+            let vb ← ctxValExpr cfg ctx b
+            let hb ← ctxValProof cfg ctx b
+            let _ := vb
+            mkAppM ``re_if_false
+              #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b, vb, hcNil, hb]
+        let sel := if sign then a else b
+        let acc' ← match acc with
+          | none => pure step
+          | some p => mkAppM ``fuel_chain_eq #[p, step]
+        let (chSel, final) ← collapseEval cfg ctx facts sel
+        match chSel with
+        | none => return (some acc', final)
+        | some m => return (some (← mkAppM ``fuel_chain_eq #[acc', m]), final)
+      | none =>
+        -- unresolved test: collapse both branches in place
+        let (chA, a') ← collapseEval cfg ctx facts a
+        if let some ch := chA then
+          let st : PathStep := { fn := fs, arity := 3, argIdx := 1, siblings := [c', b] }
+          let lifted ← applyStep w e st a a' ch
+          acc ← match acc with
+            | none => pure (some lifted)
+            | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
+          cur := .cons (.atom (.symbol fs)) ([c', a', b].foldr .cons .nil)
+        let (chB, b') ← collapseEval cfg ctx facts b
+        if let some ch := chB then
+          let st : PathStep := { fn := fs, arity := 3, argIdx := 2, siblings := [c', a'] }
+          let lifted ← applyStep w e st b b' ch
+          acc ← match acc with
+            | none => pure (some lifted)
+            | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
+          cur := .cons (.atom (.symbol fs)) ([c', a', b'].foldr .cons .nil)
+        let _ := cur
+        return (acc, .cons (.atom (.symbol fs)) ([c', a', b'].foldr .cons .nil))
+    | _ => throwError "collapseEval: malformed if {repr t}"
+  -- generic application: collapse arguments left-to-right, then head folds
+  let mut curArgs := args.toArray
+  let mut acc : Option Expr := none
+  for i in [0:args.length] do
+    let a := curArgs[i]!
+    let (chA, a') ← collapseEval cfg ctx facts a
+    if let some ch := chA then
+      let siblings := (curArgs.toList.zipIdx.filterMap fun (x, j) =>
+        if j == i then none else some x)
+      let st : PathStep := { fn := fs, arity := args.length, argIdx := i, siblings }
+      let lifted ← applyStep w e st a a' ch
+      acc ← match acc with
+        | none => pure (some lifted)
+        | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
+      curArgs := curArgs.set! i a'
+  let cur : SExpr := .cons (.atom (.symbol fs)) (curArgs.toList.foldr .cons .nil)
+  -- the POST-COLLAPSE term may be the form an in-scope assumption is about
+  -- (argument collapse rebuilt it into another clause literal)
+  if let some hNil := ctx.litFactByTerm? cur then
+    let pl ← ctxValProof cfg ctx cur
+    let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
+    let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
+    let acc' ← match acc with
+      | none => pure step
+      | some p => mkAppM ``fuel_chain_eq #[p, step]
+    return (some acc', quoteNil)
+  -- call-stack folds (the enumerated rule set; extend ONLY with rules
+  -- if-interp itself applies — rewrite.lisp:3671-3778)
+  let fold? ← do
+    if fs.name == "NOT" then
+      match curArgs.toList with
+      | [.cons (.atom (.symbol q)) (.cons cc .nil)] =>
+        if q.name == "QUOTE" then
+          let foldedV : SExpr := if cc == SExpr.nil then SExpr.t else SExpr.nil
+          let foldedT : SExpr :=
+            .cons (.atom (.symbol { name := "QUOTE" })) (.cons foldedV .nil)
+          let pNot ← replayExecGround cfg cur foldedV
+          let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr foldedV]
+          pure (some (← mkAppM ``fuel_eq_of_conv
+            #[pNot, pQ, ← mkEqRefl (reflectSExpr foldedV)], foldedT))
+        else pure none
+      | _ => pure none
+    else if fs.name == "EQUAL" then
+      match curArgs.toList with
+      | [x, y] =>
+        if x == y then
+          let hX ← proveConv cfg e ctx x
+          let hNoEqual ← proveNoShadow cfg { name := "EQUAL" }
+          let pEq ← mkAppM ``re_equal_self #[w, e, reflectSExpr x, hX, hNoEqual]
+          let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.t]
+          pure (some (← mkAppM ``fuel_eq_of_conv
+            #[pEq, pQ, ← mkEqRefl (mkConst ``SExpr.t)], quoteT))
+        else pure none
+      | _ => pure none
+    else pure none
+  match fold? with
+  | none => return (acc, cur)
+  | some (stepPf, next) =>
+    let acc' ← match acc with
+      | none => pure stepPf
+      | some p => mkAppM ``fuel_chain_eq #[p, stepPf]
+    return (some acc', next)
+
+
 /-- Replay a chain of rewrite nodes, lifting each through the chain's start term by
     path-directed congruence (paths relativized to `depth`) and chaining. Returns
     the composed `∃N∀f≥N, eval start = eval finalTerm` (or `none` if the chain is
@@ -1760,6 +1993,30 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let (_, S) ← ofExcept (navigateFrames start rel)
         if S == rhs then
           return ← replayRewritesWith rec cfg ctx start rest depth strip
+        -- SYMBOLIC-test if resolved by an in-scope clause-context fact,
+        -- record folded all the way past the constant (observed: 'T ⇒ 'T
+        -- with running (IF (EQUAL (CAR X) E) 'NIL 'T) under that segment
+        -- literal's falsity — ALL-REL-FILTER-1, Subgoal *1/2'). collapseEval
+        -- re-derives the resolution from the SAME facts if-interp consulted;
+        -- the rhs equality below fail-closes on any divergence.
+        if let .cons (.atom (.symbol ifS')) (.cons c' _) := S then
+          let symbolicTest := ifS'.name == "IF" &&
+            (match c' with
+             | .cons (.atom (.symbol q')) (.cons _ .nil) => q'.name != "QUOTE"
+             | _ => true)
+          if symbolicTest then
+            let (chOpt, S') ← collapseEval cfg ctx [] S
+            if let some ch := chOpt then
+              if S' == rhs then
+                let (lifted, newTerm) ←
+                  emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S S'
+                    ch depth strip
+                let (restProof, finalTerm) ←
+                  replayRewritesWith rec cfg ctx newTerm rest depth strip
+                match restProof with
+                | none => return (some lifted, finalTerm)
+                | some rp =>
+                  return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
         let .cons (.atom (.symbol ifS))
             (.cons (.cons (.atom (.symbol q)) (.cons cv .nil))
               (.cons thn (.cons els .nil))) := S
@@ -2347,185 +2604,5 @@ partial def evtrueOfLitTrue (cfg : ReplayConfig) (ctx : ReplayCtx)
     mkAppM ``evtrue_dp_if_split
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, reflectSExpr quoteT,
         reflectSExpr restTerm, vL, pL, hthen, helse]
-
-/-- The literal-clausify DECISION TREE, reconstructed from the flat
-    `SplitDecision` trace (docs/notes/2026-07-03_branch-split-spine.md).
-    `if-interp` pushes events else-branch-FIRST at splits; every event is
-    self-located by its `path`, which the parser validates against its
-    position (fail-closed). -/
-inductive TraceTree where
-  | leaf (value : SExpr) (outcome : String)
-  | resolved (test : SExpr) (verdict : String) (how : String) (sub : TraceTree)
-  /-- A genuine split: `fSide` (test assumed false — the ELSE branch,
-      logged first) and `tSide`. -/
-  | split (test : SExpr) (fSide tSide : TraceTree)
-  deriving Repr, Inhabited
-
-partial def parseTraceTree (path : List (Bool × SExpr)) :
-    List SplitDecision → Except String (TraceTree × List SplitDecision)
-  | [] => throw "parseTraceTree: trace ended without a leaf"
-  | .test t v h p :: rest => do
-    unless p == path do
-      throw s!"parseTraceTree: test {repr t} at path {repr p}, expected \
-               {repr path}"
-    if v == "split" then
-      let (fSide, rest) ← parseTraceTree (path ++ [(false, t)]) rest
-      let (tSide, rest) ← parseTraceTree (path ++ [(true, t)]) rest
-      return (.split t fSide tSide, rest)
-    else
-      let (sub, rest) ← parseTraceTree path rest
-      return (.resolved t v h sub, rest)
-  | .leaf v o p :: rest => do
-    unless p == path do
-      throw s!"parseTraceTree: leaf {repr v} at path {repr p}, expected \
-               {repr path}"
-    return (.leaf v o, rest)
-
-/-- Collapse `t`'s ifs whose tests are DECIDED by the in-scope facts (the
-    branch-split composer's byCases hypotheses + re-derived resolved
-    verdicts), plus the two `call-stack` folds if-interp applied — `(not 'c)`
-    by ground re-execution, `(equal X X)` by reflexivity — bottom-up,
-    mirroring if-interp's interpretation of the rewritten literal. Returns
-    the fuel-eq chain `eval t ≡ eval t'` and the collapsed `t'`. Anything the
-    enumerated rule set cannot decide is left in place; the composer's
-    leaf-value check fail-closes on divergence from the emitted trace. -/
-partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (facts : List (SExpr × Expr × Bool × Expr)) (t : SExpr) :
-    MetaM (Option Expr × SExpr) := do
-  let w := cfg.worldExpr
-  let e := cfg.envExpr
-  let some (fs, args) := asApp t | return (none, t)
-  if fs.name == "QUOTE" then return (none, t)
-  -- an in-scope SPINE falsity fact resolves the term outright: if-interp
-  -- consults the clause-segment ASSUMPTIONS for the terms it encounters (the
-  -- other literals are assumed false) — e.g. a collapsed residual that IS
-  -- another clause literal. Divergence still fail-closes at the composer's
-  -- leaf-value check.
-  if let some hNil := ctx.litFactByTerm? t then
-    let pl ← ctxValProof cfg ctx t
-    let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
-    let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
-    return (some step, quoteNil)
-  if fs.name == "IF" then
-    match args with
-    | [c, a, b] =>
-      -- collapse the test first; decide; then only the LIVE branch
-      let (chC, c') ← collapseEval cfg ctx facts c
-      let mut acc : Option Expr := none
-      let mut cur := t
-      if let some ch := chC then
-        let st : PathStep := { fn := fs, arity := 3, argIdx := 0, siblings := [a, b] }
-        acc := some (← applyStep w e st c c' ch)
-        cur := .cons (.atom (.symbol fs)) ([c', a, b].foldr .cons .nil)
-      match facts.find? (fun (T, _, _, _) => T == c') with
-      | some (_, vT, sign, h) =>
-        let hc ← ctxValProof cfg ctx c'
-        let step ←
-          if sign then
-            let hcv ← mkAppM ``toBool_true_of_ne_nil #[h]
-            let va ← ctxValExpr cfg ctx a
-            let ha ← ctxValProof cfg ctx a
-            let _ := va
-            mkAppM ``re_if_true
-              #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b, vT, va, hc, hcv, ha]
-          else
-            let hcNil ← mkAppM ``re_val_cast
-              #[w, e, reflectSExpr c', vT, mkConst ``SExpr.nil, hc, h]
-            let vb ← ctxValExpr cfg ctx b
-            let hb ← ctxValProof cfg ctx b
-            let _ := vb
-            mkAppM ``re_if_false
-              #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b, vb, hcNil, hb]
-        let sel := if sign then a else b
-        let acc' ← match acc with
-          | none => pure step
-          | some p => mkAppM ``fuel_chain_eq #[p, step]
-        let (chSel, final) ← collapseEval cfg ctx facts sel
-        match chSel with
-        | none => return (some acc', final)
-        | some m => return (some (← mkAppM ``fuel_chain_eq #[acc', m]), final)
-      | none =>
-        -- unresolved test: collapse both branches in place
-        let (chA, a') ← collapseEval cfg ctx facts a
-        if let some ch := chA then
-          let st : PathStep := { fn := fs, arity := 3, argIdx := 1, siblings := [c', b] }
-          let lifted ← applyStep w e st a a' ch
-          acc ← match acc with
-            | none => pure (some lifted)
-            | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
-          cur := .cons (.atom (.symbol fs)) ([c', a', b].foldr .cons .nil)
-        let (chB, b') ← collapseEval cfg ctx facts b
-        if let some ch := chB then
-          let st : PathStep := { fn := fs, arity := 3, argIdx := 2, siblings := [c', a'] }
-          let lifted ← applyStep w e st b b' ch
-          acc ← match acc with
-            | none => pure (some lifted)
-            | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
-          cur := .cons (.atom (.symbol fs)) ([c', a', b'].foldr .cons .nil)
-        let _ := cur
-        return (acc, .cons (.atom (.symbol fs)) ([c', a', b'].foldr .cons .nil))
-    | _ => throwError "collapseEval: malformed if {repr t}"
-  -- generic application: collapse arguments left-to-right, then head folds
-  let mut curArgs := args.toArray
-  let mut acc : Option Expr := none
-  for i in [0:args.length] do
-    let a := curArgs[i]!
-    let (chA, a') ← collapseEval cfg ctx facts a
-    if let some ch := chA then
-      let siblings := (curArgs.toList.zipIdx.filterMap fun (x, j) =>
-        if j == i then none else some x)
-      let st : PathStep := { fn := fs, arity := args.length, argIdx := i, siblings }
-      let lifted ← applyStep w e st a a' ch
-      acc ← match acc with
-        | none => pure (some lifted)
-        | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
-      curArgs := curArgs.set! i a'
-  let cur : SExpr := .cons (.atom (.symbol fs)) (curArgs.toList.foldr .cons .nil)
-  -- the POST-COLLAPSE term may be the form an in-scope assumption is about
-  -- (argument collapse rebuilt it into another clause literal)
-  if let some hNil := ctx.litFactByTerm? cur then
-    let pl ← ctxValProof cfg ctx cur
-    let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
-    let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
-    let acc' ← match acc with
-      | none => pure step
-      | some p => mkAppM ``fuel_chain_eq #[p, step]
-    return (some acc', quoteNil)
-  -- call-stack folds (the enumerated rule set; extend ONLY with rules
-  -- if-interp itself applies — rewrite.lisp:3671-3778)
-  let fold? ← do
-    if fs.name == "NOT" then
-      match curArgs.toList with
-      | [.cons (.atom (.symbol q)) (.cons cc .nil)] =>
-        if q.name == "QUOTE" then
-          let foldedV : SExpr := if cc == SExpr.nil then SExpr.t else SExpr.nil
-          let foldedT : SExpr :=
-            .cons (.atom (.symbol { name := "QUOTE" })) (.cons foldedV .nil)
-          let pNot ← replayExecGround cfg cur foldedV
-          let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr foldedV]
-          pure (some (← mkAppM ``fuel_eq_of_conv
-            #[pNot, pQ, ← mkEqRefl (reflectSExpr foldedV)], foldedT))
-        else pure none
-      | _ => pure none
-    else if fs.name == "EQUAL" then
-      match curArgs.toList with
-      | [x, y] =>
-        if x == y then
-          let hX ← proveConv cfg e ctx x
-          let hNoEqual ← proveNoShadow cfg { name := "EQUAL" }
-          let pEq ← mkAppM ``re_equal_self #[w, e, reflectSExpr x, hX, hNoEqual]
-          let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.t]
-          pure (some (← mkAppM ``fuel_eq_of_conv
-            #[pEq, pQ, ← mkEqRefl (mkConst ``SExpr.t)], quoteT))
-        else pure none
-      | _ => pure none
-    else pure none
-  match fold? with
-  | none => return (acc, cur)
-  | some (stepPf, next) =>
-    let acc' ← match acc with
-      | none => pure stepPf
-      | some p => mkAppM ``fuel_chain_eq #[p, stepPf]
-    return (some acc', next)
 
 end ACL2.Replay.Driver
