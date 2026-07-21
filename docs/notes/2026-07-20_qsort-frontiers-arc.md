@@ -156,8 +156,38 @@ now also lists the in-scope seg/lit fact keys (frontier forensics).
 
 ALL-REL-RM-2 ✓ → 39/79.
 
+### Increment 6 — the EQUAL-nil normalization class (2026-07-21)
+
+`rewrite-equal`'s built-in NIL case (rewrite.lisp:18089-92) is
+UNCONDITIONAL and never recorded: `(equal 'nil x)` / `(equal x 'nil)` ⇒
+`(if x 'nil 't)`. This was the `(EQUAL X 'NIL)` vs `(IF X 'NIL 'T)`
+chain-end signature (×6 rows + PERM-IMPLIES-EQUAL-ALL-REL-2). Landed:
+
+- EvalLemmas: `logic_equal_nil_eq_ite`, `re_val_if_nil_t`,
+  `re_equal_nil_norm_l/_r` (fuel-eq between the two forms, existential
+  conv hypothesis so `proveConv` feeds it directly).
+- NodeCore: `bridgeEqualNilNorm` — fires ONLY on the exact shape (same
+  `x`, reached `(EQUAL 'NIL x)`/`(EQUAL x 'NIL)`, recorded
+  `(IF x 'NIL 'T)`); wired at both chain-end mismatch sites (definition
+  recipe, literal chain).
+- Follow-the-row arms surfaced by APP-NIL *1/3 (each exact-shape,
+  fail-closed): branch-substitution justified by the VARIABLE literal's
+  own falsity (`X ⇒ 'NIL` from segment `(X)`); clause-level
+  EXECUTABLE-COUNTERPART steps (remove-trivial-equivalences' ground
+  evaluations — replayExecGround + diffCollapse across the disjunction);
+  the ground-'T literal closer (ATM/TYPE-SET-TRUE, `:RESULT :TRUE`).
+- composeSplit: VACUOUS singleton arm (segment-false leaf on a singleton
+  clause — the emitted segment + accClause child contradicts the path,
+  ex falso; mirrors the spine's vacuous residual arm).
+
+Rows confirmed: APP-NIL ×2 ✓, TRUE-LISTP-REV ✓, TLP-APP-NIL ✓,
+TRUE-LISTP-ISORT ✓ (+5). PERM-IMPLIES-EQUAL-ALL-REL-2 advanced to
+branch-substitution UNDER THE PERM EQUIVALENCE — genuine L2
+R-parameterized rewriting; PARKED as design wall #3. REV-REV advanced to
+a post-substitution path-navigation mismatch (new signature).
+
 ## Status
 
-- Increments 1–4 verified + committed (c947d97, f1a0ee2, 9376778,
-  8f5dca4): 38/79, DP ✓24 ◌12 ✗0, fork at c648e0bd5a.
-- Increment 5 landed (ALL-REL-RM-2 ✓, 39/79 expected); sweep pending.
+- Increments 1–5 verified + committed (c947d97, f1a0ee2, 9376778,
+  8f5dca4, 1cae4dd): 39/79, DP ✓24 ◌12 ✗0, fork at c648e0bd5a.
+- Increment 6 landed (+5 rows expected → 44/79); sweep pending.

@@ -147,6 +147,54 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       -- and the leaf must be the RESIDUAL (an inline continuation would
       -- prove an empty disjunction). Peel the pushed sibling clause down to
       -- the surviving open-leaf literal and bridge it back — no value split.
+      if outcome == "segment-false" then
+        -- VACUOUS singleton path: the literal is 'nil here, and its EMITTED
+        -- segment (with accClause) forms the pushed child clause — whose
+        -- every literal has an in-scope falsity fact (ctx for accClause,
+        -- this path's byCases facts for the segment). The child's proof
+        -- then CONTRADICTS the path; the singleton goal follows ex falso
+        -- (mirrors the spine walker's vacuous residual arm).
+        let segL := emittedSeg.getD []
+        let expected := accClause ++ segL.filter (!accClause.contains ·)
+        let some child := children.find? (·.inputClause == expected)
+          | throwError "composeSplit: no child clause matches the vacuous \
+                        residual {repr expected} at {idStr}"
+        if expected.isEmpty then
+          throwError "composeSplit: vacuous residual with an EMPTY child \
+                      clause at {idStr} (frontier)"
+        let deriveF (ctx : ReplayCtx) (L : SExpr) : MetaM Expr := do
+          if let some hf := ctx.litFactByTerm? L then return hf
+          if let some (_, _, _, hf) :=
+              facts.find? (fun (T, _, sign, _) => !sign && L == T) then
+            return hf
+          match L with
+          | .cons (.atom (.symbol ns)) (.cons T .nil) =>
+            if ns.name == "NOT" then
+              match facts.find? (fun (T', _, sign, _) => sign && T' == T) with
+              | some (_, _, _, hf) => mkAppM ``not_nil_of_truthy #[hf]
+              | none => throwError "composeSplit: no falsity fact for the \
+                                    vacuous-residual literal {repr L} at {idStr}"
+            else throwError "composeSplit: no falsity fact for the \
+                             vacuous-residual literal {repr L} at {idStr}"
+          | _ => throwError "composeSplit: no falsity fact for the \
+                             vacuous-residual literal {repr L} at {idStr}"
+        let mut ctx := ctx
+        for L in expected do
+          ctx ← pinTermOpaques cfg e ctx L
+        let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+        let mut p := pChild
+        for L in expected.dropLast do
+          let hf ← deriveF ctx L
+          let pNil ← mkAppM ``re_val_cast
+            #[w, e, reflectSExpr L, ← ctxValExpr cfg ctx L, nilC,
+              ← ctxValProof cfg ctx L, hf]
+          p ← mkAppM ``evtrue_extract_else #[pNil, p]
+        let some lastL := expected.getLast?
+          | throwError "composeSplit: internal — empty vacuous residual"
+        let hfLast ← deriveF ctx lastL
+        let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[p, ← ctxValProof cfg ctx lastL]
+        let goalTy ← mkAppM ``EvTrue #[w, e, reflectSExpr clauseLit]
+        return ← mkAppOptM ``absurd #[none, some goalTy, some hfLast, some hNe]
       unless outcome == "segment-open" do
         throwError "composeSplit: {outcome} leaf on a singleton clause at \
                     {idStr} (frontier)"

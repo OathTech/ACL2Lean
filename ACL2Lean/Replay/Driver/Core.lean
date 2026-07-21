@@ -83,15 +83,28 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           | none =>
             (ctx.segFacts.find? (fun (st, _) => st == mkNegEq valT varT)).map
               (fun (_, hf) => ((valT, varT), hf))
-        let some ((ta, tb), hNil) := segEq?
-          | throwError "replayClauseSpine: branch-substitution literal \
-                        (not (equal {repr varT} {repr valT})) is neither in \
-                        the clause nor a segment fact at {idStr}"
         let ctx1 ← pinTermOpaques cfg cfg.envExpr ctx valT
-        let va ← ctxValExpr cfg ctx1 ta
-        let vb ← ctxValExpr cfg ctx1 tb
-        let hEq ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]  -- va = vb
-        let hVeq ← if ta == varT then pure hEq else mkAppM ``Eq.symm #[hEq]
+        -- hVeq : v(varT) = v(valT), from either justification shape
+        let hVeq ←
+          match segEq? with
+          | some ((ta, tb), hNil) => do
+            let va ← ctxValExpr cfg ctx1 ta
+            let vb ← ctxValExpr cfg ctx1 tb
+            let hEq ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]  -- va = vb
+            if ta == varT then pure hEq else mkAppM ``Eq.symm #[hEq]
+          | none =>
+            -- remove-trivial-equivalences' OTHER justification: the segment
+            -- literal IS the variable — `var` false means v(var) = nil =
+            -- v('NIL), justifying `var := 'NIL` directly (observed: APP-NIL
+            -- Subgoal *1/3, segment `(X)`, X ⇒ 'NIL)
+            match (if valT == quoteNil then
+                     (ctx.segFacts.find? (fun (st, _) => st == varT)).map (·.2)
+                   else none) with
+            | some hNil => pure hNil
+            | none =>
+              throwError "replayClauseSpine: branch-substitution literal \
+                          (not (equal {repr varT} {repr valT})) is neither in \
+                          the clause nor a segment fact at {idStr}"
         let pVar ← ctxValProof cfg ctx1 varT
         let pVal ← ctxValProof cfg ctx1 valT
         let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVar, pVal, hVeq]
@@ -246,6 +259,40 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
       let hne ← mkAppM ``ne_of_eq_of_ne #[hEqT, tNeNil]
       return ← evtrueOfLitTrue cfg ctx (clauseLits.map (·.2)) k lhs hne
+    -- a clause-level EXECUTABLE-COUNTERPART step: remove-trivial-equivalences'
+    -- scan evaluates a GROUND application in the substituted clause literals
+    -- (APP-NIL Subgoal *1/3: (APP 'NIL 'NIL) ⇒ 'NIL after X ⇒ 'NIL). Mirror:
+    -- re-run the same closed computation (the exec-counterpart carve-out),
+    -- rewrite every occurrence across the disjunction (diffCollapse), and
+    -- continue the walk on the evaluated literals.
+    if (runeOf n).ty == "executable-counterpart" then
+      let (lhs, rhs) := nodeLhsRhs n
+      let .cons (.atom (.symbol q)) (.cons v .nil) := rhs
+        | throwError "replayClauseSpine: clause-level exec-counterpart rhs \
+                      {repr rhs} is not a quoted constant at {idStr}"
+      unless q.name == "QUOTE" do
+        throwError "replayClauseSpine: clause-level exec-counterpart rhs \
+                    {repr rhs} is not a quoted constant at {idStr}"
+      let conv1 ← replayExecGround cfg lhs v
+      let conv2 ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr v]
+      let nodeEq ← mkAppM ``fuel_eq_of_conv #[conv1, conv2, ← mkEqRefl (reflectSExpr v)]
+      let rec replaceAll (t : SExpr) : SExpr :=
+        if t == lhs then rhs
+        else match t with
+          | .cons a b => .cons (replaceAll a) (replaceAll b)
+          | _ => t
+      let newLits := clauseLits.map fun (i, l) => (i, replaceAll l)
+      if newLits == clauseLits then
+        -- the evaluated subterm is not in the REMAINING literals (it lived in
+        -- an already-walked or dropped one) — the step is a no-op here
+        return ← replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx (disjoinTerm (newLits.map (·.2)))
+      let chainOpt ← diffCollapse cfg.worldExpr cfg.envExpr lhs rhs nodeEq
+        (disjoinTerm (clauseLits.map (·.2))) (disjoinTerm (newLits.map (·.2)))
+      let p ← replayClauseSpineWith rec cfg ctx idStr newLits rest accClause children
+      return ← match chainOpt with
+        | none => pure p
+        | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, p]
     throwError "replayClauseSpine: clause-level step item (rune \
                 {repr (runeOf n)}) in the spine at {idStr} (frontier)"
   | .branch seg _ :: _ =>
@@ -336,6 +383,24 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         let p ← evtrueOfLitTrue cfg ctx allLits pos notH hNe
         mkLambdaFVars #[hNe] p
       return ← mkAppM ``Classical.byCases #[negL, posL]
+    -- a literal that IS the ground constant 't (post-substitution ground
+    -- evaluation reduced it), reported true by rewrite-atm's type-set
+    -- (ATM/TYPE-SET-TRUE, :RESULT :TRUE — APP-NIL Subgoal *1/3): the clause
+    -- closes on the literally-true literal, no chain to replay.
+    if lp.literal == quoteT && lp.result == .atom (.keyword "TRUE") then
+      let pclose ← quoteTFact cfg
+      if restLits.isEmpty then
+        return ← mkAppM ``evtrue_of_eq_t #[pclose]
+      else
+        let restTerm := disjoinTerm (restLits.map (·.2))
+        let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+        let hcv ← proveByDecide
+          (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t)) (mkConst ``Bool.true))
+          "toBool t"
+        let hIf ← mkAppM ``conv_if_true
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
+            reflectSExpr restTerm, mkConst ``SExpr.t, mkConst ``SExpr.t, pclose, hcv, hq]
+        return ← mkAppM ``evtrue_of_eq_t #[hIf]
     if lp.result == quoteT then
       -- the closer: its chain proves it `t`; any later literals (scanned or
       -- not) are short-circuited by the true test.
@@ -359,9 +424,16 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     else
       -- the literal's rewrite chain: literal ⇒ result
       let (chainOpt, finalT) ← replayLiteralChain cfg ctx lp
-      unless finalT == lp.result do
-        throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
-                    at {idStr}, recorded result is {repr lp.result}"
+      let chainOpt ← do
+        if finalT == lp.result then pure chainOpt else
+        -- rewrite-equal's unrecorded NIL normalization at the chain end
+        match ← bridgeEqualNilNorm cfg ctx finalT lp.result with
+        | some br => match chainOpt with
+          | none => pure (some br)
+          | some ch => pure (some (← mkAppM ``fuel_chain_eq #[ch, br]))
+        | none =>
+          throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
+                      at {idStr}, recorded result is {repr lp.result}"
       -- does the clausify decision trace SPLIT?
       let hasSplit := lp.splitTrace.any fun
         | .test _ v _ _ => v == "split"

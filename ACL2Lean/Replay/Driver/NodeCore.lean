@@ -929,6 +929,28 @@ structure NodeRec where
   rewrites : ReplayConfig → ReplayCtx → SExpr → List ProofNode → Nat →
     List Nat → MetaM (Option Expr × SExpr)
 
+/-- Bridge rewrite-equal's built-in NIL NORMALIZATION (rewrite.lisp:18089-92,
+    unconditional/syntactic — ACL2 never records it): a chain-end mismatch of
+    EXACTLY the shape `(EQUAL 'NIL x)` / `(EQUAL x 'NIL)` (reached) vs
+    `(IF x 'NIL 'T)` (recorded), SAME `x`. Returns the fuel-eq chain
+    `eval reached ≡ eval recorded`, or `none` when the shapes don't match
+    (the caller's fail-closed mismatch error stands). -/
+def bridgeEqualNilNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (reached recorded : SExpr) : MetaM (Option Expr) := do
+  let .cons (.atom (.symbol ifS)) (.cons x (.cons nq (.cons tq .nil))) := recorded
+    | return none
+  unless ifS.name == "IF" && nq == quoteNil && tq == quoteT do return none
+  let eqT (a b : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil))
+  let some lem :=
+      (if reached == eqT quoteNil x then some ``re_equal_nil_norm_l
+       else if reached == eqT x quoteNil then some ``re_equal_nil_norm_r
+       else none) | return none
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx x
+  let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
+  let hx ← proveConv cfg cfg.envExpr ctx x
+  return some (← mkAppM lem #[cfg.worldExpr, cfg.envExpr, reflectSExpr x, hNoEq, hx])
+
 /-- The DEFINITION-node recipe, UNIFORM: unfold `(fn args) ⇒ substTerm formals args
     body`, then chain the node's children (recognizer / if-simplification / deeper
     rewrites) over the substituted body via the ordinary path-directed congruence
@@ -1026,8 +1048,15 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
   -- boundary frame), reaching the node's recorded rhs
   let substBody := ACL2.Replay.substTerm formals args body
   let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children (depth + 1) []
-  unless finalTerm == rhs do
-    throwError "definition: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
+  let chainOpt ← do
+    if finalTerm == rhs then pure chainOpt else
+    -- rewrite-equal's unrecorded NIL normalization at the chain end
+    match ← bridgeEqualNilNorm cfg ctx finalTerm rhs with
+    | some br => match chainOpt with
+      | none => pure (some br)
+      | some ch => pure (some (← mkAppM ``fuel_chain_eq #[ch, br]))
+    | none =>
+      throwError "definition: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
   match chainOpt with
   | none => return unfold
   | some ch => mkAppM ``fuel_chain_eq #[unfold, ch]

@@ -4032,4 +4032,85 @@ theorem re_conv_if (w : World) (env : Env) (c t e : SExpr)
   obtain ⟨N, h⟩ := re_val_if w env c t e cv tv ev ⟨Nc, hc⟩ ⟨Nt, ht⟩ ⟨Ne, he⟩
   exact ⟨N, cond (Logic.toBool cv) tv ev, h⟩
 
+/-- The value identity behind rewrite-equal's built-in NIL normalization:
+    `(equal nil v)` and `(if v nil t)` compute the same value. -/
+theorem logic_equal_nil_eq_ite (v : SExpr) :
+    Logic.equal .nil v = (bif Logic.toBool v then .nil else .t) := by
+  cases v with
+  | nil => rfl
+  | atom a => simp [Logic.equal, Logic.toBool]
+  | cons a b => simp [Logic.equal, Logic.toBool]
+
+/-- `(if x 'nil 't)` converges to `(bif toBool vx then nil else t)` given `x`
+    converges to `vx` — the value-characterized form of ACL2's `(not x)`. -/
+theorem re_val_if_nil_t (w : World) (env : Env) (x vx : SExpr)
+    (hx : ∃ N, ∀ f ≥ N, evalOpt f w env x = some vx) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
+        (.cons x (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)) .nil))))
+      = some (bif Logic.toBool vx then .nil else .t) := by
+  obtain ⟨N, hN⟩ := hx
+  refine ⟨N + 2, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  by_cases hb : Logic.toBool vx = true
+  · rw [evalOpt_if_true g w env _ _ _ vx (hN g (by omega)) hb, hb]
+    obtain ⟨g', rfl⟩ : ∃ g', g = g' + 1 := ⟨g - 1, by omega⟩
+    exact evalOpt_quote g' w env .nil
+  · have hnil : vx = .nil := by
+      cases vx with
+      | nil => rfl
+      | atom a => simp [Logic.toBool] at hb
+      | cons a b => simp [Logic.toBool] at hb
+    rw [evalOpt_if_false g w env _ _ _ (hnil ▸ hN g (by omega)),
+        Bool.of_not_eq_true hb]
+    obtain ⟨g', rfl⟩ : ∃ g', g = g' + 1 := ⟨g - 1, by omega⟩
+    exact evalOpt_quote g' w env SExpr.t
+
+/-- rewrite-equal's built-in NIL normalization, LEFT form (rewrite.lisp:18089,
+    unconditional/syntactic): `(equal 'nil x) ≡ (if x 'nil 't)`, fuel-robust,
+    given `x` converges and `equal` is unshadowed. -/
+theorem re_equal_nil_norm_l (w : World) (env : Env) (x : SExpr)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (hxe : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env x = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "EQUAL" }))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+          (.cons x .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
+        (.cons x (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)) .nil)))) := by
+  obtain ⟨N, vx, hN⟩ := hxe
+  have hx : ∃ M, ∀ f ≥ M, evalOpt f w env x = some vx := ⟨N, hN⟩
+  have hl := conv_builtin2 w env { name := "EQUAL" }
+    (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) x
+    .nil vx (Logic.equal .nil vx)
+    (by simp [Symbol.isNamed]) h_no_equal (re_val_quote w env .nil) hx
+    (callBuiltin_equal .nil vx)
+  have hr := re_val_if_nil_t w env x vx hx
+  exact fuel_eq_of_conv hl hr (logic_equal_nil_eq_ite vx)
+
+/-- rewrite-equal's built-in NIL normalization, RIGHT form (rewrite.lisp:18091):
+    `(equal x 'nil) ≡ (if x 'nil 't)`. -/
+theorem re_equal_nil_norm_r (w : World) (env : Env) (x : SExpr)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (hxe : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env x = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "EQUAL" }))
+        (.cons x (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
+        (.cons x (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)) .nil)))) := by
+  obtain ⟨N, vx, hN⟩ := hxe
+  have hx : ∃ M, ∀ f ≥ M, evalOpt f w env x = some vx := ⟨N, hN⟩
+  have hl := conv_builtin2 w env { name := "EQUAL" }
+    x (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+    vx .nil (Logic.equal vx .nil)
+    (by simp [Symbol.isNamed]) h_no_equal hx (re_val_quote w env .nil)
+    (callBuiltin_equal vx .nil)
+  have hr := re_val_if_nil_t w env x vx hx
+  refine fuel_eq_of_conv hl hr ?_
+  rw [← logic_equal_nil_eq_ite vx]
+  exact logic_equal_comm vx .nil
+
 end ACL2.Replay
