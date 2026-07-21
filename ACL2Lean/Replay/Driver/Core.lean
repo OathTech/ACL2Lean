@@ -143,9 +143,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             let h' ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
             ctx2 := { ctx2 with segFacts := ctx2.segFacts ++ [(st', h')] }
         let p ← replayClauseSpineWith rec cfg ctx2 idStr substLits rest accClause children
-        return ← match chainOpt with
-          | none => pure p
-          | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, p]
+        return ← evtrueWith chainOpt p
       let some ((ta, tb), kIdx) := inClause?
         | throwError "replayClauseSpine: internal — inClause? vanished"
       let negEq : SExpr := mkNegEq ta tb
@@ -182,9 +180,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           -- literals directly (EQUAL-CONS Subgoal 4, chained substitutions)
           let pRest ← replayClauseSpineWith rec cfg ctx idStr substLits rest
             accClause children
-          let p ← match chainOpt with
-            | none => pure pRest
-            | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, pRest]
+          let p ← evtrueWith chainOpt pRest
           mkLambdaFVars #[hNil] p
         else do
         unless kPos + 1 < clauseLits.length do
@@ -234,9 +230,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                curR == disjoinTerm (shortened.map (·.2)) do
           throwError "replayClauseSpine: branch-substitution shortening lift \
                       reconstructed {repr curL} / {repr curR} at {idStr}"
-        let chainAll ← match chainOpt with
-          | none => pure inner
-          | some ch => mkAppM ``fuel_chain_eq #[ch, inner]
+        let chainAll ← chainAfter chainOpt inner
         let pRest ← replayClauseSpineWith rec cfg ctx idStr shortened rest accClause children
         let p ← mkAppM ``evtrue_of_fuel_eq #[chainAll, pRest]
         mkLambdaFVars #[hNil] p
@@ -302,9 +296,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       let chainOpt ← diffCollapse cfg.worldExpr cfg.envExpr lhs rhs nodeEq
         (disjoinTerm (clauseLits.map (·.2))) (disjoinTerm (newLits.map (·.2)))
       let p ← replayClauseSpineWith rec cfg ctx idStr newLits rest accClause children
-      return ← match chainOpt with
-        | none => pure p
-        | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, p]
+      return ← evtrueWith chainOpt p
     throwError "replayClauseSpine: clause-level step item (rune \
                 {repr (runeOf n)}) in the spine at {idStr} (frontier)"
   | .branch seg _ :: _ =>
@@ -523,9 +515,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
               ← ctxValProof cfg ctx L, hf]
           p ← mkAppM ``evtrue_extract_else #[pNil, p]
         -- p : EvTrue(lp.result) — bridge to the pre-rewrite literal
-        match chainOpt with
-        | none => return p
-        | some ch => return ← mkAppM ``evtrue_of_fuel_eq #[ch, p]
+        return ← evtrueWith chainOpt p
       -- split on the literal's value
       let vLit ← ctxValExpr cfg ctx lp.literal
       let pLit ← ctxValProof cfg ctx lp.literal

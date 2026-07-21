@@ -231,7 +231,9 @@ against it structurally:
   then. Approval is never inferred from an earlier "merge it" or from the branch being
   green; it must be given at the moment of merge, for that specific merge. Same for
   `git push`. Prefer linear history (fast-forward merges); `--no-ff` is allowed but not
-  the default.
+  the default. Before any superproject push, run `just check-push-ready` — the acl2
+  submodule pointer must be reachable from the fork remote (push the fork FIRST), or
+  the published main breaks every fresh checkout and CI at submodule init.
 - **Keep `TODO.md` current.** The repo-root `TODO.md` is the running backlog across
   all tracks (A: the rewriting-replay driver; B: type-set/decision-procedure
   instrumentation; and the rest of the pipeline). Update it whenever a milestone

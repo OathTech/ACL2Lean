@@ -258,9 +258,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             ← ctxValProof cfg ctx L, hf]
         p ← mkAppM ``evtrue_extract_else #[pNil, p]
       -- p : EvTrue(value); bridge back to the literal
-      match fullChain with
-      | none => pure p
-      | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, p]
+      evtrueWith fullChain p
     else
       -- SEGMENT leaf: split on the literal's value
       let vLit ← ctxValExpr cfg ctx clauseLit
@@ -348,9 +346,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                   ← ctxValProof cfg ctx L, hf]
               p ← mkAppM ``evtrue_extract_else #[pNil, p]
             -- p : EvTrue(value); bridge to the literal and refute h
-            let pLitTrue ← match fullChain with
-              | none => pure p
-              | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, p]
+            let pLitTrue ← evtrueWith fullChain p
             let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[pLitTrue, pLit]
             let goalTy ← mkAppM ``EvTrue #[w, e, reflectSExpr restTerm]
             mkAppOptM ``absurd #[none, some goalTy, some h, some hNe]

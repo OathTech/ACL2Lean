@@ -97,6 +97,13 @@ recapture-all: capture-all-logs
 golden-review:
     bash scripts/golden-diff.sh
 
+# Pre-push guard: the acl2 submodule pointer must be reachable from the
+# fork REMOTE before any superproject push (2026-07-21 incident: main
+# pushed with the fork 3 commits unpushed — GitHub CI "not our ref").
+# Network (fetches the fork remote); run manually before pushing.
+check-push-ready:
+    bash scripts/check-push-ready.sh
+
 # Provenance gate (hardening G2): every corpus log's sidecar must be
 # stamped at the CURRENT acl2 submodule HEAD (stale/partial recaptures
 # fail loudly). Static; runs in `ci`.

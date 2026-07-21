@@ -639,6 +639,34 @@ Single homes for compositions that had grown near-clones across the clause
 walkers — extracted behavior-preserving (see CLAUDE.md's engineering-quality
 policy; the risk managed is a fix landing in one clone and missing its twin). -/
 
+/-- Chain a fuel-eq with an OPTIONAL continuation: `a` alone, or
+    `fuel_chain_eq a b`. The ubiquitous chain-tail idiom (quality pass Q1). -/
+def chainWith (a : Expr) (b? : Option Expr) : MetaM Expr :=
+  match b? with
+  | none => pure a
+  | some b => mkAppM ``fuel_chain_eq #[a, b]
+
+/-- Chain an OPTIONAL accumulated fuel-eq BEFORE a step: `b` alone, or
+    `fuel_chain_eq a b`. -/
+def chainAfter (a? : Option Expr) (b : Expr) : MetaM Expr :=
+  match a? with
+  | none => pure b
+  | some a => mkAppM ``fuel_chain_eq #[a, b]
+
+/-- Combine two OPTIONAL fuel-eq chains. -/
+def chainOptWith (a? b? : Option Expr) : MetaM (Option Expr) :=
+  match a?, b? with
+  | none, b? => pure b?
+  | some a, none => pure (some a)
+  | some a, some b => some <$> mkAppM ``fuel_chain_eq #[a, b]
+
+/-- `EvTrue` transport along an OPTIONAL fuel-eq chain:
+    `p` alone, or `evtrue_of_fuel_eq ch p`. -/
+def evtrueWith (ch? : Option Expr) (p : Expr) : MetaM Expr :=
+  match ch? with
+  | none => pure p
+  | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, p]
+
 /-- Falsity of a segment literal from the composer's byCases `facts`:
     a ¬sign fact for the literal itself, or — for a `(not T)` literal — a
     sign fact for `T` lifted by `not_nil_of_truthy` (if-interp's
@@ -2043,9 +2071,7 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
       if let .cons (.atom (.symbol q)) (.cons cv .nil) := c' then
         if q.name == "QUOTE" then
           let (step, sel) ← mkConstTestCollapse cfg ctx c' cv a b
-          let acc' ← match acc with
-            | none => pure step
-            | some p => mkAppM ``fuel_chain_eq #[p, step]
+          let acc' ← chainAfter acc step
           let (chSel, final) ← collapseEval cfg ctx facts sel
           match chSel with
           | none => return (some acc', final)
@@ -2070,9 +2096,7 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
             mkAppM ``re_if_false
               #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b, vb, hcNil, hb]
         let sel := if sign then a else b
-        let acc' ← match acc with
-          | none => pure step
-          | some p => mkAppM ``fuel_chain_eq #[p, step]
+        let acc' ← chainAfter acc step
         let (chSel, final) ← collapseEval cfg ctx facts sel
         match chSel with
         | none => return (some acc', final)
@@ -2083,17 +2107,13 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
         if let some ch := chA then
           let st : PathStep := { fn := fs, arity := 3, argIdx := 1, siblings := [c', b] }
           let lifted ← applyStep w e st a a' ch
-          acc ← match acc with
-            | none => pure (some lifted)
-            | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
+          acc := some (← chainAfter acc lifted)
           cur := .cons (.atom (.symbol fs)) ([c', a', b].foldr .cons .nil)
         let (chB, b') ← collapseEval cfg ctx facts b
         if let some ch := chB then
           let st : PathStep := { fn := fs, arity := 3, argIdx := 2, siblings := [c', a'] }
           let lifted ← applyStep w e st b b' ch
-          acc ← match acc with
-            | none => pure (some lifted)
-            | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
+          acc := some (← chainAfter acc lifted)
           cur := .cons (.atom (.symbol fs)) ([c', a', b'].foldr .cons .nil)
         let _ := cur
         return (acc, .cons (.atom (.symbol fs)) ([c', a', b'].foldr .cons .nil))
@@ -2109,9 +2129,7 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
         if j == i then none else some x)
       let st : PathStep := { fn := fs, arity := args.length, argIdx := i, siblings }
       let lifted ← applyStep w e st a a' ch
-      acc ← match acc with
-        | none => pure (some lifted)
-        | some p => pure (some (← mkAppM ``fuel_chain_eq #[p, lifted]))
+      acc := some (← chainAfter acc lifted)
       curArgs := curArgs.set! i a'
   let cur : SExpr := .cons (.atom (.symbol fs)) (curArgs.toList.foldr .cons .nil)
   -- the POST-COLLAPSE term may be the form an in-scope assumption is about
@@ -2120,9 +2138,7 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
     let pl ← ctxValProof cfg ctx cur
     let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
     let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
-    let acc' ← match acc with
-      | none => pure step
-      | some p => mkAppM ``fuel_chain_eq #[p, step]
+    let acc' ← chainAfter acc step
     return (some acc', quoteNil)
   -- call-stack folds (the enumerated rule set; extend ONLY with rules
   -- if-interp itself applies — rewrite.lisp:3671-3778)
@@ -2203,9 +2219,7 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
   match fold? with
   | none => return (acc, cur)
   | some (stepPf, next) =>
-    let acc' ← match acc with
-      | none => pure stepPf
-      | some p => mkAppM ``fuel_chain_eq #[p, stepPf]
+    let acc' ← chainAfter acc stepPf
     return (some acc', next)
 
 
@@ -2251,10 +2265,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                     ch depth strip
                 let (restProof, finalTerm) ←
                   replayRewritesWith rec cfg ctx newTerm rest depth strip
-                match restProof with
-                | none => return (some lifted, finalTerm)
-                | some rp =>
-                  return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
+                return (some (← chainWith lifted restProof), finalTerm)
         let .cons (.atom (.symbol ifS))
             (.cons (.cons (.atom (.symbol q)) (.cons cv .nil))
               (.cons thn (.cons els .nil))) := S
@@ -2282,9 +2293,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let strip' := if rel.isEmpty then strip ++ [if cv == SExpr.nil then 3 else 2]
                       else strip
         let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip'
-        match restProof with
-        | none => return (some lifted, finalTerm)
-        | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
+        return (some (← chainWith lifted restProof), finalTerm)
     -- DISPLAY-FOLDED constant-test collapses (docs/notes/2026-06-14_exec-
     -- counterpart-and-folding-wall.md; extended 2026-07-20): a constant-test
     -- if-simplification's recorded lhs went through sublis-var, whose
@@ -2335,10 +2344,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
               let strip' := if rel.isEmpty then strip ++ [if cv == SExpr.nil then 3 else 2]
                             else strip
               let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip'
-              match restProof with
-              | none => return (some lifted, finalTerm)
-              | some rp =>
-                return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
+              return (some (← chainWith lifted restProof), finalTerm)
     -- clause-context-resolution marker: ACL2's rewrite-atm emits this as a
     -- terminal REPORT ("we have proved the original literal … hence the
     -- clause", simplify.lisp) — lhs is the ORIGINAL atom, rhs the NET constant
@@ -2440,9 +2446,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let (lifted, newTerm) ←
           emitCongruence w e start (nodePath n) S final nodeProof depth strip
         let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip
-        match restProof with
-        | none => return (some lifted, finalTerm)
-        | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
+        return (some (← chainWith lifted restProof), finalTerm)
     -- a CONSTANT-TEST if-simplification whose recorded test does not match
     -- the running term's test: the test was resolved by an UNEMITTED
     -- type-alist lookup (a clause/segment fact, possibly through `equal`'s
@@ -2600,9 +2604,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         | _ => throwError "replayRewrites: root if-simplification lhs not a 3-arg if"
       else pure strip
     let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip'
-    match restProof with
-    | none => return (some lifted, finalTerm)
-    | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
+    return (some (← chainWith lifted restProof), finalTerm)
 
 /- The tied node-level knot — the ONLY remaining mutual at this layer.
    Public names/signatures identical to the pre-WP2 mutual members. -/
