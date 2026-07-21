@@ -116,7 +116,39 @@ trees (qsort book):
 Rows: ALL-REL-FILTER-1 ✓, ALL-REL-RM-1 ✓ (36→38 expected pending sweep).
 ALL-REL-RM-2 unchanged (residual-survivor mismatch — different class).
 
+### Increment 4 — emitted leaf segments (fork c648e0bd5a) + spine arms
+
+The ALL-REL-RM-2 investigation exposed that the leaf→branch link is
+UNDERDETERMINED by the current emission: `convert-assumptions-to-clause-
+segment` drops literals subsumed by an assumed constant equality (e.g.
+`FN='GT` true drops `(EQUAL FN 'LT)`/`(EQUAL FN 'LTE)`), so distinct
+leaves map to overlapping recorded branches and derivable-falsity
+selection is ambiguous. Per the no-inference rule: EMIT MORE —
+`emit/if-interp/leaf` now carries `:SEGMENT` (the exact constructed
+segment) on segment-* leaves (fork commit c648e0bd5a; full recapture).
+Consumers: parser (required for segment outcomes, forbidden on dropped),
+`SplitDecision.leaf`/`TraceTree.leaf` threading; composeSplit selection =
+EXACT emitted match first, falling back to derivable-falsity uniqueness
+when the Satriani/subsumption post-pass MERGED segments (complementary-
+literal consensus — observed `[LT,LTE,GT,LEX] + [LT,LTE,¬GT,LEX] →
+[LT,LTE,LEX]`); the ∧-synthetic split's fSide leaf carries the open
+leaf's emitted segment.
+
+Also this increment (spine arms, from the same row):
+- Core: VACUOUS residual path — a last literal collapsing to 'nil with an
+  EMPTY segment pushes accClause as the child; all its literals have
+  falsity facts, so the child's proof contradicts the path (ex falso).
+- collapseEval: flipped-EQUAL spine-fact lookup (logic_equal_comm
+  transport, mirroring composeSplit's resolved-test path).
+
+ALL-REL-RM-2 itself advanced two subgoals but still FAILs at an identity
+if-simplification with running `(IF (EQUAL D E) 'NIL 'T)` and rhs 'T —
+the (EQUAL D E)-falsity fact is NOT in litFacts/segFacts at that node
+(neither orientation); locating which context should supply it is the
+next increment's first task.
+
 ## Status
 
-- Increments 1–2 verified + committed (c947d97, f1a0ee2): 36/79, DP ✓24.
-- Increment 3 landed; sweep + golden review pending.
+- Increments 1–3 verified + committed (c947d97, f1a0ee2, 9376778): 38/79,
+  DP ✓24 ◌12 ✗0.
+- Increment 4 landed (fork + parser + selection); sweep pending.

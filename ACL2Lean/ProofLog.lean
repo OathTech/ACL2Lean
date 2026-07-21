@@ -142,8 +142,12 @@ inductive TraceEvent where
   /-- The LEAF of one assume-true-false path (emit/if-interp/leaf): its value
       and outcome — `dropped` (true leaf), `segment-false` (false leaf: the
       path's negations form the segment), `segment-open` (unresolved leaf:
-      joins the segment as a literal). -/
+      joins the segment as a literal). For the two SEGMENT outcomes, `segment`
+      is the clause segment ACL2's converter constructed for this leaf (the
+      exact leaf→child-clause link — the path alone does not determine it:
+      the converter drops literals subsumed by an assumed constant equality). -/
   | clausifyLeaf (value : SExpr) (outcome : String) (path : List (Bool × SExpr))
+      (segment : Option (List SExpr))
   /-- Fired-marker (emit/if-interp/satriani-fired,
       emit/clausify/subsumption-loop-fired): a post-pass RESHAPED the segment
       set beyond the decision trace — the replay hard-fails on it rather than
@@ -594,7 +598,19 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           | some s => throw s!"CLAUSIFY-LEAF: bad :OUTCOME: {repr s}"
           | none => throw "CLAUSIFY-LEAF: missing :OUTCOME"
         let path ← parseClausifyPath ((lookupKeyword "PATH" rest).getD .nil)
-        pure (.clausifyLeaf value outcome path)
+        -- :SEGMENT — required for the two segment outcomes, forbidden for
+        -- dropped (the emitter writes it exactly there; no leniency drift)
+        let segment ← match lookupKeyword "SEGMENT" rest, outcome with
+          | some s, "segment-false" | some s, "segment-open" =>
+            match s.toList? with
+            | some l => pure (some l)
+            | none => throw s!"CLAUSIFY-LEAF: :SEGMENT is not a list: {repr s}"
+          | none, "dropped" => pure none
+          | none, o => throw s!"CLAUSIFY-LEAF: {o} outcome without :SEGMENT \
+                                (stale log? recapture-all)"
+          | some _, o => throw s!"CLAUSIFY-LEAF: unexpected :SEGMENT on a \
+                                  {o} leaf"
+        pure (.clausifyLeaf value outcome path segment)
     | .atom (.keyword "CLAUSIFY-SATRIANI") :: rest =>
         let which ← match lookupKeyword "WHICH" rest with
           -- WHICH is an internal dispatch tag, not a symbol-identity value.

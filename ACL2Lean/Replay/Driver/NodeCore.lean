@@ -1744,7 +1744,9 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     self-located by its `path`, which the parser validates against its
     position (fail-closed). -/
 inductive TraceTree where
-  | leaf (value : SExpr) (outcome : String)
+  /-- `segment` (segment-* outcomes): the EMITTED clause segment for this
+      leaf — the exact leaf→branch link the composer selects by. -/
+  | leaf (value : SExpr) (outcome : String) (segment : Option (List SExpr))
   | resolved (test : SExpr) (verdict : String) (how : String) (sub : TraceTree)
   /-- A genuine split: `fSide` (test assumed false — the ELSE branch,
       logged first) and `tSide`. -/
@@ -1765,7 +1767,7 @@ partial def parseTraceTree (path : List (Bool × SExpr)) :
     else
       let (sub, rest) ← parseTraceTree path rest
       return (.resolved t v h sub, rest)
-  | .leaf v o p :: rest => do
+  | .leaf v o p seg :: rest => do
     unless p == path do
       throw s!"parseTraceTree: leaf {repr v} at path {repr p}, expected \
                {repr path}"
@@ -1774,19 +1776,19 @@ partial def parseTraceTree (path : List (Bool × SExpr)) :
     -- `[v]`-segment child clause of `lit ≡ v ∧ X`) and CONTINUES
     -- enumerating X's segments at the SAME path — the leaf is not
     -- terminal. For the composer this is the decision split on `v`:
-    -- under ¬v the literal is 'nil (and the `[v]` branch's segment is
-    -- derivably false right there); under v the continuation's decisions
-    -- apply. Synthesize exactly that split — every downstream check
-    -- (collapse-vs-leaf-value, unique all-false branch selection) stays
-    -- fail-closed, so a wrong shape reading cannot compose silently.
+    -- under ¬v the literal is 'nil (and the `[v]` branch's segment —
+    -- carried over from the open leaf's emitted :SEGMENT — is selected
+    -- right there); under v the continuation's decisions apply.
+    -- Synthesize exactly that split — every downstream check
+    -- (collapse-vs-leaf-value, branch selection) stays fail-closed.
     let nextSamePath := match rest with
       | .test _ _ _ p' :: _ => p' == path
-      | .leaf _ _ p' :: _ => p' == path
+      | .leaf _ _ p' _ :: _ => p' == path
       | [] => false
     if o == "segment-open" && nextSamePath then
       let (k, rest') ← parseTraceTree path rest
-      return (.split v (.leaf quoteNil "segment-false") k, rest')
-    return (.leaf v o, rest)
+      return (.split v (.leaf quoteNil "segment-false" seg) k, rest')
+    return (.leaf v o seg, rest)
 
 /-- Collapse `t`'s ifs whose tests are DECIDED by the in-scope facts (the
     branch-split composer's byCases hypotheses + re-derived resolved
@@ -1813,6 +1815,20 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
     let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
     let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
     return (some step, quoteNil)
+  -- flipped-EQUAL spine fact (if-interp-assumed-value2's rule set — the
+  -- same commuted lookup composeSplit's resolved-test path does)
+  if let .cons (.atom (.symbol eqS)) (.cons x (.cons y .nil)) := t then
+    if eqS.name == "EQUAL" then
+      let flipped : SExpr := .cons (.atom (.symbol eqS)) (.cons y (.cons x .nil))
+      if let some hNilF := ctx.litFactByTerm? flipped then
+        let vx ← ctxValExpr cfg ctx x
+        let vy ← ctxValExpr cfg ctx y
+        let comm ← mkAppM ``logic_equal_comm #[vx, vy]
+        let hNil ← mkAppM ``Eq.trans #[comm, hNilF]
+        let pl ← ctxValProof cfg ctx t
+        let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
+        let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
+        return (some step, quoteNil)
   if fs.name == "IF" then
     match args with
     | [c, a, b] =>

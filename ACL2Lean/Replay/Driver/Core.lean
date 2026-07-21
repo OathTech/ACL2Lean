@@ -386,7 +386,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         -- inside them)
         let mut ctx := ctx
         for d in lp.splitTrace do
-          if let .leaf v _ _ := d then
+          if let .leaf v _ _ _ := d then
             ctx ← pinTermOpaques cfg cfg.envExpr ctx v
         return ← composeSplit rec cfg ctx idStr lp chainOpt clit restLits branchSegs
           accClause children [] tree
@@ -398,7 +398,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             | throwError "replayClauseSpine: literal {idx}'s branch segment \
                           {repr seg} is not a list at {idStr}"
           match lp.splitTrace.filter (fun | .leaf .. => true | _ => false) with
-          | [.leaf lv outcome _] =>
+          | [.leaf lv outcome _ _] =>
             if outcome == "dropped" then
               throwError "replayClauseSpine: single DROPPED leaf on the \
                           non-closing literal {idx} at {idStr} (frontier)"
@@ -430,6 +430,38 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         let some child := children.find? (·.inputClause == accClause')
           | throwError "replayClauseSpine: no child clause matches the \
                         residual {repr accClause'} at {idStr}"
+        -- VACUOUS path (segment-false leaf, empty segment — observed:
+        -- ALL-REL-RM-2, Subgoal *1/3'): the literal collapsed to 'nil and
+        -- contributed nothing, so the pushed child IS accClause — whose
+        -- every literal has an in-scope falsity fact. The child's proof
+        -- then CONTRADICTS this path's assumptions: peel to any literal
+        -- and refute — the spine's goal follows ex falso, exactly the
+        -- clause-level composition (this case of the parent is impossible).
+        if lp.result == quoteNil && segLits.isEmpty then
+          unless !accClause'.isEmpty do
+            throwError "replayClauseSpine: vacuous residual with an EMPTY \
+                        child clause at {idStr} (frontier)"
+          let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+          let mut p := pChild
+          for L in accClause'.dropLast do
+            let some hf := ctx.litFactByTerm? L
+              | throwError "replayClauseSpine: no falsity fact for the residual \
+                            literal {repr L} at {idStr}"
+            let pNil ← mkAppM ``re_val_cast
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr L,
+                ← ctxValExpr cfg ctx L, mkConst ``SExpr.nil,
+                ← ctxValProof cfg ctx L, hf]
+            p ← mkAppM ``evtrue_extract_else #[pNil, p]
+          let some lastL := accClause'.getLast?
+            | throwError "replayClauseSpine: internal — empty accClause'"
+          let some hfLast := ctx.litFactByTerm? lastL
+            | throwError "replayClauseSpine: no falsity fact for the residual \
+                          literal {repr lastL} at {idStr}"
+          -- p : EvTrue(lastL) vs hfLast : v(lastL) = nil — absurd
+          let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[p, ← ctxValProof cfg ctx lastL]
+          let goalTy ← mkAppM ``EvTrue
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal]
+          return ← mkAppOptM ``absurd #[none, some goalTy, some hfLast, some hNe]
         unless accClause'.getLast? == some lp.result do
           throwError "replayClauseSpine: residual's surviving literal is not \
                       literal {idx}'s result at {idStr} (frontier)"

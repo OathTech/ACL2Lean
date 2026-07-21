@@ -101,8 +101,11 @@ inductive SplitDecision where
       constant/assumed/split. -/
   | test (test : SExpr) (verdict : String) (how : String)
       (path : List (Bool × SExpr))
-  /-- A path's leaf: `outcome` ∈ dropped/segment-false/segment-open. -/
+  /-- A path's leaf: `outcome` ∈ dropped/segment-false/segment-open.
+      `segment` (segment-* outcomes only) is the EMITTED clause segment ACL2
+      constructed for this leaf — the exact leaf→child-clause link. -/
   | leaf (value : SExpr) (outcome : String) (path : List (Bool × SExpr))
+      (segment : Option (List SExpr))
   deriving Repr, Inhabited, BEq
 
 /-- Proof that a single literal simplifies to a result under clause
@@ -352,7 +355,7 @@ partial def parseClauseItems (events : List TraceEvent)
       -- chain events carries no information)
       let splitTrace := litEvents.filterMap fun
         | .clausifyTest t v h p => some (SplitDecision.test t v h p)
-        | .clausifyLeaf v o p => some (SplitDecision.leaf v o p)
+        | .clausifyLeaf v o p seg => some (SplitDecision.leaf v o p seg)
         | _ => none
       let splitReshaped := litEvents.filterMap fun
         | .clausifySetReshaped w => some w
