@@ -1020,6 +1020,24 @@ obligation is stated precisely in its conditional proof's type:
       (DriverTests). REMAINING (design-flavored): vacuity/premise-
       satisfiability smoke tests, TamperTests premise-tamper,
       translator/WorldGen joint enumeration.
+- [ ] **De-dup / abstraction review of the Lean replay infra (MDD, 2026-07-21).**
+      A LIGHT review pass over the driver looking for emerged patterns worth
+      consolidating — we have built a lot of code arc-by-arc and duplication
+      is accumulating. Known candidates from the qsort-frontiers arc alone:
+      the falsity-fact derivation helpers (`deriveFalsity` exists in ~3
+      variants across Compose.lean/Core.lean — segment vs residual vs vacuous
+      arms); the litFact/segFact TRANSPORT-across-substitution loop
+      (duplicated between the two branch-substitution justification arms in
+      Core.lean); the residual "peel + ex falso" composition (spine vacuous
+      arm vs composeSplit vacuous arm); the `re_if_true`/`re_if_false`
+      constant-test collapse construction (identity arm, folded-collapse arm,
+      collapseEval — 3 sites); `conv_if_true`-based closer plumbing (2-3
+      sites in Core.lean); the `(match … with | some/none)` chainOpt
+      threading idiom (`fuel_chain_eq`/`evtrue_of_fuel_eq` compositions).
+      Method: enumerate the clones (grep + read), rank by risk-reduction
+      (a fix applied to one clone silently missing its twin is the incident
+      class), extract shared helpers WITHOUT changing behavior, golden must
+      stay byte-identical. Good post-arc / pre-merge-window task.
 - [ ] **Rebase the `acl2/` fork on upstream (2026-06-12).** The submodule's
       `acl2-lean-output` branch is based on an aging upstream `master`; rebase
       (or merge upstream forward) at some point. The TRACE-LOG tagging

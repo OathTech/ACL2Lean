@@ -175,6 +175,18 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         -- trivial `(not (equal v v))` — from the clause it scans; collapse its
         -- if-frame out of the disjunction (its value is nil by reflexivity)
         let kPos := clauseLits.findIdx (fun (i, _) => i == kIdx)
+        if kPos + 1 == clauseLits.length then
+          -- the used literal is LAST: deleting it changes nothing any later
+          -- record references (there are none after it) — keep the trivial
+          -- literal in the walked clause and continue on the substituted
+          -- literals directly (EQUAL-CONS Subgoal 4, chained substitutions)
+          let pRest ← replayClauseSpineWith rec cfg ctx idStr substLits rest
+            accClause children
+          let p ← match chainOpt with
+            | none => pure pRest
+            | some ch => mkAppM ``evtrue_of_fuel_eq #[ch, pRest]
+          mkLambdaFVars #[hNil] p
+        else do
         unless kPos + 1 < clauseLits.length do
           throwError "replayClauseSpine: branch-substitution literal is the \
                       clause's LAST literal at {idStr} (frontier)"

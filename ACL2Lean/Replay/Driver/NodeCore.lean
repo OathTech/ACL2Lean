@@ -937,19 +937,38 @@ structure NodeRec where
     (the caller's fail-closed mismatch error stands). -/
 def bridgeEqualNilNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
     (reached recorded : SExpr) : MetaM (Option Expr) := do
-  let .cons (.atom (.symbol ifS)) (.cons x (.cons nq (.cons tq .nil))) := recorded
-    | return none
-  unless ifS.name == "IF" && nq == quoteNil && tq == quoteT do return none
   let eqT (a b : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil))
-  let some lem :=
-      (if reached == eqT quoteNil x then some ``re_equal_nil_norm_l
-       else if reached == eqT x quoteNil then some ``re_equal_nil_norm_r
-       else none) | return none
-  let ctx ← pinTermOpaques cfg cfg.envExpr ctx x
+  let .cons (.atom (.symbol ifS)) (.cons x (.cons thn (.cons els .nil))) := recorded
+    | return none
+  unless ifS.name == "IF" do return none
+  -- the NIL forms: recorded (IF x 'NIL 'T)
+  if thn == quoteNil && els == quoteT then
+    let some lem :=
+        (if reached == eqT quoteNil x then some ``re_equal_nil_norm_l
+         else if reached == eqT x quoteNil then some ``re_equal_nil_norm_r
+         else none) | return none
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx x
+    let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
+    let hx ← proveConv cfg cfg.envExpr ctx x
+    return some (← mkAppM lem #[cfg.worldExpr, cfg.envExpr, reflectSExpr x, hNoEq, hx])
+  -- the EQUALITYP form (rewrite.lisp:18093): reached (EQUAL (EQUAL a b) r),
+  -- recorded (IF (EQUAL a b) (EQUAL r 'T) (IF r 'NIL 'T))
+  let .cons (.atom (.symbol xeS)) (.cons a (.cons b .nil)) := x | return none
+  unless xeS.name == "EQUAL" do return none
+  let .cons (.atom (.symbol thS)) (.cons r (.cons rtq .nil)) := thn | return none
+  unless thS.name == "EQUAL" && rtq == quoteT do return none
+  unless els == .cons (.atom (.symbol { name := "IF" }))
+      (.cons r (.cons quoteNil (.cons quoteT .nil))) do return none
+  unless reached == eqT x r do return none
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx reached
   let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
-  let hx ← proveConv cfg cfg.envExpr ctx x
-  return some (← mkAppM lem #[cfg.worldExpr, cfg.envExpr, reflectSExpr x, hNoEq, hx])
+  let ha ← proveConv cfg cfg.envExpr ctx a
+  let hb ← proveConv cfg cfg.envExpr ctx b
+  let hr ← proveConv cfg cfg.envExpr ctx r
+  return some (← mkAppM ``re_equal_equalityp_norm
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, reflectSExpr r,
+      hNoEq, ha, hb, hr])
 
 /-- The DEFINITION-node recipe, UNIFORM: unfold `(fn args) ⇒ substTerm formals args
     body`, then chain the node's children (recognizer / if-simplification / deeper
@@ -2025,7 +2044,30 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- call-stack folds (the enumerated rule set; extend ONLY with rules
   -- if-interp itself applies — rewrite.lisp:3671-3778)
   let fold? ← do
-    if fs.name == "NOT" then
+    -- cons-term's GROUND-PRIMITIVE fold: an argument-ground application of
+    -- an UNDEFINED (builtin) head folds to its value — e.g. (CAR 'NIL) ⇒
+    -- 'NIL (CAR-RM). Re-run the same closed computation (the
+    -- exec-counterpart carve-out); user-fn heads stay in place (cons-term
+    -- folds primitives only).
+    if curArgs.all (fun a => match a with
+        | .cons (.atom (.symbol q)) (.cons _ .nil) => q.name == "QUOTE"
+        | _ => false) &&
+       cfg.worldVal.defs.get? fs == none && fs.name != "NOT" then
+      let mut F := 8
+      let mut v? : Option SExpr := none
+      while v?.isNone && F ≤ 65536 do
+        v? := ACL2.evalOpt F cfg.worldVal {} cur
+        if v?.isNone then F := F * 2
+      match v? with
+      | none => pure none  -- leave in place; downstream checks fail-closed
+      | some v =>
+        let foldedT : SExpr :=
+          .cons (.atom (.symbol { name := "QUOTE" })) (.cons v .nil)
+        let p ← replayExecGround cfg cur v
+        let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr v]
+        pure (some (← mkAppM ``fuel_eq_of_conv
+          #[p, pQ, ← mkEqRefl (reflectSExpr v)], foldedT))
+    else if fs.name == "NOT" then
       match curArgs.toList with
       | [.cons (.atom (.symbol q)) (.cons cc .nil)] =>
         if q.name == "QUOTE" then
@@ -2039,6 +2081,10 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
         else pure none
       | _ => pure none
     else if fs.name == "EQUAL" then
+      let isEqualApp : SExpr → Bool := fun t =>
+        match t with
+        | .cons (.atom (.symbol es)) (.cons _ (.cons _ .nil)) => es.name == "EQUAL"
+        | _ => false
       match curArgs.toList with
       | [x, y] =>
         if x == y then
@@ -2048,6 +2094,26 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
           let pQ ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.t]
           pure (some (← mkAppM ``fuel_eq_of_conv
             #[pEq, pQ, ← mkEqRefl (mkConst ``SExpr.t)], quoteT))
+        else if y == quoteT && isEqualApp x then
+          -- (equal (equal a b) 't) = (equal a b) — rewrite.lisp:3791
+          let pl ← ctxValProof cfg ctx cur
+          let pr ← ctxValProof cfg ctx x
+          let .cons _ (.cons a (.cons b .nil)) := x
+            | throwError "collapseEval: internal — isEqualApp shape"
+          let va ← ctxValExpr cfg ctx a
+          let vb ← ctxValExpr cfg ctx b
+          pure (some (← mkAppM ``fuel_eq_of_conv
+            #[pl, pr, ← mkAppM ``logic_equal_equal_t_r #[va, vb]], x))
+        else if x == quoteT && isEqualApp y then
+          -- (equal 't (equal a b)) = (equal a b) — rewrite.lisp:3785
+          let pl ← ctxValProof cfg ctx cur
+          let pr ← ctxValProof cfg ctx y
+          let .cons _ (.cons a (.cons b .nil)) := y
+            | throwError "collapseEval: internal — isEqualApp shape"
+          let va ← ctxValExpr cfg ctx a
+          let vb ← ctxValExpr cfg ctx b
+          pure (some (← mkAppM ``fuel_eq_of_conv
+            #[pl, pr, ← mkAppM ``logic_equal_equal_t_l #[va, vb]], y))
         else pure none
       | _ => pure none
     else pure none
@@ -2645,7 +2711,7 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
     - a `type-alist` nil-verdict node `l ⇒ 'nil` demands `l` itself;
     - a `type-alist` truthy node `l ⇒ 't` demands `(not l)`. -/
 partial def collectContextDemands : ProofNode → List SExpr
-  | .node ⟨rty, _, _⟩ l rh children _ =>
+  | .node ⟨rty, _, _⟩ l rh children prov =>
     let notOf : SExpr → SExpr := fun t =>
       .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
     (if rty == "hyp-relief" then [notOf l]
@@ -2653,6 +2719,12 @@ partial def collectContextDemands : ProofNode → List SExpr
        if rh == quoteNil then [l]
        else if rh == quoteT then [notOf l]
        else []
+     else if prov.origin == "recognizer/true" then
+       -- a recognizer resolved TRUE from the clause context (a later
+       -- literal is its negation — EQUAL-CONS Subgoal 4); hoisting is a
+       -- no-op when the fact is derivable another way
+       [notOf l]
+     else if prov.origin == "recognizer/false" then [l]
      else []) ++ children.flatMap collectContextDemands
 
 /-- `EvTrue (disjoin lits)` from the TRUTH of the k-th literal (0-based):

@@ -4090,6 +4090,104 @@ theorem re_equal_nil_norm_l (w : World) (env : Env) (x : SExpr)
   have hr := re_val_if_nil_t w env x vx hx
   exact fuel_eq_of_conv hl hr (logic_equal_nil_eq_ite vx)
 
+/-- if-interp's call-stack fold `(equal (equal a b) 't) = (equal a b)`
+    (rewrite.lisp:3791-3793) — sound because `Logic.equal` is two-valued. -/
+theorem logic_equal_equal_t_r (a b : SExpr) :
+    Logic.equal (Logic.equal a b) SExpr.t = Logic.equal a b := by
+  by_cases h : (a == b) = true <;> simp [Logic.equal, h, SExpr.t]
+
+/-- Mirrored: `(equal 't (equal a b)) = (equal a b)` (rewrite.lisp:3785-3789). -/
+theorem logic_equal_equal_t_l (a b : SExpr) :
+    Logic.equal SExpr.t (Logic.equal a b) = Logic.equal a b := by
+  rw [logic_equal_comm]
+  exact logic_equal_equal_t_r a b
+
+/-- rewrite-equal's built-in EQUALITYP normalization (rewrite.lisp:18093,
+    unconditional/syntactic): `(equal (equal a b) r) ≡
+    (if (equal a b) (equal r 't) (if r 'nil 't))` — sound because
+    `Logic.equal` is two-valued. Fuel-robust, given the parts converge. -/
+theorem re_equal_equalityp_norm (w : World) (env : Env) (a b r : SExpr)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (hae : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env a = some v)
+    (hbe : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env b = some v)
+    (hre : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env r = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "EQUAL" }))
+        (.cons (.cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil)))
+          (.cons r .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
+        (.cons (.cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil)))
+          (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+              (.cons r (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons SExpr.t .nil)) .nil)))
+            (.cons (.cons (.atom (.symbol { name := "IF" }))
+              (.cons r (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+                (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+                  .nil)))) .nil)))) := by
+  obtain ⟨Na, va, hNa⟩ := hae
+  obtain ⟨Nb, vb, hNb⟩ := hbe
+  obtain ⟨Nr, vr, hNr⟩ := hre
+  have hns : Symbol.isNamed { name := "EQUAL" } "QUOTE" = false ∧
+             Symbol.isNamed { name := "EQUAL" } "IF" = false ∧
+             Symbol.isNamed { name := "EQUAL" } "LET" = false ∧
+             Symbol.isNamed { name := "EQUAL" } "LET*" = false := by
+    simp [Symbol.isNamed]
+  have hin : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil)))
+      = some (Logic.equal va vb) :=
+    conv_builtin2 w env { name := "EQUAL" } a b va vb (Logic.equal va vb)
+      hns h_no_equal ⟨Na, hNa⟩ ⟨Nb, hNb⟩ (callBuiltin_equal va vb)
+  have hl : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "EQUAL" }))
+        (.cons (.cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil)))
+          (.cons r .nil)))
+      = some (Logic.equal (Logic.equal va vb) vr) :=
+    conv_builtin2 w env { name := "EQUAL" } _ r (Logic.equal va vb) vr _
+      hns h_no_equal hin ⟨Nr, hNr⟩ (callBuiltin_equal (Logic.equal va vb) vr)
+  by_cases hcase : (va == vb) = true
+  · have heqt : Logic.equal va vb = SExpr.t := by simp [Logic.equal, hcase]
+    have hthen : ∃ N, ∀ f ≥ N, evalOpt f w env
+        (.cons (.atom (.symbol { name := "EQUAL" }))
+          (.cons r (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+            (.cons SExpr.t .nil)) .nil)))
+        = some (Logic.equal vr SExpr.t) :=
+      conv_builtin2 w env { name := "EQUAL" } r _ vr SExpr.t _
+        hns h_no_equal ⟨Nr, hNr⟩ (re_val_quote w env SExpr.t)
+        (callBuiltin_equal vr SExpr.t)
+    have hr := conv_if_true w env
+      (.cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil)))
+      (.cons (.atom (.symbol { name := "EQUAL" }))
+        (.cons r (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+          (.cons SExpr.t .nil)) .nil)))
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons r (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+            .nil))))
+      SExpr.t (Logic.equal vr SExpr.t) (heqt ▸ hin) (by decide) hthen
+    refine fuel_eq_of_conv hl hr ?_
+    rw [heqt, logic_equal_comm]
+  · have heqn : Logic.equal va vb = SExpr.nil := by simp [Logic.equal, hcase]
+    have hr' := re_val_if_nil_t w env r vr ⟨Nr, hNr⟩
+    have hr : ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
+        (.cons (.cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil)))
+          (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+              (.cons r (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons SExpr.t .nil)) .nil)))
+            (.cons (.cons (.atom (.symbol { name := "IF" }))
+              (.cons r (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+                (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+                  .nil)))) .nil))))
+        = some (bif Logic.toBool vr then .nil else .t) := by
+      obtain ⟨Nc, hc⟩ := heqn ▸ hin
+      obtain ⟨Ne, he⟩ := hr'
+      refine ⟨max Nc Ne + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rw [evalOpt_if_false g w env _ _ _ (hc g (by omega))]
+      exact he g (by omega)
+    refine fuel_eq_of_conv hl hr ?_
+    rw [heqn]
+    exact logic_equal_nil_eq_ite vr
+
 /-- rewrite-equal's built-in NIL normalization, RIGHT form (rewrite.lisp:18091):
     `(equal x 'nil) ≡ (if x 'nil 't)`. -/
 theorem re_equal_nil_norm_r (w : World) (env : Env) (x : SExpr)

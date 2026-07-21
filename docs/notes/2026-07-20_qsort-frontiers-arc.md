@@ -186,8 +186,34 @@ branch-substitution UNDER THE PERM EQUIVALENCE — genuine L2
 R-parameterized rewriting; PARKED as design wall #3. REV-REV advanced to
 a post-substitution path-navigation mismatch (new signature).
 
+### Increment 7 — CAR-RM + EQUAL-CONS (fold set + normalization variants)
+
+- collapseEval fold set (each pinned to if-interp's own rules,
+  rewrite.lisp:3671-3800): GROUND-PRIMITIVE cons-term fold (argument-
+  ground application of an UNDEFINED head folds via the exec carve-out —
+  `(CAR 'NIL) ⇒ 'NIL`, CAR-RM); `(equal (equal a b) 't) = (equal a b)`
+  and mirror (lemmas `logic_equal_equal_t_r/_l`).
+- bridgeEqualNilNorm: the EQUALITYP variant (rewrite.lisp:18093) —
+  reached `(EQUAL (EQUAL a b) r)`, recorded
+  `(IF (EQUAL a b) (EQUAL r 'T) (IF r 'NIL 'T))` — lemma
+  `re_equal_equalityp_norm` (two-valuedness of Logic.equal).
+- Branch-substitution: justifying literal LAST in the clause → keep the
+  now-trivial literal (nothing later references it) and walk the
+  substituted clause directly (EQUAL-CONS Subgoal 4, chained
+  substitutions).
+- collectContextDemands: recognizer/true|false nodes now demand their
+  context fact (a later literal being the negation — hoisting is a no-op
+  when derivable otherwise).
+- composeSplit vacuous arm: accept the UNIQUE child whose clause is an
+  order-preserving SUBSET of the constructed residual
+  (subsumption-simplified push; every used literal still needs its own
+  falsity fact).
+
+Rows: CAR-RM ✓, EQUAL-CONS ✓.
+
 ## Status
 
-- Increments 1–5 verified + committed (c947d97, f1a0ee2, 9376778,
-  8f5dca4, 1cae4dd): 39/79, DP ✓24 ◌12 ✗0, fork at c648e0bd5a.
-- Increment 6 landed (+5 rows expected → 44/79); sweep pending.
+- Increments 1–6 verified + committed (c947d97, f1a0ee2, 9376778,
+  8f5dca4, 1cae4dd, 4f6a7e4): 45/79, DP ✓24 ◌12 ✗0, fork c648e0bd5a.
+- Increment 7 landed (CAR-RM, EQUAL-CONS → 47/79 expected); sweep
+  pending.

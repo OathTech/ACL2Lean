@@ -156,9 +156,26 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         -- (mirrors the spine walker's vacuous residual arm).
         let segL := emittedSeg.getD []
         let expected := accClause ++ segL.filter (!accClause.contains ·)
-        let some child := children.find? (·.inputClause == expected)
-          | throwError "composeSplit: no child clause matches the vacuous \
-                        residual {repr expected} at {idStr}"
+        -- the pushed child may have been SUBSUMPTION-SIMPLIFIED (Satriani):
+        -- accept the UNIQUE child whose clause is an order-preserving SUBSET
+        -- of the constructed residual — every used literal still needs its
+        -- own falsity fact below, so the relaxation cannot compose unsoundly
+        let rec isSublist : List SExpr → List SExpr → Bool
+          | [], _ => true
+          | _, [] => false
+          | a :: as', b :: bs => if a == b then isSublist as' bs else isSublist (a :: as') bs
+        let child ← do
+          match children.find? (·.inputClause == expected) with
+          | some c => pure c
+          | none =>
+            match children.filter (fun c => isSublist c.inputClause expected) with
+            | [c] => pure c
+            | [] => throwError "composeSplit: no child clause matches the vacuous \
+                                residual {repr expected} at {idStr}"
+            | cs => throwError "composeSplit: {cs.length} children are subsets of \
+                                the vacuous residual {repr expected} at {idStr} \
+                                (ambiguous)"
+        let expected := child.inputClause
         if expected.isEmpty then
           throwError "composeSplit: vacuous residual with an EMPTY child \
                       clause at {idStr} (frontier)"
