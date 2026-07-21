@@ -141,14 +141,23 @@ Also this increment (spine arms, from the same row):
 - collapseEval: flipped-EQUAL spine-fact lookup (logic_equal_comm
   transport, mirroring composeSplit's resolved-test path).
 
-ALL-REL-RM-2 itself advanced two subgoals but still FAILs at an identity
-if-simplification with running `(IF (EQUAL D E) 'NIL 'T)` and rhs 'T —
-the (EQUAL D E)-falsity fact is NOT in litFacts/segFacts at that node
-(neither orientation); locating which context should supply it is the
-next increment's first task.
+### Increment 5 — EQUAL transport through segment equalities (2026-07-21)
+
+ALL-REL-RM-2's last wall: an identity `'T ⇒ 'T` if-simplification with
+running `(IF (EQUAL D E) 'NIL 'T)`. In scope: `(NOT (EQUAL D (CAR X)))`
+false (so D = (CAR X)) and `(EQUAL (CAR X) E)` false — ACL2's type-alist
+canonicalized `(EQUAL D E)` through the segment equality. collapseEval
+now resolves an `(EQUAL x y)` test via: direct fact, commuted fact
+(`logic_equal_comm`), or ONE transport step through an in-scope segment
+equality (`logic_not_equal_nil_eq` + `congrArg`, all four orientations) —
+a bounded, proof-carrying rule set mirroring if-interp-assumed-value2;
+anything beyond stays unresolved and fail-closes. The identity-arm error
+now also lists the in-scope seg/lit fact keys (frontier forensics).
+
+ALL-REL-RM-2 ✓ → 39/79.
 
 ## Status
 
-- Increments 1–3 verified + committed (c947d97, f1a0ee2, 9376778): 38/79,
-  DP ✓24 ◌12 ✗0.
-- Increment 4 landed (fork + parser + selection); sweep pending.
+- Increments 1–4 verified + committed (c947d97, f1a0ee2, 9376778,
+  8f5dca4): 38/79, DP ✓24 ◌12 ✗0, fork at c648e0bd5a.
+- Increment 5 landed (ALL-REL-RM-2 ✓, 39/79 expected); sweep pending.

@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 38/79 (24 unconditional + 14 conditional); DP-discharge leaves ✓24 ◌12 ✗0 of 36:
+Driver coverage — REPLAYED 39/79 (24 unconditional + 15 conditional); DP-discharge leaves ✓24 ◌12 ✗0 of 36:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -95,7 +95,7 @@ Driver coverage — REPLAYED 38/79 (24 unconditional + 14 conditional); DP-disch
     ALL-REL-FILTER-1 → REPLAYED ✓ cond[total:REL, total:FILTER, total:ALL-REL, tp:ALL-REL]
     ALL-REL-FILTER-2 → REPLAYED ✓ cond[total:REL, total:FILTER, total:ALL-REL, tp:ALL-REL]
     ALL-REL-RM-1 → REPLAYED ✓ cond[total:REL, total:ALL-REL, tp:ALL-REL]
-    ALL-REL-RM-2 → FAIL: replayRewrites: identity if-simplification's running subterm (IF (EQUAL D E) 'NIL 'T) is neither rhs 'T nor a constant-test if (frontier)
+    ALL-REL-RM-2 → REPLAYED ✓ cond[total:REL, total:ALL-REL, tp:ALL-REL]
     PERM-IMPLIES-EQUAL-ALL-REL-2 → FAIL: replayClauseSpine: literal 4 chain reached (EQUAL 'NIL (ALL-REL FN X-EQUIV E)) at Subgoal *1/4', recorded result is (IF (ALL-REL FN X-EQUIV E) 'NIL 'T)
     ORDEREDP-QSORT → FAIL: dischargeDecrease: decrease argument (FILTER 'LT (CDR X) (CAR X)) beyond the destructor-chain walk over X (frontier)
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:QSORT, tp:QSORT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]

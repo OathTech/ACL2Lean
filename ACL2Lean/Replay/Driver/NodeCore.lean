@@ -1815,16 +1815,60 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
     let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
     let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
     return (some step, quoteNil)
-  -- flipped-EQUAL spine fact (if-interp-assumed-value2's rule set — the
-  -- same commuted lookup composeSplit's resolved-test path does)
+  -- EQUAL falsity via the spine facts (if-interp-assumed-value2's rule
+  -- set): the commuted form, and ONE transport step through an in-scope
+  -- segment EQUALITY (a `(not (equal a b))` literal's falsity, i.e. a = b —
+  -- ACL2's type-alist canonicalizes the test through it; observed:
+  -- (EQUAL D E) resolved from D = (CAR X) and (EQUAL (CAR X) E) = nil,
+  -- ALL-REL-RM-2). All derivations are proof-carrying; anything beyond
+  -- this bounded rule set stays unresolved and fail-closes downstream.
   if let .cons (.atom (.symbol eqS)) (.cons x (.cons y .nil)) := t then
     if eqS.name == "EQUAL" then
-      let flipped : SExpr := .cons (.atom (.symbol eqS)) (.cons y (.cons x .nil))
-      if let some hNilF := ctx.litFactByTerm? flipped then
-        let vx ← ctxValExpr cfg ctx x
-        let vy ← ctxValExpr cfg ctx y
-        let comm ← mkAppM ``logic_equal_comm #[vx, vy]
-        let hNil ← mkAppM ``Eq.trans #[comm, hNilF]
+      let mkEqT (u v : SExpr) : SExpr :=
+        .cons (.atom (.symbol eqS)) (.cons u (.cons v .nil))
+      -- falsity of `(equal u v)` from a direct or commuted spine fact,
+      -- stated over the given value exprs
+      let eqFalsity (u v : SExpr) (vu vv : Expr) : MetaM (Option Expr) := do
+        if let some h := ctx.litFactByTerm? (mkEqT u v) then
+          return some h
+        if let some h := ctx.litFactByTerm? (mkEqT v u) then
+          return some (← mkAppM ``Eq.trans #[← mkAppM ``logic_equal_comm #[vu, vv], h])
+        return none
+      let vx ← ctxValExpr cfg ctx x
+      let vy ← ctxValExpr cfg ctx y
+      let mut hNil? ← eqFalsity x y vx vy
+      if hNil?.isNone then
+        -- one transport step through each in-scope segment equality a = b
+        for (st, h) in ctx.segFacts do
+          if hNil?.isSome then break
+          let .cons (.atom (.symbol ns)) (.cons
+              (.cons (.atom (.symbol es)) (.cons a (.cons b .nil))) .nil) := st
+            | continue
+          unless ns.name == "NOT" && es.name == "EQUAL" do continue
+          let va ← ctxValExpr cfg ctx a
+          let vb ← ctxValExpr cfg ctx b
+          let hab ← mkAppM ``logic_not_equal_nil_eq #[va, vb, h]  -- va = vb
+          -- try rewriting x (a→b / b→a), then y likewise
+          let tryPos (isX : Bool) (frm tgt : SExpr) (hft : Expr) :
+              MetaM (Option Expr) := do
+            unless (if isX then x else y) == frm do return none
+            let vto ← ctxValExpr cfg ctx tgt
+            let some hf ← (if isX then eqFalsity tgt y vto vy
+                           else eqFalsity x tgt vx vto) | return none
+            -- v(equal x y) = v(equal [to/frm]) = nil
+            let f ← withLocalDeclD `v (mkConst ``SExpr) fun vV =>
+              mkLambdaFVars #[vV]
+                (if isX then mkApp2 (mkConst ``Logic.equal) vV vy
+                 else mkApp2 (mkConst ``Logic.equal) vx vV)
+            let step ← mkAppM ``congrArg #[f, hft]
+            return some (← mkAppM ``Eq.trans #[step, hf])
+          let hba ← mkAppM ``Eq.symm #[hab]
+          for (isX, frm, tgt, hft) in
+              [(true, a, b, hab), (true, b, a, hba),
+               (false, a, b, hab), (false, b, a, hba)] do
+            if hNil?.isNone then
+              hNil? ← tryPos isX frm tgt hft
+      if let some hNil := hNil? then
         let pl ← ctxValProof cfg ctx t
         let pr ← mkAppM ``re_val_quote #[w, e, reflectSExpr SExpr.nil]
         let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
@@ -2038,7 +2082,9 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
               (.cons thn (.cons els .nil))) := S
           | throwError "replayRewrites: identity if-simplification's running \
                         subterm {repr S} is neither rhs {repr rhs} nor a \
-                        constant-test if (frontier)"
+                        constant-test if (frontier; segFacts: \
+                        {repr (ctx.segFacts.map (·.1))}, litFacts: \
+                        {repr (ctx.litFacts.map (·.2.1))})"
         unless ifS.name == "IF" && q.name == "QUOTE" do
           throwError "replayRewrites: identity if-simplification's running \
                       subterm {repr S} is not a constant-test if (frontier)"
