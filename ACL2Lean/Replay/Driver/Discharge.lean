@@ -59,7 +59,11 @@ def dpLeafTactic : MetaM (TSyntax `tactic) :=
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
                    SExpr.t] <;>
-          (try split_ifs) <;> simp_all <;> try omega)
+          -- `at *`: a HYPOTHESIS can be stuck on an if too (a `toBool`
+          -- match over an unreduced decidable if — the plus-equation
+          -- hypothesis shape), and goal-only splitting leaves omega
+          -- without the arithmetic fact
+          (try split_ifs at *) <;> simp_all <;> try omega)
       | omega)
 
 /-- Recursively case-split every `Atom`/`Number` hypothesis (the components a
@@ -77,24 +81,61 @@ partial def dpSplitAtoms (g : MVarId) : MetaM (List MVarId) := do
     let subs ← g.cases fv
     subs.toList.flatMapM (dpSplitAtoms ·.mvarId)
 
-/-- Case one level of each quantified value (`SExpr`: nil/atom/cons — cons
-    components are NOT recursed into; only the `dpv*`-named intro'd values are
-    split), then split the atoms. -/
-partial def dpSplitVars (g : MVarId) (n : Nat) : MetaM (List MVarId) := do
-  if n == 0 then dpSplitAtoms g
-  else
+/-- Case one level of each NAMED quantified value (`SExpr`: nil/atom/cons —
+    cons components are NOT recursed into; only the listed `dpv{i}` binders
+    are split), then split the atoms. -/
+partial def dpSplitVars (g : MVarId) (names : List String) : MetaM (List MVarId) := do
+  match names with
+  | [] => dpSplitAtoms g
+  | _ =>
     let target? ← g.withContext do
       (← getLCtx).findDeclM? fun d => do
         if d.isImplementationDetail then return none
         let ty ← instantiateMVars d.type
-        if ty.isConstOf ``SExpr && (d.userName.toString.startsWith "dpv") then
-          return some d.fvarId
+        -- intros may hygienize the binder name (`dpv3✝`) — compare on the
+        -- macro-scope-erased name
+        let nm := d.userName.eraseMacroScopes.toString
+        if ty.isConstOf ``SExpr && names.contains nm then
+          return some (d.fvarId, nm)
         else return none
     match target? with
-    | none => throwError "dpSplitVars: expected {n} more values to split"
-    | some fv =>
+    | none => throwError "dpSplitVars: expected values {names} to split"
+    | some (fv, nm) =>
       let subs ← g.cases fv
-      subs.toList.flatMapM (fun s => dpSplitVars s.mvarId (n - 1))
+      subs.toList.flatMapM (fun s => dpSplitVars s.mvarId (names.erase nm))
+
+/-- The value indices (in the `dpv{i}` binder order, `vars ++ opaques`)
+    OCCURRING in a literal, mirroring `dpValExpr`'s abstraction dispatch
+    exactly: an opaque subterm matches FIRST (so its internal variables do
+    NOT occur in the abstracted statement), quoted constants are inert,
+    variables count only where the abstraction reads them. -/
+partial def dpValueOccs (vars : List Symbol) (opaques : List SExpr) (t : SExpr) :
+    List Nat :=
+  if let some i := opaques.idxOf? t then [vars.length + i]
+  else match t with
+  | .atom (.symbol s) => (vars.idxOf? s).toList
+  | .atom _ => []
+  | .cons (.atom (.symbol fs)) args =>
+    if fs.name == "QUOTE" then []
+    else ((args.toList?).getD []).flatMap (dpValueOccs vars opaques)
+  | _ => []
+
+/-- The CONCLUSION's relevance cone: the values occurring in `last`, closed
+    under "a hypothesis (test or TP corollary) mentions both a cone value and
+    this value". A deterministic slice — used only to pick WHICH values the
+    split fallback enumerates when the full value count exceeds the split
+    bound; hypotheses wholly outside the cone stay symbolic at the leaves. -/
+def dpConeIndices (tests : List SExpr) (last : SExpr) (vars : List Symbol)
+    (opaques : List SExpr) (tpCors : List SExpr) : List Nat := Id.run do
+  let hyps := (tests ++ tpCors).map fun l => (dpValueOccs vars opaques l).eraseDups
+  let mut cone := (dpValueOccs vars opaques last).eraseDups
+  for _ in List.range (vars.length + opaques.length) do
+    for h in hyps do
+      if h.any cone.contains then
+        for i in h do
+          if !cone.contains i then
+            cone := cone ++ [i]
+  return cone
 
 /-- Build the DP fact statement
     `∀ vars vops, tp₁ = t → … → v₁ = nil → … → v_{k-1} = nil → vₖ = t`
@@ -158,8 +199,15 @@ def dpOnlyProverGuard : Nat := 1000000
 /-- PROVE the DP fact by the carved-out decision procedure: one BOUNDED run
     of the fixed tactic on the unsplit goal, else a one-level value split
     (policy-bounded) and the fixed tactic per leaf. Hard-fails if any case
-    survives. -/
-def proveDpFact (stmt : Expr) (total : Nat) : MetaM Expr := do
+    survives.
+
+    `coneIdxs` (from `dpConeIndices`): when `total` exceeds the split bound,
+    the split fallback may still run on the CONCLUSION-CONE values alone if
+    the cone fits the bound — a deterministic relevance slice, not search
+    (the sliced statement is the SAME statement; out-of-cone values just stay
+    symbolic at the leaves). `total ≤ 3` keeps the original all-values split
+    exactly. -/
+def proveDpFact (stmt : Expr) (total : Nat) (coneIdxs : List Nat := []) : MetaM Expr := do
   -- PRISTINE-CONTEXT (perf profile P6): the fact statement is CLOSED
   -- (∀-quantified over its values), but the caller invokes this inside the
   -- vop/hconv/htp telescopes — and `simp_all` on EVERY split leaf re-churns
@@ -170,10 +218,10 @@ def proveDpFact (stmt : Expr) (total : Nat) : MetaM Expr := do
   -- the audit's F2; instantiate first so assigned mvars don't trip it).
   let stmt ← instantiateMVars stmt
   if stmt.hasFVar || stmt.hasMVar then
-    proveDpFactCore stmt total
+    proveDpFactCore stmt total coneIdxs
   else
-    Meta.withLCtx {} #[] do proveDpFactCore stmt total
-where proveDpFactCore (stmt : Expr) (total : Nat) : MetaM Expr := do
+    Meta.withLCtx {} #[] do proveDpFactCore stmt total coneIdxs
+where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM Expr := do
   let tac ← dpLeafTactic
   -- BOUNDED-DIRECT-FIRST (perf profile P5 + the 08-equality trade): the
   -- whole-goal simp_all is the fastest path when it works (sub-second on
@@ -187,8 +235,10 @@ where proveDpFactCore (stmt : Expr) (total : Nat) : MetaM Expr := do
   -- check); past the bound the bounded direct attempt is all there is.
   -- Each attempt uses a FRESH metavariable (a failed attempt may leave its
   -- mvar half-assigned).
+  let splitIdxs := if total ≤ 3 then List.range total else coneIdxs.eraseDups
+  let canSplit := splitIdxs.length ≤ 3
   let direct? ←
-    withRealMaxHeartbeats (if total ≤ 3 then dpDirectBudget else dpOnlyProverGuard) <|
+    withRealMaxHeartbeats (if canSplit then dpDirectBudget else dpOnlyProverGuard) <|
     tryCatchRuntimeEx
       (try
         let mv ← mkFreshExprMVar stmt
@@ -198,19 +248,51 @@ where proveDpFactCore (stmt : Expr) (total : Nat) : MetaM Expr := do
       catch _ => pure none)
       (fun _ => pure none)
   if let some p := direct? then return p
-  if total > 3 then
-    throwError "proveDpFact: the bounded direct tactic failed and {total} \
-                quantified values exceed the split bound (3) — DP-fact \
+  unless canSplit do
+    throwError "proveDpFact: the bounded direct tactic failed, and both the \
+                {total} quantified values and the {splitIdxs.length}-value \
+                conclusion cone exceed the split bound (3) — DP-fact \
                 frontier (fact: {stmt})"
   let mv ← mkFreshExprMVar stmt
   let (_, g) ← mv.mvarId!.intros
-  let leaves ← dpSplitVars g total
+  -- CONE mode (total > 3): clear the out-of-cone values and every hypothesis
+  -- mentioning them — the sliced route does not read them, and leaving them
+  -- symbolic churns the leaf tactic (simp_all re-walks them at every leaf)
+  -- and can starve omega. A fact whose truth NEEDS an out-of-cone hypothesis
+  -- then fails LOUDLY at a leaf — an honest frontier, never a wrong verdict.
+  let g ←
+    if total ≤ 3 then pure g else
+      g.withContext do
+        let keep := splitIdxs.map (s!"dpv{·}")
+        let lctx ← getLCtx
+        let outVars := lctx.foldl (init := #[]) fun acc d =>
+          let nm := d.userName.eraseMacroScopes.toString
+          if !d.isImplementationDetail && d.type.isConstOf ``SExpr &&
+             nm.startsWith "dpv" && !keep.contains nm
+          then acc.push d.fvarId else acc
+        let depHyps := lctx.foldl (init := #[]) fun acc d =>
+          if !d.isImplementationDetail &&
+             outVars.any (fun fv => d.type.containsFVar fv)
+          then acc.push d.fvarId else acc
+        let mut g' := g
+        for fv in depHyps do g' ← g'.tryClear fv
+        for fv in outVars.reverse do g' ← g'.tryClear fv
+        pure g'
+  let leaves ← dpSplitVars g (splitIdxs.map (s!"dpv{·}"))
   for leaf in leaves do
-    let remaining ← Lean.Elab.runTactic leaf tac
+    -- surface WHICH leaf failed (the raw tactic error names the tactic but
+    -- not the case) — rethrow with the leaf goal attached
+    let leafGoal ← leaf.withContext do addMessageContextFull m!"{leaf}"
+    let remaining ←
+      try Lean.Elab.runTactic leaf tac
+      catch ex =>
+        throwError "proveDpFact: the DP leaf tactic FAILED ({ex.toMessageData}) \
+                    on leaf {leafGoal} — the discharged clause's lift is not \
+                    closable by simp+omega (clause fact: {stmt})"
     unless remaining.1.isEmpty do
-      throwError "proveDpFact: the DP leaf tactic left {remaining.1.length} goal(s) — \
-                  the discharged clause's lift is not closable by simp+omega \
-                  (clause fact: {stmt})"
+      throwError "proveDpFact: the DP leaf tactic left {remaining.1.length} goal(s) \
+                  on leaf {leafGoal} — the discharged clause's lift is not \
+                  closable by simp+omega (clause fact: {stmt})"
   instantiateMVars mv
 
 /-! ## G3 Fragment A wiring — the consolidated value-layer proof

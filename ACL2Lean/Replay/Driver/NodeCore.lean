@@ -1800,19 +1800,30 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let (lifted, newTerm) ←
           emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S branch
             nodeEq depth strip
-        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip
+        -- a ROOT collapse selects a branch that ACL2's rewrite-if keeps on the
+        -- gstack while rewriting inside it — record the branch frame for
+        -- stripping, exactly like the generic root if-simplification below
+        -- (this arm bypasses that rule because the recorded lhs is folded)
+        let strip' := if rel.isEmpty then strip ++ [if cv == SExpr.nil then 3 else 2]
+                      else strip
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip'
         match restProof with
         | none => return (some lifted, finalTerm)
         | some rp => return (some (← mkAppM ``fuel_chain_eq #[lifted, rp]), finalTerm)
-    -- DEAD-BRANCH display folds (option A, docs/notes/2026-06-14_exec-
-    -- counterpart-and-folding-wall.md, data-ratified 2026-07-06: every
-    -- observed fold sits in the DISCARDED branch): a constant-test
+    -- DISPLAY-FOLDED constant-test collapses (docs/notes/2026-06-14_exec-
+    -- counterpart-and-folding-wall.md; extended 2026-07-20): a constant-test
     -- if-simplification's recorded lhs went through sublis-var, whose
-    -- cons-term folds (car 'c)/(cdr 'c) inside the branches — logging-only,
-    -- per ACL2's own comment. The RUNNING term is the ground truth: require
-    -- the SAME test and the SAME taken branch (strict), allow the dead
-    -- branch to differ, and replay the collapse on the RUNNING term —
-    -- `(if 'c a b) = taken` is independent of the discarded branch.
+    -- cons-term folds ground applications inside the branches — (car 'c)/
+    -- (cdr 'c) in the DISCARDED branch (data-ratified 2026-07-06), and ground
+    -- (EQUAL 'c1 'c2) tests in the SURVIVING branch (the REL-unfold chains,
+    -- qsort corpus) — logging-only, per ACL2's own comment. The RUNNING term
+    -- is the ground truth: require the SAME test and a SELF-CONSISTENT record
+    -- (rhs == the recorded taken branch), and replay the collapse on the
+    -- RUNNING term, continuing the chain from the RUNNING surviving branch.
+    -- Surviving-branch folds are reconciled by the SUBSEQUENT recorded steps
+    -- (the exec-counterpart resolutions ACL2 logs right after), each with its
+    -- own fail-closed redex check — a real divergence still throws there or
+    -- at the chain's end-result check.
     if (runeOf n).ty == "if-simplification" && lhs != rhs then
       if let .node _ _ _ [] _ := n then
         if let .cons (.atom (.symbol ifS))
@@ -1821,16 +1832,15 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           if ifS.name == "IF" && q.name == "QUOTE" then
             let rel ← relativizeAndStrip (nodePath n) depth strip
             let (_, S) ← ofExcept (navigateFrames start rel)
-            -- take the relaxation ONLY on the exact dead-branch-fold shape:
-            -- same test, same taken branch, difference confined to the dead
-            -- branch. Anything else falls THROUGH to the normal machinery
-            -- (if-finish/combined etc.), which handles or fails precisely.
+            -- take the relaxation ONLY on the folded-collapse shape: same
+            -- test, recorded rhs == recorded taken branch. Anything else
+            -- falls THROUGH to the normal machinery (if-finish/combined
+            -- etc.), which handles or fails precisely.
             let compatible :=
               match S with
-              | .cons (.atom (.symbol ifS')) (.cons c' (.cons thn' (.cons els' .nil))) =>
+              | .cons (.atom (.symbol ifS')) (.cons c' (.cons _ (.cons _ .nil))) =>
                 let taken := if cv == SExpr.nil then els else thn
-                let taken' := if cv == SExpr.nil then els' else thn'
-                ifS'.name == "IF" && c' == c && taken' == taken && rhs == taken
+                ifS'.name == "IF" && c' == c && rhs == taken
               | _ => false
             if S != lhs && compatible then
               let .cons _ (.cons _ (.cons thn' (.cons els' .nil))) := S
@@ -1858,10 +1868,20 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                   mkAppM ``re_if_true
                     #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn',
                       reflectSExpr els', reflectSExpr cv, va, hc, hcv, ha]
+              -- the collapse result is the RUNNING surviving branch (the
+              -- recorded rhs may carry surviving-branch folds — see the arm
+              -- doc above; nodeEq is exactly `eval S = eval taken'`)
+              let taken' := if cv == SExpr.nil then els' else thn'
               let (lifted, newTerm) ←
-                emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S rhs
+                emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S taken'
                   nodeEq depth strip
-              let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip
+              -- ROOT collapse: record the surviving-branch frame for stripping
+              -- (same gstack rule as the generic root if-simplification below —
+              -- this arm bypasses it because the recorded lhs is dead-branch
+              -- folded and so never equals the running chain term)
+              let strip' := if rel.isEmpty then strip ++ [if cv == SExpr.nil then 3 else 2]
+                            else strip
+              let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip'
               match restProof with
               | none => return (some lifted, finalTerm)
               | some rp =>

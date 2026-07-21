@@ -542,10 +542,11 @@ def replayDischargeLeaf (cfg : ReplayConfig) (clauseTerm : SExpr)
       withLocalDecls tpDecls fun htps => do
         let stmt ← dpFactStmt tests last vars opaques tpCorsPresent
         let total := vars.length + opaques.length
+        let cone := dpConeIndices tests last vars opaques tpCorsPresent
         let fact? ←
           tryCatchRuntimeEx
             (try
-              pure (some (← proveDpFact stmt total))
+              pure (some (← proveDpFact stmt total cone))
             catch e =>
               if assumeFact then pure none else throw e)
             (fun e =>
@@ -620,6 +621,7 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
       return some (instCor, fact)
   let stmt ← dpFactStmt tests last vars opaques (tpData.map (·.1))
   let fact ← proveDpFact stmt (vars.length + opaques.length)
+    (dpConeIndices tests last vars opaques (tpData.map (·.1)))
   let concArgs ← vars.mapM (dpConcVar cfg.envExpr)
   let factConc := mkAppN fact (concArgs.toArray ++ (opqMap.map (·.2)).toArray
     ++ (tpData.map (·.2)).toArray)

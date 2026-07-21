@@ -45,6 +45,30 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       mkLambdaFVars #[hNe] p
     mkAppM ``Classical.byCases #[negL, posL]
   | .resolved T verdict how sub =>
+    -- a CONSTANT-resolved test: the test collapsed to a quoted constant under
+    -- earlier splits before if-interp saw it — the verdict is ground, so
+    -- re-derive it by evaluation (no assumption involved), fail-closed on any
+    -- mismatch between the constant and the recorded verdict.
+    if how == "constant" then
+      let .cons (.atom (.symbol q)) (.cons cv .nil) := T
+        | throwError "composeSplit: constant-resolved test {repr T} is not a \
+                      quoted constant at {idStr} (frontier)"
+      unless q.name == "QUOTE" do
+        throwError "composeSplit: constant-resolved test {repr T} is not a \
+                    quoted constant at {idStr} (frontier)"
+      let wantSign := verdict == "true"
+      unless wantSign == (cv != SExpr.nil) do
+        throwError "composeSplit: constant-resolved test {repr T} has verdict \
+                    {verdict}, contradicting the constant, at {idStr}"
+      let ctx ← pinTermOpaques cfg e ctx T
+      let vT ← ctxValExpr cfg ctx T
+      let hFact ←
+        if wantSign then
+          proveByDecide (← mkAppM ``Ne #[vT, nilC]) "constant test non-nil"
+        else
+          proveByDecide (← mkEq vT nilC) "constant test nil"
+      return ← composeSplit rec cfg ctx idStr lp chainOpt clauseLit restLits branches
+        accClause children (facts ++ [(T, vT, wantSign, hFact)]) sub
     unless how == "assumed" do
       throwError "composeSplit: resolved test {repr T} how={how} at {idStr} \
                   (frontier — only assumption-resolved tests are re-derived)"
