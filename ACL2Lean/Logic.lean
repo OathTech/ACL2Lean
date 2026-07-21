@@ -580,6 +580,29 @@ def trueListp (x : SExpr) : SExpr :=
 @[simp] theorem trueListp_cons (a b : SExpr) :
     trueListp (.cons a b) = trueListp b := rfl
 
+/-- `toBool` truth as a propositional bridge (NOT global simp — used by the
+    DP leaf tactic, where the `toBool` eq_def unfold must be suppressed so
+    the bridge can fire on symbolic arguments). -/
+theorem toBool_eq_true (x : SExpr) : (toBool x = true) ↔ x ≠ SExpr.nil := by
+  cases x <;> simp [toBool]
+
+theorem toBool_eq_false (x : SExpr) : (toBool x = false) ↔ x = SExpr.nil := by
+  cases x <;> simp [toBool]
+
+/-- `true-listp` is two-valued (recognizer booleanness — what ACL2's tau
+    knows about every recognizer). -/
+theorem trueListp_t_or_nil (x : SExpr) :
+    trueListp x = SExpr.t ∨ trueListp x = SExpr.nil := by
+  induction x with
+  | nil => left; rfl
+  | atom a => right; rfl
+  | cons a b iha ihb => simpa using ihb
+
+/-- The DP-leaf bridge form of `trueListp` booleanness: truthiness IS `= t`. -/
+theorem trueListp_ne_nil_iff (x : SExpr) :
+    (trueListp x ≠ SExpr.nil) ↔ trueListp x = SExpr.t := by
+  rcases trueListp_t_or_nil x with h | h <;> simp [h, SExpr.t]
+
 /-- ACL2 `iff` — biconditional. -/
 @[inline, simp] def iff (p q : SExpr) : SExpr :=
   if toBool p then

@@ -65,6 +65,26 @@ the known "type-alist derived entries" class. Fix at the source: emit the
 type-alist entry's provenance (parent literal(s) + FC rule), then replay that
 derivation. Instrumentation + recapture item.
 
+### Increment 2 — recognizer booleanness in the DP leaf tactic (2026-07-20)
+
+TRUE-LISTP-ISORT's *1.1/2'' tau leaf needs `trueListp` two-valuedness
+(`≠ nil → = t`) — what tau itself knows about every recognizer. Blocker
+found empirically: `Logic.toBool`'s global `@[simp]` eq_def unfolds
+`toBool X` on a SYMBOLIC recognizer application into a stuck raw `match`
+that no lemma can rewrite (matcher-aux keying; reuse does not apply across
+modules). Fix: the leaf tactic erases `-Logic.toBool` and adds the
+propositional bridges `Logic.toBool_eq_true/false` +
+`Logic.trueListp_ne_nil_iff` (new lemmas in Logic.lean, NOT global simp).
+The leaf then closes in ~2 s. TRUE-LISTP-ISORT's discharge went ◌→✓ and the
+row advanced into the definition-chain IF-normalization class (the known
+`(EQUAL X 'NIL)` vs `(IF X 'NIL 'T)` ×5 signature — now ×6).
+
+Future recognizer leaves will want the same bridge per recognizer — if a
+third one appears, registry-ize (name ↦ booleanness lemma, dpLiftHeads
+style) instead of growing the simp list ad hoc.
+
 ## Status
 
-- Fixes 1–5 landed on the branch; full-corpus sweep + golden review pending.
+- Fixes 1–5 + the leaf-tactic booleanness bridge landed on the branch;
+  increment-1 sweep verified (36/79, DP ✓22, zero regressions, ci green,
+  commit c947d97); increment-2 sweep pending.

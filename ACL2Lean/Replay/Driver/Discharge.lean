@@ -45,25 +45,34 @@ partial def dpSpine : SExpr → List SExpr × SExpr
   | t => ([], t)
 
 /-- The fixed leaf-closing tactic of the carved-out decision procedure: `simp_all`
-    with the Logic definitions, then `omega` on any arithmetic residue. -/
+    with the Logic definitions, then `omega` on any arithmetic residue.
+
+    `-Logic.toBool`: the def's global @[simp] eq_def unfolds `toBool X` on a
+    SYMBOLIC recognizer application into a stuck raw `match` nothing can
+    rewrite; erasing it lets the propositional bridges
+    (`toBool_eq_true/false`) fire instead, and concrete arguments still
+    reduce through them. `trueListp_ne_nil_iff` is recognizer booleanness —
+    what tau itself knows about every recognizer (truthiness IS `= t`). -/
 def dpLeafTactic : MetaM (TSyntax `tactic) :=
   `(tactic| first
-      | (simp_all [Logic.zp, Logic.lt, Logic.plus, Logic.equal, Logic.not,
-                   Logic.integerp, Logic.consp, Logic.toBool, Logic.toRat,
+      | (simp_all [-Logic.toBool, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
+                   Logic.not, Logic.integerp, Logic.consp, Logic.toRat,
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
-                   SExpr.t] <;>
+                   SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
+                   Logic.trueListp_ne_nil_iff] <;>
           omega)
-      | (simp_all [Logic.zp, Logic.lt, Logic.plus, Logic.equal, Logic.not,
-                   Logic.integerp, Logic.consp, Logic.toBool, Logic.toRat,
+      | (simp_all [-Logic.toBool, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
+                   Logic.not, Logic.integerp, Logic.consp, Logic.toRat,
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
-                   SExpr.t] <;>
+                   SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
+                   Logic.trueListp_ne_nil_iff] <;>
           -- `at *`: a HYPOTHESIS can be stuck on an if too (a `toBool`
           -- match over an unreduced decidable if — the plus-equation
           -- hypothesis shape), and goal-only splitting leaves omega
           -- without the arithmetic fact
-          (try split_ifs at *) <;> simp_all <;> try omega)
+          (try split_ifs at *) <;> simp_all [-Logic.toBool] <;> try omega)
       | omega)
 
 /-- Recursively case-split every `Atom`/`Number` hypothesis (the components a
