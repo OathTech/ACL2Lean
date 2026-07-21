@@ -33,4 +33,29 @@ Optimization candidates to investigate (measure before touching):
 
 ## Increment log
 
-(appended as they land)
+- **Q1** (f48266a): chainWith/chainAfter/chainOptWith/evtrueWith — the
+  optional-chain threading idiom, ~20 hand-rolled copies replaced.
+  Golden byte-identical. Rider: check-push-ready guard (the fork-push
+  incident).
+- **Q2** (51430c4): castConvToNil + peelToLast — nil-cast plumbing and
+  residual peel loop (3 copies + vacuousResidualClose rebased). Golden
+  byte-identical, zero warnings.
+- **P1**: proveByDecide memo cache (IO.Ref, keyed by the whole Prop
+  Expr — pointer-eq fast path keeps world-embedding keys cheap; only
+  successes cached; different worlds → different keys, no cross-book
+  leakage). MEASURED (quiet machine, runtime focused replay, qsort
+  book): instrumented baseline showed 3869 calls / ~3.4 s inside
+  HOW-MANY-APPEND alone and ~8.4 s cumulative by ALL-REL-FILTER-1.
+  After: ALL-REL-FILTER-1 16995→14897 ms (−12%), TRUE-LISTP-QSORT
+  10694→8794 (−18%), ALL-REL-RM-2 12813→11445 (−11%),
+  HOW-MANY-FILTER-1 9160→7812 (−15%); HOW-MANY-APPEND unchanged (first
+  theorem = cold cache, fills it for the rest).
+
+## Deeper profiling breadcrumbs (for a future perf arc)
+
+One instrumented run (contended, treat shapes not absolutes):
+HOW-MANY-APPEND ≈ 22-40 s total, of which Meta.check ≈ 2.8 s and
+proveByDecide ≈ 3.4-4.7 s — i.e. the DOMINANT cost is MetaM proof
+CONSTRUCTION (mkAppM elaboration, dischargeSpine/dpLift defeq,
+replayExecGround isDefEq at large fuel), not kernel checking. P2/P3
+(replayExecGround reduction, pinTermOpaques sweeps) remain unmeasured.

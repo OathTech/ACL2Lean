@@ -90,12 +90,28 @@ def isFrontierErr : Exception → Bool
   | .error _ md => md.hasTag (· == frontierTag)
   | _ => false
 
+/-- Memo cache for `proveByDecide` (quality pass P1, measured 2026-07-21:
+    3869 calls / ~3.4 s on HOW-MANY-APPEND alone — the same small Prop set
+    recurs constantly). Keyed by the WHOLE Prop `Expr` (structural `==` with
+    the pointer-eq fast path; the reflected world subterm is shared, so keys
+    embedding different worlds never collide and lookups stay cheap).
+    Only SUCCESSFUL proofs are cached — failures still hard-fail live. -/
+builtin_initialize proveByDecideCache : IO.Ref (Array (Expr × Expr)) ←
+  IO.mkRef #[]
+
 /-- Prove a decidable proposition `p` by **kernel decision** — deterministic ground
     computation (evaluate the `Decidable` instance via `whnf`, then `of_decide_eq_true`).
     NOT heuristic: no simp set, no search. The single side-condition discharger the
     driver uses for all ground facts (non-special symbols, world non-shadowing, …).
-    Hard-fails if `p` does not reduce to `true`. -/
+    Hard-fails if `p` does not reduce to `true`. Successful results are memoized
+    (`proveByDecideCache`). -/
 def proveByDecide (p : Expr) (label : String) : MetaM Expr := do
+  if let some (_, prf) := (← proveByDecideCache.get).find? (·.1 == p) then
+    return prf
+  let prf ← proveByDecideCore p label
+  proveByDecideCache.modify (·.push (p, prf))
+  return prf
+where proveByDecideCore (p : Expr) (label : String) : MetaM Expr := do
   let inst ← synthInstance (mkApp (mkConst ``Decidable) p)
   let reduced ← withTransparency .all <| whnf (mkApp2 (mkConst ``decide) p inst)
   unless reduced == mkConst ``Bool.true do
