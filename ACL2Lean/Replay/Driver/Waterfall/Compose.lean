@@ -244,19 +244,14 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       -- a PUSHED clause with its own numbering; stale entries collide
       let pChild ← rec.clause cfg { ctx with litFacts := [] } child
       let segFactsHere := segL.dropLast.zip segProofs
-      let mut p := pChild
-      for L in expected.dropLast do
-        let hf ← match ctx.litFactByTerm? L,
-                    (segFactsHere.find? (·.1 == L)).map (·.2) with
-          | some hf, _ => pure hf
-          | none, some hf => pure hf
-          | none, none =>
-            throwError "composeSplit: no falsity fact for the residual \
-                        literal {repr L} at {idStr}"
-        let pNil ← mkAppM ``re_val_cast
-          #[w, e, reflectSExpr L, ← ctxValExpr cfg ctx L, nilC,
-            ← ctxValProof cfg ctx L, hf]
-        p ← mkAppM ``evtrue_extract_else #[pNil, p]
+      let p ← peelToLast cfg ctx expected pChild fun L => do
+        match ctx.litFactByTerm? L,
+              (segFactsHere.find? (·.1 == L)).map (·.2) with
+        | some hf, _ => pure hf
+        | none, some hf => pure hf
+        | none, none =>
+          throwError "composeSplit: no falsity fact for the residual \
+                      literal {repr L} at {idStr}"
       -- p : EvTrue(value); bridge back to the literal
       evtrueWith fullChain p
     else
@@ -332,19 +327,14 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             let pChild ← rec.clause cfg { ctx with litFacts := [] } child
             -- peel every literal but the survivor
             let segFactsHere := segL.zip segProofs
-            let mut p := pChild
-            for L in expected.dropLast do
-              let hf ← match ctx.litFactByTerm? L,
-                          (segFactsHere.find? (·.1 == L)).map (·.2) with
-                | some hf, _ => pure hf
-                | none, some hf => pure hf
-                | none, none =>
-                  throwError "composeSplit: no falsity fact for the residual \
-                              literal {repr L} at {idStr}"
-              let pNil ← mkAppM ``re_val_cast
-                #[w, e, reflectSExpr L, ← ctxValExpr cfg ctx L, nilC,
-                  ← ctxValProof cfg ctx L, hf]
-              p ← mkAppM ``evtrue_extract_else #[pNil, p]
+            let p ← peelToLast cfg ctx expected pChild fun L => do
+              match ctx.litFactByTerm? L,
+                    (segFactsHere.find? (·.1 == L)).map (·.2) with
+              | some hf, _ => pure hf
+              | none, some hf => pure hf
+              | none, none =>
+                throwError "composeSplit: no falsity fact for the residual \
+                            literal {repr L} at {idStr}"
             -- p : EvTrue(value); bridge to the literal and refute h
             let pLitTrue ← evtrueWith fullChain p
             let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[pLitTrue, pLit]

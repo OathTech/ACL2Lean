@@ -504,16 +504,11 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           throwError "replayClauseSpine: residual's surviving literal is not \
                       literal {idx}'s result at {idStr} (frontier)"
         let pChild ← rec.clause cfg { ctx with litFacts := [] } child
-        let mut p := pChild
-        for L in accClause'.dropLast do
+        let p ← peelToLast cfg ctx accClause' pChild fun L => do
           let some hf := ctx.litFactByTerm? L
             | throwError "replayClauseSpine: no falsity fact for the residual \
                           literal {repr L} at {idStr}"
-          let pNil ← mkAppM ``re_val_cast
-            #[cfg.worldExpr, cfg.envExpr, reflectSExpr L,
-              ← ctxValExpr cfg ctx L, mkConst ``SExpr.nil,
-              ← ctxValProof cfg ctx L, hf]
-          p ← mkAppM ``evtrue_extract_else #[pNil, p]
+          pure hf
         -- p : EvTrue(lp.result) — bridge to the pre-rewrite literal
         return ← evtrueWith chainOpt p
       -- split on the literal's value

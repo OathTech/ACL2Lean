@@ -687,23 +687,34 @@ def segFactFalsity (facts : List (SExpr × Expr × Bool × Expr)) (L : SExpr) :
     else return none
   | _ => return none
 
+/-- `eval t` converges to `nil`: the pinned convergence cast along a falsity
+    fact `hf : v(t) = nil` (`re_val_cast` plumbing, quality pass Q2). -/
+def castConvToNil (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr)
+    (hf : Expr) : MetaM Expr := do
+  mkAppM ``re_val_cast
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr t, ← ctxValExpr cfg ctx t,
+      mkConst ``SExpr.nil, ← ctxValProof cfg ctx t, hf]
+
+/-- Peel the leading literals of a proved disjunction along their falsity
+    facts (`evtrue_extract_else` fold), leaving `EvTrue` of the LAST
+    literal. `deriveF` supplies each peeled literal's falsity proof
+    (throwing if unavailable). Shared by the residual-peel paths. -/
+def peelToLast (cfg : ReplayConfig) (ctx : ReplayCtx) (lits : List SExpr)
+    (pChild : Expr) (deriveF : SExpr → MetaM Expr) : MetaM Expr := do
+  let mut p := pChild
+  for L in lits.dropLast do
+    p ← mkAppM ``evtrue_extract_else
+      #[← castConvToNil cfg ctx L (← deriveF L), p]
+  return p
+
 /-- Ex-falso closure of a VACUOUS residual: the pushed child's clause
     (`expected`, proved as `pChild`) is all-false in scope — peel it to its
-    last literal (`evtrue_extract_else`) and refute (`absurd`), producing
-    `EvTrue goalTerm`. `deriveF` supplies each literal's falsity proof
-    (throwing if unavailable). Shared by the spine walker's and
-    composeSplit's vacuous arms. -/
+    last literal and refute (`absurd`), producing `EvTrue goalTerm`.
+    Shared by the spine walker's and composeSplit's vacuous arms. -/
 def vacuousResidualClose (cfg : ReplayConfig) (ctx : ReplayCtx)
     (expected : List SExpr) (pChild : Expr) (goalTerm : SExpr)
     (deriveF : SExpr → MetaM Expr) : MetaM Expr := do
-  let nilC := mkConst ``SExpr.nil
-  let mut p := pChild
-  for L in expected.dropLast do
-    let hf ← deriveF L
-    let pNil ← mkAppM ``re_val_cast
-      #[cfg.worldExpr, cfg.envExpr, reflectSExpr L, ← ctxValExpr cfg ctx L,
-        nilC, ← ctxValProof cfg ctx L, hf]
-    p ← mkAppM ``evtrue_extract_else #[pNil, p]
+  let p ← peelToLast cfg ctx expected pChild deriveF
   let some lastL := expected.getLast?
     | throwError "vacuousResidualClose: empty residual clause"
   let hfLast ← deriveF lastL
