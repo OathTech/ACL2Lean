@@ -116,7 +116,7 @@ inductive TraceEvent where
       ancestors stack (`emit/relieve-hyp/*`). `hyp` is the INSTANTIATED hyp;
       `origin` says how. Lands inside the adopting step's `:KIND HYP` block —
       the replay's rule recipe consumes it in place of a relief chain. -/
-  | hypRelief (hyp : SExpr) (origin : String)
+  | hypRelief (hyp : SExpr) (origin : String) (taRunes : List Rune)
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
   | beginInnerRewrite (kind : String)
   | endInnerRewrite (kind : String)
@@ -268,6 +268,18 @@ structure RuleSpec where
   matchFree : Option String := none
   deriving Repr, Inhabited
 
+/-- A FORWARD-CHAINING-class ground-zero rule snapshot entry
+    (`(:GROUND-ZERO-FC-RULES ((rune trigger hyps concls match-free) …))`,
+    emission arc 2026-07-21): the stored rule fields verbatim. Consumed by
+    the FC-derived type-alist relief recipe. -/
+structure FcRuleSpec where
+  name : String
+  trigger : SExpr
+  hyps : List SExpr
+  concls : List SExpr
+  matchFree : Option String := none
+  deriving Repr, Inhabited
+
 /-- The spec's identity key for name-keyed maps/tags: the rune name, with the
     multi-rule index appended in ACL2's own print form (`FOO . 2`). Distinct
     stored rules of one event get distinct keys (spaces cannot occur in an
@@ -297,6 +309,9 @@ inductive ProofEvent where
       end (`(:GROUND-ZERO-RULES …)`, design D5) — same entry shape as
       `rules` plus the `:match-free` flag. -/
   | groundZeroRules (specs : List RuleSpec)
+  /-- The cited ground-zero FORWARD-CHAINING rules (`(:GROUND-ZERO-FC-RULES
+      …)`, emission arc 2026-07-21): stored trigger/hyps/concls verbatim. -/
+  | groundZeroFcRules (specs : List FcRuleSpec)
   /-- Pool-processing events (`emit/pool-consider` / `emit/pool-subsumed`):
       pop-clause CONSIDERS pool roots in its own (subsumption-reordered)
       order — the steps/induction after a `poolConsider` belong to that pool
@@ -572,7 +587,19 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
           | some s => throw s!"HYP-RELIEF: bad :ORIGIN: {repr s}"
           | none => throw "HYP-RELIEF: missing :ORIGIN"
-        pure (.hypRelief hyp origin)
+        -- :TA-RUNES (optional; free-type-alist markers only): the matched
+        -- type-alist ENTRY's ttree runes — a DERIVED entry's provenance
+        -- (e.g. forward-chaining LEXORDER-TOTAL; emission arc 2026-07-21)
+        let taRunes ← match lookupKeyword "TA-RUNES" rest with
+          | none => pure []
+          | some rs =>
+            match rs.toList? with
+            | none => throw s!"HYP-RELIEF: :TA-RUNES not a list: {repr rs}"
+            | some l => l.mapM fun r =>
+                match parseRune? r with
+                | some rn => pure rn
+                | none => throw s!"HYP-RELIEF: bad :TA-RUNES rune: {repr r}"
+        pure (.hypRelief hyp origin taRunes)
     | .atom (.keyword "CLAUSIFY-TEST") :: rest =>
         let test ← lookupKeyword "TEST" rest
           |>.elim (throw "CLAUSIFY-TEST: missing :TEST") pure
@@ -829,6 +856,26 @@ private def parseInduction? (items : List SExpr) : Except String InductionStep :
     `(rune hyps equiv lhs rhs match-free)` for ground-zero rule snapshots
     (`withMatchFree = true`; match-free is `:ALL`/`:ONCE`/`NIL`). The two
     arities are exact — a mismatched entry hard-fails. -/
+private def parseFcRuleSpecEntry (e : SExpr) : Except String FcRuleSpec := do
+  let some items := e.toList?
+    | throw s!"GROUND-ZERO-FC-RULES: bad entry (not a list): {repr e}"
+  let [runeS, triggerS, hypsS, conclsS, mfS] := items
+    | throw s!"GROUND-ZERO-FC-RULES: bad entry (want (rune trigger hyps \
+              concls match-free)): {repr e}"
+  let some rune := parseRune? runeS
+    | throw s!"GROUND-ZERO-FC-RULES: bad rune: {repr runeS}"
+  unless rune.ty == "forward-chaining" do
+    throw s!"GROUND-ZERO-FC-RULES: rune class {rune.ty} unexpected"
+  let hyps ← hypsS.toList?.elim
+    (throw s!"GROUND-ZERO-FC-RULES {rune.name}: :HYPS not a list: {repr hypsS}") pure
+  let concls ← conclsS.toList?.elim
+    (throw s!"GROUND-ZERO-FC-RULES {rune.name}: :CONCLS not a list: {repr conclsS}") pure
+  let matchFree ← match mfS with
+    | .nil => pure none
+    | .atom (.keyword k) => pure (some (k.map Char.toLower))
+    | other => throw s!"GROUND-ZERO-FC-RULES {rune.name}: bad match-free: {repr other}"
+  return { name := rune.name, trigger := triggerS, hyps, concls, matchFree }
+
 private def parseRuleSpecEntry (ctx : String) (withMatchFree : Bool)
     (e : SExpr) : Except String RuleSpec := do
   let some items := e.toList?
@@ -1014,6 +1061,14 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
       return .groundZeroRules
         (← entries.mapM (parseRuleSpecEntry "GROUND-ZERO-RULES" true))
     | _ => throw s!"GROUND-ZERO-RULES: expected a single payload list, \
+                   got {repr rest}"
+  | .cons (.atom (.keyword "GROUND-ZERO-FC-RULES")) rest =>
+    match rest.toList? with
+    | some [rulesList] =>
+      let some entries := rulesList.toList?
+        | throw s!"GROUND-ZERO-FC-RULES: payload is not a list: {repr rulesList}"
+      return .groundZeroFcRules (← entries.mapM parseFcRuleSpecEntry)
+    | _ => throw s!"GROUND-ZERO-FC-RULES: expected a single payload list, \
                    got {repr rest}"
   | .cons (.atom (.keyword "POOL-CONSIDER")) rest =>
     let some nameS := lookupKeyword "NAME" (rest.toList?.getD [])

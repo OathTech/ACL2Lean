@@ -97,6 +97,10 @@ inductive WorldEvent where
       them into the rule-discharge registry (deliberately NOT part of
       `storedRules` — these were not created during capture). -/
   | groundZeroRules (specs : List RuleSpec)
+  /-- The cited ground-zero FORWARD-CHAINING rules (emission arc
+      2026-07-21) — trigger/hyps/concls verbatim; consumed by the
+      FC-derived type-alist relief recipe. -/
+  | groundZeroFcRules (specs : List FcRuleSpec)
   /-- A proved theorem and its clause-tree proof. -/
   | theorem (proof : ClauseProof)
   /-- An INCLUDE-BOOK'd theorem (R2): certified in its OWN book — no
@@ -190,6 +194,14 @@ def Development.groundZeroRuleSpecs : Development → List RuleSpec
     match ev with
     | .groundZeroRules specs => specs ++ rest.groundZeroRuleSpecs
     | _ => rest.groundZeroRuleSpecs
+
+/-- All FC-rule snapshot specs in the development. -/
+def Development.groundZeroFcRuleSpecs : Development → List FcRuleSpec
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .groundZeroFcRules specs => specs ++ rest.groundZeroFcRuleSpecs
+    | _ => rest.groundZeroFcRuleSpecs
 
 /-- The admission justifications of a development's RECURSIVE defuns
     (fn name ↦ measure/wfrel/measured-subset + the raw termination clauses),
@@ -741,6 +753,8 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       events := events.push (.groundZeroDefun n formals body just)
     | .groundZeroRules specs =>
       events := events.push (.groundZeroRules specs)
+    | .groundZeroFcRules specs =>
+      events := events.push (.groundZeroFcRules specs)
     | .typePrescription n cor bts leaves =>
       events := events.push (.typePrescription n cor bts leaves)
     | .rules specs =>

@@ -61,6 +61,10 @@ structure StepProvenance where
   parents : List SExpr := []
   subst : List (SExpr × SExpr) := []
   equivTerm : Option SExpr := none
+  /-- For a `hyp-relief` marker (free-type-alist origin): the matched
+      type-alist ENTRY's ttree runes — the provenance of a DERIVED entry
+      (e.g. forward-chaining; emission arc 2026-07-21). -/
+  taRunes : List Rune := []
   /-- For a `rewriting-equivalence` (solidify) node: the source of the
       equivalence hypothesis (see `EquivSource`). Set by the clause-tree
       builder by matching `equivTerm` to a sibling literal's result (up to the
@@ -235,14 +239,15 @@ partial def parseProofNodesAux (events : List TraceEvent)
         (.node ⟨"branch-substitution", "", none⟩ lhs rhs pendingChildren { equivTerm := equiv } :: nodes)
   | .contextSubst var value _ :: rest =>
       parseProofNodesAux rest [] (.node ⟨"context-subst", "", none⟩ var value pendingChildren {} :: nodes)
-  | .hypRelief hyp origin :: rest =>
+  | .hypRelief hyp origin taRunes :: rest =>
       -- a silent hyp-relief marker (no rewrite events): recorded as a leaf
       -- node; the adopting rule step's recipe consumes it in place of a
       -- relief chain. It never adopts children.
       unless pendingChildren.isEmpty do
         throw s!"parseProofNodesAux: hyp-relief marker with pending inner \
                  nodes: {repr hyp}"
-      parseProofNodesAux rest [] (.node ⟨"hyp-relief", "", none⟩ hyp hyp [] { origin } :: nodes)
+      parseProofNodesAux rest []
+        (.node ⟨"hyp-relief", "", none⟩ hyp hyp [] { origin, taRunes } :: nodes)
   | .ifTestTrue _ _ _ :: rest | .ifTestFalse _ _ _ :: rest | .ifTestUnknown _ _ _ :: rest =>
       -- IF-test markers delimit the if-rewrite block; not standalone nodes.
       parseProofNodesAux rest pendingChildren nodes

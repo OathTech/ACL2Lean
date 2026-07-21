@@ -86,8 +86,8 @@ for INPUT in "$@"; do
   # (how-many.lisp is all defuns).
   got_defthm=$(tr -s ' \n' '  ' < "$OUTPUT" | { grep -o ':SOURCE :LOCAL' || true; } | wc -l | tr -d ' ')
   got_qed=$(grep -c '(:QED' "$OUTPUT" || true)
-  if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED\|proof attempt has failed" "$OUTPUT"; then
-    echo "WARNING: $(basename "$INPUT") — ACL2 reported a FAILED/aborted event; log is INCOMPLETE." >&2
+  if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED\|proof attempt has failed\|HARD ACL2 ERROR" "$OUTPUT"; then
+    echo "WARNING: $(basename "$INPUT") — ACL2 reported a FAILED/aborted/HARD-ERROR event; log is INCOMPLETE." >&2
   elif [ "$got_qed" -lt "$got_defthm" ]; then
     echo "WARNING: $(basename "$INPUT") — $got_qed (:QED) for $got_defthm (:DEFTHM): a proof started but did NOT complete (no closing :QED). ACL2 FAILED a proof. Log is INCOMPLETE." >&2
   elif [ "$got_defthm" -lt "$want_defthm" ]; then
