@@ -1020,6 +1020,21 @@ obligation is stated precisely in its conditional proof's type:
       (DriverTests). REMAINING (design-flavored): vacuity/premise-
       satisfiability smoke tests, TamperTests premise-tamper,
       translator/WorldGen joint enumeration.
+- [ ] **Exercised-infra audit (MDD, 2026-07-21): find driver/lemma code no
+      corpus proof reaches.** As the buildout accumulates recipes, arms, and
+      lemmas, some paths are exercised by NO replayed row — inevitable while
+      frontier-chasing, but unexercised infra carries the risk that we built
+      the WRONG structure and won't find out until something depends on it
+      (the S4-lemma-arm precedent: kept fail-closed precisely because it had
+      no consumer). Method: (a) instrument or grep-trace which driver arms /
+      EvalLemmas lemmas / helper paths fire during a full `driver-coverage`
+      sweep (a per-arm hit counter behind a flag, or a coverage-style dump);
+      (b) classify every cold path: EXERCISED-elsewhere (tests/#guards),
+      FAIL-CLOSED-guard (fine cold), SPECULATIVE (candidate for removal or a
+      forcing test row); (c) for load-bearing cold paths, either add a
+      corpus/test row that exercises them or remove them (no-unwired-infra
+      rule). Periodic, like the de-dup review; first pass after the current
+      emission arc.
 - [ ] **De-dup / abstraction review of the Lean replay infra (MDD, 2026-07-21).**
       A LIGHT review pass over the driver looking for emerged patterns worth
       consolidating — we have built a lot of code arc-by-arc and duplication

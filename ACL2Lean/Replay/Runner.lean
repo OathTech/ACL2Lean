@@ -114,6 +114,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (rules : List ACL2.RuleSpec := [])
     (depProofs : List (String × ClauseProof) := [])
     (gzDefs : List (Symbol × List Symbol × SExpr) := [])
+    (fcRules : List ACL2.FcRuleSpec := [])
     (mirrors : MirrorRegistry := [])
     (mirrorName? : Option Name := none) :
     TermElabM (String × Option (List String)) := do
@@ -125,7 +126,8 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,
-                                    gzDefs := gzDefs, justs := justs }
+                                    gzDefs := gzDefs, justs := justs,
+                                    fcRules := fcRules }
         let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
           mirrors
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
@@ -276,6 +278,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let (status, reg?) ← tryReplay w wExpr tps dev.justifications cp rules
           (thms.map fun (c, _) => (c.name, c))
           (gzDefs := dev.groundZeroSnapshotDefs)
+          (fcRules := dev.groundZeroFcRuleSpecs)
           (mirrors := mirrors) (mirrorName? := some mName)
         let tThm1 ← IO.monoMsNow
         if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"

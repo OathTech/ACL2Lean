@@ -61,6 +61,12 @@ structure ReplayConfig where
       synthetic test worlds — an induction replay then hard-fails at the
       covering check, never guesses. -/
   justs : List (String × Justification) := []
+  /-- The development's ground-zero FORWARD-CHAINING rule snapshots
+      (`(:GROUND-ZERO-FC-RULES …)`, emission arc 2026-07-21): trigger/hyps/
+      concls verbatim. The FC-derived type-alist relief recipe pins its
+      registered Lean lemma against the emitted shape (audit-F2 style) —
+      an unlisted or drifted rule hard-fails. -/
+  fcRules : List FcRuleSpec := []
 
 /-- The proof context in scope at a node. All entries are VALUE-CHARACTERIZED
     facts over the ambient env, established by the surrounding structure (the
@@ -1853,12 +1859,71 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           -- (the type-alist source the type-alist recipe also consumes)
           let notH : SExpr := .cons (.atom (.symbol { name := "NOT" }))
             (.cons hσ .nil)
-          let some hNotNil := ctx.litFactByTerm? notH
-            | throwError "rule {rname}: marker-relieved hyp {repr hσ} has no \
-                          (not …)-falsity fact in scope (frontier)"
-          let vH ← ctxValExpr cfg ctx hσ
-          let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
-          mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
+          match ctx.litFactByTerm? notH with
+          | some hNotNil => do
+            let vH ← ctxValExpr cfg ctx hσ
+            let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
+            mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
+          | none => do
+            -- FC-DERIVED type-alist entry (emission arc 2026-07-21): the
+            -- marker's :TA-RUNES name the forward-chaining rule that put the
+            -- fact on the type-alist. Registered reliefs (rule-of-three:
+            -- a third entry triggers registry-ization): LEXORDER-TOTAL —
+            -- pinned against the EMITTED snapshot (audit-F2 style), the
+            -- instantiated FC hyp discharged from the in-scope falsity
+            -- fact, the conclusion via the kernel-proved
+            -- `ACL2.lexorder_total`.
+            let some marker := reliefMarkers.find? fun c => (nodeLhsRhs c).1 == hσ
+              | throwError "rule {rname}: internal — marker vanished"
+            let .node _ _ _ _ mprov := marker
+            unless mprov.taRunes.any
+                (fun r => r.ty == "forward-chaining" && r.name == "LEXORDER-TOTAL") do
+              throwError "rule {rname}: marker-relieved hyp {repr hσ} has no \
+                          (not …)-falsity fact in scope, and its :TA-RUNES \
+                          {repr (mprov.taRunes.map (·.name))} name no \
+                          registered FC relief (frontier)"
+            let some spec := cfg.fcRules.find? (·.name == "LEXORDER-TOTAL")
+              | throwError "rule {rname}: :TA-RUNES cite LEXORDER-TOTAL but \
+                            the (:GROUND-ZERO-FC-RULES) snapshot lacks it \
+                            (stale log? recapture-all)"
+            let varX : SExpr := .atom (.symbol { name := "X" })
+            let varY : SExpr := .atom (.symbol { name := "Y" })
+            let lexT (p q : SExpr) : SExpr :=
+              .cons (.atom (.symbol { name := "LEXORDER" })) (.cons p (.cons q .nil))
+            let notT (t : SExpr) : SExpr :=
+              .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+            unless spec.trigger == lexT varX varY &&
+                   spec.hyps == [notT (lexT varX varY)] &&
+                   spec.concls == [lexT varY varX] do
+              throwError "rule {rname}: LEXORDER-TOTAL snapshot shape drifted \
+                          from the pinned form: {repr spec.trigger} / \
+                          {repr spec.hyps} / {repr spec.concls}"
+            -- unify the concl (LEXORDER Y X) with hσ: Y ↦ u, X ↦ v
+            let .cons (.atom (.symbol ls)) (.cons u (.cons v .nil)) := hσ
+              | throwError "rule {rname}: FC relief target {repr hσ} is not \
+                            a LEXORDER application (frontier)"
+            unless ls.name == "LEXORDER" do
+              throwError "rule {rname}: FC relief target {repr hσ} is not \
+                          a LEXORDER application (frontier)"
+            -- instantiated FC hyp (NOT (LEXORDER v u)): its truth is the
+            -- in-scope FALSITY of the clause literal (LEXORDER v u)
+            let source := lexT v u
+            let some hNilSrc := ctx.litFactByTerm? source
+              | throwError "rule {rname}: FC relief via LEXORDER-TOTAL needs \
+                            the falsity of {repr source} in scope (frontier)"
+            let vu ← ctxValExpr cfg ctx u
+            let vv ← ctxValExpr cfg ctx v
+            let hTotal ← mkAppM ``ACL2.lexorder_total #[vv, vu]
+            -- left disjunct (lexorder vv vu = t) refuted by hNilSrc
+            let vSrc ← ctxValExpr cfg ctx source
+            let notLeft ← withLocalDeclD `h (← mkEq vSrc (mkConst ``SExpr.t))
+              fun h => do
+                let tEqNil ← mkAppM ``Eq.trans
+                  #[← mkAppM ``Eq.symm #[h], hNilSrc]
+                mkLambdaFVars #[h] (mkApp tNeNil tEqNil)
+            let hT ← mkAppM ``Or.resolve_left #[hTotal, notLeft]
+            let hne ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
+            mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
         else if let some (notS, atm) := (match hσ with
             | .cons (.atom (.symbol s)) (.cons a .nil) =>
               if s.name == "NOT" then some (s, a) else none
