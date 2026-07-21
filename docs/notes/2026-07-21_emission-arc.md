@@ -48,6 +48,38 @@ the two Lean consumers, then the CAR-APPEND investigation.
   gz rewrite rules / D5). Rows: HOW-MANY-FILTER-1, ORDEREDP-ISORT,
   ORDEREDP-MSORT, TRUE-LISTP-MSORT(?), HOW-MANY-EVENS-AND-ODDS.
 
-## Status
+## Increment log
 
-- Fork changes written, tag-check OK; image rebuild in flight.
+- **1** (9e56ae6): fork emissions (submodule 5bef37550d) + parse layer.
+  Two incidents caught by the gates: (a) the raw delete-lit-flg pool
+  entry dragged the APPLY$ :?-measure clique into the cited closure and
+  HARD-ERRORED the snapshot emitter — flags normalized to T/NIL, and the
+  capture script's failure grep now matches "HARD ACL2 ERROR" (it
+  post-dated every :QED and evaded all three detectors); (b) the fork
+  commit must precede the FINAL recapture or provenance stamps go stale
+  (re-ran the cycle in the right order).
+- **2**: the FERTILIZE-CLAUSE recipe (Waterfall/Fertilize.lean) — EQUAL
+  equiv + delete-lit T + cross-fert NIL (the induction shape; everything
+  else fail-closed): byCases the justifying literal; truth closes via
+  evtrueOfLitTrue; falsity gives the equality (logic_not_equal_nil_eq),
+  the literal's if-frame folds out (castConvToNil + re_if_false lifted
+  through preceding frames), diffCollapse transports target→bullet onto
+  the RECORDED output clause (computed == recorded checked), the child
+  closes it. REV-APP ✓ (47→48/79). CLI print arms for the new events.
+
+## Runout-pass investigation (parked evidence, next target)
+
+HOW-MANY-ISORT (post-fertilize) + REV-REV now share one signature:
+`navigated to (CONSP <tail>), expected redex (CONSP (CONS <hd> <tail>))`.
+Ground truth gathered: ACL2's rewrite-fncall for RECURSIVE fns REWRITES
+THE REWRITTEN BODY a second time (rewrite.lisp:20613, gstack frame
+'rewritten-body); the raw log carries the runout nodes with
+`(REWRITTEN-BODY . fn)` boundary path frames, but the BEGIN/END-INNER
+block instrumentation emits only KIND BODY/RHS/HYP blocks — an
+END BODY / BEGIN BODY adjacency appears where the runout pass starts, so
+the block reconstruction mis-adopts the outer unfold's children under
+the runout's inner node (the dump shows the outer fncall/recursive node
+separated from its body-pass children). Likely fix: emit a
+REWRITTEN-BODY-kind inner block around the runout pass (fork) and teach
+the definition recipe to chain it as a continuation of the substituted
+body (Lean); same class as the LEN-ZIP2/3 off-frame rows.

@@ -6,6 +6,7 @@
   tied knot (replayClause/replayClauseSpine + clauseRec).
 -/
 import ACL2Lean.Replay.Driver.Waterfall.Compose
+import ACL2Lean.Replay.Driver.Waterfall.Fertilize
 import ACL2Lean.Replay.Driver.Waterfall.Elim
 import ACL2Lean.Replay.Driver.Waterfall.Generalize
 import ACL2Lean.Replay.Driver.Waterfall.Subsumed
@@ -580,6 +581,17 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       throwError "replayClause: elim step alongside an effective clausify \
                   record at {cn.idStr} (frontier)"
     return ← replayElim rec cfg ctx cn st
+  -- a FERTILIZE node (cross-fertilization): the emitted :FERTILIZE detail
+  -- links the substitution to its justifying clause literal; replayFertilize
+  -- byCases the literal, transports the disjunction onto the substituted
+  -- clause, and closes via the child (emission arc, 2026-07-21). The step's
+  -- items are the PRECEDING simplify miss's flushed events — not this
+  -- transformation's record — and are deliberately not consumed.
+  if let some st := cn.steps.find? (fun s => s.processor.toLower == "fertilize-clause") then
+    unless clausifyInfos.isEmpty do
+      throwError "replayClause: fertilize step alongside an effective \
+                  clausify record at {cn.idStr} (frontier)"
+    return ← replayFertilize rec cfg ctx cn st
   -- a GENERALIZE node: the child clause abstracts the emitted :TERMS by fresh
   -- :VARS; replayGeneralize replays the child at the env binding the fresh
   -- vars to the terms' values and substN-bridges back

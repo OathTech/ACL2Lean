@@ -178,6 +178,12 @@ private partial def printDevelopment : ACL2.Development → IO Unit
         let hyps := if r.hyps.isEmpty then "" else s!" (hyps: {hs})"
         let mf := r.matchFree.elim "" (fun v => s!" (match-free {v})")
         IO.println s!"  {r.name} [{r.equiv}]: {r.lhs} ⇒ {r.rhs}{hyps}{mf}"
+    | .groundZeroFcRules specs =>
+      IO.println s!"\n── ground-zero FC rules ──"
+      for r in specs do
+        let hs := String.intercalate " ∧ " (r.hyps.map (·.toString))
+        let cs := String.intercalate " ∧ " (r.concls.map (·.toString))
+        IO.println s!"  {r.name}: trigger {r.trigger}; hyps {hs} ⇒ concls {cs}"
     | .typePrescription name cor _ _ =>
       IO.println s!"\n── type-prescription {name} ──"
       IO.println s!"  {cor}"
@@ -343,6 +349,10 @@ def main (args : List String) : IO Unit := do
                 for r in specs do
                   let mf := r.matchFree.elim "" (fun v => s!" match-free {v}")
                   IO.println s!"    {r.name} [{r.equiv}]: {r.lhs} ⇒ {r.rhs} (hyps: {r.hyps.length}){mf}"
+            | .groundZeroFcRules specs =>
+                IO.println s!"\n  GROUND-ZERO-FC-RULES ({specs.length} snapshot):"
+                for r in specs do
+                  IO.println s!"    {r.name}: trigger {r.trigger} ({r.hyps.length} hyps, {r.concls.length} concls)"
             | .induction i =>
                 IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
             | .qed =>
