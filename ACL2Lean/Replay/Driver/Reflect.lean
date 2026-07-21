@@ -96,7 +96,7 @@ def isFrontierErr : Exception → Bool
     the pointer-eq fast path; the reflected world subterm is shared, so keys
     embedding different worlds never collide and lookups stay cheap).
     Only SUCCESSFUL proofs are cached — failures still hard-fail live. -/
-builtin_initialize proveByDecideCache : IO.Ref (Array (Expr × Expr)) ←
+initialize proveByDecideCache : IO.Ref (Array (Expr × Expr)) ←
   IO.mkRef #[]
 
 /-- Prove a decidable proposition `p` by **kernel decision** — deterministic ground

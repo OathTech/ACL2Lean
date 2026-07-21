@@ -67,4 +67,14 @@ replayExecGround isDefEq at large fuel), not kernel checking. P2/P3
 - C2 skipped (post-Q1 the tails are one-liners), C4 rejected (lemma
   statement stability), P2/P3 left as measured breadcrumbs for a future
   perf arc.
-- PASS END.
+- P1 follow-up fix: the cache's `builtin_initialize` crashed MODULES THAT
+  INTERPRET driver code at elaboration (NativeMirrors, DriverTests — Lean
+  ir_interpreter 'Unreachable' assertion); `initialize` is the correct
+  form for a library. Caught by `just ci`; the compiled replay binary had
+  masked it.
+- PROCESS INCIDENT (self-caught): `just ci | tail -2 && git commit`
+  masked ci's exit status behind the pipe — a doc-only commit landed on a
+  red build (the very green-looking-failure class G1 guards against).
+  Rule: capture ci's exit code directly (`just ci > out; echo $?`), never
+  gate a commit on a piped status.
+- PASS END: ci exit 0, golden byte-identical.
