@@ -211,9 +211,55 @@ a post-substitution path-navigation mismatch (new signature).
 
 Rows: CAR-RM ✓, EQUAL-CONS ✓.
 
+### Increment 8 — end-of-arc de-dup (behavior-preserving)
+
+Per the new CLAUDE.md engineering-quality policy: the clones this arc
+created, extracted to single homes in NodeCore ("Shared composition
+helpers"), golden byte-identical required:
+- `segFactFalsity` — the facts-based falsity core (was 3 inline variants
+  in Compose.lean; callers layer their extra sources: the open leaf's own
+  falsity, ctx.litFactByTerm?).
+- `vacuousResidualClose` — peel + ex-falso (was 2 copies: spine vacuous
+  arm, composeSplit vacuous arm).
+- `mkConstTestCollapse` — quoted-constant-test if collapse via
+  re_if_true/false (was 3 copies: identity arm, folded-collapse arm,
+  collapseEval constant arm).
+- `closeOnTrueLit` — conv_if_true closer plumbing (was 2 copies in the
+  spine walker).
+
+### Arc-end frontier map (remaining 32 FAILs, classified)
+
+Parked DESIGN walls (need MDD review before building):
+1. `*-IS-ISORT` ×3 — functional-instance/encapsulate (L3 trajectory +
+   apply-top-hints emission).
+2. FC type-alist emission gap — marker-relieved facts DERIVED by
+   forward-chaining, not emitted: ORDEREDP-ISORT, ORDEREDP-MSORT,
+   TRUE-LISTP-MSORT, HOW-MANY-EVENS-AND-ODDS, HOW-MANY-FILTER-1 (×5).
+3. Branch-substitution under a USER EQUIVALENCE (PERM) —
+   PERM-IMPLIES-EQUAL-ALL-REL-2; genuine L2 R-parameterized rewriting.
+4. dischargeDecrease beyond destructor chains — HOW-MANY-QSORT,
+   ORDEREDP-QSORT (admission-waterfall replay follow-up, MDD-ratified
+   carve-out note).
+5. FERTILIZE-CLAUSE (cross-fertilization) — HOW-MANY-ISORT, REV-APP;
+   the step record carries no equality/direction/occurrence data —
+   EMISSION work (like the :SEGMENT increment), then a recipe parallel
+   to branch-substitution.
+
+Pre-arc backlog classes (not this arc's scope): non-identity literal
+alongside clausify (×4: LEN2-CDR-SMALLER, CLASSIFY-POS, TLP-APP-NIL-
+TWICE, ORDERED-PERMS), unicity-of-0 TP int fact (×3), LEN-ZIP2/3
+off-frame (×2), LINEAR-CHAIN, LEN2-APP-VIA-USE, CD2-BOUND
+(compound-recognizer), NUMERATOR trusted-core (×2, H3 pin-first),
+ORDEREDP-RM (multi-elim round), ORDEREDP-MEMB (scheme count),
+REV-REV (nested same-fn unfold paths), CAR-APPEND (stored-rule shape),
+ORDEREDP-APPEND (IFF-wrapped preprocess).
+
 ## Status
 
-- Increments 1–6 verified + committed (c947d97, f1a0ee2, 9376778,
-  8f5dca4, 1cae4dd, 4f6a7e4): 45/79, DP ✓24 ◌12 ✗0, fork c648e0bd5a.
-- Increment 7 landed (CAR-RM, EQUAL-CONS → 47/79 expected); sweep
-  pending.
+- Increments 1–7 verified + committed (c947d97, f1a0ee2, 9376778,
+  8f5dca4, 1cae4dd, 4f6a7e4, be8e5c6): 47/79 (27 uncond + 20 cond),
+  DP ✓24 ◌12 ✗0, fork c648e0bd5a.
+- Increment 8 (de-dup) landed; byte-identical sweep pending.
+- ARC END: qsort book 8/13 (was 3/13 at arc start), all ALL-REL rows ✓,
+  scoreboard 35→47/79. Remaining rows are parked design walls, emission
+  work, or pre-arc backlog classes (map above).

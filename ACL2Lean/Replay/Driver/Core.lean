@@ -400,19 +400,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- (ATM/TYPE-SET-TRUE, :RESULT :TRUE — APP-NIL Subgoal *1/3): the clause
     -- closes on the literally-true literal, no chain to replay.
     if lp.literal == quoteT && lp.result == .atom (.keyword "TRUE") then
-      let pclose ← quoteTFact cfg
-      if restLits.isEmpty then
-        return ← mkAppM ``evtrue_of_eq_t #[pclose]
-      else
-        let restTerm := disjoinTerm (restLits.map (·.2))
-        let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-        let hcv ← proveByDecide
-          (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t)) (mkConst ``Bool.true))
-          "toBool t"
-        let hIf ← mkAppM ``conv_if_true
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
-            reflectSExpr restTerm, mkConst ``SExpr.t, mkConst ``SExpr.t, pclose, hcv, hq]
-        return ← mkAppM ``evtrue_of_eq_t #[hIf]
+      return ← closeOnTrueLit cfg lp.literal (restLits.map (·.2)) (← quoteTFact cfg)
     if lp.result == quoteT then
       -- the closer: its chain proves it `t`; any later literals (scanned or
       -- not) are short-circuited by the true test.
@@ -420,19 +408,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         throwError "replayClauseSpine: branches after the closing literal \
                     {idx} at {idStr} (frontier)"
       let pclose ← replayLiteral cfg ctx lp
-      if restLits.isEmpty then
-        mkAppM ``evtrue_of_eq_t #[pclose]
-      else
-        -- `(if litᵢ 't rest)` with the test KNOWN `t`
-        let restTerm := disjoinTerm (restLits.map (·.2))
-        let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-        let hcv ← proveByDecide
-          (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t)) (mkConst ``Bool.true))
-          "toBool t"
-        let hIf ← mkAppM ``conv_if_true
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
-            reflectSExpr restTerm, mkConst ``SExpr.t, mkConst ``SExpr.t, pclose, hcv, hq]
-        mkAppM ``evtrue_of_eq_t #[hIf]
+      closeOnTrueLit cfg lp.literal (restLits.map (·.2)) pclose
     else
       -- the literal's rewrite chain: literal ⇒ result
       let (chainOpt, finalT) ← replayLiteralChain cfg ctx lp
@@ -526,26 +502,12 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             throwError "replayClauseSpine: vacuous residual with an EMPTY \
                         child clause at {idStr} (frontier)"
           let pChild ← rec.clause cfg { ctx with litFacts := [] } child
-          let mut p := pChild
-          for L in accClause'.dropLast do
-            let some hf := ctx.litFactByTerm? L
-              | throwError "replayClauseSpine: no falsity fact for the residual \
-                            literal {repr L} at {idStr}"
-            let pNil ← mkAppM ``re_val_cast
-              #[cfg.worldExpr, cfg.envExpr, reflectSExpr L,
-                ← ctxValExpr cfg ctx L, mkConst ``SExpr.nil,
-                ← ctxValProof cfg ctx L, hf]
-            p ← mkAppM ``evtrue_extract_else #[pNil, p]
-          let some lastL := accClause'.getLast?
-            | throwError "replayClauseSpine: internal — empty accClause'"
-          let some hfLast := ctx.litFactByTerm? lastL
-            | throwError "replayClauseSpine: no falsity fact for the residual \
-                          literal {repr lastL} at {idStr}"
-          -- p : EvTrue(lastL) vs hfLast : v(lastL) = nil — absurd
-          let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[p, ← ctxValProof cfg ctx lastL]
-          let goalTy ← mkAppM ``EvTrue
-            #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal]
-          return ← mkAppOptM ``absurd #[none, some goalTy, some hfLast, some hNe]
+          return ← vacuousResidualClose cfg ctx accClause' pChild lp.literal
+            fun L => do
+              let some hf := ctx.litFactByTerm? L
+                | throwError "replayClauseSpine: no falsity fact for the \
+                              residual literal {repr L} at {idStr}"
+              pure hf
         unless accClause'.getLast? == some lp.result do
           throwError "replayClauseSpine: residual's surviving literal is not \
                       literal {idx}'s result at {idStr} (frontier)"

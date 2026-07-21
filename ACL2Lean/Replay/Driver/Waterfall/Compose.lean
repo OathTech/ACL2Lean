@@ -179,55 +179,22 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         if expected.isEmpty then
           throwError "composeSplit: vacuous residual with an EMPTY child \
                       clause at {idStr} (frontier)"
-        let deriveF (ctx : ReplayCtx) (L : SExpr) : MetaM Expr := do
-          if let some hf := ctx.litFactByTerm? L then return hf
-          if let some (_, _, _, hf) :=
-              facts.find? (fun (T, _, sign, _) => !sign && L == T) then
-            return hf
-          match L with
-          | .cons (.atom (.symbol ns)) (.cons T .nil) =>
-            if ns.name == "NOT" then
-              match facts.find? (fun (T', _, sign, _) => sign && T' == T) with
-              | some (_, _, _, hf) => mkAppM ``not_nil_of_truthy #[hf]
-              | none => throwError "composeSplit: no falsity fact for the \
-                                    vacuous-residual literal {repr L} at {idStr}"
-            else throwError "composeSplit: no falsity fact for the \
-                             vacuous-residual literal {repr L} at {idStr}"
-          | _ => throwError "composeSplit: no falsity fact for the \
-                             vacuous-residual literal {repr L} at {idStr}"
         let mut ctx := ctx
         for L in expected do
           ctx ← pinTermOpaques cfg e ctx L
         let pChild ← rec.clause cfg { ctx with litFacts := [] } child
-        let mut p := pChild
-        for L in expected.dropLast do
-          let hf ← deriveF ctx L
-          let pNil ← mkAppM ``re_val_cast
-            #[w, e, reflectSExpr L, ← ctxValExpr cfg ctx L, nilC,
-              ← ctxValProof cfg ctx L, hf]
-          p ← mkAppM ``evtrue_extract_else #[pNil, p]
-        let some lastL := expected.getLast?
-          | throwError "composeSplit: internal — empty vacuous residual"
-        let hfLast ← deriveF ctx lastL
-        let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[p, ← ctxValProof cfg ctx lastL]
-        let goalTy ← mkAppM ``EvTrue #[w, e, reflectSExpr clauseLit]
-        return ← mkAppOptM ``absurd #[none, some goalTy, some hfLast, some hNe]
+        let ctxF := ctx
+        return ← vacuousResidualClose cfg ctx expected pChild clauseLit fun L => do
+          if let some hf := ctxF.litFactByTerm? L then return hf
+          match ← segFactFalsity facts L with
+          | some hf => pure hf
+          | none => throwError "composeSplit: no falsity fact for the \
+                                vacuous-residual literal {repr L} at {idStr}"
       unless outcome == "segment-open" do
         throwError "composeSplit: {outcome} leaf on a singleton clause at \
                     {idStr} (frontier)"
-      let deriveFalsity (L : SExpr) : MetaM (Option Expr) := do
-        if let some (_, _, _, hf) :=
-            facts.find? (fun (T, _, sign, _) => !sign && L == T) then
-          return some hf
-        match L with
-        | .cons (.atom (.symbol ns)) (.cons T .nil) =>
-          if ns.name == "NOT" then
-            match facts.find? (fun (T', _, sign, _) => sign && T' == T) with
-            | some (_, _, _, hf) =>
-              return some (← mkAppM ``not_nil_of_truthy #[hf])
-            | none => return none
-          else return none
-        | _ => return none
+      let deriveFalsity (L : SExpr) : MetaM (Option Expr) :=
+        segFactFalsity facts L
       -- selection: EXACT emitted-segment match first (the leaf→branch link
       -- ACL2's converter constructed); when no branch carries it (the
       -- Satriani/subsumption post-pass MERGED segments — complementary-
@@ -315,18 +282,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         let deriveFalsity (L : SExpr) : MetaM (Option Expr) := do
           if outcome == "segment-open" && L == value then
             return some hLeafNil
-          if let some (_, _, _, hf) :=
-              facts.find? (fun (T, _, sign, _) => !sign && L == T) then
-            return some hf
-          match L with
-          | .cons (.atom (.symbol ns)) (.cons T .nil) =>
-            if ns.name == "NOT" then
-              match facts.find? (fun (T', _, sign, _) => sign && T' == T) with
-              | some (_, _, _, hf) =>
-                return some (← mkAppM ``not_nil_of_truthy #[hf])
-              | none => return none
-            else return none
-          | _ => return none
+          segFactFalsity facts L
         -- select the branch: EXACT emitted-segment match first (the
         -- leaf→branch link ACL2's converter constructed); when no branch
         -- carries it (the Satriani/subsumption post-pass MERGED segments —

@@ -633,6 +633,112 @@ def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT, reflectSExpr SExpr.t,
       mkConst ``SExpr.t, pq, hv]
 
+/-! ## Shared composition helpers (de-dup pass, 2026-07-21)
+
+Single homes for compositions that had grown near-clones across the clause
+walkers — extracted behavior-preserving (see CLAUDE.md's engineering-quality
+policy; the risk managed is a fix landing in one clone and missing its twin). -/
+
+/-- Falsity of a segment literal from the composer's byCases `facts`:
+    a ¬sign fact for the literal itself, or — for a `(not T)` literal — a
+    sign fact for `T` lifted by `not_nil_of_truthy` (if-interp's
+    convert-assumptions rule set). The FACTS-based core shared by the
+    branch-selection and vacuous-residual paths; callers layer their own
+    extra sources (the open leaf's own falsity, `ctx.litFactByTerm?`). -/
+def segFactFalsity (facts : List (SExpr × Expr × Bool × Expr)) (L : SExpr) :
+    MetaM (Option Expr) := do
+  if let some (_, _, _, hf) :=
+      facts.find? (fun (T, _, sign, _) => !sign && L == T) then
+    return some hf
+  match L with
+  | .cons (.atom (.symbol ns)) (.cons T .nil) =>
+    if ns.name == "NOT" then
+      match facts.find? (fun (T', _, sign, _) => sign && T' == T) with
+      | some (_, _, _, hf) => return some (← mkAppM ``not_nil_of_truthy #[hf])
+      | none => return none
+    else return none
+  | _ => return none
+
+/-- Ex-falso closure of a VACUOUS residual: the pushed child's clause
+    (`expected`, proved as `pChild`) is all-false in scope — peel it to its
+    last literal (`evtrue_extract_else`) and refute (`absurd`), producing
+    `EvTrue goalTerm`. `deriveF` supplies each literal's falsity proof
+    (throwing if unavailable). Shared by the spine walker's and
+    composeSplit's vacuous arms. -/
+def vacuousResidualClose (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (expected : List SExpr) (pChild : Expr) (goalTerm : SExpr)
+    (deriveF : SExpr → MetaM Expr) : MetaM Expr := do
+  let nilC := mkConst ``SExpr.nil
+  let mut p := pChild
+  for L in expected.dropLast do
+    let hf ← deriveF L
+    let pNil ← mkAppM ``re_val_cast
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr L, ← ctxValExpr cfg ctx L,
+        nilC, ← ctxValProof cfg ctx L, hf]
+    p ← mkAppM ``evtrue_extract_else #[pNil, p]
+  let some lastL := expected.getLast?
+    | throwError "vacuousResidualClose: empty residual clause"
+  let hfLast ← deriveF lastL
+  let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[p, ← ctxValProof cfg ctx lastL]
+  let goalTy ← mkAppM ``EvTrue
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr goalTerm]
+  mkAppOptM ``absurd #[none, some goalTy, some hfLast, some hNe]
+
+/-- `(if <c> thn els) ≡ <taken branch>` for a QUOTED-CONSTANT test `c`
+    (quote term around value `cv`): `re_if_false` on nil (via `re_val_cast`),
+    else `re_if_true`. Branch value/proof from the ctx pins. Returns the
+    equality and the taken branch. Shared by the identity-arm and
+    folded-collapse display-fold recipes and collapseEval's constant arm. -/
+def mkConstTestCollapse (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (c cv thn els : SExpr) : MetaM (Expr × SExpr) := do
+  let hc ← mkAppM ``re_val_quote
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+  if cv == SExpr.nil then
+    let hcNil ← mkAppM ``re_val_cast
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr cv,
+        mkConst ``SExpr.nil, hc, ← proveByDecide
+          (← mkEq (reflectSExpr cv) (mkConst ``SExpr.nil)) "cv is nil"]
+    let vb ← ctxValExpr cfg ctx els
+    let hb ← ctxValProof cfg ctx els
+    let _ := vb
+    let p ← mkAppM ``re_if_false
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
+        reflectSExpr els, vb, hcNil, hb]
+    return (p, els)
+  else
+    let hcv ← proveByDecide
+      (← mkEq (mkApp (mkConst ``Logic.toBool) (reflectSExpr cv))
+              (mkConst ``Bool.true)) "toBool of the constant test"
+    let va ← ctxValExpr cfg ctx thn
+    let ha ← ctxValProof cfg ctx thn
+    let _ := va
+    let p ← mkAppM ``re_if_true
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
+        reflectSExpr els, reflectSExpr cv, va, hc, hcv, ha]
+    return (p, thn)
+
+/-- Close `EvTrue (disjoin (lit :: restLits))` from the closing literal's
+    `pclose : ∃N∀f≥N, eval lit = some t`: bare literal when `restLits` is
+    empty, else `conv_if_true` short-circuits the tail. Shared by the
+    quoteT-closer and ground-'T-closer paths. -/
+def closeOnTrueLit (cfg : ReplayConfig) (lit : SExpr) (restLits : List SExpr)
+    (pclose : Expr) : MetaM Expr := do
+  if restLits.isEmpty then
+    mkAppM ``evtrue_of_eq_t #[pclose]
+  else
+    let restTerm := disjoinTerm restLits
+    let hq ← mkAppM ``re_val_quote
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+    let hcv ← proveByDecide
+      (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t))
+              (mkConst ``Bool.true)) "toBool t"
+    let hIf ← mkAppM ``conv_if_true
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr lit, reflectSExpr quoteT,
+        reflectSExpr restTerm, mkConst ``SExpr.t, mkConst ``SExpr.t, pclose,
+        hcv, hq]
+    mkAppM ``evtrue_of_eq_t #[hIf]
+
+
 /-- PIN the value of every user-fn application occurring in `t` (bottom-up) from
     the bound totality hypotheses, refining to the int-atom shape when the fn's
     emitted TP corollary has the standard `(IF (INTEGERP app) … 'NIL)` shape. -/
@@ -1936,30 +2042,7 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
       -- resolved it): take the branch, exactly as if-interp does
       if let .cons (.atom (.symbol q)) (.cons cv .nil) := c' then
         if q.name == "QUOTE" then
-          let step ←
-            if cv == SExpr.nil then
-              let hc ← mkAppM ``re_val_quote #[w, e, reflectSExpr cv]
-              let hcNil ← mkAppM ``re_val_cast
-                #[w, e, reflectSExpr c', reflectSExpr cv, mkConst ``SExpr.nil, hc,
-                  ← proveByDecide (← mkEq (reflectSExpr cv) (mkConst ``SExpr.nil))
-                    "collapsed test is nil"]
-              let vb ← ctxValExpr cfg ctx b
-              let hb ← ctxValProof cfg ctx b
-              let _ := vb
-              mkAppM ``re_if_false
-                #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b, vb, hcNil, hb]
-            else
-              let hc ← mkAppM ``re_val_quote #[w, e, reflectSExpr cv]
-              let hcv ← proveByDecide
-                (← mkEq (mkApp (mkConst ``Logic.toBool) (reflectSExpr cv))
-                        (mkConst ``Bool.true)) "toBool of the collapsed test"
-              let va ← ctxValExpr cfg ctx a
-              let ha ← ctxValProof cfg ctx a
-              let _ := va
-              mkAppM ``re_if_true
-                #[w, e, reflectSExpr c', reflectSExpr a, reflectSExpr b,
-                  reflectSExpr cv, va, hc, hcv, ha]
-          let sel := if cv == SExpr.nil then b else a
+          let (step, sel) ← mkConstTestCollapse cfg ctx c' cv a b
           let acc' ← match acc with
             | none => pure step
             | some p => mkAppM ``fuel_chain_eq #[p, step]
@@ -2188,29 +2271,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           throwError "replayRewrites: folded constant-test collapse of \
                       {repr S} selects {repr branch}, node rhs is {repr rhs}"
         let c : SExpr := .cons (.atom (.symbol q)) (.cons cv .nil)
-        let hc ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
-        let nodeEq ←
-          if cv == SExpr.nil then
-            let vb ← ctxValExpr cfg ctx els
-            let hb ← ctxValProof cfg ctx els
-            let hcNil ← mkAppM ``re_val_cast
-              #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr cv,
-                mkConst ``SExpr.nil, hc, ← proveByDecide
-                  (← mkEq (reflectSExpr cv) (mkConst ``SExpr.nil)) "cv is nil"]
-            let _ := vb
-            mkAppM ``re_if_false
-              #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
-                reflectSExpr els, vb, hcNil, hb]
-          else
-            let hcv ← proveByDecide
-              (← mkEq (mkApp (mkConst ``Logic.toBool) (reflectSExpr cv))
-                      (mkConst ``Bool.true)) "toBool of the constant test"
-            let va ← ctxValExpr cfg ctx thn
-            let ha ← ctxValProof cfg ctx thn
-            let _ := va
-            mkAppM ``re_if_true
-              #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
-                reflectSExpr els, reflectSExpr cv, va, hc, hcv, ha]
+        let (nodeEq, _) ← mkConstTestCollapse cfg ctx c cv thn els
         let (lifted, newTerm) ←
           emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S branch
             nodeEq depth strip
@@ -2260,32 +2321,10 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
               let .cons _ (.cons _ (.cons thn' (.cons els' .nil))) := S
                 | throwError "replayRewrites: internal — compatible running \
                               subterm lost its if shape"
-              let hc ← mkAppM ``re_val_quote
-                #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
-              let nodeEq ←
-                if cv == SExpr.nil then
-                  let hb ← ctxValProof cfg ctx els'
-                  let vb ← ctxValExpr cfg ctx els'
-                  let hcNil ← mkAppM ``re_val_cast
-                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr cv,
-                      mkConst ``SExpr.nil, hc, ← proveByDecide
-                        (← mkEq (reflectSExpr cv) (mkConst ``SExpr.nil)) "cv is nil"]
-                  mkAppM ``re_if_false
-                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn',
-                      reflectSExpr els', vb, hcNil, hb]
-                else
-                  let hcv ← proveByDecide
-                    (← mkEq (mkApp (mkConst ``Logic.toBool) (reflectSExpr cv))
-                            (mkConst ``Bool.true)) "toBool of the constant test"
-                  let ha ← ctxValProof cfg ctx thn'
-                  let va ← ctxValExpr cfg ctx thn'
-                  mkAppM ``re_if_true
-                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn',
-                      reflectSExpr els', reflectSExpr cv, va, hc, hcv, ha]
               -- the collapse result is the RUNNING surviving branch (the
               -- recorded rhs may carry surviving-branch folds — see the arm
               -- doc above; nodeEq is exactly `eval S = eval taken'`)
-              let taken' := if cv == SExpr.nil then els' else thn'
+              let (nodeEq, taken') ← mkConstTestCollapse cfg ctx c cv thn' els'
               let (lifted, newTerm) ←
                 emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S taken'
                   nodeEq depth strip

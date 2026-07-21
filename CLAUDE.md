@@ -237,6 +237,15 @@ against it structurally:
   instrumentation; and the rest of the pipeline). Update it whenever a milestone
   lands, scope changes, or a new gap/frontier is found — don't let it drift from
   reality.
+- **Take clean engineering-quality opportunities as you go.** Arc-by-arc buildout
+  accumulates near-clones (the same helper re-derived in two walkers, the same
+  composition idiom pasted at a third site). When a clean de-duplication /
+  abstraction opportunity is NOTICED, take it — either immediately or as an
+  end-of-arc increment on the branch that created it. Not an obsession, and never
+  speculative generalization: extract only what exists in 2–3 concrete copies,
+  behavior-preserving (golden byte-identical), each extraction its own verifiable
+  step. The risk this manages is real: a fix applied to one clone silently missing
+  its twin.
 
 ## Audit practices
 

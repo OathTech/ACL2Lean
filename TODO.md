@@ -1037,7 +1037,11 @@ obligation is stated precisely in its conditional proof's type:
       Method: enumerate the clones (grep + read), rank by risk-reduction
       (a fix applied to one clone silently missing its twin is the incident
       class), extract shared helpers WITHOUT changing behavior, golden must
-      stay byte-identical. Good post-arc / pre-merge-window task.
+      stay byte-identical.
+      POLICY (MDD 2026-07-21): KNOWN clones get de-duplicated as an ONGOING
+      practice — at latest as an end-of-arc increment on the branch that
+      created them (the qsort-frontiers arc will carry one); this backlog
+      item is the standing habit + the periodic broader sweep.
 - [ ] **Rebase the `acl2/` fork on upstream (2026-06-12).** The submodule's
       `acl2-lean-output` branch is based on an aging upstream `master`; rebase
       (or merge upstream forward) at some point. The TRACE-LOG tagging
