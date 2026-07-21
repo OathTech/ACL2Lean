@@ -67,11 +67,11 @@ Driver coverage — REPLAYED 48/79 (27 unconditional + 21 conditional); DP-disch
     PERM-TRANSITIVE → REPLAYED ✓
     PERM-IS-AN-EQUIVALENCE → REPLAYED ✓
 • sorting/isort  (world: 27 defun(s), 3 theorem(s))
-    ORDEREDP-ISORT → FAIL: replayElim: elim round is not a single record at Subgoal *1.1/4.1 (frontier): (((:ELIM CAR-CDR-ELIM) IT (CONS IT1 IT2) (((CAR IT) . IT1) ((CDR IT) . IT2)) NIL NIL NIL) ((:ELIM CAR-CDR-ELIM) IT2 (CONS IT3 IT4) (((CAR IT2) . IT3) ((CDR IT2) . IT4)) NIL NIL NIL))
+    ORDEREDP-ISORT → FAIL: pathStepsFromFrames: navigated to (CONSP IT4), expected redex (CONSP (CONS IT3 IT4))
     TRUE-LISTP-ISORT → REPLAYED ✓ cond[total:INSERT, total:ISORT, tp:INSERT]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(INSERT X1 IT), tp:INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
     HOW-MANY-ISORT → FAIL: pathStepsFromFrames: navigated to (CONSP IT), expected redex (CONSP (CONS X1 IT))
 • sorting/ordered-perms  (world: 21 defun(s), 6 theorem(s))
-    ORDEREDP-RM → FAIL: replayElim: elim round is not a single record at Subgoal *1/3.1 (frontier): (((:ELIM CAR-CDR-ELIM) A (CONS A1 A2) (((CAR A) . A1) ((CDR A) . A2)) NIL NIL NIL) ((:ELIM CAR-CDR-ELIM) A2 (CONS A3 A4) (((CAR A2) . A3) ((CDR A2) . A4)) NIL NIL NIL))
+    ORDEREDP-RM → FAIL: pathStepsFromFrames: navigated to (CONSP A4), expected redex (CONSP (CONS A3 A4))
     ORDEREDP-MEMB → FAIL: replayInduction: 2 scheme clauses for 3 recomputed (non-tautological) case clauses (mismatch)
     EQUAL-CONS → REPLAYED ✓ cond[rule:CONS-CAR-CDR]  [DISCHARGE: Subgoal 2:preprocess/tau-contradiction ✓]
     CAR-RM → REPLAYED ✓
@@ -80,10 +80,10 @@ Driver coverage — REPLAYED 48/79 (27 unconditional + 21 conditional); DP-disch
 • sorting/msort  (world: 29 defun(s), 7 theorem(s))
     ACL2-COUNT-EVENS-STRONG → FAIL: proveConv: unary NUMERATOR not in the builtin registry (frontier): (NUMERATOR (CONS (CAR X) (EVENS (CDR (CDR X)))))  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(ACL2-COUNT (EVENS X)), total:(ACL2-COUNT X), tp:ACL2-COUNT, tp:ACL2-COUNT]]
     ACL2-COUNT-EVENS-WEAK → FAIL: proveConv: unary NUMERATOR not in the builtin registry (frontier): (NUMERATOR (CONS (CAR X) (EVENS (CDR (CDR X)))))  [DISCHARGE: Subgoal *1/1'':preprocess/tau-contradiction ✓ cond[total:(ACL2-COUNT X), tp:ACL2-COUNT]]
-    ORDEREDP-MSORT → FAIL: replayElim: elim round is not a single record at Subgoal *1.1/6''' (frontier): (((:ELIM CAR-CDR-ELIM) MT (CONS MT1 MT2) (((CAR MT) . MT1) ((CDR MT) . MT2)) NIL NIL NIL) ((:ELIM CAR-CDR-ELIM) MT2 (CONS MT3 MT4) (((CAR MT2) . MT3) ((CDR MT2) . MT4)) NIL NIL NIL))
+    ORDEREDP-MSORT → FAIL: replayRecognizer: value of (CONSP (MERGE2 MT0 (CONS MT3 MT4))) does not reduce to T (no TP hypothesis for MERGE2)
     TRUE-LISTP-MSORT → FAIL: type-alist: no spine falsity fact for MT (frontier)  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2], Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2]]
     HOW-MANY-MERGE2 → REPLAYED ✓ cond[total:HOW-MANY, total:MERGE2, tp:HOW-MANY, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]
-    HOW-MANY-EVENS-AND-ODDS → FAIL: rule DEFAULT-CDR: marker-relieved hyp (NOT (CONSP (CDR (CDR X)))) has no (not …)-falsity fact in scope, and its :TA-RUNES [] name no registered FC relief (frontier)  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ◌ assumed cond[total:(HOW-MANY E (EVENS X)), total:(HOW-MANY E (EVENS (CDR X))), total:(HOW-MANY E X), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
+    HOW-MANY-EVENS-AND-ODDS → FAIL: pathStepsFromFrames: unexpected residual boundary frame REWRITTEN-BODY (nesting deeper than the chain's depth)  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ◌ assumed cond[total:(HOW-MANY E (EVENS X)), total:(HOW-MANY E (EVENS (CDR X))), total:(HOW-MANY E X), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
     HOW-MANY-MSORT → REPLAYED ✓ cond[total:HOW-MANY, total:MERGE2, total:MSORT, total:EVENS, total:ODDS, tp:HOW-MANY, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0, rule:HOW-MANY-EVENS-AND-ODDS]
 • sorting/qsort  (world: 206 defun(s), 13 theorem(s))
     HOW-MANY-APPEND → REPLAYED ✓ cond[total:HOW-MANY, total:BINARY-APPEND, tp:HOW-MANY, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]

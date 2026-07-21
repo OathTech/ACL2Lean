@@ -1864,7 +1864,20 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             let vH ← ctxValExpr cfg ctx hσ
             let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
             mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
-          | none => do
+          | none =>
+            -- a NOT-wrapped hyp whose ATOM's falsity is in scope: the hyp's
+            -- truth is definitional (Logic.not nil = t) — the complement
+            -- orientation of the direct case above (multi-elim guard-child
+            -- walks surface this: DEFAULT-CAR's hyp (NOT (CONSP v2)) with
+            -- the literal (CONSP v2) assumed false)
+            if let some hAtmNil := (match hσ with
+                | .cons (.atom (.symbol ns2)) (.cons atm2 .nil) =>
+                  if ns2.name == "NOT" then ctx.litFactByTerm? atm2 else none
+                | _ => none) then do
+              let hT ← mkAppM ``logic_not_t_of_nil #[hAtmNil]
+              let hne ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
+              mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
+            else do
             -- FC-DERIVED type-alist entry (emission arc 2026-07-21): the
             -- marker's :TA-RUNES name the forward-chaining rule that put the
             -- fact on the type-alist. Registered reliefs (rule-of-three:

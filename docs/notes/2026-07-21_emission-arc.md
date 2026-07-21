@@ -67,6 +67,32 @@ the two Lean consumers, then the CAR-APPEND investigation.
   the RECORDED output clause (computed == recorded checked), the child
   closes it. REV-APP ✓ (47→48/79). CLI print arms for the new events.
 
+- **3** (eb638e3): FC-derived type-alist relief — the marker arm consumes
+  :TA-RUNES; LEXORDER-TOTAL registry entry (snapshot shape-pinned,
+  concl-unified, source falsity from litFacts, closed by the
+  kernel-proved ACL2.lexorder_total). Zero flips; four rows advanced
+  past the FC wall.
+- **4**: MULTI-RECORD elim rounds (Waterfall/Elim.lean rewritten) — a
+  round's records nest as guard splits; ground-truthed reorder rule:
+  applying a record ERASES the eliminated var's (not (consp v)) literal
+  (first occurrence; absent for fresh vars), PREPENDS its σ-image, σ's
+  the rest — the recompute validates every output clause (guards +
+  final) against the emitted :NEWCLAUSES; composition = per-level
+  byCases with guard-child peel (nil side), substN bridge + diffCollapse
+  + front-peel (fuel_eq_symm) + positional re-insert (success side).
+  Also: the marker arm accepts NOT-wrapped hyps whose ATOM's falsity is
+  in scope (logic_not_t_of_nil — DEFAULT-CAR/CDR reliefs in guard-child
+  walks); elim guard literal no longer required to be the clause head.
+  ORDEREDP-RM + ORDEREDP-ISORT now funnel into the runout class;
+  ORDEREDP-MSORT → a MERGE2 TP-hypothesis wall in its guard child.
+
+## Emission refinement queue (next fork batch)
+
+- :TA-RUNES misses NOT-wrapped hyps stored positively on the type-alist
+  (assoc-equal on the instantiated hyp only): HOW-MANY-EVENS-AND-ODDS'
+  DEFAULT-CDR marker has :TA-RUNES [] — extend the emitter to also try
+  the stripped atom (and record polarity).
+
 ## Runout-pass investigation (parked evidence, next target)
 
 HOW-MANY-ISORT (post-fertilize) + REV-REV now share one signature:
