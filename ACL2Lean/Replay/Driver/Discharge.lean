@@ -133,7 +133,8 @@ partial def dpValueOccs (vars : List Symbol) (opaques : List SExpr) (t : SExpr) 
     under "a hypothesis (test or TP corollary) mentions both a cone value and
     this value". A deterministic slice — used only to pick WHICH values the
     split fallback enumerates when the full value count exceeds the split
-    bound; hypotheses wholly outside the cone stay symbolic at the leaves. -/
+    bound; out-of-cone values and the hypotheses mentioning them are CLEARED
+    at the split goal (see `proveDpFact` — audit 2026-07-21 doc fix). -/
 def dpConeIndices (tests : List SExpr) (last : SExpr) (vars : List Symbol)
     (opaques : List SExpr) (tpCors : List SExpr) : List Nat := Id.run do
   let hyps := (tests ++ tpCors).map fun l => (dpValueOccs vars opaques l).eraseDups
@@ -212,10 +213,12 @@ def dpOnlyProverGuard : Nat := 1000000
 
     `coneIdxs` (from `dpConeIndices`): when `total` exceeds the split bound,
     the split fallback may still run on the CONCLUSION-CONE values alone if
-    the cone fits the bound — a deterministic relevance slice, not search
-    (the sliced statement is the SAME statement; out-of-cone values just stay
-    symbolic at the leaves). `total ≤ 3` keeps the original all-values split
-    exactly. -/
+    the cone fits the bound — a deterministic relevance slice, not search.
+    The PROVED statement is the same `stmt` (the metavariable's type is
+    fixed); inside the tactic proof the out-of-cone values and the
+    hypotheses mentioning them are CLEARED at the split goal (weakening the
+    proof context, never the statement — audit 2026-07-21 doc fix).
+    `total ≤ 3` keeps the original all-values split exactly. -/
 def proveDpFact (stmt : Expr) (total : Nat) (coneIdxs : List Nat := []) : MetaM Expr := do
   -- PRISTINE-CONTEXT (perf profile P6): the fact statement is CLOSED
   -- (∀-quantified over its values), but the caller invokes this inside the

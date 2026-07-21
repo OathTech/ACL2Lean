@@ -254,12 +254,51 @@ ORDEREDP-RM (multi-elim round), ORDEREDP-MEMB (scheme count),
 REV-REV (nested same-fn unfold paths), CAR-APPEND (stored-rule shape),
 ORDEREDP-APPEND (IFF-wrapped preprocess).
 
+## Pre-merge audit (2026-07-21, 3-Opus panel, MDD-approved Option B)
+
+Three parallel read-only Opus reviewers (inside/faithfulness,
+outside/source-fidelity, soundness/DP), decorrelated, findings
+independently verified before acting. **Verdict: ZERO soundness defects,
+zero source-fidelity defects; inside reviewer: "I would ship this."**
+Cross-coverage confirmed: each reviewer's could-not-verify list is
+covered by another's ground truth (fork ← outside F1.1 byte-exact;
+full sweep + axioms ← soundness ran them; builds ← soundness).
+
+Accepted findings and dispositions:
+- COSMETIC (soundness): dpConeIndices/proveDpFact docstrings said
+  out-of-cone hyps "stay symbolic" but the code CLEARS them — FIXED
+  (close-out commit).
+- RATIFICATION ITEM (soundness, low): the DP leaf tactic's added
+  recognizer-booleanness bridges (toBool_eq_true/false,
+  trueListp_ne_nil_iff) widen the tactic's built-in knowledge beyond
+  omega+unfold. These are universally-true facts about the Logic
+  primitives (not re-inferred ACL2 type facts) and both reviewers judged
+  them within the carve-out — but it is a conscious widening; surfaced
+  to MDD and RATIFIED (2026-07-21), with the standing rule that a THIRD
+  recognizer bridge triggers registry-ization (name ↦ booleanness lemma).
+- FLAGGED RECONSTRUCTIONS (inside, faithfulness-minor, both
+  uniqueness-guarded and fail-closed): (1) the derivable-falsity
+  fallback when no branch carries the emitted :SEGMENT (Satriani-merged
+  segments — corpus-exercised by ALL-REL-RM-2's [LT,LTE,GT,LEX] leaf);
+  (2) the order-preserving-subset child match in the vacuous arm. Both
+  substitute a semantic criterion for ACL2's structural link exactly
+  where the post-pass made the structural link unrecoverable; a future
+  lossy-merge shape could associate differently (kernel-silent, same
+  mirror theorem). ACCEPTED as watch items (MDD 2026-07-21); the
+  tightening option (emit the POST-subsumption segment set from the
+  fork) is deferred until a corpus shape demands it.
+- ROBUSTNESS OBSERVATIONS (outside, non-defects): the ground fold's
+  negative guard could fold a guard-violating ground app cons-term
+  would leave in place (at most a loud downstream fail); provenance
+  sidecars cannot retroactively prove capture-time image cleanliness
+  (mechanism scope, tracked under hardening).
+
 ## Status
 
-- Increments 1–7 verified + committed (c947d97, f1a0ee2, 9376778,
-  8f5dca4, 1cae4dd, 4f6a7e4, be8e5c6): 47/79 (27 uncond + 20 cond),
-  DP ✓24 ◌12 ✗0, fork c648e0bd5a.
-- Increment 8 (de-dup) landed; byte-identical sweep pending.
-- ARC END: qsort book 8/13 (was 3/13 at arc start), all ALL-REL rows ✓,
+- Increments 1–8 verified + committed (c947d97..1892cd2): 47/79
+  (27 uncond + 20 cond), DP ✓24 ◌12 ✗0, fork c648e0bd5a; increment 8
+  de-dup golden BYTE-IDENTICAL; ci green throughout.
+- ARC END: qsort book 8/13 rows (was 3/13 at arc start), all ALL-REL ✓,
   scoreboard 35→47/79. Remaining rows are parked design walls, emission
   work, or pre-arc backlog classes (map above).
+- AUDIT PASSED (above); branch ready for the merge decision.
