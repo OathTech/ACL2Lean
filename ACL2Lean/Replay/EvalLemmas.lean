@@ -1755,6 +1755,11 @@ theorem gz_def_len (a : SExpr) :
   | nil => rfl
   | atom x => rfl
 
+/-- `(DEFUN NOT (P) (IF P NIL T))`. -/
+theorem gz_def_not (a : SExpr) :
+    Logic.not a = cond (Logic.toBool a) SExpr.nil SExpr.t := by
+  cases a <;> rfl
+
 /-- `(DEFUN NFIX (X) (IF (INTEGERP X) (IF (< X 0) 0 X) 0))`. -/
 theorem gz_def_nfix (a : SExpr) :
     Logic.nfix a

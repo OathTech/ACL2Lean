@@ -72,7 +72,7 @@ Driver coverage — REPLAYED 60/79 (28 unconditional + 32 conditional); DP-disch
     HOW-MANY-ISORT → REPLAYED ✓ cond[total:HOW-MANY, total:INSERT, total:ISORT, tp:HOW-MANY, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]
 • sorting/ordered-perms  (world: 21 defun(s), 6 theorem(s))
     ORDEREDP-RM → REPLAYED ✓ cond[total:ORDEREDP, tp:ORDEREDP]
-    ORDEREDP-MEMB → FAIL: replayInduction: 2 scheme clauses for 3 recomputed (non-tautological) case clauses (mismatch)
+    ORDEREDP-MEMB → FAIL: type-alist: no spine falsity fact for E (frontier)
     EQUAL-CONS → REPLAYED ✓ cond[rule:CONS-CAR-CDR]  [DISCHARGE: Subgoal 2:preprocess/tau-contradiction ✓]
     CAR-RM → REPLAYED ✓
     TRUE-LISTP-RM → REPLAYED ✓  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]

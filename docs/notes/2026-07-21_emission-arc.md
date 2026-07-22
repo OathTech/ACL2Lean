@@ -132,6 +132,27 @@ the two Lean consumers, then the CAR-APPEND investigation.
   prepends the `re_equal_comm` bridge (joint-strictness eval symmetry,
   no-shadow hypothesis). CAR-APPEND ✓ (59→60/79).
 
+- **10**: ORDEREDP-MEMB layers — three mechanisms landed, row parked on
+  a fourth. (a) the induction clean-up mirror: `remove-trivial-clauses`
+  (induct.lisp:7047) / `trivial-clause-p` / `tautologyp` /
+  `if-tautologyp` recomputed (`tautExpand` boot-strap bodies + `ifTaut`
+  propositional check with EQUAL/IFF commutation) — LAZILY, only when
+  the cheap complement layer leaves an excess vs the emitted :SCHEME
+  (ifTaut is compiled code the heartbeat guard can't interrupt; eager
+  runs blew up on large cross-product clauses — first attempt hung).
+  A trivially-dropped clause's walk branch is discharged by the
+  carve-out's closed-form check on the FULL dropped clause
+  (`replayDischargeNode`) + the same literal peels as a linked child
+  (shared via restructure). (b) `gz_def_not` + d4 entry (definition:NOT
+  unfolds). (c) if-finish JOINT swap normalization
+  (`normalizeSwapsToward` + shared `liftNegTestSwap`): a NOT unfold
+  inside a test position makes ACL2 swap the enclosing if between the
+  children and the recorded rhs. Row now parks at the
+  TRIVIAL-EQUIV/BRANCH-SUBST class (`:BRANCH-SUBSTITUTION` E ↦ (CAR
+  (CDR A)) from an equality literal's falsity + type-set solidify on
+  the substituted var) — the long-known type-alist substitution class;
+  BACKLOGGED (shares the wall with TRUE-LISTP-MSORT's bare-var fact).
+
 ## Emission refinement queue (next fork batch)
 
 - :TA-RUNES misses NOT-wrapped hyps stored positively on the type-alist

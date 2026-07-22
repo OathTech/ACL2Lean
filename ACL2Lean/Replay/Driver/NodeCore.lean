@@ -253,6 +253,7 @@ def dpBinary : List (String × Name × Name) :=
     rfl lemma) — guarded below. -/
 def d4DefFacts : List (String × Name) :=
   [("TRUE-LISTP", ``gz_def_true_listp),
+   ("NOT",        ``gz_def_not),
    ("LEN",        ``gz_def_len),
    ("NFIX",       ``gz_def_nfix),
    ("FIX",        ``gz_def_fix),
@@ -2471,36 +2472,45 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
     return (some acc', next)
 
 
+/-- Lift one rewrite-if SWAPPED-P normalization step
+    (`re_if_neg_test_swap`) from position `steps` (where `sub =
+    (IF (IF c 'NIL 'T) a b)` sits inside `root`) to the root:
+    `eval root ≡ eval root[steps ↦ swapped]`. Shared by
+    `bridgeIfNegTestSwap` and the if-finish joint normalization
+    (`normalizeSwapsToward`). -/
+def liftNegTestSwap (cfg : ReplayConfig) (steps : List PathStep)
+    (root sub c a b swapped : SExpr) : MetaM (Expr × SExpr) := do
+  let mut inner ← mkAppM ``re_if_neg_test_swap
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr a, reflectSExpr b]
+  let mut curL := sub
+  let mut curR := swapped
+  for st in steps.reverse do
+    inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+    curL := rebuild st.fn st.arity st.argIdx curL st.siblings
+    curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+  unless curL == root do
+    throwError "liftNegTestSwap: reconstructed {repr curL} ≠ {repr root}"
+  return (inner, curR)
+
 /-- The rewrite-if SWAPPED-P bridge (rewrite.lisp:17726-37): walk `rel` from
-    `start`; at the FIRST frame that descends INTO an if whose test (in the
-    RUNNING term) has the negation shape `(IF c 'NIL 'T)`, ACL2 had stripped
-    the negation and SWAPPED the branches before descending — unconditionally
-    and without recording a step (subsequent branch bkptrs refer to the
-    swapped orientation). Two firing positions, both deterministic shape
-    checks (never a search): a frame DESCENDS into such an if (the swap must
-    precede the descent), or the node sits ON the if — its recorded `lhs` IS
-    the swapped orientation (exact match required). Emit the normalization
-    (`re_if_neg_test_swap`) lifted to the chain root and return the swapped
-    running term; `none` when neither case applies (the caller's fail-closed
-    navigation stands). -/
+    `start`; when the rewritten test of an if has the negation shape
+    `(IF c 'NIL 'T)`, ACL2 strips the negation and SWAPS the branches before
+    descending — unconditionally and without recording a step (subsequent
+    branch bkptrs refer to the swapped orientation). Two firing positions,
+    both deterministic shape checks (never a search): a frame DESCENDS into
+    such an if (the swap must precede the descent), or the node sits ON the
+    if — its recorded `lhs` IS the swapped orientation (exact match
+    required). Emits the normalization lifted to the chain root and returns
+    the swapped running term; `none` when neither case applies (the caller's
+    fail-closed navigation stands). -/
 def bridgeIfNegTestSwap (cfg : ReplayConfig) (rel : List PathFrame)
     (start lhs : SExpr) : MetaM (Option (Expr × SExpr)) := do
-  let w := cfg.worldExpr; let e := cfg.envExpr
   let mut cur := start
   let mut steps : List PathStep := []
   let emitSwap (steps : List PathStep) (cur c a b swapped : SExpr) :
       MetaM (Option (Expr × SExpr)) := do
-    let mut inner ← mkAppM ``re_if_neg_test_swap
-      #[w, e, reflectSExpr c, reflectSExpr a, reflectSExpr b]
-    let mut curL := cur
-    let mut curR := swapped
-    for st in steps.reverse do
-      inner ← applyStep w e st curL curR inner
-      curL := rebuild st.fn st.arity st.argIdx curL st.siblings
-      curR := rebuild st.fn st.arity st.argIdx curR st.siblings
-    unless curL == start do
-      throwError "bridgeIfNegTestSwap: reconstructed {repr curL} ≠ {repr start}"
-    return some (inner, curR)
+    let (inner, root') ← liftNegTestSwap cfg steps start cur c a b swapped
+    return some (inner, root')
   for fr in rel do
     match fr with
     | .boundary .. => return none      -- residual boundary: not this bridge's case
@@ -2533,6 +2543,62 @@ def bridgeIfNegTestSwap (cfg : ReplayConfig) (rel : List PathFrame)
       if swapped == lhs then
         return ← emitSwap steps cur c a b swapped
   return none
+
+/-- Find the first position where `cur` has a SWAPPED-P redex
+    `(IF (IF c 'NIL 'T) a b)` while `target` has the stripped test `c` at the
+    same position — descending only through structurally-parallel
+    applications into the FIRST differing argument (a deterministic zip,
+    never a search). Returns the path steps and the redex parts. -/
+partial def findSwapPos (cur target : SExpr) (steps : List PathStep) :
+    Option (List PathStep × SExpr × SExpr × SExpr × SExpr) :=
+  if cur == target then none
+  else
+    let fire? : Option (SExpr × SExpr × SExpr) :=
+      match cur, target with
+      | .cons (.atom (.symbol ifS)) (.cons (.cons (.atom (.symbol ifS2))
+            (.cons c (.cons qn (.cons qt2 .nil)))) (.cons a (.cons b .nil))),
+        .cons (.atom (.symbol ifT')) (.cons c' _) =>
+        if ifS.name == "IF" && ifS2.name == "IF" && qn == quoteNil &&
+           qt2 == quoteT && ifT'.name == "IF" && c' == c then some (c, a, b)
+        else none
+      | _, _ => none
+    match fire? with
+    | some (c, a, b) => some (steps, cur, c, a, b)
+    | none =>
+      match asApp cur, asApp target with
+      | some (fn, args), some (fn', args') =>
+        if fn == fn' && args.length == args'.length && args.length ≤ 3 then
+          ((args.zip args').zipIdx).findSome? fun ((x, y), i) =>
+            if x == y then none
+            else
+              let siblings := (args.zipIdx).filterMap
+                (fun (s, j) => if j == i then none else some s)
+              findSwapPos x y (steps ++
+                [{ fn, arity := args.length, argIdx := i, siblings }])
+        else none
+      | _, _ => none
+
+/-- Normalize `cur` toward `target` by iterated SWAPPED-P steps at mismatch
+    positions (the if-finish JOINT case: a NOT unfold inside a test position
+    makes ACL2 swap the enclosing if between the recorded children and the
+    recorded rhs). Recompute-and-check: each step's position is dictated by
+    the target, and the caller's final `== rhs` gate still stands. -/
+def normalizeSwapsToward (cfg : ReplayConfig) (cur0 target : SExpr) :
+    MetaM (Option Expr × SExpr) := do
+  let mut cur := cur0
+  let mut chain : Option Expr := none
+  for _ in List.range 32 do
+    if cur == target then break
+    match findSwapPos cur target [] with
+    | none => break
+    | some (steps, sub, c, a, b) =>
+      let swapped : SExpr :=
+        .cons (.atom (.symbol { name := "IF" }))
+          (.cons c (.cons b (.cons a .nil)))
+      let (inner, cur') ← liftNegTestSwap cfg steps cur sub c a b swapped
+      chain ← some <$> chainAfter chain inner
+      cur := cur'
+  return (chain, cur)
 
 /-- Replay a chain of rewrite nodes, lifting each through the chain's start term by
     path-directed congruence (paths relativized to `depth`) and chaining. Returns
@@ -2755,6 +2821,10 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         -- whole-if finishing steps apply AFTER the branch congruence, on the
         -- rebuilt if
         let (postOpt, final) ← replayRewritesWith rec cfg ctx target postCh depth strip'
+        -- the JOINT may need SWAPPED-P normalizations the children created
+        -- (a NOT unfold inside a test position swaps the enclosing if,
+        -- unrecorded — ORDEREDP-MEMB)
+        let (swapOpt, final) ← normalizeSwapsToward cfg final rhs
         unless final == rhs do
           throwError "if-finish/combined: children chains reached {repr final}, \
                       node rhs is {repr rhs}"
@@ -2764,6 +2834,8 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             #[w, e, reflectSExpr c, reflectSExpr thn, reflectSExpr els,
               reflectSExpr thn', reflectSExpr els', vC, pC, lamT, lamE]]
         if let some p := postOpt then
+          proofs := proofs ++ [p]
+        if let some p := swapOpt then
           proofs := proofs ++ [p]
         if proofs.isEmpty then
           -- no effective rewrites: a no-op summary node

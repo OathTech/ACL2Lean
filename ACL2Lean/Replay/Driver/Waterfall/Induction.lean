@@ -11,6 +11,134 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-! ### ACL2's induction clean-up mirror — `remove-trivial-clauses`
+    (induct.lisp:6778 → `trivial-clause-p`, simplify.lisp:6808):
+    `member 'T` ∨ (`possible-trivial-clause-p` ∧ `tautologyp (disjoin cl)`),
+    where `tautologyp` (rewrite.lisp:5908) expands a fixed boot-strap
+    non-rec fn list and runs `if-tautologyp` — pure propositional truth over
+    the IF/NOT/QUOTE skeleton, every other application an OPAQUE atom,
+    EQUAL/IFF resolved up to argument commutation. Pure RECOMPUTE logic (like
+    `dumbNegateLit`/`substTerm`): any divergence from ACL2 is caught loudly
+    by the scheme-set count/containment validation, never silent. -/
+
+/-- The fn-name gate of `possible-trivial-clause-p` (simplify.lisp:6779),
+    verbatim (ACL2's own comment: the `tautologyp` expansion list plus IF and
+    NOT). -/
+def tautGateFns : List String :=
+  ["IF", "NOT", "IFF", "IMPLIES", "EQ", "ATOM", "EQL", "=", "/=", "NULL",
+   "ZEROP", "PLUSP", "MINUSP", "LISTP", "MV-LIST", "CONS-WITH-HINT",
+   "RETURN-LAST", "WORMHOLE-EVAL", "FORCE", "CASE-SPLIT", "DOUBLE-REWRITE"]
+
+/-- Does the term mention one of `fns` in function position (quote-guarded)? —
+    `ffnnamesp`. -/
+partial def mentionsFn (fns : List String) : SExpr → Bool
+  | .cons (.atom (.symbol s)) argSpine =>
+    if s.name == "QUOTE" then false
+    else fns.contains s.name ||
+      ((argSpine.toList?).getD []).any (mentionsFn fns)
+  | _ => false
+
+private def ifT (c t e : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))
+private def notT (x : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "NOT" })) (.cons x .nil)
+private def equalT (x y : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "EQUAL" })) (.cons x (.cons y .nil))
+
+/-- Boot-strap body of `tautologyp`'s `expand-some-non-rec-fns` list — the
+    COMMON entries (axioms.lisp definitions). An unlisted fn stays
+    unexpanded: the check can then only UNDER-drop (keep a clause ACL2
+    dropped), surfaced by the scheme-count mismatch — never silent, never
+    over-dropping. -/
+def tautExpandBody? (fn : String) (args : List SExpr) : Option SExpr :=
+  match fn, args with
+  | "IMPLIES", [p, q] => some (ifT p (ifT q quoteT quoteNil) quoteT)
+  | "IFF", [p, q] => some (ifT p (ifT q quoteT quoteNil) (ifT q quoteNil quoteT))
+  | "EQ", [x, y] => some (equalT x y)
+  | "EQL", [x, y] => some (equalT x y)
+  | "=", [x, y] => some (equalT x y)
+  | "/=", [x, y] => some (notT (equalT x y))
+  | "NULL", [x] => some (equalT x quoteNil)
+  | "ATOM", [x] =>
+    some (notT (.cons (.atom (.symbol { name := "CONSP" })) (.cons x .nil)))
+  | "ZEROP", [x] =>
+    some (equalT x (.cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons (.atom (.number (.int 0))) .nil)))
+  | "SYNP", [_, _, _] => some quoteT
+  | "FORCE", [x] => some x
+  | "CASE-SPLIT", [x] => some x
+  | "DOUBLE-REWRITE", [x] => some x
+  | "RETURN-LAST", [_, _, x] => some x
+  | "MV-LIST", [_, x] => some x
+  | _, _ => none
+
+/-- `expand-some-non-rec-fns` over the list above (args first, then body). -/
+partial def tautExpand : SExpr → SExpr
+  | t@(.cons (.atom (.symbol s)) argSpine) =>
+    if s.name == "QUOTE" then t
+    else
+      let args := ((argSpine.toList?).getD []).map tautExpand
+      match tautExpandBody? s.name args with
+      | some b => b
+      | none => .cons (.atom (.symbol s)) (args.foldr SExpr.cons .nil)
+  | t => t
+
+/-- Atom identity up to EQUAL/IFF argument commutation (`if-tautologyp`'s
+    "Boolean commutative interpretations for EQUAL and IFF"). -/
+def tautAtomEq (a b : SExpr) : Bool :=
+  a == b ||
+  (match a, b with
+   | .cons (.atom (.symbol f1)) (.cons x1 (.cons y1 .nil)),
+     .cons (.atom (.symbol f2)) (.cons x2 (.cons y2 .nil)) =>
+     f1.name == f2.name && (f1.name == "EQUAL" || f1.name == "IFF") &&
+     x1 == y2 && y1 == x2
+   | _, _ => false)
+
+/-- `if-tautologyp` mirror (rewrite.lisp:5852): `some true` = tautology,
+    `some false` = not, `none` = fuel exhausted (treated as NOT a tautology
+    by the caller — under-dropping only, loudly caught). Fuel-bounded like
+    the original's 100000 if-interp step limit. -/
+def ifTaut : Nat → List (SExpr × Bool) → SExpr → Option Bool
+  | 0, _, _ => none
+  | fuel + 1, ctx, t =>
+    let lookupAtom (a : SExpr) : Option Bool :=
+      (ctx.find? (fun (x, _) => tautAtomEq x a)).map (·.2)
+    let atomVal (a : SExpr) : Option Bool :=
+      some ((lookupAtom a).getD false)   -- unknown atom may be nil: not taut
+    -- branch on an OPAQUE-atom test: resolve from ctx, else both ways
+    let splitOn (a b c : SExpr) : Option Bool :=
+      match lookupAtom a with
+      | some true => ifTaut fuel ctx b
+      | some false => ifTaut fuel ctx c
+      | none =>
+        match ifTaut fuel ((a, true) :: ctx) b,
+              ifTaut fuel ((a, false) :: ctx) c with
+        | some tb, some tc => some (tb && tc)
+        | _, _ => none
+    match t with
+    | .cons (.atom (.symbol q)) (.cons c .nil) =>
+      if q.name == "QUOTE" then some (c != SExpr.nil)
+      else if q.name == "NOT" then ifTaut fuel ctx (ifT c quoteNil quoteT)
+      else atomVal t
+    | .cons (.atom (.symbol f)) (.cons a (.cons b (.cons c .nil))) =>
+      if f.name == "IF" then
+        match a with
+        | .cons (.atom (.symbol qa)) (.cons k .nil) =>
+          if qa.name == "QUOTE" then
+            ifTaut fuel ctx (if k != SExpr.nil then b else c)
+          else if qa.name == "NOT" then
+            ifTaut fuel ctx (ifT k c b)
+          else splitOn a b c
+        | .cons (.atom (.symbol fa)) (.cons a1 (.cons b1 (.cons c1 .nil))) =>
+          if fa.name == "IF" then
+            -- distribute a nested test: (IF (IF a1 b1 c1) b c)
+            -- ≡ (IF a1 (IF b1 b c) (IF c1 b c))
+            ifTaut fuel ctx (ifT a1 (ifT b1 b c) (ifT c1 b c))
+          else splitOn a b c
+        | _ => splitOn a b c
+      else atomVal t
+    | t => atomVal t
+
 /-- Replay an INDUCTION pool-root from its EMITTED justification
     (REWIRED at J2 — induction-generality design §I1–I5, spike-validated by
     `Imported/FlattenSpike.lean` and `Imported/InterleaveSpike.lean`):
@@ -78,24 +206,41 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
       let negTests := c.tests.map dumbNegateLit
       (selectionsOf c).map fun sel =>
         (i, c, sel, negTests ++ sel.map (·.2.2) ++ pushedLits)
-  -- ACL2's induction-formula CLEAN-UP drops trivially-true clauses (a
-  -- complementary literal pair, or a 't literal) — a cross-product clause
-  -- where σ leaves an IH literal UNCHANGED is the standard case (¬Lσ = ¬L
-  -- complements the goal's own L). This mirrors the COMMON arms of ACL2's
-  -- add-literal clean-up (audit 2026-07-06: not all — e.g. non-'t quoted
-  -- constants, commuted-equality complements are not folded here); ANY
-  -- divergence is caught by the scheme-count/containment/children checks
-  -- below, never silent. Dropped selections are discharged directly at the
-  -- walk (their truthy literal IS a goal literal).
-  let isTaut : List SExpr → Bool := fun cl =>
-    cl.any (fun l => l == quoteT || cl.contains (dumbNegateLit l))
-  let kept := expected.filter (fun (_, _, _, cl) => !isTaut cl)
-  let dropped := expected.filter (fun (_, _, _, cl) => isTaut cl)
-  -- validate the recomputation against the EMITTED scheme clause set
+  -- the EMITTED scheme clause set (the recomputation's validation target)
   let schemeClauses ← ind.scheme.mapM fun cl => do
     let some lits := cl.toList?
       | throwError "replayInduction: scheme clause {repr cl} is not a list"
     pure lits
+  -- ACL2's induction CLEAN-UP drops trivially-true clauses, two layers:
+  -- (i) `add-literal` complement folding while the clause set is built (a
+  -- cross-product clause where σ leaves an IH literal UNCHANGED — ¬Lσ = ¬L
+  -- complements the goal's own L — becomes *true-clause*), mirrored by the
+  -- CHEAP arm on our raw literal lists; (ii) `remove-trivial-clauses`
+  -- (induct.lisp:7047): `trivial-clause-p` = member-'T ∨ (the
+  -- `possible-trivial-clause-p` fn gate ∧ `tautologyp (disjoin cl)`) —
+  -- mirrored by `tautExpand` + `ifTaut` (ORDEREDP-MEMB's merged base case:
+  -- the clause's (NOT (EQUAL E (CAR A))) literal propositionally truthifies
+  -- the IMPLIES conclusion). The (ii) mirror runs LAZILY — only when the
+  -- cheap layer leaves an excess vs the emitted scheme — because `ifTaut`
+  -- is compiled code the heartbeat guard cannot interrupt and its nested-
+  -- test distribution can blow up on large cross-product clauses;
+  -- observationally identical (drops are validated against the emitted
+  -- scheme either way), and ANY divergence from ACL2 is caught by the
+  -- scheme-count/containment/children checks below, never silent. Dropped
+  -- selections are discharged at the walk: a complement drop by its truthy
+  -- goal literal, a trivial-clause-p drop by the carve-out's closed-form
+  -- discharge of the full dropped clause.
+  let isTautCheap : List SExpr → Bool := fun cl =>
+    cl.any (fun l => l == quoteT || cl.contains (dumbNegateLit l))
+  let keptCheap := expected.filter (fun (_, _, _, cl) => !isTautCheap cl)
+  let isTaut : List SExpr → Bool :=
+    if keptCheap.length == schemeClauses.length then isTautCheap
+    else fun cl =>
+      isTautCheap cl ||
+      (cl.any (mentionsFn tautGateFns) &&
+        ifTaut 10000 [] (tautExpand (disjoinTerm cl)) == some true)
+  let kept := expected.filter (fun (_, _, _, cl) => !isTaut cl)
+  let dropped := expected.filter (fun (_, _, _, cl) => isTaut cl)
   unless schemeClauses.length == kept.length do
     throwError "replayInduction: {schemeClauses.length} scheme clauses for \
                 {kept.length} recomputed (non-tautological) case clauses \
@@ -361,18 +506,24 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                   (chosen : List (List (Symbol × SExpr) × Nat × Expr)) :
                   MetaM Expr := do
                 let key := chosen.map fun (al, j, _) => (al, j)
-                let some (_, _, sel, _, child) := linked.find?
+                let (p0, sel, ctxP) ← match linked.find?
                     (fun (ci, _, sel, _, _) =>
-                      ci == i && sel.map (fun (al, j, _) => (al, j)) == key)
-                  | do
-                    -- a DROPPED (tautological) selection: ACL2's clean-up
-                    -- removed its trivially-true clause. The discharge is
-                    -- direct: some chosen IH literal's σ-instance IS a goal
-                    -- literal, and this branch holds its truthiness.
-                    unless dropped.any (fun (ci, _, sel, _) =>
-                        ci == i && sel.map (fun (al, j, _) => (al, j)) == key) do
-                      throwError "replayInduction: no child for case {i} \
-                                  selection {repr (key.map (·.2))}"
+                      ci == i && sel.map (fun (al, j, _) => (al, j)) == key) with
+                  | some (_, _, sel, _, child) => do
+                    pure (← rec.clause cfg' ctxD child, sel, ctxD)
+                  | none => do
+                    -- a DROPPED (trivially-true) selection — ACL2's clean-up
+                    -- removed its clause (recomputed by `isTaut` above; the
+                    -- verdict is the clause's absence from the emitted
+                    -- :SCHEME). Two drop classes:
+                    let some (_, _, selD, clD) := dropped.find?
+                        (fun (ci, _, sel, _) =>
+                          ci == i && sel.map (fun (al, j, _) => (al, j)) == key)
+                      | throwError "replayInduction: no child for case {i} \
+                                    selection {repr (key.map (·.2))}"
+                    -- (i) add-literal COMPLEMENT drop: some chosen IH
+                    -- literal's σ-instance IS a goal literal, and this branch
+                    -- holds its truthiness — direct.
                     for (al, j, hne) in chosen do
                       let some lj := pushedLits[j]?
                         | throwError "replayInduction: internal — selection \
@@ -381,9 +532,17 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                         (al.map (·.1)) (al.map (·.2)) lj
                       if let some m := pushedLits.findIdx? (· == ljσ) then
                         return ← evtrueOfLitTrue cfg' ctxD pushedLits m ljσ hne
-                    throwError "replayInduction: dropped selection for case \
-                                {i} has no goal-literal witness (frontier)"
-                let mut p ← rec.clause cfg' ctxD child
+                    -- (ii) `trivial-clause-p` if-tautology drop
+                    -- (ORDEREDP-MEMB's merged base case): the dropped clause
+                    -- is trivially TRUE — discharge the FULL clause by the
+                    -- carve-out's closed-form check (ACL2 itself closed it by
+                    -- `if-tautologyp`, verdict-only), then peel it down like
+                    -- a linked child.
+                    let ctxD ← pinTermOpaques cfg' eV ctxD (disjoinTerm clD)
+                    pure (← replayDischargeNode cfg' ctxD (disjoinTerm clD),
+                          selD, ctxD)
+                let ctxD := ctxP
+                let mut p := p0
                 -- ruling-literal peels, clause order
                 for t in c.tests do
                   let (litPos, fact) ← do
