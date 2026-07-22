@@ -5,7 +5,36 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-19._
+_Last updated: 2026-07-21._
+
+> **NEXT ARC (ratified with MDD 2026-07-21): the MAPPING arc — anchored
+> circles over the pattern space.** Method: for each supported (or
+> failing) mechanism, ANCHOR at a real corpus row → locate the
+> generating ACL2 source site → enumerate the axes that code actually
+> branches on → author one minimal SYNTHETIC BOOK per branch, run
+> through real ACL2 + the capture pipeline (amended rule: synthetic
+> books yes, synthetic ARTIFACTS never — every log is a real ACL2 run;
+> every family is anchored by a wild corpus occurrence; axes come from
+> source, not imagination). Deliverables: `acl2_samples/pattern-tests/`
+> corpus + second coverage table/golden; a MAP doc (pattern → source
+> site → axes → books → status, incl. unreachable-by-construction);
+> interpreter-layer twin = differential-suite build-out (each
+> trusted-core primitive pinned WITH its differential family, H3 made
+> systematic); CLAUDE.md amendment wording presented for ratification
+> at emission-arc close-out. The exercised-infra audit folds in here
+> (infra with no book in its circle = unexercised by construction).
+> **Native-lift component (MDD 2026-07-21):** each pattern book gets,
+> where feasible, an `Imported/` NATIVE LIFT closing the pipeline
+> end-to-end — this is the guard against the un-guarded failure mode
+> (replay succeeds, kernel accepts, but the mirror statement is NOT
+> isomorphic to the intended Lean theorem because stages 2–6 mangled
+> the semantics). Books whose natural native statement is Logic-bound
+> (ACL2-quirk circles) are FLAGGED as such in the map — lack of a lift
+> must be visible, never silent.
+
+> **Emission arc (branch `mdd/emission-arc`, 2026-07-21) — IN PROGRESS,
+> 57/79 at increment 7; singles grind continues; TODO top-block refresh
+> + pattern-map seeding at close-out.**
 
 > **Expand-and-or arc (branch `mdd/expand-and-or`, 2026-07-19) — S1–S3
 > LANDED + follow-on relief recipes; scoreboard 32/79 (24 uncond + 8

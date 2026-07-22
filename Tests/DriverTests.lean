@@ -477,7 +477,7 @@ elab "#emitcongr_strip_mismatch_fails" : command => Elab.Command.liftTermElabM d
     let frames : List PathFrame :=
       [.arg 1 { name := "EQUAL" }, .arg 1 { name := "EQUAL" }, .arg 1 { name := "CDR" }]
     try
-      let _ ← emitCongruence w e lit frames X X nodeProof (strip := [2])
+      let _ ← emitCongruence w e lit frames X X nodeProof (strip := [(none, 2)])
       throwError "NEGATIVE TEST FAILED: strip mismatch accepted"
     catch e => logInfo m!"negative test OK (strip mismatch): {e.toMessageData}"
 

@@ -3089,6 +3089,12 @@ theorem logic_consp_ne_nil_t (v : SExpr) (h : Logic.consp v ≠ SExpr.nil) :
     Logic.consp v = SExpr.t := by
   cases v <;> simp_all [Logic.consp]
 
+/-- `atom` from a false `consp`: ACL2's typeset resolution of `(ATOM u) ⇒ 'T`
+    inside the FALSE branch of an if on `(CONSP u)` (assume-true-false). -/
+theorem logic_atom_of_consp_nil (v : SExpr) (h : Logic.consp v = SExpr.nil) :
+    Logic.atom v = SExpr.t := by
+  cases v <;> simp_all [Logic.consp, Logic.atom]
+
 /-- `true-listp` is two-valued: non-nil means `t` (from `trueListp_boolean`). -/
 theorem logic_trueListp_ne_nil_t (v : SExpr) (h : Logic.trueListp v ≠ SExpr.nil) :
     Logic.trueListp v = SExpr.t :=
@@ -4003,6 +4009,160 @@ theorem logic_integerp_int (v : SExpr) (h : Logic.integerp v = SExpr.t) :
   | .atom (.string _) => simp [Logic.integerp, SExpr.t] at h
   | .nil => simp [Logic.integerp, SExpr.t] at h
   | .cons _ _ => simp [Logic.integerp, SExpr.t] at h
+
+/-- `rewrite-if`'s SWAPPED-P normalization (rewrite.lisp:17726-37):
+    when the rewritten if-TEST has the negation shape `(IF c 'NIL 'T)`, ACL2
+    strips it and SWAPS the branches before descending — unconditionally, and
+    never recorded as a step (subsequent branch bkptrs simply refer to the
+    swapped orientation). The chain walker applies this bridge
+    deterministically when a path frame descends into such an if. -/
+theorem re_if_neg_test_swap (w : World) (env : Env) (c a b : SExpr) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "IF" }))
+          (.cons (.cons (.atom (.symbol { name := "IF" }))
+              (.cons c
+                (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+                  (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                    (.cons SExpr.t .nil)) .nil))))
+            (.cons a (.cons b .nil))))
+      = evalOpt f w env
+        (.cons (.atom (.symbol { name := "IF" })) (.cons c (.cons b (.cons a .nil)))) := by
+  by_cases hconv : ∃ vc N, evalOpt N w env c = some vc
+  · obtain ⟨vc, N, hN⟩ := hconv
+    refine ⟨N + 3, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    obtain ⟨g', rfl⟩ : ∃ g', g = g' + 1 := ⟨g - 1, by omega⟩
+    obtain ⟨g'', rfl⟩ : ∃ g'', g' = g'' + 1 := ⟨g' - 1, by omega⟩
+    have hc1 : evalOpt (g'' + 1) w env c = some vc :=
+      evalOpt_ge_fuel N _ w env c vc hN (by omega)
+    have hc2 : evalOpt (g'' + 2) w env c = some vc :=
+      evalOpt_ge_fuel N _ w env c vc hN (by omega)
+    by_cases hb : Logic.toBool vc = true
+    · -- inner test truthy ⇒ inner if = 'NIL ⇒ outer takes b; RHS test truthy ⇒ b
+      have hinner : evalOpt (g'' + 2) w env
+          (.cons (.atom (.symbol { name := "IF" }))
+            (.cons c
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+                (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                  (.cons SExpr.t .nil)) .nil)))) = some SExpr.nil := by
+
+        rw [evalOpt_if_true (g'' + 1) w env c _ _ vc hc1 hb]
+        exact evalOpt_quote g'' w env .nil
+      rw [evalOpt_if_false (g'' + 2) w env _ a b hinner,
+          evalOpt_if_true (g'' + 2) w env c b a vc hc2 hb]
+    · have hvnil : vc = SExpr.nil := by
+        cases vc <;> simp_all [Logic.toBool]
+      subst hvnil
+      -- inner test nil ⇒ inner if = 'T ⇒ outer takes a; RHS test nil ⇒ a
+      have hinner : evalOpt (g'' + 2) w env
+          (.cons (.atom (.symbol { name := "IF" }))
+            (.cons c
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+                (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                  (.cons SExpr.t .nil)) .nil)))) = some SExpr.t := by
+        rw [evalOpt_if_false (g'' + 1) w env c _ _ hc1]
+        exact evalOpt_quote g'' w env SExpr.t
+      rw [evalOpt_if_true (g'' + 2) w env _ a b SExpr.t hinner (by simp [Logic.toBool]),
+          evalOpt_if_false (g'' + 2) w env c b a hc2]
+  · -- `c` diverges at every fuel: both sides are `none`
+    have hnone : ∀ M, evalOpt M w env c = none := by
+      intro M
+      rcases h : evalOpt M w env c with _ | vc
+      · rfl
+      · exact absurd ⟨vc, M, h⟩ hconv
+    refine ⟨2, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    obtain ⟨g', rfl⟩ : ∃ g', g = g' + 1 := ⟨g - 1, by omega⟩
+    have hinner : evalOpt (g' + 1) w env
+        (.cons (.atom (.symbol { name := "IF" }))
+          (.cons c
+            (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons SExpr.t .nil)) .nil)))) = none := by
+      show evalOptStep (evalOpt g') w env _ = none
+      unfold evalOptStep
+      simp only [Symbol.isNamed, SExpr.toList?]
+      show (evalOpt g' w env c).bind _ = none
+      rw [hnone g']; rfl
+    show evalOptStep (evalOpt (g' + 1)) w env _ = evalOptStep (evalOpt (g' + 1)) w env _
+    unfold evalOptStep
+    simp only [Symbol.isNamed, SExpr.toList?]
+    show (evalOpt (g' + 1) w env _).bind _ = (evalOpt (g' + 1) w env c).bind _
+    rw [hinner, hnone (g' + 1)]; rfl
+
+/-- Arg-order symmetry of an EQUAL application: `Logic.equal` is symmetric and
+    argument evaluation is jointly strict, so the whole application is
+    orientation-independent. Bridges ACL2's `one-way-unify1` EQUAL special
+    case — a rule whose lhs is `(EQUAL p q)` may match a target equality
+    COMMUTED (the CAR-APPEND class). -/
+theorem re_equal_comm (w : World) (env : Env) (a b : SExpr)
+    (hno : w.defs.get? { name := "EQUAL" } = none) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil)))
+      = evalOpt f w env
+        (.cons (.atom (.symbol { name := "EQUAL" })) (.cons b (.cons a .nil))) := by
+  by_cases ha : ∃ va N, evalOpt N w env a = some va
+  · by_cases hb : ∃ vb N, evalOpt N w env b = some vb
+    · obtain ⟨va, Na, hva⟩ := ha
+      obtain ⟨vb, Nb, hvb⟩ := hb
+      refine ⟨max Na Nb + 1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      have ha' : evalOpt g w env a = some va :=
+        evalOpt_ge_fuel Na g w env a va hva (by omega)
+      have hb' : evalOpt g w env b = some vb :=
+        evalOpt_ge_fuel Nb g w env b vb hvb (by omega)
+      rw [evalOpt_builtin_2 g w env _ a b va vb (by decide) hno ha' hb',
+          evalOpt_builtin_2 g w env _ b a vb va (by decide) hno hb' ha',
+          callBuiltin_equal, callBuiltin_equal, logic_equal_comm va vb]
+    · -- b diverges: both sides are none (joint strictness)
+      have hnone : ∀ M, evalOpt M w env b = none := by
+        intro M
+        rcases h : evalOpt M w env b with _ | vb
+        · rfl
+        · exact absurd ⟨vb, M, h⟩ hb
+      refine ⟨1, fun f hf => ?_⟩
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      show evalOptStep (evalOpt g) w env _ = evalOptStep (evalOpt g) w env _
+      unfold evalOptStep
+      simp only [Symbol.isNamed, SExpr.toList?]
+      simp [List.mapM, List.mapM.loop, hnone g]
+  · -- a diverges: both sides are none (joint strictness)
+    have hnone : ∀ M, evalOpt M w env a = none := by
+      intro M
+      rcases h : evalOpt M w env a with _ | va
+      · rfl
+      · exact absurd ⟨va, M, h⟩ ha
+    refine ⟨1, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    show evalOptStep (evalOpt g) w env _ = evalOptStep (evalOpt g) w env _
+    unfold evalOptStep
+    simp only [Symbol.isNamed, SExpr.toList?]
+    simp [List.mapM, List.mapM.loop, hnone g]
+
+/-- Nat-valued twin of `Logic.len` — the DP leaf tactic's bridge from stuck
+    `Logic.len` applications to omega-visible nonnegative integers (the
+    `SExpr.acl2Count` pattern from the decrease prover). -/
+def lenNat : SExpr → Nat
+  | .cons _ b => lenNat b + 1
+  | _ => 0
+
+/-- `Logic.len` computes `lenNat` as an int atom. NOT `@[simp]` — consumed
+    only by the DP leaf tactic's explicit simp set, so the driver's structural
+    `Logic.len` values (the builtin TP pin route, `gz_def_len` unfolds) are
+    untouched elsewhere. -/
+theorem logic_len_eq_lenNat (x : SExpr) :
+    Logic.len x = .atom (.number (.int (lenNat x))) := by
+  induction x with
+  | cons a b _ ihb =>
+    have h : Logic.len (SExpr.cons a b)
+        = .atom (.number (.int (Logic.toInt (Logic.len b) + 1))) := rfl
+    rw [h, ihb]
+    simp only [lenNat, Logic.toInt]
+    congr 3
+  | nil => simp [Logic.len, lenNat]
+  | atom a => simp [Logic.len, lenNat]
 
 /-- `Logic.len` is always an ACL2 integer — the kernel-checked counterpart of
     LEN's ground-zero `:TYPE-PRESCRIPTION` corollary

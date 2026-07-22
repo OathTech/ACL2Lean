@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 57/79 (28 unconditional + 29 conditional); DP-discharge leaves ✓24 ◌12 ✗0 of 36:
+Driver coverage — REPLAYED 60/79 (28 unconditional + 32 conditional); DP-discharge leaves ✓29 ◌7 ✗0 of 36:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -45,7 +45,7 @@ Driver coverage — REPLAYED 57/79 (28 unconditional + 29 conditional); DP-disch
 • 11-custom-measure  (world: 12 defun(s), 1 theorem(s))
     CD2-BOUND → FAIL: replayNode: no rule for rune (compound-recognizer, ZP-COMPOUND-RECOGNIZER) — unimplemented frontier  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ✓ cond[total:(CD2 (BINARY-+ '-2 N)), tp:CD2], Subgoal *1/4:preprocess/tau-contradiction ✓ cond[total:(CD2 N), tp:CD2], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(CD2 N), tp:CD2]]
 • 12-multi-controller  (world: 12 defun(s), 1 theorem(s))
-    LEN-ZIP2 → FAIL: pathStepsFromFrames: navigated to (ATOM X), expected redex (ATOM Y)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2, ASSUMED:dp-fact], Subgoal *1/1':preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    LEN-ZIP2 → REPLAYED ✓ cond[total:ZIP2, tp:ZIP2]  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ✓ cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2], Subgoal *1/1':preprocess/tau-contradiction ✓]
 • 13-multi-measured-var  (world: 11 defun(s), 1 theorem(s))
     LEN-INTERLEAVE → REPLAYED ✓ cond[total:INTERLEAVE]
 • 14-accumulator  (world: 11 defun(s), 1 theorem(s))
@@ -53,7 +53,7 @@ Driver coverage — REPLAYED 57/79 (28 unconditional + 29 conditional); DP-disch
 • 15-nested-induction  (world: 13 defun(s), 1 theorem(s))
     NESTED-INDUCTION → REPLAYED ✓ cond[rule:FOLD-CONSTS-IN-+]
 • 16-three-way  (world: 12 defun(s), 1 theorem(s))
-    LEN-ZIP3 → FAIL: pathStepsFromFrames: navigated to X, expected redex (ATOM Y)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP3 (CDR X) (CDR Y) (CDR Z)), tp:ZIP3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
+    LEN-ZIP3 → REPLAYED ✓ cond[total:ZIP3, tp:ZIP3]  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ✓ cond[total:(ZIP3 (CDR X) (CDR Y) (CDR Z)), tp:ZIP3], Subgoal *1/1.2:preprocess/tau-contradiction ✓, Subgoal *1/1.1:preprocess/tau-contradiction ✓]
 • 17-rule-application  (world: 12 defun(s), 2 theorem(s))
     TLP-APP-NIL → REPLAYED ✓ cond[rule:CONS-CAR-CDR]
     TLP-APP-NIL-TWICE → REPLAYED ✓ cond[rule:CONS-CAR-CDR]
@@ -83,14 +83,14 @@ Driver coverage — REPLAYED 57/79 (28 unconditional + 29 conditional); DP-disch
     ORDEREDP-MSORT → FAIL: replayRecognizer: value of (CONSP (MERGE2 MT0 (CONS MT3 MT4))) does not reduce to T (no TP hypothesis for MERGE2)
     TRUE-LISTP-MSORT → FAIL: type-alist: no spine falsity fact for MT (frontier)  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2], Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2]]
     HOW-MANY-MERGE2 → REPLAYED ✓ cond[total:HOW-MANY, total:MERGE2, tp:HOW-MANY, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]
-    HOW-MANY-EVENS-AND-ODDS → FAIL: pathStepsFromFrames: navigated to (CDR X), expected redex (HOW-MANY E (CDR X))  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ◌ assumed cond[total:(HOW-MANY E (EVENS X)), total:(HOW-MANY E (EVENS (CDR X))), total:(HOW-MANY E X), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
+    HOW-MANY-EVENS-AND-ODDS → FAIL: rule DEFAULT-CDR: marker-relieved hyp (NOT (CONSP (CDR X))) has no (not …)-falsity fact in scope, and its :TA-RUNES [] name no registered FC relief (frontier)  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ◌ assumed cond[total:(HOW-MANY E (EVENS X)), total:(HOW-MANY E (EVENS (CDR X))), total:(HOW-MANY E X), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
     HOW-MANY-MSORT → REPLAYED ✓ cond[total:HOW-MANY, total:MERGE2, total:MSORT, total:EVENS, total:ODDS, tp:HOW-MANY, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0, rule:HOW-MANY-EVENS-AND-ODDS]
 • sorting/qsort  (world: 206 defun(s), 13 theorem(s))
     HOW-MANY-APPEND → REPLAYED ✓ cond[total:HOW-MANY, total:BINARY-APPEND, tp:HOW-MANY, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]
     HOW-MANY-FILTER-1 → FAIL: solidify: node has no equivSource (unlinked rewriting-equivalence)  [DISCHARGE: Subgoal *1/3.5:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/3.1:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY]]
     HOW-MANY-QSORT → FAIL: dischargeDecrease: decrease argument (FILTER 'LT (CDR X) (CAR X)) beyond the destructor-chain walk over X (frontier)
     PERM-QSORT → REPLAYED ✓ cond[total:HOW-MANY, total:PERM-COUNTER-EXAMPLE, total:QSORT, tp:HOW-MANY, rule:CONVERT-PERM-TO-HOW-MANY, rule:HOW-MANY-QSORT]
-    CAR-APPEND → FAIL: rule (equal (if a b c) x): 0 stored rules match substTerm(:SUBST, lhs) == (EQUAL (CAR (BINARY-APPEND A B)) (IF (CONSP A) (CAR A) (CAR B))) (need exactly 1)
+    CAR-APPEND → REPLAYED ✓ cond[total:BINARY-APPEND, rule:(equal (if a b c) x)]
     ORDEREDP-APPEND → FAIL: replayPreprocessChain: node lhs (IF (IF (ORDEREDP B) (IF (ALL-REL 'LTE A E) (ALL-REL 'GTE B E) 'NIL) 'NIL) 'T 'NIL) does not occur in the current term (IF (ENDP A) 'T (IF (REL 'LTE (CAR A) E) 'T (IF (ORDEREDP A) (IF (IFF (ORDEREDP (BINARY-APPEND A (CONS E B))) (IF (ORDEREDP B) (IF (ALL-REL 'LTE A E) (ALL-REL 'GTE B E) 'NIL) 'NIL)) 'T 'NIL) 'T)))  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ◌ assumed cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP, ASSUMED:dp-fact], Subgoal *1.1/1:preprocess/type-set-fc ◌ assumed cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP, ASSUMED:dp-fact]]
     ALL-REL-FILTER-1 → REPLAYED ✓ cond[total:REL, total:FILTER, total:ALL-REL, tp:ALL-REL]
     ALL-REL-FILTER-2 → REPLAYED ✓ cond[total:REL, total:FILTER, total:ALL-REL, tp:ALL-REL]

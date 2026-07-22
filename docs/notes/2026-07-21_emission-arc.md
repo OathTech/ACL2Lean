@@ -110,6 +110,28 @@ the two Lean consumers, then the CAR-APPEND investigation.
   unfold vs `gz_def_len`). LEN-INTERLEAVE, LEN-REV-ACC,
   NESTED-INDUCTION ✓ (54→57/79).
 
+- **8+9** (one commit): three chain-walker faithfulness mechanisms, each
+  ground-truthed in rewrite.lisp. (a) PASS-LOCAL strip tagging — strip
+  entries carry the appending node's innermost consumed boundary kind
+  (`innermostConsumedKind`) and apply only to same-block nodes; replaces
+  the inc-5 blanket REWRITTEN-BODY exemption (which was too broad: it
+  also skipped the runout pass's OWN root-collapse strips —
+  HOW-MANY-EVENS-AND-ODDS advanced to its :TA-RUNES fork item). (b) the
+  rewrite-if SWAPPED-P bridge (rewrite.lisp:17726-37): a negation-shaped
+  rewritten test `(IF c 'NIL 'T)` makes ACL2 strip the negation and SWAP
+  branches, unrecorded — `bridgeIfNegTestSwap` emits the normalization
+  (`re_if_neg_test_swap`, incl. divergence case) deterministically when
+  a frame descends into such an if OR the node sits ON it (recorded lhs
+  == swapped, exact). (c) recognizer ATOM-from-CONSP-false branch fact
+  (`logic_atom_of_consp_nil`) + the lenNat DP bridge
+  (`logic_len_eq_lenNat`, the acl2Count pattern, tactic-local simp only)
+  so len-linear-arith DP leaves close. LEN-ZIP2, LEN-ZIP3 ✓ (57→59/79;
+  DP ✓24→✓29, ◌12→◌7). (d) EQUAL-COMMUTED stored-rule match: ACL2's
+  one-way-unify1 tries both argument orders for EQUAL patterns — the
+  rule-recipe matcher recompute-and-checks the commuted node lhs and
+  prepends the `re_equal_comm` bridge (joint-strictness eval symmetry,
+  no-shadow hypothesis). CAR-APPEND ✓ (59→60/79).
+
 ## Emission refinement queue (next fork batch)
 
 - :TA-RUNES misses NOT-wrapped hyps stored positively on the type-alist

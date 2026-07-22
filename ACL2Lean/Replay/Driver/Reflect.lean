@@ -301,6 +301,20 @@ def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : Expr) : M
         reflectSExpr sub', ns, inner]
   | _, _, _ => throwError "applyStep: unsupported arity/argIdx {st.arity}/{st.argIdx}"
 
+/-- The KIND of the innermost boundary consumed by relativization at `depth`
+    (`none` at depth 0) — identifies which inner BLOCK of the parent node the
+    chain node lives in (BODY / RHS / HYP / REWRITTEN-BODY). Chain-root strip
+    entries are PASS-LOCAL: a resolved if's residual branch frame leaks only
+    into later nodes of the SAME rewrite pass — in particular the RUNOUT pass
+    restarts from the rewritten body on a fresh gstack, so a BODY-pass strip
+    must not reach REWRITTEN-BODY nodes (emission arc inc-5), while the runout
+    pass's OWN root collapses still leak into its own later nodes (inc-8:
+    HOW-MANY-EVENS-AND-ODDS). Strip entries carry this tag at append time and
+    apply only to nodes with the same one. -/
+def innermostConsumedKind (frames : List PathFrame) (depth : Nat) : Option String :=
+  (((frames.filter fun | .boundary .. => true | _ => false).take depth).getLast?).bind
+    fun | .boundary k _ => some k.name | _ => none
+
 /-- Lift a node proof `nodeProof : ∃N∀f≥N, eval lhs = eval rhs` to the whole literal
     `term`, DIRECTED by the node's `:PATH` (`frames`) — no subterm search. Returns the
     lifted proof and the rewritten term `term[lhs := rhs]`.
@@ -317,19 +331,14 @@ def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : Expr) : M
     (a branch frame interleaved between residual boundary frames) is NOT handled —
     and cannot mis-navigate silently: a strip/frame mismatch throws here, and any
     leftover misalignment fails `pathStepsFromFrames`' final redex check. -/
-def relativizeAndStrip (frames : List PathFrame) (depth : Nat) (strip : List Nat) :
-    MetaM (List PathFrame) := do
+def relativizeAndStrip (frames : List PathFrame) (depth : Nat)
+    (strip : List (Option String × Nat)) : MetaM (List PathFrame) := do
   let mut rel ← ofExcept (relativizeFrames frames depth)
-  -- the RUNOUT pass (`rewrite rewritten-body`, gstack 'rewritten-body)
-  -- restarts from the REWRITTEN body — its gstack carries no residual
-  -- branch frames, so the chain-root strip does not apply to a node whose
-  -- innermost consumed boundary is REWRITTEN-BODY (emission arc inc-5)
-  let consumedBoundaries :=
-    ((frames.filter fun | .boundary .. => true | _ => false).take depth)
-  if let some (.boundary k _) := consumedBoundaries.getLast? then
-    if k.name == "REWRITTEN-BODY" then
-      return rel
-  for k in strip do
+  let myKind := innermostConsumedKind frames depth
+  for (tag, k) in strip do
+    -- PASS-LOCAL: entries appended by a node of a DIFFERENT block don't
+    -- apply here (see `innermostConsumedKind`) — skipped, never an error
+    if tag != myKind then continue
     match rel with
     | .arg idx _ :: restF =>
       unless idx == k do
@@ -342,7 +351,8 @@ def relativizeAndStrip (frames : List PathFrame) (depth : Nat) (strip : List Nat
   return rel
 
 def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
-    (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0) (strip : List Nat := [])
+    (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0)
+    (strip : List (Option String × Nat) := [])
     : MetaM (Expr × SExpr) := do
   let rel ← relativizeAndStrip frames depth strip
   let path ← ofExcept (pathStepsFromFrames term rel lhs)

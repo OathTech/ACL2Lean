@@ -60,14 +60,14 @@ def dpLeafTactic : MetaM (TSyntax `tactic) :=
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
                    SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
-                   Logic.trueListp_ne_nil_iff] <;>
+                   Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat] <;>
           omega)
       | (simp_all [-Logic.toBool, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
                    Logic.not, Logic.integerp, Logic.consp, Logic.toRat,
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
                    SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
-                   Logic.trueListp_ne_nil_iff] <;>
+                   Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat] <;>
           -- `at *`: a HYPOTHESIS can be stuck on an if too (a `toBool`
           -- match over an unreduced decidable if — the plus-equation
           -- hypothesis shape), and goal-only splitting leaves omega
