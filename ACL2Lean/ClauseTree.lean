@@ -311,13 +311,23 @@ private partial def linkNode (cands : List (EquivSource × SExpr)) (n : ProofNod
   match n with
   | .node rune lhs rhs children prov =>
     let children ← children.mapM (linkNode cands)
-    if rune.1 == "rewriting-equivalence" && prov.parents.isEmpty then
+    if rune.1 == "rewriting-equivalence" then
       match prov.equivTerm with
       | some e =>
         match cands.find? (fun (_, c) => equivMatch e c) with
         | some (src, _) =>
+          -- a matching hypothesis links regardless of `:PARENTS` — a
+          -- 'pt-bearing solidify (the type-alist entry's parent tree names
+          -- the source literal) matches its literal here just the same
+          -- (HOW-MANY-FILTER-1's IH-fed solidify)
           return .node rune lhs rhs children { prov with equivSource := some src }
         | none =>
+          -- the BY-ELIMINATION fallback tags apply only to `:PARENTS NIL`
+          -- nodes; a 'pt-bearing node with no matching hypothesis stays
+          -- UNLINKED (the replay fails closed with its named error), never
+          -- misclassified as branch-test/type-set-derived
+          if !prov.parents.isEmpty then
+            return .node rune lhs rhs children prov
           -- No clause-literal/segment hypothesis matches. If the node's :PATH
           -- descends through an UNRESOLVED if's then/else ARGUMENT (frame
           -- `(2 . IF)` / `(3 . IF)`), the equivalence is that if's test,

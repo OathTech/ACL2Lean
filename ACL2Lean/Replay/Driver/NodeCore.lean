@@ -3157,7 +3157,19 @@ partial def collectContextDemands : ProofNode → List SExpr
   | .node ⟨rty, _, _⟩ l rh children prov =>
     let notOf : SExpr → SExpr := fun t =>
       .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
-    (if rty == "hyp-relief" then [notOf l]
+    (if rty == "hyp-relief" then
+       [notOf l] ++
+       -- an FC-DERIVED relief (the LEXORDER-TOTAL registry, marker :TA-RUNES)
+       -- consumes the COMMUTED lexorder application's falsity — demand that
+       -- literal too so the walk hoists it when it sits later in the clause
+       -- (HOW-MANY-FILTER-1)
+       (match l with
+        | .cons (.atom (.symbol ls)) (.cons u (.cons v .nil)) =>
+          if ls.name == "LEXORDER" && prov.taRunes.any
+              (fun r => r.ty == "forward-chaining" && r.name == "LEXORDER-TOTAL")
+          then [.cons (.atom (.symbol ls)) (.cons v (.cons u .nil))]
+          else []
+        | _ => [])
      else if rty == "type-alist" then
        if rh == quoteNil then [l]
        else if rh == quoteT then [notOf l]

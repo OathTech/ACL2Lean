@@ -153,12 +153,34 @@ the two Lean consumers, then the CAR-APPEND investigation.
   the substituted var) — the long-known type-alist substitution class;
   BACKLOGGED (shares the wall with TRUE-LISTP-MSORT's bare-var fact).
 
+- **11**: HOW-MANY-FILTER-1 layers — (a) 'pt-bearing SOLIDIFY linking:
+  the ClauseTree linker matched equivTerm hypotheses only for
+  `:PARENTS NIL` nodes; a pt-bearing solidify (type-alist entry with a
+  parent tree naming its source literal) now links by the SAME
+  equivTerm match (no-match pt-bearing nodes stay UNLINKED — never
+  fall to the by-elimination tags). (b) FC-source demand hoisting:
+  `collectContextDemands` also demands the COMMUTED lexorder literal
+  for relief markers whose :TA-RUNES cite LEXORDER-TOTAL, so the spine
+  walk hoists it when it sits later in the clause. Row parks at
+  Subgoal *1/3.3: a simplify-clause PROVED by a pure type-set/FC
+  contradiction (LEXORDER-ANTI-SYMMETRIC + TP LEXORDER; lex(D,c) ∧
+  lex(c,D) ⇒ c=D vs the c≠D literal) with NO emitted discharge node
+  and no literal items — per the carve-out an EMISSION GAP (fork
+  queue below).
+
 ## Emission refinement queue (next fork batch)
 
 - :TA-RUNES misses NOT-wrapped hyps stored positively on the type-alist
   (assoc-equal on the instantiated hyp only): HOW-MANY-EVENS-AND-ODDS'
   DEFAULT-CDR marker has :TA-RUNES [] — extend the emitter to also try
   the stripped atom (and record polarity).
+- Rewrite-time FC-contradiction discharge nodes: a simplify-clause
+  proved ENTIRELY by type-set/forward-chaining contradiction (no
+  literal chains, only clausify records — HOW-MANY-FILTER-1 Subgoal
+  *1/3.3, runes (:FORWARD-CHAINING LEXORDER-ANTI-SYMMETRIC)
+  (:TYPE-PRESCRIPTION LEXORDER)) emits NO discharge node today —
+  emit one (verdict + rune set, the same shape as the preprocess
+  tau/type-set-fc discharges) so the DP carve-out can pick it up.
 
 ## Runout-pass investigation (RESOLVED in increment 5 — kept as evidence)
 
