@@ -32,9 +32,22 @@ _Last updated: 2026-07-21._
 > (ACL2-quirk circles) are FLAGGED as such in the map — lack of a lift
 > must be visible, never silent.
 
-> **Emission arc (branch `mdd/emission-arc`, 2026-07-21) — IN PROGRESS,
-> 57/79 at increment 7; singles grind continues; TODO top-block refresh
-> + pattern-map seeding at close-out.**
+> **Emission arc (branch `mdd/emission-arc`, 2026-07-21/22) — GRIND
+> COMPLETE at increment 12, 47→60/79 (28 uncond + 32 cond), DP ✓29 ◌7
+> ✗0 of 36; UNMERGED, awaiting pre-merge audit.** Landed: 3 fork
+> emission batches (fertilize detail, :TA-RUNES, gz FC-rule snapshots,
+> runout inner block); fertilize recipe; FC-derived relief registry
+> (LEXORDER-TOTAL); multi-record elim rounds; the RUNOUT pass;
+> clausify-alongside class; unicity-of-0 builtin class
+> (`builtinIntVal?`); pass-local strip tagging; rewrite-if SWAPPED-P
+> bridge + joint normalization; lenNat DP bridge; EQUAL-commuted rule
+> match; induction clean-up mirror (`trivial-clause-p`/`if-tautologyp`)
+> + carve-out discharge of dropped clauses; gz_def_not;
+> compound-recognizer recipe (ZP); 'pt-solidify linking; FC-source
+> demand hoisting. Full increment log + the singles-queue CLOSING STATE
+> (every remaining FAIL row classified: fork batch ×3, design-class
+> backlog ×5, full-increment singles ×2, MDD-parked walls) in
+> `docs/notes/2026-07-21_emission-arc.md`.
 
 > **Expand-and-or arc (branch `mdd/expand-and-or`, 2026-07-19) — S1–S3
 > LANDED + follow-on relief recipes; scoreboard 32/79 (24 uncond + 8
