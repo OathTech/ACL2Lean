@@ -3094,6 +3094,20 @@ theorem logic_consp_ne_nil_t (v : SExpr) (h : Logic.consp v ≠ SExpr.nil) :
     Logic.consp v = SExpr.t := by
   cases v <;> simp_all [Logic.consp]
 
+/-- `zp` from a false `integerp`: the ZP-COMPOUND-RECOGNIZER derivation —
+    `(ZP u) ⇒ 'T` when `(INTEGERP u)` is false in scope (`zp` is `t` on
+    non-integers; `toInt` coerces them to 0). -/
+theorem logic_zp_of_integerp_nil (v : SExpr) (h : Logic.integerp v = SExpr.nil) :
+    Logic.zp v = SExpr.t := by
+  cases v with
+  | atom a => cases a with
+    | number n => cases n with
+      | int k => simp [Logic.integerp, SExpr.t] at h
+      | rational n d hc => simp [Logic.zp, Logic.toInt]
+    | _ => simp [Logic.zp, Logic.toInt]
+  | nil => simp [Logic.zp, Logic.toInt]
+  | cons a b => simp [Logic.zp, Logic.toInt]
+
 /-- `atom` from a false `consp`: ACL2's typeset resolution of `(ATOM u) ⇒ 'T`
     inside the FALSE branch of an if on `(CONSP u)` (assume-true-false). -/
 theorem logic_atom_of_consp_nil (v : SExpr) (h : Logic.consp v = SExpr.nil) :

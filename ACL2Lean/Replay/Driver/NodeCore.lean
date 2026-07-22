@@ -1771,6 +1771,37 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
       let pQ ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
       mkAppM ``fuel_eq_of_conv #[pEq, pQ, ← mkEqRefl (mkConst ``SExpr.t)]
+  | "compound-recognizer", "ZP-COMPOUND-RECOGNIZER" =>
+    -- registered COMPOUND-RECOGNIZER recipe, pinned to the one ground-zero
+    -- rule the corpus cites: `(ZP u) ⇒ 'T` believed by type-set from the
+    -- in-scope FALSITY of `(INTEGERP u)` (zp is t on non-integers — kernel
+    -- `logic_zp_of_integerp_nil`). Any other shape is a named frontier.
+    unless prov.origin == "recognizer/true" do
+      throwError "compound-recognizer: origin {prov.origin} ≠ recognizer/true \
+                  (frontier)"
+    let .cons (.atom (.symbol zs)) (.cons u .nil) := lhs
+      | throwError "compound-recognizer: lhs {repr lhs} is not (zp u)"
+    unless zs.name == "ZP" && rhs == quoteT do
+      throwError "compound-recognizer: expected (zp u) ⇒ 't, got \
+                  {repr lhs} ⇒ {repr rhs}"
+    let intU : SExpr :=
+      .cons (.atom (.symbol { name := "INTEGERP" })) (.cons u .nil)
+    let some hNil := ctx.litFactByTerm? intU
+      | throwError "compound-recognizer: no in-scope falsity fact for \
+                    {repr intU} (frontier)"
+    let vInt ← ctxValExpr cfg ctx intU
+    unless vInt.isAppOfArity ``Logic.integerp 1 do
+      throwError "compound-recognizer: value of {repr intU} is not \
+                  (Logic.integerp _)"
+    let hT ← mkAppM ``logic_zp_of_integerp_nil #[vInt.appArg!, hNil]
+    let v ← ctxValExpr cfg ctx lhs
+    unless ← isDefEq v (mkApp (mkConst ``Logic.zp) vInt.appArg!) do
+      throwError "compound-recognizer: value of {repr lhs} does not match \
+                  the (Logic.zp _) instance"
+    let p ← ctxValProof cfg ctx lhs
+    let pQ ← mkAppM ``re_val_quote
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+    mkAppM ``fuel_eq_of_conv #[p, pQ, hT]
   | "type-alist", _ =>
     -- SOLIDIFY from the type-alist: the clause context — a spine literal's
     -- falsity — pins the term's value; the node rewrites the term to that

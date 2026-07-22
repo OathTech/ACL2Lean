@@ -168,6 +168,13 @@ the two Lean consumers, then the CAR-APPEND investigation.
   and no literal items — per the carve-out an EMISSION GAP (fork
   queue below).
 
+- **12**: the COMPOUND-RECOGNIZER recipe, registry-pinned to
+  ZP-COMPOUND-RECOGNIZER (`(ZP u) ⇒ 'T` from the in-scope falsity of
+  `(INTEGERP u)`; kernel `logic_zp_of_integerp_nil` — zp is t on
+  non-integers). CD2-BOUND advances to the NFIX μ-measure frontier
+  (custom measure `(NFIX …)`: needs the μ-registry head AND a decrease-
+  prover arm — a full increment; singles-queue tail).
+
 ## Emission refinement queue (next fork batch)
 
 - :TA-RUNES misses NOT-wrapped hyps stored positively on the type-alist
@@ -181,6 +188,26 @@ the two Lean consumers, then the CAR-APPEND investigation.
   (:TYPE-PRESCRIPTION LEXORDER)) emits NO discharge node today —
   emit one (verdict + rune set, the same shape as the preprocess
   tau/type-set-fc discharges) so the DP carve-out can pick it up.
+- Missing BEGIN-LITERAL markers + split trace in nested-induction
+  subgoal contexts: ORDEREDP-ISORT Subgoal *1.1/3' has BEGIN-LITERAL
+  only for literal 1 (literals 2–5 get bare END-LITERALs) and literal
+  5's TWO clausify leaves carry no split-decision trace — diagnose the
+  emission guard (depth/context) and emit the full structure.
+
+## Singles-queue closing state (2026-07-22)
+
+Every remaining FAIL row is now classified:
+- FORK BATCH (3): HOW-MANY-EVENS-AND-ODDS (:TA-RUNES polarity),
+  HOW-MANY-FILTER-1 (FC-contradiction discharge), ORDEREDP-ISORT
+  (missing literal markers/split trace).
+- Design classes (backlog): TRUE-LISTP-MSORT + ORDEREDP-MEMB
+  (trivial-equiv branch substitution), ORDEREDP-MSORT (disjunctive
+  TP hypothesis shape), CLASSIFY-POS (type-set-equality arm),
+  ORDERED-PERMS (reflexive-PERM, L2-adjacent).
+- Full-increment singles: CD2-BOUND (NFIX μ-measure + decrease-prover
+  arm), LEN2-APP-VIA-USE (:use-hint Goal structure).
+- Design-parked (MDD review): L2 ladder ×2, encapsulate ×3,
+  admission-waterfall ×2, NUMERATOR ×2.
 
 ## Runout-pass investigation (RESOLVED in increment 5 — kept as evidence)
 
