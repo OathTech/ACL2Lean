@@ -619,13 +619,11 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- output clause (the pushed/pool-root child) back through the if-recursion
   match clausifyInfos with
   | [info] =>
-    -- literal items on the same (merged) node come from the PUSH step's
-    -- per-literal scan — identity displays only; real rewriting here is a
-    -- frontier
-    for (_, lp) in lits do
-      unless lp.nodes.isEmpty && lp.result == lp.literal do
-        throwError "replayClause: non-identity literal item alongside a \
-                    clausify record at {cn.idStr} (frontier): {repr lp.literal}"
+    -- literal items on the same (merged) node: from a PUSH step's
+    -- per-literal scan they are identity displays only; from a merged
+    -- SAME-CLAUSE-ID SIMPLIFY step they are the REAL walk of a clausify
+    -- output clause (CLASSIFY-POS shape) — consumed below via the spine.
+    -- The identity guard applies only when nothing consumes them.
     -- steps BEFORE the clausify record chain the formula to its input; steps
     -- AFTER it discharge dropped output clauses (tau/type-set verdicts on
     -- trivially-true conjuncts — the ratified DP carve-out)
@@ -648,6 +646,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     -- DISCHARGE node on a singleton clause
     let mut usedChildren : List String := []
     let mut pOuts : List Expr := []
+    let mut spineConsumed := false
     for cl in info.out do
       match cn.children.find? (·.inputClause == cl) with
       | some child =>
@@ -657,6 +656,37 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         -- child's numbering); term-keyed channels flow through
         pOuts := pOuts ++ [← replayClauseWith rec cfg { ctx with litFacts := [] } child]
       | none =>
+        -- (a) the out clause proved IN-NODE by a merged same-clause-id
+        -- SIMPLIFY step's literal walk (preprocess split + simplify without
+        -- an intervening push — CLASSIFY-POS shape): route the post-clausify
+        -- items through the SPINE walker (itself fail-closed per literal)
+        let postItems := (allItems.drop (clausifyIdx + 1)).filter fun
+          | .clausify i => !(isNoopClausify i)
+          | _ => true
+        let hasWalk := postItems.any fun | .literal _ => true | _ => false
+        if hasWalk && info.out.length == 1 then
+          let litsIdx := cl.zipIdx.map fun (l, i) => (i + 1, l)
+          spineConsumed := true
+          pOuts := pOuts ++ [← replayClauseSpineWith rec cfg
+            { ctx with litFacts := [] } cn.idStr litsIdx postItems [] cn.children]
+        else
+        -- (b') a MULTI-literal clause discharged WHOLE by a verdict node on
+        -- its disjunction (LINEAR-CHAIN's linear-arithmetic Goal; the
+        -- ratified DP carve-out — replayDischargeNode splits the spine)
+        if cl.length > 1 then
+          let dTerm := disjoinTerm cl
+          let some n := postSteps.find? (fun n =>
+              dischargeOrigins.contains (nodeOrigin n) && (nodeLhsRhs n).1 == dTerm)
+            | throwError "replayClause: clausify output {repr cl} has no child \
+                          subgoal, no in-node walk, and no whole-clause \
+                          discharge node at {cn.idStr} (frontier)"
+          unless (nodeLhsRhs n).2 == quoteT do
+            throwError "replayClause: whole-clause discharge node rhs \
+                        {repr (nodeLhsRhs n).2} ≠ (quote t) at {cn.idStr}"
+          pOuts := pOuts ++ [← replayDischargeNode cfg ctx dTerm]
+        else do
+        -- (b) a singleton clause discharged by a post-clausify verdict node
+        -- (the ratified DP carve-out)
         let [lit] := cl
           | throwError "replayClause: clausify output {repr cl} has no child \
                         subgoal and is not a singleton dischargeable clause \
@@ -670,10 +700,20 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
           throwError "replayClause: discharge node for {repr lit} has rhs \
                       {repr (nodeLhsRhs n).2} ≠ (quote t) at {cn.idStr}"
         pOuts := pOuts ++ [← replayDischargeNode cfg ctx lit]
-    for child in cn.children do
-      unless usedChildren.contains child.idStr do
-        throwError "replayClause: child {child.idStr} matches no clausify \
-                    output at {cn.idStr} (linking gap)"
+    -- when NOTHING consumed the literal items (the push-scan case), they
+    -- must be identity displays — real rewriting there is a frontier
+    unless spineConsumed do
+      for (_, lp) in lits do
+        unless lp.nodes.isEmpty && lp.result == lp.literal do
+          throwError "replayClause: non-identity literal item alongside a \
+                      clausify record at {cn.idStr} (frontier): {repr lp.literal}"
+    -- the SPINE route consumes children itself (residual pushes,
+    -- fail-closed inside); the completeness check applies otherwise
+    unless spineConsumed do
+      for child in cn.children do
+        unless usedChildren.contains child.idStr do
+          throwError "replayClause: child {child.idStr} matches no clausify \
+                      output at {cn.idStr} (linking gap)"
     let pInput ←
       match pOuts with
       | [pOut] =>

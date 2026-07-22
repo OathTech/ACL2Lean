@@ -3094,6 +3094,17 @@ theorem logic_trueListp_ne_nil_t (v : SExpr) (h : Logic.trueListp v ≠ SExpr.ni
     Logic.trueListp v = SExpr.t :=
   (trueListp_boolean v).resolve_right h
 
+/-- `integerp` is two-valued: non-nil means `t`. -/
+theorem logic_integerp_ne_nil_t (v : SExpr) (h : Logic.integerp v ≠ SExpr.nil) :
+    Logic.integerp v = SExpr.t := by
+  cases v with
+  | nil => simp_all [Logic.integerp]
+  | atom a =>
+    cases a with
+    | number n => cases n <;> simp_all [Logic.integerp]
+    | _ => simp_all [Logic.integerp]
+  | cons a b => simp_all [Logic.integerp]
+
 /-- The car-cdr-elim rule at the VALUE level: a consp value is rebuilt by
     `cons`/`car`/`cdr` — the destructor-elimination bridge's collapse of
     `(cons (car v) (cdr v))` back to `v`. -/
