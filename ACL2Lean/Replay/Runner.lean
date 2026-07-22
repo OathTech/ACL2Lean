@@ -127,7 +127,11 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,
                                     gzDefs := gzDefs, justs := justs,
-                                    fcRules := fcRules }
+                                    fcRules := fcRules,
+                                    -- BUILTIN-named TP snapshots (world-defined
+                                    -- fns get theirs as tp: hypotheses instead)
+                                    gzTps := tps.filter fun (n, _) =>
+                                      (w.defs.get? { name := n }).isNone }
         let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
           mirrors
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)

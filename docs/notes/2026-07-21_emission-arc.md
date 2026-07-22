@@ -85,6 +85,30 @@ the two Lean consumers, then the CAR-APPEND investigation.
   walks); elim guard literal no longer required to be the clause head.
   ORDEREDP-RM + ORDEREDP-ISORT now funnel into the runout class;
   ORDEREDP-MSORT → a MERGE2 TP-hypothesis wall in its guard child.
+- **5** (6c6d636, fork 9a35048a13): the RUNOUT pass SOLVED — the fork fix
+  is ONE WORD (`rewritten-body` joins rewrite-entry's inner-block bkptr
+  kinds, rewrite.lisp), so the runout pass gets a proper BEGIN/END inner
+  block and reconstruction adopts its children correctly; Lean side: the
+  chain-root strip does NOT apply past a REWRITTEN-BODY boundary
+  (Reflect.lean exemption) + per-level elim pinning. REV-REV,
+  HOW-MANY-ISORT, ORDEREDP-RM ✓ (48→51/79).
+- **6** (1c23189): the clausify-alongside class — a preprocess split
+  whose same-clause-id simplify walk was merged into one node routes
+  through the spine walker (arm a: in-node spine, single-out), plus a
+  whole-clause discharge arm (b'). TLP-APP-NIL-TWICE, LEN2-CDR-SMALLER,
+  LINEAR-CHAIN ✓ (51→54/79).
+- **7**: the unicity-of-0 builtin class — `(BINARY-+ '0 (LEN v)) ⇒ (LEN v)`
+  needs an int-shaped value for a BUILTIN app (LEN is not world-defined,
+  so no tp: hypothesis and no pin). `builtinIntVal?` derives it LOCALLY
+  at the two use sites (unicity recipe, acl2-numberp recognizer): gated
+  on the development's EMITTED gz `:TYPE-PRESCRIPTION` corollary matching
+  the registered nonneg-int shape exactly (drift hard-fails), value =
+  structural `Logic.len` + kernel `logic_len_integerp` + choose-refined
+  int atom. Deliberately NOT a `pinTermOpaques` arm: a shared pin makes
+  every later `dpValExpr` of the term opaque and breaks structural
+  consumers (first attempt failed exactly there — the `definition:LEN`
+  unfold vs `gz_def_len`). LEN-INTERLEAVE, LEN-REV-ACC,
+  NESTED-INDUCTION ✓ (54→57/79).
 
 ## Emission refinement queue (next fork batch)
 
@@ -93,7 +117,7 @@ the two Lean consumers, then the CAR-APPEND investigation.
   DEFAULT-CDR marker has :TA-RUNES [] — extend the emitter to also try
   the stripped atom (and record polarity).
 
-## Runout-pass investigation (parked evidence, next target)
+## Runout-pass investigation (RESOLVED in increment 5 — kept as evidence)
 
 HOW-MANY-ISORT (post-fertilize) + REV-REV now share one signature:
 `navigated to (CONSP <tail>), expected redex (CONSP (CONS <hd> <tail>))`.

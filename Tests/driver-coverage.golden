@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 54/79 (28 unconditional + 26 conditional); DP-discharge leaves ✓24 ◌12 ✗0 of 36:
+Driver coverage — REPLAYED 57/79 (28 unconditional + 29 conditional); DP-discharge leaves ✓24 ◌12 ✗0 of 36:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -47,11 +47,11 @@ Driver coverage — REPLAYED 54/79 (28 unconditional + 26 conditional); DP-disch
 • 12-multi-controller  (world: 12 defun(s), 1 theorem(s))
     LEN-ZIP2 → FAIL: pathStepsFromFrames: navigated to (ATOM X), expected redex (ATOM Y)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2, ASSUMED:dp-fact], Subgoal *1/1':preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 13-multi-measured-var  (world: 11 defun(s), 1 theorem(s))
-    LEN-INTERLEAVE → FAIL: unicity-of-0: (LEN Y) has no pinned value (need the TP int fact)
+    LEN-INTERLEAVE → REPLAYED ✓ cond[total:INTERLEAVE]
 • 14-accumulator  (world: 11 defun(s), 1 theorem(s))
-    LEN-REV-ACC → FAIL: unicity-of-0: (LEN ACC) has no pinned value (need the TP int fact)
+    LEN-REV-ACC → REPLAYED ✓ cond[total:REV-ACC]
 • 15-nested-induction  (world: 13 defun(s), 1 theorem(s))
-    NESTED-INDUCTION → FAIL: unicity-of-0: (LEN Y) has no pinned value (need the TP int fact)
+    NESTED-INDUCTION → REPLAYED ✓ cond[rule:FOLD-CONSTS-IN-+]
 • 16-three-way  (world: 12 defun(s), 1 theorem(s))
     LEN-ZIP3 → FAIL: pathStepsFromFrames: navigated to X, expected redex (ATOM Y)  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ◌ assumed cond[total:(ZIP3 (CDR X) (CDR Y) (CDR Z)), tp:ZIP3, ASSUMED:dp-fact], Subgoal *1/1.2:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:preprocess/tau-contradiction ◌ assumed cond[ASSUMED:dp-fact]]
 • 17-rule-application  (world: 12 defun(s), 2 theorem(s))

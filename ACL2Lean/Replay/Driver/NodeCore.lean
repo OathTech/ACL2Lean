@@ -67,6 +67,14 @@ structure ReplayConfig where
       registered Lean lemma against the emitted shape (audit-F2 style) —
       an unlisted or drifted rule hard-fails. -/
   fcRules : List FcRuleSpec := []
+  /-- The development's emitted `:TYPE-PRESCRIPTION` corollaries for
+      BUILTIN-NAMED ground-zero fns (world-defined fns get theirs as `tp:`
+      hypotheses instead — `replayProofConditional`). Consumed by the builtin
+      TP pin route in `pinTermOpaques`: a registered builtin (`builtinIntTps`)
+      is int-pinned ONLY when its emitted corollary matches the registered
+      shape exactly (type facts from ACL2, proof from the trusted core);
+      an emitted-but-drifted corollary hard-fails. -/
+  gzTps : List (String × SExpr) := []
 
 /-- The proof context in scope at a node. All entries are VALUE-CHARACTERIZED
     facts over the ambient env, established by the surrounding structure (the
@@ -784,6 +792,95 @@ def closeOnTrueLit (cfg : ReplayConfig) (lit : SExpr) (restLits : List SExpr)
     mkAppM ``evtrue_of_eq_t #[hIf]
 
 
+/-- Unary BUILTINS whose ground-zero `:TYPE-PRESCRIPTION` corollary is the
+    standard nonneg-int shape `(IF (INTEGERP (fn v)) (NOT (< (fn v) '0)) 'NIL)`,
+    with the kernel lemma proving the lifted `Logic.integerp` fact against the
+    builtin's own `Logic` semantics. The pin route applies an entry ONLY when
+    the development EMITTED that exact corollary for the fn (`cfg.gzTps`) —
+    the type fact is consumed from ACL2's emission; only its proof is the
+    trusted core's (for a builtin, the `Logic` fn IS its semantics here). -/
+def builtinIntTps : List (String × Name) :=
+  [("LEN", ``logic_len_integerp)]
+
+#guard builtinIntTps.all (fun e => (dpUnary.lookup e.1).isSome)
+
+/-- The standard nonneg-int TP corollary at application `app`:
+    `(IF (INTEGERP app) (NOT (< app '0)) 'NIL)`. -/
+def intTpCorollary (app : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "INTEGERP" })) (.cons app .nil))
+      (.cons (.cons (.atom (.symbol { name := "NOT" }))
+          (.cons (.cons (.atom (.symbol { name := "<" }))
+              (.cons app (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons (.atom (.number (.int 0))) .nil)) .nil))) .nil))
+        (.cons quoteNil .nil)))
+
+/-- Can the DP value walkers (`dpValExpr`/`dpValProof`) produce a value for `t`
+    from the ctx pins, env variable lookups, and builtin registries alone?
+    PROVISIONING guard for the builtin TP pin arm: declining just means no pin
+    is offered (a replay that needs it fails at its use site) — provisioning
+    itself must never throw on an unsupported shape. -/
+partial def valueOfferable (ctx : ReplayCtx) (t : SExpr) : Bool :=
+  (ctx.val? t).isSome ||
+  match t with
+  | .atom (.symbol s) => s.name != "T"   -- `re_val_var` needs ¬isNamed "t"
+  | .cons (.atom (.symbol fs)) (.cons a .nil) =>
+    fs.name == "QUOTE" ||
+    ((dpUnary.lookup fs.name).isSome && valueOfferable ctx a)
+  | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
+    (dpBinary.lookup fs.name).isSome && valueOfferable ctx a && valueOfferable ctx b
+  | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
+    fs.name == "IF" && valueOfferable ctx c && valueOfferable ctx th &&
+      valueOfferable ctx e
+  | _ => false
+
+/-- Derive the INT-ATOM value + convergence proof of a registered unary
+    BUILTIN's application (`builtinIntTps`), gated on the development having
+    EMITTED the standard nonneg-int TP corollary for it (`cfg.gzTps`). Used as
+    a LOCAL fallback at the use sites that need an int-shaped value for a term
+    with no ctx pin (the unicity-of-0 recipe, the acl2-numberp recognizer) —
+    deliberately NOT a `pinTermOpaques` arm: entering the shared `ctx.vals`
+    map would make every later `dpValExpr` of the term opaque, breaking
+    consumers that compute the builtin's STRUCTURAL value (e.g. the
+    `definition:LEN` unfold against `gz_def_len`). Returns `none` when not
+    registered / not emitted / the argument value is unofferable (the caller's
+    existing hard-fail stands); an emitted corollary that DRIFTS from the
+    registered shape hard-fails. -/
+def builtinIntVal? (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) :
+    MetaM (Option (Expr × Expr)) := do
+  let .cons (.atom (.symbol fs)) argSpine := t | return none
+  let some intLemma := builtinIntTps.lookup fs.name | return none
+  let some cor := cfg.gzTps.lookup fs.name | return none
+  -- recover the corollary's formal application from the INTEGERP arm, then
+  -- pin the WHOLE corollary to the standard shape at it (drift hard-fails)
+  let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
+    | throwError "builtinIntVal?: emitted TP corollary of {fs.name} does not \
+                  destructure: {repr cor}"
+  unless cor == intTpCorollary app do
+    throwError "builtinIntVal?: emitted TP corollary of {fs.name} drifted from \
+                the registered nonneg-int shape: {repr cor}"
+  let .cons arg .nil := argSpine
+    | throwError "builtinIntVal?: {fs.name} not applied to exactly one arg: {repr t}"
+  unless valueOfferable ctx arg do return none
+  let opq := ctx.vals.map fun (o, v, _) => (o, v)
+  let opqP := ctx.vals.map fun (o, _, p) => (o, p)
+  let varP := fun s =>
+    (ctx.varVals.find? (fun (v, _, _) => v == s)).map fun (_, v, p) => (v, p)
+  let varVal := fun s => match varP s with
+    | some (v, _) => pure v
+    | none => dpConcVar cfg.envExpr s
+  let conv ← dpValProof cfg cfg.envExpr opq opqP varP t
+  let value ← dpValExpr opq varVal t
+  let hInt ← mkAppM intLemma #[← dpValExpr opq varVal arg]
+  let hkEx ← mkAppM ``logic_integerp_int #[value, hInt]
+  let k ← mkAppM ``Exists.choose #[hkEx]
+  let hvk ← mkAppM ``Exists.choose_spec #[hkEx]
+  let value' := mkApp (mkConst ``SExpr.atom)
+    (mkApp (mkConst ``Atom.number) (mkApp (mkConst ``Number.int) k))
+  let conv' ← mkAppM ``re_val_cast
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr t, value, value', conv, hvk]
+  return some (value', conv')
+
 /-- PIN the value of every user-fn application occurring in `t` (bottom-up) from
     the bound totality hypotheses, refining to the int-atom shape when the fn's
     emitted TP corollary has the standard `(IF (INTEGERP app) … 'NIL)` shape. -/
@@ -1017,7 +1114,10 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
   match term with
   | .cons (.atom (.symbol rs)) (.cons z .nil) =>
     if rs.name == "ACL2-NUMBERP" then
-      let some (vz, pz) := ctx.val? z
+      let pin? ← match ctx.val? z with
+        | some p => pure (some p)
+        | none => builtinIntVal? cfg ctx z   -- gz-builtin TP route (e.g. LEN)
+      let some (vz, pz) := pin?
         | throwError "replayRecognizer: acl2-numberp argument {repr z} has no pinned value"
       let k ← intValExpr? vz
       unless verdict == SExpr.t do
@@ -1446,7 +1546,10 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     | .cons (.atom (.symbol plusS)) (.cons q0 (.cons z .nil)) =>
       unless plusS.name == "BINARY-+" && rhs == z do
         throwError "unicity-of-0: unexpected shape {repr lhs} ⇒ {repr rhs}"
-      let some (vz, pz) := ctx.val? z
+      let pin? ← match ctx.val? z with
+        | some p => pure (some p)
+        | none => builtinIntVal? cfg ctx z   -- gz-builtin TP route (e.g. LEN)
+      let some (vz, pz) := pin?
         | throwError "unicity-of-0: {repr z} has no pinned value (need the TP int fact)"
       let k ← intValExpr? vz
       let some fixChild := children.find? (fun c => (runeOf c).ty == "definition")

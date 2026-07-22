@@ -4004,6 +4004,19 @@ theorem logic_integerp_int (v : SExpr) (h : Logic.integerp v = SExpr.t) :
   | .nil => simp [Logic.integerp, SExpr.t] at h
   | .cons _ _ => simp [Logic.integerp, SExpr.t] at h
 
+/-- `Logic.len` is always an ACL2 integer — the kernel-checked counterpart of
+    LEN's ground-zero `:TYPE-PRESCRIPTION` corollary
+    `(IF (INTEGERP (LEN X)) (NOT (< (LEN X) '0)) 'NIL)`. The builtin TP pin
+    route (`pinTermOpaques`) applies it ONLY after matching that emitted
+    corollary shape, so the type fact is still consumed from ACL2's emission,
+    with the proof supplied by the trusted core (LEN is a builtin —
+    `Logic.len` IS its semantics here). -/
+theorem logic_len_integerp (x : SExpr) : Logic.integerp (Logic.len x) = SExpr.t := by
+  cases x with
+  | cons a b => simp [Logic.len]
+  | nil => simp [Logic.len]
+  | atom a => simp [Logic.len]
+
 /-- Value-characterized convergence of an `if` INSIDE a literal: the value is
     `cond (toBool cv) tv ev` (both branches must converge — their values are
     needed whichever way the test goes, since the DP fact reasons over all
