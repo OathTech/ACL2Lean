@@ -320,6 +320,15 @@ def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : Expr) : M
 def relativizeAndStrip (frames : List PathFrame) (depth : Nat) (strip : List Nat) :
     MetaM (List PathFrame) := do
   let mut rel ← ofExcept (relativizeFrames frames depth)
+  -- the RUNOUT pass (`rewrite rewritten-body`, gstack 'rewritten-body)
+  -- restarts from the REWRITTEN body — its gstack carries no residual
+  -- branch frames, so the chain-root strip does not apply to a node whose
+  -- innermost consumed boundary is REWRITTEN-BODY (emission arc inc-5)
+  let consumedBoundaries :=
+    ((frames.filter fun | .boundary .. => true | _ => false).take depth)
+  if let some (.boundary k _) := consumedBoundaries.getLast? then
+    if k.name == "REWRITTEN-BODY" then
+      return rel
   for k in strip do
     match rel with
     | .arg idx _ :: restF =>

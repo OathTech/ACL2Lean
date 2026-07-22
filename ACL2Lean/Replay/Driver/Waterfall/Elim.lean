@@ -148,8 +148,11 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
   -- the per-level recursion
   let rec go (recs : List (Symbol × Symbol × Symbol)) (curClause : List SExpr)
       (cfgK : ReplayConfig) (isTop : Bool) : MetaM Expr := do
-    let ctxK : ReplayCtx := if isTop then ctx
+    let ctxK0 : ReplayCtx := if isTop then ctx
       else { ctx with varVals := [], vals := [], litFacts := [] }
+    -- pin the level's clause opaques AGAINST THIS LEVEL'S ENV (a deeper
+    -- level's fresh env has none of the outer pins)
+    let ctxK ← pinTermOpaques cfg cfgK.envExpr ctxK0 (disjoinTerm curClause)
     match recs with
     | [] =>
       let some child := cn.children.find? (·.inputClause == curClause)
