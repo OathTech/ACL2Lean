@@ -220,6 +220,12 @@ structure InductionStep where
   controllers : List Symbol := []
   /-- Per-case tests + IH substitution alists. -/
   cases : List InductionCase := []
+  /-- The clauses `remove-trivial-clauses` DELETED from the scheme
+      (`:SCHEME-DROPPED`, emission arc audit 2026-07-22): each was certified
+      trivially true by ACL2's verdict-only `trivial-clause-p`/`if-tautologyp`
+      check — the POSITIVE per-clause record the replay's carve-out discharge
+      of a dropped case branch is gated on. -/
+  schemeDropped : List SExpr := []
   deriving Repr
 
 /-- Where a theorem comes from in the proof log. -/
@@ -849,7 +855,17 @@ private def parseInduction? (items : List SExpr) : Except String InductionStep :
       | some cs => cs.mapM parseCase
       | none => throw s!"INDUCTION: :CASES not a list: {repr c}"
     | none => pure []
-  pure { term, subgoalCount, scheme, xterm, measure, rel, mp, controllers, cases }
+  -- REQUIRED whenever :SCHEME is present (same emitter, emission arc audit
+  -- 2026-07-22): a missing key means a stale pre-audit log — recapture
+  let schemeDropped ← match lookupKeyword "SCHEME-DROPPED" items with
+    | some s => match s.toList? with
+      | some cs => pure cs
+      | none => throw s!"INDUCTION: :SCHEME-DROPPED is not a list: {repr s}"
+    | none =>
+      if scheme.isEmpty then pure []
+      else throw "INDUCTION: missing :SCHEME-DROPPED (stale log? recapture-all)"
+  pure { term, subgoalCount, scheme, xterm, measure, rel, mp, controllers, cases,
+         schemeDropped }
 
 /-- Parse one stored-rule entry: `(rune hyps equiv lhs rhs)` for the
     capture-time `(:RULES …)` events (`withMatchFree = false`), or

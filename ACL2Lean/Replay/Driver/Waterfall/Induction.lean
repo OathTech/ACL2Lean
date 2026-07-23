@@ -246,6 +246,23 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
         ifTaut 10000 [] (tautExpand (disjoinTerm cl)) == some true)
   let kept := expected.filter (fun (_, _, _, cl) => !isTaut cl)
   let dropped := expected.filter (fun (_, _, _, cl) => isTaut cl)
+  -- POSITIVE-record validation (audit 2026-07-22): the (ii)-class drops —
+  -- clauses only the `trivial-clause-p` mirror catches (the cheap complement
+  -- layer's clauses are folded away by add-literal at construction and never
+  -- reach `remove-trivial-clauses`) — must be EXACTLY the emitted
+  -- `:SCHEME-DROPPED` set, both directions; the carve-out discharge at the
+  -- walk is additionally gated on membership. When the lazy layer was
+  -- skipped, this correctly demands an empty emitted set.
+  let schemeDroppedClauses ← ind.schemeDropped.mapM fun cl => do
+    let some lits := cl.toList?
+      | throwError "replayInduction: :SCHEME-DROPPED clause {repr cl} is not a list"
+    pure lits
+  let droppedTaut := dropped.filter (fun (_, _, _, cl) => !isTautCheap cl)
+  unless droppedTaut.length == schemeDroppedClauses.length &&
+         droppedTaut.all (fun (_, _, _, cl) => schemeDroppedClauses.contains cl) do
+    throwError "replayInduction: recomputed trivially-dropped clauses \
+                {repr (droppedTaut.map (·.2.2.2))} ≠ emitted :SCHEME-DROPPED \
+                {repr schemeDroppedClauses} (recompute/emission divergence)"
   unless schemeClauses.length == kept.length do
     throwError "replayInduction: {schemeClauses.length} scheme clauses for \
                 {kept.length} recomputed (non-tautological) case clauses \
@@ -542,7 +559,12 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                     -- is trivially TRUE — discharge the FULL clause by the
                     -- carve-out's closed-form check (ACL2 itself closed it by
                     -- `if-tautologyp`, verdict-only), then peel it down like
-                    -- a linked child.
+                    -- a linked child. GATED on the POSITIVE emitted record
+                    -- (`:SCHEME-DROPPED`, audit 2026-07-22).
+                    unless schemeDroppedClauses.contains clD do
+                      throwError "replayInduction: dropped clause {repr clD} \
+                                  has no emitted :SCHEME-DROPPED record \
+                                  (emission gap)"
                     let ctxD ← pinTermOpaques cfg' eV ctxD (disjoinTerm clD)
                     pure (← replayDischargeNode cfg' ctxD (disjoinTerm clD),
                           selD, ctxD)

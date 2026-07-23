@@ -205,14 +205,18 @@ firing — both fail-closed, no defect grounded); 2 confirmed MINOR:
   single-pass expand-some-non-rec-fns (zerop's bbody is `(eql x 0)`
   with the introduced EQL left OPAQUE) — FIXED post-audit (EQL-headed
   body, byte-identical golden).
-- **Carve-out extension (flagged at merge, MDD ratification PENDING):** a
-  trivially-dropped induction-scheme clause has NO per-clause emitted
-  record — ACL2 removes it via `remove-trivial-clauses` BEFORE
-  emission, so its absence from the emitted :SCHEME (plus the
-  validated `trivial-clause-p` recompute, count+containment pinned) is
-  the verdict; the walk branch is discharged by the DP carve-out
-  machinery on the FULL unweakened dropped clause. Same epistemic
-  class as the admission-decrease extension precedent.
+- **Carve-out gap CLOSED BY EMISSION (MDD-directed at merge,
+  2026-07-22):** a trivially-dropped induction-scheme clause previously
+  had NO per-clause emitted record (ACL2 removes it via
+  `remove-trivial-clauses` BEFORE emission). Rather than ratify a
+  broadened carve-out, the fork now emits `:SCHEME-DROPPED` (fork
+  a291c2ec22) — the positive per-clause record of exactly the deleted
+  clauses. The replay REQUIRES it: the parser hard-fails on its absence
+  (stale-log guard), the recomputed (ii)-class drop set must equal the
+  emitted set both directions, and the walk's carve-out discharge is
+  gated on membership. The letter of the ratified rule ("a leaf with no
+  emitted discharge record is an emission gap — hard-fail") is
+  restored.
 
 ## Singles-queue closing state (2026-07-22)
 
