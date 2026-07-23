@@ -1,14 +1,18 @@
 (in-package "ACL2")
 
-; COVERAGE/verify-guards (event forms — UNCOVERED): deferred guard
-; verification — pins whether/how guard obligations appear in the log
-; (they are proofs too).
+; COVERAGE/verify-guards (event forms): iteration 2 (S1) — the first
+; version's guard obligation was trivial and left ZERO log events; this
+; one forces a real guard proof (car/cdr/+ guards under integer-listp)
+; so whatever the guard prover emits (or fails to emit) is pinned.
 
-(defun gplus (x)
-  (declare (xargs :guard (integerp x) :verify-guards nil))
-  (+ x 1))
+(defun gsum (x)
+  (declare (xargs :guard (integer-listp x) :verify-guards nil))
+  (if (consp x)
+      (+ (car x) (gsum (cdr x)))
+    0))
 
-(verify-guards gplus)
+(verify-guards gsum)
 
-(defthm gplus-adds
-  (implies (integerp x) (equal (gplus x) (+ 1 x))))
+(defthm gsum-of-nil
+  (equal (gsum nil) 0)
+  :rule-classes nil)

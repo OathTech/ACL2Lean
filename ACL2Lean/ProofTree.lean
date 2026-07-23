@@ -262,7 +262,8 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- the clause-level parser. (This match is exhaustive over TraceEvent, so a
       -- new event kind becomes a compile error here — never a silent drop.)
       return (nodes.reverse ++ pendingChildren, events)
-  | .clausifyTest .. :: _ | .clausifyLeaf .. :: _ | .clausifySetReshaped _ :: _ =>
+  | .clausifyTest .. :: _ | .clausifyLeaf .. :: _ | .clausifySetReshaped _ :: _
+  | .clausifyConjunction .. :: _ =>
       -- literal-clausify decision-trace events are partitioned out by
       -- `parseClauseItems` before the chain is parsed; reaching one here means
       -- it appeared OUTSIDE a literal block — the scoping in the ACL2 fork
@@ -361,12 +362,19 @@ partial def parseClauseItems (events : List TraceEvent)
       let splitTrace := litEvents.filterMap fun
         | .clausifyTest t v h p => some (SplitDecision.test t v h p)
         | .clausifyLeaf v o p seg => some (SplitDecision.leaf v o p seg)
+        -- conjunction markers (S1.2): ADDITIONAL provenance for the
+        -- and-shape union — flattened out of the decision stream here, which
+        -- reproduces the pre-marker trace exactly (the composer links leaves
+        -- by their emitted :SEGMENT); the ORDEREDP-ISORT spine consumer that
+        -- READS the marker is the tracked follow-up (map P8)
+        | .clausifyConjunction .. => none
         | _ => none
       let splitReshaped := litEvents.filterMap fun
         | .clausifySetReshaped w => some w
         | _ => none
       let chainEvents := litEvents.filter fun
-        | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _ => false
+        | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _
+        | .clausifyConjunction .. => false
         | _ => true
       let nodes ← buildProofNodes chainEvents
       let litResult := findLiteralResult chainEvents literal

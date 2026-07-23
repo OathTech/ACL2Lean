@@ -24,7 +24,7 @@ if [ -n "$badns" ]; then echo "FAIL: non-namespaced TRACE-LOG tags:"; echo "$bad
 
 # Direct top-level fms emits (emitted by keyword, not via :origin) — exempt from the
 # rewrite-step round-trip below.
-direct="step defthm defun type-prescription induction qed begin-proof-log rule rules pool-consider pool-subsumed ground-zero-rules event-failed forcing-round"
+direct="step defthm defun type-prescription induction qed begin-proof-log rule rules pool-consider pool-subsumed ground-zero-rules event-failed forcing-round verify-guards"
 
 # 3a. emit -> tag: each emitted rewrite-step origin (:origin 'X) has a TRACE-LOG[emit/X].
 emitted=$(grep -rhoE ":origin '[A-Za-z0-9/-]+" "$ACL2"/*.lisp 2>/dev/null | sed "s/:origin '//" | sort -u)

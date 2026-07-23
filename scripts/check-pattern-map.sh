@@ -85,10 +85,11 @@ sig cov-linear-pot    1 ":FAKE-RUNE-FOR-LINEAR"
 sig cov-wf-relation   1 ":WFREL MY-LT"
 sig cov-by-hint       1 "APPLY-TOP-HINTS-CLAUSE"
 sig cov-typeset-decode 3 ":TYPESET"
+sig cov-backchain-limit 1 "(BFN X) '0 (0))"
 sig cov-let-lambda    1 "(LAMBDA (Y)"
 sig cov-mv-let        1 "(LAMBDA (MV)"
-sig cov-verify-guards 1 "(:DEFUN GPLUS"
-nosig cov-verify-guards "GUARD-OBLIGATION"
+sig cov-verify-guards 1 "(:VERIFY-GUARDS :NAMES (GSUM)"
+sig cov-verify-guards 2 "(:QED)"
 # rewrite-cache: ONE recorded unfold for two occurrences
 n=$(grep -cF "RUNE (:DEFINITION RC2)" "$DIR/cov-rewrite-cache.proof-log" 2>/dev/null || echo 0)
 if [ "$n" != "1" ]; then

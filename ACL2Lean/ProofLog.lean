@@ -153,6 +153,12 @@ inductive TraceEvent where
       set beyond the decision trace — the replay hard-fails on it rather than
       mis-attributing segments. -/
   | clausifySetReshaped (which : String)
+  /-- The strip-branches AND-shape conjunction split
+      (emit/strip-branches/and-shape, S1.2 2026-07-23): `(IF left right
+      'NIL)` clausifies as the UNION of the two sides' clause sets with no
+      if-interp test event — this marker records the split so the two sides'
+      leaves have explicit provenance (the ORDEREDP-ISORT pin). -/
+  | clausifyConjunction (left : SExpr) (right : SExpr)
   deriving Repr
 
 /-- A single waterfall step from ACL2's structured proof output. -/
@@ -272,6 +278,10 @@ structure RuleSpec where
       the capture-time `(:RULES …)` entries do not emit it (their free-var
       relief is replayed from the recorded relief chains instead). -/
   matchFree : Option String := none
+  /-- The rule's stored backchain-limit-lst, verbatim (`nil` = unlimited;
+      else a per-hyp list) — capture-time entries only (S1.2 2026-07-23);
+      gz snapshots default `nil` until their emitter carries it. -/
+  backchainLimit : SExpr := .nil
   deriving Repr, Inhabited
 
 /-- A FORWARD-CHAINING-class ground-zero rule snapshot entry
@@ -644,6 +654,12 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           | some _, o => throw s!"CLAUSIFY-LEAF: unexpected :SEGMENT on a \
                                   {o} leaf"
         pure (.clausifyLeaf value outcome path segment)
+    | .atom (.keyword "CLAUSIFY-CONJUNCTION") :: rest =>
+        let l ← lookupKeyword "LEFT" rest
+          |>.elim (throw "CLAUSIFY-CONJUNCTION: missing :LEFT") pure
+        let r ← lookupKeyword "RIGHT" rest
+          |>.elim (throw "CLAUSIFY-CONJUNCTION: missing :RIGHT") pure
+        pure (.clausifyConjunction l r)
     | .atom (.keyword "CLAUSIFY-SATRIANI") :: rest =>
         let which ← match lookupKeyword "WHICH" rest with
           -- WHICH is an internal dispatch tag, not a symbol-identity value.
@@ -896,12 +912,17 @@ private def parseRuleSpecEntry (ctx : String) (withMatchFree : Bool)
     (e : SExpr) : Except String RuleSpec := do
   let some items := e.toList?
     | throw s!"{ctx}: bad entry (not a list): {repr e}"
-  let (runeS, hypsS, equivS, lhsS, rhsS, mf?) ←
+  -- capture-time entries carry the rule's backchain-limit-lst as a 6th
+  -- element (emit/rule, S1.2 2026-07-23 — previously OMITTED, the
+  -- cov-backchain-limit emission pin); gz snapshots carry match-free instead
+  -- (their limit emission is a tracked follow-up).
+  let (runeS, hypsS, equivS, lhsS, rhsS, mf?, bclS) ←
     match withMatchFree, items with
-    | false, [r, h, q, l, rh] => pure (r, h, q, l, rh, none)
-    | true, [r, h, q, l, rh, mf] => pure (r, h, q, l, rh, some mf)
+    | false, [r, h, q, l, rh, bcl] => pure (r, h, q, l, rh, none, bcl)
+    | true, [r, h, q, l, rh, mf] => pure (r, h, q, l, rh, some mf, SExpr.nil)
     | false, _ =>
-      throw s!"{ctx}: bad entry (want (rune hyps equiv lhs rhs)): {repr e}"
+      throw s!"{ctx}: bad entry (want (rune hyps equiv lhs rhs \
+              backchain-limit) — stale log? recapture-all): {repr e}"
     | true, _ =>
       throw s!"{ctx}: bad entry (want (rune hyps equiv lhs rhs match-free)): \
               {repr e}"
@@ -933,7 +954,8 @@ private def parseRuleSpecEntry (ctx : String) (withMatchFree : Bool)
     -- rune NAME is a symbol identity (theorem name), stored UPCASED
     -- like parseRune?'s name and the dependency-proof keys.
     pure ({ name := rname, idx := rune.idx, hyps, equiv,
-            lhs := lhsS, rhs := rhsS, matchFree } : RuleSpec)
+            lhs := lhsS, rhs := rhsS, matchFree,
+            backchainLimit := bclS } : RuleSpec)
   | _ => throw s!"{ctx}: bad rune: {repr runeS}"
 
 /-- Parse a single top-level s-expression from the proof log. -/
@@ -1129,6 +1151,13 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
     throw s!"proof log records a FAILED ACL2 event (ctx: {repr ctx}) — the \
              book's event was rejected/failed and the log is incomplete; fix \
              the book (or the capture) and recapture"
+  | .cons (.atom (.keyword "VERIFY-GUARDS")) rest =>
+    -- emit/verify-guards (S1.2, 2026-07-23): the guard-obligation waterfall's
+    -- wrapper (previously its :STEP/(:QED) events were ORPHANS). Replay of
+    -- guard obligations is a named frontier — fail the parse precisely.
+    let names := (lookupKeyword "NAMES" (rest.toList?.getD [])).getD .nil
+    throw s!"proof log contains a VERIFY-GUARDS obligation proof for \
+             {repr names} — guard-obligation replay is an unsupported frontier"
   | .cons (.atom (.keyword "FORCING-ROUND")) rest =>
     -- emit/forcing-round (S1, 2026-07-23): the structured forcing-round
     -- boundary (was untagged English prose that broke parsing —

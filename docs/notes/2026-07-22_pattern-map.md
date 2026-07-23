@@ -305,6 +305,28 @@ The mischaracterized pins below (batches 1/4/5 "halt" entries) are
 retained as written for the probe-history record — THIS section is
 authoritative.
 
+## S1.2 — three emission pins LANDED (2026-07-23, fork 8d1cf3dbef)
+
+- **verify-guards wrapper**: `(:VERIFY-GUARDS :NAMES … :CLAUSES …)`
+  wraps the guard-obligation waterfall (its steps were ORPHANS; the
+  gplus-trivial case emits nothing, as before). Book iterated to a
+  REAL obligation (gsum). Replay = named parse frontier until guard
+  support lands.
+- **backchain-limit field**: capture-time `(:RULES …)` entries carry
+  the stored backchain-limit-lst as a 6th element, parsed into
+  `RuleSpec.backchainLimit` (gz snapshots: tracked follow-up).
+- **conjunction split**: `(:CLAUSIFY-CONJUNCTION :LEFT p :RIGHT q)` at
+  strip-branches' and-shape (the ORDEREDP-ISORT pin). Parsed;
+  flattened out of the decision stream (documented — reproduces the
+  pre-marker trace exactly, zero corpus drift); the spine consumer
+  that READS it is the tracked follow-up (P8). Build note: the
+  raw-code coverage check required registering strip-branches in
+  *initial-program-fns-with-raw-code*.
+- Also: the S1.1/S1.2 events (:EVENT-FAILED, :FORCING-ROUND,
+  :VERIFY-GUARDS, :CLAUSIFY-CONJUNCTION) all have fail-closed parser
+  arms; the corpus sweep is golden byte-identical across the whole
+  cycle.
+
 ## Driver inventory — candidate fake-replay infrastructure (pin now, kill later)
 
 MDD directive (2026-07-22): mechanisms in the CURRENT driver that
