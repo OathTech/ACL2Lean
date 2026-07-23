@@ -30,6 +30,18 @@ _Last updated: 2026-07-23._
 > deferred to support-side arcs (visible in map, not silently
 > dropped).
 
+> **POST-MAPPING SUPPORT SEQUENCING (MDD triage, 2026-07-23 — see
+> `docs/notes/2026-07-23_mapping-plan-impact.md`, which supersedes all
+> earlier next-arc orderings):** S1 capture/emission hardening fork
+> batch (halt family, prose suppression, guard-proof emission,
+> backchain field, + the emission-arc queue) → S2 LET/lambda
+> (core-path-blocking, was in no plan) → S3 the L2 lane designed from
+> the captured artifacts (MDD review first) → S4 corpus singles per
+> demand. Standing direction for ALL support work: principled replay —
+> prefer fork emission + recorded-step replay; retire the fake-replay
+> inventory's bridges as emissions land; missing features acceptable,
+> baked-in bad design not.
+
 > **Emission arc (branch `mdd/emission-arc`, 2026-07-21/22) — GRIND
 > COMPLETE at increment 12, 47→60/79 (28 uncond + 32 cond), DP ✓29 ◌7
 > ✗0 of 36; UNMERGED, awaiting pre-merge audit.** Landed: 3 fork

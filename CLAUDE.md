@@ -103,6 +103,16 @@ six-step sequencing, and the core/extended/out import tiers. The trust note stil
 applies — a kernel-accepted proof object certifies only the mirror theorem as
 stated, not that the mirror/`evalOpt` faithfully model ACL2 — so keep checking
 each stage against the real artifact.
+**The COVERAGE source of truth is the pattern map**
+(`docs/notes/2026-07-22_pattern-map.md`, ci-gated by
+`just check-pattern-map`): the top-down frame over ACL2's situation space,
+46 authored pattern books (`acl2_samples/pattern-tests/`), the pinned
+frontiers per pipeline layer, the driver fake-replay inventory, and the MDD
+support triage. Consult it BEFORE building support;
+`docs/notes/2026-07-23_mapping-plan-impact.md` carries the post-mapping
+sequencing (capture/emission hardening first; LET/lambda is
+core-path-blocking; prefer fork emission + recorded-step replay over
+Lean-side reconstruction — retire, don't grow, the bridge inventory).
 
 ## Design invariants (binding — from the generality plan §7)
 
