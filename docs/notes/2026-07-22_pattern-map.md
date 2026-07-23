@@ -52,7 +52,10 @@ discharges through it as a PROVED step with no rewrites).
 **Rewriter situations:** geneqv equal `corpus+books`; geneqv iff
 `frontier-pinned` (p1-or-opt-probe); user geneqv `books` (cov-cong-consume — a with-lemma step recorded
 with :EQUIV SAME-LEN2, the L2 lane's core artifact);
-free-var hyp relief `corpus`; FORCING / case-split `books-partial` (cov-force — forced-hyp rule covered; the forcing ROUND itself did not fire, stronger probe queued); backchain limits `UNCOVERED`; syntaxp/bind-free `corpus`
+free-var hyp relief `corpus`; FORCING / case-split `frontier-pinned` (cov-force-round — the ROUND
+captured, [1]Goal ids; parser fails-closed on the MODULO event);
+backchain limits `books` (cov-backchain-limit — EMISSION pin: stored
+rules carry no limit field); syntaxp/bind-free `corpus`
 (SYNP relief); rewrite-cache effects `UNCOVERED`; linear-pot
 integration `UNCOVERED` (beyond discharge leaves).
 
@@ -139,6 +142,31 @@ Breadth batch 2 (2026-07-22, 11 more books):
   MY-LT. Reconstructs.
 - `cov-refinement`, `cov-built-in-clause`, `cov-generalize-rule`,
   `cov-computed-hint` — all reconstruct; shapes catalogued.
+
+Breadth batch 3 (2026-07-22, 5 books):
+
+- `cov-force-round` — **the forcing ROUND captured for the first
+  time** (iteration 2; iteration 1 was defeated by the rule fn's own
+  :TYPE-PRESCRIPTION closing the goal by type-set — probe finding).
+  A forced hyp needing INDUCTION → unrelievable at use time → round:
+  3 QEDs for 2 defthms, clause-ids `[1]Goal`, `[1]Subgoal *1/1`,
+  `[1]Subgoal *1/2`. **PARSE frontier pinned**: `Unknown proof log
+  event: MODULO` — the round emission uses vocabulary the parser has
+  never seen; fail-closed as designed.
+- `cov-backchain-limit` — reconstructs; **EMISSION pin**: the stored
+  (:RULES …) entry `((:REWRITE BFN-RULE) ((INTEGERP X)) EQUAL (BFN X)
+  '0)` carries NO backchain-limit field — limits are invisible to the
+  replay.
+- `cov-trivial-drop` — probe MISSED (proved without induction; and the
+  flattened clause shape would land in the add-literal complement-fold
+  (i)-class anyway — the (ii) :SCHEME-DROPPED route needs the
+  *1-REVERT structure keeping the IMPLIES literal whole). ORDEREDP-
+  MEMB remains the wild anchor; a revert-shaped retry is queued.
+- `cov-equal-nil-norm` — reconstructs; records the (EQUAL X 'NIL) vs
+  (IF X 'NIL 'T) orientations for inventory entry 1.
+- `cov-typeset-decode` — reconstructs; three distinct `:TYPESET`
+  values captured (3072, 40, 6) — the decode probes for inventory
+  entry 6.
 
 ## Driver inventory — candidate fake-replay infrastructure (pin now, kill later)
 
