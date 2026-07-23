@@ -21,18 +21,16 @@ recorded), `UNCOVERED` (no artifact at all — the priority).
 
 **Event forms:** defun `corpus`; mutual-recursion `corpus`
 (recon-07); defthm `corpus`; include-book `corpus` (isort);
-encapsulate/constrained-fns `UNCOVERED` (design-parked, no artifact);
-defun-sk (quantifiers) `UNCOVERED`; defchoose `UNCOVERED`; defconst
-`UNCOVERED`; local `UNCOVERED`; defequiv/defcong `UNCOVERED` (L2
-anchors are wild rows only); defattach `UNCOVERED` (likely
+encapsulate/constrained-fns `books` (cov-encapsulate — reconstructs);
+defun-sk (quantifiers) `frontier-pinned` (cov-defun-sk — recon fails, -suff shape); defchoose `books` (cov-defchoose); defconst
+`UNCOVERED`; local `UNCOVERED`; defequiv/defcong `books` (cov-congruence — obligations reconstruct; consumption-side book queued); defattach `UNCOVERED` (likely
 out-of-tier); verify-guards/guard-obligations `UNCOVERED`.
 
 **Rule classes:** :rewrite `corpus+books`; :definition `corpus`;
 :type-prescription `corpus`; :elim `corpus`; :forward-chaining
 `corpus`; :compound-recognizer `corpus` (CD2-BOUND);
-:induction `corpus` (12-multi-controller); :linear `UNCOVERED` (cited
-in runes, never as the authored subject); :congruence `UNCOVERED`;
-:equivalence `UNCOVERED`; :refinement `UNCOVERED`; :meta `UNCOVERED`;
+:induction `corpus` (12-multi-controller); :linear `books` (cov-linear); :congruence `books`;
+:equivalence `books`; :refinement `UNCOVERED`; :meta `UNCOVERED`;
 :clause-processor `UNCOVERED`; :built-in-clause `UNCOVERED`;
 :tau-system `corpus` (discharge leaves only); :generalize-rule
 `UNCOVERED`; :well-founded-relation `UNCOVERED`.
@@ -44,20 +42,16 @@ settled-down `corpus`; fertilize `corpus`; generalize `corpus`
 
 **Rewriter situations:** geneqv equal `corpus+books`; geneqv iff
 `frontier-pinned` (p1-or-opt-probe); user geneqv `UNCOVERED`;
-free-var hyp relief `corpus`; FORCING / case-split
-`UNCOVERED` (forcing rounds — a whole proof structure we have never
-captured); backchain limits `UNCOVERED`; syntaxp/bind-free `corpus`
+free-var hyp relief `corpus`; FORCING / case-split `books-partial` (cov-force — forced-hyp rule covered; the forcing ROUND itself did not fire, stronger probe queued); backchain limits `UNCOVERED`; syntaxp/bind-free `corpus`
 (SYNP relief); rewrite-cache effects `UNCOVERED`; linear-pot
 integration `UNCOVERED` (beyond discharge leaves).
 
 **Hints:** :use `corpus` (LEN2-APP-VIA-USE, recon-05, frontier);
-:induct `corpus` (recon-05?); :expand `UNCOVERED`; :cases
-`UNCOVERED`; :by `UNCOVERED`; :in-theory `corpus` (implicit);
+:induct `corpus` (recon-05?); :expand `books` (cov-expand-hint); :cases `books` (cov-cases-hint); :by `UNCOVERED`; :in-theory `corpus` (implicit);
 computed hints `UNCOVERED`.
 
 **Value/interpreter surface:** integers `corpus`; rationals
-`frontier-pinned` (NUMERATOR rows, design-parked); complex numbers
-`UNCOVERED`; characters/strings `corpus` (STRINGP lift); symbols/
+`frontier-pinned` (NUMERATOR rows, design-parked); complex numbers `frontier-pinned` (cov-complex — CAPTURE-layer halt); characters/strings `corpus` (STRINGP lift); symbols/
 packages `corpus` (BUG-002 family); guard-vs-logic-mode distinctions
 `UNCOVERED`.
 
@@ -72,8 +66,97 @@ map is good.
 
 ## Frontier tier (captured; observed behavior catalogued)
 
-(populated as breadth books land — each entry: book, observed
-behavior at capture/parse/reconstruction, and what it pins)
+Breadth batch 1 (2026-07-22, `cov-*.lisp` — 9 books authored, all
+through real ACL2):
+
+- `cov-complex` — **CAPTURE-layer halt**: ACL2/instrumentation stops
+  at the first event (log = banner + `(:BEGIN-PROOF-LOG)` only; the
+  capture integrity net flagged INCOMPLETE). The complex-number value
+  surface's frontier starts at the fork's emitters, before parse or
+  replay. Pins: instrumentation cannot yet log a book containing `#c`
+  literals.
+- `cov-defun-sk` — captures (1 QED) but **RECONSTRUCTION fails**:
+  `theorem 'EXISTS-DOUBLE-SUFF' has no closing (:QED) before included
+  theorem 'EXISTS-DOUBLE-SUFF'` — defun-sk's generated `-suff` rule is
+  admitted without the standard proof-log shape. Pins the defun-sk
+  event structure.
+- `cov-encapsulate` — RECONSTRUCTS (constrained-fn events survive
+  stages 3–4 structurally); replay support entirely unprobed (and out
+  of scope here).
+- `cov-congruence` — RECONSTRUCTS, including the defequiv-generated
+  equivalence obligation and the defcong congruence theorem as
+  ordinary defthms. The rule-class CONSUMPTION side (rewriting under
+  the user equivalence) is not exercised by this book — follow-up
+  book needed where a later theorem rewrites UNDER `same-len`.
+- `cov-defchoose`, `cov-linear`, `cov-cases-hint`, `cov-expand-hint`
+  — all RECONSTRUCT; observed tree shapes catalogued by capture.
+- `cov-force` — reconstructs, but NO forcing round fired (the forced
+  hyp relieved immediately by type-set in both theorems). The
+  forcing-ROUND proof structure is still unpinned — stronger probe
+  queued (a forced hyp not relievable at use time, e.g. via a
+  constrained function).
+
+## Driver inventory — candidate fake-replay infrastructure (pin now, kill later)
+
+MDD directive (2026-07-22): mechanisms in the CURRENT driver that
+RE-DERIVE what ACL2 could emit are candidate fake-replay
+infrastructure. This branch pins each with coverage; the kill-path
+(principled emission + recorded-step replay) is future support work.
+Graded: [bridge] = reconstructs an unlogged rewrite at a mismatch
+point; [rederive] = recomputes a resolution ACL2 made from data we do
+not consume; [mirror] = deterministic recompute of a documented ACL2
+function validated against emitted output (most defensible, still
+listed).
+
+1. [bridge] `bridgeEqualNilNorm` — rewrite-equal NIL/EQUALITYP forms.
+2. [bridge] `bridgeIfNegTestSwap` / `normalizeSwapsToward` /
+   `liftNegTestSwap` — rewrite-if swapped-p. (Books: p1-swap-*.)
+3. [bridge] display-folded constant-test collapse arms
+   (`mkConstTestCollapse` on folded records) — sublis-var folds.
+4. [rederive] `collapseEval` symbolic-test resolution — "re-derives
+   the resolution from the SAME facts if-interp consulted".
+5. [rederive] the test-resolution reconciliation arm (unemitted
+   type-alist lookups, if-interp-assumed-value2).
+6. [rederive] recognizer registry derivations (ATOM-from-CONSP-false,
+   ZP-from-INTEGERP-false, two-valued registries) — NOTE: the log
+   already carries `:TYPESET`/`:TRUETS` integers on recognizer steps
+   that we DO NOT consume; principled replay would decode the emitted
+   type-set instead of re-deriving membership.
+7. [rederive] `collectContextDemands` demand hoisting — re-derives
+   what ACL2's type-alist had in scope (incl. the commuted-lexorder
+   special case).
+8. [rederive] FC-relief registry (LEXORDER-TOTAL) — consumes the
+   emitted snapshot but re-derives the relief chain.
+9. [mirror] chain-root strip / pass-local tagging — re-derives gstack
+   frame residue from bkptr paths (structure not emitted).
+10. [mirror] elim reorder recompute (erase+prepend+σ) — validated vs
+    emitted :NEWCLAUSES.
+11. [mirror] induction clean-up recompute (trivial-clause-p/ifTaut) —
+    now validated vs emitted :SCHEME-DROPPED; the (i)-class
+    add-literal complement folds are still recompute-only.
+12. [mirror] pool-subsumption witness recompute (`subsumeWitness`),
+    `dumbNegateLit`/`substTerm` mirrors, clausify mirror
+    (`expandTerm`/`clausifyChecked`).
+13. [rederive] `clause-context-resolution` verify-then-drop markers.
+
+Each [bridge]/[rederive] entry needs: (a) a book pinning the
+underlying ACL2 mechanism (quirk-derived backlog below), (b) a named
+future emission that would retire it. The [mirror] class is retained
+by design where the emitted artifact fully validates the recompute —
+graded acceptable, but listed so the boundary stays visible.
+
+## Quirk-derived book backlog
+
+From the emission arc's bespoke mechanisms (each pins one inventory
+entry): equal-NIL normalization shapes; EQUAL-commuted rule match
+(one-way-unify1); display-folded collapses; a MINIMAL trivial-clause
+drop (ORDEREDP-MEMB's is embedded in a big book); free-var relief via
+type-alist (:TA-RUNES); strip-branches and-shape union; elim
+multi-record rounds; clause-context-resolution marker; runout
+minimal book; :TYPESET-decode probes (books whose recognizer verdicts
+exercise distinct type-set bits). Plus follow-ups from batch 1:
+forcing-round-for-real, congruence-consumption, defun-sk variants
+(forall; nested), complex-number minimal repro for the fork.
 
 This document is the arc's SPINE:
 one entry per replay mechanism ("pattern"), each recording
