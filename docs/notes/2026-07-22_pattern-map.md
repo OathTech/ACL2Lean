@@ -294,7 +294,7 @@ listed).
 
 1. [bridge] `bridgeEqualNilNorm` — rewrite-equal NIL/EQUALITYP forms.
 2. [bridge] `bridgeIfNegTestSwap` / `normalizeSwapsToward` /
-   `liftNegTestSwap` — rewrite-if swapped-p. (Books: p1-swap-*.)
+   `liftNegTestSwap` — rewrite-if swapped-p. (Books: p1-swap-descend, p1-swap-joint, p1-swap-double-neg.)
 3. [bridge] display-folded constant-test collapse arms
    (`mkConstTestCollapse` on folded records) — sublis-var folds.
 4. [rederive] `collapseEval` symbolic-test resolution — "re-derives

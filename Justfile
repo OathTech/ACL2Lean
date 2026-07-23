@@ -34,7 +34,7 @@ check-no-shadow:
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
 # include_str's the gitignored .proof-log corpus; check-proof-logs runs first
 # so a missing log is a clear error, not a deep elaboration-trace failure.
-ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-proof-logs check-log-provenance build test driver-coverage
+ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-proof-logs check-log-provenance check-pattern-map build test driver-coverage
 
 # Run the corpus report
 report:
@@ -103,6 +103,11 @@ golden-review:
 # Network (fetches the fork remote); run manually before pushing.
 check-push-ready:
     bash scripts/check-push-ready.sh
+
+# Mapping-arc gate: the pattern map is a gated artifact (bidirectional
+# book<->map + logs present + pin signatures) — the check-bugs.sh pattern.
+check-pattern-map:
+    bash scripts/check-pattern-map.sh
 
 # Provenance gate (hardening G2): every corpus log's sidecar must be
 # stamped at the CURRENT acl2 submodule HEAD (stale/partial recaptures
