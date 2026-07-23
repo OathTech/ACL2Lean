@@ -280,6 +280,31 @@ fake-replay-inventory kill conflict, the kill wins.
 - Deliberately deferred: stobjs, defattach semantics, complex
   numbers beyond the reader pin, :program mode.
 
+## S1 correction — the "capture-halt family" dissolved (2026-07-23)
+
+S1's first diagnosis (unsuppressed reruns): **every "capture halt" was
+an ordinary ACL2 event failure** — illegal ground rewrite rules
+(cov-complex, cov-number-literals, cov-defconst-local's K-FIXED),
+unverified-guard defattach, malformed exotic-rule forms — rendered
+invisible because :structured mode inhibits the error channel. The
+fork now emits `(:EVENT-FAILED :CTX …)` at print-failure (fork
+6f44ace078), so a failed event is self-describing; and the
+forcing-round prose is replaced by `(:FORCING-ROUND :ROUND r :GOALS n
+:ASSUMPTIONS n0)`. The books were corrected (`:rule-classes nil` on
+ground facts; guard-verified defattach; correct exotic-rule forms —
+`:TYPE-SET 3` is {0,1} in this encoding, predicate on the left) and
+all six surfaces now CAPTURE fully:
+- radix/ratio literals RECONSTRUCT (ACL2 prints them in normal form);
+- local + defconst RECONSTRUCT; defattach RECONSTRUCTS;
+- both exotic rule classes RECONSTRUCT (all 19 rule-class tokens now
+  genuinely captured);
+- #c narrows to exactly OUR `#C` reader macro (parse);
+- the forcing round is a NAMED parse frontier (its structured event)
+  instead of a prose crash.
+The mischaracterized pins below (batches 1/4/5 "halt" entries) are
+retained as written for the probe-history record — THIS section is
+authoritative.
+
 ## Driver inventory — candidate fake-replay infrastructure (pin now, kill later)
 
 MDD directive (2026-07-22): mechanisms in the CURRENT driver that

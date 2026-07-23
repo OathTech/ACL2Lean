@@ -1119,6 +1119,24 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         return .typePrescription name corollary basicTs leaves
       | none => throw s!"TYPE-PRESCRIPTION: bad name: {repr nameExpr}"
     | _ => throw s!"TYPE-PRESCRIPTION: expected plist, got {repr rest}"
+  | .cons (.atom (.keyword "EVENT-FAILED")) rest =>
+    -- emit/event-failed (S1, 2026-07-23): an event FAILED in ACL2 and its
+    -- error output was inhibited by :structured mode — the log is
+    -- authoritative about the failure but INCOMPLETE about the book.
+    -- Fail the PARSE with the ctx: a log containing a failed event must be
+    -- fixed at the book/capture, never processed partially.
+    let ctx := (lookupKeyword "CTX" (rest.toList?.getD [])).getD .nil
+    throw s!"proof log records a FAILED ACL2 event (ctx: {repr ctx}) — the \
+             book's event was rejected/failed and the log is incomplete; fix \
+             the book (or the capture) and recapture"
+  | .cons (.atom (.keyword "FORCING-ROUND")) rest =>
+    -- emit/forcing-round (S1, 2026-07-23): the structured forcing-round
+    -- boundary (was untagged English prose that broke parsing —
+    -- cov-force-round pin). Reconstruction of forcing rounds is a named
+    -- frontier: parse hard-fails here, precisely, until round support lands.
+    let round := (lookupKeyword "ROUND" (rest.toList?.getD [])).getD .nil
+    throw s!"proof log contains a FORCING ROUND (round {repr round}) — \
+             forcing-round replay is an unsupported frontier"
   | _ => throw s!"Unknown proof log event: {repr s}"
 
 /-- Parse a proof log from raw ACL2 output.
