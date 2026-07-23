@@ -22,33 +22,43 @@ recorded), `UNCOVERED` (no artifact at all — the priority).
 **Event forms:** defun `corpus`; mutual-recursion `corpus`
 (recon-07); defthm `corpus`; include-book `corpus` (isort);
 encapsulate/constrained-fns `books` (cov-encapsulate — reconstructs);
-defun-sk (quantifiers) `frontier-pinned` (cov-defun-sk — recon fails, -suff shape); defchoose `books` (cov-defchoose); defconst
-`UNCOVERED`; local `UNCOVERED`; defequiv/defcong `books` (cov-congruence — obligations reconstruct; consumption-side book queued); defattach `UNCOVERED` (likely
-out-of-tier); verify-guards/guard-obligations `UNCOVERED`.
+defun-sk (quantifiers) `frontier-pinned` (cov-defun-sk — recon fails, -suff shape); defchoose `books` (cov-defchoose); defconst `books-partial` +
+local `frontier-pinned` (cov-defconst-local — the top-level LOCAL
+defthm logs with :SOURCE :LOCAL, then the session HALTS before the
+next event; capture-layer pin);  defequiv/defcong `books` (cov-congruence — obligations reconstruct; consumption-side book queued); defattach `UNCOVERED` (likely
+out-of-tier); verify-guards `frontier-pinned` (cov-verify-guards — the defun/TP
+events emit but the GUARD OBLIGATION PROOF is entirely absent from
+the log; an emission-coverage gap pinned).
 
 **Rule classes:** :rewrite `corpus+books`; :definition `corpus`;
 :type-prescription `corpus`; :elim `corpus`; :forward-chaining
 `corpus`; :compound-recognizer `corpus` (CD2-BOUND);
 :induction `corpus` (12-multi-controller); :linear `books` (cov-linear); :congruence `books`;
-:equivalence `books`; :refinement `UNCOVERED`; :meta `UNCOVERED`;
-:clause-processor `UNCOVERED`; :built-in-clause `UNCOVERED`;
-:tau-system `corpus` (discharge leaves only); :generalize-rule
-`UNCOVERED`; :well-founded-relation `UNCOVERED`.
+:equivalence `books`; :refinement `books` (cov-refinement); :meta `frontier-pinned`
+(cov-meta-rule — parse fails on LAMBDA path frames); :clause-processor
+`frontier-pinned` (cov-clause-processor — same LAMBDA-frame parse
+frontier); :built-in-clause `books` (cov-built-in-clause);
+:tau-system `corpus` (discharge leaves only); :generalize-rule `books` (cov-generalize-rule); :well-founded-relation
+`books` (cov-wf-relation — the defun event emits :WFREL MY-LT with
+termination clauses in the custom relation).
 
 **Waterfall processors:** preprocess `corpus`; simplify `corpus`;
 settled-down `corpus`; fertilize `corpus`; generalize `corpus`
 (msort); eliminate-destructors `corpus`; eliminate-irrelevance
-`corpus` (thin — one wild row class); push/induct `corpus`.
+`corpus` (thin — one wild row class); push/induct `corpus`; apply-top-hints-clause `books` (cov-by-hint —
+a processor MISSING from this frame until the book surfaced it; :by
+discharges through it as a PROVED step with no rewrites).
 
 **Rewriter situations:** geneqv equal `corpus+books`; geneqv iff
-`frontier-pinned` (p1-or-opt-probe); user geneqv `UNCOVERED`;
+`frontier-pinned` (p1-or-opt-probe); user geneqv `books` (cov-cong-consume — a with-lemma step recorded
+with :EQUIV SAME-LEN2, the L2 lane's core artifact);
 free-var hyp relief `corpus`; FORCING / case-split `books-partial` (cov-force — forced-hyp rule covered; the forcing ROUND itself did not fire, stronger probe queued); backchain limits `UNCOVERED`; syntaxp/bind-free `corpus`
 (SYNP relief); rewrite-cache effects `UNCOVERED`; linear-pot
 integration `UNCOVERED` (beyond discharge leaves).
 
 **Hints:** :use `corpus` (LEN2-APP-VIA-USE, recon-05, frontier);
-:induct `corpus` (recon-05?); :expand `books` (cov-expand-hint); :cases `books` (cov-cases-hint); :by `UNCOVERED`; :in-theory `corpus` (implicit);
-computed hints `UNCOVERED`.
+:induct `corpus` (recon-05?); :expand `books` (cov-expand-hint); :cases `books` (cov-cases-hint); :by `books` (cov-by-hint); :in-theory `corpus` (implicit);
+computed hints `books` (cov-computed-hint).
 
 **Value/interpreter surface:** integers `corpus`; rationals
 `frontier-pinned` (NUMERATOR rows, design-parked); complex numbers `frontier-pinned` (cov-complex — CAPTURE-layer halt); characters/strings `corpus` (STRINGP lift); symbols/
@@ -95,6 +105,40 @@ through real ACL2):
   forcing-ROUND proof structure is still unpinned — stronger probe
   queued (a forced hyp not relievable at use time, e.g. via a
   constrained function).
+
+Breadth batch 2 (2026-07-22, 11 more books):
+
+- `cov-meta-rule`, `cov-clause-processor` — **PARSE frontier**: both
+  defevaluator-based books (16 generated internal theorems each, all
+  captured, 7k-line logs) fail parse on `:PATH frame fn not a symbol
+  (lambda/quote unsupported)` — the generated evaluator proofs rewrite
+  inside LAMBDA applications and the path frames carry the LAMBDA
+  term. Pins the lambda-path event shape (parse-layer sibling of the
+  known dpValExpr LAMBDA frontier).
+- `cov-cong-consume` — the L2 core artifact: a with-lemma step
+  recorded `:EQUIV SAME-LEN2` (a rewrite under a USER equivalence
+  inside a defcong-blessed argument position), plus the `(:RULES …)`
+  storage of a SAME-LEN2-equiv rule. **Behavioral pin from the first
+  version**: a HYP-FREE user-equivalence rule loops ACL2's
+  PREPROCESSOR (call-depth hard error) — preprocess classes it
+  "simple"/abbreviation and IGNORES loop-stoppers; the syntaxp guard
+  routes it through the full rewriter.
+- `cov-defconst-local` — **CAPTURE-layer pin**: the top-level LOCAL
+  defthm runs and logs (`:SOURCE :LOCAL`), then the ACL2 session
+  halts before the next event (k-fixed never starts). defconst itself
+  substitutes fine at translate (the formula shows `(+ 42 0)`).
+- `cov-verify-guards` — the defun/TP events emit but the GUARD
+  OBLIGATION PROOF is entirely absent from the log — verify-guards
+  runs a real proof our instrumentation does not see. Emission-
+  coverage pin.
+- `cov-by-hint` — `:by` discharges through APPLY-TOP-HINTS-CLAUSE
+  (`:RESULT :PROVED`, no rewrites) — a waterfall processor missing
+  from this frame until the book surfaced it.
+- `cov-wf-relation` — custom well-founded relation flows through
+  admission emission: `:WFREL MY-LT`, termination clauses stated in
+  MY-LT. Reconstructs.
+- `cov-refinement`, `cov-built-in-clause`, `cov-generalize-rule`,
+  `cov-computed-hint` — all reconstruct; shapes catalogued.
 
 ## Driver inventory — candidate fake-replay infrastructure (pin now, kill later)
 
