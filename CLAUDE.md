@@ -205,6 +205,13 @@ against it structurally:
   `lake exe acl2lean dump-proof-tree <file>` — before reasoning. Never validate
   against hand-built nodes or the flat `:REWRITE-STEP` log; both mislead about
   real shapes and how nodes compose.
+  **Amendment (mapping arc, MDD-ratified 2026-07-22): synthetic BOOKS yes,
+  synthetic ARTIFACTS never.** Deliberately-authored ACL2 books are allowed and
+  encouraged when run through real ACL2 and the capture pipeline (the pattern
+  corpus): anchor each family at a wild corpus occurrence, and draw its axes
+  from what the generating ACL2 source actually branches on — never from
+  imagination. Hand-built nodes, fabricated logs, and any artifact that did not
+  come out of a real ACL2 run remain banned.
 - **The real theorem is the unit of work.** Do not prove a lemma unless it is
   closing a specific goal in the actual target proof at that moment, with its
   statement read off the real goal. Write the proof skeleton first — one `sorry`
