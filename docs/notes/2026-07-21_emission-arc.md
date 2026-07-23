@@ -194,6 +194,26 @@ the two Lean consumers, then the CAR-APPEND investigation.
   5's TWO clausify leaves carry no split-decision trace — diagnose the
   emission guard (depth/context) and emit the full structure.
 
+## Pre-merge audit (2026-07-22)
+
+3-Opus adversarial panel (dimensions: kernel-lemmas/carve-out,
+walker-semantics vs rewrite.lisp, recompute-mirrors/linking/fork-diff)
++ per-finding adversarial verification. Outcome: ZERO soundness
+defects; 2 findings refuted (strip-tag granularity, swap-bridge arg-1
+firing — both fail-closed, no defect grounded); 2 confirmed MINOR:
+- ZEROP taut-expansion was one step more permissive than ACL2's
+  single-pass expand-some-non-rec-fns (zerop's bbody is `(eql x 0)`
+  with the introduced EQL left OPAQUE) — FIXED post-audit (EQL-headed
+  body, byte-identical golden).
+- **Carve-out extension (flagged at merge, MDD ratification PENDING):** a
+  trivially-dropped induction-scheme clause has NO per-clause emitted
+  record — ACL2 removes it via `remove-trivial-clauses` BEFORE
+  emission, so its absence from the emitted :SCHEME (plus the
+  validated `trivial-clause-p` recompute, count+containment pinned) is
+  the verdict; the walk branch is discharged by the DP carve-out
+  machinery on the FULL unweakened dropped clause. Same epistemic
+  class as the admission-decrease extension precedent.
+
 ## Singles-queue closing state (2026-07-22)
 
 Every remaining FAIL row is now classified:

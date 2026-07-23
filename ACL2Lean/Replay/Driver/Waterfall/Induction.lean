@@ -62,8 +62,13 @@ def tautExpandBody? (fn : String) (args : List SExpr) : Option SExpr :=
   | "ATOM", [x] =>
     some (notT (.cons (.atom (.symbol { name := "CONSP" })) (.cons x .nil)))
   | "ZEROP", [x] =>
-    some (equalT x (.cons (.atom (.symbol { name := "QUOTE" }))
-      (.cons (.atom (.number (.int 0))) .nil)))
+    -- zerop's bbody is `(eql x 0)` (axioms.lisp:7286) and ACL2's expansion is
+    -- SINGLE-PASS: the introduced EQL stays unexpanded and is OPAQUE to
+    -- if-tautologyp (only EQUAL/IFF commute) — audit 2026-07-22 finding;
+    -- emitting EQUAL here would be strictly more permissive than ACL2
+    some (.cons (.atom (.symbol { name := "EQL" }))
+      (.cons x (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+        (.cons (.atom (.number (.int 0))) .nil)) .nil)))
   | "SYNP", [_, _, _] => some quoteT
   | "FORCE", [x] => some x
   | "CASE-SPLIT", [x] => some x
