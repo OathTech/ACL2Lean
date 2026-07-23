@@ -1,7 +1,81 @@
-# The pattern map — anchored circles over the replay's mechanism space
+# The pattern map — anchored circles over the ACL2 situation space
 
 Created 2026-07-22 (mapping arc increment 1; the arc spec is the TODO.md
-top block, MDD-ratified 2026-07-21). This document is the arc's SPINE:
+top block, MDD-ratified 2026-07-21). **Scope correction (MDD,
+2026-07-22): the arc maps COVERAGE of ACL2's situation/proof space —
+how to SUPPORT a construct is a secondary, downstream question, and
+the map must never limit itself to what the replay can handle today.**
+A book that fails at a named frontier, or does not even reconstruct,
+is a SUCCESSFUL mapping outcome: it pins where the frontier is with a
+real captured artifact. The replay scoreboard is recorded per book but
+is NOT the arc's metric; situation-space coverage is.
+
+## The coverage frame (top-down, from ACL2's own inventory)
+
+Enumerated from ACL2's documented structure — NOT from what we have
+built (the P1–P11 entries below were seeded bottom-up from conquered
+mechanisms and are the survivor-biased half of the picture). Status
+per item: `corpus` (wild anchor exists), `books` (pattern books
+authored), `frontier-pinned` (book captured, observed failure
+recorded), `UNCOVERED` (no artifact at all — the priority).
+
+**Event forms:** defun `corpus`; mutual-recursion `corpus`
+(recon-07); defthm `corpus`; include-book `corpus` (isort);
+encapsulate/constrained-fns `UNCOVERED` (design-parked, no artifact);
+defun-sk (quantifiers) `UNCOVERED`; defchoose `UNCOVERED`; defconst
+`UNCOVERED`; local `UNCOVERED`; defequiv/defcong `UNCOVERED` (L2
+anchors are wild rows only); defattach `UNCOVERED` (likely
+out-of-tier); verify-guards/guard-obligations `UNCOVERED`.
+
+**Rule classes:** :rewrite `corpus+books`; :definition `corpus`;
+:type-prescription `corpus`; :elim `corpus`; :forward-chaining
+`corpus`; :compound-recognizer `corpus` (CD2-BOUND);
+:induction `corpus` (12-multi-controller); :linear `UNCOVERED` (cited
+in runes, never as the authored subject); :congruence `UNCOVERED`;
+:equivalence `UNCOVERED`; :refinement `UNCOVERED`; :meta `UNCOVERED`;
+:clause-processor `UNCOVERED`; :built-in-clause `UNCOVERED`;
+:tau-system `corpus` (discharge leaves only); :generalize-rule
+`UNCOVERED`; :well-founded-relation `UNCOVERED`.
+
+**Waterfall processors:** preprocess `corpus`; simplify `corpus`;
+settled-down `corpus`; fertilize `corpus`; generalize `corpus`
+(msort); eliminate-destructors `corpus`; eliminate-irrelevance
+`corpus` (thin — one wild row class); push/induct `corpus`.
+
+**Rewriter situations:** geneqv equal `corpus+books`; geneqv iff
+`frontier-pinned` (p1-or-opt-probe); user geneqv `UNCOVERED`;
+free-var hyp relief `corpus`; FORCING / case-split
+`UNCOVERED` (forcing rounds — a whole proof structure we have never
+captured); backchain limits `UNCOVERED`; syntaxp/bind-free `corpus`
+(SYNP relief); rewrite-cache effects `UNCOVERED`; linear-pot
+integration `UNCOVERED` (beyond discharge leaves).
+
+**Hints:** :use `corpus` (LEN2-APP-VIA-USE, recon-05, frontier);
+:induct `corpus` (recon-05?); :expand `UNCOVERED`; :cases
+`UNCOVERED`; :by `UNCOVERED`; :in-theory `corpus` (implicit);
+computed hints `UNCOVERED`.
+
+**Value/interpreter surface:** integers `corpus`; rationals
+`frontier-pinned` (NUMERATOR rows, design-parked); complex numbers
+`UNCOVERED`; characters/strings `corpus` (STRINGP lift); symbols/
+packages `corpus` (BUG-002 family); guard-vs-logic-mode distinctions
+`UNCOVERED`.
+
+Priority for book authoring: the `UNCOVERED` items above, breadth
+first — one minimal book each, captured through real ACL2, observed
+behavior catalogued here (capture / parse / reconstruct / replay
+frontier), REGARDLESS of support status. **This branch does NOT wire
+books into the replay sweep, add pipeline code, or build support of
+any kind — coverage only.** Sweep wiring, emission fixes, recipes,
+and native lifts are all support-side follow-ups sequenced AFTER the
+map is good.
+
+## Frontier tier (captured; observed behavior catalogued)
+
+(populated as breadth books land — each entry: book, observed
+behavior at capture/parse/reconstruction, and what it pins)
+
+This document is the arc's SPINE:
 one entry per replay mechanism ("pattern"), each recording
 
 - **source**: the generating ACL2 code site — the ground truth whose
@@ -21,6 +95,43 @@ is recorded as `unreachable-by-construction`, not silently skipped.
 Books whose natural native statement is Logic-bound (ACL2-quirk
 circles) are FLAGGED as such — lack of a lift must be visible.
 
+**Generalize-before-baking (MDD, 2026-07-22).** A quirk a probe
+surfaces is treated as a SIGN of a more general rule until shown
+otherwise: locate the family's generating structure in the ACL2
+source and probe THAT — the map's unit is the family, not the
+instance.
+
+**There is no "silent normalization" (MDD, 2026-07-22).** The emission
+format is entirely OUR design; a rewrite the log does not show is an
+UN-INSTRUMENTED EMISSION SITE — the project's top-level rule applied
+again (find where reconstruction lacks information → instrument the
+fork there, in FUTURE support work). The map's job is only to
+enumerate and pin those sites with books.
+
+### P0 — un-instrumented emission sites (future fork instrumentation)
+- the sites where our current instrumentation does not record what the
+  rewriter did, enumerable by reading the rewriter source:
+  rewrite-equal's NIL/EQUALITYP forms (rewrite.lisp:18089-98),
+  rewrite-if's swapped-p (17726-37) and the or/and *T*/left-copy
+  identities beside it, the if-interp call-stack folds (3742-3849),
+  strip-branches' and-shape union (4318), sublis-var display folds,
+  rewrite-time FC contradictions, primitive type-set entries'
+  provenance.
+- coverage task (THIS arc): source-sweep the rewriter for the full
+  site list; give each a book pinning its observed log shape.
+- support task (FUTURE, not this branch): instrument each site;
+  today's replay-side reconstructions of some of them then become
+  redundant and can be retired.
+
+### P11 — the geneqv landscape
+- source: ACL2's geneqv computation (`geneqv-lst`, congruence-rule
+  application) — which argument positions rewrite under which
+  equivalence.
+- coverage task: books that put the same redex under equal-geneqv vs
+  iff-geneqv vs user-geneqv positions and catalogue the recorded
+  chains. The observed shapes are the requirements data for the
+  (future, design-parked) L2 support work.
+
 Seeded from the emission arc's conquered mechanisms (each source site
 was read during implementation; see
 `docs/notes/2026-07-21_emission-arc.md` for the increment evidence).
@@ -37,9 +148,24 @@ No pattern books exist yet — authoring them is the arc's work.
   (`(if x x y)` with `unrewritten-test == left` → `*t*` under iff);
   swap inside hyp-relief vs body vs rhs blocks.
 - anchor: LEN-ZIP2/3 (descend+target), ORDEREDP-MEMB (joint).
-- books: none yet. status: recipe-landed
-  (`bridgeIfNegTestSwap`/`normalizeSwapsToward`); or-optimization axis
-  UNEXERCISED — no corpus row, no book.
+- books (first circle, 2026-07-22 — `acl2_samples/pattern-tests/`):
+  - `p1-swap-descend` (or-guard base case) — REPLAYS ✓;
+  - `p1-swap-joint` ((NOT (EQUAL …)) body test) — REPLAYS ✓;
+  - `p1-swap-double-neg` (iterated swap ×2) — REPLAYS ✓. Probe finding:
+    a (NOT (NOT …)) DEFUN body is normalized at admission
+    (unreachable-by-construction); the THEOREM-hypothesis route reaches
+    it.
+  - `p1-or-opt-probe` — axis PINNED by a real captured shape: ACL2
+    replaces the or-test's then-copy by *T* under IFF geneqv
+    (`(iff (if x x y) (if x t y))`, the identity directly below the
+    swap site). Row FAIL (named if-finish mismatch) — this is the L2
+    frontier in miniature; note: at a TEST position the identity IS
+    eval-sound (`(IF (IF x x y) a b) ≡eval (IF (IF x 'T y) a b)`), so a
+    positional bridge is designable short of full L2. Design note for
+    the L2 ladder.
+- status: 4/4 axes have captured books (observed via focused replay:
+  3 replay under existing support, 1 pins the iff-identity shape).
+  Native lifts and any sweep wiring: support-side, future.
 
 ### P2 — the RUNOUT pass (rewritten-body)
 - source: `acl2/rewrite.lisp` ~20613 (`rewrite-fncall` re-rewrites the

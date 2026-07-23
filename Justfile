@@ -88,7 +88,7 @@ capture-all-logs:
 # luck). This is the one target agents should reach for after any
 # instrumentation change.
 recapture-all: capture-all-logs
-    ./scripts/capture-proof-log.sh acl2_samples/simple.lisp acl2_samples/recon-tests/*.lisp
+    ./scripts/capture-proof-log.sh acl2_samples/simple.lisp acl2_samples/recon-tests/*.lisp acl2_samples/pattern-tests/*.lisp
 
 # STRUCTURAL golden review (hardening G3): classify golden→actual changes
 # into STATUS FLIPS (review first) vs message-only churn, so a regression
