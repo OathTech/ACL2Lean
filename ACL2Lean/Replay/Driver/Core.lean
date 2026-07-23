@@ -44,6 +44,25 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- segFacts — no separate proof obligation here
     if (runeOf n).ty == "context-subst" then
       return ← replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
+    -- a WHOLE-CLAUSE verdict discharge at SIMPLIFY time (S1.3 2026-07-23:
+    -- the simplify-clause/fc-contradiction and rewrite-clause/type-alist-
+    -- contradiction emitters — forward chaining or type-alist construction
+    -- over the negated literals reached a contradiction; verdict-only, no
+    -- recorded derivation). The node's lhs is the clause's own disjunction,
+    -- rhs 't — the ratified DP carve-out discharges the leaf.
+    if dischargeOrigins.contains (nodeOrigin n) then
+      let dTerm := disjoinTerm (clauseLits.map (·.2))
+      unless (nodeLhsRhs n).1 == dTerm do
+        throwError "replayClauseSpine: whole-clause discharge node lhs \
+                    {repr (nodeLhsRhs n).1} ≠ the clause disjunction \
+                    {repr dTerm} at {idStr}"
+      unless (nodeLhsRhs n).2 == quoteT do
+        throwError "replayClauseSpine: whole-clause discharge node rhs \
+                    {repr (nodeLhsRhs n).2} ≠ (quote t) at {idStr}"
+      unless rest.isEmpty do
+        throwError "replayClauseSpine: items remain after a whole-clause \
+                    discharge at {idStr}"
+      return ← replayDischargeNode cfg ctx dTerm
     -- a :BRANCH-SUBSTITUTION (remove-trivial-equivalences): ACL2 substitutes
     -- `var := val` THROUGHOUT the clause, justified by the clause's own
     -- `(not (equal var val))` literal, and scans the SUBSTITUTED literals.
@@ -245,10 +264,20 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- its branch-substitution trivializes the conclusion)
     if (runeOf n).ty == "equal-self" then
       -- this step CLOSES the clause; trailing spine items would be silently
-      -- unreplayed — fail closed (audit #3 hardening)
+      -- unreplayed — fail closed (audit #3 hardening). (An S1.3 interim
+      -- verify-then-drop for a trailing discharge item was REMOVED, MDD
+      -- 2026-07-23: the item was the fc-contradiction emitter firing
+      -- degenerately on the settled-down pass's residual *true-clause* —
+      -- fixed at the EMITTER with a *true-clause* gate, no walker epicycle.)
       unless rest.isEmpty do
         throwError "replayClauseSpine: {rest.length} spine item(s) after a \
-                    closing clause-level equal-self at {idStr} (frontier)"
+                    closing clause-level equal-self at {idStr} (frontier); \
+                    first: {match rest.head? with
+                            | some (.step m) => s!"step {(runeOf m).ty}/{nodeOrigin m}"
+                            | some (.literal lp) => s!"literal {lp.index}"
+                            | some (.clausify _) => "clausify"
+                            | some (.branch ..) => "branch"
+                            | none => "none"}"
       let (lhs, rhs) := nodeLhsRhs n
       unless rhs == quoteT do
         throwError "replayClauseSpine: clause-level equal-self with rhs \

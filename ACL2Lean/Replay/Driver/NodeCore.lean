@@ -2050,10 +2050,24 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             -- truth is definitional (Logic.not nil = t) — the complement
             -- orientation of the direct case above (multi-elim guard-child
             -- walks surface this: DEFAULT-CAR's hyp (NOT (CONSP v2)) with
-            -- the literal (CONSP v2) assumed false)
+            -- the literal (CONSP v2) assumed false). S1.3 (2026-07-23): the
+            -- falsity may also be an if-finish BRANCH assumption (ACL2's
+            -- type-alist inside the else branch of a split on the atom —
+            -- HOW-MANY-EVENS-AND-ODDS' DEFAULT-CDR relief) — consult
+            -- branchFacts' false-branch entries too.
+            let branchAtmNil? : SExpr → Option Expr := fun atm =>
+              match ctx.branchFacts.find?
+                  (fun (bf : SExpr × Expr × Bool × Expr) =>
+                    bf.1 == atm && !bf.2.2.1) with
+              | some (_, _, _, h) => some h
+              | none => none
             if let some hAtmNil := (match hσ with
                 | .cons (.atom (.symbol ns2)) (.cons atm2 .nil) =>
-                  if ns2.name == "NOT" then ctx.litFactByTerm? atm2 else none
+                  if ns2.name == "NOT" then
+                    match ctx.litFactByTerm? atm2 with
+                    | some h => some h
+                    | none => branchAtmNil? atm2
+                  else none
                 | _ => none) then do
               let hT ← mkAppM ``logic_not_t_of_nil #[hAtmNil]
               let hne ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]

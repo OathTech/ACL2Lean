@@ -32,7 +32,13 @@ totality/TP hypotheses. Two entry points:
     preprocess; see the emission plan). -/
 def dischargeOrigins : List String :=
   ["preprocess/tau", "preprocess/tau-contradiction", "preprocess/type-set-fc",
-   "preprocess/trivial-clause", "preprocess/built-in-clause"]
+   "preprocess/trivial-clause", "preprocess/built-in-clause",
+   -- S1.3 (2026-07-23): whole-clause verdict discharges at SIMPLIFY time —
+   -- forward chaining over the negated literals reached a contradiction
+   -- (simplify-clause1), or the literal's type-alist construction did
+   -- (rewrite-clause). Both emit the preprocess/type-set-fc shape.
+   "simplify-clause/fc-contradiction",
+   "rewrite-clause/type-alist-contradiction"]
 
 /-- Split a disjoined clause's if-spine `(if l₁ 't (if l₂ 't … lₖ))` into
     `([l₁ … l_{k-1}], lₖ)`. A non-spine term is a singleton clause `([], l)`. -/
