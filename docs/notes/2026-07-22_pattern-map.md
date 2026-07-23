@@ -53,7 +53,8 @@ discharges through it as a PROVED step with no rewrites).
 `frontier-pinned` (p1-or-opt-probe); user geneqv `books` (cov-cong-consume — a with-lemma step recorded
 with :EQUIV SAME-LEN2, the L2 lane's core artifact);
 free-var hyp relief `corpus`; FORCING / case-split `frontier-pinned` (cov-force-round — the ROUND
-captured, [1]Goal ids; parser fails-closed on the MODULO event);
+captured incl. (:QED :FORCED 1); untagged prose leaks into the log —
+a fork SUPPRESS gap, per the 2026-07-23 audit correction);
 backchain limits `books` (cov-backchain-limit — EMISSION pin: stored
 rules carry no limit field); syntaxp/bind-free `corpus`
 (SYNP relief); rewrite-cache effects `books`
@@ -152,9 +153,12 @@ Breadth batch 3 (2026-07-22, 5 books):
   :TYPE-PRESCRIPTION closing the goal by type-set — probe finding).
   A forced hyp needing INDUCTION → unrelievable at use time → round:
   3 QEDs for 2 defthms, clause-ids `[1]Goal`, `[1]Subgoal *1/1`,
-  `[1]Subgoal *1/2`. **PARSE frontier pinned**: `Unknown proof log
-  event: MODULO` — the round emission uses vocabulary the parser has
-  never seen; fail-closed as designed.
+  `[1]Subgoal *1/2`, and a structured `(:QED :FORCED 1)`. **Frontier
+  pinned — CORRECTED by the gap audit (2026-07-23)**: the parse error
+  `Unknown proof log event: MODULO` is NOT new round vocabulary — it
+  is ACL2's untagged English prose ("Modulo the following forced
+  goal…") LEAKING into the log, a fork suppress/emit gap. The fix is
+  a suppression patch, not a parser extension.
 - `cov-backchain-limit` — reconstructs; **EMISSION pin**: the stored
   (:RULES …) entry `((:REWRITE BFN-RULE) ((INTEGERP X)) EQUAL (BFN X)
   '0)` carries NO backchain-limit field — limits are invisible to the
@@ -204,6 +208,77 @@ check what TYPE-SET/TAU/the fn's own :TYPE-PRESCRIPTION can conclude
 about the probe's functions — degenerate (constant/boolean-obvious)
 values get the goal closed without ever exercising the target
 machinery (force-round v1, rewrite-cache v1, linear-pot v1).
+
+Breadth batch 5 (2026-07-23, the GAP-AUDIT batch — 11 books from the
+Opus auditor's ranked findings; audit corrections applied):
+
+- `cov-let-lambda` — **A1 confirmed, the map's biggest blind spot**:
+  plain `let` (the commonest binding construct, ZERO prior usage in
+  any sample) reproduces the LAMBDA-frame parse frontier standalone:
+  `:PATH frame fn … (LAMBDA (Y) (BINARY-* Y Y))`. `cov-mv-let` pins
+  the MV encoding the same way (`(LAMBDA (MV) (CONS (MV-NTH …)`).
+- `cov-or-hint` — **NEW parse pin**: the `:or` hint's log trips
+  `single-colon or malformed package marker unsupported` — a token
+  shape no other book produces.
+- `cov-number-literals` — **capture-halt family extended**: a negative
+  ratio literal (`-1/2`) in a defthm halts the session at the first
+  event, exactly like `#c`. `cov-quoted-constant-rule` and
+  `cov-type-set-inverter` — both exotic rule classes halt the session
+  at their admission (frame rows now complete for all 19 rule-class
+  tokens, two as halt-pins).
+- `cov-do-not-hints`, `cov-nonlinear`, `cov-elim-irrelevance`,
+  `cov-induct-hint`, `cov-deftheory` — all reconstruct (dedicated
+  books for the auditor's B items).
+- Audit disposition: C1 corrected above (untagged PROSE leak, not
+  round vocabulary); D-sorting resolved (sources ARE tracked — in the
+  acl2 submodule, per books.txt — invisible to the repo-only check).
+
+## The REPLAY dimension (2026-07-23, MDD)
+
+Coverage now records how DEEP the pipeline reaches per book — the
+focused replay CLI run over every reconstructing pattern book
+(observation only; nothing wired into the sweep). Result: **26
+pattern theorems REPLAY end-to-end kernel-checked; 23 fail at NAMED
+frontiers**, clustering into ~7 classes:
+
+1. `clausify multi-bridge: splits/out/proofs mismatch` — ALL six
+   defequiv/defrefinement/defcong OBLIGATION theorems (three books,
+   one frontier class: the boolean-equivalence obligation's multi-way
+   split shape).
+2. `preprocess chain with child clauses at Goal` — the :use-hint
+   class (known) + user-equiv rule admissions.
+3. DP leaf tactic FAILED — nonlinear arithmetic; bare boolean-var
+   shapes (z1-decides).
+4. Registry one-liners — RATIONALP (two-valued recognizers), FORCE
+   (DP-lift), PICK/defchoose (builtin registry).
+5. `no literal or step items in clause Goal` — the :cases/:or
+   apply-top-hints Goal shape.
+6. branch-substitution — `cov-trivial-drop2` reproduces ORDEREDP-
+   MEMB's ENTIRE journey to the same wall (the minimal book's full
+   validation).
+7. if-finish mismatches — the or-opt iff identity (P11) and forced
+   contexts.
+
+## Prioritization (MDD, 2026-07-23 — do not eat the whale)
+
+Ranking rule: (1) what the TARGET CORPUS needs, (2) what is OBVIOUSLY
+deficient, (3) what matters to ACL2 broadly. **Missing features are
+acceptable; baked-in bad design is not** — where a new feature and a
+fake-replay-inventory kill conflict, the kill wins.
+
+- P1 (corpus-needed): branch-substitution class; the fork-batch
+  emissions (:TA-RUNES threading, FC-contradiction discharge,
+  conjunction split, untagged-prose suppression); NFIX μ-measure;
+  :use hints.
+- P2 (obviously deficient): LET/lambda path frames (ubiquitous —
+  every real book will hit it); the CAPTURE-HALT family (defattach,
+  local, ratio literals, #c, the two exotic rule classes — session
+  death is the worst failure mode); guard proofs unlogged.
+- P3 (ACL2-important): L2/user-equivalence lane (obligation
+  multi-bridge + :EQUIV consumption — also corpus-adjacent via
+  ORDERED-PERMS); forcing rounds; defun-sk; nonlinear; meta rules.
+- Deliberately deferred: stobjs, defattach semantics, complex
+  numbers beyond the reader pin, :program mode.
 
 ## Driver inventory — candidate fake-replay infrastructure (pin now, kill later)
 
