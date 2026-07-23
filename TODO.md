@@ -5,32 +5,30 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-21._
+_Last updated: 2026-07-23._
 
-> **NEXT ARC (ratified with MDD 2026-07-21): the MAPPING arc — anchored
-> circles over the pattern space.** Method: for each supported (or
-> failing) mechanism, ANCHOR at a real corpus row → locate the
-> generating ACL2 source site → enumerate the axes that code actually
-> branches on → author one minimal SYNTHETIC BOOK per branch, run
-> through real ACL2 + the capture pipeline (amended rule: synthetic
-> books yes, synthetic ARTIFACTS never — every log is a real ACL2 run;
-> every family is anchored by a wild corpus occurrence; axes come from
-> source, not imagination). Deliverables: `acl2_samples/pattern-tests/`
-> corpus + second coverage table/golden; a MAP doc (pattern → source
-> site → axes → books → status, incl. unreachable-by-construction);
-> interpreter-layer twin = differential-suite build-out (each
-> trusted-core primitive pinned WITH its differential family, H3 made
-> systematic); CLAUDE.md amendment wording presented for ratification
-> at emission-arc close-out. The exercised-infra audit folds in here
-> (infra with no book in its circle = unexercised by construction).
-> **Native-lift component (MDD 2026-07-21):** each pattern book gets,
-> where feasible, an `Imported/` NATIVE LIFT closing the pipeline
-> end-to-end — this is the guard against the un-guarded failure mode
-> (replay succeeds, kernel accepts, but the mirror statement is NOT
-> isomorphic to the intended Lean theorem because stages 2–6 mangled
-> the semantics). Books whose natural native statement is Logic-bound
-> (ACL2-quirk circles) are FLAGGED as such in the map — lack of a lift
-> must be visible, never silent.
+> **Mapping arc (branch `mdd/mapping-arc`, 2026-07-22/23) — COVERAGE
+> COMPLETE at increment 8; UNMERGED.** Scope as executed (MDD
+> corrections during the arc): COVERAGE ONLY — no pipeline changes, no
+> support work, no sweep wiring; a frontier-landing book is a SUCCESS.
+> Deliverables: `docs/notes/2026-07-22_pattern-map.md` (the gated map:
+> top-down coverage frame over ACL2's own inventory, frontier tier,
+> driver fake-replay inventory graded [bridge]/[rederive]/[mirror],
+> quirk backlog, MDD triage — corpus-need > obvious-deficiency >
+> ACL2-importance, bad design outranks missing features); 46 books in
+> `acl2_samples/pattern-tests/` all through real ACL2; an independent
+> Opus gap audit (actioned: LET/lambda blind spot, all 19 rule-class
+> tokens, C1 prose-leak correction); the REPLAY dimension (26 pattern
+> theorems replay end-to-end, 23 named-frontier in ~7 classes);
+> `scripts/check-pattern-map.sh` in ci (bidirectional + logs + pin
+> signatures — the map cannot rot). Support backlog now PIN-DERIVED:
+> P2 capture-halt family (defattach/local/ratio-literals/#c/exotic
+> rule classes), untagged-prose suppression, guard proofs unlogged,
+> LET/lambda frames, backchain-limit emission; P3 L2 lane (obligation
+> multi-bridge + :EQUIV consumption artifacts on disk), forcing
+> rounds, defun-sk, nonlinear. Native lifts + differential families:
+> deferred to support-side arcs (visible in map, not silently
+> dropped).
 
 > **Emission arc (branch `mdd/emission-arc`, 2026-07-21/22) — GRIND
 > COMPLETE at increment 12, 47→60/79 (28 uncond + 32 cond), DP ✓29 ◌7
