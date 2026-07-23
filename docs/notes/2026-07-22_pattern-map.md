@@ -25,8 +25,8 @@ encapsulate/constrained-fns `books` (cov-encapsulate — reconstructs);
 defun-sk (quantifiers) `frontier-pinned` (cov-defun-sk — recon fails, -suff shape); defchoose `books` (cov-defchoose); defconst `books-partial` +
 local `frontier-pinned` (cov-defconst-local — the top-level LOCAL
 defthm logs with :SOURCE :LOCAL, then the session HALTS before the
-next event; capture-layer pin);  defequiv/defcong `books` (cov-congruence — obligations reconstruct; consumption-side book queued); defattach `UNCOVERED` (likely
-out-of-tier); verify-guards `frontier-pinned` (cov-verify-guards — the defun/TP
+next event; capture-layer pin);  defequiv/defcong `books` (cov-congruence — obligations reconstruct; consumption-side book queued); defattach `frontier-pinned`
+(cov-defattach — CAPTURE halt at the event); verify-guards `frontier-pinned` (cov-verify-guards — the defun/TP
 events emit but the GUARD OBLIGATION PROOF is entirely absent from
 the log; an emission-coverage gap pinned).
 
@@ -56,8 +56,10 @@ free-var hyp relief `corpus`; FORCING / case-split `frontier-pinned` (cov-force-
 captured, [1]Goal ids; parser fails-closed on the MODULO event);
 backchain limits `books` (cov-backchain-limit — EMISSION pin: stored
 rules carry no limit field); syntaxp/bind-free `corpus`
-(SYNP relief); rewrite-cache effects `UNCOVERED`; linear-pot
-integration `UNCOVERED` (beyond discharge leaves).
+(SYNP relief); rewrite-cache effects `books`
+(cov-rewrite-cache — ONE recorded unfold for TWO occurrences);
+linear-pot integration `books` (cov-linear-pot —
+(:FAKE-RUNE-FOR-LINEAR NIL) captured).
 
 **Hints:** :use `corpus` (LEN2-APP-VIA-USE, recon-05, frontier);
 :induct `corpus` (recon-05?); :expand `books` (cov-expand-hint); :cases `books` (cov-cases-hint); :by `books` (cov-by-hint); :in-theory `corpus` (implicit);
@@ -66,7 +68,7 @@ computed hints `books` (cov-computed-hint).
 **Value/interpreter surface:** integers `corpus`; rationals
 `frontier-pinned` (NUMERATOR rows, design-parked); complex numbers `frontier-pinned` (cov-complex — CAPTURE-layer halt); characters/strings `corpus` (STRINGP lift); symbols/
 packages `corpus` (BUG-002 family); guard-vs-logic-mode distinctions
-`UNCOVERED`.
+`books` (cov-guard-logic — guards leave no proof-surface trace).
 
 Priority for book authoring: the `UNCOVERED` items above, breadth
 first — one minimal book each, captured through real ACL2, observed
@@ -167,6 +169,41 @@ Breadth batch 3 (2026-07-22, 5 books):
 - `cov-typeset-decode` — reconstructs; three distinct `:TYPESET`
   values captured (3072, 40, 6) — the decode probes for inventory
   entry 6.
+
+Breadth batch 4 (2026-07-22, 6 books + 2 iterations — the frame's
+last UNCOVERED items):
+
+- `cov-trivial-drop2` — **the (ii)-class :SCHEME-DROPPED reproduced
+  STANDALONE** (iteration 2, via the *1-revert route keeping the
+  IMPLIES literal whole): the emitted record carries exactly the
+  merged-base-case tautology clause. Quirk-backlog item closed;
+  reconstructs (2.9k-line inductive proof).
+- `cov-rewrite-cache` — **cache semantics pinned** (iteration 2;
+  iteration 1 was closed by the constant fn's own TP): a subterm
+  occurring TWICE gets ONE recorded unfold — the cache suppresses the
+  second occurrence's steps. Load-bearing for any future replay of
+  repeated redexes.
+- `cov-linear-pot` — **`(:FAKE-RUNE-FOR-LINEAR NIL)` captured**
+  (iteration 2; iteration 1 was swallowed whole by
+  (:EXECUTABLE-COUNTERPART TAU-SYSTEM)): the pot list's contribution
+  is visible — another verdict-only source the carve-out family will
+  meet. Reconstructs.
+- `cov-defattach` — **CAPTURE-layer halt**: the encapsulate theorem +
+  its gz snapshot emit, then the session dies at the defattach event
+  (the following theorem never logs). Same halt family as top-level
+  LOCAL.
+- `cov-complex-defun` — completes the `#c` boundary at THREE layers:
+  defthm-with-#c halts CAPTURE (cov-complex); a defun BODY with #c
+  captures and emits fine (`:BODY (BINARY-+ X '#C(0 1))`); and OUR
+  PARSER then fails closed (`unrecognized reader macro: #C`).
+- `cov-guard-logic` — reconstructs; pins that guards leave no trace
+  in the proof surface (logic-mode car nil = nil, no guard events).
+
+**Probe-craft rule (earned three times over):** before authoring,
+check what TYPE-SET/TAU/the fn's own :TYPE-PRESCRIPTION can conclude
+about the probe's functions — degenerate (constant/boolean-obvious)
+values get the goal closed without ever exercising the target
+machinery (force-round v1, rewrite-cache v1, linear-pot v1).
 
 ## Driver inventory — candidate fake-replay infrastructure (pin now, kill later)
 
