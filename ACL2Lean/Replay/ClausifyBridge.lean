@@ -1322,9 +1322,15 @@ theorem evtrue_disjoin_of_sublist (w : World) (env : Env) :
     · exact evtrue_disjoin_of_member w env full l vl hconv hlmem hvl hne
     · exact ih full hconv (fun u hu => hsub u (List.mem_cons_of_mem _ hu)) hrest
 
-/-- ACL2's `add-literal` DEDUP, mirrored: keep the FIRST occurrence of each
-    literal (a literal already present in the clause being built is
-    dropped). -/
+/-- The EXACT-DUPLICATE arm of ACL2's `add-literal`, keep-first: a literal
+    already present in the clause being built is dropped. The other
+    `add-literal` arms — complementary-pair / quotep collapse to
+    `*true-clause*`, and any occurrence-order variation — are deliberately
+    UNMODELED: the bridge's acceptance test is exact equality against the
+    recorded clause, so any of those arms firing hard-fails (a false accept
+    is structurally impossible; audit 2026-07-23 finding 1). Soundness never
+    rests on this function's fidelity — `clausifyPure_sound_dedup` is fully
+    general over mem-sublists (`mem_of_mem_dedupClause`). -/
 def dedupClause (ls : List SExpr) : List SExpr :=
   go ls []
 where go : List SExpr → List SExpr → List SExpr
