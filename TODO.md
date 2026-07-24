@@ -42,6 +42,23 @@ _Last updated: 2026-07-23._
 > inventory's bridges as emissions land; missing features acceptable,
 > baked-in bad design not.
 
+> **S1 arc (branch `mdd/s1-capture-hardening`, 2026-07-23) — COMPLETE
+> at 62/79 (28 uncond + 34 cond), DP ✓32 ◌4 ✗0 of 36; UNMERGED.**
+> S1.1 the halt family DISSOLVED (`:EVENT-FAILED`; all were suppressed
+> ordinary event failures) + `:FORCING-ROUND`; S1.2 `:VERIFY-GUARDS`
+> wrapper + backchain 6th field + `:CLAUSIFY-CONJUNCTION`; S1.3
+> FC/type-alist contradiction discharge emitters (`*true-clause*`-gated
+> after an MDD-caught epicycle) + spine consumer; S1.4 the DP lexorder
+> ORDER THEORY + cone-mode budget fix (HOW-MANY-FILTER-1 replays);
+> S1.5 clause-context threading — demand orientation, solidify index
+> demands, TRANSITIVE solidify via deterministic equation closure
+> (MDD-ratified: emit what ACL2 records, derive in Lean what it
+> doesn't), add-literal dedup bridge, endp DP bridge
+> (HOW-MANY-EVENS-AND-ODDS replays). Fork: a291c2ec22 → a90dd10679
+> (5 commits; fork pushes FIRST). Remaining S1-adjacent follow-ups:
+> gz-snapshot backchain field, P8 conjunction spine consumer,
+> guard-obligation REPLAY, J6-beyond-closure solidify verdicts.
+
 > **Emission arc (branch `mdd/emission-arc`, 2026-07-21/22) — GRIND
 > COMPLETE at increment 12, 47→60/79 (28 uncond + 32 cond), DP ✓29 ◌7
 > ✗0 of 36; UNMERGED, awaiting pre-merge audit.** Landed: 3 fork

@@ -555,13 +555,24 @@ No pattern books exist yet — authoring them is the arc's work.
 - source: forward-chaining rules feeding the type-alist
   (`:TA-RUNES` provenance, fork); `type-alist-clause` contradictions.
 - axes: relief via a single FC rule (LEXORDER-TOTAL, landed); the
-  commuted-source demand; FC CONTRADICTION closing a whole clause
-  (HOW-MANY-FILTER-1 *1/3.3 — EMISSION-PENDING: no discharge node);
-  DEFAULT-CDR-style primitive type-set entries whose source is a
-  segment fact (EMISSION/threading-pending).
+  commuted-source demand (landed); FC CONTRADICTION closing a whole
+  clause (S1.3: `simplify-clause/fc-contradiction` +
+  `rewrite-clause/type-alist-contradiction` discharge emitters,
+  `*true-clause*`-gated; HOW-MANY-FILTER-1 replays via the DP lexorder
+  order theory); DEFAULT-CDR-style clause-context relief (S1.5: the
+  `(NOT atom)` demand orientation + hoist; `relieve-hyp/known-true`
+  markers thread `:TA-RUNES` + `:PARENTS` from the verdict ttree —
+  HOW-MANY-EVENS-AND-ODDS replays). Transitive type-alist EQUIVALENCE
+  (a solidify `:EQUIV-TERM` composing across clause equations) is
+  derived as the deterministic equation closure — MDD-ratified
+  2026-07-23: ACL2 stores classes, never a chain; emit what ACL2
+  records, derive in Lean what it doesn't.
 - anchor: qsort ALL-REL rows; HOW-MANY-FILTER-1;
   HOW-MANY-EVENS-AND-ODDS.
-- books: none yet. status: partially landed; two emission-pending axes.
+- books: none yet (both anchors replay from the wild logs).
+  status: LANDED (S1.3–S1.5); remaining sub-frontier: type-set-derived
+  solidify verdicts BEYOND the equation closure (J6 residue, e.g. both
+  sides nil under ¬consp) — named throw in the solidify arm.
 
 ### P10 — verdict-class recognizers and TP pins
 - source: type-set recognizer resolution (`rewrite-recognizer`,
