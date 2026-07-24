@@ -1287,4 +1287,93 @@ theorem clausifyPure_sound (w : World) (env : Env)
       simp only [Bool.false_eq_true, if_false] at hdis
       exact sound_neg_leaf w env hvars hopq hns hwf _ hl hdis
 
+/-- `EvTrue (disjoin full)` from a true MEMBER (needs the members'
+    convergences to walk the spine). -/
+theorem evtrue_disjoin_of_member (w : World) (env : Env) :
+    ∀ (full : List SExpr) (l : SExpr) (vl : SExpr),
+      (∀ u ∈ full, ∃ vu, ∃ N, ∀ f ≥ N, evalOpt f w env u = some vu) →
+      l ∈ full → (∃ N, ∀ f ≥ N, evalOpt f w env l = some vl) →
+      vl ≠ SExpr.nil → EvTrue w env (disjoinTerm full)
+  | [], _, _, _, hmem, _, _ => absurd hmem (List.not_mem_nil)
+  | f :: fs, l, vl, hconv, hmem, hvl, hne => by
+    rcases List.mem_cons.mp hmem with rfl | hmem'
+    · exact (evtrue_disjoin_cons w env l fs vl hvl).mpr (Or.inl hne)
+    · obtain ⟨vf, hvf⟩ := hconv f List.mem_cons_self
+      exact (evtrue_disjoin_cons w env f fs vf hvf).mpr
+        (Or.inr (evtrue_disjoin_of_member w env fs l vl
+          (fun u hu => hconv u (List.mem_cons_of_mem _ hu)) hmem' hvl hne))
+
+/-- A true SUBLIST disjunction trues the full one (ACL2's `add-literal`
+    dedup drops only duplicate literals, so the recorded clause is a
+    sublist of the pure recompute). -/
+theorem evtrue_disjoin_of_sublist (w : World) (env : Env) :
+    ∀ (dd full : List SExpr),
+      (∀ u ∈ full, ∃ vu, ∃ N, ∀ f ≥ N, evalOpt f w env u = some vu) →
+      (∀ l ∈ dd, l ∈ full) →
+      EvTrue w env (disjoinTerm dd) → EvTrue w env (disjoinTerm full) := by
+  intro dd
+  induction dd with
+  | nil => intro full _ _ h; exact absurd h (not_evtrue_disjoin_nil w env)
+  | cons l rest ih =>
+    intro full hconv hsub h
+    have hlmem := hsub l List.mem_cons_self
+    obtain ⟨vl, hvl⟩ := hconv l hlmem
+    rcases (evtrue_disjoin_cons w env l rest vl hvl).mp h with hne | hrest
+    · exact evtrue_disjoin_of_member w env full l vl hconv hlmem hvl hne
+    · exact ih full hconv (fun u hu => hsub u (List.mem_cons_of_mem _ hu)) hrest
+
+/-- ACL2's `add-literal` DEDUP, mirrored: keep the FIRST occurrence of each
+    literal (a literal already present in the clause being built is
+    dropped). -/
+def dedupClause (ls : List SExpr) : List SExpr :=
+  go ls []
+where go : List SExpr → List SExpr → List SExpr
+  | [], _ => []
+  | l :: rest, seen =>
+    if seen.contains l then go rest seen
+    else l :: go rest (l :: seen)
+
+theorem mem_of_mem_dedupClause_go : ∀ (ls seen : List SExpr) (a : SExpr),
+    a ∈ dedupClause.go ls seen → a ∈ ls := by
+  intro ls
+  induction ls with
+  | nil => intro _ _ h; exact absurd h (List.not_mem_nil)
+  | cons l rest ih =>
+    intro seen a h
+    rw [dedupClause.go] at h
+    split at h
+    · exact List.mem_cons_of_mem _ (ih _ a h)
+    · rcases List.mem_cons.mp h with rfl | h'
+      · exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ (ih _ a h')
+
+theorem mem_of_mem_dedupClause (ls : List SExpr) (a : SExpr)
+    (h : a ∈ dedupClause ls) : a ∈ ls :=
+  mem_of_mem_dedupClause_go ls [] a h
+
+/-- `clausifyPure_sound` over the DEDUPED clause (S1, 2026-07-23): ACL2's
+    `add-literal` drops a literal already present, so the recorded clause is
+    `dedupClause (clausifyPure t pos)`; a true deduped disjunction trues the
+    full one (`evtrue_disjoin_of_sublist`) and the main theorem applies. -/
+theorem clausifyPure_sound_dedup (w : World) (env : Env)
+    {vars : List (Symbol × SExpr)} {opq : List (SExpr × SExpr)}
+    (hvars : ∀ q ∈ vars,
+      ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol q.1)) = some q.2)
+    (hopq : ∀ p ∈ opq, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
+    (hns : dpNoShadow w) (hwf : dpOpqWF opq = true) :
+    ∀ t pos, (dpLiftF vars opq t).isSome →
+      EvTrue w env (disjoinTerm (dedupClause (clausifyPure t pos))) →
+      ClausifyGoal w env t pos := by
+  intro t pos hsome hdd
+  have sound := dpLiftF_sound w env vars opq hvars hopq hns
+  have litconvs : ∀ l ∈ clausifyPure t pos,
+      ∃ vl, ∃ N, ∀ f ≥ N, evalOpt f w env l = some vl :=
+    fun l hl => by
+      obtain ⟨vl, hvl⟩ :=
+        Option.isSome_iff_exists.mp (clausifyPure_lifts hwf t pos hsome l hl)
+      exact ⟨vl, sound l vl hvl⟩
+  refine clausifyPure_sound w env hvars hopq hns hwf t pos hsome ?_
+  exact evtrue_disjoin_of_sublist w env _ _ litconvs
+    (fun l hl => mem_of_mem_dedupClause _ l hl) hdd
+
 end ACL2.Replay

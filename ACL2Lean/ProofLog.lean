@@ -117,6 +117,7 @@ inductive TraceEvent where
       `origin` says how. Lands inside the adopting step's `:KIND HYP` block —
       the replay's rule recipe consumes it in place of a relief chain. -/
   | hypRelief (hyp : SExpr) (origin : String) (taRunes : List Rune)
+      (parents : List SExpr := [])
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
   | beginInnerRewrite (kind : String)
   | endInnerRewrite (kind : String)
@@ -615,7 +616,16 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
                 match parseRune? r with
                 | some rn => pure rn
                 | none => throw s!"HYP-RELIEF: bad :TA-RUNES rune: {repr r}"
-        pure (.hypRelief hyp origin taRunes)
+        -- :PARENTS (optional; known-true markers, S1 2026-07-23): the
+        -- verdict ttree's 'pt tags — the clause literals the type-set
+        -- derivation descended from (same convention as REWRITE-STEP)
+        let parents ← match lookupKeyword "PARENTS" rest with
+          | none => pure []
+          | some r =>
+            match r.toList? with
+            | none => throw s!"HYP-RELIEF: :PARENTS not a list: {repr r}"
+            | some l => pure l
+        pure (.hypRelief hyp origin taRunes parents)
     | .atom (.keyword "CLAUSIFY-TEST") :: rest =>
         let test ← lookupKeyword "TEST" rest
           |>.elim (throw "CLAUSIFY-TEST: missing :TEST") pure

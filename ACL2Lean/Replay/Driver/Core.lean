@@ -396,10 +396,36 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- FIRST — its truth closes the whole disjunction; its falsity joins
     -- litFacts and the walk re-enters (one fewer demand each time).
     let demanded := (lp.nodes.flatMap collectContextDemands).eraseDups
-    for notH in demanded do
-      if (ctx.litFactByTerm? notH).isSome then continue
-      let some (k, _) := restLits.find? (fun (_, l) => l == notH)
-        | continue  -- not a later literal: the consumer fails precisely if missing
+    for dem in demanded do
+      -- resolve the demand to a LATER clause literal (index, term) with no
+      -- fact in scope; anything else is skipped — the consumer fails
+      -- precisely if the fact is genuinely missing
+      let resolved : Option (Nat × SExpr) :=
+        match dem with
+        | .term t =>
+          if (ctx.litFactByTerm? t).isSome then none
+          else (restLits.find? (fun (_, l) => l == t)).map fun (i, _) => (i, t)
+        | .litIdx k =>
+          if (ctx.litFact? k).isSome then none
+          else restLits.find? (fun (i, _) => i == k)
+        | .equivClass a b => Id.run do
+          -- the connected component of {a, b} over ALL the clause's equality
+          -- literals (grown to fixpoint), then the first LATER equality
+          -- literal in it lacking an in-scope fact — one hoist per re-entry
+          let eqLits := clauseLits.filterMap fun (i, l) =>
+            (notEqualSides? l).map fun (u, v) => (i, l, u, v)
+          let mut comp : List SExpr := [a, b]
+          for _ in List.range (eqLits.length + 1) do
+            for (_, _, u, v) in eqLits do
+              if comp.contains u || comp.contains v then
+                if !comp.contains u then comp := comp ++ [u]
+                if !comp.contains v then comp := comp ++ [v]
+          return (restLits.filterMap (fun (i, l) =>
+              (notEqualSides? l).bind fun (u, v) =>
+                if (comp.contains u || comp.contains v) &&
+                   (ctx.litFact? i).isNone && (ctx.litFactByTerm? l).isNone
+                then some (i, l) else none)).head?
+      let some (k, notH) := resolved | continue
       let ctx ← pinTermOpaques cfg cfg.envExpr ctx notH
       let vL ← ctxValExpr cfg ctx notH
       let pL ← ctxValProof cfg ctx notH

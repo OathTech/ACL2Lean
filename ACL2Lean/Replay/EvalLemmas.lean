@@ -26,6 +26,7 @@
 -/
 import ACL2Lean.EvalOpt
 import ACL2Lean.Count
+import ACL2Lean.LexorderOrder
 import Mathlib.Tactic
 
 namespace ACL2.Replay
@@ -3205,6 +3206,13 @@ theorem consp_toBool_of_endp_nil {v : SExpr}
     Logic.toBool (Logic.consp v) = true := by
   cases v <;> simp_all [Logic.endp, Logic.consp, Logic.toBool]
 
+/-- `endp` as `not ∘ consp` — the DP leaf tactic's bridge (S1 2026-07-23):
+    `endp`'s own match is stuck on a symbolic value, but through
+    `not`/`consp` the `toBool` bridges and `split_ifs` machinery apply. -/
+theorem logic_endp_eq_not_consp (s : SExpr) :
+    Logic.endp s = Logic.not (Logic.consp s) := by
+  cases s <;> rfl
+
 /-- RUNE `if-same-branches` (`if1/same-branches`): `(if c a a) ⇒ a` — the
     branch value is the if value whichever way the test goes; the test must
     converge (lazy `if` evaluates it first). Term-to-term. -/
@@ -3285,6 +3293,27 @@ theorem lexorder_boolean (a b : SExpr) :
 theorem cond_toBool_lexorder (a b : SExpr) :
     cond (Logic.toBool (lexorder a b)) SExpr.t SExpr.nil = lexorder a b := by
   rcases lexorder_boolean a b with h | h <;> simp [h, Logic.toBool, SExpr.t]
+
+/-- ACL2's built-in LEXORDER-ANTI-SYMMETRIC in the TRUTHY shape the DP leaf
+    hypotheses take after `Logic.not` unfolds (`≠ nil` rather than `= t`;
+    bridged by `lexorder_boolean`). Part of the DP order theory: tau closes
+    clauses with contradictory `lexorder` literal sets using its built-in
+    lexorder theorems, so the carve-out's decision procedure carries the same
+    facts, kernel-proved (S1, 2026-07-23). -/
+theorem lexorder_antisymm_ne {a b : SExpr}
+    (h1 : lexorder a b ≠ SExpr.nil) (h2 : lexorder b a ≠ SExpr.nil) : a = b :=
+  lexorder_antisymm
+    ((lexorder_boolean a b).resolve_right h1)
+    ((lexorder_boolean b a).resolve_right h2)
+
+/-- ACL2's built-in LEXORDER-TOTAL in CONDITIONAL form (no disjunction, so
+    `simp_all` can consume it as a rewrite): a nil verdict one way forces `t`
+    the other way. DP order theory, as `lexorder_antisymm_ne`. -/
+theorem lexorder_total_ne {a b : SExpr}
+    (h : lexorder a b = SExpr.nil) : lexorder b a = SExpr.t := by
+  rcases lexorder_total a b with ht | ht
+  · rw [h] at ht; exact absurd ht (by simp [SExpr.t])
+  · exact ht
 
 /-- `Logic.equal` is symmetric at the value level — if-interp's COMMUTATIVE
     assumption matching (`if-interp-assumed-value2`), re-derived by the

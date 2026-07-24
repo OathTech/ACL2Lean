@@ -1359,6 +1359,67 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
   | none => return unfold
   | some ch => mkAppM ``fuel_chain_eq #[unfold, ch]
 
+/-- A clause-context equation literal `(not (equal A B))`, viewed as its sides. -/
+def notEqualSides? : SExpr → Option (SExpr × SExpr)
+  | .cons (.atom (.symbol ns))
+      (.cons (.cons (.atom (.symbol es)) (.cons a (.cons b .nil))) .nil) =>
+    if ns.name == "NOT" && es.name == "EQUAL" then some (a, b) else none
+  | _ => none
+
+/-- The in-scope clause-context EQUATIONS: every litFact/segFact of shape
+    `(not (equal A B))`, as side pairs with the recorded falsity proof. This
+    set's equivalence closure IS ACL2's type-alist class structure over the
+    clause (assume-true-false on every literal). -/
+def inScopeEquations (ctx : ReplayCtx) : List (SExpr × SExpr × Expr) :=
+  (ctx.litFacts.filterMap fun (_, t, h) =>
+    (notEqualSides? t).map fun (a, b) => (a, b, h)) ++
+  (ctx.segFacts.filterMap fun (t, h) =>
+    (notEqualSides? t).map fun (a, b) => (a, b, h))
+
+/-- BFS a chain `src → dst` through the equation edges, each usable in either
+    orientation. DETERMINISTIC, not search: the closure of a finite equation
+    set is canonical, edges are tried in fact order, and the first (shortest)
+    path is taken — any valid chain proves the same pinned equation. Each step
+    is `(a, b, falsityProof, flipped)` (`flipped` = walked b→a). -/
+def eqChain? (eqs : List (SExpr × SExpr × Expr)) (src dst : SExpr) :
+    Option (List (SExpr × SExpr × Expr × Bool)) := Id.run do
+  if src == dst then return some []
+  let mut paths : List (SExpr × List (SExpr × SExpr × Expr × Bool)) := [(src, [])]
+  let mut visited : List SExpr := [src]
+  for _ in List.range (eqs.length + 1) do
+    let mut next : List (SExpr × List (SExpr × SExpr × Expr × Bool)) := []
+    for (t, path) in paths do
+      for (a, b, h) in eqs do
+        let step? :=
+          if a == t && !visited.contains b then some (b, (a, b, h, false))
+          else if b == t && !visited.contains a then some (a, (a, b, h, true))
+          else none
+        if let some (t', edge) := step? then
+          let path' := path ++ [edge]
+          if t' == dst then return some path'
+          visited := visited ++ [t']
+          next := next ++ [(t', path')]
+    paths := next
+  return none
+
+/-- Compose the value-level equality `val(src) = val(dst)` along an equation
+    chain (TRANSITIVE type-alist equivalence, MDD-ratified 2026-07-23: ACL2's
+    type-alist stores equivalence CLASSES, never a chain — the composition is
+    derived deterministically here, its target pinned by the solidify node's
+    emitted `:EQUIV-TERM`). Returns `none` on an empty chain. -/
+def composeEqChain (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (chain : List (SExpr × SExpr × Expr × Bool)) : MetaM (Option Expr) := do
+  let mut acc : Option Expr := none
+  for (a, b, hNil, flipped) in chain do
+    let va ← ctxValExpr cfg ctx a
+    let vb ← ctxValExpr cfg ctx b
+    let hEq ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]
+    let hEq ← if flipped then mkAppM ``Eq.symm #[hEq] else pure hEq
+    acc := some (← match acc with
+      | none => pure hEq
+      | some p => mkAppM ``Eq.trans #[p, hEq])
+  return acc
+
 /-- Replay one rewrite node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`, by
     applying that rune's recipe. (equal-self is the literal closer, handled in
     `replayLiteral`, not here.) `depth` = the number of unfold/rule boundaries
@@ -1385,13 +1446,27 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let idx ← match src with
       | .literal idx => pure idx
       | .typeSetDerived =>
-        -- J6: the equivalence was believed by ACL2's TYPE-SET under the
-        -- branch facts (verdict-class, no recorded derivation). The
-        -- value-level discharge recipe (e.g. both sides nil under a
-        -- ¬consp fact) is the named follow-up.
-        throwFrontier m!"solidify: type-set-derived equivalence \
-            {repr (prov.equivTerm.getD .nil)} — value-level discharge from \
-            branch facts not yet implemented (J6 replay frontier)"
+        -- J6 → S1 (MDD-ratified 2026-07-23): the type-set believed the
+        -- equivalence under the clause context (verdict-class, no recorded
+        -- derivation — ACL2 has nothing more to emit). When the equation
+        -- lies in the context's equivalence CLOSURE, the closure chain IS
+        -- the derivation — the same deterministic route as the transitive
+        -- literal case. Verdicts beyond the equation closure (genuine
+        -- type-set reasoning, e.g. both sides nil under ¬consp) remain the
+        -- named J6 frontier.
+        let eqs := inScopeEquations ctx
+        let some chain := eqChain? eqs lhs rhs
+          | throwFrontier m!"solidify: type-set-derived equivalence \
+              {repr (prov.equivTerm.getD .nil)} — not in the clause context's \
+              equation closure ({eqs.length} in-scope equation(s)); \
+              value-level type-set discharge not implemented (J6 replay \
+              frontier)"
+        let some valueEq ← composeEqChain cfg ctx chain
+          | throwError "solidify: internal — empty equation chain for \
+                        type-set-derived {repr lhs} ⇒ {repr rhs}"
+        let pl ← ctxValProof cfg ctx lhs
+        let pr ← ctxValProof cfg ctx rhs
+        return ← mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
       | .branchTest =>
         -- the equivalence IS an enclosing unresolved-if's test, assumed TRUE
         -- in the then-branch the node's path descends through (ACL2's
@@ -1504,20 +1579,36 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     unless notS.name == "NOT" && eqS.name == "EQUAL" do
       throwError "solidify: source literal heads {notS.name}/{eqS.name}"
     -- orientation: the node rewrites one side of the equation to the other
-    let (flip : Bool) ←
-      if lhs == tb && rhs == ta then pure true
-      else if lhs == ta && rhs == tb then pure false
-      else throwError "solidify: node sides {repr lhs} ⇒ {repr rhs} do not match the \
-                       source equation ({repr ta} = {repr tb})"
-    let va ← ctxValExpr cfg ctx ta
-    let vb ← ctxValExpr cfg ctx tb
-    -- hNil : Logic.not (Logic.equal va vb) = nil  (the spine built the literal's
-    -- value with the same builder, so this is its exact type)
-    let hEq ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]   -- va = vb
-    let valueEq ← if flip then mkAppM ``Eq.symm #[hEq] else pure hEq
-    let pl ← ctxValProof cfg ctx lhs
-    let pr ← ctxValProof cfg ctx rhs
-    mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
+    if lhs == ta && rhs == tb || lhs == tb && rhs == ta then
+      let flip := lhs == tb && rhs == ta
+      let va ← ctxValExpr cfg ctx ta
+      let vb ← ctxValExpr cfg ctx tb
+      -- hNil : Logic.not (Logic.equal va vb) = nil  (the spine built the literal's
+      -- value with the same builder, so this is its exact type)
+      let hEq ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]   -- va = vb
+      let valueEq ← if flip then mkAppM ``Eq.symm #[hEq] else pure hEq
+      let pl ← ctxValProof cfg ctx lhs
+      let pr ← ctxValProof cfg ctx rhs
+      mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
+    else
+      -- TRANSITIVE type-alist equivalence (MDD-ratified 2026-07-23): the
+      -- node's equation is a composition across the clause's equations —
+      -- ACL2's type-alist unions equivalence classes and records no chain
+      -- (there is nothing more to emit), so derive the chain as the
+      -- deterministic closure of the in-scope equations. The three
+      -- E-equations of HOW-MANY-EVENS-AND-ODDS *1/2.8 are the anchor case.
+      let eqs := inScopeEquations ctx
+      let some chain := eqChain? eqs lhs rhs
+        | throwError "solidify: node sides {repr lhs} ⇒ {repr rhs} match \
+                      neither the source equation ({repr ta} = {repr tb}) nor \
+                      any equation chain of the clause context \
+                      ({eqs.length} in-scope equation(s)) (frontier)"
+      let some valueEq ← composeEqChain cfg ctx chain
+        | throwError "solidify: internal — empty equation chain for distinct \
+                      sides {repr lhs} ⇒ {repr rhs}"
+      let pl ← ctxValProof cfg ctx lhs
+      let pr ← ctxValProof cfg ctx rhs
+      mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
   | "rewrite", "CDR-CONS" =>
     -- `(cdr (cons a b)) ⇒ b`.
     match lhs with
@@ -3192,18 +3283,42 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .clausify _ :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
 
+/-- A clause-context falsity demand: either an exact clause-literal TERM, or
+    a clause-literal INDEX (solidify nodes name their source literal by index,
+    not by term). -/
+inductive ContextDemand where
+  | term (t : SExpr)
+  | litIdx (k : Nat)
+  /-- The clause's equality literals CONNECTED to `{a, b}` (the solidify
+      node's `:EQUIV-TERM` sides) are all demanded — the transitive
+      type-alist equivalence needs the whole component in scope. -/
+  | equivClass (a b : SExpr)
+  deriving BEq
+
 /-- The CLAUSE-CONTEXT falsity demands of a literal's chain, as the exact
-    clause-literal terms whose falsity the chain's nodes consume (ACL2 rewrites
-    literal i under the falsity of ALL other clause literals):
+    clause-literal terms/indices whose falsity the chain's nodes consume
+    (ACL2 rewrites literal i under the falsity of ALL other clause literals):
     - a silent hyp-relief marker for hyp `h` demands `(not h)`;
     - a `type-alist` nil-verdict node `l ⇒ 'nil` demands `l` itself;
-    - a `type-alist` truthy node `l ⇒ 't` demands `(not l)`. -/
-partial def collectContextDemands : ProofNode → List SExpr
+    - a `type-alist` truthy node `l ⇒ 't` demands `(not l)`;
+    - a solidify node with a `.literal k` equiv source demands literal `k`
+      (S1 2026-07-23 — the IH equation consumed from a LATER literal). -/
+partial def collectContextDemands : ProofNode → List ContextDemand
   | .node ⟨rty, _, _⟩ l rh children prov =>
     let notOf : SExpr → SExpr := fun t =>
       .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
     (if rty == "hyp-relief" then
-       [notOf l] ++
+       [ContextDemand.term (notOf l)] ++
+       -- a (NOT atom) hyp's clause-context source is the ATOM literal — its
+       -- falsity IS the hyp's truth (the complement orientation the marker
+       -- consumer's route already reads; DEFAULT-CDR's (NOT (CONSP (CDR X)))
+       -- hyp at HOW-MANY-EVENS-AND-ODDS, S1 2026-07-23). Demand the atom too
+       -- so the walk hoists it when it sits later in the clause; a demand
+       -- that is no clause literal is skipped harmlessly at the hoist site.
+       (match l with
+        | .cons (.atom (.symbol ns)) (.cons atm .nil) =>
+          if ns.name == "NOT" then [ContextDemand.term atm] else []
+        | _ => []) ++
        -- an FC-DERIVED relief (the LEXORDER-TOTAL registry, marker :TA-RUNES)
        -- consumes the COMMUTED lexorder application's falsity — demand that
        -- literal too so the walk hoists it when it sits later in the clause
@@ -3212,19 +3327,30 @@ partial def collectContextDemands : ProofNode → List SExpr
         | .cons (.atom (.symbol ls)) (.cons u (.cons v .nil)) =>
           if ls.name == "LEXORDER" && prov.taRunes.any
               (fun r => r.ty == "forward-chaining" && r.name == "LEXORDER-TOTAL")
-          then [.cons (.atom (.symbol ls)) (.cons v (.cons u .nil))]
+          then [ContextDemand.term (.cons (.atom (.symbol ls)) (.cons v (.cons u .nil)))]
           else []
         | _ => [])
      else if rty == "type-alist" then
-       if rh == quoteNil then [l]
-       else if rh == quoteT then [notOf l]
+       if rh == quoteNil then [ContextDemand.term l]
+       else if rh == quoteT then [ContextDemand.term (notOf l)]
        else []
+     else if rty == "rewriting-equivalence" then
+       -- a solidify node consumes its source literal's falsity BY INDEX; a
+       -- transitive equivalence (S1 2026-07-23) additionally needs the whole
+       -- connected component of its :EQUIV-TERM sides in scope
+       (match prov.equivSource with
+        | some (.literal k) => [ContextDemand.litIdx k]
+        | _ => []) ++
+       (match prov.equivTerm with
+        | some (.cons (.atom (.symbol es)) (.cons a (.cons b .nil))) =>
+          if es.name == "EQUAL" then [ContextDemand.equivClass a b] else []
+        | _ => [])
      else if prov.origin == "recognizer/true" then
        -- a recognizer resolved TRUE from the clause context (a later
        -- literal is its negation — EQUAL-CONS Subgoal 4); hoisting is a
        -- no-op when the fact is derivable another way
-       [notOf l]
-     else if prov.origin == "recognizer/false" then [l]
+       [ContextDemand.term (notOf l)]
+     else if prov.origin == "recognizer/false" then [ContextDemand.term l]
      else []) ++ children.flatMap collectContextDemands
 
 /-- `EvTrue (disjoin lits)` from the TRUTH of the k-th literal (0-based):

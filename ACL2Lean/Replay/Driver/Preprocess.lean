@@ -403,9 +403,16 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
                 split (internal)"
   let (t', heq?) ← runCheckedExpand b hwf (info.splitExpands.map (·.2))
     info.input true
-  unless clausifyPure t' true == cl0 do
+  -- ACL2's `add-literal` DEDUP arm (S1 2026-07-23): a literal already
+  -- present is dropped, so the recorded clause may be the recompute's
+  -- eraseDups — accepted, with the proof routed through
+  -- `clausifyPure_sound_dedup` (a true deduped disjunction trues the full
+  -- one). Any other divergence still hard-fails.
+  let recomputedSplit := clausifyPure t' true
+  let dedupHit := recomputedSplit != cl0 && dedupClause recomputedSplit == cl0
+  unless recomputedSplit == cl0 || dedupHit do
     throwError "clausify bridge: recomputed split clause \
-                {repr (clausifyPure t' true)} ≠ recorded {repr cl0} \
+                {repr recomputedSplit} ≠ recorded {repr cl0} \
                 (divergence: an unregistered expansion, disjoin-clauses \
                 literal merging, or an unmirrored dumb-negate-lit arm)"
   unless info.out == [cl0] do
@@ -425,7 +432,8 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
     mkExpectedTypeHint (← mkEqRefl (mkConst ``Bool.true))
       (← mkEq isSomeApp (mkConst ``Bool.true))
   let hisSomeT' ← mkIsSome t'
-  let prfT' ← mkAppM ``clausifyPure_sound
+  let prfT' ← mkAppM
+    (if dedupHit then ``clausifyPure_sound_dedup else ``clausifyPure_sound)
     #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
       reflectSExpr t', mkConst ``Bool.true, hisSomeT', pOut]
   let prf ← match heq? with

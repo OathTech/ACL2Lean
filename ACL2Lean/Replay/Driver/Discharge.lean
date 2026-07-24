@@ -61,25 +61,88 @@ partial def dpSpine : SExpr → List SExpr × SExpr
     what tau itself knows about every recognizer (truthiness IS `= t`). -/
 def dpLeafTactic : MetaM (TSyntax `tactic) :=
   `(tactic| first
-      | (simp_all [-Logic.toBool, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
+      | (simp_all [-Logic.toBool, -Logic.endp, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
                    Logic.not, Logic.integerp, Logic.consp, Logic.toRat,
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
                    SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
-                   Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat] <;>
+                   Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat,
+                   logic_endp_eq_not_consp] <;>
           omega)
-      | (simp_all [-Logic.toBool, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
+      | (simp_all [-Logic.toBool, -Logic.endp, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
                    Logic.not, Logic.integerp, Logic.consp, Logic.toRat,
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
                    SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
-                   Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat] <;>
+                   Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat,
+                   logic_endp_eq_not_consp] <;>
           -- `at *`: a HYPOTHESIS can be stuck on an if too (a `toBool`
           -- match over an unreduced decidable if — the plus-equation
           -- hypothesis shape), and goal-only splitting leaves omega
           -- without the arithmetic fact
           (try split_ifs at *) <;> simp_all [-Logic.toBool] <;> try omega)
       | omega)
+
+/-- Collect the argument pairs of saturated `lexorder` applications in `e`
+    (the DP order-theory scan). Pairs under binders (loose bvars) are skipped —
+    the scan runs on post-`intros` hypothesis/target types, where `lexorder`
+    occurs applied to closed subterms. -/
+partial def lexorderAppPairs (e : Expr) : List (Expr × Expr) :=
+  let here :=
+    if e.isAppOfArity ``ACL2.lexorder 2 then
+      let a := e.appFn!.appArg!
+      let b := e.appArg!
+      if a.hasLooseBVars || b.hasLooseBVars then [] else [(a, b)]
+    else []
+  let sub :=
+    match e with
+    | .app f a => lexorderAppPairs f ++ lexorderAppPairs a
+    | .lam _ t b _ => lexorderAppPairs t ++ lexorderAppPairs b
+    | .forallE _ t b _ => lexorderAppPairs t ++ lexorderAppPairs b
+    | .letE _ t v b _ =>
+      lexorderAppPairs t ++ lexorderAppPairs v ++ lexorderAppPairs b
+    | .mdata _ b => lexorderAppPairs b
+    | .proj _ _ b => lexorderAppPairs b
+    | _ => []
+  here ++ sub
+
+/-- DP ORDER THEORY (S1, 2026-07-23): for every `lexorder` application pair in
+    the goal, assert the kernel-proved built-in order facts —
+    `lexorder_antisymm_ne` / `lexorder_total_ne` (EvalLemmas), ACL2's own
+    LEXORDER-ANTI-SYMMETRIC / LEXORDER-TOTAL — as hypotheses. Tau closes
+    clauses whose literal set is `lexorder`-contradictory using exactly these
+    built-in theorems, so the carve-out's decision procedure must carry the
+    same theory. The obligation STATEMENT is untouched (each hypothesis is
+    backed by a kernel proof term); only the fixed tactic's context grows,
+    keyed by the trusted-core primitive symbol, never by book. No-op on goals
+    without `lexorder`. -/
+def assertDpOrderFacts (g : MVarId) : MetaM MVarId := do
+  let pairs ← g.withContext do
+    let mut found : List (Expr × Expr) := []
+    let mut scanned : List Expr := []
+    for d in ← getLCtx do
+      unless d.isImplementationDetail do
+        scanned := d.type :: scanned
+    scanned := (← g.getType) :: scanned
+    for e in scanned do
+      for (a, b) in lexorderAppPairs (← instantiateMVars e) do
+        -- dedupe as UNORDERED pairs — antisymm is symmetric and both total
+        -- directions get asserted below
+        unless found.any (fun (x, y) => (x == a && y == b) || (x == b && y == a)) do
+          found := found ++ [(a, b)]
+    pure found
+  let mut g := g
+  let mut i := 0
+  for (a, b) in pairs do
+    for (tag, prf) in [
+        ("anti", mkApp2 (mkConst ``ACL2.Replay.lexorder_antisymm_ne) a b),
+        ("tot", mkApp2 (mkConst ``ACL2.Replay.lexorder_total_ne) a b),
+        ("tot'", mkApp2 (mkConst ``ACL2.Replay.lexorder_total_ne) b a)] do
+      let ty ← g.withContext do inferType prf
+      let (_, g') ← (← g.assert (Name.mkSimple s!"dpOrd_{tag}_{i}") ty prf).intro1P
+      g := g'
+    i := i + 1
+  return g
 
 /-- Recursively case-split every `Atom`/`Number` hypothesis (the components a
     value's one-level `SExpr` split introduced), then return the leaves. -/
@@ -193,23 +256,32 @@ def withRealMaxHeartbeats (n : Nat) (x : MetaM α) : MetaM α :=
 def withRealMaxRecDepth (n : Nat) (x : MetaM α) : MetaM α :=
   withTheReader Core.Context (fun ctx => { ctx with maxRecDepth := n }) x
 
-/-- The direct attempt's budget where the SPLIT FALLBACK exists
-    (`total ≤` the split bound): a pure LATENCY knob, free to tune — on
-    timeout the split enumeration still proves everything provable, so this
-    constant can never change an OUTCOME, only how fast a failing attempt
-    gives up. (Premise, stated honestly: "the split path closes whatever
-    the direct path closes" is empirically true for every corpus leaf —
-    the pure-split-first run was golden-byte-identical — but not a theorem;
-    the golden gate is the corpus tripwire, and for new books the failure
-    mode is a LOUD conditional hypothesis, never a wrong verdict.) -/
+/-- The direct attempt's budget where the COMPLETE split fallback exists
+    (`total ≤` the split bound, so the enumeration runs over ALL values with
+    every hypothesis intact): a pure LATENCY knob, free to tune — on timeout
+    the split enumeration still proves everything provable, so this constant
+    can never change an OUTCOME, only how fast a failing attempt gives up.
+    (Premise, stated honestly: "the split path closes whatever the direct
+    path closes" is empirically true for every corpus leaf — the
+    pure-split-first run was golden-byte-identical — but not a theorem; the
+    golden gate is the corpus tripwire, and for new books the failure mode
+    is a LOUD conditional hypothesis, never a wrong verdict.)
+
+    NOT applicable in CONE mode (`total >` the bound with a fitting cone):
+    there the split is a SLICE that clears out-of-cone hypotheses, so a fact
+    whose truth needs one (the lexorder-totality contradictions, S1) is
+    provable ONLY by the full-context direct attempt — outcome-determining,
+    hence `dpOnlyProverGuard` (found the hard way: the HOW-MANY-FILTER-1
+    obligation timed out at 15000 and then failed loudly at a sliced leaf). -/
 def dpDirectBudget : Nat := 15000
 
-/-- The direct attempt's budget where it is the ONLY prover (`total >` the
-    split bound): OUTCOME-determining, so deliberately NOT a tuned constant —
-    a generous runaway guard (~40 s, the same role as the harness's per-leaf
-    guards). A true fact needing more than this from the fixed tactic is
-    reported as an honest frontier; a corpus-calibrated bar here would
-    silently gate FUTURE books' coverage on today's timings. -/
+/-- The direct attempt's budget where it is the only FULL-CONTEXT prover
+    (`total >` the split bound — whether the cone slice fits or not):
+    OUTCOME-determining, so deliberately NOT a tuned constant — a generous
+    runaway guard (~40 s, the same role as the harness's per-leaf guards).
+    A true fact needing more than this from the fixed tactic is reported as
+    an honest frontier; a corpus-calibrated bar here would silently gate
+    FUTURE books' coverage on today's timings. -/
 def dpOnlyProverGuard : Nat := 1000000
 
 /-- PROVE the DP fact by the carved-out decision procedure: one BOUNDED run
@@ -256,11 +328,12 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   let splitIdxs := if total ≤ 3 then List.range total else coneIdxs.eraseDups
   let canSplit := splitIdxs.length ≤ 3
   let direct? ←
-    withRealMaxHeartbeats (if canSplit then dpDirectBudget else dpOnlyProverGuard) <|
+    withRealMaxHeartbeats (if total ≤ 3 then dpDirectBudget else dpOnlyProverGuard) <|
     tryCatchRuntimeEx
       (try
         let mv ← mkFreshExprMVar stmt
         let (_, g) ← mv.mvarId!.intros
+        let g ← assertDpOrderFacts g
         let remaining ← Lean.Elab.runTactic g tac
         if remaining.1.isEmpty then pure (some (← instantiateMVars mv)) else pure none
       catch _ => pure none)
@@ -296,6 +369,9 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
         for fv in depHyps do g' ← g'.tryClear fv
         for fv in outVars.reverse do g' ← g'.tryClear fv
         pure g'
+  -- order theory AFTER the cone clearing: pairs come from the surviving
+  -- hypotheses only, so no asserted fact re-mentions a cleared value
+  let g ← assertDpOrderFacts g
   let leaves ← dpSplitVars g (splitIdxs.map (s!"dpv{·}"))
   for leaf in leaves do
     -- surface WHICH leaf failed (the raw tactic error names the tactic but
