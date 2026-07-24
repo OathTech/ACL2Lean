@@ -793,11 +793,27 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     if stepNodes.isEmpty then
       throwError "replayClause: no literal or step items in clause {cn.idStr} \
                   (discharge composition frontier)"
-    unless cn.children.isEmpty do
-      throwError "replayClause: preprocess chain with child clauses at {cn.idStr} \
-                  (clausify-split frontier)"
     let [formula] := cn.inputClause
       | throwError "replayClause: internal — single-literal guard"
+    -- SINGLE-child continuation (S2 2026-07-24, cov-let-lambda's Goal: the
+    -- defun unfold rewrote the formula, clausify was a no-op, the result
+    -- continues as Goal'): chain this formula to the child's clause and
+    -- compose — the single-literal instance of the multi-literal
+    -- one-child arm below. Any other child shape is still the frontier.
+    if let [child] := cn.children then
+      let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula stepNodes
+      unless finalT == disjoinTerm child.inputClause do
+        throwError "replayClause: preprocess chain reached {repr finalT}, the \
+                    single child's clause disjoins to \
+                    {repr (disjoinTerm child.inputClause)} at {cn.idStr}"
+      let pChild ← replayClauseWith rec cfg { ctx with litFacts := [] } child
+      match chainOpt with
+      | none => return pChild
+      | some (ch, false) => return ← mkAppM ``evtrue_of_fuel_eq #[ch, pChild]
+      | some (ch, true) => return ← mkAppM ``evtrue_of_evrel_siff #[ch, pChild]
+    unless cn.children.isEmpty do
+      throwError "replayClause: preprocess chain with {cn.children.length} child \
+                  clauses at {cn.idStr} (clausify-split frontier)"
     return ← replayPreprocessChain cfg ctx formula stepNodes
   -- a MULTI-literal PREPROCESS node whose step chain rewrote the clause and
   -- whose clausify was a NO-OP relative to its own input (filtered above),

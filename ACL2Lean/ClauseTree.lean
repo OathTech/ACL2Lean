@@ -336,7 +336,8 @@ private partial def linkNode (cands : List (EquivSource × SExpr)) (n : ProofNod
           -- congruence, R1) or fails closed there.
           if prov.path.any (fun f => match f with
               | .arg i s => (i == 2 || i == 3) && s.name == "IF"
-              | .boundary _ _ => false) then
+              | .boundary _ _ => false
+              | .argLam _ _ => false) then
             return .node rune lhs rhs children
               { prov with equivSource := some .branchTest }
           else

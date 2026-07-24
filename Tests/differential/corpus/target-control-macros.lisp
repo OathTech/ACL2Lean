@@ -59,8 +59,9 @@
 ;@ unsupported
 (booleanp (and '3 '5))
 
-; direct lambda application
-;@ unsupported
+; direct lambda application (modeled since S2 2026-07-24 — the lambda
+; corpus file carries the full family)
+;@ match
 ((lambda (x) (binary-+ x x)) '5)
 
 ; (eq is covered in equality-fns.lisp)

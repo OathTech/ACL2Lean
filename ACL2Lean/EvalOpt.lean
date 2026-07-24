@@ -21,6 +21,13 @@ def bindArgs : List Symbol → List SExpr → Env
   | f :: fs, v :: vs => (bindArgs fs vs).insert f v
   | _, _ => {}  -- ⚠ silent default on formals/args length mismatch (no hard-fail); see callBuiltin note
 
+/-- Bind formals to values OVER an existing environment (lambda application:
+    lexical extension; see the LAMBDA arm's comment). Same shape as
+    `bindArgs`, seeded with `env` instead of `{}`. -/
+def bindArgsOver (env : Env) : List Symbol → List SExpr → Env
+  | f :: fs, v :: vs => (bindArgsOver env fs vs).insert f v
+  | _, _ => env
+
 /-- Dispatch an ACL2 built-in primitive by normalized name, modeling ACL2's
     LOGICAL (total) semantics. Returns `none` for a primitive we do not yet model
     or a wrong arity — a frontier the evaluator surfaces as non-convergence rather
@@ -169,6 +176,32 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
                 else none
             | none => callBuiltin s.name argVals
         | none => none
+  | .cons (.cons (.atom (.symbol lam))
+      (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+      -- ((LAMBDA (formals) body) actuals) — ACL2's TRANSLATED binding form
+      -- (`let`/`mv-let` become lambda applications; S2 2026-07-24, pinned by
+      -- Tests/differential/corpus/lambda.lisp). Actuals evaluate in the
+      -- OUTER env (parallel binding); the body in the outer env EXTENDED by
+      -- formals↦values. On a translated (closed) body this is observationally
+      -- `ev`'s fresh `(pairlis$ formals args)`; on surface input it matches
+      -- ACL2 because translate CLOSES an open lambda over its lexical scope
+      -- (the nested-lambda differential pin caught the fresh-env variant
+      -- diverging), and it is the same extension the surface LET arm uses.
+      -- A non-LAMBDA cons head, malformed formals, or an arity mismatch is
+      -- `none` — a frontier, never a default value.
+      if lam.isNamed "LAMBDA" then
+        match formalsE.toList?, argsExpr.toList? with
+        | some formalsL, some args => do
+            let formals ← formalsL.mapM (fun fm =>
+              match fm with
+              | .atom (.symbol fs) => some fs
+              | _ => none)
+            let argVals ← args.mapM (fun a => rec w env a)
+            if formals.length = argVals.length then
+              rec w (bindArgsOver env formals argVals) lamBody
+            else none
+        | _, _ => none
+      else none
   | _ => none
 
 /-- Equation lemma for evalOptStep on symbol-headed cons. -/
@@ -306,8 +339,44 @@ theorem evalOptStep_mono
   | .nil | .atom (.number _) | .atom (.string _)
   | .atom (.keyword _) | .atom (.char _) | .atom (.symbol _) => exact h
   | .cons (.atom (.number _)) _ | .cons (.atom (.string _)) _
-  | .cons (.atom (.keyword _)) _ | .cons (.atom (.char _)) _ | .cons .nil _
-  | .cons (.cons _ _) _ => exact h
+  | .cons (.atom (.keyword _)) _ | .cons (.atom (.char _)) _ | .cons .nil _ => exact h
+  | .cons (.cons .nil _) _ | .cons (.cons (.atom (.number _)) _) _
+  | .cons (.cons (.atom (.string _)) _) _ | .cons (.cons (.atom (.keyword _)) _) _
+  | .cons (.cons (.atom (.char _)) _) _ | .cons (.cons (.cons _ _) _) _ => exact h
+  | .cons (.cons (.atom (.symbol lam)) .nil) _
+  | .cons (.cons (.atom (.symbol lam)) (.atom _)) _
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ .nil)) _
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ (.atom _))) _
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ (.cons _ _)))) _
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ (.atom _)))) _ => exact h
+  | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+    -- the LAMBDA-application arm (S2 2026-07-24): mirrors the function-call
+    -- branch — actuals via `mapM` monotonicity, body via `hmono`
+    simp only [evalOptStep] at h ⊢
+    by_cases hlam : lam.isNamed "LAMBDA" = true
+    · simp only [hlam, ite_true] at h ⊢
+      match hfl : formalsE.toList?, hal : argsExpr.toList? with
+      | some formalsL, some args =>
+        simp only [hfl, hal] at h ⊢
+        cases hfm : formalsL.mapM (fun fm => match fm with
+          | .atom (.symbol fs) => some fs | _ => none) with
+        | none => simp [hfm] at h
+        | some formals =>
+          simp [hfm] at h ⊢
+          cases hmap : List.mapM (fun a => f w env a) args with
+          | none => simp [hmap] at h
+          | some argVals =>
+            simp [hmap] at h
+            simp [List.mapM_option_mono (fun a _ val hval =>
+              hmono w env a val hval) hmap]
+            by_cases hlen : formals.length = argVals.length
+            · simp [hlen] at h ⊢
+              exact hmono w (bindArgsOver env formals argVals) lamBody v h
+            · simp [hlen] at h
+      | none, some _ => simp only [hfl] at h ⊢; exact h
+      | none, none => simp only [hfl] at h ⊢; exact h
+      | some _, none => simp only [hfl, hal] at h ⊢; exact h
+    · simp only [hlam] at h ⊢; exact h
   | .cons (.atom (.symbol s)) argsExpr =>
     simp only [evalOptStep] at h ⊢
     by_cases hq : s.isNamed "QUOTE" = true
@@ -492,8 +561,44 @@ theorem evalOptStep_world_mono
   | .nil | .atom (.number _) | .atom (.string _)
   | .atom (.keyword _) | .atom (.char _) | .atom (.symbol _) => exact h
   | .cons (.atom (.number _)) _ | .cons (.atom (.string _)) _
-  | .cons (.atom (.keyword _)) _ | .cons (.atom (.char _)) _ | .cons .nil _
-  | .cons (.cons _ _) _ => exact h
+  | .cons (.atom (.keyword _)) _ | .cons (.atom (.char _)) _ | .cons .nil _ => exact h
+  | .cons (.cons .nil _) _ | .cons (.cons (.atom (.number _)) _) _
+  | .cons (.cons (.atom (.string _)) _) _ | .cons (.cons (.atom (.keyword _)) _) _
+  | .cons (.cons (.atom (.char _)) _) _ | .cons (.cons (.cons _ _) _) _ => exact h
+  | .cons (.cons (.atom (.symbol lam)) .nil) _
+  | .cons (.cons (.atom (.symbol lam)) (.atom _)) _
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ .nil)) _
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ (.atom _))) _
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ (.cons _ _)))) _
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ (.atom _)))) _ => exact h
+  | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+    -- LAMBDA application (S2 2026-07-24): world-independent — actuals via
+    -- `mapM` under `hmono`, body via `hmono`; no `defs.get?` consulted
+    simp only [evalOptStep] at h ⊢
+    by_cases hlam : lam.isNamed "LAMBDA" = true
+    · simp only [hlam, ite_true] at h ⊢
+      match hfl : formalsE.toList?, hal : argsExpr.toList? with
+      | some formalsL, some args =>
+        simp only [hfl, hal] at h ⊢
+        cases hfm : formalsL.mapM (fun fm => match fm with
+          | .atom (.symbol fs) => some fs | _ => none) with
+        | none => simp [hfm] at h
+        | some formals =>
+          simp [hfm] at h ⊢
+          cases hmap : List.mapM (fun a => f w1 env a) args with
+          | none => simp [hmap] at h
+          | some argVals =>
+            simp [hmap] at h
+            simp [List.mapM_option_mono (fun a _ val hval =>
+              hmono env a val hval) hmap]
+            by_cases hlen : formals.length = argVals.length
+            · simp [hlen] at h ⊢
+              exact hmono (bindArgsOver env formals argVals) lamBody v h
+            · simp [hlen] at h
+      | none, some _ => simp only [hfl] at h ⊢; exact h
+      | none, none => simp only [hfl] at h ⊢; exact h
+      | some _, none => simp only [hfl, hal] at h ⊢; exact h
+    · simp only [hlam] at h ⊢; exact h
   | .cons (.atom (.symbol s)) argsExpr =>
     simp only [evalOptStep] at h ⊢
     by_cases hq : s.isNamed "QUOTE" = true

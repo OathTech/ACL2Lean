@@ -19,6 +19,11 @@ inductive ProofResult where
 inductive PathFrame where
   | arg (idx : Nat) (fn : Symbol)
   | boundary (kind : Symbol) (fn : Symbol)
+  /-- A descent into argument `idx` of a LAMBDA APPLICATION: the frame's fn
+      position carries the whole `(LAMBDA (formals) body)` term (the
+      `let`/`mv-let` translation — S2 2026-07-24; body descents arrive
+      separately as `.boundary LAMBDA-BODY <head>`). -/
+  | argLam (idx : Nat) (lam : SExpr)
   deriving Repr, Inhabited, BEq
 
 /-- A rune identity. ACL2 prints a rune as `(:TYPE name)` or — when one event
@@ -416,13 +421,25 @@ private def parsePathFrame (pair : SExpr) : Except String PathFrame := do
   let (bk, fn) ← match pair with
     | .cons bk fn => pure (bk, fn)
     | _ => throw s!"REWRITE-STEP :PATH frame not a (bkptr . fn) pair: {repr pair}"
-  let fsym ← match fn with
-    | .atom (.symbol s) => pure s
-    | _ => throw s!"REWRITE-STEP :PATH frame fn not a symbol (lambda/quote unsupported): {repr fn}"
-  match bk with
-  | .atom (.number (.int n)) => pure (.arg n.toNat fsym)
-  | .atom (.symbol k) => pure (.boundary k fsym)
-  | _ => throw s!"REWRITE-STEP :PATH frame bkptr not a number/symbol: {repr bk}"
+  match fn with
+    | .atom (.symbol s) =>
+      match bk with
+      | .atom (.number (.int n)) => pure (.arg n.toNat s)
+      | .atom (.symbol k) => pure (.boundary k s)
+      | _ => throw s!"REWRITE-STEP :PATH frame bkptr not a number/symbol: {repr bk}"
+    | .cons (.atom (.symbol lam)) _ =>
+      -- a LAMBDA-application frame (S2 2026-07-24): the fn position is the
+      -- whole lambda term; only NUMERIC bkptrs are attested (arg descents —
+      -- body descents come as `.boundary LAMBDA-BODY <head>` instead)
+      if lam.isNamed "LAMBDA" then
+        match bk with
+        | .atom (.number (.int n)) => pure (.argLam n.toNat fn)
+        | _ => throw s!"REWRITE-STEP :PATH lambda frame bkptr not a number \
+                        (unattested shape): {repr bk}"
+      else
+        throw s!"REWRITE-STEP :PATH frame fn not a symbol/lambda: {repr fn}"
+    | _ => throw s!"REWRITE-STEP :PATH frame fn not a symbol/lambda \
+                    (quote unsupported): {repr fn}"
 
 /-- Parse a single (:REWRITE-STEP :RUNE r :LHS l :RHS r …) s-expression. -/
 private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do

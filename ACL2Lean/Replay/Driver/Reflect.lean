@@ -213,6 +213,11 @@ def navigateFrames (term : SExpr) (descentFrames : List PathFrame)
     | .boundary k _ =>
       throw s!"pathStepsFromFrames: unexpected residual boundary frame {k.name} \
               (nesting deeper than the chain's depth)"
+    | .argLam idx _ =>
+      -- S2 frontier: a rewrite INSIDE a lambda application's actuals — the
+      -- congruence walk through a lambda head is the S2.3 driver increment
+      throw s!"pathStepsFromFrames: path descends into a LAMBDA application's \
+              argument {idx} (S2 lambda-congruence frontier)"
     | .arg idx _ =>
       match asApp cur with
       | none => throw s!"pathStepsFromFrames: path descends into non-application {repr cur}"

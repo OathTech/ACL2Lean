@@ -615,6 +615,10 @@ def NoLet : SExpr → Bool
   | .cons (.atom (.symbol q)) rest =>
       if q.isNamed "LET" || q.isNamed "LET*" then false
       else if q.isNamed "QUOTE" then true else NoLetSpine rest
+  -- a LAMBDA application IS a translated `let` (S2 2026-07-24): the
+  -- freevar-congruence/substitution lemmas' scoping story excludes it the
+  -- same way (binder-aware variants are the S2 driver follow-up)
+  | .cons (.cons _ _) _ => false
   | _ => true
 def NoLetSpine : SExpr → Bool
   | .cons a rest => NoLet a && NoLetSpine rest
@@ -692,7 +696,7 @@ theorem evalOpt_freevar_congr (w : World) :
     | .cons (.atom (.keyword _)) _ => rfl
     | .cons (.atom (.char _)) _ => rfl
     | .cons .nil _ => rfl
-    | .cons (.cons _ _) _ => rfl
+    | .cons (.cons _ _) _ => exact absurd hnl (by simp [NoLet])
     | .cons (.atom (.symbol s)) argsExpr =>
       show evalOptStep (evalOpt n) w e1 (.cons (.atom (.symbol s)) argsExpr)
          = evalOptStep (evalOpt n) w e2 (.cons (.atom (.symbol s)) argsExpr)
@@ -1009,7 +1013,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
     | .cons (.atom (.keyword _)) _ => rfl
     | .cons (.atom (.char _)) _ => rfl
     | .cons .nil _ => rfl
-    | .cons (.cons _ _) _ => rfl
+    | .cons (.cons _ _) _ => exact absurd hnl (by simp [NoLet])
     | .cons (.atom (.symbol q)) rest =>
       by_cases hq : q.isNamed "QUOTE" = true
       · rw [show substTerm formals (vals.map quoteVal) (.cons (.atom (.symbol q)) rest)
