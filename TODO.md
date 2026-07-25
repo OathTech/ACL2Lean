@@ -5,7 +5,7 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-24._
+_Last updated: 2026-07-25._
 
 > **Mapping arc (branch `mdd/mapping-arc`, 2026-07-22/23) — COVERAGE
 > COMPLETE at increment 8; UNMERGED.** Scope as executed (MDD
@@ -42,9 +42,25 @@ _Last updated: 2026-07-24._
 > inventory's bridges as emissions land; missing features acceptable,
 > baked-in bad design not.
 
+> **S2b arc (branch `mdd/s2b-beta-emission`, opened 2026-07-25) — the
+> beta-emission completion fork batch.** Queue, from the S2 audit:
+> (1) emission at beta sites 2–4 (rewrite all-quoteps ~17337; preprocess
+> expand-abbreviations induct.lisp 317–441 — the COMMON ground-actual
+> case; :expand :lambdas ~12835); (2) the REAL `:EQUIV` on the beta step
+> (geneqv-derived, not the hardcoded EQUAL — and assess the identical
+> fncall/non-recursive defect); (3) replay support for what the new
+> emissions surface; (4) RE-AUDIT (new emission). Increment 1 DONE: the
+> audit's three probes promoted to pinned books
+> (p2-beta-quoted-actuals / p2-beta-preprocess / p2-beta-equiv-iff,
+> captured from the committed fork; the gap pins are nosig-style, so
+> each fork fix fails its pin loudly and forces the map update).
+> Fork-batch DESIGN needs MDD discussion before building — especially
+> the geneqv→:EQUIV mapping (L2-adjacent).
+
 > **S2 arc (branch `mdd/s2-let-lambda`, 2026-07-24/25) — the
 > REWRITE-FNCALL beta path landed + 3-Opus AUDIT ACTIONED; corpus
-> scoreboard unchanged at 62/79; UNMERGED.** AUDIT (2026-07-25, zero
+> scoreboard unchanged at 62/79; MERGED main 3fd03f5 + PUSHED
+> 2026-07-25 (fork b48faff962 pushed first).** AUDIT (2026-07-25, zero
 > soundness defects; two of my claims refuted): ACL2 beta-reduces at
 > FOUR sites and S2 emitted at ONE — the pattern map's S2 section
 > carries the authoritative four-site table; the beta step's hardcoded

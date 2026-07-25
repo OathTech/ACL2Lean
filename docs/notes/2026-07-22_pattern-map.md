@@ -343,7 +343,19 @@ the true coverage:
 | preprocess `expand-abbreviations` (`induct.lisp` 317–441) | NO emission at all (no markers) — the COMMON `let` case whenever an actual is/becomes ground (probe `site2b`: `(G '2)` ⇒ lambda ⇒ const-fold, beta step absent) |
 | `:expand … :lambdas` (`rewrite.lisp` ~12835) | NO emission; unadopted EXPANSION block (same mechanism as site 2); unexercised |
 
-Sites 2–4 + the `:EQUIV` fix below are the NEXT fork batch. Until it lands,
+Sites 2–4 + the `:EQUIV` fix below are the NEXT fork batch. The audit's
+three probes are PROMOTED to pinned books (S2b increment 1, 2026-07-25 —
+captured from the committed fork, pins reproduce the findings from clean
+state):
+- `p2-beta-quoted-actuals` — reaches site 2 (the actual `(k a)` becomes
+  quoted only inside the rewriter): a `KIND LAMBDA-BODY` block with NO
+  `(:LAMBDA-BODY NIL)` beta step (nosig-pinned — fixing site 2 fails the
+  pin loudly).
+- `p2-beta-preprocess` — site 3: abbreviation-expansion to the lambda,
+  const-folds after, NO lambda markers at all (nosig-pinned).
+- `p2-beta-equiv-iff` — the false-equiv defect: an `:EQUIV IFF` child
+  under the beta step's hardcoded `ORIGIN REWRITE-FNCALL/LAMBDA-BODY
+  :EQUIV EQUAL` (sig-pinned; the fork fix changes this signature). Until it lands,
 "LET/lambda support" means: books whose betas all go through the
 rewrite-fncall path.
 
