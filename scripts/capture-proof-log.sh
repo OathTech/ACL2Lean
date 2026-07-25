@@ -100,8 +100,18 @@ for INPUT in "$@"; do
   # submodule HEAD — catching stale images and PARTIAL recaptures the moment
   # the fork moves. An ACL2 override outside a git checkout stamps
   # "unknown", which the checker rejects (fail-closed).
+  # DIRTY-TREE stamping (S2 audit F5, 2026-07-25): rev-parse HEAD names a
+  # commit, not the TREE the image was built from — a capture over
+  # uncommitted fork edits used to stamp a clean hash the log's content
+  # doesn't match (incident: the LAMBDA-BODY logs stamped a90dd106). A dirty
+  # submodule now stamps "<hash>-dirty", which the checker rejects.
   {
-    echo "acl2-commit: $(git -C "$(dirname "$ACL2")" rev-parse HEAD 2>/dev/null || echo unknown)"
+    acl2dir="$(dirname "$ACL2")"
+    commit="$(git -C "$acl2dir" rev-parse HEAD 2>/dev/null || echo unknown)"
+    if [ "$commit" != "unknown" ] && [ -n "$(git -C "$acl2dir" status --porcelain 2>/dev/null)" ]; then
+      commit="$commit-dirty"
+    fi
+    echo "acl2-commit: $commit"
     echo "image-mtime: $(stat -f %m "$ACL2" 2>/dev/null || stat -c %Y "$ACL2" 2>/dev/null || echo unknown)"
     echo "captured-at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } > "$OUTPUT.meta"

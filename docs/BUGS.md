@@ -261,6 +261,22 @@ name that is not a bare uppercase token. Keyword printing (`:foo`) and the
 plain-uppercase common case are already faithful; this is the escaped-name
 tail.
 
+## BUG-018 — duplicate `let`/lambda bindings: ACL2 refuses, we bind (inconsistently)
+Status: open
+Pinned-by: differential
+Real ACL2's translate REJECTS a duplicate bound variable — `(let ((x '1)
+(x '2)) x)` and its translated form `((lambda (x x) x) '1 '2)` both give
+"improper let expression because it attempts to bind X, which occurs more
+than once in the list" (verified against `acl2/saved_acl2`, 2026-07-25).
+Our interpreter evaluates both, and — worse — the two spellings of what
+ACL2 regards as ONE construct disagree with each other: the surface `LET`
+arm's binding fold is last-binding-wins (`(let ((x '1) (x '2)) x)` ⇒ `2`),
+while the LAMBDA arm's `bindArgsOver` is first-formal-wins
+(`((lambda (x x) x) '1 '2)` ⇒ `1`). Surfaced by the S2 scoping audit
+(2026-07-25; the LET side is pre-S2, the lambda side widened it). Fix
+direction: refuse duplicate bound variables in both arms (`none`), matching
+translate — a well-formedness check, not a semantics choice.
+
 ## BUG-017 — builtin dispatch keys on symbol NAME only, dropping the package
 Status: open
 Pinned-by: none (packages are only partially modeled — BUG-013/015 interim
@@ -276,6 +292,11 @@ builtin semantics — the dangerous silent-wrong-value class. Not triggered
 by the current corpus (single-package; the BUG-015 interim parser refuses
 most multi-package forms fail-closed). Surfaced by the 2026-07-18 pre-merge
 audit of the induction-generality arc (inherited, not introduced, by it).
+SCOPE WIDENED by S2 (audit 2026-07-25): the same name-only `isNamed`
+dispatch now also selects the SPECIAL FORMS — `QUOTE`/`IF`/`LET`/`LET*` and
+the new `LAMBDA` application head — so a foreign-package `MYPKG::LAMBDA`
+gets binder semantics the same way `MYPKG::CONSP` gets builtin semantics.
+Same fix (full symbol identity), one more surface.
 Fix direction: key the builtin table by full symbol identity (the canonical
 COMMON-LISP/ACL2 homes), which is the same import-table surface as the
 BUG-013 full fix — fold into it.

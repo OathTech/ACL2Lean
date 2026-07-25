@@ -21,6 +21,14 @@ while IFS= read -r log; do
     continue
   fi
   commit="$(sed -n 's/^acl2-commit: //p' "$meta")"
+  case "$commit" in
+    *-dirty)
+      # S2 audit F5: a "-dirty" stamp means the image was built from
+      # UNCOMMITTED fork edits — the log's true origin is unrecorded.
+      echo "DIRTY-TREE log: $log — captured from an uncommitted acl2 tree ($commit); commit the fork, rebuild, and recapture" >&2
+      fail=1
+      continue;;
+  esac
   if [ "$commit" != "$HEAD" ]; then
     echo "STALE log: $log — captured at acl2 commit ${commit:-<none>}, submodule HEAD is $HEAD (recapture: just recapture-all)" >&2
     fail=1

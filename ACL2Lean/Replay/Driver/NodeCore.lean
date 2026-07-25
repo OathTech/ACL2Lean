@@ -377,18 +377,31 @@ partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Ex
     if fs.name == "QUOTE" then return reflectSExpr a
     else match dpUnary.lookup fs.name with
       | some (fn, _) => return mkApp (mkConst fn) (← dpValExpr opq varVal a)
-      | none => throwFrontier m!"dpValExpr: unary {fs.name} is not a DP-lift primitive (frontier): {repr t}"
+      | none =>
+        -- a head KNOWN at another arity is malformed input, not a capability
+        -- limit (S2 audit F2-narrowing, 2026-07-25): keep it loud
+        if dpKnownHead fs.name then
+          throwError "dpValExpr: {fs.name} applied at arity 1 but registered at a \
+                      different arity — malformed application: {repr t}"
+        else throwFrontier m!"dpValExpr: unary {fs.name} is not a DP-lift primitive (frontier): {repr t}"
   | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
     match dpBinary.lookup fs.name with
     | some (fn, _) =>
       return mkApp2 (mkConst fn) (← dpValExpr opq varVal a) (← dpValExpr opq varVal b)
-    | none => throwFrontier m!"dpValExpr: binary {fs.name} is not a DP-lift primitive (frontier): {repr t}"
+    | none =>
+      if dpKnownHead fs.name then
+        throwError "dpValExpr: {fs.name} applied at arity 2 but registered at a \
+                    different arity — malformed application: {repr t}"
+      else throwFrontier m!"dpValExpr: binary {fs.name} is not a DP-lift primitive (frontier): {repr t}"
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
     if fs.name == "IF" then
       let vc ← dpValExpr opq varVal c
       let vt ← dpValExpr opq varVal th
       let ve ← dpValExpr opq varVal e
       mkAppM ``cond #[mkApp (mkConst ``Logic.toBool) vc, vt, ve]
+    else if dpKnownHead fs.name then
+      throwError "dpValExpr: {fs.name} applied at arity 3 but registered at a \
+                  different arity — malformed application: {repr t}"
     else throwFrontier m!"dpValExpr: ternary {fs.name} is not a DP-lift primitive (frontier): {repr t}"
   | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr =>
     -- a LAMBDA application (ACL2's translated LET) has the value of its
@@ -397,9 +410,17 @@ partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Ex
     -- LAMBDA-BODY frame. Malformed binders hard-fail; a wider binder is a
     -- capability FRONTIER, not a defect.
     if lam.name == "LAMBDA" then
+      -- the SAME scoping certificate the proof twin discharges by kernel
+      -- decision (S2 audit F3, 2026-07-25): a non-`NoLet` body means the
+      -- substitution below could capture — malformed input (ACL2's translate
+      -- closes every lambda body), never descend
+      unless ACL2.Replay.NoLet lamBody do
+        throwError "dpValExpr: LAMBDA body is not closed/regular (NoLet fails) — \
+                    malformed input (translate closes lambda bodies): {repr t}"
       match ACL2.lamFormals? formalsE, argsExpr.toList? with
       | some lformals, some actuals =>
-        if lformals.length == actuals.length && lformals.length ≤ 2 then
+        if lformals.length == actuals.length
+            && 1 ≤ lformals.length && lformals.length ≤ 2 then
           dpValExpr opq varVal (ACL2.Replay.substTerm lformals actuals lamBody)
         else
           throwFrontier m!"dpValExpr: LAMBDA binder of {lformals.length} formals / \
@@ -442,7 +463,11 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
         let hr ← mkAppM cbLemma #[va]
         mkAppM ``conv_builtin1
           #[cfg.worldExpr, envExpr, reflectSymbol fs, reflectSExpr a, va, rv, hNs, hNo, pa, hr]
-      | none => throwFrontier m!"dpValProof: unary {fs.name} is not a DP-lift primitive (frontier)"
+      | none =>
+        if dpKnownHead fs.name then
+          throwError "dpValProof: {fs.name} applied at arity 1 but registered at a \
+                      different arity — malformed application: {repr t}"
+        else throwFrontier m!"dpValProof: unary {fs.name} is not a DP-lift primitive (frontier)"
   | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
     match dpBinary.lookup fs.name with
     | some (fn, cbLemma) =>
@@ -458,7 +483,9 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
         #[cfg.worldExpr, envExpr, reflectSymbol fs, reflectSExpr a, reflectSExpr b,
           va, vb, rv, hNs, hNo, pa, pb, hr]
     | none =>
-      if fs.name == "IF" then throwError "dpValProof: malformed if (2 args): {repr t}"
+      if dpKnownHead fs.name then
+        throwError "dpValProof: {fs.name} applied at arity 2 but registered at a \
+                    different arity — malformed application: {repr t}"
       else throwFrontier m!"dpValProof: binary {fs.name} is not a DP-lift primitive (frontier)"
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
     if fs.name == "IF" then
@@ -471,6 +498,9 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
       mkAppM ``re_val_if
         #[cfg.worldExpr, envExpr, reflectSExpr c, reflectSExpr th, reflectSExpr e,
           vc, vt, ve, pc, pt, pe]
+    else if dpKnownHead fs.name then
+      throwError "dpValProof: {fs.name} applied at arity 3 but registered at a \
+                  different arity — malformed application: {repr t}"
     else throwFrontier m!"dpValProof: ternary {fs.name} is not a DP-lift primitive (frontier)"
   | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr =>
     -- LAMBDA application (translated LET): the BETA-REDUCT's convergence,
@@ -478,34 +508,33 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
     if lam.name == "LAMBDA" then
       match ACL2.lamFormals? formalsE, argsExpr.toList? with
       | some lformals, some actuals => do
-        let lamE := reflectSymbol lam
-        let formalsSE := reflectSExpr formalsE
-        let bodyE := reflectSExpr lamBody
-        let lformalsE ← mkListLit (mkConst ``Symbol) (lformals.map reflectSymbol)
-        let hlam ← proveIsNamedTrue lam "LAMBDA"
-        let hform ← proveByDecide
-          (← mkEq (← mkAppM ``ACL2.lamFormals? #[formalsSE])
-                  (← mkAppM ``Option.some #[lformalsE])) "lambda-val formals"
-        let hnl ← proveByDecide
-          (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[bodyE]) (mkConst ``Bool.true))
-          "nolet lambda-val body"
-        let substBody := ACL2.Replay.substTerm lformals actuals lamBody
-        let pSub ← dpValProof cfg envExpr opq opqP varP substBody
-        let vSub ← dpValExpr opq (dpVarVal envExpr varP) substBody
+        -- arity dispatch FIRST (S2 audit F4, 2026-07-25): a mismatched or
+        -- unsupported binder must not recurse into a bogus reduct before the
+        -- shape is checked — the walkers state the same predicate
         match lformals, actuals with
         | [lf], [a1] =>
+          let (hlam, hform, hnl) ← lamCerts lam formalsE lamBody [lf]
+          let substBody := ACL2.Replay.substTerm [lf] [a1] lamBody
+          let pSub ← dpValProof cfg envExpr opq opqP varP substBody
+          let vSub ← dpValExpr opq (dpVarVal envExpr varP) substBody
           let pa ← dpValProof cfg envExpr opq opqP varP a1
           let va ← dpValExpr opq (dpVarVal envExpr varP) a1
           mkAppM ``re_lam_beta1_val
-            #[cfg.worldExpr, envExpr, lamE, formalsSE, bodyE, reflectSExpr a1,
+            #[cfg.worldExpr, envExpr, reflectSymbol lam, reflectSExpr formalsE,
+              reflectSExpr lamBody, reflectSExpr a1,
               reflectSymbol lf, va, vSub, hlam, hform, hnl, pa, pSub]
         | [f1, f2], [a1, a2] =>
+          let (hlam, hform, hnl) ← lamCerts lam formalsE lamBody [f1, f2]
+          let substBody := ACL2.Replay.substTerm [f1, f2] [a1, a2] lamBody
+          let pSub ← dpValProof cfg envExpr opq opqP varP substBody
+          let vSub ← dpValExpr opq (dpVarVal envExpr varP) substBody
           let pa ← dpValProof cfg envExpr opq opqP varP a1
           let pb ← dpValProof cfg envExpr opq opqP varP a2
           let va ← dpValExpr opq (dpVarVal envExpr varP) a1
           let vb ← dpValExpr opq (dpVarVal envExpr varP) a2
           mkAppM ``re_lam_beta2_val
-            #[cfg.worldExpr, envExpr, lamE, formalsSE, bodyE, reflectSExpr a1,
+            #[cfg.worldExpr, envExpr, reflectSymbol lam, reflectSExpr formalsE,
+              reflectSExpr lamBody, reflectSExpr a1,
               reflectSExpr a2, reflectSymbol f1, reflectSymbol f2, va, vb, vSub,
               hlam, hform, hnl, pa, pb, pSub]
         | _, _ =>
@@ -521,6 +550,19 @@ where
     match varP s with
     | some (v, _) => pure v
     | none => dpConcVar envExpr s
+  /-- The three kernel-decided beta certificates: head is LAMBDA, formals as
+      recorded, body regular/closed (`NoLet`). -/
+  lamCerts (lam : Symbol) (formalsE lamBody : SExpr) (lformals : List Symbol) :
+      MetaM (Expr × Expr × Expr) := do
+    let lformalsE ← mkListLit (mkConst ``Symbol) (lformals.map reflectSymbol)
+    let hlam ← proveIsNamedTrue lam "LAMBDA"
+    let hform ← proveByDecide
+      (← mkEq (← mkAppM ``ACL2.lamFormals? #[reflectSExpr formalsE])
+              (← mkAppM ``Option.some #[lformalsE])) "lambda-val formals"
+    let hnl ← proveByDecide
+      (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr lamBody]) (mkConst ``Bool.true))
+      "nolet lambda-val body"
+    return (hlam, hform, hnl)
 
 /-- Ctx-driven value/proof for a term: ctx.vals as the opaque maps, ctx.varVals as
     the variable override. -/

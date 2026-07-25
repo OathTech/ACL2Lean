@@ -42,9 +42,31 @@ _Last updated: 2026-07-24._
 > inventory's bridges as emissions land; missing features acceptable,
 > baked-in bad design not.
 
-> **S2 arc (branch `mdd/s2-let-lambda`, 2026-07-24) — LET/lambda
-> LANDED; corpus scoreboard unchanged at 62/79 (the four lambda books
-> are pattern-tests, not sweep rows); UNMERGED.** `let`/`mv-let`
+> **S2 arc (branch `mdd/s2-let-lambda`, 2026-07-24/25) — the
+> REWRITE-FNCALL beta path landed + 3-Opus AUDIT ACTIONED; corpus
+> scoreboard unchanged at 62/79; UNMERGED.** AUDIT (2026-07-25, zero
+> soundness defects; two of my claims refuted): ACL2 beta-reduces at
+> FOUR sites and S2 emitted at ONE — the pattern map's S2 section
+> carries the authoritative four-site table; the beta step's hardcoded
+> `:EQUIV EQUAL` is a false claim under an IFF context (L2 violation;
+> driver proves obligations so not exploitable). NEXT FORK BATCH:
+> sites 2–4 emission + the real `:EQUIV` + promote the audit probes
+> (site2b/site2c/iff, in the session scratchpad) to pinned books +
+> re-audit. AUDIT FIXES LANDED: freeVars unconditionally
+> over-approximates (lambda residual kept); NoLet rejects bare
+> `(LAMBDA …)`; dpValExpr checks the NoLet certificate its proof twin
+> discharges; walker arity parity (1..2 both); known-head-wrong-arity
+> is a HARD error again (frontier reclassification narrowed to
+> genuinely-unknown heads); dpLiftProof frontiers lambda-bearing DP
+> leaves by name (dpLiftF has no lambda arm — documented asymmetry);
+> asLamApp requires the LAMBDA name; capture stamps `-dirty` on an
+> uncommitted fork tree and the provenance check rejects it; BUG-018
+> (duplicate `let`/lambda bindings: ACL2 refuses, our two spellings
+> disagree 1-vs-2) + BUG-017 widened to special forms; lambda corpus
+> header corrected (extension semantics; the nested entry is THE
+> discriminating pin) + declare-lambda masquerade gap pinned
+> unsupported; `fsq_unfolds_real_mirror` ci-gates the whole lambda
+> replay path (was gated by nothing).** `let`/`mv-let`
 > translate to `((LAMBDA (formals) body) actuals)`, so this was
 > core-path-blocking. S2.1 interpreter LAMBDA arm (lexical extension —
 > semantics DECIDED by the differential pin: the fresh-env `ev`

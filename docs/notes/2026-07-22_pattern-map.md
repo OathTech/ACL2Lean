@@ -327,11 +327,34 @@ authoritative.
   arms; the corpus sweep is golden byte-identical across the whole
   cycle.
 
-## S2 — LET/lambda LANDED (2026-07-24, fork b48faff962)
+## S2 — LET/lambda: the REWRITE-FNCALL beta path LANDED (2026-07-24, fork
+b48faff962; audit-corrected 2026-07-25 — see the four-site table below)
 
-The map's biggest blind spot (A1) is closed end-to-end. `let`/`mv-let`
-translate to `((LAMBDA (formals) body) actuals)`, so this was
-core-path-blocking: any book binding a local hit it.
+The map's biggest blind spot (A1) is closed FOR THE REWRITER'S MAIN BETA
+PATH. `let`/`mv-let` translate to `((LAMBDA (formals) body) actuals)`, so
+this was core-path-blocking: any book binding a local hit it. ACL2
+beta-reduces lambdas at FOUR sites; the 2026-07-25 3-Opus audit established
+the true coverage:
+
+| site | status |
+|---|---|
+| `rewrite-fncall` lambda branch (`rewrite.lisp` ~20397) | EMITTED — `cov-let-lambda` replays through it |
+| `rewrite` all-quoteps fast path (~17337) | NO emission; the LAMBDA-BODY block is SILENTLY MIS-PARENTED in the reconstructed tree (audit-built probe `site2c`: body rewrites attached to the NEXT chain step); the DRIVER fails closed on the mis-shape, but `dump-proof-tree` prints the wrong tree without complaint |
+| preprocess `expand-abbreviations` (`induct.lisp` 317–441) | NO emission at all (no markers) — the COMMON `let` case whenever an actual is/becomes ground (probe `site2b`: `(G '2)` ⇒ lambda ⇒ const-fold, beta step absent) |
+| `:expand … :lambdas` (`rewrite.lisp` ~12835) | NO emission; unadopted EXPANSION block (same mechanism as site 2); unexercised |
+
+Sites 2–4 + the `:EQUIV` fix below are the NEXT fork batch. Until it lands,
+"LET/lambda support" means: books whose betas all go through the
+rewrite-fncall path.
+
+**Known emission defect (next fork batch):** the beta step hardcodes
+`:EQUIV EQUAL`, but the body is rewritten under the AMBIENT geneqv — under
+an IFF context the emitted equality is a claim ACL2 did not make
+(audit probe `iff.lisp`: child records `:EQUIV IFF`, parent asserts EQUAL
+for the same replacement). Inherited class defect — `fncall/non-recursive`
+(~20595) hardcodes identically — but L2 says `R` is never an enum: emit the
+real relation. The driver proves every obligation, so this cannot yield a
+false kernel proof; it is a false claim in the LOG.
 
 - **Interpreter** (S2.1, committed cb54a6c): `evalOptStep`'s
   LAMBDA-application arm — actuals in the outer env, body in the outer
@@ -366,18 +389,26 @@ core-path-blocking: any book binding a local hit it.
   value walkers descend into the beta-reduct (`re_lam_beta*_val`).
   Beta needs NO closedness side condition — `bindArgsOver` extends,
   so an open body reads the same outer bindings on both sides.
-- Status: `cov-let-lambda` REPLAYS end-to-end. The lambda wall fell in
+- Status: `cov-let-lambda` REPLAYS end-to-end (ci-gated:
+  `fsq_unfolds_real_mirror` in Tests/DriverTests.lean pins the replay,
+  the kept-hypothesis set, and the axioms). The lambda wall fell in
   the other three pinned books too — they now stop at unrelated
   frontiers (`cov-mv-let`: MV-NTH is not a DP-lift primitive;
   cov-meta-rule/cov-clause-processor: SYMBOLP recognizer cells and the
-  SYNP preprocess shape, 3/16 and 4/16 replaying). Corpus golden
-  unchanged (62/79, message-only churn). Binder arities >2 hard-fail
-  by name in both the congruence walk and the beta recipe.
+  SYNP preprocess shape, 3/16 and 4/16 replaying). Corpus golden stays
+  62/79; correction (audit F7): the S2 branch's golden delta was NOT
+  purely message-only — cb54a6c's single-child preprocess arm
+  (Core.lean) moved 05-hints/LEN2-APP-VIA-USE from the clausify-split
+  frontier to a deeper preprocess mismatch (still FAIL; that book has
+  no lambdas). Binder arities >2 hard-fail by name in the congruence
+  walk and the beta recipe; the DP-lift walkers frontier them.
 - Follow-ups: the `NoLet` predicate now ADMITS a binding form, so its
   name is stale — rename (and collapse the `envUpdate`/`bindArgsOver`
-  clone) as an end-of-arc cleanup. `rewrite`'s OTHER lambda site (the
-  all-quoteps fast path, line ~17337) is not yet emission-covered; it
-  would surface as an unadopted LAMBDA-BODY block and hard-fail.
+  clone) as an end-of-arc cleanup. Sites 2–4 of the table above
+  (CORRECTION 2026-07-25: the earlier claim here that site 2 "would
+  hard-fail" was wrong at the tree layer — the audit's probe shows
+  silent mis-parenting in the reconstructed tree; only the driver
+  fails closed).
 
 ## Driver inventory — candidate fake-replay infrastructure (pin now, kill later)
 

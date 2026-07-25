@@ -598,17 +598,30 @@ theorem evalOpt_congr_ternary3 (w : World) (env : Env)
   variables, which agree. -/
 
 /-! Free variables of a term that `evalOpt` may read. Head symbols and `quote`
-    bodies are not reads. (Over-approximates inside LET; combined with `NoLet`.) -/
+    bodies are not reads. (Over-approximates inside LET; combined with `NoLet`.)
+
+    INVARIANT (unconditional — S2 audit F1, 2026-07-25): `freeVars` OVER-
+    approximates the ambient-env reads of EVERY term, `NoLet` or not. Several
+    driver gates (`replayExecGround`'s closedness check, the TP `liftable`
+    filter, the DP variable collection) read `freeVars` standalone, with no
+    `NoLet` companion — an under-approximation there mis-states facts. So the
+    lambda arm keeps the body's residual (formal-filtered) free variables:
+    on a `NoLet`-certified application the residual is `[]` and the arm
+    degenerates to the actuals (see `freeVars_lam_closed`). -/
 mutual
 def freeVars : SExpr → List Symbol
   | .atom (.symbol s) => [s]
   | .cons (.atom (.symbol q)) rest => if q.isNamed "QUOTE" then [] else freeVarsSpine rest
-  -- LAMBDA application (the translated `let`, S2 2026-07-24): only the
-  -- ACTUALS are read from the ambient env — the body reads the binder's
-  -- formals, which `NoLet` certifies cover its free variables. (This arm
-  -- also matches a cons head that is not a LAMBDA; there `evalOpt` is `none`
-  -- in every env, and `NoLet` is false, so nothing depends on the answer.)
-  | .cons (.cons (.atom (.symbol _)) (.cons _ (.cons _ .nil))) argsExpr => freeVarsSpine argsExpr
+  -- LAMBDA application (the translated `let`, S2 2026-07-24): the ACTUALS
+  -- are read from the ambient env, plus any body variable NOT bound by the
+  -- binder's formals (none, when `NoLet` holds; a malformed formals list
+  -- filters nothing — over-approximation is the safe direction). This arm
+  -- also matches a cons head that is not a LAMBDA; there `evalOpt` is
+  -- `none` in every env, so any over-approximation is sound.
+  | .cons (.cons (.atom (.symbol _)) (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+      (match lamFormals? formalsE with
+       | some fs => (freeVars lamBody).filter (fun s => !fs.contains s)
+       | none => freeVars lamBody) ++ freeVarsSpine argsExpr
   | _ => []
 def freeVarsSpine : SExpr → List Symbol
   | .cons a rest => freeVars a ++ freeVarsSpine rest
@@ -623,7 +636,11 @@ end
 mutual
 def NoLet : SExpr → Bool
   | .cons (.atom (.symbol q)) rest =>
-      if q.isNamed "LET" || q.isNamed "LET*" then false
+      -- a BARE `(LAMBDA formals body)` in term position is rejected too
+      -- (S2 audit F2, 2026-07-25): it is not an evaluable term, and blessing
+      -- it would let `substTerm` rewrite into its FORMALS list. Only the
+      -- APPLIED form (the cons-headed arm below) is a translated `let`.
+      if q.isNamed "LET" || q.isNamed "LET*" || q.isNamed "LAMBDA" then false
       else if q.isNamed "QUOTE" then true else NoLetSpine rest
   -- a LAMBDA application IS a translated `let` (S2 2026-07-24). Admitted
   -- exactly when ACL2's own translate invariant holds — well-formed formals
@@ -738,10 +755,39 @@ theorem NoLet_lam_parts {lam : Symbol} {formalsE lamBody argsExpr : SExpr}
       have := (List.all_eq_true.mp h2) s hs
       simpa using this⟩
 
-/-- `freeVars` of a lambda application: the ACTUALS only. -/
-theorem freeVars_lam (lam : Symbol) (formalsE lamBody argsExpr : SExpr) :
+/-- Split a symbol-headed `NoLet` fact (non-QUOTE head): the head is none of
+    the rejected binder names, and the argument spine is regular. -/
+theorem NoLet_sym_parts {q : Symbol} {rest : SExpr}
+    (h : NoLet (.cons (.atom (.symbol q)) rest) = true)
+    (hq : q.isNamed "QUOTE" = false) :
+    (q.isNamed "LET" || q.isNamed "LET*") = false ∧ q.isNamed "LAMBDA" = false ∧
+    NoLetSpine rest = true := by
+  rw [NoLet] at h
+  by_cases hb : (q.isNamed "LET" || q.isNamed "LET*" || q.isNamed "LAMBDA") = true
+  · rw [if_pos hb] at h; exact absurd h (by simp)
+  · have hb' : (q.isNamed "LET" = false ∧ q.isNamed "LET*" = false) ∧
+        q.isNamed "LAMBDA" = false := by
+      simpa [Bool.or_eq_true, not_or] using hb
+    rw [if_neg hb, if_neg (by simp [hq])] at h
+    exact ⟨by simp [hb'.1.1, hb'.1.2], hb'.2, h⟩
+
+/-- `freeVars` of a CLOSED lambda application (the shape `NoLet` certifies):
+    the body's residual free variables filter to nothing, leaving the ACTUALS. -/
+theorem freeVars_lam_closed {lam : Symbol} {formalsE lamBody argsExpr : SExpr}
+    {formals : List Symbol}
+    (hform : lamFormals? formalsE = some formals)
+    (hclosed : ∀ s ∈ freeVars lamBody, s ∈ formals) :
     freeVars (.cons (.cons (.atom (.symbol lam))
-      (.cons formalsE (.cons lamBody .nil))) argsExpr) = freeVarsSpine argsExpr := rfl
+      (.cons formalsE (.cons lamBody .nil))) argsExpr) = freeVarsSpine argsExpr := by
+  show (match lamFormals? formalsE with
+        | some fs => (freeVars lamBody).filter (fun s => !fs.contains s)
+        | none => freeVars lamBody) ++ freeVarsSpine argsExpr = freeVarsSpine argsExpr
+  rw [hform]
+  have hnil : (freeVars lamBody).filter (fun s => !formals.contains s) = [] := by
+    rw [List.filter_eq_nil_iff]
+    intro s hs
+    simpa using hclosed s hs
+  simp only [hnil, List.nil_append]
 
 /-- Two envs that agree at `s` evaluate the variable `s` identically. -/
 theorem evalOpt_symbol_of_get (f : Nat) (w : World) (e1 e2 : Env) (s : Symbol)
@@ -807,7 +853,8 @@ theorem evalOpt_freevar_congr (w : World) :
         have hkey : ∀ a ∈ args, evalOpt n w e1 a = evalOpt n w e2 a := fun a ha =>
           ih e1 e2 a (NoLet_of_mem_spine hae hspine a ha)
             (fun s' hs' => hfv s' (by
-              rw [freeVars_lam]; exact freeVars_subset_spine hae ha hs'))
+              rw [freeVars_lam_closed hform hclosed]
+              exact freeVars_subset_spine hae ha hs'))
         rw [mapM_congr_mem hkey]
         cases hav : args.mapM (fun a => evalOpt n w e2 a) with
         | none => rfl
@@ -832,12 +879,7 @@ theorem evalOpt_freevar_congr (w : World) :
         have hkey : ∀ args, argsExpr.toList? = some args →
             ∀ a ∈ args, evalOpt n w e1 a = evalOpt n w e2 a := by
           intro args htl a ha
-          have hnls : NoLetSpine argsExpr = true := by
-            simp only [NoLet, hq] at hnl
-            by_cases hl : (s.isNamed "LET" || s.isNamed "LET*") = true
-            · simp [hl] at hnl
-            · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl
-              simpa using hnl
+          have hnls : NoLetSpine argsExpr = true := (NoLet_sym_parts hnl hq).2.2
           exact ih e1 e2 a (NoLet_of_mem_spine htl hnls a ha)
             (fun s' hs' => hfv s' (by simp only [freeVars, hq]; exact freeVars_subset_spine htl ha hs'))
         cases hif : s.isNamed "IF" with
@@ -865,8 +907,7 @@ theorem evalOpt_freevar_congr (w : World) :
           | some (_ :: _ :: _ :: _ :: _) => rfl
         | false =>
           cases hlet : (s.isNamed "LET" || s.isNamed "LET*") with
-          | true =>
-            exfalso; simp only [NoLet, hq, hlet, if_true, Bool.false_eq_true] at hnl
+          | true => exact absurd (NoLet_sym_parts hnl hq).1 (by simp [hlet])
           | false =>
             simp only [Bool.false_eq_true, if_false]
             match htl : argsExpr.toList? with
@@ -1191,11 +1232,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
               (.cons (.atom (.symbol q)) rest)
         simp only [evalOptStep_cons_symbol, hqf, Bool.false_eq_true, if_false]
         -- Per-element bridge: substituted arg in `env` = original arg in `envUpdate`.
-        have hnls : NoLetSpine rest = true := by
-          simp only [NoLet, hqf] at hnl
-          by_cases hl : (q.isNamed "LET" || q.isNamed "LET*") = true
-          · simp [hl] at hnl
-          · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl; simpa using hnl
+        have hnls : NoLetSpine rest = true := (NoLet_sym_parts hnl hqf).2.2
         have ihkey : ∀ a ∈ (rest.toList?).getD [],
             evalOpt n w env (substTerm formals (vals.map quoteVal) a)
               = evalOpt n w (envUpdate env formals vals) a := by
@@ -1227,7 +1264,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
         · have hiff : q.isNamed "IF" = false := by
             simp only [Bool.not_eq_true] at hif; exact hif
           by_cases hlet : (q.isNamed "LET" || q.isNamed "LET*") = true
-          · exfalso; simp only [NoLet, hqf, hlet, if_true, Bool.false_eq_true] at hnl
+          · exact absurd (NoLet_sym_parts hnl hqf).1 (by simp [hlet])
           · have hletf : (q.isNamed "LET" || q.isNamed "LET*") = false := by
               simp only [Bool.not_eq_true] at hlet; exact hlet
             simp only [hiff, hletf, Bool.false_eq_true, if_false]
@@ -1311,11 +1348,7 @@ theorem evalOpt_substTerm_eq (w : World) (env : Env) (formals : List Symbol)
            = evalOptStep (evalOpt n) w env
               (.cons (.atom (.symbol q)) (substSpine formals args' rest))
         simp only [evalOptStep_cons_symbol, hqf, Bool.false_eq_true, if_false]
-        have hnls : NoLetSpine rest = true := by
-          simp only [NoLet, hqf] at hnl
-          by_cases hl : (q.isNamed "LET" || q.isNamed "LET*") = true
-          · simp [hl] at hnl
-          · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl; simpa using hnl
+        have hnls : NoLetSpine rest = true := (NoLet_sym_parts hnl hqf).2.2
         have ihkey : ∀ a ∈ (rest.toList?).getD [],
             evalOpt n w env (substTerm formals args a)
               = evalOpt n w env (substTerm formals args' a) := by
@@ -1347,7 +1380,7 @@ theorem evalOpt_substTerm_eq (w : World) (env : Env) (formals : List Symbol)
         · have hiff : q.isNamed "IF" = false := by
             simp only [Bool.not_eq_true] at hif; exact hif
           by_cases hlet : (q.isNamed "LET" || q.isNamed "LET*") = true
-          · exfalso; simp only [NoLet, hqf, hlet, if_true, Bool.false_eq_true] at hnl
+          · exact absurd (NoLet_sym_parts hnl hqf).1 (by simp [hlet])
           · have hletf : (q.isNamed "LET" || q.isNamed "LET*") = false := by
               simp only [Bool.not_eq_true] at hlet; exact hlet
             simp only [hiff, hletf, Bool.false_eq_true, if_false]
@@ -1473,11 +1506,7 @@ theorem evalOpt_substTerm_conv (w : World) (env : Env) (formals : List Symbol)
       · exact ⟨0, fun f _ => by simp only [substTerm, hq, ↓reduceIte]⟩
       · have hqf : q.isNamed "QUOTE" = false := by
           simp only [Bool.not_eq_true] at hq; exact hq
-        have hnls : NoLetSpine rest = true := by
-          simp only [NoLet, hqf] at hnl
-          by_cases hl : (q.isNamed "LET" || q.isNamed "LET*") = true
-          · simp [hl] at hnl
-          · simp only [Bool.not_eq_true] at hl; simp [hl] at hnl; simpa using hnl
+        have hnls : NoLetSpine rest = true := (NoLet_sym_parts hnl hqf).2.2
         -- each spine element agrees eventually (it is structurally smaller)
         obtain ⟨Ns, hs⟩ : ∃ Ns, ∀ f ≥ Ns, ∀ a ∈ (rest.toList?).getD [],
             evalOpt f w env (substTerm formals args a)
@@ -1528,7 +1557,7 @@ theorem evalOpt_substTerm_conv (w : World) (env : Env) (formals : List Symbol)
         · have hiff : q.isNamed "IF" = false := by
             simp only [Bool.not_eq_true] at hif; exact hif
           by_cases hlet : (q.isNamed "LET" || q.isNamed "LET*") = true
-          · exfalso; simp only [NoLet, hqf, hlet, if_true, Bool.false_eq_true] at hnl
+          · exact absurd (NoLet_sym_parts hnl hqf).1 (by simp [hlet])
           · have hletf : (q.isNamed "LET" || q.isNamed "LET*") = false := by
               simp only [Bool.not_eq_true] at hlet; exact hlet
             simp only [hiff, hletf, Bool.false_eq_true, if_false]

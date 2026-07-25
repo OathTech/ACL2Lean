@@ -866,3 +866,56 @@ elab "wp3_gz_discharge_pin% " : term => do
 def wp3GzDischargePin : True := wp3_gz_discharge_pin%
 
 end ACL2.Tests.Driver
+
+/-! ## END-TO-END on the real cov-let-lambda book — `fsq-unfolds` (S2, the
+translated-`let` family). The coverage sweep does not include the pattern-test
+corpus, so without THIS pin the entire lambda replay path — the emitted
+`:LAMBDA-BODY` beta node (`replayLambdaBody`), the `PathStep.lamHead`
+congruence walk, and the binder-aware substitution lemmas — had no automated
+gate (S2 audit F9, 2026-07-25). Same discipline as perm-cons: pin the
+machine-generated statement, gate the axioms. -/
+private def letLambdaLog : String :=
+  include_str "../acl2_samples/pattern-tests/cov-let-lambda.proof-log"
+
+def letLambdaDevelopment : Development :=
+  (((ProofLog.parse letLambdaLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+def fsqUnfoldsProof : Option ClauseProof := do
+  let log ← (ProofLog.parse letLambdaLog).toOption
+  let dev ← (ClauseTree.buildDevelopment log).toOption
+  findThm dev "fsq-unfolds"
+
+derive_world letLambdaWorld from letLambdaDevelopment
+
+/-- Drive the REAL `fsq-unfolds` tree end-to-end: the definition unfold to a
+    lambda application, the actuals congruence through the lambda head, and
+    the `:LAMBDA-BODY` beta step adopting the body block. -/
+elab "acl2_replay_fsq_real% " : term => do
+  let cpOpt ← unsafe evalExpr (Option ClauseProof)
+    (mkApp (mkConst ``Option [0]) (mkConst ``ACL2.ClauseProof)) (mkConst ``fsqUnfoldsProof)
+  let some cp := cpOpt | throwError "fsqUnfoldsProof: parse/extract failed"
+  withLocalDeclD `env (mkConst ``Env) fun env => do
+    let cfg : ReplayConfig :=
+      { worldExpr := mkConst ``letLambdaWorld, envExpr := env,
+        worldVal := letLambdaDevelopment.toWorld,
+        gzDefs := letLambdaDevelopment.groundZeroSnapshotDefs,
+        justs := letLambdaDevelopment.justifications }
+    let (proof, conds) ← replayProofConditional cfg
+      letLambdaDevelopment.typePrescriptions cp
+      letLambdaDevelopment.justifications
+      (rulesBefore letLambdaDevelopment "fsq-unfolds")
+    -- PIN the kept-hypothesis set (the statement itself is machine-generated
+    -- from the log): a regression that weakens the mirror by keeping MORE
+    -- hypotheses must fail here, not pass silently
+    let expected := ["rule:COMMUTATIVITY-OF-*", "rule:DISTRIBUTIVITY", "rule:UNICITY-OF-1"]
+    unless conds == expected do
+      throwError "fsq-unfolds: kept hypotheses {conds} ≠ pinned {expected}"
+    logInfo m!"fsq-unfolds replayed; conditions: {conds}"
+    mkLambdaFVars #[env] proof
+
+/-- The first replayed translated-`let` theorem (S2). -/
+def fsq_unfolds_real_mirror := acl2_replay_fsq_real%
+
+-- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
+#print axioms fsq_unfolds_real_mirror

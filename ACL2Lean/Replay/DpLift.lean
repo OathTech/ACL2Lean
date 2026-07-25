@@ -3,9 +3,15 @@
 
   `dpLiftF` computes the lifted `Logic`-primitive value of a clause term over
   explicit VARIABLE and OPAQUE value assoc lists — the pure twin of the
-  driver's `dpValExpr` meta-walker, with the SAME fixed primitive table and
-  the SAME frontiers (an unknown head returns `none`; the caller hard-fails
-  exactly as the walker did). `dpLiftF_sound` is the once-proved soundness
+  driver's `dpValExpr` meta-walker, with the SAME fixed primitive table (an
+  unknown head returns `none`; the caller hard-fails exactly as the walker
+  did). ONE deliberate asymmetry (S2, 2026-07-25): `dpValExpr` additionally
+  beta-reduces translated-`let` LAMBDA applications; `dpLiftF` does not (the
+  reduct is not a structural subterm, so a lambda arm is a termination-design
+  question this verified function has not taken on). The DP-leaf path guards
+  the gap by NAME — `dpLiftProof` frontiers a lambda-bearing leaf before the
+  reduction check (`Driver/Discharge.lean`), so the divergence error there
+  still means a real defect. `dpLiftF_sound` is the once-proved soundness
   lemma (G3: the walker's per-node `mkAppM` proof chains are replaced by ONE
   lemma instantiation).
 

@@ -455,6 +455,19 @@ def mkDpLiftBundle (cfg : ReplayConfig) (envExpr : Expr)
   let hns ← mkDecideProof (mkApp (mkConst ``dpNoShadow) cfg.worldExpr)
   return { varsE, hvars, opqE, hopq, hns }
 
+/-- Does the term contain a lambda application (a translated `let`) anywhere
+    `dpLiftF` would walk? Quote bodies are DATA, not walked — a literal
+    `LAMBDA` symbol inside them is not an application. -/
+partial def containsLamApp : SExpr → Bool
+  | .cons (.atom (.symbol q)) rest =>
+      if q.isNamed "QUOTE" then false else containsLamApp rest
+  | .cons a b =>
+      (match a with
+       | .cons (.atom (.symbol lam)) _ => lam.isNamed "LAMBDA"
+       | _ => false)
+      || containsLamApp a || containsLamApp b
+  | _ => false
+
 /-- Value-characterized convergence of `t` to `vE` by ONE `dpLiftF_sound`
     instantiation; `vE` must be the walker-computed value (`dpValExpr`), and
     the `dpLiftF … = some vE` fact must hold by REDUCTION — a mismatch is a
@@ -462,6 +475,14 @@ def mkDpLiftBundle (cfg : ReplayConfig) (envExpr : Expr)
     disagreeing would be a defect, not a recoverable state). -/
 def dpLiftProof (cfg : ReplayConfig) (envExpr : Expr) (b : DpLiftBundle)
     (t : SExpr) (vE : Expr) : MetaM Expr := do
+  -- `dpLiftF` has NO lambda arm (a fuel/termination question the verified
+  -- function has not taken on), while `dpValExpr` beta-reduces translated
+  -- `let`s (S2). A lambda-bearing DP leaf is therefore a NAMED capability
+  -- frontier of this consolidation — without this check it would surface as
+  -- the misleading divergence error below (S2 audit F1, 2026-07-25).
+  if containsLamApp t then
+    throwFrontier m!"dpLiftProof: DP leaf contains a translated LET — \
+                    dpLiftF has no lambda arm (frontier): {repr t}"
   let someV := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
   let liftApp := mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE (reflectSExpr t)
   unless ← isDefEq liftApp someV do

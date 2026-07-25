@@ -194,9 +194,14 @@ def asApp (t : SExpr) : Option (Symbol × List SExpr) :=
 def asLamApp (t : SExpr) : Option (SExpr × Symbol × List SExpr) :=
   match t with
   | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsE =>
-    match argsE.toList? with
-    | some args => some (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)), lam, args)
-    | none => none
+    -- reject a non-LAMBDA cons head (S2 audit, 2026-07-25): callers treat a
+    -- `some` as a translated `let`; anything else must fall through to their
+    -- non-application hard-fail
+    if lam.isNamed "LAMBDA" then
+      match argsE.toList? with
+      | some args => some (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)), lam, args)
+      | none => none
+    else none
   | _ => none
 
 /-- Destructure a `(LAMBDA formals body)` head term. -/
