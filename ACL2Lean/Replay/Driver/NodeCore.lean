@@ -1577,8 +1577,17 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
   let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ children prov := n
   -- a non-EQUAL rule application is IFF/user-equivalence rewriting — it must
-  -- route through the R-parameterized judgment, not the eval-equality recipes
-  unless prov.equiv == "equal" do
+  -- route through the R-parameterized judgment, not the eval-equality recipes.
+  -- EXEMPT the COMPOSITE node classes (definition unfolds and lambda betas,
+  -- S2b 2026-07-25): their :EQUIV is the geneqv-derived strength of ACL2's
+  -- CLAIM for the whole lhs⇒rhs composite (honest emission, option B), but
+  -- the replay never uses that label — it composes the recorded child chain
+  -- and hard-checks it reaches the recorded rhs, so what it proves is the
+  -- kernel-checked EQUALITY of its own composition (stronger than an iff
+  -- claim is sound; a genuinely-iff CHILD still gates at its own node, and a
+  -- composite whose rhs needs an unrecorded iff-only normalization fails the
+  -- rhs check — fail-closed either way).
+  unless prov.equiv == "equal" || rty == "definition" || rty == "lambda-body" do
     throwError "replayNode: rune ({rty}, {rname}) applied under equivalence \
                 {prov.equiv} — R-parameterized recipe pending (G1 frontier)"
   match rty, rname with

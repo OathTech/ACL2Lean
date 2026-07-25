@@ -336,14 +336,19 @@ this was core-path-blocking: any book binding a local hit it. ACL2
 beta-reduces lambdas at FOUR sites; the 2026-07-25 3-Opus audit established
 the true coverage:
 
-| site | status |
+| site | status (fork batch 2026-07-25) |
 |---|---|
-| `rewrite-fncall` lambda branch (`rewrite.lisp` ~20397) | EMITTED — `cov-let-lambda` replays through it |
-| `rewrite` all-quoteps fast path (~17337) | NO emission; the LAMBDA-BODY block is SILENTLY MIS-PARENTED in the reconstructed tree (audit-built probe `site2c`: body rewrites attached to the NEXT chain step); the DRIVER fails closed on the mis-shape, but `dump-proof-tree` prints the wrong tree without complaint |
-| preprocess `expand-abbreviations` (`induct.lisp` 317–441) | NO emission at all (no markers) — the COMMON `let` case whenever an actual is/becomes ground (probe `site2b`: `(G '2)` ⇒ lambda ⇒ const-fold, beta step absent) |
-| `:expand … :lambdas` (`rewrite.lisp` ~12835) | NO emission; unadopted EXPANSION block (same mechanism as site 2); unexercised |
+| `rewrite-fncall` lambda branch (`rewrite.lisp` ~20397) | EMITTED (S2) — `cov-let-lambda` replays through it |
+| `rewrite` all-quoteps fast path (~17337) | EMITTED — origin `REWRITE/LAMBDA-BODY-QUOTED`, adopts the block; pin `p2-beta-quoted-actuals` |
+| preprocess `expand-abbreviations` — FOUR arms: all-quoted actuals (`induct.lisp` ~314), abbreviation body, open-expanded-abbreviation body, lambda-survives | first three EMIT entry-style (origin `EXPAND-ABBREVIATIONS/LAMBDA-BODY`, rhs = sublis-var reduct, further expansion as own steps — the `abbreviation-expansion` precedent); the survives arm is a DOCUMENTED no-emit (the reassembled term is byte-identical to the threaded chain term); the OPEN body expansion pushes a `(lambda-body . fn)` boundary frame so inner steps carry truthful paths; pin `p2-beta-preprocess` |
+| `:expand … :lambdas` (`rewrite-with-lemmas` lambda arm ~20860) | EMITTED — origin `EXPAND-HINT/LAMBDA-BODY` (rune/hyp nil by the arm's own assert$); pin `p2-beta-expand-hint`. NOTE: the named-fn `fncall/expand-permission` site keeps its pre-existing `:rune rune` (nil for plain :expand hints — unexercised, out of scope) |
 
-Sites 2–4 + the `:EQUIV` fix below are the NEXT fork batch. The audit's
+The `:EQUIV` fix (ratified option B, `structured-geneqv-equiv`): nil → EQUAL,
+the `*geneqv-iff*` constant → IFF, anything else → the verbatim equiv-name
+list (parser rejects it loudly — the named frontier). Applied to all four
+beta sites AND the three `fncall/*` keep-arm twins + `fncall/expand-permission`
+(their body rewrites maintain the ambient geneqv; the hardcoded 'equal was
+the audit's false-claim defect). The audit's
 three probes are PROMOTED to pinned books (S2b increment 1, 2026-07-25 —
 captured from the committed fork, pins reproduce the findings from clean
 state):
@@ -355,18 +360,18 @@ state):
   const-folds after, NO lambda markers at all (nosig-pinned).
 - `p2-beta-equiv-iff` — the false-equiv defect: an `:EQUIV IFF` child
   under the beta step's hardcoded `ORIGIN REWRITE-FNCALL/LAMBDA-BODY
-  :EQUIV EQUAL` (sig-pinned; the fork fix changes this signature). Until it lands,
+  :EQUIV EQUAL` (sig-pinned; the fork fix changes this signature).
+- `p2-beta-expand-hint` (added with the fork batch) — site 4: an
+  `:expand (:lambdas)` hint preempting rewrite-fncall; origin
+  `EXPAND-HINT/LAMBDA-BODY`. Until it lands,
 "LET/lambda support" means: books whose betas all go through the
 rewrite-fncall path.
 
-**Known emission defect (next fork batch):** the beta step hardcodes
-`:EQUIV EQUAL`, but the body is rewritten under the AMBIENT geneqv — under
-an IFF context the emitted equality is a claim ACL2 did not make
-(audit probe `iff.lisp`: child records `:EQUIV IFF`, parent asserts EQUAL
-for the same replacement). Inherited class defect — `fncall/non-recursive`
-(~20595) hardcodes identically — but L2 says `R` is never an enum: emit the
-real relation. The driver proves every obligation, so this cannot yield a
-false kernel proof; it is a false claim in the LOG.
+**RESOLVED (fork batch 2026-07-25):** the false-`:EQUIV` defect above is
+fixed by `structured-geneqv-equiv` at all body-rewrite emissions;
+`p2-beta-equiv-iff` now pins the HONEST state (`:EQUIV IFF` on the beta
+step; nosig on any `LAMBDA-BODY :EQUIV EQUAL`). Non-EQUAL beta steps land
+at the driver's G1 frontier — named, fail-closed — until the S3 lane.
 
 - **Interpreter** (S2.1, committed cb54a6c): `evalOptStep`'s
   LAMBDA-application arm — actuals in the outer env, body in the outer

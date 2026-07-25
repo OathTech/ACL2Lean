@@ -88,14 +88,15 @@ sig cov-typeset-decode 3 ":TYPESET"
 sig cov-backchain-limit 1 "(BFN X) '0 (0))"
 sig cov-let-lambda    1 "(LAMBDA (Y)"
 sig cov-mv-let        1 "(LAMBDA (MV)"
-# S2b beta-site probes (audit 2026-07-25; these PIN the emission GAPS —
-# when the next fork batch fixes a site, its pin fails loudly: update both)
+# S2b beta-site probes — FLIPPED to pin the FIXED state (fork batch
+# 2026-07-25: all four beta sites emit; the beta step carries the geneqv-
+# derived :EQUIV per the ratified option B)
 sig p2-beta-quoted-actuals 1 "KIND LAMBDA-BODY"
-nosig p2-beta-quoted-actuals "(:LAMBDA-BODY NIL)"
-sig p2-beta-preprocess 2 "(LAMBDA (Y) (BINARY-* Y Y)"
-nosig p2-beta-preprocess "LAMBDA-BODY"
+sig p2-beta-quoted-actuals 1 "ORIGIN REWRITE/LAMBDA-BODY-QUOTED"
+sig p2-beta-preprocess 2 "ORIGIN EXPAND-ABBREVIATIONS/LAMBDA-BODY"
+sig p2-beta-expand-hint 1 "ORIGIN EXPAND-HINT/LAMBDA-BODY"
 sig p2-beta-equiv-iff  1 ":EQUIV IFF"
-sig p2-beta-equiv-iff  1 "ORIGIN REWRITE-FNCALL/LAMBDA-BODY :EQUIV EQUAL"
+nosig p2-beta-equiv-iff "LAMBDA-BODY :EQUIV EQUAL"
 sig cov-verify-guards 1 "(:VERIFY-GUARDS :NAMES (GSUM)"
 sig cov-verify-guards 2 "(:QED)"
 # rewrite-cache: ONE recorded unfold for two occurrences

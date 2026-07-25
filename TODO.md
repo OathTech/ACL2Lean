@@ -44,18 +44,25 @@ _Last updated: 2026-07-25._
 
 > **S2b arc (branch `mdd/s2b-beta-emission`, opened 2026-07-25) — the
 > beta-emission completion fork batch.** Queue, from the S2 audit:
-> (1) emission at beta sites 2–4 (rewrite all-quoteps ~17337; preprocess
-> expand-abbreviations induct.lisp 317–441 — the COMMON ground-actual
-> case; :expand :lambdas ~12835); (2) the REAL `:EQUIV` on the beta step
-> (geneqv-derived, not the hardcoded EQUAL — and assess the identical
-> fncall/non-recursive defect); (3) replay support for what the new
-> emissions surface; (4) RE-AUDIT (new emission). Increment 1 DONE: the
-> audit's three probes promoted to pinned books
-> (p2-beta-quoted-actuals / p2-beta-preprocess / p2-beta-equiv-iff,
-> captured from the committed fork; the gap pins are nosig-style, so
-> each fork fix fails its pin loudly and forces the map update).
-> Fork-batch DESIGN needs MDD discussion before building — especially
-> the geneqv→:EQUIV mapping (L2-adjacent).
+> Inc-1 DONE (39dd013): audit probes → gated pins. Inc-2 DONE (fork
+> 845ae4233f): ALL FOUR beta sites emit (site 2 REWRITE/LAMBDA-BODY-QUOTED;
+> site 3 EXPAND-ABBREVIATIONS/LAMBDA-BODY, entry-style on all three beta
+> arms + boundary frame on the open expansion + documented no-emit on the
+> survives arm; site 4 EXPAND-HINT/LAMBDA-BODY at rewrite-with-lemmas'
+> lambda arm — NOT fncall/expand-permission, whose nil-rune named-fn case
+> stays as-was) + geneqv-derived :EQUIV (ratified option B,
+> structured-geneqv-equiv) at all beta sites and the fncall keep-arm
+> twins. TWO in-flight design amendments (fail-closed-preserving, need
+> ratification at review): compound :EQUIV parsed CANONICALLY to fail at
+> NODE granularity (a parser hard-fail killed six unrelated ordered-perms
+> rows — book granularity too blunt); the G1 equiv gate EXEMPTS composite
+> nodes (definition/lambda-body — the replay never uses the label; it
+> composes recorded children and hard-checks the recorded rhs). Golden
+> BYTE-IDENTICAL at 62/79; p2-beta-expand-hint REPLAYS with zero new
+> driver code; p2-beta-equiv-iff at the named G1 frontier. Remaining:
+> (3) site-3 preprocess-chain replay arm (p2-beta-preprocess 0/2:
+> proveConv lambda convergence + the abbrev-chain lambda congruence);
+> (4) RE-AUDIT the fork batch.
 
 > **S2 arc (branch `mdd/s2-let-lambda`, 2026-07-24/25) — the
 > REWRITE-FNCALL beta path landed + 3-Opus AUDIT ACTIONED; corpus
