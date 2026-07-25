@@ -295,8 +295,8 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
               let stp : PathStep := { fn := { name := "IF" }, arity := 3,
                                       argIdx := 2, siblings := [l, quoteT] }
               inner ← applyStep w env stp curL curR inner
-              curL := rebuild stp.fn stp.arity stp.argIdx curL stp.siblings
-              curR := rebuild stp.fn stp.arity stp.argIdx curR stp.siblings
+              curL := rebuild stp curL
+              curR := rebuild stp curR
             unless curL == disjoinTerm curClause &&
                    curR == disjoinTerm restClause do
               throwError "replayElim: reorder lift reconstructed \

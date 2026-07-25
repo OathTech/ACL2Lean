@@ -244,8 +244,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           let st : PathStep := { fn := { name := "IF" }, arity := 3, argIdx := 2,
                                  siblings := [l, quoteT] }
           inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
-          curL := rebuild st.fn st.arity st.argIdx curL st.siblings
-          curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+          curL := rebuild st curL
+          curR := rebuild st curR
         unless curL == disjoinTerm (substLits.map (·.2)) &&
                curR == disjoinTerm (shortened.map (·.2)) do
           throwError "replayClauseSpine: branch-substitution shortening lift \

@@ -5,7 +5,7 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-23._
+_Last updated: 2026-07-24._
 
 > **Mapping arc (branch `mdd/mapping-arc`, 2026-07-22/23) — COVERAGE
 > COMPLETE at increment 8; UNMERGED.** Scope as executed (MDD
@@ -41,6 +41,35 @@ _Last updated: 2026-07-23._
 > prefer fork emission + recorded-step replay; retire the fake-replay
 > inventory's bridges as emissions land; missing features acceptable,
 > baked-in bad design not.
+
+> **S2 arc (branch `mdd/s2-let-lambda`, 2026-07-24) — LET/lambda
+> LANDED; corpus scoreboard unchanged at 62/79 (the four lambda books
+> are pattern-tests, not sweep rows); UNMERGED.** `let`/`mv-let`
+> translate to `((LAMBDA (formals) body) actuals)`, so this was
+> core-path-blocking. S2.1 interpreter LAMBDA arm (lexical extension —
+> semantics DECIDED by the differential pin: the fresh-env `ev`
+> variant diverged on a nested open lambda) + shared `lamFormals?`;
+> S2.2 `PathFrame.argLam`; S2.3 binder-aware `freeVars`/`NoLet`/
+> `substTerm` with real lambda cases in all four induction lemmas, the
+> beta lemma pack (`conv_lam`, `evalOpt_lam_beta_conv`,
+> `re_lam_beta{1,2}_{conv,val}`) and arity-1/2 lambda congruences.
+> FORK (b48faff962): the beta step is EMITTED
+> (`:RUNE (:LAMBDA-BODY NIL)`, origin `REWRITE-FNCALL/LAMBDA-BODY`) —
+> ACL2 fires no rune there, so the LAMBDA-BODY block had no adopting
+> step and its nodes were mis-parented onto the next chain step; same
+> site gained the speculative-rollback checkpoint the fncall path had.
+> Driver: `PathStep.lamHead` congruence walk, `replayLambdaBody`,
+> DP-lift walkers descend into the beta-reduct. `cov-let-lambda`
+> replays end-to-end; the wall also fell in cov-mv-let /
+> cov-meta-rule / cov-clause-processor (now at unrelated frontiers:
+> MV-NTH DP-lift, SYMBOLP recognizer cells, SYNP preprocess shape).
+> Also: unmodeled DP primitives are now tagged FRONTIERS, not hard
+> errors (they are capability limits, and the lambda descent surfaces
+> them where the lambda frontier used to mask them).
+> Follow-ups: rename `NoLet` (it now admits a binding form) and
+> collapse the `envUpdate`/`bindArgsOver` clone (end-of-arc cleanup);
+> emission for `rewrite`'s all-quoteps lambda fast path; lambda
+> binders of arity >2.
 
 > **S1 arc (branch `mdd/s1-capture-hardening`, 2026-07-23) — COMPLETE
 > at 62/79 (28 uncond + 34 cond), DP ✓32 ◌4 ✗0 of 36; UNMERGED.**

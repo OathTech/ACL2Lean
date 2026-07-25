@@ -603,21 +603,41 @@ mutual
 def freeVars : SExpr → List Symbol
   | .atom (.symbol s) => [s]
   | .cons (.atom (.symbol q)) rest => if q.isNamed "QUOTE" then [] else freeVarsSpine rest
+  -- LAMBDA application (the translated `let`, S2 2026-07-24): only the
+  -- ACTUALS are read from the ambient env — the body reads the binder's
+  -- formals, which `NoLet` certifies cover its free variables. (This arm
+  -- also matches a cons head that is not a LAMBDA; there `evalOpt` is `none`
+  -- in every env, and `NoLet` is false, so nothing depends on the answer.)
+  | .cons (.cons (.atom (.symbol _)) (.cons _ (.cons _ .nil))) argsExpr => freeVarsSpine argsExpr
   | _ => []
 def freeVarsSpine : SExpr → List Symbol
   | .cons a rest => freeVars a ++ freeVarsSpine rest
   | _ => []
 end
 
-/-! A term with no LET/LET* anywhere it is evaluated. -/
+/-! A term whose evaluation reads the ambient env only at `freeVars`, and in
+    which `substTerm` may therefore substitute without capture: no surface
+    LET/LET*, and every LAMBDA application well-formed with a body closed
+    under its own formals. (Name kept from the pre-S2 predicate; see the
+    lambda arm.) -/
 mutual
 def NoLet : SExpr → Bool
   | .cons (.atom (.symbol q)) rest =>
       if q.isNamed "LET" || q.isNamed "LET*" then false
       else if q.isNamed "QUOTE" then true else NoLetSpine rest
-  -- a LAMBDA application IS a translated `let` (S2 2026-07-24): the
-  -- freevar-congruence/substitution lemmas' scoping story excludes it the
-  -- same way (binder-aware variants are the S2 driver follow-up)
+  -- a LAMBDA application IS a translated `let` (S2 2026-07-24). Admitted
+  -- exactly when ACL2's own translate invariant holds — well-formed formals
+  -- and a body whose free variables are all formals — which is what makes
+  -- the binder invisible to the two lemmas below: `substTerm` rewrites only
+  -- the actuals, and the free-variable congruence needs the body to read
+  -- nothing but the formals (bound identically under either env).
+  | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+      lam.isNamed "LAMBDA"
+        && (match lamFormals? formalsE with
+            | some formals => (freeVars lamBody).all (fun s => formals.contains s)
+            | none => false)
+        && NoLet lamBody && NoLetSpine argsExpr
+  -- any other cons head is not an application `evalOpt` can run
   | .cons (.cons _ _) _ => false
   | _ => true
 def NoLetSpine : SExpr → Bool
@@ -672,6 +692,83 @@ theorem NoLet_of_mem_spine : ∀ {argsExpr : SExpr} {args : List SExpr},
         · exact NoLet_of_mem_spine htl hnl.2 a ha'
       | none => simp [htl, bind, Option.bind] at h
 
+/-! ### Lambda-application (translated `let`) shape lemmas
+
+  The four induction lemmas below all reach the cons-headed case; `NoLet`
+  admits exactly one shape there (a well-formed LAMBDA whose body is closed
+  under its formals), so the case analysis is factored out once. -/
+
+/-- `NoLet` admits a cons head only in the translated-lambda shape. -/
+theorem NoLet_cons_cons : ∀ {a b argsExpr : SExpr},
+    NoLet (.cons (.cons a b) argsExpr) = true →
+    ∃ (lam : Symbol) (formalsE lamBody : SExpr),
+      a = .atom (.symbol lam) ∧ b = .cons formalsE (.cons lamBody .nil)
+  | .nil, _, _, h => absurd h (by simp [NoLet])
+  | .atom (.number _), _, _, h => absurd h (by simp [NoLet])
+  | .atom (.string _), _, _, h => absurd h (by simp [NoLet])
+  | .atom (.keyword _), _, _, h => absurd h (by simp [NoLet])
+  | .atom (.char _), _, _, h => absurd h (by simp [NoLet])
+  | .cons _ _, _, _, h => absurd h (by simp [NoLet])
+  | .atom (.symbol _), .nil, _, h => absurd h (by simp [NoLet])
+  | .atom (.symbol _), .atom _, _, h => absurd h (by simp [NoLet])
+  | .atom (.symbol _), .cons _ .nil, _, h => absurd h (by simp [NoLet])
+  | .atom (.symbol _), .cons _ (.atom _), _, h => absurd h (by simp [NoLet])
+  | .atom (.symbol _), .cons _ (.cons _ (.atom _)), _, h => absurd h (by simp [NoLet])
+  | .atom (.symbol _), .cons _ (.cons _ (.cons _ _)), _, h => absurd h (by simp [NoLet])
+  | .atom (.symbol _), .cons _ (.cons _ .nil), _, _ => ⟨_, _, _, rfl, rfl⟩
+
+/-- The four facts `NoLet` certifies about a translated-lambda application:
+    the head really is `LAMBDA`, its formals are well-formed, the body reads
+    only those formals and is itself regular, and the actuals are regular. -/
+theorem NoLet_lam_parts {lam : Symbol} {formalsE lamBody argsExpr : SExpr}
+    (h : NoLet (.cons (.cons (.atom (.symbol lam))
+          (.cons formalsE (.cons lamBody .nil))) argsExpr) = true) :
+    lam.isNamed "LAMBDA" = true ∧
+    (∃ formals, lamFormals? formalsE = some formals ∧ ∀ s ∈ freeVars lamBody, s ∈ formals) ∧
+    NoLet lamBody = true ∧ NoLetSpine argsExpr = true := by
+  rw [NoLet] at h
+  simp only [Bool.and_eq_true] at h
+  obtain ⟨⟨⟨h1, h2⟩, h3⟩, h4⟩ := h
+  refine ⟨h1, ?_, h3, h4⟩
+  cases hf : lamFormals? formalsE with
+  | none => rw [hf] at h2; exact absurd h2 (by simp)
+  | some formals =>
+    rw [hf] at h2
+    exact ⟨formals, rfl, fun s hs => by
+      have := (List.all_eq_true.mp h2) s hs
+      simpa using this⟩
+
+/-- `freeVars` of a lambda application: the ACTUALS only. -/
+theorem freeVars_lam (lam : Symbol) (formalsE lamBody argsExpr : SExpr) :
+    freeVars (.cons (.cons (.atom (.symbol lam))
+      (.cons formalsE (.cons lamBody .nil))) argsExpr) = freeVarsSpine argsExpr := rfl
+
+/-- Two envs that agree at `s` evaluate the variable `s` identically. -/
+theorem evalOpt_symbol_of_get (f : Nat) (w : World) (e1 e2 : Env) (s : Symbol)
+    (h : e1.get? s = e2.get? s) :
+    evalOpt (f + 1) w e1 (.atom (.symbol s)) = evalOpt (f + 1) w e2 (.atom (.symbol s)) := by
+  simp only [evalOpt, evalOptStep, h]
+
+/-- Two envs extended by the SAME formals↦values agree at every formal,
+    whatever their bases — the scoping fact that makes a closed lambda body
+    base-env-independent. -/
+theorem bindArgsOver_get_of_mem (s : Symbol) :
+    ∀ (formals : List Symbol) (vals : List SExpr), formals.length = vals.length →
+      s ∈ formals → ∀ (e1 e2 : Env),
+        (bindArgsOver e1 formals vals).get? s = (bindArgsOver e2 formals vals).get? s
+  | [], _, _, hs, _, _ => absurd hs (by simp)
+  | _ :: _, [], hlen, _, _, _ => by simp at hlen
+  | f :: fs, v :: vs, hlen, hs, e1, e2 => by
+      show ((bindArgsOver e1 fs vs).insert f v).get? s
+         = ((bindArgsOver e2 fs vs).insert f v).get? s
+      rw [Env.get?_insert, Env.get?_insert]
+      by_cases h : s = f
+      · simp [h]
+      · have hne : (s == f) = false := by simpa using h
+        simp only [hne, Bool.false_eq_true, if_false]
+        exact bindArgsOver_get_of_mem s fs vs (by simpa using hlen)
+          (by rcases List.mem_cons.mp hs with rfl | h' <;> [exact absurd rfl h; exact h']) e1 e2
+
 /-- FREE-VARIABLE CONGRUENCE: `evalOpt` reads the env only at a term's free
     variables, so two envs agreeing there evaluate the (LET-free) term equally. -/
 theorem evalOpt_freevar_congr (w : World) :
@@ -696,7 +793,35 @@ theorem evalOpt_freevar_congr (w : World) :
     | .cons (.atom (.keyword _)) _ => rfl
     | .cons (.atom (.char _)) _ => rfl
     | .cons .nil _ => rfl
-    | .cons (.cons _ _) _ => exact absurd hnl (by simp [NoLet])
+    | .cons (.cons _ _) argsExpr =>
+      -- the translated `let`: the ACTUALS are read from the ambient envs (IH),
+      -- the body only from the formals both extensions bind identically
+      obtain ⟨lam, formalsE, lamBody, rfl, rfl⟩ := NoLet_cons_cons hnl
+      obtain ⟨hlam, ⟨lformals, hform, hclosed⟩, hbnl, hspine⟩ := NoLet_lam_parts hnl
+      show evalOptStep (evalOpt n) w e1 _ = evalOptStep (evalOpt n) w e2 _
+      simp only [evalOptStep_cons_lam, hlam, if_true, hform]
+      cases hae : argsExpr.toList? with
+      | none => rfl
+      | some args =>
+        dsimp only
+        have hkey : ∀ a ∈ args, evalOpt n w e1 a = evalOpt n w e2 a := fun a ha =>
+          ih e1 e2 a (NoLet_of_mem_spine hae hspine a ha)
+            (fun s' hs' => hfv s' (by
+              rw [freeVars_lam]; exact freeVars_subset_spine hae ha hs'))
+        rw [mapM_congr_mem hkey]
+        cases hav : args.mapM (fun a => evalOpt n w e2 a) with
+        | none => rfl
+        | some argVals =>
+          show (if lformals.length = argVals.length
+                  then evalOpt n w (bindArgsOver e1 lformals argVals) lamBody else none)
+             = (if lformals.length = argVals.length
+                  then evalOpt n w (bindArgsOver e2 lformals argVals) lamBody else none)
+          by_cases hlen : lformals.length = argVals.length
+          · simp only [hlen, if_true]
+            exact ih _ _ lamBody hbnl (fun s hs =>
+              evalOpt_symbol_of_get 0 w _ _ s
+                (bindArgsOver_get_of_mem s lformals argVals hlen (hclosed s hs) _ _))
+          · simp only [if_neg hlen]
     | .cons (.atom (.symbol s)) argsExpr =>
       show evalOptStep (evalOpt n) w e1 (.cons (.atom (.symbol s)) argsExpr)
          = evalOptStep (evalOpt n) w e2 (.cons (.atom (.symbol s)) argsExpr)
@@ -896,6 +1021,11 @@ def substTerm (formals : List Symbol) (args : List SExpr) : SExpr → SExpr
   | .cons (.atom (.symbol q)) rest =>
       if q.isNamed "QUOTE" then .cons (.atom (.symbol q)) rest
       else .cons (.atom (.symbol q)) (substSpine formals args rest)
+  -- LAMBDA application (S2 2026-07-24): substitute the ACTUALS only. The
+  -- binder is left alone — under `NoLet` the body's free variables are all
+  -- formals, so no outer variable occurs there to substitute (and rewriting
+  -- one would capture).
+  | .cons (.cons a b) argsExpr => .cons (.cons a b) (substSpine formals args argsExpr)
   | t => t
 /-- Map `substTerm` across an argument spine. -/
 def substSpine (formals : List Symbol) (args : List SExpr) : SExpr → SExpr
@@ -964,12 +1094,6 @@ theorem substSpine_toList (formals : List Symbol) (args : List SExpr) :
       | none => rfl
       | some rest => rfl
 
-/-- Two envs that agree at `s` evaluate the variable `s` identically. -/
-theorem evalOpt_symbol_of_get (f : Nat) (w : World) (e1 e2 : Env) (s : Symbol)
-    (h : e1.get? s = e2.get? s) :
-    evalOpt (f + 1) w e1 (.atom (.symbol s)) = evalOpt (f + 1) w e2 (.atom (.symbol s)) := by
-  simp only [evalOpt, evalOptStep, h]
-
 /-- SUBSTITUTION (quoted values): substituting each formal by `(quote vᵢ)` in a
     LET-free body, evaluated in `env`, equals evaluating the body in the env
     extended with the formals bound to the `vᵢ`. Fixed fuel — no convergence
@@ -1013,7 +1137,42 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
     | .cons (.atom (.keyword _)) _ => rfl
     | .cons (.atom (.char _)) _ => rfl
     | .cons .nil _ => rfl
-    | .cons (.cons _ _) _ => exact absurd hnl (by simp [NoLet])
+    | .cons (.cons _ _) argsExpr =>
+      -- the translated `let`: substitution rewrites the ACTUALS (IH), and the
+      -- body — closed under the lambda's own formals — is insensitive to the
+      -- base env the two sides differ in (free-variable congruence)
+      obtain ⟨lam, formalsE, lamBody, rfl, rfl⟩ := NoLet_cons_cons hnl
+      obtain ⟨hlam, ⟨lformals, hform, hclosed⟩, hbnl, hspine⟩ := NoLet_lam_parts hnl
+      show evalOptStep (evalOpt n) w env
+             (.cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)))
+               (substSpine formals (vals.map quoteVal) argsExpr))
+         = evalOptStep (evalOpt n) w (envUpdate env formals vals) _
+      simp only [evalOptStep_cons_lam, hlam, if_true, hform, substSpine_toList]
+      cases hae : argsExpr.toList? with
+      | none => simp only [Option.map_none]
+      | some args =>
+        simp only [Option.map_some]
+        have hkey : ∀ a ∈ args,
+            evalOpt n w env (substTerm formals (vals.map quoteVal) a)
+              = evalOpt n w (envUpdate env formals vals) a := fun a ha =>
+          ih env a (NoLet_of_mem_spine hae hspine a ha)
+        rw [List.mapM_map]
+        simp only [Function.comp_def]
+        rw [mapM_congr_mem hkey]
+        cases hav : args.mapM (fun a => evalOpt n w (envUpdate env formals vals) a) with
+        | none => rfl
+        | some argVals =>
+          show (if lformals.length = argVals.length
+                  then evalOpt n w (bindArgsOver env lformals argVals) lamBody else none)
+             = (if lformals.length = argVals.length
+                  then evalOpt n w (bindArgsOver (envUpdate env formals vals) lformals argVals)
+                         lamBody else none)
+          by_cases hlen : lformals.length = argVals.length
+          · simp only [hlen, if_true]
+            exact evalOpt_freevar_congr w n _ _ lamBody hbnl (fun s hs =>
+              evalOpt_symbol_of_get 0 w _ _ s
+                (bindArgsOver_get_of_mem s lformals argVals hlen (hclosed s hs) _ _))
+          · simp only [if_neg hlen]
     | .cons (.atom (.symbol q)) rest =>
       by_cases hq : q.isNamed "QUOTE" = true
       · rw [show substTerm formals (vals.map quoteVal) (.cons (.atom (.symbol q)) rest)
@@ -1114,7 +1273,25 @@ theorem evalOpt_substTerm_eq (w : World) (env : Env) (formals : List Symbol)
     | .cons (.atom (.keyword _)) _ => rfl
     | .cons (.atom (.char _)) _ => rfl
     | .cons .nil _ => rfl
-    | .cons (.cons _ _) _ => rfl
+    | .cons (.cons _ _) argsExpr =>
+      -- the translated `let`: only the ACTUALS are substituted, and both
+      -- sides then evaluate the SAME body in the SAME extended env
+      obtain ⟨lam, formalsE, lamBody, rfl, rfl⟩ := NoLet_cons_cons hnl
+      obtain ⟨hlam, ⟨lformals, hform, _⟩, _, hspine⟩ := NoLet_lam_parts hnl
+      show evalOptStep (evalOpt n) w env
+             (.cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)))
+               (substSpine formals args argsExpr))
+         = evalOptStep (evalOpt n) w env
+             (.cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)))
+               (substSpine formals args' argsExpr))
+      simp only [evalOptStep_cons_lam, hlam, if_true, hform, substSpine_toList]
+      cases hae : argsExpr.toList? with
+      | none => simp only [Option.map_none]
+      | some l =>
+        simp only [Option.map_some]
+        rw [List.mapM_map, List.mapM_map]
+        simp only [Function.comp_def]
+        rw [mapM_congr_mem (fun a ha => ih a (NoLet_of_mem_spine hae hspine a ha))]
     | .cons (.atom (.symbol q)) rest =>
       by_cases hq : q.isNamed "QUOTE" = true
       · rw [show substTerm formals args (.cons (.atom (.symbol q)) rest)
@@ -1255,7 +1432,42 @@ theorem evalOpt_substTerm_conv (w : World) (env : Env) (formals : List Symbol)
     | .cons (.atom (.keyword _)) _ => exact ⟨0, fun f _ => rfl⟩
     | .cons (.atom (.char _)) _ => exact ⟨0, fun f _ => rfl⟩
     | .cons .nil _ => exact ⟨0, fun f _ => rfl⟩
-    | .cons (.cons _ _) _ => exact ⟨0, fun f _ => rfl⟩
+    | .cons (.cons _ _) argsExpr =>
+      -- the translated `let`: the ACTUALS agree eventually (each is
+      -- structurally smaller); the body and its extended env are then
+      -- syntactically identical on both sides
+      obtain ⟨lam, formalsE, lamBody, rfl, rfl⟩ := NoLet_cons_cons hnl
+      obtain ⟨hlam, ⟨lformals, hform, _⟩, _, hspine⟩ := NoLet_lam_parts hnl
+      obtain ⟨Ns, hs⟩ : ∃ Ns, ∀ f ≥ Ns, ∀ a ∈ (argsExpr.toList?).getD [],
+          evalOpt f w env (substTerm formals args a)
+            = evalOpt f w env (substTerm formals args' a) := by
+        apply exists_bound_forall_mem
+        intro a ha
+        have hsz : sizeOf a ≤ n := by
+          have h1 := sizeOf_mem_toList ha
+          simp only [SExpr.cons.sizeOf_spec] at hb; omega
+        have hnl_a : NoLet a = true := by
+          match htl : argsExpr.toList? with
+          | some l => exact NoLet_of_mem_spine htl hspine a (by rw [htl] at ha; simpa using ha)
+          | none => rw [htl] at ha; simp at ha
+        exact ih a hsz hnl_a
+      refine ⟨Ns + 1, fun f hf => ?_⟩
+      obtain ⟨m, rfl⟩ : ∃ m, f = m + 1 := ⟨f - 1, by omega⟩
+      have ihkey := hs m (by omega)
+      show evalOptStep (evalOpt m) w env
+             (.cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)))
+               (substSpine formals args argsExpr))
+         = evalOptStep (evalOpt m) w env
+             (.cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)))
+               (substSpine formals args' argsExpr))
+      simp only [evalOptStep_cons_lam, hlam, if_true, hform, substSpine_toList]
+      cases hae : argsExpr.toList? with
+      | none => simp only [Option.map_none]
+      | some l =>
+        simp only [Option.map_some]
+        rw [List.mapM_map, List.mapM_map]
+        simp only [Function.comp_def]
+        rw [mapM_congr_mem (fun a ha => ihkey a (by simp only [hae, Option.getD_some]; exact ha))]
     | .cons (.atom (.symbol q)) rest =>
       by_cases hq : q.isNamed "QUOTE" = true
       · exact ⟨0, fun f _ => by simp only [substTerm, hq, ↓reduceIte]⟩
@@ -1633,6 +1845,296 @@ theorem evalOpt_substTerm_substN (w : World) (env : Env)
     Nag (fun s g hg => (hag s g hg).symm) (sizeOf body) body (Nat.le_refl _) hnl
   refine ⟨Ncong, fun f hf => ?_⟩
   rw [← hcong f hf, evalOpt_substTerm_quote w formals vals f env body hnl]
+
+/-! ### The LAMBDA-BODY boundary (translated `let`; S2 2026-07-24)
+
+  ACL2's rewriter descends into a lambda application by rewriting the ACTUALS
+  in place and then rewriting the BODY under `formals ↦ actuals` — the
+  `(LAMBDA-BODY . fn)` path frame, whose recorded redex is the body with the
+  formals already replaced. `evalOpt_lam_beta_conv` is exactly that step. -/
+
+/-- `bindArgsOver` (the interpreter's lexical extension) IS `envUpdate` (the
+    substitution lemmas' extension). -/
+theorem bindArgsOver_eq_envUpdate (env : Env) :
+    ∀ (formals : List Symbol) (vals : List SExpr),
+      bindArgsOver env formals vals = envUpdate env formals vals
+  | [], _ => rfl
+  | _ :: _, [] => rfl
+  | f :: fs, v :: vs => by
+      show (bindArgsOver env fs vs).insert f v = (envUpdate env fs vs).insert f v
+      rw [bindArgsOver_eq_envUpdate env fs vs]
+
+/-- Per-argument convergence lifts to the argument spine's `mapM`. -/
+theorem mapM_conv_of_zip (w : World) (env : Env) :
+    ∀ (actuals vals : List SExpr), actuals.length = vals.length →
+      (∀ p ∈ actuals.zip vals, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2) →
+      ∃ N, ∀ f ≥ N, actuals.mapM (fun a => evalOpt f w env a) = some vals
+  | [], [], _, _ => ⟨0, fun _ _ => rfl⟩
+  | a :: as, v :: vs, hlen, hz => by
+      obtain ⟨Na, ha⟩ := hz (a, v) (by simp [List.zip_cons_cons])
+      obtain ⟨Nr, hr⟩ := mapM_conv_of_zip w env as vs (by simpa using hlen)
+        (fun p hp => hz p (by rw [List.zip_cons_cons]; exact List.mem_cons_of_mem _ hp))
+      refine ⟨max Na Nr, fun f hf => ?_⟩
+      have h1 : evalOpt f w env a = some v := ha f (by omega)
+      simp [List.mapM_cons, h1, hr f (by omega)]
+  | _ :: _, [], hlen, _ => by simp at hlen
+  | [], _ :: _, hlen, _ => by simp at hlen
+
+/-- A translated `let` converges to its body's value in the extended env. -/
+theorem conv_lam (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody argsExpr : SExpr)
+    (lformals : List Symbol) (actuals vals : List SExpr) (v : SExpr)
+    (hlam : lam.isNamed "LAMBDA" = true)
+    (hform : lamFormals? formalsE = some lformals)
+    (hargs : argsExpr.toList? = some actuals)
+    (hlenA : actuals.length = vals.length)
+    (hlen : lformals.length = vals.length)
+    (hconv : ∀ p ∈ actuals.zip vals, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
+    (hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgsOver env lformals vals) lamBody = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr)
+      = some v := by
+  obtain ⟨Nm, hm⟩ := mapM_conv_of_zip w env actuals vals hlenA hconv
+  obtain ⟨Nb, hb⟩ := hbody
+  refine ⟨max Nm Nb + 1, fun f hf => ?_⟩
+  obtain ⟨m, rfl⟩ : ∃ m, f = m + 1 := ⟨f - 1, by omega⟩
+  show evalOptStep (evalOpt m) w env _ = some v
+  simp only [evalOptStep_cons_lam, hlam, if_true, hform, hargs]
+  rw [hm m (by omega)]
+  show (if lformals.length = vals.length
+          then evalOpt m w (bindArgsOver env lformals vals) lamBody else none) = some v
+  rw [if_pos hlen]
+  exact hb m (by omega)
+
+/-! Congruence in a translated `let`'s ACTUALS (the `(k LAMBDA …)` path frame:
+    ACL2 rewrites a lambda application's actuals in place before descending
+    into the body). No `not_special` side condition — a lambda head is never
+    `QUOTE`/`IF`/`LET`. Arities 1–2 are the emitted frontier (the pinned
+    corpus's `let`/`mv-let`/metafunction binders); a wider binder hard-fails
+    in the path walker rather than being approximated. -/
+
+/-- Unary lambda-application argument congruence. -/
+theorem evalOpt_congr_lam1 (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody a a' : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env a') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+        (.cons formalsE (.cons lamBody .nil))) (.cons a .nil))
+      = evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+        (.cons formalsE (.cons lamBody .nil))) (.cons a' .nil)) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  match f with
+  | m + 1 =>
+    have hm := hN m (by omega)
+    show evalOptStep (evalOpt m) w env _ = evalOptStep (evalOpt m) w env _
+    simp only [evalOptStep_cons_lam]
+    by_cases hlam : lam.isNamed "LAMBDA" = true
+    · simp only [hlam, if_true]
+      cases hform : lamFormals? formalsE with
+      | none => rfl
+      | some lformals =>
+        show (do let argVals ← [a].mapM (evalOpt m w env ·)
+                 if lformals.length = argVals.length
+                 then evalOpt m w (bindArgsOver env lformals argVals) lamBody else none)
+           = (do let argVals ← [a'].mapM (evalOpt m w env ·)
+                 if lformals.length = argVals.length
+                 then evalOpt m w (bindArgsOver env lformals argVals) lamBody else none)
+        simp only [List.mapM_cons, List.mapM_nil, bind_assoc, pure_bind, hm]
+    · simp only [Bool.not_eq_true] at hlam
+      simp only [hlam, Bool.false_eq_true, if_false]
+
+/-- Binary lambda-application argument congruence, first actual. -/
+theorem evalOpt_congr_lam2_left (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody a a' b : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env a = evalOpt f w env a') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+        (.cons formalsE (.cons lamBody .nil))) (.cons a (.cons b .nil)))
+      = evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+        (.cons formalsE (.cons lamBody .nil))) (.cons a' (.cons b .nil))) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  match f with
+  | m + 1 =>
+    have hm := hN m (by omega)
+    show evalOptStep (evalOpt m) w env _ = evalOptStep (evalOpt m) w env _
+    simp only [evalOptStep_cons_lam]
+    by_cases hlam : lam.isNamed "LAMBDA" = true
+    · simp only [hlam, if_true]
+      cases hform : lamFormals? formalsE with
+      | none => rfl
+      | some lformals =>
+        show (do let argVals ← [a, b].mapM (evalOpt m w env ·)
+                 if lformals.length = argVals.length
+                 then evalOpt m w (bindArgsOver env lformals argVals) lamBody else none)
+           = (do let argVals ← [a', b].mapM (evalOpt m w env ·)
+                 if lformals.length = argVals.length
+                 then evalOpt m w (bindArgsOver env lformals argVals) lamBody else none)
+        simp only [List.mapM_cons, List.mapM_nil, bind_assoc, pure_bind, hm]
+    · simp only [Bool.not_eq_true] at hlam
+      simp only [hlam, Bool.false_eq_true, if_false]
+
+/-- Binary lambda-application argument congruence, second actual. -/
+theorem evalOpt_congr_lam2_right (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody a b b' : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env b = evalOpt f w env b') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+        (.cons formalsE (.cons lamBody .nil))) (.cons a (.cons b .nil)))
+      = evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+        (.cons formalsE (.cons lamBody .nil))) (.cons a (.cons b' .nil))) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N + 1, fun f hf => ?_⟩
+  match f with
+  | m + 1 =>
+    have hm := hN m (by omega)
+    show evalOptStep (evalOpt m) w env _ = evalOptStep (evalOpt m) w env _
+    simp only [evalOptStep_cons_lam]
+    by_cases hlam : lam.isNamed "LAMBDA" = true
+    · simp only [hlam, if_true]
+      cases hform : lamFormals? formalsE with
+      | none => rfl
+      | some lformals =>
+        show (do let argVals ← [a, b].mapM (evalOpt m w env ·)
+                 if lformals.length = argVals.length
+                 then evalOpt m w (bindArgsOver env lformals argVals) lamBody else none)
+           = (do let argVals ← [a, b'].mapM (evalOpt m w env ·)
+                 if lformals.length = argVals.length
+                 then evalOpt m w (bindArgsOver env lformals argVals) lamBody else none)
+        simp only [List.mapM_cons, List.mapM_nil, bind_assoc, pure_bind, hm]
+    · simp only [Bool.not_eq_true] at hlam
+      simp only [hlam, Bool.false_eq_true, if_false]
+
+/-- BETA at the `LAMBDA-BODY` boundary: a translated `let` evaluates like its
+    body with the actual TERMS substituted for the formals. Faithful to the
+    rewriter's own move — ACL2 rewrites the body under `formals ↦ actuals`,
+    and the emitted redex at that frame is the substituted body. -/
+theorem evalOpt_lam_beta_conv (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody argsExpr : SExpr)
+    (lformals : List Symbol) (actuals vals : List SExpr) (v : SExpr)
+    (hlam : lam.isNamed "LAMBDA" = true)
+    (hform : lamFormals? formalsE = some lformals)
+    (hargs : argsExpr.toList? = some actuals)
+    (hlenA : actuals.length = vals.length)
+    (hlen : lformals.length = vals.length)
+    (hnl : NoLet lamBody = true)
+    (hconv : ∀ p ∈ actuals.zip vals, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
+    (hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgsOver env lformals vals) lamBody = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr)
+      = evalOpt f w env (substTerm lformals actuals lamBody) := by
+  obtain ⟨Nl, hl⟩ := conv_lam w env lam formalsE lamBody argsExpr lformals actuals vals v
+    hlam hform hargs hlenA hlen hconv hbody
+  obtain ⟨Ns, hs⟩ := evalOpt_substTerm_substN w env lformals actuals vals lamBody hnl hlenA hconv
+  obtain ⟨Nb, hb⟩ := hbody
+  refine ⟨max Nl (max Ns Nb), fun f hf => ?_⟩
+  rw [hl f (by omega), hs f (by omega), ← bindArgsOver_eq_envUpdate, hb f (by omega)]
+
+/-- ∀-env-route BETA for a 1-actual translated `let` — the driver-facing form
+    of `evalOpt_lam_beta_conv` (the `re_unfold1_conv` analogue: the actual's
+    value and the body's value stay existential). -/
+theorem re_lam_beta1_conv (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody a : SExpr) (lf : Symbol)
+    (hlam : lam.isNamed "LAMBDA" = true)
+    (hform : lamFormals? formalsE = some [lf])
+    (hnl : NoLet lamBody = true)
+    (harg : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hbodyAll : ∀ env', ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' lamBody = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+        (.cons formalsE (.cons lamBody .nil))) (.cons a .nil))
+      = evalOpt f w env (substTerm [lf] [a] lamBody) := by
+  obtain ⟨Na, av, ha⟩ := harg
+  obtain ⟨Nb, v, hb⟩ := hbodyAll (bindArgsOver env [lf] [av])
+  exact evalOpt_lam_beta_conv w env lam formalsE lamBody (.cons a .nil) [lf] [a] [av] v
+    hlam hform rfl rfl rfl hnl
+    (by intro p hp; simp only [List.zip_cons_cons, List.zip_nil_right,
+          List.mem_singleton] at hp; subst hp; exact ⟨Na, ha⟩)
+    ⟨Nb, hb⟩
+
+/-- ∀-env-route BETA for a 2-actual translated `let` (`mv-let`, metafunction
+    binders). -/
+theorem re_lam_beta2_conv (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody a b : SExpr) (f1 f2 : Symbol)
+    (hlam : lam.isNamed "LAMBDA" = true)
+    (hform : lamFormals? formalsE = some [f1, f2])
+    (hnl : NoLet lamBody = true)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv)
+    (hbodyAll : ∀ env', ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' lamBody = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+        (.cons formalsE (.cons lamBody .nil))) (.cons a (.cons b .nil)))
+      = evalOpt f w env (substTerm [f1, f2] [a, b] lamBody) := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨Nb, bv, hb⟩ := hb
+  obtain ⟨Nv, v, hv⟩ := hbodyAll (bindArgsOver env [f1, f2] [av, bv])
+  exact evalOpt_lam_beta_conv w env lam formalsE lamBody (.cons a (.cons b .nil))
+    [f1, f2] [a, b] [av, bv] v hlam hform rfl rfl rfl hnl
+    (by intro p hp
+        simp only [List.zip_cons_cons, List.zip_nil_right, List.mem_cons,
+          List.not_mem_nil, or_false] at hp
+        rcases hp with rfl | rfl
+        · exact ⟨Na, ha⟩
+        · exact ⟨Nb, hb⟩)
+    ⟨Nv, hv⟩
+
+/-! VALUE-characterized BETA (the DP-lift walkers' form): a translated `let`
+    converges to whatever its BETA-REDUCT converges to in the same env. The
+    walkers descend into `substTerm formals actuals body` — the very term
+    ACL2's rewriter records at the `LAMBDA-BODY` frame — so value and proof
+    are built from one shape. -/
+
+/-- 1-actual value-route beta. -/
+theorem re_lam_beta1_val (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody a : SExpr) (lf : Symbol) (av v : SExpr)
+    (hlam : lam.isNamed "LAMBDA" = true)
+    (hform : lamFormals? formalsE = some [lf])
+    (hnl : NoLet lamBody = true)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hsub : ∃ N, ∀ f ≥ N, evalOpt f w env (substTerm [lf] [a] lamBody) = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+      (.cons formalsE (.cons lamBody .nil))) (.cons a .nil)) = some v := by
+  have hzip : ∀ p ∈ ([a].zip [av]), ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2 := by
+    intro p hp
+    simp only [List.zip_cons_cons, List.zip_nil_right, List.mem_singleton] at hp
+    subst hp; exact ha
+  obtain ⟨Ns, hs⟩ := evalOpt_substTerm_substN w env [lf] [a] [av] lamBody hnl rfl hzip
+  obtain ⟨Nh, hh⟩ := hsub
+  have hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgsOver env [lf] [av]) lamBody = some v := by
+    refine ⟨max Ns Nh, fun f hf => ?_⟩
+    rw [bindArgsOver_eq_envUpdate, ← hs f (by omega)]; exact hh f (by omega)
+  exact conv_lam w env lam formalsE lamBody (.cons a .nil) [lf] [a] [av] v
+    hlam hform rfl rfl rfl hzip hbody
+
+/-- 2-actual value-route beta. -/
+theorem re_lam_beta2_val (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody a b : SExpr) (f1 f2 : Symbol) (av bv v : SExpr)
+    (hlam : lam.isNamed "LAMBDA" = true)
+    (hform : lamFormals? formalsE = some [f1, f2])
+    (hnl : NoLet lamBody = true)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv)
+    (hsub : ∃ N, ∀ f ≥ N, evalOpt f w env (substTerm [f1, f2] [a, b] lamBody) = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+      (.cons formalsE (.cons lamBody .nil))) (.cons a (.cons b .nil))) = some v := by
+  have hzip : ∀ p ∈ ([a, b].zip [av, bv]),
+      ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2 := by
+    intro p hp
+    simp only [List.zip_cons_cons, List.zip_nil_right, List.mem_cons,
+      List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl
+    · exact ha
+    · exact hb
+  obtain ⟨Ns, hs⟩ := evalOpt_substTerm_substN w env [f1, f2] [a, b] [av, bv] lamBody hnl rfl hzip
+  obtain ⟨Nh, hh⟩ := hsub
+  have hbody : ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgsOver env [f1, f2] [av, bv]) lamBody = some v := by
+    refine ⟨max Ns Nh, fun f hf => ?_⟩
+    rw [bindArgsOver_eq_envUpdate, ← hs f (by omega)]; exact hh f (by omega)
+  exact conv_lam w env lam formalsE lamBody (.cons a (.cons b .nil)) [f1, f2] [a, b] [av, bv] v
+    hlam hform rfl rfl rfl hzip hbody
 
 /-! ## Layer 2: Derived rules (compose Layer 1) -/
 

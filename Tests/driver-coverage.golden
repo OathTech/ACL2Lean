@@ -100,6 +100,6 @@ Driver coverage — REPLAYED 62/79 (28 unconditional + 34 conditional); DP-disch
     ORDEREDP-QSORT → FAIL: dischargeDecrease: decrease argument (FILTER 'LT (CDR X) (CAR X)) beyond the destructor-chain walk over X (frontier)
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:QSORT, tp:QSORT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
 • sorting/sorts-equivalent  (world: 216 defun(s), 3 theorem(s))
-    MSORT-IS-ISORT → FAIL: replayPreprocessChain: emitted :PATH does not navigate to the redex (HOW-MANY E (ISORT X)): pathStepsFromFrames: navigated to X, expected redex (HOW-MANY E (ISORT X))
-    QSORT-IS-ISORT → FAIL: replayPreprocessChain: emitted :PATH does not navigate to the redex (HOW-MANY E (ISORT X)): pathStepsFromFrames: navigated to X, expected redex (HOW-MANY E (ISORT X))
+    MSORT-IS-ISORT → FAIL: replayPreprocessChain: emitted :PATH does not navigate to the redex (HOW-MANY E (ISORT X)): pathStepsFromFrames: navigated to X, expected redex (HOW-MANY E (ISORT X)) (frames [ACL2.PathFrame.arg 1 IF, ACL2.PathFrame.arg 1 EQUAL])
+    QSORT-IS-ISORT → FAIL: replayPreprocessChain: emitted :PATH does not navigate to the redex (HOW-MANY E (ISORT X)): pathStepsFromFrames: navigated to X, expected redex (HOW-MANY E (ISORT X)) (frames [ACL2.PathFrame.arg 1 IF, ACL2.PathFrame.arg 1 EQUAL])
     BSORT-IS-ISORT → FAIL: replayPreprocessChain: node lhs (IMPLIES (TRUE-LISTP X) (TRUE-LISTP (ISORT X))) does not occur in the current term (IMPLIES (TRUE-LISTP X) (EQUAL (BSORT X) (ISORT X)))  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]

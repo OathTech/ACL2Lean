@@ -176,12 +176,33 @@ structure PathStep where
   arity : Nat
   argIdx : Nat
   siblings : List SExpr   -- the OTHER args, in order, excluding `argIdx`
+  /-- Set when the step's head is a translated `let` (S2 2026-07-24): the whole
+      `(LAMBDA formals body)` term standing where a function symbol would.
+      `rebuild`/`applyStep` DISPATCH on this field; `fn` then carries only the
+      binder's `LAMBDA` symbol and is not used to name a function. -/
+  lamHead : Option SExpr := none
   deriving Inhabited
 
 /-- View an SExpr as `(fn arg₀ … argₖ)`: head must be a symbol. -/
 def asApp (t : SExpr) : Option (Symbol × List SExpr) :=
   match t.toList? with
   | some (.atom (.symbol fn) :: args) => some (fn, args)
+  | _ => none
+
+/-- View an SExpr as a translated `let` `((LAMBDA formals body) actual₀ …)`:
+    the head term, the binder's symbol, and the actuals. -/
+def asLamApp (t : SExpr) : Option (SExpr × Symbol × List SExpr) :=
+  match t with
+  | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsE =>
+    match argsE.toList? with
+    | some args => some (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)), lam, args)
+    | none => none
+  | _ => none
+
+/-- Destructure a `(LAMBDA formals body)` head term. -/
+def asLamHead (t : SExpr) : Option (Symbol × SExpr × SExpr) :=
+  match t with
+  | .cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)) => some (lam, formalsE, lamBody)
   | _ => none
 
 /-- Relativize a node's `:PATH` to its nesting depth: at depth 0 (a top-level chain
@@ -209,42 +230,49 @@ def navigateFrames (term : SExpr) (descentFrames : List PathFrame)
   let mut cur := term
   let mut steps : List PathStep := []
   for fr in descentFrames do
-    match fr with
-    | .boundary k _ =>
-      throw s!"pathStepsFromFrames: unexpected residual boundary frame {k.name} \
-              (nesting deeper than the chain's depth)"
-    | .argLam idx _ =>
-      -- S2 frontier: a rewrite INSIDE a lambda application's actuals — the
-      -- congruence walk through a lambda head is the S2.3 driver increment
-      throw s!"pathStepsFromFrames: path descends into a LAMBDA application's \
-              argument {idx} (S2 lambda-congruence frontier)"
-    | .arg idx _ =>
-      match asApp cur with
-      | none => throw s!"pathStepsFromFrames: path descends into non-application {repr cur}"
-      | some (fn, args) =>
-        -- arity 3 is either the lazy `if` (branch congruences in `applyStep`,
-        -- sound for the UNCONDITIONAL eval-equalities the chain carries) or a
-        -- STRICT ternary user fn (generic argument congruence)
-        if args.length > 3 then
-          throw s!"pathStepsFromFrames: arity {args.length} application unsupported: {repr cur}"
-        if idx < 1 || idx > args.length then
-          throw s!"pathStepsFromFrames: arg index {idx} out of range for {repr cur}"
-        let siblings := (args.zipIdx).filterMap (fun (a, i) => if i + 1 == idx then none else some a)
-        steps := steps ++ [{ fn, arity := args.length, argIdx := idx - 1, siblings }]
-        cur := args[idx - 1]!
+    -- both descent frames say the same thing — "go to argument `idx`"; the
+    -- `.argLam` variant additionally records that the TARGET is a translated
+    -- `let`, which matters only for the NEXT frame (handled by `asLamApp`)
+    let idx ← match fr with
+      | .boundary k _ =>
+        throw s!"pathStepsFromFrames: unexpected residual boundary frame {k.name} \
+                (nesting deeper than the chain's depth)"
+      | .arg idx _ => pure idx
+      | .argLam idx _ => pure idx
+    -- the head we descend FROM: a function symbol, or a lambda application
+    let (lamHead?, fn, args) ←
+      match asApp cur, asLamApp cur with
+      | some (fn, args), _ => pure ((none : Option SExpr), fn, args)
+      | none, some (head, lam, args) => pure (some head, lam, args)
+      | none, none =>
+        throw s!"pathStepsFromFrames: path descends into non-application {repr cur}"
+    -- arity 3 is either the lazy `if` (branch congruences in `applyStep`,
+    -- sound for the UNCONDITIONAL eval-equalities the chain carries) or a
+    -- STRICT ternary user fn (generic argument congruence)
+    if args.length > 3 then
+      throw s!"pathStepsFromFrames: arity {args.length} application unsupported: {repr cur}"
+    if idx < 1 || idx > args.length then
+      throw s!"pathStepsFromFrames: arg index {idx} out of range for {repr cur}"
+    let siblings := (args.zipIdx).filterMap (fun (a, i) => if i + 1 == idx then none else some a)
+    steps := steps ++ [{ fn, arity := args.length, argIdx := idx - 1, siblings,
+                         lamHead := lamHead? }]
+    cur := args[idx - 1]!
   return (steps, cur)
 
 def pathStepsFromFrames (term : SExpr) (descentFrames : List PathFrame) (lhs : SExpr)
     : Except String (List PathStep) := do
   let (steps, cur) ← navigateFrames term descentFrames
   unless cur == lhs do
-    throw s!"pathStepsFromFrames: navigated to {repr cur}, expected redex {repr lhs}"
+    throw s!"pathStepsFromFrames: navigated to {repr cur}, expected redex {repr lhs} \
+             (frames {repr descentFrames})"
   return steps
 
-/-- Reconstruct the parent term `(fn …)` placing `sub` at `argIdx`, siblings elsewhere. -/
-def rebuild (fn : Symbol) (arity argIdx : Nat) (sub : SExpr) (siblings : List SExpr) : SExpr :=
+/-- Reconstruct the parent term placing `sub` at `argIdx`, siblings elsewhere.
+    The head is the step's function symbol, or its LAMBDA term for a
+    translated `let`. -/
+def rebuild (st : PathStep) (sub : SExpr) : SExpr :=
   let args : List SExpr :=
-    match arity, argIdx, siblings with
+    match st.arity, st.argIdx, st.siblings with
     | 1, 0, _ => [sub]
     | 2, 0, [s] => [sub, s]
     | 2, 1, [s] => [s, sub]
@@ -252,13 +280,36 @@ def rebuild (fn : Symbol) (arity argIdx : Nat) (sub : SExpr) (siblings : List SE
     | 3, 1, [c, e] => [c, sub, e]   -- if-then position (iff congruence path)
     | 3, 2, [c, t] => [c, t, sub]   -- if-else position (iff congruence path)
     | _, _, _ => panic! "rebuild: bad arity/argIdx"
-  -- build (fn args...) as a proper s-expression list
-  .cons (.atom (.symbol fn)) (args.foldr SExpr.cons .nil)
+  let head := match st.lamHead with
+    | some h => h
+    | none => .atom (.symbol st.fn)
+  -- build (head args...) as a proper s-expression list
+  .cons head (args.foldr SExpr.cons .nil)
 
 /-- Apply one congruence step. `inner : ∃N∀f≥N, eval (sub) = eval (sub')`; returns
     `∃N∀f≥N, eval (fn … sub …) = eval (fn … sub' …)`. -/
 def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : Expr) : MetaM Expr := do
   let fnE := reflectSymbol st.fn
+  -- a translated `let`: congruence in the lambda application's ACTUALS
+  if let some head := st.lamHead then
+    let some (lam, formalsE, lamBody) := asLamHead head
+      | throwError "applyStep: malformed LAMBDA head {repr head}"
+    let lamE := reflectSymbol lam
+    let fE := reflectSExpr formalsE
+    let bE := reflectSExpr lamBody
+    match st.arity, st.argIdx, st.siblings with
+    | 1, 0, _ =>
+      return mkAppN (mkConst ``evalOpt_congr_lam1)
+        #[w, e, lamE, fE, bE, reflectSExpr sub, reflectSExpr sub', inner]
+    | 2, 0, [b] =>
+      return mkAppN (mkConst ``evalOpt_congr_lam2_left)
+        #[w, e, lamE, fE, bE, reflectSExpr sub, reflectSExpr sub', reflectSExpr b, inner]
+    | 2, 1, [a] =>
+      return mkAppN (mkConst ``evalOpt_congr_lam2_right)
+        #[w, e, lamE, fE, bE, reflectSExpr a, reflectSExpr sub, reflectSExpr sub', inner]
+    | _, _, _ =>
+      throwError "applyStep: LAMBDA binder of arity {st.arity} (arg {st.argIdx}) is a \
+                  frontier — only 1- and 2-actual translated lets are emitted"
   match st.arity, st.argIdx, st.siblings with
   | 1, 0, _ =>
     let ns ← proveNotSpecial st.fn
@@ -367,8 +418,8 @@ def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
   let mut curR := rhs
   for st in path.reverse do
     inner ← applyStep w e st curL curR inner
-    curL := rebuild st.fn st.arity st.argIdx curL st.siblings
-    curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+    curL := rebuild st curL
+    curR := rebuild st curR
   unless curL == term do
     throwError "emitCongruence: reconstructed outer term {repr curL} ≠ input {repr term}"
   return (inner, curR)

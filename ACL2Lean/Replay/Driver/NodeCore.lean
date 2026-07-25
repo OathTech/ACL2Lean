@@ -202,6 +202,13 @@ def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
       (mkApp2 (mkConst ``Symbol.isNamed) (reflectSymbol s) (mkStrLit name)) (mkConst ``Bool.false))
     s!"{s.name}.isNamed {name} = false"
 
+/-- Prove `s.isNamed name = true` by kernel decision. -/
+def proveIsNamedTrue (s : Symbol) (name : String) : MetaM Expr :=
+  proveByDecide
+    (mkApp3 (mkConst ``Eq [1]) (mkConst ``Bool)
+      (mkApp2 (mkConst ``Symbol.isNamed) (reflectSymbol s) (mkStrLit name)) (mkConst ``Bool.true))
+    s!"{s.name}.isNamed {name} = true"
+
 /-- DP-lift primitives (unary): ACL2 name → (Logic function, `callBuiltin` rfl lemma). -/
 def dpUnary : List (String × Name × Name) :=
   [("NOT",      ``Logic.not,      ``callBuiltin_not),
@@ -370,26 +377,34 @@ partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Ex
     if fs.name == "QUOTE" then return reflectSExpr a
     else match dpUnary.lookup fs.name with
       | some (fn, _) => return mkApp (mkConst fn) (← dpValExpr opq varVal a)
-      | none => throwError "dpValExpr: unary {fs.name} is not a DP-lift primitive: {repr t}"
+      | none => throwFrontier m!"dpValExpr: unary {fs.name} is not a DP-lift primitive (frontier): {repr t}"
   | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
     match dpBinary.lookup fs.name with
     | some (fn, _) =>
       return mkApp2 (mkConst fn) (← dpValExpr opq varVal a) (← dpValExpr opq varVal b)
-    | none => throwError "dpValExpr: binary {fs.name} is not a DP-lift primitive: {repr t}"
+    | none => throwFrontier m!"dpValExpr: binary {fs.name} is not a DP-lift primitive (frontier): {repr t}"
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
     if fs.name == "IF" then
       let vc ← dpValExpr opq varVal c
       let vt ← dpValExpr opq varVal th
       let ve ← dpValExpr opq varVal e
       mkAppM ``cond #[mkApp (mkConst ``Logic.toBool) vc, vt, ve]
-    else throwError "dpValExpr: ternary {fs.name} is not a DP-lift primitive: {repr t}"
-  | .cons (.cons (.atom (.symbol lam)) _) _ =>
-    -- a LAMBDA application (ACL2's translated LET) is WELL-FORMED input the
-    -- DP-lift walkers do not support yet (surfaced by ground-zero snapshot
-    -- bodies, e.g. SYMBOL< — WP1): a capability FRONTIER, not a defect.
+    else throwFrontier m!"dpValExpr: ternary {fs.name} is not a DP-lift primitive (frontier): {repr t}"
+  | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+    -- a LAMBDA application (ACL2's translated LET) has the value of its
+    -- BETA-REDUCT (`re_lam_beta*_val`), so the walker descends into the
+    -- substituted body — the very term the rewriter records at the
+    -- LAMBDA-BODY frame. Malformed binders hard-fail; a wider binder is a
+    -- capability FRONTIER, not a defect.
     if lam.name == "LAMBDA" then
-      throwFrontier m!"dpValExpr: LAMBDA (translated LET) application \
-                      unsupported (frontier): {repr t}"
+      match ACL2.lamFormals? formalsE, argsExpr.toList? with
+      | some lformals, some actuals =>
+        if lformals.length == actuals.length && lformals.length ≤ 2 then
+          dpValExpr opq varVal (ACL2.Replay.substTerm lformals actuals lamBody)
+        else
+          throwFrontier m!"dpValExpr: LAMBDA binder of {lformals.length} formals / \
+                          {actuals.length} actuals unsupported (frontier): {repr t}"
+      | _, _ => throwError "dpValExpr: malformed LAMBDA application: {repr t}"
     else throwError "dpValExpr: unsupported term shape: {repr t}"
   | _ => throwError "dpValExpr: unsupported term shape: {repr t}"
 
@@ -427,7 +442,7 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
         let hr ← mkAppM cbLemma #[va]
         mkAppM ``conv_builtin1
           #[cfg.worldExpr, envExpr, reflectSymbol fs, reflectSExpr a, va, rv, hNs, hNo, pa, hr]
-      | none => throwError "dpValProof: unary {fs.name} is not a DP-lift primitive"
+      | none => throwFrontier m!"dpValProof: unary {fs.name} is not a DP-lift primitive (frontier)"
   | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
     match dpBinary.lookup fs.name with
     | some (fn, cbLemma) =>
@@ -444,7 +459,7 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
           va, vb, rv, hNs, hNo, pa, pb, hr]
     | none =>
       if fs.name == "IF" then throwError "dpValProof: malformed if (2 args): {repr t}"
-      else throwError "dpValProof: binary {fs.name} is not a DP-lift primitive"
+      else throwFrontier m!"dpValProof: binary {fs.name} is not a DP-lift primitive (frontier)"
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
     if fs.name == "IF" then
       let pc ← dpValProof cfg envExpr opq opqP varP c
@@ -456,13 +471,47 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
       mkAppM ``re_val_if
         #[cfg.worldExpr, envExpr, reflectSExpr c, reflectSExpr th, reflectSExpr e,
           vc, vt, ve, pc, pt, pe]
-    else throwError "dpValProof: ternary {fs.name} is not a DP-lift primitive"
-  | .cons (.cons (.atom (.symbol lam)) _) _ =>
-    -- LAMBDA application (translated LET): well-formed, unsupported —
-    -- frontier, not defect (see the dpValExpr twin arm).
+    else throwFrontier m!"dpValProof: ternary {fs.name} is not a DP-lift primitive (frontier)"
+  | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+    -- LAMBDA application (translated LET): the BETA-REDUCT's convergence,
+    -- lifted by `re_lam_beta*_val` (see the dpValExpr twin arm).
     if lam.name == "LAMBDA" then
-      throwFrontier m!"dpValProof: LAMBDA (translated LET) application \
-                      unsupported (frontier): {repr t}"
+      match ACL2.lamFormals? formalsE, argsExpr.toList? with
+      | some lformals, some actuals => do
+        let lamE := reflectSymbol lam
+        let formalsSE := reflectSExpr formalsE
+        let bodyE := reflectSExpr lamBody
+        let lformalsE ← mkListLit (mkConst ``Symbol) (lformals.map reflectSymbol)
+        let hlam ← proveIsNamedTrue lam "LAMBDA"
+        let hform ← proveByDecide
+          (← mkEq (← mkAppM ``ACL2.lamFormals? #[formalsSE])
+                  (← mkAppM ``Option.some #[lformalsE])) "lambda-val formals"
+        let hnl ← proveByDecide
+          (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[bodyE]) (mkConst ``Bool.true))
+          "nolet lambda-val body"
+        let substBody := ACL2.Replay.substTerm lformals actuals lamBody
+        let pSub ← dpValProof cfg envExpr opq opqP varP substBody
+        let vSub ← dpValExpr opq (dpVarVal envExpr varP) substBody
+        match lformals, actuals with
+        | [lf], [a1] =>
+          let pa ← dpValProof cfg envExpr opq opqP varP a1
+          let va ← dpValExpr opq (dpVarVal envExpr varP) a1
+          mkAppM ``re_lam_beta1_val
+            #[cfg.worldExpr, envExpr, lamE, formalsSE, bodyE, reflectSExpr a1,
+              reflectSymbol lf, va, vSub, hlam, hform, hnl, pa, pSub]
+        | [f1, f2], [a1, a2] =>
+          let pa ← dpValProof cfg envExpr opq opqP varP a1
+          let pb ← dpValProof cfg envExpr opq opqP varP a2
+          let va ← dpValExpr opq (dpVarVal envExpr varP) a1
+          let vb ← dpValExpr opq (dpVarVal envExpr varP) a2
+          mkAppM ``re_lam_beta2_val
+            #[cfg.worldExpr, envExpr, lamE, formalsSE, bodyE, reflectSExpr a1,
+              reflectSExpr a2, reflectSymbol f1, reflectSymbol f2, va, vb, vSub,
+              hlam, hform, hnl, pa, pb, pSub]
+        | _, _ =>
+          throwFrontier m!"dpValProof: LAMBDA binder of {lformals.length} formals / \
+                          {actuals.length} actuals unsupported (frontier): {repr t}"
+      | _, _ => throwError "dpValProof: malformed LAMBDA application: {repr t}"
     else throwError "dpValProof: unsupported term shape: {repr t}"
   | _ => throwError "dpValProof: unsupported term shape: {repr t}"
 where
@@ -1359,6 +1408,61 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
   | none => return unfold
   | some ch => mkAppM ``fuel_chain_eq #[unfold, ch]
 
+/-- Replay a `lambda-body` node — the BETA step of a translated `let`/`mv-let`
+    (emitted at `rewrite-fncall`'s lambda case, S2 2026-07-24). Structurally
+    the definition-unfold recipe with the binder in place of a defun: the node
+    replaces the lambda application (actuals already rewritten by earlier chain
+    steps) by its body under `formals ↦ actuals`, and the adopted LAMBDA-BODY
+    block rewrites that substituted body on to the node's recorded rhs. The
+    scoping side conditions are ACL2's own translate invariant, re-checked here
+    by kernel decision (`NoLet` / freeVars ⊆ formals). -/
+partial def replayLambdaBody (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (n : ProofNode) (depth : Nat) : MetaM Expr := do
+  let (lhs, rhs) := nodeLhsRhs n
+  let .node _ _ _ children _ := n
+  let some (head, lam, actuals) := asLamApp lhs
+    | throwError "lambda-body: lhs is not a lambda application: {repr lhs}"
+  let some (_, formalsE, lamBody) := asLamHead head
+    | throwError "lambda-body: malformed LAMBDA head: {repr head}"
+  let some lformals := ACL2.lamFormals? formalsE
+    | throwError "lambda-body: malformed LAMBDA formals: {repr formalsE}"
+  let lamE := reflectSymbol lam
+  let formalsSE := reflectSExpr formalsE
+  let bodyE := reflectSExpr lamBody
+  let lformalsE ← mkListLit (mkConst ``Symbol) (lformals.map reflectSymbol)
+  let hlam ← proveIsNamedTrue lam "LAMBDA"
+  let hform ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.lamFormals? #[formalsSE]) (← mkAppM ``Option.some #[lformalsE]))
+    "lambda-body formals"
+  let hnl ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[bodyE]) (mkConst ``Bool.true)) "nolet lambda body"
+  let hbodyAll ← proveConvAllEnv cfg ctx lamBody
+  let unfold ← match lformals, actuals with
+    | [lf], [a1] =>
+      let h1 ← proveConv cfg cfg.envExpr ctx a1
+      mkAppM ``re_lam_beta1_conv
+        #[cfg.worldExpr, cfg.envExpr, lamE, formalsSE, bodyE, reflectSExpr a1,
+          reflectSymbol lf, hlam, hform, hnl, h1, hbodyAll]
+    | [f1, f2], [a1, a2] =>
+      let h1 ← proveConv cfg cfg.envExpr ctx a1
+      let h2 ← proveConv cfg cfg.envExpr ctx a2
+      mkAppM ``re_lam_beta2_conv
+        #[cfg.worldExpr, cfg.envExpr, lamE, formalsSE, bodyE, reflectSExpr a1,
+          reflectSExpr a2, reflectSymbol f1, reflectSymbol f2,
+          hlam, hform, hnl, h1, h2, hbodyAll]
+    | _, _ =>
+      throwError "lambda-body: binder of {lformals.length} formals / {actuals.length} \
+                  actuals is a frontier — only 1- and 2-actual translated lets are emitted"
+  -- the adopted LAMBDA-BODY block rewrites the substituted body (depth+1: its
+  -- paths carry the LAMBDA-BODY boundary frame)
+  let substBody := ACL2.Replay.substTerm lformals actuals lamBody
+  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children (depth + 1) []
+  unless finalTerm == rhs do
+    throwError "lambda-body: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
+  match chainOpt with
+  | none => return unfold
+  | some ch => mkAppM ``fuel_chain_eq #[unfold, ch]
+
 /-- A clause-context equation literal `(not (equal A B))`, viewed as its sides. -/
 def notEqualSides? : SExpr → Option (SExpr × SExpr)
   | .cons (.atom (.symbol ns))
@@ -1751,6 +1855,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     if dname == "IMPLIES" && (cfg.worldVal.defs.get? { name := "IMPLIES" }).isNone then
       replayImpliesDef cfg ctx n
     else replayDefinition rec cfg ctx n depth
+  | "lambda-body", _ => replayLambdaBody rec cfg ctx n depth
   | "fake-rune-for-anonymous-enabled-rule", _ =>
     -- recognizer node: term-eq form (eval lhs = eval rhs, rhs the quoted verdict).
     let verdictV := match rhs with
@@ -2622,8 +2727,8 @@ def liftNegTestSwap (cfg : ReplayConfig) (steps : List PathStep)
   let mut curR := swapped
   for st in steps.reverse do
     inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
-    curL := rebuild st.fn st.arity st.argIdx curL st.siblings
-    curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+    curL := rebuild st curL
+    curR := rebuild st curR
   unless curL == root do
     throwError "liftNegTestSwap: reconstructed {repr curL} ≠ {repr root}"
   return (inner, curR)
@@ -3103,8 +3208,8 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 let mut curR := lhs
                 for st in steps.reverse do
                   inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
-                  curL := rebuild st.fn st.arity st.argIdx curL st.siblings
-                  curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+                  curL := rebuild st curL
+                  curR := rebuild st curR
                 unless curL == start do
                   throwError "replayRewrites: test-resolution lift \
                               reconstructed {repr curL} ≠ {repr start}"

@@ -34,10 +34,10 @@ the log; an emission-coverage gap pinned).
 :type-prescription `corpus`; :elim `corpus`; :forward-chaining
 `corpus`; :compound-recognizer `corpus` (CD2-BOUND);
 :induction `corpus` (12-multi-controller); :linear `books` (cov-linear); :congruence `books`;
-:equivalence `books`; :refinement `books` (cov-refinement); :meta `frontier-pinned`
-(cov-meta-rule — parse fails on LAMBDA path frames); :clause-processor
-`frontier-pinned` (cov-clause-processor — same LAMBDA-frame parse
-frontier); :built-in-clause `books` (cov-built-in-clause);
+:equivalence `books`; :refinement `books` (cov-refinement); :meta `books`
+(cov-meta-rule — parse frontier cleared by S2; 3/16 replay, the rest
+at recognizer/SYNP frontiers); :clause-processor `books`
+(cov-clause-processor — same, 4/16); :built-in-clause `books` (cov-built-in-clause);
 :tau-system `corpus` (discharge leaves only); :generalize-rule `books` (cov-generalize-rule); :well-founded-relation
 `books` (cov-wf-relation — the defun event emits :WFREL MY-LT with
 termination clauses in the custom relation).
@@ -270,8 +270,8 @@ fake-replay-inventory kill conflict, the kill wins.
   emissions (:TA-RUNES threading, FC-contradiction discharge,
   conjunction split, untagged-prose suppression); NFIX μ-measure;
   :use hints.
-- P2 (obviously deficient): LET/lambda path frames (ubiquitous —
-  every real book will hit it); the CAPTURE-HALT family (defattach,
+- P2 (obviously deficient): ~~LET/lambda path frames~~ (LANDED S2,
+  2026-07-24 — see the S2 section); the CAPTURE-HALT family (defattach,
   local, ratio literals, #c, the two exotic rule classes — session
   death is the worst failure mode); guard proofs unlogged.
 - P3 (ACL2-important): L2/user-equivalence lane (obligation
@@ -326,6 +326,58 @@ authoritative.
   :VERIFY-GUARDS, :CLAUSIFY-CONJUNCTION) all have fail-closed parser
   arms; the corpus sweep is golden byte-identical across the whole
   cycle.
+
+## S2 — LET/lambda LANDED (2026-07-24, fork b48faff962)
+
+The map's biggest blind spot (A1) is closed end-to-end. `let`/`mv-let`
+translate to `((LAMBDA (formals) body) actuals)`, so this was
+core-path-blocking: any book binding a local hit it.
+
+- **Interpreter** (S2.1, committed cb54a6c): `evalOptStep`'s
+  LAMBDA-application arm — actuals in the outer env, body in the outer
+  env EXTENDED by formals↦values. Semantics DECIDED BY DIFFERENTIAL
+  PIN (`Tests/differential/corpus/lambda.lisp`, 9/9): the fresh-env
+  (`ev` pairlis) variant DIVERGED on a nested open lambda, because
+  ACL2's translate closes lambdas over their lexical scope. The
+  formals extraction is now the shared `lamFormals?` (one definition
+  for interpreter and replay).
+- **Parse** (S2.2, cb54a6c): `PathFrame.argLam` (numeric bkptr, the
+  lambda term in fn position); body descents arrive as
+  `.boundary LAMBDA-BODY <head>`.
+- **Scoping lemma pack** (S2.3): `freeVars`/`NoLet`/`substTerm` are
+  binder-aware — a lambda application is admitted exactly when ACL2's
+  own translate invariant holds (well-formed formals, body free vars ⊆
+  formals), and substitution rewrites only the ACTUALS. The four
+  induction lemmas (`evalOpt_freevar_congr`, `evalOpt_substTerm_quote`
+  / `_eq` / `_conv`) gained real lambda cases.
+- **EMISSION, not reconstruction** (fork): ACL2 fires no rune for the
+  beta step, so the `LAMBDA-BODY` block had NO adopting step and the
+  tree builder attached its nodes to the NEXT chain step — a genuine
+  mis-parent. `rewrite-fncall`'s lambda case now emits
+  `(:REWRITE-STEP :RUNE (:LAMBDA-BODY NIL) :ORIGIN
+  REWRITE-FNCALL/LAMBDA-BODY :LHS <app with rewritten actuals> :RHS
+  <rewritten body>)`, which adopts the block exactly as a `:DEFINITION`
+  unfold adopts its body block. The same site gained the
+  speculative-rollback checkpoint the fncall path already had (a
+  too-many-ifs-rejected lambda expansion used to leave orphan events).
+- **Replay**: `PathStep.lamHead` + arity-1/2 lambda argument
+  congruences (the `(k LAMBDA …)` frame); `replayLambdaBody` (the
+  beta node, structurally the definition-unfold recipe); the DP-lift
+  value walkers descend into the beta-reduct (`re_lam_beta*_val`).
+  Beta needs NO closedness side condition — `bindArgsOver` extends,
+  so an open body reads the same outer bindings on both sides.
+- Status: `cov-let-lambda` REPLAYS end-to-end. The lambda wall fell in
+  the other three pinned books too — they now stop at unrelated
+  frontiers (`cov-mv-let`: MV-NTH is not a DP-lift primitive;
+  cov-meta-rule/cov-clause-processor: SYMBOLP recognizer cells and the
+  SYNP preprocess shape, 3/16 and 4/16 replaying). Corpus golden
+  unchanged (62/79, message-only churn). Binder arities >2 hard-fail
+  by name in both the congruence walk and the beta recipe.
+- Follow-ups: the `NoLet` predicate now ADMITS a binding form, so its
+  name is stale — rename (and collapse the `envUpdate`/`bindArgsOver`
+  clone) as an end-of-arc cleanup. `rewrite`'s OTHER lambda site (the
+  all-quoteps fast path, line ~17337) is not yet emission-covered; it
+  would surface as an unadopted LAMBDA-BODY block and hard-fail.
 
 ## Driver inventory — candidate fake-replay infrastructure (pin now, kill later)
 

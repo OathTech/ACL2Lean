@@ -28,6 +28,18 @@ def bindArgsOver (env : Env) : List Symbol → List SExpr → Env
   | f :: fs, v :: vs => (bindArgsOver env fs vs).insert f v
   | _, _ => env
 
+/-- The formals of a translated lambda: a proper list of symbols, or `none`
+    (a malformed binder is a frontier — never a default). Named so the
+    interpreter's LAMBDA arm and the replay's scoping certificate speak of
+    the SAME symbol list. -/
+def lamFormals? (formalsE : SExpr) : Option (List Symbol) :=
+  match formalsE.toList? with
+  | some l => l.mapM (fun fm =>
+      match fm with
+      | .atom (.symbol fs) => some fs
+      | _ => none)
+  | none => none
+
 /-- Dispatch an ACL2 built-in primitive by normalized name, modeling ACL2's
     LOGICAL (total) semantics. Returns `none` for a primitive we do not yet model
     or a wrong arity — a frontier the evaluator surfaces as non-convergence rather
@@ -190,12 +202,8 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
       -- A non-LAMBDA cons head, malformed formals, or an arity mismatch is
       -- `none` — a frontier, never a default value.
       if lam.isNamed "LAMBDA" then
-        match formalsE.toList?, argsExpr.toList? with
-        | some formalsL, some args => do
-            let formals ← formalsL.mapM (fun fm =>
-              match fm with
-              | .atom (.symbol fs) => some fs
-              | _ => none)
+        match lamFormals? formalsE, argsExpr.toList? with
+        | some formals, some args => do
             let argVals ← args.mapM (fun a => rec w env a)
             if formals.length = argVals.length then
               rec w (bindArgsOver env formals argVals) lamBody
@@ -243,6 +251,24 @@ def evalOptStep (rec : World → Env → SExpr → Option SExpr)
               else none
           | none => callBuiltin s.name argVals
       | none => none := by
+  rfl
+
+/-- Equation lemma for evalOptStep on a LAMBDA application (the translated
+    `let`; S2 2026-07-24). Mirrors the arm verbatim so downstream proofs can
+    `show`/`simp only` their way into it. -/
+@[simp] theorem evalOptStep_cons_lam (rec : World → Env → SExpr → Option SExpr)
+    (w : World) (env : Env) (lam : Symbol) (formalsE lamBody argsExpr : SExpr) :
+    evalOptStep rec w env
+      (.cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr) =
+    if lam.isNamed "LAMBDA" then
+      match lamFormals? formalsE, argsExpr.toList? with
+      | some formals, some args => do
+          let argVals ← args.mapM (fun a => rec w env a)
+          if formals.length = argVals.length then
+            rec w (bindArgsOver env formals argVals) lamBody
+          else none
+      | _, _ => none
+    else none := by
   rfl
 
 /-- Option-returning ACL2 evaluator. `none` = fuel exhaustion.
@@ -355,24 +381,19 @@ theorem evalOptStep_mono
     simp only [evalOptStep] at h ⊢
     by_cases hlam : lam.isNamed "LAMBDA" = true
     · simp only [hlam, ite_true] at h ⊢
-      match hfl : formalsE.toList?, hal : argsExpr.toList? with
-      | some formalsL, some args =>
+      match hfl : lamFormals? formalsE, hal : argsExpr.toList? with
+      | some formals, some args =>
         simp only [hfl, hal] at h ⊢
-        cases hfm : formalsL.mapM (fun fm => match fm with
-          | .atom (.symbol fs) => some fs | _ => none) with
-        | none => simp [hfm] at h
-        | some formals =>
-          simp [hfm] at h ⊢
-          cases hmap : List.mapM (fun a => f w env a) args with
-          | none => simp [hmap] at h
-          | some argVals =>
-            simp [hmap] at h
-            simp [List.mapM_option_mono (fun a _ val hval =>
-              hmono w env a val hval) hmap]
-            by_cases hlen : formals.length = argVals.length
-            · simp [hlen] at h ⊢
-              exact hmono w (bindArgsOver env formals argVals) lamBody v h
-            · simp [hlen] at h
+        cases hmap : List.mapM (fun a => f w env a) args with
+        | none => simp [hmap] at h
+        | some argVals =>
+          simp [hmap] at h
+          simp [List.mapM_option_mono (fun a _ val hval =>
+            hmono w env a val hval) hmap]
+          by_cases hlen : formals.length = argVals.length
+          · simp [hlen] at h ⊢
+            exact hmono w (bindArgsOver env formals argVals) lamBody v h
+          · simp [hlen] at h
       | none, some _ => simp only [hfl] at h ⊢; exact h
       | none, none => simp only [hfl] at h ⊢; exact h
       | some _, none => simp only [hfl, hal] at h ⊢; exact h
@@ -577,24 +598,19 @@ theorem evalOptStep_world_mono
     simp only [evalOptStep] at h ⊢
     by_cases hlam : lam.isNamed "LAMBDA" = true
     · simp only [hlam, ite_true] at h ⊢
-      match hfl : formalsE.toList?, hal : argsExpr.toList? with
-      | some formalsL, some args =>
+      match hfl : lamFormals? formalsE, hal : argsExpr.toList? with
+      | some formals, some args =>
         simp only [hfl, hal] at h ⊢
-        cases hfm : formalsL.mapM (fun fm => match fm with
-          | .atom (.symbol fs) => some fs | _ => none) with
-        | none => simp [hfm] at h
-        | some formals =>
-          simp [hfm] at h ⊢
-          cases hmap : List.mapM (fun a => f w1 env a) args with
-          | none => simp [hmap] at h
-          | some argVals =>
-            simp [hmap] at h
-            simp [List.mapM_option_mono (fun a _ val hval =>
-              hmono env a val hval) hmap]
-            by_cases hlen : formals.length = argVals.length
-            · simp [hlen] at h ⊢
-              exact hmono (bindArgsOver env formals argVals) lamBody v h
-            · simp [hlen] at h
+        cases hmap : List.mapM (fun a => f w1 env a) args with
+        | none => simp [hmap] at h
+        | some argVals =>
+          simp [hmap] at h
+          simp [List.mapM_option_mono (fun a _ val hval =>
+            hmono env a val hval) hmap]
+          by_cases hlen : formals.length = argVals.length
+          · simp [hlen] at h ⊢
+            exact hmono (bindArgsOver env formals argVals) lamBody v h
+          · simp [hlen] at h
       | none, some _ => simp only [hfl] at h ⊢; exact h
       | none, none => simp only [hfl] at h ⊢; exact h
       | some _, none => simp only [hfl, hal] at h ⊢; exact h

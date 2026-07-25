@@ -214,8 +214,8 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
         innerIff := stillIff
       else
         inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
-      curL := rebuild st.fn st.arity st.argIdx curL st.siblings
-      curR := rebuild st.fn st.arity st.argIdx curR st.siblings
+      curL := rebuild st curL
+      curR := rebuild st curR
     unless curL == cur do
       throwError "replayPreprocessChain: reconstructed {repr curL} ≠ current {repr cur}"
     -- compose

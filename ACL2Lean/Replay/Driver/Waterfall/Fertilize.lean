@@ -128,8 +128,8 @@ def replayFertilize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx)
       let stp : PathStep := { fn := { name := "IF" }, arity := 3, argIdx := 2,
                               siblings := [l, quoteT] }
       inner ← applyStep w e stp curL curR inner
-      curL := rebuild stp.fn stp.arity stp.argIdx curL stp.siblings
-      curR := rebuild stp.fn stp.arity stp.argIdx curR stp.siblings
+      curL := rebuild stp curL
+      curR := rebuild stp curR
     unless curL == disjoinTerm input && curR == disjoinTerm shortened do
       throwError "replayFertilize: frame-removal lift reconstructed \
                   {repr curL} / {repr curR} at {cn.idStr}"
