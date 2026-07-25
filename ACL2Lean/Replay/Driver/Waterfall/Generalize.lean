@@ -162,10 +162,10 @@ partial def replayGeneralize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   let coreTerm := disjoinTerm core
   -- substN bridge back to this env (over the CORE — the restrictions are
   -- gone and σ(core) is exactly this clause)
-  let hNoLet ← proveByDecide
-    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr coreTerm])
+  let hWellScoped ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr coreTerm])
             (mkConst ``Bool.true))
-    "NoLet generalize child"
+    "WellScoped generalize child"
   let hlenPf ← proveByDecide
     (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
     "substN arg/val lengths"
@@ -183,7 +183,7 @@ partial def replayGeneralize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
   let hargs ← mkExpectedTypeHint hargsRaw hargsTy
   let pBridge ← mkAppM ``evalOpt_substTerm_substN
-    #[w, env, formalsE, argsE, valsE, reflectSExpr coreTerm, hNoLet, hlenPf, hargs]
+    #[w, env, formalsE, argsE, valsE, reflectSExpr coreTerm, hWellScoped, hlenPf, hargs]
   mkAppM ``evtrue_of_fuel_eq #[pBridge, pChild]
 
 end ACL2.Replay.Driver

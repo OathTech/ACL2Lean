@@ -54,10 +54,10 @@ partial def replaySubsumed (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayC
                          branchFacts := [], segFacts := [] }
   let pChild ← rec.clause cfg' ctx' child
   let childTerm := disjoinTerm G
-  let hNoLet ← proveByDecide
-    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr childTerm])
+  let hWellScoped ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr childTerm])
             (mkConst ``Bool.true))
-    "NoLet subsumed general clause"
+    "WellScoped subsumed general clause"
   let hlenPf ← proveByDecide
     (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
     "substN arg/val lengths"
@@ -75,7 +75,7 @@ partial def replaySubsumed (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayC
     mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
   let hargs ← mkExpectedTypeHint hargsRaw hargsTy
   let pBridge ← mkAppM ``evalOpt_substTerm_substN
-    #[w, env, formalsE, argsE, valsE, reflectSExpr childTerm, hNoLet, hlenPf, hargs]
+    #[w, env, formalsE, argsE, valsE, reflectSExpr childTerm, hWellScoped, hlenPf, hargs]
   -- EvTrue of the σ-instance disjunction at THIS env
   let pInst ← mkAppM ``evtrue_of_fuel_eq #[pBridge, pChild]
   -- walk the σ-instance literals into the subsumed clause

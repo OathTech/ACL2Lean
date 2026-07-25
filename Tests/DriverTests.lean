@@ -64,7 +64,7 @@ variables). The driver emits the body for an `env` PARAMETER (an fvar); the fron
 λ-abstracts over it to produce the universal fact. -/
 
 -- NO hand-marshalled world facts: the driver DERIVES every `defs.get? … = none` /
--- `= some (…)` / freeVars⊆formals / NoLet by kernel decision from `cfg.worldVal`
+-- `= some (…)` / freeVars⊆formals / WellScoped by kernel decision from `cfg.worldVal`
 -- (`World.defs` is a reduction-friendly `DefMap`). The config carries only the world
 -- (as `Expr` + value) and env.
 

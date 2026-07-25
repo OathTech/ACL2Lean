@@ -97,7 +97,7 @@ private theorem cons_not_special :
     ({ name := "CONS" } : Symbol).isNamed "LET" = false ∧
     ({ name := "CONS" } : Symbol).isNamed "LET*" = false := by decide
 
-private theorem appBody_nolet : NoLet appBody = true := by decide
+private theorem appBody_nolet : WellScoped appBody = true := by decide
 private theorem appBody_fv : ∀ s ∈ freeVars appBody, s ∈ [x_sym, y_sym] := by decide
 
 /-- Append associativity, replayed schematically. Consumes my-app totality +

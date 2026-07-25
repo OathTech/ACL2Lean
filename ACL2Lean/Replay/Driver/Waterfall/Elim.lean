@@ -224,9 +224,9 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
         let bodyT := disjoinTerm nextClause
         let argsS : List SExpr := [carT, cdrT]
         let argsE ← mkListLit (mkConst ``SExpr) (argsS.map reflectSExpr)
-        let hNoLet ← proveByDecide
-          (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr bodyT])
-                  (mkConst ``Bool.true)) "NoLet elim child"
+        let hWellScoped ← proveByDecide
+          (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr bodyT])
+                  (mkConst ``Bool.true)) "WellScoped elim child"
         let hlenPf ← proveByDecide
           (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
           "substN arg/val lengths"
@@ -246,7 +246,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
           mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
         let hargs ← mkExpectedTypeHint hargsRaw hargsTy
         let pBridge ← mkAppM ``evalOpt_substTerm_substN
-          #[w, env, formalsE, argsE, valsE, reflectSExpr bodyT, hNoLet, hlenPf, hargs]
+          #[w, env, formalsE, argsE, valsE, reflectSExpr bodyT, hWellScoped, hlenPf, hargs]
         -- diff-collapse: eval env (disjoin C) ≡ eval env ((disjoin C')σ)
         let sTermS := ACL2.Replay.substTerm [v1, v2] argsS bodyT
         let uSig : SExpr := .cons (.atom (.symbol { name := "CONS" }))

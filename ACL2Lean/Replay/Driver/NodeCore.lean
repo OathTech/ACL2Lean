@@ -31,12 +31,12 @@ structure DefInfo where
   defFact : Expr
   /-- `∀ s ∈ freeVars body, s ∈ [formal]`. -/
   closedFact : Expr
-  /-- `NoLet body = true`. -/
-  noLetFact : Expr
+  /-- `WellScoped body = true`. -/
+  wellScopedFact : Expr
 
 /-- Ambient config: the `World` (as both an `Expr` for proof terms and a `World` value
     so the driver can read formals/bodies) and the `Env` `Expr`. The structural world
-    facts (`defs.get? fn = …`, builtin-not-shadowed, freeVars⊆formals, NoLet) are NOT
+    facts (`defs.get? fn = …`, builtin-not-shadowed, freeVars⊆formals, WellScoped) are NOT
     carried — the driver **derives each one on demand by kernel decision**
     (`proveNoShadow` / `deriveDefInfo`), since `World.defs` is now a reduction-friendly
     `DefMap`. No hand-marshalled facts, no per-example config. This is NOT inference: a
@@ -166,7 +166,7 @@ def proveNoShadow (cfg : ReplayConfig) (s : Symbol) : MetaM Expr := do
     structural facts proved by kernel decision (no hand-written theorems):
     - `defFact`   : `worldExpr.defs.get? fn = some ([formal], body)`
     - `closedFact`: `∀ s ∈ freeVars body, s ∈ [formal]`
-    - `noLetFact` : `NoLet body = true`
+    - `wellScopedFact` : `WellScoped body = true`
     `formal`/`body` are read from `cfg.worldVal` (the concrete World); `proveByDecide`
     re-checks each fact against `worldExpr`, so a `worldVal`/`worldExpr` mismatch hard-fails.
     Multi-arg / not-defined hard-fail (1-arg unfold is the current frontier). -/
@@ -190,10 +190,10 @@ def deriveDefInfo (cfg : ReplayConfig) (fn : Symbol) : MetaM DefInfo := do
       let memFm ← mkAppM ``Membership.mem #[formalsE, sv]
       mkForallFVars #[sv] (← mkArrow memFv memFm)
     let closedFact ← proveByDecide closedProp s!"closed {fn.name}"
-    -- noLetFact : NoLet body = true
-    let noLetFact ← proveByDecide
-      (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[bodyE]) (mkConst ``Bool.true)) s!"nolet {fn.name}"
-    return { formal, body, defFact, closedFact, noLetFact }
+    -- wellScopedFact : WellScoped body = true
+    let wellScopedFact ← proveByDecide
+      (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[bodyE]) (mkConst ``Bool.true)) s!"well-scoped {fn.name}"
+    return { formal, body, defFact, closedFact, wellScopedFact }
 
 /-- Prove `s.isNamed name = false` by kernel decision. -/
 def proveIsNamedFalse (s : Symbol) (name : String) : MetaM Expr :=
@@ -411,11 +411,11 @@ partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Ex
     -- capability FRONTIER, not a defect.
     if lam.name == "LAMBDA" then
       -- the SAME scoping certificate the proof twin discharges by kernel
-      -- decision (S2 audit F3, 2026-07-25): a non-`NoLet` body means the
+      -- decision (S2 audit F3, 2026-07-25): a non-`WellScoped` body means the
       -- substitution below could capture — malformed input (ACL2's translate
       -- closes every lambda body), never descend
-      unless ACL2.Replay.NoLet lamBody do
-        throwError "dpValExpr: LAMBDA body is not closed/regular (NoLet fails) — \
+      unless ACL2.Replay.WellScoped lamBody do
+        throwError "dpValExpr: LAMBDA body is not closed/regular (WellScoped fails) — \
                     malformed input (translate closes lambda bodies): {repr t}"
       match ACL2.lamFormals? formalsE, argsExpr.toList? with
       | some lformals, some actuals =>
@@ -551,7 +551,7 @@ where
     | some (v, _) => pure v
     | none => dpConcVar envExpr s
   /-- The three kernel-decided beta certificates: head is LAMBDA, formals as
-      recorded, body regular/closed (`NoLet`). -/
+      recorded, body regular/closed (`WellScoped`). -/
   lamCerts (lam : Symbol) (formalsE lamBody : SExpr) (lformals : List Symbol) :
       MetaM (Expr × Expr × Expr) := do
     let lformalsE ← mkListLit (mkConst ``Symbol) (lformals.map reflectSymbol)
@@ -560,8 +560,8 @@ where
       (← mkEq (← mkAppM ``ACL2.lamFormals? #[reflectSExpr formalsE])
               (← mkAppM ``Option.some #[lformalsE])) "lambda-val formals"
     let hnl ← proveByDecide
-      (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr lamBody]) (mkConst ``Bool.true))
-      "nolet lambda-val body"
+      (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr lamBody]) (mkConst ``Bool.true))
+      "well-scoped lambda-val body"
     return (hlam, hform, hnl)
 
 /-- Ctx-driven value/proof for a term: ctx.vals as the opaque maps, ctx.varVals as
@@ -586,7 +586,7 @@ structure DefInfoN where
   body : SExpr
   defFact : Expr
   closedFact : Expr
-  noLetFact : Expr
+  wellScopedFact : Expr
 
 /-- Derive an n-ary defined function's facts on demand (kernel decision). -/
 def deriveDefInfoN (cfg : ReplayConfig) (fn : Symbol) : MetaM DefInfoN := do
@@ -603,9 +603,9 @@ def deriveDefInfoN (cfg : ReplayConfig) (fn : Symbol) : MetaM DefInfoN := do
       let memFm ← mkAppM ``Membership.mem #[formalsE, sv]
       mkForallFVars #[sv] (← mkArrow memFv memFm)
     let closedFact ← proveByDecide closedProp s!"closed {fn.name}"
-    let noLetFact ← proveByDecide
-      (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[bodyE]) (mkConst ``Bool.true)) s!"nolet {fn.name}"
-    return { formals, body, defFact, closedFact, noLetFact }
+    let wellScopedFact ← proveByDecide
+      (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[bodyE]) (mkConst ``Bool.true)) s!"well-scoped {fn.name}"
+    return { formals, body, defFact, closedFact, wellScopedFact }
 
 /-- Destructure an int-atom value `Expr` (`SExpr.atom (Atom.number (Number.int k))`)
     into its `k`. Hard-fails on any other shape. -/
@@ -1383,7 +1383,7 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
             mkAppM ``evalOpt_unfold1_conv
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
                 reflectSExpr di.body, reflectSExpr a1, v1, rv, hns,
-                di.defFact, di.closedFact, di.noLetFact, p1, hbody]
+                di.defFact, di.closedFact, di.wellScopedFact, p1, hbody]
           | [f1, f2], [a1, a2], [v1, v2], [p1, p2] =>
             let hbody ← mkAppM ``re_body_conv2
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
@@ -1392,7 +1392,7 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
             mkAppM ``evalOpt_unfold2_conv
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
                 reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, v1, v2, rv, hns,
-                di.defFact, di.closedFact, di.noLetFact, p1, p2, hbody]
+                di.defFact, di.closedFact, di.wellScopedFact, p1, p2, hbody]
           | [f1, f2, f3], [a1, a2, a3], [v1, v2, v3], [p1, p2, p3] =>
             let hbody ← mkAppM ``re_body_conv3
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
@@ -1403,7 +1403,7 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
                 reflectSymbol f2, reflectSymbol f3, reflectSExpr di.body,
                 reflectSExpr a1, reflectSExpr a2, reflectSExpr a3, v1, v2, v3, rv,
-                hns, di.defFact, di.closedFact, di.noLetFact, p1, p2, p3, hbody]
+                hns, di.defFact, di.closedFact, di.wellScopedFact, p1, p2, p3, hbody]
           | _, _, _, _ => throwError "definition: only 1/2/3-arg unfolds supported (frontier)"
         | none =>
           -- evidence 2: the ∀-env convergence analyzer
@@ -1414,14 +1414,14 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
             mkAppM ``re_unfold1_conv
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
                 reflectSExpr di.body, reflectSExpr a1, hns,
-                di.defFact, di.closedFact, di.noLetFact, harg, hbodyAll]
+                di.defFact, di.closedFact, di.wellScopedFact, harg, hbodyAll]
           | [f1, f2], [a1, a2] =>
             let h1 ← proveConv cfg cfg.envExpr ctx a1
             let h2 ← proveConv cfg cfg.envExpr ctx a2
             mkAppM ``re_unfold2_conv
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1, reflectSymbol f2,
                 reflectSExpr di.body, reflectSExpr a1, reflectSExpr a2, hns,
-                di.defFact, di.closedFact, di.noLetFact, h1, h2, hbodyAll]
+                di.defFact, di.closedFact, di.wellScopedFact, h1, h2, hbodyAll]
           | [f1, f2, f3], [a1, a2, a3] =>
             let h1 ← proveConv cfg cfg.envExpr ctx a1
             let h2 ← proveConv cfg cfg.envExpr ctx a2
@@ -1430,7 +1430,7 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
               #[cfg.worldExpr, cfg.envExpr, reflectSymbol fn, reflectSymbol f1,
                 reflectSymbol f2, reflectSymbol f3, reflectSExpr di.body,
                 reflectSExpr a1, reflectSExpr a2, reflectSExpr a3, hns,
-                di.defFact, di.closedFact, di.noLetFact, h1, h2, h3, hbodyAll]
+                di.defFact, di.closedFact, di.wellScopedFact, h1, h2, h3, hbodyAll]
           | _, _ => throwError "definition: only 1/2/3-arg unfolds supported (frontier)"
       pure (di.formals, di.body, unfold)
   -- children chain over the substituted body (depth+1: their paths carry one more
@@ -1457,7 +1457,7 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
     steps) by its body under `formals ↦ actuals`, and the adopted LAMBDA-BODY
     block rewrites that substituted body on to the node's recorded rhs. The
     scoping side conditions are ACL2's own translate invariant, re-checked here
-    by kernel decision (`NoLet` / freeVars ⊆ formals). -/
+    by kernel decision (`WellScoped` / freeVars ⊆ formals). -/
 partial def replayLambdaBody (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx)
     (n : ProofNode) (depth : Nat) : MetaM Expr := do
   let (lhs, rhs) := nodeLhsRhs n
@@ -1477,7 +1477,7 @@ partial def replayLambdaBody (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
     (← mkEq (← mkAppM ``ACL2.lamFormals? #[formalsSE]) (← mkAppM ``Option.some #[lformalsE]))
     "lambda-body formals"
   let hnl ← proveByDecide
-    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[bodyE]) (mkConst ``Bool.true)) "nolet lambda body"
+    (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[bodyE]) (mkConst ``Bool.true)) "well-scoped lambda body"
   let hbodyAll ← proveConvAllEnv cfg ctx lamBody
   let unfold ← match lformals, actuals with
     | [lf], [a1] =>
@@ -2214,11 +2214,11 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let hargs ← mkExpectedTypeHint hargsRaw hargsTy
     -- bridge t : eval env (substTerm σ t) ≡ eval env' t, for any rule-side term
     let bridge : SExpr → MetaM Expr := fun t => do
-      let hNoLet ← proveByDecide
-        (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[reflectSExpr t]) (mkConst ``Bool.true))
-        s!"NoLet rule term ({rname})"
+      let hWellScoped ← proveByDecide
+        (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr t]) (mkConst ``Bool.true))
+        s!"WellScoped rule term ({rname})"
       mkAppM ``evalOpt_substTerm_substN
-        #[w, env, formalsE, argsE, valsE, reflectSExpr t, hNoLet, hlenPf, hargs]
+        #[w, env, formalsE, argsE, valsE, reflectSExpr t, hWellScoped, hlenPf, hargs]
     -- premises: EvTrue w env' hᵢ from the recorded relief. Sources, per hyp:
     -- a silent-relief MARKER whose hyp matches hσ (recompute-and-check) —
     -- clause-context lookup; else the recorded relief chain (v1: one hyp

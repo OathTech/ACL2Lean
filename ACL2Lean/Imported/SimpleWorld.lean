@@ -162,8 +162,8 @@ private theorem cons_not_special :
 
 /-! ## Body structure facts (LET-free; free vars ⊆ formals) for the unfold transfer -/
 
-private theorem my_appBody_nolet : NoLet my_appBody = true := by decide
-private theorem my_lenBody_nolet : NoLet my_lenBody = true := by decide
+private theorem my_appBody_nolet : WellScoped my_appBody = true := by decide
+private theorem my_lenBody_nolet : WellScoped my_lenBody = true := by decide
 private theorem my_appBody_fv : ∀ s ∈ freeVars my_appBody, s = x_sym ∨ s = y_sym := by decide
 private theorem my_lenBody_fv : ∀ s ∈ freeVars my_lenBody, s = x_sym := by decide
 
@@ -175,7 +175,7 @@ private theorem acl2numberp_not_special :
     ({ name := "ACL2-NUMBERP" } : Symbol).isNamed "IF" = false ∧
     ({ name := "ACL2-NUMBERP" } : Symbol).isNamed "LET" = false ∧
     ({ name := "ACL2-NUMBERP" } : Symbol).isNamed "LET*" = false := by decide
-private theorem fixBody_nolet : NoLet fixBody = true := by decide
+private theorem fixBody_nolet : WellScoped fixBody = true := by decide
 private theorem fixBody_fv : ∀ s ∈ freeVars fixBody, s ∈ [x_sym] := by decide
 /-- `substTerm [x] [z] fixBody = (if (acl2-numberp z) z '0)` — the fix body with `x:=z`. -/
 private theorem fixBody_subst (z : SExpr) :

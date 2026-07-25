@@ -402,9 +402,9 @@ false kernel proof; it is a false claim in the LOG.
   frontier to a deeper preprocess mismatch (still FAIL; that book has
   no lambdas). Binder arities >2 hard-fail by name in the congruence
   walk and the beta recipe; the DP-lift walkers frontier them.
-- Follow-ups: the `NoLet` predicate now ADMITS a binding form, so its
-  name is stale — rename (and collapse the `envUpdate`/`bindArgsOver`
-  clone) as an end-of-arc cleanup. Sites 2–4 of the table above
+- Follow-ups: DONE 2026-07-25 — `NoLet` renamed `WellScoped` (it admits
+  a binding form) and the `envUpdate`/`bindArgsOver` clone collapsed;
+  both golden byte-identical. Sites 2–4 of the table above
   (CORRECTION 2026-07-25: the earlier claim here that site 2 "would
   hard-fail" was wrong at the tree layer — the audit's probe shows
   silent mis-parenting in the reconstructed tree; only the driver

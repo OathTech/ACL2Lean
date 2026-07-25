@@ -291,9 +291,9 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
   let P ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
     mkLambdaFVars #[eV] (← mkAppM ``EvTrue #[w, eV, pushedE])
   let conspOf := fun (v : Expr) => mkApp (mkConst ``Logic.consp) v
-  let hNoLet ← proveByDecide
-    (← mkEq (← mkAppM ``ACL2.Replay.NoLet #[pushedE]) (mkConst ``Bool.true))
-    "NoLet pushed"
+  let hWellScoped ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[pushedE]) (mkConst ``Bool.true))
+    "WellScoped pushed"
   -- 5. the strong-induction STEP: ∀ e, (∀ e', μ e' < μ e → P e') → P e,
   -- dispatching the emitted decision tree.
   let step ← withLocalDeclD `e (mkConst ``ACL2.Env) fun eV => do
@@ -496,7 +496,7 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
               mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
             let hargs ← mkExpectedTypeHint hargsRaw hargsTy
             let pBridge ← mkAppM ``evalOpt_substTerm_substN
-              #[w, eV, formalsE, argsE, valsE, pushedE, hNoLet, hlenPf, hargs]
+              #[w, eV, formalsE, argsE, valsE, pushedE, hWellScoped, hlenPf, hargs]
             return (ctxD, ← mkAppM ``evtrue_of_fuel_eq #[pBridge, pIH'])
           -- dispatch the decision tree; at each leaf replay the case child
           -- and peel ruling literals then IH literals (clause order)
