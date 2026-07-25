@@ -2195,7 +2195,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let formalsE ← mkListLit (mkConst ``Symbol) (σvars.map reflectSymbol)
     let argsE ← mkListLit (mkConst ``SExpr) (σterms.map reflectSExpr)
     let valsE ← mkListLit (mkConst ``SExpr) vals
-    let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
+    let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
     let hlenPf ← proveByDecide
       (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
       s!"substN lengths ({rname})"

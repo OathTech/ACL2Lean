@@ -101,7 +101,7 @@ partial def replayGeneralize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   let formalsE ← mkListLit (mkConst ``Symbol) (gvars.map reflectSymbol)
   let argsE ← mkListLit (mkConst ``SExpr) (terms.map reflectSExpr)
   let valsE ← mkListLit (mkConst ``SExpr) vals
-  let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
+  let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
   let cfg' := { cfg with envExpr := env' }
   -- clear ALL env-bound fact channels (audit 2026-07-06: branchFacts/segFacts
   -- carry proofs about THIS env; stale ones at env\' would only kernel-fail,
@@ -145,7 +145,7 @@ partial def replayGeneralize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     let fact := mkAppN tpHyp ((#[env] : Array Expr)
       ++ (argsJ.map reflectSExpr).toArray ++ #[valJ, convJ])
     -- the literal's value at env': not (pred (lookup ESi)) — defeq
-    -- not (pred val_i) through the concrete envUpdate lookups
+    -- not (pred val_i) through the concrete bindArgsOver lookups
     let vLit ← ctxValExpr cfg' ctx' lit
     let convLit ← ctxValProof cfg' ctx' lit
     let hnilRaw ← mkAppM ``not_of_eq_t #[fact]

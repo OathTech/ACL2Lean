@@ -653,7 +653,7 @@ theorem my_len_my_app_generic
         evalOpt f w e (plusOf (lenOf yT) (lenOf (cdrOf xT)))
         = evalOpt f w e (lenOf (appOf (cdrOf xT) yT)) := by
       -- SCHEMATIC solidify (rewriting-equivalence justified by the IH). The IH `ih`
-      -- (P at cdr xv), instantiated in e' = e.insert x (cdr xv) ( = envUpdate e [x]
+      -- (P at cdr xv), instantiated in e' = e.insert x (cdr xv) ( = bindArgsOver e [x]
       -- [cdr xv] ), is converted to the goal-env terms by the substTerm SUBSTITUTION
       -- LEMMA (`evalOpt_substTerm_subst1`, arg (cdr x) ⇒ cdr xv): bridging the whole
       -- formula gives `eval_e (equal (my-len (my-app (cdr x) y)) (+ (my-len (cdr x))
@@ -667,7 +667,7 @@ theorem my_len_my_app_generic
         evalOpt_var f w _ x_sym (Logic.cdr xv) (by simp)
       obtain ⟨Nih, hih⟩ := ih (e.insert x_sym (Logic.cdr xv)) hx_e'
       -- Substitution lemma: substTerm [x] [cdr x] formula evaluated in e = formula in
-      -- e' (= envUpdate e [x] [cdr xv], defeq to e.insert x (cdr xv)).
+      -- e' (= bindArgsOver e [x] [cdr xv], defeq to e.insert x (cdr xv)).
       obtain ⟨Nbr, hbr⟩ := evalOpt_substTerm_subst1 w e x_sym (cdrOf xT) (Logic.cdr xv)
         my_len_my_appFormula (by decide) ⟨Ncdr, hcdr⟩
       -- substTerm [x] [cdr x] formula = (equal (my-len (my-app (cdr x) y))

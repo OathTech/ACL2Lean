@@ -236,18 +236,18 @@ theorem len_interleave_mirror
       --   ((ATOM X) (O< (+ (acl2-count Y) (acl2-count (CDR X)))
       --                 (+ (acl2-count X) (acl2-count Y))))
       -- [driver: named-new J4 Count lemma (swap-sum decrease) + I4 join]
-      have hdec : μ (envUpdate env [{ name := "X" }, { name := "Y" }]
+      have hdec : μ (bindArgsOver env [{ name := "X" }, { name := "Y" }]
           [(env.get? { name := "Y" }).getD .nil, b]) < n := by
-        have hupd : μ (envUpdate env [{ name := "X" }, { name := "Y" }]
+        have hupd : μ (bindArgsOver env [{ name := "X" }, { name := "Y" }]
             [(env.get? { name := "Y" }).getD .nil, b])
             = ((env.get? { name := "Y" }).getD .nil).acl2Count
               + b.acl2Count := by
-          simp [μ, envUpdate]
+          simp [μ, bindArgsOver]
         rw [hupd, ← hn]
         simp only [SExpr.acl2Count]
         omega
       have hIH : EvTrue ivWorld
-          (envUpdate env [{ name := "X" }, { name := "Y" }]
+          (bindArgsOver env [{ name := "X" }, { name := "Y" }]
             [(env.get? { name := "Y" }).getD .nil, b]) goalT :=
         -- [driver: strong-IH application at the SWAPPED env (I3)]
         IH _ hdec _ rfl

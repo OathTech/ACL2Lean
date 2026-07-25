@@ -48,7 +48,7 @@ partial def replaySubsumed (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayC
   let formalsE ← mkListLit (mkConst ``Symbol) (σvars.map reflectSymbol)
   let argsE ← mkListLit (mkConst ``SExpr) (σterms.map reflectSExpr)
   let valsE ← mkListLit (mkConst ``SExpr) vals
-  let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
+  let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
   let cfg' := { cfg with envExpr := env' }
   let ctx' := { ctx with varVals := [], vals := [], litFacts := [],
                          branchFacts := [], segFacts := [] }

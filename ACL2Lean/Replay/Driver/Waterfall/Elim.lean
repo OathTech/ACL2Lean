@@ -217,7 +217,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
         let cdrV := mkApp (mkConst ``Logic.cdr) vE
         let formalsE ← mkListLit (mkConst ``Symbol) [reflectSymbol v1, reflectSymbol v2]
         let valsE ← mkListLit (mkConst ``SExpr) [carV, cdrV]
-        let env' ← mkAppM ``envUpdate #[env, formalsE, valsE]
+        let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
         let cfg' := { cfgK with envExpr := env' }
         let pInner ← go rest nextClause cfg' false
         -- substN bridge: eval env ((disjoin C')σ) ≡ eval env' (disjoin C')

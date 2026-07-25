@@ -462,12 +462,12 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
               schemeFormals schemeActuals
               (alist.map (·.1)) (alist.map (·.2)) kit
             -- e' and the cast of the decrease to μ e' < μ e (defeq through
-            -- the concrete envUpdate lookups)
+            -- the concrete bindArgsOver lookups)
             let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
             let valsList := vals.map (·.1)
             let valsE ← mkListLit (mkConst ``SExpr) valsList
             let argsE ← mkListLit (mkConst ``SExpr) (args.map reflectSExpr)
-            let e' ← mkAppM ``envUpdate #[eV, formalsE, valsE]
+            let e' ← mkAppM ``bindArgsOver #[eV, formalsE, valsE]
             let ltTy ← mkAppM ``LT.lt
               #[(mkApp μE e').headBeta, (mkApp μE eV).headBeta]
             unless ← isDefEq (← inferType hLtRaw) ltTy do

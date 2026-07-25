@@ -255,24 +255,24 @@ theorem true_listp_flatten_mirror
       -- decrease: covered by FLATTEN's EMITTED clause
       --   ((NOT (CONSP X)) (O< (ACL2-COUNT (CAR X)) (ACL2-COUNT X)))
       -- [driver: Count.acl2Count_car_lt_of_consp + the I4 covering join]
-      have hdec₁ : μ (envUpdate env [{ name := "X" }] [a]) < n := by
-        have hupd : μ (envUpdate env [{ name := "X" }] [a]) = a.acl2Count := by
-          simp [μ, envUpdate]
+      have hdec₁ : μ (bindArgsOver env [{ name := "X" }] [a]) < n := by
+        have hupd : μ (bindArgsOver env [{ name := "X" }] [a]) = a.acl2Count := by
+          simp [μ, bindArgsOver]
         rw [hupd, ← hn]
         exact acl2Count_car_lt a b
       have hIH₁ : EvTrue flattenWorld
-          (envUpdate env [{ name := "X" }] [a]) goalT :=
+          (bindArgsOver env [{ name := "X" }] [a]) goalT :=
         -- [driver: strong-IH application at the updated env (I3)]
         IH _ hdec₁ _ rfl
       -- IH instantiation 2: X := (CDR X)  (second IH from the SAME strong IH)
       -- [driver: Count.acl2Count_cdr_lt_of_consp + the I4 covering join]
-      have hdec₂ : μ (envUpdate env [{ name := "X" }] [b]) < n := by
-        have hupd : μ (envUpdate env [{ name := "X" }] [b]) = b.acl2Count := by
-          simp [μ, envUpdate]
+      have hdec₂ : μ (bindArgsOver env [{ name := "X" }] [b]) < n := by
+        have hupd : μ (bindArgsOver env [{ name := "X" }] [b]) = b.acl2Count := by
+          simp [μ, bindArgsOver]
         rw [hupd, ← hn]
         exact acl2Count_cdr_lt a b
       have hIH₂ : EvTrue flattenWorld
-          (envUpdate env [{ name := "X" }] [b]) goalT :=
+          (bindArgsOver env [{ name := "X" }] [b]) goalT :=
         IH _ hdec₂ _ rfl
       -- substN bridges: each IH-at-env' IS the substituted formula at env
       -- (the tree's IH literals: (TRUE-LISTP (FLATTEN (CAR X))) etc.)
@@ -331,17 +331,17 @@ theorem true_listp_flatten_mirror
         · exact absurd h hne
       -- the RULE instance at env2 := env[X ↦ vFC, Y ↦ vFD]
       -- [driver: the with-lemma :SUBST instantiation at pinned values]
-      have hgetX2 : (envUpdate env [{ name := "X" }, { name := "Y" }]
+      have hgetX2 : (bindArgsOver env [{ name := "X" }, { name := "Y" }]
           [vFC, vFD]).get? { name := "X" } = some vFC := by
-        simp [envUpdate]
-      have hgetY2 : (envUpdate env [{ name := "X" }, { name := "Y" }]
+        simp [bindArgsOver]
+      have hgetY2 : (bindArgsOver env [{ name := "X" }, { name := "Y" }]
           [vFC, vFD]).get? { name := "Y" } = some vFD := by
-        simp [envUpdate]
+        simp [bindArgsOver]
       have hvarX2 := re_val_var_get flattenWorld _ { name := "X" } vFC hgetX2
       have hvarY2 := re_val_var_get flattenWorld _ { name := "Y" } vFD hgetY2
       -- hyp relief: EvTrue env2 (TRUE-LISTP Y)  [driver: relief from the IH fact]
       have hrelief : EvTrue flattenWorld
-          (envUpdate env [{ name := "X" }, { name := "Y" }] [vFC, vFD])
+          (bindArgsOver env [{ name := "X" }, { name := "Y" }] [vFC, vFD])
           (tlpT vY) := by
         apply evtrue_of_eq_t
         have h := conv_builtin1 flattenWorld _ { name := "TRUE-LISTP" } vY vFD
@@ -354,30 +354,30 @@ theorem true_listp_flatten_mirror
       -- [driver: htotal_app pinning + re_body_conv2]
       have hvarX2ex : ∃ N, ∃ v, ∀ f ≥ N,
           evalOpt f flattenWorld
-            (envUpdate env [{ name := "X" }, { name := "Y" }] [vFC, vFD]) vX
+            (bindArgsOver env [{ name := "X" }, { name := "Y" }] [vFC, vFD]) vX
           = some v := by
         obtain ⟨N, h⟩ := hvarX2; exact ⟨N, vFC, h⟩
       have hvarY2ex : ∃ N, ∃ v, ∀ f ≥ N,
           evalOpt f flattenWorld
-            (envUpdate env [{ name := "X" }, { name := "Y" }] [vFC, vFD]) vY
+            (bindArgsOver env [{ name := "X" }, { name := "Y" }] [vFC, vFD]) vY
           = some v := by
         obtain ⟨N, h⟩ := hvarY2; exact ⟨N, vFD, h⟩
       obtain ⟨NA, vAPP, hAPP2⟩ := htotal_app _ vX vY hvarX2ex hvarY2ex
       -- APP's BODY fact at bindArgs [X,Y] [vFC,vFD] (inverse unfold)
       -- [driver: re_body_conv2 — the driver's own body-from-app extractor]
       have hbodyAPP := re_body_conv2 flattenWorld
-        (envUpdate env [{ name := "X" }, { name := "Y" }] [vFC, vFD])
+        (bindArgsOver env [{ name := "X" }, { name := "Y" }] [vFC, vFD])
         { name := "APP" } { name := "X" } { name := "Y" } appBody vX vY
         vFC vFD vAPP (by decide) (by decide) hvarX2 hvarY2 ⟨NA, hAPP2⟩
       -- decode the rule equation to the VALUE fact: trueListp vAPP = t
       -- [driver: the with-lemma value decode — fuel determinism at shared fuel]
       have hTLPapp : Logic.trueListp vAPP = SExpr.t := by
         have hTLPconv := conv_builtin1 flattenWorld
-          (envUpdate env [{ name := "X" }, { name := "Y" }] [vFC, vFD])
+          (bindArgsOver env [{ name := "X" }, { name := "Y" }] [vFC, vFD])
           { name := "TRUE-LISTP" } (appT vX vY) vAPP (Logic.trueListp vAPP)
           (by decide) (by decide) ⟨NA, hAPP2⟩ (callBuiltin_true_listp vAPP)
         have hqT := re_val_quote flattenWorld
-          (envUpdate env [{ name := "X" }, { name := "Y" }] [vFC, vFD]) SExpr.t
+          (bindArgsOver env [{ name := "X" }, { name := "Y" }] [vFC, vFD]) SExpr.t
         obtain ⟨N1, h1⟩ := hTLPconv
         obtain ⟨N2, h2⟩ := hruleEq
         obtain ⟨N3, h3⟩ := hqT

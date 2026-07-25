@@ -1042,7 +1042,7 @@ theorem conv_defn_3 (w : World) (env : Env) (s : Symbol)
   Ported sorry-free from the prior hand-proof branch; dispatch-agnostic (they
   factor through mapM/argument congruence), so unchanged by callBuiltin->Option.
   substTerm is first-order formal->arg-term substitution (intrinsic :DEFINITION
-  replay); evalOpt_substTerm_eq / evalOpt_substTerm_quote / evalOpt_envUpdate_bindArgs
+  replay); evalOpt_substTerm_eq / evalOpt_substTerm_quote / evalOpt_bindArgsOver_bindArgs
   are the substitution lemma the driver needs for definition unfolds and the IH. -/
 
 /-- Positional lookup of a symbol in parallel formals/args lists; first match. -/
@@ -1074,11 +1074,6 @@ def substSpine (formals : List Symbol) (args : List SExpr) : SExpr → SExpr
   | t => t
 end
 
-/-- Extend `env` by binding each formal to its value (first formal wins, as in
-    `bindArgs`). `bindArgs` is the empty-base instance (see below). -/
-def envUpdate (env : Env) : List Symbol → List SExpr → Env
-  | f :: fs, v :: vs => (envUpdate env fs vs).insert f v
-  | _, _ => env
 
 /-- Looking up a quote-mapped arg list = quoting the plain lookup. -/
 theorem lookupSubst_map_quoteVal (s : Symbol) :
@@ -1093,29 +1088,29 @@ theorem lookupSubst_map_quoteVal (s : Symbol) :
       | true => simp
       | false => simp [lookupSubst_map_quoteVal s fs vs]
 
-/-- `bindArgs` is `envUpdate` over the empty environment. -/
-theorem bindArgs_eq_envUpdate_empty :
+/-- `bindArgs` is `bindArgsOver` over the empty environment. -/
+theorem bindArgs_eq_bindArgsOver_empty :
     ∀ (formals : List Symbol) (vals : List SExpr),
-      bindArgs formals vals = envUpdate (∅ : Env) formals vals
+      bindArgs formals vals = bindArgsOver (∅ : Env) formals vals
   | [], _ => rfl
   | _ :: _, [] => rfl
   | f :: fs, v :: vs => by
-      show (bindArgs fs vs).insert f v = (envUpdate (∅ : Env) fs vs).insert f v
-      rw [bindArgs_eq_envUpdate_empty fs vs]
+      show (bindArgs fs vs).insert f v = (bindArgsOver (∅ : Env) fs vs).insert f v
+      rw [bindArgs_eq_bindArgsOver_empty fs vs]
 
-/-- Looking up a symbol in `envUpdate` = the substitution lookup, falling back to
+/-- Looking up a symbol in `bindArgsOver` = the substitution lookup, falling back to
     the base env. -/
-theorem envUpdate_get (env : Env) (s : Symbol) :
+theorem bindArgsOver_get (env : Env) (s : Symbol) :
     ∀ (formals : List Symbol) (vals : List SExpr),
-      (envUpdate env formals vals).get? s
+      (bindArgsOver env formals vals).get? s
         = match lookupSubst s formals vals with
           | some v => some v
           | none => env.get? s
   | [], _ => rfl
   | _ :: _, [] => rfl
   | f :: fs, v :: vs => by
-      show ((envUpdate env fs vs).insert f v).get? s = _
-      rw [Env.get?_insert, envUpdate_get env s fs vs]
+      show ((bindArgsOver env fs vs).insert f v).get? s = _
+      rw [Env.get?_insert, bindArgsOver_get env s fs vs]
       simp only [lookupSubst]
       by_cases h : s = f
       · subst h; simp
@@ -1144,7 +1139,7 @@ theorem substSpine_toList (formals : List Symbol) (args : List SExpr) :
 theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List SExpr) :
     ∀ (m : Nat) (env : Env) (body : SExpr), NoLet body = true →
       evalOpt m w env (substTerm formals (vals.map quoteVal) body)
-        = evalOpt m w (envUpdate env formals vals) body := by
+        = evalOpt m w (bindArgsOver env formals vals) body := by
   intro m
   induction m with
   | zero => intro _ _ _; rfl
@@ -1159,20 +1154,20 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
     | .atom (.symbol s) =>
       show evalOpt (n + 1) w env
             ((lookupSubst s formals (vals.map quoteVal)).getD (.atom (.symbol s)))
-         = evalOpt (n + 1) w (envUpdate env formals vals) (.atom (.symbol s))
+         = evalOpt (n + 1) w (bindArgsOver env formals vals) (.atom (.symbol s))
       rw [lookupSubst_map_quoteVal]
       cases hl : lookupSubst s formals vals with
       | some vi =>
         simp only [Option.map_some, Option.getD_some, quoteVal]
         rw [evalOpt_quote n w env vi]
-        have hg : (envUpdate env formals vals).get? s = some vi := by
-          have he := envUpdate_get env s formals vals; rw [hl] at he; exact he
-        rw [evalOpt_var n w (envUpdate env formals vals) s vi hg]
+        have hg : (bindArgsOver env formals vals).get? s = some vi := by
+          have he := bindArgsOver_get env s formals vals; rw [hl] at he; exact he
+        rw [evalOpt_var n w (bindArgsOver env formals vals) s vi hg]
       | none =>
         simp only [Option.map_none, Option.getD_none]
-        have hg : env.get? s = (envUpdate env formals vals).get? s := by
-          have he := envUpdate_get env s formals vals; rw [hl] at he; exact he.symm
-        exact evalOpt_symbol_of_get n w env (envUpdate env formals vals) s hg
+        have hg : env.get? s = (bindArgsOver env formals vals).get? s := by
+          have he := bindArgsOver_get env s formals vals; rw [hl] at he; exact he.symm
+        exact evalOpt_symbol_of_get n w env (bindArgsOver env formals vals) s hg
     | .cons (.atom (.number _)) _ => rfl
     | .cons (.atom (.string _)) _ => rfl
     | .cons (.atom (.keyword _)) _ => rfl
@@ -1187,7 +1182,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
       show evalOptStep (evalOpt n) w env
              (.cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)))
                (substSpine formals (vals.map quoteVal) argsExpr))
-         = evalOptStep (evalOpt n) w (envUpdate env formals vals) _
+         = evalOptStep (evalOpt n) w (bindArgsOver env formals vals) _
       simp only [evalOptStep_cons_lam, hlam, if_true, hform, substSpine_toList]
       cases hae : argsExpr.toList? with
       | none => simp only [Option.map_none]
@@ -1195,18 +1190,18 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
         simp only [Option.map_some]
         have hkey : ∀ a ∈ args,
             evalOpt n w env (substTerm formals (vals.map quoteVal) a)
-              = evalOpt n w (envUpdate env formals vals) a := fun a ha =>
+              = evalOpt n w (bindArgsOver env formals vals) a := fun a ha =>
           ih env a (NoLet_of_mem_spine hae hspine a ha)
         rw [List.mapM_map]
         simp only [Function.comp_def]
         rw [mapM_congr_mem hkey]
-        cases hav : args.mapM (fun a => evalOpt n w (envUpdate env formals vals) a) with
+        cases hav : args.mapM (fun a => evalOpt n w (bindArgsOver env formals vals) a) with
         | none => rfl
         | some argVals =>
           show (if lformals.length = argVals.length
                   then evalOpt n w (bindArgsOver env lformals argVals) lamBody else none)
              = (if lformals.length = argVals.length
-                  then evalOpt n w (bindArgsOver (envUpdate env formals vals) lformals argVals)
+                  then evalOpt n w (bindArgsOver (bindArgsOver env formals vals) lformals argVals)
                          lamBody else none)
           by_cases hlen : lformals.length = argVals.length
           · simp only [hlen, if_true]
@@ -1219,7 +1214,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
       · rw [show substTerm formals (vals.map quoteVal) (.cons (.atom (.symbol q)) rest)
               = .cons (.atom (.symbol q)) rest from by simp only [substTerm, hq, if_true]]
         show evalOptStep (evalOpt n) w env (.cons (.atom (.symbol q)) rest)
-           = evalOptStep (evalOpt n) w (envUpdate env formals vals) (.cons (.atom (.symbol q)) rest)
+           = evalOptStep (evalOpt n) w (bindArgsOver env formals vals) (.cons (.atom (.symbol q)) rest)
         simp only [evalOptStep_cons_symbol, hq, ↓reduceIte]
       · have hqf : q.isNamed "QUOTE" = false := by
           simp only [Bool.not_eq_true] at hq; exact hq
@@ -1228,14 +1223,14 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
             from by simp only [substTerm, hqf, Bool.false_eq_true, if_false]]
         show evalOptStep (evalOpt n) w env
               (.cons (.atom (.symbol q)) (substSpine formals (vals.map quoteVal) rest))
-           = evalOptStep (evalOpt n) w (envUpdate env formals vals)
+           = evalOptStep (evalOpt n) w (bindArgsOver env formals vals)
               (.cons (.atom (.symbol q)) rest)
         simp only [evalOptStep_cons_symbol, hqf, Bool.false_eq_true, if_false]
-        -- Per-element bridge: substituted arg in `env` = original arg in `envUpdate`.
+        -- Per-element bridge: substituted arg in `env` = original arg in `bindArgsOver`.
         have hnls : NoLetSpine rest = true := (NoLet_sym_parts hnl hqf).2.2
         have ihkey : ∀ a ∈ (rest.toList?).getD [],
             evalOpt n w env (substTerm formals (vals.map quoteVal) a)
-              = evalOpt n w (envUpdate env formals vals) a := by
+              = evalOpt n w (bindArgsOver env formals vals) a := by
           intro a ha
           cases htl : rest.toList? with
           | none => simp [htl] at ha
@@ -1251,10 +1246,10 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
                    (fun cv => if Logic.toBool cv = true
                      then evalOpt n w env (substTerm formals (vals.map quoteVal) t)
                      else evalOpt n w env (substTerm formals (vals.map quoteVal) e))
-               = (evalOpt n w (envUpdate env formals vals) c).bind
+               = (evalOpt n w (bindArgsOver env formals vals) c).bind
                    (fun cv => if Logic.toBool cv = true
-                     then evalOpt n w (envUpdate env formals vals) t
-                     else evalOpt n w (envUpdate env formals vals) e)
+                     then evalOpt n w (bindArgsOver env formals vals) t
+                     else evalOpt n w (bindArgsOver env formals vals) e)
             simp only [ihkey c (by simp [htl]), ihkey t (by simp [htl]), ihkey e (by simp [htl])]
           | none => rfl
           | some [] => rfl
@@ -1273,7 +1268,7 @@ theorem evalOpt_substTerm_quote (w : World) (formals : List Symbol) (vals : List
               simp only [Option.map_some]
               rw [show List.mapM (fun a => evalOpt n w env a)
                       (List.map (substTerm formals (List.map quoteVal vals)) l)
-                    = List.mapM (fun a => evalOpt n w (envUpdate env formals vals) a) l from by
+                    = List.mapM (fun a => evalOpt n w (bindArgsOver env formals vals) a) l from by
                   rw [List.mapM_map]
                   exact mapM_congr_mem
                     (fun a ha => ihkey a (by simp only [htl, Option.getD_some]; exact ha))]
@@ -1613,18 +1608,18 @@ theorem lookupSubst_eval_congr (w : World) (env : Env) :
   | _ :: _, [], _ :: _, hlen, _, _, _ => by simp at hlen
   | _ :: _, _ :: _, [], hlen, _, _, _ => by simp at hlen
 
-/-- Evaluating a closed (under `formals`) LET-free body in `envUpdate env` is the
+/-- Evaluating a closed (under `formals`) LET-free body in `bindArgsOver env` is the
     same as in `bindArgs` — the base env is invisible past the formals. -/
-theorem evalOpt_envUpdate_bindArgs (w : World) (env : Env) (formals : List Symbol)
+theorem evalOpt_bindArgsOver_bindArgs (w : World) (env : Env) (formals : List Symbol)
     (vals : List SExpr) (hlen : formals.length = vals.length) (g : Nat) (body : SExpr)
     (hnl : NoLet body = true) (hcl : ∀ s ∈ freeVars body, s ∈ formals) :
-    evalOpt g w (envUpdate env formals vals) body = evalOpt g w (bindArgs formals vals) body := by
-  rw [bindArgs_eq_envUpdate_empty]
-  refine evalOpt_freevar_congr w g (envUpdate env formals vals) (envUpdate ∅ formals vals) body hnl
+    evalOpt g w (bindArgsOver env formals vals) body = evalOpt g w (bindArgs formals vals) body := by
+  rw [bindArgs_eq_bindArgsOver_empty]
+  refine evalOpt_freevar_congr w g (bindArgsOver env formals vals) (bindArgsOver ∅ formals vals) body hnl
     (fun s hs => ?_)
   obtain ⟨v, hv⟩ := lookupSubst_some_of_mem s formals vals (hcl s hs) hlen
-  have h1 := envUpdate_get env s formals vals
-  have h2 := envUpdate_get (∅ : Env) s formals vals
+  have h1 := bindArgsOver_get env s formals vals
+  have h2 := bindArgsOver_get (∅ : Env) s formals vals
   rw [hv] at h1 h2
   exact evalOpt_symbol_of_get 0 w _ _ s (h1.trans h2.symm)
 
@@ -1650,7 +1645,7 @@ theorem evalOpt_unfold1_conv (w : World) (env : Env) (fn formal : Symbol)
       evalOpt f w env (.cons (.atom (.symbol fn)) (.cons arg .nil)) = some v :=
     conv_defn_1 w env fn arg av formal body v hns hdef harg hbody
   -- RHS ⇒ v : substTerm [formal][arg] body ≈ substTerm [formal][quoteVal av] body
-  --          = body in (envUpdate = bindArgs) ⇒ v
+  --          = body in (bindArgsOver = bindArgs) ⇒ v
   obtain ⟨Narg, harg'⟩ := harg
   obtain ⟨Ncong, hcong⟩ := evalOpt_substTerm_conv w env [formal] (List.map quoteVal [av]) [arg]
     (max Narg 1)
@@ -1670,7 +1665,7 @@ theorem evalOpt_unfold1_conv (w : World) (env : Env) (fn formal : Symbol)
     obtain ⟨Nb, hb⟩ := hbody
     refine ⟨max Ncong Nb, fun f hf => ?_⟩
     rw [← hcong f (by omega), evalOpt_substTerm_quote w [formal] [av] f env body hnolet,
-        evalOpt_envUpdate_bindArgs w env [formal] [av] rfl f body hnolet hclosed]
+        evalOpt_bindArgsOver_bindArgs w env [formal] [av] rfl f body hnolet hclosed]
     exact hb f (by omega)
   obtain ⟨Nl, hl⟩ := hlhs; obtain ⟨Nr, hr⟩ := hrhs
   exact ⟨max Nl Nr, fun f hf => by rw [hl f (by omega), hr f (by omega)]⟩
@@ -1721,7 +1716,7 @@ theorem evalOpt_unfold2_conv (w : World) (env : Env) (fn formal1 formal2 : Symbo
     obtain ⟨Nb, hb⟩ := hbody
     refine ⟨max Ncong Nb, fun f hf => ?_⟩
     rw [← hcong f (by omega), evalOpt_substTerm_quote w [formal1, formal2] [av1, av2] f env body hnolet,
-        evalOpt_envUpdate_bindArgs w env [formal1, formal2] [av1, av2] rfl f body hnolet hclosed]
+        evalOpt_bindArgsOver_bindArgs w env [formal1, formal2] [av1, av2] rfl f body hnolet hclosed]
     exact hb f (by omega)
   obtain ⟨Nl, hl⟩ := hlhs; obtain ⟨Nr, hr⟩ := hrhs
   exact ⟨max Nl Nr, fun f hf => by rw [hl f (by omega), hr f (by omega)]⟩
@@ -1790,7 +1785,7 @@ theorem evalOpt_unfold3_conv (w : World) (env : Env) (fn formal1 formal2 formal3
     refine ⟨max Ncong Nb, fun f hf => ?_⟩
     rw [← hcong f (by omega),
         evalOpt_substTerm_quote w [formal1, formal2, formal3] [av1, av2, av3] f env body hnolet,
-        evalOpt_envUpdate_bindArgs w env [formal1, formal2, formal3] [av1, av2, av3]
+        evalOpt_bindArgsOver_bindArgs w env [formal1, formal2, formal3] [av1, av2, av3]
           rfl f body hnolet hclosed]
     exact hb f (by omega)
   obtain ⟨Nl, hl⟩ := hlhs; obtain ⟨Nr, hr⟩ := hrhs
@@ -1808,7 +1803,7 @@ theorem evalOpt_substTerm_subst1 (w : World) (env : Env) (s : Symbol)
     (arg av body : SExpr) (hnl : NoLet body = true)
     (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av) :
     ∃ N, ∀ f ≥ N, evalOpt f w env (substTerm [s] [arg] body)
-      = evalOpt f w (envUpdate env [s] [av]) body := by
+      = evalOpt f w (bindArgsOver env [s] [av]) body := by
   obtain ⟨Narg, harg'⟩ := harg
   obtain ⟨Ncong, hcong⟩ := evalOpt_substTerm_conv w env [s] (List.map quoteVal [av]) [arg]
     (max Narg 1)
@@ -1868,7 +1863,7 @@ theorem evalOpt_substTerm_substN (w : World) (env : Env)
     (hargs : ∀ p ∈ args.zip vals,
       ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2) :
     ∃ N, ∀ f ≥ N, evalOpt f w env (substTerm formals args body)
-      = evalOpt f w (envUpdate env formals vals) body := by
+      = evalOpt f w (bindArgsOver env formals vals) body := by
   obtain ⟨Nag, hag⟩ := lookupSubst_eval_congr_conv w env formals args vals hlen hargs
   obtain ⟨Ncong, hcong⟩ := evalOpt_substTerm_conv w env formals (vals.map quoteVal) args
     Nag (fun s g hg => (hag s g hg).symm) (sizeOf body) body (Nat.le_refl _) hnl
@@ -1881,17 +1876,6 @@ theorem evalOpt_substTerm_substN (w : World) (env : Env)
   in place and then rewriting the BODY under `formals ↦ actuals` — the
   `(LAMBDA-BODY . fn)` path frame, whose recorded redex is the body with the
   formals already replaced. `evalOpt_lam_beta_conv` is exactly that step. -/
-
-/-- `bindArgsOver` (the interpreter's lexical extension) IS `envUpdate` (the
-    substitution lemmas' extension). -/
-theorem bindArgsOver_eq_envUpdate (env : Env) :
-    ∀ (formals : List Symbol) (vals : List SExpr),
-      bindArgsOver env formals vals = envUpdate env formals vals
-  | [], _ => rfl
-  | _ :: _, [] => rfl
-  | f :: fs, v :: vs => by
-      show (bindArgsOver env fs vs).insert f v = (envUpdate env fs vs).insert f v
-      rw [bindArgsOver_eq_envUpdate env fs vs]
 
 /-- Per-argument convergence lifts to the argument spine's `mapM`. -/
 theorem mapM_conv_of_zip (w : World) (env : Env) :
@@ -2058,7 +2042,7 @@ theorem evalOpt_lam_beta_conv (w : World) (env : Env) (lam : Symbol)
   obtain ⟨Ns, hs⟩ := evalOpt_substTerm_substN w env lformals actuals vals lamBody hnl hlenA hconv
   obtain ⟨Nb, hb⟩ := hbody
   refine ⟨max Nl (max Ns Nb), fun f hf => ?_⟩
-  rw [hl f (by omega), hs f (by omega), ← bindArgsOver_eq_envUpdate, hb f (by omega)]
+  rw [hl f (by omega), hs f (by omega), hb f (by omega)]
 
 /-- ∀-env-route BETA for a 1-actual translated `let` — the driver-facing form
     of `evalOpt_lam_beta_conv` (the `re_unfold1_conv` analogue: the actual's
@@ -2133,7 +2117,7 @@ theorem re_lam_beta1_val (w : World) (env : Env) (lam : Symbol)
   obtain ⟨Nh, hh⟩ := hsub
   have hbody : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgsOver env [lf] [av]) lamBody = some v := by
     refine ⟨max Ns Nh, fun f hf => ?_⟩
-    rw [bindArgsOver_eq_envUpdate, ← hs f (by omega)]; exact hh f (by omega)
+    rw [← hs f (by omega)]; exact hh f (by omega)
   exact conv_lam w env lam formalsE lamBody (.cons a .nil) [lf] [a] [av] v
     hlam hform rfl rfl rfl hzip hbody
 
@@ -2161,7 +2145,7 @@ theorem re_lam_beta2_val (w : World) (env : Env) (lam : Symbol)
   have hbody : ∃ N, ∀ f ≥ N,
       evalOpt f w (bindArgsOver env [f1, f2] [av, bv]) lamBody = some v := by
     refine ⟨max Ns Nh, fun f hf => ?_⟩
-    rw [bindArgsOver_eq_envUpdate, ← hs f (by omega)]; exact hh f (by omega)
+    rw [← hs f (by omega)]; exact hh f (by omega)
   exact conv_lam w env lam formalsE lamBody (.cons a (.cons b .nil)) [f1, f2] [a, b] [av, bv] v
     hlam hform rfl rfl rfl hzip hbody
 
