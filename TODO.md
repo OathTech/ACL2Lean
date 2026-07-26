@@ -71,7 +71,23 @@ _Last updated: 2026-07-25._
 > p2-beta-equiv-iff (stub convergence; genuinely needs the S3 iff
 > lane), cov-mv-let (the NESTED-let class — body-congruence PathStep
 > does not exist; findOccurrences deliberately skips bodies).
-> Remaining: (4) RE-AUDIT the fork batch + the two design amendments.
+> Inc-4 DONE: 2-Opus RE-AUDIT (2026-07-26) — ZERO soundness defects,
+> BOTH amendments verdicted SAFE (kept-hypothesis attack: no path — every
+> assumed hypothesis is built from separate events behind independent
+> equal-only gates); all findings actioned (fork da1f5336a4): entry-style
+> betas emit :equiv EQUAL (F1 — pure substitution is an EQUAL fact; the
+> context label cost coverage, recovered: p2-beta-iff-context REPLAYS);
+> singleton geneqv reads its :equiv field (Q1 — the structural
+> *geneqv-iff* check missed real-rune singletons, cov-defchoose);
+> (:hide-normalize nil) step at the HIDE arm (F2); gstack boundary
+> anchor symbol fix (F3 — 3-deep lets parsed again); site-3 emitted
+> :PATHs now HONORED by the chain replay (F2-lean); findOccurrences
+> body-occurrence POISONING (F3-lean — a body+actual double occurrence
+> read as a false unique); s2bBetaBooksPin DriverTests gate
+> (p2-beta-preprocess 2/2 + p2-beta-iff-context 1/1, was ungated — F6);
+> p2 books in the map's reverse check; wrapping-proof presence-sigs;
+> comment/map/design-note corrections (F1-lean/F4/F5/F7). ARC COMPLETE
+> pending merge sign-off.
 
 > **S2 arc (branch `mdd/s2-let-lambda`, 2026-07-24/25) — the
 > REWRITE-FNCALL beta path landed + 3-Opus AUDIT ACTIONED; corpus

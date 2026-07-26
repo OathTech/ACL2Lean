@@ -34,7 +34,7 @@ done
 # books the map names (pattern-tests namespace: p1-* and cov-* tokens)
 while read -r name; do
   [ -f "$DIR/$name.lisp" ] || err "map mentions $name but $name.lisp does not exist"
-done < <(grep -oE '\b(p1|cov)-[a-z0-9-]*[a-z0-9]' "$MAP" \
+done < <(grep -oE '\b(p1|p2|cov)-[a-z0-9-]*[a-z0-9]' "$MAP" \
            | sed 's/\.lisp$//' | sed 's/\.proof-log$//' | sort -u)
 
 # --- 2. logs present ----------------------------------------------------
@@ -95,8 +95,12 @@ sig p2-beta-quoted-actuals 1 "KIND LAMBDA-BODY"
 sig p2-beta-quoted-actuals 1 "ORIGIN REWRITE/LAMBDA-BODY-QUOTED"
 sig p2-beta-preprocess 2 "ORIGIN EXPAND-ABBREVIATIONS/LAMBDA-BODY"
 sig p2-beta-expand-hint 1 "ORIGIN EXPAND-HINT/LAMBDA-BODY"
+# re-audit fixes (2026-07-26): presence-sigs ONLY — the earlier
+# same-line nosig was defeated by the printer's line wrapping (F6)
 sig p2-beta-equiv-iff  1 ":EQUIV IFF"
-nosig p2-beta-equiv-iff "LAMBDA-BODY :EQUIV EQUAL"
+sig p2-beta-iff-context 1 "ORIGIN EXPAND-ABBREVIATIONS/LAMBDA-BODY"
+nosig p2-beta-iff-context ":EQUIV IFF"
+sig p2-beta-hide 1 "ORIGIN EXPAND-ABBREVIATIONS/HIDE-SUBST"
 sig cov-verify-guards 1 "(:VERIFY-GUARDS :NAMES (GSUM)"
 sig cov-verify-guards 2 "(:QED)"
 # rewrite-cache: ONE recorded unfold for two occurrences

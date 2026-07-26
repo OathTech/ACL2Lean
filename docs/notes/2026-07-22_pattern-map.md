@@ -340,15 +340,29 @@ the true coverage:
 |---|---|
 | `rewrite-fncall` lambda branch (`rewrite.lisp` ~20397) | EMITTED (S2) — `cov-let-lambda` replays through it |
 | `rewrite` all-quoteps fast path (~17337) | EMITTED — origin `REWRITE/LAMBDA-BODY-QUOTED`, adopts the block; pin `p2-beta-quoted-actuals` |
-| preprocess `expand-abbreviations` — FOUR arms: all-quoted actuals (`induct.lisp` ~314), abbreviation body, open-expanded-abbreviation body, lambda-survives | first three EMIT entry-style (origin `EXPAND-ABBREVIATIONS/LAMBDA-BODY`, rhs = sublis-var reduct, further expansion as own steps — the `abbreviation-expansion` precedent); the survives arm is a DOCUMENTED no-emit (the reassembled term is byte-identical to the threaded chain term); the OPEN body expansion pushes a `(lambda-body . fn)` boundary frame so inner steps carry truthful paths; pin `p2-beta-preprocess` |
+| preprocess `expand-abbreviations` — FOUR arms: all-quoted actuals (`induct.lisp` ~314), abbreviation body, open-expanded-abbreviation body, lambda-survives | first three EMIT entry-style (origin `EXPAND-ABBREVIATIONS/LAMBDA-BODY`, rhs = the PLAIN substitution — `structured-sublis-var-plain`; `sublis-var`'s cons-term const-folding jumped ahead of the recorded steps — further expansion as own steps); `:equiv` is ALWAYS `equal` (re-audit F1: an entry-style beta IS the substitution, an EQUAL fact regardless of the ambient geneqv — the context label under-claimed pure betas as IFF and cost coverage; pin `p2-beta-iff-context`, which REPLAYS); the HIDE arm emits `(:hide-normalize nil)` when sublis-var folds inside a hide (re-audit F2; pin `p2-beta-hide`); the survives arm is a DOCUMENTED no-emit (byte-identity audit-verified against `mcons-term`/`cons-term1`); the OPEN body expansion pushes a `(lambda-body . fn)` boundary frame (SYMBOL anchor, nested case included — and the gstack twin got the same anchor fix, re-audit F3); arm B (open-expanded-abbreviation) is UNEXERCISED — `abbreviationp` with `lambda-flg nil` sends lambda-headed bodies to arm A (audit could not construct a reaching book); pins `p2-beta-preprocess` (REPLAYS 2/2, DriverTests-gated with `p2-beta-iff-context`) |
 | `:expand … :lambdas` (`rewrite-with-lemmas` lambda arm ~20860) | EMITTED — origin `EXPAND-HINT/LAMBDA-BODY` (rune/hyp nil by the arm's own assert$); pin `p2-beta-expand-hint`. NOTE: the named-fn `fncall/expand-permission` site keeps its pre-existing `:rune rune` (nil for plain :expand hints — unexercised, out of scope) |
 
-The `:EQUIV` fix (ratified option B, `structured-geneqv-equiv`): nil → EQUAL,
-the `*geneqv-iff*` constant → IFF, anything else → the verbatim equiv-name
-list (parser rejects it loudly — the named frontier). Applied to all four
-beta sites AND the three `fncall/*` keep-arm twins + `fncall/expand-permission`
-(their body rewrites maintain the ambient geneqv; the hardcoded 'equal was
-the audit's false-claim defect). The audit's
+The `:EQUIV` fix (ratified option B + re-audit amendment 2026-07-26,
+`structured-geneqv-equiv`): nil → EQUAL; a SINGLETON → its record's
+`:equiv` symbol (ACL2's congruence essay: "the relation denoted by {e1} is
+e1" — the earlier structural check against `*geneqv-iff*` missed
+world-sourced singleton iff geneqvs with real :CONGRUENCE runes, the
+cov-defchoose `(IFF)` catch); a MULTI-element geneqv → the verbatim
+equiv-name list, parsed CANONICALLY to a compound string that every equiv
+reader treats as an unknown relation (node-granularity fail-closed; a
+parser reject had book granularity). Applied to the EXIT-style beta sites
+(1/2/4) AND the three `fncall/*` keep-arm twins + `fncall/expand-permission`
+(their rhs is the REWRITTEN body under the ambient geneqv; the hardcoded
+'equal was the audit's false-claim defect). STANDING POLICY (re-audit
+verified sound, exhaustive trace): at COMPOSITE nodes
+(`definition`/`lambda-body`) the replay knowingly proves EQUALITY where
+ACL2 claimed only the geneqv relation — the equiv label never enters any
+proof or assumed statement; the recipes compose the recorded child chain
+and hard-check the recorded rhs, and every assumed hypothesis
+(`total:`/`tp:`/`rule:`) is built from separate events behind independent
+equal-only gates. Non-composite steps under non-equal equivs gate by name
+(the S3 lane's frontier). The audit's
 three probes are PROMOTED to pinned books (S2b increment 1, 2026-07-25 —
 captured from the committed fork, pins reproduce the findings from clean
 state):
@@ -363,7 +377,13 @@ state):
   :EQUIV EQUAL` (sig-pinned; the fork fix changes this signature).
 - `p2-beta-expand-hint` (added with the fork batch) — site 4: an
   `:expand (:lambdas)` hint preempting rewrite-fncall; origin
-  `EXPAND-HINT/LAMBDA-BODY`. Until it lands,
+  `EXPAND-HINT/LAMBDA-BODY`.
+- `p2-beta-iff-context` (re-audit F1 probe, promoted) — a `let` in an IF
+  TEST: the entry-style beta is an EQUAL fact despite the iff context;
+  REPLAYS (was a spurious preprocess-gate frontier pre-fix).
+- `p2-beta-hide` (re-audit F2 probe, promoted) — HIDE inside a let body:
+  pins the `(:hide-normalize nil)` fold-recording step; replay stops at
+  the named HIDE registry frontier (S4 queue). Until it lands,
 "LET/lambda support" means: books whose betas all go through the
 rewrite-fncall path.
 

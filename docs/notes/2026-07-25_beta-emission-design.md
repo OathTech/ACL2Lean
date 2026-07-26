@@ -52,11 +52,14 @@ not** (RECOMMENDED):
 - `geneqv = *geneqv-iff*` (structural `equal` against the constant) →
   `:equiv 'iff`;
 - anything else → emit the equiv-name list verbatim, e.g. `:equiv (iff
-  same-len2)` — which the parser REJECTS as malformed today, i.e. a loud,
-  named frontier at exactly the inputs we cannot yet describe honestly.
-  (If/when S3 wants these, THAT arc upgrades the parser; until then a
-  user-equivalence beta context hard-fails at parse instead of being
-  mislabeled.)
+  same-len2)`. AS-IMPLEMENTED AMENDMENTS (both re-audit-verified,
+  2026-07-25/26): the list is PARSED canonically to a compound string
+  rather than rejected — a parse reject had BOOK granularity (six
+  unrelated ordered-perms rows died); every equiv reader treats the
+  compound as an unknown relation, and non-composite steps gate by name.
+  And a SINGLETON geneqv emits its record's `:equiv` symbol (ACL2's own
+  essay: {e1} denotes e1) — the structural `*geneqv-iff*` comparison
+  missed world-sourced singleton iff geneqvs (cov-defchoose).
 - For: no ACL2-side computation (two structural reads); single-symbol
   format preserved for the two cases that cover the whole current corpus;
   information is never wrong and never silently lost; the false-claim

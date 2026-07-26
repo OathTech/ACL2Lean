@@ -475,13 +475,20 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let equiv ← match lookupKeyword "EQUIV" rest with
         | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
         | some (.cons a rest') =>
-          -- a COMPOUND geneqv (S2b option B, 2026-07-25): the emitter could
-          -- not summarize the generated relation in one symbol and emitted
-          -- the verbatim equiv-name list (e.g. a PERM congruence context).
-          -- Parsed CANONICALLY — "(perm)", "(iff same-len2)" — so the step
-          -- fails at ITS node's equiv gate (G1 frontier, named), not here:
-          -- a parser hard-fail has BOOK granularity and killed six unrelated
-          -- ordered-perms rows. Non-symbol elements still hard-fail.
+          -- a MULTI-ELEMENT geneqv (S2b option B, 2026-07-25; singletons
+          -- emit their :equiv symbol since the 2026-07-26 re-audit): the
+          -- emitter cannot summarize a ≥2-relation generated equivalence in
+          -- one symbol and emits the verbatim equiv-name list. Parsed
+          -- CANONICALLY — "(iff same-len2)" — because a parser hard-fail has
+          -- BOOK granularity (it killed six unrelated ordered-perms rows).
+          -- Downstream, a compound string is indistinguishable from an
+          -- unknown relation name: every equiv reader compares for exact
+          -- "equal"/EQUAL (re-audit verified all five). NOTE (re-audit F1):
+          -- at COMPOSITE nodes (definition/lambda-body) the equiv gate is
+          -- exempted, so a compound-equiv composite is ATTEMPTED — its
+          -- obligation is proved-or-fails, never assumed (the exemption
+          -- rationale in NodeCore); non-composite steps gate by name.
+          -- Non-symbol elements still hard-fail.
           match (SExpr.cons a rest').toList? with
           | some l => do
             let names ← l.mapM fun e => match e with

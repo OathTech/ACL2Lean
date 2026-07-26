@@ -11,6 +11,7 @@
   As node-kinds land, each adds a positive case and the negative cases shrink.
 -/
 import ACL2Lean.Replay.Driver
+import ACL2Lean.Replay.Runner
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver Lean Lean.Elab Lean.Meta
 
@@ -919,3 +920,24 @@ def fsq_unfolds_real_mirror := acl2_replay_fsq_real%
 
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
 #print axioms fsq_unfolds_real_mirror
+
+
+/-! ## S2b gate: the beta-emission probe books replay fully (re-audit F6 —
+the map's "REPLAYS 2/2" close-out was gated by nothing). `runBook` is the
+sweep harness: a ✓ row is kernel-checked AND axiom-filtered. -/
+private def betaPreprocessLog : String :=
+  include_str "../acl2_samples/pattern-tests/p2-beta-preprocess.proof-log"
+private def betaIffContextLog : String :=
+  include_str "../acl2_samples/pattern-tests/p2-beta-iff-context.proof-log"
+
+elab "s2b_beta_books_pin% " : term => do
+  for (nm, content, exp) in
+      [("p2-beta-preprocess", betaPreprocessLog, 2),
+       ("p2-beta-iff-context", betaIffContextLog, 1)] do
+    let res ← ACL2.Replay.Runner.runBook nm content none
+    unless res.replayed == exp && res.total == exp && res.integrityFails.isEmpty do
+      throwError "S2b pin: {nm} replayed {res.replayed}/{res.total}                   (expected {exp}/{exp}); integrity: {res.integrityFails.toList}"
+  logInfo "S2b pin: p2-beta-preprocess 2/2 + p2-beta-iff-context 1/1 replay (axiom-clean)"
+  return mkConst ``True.intro
+
+def s2bBetaBooksPin : True := s2b_beta_books_pin%

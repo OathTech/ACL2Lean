@@ -36,18 +36,28 @@ partial def findOccurrences (cur lhs : SExpr) : List (List PathStep) :=
     | none =>
       -- a translated `let` (S2b): descend into the ACTUALS with lamHead
       -- congruence steps (audit F8 — a pathless preprocess step whose redex
-      -- sits in a lambda actual was reported "does not occur"). The BODY is
-      -- deliberately NOT searched: a rewrite inside an unopened body is the
-      -- boundary-frame case, and there is no body-congruence PathStep — such
-      -- steps keep failing by name rather than mis-lifting.
+      -- sits in a lambda actual was reported "does not occur"). The BODY has
+      -- no body-congruence PathStep (a rewrite inside an unopened body is
+      -- the boundary-frame case), but it IS counted: a body occurrence
+      -- POISONS uniqueness (re-audit F3 — a redex occurring in the body AND
+      -- an actual read as a false unique and was silently lifted at the
+      -- actual). The sentinel [] path is never liftable — a poisoned result
+      -- either becomes count ≠ 1 (ambiguity hard-fail) or a [] path whose
+      -- terminal redex check cannot match the whole term.
       match asLamApp cur with
       | some (head, lam, args) =>
-        (args.zipIdx).flatMap fun (a, i) =>
+        let inActuals := (args.zipIdx).flatMap fun (a, i) =>
           (findOccurrences a lhs).map fun p =>
             ({ fn := lam, arity := args.length, argIdx := i,
                siblings := (args.zipIdx).filterMap fun (b, j) =>
                  if j == i then none else some b,
                lamHead := some head } : PathStep) :: p
+        let inBody :=
+          match asLamHead head with
+          | some (_, _, lamBody) =>
+            (findOccurrences lamBody lhs).map fun _ => ([] : List PathStep)
+          | none => []
+        inActuals ++ inBody
       | none => []
   here ++ inside
 
@@ -195,11 +205,18 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
       else if isIffNode then replayIfIffNode cfg ctx n
       else replayPreprocessNode cfg ctx n
     let path ←
-      -- ONLY abbreviation-expansion paths are rooted at the FORMULA this
-      -- chain walks (infra/abbrev-path); rewrite-side gstack paths that
-      -- flushed into a preprocess chain are LITERAL-rooted (boundary
-      -- frames, different origin) and must use the position fallback
-      if prov.path.isEmpty || prov.origin != "abbreviation-expansion" then
+      -- ONLY abbrev-path-rooted paths are rooted at the FORMULA this chain
+      -- walks (infra/abbrev-path): abbreviation-expansion and the S2b
+      -- expand-abbreviations/* emissions (their :PATH is
+      -- (reverse *structured-abbrev-path*) — re-audit F2: discarding the
+      -- emitted position in favour of occurrence search threw away exactly
+      -- the data the fork records). Rewrite-side gstack paths that flushed
+      -- into a preprocess chain are LITERAL-rooted (boundary frames,
+      -- different origins) and must use the position fallback.
+      if prov.path.isEmpty
+          || !(prov.origin == "abbreviation-expansion"
+               || prov.origin == "expand-abbreviations/lambda-body"
+               || prov.origin == "expand-abbreviations/hide-subst") then
         match findOccurrences cur lhs with
         | [p] => pure p
         | [] => throwError "replayPreprocessChain: node lhs {repr lhs} does not occur \
