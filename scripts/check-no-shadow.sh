@@ -23,6 +23,23 @@ fail=0
 
 arms=$(awk '/^def callBuiltin/,/^  \| _, _ => none/' "$SRC" \
   | grep -oE '\|[[:space:]]*"[^"]+"' | sed -E 's/\|[[:space:]]*"//; s/"//' | sort -u)
+
+# Scrape-contract guard (audit F9b: an injected guarded catch-all —
+# `| n, args => if … then … else none` — dispatched builtins the scrape
+# could not see, defeating the gate). Every match arm between the header
+# and the final catch-all must start with a STRING LITERAL name; any
+# other arm head means the positional scrape no longer sees the whole
+# dispatch surface and the gate must fail rather than under-report.
+badarms=$(awk '/^def callBuiltin/,/^  \| _, _ => none/' "$SRC" \
+  | grep -E '^[[:space:]]*\|' \
+  | grep -vE '^[[:space:]]*\|[[:space:]]*"' \
+  | grep -vE '^[[:space:]]*\| _, _ => none' || true)
+if [ -n "$badarms" ]; then
+  echo "FAIL: callBuiltin has non-string-literal match arms the no-shadow scrape cannot see:"
+  echo "$badarms"
+  echo "  (add the names to a literal arm, or extend the scrape deliberately)"
+  fail=1
+fi
 listed=$(awk '/^def builtinNames/,/\]/' "$SRC" \
   | grep -oE '"[^"]+"' | sed 's/"//g' | sort -u)
 

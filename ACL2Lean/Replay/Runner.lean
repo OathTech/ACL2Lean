@@ -185,6 +185,16 @@ def tryDischarge (w : World) (wExpr : Expr) (tps : List (String × SExpr))
           (totalEnv := totalEnv)
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p
+      -- axiom filter (audit F8 residue, 2026-07-26): Meta.check accepts
+      -- sorryAx, so the ✓ column was type-checked only. This probe's proof
+      -- is never addDecl'd (the composed mirror path is separately filtered
+      -- at tryReplay), so this is REPORTING accuracy for the DP scoreboard,
+      -- not a trust gate — but ✓ should mean what tryReplay's ✓ means.
+      let axs ← collectProofAxioms p
+      let bad := axs.filter (fun a =>
+        a != ``propext && a != ``Classical.choice && a != ``Quot.sound)
+      unless bad.isEmpty do
+        throwError "discharge leaf uses forbidden axioms {bad}"
       -- An ASSUMED leaf (the DP fact is a bound hypothesis of the returned
       -- CONDITIONAL proof — its type states the missing obligation; no sorryAx;
       -- the lift/spine pipeline ran end-to-end) is reported as ◌, never as ✓.

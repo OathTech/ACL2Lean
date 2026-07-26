@@ -14,6 +14,16 @@ cd "$(dirname "$0")/.." || { echo "FATAL: cannot cd to repo root" >&2; exit 2; }
 ACL2=acl2
 fail=0
 
+# Zero-input guard (audit F9b: this was the only ci gate that passed
+# vacuously over zero files — defense-in-depth; a missing submodule is
+# also caught by check-log-provenance, but a gate must not go green over
+# nothing).
+nfiles=$(ls "$ACL2"/*.lisp 2>/dev/null | wc -l | tr -d ' ')
+if [ "$nfiles" -eq 0 ]; then
+  echo "FAIL: no $ACL2/*.lisp files found — submodule missing/not initialized?"
+  exit 1
+fi
+
 # 1. No bare `; TRACE-LOG:` (TRACE-LOG followed by ':' rather than '[').
 bare=$(grep -rnE "; *TRACE-LOG:" "$ACL2"/*.lisp 2>/dev/null || true)
 if [ -n "$bare" ]; then echo "FAIL: bare '; TRACE-LOG:' tags (use TRACE-LOG[<ns>/<label>]:):"; echo "$bare"; fail=1; fi
