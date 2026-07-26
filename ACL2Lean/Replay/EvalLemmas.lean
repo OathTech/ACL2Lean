@@ -2150,6 +2150,43 @@ theorem re_lam_beta2_val (w : World) (env : Env) (lam : Symbol)
   exact conv_lam w env lam formalsE lamBody (.cons a (.cons b .nil)) [f1, f2] [a, b] [av, bv] v
     hlam hform rfl rfl rfl hzip hbody
 
+/-- v-EXISTENTIAL beta convergence (1 actual) — the `proveConv` wrapper of
+    `re_lam_beta1_val`: a translated `let` converges because its actual and
+    its beta-reduct do. -/
+theorem re_conv_lam1 (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody a : SExpr) (lf : Symbol)
+    (hlam : lam.isNamed "LAMBDA" = true)
+    (hform : lamFormals? formalsE = some [lf])
+    (hnl : WellScoped lamBody = true)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hsub : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env (substTerm [lf] [a] lamBody) = some v) :
+    ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+      (.cons formalsE (.cons lamBody .nil))) (.cons a .nil)) = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨Ns, v, hs⟩ := hsub
+  obtain ⟨N, hN⟩ := re_lam_beta1_val w env lam formalsE lamBody a lf av v
+    hlam hform hnl ⟨Na, ha⟩ ⟨Ns, hs⟩
+  exact ⟨N, v, hN⟩
+
+/-- v-EXISTENTIAL beta convergence (2 actuals). -/
+theorem re_conv_lam2 (w : World) (env : Env) (lam : Symbol)
+    (formalsE lamBody a b : SExpr) (f1 f2 : Symbol)
+    (hlam : lam.isNamed "LAMBDA" = true)
+    (hform : lamFormals? formalsE = some [f1, f2])
+    (hnl : WellScoped lamBody = true)
+    (ha : ∃ N, ∃ av, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∃ bv, ∀ f ≥ N, evalOpt f w env b = some bv)
+    (hsub : ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (substTerm [f1, f2] [a, b] lamBody) = some v) :
+    ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env (.cons (.cons (.atom (.symbol lam))
+      (.cons formalsE (.cons lamBody .nil))) (.cons a (.cons b .nil))) = some v := by
+  obtain ⟨Na, av, ha⟩ := ha
+  obtain ⟨Nb, bv, hb⟩ := hb
+  obtain ⟨Ns, v, hs⟩ := hsub
+  obtain ⟨N, hN⟩ := re_lam_beta2_val w env lam formalsE lamBody a b f1 f2 av bv v
+    hlam hform hnl ⟨Na, ha⟩ ⟨Nb, hb⟩ ⟨Ns, hs⟩
+  exact ⟨N, v, hN⟩
+
 /-! ## Layer 2: Derived rules (compose Layer 1) -/
 
 /-- Logic.equal returns T iff arguments are BEq-equal. -/

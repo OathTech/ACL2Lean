@@ -59,10 +59,19 @@ _Last updated: 2026-07-25._
 > nodes (definition/lambda-body — the replay never uses the label; it
 > composes recorded children and hard-checks the recorded rhs). Golden
 > BYTE-IDENTICAL at 62/79; p2-beta-expand-hint REPLAYS with zero new
-> driver code; p2-beta-equiv-iff at the named G1 frontier. Remaining:
-> (3) site-3 preprocess-chain replay arm (p2-beta-preprocess 0/2:
-> proveConv lambda convergence + the abbrev-chain lambda congruence);
-> (4) RE-AUDIT the fork batch.
+> driver code. Inc-3 DONE (fork 8b67373306 + 94ed1abfa1): the emitters'
+> :RHS instantiation is PLAIN substitution (sublis-var's cons-term
+> const-folding made entry-style rhs jump AHEAD of the recursion's own
+> recorded steps — incoherent chains, hit the pre-existing
+> abbreviation-expansion emitter too); nested-lambda boundary frames
+> anchor as the SYMBOL lambda; proveConv beta-descent (re_conv_lam1/2)
+> + findOccurrences lambda-ACTUALS descent. p2-beta-preprocess REPLAYS
+> 2/2. Named frontiers left open (map close-out section):
+> p2-beta-quoted-actuals (constant-IF-collapse chain shape),
+> p2-beta-equiv-iff (stub convergence; genuinely needs the S3 iff
+> lane), cov-mv-let (the NESTED-let class — body-congruence PathStep
+> does not exist; findOccurrences deliberately skips bodies).
+> Remaining: (4) RE-AUDIT the fork batch + the two design amendments.
 
 > **S2 arc (branch `mdd/s2-let-lambda`, 2026-07-24/25) — the
 > REWRITE-FNCALL beta path landed + 3-Opus AUDIT ACTIONED; corpus

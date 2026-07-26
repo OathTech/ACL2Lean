@@ -333,6 +333,51 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
       mkAppM ``re_conv_if
         #[cfg.worldExpr, envExpr, reflectSExpr c, reflectSExpr th, reflectSExpr e, hc, ht, he]
     else throwError "proveConv: ternary {fs.name} not supported (frontier): {repr t}"
+  | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+    -- LAMBDA application (translated `let`, S2b): converges because its
+    -- actuals and its beta-reduct do (`re_conv_lam*` — the same shape and
+    -- certificates as the dpValProof arm; arity dispatch FIRST).
+    if lam.name == "LAMBDA" then
+      unless ACL2.Replay.WellScoped lamBody do
+        throwError "proveConv: LAMBDA body is not closed/regular (WellScoped \
+                    fails) — malformed input: {repr t}"
+      match ACL2.lamFormals? formalsE, argsExpr.toList? with
+      | some lformals, some actuals =>
+        let certs (lfs : List Symbol) : MetaM (Expr × Expr × Expr) := do
+          let lformalsE ← mkListLit (mkConst ``Symbol) (lfs.map reflectSymbol)
+          let hlam ← proveIsNamedTrue lam "LAMBDA"
+          let hform ← proveByDecide
+            (← mkEq (← mkAppM ``ACL2.lamFormals? #[reflectSExpr formalsE])
+                    (← mkAppM ``Option.some #[lformalsE])) "conv-lambda formals"
+          let hnl ← proveByDecide
+            (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr lamBody])
+                    (mkConst ``Bool.true)) "conv-lambda body scoped"
+          return (hlam, hform, hnl)
+        match lformals, actuals with
+        | [lf], [a1] =>
+          let (hlam, hform, hnl) ← certs [lf]
+          let ha ← proveConv cfg envExpr ctx a1
+          let hsub ← proveConv cfg envExpr ctx
+            (ACL2.Replay.substTerm [lf] [a1] lamBody)
+          mkAppM ``re_conv_lam1
+            #[cfg.worldExpr, envExpr, reflectSymbol lam, reflectSExpr formalsE,
+              reflectSExpr lamBody, reflectSExpr a1, reflectSymbol lf,
+              hlam, hform, hnl, ha, hsub]
+        | [f1, f2], [a1, a2] =>
+          let (hlam, hform, hnl) ← certs [f1, f2]
+          let ha ← proveConv cfg envExpr ctx a1
+          let hb ← proveConv cfg envExpr ctx a2
+          let hsub ← proveConv cfg envExpr ctx
+            (ACL2.Replay.substTerm [f1, f2] [a1, a2] lamBody)
+          mkAppM ``re_conv_lam2
+            #[cfg.worldExpr, envExpr, reflectSymbol lam, reflectSExpr formalsE,
+              reflectSExpr lamBody, reflectSExpr a1, reflectSExpr a2,
+              reflectSymbol f1, reflectSymbol f2, hlam, hform, hnl, ha, hb, hsub]
+        | _, _ =>
+          throwError "proveConv: LAMBDA binder of {lformals.length} formals / \
+                      {actuals.length} actuals unsupported (frontier): {repr t}"
+      | _, _ => throwError "proveConv: malformed LAMBDA application: {repr t}"
+    else throwError "proveConv: no convergence rule for {repr t}"
   | _ => throwError "proveConv: no convergence rule for {repr t}"
 
 /-- Prove a term converges in EVERY environment: `∀ env', ∃ N, ∃ v, ∀ f ≥ N,

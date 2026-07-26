@@ -370,8 +370,33 @@ rewrite-fncall path.
 **RESOLVED (fork batch 2026-07-25):** the false-`:EQUIV` defect above is
 fixed by `structured-geneqv-equiv` at all body-rewrite emissions;
 `p2-beta-equiv-iff` now pins the HONEST state (`:EQUIV IFF` on the beta
-step; nosig on any `LAMBDA-BODY :EQUIV EQUAL`). Non-EQUAL beta steps land
-at the driver's G1 frontier — named, fail-closed — until the S3 lane.
+step; nosig on any `LAMBDA-BODY :EQUIV EQUAL`).
+
+**S2b replay status (close-out 2026-07-25).** `p2-beta-preprocess`
+REPLAYS 2/2 (the site-3 arm: plain-substitution rhs emission +
+`proveConv`'s beta-descent + `findOccurrences`' lambda-ACTUALS descent);
+`p2-beta-expand-hint` REPLAYS 1/1. Named frontiers, deliberately open:
+- `p2-beta-quoted-actuals` — "folded constant-test collapse … node rhs
+  is '4": the site-2 chain shape (constant-IF collapse composed with a
+  nested exec-counterpart inside a lambda body) needs a chain-recipe
+  extension; emission is correct.
+- `p2-beta-equiv-iff` — reaches convergence of the constrained stub
+  `(BAR Y)` (proveConv frontier): the theorem genuinely needs
+  iff-reasoning (S3 lane).
+- `cov-mv-let` — the NESTED-let class: a rewrite inside an UNOPENED
+  lambda body (the boundary-frame case) has no body-congruence PathStep
+  (`findOccurrences` deliberately skips bodies; the needed lemma is a
+  quantified-premise congruence: ∀env' eval body = eval body' ⇒ apps
+  equal). The inner-beta step now EMITS (was silent), so the failure
+  moved from the masked MV-NTH point to this earlier, more honest one.
+- Also fixed in-batch: emitters' `:RHS` instantiation is now PLAIN
+  substitution (`structured-sublis-var-plain`) — `sublis-var`'s
+  cons-term const-folds ground calls, which made entry-style rhs values
+  jump AHEAD of the recursion's own recorded steps (an incoherent
+  chain; hit the pre-existing `abbreviation-expansion` emitter too);
+  and the open-body boundary frame anchors as the SYMBOL `lambda` when
+  the body is itself a lambda application (nested case — the raw term
+  in fn position was unparseable and killed cov-mv-let at parse).
 
 - **Interpreter** (S2.1, committed cb54a6c): `evalOptStep`'s
   LAMBDA-application arm — actuals in the outer env, body in the outer

@@ -33,7 +33,22 @@ partial def findOccurrences (cur lhs : SExpr) : List (List PathStep) :=
             ({ fn, arity := args.length, argIdx := i,
                siblings := (args.zipIdx).filterMap fun (b, j) =>
                  if j == i then none else some b } : PathStep) :: p
-    | none => []
+    | none =>
+      -- a translated `let` (S2b): descend into the ACTUALS with lamHead
+      -- congruence steps (audit F8 — a pathless preprocess step whose redex
+      -- sits in a lambda actual was reported "does not occur"). The BODY is
+      -- deliberately NOT searched: a rewrite inside an unopened body is the
+      -- boundary-frame case, and there is no body-congruence PathStep — such
+      -- steps keep failing by name rather than mis-lifting.
+      match asLamApp cur with
+      | some (head, lam, args) =>
+        (args.zipIdx).flatMap fun (a, i) =>
+          (findOccurrences a lhs).map fun p =>
+            ({ fn := lam, arity := args.length, argIdx := i,
+               siblings := (args.zipIdx).filterMap fun (b, j) =>
+                 if j == i then none else some b,
+               lamHead := some head } : PathStep) :: p
+      | none => []
   here ++ inside
 
 /-- Replay one PREPROCESS node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`.
