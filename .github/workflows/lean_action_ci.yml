@@ -69,11 +69,27 @@ jobs:
       - name: Capture proof-log corpus from ACL2
         run: |
           # The .proof-log corpus is gitignored and `include_str`'d at build
-          # time, so it MUST be regenerated on the runner. `simple` + the
-          # recon-tests are standalone and land alongside their source.
-          ./scripts/capture-proof-log.sh \
-            acl2_samples/simple.lisp \
-            acl2_samples/recon-tests/*.lisp
+          # time, so it MUST be regenerated on the runner. TWO derived demand
+          # sets, NO hardcoded lists (audit 2026-07-26 F0: the derivation
+          # below existed for sorting/ only — a clone hazard: pattern-tests
+          # include_str refs landed 2026-07-25 and killed this step, and
+          # check-pattern-map's logs-present check has needed the whole
+          # pattern corpus since 2026-07-23; remote CI was RED for four
+          # merges while local `just ci` — run after a developer
+          # recapture-all — stayed green):
+          #
+          #   1. every acl2_samples/**/*.lisp book that lives IN THE REPO
+          #      (simple, recon-tests, pattern-tests) — check-pattern-map
+          #      requires a log for every pattern book, not just the
+          #      include_str'd ones, so the demand is the directory itself;
+          #   2. the sorting books DERIVED from include_str references
+          #      (sorting sources live in the acl2 submodule, not the repo;
+          #      we deliberately do NOT capture the whole books.txt manifest
+          #      — see the note below on foreign system books).
+          mapfile -t repo_books < <(git ls-files 'acl2_samples/*.lisp' | sort)
+          echo "Repo books to capture (git-tracked .lisp under acl2_samples):"
+          printf '  %s\n' "${repo_books[@]}"
+          ./scripts/capture-proof-log.sh "${repo_books[@]}"
           # acl2_samples/sorting/ holds only gitignored logs, so git (which does not
           # track empty dirs) omits it from a clean checkout — create it for OUTDIR.
           mkdir -p acl2_samples/sorting
@@ -101,6 +117,8 @@ jobs:
           find acl2_samples -name '*.proof-log' | sort
           # Fail HERE (not deep in the Lean build) if any include_str'd log is
           # still missing after capture — the same preflight `just ci` runs.
+          # (check-pattern-map, inside `just ci` later, then verifies the
+          # WHOLE pattern corpus has logs — demand set 1 above.)
           ./scripts/check-proof-logs.sh
 
       - name: Install elan (Lean toolchain manager)
