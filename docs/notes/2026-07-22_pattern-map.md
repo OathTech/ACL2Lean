@@ -21,7 +21,10 @@ recorded), `UNCOVERED` (no artifact at all — the priority).
 
 **Event forms:** defun `corpus`; mutual-recursion `corpus`
 (recon-07); defthm `corpus`; include-book `corpus` (isort);
-encapsulate/constrained-fns `books` (cov-encapsulate — reconstructs);
+encapsulate/constrained-fns `frontier-pinned` (cov-encapsulate — REFUSED
+at parse since the 2026-07-26 BUG-019 fix: the local witness's :DEFUN is
+tagged :SOURCE :LOCAL-WITNESS and hard-fails — the pre-fix "reconstructs"
+was the audit-F1 false green, a 2/2 replay ABOUT THE WITNESS);
 defun-sk (quantifiers) `frontier-pinned` (cov-defun-sk — recon fails, -suff shape); defchoose `books` (cov-defchoose); defconst `books-partial` +
 local `frontier-pinned` (cov-defconst-local — the top-level LOCAL
 defthm logs with :SOURCE :LOCAL, then the session HALTS before the
@@ -34,10 +37,12 @@ the log; an emission-coverage gap pinned).
 :type-prescription `corpus`; :elim `corpus`; :forward-chaining
 `corpus`; :compound-recognizer `corpus` (CD2-BOUND);
 :induction `corpus` (12-multi-controller); :linear `books` (cov-linear); :congruence `books`;
-:equivalence `books`; :refinement `books` (cov-refinement); :meta `books`
-(cov-meta-rule — parse frontier cleared by S2; 3/16 replay, the rest
-at recognizer/SYNP frontiers); :clause-processor `books`
-(cov-clause-processor — same, 4/16); :built-in-clause `books` (cov-built-in-clause);
+:equivalence `books`; :refinement `books` (cov-refinement); :meta `frontier-pinned`
+(cov-meta-rule — REFUSED at parse since the BUG-019 fix: defevaluator's
+MEV witnesses are :SOURCE :LOCAL-WITNESS; the S2-era 3/16 replays were
+audit-F1 false greens over the witness world); :clause-processor
+`frontier-pinned` (cov-clause-processor — same, CPEV witnesses; was
+4/16); :built-in-clause `books` (cov-built-in-clause);
 :tau-system `corpus` (discharge leaves only); :generalize-rule `books` (cov-generalize-rule); :well-founded-relation
 `books` (cov-wf-relation — the defun event emits :WFREL MY-LT with
 termination clauses in the custom relation).
@@ -96,9 +101,13 @@ through real ACL2):
   theorem 'EXISTS-DOUBLE-SUFF'` — defun-sk's generated `-suff` rule is
   admitted without the standard proof-log shape. Pins the defun-sk
   event structure.
-- `cov-encapsulate` — RECONSTRUCTS (constrained-fn events survive
-  stages 3–4 structurally); replay support entirely unprobed (and out
-  of scope here).
+- `cov-encapsulate` — REFUSED at reconstruction (BUG-019 fix,
+  2026-07-26): the encapsulate's local witness `(:DEFUN CF … :SOURCE
+  :LOCAL-WITNESS)` hard-fails the parse with the statement-substitution
+  explanation. Pre-fix state (the audit-F1 false green): the witness
+  entered the World unconditionally and BOTH theorems replayed 2/2
+  about `λx. 0` — with the same world validating `(EQUAL (CF X) '0)`,
+  which real ACL2 explicitly refuses. sig-pinned on the witness tag.
 - `cov-congruence` — RECONSTRUCTS, including the defequiv-generated
   equivalence obligation and the defcong congruence theorem as
   ordinary defthms. The rule-class CONSUMPTION side (rewriting under
@@ -196,6 +205,9 @@ last UNCOVERED items):
   its gz snapshot emit, then the session dies at the defattach event
   (the following theorem never logs). Same halt family as top-level
   LOCAL.
+  UPDATE 2026-07-26: the book now captures further but REFUSES at parse
+  (its locals tag :SOURCE :LOCAL-WITNESS — BUG-019 fix); either way
+  fail-closed, as the audit's blast-radius note recorded.
 - `cov-complex-defun` — completes the `#c` boundary at THREE layers:
   defthm-with-#c halts CAPTURE (cov-complex); a defun BODY with #c
   captures and emits fine (`:BODY (BINARY-+ X '#C(0 1))`); and OUR
@@ -456,7 +468,8 @@ REPLAYS 2/2 (the site-3 arm: plain-substitution rhs emission +
   the kept-hypothesis set, and the axioms). The lambda wall fell in
   the other three pinned books too — they now stop at unrelated
   frontiers (`cov-mv-let`: MV-NTH is not a DP-lift primitive;
-  cov-meta-rule/cov-clause-processor: SYMBOLP recognizer cells and the
+  cov-meta-rule/cov-clause-processor (SINCE REFUSED whole — BUG-019
+  witness fix, 2026-07-26): SYMBOLP recognizer cells and the
   SYNP preprocess shape, 3/16 and 4/16 replaying). Corpus golden stays
   62/79; correction (audit F7): the S2 branch's golden delta was NOT
   purely message-only — cb54a6c's single-child preprocess arm

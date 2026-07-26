@@ -1,16 +1,23 @@
 (in-package "ACL2")
 
-; PROBE/beta-equiv (S2 audit 2026-07-25, reviewer artifact iff.lisp):
-; a lambda application in an IF test — the body rewrites under the
-; ambient IFF geneqv (bar-true is an :EQUIV IFF step), while the
-; emitted :LAMBDA-BODY beta step asserts :EQUIV EQUAL for the same
-; replacement. PINS the false-equiv emission defect (next fork batch:
-; emit the real relation; L2 says R is never an enum).
+; PROBE/beta-equiv (S2b re-audit; REWRITTEN at the F1/BUG-019 fix — the
+; original used defstubs + a defaxiom, and a defstub's LOCAL witness enters
+; the World): a lambda application in an IF TEST, whose body rewrites via a
+; genuinely-IFF rule — pins the beta step's geneqv-derived :EQUIV IFF.
+; foo/bar are opaque-but-real (disabled); bar's body is boolean-valued so
+; its type-prescription CANNOT resolve the test (a truthy TP would let
+; type-set close the IF before any iff rewriting happens — the failure mode
+; of the first rewrite of this book); bar-iff is an honest, provable IFF
+; rule that fires only under an iff geneqv.
 
-(defstub foo (x) t)
-(defstub bar (x) t)
+(defun foo (x) (cons x x))
+(defun bar (x) (not (not x)))
+(in-theory (disable foo bar
+                    (:executable-counterpart foo)
+                    (:executable-counterpart bar)))
 
-(defaxiom bar-true (iff (bar x) t))
+(defthm bar-iff (iff (bar x) x)
+  :hints (("Goal" :in-theory (enable bar))))
 
 (defun p (a)
   (if (let ((y (foo a)))

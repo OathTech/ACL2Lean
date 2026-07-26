@@ -261,6 +261,38 @@ name that is not a bare uppercase token. Keyword printing (`:foo`) and the
 plain-uppercase common case are already faithful; this is the escaped-name
 tail.
 
+## BUG-019 — `local` witnesses entered the World: mirrors stated about the witness
+Status: fixed
+Pinned-by: none (pattern-corpus pin: cov-encapsulate's log carries
+`:SOURCE :LOCAL-WITNESS` — sig-gated by check-pattern-map — and its
+reconstruction hard-fails with the named message; a differential form
+cannot express a replay-layer statement bug)
+Every `.defun` event entered the World unconditionally
+(ClauseTree.lean), and the fork emitted an encapsulate/defstub/
+defevaluator LOCAL witness's admission as a plain `(:DEFUN …)` — so the
+World bound the constrained function to its DISCARDED witness body, and
+every mirror statement (and every `total:`/`tp:` hypothesis) was about
+the witness instead of the constrained function. cov-encapsulate
+reported 2/2 REPLAYED, unconditional and axiom-clean, about `λx. 0` —
+while the same world validated `(EQUAL (CF X) '0)`, which real ACL2
+refuses as a theorem (surfaced by the 2026-07-26 full-pipeline audit,
+F1/CONFIRMED; the mechanism was known as a design note since
+2026-07-20 — what the audit established is that it failed GREEN).
+Nothing false was kernel-certified (each mirror is a true statement
+about the witness world); the defect is STATEMENT SUBSTITUTION.
+Fix (2026-07-26): the fork emits explicit provenance on every
+world-entering `:DEFUN` (`:ADMITTED` / `:INCLUDE-BOOK` /
+`:GROUND-ZERO` / `:LOCAL-WITNESS` — detected via `in-local-flg`, the
+`local` macro's own binding), and the parser HARD-FAILS on
+`:LOCAL-WITNESS` (and on missing/unknown provenance) with the named
+frontier. Encapsulate SUPPORT (stating mirrors over the exported
+:CONSTRAINT list) remains an unbuilt frontier; the four S2b probe
+books were rewritten from defstubs to disabled real defuns (their
+green rows had been witness-substituted too). Known ADJACENT surface,
+out of this fix's scope: local defTHMs' rules (ordered-perms) are
+recorded in `(:RULES …)` without locality provenance — rule-provenance
+is the same invariant one layer up.
+
 ## BUG-018 — duplicate `let`/lambda bindings: ACL2 refuses, we bind (inconsistently)
 Status: open
 Pinned-by: differential

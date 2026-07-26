@@ -18,7 +18,7 @@ fail=0
 # vacuously over zero files — defense-in-depth; a missing submodule is
 # also caught by check-log-provenance, but a gate must not go green over
 # nothing).
-nfiles=$(ls "$ACL2"/*.lisp 2>/dev/null | wc -l | tr -d ' ')
+nfiles=$(find "$ACL2" -maxdepth 1 -name '*.lisp' 2>/dev/null | wc -l | tr -d ' ')
 if [ "$nfiles" -eq 0 ]; then
   echo "FAIL: no $ACL2/*.lisp files found — submodule missing/not initialized?"
   exit 1

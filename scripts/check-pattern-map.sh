@@ -98,9 +98,18 @@ sig p2-beta-expand-hint 1 "ORIGIN EXPAND-HINT/LAMBDA-BODY"
 # re-audit fixes (2026-07-26): presence-sigs ONLY — the earlier
 # same-line nosig was defeated by the printer's line wrapping (F6)
 sig p2-beta-equiv-iff  1 ":EQUIV IFF"
+sig p2-beta-equiv-iff  1 "ORIGIN REWRITE-FNCALL/LAMBDA-BODY"
 sig p2-beta-iff-context 1 "ORIGIN EXPAND-ABBREVIATIONS/LAMBDA-BODY"
 nosig p2-beta-iff-context ":EQUIV IFF"
 sig p2-beta-hide 1 "ORIGIN EXPAND-ABBREVIATIONS/HIDE-SUBST"
+# BUG-019 (audit F1): the witness tag is PRESENT in the refused books and
+# ABSENT from every probe book (the probes were rewritten off defstubs —
+# their green rows had been witness-substituted too)
+sig cov-encapsulate 1 ":SOURCE :LOCAL-WITNESS"
+nosig p2-beta-preprocess ":SOURCE :LOCAL-WITNESS"
+nosig p2-beta-equiv-iff ":SOURCE :LOCAL-WITNESS"
+nosig p2-beta-quoted-actuals ":SOURCE :LOCAL-WITNESS"
+nosig p2-beta-hide ":SOURCE :LOCAL-WITNESS"
 sig cov-verify-guards 1 "(:VERIFY-GUARDS :NAMES (GSUM)"
 sig cov-verify-guards 2 "(:QED)"
 # rewrite-cache: ONE recorded unfold for two occurrences

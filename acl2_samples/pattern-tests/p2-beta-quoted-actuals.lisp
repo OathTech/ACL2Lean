@@ -8,10 +8,15 @@
 ; a LAMBDA-BODY inner block with NO adopting beta step, which the tree
 ; builder silently mis-parents onto the next chain step.
 
-(defstub k (x) t)
+; k opaque-but-real (see the h note in p2-beta-preprocess — a defstub's
+; LOCAL witness would poison the World, BUG-019); the k-is-3 RULE gives
+; the rewriter the same dynamics the original defaxiom did.
+(defun k (a) (declare (ignore a)) 3)
+(in-theory (disable k (:executable-counterpart k)))
 
-(defaxiom k-is-3
-  (implies (integerp a) (equal (k a) 3)))
+(defthm k-is-3
+  (implies (integerp a) (equal (k a) 3))
+  :hints (("Goal" :in-theory (enable k))))
 
 (defun f (a)
   (let ((y (k a)))

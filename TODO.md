@@ -34,25 +34,42 @@ _Last updated: 2026-07-26._
 > **AUDIT-HARDENING ARC (branch `mdd/audit-hardening`, opened 2026-07-26)
 > — IN PROGRESS.** Scope = audit recommendations 0–3 (ratified by MDD;
 > land before any feature arc):
-> (0) CI GREEN: derive the workflow capture from the corpus itself (run
-> what `recapture-all` runs — all 82 books; the sorting-only include_str
-> derivation was the clone hazard); add the REMOTE CI conclusion to
-> check-push-ready (with a documented escape for the fix-CI push itself).
-> (1) F1 provenance invariant: fork tags encapsulate-local witnesses +
-> emits the :CONSTRAINT list; toWorld/developmentTPs HARD-FAIL on tagged
-> witnesses; generalize — every world-entering event carries explicit
-> recognized provenance or hard-fails; BUG-NNN entry; defevaluator
-> witnesses (cov-meta-rule/cov-clause-processor) in the same blast radius.
-> (2) F2: fix the three lowercase tamper literals, wire Tests.TamperTests
-> into ci, then FIND OUT what T1–T3 report (whether the replay rejects a
-> corrupted emitted record is currently UNKNOWN); add the
-> .olean-absent-after-green-build enumeration as a dark-file gate.
-> (3) Clone hazards + cheap hardening: F3 rewrite-if const-fold emitter
-> (CARE: deliberate identity if-steps exist — the emission-arc identity
-> arm — so the integrity check must not blanket-reject LHS==RHS), F7
-> single dischargeOrigins (WILL change the golden DP counts — honest
-> update + review), check-no-shadow scrape robustness, check-acl2-tags
-> zero-input guard, tryDischarge axiom check.
+> (0) DONE (pending remote validation on push): workflow captures BOTH
+> derived demand sets (all git-tracked acl2_samples books + include_str'd
+> sorting); check-push-ready HARD-gates on the remote CI conclusion via
+> gh (ALLOW_RED_CI=1 escape for the fix push; verified live — it reports
+> main's current 'failure').
+> (1) F1 DONE (BUG-019, fixed): every world-entering :DEFUN carries
+> explicit provenance (:ADMITTED/:INCLUDE-BOOK/:GROUND-ZERO/
+> :LOCAL-WITNESS via in-local-flg — the `local` macro's own binding);
+> parser HARD-FAILS on witnesses and on missing/unknown provenance.
+> Discrimination verified (CF + defevaluator's MEV/CPEV tag; KEEP-TERM
+> doesn't). CASCADE the net caught: DEFSTUB is a local witness too — the
+> four S2b probe books' green rows were themselves witness-substituted
+> (H := λ_.'NIL); rewritten to disabled REAL defuns, all pins hold,
+> p2-beta-preprocess still 2/2 on honest ground; the equiv-iff probe
+> rewritten with a boolean-TP bar + provable iff rule (a truthy-TP bar
+> let type-set close the IF before any iff rewriting — first rewrite's
+> lesson), and now also corpus-pins the composite-node IFF case.
+> :CONSTRAINT-list emission deferred to an encapsulate-support arc (no
+> consumer yet); local defTHM rule provenance noted in BUG-019 as the
+> adjacent surface.
+> (2) F2 DONE: literals fixed, suite wired into Tests.lean, and the
+> 21-day-unknown ANSWERED — all four tampers REJECTED at their expected
+> joints (T2's expected message updated to the joint's real text);
+> check-dark-files ci gate added (static import-graph reachability, NOT
+> .olean presence — stale artifacts mask darkness; first dry run
+> correctly interrogated DriverCoverage, resolved as a ci direct-target
+> root).
+> (3) DONE: F3 rewrite-if const-fold twin fixed (plain construction —
+> the 143 tautology records are real IF-collapse steps again; the
+> LHS==RHS integrity check deliberately NOT added: legitimate identity
+> emissions exist, residual 24 records across 3 origins left for the
+> next audit's scope); F7 single dischargeOrigins (golden DP scoreboard
+> honestly ✓37 ◌6 of 43 — was undercounting 7 leaves); check-no-shadow
+> scrape-contract guard (fault-injection verified); check-acl2-tags
+> zero-input guard; tryDischarge axiom filter (golden byte-identical —
+> all 37 ✓ leaves axiom-clean).
 > PENDING MDD DECISION (audit recs 4–6, NOT in this arc's scope): re-derive
 > sequencing from fresh-book data (reconstruction-first would supersede the
 > S3/S4 queue); the second non-monotone fresh-book scoreboard; extending

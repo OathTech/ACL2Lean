@@ -1059,12 +1059,31 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | other => throw s!"DEFUN {name}: non-symbol formal: {repr other}"
         let body ← (lookupKeyword "BODY" fields).elim
           (throw s!"DEFUN {name}: missing :BODY") pure
-        -- :SOURCE :GROUND-ZERO marks a boot-strap-world SNAPSHOT (design D3)
-        -- rather than a captured admission. Any other :SOURCE value is
-        -- malformed (fail-closed).
+        -- PROVENANCE (audit 2026-07-26 F1): every world-entering :DEFUN
+        -- must carry an explicit recognized :SOURCE — the fork emits one on
+        -- every path since da1f5336a4's successor. :LOCAL-WITNESS marks an
+        -- event admitted under `local` (an encapsulate/certification
+        -- witness): its world effects are DISCARDED from the scope's final
+        -- world, so a World built over it substitutes the witness for the
+        -- constrained function in every mirror STATEMENT (BUG-019 — the
+        -- statement-substitution class; cov-encapsulate reported 2/2
+        -- replayed about the witness). HARD-FAIL, named. A missing or
+        -- unrecognized :SOURCE also hard-fails (a pre-provenance log
+        -- prompts recapture; an unknown value is an emission drift).
         let groundZero ← match lookupKeyword "SOURCE" fields with
-          | none => pure false
+          | none => throw s!"DEFUN {name}: missing :SOURCE — every \
+                            world-entering defun carries provenance \
+                            (audit F1; recapture with the current fork)"
           | some (.atom (.keyword "GROUND-ZERO")) => pure true
+          | some (.atom (.keyword "ADMITTED")) => pure false
+          | some (.atom (.keyword "INCLUDE-BOOK")) => pure false
+          | some (.atom (.keyword "LOCAL-WITNESS")) =>
+            throw s!"DEFUN {name}: :SOURCE :LOCAL-WITNESS — a `local` \
+                    witness (encapsulate/certification) whose world effects \
+                    ACL2 discards; building a World over it would state \
+                    every mirror about the witness instead of the \
+                    constrained function (BUG-019, statement substitution; \
+                    encapsulate support is an unbuilt frontier)"
           | some other => throw s!"DEFUN {name}: unsupported :SOURCE \
                                   {repr other}"
         -- The admission justification: :MEASURE/:WFREL/:MEASURED travel

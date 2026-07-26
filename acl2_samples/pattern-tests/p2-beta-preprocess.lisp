@@ -7,7 +7,13 @@
 ; abbreviation-expansion to the lambda application and the const-folds,
 ; with the beta step absent in between.
 
-(defstub h (x) t)
+; h must stay OPAQUE (the probe needs (h ...) unopened) but must NOT be a
+; defstub: defstub's LOCAL witness would enter the World and every mirror
+; would be about the witness (BUG-019 — this book's original 2/2 green was
+; exactly that). A DISABLED real defun is opaque to the rewriter and
+; honestly in the world.
+(defun h (x) (cons x x))
+(in-theory (disable h (:executable-counterpart h)))
 
 (defthm site2-probe-a
   (equal (h (let ((y (+ 1 2))) (* y y))) (h 9))
