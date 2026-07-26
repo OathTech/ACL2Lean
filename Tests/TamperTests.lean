@@ -8,6 +8,14 @@
   The one deliberate non-rejection: tampering a stored rule's HYPS changes the
   STATED hypothesis (the conditional mirror's type), which the replay cannot
   detect — that is what the committed type-pin in DriverTests locks.
+
+  HISTORY (audit 2026-07-26 F2): this file was DARK from the day it landed
+  (2026-07-05, 179 main commits) — imported by nothing, run by nothing — and
+  T1–T3 were NO-OPS: their rule-name literals were lowercase (pre-BUG-002,
+  which fixed names to UPPERCASE on the identity path three days after this
+  file was written). Now wired into Tests.lean (so `just test`/ci elaborate
+  it) with uppercase literals; what T1–T3 actually report was UNKNOWN until
+  this fix ran them for the first time.
 -/
 import ACL2Lean.Replay.Driver
 import ACL2Lean.ProofLog
@@ -88,17 +96,19 @@ elab "run_tamper_tests% " : command => Lean.Elab.Command.liftTermElabM do
   -- T1: DELETE the cited rule from the stored-rule offers → the recipe must
   -- fail at the rule lookup, never invent the statement.
   assertRejected "rule deleted" "no stored-rule hypothesis in scope" cp
-    (rules.filter (·.name != "perm-symmetric"))
+    (rules.filter (·.name != "PERM-SYMMETRIC"))
   -- T2: TAMPER the stored rule's rhs ('t → 'nil) → the rhs recompute-and-check
   -- joint must reject (node rhs ≠ substTerm(σ, rule rhs)).
-  assertRejected "rule rhs tampered" "RHS continuation (frontier)" cp
+  -- expect updated at the suite's FIRST real run (2026-07-26): the joint
+  -- fires, its message text had evolved since the file was written dark
+  assertRejected "rule rhs tampered" "≠ substTerm" cp
     (rules.map fun r =>
-      if r.name == "perm-symmetric" then { r with rhs := quoteNil } else r)
+      if r.name == "PERM-SYMMETRIC" then { r with rhs := quoteNil } else r)
   -- T3: TAMPER a node's emitted :SUBST (swap the two bindings' terms) → the
   -- lhs joint must reject (substTerm(σ, rule lhs) ≠ node lhs → 0 matches).
   let cpSubst := mapProof (fun n => match n with
     | .node r l rh ch p =>
-      if r == (⟨"rewrite", "perm-symmetric", none⟩ : ACL2.Rune) then
+      if r == (⟨"rewrite", "PERM-SYMMETRIC", none⟩ : ACL2.Rune) then
         .node r l rh ch { p with subst := p.subst.map fun (v, _) => (v, quoteNil) }
       else n) cp
   assertRejected ":SUBST tampered" "stored rules match" cpSubst rules

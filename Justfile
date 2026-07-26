@@ -34,7 +34,7 @@ check-no-shadow:
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
 # include_str's the gitignored .proof-log corpus; check-proof-logs runs first
 # so a missing log is a clear error, not a deep elaboration-trace failure.
-ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-proof-logs check-log-provenance check-pattern-map build test driver-coverage
+ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-dark-files check-proof-logs check-log-provenance check-pattern-map build test driver-coverage
 
 # Run the corpus report
 report:
@@ -123,6 +123,10 @@ parse-proof-log file:
 # theorem. Hard-fails if any proof-log is absent (regenerate with capture-all-logs first).
 driver-coverage:
     lake build Tests.DriverCoverage
+
+# Dark-file gate (audit F2/F9): every tracked .lean reachable from a build root.
+check-dark-files:
+    bash scripts/check-dark-files.sh
 
 # Verify the ACL2 instrumentation tagging convention (namespaced TRACE-LOG, round-trip).
 check-acl2-tags:

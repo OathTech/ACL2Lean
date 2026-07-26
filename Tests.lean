@@ -8,4 +8,5 @@ import Tests.CountTest
 import Tests.LexorderTest
 import Tests.TermOrderTest
 import Tests.DriverTests
+import Tests.TamperTests
 import Tests.SpikeTauOmega
