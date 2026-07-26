@@ -261,6 +261,42 @@ name that is not a bare uppercase token. Keyword printing (`:foo`) and the
 plain-uppercase common case are already faithful; this is the escaped-name
 tail.
 
+## BUG-021 — four unwired `Logic.lean` primitives diverge from ACL2, were documented as faithful
+Status: open
+Pinned-by: none (all four are UNWIRED in `callBuiltin`, so no differential
+form can reach them; wiring any one REQUIRES fixing it first and adding
+its differential family — the H3 pin-first discipline)
+`Logic.evenp`/`Logic.oddp` match only `.atom (.number (.int n))` and give
+nil otherwise; real guard-off ACL2 gives `(evenp nil)`=T, `(evenp 'abc)`=T,
+`(oddp 3/2)`=T. `Logic.expt` funnels both args through `toInt`, truncating
+rational bases (`(expt 1/2 2)`=1/4 in ACL2). `Logic.string_append` returns
+`""` unless both args are strings (`(string-append "ab" 'c)`="ab" in
+ACL2). All four oracle values verified against `acl2/saved_acl2` by the
+2026-07-26 full-pipeline audit (F6). Latent — but `builtinNames` makes
+wiring a one-line change, and the definitions claimed faithfulness. The
+definition sites now carry ⚠ NOT-YET-FAITHFUL marks naming this entry.
+
+## BUG-020 — reader ignores CL's terminating macro characters (fail-OPEN)
+Status: open
+Pinned-by: none (the certified pipeline never reads `.lisp` surface text —
+`ProofLog.parse` consumes ACL2-PRINTED text, whose printer escapes the
+triggering names; the differential harness feeds forms both interpreters
+READ, so a form that triggers this parses differently on our side and
+cannot be expressed as a matched-stream entry. Exercisable via
+`acl2lean eval`/`eval-in`/`gen-world`.)
+`Parser.lean` `isAtomChar` ends tokens on only `( ) space \n \r \t` —
+CL's terminating macro characters `"` `'` `` ` `` `,` `;` do NOT end a
+token, while `isCharTokChar` (the `#\` path) carries ACL2's real
+terminator list — an internal inconsistency. Verified head-to-head
+(audit F5): ACL2 reads `(A B;C D)` as `(A B D)`, `(A'B)` as `(A 'B)`,
+`(A"b")` as `(A "b")`; we read `B;C`, `A'B`, `A"B"` as single tokens —
+SILENTLY. Distinct from BUG-010/BUG-015, which hard-fail: this is the
+reader's one fail-open gap, and it becomes a live soundness hole the
+moment gen-world output is wired into the certified pipeline
+(TODO's frontend-replacement item). Fix direction: make `isAtomChar`
+use the same terminator set as `isCharTokChar`
+(`*acl2-read-character-terminators*`), then differential-pin the family.
+
 ## BUG-019 — `local` witnesses entered the World: mirrors stated about the witness
 Status: fixed
 Pinned-by: none (pattern-corpus pin: cov-encapsulate's log carries

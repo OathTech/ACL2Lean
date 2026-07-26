@@ -220,13 +220,17 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   | .atom (.number (.int n)) => if n >= 0 then .t else .nil
   | _ => .nil
 
-/-- ACL2 `evenp`. -/
+/-- ACL2 `evenp` — ⚠ NOT-YET-FAITHFUL (BUG-021): matches only integers;
+    real ACL2's guard-off `evenp` is T on nil/symbols/strings (via the
+    integerp-guarded `(integerp (* x 1/2))` body). UNWIRED in callBuiltin
+    (latent); must be corrected before wiring. -/
 @[inline, simp] def evenp (s : SExpr) : SExpr :=
   match s with
   | .atom (.number (.int n)) => if n % 2 == 0 then .t else .nil
   | _ => .nil
 
-/-- ACL2 `oddp`. -/
+/-- ACL2 `oddp` — ⚠ NOT-YET-FAITHFUL (BUG-021): integers only; real
+    guard-off `oddp` is T on 3/2 etc. UNWIRED in callBuiltin (latent). -/
 @[inline, simp] def oddp (s : SExpr) : SExpr :=
   match s with
   | .atom (.number (.int n)) => if n % 2 != 0 then .t else .nil
@@ -235,7 +239,10 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
 /-- ACL2 `quote`. -/
 @[inline, simp] def quote_ (s : SExpr) : SExpr := s
 
-/-- ACL2 `expt`. For negative exponents, returns the rational `1/(x^|y|)`. -/
+/-- ACL2 `expt` — ⚠ NOT-YET-FAITHFUL (BUG-021): funnels both args through
+    `toInt`, so a RATIONAL base is truncated (real `(expt 1/2 2)` = 1/4).
+    UNWIRED in callBuiltin (latent). For negative exponents, returns the
+    rational `1/(x^|y|)`. -/
 @[inline, simp] def expt (a b : SExpr) : SExpr :=
   let x := toInt a
   let y := toInt b
@@ -339,7 +346,9 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   | .atom (.number _) => s
   | _ => .atom (.number (.int 0))
 
-/-- ACL2 `string-append`. Returns empty string on non-string inputs. -/
+/-- ACL2 `string-append` — ⚠ NOT-YET-FAITHFUL (BUG-021): returns "" unless
+    BOTH args are strings; real guard-off ACL2 coerces per-arg
+    (`(string-append "ab" 'c)` = "ab"). UNWIRED in callBuiltin (latent). -/
 @[inline, simp] def string_append (a b : SExpr) : SExpr :=
   match a, b with
   | .atom (.string s1), .atom (.string s2) => .atom (.string (s1 ++ s2))

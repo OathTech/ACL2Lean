@@ -16,7 +16,7 @@ open ACL2 ACL2.Replay Lean Lean.Meta
 The WF-induction scaffold consumes the EMITTED justification (measure / rel /
 controllers / per-case tests + IH substitutions — the measure-emission track's
 output) and instantiates `acl2_induction_consp` (strong induction on
-`SExpr.acl2Count` — the well-foundedness construction Lean owns; everything else
+`SExpr.consCount` — the well-foundedness construction Lean owns; everything else
 is read off the tree). Case children are SELF-CONTAINED clause proofs (the spine's
 split is the case hypothesis); the scaffold only peels the case literals
 (`evtrue_extract_else`) and bridges the IH (`evalOpt_substTerm_subst1`).
@@ -185,7 +185,7 @@ where
 
 /-- I1 μ-REGISTRY (induction-generality design, J2): build the TOTAL
     meta-level `Env → Nat` interpretation of an emitted measure term.
-    Registered heads: `ACL2-COUNT` (of a variable) ↦ `SExpr.acl2Count` of
+    Registered heads: `ACL2-COUNT` (of a variable) ↦ `SExpr.consCount` of
     the env value; `BINARY-+` ↦ `Nat.add`. An UNKNOWN head hard-fails — a
     loud frontier, never a default (extension is additive registration).
     The measure appears in NO statement (design I1's trust observation):
@@ -202,7 +202,7 @@ where
       let .atom (.symbol v) := arg
         | throwError "μ-registry: (ACL2-COUNT {repr arg}) — non-variable \
                       measured argument (frontier)"
-      mkAppM ``SExpr.acl2Count #[← dpConcVar envV v]
+      mkAppM ``SExpr.consCount #[← dpConcVar envV v]
     | .cons (.atom (.symbol h)) (.cons m1 (.cons m2 .nil)) => do
       unless h.name == "BINARY-+" do
         throwError "μ-registry: binary measure head {h.name} not registered \

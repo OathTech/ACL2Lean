@@ -8,7 +8,7 @@
   (docs/plans/2026-07-18_decrease-prover-rework.md, S4).
 
   Shape, per function: a BODY-level forward convergence (`…_body_conv`,
-  by strong induction on the argument value's acl2Count — pure
+  by strong induction on the argument value's consCount — pure
   intro-direction composition of the EvalLemmas conv kit) and a CALL-level
   `…_sim` that turns a pinned convergence `eval (EVENS a) = some v` into
   `v = Logic.evens xv` by determinism (`conv_unique`). World-parametric
@@ -105,7 +105,7 @@ theorem toBool_false_of_eq_nil {v : SExpr} (h : v = SExpr.nil) :
 
 /-- Cast a model-level count decrease through a sim equality. -/
 theorem count_lt_of_eq {v m xv : SExpr} (h : v = m)
-    (hlt : m.acl2Count < xv.acl2Count) : v.acl2Count < xv.acl2Count :=
+    (hlt : m.consCount < xv.consCount) : v.consCount < xv.consCount :=
   h ▸ hlt
 
 /-! ## EVENS -/
@@ -136,7 +136,7 @@ private theorem evens_body_conv_noncons (w : World)
 
 /-- BODY-level simulation: the world's EVENS body, evaluated on any
     argument value, converges to `Logic.evens` of it. Strong induction on
-    the argument's `acl2Count` (the recursive call's argument is
+    the argument's `consCount` (the recursive call's argument is
     `cdr (cdr xv)`, strictly smaller on a cons). -/
 theorem evens_body_conv (w : World)
     (hdef : w.defs.get? evensSym = some ([simL], evensBody))
@@ -148,16 +148,16 @@ theorem evens_body_conv (w : World)
     ∃ N, ∀ f ≥ N,
       evalOpt f w (bindArgs [simL] [xv]) evensBody
         = some (Logic.evens xv) := by
-  suffices H : ∀ n (xv : SExpr), xv.acl2Count ≤ n →
+  suffices H : ∀ n (xv : SExpr), xv.consCount ≤ n →
       ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [simL] [xv]) evensBody
-          = some (Logic.evens xv) from H xv.acl2Count xv le_rfl
+          = some (Logic.evens xv) from H xv.consCount xv le_rfl
   intro n
   induction n with
   | zero =>
     intro xv hc
     match xv with
-    | .cons a b => simp [SExpr.acl2Count] at hc
+    | .cons a b => simp [SExpr.consCount] at hc
     | .nil => exact evens_body_conv_noncons w hnC .nil rfl
     | .atom x => exact evens_body_conv_noncons w hnC (.atom x) rfl
   | succ n ih =>
@@ -166,9 +166,9 @@ theorem evens_body_conv (w : World)
     | .nil => exact evens_body_conv_noncons w hnC .nil rfl
     | .atom x => exact evens_body_conv_noncons w hnC (.atom x) rfl
     | .cons a b =>
-      have hbnd : (Logic.cdr b).acl2Count ≤ n := by
-        have h1 := acl2Count_cdr_le b
-        simp only [SExpr.acl2Count] at hc
+      have hbnd : (Logic.cdr b).consCount ≤ n := by
+        have h1 := consCount_cdr_le b
+        simp only [SExpr.consCount] at hc
         omega
       have hvar := conv_var w (bindArgs [simL] [.cons a b]) simL (.cons a b)
         (bindArgs_get_simL (.cons a b))

@@ -64,20 +64,20 @@ def countOfView (t : SExpr) : Option SExpr :=
     if c.name == "ACL2-COUNT" then some u else none
   | _ => none
 
-/-- Count-walk ≤ leg: `(valOf t).acl2Count ≤ (valOf base).acl2Count` for `t`
+/-- Count-walk ≤ leg: `(valOf t).consCount ≤ (valOf base).consCount` for `t`
     a (possibly empty) cdr/car chain over `base` — unconditional per-step
-    `acl2Count_cdr_le`/`car_le` composed by transitivity. -/
+    `consCount_cdr_le`/`car_le` composed by transitivity. -/
 partial def chainLe (kit : DecreaseKit) (base t : SExpr) :
     MetaM Expr := do
   if t == base then
-    mkAppM ``Nat.le_refl #[← mkAppM ``SExpr.acl2Count #[← kit.valOf base]]
+    mkAppM ``Nat.le_refl #[← mkAppM ``SExpr.consCount #[← kit.valOf base]]
   else match t with
   | .cons (.atom (.symbol d)) (.cons u .nil) =>
     if d.name == "CDR" || d.name == "CAR" then
       let inner ← chainLe kit base u
       let vu ← kit.valOf u
-      let hLe ← if d.name == "CDR" then mkAppM ``ACL2.acl2Count_cdr_le #[vu]
-        else mkAppM ``ACL2.acl2Count_car_le #[vu]
+      let hLe ← if d.name == "CDR" then mkAppM ``ACL2.consCount_cdr_le #[vu]
+        else mkAppM ``ACL2.consCount_car_le #[vu]
       mkAppM ``Nat.le_trans #[hLe, inner]
     else
       throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
@@ -85,7 +85,7 @@ partial def chainLe (kit : DecreaseKit) (base t : SExpr) :
   | _ => throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
       the destructor-chain walk over {repr base} (frontier)"
 
-/-- Count-walk strict leg: `(valOf t).acl2Count < (valOf base).acl2Count`
+/-- Count-walk strict leg: `(valOf t).consCount < (valOf base).consCount`
     for `t` a NON-EMPTY cdr/car chain over `base` — the innermost destructor
     application to `base` is the ONE strict step (from `base`'s consp fact);
     every outer layer composes by `≤`. -/
@@ -96,14 +96,14 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
       if u == base then
         let hConsp ← kit.conspTrueOf base
         if d.name == "CDR" then
-          mkAppM ``ACL2.acl2Count_cdr_lt_of_consp #[hConsp]
+          mkAppM ``ACL2.consCount_cdr_lt_of_consp #[hConsp]
         else
-          mkAppM ``ACL2.acl2Count_car_lt_of_consp #[hConsp]
+          mkAppM ``ACL2.consCount_car_lt_of_consp #[hConsp]
       else
         let inner ← chainLt kit base u
         let vu ← kit.valOf u
-        let hLe ← if d.name == "CDR" then mkAppM ``ACL2.acl2Count_cdr_le #[vu]
-          else mkAppM ``ACL2.acl2Count_car_le #[vu]
+        let hLe ← if d.name == "CDR" then mkAppM ``ACL2.consCount_cdr_le #[vu]
+          else mkAppM ``ACL2.consCount_car_le #[vu]
         mkAppM ``Nat.lt_of_le_of_lt #[hLe, inner]
     else if d.name == "EVENS" || d.name == "ODDS" then
       -- S4 REGISTRY (#37 plan): measure fns with PROVED Lean models
@@ -149,8 +149,8 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
       let h2 ← kit.endpFalseOf
         (.cons (.atom (.symbol { name := "CDR" })) (.cons base .nil))
       let hCnt ←
-        if d.name == "EVENS" then mkAppM ``ACL2.acl2Count_evens_lt #[h1, h2]
-        else mkAppM ``ACL2.acl2Count_odds_lt #[h1, h2]
+        if d.name == "EVENS" then mkAppM ``ACL2.consCount_evens_lt #[h1, h2]
+        else mkAppM ``ACL2.consCount_odds_lt #[h1, h2]
       mkAppM ``count_lt_of_eq #[hSim, hCnt]
     else
       throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
@@ -175,7 +175,7 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
        any uncovered ruler hard-fails;
     3. discharge the `<` by the COUNT WALK: single-count measures via the
        destructor-chain walk (`chainLt`); sum measures componentwise (one
-       strict component) or the swap pattern (`acl2Count_swap_…`).
+       strict component) or the swap pattern (`consCount_swap_…`).
 
     `valOf` renders an actual-level term's VALUE `Expr` (the caller's value
     plumbing — dpValExpr at admission, ctxValExpr at IH time);
@@ -257,7 +257,7 @@ def dischargeDecrease (just : Justification)
       .cons (.atom (.symbol { name := "CDR" })) (.cons u .nil)
     if sx == y && sy == cdrOf x then
       let hConsp ← kit.conspTrueOf x
-      return ← mkAppOptM ``ACL2.acl2Count_swap_cdr_sum_lt_consp
+      return ← mkAppOptM ``ACL2.consCount_swap_cdr_sum_lt_consp
         #[none, some (← kit.valOf y), some hConsp]
     -- componentwise: each component ≤ its original, at least one strict
     let leg (b t : SExpr) : MetaM (Bool × Expr) := do

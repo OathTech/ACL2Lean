@@ -19,7 +19,7 @@ open ACL2
 #guard Translator.translateSymbol { name := "odds" } = "Logic.odds"
 #guard Translator.translateSymbol { name := "string-append" } = "Logic.string_append"
 #guard Translator.translateSymbol { name := "true-listp" } = "Logic.trueListp"
-#guard Translator.translateSymbol { name := "acl2-count" } = "SExpr.acl2Count"
+#guard Translator.translateSymbol { name := "acl2-count" } = "SExpr.consCount"
 
 -- Unmapped symbols: hyphen → underscore
 #guard Translator.translateSymbol { name := "my-fun" } = "my_fun"

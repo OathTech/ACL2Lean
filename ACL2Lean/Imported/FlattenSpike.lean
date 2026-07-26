@@ -96,10 +96,10 @@ def goalT : SExpr := tlpT (flattenT vX)
 
 Measure `(ACL2-COUNT X)`, measured subset {X} (= free vars of the measure
 term ⊆ :CONTROLLERS (X) — theory-audit T3 check holds for this scheme).
-Registry entry `ACL2-COUNT ↦ SExpr.acl2Count` over the measured
+Registry entry `ACL2-COUNT ↦ SExpr.consCount` over the measured
 variable's env value. Total and pure; appears in NO statement below. -/
 
-def μ (env : Env) : Nat := ((env.get? { name := "X" }).getD .nil).acl2Count
+def μ (env : Env) : Nat := ((env.get? { name := "X" }).getD .nil).consCount
 
 /-! ## The base case (Subgoal *1/2), as a standalone lemma
 
@@ -239,7 +239,7 @@ theorem true_listp_flatten_mirror
   -- ── The scaffold spine (design I2) ─────────────────────────────────
   -- [driver: measure_strong_induction (MeasureImage Nat) — J2's once-proved
   --  scaffold lemma; here inlined as Nat strong induction on μ, exactly the
-  --  `acl2Count_strong_induction` generalization pattern]
+  --  `consCount_strong_induction` generalization pattern]
   generalize hμ : μ env = n
   induction n using Nat.strong_induction_on generalizing env with
   | _ n IH =>
@@ -249,28 +249,28 @@ theorem true_listp_flatten_mirror
     match hshape : (env.get? { name := "X" }).getD .nil with
     | .cons a b =>
       -- ═ Subgoal *1/1 (STEP case, tests [(CONSP X)]) ═
-      have hn : (SExpr.cons a b).acl2Count = n := by
+      have hn : (SExpr.cons a b).consCount = n := by
         rw [← hμ]; simp only [μ, hshape]
       -- IH instantiation 1: X := (CAR X)  (survey axis A1, first of TWO)
       -- decrease: covered by FLATTEN's EMITTED clause
       --   ((NOT (CONSP X)) (O< (ACL2-COUNT (CAR X)) (ACL2-COUNT X)))
-      -- [driver: Count.acl2Count_car_lt_of_consp + the I4 covering join]
+      -- [driver: Count.consCount_car_lt_of_consp + the I4 covering join]
       have hdec₁ : μ (bindArgsOver env [{ name := "X" }] [a]) < n := by
-        have hupd : μ (bindArgsOver env [{ name := "X" }] [a]) = a.acl2Count := by
+        have hupd : μ (bindArgsOver env [{ name := "X" }] [a]) = a.consCount := by
           simp [μ, bindArgsOver]
         rw [hupd, ← hn]
-        exact acl2Count_car_lt a b
+        exact consCount_car_lt a b
       have hIH₁ : EvTrue flattenWorld
           (bindArgsOver env [{ name := "X" }] [a]) goalT :=
         -- [driver: strong-IH application at the updated env (I3)]
         IH _ hdec₁ _ rfl
       -- IH instantiation 2: X := (CDR X)  (second IH from the SAME strong IH)
-      -- [driver: Count.acl2Count_cdr_lt_of_consp + the I4 covering join]
+      -- [driver: Count.consCount_cdr_lt_of_consp + the I4 covering join]
       have hdec₂ : μ (bindArgsOver env [{ name := "X" }] [b]) < n := by
-        have hupd : μ (bindArgsOver env [{ name := "X" }] [b]) = b.acl2Count := by
+        have hupd : μ (bindArgsOver env [{ name := "X" }] [b]) = b.consCount := by
           simp [μ, bindArgsOver]
         rw [hupd, ← hn]
-        exact acl2Count_cdr_lt a b
+        exact consCount_cdr_lt a b
       have hIH₂ : EvTrue flattenWorld
           (bindArgsOver env [{ name := "X" }] [b]) goalT :=
         IH _ hdec₂ _ rfl

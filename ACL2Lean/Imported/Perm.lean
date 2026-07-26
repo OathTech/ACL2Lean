@@ -178,7 +178,7 @@ private theorem memb_body_bool (w : World)
     ∀ vx va : SExpr, ∃ v, (v = SExpr.t ∨ v = SExpr.nil) ∧
       ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [aS, xS] [va, vx]) membBody = some v := by
   intro vx
-  induction vx using acl2Count_strong_induction with
+  induction vx using consCount_strong_induction with
   | step vx ih =>
     intro va
     have ha := re_val_var_get w (bindArgs [aS, xS] [va, vx])
@@ -224,7 +224,7 @@ private theorem memb_body_bool (w : World)
         conv_builtin2 w _ { name := "EQUAL" } aT (carT xT) va hd
           (Logic.equal va hd) (by decide) h_no_equal ha hcar
           (callBuiltin_equal _ _)
-      obtain ⟨vr, hvr, hr⟩ := ih tl (by simp only [acl2Count_cons]; omega) va
+      obtain ⟨vr, hvr, hr⟩ := ih tl (by simp only [consCount_cons]; omega) va
       have hrec : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [aS, xS] [va, .cons hd tl])
             (membT aT (cdrT xT)) = some vr :=
@@ -320,7 +320,7 @@ private theorem rm_body_total (w : World)
     ∀ vx ve : SExpr, ∃ v, ∃ N, ∀ f ≥ N,
       evalOpt f w (bindArgs [eS, xS] [ve, vx]) rmBody = some v := by
   intro vx
-  induction vx using acl2Count_strong_induction with
+  induction vx using consCount_strong_induction with
   | step vx ih =>
     intro ve
     have he := re_val_var_get w (bindArgs [eS, xS] [ve, vx])
@@ -363,7 +363,7 @@ private theorem rm_body_total (w : World)
         conv_builtin2 w _ { name := "EQUAL" } eT (carT xT) ve hd
           (Logic.equal ve hd) (by decide) h_no_equal he hcar
           (callBuiltin_equal _ _)
-      obtain ⟨vr, hr⟩ := ih tl (by simp only [acl2Count_cons]; omega) ve
+      obtain ⟨vr, hr⟩ := ih tl (by simp only [consCount_cons]; omega) ve
       have hrec : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [eS, xS] [ve, .cons hd tl])
             (rmT eT (cdrT xT)) = some vr :=
@@ -445,7 +445,7 @@ private theorem perm_body_total (w : World)
     ∀ vx vy : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
       evalOpt f w (bindArgs [xS, yS] [vx, vy]) permBody = some v := by
   intro vx
-  induction vx using acl2Count_strong_induction with
+  induction vx using consCount_strong_induction with
   | step vx ih =>
     intro vy
     have hx := re_val_var_get w (bindArgs [xS, yS] [vx, vy])
@@ -519,7 +519,7 @@ private theorem perm_body_total (w : World)
             (bindArgs [xS, yS] [.cons hd tl, vy]) (carT xT) yT
             (by obtain ⟨Nc, hc⟩ := hcar; exact ⟨Nc, hd, hc⟩)
             (by obtain ⟨Ny, hyy⟩ := hy'; exact ⟨Ny, vy, hyy⟩)
-        obtain ⟨Np, vp, hp⟩ := ih tl (by simp only [acl2Count_cons]; omega) vr
+        obtain ⟨Np, vp, hp⟩ := ih tl (by simp only [consCount_cons]; omega) vr
         obtain ⟨Na, ha⟩ := conv_defn_2 w _ perm_sym (cdrT xT) (rmT (carT xT) yT)
           tl vr xS yS permBody vp perm_ns h_perm hcdr ⟨Nr, hr⟩ ⟨Np, hp⟩
         exact ⟨Na, vp, ha⟩
@@ -580,8 +580,8 @@ def membExec (a x : SExpr) : SExpr :=
     if Logic.toBool (Logic.equal a (Logic.car x)) = true then SExpr.t
     else membExec a (Logic.cdr x)
   else SExpr.nil
-termination_by x.acl2Count
-decreasing_by exact acl2Count_cdr_lt_of_consp (by assumption)
+termination_by x.consCount
+decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
 
 /-- Stage 1: a `memb` call converges to `membExec` of its argument values.
     Strong induction on the measured formal's count; the body walk is the
@@ -597,7 +597,7 @@ theorem memb_exec_corr (w : World)
       ConvTo w env (membT a x) (membExec av xv) := by
   have hbody : ∀ xv av : SExpr,
       ConvTo w (bindArgs [aS, xS] [av, xv]) membBody (membExec av xv) := by
-    refine acl2Count_strong_induction
+    refine consCount_strong_induction
       (fun xv => ∀ av, ConvTo w (bindArgs [aS, xS] [av, xv]) membBody
         (membExec av xv)) ?_
     intro xv ih av
@@ -628,7 +628,7 @@ theorem memb_exec_corr (w : World)
           (fun _ =>
             conv_defn_2 w _ memb_sym aT (cdrT xT) av (Logic.cdr xv) aS xS
               membBody _ memb_ns h_memb hav hcdr
-              (ih (Logic.cdr xv) (acl2Count_cdr_lt_of_consp hb) av)))
+              (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb) av)))
       (fun _ => re_val_quote w _ SExpr.nil)
     rw [membExec.eq_def]
     exact houter
@@ -658,8 +658,8 @@ def rmExec (e x : SExpr) : SExpr :=
     if Logic.toBool (Logic.equal e (Logic.car x)) = true then Logic.cdr x
     else Logic.cons (Logic.car x) (rmExec e (Logic.cdr x))
   else SExpr.nil
-termination_by x.acl2Count
-decreasing_by exact acl2Count_cdr_lt_of_consp (by assumption)
+termination_by x.consCount
+decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
 
 /-- Stage 1: an `rm` call converges to `rmExec` of its argument values. -/
 theorem rm_exec_corr (w : World)
@@ -674,7 +674,7 @@ theorem rm_exec_corr (w : World)
       ConvTo w env (rmT a x) (rmExec av xv) := by
   have hbody : ∀ xv av : SExpr,
       ConvTo w (bindArgs [eS, xS] [av, xv]) rmBody (rmExec av xv) := by
-    refine acl2Count_strong_induction
+    refine consCount_strong_induction
       (fun xv => ∀ av, ConvTo w (bindArgs [eS, xS] [av, xv]) rmBody
         (rmExec av xv)) ?_
     intro xv ih av
@@ -712,7 +712,7 @@ theorem rm_exec_corr (w : World)
               (by decide) h_no_cons hcar
               (conv_defn_2 w _ rm_sym eT (cdrT xT) av (Logic.cdr xv) eS xS
                 rmBody _ rm_ns h_rm hav hcdr
-                (ih (Logic.cdr xv) (acl2Count_cdr_lt_of_consp hb) av))
+                (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb) av))
               rfl))
       (fun _ => re_val_quote w _ SExpr.nil)
     rw [rmExec.eq_def]
@@ -744,8 +744,8 @@ def permExec (x y : SExpr) : SExpr :=
       permExec (Logic.cdr x) (rmExec (Logic.car x) y)
     else SExpr.nil
   else if Logic.toBool (Logic.consp y) = true then SExpr.nil else SExpr.t
-termination_by x.acl2Count
-decreasing_by exact acl2Count_cdr_lt_of_consp (by assumption)
+termination_by x.consCount
+decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
 
 /-- Stage 1: a `perm` call converges to `permExec` of its argument values.
     The walk cites `memb_exec_corr`/`rm_exec_corr` at the callee call sites
@@ -764,7 +764,7 @@ theorem perm_exec_corr (w : World)
       ConvTo w env (permT x y) (permExec xv yv) := by
   have hbody : ∀ xv yv : SExpr,
       ConvTo w (bindArgs [xS, yS] [xv, yv]) permBody (permExec xv yv) := by
-    refine acl2Count_strong_induction
+    refine consCount_strong_induction
       (fun xv => ∀ yv, ConvTo w (bindArgs [xS, yS] [xv, yv]) permBody
         (permExec xv yv)) ?_
     intro xv ih yv
@@ -802,7 +802,7 @@ theorem perm_exec_corr (w : World)
             conv_defn_2 w _ perm_sym (cdrT xT) (rmT (carT xT) yT)
               (Logic.cdr xv) (rmExec (Logic.car xv) yv) xS yS permBody _
               perm_ns h_perm hcdr hrm
-              (ih (Logic.cdr xv) (acl2Count_cdr_lt_of_consp hb)
+              (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb)
                 (rmExec (Logic.car xv) yv)))
           (fun _ => re_val_quote w _ SExpr.nil))
       (fun _ =>

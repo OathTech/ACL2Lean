@@ -38,11 +38,22 @@ those failures are invisible to the Lean kernel (see the trust note below).
    clause-id lineage is the inverse of ACL2's `waterfall1-lst`; unlinkable
    structure hard-fails. This tree — not the flat log — is what the replay
    consumes.
-5. **Source translation** — `WorldGen.lean` / `Translator.lean` (`gen-world`):
-   translates the *same* ACL2 source into a Lean **`World`** (function name →
-   (formals, body) as `SExpr`) and the **mirror-theorem statement**, of the form
-   `∃ N, ∀ f ≥ N, evalOpt f world env <thm>Formula = some t`. This stage decides
-   *what theorem we are proving*.
+5. **Statement derivation** — the stage that decides *what theorem we are
+   proving*. **As wired today this is the PROOF-LOG path, not `gen-world`**
+   (audit 2026-07-26 F5b — the earlier text here mis-aimed auditors): the
+   certified `World` is `Development.toWorld` (from the log's `:DEFUN`
+   events, provenance-gated per BUG-019) and the mirror statement is
+   `EvTrue w env (disjoinTerm root.inputClause)` over the log's root Goal
+   clause (`Replay/Driver/Harness.lean`) — i.e. **the statement comes from
+   the same untrusted fork emission as the proof**, anchored to the `.lisp`
+   source only through the hand-written statement pins in
+   `Tests/DriverTests.lean` (a handful of theorems; the rest are
+   type/axiom-checked but compared to nothing). `WorldGen.lean` /
+   `Translator.lean` (`gen-world`) translate the `.lisp` source directly
+   and are the intended independent frontend, but they are NOT in the
+   certified pipeline yet (a tracked TODO item) — and note the reader they
+   use has a fail-open tokenizer gap (BUG-020) that must be fixed before
+   that wiring.
 6. **ACL2-logic interpreter** — `EvalOpt.lean` (`evalOpt`, fuel-bounded) +
    `Logic.lean` (the primitives): the Lean semantic model that *defines what the
    mirror theorem means*. If this diverges from ACL2's semantics, a "correct"

@@ -9,8 +9,8 @@
 
   What THIS spike validates (the measure joints, complementing J1(a)):
     - the μ-REGISTRY on a SUM measure: `(BINARY-+ (ACL2-COUNT X)
-      (ACL2-COUNT Y))`, measured subset {Y, X} — μ = acl2Count(X-val) +
-      acl2Count(Y-val) (I1);
+      (ACL2-COUNT Y))`, measured subset {Y, X} — μ = consCount(X-val) +
+      consCount(Y-val) (I1);
     - the SWAP IH `X := Y, Y := (CDR X)` as a SIMULTANEOUS env update,
       with the decrease of the SUM under the swap covered by INTERLEAVE's
       EMITTED termination clause
@@ -90,8 +90,8 @@ Measure `(BINARY-+ (ACL2-COUNT X) (ACL2-COUNT Y))`, measured subset
 {Y, X} = free vars of the measure term ⊆ :CONTROLLERS (Y X) — T3 holds. -/
 
 def μ (env : Env) : Nat :=
-  ((env.get? { name := "X" }).getD .nil).acl2Count
-    + ((env.get? { name := "Y" }).getD .nil).acl2Count
+  ((env.get? { name := "X" }).getD .nil).consCount
+    + ((env.get? { name := "Y" }).getD .nil).consCount
 
 /-- `Logic.len` always returns an int atom (both arms of its match do).
     [driver: named-new J2 lemma (`len_int`) — the value decode the
@@ -228,8 +228,8 @@ theorem len_interleave_mirror
     match hshape : (env.get? { name := "X" }).getD .nil with
     | .cons a b =>
       -- ═ Subgoal *1/2 (STEP case, tests [(NOT (ATOM X))]) ═
-      have hn : (SExpr.cons a b).acl2Count
-          + ((env.get? { name := "Y" }).getD .nil).acl2Count = n := by
+      have hn : (SExpr.cons a b).consCount
+          + ((env.get? { name := "Y" }).getD .nil).consCount = n := by
         rw [← hμ]; simp only [μ, hshape]
       -- THE SWAP IH: X := Y, Y := (CDR X) — env' updates BOTH, decrease of
       -- the SUM covered by INTERLEAVE's EMITTED clause
@@ -240,11 +240,11 @@ theorem len_interleave_mirror
           [(env.get? { name := "Y" }).getD .nil, b]) < n := by
         have hupd : μ (bindArgsOver env [{ name := "X" }, { name := "Y" }]
             [(env.get? { name := "Y" }).getD .nil, b])
-            = ((env.get? { name := "Y" }).getD .nil).acl2Count
-              + b.acl2Count := by
+            = ((env.get? { name := "Y" }).getD .nil).consCount
+              + b.consCount := by
           simp [μ, bindArgsOver]
         rw [hupd, ← hn]
-        simp only [SExpr.acl2Count]
+        simp only [SExpr.consCount]
         omega
       have hIH : EvTrue ivWorld
           (bindArgsOver env [{ name := "X" }, { name := "Y" }]

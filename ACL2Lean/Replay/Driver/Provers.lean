@@ -87,7 +87,7 @@ def proveTotality (cfg : ReplayConfig)
     unless just.terminationClauses.any (· == opClause) do
       throwFrontier m!"proveTotality: expected (o-p {repr wantedMeasure}) \
           obligation not found (emission shape changed?)"
-    let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.acl2Count #[e]
+    let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.consCount #[e]
     match formals with
     | [f1] =>
       unless measuredFormal == f1 do
@@ -457,7 +457,7 @@ def proveTp (cfg : ReplayConfig)
           (.cons (.atom (.symbol { name := measuredFormal.name })) .nil)) do
       throwFrontier m!"proveTp: measure {repr just.measure} unsupported \
           (frontier: (acl2-count <measured-formal>) only)"
-    let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.acl2Count #[e]
+    let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.consCount #[e]
     let selfC := fun (ih : Expr) => some (name, measuredFormal, ih, just)
     match formals with
     | [f1] =>

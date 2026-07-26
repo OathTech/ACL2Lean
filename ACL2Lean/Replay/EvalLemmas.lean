@@ -2748,46 +2748,46 @@ theorem re_unfold2_var (w : World) (env : Env) (fn f1 f2 : Symbol) (av1 av2 body
 
 /-- T10: Induction on consp/cdr structure (matching my-app's recursion).
     If P holds when consp(v) is nil, and P(cdr(v)) implies P(v) when consp(v) is non-nil,
-    then P holds for all v. Proved by well-founded induction on acl2Count. -/
+    then P holds for all v. Proved by well-founded induction on consCount. -/
 theorem acl2_induction_consp (P : SExpr → Prop)
     (base : ∀ v, Logic.consp v = .nil → P v)
     (step : ∀ v, Logic.consp v ≠ .nil → P (Logic.cdr v) → P v) :
     ∀ v, P v := by
   intro v
-  -- Strong induction on acl2Count v
-  have : ∀ n, ∀ v, v.acl2Count ≤ n → P v := by
+  -- Strong induction on consCount v
+  have : ∀ n, ∀ v, v.consCount ≤ n → P v := by
     intro n
     induction n with
     | zero =>
       intro v hv
-      -- acl2Count v ≤ 0 means v is nil or atom (not cons)
+      -- consCount v ≤ 0 means v is nil or atom (not cons)
       apply base
       match v with
       | .nil => rfl
       | .atom _ => rfl
-      | .cons a d => simp [SExpr.acl2Count] at hv
+      | .cons a d => simp [SExpr.consCount] at hv
     | succ n ih =>
       intro v hv
       by_cases hc : Logic.consp v = .nil
       · exact base v hc
       · apply step v hc
         apply ih
-        -- Need: acl2Count (Logic.cdr v) ≤ n
+        -- Need: consCount (Logic.cdr v) ≤ n
         match v, hc with
         | .cons a d, _ =>
-          simp [Logic.cdr, SExpr.acl2Count] at hv ⊢
+          simp [Logic.cdr, SExpr.consCount] at hv ⊢
           omega
-  exact this v.acl2Count v (Nat.le_refl _)
+  exact this v.consCount v (Nat.le_refl _)
 
-/-- G5/v2: STRONG induction on `acl2Count` — the general principle for
+/-- G5/v2: STRONG induction on `consCount` — the general principle for
     multi-case schemes. The case dispatch (the emitted decision tree) and the
     per-IH measure decrease (Count lemmas under the in-scope ruling tests)
     happen inside `step`, mirroring ACL2's induction machine, instead of
     being baked into a fixed-shape lemma like `acl2_induction_consp`. -/
 theorem acl2_strong_induction_count (P : SExpr → Prop)
-    (step : ∀ v, (∀ u, u.acl2Count < v.acl2Count → P u) → P v) : ∀ v, P v := by
+    (step : ∀ v, (∀ u, u.consCount < v.consCount → P u) → P v) : ∀ v, P v := by
   intro v
-  have : ∀ n, ∀ v, v.acl2Count ≤ n → P v := by
+  have : ∀ n, ∀ v, v.consCount ≤ n → P v := by
     intro n
     induction n with
     | zero =>
@@ -2796,7 +2796,7 @@ theorem acl2_strong_induction_count (P : SExpr → Prop)
     | succ n ih =>
       intro v hv
       exact step v (fun u hu => ih u (Nat.le_of_lt_succ (Nat.lt_of_lt_of_le hu hv)))
-  exact this v.acl2Count v (Nat.le_refl _)
+  exact this v.consCount v (Nat.le_refl _)
 
 /-- G5/v2: case-split on a CONVERGENT test term's value — nil or truthy. The
     env-level dispatch step of the emitted decision tree: each ruling test
@@ -2891,18 +2891,18 @@ theorem conv_defn_2_ex (w : World) (env : Env) (s : Symbol)
     h_ns h_def h1 h2 ⟨Nb, hb⟩
   exact ⟨N, v, h⟩
 
-/-- WELL-FOUNDED (strong) induction on `acl2Count` — the spine of
+/-- WELL-FOUNDED (strong) induction on `consCount` — the spine of
     admission-derived totality proofs (#37). The driver instantiates the
     motive `P av := the function converges at argument VALUE av`; the
-    inductive hypothesis covers every value of strictly smaller `acl2Count`,
+    inductive hypothesis covers every value of strictly smaller `consCount`,
     and the admission's emitted decrease obligations justify applying it at
     each recursive call's argument value. -/
-theorem acl2Count_strong_induction (P : SExpr → Prop)
-    (step : ∀ x, (∀ y, y.acl2Count < x.acl2Count → P y) → P x) : ∀ x, P x := by
+theorem consCount_strong_induction (P : SExpr → Prop)
+    (step : ∀ x, (∀ y, y.consCount < x.consCount → P y) → P x) : ∀ x, P x := by
   intro x
-  generalize h : x.acl2Count = n
+  generalize h : x.consCount = n
   induction n using Nat.strong_induction_on generalizing x with
-  | _ n ih => exact step x (fun y hy => ih y.acl2Count (h ▸ hy) y rfl)
+  | _ n ih => exact step x (fun y hy => ih y.consCount (h ▸ hy) y rfl)
 
 /-- ENV-LEVEL strong induction over an interpreted MEASURE (the
     induction-generality scaffold lemma, design §I2 — J1-spike-validated).
@@ -3089,7 +3089,7 @@ theorem totality_2_of_body (w : World) (s : Symbol) (formal1 formal2 : Symbol)
     ⟨N0, h0'⟩ ⟨N1, h1'⟩ (hbody av1 av2)
 
 /-- TOTALITY of a RECURSIVE 1-ary defined fn by WELL-FOUNDED induction on the
-    argument value's `acl2Count` (the admitted measure, D5 scope): the driver
+    argument value's `consCount` (the admitted measure, D5 scope): the driver
     supplies `step` — the body walk under the inductive hypothesis, which it
     applies at each self-call's argument value justified by the emitted
     decrease obligation. -/
@@ -3098,14 +3098,14 @@ theorem totality_1_rec (w : World) (s : Symbol) (formal : Symbol) (body : SExpr)
             s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal], body))
     (step : ∀ av : SExpr,
-      (∀ bv : SExpr, bv.acl2Count < av.acl2Count →
+      (∀ bv : SExpr, bv.consCount < av.consCount →
         ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [bv]) body = some v) →
       ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
     ∀ (env' : Env) (a0 : SExpr),
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
       ∃ N, ∃ v, ∀ f ≥ N,
         evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 .nil)) = some v := by
-  have hbody := acl2Count_strong_induction
+  have hbody := consCount_strong_induction
     (fun av => ∃ N, ∃ v, ∀ f ≥ N,
       evalOpt f w (bindArgs [formal] [av]) body = some v) step
   exact totality_1_of_body w s formal body h_ns h_def hbody
@@ -3120,7 +3120,7 @@ theorem totality_2_rec (w : World) (s : Symbol) (formal1 formal2 : Symbol)
             s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (step : ∀ av1 : SExpr,
-      (∀ bv : SExpr, bv.acl2Count < av1.acl2Count → ∀ cv : SExpr,
+      (∀ bv : SExpr, bv.consCount < av1.consCount → ∀ cv : SExpr,
         ∃ N, ∃ v, ∀ f ≥ N,
           evalOpt f w (bindArgs [formal1, formal2] [bv, cv]) body = some v) →
       ∀ av2 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
@@ -3131,7 +3131,7 @@ theorem totality_2_rec (w : World) (s : Symbol) (formal1 formal2 : Symbol)
       ∃ N, ∃ v, ∀ f ≥ N,
         evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil)))
           = some v := by
-  have hbody := acl2Count_strong_induction
+  have hbody := consCount_strong_induction
     (fun av1 => ∀ av2 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
       evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) step
   exact totality_2_of_body w s formal1 formal2 body h_ns h_def
@@ -3146,7 +3146,7 @@ theorem totality_2_rec_snd (w : World) (s : Symbol) (formal1 formal2 : Symbol)
             s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_def : w.defs.get? s = some ([formal1, formal2], body))
     (step : ∀ av2 : SExpr,
-      (∀ cv : SExpr, cv.acl2Count < av2.acl2Count → ∀ bv : SExpr,
+      (∀ cv : SExpr, cv.consCount < av2.consCount → ∀ bv : SExpr,
         ∃ N, ∃ v, ∀ f ≥ N,
           evalOpt f w (bindArgs [formal1, formal2] [bv, cv]) body = some v) →
       ∀ av1 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
@@ -3157,7 +3157,7 @@ theorem totality_2_rec_snd (w : World) (s : Symbol) (formal1 formal2 : Symbol)
       ∃ N, ∃ v, ∀ f ≥ N,
         evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil)))
           = some v := by
-  have hbody := acl2Count_strong_induction
+  have hbody := consCount_strong_induction
     (fun av2 => ∀ av1 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
       evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) step
   exact totality_2_of_body w s formal1 formal2 body h_ns h_def
@@ -4144,13 +4144,13 @@ theorem tp_hyp_1_of_body (w : World) (s : Symbol) (formal : Symbol)
 theorem tp_2_rec (formal1 formal2 : Symbol) (body : SExpr) (w : World)
     (P : SExpr → Prop)
     (step : ∀ av1 : SExpr,
-      (∀ bv : SExpr, bv.acl2Count < av1.acl2Count → ∀ cv : SExpr,
+      (∀ bv : SExpr, bv.consCount < av1.consCount → ∀ cv : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [bv, cv]) body P) →
       ∀ av2 : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
     ∀ av1 av2 : SExpr,
       ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P :=
-  acl2Count_strong_induction
+  consCount_strong_induction
     (fun av1 => ∀ av2, ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P)
     step
 
@@ -4158,14 +4158,14 @@ theorem tp_2_rec (formal1 formal2 : Symbol) (body : SExpr) (w : World)
 theorem tp_2_rec_snd (formal1 formal2 : Symbol) (body : SExpr) (w : World)
     (P : SExpr → Prop)
     (step : ∀ av2 : SExpr,
-      (∀ cv : SExpr, cv.acl2Count < av2.acl2Count → ∀ bv : SExpr,
+      (∀ cv : SExpr, cv.consCount < av2.consCount → ∀ bv : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [bv, cv]) body P) →
       ∀ av1 : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
     ∀ av1 av2 : SExpr,
       ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P :=
   fun av1 av2 =>
-    acl2Count_strong_induction
+    consCount_strong_induction
       (fun av2 => ∀ av1, ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P)
       step av2 av1
 
@@ -4173,11 +4173,11 @@ theorem tp_2_rec_snd (formal1 formal2 : Symbol) (body : SExpr) (w : World)
 theorem tp_1_rec (formal : Symbol) (body : SExpr) (w : World)
     (P : SExpr → Prop)
     (step : ∀ av : SExpr,
-      (∀ bv : SExpr, bv.acl2Count < av.acl2Count →
+      (∀ bv : SExpr, bv.consCount < av.consCount →
         ConvToP w (bindArgs [formal] [bv]) body P) →
       ConvToP w (bindArgs [formal] [av]) body P) :
     ∀ av : SExpr, ConvToP w (bindArgs [formal] [av]) body P :=
-  acl2Count_strong_induction
+  consCount_strong_induction
     (fun av => ConvToP w (bindArgs [formal] [av]) body P) step
 
 /-- Transport non-nil-ness along a value equation. -/
@@ -4748,7 +4748,7 @@ theorem re_equal_comm (w : World) (env : Env) (a b : SExpr)
 
 /-- Nat-valued twin of `Logic.len` — the DP leaf tactic's bridge from stuck
     `Logic.len` applications to omega-visible nonnegative integers (the
-    `SExpr.acl2Count` pattern from the decrease prover). -/
+    `SExpr.consCount` pattern from the decrease prover). -/
 def lenNat : SExpr → Nat
   | .cons _ b => lenNat b + 1
   | _ => 0

@@ -70,6 +70,16 @@ _Last updated: 2026-07-26._
 > scrape-contract guard (fault-injection verified); check-acl2-tags
 > zero-input guard; tryDischarge axiom filter (golden byte-identical —
 > all 37 ✓ leaves axiom-clean).
+> TIER-1 PAPERWORK (branch mdd/audit-paperwork, 2026-07-26): BUG-020
+> (reader terminating-macros, the fail-OPEN gap — fix direction: unify
+> isAtomChar with isCharTokChar's terminator set, then pin) + BUG-021
+> (four unwired Logic primitives, ⚠ marks at definition sites) +
+> acl2Count→consCount rename (the name claimed ACL2 faithfulness it
+> lacks) + CLAUDE.md stage-5 correction (F5b: the certified statement
+> comes from the PROOF-LOG path, not gen-world — the trust note aimed
+> auditors at the wrong module). F4 (free-var hyp-relief backtracking
+> log leak — hard-fail outcome, fork-side) queued for the NEXT fork
+> touch, not its own build cycle.
 > PENDING MDD DECISION (audit recs 4–6, NOT in this arc's scope): re-derive
 > sequencing from fresh-book data (reconstruction-first would supersede the
 > S3/S4 queue); the second non-monotone fresh-book scoreboard; extending

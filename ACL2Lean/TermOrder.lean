@@ -66,7 +66,7 @@ def fnCountEvgRec (evg : SExpr) (acc calls : Nat) : Nat :=
   | .cons a d =>
     let acc' := fnCountEvgRec a (acc + 1) (calls + 1)
     fnCountEvgRec d acc' (calls + 2)
-termination_by evg.acl2Count
+termination_by evg.consCount
 
 /-- Port of ACL2's `fn-count-evg`: count size starting from 0. -/
 def fnCountEvg (evg : SExpr) : Nat := fnCountEvgRec evg 0 0
@@ -102,8 +102,8 @@ private def varFnCount1 (flg : Bool) (x : SExpr) (vc fc pfc : Nat)
         varFnCount1 true rest vc (fc + 1) pfc
     | .cons _ rest =>
       varFnCount1 true rest vc (fc + 1) pfc
-termination_by x.acl2Count
-decreasing_by all_goals (simp_all [SExpr.acl2Count]; try omega)
+termination_by x.consCount
+decreasing_by all_goals (simp_all [SExpr.consCount]; try omega)
 
 /-- Port of ACL2's `term-order`: total ordering on S-expressions treated as
     pseudo-terms. -/
@@ -129,8 +129,8 @@ def merge_term_order (l1 l2 : SExpr) : SExpr :=
       .cons a2 (merge_term_order (.cons a1 r1) r2)
   | .cons _ _, _ => l1 -- l1 is cons, l2 is endp → return l1
   | _, _ => l2 -- l1 is endp → return l2
-termination_by l1.acl2Count + l2.acl2Count
-decreasing_by all_goals simp [SExpr.acl2Count]; omega
+termination_by l1.consCount + l2.consCount
+decreasing_by all_goals simp [SExpr.consCount]; omega
 
 /-- Port of ACL2's `merge-sort-term-order`: sort a list by term-order. -/
 def merge_sort_term_order (l : SExpr) : SExpr :=
@@ -140,10 +140,10 @@ def merge_sort_term_order (l : SExpr) : SExpr :=
       (merge_sort_term_order (evens (.cons a (.cons b d))))
       (merge_sort_term_order (odds (.cons a (.cons b d))))
   | _ => l
-termination_by l.acl2Count
+termination_by l.consCount
 decreasing_by
-  all_goals simp only [SExpr.acl2Count, evens, odds, cdr]
-  · have := acl2Count_evens_le d; omega
-  · have := acl2Count_evens_le (.cons b d); simp [SExpr.acl2Count] at this; omega
+  all_goals simp only [SExpr.consCount, evens, odds, cdr]
+  · have := consCount_evens_le d; omega
+  · have := consCount_evens_le (.cons b d); simp [SExpr.consCount] at this; omega
 
 end ACL2
