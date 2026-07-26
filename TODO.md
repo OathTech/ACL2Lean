@@ -5,7 +5,59 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-25._
+_Last updated: 2026-07-26._
+
+> **FULL-PIPELINE AUDIT (2026-07-26, user-run 6-dimension team + refutation
+> pass; report `docs/audits/2026-07-26_full-pipeline-audit.md`) — GOVERNS
+> THE CURRENT ARC.** Headlines: F0 GitHub REMOTE CI RED since 2026-07-23
+> (4 merges pushed onto it; every arc close-out's "gates green" was the
+> LOCAL `just ci` only — close-out ritual now requires pasting the REMOTE
+> CI conclusion); F1 SOUNDNESS-class statement substitution (encapsulate
+> local witnesses enter the World; cov-encapsulate reports 2/2 replayed
+> ABOUT THE WITNESS — known since the 2026-07-20 design note, new fact is
+> it fails GREEN; not in the 62/79 golden by accident); F2 TamperTests
+> dark since 2026-07-05 + 3 of 4 tampers are no-ops (pre-BUG-002
+> lowercase literals); F3/F7/F0 three live clone hazards (rewrite-if
+> emitter const-fold twin of S2b inc-3; duplicated dischargeOrigins —
+> the golden DP scoreboard UNDERCOUNTS FC-contradiction discharges;
+> CI capture-list derivation applied to one directory); F10 fresh-book
+> generalization 10/144 replayed (7%) vs golden 78%, ALL fail-closed at
+> named frontiers; the SEQUENCING PREMISE of
+> docs/notes/2026-07-23_mapping-plan-impact.md is INVERTED by fresh-book
+> data (capture 7/7 robust, RECONSTRUCTION 5/7 is the narrow layer —
+> crash sites ProofTree.lean:339 + :281). Also: F11 statement-anchoring
+> (~8% of rows have hand-pinned statements), F5 reader terminating-macro
+> chars (fail-open; BUG entry due), F6 four unlogged latent Logic
+> divergences, F9b gate weaknesses. 2 CONFIRMED / 17 PARTLY CONFIRMED /
+> 3 REFUTED of 22 verified findings; zero false theorems kernel-certified.
+
+> **AUDIT-HARDENING ARC (branch `mdd/audit-hardening`, opened 2026-07-26)
+> — IN PROGRESS.** Scope = audit recommendations 0–3 (ratified by MDD;
+> land before any feature arc):
+> (0) CI GREEN: derive the workflow capture from the corpus itself (run
+> what `recapture-all` runs — all 82 books; the sorting-only include_str
+> derivation was the clone hazard); add the REMOTE CI conclusion to
+> check-push-ready (with a documented escape for the fix-CI push itself).
+> (1) F1 provenance invariant: fork tags encapsulate-local witnesses +
+> emits the :CONSTRAINT list; toWorld/developmentTPs HARD-FAIL on tagged
+> witnesses; generalize — every world-entering event carries explicit
+> recognized provenance or hard-fails; BUG-NNN entry; defevaluator
+> witnesses (cov-meta-rule/cov-clause-processor) in the same blast radius.
+> (2) F2: fix the three lowercase tamper literals, wire Tests.TamperTests
+> into ci, then FIND OUT what T1–T3 report (whether the replay rejects a
+> corrupted emitted record is currently UNKNOWN); add the
+> .olean-absent-after-green-build enumeration as a dark-file gate.
+> (3) Clone hazards + cheap hardening: F3 rewrite-if const-fold emitter
+> (CARE: deliberate identity if-steps exist — the emission-arc identity
+> arm — so the integrity check must not blanket-reject LHS==RHS), F7
+> single dischargeOrigins (WILL change the golden DP counts — honest
+> update + review), check-no-shadow scrape robustness, check-acl2-tags
+> zero-input guard, tryDischarge axiom check.
+> PENDING MDD DECISION (audit recs 4–6, NOT in this arc's scope): re-derive
+> sequencing from fresh-book data (reconstruction-first would supersede the
+> S3/S4 queue); the second non-monotone fresh-book scoreboard; extending
+> statement pins toward one per book. Rec 7 (F6 BUG entries + acl2Count
+> rename) folded into this arc if cheap.
 
 > **Mapping arc (branch `mdd/mapping-arc`, 2026-07-22/23) — COVERAGE
 > COMPLETE at increment 8; UNMERGED.** Scope as executed (MDD
