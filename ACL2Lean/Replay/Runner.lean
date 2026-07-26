@@ -55,14 +55,16 @@ def theoremBlackBoxLeaves (cp : ClauseProof) : List String :=
     carve-out (CLAUDE.md, 2026-06-09) such a leaf is EMISSION-complete — the replay
     obligation is to discharge the recorded clause by a kernel-checked decision
     procedure (omega / lean-smt) in the driver. -/
-def dischargeOrigins : List String :=
-  ["preprocess/tau", "preprocess/tau-contradiction", "preprocess/type-set-fc",
-   "preprocess/trivial-clause", "preprocess/built-in-clause"]
 
 private def itemDischargeOrigins : ClauseItem → List (String × SExpr)
   | .literal _ => []
   | .step (.node _ lhs _ _ prov) =>
-      if dischargeOrigins.contains prov.origin then [(prov.origin, lhs)] else []
+      -- `dischargeOrigins` is Driver/Discharge's — the SINGLE source (audit
+      -- F7, 2026-07-26: a Runner-local copy silently shadowed it and missed
+      -- the S1.3 additions, so the golden DP scoreboard UNDERCOUNTED the
+      -- whole-clause FC/type-alist contradiction discharges)
+      if ACL2.Replay.Driver.dischargeOrigins.contains prov.origin then
+        [(prov.origin, lhs)] else []
   | .clausify _ => []
   | .branch _ items => items.flatMap itemDischargeOrigins
 
