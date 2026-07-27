@@ -276,7 +276,9 @@ rational bases (`(expt 1/2 2)`=1/4 in ACL2). `Logic.string_append` returns
 ACL2). All four oracle values verified against `acl2/saved_acl2` by the
 2026-07-26 full-pipeline audit (F6). Latent — but `builtinNames` makes
 wiring a one-line change, and the definitions claimed faithfulness. The
-definition sites now carry ⚠ NOT-YET-FAITHFUL marks naming this entry.
+tier-1 paperwork commit first marked the definition sites ⚠
+NOT-YET-FAITHFUL; the fix then replaced the marks with the guard-off
+definitions, whose docstrings cite this entry.
 
 ## BUG-020 — reader ignores CL's terminating macro characters (fail-OPEN)
 Status: fixed

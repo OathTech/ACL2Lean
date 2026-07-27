@@ -92,9 +92,11 @@ _Last updated: 2026-07-26._
 >   bindings' backchain steps no longer leak into committed HYP blocks;
 >   relieve-hyps1-unify-subst-lst registered raw-code.
 > - F3 residue FIXED: recognizer/true+false emit fcons-term* lhs (12
->   'T⇒'T tautologies were folded records); the single remaining
->   LHS==RHS corpus record (preprocess/type-set-fc on an already-true
->   clause) triaged DELIBERATE and documented at the emitter;
+>   'T⇒'T tautologies were folded records); the remaining LHS==RHS
+>   corpus records — 8 instances (across 7 logs) of the ONE deliberate
+>   shape, preprocess/type-set-fc 'T⇒'T on an already-true clause —
+>   triaged DELIBERATE and documented at the emitter (post-fix scan
+>   2026-07-27: recognizer/rewrite-if tautologies ZERO);
 >   if-finish/combined verified safe by path shape.
 > Gates: diff-test 432 match/0 FAIL; golden 62/79 ✓37/43 (header-only
 > world counts); local ci 0/0.

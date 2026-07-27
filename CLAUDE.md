@@ -51,9 +51,9 @@ those failures are invisible to the Lean kernel (see the trust note below).
    type/axiom-checked but compared to nothing). `WorldGen.lean` /
    `Translator.lean` (`gen-world`) translate the `.lisp` source directly
    and are the intended independent frontend, but they are NOT in the
-   certified pipeline yet (a tracked TODO item) — and note the reader they
-   use has a fail-open tokenizer gap (BUG-020) that must be fixed before
-   that wiring.
+   certified pipeline yet (a tracked TODO item) — the reader they use had
+   a fail-open tokenizer gap (BUG-020, fixed 2026-07-26) that was a
+   prerequisite for that wiring.
 6. **ACL2-logic interpreter** — `EvalOpt.lean` (`evalOpt`, fuel-bounded) +
    `Logic.lean` (the primitives): the Lean semantic model that *defines what the
    mirror theorem means*. If this diverges from ACL2's semantics, a "correct"
