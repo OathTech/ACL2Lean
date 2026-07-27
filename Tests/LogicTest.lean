@@ -162,7 +162,8 @@ private abbrev Sym (n : String) : SExpr := .atom (.symbol { name := n })
 -- === String operations ===
 
 #guard Logic.string_append (S "a") (S "b") = S "ab"
-#guard Logic.string_append (I 1) (S "x") = S ""
+-- BUG-021 fix: per-arg coercion (real ACL2: (string-append 1 "x") = "x")
+#guard Logic.string_append (I 1) (S "x") = S "x"
 #guard Logic.string_append (S "") (S "") = S ""
 
 -- === Car/cdr ===
@@ -210,7 +211,8 @@ private abbrev Sym (n : String) : SExpr := .atom (.symbol { name := n })
 #guard Logic.expt (I (-3)) (I 2) = I 9
 
 -- Rational base coerced to int (toInt of rational = 0)
-#guard Logic.expt (R 1 2) (I 3) = I 0
+-- BUG-021 fix: exact rational power (real ACL2: (expt 1/2 3) = 1/8)
+#guard Logic.expt (R 1 2) (I 3) = R 1 8
 
 -- Division by negative
 #guard Logic.div (I 6) (I (-3)) = I (-2)

@@ -15,15 +15,15 @@
 (max '3 '7)
 ;@ unsupported
 (min '3 '7)
-;@ unsupported
+;@ match ; reclassified 2026-07-26 (BUG-021 fix wired evenp/oddp/expt/string-append)
 (expt '2 '10)
 ;@ unsupported
 (zerop '0)
 ;@ unsupported
 (zerop '5)
-;@ unsupported
+;@ match ; reclassified 2026-07-26 (BUG-021 fix wired evenp/oddp/expt/string-append)
 (evenp '4)
-;@ unsupported
+;@ match ; reclassified 2026-07-26 (BUG-021 fix wired evenp/oddp/expt/string-append)
 (oddp '4)
 
 ; comparison operators beyond `<` — VERY common in real ACL2 (esp. <=), all
@@ -77,11 +77,11 @@
 (integer-length '255)
 
 ; expt corners (negative exponent → rational; 0^0 = 1)
-;@ unsupported
+;@ match ; reclassified 2026-07-26 (BUG-021 fix wired evenp/oddp/expt/string-append)
 (expt '2 '-1)
-;@ unsupported
+;@ match ; reclassified 2026-07-26 (BUG-021 fix wired evenp/oddp/expt/string-append)
 (expt '0 '0)
-;@ unsupported
+;@ match ; reclassified 2026-07-26 (BUG-021 fix wired evenp/oddp/expt/string-append)
 (expt '2 '0)
 
 ; rational accessors on negatives / reduced forms

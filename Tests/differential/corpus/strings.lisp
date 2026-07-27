@@ -46,7 +46,7 @@
 (char "hello" '0)
 ;@ unsupported
 (subseq "hello" '1 '3)
-;@ unsupported
+;@ match ; reclassified 2026-07-26 (BUG-021 fix wired evenp/oddp/expt/string-append)
 (string-append "ab" "cd")
 ;@ unsupported
 (concatenate 'string "ab" "cd")

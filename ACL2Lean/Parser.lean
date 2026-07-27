@@ -69,8 +69,17 @@ private def readString : Stream → Except String (String × Stream)
       else
         .error "string literal must start with quote"
 
+/-- Chars that CONTINUE an atom token. BUG-020 fix (2026-07-26): this now
+    carries the SAME terminator set as `isCharTokChar` below — ACL2's
+    `*acl2-read-character-terminators*` (Tab, Newline, Page, Space, `"`,
+    `'`, `(`, `)`, `;`, backtick, `,`) plus `\r` (CL whitespace; kept from
+    the old set). Previously only parens+whitespace terminated, so real
+    ACL2 read `(A B;C D)` as `(A B D)` and `(A'B)` as `(A 'B)` while we
+    silently read `B;C` / `A'B` as single tokens — the reader's one
+    FAIL-OPEN divergence (BUG-010/015 hard-fail; this didn't). -/
 private def isAtomChar (c : Char) : Bool :=
-  ¬ (c = '(' ∨ c = ')' ∨ c = ' ' ∨ c = '\n' ∨ c = '\r' ∨ c = '\t')
+  ¬ (c = '(' ∨ c = ')' ∨ c = ' ' ∨ c = '\n' ∨ c = '\r' ∨ c = '\t' ∨
+     c = '\x0c' ∨ c = '"' ∨ c = '\'' ∨ c = ';' ∨ c = '`' ∨ c = ',')
 
 /-- Chars that CONTINUE a `#\` character token: anything that is not one of
     ACL2's `*acl2-read-character-terminators*` (acl2.lisp:1871):

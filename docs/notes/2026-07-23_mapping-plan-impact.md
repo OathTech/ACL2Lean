@@ -19,6 +19,18 @@ rewrite, the ratified generality plan
    prose leaks break parsing (the forcing round), and verify-guards
    runs whole proofs the log never sees. Session death is the worst
    failure mode: everything downstream silently doesn't exist.
+
+   > **CORRECTION (2026-07-26, full-pipeline audit F10 — measured, not
+   > estimated):** this premise is INVERTED by fresh-book data. After
+   > the S1 capture hardening, 7/7 upstream books the map never
+   > authored CAPTURE cleanly, while RECONSTRUCTION hard-fails on 4/7
+   > (two named crash sites: `ProofTree.lean:339` "collectClausify:
+   > expected split/out" and `:281` "unexpected clause-structure event
+   > inside a literal"). The narrow layer is reconstruction. The
+   > "~90% of the situation frame" figure was measured on the authored
+   > pattern corpus, which by construction contains only known
+   > families. Sequencing derived from this paragraph should be
+   > re-weighed against the audit's measurement.
 2. **LET/lambda is core-path-blocking and was in no plan.** Plain
    `let` — absent from every sample until the gap audit — hits the
    LAMBDA path-frame parse frontier immediately. Every realistic

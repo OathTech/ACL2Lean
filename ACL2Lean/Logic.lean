@@ -220,41 +220,47 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   | .atom (.number (.int n)) => if n >= 0 then .t else .nil
   | _ => .nil
 
-/-- ACL2 `evenp` — ⚠ NOT-YET-FAITHFUL (BUG-021): matches only integers;
-    real ACL2's guard-off `evenp` is T on nil/symbols/strings (via the
-    integerp-guarded `(integerp (* x 1/2))` body). UNWIRED in callBuiltin
-    (latent); must be corrected before wiring. -/
+/-- ACL2 `evenp` (guard-off semantics — BUG-021 fix, 2026-07-26,
+    differential-pinned): the body is `(integerp (* x 1/2))`, and `*`
+    coerces non-numbers to 0 — so `(evenp nil)` = `(evenp 'abc)` = T,
+    and a CANONICAL non-integer rational halved is never integral
+    (den > 1, gcd = 1 ⇒ 2·den ∤ num). -/
 @[inline, simp] def evenp (s : SExpr) : SExpr :=
   match s with
   | .atom (.number (.int n)) => if n % 2 == 0 then .t else .nil
-  | _ => .nil
+  | .atom (.number _) => .nil
+  | _ => .t
 
-/-- ACL2 `oddp` — ⚠ NOT-YET-FAITHFUL (BUG-021): integers only; real
-    guard-off `oddp` is T on 3/2 etc. UNWIRED in callBuiltin (latent). -/
+/-- ACL2 `oddp` (guard-off — BUG-021 fix): `(not (evenp x))`. -/
 @[inline, simp] def oddp (s : SExpr) : SExpr :=
   match s with
   | .atom (.number (.int n)) => if n % 2 != 0 then .t else .nil
+  | .atom (.number _) => .t
   | _ => .nil
 
 /-- ACL2 `quote`. -/
 @[inline, simp] def quote_ (s : SExpr) : SExpr := s
 
-/-- ACL2 `expt` — ⚠ NOT-YET-FAITHFUL (BUG-021): funnels both args through
-    `toInt`, so a RATIONAL base is truncated (real `(expt 1/2 2)` = 1/4).
-    UNWIRED in callBuiltin (latent). For negative exponents, returns the
-    rational `1/(x^|y|)`. -/
+/-- ACL2 `expt` (guard-off — BUG-021 fix, 2026-07-26, differential-
+    pinned): mirrors ACL2's cond order —
+    `(zip i)` (non-integer or 0 exponent) → 1; `(= 0 (fix r))` (zero or
+    non-numeric base) → 0; else the exact rational power, canonicalized
+    (negative exponents invert; the sign rides the numerator). The old
+    definition funnelled the base through `toInt`, truncating rationals. -/
 @[inline, simp] def expt (a b : SExpr) : SExpr :=
-  let x := toInt a
-  let y := toInt b
-  if y < 0 then
-    -- 1/(x^-y) as an EXACT canonical rational: sign to the numerator
-    -- (1/p = sign(p)/|p|). Fixes the former junk producer (`expt 1 -1` built
-    -- `.rational 1 1`) and its sign bug (`expt -1 -1` lost the sign) — both
-    -- latent, EXPT is not yet wired into callBuiltin.
-    let p := x ^ (-y).toNat
-    if p == 0 then .atom (.number (.int 0))
-    else mkNumber p.sign p.natAbs
-  else .atom (.number (.int (x ^ y.toNat)))
+  match b with
+  | .atom (.number (.int i)) =>
+    if i == 0 then .atom (.number (.int 1))
+    else
+      let (n, d) := toRat a
+      if n == 0 then .atom (.number (.int 0))
+      else if i > 0 then
+        mkNumber (n ^ i.toNat) (d ^ i.toNat)
+      else
+        let k := (-i).toNat
+        let sgn : Int := if n ^ k > 0 then 1 else -1
+        mkNumber (sgn * Int.ofNat (d ^ k)) (n.natAbs ^ k)
+  | _ => .atom (.number (.int 1))
 
 /-- ACL2 `le` (<=). Full rational comparison. -/
 @[inline, simp] def le (a b : SExpr) : SExpr :=
@@ -346,13 +352,14 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   | .atom (.number _) => s
   | _ => .atom (.number (.int 0))
 
-/-- ACL2 `string-append` — ⚠ NOT-YET-FAITHFUL (BUG-021): returns "" unless
-    BOTH args are strings; real guard-off ACL2 coerces per-arg
-    (`(string-append "ab" 'c)` = "ab"). UNWIRED in callBuiltin (latent). -/
+/-- ACL2 `string-append` (guard-off — BUG-021 fix, 2026-07-26,
+    differential-pinned): PER-ARG coercion — a non-string arg contributes
+    "" (`(string-append "ab" 'c)` = "ab"); the old definition required
+    both. -/
 @[inline, simp] def string_append (a b : SExpr) : SExpr :=
-  match a, b with
-  | .atom (.string s1), .atom (.string s2) => .atom (.string (s1 ++ s2))
-  | _, _ => .atom (.string "")
+  let s1 := match a with | .atom (.string x) => x | _ => ""
+  let s2 := match b with | .atom (.string x) => x | _ => ""
+  .atom (.string (s1 ++ s2))
 
 /-- Two's complement bitwise AND on integers.
     Uses De Morgan: `NOT a AND NOT b = NOT (a OR b)`,

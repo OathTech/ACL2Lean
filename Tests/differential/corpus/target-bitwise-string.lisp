@@ -22,7 +22,7 @@
 ; string / char. char-code is now modeled (see characters.lisp).
 ;@ match
 (char-code #\a)
-;@ unsupported
+;@ match ; reclassified 2026-07-26 (BUG-021 fix wired evenp/oddp/expt/string-append)
 (string-append "ab" "cd")
 ;@ unsupported
 (length "abc")

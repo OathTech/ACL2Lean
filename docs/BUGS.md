@@ -262,10 +262,12 @@ plain-uppercase common case are already faithful; this is the escaped-name
 tail.
 
 ## BUG-021 — four unwired `Logic.lean` primitives diverge from ACL2, were documented as faithful
-Status: open
-Pinned-by: none (all four are UNWIRED in `callBuiltin`, so no differential
-form can reach them; wiring any one REQUIRES fixing it first and adding
-its differential family — the H3 pin-first discipline)
+Status: fixed
+Pinned-by: differential (`evenp-expt-string.lisp`, 21 match entries incl.
+the corner oracles `(expt 0 -1)`=0, `(expt 5 'b)`=1, `(evenp nil)`=T —
+fixed to guard-off semantics AND wired into `callBuiltin`/`builtinNames`
+2026-07-26, pin-first per H3; two LogicTest #guards that had pinned the
+divergent behavior updated to the oracle values)
 `Logic.evenp`/`Logic.oddp` match only `.atom (.number (.int n))` and give
 nil otherwise; real guard-off ACL2 gives `(evenp nil)`=T, `(evenp 'abc)`=T,
 `(oddp 3/2)`=T. `Logic.expt` funnels both args through `toInt`, truncating
@@ -277,13 +279,12 @@ wiring a one-line change, and the definitions claimed faithfulness. The
 definition sites now carry ⚠ NOT-YET-FAITHFUL marks naming this entry.
 
 ## BUG-020 — reader ignores CL's terminating macro characters (fail-OPEN)
-Status: open
-Pinned-by: none (the certified pipeline never reads `.lisp` surface text —
-`ProofLog.parse` consumes ACL2-PRINTED text, whose printer escapes the
-triggering names; the differential harness feeds forms both interpreters
-READ, so a form that triggers this parses differently on our side and
-cannot be expressed as a matched-stream entry. Exercisable via
-`acl2lean eval`/`eval-in`/`gen-world`.)
+Status: fixed
+Pinned-by: differential (`reader-terminators.lisp`, 4 match entries —
+fixed 2026-07-26 by giving `isAtomChar` the same terminator set as
+`isCharTokChar` / `*acl2-read-character-terminators*`; `;` cannot be
+pinned in the corpus format and backquote/comma are unmodeled forms —
+they now TERMINATE tokens, and a backquote form fails parse loudly)
 `Parser.lean` `isAtomChar` ends tokens on only `( ) space \n \r \t` —
 CL's terminating macro characters `"` `'` `` ` `` `,` `;` do NOT end a
 token, while `isCharTokChar` (the `#\` path) carries ACL2's real
