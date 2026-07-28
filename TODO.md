@@ -123,6 +123,23 @@ _Last updated: 2026-07-28._
 > TRUE-LISTP-MSORT.
 > (4) singles: NUMERATOR in the builtin registry (2 msort admission-lemma
 > rows), MERGE2 TP recognizer cell, ORDEREDP-ISORT split trace.
+> INC-1a DONE (2026-07-28): the ACL2-COUNT primitive head set — NUMERATOR/
+> DENOMINATOR/REALPART/IMAGPART/COMPLEX-RATIONALP as trusted-core builtins
+> (the un-snapshotted axiomatic heads of ACL2-COUNT's emitted gz body;
+> INTEGER-ABS/LENGTH have snapshots and ride the world/D4 route),
+> differential-pinned FIRST (numerator-denominator.lisp 35/35 vs oracle;
+> corpus 480 match/0 FAIL, 13 ratchet-reclassified). Ground truth found en
+> route: qsort's admission IS a real waterfall (verified live — two
+> induction pushes), the fork ALREADY emits it, buildDevelopment ALREADY
+> attaches it (termination field) — the gap is REPLAY-side only. The
+> recorded termination proof now replays past convergence and stops at
+> replayRecognizer: (CONSP (ACL2-COUNT …)) ⇒ NIL wants the type-set
+> lattice step (integerp TP ⇒ not-consp) — SAME class as the MERGE2
+> recognizer single; that lattice step is the next sub-increment, then
+> wire termination-ClauseProof replay into the totality prover (supersedes
+> dischargeDecrease's destructor walk where a recorded proof exists).
+> msort's ACL2-COUNT-EVENS rows advanced NUMERATOR→hyp-relief-spine
+> (message-only golden churn, 0 status flips).
 > (5) the equivalence lane (PERM-IMPLIES-EQUAL-ALL-REL-2, branch
 > substitution under PERM) — the genuine S3-iff/equiv item, LAST.
 > Folded in (audit rec 6): statement pins for the sorting books toward

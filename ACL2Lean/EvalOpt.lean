@@ -104,6 +104,11 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "ODDP", [a] => some (Logic.oddp a)
   | "EXPT", [a, b] => some (Logic.expt a b)
   | "STRING-APPEND", [a, b] => some (Logic.string_append a b)
+  | "NUMERATOR", [a] => some (Logic.numerator a)
+  | "DENOMINATOR", [a] => some (Logic.denominator a)
+  | "REALPART", [a] => some (Logic.realpart a)
+  | "IMAGPART", [a] => some (Logic.imagpart a)
+  | "COMPLEX-RATIONALP", [a] => some (Logic.complexRationalp a)
   | "LIST", xs => some (SExpr.ofList xs)
   | "FORCE", [a] => some a
   | "DOUBLE-REWRITE", [a] => some a
@@ -125,7 +130,8 @@ def builtinNames : List String :=
    "<", "INTEGERP", "NATP", "POSP", "RATIONALP", "ACL2-NUMBERP", "ZP",
    "SYMBOLP", "BOOLEANP", "STRINGP", "CHARACTERP", "CHAR-CODE", "CODE-CHAR",
    "FIX", "NFIX", "IFIX", "IMPLIES", "IFF", "TRUE-LISTP", "LEN", "LEXORDER",
-   "EVENP", "ODDP", "EXPT", "STRING-APPEND",
+   "EVENP", "ODDP", "EXPT", "STRING-APPEND", "NUMERATOR", "DENOMINATOR",
+   "REALPART", "IMAGPART", "COMPLEX-RATIONALP",
    "LIST", "FORCE", "DOUBLE-REWRITE", "HIDE"]
 
 /-- One step of the option-returning evaluator, parameterized by the
@@ -807,7 +813,12 @@ private def list2 : SExpr := .cons (.atom (.number (.int 1))) (.cons (.atom (.nu
 -- to converge (none), surfacing that the primitive needs a faithful model rather
 -- than producing a wrong value.
 #guard evalOpt 2 simpleWorld {} (mkCall "no-such-primitive" [.atom (.number (.int 1))]) == none
-#guard evalOpt 2 simpleWorld {} (mkCall "complex-rationalp" [.atom (.number (.int 3))]) == none
+#guard evalOpt 2 simpleWorld {} (mkCall "floor" [.atom (.number (.int 3)), .atom (.number (.int 2))]) == none
+
+-- COMPLEX-RATIONALP is now a modeled builtin (sorting arc 2026-07-28,
+-- differential-pinned): NIL on every representable value (the value space
+-- has no complex numbers; #c is a pinned unsupported reader class).
+#guard evalOpt 2 simpleWorld {} (mkCall "complex-rationalp" [.atom (.number (.int 3))]) == some .nil
 
 end Tests
 

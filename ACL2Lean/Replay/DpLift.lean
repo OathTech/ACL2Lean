@@ -49,8 +49,9 @@ open ACL2
 def dpLiftHeads : List String :=
   ["NOT", "ZP", "CONSP", "INTEGERP", "ACL2-NUMBERP", "RATIONALP",
    "TRUE-LISTP", "CAR", "CDR", "SYMBOLP", "STRINGP", "BOOLEANP", "NFIX",
-   "FIX", "LEN", "ENDP", "ATOM", "EQUAL", "<", "LEXORDER", "BINARY-+",
-   "BINARY-*", "CONS", "IMPLIES", "IFF"]
+   "FIX", "LEN", "ENDP", "ATOM", "NUMERATOR", "DENOMINATOR", "REALPART",
+   "IMAGPART", "COMPLEX-RATIONALP", "EQUAL", "<",
+   "LEXORDER", "BINARY-+", "BINARY-*", "CONS", "IMPLIES", "IFF"]
 
 /-- The DP value lift (G3 Fragment A): opaque application values from `opq`
     (syntactic `==` lookup, checked FIRST — the walker's order), variable

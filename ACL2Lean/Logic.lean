@@ -238,6 +238,46 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   | .atom (.number _) => .t
   | _ => .nil
 
+/-- ACL2 `numerator` (guard-off completion: non-rational → 0). The value
+    space stores rationals CANONICALLY (`canonRat`: lowest terms, positive
+    denominator, sign on the numerator), which is exactly ACL2's numerator
+    convention, so the stored component IS the answer. Differential-pinned
+    (numerator-denominator.lisp, sorting arc 2026-07-28). -/
+@[inline, simp] def numerator (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number (.int n)) => .atom (.number (.int n))
+  | .atom (.number (.rational n _ _)) => .atom (.number (.int n))
+  | _ => .atom (.number (.int 0))
+
+/-- ACL2 `denominator` (guard-off completion: non-rational → 1); canonical
+    storage makes the stored (positive) denominator ACL2's answer, and an
+    integer's denominator is 1. Differential-pinned alongside `numerator`. -/
+@[inline, simp] def denominator (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number (.int _)) => .atom (.number (.int 1))
+  | .atom (.number (.rational _ d _)) => .atom (.number (.int d))
+  | _ => .atom (.number (.int 1))
+
+/-- ACL2 `realpart` on the complex-free value space: a rational IS its own
+    real part; non-numbers complete to 0 (the completion axiom). Genuine
+    complexes are unrepresentable here (`#c` is a pinned unsupported reader
+    class) — differential-pinned (numerator-denominator.lisp). -/
+@[inline, simp] def realpart (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number n) => .atom (.number n)
+  | _ => .atom (.number (.int 0))
+
+/-- ACL2 `imagpart` on the complex-free value space: rationals have imaginary
+    part 0, and non-numbers complete to 0 — constantly 0 on every
+    representable value. Differential-pinned alongside `realpart`. -/
+@[inline, simp] def imagpart (_ : SExpr) : SExpr :=
+  .atom (.number (.int 0))
+
+/-- ACL2 `complex-rationalp` on the complex-free value space: NIL on every
+    representable value (T only on genuine complexes, which the reader
+    refuses). Differential-pinned alongside `realpart`. -/
+@[inline, simp] def complexRationalp (_ : SExpr) : SExpr := .nil
+
 /-- ACL2 `quote`. -/
 @[inline, simp] def quote_ (s : SExpr) : SExpr := s
 

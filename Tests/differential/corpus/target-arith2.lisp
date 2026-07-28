@@ -42,13 +42,13 @@
 (= '3 '4)
 
 ; rational accessors (also needed to state lexorder/arith lemmas)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired numerator/denominator)
 (numerator '1/2)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired numerator/denominator)
 (denominator '1/2)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired numerator/denominator)
 (numerator '3)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired numerator/denominator)
 (denominator '3)
 ;@ unsupported
 (signum '-5)
@@ -85,9 +85,9 @@
 (expt '2 '0)
 
 ; rational accessors on negatives / reduced forms
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired numerator/denominator)
 (numerator '-6/4)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired numerator/denominator)
 (denominator '-6/4)
 ;@ unsupported
 (abs '3/2)
@@ -97,7 +97,7 @@
 (zip '0)
 ;@ unsupported
 (zip 'nil)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired realpart/imagpart)
 (realpart '5)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired realpart/imagpart)
 (imagpart '5)

@@ -227,7 +227,13 @@ def dpUnary : List (String × Name × Name) :=
    ("FIX",      ``Logic.fix,      ``callBuiltin_fix),
    ("LEN",      ``Logic.len,      ``callBuiltin_len),
    ("ENDP",     ``Logic.endp,     ``callBuiltin_endp),
-   ("ATOM",     ``Logic.atom,     ``callBuiltin_atom)]
+   ("ATOM",     ``Logic.atom,     ``callBuiltin_atom),
+   ("NUMERATOR", ``Logic.numerator, ``callBuiltin_numerator),
+   ("DENOMINATOR", ``Logic.denominator, ``callBuiltin_denominator),
+   ("REALPART", ``Logic.realpart, ``callBuiltin_realpart),
+   ("IMAGPART", ``Logic.imagpart, ``callBuiltin_imagpart),
+   ("COMPLEX-RATIONALP", ``Logic.complexRationalp,
+    ``callBuiltin_complex_rationalp)]
 
 /-- DP-lift primitives (binary). -/
 def dpBinary : List (String × Name × Name) :=

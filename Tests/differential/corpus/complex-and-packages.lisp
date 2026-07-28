@@ -13,7 +13,11 @@
 (complex '1 '0)
 ;@ unsupported
 (complex-rationalp (complex '1 '2))
-;@ unsupported
+; complex-rationalp/realpart/imagpart/numerator/denominator are modeled since
+; the sorting arc (2026-07-28, numerator-denominator.lisp) on the COMPLEX-FREE
+; value space; rows whose INPUT needs (complex ...) stay unsupported (the
+; constructor itself is unmodeled), the rest ratchet-reclassified to match.
+;@ match
 (complex-rationalp '5)
 ;@ unsupported
 (realpart (complex '3 '4))
@@ -22,13 +26,13 @@
 ;@ unsupported
 (< (complex '1 '2) (complex '1 '3))
 ; completion values on out-of-domain args (realpart/imagpart of non-number = 0)
-;@ unsupported
+;@ match
 (realpart 'abc)
-;@ unsupported
+;@ match
 (imagpart 'abc)
-;@ unsupported
+;@ match
 (denominator 'abc)
-;@ unsupported
+;@ match
 (numerator 'abc)
 
 ; package / symbol primitives. symbol-package-name of a Common-Lisp symbol is
