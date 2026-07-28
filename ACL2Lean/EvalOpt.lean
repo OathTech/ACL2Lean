@@ -109,6 +109,7 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "REALPART", [a] => some (Logic.realpart a)
   | "IMAGPART", [a] => some (Logic.imagpart a)
   | "COMPLEX-RATIONALP", [a] => some (Logic.complexRationalp a)
+  | "COERCE", [a, b] => some (Logic.coerce a b)
   | "LIST", xs => some (SExpr.ofList xs)
   | "FORCE", [a] => some a
   | "DOUBLE-REWRITE", [a] => some a
@@ -131,7 +132,7 @@ def builtinNames : List String :=
    "SYMBOLP", "BOOLEANP", "STRINGP", "CHARACTERP", "CHAR-CODE", "CODE-CHAR",
    "FIX", "NFIX", "IFIX", "IMPLIES", "IFF", "TRUE-LISTP", "LEN", "LEXORDER",
    "EVENP", "ODDP", "EXPT", "STRING-APPEND", "NUMERATOR", "DENOMINATOR",
-   "REALPART", "IMAGPART", "COMPLEX-RATIONALP",
+   "REALPART", "IMAGPART", "COMPLEX-RATIONALP", "COERCE",
    "LIST", "FORCE", "DOUBLE-REWRITE", "HIDE"]
 
 /-- One step of the option-returning evaluator, parameterized by the

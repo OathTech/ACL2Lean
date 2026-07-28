@@ -26,5 +26,5 @@
 (string-append "ab" "cd")
 ;@ unsupported
 (length "abc")
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired coerce)
 (coerce "ab" 'list)

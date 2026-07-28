@@ -256,6 +256,61 @@ def withRealMaxHeartbeats (n : Nat) (x : MetaM α) : MetaM α :=
 def withRealMaxRecDepth (n : Nat) (x : MetaM α) : MetaM α :=
   withTheReader Core.Context (fun ctx => { ctx with maxRecDepth := n }) x
 
+/-- Match the LIFTED nonneg-int TP hypothesis type
+    `(bif toBool (integerp v) then not (lt v '0) else nil) = t` with `v` a
+    local fvar; return it (see `dp_nonneg_int_of_tp`). -/
+def nonnegIntTpFVar? (ty : Expr) : Option FVarId := do
+  let some (_, lhs, rhs) := ty.eq? | none
+  unless rhs.isConstOf ``SExpr.t do none
+  unless lhs.isAppOfArity ``cond 4 do none
+  let b := lhs.getArg! 1
+  let thn := lhs.getArg! 2
+  let els := lhs.getArg! 3
+  unless els.isConstOf ``SExpr.nil do none
+  unless b.isAppOfArity ``Logic.toBool 1 do none
+  let ip := b.appArg!
+  unless ip.isAppOfArity ``Logic.integerp 1 do none
+  let v := ip.appArg!
+  let .fvar vFv := v | none
+  unless thn.isAppOfArity ``Logic.not 1 do none
+  let ltE := thn.appArg!
+  unless ltE.isAppOfArity ``Logic.lt 2 do none
+  unless ltE.appFn!.appArg! == v do none
+  unless ltE.appArg! == reflectSExpr (.atom (.number (.int 0))) do none
+  return vFv
+
+/-- INT-VIEW pre-pass (sorting arc 2026-07-28): each lifted nonneg-int TP
+    hypothesis pins its value to a Nat-image integer atom
+    (`dp_nonneg_int_of_tp`); obtain-and-subst each, so linear-arithmetic
+    facts become PURE Int arithmetic and the bounded DIRECT tactic closes
+    leaves the value-shape split could never reach (the 7-value admission
+    leaves). The obligation STATEMENT is untouched — a context
+    transformation by a trusted-core theorem, the `assertDpOrderFacts`
+    pattern: deterministic (keyed on the lifted TP shape), never search.
+    Terminates: each round substitutes away one distinct value fvar, after
+    which its hypothesis no longer matches the view. -/
+partial def introDpIntValues (g : MVarId) : MetaM MVarId := do
+  let hit? ← g.withContext do
+    let lctx ← getLCtx
+    pure <| lctx.foldl (init := none) fun acc d =>
+      if acc.isSome || d.isImplementationDetail then acc
+      else match nonnegIntTpFVar? d.type with
+        | some _ => some d.fvarId
+        | none => acc
+  match hit? with
+  | none => return g
+  | some hFv =>
+    let prf ← g.withContext do mkAppM ``dp_nonneg_int_of_tp #[mkFVar hFv]
+    let ty ← g.withContext do inferType prf
+    let g ← g.assert `hDpInt ty prf
+    let (exFv, g) ← g.intro1P
+    let subs ← g.cases exFv
+    let #[sub] := subs
+      | throwError "introDpIntValues: cases on the ∃ gave {subs.size} goals"
+    let heq := sub.fields[1]!
+    let g ← Lean.Meta.subst sub.mvarId heq.fvarId!
+    introDpIntValues g
+
 /-- The direct attempt's budget where the COMPLETE split fallback exists
     (`total ≤` the split bound, so the enumeration runs over ALL values with
     every hypothesis intact): a pure LATENCY knob, free to tune — on timeout
@@ -334,6 +389,7 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
         let mv ← mkFreshExprMVar stmt
         let (_, g) ← mv.mvarId!.intros
         let g ← assertDpOrderFacts g
+        let g ← introDpIntValues g
         let remaining ← Lean.Elab.runTactic g tac
         if remaining.1.isEmpty then pure (some (← instantiateMVars mv)) else pure none
       catch _ => pure none)

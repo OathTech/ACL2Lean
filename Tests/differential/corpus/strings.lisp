@@ -22,20 +22,20 @@
 
 ; TARGET SURFACE — string operations not modeled. Note (string< "abc" "abd")
 ; returns a POSITION (2), not a boolean, in ACL2.
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired coerce)
 (coerce "abc" 'list)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired coerce)
 (coerce '(#\a #\b) 'string)
 ; coerce COMPLETION semantics (completion-of-coerce, axioms.lisp): a type-flag
 ; that isn't 'list defaults to the 'string branch; (coerce x 'string) uses
 ; make-character-list so non-character elements become the null char; nil→"".
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired coerce)
 (coerce "abc" 'foo)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired coerce)
 (coerce 'nil 'string)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired coerce)
 (coerce '(#\a #\1 #\Space) 'string)
-;@ unsupported
+;@ match ; reclassified 2026-07-28 (sorting arc wired coerce)
 (coerce "" 'list)
 ; length works on strings AND lists
 ;@ unsupported

@@ -118,13 +118,22 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (gzDefs : List (Symbol × List Symbol × SExpr) := [])
     (fcRules : List ACL2.FcRuleSpec := [])
     (mirrors : MirrorRegistry := [])
-    (mirrorName? : Option Name := none) :
+    (mirrorName? : Option Name := none)
+    (budget : Nat := 1000000) :
     TermElabM (String × Option (List String)) := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
   -- pins it at command-context creation; ~1M user units ≈ 40 s, a runaway
   -- guard with margin over the slowest legitimate replay (~9 s observed).
-  withRealMaxHeartbeats 1000000 <| withRealMaxRecDepth 8192 <| tryCatchRuntimeEx
+  -- `budget` override — NOT a tuning knob (sorting arc 2026-07-28): an
+  -- ADMISSION (termination) proof contains several linear-arithmetic DP
+  -- leaves, each individually entitled to the full `dpOnlyProverGuard`
+  -- inner budget BY DESIGN, so the single-theorem guard is arithmetically
+  -- too small for that class regardless of per-piece speed. The admission
+  -- call site passes a guard set by the same methodology as this default:
+  -- margin over the observed legitimate cost (qsort admission ≈ 4.7M
+  -- units → 10M). Ordinary theorems keep the 1M default.
+  withRealMaxHeartbeats budget <| withRealMaxRecDepth 8192 <| tryCatchRuntimeEx
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,

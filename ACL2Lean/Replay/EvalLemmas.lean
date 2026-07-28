@@ -3731,6 +3731,36 @@ theorem logic_consp_plus_nil (a b : SExpr) :
   unfold Logic.plus
   apply logic_consp_mkNumber
 
+/-- The LIFTED nonneg-int TP hypothesis pins its value to a Nat-image
+    integer atom: `(bif toBool (integerp v) then not (lt v '0) else nil) = t`
+    forces `v = int ↑n`. The DP prover's int-view pre-pass
+    (`introDpIntValues`) obtains-and-substs this, turning linear-arithmetic
+    leaves into PURE Int facts — no value-shape splits (the 7-value
+    admission leaves that exceed the split bound). -/
+theorem dp_nonneg_int_of_tp {v : SExpr}
+    (h : (bif Logic.toBool (Logic.integerp v)
+          then Logic.not (Logic.lt v (.atom (.number (.int 0))))
+          else SExpr.nil) = SExpr.t) :
+    ∃ n : Nat, v = .atom (.number (.int (n : Int))) := by
+  cases v with
+  | atom a => cases a with
+    | number num => cases num with
+      | int k =>
+        refine ⟨k.toNat, ?_⟩
+        by_cases hk : k < 0
+        · exfalso
+          simp [Logic.integerp, Logic.toBool, Logic.not, Logic.lt,
+                Logic.toRat, hk, SExpr.t] at h
+        · simp only [SExpr.atom.injEq, Atom.number.injEq, Number.int.injEq]
+          omega
+      | rational n d hc => simp [Logic.integerp, Logic.toBool] at h
+    | symbol s => simp [Logic.integerp, Logic.toBool] at h
+    | keyword s => simp [Logic.integerp, Logic.toBool] at h
+    | string s => simp [Logic.integerp, Logic.toBool] at h
+    | char c => simp [Logic.integerp, Logic.toBool] at h
+  | nil => simp [Logic.integerp, Logic.toBool] at h
+  | cons a b => simp [Logic.integerp, Logic.toBool] at h
+
 /-- The car-cdr-elim rule at the VALUE level: a consp value is rebuilt by
     `cons`/`car`/`cdr` — the destructor-elimination bridge's collapse of
     `(cons (car v) (cdr v))` back to `v`. -/
@@ -4502,6 +4532,27 @@ theorem evtrue_extract_else {w : World} {env : Env} {c rest : SExpr}
   obtain ⟨v, hifv, hnv⟩ := hif (g + 1) (by omega)
   rw [evalOpt_if_false g w env c _ rest (hc g (by omega))] at hifv
   exact ⟨v, evalOpt_fuel_mono g w env rest v hifv, hnv⟩
+
+/-- The REVERSE of `evtrue_extract_else`: re-INTRODUCE a leading disjunct
+    whose test converges to nil. The induction add-literal-dedup bridge
+    (sorting arc 2026-07-28): a pushed literal deduped into an earlier
+    ruling/IH occurrence is peeled WITH that occurrence, so the leaf's
+    remaining disjunction is the deduped SUFFIX — this re-wraps it back to
+    the FULL pushed instance using the very nil fact the peel used. -/
+theorem evtrue_intro_else {w : World} {env : Env} {c rest : SExpr}
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some SExpr.nil)
+    (hrest : EvTrue w env rest) :
+    EvTrue w env
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons c (.cons
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+          (.cons rest .nil)))) := by
+  obtain ⟨n1, hc⟩ := hc; obtain ⟨n2, hrest⟩ := hrest
+  refine ⟨n1 + n2 + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  obtain ⟨v, hv, hnv⟩ := hrest g (by omega)
+  rw [evalOpt_if_false g w env c _ rest (hc g (by omega))]
+  exact ⟨v, hv, hnv⟩
 
 /-- A TRUE term's negation converges to nil (the step case's IH literal:
     `EvTrue ihInst` pins `(not ihInst) ⇒ nil` WITHOUT pinning the IH's own

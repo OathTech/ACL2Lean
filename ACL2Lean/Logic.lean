@@ -361,6 +361,33 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
     else .atom (.char 0)
   | _ => .atom (.char 0)
 
+/-- ACL2 `make-character-list` (the axiomatic helper of `coerce`'s string
+    route): walk the conses; a character element passes through, any other
+    element completes to the null char (code 0); a non-cons tail ends the
+    list. Modeled at the byte level (chars are their 0–255 codes). -/
+def makeCharacterList : SExpr → List UInt8
+  | .cons a b =>
+    (match a with | .atom (.char c) => c | _ => 0) :: makeCharacterList b
+  | _ => []
+
+/-- ACL2 `coerce` (guard-off — sorting arc 2026-07-28, differential-pinned):
+    the `'LIST` route explodes a string into its character atoms (non-string
+    → nil, the completion axiom); ANY other second argument takes the
+    `'STRING` route through `make-character-list` (non-characters complete
+    to the null char; a non-list x gives `""`). Needed in the trusted core
+    because `LENGTH`'s emitted ground-zero body calls it (`(len (coerce x
+    'list))`) and `coerce` itself is axiomatic — no defun body to consume. -/
+def coerce (x y : SExpr) : SExpr :=
+  if y == .atom (.symbol { name := "LIST" }) then
+    match x with
+    | .atom (.string s) =>
+      (s.data.map (fun c => SExpr.atom (.char (UInt8.ofNat c.toNat)))).foldr
+        .cons .nil
+    | _ => .nil
+  else
+    .atom (.string (String.mk
+      ((makeCharacterList x).map (fun c => Char.ofNat c.toNat))))
+
 /-- ACL2 `booleanp` — `t` iff the value is exactly `t` or `nil`
     (`(or (equal x t) (equal x nil))`). -/
 @[inline, simp] def booleanp (s : SExpr) : SExpr :=

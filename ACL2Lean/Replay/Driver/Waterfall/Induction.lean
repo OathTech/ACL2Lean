@@ -628,6 +628,8 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                           selD, ctxD)
                 let ctxD := ctxP
                 let mut p := p0
+                -- peeled nil facts, kept for the DEDUP re-intro below
+                let mut peeledNil : List (SExpr × Expr) := []
                 -- ruling-literal peels, clause order
                 for t in c.tests do
                   let (litPos, fact) ← do
@@ -654,6 +656,7 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                     let pLit ← ctxValProof cfg' ctxD lit
                     let pLitNil ← mkAppM ``re_val_cast
                       #[w, eV, reflectSExpr lit, fact.valueE, nilC, pLit, fact.signE]
+                    peeledNil := peeledNil ++ [(lit, pLitNil)]
                     p ← mkAppM ``evtrue_extract_else #[pLitNil, p]
                   else
                     -- literal = (not t); Logic.not (truthy) = nil
@@ -662,6 +665,7 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                     let pLitNil ← mkAppM ``re_val_cast
                       #[w, eV, reflectSExpr lit,
                         mkApp (mkConst ``Logic.not) fact.valueE, nilC, pLit, hNotNil]
+                    peeledNil := peeledNil ++ [(lit, pLitNil)]
                     p ← mkAppM ``evtrue_extract_else #[pLitNil, p]
                 -- selection-literal peels, clause order: entry (alist, j, hne)
                 -- with hne : v(L_jσ) ≠ nil; the clause literal is ¬L_jσ
@@ -691,7 +695,28 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                       let hNil ← mkAppM ``nil_of_logic_not_ne_nil #[hne]
                       mkAppM ``re_val_cast
                         #[w, eV, reflectSExpr negLit, vLjσ.appArg!, nilC, pLit, hNil]
+                  peeledNil := peeledNil ++ [(negLit, pLitNil)]
                   p ← mkAppM ``evtrue_extract_else #[pLitNil, p]
+                -- DEDUP re-intro (sorting arc 2026-07-28): a pushed literal
+                -- deduped into an earlier ruling/IH occurrence (add-literal
+                -- keeps first occurrences — qsort *1/4's ¬(CONSP X2)) was
+                -- peeled WITH that occurrence, so `p` is the deduped SUFFIX
+                -- of the pushed clause. Re-wrap the dropped LEADING literals
+                -- (`evtrue_intro_else`, innermost first) with the very nil
+                -- facts the peels built; a NON-leading drop has no head
+                -- re-intro and stays a loud frontier.
+                let earlierLits := (c.tests.map dumbNegateLit) ++ sel.map (·.2.2)
+                let droppedIdx := (pushedLits.zipIdx.filter
+                  (fun (l, _) => earlierLits.contains l)).map (·.2)
+                unless droppedIdx == List.range droppedIdx.length do
+                  throwError "replayInduction: dedup dropped a NON-LEADING \
+                              pushed literal (indices {droppedIdx}) — \
+                              re-intro frontier"
+                for l in (pushedLits.take droppedIdx.length).reverse do
+                  let some (_, pNil) := peeledNil.find? (fun (t, _) => t == l)
+                    | throwError "replayInduction: no peeled nil fact for the \
+                                  deduped pushed literal {repr l}"
+                  p ← mkAppM ``evtrue_intro_else #[pNil, p]
                 return p
               -- WALK one IH's σ-instance disjunction: nil literals peel off
               -- (evtrue_extract_else); the first truthy literal selects that

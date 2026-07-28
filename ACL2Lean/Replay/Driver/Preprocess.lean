@@ -496,11 +496,15 @@ def bridgeClausifyMulti (cfg : ReplayConfig) (ctx : ReplayCtx)
          pOuts.length == info.out.length &&
          info.out == info.splits.map (·.2) do
     throwError "clausify multi-bridge: splits/out/proofs mismatch at                 {repr info.input}"
-  for (l, (lit, cl)) in info.negClause.zip info.splits do
+  for (l, (lit, _)) in info.negClause.zip info.splits do
     unless lit == dumbNegateLit l do
       throwError "clausify multi-bridge: split literal {repr lit} ≠                   (dumb-negate {repr l})"
-    unless clausifyPure lit true == cl do
-      throwError "clausify multi-bridge: recomputed split clause for                   {repr lit} ≠ recorded {repr cl}"
+  -- per-split recompute happens in the proof loop below — it consumes the
+  -- recorded per-split `expand-and-or` firings (sorting arc 2026-07-28,
+  -- the admission-goal ENDP expansions), which need the lift bundle
+  unless info.splitExpands.all (·.1 < info.splits.length) do
+    throwError "clausify multi-bridge: split-expansion index beyond the \
+                split list (internal)"
   -- the shared lift bundle (over the input's vars/opaques — every literal is
   -- built from the input's subterms, negations included)
   let vars := (ACL2.Replay.freeVars info.input).eraseDups
@@ -523,13 +527,30 @@ def bridgeClausifyMulti (cfg : ReplayConfig) (ctx : ReplayCtx)
     let isSomeApp ← mkAppM ``Option.isSome #[liftApp]
     mkExpectedTypeHint (← mkEqRefl (mkConst ``Bool.true))
       (← mkEq isSomeApp (mkConst ``Bool.true))
-  -- per neg-literal: EvTrue(¬Lᵢ) from its proved clause, then eval Lᵢ → nil
+  -- per neg-literal: EvTrue(¬Lᵢ) from its proved clause, then eval Lᵢ → nil.
+  -- The split recompute runs on the literal EXPANDED by its recorded
+  -- `expand-and-or` firings (`runCheckedExpand` — registry-shaped,
+  -- fail-closed); the soundness instance then applies at the expanded
+  -- literal and transports back along the lift equality, exactly the
+  -- single-clause bridge's route.
   let mut nilProofs : List Expr := []
-  for (l, ((lit, _), pOut)) in info.negClause.zip (info.splits.zip pOuts) do
-    let hlLit ← mkIsSome lit
+  for ((l, ((lit, cl), pOut)), k) in
+      (info.negClause.zip (info.splits.zip pOuts)).zipIdx do
+    let expsK := (info.splitExpands.filter (·.1 == k)).map (·.2)
+    let (lit', heqK?) ← runCheckedExpand b hwf expsK lit true
+    unless clausifyPure lit' true == cl do
+      throwError "clausify multi-bridge: recomputed split clause for                   {repr lit'} ≠ recorded {repr cl}"
+    let hlLit ← mkIsSome lit'
     let pLitTrue ← mkAppM ``clausifyPure_sound
       #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
-        reflectSExpr lit, mkConst ``Bool.true, hlLit, pOut]
+        reflectSExpr lit', mkConst ``Bool.true, hlLit, pOut]
+    let pLitTrue ← match heqK? with
+      | none => pure pLitTrue
+      | some heq => do
+        let hisSomeLit ← mkIsSome lit
+        mkAppM ``ClausifyGoal_of_liftEq
+          #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, heq,
+            hisSomeLit, mkConst ``Bool.true, pLitTrue]
     -- ClausifyGoal … true IS EvTrue; and reflect(lit) is defeq to
     -- dumbNegateLit reflect(l) by computation
     let pLitTrue ← mkExpectedTypeHint pLitTrue
