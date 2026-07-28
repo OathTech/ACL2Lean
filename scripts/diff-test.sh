@@ -67,9 +67,9 @@ if [[ ${#files[@]} -eq 0 ]]; then
   exit 2
 fi
 
-# Sandbox robustness: /tmp is write-only inside the nono sandbox (no
-# read-back), so when TMPDIR is unset fall back to the repo-local .tmp/
-# (we cd'd to the repo root above; mkdir -p creates both levels).
+# The sandbox sets TMPDIR (repo-local .tmp/ — /tmp there is write-only, no
+# read-back); if it is unset, fall back to .tmp/ too, never /tmp (we cd'd to
+# the repo root above; mkdir -p creates both levels).
 tmp="${TMPDIR:-.tmp}/difftest_$$"; mkdir -p "$tmp"
 trap 'rm -rf "$tmp"' EXIT
 

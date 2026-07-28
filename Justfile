@@ -1,12 +1,3 @@
-# Sandbox robustness (2026-07-28): inside the nono dev sandbox /tmp is
-# WRITE-ONLY (files can be created but never read back or executed), which
-# breaks just's shebang-recipe staging and every mktemp defaulting to /tmp.
-# Stage recipes in the repo-local .tmp/ (kept in git by .gitkeep — just does
-# NOT create tempdir itself) and give recipes a usable TMPDIR too, unless the
-# caller already set one. Harmless outside the sandbox.
-set tempdir := ".tmp"
-export TMPDIR := env_var_or_default("TMPDIR", justfile_directory() / ".tmp")
-
 # Book manifest: lists all ACL2 files to translate and test
 books := "acl2_samples/books.txt"
 
