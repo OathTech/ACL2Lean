@@ -210,7 +210,15 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
     ind.cases.zipIdx.flatMap fun (c, i) =>
       let negTests := c.tests.map dumbNegateLit
       (selectionsOf c).map fun sel =>
-        (i, c, sel, negTests ++ sel.map (·.2.2) ++ pushedLits)
+        -- ACL2's `add-literal` DEDUP arm, the induction twin of the
+        -- Preprocess mirror (S1 2026-07-23 / sorting arc 2026-07-28): a
+        -- literal already present is dropped as the case clause is built —
+        -- e.g. a ruling test's negation that IS a goal literal (`(NOT
+        -- (CONSP X2))` in qsort's admission *2 scheme). First-occurrence
+        -- order, exactly `add-literal`'s; a duplicate-free clause is
+        -- unchanged. The emitted :SCHEME carries the deduped clause, so
+        -- the containment check below validates the mirror per case.
+        (i, c, sel, dedupClause (negTests ++ sel.map (·.2.2) ++ pushedLits))
   -- the EMITTED scheme clause set (the recomputation's validation target)
   let schemeClauses ← ind.scheme.mapM fun cl => do
     let some lits := cl.toList?
@@ -512,14 +520,38 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                 let body ← go negT ctxD (facts ++
                   [{ test, valueE := vE, convE := pV, sign := false, signE := hNil }])
                 mkLambdaFVars #[hNil] body
-              let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vE, nilC]) fun hNe => do
-                let body ← go posT ctxD (facts ++
-                  [{ test, valueE := vE, convE := pV, sign := true, signE := hNe }])
-                mkLambdaFVars #[hNe] body
+              let posL ←
+                if ← isDefEq vE nilC then do
+                  -- VACUOUS truthy branch: the test's value is DEFINITIONALLY
+                  -- nil — e.g. `(COMPLEX-RATIONALP _)`, constantly nil on the
+                  -- complex-free value space (ACL2-COUNT's complex scheme
+                  -- case) — so the branch hypothesis refutes itself and the
+                  -- case closes by absurdity. ACL2's split is preserved; the
+                  -- mirror proves this side EMPTY (the differential-pinned
+                  -- complex-free limitation), never walking an unreachable
+                  -- case whose IH decrease the walk could not state.
+                  let goalTy := (← instantiateMVars (← inferType negL)).bindingBody!
+                  if goalTy.hasLooseBVars then
+                    throwError "replayInduction: internal — dependent branch goal"
+                  withLocalDeclD `hne (← mkAppM ``Ne #[vE, nilC]) fun hNe => do
+                    let hEq ← mkExpectedTypeHint (← mkEqRefl vE) nilTy
+                    let body ← mkAppOptM ``absurd
+                      #[some nilTy, some goalTy, some hEq, some hNe]
+                    mkLambdaFVars #[hNe] body
+                else
+                  withLocalDeclD `hne (← mkAppM ``Ne #[vE, nilC]) fun hNe => do
+                    let body ← go posT ctxD (facts ++
+                      [{ test, valueE := vE, convE := pV, sign := true, signE := hNe }])
+                    mkLambdaFVars #[hNe] body
               mkAppM ``Classical.byCases #[negL, posL]
             | .leaf i => do
-              let some (_, c, _, _, _) := linked.find? (fun (j, _, _, _, _) => j == i)
-                | throwError "replayInduction: internal — leaf {i} unlinked"
+              -- the case record comes from the scheme directly — a case may
+              -- have NO kept clause at all (every cross-product selection
+              -- complement/trivially dropped, e.g. qsort's admission *2),
+              -- and its leaf still walks: dischargeChild's dropped-selection
+              -- arms carry it.
+              let some c := ind.cases[i]?
+                | throwError "replayInduction: internal — leaf {i} out of range"
               -- replay the linked child for a SELECTION and peel it down to
               -- EvTrue(∨C): the leading negated ruling tests (nil by the
               -- branch facts), then the selection's ¬L_{jᵢ}σᵢ literals (nil
@@ -554,6 +586,32 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                         (al.map (·.1)) (al.map (·.2)) lj
                       if let some m := pushedLits.findIdx? (· == ljσ) then
                         return ← evtrueOfLitTrue cfg' ctxD pushedLits m ljσ hne
+                    -- (i') add-literal COMPLEMENT drop between a RULING test
+                    -- and a goal literal (qsort's admission *2 "otherwise"
+                    -- case: negTest `(CONSP X2)` complements the goal's
+                    -- `(NOT (CONSP X2))`): the leaf sits on the branch where
+                    -- the test HOLDS, so the branch fact is the goal
+                    -- literal's own truth — direct, same shape as (i).
+                    for t in c.tests do
+                      if let some m := pushedLits.findIdx? (· == t) then
+                        let hne? ← (do
+                          match t with
+                          | .cons (.atom (.symbol ns)) (.cons u .nil) =>
+                            if ns.name == "NOT" then
+                              match facts.find? (fun f => f.test == u && !f.sign) with
+                              | some f => do
+                                let hEqT ← mkAppM ``logic_not_t_of_nil #[f.signE]
+                                let hTNe ← mkDecideProof (← mkAppM ``Ne
+                                  #[mkConst ``SExpr.t, mkConst ``SExpr.nil])
+                                pure (some (← mkAppM ``ne_nil_of_eq #[hEqT, hTNe]))
+                              | none => pure none
+                            else
+                              pure ((facts.find? (fun f => f.test == t && f.sign)).map (·.signE))
+                          | _ =>
+                            pure ((facts.find? (fun f => f.test == t && f.sign)).map (·.signE))
+                          : MetaM (Option Expr))
+                        if let some hne := hne? then
+                          return ← evtrueOfLitTrue cfg' ctxD pushedLits m t hne
                     -- (ii) `trivial-clause-p` if-tautology drop
                     -- (ORDEREDP-MEMB's merged base case): the dropped clause
                     -- is trivially TRUE — discharge the FULL clause by the

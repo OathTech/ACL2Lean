@@ -3698,6 +3698,39 @@ theorem logic_integerp_ne_nil_t (v : SExpr) (h : Logic.integerp v ≠ SExpr.nil)
     | _ => simp_all [Logic.integerp]
   | cons a b => simp_all [Logic.integerp]
 
+/-- `consp ⇒ nil` from a TP whose type part is `integerp`: ACL2's type-set
+    bit DISJOINTNESS (an integer is never a cons), consuming the STANDARD
+    emitted TP corollary encoding `(IF (INTEGERP app) <bound> 'NIL)` lifted
+    to `cond (toBool (integerp v)) thn nil = t` — the justification a
+    `recognizer/false` node records as `type-prescription:<fn>` (e.g.
+    `(CONSP (ACL2-COUNT …)) ⇒ 'NIL` in admission waterfalls). The bound
+    part `thn` is irrelevant to the disjointness and stays abstract. -/
+theorem logic_consp_nil_of_tp_integerp {v thn : SExpr}
+    (h : cond (Logic.toBool (Logic.integerp v)) thn SExpr.nil = SExpr.t) :
+    Logic.consp v = SExpr.nil := by
+  cases v with
+  | nil => rfl
+  | atom a => rfl
+  | cons a b => simp [Logic.integerp, Logic.toBool, SExpr.t] at h
+
+/-- `binary-+`'s RANGE is numbers, never a cons — ACL2's native type-set
+    knowledge of the primitive (`type-set-binary-+`), consumed by
+    `recognizer/false` nodes like `(CONSP (BINARY-+ …)) ⇒ 'NIL` (admission
+    waterfalls unfolding ACL2-COUNT). Value-level: `plus` lands in
+    `mkNumber`, which returns a number atom on every branch. -/
+theorem logic_consp_mkNumber (n : Int) (d : Nat) :
+    Logic.consp (Logic.mkNumber n d) = SExpr.nil := by
+  unfold Logic.mkNumber
+  by_cases hd : d = 0
+  · simp [hd, Logic.consp]
+  · by_cases hd' : d / Nat.gcd n.natAbs d = 1 <;>
+      simp [hd, hd', Logic.consp]
+
+theorem logic_consp_plus_nil (a b : SExpr) :
+    Logic.consp (Logic.plus a b) = SExpr.nil := by
+  unfold Logic.plus
+  apply logic_consp_mkNumber
+
 /-- The car-cdr-elim rule at the VALUE level: a consp value is rebuilt by
     `cons`/`car`/`cdr` — the destructor-elimination bridge's collapse of
     `(cons (car v) (cdr v))` back to `v`. -/

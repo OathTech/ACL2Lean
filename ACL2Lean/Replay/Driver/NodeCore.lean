@@ -1304,10 +1304,27 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         let some (formals, _) := cfg.worldVal.defs.get? fs
           | throwError "replayRecognizer: {fs.name} not defined in the world"
         let args := (argsSpine.toList?).getD []
-        -- the corollary, instantiated at the actual args, must BE this term
-        -- (so the TP fact proves exactly this recognizer's verdict).
+        let inst := ACL2.Replay.substTerm formals args cor
+        -- REGISTERED TP-LATTICE derivation (recognizer/false via TP): ACL2's
+        -- type-set closes `(CONSP app) ⇒ 'NIL` from the fn's TP whose TYPE
+        -- part is `(INTEGERP app)` (the standard corollary encoding
+        -- `(IF (INTEGERP app) <bound> 'NIL)`) — type-bit disjointness, the
+        -- trusted-core theorem `logic_consp_nil_of_tp_integerp`. Consumed,
+        -- not inferred: the node's recorded runes cite the TP (e.g.
+        -- `(CONSP (ACL2-COUNT …)) ⇒ 'NIL` in admission waterfalls).
+        let intTpShape : Bool := match inst with
+          | .cons (.atom (.symbol ifS))
+              (.cons (.cons (.atom (.symbol intS)) (.cons z' .nil))
+                (.cons _ (.cons elseB .nil))) =>
+            ifS.name == "IF" && intS.name == "INTEGERP" && z' == z
+              && elseB == quoteNil
+          | _ => false
+        let latticeRoute :=
+          rs.name == "CONSP" && verdict == SExpr.nil && intTpShape
+        -- otherwise the corollary, instantiated at the actual args, must BE
+        -- this term (so the TP fact proves exactly this recognizer's verdict).
         unless formals.length == args.length ∧
-               ACL2.Replay.substTerm formals args cor == term ∧ verdict == SExpr.t do
+               ((inst == term ∧ verdict == SExpr.t) ∨ latticeRoute) do
           throwError "replayRecognizer: TP corollary of {fs.name} ({repr cor}) \
                       does not match {repr term} ⇒ {repr verdict} (frontier)"
         let some (vz, convz) := ctx.val? z
@@ -1315,18 +1332,45 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         -- fact : <lifted corollary at args>[appPat ↦ vz] = t  =  (REC-lift vz) = t
         let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
           ++ (args.map reflectSExpr).toArray ++ #[vz, convz])
+        let hVerdict ← if latticeRoute then
+            mkAppM ``logic_consp_nil_of_tp_integerp #[fact]
+          else pure fact
         let p ← ctxValProof cfg ctx term
         let v ← ctxValExpr cfg ctx term
         mkAppM ``re_val_cast
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, fact]
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hVerdict]
       else
         let p ← ctxValProof cfg ctx term
         let v ← ctxValExpr cfg ctx term
-        unless ← isDefEq v verdictE do
-          throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict} \
-                      (no TP hypothesis for {fs.name})"
-        mkAppM ``re_val_cast
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, ← mkEqRefl verdictE]
+        if ← isDefEq v verdictE then
+          mkAppM ``re_val_cast
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p,
+              ← mkEqRefl verdictE]
+        else
+          -- REGISTERED BUILTIN-RANGE derivation: ACL2's type-set knows each
+          -- primitive's return type natively (`type-set-binary-+` …), so a
+          -- recognizer verdict on a BUILTIN application is the primitive's
+          -- RANGE — a trusted-core theorem, keyed (recognizer, builtin head).
+          -- The value is opaque-argument-blocked (`Logic.plus vz …` does not
+          -- reduce), which is exactly why the range fact is a lemma.
+          let range? : Option Name :=
+            if rs.name == "CONSP" && verdict == SExpr.nil
+                && fs.name == "BINARY-+" then
+              some ``logic_consp_plus_nil
+            else none
+          match range? with
+          | some lem =>
+            unless v.isAppOfArity ``Logic.consp 1
+                && v.appArg!.isAppOfArity ``Logic.plus 2 do
+              throwError "replayRecognizer: value of {repr term} does not match \
+                          the registered builtin-range shape (frontier)"
+            let arg := v.appArg!
+            let h ← mkAppM lem #[arg.appFn!.appArg!, arg.appArg!]
+            mkAppM ``re_val_cast
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, h]
+          | none =>
+            throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict} \
+                        (no TP hypothesis for {fs.name})"
     else
       let p ← ctxValProof cfg ctx term
       let v ← ctxValExpr cfg ctx term
