@@ -27,6 +27,9 @@ cd "$(dirname "$0")/.." || { echo "FATAL: cannot cd to repo root" >&2; exit 2; }
 
 DIFF_DIR="Tests/differential"
 ACL2_BIN="acl2/saved_acl2"
+# Hermetic reference runs: ACL2_CUSTOMIZATION=NONE plus --no-sysinit at each
+# invocation — neither user nor system init files (/etc/sbclrc, unreadable in
+# the nono sandbox anyway) may inject lisp into the reference interpreter.
 export ACL2_CUSTOMIZATION=NONE
 
 if [[ ! -x "$ACL2_BIN" ]]; then
@@ -64,7 +67,10 @@ if [[ ${#files[@]} -eq 0 ]]; then
   exit 2
 fi
 
-tmp="${TMPDIR:-/tmp}/difftest_$$"; mkdir -p "$tmp"
+# Sandbox robustness: /tmp is write-only inside the nono sandbox (no
+# read-back), so when TMPDIR is unset fall back to the repo-local .tmp/
+# (we cd'd to the repo root above; mkdir -p creates both levels).
+tmp="${TMPDIR:-.tmp}/difftest_$$"; mkdir -p "$tmp"
 trap 'rm -rf "$tmp"' EXIT
 
 total_ok=0 total_unsupported=0 total_known_bug=0 total_refuse=0 total_fail=0
@@ -204,7 +210,7 @@ for file in "${files[@]}"; do
       # read/translate/interface error (incl. the session-halting float error).
       { echo '(set-guard-checking nil)'; [[ -n "$book" ]] && printf '(ld "%s")\n' "$book";
         echo '(cw "@@GO@@~%")'; printf '%s\n' "$form"; echo '(good-bye)'; } > "$tmp/iso.in"
-      "$ACL2_BIN" < "$tmp/iso.in" > "$tmp/iso.raw" 2>&1
+      "$ACL2_BIN" --no-sysinit < "$tmp/iso.in" > "$tmp/iso.raw" 2>&1
       local_acl2=""
       if sed -n '/@@GO@@/,$p' "$tmp/iso.raw" | grep -qaE '^ACL2 Error|^Error:|floating-point input|Halted'; then
         local_acl2="<refused>"
@@ -246,7 +252,7 @@ for file in "${files[@]}"; do
     echo '(cw "@@SENTINEL@@~%")'
     cat "$tmp/forms.lisp"
   } > "$tmp/acl2.in"
-  "$ACL2_BIN" < "$tmp/acl2.in" > "$tmp/acl2.raw" 2>&1
+  "$ACL2_BIN" --no-sysinit < "$tmp/acl2.in" > "$tmp/acl2.raw" 2>&1
   # Reconstruct ONE outcome per form from ACL2's output. Each form's output
   # begins at an `ACL2 !?>` prompt; the value may WRAP onto continuation lines
   # (ACL2 pretty-prints wide values across lines — only the first has a prompt),

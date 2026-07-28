@@ -5,7 +5,8 @@ ACL2Lean/Translated/
 *.proof-log
 *.dump
 .claude/
-/.tmp
+/.tmp/*
+!/.tmp/.gitkeep
 Tests/driver-coverage.actual
 
 # scratch diff-test output

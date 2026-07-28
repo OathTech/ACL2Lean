@@ -46,6 +46,8 @@ for INPUT in "$@"; do
     exit 1
   fi
 
+  # --no-sysinit keeps ACL2 hermetic: /etc/sbclrc must not inject lisp into the
+  # capture run (and it is unreadable inside the nono sandbox).
   # emit-ground-zero-snapshots (fork, ld.lisp): after the book completes,
   # append the cited-closure ground-zero defun snapshots + rule statements
   # (external-knowledge design D3/D5) to the log's tail.
@@ -53,7 +55,7 @@ for INPUT in "$@"; do
 (ld "%s")
 (emit-ground-zero-snapshots state)
 (good-bye)
-' "$INPUT_ABS" | "$ACL2" > "$OUTPUT" 2>&1
+' "$INPUT_ABS" | "$ACL2" --no-sysinit > "$OUTPUT" 2>&1
 
   # Failure detection. `ld` halts on the first failed event (e.g. a defthm whose
   # PROOF succeeds but whose rule STORAGE is rejected — `:rule-classes nil` avoids
