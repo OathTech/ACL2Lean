@@ -5,14 +5,19 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-26._
+_Last updated: 2026-07-28._
 
 > **FULL-PIPELINE AUDIT (2026-07-26, user-run 6-dimension team + refutation
 > pass; report `docs/audits/2026-07-26_full-pipeline-audit.md`) — GOVERNS
 > THE CURRENT ARC.** Headlines: F0 GitHub REMOTE CI RED since 2026-07-23
 > (4 merges pushed onto it; every arc close-out's "gates green" was the
 > LOCAL `just ci` only — close-out ritual now requires pasting the REMOTE
-> CI conclusion); F1 SOUNDNESS-class statement substitution (encapsulate
+> CI conclusion. AMENDED 2026-07-28, MDD: development now runs in a
+> network-blocked sandbox, so local merges gate on LOCAL `just ci` +
+> sign-off only; remote CI is validated at the next networked push,
+> fix-forward — see CLAUDE.md "Sandbox protocol". check-push-ready keeps
+> its remote-CI gate for actual pushes); F1 SOUNDNESS-class statement
+> substitution (encapsulate
 > local witnesses enter the World; cov-encapsulate reports 2/2 replayed
 > ABOUT THE WITNESS — known since the 2026-07-20 design note, new fact is
 > it fails GREEN; not in the 62/79 golden by accident); F2 TamperTests
@@ -99,7 +104,9 @@ _Last updated: 2026-07-26._
 >   2026-07-27: recognizer/rewrite-if tautologies ZERO);
 >   if-finish/combined verified safe by path shape.
 > Gates: diff-test 432 match/0 FAIL; golden 62/79 ✓37/43 (header-only
-> world counts); local ci 0/0.
+> world counts); local ci 0/0. MERGED to main 2026-07-28 (local ff merge
+> under the sandbox protocol, incl. the sandbox-robustness commits; push
+> + remote-CI validation pending next networked session).
 > PENDING MDD DECISION (audit recs 4–6, NOT in this arc's scope): re-derive
 > sequencing from fresh-book data (reconstruction-first would supersede the
 > S3/S4 queue); the second non-monotone fresh-book scoreboard; extending

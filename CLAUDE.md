@@ -259,9 +259,15 @@ against it structurally:
   then. Approval is never inferred from an earlier "merge it" or from the branch being
   green; it must be given at the moment of merge, for that specific merge. Same for
   `git push`. Prefer linear history (fast-forward merges); `--no-ff` is allowed but not
-  the default. Before any superproject push, run `just check-push-ready` — the acl2
-  submodule pointer must be reachable from the fork remote (push the fork FIRST), or
-  the published main breaks every fresh checkout and CI at submodule init.
+  the default.
+  **Sandbox protocol (MDD 2026-07-28): merges gate on LOCAL `just ci`, not remote CI.**
+  Development runs inside a network-blocked sandbox, so autonomous remote-CI checks are
+  impossible: a merge to local `main` requires local `just ci` green + sign-off, nothing
+  more. Remote CI is validated at the next networked push (fix-forward if it breaks —
+  revisit the protocol if that starts happening). Pushes themselves happen outside the
+  sandbox and keep their full gate: run `just check-push-ready` (submodule pointer
+  reachable from the fork remote — push the fork FIRST — plus the remote-CI conclusion),
+  or the published main breaks every fresh checkout and CI at submodule init.
 - **Keep `TODO.md` current.** The repo-root `TODO.md` is the running backlog across
   all tracks (A: the rewriting-replay driver; B: type-set/decision-procedure
   instrumentation; and the rest of the pipeline). Update it whenever a milestone
