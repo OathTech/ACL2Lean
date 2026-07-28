@@ -2252,8 +2252,19 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             ACL2.Replay.substTerm σvars σterms r.lhs == lhsC, true)
         | none => (matched, false)
       else (matched, false)
-    let [(spec, hypV)] := matched
-      | throwError "rule {rname}: {matched.length} stored rules match \
+    let (spec, hypV) ← match matched with
+      | [m] => pure m
+      | m :: restM =>
+        -- multi-include RE-STORAGE (sorting arc 2026-07-28): one rule stored
+        -- once per include path — arithmetic-3's FOLD-CONSTS-IN-+ appears
+        -- 13× in the qsort development's (:RULES …) stream, all IDENTICAL.
+        -- Identical specs ARE one rule: take the first. Any DISTINCT
+        -- matching specs remain a hard ambiguity.
+        if restM.all (fun (r, _) => r == m.1) then pure m
+        else throwError "rule {rname}: {matched.length} DISTINCT stored \
+                    rules match substTerm(:SUBST, lhs) == {repr lhs} \
+                    (direct or EQUAL-commuted; need exactly 1)"
+      | [] => throwError "rule {rname}: 0 stored rules match \
                     substTerm(:SUBST, lhs) == {repr lhs} (direct or EQUAL-\
                     commuted; need exactly 1)"
     if prov.origin == "abbreviation-expansion" && !spec.hyps.isEmpty then

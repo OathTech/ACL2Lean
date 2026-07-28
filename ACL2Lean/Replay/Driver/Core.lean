@@ -327,6 +327,30 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         (disjoinTerm (clauseLits.map (·.2))) (disjoinTerm (newLits.map (·.2)))
       let p ← replayClauseSpineWith rec cfg ctx idStr newLits rest accClause children
       return ← evtrueWith chainOpt p
+    -- a clause-level HYP-RELIEF marker (`:ORIGIN RELIEVE-HYP/TYPE-ALIST`,
+    -- sorting arc 2026-07-28): the FOLLOWING step's rule hypothesis was
+    -- silently relieved from the type-alist — no term change (lhs == rhs,
+    -- enforced), and the relieved fact's effect on that step's rhs is
+    -- carried by the step's own recorded children (recognizer/true +
+    -- if-simplification resolving the unfolded body). Consume as a spine
+    -- no-op; any shape with lhs ≠ rhs stays a loud frontier.
+    if (runeOf n).ty == "hyp-relief" then
+      let (lhs, rhs) := nodeLhsRhs n
+      unless lhs == rhs do
+        throwError "replayClauseSpine: clause-level hyp-relief with lhs \
+                    {repr lhs} ≠ rhs {repr rhs} at {idStr} (frontier)"
+      return ← replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
+    -- clause-level SETUP-phase rewriter memos (sorting arc 2026-07-28): the
+    -- linear-pot/type-alist setup rewrites terms BEFORE the literal walk
+    -- (emitted between CLAUSIFY-OUT and the first BEGIN-LITERAL — e.g.
+    -- (ACL2-COUNT X2)'s unfold under the relieved (CONSP X2) in admission
+    -- waterfalls). They do NOT transform the clause: the literal chains
+    -- RE-RECORD and validate the same rewrites where they act (qsort *1/4's
+    -- literal 4 carries its own definition:ACL2-COUNT step). Consume as a
+    -- no-op — if a memo's effect were real and un-re-recorded, the spine's
+    -- end validation against the recorded child clauses fails loudly.
+    if (runeOf n).ty == "definition" then
+      return ← replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
     throwError "replayClauseSpine: clause-level step item (rune \
                 {repr (runeOf n)}) in the spine at {idStr} (frontier)"
   | .branch seg _ :: _ =>

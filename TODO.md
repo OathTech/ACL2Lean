@@ -140,6 +140,23 @@ _Last updated: 2026-07-28._
 > dischargeDecrease's destructor walk where a recorded proof exists).
 > msort's ACL2-COUNT-EVENS rows advanced NUMERATOR→hyp-relief-spine
 > (message-only golden churn, 0 status flips).
+> INC-1b DONE (2026-07-28): the qsort admission waterfall replays through
+> BOTH inductions — TP-lattice recognizer derivation (integerp TP ⇒
+> ¬consp, trusted-core), BINARY-+ range derivation, add-literal DEDUP
+> mirror at induction case construction (the Preprocess dedup's twin),
+> fully-dropped cases + ruling-test complement arm + definitionally-nil
+> vacuous branches (COMPLEX-RATIONALP on the complex-free space). Golden
+> BYTE-IDENTICAL.
+> INC-1c DONE (2026-07-28): spine hyp-relief markers + setup-phase
+> definition memos consumed as validated no-ops (linear-pot setup records
+> between CLAUSIFY-OUT and BEGIN-LITERAL; the literal chains re-record
+> and validate the real transformations); multi-include rule RE-STORAGE
+> dedup (13 identical FOLD-CONSTS-IN-+ specs are ONE rule; distinct
+> matches still hard-fail). msort EVENS rows advanced two more frontiers
+> (0 status flips). THE REMAINING QSORT-ADMISSION BLOCKER: proveDpFact's
+> bounded strategy (split bound 3) vs the 7-value linear-arithmetic DP
+> leaves — needs the lift-to-rational-images bridge (no shape splits);
+> then wire termination-ClauseProof replay into the totality prover.
 > (5) the equivalence lane (PERM-IMPLIES-EQUAL-ALL-REL-2, branch
 > substitution under PERM) — the genuine S3-iff/equiv item, LAST.
 > Folded in (audit rec 6): statement pins for the sorting books toward

@@ -288,7 +288,7 @@ structure RuleSpec where
       else a per-hyp list) — capture-time entries only (S1.2 2026-07-23);
       gz snapshots default `nil` until their emitter carries it. -/
   backchainLimit : SExpr := .nil
-  deriving Repr, Inhabited
+  deriving Repr, Inhabited, BEq
 
 /-- A FORWARD-CHAINING-class ground-zero rule snapshot entry
     (`(:GROUND-ZERO-FC-RULES ((rune trigger hyps concls match-free) …))`,
