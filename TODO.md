@@ -107,11 +107,42 @@ _Last updated: 2026-07-28._
 > world counts); local ci 0/0. MERGED to main 2026-07-28 (local ff merge
 > under the sandbox protocol, incl. the sandbox-robustness commits; push
 > + remote-CI validation pending next networked session).
-> PENDING MDD DECISION (audit recs 4–6, NOT in this arc's scope): re-derive
-> sequencing from fresh-book data (reconstruction-first would supersede the
-> S3/S4 queue); the second non-monotone fresh-book scoreboard; extending
-> statement pins toward one per book. Rec 7 (F6 BUG entries + acl2Count
-> rename) folded into this arc if cheap.
+
+> **SORTING-COMPLETION ARC (branch `mdd/sorting-completion`, opened
+> 2026-07-28) — IN PROGRESS; GOVERNS THE CURRENT WORK.** Target: flip the
+> 17 remaining sorting rows, qsort first. Increments in value order (from
+> the 2026-07-28 driver-coverage frontier census):
+> (1) `dischargeDecrease` beyond destructor chains — the decrease argument
+> is a DEFINED-function application (`(FILTER 'LT (CDR X) (CAR X))`), not
+> a destructor chain; blocks ORDEREDP-QSORT (the headline correctness
+> theorem) + HOW-MANY-QSORT (feeds the already-conditional PERM-QSORT).
+> (2) `replayPreprocessChain` path/lhs navigation — blocks ORDEREDP-APPEND
+> and ALL THREE sorts-equivalent capstones (MSORT-IS-ISORT,
+> QSORT-IS-ISORT, BSORT-IS-ISORT).
+> (3) type-alist spine falsity facts — ORDEREDP-MEMB, ORDERED-PERMS,
+> TRUE-LISTP-MSORT.
+> (4) singles: NUMERATOR in the builtin registry (2 msort admission-lemma
+> rows), MERGE2 TP recognizer cell, ORDEREDP-ISORT split trace.
+> (5) the equivalence lane (PERM-IMPLIES-EQUAL-ALL-REL-2, branch
+> substitution under PERM) — the genuine S3-iff/equiv item, LAST.
+> Folded in (audit rec 6): statement pins for the sorting books toward
+> one per book. Also folded in (MDD 2026-07-28): any DEFECT found en
+> route — fidelity bug, emission gap, clone hazard — is fixed IN this
+> arc, not deferred. Discipline unchanged: emitted facts only, hard-fail
+> at frontiers — where an increment needs data ACL2 didn't emit, the fix
+> is fork emission, not Lean inference.
+> MDD DECISION (2026-07-28) on audit recs 4–6: SORTING-FIRST. The target
+> remains the sorting book — the qsort proof reconstruction — and its
+> remaining blockers are named per-row replay frontiers, not the fresh-book
+> crash sites (sorting reconstructs 100%; the ProofTree crash sites fire
+> only on fresh books). Disposition: rec 4 (ProofTree.lean:339/:281) PARKED
+> until sorting completes; rec 5 adopted as a CHEAP NON-GATING instrument
+> (`just fresh-report`, run occasionally, drift visible — deferred until it
+> is the bottleneck or sorting completes); rec 6 folded into the sorting
+> arc for the sorting books specifically (statement pins toward one per
+> book — the qsort result is only worth having if it provably says what
+> qsort says). Rec 7 (F6 BUG entries + acl2Count rename) was already DONE
+> in the defect-closure arc (BUG-021 + consCount).
 
 > **Mapping arc (branch `mdd/mapping-arc`, 2026-07-22/23) — COVERAGE
 > COMPLETE at increment 8; UNMERGED.** Scope as executed (MDD
