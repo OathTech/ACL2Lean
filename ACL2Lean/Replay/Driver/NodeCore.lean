@@ -166,6 +166,32 @@ def ReplayCtx.litFactByTermChecked? (ctx : ReplayCtx) (t : SExpr)
       return some p
   return none
 
+/-- Consp EVIDENCE for a term's pinned value (G1 arc 2026-07-29): the value
+    is a SYNTACTIC cons, or the clause context holds `(consp t)` — a
+    `(not (consp t))`-falsity fact or a positive branch fact — exactly the
+    type-alist entries ACL2's type-set consults. Returns
+    `Logic.consp v = SExpr.t` (or `none`). Shared by the args-valued-TP
+    recognizer derivation and the type-set-equality cell. -/
+def conspEvidence? (ctx : ReplayCtx) (t : SExpr) (v : Expr) :
+    Lean.Meta.MetaM (Option Expr) := do
+  if v.isAppOfArity ``SExpr.cons 2 then
+    return some (← mkAppM ``logic_consp_cons_t #[v.appFn!.appArg!, v.appArg!])
+  let conspT : SExpr := .cons (.atom (.symbol { name := "CONSP" })) (.cons t .nil)
+  let vC := mkApp (mkConst ``Logic.consp) v
+  let notC : SExpr := .cons (.atom (.symbol { name := "NOT" })) (.cons conspT .nil)
+  match ← ctx.litFactByTermChecked? notC
+      (← mkEq (mkApp (mkConst ``Logic.not) vC) (mkConst ``SExpr.nil)) with
+  | some hNotNil =>
+    let hne ← mkAppM ``logic_not_nil_ne #[vC, hNotNil]
+    return some (← mkAppM ``logic_consp_ne_nil_t #[v, hne])
+  | none =>
+    match ctx.branchFacts.find? (fun (bt, _, sign, _) => bt == conspT && sign) with
+    | some (_, vB, _, hNe) =>
+      if ← isDefEq vB vC then
+        return some (← mkAppM ``logic_consp_ne_nil_t #[v, hNe])
+      else return none
+    | none => return none
+
 /-- View `(equal X X)` as `X`. -/
 def asEqualSelf : SExpr → Option SExpr
   | .cons (.atom (.symbol s)) (.cons x (.cons x' .nil)) =>
@@ -660,6 +686,50 @@ def ctxValProof (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) : MetaM Expr 
     (fun s => (ctx.varVals.find? (fun (v, _, _) => v == s)).map fun (_, v, p) => (v, p))
     t
 
+
+/-- TWO-VALUEDNESS disjunction (`v = t ∨ v = nil`) for a test term's pinned
+    value (G1 rung 1, inc-2 — the IF-headed `if1/boolean` test): quoted
+    t/nil constants, `equal`/`lexorder` values, boolean-TP fn applications,
+    and IFs with two-valued branches (recursively). `none` when no source
+    applies — the caller names the frontier (never a silent success). -/
+partial def boolDisj? (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) :
+    MetaM (Option Expr) := do
+  if t == quoteT then return some (mkConst ``t_t_or_nil)
+  if t == quoteNil then return some (mkConst ``nil_t_or_nil)
+  let v ← ctxValExpr cfg ctx t
+  if v.isAppOfArity ``Logic.equal 2 then
+    return some (← mkAppM ``logic_equal_t_or_nil #[v.appFn!.appArg!, v.appArg!])
+  if v.isAppOfArity ``ACL2.lexorder 2 then
+    return some (← mkAppM ``lexorder_boolean #[v.appFn!.appArg!, v.appArg!])
+  match t with
+  | .cons (.atom (.symbol hs)) (.cons c (.cons a (.cons b .nil))) =>
+    if hs.name == "IF" then do
+      let some ha ← boolDisj? cfg ctx a | return none
+      let some hb ← boolDisj? cfg ctx b | return none
+      let vc ← ctxValExpr cfg ctx c
+      try
+        return some (← mkAppM ``cond_t_or_nil
+          #[mkApp (mkConst ``Logic.toBool) vc, ha, hb])
+      catch _ => return none
+    else boolDisjFnTp t
+  | .cons (.atom (.symbol _)) _ => boolDisjFnTp t
+  | _ => return none
+where
+  /-- fn application with a boolean-TP hypothesis (the emitted
+      `(IF (EQUAL (fn X) 'T) 'T (EQUAL (fn X) 'NIL))` corollary shape). -/
+  boolDisjFnTp (t : SExpr) : MetaM (Option Expr) := do
+    let .cons (.atom (.symbol fs)) argsSpine := t | return none
+    let some (_, _, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
+      | return none
+    let some (formals, _) := cfg.worldVal.defs.get? fs | return none
+    let args := (argsSpine.toList?).getD []
+    unless formals.length == args.length do return none
+    let some (v, conv) := ctx.val? t | return none
+    let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+      ++ (args.map reflectSExpr).toArray ++ #[v, conv])
+    try
+      return some (← mkAppM ``tp_boolean_t_or_nil #[v, fact])
+    catch _ => return none
 
 /-- N-ary definition info (the c3 generalization of `DefInfo`). -/
 structure DefInfoN where
@@ -1473,33 +1543,13 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
                   disjunct var {fv.name} is not a formal"
             let some vk := argVals[k]?
               | throwError "replayRecognizer: args-valued TP — no value for arg {k}"
-            if vk.isAppOfArity ``SExpr.cons 2 then
-              mkAppM ``logic_consp_cons_t #[vk.appFn!.appArg!, vk.appArg!]
-            else do
-              let some argk := args[k]?
-                | throwError "replayRecognizer: args-valued TP — no arg {k}"
-              let conspArg : SExpr :=
-                .cons (.atom (.symbol { name := "CONSP" })) (.cons argk .nil)
-              let vC := mkApp (mkConst ``Logic.consp) vk
-              let notC : SExpr :=
-                .cons (.atom (.symbol { name := "NOT" })) (.cons conspArg .nil)
-              let hit ← ctx.litFactByTermChecked? notC
-                (← mkEq (mkApp (mkConst ``Logic.not) vC) (mkConst ``SExpr.nil))
-              match hit with
-              | some hNotNil => do
-                let hne ← mkAppM ``logic_not_nil_ne #[vC, hNotNil]
-                mkAppM ``logic_consp_ne_nil_t #[vk, hne]
-              | none =>
-                match ctx.branchFacts.find?
-                    (fun (t, _, sign, _) => t == conspArg && sign) with
-                | some (_, vB, _, hNe) => do
-                  unless ← isDefEq vB vC do
-                    throwError "replayRecognizer: args-valued TP of {fs.name} — \
-                        branch-fact value for {repr conspArg} mismatches"
-                  mkAppM ``logic_consp_ne_nil_t #[vk, hNe]
-                | none =>
-                  throwError "replayRecognizer: args-valued TP of {fs.name} — \
-                      no consp evidence for disjunct arg {repr argk} (frontier)"
+            let some argk := args[k]?
+              | throwError "replayRecognizer: args-valued TP — no arg {k}"
+            match ← conspEvidence? ctx argk vk with
+            | some h => pure h
+            | none =>
+              throwError "replayRecognizer: args-valued TP of {fs.name} — \
+                  no consp evidence for disjunct arg {repr argk} (frontier)"
           let some (vz, convz) := ctx.val? z
             | throwError "replayRecognizer: {repr z} has no pinned value \
                 (args-valued TP recognizer, frontier)"
@@ -2206,6 +2256,19 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             -- LEXORDER test: two-valuedness DIRECTLY from `lexorder_boolean`
             -- (a builtin boolean predicate — no TP hypothesis needed).
             mkAppM ``cond_toBool_lexorder #[vC.appFn!.appArg!, vC.appArg!]
+          else if (match c with
+                   | .cons (.atom (.symbol s)) (.cons _ (.cons _ (.cons _ .nil))) =>
+                     s.name == "IF"
+                   | _ => false) then do
+            -- IF-headed test (G1 rung 1, inc-2 — p3-conj-mid-literal):
+            -- two-valuedness derived STRUCTURALLY from the branches
+            -- (quoted constants / equal / lexorder / boolean-TP fns,
+            -- recursively through nested ifs) — the same sources ACL2's
+            -- type-set unions over the if's leaves.
+            let some hd ← boolDisj? cfg ctx c
+              | throwError "if1/boolean: IF-headed test {repr c} has a \
+                  branch with no two-valuedness source (frontier)"
+            mkAppM ``cond_toBool_of_t_or_nil #[hd]
           else do
             -- USER-FN test: two-valuedness from the fn's EMITTED
             -- :TYPE-PRESCRIPTION hypothesis (the boolean corollary shape),
@@ -2743,6 +2806,39 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     match chainOpt with
     | none => return pCore
     | some ch => mkAppM ``fuel_chain_eq #[pCore, ch]
+  | "type-set-equality", _ =>
+    -- `(equal x 'c) ⇒ 'nil` decided by ACL2's type-set on DISJOINT types
+    -- (origin equal/type-set-nil). Registered cell: the clause context
+    -- proves `(consp x)` and the quoted constant is a NON-CONS (a cons can
+    -- never equal an atom — logic_equal_nil_of_consp_t_nil). Consumed, not
+    -- inferred; anything else is a frontier.
+    unless nodeOrigin n == "equal/type-set-nil" do
+      throwError "type-set-equality: origin {nodeOrigin n} (frontier)"
+    let .cons (.atom (.symbol eqS)) (.cons x (.cons qc .nil)) := lhs
+      | throwError "type-set-equality: lhs {repr lhs} is not (equal x 'c) (frontier)"
+    unless eqS.name == "EQUAL" do
+      throwError "type-set-equality: lhs head {eqS.name} (frontier)"
+    unless rhs == quoteNil do
+      throwError "type-set-equality: rhs {repr rhs} ≠ 'nil (frontier)"
+    let .cons (.atom (.symbol q)) (.cons cv .nil) := qc
+      | throwError "type-set-equality: {repr qc} is not a quoted constant (frontier)"
+    unless q.name == "QUOTE" do
+      throwError "type-set-equality: {repr qc} is not a quoted constant (frontier)"
+    if cv matches .cons _ _ then
+      throwError "type-set-equality: constant {repr cv} is a cons — only the \
+          cons-vs-atom cell is registered (frontier)"
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx x
+    let vx ← ctxValExpr cfg ctx x
+    let some hConsp ← conspEvidence? ctx x vx
+      | throwError "type-set-equality: no consp evidence for {repr x} in the \
+          clause context (frontier)"
+    let hC ← proveByDecide
+      (← mkEq (mkApp (mkConst ``Logic.consp) (reflectSExpr cv)) (mkConst ``SExpr.nil))
+      "consp of the quoted constant is nil"
+    let hVal ← mkAppM ``logic_equal_nil_of_consp_t_nil #[hConsp, hC]
+    let pL ← ctxValProof cfg ctx lhs
+    let pR ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
+    mkAppM ``fuel_eq_of_conv #[pL, pR, hVal]
   | _, _ =>
     throwError "replayNode: no rule for rune ({rty}, {rname}) — unimplemented frontier"
 
@@ -3178,6 +3274,83 @@ def normalizeSwapsToward (cfg : ReplayConfig) (cur0 target : SExpr) :
       cur := cur'
   return (chain, cur)
 
+/-- Lift an `EvRel SIff` node proof through ONE position step, per the
+    congruence table (G1): if-THEN and if-ELSE positions preserve SIff (the
+    untaken branch relates by reflexivity — needs the test's and the other
+    branch's convergence); the if-TEST position COLLAPSES SIff to an
+    eval-equality (the lazy `if` consults only `toBool`), and so do the
+    IMPLIES argument positions (boolean-consumer rows, G1 rung 1 inc-2).
+    Returns the lifted proof and whether it is still SIff (`true`) or
+    collapsed to Eq (`false`). Any other position under an iff payload is a
+    frontier. -/
+def applyStepSIff (cfg : ReplayConfig) (ctx : ReplayCtx) (st : PathStep)
+    (inner : Expr) : MetaM (Expr × Bool) := do
+  -- a composition that does not typecheck (e.g. a branch-congruence result fed
+  -- into a test-collapse — a NESTED conditional structure) is the conditional-
+  -- congruence frontier (R1 wall d, deferred — perm-is-an-equivalence); surface
+  -- it as a CLEAN named frontier rather than leaking `mkAppM` metavariables.
+  -- The original error is PRESERVED in the message: this is still a hard-fail
+  -- (never a false pass), but if a FIXABLE bug (wrong sibling/order) — rather
+  -- than the genuine wall-d nesting — caused the failure, its text stays visible
+  -- so it is not silently misattributed to the deferred frontier.
+  let wallD : Exception → MetaM Expr := fun e => do
+    throwError "applyStepSIff: SIff branch-congruence composition unsupported for \
+      this nesting at {st.fn.name}-position {st.argIdx} (conditional-congruence — \
+      R1 wall d, deferred); underlying elaboration error: {e.toMessageData}"
+  if st.fn.name == "IMPLIES" && st.arity == 2 then
+    -- boolean-consumer COLLAPSE rows: `implies` consults only its
+    -- arguments' truthiness — SIff in either argument makes the
+    -- applications eval-EQUAL (needs the OTHER argument's convergence +
+    -- the builtin's no-shadow fact).
+    let hNo ← proveNoShadow cfg { name := "IMPLIES" }
+    match st.argIdx, st.siblings with
+    | 0, [c] =>
+      let pc ← ctxValProof cfg ctx c
+      let p ← (try mkAppM ``evrel_implies_arg1_siff_collapse #[hNo, pc, inner]
+               catch e => wallD e)
+      return (p, false)
+    | 1, [h] =>
+      let ph ← ctxValProof cfg ctx h
+      let p ← (try mkAppM ``evrel_implies_arg2_siff_collapse #[hNo, ph, inner]
+               catch e => wallD e)
+      return (p, false)
+    | _, _ => throwError "iff congruence: bad implies position {st.argIdx}"
+  unless st.fn.name == "IF" && st.arity == 3 do
+    throwError "iff congruence: position {st.fn.name}/{st.argIdx} does not \
+                propagate IFF (frontier — only if-test/branch and implies \
+                positions do)"
+  match st.argIdx, st.siblings with
+  | 0, [thn, els] =>
+    -- TEST position: SIff collapses to eval-equality. `thn`/`els` occur only
+    -- in the collapse lemma's RESULT type, so they cannot be inferred from
+    -- `inner` — supply them explicitly from the path step's siblings (the
+    -- former mkAppM metavariable failure here was misattributed to the
+    -- wall-d nesting; the lemma is fully general in the tests).
+    let p ← (try
+      mkAppOptM ``evrel_if_test_siff_collapse
+        #[none, none, none, none, some (reflectSExpr thn),
+          some (reflectSExpr els), some inner]
+      catch e => wallD e)
+    return (p, false)
+  | 1, [c, els] =>
+    -- THEN position
+    let pc ← ctxValProof cfg ctx c
+    let pels ← ctxValProof cfg ctx els
+    let p ← (try mkAppM ``evrel_if_then_congr #[mkConst ``siff_refl, pc, pels, inner]
+             catch e => wallD e)
+    return (p, true)
+  | 2, [c, thn] =>
+    -- ELSE position
+    let pc ← ctxValProof cfg ctx c
+    let pthn ← ctxValProof cfg ctx thn
+    let p ← (try mkAppM ``evrel_if_else_congr #[mkConst ``siff_refl, pc, pthn, inner]
+             catch e => wallD e)
+    return (p, true)
+  | _, _ => throwError "iff congruence: bad if position {st.argIdx}"
+
+/-- The applied step's recorded equivalence relation. -/
+def nodeEquiv : ProofNode → String | .node _ _ _ _ p => p.equiv
+
 /-- Replay a chain of rewrite nodes, lifting each through the chain's start term by
     path-directed congruence (paths relativized to `depth`) and chaining. Returns
     the composed `∃N∀f≥N, eval start = eval finalTerm` (or `none` if the chain is
@@ -3201,6 +3374,57 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         | none => return (some swapEq, finalT)
         | some rp => return (some (← mkAppM ``fuel_chain_eq #[swapEq, rp]), finalT)
       | none => pure ()
+    -- OR-SHAPE IFF node (G1 rung 1, inc-2): rewrite-if-finish's
+    -- `(if a a b) ⇒ (if a 't b)` collapse arrives `:EQUIV IFF` (the fork
+    -- labels it truthfully now — p3-conj-mid-literal). Its SIff payload is
+    -- lifted along the node's path by the R congruence table and MUST
+    -- collapse to an eval-equality at a boolean-consumer frame before the
+    -- literal root (if-test / implies positions); a root-iff literal chain
+    -- is a frontier.
+    if nodeEquiv n == "iff" && (runeOf n).ty == "if-simplification" then
+      if let .node _ _ _ [] _ := n then
+        let .cons (.atom (.symbol ifS)) (.cons a (.cons a2 (.cons bT .nil))) := lhs
+          | throwError "replayRewrites: iff if-simplification lhs {repr lhs} is \
+              not an if application (frontier)"
+        unless ifS.name == "IF" && a == a2 do
+          throwError "replayRewrites: iff if-simplification {repr lhs} is not \
+              the or-shape (if a a b) (frontier)"
+        let expectedRhs : SExpr := .cons (.atom (.symbol ifS))
+          (.cons a (.cons quoteT (.cons bT .nil)))
+        unless rhs == expectedRhs do
+          throwError "replayRewrites: iff or-shape rhs {repr rhs} is not \
+              (if a 't b) (frontier)"
+        let rel ← relativizeAndStrip (nodePath n) depth strip
+        let steps ← match pathStepsFromFrames start rel lhs with
+          | .ok s => pure s
+          | .error e => throwError "replayRewrites: iff or-shape :PATH does \
+              not navigate to the redex: {e}"
+        let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
+        let payload ← mkAppM ``evrel_siff_if_or_shape
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr bT,
+            ← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx bT,
+            ← ctxValProof cfg ctx a, ← ctxValProof cfg ctx bT]
+        let mut inner := payload
+        let mut innerIff := true
+        let mut curL := lhs
+        let mut curR := rhs
+        for st in steps.reverse do
+          if innerIff then
+            let (p, still) ← applyStepSIff cfg ctx st inner
+            inner := p
+            innerIff := still
+          else
+            inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+          curL := rebuild st curL
+          curR := rebuild st curR
+        unless curL == start do
+          throwError "replayRewrites: iff or-shape lift reconstructed \
+              {repr curL} ≠ running {repr start}"
+        if innerIff then
+          throwError "replayRewrites: or-shape iff chain still IFF at the \
+              literal root (frontier — R-parameterized literal chains)"
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR rest depth strip
+        return (some (← chainWith inner restProof), finalTerm)
     -- an if-simplification recorded as an IDENTITY (`X ⇒ X`, no children) is
     -- ambiguous: either a true no-op, or a DISPLAY-FOLDED constant-test
     -- collapse (`(if 'c a b) ⇒ branch` logged with the already-collapsed
@@ -3396,6 +3620,20 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           pure (← mkLambdaFVars #[hNil] prf, els')
         let target : SExpr := .cons (.atom (.symbol ifS))
           (.cons c (.cons thn' (.cons els' .nil)))
+        -- OR-COLLAPSE bridge frontier (G1 rung 1, inc-2): an IFF combined
+        -- node whose then-branch is the UNREWRITTEN test's copy — ACL2's
+        -- rewrite-if replaced it by 'T with no recorded step (the collapse
+        -- is guarded by `unrewritten-test == left`); replaying it needs the
+        -- test's own recorded chain re-composed at the sub-position (the
+        -- chainPrefix plumbing, queued — p3-conj-mid-literal's flip).
+        if prov.equiv == "iff" && thn' != quoteT then
+          if let some pc0 := postCh.head? then
+            let (pcLhs, _) := nodeLhsRhs pc0
+            if pcLhs == .cons (.atom (.symbol ifS))
+                (.cons c (.cons quoteT (.cons els' .nil))) then
+              throwError "if-finish/combined: or-collapse bridge — the then \
+                  branch {repr thn'} is the unrewritten test's copy, replaced \
+                  by 'T with no recorded step (G1 rung-1 frontier)"
         -- whole-if finishing steps apply AFTER the branch congruence, on the
         -- rebuilt if
         let (postOpt, final) ← replayRewritesWith rec cfg ctx target postCh depth strip'

@@ -21,7 +21,7 @@ Driver coverage — REPLAYED 63/79 (29 unconditional + 34 conditional); DP-disch
     LINEAR-CHAIN → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau-contradiction ✓]
 • 04-multi-case-induction  (world: 12 defun(s), 2 theorem(s))
     EVENLEN-BOOLEANP → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(EVENLEN X), tp:EVENLEN]]
-    CLASSIFY-POS → FAIL: replayNode: no rule for rune (type-set-equality, NIL) — unimplemented frontier
+    CLASSIFY-POS → FAIL: type-set-equality: no consp evidence for N in the clause context (frontier)
 • 05-hints  (world: 12 defun(s), 4 theorem(s))
     LEN2-APP-HELPER → REPLAYED ✓ cond[tp:LEN2]
     LEN2-APP-VIA-USE → FAIL: replayPreprocessChain: node lhs 'T does not occur in the current term (EQUAL (LEN2 (APP (CONS A B) Y)) (BINARY-+ '1 (BINARY-+ (LEN2 B) (LEN2 Y))))

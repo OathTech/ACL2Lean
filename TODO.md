@@ -119,6 +119,33 @@ _Last updated: 2026-07-29._
 > p3-conj or-shape tripwire, which also first-validates the conjunction
 > composer's mid-literal arm); rung 2 = perm (bootstrap-DAG check on the
 > real logs, then PERM-IMPLIES-EQUAL-ALL-REL-2, then ORDEREDP-QSORT).
+> INC-2a DONE (2026-07-29): the OR-SHAPE IFF STEP replays end-to-end
+> (zero status flips; 63/79, 29u). (a) FORK (acl2 2265010346): the
+> rewrite-if-finish combined step's or-shape collapse ((IF a a b) ⇒
+> (IF a 'T b), rewritten-left := *t*, geneqv-iff-guarded) was emitted
+> :EQUIV EQUAL — a fidelity MISLABEL caught by the p3-conj tripwire; the
+> :equiv now recomputes the guard (iff exactly when the collapse fired);
+> recapture-all at 2265010346. (b) applyStepSIff MOVED to NodeCore and
+> extended with the IMPLIES arg-1/2 COLLAPSE rows
+> (evrel_implies_arg1/2_siff_collapse — boolean consumers make SIff
+> arguments eval-EQUAL); the or-shape node's SIff payload
+> (evrel_siff_if_or_shape) lifts along its :PATH and MUST collapse at a
+> boolean-consumer frame before the literal root (root-iff chains are a
+> named frontier — the full R-threading of literal chains stays queued).
+> (c) the TYPE-SET-EQUALITY node class (equal/type-set-nil): the
+> cons-vs-atom disjointness cell (logic_equal_nil_of_consp_t_nil),
+> consp evidence via the shared conspEvidence? helper (dedup with the
+> args-valued-TP derivation). (d) if1/boolean extended to IF-HEADED
+> tests: two-valuedness derived STRUCTURALLY from the branches
+> (boolDisj?: quoted constants / equal / lexorder / boolean-TP fns,
+> recursive; cond_toBool_of_t_or_nil). p3-conj-mid-literal advanced
+> FOUR frontiers and now sits at the named OR-COLLAPSE BRIDGE frontier:
+> the combined node's then-branch is the unrewritten test's copy
+> replaced by 'T with no recorded step — replaying it needs the test's
+> recorded chain re-composed at the sub-position (the chainPrefix
+> plumbing; NEXT). ORDEREDP-APPEND's frontier (LEXORDER-TRANSITIVE
+> type-alist relief, :TA-RUNES [LEXORDER]) is the other open rung-1
+> item.
 > INC-1 DONE (2026-07-29): the IFF-UNFOLD EMISSION GAP + four walker
 > advances, zero status flips (63/79, 29u — golden message-only census:
 > ORDEREDP-APPEND advanced 5 frontiers to the LEXORDER-TRANSITIVE

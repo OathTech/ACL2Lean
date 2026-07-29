@@ -123,58 +123,10 @@ def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
   mkAppM ``evrel_siff_if_t_nil
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr rhs, vA, pA]
 
-/-- Lift an `EvRel SIff` node proof through ONE position step, per the
-    congruence table (G1): if-THEN and if-ELSE positions preserve SIff (the
-    untaken branch relates by reflexivity — needs the test's and the other
-    branch's convergence); the if-TEST position COLLAPSES SIff to an
-    eval-equality (the lazy `if` consults only `toBool`). Returns the lifted
-    proof and whether it is still SIff (`true`) or collapsed to Eq (`false`).
-    Any other position under an iff payload is a frontier. -/
-def applyStepSIff (cfg : ReplayConfig) (ctx : ReplayCtx) (st : PathStep)
-    (inner : Expr) : MetaM (Expr × Bool) := do
-  unless st.fn.name == "IF" && st.arity == 3 do
-    throwError "iff congruence: position {st.fn.name}/{st.argIdx} does not \
-                propagate IFF (frontier — only if-test/branch positions do)"
-  -- a composition that does not typecheck (e.g. a branch-congruence result fed
-  -- into a test-collapse — a NESTED conditional structure) is the conditional-
-  -- congruence frontier (R1 wall d, deferred — perm-is-an-equivalence); surface
-  -- it as a CLEAN named frontier rather than leaking `mkAppM` metavariables.
-  -- The original error is PRESERVED in the message: this is still a hard-fail
-  -- (never a false pass), but if a FIXABLE bug (wrong sibling/order) — rather
-  -- than the genuine wall-d nesting — caused the failure, its text stays visible
-  -- so it is not silently misattributed to the deferred frontier.
-  let wallD : Exception → MetaM Expr := fun e => do
-    throwError "applyStepSIff: SIff branch-congruence composition unsupported for \
-      this nesting at if-position {st.argIdx} (conditional-congruence — R1 wall d, \
-      deferred); underlying elaboration error: {e.toMessageData}"
-  match st.argIdx, st.siblings with
-  | 0, [thn, els] =>
-    -- TEST position: SIff collapses to eval-equality. `thn`/`els` occur only
-    -- in the collapse lemma's RESULT type, so they cannot be inferred from
-    -- `inner` — supply them explicitly from the path step's siblings (the
-    -- former mkAppM metavariable failure here was misattributed to the
-    -- wall-d nesting; the lemma is fully general in the tests).
-    let p ← (try
-      mkAppOptM ``evrel_if_test_siff_collapse
-        #[none, none, none, none, some (reflectSExpr thn),
-          some (reflectSExpr els), some inner]
-      catch e => wallD e)
-    return (p, false)
-  | 1, [c, els] =>
-    -- THEN position
-    let pc ← ctxValProof cfg ctx c
-    let pels ← ctxValProof cfg ctx els
-    let p ← (try mkAppM ``evrel_if_then_congr #[mkConst ``siff_refl, pc, pels, inner]
-             catch e => wallD e)
-    return (p, true)
-  | 2, [c, thn] =>
-    -- ELSE position
-    let pc ← ctxValProof cfg ctx c
-    let pthn ← ctxValProof cfg ctx thn
-    let p ← (try mkAppM ``evrel_if_else_congr #[mkConst ``siff_refl, pc, pthn, inner]
-             catch e => wallD e)
-    return (p, true)
-  | _, _ => throwError "iff congruence: bad if position {st.argIdx}"
+/-! `applyStepSIff` — the one-step R congruence table — moved to
+    `NodeCore.lean` (G1 rung 1, inc-2): the literal-chain walker
+    (`replayRewritesWith`) lifts or-shape SIff payloads with it, and
+    NodeCore is upstream of this module. -/
 
 /-- Replay a preprocess chain's CORE: the composed relation between the
     formula and the final term — `(proof, isIff)` where the proof is the

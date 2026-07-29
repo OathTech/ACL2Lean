@@ -3908,6 +3908,44 @@ theorem tp_cond_boolean_t (v : SExpr) {X : SExpr}
     have h2 : (v == SExpr.nil) = false := beq_eq_false_iff_ne.mpr hne
     simp [Logic.equal, Logic.toBool, h1, h2, SExpr.t] at h
 
+/-! Two-valuedness DISJUNCTION sources (G1 rung 1, inc-2 — the IF-headed
+    `if1/boolean` test derives booleanness structurally from its branches). -/
+
+theorem logic_equal_t_or_nil (a b : SExpr) :
+    Logic.equal a b = SExpr.t ∨ Logic.equal a b = SExpr.nil := by
+  by_cases h : a == b <;> simp [Logic.equal, h]
+
+/-- The boolean-TP corollary fact as a disjunction. -/
+theorem tp_boolean_t_or_nil (v : SExpr) {X : SExpr}
+    (h : cond (Logic.toBool (Logic.equal v SExpr.t)) X (Logic.equal v SExpr.nil)
+         = SExpr.t) :
+    v = SExpr.t ∨ v = SExpr.nil := by
+  by_cases hv : v = SExpr.t
+  · exact Or.inl hv
+  · refine Or.inr ?_
+    by_cases h2 : v = SExpr.nil
+    · exact h2
+    · have h1 : (v == SExpr.t) = false := beq_eq_false_iff_ne.mpr hv
+      have h2' : (v == SExpr.nil) = false := beq_eq_false_iff_ne.mpr h2
+      simp [Logic.equal, Logic.toBool, h1, h2', SExpr.t] at h
+
+/-- An if with two-valued branches is two-valued. -/
+theorem cond_t_or_nil {x y : SExpr} (b : Bool)
+    (hx : x = SExpr.t ∨ x = SExpr.nil) (hy : y = SExpr.t ∨ y = SExpr.nil) :
+    cond b x y = SExpr.t ∨ cond b x y = SExpr.nil := by
+  cases b
+  · simpa using hy
+  · simpa using hx
+
+/-- The `if1/boolean` closer from a two-valuedness disjunction. -/
+theorem cond_toBool_of_t_or_nil {v : SExpr}
+    (h : v = SExpr.t ∨ v = SExpr.nil) :
+    cond (Logic.toBool v) SExpr.t SExpr.nil = v := by
+  rcases h with h | h <;> simp [h, Logic.toBool, SExpr.t]
+
+theorem t_t_or_nil : SExpr.t = SExpr.t ∨ SExpr.t = SExpr.nil := Or.inl rfl
+theorem nil_t_or_nil : SExpr.nil = SExpr.t ∨ SExpr.nil = SExpr.nil := Or.inr rfl
+
 /-- `lexorder` is BOOLEAN-VALUED: every branch returns `.t` or `.nil` (it is
     ACL2's total-order predicate). By `fun_induction` on `lexorder`'s own case
     structure: each leaf is a literal `.t`/`.nil` or an `if _ then .t else .nil`
@@ -4441,6 +4479,89 @@ theorem evrel_if_test_siff_collapse {w : World} {env : Env} {c c' thn els : SExp
         evalOpt_if_true g w env c' thn els v hv
           (toBool_true_of_ne_nil (fun hnv => hnu (Iff.mpr huv hnv)))]
 
+/-- SIff toBool transport: truthiness-equivalent values have equal `toBool`. -/
+theorem siff_toBool_eq {u v : SExpr} (h : SIff u v) :
+    Logic.toBool u = Logic.toBool v := by
+  cases u <;> cases v <;> simp_all [SIff, Logic.toBool]
+
+/-- The OR-SHAPE normalization (G1 rung 1, inc-2): `(if a a b) ⇒ (if a 't b)`
+    is IFF-only — when `a` is truthy the sides value `va` vs `t` (truthiness
+    agrees); when nil both take `b`. The `rewrite-if-finish` collapse the
+    fork now labels `:EQUIV IFF` (p3-conj-mid-literal). -/
+theorem evrel_siff_if_or_shape (w : World) (env : Env) (a b va vb : SExpr)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some vb) :
+    EvRel SIff w env
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons a (.cons a (.cons b .nil))))
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons a (.cons
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+          (.cons b .nil)))) := by
+  obtain ⟨n1, ha⟩ := ha; obtain ⟨n2, hb⟩ := hb
+  refine ⟨n1 + n2 + 2, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  have hag := ha g (by omega)
+  by_cases hv : va = SExpr.nil
+  · refine ⟨vb, vb, ?_, ?_, siff_refl vb⟩
+    · rw [evalOpt_if_false g w env a a b (by rw [hag, hv])]
+      exact hb g (by omega)
+    · rw [evalOpt_if_false g w env a _ b (by rw [hag, hv])]
+      exact hb g (by omega)
+  · refine ⟨va, SExpr.t, ?_, ?_, by simp [SIff, hv, SExpr.t]⟩
+    · rw [evalOpt_if_true g w env a a b va hag (toBool_true_of_ne_nil hv)]
+      exact ha g (by omega)
+    · rw [evalOpt_if_true g w env a _ b va hag (toBool_true_of_ne_nil hv)]
+      obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
+      simp [evalOpt, evalOptStep, Symbol.isNamed]
+
+/-- COLLAPSE row (implies, CONSEQUENT position, SIff-in → Eq-out):
+    `implies` consults only its arguments' truthiness, so an iff-related
+    consequent makes the applications eval-EQUAL — the boolean-consumer
+    sibling of the if-test collapse. -/
+theorem evrel_implies_arg2_siff_collapse {w : World} {env : Env}
+    {h c c' vh : SExpr}
+    (hNo : w.defs.get? { name := "IMPLIES" } = none)
+    (hh : ∃ N, ∀ f ≥ N, evalOpt f w env h = some vh)
+    (hcc' : EvRel SIff w env c c') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "IMPLIES" }))
+        (.cons h (.cons c .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "IMPLIES" }))
+        (.cons h (.cons c' .nil))) := by
+  obtain ⟨n1, hh⟩ := hh; obtain ⟨n2, hcc'⟩ := hcc'
+  refine ⟨n1 + n2 + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  obtain ⟨u, v, hcu, hcv, huv⟩ := hcc' g (by omega)
+  rw [evalOpt_builtin_2 g w env { name := "IMPLIES" } h c vh u
+        (by simp [Symbol.isNamed]) hNo (hh g (by omega)) hcu,
+      evalOpt_builtin_2 g w env { name := "IMPLIES" } h c' vh v
+        (by simp [Symbol.isNamed]) hNo (hh g (by omega)) hcv,
+      callBuiltin_implies, callBuiltin_implies,
+      logic_implies_cond, logic_implies_cond, siff_toBool_eq huv]
+
+/-- COLLAPSE row (implies, ANTECEDENT position, SIff-in → Eq-out). -/
+theorem evrel_implies_arg1_siff_collapse {w : World} {env : Env}
+    {h h' c vc : SExpr}
+    (hNo : w.defs.get? { name := "IMPLIES" } = none)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some vc)
+    (hhh' : EvRel SIff w env h h') :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "IMPLIES" }))
+        (.cons h (.cons c .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "IMPLIES" }))
+        (.cons h' (.cons c .nil))) := by
+  obtain ⟨n1, hc⟩ := hc; obtain ⟨n2, hhh'⟩ := hhh'
+  refine ⟨n1 + n2 + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  obtain ⟨u, v, hhu, hhv, huv⟩ := hhh' g (by omega)
+  rw [evalOpt_builtin_2 g w env { name := "IMPLIES" } h c u vc
+        (by simp [Symbol.isNamed]) hNo hhu (hc g (by omega)),
+      evalOpt_builtin_2 g w env { name := "IMPLIES" } h' c v vc
+        (by simp [Symbol.isNamed]) hNo hhv (hc g (by omega)),
+      callBuiltin_implies, callBuiltin_implies,
+      logic_implies_cond, logic_implies_cond, siff_toBool_eq huv]
+
 /-- MODUS PONENS at the value level: a truthy `Logic.implies` with a truthy
     antecedent has a truthy consequent (the rule:<thm> discharge's
     hypothesis-consumption step). -/
@@ -4487,6 +4608,22 @@ def EvTrue (w : World) (env : Env) (t : SExpr) : Prop :=
 /-- `(consp (cons a b)) = t` — the syntactic-cons disjunct evidence. -/
 theorem logic_consp_cons_t (a b : SExpr) :
     Logic.consp (SExpr.cons a b) = SExpr.t := rfl
+
+/-- Type-set DISJOINTNESS decode (G1 rung 1, inc-2): a cons can never
+    `equal` a non-cons — the value fact behind ACL2's
+    `(:TYPE-SET-EQUALITY NIL)` verdict `(equal x 'c) ⇒ 'nil` when the
+    clause context types `x` as a cons and `'c` is an atom. -/
+theorem logic_equal_nil_of_consp_t_nil {v c : SExpr}
+    (hv : Logic.consp v = SExpr.t) (hc : Logic.consp c = SExpr.nil) :
+    Logic.equal v c = SExpr.nil := by
+  cases v with
+  | cons x y =>
+    cases c with
+    | cons a b => simp [Logic.consp, SExpr.t] at hc
+    | nil => simp [Logic.equal]
+    | atom a => simp [Logic.equal]
+  | nil => simp [Logic.consp, SExpr.t] at hv
+  | atom a => simp [Logic.consp, SExpr.t] at hv
 
 /-- The DISJUNCTIVE-CONS TP decode, 2 disjuncts (G1 arc 2026-07-29): a
     truthy args-valued TP fact `(if (consp v) 't (equal v y))` with `y`
