@@ -23,7 +23,7 @@ open ACL2 ACL2.Replay Lean Lean.Meta
       continuation — or, for an EMPTY continuation, peel the pushed sibling
       clause down to the surviving literal and bridge it back. -/
 partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
-    (lp : LiteralProof) (chainOpt : Option Expr) (clauseLit : SExpr)
+    (lp : LiteralProof) (chainOpt : Option (Expr × Bool)) (clauseLit : SExpr)
     (restLits : List (Nat × SExpr)) (branches : List (SExpr × List ClauseItem))
     (accClause : List SExpr) (children : List ClauseNode)
     (facts : List (SExpr × Expr × Bool × Expr)) (tree : TraceTree) :
@@ -155,15 +155,36 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let fullChain ← match chainOpt, collapseOpt with
       | none, none => pure none
       | some c, none => pure (some c)
-      | none, some c => pure (some c)
-      | some c1, some c2 => pure (some (← mkAppM ``fuel_chain_eq #[c1, c2]))
+      | none, some c => pure (some ((c, false) : Expr × Bool))
+      | some (c1, false), some c2 =>
+        pure (some (← mkAppM ``fuel_chain_eq #[c1, c2], false))
+      | some (c1, true), some c2 => do
+        -- append the eq collapse to an IFF literal chain (inject via the
+        -- leaf value's convergence — G1 inc-2b)
+        let pLeaf ← ctxValProof cfg ctx value
+        let c2S ← mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, c2, pLeaf]
+        pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, c1, c2S], true))
     let restTerm := disjoinTerm (restLits.map (·.2))
     if outcome == "dropped" then
       -- the literal is TRUE on this path: eval lit ≡ eval 't → close
       unless value == quoteT do
         throwError "composeSplit: dropped leaf value {repr value} ≠ 't at {idStr}"
-      let some ch := fullChain
+      let some (ch, chIff) := fullChain
         | throwError "composeSplit: dropped leaf with no chain at {idStr}"
+      if chIff then
+        -- IFF chain to 't: backward truth transport; a truthy literal
+        -- closes the disjunction at its position (G1 inc-2b)
+        let pEvLit ← mkAppM ``evtrue_of_evrel_siff
+          #[ch, ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]]
+        if restLits.isEmpty then
+          return pEvLit
+        else
+          let vLit ← ctxValExpr cfg ctx clauseLit
+          let pLit ← ctxValProof cfg ctx clauseLit
+          let _ := vLit
+          let hTrue ← mkAppM ``ne_nil_of_evtrue_conv #[pEvLit, pLit]
+          return ← evtrueOfLitTrue cfg ctx (clauseLit :: restLits.map (·.2)) 0
+            clauseLit hTrue
       let pclose ← mkAppM ``fuel_conv_of_eq #[ch, ← quoteTFact cfg]
       if restLits.isEmpty then
         mkAppM ``evtrue_of_eq_t #[pclose]
@@ -287,7 +308,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           throwError "composeSplit: no falsity fact for the residual \
                       literal {repr L} at {idStr}"
       -- p : EvTrue(value); bridge back to the literal
-      evtrueWith fullChain p
+      evtrueWithR fullChain p
     else
       -- SEGMENT leaf: split on the literal's value
       let vLit ← ctxValExpr cfg ctx clauseLit
@@ -300,10 +321,13 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         -- the leaf value's falsity, bridged along the full chain
         let hLeafNil ← match fullChain with
           | none => pure h
-          | some ch => do
+          | some (ch, false) => do
             let pLeaf ← ctxValProof cfg ctx value
             let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLeaf]
             mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
+          | some (ch, true) => do
+            let pLeaf ← ctxValProof cfg ctx value
+            mkAppM ``siff_val_nil_transport #[ch, pLit, pLeaf, h]
         -- a segment literal's falsity, derivable from the path facts / the
         -- leaf fact (if-interp's convert-assumptions-to-clause-segment)
         let deriveFalsity (L : SExpr) : MetaM (Option Expr) := do
@@ -370,7 +394,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                 throwError "composeSplit: no falsity fact for the residual \
                             literal {repr L} at {idStr}"
             -- p : EvTrue(value); bridge to the literal and refute h
-            let pLitTrue ← evtrueWith fullChain p
+            let pLitTrue ← evtrueWithR fullChain p
             let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[pLitTrue, pLit]
             let goalTy ← mkAppM ``EvTrue #[w, e, reflectSExpr restTerm]
             mkAppOptM ``absurd #[none, some goalTy, some h, some hNe]
@@ -387,10 +411,13 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             -- litFacts under its index, exactly as on the non-split path
             let hResultNil ← match chainOpt with
               | none => pure h
-              | some ch => do
+              | some (ch, false) => do
                 let pLit' ← ctxValProof cfg ctx lp.result
                 let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLit']
                 mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
+              | some (ch, true) => do
+                let pLit' ← ctxValProof cfg ctx lp.result
+                mkAppM ``siff_val_nil_transport #[ch, pLit, pLit', h]
             let ctx' := { ctx with
               litFacts := ctx.litFacts ++ [(lp.index, lp.result, hResultNil)],
               segFacts := ctx.segFacts ++ segL.zip segProofs }

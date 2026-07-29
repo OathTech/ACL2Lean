@@ -496,8 +496,14 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         -- rewrite-equal's unrecorded NIL normalization at the chain end
         match ← bridgeEqualNilNorm cfg ctx finalT lp.result with
         | some br => match chainOpt with
-          | none => pure (some br)
-          | some ch => pure (some (← mkAppM ``fuel_chain_eq #[ch, br]))
+          | none => pure (some ((br, false) : Expr × Bool))
+          | some (ch, false) =>
+            pure (some (← mkAppM ``fuel_chain_eq #[ch, br], false))
+          | some (ch, true) => do
+            -- append the eq bridge to an IFF chain (G1 inc-2b)
+            let pConv ← ctxValProof cfg ctx lp.result
+            let brS ← mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, br, pConv]
+            pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, ch, brS], true))
         | none =>
           throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
                       at {idStr}, recorded result is {repr lp.result}"
@@ -631,12 +637,19 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             let hCond ← mkAppM ``cond_true_val
               #[vR, mkConst ``SExpr.nil, hbT]
             let pRes ← ctxValProof cfg ctx lp.result
-            let some ch := chainOpt
+            let some (ch, chIff) := chainOpt
               | throwError "replayClauseSpine: conjunction literal without a \
                   rewrite chain at {idStr} (internal)"
-            let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pRes]
-            let hEq2 ← mkAppM ``Eq.trans #[vEq, hCond]
-            let hNe ← mkAppM ``ne_nil_of_eq #[hEq2, hRne]
+            let hNe ←
+              if chIff then do
+                -- IFF chain: the result's truthy AND-value transports back
+                -- through the SIff contrapositive (G1 inc-2b)
+                let hResNe ← mkAppM ``ne_nil_of_eq #[hCond, hRne]
+                mkAppM ``siff_val_ne_nil_transport #[ch, pLit, pRes, hResNe]
+              else do
+                let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pRes]
+                let hEq2 ← mkAppM ``Eq.trans #[vEq, hCond]
+                mkAppM ``ne_nil_of_eq #[hEq2, hRne]
             return ← mkAppM ``evtrue_of_conv_ne_nil #[pLit, hNe]
           let restTerm := disjoinTerm (restLits.map (·.2))
           let neTy ← mkAppM ``Ne #[vLit, mkConst ``SExpr.nil]
@@ -646,14 +659,18 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             mkLambdaFVars #[h] p
           let eqTy ← mkEq vLit (mkConst ``SExpr.nil)
           let helse ← withLocalDeclD `h eqTy fun h => do
-            let some ch := chainOpt
+            let some (ch, chIff) := chainOpt
               | throwError "replayClauseSpine: conjunction literal without \
                   a rewrite chain at {idStr} (internal)"
             let vRes ← ctxValExpr cfg ctx lp.result
             let pRes ← ctxValProof cfg ctx lp.result
-            let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pRes]
             -- hRes : v(IF L R 'NIL) = nil, i.e. cond (toBool vL) vR nil = nil
-            let hRes ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
+            let hRes ←
+              if chIff then
+                mkAppM ``siff_val_nil_transport #[ch, pLit, pRes, h]
+              else do
+                let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pRes]
+                mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
             let vL ← ctxValExpr cfg ctx L
             let branch (conjTerm : SExpr) (conjNil : Expr)
                 (cont : List ClauseItem) (segL : List SExpr) : MetaM Expr := do
@@ -717,7 +734,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                           literal {repr L} at {idStr}"
           pure hf
         -- p : EvTrue(lp.result) — bridge to the pre-rewrite literal
-        return ← evtrueWith chainOpt p
+        return ← evtrueWithR chainOpt p
       -- split on the literal's value
       let vLit ← ctxValExpr cfg ctx lp.literal
       let pLit ← ctxValProof cfg ctx lp.literal
@@ -732,12 +749,16 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         let (factTerm, factProof) ←
           match chainOpt with
           | none => pure (lp.literal, h)
-          | some ch => do
+          | some (ch, false) => do
             -- bridge the falsity to the post-rewrite literal
             let _vLit' ← ctxValExpr cfg ctx lp.result
             let pLit' ← ctxValProof cfg ctx lp.result
             let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pLit']
             pure (lp.result, ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h])
+          | some (ch, true) => do
+            let pLit' ← ctxValProof cfg ctx lp.result
+            pure (lp.result,
+              ← mkAppM ``siff_val_nil_transport #[ch, pLit, pLit', h])
         let ctx' := { ctx with litFacts := ctx.litFacts ++ [(idx, factTerm, factProof)] }
         let accClause' := accClause ++ segLits.filter (!accClause.contains ·)
         let p ← replayClauseSpineWith rec cfg ctx' idStr restLits contItems accClause' children

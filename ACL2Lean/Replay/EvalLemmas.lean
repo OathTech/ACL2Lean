@@ -4515,6 +4515,41 @@ theorem evrel_siff_if_or_shape (w : World) (env : Env) (a b va vb : SExpr)
       obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
       simp [evalOpt, evalOptStep, Symbol.isNamed]
 
+/-- The OR-COLLAPSE BRIDGE (G1 rung 1, inc-2b): rewrite-if replaced the
+    then-branch — the UNREWRITTEN test's copy `A` — by `'T` with no
+    recorded step; with the test's own recorded chain `eval A = eval X`
+    re-composed on the then-copy, the collapse is an SIff step: truthy `X`
+    values the sides `vX` vs `t` (truthiness agrees), nil `X` takes `B` on
+    both. -/
+theorem evrel_siff_if_or_bridge (w : World) (env : Env) (X A B vX vB : SExpr)
+    (hAX : ∃ N, ∀ f ≥ N, evalOpt f w env A = evalOpt f w env X)
+    (hX : ∃ N, ∀ f ≥ N, evalOpt f w env X = some vX)
+    (hB : ∃ N, ∀ f ≥ N, evalOpt f w env B = some vB) :
+    EvRel SIff w env
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons X (.cons A (.cons B .nil))))
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons X (.cons
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+          (.cons B .nil)))) := by
+  obtain ⟨n1, hAX⟩ := hAX; obtain ⟨n2, hX⟩ := hX; obtain ⟨n3, hB⟩ := hB
+  refine ⟨n1 + n2 + n3 + 2, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  have hXg := hX g (by omega)
+  by_cases hv : vX = SExpr.nil
+  · refine ⟨vB, vB, ?_, ?_, siff_refl vB⟩
+    · rw [evalOpt_if_false g w env X A B (by rw [hXg, hv])]
+      exact hB g (by omega)
+    · rw [evalOpt_if_false g w env X _ B (by rw [hXg, hv])]
+      exact hB g (by omega)
+  · refine ⟨vX, SExpr.t, ?_, ?_, by simp [SIff, hv, SExpr.t]⟩
+    · rw [evalOpt_if_true g w env X A B vX hXg (toBool_true_of_ne_nil hv)]
+      rw [hAX g (by omega)]
+      exact hX g (by omega)
+    · rw [evalOpt_if_true g w env X _ B vX hXg (toBool_true_of_ne_nil hv)]
+      obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
+      simp [evalOpt, evalOptStep, Symbol.isNamed]
+
 /-- COLLAPSE row (implies, CONSEQUENT position, SIff-in → Eq-out):
     `implies` consults only its arguments' truthiness, so an iff-related
     consequent makes the applications eval-EQUAL — the boolean-consumer
@@ -4561,6 +4596,34 @@ theorem evrel_implies_arg1_siff_collapse {w : World} {env : Env}
         (by simp [Symbol.isNamed]) hNo hhv (hc g (by omega)),
       callBuiltin_implies, callBuiltin_implies,
       logic_implies_cond, logic_implies_cond, siff_toBool_eq huv]
+
+/-- Transport a NIL value across an SIff chain (both endpoints pinned) —
+    the spine's falsity bridge for an IFF literal chain (G1 inc-2b). -/
+theorem siff_val_nil_transport {w : World} {env : Env} {a b va vb : SExpr}
+    (hab : EvRel SIff w env a b)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some vb)
+    (hnil : va = SExpr.nil) : vb = SExpr.nil := by
+  obtain ⟨n1, hab⟩ := hab; obtain ⟨n2, ha⟩ := ha; obtain ⟨n3, hb⟩ := hb
+  obtain ⟨u, v, hau, hbv, huv⟩ := hab (n1 + n2 + n3) (by omega)
+  have hu : u = va := Option.some.inj (hau.symm.trans (ha (n1 + n2 + n3) (by omega)))
+  have hv : v = vb := Option.some.inj (hbv.symm.trans (hb (n1 + n2 + n3) (by omega)))
+  rw [hu, hv] at huv
+  exact huv.mp hnil
+
+/-- The reverse transport: a truthy chain-END value makes the START truthy
+    (the SIff contrapositive; the conjunction composer's close). -/
+theorem siff_val_ne_nil_transport {w : World} {env : Env} {a b va vb : SExpr}
+    (hab : EvRel SIff w env a b)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some vb)
+    (hvb : vb ≠ SExpr.nil) : va ≠ SExpr.nil := by
+  obtain ⟨n1, hab⟩ := hab; obtain ⟨n2, ha⟩ := ha; obtain ⟨n3, hb⟩ := hb
+  obtain ⟨u, v, hau, hbv, huv⟩ := hab (n1 + n2 + n3) (by omega)
+  have hu : u = va := Option.some.inj (hau.symm.trans (ha (n1 + n2 + n3) (by omega)))
+  have hv : v = vb := Option.some.inj (hbv.symm.trans (hb (n1 + n2 + n3) (by omega)))
+  rw [hu, hv] at huv
+  exact fun hva => hvb (huv.mp hva)
 
 /-- MODUS PONENS at the value level: a truthy `Logic.implies` with a truthy
     antecedent has a truthy consequent (the rule:<thm> discharge's
