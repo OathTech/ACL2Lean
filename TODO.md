@@ -198,6 +198,13 @@ _Last updated: 2026-07-28._
 > others-false forces L from child1 and R from child2, so the literal's
 > cond-value is truthy); rows blocked: ORDEREDP-QSORT (the headline),
 > ORDEREDP-ISORT.
+> INC-2a DONE (2026-07-29): the AND-SHAPE CONJUNCTION COMPOSER — both
+> spine positions (mid-literal: value-cases dispatch to the branch
+> continuations under the forced-nil conjunct's fact; LAST literal: both
+> pushed children peeled to their conjuncts' truth, the AND-value truthy
+> via cond_true_val). ORDEREDP-ISORT FLIPS (63/79); ORDEREDP-QSORT
+> advances to the PERM equivalence lane (the planned-LAST increment-5
+> class, joining PERM-IMPLIES-EQUAL-ALL-REL-2).
 > INC-1c DONE (2026-07-28): spine hyp-relief markers + setup-phase
 > definition memos consumed as validated no-ops (linear-pot setup records
 > between CLAUSIFY-OUT and BEGIN-LITERAL; the literal chains re-record

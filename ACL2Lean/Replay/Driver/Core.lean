@@ -556,6 +556,114 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         | [] =>
           throwError "replayClauseSpine: non-closing literal {idx} with no \
                       continuation branch at {idStr} (frontier)"
+        | [(segA, contA), (segB, contB)] => do
+          -- AND-SHAPE conjunction strip (inc-2a, sorting arc 2026-07-29 —
+          -- recon from the real ORDEREDP-ISORT record): the literal's
+          -- rewritten result is `(IF L R 'NIL)` clausified by
+          -- STRIP-BRANCHES/AND-SHAPE into TWO segment-open branches
+          -- `[L]`/`[R]` with NO if-interp split test. Compose by value
+          -- cases: the parent literal nil forces ONE conjunct nil (the
+          -- left directly, or the right under a truthy left —
+          -- `cond_true_nil_forces_r`), and that branch's continuation
+          -- (walked under its segment-false fact) carries the rest.
+          let (ifS, L, R) ← match lp.result with
+            | .cons (.atom (.symbol ifS))
+                (.cons L (.cons R (.cons e .nil))) =>
+              if ifS.name == "IF" && e == quoteNil then pure (ifS, L, R)
+              else throwError "replayClauseSpine: 2 branches on literal \
+                {idx} but the result is not an AND-shape at {idStr} \
+                (frontier)"
+            | _ => throwError "replayClauseSpine: 2 branches on literal \
+                {idx} but the result is not an AND-shape at {idStr} \
+                (frontier)"
+          let _ := ifS
+          let segLitsOf (s : SExpr) : MetaM (List SExpr) := do
+            let some l := s.toList?
+              | throwError "replayClauseSpine: conjunction branch segment \
+                  {repr s} is not a list at {idStr}"
+            pure l
+          let sA ← segLitsOf segA
+          let sB ← segLitsOf segB
+          let (contL, contR, segLLits, segRLits) ←
+            if sA == [L] && sB == [R] then pure (contA, contB, sA, sB)
+            else if sA == [R] && sB == [L] then pure (contB, contA, sB, sA)
+            else throwError "replayClauseSpine: conjunction branch segments \
+                {repr sA} / {repr sB} ≠ the AND-shape conjuncts at {idStr} \
+                (frontier)"
+          let ctx ← pinTermOpaques cfg cfg.envExpr ctx lp.result
+          let vLit ← ctxValExpr cfg ctx lp.literal
+          let pLit ← ctxValProof cfg ctx lp.literal
+          -- LAST-literal conjunction: both conjunct clauses were PUSHED as
+          -- children — peel each to its conjunct's truth; both truthy makes
+          -- the literal's AND-value truthy, closing the singleton spine.
+          if restLits.isEmpty && contL.isEmpty && contR.isEmpty then
+            let childProof (seg : List SExpr) : MetaM Expr := do
+              let accClause' := accClause ++ seg.filter (!accClause.contains ·)
+              let some child := children.find? (·.inputClause == accClause')
+                | throwError "replayClauseSpine: no child clause matches the \
+                    conjunction residual {repr accClause'} at {idStr}"
+              let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+              peelToLast cfg ctx accClause' pChild fun Lt => do
+                let some hf := ctx.litFactByTerm? Lt
+                  | throwError "replayClauseSpine: no falsity fact for the \
+                      conjunction residual literal {repr Lt} at {idStr}"
+                pure hf
+            let pL ← childProof segLLits
+            let pR ← childProof segRLits
+            let cL ← ctxValProof cfg ctx L
+            let cR ← ctxValProof cfg ctx R
+            let hLne ← mkAppM ``ne_nil_of_evtrue_conv #[pL, cL]
+            let hRne ← mkAppM ``ne_nil_of_evtrue_conv #[pR, cR]
+            let hbT ← mkAppM ``toBool_true_of_ne_nil #[hLne]
+            let vR ← ctxValExpr cfg ctx R
+            let hCond ← mkAppM ``cond_true_val
+              #[vR, mkConst ``SExpr.nil, hbT]
+            let pRes ← ctxValProof cfg ctx lp.result
+            let some ch := chainOpt
+              | throwError "replayClauseSpine: conjunction literal without a \
+                  rewrite chain at {idStr} (internal)"
+            let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pRes]
+            let hEq2 ← mkAppM ``Eq.trans #[vEq, hCond]
+            let hNe ← mkAppM ``ne_nil_of_eq #[hEq2, hRne]
+            return ← mkAppM ``evtrue_of_conv_ne_nil #[pLit, hNe]
+          let restTerm := disjoinTerm (restLits.map (·.2))
+          let neTy ← mkAppM ``Ne #[vLit, mkConst ``SExpr.nil]
+          let hthen ← withLocalDeclD `h neTy fun h => do
+            let p ← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg]
+            let _ := h
+            mkLambdaFVars #[h] p
+          let eqTy ← mkEq vLit (mkConst ``SExpr.nil)
+          let helse ← withLocalDeclD `h eqTy fun h => do
+            let some ch := chainOpt
+              | throwError "replayClauseSpine: conjunction literal without \
+                  a rewrite chain at {idStr} (internal)"
+            let vRes ← ctxValExpr cfg ctx lp.result
+            let pRes ← ctxValProof cfg ctx lp.result
+            let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pRes]
+            -- hRes : v(IF L R 'NIL) = nil, i.e. cond (toBool vL) vR nil = nil
+            let hRes ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
+            let vL ← ctxValExpr cfg ctx L
+            let branch (conjTerm : SExpr) (conjNil : Expr)
+                (cont : List ClauseItem) (segL : List SExpr) : MetaM Expr := do
+              let ctx' := { ctx with
+                litFacts := ctx.litFacts ++ [(idx, conjTerm, conjNil)] }
+              let accClause' := accClause ++ segL.filter (!accClause.contains ·)
+              replayClauseSpineWith rec cfg ctx' idStr restLits cont
+                accClause' children
+            let nilTyL ← mkEq vL (mkConst ``SExpr.nil)
+            let negL ← withLocalDeclD `hL nilTyL fun hL => do
+              mkLambdaFVars #[hL] (← branch L hL contL segLLits)
+            let posL ← withLocalDeclD `hL (← mkAppM ``Ne
+                #[vL, mkConst ``SExpr.nil]) fun hL => do
+              let hbTrue ← mkAppM ``toBool_true_of_ne_nil #[hL]
+              let hRnil ← mkAppM ``cond_true_nil_forces_r #[hRes, hbTrue]
+              mkLambdaFVars #[hL] (← branch R hRnil contR segRLits)
+            let p ← mkAppM ``Classical.byCases #[negL, posL]
+            mkLambdaFVars #[h] p
+          return ← mkAppM ``evtrue_dp_if_split
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal,
+              reflectSExpr quoteT, reflectSExpr restTerm, vLit, pLit,
+              hthen, helse]
         | _ =>
           throwError "replayClauseSpine: {branchSegs.length} branches on \
                       literal {idx} without a split trace at {idStr} (frontier)"
