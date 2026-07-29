@@ -119,7 +119,31 @@ _Last updated: 2026-07-29._
 > p3-conj or-shape tripwire, which also first-validates the conjunction
 > composer's mid-literal arm); rung 2 = perm (bootstrap-DAG check on the
 > real logs, then PERM-IMPLIES-EQUAL-ALL-REL-2, then ORDEREDP-QSORT).
-> INC-2b/2c IN PROGRESS (2026-07-29, commits c61d166/b5649c6/1e5bbe7 —
+> RUNG 1 COMPLETE (2026-07-29, commits through e47d50c, all CI-green):
+> the p3-conj-mid-literal tripwire FLIPPED — ORDD-INS-MID REPLAYED ✓
+> cond[tp:INS, rule:DEFAULT-CDR] (1/1, kernel-checked, axiom-filtered),
+> the conjunction composer's MID-LITERAL arm's first genuine validation.
+> The final pieces (inc-2c complete): SINGLETON spine arms (with
+> restLits empty the goal is the BARE literal; evtrue_dp_if_split's
+> (IF l 'T 'NIL) conclusion mismatched — byCases directly, the nil
+> branch's EvTrue 'NIL closing ex falso via evtrue_quote_nil_false);
+> else-bodies extracted so split and singleton arms share one
+> construction. PLUS p4-iff-or-shape (e47d50c): the decorrelated IFF
+> validation book (wild anchor ORDEREDP-APPEND; snoc/has-e family) —
+> LANDS ON the known clausify-region RECON wall (the bsort wall:
+> clausify-input's second expand-abbreviations interleaves steps into
+> the clausify event stream), PatternPins-gated as a truthful recon
+> tripwire (flips when the wall falls → also unblocks bsort).
+> REMAINING (post-merge follow-ups, each its own increment):
+> (a) the type-alist spine-facts relief class — ORDEREDP-APPEND's
+> LEXORDER-TRANSITIVE marker relief (:TA-RUNES [LEXORDER]; the fact
+> derives from an assumed-true user-fn application's body walk) — the
+> SAME class as the parked ORDEREDP-MEMB/ORDERED-PERMS/TRUE-LISTP-MSORT
+> backlog item; (b) the clausify-region recon wall (p4 + bsort);
+> (c) RUNG 2 (perm): bootstrap-DAG check, congruence registry,
+> interpreted-relation instance → PERM-IMPLIES-EQUAL-ALL-REL-2,
+> ORDEREDP-QSORT.
+> INC-2b/2c LANDED (2026-07-29, commits c61d166/b5649c6/1e5bbe7 —
 > every commit sweep-green, 63/79 29u byte-identical golden): the
 > literal-chain R-THREADING is LIVE (chain payloads carry (Expr × Bool),
 > chainReqEq/chainWithR/chainIffWithR/evtrueWithR mixed composition;
