@@ -4473,6 +4473,15 @@ condition. Design + decision log:
 def EvTrue (w : World) (env : Env) (t : SExpr) : Prop :=
   ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env t = some v ∧ v ≠ SExpr.nil
 
+/-- A truthy `(consp v)` walk fact makes `endp v` NIL — the CONSP/ENDP
+    duality at the VALUE level (audit F1, sorting arc 2026-07-29: the
+    recorded route's ruler peel consumes emitted `(ENDP …)` rulers against
+    the translated body's `(CONSP …)` branch facts). -/
+theorem logic_endp_nil_of_consp_toBool {v : SExpr}
+    (h : Logic.toBool (Logic.consp v) = true) :
+    Logic.endp v = SExpr.nil := by
+  cases v <;> simp_all [Logic.endp, Logic.consp, Logic.toBool]
+
 /-- Cast a convergence to nil along a value equation (the recorded-
     termination ruler peel: the walk's `toBool = false` fact decodes to the
     test's nil value). -/

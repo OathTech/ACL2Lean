@@ -186,6 +186,16 @@ structure RecTermInfo where
       corollary — shape-checked by the assembler). -/
   tpFVar : Expr
 
+/-- ACL2's `conjoin` over clause disjunctions: `[c] → c`,
+    `c :: rest → (IF c (conjoin rest) 'NIL)` — the admission goal's spine
+    (ONE definition; audit F6 deduplicated the two let-rec clones). -/
+def conjoinDisjTerm : List SExpr → SExpr
+  | [] => quoteT
+  | [c] => c
+  | c :: rest =>
+    .cons (.atom (.symbol { name := "IF" }))
+      (.cons c (.cons (conjoinDisjTerm rest) (.cons quoteNil .nil)))
+
 /-- Assemble the RECORDED-TERMINATION bundle for one defun (sorting arc
     2026-07-28): byte-check every world shape the decode consumes, resolve
     the mirror's conditions against the consumer telescope's hypothesis
@@ -214,15 +224,9 @@ def mkRecTermInfo (cfg : ReplayConfig)
       | some lits => pure lits
       | none => throwError "recorded route: malformed termination clause \
           {repr c}"
-  let rec conjoinTerm : List SExpr → SExpr
-    | [] => quoteT
-    | [c] => c
-    | c :: rest =>
-      .cons (.atom (.symbol { name := "IF" }))
-        (.cons c (.cons (conjoinTerm rest) (.cons quoteNil .nil)))
   let clauses ←
-    if conjoinTerm (nonOp.map disjoinTerm) == goalLit then pure nonOp
-    else if conjoinTerm (nonOp.reverse.map disjoinTerm) == goalLit then
+    if conjoinDisjTerm (nonOp.map disjoinTerm) == goalLit then pure nonOp
+    else if conjoinDisjTerm (nonOp.reverse.map disjoinTerm) == goalLit then
       pure nonOp.reverse
     else throwFrontier m!"recorded route: goal literal does not conjoin the \
         emitted clauses (either order) — recompute/emission divergence"
@@ -336,26 +340,22 @@ def dischargeDecreaseRecorded (cfg : ReplayConfig) (envE : Expr)
     .cons (.atom (.symbol { name := "O<" }))
       (.cons (cntApp aM) (.cons (cntApp mVar) .nil))
   -- locate the covering emitted clause (rulers first, O< LAST — validated)
-  let some cl := info.clauses.find? (·.contains wanted)
-    | throwFrontier m!"recorded decrease: no emitted obligation with \
+  -- accept ANY matching emitted clause whose rulers are all covered (audit
+  -- F5: `dischargeDecrease` collects all matches — the two carve-out gates
+  -- must agree)
+  let matching := info.clauses.filter (·.contains wanted)
+  if matching.isEmpty then
+    throwFrontier m!"recorded decrease: no emitted obligation with \
         {repr wanted} (emission gap)"
-  unless cl.getLast? == some wanted do
-    throwFrontier m!"recorded decrease: O< literal is not the clause's \
-        last literal {repr cl} (frontier)"
+  let some cl := matching.find? (fun c =>
+      c.getLast? == some wanted && c.dropLast.all rulerCovered)
+    | throwFrontier m!"recorded decrease: no matching emitted obligation \
+        has all ruling literals established on this branch (frontier): \
+        {repr matching}"
   let rulers := cl.dropLast
-  for lit in rulers do
-    unless rulerCovered lit do
-      throwFrontier m!"recorded decrease: ruler {repr lit} not established \
-          on this branch (frontier)"
   -- the goal spine: conjoin of the clauses' disjunctions — recompute-check
   let conjTerms := info.clauses.map (fun c => disjoinTerm c)
-  let rec conjoinTerm : List SExpr → SExpr
-    | [] => quoteT
-    | [c] => c
-    | c :: rest =>
-      .cons (.atom (.symbol { name := "IF" }))
-        (.cons c (.cons (conjoinTerm rest) (.cons quoteNil .nil)))
-  unless conjoinTerm conjTerms == info.goalLit do
+  unless conjoinDisjTerm conjTerms == info.goalLit do
     throwError "recorded decrease: conjoin of the emitted clauses ≠ the \
         replayed goal literal (recompute/emission divergence)"
   let some k := info.clauses.findIdx? (· == cl)
@@ -626,22 +626,49 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                 let convTy ← mkValConvPropEx cfg.worldExpr envE
                   (reflectSExpr a1) vσ
                 withLocalDeclD `hcs convTy fun hconvσ => do
+                  -- CONSP/ENDP DUALITY (audit F1 — this gate's siblings got
+                  -- it, this one didn't and the whole route was dead): an
+                  -- emitted `(ENDP b)` ruler is refuted by the translated
+                  -- body's truthy `(CONSP b)` branch fact.
+                  let endpDualOf : SExpr → Option SExpr := fun lit =>
+                    match lit with
+                    | .cons (.atom (.symbol e)) (.cons b .nil) =>
+                      if e.name == "ENDP" then
+                        some (.cons (.atom (.symbol { name := "CONSP" }))
+                          (.cons b .nil))
+                      else none
+                    | _ => none
                   let dec ← dischargeDecreaseRecorded cfg envE
                     (rulerCovered := fun lit =>
-                      facts.any (fun (f, pos, _) => f == lit && !pos))
+                      facts.any (fun (f, pos, _) => f == lit && !pos) ||
+                      (match endpDualOf lit with
+                       | some dual =>
+                         facts.any (fun (f, pos, _) => f == dual && pos)
+                       | none => false))
                     (rulerNilConv := fun lit => do
                       unless totLiftable lit do
                         throwFrontier m!"recorded decrease: non-liftable \
                             ruler {repr lit} (frontier)"
-                      let vc ← dpValExpr [] varVal lit
-                      let some (_, _, hb) := facts.find?
-                          (fun (f, pos, _) => f == lit && !pos)
-                        | throwError "recorded decrease: internal — ruler \
-                            fact vanished"
-                      let hnil ← mkAppM ``Iff.mp
-                        #[← mkAppM ``Logic.toBool_eq_false #[vc], hb]
                       let hcnv ← dpValProof cfg envE [] [] varP lit
-                      mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil])
+                      match facts.find?
+                          (fun (f, pos, _) => f == lit && !pos) with
+                      | some (_, _, hb) =>
+                        let vc ← dpValExpr [] varVal lit
+                        let hnil ← mkAppM ``Iff.mp
+                          #[← mkAppM ``Logic.toBool_eq_false #[vc], hb]
+                        mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil]
+                      | none =>
+                        let some dual := endpDualOf lit
+                          | throwError "recorded decrease: internal — ruler \
+                              fact vanished"
+                        let some (_, _, hb) := facts.find?
+                            (fun (f, pos, _) => f == dual && pos)
+                          | throwError "recorded decrease: internal — dual \
+                              ruler fact vanished"
+                        -- hb : toBool (consp vb) = true ⇒ endp vb = nil
+                        let hnil ← mkAppM
+                          ``logic_endp_nil_of_consp_toBool #[hb]
+                        mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil])
                     (termConv := fun u => dpValProof cfg envE [] [] varP u)
                     (walkConv := fun u =>
                       totWalk cfg envE vals facts totalEnv none u)

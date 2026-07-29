@@ -120,7 +120,11 @@ def proveTotality (cfg : ReplayConfig)
           obligation not found (emission shape changed?)"
     -- the induction MEASURE: `consCount` on the destructor route, the
     -- INTERPRETED count on the recorded route (μ is proof bookkeeping —
-    -- design I1; the statement never mentions it)
+    -- design I1; the statement never mentions it). The recorded route is
+    -- 1-ary ONLY for now (audit F4: at other arities the wrapper lemmas
+    -- and the self-call decrease are consCount-typed, and a mismatched μ
+    -- aborts UNTAGGED instead of frontiering — gate it here).
+    let recTerm? := if formals.length == 1 then recTerm? else none
     let countOf (e : Expr) : MetaM Expr :=
       match recTerm? with
       | some info => mkAppM ``ACL2.Replay.interpCount
@@ -288,7 +292,9 @@ def buildTotalEnv (cfg : ReplayConfig)
   let mut totalEnv : List (String × Nat × Expr) := []
   let mut pending := cands
   let mut progress := true
-  while progress do
+  let mut purePhaseDone := false
+  while progress || !purePhaseDone do
+    unless progress do purePhaseDone := true
     progress := false
     let mut still : List (Symbol × List Symbol × SExpr) := []
     for (s, formals, body) in pending do
@@ -297,18 +303,44 @@ def buildTotalEnv (cfg : ReplayConfig)
         -- defun's admission waterfall was replayed as a mirror, assemble
         -- the bundle (byte-checks inside; frontier keeps the fn on the
         -- destructor route's honest frontier).
+        -- PHASE ordering: the recorded route only fires once the PURE
+        -- routes have SATURATED (`!progress` on the previous sweep of this
+        -- pass — `pending` unchanged), so its hyp-backed augmentation
+        -- covers only genuinely route-less dependencies (O<), not fns a
+        -- later pure pass would have proved unconditionally.
         let recTerm? ←
-          match termMirrors.find? (fun (n, _, _, _) => n == s.name),
+          match purePhaseDone, termMirrors.find? (fun (n, _, _, _) => n == s.name),
                 justs.lookup s.name with
-          | some (_, c, conds, goalLits), some just =>
+          | true, some (_, c, conds, goalLits), some just =>
             try
               pure (some (← mkRecTermInfo cfg totalEnv hypFVars tpCors just
                 c conds goalLits))
             catch e =>
               unless isFrontierErr e do throw e
               pure none
-          | _, _ => pure none
-        let pf ← proveTotality cfg totalEnv s.name formals body
+          | _, _, _ => pure none
+        -- HYPOTHESIS-backed totality entries for the recorded route (audit
+        -- F1 follow-through): the conjunct walk must converge O</ACL2-COUNT
+        -- applications whose own admissions are beyond every route (O<'s
+        -- O-FIRST-EXPT decreases). The telescope OFFERS their totality —
+        -- augmenting with the hyp fvars makes the resulting proof honestly
+        -- CONDITIONAL on them (Stage-5's kept recompute surfaces the fvars
+        -- in the theorem's cond list; the audit verified that accounting
+        -- fail-closes). Recorded-route calls only — the fixpoint's normal
+        -- entries stay unconditional.
+        let hypBacked : String × Expr → Option (String × Nat × Expr) :=
+          fun (c, fv) =>
+            if c.startsWith "total:" then
+              let n := (c.drop "total:".length).toString
+              if totalEnv.any (fun (m, _, _) => m == n) then none
+              else
+                (cfg.worldVal.defs.get? { name := n }).map
+                  (fun (fs, _) => (n, fs.length, fv))
+            else none
+        let totalEnvFor := match recTerm? with
+          | none => totalEnv
+          | some _ => totalEnv ++ hypFVars.filterMap hypBacked
+        let pf ← proveTotality cfg totalEnvFor s.name formals body
           (justs.lookup s.name) recTerm?
         totalEnv := (s.name, formals.length, pf) :: totalEnv
         progress := true

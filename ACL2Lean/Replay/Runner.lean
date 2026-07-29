@@ -363,8 +363,18 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         if timings then
           IO.println s!"[t] termination {fn}: {tTm1 - tTm0} ms ({status})"
         if let some conds := reg? then
-          let goalLits := (tcp.root.map (·.inputClause)).getD []
-          termMirrors := termMirrors ++ [(fn, mName, conds, goalLits)]
+          -- CIRCULARITY guard (audit F3): the admission proof precedes the
+          -- defun — a mirror conditional on the defun's OWN totality/TP
+          -- would let `thmAt` resolve the condition to the consumer's
+          -- hypothesis fvar and silently accept the circle as an "honest
+          -- condition". Chronology makes it near-impossible (admission-time
+          -- runes only), but the guard is structural, not probabilistic.
+          if conds.contains s!"total:{fn}" || conds.contains s!"tp:{fn}" then
+            IO.println s!"    [termination {fn}: mirror DISCARDED — \
+              conditional on its own {fn} facts (circularity guard)]"
+          else
+            let goalLits := (tcp.root.map (·.inputClause)).getD []
+            termMirrors := termMirrors ++ [(fn, mName, conds, goalLits)]
       for (cp, rules) in thms do
         res := { res with total := res.total + 1 }
         -- EMISSION FRONTIER (Track B): a black-box PROVED leaf — ACL2 discharged

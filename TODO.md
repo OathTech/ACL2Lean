@@ -170,10 +170,24 @@ _Last updated: 2026-07-28._
 > BINARY-APPEND/EVENS…), ORDEREDP-RM now FULLY unconditional (tally
 > 28→29 uncond at 62/79). The build-time sweep stack overflow was the
 > termination replay's RULE OVER-SUPPLY (one nested binder per offered
-> rule): fixed by the citedRuneNames demand filter. Residual: total:QSORT/
-> MSORT/MERGE2 still hypothesis-backed (honest conds — later pass); the
-> qsort rows' NEXT walls are J6-solidify + split-trace + preprocess-path
+> rule): fixed by the citedRuneNames demand filter. Residual:
+> total:MSORT/MERGE2 still hypothesis-backed (honest conds); the qsort
+> rows' NEXT walls are J6-solidify + split-trace + preprocess-path
 > (increments 2-4).
+> MID-POINT OPUS AUDIT (2026-07-29, authorized minimal, 1 agent): ZERO
+> soundness findings (kernel-check/axiom-gate/Stage-5 accounting all
+> verified fail-closed; interpCount_eq airtight). Fidelity F1 (HIGH,
+> actioned): the totWalk-side recorded route was DEAD — its ruler gate
+> missed the CONSP/ENDP duality its siblings got (the audit's own
+> "fix-lands-on-one-twin" callout); fixed + the O<-class hyp-backed
+> totality augmentation + pure-phase-first fixpoint ordering — total:QSORT
+> now DISCHARGES in green rows (PERM-QSORT/TRUE-LISTP-QSORT conditional
+> only on the irreducible total:O< + tps + rules), validating the whole
+> decode chain end-to-end. Also actioned: F2 positional gate on the
+> setup-memo no-op; F3 mirror circularity guard; F4 recorded-route
+> arity-1 gate (untagged-abort hole); F5 covering-clause selection
+> unified; F6 conjoinDisjTerm dedup. Remaining audit note: the
+> ruler-coverage idiom still has near-clones (documented).
 > INC-1c DONE (2026-07-28): spine hyp-relief markers + setup-phase
 > definition memos consumed as validated no-ops (linear-pot setup records
 > between CLAUSIFY-OUT and BEGIN-LITERAL; the literal chains re-record

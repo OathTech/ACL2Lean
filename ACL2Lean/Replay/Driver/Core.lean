@@ -350,6 +350,13 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- no-op — if a memo's effect were real and un-re-recorded, the spine's
     -- end validation against the recorded child clauses fails loudly.
     if (runeOf n).ty == "definition" then
+      -- POSITIONAL gate (audit F2): the setup-phase claim is enforced, not
+      -- assumed — these memos precede the first literal item; a clause-level
+      -- definition step appearing mid-walk stays a loud frontier.
+      unless accClause.isEmpty do
+        throwError "replayClauseSpine: clause-level definition step after \
+                    literal items at {idStr} (not a setup-phase memo — \
+                    frontier)"
       return ← replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
     throwError "replayClauseSpine: clause-level step item (rune \
                 {repr (runeOf n)}) in the spine at {idStr} (frontier)"
