@@ -188,6 +188,16 @@ _Last updated: 2026-07-28._
 > arity-1 gate (untagged-abort hole); F5 covering-clause selection
 > unified; F6 conjoinDisjTerm dedup. Remaining audit note: the
 > ruler-coverage idiom still has near-clones (documented).
+> INC-2a SCOPED (2026-07-29, recon from the real ORDEREDP-ISORT *1.1/3'
+> record): the "2 branches without a split trace" class is the AND-SHAPE
+> conjunction strip — the literal's rewritten result (IF L R 'NIL) is
+> clausified via :CLAUSIFY-CONJUNCTION (STRIP-BRANCHES/AND-SHAPE) with
+> TWO SEGMENT-OPEN leaves and NO if-interp split test; the walker only
+> has the split composer (Core.lean hasSplit region). Fix: a CONJUNCTION
+> composer — EvTrue(parent) from both children's EvTrue (valid: all-
+> others-false forces L from child1 and R from child2, so the literal's
+> cond-value is truthy); rows blocked: ORDEREDP-QSORT (the headline),
+> ORDEREDP-ISORT.
 > INC-1c DONE (2026-07-28): spine hyp-relief markers + setup-phase
 > definition memos consumed as validated no-ops (linear-pot setup records
 > between CLAUSIFY-OUT and BEGIN-LITERAL; the literal chains re-record
