@@ -60,9 +60,7 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "NOT", [a] => some (Logic.not a)
   | "BINARY-+", [a, b] => some (Logic.plus a b)
   | "BINARY-*", [a, b] => some (Logic.times a b)
-  | "UNARY--", [a] =>
-      let (n, d) := Logic.toRat a
-      some (Logic.mkNumber (-n) d)
+  | "UNARY--", [a] => some (Logic.neg a)
   | "UNARY-/", [a] =>
       let (n, d) := Logic.toRat a
       some (if n == 0 then .atom (.number (.int 0))

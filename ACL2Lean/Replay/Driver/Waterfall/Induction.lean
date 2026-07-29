@@ -162,7 +162,23 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
     MetaM Expr := do
   let some ind := cn.induction | throwError "replayInduction: no induction"
   -- 1. validate the justification shape (J2: μ-registry + T3 + I4 covering)
-  let μE ← buildMeasureFn ind.measure
+  -- RECORDED-TERMINATION schemes (sorting arc 2026-07-28): when the scheme
+  -- fn's admission waterfall was replayed as a mirror, the bookkeeping μ is
+  -- the INTERPRETED count of the measured variable (same design-I1
+  -- principle — μ appears in no statement) and the IH decrease decodes
+  -- from the replayed theorem (the fallback at the discharge site below).
+  let schemeFn? : Option Symbol := match ind.term with
+    | .cons (.atom (.symbol f)) _ => some f
+    | _ => none
+  let recMirror? := schemeFn?.bind fun f =>
+    cfg.termMirrors.find? (fun (n, _, _, _) => n == f.name)
+  let μE ←
+    match recMirror?, ind.measure with
+    | some _, .cons (.atom (.symbol cnt)) (.cons (.atom (.symbol v)) .nil) =>
+      withLocalDeclD `env (mkConst ``ACL2.Env) fun envV => do
+        mkLambdaFVars #[envV] (← mkAppM ``ACL2.Replay.interpCount
+          #[cfg.worldExpr, reflectSymbol cnt, ← dpConcVar envV v])
+    | _, _ => buildMeasureFn ind.measure
   let relOk := match ind.rel with
     | .atom (.symbol r) => r.name == "O<"
     | _ => false
@@ -466,9 +482,76 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                 | none => throwFrontier m!"replayInduction: registry \
                     decrease needs a refuted (ENDP {repr b}) ruling fact \
                     in scope (frontier)" }
-            let hLtRaw ← dischargeDecrease just
-              schemeFormals schemeActuals
-              (alist.map (·.1)) (alist.map (·.2)) kit
+            let hLtRaw ← try
+                dischargeDecrease just
+                  schemeFormals schemeActuals
+                  (alist.map (·.1)) (alist.map (·.2)) kit
+              catch eDec =>
+                unless isFrontierErr eDec do throw eDec
+                let some (_, mc, conds, goalLits) := recMirror? | throw eDec
+                -- RECORDED IH-DECREASE fallback (sorting arc 2026-07-28):
+                -- the destructor walk cannot state this decrease (qsort's
+                -- (FILTER …) substitution); decode it from the scheme fn's
+                -- REPLAYED admission waterfall. Identity accommodation
+                -- only — the recorded goal is over the defun's formals, so
+                -- instantiating it at eV is faithful exactly when the
+                -- scheme actuals ARE those variables.
+                unless schemeActuals ==
+                    schemeFormals.map (fun f => SExpr.atom (.symbol f)) do
+                  throw eDec
+                let hypFVars : List (String × Expr) :=
+                  ctx.totalHyps.map (fun (n, e) => (s!"total:{n}", e))
+                  ++ ctx.tpHyps.map (fun (n, _, e) => (s!"tp:{n}", e))
+                  ++ ctx.ruleHyps.map
+                      (fun (r, e) => (s!"rule:{r.runeKey}", e))
+                let tpCors := ctx.tpHyps.map (fun (n, c, _) => (n, c))
+                let info ← mkRecTermInfo cfg' [] hypFVars tpCors just
+                  mc conds goalLits
+                let some mF := just.measuredSubset.head?
+                  | throwError "recorded IH decrease: empty measured subset"
+                let aM := ACL2.Replay.substTerm
+                  (alist.map (·.1)) (alist.map (·.2)) (.atom (.symbol mF))
+                let ctxR ← pinTermOpaques cfg' eV ctxNow aM
+                let hσ ← ctxValProof cfg' ctxR aM
+                dischargeDecreaseRecorded cfg' eV
+                  (rulerCovered := fun lit =>
+                    facts.any (fun f => f.test == lit && !f.sign) ||
+                    (match lit with
+                     | .cons (.atom (.symbol ns)) (.cons u .nil) =>
+                       ns.name == "NOT" &&
+                       facts.any (fun f => f.test == u && f.sign)
+                     | _ => false))
+                  (rulerNilConv := fun lit => do
+                    match facts.find? (fun f => f.test == lit && !f.sign) with
+                    | some f =>
+                      mkAppM ``conv_nil_of_conv_eq #[f.convE, f.signE]
+                    | none =>
+                      match lit with
+                      | .cons (.atom (.symbol ns)) (.cons u .nil) =>
+                        unless ns.name == "NOT" do
+                          throwError "recorded IH decrease: uncovered ruler"
+                        let some f := facts.find?
+                            (fun f => f.test == u && f.sign)
+                          | throwError "recorded IH decrease: uncovered ruler"
+                        let hNo ← proveNoShadow cfg' { name := "NOT" }
+                        let hcnv ← mkAppM ``conv_builtin1
+                          #[cfg'.worldExpr, eV,
+                            reflectSymbol { name := "NOT" }, reflectSExpr u,
+                            f.valueE,
+                            mkApp (mkConst ``Logic.not) f.valueE,
+                            ← proveNotSpecial { name := "NOT" },
+                            hNo, f.convE,
+                            ← mkAppM ``callBuiltin_not #[f.valueE]]
+                        let hnil ← mkAppM ``not_nil_of_truthy #[f.signE]
+                        mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil]
+                      | _ => throwError "recorded IH decrease: uncovered ruler")
+                  (termConv := fun u => do
+                    let ctxU ← pinTermOpaques cfg' eV ctxR u
+                    ctxValProof cfg' ctxU u)
+                  (walkConv := fun u => do
+                    let ctxU ← pinTermOpaques cfg' eV ctxR u
+                    mkAppM ``conv_ex_of_vfix #[← ctxValProof cfg' ctxU u])
+                  info mF aM hσ
             -- e' and the cast of the decrease to μ e' < μ e (defeq through
             -- the concrete bindArgsOver lookups)
             let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)

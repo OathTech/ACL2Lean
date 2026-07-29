@@ -147,6 +147,33 @@ _Last updated: 2026-07-28._
 > fully-dropped cases + ruling-test complement arm + definitionally-nil
 > vacuous branches (COMPLEX-RATIONALP on the complex-free space). Golden
 > BYTE-IDENTICAL.
+> INC-1d/e (2026-07-28/29): the recorded QSORT admission waterfall
+> REPLAYS end-to-end (kernel-checked; clausify multi-bridge per-split
+> expansions, induction dedup re-intro via evtrue_intro_else, proveDpFact
+> INT-VIEW pre-pass — 7-value linear leaves close with NO shape splits;
+> admission-class replay budget by the original calibration methodology;
+> COERCE + Logic.neg oracle-pinned into the trusted core). WIRED into the
+> totality prover AND the theorem-side induction: interpCount (the
+> INTERPRETED count, Classical.choice definite description — design-I1
+> bookkeeping, appears in no statement) as the μ for recorded-termination
+> defuns; termination mirrors replayed once per book (the D1 pattern);
+> decreases decoded from the replayed theorem's O< facts against
+> byte-checked O</O-FINP gz shapes (interp_decrease_decode); Stage-5
+> hypothesis accounting recomputed post-discharge. The FILTER-decrease
+> frontier is RETIRED: HOW-MANY-QSORT → J6 solidify frontier,
+> ORDEREDP-QSORT → split-trace frontier (successor classes, queued).
+> Bonus: CONSP/ENDP coverage duality + vacuous definitionally-nil
+> branches + 3-ary call fall-through + 3-ary totality
+> (totality_3_of_body/_rec_snd_mu, triple bindArgs lemmas, the shared
+> goApp application dispatch) — 15 totality conditions discharged across
+> 14 rows (HOW-MANY/INSERT/ISORT/ORDEREDP/REL/FILTER/ALL-REL/
+> BINARY-APPEND/EVENS…), ORDEREDP-RM now FULLY unconditional (tally
+> 28→29 uncond at 62/79). The build-time sweep stack overflow was the
+> termination replay's RULE OVER-SUPPLY (one nested binder per offered
+> rule): fixed by the citedRuneNames demand filter. Residual: total:QSORT/
+> MSORT/MERGE2 still hypothesis-backed (honest conds — later pass); the
+> qsort rows' NEXT walls are J6-solidify + split-trace + preprocess-path
+> (increments 2-4).
 > INC-1c DONE (2026-07-28): spine hyp-relief markers + setup-phase
 > definition memos consumed as validated no-ops (linear-pot setup records
 > between CLAUSIFY-OUT and BEGIN-LITERAL; the literal chains re-record

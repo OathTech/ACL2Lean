@@ -189,7 +189,8 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
 def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (cp : ClauseProof) (justs : List (String × Justification) := [])
     (rules : List RuleSpec := []) (depProofs : List (String × ClauseProof) := [])
-    (mirrors : MirrorRegistry := []) :
+    (mirrors : MirrorRegistry := [])
+    (termMirrors : List (String × Name × List String × List SExpr) := []) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
   -- hypothesis declarations: totality for every defined fn, TP where
@@ -299,22 +300,30 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let usedTpNames := used.filterMap fun (c, _) =>
         if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
       let neededFns := usedTotalNames ++ usedTpNames
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpVs ++ ruleVs).toList)
       let totalEnv ←
         if neededFns.isEmpty then pure []
         else
           -- `defs.entries` is DEV order (user defuns first, ground zero at
           -- the tail — see buildTotalEnv); the lazy bound is the needed fn
-          -- LATEST in dev order
+          -- LATEST in dev order. RECORDED-TERMINATION fns need their
+          -- GROUND-ZERO dependencies (ACL2-COUNT/O<…, at the entries
+          -- tail), so the bound is dropped when one is in play.
+          let hasRecorded := neededFns.any
+            (fun n => termMirrors.any (·.1 == n))
           let lastUsed? := (cfg.worldVal.defs.entries.filter
             (fun (s, _, _) => neededFns.contains s.name)).getLast?
-          buildTotalEnv cfg justs (upTo := lastUsed?.map (fun (s, _, _) => s.name))
+          buildTotalEnv cfg justs
+            (upTo := if hasRecorded then none
+                     else lastUsed?.map (fun (s, _, _) => s.name))
+            (termMirrors := termMirrors) (hypFVars := hypFVarsAll)
+            (tpCors := tps)
       let mut prf := prf
-      let mut kept : List (String × Expr) := []
       for (c, v) in used do
         if c.startsWith "total:" then
           match totalEnv.find? (fun (n, _, _) => s!"total:{n}" == c) with
           | some (_, _, pf) => prf ← letBindFVar prf v pf
-          | none => kept := kept ++ [(c, v)]
+          | none => pure ()
         else if c.startsWith "tp:" then
           -- the TP prover: derive the emitted-corollary hypothesis from the
           -- fn's body (lifter sprint 2026-07-06); frontier → keep (D6)
@@ -328,11 +337,14 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             catch e =>
               unless isFrontierErr e do
                 throw e
-              kept := kept ++ [(c, v)]
-          | none => kept := kept ++ [(c, v)]
-        else
-          kept := kept ++ [(c, v)]
-      let p ← mkLambdaFVars (kept.map (·.2)).toArray prf
+          | none => pure ()
+      -- kept = the hypotheses STILL FREE in the final proof. Recomputed
+      -- AFTER all discharges (sorting arc 2026-07-28): a recorded-
+      -- termination totality proof may pull in tp:/rule: fvars the replay
+      -- itself never touched — they surface here as honest conditions.
+      let prfF ← instantiateMVars prf
+      let kept := hypFVarsAll.filter (fun (_, v) => prfF.containsFVar v.fvarId!)
+      let p ← mkLambdaFVars (kept.map (·.2)).toArray prfF
       return (p, kept.map (·.1))
 
 

@@ -159,6 +159,259 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
   | _ => throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
       the destructor-chain walk over {repr base} (frontier)"
 
+/-- The RECORDED-TERMINATION route's per-defun bundle (sorting arc
+    2026-07-28): the replayed admission-waterfall theorem (applied at an
+    env by `thmAt`), the emitted non-`O-P` termination clauses in goal
+    order, and the byte-checked world facts the `interp_decrease_decode`
+    application consumes. Assembled once per defun in `proveTotality`. -/
+structure RecTermInfo where
+  /-- Apply the termination mirror at an env: `EvTrue w env <goal>`. -/
+  thmAt : Expr → MetaM Expr
+  /-- The goal literal (the root clause's single literal — the IF-encoded
+      conjunction of the non-trivial obligations). -/
+  goalLit : SExpr
+  /-- The non-`O-P` emitted termination clauses, in goal (emission) order. -/
+  clauses : List (List SExpr)
+  /-- The count fn (the justification measure's head — `ACL2-COUNT`). -/
+  cntSym : Symbol
+  hNsCnt : Expr
+  hDefCnt : Expr
+  hNoLt : Expr
+  hNoConsp : Expr
+  hDefF : Expr
+  hDefO : Expr
+  /-- The count fn's accumulated totality fact (`mkTotalityHypType` shape). -/
+  cntTotal : Expr
+  /-- The count fn's `tp:` hypothesis fvar (the standard nonneg-int
+      corollary — shape-checked by the assembler). -/
+  tpFVar : Expr
+
+/-- Assemble the RECORDED-TERMINATION bundle for one defun (sorting arc
+    2026-07-28): byte-check every world shape the decode consumes, resolve
+    the mirror's conditions against the consumer telescope's hypothesis
+    fvars, and validate the goal literal against the conjoin of the emitted
+    non-`O-P` clauses (emission order, else reversed — the goal pins it).
+    Frontier-throws on any gap, so a failed assembly keeps the fn on the
+    destructor route's honest frontier. -/
+def mkRecTermInfo (cfg : ReplayConfig)
+    (totalEnv : List (String × Nat × Expr))
+    (hypFVars : List (String × Expr))
+    (tpCors : List (String × SExpr))
+    (just : Justification)
+    (mirrorConst : Name) (conds : List String) (goalLits : List SExpr) :
+    MetaM RecTermInfo := do
+  let [goalLit] := goalLits
+    | throwFrontier m!"recorded route: multi-literal termination goal \
+        (frontier)"
+  let cntSym : Symbol := { name := "ACL2-COUNT" }
+  -- the emitted non-O-P clauses, ordered to match the goal's conjoin spine
+  let isOp (c : SExpr) : Bool :=
+    match c.toList? with
+    | some [.cons (.atom (.symbol op)) _] => op.name == "O-P"
+    | _ => false
+  let nonOp ← (just.terminationClauses.filter (fun c => !isOp c)).mapM
+    fun c => match c.toList? with
+      | some lits => pure lits
+      | none => throwError "recorded route: malformed termination clause \
+          {repr c}"
+  let rec conjoinTerm : List SExpr → SExpr
+    | [] => quoteT
+    | [c] => c
+    | c :: rest =>
+      .cons (.atom (.symbol { name := "IF" }))
+        (.cons c (.cons (conjoinTerm rest) (.cons quoteNil .nil)))
+  let clauses ←
+    if conjoinTerm (nonOp.map disjoinTerm) == goalLit then pure nonOp
+    else if conjoinTerm (nonOp.reverse.map disjoinTerm) == goalLit then
+      pure nonOp.reverse
+    else throwFrontier m!"recorded route: goal literal does not conjoin the \
+        emitted clauses (either order) — recompute/emission divergence"
+  -- byte-checked world shapes
+  let hNsCnt ← proveNotSpecial cntSym
+  let some (cntFormals, cntBody) := cfg.worldVal.defs.get? cntSym
+    | throwFrontier m!"recorded route: {cntSym.name} not in the world \
+        (frontier)"
+  let [cntFormal] := cntFormals
+    | throwFrontier m!"recorded route: {cntSym.name} arity ≠ 1 (frontier)"
+  let hDefCnt ← defGetFact cfg cntSym cntFormals cntBody
+  let hNoLt ← proveNoShadow cfg { name := "<" }
+  let hNoConsp ← proveNoShadow cfg { name := "CONSP" }
+  let some (finpFormals, finpBody) := cfg.worldVal.defs.get? { name := "O-FINP" }
+    | throwFrontier m!"recorded route: O-FINP not in the world (frontier)"
+  unless finpFormals == [oltXSym] && finpBody == oFinpBodyShape do
+    throwFrontier m!"recorded route: the world's O-FINP differs from the \
+        proved shape (frontier)"
+  let hDefF ← defGetFact cfg { name := "O-FINP" } [oltXSym] oFinpBodyShape
+  let hDefF ← mkExpectedTypeHint hDefF (← mkEq
+    (← mkAppM ``DefMap.get? #[← mkAppM ``World.defs #[cfg.worldExpr],
+        reflectSymbol { name := "O-FINP" }])
+    (← mkAppM ``Option.some #[← mkAppM ``Prod.mk
+      #[← mkListLit (mkConst ``Symbol) [mkConst ``ACL2.Replay.oltXSym],
+        mkConst ``ACL2.Replay.oFinpBodyShape]]))
+  let some (oltFormals, oltBody) := cfg.worldVal.defs.get? { name := "O<" }
+    | throwFrontier m!"recorded route: O< not in the world (frontier)"
+  unless oltFormals == [oltXSym, oltYSym] do
+    throwFrontier m!"recorded route: O< formals ≠ (X Y) (frontier)"
+  -- extract the else-arm and confirm the byte shape by reconstruction
+  let elseBr ← match oltBody with
+    | .cons _ (.cons _ (.cons _ (.cons e .nil))) => pure e
+    | _ => throwFrontier m!"recorded route: the world's O< body shape \
+        (frontier)"
+  unless oltBody == (ACL2.Replay.oLtBodyShapeWith elseBr) do
+    throwFrontier m!"recorded route: the world's O< differs from the proved \
+        shape (frontier)"
+  let hDefO ← defGetFact cfg { name := "O<" } [oltXSym, oltYSym] oltBody
+  let hDefO ← mkExpectedTypeHint hDefO (← mkEq
+    (← mkAppM ``DefMap.get? #[← mkAppM ``World.defs #[cfg.worldExpr],
+        reflectSymbol { name := "O<" }])
+    (← mkAppM ``Option.some #[← mkAppM ``Prod.mk
+      #[← mkListLit (mkConst ``Symbol)
+          [mkConst ``ACL2.Replay.oltXSym, mkConst ``ACL2.Replay.oltYSym],
+        ← mkAppM ``ACL2.Replay.oLtBodyShapeWith #[reflectSExpr elseBr]]]))
+  -- the count fn's accumulated totality + its STANDARD nonneg-int TP hyp
+  let cntTotal ← match totalEnv.find? (fun (n, _, _) => n == cntSym.name) with
+    | some (_, _, pf) => pure pf
+    | none =>
+      match hypFVars.lookup s!"total:{cntSym.name}" with
+      | some fv => pure fv
+      | none => throwFrontier m!"recorded route: total:{cntSym.name} \
+          neither proved nor offered (frontier)"
+  let some tpFVar := hypFVars.lookup s!"tp:{cntSym.name}"
+    | throwFrontier m!"recorded route: tp:{cntSym.name} not offered \
+        (frontier)"
+  let cntApp : SExpr :=
+    .cons (.atom (.symbol cntSym)) (.cons (.atom (.symbol cntFormal)) .nil)
+  let expectedCor : SExpr :=
+    .cons (.atom (.symbol { name := "IF" }))
+      (.cons (.cons (.atom (.symbol { name := "INTEGERP" })) (.cons cntApp .nil))
+        (.cons (.cons (.atom (.symbol { name := "NOT" }))
+            (.cons (.cons (.atom (.symbol { name := "<" }))
+                (.cons cntApp
+                  (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                      (.cons (.atom (.number (.int 0))) .nil))
+                    .nil)))
+              .nil))
+          (.cons quoteNil .nil)))
+  unless tpCors.lookup cntSym.name == some expectedCor do
+    throwFrontier m!"recorded route: {cntSym.name}'s TP corollary is not \
+        the standard nonneg-int shape (frontier)"
+  let thmAt := fun (envE : Expr) => do
+    let condArgs ← conds.mapM fun c => do
+      -- a `total:` condition is preferentially resolved from the fixpoint's
+      -- OWN accumulated proofs (closed terms — no residual hypothesis);
+      -- tp:/rule: conditions come from the consumer telescope's fvars and
+      -- surface honestly in the theorem's cond[…] list.
+      if c.startsWith "total:" then
+        if let some (_, _, pf) := totalEnv.find?
+            (fun (n, _, _) => s!"total:{n}" == c) then
+          return pf
+      match hypFVars.lookup c with
+      | some fv => pure fv
+      | none => throwFrontier m!"recorded route: condition {c} not offered \
+          by the consumer telescope (frontier)"
+    pure (mkAppN (mkApp (mkConst mirrorConst) envE) condArgs.toArray)
+  return { thmAt, goalLit, clauses, cntSym, hNsCnt, hDefCnt, hNoLt,
+           hNoConsp, hDefF, hDefO, cntTotal, tpFVar }
+
+/-- The recorded-termination DECREASE at a self-call site: locate the
+    emitted clause whose `O<` matches this call's measured actual, verify
+    its rulers against the in-scope branch facts (the `dischargeDecrease`
+    coverage rule), instantiate the REPLAYED admission theorem at the
+    ambient env, extract that clause's conjunct (recompute-checked conjoin
+    spine), peel the rulers, and decode the surviving `O<` fact into the
+    `interpCount` ordering (`interp_decrease_decode`). Returns
+    `interpCount w cnt vσ < interpCount w cnt (value of the measured
+    formal)`. Fail-closed at every joint. -/
+def dischargeDecreaseRecorded (cfg : ReplayConfig) (envE : Expr)
+    (rulerCovered : SExpr → Bool)
+    (rulerNilConv : SExpr → MetaM Expr)
+    (termConv : SExpr → MetaM Expr)
+    (walkConv : SExpr → MetaM Expr)
+    (info : RecTermInfo) (measuredFormal : Symbol)
+    (aM : SExpr) (hconvσ : Expr) : MetaM Expr := do
+  let cntApp (u : SExpr) : SExpr :=
+    .cons (.atom (.symbol info.cntSym)) (.cons u .nil)
+  let mVar : SExpr := .atom (.symbol measuredFormal)
+  let wanted : SExpr :=
+    .cons (.atom (.symbol { name := "O<" }))
+      (.cons (cntApp aM) (.cons (cntApp mVar) .nil))
+  -- locate the covering emitted clause (rulers first, O< LAST — validated)
+  let some cl := info.clauses.find? (·.contains wanted)
+    | throwFrontier m!"recorded decrease: no emitted obligation with \
+        {repr wanted} (emission gap)"
+  unless cl.getLast? == some wanted do
+    throwFrontier m!"recorded decrease: O< literal is not the clause's \
+        last literal {repr cl} (frontier)"
+  let rulers := cl.dropLast
+  for lit in rulers do
+    unless rulerCovered lit do
+      throwFrontier m!"recorded decrease: ruler {repr lit} not established \
+          on this branch (frontier)"
+  -- the goal spine: conjoin of the clauses' disjunctions — recompute-check
+  let conjTerms := info.clauses.map (fun c => disjoinTerm c)
+  let rec conjoinTerm : List SExpr → SExpr
+    | [] => quoteT
+    | [c] => c
+    | c :: rest =>
+      .cons (.atom (.symbol { name := "IF" }))
+        (.cons c (.cons (conjoinTerm rest) (.cons quoteNil .nil)))
+  unless conjoinTerm conjTerms == info.goalLit do
+    throwError "recorded decrease: conjoin of the emitted clauses ≠ the \
+        replayed goal literal (recompute/emission divergence)"
+  let some k := info.clauses.findIdx? (· == cl)
+    | throwError "recorded decrease: internal — clause index"
+  -- extract conjunct k from the instantiated theorem
+  let mut curEv ← info.thmAt envE
+  let mut rest := conjTerms
+  let mut i := 0
+  let mut conjEv? : Option Expr := none
+  while conjEv?.isNone do
+    match rest with
+    | [] => throwError "recorded decrease: internal — conjunct walk"
+    | [_] =>
+      unless i == k do
+        throwError "recorded decrease: internal — conjunct index"
+      conjEv? := some curEv
+    | c :: restTerms => do
+      let hEx ← walkConv c
+      if i == k then
+        let kLam ← withLocalDeclD `va (mkConst ``SExpr) fun va => do
+          let convTy ← mkValConvPropEx cfg.worldExpr envE (reflectSExpr c) va
+          withLocalDeclD `hva convTy fun hva => do
+            let hne ← mkAppM ``evtrue_and_left #[hva, curEv]
+            mkLambdaFVars #[va, hva]
+              (← mkAppM ``evtrue_of_conv_ne_nil #[hva, hne])
+        conjEv? := some (← mkAppM ``exists_conv_elim #[hEx, kLam])
+      else
+        let kLam ← withLocalDeclD `va (mkConst ``SExpr) fun va => do
+          let convTy ← mkValConvPropEx cfg.worldExpr envE (reflectSExpr c) va
+          withLocalDeclD `hva convTy fun hva => do
+            let hne ← mkAppM ``evtrue_and_left #[hva, curEv]
+            let htrue ← mkAppM ``toBool_true_of_ne_nil #[hne]
+            mkLambdaFVars #[va, hva]
+              (← mkAppM ``evtrue_and_right #[hva, htrue, curEv])
+        curEv ← mkAppM ``exists_conv_elim #[hEx, kLam]
+        rest := restTerms
+        i := i + 1
+  let some conjEv := conjEv? | throwError "recorded decrease: internal"
+  -- peel the rulers (the caller's plumbing pins each covered ruler's nil
+  -- convergence)
+  curEv := conjEv
+  for lit in rulers do
+    let hcnil ← rulerNilConv lit
+    curEv ← mkAppM ``evtrue_tail_of_if_head_nil #[hcnil, curEv]
+  -- decode into the interpCount ordering
+  let hm ← termConv mVar
+  let hcσ ← mkAppM' info.cntTotal
+    #[envE, reflectSExpr aM, ← mkAppM ``conv_ex_of_vfix #[hconvσ]]
+  let hcm ← mkAppM' info.cntTotal
+    #[envE, reflectSExpr mVar, ← mkAppM ``conv_ex_of_vfix #[hm]]
+  let htpσ := mkAppN info.tpFVar #[envE, reflectSExpr aM]
+  let htpm := mkAppN info.tpFVar #[envE, reflectSExpr mVar]
+  mkAppM ``interp_decrease_decode
+    #[info.hNsCnt, info.hDefCnt, info.hNoLt, info.hNoConsp, info.hDefF,
+      info.hDefO, hconvσ, hm, hcσ, hcm, htpσ, htpm, curEv]
+
 /-- The GENERAL admission-decrease prover (#37 rework, design I4; plan
     `docs/plans/2026-07-18_decrease-prover-rework.md`). Proves the strict
     count decrease of the σ-instance of the measure AT THE VALUE LEVEL:
@@ -211,14 +464,35 @@ def dischargeDecrease (just : Justification)
     throwFrontier m!"dischargeDecrease: no emitted decrease obligation \
         matching {repr wanted} (emission gap or unsupported substitution)"
   -- a ruling literal is COVERED by an in-scope fact: `(NOT tst)` needs
-  -- `(tst, true)`; a bare literal needs `(lit, false)`
+  -- `(tst, true)`; a bare literal needs `(lit, false)`. Recognizer DUALITY
+  -- (sorting arc 2026-07-29): the RECOMPUTED ground-zero clauses spell
+  -- rulers `(ENDP b)` where the translated body tests `(CONSP b)` — an
+  -- `(ENDP b)`-false demand is covered by a `(CONSP b)`-true fact and vice
+  -- versa (endp IS the guard-relaxed not-consp; the decrease PROOF's
+  -- conspTrueOf/endpFalseOf independently require the value facts, so this
+  -- widens only the coverage check, never the proof).
+  let dualCovered (t : SExpr) (wantPos : Bool) : Bool :=
+    match t with
+    | .cons (.atom (.symbol e)) (.cons b .nil) =>
+      if e.name == "ENDP" then
+        facts.any (fun (f, pos) =>
+          f == .cons (.atom (.symbol { name := "CONSP" })) (.cons b .nil)
+          && pos == !wantPos)
+      else if e.name == "CONSP" then
+        facts.any (fun (f, pos) =>
+          f == .cons (.atom (.symbol { name := "ENDP" })) (.cons b .nil)
+          && pos == !wantPos)
+      else false
+    | _ => false
   let uncoveredOf (lits : List SExpr) : List SExpr :=
     lits.filter fun lit =>
       if lit == wanted then false
       else match lit with
       | .cons (.atom (.symbol n)) (.cons tst .nil) =>
-        if n.name == "NOT" then !facts.any (fun (f, pos) => f == tst && pos)
-        else !facts.any (fun (f, pos) => f == lit && !pos)
+        if n.name == "NOT" then
+          !(facts.any (fun (f, pos) => f == tst && pos) || dualCovered tst true)
+        else
+          !(facts.any (fun (f, pos) => f == lit && !pos) || dualCovered lit false)
       | _ => !facts.any (fun (f, pos) => f == lit && !pos)
   let uncov := matching.map uncoveredOf
   unless uncov.any (·.isEmpty) do
@@ -290,7 +564,7 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
     (vals : List (Symbol × Expr × Expr))
     (facts : List (SExpr × Bool × Expr))
     (totalEnv : List (String × Nat × Expr))
-    (selfC : Option (String × Symbol × Expr × Justification))
+    (selfC : Option (String × Symbol × Expr × Justification × Option RecTermInfo))
     (t : SExpr) : MetaM Expr := do
   let varP : Symbol → Option (Expr × Expr) := fun s =>
     (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
@@ -298,54 +572,10 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
     -- vars / quote / dp-primitive tree: value-characterize and ∃-pack
     let pf ← dpValProof cfg envE [] [] varP t
     return ← mkAppM ``conv_ex_of_vfix #[pf]
-  match t with
-  | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
-    if fs.name == "IF" then
-      if totLiftable c then
-        let vc ← dpValExpr [] (dpValProof.dpVarVal envE varP) c
-        let hc ← dpValProof cfg envE [] [] varP c
-        let toBoolVc ← mkAppM ``Logic.toBool #[vc]
-        let tTrue ← mkEq toBoolVc (mkConst ``Bool.true)
-        let tFalse ← mkEq toBoolVc (mkConst ``Bool.false)
-        let ht ← withLocalDeclD `hb tTrue fun hb => do
-          let p ← totWalk cfg envE vals ((c, true, hb) :: facts) totalEnv selfC th
-          mkLambdaFVars #[hb] p
-        let he ← withLocalDeclD `hb tFalse fun hb => do
-          let p ← totWalk cfg envE vals ((c, false, hb) :: facts) totalEnv selfC e
-          mkLambdaFVars #[hb] p
-        return ← mkAppM ``conv_if_split
-          #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th, reflectSExpr e,
-            vc, hc, ht, he]
-      else
-        -- OPAQUE (user-fn) test — e.g. perm's (memb (car x) y): the walk
-        -- itself converges the test (an already-total earlier fn's call),
-        -- then the branches split on the EXISTENTIAL verdict via
-        -- conv_if_split_ex — the dis_perm_total move, mechanized (lifter
-        -- sprint 2026-07-06). The branch fact binds the OPAQUE verdict
-        -- fvar; safe because decrease discharge only existence-checks
-        -- non-consp ruling tests (their proof Exprs are never consumed),
-        -- and consp tests are always liftable (take the branch above).
-        let hcEx ← totWalk cfg envE vals facts totalEnv selfC c
-        let mkBranch (bval : Name) (pos : Bool) (branch : SExpr) :
-            MetaM Expr :=
-          withLocalDeclD `vc (mkConst ``SExpr) fun vc => do
-            let convTy ← mkAppM ``ConvTo
-              #[cfg.worldExpr, envE, reflectSExpr c, vc]
-            withLocalDeclD `hcv convTy fun hcv => do
-              let hbTy ← mkEq (← mkAppM ``Logic.toBool #[vc]) (mkConst bval)
-              withLocalDeclD `hb hbTy fun hb => do
-                let p ← totWalk cfg envE vals ((c, pos, hb) :: facts)
-                  totalEnv selfC branch
-                mkLambdaFVars #[vc, hcv, hb] p
-        let ht ← mkBranch ``Bool.true true th
-        let he ← mkBranch ``Bool.false false e
-        return ← mkAppM ``conv_if_split_ex
-          #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th,
-            reflectSExpr e, hcEx, ht, he]
-    else
-      throwFrontier m!"proveTotality: ternary {fs.name} unsupported (frontier)"
-  | .cons (.atom (.symbol fs)) argsSpine =>
-    let args := (argsSpine.toList?).getD []
+  -- the SHARED application logic (builtins / self-calls / earlier
+  -- fns), reachable from BOTH the ternary arm (non-IF heads) and the
+  -- general spine arm (sorting arc 2026-07-29)
+  let rec goApp (fs : Symbol) (args : List SExpr) : MetaM Expr := do
     -- dp-known BUILTIN over non-liftable args (e.g. a self-call inside
     -- binary-+): walk the args and compose in the ∃∃ shape
     if args.length == 1 then
@@ -366,18 +596,71 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
           #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr args[0]!,
             reflectSExpr args[1]!, mkConst fn, hNs, hNo, mkConst cb, pa, pb]
     -- SELF-call: the IH, licensed by the emitted decrease obligation
-    if let some (selfName, measuredFormal, ih, just) := selfC then
+    if let some (selfName, measuredFormal, ih, just, recInfo?) := selfC then
       if fs.name == selfName then
         match cfg.worldVal.defs.get? fs with
         | some (formals, body) =>
           unless args.length == formals.length do
-            throwFrontier m!"proveTotality: self-call arity mismatch {repr t}"
+            throwFrontier m!"proveTotality: self-call arity mismatch {repr (SExpr.cons (.atom (.symbol fs)) (args.foldr SExpr.cons .nil))}"
           let mIdx := formals.findIdx (· == measuredFormal)
+          -- RECORDED-TERMINATION route (sorting arc 2026-07-28): the
+          -- decrease comes from the REPLAYED admission waterfall via
+          -- `dischargeDecreaseRecorded`; the measured actual (e.g. qsort's
+          -- `(FILTER …)`) is converged by the walk itself and ∃-eliminated.
+          -- 1-ary only for now (qsort's class); wider arities stay on the
+          -- destructor route's frontier.
+          if let some recInfo := recInfo? then
+            match formals, args with
+            | [f1], [a1] =>
+              unless measuredFormal == f1 do
+                throwFrontier m!"proveTotality: recorded route measured \
+                    formal mismatch (frontier)"
+              let hNs ← proveNotSpecial fs
+              let hDef ← totDefFact cfg fs formals body
+              let hcEx ← totWalk cfg envE vals facts totalEnv selfC a1
+              let varP : Symbol → Option (Expr × Expr) := fun s =>
+                (vals.find? (fun (f, _, _) => f == s)).map
+                  (fun (_, v, p) => (v, p))
+              let varVal := dpValProof.dpVarVal envE varP
+              let kLam ← withLocalDeclD `vs (mkConst ``SExpr) fun vσ => do
+                let convTy ← mkValConvPropEx cfg.worldExpr envE
+                  (reflectSExpr a1) vσ
+                withLocalDeclD `hcs convTy fun hconvσ => do
+                  let dec ← dischargeDecreaseRecorded cfg envE
+                    (rulerCovered := fun lit =>
+                      facts.any (fun (f, pos, _) => f == lit && !pos))
+                    (rulerNilConv := fun lit => do
+                      unless totLiftable lit do
+                        throwFrontier m!"recorded decrease: non-liftable \
+                            ruler {repr lit} (frontier)"
+                      let vc ← dpValExpr [] varVal lit
+                      let some (_, _, hb) := facts.find?
+                          (fun (f, pos, _) => f == lit && !pos)
+                        | throwError "recorded decrease: internal — ruler \
+                            fact vanished"
+                      let hnil ← mkAppM ``Iff.mp
+                        #[← mkAppM ``Logic.toBool_eq_false #[vc], hb]
+                      let hcnv ← dpValProof cfg envE [] [] varP lit
+                      mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil])
+                    (termConv := fun u => dpValProof cfg envE [] [] varP u)
+                    (walkConv := fun u =>
+                      totWalk cfg envE vals facts totalEnv none u)
+                    recInfo measuredFormal a1 hconvσ
+                  let hbody ← mkAppM' ih #[vσ, dec]
+                  let p ← mkAppM ``conv_defn_1_ex
+                    #[cfg.worldExpr, envE, reflectSymbol fs,
+                      reflectSymbol f1, reflectSExpr body, reflectSExpr a1,
+                      vσ, hNs, hDef, hconvσ, hbody]
+                  mkLambdaFVars #[vσ, hconvσ] p
+              return ← mkAppM ``exists_conv_elim #[hcEx, kLam]
+            | _, _ =>
+              throwFrontier m!"proveTotality: recorded route arity \
+                  {args.length} unsupported (frontier)"
           -- the MEASURED argument must be value-characterized (the decrease
           -- and the IH's count argument are stated about its value)
           unless totLiftable args[mIdx]! do
             throwFrontier m!"proveTotality: self-call MEASURED argument not \
-                liftable {repr t} (frontier)"
+                liftable {repr (SExpr.cons (.atom (.symbol fs)) (args.foldr SExpr.cons .nil))} (frontier)"
           unless vals.any (fun (f, _, _) => f == measuredFormal) do
             throwFrontier m!"proveTotality: measured formal has no bound value"
           let kit : DecreaseKit := {
@@ -445,6 +728,32 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                 withLocalDeclD `hcv convTy fun hcv => do
                   mkLambdaFVars #[vO, hcv] (← assemble vO hcv)
               return ← mkAppM ``exists_conv_elim #[hcEx, k]
+          | [f1, f2, f3], [a1, a2, a3] =>
+            -- 3-ary, measured on the SECOND formal (FILTER/ALL-REL —
+            -- sorting arc 2026-07-29); the IH binder order follows
+            -- `totality_3_rec_snd_mu`'s step: (measured value, decrease,
+            -- first value, third value). Liftable arguments only.
+            unless measuredFormal == f2 do
+              throwFrontier m!"proveTotality: 3-ary self-call measured \
+                  formal mismatch (frontier)"
+            unless totLiftable a1 && totLiftable a2 && totLiftable a3 do
+              throwFrontier m!"proveTotality: 3-ary self-call argument not \
+                  liftable {repr (SExpr.cons (.atom (.symbol fs)) (args.foldr SExpr.cons .nil))} (frontier)"
+            let dec ← dischargeDecrease just
+              formals (formals.map (fun f => .atom (.symbol f)))
+              formals args kit
+            let v1 ← dpValExpr [] (dpValProof.dpVarVal envE varP) a1
+            let p1 ← dpValProof cfg envE [] [] varP a1
+            let v2 ← dpValExpr [] (dpValProof.dpVarVal envE varP) a2
+            let p2 ← dpValProof cfg envE [] [] varP a2
+            let v3 ← dpValExpr [] (dpValProof.dpVarVal envE varP) a3
+            let p3 ← dpValProof cfg envE [] [] varP a3
+            let hbody ← mkAppM' ih #[v2, dec, v1, v3]
+            return ← mkAppM ``conv_defn_3_ex
+              #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
+                reflectSymbol f2, reflectSymbol f3, reflectSExpr body,
+                reflectSExpr a1, reflectSExpr a2, reflectSExpr a3,
+                v1, v2, v3, hNs, hDef, p1, p2, p3, hbody]
           | _, _ =>
             throwFrontier m!"proveTotality: self-call arity {args.length} \
                 unsupported (frontier)"
@@ -452,12 +761,83 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
     -- EARLIER defined fn: its accumulated totality proof
     if let some (_, arity, pf) := totalEnv.find? (fun (n, _, _) => n == fs.name) then
       unless args.length == arity do
-        throwFrontier m!"proveTotality: call arity mismatch {repr t}"
+        throwFrontier m!"proveTotality: call arity mismatch {repr (SExpr.cons (.atom (.symbol fs)) (args.foldr SExpr.cons .nil))}"
       let argPfs ← args.mapM (totWalk cfg envE vals facts totalEnv selfC)
       let argsR := args.map reflectSExpr
       return ← mkAppM' pf (#[envE] ++ argsR.toArray ++ argPfs.toArray)
     throwFrontier m!"proveTotality: call to {fs.name} with no totality fact \
         in scope (frontier: development-order dependency or unsupported head)"
+
+  match t with
+  | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
+    if fs.name == "IF" then
+      if totLiftable c then
+        let vc ← dpValExpr [] (dpValProof.dpVarVal envE varP) c
+        let hc ← dpValProof cfg envE [] [] varP c
+        let toBoolVc ← mkAppM ``Logic.toBool #[vc]
+        let tTrue ← mkEq toBoolVc (mkConst ``Bool.true)
+        let tFalse ← mkEq toBoolVc (mkConst ``Bool.false)
+        let he ← withLocalDeclD `hb tFalse fun hb => do
+          let p ← totWalk cfg envE vals ((c, false, hb) :: facts) totalEnv selfC e
+          mkLambdaFVars #[hb] p
+        let ht ←
+          if ← isDefEq vc (mkConst ``SExpr.nil) then do
+            -- VACUOUS truthy branch (sorting arc 2026-07-28): the test's
+            -- value is DEFINITIONALLY nil — `(COMPLEX-RATIONALP _)` in
+            -- ACL2-COUNT's own admission body, constantly nil on the
+            -- complex-free value space — so the branch hypothesis refutes
+            -- itself; close by absurdity instead of walking a branch whose
+            -- self-call decrease (`(ACL2-COUNT (REALPART X))`) the walk
+            -- could never state. The pinned complex-free limitation.
+            let goalTy ← mkConvPropEx cfg.worldExpr envE (reflectSExpr th)
+            withLocalDeclD `hb tTrue fun hb => do
+              let ftTy ← mkEq (mkConst ``Bool.false) (mkConst ``Bool.true)
+              let hbF ← mkExpectedTypeHint hb ftTy
+              let hNot ← mkDecideProof (← mkAppM ``Not #[ftTy])
+              let body ← mkAppOptM ``absurd
+                #[some ftTy, some goalTy, some hbF, some hNot]
+              mkLambdaFVars #[hb] body
+          else
+            withLocalDeclD `hb tTrue fun hb => do
+              let p ← totWalk cfg envE vals ((c, true, hb) :: facts)
+                totalEnv selfC th
+              mkLambdaFVars #[hb] p
+        return ← mkAppM ``conv_if_split
+          #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th, reflectSExpr e,
+            vc, hc, ht, he]
+      else
+        -- OPAQUE (user-fn) test — e.g. perm's (memb (car x) y): the walk
+        -- itself converges the test (an already-total earlier fn's call),
+        -- then the branches split on the EXISTENTIAL verdict via
+        -- conv_if_split_ex — the dis_perm_total move, mechanized (lifter
+        -- sprint 2026-07-06). The branch fact binds the OPAQUE verdict
+        -- fvar; safe because decrease discharge only existence-checks
+        -- non-consp ruling tests (their proof Exprs are never consumed),
+        -- and consp tests are always liftable (take the branch above).
+        let hcEx ← totWalk cfg envE vals facts totalEnv selfC c
+        let mkBranch (bval : Name) (pos : Bool) (branch : SExpr) :
+            MetaM Expr :=
+          withLocalDeclD `vc (mkConst ``SExpr) fun vc => do
+            let convTy ← mkAppM ``ConvTo
+              #[cfg.worldExpr, envE, reflectSExpr c, vc]
+            withLocalDeclD `hcv convTy fun hcv => do
+              let hbTy ← mkEq (← mkAppM ``Logic.toBool #[vc]) (mkConst bval)
+              withLocalDeclD `hb hbTy fun hb => do
+                let p ← totWalk cfg envE vals ((c, pos, hb) :: facts)
+                  totalEnv selfC branch
+                mkLambdaFVars #[vc, hcv, hb] p
+        let ht ← mkBranch ``Bool.true true th
+        let he ← mkBranch ``Bool.false false e
+        return ← mkAppM ``conv_if_split_ex
+          #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th,
+            reflectSExpr e, hcEx, ht, he]
+    else
+      -- a 3-ary NON-IF application (sorting arc 2026-07-29): route through
+      -- the SHARED application logic (self-calls included) — previously
+      -- this arm swallowed every ternary and frontiered it.
+      goApp fs [c, th, e]
+  | .cons (.atom (.symbol fs)) argsSpine =>
+    goApp fs ((argsSpine.toList?).getD [])
   | _ => throwFrontier m!"proveTotality: term shape {repr t} unsupported (frontier)"
 where
   /-- `w.defs.get? fn = some (formals, body)` by `decide` on the reflected world. -/

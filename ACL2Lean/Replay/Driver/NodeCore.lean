@@ -67,6 +67,13 @@ structure ReplayConfig where
       registered Lean lemma against the emitted shape (audit-F2 style) —
       an unlisted or drifted rule hard-fails. -/
   fcRules : List FcRuleSpec := []
+  /-- RECORDED-TERMINATION mirrors (sorting arc 2026-07-28): per defun with
+      a replayed admission waterfall, its mirror constant, condition names,
+      and root goal clause. Consumed by the totality prover (via the
+      threaded `buildTotalEnv` params) AND the theorem-side induction's
+      IH-decrease fallback (`replayInduction`, which resolves the conditions
+      from the ambient `ReplayCtx`). -/
+  termMirrors : List (String × Name × List String × List SExpr) := []
   /-- The development's emitted `:TYPE-PRESCRIPTION` corollaries for
       BUILTIN-NAMED ground-zero fns (world-defined fns get theirs as `tp:`
       hypotheses instead — `replayProofConditional`). Consumed by the builtin
@@ -230,6 +237,7 @@ def dpUnary : List (String × Name × Name) :=
    ("ATOM",     ``Logic.atom,     ``callBuiltin_atom),
    ("NUMERATOR", ``Logic.numerator, ``callBuiltin_numerator),
    ("DENOMINATOR", ``Logic.denominator, ``callBuiltin_denominator),
+   ("UNARY--",  ``Logic.neg,      ``callBuiltin_unary_minus),
    ("REALPART", ``Logic.realpart, ``callBuiltin_realpart),
    ("IMAGPART", ``Logic.imagpart, ``callBuiltin_imagpart),
    ("COMPLEX-RATIONALP", ``Logic.complexRationalp,
@@ -242,6 +250,7 @@ def dpBinary : List (String × Name × Name) :=
    ("LEXORDER", ``ACL2.lexorder, ``callBuiltin_lexorder),
    ("BINARY-+", ``Logic.plus,    ``callBuiltin_plus),
    ("BINARY-*", ``Logic.times,   ``callBuiltin_times),
+   ("COERCE",   ``Logic.coerce,  ``callBuiltin_coerce),
    ("CONS",     ``SExpr.cons,    ``callBuiltin_cons),
    ("IMPLIES",  ``Logic.implies, ``callBuiltin_implies),
    ("IFF",      ``Logic.iff,     ``callBuiltin_iff)]

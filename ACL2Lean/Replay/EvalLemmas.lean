@@ -2247,6 +2247,10 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
     callBuiltin "NUMERATOR" [a] = some (Logic.numerator a) := by rfl
 @[simp] theorem callBuiltin_denominator (a : SExpr) :
     callBuiltin "DENOMINATOR" [a] = some (Logic.denominator a) := by rfl
+@[simp] theorem callBuiltin_unary_minus (a : SExpr) :
+    callBuiltin "UNARY--" [a] = some (Logic.neg a) := by rfl
+@[simp] theorem callBuiltin_coerce (a b : SExpr) :
+    callBuiltin "COERCE" [a, b] = some (Logic.coerce a b) := by rfl
 @[simp] theorem callBuiltin_realpart (a : SExpr) :
     callBuiltin "REALPART" [a] = some (Logic.realpart a) := by rfl
 @[simp] theorem callBuiltin_imagpart (a : SExpr) :
@@ -4469,6 +4473,13 @@ condition. Design + decision log:
 def EvTrue (w : World) (env : Env) (t : SExpr) : Prop :=
   ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env t = some v ∧ v ≠ SExpr.nil
 
+/-- Cast a convergence to nil along a value equation (the recorded-
+    termination ruler peel: the walk's `toBool = false` fact decodes to the
+    test's nil value). -/
+theorem conv_nil_of_conv_eq {w : World} {env : Env} {t v : SExpr}
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v) (hv : v = SExpr.nil) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env t = some SExpr.nil := hv ▸ h
+
 /-- Exact-t injection at the clause boundary: a value-pinned `= some t` fact
     IS truthiness. Every existing exact-t producer enters the `EvTrue` layer
     through this single lemma. -/
@@ -5093,5 +5104,476 @@ theorem re_equal_nil_norm_r (w : World) (env : Env) (x : SExpr)
   refine fuel_eq_of_conv hl hr ?_
   rw [← logic_equal_nil_eq_ite vx]
   exact logic_equal_comm vx .nil
+
+
+/-! ## The recorded-termination (μ-generic) totality pack — sorting arc
+    2026-07-28. Strong induction over an arbitrary Nat measure (design
+    I1: the measure is Lean bookkeeping, appearing in no statement); the
+    INTERPRETED count as that measure (definite description; the allowed
+    Classical.choice); the transport/decode lemmas consuming the REPLAYED
+    admission waterfall's O< facts against the byte-checked ground-zero
+    shapes. -/
+
+private def intAtom (n : Int) : SExpr := .atom (.number (.int n))
+
+/-- Strong induction over an ARBITRARY Nat measure (μ is Lean bookkeeping —
+    design I1; the recorded-termination route instantiates the interpreted
+    ACL2-COUNT). -/
+theorem measure_strong_induction_val (μ : SExpr → Nat) (P : SExpr → Prop)
+    (step : ∀ x, (∀ y, μ y < μ x → P y) → P x) : ∀ x, P x := by
+  intro x
+  generalize h : μ x = n
+  induction n using Nat.strong_induction_on generalizing x with
+  | _ n ih => exact step x (fun y hy => ih (μ y) (h ▸ hy) y rfl)
+
+theorem totality_1_rec_mu (μ : SExpr → Nat)
+    (w : World) (s : Symbol) (formal : Symbol) (body : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal], body))
+    (step : ∀ av : SExpr,
+      (∀ bv : SExpr, μ bv < μ av →
+        ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [bv]) body = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
+    ∀ (env' : Env) (a0 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 .nil)) = some v := by
+  have hbody := measure_strong_induction_val μ
+    (fun av => ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal] [av]) body = some v) step
+  exact totality_1_of_body w s formal body h_ns h_def hbody
+
+theorem totality_2_rec_mu (μ : SExpr → Nat)
+    (w : World) (s : Symbol) (formal1 formal2 : Symbol) (body : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (step : ∀ av1 : SExpr,
+      (∀ bv : SExpr, μ bv < μ av1 → ∀ cv : SExpr,
+        ∃ N, ∃ v, ∀ f ≥ N,
+          evalOpt f w (bindArgs [formal1, formal2] [bv, cv]) body = some v) →
+      ∀ av2 : SExpr,
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
+    ∀ (env' : Env) (a0 a1 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env'
+          (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil))) = some v := by
+  have hbody := measure_strong_induction_val μ
+    (fun av1 => ∀ av2, ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) step
+  exact totality_2_of_body w s formal1 formal2 body h_ns h_def
+    (fun av1 av2 => hbody av1 av2)
+
+theorem totality_2_rec_mu_snd (μ : SExpr → Nat)
+    (w : World) (s : Symbol) (formal1 formal2 : Symbol) (body : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (step : ∀ av2 : SExpr,
+      (∀ cv : SExpr, μ cv < μ av2 → ∀ bv : SExpr,
+        ∃ N, ∃ v, ∀ f ≥ N,
+          evalOpt f w (bindArgs [formal1, formal2] [bv, cv]) body = some v) →
+      ∀ av1 : SExpr,
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
+    ∀ (env' : Env) (a0 a1 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env'
+          (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil))) = some v := by
+  have hbody := measure_strong_induction_val μ
+    (fun av2 => ∀ av1, ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) step
+  exact totality_2_of_body w s formal1 formal2 body h_ns h_def
+    (fun av1 av2 => hbody av2 av1)
+
+/-- LEFT conjunct of an IF-encoded conjunction: `EvTrue (IF A B 'NIL)` needs
+    `A` truthy (the nil-else would otherwise be the value). `A`'s own
+    convergence is required to name the branch. -/
+theorem evtrue_and_left {w : World} {env : Env} {A B va : SExpr}
+    (hA : ∃ N, ∀ f ≥ N, evalOpt f w env A = some va)
+    (h : EvTrue w env
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons A (.cons B
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+            .nil))))) :
+    va ≠ SExpr.nil := by
+  intro hva
+  obtain ⟨Na, ha⟩ := hA; obtain ⟨N, hN⟩ := h
+  obtain ⟨v, hv, hnv⟩ := hN (max Na N + 2) (by omega)
+  rw [evalOpt_if_false (max Na N + 1) w env A B _
+    (hva ▸ ha (max Na N + 1) (by omega))] at hv
+  rw [evalOpt_quote (max Na N) w env .nil] at hv
+  exact hnv ((Option.some.injEq _ _).mp hv).symm
+
+/-- RIGHT conjunct of an IF-encoded conjunction: `EvTrue (IF A B 'NIL)` with
+    `A` converging truthy IS `EvTrue B`. -/
+theorem evtrue_and_right {w : World} {env : Env} {A B va : SExpr}
+    (hA : ∃ N, ∀ f ≥ N, evalOpt f w env A = some va)
+    (hva : Logic.toBool va = true)
+    (h : EvTrue w env
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons A (.cons B
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+            .nil))))) :
+    EvTrue w env B := by
+  obtain ⟨Na, ha⟩ := hA; obtain ⟨N, hN⟩ := h
+  refine ⟨max Na N, fun f hf => ?_⟩
+  obtain ⟨v, hv, hnv⟩ := hN (f + 1) (by omega)
+  rw [evalOpt_if_true f w env A B _ va (ha f (by omega)) hva] at hv
+  exact ⟨v, hv, hnv⟩
+
+/-- Convergence values are unique (fuel monotonicity + determinism). -/
+theorem conv_unique {w : World} {env : Env} {t v v' : SExpr}
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v)
+    (h' : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v') : v = v' := by
+  obtain ⟨N, hN⟩ := h; obtain ⟨N', hN'⟩ := h'
+  have h1 := hN (max N N') (le_max_left _ _)
+  have h2 := hN' (max N N') (le_max_right _ _)
+  rw [h1] at h2; exact (Option.some.injEq _ _).mp h2
+
+/-- The count fn applied to the QUOTED value, in the empty env, converges to
+    the integer `n` — the defining relation of `interpCount`. -/
+def InterpCountConv (w : World) (cnt : Symbol) (v : SExpr) (n : Nat) : Prop :=
+  ∃ N, ∀ f ≥ N,
+    evalOpt f w {}
+      (.cons (.atom (.symbol cnt))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons v .nil))
+          .nil))
+    = some (intAtom n)
+
+open scoped Classical in
+/-- The INTERPRETED-count bookkeeping measure: the Nat the world's count fn
+    computes on the quoted value in the empty env (definite description —
+    the measure appears in no statement, design I1; `Classical.choice` is
+    in the allowed axiom trio), 0 where none exists. -/
+noncomputable def interpCount (w : World) (cnt : Symbol) (v : SExpr) : Nat :=
+  if h : ∃ n : Nat, InterpCountConv w cnt v n then h.choose else 0
+
+/-- QUOTE convergence at a KNOWN value (the `re_conv_quote` shape with the
+    value exposed). -/
+theorem conv_quote_val (w : World) (env : Env) (v : SExpr) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "QUOTE" })) (.cons v .nil)) = some v :=
+  ⟨1, fun f _ => by
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    exact evalOpt_quote g w env v⟩
+
+/-- Extract the BODY convergence from a 1-ary app convergence (the inverse
+    direction of `conv_defn_1`; `evalOpt_defn_1` is an equation). -/
+theorem conv_body_of_app1 {w : World} {env : Env} {s formal : Symbol}
+    {arg av body v : SExpr}
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal], body))
+    (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av)
+    (happ : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) (.cons arg .nil)) = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v := by
+  obtain ⟨Na, ha⟩ := harg; obtain ⟨Np, hp⟩ := happ
+  refine ⟨max Na Np, fun f hf => ?_⟩
+  have h1 := hp (f + 1) (by omega)
+  rw [evalOpt_defn_1 f w env s arg av formal body h_ns h_def
+    (ha f (by omega))] at h1
+  exact h1
+
+/-- TRANSPORT a 1-ary app's convergence to the QUOTED-value form at the
+    empty env: the body evaluation is env-independent. With the value an
+    integer (from the fn's TP), this is exactly `InterpCountConv`. -/
+theorem interpCountConv_of_app1 {w : World} {env : Env} {cnt formal : Symbol}
+    {t vt body : SExpr} {n : Nat}
+    (h_ns : cnt.isNamed "QUOTE" = false ∧ cnt.isNamed "IF" = false ∧
+            cnt.isNamed "LET" = false ∧ cnt.isNamed "LET*" = false)
+    (h_def : w.defs.get? cnt = some ([formal], body))
+    (ht : ∃ N, ∀ f ≥ N, evalOpt f w env t = some vt)
+    (happ : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol cnt)) (.cons t .nil))
+        = some (intAtom n)) :
+    InterpCountConv w cnt vt n := by
+  have hb := conv_body_of_app1 h_ns h_def ht happ
+  exact conv_defn_1 w {} cnt
+    (.cons (.atom (.symbol { name := "QUOTE" })) (.cons vt .nil)) vt
+    formal body (intAtom n) h_ns h_def (conv_quote_val w {} vt) hb
+
+/-! The O< decode on integer atoms, against the BYTE-CHECKED emitted
+    ground-zero shapes (the driver validates the world's entries equal these
+    literals by kernel decision before applying the lemma). -/
+
+def oltXSym : Symbol := { name := "X" }
+def oltYSym : Symbol := { name := "Y" }
+
+/-- The emitted ground-zero `O-FINP` body: `(IF (CONSP X) 'NIL 'T)`. -/
+def oFinpBodyShape : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "CONSP" }))
+        (.cons (.atom (.symbol oltXSym)) .nil))
+      (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+            (.cons SExpr.t .nil))
+          .nil)))
+
+/-- The emitted ground-zero `O<` body, parameterized by its (unexercised on
+    integer atoms) ordinal else-arm: `(IF (O-FINP X) (IF (O-FINP Y) (< X Y)
+    'T) <elseBr>)`. The driver byte-checks the world's entry against this
+    shape (with the world's own else-arm) by kernel decision. -/
+def oLtBodyShapeWith (elseBr : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (.cons (.atom (.symbol { name := "O-FINP" }))
+        (.cons (.atom (.symbol oltXSym)) .nil))
+      (.cons (.cons (.atom (.symbol { name := "IF" }))
+          (.cons (.cons (.atom (.symbol { name := "O-FINP" }))
+              (.cons (.atom (.symbol oltYSym)) .nil))
+            (.cons (.cons (.atom (.symbol { name := "<" }))
+                (.cons (.atom (.symbol oltXSym))
+                  (.cons (.atom (.symbol oltYSym)) .nil)))
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                  (.cons SExpr.t .nil))
+                .nil))))
+        (.cons elseBr .nil)))
+
+/-- `o-finp` of an ATOM value is `t` (via the byte-checked body). -/
+theorem conv_ofinp_atom {w : World} {env : Env} {arg av : SExpr}
+    (hnoConsp : w.defs.get? { name := "CONSP" } = none)
+    (hdefF : w.defs.get? { name := "O-FINP" } = some ([oltXSym], oFinpBodyShape))
+    (hatom : Logic.consp av = SExpr.nil)
+    (harg : ∃ N, ∀ f ≥ N, evalOpt f w env arg = some av) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "O-FINP" })) (.cons arg .nil))
+        = some SExpr.t := by
+  have hX : ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs [oltXSym] [av]) (.atom (.symbol oltXSym)) = some av :=
+    re_val_var_get w _ oltXSym av (bindArgs_single_get_self oltXSym av)
+  have hconsp := conv_builtin1 w (bindArgs [oltXSym] [av]) { name := "CONSP" }
+    (.atom (.symbol oltXSym)) av (Logic.consp av) (by decide) hnoConsp hX
+    (callBuiltin_consp av)
+  rw [hatom] at hconsp
+  have hbody : ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs [oltXSym] [av]) oFinpBodyShape = some SExpr.t := by
+    obtain ⟨Nc, hc⟩ := hconsp
+    refine ⟨Nc + 2, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    show evalOpt (g + 1) w _ (.cons (.atom (.symbol { name := "IF" })) _) = _
+    rw [evalOpt_if_false g w _ _ _ _ (hc g (by omega))]
+    obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
+    exact evalOpt_quote g2 w _ SExpr.t
+  exact conv_defn_1 w env { name := "O-FINP" } arg av oltXSym oFinpBodyShape
+    SExpr.t (by decide) hdefF harg hbody
+
+theorem logic_lt_int_ne_nil_iff (m n : Int) :
+    (Logic.lt (intAtom m) (intAtom n) ≠ SExpr.nil) ↔ m < n := by
+  simp [intAtom, Logic.lt, Logic.toRat, SExpr.t]
+
+/-- The O< DECODE on integer atoms: `EvTrue (O< a b)` with both arguments
+    converging to integers, against the byte-checked `O<`/`O-FINP` shapes,
+    IS the integer ordering. -/
+theorem olt_int_decode {w : World} {env : Env} {a b elseBr : SExpr} {m n : Int}
+    (hnoLt : w.defs.get? { name := "<" } = none)
+    (hnoConsp : w.defs.get? { name := "CONSP" } = none)
+    (hdefF : w.defs.get? { name := "O-FINP" } = some ([oltXSym], oFinpBodyShape))
+    (hdefO : w.defs.get? { name := "O<" }
+      = some ([oltXSym, oltYSym], oLtBodyShapeWith elseBr))
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some (intAtom m))
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some (intAtom n))
+    (hev : EvTrue w env
+      (.cons (.atom (.symbol { name := "O<" })) (.cons a (.cons b .nil)))) :
+    m < n := by
+  have hneXY : oltXSym ≠ oltYSym := by decide
+  set envB := bindArgs [oltXSym, oltYSym] [intAtom m, intAtom n] with henvB
+  have hX : ∃ N, ∀ f ≥ N,
+      evalOpt f w envB (.atom (.symbol oltXSym)) = some (intAtom m) :=
+    re_val_var_get w _ oltXSym _ (bindArgs_pair_get_fst oltXSym oltYSym _ _)
+  have hY : ∃ N, ∀ f ≥ N,
+      evalOpt f w envB (.atom (.symbol oltYSym)) = some (intAtom n) :=
+    re_val_var_get w _ oltYSym _ (bindArgs_pair_get_snd oltXSym oltYSym _ _ hneXY)
+  have hFinX := conv_ofinp_atom hnoConsp hdefF (by simp [intAtom, Logic.consp]) hX
+  have hFinY := conv_ofinp_atom hnoConsp hdefF (by simp [intAtom, Logic.consp]) hY
+  have hlt := conv_builtin2 w envB { name := "<" } (.atom (.symbol oltXSym))
+    (.atom (.symbol oltYSym)) (intAtom m) (intAtom n)
+    (Logic.lt (intAtom m) (intAtom n)) (by decide) hnoLt hX hY
+    (callBuiltin_lt (intAtom m) (intAtom n))
+  have hinner := conv_if_true w envB _ _
+    (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+    SExpr.t _ hFinY (by simp [Logic.toBool]) hlt
+  have houter := conv_if_true w envB _ _ elseBr SExpr.t _ hFinX
+    (by simp [Logic.toBool]) hinner
+  have happ := conv_defn_2 w env { name := "O<" } a b (intAtom m) (intAtom n)
+    oltXSym oltYSym _ (Logic.lt (intAtom m) (intAtom n)) (by decide) hdefO ha hb houter
+  have hne := ne_nil_of_evtrue_conv hev happ
+  exact (logic_lt_int_ne_nil_iff m n).mp hne
+
+theorem interpCount_eq {w : World} {cnt : Symbol} {v : SExpr} {n : Nat}
+    (h : InterpCountConv w cnt v n) :
+    interpCount w cnt v = n := by
+  have hx : ∃ m : Nat, InterpCountConv w cnt v m := ⟨n, h⟩
+  rw [interpCount, dif_pos hx]
+  have hspec := hx.choose_spec
+  have hv := conv_unique hspec h
+  simp only [intAtom, SExpr.atom.injEq, Atom.number.injEq, Number.int.injEq] at hv
+  omega
+
+
+/-- The ONE-SHOT interpreted-count decrease decode (recorded-termination
+    route): from the REPLAYED admission waterfall's `O<` fact over two
+    count applications, their convergences (the count fn's totality), and
+    the count fn's standard nonneg-int TP (partially applied at each
+    argument), conclude the `interpCount` ordering the μ-generic strong
+    induction consumes. All shape obligations (the count fn's arity-1
+    entry, the `O<`/`O-FINP` ground-zero bodies) are BYTE-CHECKED by the
+    driver before application. -/
+theorem interp_decrease_decode {w : World} {env : Env} {cnt : Symbol}
+    {formal : Symbol} {cntBody : SExpr} {tσ tm vσ vm elseBr : SExpr}
+    (h_ns : cnt.isNamed "QUOTE" = false ∧ cnt.isNamed "IF" = false ∧
+            cnt.isNamed "LET" = false ∧ cnt.isNamed "LET*" = false)
+    (h_def : w.defs.get? cnt = some ([formal], cntBody))
+    (hnoLt : w.defs.get? { name := "<" } = none)
+    (hnoConsp : w.defs.get? { name := "CONSP" } = none)
+    (hdefF : w.defs.get? { name := "O-FINP" } = some ([oltXSym], oFinpBodyShape))
+    (hdefO : w.defs.get? { name := "O<" }
+      = some ([oltXSym, oltYSym], oLtBodyShapeWith elseBr))
+    (hσ : ∃ N, ∀ f ≥ N, evalOpt f w env tσ = some vσ)
+    (hm : ∃ N, ∀ f ≥ N, evalOpt f w env tm = some vm)
+    (hcσ : ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol cnt)) (.cons tσ .nil)) = some v)
+    (hcm : ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol cnt)) (.cons tm .nil)) = some v)
+    (htpσ : ∀ v : SExpr,
+      (∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol cnt)) (.cons tσ .nil)) = some v) →
+      (bif Logic.toBool (Logic.integerp v)
+       then Logic.not (Logic.lt v (.atom (.number (.int 0))))
+       else SExpr.nil) = SExpr.t)
+    (htpm : ∀ v : SExpr,
+      (∃ N, ∀ f ≥ N,
+        evalOpt f w env (.cons (.atom (.symbol cnt)) (.cons tm .nil)) = some v) →
+      (bif Logic.toBool (Logic.integerp v)
+       then Logic.not (Logic.lt v (.atom (.number (.int 0))))
+       else SExpr.nil) = SExpr.t)
+    (hev : EvTrue w env
+      (.cons (.atom (.symbol { name := "O<" }))
+        (.cons (.cons (.atom (.symbol cnt)) (.cons tσ .nil))
+          (.cons (.cons (.atom (.symbol cnt)) (.cons tm .nil)) .nil)))) :
+    interpCount w cnt vσ < interpCount w cnt vm := by
+  obtain ⟨Nσ, cσ, hcσ'⟩ := hcσ
+  obtain ⟨Nm, cm, hcm'⟩ := hcm
+  have hconvσ : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol cnt)) (.cons tσ .nil)) = some cσ :=
+    ⟨Nσ, hcσ'⟩
+  have hconvm : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol cnt)) (.cons tm .nil)) = some cm :=
+    ⟨Nm, hcm'⟩
+  obtain ⟨nσ, rfl⟩ := dp_nonneg_int_of_tp (htpσ cσ hconvσ)
+  obtain ⟨nm, rfl⟩ := dp_nonneg_int_of_tp (htpm cm hconvm)
+  have hicσ := interpCount_eq (interpCountConv_of_app1 h_ns h_def hσ hconvσ)
+  have hicm := interpCount_eq (interpCountConv_of_app1 h_ns h_def hm hconvm)
+  have hlt := olt_int_decode hnoLt hnoConsp hdefF hdefO hconvσ hconvm hev
+  rw [hicσ, hicm]
+  omega
+
+
+/-! ## 3-ary totality (sorting arc 2026-07-29 — FILTER/ALL-REL/REL) -/
+
+theorem bindArgs_triple_get_fst (f1 f2 f3 : Symbol) (v1 v2 v3 : SExpr) :
+    (bindArgs [f1, f2, f3] [v1, v2, v3]).get? f1 = some v1 := by
+  show ((({} : Env).insert f3 v3 |>.insert f2 v2 |>.insert f1 v1)).get? f1
+    = some v1
+  simp
+
+theorem bindArgs_triple_get_snd (f1 f2 f3 : Symbol) (v1 v2 v3 : SExpr)
+    (h12 : f1 ≠ f2) :
+    (bindArgs [f1, f2, f3] [v1, v2, v3]).get? f2 = some v2 := by
+  show ((({} : Env).insert f3 v3 |>.insert f2 v2 |>.insert f1 v1)).get? f2
+    = some v2
+  simp [Ne.symm h12]
+
+theorem bindArgs_triple_get_thd (f1 f2 f3 : Symbol) (v1 v2 v3 : SExpr)
+    (h13 : f1 ≠ f3) (h23 : f2 ≠ f3) :
+    (bindArgs [f1, f2, f3] [v1, v2, v3]).get? f3 = some v3 := by
+  show ((({} : Env).insert f3 v3 |>.insert f2 v2 |>.insert f1 v1)).get? f3
+    = some v3
+  simp [Ne.symm h13, Ne.symm h23]
+
+/-- A 3-ary defined call converges when its arguments and its body (at the
+    argument values) converge — ∃N∃v walk form. -/
+theorem conv_defn_3_ex (w : World) (env : Env) (s : Symbol)
+    (formal1 formal2 formal3 : Symbol) (body arg1 arg2 arg3 av1 av2 av3 : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2, formal3], body))
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
+    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
+    (h3 : ∃ N, ∀ f ≥ N, evalOpt f w env arg3 = some av3)
+    (hbody : ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2, formal3] [av1, av2, av3]) body
+        = some v) :
+    ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol s)) (.cons arg1 (.cons arg2 (.cons arg3 .nil))))
+        = some v := by
+  obtain ⟨Nb, v, hb⟩ := hbody
+  obtain ⟨N, h⟩ := conv_defn_3 w env s arg1 arg2 arg3 av1 av2 av3
+    formal1 formal2 formal3 body v h_ns h_def h1 h2 h3 ⟨Nb, hb⟩
+  exact ⟨N, v, h⟩
+
+theorem totality_3_of_body (w : World) (s : Symbol)
+    (formal1 formal2 formal3 : Symbol) (body : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2, formal3], body))
+    (hbody : ∀ av1 av2 av3 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2, formal3] [av1, av2, av3]) body
+        = some v) :
+    ∀ (env' : Env) (a0 a1 a2 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a2 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env'
+          (.cons (.atom (.symbol s))
+            (.cons a0 (.cons a1 (.cons a2 .nil)))) = some v := by
+  intro env' a0 a1 a2 h0 h1 h2
+  obtain ⟨N0, av1, h0'⟩ := h0
+  obtain ⟨N1, av2, h1'⟩ := h1
+  obtain ⟨N2, av3, h2'⟩ := h2
+  exact conv_defn_3_ex w env' s formal1 formal2 formal3 body a0 a1 a2
+    av1 av2 av3 h_ns h_def ⟨N0, h0'⟩ ⟨N1, h1'⟩ ⟨N2, h2'⟩ (hbody av1 av2 av3)
+
+/-- 3-ary RECURSIVE totality, measured on the SECOND formal (FILTER/ALL-REL:
+    `(fn x e)` recursing on `x`); the other two argument values are
+    universally quantified INSIDE the induction. μ-generic (design I1). -/
+theorem totality_3_rec_snd_mu (μ : SExpr → Nat)
+    (w : World) (s : Symbol) (formal1 formal2 formal3 : Symbol) (body : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2, formal3], body))
+    (step : ∀ av2 : SExpr,
+      (∀ bv : SExpr, μ bv < μ av2 → ∀ av1 av3 : SExpr,
+        ∃ N, ∃ v, ∀ f ≥ N,
+          evalOpt f w (bindArgs [formal1, formal2, formal3] [av1, bv, av3])
+            body = some v) →
+      ∀ av1 av3 : SExpr,
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
+          body = some v) :
+    ∀ (env' : Env) (a0 a1 a2 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a2 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w env'
+          (.cons (.atom (.symbol s))
+            (.cons a0 (.cons a1 (.cons a2 .nil)))) = some v := by
+  have hbody := measure_strong_induction_val μ
+    (fun av2 => ∀ av1 av3, ∃ N, ∃ v, ∀ f ≥ N,
+      evalOpt f w (bindArgs [formal1, formal2, formal3] [av1, av2, av3]) body
+        = some v) step
+  exact totality_3_of_body w s formal1 formal2 formal3 body h_ns h_def
+    (fun av1 av2 av3 => hbody av2 av1 av3)
 
 end ACL2.Replay

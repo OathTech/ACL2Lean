@@ -13,11 +13,16 @@ namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
 /-- Prove `total:fn` (the `mkTotalityHypType` statement) from the admission
-    data; throws a named-frontier error when out of the D5 scope. -/
+    data; throws a named-frontier error when out of the D5 scope.
+    `recTerm?` (sorting arc 2026-07-28): the RECORDED-TERMINATION bundle —
+    when present, the strong induction runs over the INTERPRETED count
+    (`interpCount`, design I1 bookkeeping) and self-call decreases come
+    from the replayed admission waterfall instead of the destructor walk. -/
 def proveTotality (cfg : ReplayConfig)
     (totalEnv : List (String × Nat × Expr))
     (name : String) (formals : List Symbol) (body : SExpr)
-    (just? : Option Justification) : MetaM Expr := do
+    (just? : Option Justification)
+    (recTerm? : Option RecTermInfo := none) : MetaM Expr := do
   let fs : Symbol := { name := name }
   let hNs ← proveNotSpecial fs
   let hDef ← totWalk.totDefFact cfg fs formals body
@@ -38,6 +43,20 @@ def proveTotality (cfg : ReplayConfig)
       let p1 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f1, av1, g1]
       let p2 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, reflectSymbol f2, av2, g2]
       return [(f1, av1, p1), (f2, av2, p2)]
+    | [f1, f2, f3], [av1, av2, av3] =>
+      let ne (a b : Symbol) : MetaM Expr := do
+        mkDecideProof (← mkAppM ``Ne #[reflectSymbol a, reflectSymbol b])
+      let sy := reflectSymbol
+      let g1 ← mkAppM ``bindArgs_triple_get_fst
+        #[sy f1, sy f2, sy f3, av1, av2, av3]
+      let g2 ← mkAppM ``bindArgs_triple_get_snd
+        #[sy f1, sy f2, sy f3, av1, av2, av3, ← ne f1 f2]
+      let g3 ← mkAppM ``bindArgs_triple_get_thd
+        #[sy f1, sy f2, sy f3, av1, av2, av3, ← ne f1 f3, ← ne f2 f3]
+      let p1 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, sy f1, av1, g1]
+      let p2 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, sy f2, av2, g2]
+      let p3 ← mkAppM ``re_val_var_get #[cfg.worldExpr, envE, sy f3, av3, g3]
+      return [(f1, av1, p1), (f2, av2, p2), (f3, av3, p3)]
     | _, _ => throwFrontier m!"proveTotality: arity {formals.length} unsupported (frontier)"
   match just? with
   | none =>
@@ -62,6 +81,18 @@ def proveTotality (cfg : ReplayConfig)
       mkAppM ``totality_2_of_body
         #[cfg.worldExpr, reflectSymbol fs, reflectSymbol formals[0]!,
           reflectSymbol formals[1]!, reflectSExpr body, hNs, hDef, hbody]
+    | [_, _, _] =>
+      let hbody ← withLocalDeclD `av1 (mkConst ``SExpr) fun av1 =>
+        withLocalDeclD `av2 (mkConst ``SExpr) fun av2 =>
+          withLocalDeclD `av3 (mkConst ``SExpr) fun av3 => do
+            let envE ← mkEnvE [av1, av2, av3]
+            let vals ← varProofs envE [av1, av2, av3]
+            let p ← totWalk cfg envE vals [] totalEnv none body
+            mkLambdaFVars #[av1, av2, av3] p
+      mkAppM ``totality_3_of_body
+        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol formals[0]!,
+          reflectSymbol formals[1]!, reflectSymbol formals[2]!,
+          reflectSExpr body, hNs, hDef, hbody]
     | _ => throwFrontier m!"proveTotality: arity {formals.length} unsupported (frontier)"
   | some just =>
     -- RECURSIVE (D5 scope): measure (acl2-count m), o<, single measured formal
@@ -87,7 +118,14 @@ def proveTotality (cfg : ReplayConfig)
     unless just.terminationClauses.any (· == opClause) do
       throwFrontier m!"proveTotality: expected (o-p {repr wantedMeasure}) \
           obligation not found (emission shape changed?)"
-    let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.consCount #[e]
+    -- the induction MEASURE: `consCount` on the destructor route, the
+    -- INTERPRETED count on the recorded route (μ is proof bookkeeping —
+    -- design I1; the statement never mentions it)
+    let countOf (e : Expr) : MetaM Expr :=
+      match recTerm? with
+      | some info => mkAppM ``ACL2.Replay.interpCount
+          #[cfg.worldExpr, reflectSymbol info.cntSym, e]
+      | none => mkAppM ``SExpr.consCount #[e]
     match formals with
     | [f1] =>
       unless measuredFormal == f1 do
@@ -106,11 +144,20 @@ def proveTotality (cfg : ReplayConfig)
           let envE ← envEat av
           let vals ← varProofs envE [av]
           let p ← totWalk cfg envE vals [] totalEnv
-            (some (name, measuredFormal, ih, just)) body
+            (some (name, measuredFormal, ih, just, recTerm?)) body
           mkLambdaFVars #[av, ih] p
-      mkAppM ``totality_1_rec
-        #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
-          reflectSExpr body, hNs, hDef, step]
+      match recTerm? with
+      | some info =>
+        let μE ← withLocalDeclD `v (mkConst ``SExpr) fun v => do
+          mkLambdaFVars #[v] (← mkAppM ``ACL2.Replay.interpCount
+            #[cfg.worldExpr, reflectSymbol info.cntSym, v])
+        mkAppM ``totality_1_rec_mu
+          #[μE, cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+            reflectSExpr body, hNs, hDef, step]
+      | none =>
+        mkAppM ``totality_1_rec
+          #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+            reflectSExpr body, hNs, hDef, step]
     | [f1, f2] =>
       let envEat := fun (bv cv : Expr) => do
         let formalsE ← mkListLit (mkConst ``Symbol)
@@ -131,7 +178,7 @@ def proveTotality (cfg : ReplayConfig)
               let envE ← envEat av1 av2
               let vals ← varProofs envE [av1, av2]
               let p ← totWalk cfg envE vals [] totalEnv
-                (some (name, measuredFormal, ih, just)) body
+                (some (name, measuredFormal, ih, just, none)) body
               mkLambdaFVars #[av1, ih, av2] p
         mkAppM ``totality_2_rec
           #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1, reflectSymbol f2,
@@ -152,7 +199,7 @@ def proveTotality (cfg : ReplayConfig)
               let envE ← envEat av1 av2
               let vals ← varProofs envE [av1, av2]
               let p ← totWalk cfg envE vals [] totalEnv
-                (some (name, measuredFormal, ih, just)) body
+                (some (name, measuredFormal, ih, just, none)) body
               mkLambdaFVars #[av2, ih, av1] p
         mkAppM ``totality_2_rec_snd
           #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1, reflectSymbol f2,
@@ -160,6 +207,48 @@ def proveTotality (cfg : ReplayConfig)
       else
         throwError "proveTotality: measured formal {measuredFormal.name} is \
             not among the formals (internal)"
+    | [f1, f2, f3] =>
+      -- 3-ary, measured on the SECOND formal (sorting arc 2026-07-29 —
+      -- FILTER/ALL-REL's `(fn x e)` shape); other positions stay frontier
+      -- until a book demands them.
+      unless measuredFormal == f2 do
+        throwFrontier m!"proveTotality: 3-ary measured formal \
+            {measuredFormal.name} is not the second formal (frontier)"
+      let envEat := fun (bv cv dv : Expr) => do
+        let formalsE ← mkListLit (mkConst ``Symbol)
+          [reflectSymbol f1, reflectSymbol f2, reflectSymbol f3]
+        let avsE ← mkListLit (mkConst ``SExpr) [bv, cv, dv]
+        mkAppM ``bindArgs #[formalsE, avsE]
+      let step ← withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+        let ihType ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
+          let lt ← mkAppM ``Nat.lt #[← countOf bv, ← countOf av2]
+          let inner ← withLocalDeclD `av1 (mkConst ``SExpr) fun av1 =>
+            withLocalDeclD `av3 (mkConst ``SExpr) fun av3 => do
+              let envB ← envEat av1 bv av3
+              let conv ← mkConvPropEx cfg.worldExpr envB (reflectSExpr body)
+              mkForallFVars #[av1, av3] conv
+          mkForallFVars #[bv] (← mkArrow lt inner)
+        withLocalDeclD `ih ihType fun ih =>
+          withLocalDeclD `av1 (mkConst ``SExpr) fun av1 =>
+            withLocalDeclD `av3 (mkConst ``SExpr) fun av3 => do
+              let envE ← envEat av1 av2 av3
+              let vals ← varProofs envE [av1, av2, av3]
+              let p ← totWalk cfg envE vals [] totalEnv
+                (some (name, measuredFormal, ih, just, recTerm?)) body
+              mkLambdaFVars #[av2, ih, av1, av3] p
+      let μE ←
+        match recTerm? with
+        | some info =>
+          withLocalDeclD `v (mkConst ``SExpr) fun v => do
+            mkLambdaFVars #[v] (← mkAppM ``ACL2.Replay.interpCount
+              #[cfg.worldExpr, reflectSymbol info.cntSym, v])
+        | none =>
+          withLocalDeclD `v (mkConst ``SExpr) fun v => do
+            mkLambdaFVars #[v] (← mkAppM ``SExpr.consCount #[v])
+      mkAppM ``totality_3_rec_snd_mu
+        #[μE, cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+          reflectSymbol f2, reflectSymbol f3, reflectSExpr body, hNs, hDef,
+          step]
     | _ => throwFrontier m!"proveTotality: recursive arity {formals.length} \
         unsupported (frontier)"
 
@@ -174,7 +263,10 @@ def proveTotality (cfg : ReplayConfig)
     proves stays out (hypothesis-backed downstream — D6). -/
 def buildTotalEnv (cfg : ReplayConfig)
     (justs : List (String × Justification))
-    (upTo : Option String := none) :
+    (upTo : Option String := none)
+    (termMirrors : List (String × Name × List String × List SExpr) := [])
+    (hypFVars : List (String × Expr) := [])
+    (tpCors : List (String × SExpr) := []) :
     MetaM (List (String × Nat × Expr)) := do
   -- candidate set: the dev-order prefix up to `upTo` (the lazy-discharge
   -- optimization) plus the ground-zero defs (in scope for every fn).
@@ -201,8 +293,23 @@ def buildTotalEnv (cfg : ReplayConfig)
     let mut still : List (Symbol × List Symbol × SExpr) := []
     for (s, formals, body) in pending do
       try
+        -- RECORDED-TERMINATION route (sorting arc 2026-07-28): when this
+        -- defun's admission waterfall was replayed as a mirror, assemble
+        -- the bundle (byte-checks inside; frontier keeps the fn on the
+        -- destructor route's honest frontier).
+        let recTerm? ←
+          match termMirrors.find? (fun (n, _, _, _) => n == s.name),
+                justs.lookup s.name with
+          | some (_, c, conds, goalLits), some just =>
+            try
+              pure (some (← mkRecTermInfo cfg totalEnv hypFVars tpCors just
+                c conds goalLits))
+            catch e =>
+              unless isFrontierErr e do throw e
+              pure none
+          | _, _ => pure none
         let pf ← proveTotality cfg totalEnv s.name formals body
-          (justs.lookup s.name)
+          (justs.lookup s.name) recTerm?
         totalEnv := (s.name, formals.length, pf) :: totalEnv
         progress := true
       catch e =>

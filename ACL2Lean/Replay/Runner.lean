@@ -23,6 +23,57 @@ open ACL2 ACL2.Replay.Driver Lean Lean.Elab Lean.Meta
 
 namespace ACL2.Replay.Runner
 
+/-- Defuns carrying a RECORDED termination proof whose decrease arguments
+    are beyond the destructor-chain walk (the recorded-termination route's
+    DEMAND filter, sorting arc 2026-07-28 — plain destructor admissions
+    keep the fast path and pay nothing). -/
+partial def recordedTerminationDefuns
+    (justs : List (String × Justification)) :
+    Development → List (String × ClauseProof)
+  | .done => []
+  | .bind ev rest =>
+    (match ev with
+     | .defun name _ _ _ (some tcp) =>
+       match justs.lookup name with
+       | some just => if needsRecorded just then [(name, tcp)] else []
+       | none => []
+     | _ => []) ++ recordedTerminationDefuns justs rest
+where
+  /-- some emitted decrease argument is beyond a cdr/car chain over a
+      variable and not an EVENS/ODDS registry application — the exact
+      precondition of `dischargeDecrease`'s frontier. -/
+  needsRecorded (just : Justification) : Bool :=
+    just.terminationClauses.any fun c =>
+      match c.toList? with
+      | some lits => lits.any fun l =>
+        match l with
+        | .cons (.atom (.symbol olt))
+            (.cons (.cons (.atom (.symbol cnt1)) (.cons d .nil)) _) =>
+          olt.name == "O<" && cnt1.name == "ACL2-COUNT" && !chainOk d
+        | _ => false
+      | none => false
+  chainOk : SExpr → Bool
+    | .atom (.symbol _) => true
+    | .cons (.atom (.symbol d)) (.cons u .nil) =>
+      (d.name == "CDR" || d.name == "CAR" || d.name == "EVENS"
+        || d.name == "ODDS") && chainOk u
+    | _ => false
+
+/-- Every rune NAME cited by any step of a clause proof — the DEMAND filter
+    for the termination replay's rule offers (sorting arc 2026-07-29:
+    offering the whole book's rule set builds a hypothesis telescope one
+    nested binder frame per rule, deep enough to overflow the build-time
+    elaborator's stack; the proof cites only a handful). Step-level `runes`
+    are ACL2's aggregated ttree runes, a superset of every node's cites. -/
+partial def citedRuneNames (cp : ClauseProof) : List String :=
+  match cp.root with
+  | none => []
+  | some root => (go root).eraseDups
+where
+  go (n : ClauseNode) : List String :=
+    n.steps.flatMap (fun s => s.runes.map (·.name))
+    ++ n.children.flatMap go
+
 /-- The emitted type-prescription corollaries of a development (fn name ↦
     corollary term) — the type facts the DP lift may consume as hypotheses. -/
 partial def developmentTPs : Development → List (String × SExpr)
@@ -119,7 +170,8 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (fcRules : List ACL2.FcRuleSpec := [])
     (mirrors : MirrorRegistry := [])
     (mirrorName? : Option Name := none)
-    (budget : Nat := 1000000) :
+    (budget : Nat := 1000000)
+    (termMirrors : List (String × Name × List String × List SExpr) := []) :
     TermElabM (String × Option (List String)) := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -139,12 +191,13 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,
                                     gzDefs := gzDefs, justs := justs,
                                     fcRules := fcRules,
+                                    termMirrors := termMirrors,
                                     -- BUILTIN-named TP snapshots (world-defined
                                     -- fns get theirs as tp: hypotheses instead)
                                     gzTps := tps.filter fun (n, _) =>
                                       (w.defs.get? { name := n }).isNone }
         let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
-          mirrors
+          mirrors termMirrors
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts
@@ -283,6 +336,35 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
       -- constants are stated over THIS book's world (cross-book reuse is
       -- WP5's transfer).
       let mut mirrors : MirrorRegistry := []
+      -- RECORDED-TERMINATION mirrors (sorting arc 2026-07-28): defuns whose
+      -- admission decrease is beyond the destructor walk get their recorded
+      -- admission waterfall replayed ONCE per book as a conditional mirror
+      -- constant; the totality prover applies it at each consumer's
+      -- telescope (the D1 mirror pattern). A FAILED replay keeps the fn on
+      -- the destructor route's honest frontier — no silent change. The
+      -- budget is the admission-class guard (see tryReplay's budget doc).
+      let mut termMirrors : List (String × Name × List String × List SExpr) := []
+      let recTermDefuns := recordedTerminationDefuns dev.justifications dev
+      for (fn, tcp) in recTermDefuns do
+        let cited := citedRuneNames tcp
+        let termRules := ((thms.map (·.2)).flatten.filter
+          (fun r => cited.contains r.name)).eraseDups
+        let mName := Name.mkStr2 "TerminationMirrors"
+          (String.map (fun c => if c.isAlphanum then c else '_')
+            s!"term_{name}_{fn}")
+        let tTm0 ← IO.monoMsNow
+        let (status, reg?) ← tryReplay w wExpr (developmentTPs dev)
+          dev.justifications tcp termRules
+          (thms.map fun (c, _) => (c.name, c))
+          (gzDefs := dev.groundZeroSnapshotDefs)
+          (fcRules := dev.groundZeroFcRuleSpecs)
+          (mirrorName? := some mName) (budget := 10000000)
+        let tTm1 ← IO.monoMsNow
+        if timings then
+          IO.println s!"[t] termination {fn}: {tTm1 - tTm0} ms ({status})"
+        if let some conds := reg? then
+          let goalLits := (tcp.root.map (·.inputClause)).getD []
+          termMirrors := termMirrors ++ [(fn, mName, conds, goalLits)]
       for (cp, rules) in thms do
         res := { res with total := res.total + 1 }
         -- EMISSION FRONTIER (Track B): a black-box PROVED leaf — ACL2 discharged
@@ -305,6 +387,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
           (gzDefs := dev.groundZeroSnapshotDefs)
           (fcRules := dev.groundZeroFcRuleSpecs)
           (mirrors := mirrors) (mirrorName? := some mName)
+          (termMirrors := termMirrors)
         let tThm1 ← IO.monoMsNow
         if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"
         if let some conds := reg? then

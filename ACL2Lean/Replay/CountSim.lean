@@ -56,17 +56,7 @@ def oddsBody : SExpr :=
 
 /-! ## Small conv-kit completions -/
 
-/-- Two convergences of the same term agree. -/
-theorem conv_unique {w : World} {e : Env} {t v v' : SExpr}
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e t = some v)
-    (h' : ∃ N, ∀ f ≥ N, evalOpt f w e t = some v') : v = v' := by
-  obtain ⟨N, hN⟩ := h
-  obtain ⟨N', hN'⟩ := h'
-  have h1 := hN (max N N') (le_max_left _ _)
-  have h2 := hN' (max N N') (le_max_right _ _)
-  rw [h1] at h2
-  exact Option.some.inj h2
-
+-- conv_unique now lives in EvalLemmas (the recorded-termination pack)
 /-- Bound-variable convergence. -/
 theorem conv_var (w : World) (e : Env) (s : Symbol) (v : SExpr)
     (h : e.get? s = some v) :

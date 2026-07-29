@@ -86,6 +86,13 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
     if hd' : d' = 1 then .atom (.number (.int n'))
     else .atom (.number (.rational n' d' (canonRat_mkNumber hd hd')))
 
+/-- ACL2 `unary--` (negation; guard-off — non-numbers coerce to 0). Named
+    so the DP-lift registry can carry it (sorting arc 2026-07-28); the
+    `callBuiltin` arm delegates here, behavior-identical. -/
+@[inline] def neg (a : SExpr) : SExpr :=
+  let (n, d) := toRat a
+  mkNumber (-n) d
+
 /-- ACL2 `zp`: true if `n` is not a positive integer. -/
 @[inline, simp] def zp (n : SExpr) : SExpr :=
   if toInt n <= 0 then .t else .nil
@@ -381,11 +388,11 @@ def coerce (x y : SExpr) : SExpr :=
   if y == .atom (.symbol { name := "LIST" }) then
     match x with
     | .atom (.string s) =>
-      (s.data.map (fun c => SExpr.atom (.char (UInt8.ofNat c.toNat)))).foldr
+      (s.toList.map (fun c => SExpr.atom (.char (UInt8.ofNat c.toNat)))).foldr
         .cons .nil
     | _ => .nil
   else
-    .atom (.string (String.mk
+    .atom (.string (String.ofList
       ((makeCharacterList x).map (fun c => Char.ofNat c.toNat))))
 
 /-- ACL2 `booleanp` — `t` iff the value is exactly `t` or `nil`
