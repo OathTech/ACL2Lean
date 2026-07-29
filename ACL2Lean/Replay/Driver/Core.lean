@@ -17,6 +17,25 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- Replace every occurrence of a TERM by another (quote-opaque) — ACL2's
+    `subst-expr` for remove-trivial-equivalences' NON-VARIABLE lhs (the
+    `(CDR IT) := 'JUNK` class, G1 inc-2c). On a variable lhs this agrees
+    with `substTerm`. -/
+partial def replaceTermOcc (src dst : SExpr) (t : SExpr) : SExpr :=
+  if t == src then dst
+  else match t with
+    | .cons h args =>
+      match h with
+      | .atom (.symbol q) =>
+        if q.name == "QUOTE" then t
+        else .cons h (replaceArgs args)
+      | _ => .cons (replaceTermOcc src dst h) (replaceArgs args)
+    | _ => t
+where
+  replaceArgs : SExpr → SExpr
+    | .cons a rest => .cons (replaceTermOcc src dst a) (replaceArgs rest)
+    | e => e
+
 /-- Replay a clause as its LITERAL SPINE: prove `EvTrue w env (disjoinTerm
     clauseLits)`. Items are walked STRUCTURALLY: each non-closing literal is
     followed by its case BRANCHES (`.branch seg items` — the clause scan
@@ -75,9 +94,13 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       unless prov.equivTerm == some (.atom (.symbol { name := "EQUAL" })) do
         throwError "replayClauseSpine: branch-substitution under equivalence \
                     {repr prov.equivTerm} at {idStr} (frontier — equal only)"
-      let .atom (.symbol varSym) := varT
-        | throwError "replayClauseSpine: branch-substitution variable \
-                      {repr varT} is not a variable at {idStr}"
+      -- the substitution: a VARIABLE lhs uses substTerm; a non-variable
+      -- lhs (the `(CDR IT) := 'JUNK` class) replaces occurrences of the
+      -- TERM — ACL2's subst-expr (G1 inc-2c)
+      let substL : SExpr → SExpr :=
+        match varT with
+        | .atom (.symbol varSym) => ACL2.Replay.substTerm [varSym] [valT]
+        | _ => replaceTermOcc varT valT
       -- the justifying clause literal `(not (equal … …))`, either orientation
       let mkNegEq (x y : SExpr) : SExpr :=
         .cons (.atom (.symbol { name := "NOT" }))
@@ -129,7 +152,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         let pVal ← ctxValProof cfg ctx1 valT
         let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVar, pVal, hVeq]
         let substLits := clauseLits.map fun (i, l) =>
-          (i, ACL2.Replay.substTerm [varSym] [valT] l)
+          (i, substL l)
         let mut ctx2 ← pinTermOpaques cfg cfg.envExpr ctx1
           (disjoinTerm (substLits.map (·.2)))
         let chainOpt ← diffCollapse cfg.worldExpr cfg.envExpr varT valT nodeEq
@@ -141,7 +164,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         -- their original binding) with the fact bridged along the same
         -- var≡val chain; a fact diffCollapse cannot bridge hard-fails.
         for (i, l, h) in ctx2.litFacts do
-          let l' := ACL2.Replay.substTerm [varSym] [valT] l
+          let l' := substL l
           if l' != l then
             ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 l'
             let some chL ← diffCollapse cfg.worldExpr cfg.envExpr varT valT nodeEq l l'
@@ -152,7 +175,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             let h' ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
             ctx2 := { ctx2 with litFacts := ctx2.litFacts ++ [(i, l', h')] }
         for (st, h) in ctx2.segFacts do
-          let st' := ACL2.Replay.substTerm [varSym] [valT] st
+          let st' := substL st
           if st' != st then
             ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 st'
             let some chL ← diffCollapse cfg.worldExpr cfg.envExpr varT valT nodeEq st st'
@@ -182,7 +205,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         let pVal ← ctxValProof cfg ctx valT
         let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVar, pVal, hVeq]
         let substLits := clauseLits.map fun (i, l) =>
-          (i, ACL2.Replay.substTerm [varSym] [valT] l)
+          (i, substL l)
         -- the SUBSTITUTED literals are new terms — pin their user-fn opaques
         -- before any value construction over them
         let ctx ← pinTermOpaques cfg cfg.envExpr ctx
@@ -944,7 +967,16 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     let pInput ←
       match pOuts with
       | [pOut] =>
-        if info.out.length == 1 then bridgeClausify cfg ctx info pOut
+        if info.out.length == 1 then bridgeClausify cfg ctx info (some pOut)
+        else bridgeClausifyMulti cfg ctx info pOuts
+      | [] =>
+        -- TAUTOLOGY-DROPPED output (G1 inc-2c, p3-conj *1/2.4.2): ACL2's
+        -- remove-trivial-clauses dropped the single split clause (if-interp
+        -- folded its complementary pair to 'T) — :CLAUSIFY-OUT is honestly
+        -- empty and the clause is PROVED. The bridge builds the tautology
+        -- proof over its own recomputed split clause.
+        if info.out.isEmpty then
+          bridgeClausify cfg ctx info none (tautDropped := true)
         else bridgeClausifyMulti cfg ctx info pOuts
       | _ => bridgeClausifyMulti cfg ctx info pOuts
     match chainOpt with

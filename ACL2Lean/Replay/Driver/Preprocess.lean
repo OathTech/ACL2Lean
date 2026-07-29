@@ -349,7 +349,7 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
     (an `expand-and-or` expansion, a structured neg-clause, multiple outputs)
     is a hard frontier error. -/
 def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
-    (pOut : Expr) : MetaM Expr := do
+    (pOut? : Option Expr) (tautDropped : Bool := false) : MetaM Expr := do
   -- the lift bundle FIRST (the checked expansion walks need it)
   let vars := (ACL2.Replay.freeVars info.input).eraseDups
   let opaques := (collectOpaques info.input).eraseDups
@@ -395,12 +395,19 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
   -- one). Any other divergence still hard-fails.
   let recomputedSplit := clausifyPure t' true
   let dedupHit := recomputedSplit != cl0 && dedupClause recomputedSplit == cl0
-  unless recomputedSplit == cl0 || dedupHit do
+  -- TAUTOLOGY-DROPPED record (G1 inc-2c): if-interp folded the split
+  -- clause's complementary pair to a 'T literal (the record shows ['T]) and
+  -- remove-trivial-clauses dropped the output; the recompute keeps the full
+  -- clause. Accepted with the taut relaxation — the proof is built OVER THE
+  -- RECOMPUTED clause from its complementary pair below (the same
+  -- tautologyp reasoning ACL2 used).
+  let tautHit := tautDropped && info.out == [] && cl0 == [quoteT]
+  unless recomputedSplit == cl0 || dedupHit || tautHit do
     throwError "clausify bridge: recomputed split clause \
                 {repr recomputedSplit} ≠ recorded {repr cl0} \
                 (divergence: an unregistered expansion, disjoin-clauses \
                 literal merging, or an unmirrored dumb-negate-lit arm)"
-  unless info.out == [cl0] do
+  unless info.out == [cl0] || (tautDropped && info.out == []) do
     throwError "clausify bridge: output set {repr info.out} ≠ [the split clause] \
                 (multi-clause output — frontier)"
   -- G3 Fragment B: ONE clausifyPure_sound instantiation at the EXPANDED
@@ -417,6 +424,36 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
     mkExpectedTypeHint (← mkEqRefl (mkConst ``Bool.true))
       (← mkEq isSomeApp (mkConst ``Bool.true))
   let hisSomeT' ← mkIsSome t'
+  let pOut ← match pOut? with
+    | some p => pure p
+    | none => do
+      unless tautHit do
+        throwError "clausify bridge: no output-clause proof (internal)"
+      -- the tautology proof of the RECOMPUTED split clause: locate the
+      -- complementary pair and prove the disjunction by cases on the atom
+      let notOf (t : SExpr) : SExpr :=
+        .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+      let pair? := recomputedSplit.zipIdx.findSome? fun (l, i) =>
+        recomputedSplit.zipIdx.findSome? fun (l2, j) =>
+          if l2 == notOf l then some (i, j, l) else none
+      let some (iPos, iNeg, atom) := pair?
+        | throwError "clausify bridge: taut-dropped output but the recomputed \
+            split clause {repr recomputedSplit} has no complementary literal \
+            pair (frontier)"
+      let ctxT ← pinTermOpaques cfg cfg.envExpr ctx (disjoinTerm recomputedSplit)
+      let vA ← ctxValExpr cfg ctxT atom
+      let nilC := mkConst ``SExpr.nil
+      let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vA, nilC]) fun hNe => do
+        mkLambdaFVars #[hNe]
+          (← evtrueOfLitTrue cfg ctxT recomputedSplit iPos atom hNe)
+      let negL ← withLocalDeclD `hnil (← mkEq vA nilC) fun hNil => do
+        let hT ← mkAppM ``logic_not_t_of_nil #[hNil]
+        let tNeNil ← proveByDecide
+          (← mkAppM ``Ne #[mkConst ``SExpr.t, nilC]) "t ≠ nil"
+        let hTrue ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
+        mkLambdaFVars #[hNil]
+          (← evtrueOfLitTrue cfg ctxT recomputedSplit iNeg (notOf atom) hTrue)
+      mkAppM ``Classical.byCases #[negL, posL]
   let prfT' ← mkAppM
     (if dedupHit then ``clausifyPure_sound_dedup else ``clausifyPure_sound)
     #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
@@ -448,7 +485,10 @@ def bridgeClausifyMulti (cfg : ReplayConfig) (ctx : ReplayCtx)
   unless info.splits.length == info.negClause.length &&
          pOuts.length == info.out.length &&
          info.out == info.splits.map (·.2) do
-    throwError "clausify multi-bridge: splits/out/proofs mismatch at                 {repr info.input}"
+    throwError "clausify multi-bridge: splits/out/proofs mismatch at \
+                {repr info.input} ({info.splits.length} split(s), \
+                {info.negClause.length} neg literal(s), {info.out.length} \
+                out clause(s), {pOuts.length} proof(s))"
   for (l, (lit, _)) in info.negClause.zip info.splits do
     unless lit == dumbNegateLit l do
       throwError "clausify multi-bridge: split literal {repr lit} ≠                   (dumb-negate {repr l})"
