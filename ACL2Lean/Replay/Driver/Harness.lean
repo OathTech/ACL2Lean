@@ -205,7 +205,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- inside the (fn formals) application (the value-only hypothesis shape). An
   -- unliftable corollary (e.g. my-app's (EQUAL (MY-APP X Y) Y), which mentions Y
   -- bare) is SKIPPED — the fact is simply not offered, never mis-stated.
-  let liftable := fun (fn : Symbol) (formals : List Symbol) (cor : SExpr) =>
+  let scrubbedFreeVars := fun (fn : Symbol) (formals : List Symbol) (cor : SExpr) =>
     let appPat : SExpr :=
       .cons (.atom (.symbol fn))
         ((formals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
@@ -214,14 +214,31 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       else match t with
         | .cons a b => .cons (scrub a) (scrub b)
         | t => t
-    (ACL2.Replay.freeVars (scrub cor)).isEmpty
+    ACL2.Replay.freeVars (scrub cor)
   let tpFns := fns.filterMap fun (s, formals, _) =>
     (tps.lookup s.name).bind fun cor =>
-      if liftable s formals cor then some (s, formals, cor) else none
+      if (scrubbedFreeVars s formals cor).isEmpty then some (s, formals, cor)
+      else none
   let tpDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
     (tpFns.map fun (s, formals, cor) =>
       (Name.mkSimple s!"htp_{s.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkTpHypType cfg s formals cor)).toArray
+  -- ARGS-VALUED corollaries (G1 arc 2026-07-29): a corollary whose scrubbed
+  -- residue mentions FORMALS bare (the BINARY-APPEND/my-app
+  -- `(EQUAL (fn X Y) Y)` disjunct class) is offered in the args-valued
+  -- hypothesis shape (`mkTpHypTypeAv`) — the argument VALUES are bound
+  -- alongside the application's, so bare-formal occurrences lift to them.
+  -- A residue variable that is NOT a formal stays unliftable (not offered,
+  -- never mis-stated).
+  let tpFnsAv := fns.filterMap fun (s, formals, _) =>
+    (tps.lookup s.name).bind fun cor =>
+      let vs := scrubbedFreeVars s formals cor
+      if !vs.isEmpty && vs.all (formals.contains ·) then some (s, formals, cor)
+      else none
+  let tpAvDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+    (tpFnsAv.map fun (s, formals, cor) =>
+      (Name.mkSimple s!"htpav_{s.name}", BinderInfo.default,
+       fun (_ : Array Expr) => mkTpHypTypeAv cfg s formals cor)).toArray
   -- rule:<thm> hypothesis declarations — only rules created BEFORE this theorem
   -- can be cited by its proof, and the caller passes the development's rules in
   -- creation order, so the same list works for every theorem (unused offers are
@@ -241,13 +258,17 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   let condsAll :=
     fns.map (fun (s, _, _) => s!"total:{s.name}") ++
     tpFns.map (fun (s, _, _) => s!"tp:{s.name}") ++
+    tpFnsAv.map (fun (s, _, _) => s!"tp:{s.name}") ++
     rules.map (fun r => s!"rule:{r.runeKey}")
   withLocalDecls totalDecls fun totalVs => do
-    withLocalDecls tpDecls fun tpVs => do
+    withLocalDecls (tpDecls ++ tpAvDecls) fun tpAllVs => do
      withLocalDecls ruleDecls fun ruleVs => do
+      let tpVs := tpAllVs.extract 0 tpDecls.size
+      let tpAvVs := tpAllVs.extract tpDecls.size tpAllVs.size
       let ctx : ReplayCtx :=
         { totalHyps := (fns.map (fun (s, _, _) => s.name)).zip totalVs.toList,
           tpHyps := (tpFns.zip tpVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h),
+          tpHypsAv := (tpFnsAv.zip tpAvVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h),
           ruleHyps := rules.zip ruleVs.toList }
       let some root := cp.root
         | throwError "replayProofConditional: theorem {cp.name} has no proof tree"
@@ -288,7 +309,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).
-      let used := (condsAll.zip (totalVs ++ tpVs ++ ruleVs).toList).filter
+      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
       -- #37 LAZY discharge: prove admission totality only for the USED
       -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
@@ -300,7 +321,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let usedTpNames := used.filterMap fun (c, _) =>
         if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
       let neededFns := usedTotalNames ++ usedTpNames
-      let hypFVarsAll := condsAll.zip ((totalVs ++ tpVs ++ ruleVs).toList)
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs).toList)
       let totalEnv ←
         if neededFns.isEmpty then pure []
         else
@@ -326,18 +347,21 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           | none => pure ()
         else if c.startsWith "tp:" then
           -- the TP prover: derive the emitted-corollary hypothesis from the
-          -- fn's body (lifter sprint 2026-07-06); frontier → keep (D6)
+          -- fn's body (lifter sprint 2026-07-06); frontier → keep (D6).
+          -- ARGS-VALUED tp hypotheses (G1) stay hypothesis-backed: the
+          -- prover targets the value-only shape — an honest condition.
           let fnName := (c.drop "tp:".length).toString
-          match tps.lookup fnName with
-          | some cor =>
-            try
-              let pf ← proveTp cfg totalEnv justs fnName cor
-              let pf ← mkExpectedTypeHint pf (← inferType v)
-              prf ← letBindFVar prf v pf
-            catch e =>
-              unless isFrontierErr e do
-                throw e
-          | none => pure ()
+          if tpFns.any (fun (s, _, _) => s.name == fnName) then
+            match tps.lookup fnName with
+            | some cor =>
+              try
+                let pf ← proveTp cfg totalEnv justs fnName cor
+                let pf ← mkExpectedTypeHint pf (← inferType v)
+                prf ← letBindFVar prf v pf
+              catch e =>
+                unless isFrontierErr e do
+                  throw e
+            | none => pure ()
       -- kept = the hypotheses STILL FREE in the final proof. Recomputed
       -- AFTER all discharges (sorting arc 2026-07-28): a recorded-
       -- termination totality proof may pull in tp:/rule: fvars the replay

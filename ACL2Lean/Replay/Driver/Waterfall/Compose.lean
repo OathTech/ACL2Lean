@@ -85,31 +85,65 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                       verdict {verdict} at {idStr}"
         pure h
       | none =>
-        match T with
-        | .cons (.atom (.symbol eqS)) (.cons x (.cons y .nil)) => do
-          unless eqS.name == "EQUAL" do
+        -- CLAUSE-CONTEXT falsity fact (G1 arc 2026-07-29): an assumed-FALSE
+        -- test that IS another (rewritten) literal of the clause — ACL2's
+        -- if-interp assumptions include the all-others-false clause context,
+        -- not only this literal's own splits (ORDEREDP-APPEND *1/3':
+        -- literal 4's trace resolves literal 2's (LEXORDER (CAR A) E)
+        -- FALSE). The spine/segment falsity facts ARE that context.
+        -- a clause fact is only usable when stated over THIS level's value
+        -- expression — a term-keyed hit whose proof lives in an OUTER env
+        -- (e.g. a pre-elim segFact surviving an env change) is rejected by
+        -- the defEq check and falls through (fail-closed at the error arm).
+        let clauseFact? : MetaM (Option Expr) :=
+          if wantSign then
+            -- assumed TRUE: the clause context holds the falsity of the
+            -- literal (NOT T) — its value fact `Logic.not vT = nil` decodes
+            -- to `vT ≠ nil` (logic_not_nil_ne)
+            let notT : SExpr :=
+              .cons (.atom (.symbol { name := "NOT" })) (.cons T .nil)
+            match ctx.litFactByTerm? notT with
+            | some hNil => do
+              let expected ← mkEq (mkApp (mkConst ``Logic.not) vT) nilC
+              if ← isDefEq (← inferType hNil) expected then
+                return some (← mkAppM ``logic_not_nil_ne #[vT, hNil])
+              else return none
+            | none => return none
+          else
+            match ctx.litFactByTerm? T with
+            | some hNil => do
+              if ← isDefEq (← inferType hNil) (← mkEq vT nilC) then
+                return some hNil
+              else return none
+            | none => return none
+        match ← clauseFact? with
+        | some h => pure h
+        | none =>
+          match T with
+          | .cons (.atom (.symbol eqS)) (.cons x (.cons y .nil)) => do
+            unless eqS.name == "EQUAL" do
+              throwError "composeSplit: no fact for resolved test {repr T} at \
+                          {idStr} (frontier)"
+            let flipped : SExpr := .cons (.atom (.symbol eqS)) (.cons y (.cons x .nil))
+            let some (_, _, sign, h) :=
+                facts.find? (fun (T', _, _, _) => T' == flipped)
+              | throwError "composeSplit: no fact for resolved test {repr T} \
+                            (or its flip) at {idStr} (frontier)"
+            unless sign == wantSign do
+              throwError "composeSplit: flipped fact for {repr T} has sign \
+                          {sign}, trace verdict {verdict} at {idStr}"
+            -- transport across logic_equal_comm: vT = Logic.equal vx vy,
+            -- fact over Logic.equal vy vx
+            let vx ← ctxValExpr cfg ctx x
+            let vy ← ctxValExpr cfg ctx y
+            let comm ← mkAppM ``logic_equal_comm #[vx, vy]
+            if wantSign then
+              mkAppM ``ne_of_eq_of_ne #[comm, h]
+            else
+              mkAppM ``Eq.trans #[comm, h]
+          | _ =>
             throwError "composeSplit: no fact for resolved test {repr T} at \
                         {idStr} (frontier)"
-          let flipped : SExpr := .cons (.atom (.symbol eqS)) (.cons y (.cons x .nil))
-          let some (_, _, sign, h) :=
-              facts.find? (fun (T', _, _, _) => T' == flipped)
-            | throwError "composeSplit: no fact for resolved test {repr T} \
-                          (or its flip) at {idStr} (frontier)"
-          unless sign == wantSign do
-            throwError "composeSplit: flipped fact for {repr T} has sign \
-                        {sign}, trace verdict {verdict} at {idStr}"
-          -- transport across logic_equal_comm: vT = Logic.equal vx vy,
-          -- fact over Logic.equal vy vx
-          let vx ← ctxValExpr cfg ctx x
-          let vy ← ctxValExpr cfg ctx y
-          let comm ← mkAppM ``logic_equal_comm #[vx, vy]
-          if wantSign then
-            mkAppM ``ne_of_eq_of_ne #[comm, h]
-          else
-            mkAppM ``Eq.trans #[comm, h]
-        | _ =>
-          throwError "composeSplit: no fact for resolved test {repr T} at \
-                      {idStr} (frontier)"
     composeSplit rec cfg ctx idStr lp chainOpt clauseLit restLits branches
       accClause children (facts ++ [(T, vT, wantSign, hFact)]) sub
   | .leaf value outcome emittedSeg =>

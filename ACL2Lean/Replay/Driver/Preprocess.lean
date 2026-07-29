@@ -216,7 +216,8 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
       if prov.path.isEmpty
           || !(prov.origin == "abbreviation-expansion"
                || prov.origin == "expand-abbreviations/lambda-body"
-               || prov.origin == "expand-abbreviations/hide-subst") then
+               || prov.origin == "expand-abbreviations/hide-subst"
+               || prov.origin == "expand-abbreviations/nonrec-body") then
         match findOccurrences cur lhs with
         | [p] => pure p
         | [] => throwError "replayPreprocessChain: node lhs {repr lhs} does not occur \

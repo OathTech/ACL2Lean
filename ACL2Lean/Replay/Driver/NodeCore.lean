@@ -124,6 +124,12 @@ structure ReplayCtx where
       term). The pinning step consumes these. -/
   totalHyps : List (String × Expr) := []
   tpHyps : List (String × SExpr × Expr) := []
+  /-- ARGS-VALUED TP hypotheses (G1 arc 2026-07-29): (fn, corollary, hyp
+      fvar) for emitted corollaries whose scrubbed residue mentions FORMALS
+      bare (the BINARY-APPEND `(EQUAL (fn X Y) Y)` disjunct class) — the
+      hypothesis binds the argument VALUES alongside the application's
+      (`mkTpHypTypeAv`), so those occurrences lift to them. -/
+  tpHypsAv : List (String × SExpr × Expr) := []
   /-- Theorem-dependency hypotheses (`rule:<thm>`, the third telescope
       species): per emitted STORED rewrite rule, the spec and the bound
       hypothesis stating its mirror (`mkRuleHypType`). Consumed by the
@@ -144,6 +150,21 @@ def ReplayCtx.litFact? (ctx : ReplayCtx) (idx : Nat) : Option (SExpr × Expr) :=
 def ReplayCtx.litFactByTerm? (ctx : ReplayCtx) (t : SExpr) : Option Expr :=
   ((ctx.litFacts.find? (fun (_, lt, _) => lt == t)).map fun (_, _, p) => p).orElse
     fun _ => (ctx.segFacts.find? (fun (st, _) => st == t)).map (·.2)
+
+/-- `litFactByTerm?` with each candidate proof's TYPE checked against the
+    expected proposition (G1 arc 2026-07-29): a term-keyed hit whose proof
+    lives in ANOTHER env context (e.g. a pre-elim fact surviving an env
+    change) is skipped instead of crashing the composition — and a
+    well-typed fact later in the lists still wins. -/
+def ReplayCtx.litFactByTermChecked? (ctx : ReplayCtx) (t : SExpr)
+    (expectedTy : Expr) : Lean.Meta.MetaM (Option Expr) := do
+  let cands := (ctx.litFacts.filterMap fun (_, lt, p) =>
+      if lt == t then some p else none)
+    ++ (ctx.segFacts.filterMap fun (st, p) => if st == t then some p else none)
+  for p in cands do
+    if ← Lean.Meta.isDefEq (← Lean.Meta.inferType p) expectedTy then
+      return some p
+  return none
 
 /-- View `(equal X X)` as `X`. -/
 def asEqualSelf : SExpr → Option SExpr
@@ -714,6 +735,45 @@ def replayImpliesDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
       mkApp2 (mkConst ``Logic.implies) vA vB, hNs, hNo, pA, pB, hr]
   let pR ← ctxValProof cfg ctx rhs
   let valueEq ← mkAppM ``logic_implies_cond #[vA, vB]
+  mkAppM ``fuel_eq_of_conv #[pL, pR, valueEq]
+
+/-- The `(:DEFINITION iff)` GROUND-ZERO recipe: `(iff A B) ⇒
+    (if A (if B 't 'nil) (if B 'nil 't))` — the preprocess boot-strap
+    non-rec arm's body adoption (`emit/expand-abbreviations/nonrec-body`,
+    G1 iff rung), proved against the BUILTIN semantics (`Logic.iff` +
+    `logic_iff_cond`) exactly as `replayImpliesDef` does for `implies`.
+    The recorded rhs must be EXACTLY the unfold body instance. -/
+def replayIffDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
+    MetaM Expr := do
+  let (lhs, rhs) := nodeLhsRhs n
+  let .node _ _ _ children _ := n
+  unless children.isEmpty do
+    throwError "definition:iff — children on the ground-zero unfold (frontier)"
+  let .cons (.atom (.symbol iffS)) (.cons A (.cons B .nil)) := lhs
+    | throwError "definition:iff — lhs is not (iff A B): {repr lhs}"
+  unless iffS.name == "IFF" do
+    throwError "definition:iff — lhs head {iffS.name}"
+  let expectedRhs : SExpr :=
+    .cons (.atom (.symbol { name := "IF" }))
+      (.cons A (.cons (.cons (.atom (.symbol { name := "IF" }))
+        (.cons B (.cons quoteT (.cons quoteNil .nil))))
+        (.cons (.cons (.atom (.symbol { name := "IF" }))
+          (.cons B (.cons quoteNil (.cons quoteT .nil)))) .nil)))
+  unless rhs == expectedRhs do
+    throwError "definition:iff — rhs {repr rhs} is not the unfold body instance"
+  let vA ← ctxValExpr cfg ctx A
+  let vB ← ctxValExpr cfg ctx B
+  let pA ← ctxValProof cfg ctx A
+  let pB ← ctxValProof cfg ctx B
+  let hNs ← proveNotSpecial { name := "IFF" }
+  let hNo ← proveNoShadow cfg { name := "IFF" }
+  let hr ← mkAppM ``callBuiltin_iff #[vA, vB]
+  let pL ← mkAppM ``conv_builtin2
+    #[cfg.worldExpr, cfg.envExpr, reflectSymbol { name := "IFF" },
+      reflectSExpr A, reflectSExpr B, vA, vB,
+      mkApp2 (mkConst ``Logic.iff) vA vB, hNs, hNo, pA, pB, hr]
+  let pR ← ctxValProof cfg ctx rhs
+  let valueEq ← mkAppM ``logic_iff_cond #[vA, vB]
   mkAppM ``fuel_eq_of_conv #[pL, pR, valueEq]
 
 /-- Ground `executable-counterpart` computation: ACL2 ran the executable
@@ -1355,6 +1415,107 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
           mkAppM ``re_val_cast
             #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p,
               ← mkEqRefl verdictE]
+        else if let some (_, cor, tpHyp) :=
+            ctx.tpHypsAv.find? (fun (nm, _, _) => nm == fs.name) then
+          -- REGISTERED ARGS-VALUED-TP derivation (recognizer/true,
+          -- disjunctive-cons class; G1 arc 2026-07-29): fn's emitted TP
+          -- corollary is `(IF (CONSP appPat) 'T (EQUAL appPat formalₖ))`
+          -- (the BINARY-APPEND shape) and the k-th ACTUAL's value is a
+          -- CONS — either disjunct forces CONSP, exactly ACL2's type-set
+          -- leaf union under the cited TP rune. Consumed, not inferred.
+          let some (formals, _) := cfg.worldVal.defs.get? fs
+            | throwError "replayRecognizer: {fs.name} not defined in the world"
+          let args := (argsSpine.toList?).getD []
+          unless formals.length == args.length do
+            throwError "replayRecognizer: args-valued TP — arity mismatch on {fs.name}"
+          let appPat : SExpr :=
+            .cons (.atom (.symbol fs))
+              ((formals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
+          -- the corollary's disjunct chain: (IF (CONSP appPat) 'T rest)
+          -- with rest = (EQUAL appPat formal) | (IF (EQUAL appPat formal)
+          -- 'T rest') — collect the disjunct formals in order
+          let rec disjFormals : SExpr → Option (List Symbol)
+            | .cons (.atom (.symbol eqS))
+                (.cons ap2 (.cons (.atom (.symbol fv)) .nil)) =>
+              if eqS.name == "EQUAL" && ap2 == appPat then some [fv] else none
+            | .cons (.atom (.symbol ifS))
+                (.cons (.cons (.atom (.symbol eqS))
+                    (.cons ap2 (.cons (.atom (.symbol fv)) .nil)))
+                  (.cons qt' (.cons rest .nil))) =>
+              if ifS.name == "IF" && eqS.name == "EQUAL" && ap2 == appPat
+                  && qt' == quoteT then
+                (disjFormals rest).map (fv :: ·)
+              else none
+            | _ => none
+          let fvs? : Option (List Symbol) := match cor with
+            | .cons (.atom (.symbol ifS))
+                (.cons (.cons (.atom (.symbol cS)) (.cons ap .nil))
+                  (.cons qt (.cons rest .nil))) =>
+              if ifS.name == "IF" && cS.name == "CONSP" && ap == appPat
+                  && qt == quoteT then disjFormals rest
+              else none
+            | _ => none
+          let some fvs := fvs?
+            | throwError "replayRecognizer: args-valued TP corollary of {fs.name} \
+                ({repr cor}) is not the disjunctive-cons shape (frontier)"
+          unless rs.name == "CONSP" && verdict == SExpr.t do
+            throwError "replayRecognizer: args-valued TP of {fs.name} supports only \
+                (CONSP _) ⇒ 'T (got {repr term} ⇒ {repr verdict}, frontier)"
+          let argVals ← args.mapM (ctxValExpr cfg ctx ·)
+          let argConvs ← args.mapM (ctxValProof cfg ctx ·)
+          -- per-disjunct consp evidence: the actual's value is a SYNTACTIC
+          -- cons, or the clause context holds `(consp arg)` (a (not (consp
+          -- arg))-falsity fact or a positive branch fact) — exactly the
+          -- type-alist entries ACL2's type-set consults for the leaf union
+          let evidence ← fvs.mapM fun fv => do
+            let some k := formals.findIdx? (· == fv)
+              | throwError "replayRecognizer: args-valued TP of {fs.name} — \
+                  disjunct var {fv.name} is not a formal"
+            let some vk := argVals[k]?
+              | throwError "replayRecognizer: args-valued TP — no value for arg {k}"
+            if vk.isAppOfArity ``SExpr.cons 2 then
+              mkAppM ``logic_consp_cons_t #[vk.appFn!.appArg!, vk.appArg!]
+            else do
+              let some argk := args[k]?
+                | throwError "replayRecognizer: args-valued TP — no arg {k}"
+              let conspArg : SExpr :=
+                .cons (.atom (.symbol { name := "CONSP" })) (.cons argk .nil)
+              let vC := mkApp (mkConst ``Logic.consp) vk
+              let notC : SExpr :=
+                .cons (.atom (.symbol { name := "NOT" })) (.cons conspArg .nil)
+              let hit ← ctx.litFactByTermChecked? notC
+                (← mkEq (mkApp (mkConst ``Logic.not) vC) (mkConst ``SExpr.nil))
+              match hit with
+              | some hNotNil => do
+                let hne ← mkAppM ``logic_not_nil_ne #[vC, hNotNil]
+                mkAppM ``logic_consp_ne_nil_t #[vk, hne]
+              | none =>
+                match ctx.branchFacts.find?
+                    (fun (t, _, sign, _) => t == conspArg && sign) with
+                | some (_, vB, _, hNe) => do
+                  unless ← isDefEq vB vC do
+                    throwError "replayRecognizer: args-valued TP of {fs.name} — \
+                        branch-fact value for {repr conspArg} mismatches"
+                  mkAppM ``logic_consp_ne_nil_t #[vk, hNe]
+                | none =>
+                  throwError "replayRecognizer: args-valued TP of {fs.name} — \
+                      no consp evidence for disjunct arg {repr argk} (frontier)"
+          let some (vz, convz) := ctx.val? z
+            | throwError "replayRecognizer: {repr z} has no pinned value \
+                (args-valued TP recognizer, frontier)"
+          let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+            ++ (args.map reflectSExpr).toArray ++ argVals.toArray
+            ++ #[vz] ++ argConvs.toArray ++ #[convz])
+          let hVerdict ← match evidence with
+            | [e1] => mkAppM ``logic_consp_t_of_tp_disj2 #[fact, e1]
+            | [e1, e2] => mkAppM ``logic_consp_t_of_tp_disj3 #[fact, e1, e2]
+            | _ => throwError "replayRecognizer: args-valued TP of {fs.name} — \
+                {evidence.length} disjuncts unsupported (frontier)"
+          unless ← isDefEq v (mkApp (mkConst ``Logic.consp) vz) do
+            throwError "replayRecognizer: value of {repr term} does not match \
+                (Logic.consp _) on the pinned application value"
+          mkAppM ``re_val_cast
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hVerdict]
         else
           -- REGISTERED BUILTIN-RANGE derivation: ACL2's type-set knows each
           -- primitive's return type natively (`type-set-binary-+` …), so a
@@ -2009,6 +2170,10 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- definition — its :DEFINITION rune gets the ground-zero recipe.
     if dname == "IMPLIES" && (cfg.worldVal.defs.get? { name := "IMPLIES" }).isNone then
       replayImpliesDef cfg ctx n
+    else if dname == "IFF" && (cfg.worldVal.defs.get? { name := "IFF" }).isNone then
+      -- `iff` is likewise an evalOpt BUILTIN (the preprocess boot-strap
+      -- non-rec arm's body adoption, G1 iff rung)
+      replayIffDef cfg ctx n
     else replayDefinition rec cfg ctx n depth
   | "lambda-body", _ => replayLambdaBody rec cfg ctx n depth
   | "fake-rune-for-anonymous-enabled-rule", _ =>
@@ -2402,9 +2567,14 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           -- (the type-alist source the type-alist recipe also consumes)
           let notH : SExpr := .cons (.atom (.symbol { name := "NOT" }))
             (.cons hσ .nil)
-          match ctx.litFactByTerm? notH with
+          let vH ← ctxValExpr cfg ctx hσ
+          -- TYPE-CHECKED lookup (G1 arc 2026-07-29): a term-keyed fact from
+          -- another env context (pool-root/elim crossings) must not be
+          -- consumed — mismatches fall through to the alternate sources.
+          let checkedHit ← ctx.litFactByTermChecked? notH
+            (← mkEq (mkApp (mkConst ``Logic.not) vH) (mkConst ``SExpr.nil))
+          match checkedHit with
           | some hNotNil => do
-            let vH ← ctxValExpr cfg ctx hσ
             let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
             mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
           | none =>

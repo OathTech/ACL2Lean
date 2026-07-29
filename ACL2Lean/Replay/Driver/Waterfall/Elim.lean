@@ -98,26 +98,24 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
   unless varsS == expectedVars do
     throwError "replayElim: :ELIMVARS {repr varsS} does not match the \
                 records' fresh vars at {cn.idStr}"
-  -- children: the fully-eliminated clause + one guard clause per record ≥ 2
-  unless cn.children.length == records.length do
-    throwError "replayElim: {cn.children.length} children for \
-                {records.length} elim record(s) at {cn.idStr} (frontier)"
-  unless st.newClauses.length == records.length do
-    throwError "replayElim: {st.newClauses.length} output clauses for \
-                {records.length} elim record(s) at {cn.idStr} (frontier)"
   -- the clause's head literal must be (not (consp v₁)) — record 1's guard
   let (v0, _, _) := records.head!
   let lit1 : SExpr := .cons (.atom (.symbol { name := "NOT" }))
     (.cons (.cons (.atom (.symbol { name := "CONSP" }))
       (.cons (.atom (.symbol v0)) .nil)) .nil)
-  let some lit1Idx := cn.inputClause.idxOf? lit1
-    | throwError "replayElim: the clause has no (not (consp {v0.name})) \
-                  literal at {cn.idStr} (frontier)"
+  unless (cn.inputClause.idxOf? lit1).isSome do
+    throwError "replayElim: the clause has no (not (consp {v0.name})) \
+                literal at {cn.idStr} (frontier)"
   if cn.inputClause.length < 2 then
     throwError "replayElim: singleton clause at {cn.idStr} (frontier)"
   -- round-trip: recompute EVERY output clause (each later record's guard
-  -- clause + the fully-eliminated clause) and REQUIRE the emitted set
+  -- clause + the fully-eliminated clause) and REQUIRE the emitted set.
+  -- A later record whose (not (consp v)) guard literal IS in the current
+  -- clause pushes NO guard child — the `(consp v) :: C` case is a tautology
+  -- ACL2 drops (G1 arc 2026-07-29: the *1/3'' chained-elim shape, where
+  -- record 2's guard literal σ-descended into the clause).
   let mut computed : List (List SExpr) := []
+  let mut guards : Nat := 0
   let mut curC := cn.inputClause
   let mut firstRec := true
   for (v, v1, v2) in records do
@@ -126,14 +124,16 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
     let cdrT : SExpr := .cons (.atom (.symbol { name := "CDR" })) (.cons vT .nil)
     let uT : SExpr := .cons (.atom (.symbol { name := "CONS" }))
       (.cons (.atom (.symbol v1)) (.cons (.atom (.symbol v2)) .nil))
-    unless firstRec do
-      computed := computed ++
-        [(SExpr.cons (.atom (.symbol { name := "CONSP" })) (.cons vT .nil)) :: curC]
     -- applying a record MOVES the eliminated var's (not (consp v)) literal
     -- to the FRONT (σ-image) — erase it (first occurrence; absent for a
     -- later record's fresh var), prepend its σ-image, σ the rest
     let litV : SExpr := .cons (.atom (.symbol { name := "NOT" }))
       (.cons (.cons (.atom (.symbol { name := "CONSP" })) (.cons vT .nil)) .nil)
+    unless firstRec do
+      unless curC.contains litV do
+        computed := computed ++
+          [(SExpr.cons (.atom (.symbol { name := "CONSP" })) (.cons vT .nil)) :: curC]
+        guards := guards + 1
     let curRest := match curC.idxOf? litV with
       | some i => curC.eraseIdx i
       | none => curC
@@ -141,6 +141,15 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
       curRest.map (elimReplace carT cdrT vT uT v1 v2)
     firstRec := false
   computed := computed ++ [curC]
+  -- children: the fully-eliminated clause + the recomputed guard clauses
+  unless cn.children.length == 1 + guards do
+    throwError "replayElim: {cn.children.length} children for \
+                {records.length} elim record(s) with {guards} guard \
+                clause(s) at {cn.idStr} (frontier)"
+  unless st.newClauses.length == 1 + guards do
+    throwError "replayElim: {st.newClauses.length} output clauses for \
+                {records.length} elim record(s) with {guards} guard \
+                clause(s) at {cn.idStr} (frontier)"
   for c in computed do
     unless st.newClauses.any (·.toList? == some c) do
       throwError "replayElim: recomputed clause {repr c} is not among the \
@@ -149,7 +158,8 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
   let rec go (recs : List (Symbol × Symbol × Symbol)) (curClause : List SExpr)
       (cfgK : ReplayConfig) (isTop : Bool) : MetaM Expr := do
     let ctxK0 : ReplayCtx := if isTop then ctx
-      else { ctx with varVals := [], vals := [], litFacts := [] }
+      else { ctx with varVals := [], vals := [], litFacts := [],
+                      segFacts := [], branchFacts := [] }
     -- pin the level's clause opaques AGAINST THIS LEVEL'S ENV (a deeper
     -- level's fresh env has none of the outer pins)
     let ctxK ← pinTermOpaques cfg cfgK.envExpr ctxK0 (disjoinTerm curClause)
@@ -158,7 +168,9 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
       let some child := cn.children.find? (·.inputClause == curClause)
         | throwError "replayElim: no child matches the fully-eliminated \
                       clause {repr curClause} at {cn.idStr}"
-      rec.clause cfgK { ctxK with varVals := [], vals := [], litFacts := [] } child
+      let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [],
+                                  segFacts := [], branchFacts := [] }
+      rec.clause cfgK ctxFresh child
     | (v, v1, v2) :: rest =>
       let vT : SExpr := .atom (.symbol v)
       let carT : SExpr := .cons (.atom (.symbol { name := "CAR" })) (.cons vT .nil)
@@ -187,16 +199,23 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
       -- CASE (consp v) = nil
       let negL ← withLocalDeclD `hnil (← mkEq conspVE nilC) fun hNil => do
         let p ←
-          if isTop then do
+          if let some litIdx := curClause.idxOf? notConspLit then do
             -- the clause's own (not (consp v)) literal is true and closes
-            -- the disjunction (at its actual position — need not be first)
+            -- the disjunction (at its actual position — need not be first).
+            -- LEVEL-GENERIC (G1 arc 2026-07-29): a later record whose guard
+            -- literal σ-descended into the clause closes the same way (ACL2
+            -- pushed no guard child — the tautology drop, see the recompute
+            -- loop above).
             let notLit : SExpr := .cons (.atom (.symbol { name := "NOT" }))
               (.cons conspLit .nil)
             let hT ← mkAppM ``logic_not_t_of_nil #[hNil]
             let tNeNil ← proveByDecide
               (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
             let hTrue ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
-            evtrueOfLitTrue cfg ctxK curClause lit1Idx notLit hTrue
+            evtrueOfLitTrue cfgK ctxK curClause litIdx notLit hTrue
+          else if isTop then
+            throwError "replayElim: record 1's clause lost its \
+                        (not (consp {v.name})) literal at {cn.idStr}"
           else do
             -- a LATER record: the not-a-cons case is a pushed GUARD child
             -- `(consp v) :: curClause` — peel its false head literal
@@ -204,8 +223,9 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
             let some gChild := cn.children.find? (·.inputClause == gClause)
               | throwError "replayElim: no guard child matches \
                             {repr gClause} at {cn.idStr}"
-            let pG ← rec.clause cfgK
-              { ctxK with varVals := [], vals := [], litFacts := [] } gChild
+            let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [],
+                                        segFacts := [], branchFacts := [] }
+            let pG ← rec.clause cfgK ctxFresh gChild
             let pNil ← mkAppM ``re_val_cast
               #[w, env, reflectSExpr conspLit, conspVE, nilC,
                 ← ctxValProof cfgK ctxK conspLit, hNil]

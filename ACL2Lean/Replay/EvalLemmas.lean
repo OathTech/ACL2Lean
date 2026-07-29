@@ -4284,6 +4284,17 @@ theorem logic_implies_cond (p q : SExpr) :
          else SExpr.t) := by
   simp only [Logic.implies, Bool.cond_eq_ite]
 
+/-- `Logic.iff` IS the value of its ground-zero unfold body
+    `(if p (if q 't 'nil) (if q 'nil 't))` under the `cond` value lift — the
+    recipe fact for the `:DEFINITION iff` rune (`iff` is an `evalOpt` builtin,
+    not a world definition; the preprocess boot-strap non-rec arm adopts this
+    body — `emit/expand-abbreviations/nonrec-body`, G1 iff rung). -/
+theorem logic_iff_cond (p q : SExpr) :
+    Logic.iff p q
+      = (bif Logic.toBool p then (bif Logic.toBool q then SExpr.t else SExpr.nil)
+         else (bif Logic.toBool q then SExpr.nil else SExpr.t)) := by
+  simp only [Logic.iff, Bool.cond_eq_ite]
+
 /-! ## The R-parameterized rewrite judgment (G1, binding invariant L2)
 
 ACL2's rewriter is generic over equivalence relations (geneqv); the preprocess
@@ -4472,6 +4483,56 @@ condition. Design + decision log:
     value. -/
 def EvTrue (w : World) (env : Env) (t : SExpr) : Prop :=
   ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env t = some v ∧ v ≠ SExpr.nil
+
+/-- `(consp (cons a b)) = t` — the syntactic-cons disjunct evidence. -/
+theorem logic_consp_cons_t (a b : SExpr) :
+    Logic.consp (SExpr.cons a b) = SExpr.t := rfl
+
+/-- The DISJUNCTIVE-CONS TP decode, 2 disjuncts (G1 arc 2026-07-29): a
+    truthy args-valued TP fact `(if (consp v) 't (equal v y))` with `y`
+    provably a cons forces `(consp v) = t` — either disjunct makes `v` a
+    cons (the second by the `equal` decode). Consumes the emitted
+    BINARY-APPEND-class corollary at a `recognizer/true` node; exactly
+    ACL2's type-set leaf union under the cited TP rune. -/
+theorem logic_consp_t_of_tp_disj2 {v y : SExpr}
+    (h : (bif Logic.toBool (Logic.consp v) then SExpr.t
+          else Logic.equal v y) = SExpr.t)
+    (hy : Logic.consp y = SExpr.t) :
+    Logic.consp v = SExpr.t := by
+  by_cases hc : Logic.toBool (Logic.consp v) = true
+  · cases v with
+    | cons a b => exact logic_consp_cons_t a b
+    | nil => simp [Logic.consp, Logic.toBool] at hc
+    | atom a => simp [Logic.consp, Logic.toBool] at hc
+  · rw [Bool.not_eq_true] at hc
+    rw [hc, cond_false] at h
+    have hveq : v = y := Logic.eq_of_equal_ne_nil (by rw [h]; simp [SExpr.t])
+    rw [hveq]; exact hy
+
+/-- The 3-disjunct sibling (the MERGE2 shape:
+    `(if (consp v) 't (if (equal v x) 't (equal v y)))` — result is a cons,
+    or one of two argument values, each provably a cons). -/
+theorem logic_consp_t_of_tp_disj3 {v x y : SExpr}
+    (h : (bif Logic.toBool (Logic.consp v) then SExpr.t
+          else bif Logic.toBool (Logic.equal v x) then SExpr.t
+               else Logic.equal v y) = SExpr.t)
+    (hx : Logic.consp x = SExpr.t) (hy : Logic.consp y = SExpr.t) :
+    Logic.consp v = SExpr.t := by
+  by_cases hc : Logic.toBool (Logic.consp v) = true
+  · cases v with
+    | cons a b => exact logic_consp_cons_t a b
+    | nil => simp [Logic.consp, Logic.toBool] at hc
+    | atom a => simp [Logic.consp, Logic.toBool] at hc
+  · rw [Bool.not_eq_true] at hc
+    rw [hc, cond_false] at h
+    by_cases he : Logic.toBool (Logic.equal v x) = true
+    · have hne : Logic.equal v x ≠ SExpr.nil := fun hnil => by
+        rw [hnil] at he; simp [Logic.toBool] at he
+      rw [Logic.eq_of_equal_ne_nil hne]; exact hx
+    · rw [Bool.not_eq_true] at he
+      rw [he, cond_false] at h
+      have hveq : v = y := Logic.eq_of_equal_ne_nil (by rw [h]; simp [SExpr.t])
+      rw [hveq]; exact hy
 
 /-- A truthy `(consp v)` walk fact makes `endp v` NIL — the CONSP/ENDP
     duality at the VALUE level (audit F1, sorting arc 2026-07-29: the

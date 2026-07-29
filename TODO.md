@@ -119,6 +119,40 @@ _Last updated: 2026-07-29._
 > p3-conj or-shape tripwire, which also first-validates the conjunction
 > composer's mid-literal arm); rung 2 = perm (bootstrap-DAG check on the
 > real logs, then PERM-IMPLIES-EQUAL-ALL-REL-2, then ORDEREDP-QSORT).
+> INC-1 DONE (2026-07-29): the IFF-UNFOLD EMISSION GAP + four walker
+> advances, zero status flips (63/79, 29u — golden message-only census:
+> ORDEREDP-APPEND advanced 5 frontiers to the LEXORDER-TRANSITIVE
+> type-alist relief; ORDEREDP-MSORT advanced 2 to a spine result
+> mismatch). (a) FORK (acl2 f6f84fa4): expand-abbreviations' boot-strap
+> non-rec arm (IFF + no-ops) recorded only the rune — the body adoption
+> was invisible, so ORDEREDP-APPEND's preprocess chain could not thread
+> its recorded if-iff steps; now an entry-style
+> emit/expand-abbreviations/nonrec-body rewrite-step (recapture-all,
+> logs at f6f84fa4; 6 logs changed). (b) replayIffDef — the
+> (:DEFINITION IFF) ground-zero recipe against the builtin semantics
+> (logic_iff_cond), the replayImpliesDef pattern. (c) the ARGS-VALUED TP
+> hypothesis shape (mkTpHypTypeAv): emitted corollaries whose residue
+> mentions formals BARE (BINARY-APPEND/MERGE2 `(EQUAL (fn X Y) Y)`
+> disjunct class) — previously silently unofferable — bind the argument
+> VALUES; consumed by the recognizer's disjunctive-cons derivation
+> (logic_consp_t_of_tp_disj2/3: 2- and 3-disjunct, per-disjunct consp
+> evidence from syntactic cons / clause-context facts); stays
+> hypothesis-backed at stage 5 (honest cond — prover targets the
+> value-only shape). (d) chained ELIM rounds: a later record whose
+> guard literal σ-descended into the clause pushes NO guard child
+> (ACL2's tautology drop) — close via the clause's own literal,
+> level-generic. (e) composeSplit consumes CLAUSE-CONTEXT facts for
+> assumed-resolved tests (all-others-false: direct falsity + the
+> (NOT t)-complement); env-crossing hygiene — elim resets
+> segFacts/branchFacts, and term-keyed fact lookups at the crash-prone
+> consumers are TYPE-CHECKED (litFactByTermChecked?) so a stale
+> cross-env fact falls through instead of crashing (the *1.1 pool-root
+> crossing surfaced it). NEXT (inc-2, the rung-1 core): the recorded
+> or-shape collapse ((IF a a b) ⇒ (IF a 'T b), rewrite-if-finish) is
+> EMITTED :EQUIV EQUAL but is iff-only — fix the fork label (the
+> geneqv-refinementp guard is the truth source), then thread R through
+> the LITERAL chain (the p3-conj tripwire flip + the mid-literal
+> composer's first green validation).
 > INC-0 DONE (2026-07-29): STATEMENT PINS delivered —
 > `Tests/SortingPins.lean` (the scalable per-book statement-pin home, in
 > `just ci` via the Tests root): ORDEREDP-ISORT, PERM-QSORT,

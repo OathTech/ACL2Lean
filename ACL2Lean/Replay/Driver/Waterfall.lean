@@ -68,6 +68,45 @@ def mkTpHypType (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
         let concl ← mkEq lifted (mkConst ``SExpr.t)
         mkForallFVars (#[envV] ++ argVs ++ #[vV]) (← mkArrow prem concl)
 
+/-- The ARGS-VALUED TP-corollary hypothesis TYPE (G1 arc 2026-07-29):
+    `∀ env' args… (u₀…uₙ v : SExpr),
+       (∃N∀f≥N, eval env' aᵢ = some uᵢ) → … →
+       (∃N∀f≥N, eval env' (fn args) = some v) →
+       <corollary lifted, (fn formals) ↦ v, formalᵢ ↦ uᵢ> = t`.
+    The value-only shape (`mkTpHypType`) cannot state a corollary whose
+    residue mentions a formal BARE (the BINARY-APPEND/my-app
+    `(EQUAL (fn X Y) Y)` disjunct class); binding the argument VALUES lifts
+    exactly those occurrences. Offered only when the value-only lift fails
+    (existing hypothesis shapes unchanged). -/
+def mkTpHypTypeAv (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
+    (cor : SExpr) : MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let decls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      (Array.range formals.length).map fun i =>
+        (Name.mkSimple s!"a{i}", .default, fun _ => pure (mkConst ``SExpr))
+    withLocalDecls decls fun argVs => do
+      let udecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+        (Array.range formals.length).map fun i =>
+          (Name.mkSimple s!"u{i}", .default, fun _ => pure (mkConst ``SExpr))
+      withLocalDecls udecls fun uVs => do
+        withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+          let appT := mkAppListExpr fn argVs
+          let argPrems ← (argVs.zip uVs).toList.mapM fun (aV, uV) =>
+            mkValConvPropEx cfg.worldExpr envV aV uV
+          let prem ← mkValConvPropEx cfg.worldExpr envV appT vV
+          let appPat : SExpr :=
+            .cons (.atom (.symbol fn))
+              ((formals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
+          let lifted ← dpValExpr [(appPat, vV)]
+            (fun s => match formals.findIdx? (· == s) with
+              | some i => pure uVs[i]!
+              | none => throwError "mkTpHypTypeAv: corollary of {fn.name} has a \
+                  free variable {s.name} outside the application/formals (frontier)")
+            cor
+          let concl ← mkEq lifted (mkConst ``SExpr.t)
+          let body ← (argPrems ++ [prem]).foldrM (fun h acc => mkArrow h acc) concl
+          mkForallFVars (#[envV] ++ argVs ++ uVs ++ #[vV]) body
+
 /-- The theorem-dependency hypothesis TYPE for a STORED rewrite rule
     (`rule:<thm>`, the `equal` instance — the rule's own `:EQUIV`; a
     non-`equal` rule is a frontier at the USE site, `replayNode`):
