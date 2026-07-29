@@ -58,7 +58,9 @@ build-acl2:
     stamp=$(mktemp)
     out=$(mktemp)
     trap 'rm -f "$stamp" "$out"' EXIT
-    ( cd acl2 && make LISP=sbcl ) 2>&1 | tee "$out"
+    # --no-sysinit keeps the build hermetic in the sandbox (/etc/sbclrc is
+    # unreadable there — the same flag capture-proof-log.sh already passes)
+    ( cd acl2 && make LISP="sbcl --no-sysinit" ) 2>&1 | tee "$out"
     grep -q "Successfully built .*saved_acl2" "$out" \
       || { echo "build-acl2: success marker missing — ACL2 build FAILED (read acl2/make.log)" >&2; exit 1; }
     [ acl2/saved_acl2 -nt "$stamp" ] \

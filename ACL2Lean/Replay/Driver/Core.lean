@@ -213,9 +213,11 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                 #[conv, hq, ← mkEqRefl (reflectSExpr fv)]
               let nextLits := curLits.map fun (i, l) =>
                 (i, replaceTermOcc fLhs fRhs l)
-              -- consume ONLY folds that change the clause; a fold whose
-              -- redex lives elsewhere (a fact, a later chain) stays in the
-              -- item stream for its own consumer (APP-NIL's (CONSP 'NIL))
+              -- consume the LEADING RUN of folds that change the clause,
+              -- stopping at the first that does not — it and everything
+              -- after stay in the item stream for their own consumers
+              -- (APP-NIL's (CONSP 'NIL); audit Q3: prefix consumption,
+              -- not a filter)
               if nextLits == curLits then break
               let some fc ← diffCollapse cfg.worldExpr cfg.envExpr fLhs fRhs
                   foldEq (disjoinTerm (curLits.map (·.2)))

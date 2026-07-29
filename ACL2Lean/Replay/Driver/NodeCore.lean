@@ -3726,6 +3726,10 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                     literal root (frontier — needs the mixed lift)"
               let mut testNodes : List ProofNode := []
               for (pn, pd, ps) in chainPrefix do
+                -- a prefix node whose path does not relativize under THIS
+                -- node's frame is at another position — a NON-MATCH, not an
+                -- error (audit Q1: deliberate; a wrong selection still
+                -- fails closed on the xA == c check below)
                 let relPn? ← try pure (some (← relativizeAndStrip (nodePath pn) pd ps))
                   catch _ => pure none
                 if let some (.arg 1 _ :: _) := relPn? then

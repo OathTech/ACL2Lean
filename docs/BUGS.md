@@ -292,6 +292,42 @@ tier-1 paperwork commit first marked the definition sites ⚠
 NOT-YET-FAITHFUL; the fix then replaced the marks with the guard-off
 definitions, whose docstrings cite this entry.
 
+## BUG-022 — the proof-log `:EQUIV` mislabel class: iff-only steps emitted `:EQUIV EQUAL`
+Status: fixed (emission sites); one emission-GAP sibling documented open
+Pinned-by: none (proof-log emission, not interpreter behavior — no value
+stream to diff; the guard is the Lean replay's R-typed chain barrier,
+which fail-closes on any mislabeled step it meets: an iff-only fact
+consumed as an eval-equality cannot elaborate)
+
+Found by the equiv-lane pre-merge audit (outside reviewer, 2026-07-30).
+Four sites in the fork share ACL2's or-shape collapse guard
+`(and unrewritten-test (geneqv-refinementp 'iff geneqv wrld)
+(equal unrewritten-test left))` or an explicit `*geneqv-iff*` guard, under
+which the step is IFF-only (the produced 'T agrees with the value only in
+truthiness); the emissions labeled them `:equiv 'equal`:
+
+1. `rewrite.lisp` rewrite-if-finish combined step — FIXED (acl2
+   2265010346, equiv-lane inc-2a): `:equiv` recomputes the guard.
+2. `rewrite.lisp` rewrite-if quotep-test arm — FIXED (this entry's
+   commit): when the truthy-constant test's collapse guard fires, ACL2
+   returns `*t*`, not the rewrite of `left` — the record's `:rhs` ALSO
+   diverged (said `(subst left)`); now `:rhs *t*` + `:equiv 'iff` under
+   the recomputed guard.
+3. `rewrite.lisp` rewrite-if11 type-alist-disjoint arm — FIXED (this
+   entry's commit): explicitly `*geneqv-iff*`-guarded, `term => 'T`
+   IFF-only; was `:equiv 'equal`, now `'iff`. No corpus occurrence yet.
+4. `rewrite.lisp` rewrite-if-finish must-be-true arm — OPEN (an emission
+   GAP, not a mislabel): the collapse returns `*t*` with NO rewrite-step
+   emitted at all. A consumer meeting it fails closed on the chain
+   mismatch (the recorded next step's lhs will not occur). Emit when a
+   record demands it.
+
+Related latency (same audit): the site-1 combined step's `:lhs`
+`(mcons-term* 'if test left right)` splices the REWRITTEN test with
+UNSUBSTITUTED left/right — only well-formed when the rewrite alist is
+nil; no corpus record exercises a non-nil alist there yet. Fix by
+substituting left/right when a record demands it.
+
 ## BUG-020 — reader ignores CL's terminating macro characters (fail-OPEN)
 Status: fixed
 Pinned-by: differential (`reader-terminators.lisp`, 4 match entries —

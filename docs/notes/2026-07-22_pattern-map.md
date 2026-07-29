@@ -792,13 +792,17 @@ Authored to VALIDATE the arc's new capability decorrelated from qsort
   BETWEEN the clausify events, and `collectClausify` expects a strict
   stream (RECON-FAIL, PatternPins-gated as a truthful tripwire — flips
   when the clausify-region wall falls, which also unblocks bsort).
+  Audit note (2026-07-30): its six IFF-combined records all sit BELOW the
+  literal root — even past the recon wall this book would hit the
+  bridge's below-root frontier, not exercise the bridge.
 
-- `p5-or-shape-flipped` (equiv-lane arc, 2026-07-29) — the or-collapse
-  bridge's decorrelation: the ORDD-INS-MID or-shape family with the
-  DISJUNCT-ORDER axis varied (junk disjunct FIRST — the collapse's
-  surviving conjunct in the ELSE position, the collapsing test an EQUAL
-  application) and a fresh fn family (dupp/rep). Status pinned truthfully
-  in PatternPins at capture.
+- `p5-or-shape-flipped` (equiv-lane arc, 2026-07-29; audit-corrected
+  2026-07-30) — the ORDD-INS-MID or-shape family, disjunct-order axis
+  varied, fresh fn family (dupp/rep). OBSERVED: the or-collapse does NOT
+  fire (type-set kills the leading test; constant-test path; the or
+  survives clausify intact — zero IF-FINISH/COMBINED records). Validates
+  the IFF PREPROCESS LANE 1/1 unconditional, not the bridge. Pinned in
+  PatternPins.
 
 - `p6-or-collapse-arith` (equiv-lane arc, 2026-07-29) — the or-collapse
   bridge's second covering instance: the p3 skeleton with the RELATION

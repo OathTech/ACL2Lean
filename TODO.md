@@ -119,6 +119,39 @@ _Last updated: 2026-07-29._
 > p3-conj or-shape tripwire, which also first-validates the conjunction
 > composer's mid-literal arm); rung 2 = perm (bootstrap-DAG check on the
 > real logs, then PERM-IMPLIES-EQUAL-ALL-REL-2, then ORDEREDP-QSORT).
+> PRE-MERGE AUDIT ACTIONED (2026-07-30, 2 Opus agents inside/outside;
+> ZERO soundness findings from both; outside verdict "merge it — the
+> foundation is right"; the inside F1 lhs claim REFUTED — term is
+> rebound to the expanded-args form at induct.lisp:306). Confirmed
+> findings actioned: BUG-022 — the :EQUIV mislabel class swept (the
+> rewrite-if quotep-arm's diverging :RHS/:equiv and the
+> *geneqv-iff*-guarded if11/type-alist-disjoint arm fixed in the fork
+> at 25609a38; the must-be-true silent-collapse emission gap documented
+> open in docs/BUGS.md); p5's two factually-wrong rationales corrected
+> (the or-collapse does NOT fire there — type-set kills the test,
+> constant-test path, the or survives clausify intact; p5 validates the
+> iff PREPROCESS lane only); p4's map entry notes its IFF-combined
+> records all sit below the literal root; the stale inc-2b/2c
+> value-pin paragraph corrected; budget-margin wording fixed (~1.55x).
+> AUDIT-DISCLOSED DEBT (not merge-gating, do not let rot): (a) the
+> or-collapse bridge has ONE gated green instance (p3) — p6 exercises
+> it 7x more but its 0/1 pin would stay green if the bridge regressed;
+> tighten p6's pin to the frontier MESSAGE once its post-BUG-022 status
+> settles, and add the bridge's :UNREWRITTEN-TEST cross-check (the
+> record carries the primary datum; the bridge currently infers the
+> collapse from prov.equiv + a sibling node's shape); (b) the
+> taut-dropped clausify arm skips the recorded-vs-recomputed round-trip
+> for that pass (sound — the proof is over our recompute — but the
+> docstring overclaims and the recorded pair is not cross-checked);
+> (c) the type-set-equality / disjunctive-TP-consp recipes derive
+> mid-chain type facts from clause context instead of emitted type data
+> (fail-closed and evidence-backed, but CLAUDE.md's emit-more rule
+> points at fork emission — policy debt; ORDEREDP-MSORT shows the
+> decode out-running ACL2's record, caught by the rhs check); (d) tp:
+> condition labels do not distinguish value-only from args-valued
+> hypothesis shapes (latent — no green row consumes an args-valued one
+> yet); (e) statement pins anchor the THEOREM TERM, not the world's
+> defun bodies (gen-world remains the missing independent anchor).
 > RUNG 1 COMPLETE (2026-07-29, commits through e47d50c, all CI-green):
 > the p3-conj-mid-literal tripwire FLIPPED — ORDD-INS-MID REPLAYED ✓
 > cond[tp:INS, rule:DEFAULT-CDR] (1/1, kernel-checked, axiom-filtered),
@@ -160,15 +193,12 @@ _Last updated: 2026-07-29._
 > 'NIL-literal drops + renumbering, justifying-branch entry, pushed-
 > residual and VACUOUS closes (justifying equality stays unsubstituted);
 > ordinary-theorem guard recalibrated 1M→3M (p3 legitimately costs
-> 1–2M/~80 s). p3-conj-mid-literal has advanced ~10 frontiers and now
-> fails at a VALUE-PIN DIVERGENCE: composing the continuation's
-> Classical.byCases/evtrue_dp_if_split, two pinVal instances of the same
-> literal's value ((NOT (ORDD IT)) around Subgoal *1/2's composer
-> branches) — the branch lambda's binder type ≠ expected binder type;
-> diagnose by printing both pin exprs at the failing mkAppM (likely a
-> ctx2-vs-composer-ctx pin split from the substitution path's
-> pinTermOpaques). ORDEREDP-APPEND's LEXORDER-TRANSITIVE type-alist
-> relief is the other open rung-1 item; then rung 2 (perm).
+> 1–2M/~80 s). [RESOLVED 2026-07-29 in inc-2c: the "value-pin
+> divergence" p3-conj then hit was the SINGLETON-SPINE shape
+> (evtrue_dp_if_split's (IF l 'T 'NIL) conclusion vs the bare-literal
+> goal) — fixed by the singleton byCases arms; p3-conj REPLAYS 1/1.]
+> ORDEREDP-APPEND's LEXORDER-TRANSITIVE type-alist relief remains the
+> open rung-1 follow-up; then rung 2 (perm).
 > INC-2a DONE (2026-07-29): the OR-SHAPE IFF STEP replays end-to-end
 > (zero status flips; 63/79, 29u). (a) FORK (acl2 2265010346): the
 > rewrite-if-finish combined step's or-shape collapse ((IF a a b) ⇒

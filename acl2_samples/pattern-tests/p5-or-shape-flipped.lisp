@@ -1,12 +1,14 @@
-; p5-or-shape-flipped — the or-collapse bridge's DECORRELATED validation
-; book (equiv-lane arc, rung 1). Wild anchor: the same ORDEREDP-ISORT /
-; ORDD-INS-MID or-shape family, with the DISJUNCT-ORDER axis varied: the
-; junk disjunct comes FIRST, so rewrite-if's or-shape collapse fires with
-; the surviving conjunct in the ELSE position (p3 exercised the THEN
-; position), and the collapsing test is an EQUAL application rather than a
-; recursive-recognizer application. Function family deliberately fresh
-; (dupp/rep over EQL-counting) vs qsort (orderedp/insert), p3 (ordd/ins),
-; and p4 (snoc/has-e).
+; p5-or-shape-flipped — an IFF-LANE validation book (equiv-lane arc,
+; rung 1). Wild anchor: the ORDEREDP-ISORT / ORDD-INS-MID or-shape family
+; with the DISJUNCT-ORDER axis varied (the junk disjunct FIRST).
+; OBSERVED BEHAVIOR (pre-merge audit correction, 2026-07-30): the
+; or-collapse does NOT fire here — type-set kills the leading test
+; ((EQUAL X 'JUNK) => 'NIL via EQUAL/TYPE-SET-NIL), so rewrite-if takes
+; the CONSTANT-TEST path and the or survives clausify intact as one
+; literal; there are ZERO IF-FINISH/COMBINED records. What the book DOES
+; validate, 1/1 unconditional: the iff preprocess lane (PREPROCESS/IF-IFF
+; + an FNCALL/ABBREVIATION step under :EQUIV IFF) on a fresh function
+; family (dupp/rep) — NOT the or-collapse bridge.
 (in-package "ACL2")
 
 (defun rep (n e)

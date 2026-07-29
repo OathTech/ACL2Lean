@@ -52,9 +52,12 @@ elab "sorting_arc_pattern_pins% " : term => do
   -- composer's MID-LITERAL arm's first green validation (the tripwire's
   -- design purpose).
   -- p5-or-shape-flipped 1/1 UNCONDITIONAL: a second green IFF-lane
-  -- instance (disjunct order flipped, dupp/rep family) — clausify splits
-  -- its or apart, so it validates the iff preprocess lane, NOT the
-  -- or-collapse bridge.
+  -- instance (disjunct order flipped, dupp/rep family). Pre-merge audit
+  -- correction (2026-07-30): the or-collapse does NOT fire — type-set
+  -- kills the leading test (EQUAL/TYPE-SET-NIL), rewrite-if takes the
+  -- constant-test path, and the or survives clausify INTACT as one
+  -- literal (zero IF-FINISH/COMBINED records). Validates the iff
+  -- preprocess lane, NOT the or-collapse bridge.
   -- p6-or-collapse-arith 0/1: the or-collapse bridge's second instance
   -- (the collapse fires 8x in the record and REPLAYS); a truthful
   -- tripwire at the linear-in-simplify EMISSION gap (*1/3.14', a
@@ -70,6 +73,18 @@ elab "sorting_arc_pattern_pins% " : term => do
         res.integrityFails.isEmpty do
       throwError "pattern pin {nm}: replayed {res.replayed}/{res.total} \
         (expected {expR}/{expT}); integrity: {res.integrityFails.toList}"
+  -- p6 pin TIGHTENED (pre-merge audit, 2026-07-30): the 0/1 count alone
+  -- would stay green if the or-collapse bridge regressed to an EARLIER
+  -- failure; pin the frontier MESSAGE — reaching *1/3.14''s
+  -- ran-out-of-items means everything before it (including the 7 bridge
+  -- replays) composed.
+  let resP6 ← ACL2.Replay.Runner.runBook "p6-or-collapse-arith" orCollapseArithLog none
+  unless resP6.lines.any (fun l =>
+      l.startsWith "    ORDN-INSN-MID → FAIL: replayClauseSpine: ran out of \
+items with no closer at Subgoal *1/3.14'") do
+    throwError "pattern pin p6-or-collapse-arith: the pinned frontier message \
+      moved — got:\n{"\n".intercalate resP6.lines.toList}\nre-pin truthfully \
+      (an EARLIER failure means the or-collapse bridge regressed)"
   -- p4-iff-or-shape (equiv-lane arc): a TRUTHFUL RECON TRIPWIRE — the
   -- book lands on the KNOWN clausify-region reconstruction wall (the
   -- bsort wall: clausify-input's second expand-abbreviations interleaves

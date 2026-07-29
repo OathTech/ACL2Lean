@@ -11,8 +11,11 @@
   assigns the machine constant (`runBook`'s CoverageMirrors /
   TerminationMirrors output — the exact sweep semantics, kernel-checked and
   axiom-filtered) to an `example` whose TYPE is transcribed from the source
-  book, so any emission/translation drift that changes WHAT IS PROVED fails
-  here at elaboration.
+  book, so emission/translation drift in the STATEMENT TERM fails here at
+  elaboration. SCOPE LIMIT (audit F5/F9, 2026-07-30): the world constant
+  in every pinned type is itself derived from the same untrusted log, so
+  drift in an emitted :DEFUN BODY passes these pins — the independent
+  world anchor is gen-world (CLAUDE.md stage 5, tracked).
 
   Sources transcribed (the acl2/ submodule is the canonical copy):
   - acl2/books/sorting/isort.lisp            (insert, isort, orderedp-isort)

@@ -179,8 +179,9 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
   -- the slowest legitimate replay. RECALIBRATED 3M (G1 inc-2c, same
   -- methodology): the p3-conj-mid-literal theorem — a 5-subgoal induction
   -- whose per-subgoal composition stacks the or-collapse bridge, taut-drop
-  -- clausify bridges, and 3 DP leaves — legitimately costs 1–2M units
-  -- (~80 s measured); 3M is ~2x margin over that observed cost.
+  -- clausify bridges, and 3 DP leaves — legitimately costs ~1.9M units
+  -- (~78 s measured); 3M is ~1.55x margin over that observed cost
+  -- (audit N1 wording fix).
   -- `budget` override — NOT a tuning knob (sorting arc 2026-07-28): an
   -- ADMISSION (termination) proof contains several linear-arithmetic DP
   -- leaves, each individually entitled to the full `dpOnlyProverGuard`
