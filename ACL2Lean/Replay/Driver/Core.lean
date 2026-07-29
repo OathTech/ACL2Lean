@@ -590,6 +590,18 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             else throwError "replayClauseSpine: conjunction branch segments \
                 {repr sA} / {repr sB} ≠ the AND-shape conjuncts at {idStr} \
                 (frontier)"
+          -- LEAF validation (audit F-B — the 1-branch arm's sibling check):
+          -- an AND-shape strip records exactly two SEGMENT-OPEN leaves whose
+          -- values are the conjuncts; anything else is a divergence.
+          let leaves := lp.splitTrace.filterMap fun
+            | .leaf v outcome _ _ => some (v, outcome)
+            | _ => none
+          unless leaves.length == 2 &&
+              leaves.all (fun (_, o) => o == "segment-open") &&
+              (leaves.map (·.1) == [L, R] || leaves.map (·.1) == [R, L]) do
+            throwError "replayClauseSpine: conjunction trace leaves \
+                {repr (leaves.map (·.1))} are not the two SEGMENT-OPEN \
+                conjuncts at {idStr} (frontier)"
           let ctx ← pinTermOpaques cfg cfg.envExpr ctx lp.result
           let vLit ← ctxValExpr cfg ctx lp.literal
           let pLit ← ctxValProof cfg ctx lp.literal

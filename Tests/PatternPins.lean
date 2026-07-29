@@ -31,11 +31,13 @@ elab "sorting_arc_pattern_pins% " : term => do
   --
   -- p3-recorded-termination 2/2: THIN (1-ary through the fresh SKIP-ONE
   -- shrinker) + PRUNE (the audit-F4 2-ary negative) both replay
-  -- CONDITIONALLY; their termination mirrors currently frontier at the
-  -- NESTED-admission-induction shape ("ran out of items with no closer",
-  -- *1.1), so total:THIN/PRUNE ride as honest conditions — when that
-  -- frontier lands, the cond sets shrink and THIS pin's cond check below
-  -- flips to enforce the discharge.
+  -- CONDITIONALLY on the ORDINARY hypothesis-backed path: their
+  -- termination mirrors currently frontier at the NESTED-admission-
+  -- induction shape ("ran out of items with no closer", *1.1), so the
+  -- recorded route is NOT yet exercised by this book (audit H-4/S1: the
+  -- decode chain still has exactly one covering instance, QSORT). This
+  -- pin holds the count; cond-SET pinning arrives with the statement-pin
+  -- work (the next segment's first item).
   --
   -- p3-conj-mid-literal 0/1: a TRUTHFUL TRIPWIRE — blocked at the
   -- (IF a a b) → (IF a 'T b) or-shape normalization BEFORE the

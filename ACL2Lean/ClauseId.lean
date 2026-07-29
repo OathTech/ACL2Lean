@@ -176,6 +176,10 @@ private def p! (s : String) : ClauseId :=
 #guard p! "Subgoal *1/1'''" == { poolLst := [1], caseLst := [.num 1], primes := 3 }
 -- the ≥4 primes form "'4'"
 #guard p! "Subgoal *1/1'4'" == { poolLst := [1], caseLst := [.num 1], primes := 4 }
+-- the GOAL-branch twin of the contraction (audit F-D — the crash class
+-- the p3 books found): ACL2's printer emits `Goal'4'` for four primes
+-- (bare `''''` is NEVER printed — the parser rightly rejects it)
+#guard p! "Goal'4'" == { primes := 4 }
 
 -- Nested (sub-)induction: pool-lst with two elements
 #guard p! "Subgoal *1.1/1" == { poolLst := [1, 1], caseLst := [.num 1] }

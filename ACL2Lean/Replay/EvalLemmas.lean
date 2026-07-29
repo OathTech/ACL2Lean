@@ -5586,30 +5586,6 @@ theorem totality_3_rec_snd_mu (μ : SExpr → Nat)
     (fun av1 av2 av3 => hbody av2 av1 av3)
 
 
-/-- One spine layer: `EvTrue (IF c 'T r)` with `c ⇒ nil` gives `EvTrue r`
-    (exists: `evtrue_extract_else`); and conversely `EvTrue r` lifts back
-    over ANY head whose evaluation converges (`evtrue_intro_else` needs
-    c ⇒ nil — for the REPLACEMENT head we only have convergence to some
-    value; when truthy the spine is true anyway). -/
-theorem evtrue_intro_head_any {w : World} {env : Env} {c rest : SExpr}
-    {cv : SExpr}
-    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
-    (hrest : EvTrue w env rest) :
-    EvTrue w env
-      (.cons (.atom (.symbol { name := "IF" }))
-        (.cons c (.cons
-          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-          (.cons rest .nil)))) := by
-  by_cases hnil : cv = SExpr.nil
-  · exact evtrue_intro_else (hnil ▸ hc) hrest
-  · obtain ⟨Nc, hcN⟩ := hc
-    refine ⟨Nc + 2, fun f hf => ?_⟩
-    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-    rw [evalOpt_if_true g w env c _ rest cv (hcN g (by omega))
-      (by cases cv <;> simp_all [Logic.toBool])]
-    obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
-    exact ⟨SExpr.t, evalOpt_quote g2 w env SExpr.t, by simp [SExpr.t]⟩
-
 
 /-- The AND-shape value decode (inc-2a conjunction composer): a nil
     conjunction value with a TRUTHY left conjunct forces the right conjunct

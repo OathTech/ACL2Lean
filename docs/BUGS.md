@@ -139,6 +139,18 @@ precisely because of this bug — and the DP-lift registry now consumes
 `Logic.rationalp` must diverge from `acl2Numberp` (nil on complex) and the
 DP-lift discharge of RATIONALP leaves must be revisited alongside.
 
+**Dependency note (2026-07-29, sorting arc):** `Logic.complexRationalp`
+is now a trusted-core builtin defined CONSTANTLY nil (with
+`realpart`/`imagpart` on the complex-free space), differentially pinned
+(numerator-denominator.lisp), and LOAD-BEARING in two vacuous-branch
+discharges: the totality walk (`Totality.lean`, the definitionally-nil
+truthy branch — ACL2-COUNT's complex admission case) and the induction
+walk (`Waterfall/Induction.lean`, same pattern). Both close ACL2's
+complex case by absurdity — a DOMAIN RESTRICTION of the model (SExpr
+admits no complex values), not a statement weakening, and fail-closed
+under a future fix here (the `isDefEq _ nil` guards stop matching and
+those proofs stop elaborating, loudly).
+
 ## BUG-010 — mixed/partial escaping within a symbol token not implemented
 Status: open
 Pinned-by: differential

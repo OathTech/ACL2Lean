@@ -198,6 +198,31 @@ _Last updated: 2026-07-28._
 > others-false forces L from child1 and R from child2, so the literal's
 > cond-value is truthy); rows blocked: ORDEREDP-QSORT (the headline),
 > ORDEREDP-ISORT.
+> PRE-MERGE AUDIT (2026-07-29, 2 Opus agents inside/outside + synthesis):
+> ZERO soundness findings from BOTH; outside verdict "the right
+> foundation — recommend merging"; all 5 golden promotions verified
+> honestly classified; F1-F6 verified real. OPEN VALIDATION DEBT (both
+> agents, restated here per the audit — not just in test comments):
+> (1) the recorded-termination decode chain has exactly ONE working
+> instance (QSORT) — the p3 decorrelation book's mirrors frontier at the
+> nested-*1.1 admission shape, so THIN/PRUNE validate nothing of the
+> route yet; (2) the conjunction composer's MID-LITERAL arm has ZERO
+> coverage (probe-verified byte-identical golden without it) — the
+> p3-conj tripwire flips when the or-shape normalization lands;
+> (3) STATEMENT PINS (audit rec 6, promised this arc) NOT delivered —
+> Tests/DriverTests.lean untouched; the FIRST item of the next segment,
+> not deferrable past it (both auditors), for ORDEREDP-ISORT +
+> TRUE-LISTP-QSORT/PERM-QSORT + the QSORT termination mirror;
+> (4) the fork's :CLAUSIFY-CONJUNCTION left/right marker is emitted but
+> UNCONSUMED (the composer infers from lp.result syntax — P8 follow-up);
+> (5) sorts-equivalent capstones are CROSS-BOOK (:INCLUDED defuns carry
+> no termination proofs) — the route is per-book until WP5 transfer;
+> the capstone wall is encapsulate + :functional-instance (L3), the
+> ":PATH does not navigate" surface text is NOT the real blocker.
+> ERRATA on earlier records (inside audit): c36330a's gate line says
+> "500 match" — the correct figure is 497; "15 totality conditions
+> across 14 rows" (407c28a/TODO) — the artifact count is 29 dropped
+> total: occurrences over 10 distinct fns across 14 rows.
 > INC-2a DONE (2026-07-29): the AND-SHAPE CONJUNCTION COMPOSER — both
 > spine positions (mid-literal: value-cases dispatch to the branch
 > continuations under the forced-nil conjunct's fact; LAST literal: both
