@@ -4797,6 +4797,15 @@ theorem evrel_siff_qt_of_evtrue {w : World} {env : Env} {a : SExpr}
   refine ⟨u, SExpr.t, hau, ?_, by simp [SIff, hnu, SExpr.t]⟩
   exact evalOpt_quote g w env SExpr.t
 
+/-- `EvTrue '\''NIL` is absurd — the empty disjunction's ex-falso decode
+    (the SINGLETON spine arm, G1 inc-2c). -/
+theorem evtrue_quote_nil_false {w : World} {env : Env}
+    (h : EvTrue w env (.cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons .nil .nil))) : False := by
+  obtain ⟨N, h⟩ := h
+  obtain ⟨v, hv, hnv⟩ := h (N + 1) (by omega)
+  exact hnv (Option.some.inj (hv.symm.trans (evalOpt_quote N w env SExpr.nil)))
+
 /-- Extract the REST of a disjunction from its `EvTrue` when the head literal
     is valued nil — the induction scaffold's per-case peel, fixed to the
     disjoin shape `(if c 't rest)`. -/

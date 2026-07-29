@@ -418,7 +418,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         let p ← evtrueOfLitTrue cfg ctx (clauseLits.map (·.2)) (kIdx - 1) negEq hNe
         mkLambdaFVars #[hNe] p
       let _ := pK
-      return ← mkAppM ``Classical.byCases #[negL, posL]
+      return ← (try mkAppM ``Classical.byCases #[negL, posL]
+        catch e => throwError "byCases compose failed at {idStr}:\nnegL : {← Lean.Meta.inferType negL}\nposL : {← Lean.Meta.inferType posL}\n{e.toMessageData}")
     -- a clause-level EQUAL-SELF step: the literal (equal X X) is TRUE by
     -- reflexivity and closes the whole disjunction (comm-rm's *1/1.2 after
     -- its branch-substitution trivializes the conclusion)
@@ -633,7 +634,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vL, nilC]) fun hNe => do
         let p ← evtrueOfLitTrue cfg ctx allLits pos notH hNe
         mkLambdaFVars #[hNe] p
-      return ← mkAppM ``Classical.byCases #[negL, posL]
+      return ← (try mkAppM ``Classical.byCases #[negL, posL]
+        catch e => throwError "byCases compose failed at {idStr}:\nnegL : {← Lean.Meta.inferType negL}\nposL : {← Lean.Meta.inferType posL}\n{e.toMessageData}")
     -- a literal that IS the ground constant 't (post-substitution ground
     -- evaluation reduced it), reported true by rewrite-atm's type-set
     -- (ATM/TYPE-SET-TRUE, :RESULT :TRUE — APP-NIL Subgoal *1/3): the clause
@@ -818,7 +820,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             let _ := h
             mkLambdaFVars #[h] p
           let eqTy ← mkEq vLit (mkConst ``SExpr.nil)
-          let helse ← withLocalDeclD `h eqTy fun h => do
+          let mkElseBodyC (h : Expr) : MetaM Expr := do
             let some (ch, chIff) := chainOpt
               | throwError "replayClauseSpine: conjunction literal without \
                   a rewrite chain at {idStr} (internal)"
@@ -847,12 +849,33 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
               let hbTrue ← mkAppM ``toBool_true_of_ne_nil #[hL]
               let hRnil ← mkAppM ``cond_true_nil_forces_r #[hRes, hbTrue]
               mkLambdaFVars #[hL] (← branch R hRnil contR segRLits)
-            let p ← mkAppM ``Classical.byCases #[negL, posL]
-            mkLambdaFVars #[h] p
-          return ← mkAppM ``evtrue_dp_if_split
-            #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal,
-              reflectSExpr quoteT, reflectSExpr restTerm, vLit, pLit,
-              hthen, helse]
+            (try mkAppM ``Classical.byCases #[negL, posL]
+              catch e => throwError "byCases compose failed at {idStr}:\nnegL : {← Lean.Meta.inferType negL}\nposL : {← Lean.Meta.inferType posL}\n{e.toMessageData}")
+          -- SINGLETON spine (G1 inc-2c): the goal is the BARE literal —
+          -- dp_if_split's (IF l 'T 'NIL) conclusion would mismatch; byCases
+          -- directly, the nil branch's EvTrue 'NIL closing ex falso.
+          if restLits.isEmpty then
+            let posT ← withLocalDeclD `h neTy fun h => do
+              mkLambdaFVars #[h] (← mkAppM ``evtrue_of_conv_ne_nil #[pLit, h])
+            let negT ← withLocalDeclD `h eqTy fun h => do
+              let pBody ← mkElseBodyC h
+              let goalTy ← mkAppM ``EvTrue
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal]
+              let hFalse ← mkAppM ``evtrue_quote_nil_false #[pBody]
+              mkLambdaFVars #[h]
+                (← mkAppOptM ``False.elim #[some goalTy, some hFalse])
+            return ← (try mkAppM ``Classical.byCases #[negT, posT]
+              catch e => throwError "singleton mid-lit compose failed at \
+                {idStr}:\n{e.toMessageData}")
+          let helse ← withLocalDeclD `h eqTy fun h => do
+            mkLambdaFVars #[h] (← mkElseBodyC h)
+          return ← (try
+            mkAppM ``evtrue_dp_if_split
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal,
+                reflectSExpr quoteT, reflectSExpr restTerm, vLit, pLit,
+                hthen, helse]
+            catch e =>
+              throwError "dp_if_split compose failed at {idStr} (mid-lit):\n{e.toMessageData}")
         | _ =>
           throwError "replayClauseSpine: {branchSegs.length} branches on \
                       literal {idx} without a split trace at {idStr} (frontier)"
@@ -905,7 +928,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         let _ := h
         mkLambdaFVars #[h] p
       let eqTy ← mkEq vLit (mkConst ``SExpr.nil)
-      let helse ← withLocalDeclD `h eqTy fun h => do
+      let mkElseBody (h : Expr) : MetaM Expr := do
         let (factTerm, factProof) ←
           match chainOpt with
           | none => pure (lp.literal, h)
@@ -921,11 +944,33 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
               ← mkAppM ``siff_val_nil_transport #[ch, pLit, pLit', h])
         let ctx' := { ctx with litFacts := ctx.litFacts ++ [(idx, factTerm, factProof)] }
         let accClause' := accClause ++ segLits.filter (!accClause.contains ·)
-        let p ← replayClauseSpineWith rec cfg ctx' idStr restLits contItems accClause' children
-        mkLambdaFVars #[h] p
-      mkAppM ``evtrue_dp_if_split
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
-          reflectSExpr restTerm, vLit, pLit, hthen, helse]
+        replayClauseSpineWith rec cfg ctx' idStr restLits contItems accClause' children
+      if restLits.isEmpty then
+        -- SINGLETON spine (G1 inc-2c): the goal is the BARE literal
+        -- (disjoinTerm [l] = l) — the dp_if_split shape would conclude
+        -- (IF l 'T 'NIL) and mismatch. byCases directly: a truthy value
+        -- closes; the nil branch's continuation proves the EMPTY
+        -- disjunction ('NIL) — absurd, ex falso closes.
+        let posL ← withLocalDeclD `h neTy fun h => do
+          mkLambdaFVars #[h] (← mkAppM ``evtrue_of_conv_ne_nil #[pLit, h])
+        let negL ← withLocalDeclD `h eqTy fun h => do
+          let p ← mkElseBody h
+          let goalTy ← mkAppM ``EvTrue
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal]
+          let hFalse ← mkAppM ``evtrue_quote_nil_false #[p]
+          mkLambdaFVars #[h] (← mkAppOptM ``False.elim #[some goalTy, some hFalse])
+        return ← (try
+          mkAppM ``Classical.byCases #[negL, posL]
+          catch e =>
+            throwError "singleton-spine compose failed at {idStr}:\n{e.toMessageData}")
+      let helse ← withLocalDeclD `h eqTy fun h => do
+        mkLambdaFVars #[h] (← mkElseBody h)
+      (try
+        mkAppM ``evtrue_dp_if_split
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr lp.literal, reflectSExpr quoteT,
+            reflectSExpr restTerm, vLit, pLit, hthen, helse]
+        catch e =>
+          throwError "dp_if_split compose failed at {idStr} (trivial):\n{e.toMessageData}")
 
 /-- Replay a clause node: prove `EvTrue w env (disjoinTerm inputClause)`
     (for a single-literal clause this IS the literal/formula statement).

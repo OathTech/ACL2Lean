@@ -424,8 +424,11 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             let accClause' := accClause ++ segL.filter (!accClause.contains ·)
             rec.clauseSpine cfg ctx' idStr restLits cont' accClause' children
         mkLambdaFVars #[h] p
-      mkAppM ``evtrue_dp_if_split
-        #[w, e, reflectSExpr clauseLit, reflectSExpr quoteT, reflectSExpr restTerm,
-          vLit, pLit, hthen, helse]
+      (try
+        mkAppM ``evtrue_dp_if_split
+          #[w, e, reflectSExpr clauseLit, reflectSExpr quoteT, reflectSExpr restTerm,
+            vLit, pLit, hthen, helse]
+        catch e =>
+          throwError "dp_if_split compose failed at {idStr} (composeSplit):\n{e.toMessageData}")
 
 end ACL2.Replay.Driver

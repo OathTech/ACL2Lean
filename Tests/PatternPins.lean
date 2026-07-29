@@ -39,21 +39,22 @@ elab "sorting_arc_pattern_pins% " : term => do
   -- pin holds the count; cond-SET pinning arrives with the statement-pin
   -- work (the next segment's first item).
   --
-  -- p3-conj-mid-literal 0/1: a TRUTHFUL TRIPWIRE — blocked at the
-  -- (IF a a b) → (IF a 'T b) or-shape normalization BEFORE the
-  -- conjunction composer's mid-literal arm; the pin flips when the
-  -- normalization bridge lands, which is exactly when the mid-literal arm
-  -- gets its first green validation.
+  -- p3-conj-mid-literal 1/1 (FLIPPED, equiv-lane inc-2c 2026-07-29): the
+  -- or-shape IFF normalization + or-collapse bridge + R-threaded literal
+  -- chain + taut-dropped clausify + non-variable branch substitution
+  -- (folds/drops) + singleton spine arms all replay — the conjunction
+  -- composer's MID-LITERAL arm's first green validation (the tripwire's
+  -- design purpose).
   for (nm, content, expR, expT) in
       [("p3-recorded-termination", recordedTermLog, 2, 2),
-       ("p3-conj-mid-literal", conjMidLog, 0, 1)] do
+       ("p3-conj-mid-literal", conjMidLog, 1, 1)] do
     let res ← ACL2.Replay.Runner.runBook nm content none
     unless res.replayed == expR && res.total == expT &&
         res.integrityFails.isEmpty do
       throwError "pattern pin {nm}: replayed {res.replayed}/{res.total} \
         (expected {expR}/{expT}); integrity: {res.integrityFails.toList}"
   logInfo "sorting-arc pattern pins hold (p3-recorded-termination 2/2, \
-    p3-conj-mid-literal 0/1 tripwire)"
+    p3-conj-mid-literal 1/1 — the mid-literal composer validated)"
   return mkConst ``True.intro
 
 -- unlimited at the command like the coverage sweep — the harness enforces
