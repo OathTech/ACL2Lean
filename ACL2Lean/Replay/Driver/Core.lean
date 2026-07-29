@@ -185,8 +185,145 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
               #[chL, ← ctxValProof cfg ctx2 st, ← ctxValProof cfg ctx2 st']
             let h' ← mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
             ctx2 := { ctx2 with segFacts := ctx2.segFacts ++ [(st', h')] }
-        let p ← replayClauseSpineWith rec cfg ctx2 idStr substLits rest accClause children
-        return ← evtrueWith chainOpt p
+        -- ACL2's subst-equiv-expr CONS-TERM-FOLDS during substitution; the
+        -- fork records each fold as an SCONS-TERM/EXEC step (G1 inc-2c:
+        -- (ORDD 'JUNK) ⇒ 'T under (CDR IT) := 'JUNK). Consume the leading
+        -- fold records — each is an exec-ground fact applied to the
+        -- substituted literals — then DROP any literal folded to 'NIL
+        -- (ACL2's add-literal drops nils), collapsing its if-frame out of
+        -- the disjunction, and RENUMBER (deletion shifts later indices).
+        let mut curLits := substLits
+        let mut extraChains : List Expr := []
+        let mut restI := rest
+        repeat
+          match restI with
+          | .step nf :: restT =>
+            if nodeOrigin nf == "scons-term/exec" then
+              let (fLhs, fRhs) := nodeLhsRhs nf
+              let .cons (.atom (.symbol q)) (.cons fv .nil) := fRhs
+                | throwError "replayClauseSpine: scons-term/exec rhs \
+                    {repr fRhs} is not a quoted constant at {idStr}"
+              unless q.name == "QUOTE" do
+                throwError "replayClauseSpine: scons-term/exec rhs \
+                    {repr fRhs} is not a quoted constant at {idStr}"
+              let conv ← replayExecGround cfg fLhs fv
+              let hq ← mkAppM ``re_val_quote
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr fv]
+              let foldEq ← mkAppM ``fuel_eq_of_conv
+                #[conv, hq, ← mkEqRefl (reflectSExpr fv)]
+              let nextLits := curLits.map fun (i, l) =>
+                (i, replaceTermOcc fLhs fRhs l)
+              -- consume ONLY folds that change the clause; a fold whose
+              -- redex lives elsewhere (a fact, a later chain) stays in the
+              -- item stream for its own consumer (APP-NIL's (CONSP 'NIL))
+              if nextLits == curLits then break
+              let some fc ← diffCollapse cfg.worldExpr cfg.envExpr fLhs fRhs
+                  foldEq (disjoinTerm (curLits.map (·.2)))
+                  (disjoinTerm (nextLits.map (·.2)))
+                | throwError "replayClauseSpine: scons-term/exec fold \
+                    {repr fLhs} produced no chain at {idStr} (internal)"
+              extraChains := extraChains ++ [fc]
+              curLits := nextLits
+              restI := restT
+            else break
+          | _ => break
+        repeat
+          let some pos := (curLits.map (·.2)).idxOf? quoteNil | break
+          let before := curLits.take pos
+          let after := curLits.drop (pos + 1)
+          if after.isEmpty then
+            throwError "replayClauseSpine: literal folded to 'NIL in LAST \
+                position at {idStr} (frontier)"
+          let afterT := disjoinTerm (after.map (·.2))
+          let (dropEq, _) ← mkConstTestCollapse cfg ctx1 quoteNil SExpr.nil
+            quoteT afterT
+          let mut inner := dropEq
+          let mut curL : SExpr := .cons (.atom (.symbol { name := "IF" }))
+            (.cons quoteNil (.cons quoteT (.cons afterT .nil)))
+          let mut curR : SExpr := afterT
+          for l in (before.map (·.2)).reverse do
+            let stp : PathStep := { fn := { name := "IF" }, arity := 3,
+                                    argIdx := 2, siblings := [l, quoteT] }
+            inner ← applyStep cfg.worldExpr cfg.envExpr stp curL curR inner
+            curL := rebuild stp curL
+            curR := rebuild stp curR
+          unless curL == disjoinTerm (curLits.map (·.2)) do
+            throwError "replayClauseSpine: nil-literal drop reconstructed \
+                {repr curL} ≠ the folded clause at {idStr}"
+          extraChains := extraChains ++ [inner]
+          -- renumber: deletion shifts the LATER literals' indices down
+          curLits := before ++ after.map (fun (i, l) => (i - 1, l))
+        let chainAll ← extraChains.foldlM (init := chainOpt) fun acc c => do
+          match acc with
+          | none => pure (some c)
+          | some a => pure (some (← mkAppM ``fuel_chain_eq #[a, c]))
+        ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2
+          (disjoinTerm (curLits.map (·.2)))
+        -- the substituted continuation may sit INSIDE a branch item whose
+        -- segment is the JUSTIFYING equality literal itself (its falsity is
+        -- the segEq fact already in scope) — enter it, joining the segment
+        -- to the residual clause exactly as ACL2's new-clause does
+        let (curItems, accClause') ←
+          match restI with
+          | [.branch seg items] => do
+            let some segL := seg.toList?
+              | throwError "replayClauseSpine: post-substitution branch \
+                  segment {repr seg} is not a list at {idStr}"
+            unless segL == [mkNegEq varT valT] || segL == [mkNegEq valT varT] do
+              throwError "replayClauseSpine: post-substitution branch segment \
+                  {repr segL} is not the justifying equality at {idStr} \
+                  (frontier)"
+            pure (items, accClause ++ segL.filter (!accClause.contains ·))
+          | _ => pure (restI, accClause)
+        if curItems.isEmpty && curLits.isEmpty then
+          -- VACUOUS (G1 inc-2c): the substitution closed the branch — the
+          -- pushed child is the SUBSTITUTED accumulated clause, every
+          -- literal of which has an in-scope (transported) falsity fact;
+          -- ex falso closes the empty disjunction (the composer's vacuous
+          -- residual pattern; p3-conj *1/2.2).
+          -- the justifying equality literal itself stays UNSUBSTITUTED
+          -- (remove-trivial-equivalences substitutes the OTHER literals)
+          let expected := accClause'.map fun L =>
+            if L == mkNegEq varT valT || L == mkNegEq valT varT then L
+            else substL L
+          let some child := children.find? (·.inputClause == expected)
+            | throwError "replayClauseSpine: post-substitution vacuous \
+                residual — no child matches {repr expected} at {idStr} \
+                (frontier)"
+          let mut ctxV := ctx2
+          for L in expected do
+            ctxV ← pinTermOpaques cfg cfg.envExpr ctxV L
+          let pChild ← rec.clause cfg { ctxV with litFacts := [] } child
+          let ctxF := ctxV
+          return ← vacuousResidualClose cfg ctxV expected pChild
+            (disjoinTerm []) fun L => do
+              match ctxF.litFactByTerm? L with
+              | some hf => pure hf
+              | none => throwError "replayClauseSpine: no falsity fact for \
+                  the vacuous-residual literal {repr L} at {idStr}"
+        if curItems.isEmpty && !curLits.isEmpty then
+          -- RESIDUAL: no continuation items — the substituted clause was
+          -- pushed as a child subgoal (the composer's empty-cont pattern):
+          -- match it, replay, peel the accumulated segments down to the
+          -- surviving literal, bridge back along the substitution chain
+          let expected := accClause' ++
+            (curLits.map (·.2)).filter (!accClause'.contains ·)
+          let some child := children.find? (·.inputClause == expected)
+            | throwError "replayClauseSpine: post-substitution residual — no \
+                child clause matches {repr expected} at {idStr} (frontier)"
+          unless curLits.length == 1 &&
+              expected.getLast? == some (curLits.head!.2) do
+            throwError "replayClauseSpine: post-substitution residual with \
+                {curLits.length} surviving literal(s) at {idStr} (frontier)"
+          let pChild ← rec.clause cfg { ctx2 with litFacts := [] } child
+          let p ← peelToLast cfg ctx2 expected pChild fun L => do
+            match ctx2.litFactByTerm? L with
+            | some hf => pure hf
+            | none => throwError "replayClauseSpine: no falsity fact for the \
+                post-substitution residual literal {repr L} at {idStr}"
+          return ← evtrueWith chainAll p
+        let p ← replayClauseSpineWith rec cfg ctx2 idStr curLits curItems accClause' children
+        return ← evtrueWith chainAll p
       let some ((ta, tb), kIdx) := inClause?
         | throwError "replayClauseSpine: internal — inClause? vanished"
       let negEq : SExpr := mkNegEq ta tb
