@@ -111,7 +111,15 @@ def parse (s0 : String) : Except String ClauseId := do
       | none => .error s!"ClauseId: unterminated [ in {repr s0}"
     else pure (0, s0)
   let afterGoal := String.ofList (s.toList.drop 4)
-  if s == "Goal" || (s.startsWith "Goal" && afterGoal.toList.all (· == '\'')) then
+  -- the primes phrase is either bare primes or ACL2's COUNT CONTRACTION
+  -- `'<n>'` (`Goal''''` prints as `Goal'4'` — sorting arc 2026-07-29,
+  -- found by the p3 pattern books; `parsePrimes` already decodes it, the
+  -- guard here just failed to route it)
+  let primesPhrase (t : String) : Bool :=
+    t.toList.all (· == '\'') ||
+    (t.length > 2 && t.startsWith "'" && t.endsWith "'" &&
+     ((t.toList.drop 1).dropLast.all (·.isDigit)))
+  if s == "Goal" || (s.startsWith "Goal" && primesPhrase afterGoal) then
     let p ← parsePrimes afterGoal
     return { forcingRound := fr, primes := p }
   else if s.startsWith "Subgoal *" then

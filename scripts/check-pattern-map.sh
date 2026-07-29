@@ -62,6 +62,9 @@ nosig() {
   fi
 }
 
+# Sorting-completion arc validation books (2026-07-29)
+sig p3-recorded-termination 1 "(O< (ACL2-COUNT (SKIP-ONE"
+sig p3-conj-mid-literal     1 ":ORIGIN STRIP-BRANCHES/AND-SHAPE"
 # P1 circle
 sig p1-swap-descend    1 "(IF (CONSP X) (ATOM Y) (ATOM X))"
 sig p1-swap-double-neg 1 "(NOT (NOT"

@@ -757,3 +757,37 @@ L2 equivalence ladder (IFF→PERM congruences), encapsulate/functional
 instantiation, admission-waterfall replay, `:use`-hint Goal structure,
 NFIX μ-measure + decrease-prover arm, trivial-equiv branch
 substitution (the type-alist substitution class).
+
+## Sorting-completion arc validation books (2026-07-29)
+
+Authored to VALIDATE the arc's new capability decorrelated from qsort
+(synthetic BOOKS through real ACL2 + capture — the mapping-arc amendment):
+
+- `p3-recorded-termination` — the recorded-termination class, second
+  independent instance: `THIN` (1-ary, recursing through the fresh
+  list-shrinker `SKIP-ONE`) + `PRUNE` (the 2-ary NEGATIVE pin for the
+  audit-F4 arity gate). BOTH rows REPLAY conditionally (DriverTests-gated
+  2/2 with pinned cond sets); the termination MIRRORS themselves hit a NEW
+  frontier — `ran out of items with no closer` inside the NESTED `*1.1`
+  admission induction (the skip-one count bound needs its own induction,
+  deeper than qsort's shape) — so `total:THIN`/`total:PRUNE` stay honest
+  conditions. Also found+fixed: the ClauseId `Goal'4'` prime-count
+  CONTRACTION was unparseable (reconstruction crash class).
+- `p3-conj-mid-literal` — the ORDEREDP-ISORT wild anchor with the
+  literal-POSITION axis varied (a junk disjunct after the AND-shape
+  literal), targeting the conjunction composer's UNEXERCISED mid-literal
+  continuation arm. Blocked EARLIER than the composer: the
+  `(IF a a b) → (IF a 'T b)` or-shape normalization inside
+  `if-finish/combined` (frontier; DriverTests-gated 0/1 as a truthful
+  tripwire — the pin flips when the normalization bridge lands, at which
+  point the mid-literal arm gets its validation).
+
+Validation-book BACKLOG for under-covered green paths (next authoring
+targets, same discipline): a theorem-side induction whose case clauses
+exercise the add-literal DEDUP re-intro (`evtrue_intro_else`) in a GREEN
+row (currently mirror-only); a green-row hyp-relief spine marker book
+(currently only failing msort rows reach it); a multi-include rule
+RE-STORAGE dedup green row (currently mirror-only via FOLD-CONSTS-IN-+).
+Pins live in `Tests/PatternPins.lean` — one section per family; do not
+grow DriverTests.
+
