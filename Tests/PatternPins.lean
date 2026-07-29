@@ -27,6 +27,10 @@ private def conjMidLog : String :=
   include_str "../acl2_samples/pattern-tests/p3-conj-mid-literal.proof-log"
 private def iffOrShapeLog : String :=
   include_str "../acl2_samples/pattern-tests/p4-iff-or-shape.proof-log"
+private def orShapeFlippedLog : String :=
+  include_str "../acl2_samples/pattern-tests/p5-or-shape-flipped.proof-log"
+private def orCollapseArithLog : String :=
+  include_str "../acl2_samples/pattern-tests/p6-or-collapse-arith.proof-log"
 
 elab "sorting_arc_pattern_pins% " : term => do
   -- (book, log, expected replayed, expected total)
@@ -47,9 +51,20 @@ elab "sorting_arc_pattern_pins% " : term => do
   -- (folds/drops) + singleton spine arms all replay — the conjunction
   -- composer's MID-LITERAL arm's first green validation (the tripwire's
   -- design purpose).
+  -- p5-or-shape-flipped 1/1 UNCONDITIONAL: a second green IFF-lane
+  -- instance (disjunct order flipped, dupp/rep family) — clausify splits
+  -- its or apart, so it validates the iff preprocess lane, NOT the
+  -- or-collapse bridge.
+  -- p6-or-collapse-arith 0/1: the or-collapse bridge's second instance
+  -- (the collapse fires 8x in the record and REPLAYS); a truthful
+  -- tripwire at the linear-in-simplify EMISSION gap (*1/3.14', a
+  -- fake-rune-for-linear leaf with no discharge node — flips when that
+  -- emission lands).
   for (nm, content, expR, expT) in
       [("p3-recorded-termination", recordedTermLog, 2, 2),
-       ("p3-conj-mid-literal", conjMidLog, 1, 1)] do
+       ("p3-conj-mid-literal", conjMidLog, 1, 1),
+       ("p5-or-shape-flipped", orShapeFlippedLog, 1, 1),
+       ("p6-or-collapse-arith", orCollapseArithLog, 0, 1)] do
     let res ← ACL2.Replay.Runner.runBook nm content none
     unless res.replayed == expR && res.total == expT &&
         res.integrityFails.isEmpty do

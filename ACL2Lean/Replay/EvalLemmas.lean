@@ -3943,6 +3943,11 @@ theorem cond_toBool_of_t_or_nil {v : SExpr}
     cond (Logic.toBool v) SExpr.t SExpr.nil = v := by
   rcases h with h | h <;> simp [h, Logic.toBool, SExpr.t]
 
+theorem logic_lt_t_or_nil (a b : SExpr) :
+    Logic.lt a b = SExpr.t ∨ Logic.lt a b = SExpr.nil := by
+  simp only [Logic.lt]
+  split <;> simp
+
 theorem t_t_or_nil : SExpr.t = SExpr.t ∨ SExpr.t = SExpr.nil := Or.inl rfl
 theorem nil_t_or_nil : SExpr.nil = SExpr.t ∨ SExpr.nil = SExpr.nil := Or.inr rfl
 

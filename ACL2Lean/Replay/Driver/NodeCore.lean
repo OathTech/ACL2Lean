@@ -701,6 +701,8 @@ partial def boolDisj? (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) :
     return some (← mkAppM ``logic_equal_t_or_nil #[v.appFn!.appArg!, v.appArg!])
   if v.isAppOfArity ``ACL2.lexorder 2 then
     return some (← mkAppM ``lexorder_boolean #[v.appFn!.appArg!, v.appArg!])
+  if v.isAppOfArity ``Logic.lt 2 then
+    return some (← mkAppM ``logic_lt_t_or_nil #[v.appFn!.appArg!, v.appArg!])
   match t with
   | .cons (.atom (.symbol hs)) (.cons c (.cons a (.cons b .nil))) =>
     if hs.name == "IF" then do
@@ -2308,6 +2310,11 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             -- LEXORDER test: two-valuedness DIRECTLY from `lexorder_boolean`
             -- (a builtin boolean predicate — no TP hypothesis needed).
             mkAppM ``cond_toBool_lexorder #[vC.appFn!.appArg!, vC.appArg!]
+          else if vC.isAppOfArity ``Logic.lt 2 then
+            -- `<` test (G1 rung 1, p6): two-valued builtin — same closer
+            -- via the disjunction form.
+            mkAppM ``cond_toBool_of_t_or_nil
+              #[← mkAppM ``logic_lt_t_or_nil #[vC.appFn!.appArg!, vC.appArg!]]
           else if (match c with
                    | .cons (.atom (.symbol s)) (.cons _ (.cons _ (.cons _ .nil))) =>
                      s.name == "IF"
@@ -2459,6 +2466,15 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                       {repr lhs} (frontier)"
       let vL ← ctxValExpr cfg ctx lhs
       let hne ← mkAppM ``logic_not_nil_ne #[vL, hNotNil]
+      -- TWO-VALUED BUILTIN lhs (G1 rung 1, p6): a `<`-valued term's truthy
+      -- pin needs no TP — the builtin's provable two-valuedness resolves
+      -- ≠ nil to = t directly.
+      if vL.isAppOfArity ``Logic.lt 2 then
+        let hd ← mkAppM ``logic_lt_t_or_nil #[vL.appFn!.appArg!, vL.appArg!]
+        let hT ← mkAppM ``Or.resolve_right #[hd, hne]
+        let pl ← ctxValProof cfg ctx lhs
+        let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+        return ← mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
       let .cons (.atom (.symbol fs)) argsSpine := lhs
         | throwError "type-alist: truthy verdict on a non-application \
                       {repr lhs} (frontier)"

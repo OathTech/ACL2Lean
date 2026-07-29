@@ -287,4 +287,79 @@ example :
 
 #print axioms TerminationMirrors.term_pins_sorting_qsort_QSORT
 
+/-! ## p3-conj-mid-literal (acl2_samples/pattern-tests/p3-conj-mid-literal.lisp)
+
+    The equiv-lane rung-1 flip's STATEMENT PIN (the iff lane's sole green
+    instance must provably say what its book says): the ACL2 defthm
+
+      (implies (and (consp it)
+                    (not (lexorder x1 (car it)))
+                    (ordd (cdr it))
+                    (ordd it))
+               (or (ordd (ins x1 it))
+                   (equal it 'junk)))
+
+    under ACL2's standard translation (`and` → nested IFs, `or` →
+    `(IF a a b)`), conditional on ins's emitted TP corollary
+    `(consp (ins e x))` (source-true: every branch conses) and the
+    ground-zero rule `default-cdr`
+    (`(implies (not (consp x)) (equal (cdr x) nil))`). -/
+
+private def p3ConjLog : String :=
+  include_str "../acl2_samples/pattern-tests/p3-conj-mid-literal.proof-log"
+
+def p3ConjPinsDev : Development :=
+  (((ProofLog.parse p3ConjLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world p3ConjPinsWorld from p3ConjPinsDev
+
+elab "p3_conj_statement_pin_run% " : term => do
+  let r ← Runner.runBook "pins/p3-conj" p3ConjLog none
+  unless r.integrityFails.isEmpty do
+    throwError "p3-conj statement pin: integrity failures \
+      {r.integrityFails.toList}"
+  unless r.lines.any (·.startsWith
+      "    ORDD-INS-MID → REPLAYED ✓ cond[tp:INS, rule:DEFAULT-CDR]") do
+    throwError "p3-conj statement pin: lost the pinned status prefix; got:\n\
+      {"\n".intercalate r.lines.toList}"
+  logInfo "p3-conj statement pin: replay status holds (ORDD-INS-MID)"
+  return mkConst ``True.intro
+
+set_option maxHeartbeats 0 in
+def p3ConjStatementPinRun : True := p3_conj_statement_pin_run%
+
+/-- `rule:<thm>` with ONE truthiness hypothesis (the conditional-rewrite
+    hypothesis shape, `mkRuleHypType`). -/
+private def ruleEqHyp1 (w : World) (hyp lhs rhs : SExpr) : Prop :=
+  ∀ env' : Env, EvTrue w env' hyp →
+    ∃ N, ∀ f ≥ N, evalOpt f w env' lhs = evalOpt f w env' rhs
+
+/-- `(not x)` term. -/
+private def notOf (x : SExpr) : SExpr := .cons (sym "NOT") (.cons x .nil)
+
+example :
+    ∀ (env : Env),
+      tpPred2 p3ConjPinsWorld "INS" Logic.consp →
+      -- default-cdr: (implies (not (consp x)) (equal (cdr x) nil))
+      ruleEqHyp1 p3ConjPinsWorld
+        (notOf (ap1 "CONSP" (sym "X")))
+        (ap1 "CDR" (sym "X"))
+        (qt .nil) →
+      EvTrue p3ConjPinsWorld env
+        (ap2 "IMPLIES"
+          (ap3 "IF" (ap1 "CONSP" (sym "IT"))
+            (ap3 "IF" (notOf (ap2 "LEXORDER" (sym "X1") (ap1 "CAR" (sym "IT"))))
+              (ap3 "IF" (ap1 "ORDD" (ap1 "CDR" (sym "IT")))
+                (ap1 "ORDD" (sym "IT"))
+                (qt .nil))
+              (qt .nil))
+            (qt .nil))
+          (ap3 "IF" (ap1 "ORDD" (ap2 "INS" (sym "X1") (sym "IT")))
+            (ap1 "ORDD" (ap2 "INS" (sym "X1") (sym "IT")))
+            (ap2 "EQUAL" (sym "IT") (qt (sym "JUNK"))))) :=
+  CoverageMirrors.mirror_pins_p3_conj_ORDD_INS_MID
+
+#print axioms CoverageMirrors.mirror_pins_p3_conj_ORDD_INS_MID
+
 end ACL2.Tests.SortingPins

@@ -793,6 +793,25 @@ Authored to VALIDATE the arc's new capability decorrelated from qsort
   stream (RECON-FAIL, PatternPins-gated as a truthful tripwire — flips
   when the clausify-region wall falls, which also unblocks bsort).
 
+- `p5-or-shape-flipped` (equiv-lane arc, 2026-07-29) — the or-collapse
+  bridge's decorrelation: the ORDD-INS-MID or-shape family with the
+  DISJUNCT-ORDER axis varied (junk disjunct FIRST — the collapse's
+  surviving conjunct in the ELSE position, the collapsing test an EQUAL
+  application) and a fresh fn family (dupp/rep). Status pinned truthfully
+  in PatternPins at capture.
+
+- `p6-or-collapse-arith` (equiv-lane arc, 2026-07-29) — the or-collapse
+  bridge's second covering instance: the p3 skeleton with the RELATION
+  axis varied (arithmetic `<=`, whose `(not (< b a))` macro-expansion
+  changes the test shapes; the collapse fires 8x in the record). En
+  route it demanded `<`'s provable two-valuedness in the boolean-source
+  registry (if1/boolean, boolDisj?, the type-alist truthy pin — landed).
+  LANDS ON a new EMISSION gap: a `fake-rune-for-linear`-proved leaf
+  INSIDE simplify-clause (*1/3.14') with no emitted discharge node — the
+  linear-arithmetic discharge sites instrumented so far are
+  tau-clausep/built-in-clausep, not rewrite-clause's linear close.
+  PatternPins-gated as a truthful tripwire.
+
 Validation-book BACKLOG for under-covered green paths (next authoring
 targets, same discipline): a theorem-side induction whose case clauses
 exercise the add-literal DEDUP re-intro (`evtrue_intro_else`) in a GREEN
