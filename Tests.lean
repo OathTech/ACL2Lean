@@ -9,5 +9,6 @@ import Tests.LexorderTest
 import Tests.TermOrderTest
 import Tests.DriverTests
 import Tests.PatternPins
+import Tests.SortingPins
 import Tests.TamperTests
 import Tests.SpikeTauOmega

@@ -5,7 +5,7 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-28._
+_Last updated: 2026-07-29._
 
 > **FULL-PIPELINE AUDIT (2026-07-26, user-run 6-dimension team + refutation
 > pass; report `docs/audits/2026-07-26_full-pipeline-audit.md`) — GOVERNS
@@ -108,8 +108,35 @@ _Last updated: 2026-07-28._
 > under the sandbox protocol, incl. the sandbox-robustness commits; push
 > + remote-CI validation pending next networked session).
 
+> **EQUIV-LANE ARC (branch `mdd/equiv-lane`, opened 2026-07-29) — IN
+> PROGRESS; GOVERNS THE CURRENT WORK.** Charter: the ratified L2 design
+> note `docs/plans/2026-07-29_equiv-lane-design.md` (R-parameterized
+> replay; user equivalence = the INTERPRETED relation; every property of R
+> consumed from replayed :equivalence/:congruence mirrors, never assumed;
+> native relations only at the Imported/ lift boundary). Sequencing:
+> increment 0 = STATEMENT PINS (audit rec 6 debt, both pre-merge auditors:
+> first item, not deferrable); rung 1 = iff (targets ORDEREDP-APPEND + the
+> p3-conj or-shape tripwire, which also first-validates the conjunction
+> composer's mid-literal arm); rung 2 = perm (bootstrap-DAG check on the
+> real logs, then PERM-IMPLIES-EQUAL-ALL-REL-2, then ORDEREDP-QSORT).
+> INC-0 DONE (2026-07-29): STATEMENT PINS delivered —
+> `Tests/SortingPins.lean` (the scalable per-book statement-pin home, in
+> `just ci` via the Tests root): ORDEREDP-ISORT, PERM-QSORT,
+> TRUE-LISTP-QSORT, and the QSORT TERMINATION MIRROR each pinned as an
+> `example` whose TYPE is hand-transcribed from the acl2/ submodule
+> sources (isort.lisp, qsort.lisp, convert-perm-to-how-many.lisp,
+> arithmetic-3 fold-consts-in-+) and discharged by the machine mirror
+> constant (runBook — exact sweep semantics), so a stage-5 statement drift
+> fails elaboration; the full cond[…] hypothesis sets transcribed + the
+> exact status lines pinned; all four constants axiom-clean. Retires open
+> validation debt item (3) of the sorting arc. Cost: ~4 min module build
+> (the qsort book re-replay dominates).
+
 > **SORTING-COMPLETION ARC (branch `mdd/sorting-completion`, opened
-> 2026-07-28) — IN PROGRESS; GOVERNS THE CURRENT WORK.** Target: flip the
+> 2026-07-28) — MERGED to main 2026-07-29 (local ff to 200ab39 under the
+> sandbox protocol on explicit sign-off; 2-agent pre-merge audit, zero
+> soundness findings; push + remote-CI validation pending next networked
+> session).** Target: flip the
 > 17 remaining sorting rows, qsort first. Increments in value order (from
 > the 2026-07-28 driver-coverage frontier census):
 > (1) `dischargeDecrease` beyond destructor chains — the decrease argument
@@ -212,7 +239,8 @@ _Last updated: 2026-07-28._
 > (3) STATEMENT PINS (audit rec 6, promised this arc) NOT delivered —
 > Tests/DriverTests.lean untouched; the FIRST item of the next segment,
 > not deferrable past it (both auditors), for ORDEREDP-ISORT +
-> TRUE-LISTP-QSORT/PERM-QSORT + the QSORT termination mirror;
+> TRUE-LISTP-QSORT/PERM-QSORT + the QSORT termination mirror
+> [RESOLVED 2026-07-29: equiv-lane arc inc-0, Tests/SortingPins.lean];
 > (4) the fork's :CLAUSIFY-CONJUNCTION left/right marker is emitted but
 > UNCONSUMED (the composer infers from lp.result syntax — P8 follow-up);
 > (5) sorts-equivalent capstones are CROSS-BOOK (:INCLUDED defuns carry
