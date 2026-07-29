@@ -119,6 +119,32 @@ _Last updated: 2026-07-29._
 > p3-conj or-shape tripwire, which also first-validates the conjunction
 > composer's mid-literal arm); rung 2 = perm (bootstrap-DAG check on the
 > real logs, then PERM-IMPLIES-EQUAL-ALL-REL-2, then ORDEREDP-QSORT).
+> INC-2b/2c IN PROGRESS (2026-07-29, commits c61d166/b5649c6/1e5bbe7 —
+> every commit sweep-green, 63/79 29u byte-identical golden): the
+> literal-chain R-THREADING is LIVE (chain payloads carry (Expr × Bool),
+> chainReqEq/chainWithR/chainIffWithR/evtrueWithR mixed composition;
+> composeSplit + the conjunction composer + trivial paths consume IFF
+> literal chains via siff_val_nil_transport/siff_val_ne_nil_transport/
+> evtrue_of_evrel_siff); the OR-COLLAPSE BRIDGE works (chainPrefix
+> trailing param on replayRewritesWith; the test-position prefix
+> re-replayed on the then-copy via the branch-children strip pattern
+> (myKind, 1); evrel_siff_if_or_bridge); TAUT-DROPPED clausify outputs
+> (bridgeClausify pOut? + tautDropped — the proof built over the
+> RECOMPUTED split clause's complementary pair / 'T literal);
+> NON-VARIABLE branch substitution (replaceTermOcc) with recorded
+> SCONS-TERM/EXEC folds (consumed only when they change the clause),
+> 'NIL-literal drops + renumbering, justifying-branch entry, pushed-
+> residual and VACUOUS closes (justifying equality stays unsubstituted);
+> ordinary-theorem guard recalibrated 1M→3M (p3 legitimately costs
+> 1–2M/~80 s). p3-conj-mid-literal has advanced ~10 frontiers and now
+> fails at a VALUE-PIN DIVERGENCE: composing the continuation's
+> Classical.byCases/evtrue_dp_if_split, two pinVal instances of the same
+> literal's value ((NOT (ORDD IT)) around Subgoal *1/2's composer
+> branches) — the branch lambda's binder type ≠ expected binder type;
+> diagnose by printing both pin exprs at the failing mkAppM (likely a
+> ctx2-vs-composer-ctx pin split from the substitution path's
+> pinTermOpaques). ORDEREDP-APPEND's LEXORDER-TRANSITIVE type-alist
+> relief is the other open rung-1 item; then rung 2 (perm).
 > INC-2a DONE (2026-07-29): the OR-SHAPE IFF STEP replays end-to-end
 > (zero status flips; 63/79, 29u). (a) FORK (acl2 2265010346): the
 > rewrite-if-finish combined step's or-shape collapse ((IF a a b) ⇒
