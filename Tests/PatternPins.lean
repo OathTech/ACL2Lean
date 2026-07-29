@@ -25,6 +25,8 @@ private def recordedTermLog : String :=
   include_str "../acl2_samples/pattern-tests/p3-recorded-termination.proof-log"
 private def conjMidLog : String :=
   include_str "../acl2_samples/pattern-tests/p3-conj-mid-literal.proof-log"
+private def iffOrShapeLog : String :=
+  include_str "../acl2_samples/pattern-tests/p4-iff-or-shape.proof-log"
 
 elab "sorting_arc_pattern_pins% " : term => do
   -- (book, log, expected replayed, expected total)
@@ -53,8 +55,21 @@ elab "sorting_arc_pattern_pins% " : term => do
         res.integrityFails.isEmpty do
       throwError "pattern pin {nm}: replayed {res.replayed}/{res.total} \
         (expected {expR}/{expT}); integrity: {res.integrityFails.toList}"
+  -- p4-iff-or-shape (equiv-lane arc): a TRUTHFUL RECON TRIPWIRE — the
+  -- book lands on the KNOWN clausify-region reconstruction wall (the
+  -- bsort wall: clausify-input's second expand-abbreviations interleaves
+  -- steps into the clausify event stream). The pin flips when that wall
+  -- falls, which also unblocks bsort's corpus entry.
+  let res ← ACL2.Replay.Runner.runBook "p4-iff-or-shape" iffOrShapeLog none
+  unless res.integrityFails.size == 1 &&
+      ((res.integrityFails[0]!).splitOn "collectClausify").length > 1 do
+    throwError "pattern pin p4-iff-or-shape: expected the clausify-region \
+      RECON tripwire, got integrity {res.integrityFails.toList} \
+      ({res.replayed}/{res.total} replayed) — the wall moved: re-pin \
+      truthfully"
   logInfo "sorting-arc pattern pins hold (p3-recorded-termination 2/2, \
-    p3-conj-mid-literal 1/1 — the mid-literal composer validated)"
+    p3-conj-mid-literal 1/1 — the mid-literal composer validated; \
+    p4-iff-or-shape recon-tripwire)"
   return mkConst ``True.intro
 
 -- unlimited at the command like the coverage sweep — the harness enforces

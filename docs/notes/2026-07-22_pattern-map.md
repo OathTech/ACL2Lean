@@ -782,6 +782,17 @@ Authored to VALIDATE the arc's new capability decorrelated from qsort
   tripwire — the pin flips when the normalization bridge lands, at which
   point the mid-literal arm gets its validation).
 
+- `p4-iff-or-shape` (equiv-lane arc, 2026-07-29) — the IFF-stated-defthm
+  class decorrelated from qsort: wild anchor ORDEREDP-APPEND; axes = the
+  IFF head, an OR-shaped right side (rewrite-if's or-collapse), a fresh
+  fn family (snoc/has-e over raw equality). LANDS ON the KNOWN
+  clausify-region RECON wall (the bsort wall, now with if-iff steps):
+  ACL2's clausify-input runs a SECOND expand-abbreviations whose steps
+  (here `preprocess/if-iff`, `expand-abbreviations/nonrec-body`) emit
+  BETWEEN the clausify events, and `collectClausify` expects a strict
+  stream (RECON-FAIL, PatternPins-gated as a truthful tripwire — flips
+  when the clausify-region wall falls, which also unblocks bsort).
+
 Validation-book BACKLOG for under-covered green paths (next authoring
 targets, same discipline): a theorem-side induction whose case clauses
 exercise the add-literal DEDUP re-intro (`evtrue_intro_else`) in a GREEN
