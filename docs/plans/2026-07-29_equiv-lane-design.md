@@ -93,6 +93,54 @@ evidence goes here before rung 2 starts.
   `acl2_samples/pattern-tests/` pinned via `Tests/PatternPins.lean`
   (the inc-2b structure).
 
+## Rung-1 build log (2026-07-29, mechanics as pinned during the build)
+
+Landed (inc-1/inc-2a — see TODO for the increment detail): the IFF-unfold
+emission gap (fork `expand-abbreviations/nonrec-body`), `replayIffDef`,
+the or-shape collapse relabeled `:EQUIV IFF` at the fork (it was a
+fidelity mislabel), `evrel_siff_if_or_shape`, and the first COLLAPSE rows
+beyond if-test: IMPLIES arg-1/2 (`evrel_implies_arg1/2_siff_collapse`) —
+an SIff payload lifted along a node's `:PATH` collapses to an
+eval-equality at the first boolean-consumer frame, so most rewrite-side
+iff steps need NO chain-type change.
+
+REMAINING rung-1 core (inc-2b, designed, not yet built):
+
+1. **The or-collapse bridge** (p3-conj's flip): an IFF
+   `if-finish/combined` node whose then-branch is the UNREWRITTEN test's
+   copy `A` (rewrite-if replaced it by `'T` with no recorded step; the
+   collapse fired because `unrewritten-test == left`). The bridge fact
+   `EvRel SIff (IF X A B) (IF X 'T B)` needs `eval A = eval X` — the
+   test's OWN recorded chain, re-composed on the then-copy. Mechanism:
+   thread a `chainPrefix : List (ProofNode × Nat × List (Option String ×
+   Nat))` through `replayRewritesWith` (trailing DEFAULTED param — all 22
+   call sites are in NodeCore; consume-and-continue recursions append
+   `(n, depth, strip)`, re-process sites pass unchanged); in the combined
+   handler, filter prefix nodes whose relativized path descends the TEST
+   position (`.arg 1` after this node's `rel`) and re-replay them on the
+   then-copy `A` via the EXISTING strip mechanism — exactly the branch-
+   children pattern (`replayRewritesWith … A testNodes depth (strip' ++
+   [(myKind, 1)])`), requiring the result to be `c` (fail-closed). Bridge
+   lemma `evrel_siff_if_or_bridge (hAX : ∃N∀f≥N, eval A = eval X) …`.
+2. **Literal-chain R-threading**: the bridged combined node sits at the
+   literal ROOT, so its composite is IFF at the literal boundary — change
+   `replayRewritesWith`/`NodeRec.rewrites`/`replayLiteralChain` to return
+   `Option (Expr × Bool)` (isIff flag). Wave plan: (a) type change with
+   eq-only behavior — a `chainReqEq` shim (named frontier on iff) at the
+   ~20 eq-composition sites (`chainWith`-idiom sites get a `chainWithR`
+   with the mid-term's `ctxValProof` for SIff injection, mirroring
+   `replayPreprocessChainCore`'s mixed compose); golden byte-identical;
+   (b) real iff handling ONLY on the spine path that consumes the literal
+   chain: an iff literal chain COLLAPSES to an eval-equality of the
+   clause disjunction at the literal's if-test position
+   (`evrel_if_test_siff_collapse` — the disjoin spine treats each literal
+   as a test), so `composeSplit`/the trivial continuation transport
+   truthiness with no further spread.
+3. **ORDEREDP-APPEND's other frontier**: `LEXORDER-TRANSITIVE`
+   marker-relieved hyp `(LEXORDER A3 (CAR A4))` with `:TA-RUNES
+   [LEXORDER]` — a type-alist relief class (the fact lives in `*1.1`'s
+   own spine/branch context; investigate the record before building).
+
 ## Open mechanics (to pin during the build, none philosophical)
 
 - Exact `EvRel` statement shape (fuel-quantification placement; the
