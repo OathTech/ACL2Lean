@@ -127,3 +127,38 @@ branch-substitution condition/remove-flg/lit-position emission, the
   TRUTHY (NOT …)-false fact).
 - ORDERED-PERMS' (PERM x x) ⇒ 'T truthy arm untouched (the
   equivalence-reflexivity consumption — rung-2 cong-style machinery).
+
+## Class A inc-3 design (checkpointed 2026-07-30; next to build)
+
+**ORDEREDP-MEMB's remaining joint** — the equal-nil test swap:
+children chains reach `(IF (EQUAL 'NIL c) a b)` where the recorded rhs is
+`(IF c b a)` (ACL2 normalizes an equal-nil test by strip+swap, unrecorded).
+Build:
+1. Kernel lemma `re_if_equal_nil_test_swap (w env c a b) (hNoEqual)` :
+   `∃N ∀f≥N, eval (IF (EQUAL 'NIL c) a b) = eval (IF c b a)` — template =
+   `re_if_neg_test_swap` (EvalLemmas:5042; by_cases on c's convergence,
+   per-value split, none-case symmetric) with the inner term an EQUAL
+   builtin call (needs the EQUAL-unshadowed premise like `re_equal_self`;
+   evaluate `(EQUAL 'NIL c)` to `Logic.equal nil vc` at fuel; case on
+   vc = nil / ≠ nil via Logic.equal's two-valuedness).
+   Also the symmetric `(EQUAL c 'NIL)` orientation.
+2. Extend `findSwapPos`'s `fire?` (NodeCore:3477-ish) with the equal-nil
+   test shapes, tagging the variant; `normalizeSwapsToward` dispatches to
+   `liftNegTestSwap` or a new `liftEqualNilTestSwap` (same lift mechanics,
+   the new lemma + hNoEqual/pins).
+
+**ORDERED-PERMS' truthy arm** — perm reflexivity: consume the
+:EQUIVALENCE rule's reflexivity as the type-alist truthy source — the
+rung-2 `cong:`-style machinery: offer the equivalence theorem's
+whole-formula replayed statement, instantiate its `(perm x x)` conjunct
+at the entry's term via the premise-free substN bridge
+(`instantiateEvTrueHypAt`), decode the AND-conjunct truthy (the decode
+kit), yielding v(PERM u u) ≠ nil → = t via the two-valued pin (the
+truthy arm's existing TP route may need the equivalence-fn's emitted TP
+instead).
+
+**ORDEREDP-APPEND** — the nested if-finish/combined strip composition
+(the biggest remaining Class-A piece; relativizeAndStrip's documented
+not-handled case). Then Class D (HOW-MANY-QSORT J6 — note deriveNilFact
+is adjacent machinery: the J6 solidify wants the same equation-closure
+at the solidify site), Class C, Class B per the charter.
