@@ -691,35 +691,54 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- litFacts and the walk re-enters (one fewer demand each time).
     let demanded := (lp.nodes.flatMap collectContextDemands ++
       lp.nodes.flatMap (collectDefBodyDemands cfg)).eraseDups
+    -- "fact in scope" must mean a WELL-TYPED fact (sorting-completion-2
+    -- class A: an env-crossed segFact leaked from a parent elim walk
+    -- satisfies the UNCHECKED lookup, suppressing the hoist — and then the
+    -- consumer's CHECKED lookup rightly refuses the same entry, stranding
+    -- the replay. The unchecked/checked asymmetry is the same class the
+    -- perm-lane audit's F8 fixed at the eqSources loop.)
+    let inScopeChecked : SExpr → MetaM Bool := fun t => do
+      let ctxT ← pinTermOpaques cfg cfg.envExpr ctx t
+      let vT ← ctxValExpr cfg ctxT t
+      pure (← ctxT.litFactByTermChecked? t
+        (← mkEq vT (mkConst ``SExpr.nil))).isSome
     for dem in demanded do
       -- resolve the demand to a LATER clause literal (index, term) with no
       -- fact in scope; anything else is skipped — the consumer fails
       -- precisely if the fact is genuinely missing
-      let resolved : Option (Nat × SExpr) :=
+      let resolved : Option (Nat × SExpr) ←
         match dem with
-        | .term t =>
-          if (ctx.litFactByTerm? t).isSome then none
-          else (restLits.find? (fun (_, l) => l == t)).map fun (i, _) => (i, t)
+        | .term t => do
+          if ← inScopeChecked t then pure none
+          else pure ((restLits.find? (fun (_, l) => l == t)).map fun (i, _) => (i, t))
         | .litIdx k =>
-          if (ctx.litFact? k).isSome then none
-          else restLits.find? (fun (i, _) => i == k)
-        | .equivClass a b => Id.run do
+          -- by-INDEX facts come from the same walk (never env-crossed)
+          if (ctx.litFact? k).isSome then pure none
+          else pure (restLits.find? (fun (i, _) => i == k))
+        | .equivClass a b => do
           -- the connected component of {a, b} over ALL the clause's equality
           -- literals (grown to fixpoint), then the first LATER equality
-          -- literal in it lacking an in-scope fact — one hoist per re-entry
+          -- literal in it lacking a WELL-TYPED in-scope fact — one hoist
+          -- per re-entry
           let eqLits := clauseLits.filterMap fun (i, l) =>
             (notEqualSides? l).map fun (u, v) => (i, l, u, v)
-          let mut comp : List SExpr := [a, b]
-          for _ in List.range (eqLits.length + 1) do
-            for (_, _, u, v) in eqLits do
-              if comp.contains u || comp.contains v then
-                if !comp.contains u then comp := comp ++ [u]
-                if !comp.contains v then comp := comp ++ [v]
-          return (restLits.filterMap (fun (i, l) =>
-              (notEqualSides? l).bind fun (u, v) =>
+          let comp := Id.run do
+            let mut comp : List SExpr := [a, b]
+            for _ in List.range (eqLits.length + 1) do
+              for (_, _, u, v) in eqLits do
+                if comp.contains u || comp.contains v then
+                  if !comp.contains u then comp := comp ++ [u]
+                  if !comp.contains v then comp := comp ++ [v]
+            return comp
+          let mut found : Option (Nat × SExpr) := none
+          for (i, l) in restLits do
+            if found.isNone then
+              if let some (u, v) := notEqualSides? l then
                 if (comp.contains u || comp.contains v) &&
-                   (ctx.litFact? i).isNone && (ctx.litFactByTerm? l).isNone
-                then some (i, l) else none)).head?
+                    (ctx.litFact? i).isNone then
+                  unless ← inScopeChecked l do
+                    found := some (i, l)
+          pure found
       let some (k, notH) := resolved | continue
       let ctx ← pinTermOpaques cfg cfg.envExpr ctx notH
       let vL ← ctxValExpr cfg ctx notH

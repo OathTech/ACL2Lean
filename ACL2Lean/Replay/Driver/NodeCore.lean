@@ -2823,7 +2823,14 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
               throwError "rule {rname}: marker-relieved hyp {repr hσ} has no \
                           (not …)-falsity fact in scope, and its :TA-RUNES \
                           {repr (mprov.taRunes.map (·.name))} name no \
-                          registered FC relief (frontier)"
+                          registered FC relief (frontier; \
+                          lit-facts {repr (ctx.litFacts.map (·.2.1))}; \
+                          seg-facts {repr (ctx.segFacts.map (·.1))}; \
+                          candidate types: {← (ctx.segFacts.filterMap
+                            (fun (st, p) => if st == notH then some p else none)).mapM
+                            (fun p => do pure (← Lean.Meta.inferType p))}; \
+                          expected: {← mkEq (mkApp (mkConst ``Logic.not) vH)
+                            (mkConst ``SExpr.nil)})"
             let some spec := cfg.fcRules.find? (·.name == "LEXORDER-TOTAL")
               | throwError "rule {rname}: :TA-RUNES cite LEXORDER-TOTAL but \
                             the (:GROUND-ZERO-FC-RULES) snapshot lacks it \

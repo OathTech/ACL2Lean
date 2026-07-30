@@ -92,7 +92,7 @@ Driver coverage — REPLAYED 65/79 (30 unconditional + 35 conditional); DP-disch
     HOW-MANY-QSORT → FAIL: solidify: type-set-derived equivalence (EQUAL (CAR X) E) — not in the clause context's equation closure (2 in-scope equation(s)); value-level type-set discharge not implemented (J6 replay frontier)
     PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:HOW-MANY, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, rule:CONVERT-PERM-TO-HOW-MANY, rule:HOW-MANY-QSORT]
     CAR-APPEND → REPLAYED ✓ cond[rule:(equal (if a b c) x)]
-    ORDEREDP-APPEND → FAIL: rule LEXORDER-TRANSITIVE: marker-relieved hyp (LEXORDER A3 (CAR A4)) has no (not …)-falsity fact in scope, and its :TA-RUNES ["LEXORDER"] name no registered FC relief (frontier)  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP], Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP]]
+    ORDEREDP-APPEND → FAIL: pathStepsFromFrames: navigated to 'GTE, expected redex (ALL-REL 'LTE A E) (frames [ACL2.PathFrame.arg 1 IF, ACL2.PathFrame.arg 2 IF, ACL2.PathFrame.arg 1 ALL-REL])  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP], Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP]]
     ALL-REL-FILTER-1 → REPLAYED ✓ cond[tp:ALL-REL]
     ALL-REL-FILTER-2 → REPLAYED ✓ cond[tp:ALL-REL]
     ALL-REL-RM-1 → REPLAYED ✓ cond[tp:ALL-REL]
