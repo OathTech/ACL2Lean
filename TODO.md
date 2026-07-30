@@ -174,12 +174,31 @@ _Last updated: 2026-07-29._
 > examples p7 → p5 → p3 mirrors, second exercise the PENDING natives.
 > Terminology per CLAUDE.md (2026-07-30): mirror = native theorem
 > exclusively; replayed statement = the embedded EvTrue theorem.
-> INC-0 (next): lift_decode groundwork with p7's mirror as the driving
-> example — Implements correspondences for LN (len-class, intRep) and
-> DUB (list-producer), the native statement
-> `(dubL l).length = l.length`, assembly via the existing kit; extract
-> the schematic parts into the elab as the second book (p5) demands
-> them.
+> TRANCHE 1 COMPLETE (2026-07-30, at the merge point):
+> - inc-0: the p7 MIRROR (l.map (fun _ => '0)).length = l.length —
+>   the FIRST validation-book mirror, rung 2's ground truth. New
+>   name-generic machinery: mapConstBody/corr_mapconst_enc,
+>   drv_tp_len/dis_len_int_val (the len-class TP discharger,
+>   generalized from the MY-LEN-hardcoded chain), public conv_fix.
+> - inc-1: the p5 MIRROR duppRec (e::tl) → duppRec (e::e::tl) — the
+>   chain2 schematic's first instance (chain2Body/chain2Rec/
+>   corr_chain2_enc, comparison-generic: dupp=EQUAL, p3's ordd=LEXORDER
+>   and p6's ordn are the same shape), boolRep, the IMPLIES hypothesis
+>   decode, junk-disjunct elimination.
+> - W2(a): the LIFT-COVERAGE GATE — 66-row catalog over the golden's
+>   green rows (17 native existence-checked / 11 replayed-only
+>   justified / 38 pending with blocking work named); a new green row
+>   without a decision fails the NativeMirrors build.
+> - W1 item 1: fsq-unfolds STATEMENT pin (the lambda/beta path's gap).
+> - W1 item 3: TRUE-LISTP-ISORT + HOW-MANY-ISORT pins (isort complete).
+> - W1 item 6: termination-replay rows in the sweep (golden +1 row:
+>   termination:QSORT — the class is no longer invisible).
+> - W1 item 7: build-failing axiom gate for DriverTests' 11 constants.
+> NEXT TRANCHE (charter): the p3 mirror (chain2/LEXORDER + the
+> conditional dischargers: tp:INS cons-producer + gz DEFAULT-CDR at
+> entry level), the lift_decode elab (3rd assembly = extraction
+> trigger), W1 items 2/4/5/8-15, Rep transformers, the pattern-map
+> reverse-check tighten.
 
 > PRE-MERGE AUDIT ACTIONED (2026-07-30, 2 Opus inside/outside; ZERO
 > soundness findings from both; outside verdict MERGE-with-conditions).
