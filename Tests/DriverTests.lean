@@ -918,6 +918,51 @@ elab "acl2_replay_fsq_real% " : term => do
 /-- The first replayed translated-`let` theorem (S2). -/
 def fsq_unfolds_real_replayed := acl2_replay_fsq_real%
 
+/-! ### The fsq-unfolds STATEMENT PIN (validator/lifter arc W1 item 1 — the
+survey's top gap: the cond-set pin above cannot catch a mis-navigated
+`:PATH`/beta substitution that still proves SOMETHING; this type, transcribed
+from cov-let-lambda.lisp under ACL2's `let` → LAMBDA translation, can). -/
+
+private def fsqSym (n : String) : SExpr := .atom (.symbol { name := n })
+private def fsqAp1 (f : String) (a : SExpr) : SExpr := .cons (fsqSym f) (.cons a .nil)
+private def fsqAp2 (f : String) (a b : SExpr) : SExpr :=
+  .cons (fsqSym f) (.cons a (.cons b .nil))
+private def fsqQ1 : SExpr :=
+  .cons (fsqSym "QUOTE") (.cons (.atom (.number (.int 1))) .nil)
+/-- `(+ a 1)`. -/
+private def fsqPlusA1 : SExpr := fsqAp2 "BINARY-+" (fsqSym "A") fsqQ1
+/-- A ground-zero rule's hypothesis shape (mkRuleHypType, hyp-free). -/
+private def fsqRuleEq (lhs rhs : SExpr) : Prop :=
+  ∀ env' : Env, ∃ N, ∀ f ≥ N,
+    evalOpt f letLambdaWorld env' lhs = evalOpt f letLambdaWorld env' rhs
+
+/-- PIN the machine-generated statement of `fsq-unfolds`: the mirror... the
+    replayed statement of `(equal (fsq a) (* (+ a 1) (+ a 1)))` AFTER
+    preprocess unfolded `fsq` to its translated-`let` LAMBDA application
+    (the root Goal clause the log records), conditional on the three
+    ground-zero arithmetic rules (specs from the D5 snapshot: hyp-free,
+    EQUAL; commutativity-of-*, distributivity, unicity-of-1 → fix).
+    The conclusion is the SOURCE defthm's formula verbatim — `(fsq a)`
+    un-unfolded (the root Goal clause; the LAMBDA application appears in
+    the child subgoal, inside the replay). -/
+example :
+    ∀ (env : Env),
+      fsqRuleEq (fsqAp2 "BINARY-*" (fsqSym "X") (fsqSym "Y"))
+                (fsqAp2 "BINARY-*" (fsqSym "Y") (fsqSym "X")) →
+      fsqRuleEq (fsqAp2 "BINARY-*" (fsqSym "X")
+                  (fsqAp2 "BINARY-+" (fsqSym "Y") (fsqSym "Z")))
+                (fsqAp2 "BINARY-+"
+                  (fsqAp2 "BINARY-*" (fsqSym "X") (fsqSym "Y"))
+                  (fsqAp2 "BINARY-*" (fsqSym "X") (fsqSym "Z"))) →
+      fsqRuleEq (fsqAp2 "BINARY-*"
+                  (.cons (fsqSym "QUOTE") (.cons (.atom (.number (.int 1))) .nil))
+                  (fsqSym "X"))
+                (fsqAp1 "FIX" (fsqSym "X")) →
+      ACL2.Replay.EvTrue letLambdaWorld env
+        (fsqAp2 "EQUAL" (fsqAp1 "FSQ" (fsqSym "A"))
+          (fsqAp2 "BINARY-*" fsqPlusA1 fsqPlusA1)) :=
+  fsq_unfolds_real_replayed
+
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
 #print axioms fsq_unfolds_real_replayed
 
