@@ -427,4 +427,112 @@ example :
 
 #print axioms CoverageMirrors.mirror_pins_sorting_qsort_ORDEREDP_QSORT
 
+/-! ## p5-or-shape-flipped (acl2_samples/pattern-tests/p5-or-shape-flipped.lisp)
+
+    The iff-lane's second green instance gets its STATEMENT PIN: the ACL2
+    defthm
+
+      (implies (and (consp x) (equal (car x) e) (dupp x))
+               (or (equal x 'junk) (dupp (cons e x))))
+
+    under ACL2's standard translation (`and` → nested IFs, `or` →
+    `(IF a a b)`), UNCONDITIONAL — no hypotheses at all. -/
+
+private def p5FlipLog : String :=
+  include_str "../acl2_samples/pattern-tests/p5-or-shape-flipped.proof-log"
+
+def p5FlipPinsDev : Development :=
+  (((ProofLog.parse p5FlipLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world p5FlipPinsWorld from p5FlipPinsDev
+
+/-! ## p7-cong-collapse (acl2_samples/pattern-tests/p7-cong-collapse.lisp)
+
+    Rung 2's decorrelated validation book gets STATEMENT PINS for the two
+    theorems that carry its meaning:
+    - `P7-TARGET` — `(equal (ln (dub x)) (ln x))`, the congruence-collapse
+      instance itself;
+    - `SAME-LN-IMPLIES-EQUAL-LN-1` — the defcong
+      `(defcong same-ln equal (ln x) 1)`, whose ACL2 macro expansion is the
+      defthm `(implies (same-ln x x-equiv) (equal (ln x) (ln x-equiv)))` —
+      pinned because this formula is EXACTLY what `congSpecOfFormula?`
+      parses into the consumed congruence license (a drift here would move
+      the license itself).
+    Both conditional on ln's emitted non-negative-integer TP corollary
+    (source-true: ln counts). -/
+
+private def p7CongLog : String :=
+  include_str "../acl2_samples/pattern-tests/p7-cong-collapse.proof-log"
+
+def p7CongPinsDev : Development :=
+  (((ProofLog.parse p7CongLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world p7CongPinsWorld from p7CongPinsDev
+
+elab "pattern_statement_pins_run% " : term => do
+  let r5 ← Runner.runBook "pins/p5-flip" p5FlipLog none
+  let r7 ← Runner.runBook "pins/p7-cong" p7CongLog none
+  unless r5.integrityFails.isEmpty && r7.integrityFails.isEmpty do
+    throwError "pattern statement pins: integrity failures \
+      {r5.integrityFails.toList ++ r7.integrityFails.toList}"
+  let mustHave : List (String × Array String × String) :=
+    [("pins/p5-flip", r5.lines, "    DUPP-REP-MID → REPLAYED ✓"),
+     ("pins/p7-cong", r7.lines, "    P7-TARGET → REPLAYED ✓ cond[tp:LN]"),
+     ("pins/p7-cong", r7.lines,
+      "    SAME-LN-IMPLIES-EQUAL-LN-1 → REPLAYED ✓ cond[tp:LN]")]
+  for (book, lines, line) in mustHave do
+    unless lines.any (· == line) do
+      throwError "pattern statement pins: {book} lost pinned status line\n  \
+        {line}\ngot:\n{"\n".intercalate lines.toList}"
+  logInfo "pattern statement pins: replay statuses hold (DUPP-REP-MID, \
+    P7-TARGET, SAME-LN-IMPLIES-EQUAL-LN-1)"
+  return mkConst ``True.intro
+
+set_option maxHeartbeats 0 in
+def patternStatementPinsRun : True := pattern_statement_pins_run%
+
+/-- PIN the machine-generated statement of `DUPP-REP-MID` (p5): the mirror
+    of the book's defthm, unconditional. -/
+example :
+    ∀ (env : Env),
+      EvTrue p5FlipPinsWorld env
+        (ap2 "IMPLIES"
+          (ap3 "IF" (ap1 "CONSP" (sym "X"))
+            (ap3 "IF" (ap2 "EQUAL" (ap1 "CAR" (sym "X")) (sym "E"))
+              (ap1 "DUPP" (sym "X"))
+              (qt .nil))
+            (qt .nil))
+          (ap3 "IF" (ap2 "EQUAL" (sym "X") (qt (sym "JUNK")))
+            (ap2 "EQUAL" (sym "X") (qt (sym "JUNK")))
+            (ap1 "DUPP" (ap2 "CONS" (sym "E") (sym "X"))))) :=
+  CoverageMirrors.mirror_pins_p5_flip_DUPP_REP_MID
+
+#print axioms CoverageMirrors.mirror_pins_p5_flip_DUPP_REP_MID
+
+/-- PIN the machine-generated statement of `P7-TARGET`:
+    `(equal (ln (dub x)) (ln x))` under ln's non-negative-integer TP. -/
+example :
+    ∀ (env : Env),
+      tpNonnegInt1 p7CongPinsWorld "LN" →
+      EvTrue p7CongPinsWorld env
+        (ap2 "EQUAL" (ap1 "LN" (ap1 "DUB" (sym "X"))) (ap1 "LN" (sym "X"))) :=
+  CoverageMirrors.mirror_pins_p7_cong_P7_TARGET
+
+#print axioms CoverageMirrors.mirror_pins_p7_cong_P7_TARGET
+
+/-- PIN the machine-generated statement of `SAME-LN-IMPLIES-EQUAL-LN-1`
+    (the defcong's macro-expanded defthm). -/
+example :
+    ∀ (env : Env),
+      tpNonnegInt1 p7CongPinsWorld "LN" →
+      EvTrue p7CongPinsWorld env
+        (ap2 "IMPLIES"
+          (ap2 "SAME-LN" (sym "X") (sym "X-EQUIV"))
+          (ap2 "EQUAL" (ap1 "LN" (sym "X")) (ap1 "LN" (sym "X-EQUIV")))) :=
+  CoverageMirrors.mirror_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
+
+#print axioms CoverageMirrors.mirror_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
+
 end ACL2.Tests.SortingPins
