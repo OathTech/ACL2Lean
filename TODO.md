@@ -158,6 +158,14 @@ _Last updated: 2026-07-29._
 > falsity facts as equation sources alongside segment facts; (e) the
 > unemitted-test frontier message now self-locates (running term +
 > in-scope facts).
+> MERGE POINT (2026-07-30, inc-2 committed 0dd7c08): both arc targets
+> green, decorrelated validation pinned, full local ci green. Queued
+> post-merge (NOT blocking): the type-alist relief class
+> (LEXORDER-TRANSITIVE marker, :TA-RUNES [LEXORDER] — flips
+> ORDEREDP-APPEND/ORDEREDP-MEMB/ORDERED-PERMS/TRUE-LISTP-MSORT and
+> discharges ORDEREDP-QSORT's biggest kept condition), the
+> linear-in-simplify emission gap (p6), HOW-MANY-QSORT's J6 solidify
+> frontier, and the audit-disclosed debt list above.
 > INC-2 DONE (2026-07-30): ORDEREDP-QSORT → REPLAYED ✓ (sweep 65/79,
 > 35 conditional; zero other row changes) — the headline sorting row,
 > conditional ONLY on pre-existing debt (rule:ORDEREDP-APPEND +
