@@ -109,3 +109,34 @@ alternate. W1 items 10/12/14 are larger and may split out.
   class (LEXORDER-TRANSITIVE marker), the linear-in-simplify emission gap
   (p6), HOW-MANY-QSORT's J6 solidify frontier — these are REPLAY-side and
   belong to a separate arc unless one blocks a driving example.
+
+## Inc-0 working state (2026-07-30, ground truth established)
+
+The p7 mirror's ingredients, verified against the artifacts:
+
+- **LN's emitted body is EXACTLY `lenBody "LN"`** — ACL2 normalized the
+  source's `endp` away at admission: `(:DEFUN LN :FORMALS (X) :BODY
+  (IF (CONSP X) (BINARY-+ '1 (LN (CDR X))) '0))`. So
+  `Lifting.corr_len_enc w "LN"` instantiates DIRECTLY (h_fn by decide on
+  the derived world; no new schematic needed).
+- **DUB's body is a MAP-CONST shape**: `(IF (CONSP X) (CONS '0 (DUB (CDR
+  X))) 'NIL)` — needs ONE new name-generic schematic in Lifting:
+  `mapConstBody (c : SExpr) (fn : String)` + `corr_mapconst_enc`
+  (conclusion: Conv of `(app1 fn a)` to `enc (xs.map (fun _ => c))`),
+  template = `corr_append_enc`'s induction, simpler (unary).
+- **The tp:LN discharger**: `SimpleWorld.drv_tp_mylen` is the exact
+  corollary shape but HARDCODED to MY-LEN (my_len_sym/my_lenBody,
+  via `dis_mylen_int_nonneg`) — generalize to a name-generic
+  `drv_tp_len (w) (fn)` over `lenBody fn` (industrialization dividend:
+  every len-class fn's TP discharges from one lemma; LN and MY-LEN both).
+- **Setup pattern** (Entry-1, NativeMirrors:70-135): include_str the p7
+  log → `p7Dev` → `derive_world p7WorldD` → `driver_replayed% p7Dev
+  p7WorldD "p7-target"` → discharge tp:LN via the generic discharger →
+  instantiate at `X ↦ enc l` → Conv both sides via corr_mapconst_enc ∘
+  corr_len_enc → `native_of_replayed_equal intRep` →
+  **the mirror: `∀ l : List SExpr, (l.map (fun _ => qInt-0)).length =
+  l.length`** — stated and proved FROM the replayed P7-TARGET.
+- File: `ACL2Lean/Imported/P7Cong.lean` (new), imported by
+  NativeMirrors or the Imported root; axiom-gate via the throwing
+  `run_cmd` pattern (NativeMirrors:738), NOT bare `#print axioms`
+  (survey gap 7).
