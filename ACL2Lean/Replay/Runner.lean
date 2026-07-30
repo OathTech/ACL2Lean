@@ -367,6 +367,12 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let tTm1 ← IO.monoMsNow
         if timings then
           IO.println s!"[t] termination {fn}: {tTm1 - tTm0} ms ({status})"
+        -- the termination replay's status is a ROW, not just a timing print
+        -- (validator/lifter arc W1 item 6 — the survey found the class
+        -- INVISIBLE to the golden: a termination replayed statement
+        -- silently regressing to FAIL only showed up indirectly)
+        let termRow := s!"    termination:{fn} → {status}"
+        res := { res with lines := res.lines.push termRow }
         if let some conds := reg? then
           -- CIRCULARITY guard (audit F3): the admission proof precedes the
           -- defun — a mirror conditional on the defun's OWN totality/TP
