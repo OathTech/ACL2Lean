@@ -955,6 +955,123 @@ theorem p5_dupp_prepend_native_driver (e : SExpr) (tl : List SExpr)
   | true => rfl
   | false => rw [hc] at hconc; exact absurd hconc (by decide)
 
+
+/-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
+
+Every GREEN row of the sweep golden must carry an explicit lift DECISION:
+a native mirror (whose constant must exist), an explicit PENDING marker
+(the blocking work named), or replayed-only (no non-vacuous native fact —
+reflexive decodes and type-absorbed statements). A NEW green row without a
+catalog entry FAILS this build — "replayed but never lifted" can no longer
+accumulate silently (the survey's headline finding, now a ratchet). The
+golden is the input, so the catalog can never drift from the sweep. -/
+
+private def liftCoverageGolden : String :=
+  include_str "../../Tests/driver-coverage.golden"
+
+inductive LiftStatus where
+  | native (decl : Lean.Name)
+  | pending (blockedOn : String)
+  | replayedOnly (why : String)
+
+/-- The catalog: one DECISION per green sweep row (book, theorem, status). -/
+def liftCatalog : List (String × String × LiftStatus) := [
+  ("simple", "MY-LEN-MY-APP", .native ``my_len_my_app_native_driver),
+  ("00-direct", "GROUND-ARITH", .native ``ground_arith_native),
+  ("00-direct", "SQ-OF-3", .native ``sq_of_3_native),
+  ("00-direct", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
+  ("01-multi-theorem", "APP-CONS-CAR", .native ``car_cons_native),
+  ("01-multi-theorem", "APP-NIL", .pending "G5 multi-literal pushed-clause induction"),
+  ("01-multi-theorem", "LEN2-APP", .pending "len2 world dischargers (entry-1 recipe over the 01 world)"),
+  ("02-rev", "APP-ASSOC", .native ``app_assoc_native_driver),
+  ("02-rev", "TRUE-LISTP-REV", .replayedOnly "type-absorbed natively (List is well-formed by type)"),
+  ("02-rev", "APP-NIL", .pending "G5 multi-literal pushed-clause induction"),
+  ("02-rev", "REV-APP", .pending "G5 + rev correspondence"),
+  ("02-rev", "REV-REV", .pending "G5 + rev correspondence"),
+  ("03-linear", "LEN2-NONNEG", .pending "len2 dischargers; Nat form is type-absorbed"),
+  ("03-linear", "LEN2-CDR-SMALLER", .pending "len2 dischargers"),
+  ("03-linear", "LINEAR-CHAIN", .pending "#50 DP tactic decode"),
+  ("04-multi-case-induction", "EVENLEN-BOOLEANP", .pending "boolean-recognizer decode (near type-absorbed)"),
+  ("05-hints", "LEN2-APP-HELPER", .pending "len2 dischargers"),
+  ("05-hints", "LEN2-APP-VIA-INDUCT", .pending "len2 dischargers"),
+  ("05-hints", "LEN2-APP-NO-HELPER", .pending "len2 dischargers"),
+  ("06-measure", "COUNT-DOWN-ZERO", .replayedOnly "reflexive decode — no non-vacuous native fact"),
+  ("07-mutual-recursion", "MY-EVENP-3-IS-NIL", .replayedOnly "reflexive decode — no non-vacuous native fact"),
+  ("07-mutual-recursion", "MY-ODDP-3-IS-T", .replayedOnly "reflexive decode — no non-vacuous native fact"),
+  ("08-equality-reasoning", "CDR-CONS-REFL", .native ``cdr_cons_native),
+  ("08-equality-reasoning", "EQUAL-SYMM", .native ``equal_symm_native),
+  ("08-equality-reasoning", "EQUAL-TRANS", .native ``equal_trans_native),
+  ("09-defn-unfold", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
+  ("09-defn-unfold", "IDF-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
+  ("10-tree-induction", "TRUE-LISTP-APP", .replayedOnly "type-absorbed natively"),
+  ("10-tree-induction", "TRUE-LISTP-FLATTEN", .native ``true_listp_flatten_native_driver),
+  ("12-multi-controller", "LEN-ZIP2", .pending "zip2 correspondence (validator/lifter backlog)"),
+  ("13-multi-measured-var", "LEN-INTERLEAVE", .pending "interleave correspondence (backlog)"),
+  ("14-accumulator", "LEN-REV-ACC", .pending "accumulator correspondence (backlog)"),
+  ("15-nested-induction", "NESTED-INDUCTION", .pending "backlog (validator/lifter survey)"),
+  ("16-three-way", "LEN-ZIP3", .pending "zip3 correspondence (backlog)"),
+  ("17-rule-application", "TLP-APP-NIL", .pending "rule-application family decode (backlog)"),
+  ("17-rule-application", "TLP-APP-NIL-TWICE", .pending "rule-application family decode (backlog)"),
+  ("sorting/perm", "PERM-CONS", .native ``perm_cons_native_driver),
+  ("sorting/perm", "PERM-SYMMETRIC", .native ``perm_symmetric_native_driver),
+  ("sorting/perm", "MEMB-RM", .native ``memb_rm_native_driver),
+  ("sorting/perm", "PERM-MEMB", .native ``perm_memb_native_driver),
+  ("sorting/perm", "COMM-RM", .native ``comm_rm_native_driver),
+  ("sorting/perm", "PERM-RM", .native ``perm_rm_native_driver),
+  ("sorting/perm", "PERM-TRANSITIVE", .native ``perm_transitive_native_driver),
+  ("sorting/perm", "PERM-IS-AN-EQUIVALENCE", .native ``perm_refl_native_driver),
+  ("sorting/isort", "ORDEREDP-ISORT", .pending "chain2/LEXORDER + insert correspondence (p3-adjacent; backlog)"),
+  ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "type-absorbed natively"),
+  ("sorting/isort", "HOW-MANY-ISORT", .pending "how-many correspondence (count fn; backlog)"),
+  ("sorting/ordered-perms", "ORDEREDP-RM", .pending "chain2/LEXORDER + rm correspondence (backlog)"),
+  ("sorting/ordered-perms", "EQUAL-CONS", .pending "cons-equation decode (backlog)"),
+  ("sorting/ordered-perms", "CAR-RM", .pending "rm correspondence (backlog)"),
+  ("sorting/ordered-perms", "TRUE-LISTP-RM", .replayedOnly "type-absorbed natively"),
+  ("sorting/msort", "HOW-MANY-MERGE2", .pending "how-many/merge2 correspondences (backlog)"),
+  ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .pending "how-many/evens/odds correspondences (backlog)"),
+  ("sorting/msort", "HOW-MANY-MSORT", .pending "how-many/msort correspondences (backlog)"),
+  ("sorting/qsort", "termination:QSORT", .pending "termination replayed statement; native decrease fact not lifted"),
+  ("sorting/qsort", "HOW-MANY-APPEND", .pending "how-many correspondence (backlog)"),
+  ("sorting/qsort", "HOW-MANY-FILTER-1", .pending "how-many/filter correspondences (backlog)"),
+  ("sorting/qsort", "PERM-QSORT", .pending "qsort correspondence + isPerm lift (the flagship; backlog)"),
+  ("sorting/qsort", "CAR-APPEND", .pending "append correspondence at qsort world (backlog)"),
+  ("sorting/qsort", "ALL-REL-FILTER-1", .pending "all-rel/filter correspondences (backlog)"),
+  ("sorting/qsort", "ALL-REL-FILTER-2", .pending "all-rel/filter correspondences (backlog)"),
+  ("sorting/qsort", "ALL-REL-RM-1", .pending "all-rel/rm correspondences (backlog)"),
+  ("sorting/qsort", "ALL-REL-RM-2", .pending "all-rel/rm correspondences (backlog)"),
+  ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .pending "all-rel correspondence; the defcong congruence fact natively (backlog)"),
+  ("sorting/qsort", "ORDEREDP-QSORT", .pending "chain2/LEXORDER + qsort correspondences (the headline; backlog)"),
+  ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "type-absorbed natively")]
+
+open Lean in
+run_cmd Lean.Elab.Command.liftCoreM do
+  -- parse the golden's green rows, book-qualified
+  let mut rows : List (String × String) := []
+  let mut book := ""
+  for line in liftCoverageGolden.splitOn "\n" do
+    if line.startsWith "• " then
+      book := (((line.drop 2).toString.splitOn " ").headD "").stripSuffix ":"
+    else if line.startsWith "    " && (line.splitOn " → REPLAYED ✓").length > 1 then
+      rows := rows ++ [(book, ((line.trimAscii.toString.splitOn " → ").headD ""))]
+  -- every green row has exactly one catalog decision
+  for (b, n) in rows do
+    match liftCatalog.filter (fun (cb, cn, _) => cb == b && cn == n) with
+    | [(_, _, st)] =>
+      if let .native decl := st then
+        unless (← getEnv).contains decl do
+          throwError "lift-coverage gate: {b}/{n} claims native {decl}, \
+            which does not exist"
+    | [] => throwError "lift-coverage gate: green row {b}/{n} has NO \
+        catalog decision — add a native entry, a PENDING marker, or a \
+        replayed-only justification"
+    | _ => throwError "lift-coverage gate: {b}/{n} has multiple catalog \
+        entries"
+  -- no stale catalog entries (an entry whose row vanished)
+  for (b, n, _) in liftCatalog do
+    unless rows.contains (b, n) do
+      throwError "lift-coverage gate: catalog entry {b}/{n} matches no \
+        green golden row (stale — remove or fix)"
+
 -- BUILD-FAILING axiom gate (audit #4; completed to ALL native entries in
 -- audit #5): `#print axioms` only prints — this run_cmd THROWS if any native
 -- entry ever acquires an axiom beyond the classical trio (sorryAx,
