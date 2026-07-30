@@ -733,6 +733,244 @@ theorem corr_mapconst_enc (w : World) (c : SExpr) (fn : String)
       (.cons hd (enc tl)) xS (mapConstBody c fn)
       (.cons c (enc (tl.map (fun _ => c)))) h_ns h_fn ha hbody
 
+/-! ## Booleans + the ADJACENT-PAIRS (chain2) recognizer schematic
+(validator/lifter arc inc-1: p5's `dupp` — and p3's `ordd` / p6's `ordn`
+are the SAME body shape with a different comparison, which is exactly why
+this is name- AND comparison-generic). -/
+
+/-- ACL2's boolean encoding: `t` / `nil`. -/
+def boolEnc (b : Bool) : SExpr := bif b then SExpr.t else SExpr.nil
+
+/-- Booleans, recognized by exact `t`/`nil` membership. -/
+def boolRep : Rep Bool where
+  enc := boolEnc
+  inj := by intro a b h; cases a <;> cases b <;> simp_all [boolEnc, SExpr.t]
+  recog s := s = SExpr.t ∨ s = SExpr.nil
+  mem b := by cases b <;> simp [boolEnc]
+
+/-- `(if (consp x) (if (consp (cdr x)) (if (cmp (car x) (car (cdr x)))
+    (fn (cdr x)) 'nil) 't) 't)` — the ADJACENT-PAIRS recognizer body
+    (`dupp` with `cmp = EQUAL`; `ordd` with `LEXORDER`). -/
+def chain2Body (cmp fn : String) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (conspT xT)
+      (.cons
+        (.cons (.atom (.symbol { name := "IF" }))
+          (.cons (conspT (cdrT xT))
+            (.cons
+              (.cons (.atom (.symbol { name := "IF" }))
+                (.cons (app2 cmp (carT xT) (carT (cdrT xT)))
+                  (.cons (app1 fn (cdrT xT))
+                    (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                      (.cons .nil .nil)) .nil))))
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons SExpr.t .nil)) .nil))))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+          (.cons SExpr.t .nil)) .nil)))
+
+/-- The native adjacent-pairs fold: every adjacent pair satisfies `p`. -/
+def chain2Rec (p : SExpr → SExpr → Bool) : List SExpr → Bool
+  | [] => true
+  | [_] => true
+  | a :: b :: t => p a b && chain2Rec p (b :: t)
+
+/-- SIMULATION, name- and comparison-generic: any chain2-shaped defun over
+    encoded lists computes `chain2Rec cmpB` under `enc`/`boolEnc`, given the
+    comparison is an UNSHADOWED BOOLEAN-VALUED builtin (`h_cmp_call`). -/
+theorem corr_chain2_enc (w : World) (cmp fn : String)
+    (cmpB : SExpr → SExpr → Bool)
+    (h_ns : ({ name := fn } : Symbol).isNamed "QUOTE" = false ∧
+            ({ name := fn } : Symbol).isNamed "IF" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET*" = false)
+    (h_cmp_ns : ({ name := cmp } : Symbol).isNamed "QUOTE" = false ∧
+            ({ name := cmp } : Symbol).isNamed "IF" = false ∧
+            ({ name := cmp } : Symbol).isNamed "LET" = false ∧
+            ({ name := cmp } : Symbol).isNamed "LET*" = false)
+    (h_fn : w.defs.get? { package := "ACL2", name := fn }
+      = some ([{ package := "ACL2", name := "X" }], chain2Body cmp fn))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cmp : w.defs.get? ({ name := cmp } : Symbol) = none)
+    (h_cmp_call : ∀ a b, callBuiltin cmp [a, b]
+      = some (boolEnc (cmpB a b))) :
+    ∀ (xs : List SExpr) (e' : Env) (a : SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f w e' a = some (enc xs)) →
+    ∃ N, ∀ f ≥ N, evalOpt f w e' (app1 fn a)
+      = some (boolEnc (chain2Rec cmpB xs)) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro e' a ha
+    have hx_ba : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [xS] [enc []]) xT
+        = some (enc []) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g w _ xS _ (bindArgs_x_x _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc []]) (conspT xT) = some .nil :=
+      conv_builtin1 w _ { name := "CONSP" } xT (enc []) (Logic.consp (enc []))
+        (by decide) h_no_consp hx_ba (callBuiltin_consp _)
+    have hqt_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc []])
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+        = some SExpr.t :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_quote g w _ _⟩
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc []]) (chain2Body cmp fn)
+        = some SExpr.t := by
+      obtain ⟨Ni, hi⟩ := re_if_false w (bindArgs [xS] [enc []]) (conspT xT)
+        _ _ SExpr.t hconspx_ba hqt_ba
+      obtain ⟨Nq, hq⟩ := hqt_ba
+      exact ⟨max Ni Nq, fun f hf => (hi f (by omega)).trans (hq f (by omega))⟩
+    exact conv_defn_1 w e' { package := "ACL2", name := fn } a (enc []) xS
+      (chain2Body cmp fn) SExpr.t h_ns h_fn ha hbody
+  | cons hd tl ih =>
+    intro e' a ha
+    have hx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) xT
+        = some (.cons hd (enc tl)) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g w _ xS _ (bindArgs_x_x _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (conspT xT)
+        = some (Logic.consp (.cons hd (enc tl))) :=
+      conv_builtin1 w _ { name := "CONSP" } xT (.cons hd (enc tl))
+        (Logic.consp (.cons hd (enc tl))) (by decide) h_no_consp hx_ba
+        (callBuiltin_consp _)
+    have hcdrx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (cdrT xT)
+        = some (enc tl) := by
+      have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd (enc tl))
+        (Logic.cdr (.cons hd (enc tl))) (by decide) h_no_cdr hx_ba
+        (callBuiltin_cdr _)
+      simpa [Logic.cdr] using h
+    have hconspcdr_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (conspT (cdrT xT))
+        = some (Logic.consp (enc tl)) :=
+      conv_builtin1 w _ { name := "CONSP" } (cdrT xT) (enc tl)
+        (Logic.consp (enc tl)) (by decide) h_no_consp hcdrx_ba
+        (callBuiltin_consp _)
+    match tl with
+    | [] =>
+      have hqt_ba : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc [hd]])
+            (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+          = some SExpr.t :=
+        ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                           exact evalOpt_quote g w _ _⟩
+      have hinner : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc [hd]])
+            (.cons (.atom (.symbol { name := "IF" }))
+              (.cons (conspT (cdrT xT))
+                (.cons
+                  (.cons (.atom (.symbol { name := "IF" }))
+                    (.cons (app2 cmp (carT xT) (carT (cdrT xT)))
+                      (.cons (app1 fn (cdrT xT))
+                        (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                          (.cons .nil .nil)) .nil))))
+                  (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                    (.cons SExpr.t .nil)) .nil))))
+          = some SExpr.t := by
+        obtain ⟨Ni, hi⟩ := re_if_false w (bindArgs [xS] [enc [hd]])
+          (conspT (cdrT xT)) _ _ SExpr.t hconspcdr_ba hqt_ba
+        obtain ⟨Nq, hq⟩ := hqt_ba
+        exact ⟨max Ni Nq, fun f hf => (hi f (by omega)).trans (hq f (by omega))⟩
+      have hbody : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc [hd]]) (chain2Body cmp fn)
+          = some SExpr.t := by
+        obtain ⟨Ni, hi⟩ := re_if_true w (bindArgs [xS] [enc [hd]]) (conspT xT)
+          _ _ (Logic.consp (.cons hd (enc []))) SExpr.t hconspx_ba rfl hinner
+        obtain ⟨Ns, hs⟩ := hinner
+        exact ⟨max Ni Ns, fun f hf => (hi f (by omega)).trans (hs f (by omega))⟩
+      exact conv_defn_1 w e' { package := "ACL2", name := fn } a
+        (.cons hd (enc [])) xS (chain2Body cmp fn) SExpr.t h_ns h_fn ha hbody
+    | b :: t2 =>
+      have hcarx_ba : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc (hd :: b :: t2)]) (carT xT)
+          = some hd := by
+        have h := conv_builtin1 w _ { name := "CAR" } xT
+          (.cons hd (enc (b :: t2))) (Logic.car (.cons hd (enc (b :: t2))))
+          (by decide) h_no_car hx_ba (callBuiltin_car _)
+        simpa [Logic.car] using h
+      have hcarcdr_ba : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc (hd :: b :: t2)]) (carT (cdrT xT))
+          = some b := by
+        have h := conv_builtin1 w _ { name := "CAR" } (cdrT xT)
+          (.cons b (enc t2)) (Logic.car (.cons b (enc t2)))
+          (by decide) h_no_car hcdrx_ba (callBuiltin_car _)
+        simpa [Logic.car] using h
+      have hcmp_ba : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc (hd :: b :: t2)])
+            (app2 cmp (carT xT) (carT (cdrT xT)))
+          = some (boolEnc (cmpB hd b)) :=
+        conv_builtin2 w _ ({ name := cmp } : Symbol) (carT xT) (carT (cdrT xT)) hd b
+          (boolEnc (cmpB hd b)) h_cmp_ns h_no_cmp hcarx_ba hcarcdr_ba
+          (h_cmp_call hd b)
+      obtain ⟨Nk, hk⟩ := ih (bindArgs [xS] [enc (hd :: b :: t2)]) (cdrT xT)
+        hcdrx_ba
+      have hqnil_ba : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc (hd :: b :: t2)])
+            (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+          = some .nil :=
+        ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                           exact evalOpt_quote g w _ _⟩
+      have hinnermost : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc (hd :: b :: t2)])
+            (.cons (.atom (.symbol { name := "IF" }))
+              (.cons (app2 cmp (carT xT) (carT (cdrT xT)))
+                (.cons (app1 fn (cdrT xT))
+                  (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                    (.cons .nil .nil)) .nil))))
+          = some (boolEnc (chain2Rec cmpB (hd :: b :: t2))) := by
+        cases hcb : cmpB hd b with
+        | true =>
+          obtain ⟨Ni, hi⟩ := re_if_true w (bindArgs [xS] [enc (hd :: b :: t2)])
+            (app2 cmp (carT xT) (carT (cdrT xT))) _ _ (boolEnc (cmpB hd b))
+            (boolEnc (chain2Rec cmpB (b :: t2))) hcmp_ba
+            (by rw [hcb]; rfl) ⟨Nk, hk⟩
+          refine ⟨max Ni Nk, fun f hf => (hi f (by omega)).trans ?_⟩
+          rw [hk f (by omega)]
+          simp [chain2Rec, hcb]
+        | false =>
+          obtain ⟨Ni, hi⟩ := re_if_false w (bindArgs [xS] [enc (hd :: b :: t2)])
+            (app2 cmp (carT xT) (carT (cdrT xT))) _ _ .nil
+            (by simpa [boolEnc, hcb] using hcmp_ba) hqnil_ba
+          obtain ⟨Nq, hq⟩ := hqnil_ba
+          refine ⟨max Ni Nq, fun f hf => (hi f (by omega)).trans ?_⟩
+          rw [hq f (by omega)]
+          simp [chain2Rec, hcb, boolEnc]
+      have hinner : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc (hd :: b :: t2)])
+            (.cons (.atom (.symbol { name := "IF" }))
+              (.cons (conspT (cdrT xT))
+                (.cons
+                  (.cons (.atom (.symbol { name := "IF" }))
+                    (.cons (app2 cmp (carT xT) (carT (cdrT xT)))
+                      (.cons (app1 fn (cdrT xT))
+                        (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                          (.cons .nil .nil)) .nil))))
+                  (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                    (.cons SExpr.t .nil)) .nil))))
+          = some (boolEnc (chain2Rec cmpB (hd :: b :: t2))) := by
+        obtain ⟨Ni, hi⟩ := re_if_true w (bindArgs [xS] [enc (hd :: b :: t2)])
+          (conspT (cdrT xT)) _ _ (Logic.consp (enc (b :: t2)))
+          (boolEnc (chain2Rec cmpB (hd :: b :: t2))) hconspcdr_ba rfl hinnermost
+        obtain ⟨Ns, hs⟩ := hinnermost
+        exact ⟨max Ni Ns, fun f hf => (hi f (by omega)).trans (hs f (by omega))⟩
+      have hbody : ∃ N, ∀ f ≥ N,
+          evalOpt f w (bindArgs [xS] [enc (hd :: b :: t2)]) (chain2Body cmp fn)
+          = some (boolEnc (chain2Rec cmpB (hd :: b :: t2))) := by
+        obtain ⟨Ni, hi⟩ := re_if_true w (bindArgs [xS] [enc (hd :: b :: t2)])
+          (conspT xT) _ _ (Logic.consp (.cons hd (enc (b :: t2))))
+          (boolEnc (chain2Rec cmpB (hd :: b :: t2))) hconspx_ba rfl hinner
+        obtain ⟨Ns, hs⟩ := hinner
+        exact ⟨max Ni Ns, fun f hf => (hi f (by omega)).trans (hs f (by omega))⟩
+      exact conv_defn_1 w e' { package := "ACL2", name := fn } a
+        (.cons hd (enc (b :: t2))) xS (chain2Body cmp fn)
+        (boolEnc (chain2Rec cmpB (hd :: b :: t2))) h_ns h_fn ha hbody
+
 /-! ## Name-generic TP dischargers (validator/lifter arc inc-0)
 
 `drv_tp_len` discharges the driver's `tp:<fn>` hypothesis for ANY
