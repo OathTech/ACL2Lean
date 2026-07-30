@@ -155,6 +155,15 @@ def mkCongHypType (cfg : ReplayConfig) (spec : CongSpec) : MetaM Expr := do
     mkForallFVars #[envV]
       (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr spec.formula])
 
+/-- The `equivrefl:<thm>` hypothesis TYPE: the equivalence rule's
+    reflexivity component, `∀ env', EvTrue w env' (R x x)`. -/
+def mkEquivReflHypType (cfg : ReplayConfig) (spec : EquivReflSpec) : MetaM Expr := do
+  let rxx : SExpr := .cons (.atom (.symbol spec.rel))
+    (.cons (.atom (.symbol spec.vx)) (.cons (.atom (.symbol spec.vx)) .nil))
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    mkForallFVars #[envV]
+      (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr rxx])
+
 /-- Every term mentioned in a clause subtree (input clauses, node lhs/rhs, literal
     results) — the pin-collection universe for a case child. -/
 partial def clauseSubtreeTerms (cn : ClauseNode) : List SExpr :=

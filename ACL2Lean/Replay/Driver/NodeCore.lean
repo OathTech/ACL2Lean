@@ -144,6 +144,36 @@ def congSpecOfFormula? (name : String) (formula : SExpr) : Option CongSpec := do
   return { name, formula, rel, fn := fnL, pos, argVars, vy,
            hyp, lhsApp, rhsApp }
 
+/-- An EQUIVALENCE rule's REFLEXIVITY component (sorting-completion-2
+    Class A, ORDERED-PERMS): shape-parsed from the RAW equivalence defthm
+    formula `(AND (BOOLEANP (R x y)) (R x x) …)` — ACL2's defequiv shape.
+    The offered hypothesis states only the reflexivity conjunct
+    (`∀ env', EvTrue w env' (R x x)`) — the stored :EQUIVALENCE rule's
+    refl content, consumed by the type-alist truthy arm on a syntactically
+    reflexive application. -/
+structure EquivReflSpec where
+  name : String
+  rel : Symbol
+  vx : Symbol
+  deriving BEq, Repr
+
+/-- Shape-parse a RAW equivalence formula. `none` if not the defequiv
+    shape (never mis-stated). -/
+def equivReflSpecOfFormula? (name : String) (formula : SExpr) :
+    Option EquivReflSpec := do
+  let .cons (.atom (.symbol andS)) (.cons c1 (.cons c2 _)) := formula | none
+  guard (andS.name == "AND")
+  let .cons (.atom (.symbol bS))
+      (.cons (.cons (.atom (.symbol rel1))
+        (.cons (.atom (.symbol vx1)) (.cons (.atom (.symbol _)) .nil))) .nil)
+      := c1 | none
+  guard (bS.name == "BOOLEANP")
+  let .cons (.atom (.symbol rel2))
+      (.cons (.atom (.symbol vx2)) (.cons (.atom (.symbol vx3)) .nil)) := c2
+    | none
+  guard (rel1 == rel2 && vx1 == vx2 && vx2 == vx3)
+  return { name, rel := rel1, vx := vx1 }
+
 /-- The proof context in scope at a node. All entries are VALUE-CHARACTERIZED
     facts over the ambient env, established by the surrounding structure (the
     induction scaffold, the clause spine) and consumed by the node replays:
@@ -203,6 +233,11 @@ structure ReplayCtx where
       R-collapse at a user-equivalence step's congruence frame; discharged
       lazily from the dependency's replayed statement like `rule:` hyps. -/
   congHyps : List (CongSpec × Expr) := []
+  /-- Equivalence-REFLEXIVITY hypotheses (`equivrefl:<thm>`): per
+      equivalence-shaped in-scope defthm (incl. INCLUDE-BOOK'd ones), the
+      spec and the bound hypothesis `∀ env', EvTrue w env' (R x x)`.
+      Include-book instances stay KEPT conditions (D6-honest). -/
+  equivReflHyps : List (EquivReflSpec × Expr) := []
   ih : Option Expr := none
 
 def ReplayCtx.empty : ReplayCtx := {}
@@ -1485,6 +1520,52 @@ def mkForallMemProof (entryTy P : Expr) (entries : List (Expr × Expr)) :
       #[some entryTy, some P, some e, some restE]
     return (listE, ← mkAppM ``Iff.mpr #[consIff, andP])
 
+/-- Instantiate a PREMISE-FREE `∀ env', EvTrue w env' t`-shaped hypothesis
+    at the current env under σ: returns `EvTrue w env (substTerm σ t)` via
+    the substN bridge (the with-lemma scaffold's premise-free slice — G2
+    rung 2; used for user-equivalence rule conclusions and `cong:` formula
+    instances). Also returns the pinned ctx (σ-term opaques). -/
+def instantiateEvTrueHypAt (cfg : ReplayConfig) (ctx : ReplayCtx) (hypV : Expr)
+    (σvars : List Symbol) (σterms : List SExpr) (t : SExpr) :
+    MetaM (Expr × ReplayCtx) := do
+  let w := cfg.worldExpr
+  let env := cfg.envExpr
+  let tσ := ACL2.Replay.substTerm σvars σterms t
+  let mut ctx ← pinTermOpaques cfg env ctx tσ
+  for tt in σterms do
+    ctx ← pinTermOpaques cfg env ctx tt
+  let vals ← σterms.mapM (ctxValExpr cfg ctx)
+  let convs ← σterms.mapM (ctxValProof cfg ctx)
+  let formalsE ← mkListLit (mkConst ``Symbol) (σvars.map reflectSymbol)
+  let argsE ← mkListLit (mkConst ``SExpr) (σterms.map reflectSExpr)
+  let valsE ← mkListLit (mkConst ``SExpr) vals
+  let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
+  let hlenPf ← proveByDecide
+    (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
+    "instantiateEvTrueHypAt: substN lengths"
+  let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
+  let pFn ← withLocalDeclD `pr prodTy fun prV => do
+    let fst ← mkAppM ``Prod.fst #[prV]
+    let snd ← mkAppM ``Prod.snd #[prV]
+    mkLambdaFVars #[prV] (← mkValConvPropEx w env fst snd)
+  let entries ← (σterms.zip vals).mapM fun (tt, v) =>
+    mkAppM ``Prod.mk #[reflectSExpr tt, v]
+  let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip convs)
+  let zipE ← mkAppM ``List.zip #[argsE, valsE]
+  let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
+    let mem ← mkAppM ``Membership.mem #[zipE, prV]
+    mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
+  let hargs ← mkExpectedTypeHint hargsRaw hargsTy
+  let hWellScoped ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr t])
+       (mkConst ``Bool.true))
+    "instantiateEvTrueHypAt: WellScoped"
+  -- pB : eval env (substTerm σ t) ≡ eval env' t
+  let pB ← mkAppM ``evalOpt_substTerm_substN
+    #[w, env, formalsE, argsE, valsE, reflectSExpr t, hWellScoped, hlenPf, hargs]
+  let happ := mkApp hypV env'
+  return (← mkAppM ``evtrue_of_fuel_eq #[pB, happ], ctx)
+
 /-- The D4 BUILTIN-DEFINITION unfold (design §D4, WP2): `(fn a) ⇒ body[a]` for a
     `callBuiltin` builtin ABSENT from the world, where `body` is the fn's EMITTED
     ground-zero snapshot body (the only record of it — builtin-named snapshots
@@ -2632,9 +2713,57 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       -- non-nil value to exactly `t` (two-valuedness — consumed, not inferred)
       let notLhs : SExpr := .cons (.atom (.symbol { name := "NOT" }))
         (.cons lhs .nil)
+      -- EQUIVALENCE-REFLEXIVITY route (sorting-completion-2 Class A,
+      -- ORDERED-PERMS): a syntactically REFLEXIVE application (R u u) of an
+      -- in-scope equivalence relation is truthy by the rule's reflexivity
+      -- component (`equivrefl:<thm>` — instantiated premise-free at u);
+      -- the fn's emitted TP pins the non-nil value to exactly t below.
+      -- NOTE: the emitted record's ttree does not name the equivalence
+      -- rune (the entry's own derivation is untracked) — this discharge
+      -- is the replayed-fact route for a derivation ACL2 did not record.
+      let reflHyp? : Option Expr ← do
+        match lhs with
+        | .cons (.atom (.symbol rS)) (.cons u (.cons u2 .nil)) =>
+          if u == u2 then
+            match ctx.equivReflHyps.find? (fun (sp, _) => sp.rel == rS) with
+            | some (sp, hypV) => do
+              let (h, _) ← instantiateEvTrueHypAt cfg ctx hypV [sp.vx] [u]
+                (.cons (.atom (.symbol sp.rel))
+                  (.cons (.atom (.symbol sp.vx))
+                    (.cons (.atom (.symbol sp.vx)) .nil)))
+              pure (some h)
+            | none => pure none
+          else pure none
+        | _ => pure none
+      if let some hRefl := reflHyp? then
+        -- hRefl : EvTrue w env (R u u) → value ≠ nil; TP pins to t
+        let vL ← ctxValExpr cfg ctx lhs
+        let hne ← mkAppM ``ne_nil_of_evtrue_conv
+          #[hRefl, ← ctxValProof cfg ctx lhs]
+        let .cons (.atom (.symbol fs)) argSpine := lhs
+          | throwError "type-alist: internal — refl lhs not an application"
+        let some (_, _, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
+          | throwError "type-alist: refl route needs {fs.name}'s emitted \
+              :TYPE-PRESCRIPTION to pin the exact value (frontier)"
+        let args := (argSpine.toList?).getD []
+        let some (vLL, convL) := ctx.val? lhs
+          | throwError "type-alist: refl lhs {repr lhs} has no pinned value \
+              (frontier)"
+        let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+          ++ (args.map reflectSExpr).toArray ++ #[vLL, convL])
+        let hT ← mkAppM ``tp_cond_boolean_t #[vLL, fact, hne]
+        let _ := vL
+        let pl ← ctxValProof cfg ctx lhs
+        let pr ← mkAppM ``re_val_quote
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+        return ← mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
       let some hNotNil := ctx.litFactByTerm? notLhs
         | throwError "type-alist: no spine (not …)-falsity fact for \
-                      {repr lhs} (frontier)"
+                      {repr lhs} (frontier; \
+                      lit-facts {repr (ctx.litFacts.map (·.2.1))}; \
+                      seg-facts {repr (ctx.segFacts.map (·.1))}; \
+                      branch-facts {repr (ctx.branchFacts.map
+                        (fun (t,_,sg,_) => (t, sg)))})"
       let vL ← ctxValExpr cfg ctx lhs
       let hne ← mkAppM ``logic_not_nil_ne #[vL, hNotNil]
       -- TWO-VALUED BUILTIN lhs (G1 rung 1, p6): a `<`-valued term's truthy
@@ -4337,52 +4466,6 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
     | throwError "replayLiteral: closing literal {repr lp.literal} chained to \
                   't with no effective steps"
   mkAppM ``fuel_conv_of_eq #[ch, ← quoteTFact cfg]
-
-/-- Instantiate a PREMISE-FREE `∀ env', EvTrue w env' t`-shaped hypothesis
-    at the current env under σ: returns `EvTrue w env (substTerm σ t)` via
-    the substN bridge (the with-lemma scaffold's premise-free slice — G2
-    rung 2; used for user-equivalence rule conclusions and `cong:` formula
-    instances). Also returns the pinned ctx (σ-term opaques). -/
-def instantiateEvTrueHypAt (cfg : ReplayConfig) (ctx : ReplayCtx) (hypV : Expr)
-    (σvars : List Symbol) (σterms : List SExpr) (t : SExpr) :
-    MetaM (Expr × ReplayCtx) := do
-  let w := cfg.worldExpr
-  let env := cfg.envExpr
-  let tσ := ACL2.Replay.substTerm σvars σterms t
-  let mut ctx ← pinTermOpaques cfg env ctx tσ
-  for tt in σterms do
-    ctx ← pinTermOpaques cfg env ctx tt
-  let vals ← σterms.mapM (ctxValExpr cfg ctx)
-  let convs ← σterms.mapM (ctxValProof cfg ctx)
-  let formalsE ← mkListLit (mkConst ``Symbol) (σvars.map reflectSymbol)
-  let argsE ← mkListLit (mkConst ``SExpr) (σterms.map reflectSExpr)
-  let valsE ← mkListLit (mkConst ``SExpr) vals
-  let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
-  let hlenPf ← proveByDecide
-    (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
-    "instantiateEvTrueHypAt: substN lengths"
-  let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
-  let pFn ← withLocalDeclD `pr prodTy fun prV => do
-    let fst ← mkAppM ``Prod.fst #[prV]
-    let snd ← mkAppM ``Prod.snd #[prV]
-    mkLambdaFVars #[prV] (← mkValConvPropEx w env fst snd)
-  let entries ← (σterms.zip vals).mapM fun (tt, v) =>
-    mkAppM ``Prod.mk #[reflectSExpr tt, v]
-  let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip convs)
-  let zipE ← mkAppM ``List.zip #[argsE, valsE]
-  let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
-    let mem ← mkAppM ``Membership.mem #[zipE, prV]
-    mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
-  let hargs ← mkExpectedTypeHint hargsRaw hargsTy
-  let hWellScoped ← proveByDecide
-    (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr t])
-       (mkConst ``Bool.true))
-    "instantiateEvTrueHypAt: WellScoped"
-  -- pB : eval env (substTerm σ t) ≡ eval env' t
-  let pB ← mkAppM ``evalOpt_substTerm_substN
-    #[w, env, formalsE, argsE, valsE, reflectSExpr t, hWellScoped, hlenPf, hargs]
-  let happ := mkApp hypV env'
-  return (← mkAppM ``evtrue_of_fuel_eq #[pB, happ], ctx)
 
 /-- The clause's literal items in order, with their 1-based indices, descending
     into case branches (a branch's items continue the same clause's literals). -/

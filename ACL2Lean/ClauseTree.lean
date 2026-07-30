@@ -123,6 +123,12 @@ inductive Development where
   | bind (event : WorldEvent) (rest : Development)
   | done
   deriving Repr, Inhabited
+
+/-- All INCLUDE-BOOK'd theorems in development order. -/
+def Development.includedTheorems : Development → List (String × SExpr)
+  | .bind (.includedTheorem n f) rest => (n, f) :: rest.includedTheorems
+  | .bind _ rest => rest.includedTheorems
+  | .done => []
 /-- Project the `evalOpt` `World` from a reconstructed `Development`: fold each `defun`
     event's `(name, formals, body)` into `World.defs`. The world the replay reasons over is
     thus DERIVED from the parsed proof-log, not hand-written — so the only input to a replay

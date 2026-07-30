@@ -166,6 +166,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (justs : List (String × ACL2.Justification)) (cp : ClauseProof)
     (rules : List ACL2.RuleSpec := [])
     (depProofs : List (String × ClauseProof) := [])
+    (equivRefls : List (String × SExpr) := [])
     (gzDefs : List (Symbol × List Symbol × SExpr) := [])
     (fcRules : List ACL2.FcRuleSpec := [])
     (mirrors : ReplayedRegistry := [])
@@ -202,7 +203,7 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
                                     gzTps := tps.filter fun (n, _) =>
                                       (w.defs.get? { name := n }).isNone }
         let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
-          mirrors termReplayed
+          mirrors (equivRefls := equivRefls) termReplayed
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts
@@ -405,6 +406,8 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let tThm0 ← IO.monoMsNow
         let (status, reg?) ← tryReplay w wExpr tps dev.justifications cp rules
           (thms.map fun (c, _) => (c.name, c))
+          (equivRefls := (thms.map fun (c, _) => (c.name, c.formula)) ++
+            dev.includedTheorems)
           (gzDefs := dev.groundZeroSnapshotDefs)
           (fcRules := dev.groundZeroFcRuleSpecs)
           (mirrors := mirrors) (replayedName? := some mName)

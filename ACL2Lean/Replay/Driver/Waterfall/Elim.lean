@@ -22,11 +22,29 @@ open ACL2 ACL2.Replay Lean Lean.Meta
     `((:ELIM CAR-CDR-ELIM) v (CONS v1 v2) (((CAR v) . v1) ((CDR v) . v2))
       NIL NIL NIL)` → `(v, v1, v2)`. -/
 private def parseElimRecord (idStr : String) (recS : SExpr) :
-    MetaM (Symbol × Symbol × Symbol) := do
+    MetaM (Symbol × Symbol × Symbol × List Symbol) := do
   let some [runeS, varS, targetS, destS, crit1, crit2, crit3] := recS.toList?
     | throwError "replayElim: elim record shape at {idStr}: {repr recS}"
-  unless crit1 == .nil && crit2 == .nil && crit3 == .nil do
-    throwError "replayElim: elim record carries non-nil trailing fields at \
+  -- trailing fields (sorting-completion-2, ORDERED-PERMS Subgoal *1/7):
+  -- ACL2's elim-sequence entry tail — RESTRICTED-VARS (a symbol list; the
+  -- generalized variables ACL2 recorded type restrictions for) and the
+  -- elim's own ttree (the side-condition lemmas, e.g.
+  -- (LEMMA (:FAKE-RUNE-FOR-TYPE-SET NIL))). ADVISORY here: the replay
+  -- reconstructs the child clauses and validates them against the RECORDED
+  -- children downstream, so a restriction that changed the clause set
+  -- fails loudly at that match — permitting these shapes stays
+  -- fail-closed. crit2 (var-to-runes between them) unobserved non-nil.
+  let symListOrNil : SExpr → Bool := fun e =>
+    e == .nil || (e.toList?.map (·.all fun x =>
+      match x with | .atom (.symbol _) => true | _ => false)).getD false
+  unless symListOrNil crit1 do
+    throwError "replayElim: elim record restricted-vars {repr crit1} is not \
+                a symbol list at {idStr} (frontier): {repr recS}"
+  unless crit2 == .nil do
+    throwError "replayElim: elim record var-to-runes field non-nil at \
+                {idStr} (frontier): {repr recS}"
+  unless crit3 == .nil || crit3.toList?.isSome do
+    throwError "replayElim: elim record ttree field {repr crit3} shape at \
                 {idStr} (frontier): {repr recS}"
   let some [.atom (.keyword "ELIM"), .atom (.symbol runeName)] := runeS.toList?
     | throwError "replayElim: elim record rune {repr runeS} at {idStr}"
@@ -50,7 +68,10 @@ private def parseElimRecord (idStr : String) (recS : SExpr) :
   unless destS.toList? == some expectedDest do
     throwError "replayElim: destructor map {repr destS} ≠ ((car {v.name}) . \
                 {v1.name}) ((cdr {v.name}) . {v2.name}) at {idStr}"
-  return (v, v1, v2)
+  let restricted : List Symbol :=
+    (crit1.toList?.getD []).filterMap fun x =>
+      match x with | .atom (.symbol sy) => some sy | _ => none
+  return (v, v1, v2, restricted)
 
 /-- Replay a DESTRUCTOR-ELIMINATION node (`eliminate-destructors-clause`,
     rune `car-cdr-elim`, one round of ≥1 records — see the module doc):
@@ -92,14 +113,15 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
   let some varsS := st.extraFields.lookup "elimvars"
     | throwError "replayElim: no :ELIMVARS at {cn.idStr}"
   let expectedVars : SExpr := .cons
-    ((records.flatMap fun (_, v1, v2) =>
+    ((records.flatMap fun (_, v1, v2, _) =>
         [SExpr.atom (.symbol v1), SExpr.atom (.symbol v2)]).foldr .cons .nil)
     .nil
   unless varsS == expectedVars do
     throwError "replayElim: :ELIMVARS {repr varsS} does not match the \
                 records' fresh vars at {cn.idStr}"
   -- the clause's head literal must be (not (consp v₁)) — record 1's guard
-  let (v0, _, _) := records.head!
+  let (v0, _, _, _) := records.head!
+  let restrictedAll : List Symbol := records.flatMap (·.2.2.2)
   let lit1 : SExpr := .cons (.atom (.symbol { name := "NOT" }))
     (.cons (.cons (.atom (.symbol { name := "CONSP" }))
       (.cons (.atom (.symbol v0)) .nil)) .nil)
@@ -118,7 +140,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
   let mut guards : Nat := 0
   let mut curC := cn.inputClause
   let mut firstRec := true
-  for (v, v1, v2) in records do
+  for (v, v1, v2, _) in records do
     let vT : SExpr := .atom (.symbol v)
     let carT : SExpr := .cons (.atom (.symbol { name := "CAR" })) (.cons vT .nil)
     let cdrT : SExpr := .cons (.atom (.symbol { name := "CDR" })) (.cons vT .nil)
@@ -150,12 +172,33 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
     throwError "replayElim: {st.newClauses.length} output clauses for \
                 {records.length} elim record(s) with {guards} guard \
                 clause(s) at {cn.idStr} (frontier)"
+  -- a recorded child may carry RESTRICTION-literal prefixes for the
+  -- records' restricted vars (sorting-completion-2, ORDERED-PERMS *1/7:
+  -- ACL2 generalizes a destructor under a type restriction and prepends
+  -- `(not (pred var))` — the record names the var, the child carries the
+  -- literal; its VALUE duplicates the σ-image literal's, so the replay
+  -- strips it by cases at consumption)
+  let isRestrictionLit : SExpr → Bool := fun l =>
+    match l with
+    | .cons (.atom (.symbol ns))
+        (.cons (.cons (.atom (.symbol _))
+          (.cons (.atom (.symbol var)) .nil)) .nil) =>
+      ns.name == "NOT" && restrictedAll.contains var
+    | _ => false
+  let matchWithRestrictions : List SExpr → Option (List SExpr) := fun c =>
+    (st.newClauses.filterMap fun nc => do
+      let ncL ← nc.toList?
+      let pre := ncL.take (ncL.length - c.length)
+      guard (ncL.drop (ncL.length - c.length) == c)
+      guard (pre.all isRestrictionLit)
+      pure pre).head?
   for c in computed do
-    unless st.newClauses.any (·.toList? == some c) do
+    unless (st.newClauses.any (·.toList? == some c)) ||
+        (matchWithRestrictions c).isSome do
       throwError "replayElim: recomputed clause {repr c} is not among the \
                   emitted :NEWCLAUSES at {cn.idStr} (record/output divergence)"
   -- the per-level recursion
-  let rec go (recs : List (Symbol × Symbol × Symbol)) (curClause : List SExpr)
+  let rec go (recs : List (Symbol × Symbol × Symbol × List Symbol)) (curClause : List SExpr)
       (cfgK : ReplayConfig) (isTop : Bool) : MetaM Expr := do
     let ctxK0 : ReplayCtx := if isTop then ctx
       else { ctx with varVals := [], vals := [], litFacts := [],
@@ -165,13 +208,68 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
     let ctxK ← pinTermOpaques cfg cfgK.envExpr ctxK0 (disjoinTerm curClause)
     match recs with
     | [] =>
-      let some child := cn.children.find? (·.inputClause == curClause)
+      let restPrefix : List SExpr :=
+        (matchWithRestrictions curClause).getD []
+      let target := restPrefix ++ curClause
+      let some child := cn.children.find? (·.inputClause == target)
         | throwError "replayElim: no child matches the fully-eliminated \
-                      clause {repr curClause} at {cn.idStr}"
+                      clause {repr target} at {cn.idStr}"
       let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [],
                                   segFacts := [], branchFacts := [] }
-      rec.clause cfgK ctxFresh child
-    | (v, v1, v2) :: rest =>
+      let mut p ← rec.clause cfgK ctxFresh child
+      -- STRIP each restriction literal: its value DUPLICATES a member
+      -- literal's value in the remaining clause (the σ-image literal —
+      -- e.g. trueListp (cons a d) = trueListp d definitionally); byCases:
+      -- nil strips the head frame (transport p); non-nil closes the
+      -- remaining disjunction at the duplicate member directly.
+      let mut remaining := target
+      for rLit in restPrefix do
+        let rest := remaining.drop 1
+        let ctxR ← pinTermOpaques cfg cfgK.envExpr ctxK (disjoinTerm remaining)
+        let vR ← ctxValExpr { cfg with envExpr := cfgK.envExpr } ctxR rLit
+        -- the duplicate member: same VALUE up to defeq
+        let mut dup? : Option (Nat × SExpr) := none
+        for (l, i) in rest.zipIdx do
+          if dup?.isNone then
+            let vL ← ctxValExpr { cfg with envExpr := cfgK.envExpr } ctxR l
+            if ← Lean.Meta.isDefEq vR vL then
+              dup? := some (i, l)
+        let some (dupIdx, dupLit) := dup?
+          | throwError "replayElim: restriction literal {repr rLit} has no \
+              value-duplicate member in the eliminated clause at {cn.idStr} \
+              (frontier)"
+        let nilC := mkConst ``SExpr.nil
+        let restT := disjoinTerm rest
+        let pIn := p
+        let negL ← withLocalDeclD `hnil (← mkEq vR nilC) fun hNil => do
+          let hcNil ← mkAppM ``re_val_cast
+            #[cfg.worldExpr, cfgK.envExpr, reflectSExpr rLit, vR, nilC,
+              ← ctxValProof { cfg with envExpr := cfgK.envExpr } ctxR rLit, hNil]
+          let hRest ← ctxValProof { cfg with envExpr := cfgK.envExpr } ctxR restT
+          let vRest ← ctxValExpr { cfg with envExpr := cfgK.envExpr } ctxR restT
+          let hIf ← mkAppM ``re_if_false
+            #[cfg.worldExpr, cfgK.envExpr, reflectSExpr rLit, reflectSExpr quoteT,
+              reflectSExpr restT, vRest, hcNil, hRest]
+          let pR ← mkAppM ``evtrue_of_fuel_eq
+            #[← mkAppM ``fuel_eq_symm #[hIf], pIn]
+          -- pR : EvTrue (disjoin (rLit :: rest)) transported... direction:
+          -- hIf : eval (IF rLit 'T rest) = eval rest; we HAVE the if-form
+          -- (pIn) and WANT rest: evtrue_of_fuel_eq (symm hIf) pIn? — that
+          -- maps EvTrue rest → if-form; the forward direction uses hIf
+          let pR2 ← mkAppM ``evtrue_of_fuel_eq #[hIf, pIn]
+          let _ := pR
+          mkLambdaFVars #[hNil] pR2
+        let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vR, nilC]) fun hNe => do
+          -- vR ≠ nil and v(dupLit) = vR (defeq) → the member is truthy
+          let pOut ← evtrueOfLitTrue { cfg with envExpr := cfgK.envExpr } ctxR
+            rest dupIdx dupLit hNe
+          mkLambdaFVars #[hNe] pOut
+        p ← (try mkAppM ``Classical.byCases #[negL, posL]
+          catch e => throwError "replayElim: restriction strip compose failed \
+            at {cn.idStr}: {e.toMessageData}")
+        remaining := rest
+      pure p
+    | (v, v1, v2, _) :: rest =>
       let vT : SExpr := .atom (.symbol v)
       let carT : SExpr := .cons (.atom (.symbol { name := "CAR" })) (.cons vT .nil)
       let cdrT : SExpr := .cons (.atom (.symbol { name := "CDR" })) (.cons vT .nil)
