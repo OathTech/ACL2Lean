@@ -2599,8 +2599,12 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- substTerm(:SUBST, rule lhs) must BE the node's lhs
     -- identity includes the multi-rule index (J7): a step citing
     -- (:REWRITE FOO . 2) matches only the idx-2 stored rule.
+    -- equiv is part of the match (audit F5): ruleHyps is heterogeneous
+    -- since G2 (equal rules carry eval-equality hypotheses, user-R rules
+    -- the interpreted-relation shape) — this eq-composing consumer must
+    -- never select a non-equal hypothesis it cannot compose
     let candidates := ctx.ruleHyps.filter fun (r, _) =>
-      r.name == rname && r.idx == rune.idx
+      r.name == rname && r.idx == rune.idx && r.equiv == prov.equiv
     if candidates.isEmpty then
       throwError "rule {rname}: no stored-rule hypothesis in scope (no \
                   (:RULES …) entry — emission gap or missing telescope)"
@@ -3903,14 +3907,13 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 -- :CONTEXT-SUBST segment equality pinning one `equal` side
                 -- (a false `(not (equal p q))` gives vp = vq; the substituted
                 -- test's falsity is then a direct fact)
+                -- (litFactByTerm? itself already falls through to segFacts —
+                -- the *1.5/2.1 segment fact resolves through it; audit F1
+                -- removed a dead third arm that re-searched segFacts)
                 let nilFactFor : SExpr → Option Expr := fun u =>
-                  ((ctx.litFactByTerm? u).orElse fun _ =>
+                  (ctx.litFactByTerm? u).orElse fun _ =>
                     (ctx.branchFacts.find? (fun (t, _, sign, _) =>
-                      t == u && !sign)).map (·.2.2.2)).orElse fun _ =>
-                    -- a clausify-branch SEGMENT literal's falsity resolves
-                    -- the test too (G2 rung 2: (EQUAL (CAR X-EQUIV) E)
-                    -- false as a segment fact at *1.5/2.1)
-                    (ctx.segFacts.find? (fun (st, _) => st == u)).map (·.2)
+                      t == u && !sign)).map (·.2.2.2)
                 let eqOf : SExpr → SExpr → SExpr := fun x y =>
                   .cons (.atom (.symbol { name := "EQUAL" }))
                     (.cons x (.cons y .nil))
@@ -3955,6 +3958,15 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                           continue
                         -- heq : vp = vq from the false segment literal
                         let vPQ ← ctxValExpr cfg ctx pq
+                        -- TYPE-CHECKED (audit F8, the litFactByTermChecked?
+                        -- discipline): a fact whose proof lives in ANOTHER
+                        -- env context (pool-root/elim crossings) or whose
+                        -- opaque pins drifted is SKIPPED, not crashed on
+                        let expectedTy ← mkEq
+                          (mkApp (mkConst ``Logic.not) vPQ)
+                          (mkConst ``SExpr.nil)
+                        unless ← isDefEq (← inferType hSeg) expectedTy do
+                          continue
                         let hne ← mkAppM ``logic_not_nil_ne #[vPQ, hSeg]
                         let heq ← mkAppM ``Logic.eq_of_equal_ne_nil #[hne]
                         let vu ← ctxValExpr cfg ctx u

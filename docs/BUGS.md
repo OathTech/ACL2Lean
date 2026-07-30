@@ -292,6 +292,40 @@ tier-1 paperwork commit first marked the definition sites ⚠
 NOT-YET-FAITHFUL; the fix then replaced the marks with the guard-off
 definitions, whose docstrings cite this entry.
 
+## BUG-023 — the congruence-license lookup was a shape inference; :DEFTHM emits no rule-classes
+Status: Lean-side consumption FIXED (2026-07-30, the perm-lane pre-merge
+audit's convergent finding — the (fn, pos, R) registry match is now
+ANCHORED to the step-cited `(:CONGRUENCE <name>)` rune in the processor's
+:RUNES; a collapse whose matched spec is not step-cited hard-fails);
+fork-side emission refinements OPEN
+Pinned-by: none (proof-log consumption/emission, not interpreter
+behavior; the Lean-side guard is the citation anchoring itself, which
+fail-closes any uncited license)
+
+Found by the perm-lane pre-merge audit (both reviewers independently,
+2026-07-30). G2 rung 2's congruence registry (`congSpecOfFormula?` +
+`replayCongCollapse`) shape-parses every strictly-earlier single-literal
+local theorem and selected the license by (fn, arg-position, relation)
+alone. Two defects in that:
+1. INFERENCE where ACL2 emits the answer: the enclosing `:STEP`'s
+   `:RUNES` names the licensing rule (`(:CONGRUENCE
+   PERM-IMPLIES-EQUAL-ALL-REL-2)` at qsort *1/3.2) and
+   `geneqv-refinementp` returns the exact `cr-rune` at the fork's push
+   site (acl2/induct.lisp:102-114) — neither was consumed. FIXED
+   Lean-side: the registry match must be step-cited.
+2. The registry cannot distinguish a theorem STORED as :congruence from
+   a congruence-SHAPED :rewrite theorem, because the emitted `:DEFTHM`
+   event carries only :FORMULA and :SOURCE — no rule-classes. With the
+   citation anchoring this can no longer select a wrong license (the
+   cited name gates it), but the emission gap remains: a defthm's
+   rule-classes (and the per-step `cr-rune`) should be emitted.
+   OPEN (fork): emit `:RULE-CLASSES` on :DEFTHM events; emit
+   `:cong-rune` on abbreviation-expansion steps (one line at
+   acl2/induct.lisp:158-177).
+Related (same audit, tracked in the design note, not bugs): the
+:EQUIVALENCE-rule implicit self-congruences and :REFINEMENT rules are
+licensing mechanisms with no emitted defthm shape at all — rung-3 work.
+
 ## BUG-022 — the proof-log `:EQUIV` mislabel class: iff-only steps emitted `:EQUIV EQUAL`
 Status: fixed (emission sites); one emission-GAP sibling documented open
 Pinned-by: none (proof-log emission, not interpreter behavior — no value

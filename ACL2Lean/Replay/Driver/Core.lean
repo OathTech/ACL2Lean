@@ -185,7 +185,10 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           let p ← mkAppM ``evtrue_of_fuel_eq #[inner, pRest]
           mkLambdaFVars #[hNil] p
         let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vK, nilC]) fun hNe => do
-          let p ← evtrueOfLitTrue cfg ctx1 (clauseLits.map (·.2)) (kIdx - 1)
+          -- kPos, not kIdx-1: recorded indices are not positions once the
+          -- walk has descended past earlier literals (audit F2 — the
+          -- branch-descent continuations keep ORIGINAL indices)
+          let p ← evtrueOfLitTrue cfg ctx1 (clauseLits.map (·.2)) kPos
             negLit hNe
           mkLambdaFVars #[hNe] p
         return ← (try mkAppM ``Classical.byCases #[negL, posL]
@@ -430,6 +433,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       let vK ← ctxValExpr cfg ctx negEq
       let pK ← ctxValProof cfg ctx negEq
       let nilC := mkConst ``SExpr.nil
+      let kPos := clauseLits.findIdx (fun (i, _) => i == kIdx)
       let negL ← withLocalDeclD `hnil (← mkEq vK nilC) fun hNil => do
         let va ← ctxValExpr cfg ctx ta
         let vb ← ctxValExpr cfg ctx tb
@@ -450,7 +454,6 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         -- remove-trivial-equivalences also DELETES the used literal — now the
         -- trivial `(not (equal v v))` — from the clause it scans; collapse its
         -- if-frame out of the disjunction (its value is nil by reflexivity)
-        let kPos := clauseLits.findIdx (fun (i, _) => i == kIdx)
         if kPos + 1 == clauseLits.length then
           -- the used literal is LAST: deleting it changes nothing any later
           -- record references (there are none after it) — keep the trivial
@@ -513,7 +516,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         let p ← mkAppM ``evtrue_of_fuel_eq #[chainAll, pRest]
         mkLambdaFVars #[hNil] p
       let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vK, nilC]) fun hNe => do
-        let p ← evtrueOfLitTrue cfg ctx (clauseLits.map (·.2)) (kIdx - 1) negEq hNe
+        -- kPos, not kIdx-1 (audit F2 — same coordinate fix as the R arm)
+        let p ← evtrueOfLitTrue cfg ctx (clauseLits.map (·.2)) kPos negEq hNe
         mkLambdaFVars #[hNe] p
       let _ := pK
       return ← (try mkAppM ``Classical.byCases #[negL, posL]
@@ -1170,6 +1174,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     -- sound here because each step's eval-equality is unconditional)
     let formula := disjoinTerm cn.inputClause
     let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula preSteps
+      ((cn.steps.flatMap (·.runes)).filterMap
+        (fun r => if r.ty == "congruence" then some r.name else none))
     unless finalT == info.input do
       throwError "replayClause: preprocess chain reached {repr finalT}, the \
                   clausify input is {repr info.input}"
@@ -1287,6 +1293,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     -- one-child arm below. Any other child shape is still the frontier.
     if let [child] := cn.children then
       let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula stepNodes
+        ((cn.steps.flatMap (·.runes)).filterMap
+        (fun r => if r.ty == "congruence" then some r.name else none))
       unless finalT == disjoinTerm child.inputClause do
         throwError "replayClause: preprocess chain reached {repr finalT}, the \
                     single child's clause disjoins to \
@@ -1300,6 +1308,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       throwError "replayClause: preprocess chain with {cn.children.length} child \
                   clauses at {cn.idStr} (clausify-split frontier)"
     return ← replayPreprocessChain cfg ctx formula stepNodes
+      ((cn.steps.flatMap (·.runes)).filterMap
+        (fun r => if r.ty == "congruence" then some r.name else none))
   -- a MULTI-literal PREPROCESS node whose step chain rewrote the clause and
   -- whose clausify was a NO-OP relative to its own input (filtered above),
   -- continuing in a single child (msort *1/3'': the (ODDS X) ⇒
@@ -1313,6 +1323,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     if let [child] := cn.children then
       let formula := disjoinTerm cn.inputClause
       let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula stepNodes
+        ((cn.steps.flatMap (·.runes)).filterMap
+        (fun r => if r.ty == "congruence" then some r.name else none))
       unless finalT == disjoinTerm child.inputClause do
         throwError "replayClause: preprocess chain reached {repr finalT}, the \
                     single child's clause disjoins to \
@@ -1331,6 +1343,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
           s.processor.toLower == "preprocess-clause" && s.result == .proved) then
       let formula := disjoinTerm cn.inputClause
       return ← replayPreprocessChain cfg ctx formula stepNodes
+        ((cn.steps.flatMap (·.runes)).filterMap
+          (fun r => if r.ty == "congruence" then some r.name else none))
   rec.clauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l))
     ((cn.steps.flatMap (·.items)).filter fun
       | .clausify _ => false | _ => true)

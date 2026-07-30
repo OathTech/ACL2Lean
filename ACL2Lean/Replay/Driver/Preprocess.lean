@@ -146,7 +146,7 @@ def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     Hyp-bearing R-rules and ambiguous congruence matches are loud
     frontiers. Returns the parent-level fuel-eq. -/
 def replayCongCollapse (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
-    (parentStep : PathStep) : MetaM Expr := do
+    (parentStep : PathStep) (citedCongs : List String) : MetaM Expr := do
   let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ children prov := n
   let rune := runeOf n
@@ -194,13 +194,20 @@ def replayCongCollapse (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     (.cons spec.lhs (.cons spec.rhs .nil))
   let relAppσ := ACL2.Replay.substTerm σvars σterms relApp
   let (hRel, ctx1) ← instantiateEvTrueHypAt cfg ctx hypV σvars σterms relApp
-  -- the congruence: exactly one in-scope spec at (fn, pos, R)
+  -- the congruence: indexed at (fn, pos, R) AND anchored to the EMITTED
+  -- citation (pre-merge audit 2026-07-30, both auditors converged): the
+  -- processor-level :RUNES name the licensing rule ((:CONGRUENCE <name>)),
+  -- so the shape-index alone would be an INFERENCE — a congruence-shaped
+  -- earlier theorem ACL2 never used as the license could match (BUG-023).
+  -- The matched spec's name must be step-cited; exactly one must survive.
   let congMatches := ctx1.congHyps.filter fun (c, _) =>
-    c.fn == parentStep.fn && c.pos == parentStep.argIdx && c.rel == rSym
+    c.fn == parentStep.fn && c.pos == parentStep.argIdx && c.rel == rSym &&
+    citedCongs.contains c.name
   let [(cSpec, cHyp)] := congMatches
     | throwError "replayCongCollapse: {congMatches.length} congruence \
         hypotheses match ({parentStep.fn.name} arg {parentStep.argIdx} under \
-        {rSym.name}) — need exactly 1 (frontier)"
+        {rSym.name}) among the step-cited congruence runes \
+        {citedCongs} — need exactly 1 (frontier)"
   let parentL := rebuild parentStep lhs
   let parentR := rebuild parentStep rhs
   let some pArgs := (match parentL with
@@ -248,7 +255,8 @@ def replayCongCollapse (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     binding invariant L2: equal steps inject into the iff composite by
     refinement (`evrel_of_fuel_eq` + `siff_refl`). -/
 def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (formula : SExpr) (nodes : List ProofNode) :
+    (formula : SExpr) (nodes : List ProofNode)
+    (citedCongs : List String := []) :
     MetaM (Option (Expr × Bool) × SExpr) := do
   let mut cur := formula
   let mut acc : Option (Expr × Bool) := none
@@ -301,7 +309,7 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
           | throwError "replayPreprocessChain: user-equivalence step \
               ({prov.equiv}) at the chain root — no congruence frame \
               (frontier)"
-        let p ← replayCongCollapse cfg ctx n parentStep
+        let p ← replayCongCollapse cfg ctx n parentStep citedCongs
         pure (p, false, rebuild parentStep lhs, rebuild parentStep rhs,
               path.dropLast)
       else do
@@ -355,8 +363,9 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
     with NO boolean-valuedness side condition (the G1-interim
     `strengthenIffChain`/`formulaBooleanFact` pair is gone, G2). -/
 def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (formula : SExpr) (nodes : List ProofNode) : MetaM Expr := do
-  let (acc, cur) ← replayPreprocessChainCore cfg ctx formula nodes
+    (formula : SExpr) (nodes : List ProofNode)
+    (citedCongs : List String := []) : MetaM Expr := do
+  let (acc, cur) ← replayPreprocessChainCore cfg ctx formula nodes citedCongs
   unless cur == quoteT do
     throwError "replayPreprocessChain: chain ended at {repr cur}, expected (quote t)"
   let some (chain, isIff) := acc

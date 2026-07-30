@@ -153,11 +153,41 @@ _Last updated: 2026-07-29._
 > SILENT-TAUTOLOGY close at spine exhaustion (no items, no children,
 > complementary pair — ACL2 drops taut clauses as *t* with no record),
 > via the shared `tautClauseClose` extracted from the clausify
-> bridge's inline copy; (d) `nilFactFor` also consults segFacts, and
-> the unemitted-test equality-substitution loop takes clause-literal
-> falsity facts as equation sources alongside segment facts; (e) the
+> bridge's inline copy; (d) the unemitted-test
+> equality-substitution loop takes clause-literal falsity facts as
+> equation sources alongside segment facts (CORRECTED per audit F1:
+> the separately-added nilFactFor segFacts arm was DEAD CODE —
+> litFactByTerm? already falls through to segFacts — and was removed;
+> the eqSources extension is the real enabler, now type-checked per
+> audit F8); (e) the
 > unemitted-test frontier message now self-locates (running term +
 > in-scope facts).
+> PRE-MERGE AUDIT ACTIONED (2026-07-30, 2 Opus inside/outside; ZERO
+> soundness findings from both; outside verdict MERGE-with-conditions).
+> Convergent top finding fixed pre-merge: the congruence-license
+> (fn,pos,R) lookup was a shape INFERENCE while the step-level :RUNES
+> cites (:CONGRUENCE <name>) — now ANCHORED to the citation (BUG-023;
+> fork-side rule-classes/cr-rune emission open). Also actioned: dead
+> nilFactFor segFacts arm removed (F1); kIdx-1→kPos coordinate fix at
+> both branch-substitution posL sites (F2, dormant); iff explicitly
+> excluded from the R-rule offer filter (F4); equiv added to the
+> with-lemma stored-rule match (F5, twin-clone fix); eqSources loop
+> type-checked per the litFactByTermChecked? discipline (F8);
+> ORDEREDP-APPEND pin's iff→equal strengthening source-checked in the
+> docstring (F7); design note amended (outside F1/F4/F7/F8: the
+> literal-weakening justification cited, the equivalence-mechanism
+> inventory extended with refinements/self-congruences/pequivs, the
+> polarity open item CLOSED with the real residual classes, the
+> "no R payload needed" claim restated as a two-row observation);
+> p7's degeneracy on the inference axis recorded (outside F9,
+> pattern map). DEBT (not blocking, tracked): taut closes don't
+> consult :RUNES NIL (F6 — needs rune threading into the spine);
+> branch-substitution condition/remove-flg/lit-position emission
+> (outside F2); taut-close commuted-IFF/double-negation/dedup arms
+> (outside F3); a non-degenerate congruence validation book (outside
+> F9); rung-3 classes: R-out congruences + implicit self-congruences
+> (convert-perm-to-how-many's PERM-TLFIX records) + refinements +
+> non-singleton geneqv + origin-dependent :EQUIV semantics.
 > MERGE POINT (2026-07-30, inc-2 committed 0dd7c08): both arc targets
 > green, decorrelated validation pinned, full local ci green. Queued
 > post-merge (NOT blocking): the type-alist relief class

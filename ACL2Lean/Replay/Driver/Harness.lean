@@ -306,7 +306,12 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- the use site ("no stored-rule hypothesis in scope").
   let rules := rules.filter fun r =>
     r.equiv == "equal" ||
-    (match cfg.worldVal.defs.get? { name := r.equiv.map Char.toUpper } with
+    -- "iff" excluded EXPLICITLY (audit F4): IFF is a ground-zero world
+    -- defun, so the world-defined test alone would admit iff-stored rules
+    -- — restoring the defense-in-depth the audit-2026-07-06-E guard had
+    -- (iff's lane is the SIff machinery, not the interpreted relation)
+    (r.equiv != "iff" &&
+     match cfg.worldVal.defs.get? { name := r.equiv.map Char.toUpper } with
      | some (formals, _) => formals.length == 2
      | none => false)
   let ruleDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=

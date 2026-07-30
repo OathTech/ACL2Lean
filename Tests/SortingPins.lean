@@ -394,10 +394,18 @@ private def tpBool3 (w : World) (fn : String) : Prop :=
     - the cited rules `fold-consts-in-+`, `convert-perm-to-how-many`,
       `how-many-qsort` (as on PERM-QSORT's pin), and `orderedp-append`
       (qsort.lisp:85 — the IFF-stated defthm, stored with ACL2's
-      iff→equal strengthening under orderedp's boolean TP; hypothesis
-      `(orderedp a)`, rhs the `and`-translation — kept because its own
-      replay currently fails at the LEXORDER-TRANSITIVE type-alist relief
-      frontier). -/
+      iff→equal strengthening; hypothesis `(orderedp a)`, rhs the
+      `and`-translation — kept because its own replay currently fails at
+      the LEXORDER-TRANSITIVE type-alist relief frontier).
+      SOURCE-CHECK of the strengthening (audit F7 — the `equal` form is
+      NOT derivable from the source text alone; it needs both sides
+      boolean): `orderedp` (qsort.lisp) returns `t`, `nil`, or a
+      recursive call in every branch, so its range is {t, nil} by
+      induction; `all-rel` likewise (`t`/`nil`/recursive). Hence
+      `(iff a b) ⇔ (equal a b)` on these terms and the stored rule's
+      strengthening is truthful. A drifted defun that made either
+      non-boolean would make this kept hypothesis unprovable — vacuity
+      risk documented, discharged when the relief class lands. -/
 example :
     ∀ (env : Env),
       totalHyp2 qsortPinsWorld "PERM-COUNTER-EXAMPLE" →

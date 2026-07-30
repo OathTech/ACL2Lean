@@ -45,8 +45,19 @@ hence design invariant L2 and the pattern map's parked circle.
    `PERM-TRANSITIVE` — all green rows today); congruences from replayed
    defcong mirrors. In ACL2 an equivalence IS exactly (binary defun +
    proved :equivalence rule + proved :congruence rules) — the interpreted
-   relation + replayed properties is that structure's faithful image;
-   there is no further mathematical content to be faithful to.
+   relation + replayed properties is that structure's faithful image.
+   **AMENDED (pre-merge audit 2026-07-30, outside F4): three further
+   mechanisms carry congruence licensing and must eventually be
+   consumed** — (i) `:REFINEMENT` rules (`add-equivalence-rule`
+   maintains 'coarsenings; `geneqv-refinementp` licenses a rule whose
+   relation merely REFINES the position's geneqv); (ii) `defequiv`'s
+   IMPLICIT self-congruences (`add-equivalence-rule`,
+   acl2/defthm.lisp:6390-6409, stores an `:equiv fn` congruence in EACH
+   arg slot of fn under the :EQUIVALENCE rune — with NO defcong-shaped
+   defthm for the registry to parse; the trigger records exist TODAY at
+   convert-perm-to-how-many.proof-log:12690, PERM-TLFIX at PERM's own
+   args); (iii) patterned congruence rules ('pequivs — fail closed via
+   the all-distinct-variables guard, but a real class).
 3. **Scale argument** (why native models are ruled out as the lane):
    user equivalences are arbitrary defuns; per-equivalence native
    modeling (CountSim-style) is unbounded manual work with a fresh
@@ -180,14 +191,32 @@ mirrors). Decorrelated validation: `p7-cong-collapse` 4/4
 Mechanics as BUILT (vs the sketch above — two simplifications, both
 faithful to the observed records):
 
-1. **No chain-threaded user-R payload was needed.** In both observed
-   classes the R-fact collapses IMMEDIATELY:
+1. **No chain-threaded user-R payload was needed — FOR THESE TWO
+   ROWS.** (Audit correction 2026-07-30: this is a two-row
+   observation, NOT a design simplification. `congSpecOfFormula?`
+   requires the conclusion relation to be EQUAL, so R-out congruences
+   — `(defcong perm perm (cons a x) 2)`-class, standard in perm
+   developments — cannot register, and the promised (fn, position,
+   R-in, R-out) index currently lacks its R-out axis. Congruence
+   CHAINS (ACL2's Congruence Theorem 5, geneqv-lst recursing with the
+   outer geneqv) need the R-valued payload rung 2 skipped; rung 3
+   adds it additively.) In both observed classes the R-fact collapses
+   IMMEDIATELY:
    - The branch-substitution class (the defcong's own proof) has the
      substituted variable ONLY in the justifying `(not (R var val))`
-     literal — the mirror is pure clause structure (byCases on the
+     literal — the replay is pure clause structure (byCases on the
      literal; falsity collapses its if-frame out), consuming NO R-facts
-     at all. Occurrences outside the justifying literal remain a loud
-     congruence-transport frontier.
+     at all. This is ACL2's OWN stated justification, not a shortcut:
+     acl2/simplify.lisp:6420-6423 — "it is always sound to throw out a
+     literal"; reflexivity is only the heuristic-safety argument
+     (outside audit F1). Caveats recorded from the same audit (F2/F3):
+     one record shape covers three ACL2 transformations
+     (disposable/remove-flg, crunch-clause-segments keeps the literal,
+     keeper) — emission of condition/remove-flg/lit-position queued;
+     and `add-literal-and-pt` can also DEDUP literals and recognize
+     commuted-IFF / double-negation complements, which the taut-close
+     does not yet cover (loud frontiers). Occurrences outside the
+     justifying literal remain a loud congruence-transport frontier.
    - The rewrite class (ORDEREDP-QSORT) records the R-step's :PATH with
      the congruence frame INNERMOST, so the payload lives for exactly
      one frame: `replayCongCollapse` converts it to an eval-equality of
@@ -201,9 +230,15 @@ faithful to the observed records):
    offered as its WHOLE-FORMULA mirror `∀ env', EvTrue w env' formula`
    (`cong:<thm>`, CongSpec shape-parsed from the formula with
    recompute-and-check at the use site; discharged from the replayed
-   mirror with NO decode). The collapse is value-level MP
+   statement with NO decode). The collapse is value-level MP
    (`implies_value_mp`) + the two-valued EQUAL decode — the L2
-   congruence registry is the (fn, pos, R)-indexed CongSpec list.
+   congruence registry is the (fn, pos, R)-indexed CongSpec list,
+   ANCHORED (post-audit) to the step-cited `(:CONGRUENCE <name>)`
+   rune in the processor's :RUNES — the shape-index alone was an
+   inference (BUG-023). Fork follow-up: emit `cr-rune` per step
+   (`geneqv-refinementp` returns it at the push site,
+   acl2/induct.lisp:102-114) for per-step rather than per-clause
+   anchoring.
 3. En route (surfaced by the validation book): the multi-clause
    clausify bridge's TAUT-DROPPED split (recorded :CLAUSE ('T);
    ACL2's type-set sees the COMMUTED-EQUAL pair) — landed as the
@@ -222,8 +257,18 @@ faithful to the observed records):
   (mirror-application like `rule:` hypotheses vs telescope-fvar offers).
 - How the iff rung interacts with the existing `EvTrue`-boundary lemmas
   (several are iff-shaped already: `evtrue_and_*`, two-valued decodes).
-- Whether the geneqv POLARITY context (rewriting inside a NOT flips the
-  usable relation set) needs explicit threading or falls out of the
-  recorded per-step `:EQUIV` (suspected: falls out — verify on records).
+- ~~Whether the geneqv POLARITY context needs explicit threading~~
+  CLOSED (pre-merge audit 2026-07-30, outside F7): ACL2 has NO
+  polarity-sensitive geneqv (`grep -i polarity acl2/rewrite.lisp` is
+  empty; NOT's built-in congruence is iff→iff) — no threading needed,
+  for that reason. The REAL residual classes the per-step `:EQUIV`
+  does not settle: (a) non-singleton geneqvs
+  (`structured-geneqv-equiv` returns a LIST when 2+ congruence rules
+  occupy the slot — the fork's own named frontier); (b) `:EQUIV`
+  means the RULE's relation on abbreviation-expansion/with-lemma
+  steps but the CONTEXT's licensed relation (an upper bound) on
+  fncall/* body emitters — ordered-perms has a `(:DEFINITION RM)`
+  expansion labelled `:EQUIV PERM`. Both are loud frontiers today
+  (origin gate / dispatch), and rung 3 hits (b) immediately.
 - Perf: interpreted-R facts add per-step conv obligations; measure before
   optimizing.

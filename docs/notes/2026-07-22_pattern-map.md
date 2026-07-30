@@ -825,11 +825,19 @@ Authored to VALIDATE the arc's new capability decorrelated from qsort
   defcong formula is the TRIVIAL instance, isolating the license's
   consumption. 4/4 GREEN: P7-TARGET replays the R-collapse with both
   the `rule:` (interpreted-relation shape) and `cong:` (whole-formula
-  mirror) hypotheses DISCHARGED from replayed mirrors; en route the book
+  replayed statement) hypotheses DISCHARGED from replayed statements; en route the book
   surfaced the multi-clause clausify TAUT-DROPPED split class (the sym
   conjunct recorded :CLAUSE ('T) — ACL2's type-set sees the
   commuted-equal pair), landed as the multi-bridge taut arm +
   `tautClauseClose`'s commuted-equal pair. Pinned 4/4 in PatternPins.
+  AUDIT CAVEAT (outside auditor F9, 2026-07-30): the trivial-defcong
+  choice makes the book DEGENERATE on the inference axis — under
+  SAME-LN the R-fact IS the parent-level equality, so an implementation
+  that used the R-fact directly would pass 4/4. Decorrelation is real
+  on relation name / fn family / arity, absent on the congruence
+  inference itself; the only non-degenerate instance is the correlated
+  PERM/ALL-REL one. BACKLOG: a book with a lossy relation at a
+  fn that ignores elements (validator/lifter arc).
 
 Validation-book BACKLOG for under-covered green paths (next authoring
 targets, same discipline): a theorem-side induction whose case clauses
