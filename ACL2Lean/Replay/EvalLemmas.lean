@@ -3774,6 +3774,18 @@ theorem logic_car_of_consp_nil {v : SExpr} (h : Logic.consp v = SExpr.nil) :
   | nil => rfl
   | atom a => rfl
 
+/-- A non-nil `true-listp` value that is not a cons IS `nil` (the
+    type-set composition TRUE-LISTP ∧ ¬CONSP → = 'NIL). -/
+theorem logic_nil_of_trueListp_consp_nil {v : SExpr}
+    (ht : Logic.trueListp v ≠ SExpr.nil) (hc : Logic.consp v = SExpr.nil) :
+    v = SExpr.nil := by
+  cases v with
+  | nil => rfl
+  | atom a =>
+    exact absurd (by simp [Logic.trueListp] :
+      Logic.trueListp (SExpr.atom a) = SExpr.nil) ht
+  | cons a b => simp [Logic.consp, SExpr.t] at hc
+
 /-- `cdr` of a NON-cons defaults to `nil`. -/
 theorem logic_cdr_of_consp_nil {v : SExpr} (h : Logic.consp v = SExpr.nil) :
     Logic.cdr v = SExpr.nil := by

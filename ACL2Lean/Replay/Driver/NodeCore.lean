@@ -1374,6 +1374,37 @@ partial def deriveNilFact (cfg : ReplayConfig) (ctx : ReplayCtx)
           if ← Lean.Meta.isDefEq vT target then
             return some hDef
   | _ => pure ()
+  -- TRUE-LISTP ∧ ¬CONSP → 'NIL (TRUE-LISTP-MSORT's `MT ⇒ 'NIL`): a
+  -- TRUTHY true-listp fact (a false `(not (true-listp t))`) composed with
+  -- consp-false evidence pins the value to exactly nil
+  let notTlp : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+    (.cons (.cons (.atom (.symbol { name := "TRUE-LISTP" })) (.cons t .nil))
+      .nil)
+  let tlpT : SExpr := .cons (.atom (.symbol { name := "TRUE-LISTP" }))
+    (.cons t .nil)
+  let tlpSources : List (SExpr × Expr) :=
+    ctx.segFacts ++ ctx.litFacts.map (fun (_, l, h) => (l, h)) ++
+    ctx.branchFacts.filterMap (fun (bt, _, sign, h) =>
+      if !sign then some (bt, h) else none)
+  for (st, hf) in tlpSources do
+    unless st == notTlp do continue
+    let ctxT2 ← pinTermOpaques cfg cfg.envExpr ctx tlpT
+    let vTlp ← ctxValExpr cfg ctxT2 tlpT
+    unless ← Lean.Meta.isDefEq (← Lean.Meta.inferType hf)
+        (← mkEq (mkApp (mkConst ``Logic.not) vTlp) (mkConst ``SExpr.nil)) do
+      continue
+    unless vTlp.isAppOfArity ``Logic.trueListp 1 do continue
+    let conspT' : SExpr :=
+      .cons (.atom (.symbol { name := "CONSP" })) (.cons t .nil)
+    if let some hc ← deriveNilFact cfg ctxT2 conspT' (depth - 1) then
+      let vC ← ctxValExpr cfg (← pinTermOpaques cfg cfg.envExpr ctxT2 conspT')
+        conspT'
+      if vC.isAppOfArity ``Logic.consp 1 &&
+          (← Lean.Meta.isDefEq vC.appArg! vTlp.appArg!) &&
+          (← Lean.Meta.isDefEq vT vTlp.appArg!) then
+        let hne ← Lean.Meta.mkAppM ``logic_not_nil_ne #[vTlp, hf]
+        return some (← Lean.Meta.mkAppM ``logic_nil_of_trueListp_consp_nil
+          #[hne, hc])
   -- equation transport: a false (not (equal p q)) with t on one side
   let eqSources : List (SExpr × Expr) :=
     ctx.segFacts ++ ctx.litFacts.map (fun (_, l, h) => (l, h)) ++
