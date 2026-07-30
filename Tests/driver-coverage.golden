@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 66/79 (30 unconditional + 36 conditional); DP-discharge leaves ✓37 ◌6 ✗0 of 43:
+Driver coverage — REPLAYED 67/79 (30 unconditional + 37 conditional); DP-discharge leaves ✓38 ◌5 ✗0 of 43:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -72,7 +72,7 @@ Driver coverage — REPLAYED 66/79 (30 unconditional + 36 conditional); DP-disch
     HOW-MANY-ISORT → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]
 • sorting/ordered-perms  (world: 21 defun(s), 6 theorem(s))
     ORDEREDP-RM → REPLAYED ✓
-    ORDEREDP-MEMB → FAIL: if-finish/combined: children chains reached (IF (EQUAL 'NIL (CAR A)) 'T (MEMB 'NIL (CDR A))), node rhs is (IF (CAR A) (MEMB 'NIL (CDR A)) 'T)  [DISCHARGE: Subgoal *1/1.2:simplify-clause/fc-contradiction ◌ assumed cond[ASSUMED:dp-fact], Subgoal *1/1.1:simplify-clause/fc-contradiction ✓ cond[total:(ORDEREDP (CDR A)), total:(MEMB (CAR (CDR A)) (CDR A)), tp:ORDEREDP, tp:MEMB]]
+    ORDEREDP-MEMB → REPLAYED ✓ cond[rule:DEFAULT-CAR]  [DISCHARGE: Subgoal *1/1.2:simplify-clause/fc-contradiction ✓, Subgoal *1/1.1:simplify-clause/fc-contradiction ✓ cond[total:(ORDEREDP (CDR A)), total:(MEMB (CAR (CDR A)) (CDR A)), tp:ORDEREDP, tp:MEMB]]
     EQUAL-CONS → REPLAYED ✓ cond[rule:CONS-CAR-CDR]  [DISCHARGE: Subgoal 2:preprocess/tau-contradiction ✓]
     CAR-RM → REPLAYED ✓
     TRUE-LISTP-RM → REPLAYED ✓  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]

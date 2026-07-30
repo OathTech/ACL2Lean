@@ -67,7 +67,8 @@ def dpLeafTactic : MetaM (TSyntax `tactic) :=
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
                    SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
                    Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat,
-                   logic_endp_eq_not_consp] <;>
+                   logic_endp_eq_not_consp,
+                   logic_car_of_consp_nil, logic_cdr_of_consp_nil] <;>
           omega)
       | (simp_all [-Logic.toBool, -Logic.endp, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
                    Logic.not, Logic.integerp, Logic.consp, Logic.toRat,
@@ -75,7 +76,8 @@ def dpLeafTactic : MetaM (TSyntax `tactic) :=
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
                    SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
                    Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat,
-                   logic_endp_eq_not_consp] <;>
+                   logic_endp_eq_not_consp,
+                   logic_car_of_consp_nil, logic_cdr_of_consp_nil] <;>
           -- `at *`: a HYPOTHESIS can be stuck on an if too (a `toBool`
           -- match over an unreduced decidable if — the plus-equation
           -- hypothesis shape), and goal-only splitting leaves omega
@@ -217,9 +219,13 @@ def dpConeIndices (tests : List SExpr) (last : SExpr) (vars : List Symbol)
   return cone
 
 /-- Build the DP fact statement
-    `∀ vars vops, tp₁ = t → … → v₁ = nil → … → v_{k-1} = nil → vₖ = t`
+    `∀ vars vops, tp₁ = t → … → v₁ = nil → … → v_{k-1} = nil → vₖ ≠ nil`
     — the discharged clause's truth over all variable AND opaque values, under the
-    emitted type-prescription hypotheses. -/
+    emitted type-prescription hypotheses. The conclusion is TRUTHINESS
+    (sorting-completion-2 inc-4: the previous `= t` form over-strengthened
+    bare-term final literals — ORDEREDP-MEMB's `(CAR A)` — making the leaf
+    unprovable and, worse, an ASSUMED:dp-fact hypothesis FALSE/vacuous;
+    `≠ nil` is exactly the clause's disjunctive semantics). -/
 def dpFactStmt (tests : List SExpr) (last : SExpr) (vars : List Symbol)
     (opaques : List SExpr) (tpCors : List SExpr) : MetaM Expr := do
   let total := vars.length + opaques.length
@@ -235,7 +241,7 @@ def dpFactStmt (tests : List SExpr) (last : SExpr) (vars : List Symbol)
       | none => throwError "dpFactStmt: unmapped variable {s.name}"
     let tpTys ← tpCors.mapM fun c => do mkEq (← absVal c) (mkConst ``SExpr.t)
     let hypTys ← tests.mapM fun t => do mkEq (← absVal t) (mkConst ``SExpr.nil)
-    let conclTy ← do mkEq (← absVal last) (mkConst ``SExpr.t)
+    let conclTy ← do mkAppM ``Ne #[← absVal last, mkConst ``SExpr.nil]
     let body ← (tpTys ++ hypTys).foldrM (fun h acc => mkArrow h acc) conclTy
     mkForallFVars fvars body
 
@@ -339,6 +345,42 @@ def dpDirectBudget : Nat := 15000
     FUTURE books' coverage on today's timings. -/
 def dpOnlyProverGuard : Nat := 1000000
 
+/-- Run `tac` on a CLONE of `l`, assigning on success — a failed attempt
+    must not half-assign the mvar. On failure, the DEPTH-2 constructor-split
+    fallback (sorting-completion-2 inc-4): a leaf stuck on a SECOND-level
+    value match (the primitive unfolds destroy the conditional completion
+    lemmas' targets — ORDEREDP-MEMB's `car(cdr v) = nil` under
+    `consp(cdr v) = nil`) closes after one more constructor split of a
+    remaining SExpr fvar. FIXED policy, bounded (fuel 2 → ≤ 9 sub-leaves
+    per leaf), not search. -/
+partial def dpSplitAndClose (tac : Lean.TSyntax `tactic) (l : Lean.MVarId)
+    (fuel : Nat) : MetaM Bool := do
+  let ok ← l.withContext do
+    let m2 ← mkFreshExprMVar (← l.getType)
+    let ok ← try
+        let r ← Lean.Elab.runTactic m2.mvarId! tac
+        pure r.1.isEmpty
+      catch _ => pure false
+    if ok then l.assign (← instantiateMVars m2)
+    pure ok
+  if ok then return true
+  if fuel == 0 then return false
+  let fv? ← l.withContext do
+    let lctx ← Lean.getLCtx
+    pure (lctx.foldl (init := (none : Option Lean.FVarId)) fun acc d =>
+      if !d.isImplementationDetail && d.type.isConstOf ``ACL2.SExpr then
+        some d.fvarId
+      else acc)
+  match fv? with
+  | none => return false
+  | some fv =>
+    let subs ←
+      try l.cases fv
+      catch _ => return false
+    for sg in subs do
+      unless ← dpSplitAndClose tac sg.mvarId (fuel - 1) do return false
+    return true
+
 /-- PROVE the DP fact by the carved-out decision procedure: one BOUNDED run
     of the fixed tactic on the unsplit goal, else a one-level value split
     (policy-bounded) and the fixed tactic per leaf. Hard-fails if any case
@@ -433,16 +475,11 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
     -- surface WHICH leaf failed (the raw tactic error names the tactic but
     -- not the case) — rethrow with the leaf goal attached
     let leafGoal ← leaf.withContext do addMessageContextFull m!"{leaf}"
-    let remaining ←
-      try Lean.Elab.runTactic leaf tac
-      catch ex =>
-        throwError "proveDpFact: the DP leaf tactic FAILED ({ex.toMessageData}) \
-                    on leaf {leafGoal} — the discharged clause's lift is not \
-                    closable by simp+omega (clause fact: {stmt})"
-    unless remaining.1.isEmpty do
-      throwError "proveDpFact: the DP leaf tactic left {remaining.1.length} goal(s) \
-                  on leaf {leafGoal} — the discharged clause's lift is not \
-                  closable by simp+omega (clause fact: {stmt})"
+    unless ← dpSplitAndClose tac leaf 2 do
+      throwError "proveDpFact: the DP leaf tactic FAILED \
+                  on leaf {leafGoal} (incl. the depth-2 constructor-split \
+                  fallback) — the discharged clause's lift is not closable \
+                  by simp+omega (clause fact: {stmt})"
   instantiateMVars mv
 
 /-! ## G3 Fragment A wiring — the consolidated value-layer proof
@@ -557,9 +594,8 @@ partial def dischargeClose (cfg : ReplayConfig) (b : DpLiftBundle)
     (t : SExpr) (fPartial : Expr) : MetaM Expr := do
   let vt ← dpValExpr opqMap (dpConcVar cfg.envExpr) t
   let pt ← dpLiftProof cfg cfg.envExpr b t vt
-  let pExact ← mkAppM ``re_val_cast
-    #[cfg.worldExpr, cfg.envExpr, reflectSExpr t, vt, mkConst ``SExpr.t, pt, fPartial]
-  mkAppM ``evtrue_of_eq_t #[pExact]
+  -- fPartial : vt ≠ nil (the truthiness conclusion, inc-4)
+  mkAppM ``evtrue_of_conv_ne_nil #[pt, fPartial]
 
 /-- Fold `evtrue_dp_if_split` over the discharge clause's spine, feeding
     nil-hypotheses to the partially-applied DP fact; result `EvTrue` of the

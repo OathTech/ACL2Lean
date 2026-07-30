@@ -1036,6 +1036,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/isort", "TRUE-LISTP-ISORT", .pending "the flatten-recipe mirror + the tp:INSERT discharger"),
   ("sorting/isort", "HOW-MANY-ISORT", .pending "how-many correspondence (count fn; backlog)"),
   ("sorting/ordered-perms", "ORDEREDP-RM", .pending "chain2/LEXORDER + rm correspondence (backlog)"),
+  ("sorting/ordered-perms", "ORDEREDP-MEMB", .pending "chain2/LEXORDER + memb correspondences (backlog)"),
   ("sorting/ordered-perms", "EQUAL-CONS", .pending "cons-equation decode (backlog)"),
   ("sorting/ordered-perms", "CAR-RM", .pending "rm correspondence (backlog)"),
   ("sorting/ordered-perms", "TRUE-LISTP-RM", .pending "the flatten-recipe mirror + its cond dischargers"),
