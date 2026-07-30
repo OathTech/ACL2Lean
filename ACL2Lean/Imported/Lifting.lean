@@ -620,6 +620,119 @@ theorem corr_len_enc (w : World) (fn : String)
     exact conv_defn_1 w e' { package := "ACL2", name := fn } a (.cons hd (enc tl)) xS (lenBody fn)
       (.atom (.number (.int ((hd :: tl).length : Int)))) h_ns h_fn ha hbody
 
+/-- `(if (consp x) (cons 'c (fn (cdr x))) 'nil)` — the standard MAP-CONST
+    body (p7's `dub`, …): rebuild the list with every element the quoted
+    constant `c` (validator/lifter arc inc-0). -/
+def mapConstBody (c : SExpr) (fn : String) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (conspT xT)
+      (.cons (consT (.cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil))
+        (app1 fn (cdrT xT)))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+          .nil)))
+
+/-- SIMULATION, name-generic: any map-const-shaped defun over encoded lists
+    computes `List.map (fun _ => c)` under `enc`. Induction on the Lean
+    list (the `corr_len_enc` template with the CONS composition of
+    `corr_append_enc`'s step). -/
+theorem corr_mapconst_enc (w : World) (c : SExpr) (fn : String)
+    (h_ns : ({ name := fn } : Symbol).isNamed "QUOTE" = false ∧
+            ({ name := fn } : Symbol).isNamed "IF" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET" = false ∧
+            ({ name := fn } : Symbol).isNamed "LET*" = false)
+    (h_fn : w.defs.get? { package := "ACL2", name := fn }
+      = some ([{ package := "ACL2", name := "X" }], mapConstBody c fn))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
+    ∀ (xs : List SExpr) (e' : Env) (a : SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f w e' a = some (enc xs)) →
+    ∃ N, ∀ f ≥ N, evalOpt f w e' (app1 fn a)
+      = some (enc (xs.map (fun _ => c))) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro e' a ha
+    have hx_ba : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [xS] [enc []]) xT
+        = some (enc []) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g w _ xS _ (bindArgs_x_x _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc []]) (conspT xT) = some .nil :=
+      conv_builtin1 w _ { name := "CONSP" } xT (enc []) (Logic.consp (enc []))
+        (by decide) h_no_consp hx_ba (callBuiltin_consp _)
+    have hqnil_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc []])
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+        = some .nil :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_quote g w _ _⟩
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc []]) (mapConstBody c fn)
+        = some .nil := by
+      obtain ⟨Ni, hi⟩ := re_if_false w (bindArgs [xS] [enc []]) (conspT xT)
+        (consT (.cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil))
+          (app1 fn (cdrT xT)))
+        (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+        .nil hconspx_ba hqnil_ba
+      obtain ⟨Nq, hq⟩ := hqnil_ba
+      exact ⟨max Ni Nq, fun f hf => (hi f (by omega)).trans (hq f (by omega))⟩
+    exact conv_defn_1 w e' { package := "ACL2", name := fn } a (enc []) xS
+      (mapConstBody c fn) .nil h_ns h_fn ha hbody
+  | cons hd tl ih =>
+    intro e' a ha
+    have hx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) xT
+        = some (.cons hd (enc tl)) :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_var g w _ xS _ (bindArgs_x_x _)⟩
+    have hconspx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (conspT xT)
+        = some (Logic.consp (.cons hd (enc tl))) :=
+      conv_builtin1 w _ { name := "CONSP" } xT (.cons hd (enc tl))
+        (Logic.consp (.cons hd (enc tl))) (by decide) h_no_consp hx_ba
+        (callBuiltin_consp _)
+    have hcdrx_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (cdrT xT)
+        = some (enc tl) := by
+      have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd (enc tl))
+        (Logic.cdr (.cons hd (enc tl))) (by decide) h_no_cdr hx_ba
+        (callBuiltin_cdr _)
+      simpa [Logic.cdr] using h
+    have hqc_ba : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)])
+          (.cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil))
+        = some c :=
+      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                         exact evalOpt_quote g w _ _⟩
+    obtain ⟨Nk, hk⟩ := ih (bindArgs [xS] [enc (hd :: tl)]) (cdrT xT) hcdrx_ba
+    have hcons : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)])
+          (consT (.cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil))
+            (app1 fn (cdrT xT)))
+        = some (.cons c (enc (tl.map (fun _ => c)))) := by
+      have h := conv_builtin2 w _ { name := "CONS" }
+        (.cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil))
+        (app1 fn (cdrT xT)) c (enc (tl.map (fun _ => c)))
+        (Logic.cons c (enc (tl.map (fun _ => c))))
+        (by decide) h_no_cons hqc_ba ⟨Nk, hk⟩ (callBuiltin_cons _ _)
+      simpa [Logic.cons] using h
+    have hbody : ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (mapConstBody c fn)
+        = some (.cons c (enc (tl.map (fun _ => c)))) := by
+      obtain ⟨Ni, hi⟩ := re_if_true w (bindArgs [xS] [enc (hd :: tl)])
+        (conspT xT)
+        (consT (.cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil))
+          (app1 fn (cdrT xT)))
+        (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+        (Logic.consp (.cons hd (enc tl)))
+        (.cons c (enc (tl.map (fun _ => c)))) hconspx_ba rfl hcons
+      obtain ⟨Ns, hs⟩ := hcons
+      exact ⟨max Ni Ns, fun f hf => (hi f (by omega)).trans (hs f (by omega))⟩
+    exact conv_defn_1 w e' { package := "ACL2", name := fn } a
+      (.cons hd (enc tl)) xS (mapConstBody c fn)
+      (.cons c (enc (tl.map (fun _ => c)))) h_ns h_fn ha hbody
+
 /-! ## `Implements` instances — the operations lifted so far -/
 
 /-- `binary-+` (unshadowed) implements integer addition. -/
