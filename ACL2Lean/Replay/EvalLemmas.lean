@@ -3765,6 +3765,23 @@ theorem dp_nonneg_int_of_tp {v : SExpr}
   | nil => simp [Logic.integerp, Logic.toBool] at h
   | cons a b => simp [Logic.integerp, Logic.toBool] at h
 
+/-- `car` of a NON-cons defaults to `nil` (ACL2's completion axiom, value
+    level — the type-set entry composition consumes it). -/
+theorem logic_car_of_consp_nil {v : SExpr} (h : Logic.consp v = SExpr.nil) :
+    Logic.car v = SExpr.nil := by
+  cases v with
+  | cons a b => simp [Logic.consp, SExpr.t] at h
+  | nil => rfl
+  | atom a => rfl
+
+/-- `cdr` of a NON-cons defaults to `nil`. -/
+theorem logic_cdr_of_consp_nil {v : SExpr} (h : Logic.consp v = SExpr.nil) :
+    Logic.cdr v = SExpr.nil := by
+  cases v with
+  | cons a b => simp [Logic.consp, SExpr.t] at h
+  | nil => rfl
+  | atom a => rfl
+
 /-- The car-cdr-elim rule at the VALUE level: a consp value is rebuilt by
     `cons`/`car`/`cdr` — the destructor-elimination bridge's collapse of
     `(cons (car v) (cdr v))` back to `v`. -/

@@ -107,3 +107,23 @@ branch-substitution condition/remove-flg/lit-position emission, the
   fork emission → recapture-all → Lean consumption keyed on the emitted
   source (clause literal index / equivalence-rune reflexivity / FC
   conclusion), replacing the current search-the-fact-lists recipes.
+
+## Class A inc-2 progress (2026-07-30)
+
+- **LANDED: `deriveNilFact`** — the bounded value-level type-set closure
+  (direct facts + equation transport + car/cdr completion defaults, all
+  type-checked, depth 3) + the `logic_car/cdr_of_consp_nil` kernel
+  lemmas; the type-alist nil-verdict arm consumes it.
+- **ORDEREDP-MEMB advanced**: the `E ⇒ 'NIL` sites clear; new frontier
+  `if-finish/combined: children chains reached (IF (EQUAL 'NIL (CAR A))
+  'T (MEMB 'NIL (CDR A))), node rhs (IF (CAR A) (MEMB 'NIL (CDR A)) 'T)`
+  — ACL2's (if (equal nil x) t y) → (if x y t) NORMALIZATION at the
+  combined-children joint (the bridgeEqualNilNorm family; add the arm
+  at that joint).
+- **TRUE-LISTP-MSORT diagnosed to the fact list**: `MT ⇒ 'NIL` with
+  in-scope (CONSP MT) FALSE + (NOT (TRUE-LISTP MT)) FALSE (truthy
+  true-listp) — the missing closure step: trueListp v = t ∧ consp v =
+  nil → v = nil (kernel lemma + a deriveNilFact rule consuming a
+  TRUTHY (NOT …)-false fact).
+- ORDERED-PERMS' (PERM x x) ⇒ 'T truthy arm untouched (the
+  equivalence-reflexivity consumption — rung-2 cong-style machinery).

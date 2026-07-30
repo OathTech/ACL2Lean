@@ -1333,6 +1333,73 @@ partial def pinTermOpaques (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCt
     | none => return { ctx with vals := ctx.vals ++ [(t, value, conv)] }
   | _ => return ctx
 
+/-- Derive `v(t) = nil` from the in-scope facts by a BOUNDED value-level
+    type-set closure (sorting-completion-2 Class A): direct falsity facts
+    (lit/seg/false-branch), EQUATION transport (a false `(not (equal p q))`
+    pins vp = vq), and the car/cdr-of-non-cons COMPLETION defaults — the
+    entry compositions ACL2's assume-true-false performs on the same
+    assumptions (such entries emit `:PARENTS NIL :RUNES NIL/fake` — an
+    assumption-composed entry with no rune provenance to consume).
+    Depth-bounded, deterministic, type-checked at every fact use,
+    fail-closed (`none`). -/
+partial def deriveNilFact (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (t : SExpr) (depth : Nat := 3) : MetaM (Option Expr) := do
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx t
+  let vT ← ctxValExpr cfg ctx t
+  let expected ← mkEq vT (mkConst ``SExpr.nil)
+  -- direct, type-checked
+  if let some h ← ctx.litFactByTermChecked? t expected then
+    return some h
+  if let some h := (ctx.branchFacts.find? (fun (bt, _, sign, _) =>
+      bt == t && !sign)).map (·.2.2.2) then
+    if ← Lean.Meta.isDefEq (← Lean.Meta.inferType h) expected then
+      return some h
+  if depth == 0 then return none
+  -- car/cdr of a NON-cons (the completion defaults)
+  match t with
+  | .cons (.atom (.symbol cs)) (.cons u .nil) =>
+    if cs.name == "CAR" || cs.name == "CDR" then
+      let conspU : SExpr :=
+        .cons (.atom (.symbol { name := "CONSP" })) (.cons u .nil)
+      if let some hc ← deriveNilFact cfg ctx conspU (depth - 1) then
+        let ctxU ← pinTermOpaques cfg cfg.envExpr ctx conspU
+        let vC ← ctxValExpr cfg ctxU conspU
+        if vC.isAppOfArity ``Logic.consp 1 then
+          let vu := vC.appArg!
+          let lem := if cs.name == "CAR" then ``logic_car_of_consp_nil
+                     else ``logic_cdr_of_consp_nil
+          let hDef ← Lean.Meta.mkAppM lem #[hc]
+          let target := mkApp
+            (mkConst (if cs.name == "CAR" then ``Logic.car else ``Logic.cdr)) vu
+          if ← Lean.Meta.isDefEq vT target then
+            return some hDef
+  | _ => pure ()
+  -- equation transport: a false (not (equal p q)) with t on one side
+  let eqSources : List (SExpr × Expr) :=
+    ctx.segFacts ++ ctx.litFacts.map (fun (_, l, h) => (l, h)) ++
+    ctx.branchFacts.filterMap (fun (bt, _, sign, h) =>
+      if !sign then some (bt, h) else none)
+  for (st, hSeg) in eqSources do
+    let .cons (.atom (.symbol ns))
+        (.cons pq@(.cons (.atom (.symbol eqS))
+          (.cons p (.cons q .nil))) .nil) := st
+      | continue
+    unless ns.name == "NOT" && eqS.name == "EQUAL" do continue
+    unless t == p || t == q do continue
+    let other := if t == p then q else p
+    let ctxE ← pinTermOpaques cfg cfg.envExpr ctx pq
+    let vPQ ← ctxValExpr cfg ctxE pq
+    unless ← Lean.Meta.isDefEq (← Lean.Meta.inferType hSeg)
+        (← mkEq (mkApp (mkConst ``Logic.not) vPQ) (mkConst ``SExpr.nil)) do
+      continue
+    if let some hOther ← deriveNilFact cfg ctxE other (depth - 1) then
+      let hne ← Lean.Meta.mkAppM ``logic_not_nil_ne #[vPQ, hSeg]
+      let heq ← Lean.Meta.mkAppM ``Logic.eq_of_equal_ne_nil #[hne]  -- vp = vq
+      let heqO ← if t == p then pure heq else Lean.Meta.mkAppM ``Eq.symm #[heq]
+      -- vt = vother; vother = nil
+      return some (← Lean.Meta.mkAppM ``Eq.trans #[heqO, hOther])
+  return none
+
 /-- ONE-WAY term match: extend `σ` so that `pat`σ `== t` (`pat`'s variables
     drawn from `vars`; quoted subterms match only literally). Deterministic —
     the pool-subsumption witness recompute (validated by the caller,
@@ -2517,8 +2584,14 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     unless q.name == "QUOTE" do
       throwError "type-alist: rhs {repr rhs} is not a quoted constant"
     if cv == SExpr.nil then
-      let some hNil := ctx.litFactByTerm? lhs
-        | throwError "type-alist: no spine falsity fact for {repr lhs} (frontier)"
+      -- sources (sorting-completion-2 Class A): the bounded value-level
+      -- type-set closure — direct falsity facts, equation transport, the
+      -- car/cdr completion defaults (ORDEREDP-MEMB's `E ⇒ 'NIL` composes
+      -- a segment equation E = (CAR (CDR A)) with (CONSP (CDR A)) false;
+      -- such entries emit :PARENTS NIL :RUNES NIL/fake — assumption-
+      -- composed, no rune provenance to consume)
+      let some hNil ← deriveNilFact cfg ctx lhs
+        | throwError "type-alist: no spine falsity fact for {repr lhs}             (frontier; lit-facts {repr (ctx.litFacts.map (·.2.1))};             branch-facts {repr (ctx.branchFacts.map (fun (t,_,sg,_) => (t, sg)))})"
       let pl ← ctxValProof cfg ctx lhs
       let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
       mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
