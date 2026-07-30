@@ -162,3 +162,18 @@ instead).
 not-handled case). Then Class D (HOW-MANY-QSORT J6 — note deriveNilFact
 is adjacent machinery: the J6 solidify wants the same equation-closure
 at the solidify site), Class C, Class B per the charter.
+
+## Class A inc-3 progress (2026-07-30)
+
+- **LANDED: the equal-nil test swap** — `re_if_equal_nil_test_swap`
+  (EvalLemmas, the re_if_neg_test_swap template with the EQUAL-builtin
+  inner + unshadow premise) + the tagged `findSwapPos` variant +
+  `liftEqualNilTestSwap`; `normalizeSwapsToward` dispatches on the tag.
+- **ORDEREDP-MEMB advanced again**: now at a DP-LEAF discharge frontier —
+  `proveDpFact: omega could not prove the goal (no usable constraints)`
+  — the previously "◌ assumed" fc-contradiction leaf (*1/1.2) is now on
+  the required path and its obligation is LEXORDER-flavored (not linear
+  arithmetic; omega cannot). Next: inspect the leaf's emitted clause +
+  type facts; either the lexorder facts aren't reaching the obligation
+  or the leaf needs a lexorder-aware discharge (the ratified carve-out
+  allows lean-smt where needed; check what ACL2's fc actually derived).

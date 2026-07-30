@@ -3418,6 +3418,25 @@ def liftNegTestSwap (cfg : ReplayConfig) (steps : List PathStep)
     throwError "liftNegTestSwap: reconstructed {repr curL} ≠ {repr root}"
   return (inner, curR)
 
+/-- The EQUAL-NIL variant of `liftNegTestSwap` (sorting-completion-2
+    Class A): `(IF (EQUAL 'NIL c) a b) ⇒ (IF c b a)` via
+    `re_if_equal_nil_test_swap` (EQUAL unshadowed — kernel-decided). -/
+def liftEqualNilTestSwap (cfg : ReplayConfig) (steps : List PathStep)
+    (root sub c a b swapped : SExpr) : MetaM (Expr × SExpr) := do
+  let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
+  let mut inner ← mkAppM ``re_if_equal_nil_test_swap
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr a,
+      reflectSExpr b, hNoEq]
+  let mut curL := sub
+  let mut curR := swapped
+  for st in steps.reverse do
+    inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+    curL := rebuild st curL
+    curR := rebuild st curR
+  unless curL == root do
+    throwError "liftEqualNilTestSwap: reconstructed {repr curL} ≠ {repr root}"
+  return (inner, curR)
+
 /-- The rewrite-if SWAPPED-P bridge (rewrite.lisp:17726-37): walk `rel` from
     `start`; when the rewritten test of an if has the negation shape
     `(IF c 'NIL 'T)`, ACL2 strips the negation and SWAPS the branches before
@@ -3477,20 +3496,34 @@ def bridgeIfNegTestSwap (cfg : ReplayConfig) (rel : List PathFrame)
     applications into the FIRST differing argument (a deterministic zip,
     never a search). Returns the path steps and the redex parts. -/
 partial def findSwapPos (cur target : SExpr) (steps : List PathStep) :
-    Option (List PathStep × SExpr × SExpr × SExpr × SExpr) :=
+    Option (List PathStep × SExpr × Bool × SExpr × SExpr × SExpr) :=
   if cur == target then none
   else
-    let fire? : Option (SExpr × SExpr × SExpr) :=
+    -- the Bool tags the variant: false = the NOT-shape `(IF (IF c 'NIL 'T)
+    -- a b)`; true = the EQUAL-NIL shape `(IF (EQUAL 'NIL c) a b)`
+    -- (sorting-completion-2 Class A) — both swap to `(IF c b a)`
+    let fire? : Option (Bool × SExpr × SExpr × SExpr) :=
       match cur, target with
       | .cons (.atom (.symbol ifS)) (.cons (.cons (.atom (.symbol ifS2))
             (.cons c (.cons qn (.cons qt2 .nil)))) (.cons a (.cons b .nil))),
         .cons (.atom (.symbol ifT')) (.cons c' _) =>
         if ifS.name == "IF" && ifS2.name == "IF" && qn == quoteNil &&
-           qt2 == quoteT && ifT'.name == "IF" && c' == c then some (c, a, b)
+           qt2 == quoteT && ifT'.name == "IF" && c' == c then
+          some (false, c, a, b)
+        else none
+      | _, _ => none
+    let fire? := fire?.orElse fun _ =>
+      match cur, target with
+      | .cons (.atom (.symbol ifS)) (.cons (.cons (.atom (.symbol eqS))
+            (.cons qn (.cons c .nil))) (.cons a (.cons b .nil))),
+        .cons (.atom (.symbol ifT')) (.cons c' _) =>
+        if ifS.name == "IF" && eqS.name == "EQUAL" && qn == quoteNil &&
+           ifT'.name == "IF" && c' == c then
+          some (true, c, a, b)
         else none
       | _, _ => none
     match fire? with
-    | some (c, a, b) => some (steps, cur, c, a, b)
+    | some (v, c, a, b) => some (steps, cur, v, c, a, b)
     | none =>
       match asApp cur, asApp target with
       | some (fn, args), some (fn', args') =>
@@ -3518,11 +3551,13 @@ def normalizeSwapsToward (cfg : ReplayConfig) (cur0 target : SExpr) :
     if cur == target then break
     match findSwapPos cur target [] with
     | none => break
-    | some (steps, sub, c, a, b) =>
+    | some (steps, sub, variant, c, a, b) =>
       let swapped : SExpr :=
         .cons (.atom (.symbol { name := "IF" }))
           (.cons c (.cons b (.cons a .nil)))
-      let (inner, cur') ← liftNegTestSwap cfg steps cur sub c a b swapped
+      let (inner, cur') ←
+        if variant then liftEqualNilTestSwap cfg steps cur sub c a b swapped
+        else liftNegTestSwap cfg steps cur sub c a b swapped
       chain ← some <$> chainAfter chain inner
       cur := cur'
   return (chain, cur)

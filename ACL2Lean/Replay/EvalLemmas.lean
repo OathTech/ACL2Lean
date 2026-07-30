@@ -5033,6 +5033,87 @@ theorem logic_integerp_int (v : SExpr) (h : Logic.integerp v = SExpr.t) :
   | .nil => simp [Logic.integerp, SExpr.t] at h
   | .cons _ _ => simp [Logic.integerp, SExpr.t] at h
 
+/-- The rewrite-if EQUAL-NIL test normalization (sorting-completion-2
+    Class A, ORDEREDP-MEMB): `(IF (EQUAL 'NIL c) a b) ≡ (IF c b a)` —
+    ACL2 strips an equal-nil test and SWAPS the branches, unrecorded.
+    Needs EQUAL unshadowed. -/
+theorem re_if_equal_nil_test_swap (w : World) (env : Env) (c a b : SExpr)
+    (hNoEq : w.defs.get? ({ name := "EQUAL" } : Symbol) = none) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol { name := "IF" }))
+          (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons .nil .nil))
+                (.cons c .nil)))
+            (.cons a (.cons b .nil))))
+      = evalOpt f w env
+        (.cons (.atom (.symbol { name := "IF" }))
+          (.cons c (.cons b (.cons a .nil)))) := by
+  by_cases hconv : ∃ vc N, evalOpt N w env c = some vc
+  · obtain ⟨vc, N, hN⟩ := hconv
+    refine ⟨N + 3, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    obtain ⟨g', rfl⟩ : ∃ g', g = g' + 1 := ⟨g - 1, by omega⟩
+    obtain ⟨g'', rfl⟩ : ∃ g'', g' = g'' + 1 := ⟨g' - 1, by omega⟩
+    have hc1 : evalOpt (g'' + 1) w env c = some vc :=
+      evalOpt_ge_fuel N _ w env c vc hN (by omega)
+    have hc2 : evalOpt (g'' + 2) w env c = some vc :=
+      evalOpt_ge_fuel N _ w env c vc hN (by omega)
+    have hq : evalOpt (g'' + 1) w env
+        (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+        = some SExpr.nil := evalOpt_quote g'' w env .nil
+    have hinner : evalOpt (g'' + 2) w env
+        (.cons (.atom (.symbol { name := "EQUAL" }))
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+            (.cons .nil .nil))
+            (.cons c .nil))) = some (Logic.equal SExpr.nil vc) := by
+      rw [evalOpt_builtin_2 (g'' + 1) w env { name := "EQUAL" } _ c
+        SExpr.nil vc (by decide) hNoEq hq hc1]
+      rfl
+    by_cases hb : vc = SExpr.nil
+    · subst hb
+      have ht : Logic.equal SExpr.nil SExpr.nil = SExpr.t := by
+        simp [Logic.equal]
+      rw [ht] at hinner
+      rw [evalOpt_if_true (g'' + 2) w env _ a b SExpr.t hinner
+            (by simp [Logic.toBool, SExpr.t]),
+          evalOpt_if_false (g'' + 2) w env c b a hc2]
+    · have hnil : Logic.equal SExpr.nil vc = SExpr.nil := by
+        simp only [Logic.equal, beq_iff_eq]
+        rw [if_neg (fun h => hb h.symm)]
+      rw [hnil] at hinner
+      rw [evalOpt_if_false (g'' + 2) w env _ a b hinner,
+          evalOpt_if_true (g'' + 2) w env c b a vc hc2
+            (by cases vc <;> simp_all [Logic.toBool])]
+  · have hnone : ∀ M, evalOpt M w env c = none := by
+      intro M
+      rcases h : evalOpt M w env c with _ | vc
+      · rfl
+      · exact absurd ⟨vc, M, h⟩ hconv
+    refine ⟨2, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    have hinner : ∀ M, evalOpt M w env
+        (.cons (.atom (.symbol { name := "EQUAL" }))
+          (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+            (.cons .nil .nil))
+            (.cons c .nil))) = none := by
+      intro M
+      cases M with
+      | zero => rfl
+      | succ M' =>
+        show evalOptStep (evalOpt M') w env _ = none
+        unfold evalOptStep
+        simp only [Symbol.isNamed, SExpr.toList?]
+        cases hM : evalOpt M' w env
+            (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) with
+        | none => simp [hM, hnone M']
+        | some v => simp [hM, hnone M']
+    show evalOptStep (evalOpt g) w env _ = evalOptStep (evalOpt g) w env _
+    unfold evalOptStep
+    simp only [Symbol.isNamed, SExpr.toList?]
+    simp [hinner g, hnone g]
+
 /-- `rewrite-if`'s SWAPPED-P normalization (rewrite.lisp:17726-37):
     when the rewritten if-TEST has the negation shape `(IF c 'NIL 'T)`, ACL2
     strips it and SWAPS the branches before descending — unconditionally, and
