@@ -36,6 +36,10 @@
                         [FIRST VALIDATION-BOOK mirror — rung 2's ground
                         truth; name-generic drv_tp_len + corr_mapconst_enc,
                         validator/lifter arc inc-0]
+   18. p5-or-shape-flipped  duppRec (e::tl) → duppRec (e::e::tl)
+                        [chain2 schematic (comparison-generic) + boolRep +
+                        implies decode + junk-disjunct elimination,
+                        validator/lifter arc inc-1]
   PROVED (via the HAND replayed statement — driver upgrade pending):
     -  my-len-my-app   ACL2Lean/Imported/SimpleWorld.lean (the original)
     -  nat-refl        Tests/DriverTests.lean `native_nat_refl` (trivial, driver)
@@ -796,6 +800,161 @@ theorem p7_dub_len_native_driver (l : List SExpr) :
       (by decide) hlhs hrhs (p7TargetReplayed_uncond e)
   exact_mod_cast hnat
 
+/-! ## Entry — `p5-or-shape-flipped`: the SECOND validation-book mirror
+(validator/lifter arc inc-1)
+
+`DUPP-REP-MID` — `(implies (and (consp x) (equal (car x) e) (dupp x))
+(or (equal x 'junk) (dupp (cons e x))))`, replayed UNCONDITIONAL — lifted
+to the native fact: prepending an element equal to the head of an
+adjacent-equal chain keeps it a chain. Exercises the machinery p7 did not:
+the `chain2` schematic (comparison-generic — `dupp` is EQUAL's instance),
+`boolRep`/`boolEnc`, the IMPLIES hypothesis decode, and the or-disjunct
+elimination (`enc l` is never the symbol `JUNK`). -/
+
+private def p5MirrorLog : String :=
+  include_str "../../acl2_samples/pattern-tests/p5-or-shape-flipped.proof-log"
+
+def p5Dev : Development :=
+  (((ProofLog.parse p5MirrorLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world p5WorldD from p5Dev
+
+def duppRepReplayed := driver_replayed% p5Dev p5WorldD "dupp-rep-mid"
+
+private def p5eSym : Symbol := { package := "ACL2", name := "E" }
+private def p5xSym : Symbol := { package := "ACL2", name := "X" }
+private def p5eT : SExpr := .atom (.symbol { name := "E" })
+private def p5xT : SExpr := .atom (.symbol { name := "X" })
+private def junkQ : SExpr :=
+  .cons (.atom (.symbol { name := "QUOTE" }))
+    (.cons (.atom (.symbol { name := "JUNK" })) .nil)
+private def junkA : SExpr := .atom (.symbol { name := "JUNK" })
+/-- `dupp`'s native content: the EQUAL instance of the chain2 fold. -/
+def duppRec : List SExpr → Bool := chain2Rec (· == ·)
+
+private theorem callBuiltin_equal_bool (a b : SExpr) :
+    callBuiltin "EQUAL" [a, b] = some (boolEnc (a == b)) := by
+  rw [callBuiltin_equal]
+  cases h : a == b <;> simp [Logic.equal, h, boolEnc]
+
+/-- The dupp correspondence — ONE instantiation of the schematic. -/
+private theorem corr_dupp (xs : List SExpr) (e' : Env) (a : SExpr)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f p5WorldD e' a = some (enc xs)) :
+    ∃ N, ∀ f ≥ N, evalOpt f p5WorldD e' (app1 "DUPP" a)
+      = some (boolEnc (duppRec xs)) :=
+  corr_chain2_enc p5WorldD "EQUAL" "DUPP" (· == ·) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    callBuiltin_equal_bool xs e' a ha
+
+/-- ENTRY, PROVED — the p5 MIRROR: prepending an element equal to the head
+    preserves the adjacent-equal chain, THROUGH the replayed DUPP-REP-MID
+    (implies decode; the `junk` disjunct dies because an encoded list is
+    never that symbol). -/
+theorem p5_dupp_prepend_native_driver (e : SExpr) (tl : List SExpr)
+    (h : duppRec (e :: tl) = true) : duppRec (e :: e :: tl) = true := by
+  let env : Env := (({} : Env).insert p5eSym e).insert p5xSym (enc (e :: tl))
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f p5WorldD env p5xT = some (enc (e :: tl)) :=
+    conv_var_of_get _ _ _ _ (by
+      simp only [env, Env.get?_insert]
+      rw [if_pos (by decide)])
+  have he : ∃ N, ∀ f ≥ N, evalOpt f p5WorldD env p5eT = some e :=
+    conv_var_of_get _ _ _ _ (by
+      simp only [env, Env.get?_insert]
+      rw [if_neg (by decide), if_pos (by decide)])
+  have hconsp : ∃ N, ∀ f ≥ N, evalOpt f p5WorldD env (conspT p5xT)
+      = some (Logic.consp (.cons e (enc tl))) :=
+    conv_builtin1 p5WorldD env { name := "CONSP" } p5xT _ _ (by decide)
+      (by decide) hx (callBuiltin_consp _)
+  have hcar : ∃ N, ∀ f ≥ N, evalOpt f p5WorldD env (carT p5xT) = some e := by
+    have hcar0 := conv_builtin1 p5WorldD env { name := "CAR" } p5xT
+      (.cons e (enc tl)) (Logic.car (.cons e (enc tl))) (by decide)
+      (by decide) hx (callBuiltin_car _)
+    simpa [Logic.car] using hcar0
+  have heqcar : ∃ N, ∀ f ≥ N,
+      evalOpt f p5WorldD env (equalT (carT p5xT) p5eT)
+      = some (Logic.equal e e) :=
+    conv_equalT p5WorldD env (carT p5xT) p5eT e e (by decide) hcar he
+  have hdupx : ∃ N, ∀ f ≥ N, evalOpt f p5WorldD env (app1 "DUPP" p5xT)
+      = some (boolEnc (duppRec (e :: tl))) :=
+    corr_dupp (e :: tl) env p5xT hx
+  -- the antecedent: (IF (CONSP X) (IF (EQUAL (CAR X) E) (DUPP X) 'NIL) 'NIL)
+  -- — both tests TRUE by construction, so it converges to dupp's value
+  have hanteInner : ∃ N, ∀ f ≥ N,
+      evalOpt f p5WorldD env
+        (.cons (.atom (.symbol { name := "IF" }))
+          (.cons (equalT (carT p5xT) p5eT)
+            (.cons (app1 "DUPP" p5xT)
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons .nil .nil)) .nil))))
+      = some (boolEnc (duppRec (e :: tl))) := by
+    obtain ⟨Ni, hi⟩ := re_if_true p5WorldD env (equalT (carT p5xT) p5eT)
+      _ _ (Logic.equal e e) (boolEnc (duppRec (e :: tl))) heqcar
+      (by simp [Logic.equal, SExpr.t, Logic.toBool]) hdupx
+    obtain ⟨Nd, hd⟩ := hdupx
+    exact ⟨max Ni Nd, fun f hf => (hi f (by omega)).trans (hd f (by omega))⟩
+  have hante : ∃ N, ∀ f ≥ N,
+      evalOpt f p5WorldD env
+        (.cons (.atom (.symbol { name := "IF" }))
+          (.cons (conspT p5xT)
+            (.cons (.cons (.atom (.symbol { name := "IF" }))
+              (.cons (equalT (carT p5xT) p5eT)
+                (.cons (app1 "DUPP" p5xT)
+                  (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                    (.cons .nil .nil)) .nil))))
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons .nil .nil)) .nil))))
+      = some (boolEnc (duppRec (e :: tl))) := by
+    obtain ⟨Ni, hi⟩ := re_if_true p5WorldD env (conspT p5xT) _ _
+      (Logic.consp (.cons e (enc tl))) (boolEnc (duppRec (e :: tl)))
+      hconsp rfl hanteInner
+    obtain ⟨Na, ha⟩ := hanteInner
+    exact ⟨max Ni Na, fun f hf => (hi f (by omega)).trans (ha f (by omega))⟩
+  -- the consequent: (IF (EQUAL X 'JUNK) (EQUAL X 'JUNK) (DUPP (CONS E X)))
+  -- — the test is FALSE (an encoded list is never the JUNK symbol)
+  have hjunk : ∃ N, ∀ f ≥ N, evalOpt f p5WorldD env junkQ = some junkA :=
+    ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                       exact evalOpt_quote g p5WorldD env _⟩
+  have heqjunk : ∃ N, ∀ f ≥ N,
+      evalOpt f p5WorldD env (equalT p5xT junkQ) = some SExpr.nil := by
+    have h0 := conv_equalT p5WorldD env p5xT junkQ (enc (e :: tl)) junkA
+      (by decide) hx hjunk
+    simpa [Logic.equal, enc, junkA] using h0
+  have hconsex : ∃ N, ∀ f ≥ N,
+      evalOpt f p5WorldD env (consT p5eT p5xT)
+      = some (enc (e :: e :: tl)) := by
+    have h0 := conv_builtin2 p5WorldD env { name := "CONS" } p5eT p5xT
+      e (enc (e :: tl)) (Logic.cons e (enc (e :: tl))) (by decide)
+      (by decide) he hx (callBuiltin_cons _ _)
+    simpa [Logic.cons, enc] using h0
+  have hdupcons : ∃ N, ∀ f ≥ N,
+      evalOpt f p5WorldD env (app1 "DUPP" (consT p5eT p5xT))
+      = some (boolEnc (duppRec (e :: e :: tl))) :=
+    corr_dupp (e :: e :: tl) env (consT p5eT p5xT) hconsex
+  have hcons' : ∃ N, ∀ f ≥ N,
+      evalOpt f p5WorldD env
+        (.cons (.atom (.symbol { name := "IF" }))
+          (.cons (equalT p5xT junkQ)
+            (.cons (equalT p5xT junkQ)
+              (.cons (app1 "DUPP" (consT p5eT p5xT)) .nil))))
+      = some (boolEnc (duppRec (e :: e :: tl))) := by
+    obtain ⟨Ni, hi⟩ := re_if_false p5WorldD env (equalT p5xT junkQ)
+      (equalT p5xT junkQ) (app1 "DUPP" (consT p5eT p5xT))
+      (boolEnc (duppRec (e :: e :: tl))) heqjunk hdupcons
+    obtain ⟨Nd, hd⟩ := hdupcons
+    exact ⟨max Ni Nd, fun f hf => (hi f (by omega)).trans (hd f (by omega))⟩
+  -- the whole formula's value, pinned truthy by the replayed statement
+  have himp := conv_impliesT p5WorldD env _ _
+    (boolEnc (duppRec (e :: tl))) (boolEnc (duppRec (e :: e :: tl)))
+    (by decide) hante hcons'
+  have hval : Logic.implies (boolEnc (duppRec (e :: tl)))
+      (boolEnc (duppRec (e :: e :: tl))) = SExpr.t :=
+    implies_t_of_ne_nil (ne_nil_of_evtrue_conv (duppRepReplayed env) himp)
+  have hconc := truthy_of_implies_t hval (by rw [h]; rfl)
+  cases hc : duppRec (e :: e :: tl) with
+  | true => rfl
+  | false => rw [hc] at hconc; exact absurd hconc (by decide)
+
 -- BUILD-FAILING axiom gate (audit #4; completed to ALL native entries in
 -- audit #5): `#print axioms` only prints — this run_cmd THROWS if any native
 -- entry ever acquires an axiom beyond the classical trio (sorryAx,
@@ -806,7 +965,8 @@ theorem p7_dub_len_native_driver (l : List SExpr) :
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
-  for n in [``ACL2.Imported.Mirrors.p7_dub_len_native_driver,
+  for n in [``ACL2.Imported.Mirrors.p5_dupp_prepend_native_driver,
+            ``ACL2.Imported.Mirrors.p7_dub_len_native_driver,
             ``ACL2.Imported.Mirrors.perm_cons_native_driver,
             ``ACL2.Imported.Mirrors.perm_cons_native_perm_driver,
             ``ACL2.Imported.Mirrors.perm_symmetric_native_driver,
