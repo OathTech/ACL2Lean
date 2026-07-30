@@ -78,3 +78,32 @@ the linear-in-simplify emission gap (p6's tripwire), the perm-lane
 audit-disclosed items (taut-close commuted-IFF/double-neg/dedup arms,
 branch-substitution condition/remove-flg/lit-position emission, the
 :RULES cr-rune per-step emission).
+
+## Class A diagnosis (inc-1, 2026-07-30 — COMPLETE; one fix landed)
+
+- **FIXED (25e436a): the checked-hoist asymmetry.** ORDEREDP-APPEND's
+  LEXORDER-TRANSITIVE relief was stranded by an env-crossed segFact
+  (leaked from the parent elim walk, typed in the nested bindArgsOver
+  env) satisfying the hoist's UNCHECKED in-scope test while the
+  consumer's CHECKED lookup refused it. The hoist's .term/.equivClass
+  arms now use litFactByTermChecked?. The row ADVANCED to a new class:
+- **ORDEREDP-APPEND now blocks on the NESTED if-finish/combined strip
+  composition** — the ALL-REL iff-unfold child sits under TWO nested
+  combined nodes; `relativizeAndStrip` documents this composition as
+  not-handled (branch frame interleaved between residual boundary
+  frames) and fails closed. The build: compose strips across nested
+  combined children (the rung-1 chainPrefix machinery's second story).
+- **ORDEREDP-MEMB / TRUE-LISTP-MSORT**: solidify/type-alist nodes
+  `E ⇒ 'NIL` / `MT ⇒ 'NIL` — bare-VARIABLE entries whose source is not
+  in the walk's fact lists and not a hoistable later literal at the
+  failing site. Source unidentifiable from the record:
+- **ORDERED-PERMS**: `(PERM (CDR (CDR A)) (CDR (CDR A))) ⇒ 'T` — perm
+  REFLEXIVITY on the type-alist; the record's :RUNES is the CUMULATIVE
+  ttree ((:DEFINITION RM) (:DEFINITION MEMB) (:FAKE-RUNE-FOR-TYPE-SET))
+  — no entry provenance. CONFIRMS the expected landing: the fork must
+  EMIT the type-alist ENTRY's provenance (which literal/mechanism
+  created the matched entry) at the solidify/type-alist and
+  relieve-hyp/(free-)type-alist push sites. Instrumentation increment:
+  fork emission → recapture-all → Lean consumption keyed on the emitted
+  source (clause literal index / equivalence-rune reflexivity / FC
+  conclusion), replacing the current search-the-fact-lists recipes.
