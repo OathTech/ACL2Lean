@@ -162,6 +162,25 @@ _Last updated: 2026-07-29._
 > audit F8); (e) the
 > unemitted-test frontier message now self-locates (running term +
 > in-scope facts).
+> **VALIDATOR/LIFTER ARC (branch `mdd/validator-lifter`, opened
+> 2026-07-30) — IN PROGRESS; GOVERNS THE CURRENT WORK.** Charter:
+> docs/plans/2026-07-30_validator-lifter-arc.md (direction MDD-approved
+> 2026-07-30; detail sequencing per its "Sequencing" section). Two
+> workstreams: W1 = the validation-surface survey's 15-item gap list
+> (statement pins for unpinned green rows, termination-status visibility,
+> axiom gates, tamper/diff-test/gate tightening); W2 = lifter
+> industrialization (#63 a-c: the mirror coverage gate, Rep
+> transformers + exec-def generation, the lift_decode elab), driving
+> examples p7 → p5 → p3 mirrors, second exercise the PENDING natives.
+> Terminology per CLAUDE.md (2026-07-30): mirror = native theorem
+> exclusively; replayed statement = the embedded EvTrue theorem.
+> INC-0 (next): lift_decode groundwork with p7's mirror as the driving
+> example — Implements correspondences for LN (len-class, intRep) and
+> DUB (list-producer), the native statement
+> `(dubL l).length = l.length`, assembly via the existing kit; extract
+> the schematic parts into the elab as the second book (p5) demands
+> them.
+
 > PRE-MERGE AUDIT ACTIONED (2026-07-30, 2 Opus inside/outside; ZERO
 > soundness findings from both; outside verdict MERGE-with-conditions).
 > Convergent top finding fixed pre-merge: the congruence-license
