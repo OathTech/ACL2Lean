@@ -32,6 +32,10 @@
                        tower; + isPerm_equivalence_driver bundle  [replayed_peel_guard]
   THE WHOLE PERM BOOK IS IMPORTED: 8 unconditional replayed statements, 8 native facts,
   zero hypotheses (lifter sprint 2026-07-06).
+   17. p7-cong-collapse (l.map (fun _ => '0)).length = l.length
+                        [FIRST VALIDATION-BOOK mirror — rung 2's ground
+                        truth; name-generic drv_tp_len + corr_mapconst_enc,
+                        validator/lifter arc inc-0]
   PROVED (via the HAND replayed statement — driver upgrade pending):
     -  my-len-my-app   ACL2Lean/Imported/SimpleWorld.lean (the original)
     -  nat-refl        Tests/DriverTests.lean `native_nat_refl` (trivial, driver)
@@ -727,6 +731,71 @@ theorem true_listp_flatten_native_driver (env : Env) :
 
 #print axioms true_listp_flatten_native_driver
 
+/-! ## Entry — `p7-cong-collapse`: the first VALIDATION-BOOK mirror
+(validator/lifter arc inc-0, 2026-07-30)
+
+Rung 2's ground truth: `P7-TARGET` — `(equal (ln (dub x)) (ln x))`, the
+theorem whose replay validates the congruence collapse — lifted to the
+native fact `(l.map (fun _ => '0)).length = l.length`. The chain: the real
+p7 log → parse → reconstruct → derived world → the driver's conditional
+replayed statement (`tp:LN` only) → discharged by the NAME-GENERIC
+`drv_tp_len` (the industrialization dividend: LN's body is exactly
+`lenBody "LN"`) → instantiated at an encoded list → `corr_mapconst_enc` ∘
+`corr_len_enc` → `native_of_replayed_equal intRep`. MIRRORS establish that
+a replayed theorem means what the user intends (CLAUDE.md terminology,
+2026-07-30) — this is the first for a pattern-test book. -/
+
+private def p7Log : String :=
+  include_str "../../acl2_samples/pattern-tests/p7-cong-collapse.proof-log"
+
+def p7Dev : Development :=
+  (((ProofLog.parse p7Log).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world p7WorldD from p7Dev
+
+def p7TargetReplayedCond := driver_replayed% p7Dev p7WorldD "p7-target"
+
+private def q0Atom : SExpr := .atom (.number (.int 0))
+private def xVarT : SExpr := .atom (.symbol { name := "X" })
+private def p7xSym : Symbol := { package := "ACL2", name := "X" }
+private def lnDubT : SExpr := app1 "LN" (app1 "DUB" xVarT)
+private def lnXT : SExpr := app1 "LN" xVarT
+
+/-- The replayed statement, UNCONDITIONAL: the sole `tp:LN` hypothesis is
+    discharged by the name-generic len-class discharger. -/
+theorem p7TargetReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f p7WorldD env
+      (equalT lnDubT lnXT) = some v ∧ v ≠ SExpr.nil :=
+  p7TargetReplayedCond env
+    (drv_tp_len p7WorldD "LN" (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+
+/-- The MIRROR: `(l.map (fun _ => '0)).length = l.length` — proved FROM the
+    replayed P7-TARGET (via `Int` lengths and `Nat.cast` injectivity). -/
+theorem p7_dub_len_native_driver (l : List SExpr) :
+    (l.map (fun _ => q0Atom)).length = l.length := by
+  let e : Env := ({} : Env).insert p7xSym (enc l)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f p7WorldD e xVarT = some (enc l) :=
+    conv_var_of_get p7WorldD e p7xSym (enc l) (by simp [e])
+  have hdub : ∃ N, ∀ f ≥ N, evalOpt f p7WorldD e (app1 "DUB" xVarT)
+      = some (enc (l.map (fun _ => q0Atom))) :=
+    corr_mapconst_enc p7WorldD q0Atom "DUB" (by decide) (by decide)
+      (by decide) (by decide) (by decide) l e xVarT hx
+  have hlhs : ∃ N, ∀ f ≥ N, evalOpt f p7WorldD e lnDubT
+      = some (.atom (.number (.int (l.map (fun _ => q0Atom)).length))) :=
+    corr_len_enc p7WorldD "LN" (by decide) (by decide) (by decide)
+      (by decide) (by decide) (l.map (fun _ => q0Atom)) e
+      (app1 "DUB" xVarT) hdub
+  have hrhs : ∃ N, ∀ f ≥ N, evalOpt f p7WorldD e lnXT
+      = some (.atom (.number (.int l.length))) :=
+    corr_len_enc p7WorldD "LN" (by decide) (by decide) (by decide)
+      (by decide) (by decide) l e xVarT hx
+  have hnat : ((l.map (fun _ => q0Atom)).length : Int) = (l.length : Int) :=
+    native_of_replayed_equal p7WorldD e intRep lnDubT lnXT _ _
+      (by decide) hlhs hrhs (p7TargetReplayed_uncond e)
+  exact_mod_cast hnat
+
 -- BUILD-FAILING axiom gate (audit #4; completed to ALL native entries in
 -- audit #5): `#print axioms` only prints — this run_cmd THROWS if any native
 -- entry ever acquires an axiom beyond the classical trio (sorryAx,
@@ -737,7 +806,8 @@ theorem true_listp_flatten_native_driver (env : Env) :
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
-  for n in [``ACL2.Imported.Mirrors.perm_cons_native_driver,
+  for n in [``ACL2.Imported.Mirrors.p7_dub_len_native_driver,
+            ``ACL2.Imported.Mirrors.perm_cons_native_driver,
             ``ACL2.Imported.Mirrors.perm_cons_native_perm_driver,
             ``ACL2.Imported.Mirrors.perm_symmetric_native_driver,
             ``ACL2.Imported.Mirrors.memb_rm_native_driver,
