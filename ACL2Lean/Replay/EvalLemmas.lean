@@ -3786,6 +3786,22 @@ theorem logic_nil_of_trueListp_consp_nil {v : SExpr}
       Logic.trueListp (SExpr.atom a) = SExpr.nil) ht
   | cons a b => simp [Logic.consp, SExpr.t] at hc
 
+/-- The cdr of a true-list is a true-list (exact `t` — the type-set
+    closure the TRUE-LISTP/CDR recognizer verdict consumes). -/
+theorem logic_trueListp_cdr_t {v : SExpr}
+    (h : Logic.trueListp v ≠ SExpr.nil) :
+    Logic.trueListp (Logic.cdr v) = SExpr.t := by
+  cases v with
+  | nil => rfl
+  | atom a =>
+    exact absurd (by simp [Logic.trueListp] :
+      Logic.trueListp (SExpr.atom a) = SExpr.nil) h
+  | cons a d =>
+    have hd : Logic.trueListp d ≠ SExpr.nil := by
+      simpa [Logic.trueListp] using h
+    rcases (Logic.trueListp_ne_nil_iff d).mp hd with ht
+    simpa [Logic.cdr] using ht
+
 /-- `cdr` of a NON-cons defaults to `nil`. -/
 theorem logic_cdr_of_consp_nil {v : SExpr} (h : Logic.consp v = SExpr.nil) :
     Logic.cdr v = SExpr.nil := by

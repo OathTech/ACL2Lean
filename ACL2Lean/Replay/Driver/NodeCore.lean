@@ -1883,7 +1883,51 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
             mkAppM ``re_val_cast
               #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, h]
           | none =>
-            throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict} \
+            -- TRUE-LISTP/CDR closure (sorting-completion-2 Class A,
+            -- ORDERED-PERMS): (TRUE-LISTP (CDR u)) ⇒ 'T from an in-scope
+            -- TRUTHY true-listp fact on u (a false `(not (true-listp u))`
+            -- lit/seg/branch fact) — ACL2's type-set closure, value-level
+            -- (`logic_trueListp_cdr_t`).
+            if rs.name == "TRUE-LISTP" && verdict == SExpr.t
+                && fs.name == "CDR" then do
+              let .cons _ (.cons (.cons _ (.cons u .nil)) .nil) := term
+                | throwError "replayRecognizer: TRUE-LISTP/CDR closure — \
+                    unexpected term shape {repr term}"
+              let notTlpU : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+                (.cons (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                  (.cons u .nil)) .nil)
+              let tlpU : SExpr := .cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                (.cons u .nil)
+              let ctxU ← pinTermOpaques cfg cfg.envExpr ctx tlpU
+              let vTlpU ← ctxValExpr cfg ctxU tlpU
+              let sources : List (SExpr × Expr) :=
+                ctxU.segFacts ++ ctxU.litFacts.map (fun (_, l, h) => (l, h)) ++
+                ctxU.branchFacts.filterMap (fun (bt, _, sign, h) =>
+                  if !sign then some (bt, h) else none)
+              let mut hFact? : Option Expr := none
+              for (st, hf) in sources do
+                if hFact?.isNone && st == notTlpU then
+                  if ← isDefEq (← inferType hf)
+                      (← mkEq (mkApp (mkConst ``Logic.not) vTlpU)
+                        (mkConst ``SExpr.nil)) then
+                    hFact? := some hf
+              let some hf := hFact?
+                | throwError "replayRecognizer: TRUE-LISTP/CDR closure — no \
+                    truthy true-listp fact for {repr u} in scope (frontier)"
+              let hne ← mkAppM ``logic_not_nil_ne #[vTlpU, hf]
+              unless vTlpU.isAppOfArity ``Logic.trueListp 1 do
+                throwError "replayRecognizer: value of {repr tlpU} is not \
+                    (Logic.trueListp _)"
+              let hT ← mkAppM ``logic_trueListp_cdr_t #[hne]
+              unless ← isDefEq v (mkApp (mkConst ``Logic.trueListp)
+                  (mkApp (mkConst ``Logic.cdr) vTlpU.appArg!)) do
+                throwError "replayRecognizer: value of {repr term} does not \
+                    match (Logic.trueListp (Logic.cdr _))"
+              mkAppM ``re_val_cast
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE,
+                  p, hT]
+            else
+              throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict} \
                         (no TP hypothesis for {fs.name})"
     else
       let p ← ctxValProof cfg ctx term
