@@ -941,3 +941,27 @@ elab "s2b_beta_books_pin% " : term => do
   return mkConst ``True.intro
 
 def s2bBetaBooksPin : True := s2b_beta_books_pin%
+
+
+-- BUILD-FAILING axiom gate (validator/lifter arc W1 item 7, survey gap:
+-- the `#print axioms` above only PRINT — these constants bypass
+-- `Runner.tryReplay`'s axiom filter entirely, and their proofs route
+-- through real tactics. The NativeMirrors throwing-run_cmd pattern.)
+open Lean in
+run_cmd Lean.Elab.Command.liftCoreM do
+  let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+  for n in [``ACL2.Tests.Driver.s2_replayed,
+            ``ACL2.Tests.Driver.s3_replayed,
+            ``ACL2.Tests.Driver.consEq_replayed,
+            ``ACL2.Tests.Driver.builtinsEq_replayed,
+            ``ACL2.Tests.Driver.pair_replayed,
+            ``ACL2.Tests.Driver.sq_real_replayed,
+            ``ACL2.Tests.Driver.my_len_my_app_real_replayed,
+            ``ACL2.Tests.Driver.native_nat_refl,
+            ``ACL2.Tests.Driver.perm_cons_real_replayed,
+            ``ACL2.Tests.Driver.perm_transitive_real_replayed,
+            ``fsq_unfolds_real_replayed] do
+    let axs ← collectAxioms n
+    let bad := axs.filter (fun a => !allowed.contains a)
+    unless bad.isEmpty do
+      throwError "driver-tests axiom gate: {n} uses forbidden axioms {bad}"
