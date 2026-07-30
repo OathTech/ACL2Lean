@@ -590,7 +590,7 @@ theorem drv_total_app (w : World)
   exact dis_app_total w h_app h_no_consp h_no_cdr h_no_car h_no_cons e' a0 a1
     ⟨N0, fun f hf => ⟨v0, hv0 f hf⟩⟩ ⟨N1, fun f hf => ⟨v1, hv1 f hf⟩⟩
 
-/-- The mirror for `world`, UNCONDITIONAL (my-app totality discharged). -/
+/-- The replayed statement for `world`, UNCONDITIONAL (my-app totality discharged). -/
 theorem app_assoc_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → evalOpt f world env app_assocFormula = some SExpr.t :=
   app_assoc_generic world env world_has_app world_no_equal world_no_consp
@@ -617,18 +617,18 @@ private theorem corr_app_enc (w : World)
     h_no_consp h_no_cdr h_no_car h_no_cons
 
 /-- The native assembly, PARAMETERIZED by the world and the mirror: any proof
-    of the mirror statement over a world carrying the `app` definition (hand or
+    of the replayed statement over a world carrying the `app` definition (hand or
     log-derived, hand-proved or driver-replayed) yields the native theorem.
-    The mirror is consumed at exactly ONE point — the seam the catalog
+    The replayed statement is consumed at exactly ONE point — the seam the catalog
     (`Imported/NativeMirrors`) plugs the driver's mirror into. -/
-theorem app_assoc_native_of_mirror (w : World)
+theorem app_assoc_native_of_replayed (w : World)
     (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
     (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (hmirror : ∀ env : Env,
+    (hreplayed : ∀ env : Env,
       ∃ N, ∀ f, f ≥ N → ∃ v,
         evalOpt f w env app_assocFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys zs : List SExpr) :
@@ -657,19 +657,19 @@ theorem app_assoc_native_of_mirror (w : World)
     (corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons xs e aT bT ys ha hb) hc
   obtain ⟨NR, hR⟩ := corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons xs e aT (appOf bT cT) (ys ++ zs) ha
     (corr_app_enc w h_app h_no_consp h_no_cdr h_no_car h_no_cons ys e bT cT zs hb hc)
-  -- the spine ender: the mirror's equal ⇒ t + listRep decode both sides
-  exact ACL2.Lifting.native_of_mirror_equal w e ACL2.Lifting.listRep
+  -- the spine ender: the replayed statement's equal ⇒ t + listRep decode both sides
+  exact ACL2.Lifting.native_of_replayed_equal w e ACL2.Lifting.listRep
     (appOf (appOf aT bT) cT) (appOf aT (appOf bT cT))
-    ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs)) h_no_equal ⟨NL, hL⟩ ⟨NR, hR⟩ (hmirror e)
+    ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs)) h_no_equal ⟨NL, hL⟩ ⟨NR, hR⟩ (hreplayed e)
 
 
 /-- **The native theorem**, idiomatic Lean (`List.append_assoc`), proven via
-    the ACL2 oracle — here instantiated with the HAND mirror. -/
+    the ACL2 oracle — here instantiated with the HAND replayed statement. -/
 theorem app_assoc_native (xs ys zs : List SExpr) :
     (xs ++ ys) ++ zs = xs ++ (ys ++ zs) :=
-  app_assoc_native_of_mirror world world_has_app world_no_consp world_no_cdr
+  app_assoc_native_of_replayed world world_has_app world_no_consp world_no_cdr
     world_no_car world_no_cons world_no_equal
-    -- the HAND mirror pins exact t; inject into the truthiness form (G2)
+    -- the HAND replayed statement pins exact t; inject into the truthiness form (G2)
     (fun env => evtrue_of_eq_t (app_assoc_uncond env)) xs ys zs
 
 end ACL2.Worlds.AppAssoc

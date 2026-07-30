@@ -3192,7 +3192,7 @@ theorem re_conv_quote (w : World) (env : Env) (v : SExpr) :
 
 /-- Convergence (v-fixed) of a VARIABLE: `(var s)` converges to its binding (or `nil`
     if unbound, provided `s` is not the constant `t`) in ANY environment — the
-    variable-convergence fact the mirror theorem's `∀ env` quantification needs. -/
+    variable-convergence fact the replayed statement's `∀ env` quantification needs. -/
 theorem re_conv_var (w : World) (env : Env) (s : Symbol) (h_not_t : s.isNamed "T" = false) :
     ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env (.atom (.symbol s)) = some v := by
   match h : env.get? s with

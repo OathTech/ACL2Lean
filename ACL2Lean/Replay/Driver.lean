@@ -2,7 +2,7 @@
   Proof-producing driver (stage 7 — the eventual `acl2_replay`).
 
   This is the schematic replay driver: it walks the reconstructed proof tree and
-  emits a Lean `Expr` proving the mirror theorem, by instantiating — per node —
+  emits a Lean `Expr` proving the replayed statement, by instantiating — per node —
   the per-rune combinator the hand proofs (`Imported/SimpleWorld.lean`,
   `Imported/AppAssoc.lean`) were written to be instances of. See
   `docs/plans/2026-06-08_driver-build-plan.md` and
@@ -18,7 +18,7 @@
   `replayNode : … → ProofNode → MetaM Expr` — reading every term/rune/subst/scheme
   FROM the tree. Nothing is transcribed or pre-staged: the only inputs are the
   parsed `Development`/`ClauseProof` (from `ProofLog.parse → buildDevelopment`) and
-  the `World` + mirror statement (from `gen-world`).
+  the `World` + replayed statement (from `gen-world`).
 
   FAIL-CLOSED, NEVER `sorry`. Each `replay*` either returns a real, kernel-checkable
   `Expr` of the node's exact goal, or **throws** — so an unimplemented frontier makes
@@ -30,8 +30,8 @@
   - S1 — dummy driver, correct type, fail-closed (`throwError` on every node). Proven
     by `#check` of the types + a NEGATIVE test that it fails cleanly on a tree.
   - S2 — one `equal-self` node (hand-built minimal `ClauseProof` value) → a real
-    sorry-free mirror theorem, `#print axioms` clean. Solves the proof-object plumbing
-    (reflection, fuel wrapper, mirror matching, tactic) on the minimal case.
+    sorry-free replayed statement, `#print axioms` clean. Solves the proof-object plumbing
+    (reflection, fuel wrapper, statement matching, tactic) on the minimal case.
   - S3+ — grow by tree complexity (exec-counterpart, congruence, induction/IH), each
     driven by a progressively larger hand-built then real parsed tree.
 

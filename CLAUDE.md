@@ -42,7 +42,7 @@ those failures are invisible to the Lean kernel (see the trust note below).
    proving*. **As wired today this is the PROOF-LOG path, not `gen-world`**
    (audit 2026-07-26 F5b — the earlier text here mis-aimed auditors): the
    certified `World` is `Development.toWorld` (from the log's `:DEFUN`
-   events, provenance-gated per BUG-019) and the mirror statement is
+   events, provenance-gated per BUG-019) and the replayed statement is
    `EvTrue w env (disjoinTerm root.inputClause)` over the log's root Goal
    clause (`Replay/Driver/Harness.lean`) — i.e. **the statement comes from
    the same untrusted fork emission as the proof**, anchored to the `.lisp`
@@ -56,11 +56,11 @@ those failures are invisible to the Lean kernel (see the trust note below).
    prerequisite for that wiring.
 6. **ACL2-logic interpreter** — `EvalOpt.lean` (`evalOpt`, fuel-bounded) +
    `Logic.lean` (the primitives): the Lean semantic model that *defines what the
-   mirror theorem means*. If this diverges from ACL2's semantics, a "correct"
+   replayed statement means*. If this diverges from ACL2's semantics, a "correct"
    proof proves the wrong thing. **Long-term fidelity objective — TOTAL ACL2
    MASQUERADE:** this interpreter should be indistinguishable from real ACL2 as
    a black box (feed randomly-generated ACL2 programs to both, string-compare
-   output). Because `evalOpt` *defines* the mirror's meaning, any divergence is
+   output). Because `evalOpt` *defines* the replayed statement's meaning, any divergence is
    a latent soundness hole — so the interpreter is run as a PEER of ACL2 (same
    interface: a stream of forms in via stdin, one value per form out —
    `acl2lean eval < forms` mirrors `acl2 < forms`) and differentially tested
@@ -72,12 +72,18 @@ those failures are invisible to the Lean kernel (see the trust note below).
 7. **Proof-object builder** — `Replay/ProofProducer.lean` (a `MetaM` procedure,
    the eventual `acl2_replay` tactic) + `Replay/EvalLemmas.lean` (atomic step
    lemmas): recurses the proof tree and emits a Lean **`Expr`** discharging the
-   mirror theorem; the **Lean kernel** then checks it.
+   replayed statement; the **Lean kernel** then checks it.
 
-**End goal — ACL2 as an untrusted Lean tactic.** The reason to produce the mirror
-theorem is to discharge a *native Lean theorem* we actually want. Given a desired
+**End goal — ACL2 as an untrusted Lean tactic.** The reason to produce the replayed
+statement is to discharge a *native Lean theorem* we actually want — a **MIRROR**.
+Terminology (fixed 2026-07-30): a *replayed statement* is the deep-embedded
+theorem `EvTrue w env ⟦formula⟧` over `evalOpt`; a *mirror* is ONLY and
+exclusively the Lean-idiomatic native theorem proved FROM a replayed statement
+(`Imported/`, `NativeMirrors`) — the sole first-class artifact establishing that
+a replayed theorem means what the user intends. (Dated docs/notes predating the
+fix use "mirror" for both.) Given a desired
 Lean statement (e.g. `1 + 1 = 2` in Lean's own terms), we prove **in Lean,
-kernel-checked**, that it follows from the mirror-theorem statement under the
+kernel-checked**, that it follows from the replayed statement under the
 interpreter — turning an ACL2 proof into a Lean proof of the same fact. Because
 that final bridge is kernel-checked and the desired theorem is stated in Lean's
 native semantics, **the entire ACL2 pipeline (stages 1–7) becomes untrusted**: a
@@ -86,14 +92,14 @@ false theorem. ACL2 then serves as a sound (if incomplete) untrusted tactic insi
 Lean proofs.
 
 **Trust note — read this.** That fully-untrusted property holds *only once the
-final native-theorem bridge exists*. Today there is no such bridge: the mirror
-theorem is stated in `evalOpt` terms, and the kernel certifies only that the proof
-object is valid *for the mirror theorem exactly as stated in stages 5–6* — NOT
-that the mirror faithfully restates the ACL2 theorem, nor that `evalOpt` faithfully
+final native-theorem bridge exists*. Today the bridge covers only the imported entries: the replayed
+statement is stated in `evalOpt` terms, and the kernel certifies only that the proof
+object is valid *for the replayed statement exactly as stated in stages 5–6* — NOT
+that the replayed statement faithfully restates the ACL2 theorem, nor that `evalOpt` faithfully
 models ACL2. So at present a bug in stages 2–6 can produce a kernel-accepted proof
 of a subtly wrong statement. When something looks off, **suspect any stage** —
 wrong instrumentation, a mis-parsed or mis-shaped tree, a mistranslated `World` or
-mirror statement, an `evalOpt` that diverges from ACL2, or a replay that proves
+replayed statement, an `evalOpt` that diverges from ACL2, or a replay that proves
 something slightly different. Do not assume the bug is where it is most convenient
 to look; only ACL2's proof *search* is off the table.
 
@@ -111,8 +117,8 @@ native-theorem bridge exists as validated HAND proofs (`Imported/`).
 built on `docs/notes/2026-06-10_acl2-architecture-survey.md`): the hybrid
 architecture (certifying walkers as the lane, fragment-local consolidation), the
 six-step sequencing, and the core/extended/out import tiers. The trust note still
-applies — a kernel-accepted proof object certifies only the mirror theorem as
-stated, not that the mirror/`evalOpt` faithfully model ACL2 — so keep checking
+applies — a kernel-accepted proof object certifies only the replayed statement as
+stated, not that the replayed statement/`evalOpt` faithfully model ACL2 — so keep checking
 each stage against the real artifact.
 **The COVERAGE source of truth is the pattern map**
 (`docs/notes/2026-07-22_pattern-map.md`, ci-gated by
@@ -158,7 +164,7 @@ Lean-side reconstruction — retire, don't grow, the bridge inventory).
   the tree does not take — e.g. computing both sides and equating with `omega`/
   `decide`, or collapsing a node's children into one evaluator step — is a
   shortcut and does not count, even though the kernel accepts it.
-- **Don't weaken the statement.** The mirror theorem must be the real ACL2
+- **Don't weaken the statement.** The replayed statement must be the real ACL2
   theorem — no contradictory/vacuous premises, no generalizing away the
   interesting case, while presenting it as the original.
 - **No faking results.** Never claim a build passes, a proof checks, or
@@ -354,7 +360,7 @@ The module→stage map is the pipeline above. As a trust-boundary view:
 ```
 Lean kernel (sole trust anchor)
 ├── Layer 1: SExpr semantic model + Logic primitives + evalOpt (trusted core)
-├── Layer 2: Book translator: ACL2 .lisp → Lean World + mirror statement (untrusted)
+├── Layer 2: Book translator: ACL2 .lisp → Lean World + replayed statement (untrusted)
 └── Layer 3: Proof replay from ACL2 proof logs (untrusted, partially built)
 ```
 

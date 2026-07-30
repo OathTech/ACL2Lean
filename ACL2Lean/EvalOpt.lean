@@ -138,7 +138,7 @@ def builtinNames : List String :=
     can be proved about this non-recursive function directly.
 
     MALFORMED TERM SHAPES return `none` — fail-closed, indistinguishable
-    from non-convergence, so no mirror theorem over a malformed term is
+    from non-convergence, so no replayed statement over a malformed term is
     provable (fail-closed audit 2026-07-06, F15; matches the already-`none`
     unknown-builtin/arity arms F13/F14). The one DELIBERATE total default
     that stays: an UNBOUND VARIABLE evaluates to `nil` (`t` to itself) —

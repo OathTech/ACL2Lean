@@ -1,7 +1,7 @@
 /-
   Driver tests — hand-built proof trees, positive and negative, growing in size.
 
-  POSITIVE: the driver emits a REAL, sorry-free proof of the mirror theorem
+  POSITIVE: the driver emits a REAL, sorry-free proof of the replayed statement
   (`#print axioms` clean — no `sorryAx`).
   NEGATIVE: the driver `throwError`s CLEANLY at the named frontier (fail-closed,
   never `sorry`). A negative test passes iff the driver throws.
@@ -58,7 +58,7 @@ def s2Tree : ClauseProof := { name := "REFL-EQUAL-X-X", formula := litEqXX, root
 
 /-! ## Frontend: run the driver over `World.empty`, UNIVERSALLY over the env.
 
-The mirror theorem is `∀ env, ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env formula = some v ∧
+The replayed statement is `∀ env, ∃ N, ∀ f ≥ N, ∃ v, evalOpt f w env formula = some v ∧
 v ≠ nil` (ACL2's truthiness claim, G2) — the
 `env` is universally quantified (it ranges over every assignment to the formula's free
 variables). The driver emits the body for an `env` PARAMETER (an fvar); the frontend
@@ -71,7 +71,7 @@ variables). The driver emits the body for an `env` PARAMETER (an fvar); the fron
 
 /-- `acl2_replay% <clauseProofTerm>` — elaborates the tree value, runs the driver over
     the empty world for a universally-quantified `env`, and returns the emitted proof
-    of `∀ env, <mirror>`. Fails to elaborate if the driver `throwError`s. -/
+    of `∀ env, <replayed statement>`. Fails to elaborate if the driver `throwError`s. -/
 elab "acl2_replay% " t:term : term => do
   let cpExpr ← Term.elabTermAndSynthesize t (some (mkConst ``ACL2.ClauseProof))
   let cp ← unsafe evalExpr ClauseProof (mkConst ``ACL2.ClauseProof) cpExpr
@@ -81,21 +81,21 @@ elab "acl2_replay% " t:term : term => do
     let proof ← replayProof cfg cp
     mkLambdaFVars #[env] proof
 
-/-! ## POSITIVE — S2: a real, sorry-free UNIVERSAL mirror theorem from the minimal tree. -/
+/-! ## POSITIVE — S2: a real, sorry-free UNIVERSAL replayed statement from the minimal tree. -/
 
-/-- The driver-emitted proof that, under the mirror semantics, `(equal x x)` evaluates
+/-- The driver-emitted proof that, under the replayed-statement semantics, `(equal x x)` evaluates
     to `t` for EVERY environment (every binding of `x`). -/
-def s2_mirror := acl2_replay% s2Tree
+def s2_replayed := acl2_replay% s2Tree
 
--- The emitted type IS the intended universal mirror statement (no weakening: `env`
+-- The emitted type IS the intended universal replayed statement (no weakening: `env`
 -- universally quantified, `x` a free variable).
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
       evalOpt f World.empty env litEqXX = some v ∧ v ≠ SExpr.nil :=
-  s2_mirror
+  s2_replayed
 
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
-#print axioms s2_mirror
+#print axioms s2_replayed
 
 /-! ## POSITIVE — S3: a real rewrite rune (`cdr-cons`) + path-directed congruence.
 
@@ -122,14 +122,14 @@ private def s3Goal : ClauseNode :=
 private def s3Tree : ClauseProof := { name := "CDR-CONS-REFL", formula := litCdrCons, root := some s3Goal }
 
 /-- Driver-emitted proof that `(equal (cdr (cons a b)) b)` evaluates to `t` for every env. -/
-def s3_mirror := acl2_replay% s3Tree
+def s3_replayed := acl2_replay% s3Tree
 
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
       evalOpt f World.empty env litCdrCons = some v ∧ v ≠ SExpr.nil :=
-  s3_mirror
+  s3_replayed
 
-#print axioms s3_mirror
+#print axioms s3_replayed
 
 /-! ## POSITIVE — convergence analyzer on a COMPOUND operand.
 
@@ -146,14 +146,14 @@ private def consEqGoal : ClauseNode :=
     induction := none, children := [] }
 private def consEqTree : ClauseProof := { name := "CONS-SELF", formula := litConsEq, root := some consEqGoal }
 
-def consEq_mirror := acl2_replay% consEqTree
+def consEq_replayed := acl2_replay% consEqTree
 
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
       evalOpt f World.empty env litConsEq = some v ∧ v ≠ SExpr.nil :=
-  consEq_mirror
+  consEq_replayed
 
-#print axioms consEq_mirror
+#print axioms consEq_replayed
 
 /-! ## POSITIVE — convergence analyzer on car/cdr/consp/binary-+ builtins.
 
@@ -176,14 +176,14 @@ private def builtinsEqGoal : ClauseNode :=
 private def builtinsEqTree : ClauseProof :=
   { name := "BUILTINS-SELF", formula := litBuiltinsEq, root := some builtinsEqGoal }
 
-def builtinsEq_mirror := acl2_replay% builtinsEqTree
+def builtinsEq_replayed := acl2_replay% builtinsEqTree
 
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
       evalOpt f World.empty env litBuiltinsEq = some v ∧ v ≠ SExpr.nil :=
-  builtinsEq_mirror
+  builtinsEq_replayed
 
-#print axioms builtinsEq_mirror
+#print axioms builtinsEq_replayed
 
 /-! ## POSITIVE — 3a(ii): the DEFINITION-UNFOLD node (a defined function in the world).
 
@@ -230,14 +230,14 @@ private def pairGoal : ClauseNode :=
     induction := none, children := [] }
 private def pairTree : ClauseProof := { name := "PAIR-REWRITES", formula := litPair, root := some pairGoal }
 
-def pair_mirror := acl2_replay_pair% pairTree
+def pair_replayed := acl2_replay_pair% pairTree
 
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
       evalOpt f pairWorld env litPair = some v ∧ v ≠ SExpr.nil :=
-  pair_mirror
+  pair_replayed
 
-#print axioms pair_mirror
+#print axioms pair_replayed
 
 /-! ## END-TO-END FRONTEND — replay a REAL parsed ACL2 proof tree.
 
@@ -294,8 +294,8 @@ elab "acl2_replay_sq_real% " : term => do
     mkLambdaFVars #[env] proof
 
 /-- FIRST REAL TREE replayed end-to-end: the driver-emitted proof of the `sq-rewrites`
-    mirror, from ACL2's actual proof-log. -/
-def sq_real_mirror := acl2_replay_sq_real%
+    replayed statement, from ACL2's actual proof-log. -/
+def sq_real_replayed := acl2_replay_sq_real%
 
 -- The emitted type is the real theorem (the clause literal, `*` normalized to binary-*).
 example :
@@ -303,15 +303,15 @@ example :
       evalOpt f sqWorld env
         (equalOf (ap1 "SQ" (sym "N")) (ap2 "BINARY-*" (sym "N") (sym "N")))
         = some v ∧ v ≠ SExpr.nil :=
-  sq_real_mirror
+  sq_real_replayed
 
-#print axioms sq_real_mirror
+#print axioms sq_real_replayed
 
 /-! ## END-TO-END on the real inductive tree — `my-len-my-app`.
 
 The driver replays the REAL `simple.proof-log` end-to-end: WF-induction scaffold from
 the emitted measure justification, both case-clause spines, the solidify IH bridge —
-producing the CONDITIONAL generic mirror (totality + TP obligations explicit in the
+producing the CONDITIONAL generic replayed statement (totality + TP obligations explicit in the
 type, machine-generated from the development; no sorryAx). -/
 private def simpleLog : String := include_str "../acl2_samples/simple.proof-log"
 def mylenRealProof : Option ClauseProof := do
@@ -332,7 +332,7 @@ def simpleTPs : List (String × SExpr) := simpleDevelopment.typePrescriptions
 
 /-- THE c3 TARGET: drive the REAL `my-len-my-app` tree end-to-end — the WF-induction
     scaffold from the EMITTED measure justification, the clause spines, the solidify
-    IH bridge — as the CONDITIONAL generic mirror (totality + TP hypotheses
+    IH bridge — as the CONDITIONAL generic replayed statement (totality + TP hypotheses
     machine-generated from the development; the c2 pattern). -/
 elab "acl2_replay_mylen_real% " : term => do
   let cpOpt ← unsafe evalExpr (Option ClauseProof)
@@ -353,10 +353,10 @@ elab "acl2_replay_mylen_real% " : term => do
     AUTO-DISCHARGES the totality hypotheses from the emitted admission data
     (justification + raw termination clauses), so only the TP hypothesis
     remains explicit in the type. -/
-def my_len_my_app_real_mirror := acl2_replay_mylen_real%
+def my_len_my_app_real_replayed := acl2_replay_mylen_real%
 
 /-- PIN the machine-generated statement (audit #38, updated for #37): the
-    conclusion is the genuine mirror of the ACL2 defthm
+    conclusion is the genuine replayed statement of the ACL2 defthm
     `(equal (my-len (my-app x y)) (+ (my-len x) (my-len y)))`, and the sole
     remaining hypothesis is my-len's emitted TP corollary, lifted value-only
     (totality of my-len/my-app/fix is auto-discharged from admission). -/
@@ -372,21 +372,21 @@ example :
           (equalOf (ap1 "MY-LEN" (ap2 "MY-APP" (sym "X") (sym "Y")))
                    (ap2 "BINARY-+" (ap1 "MY-LEN" (sym "X")) (ap1 "MY-LEN" (sym "Y"))))
           = some v ∧ v ≠ SExpr.nil :=
-  my_len_my_app_real_mirror
+  my_len_my_app_real_replayed
 
-#print axioms my_len_my_app_real_mirror
+#print axioms my_len_my_app_real_replayed
 
 
 /-! ## BRIDGE — use the driver's output to prove the corresponding NATIVE Lean fact.
 
 The ACL2 theorem `(equal x x)` corresponds, over a standard Lean type, to reflexivity
 `∀ (n : Nat), n = n`. We derive it END-TO-END: encode `Nat → SExpr`, instantiate the
-driver's mirror fact at the env binding `x ↦ enc n`, read off `enc n = enc n` via the
-mirror's `equal`-reflects-equality lemma, then descend through `enc`'s injectivity to
-`n = n`. The proof routes through `s2_mirror` (the driver output) — NOT `rfl`.
+driver's replayed fact at the env binding `x ↦ enc n`, read off `enc n = enc n` via the
+replayed statement's `equal`-reflects-equality lemma, then descend through `enc`'s injectivity to
+`n = n`. The proof routes through `s2_replayed` (the driver output) — NOT `rfl`.
 
 (Reflexivity is of course trivially true natively; this step demonstrates the full
-plumbing — ACL2 proof tree → mirror fact → native fact about a standard type — which
+plumbing — ACL2 proof tree → replayed statement → native fact about a standard type — which
 is what later, non-trivial theorems will reuse.) -/
 
 /-- Encode a `Nat` as the corresponding ACL2 integer object. -/
@@ -402,15 +402,15 @@ private def envOf (n : Nat) : Env := ({} : Env).insert { name := "X" } (enc n)
 private theorem envOf_get (n : Nat) : (envOf n).get? { name := "X" } = some (enc n) := by
   unfold envOf; simp
 
-/-- The native Lean fact `∀ n : Nat, n = n`, proven THROUGH the driver's mirror output
-    `s2_mirror` (via the `Nat → SExpr` encoding), not by `rfl`. -/
+/-- The native Lean fact `∀ n : Nat, n = n`, proven THROUGH the driver's replayed-statement output
+    `s2_replayed` (via the `Nat → SExpr` encoding), not by `rfl`. -/
 theorem native_nat_refl (n : Nat) : n = n := by
-  obtain ⟨N, hN⟩ := s2_mirror (envOf n)
+  obtain ⟨N, hN⟩ := s2_replayed (envOf n)
   have hvar : evalOpt (N + 1) World.empty (envOf n) (.atom (.symbol { name := "X" }))
       = some (enc n) :=
     evalOpt_var N World.empty (envOf n) { name := "X" } (enc n) (envOf_get n)
   have hno : World.empty.defs.get? ({ name := "EQUAL" } : Symbol) = none := by decide
-  -- the mirror is EvTrue (G2): destructure the truthy value, pin it to the
+  -- the replayed statement is EvTrue (G2): destructure the truthy value, pin it to the
   -- equal-application's value, decode via equal's two-valuedness
   obtain ⟨v, heq, hnv⟩ := hN (N + 2) (by omega)
   have hev : evalOpt (N + 2) World.empty (envOf n) litEqXX
@@ -421,7 +421,7 @@ theorem native_nat_refl (n : Nat) : n = n := by
     Option.some.inj ((heq.symm.trans hev).trans (callBuiltin_equal (enc n) (enc n)))
   exact enc_inj (Logic.eq_of_equal_ne_nil (hveq ▸ hnv))
 
--- Sorry-free, and it genuinely depends on `s2_mirror` (the driver output).
+-- Sorry-free, and it genuinely depends on `s2_replayed` (the driver output).
 #print axioms native_nat_refl
 
 /-! ## emitCongruence — path-directed lifting (consumes :PATH, no subterm search).
@@ -580,7 +580,7 @@ private def treeTypeSet : ClauseProof :=
 
 /-! ## END-TO-END on the real perm book — `perm-cons` (R1, the branch-split
 composer). The coverage harness only `Meta.check`s corpus rows; THIS pins the
-machine-generated statement to the genuine perm-cons mirror and gates the
+machine-generated statement to the genuine perm-cons replayed statement and gates the
 axioms (audit 2026-07-03 finding 1) — the same discipline as my-len-my-app. -/
 private def permLog : String := include_str "../acl2_samples/sorting/perm.proof-log"
 
@@ -602,7 +602,7 @@ def permTPs : List (String × SExpr) := permDevelopment.typePrescriptions
 /-- Drive the REAL `perm-cons` tree end-to-end: destructor elimination, the
     assume-true-false composer over the emitted clausify decision trace, the
     sibling-clause residual peel, remove-trivial-equivalences — the whole R1
-    node family — as the CONDITIONAL generic mirror. -/
+    node family — as the CONDITIONAL generic replayed statement. -/
 elab "acl2_replay_permcons_real% " : term => do
   let cpOpt ← unsafe evalExpr (Option ClauseProof)
     (mkApp (mkConst ``Option [0]) (mkConst ``ACL2.ClauseProof)) (mkConst ``permConsProof)
@@ -619,9 +619,9 @@ elab "acl2_replay_permcons_real% " : term => do
     mkLambdaFVars #[env] proof
 
 /-- The first replayed theorem of the SORTING corpus (R1). -/
-def perm_cons_real_mirror := acl2_replay_permcons_real%
+def perm_cons_real_replayed := acl2_replay_permcons_real%
 
-/-- PIN the machine-generated statement: the UNCONDITIONAL mirror of the
+/-- PIN the machine-generated statement: the UNCONDITIONAL replayed statement of the
     ACL2 defthm
     `(implies (memb a x) (equal (perm x (cons a y)) (perm (rm a x) y)))` —
     no hypotheses at all, no weakening. ALL totality is AUTO-DISCHARGED from
@@ -637,18 +637,18 @@ example :
             (equalOf (ap2 "PERM" (sym "X") (ap2 "CONS" (sym "A") (sym "Y")))
                      (ap2 "PERM" (ap2 "RM" (sym "A") (sym "X")) (sym "Y"))))
           = some v ∧ v ≠ SExpr.nil :=
-  perm_cons_real_mirror
+  perm_cons_real_replayed
 
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
-#print axioms perm_cons_real_mirror
+#print axioms perm_cons_real_replayed
 
-/-! ### perm-transitive: the theorem-dependency (`rule:<thm>`) conditional mirror
+/-! ### perm-transitive: the theorem-dependency (`rule:<thm>`) conditional replayed statement
 
 The first theorem replayed THROUGH user-rule applications
 (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). The pin locks the
 machine-generated statement AFTER the v1 step-5 rule-hypothesis discharge,
 the admission-derived totality discharge, AND the TP-prover discharge
-(lifter sprint 2026-07-06) — the composed mirror is UNCONDITIONAL: the
+(lifter sprint 2026-07-06) — the composed replayed statement is UNCONDITIONAL: the
 whole dependency chain and every base fact machine-discharged. -/
 
 private def ap3 (f : String) (a b c : SExpr) : SExpr :=
@@ -677,11 +677,11 @@ elab "acl2_replay_permtrans_real% " : term => do
     mkLambdaFVars #[env] proof
 
 /-- The first theorem-to-theorem dependency replay of the sorting corpus. -/
-def perm_transitive_real_mirror := acl2_replay_permtrans_real%
+def perm_transitive_real_replayed := acl2_replay_permtrans_real%
 
 example :
     ∀ (env : Env),
-      -- the genuine perm-transitive mirror (ACL2's and → if _ _ 'nil),
+      -- the genuine perm-transitive replayed statement (ACL2's and → if _ _ 'nil),
       -- UNCONDITIONAL
       ∃ N, ∀ f ≥ N, ∃ v,
         evalOpt f permWorld env
@@ -690,10 +690,10 @@ example :
                       (ap2 "PERM" (sym "Y") (sym "Z")) quoteNil)
             (ap2 "PERM" (sym "X") (sym "Z")))
           = some v ∧ v ≠ SExpr.nil :=
-  perm_transitive_real_mirror
+  perm_transitive_real_replayed
 
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
-#print axioms perm_transitive_real_mirror
+#print axioms perm_transitive_real_replayed
 
 /-! ## WP0 pins — D8 rule flush + D3/D5 ground-zero snapshots (2026-07-15).
 
@@ -907,7 +907,7 @@ elab "acl2_replay_fsq_real% " : term => do
       letLambdaDevelopment.justifications
       (rulesBefore letLambdaDevelopment "fsq-unfolds")
     -- PIN the kept-hypothesis set (the statement itself is machine-generated
-    -- from the log): a regression that weakens the mirror by keeping MORE
+    -- from the log): a regression that weakens the replayed statement by keeping MORE
     -- hypotheses must fail here, not pass silently
     let expected := ["rule:COMMUTATIVITY-OF-*", "rule:DISTRIBUTIVITY", "rule:UNICITY-OF-1"]
     unless conds == expected do
@@ -916,10 +916,10 @@ elab "acl2_replay_fsq_real% " : term => do
     mkLambdaFVars #[env] proof
 
 /-- The first replayed translated-`let` theorem (S2). -/
-def fsq_unfolds_real_mirror := acl2_replay_fsq_real%
+def fsq_unfolds_real_replayed := acl2_replay_fsq_real%
 
 -- Sorry-free: must be {propext, Classical.choice, Quot.sound} — no sorryAx.
-#print axioms fsq_unfolds_real_mirror
+#print axioms fsq_unfolds_real_replayed
 
 
 /-! ## S2b gate: the beta-emission probe books replay fully (re-audit F6 —

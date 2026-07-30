@@ -2,14 +2,14 @@
   Tests/SortingPins — STATEMENT PINS for the sorting corpus (equiv-lane arc
   increment 0; audit rec 6, demanded by BOTH pre-merge auditors 2026-07-29).
   THE SCALABLE HOME for per-book statement pins: one section per book, each
-  pinning machine-generated mirror statements against types HAND-WRITTEN
+  pinning machine-generated replayed statements against types HAND-WRITTEN
   from the ACL2 `.lisp` sources.
 
   WHY: the certified pipeline's statement derivation (stage 5) reads the
-  same untrusted fork emission as the proof — the mirror statement is
+  same untrusted fork emission as the proof — the replayed statement is
   anchored to the `.lisp` source ONLY through pins like these. A pin
-  assigns the machine constant (`runBook`'s CoverageMirrors /
-  TerminationMirrors output — the exact sweep semantics, kernel-checked and
+  assigns the machine constant (`runBook`'s ReplayedStatements /
+  ReplayedTermination output — the exact sweep semantics, kernel-checked and
   axiom-filtered) to an `example` whose TYPE is transcribed from the source
   book, so emission/translation drift in the STATEMENT TERM fails here at
   elaboration. SCOPE LIMIT (audit F5/F9, 2026-07-30): the world constant
@@ -26,7 +26,7 @@
   - acl2/books/arithmetic-3/pass1/basic-arithmetic.lisp:109
                                              (fold-consts-in-+)
 
-  HYPOTHESIS discipline: a conditional mirror's `cond[…]` hypotheses are
+  HYPOTHESIS discipline: a conditional replayed statement's `cond[…]` hypotheses are
   replay artifacts (emitted TP corollaries, totality of world fns, cited
   rules), not source text — each is transcribed below in full and
   source-checked for truthfulness (e.g. `tp:INSERT` = "insert always
@@ -58,9 +58,9 @@ derive_world isortPinsWorld from isortPinsDev
 derive_world qsortPinsWorld from qsortPinsDev
 
 /-! ## The replay run — the exact sweep semantics (`runBook`), registering
-    the mirror constants the pins below are stated against. `upTo` the last
+    the replayed-statement constants the pins below are stated against. `upTo` the last
     pinned theorem per book: earlier theorems still replay (identical
-    mirror-registry state to the sweep) but their independent DP-leaf
+    replayed-registry state to the sweep) but their independent DP-leaf
     probes are skipped. The expected status LINES (incl. the full `cond[…]`
     sets) are pinned here exactly; drift fails the build before the type
     pins are even reached. -/
@@ -95,13 +95,13 @@ rule:CONVERT-PERM-TO-HOW-MANY, rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND]")]
     unless lines.any (· == line) do
       throwError "sorting statement pins: {book} lost pinned status line\n  \
         {line}\ngot:\n{"\n".intercalate lines.toList}"
-  -- the QSORT termination mirror registers no status line; its existence is
+  -- the QSORT termination replayed statement registers no status line; its existence is
   -- asserted here (the type pin below is the content gate)
   unless (← getEnv).contains
-      (Name.mkStr2 "TerminationMirrors" "term_pins_sorting_qsort_QSORT") do
-    throwError "sorting statement pins: QSORT termination mirror was not registered"
+      (Name.mkStr2 "ReplayedTermination" "term_pins_sorting_qsort_QSORT") do
+    throwError "sorting statement pins: QSORT termination replayed statement was not registered"
   logInfo "sorting statement pins: replay statuses hold (ORDEREDP-ISORT, \
-    PERM-QSORT, TRUE-LISTP-QSORT + QSORT termination mirror)"
+    PERM-QSORT, TRUE-LISTP-QSORT + QSORT termination replayed statement)"
   return mkConst ``True.intro
 
 -- unlimited at the command like the coverage sweep — the harness enforces
@@ -203,9 +203,9 @@ example :
     ∀ (env : Env),
       tpPred2 isortPinsWorld "INSERT" Logic.consp →
       EvTrue isortPinsWorld env (ap1 "ORDEREDP" (ap1 "ISORT" (sym "X"))) :=
-  CoverageMirrors.mirror_pins_sorting_isort_ORDEREDP_ISORT
+  ReplayedStatements.replayed_pins_sorting_isort_ORDEREDP_ISORT
 
-#print axioms CoverageMirrors.mirror_pins_sorting_isort_ORDEREDP_ISORT
+#print axioms ReplayedStatements.replayed_pins_sorting_isort_ORDEREDP_ISORT
 
 /-! ## qsort book (acl2/books/sorting/qsort.lisp) -/
 
@@ -239,9 +239,9 @@ example :
         (ap2 "HOW-MANY" (sym "E") (ap1 "QSORT" (sym "X")))
         (ap2 "HOW-MANY" (sym "E") (sym "X")) →
       EvTrue qsortPinsWorld env (ap2 "PERM" (ap1 "QSORT" (sym "X")) (sym "X")) :=
-  CoverageMirrors.mirror_pins_sorting_qsort_PERM_QSORT
+  ReplayedStatements.replayed_pins_sorting_qsort_PERM_QSORT
 
-#print axioms CoverageMirrors.mirror_pins_sorting_qsort_PERM_QSORT
+#print axioms ReplayedStatements.replayed_pins_sorting_qsort_PERM_QSORT
 
 /-- PIN the machine-generated statement of `TRUE-LISTP-QSORT`: the mirror
     of the ACL2 defthm `(true-listp (qsort x))`, conditional on `o<`
@@ -256,11 +256,11 @@ example :
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
       foldConstsHyp qsortPinsWorld →
       EvTrue qsortPinsWorld env (ap1 "TRUE-LISTP" (ap1 "QSORT" (sym "X"))) :=
-  CoverageMirrors.mirror_pins_sorting_qsort_TRUE_LISTP_QSORT
+  ReplayedStatements.replayed_pins_sorting_qsort_TRUE_LISTP_QSORT
 
-#print axioms CoverageMirrors.mirror_pins_sorting_qsort_TRUE_LISTP_QSORT
+#print axioms ReplayedStatements.replayed_pins_sorting_qsort_TRUE_LISTP_QSORT
 
-/-! ## The QSORT termination mirror (recorded admission waterfall)
+/-! ## The QSORT termination replayed statement (recorded admission waterfall)
 
     `qsort` (source above) has exactly two recursive call sites, both in
     the final `cond` branch — ruled by `(not (endp x))` and
@@ -290,9 +290,9 @@ example :
       foldConstsHyp qsortPinsWorld →
       EvTrue qsortPinsWorld env
         (ap3 "IF" (qsortDecreaseClause "GTE") (qsortDecreaseClause "LT") (qt .nil)) :=
-  TerminationMirrors.term_pins_sorting_qsort_QSORT
+  ReplayedTermination.term_pins_sorting_qsort_QSORT
 
-#print axioms TerminationMirrors.term_pins_sorting_qsort_QSORT
+#print axioms ReplayedTermination.term_pins_sorting_qsort_QSORT
 
 /-! ## p3-conj-mid-literal (acl2_samples/pattern-tests/p3-conj-mid-literal.lisp)
 
@@ -365,16 +365,16 @@ example :
           (ap3 "IF" (ap1 "ORDD" (ap2 "INS" (sym "X1") (sym "IT")))
             (ap1 "ORDD" (ap2 "INS" (sym "X1") (sym "IT")))
             (ap2 "EQUAL" (sym "IT") (qt (sym "JUNK"))))) :=
-  CoverageMirrors.mirror_pins_p3_conj_ORDD_INS_MID
+  ReplayedStatements.replayed_pins_p3_conj_ORDD_INS_MID
 
-#print axioms CoverageMirrors.mirror_pins_p3_conj_ORDD_INS_MID
+#print axioms ReplayedStatements.replayed_pins_p3_conj_ORDD_INS_MID
 
 /-! ## ORDEREDP-QSORT (acl2/books/sorting/qsort.lisp:115) — the perm-lane
     headline row (G2 rung 2, 2026-07-30): the first green row whose replay
     consumes a USER-equivalence rewrite (PERM-QSORT under :EQUIV PERM at
     ALL-REL's defcong-licensed arg 2). The `rule:PERM-QSORT` and
     `cong:PERM-IMPLIES-EQUAL-ALL-REL-2` hypotheses are DISCHARGED from
-    their replayed mirrors, so neither appears below — the kept set is the
+    their replayed statements, so neither appears below — the kept set is the
     pre-existing debt classes only. -/
 
 /-- `tp:<fn>` (ternary), boolean corollary
@@ -423,9 +423,9 @@ example :
             (qt .nil))
           (qt .nil)) →
       EvTrue qsortPinsWorld env (ap1 "ORDEREDP" (ap1 "QSORT" (sym "X"))) :=
-  CoverageMirrors.mirror_pins_sorting_qsort_ORDEREDP_QSORT
+  ReplayedStatements.replayed_pins_sorting_qsort_ORDEREDP_QSORT
 
-#print axioms CoverageMirrors.mirror_pins_sorting_qsort_ORDEREDP_QSORT
+#print axioms ReplayedStatements.replayed_pins_sorting_qsort_ORDEREDP_QSORT
 
 /-! ## p5-or-shape-flipped (acl2_samples/pattern-tests/p5-or-shape-flipped.lisp)
 
@@ -507,9 +507,9 @@ example :
           (ap3 "IF" (ap2 "EQUAL" (sym "X") (qt (sym "JUNK")))
             (ap2 "EQUAL" (sym "X") (qt (sym "JUNK")))
             (ap1 "DUPP" (ap2 "CONS" (sym "E") (sym "X"))))) :=
-  CoverageMirrors.mirror_pins_p5_flip_DUPP_REP_MID
+  ReplayedStatements.replayed_pins_p5_flip_DUPP_REP_MID
 
-#print axioms CoverageMirrors.mirror_pins_p5_flip_DUPP_REP_MID
+#print axioms ReplayedStatements.replayed_pins_p5_flip_DUPP_REP_MID
 
 /-- PIN the machine-generated statement of `P7-TARGET`:
     `(equal (ln (dub x)) (ln x))` under ln's non-negative-integer TP. -/
@@ -518,9 +518,9 @@ example :
       tpNonnegInt1 p7CongPinsWorld "LN" →
       EvTrue p7CongPinsWorld env
         (ap2 "EQUAL" (ap1 "LN" (ap1 "DUB" (sym "X"))) (ap1 "LN" (sym "X"))) :=
-  CoverageMirrors.mirror_pins_p7_cong_P7_TARGET
+  ReplayedStatements.replayed_pins_p7_cong_P7_TARGET
 
-#print axioms CoverageMirrors.mirror_pins_p7_cong_P7_TARGET
+#print axioms ReplayedStatements.replayed_pins_p7_cong_P7_TARGET
 
 /-- PIN the machine-generated statement of `SAME-LN-IMPLIES-EQUAL-LN-1`
     (the defcong's macro-expanded defthm). -/
@@ -531,8 +531,8 @@ example :
         (ap2 "IMPLIES"
           (ap2 "SAME-LN" (sym "X") (sym "X-EQUIV"))
           (ap2 "EQUAL" (ap1 "LN" (sym "X")) (ap1 "LN" (sym "X-EQUIV")))) :=
-  CoverageMirrors.mirror_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
+  ReplayedStatements.replayed_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
 
-#print axioms CoverageMirrors.mirror_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
+#print axioms ReplayedStatements.replayed_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
 
 end ACL2.Tests.SortingPins

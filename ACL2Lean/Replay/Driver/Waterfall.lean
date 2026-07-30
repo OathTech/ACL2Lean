@@ -11,7 +11,7 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
-/-! ## The c3 induction scaffold + the conditional-mirror harness
+/-! ## The c3 induction scaffold + the conditional-replayed-statement harness
 
 The WF-induction scaffold consumes the EMITTED justification (measure / rel /
 controllers / per-case tests + IH substitutions — the measure-emission track's
@@ -146,10 +146,10 @@ def mkRuleHypType (cfg : ReplayConfig) (spec : RuleSpec) : MetaM Expr := do
     mkForallFVars #[envV] body
 
 /-- The `cong:<thm>` hypothesis TYPE for a congruence-shaped defthm (G2
-    rung 2): the WHOLE formula's mirror, `∀ env', EvTrue w env' formula` —
+    rung 2): the WHOLE formula's replayed statement, `∀ env', EvTrue w env' formula` —
     exactly the theorem, no normalization. Consumed by the R-collapse at a
     user-equivalence step's congruence frame; discharged from the
-    dependency's replayed mirror like `rule:` hypotheses. -/
+    dependency's replayed statement like `rule:` hypotheses. -/
 def mkCongHypType (cfg : ReplayConfig) (spec : CongSpec) : MetaM Expr := do
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     mkForallFVars #[envV]

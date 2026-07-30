@@ -6,7 +6,7 @@
   A tamper that replays anyway is a soundness/fidelity hole and FAILS the build.
 
   The one deliberate non-rejection: tampering a stored rule's HYPS changes the
-  STATED hypothesis (the conditional mirror's type), which the replay cannot
+  STATED hypothesis (the conditional replayed statement's type), which the replay cannot
   detect — that is what the committed type-pin in DriverTests locks.
 
   HISTORY (audit 2026-07-26 F2): this file was DARK from the day it landed

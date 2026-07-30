@@ -110,7 +110,7 @@ private def consOf (a b : SExpr) : SExpr :=
 private def conspOf (t : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "CONSP" })) (.cons t .nil)
 
-/-- The mirror-theorem formula, decomposed. By `rfl`. -/
+/-- The replayed-statement formula, decomposed. By `rfl`. -/
 private theorem formula_decomp :
     my_len_my_appFormula = equalOf (lenOf (appOf xT yT)) (plusOf (lenOf xT) (lenOf yT)) := rfl
 
@@ -187,7 +187,7 @@ private theorem fixBody_subst (z : SExpr) :
 
 /-! ## The generic proof (parameterized by world + definition hypotheses) -/
 
-/-- The mirror theorem for `my-len-my-app`, proved by replaying the real ACL2
+/-- The replayed statement for `my-len-my-app`, proved by replaying the real ACL2
     proof tree node-for-node — **both subgoals, sorry-free** (axioms:
     `{propext, Classical.choice, Quot.sound}`), modulo the consumed ACL2 facts
     `h_mylen_int` (type-prescription:my-len, used only by the base case),
@@ -832,7 +832,7 @@ theorem world_no_acl2numberp :
 theorem world_has_fix :
     world.defs[fix_sym]? = some ([x_sym], fixBody) := by decide
 
-/-- The mirror theorem for the concrete `world`, sorry-free (axioms:
+/-- The replayed statement for the concrete `world`, sorry-free (axioms:
     `{propext, Classical.choice, Quot.sound}`) — both subgoals of the ACL2 proof
     tree are replayed. It still TAKES the consumed ACL2 facts `h_mylen_int`
     (type-prescription:my-len, base case only) and `h_mylen_total` / `h_myapp_total`
@@ -860,14 +860,14 @@ theorem my_len_my_app (env : Env)
 
 /-! ## Native-theorem bridge
 
-We lift the ACL2 mirror to an IDIOMATIC Lean theorem about `List`:
+We lift the ACL2 replayed statement to an IDIOMATIC Lean theorem (the MIRROR) about `List`:
 `(xs ++ ys).length = xs.length + ys.length`. The recipe (per
 `docs/comms/2026-03-22_acl2-lean-bridge.md`): a TYPE morphism `enc : List SExpr
 → SExpr` plus a SIMULATION over the function structure (correspondence lemmas:
 `evalOpt`'s `my-app`/`my-len` simulate `++`/`length` under `enc`). This lifts the
 ACL2 theorem without redoing the property proof.
 
-First, DISCHARGERS for the consumed facts (so the mirror for `world` is
+First, DISCHARGERS for the consumed facts (so the replayed statement for `world` is
 UNCONDITIONAL): ACL2 functions are total over all objects, so these are
 existential inductions over arbitrary `SExpr` — proofs, not s-expr algorithms. -/
 
@@ -1099,7 +1099,7 @@ private theorem dis_myapp_total (w : World)
   obtain ⟨rv, N, h⟩ := dis_myapp_total_val w h_myapp h_no_consp h_no_cdr h_no_car h_no_cons av e' a b bv hav hbv
   exact ⟨N, rv, h⟩
 
-/-- The mirror for `world`, UNCONDITIONAL (consumed facts discharged — closes #23). -/
+/-- The replayed statement for `world`, UNCONDITIONAL (consumed facts discharged — closes #23). -/
 theorem my_len_my_app_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → evalOpt f world env my_len_my_appFormula = some SExpr.t :=
   my_len_my_app env
@@ -1110,7 +1110,7 @@ theorem my_len_my_app_uncond (env : Env) :
 
 /-! ### Driver-form dischargers (consumed by `Imported/NativeMirrors`)
 
-The DRIVER's conditional mirror states its hypotheses in v-FIXED form
+The DRIVER's conditional replayed statement states its hypotheses in v-FIXED form
 (`∃ N v, ∀ f ≥ N, … = some v`) and its type-prescription hypothesis with the
 function-application convergence as antecedent. These restate the hand
 dischargers above in exactly those shapes (over `world`; the catalog transfers
@@ -1250,9 +1250,9 @@ private theorem corr_len_enc (w : World)
 
 /-- The native assembly, PARAMETERIZED by the mirror: any proof of the mirror
     statement over `w` (hand-built or driver-replayed) yields the native
-    theorem. The mirror is consumed at exactly ONE point — this is the seam the
+    theorem. The replayed statement is consumed at exactly ONE point — this is the seam the
     catalog (`Imported/NativeMirrors`) plugs the driver's mirror into. -/
-theorem my_len_my_app_native_of_mirror (w : World)
+theorem my_len_my_app_native_of_replayed (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
     (h_myapp : w.defs.get? my_app_sym = some ([x_sym, y_sym], my_appBody))
     (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
@@ -1261,7 +1261,7 @@ theorem my_len_my_app_native_of_mirror (w : World)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (hmirror : ∀ env : Env,
+    (hreplayed : ∀ env : Env,
       ∃ N, ∀ f, f ≥ N → ∃ v,
         evalOpt f w env my_len_my_appFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys : List SExpr) :
@@ -1292,25 +1292,25 @@ theorem my_len_my_app_native_of_mirror (w : World)
       (Logic.plus (.atom (.number (.int (xs.length : Int)))) (.atom (.number (.int (ys.length : Int)))))
       plus_not_special h_no_plus ⟨NLx, hLx⟩ ⟨NLy, hLy⟩ (callBuiltin_plus _ _)
     rwa [logic_plus_int] at h
-  -- mirror: formula ⇒ t ; eval_equal_t splits the equality, the two values coincide
-  -- the spine ender: the mirror's equal ⇒ t + intRep decode, then the Nat cast
+  -- replayed statement: formula ⇒ t ; eval_equal_t splits the equality, the two values coincide
+  -- the spine ender: the replayed statement's equal ⇒ t + intRep decode, then the Nat cast
   have hint : ((xs ++ ys).length : Int) = (xs.length : Int) + (ys.length : Int) :=
-    ACL2.Lifting.native_of_mirror_equal w e ACL2.Lifting.intRep
+    ACL2.Lifting.native_of_replayed_equal w e ACL2.Lifting.intRep
       (lenOf (appOf xT yT)) (plusOf (lenOf xT) (lenOf yT))
       ((xs ++ ys).length : Int) ((xs.length : Int) + (ys.length : Int))
-      h_no_equal ⟨NL, hL⟩ ⟨NR, hR⟩ (hmirror e)
+      h_no_equal ⟨NL, hL⟩ ⟨NR, hR⟩ (hreplayed e)
   omega
 
 /-- **The native theorem we want**, in idiomatic Lean — `List.length_append`,
     proved via the ACL2 oracle (NOT by the native list induction), here
-    instantiated with the HAND mirror. A bug anywhere in stages 1–7 of the
+    instantiated with the HAND replayed statement. A bug anywhere in stages 1–7 of the
     pipeline makes this fail to typecheck. -/
 theorem my_len_my_app_native (xs ys : List SExpr) :
     (xs ++ ys).length = xs.length + ys.length :=
-  my_len_my_app_native_of_mirror world world_has_my_len world_has_my_app
+  my_len_my_app_native_of_replayed world world_has_my_len world_has_my_app
     world_no_equal world_no_consp world_no_plus world_no_cdr world_no_car
     world_no_cons
-    -- the HAND mirror pins exact t; inject into the truthiness form (G2)
+    -- the HAND replayed statement pins exact t; inject into the truthiness form (G2)
     (fun env => evtrue_of_eq_t (my_len_my_app_uncond env)) xs ys
 
 end ACL2.Worlds.Simple

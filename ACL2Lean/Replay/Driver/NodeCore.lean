@@ -68,12 +68,12 @@ structure ReplayConfig where
       an unlisted or drifted rule hard-fails. -/
   fcRules : List FcRuleSpec := []
   /-- RECORDED-TERMINATION mirrors (sorting arc 2026-07-28): per defun with
-      a replayed admission waterfall, its mirror constant, condition names,
+      a replayed admission waterfall, its replayed-statement constant, condition names,
       and root goal clause. Consumed by the totality prover (via the
       threaded `buildTotalEnv` params) AND the theorem-side induction's
       IH-decrease fallback (`replayInduction`, which resolves the conditions
       from the ambient `ReplayCtx`). -/
-  termMirrors : List (String × Name × List String × List SExpr) := []
+  termReplayed : List (String × Name × List String × List SExpr) := []
   /-- The development's emitted `:TYPE-PRESCRIPTION` corollaries for
       BUILTIN-NAMED ground-zero fns (world-defined fns get theirs as `tp:`
       hypotheses instead — `replayProofConditional`). Consumed by the builtin
@@ -195,13 +195,13 @@ structure ReplayCtx where
       species): per emitted STORED rewrite rule, the spec and the bound
       hypothesis stating its mirror (`mkRuleHypType`). Consumed by the
       with-lemma node recipe; discharged lazily from the dependency's own
-      replayed mirror (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). -/
+      replayed statement (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). -/
   ruleHyps : List (RuleSpec × Expr) := []
   /-- Congruence-rule hypotheses (`cong:<thm>`, G2 rung 2): per
       congruence-shaped in-scope defthm, the spec and the bound hypothesis
       stating its whole-formula mirror (`mkCongHypType`). Consumed by the
       R-collapse at a user-equivalence step's congruence frame; discharged
-      lazily from the dependency's replayed mirror like `rule:` hyps. -/
+      lazily from the dependency's replayed statement like `rule:` hyps. -/
   congHyps : List (CongSpec × Expr) := []
   ih : Option Expr := none
 

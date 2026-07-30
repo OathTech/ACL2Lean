@@ -5,11 +5,11 @@
   ACL2 admits the lexorder rules at boot with proofs SKIPPED
   (`ld-skip-proofsp`, interface-raw.lisp:9638) — no replayable ACL2
   evidence exists in any capturable image. The prelude constants below
-  prove, ONCE, the ∀-env mirror statement of each such rule about the
+  prove, ONCE, the ∀-env replayed statement of each such rule about the
   trusted-core primitive itself (`ACL2.lexorder`), resting on the
   `LexorderOrder` order theorems rather than on trust. This adds zero
   trust assumptions beyond the wiring assumption already policed
-  differentially: the mirror's meaning is DEFINED by `Logic`/`evalOpt`.
+  differentially: the replayed statement's meaning is DEFINED by `Logic`/`evalOpt`.
 
   Statement discipline: each constant's type is EXACTLY the
   `mkRuleHypType` instance of the rule's EMITTED ground-zero snapshot

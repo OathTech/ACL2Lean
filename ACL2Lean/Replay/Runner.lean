@@ -154,10 +154,10 @@ def collectProofAxioms (e : Expr) : MetaM (List Name) := do
   return axioms.eraseDups
 
 /-- Run the driver on one theorem over its derived world; return a one-line
-    status, and — when `mirrorName?` is given and the replay is green — the
+    status, and — when `replayedName?` is given and the replay is green — the
     kept condition strings of the freshly `addDecl`'d D1 MIRROR CONSTANT
     (design §D1, WP4: subsequent same-book consumers apply the constant via
-    the `MirrorRegistry` instead of re-replaying this theorem's tree). The
+    the `ReplayedRegistry` instead of re-replaying this theorem's tree). The
     world is PROJECTED from the development and REFLECTED concretely (P4);
     structural facts are DERIVED by the driver (P3). A message that is
     neither a `replayClause`/`replayNode`/`replayLiteral` frontier flags a
@@ -168,10 +168,10 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     (depProofs : List (String × ClauseProof) := [])
     (gzDefs : List (Symbol × List Symbol × SExpr) := [])
     (fcRules : List ACL2.FcRuleSpec := [])
-    (mirrors : MirrorRegistry := [])
-    (mirrorName? : Option Name := none)
+    (mirrors : ReplayedRegistry := [])
+    (replayedName? : Option Name := none)
     (budget : Nat := 3000000)
-    (termMirrors : List (String × Name × List String × List SExpr) := []) :
+    (termReplayed : List (String × Name × List String × List SExpr) := []) :
     TermElabM (String × Option (List String)) := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -196,13 +196,13 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
         let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,
                                     gzDefs := gzDefs, justs := justs,
                                     fcRules := fcRules,
-                                    termMirrors := termMirrors,
+                                    termReplayed := termReplayed,
                                     -- BUILTIN-named TP snapshots (world-defined
                                     -- fns get theirs as tp: hypotheses instead)
                                     gzTps := tps.filter fun (n, _) =>
                                       (w.defs.get? { name := n }).isNone }
         let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
-          mirrors termMirrors
+          mirrors termReplayed
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts
@@ -213,15 +213,15 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
         a != ``propext && a != ``Classical.choice && a != ``Quot.sound)
       unless bad.isEmpty do
         return (s!"FAIL: replay produced a proof using axioms {bad} (sorryAx?)", none)
-      -- D1: emit the mirror constant (checked + axiom-clean above)
+      -- D1: emit the replayed-statement constant (checked + axiom-clean above)
       let mut registered : Option (List String) := none
-      if let some nm := mirrorName? then
+      if let some nm := replayedName? then
         -- name-collision guard (audit 2026-07-15): the sanitization
         -- (non-alphanumerics ↦ '_') is not injective across (book, theorem)
         -- pairs — name the collision instead of surfacing addDecl's
         -- "already declared" as a bare FAIL on a green replay
         if (← Lean.getEnv).contains nm then
-          return (s!"FAIL: mirror-constant name collision: {nm} (sanitized \
+          return (s!"FAIL: replayed-constant name collision: {nm} (sanitized \
                      book/theorem pair duplicates an earlier one)", none)
         let pv ← Lean.instantiateMVars p.1
         Lean.addDecl <| .thmDecl
@@ -288,11 +288,11 @@ structure BookResult where
   emissionFrontiers : Array String := #[]
 
 /-- Parse → reconstruct → replay every theorem of ONE book, in creation order,
-    with the per-book D1 mirror registry — the exact sweep semantics (and the
+    with the per-book D1 replayed registry — the exact sweep semantics (and the
     exact golden line text). `upTo`: stop AFTER the named theorem, and skip the
     (independent) DP-leaf attempts for the theorems before it — the focused
     CLI's target mode. Earlier theorems still REPLAY (never skipped): the
-    mirror registry state at the target must be identical to the sweep's, so a
+    replayed registry state at the target must be identical to the sweep's, so a
     focused row is directly comparable to the golden. -/
 def runBook (name : String) (content : String) (upTo : Option String := none)
     (timings : Bool := false) : TermElabM BookResult := do
@@ -336,25 +336,25 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         res := { res with integrityFails := res.integrityFails.push zeroLine }
       -- D1 MIRROR REGISTRY, per book (WP4): theorems are replayed in
       -- creation order (topological in the citation DAG), each green one
-      -- addDecl'd as a mirror constant that later SAME-BOOK consumers
+      -- addDecl'd as a replayed-statement constant that later SAME-BOOK consumers
       -- apply instead of re-replaying its tree. Reset per book — the
       -- constants are stated over THIS book's world (cross-book reuse is
       -- WP5's transfer).
-      let mut mirrors : MirrorRegistry := []
+      let mut mirrors : ReplayedRegistry := []
       -- RECORDED-TERMINATION mirrors (sorting arc 2026-07-28): defuns whose
       -- admission decrease is beyond the destructor walk get their recorded
-      -- admission waterfall replayed ONCE per book as a conditional mirror
+      -- admission waterfall replayed ONCE per book as a conditional replayed statement
       -- constant; the totality prover applies it at each consumer's
       -- telescope (the D1 mirror pattern). A FAILED replay keeps the fn on
       -- the destructor route's honest frontier — no silent change. The
       -- budget is the admission-class guard (see tryReplay's budget doc).
-      let mut termMirrors : List (String × Name × List String × List SExpr) := []
+      let mut termReplayed : List (String × Name × List String × List SExpr) := []
       let recTermDefuns := recordedTerminationDefuns dev.justifications dev
       for (fn, tcp) in recTermDefuns do
         let cited := citedRuneNames tcp
         let termRules := ((thms.map (·.2)).flatten.filter
           (fun r => cited.contains r.name)).eraseDups
-        let mName := Name.mkStr2 "TerminationMirrors"
+        let mName := Name.mkStr2 "ReplayedTermination"
           (String.map (fun c => if c.isAlphanum then c else '_')
             s!"term_{name}_{fn}")
         let tTm0 ← IO.monoMsNow
@@ -363,7 +363,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
           (thms.map fun (c, _) => (c.name, c))
           (gzDefs := dev.groundZeroSnapshotDefs)
           (fcRules := dev.groundZeroFcRuleSpecs)
-          (mirrorName? := some mName) (budget := 10000000)
+          (replayedName? := some mName) (budget := 10000000)
         let tTm1 ← IO.monoMsNow
         if timings then
           IO.println s!"[t] termination {fn}: {tTm1 - tTm0} ms ({status})"
@@ -379,7 +379,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
               conditional on its own {fn} facts (circularity guard)]"
           else
             let goalLits := (tcp.root.map (·.inputClause)).getD []
-            termMirrors := termMirrors ++ [(fn, mName, conds, goalLits)]
+            termReplayed := termReplayed ++ [(fn, mName, conds, goalLits)]
       for (cp, rules) in thms do
         res := { res with total := res.total + 1 }
         -- EMISSION FRONTIER (Track B): a black-box PROVED leaf — ACL2 discharged
@@ -393,16 +393,16 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         -- ratified carve-out; attempt the DP-lift replay (c1) per leaf.
         let dis := theoremDischargeLeaves cp
         let tps := developmentTPs dev
-        let mName := Name.mkStr2 "CoverageMirrors"
+        let mName := Name.mkStr2 "ReplayedStatements"
           (String.map (fun c => if c.isAlphanum then c else '_')
-            s!"mirror_{name}_{cp.name}")
+            s!"replayed_{name}_{cp.name}")
         let tThm0 ← IO.monoMsNow
         let (status, reg?) ← tryReplay w wExpr tps dev.justifications cp rules
           (thms.map fun (c, _) => (c.name, c))
           (gzDefs := dev.groundZeroSnapshotDefs)
           (fcRules := dev.groundZeroFcRuleSpecs)
-          (mirrors := mirrors) (mirrorName? := some mName)
-          (termMirrors := termMirrors)
+          (mirrors := mirrors) (replayedName? := some mName)
+          (termReplayed := termReplayed)
         let tThm1 ← IO.monoMsNow
         if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"
         if let some conds := reg? then

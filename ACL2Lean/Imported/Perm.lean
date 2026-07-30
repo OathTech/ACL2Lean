@@ -10,7 +10,7 @@ World-parametric (invariant L3) support for lifting the driver-replayed
 (with the propositional corollary over `List.Perm` via `List.isPerm_iff`).
 
 Contents:
-- HAND HYPOTHESIS DISCHARGERS for the mirror's two conditions — `total:perm`
+- HAND HYPOTHESIS DISCHARGERS for the replayed statement's two conditions — `total:perm`
   (the totality prover's user-fn-if-test frontier) and `tp:memb` (no TP
   prover exists yet). Both are the ratified "demos for industrialization"
   (2026-07-04): each mechanizes exactly the induction a future prover
@@ -18,9 +18,9 @@ Contents:
 - SIMULATIONS under `enc`: `memb` computes `List.contains`, `rm` computes
   `List.erase`, `perm` computes `List.isPerm` (all `BEq`-based, matching
   ACL2's `equal`).
-- THE ASSEMBLY `perm_cons_native_of_mirror`: any proof of the mirror
+- THE ASSEMBLY `perm_cons_native_of_replayed`: any proof of the mirror
   statement over a world carrying the three defuns yields the native
-  theorem; the driver's mirror plugs in at exactly one seam
+  theorem; the driver's replayed statement plugs in at exactly one seam
   (`Imported/NativeMirrors`). -/
 
 open ACL2 ACL2.Replay ACL2.Lifting
@@ -540,7 +540,7 @@ private theorem perm_body_total (w : World)
       obtain ⟨M, hM⟩ := hb
       exact ⟨M, vi, hM⟩
 
-/-- `total:perm`, world-parametric — the mirror's remaining totality
+/-- `total:perm`, world-parametric — the replayed statement's remaining totality
     hypothesis, discharged by hand (the prover's user-fn-if-test frontier;
     `conv_if_split` over memb's existential verdict is exactly the move a
     future prover extension mechanizes). -/
@@ -567,7 +567,7 @@ theorem dis_perm_total (w : World)
 /-! ## Exec functions (the two-stage lift, stage 1)
 
 Design: docs/plans/2026-07-06_two-stage-lift.md. Each `*Exec` is a TOTAL
-Lean mirror of its defun body, shape-exact (D2: ite on
+Lean rendering of its defun body, shape-exact (D2: ite on
 `Logic.toBool … = true`, `Logic.*` at builtin calls, recursion at the
 self-call). `*_exec_corr` is the stage-1 corr over ALL SExpr argument
 values — the same interface shape as `conv_builtin2`, so exec'd functions
@@ -897,7 +897,7 @@ theorem corr_perm_enc (w : World)
 
 /-! ## The assembly -/
 
-/-- The perm-cons mirror formula, exactly as the log emits it. -/
+/-- The perm-cons replayed-statement formula, exactly as the log emits it. -/
 def perm_consFormula : SExpr :=
   impliesT (membT aT xT)
     (equalT (permT xT (consT aT yT)) (permT (rmT aT xT) yT))
@@ -905,8 +905,8 @@ def perm_consFormula : SExpr :=
 /-- The native theorem FROM the mirror: any proof of the (truthiness) mirror
     statement over a world carrying the three defuns yields
     `xs.contains a → (xs.isPerm (a :: ys) = (xs.erase a).isPerm ys)`. The
-    mirror is consumed at exactly one seam. -/
-theorem perm_cons_native_of_mirror (w : World)
+    replayed statement is consumed at exactly one seam. -/
+theorem perm_cons_native_of_replayed (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
@@ -916,7 +916,7 @@ theorem perm_cons_native_of_mirror (w : World)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
-    (hmirror : ∀ env : Env,
+    (hreplayed : ∀ env : Env,
       ∃ N, ∀ f, f ≥ N → ∃ v,
         evalOpt f w env perm_consFormula = some v ∧ v ≠ SExpr.nil)
     (av : SExpr) (xs ys : List SExpr) (hmem : xs.contains av = true) :
@@ -965,7 +965,7 @@ theorem perm_cons_native_of_mirror (w : World)
       = some (bif (xs.erase av).isPerm ys then SExpr.t else SExpr.nil) :=
     corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal h_no_car
       h_no_cdr h_no_cons (xs.erase av) ys e (rmT aT xT) yT hrm hy
-  -- the mirror at e: implies-truthy; antecedent truthy → equal truthy
+  -- the replayed statement at e: implies-truthy; antecedent truthy → equal truthy
   have hEq : ∃ N, ∀ f ≥ N, evalOpt f w e
       (equalT (permT xT (consT aT yT)) (permT (rmT aT xT) yT))
       = some (Logic.equal
@@ -980,8 +980,8 @@ theorem perm_cons_native_of_mirror (w : World)
             (bif (xs.erase av).isPerm ys then SExpr.t else SExpr.nil))) :=
     conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
       h_no_implies hP hEq (callBuiltin_implies _ _)
-  -- decode: the mirror's truthiness pins implies ≠ nil → = t → equal truthy
-  obtain ⟨Nm, hm⟩ := hmirror e
+  -- decode: the replayed statement's truthiness pins implies ≠ nil → = t → equal truthy
+  obtain ⟨Nm, hm⟩ := hreplayed e
   have hne : Logic.implies SExpr.t
       (Logic.equal
         (bif xs.isPerm (av :: ys) then SExpr.t else SExpr.nil)
@@ -1002,10 +1002,10 @@ theorem perm_cons_native_of_mirror (w : World)
 
 /-! ## The remaining perm-book native entries (lifter sprint 2026-07-06)
 
-Each consumes its theorem's UNCONDITIONAL driver mirror at exactly one seam
-(`hmirror`) and decodes through the `corr_*` simulation layer with the
-Lifting decode kit (`mirror_pins_ne_nil` / `bool_of_cond_eq` /
-`conv_and_conds` / `mirror_peel_guard`). -/
+Each consumes its theorem's UNCONDITIONAL driver replayed statement at exactly one seam
+(`hreplayed`) and decodes through the `corr_*` simulation layer with the
+Lifting decode kit (`replayed_pins_ne_nil` / `bool_of_cond_eq` /
+`conv_and_conds` / `replayed_peel_guard`). -/
 
 private def bS : Symbol := { package := "ACL2", name := "B" }
 private def bT : SExpr := .atom (.symbol { name := "B" })
@@ -1015,7 +1015,7 @@ private def zT : SExpr := .atom (.symbol { name := "Z" })
 def perm_symmetricFormula : SExpr := impliesT (permT xT yT) (permT yT xT)
 
 /-- perm-symmetric, natively: `isPerm` is symmetric. -/
-theorem perm_symmetric_native_of_mirror (w : World)
+theorem perm_symmetric_native_of_replayed (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
@@ -1025,7 +1025,7 @@ theorem perm_symmetric_native_of_mirror (w : World)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
-    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_symmetricFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys : List SExpr) (hp : xs.isPerm ys = true) :
     ys.isPerm xs = true := by
@@ -1047,14 +1047,14 @@ theorem perm_symmetric_native_of_mirror (w : World)
     h_no_car h_no_cdr h_no_cons ys xs e yT xT hy hx
   have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hA hC (callBuiltin_implies _ _)
-  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
   exact bool_true_of_cond_truthy
     (truthy_of_implies_t hIt (by rw [cond_t_of_true hp]; rfl))
 
 def memb_rmFormula : SExpr := impliesT (membT aT (rmT bT xT)) (membT aT xT)
 
 /-- memb-rm, natively: membership survives erasing another element. -/
-theorem memb_rm_native_of_mirror (w : World)
+theorem memb_rm_native_of_replayed (w : World)
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
     (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
@@ -1063,7 +1063,7 @@ theorem memb_rm_native_of_mirror (w : World)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
-    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env memb_rmFormula = some v ∧ v ≠ SExpr.nil)
     (av bv : SExpr) (xs : List SExpr)
     (hmem : (xs.erase bv).contains av = true) :
@@ -1097,7 +1097,7 @@ theorem memb_rm_native_of_mirror (w : World)
     xs e aT xT av ha hx
   have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hA hC (callBuiltin_implies _ _)
-  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
   exact bool_true_of_cond_truthy
     (truthy_of_implies_t hIt (by rw [cond_t_of_true hmem]; rfl))
 
@@ -1105,14 +1105,14 @@ def comm_rmFormula : SExpr := equalT (rmT aT (rmT bT xT)) (rmT bT (rmT aT xT))
 
 /-- comm-rm, natively: erasures commute (a LIST equality, decoded via `enc`
     injectivity). -/
-theorem comm_rm_native_of_mirror (w : World)
+theorem comm_rm_native_of_replayed (w : World)
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
     (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
     (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
     (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env comm_rmFormula = some v ∧ v ≠ SExpr.nil)
     (av bv : SExpr) (xs : List SExpr) :
     (xs.erase bv).erase av = (xs.erase av).erase bv := by
@@ -1148,13 +1148,13 @@ theorem comm_rm_native_of_mirror (w : World)
   have hEq := conv_builtin2 w e { name := "EQUAL" } _ _ _ _ _ (by decide)
     h_no_equal hL hR (callBuiltin_equal _ _)
   exact enc_inj (eq_of_equal_truthy (toBool_true_of_ne_nil
-    (mirror_pins_ne_nil (hmirror e) hEq)))
+    (replayed_pins_ne_nil (hreplayed e) hEq)))
 
 def perm_membFormula : SExpr :=
   impliesT (ifT (permT xT yT) (membT aT xT) qNil) (membT aT yT)
 
 /-- perm-memb, natively: membership transports across `isPerm`. -/
-theorem perm_memb_native_of_mirror (w : World)
+theorem perm_memb_native_of_replayed (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
@@ -1164,7 +1164,7 @@ theorem perm_memb_native_of_mirror (w : World)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
-    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_membFormula = some v ∧ v ≠ SExpr.nil)
     (av : SExpr) (xs ys : List SExpr)
     (hp : xs.isPerm ys = true) (hmem : xs.contains av = true) :
@@ -1200,7 +1200,7 @@ theorem perm_memb_native_of_mirror (w : World)
     ys e aT yT av ha hy
   have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hAnd hC (callBuiltin_implies _ _)
-  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
   have hb : (xs.isPerm ys && xs.contains av) = true := by rw [hp, hmem]; rfl
   exact bool_true_of_cond_truthy
     (truthy_of_implies_t hIt (by rw [cond_t_of_true hb]; rfl))
@@ -1209,7 +1209,7 @@ def perm_rmFormula : SExpr :=
   impliesT (permT xT yT) (permT (rmT aT xT) (rmT aT yT))
 
 /-- perm-rm, natively: `isPerm` is preserved by erasing the same element. -/
-theorem perm_rm_native_of_mirror (w : World)
+theorem perm_rm_native_of_replayed (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
@@ -1219,7 +1219,7 @@ theorem perm_rm_native_of_mirror (w : World)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
-    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_rmFormula = some v ∧ v ≠ SExpr.nil)
     (av : SExpr) (xs ys : List SExpr) (hp : xs.isPerm ys = true) :
     (xs.erase av).isPerm (ys.erase av) = true := by
@@ -1255,7 +1255,7 @@ theorem perm_rm_native_of_mirror (w : World)
       ys e aT yT av ha hy)
   have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hA hC (callBuiltin_implies _ _)
-  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
   exact bool_true_of_cond_truthy
     (truthy_of_implies_t hIt (by rw [cond_t_of_true hp]; rfl))
 
@@ -1263,7 +1263,7 @@ def perm_transitiveFormula : SExpr :=
   impliesT (ifT (permT xT yT) (permT yT zT) qNil) (permT xT zT)
 
 /-- perm-transitive, natively: `isPerm` is transitive. -/
-theorem perm_transitive_native_of_mirror (w : World)
+theorem perm_transitive_native_of_replayed (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
@@ -1273,7 +1273,7 @@ theorem perm_transitive_native_of_mirror (w : World)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
-    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_transitiveFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys zs : List SExpr)
     (hxy : xs.isPerm ys = true) (hyz : ys.isPerm zs = true) :
@@ -1309,7 +1309,7 @@ theorem perm_transitive_native_of_mirror (w : World)
     h_no_car h_no_cdr h_no_cons xs zs e xT zT hx hz
   have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
     h_no_implies hAnd hC (callBuiltin_implies _ _)
-  have hIt := implies_t_of_ne_nil (mirror_pins_ne_nil (hmirror e) hImp)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
   have hb : (xs.isPerm ys && ys.isPerm zs) = true := by rw [hxy, hyz]; rfl
   exact bool_true_of_cond_truthy
     (truthy_of_implies_t hIt (by rw [cond_t_of_true hb]; rfl))
@@ -1332,7 +1332,7 @@ def perm_equivFormula : SExpr :=
     REFLEXIVITY (the symmetric/transitive conjuncts have their own
     theorems): peel the `booleanp` guard (type-absorbed), then the `(perm
     x x)` guard IS the native fact. -/
-theorem perm_refl_native_of_mirror (w : World)
+theorem perm_refl_native_of_replayed (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
@@ -1342,7 +1342,7 @@ theorem perm_refl_native_of_mirror (w : World)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (h_no_booleanp : w.defs.get? ({ name := "BOOLEANP" } : Symbol) = none)
-    (hmirror : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env perm_equivFormula = some v ∧ v ≠ SExpr.nil)
     (xs : List SExpr) : xs.isPerm xs = true := by
   let e : Env := ((({} : Env).insert zS (enc [])).insert yS (enc [])).insert xS (enc xs)
@@ -1370,15 +1370,15 @@ theorem perm_refl_native_of_mirror (w : World)
       (by decide) h_no_booleanp hpxy (callBuiltin_booleanp _)
     rw [booleanp_cond] at h
     exact h
-  obtain ⟨_, hrest⟩ := mirror_peel_guard (hmirror e) hG1
+  obtain ⟨_, hrest⟩ := replayed_peel_guard (hreplayed e) hG1
   -- guard 2: (perm x x) — its Bool IS the reflexivity fact
   have hG2 := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
     h_no_car h_no_cdr h_no_cons xs xs e xT xT hx hx
-  exact (mirror_peel_guard hrest hG2).1
+  exact (replayed_peel_guard hrest hG2).1
 
 /-- The idiomatic corollary over `List.Perm`: a member can be moved across —
     `a ∈ xs → (xs ~ a :: ys ↔ xs.erase a ~ ys)`. -/
-theorem perm_cons_native_perm_of_mirror (w : World)
+theorem perm_cons_native_perm_of_replayed (w : World)
     (h_perm : w.defs.get? perm_sym = some ([xS, yS], permBody))
     (h_memb : w.defs.get? memb_sym = some ([aS, xS], membBody))
     (h_rm : w.defs.get? rm_sym = some ([eS, xS], rmBody))
@@ -1388,13 +1388,13 @@ theorem perm_cons_native_perm_of_mirror (w : World)
     (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
     (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
     (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
-    (hmirror : ∀ env : Env,
+    (hreplayed : ∀ env : Env,
       ∃ N, ∀ f, f ≥ N → ∃ v,
         evalOpt f w env perm_consFormula = some v ∧ v ≠ SExpr.nil)
     (av : SExpr) (xs ys : List SExpr) (hmem : av ∈ xs) :
     xs.Perm (av :: ys) ↔ (xs.erase av).Perm ys := by
-  have h := perm_cons_native_of_mirror w h_perm h_memb h_rm h_no_consp
-    h_no_equal h_no_car h_no_cdr h_no_cons h_no_implies hmirror av xs ys
+  have h := perm_cons_native_of_replayed w h_perm h_memb h_rm h_no_consp
+    h_no_equal h_no_car h_no_cdr h_no_cons h_no_implies hreplayed av xs ys
     (by simpa [List.contains_iff_mem] using hmem)
   constructor
   · intro hp

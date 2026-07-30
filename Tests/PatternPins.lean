@@ -38,7 +38,7 @@ elab "sorting_arc_pattern_pins% " : term => do
   -- p3-recorded-termination 2/2: THIN (1-ary through the fresh SKIP-ONE
   -- shrinker) + PRUNE (the audit-F4 2-ary negative) both replay
   -- CONDITIONALLY on the ORDINARY hypothesis-backed path: their
-  -- termination mirrors currently frontier at the NESTED-admission-
+  -- termination replayed statements currently frontier at the NESTED-admission-
   -- induction shape ("ran out of items with no closer", *1.1), so the
   -- recorded route is NOT yet exercised by this book (audit H-4/S1: the
   -- decode chain still has exactly one covering instance, QSORT). This
@@ -119,12 +119,12 @@ elab "perm_arc_pattern_pins% " : term => do
   -- - P7-TARGET — the R-COLLAPSE's decorrelated instance: SAME-LN-DUB
   --   (stored :EQUIV SAME-LN, hyp-free) applied at LN's arg-1 under the
   --   defcong SAME-LN-IMPLIES-EQUAL-LN-1, with BOTH the `rule:` (the
-  --   interpreted-relation shape) and `cong:` (whole-formula mirror)
-  --   hypotheses DISCHARGED from their replayed mirrors — only tp:LN kept;
+  --   interpreted-relation shape) and `cong:` (whole-formula replayed statement)
+  --   hypotheses DISCHARGED from their replayed statements — only tp:LN kept;
   -- - SAME-LN-IS-AN-EQUIVALENCE — the multi-clause clausify bridge's
   --   TAUT-DROPPED split (the sym conjunct, recorded :CLAUSE ('T)),
   --   closed by the COMMUTED-EQUAL tautology pair;
-  -- - the defcong and R-rule mirrors themselves.
+  -- - the defcong and R-rule replayed statements themselves.
   let res ← ACL2.Replay.Runner.runBook "p7-cong-collapse" congCollapseLog none
   unless res.replayed == 4 && res.total == 4 && res.integrityFails.isEmpty do
     throwError "pattern pin p7-cong-collapse: replayed \

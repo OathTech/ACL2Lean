@@ -268,7 +268,7 @@ def proveTotality (cfg : ReplayConfig)
 def buildTotalEnv (cfg : ReplayConfig)
     (justs : List (String × Justification))
     (upTo : Option String := none)
-    (termMirrors : List (String × Name × List String × List SExpr) := [])
+    (termReplayed : List (String × Name × List String × List SExpr) := [])
     (hypFVars : List (String × Expr) := [])
     (tpCors : List (String × SExpr) := []) :
     MetaM (List (String × Nat × Expr)) := do
@@ -300,7 +300,7 @@ def buildTotalEnv (cfg : ReplayConfig)
     for (s, formals, body) in pending do
       try
         -- RECORDED-TERMINATION route (sorting arc 2026-07-28): when this
-        -- defun's admission waterfall was replayed as a mirror, assemble
+        -- defun's admission waterfall was replayed as a replayed statement, assemble
         -- the bundle (byte-checks inside; frontier keeps the fn on the
         -- destructor route's honest frontier).
         -- PHASE ordering: the recorded route only fires once the PURE
@@ -309,7 +309,7 @@ def buildTotalEnv (cfg : ReplayConfig)
         -- covers only genuinely route-less dependencies (O<), not fns a
         -- later pure pass would have proved unconditionally.
         let recTerm? ←
-          match purePhaseDone, termMirrors.find? (fun (n, _, _, _) => n == s.name),
+          match purePhaseDone, termReplayed.find? (fun (n, _, _, _) => n == s.name),
                 justs.lookup s.name with
           | true, some (_, c, conds, goalLits), some just =>
             try
@@ -708,6 +708,6 @@ def dischargeGzRuleHyp (cfg : ReplayConfig) (spec : RuleSpec) (decl : Name)
     dependency's tree per consumer — the kernel checks each proof once and a
     reference is O(1), collapsing the multiplicative dependency-tree blowup
     (the ≈557M-node perm-equivalence precedent, design §4). -/
-abbrev MirrorRegistry := List (String × Name × List String)
+abbrev ReplayedRegistry := List (String × Name × List String)
 
 end ACL2.Replay.Driver

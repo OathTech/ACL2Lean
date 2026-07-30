@@ -165,7 +165,7 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
     order, and the byte-checked world facts the `interp_decrease_decode`
     application consumes. Assembled once per defun in `proveTotality`. -/
 structure RecTermInfo where
-  /-- Apply the termination mirror at an env: `EvTrue w env <goal>`. -/
+  /-- Apply the termination replayed statement at an env: `EvTrue w env <goal>`. -/
   thmAt : Expr → MetaM Expr
   /-- The goal literal (the root clause's single literal — the IF-encoded
       conjunction of the non-trivial obligations). -/

@@ -10,8 +10,8 @@
   `Rep α` represents a Lean type in ACL2's value space (injective encoding
   onto an ACL2 RECOGNIZER — `idRep`, `intRep`/`integerp`,
   `listRep`/`true-listp`), `Implements` says an ACL2 function symbol computes
-  a Lean operation along representations, and `native_of_mirror_equal` is the
-  generic equational ender (replayed `equal ⇒ t` mirror + a representation of
+  a Lean operation along representations, and `native_of_replayed_equal` is the
+  generic equational ender (replayed `equal ⇒ t` replayed statement + a representation of
   each side ⇒ the NATIVE equality). Around the spine:
 
   1. THE LIST MORPHISM — `enc : List SExpr → SExpr`, injective and surjective
@@ -100,8 +100,8 @@ recognizer, which is exactly how ACL2 itself speaks types (and what the
 type-prescription machinery talks about). `Implements` says an ACL2 function
 symbol computes a Lean operation along representations — "lifting an
 operation between the worlds". `Implements` facts compose up a formula
-spine, and `native_of_mirror_equal` is the generic equational ender: a
-replayed `equal ⇒ t` mirror plus a representation of each side yields the
+spine, and `native_of_replayed_equal` is the generic equational ender: a
+replayed `equal ⇒ t` replayed statement plus a representation of each side yields the
 NATIVE equality. The target theorems stay user-supplied; this algebra only
 structures their decodes. -/
 
@@ -242,17 +242,17 @@ theorem conv_impliesT (w : World) (e : Env) (a b av bv : SExpr)
 
 /-! ## Decode enders -/
 
-/-- THE GENERIC EQUATIONAL ENDER: a replayed TRUE `equal` mirror (truthiness,
+/-- THE GENERIC EQUATIONAL ENDER: a replayed TRUE `equal` statement (truthiness,
     G2) plus a representation of each side's value yields the NATIVE equality
     — via `equal`'s two-valuedness, no exact-t pin. Every equational catalog
     entry finishes here. -/
-theorem native_of_mirror_equal {γ : Type} (w : World) (e : Env) (r : Rep γ)
+theorem native_of_replayed_equal {γ : Type} (w : World) (e : Env) (r : Rep γ)
     (lhs rhs : SExpr) (x y : γ)
     (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
     (hL : Conv w e lhs (r.enc x)) (hR : Conv w e rhs (r.enc y))
-    (hmirror : EvTrue w e (equalT lhs rhs)) : x = y :=
+    (hreplayed : EvTrue w e (equalT lhs rhs)) : x = y :=
   r.inj (Logic.eq_of_equal_ne_nil
-    (ne_nil_of_evtrue_conv hmirror
+    (ne_nil_of_evtrue_conv hreplayed
       (conv_equalT w e lhs rhs _ _ h_no_equal hL hR)))
 
 /-- The HYPOTHESIS-decode ender: a truthy antecedent forces the consequent
@@ -266,7 +266,7 @@ theorem truthy_of_implies_t {p q : SExpr}
   · rfl
 
 /-- A non-nil `Logic.implies` IS `t` (two-valued) — the G2 decode of an
-    `implies`-headed mirror fact: truthiness recovers the exact value. -/
+    `implies`-headed replayed fact: truthiness recovers the exact value. -/
 theorem implies_t_of_ne_nil {p q : SExpr}
     (h : Logic.implies p q ≠ SExpr.nil) : Logic.implies p q = SExpr.t := by
   rcases logic_implies_boolean p q with ht | hnil
@@ -287,14 +287,14 @@ theorem equal_truthy_of_eq {a b : SExpr} (h : a = b) :
     Logic.toBool (Logic.equal a b) = true := by
   rw [(Logic.equal_t_iff a b).mpr h]; rfl
 
-/-! ## The mirror-decode kit (extracted from entry 9's repeated glue —
+/-! ## The replayed-statement-decode kit (extracted from entry 9's repeated glue —
 lifter sprint 2026-07-06). Every native entry: compute the formula's value
-FORWARD via the `corr_*` layer, PIN it by the mirror's truthiness, then
+FORWARD via the `corr_*` layer, PIN it by the replayed statement's truthiness, then
 project through implies/and/equal down to Bool facts. -/
 
-/-- The mirror's truthiness PINS a computed value: the formula evaluates to
+/-- The replayed statement's truthiness PINS a computed value: the formula evaluates to
     a non-nil value, and we computed WHICH value — so that value ≠ nil. -/
-theorem mirror_pins_ne_nil {w : World} {e : Env} {t v : SExpr}
+theorem replayed_pins_ne_nil {w : World} {e : Env} {t v : SExpr}
     (hm : ∃ N, ∀ f, f ≥ N → ∃ u, evalOpt f w e t = some u ∧ u ≠ SExpr.nil)
     (hv : ∃ N, ∀ f ≥ N, evalOpt f w e t = some v) : v ≠ SExpr.nil := by
   obtain ⟨Nm, hm'⟩ := hm
@@ -327,7 +327,7 @@ theorem booleanp_cond (b : Bool) :
 /-- PEEL one guard off a truthy conjunction tower `(if G rest 'nil)`: the
     guard's Bool is `true` (a native fact) AND the rest stays truthy — the
     stepwise decode of a `defequiv`-style macroexpanded `and`-nest. -/
-theorem mirror_peel_guard {w : World} {e : Env} {G rest : SExpr} {bg : Bool}
+theorem replayed_peel_guard {w : World} {e : Env} {G rest : SExpr} {bg : Bool}
     (hm : ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w e (.cons (.atom (.symbol { name := "IF" }))
         (.cons G (.cons rest (.cons
@@ -347,7 +347,7 @@ theorem mirror_peel_guard {w : World} {e : Env} {G rest : SExpr} {bg : Bool}
       (re_if_false w e G rest
         (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
         SExpr.nil hGn hq) hq
-    exact absurd hnil (fun h => mirror_pins_ne_nil hm h rfl)
+    exact absurd hnil (fun h => replayed_pins_ne_nil hm h rfl)
   | true =>
     have hGt : ∃ N, ∀ f ≥ N, evalOpt f w e G = some SExpr.t := by
       simpa [hb] using hG

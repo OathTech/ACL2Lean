@@ -3,7 +3,7 @@
   see docs/plans/2026-07-18_driver-modular-refactor.md).
 
   Walker-dependent entry points: replayProof, dischargeRuleHyp, and the
-  conditional-mirror harness (replayProofConditional).
+  conditional-replayed-statement harness (replayProofConditional).
 -/
 import ACL2Lean.Replay.Driver.Core
 import ACL2Lean.Replay.Driver.Provers
@@ -12,7 +12,7 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
-/-- Replay a whole theorem's proof tree to its mirror statement
+/-- Replay a whole theorem's proof tree to its replayed statement
     `EvTrue w env cp.formula` (G2: ACL2's own truthiness claim). -/
 def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
   match cp.root with
@@ -26,7 +26,7 @@ def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
     rung 2 — plus the `cong:` condition arm). -/
 def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     (depRoot : ClauseNode) (envV : Expr) (ctxD : ReplayCtx)
-    (mirrors : MirrorRegistry) : MetaM Expr := do
+    (mirrors : ReplayedRegistry) : MetaM Expr := do
   match mirrors.find? (fun (n, _, _) => n == name) with
   | some (_, decl, depConds) => do
     let condArgs ← depConds.toArray.mapM fun c => do
@@ -72,7 +72,7 @@ def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
 
 /-- DISCHARGE a `rule:<thm>` hypothesis from its dependency theorem's replayed
     mirror (v1 step 5, docs/plans/2026-07-05_theorem-dependency-hypotheses.md):
-    obtain the dependency's mirror — by APPLYING its D1 registry constant at
+    obtain the dependency's replayed statement — by APPLYING its D1 registry constant at
     the consumer's own telescope fvars (same world, identical hypothesis
     statements) when registered, else by replaying the dependency INSIDE the
     same hypothesis telescope (`ctx` — its own conditions stay as the shared
@@ -87,7 +87,7 @@ def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     `Logic.implies`, two-valued `Logic.equal` decode, TP boolean pin. -/
 def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
     (depProofs : List (String × ClauseProof))
-    (mirrors : MirrorRegistry := []) : MetaM Expr := do
+    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
     | throwFrontier m!"dischargeRuleHyp: no dependency proof for rule {spec.name}"
   let some depRoot := cp.root
@@ -129,7 +129,7 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
            pure (← mkAppM ``EvTrue #[w, envV, reflectSExpr h]))).toArray
     let ctxDFixed := ctxD
     withLocalDecls premDecls fun premVs => do
-      -- the dependency's mirror at env'. D1 registry hit: APPLY the
+      -- the dependency's replayed statement at env'. D1 registry hit: APPLY the
       -- dependency's constant at the consumer's own telescope fvars for its
       -- kept conditions (same world — identical hypothesis statements; a
       -- missing/ambiguous mapping is a DEFECT, not a frontier: the consumer
@@ -208,14 +208,14 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
       let pf ← mkLambdaFVars (#[envV] ++ premVs) body
       mkExpectedTypeHint pf (← mkRuleHypType cfg spec)
 
-/-- DISCHARGE a `cong:<thm>` hypothesis from its dependency's replayed mirror
+/-- DISCHARGE a `cong:<thm>` hypothesis from its dependency's replayed statement
     (G2 rung 2). No decode at all: the hypothesis states the WHOLE formula
     (`∀ env', EvTrue w env' formula`) and the dependency's Goal clause IS that
     single-literal formula — recompute-and-checked, then the mirror applied
     at `env'`. -/
 def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
     (depProofs : List (String × ClauseProof))
-    (mirrors : MirrorRegistry := []) : MetaM Expr := do
+    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
     | throwFrontier m!"dischargeCongHyp: no dependency proof for {spec.name}"
   let some depRoot := cp.root
@@ -243,8 +243,8 @@ def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
 def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (cp : ClauseProof) (justs : List (String × Justification) := [])
     (rules : List RuleSpec := []) (depProofs : List (String × ClauseProof) := [])
-    (mirrors : MirrorRegistry := [])
-    (termMirrors : List (String × Name × List String × List SExpr) := []) :
+    (mirrors : ReplayedRegistry := [])
+    (termReplayed : List (String × Name × List String × List SExpr) := []) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
   -- hypothesis declarations: totality for every defined fn, TP where
@@ -351,13 +351,13 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         | throwError "replayProofConditional: theorem {cp.name} has no proof tree"
       let prf ← instantiateMVars (← replayClause cfg ctx root)
       -- defense-in-depth (audit 2026-07-06): PIN the replayed proof to the
-      -- root clause's own mirror statement — fidelity must not rest solely
+      -- root clause's own replayed statement — fidelity must not rest solely
       -- on each handler targeting cn.inputClause
       let rootTy ← mkAppM ``EvTrue
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr (disjoinTerm root.inputClause)]
       let prf ← mkExpectedTypeHint prf rootTy
       -- v1 STEP 5 — LAZY rule-hypothesis discharge: derive each USED
-      -- rule:<thm> hypothesis from its dependency's replayed mirror,
+      -- rule:<thm> hypothesis from its dependency's replayed statement,
       -- REVERSE creation order. Creation order is TOPOLOGICAL in the
       -- dependency DAG (ACL2 admits a defthm only after the rules it cites
       -- exist), so a discharge proof can only introduce uses of STRICTLY
@@ -427,13 +427,13 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           -- GROUND-ZERO dependencies (ACL2-COUNT/O<…, at the entries
           -- tail), so the bound is dropped when one is in play.
           let hasRecorded := neededFns.any
-            (fun n => termMirrors.any (·.1 == n))
+            (fun n => termReplayed.any (·.1 == n))
           let lastUsed? := (cfg.worldVal.defs.entries.filter
             (fun (s, _, _) => neededFns.contains s.name)).getLast?
           buildTotalEnv cfg justs
             (upTo := if hasRecorded then none
                      else lastUsed?.map (fun (s, _, _) => s.name))
-            (termMirrors := termMirrors) (hypFVars := hypFVarsAll)
+            (termReplayed := termReplayed) (hypFVars := hypFVarsAll)
             (tpCors := tps)
       let mut prf := prf
       for (c, v) in used do

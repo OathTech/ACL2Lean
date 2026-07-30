@@ -163,7 +163,7 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
   let some ind := cn.induction | throwError "replayInduction: no induction"
   -- 1. validate the justification shape (J2: μ-registry + T3 + I4 covering)
   -- RECORDED-TERMINATION schemes (sorting arc 2026-07-28): when the scheme
-  -- fn's admission waterfall was replayed as a mirror, the bookkeeping μ is
+  -- fn's admission waterfall was replayed as a replayed statement, the bookkeeping μ is
   -- the INTERPRETED count of the measured variable (same design-I1
   -- principle — μ appears in no statement) and the IH decrease decodes
   -- from the replayed theorem (the fallback at the discharge site below).
@@ -171,7 +171,7 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
     | .cons (.atom (.symbol f)) _ => some f
     | _ => none
   let recMirror? := schemeFn?.bind fun f =>
-    cfg.termMirrors.find? (fun (n, _, _, _) => n == f.name)
+    cfg.termReplayed.find? (fun (n, _, _, _) => n == f.name)
   let μE ←
     match recMirror?, ind.measure with
     | some _, .cons (.atom (.symbol cnt)) (.cons (.atom (.symbol v)) .nil) =>
