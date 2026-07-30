@@ -66,7 +66,7 @@ derive_world qsortPinsWorld from qsortPinsDev
     pins are even reached. -/
 
 elab "sorting_statement_pins_run% " : term => do
-  let r1 ← Runner.runBook "pins/sorting/isort" isortLog (upTo := some "ORDEREDP-ISORT")
+  let r1 ← Runner.runBook "pins/sorting/isort" isortLog (upTo := some "HOW-MANY-ISORT")
   let r2 ← Runner.runBook "pins/sorting/qsort" qsortLog (upTo := some "TRUE-LISTP-QSORT")
   unless r1.integrityFails.isEmpty && r2.integrityFails.isEmpty do
     throwError "sorting statement pins: integrity failures \
@@ -77,6 +77,13 @@ elab "sorting_statement_pins_run% " : term => do
   let mustHave : List (String × String) :=
     [("pins/sorting/isort",
       "    ORDEREDP-ISORT → REPLAYED ✓ cond[tp:INSERT]"),
+     ("pins/sorting/isort",
+      -- (no DISCHARGE suffix here: upTo skips the earlier theorems' DP
+      -- probes; the full sweep's golden carries them)
+      "    TRUE-LISTP-ISORT → REPLAYED ✓ cond[tp:INSERT]"),
+     ("pins/sorting/isort",
+      "    HOW-MANY-ISORT → REPLAYED ✓ cond[tp:HOW-MANY, \
+rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]"),
      ("pins/sorting/qsort",
       "    PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, \
 tp:HOW-MANY, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, rule:CONVERT-PERM-TO-HOW-MANY, \
@@ -542,5 +549,40 @@ example :
   ReplayedStatements.replayed_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
 
 #print axioms ReplayedStatements.replayed_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
+
+/-! ## TRUE-LISTP-ISORT + HOW-MANY-ISORT (isort.lisp:26, 29) — the isort
+    book's remaining green rows (validator/lifter arc W1 item 3: the
+    survey's near-zero-marginal-cost pins; completes the book). -/
+
+/-- PIN `TRUE-LISTP-ISORT`: `(true-listp (isort x))`, conditional on
+    insert's `(consp (insert e x))` TP (source-true: every branch conses). -/
+example :
+    ∀ (env : Env),
+      tpPred2 isortPinsWorld "INSERT" Logic.consp →
+      EvTrue isortPinsWorld env (ap1 "TRUE-LISTP" (ap1 "ISORT" (sym "X"))) :=
+  ReplayedStatements.replayed_pins_sorting_isort_TRUE_LISTP_ISORT
+
+#print axioms ReplayedStatements.replayed_pins_sorting_isort_TRUE_LISTP_ISORT
+
+/-- PIN `HOW-MANY-ISORT`: `(equal (how-many e (isort x)) (how-many e x))`,
+    conditional on how-many's non-negative-integer TP, fold-consts-in-+,
+    and `not-memb-implies-how-many-is-0`
+    (`(implies (not (memb a x)) (equal (how-many a x) 0))` — transcribed
+    from its book; kept because its own replay is cross-book). -/
+example :
+    ∀ (env : Env),
+      tpNonnegInt2 isortPinsWorld "HOW-MANY" →
+      foldConstsHyp isortPinsWorld →
+      ruleEqHyp1 isortPinsWorld
+        (notOf (ap2 "MEMB" (sym "A") (sym "X")))
+        (ap2 "HOW-MANY" (sym "A") (sym "X"))
+        (qt (.atom (.number (.int 0)))) →
+      EvTrue isortPinsWorld env
+        (ap2 "EQUAL"
+          (ap2 "HOW-MANY" (sym "E") (ap1 "ISORT" (sym "X")))
+          (ap2 "HOW-MANY" (sym "E") (sym "X"))) :=
+  ReplayedStatements.replayed_pins_sorting_isort_HOW_MANY_ISORT
+
+#print axioms ReplayedStatements.replayed_pins_sorting_isort_HOW_MANY_ISORT
 
 end ACL2.Tests.SortingPins
