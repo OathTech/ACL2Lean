@@ -162,8 +162,27 @@ _Last updated: 2026-07-29._
 > audit F8); (e) the
 > unemitted-test frontier message now self-locates (running term +
 > in-scope facts).
-> **VALIDATOR/LIFTER ARC (branch `mdd/validator-lifter`, opened
-> 2026-07-30) — IN PROGRESS; GOVERNS THE CURRENT WORK.** Charter:
+> **SORTING-COMPLETION II ARC (branch `mdd/sorting-completion-2`,
+> opened 2026-07-30 at main a1c25c2) — IN PROGRESS; GOVERNS THE CURRENT
+> WORK.** MDD-ratified charter:
+> docs/plans/2026-07-30_sorting-completion-2-arc.md. Goal: every sweep
+> sorting row green + ORDEREDP-QSORT's rule:ORDEREDP-APPEND condition
+> discharged. Sequencing A→D→C→B: the type-alist relief family
+> (ORDEREDP-APPEND/ORDEREDP-MEMB/ORDERED-PERMS/TRUE-LISTP-MSORT — the
+> FC-conclusion third of rewrite-clause-type-alist; expected landing =
+> emitted entry provenance + bounded relief registry), then
+> HOW-MANY-QSORT's J6 value-level type-set discharge, then the three
+> msort record classes, then the sorts-equivalent walls (the shared
+> :PATH misnavigation + the :use-hint class). OUT of scope: bsort
+> recon wall, equisort encapsulate (R6), functional instantiation (R7)
+> — the following arc.
+
+> **VALIDATOR/LIFTER ARC (branch `mdd/validator-lifter`) — TRANCHE 1
+> MERGED to main a1c25c2 (2026-07-30, audited: single Opus, zero
+> soundness findings, all conditions actioned pre-merge). Tranche 2
+> (p3 mirror + dischargers, lift_decode elab, W1 items 2/4/5/8-15,
+> Rep transformers, pattern-map tighten) QUEUED after
+> sorting-completion II.** Charter:
 > docs/plans/2026-07-30_validator-lifter-arc.md (direction MDD-approved
 > 2026-07-30; detail sequencing per its "Sequencing" section). Two
 > workstreams: W1 = the validation-surface survey's 15-item gap list
