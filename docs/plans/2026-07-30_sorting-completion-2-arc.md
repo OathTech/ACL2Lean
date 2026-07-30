@@ -195,3 +195,23 @@ should apply); (b) whether the just-added completion lemmas
 contradiction is nil ≠ car x vs …; (c) whether the leaf needs a
 lexorder-aware closer (the carve-out allows it — check what ACL2's fc
 derived, drive off the emitted record).
+
+## Inc-4 FINDING (2026-07-30): the DP lift over-strengthens bare-term literals
+
+Ground truth (the emitted *1/1.2 record): INPUTCLAUSE
+`((NOT (CONSP A)) (EQUAL E (CAR A)) (NOT (EQUAL E (CAR (CDR A))))
+(CONSP (CDR A)) (NOT (LEXORDER 'NIL (CAR A))) (CAR A))` — the final
+literal is the BARE TERM `(CAR A)`, whose truth in a disjunction is
+`v ≠ nil`. The dp-fact lift states the goal as `Logic.car dpv0 =
+SExpr.t` — TOO STRONG (car a is any non-nil value under the hyps; the
+correct ≠-nil goal IS provable: E-elimination gives car(cdr) ≠ car,
+consp(cdr)=nil + the completion lemma give car(cdr)=nil, hence
+car ≠ nil). Fail-closed (unprovable goal), not unsound — but it blocks
+the leaf. FIX: the lift's final-literal convention for a bare
+(non-recognizer, non-EQUAL) literal must be truthiness (≠ nil), not
+exact-t — find the convention in the discharge clause-lift (dpLiftF /
+proveDpFact's obligation construction) and correct it; then the leaf
+closes with logic_car_of_consp_nil + the equal-nil decode (omega not
+needed — check whether the closer needs a small extension for the
+final ≠-nil step). Note the E-ELIMINATION already performed by the
+lift is correct (literal-3 equation + literal-2 rewrite).
