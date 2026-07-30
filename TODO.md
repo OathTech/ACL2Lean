@@ -119,6 +119,24 @@ _Last updated: 2026-07-29._
 > p3-conj or-shape tripwire, which also first-validates the conjunction
 > composer's mid-literal arm); rung 2 = perm (bootstrap-DAG check on the
 > real logs, then PERM-IMPLIES-EQUAL-ALL-REL-2, then ORDEREDP-QSORT).
+> **PERM-LANE ARC (branch `mdd/perm-lane`, opened 2026-07-30) — IN
+> PROGRESS; GOVERNS THE CURRENT WORK.** Rung 2 of the equiv-lane design
+> (docs/plans/2026-07-29_equiv-lane-design.md): the congruence registry
+> + the interpreted-relation instance (user equivalence = EvTrue of the
+> world's PERM on quoted values; every property CONSUMED from replayed
+> :equivalence/:congruence mirrors). Targets:
+> PERM-IMPLIES-EQUAL-ALL-REL-2 (branch-substitution under :EQUIVALENCE
+> PERM), then ORDEREDP-QSORT (two :EQUIV PERM PERM-QSORT steps at
+> ALL-REL-arg-2 congruence positions — the headline sorting row;
+> conditional on rule:ORDEREDP-APPEND until the type-alist relief class
+> lands). Fold-in candidates en route: the type-alist spine-facts
+> relief (4 rows), the linear-in-simplify emission gap (p6).
+> INC-0 DONE (2026-07-30): the BOOTSTRAP DAG verified on the real logs
+> (the design note's precondition, flagged absent by the outside
+> auditor) — no circularity/forward/self citations in the perm or qsort
+> books; the perm book's equivalence facts are 8/8 green mirrors; the
+> two record classes pinned in the design note.
+
 > PRE-MERGE AUDIT ACTIONED (2026-07-30, 2 Opus agents inside/outside;
 > ZERO soundness findings from both; outside verdict "merge it — the
 > foundation is right"; the inside F1 lhs claim REFUTED — term is

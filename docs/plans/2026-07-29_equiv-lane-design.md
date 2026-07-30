@@ -72,13 +72,39 @@ threads the step-recorded `:EQUIV` and refuses (loud frontier) any R with
 no in-scope equivalence-fact bundle — the D6 pattern: an undischargeable
 R-fact surfaces as an honest `cond[…]` hypothesis, never an assumption.
 
-## Bootstrap DAG (to verify on the real logs before building rung 2)
+## Bootstrap DAG — VERIFIED on the real logs (2026-07-30, perm-lane inc-0)
 
-Claim: no circularity — `PERM-IMPLIES-EQUAL-ALL-REL-2`'s proof uses only
-earlier green perm lemmas (`PERM-RM`, `ALL-REL-RM-1/2`, equivalence rules),
-and `ORDEREDP-QSORT` uses the defcong + `PERM-QSORT` (both earlier).
-Verify by walking the recorded rune citations in creation order; hard
-evidence goes here before rung 2 starts.
+Probe: walk every theorem's `citedRuneNames` against creation order in
+the perm and qsort books. RESULT — no circularity, no forward or self
+citation anywhere:
+
+- perm book (creation order PERM-CONS → PERM-SYMMETRIC → MEMB-RM →
+  PERM-MEMB → COMM-RM → PERM-RM → PERM-TRANSITIVE →
+  PERM-IS-AN-EQUIVALENCE): strictly earlier citations throughout;
+  PERM-IS-AN-EQUIVALENCE cites only PERM-SYMMETRIC + PERM-TRANSITIVE.
+  All 8 rows are GREEN (8/8 unconditional in the sweep) — the
+  equivalence facts rung 2 consumes are replayed mirrors.
+- qsort book: PERM-IMPLIES-EQUAL-ALL-REL-2 cites ZERO local theorems
+  (support is cross-book: CAR/CDR-CONS + LEXORDER-REFLEXIVE/TRANSITIVE);
+  ORDEREDP-QSORT cites ORDEREDP-APPEND, PERM-IMPLIES-EQUAL-ALL-REL-2,
+  ALL-REL-FILTER-1/2, PERM-QSORT — all strictly earlier.
+- Dependency note: ORDEREDP-QSORT cites ORDEREDP-APPEND (currently FAIL
+  at the type-alist relief class) — the headline row will be conditional
+  on rule:ORDEREDP-APPEND until that class lands (D6-honest).
+
+The RECORD classes rung 2 must replay (from the same probe):
+
+1. ORDEREDP-QSORT: exactly TWO `:EQUIV PERM` rewrite steps, both
+   `(:REWRITE PERM-QSORT)` via ABBREVIATION-EXPANSION — perm-rewrites at
+   congruence-licensed positions (ALL-REL arg 2, where the replayed
+   defcong mirror licenses Perm-in → Eq-out: the L2 congruence-registry
+   collapse row, the direct analogue of rung 1's iff collapse rows).
+2. PERM-IMPLIES-EQUAL-ALL-REL-2: its own proof has NO `:EQUIV PERM`
+   rewrite steps (only EQUAL/IFF) — the blocker is a
+   BRANCH-SUBSTITUTION record whose `:EQUIVALENCE` is PERM
+   (remove-trivial-equivalences substituting under the perm relation);
+   the transport needs the interpreted-relation instance at the
+   substituted positions.
 
 ## Sequencing
 
