@@ -183,12 +183,18 @@ _Last updated: 2026-07-29._
 > - inc-1: the p5 MIRROR duppRec (e::tl) → duppRec (e::e::tl) — the
 >   chain2 schematic's first instance (chain2Body/chain2Rec/
 >   corr_chain2_enc, comparison-generic: dupp=EQUAL, p3's ordd=LEXORDER
->   and p6's ordn are the same shape), boolRep, the IMPLIES hypothesis
+>   and p6's ordn are the same shape), boolEnc, the IMPLIES hypothesis
 >   decode, junk-disjunct elimination.
 > - W2(a): the LIFT-COVERAGE GATE — 66-row catalog over the golden's
->   green rows (17 native existence-checked / 11 replayed-only
->   justified / 38 pending with blocking work named); a new green row
->   without a decision fails the NativeMirrors build.
+>   green rows; a new green row without a decision fails the
+>   NativeMirrors build. SCOPE (audit F4): the ratchet covers the 25
+>   SWEEP books only — pattern-test books (incl. p5/p7 themselves) are
+>   outside the golden and gated separately (PatternPins + the axiom
+>   run_cmd). Post-audit reclassification (F1/F7): 17 native /
+>   6 replayed-only / 43 pending — the five TRUE-LISTP-* "type-absorbed"
+>   claims were REFUTED by the file's own TRUE-LISTP-FLATTEN native
+>   (the image-of-enc fact) and demoted to pending; the four stale G5
+>   reasons corrected to the real lift blockers.
 > - W1 item 1: fsq-unfolds STATEMENT pin (the lambda/beta path's gap).
 > - W1 item 3: TRUE-LISTP-ISORT + HOW-MANY-ISORT pins (isort complete).
 > - W1 item 6: termination-replay rows in the sweep (golden +1 row:

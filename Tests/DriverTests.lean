@@ -936,15 +936,14 @@ private def fsqRuleEq (lhs rhs : SExpr) : Prop :=
   ∀ env' : Env, ∃ N, ∀ f ≥ N,
     evalOpt f letLambdaWorld env' lhs = evalOpt f letLambdaWorld env' rhs
 
-/-- PIN the machine-generated statement of `fsq-unfolds`: the mirror... the
-    replayed statement of `(equal (fsq a) (* (+ a 1) (+ a 1)))` AFTER
-    preprocess unfolded `fsq` to its translated-`let` LAMBDA application
-    (the root Goal clause the log records), conditional on the three
-    ground-zero arithmetic rules (specs from the D5 snapshot: hyp-free,
-    EQUAL; commutativity-of-*, distributivity, unicity-of-1 → fix).
-    The conclusion is the SOURCE defthm's formula verbatim — `(fsq a)`
-    un-unfolded (the root Goal clause; the LAMBDA application appears in
-    the child subgoal, inside the replay). -/
+/-- PIN the machine-generated REPLAYED STATEMENT of `fsq-unfolds`:
+    `(equal (fsq a) (* (+ a 1) (+ a 1)))` — the SOURCE defthm's formula
+    verbatim, `(fsq a)` un-unfolded (the root Goal clause; the
+    translated-`let` LAMBDA application appears in the child subgoal,
+    INSIDE the replay — which is where the lambda machinery this pin
+    guards actually runs). Conditional on the three ground-zero
+    arithmetic rules (specs from the D5 snapshot: hyp-free, EQUAL;
+    commutativity-of-*, distributivity, unicity-of-1 → fix). -/
 example :
     ∀ (env : Env),
       fsqRuleEq (fsqAp2 "BINARY-*" (fsqSym "X") (fsqSym "Y"))
@@ -1005,6 +1004,8 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Tests.Driver.native_nat_refl,
             ``ACL2.Tests.Driver.perm_cons_real_replayed,
             ``ACL2.Tests.Driver.perm_transitive_real_replayed,
+            -- ROOT-level (defined after `end ACL2.Tests.Driver`) — bare
+            -- name deliberate (audit F10)
             ``fsq_unfolds_real_replayed] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)

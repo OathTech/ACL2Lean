@@ -37,7 +37,7 @@
                         truth; name-generic drv_tp_len + corr_mapconst_enc,
                         validator/lifter arc inc-0]
    18. p5-or-shape-flipped  duppRec (e::tl) → duppRec (e::e::tl)
-                        [chain2 schematic (comparison-generic) + boolRep +
+                        [chain2 schematic (comparison-generic) + boolEnc +
                         implies decode + junk-disjunct elimination,
                         validator/lifter arc inc-1]
   PROVED (via the HAND replayed statement — driver upgrade pending):
@@ -776,7 +776,14 @@ theorem p7TargetReplayed_uncond (env : Env) :
       (by decide) (by decide))
 
 /-- The MIRROR: `(l.map (fun _ => '0)).length = l.length` — proved FROM the
-    replayed P7-TARGET (via `Int` lengths and `Nat.cast` injectivity). -/
+    replayed P7-TARGET (via `Int` lengths and `Nat.cast` injectivity).
+    NARROWING vs the book theorem (audit F6): the ACL2 statement holds for
+    ALL X (atoms, improper lists); the mirror quantifies over `List SExpr`
+    — the true-listp fragment, inherent to native Lean lists. The
+    discriminating content is the proof ROUTE through the replayed
+    statement (the native statement alone is a simp one-liner — audit
+    F5); nothing pins the route mechanically, so a future edit replacing
+    it with a direct proof would silently drop the ground-truth value. -/
 theorem p7_dub_len_native_driver (l : List SExpr) :
     (l.map (fun _ => q0Atom)).length = l.length := by
   let e : Env := ({} : Env).insert p7xSym (enc l)
@@ -808,7 +815,7 @@ theorem p7_dub_len_native_driver (l : List SExpr) :
 to the native fact: prepending an element equal to the head of an
 adjacent-equal chain keeps it a chain. Exercises the machinery p7 did not:
 the `chain2` schematic (comparison-generic — `dupp` is EQUAL's instance),
-`boolRep`/`boolEnc`, the IMPLIES hypothesis decode, and the or-disjunct
+`boolEnc`, the IMPLIES hypothesis decode, and the or-disjunct
 elimination (`enc l` is never the symbol `JUNK`). -/
 
 private def p5MirrorLog : String :=
@@ -850,7 +857,12 @@ private theorem corr_dupp (xs : List SExpr) (e' : Env) (a : SExpr)
 /-- ENTRY, PROVED — the p5 MIRROR: prepending an element equal to the head
     preserves the adjacent-equal chain, THROUGH the replayed DUPP-REP-MID
     (implies decode; the `junk` disjunct dies because an encoded list is
-    never that symbol). -/
+    never that symbol).
+    NARROWING vs the book theorem (audit F6): the ACL2 statement holds for
+    ANY cons X including improper lists; this mirror quantifies over
+    `List SExpr` (the true-listp fragment — inherent to native Lean lists)
+    and instantiates the `(equal (car x) e)` hypothesis at hd := e (faithful
+    — EQUAL is identity here). -/
 theorem p5_dupp_prepend_native_driver (e : SExpr) (tl : List SExpr)
     (h : duppRec (e :: tl) = true) : duppRec (e :: e :: tl) = true := by
   let env : Env := (({} : Env).insert p5eSym e).insert p5xSym (enc (e :: tl))
@@ -981,13 +993,13 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("00-direct", "SQ-OF-3", .native ``sq_of_3_native),
   ("00-direct", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("01-multi-theorem", "APP-CONS-CAR", .native ``car_cons_native),
-  ("01-multi-theorem", "APP-NIL", .pending "G5 multi-literal pushed-clause induction"),
+  ("01-multi-theorem", "APP-NIL", .pending "rule:CONS-CAR-CDR discharger + the true-listp hypothesis decode (the row replays green; audit F7 corrected the stale G5 reason)"),
   ("01-multi-theorem", "LEN2-APP", .pending "len2 world dischargers (entry-1 recipe over the 01 world)"),
   ("02-rev", "APP-ASSOC", .native ``app_assoc_native_driver),
-  ("02-rev", "TRUE-LISTP-REV", .replayedOnly "type-absorbed natively (List is well-formed by type)"),
-  ("02-rev", "APP-NIL", .pending "G5 multi-literal pushed-clause induction"),
-  ("02-rev", "REV-APP", .pending "G5 + rev correspondence"),
-  ("02-rev", "REV-REV", .pending "G5 + rev correspondence"),
+  ("02-rev", "TRUE-LISTP-REV", .pending "the flatten-recipe mirror (the image-of-enc fact, cf TRUE-LISTP-FLATTEN — unconditional, transfers directly)"),
+  ("02-rev", "APP-NIL", .pending "rule:CONS-CAR-CDR discharger + the true-listp hypothesis decode"),
+  ("02-rev", "REV-APP", .pending "rev correspondence + tp:REV/rule:CONS-CAR-CDR dischargers"),
+  ("02-rev", "REV-REV", .pending "rev correspondence + tp:REV/rule:CONS-CAR-CDR dischargers"),
   ("03-linear", "LEN2-NONNEG", .pending "len2 dischargers; Nat form is type-absorbed"),
   ("03-linear", "LEN2-CDR-SMALLER", .pending "len2 dischargers"),
   ("03-linear", "LINEAR-CHAIN", .pending "#50 DP tactic decode"),
@@ -1003,7 +1015,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("08-equality-reasoning", "EQUAL-TRANS", .native ``equal_trans_native),
   ("09-defn-unfold", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("09-defn-unfold", "IDF-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
-  ("10-tree-induction", "TRUE-LISTP-APP", .replayedOnly "type-absorbed natively"),
+  ("10-tree-induction", "TRUE-LISTP-APP", .pending "the flatten-recipe mirror (unconditional — transfers directly)"),
   ("10-tree-induction", "TRUE-LISTP-FLATTEN", .native ``true_listp_flatten_native_driver),
   ("12-multi-controller", "LEN-ZIP2", .pending "zip2 correspondence (validator/lifter backlog)"),
   ("13-multi-measured-var", "LEN-INTERLEAVE", .pending "interleave correspondence (backlog)"),
@@ -1021,12 +1033,12 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/perm", "PERM-TRANSITIVE", .native ``perm_transitive_native_driver),
   ("sorting/perm", "PERM-IS-AN-EQUIVALENCE", .native ``perm_refl_native_driver),
   ("sorting/isort", "ORDEREDP-ISORT", .pending "chain2/LEXORDER + insert correspondence (p3-adjacent; backlog)"),
-  ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "type-absorbed natively"),
+  ("sorting/isort", "TRUE-LISTP-ISORT", .pending "the flatten-recipe mirror + the tp:INSERT discharger"),
   ("sorting/isort", "HOW-MANY-ISORT", .pending "how-many correspondence (count fn; backlog)"),
   ("sorting/ordered-perms", "ORDEREDP-RM", .pending "chain2/LEXORDER + rm correspondence (backlog)"),
   ("sorting/ordered-perms", "EQUAL-CONS", .pending "cons-equation decode (backlog)"),
   ("sorting/ordered-perms", "CAR-RM", .pending "rm correspondence (backlog)"),
-  ("sorting/ordered-perms", "TRUE-LISTP-RM", .replayedOnly "type-absorbed natively"),
+  ("sorting/ordered-perms", "TRUE-LISTP-RM", .pending "the flatten-recipe mirror + its cond dischargers"),
   ("sorting/msort", "HOW-MANY-MERGE2", .pending "how-many/merge2 correspondences (backlog)"),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .pending "how-many/evens/odds correspondences (backlog)"),
   ("sorting/msort", "HOW-MANY-MSORT", .pending "how-many/msort correspondences (backlog)"),
@@ -1041,7 +1053,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ALL-REL-RM-2", .pending "all-rel/rm correspondences (backlog)"),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .pending "all-rel correspondence; the defcong congruence fact natively (backlog)"),
   ("sorting/qsort", "ORDEREDP-QSORT", .pending "chain2/LEXORDER + qsort correspondences (the headline; backlog)"),
-  ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "type-absorbed natively")]
+  ("sorting/qsort", "TRUE-LISTP-QSORT", .pending "the flatten-recipe mirror + its cond dischargers (total:O<, tp:QSORT, …)")]
 
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
@@ -1050,7 +1062,7 @@ run_cmd Lean.Elab.Command.liftCoreM do
   let mut book := ""
   for line in liftCoverageGolden.splitOn "\n" do
     if line.startsWith "• " then
-      book := (((line.drop 2).toString.splitOn " ").headD "").stripSuffix ":"
+      book := (((line.drop 2).toString.splitOn " ").headD "").dropSuffix ":" |>.toString
     else if line.startsWith "    " && (line.splitOn " → REPLAYED ✓").length > 1 then
       rows := rows ++ [(book, ((line.trimAscii.toString.splitOn " → ").headD ""))]
   -- every green row has exactly one catalog decision

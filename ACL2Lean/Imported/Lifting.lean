@@ -741,12 +741,9 @@ this is name- AND comparison-generic). -/
 /-- ACL2's boolean encoding: `t` / `nil`. -/
 def boolEnc (b : Bool) : SExpr := bif b then SExpr.t else SExpr.nil
 
-/-- Booleans, recognized by exact `t`/`nil` membership. -/
-def boolRep : Rep Bool where
-  enc := boolEnc
-  inj := by intro a b h; cases a <;> cases b <;> simp_all [boolEnc, SExpr.t]
-  recog s := s = SExpr.t ∨ s = SExpr.nil
-  mem b := by cases b <;> simp [boolEnc]
+-- (a `Rep Bool` instance was drafted here and DELETED unwired — audit F2,
+-- the banned build-now-wire-later anti-pattern; reintroduce it WITH its
+-- first consumer when a decode needs it. `boolEnc` below is used.)
 
 /-- `(if (consp x) (if (consp (cdr x)) (if (cmp (car x) (car (cdr x)))
     (fn (cdr x)) 'nil) 't) 't)` — the ADJACENT-PAIRS recognizer body

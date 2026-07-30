@@ -102,8 +102,9 @@ rule:CONVERT-PERM-TO-HOW-MANY, rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND]")]
     unless lines.any (· == line) do
       throwError "sorting statement pins: {book} lost pinned status line\n  \
         {line}\ngot:\n{"\n".intercalate lines.toList}"
-  -- the QSORT termination replayed statement registers no status line; its existence is
-  -- asserted here (the type pin below is the content gate)
+  -- the QSORT termination replayed statement's existence is asserted here
+  -- (the type pin below is the content gate); since W1 item 6 it ALSO
+  -- registers a golden row (termination:QSORT)
   unless (← getEnv).contains
       (Name.mkStr2 "ReplayedTermination" "term_pins_sorting_qsort_QSORT") do
     throwError "sorting statement pins: QSORT termination replayed statement was not registered"
