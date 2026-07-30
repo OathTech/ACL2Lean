@@ -158,15 +158,26 @@ _Last updated: 2026-07-29._
 > falsity facts as equation sources alongside segment facts; (e) the
 > unemitted-test frontier message now self-locates (running term +
 > in-scope facts).
-> INC-2 (next): ORDEREDP-QSORT — the `cong:` hypothesis class
-> (defcong mirrors offered as `∀ env', EvTrue w env' formula`,
-> discharged like rule: hyps), the R-conclusion rule-hypothesis shape
-> (`∀ env', EvTrue w env' (R lhs rhs)` for user-equivalence stored
-> rules — PERM-QSORT is `((:REWRITE PERM-QSORT) NIL PERM (QSORT X) X
-> NIL)` in the rules stream), and the preprocess-chain use site: the
-> R-payload collapses at its congruence frame (path last frame
-> (2 . ALL-REL)) by value-level MP through the defcong instance —
-> both hypothesis instantiations premise-free substN bridges.
+> INC-2 DONE (2026-07-30): ORDEREDP-QSORT → REPLAYED ✓ (sweep 65/79,
+> 35 conditional; zero other row changes) — the headline sorting row,
+> conditional ONLY on pre-existing debt (rule:ORDEREDP-APPEND +
+> totality/TP/arithmetic classes); the perm reasoning is
+> SELF-CONTAINED: rule:PERM-QSORT (the new interpreted-relation
+> hypothesis shape, mkRuleHypType R-route + routeRel discharge) and
+> cong:PERM-IMPLIES-EQUAL-ALL-REL-2 (the new `cong:` whole-formula
+> hypothesis class, CongSpec shape-parse + no-decode discharge) both
+> DISCHARGED from replayed mirrors. The use site is
+> `replayCongCollapse` (Preprocess): the R-payload collapses at its
+> congruence frame by value-level MP + the two-valued EQUAL decode —
+> no chain-threaded R payload needed (see the design note's rung-2
+> build log). DECORRELATED VALIDATION: p7-cong-collapse 4/4 (fresh
+> SAME-LN relation family, arity-1 congruence position; pinned in
+> PatternPins; pattern-map entry added). En route: the multi-clause
+> clausify bridge's TAUT-DROPPED split class (recorded :CLAUSE ('T))
+> + tautClauseClose's COMMUTED-EQUAL pair arm. Statement pin for
+> ORDEREDP-QSORT added to Tests/SortingPins.lean (incl. the
+> iff→equal-strengthened ORDEREDP-APPEND stored-rule hypothesis and
+> ALL-REL's boolean TP shape).
 
 > PRE-MERGE AUDIT ACTIONED (2026-07-30, 2 Opus agents inside/outside;
 > ZERO soundness findings from both; outside verdict "merge it — the

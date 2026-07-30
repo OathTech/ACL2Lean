@@ -128,6 +128,118 @@ def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     (`replayRewritesWith`) lifts or-shape SIff payloads with it, and
     NodeCore is upstream of this module. -/
 
+/-- The R-COLLAPSE step (G2 rung 2): a preprocess rewrite under a USER
+    equivalence R (`:EQUIV perm` — qsort's ORDEREDP-QSORT applying
+    PERM-QSORT at ALL-REL's arg 2). The R-payload lives for exactly ONE
+    frame: the emitted :PATH's innermost frame is the congruence position,
+    where the replayed defcong mirror converts it to an eval-EQUALITY of the
+    parent applications — everything outward lifts as ordinary equality.
+    Mechanism, all value-level and premise-free:
+    - the stored R-rule's hypothesis (the interpreted-relation shape,
+      `mkRuleHypType`) instantiated by the emitted :SUBST gives
+      `EvTrue env (R lhsσ rhsσ)`;
+    - the matching `cong:` hypothesis (indexed by fn/pos/R, exactly one)
+      instantiated at the parent application's args gives
+      `EvTrue env (IMPLIES (R lhsσ rhsσ) (EQUAL parentL parentR))`;
+    - value-level MP + the two-valued EQUAL decode give
+      `v(parentL) = v(parentR)`.
+    Hyp-bearing R-rules and ambiguous congruence matches are loud
+    frontiers. Returns the parent-level fuel-eq. -/
+def replayCongCollapse (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
+    (parentStep : PathStep) : MetaM Expr := do
+  let (lhs, rhs) := nodeLhsRhs n
+  let .node _ _ _ children prov := n
+  let rune := runeOf n
+  unless prov.origin == "abbreviation-expansion" do
+    throwError "replayCongCollapse: origin {prov.origin} under equivalence \
+        {prov.equiv} (frontier — abbreviation-expansion only)"
+  unless children.isEmpty do
+    throwError "replayCongCollapse: rule {rune.name} step has \
+        {children.length} children (frontier — hyp-free abbreviations only)"
+  let σvars ← prov.subst.mapM fun (v, _) => do
+    let .atom (.symbol s) := v
+      | throwError "replayCongCollapse: :SUBST binds a non-variable {repr v}"
+    pure s
+  let σterms := prov.subst.map (·.2)
+  let candidates := ctx.ruleHyps.filter fun (r, _) =>
+    r.name == rune.name && r.idx == rune.idx && r.equiv == prov.equiv
+  if candidates.isEmpty then
+    throwError "replayCongCollapse: rule {rune.name} (equiv {prov.equiv}): no \
+        stored-rule hypothesis in scope (no (:RULES …) entry — emission gap \
+        or missing telescope)"
+  let matched := candidates.filter fun (r, _) =>
+    ACL2.Replay.substTerm σvars σterms r.lhs == lhs
+  let (spec, hypV) ← match matched with
+    | [m] => pure m
+    | m :: restM =>
+      if restM.all (fun (r, _) => r == m.1) then pure m
+      else throwError "replayCongCollapse: rule {rune.name}: \
+          {matched.length} DISTINCT stored rules match (need exactly 1)"
+    | [] => throwError "replayCongCollapse: rule {rune.name}: 0 stored rules \
+        match substTerm(:SUBST, lhs) == {repr lhs}"
+  unless spec.hyps.isEmpty do
+    throwError "replayCongCollapse: rule {rune.name} carries \
+        {spec.hyps.length} hyps (frontier — hyp-free R-rules only)"
+  unless ACL2.Replay.substTerm σvars σterms spec.rhs == rhs do
+    throwError "replayCongCollapse: rule {rune.name}: node rhs {repr rhs} ≠ \
+        substTerm(:SUBST, rule rhs {repr spec.rhs}) (emission gap)"
+  let ruleFrees := ACL2.Replay.freeVars spec.lhs ++ ACL2.Replay.freeVars spec.rhs
+  for s in ruleFrees do
+    unless σvars.contains s do
+      throwError "replayCongCollapse: rule {rune.name}: rule variable \
+          {s.name} not bound by the emitted :SUBST (emission gap)"
+  -- the interpreted-relation instance: EvTrue env (R lhsσ rhsσ)
+  let rSym : Symbol := { name := spec.equiv.map Char.toUpper }
+  let relApp : SExpr := .cons (.atom (.symbol rSym))
+    (.cons spec.lhs (.cons spec.rhs .nil))
+  let relAppσ := ACL2.Replay.substTerm σvars σterms relApp
+  let (hRel, ctx1) ← instantiateEvTrueHypAt cfg ctx hypV σvars σterms relApp
+  -- the congruence: exactly one in-scope spec at (fn, pos, R)
+  let congMatches := ctx1.congHyps.filter fun (c, _) =>
+    c.fn == parentStep.fn && c.pos == parentStep.argIdx && c.rel == rSym
+  let [(cSpec, cHyp)] := congMatches
+    | throwError "replayCongCollapse: {congMatches.length} congruence \
+        hypotheses match ({parentStep.fn.name} arg {parentStep.argIdx} under \
+        {rSym.name}) — need exactly 1 (frontier)"
+  let parentL := rebuild parentStep lhs
+  let parentR := rebuild parentStep rhs
+  let some pArgs := (match parentL with
+      | .cons _ argsS => argsS.toList?
+      | _ => none)
+    | throwError "replayCongCollapse: parent {repr parentL} is not an \
+        application"
+  unless pArgs.length == cSpec.argVars.length do
+    throwError "replayCongCollapse: congruence {cSpec.name} arity \
+        {cSpec.argVars.length} ≠ the parent's {pArgs.length}"
+  unless pArgs[cSpec.pos]? == some lhs do
+    throwError "replayCongCollapse: the parent's arg at the congruence \
+        position is not the node lhs (internal)"
+  let σcVars := cSpec.argVars ++ [cSpec.vy]
+  let σcTerms := pArgs ++ [rhs]
+  -- recompute-and-check the whole instance against the defcong pieces
+  unless ACL2.Replay.substTerm σcVars σcTerms cSpec.lhsApp == parentL &&
+         ACL2.Replay.substTerm σcVars σcTerms cSpec.rhsApp == parentR &&
+         ACL2.Replay.substTerm σcVars σcTerms cSpec.hyp == relAppσ do
+    throwError "replayCongCollapse: congruence {cSpec.name} instance does \
+        not reconstruct the parent applications / the relation fact \
+        (frontier)"
+  unless (ACL2.Replay.freeVars cSpec.formula).all (σcVars.contains ·) do
+    throwError "replayCongCollapse: congruence {cSpec.name} formula has \
+        variables outside its arg/vy set (internal)"
+  let (hImp, ctx2) ← instantiateEvTrueHypAt cfg ctx1 cHyp σcVars σcTerms
+    cSpec.formula
+  let implyσ := ACL2.Replay.substTerm σcVars σcTerms cSpec.formula
+  -- value-level MP + the two-valued EQUAL decode
+  let ctx3 ← pinTermOpaques cfg cfg.envExpr ctx2 implyσ
+  let hFne ← mkAppM ``ne_nil_of_evtrue_conv
+    #[hImp, ← ctxValProof cfg ctx3 implyσ]
+  let hvH ← mkAppM ``ne_nil_of_evtrue_conv
+    #[hRel, ← ctxValProof cfg ctx3 relAppσ]
+  let hvC ← mkAppM ``implies_value_mp #[hFne, hvH]
+  let hEq ← mkAppM ``Logic.eq_of_equal_ne_nil #[hvC]
+  mkAppM ``fuel_eq_of_conv
+    #[← ctxValProof cfg ctx3 parentL, ← ctxValProof cfg ctx3 parentR, hEq]
+
 /-- Replay a preprocess chain's CORE: the composed relation between the
     formula and the final term — `(proof, isIff)` where the proof is the
     eval-equality `∃N∀f≥N, eval formula = eval final` when `isIff = false`,
@@ -148,15 +260,11 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
     -- else is an eval-equality step
     let isDischarge := dischargeOrigins.contains prov.origin
     let isIffNode := prov.origin == "preprocess/if-iff" || isDischarge
-    let nodeP ←
-      if isDischarge then do
-        unless rhs == quoteT do
-          throwError "discharge node: rhs {repr rhs} ≠ (quote t)"
-        let ev ← replayDischargeNode cfg ctx lhs
-        mkAppM ``evrel_siff_qt_of_evtrue #[ev]
-      else if isIffNode then replayIfIffNode cfg ctx n
-      else replayPreprocessNode cfg ctx n
-    let path ←
+    -- G2 rung 2: a step under a USER equivalence R collapses at its
+    -- congruence frame (`replayCongCollapse`); its payload is already the
+    -- parent-level eval-equality, so the lift starts one frame out
+    let isUserRel := !isIffNode && prov.equiv != "equal" && prov.equiv != "iff"
+    let pathFor : SExpr → MetaM (List PathStep) := fun redex => do
       -- ONLY abbrev-path-rooted paths are rooted at the FORMULA this chain
       -- walks (infra/abbrev-path): abbreviation-expansion and the S2b
       -- expand-abbreviations/* emissions (their :PATH is
@@ -170,11 +278,11 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
                || prov.origin == "expand-abbreviations/lambda-body"
                || prov.origin == "expand-abbreviations/hide-subst"
                || prov.origin == "expand-abbreviations/nonrec-body") then
-        match findOccurrences cur lhs with
+        match findOccurrences cur redex with
         | [p] => pure p
-        | [] => throwError "replayPreprocessChain: node lhs {repr lhs} does not occur \
+        | [] => throwError "replayPreprocessChain: node lhs {repr redex} does not occur \
                             in the current term {repr cur}"
-        | ps => throwError "replayPreprocessChain: node lhs {repr lhs} occurs \
+        | ps => throwError "replayPreprocessChain: node lhs {repr redex} occurs \
                             {ps.length} times in {repr cur} — ambiguous position \
                             (needs :PATH emission at the preprocess site)"
       else
@@ -182,17 +290,38 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
         -- formula this chain walks — infra/abbrev-path in the fork):
         -- navigate and VERIFY the redex; required when the lhs occurs more
         -- than once (msort HOW-MANY-MSORT's twice-occurring (ODDS X))
-        match pathStepsFromFrames cur prov.path lhs with
+        match pathStepsFromFrames cur prov.path redex with
         | .ok p => pure p
         | .error e => throwError "replayPreprocessChain: emitted :PATH does \
-            not navigate to the redex {repr lhs}: {e}"
+            not navigate to the redex {repr redex}: {e}"
+    let (nodeP, payloadIff, baseL, baseR, liftPath) ←
+      if isUserRel then do
+        let path ← pathFor lhs
+        let some parentStep := path.getLast?
+          | throwError "replayPreprocessChain: user-equivalence step \
+              ({prov.equiv}) at the chain root — no congruence frame \
+              (frontier)"
+        let p ← replayCongCollapse cfg ctx n parentStep
+        pure (p, false, rebuild parentStep lhs, rebuild parentStep rhs,
+              path.dropLast)
+      else do
+        let p ←
+          if isDischarge then do
+            unless rhs == quoteT do
+              throwError "discharge node: rhs {repr rhs} ≠ (quote t)"
+            let ev ← replayDischargeNode cfg ctx lhs
+            mkAppM ``evrel_siff_qt_of_evtrue #[ev]
+          else if isIffNode then replayIfIffNode cfg ctx n
+          else replayPreprocessNode cfg ctx n
+        let path ← pathFor lhs
+        pure (p, isIffNode, lhs, rhs, path)
     -- lift innermost-out; iff payloads use the R congruence table and may
     -- COLLAPSE to an eval-equality at an if-test position
     let mut inner := nodeP
-    let mut innerIff := isIffNode
-    let mut curL := lhs
-    let mut curR := rhs
-    for st in path.reverse do
+    let mut innerIff := payloadIff
+    let mut curL := baseL
+    let mut curR := baseR
+    for st in liftPath.reverse do
       if innerIff then
         let (p, stillIff) ← applyStepSIff cfg ctx st inner
         inner := p
@@ -461,9 +590,14 @@ def bridgeClausifyMulti (cfg : ReplayConfig) (ctx : ReplayCtx)
   let negRecomputed := clausifyPure info.input false
   unless negRecomputed == info.negClause do
     throwError "clausify multi-bridge: recomputed neg-clause                 {repr negRecomputed} ≠ recorded {repr info.negClause}"
+  -- a TAUT-DROPPED split (G2 rung 2, p7's SAME-LN sym conjunct) is recorded
+  -- with :CLAUSE ('T) — ACL2's type-set saw the split clause as trivially
+  -- true (the commuted-equal pair) and replaced it; it contributes no out
+  -- clause and no pushed child. Its EvTrue is proved from the RECOMPUTED
+  -- clause by `tautClauseClose` in the loop below.
   unless info.splits.length == info.negClause.length &&
          pOuts.length == info.out.length &&
-         info.out == info.splits.map (·.2) do
+         info.out == (info.splits.map (·.2)).filter (· != [quoteT]) do
     throwError "clausify multi-bridge: splits/out/proofs mismatch at \
                 {repr info.input} ({info.splits.length} split(s), \
                 {info.negClause.length} neg literal(s), {info.out.length} \
@@ -506,12 +640,25 @@ def bridgeClausifyMulti (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- literal and transports back along the lift equality, exactly the
   -- single-clause bridge's route.
   let mut nilProofs : List Expr := []
-  for ((l, ((lit, cl), pOut)), k) in
-      (info.negClause.zip (info.splits.zip pOuts)).zipIdx do
+  let mut pOutsRest := pOuts
+  for ((l, (lit, cl)), k) in (info.negClause.zip info.splits).zipIdx do
     let expsK := (info.splitExpands.filter (·.1 == k)).map (·.2)
     let (lit', heqK?) ← runCheckedExpand b hwf expsK lit true
-    unless clausifyPure lit' true == cl do
-      throwError "clausify multi-bridge: recomputed split clause for                   {repr lit'} ≠ recorded {repr cl}"
+    let pOut ←
+      if cl == [quoteT] then
+        -- taut-dropped split: no out clause, no pushed child — prove the
+        -- RECOMPUTED split clause by its complementary (possibly
+        -- commuted-equal) pair, the single-bridge taut precedent
+        tautClauseClose cfg ctx (clausifyPure lit' true)
+          "clausify multi-bridge: taut-dropped split"
+      else do
+        unless clausifyPure lit' true == cl do
+          throwError "clausify multi-bridge: recomputed split clause for                   {repr lit'} ≠ recorded {repr cl}"
+        let p :: rest := pOutsRest
+          | throwError "clausify multi-bridge: out-clause proofs exhausted \
+              (internal)"
+        pOutsRest := rest
+        pure p
     let hlLit ← mkIsSome lit'
     let pLitTrue ← mkAppM ``clausifyPure_sound
       #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,

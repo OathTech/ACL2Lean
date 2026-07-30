@@ -115,20 +115,45 @@ def mkTpHypTypeAv (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
     the rule's stored equality — exactly the emitted rule, nothing else
     (docs/plans/2026-07-05_theorem-dependency-hypotheses.md §v1). -/
 def mkRuleHypType (cfg : ReplayConfig) (spec : RuleSpec) : MetaM Expr := do
-  -- defense-in-depth (audit 2026-07-06 finding E): the caller offers only
-  -- equal-class rules; stating an iff rule as an eval-EQUALITY would be too
-  -- strong, so refuse rather than mis-state.
-  unless spec.equiv == "equal" do
-    throwError "mkRuleHypType: rule {spec.name} is stored under equivalence \
-                {spec.equiv} — the R-parameterized hypothesis shape is an L2 \
-                frontier (equal instance only)"
+  -- defense-in-depth (audit 2026-07-06 finding E): stating an iff rule as an
+  -- eval-EQUALITY would be too strong — refuse rather than mis-state. A USER
+  -- equivalence rule (G2 rung 2) gets the INTERPRETED-relation conclusion
+  -- instead: `EvTrue env' (R lhs rhs)` over the world's own R defun (design
+  -- 2026-07-29 §1 — never re-model what the interpreter defines); the offer
+  -- site admits it only when R names a world-defined binary fn.
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
-    let concl ← mkEvalEqPropEx cfg.worldExpr envV
-      (reflectSExpr spec.lhs) (reflectSExpr spec.rhs)
+    let concl ←
+      if spec.equiv == "equal" then
+        mkEvalEqPropEx cfg.worldExpr envV
+          (reflectSExpr spec.lhs) (reflectSExpr spec.rhs)
+      else do
+        let rSym : Symbol := { name := spec.equiv.map Char.toUpper }
+        let some (formals, _) := cfg.worldVal.defs.get? rSym
+          | throwError "mkRuleHypType: rule {spec.name} is stored under \
+              equivalence {spec.equiv}, which names no world-defined fn — \
+              the interpreted-relation shape needs the defun (offer-site \
+              filter breach)"
+        unless formals.length == 2 do
+          throwError "mkRuleHypType: equivalence {spec.equiv} has arity \
+              {formals.length}, not 2"
+        let relApp : SExpr := .cons (.atom (.symbol rSym))
+          (.cons spec.lhs (.cons spec.rhs .nil))
+        pure (mkAppN (mkConst ``EvTrue)
+          #[cfg.worldExpr, envV, reflectSExpr relApp])
     let body ← spec.hyps.foldrM (fun h acc => do
       mkArrow (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr h]) acc)
       concl
     mkForallFVars #[envV] body
+
+/-- The `cong:<thm>` hypothesis TYPE for a congruence-shaped defthm (G2
+    rung 2): the WHOLE formula's mirror, `∀ env', EvTrue w env' formula` —
+    exactly the theorem, no normalization. Consumed by the R-collapse at a
+    user-equivalence step's congruence frame; discharged from the
+    dependency's replayed mirror like `rule:` hypotheses. -/
+def mkCongHypType (cfg : ReplayConfig) (spec : CongSpec) : MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    mkForallFVars #[envV]
+      (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr spec.formula])
 
 /-- Every term mentioned in a clause subtree (input clauses, node lhs/rhs, literal
     results) — the pin-collection universe for a case child. -/

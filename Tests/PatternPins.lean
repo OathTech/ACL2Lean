@@ -107,4 +107,34 @@ items with no closer at Subgoal *1/3.14'") do
 set_option maxHeartbeats 0 in
 def sortingArcPatternPins : True := sorting_arc_pattern_pins%
 
+/-! ## Perm-lane arc (2026-07-30, G2 rung 2): the congruence collapse,
+    validated DECORRELATED from the qsort book (fresh relation family,
+    arity-1 congruence position vs the anchor's arity-3 arg-2). -/
+
+private def congCollapseLog : String :=
+  include_str "../acl2_samples/pattern-tests/p7-cong-collapse.proof-log"
+
+elab "perm_arc_pattern_pins% " : term => do
+  -- p7-cong-collapse 4/4:
+  -- - P7-TARGET — the R-COLLAPSE's decorrelated instance: SAME-LN-DUB
+  --   (stored :EQUIV SAME-LN, hyp-free) applied at LN's arg-1 under the
+  --   defcong SAME-LN-IMPLIES-EQUAL-LN-1, with BOTH the `rule:` (the
+  --   interpreted-relation shape) and `cong:` (whole-formula mirror)
+  --   hypotheses DISCHARGED from their replayed mirrors — only tp:LN kept;
+  -- - SAME-LN-IS-AN-EQUIVALENCE — the multi-clause clausify bridge's
+  --   TAUT-DROPPED split (the sym conjunct, recorded :CLAUSE ('T)),
+  --   closed by the COMMUTED-EQUAL tautology pair;
+  -- - the defcong and R-rule mirrors themselves.
+  let res ← ACL2.Replay.Runner.runBook "p7-cong-collapse" congCollapseLog none
+  unless res.replayed == 4 && res.total == 4 && res.integrityFails.isEmpty do
+    throwError "pattern pin p7-cong-collapse: replayed \
+      {res.replayed}/{res.total} (expected 4/4); integrity: \
+      {res.integrityFails.toList}"
+  logInfo "perm-arc pattern pins hold (p7-cong-collapse 4/4 — the \
+    congruence collapse validated decorrelated)"
+  return mkConst ``True.intro
+
+set_option maxHeartbeats 0 in
+def permArcPatternPins : True := perm_arc_pattern_pins%
+
 end ACL2.Tests.PatternPins

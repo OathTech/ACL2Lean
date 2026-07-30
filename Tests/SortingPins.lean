@@ -84,7 +84,11 @@ rule:HOW-MANY-QSORT]"),
      ("pins/sorting/qsort",
       "    TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, tp:ACL2-COUNT, \
 rule:FOLD-CONSTS-IN-+]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
-cond[total:(QSORT X), tp:QSORT]]")]
+cond[total:(QSORT X), tp:QSORT]]"),
+     ("pins/sorting/qsort",
+      "    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, \
+total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, \
+rule:CONVERT-PERM-TO-HOW-MANY, rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND]")]
   for (book, line) in mustHave do
     let some (_, lines) := expected.find? (·.1 == book)
       | throwError "sorting statement pins: unknown book {book}"
@@ -364,5 +368,63 @@ example :
   CoverageMirrors.mirror_pins_p3_conj_ORDD_INS_MID
 
 #print axioms CoverageMirrors.mirror_pins_p3_conj_ORDD_INS_MID
+
+/-! ## ORDEREDP-QSORT (acl2/books/sorting/qsort.lisp:115) — the perm-lane
+    headline row (G2 rung 2, 2026-07-30): the first green row whose replay
+    consumes a USER-equivalence rewrite (PERM-QSORT under :EQUIV PERM at
+    ALL-REL's defcong-licensed arg 2). The `rule:PERM-QSORT` and
+    `cong:PERM-IMPLIES-EQUAL-ALL-REL-2` hypotheses are DISCHARGED from
+    their replayed mirrors, so neither appears below — the kept set is the
+    pre-existing debt classes only. -/
+
+/-- `tp:<fn>` (ternary), boolean corollary
+    `(if (equal v 't) 't (equal v 'nil))` — ALL-REL's emitted TP. -/
+private def tpBool3 (w : World) (fn : String) : Prop :=
+  ∀ (env' : Env) (a0 a1 a2 v : SExpr),
+    (∃ N, ∀ f ≥ N, evalOpt f w env' (ap3 fn a0 a1 a2) = some v) →
+    (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+     else Logic.equal v SExpr.nil) = SExpr.t
+
+/-- PIN the machine-generated statement of `ORDEREDP-QSORT`: the mirror of
+    the ACL2 defthm `(orderedp (qsort x))`, conditional on
+    - totality of `perm-counter-example` and `o<`,
+    - the emitted TP corollaries of `how-many`/`acl2-count` (non-negative
+      integers — source-true: both count) and `all-rel` (boolean —
+      source-true: every branch returns `t`/`nil`/a recursive call),
+    - the cited rules `fold-consts-in-+`, `convert-perm-to-how-many`,
+      `how-many-qsort` (as on PERM-QSORT's pin), and `orderedp-append`
+      (qsort.lisp:85 — the IFF-stated defthm, stored with ACL2's
+      iff→equal strengthening under orderedp's boolean TP; hypothesis
+      `(orderedp a)`, rhs the `and`-translation — kept because its own
+      replay currently fails at the LEXORDER-TRANSITIVE type-alist relief
+      frontier). -/
+example :
+    ∀ (env : Env),
+      totalHyp2 qsortPinsWorld "PERM-COUNTER-EXAMPLE" →
+      totalHyp2 qsortPinsWorld "O<" →
+      tpNonnegInt2 qsortPinsWorld "HOW-MANY" →
+      tpBool3 qsortPinsWorld "ALL-REL" →
+      tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
+      foldConstsHyp qsortPinsWorld →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "PERM" (sym "X") (sym "Y"))
+        (ap2 "EQUAL"
+          (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
+          (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y"))) →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "HOW-MANY" (sym "E") (ap1 "QSORT" (sym "X")))
+        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+      ruleEqHyp1 qsortPinsWorld
+        (ap1 "ORDEREDP" (sym "A"))
+        (ap1 "ORDEREDP" (ap2 "BINARY-APPEND" (sym "A") (ap2 "CONS" (sym "E") (sym "B"))))
+        (ap3 "IF" (ap1 "ORDEREDP" (sym "B"))
+          (ap3 "IF" (ap3 "ALL-REL" (qt (sym "LTE")) (sym "A") (sym "E"))
+            (ap3 "ALL-REL" (qt (sym "GTE")) (sym "B") (sym "E"))
+            (qt .nil))
+          (qt .nil)) →
+      EvTrue qsortPinsWorld env (ap1 "ORDEREDP" (ap1 "QSORT" (sym "X"))) :=
+  CoverageMirrors.mirror_pins_sorting_qsort_ORDEREDP_QSORT
+
+#print axioms CoverageMirrors.mirror_pins_sorting_qsort_ORDEREDP_QSORT
 
 end ACL2.Tests.SortingPins

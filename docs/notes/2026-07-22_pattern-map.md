@@ -816,6 +816,21 @@ Authored to VALIDATE the arc's new capability decorrelated from qsort
   tau-clausep/built-in-clausep, not rewrite-clause's linear close.
   PatternPins-gated as a truthful tripwire.
 
+- `p7-cong-collapse` (perm-lane arc, 2026-07-30) — G2 rung 2's
+  DECORRELATED validation book. Wild anchor: ORDEREDP-QSORT's
+  preprocess applying a hyp-free rewrite stored under a USER equivalence
+  (:EQUIV PERM, PERM-QSORT) at a defcong-licensed position (ALL-REL
+  arg 2). Axes all varied: relation SAME-LN (length equivalence) over a
+  fresh ln/dub family; ARITY-1 congruence position (LN arg 1); the
+  defcong formula is the TRIVIAL instance, isolating the license's
+  consumption. 4/4 GREEN: P7-TARGET replays the R-collapse with both
+  the `rule:` (interpreted-relation shape) and `cong:` (whole-formula
+  mirror) hypotheses DISCHARGED from replayed mirrors; en route the book
+  surfaced the multi-clause clausify TAUT-DROPPED split class (the sym
+  conjunct recorded :CLAUSE ('T) — ACL2's type-set sees the
+  commuted-equal pair), landed as the multi-bridge taut arm +
+  `tautClauseClose`'s commuted-equal pair. Pinned 4/4 in PatternPins.
+
 Validation-book BACKLOG for under-covered green paths (next authoring
 targets, same discipline): a theorem-side induction whose case clauses
 exercise the add-literal DEDUP re-intro (`evtrue_intro_else`) in a GREEN

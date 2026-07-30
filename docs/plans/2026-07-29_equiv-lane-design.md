@@ -167,6 +167,53 @@ REMAINING rung-1 core (inc-2b, designed, not yet built):
    [LEXORDER]` — a type-alist relief class (the fact lives in `*1.1`'s
    own spine/branch context; investigate the record before building).
 
+## Rung-2 build log (2026-07-30, mechanics as pinned during the build)
+
+BOTH targets GREEN (sweep 65/79): PERM-IMPLIES-EQUAL-ALL-REL-2
+unconditional; ORDEREDP-QSORT conditional only on pre-existing debt
+(rule:ORDEREDP-APPEND at the type-alist relief frontier + the standard
+totality/TP/arithmetic-rule classes) — its perm reasoning is
+self-contained (both new hypothesis classes DISCHARGED from replayed
+mirrors). Decorrelated validation: `p7-cong-collapse` 4/4
+(fresh SAME-LN relation, arity-1 congruence position; PatternPins).
+
+Mechanics as BUILT (vs the sketch above — two simplifications, both
+faithful to the observed records):
+
+1. **No chain-threaded user-R payload was needed.** In both observed
+   classes the R-fact collapses IMMEDIATELY:
+   - The branch-substitution class (the defcong's own proof) has the
+     substituted variable ONLY in the justifying `(not (R var val))`
+     literal — the mirror is pure clause structure (byCases on the
+     literal; falsity collapses its if-frame out), consuming NO R-facts
+     at all. Occurrences outside the justifying literal remain a loud
+     congruence-transport frontier.
+   - The rewrite class (ORDEREDP-QSORT) records the R-step's :PATH with
+     the congruence frame INNERMOST, so the payload lives for exactly
+     one frame: `replayCongCollapse` converts it to an eval-equality of
+     the parent applications on the spot, and everything outward lifts
+     as ordinary equality. `EvRel` never needed a user-R instance.
+2. **The interpreted relation appears as HYPOTHESIS SHAPES, not a
+   judgment.** A user-equivalence stored rule is offered as
+   `∀ env', EvTrue w env' (R lhs rhs)` (mkRuleHypType's R-route, gated
+   on R naming a world-defined binary fn; discharge decode: the defthm
+   conclusion must BE the R-application — routeRel). A defcong is
+   offered as its WHOLE-FORMULA mirror `∀ env', EvTrue w env' formula`
+   (`cong:<thm>`, CongSpec shape-parsed from the formula with
+   recompute-and-check at the use site; discharged from the replayed
+   mirror with NO decode). The collapse is value-level MP
+   (`implies_value_mp`) + the two-valued EQUAL decode — the L2
+   congruence registry is the (fn, pos, R)-indexed CongSpec list.
+3. En route (surfaced by the validation book): the multi-clause
+   clausify bridge's TAUT-DROPPED split (recorded :CLAUSE ('T);
+   ACL2's type-set sees the COMMUTED-EQUAL pair) — landed as the
+   multi-bridge taut arm + `tautClauseClose`'s commuted-equal pair.
+   Plus the inc-1 spine relief: if-test falsity demands (recorded
+   lhs/rhs + world-side unfolded definition bodies) feeding the
+   later-literal hoist, the silent-tautology close at spine
+   exhaustion, and segFacts/litFacts extensions to the unemitted-test
+   resolver.
+
 ## Open mechanics (to pin during the build, none philosophical)
 
 - Exact `EvRel` statement shape (fuel-quantification placement; the

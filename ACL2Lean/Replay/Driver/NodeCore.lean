@@ -83,6 +83,67 @@ structure ReplayConfig where
       an emitted-but-drifted corollary hard-fails. -/
   gzTps : List (String × SExpr) := []
 
+/-- A CONGRUENCE rule consumed by the R-collapse (G2 rung 2), shape-parsed
+    from a defcong-style defthm formula
+    `(IMPLIES (R x y) (EQUAL (fn a₁…x…aₙ) (fn a₁…y…aₙ)))` — all args
+    distinct variables, the two sides differing at exactly position `pos`
+    (0-based), `y` fresh. The hypothesis states the WHOLE formula
+    (`∀ env', EvTrue w env' formula` — `mkCongHypType`); nothing is derived
+    from the shape except the (fn, pos, R) index and the σ construction at
+    the use site, both recompute-and-checked there. -/
+structure CongSpec where
+  name : String
+  formula : SExpr
+  /-- The equivalence relation's fn symbol (the formula hyp's head). -/
+  rel : Symbol
+  /-- The congruent fn and the 0-based differing arg position. -/
+  fn : Symbol
+  pos : Nat
+  /-- The lhs application's arg variables (x at `pos`) and the rhs-side
+      variable y. -/
+  argVars : List Symbol
+  vy : Symbol
+  /-- The formula pieces, for recompute-and-check at the use site. -/
+  hyp : SExpr
+  lhsApp : SExpr
+  rhsApp : SExpr
+  deriving BEq, Repr
+
+/-- Shape-parse a defcong-style formula into a `CongSpec`. `none` when the
+    formula is not congruence-shaped — the theorem is then simply not
+    offered as a congruence (never mis-stated). -/
+def congSpecOfFormula? (name : String) (formula : SExpr) : Option CongSpec := do
+  let .cons (.atom (.symbol imp)) (.cons hyp (.cons concl .nil)) := formula
+    | none
+  guard (imp.name == "IMPLIES")
+  let .cons (.atom (.symbol rel))
+      (.cons (.atom (.symbol vx)) (.cons (.atom (.symbol vy)) .nil)) := hyp
+    | none
+  let .cons (.atom (.symbol eqS)) (.cons lhsApp (.cons rhsApp .nil)) := concl
+    | none
+  guard (eqS.name == "EQUAL")
+  let .cons (.atom (.symbol fnL)) argsLs := lhsApp | none
+  let .cons (.atom (.symbol fnR)) argsRs := rhsApp | none
+  guard (fnL == fnR)
+  let aL ← argsLs.toList?
+  let aR ← argsRs.toList?
+  guard (aL.length == aR.length)
+  let argVars ← aL.mapM fun a => match a with
+    | .atom (.symbol s) => some s
+    | _ => none
+  let argVarsR ← aR.mapM fun a => match a with
+    | .atom (.symbol s) => some s
+    | _ => none
+  -- pairwise-distinct lhs vars; y fresh; sides differ at exactly one
+  -- position, with x left / y right there
+  guard (argVars.length == argVars.eraseDups.length)
+  guard (!argVars.contains vy && vx != vy)
+  let diffs := (argVars.zip argVarsR).zipIdx.filter fun ((l, r), _) => l != r
+  let [((l, r), pos)] := diffs | none
+  guard (l == vx && r == vy)
+  return { name, formula, rel, fn := fnL, pos, argVars, vy,
+           hyp, lhsApp, rhsApp }
+
 /-- The proof context in scope at a node. All entries are VALUE-CHARACTERIZED
     facts over the ambient env, established by the surrounding structure (the
     induction scaffold, the clause spine) and consumed by the node replays:
@@ -136,6 +197,12 @@ structure ReplayCtx where
       with-lemma node recipe; discharged lazily from the dependency's own
       replayed mirror (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). -/
   ruleHyps : List (RuleSpec × Expr) := []
+  /-- Congruence-rule hypotheses (`cong:<thm>`, G2 rung 2): per
+      congruence-shaped in-scope defthm, the spec and the bound hypothesis
+      stating its whole-formula mirror (`mkCongHypType`). Consumed by the
+      R-collapse at a user-equivalence step's congruence frame; discharged
+      lazily from the dependency's replayed mirror like `rule:` hyps. -/
+  congHyps : List (CongSpec × Expr) := []
   ih : Option Expr := none
 
 def ReplayCtx.empty : ReplayCtx := {}
@@ -4113,6 +4180,52 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
                   't with no effective steps"
   mkAppM ``fuel_conv_of_eq #[ch, ← quoteTFact cfg]
 
+/-- Instantiate a PREMISE-FREE `∀ env', EvTrue w env' t`-shaped hypothesis
+    at the current env under σ: returns `EvTrue w env (substTerm σ t)` via
+    the substN bridge (the with-lemma scaffold's premise-free slice — G2
+    rung 2; used for user-equivalence rule conclusions and `cong:` formula
+    instances). Also returns the pinned ctx (σ-term opaques). -/
+def instantiateEvTrueHypAt (cfg : ReplayConfig) (ctx : ReplayCtx) (hypV : Expr)
+    (σvars : List Symbol) (σterms : List SExpr) (t : SExpr) :
+    MetaM (Expr × ReplayCtx) := do
+  let w := cfg.worldExpr
+  let env := cfg.envExpr
+  let tσ := ACL2.Replay.substTerm σvars σterms t
+  let mut ctx ← pinTermOpaques cfg env ctx tσ
+  for tt in σterms do
+    ctx ← pinTermOpaques cfg env ctx tt
+  let vals ← σterms.mapM (ctxValExpr cfg ctx)
+  let convs ← σterms.mapM (ctxValProof cfg ctx)
+  let formalsE ← mkListLit (mkConst ``Symbol) (σvars.map reflectSymbol)
+  let argsE ← mkListLit (mkConst ``SExpr) (σterms.map reflectSExpr)
+  let valsE ← mkListLit (mkConst ``SExpr) vals
+  let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
+  let hlenPf ← proveByDecide
+    (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
+    "instantiateEvTrueHypAt: substN lengths"
+  let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
+  let pFn ← withLocalDeclD `pr prodTy fun prV => do
+    let fst ← mkAppM ``Prod.fst #[prV]
+    let snd ← mkAppM ``Prod.snd #[prV]
+    mkLambdaFVars #[prV] (← mkValConvPropEx w env fst snd)
+  let entries ← (σterms.zip vals).mapM fun (tt, v) =>
+    mkAppM ``Prod.mk #[reflectSExpr tt, v]
+  let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip convs)
+  let zipE ← mkAppM ``List.zip #[argsE, valsE]
+  let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
+    let mem ← mkAppM ``Membership.mem #[zipE, prV]
+    mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
+  let hargs ← mkExpectedTypeHint hargsRaw hargsTy
+  let hWellScoped ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr t])
+       (mkConst ``Bool.true))
+    "instantiateEvTrueHypAt: WellScoped"
+  -- pB : eval env (substTerm σ t) ≡ eval env' t
+  let pB ← mkAppM ``evalOpt_substTerm_substN
+    #[w, env, formalsE, argsE, valsE, reflectSExpr t, hWellScoped, hlenPf, hargs]
+  let happ := mkApp hypV env'
+  return (← mkAppM ``evtrue_of_fuel_eq #[pB, happ], ctx)
+
 /-- The clause's literal items in order, with their 1-based indices, descending
     into case branches (a branch's items continue the same clause's literals). -/
 partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
@@ -4302,8 +4415,11 @@ partial def evtrueOfLitTrue (cfg : ReplayConfig) (ctx : ReplayCtx)
         reflectSExpr restTerm, vL, pL, hthen, helse]
 
 /-- Close `EvTrue (disjoin lits)` for a TAUTOLOGOUS clause — one containing a
-    complementary pair `L` / `(NOT L)` — by cases on the atom's value. ACL2
-    recognizes such a clause as *t* with no recorded steps (add-literal and
+    complementary pair `L` / `(NOT L)`, or the COMMUTED-EQUAL pair
+    `(EQUAL a b)` / `(NOT (EQUAL b a))` (ACL2's type-set treats the commuted
+    equality as the same type-alist entry — p7's SAME-LN sym conjunct) — by
+    cases on the negated literal's atom value. ACL2 recognizes such a clause
+    as *t* with no recorded steps (add-literal and
     remove-trivial-equivalences drop it as proved silently), so the mirror is
     the pair's excluded middle. Fails loudly when no pair exists. `who` names
     the calling site in the error. -/
@@ -4311,25 +4427,63 @@ def tautClauseClose (cfg : ReplayConfig) (ctx : ReplayCtx) (lits : List SExpr)
     (who : String) : MetaM Expr := do
   let notOf (t : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
-  let pair? := lits.zipIdx.findSome? fun (l, i) =>
-    lits.zipIdx.findSome? fun (l2, j) =>
-      if l2 == notOf l then some (i, j, l) else none
-  let some (iPos, iNeg, atom) := pair?
+  let commuteEq? : SExpr → Option SExpr := fun t =>
+    match t with
+    | .cons (.atom (.symbol eqS)) (.cons a (.cons b .nil)) =>
+      if eqS.name == "EQUAL" then
+        some (.cons (.atom (.symbol eqS)) (.cons b (.cons a .nil)))
+      else none
+    | _ => none
+  -- (positive index, negated index, positive atom, negated atom): the
+  -- negated literal is (NOT negAtom) with negAtom == atom (direct) or the
+  -- commuted equality
+  let pair? : Option (Nat × Nat × SExpr × SExpr) :=
+    lits.zipIdx.findSome? fun (l, i) =>
+      lits.zipIdx.findSome? fun (l2, j) =>
+        if l2 == notOf l then some (i, j, l, l)
+        else match commuteEq? l with
+          | some lC => if l2 == notOf lC then some (i, j, l, lC) else none
+          | none => none
+  let some (iPos, iNeg, atom, negAtom) := pair?
     | throwError "{who}: tautology close — no complementary literal pair in \
         {repr lits} (frontier)"
   let ctxT ← pinTermOpaques cfg cfg.envExpr ctx (disjoinTerm lits)
-  let vA ← ctxValExpr cfg ctxT atom
+  let vN ← ctxValExpr cfg ctxT negAtom
   let nilC := mkConst ``SExpr.nil
-  let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vA, nilC]) fun hNe => do
-    mkLambdaFVars #[hNe]
-      (← evtrueOfLitTrue cfg ctxT lits iPos atom hNe)
-  let negL ← withLocalDeclD `hnil (← mkEq vA nilC) fun hNil => do
+  let tNeNil ← proveByDecide
+    (← mkAppM ``Ne #[mkConst ``SExpr.t, nilC]) "t ≠ nil"
+  let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vN, nilC]) fun hNe => do
+    let p ←
+      if negAtom == atom then
+        evtrueOfLitTrue cfg ctxT lits iPos atom hNe
+      else do
+        -- commuted pair: v(EQUAL b a) ≠ nil gives vb = va, so
+        -- v(EQUAL a b) = Logic.equal va vb = Logic.equal va va = t
+        unless vN.isAppOfArity ``Logic.equal 2 do
+          throwError "{who}: commuted-equal value of {repr negAtom} is not \
+              (Logic.equal _ _) (internal)"
+        let vb := vN.appFn!.appArg!
+        let va := vN.appArg!
+        let hEq ← mkAppM ``Logic.eq_of_equal_ne_nil #[hNe]  -- vb = va
+        let vA ← ctxValExpr cfg ctxT atom  -- Logic.equal va vb
+        unless vA.isAppOfArity ``Logic.equal 2 do
+          throwError "{who}: value of {repr atom} is not (Logic.equal _ _) \
+              (internal)"
+        let fL ← withLocalDeclD `z (mkConst ``SExpr) fun zV => do
+          mkLambdaFVars #[zV] (← mkAppM ``Logic.equal #[va, zV])
+        -- vA = Logic.equal va vb = Logic.equal va va (by vb = va) = t
+        let hStep ← mkAppM ``congrArg #[fL, hEq]  -- equal va vb = equal va va
+        let hSelf ← mkAppM ``Logic.equal_self #[va]
+        let hT ← mkAppM ``Eq.trans #[hStep, hSelf]  -- vA = t
+        let hATrue ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
+        let _ := vb
+        evtrueOfLitTrue cfg ctxT lits iPos atom hATrue
+    mkLambdaFVars #[hNe] p
+  let negL ← withLocalDeclD `hnil (← mkEq vN nilC) fun hNil => do
     let hT ← mkAppM ``logic_not_t_of_nil #[hNil]
-    let tNeNil ← proveByDecide
-      (← mkAppM ``Ne #[mkConst ``SExpr.t, nilC]) "t ≠ nil"
     let hTrue ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
     mkLambdaFVars #[hNil]
-      (← evtrueOfLitTrue cfg ctxT lits iNeg (notOf atom) hTrue)
+      (← evtrueOfLitTrue cfg ctxT lits iNeg (notOf negAtom) hTrue)
   mkAppM ``Classical.byCases #[negL, posL]
 
 end ACL2.Replay.Driver
