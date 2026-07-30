@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 63/79 (29 unconditional + 34 conditional); DP-discharge leaves ✓37 ◌6 ✗0 of 43:
+Driver coverage — REPLAYED 64/79 (30 unconditional + 34 conditional); DP-discharge leaves ✓37 ◌6 ✗0 of 43:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -96,7 +96,7 @@ Driver coverage — REPLAYED 63/79 (29 unconditional + 34 conditional); DP-disch
     ALL-REL-FILTER-2 → REPLAYED ✓ cond[tp:ALL-REL]
     ALL-REL-RM-1 → REPLAYED ✓ cond[tp:ALL-REL]
     ALL-REL-RM-2 → REPLAYED ✓ cond[tp:ALL-REL]
-    PERM-IMPLIES-EQUAL-ALL-REL-2 → FAIL: replayClauseSpine: branch-substitution under equivalence some PERM at Subgoal *1/4.2'' (frontier — equal only)
+    PERM-IMPLIES-EQUAL-ALL-REL-2 → REPLAYED ✓
     ORDEREDP-QSORT → FAIL: replayPreprocessNode: step under equivalence perm — R-parameterized recipe pending (G1 frontier)
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
 • sorting/sorts-equivalent  (world: 214 defun(s), 3 theorem(s))

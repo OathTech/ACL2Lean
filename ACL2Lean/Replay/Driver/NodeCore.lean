@@ -3837,9 +3837,13 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 -- (a false `(not (equal p q))` gives vp = vq; the substituted
                 -- test's falsity is then a direct fact)
                 let nilFactFor : SExpr → Option Expr := fun u =>
-                  (ctx.litFactByTerm? u).orElse fun _ =>
+                  ((ctx.litFactByTerm? u).orElse fun _ =>
                     (ctx.branchFacts.find? (fun (t, _, sign, _) =>
-                      t == u && !sign)).map (·.2.2.2)
+                      t == u && !sign)).map (·.2.2.2)).orElse fun _ =>
+                    -- a clausify-branch SEGMENT literal's falsity resolves
+                    -- the test too (G2 rung 2: (EQUAL (CAR X-EQUIV) E)
+                    -- false as a segment fact at *1.5/2.1)
+                    (ctx.segFacts.find? (fun (st, _) => st == u)).map (·.2)
                 let eqOf : SExpr → SExpr → SExpr := fun x y =>
                   .cons (.atom (.symbol { name := "EQUAL" }))
                     (.cons x (.cons y .nil))
@@ -3867,7 +3871,14 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                     | .cons (.atom (.symbol eqS)) (.cons u (.cons v .nil)) =>
                       if !(eqS.name == "EQUAL") then pure none else do
                       let mut found : Option Expr := none
-                      for (st, hSeg) in ctx.segFacts do
+                      -- equality sources: clausify-branch segment facts AND
+                      -- clause-literal falsity facts of the same
+                      -- `(not (equal p q))` shape (G2 rung 2: the hoisted
+                      -- (NOT (EQUAL X1 (CAR X-EQUIV))) literal's falsity
+                      -- pins vX1 = v(CAR X-EQUIV) at *1.5/2.1)
+                      let eqSources : List (SExpr × Expr) :=
+                        ctx.segFacts ++ ctx.litFacts.map (fun (_, l, h) => (l, h))
+                      for (st, hSeg) in eqSources do
                         if found.isSome then break
                         let .cons (.atom (.symbol ns))
                             (.cons pq@(.cons (.atom (.symbol eqS'))
@@ -3911,6 +3922,9 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 let some hNil := hNil?
                   | throwError "replayRewrites: unemitted test resolution — no \
                                 in-scope nil fact for the if-test {repr T} \
+                                (rewriting {repr start}; \
+                                lit-facts {repr (ctx.litFacts.map (·.2.1))}; \
+                                seg-facts {repr (ctx.segFacts.map (·.1))}) \
                                 (frontier)"
                 let pT ← ctxValProof cfg ctx T
                 let pQ ← mkAppM ``re_val_quote
@@ -4120,6 +4134,45 @@ inductive ContextDemand where
   | equivClass (a b : SExpr)
   deriving BEq
 
+/-- Every IF-test subterm of `t`, recursively (never descending QUOTE):
+    candidates for clause-context demands — an if-test the rewriter resolved
+    against the type-alist with NO emitted node (the reconciled constant-test
+    class in `replayRewritesWith`) consumes a clause literal's falsity, and
+    the test appears as an if-test inside the chain's own lhs/rhs terms
+    (G2 rung 2: qsort's PERM-IMPLIES-EQUAL-ALL-REL-2 opens REL's FN-dispatch
+    body whose tests are the clause's own `(EQUAL FN 'LT/'LTE)` literals). -/
+partial def ifTestsOf : SExpr → List SExpr
+  | .cons (.atom (.symbol f)) args =>
+    if f.name == "QUOTE" then []
+    else
+      let rec argsOf : SExpr → List SExpr
+        | .cons a rest => ifTestsOf a ++ argsOf rest
+        | _ => []
+      (if f.name == "IF" then
+         match args with
+         | .cons t _ =>
+           match t with
+           | .cons (.atom (.symbol q)) _ =>
+             if q.name == "QUOTE" then [] else [t]
+           | .atom _ => [t]
+           | _ => [t]
+         | _ => []
+       else []) ++ argsOf args
+  | _ => []
+
+/-- A `.term` falsity demand plus its EQUAL-flip (the hoist site matches
+    clause-literal terms exactly; type-alist lookups go through `equal`'s
+    commutativity, so both orientations are demanded). -/
+def ifTestDemandsOf (t : SExpr) : List ContextDemand :=
+  [ContextDemand.term t] ++
+  (match t with
+   | .cons (.atom (.symbol es)) (.cons u (.cons v .nil)) =>
+     if es.name == "EQUAL" then
+       [ContextDemand.term
+         (.cons (.atom (.symbol es)) (.cons v (.cons u .nil)))]
+     else []
+   | _ => [])
+
 /-- The CLAUSE-CONTEXT falsity demands of a literal's chain, as the exact
     clause-literal terms/indices whose falsity the chain's nodes consume
     (ACL2 rewrites literal i under the falsity of ALL other clause literals):
@@ -4127,11 +4180,17 @@ inductive ContextDemand where
     - a `type-alist` nil-verdict node `l ⇒ 'nil` demands `l` itself;
     - a `type-alist` truthy node `l ⇒ 't` demands `(not l)`;
     - a solidify node with a `.literal k` equiv source demands literal `k`
-      (S1 2026-07-23 — the IH equation consumed from a LATER literal). -/
+      (S1 2026-07-23 — the IH equation consumed from a LATER literal);
+    - every IF-test subterm of a node's lhs/rhs (and its EQUAL-flip) — the
+      reconciled constant-test class resolves such a test from the clause
+      context with no emitted node (G2 rung 2). A demand that is no later
+      clause literal is skipped harmlessly at the hoist site. -/
 partial def collectContextDemands : ProofNode → List ContextDemand
   | .node ⟨rty, _, _⟩ l rh children prov =>
     let notOf : SExpr → SExpr := fun t =>
       .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+    let ifTestDemands : List ContextDemand :=
+      (ifTestsOf l ++ ifTestsOf rh).flatMap ifTestDemandsOf
     (if rty == "hyp-relief" then
        [ContextDemand.term (notOf l)] ++
        -- a (NOT atom) hyp's clause-context source is the ATOM literal — its
@@ -4176,7 +4235,30 @@ partial def collectContextDemands : ProofNode → List ContextDemand
        -- no-op when the fact is derivable another way
        [ContextDemand.term (notOf l)]
      else if prov.origin == "recognizer/false" then [ContextDemand.term l]
-     else []) ++ children.flatMap collectContextDemands
+     else []) ++ ifTestDemands ++ children.flatMap collectContextDemands
+
+/-- WORLD-AWARE demand augmentation: a DEFINITION node's unfolded body (read
+    from the world's defun, formals substituted by the recorded call args)
+    contributes its if-tests as falsity demands. The recorded rhs shows
+    ACL2's POST-resolution view (a context-resolved test appears there as
+    the quoted verdict), so a test the reconciled constant-test class must
+    resolve appears ONLY in the world-side body — invisible to
+    `collectContextDemands` (G2 rung 2: REL's FN-dispatch body whose tests
+    are the clause's own `(EQUAL FN 'LT/'LTE)` literals). -/
+partial def collectDefBodyDemands (cfg : ReplayConfig) : ProofNode → List ContextDemand
+  | .node ⟨rty, _, _⟩ l _ children _ =>
+    (if rty == "definition" then
+       match l with
+       | .cons (.atom (.symbol fn)) args =>
+         match cfg.worldVal.defs.get? fn, args.toList? with
+         | some (formals, body), some argL =>
+           if formals.length == argL.length then
+             (ifTestsOf (ACL2.Replay.substTerm formals argL body)).flatMap
+               ifTestDemandsOf
+           else []
+         | _, _ => []
+       | _ => []
+     else []) ++ children.flatMap (collectDefBodyDemands cfg)
 
 /-- `EvTrue (disjoin lits)` from the TRUTH of the k-th literal (0-based):
     descend the lazy if-spine by value splits — an earlier literal's truth
@@ -4218,5 +4300,36 @@ partial def evtrueOfLitTrue (cfg : ReplayConfig) (ctx : ReplayCtx)
     mkAppM ``evtrue_dp_if_split
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, reflectSExpr quoteT,
         reflectSExpr restTerm, vL, pL, hthen, helse]
+
+/-- Close `EvTrue (disjoin lits)` for a TAUTOLOGOUS clause — one containing a
+    complementary pair `L` / `(NOT L)` — by cases on the atom's value. ACL2
+    recognizes such a clause as *t* with no recorded steps (add-literal and
+    remove-trivial-equivalences drop it as proved silently), so the mirror is
+    the pair's excluded middle. Fails loudly when no pair exists. `who` names
+    the calling site in the error. -/
+def tautClauseClose (cfg : ReplayConfig) (ctx : ReplayCtx) (lits : List SExpr)
+    (who : String) : MetaM Expr := do
+  let notOf (t : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+  let pair? := lits.zipIdx.findSome? fun (l, i) =>
+    lits.zipIdx.findSome? fun (l2, j) =>
+      if l2 == notOf l then some (i, j, l) else none
+  let some (iPos, iNeg, atom) := pair?
+    | throwError "{who}: tautology close — no complementary literal pair in \
+        {repr lits} (frontier)"
+  let ctxT ← pinTermOpaques cfg cfg.envExpr ctx (disjoinTerm lits)
+  let vA ← ctxValExpr cfg ctxT atom
+  let nilC := mkConst ``SExpr.nil
+  let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vA, nilC]) fun hNe => do
+    mkLambdaFVars #[hNe]
+      (← evtrueOfLitTrue cfg ctxT lits iPos atom hNe)
+  let negL ← withLocalDeclD `hnil (← mkEq vA nilC) fun hNil => do
+    let hT ← mkAppM ``logic_not_t_of_nil #[hNil]
+    let tNeNil ← proveByDecide
+      (← mkAppM ``Ne #[mkConst ``SExpr.t, nilC]) "t ≠ nil"
+    let hTrue ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
+    mkLambdaFVars #[hNil]
+      (← evtrueOfLitTrue cfg ctxT lits iNeg (notOf atom) hTrue)
+  mkAppM ``Classical.byCases #[negL, posL]
 
 end ACL2.Replay.Driver

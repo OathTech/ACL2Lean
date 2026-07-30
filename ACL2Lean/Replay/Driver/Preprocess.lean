@@ -429,31 +429,10 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
     | none => do
       unless tautHit do
         throwError "clausify bridge: no output-clause proof (internal)"
-      -- the tautology proof of the RECOMPUTED split clause: locate the
-      -- complementary pair and prove the disjunction by cases on the atom
-      let notOf (t : SExpr) : SExpr :=
-        .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
-      let pair? := recomputedSplit.zipIdx.findSome? fun (l, i) =>
-        recomputedSplit.zipIdx.findSome? fun (l2, j) =>
-          if l2 == notOf l then some (i, j, l) else none
-      let some (iPos, iNeg, atom) := pair?
-        | throwError "clausify bridge: taut-dropped output but the recomputed \
-            split clause {repr recomputedSplit} has no complementary literal \
-            pair (frontier)"
-      let ctxT ← pinTermOpaques cfg cfg.envExpr ctx (disjoinTerm recomputedSplit)
-      let vA ← ctxValExpr cfg ctxT atom
-      let nilC := mkConst ``SExpr.nil
-      let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vA, nilC]) fun hNe => do
-        mkLambdaFVars #[hNe]
-          (← evtrueOfLitTrue cfg ctxT recomputedSplit iPos atom hNe)
-      let negL ← withLocalDeclD `hnil (← mkEq vA nilC) fun hNil => do
-        let hT ← mkAppM ``logic_not_t_of_nil #[hNil]
-        let tNeNil ← proveByDecide
-          (← mkAppM ``Ne #[mkConst ``SExpr.t, nilC]) "t ≠ nil"
-        let hTrue ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
-        mkLambdaFVars #[hNil]
-          (← evtrueOfLitTrue cfg ctxT recomputedSplit iNeg (notOf atom) hTrue)
-      mkAppM ``Classical.byCases #[negL, posL]
+      -- the tautology proof of the RECOMPUTED split clause: its complementary
+      -- pair's excluded middle (the shared `tautClauseClose`)
+      tautClauseClose cfg ctx recomputedSplit
+        "clausify bridge: taut-dropped output"
   let prfT' ← mkAppM
     (if dedupHit then ``clausifyPure_sound_dedup else ``clausifyPure_sound)
     #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,

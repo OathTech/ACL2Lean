@@ -52,8 +52,20 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     (accClause : List SExpr) (children : List ClauseNode) :
     MetaM Expr := do
   match items with
-  | [] => throwError "replayClauseSpine: ran out of items with no closer \
-                      at {idStr}"
+  | [] =>
+    -- SILENT TAUTOLOGY close (G2 rung 2): a branch-substitution can create a
+    -- complementary literal pair (qsort's PERM-IMPLIES-EQUAL-ALL-REL-2
+    -- *1.5/2.2: X1 := (CAR X-EQUIV) turns (LEXORDER E X1) into the
+    -- complement of (NOT (LEXORDER E (CAR X-EQUIV)))); ACL2 recognizes the
+    -- taut clause as *t* and closes with NO further records or children.
+    -- Gated: only with no pushed children, and only when a pair exists.
+    let lits := clauseLits.map (·.2)
+    let notOfL : SExpr → SExpr := fun t =>
+      .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+    if children.isEmpty && lits.any (fun l => lits.contains (notOfL l)) then
+      return ← tautClauseClose cfg ctx lits s!"replayClauseSpine at {idStr}"
+    throwError "replayClauseSpine: ran out of items with no closer \
+                at {idStr}"
   | .clausify _ :: _ =>
     throwError "replayClauseSpine: clausify record in the spine at {idStr} \
                 (frontier)"
@@ -90,10 +102,94 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- disjunction to the substituted clause, and the walk continues there.
     if (runeOf n).ty == "branch-substitution" then
       let .node _ varT valT _ prov := n
-      -- :EQUIVALENCE is the RELATION name; only `equal` is supported
-      unless prov.equivTerm == some (.atom (.symbol { name := "EQUAL" })) do
-        throwError "replayClauseSpine: branch-substitution under equivalence \
-                    {repr prov.equivTerm} at {idStr} (frontier — equal only)"
+      -- :EQUIVALENCE is the RELATION the substitution is justified under.
+      -- NON-EQUAL relation (perm — G2 rung 2): remove-trivial-equivalences
+      -- substitutes var := val at congruence-admissible positions and deletes
+      -- the used `(not (R var val))` literal. The OBSERVED class (qsort's
+      -- PERM-IMPLIES-EQUAL-ALL-REL-2, 10 sites) has the variable occurring
+      -- ONLY in the justifying literal — the substitution elsewhere is
+      -- vacuous, so the mirror is pure clause structure: byCases on the
+      -- literal; truthy closes the disjunction (the literal is true), falsity
+      -- collapses its if-frame out (exactly ACL2's case analysis — under
+      -- (R var val) the used literal is dropped; no R-facts are consumed
+      -- because nothing else changes). An occurrence OUTSIDE the justifying
+      -- literal needs the R-congruence transport — a named frontier.
+      if prov.equivTerm != some (.atom (.symbol { name := "EQUAL" })) then
+        let some (.atom (.symbol rSym)) := prov.equivTerm
+          | throwError "replayClauseSpine: branch-substitution :EQUIVALENCE \
+              {repr prov.equivTerm} is not a symbol at {idStr}"
+        let mkNegRel (x y : SExpr) : SExpr :=
+          .cons (.atom (.symbol { name := "NOT" }))
+            (.cons (.cons (.atom (.symbol rSym))
+              (.cons x (.cons y .nil))) .nil)
+        let some (negLit, kIdx) :=
+          (match clauseLits.find? (fun (_, l) => l == mkNegRel varT valT) with
+           | some (i, l) => some (l, i)
+           | none =>
+             (clauseLits.find? (fun (_, l) => l == mkNegRel valT varT)).map
+               (fun (i, l) => (l, i)) : Option (SExpr × Nat))
+          | throwError "replayClauseSpine: branch-substitution under \
+              {rSym.name} — justifying literal (not ({rSym.name} \
+              {repr varT} {repr valT})) is not a clause literal at {idStr} \
+              (frontier — in-clause only for non-equal relations)"
+        let substNE : SExpr → SExpr :=
+          match varT with
+          | .atom (.symbol varSym) => ACL2.Replay.substTerm [varSym] [valT]
+          | _ => replaceTermOcc varT valT
+        for (i, l) in clauseLits do
+          if i != kIdx && substNE l != l then
+            throwError "replayClauseSpine: branch-substitution under \
+                {rSym.name} — {repr varT} occurs outside the justifying \
+                literal (in {repr l}) at {idStr} (frontier — congruence \
+                transport pending)"
+        let kPos := clauseLits.findIdx (fun (i, _) => i == kIdx)
+        unless kPos + 1 < clauseLits.length do
+          throwError "replayClauseSpine: branch-substitution under \
+              {rSym.name} with the justifying literal LAST at {idStr} \
+              (frontier)"
+        let ctx1 ← pinTermOpaques cfg cfg.envExpr ctx
+          (disjoinTerm (clauseLits.map (·.2)))
+        let vK ← ctxValExpr cfg ctx1 negLit
+        let pK ← ctxValProof cfg ctx1 negLit
+        let nilC := mkConst ``SExpr.nil
+        let negL ← withLocalDeclD `hnil (← mkEq vK nilC) fun hNil => do
+          -- the literal's if-frame collapses out of the disjunction by its
+          -- own falsity, lifted through the kPos else-descents above it
+          let hcNil ← mkAppM ``re_val_cast
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr negLit, vK, nilC,
+              pK, hNil]
+          let tailTerm := disjoinTerm ((clauseLits.drop (kPos + 1)).map (·.2))
+          let vTail ← ctxValExpr cfg ctx1 tailTerm
+          let hTail ← ctxValProof cfg ctx1 tailTerm
+          let mut inner ← mkAppM ``re_if_false
+            #[cfg.worldExpr, cfg.envExpr, reflectSExpr negLit,
+              reflectSExpr quoteT, reflectSExpr tailTerm, vTail, hcNil, hTail]
+          let mut curL : SExpr := .cons (.atom (.symbol { name := "IF" }))
+            (.cons negLit (.cons quoteT (.cons tailTerm .nil)))
+          let mut curR : SExpr := tailTerm
+          for (_, l) in (clauseLits.take kPos).reverse do
+            let st : PathStep := { fn := { name := "IF" }, arity := 3,
+                                   argIdx := 2, siblings := [l, quoteT] }
+            inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+            curL := rebuild st curL
+            curR := rebuild st curR
+          let shortened := (clauseLits.eraseIdx kPos).zipIdx.map
+            fun ((_, l), j) => (j + 1, l)
+          unless curL == disjoinTerm (clauseLits.map (·.2)) &&
+                 curR == disjoinTerm (shortened.map (·.2)) do
+            throwError "replayClauseSpine: branch-substitution ({rSym.name}) \
+                deletion lift reconstructed {repr curL} / {repr curR} at \
+                {idStr}"
+          let pRest ← replayClauseSpineWith rec cfg ctx1 idStr shortened rest
+            accClause children
+          let p ← mkAppM ``evtrue_of_fuel_eq #[inner, pRest]
+          mkLambdaFVars #[hNil] p
+        let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vK, nilC]) fun hNe => do
+          let p ← evtrueOfLitTrue cfg ctx1 (clauseLits.map (·.2)) (kIdx - 1)
+            negLit hNe
+          mkLambdaFVars #[hNe] p
+        return ← (try mkAppM ``Classical.byCases #[negL, posL]
+          catch e => throwError "byCases compose failed at {idStr}:\n{e.toMessageData}")
       -- the substitution: a VARIABLE lhs uses substTerm; a non-variable
       -- lhs (the `(CDR IT) := 'JUNK` class) replaces occurrences of the
       -- TERM — ACL2's subst-expr (G1 inc-2c)
@@ -589,7 +685,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- later clause literal with no fact in scope, case-split on that literal
     -- FIRST — its truth closes the whole disjunction; its falsity joins
     -- litFacts and the walk re-enters (one fewer demand each time).
-    let demanded := (lp.nodes.flatMap collectContextDemands).eraseDups
+    let demanded := (lp.nodes.flatMap collectContextDemands ++
+      lp.nodes.flatMap (collectDefBodyDemands cfg)).eraseDups
     for dem in demanded do
       -- resolve the demand to a LATER clause literal (index, term) with no
       -- fact in scope; anything else is skipped — the consumer fails

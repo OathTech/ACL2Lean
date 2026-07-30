@@ -136,6 +136,37 @@ _Last updated: 2026-07-29._
 > auditor) — no circularity/forward/self citations in the perm or qsort
 > books; the perm book's equivalence facts are 8/8 green mirrors; the
 > two record classes pinned in the design note.
+> INC-1 DONE (2026-07-30): PERM-IMPLIES-EQUAL-ALL-REL-2 → REPLAYED ✓
+> UNCONDITIONAL (sweep 64/79, 30 unconditional; zero other row
+> changes). Five pieces, all Core/NodeCore/Preprocess: (a) the
+> non-EQUAL branch-substitution arm — the OBSERVED class has the
+> substituted variable ONLY in the justifying `(not (R var val))`
+> literal, so the mirror is pure clause structure (byCases: truthy
+> closes the disjunction, falsity collapses the literal's if-frame
+> out; NO R-facts consumed); occurrences elsewhere stay a loud
+> congruence-transport frontier; (b) if-test falsity DEMANDS: every
+> if-test subterm of a chain node's lhs/rhs (+ EQUAL-flips) and — the
+> world-aware half — of a definition node's UNFOLDED body (the
+> recorded rhs shows ACL2's post-resolution view, so context-resolved
+> tests appear only world-side) feed the existing later-literal hoist,
+> mirroring rewrite-clause's all-other-literals type-alist; (c) the
+> SILENT-TAUTOLOGY close at spine exhaustion (no items, no children,
+> complementary pair — ACL2 drops taut clauses as *t* with no record),
+> via the shared `tautClauseClose` extracted from the clausify
+> bridge's inline copy; (d) `nilFactFor` also consults segFacts, and
+> the unemitted-test equality-substitution loop takes clause-literal
+> falsity facts as equation sources alongside segment facts; (e) the
+> unemitted-test frontier message now self-locates (running term +
+> in-scope facts).
+> INC-2 (next): ORDEREDP-QSORT — the `cong:` hypothesis class
+> (defcong mirrors offered as `∀ env', EvTrue w env' formula`,
+> discharged like rule: hyps), the R-conclusion rule-hypothesis shape
+> (`∀ env', EvTrue w env' (R lhs rhs)` for user-equivalence stored
+> rules — PERM-QSORT is `((:REWRITE PERM-QSORT) NIL PERM (QSORT X) X
+> NIL)` in the rules stream), and the preprocess-chain use site: the
+> R-payload collapses at its congruence frame (path last frame
+> (2 . ALL-REL)) by value-level MP through the defcong instance —
+> both hypothesis instantiations premise-free substN bridges.
 
 > PRE-MERGE AUDIT ACTIONED (2026-07-30, 2 Opus agents inside/outside;
 > ZERO soundness findings from both; outside verdict "merge it — the
