@@ -177,3 +177,21 @@ at the solidify site), Class C, Class B per the charter.
   type facts; either the lexorder facts aren't reaching the obligation
   or the leaf needs a lexorder-aware discharge (the ratified carve-out
   allows lean-smt where needed; check what ACL2's fc actually derived).
+
+## ORDEREDP-MEMB's DP leaf (inc-4 target; goal captured 2026-07-30)
+
+The *1/1.2 fc-contradiction leaf's lifted obligation (from the replay
+error, full text via
+`acl2lean-replay …ordered-perms… ORDEREDP-MEMB | grep proveDpFact`):
+hyps over `cons car✝ cdr✝` — ¬consp(x)=nil-decode, equal(car(cdr x),
+car x)=nil, consp(cdr x)=nil, not(lexorder nil (car x))=nil — PLUS the
+discharge machinery's synthesized dpOrd_anti_0/dpOrd_tot_0/dpOrd_tot'_0
+lexorder facts; GOAL `Logic.car (cons …) = SExpr.t` under a ∀ dpv0
+clause lift. The closer is simp_all<;>omega — lexorder-flavored, omega
+cannot. Investigate: (a) is the goal correctly lifted (the = t goal
+looks odd — check the emitted clause and whether the two-valued decode
+should apply); (b) whether the just-added completion lemmas
+(logic_car_of_consp_nil) close the car(cdr)=nil step and the
+contradiction is nil ≠ car x vs …; (c) whether the leaf needs a
+lexorder-aware closer (the carve-out allows it — check what ACL2's fc
+derived, drive off the emitted record).
