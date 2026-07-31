@@ -2137,4 +2137,324 @@ theorem all_rel_rm_2_native_of_replayed (w : World)
     rw [toBool_relExec, h2]
   exact bool_true_of_cond_truthy (truthy_of_implies_t hIt hp)
 
+/-! ## The FILTER kit -/
+
+abbrev filterT (f x e : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "FILTER" }))
+    (.cons f (.cons x (.cons e .nil)))
+
+/-- `(defun filter (fn x e) …)`, macroexpanded. -/
+def filterBody : SExpr :=
+  ifT (conspT xT)
+    (ifT (relT fnT (carT xT) eT)
+      (consT (carT xT) (filterT fnT (cdrT xT) eT))
+      (filterT fnT (cdrT xT) eT))
+    qNil
+
+private def filter_sym : Symbol := { package := "ACL2", name := "FILTER" }
+
+private theorem filter_ns :
+    (filter_sym.isNamed "QUOTE" = false ∧ filter_sym.isNamed "IF" = false ∧
+     filter_sym.isNamed "LET" = false ∧
+     filter_sym.isNamed "LET*" = false) := by decide
+
+/-- `filter`'s body as a total Lean function. -/
+def filterExec (fv x ev : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then
+    if Logic.toBool (relExec fv (Logic.car x) ev) = true then
+      Logic.cons (Logic.car x) (filterExec fv (Logic.cdr x) ev)
+    else filterExec fv (Logic.cdr x) ev
+  else SExpr.nil
+termination_by x.consCount
+decreasing_by all_goals exact consCount_cdr_lt_of_consp (by assumption)
+
+/-- Stage 1: a `filter` call converges to `filterExec` of its argument
+    values. -/
+theorem filter_exec_corr (w : World)
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_filter : w.defs.get? filter_sym = some ([fnS, xS, eS], filterBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env : Env) (a x b av xv bv : SExpr),
+      ConvTo w env a av → ConvTo w env x xv → ConvTo w env b bv →
+      ConvTo w env (filterT a x b) (filterExec av xv bv) := by
+  have hbody : ∀ (xv : SExpr) (vf ve : SExpr),
+      ConvTo w (bindArgs [fnS, xS, eS] [vf, xv, ve]) filterBody
+        (filterExec vf xv ve) := by
+    refine consCount_strong_induction
+      (fun xv => ∀ vf ve, ConvTo w (bindArgs [fnS, xS, eS] [vf, xv, ve])
+        filterBody (filterExec vf xv ve)) ?_
+    intro xv ih vf ve
+    have hf := re_val_var_get w (bindArgs [fnS, xS, eS] [vf, xv, ve])
+      { name := "FN" } vf (bindArgs_fxe_fn vf xv ve)
+    have hx := re_val_var_get w (bindArgs [fnS, xS, eS] [vf, xv, ve])
+      { name := "X" } xv (bindArgs_fxe_x vf xv ve)
+    have he := re_val_var_get w (bindArgs [fnS, xS, eS] [vf, xv, ve])
+      { name := "E" } ve (bindArgs_fxe_e vf xv ve)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hx (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
+      (Logic.car xv) (by decide) h_no_car hx (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hx (callBuiltin_cdr _)
+    have hrel := rel_exec_corr w h_rel h_no_equal h_no_lexorder _
+      fnT (carT xT) eT vf (Logic.car xv) ve hf hcar he
+    have houter := conv_if_lift w (bindArgs [fnS, xS, eS] [vf, xv, ve])
+      (conspT xT)
+      (ifT (relT fnT (carT xT) eT)
+        (consT (carT xT) (filterT fnT (cdrT xT) eT))
+        (filterT fnT (cdrT xT) eT))
+      qNil (Logic.consp xv)
+      (if Logic.toBool (relExec vf (Logic.car xv) ve) = true then
+        Logic.cons (Logic.car xv) (filterExec vf (Logic.cdr xv) ve)
+       else filterExec vf (Logic.cdr xv) ve)
+      SExpr.nil hconsp
+      (fun hb =>
+        have hrecc : ConvTo w (bindArgs [fnS, xS, eS] [vf, xv, ve])
+            (filterT fnT (cdrT xT) eT)
+            (filterExec vf (Logic.cdr xv) ve) :=
+          conv_defn_3 w _ filter_sym fnT (cdrT xT) eT vf (Logic.cdr xv) ve
+            fnS xS eS filterBody _ filter_ns h_filter hf hcdr he
+            (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb) vf ve)
+        conv_if_lift w _ (relT fnT (carT xT) eT)
+          (consT (carT xT) (filterT fnT (cdrT xT) eT))
+          (filterT fnT (cdrT xT) eT)
+          (relExec vf (Logic.car xv) ve)
+          (Logic.cons (Logic.car xv) (filterExec vf (Logic.cdr xv) ve))
+          (filterExec vf (Logic.cdr xv) ve) hrel
+          (fun _ =>
+            conv_builtin2 w _ { name := "CONS" } (carT xT)
+              (filterT fnT (cdrT xT) eT) (Logic.car xv)
+              (filterExec vf (Logic.cdr xv) ve) _ (by decide) h_no_cons
+              hcar hrecc rfl)
+          (fun _ => hrecc))
+      (fun _ => re_val_quote w _ SExpr.nil)
+    rw [filterExec.eq_def]
+    exact houter
+  intro env a x b av xv bv ha hx hb
+  exact conv_defn_3 w env filter_sym a x b av xv bv fnS xS eS filterBody _
+    filter_ns h_filter ha hx hb (hbody xv av bv)
+
+/-- The native reading of FILTER: `List.filter` by the `relL` verdict. -/
+def filterL (fv ev : SExpr) (xs : List SExpr) : List SExpr :=
+  xs.filter (fun a => relL fv a ev)
+
+/-- Stage 2: `filterExec` on an encoded list computes `filterL`. -/
+theorem filterExec_enc (fv ev : SExpr) (xs : List SExpr) :
+    filterExec fv (enc xs) ev = enc (filterL fv ev xs) := by
+  induction xs with
+  | nil => rw [filterExec.eq_def]; rfl
+  | cons hd tl ih =>
+    rw [filterExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl,
+        if_pos (show Logic.toBool (Logic.consp (.cons hd (enc tl))) = true
+          from rfl),
+        show Logic.car (SExpr.cons hd (enc tl)) = hd from rfl,
+        show Logic.cdr (SExpr.cons hd (enc tl)) = enc tl from rfl]
+    cases hb : relL fv hd ev with
+    | true =>
+      rw [if_pos (show Logic.toBool (relExec fv hd ev) = true from by
+        rw [toBool_relExec, hb]), ih]
+      simp only [filterL, List.filter_cons, hb, if_true]
+      rfl
+    | false =>
+      rw [if_neg (show ¬(Logic.toBool (relExec fv hd ev) = true) from by
+        rw [toBool_relExec, hb]; simp), ih]
+      simp only [filterL, List.filter_cons, hb, Bool.false_eq_true,
+        if_false]
+
+/-! ## The concrete comparison modes (native vocabulary for the FILTER
+rows: the quoted mode symbols specialize `relL` to plain `lexorderB`
+combinations). -/
+
+/-- Strict lexorder: `≤` and not equal. -/
+def lexLtB (a e : SExpr) : Bool := lexorderB a e && !(a == e)
+
+theorem relL_LT (a e : SExpr) : relL (symV "LT") a e = lexLtB a e := by
+  rw [relL, if_pos (by decide)]; rfl
+theorem relL_LTE (a e : SExpr) : relL (symV "LTE") a e = lexorderB a e := by
+  rw [relL, if_neg (by decide), if_pos (by decide)]
+theorem relL_GTE (a e : SExpr) : relL (symV "GTE") a e = lexorderB e a := by
+  rw [relL, if_neg (by decide), if_neg (by decide), if_neg (by decide)]
+
+/-! ## ALL-REL-FILTER-1 / ALL-REL-FILTER-2 / HOW-MANY-FILTER-1 -/
+
+/-- `(ALL-REL 'LTE (FILTER 'LT X E) E)`. -/
+def all_rel_filter_1Formula : SExpr :=
+  allRelT (qSym "LTE") (filterT (qSym "LT") xT eT) eT
+
+/-- `(ALL-REL 'GTE (FILTER 'GTE X E) E)`. -/
+def all_rel_filter_2Formula : SExpr :=
+  allRelT (qSym "GTE") (filterT (qSym "GTE") xT eT) eT
+
+private def xeEnv (ev : SExpr) (xs : List SExpr) : Env :=
+  (({} : Env).insert eS ev).insert xS (enc xs)
+
+private theorem xeEnv_hx (w : World) (ev : SExpr) (xs : List SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (xeEnv ev xs) xT = some (enc xs) :=
+  re_val_var_get w _ { name := "X" } (enc xs) (by
+    show (xeEnv ev xs).get? xS = some (enc xs)
+    rw [xeEnv, Env.get?_insert, if_pos (by decide)])
+
+private theorem xeEnv_he (w : World) (ev : SExpr) (xs : List SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (xeEnv ev xs) eT = some ev :=
+  re_val_var_get w _ { name := "E" } ev (by
+    show (xeEnv ev xs).get? eS = some ev
+    rw [xeEnv, Env.get?_insert, if_neg (by decide), Env.get?_insert,
+        if_pos (by decide)])
+
+/-- ALL-REL-FILTER-1, natively: everything the strict-lexorder filter
+    keeps is lexorder-below the pivot. -/
+theorem all_rel_filter_1_native_of_replayed (w : World)
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
+    (h_filter : w.defs.get? filter_sym = some ([fnS, xS, eS], filterBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env all_rel_filter_1Formula = some v ∧ v ≠ SExpr.nil)
+    (ev : SExpr) (xs : List SExpr) :
+    (xs.filter (fun a => lexLtB a ev)).all (fun a => lexorderB a ev)
+      = true := by
+  let e := xeEnv ev xs
+  have hfil := filter_exec_corr w h_rel h_filter h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons h_no_lexorder e (qSym "LT") xT eT
+    (symV "LT") (enc xs) ev (re_val_quote w e (symV "LT"))
+    (xeEnv_hx w ev xs) (xeEnv_he w ev xs)
+  rw [filterExec_enc] at hfil
+  have hAr := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_lexorder e (qSym "LTE")
+    (filterT (qSym "LT") xT eT) eT (symV "LTE")
+    (enc (filterL (symV "LT") ev xs)) ev (re_val_quote w e (symV "LTE"))
+    hfil (xeEnv_he w ev xs)
+  rw [allRelExec_enc] at hAr
+  have h := bool_true_of_cond_truthy (toBool_true_of_ne_nil
+    (replayed_pins_ne_nil (hreplayed e) hAr))
+  simpa only [allRelL, filterL, relL_LTE, relL_LT] using h
+
+/-- ALL-REL-FILTER-2, natively: everything the reverse-lexorder filter
+    keeps is lexorder-above the pivot. -/
+theorem all_rel_filter_2_native_of_replayed (w : World)
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
+    (h_filter : w.defs.get? filter_sym = some ([fnS, xS, eS], filterBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env all_rel_filter_2Formula = some v ∧ v ≠ SExpr.nil)
+    (ev : SExpr) (xs : List SExpr) :
+    (xs.filter (fun a => lexorderB ev a)).all (fun a => lexorderB ev a)
+      = true := by
+  let e := xeEnv ev xs
+  have hfil := filter_exec_corr w h_rel h_filter h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons h_no_lexorder e (qSym "GTE") xT eT
+    (symV "GTE") (enc xs) ev (re_val_quote w e (symV "GTE"))
+    (xeEnv_hx w ev xs) (xeEnv_he w ev xs)
+  rw [filterExec_enc] at hfil
+  have hAr := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_lexorder e (qSym "GTE")
+    (filterT (qSym "GTE") xT eT) eT (symV "GTE")
+    (enc (filterL (symV "GTE") ev xs)) ev (re_val_quote w e (symV "GTE"))
+    hfil (xeEnv_he w ev xs)
+  rw [allRelExec_enc] at hAr
+  have h := bool_true_of_cond_truthy (toBool_true_of_ne_nil
+    (replayed_pins_ne_nil (hreplayed e) hAr))
+  simpa only [allRelL, filterL, relL_GTE] using h
+
+/-- `(EQUAL (BINARY-+ (HOW-MANY E (FILTER 'LT X D))
+                      (HOW-MANY E (FILTER 'GTE X D)))
+            (HOW-MANY E X))`. -/
+def how_many_filter_1Formula : SExpr :=
+  equalT
+    (plusT (howManyT eT (filterT (qSym "LT") xT dT))
+           (howManyT eT (filterT (qSym "GTE") xT dT)))
+    (howManyT eT xT)
+
+/-- HOW-MANY-FILTER-1, natively: the LT/GTE filters PARTITION every
+    element's multiplicity — the count below the pivot plus the count
+    at-or-above it is the whole count. -/
+theorem how_many_filter_1_native_of_replayed (w : World)
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_filter : w.defs.get? filter_sym = some ([fnS, xS, eS], filterBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env how_many_filter_1Formula = some v ∧ v ≠ SExpr.nil)
+    (ev dv : SExpr) (xs : List SExpr) :
+    (xs.filter (fun a => lexLtB a dv)).count ev
+      + (xs.filter (fun a => lexorderB dv a)).count ev
+      = xs.count ev := by
+  let e' : Env := ((({} : Env).insert dS dv).insert eS ev).insert
+    xS (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e' xT = some (enc xs) :=
+    re_val_var_get w e' { name := "X" } (enc xs) (by
+      show e'.get? xS = some (enc xs)
+      rw [show e' = ((({} : Env).insert dS dv).insert eS ev).insert
+            xS (enc xs) from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have he : ∃ N, ∀ f ≥ N, evalOpt f w e' eT = some ev :=
+    re_val_var_get w e' { name := "E" } ev (by
+      show e'.get? eS = some ev
+      rw [show e' = ((({} : Env).insert dS dv).insert eS ev).insert
+            xS (enc xs) from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hd : ∃ N, ∀ f ≥ N, evalOpt f w e' dT = some dv :=
+    re_val_var_get w e' { name := "D" } dv (by
+      show e'.get? dS = some dv
+      rw [show e' = ((({} : Env).insert dS dv).insert eS ev).insert
+            xS (enc xs) from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  have hfilLT := filter_exec_corr w h_rel h_filter h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons h_no_lexorder e' (qSym "LT") xT dT
+    (symV "LT") (enc xs) dv (re_val_quote w e' (symV "LT")) hx hd
+  rw [filterExec_enc] at hfilLT
+  have hfilGTE := filter_exec_corr w h_rel h_filter h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons h_no_lexorder e' (qSym "GTE") xT dT
+    (symV "GTE") (enc xs) dv (re_val_quote w e' (symV "GTE")) hx hd
+  rw [filterExec_enc] at hfilGTE
+  have hcLT := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e' eT (filterT (qSym "LT") xT dT) ev
+    (enc (filterL (symV "LT") dv xs)) he hfilLT
+  rw [howManyExec_enc] at hcLT
+  have hcGTE := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e' eT (filterT (qSym "GTE") xT dT) ev
+    (enc (filterL (symV "GTE") dv xs)) he hfilGTE
+  rw [howManyExec_enc] at hcGTE
+  have hL := conv_plusT w e' _ _ _ _ h_no_plus hcLT hcGTE
+  rw [logic_plus_int] at hL
+  have hR := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e' eT xT ev (enc xs) he hx
+  rw [howManyExec_enc] at hR
+  have hnat := native_of_replayed_equal w e' intRep _ _
+    (((filterL (symV "LT") dv xs).count ev : Int)
+      + ((filterL (symV "GTE") dv xs).count ev : Int))
+    ((xs.count ev : Int)) h_no_equal hL hR (hreplayed e')
+  have hLT : filterL (symV "LT") dv xs
+      = xs.filter (fun a => lexLtB a dv) := by
+    simp only [filterL, relL_LT]
+  have hGTE : filterL (symV "GTE") dv xs
+      = xs.filter (fun a => lexorderB dv a) := by
+    simp only [filterL, relL_GTE]
+  rw [hLT, hGTE] at hnat
+  omega
+
 end ACL2.Worlds.Sorting

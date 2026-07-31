@@ -1275,6 +1275,88 @@ theorem all_rel_rm_2_native_driver (fv ev dv : SExpr) (xs : List SExpr)
 
 #print axioms all_rel_rm_2_native_driver
 
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for ALL-REL-FILTER-1 (one
+    hypothesis: `tp:ALL-REL`). -/
+def allRelFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "all-rel-filter-1"
+
+theorem allRelFilter1Replayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.all_rel_filter_1Formula = some v ∧ v ≠ SExpr.nil :=
+  allRelFilter1ReplayedCond env
+    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — ALL-REL-FILTER-1 natively: everything the
+    strict-lexorder filter keeps is lexorder-below the pivot. -/
+theorem all_rel_filter_1_native_driver (ev : SExpr) (xs : List SExpr) :
+    (xs.filter (fun a => Worlds.Sorting.lexLtB a ev)).all
+      (fun a => Worlds.Sorting.lexorderB a ev) = true :=
+  Worlds.Sorting.all_rel_filter_1_native_of_replayed qsortWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) allRelFilter1Replayed_uncond ev xs
+
+#print axioms all_rel_filter_1_native_driver
+
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for ALL-REL-FILTER-2 (one
+    hypothesis: `tp:ALL-REL`). -/
+def allRelFilter2ReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "all-rel-filter-2"
+
+theorem allRelFilter2Replayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.all_rel_filter_2Formula = some v ∧ v ≠ SExpr.nil :=
+  allRelFilter2ReplayedCond env
+    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — ALL-REL-FILTER-2 natively: everything the
+    reverse-lexorder filter keeps is lexorder-above the pivot. -/
+theorem all_rel_filter_2_native_driver (ev : SExpr) (xs : List SExpr) :
+    (xs.filter (fun a => Worlds.Sorting.lexorderB ev a)).all
+      (fun a => Worlds.Sorting.lexorderB ev a) = true :=
+  Worlds.Sorting.all_rel_filter_2_native_of_replayed qsortWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) allRelFilter2Replayed_uncond ev xs
+
+#print axioms all_rel_filter_2_native_driver
+
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for HOW-MANY-FILTER-1
+    (hypotheses: `tp:HOW-MANY`, `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0`,
+    and the three arithmetic-3 comm/assoc rules). -/
+def howManyFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "how-many-filter-1"
+
+theorem howManyFilter1Replayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.how_many_filter_1Formula = some v ∧ v ≠ SExpr.nil :=
+  howManyFilter1ReplayedCond env
+    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+    (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-FILTER-1 natively: the LT/GTE filters
+    PARTITION every element's multiplicity. -/
+theorem how_many_filter_1_native_driver (ev dv : SExpr)
+    (xs : List SExpr) :
+    (xs.filter (fun a => Worlds.Sorting.lexLtB a dv)).count ev
+      + (xs.filter (fun a => Worlds.Sorting.lexorderB dv a)).count ev
+      = xs.count ev :=
+  Worlds.Sorting.how_many_filter_1_native_of_replayed qsortWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide)
+    howManyFilter1Replayed_uncond ev dv xs
+
+#print axioms how_many_filter_1_native_driver
+
 /-! ## The idiomatic `List.IsChain` corollaries (mirror criterion 1):
 sortedness in Mathlib vocabulary — `IsChain (lexorderB · · = true)`,
 adjacent-pairs order over the imported total order (LexorderOrder.lean
@@ -1417,12 +1499,12 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "termination:QSORT", .pending "termination replayed statement; native decrease fact not lifted"),
   ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
   ("sorting/qsort", "ORDEREDP-APPEND", .pending "chain2/LEXORDER + all-rel/append correspondences + cond dischargers (backlog)"),
-  ("sorting/qsort", "HOW-MANY-FILTER-1", .pending "how-many/filter correspondences (backlog)"),
+  ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
   ("sorting/qsort", "HOW-MANY-QSORT", .pending "how-many/qsort correspondences (landed 2026-07-31 via the truthy branch-fact channel; backlog)"),
   ("sorting/qsort", "PERM-QSORT", .pending "qsort correspondence + isPerm lift (the flagship; backlog)"),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
-  ("sorting/qsort", "ALL-REL-FILTER-1", .pending "all-rel/filter correspondences (backlog)"),
-  ("sorting/qsort", "ALL-REL-FILTER-2", .pending "all-rel/filter correspondences (backlog)"),
+  ("sorting/qsort", "ALL-REL-FILTER-1", .native ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond),
+  ("sorting/qsort", "ALL-REL-FILTER-2", .native ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond),
   ("sorting/qsort", "ALL-REL-RM-1", .native ``all_rel_rm_1_native_driver ``allRelRm1ReplayedCond),
   ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
@@ -1530,7 +1612,10 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.orderedp_rm_isChain_driver,
             ``ACL2.Imported.Mirrors.orderedp_memb_isChain_driver,
             ``ACL2.Imported.Mirrors.all_rel_rm_1_native_driver,
-            ``ACL2.Imported.Mirrors.all_rel_rm_2_native_driver] do
+            ``ACL2.Imported.Mirrors.all_rel_rm_2_native_driver,
+            ``ACL2.Imported.Mirrors.all_rel_filter_1_native_driver,
+            ``ACL2.Imported.Mirrors.all_rel_filter_2_native_driver,
+            ``ACL2.Imported.Mirrors.how_many_filter_1_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
