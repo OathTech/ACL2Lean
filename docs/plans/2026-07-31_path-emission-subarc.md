@@ -105,3 +105,21 @@ mechanisms deleted (not bypassed).
 HOW-MANY-QSORT (D), MSORT-IS-ISORT/QSORT-IS-ISORT (B), the type-set
 walker consolidation (the second mandated epicycle elimination), then
 the sorting mirror program — per the parent charter's amended criteria.
+
+## CLOSED (2026-07-31): folded back into mdd/sorting-completion-2
+
+Gate met in full: sweep 70/79 BYTE-IDENTICAL to the pre-emission golden
+(better than the ≥69/79 parity bar), ORDEREDP-APPEND green (the
+validating case), `just ci` green, the three mechanisms deleted (plus
+the audit round's deletions: the collapseEval rung, the write-only
+depth/chainPrefix-Nat). The fold-back audit ran per this charter
+(3 adversarial Opus reviewers + default-refute verifier); every
+confirmed finding was fixed and re-verified (BUG-024/025/026 fixed at
+the fork with full recapture; BUG-027 open for the parent merge
+review). The fix round's own consumer rework (branch-anchored windows,
+begin-if adopter lookahead, chain-end normalizers — the census's
+"regression round" section) is gate-validated (byte-identical sweep +
+new pins) but postdates the reviewers — in scope for the parent arc's
+pre-merge audit. Fold-back merge: fast-forward 371b7a6..4202c06,
+sub-arc authorization per the standing goal (audit passed; no user
+sign-off required for sub-arc folds).

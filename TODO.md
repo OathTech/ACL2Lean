@@ -174,7 +174,8 @@ _Last updated: 2026-07-29._
 > for every reasonable green sorting row (pending catalog entries do
 > not count); see the charter's amended-criteria section.**
 > Sequencing A→D→C→B, then epicycle elimination, then mirrors.
-> **ACTIVE SUB-ARC (2026-07-31): `mdd/path-emission`** — fork-side
+> **SUB-ARC CLOSED (2026-07-31): `mdd/path-emission` folded back (ff
+> 371b7a6..4202c06; audit passed, gate byte-identical)** — fork-side
 > term-relative :PATH emission (MDD-picked option b), charter
 > docs/plans/2026-07-31_path-emission-subarc.md; retires the
 > relativize/strip/boundary trio; folds back into this branch at
