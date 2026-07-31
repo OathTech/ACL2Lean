@@ -166,9 +166,54 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, c1, c2S], true))
     let restTerm := disjoinTerm (restLits.map (·.2))
     if outcome == "dropped" then
-      -- the literal is TRUE on this path: eval lit ≡ eval 't → close
-      unless value == quoteT do
-        throwError "composeSplit: dropped leaf value {repr value} ≠ 't at {idStr}"
+      -- the literal is TRUE on this path: eval lit ≡ eval 't → close.
+      -- A NON-'T dropped value is the TAUTOLOGY-ABSORPTION class
+      -- (path-emission sub-arc, ORDEREDP-APPEND *1/2'): if-interp drops a
+      -- leaf whose value's NEGATION is an in-scope segment/branch literal
+      -- (the branch clause would be a tautology) — the value is TRUTHY by
+      -- that fact, so the literal is still true on this path; close the
+      -- disjunction at its position.
+      if value != quoteT then do
+        let notVal : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+          (.cons value .nil)
+        let sources : List (SExpr × Expr) :=
+          ctx.segFacts ++ ctx.litFacts.map (fun (_, l, h) => (l, h)) ++
+          ctx.branchFacts.filterMap (fun (bt, _, sign, h) =>
+            if !sign then some (bt, h) else none) ++
+          facts.filterMap (fun (t, _, sign, h) =>
+            if !sign then some (t, h) else none)
+        let ctxV ← pinTermOpaques cfg cfg.envExpr ctx value
+        let vVal ← ctxValExpr cfg ctxV value
+        let mut hne? : Option Expr := none
+        for (t, h) in sources do
+          if hne?.isNone && t == notVal then
+            if ← isDefEq (← inferType h)
+                (← mkEq (mkApp (mkConst ``Logic.not) vVal)
+                  (mkConst ``SExpr.nil)) then
+              hne? := some (← mkAppM ``logic_not_nil_ne #[vVal, h])
+        -- a TRUTHY branch fact on the value itself also serves
+        for (bt, vB, sign, h) in ctx.branchFacts do
+          if hne?.isNone && sign && bt == value then
+            if ← isDefEq vB vVal then hne? := some h
+        let some hne := hne?
+          | throwError "composeSplit: dropped leaf value {repr value} ≠ 't \
+              and no in-scope truthy fact for it (tautology-absorption \
+              frontier) at {idStr}"
+        let some (ch, chIff) := fullChain
+          | throwError "composeSplit: dropped leaf with no chain at {idStr}"
+        if chIff then
+          throwError "composeSplit: absorbed dropped leaf under an IFF \
+              chain (frontier) at {idStr}"
+        -- transport the value's truthiness to the literal and close
+        let pLit ← ctxValProof cfg ctxV clauseLit
+        let pVal ← ctxValProof cfg ctxV value
+        let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pVal]
+        let hneLit ← mkAppM ``ne_of_eq_of_ne #[vEq, hne]
+        if restLits.isEmpty then
+          return ← mkAppM ``evtrue_of_conv_ne_nil #[pLit, hneLit]
+        else
+          return ← evtrueOfLitTrue cfg ctxV (clauseLit :: restLits.map (·.2)) 0
+            clauseLit hneLit
       let some (ch, chIff) := fullChain
         | throwError "composeSplit: dropped leaf with no chain at {idStr}"
       if chIff then

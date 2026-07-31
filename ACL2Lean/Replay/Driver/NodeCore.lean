@@ -328,6 +328,26 @@ def innerKindOf : ProofNode → String | .node _ _ _ _ p => p.innerKind
 def innerTermOf : ProofNode → Option SExpr | .node _ _ _ _ p => p.innerTerm
 /-- The node's enclosing-window entry path (path-emission Phase 1). -/
 def innerPathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.innerPath
+/-- ALL occurrence positions of `sub` in `t` as PathFrame lists (never
+    descending QUOTE). Deterministic; the inline-window handler uses the
+    UNIQUE-occurrence case only (ambiguity hard-fails). -/
+partial def occurrencePaths (t sub : SExpr) : List (List PathFrame) :=
+  if t == sub then [[]]
+  else match t with
+    | .cons (.atom (.symbol f)) args =>
+      if f.name == "QUOTE" then []
+      else
+        let rec go (rest : SExpr) (i : Nat) : List (List PathFrame) :=
+          match rest with
+          | .cons a r =>
+            (occurrencePaths a sub |>.map fun p =>
+              (PathFrame.arg i (match a with
+                | .cons (.atom (.symbol h)) _ => h
+                | _ => { name := "QUOTE" })) :: p) ++ go r (i + 1)
+          | _ => []
+        go args 1
+    | _ => []
+
 /-- Strip the window tag — recipes that CONSUME a window (the if-finish
     branch partition; the inline-window group handler) clear it before
     handing the nodes to a sub-walk anchored at the window term. -/
@@ -4223,15 +4243,59 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
       -- AT the if's own position: the lift path is the window's entry path
       -- alone (no branch frame)
       let relW ← ofExcept (relativizeFrames wpath depth)
-      let frames := relW
+      -- The window's gstack entry path can UNDER-DETERMINE the position: a
+      -- window reached through TEST positions has no frames for them (the
+      -- test rewrite already returned and popped its frames — the gstack
+      -- crux the census recorded). Resolution ladder, all fail-closed:
+      -- 1. the entry path locates the term — use it;
+      -- 2. the entry path locates an IF that COLLAPSES to the term under
+      --    the in-scope facts (ACL2's must-be arms emit no collapse step —
+      --    the reconciled constant-test class) — derive, prepend, use;
+      -- 3. the term occurs EXACTLY ONCE in the running term — use that
+      --    position (a total function of record + running term, no choice;
+      --    multiple occurrences hard-fail). Fold-back audit item.
+      let mut start := start
+      let mut preChain : Option Expr := none
+      let mut frames := relW
+      match pathStepsFromFrames start frames wterm with
+      | .ok _ => pure ()
+      | .error _ => do
+        let collapse? ← do
+          match (navigateFrames start frames).toOption with
+          | some (_, S) => do
+            let (chOpt, S') ← collapseEval cfg ctx [] S
+            if S' == wterm then pure (chOpt.map (S, ·)) else pure none
+          | none => pure none
+        match collapse? with
+        | some (S, ch) => do
+          let (lifted, newTerm) ←
+            emitCongruence cfg.worldExpr cfg.envExpr start
+              (PathFrame.arg 0 { name := "DUMMY" } :: frames) S wterm ch depth []
+          preChain := some lifted
+          start := newTerm
+        | none =>
+          match occurrencePaths start wterm with
+          | [p] => frames := p
+          | [] => throwError "replayRewrites: inline {kind} window term \
+              {repr wterm} does not occur in the running term \
+              {repr start} (frontier)"
+          | ps => throwError "replayRewrites: inline {kind} window term \
+              {repr wterm} occurs {ps.length} times in the running term — \
+              ambiguous position (frontier)"
       let steps ← match pathStepsFromFrames start frames wterm with
         | .ok st => pure st
         | .error e => throwError "replayRewrites: inline {kind} window's \
             entry path does not locate its term in the running chain: {e}"
       match chOpt with
       | none =>
-        -- no effective rewrites in the window — a no-op group
-        return ← replayRewritesWith rec cfg ctx start restG depth strip chainPrefix
+        -- no effective rewrites in the window — a no-op group (the derived
+        -- collapse, if any, still moves the chain forward)
+        let (restProof, finalTerm) ←
+          replayRewritesWith rec cfg ctx start restG depth strip chainPrefix
+        match preChain with
+        | none => return (restProof, finalTerm)
+        | some pc =>
+          return (some (← chainWithR cfg ctx pc start restProof), finalTerm)
       | some chain => do
         let mut inner := chain
         let mut curL := wterm
@@ -4243,6 +4307,9 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         unless curL == start do
           throwError "replayRewrites: inline {kind} window lift \
               reconstructed {repr curL} ≠ running {repr start}"
+        match preChain with
+        | none => pure ()
+        | some pc => inner ← mkAppM ``fuel_chain_eq #[pc, inner]
         let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR
           restG depth strip (chainPrefix ++ [(n, depth, strip)])
         return (some (← chainWithR cfg ctx inner curR restProof), finalTerm)

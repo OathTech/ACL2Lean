@@ -902,8 +902,12 @@ partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat) : IO Un
     | .node rune lhs rhs children prov =>
       let pad := String.ofList (List.replicate (indent * 2) ' ')
       let originStr := if prov.origin.isEmpty then "" else s!" [{prov.origin}]"
-      IO.println s!"{pad}{rune.tag}{originStr}"
+      let windowStr := if prov.innerKind.isEmpty then "" else
+        s!" ⟨{prov.innerKind}{if prov.blockKind.isEmpty then "" else s!" in {prov.blockKind}"}⟩"
+      IO.println s!"{pad}{rune.tag}{originStr}{windowStr}"
       IO.println s!"{pad}  {lhs} => {rhs}"
+      if let some wt := prov.innerTerm then
+        IO.println s!"{pad}  window: {wt} @ {repr prov.innerPath}"
       if !prov.runes.isEmpty then
         let runeStrs := prov.runes.map (·.tag)
         IO.println s!"{pad}  runes: {String.intercalate ", " runeStrs}"
