@@ -218,9 +218,7 @@ def asLamHead (t : SExpr) : Option (Symbol × SExpr × SExpr) :=
     fork emits frames only down to the INNERMOST window boundary. Drop it;
     the remainder navigates within the chain's start term.
     `pathStepsFromFrames`' final redex check is the fail-closed backstop
-    for any residual misalignment. The `depth` parameter is retained for
-    signature stability during the migration and is DEAD — the boundary
-    accounting it drove retired with the gstack-coordinate emission. -/
+    for any residual misalignment. -/
 def relativizeFrames (frames : List PathFrame) : List PathFrame :=
   frames.drop 1
 

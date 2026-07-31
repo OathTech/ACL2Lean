@@ -66,7 +66,10 @@ nosig() {
 sig p3-recorded-termination 1 "(O< (ACL2-COUNT (SKIP-ONE"
 sig p3-conj-mid-literal     1 ":ORIGIN STRIP-BRANCHES/AND-SHAPE"
 # P1 circle
-sig p1-swap-descend    1 "(IF (CONSP X) (ATOM Y) (ATOM X))"
+# fix-round 2026-07-31 re-pin: the old witness — the post-swap if inside a
+# no-op IF-FINISH/COMBINED :LHS — was a spurious record (BUG-025's guard fix
+# suppressed it); the swap is now witnessed by its OWN marker (BUG-026)
+sig p1-swap-descend    1 ":SWAPPED-P T"
 sig p1-swap-double-neg 1 "(NOT (NOT"
 sig p1-or-opt-probe    1 ":UNREWRITTEN-TEST"
 # S1-corrected books (2026-07-23): all six former "halt" surfaces capture

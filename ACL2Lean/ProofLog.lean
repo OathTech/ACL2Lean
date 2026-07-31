@@ -79,6 +79,11 @@ structure RewriteStep where
   rhs : SExpr
   /-- Which code path produced this step (e.g., "fncall/non-recursive"). -/
   origin : String := ""
+  /-- `:SWAPPED-P` (fold-back audit 2026-07-31 V3): T on an if-record whose
+      test/left/right are the POST-swap orientation of rewrite-if's
+      `(if x nil t)` test normalization (the branches are exchanged
+      relative to the source term). -/
+  swapped : Bool := false
   /-- Note (B2): this is the CUMULATIVE rune set in the ttree on ENTRY to the
       step (`all-runes-in-ttree`), i.e. rules accumulated by prior steps — NOT
       the rule this step applied. THIS step's rule is `rune`. Do not read `runes`
@@ -124,7 +129,7 @@ inductive TraceEvent where
   | hypRelief (hyp : SExpr) (origin : String) (taRunes : List Rune)
       (parents : List SExpr := [])
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
-  | beginInnerRewrite (kind : String) (term : Option SExpr := none)
+  | beginInnerRewrite (kind : String) (swapped : Bool := false) (term : Option SExpr := none)
       (path : List PathFrame := [])
   | endInnerRewrite (kind : String)
   | beginIfRewrite (test : SExpr) (unrewrittenTest : SExpr)
@@ -538,7 +543,17 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
           | some items => items.mapM parsePathFrame
           | none => throw s!"REWRITE-STEP: :PATH not a list: {repr r}"
         | none => pure []
-      pure { rune, equiv, lhs, rhs, origin, runes, parents, subst, equivTerm, typeSet, trueTs, path }
+      -- :SWAPPED-P (fold-back audit V3): T/NIL; absent (pre-fix logs /
+      -- non-if origins) reads as NIL. Any other value is a malformed
+      -- emission — hard-fail.
+      let swapped ← match lookupKeyword "SWAPPED-P" rest with
+        | some (.atom (.symbol s)) =>
+          if s.name == "T" then pure true
+          else throw s!"REWRITE-STEP: malformed :SWAPPED-P {s.name}"
+        | some .nil => pure false
+        | some other => throw s!"REWRITE-STEP: malformed :SWAPPED-P {repr other}"
+        | none => pure false
+      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, typeSet, trueTs, path }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
@@ -754,7 +769,18 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           | some p => match p.toList? with
             | some items => items.mapM parsePathFrame
             | none => throw s!"BEGIN-INNER-REWRITE :PATH not a list: {repr p}"
-        pure (.beginInnerRewrite kind term path)
+        -- :SWAPPED-P (fold-back audit V3): T only on if-left/if-right windows
+        -- of a swap-normalized rewrite-if — the KIND names the POST-swap
+        -- branch (if-left = source argument 3 under the swap). Absent on the
+        -- macro-emitted kinds; hard-fail on any value other than T/NIL.
+        let swapped ← match lookupKeyword "SWAPPED-P" rest with
+          | some (.atom (.symbol s)) =>
+            if s.name == "T" then pure true
+            else throw s!"BEGIN-INNER-REWRITE: malformed :SWAPPED-P {s.name}"
+          | some .nil => pure false
+          | some other => throw s!"BEGIN-INNER-REWRITE: malformed :SWAPPED-P {repr other}"
+          | none => pure false
+        pure (.beginInnerRewrite kind swapped term path)
     | .atom (.keyword "END-INNER-REWRITE") :: rest =>
         -- KIND is an internal dispatch tag (hyp/rhs/…), not a symbol-identity
         -- value — lowercase at the boundary.

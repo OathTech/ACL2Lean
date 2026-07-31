@@ -326,6 +326,102 @@ Related (same audit, tracked in the design note, not bugs): the
 :EQUIVALENCE-rule implicit self-congruences and :REFINEMENT rules are
 licensing mechanisms with no emitted defthm shape at all — rung-3 work.
 
+## BUG-024 — proof-log emission const-folded instantiated fields (`:UNREWRITTEN-TEST`, `:hyp`, induction `:MEASURE`)
+Status: fixed
+Pinned-by: none (proof-log emission, not interpreter behavior — no value
+stream to diff; verified by the fold-back audit's corpus detector:
+529 folded records before the fix, 0 after)
+
+Found by the path-emission fold-back audit (reviewer A + default-refute
+verifier, 2026-07-31, V1/A-F1). Seven emission sites instantiated recorded
+terms with `sublis-var`, which builds through `cons-term` and CONST-FOLDS
+ground primitive calls (even with an empty substitution, via
+`cons-term1-mv2`) — the same mechanism as the 2026-07-26 F3 class, whose
+fix moved `:LHS`/`:RHS` to `structured-sublis-var-plain` but missed these:
+the three `:UNREWRITTEN-TEST` sites (`if-finish/if-test`,
+`if-finish/begin-if`, `rewrite-if/constant-if-test` — all 529 corpus hits
+came from the last), the three `:hyp-relief` sites
+(`relieve-hyp/type-alist`, `/ground-unit`, `/ground-unit-search`), and the
+induction `:MEASURE` instantiation (induct.lisp). Witness class: a
+recognizer step `(CONSP 'NIL) → 'NIL` followed by `:IF-TEST-FALSE
+:UNREWRITTEN-TEST 'NIL` — the field re-performed the collapse instead of
+recording the term. FIXED (acl2 9f12ded573): all seven sites use
+`structured-sublis-var-plain`, now loop-visible (program-mode
+mutual-recursion) so the loop-mode induct.lisp site can call it. Blast
+radius at fix time was zero (the parser stored, and the tree builder
+dropped, all three `ifTest*` events; nothing read `:hyp`/`:MEASURE`
+foldings on the gated corpus) — fixed at the source per "emission is dumb
+logging".
+
+## BUG-025 — `IF-FINISH/COMBINED` `:LHS` spliced rule-formal branches (uninstantiated + folded); guard emitted spurious no-op steps
+Status: fixed
+Pinned-by: none (proof-log emission — the Lean guard is the combined
+recipe's running-term ground truth + the final `== rhs` gate, which
+fail-close on any misuse; verified by the fold-back audit's detector:
+547 hard formal leaks before the fix, 0 after; record count 729 → 138)
+
+Found by the path-emission fold-back audit (reviewer C + verifier,
+2026-07-31, V2/C-F1) — BUG-022's "related latency" gone live: the combined
+step's `:lhs (mcons-term* 'if test left right)` used the UNREWRITTEN
+formal-level branches under a non-nil rewrite alist, leaking rule formals
+(`X`, `J`, `I`, `E`, …) into 547 of 729 corpus records — an `:LHS` that
+was not a subterm of any running term (witness: FIX's body emitted
+`:LHS (IF (ACL2-NUMBERP A) X '0)` for a step ACL2 never took). It also
+silently disabled `bridgeIfNegTestSwap`'s target case (`swapped == lhs`
+can never match a formal-leaking record) — fail-closed but a coverage
+suppressor. FIXED (acl2 9f12ded573): `:lhs` is the ACTUAL input to
+`rewrite-if1` — `(list 'if test rewritten-left rewritten-right)`, raw
+cons — i.e. exactly the running subterm after the branch windows apply,
+and the emit guard compares against the same shape, so a combined step is
+emitted exactly when `rewrite-if1` changed the term (this dropped ~591
+spurious no-op records the old folded guard let through).
+
+## BUG-026 — the rewrite-if branch swap was UNRECORDED (`:SWAPPED-P`)
+Status: fixed
+Pinned-by: none (proof-log emission; verified by the fold-back audit's
+exact detector — 19 swap occurrences across 7 corpus books, 0 `:SWAPPED-P`
+keys before the fix, emitted after)
+
+Found by the path-emission fold-back audit (reviewers A/C + verifier,
+2026-07-31, V3). `rewrite-if` normalizes a rewritten test of the negation
+shape `(if x nil t)` by stripping it and EXCHANGING the branches
+(`rewrite.lisp` mv-let, scoping over all six if-window sites and both
+`rewrite-if-finish` calls; `rewrite-if-avoid-swap` is attached to
+`constant-nil-function-arity-0`, so `if-call` never un-swaps). The swap
+was silent: window KINDs and if-record orientations were post-swap with
+nothing marking it, so the replay worked only because two UNRECORDED
+normalizations cancelled (the driver's kind↦branch binding vs its
+`normalizeSwapsToward`/`bridgeIfNegTestSwap` re-derivation inventory,
+~190 lines). FIXED (acl2 9f12ded573): `:swapped-p` is emitted on the six
+if-left/if-right window begins, both if-test events, the combined record,
+and the constant-test record. Consumed (2026-07-31): the tree carries
+`swapped`/`innerSwapped`; the if-finish partition hard-checks window flags
+against the combined record's; the inline-window anchoring uses the flag
+for pre-swap branch naming. REMAINING (parent-arc epicycle item): the
+`if1/if11` record family still lacks the field, so the shape-directed
+swap-bridge inventory is validated-but-not-yet-retired — retiring it
+(record-directed swap replay) is tracked in TODO.md.
+
+## BUG-027 — truthy-equal edges widened the J6 solidify equation closure without ratification
+Status: open
+Pinned-by: none (replay-side derivation scope, not a differential-visible
+divergence — no value stream to diff)
+
+Raised by the fold-back audit (reviewer B, B-F7, 2026-07-31). The
+solidify/type-alist recipe's clause-context equation closure
+(`inScopeEquations`/`eqChain?`/`composeEqChain`) gained TRUTHY-EQUAL edges
+(a TRUE `(equal a b)` branch fact decodes to `a = b` via
+`Logic.eq_of_equal_ne_nil`) during the sorting-completion-2 arc. This
+widens what the J6 verdict-class carve-out (ratified 2026-06-09) lets the
+replay re-derive for a verdict-only type-alist step: the closure now
+composes equalities ACL2 justified by its type-alist machinery from MORE
+in-scope sources. Each edge is kernel-checked and fail-closed (the
+composition must reach the node's emitted `:EQUIV-TERM` target), so this
+is a carve-out SCOPE question, not a soundness hole: either ratify the
+widened closure as part of the J6 verdict class (it re-derives only from
+clause-context facts ACL2 itself consulted) or narrow it behind emitted
+justifications. Decide at the parent-arc merge review.
+
 ## BUG-022 — the proof-log `:EQUIV` mislabel class: iff-only steps emitted `:EQUIV EQUAL`
 Status: fixed (emission sites); one emission-GAP sibling documented open
 Pinned-by: none (proof-log emission, not interpreter behavior — no value
@@ -360,7 +456,8 @@ Related latency (same audit): the site-1 combined step's `:lhs`
 `(mcons-term* 'if test left right)` splices the REWRITTEN test with
 UNSUBSTITUTED left/right — only well-formed when the rewrite alist is
 nil; no corpus record exercises a non-nil alist there yet. Fix by
-substituting left/right when a record demands it.
+substituting left/right when a record demands it. [This latency went
+LIVE and is fixed — see BUG-025.]
 
 ## BUG-020 — reader ignores CL's terminating macro characters (fail-OPEN)
 Status: fixed

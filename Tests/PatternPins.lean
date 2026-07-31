@@ -137,4 +137,42 @@ elab "perm_arc_pattern_pins% " : term => do
 set_option maxHeartbeats 0 in
 def permArcPatternPins : True := perm_arc_pattern_pins%
 
+/-! ## Swap family (fold-back audit fix round 2026-07-31): the books whose
+    headers exist to pin rewrite-if's `(if x nil t)` branch swap — the
+    audit found the family had NO Lean gate at all while carrying most of
+    the V2/V3 emission witnesses. Pinned on the `:SWAPPED-P`-emitting logs
+    (acl2 9f12ded573). -/
+
+private def swapDescendLog : String :=
+  include_str "../acl2_samples/pattern-tests/p1-swap-descend.proof-log"
+private def swapDoubleNegLog : String :=
+  include_str "../acl2_samples/pattern-tests/p1-swap-double-neg.proof-log"
+private def swapJointLog : String :=
+  include_str "../acl2_samples/pattern-tests/p1-swap-joint.proof-log"
+
+elab "swap_family_pattern_pins% " : term => do
+  -- p1-swap-descend 1/1: the descend/target swap bridge's home book
+  -- (ZIPW-TRUE-LISTP) — the swap fires in the record (:SWAPPED-P T on the
+  -- if-left window at argument 3) and the replay composes through it.
+  -- p1-swap-double-neg 1/1 UNCONDITIONAL: iterated swap ×2 (the double
+  -- negation cancels).
+  -- p1-swap-joint 1/1 (CNTNE-CONS): the (NOT (EQUAL …)) body-test swap
+  -- resolved through the branch-anchored window context (the fix-round's
+  -- assume-true-false rework).
+  for (nm, content, expR, expT) in
+      [("p1-swap-descend", swapDescendLog, 1, 1),
+       ("p1-swap-double-neg", swapDoubleNegLog, 1, 1),
+       ("p1-swap-joint", swapJointLog, 1, 1)] do
+    let res ← ACL2.Replay.Runner.runBook nm content none
+    unless res.replayed == expR && res.total == expT &&
+        res.integrityFails.isEmpty do
+      throwError "pattern pin {nm}: replayed {res.replayed}/{res.total} \
+        (expected {expR}/{expT}); integrity: {res.integrityFails.toList}"
+  logInfo "swap-family pattern pins hold (p1-swap-descend 1/1, \
+    p1-swap-double-neg 1/1, p1-swap-joint 1/1)"
+  return mkConst ``True.intro
+
+set_option maxHeartbeats 0 in
+def swapFamilyPatternPins : True := swap_family_pattern_pins%
+
 end ACL2.Tests.PatternPins

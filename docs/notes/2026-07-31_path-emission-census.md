@@ -327,3 +327,117 @@ simple/perm/ordered-perms/qsort/msort; the pattern books decide.
   test-node re-composition now re-roots by validated path retargeting
   (`retargetAtIf pn 1`) instead of the deleted strips. `chainPrefix`
   stays as its carrier ((ProofNode × Nat) now).
+
+## Fold-back audit fix round (2026-07-31)
+
+The audit (3 adversarial Opus reviewers + a default-refute verifier per
+the charter) confirmed the positive core — `:TERM` verbatim 3959/3959,
+begin/end balance 14557/14557, boundary discipline sound, behavior
+neutrality clean, the flagship row kernel-checked — and returned a fix
+round, all findings independently verified (verdicts V1–V8 in the audit
+record; fixes below landed as acl2 `9f12ded573` + the Lean consumer
+commit that carries this note):
+
+FORK (all verified cleared by the verifier's re-run detectors):
+- V1 → BUG-024: 7 emission sites const-folded instantiated fields
+  (`:UNREWRITTEN-TEST` ×3, `:hyp-relief` ×3, induction `:MEASURE`);
+  529 folded records → 0. `structured-sublis-var-plain` is now
+  loop-visible (program-mode mutual recursion).
+- V2 → BUG-025: `IF-FINISH/COMBINED :LHS` is the ACTUAL rewrite-if1
+  input (raw cons over the window OUTPUTS) and the emit guard compares
+  the same shape — 547 formal leaks → 0, and the guard now suppresses
+  the ~591 spurious no-op records the folded comparison let through
+  (record count 729 → 138).
+- V3 → BUG-026: `:SWAPPED-P` emitted on the six if-window begins, both
+  if-test events, the combined record, the constant-test record
+  (15297 keys corpus-wide; the 19 swaps unchanged, now MARKED).
+- V6: the three "truncate" comments corrected — a dead boundary never
+  eq-matches, so paths OVERRUN to the gstack bottom.
+
+LEAN:
+- V4: `occurrencePaths` descends lambda-application ARGUMENTS (bodies
+  stay out — a body position is behind its own `lambda-body` boundary).
+  This exposed a real ambiguity the lambda-blind version silently
+  resolved (ORDEREDP-APPEND's W-window: 2 textual occurrences from the
+  IFF expansion) — fixed by the anchoring redesign below, not by
+  un-fixing the descent.
+- V5: the collapseEval ladder rung DELETED (fired 0× corpus-wide,
+  blind to `ctx.branchFacts`, re-derived a verdict ACL2 emits).
+  REPLACED by record-directed readings: the entry path's first frame is
+  a literal-root DESCRIPTOR when the enclosing collapses were recorded
+  (drop-one) but a REAL descent frame when an enclosing must-be arm
+  collapsed silently (keep the full path); the window term sits AT the
+  navigated position or is the KIND/`:SWAPPED-P`-named branch of a
+  still-uncollapsed 3-arg if there. All four readings are total
+  functions of record + running term; every reading that checks out
+  must agree (disagreement hard-fails); unique-occurrence stays the
+  last rung. The identity-arm collapseEval at the symbolic-test
+  reconciliation (ALL-REL-FILTER-1 witness) is NOT the deleted rung and
+  stays.
+- B-F3: the or-collapse test-node re-composition excludes window-tagged
+  prefix nodes (window-local paths — a leading `.arg 1` there is a
+  coincidence, not a test-position descent).
+- V7: the write-only `depth` parameter and `chainPrefix`'s dead Nat
+  deleted through `NodeRec`/both walkers/all recipes; stale
+  depth-relativization docs rewritten (drop-one is the law).
+- `:SWAPPED-P` consumed: parsed (hard-fail on non-T/NIL), carried as
+  `swapped`/`innerSwapped` provenance, group identity includes it, the
+  if-finish partition hard-checks branch-window flags against the
+  combined record's, and the anchoring's pre-swap branch naming uses it.
+  The `if1`/`if11` record family does NOT yet carry the field — the
+  shape-directed swap-bridge inventory (~190 lines) is therefore
+  validated-but-not-retired; retirement is the parent arc's epicycle
+  item (TODO.md).
+- BUG-027 (open): the truthy-equal solidify-closure edges widen the J6
+  carve-out — ratify-or-narrow at the parent-arc merge review.
+
+DOCUMENT-AND-DEFER (audit findings carried, not fixed here): per-hyp
+window payloads (HYP windows are record-directed via `:SUBST`); the four
+latent unwindowed producers (HIDE re-entry 21293, lambda-object-body
+24590, double-rewrite re-entry, add-linear hyps — zero corpus hits,
+fail-closed in Lean); the 25-of-88 sweep-gate coverage observation
+(pattern books pinned family-by-family instead — the swap family gained
+its pin this round).
+
+## Fix-round regression round (2026-07-31, same day)
+
+The BUG-025 guard fix surfaced a hidden structural dependency: the ~591
+spurious no-op combined records were silently LOAD-BEARING in three ways —
+as the begin-if block's ADOPTERS (their disappearance re-parented window
+children onto unrelated steps), as the carrier of the SILENT swap (their
+recorded rhs drove `normalizeSwapsToward` at the combined joint), and as
+the context supplier (the partition's assume-true-false hypotheses reached
+window sub-chains only through adoption). First sweep after the fix:
+70/79 → 65/79. All five regressions fixed record-directedly:
+
+- ProofTree: a begin-if block is adopted ONLY when the next event is the
+  `if-finish/combined` step; otherwise its nodes are CHAIN ITEMS anchored
+  by their own window records (deterministic lookahead).
+- The inline group handler's BRANCH-ANCHORED mode: a window anchored at a
+  branch of a still-uncollapsed if (silent must-be arm) replays its
+  sub-chain UNDER the branch hypothesis (arg 2 under test≠nil, arg 3
+  under test=nil — ACL2's assume-true-false) and lifts by
+  `evalOpt_congr_if_branches_cond` — the context the combined partition
+  supplies for adopted windows, now available inline (LEN-ZIP2/3,
+  PERM-CONS, p1-swap-joint, cov-trivial-drop2 healed).
+- A `:SWAPPED-P` window whose if still has the pre-swap negation shape
+  applies `re_if_neg_test_swap` at the if FIRST (the record is the
+  trigger), then anchors at the post-swap branch; candidates are deduped
+  by POSITION with the hypothesis-bearing reading preferred.
+- Chain-end normalizers: `normalizeSwapsToward` (which also covers the
+  EQUAL-NIL test variant) joins the literal chain end (Core) and the
+  definition-recipe chain end — a swapped if with EMPTY branch windows
+  leaves no tree trace, so the marked swap is re-derived toward the
+  recorded result, `== result` gate intact (ORDEREDP-MEMB, ORDP-MEMQ3).
+- The rule recipe's empty-RHS-block mismatch arm tries
+  `bridgeEqualNilNormDeep` before hard-failing (ORDERED-PERMS's
+  EQUAL-CONS: the nil-normalization used to be absorbed by a spurious
+  record's running-term joint).
+
+RESULT: sweep 70/79, BYTE-IDENTICAL to the pre-fix golden (no promotion);
+the whole swap family green (p1-swap-descend/-double-neg/-joint 1/1 each,
+now PINNED — the audit's coverage gap #5); cov-trivial-drop2's ORDP-MEQ3
+green. These reworks are FIX-ROUND code the three reviewers did not see —
+validated by the byte-identical sweep, the new pins, and the negative
+pins, not by a fresh audit pass; flagged for the parent-arc pre-merge
+audit's scope.

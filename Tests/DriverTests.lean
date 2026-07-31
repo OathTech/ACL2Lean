@@ -520,8 +520,11 @@ elab "#prove_not_special_pins" : command => Elab.Command.liftTermElabM do
 
 /-! ## NEGATIVE — the driver must fail cleanly (fail-closed, never sorry). -/
 
-/-- Run the driver on a tree and assert it `throwError`s. -/
-private def expectDriverFails (label : String) (cp : ClauseProof) : Elab.Command.CommandElabM Unit :=
+/-- Run the driver on a tree and assert it `throwError`s. A non-empty
+    `needle` additionally pins WHERE it fails (the guard under test) — a
+    failure elsewhere is a broken test fixture, not a validated guard. -/
+private def expectDriverFails (label : String) (cp : ClauseProof)
+    (needle : String := "") : Elab.Command.CommandElabM Unit :=
   Elab.Command.liftTermElabM do
     let emptyEnv ← Term.elabTerm (← `(({} : Env))) none
     let cfg : ReplayConfig :=
@@ -530,12 +533,21 @@ private def expectDriverFails (label : String) (cp : ClauseProof) : Elab.Command
       let _ ← replayProof cfg cp
       throwError "NEGATIVE TEST FAILED ({label}): driver SUCCEEDED but should have failed"
     catch e =>
+      let msg ← e.toMessageData.toString
+      unless needle.isEmpty || (msg.splitOn needle).length > 1 do
+        throwError "NEGATIVE TEST FAILED ({label}): driver failed for the \
+          WRONG reason — expected '{needle}' in:\n{msg}"
       logInfo m!"negative test OK ({label}): driver failed cleanly — {e.toMessageData}"
 
 elab "#expect_driver_fails " s:str t:term : command => do
   let cpExpr ← Elab.Command.liftTermElabM (Term.elabTermAndSynthesize t (some (mkConst ``ACL2.ClauseProof)))
   let cp ← Elab.Command.liftTermElabM (unsafe evalExpr ClauseProof (mkConst ``ACL2.ClauseProof) cpExpr)
   expectDriverFails s.getString cp
+
+elab "#expect_driver_fails_at " s:str needle:str t:term : command => do
+  let cpExpr ← Elab.Command.liftTermElabM (Term.elabTermAndSynthesize t (some (mkConst ``ACL2.ClauseProof)))
+  let cp ← Elab.Command.liftTermElabM (unsafe evalExpr ClauseProof (mkConst ``ACL2.ClauseProof) cpExpr)
+  expectDriverFails s.getString cp needle.getString
 
 -- (N1) an unsupported rewrite rune before the closer → replayNode hard-fails.
 private def rewriteNode : ProofNode :=
@@ -580,6 +592,31 @@ private def treeTypeSet : ClauseProof :=
   { name := "NEG-TYPE-SET", formula := transFormula,
     root := some { goalNode with inputClause := [transFormula], steps := [typeSetStep] } }
 #expect_driver_fails "type-set-closed clause (fake-rune-for-type-set)" treeTypeSet
+
+-- (N5) TAUTOLOGY-ABSORPTION negative (fold-back audit fix round 2026-07-31):
+-- a DROPPED split leaf whose value is not 'T is absorbable ONLY via an
+-- in-scope truthy fact for it (composeSplit's absorption arm — if-interp
+-- drops the leaf because the branch clause would be a tautology). With NO
+-- such fact in scope, the composer must hard-fail at the absorption guard,
+-- never silently close the disjunction.
+private def varP : SExpr := sym "P"
+private def litIf57 : SExpr :=
+  .cons (sym "IF") (.cons varP (.cons (quo (numv 5)) (.cons (quo (numv 7)) .nil)))
+private def tautAbsorbLit : LiteralProof :=
+  { index := 1, literal := litIf57, notFlg := false, nodes := [],
+    result := litIf57,
+    splitTrace := [
+      .test varP "split" "split" [],
+      .leaf (quo (numv 7)) "dropped" [(false, varP)] none,
+      .leaf (quo (numv 5)) "segment-open" [(true, varP)] (some [quo (numv 5)]) ] }
+private def tautAbsorbGoal : ClauseNode :=
+  { goalNode with
+    inputClause := [litIf57],
+    steps := [{ simplifyStep with items := [.literal tautAbsorbLit] }] }
+private def treeTautAbsorb : ClauseProof :=
+  { name := "NEG-TAUT-ABSORB", formula := litIf57, root := some tautAbsorbGoal }
+#expect_driver_fails_at "tautology-absorption without an in-scope truthy fact"
+  "tautology-absorption frontier" treeTautAbsorb
 
 /-! ## END-TO-END on the real perm book — `perm-cons` (R1, the branch-split
 composer). The coverage harness only `Meta.check`s corpus rows; THIS pins the

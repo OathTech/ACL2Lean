@@ -105,7 +105,7 @@ def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) 
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
     mkAppM ``fuel_eq_of_conv #[closeProof, hq, ← mkEqRefl (reflectSExpr SExpr.t)]
-  | _ => replayNode cfg ctx n 0
+  | _ => replayNode cfg ctx n
 
 /-- The `PREPROCESS/IF-IFF` node: `(if A 't 'nil) ⇒ A` — IFF-only, NOT
     value-preserving (the chain runs under `*geneqv-iff*`). Returns

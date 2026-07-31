@@ -103,6 +103,16 @@ structure StepProvenance where
       its window identity in `innerKind` and its block membership here
       (the rule recipe partitions by block; the walk consumes by window). -/
   blockKind : String := ""
+  /-- `:SWAPPED-P` on this node's OWN record (if-finish/combined,
+      rewrite-if/constant-test, if-test events): the record's
+      test/left/right are the POST-swap orientation of rewrite-if's
+      `(if x nil t)` normalization (fold-back audit 2026-07-31 V3). -/
+  swapped : Bool := false
+  /-- `:SWAPPED-P` of the ENCLOSING window (`BEGIN-INNER-REWRITE`): the
+      window KIND names the post-swap branch — under the swap, if-left is
+      source argument 3 and if-right argument 2. Set alongside
+      `innerKind`. -/
+  innerSwapped : Bool := false
   deriving Repr, Inhabited
 
 inductive ProofNode where
@@ -207,7 +217,8 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
   .node step.rune step.lhs step.rhs children
     { origin := step.origin, equiv := step.equiv, runes := step.runes,
       parents := step.parents, subst := step.subst, equivTerm := step.equivTerm,
-      typeSet := step.typeSet, trueTs := step.trueTs, path := step.path }
+      typeSet := step.typeSet, trueTs := step.trueTs, path := step.path,
+      swapped := step.swapped }
 
 /-- Parse the events of ONE literal's rewrite chain into proof nodes, returning
     the nodes and the events after this block. `BEGIN/END-INNER-REWRITE` and
@@ -225,10 +236,11 @@ partial def parseProofNodesAux (events : List TraceEvent)
   -- is already empty at a return, so the flush is a no-op.)
   match events with
   | [] => return (nodes.reverse ++ pendingChildren, [])
-  | .beginInnerRewrite kind term wpath :: rest =>
+  | .beginInnerRewrite kind wswapped term wpath :: rest =>
       -- tag the block's top-level nodes with its :KIND (and the window's
-      -- :TERM/:PATH anchors, path-emission Phase 1) so the adopting step can
-      -- partition its children (HYP-relief chains vs RHS continuation vs body).
+      -- :TERM/:PATH/:SWAPPED-P anchors, path-emission Phase 1) so the
+      -- adopting step can partition its children (HYP-relief chains vs RHS
+      -- continuation vs body).
       let (innerNodes, rest') ← parseProofNodesAux rest [] []
       let isWindowKind := kind == "if-left" || kind == "if-right" ||
         kind == "equal-cars" || kind == "equal-cdrs"
@@ -241,7 +253,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
           if prov.innerKind.isEmpty then
             .node rune lhs rhs children
               { prov with innerKind := kind, innerTerm := term,
-                          innerPath := wpath }
+                          innerPath := wpath, innerSwapped := wswapped }
           else if !isWindowKind && prov.blockKind.isEmpty then
             .node rune lhs rhs children { prov with blockKind := kind }
           else n
@@ -267,7 +279,21 @@ partial def parseProofNodesAux (events : List TraceEvent)
         parseProofNodesAux rest' (pendingChildren ++ tagged) nodes
   | .beginIfRewrite _ _ :: rest =>
       let (innerNodes, rest') ← parseProofNodesAux rest [] []
-      parseProofNodesAux rest' (pendingChildren ++ innerNodes) nodes
+      -- The combined summary step (pushed AFTER the END-IF) adopts the
+      -- block. Since the emit-guard fix (BUG-025) a NO-OP rewrite-if1
+      -- emits no combined step — the old folded guard emitted ~591
+      -- spurious no-op records that were silently load-bearing as
+      -- adopters. Record-directed: if the next event is the combined
+      -- step, the block is its children; otherwise the block's nodes
+      -- (window-tagged branch sub-chains) are CHAIN ITEMS anchored by
+      -- their own window records.
+      let adopterFollows := match rest' with
+        | .rewriteStep step :: _ => step.origin == "if-finish/combined"
+        | _ => false
+      if adopterFollows then
+        parseProofNodesAux rest' (pendingChildren ++ innerNodes) nodes
+      else
+        parseProofNodesAux rest' pendingChildren (innerNodes.reverse ++ nodes)
   | .endInnerRewrite _ :: rest | .endIfRewrite _ _ :: rest =>
       return (nodes.reverse ++ pendingChildren, rest)
   | .rewriteStep step :: rest =>

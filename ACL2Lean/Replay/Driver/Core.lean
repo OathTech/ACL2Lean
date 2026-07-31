@@ -912,6 +912,27 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     else
       -- the literal's rewrite chain: literal ⇒ result
       let (chainOpt, finalT) ← replayLiteralChain cfg ctx lp
+      -- rewrite-if's SILENT swap at the chain end (BUG-026): a swapped if
+      -- whose branch windows are EMPTY leaves no tree trace (empty windows
+      -- carry no nodes to tag), so the marked swap must be re-derived
+      -- toward the recorded result — the same recompute-and-check
+      -- normalizer as the if-finish joint (positions dictated by the
+      -- target; the `== lp.result` gate below stays).
+      let (chainOpt, finalT) ← do
+        if finalT != lp.result then
+          let (swapOpt, finalT') ← normalizeSwapsToward cfg finalT lp.result
+          match swapOpt with
+          | none => pure (chainOpt, finalT)
+          | some sw =>
+            match chainOpt with
+            | none => pure (some ((sw, false) : Expr × Bool), finalT')
+            | some (ch, false) =>
+              pure (some (← mkAppM ``fuel_chain_eq #[ch, sw], false), finalT')
+            | some (ch, true) => do
+              let pConv ← ctxValProof cfg ctx finalT'
+              let swS ← mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, sw, pConv]
+              pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, ch, swS], true), finalT')
+        else pure (chainOpt, finalT)
       let chainOpt ← do
         if finalT == lp.result then pure chainOpt else
         -- rewrite-equal's unrecorded NIL normalization at the chain end

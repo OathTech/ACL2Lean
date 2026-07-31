@@ -328,25 +328,42 @@ def innerKindOf : ProofNode → String | .node _ _ _ _ p => p.innerKind
 def innerTermOf : ProofNode → Option SExpr | .node _ _ _ _ p => p.innerTerm
 /-- The node's enclosing-window entry path (path-emission Phase 1). -/
 def innerPathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.innerPath
+/-- The node's own record's `:SWAPPED-P` (fold-back audit V3). -/
+def swappedOf : ProofNode → Bool | .node _ _ _ _ p => p.swapped
+/-- The enclosing window's `:SWAPPED-P` (fold-back audit V3). -/
+def innerSwappedOf : ProofNode → Bool | .node _ _ _ _ p => p.innerSwapped
 /-- ALL occurrence positions of `sub` in `t` as PathFrame lists (never
     descending QUOTE). Deterministic; the inline-window handler uses the
-    UNIQUE-occurrence case only (ambiguity hard-fails). -/
+    UNIQUE-occurrence case only (ambiguity hard-fails).
+    A LAMBDA application descends its ARGUMENTS (numeric positions, like
+    `navigateFrames`) but not the lambda body: a body position is not
+    expressible as an `.arg` frame, and an inline window inside the body
+    sits behind its own `lambda-body` boundary, so it is never resolved
+    against this start term (fold-back audit 2026-07-31 V4 — the
+    symbol-head-only match made lambda-app subtrees invisible, so a term
+    with one visible and one lambda-hidden occurrence passed the
+    uniqueness check at possibly the wrong occurrence). -/
 partial def occurrencePaths (t sub : SExpr) : List (List PathFrame) :=
   if t == sub then [[]]
-  else match t with
-    | .cons (.atom (.symbol f)) args =>
-      if f.name == "QUOTE" then []
-      else
-        let rec go (rest : SExpr) (i : Nat) : List (List PathFrame) :=
-          match rest with
-          | .cons a r =>
-            (occurrencePaths a sub |>.map fun p =>
-              (PathFrame.arg i (match a with
-                | .cons (.atom (.symbol h)) _ => h
-                | _ => { name := "QUOTE" })) :: p) ++ go r (i + 1)
-          | _ => []
-        go args 1
-    | _ => []
+  else
+    let argsOf : SExpr → Option SExpr
+      | .cons (.atom (.symbol f)) args =>
+        if f.name == "QUOTE" then none else some args
+      | .cons (.cons _ _) args => some args  -- lambda application
+      | _ => none
+    match argsOf t with
+    | some args =>
+      let rec go (rest : SExpr) (i : Nat) : List (List PathFrame) :=
+        match rest with
+        | .cons a r =>
+          (occurrencePaths a sub |>.map fun p =>
+            (PathFrame.arg i (match a with
+              | .cons (.atom (.symbol h)) _ => h
+              | .cons (.cons _ _) _ => { name := "LAMBDA" }
+              | _ => { name := "QUOTE" })) :: p) ++ go r (i + 1)
+        | _ => []
+      go args 1
+    | none => []
 
 /-- Strip the window tag — recipes that CONSUME a window (the if-finish
     branch partition; the inline-window group handler) clear it before
@@ -354,7 +371,8 @@ partial def occurrencePaths (t sub : SExpr) : List (List PathFrame) :=
 def clearWindowTag : ProofNode → ProofNode
   | .node rune lhs rhs children prov =>
     .node rune lhs rhs children
-      { prov with innerKind := "", innerTerm := none, innerPath := [] }
+      { prov with innerKind := "", innerTerm := none, innerPath := [],
+                  innerSwapped := false }
 /-- RE-ROOT a whole-if finishing child at the if: keep the path's entry
     frame, drop the `k` window→if frames after it, so the post-walk's
     uniform drop-1 navigates from the if itself. VALIDATED by the caller
@@ -2277,10 +2295,11 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
     signatures are unchanged from the pre-WP2 mutual). -/
 structure NodeRec where
   /-- `replayNode` — the per-node rune dispatcher. -/
-  node : ReplayConfig → ReplayCtx → ProofNode → Nat → MetaM Expr
-  /-- `replayRewrites` — the chain walker (explicit depth; the strip
-      machinery retired with gstack-coordinate emission). -/
-  rewrites : ReplayConfig → ReplayCtx → SExpr → List ProofNode → Nat →
+  node : ReplayConfig → ReplayCtx → ProofNode → MetaM Expr
+  /-- `replayRewrites` — the chain walker (the strip machinery and the
+      write-only `depth` retired with gstack-coordinate emission —
+      fold-back audit 2026-07-31 V7). -/
+  rewrites : ReplayConfig → ReplayCtx → SExpr → List ProofNode →
     MetaM (Option (Expr × Bool) × SExpr)
 
 /-- Bridge rewrite-equal's built-in NIL NORMALIZATION (rewrite.lisp:18089-92,
@@ -2348,10 +2367,174 @@ partial def bridgeEqualNilNormDeep (cfg : ReplayConfig) (ctx : ReplayCtx)
                          siblings := l1.eraseIdx i }
   return some (← applyStep cfg.worldExpr cfg.envExpr st x y inner)
 
+/-- Lift one rewrite-if SWAPPED-P normalization step
+    (`re_if_neg_test_swap`) from position `steps` (where `sub =
+    (IF (IF c 'NIL 'T) a b)` sits inside `root`) to the root:
+    `eval root ≡ eval root[steps ↦ swapped]`. Shared by
+    `bridgeIfNegTestSwap` and the if-finish joint normalization
+    (`normalizeSwapsToward`). -/
+def liftNegTestSwap (cfg : ReplayConfig) (steps : List PathStep)
+    (root sub c a b swapped : SExpr) : MetaM (Expr × SExpr) := do
+  let mut inner ← mkAppM ``re_if_neg_test_swap
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr a, reflectSExpr b]
+  let mut curL := sub
+  let mut curR := swapped
+  for st in steps.reverse do
+    inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+    curL := rebuild st curL
+    curR := rebuild st curR
+  unless curL == root do
+    throwError "liftNegTestSwap: reconstructed {repr curL} ≠ {repr root}"
+  return (inner, curR)
+
+/-- The EQUAL-NIL variant of `liftNegTestSwap` (sorting-completion-2
+    Class A): `(IF (EQUAL 'NIL c) a b) ⇒ (IF c b a)` via
+    `re_if_equal_nil_test_swap` (EQUAL unshadowed — kernel-decided). -/
+def liftEqualNilTestSwap (cfg : ReplayConfig) (steps : List PathStep)
+    (root sub c a b swapped : SExpr) : MetaM (Expr × SExpr) := do
+  let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
+  let mut inner ← mkAppM ``re_if_equal_nil_test_swap
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr a,
+      reflectSExpr b, hNoEq]
+  let mut curL := sub
+  let mut curR := swapped
+  for st in steps.reverse do
+    inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+    curL := rebuild st curL
+    curR := rebuild st curR
+  unless curL == root do
+    throwError "liftEqualNilTestSwap: reconstructed {repr curL} ≠ {repr root}"
+  return (inner, curR)
+
+/-- The rewrite-if SWAPPED-P bridge (rewrite.lisp:17726-37): walk `rel` from
+    `start`; when the rewritten test of an if has the negation shape
+    `(IF c 'NIL 'T)`, ACL2 strips the negation and SWAPS the branches before
+    descending — unconditionally and without recording a step (subsequent
+    branch bkptrs refer to the swapped orientation). Two firing positions,
+    both deterministic shape checks (never a search): a frame DESCENDS into
+    such an if (the swap must precede the descent), or the node sits ON the
+    if — its recorded `lhs` IS the swapped orientation (exact match
+    required). Emits the normalization lifted to the chain root and returns
+    the swapped running term; `none` when neither case applies (the caller's
+    fail-closed navigation stands). -/
+def bridgeIfNegTestSwap (cfg : ReplayConfig) (rel : List PathFrame)
+    (start lhs : SExpr) : MetaM (Option (Expr × SExpr)) := do
+  let mut cur := start
+  let mut steps : List PathStep := []
+  let emitSwap (steps : List PathStep) (cur c a b swapped : SExpr) :
+      MetaM (Option (Expr × SExpr)) := do
+    let (inner, root') ← liftNegTestSwap cfg steps start cur c a b swapped
+    return some (inner, root')
+  for fr in rel do
+    match fr with
+    | .boundary .. => return none      -- residual boundary: not this bridge's case
+    | .argLam .. => return none        -- lambda descent: not this bridge's case
+    | .arg idx _ =>
+      if let .cons (.atom (.symbol ifS))
+          (.cons (.cons (.atom (.symbol ifS2))
+              (.cons c (.cons qn (.cons qt2 .nil))))
+            (.cons a (.cons b .nil))) := cur then
+        if ifS.name == "IF" && ifS2.name == "IF" && qn == quoteNil && qt2 == quoteT then
+          let swapped : SExpr :=
+            .cons (.atom (.symbol ifS)) (.cons c (.cons b (.cons a .nil)))
+          return ← emitSwap steps cur c a b swapped
+      match asApp cur with
+      | none => return none
+      | some (fn, args) =>
+        if args.length > 3 || idx < 1 || idx > args.length then return none
+        let siblings := (args.zipIdx).filterMap
+          (fun (a, i) => if i + 1 == idx then none else some a)
+        steps := steps ++ [{ fn, arity := args.length, argIdx := idx - 1, siblings }]
+        cur := args[idx - 1]!
+  -- TARGET case: the node is ON the swapped if — recorded lhs must BE the
+  -- swapped orientation exactly
+  if let .cons (.atom (.symbol ifS))
+      (.cons (.cons (.atom (.symbol ifS2))
+          (.cons c (.cons qn (.cons qt2 .nil))))
+        (.cons a (.cons b .nil))) := cur then
+    if ifS.name == "IF" && ifS2.name == "IF" && qn == quoteNil && qt2 == quoteT then
+      let swapped : SExpr :=
+        .cons (.atom (.symbol ifS)) (.cons c (.cons b (.cons a .nil)))
+      if swapped == lhs then
+        return ← emitSwap steps cur c a b swapped
+  return none
+
+/-- Find the first position where `cur` has a SWAPPED-P redex
+    `(IF (IF c 'NIL 'T) a b)` while `target` has the stripped test `c` at the
+    same position — descending only through structurally-parallel
+    applications into the FIRST differing argument (a deterministic zip,
+    never a search). Returns the path steps and the redex parts. -/
+partial def findSwapPos (cur target : SExpr) (steps : List PathStep) :
+    Option (List PathStep × SExpr × Bool × SExpr × SExpr × SExpr) :=
+  if cur == target then none
+  else
+    -- the Bool tags the variant: false = the NOT-shape `(IF (IF c 'NIL 'T)
+    -- a b)`; true = the EQUAL-NIL shape `(IF (EQUAL 'NIL c) a b)`
+    -- (sorting-completion-2 Class A) — both swap to `(IF c b a)`
+    let fire? : Option (Bool × SExpr × SExpr × SExpr) :=
+      match cur, target with
+      | .cons (.atom (.symbol ifS)) (.cons (.cons (.atom (.symbol ifS2))
+            (.cons c (.cons qn (.cons qt2 .nil)))) (.cons a (.cons b .nil))),
+        .cons (.atom (.symbol ifT')) (.cons c' _) =>
+        if ifS.name == "IF" && ifS2.name == "IF" && qn == quoteNil &&
+           qt2 == quoteT && ifT'.name == "IF" && c' == c then
+          some (false, c, a, b)
+        else none
+      | _, _ => none
+    let fire? := fire?.orElse fun _ =>
+      match cur, target with
+      | .cons (.atom (.symbol ifS)) (.cons (.cons (.atom (.symbol eqS))
+            (.cons qn (.cons c .nil))) (.cons a (.cons b .nil))),
+        .cons (.atom (.symbol ifT')) (.cons c' _) =>
+        if ifS.name == "IF" && eqS.name == "EQUAL" && qn == quoteNil &&
+           ifT'.name == "IF" && c' == c then
+          some (true, c, a, b)
+        else none
+      | _, _ => none
+    match fire? with
+    | some (v, c, a, b) => some (steps, cur, v, c, a, b)
+    | none =>
+      match asApp cur, asApp target with
+      | some (fn, args), some (fn', args') =>
+        if fn == fn' && args.length == args'.length && args.length ≤ 3 then
+          ((args.zip args').zipIdx).findSome? fun ((x, y), i) =>
+            if x == y then none
+            else
+              let siblings := (args.zipIdx).filterMap
+                (fun (s, j) => if j == i then none else some s)
+              findSwapPos x y (steps ++
+                [{ fn, arity := args.length, argIdx := i, siblings }])
+        else none
+      | _, _ => none
+
+/-- Normalize `cur` toward `target` by iterated SWAPPED-P steps at mismatch
+    positions (the if-finish JOINT case: a NOT unfold inside a test position
+    makes ACL2 swap the enclosing if between the recorded children and the
+    recorded rhs). Recompute-and-check: each step's position is dictated by
+    the target, and the caller's final `== rhs` gate still stands. -/
+def normalizeSwapsToward (cfg : ReplayConfig) (cur0 target : SExpr) :
+    MetaM (Option Expr × SExpr) := do
+  let mut cur := cur0
+  let mut chain : Option Expr := none
+  for _ in List.range 32 do
+    if cur == target then break
+    match findSwapPos cur target [] with
+    | none => break
+    | some (steps, sub, variant, c, a, b) =>
+      let swapped : SExpr :=
+        .cons (.atom (.symbol { name := "IF" }))
+          (.cons c (.cons b (.cons a .nil)))
+      let (inner, cur') ←
+        if variant then liftEqualNilTestSwap cfg steps cur sub c a b swapped
+        else liftNegTestSwap cfg steps cur sub c a b swapped
+      chain ← some <$> chainAfter chain inner
+      cur := cur'
+  return (chain, cur)
+
 /-- The DEFINITION-node recipe, UNIFORM: unfold `(fn args) ⇒ substTerm formals args
     body`, then chain the node's children (recognizer / if-simplification / deeper
     rewrites) over the substituted body via the ordinary path-directed congruence
-    machinery (`replayRewrites` at depth+1 — their `:PATH`s carry the boundary
+    machinery (`replayRewrites` — their `:PATH`s carry the boundary
     frame), checking the chain reaches the node's recorded rhs.
 
     Two unfold routes by where the definition lives: a WORLD defun unfolds via
@@ -2360,7 +2543,7 @@ partial def bridgeEqualNilNormDeep (cfg : ReplayConfig) (ctx : ReplayCtx)
     the ∀-env convergence analyzer); a builtin ABSENT from the world takes the
     D4 definition-fact route (`replayBuiltinDefUnfold`). -/
 partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
-    (depth : Nat) : MetaM Expr := do
+    : MetaM Expr := do
   let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ children _ := n
   let .cons (.atom (.symbol fn)) argSpine := lhs
@@ -2441,11 +2624,25 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
                 di.defFact, di.closedFact, di.wellScopedFact, h1, h2, h3, hbodyAll]
           | _, _ => throwError "definition: only 1/2/3-arg unfolds supported (frontier)"
       pure (di.formals, di.body, unfold)
-  -- children chain over the substituted body (depth+1: their paths carry one more
+  -- children chain over the substituted body (their paths carry one more
   -- boundary frame), reaching the node's recorded rhs
   let substBody := ACL2.Replay.substTerm formals args body
-  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children (depth + 1)
+  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children
   let chainOpt ← chainReqEq chainOpt
+  -- rewrite-if's SILENT swap at the chain end (BUG-026 — a swapped if
+  -- whose branch windows are empty leaves no tree trace): recompute-and-
+  -- check toward the recorded rhs (the `== rhs` gate below stays); the
+  -- EQUAL-NIL variant covers rewrite-equal's nil-normalization landing in
+  -- a test position
+  let (chainOpt, finalTerm) ← do
+    if finalTerm != rhs then
+      let (swapOpt, finalTerm') ← normalizeSwapsToward cfg finalTerm rhs
+      match swapOpt with
+      | none => pure (chainOpt, finalTerm)
+      | some sw => match chainOpt with
+        | none => pure ((some sw : Option Expr), finalTerm')
+        | some ch => pure (some (← mkAppM ``fuel_chain_eq #[ch, sw]), finalTerm')
+    else pure (chainOpt, finalTerm)
   let chainOpt ← do
     if finalTerm == rhs then pure chainOpt else
     -- rewrite-equal's unrecorded NIL normalization at the chain end
@@ -2468,7 +2665,7 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
     scoping side conditions are ACL2's own translate invariant, re-checked here
     by kernel decision (`WellScoped` / freeVars ⊆ formals). -/
 partial def replayLambdaBody (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (n : ProofNode) (depth : Nat) : MetaM Expr := do
+    (n : ProofNode) : MetaM Expr := do
   let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ children _ := n
   let some (head, lam, actuals) := asLamApp lhs
@@ -2504,10 +2701,10 @@ partial def replayLambdaBody (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
     | _, _ =>
       throwError "lambda-body: binder of {lformals.length} formals / {actuals.length} \
                   actuals is a frontier — only 1- and 2-actual translated lets are emitted"
-  -- the adopted LAMBDA-BODY block rewrites the substituted body (depth+1: its
+  -- the adopted LAMBDA-BODY block rewrites the substituted body (its
   -- paths carry the LAMBDA-BODY boundary frame)
   let substBody := ACL2.Replay.substTerm lformals actuals lamBody
-  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children (depth + 1)
+  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children
   let chainOpt ← chainReqEq chainOpt
   unless finalTerm == rhs do
     throwError "lambda-body: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
@@ -2600,10 +2797,9 @@ def composeEqChain (cfg : ReplayConfig) (ctx : ReplayCtx)
 
 /-- Replay one rewrite node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`, by
     applying that rune's recipe. (equal-self is the literal closer, handled in
-    `replayLiteral`, not here.) `depth` = the number of unfold/rule boundaries
-    above this node (relativizes child `:PATH`s). Unhandled runes hard-fail. -/
+    `replayLiteral`, not here.) Unhandled runes hard-fail. -/
 partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
-    (depth : Nat := 0) : MetaM Expr := do
+    : MetaM Expr := do
   let rune := runeOf n
   let (rty, rname) := (rune.ty, rune.name)
   let (lhs, rhs) := nodeLhsRhs n
@@ -2810,7 +3006,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let ruleEq ← mkAppM ``re_cdr_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
       -- children may rewrite the rule's result further (see car-cons)
-      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx b children (depth + 1)
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx b children
       let chainOpt ← chainReqEq chainOpt
       unless finalTerm == rhs do
         throwError "cdr-cons: children chain reached {repr finalTerm}, \
@@ -2834,8 +3030,8 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCar, hNoCons, ha, hb]
       -- the rule's result may be FURTHER rewritten by children (e.g. a
       -- solidify inside the rule's RHS — their paths carry the (RHS . _)
-      -- boundary, consumed at depth+1); the node's rhs is the NET result.
-      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx a children (depth + 1)
+      -- boundary, consumed by the sub-walk); the node's rhs is the NET result.
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx a children
       let chainOpt ← chainReqEq chainOpt
       unless finalTerm == rhs do
         throwError "car-cons: children chain reached {repr finalTerm}, \
@@ -2863,7 +3059,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let (_fixLhs, fixRhs) := nodeLhsRhs fixChild
       unless fixRhs == z do
         throwError "unicity-of-0: fix child rhs {repr fixRhs} ≠ {repr z}"
-      let fixEq ← replayNodeWith rec cfg ctx fixChild (depth + 1)
+      let fixEq ← replayNodeWith rec cfg ctx fixChild
       let fixConv ← mkAppM ``fuel_conv_of_eq #[fixEq, pz]
       let hq0 ← ctxValProof cfg ctx q0
       let vq0 ← ctxValExpr cfg ctx q0
@@ -2883,7 +3079,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     | _ => throwError "unicity-of-0: lhs not (binary-+ '0 z): {repr lhs}"
   | "rewrite", "COMMUTATIVITY-OF-+" =>
     -- `(+ a b) ⇒ (+ b a)`, then the node's children chain on the rule's rhs
-    -- (their paths carry an `(RHS . …)` boundary frame — depth+1) to the recorded rhs.
+    -- (their paths carry an `(RHS . …)` boundary frame) to the recorded rhs.
     match lhs with
     | .cons (.atom (.symbol plusS)) (.cons a (.cons b .nil)) =>
       unless plusS.name == "BINARY-+" do
@@ -2897,7 +3093,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, va, vb, hNoPlus, ha, hb]
       let swapped : SExpr :=
         .cons (.atom (.symbol plusS)) (.cons b (.cons a .nil))
-      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children (depth + 1)
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children
       let chainOpt ← chainReqEq chainOpt
       unless finalTerm == rhs do
         throwError "commutativity-of-+: children chain reached {repr finalTerm}, \
@@ -2908,7 +3104,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     | _ => throwError "commutativity-of-+: lhs not (binary-+ a b): {repr lhs}"
   | "rewrite", "COMMUTATIVITY-2-OF-+" =>
     -- `(+ a (+ b c)) ⇒ (+ b (+ a c))`, then the children chain on the rule's rhs
-    -- at depth+1 to the recorded rhs.
+    -- by the sub-walk to the recorded rhs.
     match lhs with
     | .cons (.atom (.symbol plusS))
         (.cons a (.cons (.cons (.atom (.symbol plusS2)) (.cons b (.cons c .nil))) .nil)) =>
@@ -2927,7 +3123,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let swapped : SExpr :=
         .cons (.atom (.symbol plusS))
           (.cons b (.cons (.cons (.atom (.symbol plusS2)) (.cons a (.cons c .nil))) .nil))
-      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children (depth + 1)
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children
       let chainOpt ← chainReqEq chainOpt
       unless finalTerm == rhs do
         throwError "commutativity-2-of-+: children chain reached {repr finalTerm}, \
@@ -2945,8 +3141,8 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       -- `iff` is likewise an evalOpt BUILTIN (the preprocess boot-strap
       -- non-rec arm's body adoption, G1 iff rung)
       replayIffDef cfg ctx n
-    else replayDefinition rec cfg ctx n depth
-  | "lambda-body", _ => replayLambdaBody rec cfg ctx n depth
+    else replayDefinition rec cfg ctx n
+  | "lambda-body", _ => replayLambdaBody rec cfg ctx n
   | "fake-rune-for-anonymous-enabled-rule", _ =>
     -- recognizer node: term-eq form (eval lhs = eval rhs, rhs the quoted verdict).
     let verdictV := match rhs with
@@ -3314,14 +3510,10 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                   HYP/RHS blocks — unconsumed record (frontier)"
     -- rhs joint: the node's rhs is the instantiated rule rhs, possibly
     -- rewritten FURTHER by the recorded RHS-block chain (with-lemma rewrites
-    -- the instantiated rhs before returning). The chain is replayed below and
-    -- must land exactly on the node's rhs; a mismatch with NO recorded chain
-    -- is a hard-fail.
+    -- the instantiated rhs before returning), or normalized by
+    -- rewrite-equal's UNRECORDED nil-normalization (bridged at the
+    -- composition point below). A residual mismatch is a hard-fail there.
     let rhsσ := ACL2.Replay.substTerm σvars σterms spec.rhs
-    if rhsσ != rhs && rhsKids.isEmpty then
-      throwError "rule {rname}: node rhs {repr rhs} ≠ substTerm(:SUBST, \
-                  rule rhs {repr spec.rhs}) and no RHS chain recorded \
-                  (emission gap)"
     -- partition the HYP block: silent-relief MARKERS (emit/relieve-hyp/*)
     -- vs an actual relief rewrite chain
     let (reliefMarkers, chainKids) := hypKids.partition
@@ -3540,7 +3732,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           -- `(not 'nil) ⇒ 't` by re-running the same closed computation
           -- (the exec-counterpart carve-out), as `replayLiteralChain` does
           -- for :NOT-FLG literals.
-          let (chainOpt, finalAtom) ← rec.rewrites cfg ctx atm chainKids (depth + 1)
+          let (chainOpt, finalAtom) ← rec.rewrites cfg ctx atm chainKids
           let chainOpt ← chainReqEq chainOpt
           unless finalAtom == quoteNil do
             throwError "rule {rname}: negated-hyp relief chain for {repr hσ} \
@@ -3564,7 +3756,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         else do
           -- the recorded HYP chain rewrites hσ ⇒ … ⇒ 't (paths carry one
           -- more boundary frame, as definition-body children do)
-          let (chainOpt, finalT) ← rec.rewrites cfg ctx hσ chainKids (depth + 1)
+          let (chainOpt, finalT) ← rec.rewrites cfg ctx hσ chainKids
           let chainOpt ← chainReqEq chainOpt
           unless finalT == quoteT do
             throwError "rule {rname}: relief chain for {repr hσ} ends at \
@@ -3597,13 +3789,23 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         mkAppM ``fuel_chain_eq #[comm, pCore]
       else pure pCore
     if rhsKids.isEmpty then
-      unless rhsσ == rhs do
-        throwError "rule {rname}: internal — rhs mismatch with no RHS chain"
-      return pCore
+      if rhsσ == rhs then return pCore
+      -- rewrite-equal's built-in NIL NORMALIZATION inside the instantiated
+      -- rhs (rewrite.lisp:18089-92 — unconditional/syntactic, never
+      -- recorded): recompute-and-check via the deep single-position bridge
+      -- (fold-back fix round 2026-07-31 — the old spurious no-op combined
+      -- records, BUG-025, used to absorb this via the running-term joint).
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx rhsσ
+      match ← bridgeEqualNilNormDeep cfg ctx rhsσ rhs with
+      | some br => return ← mkAppM ``fuel_chain_eq #[pCore, br]
+      | none =>
+        throwError "rule {rname}: node rhs {repr rhs} ≠ substTerm(:SUBST, \
+                    rule rhs {repr spec.rhs}) and no RHS chain recorded \
+                    (emission gap)"
     -- the RHS continuation: replay the recorded chain from rhsσ; it must land
     -- exactly on the node's recorded rhs (fail-closed)
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx rhsσ
-    let (chainOpt, finalT) ← rec.rewrites cfg ctx rhsσ rhsKids (depth + 1)
+    let (chainOpt, finalT) ← rec.rewrites cfg ctx rhsσ rhsKids
     let chainOpt ← chainReqEq chainOpt
     unless finalT == rhs do
       throwError "rule {rname}: RHS chain reached {repr finalT}, node rhs is \
@@ -3950,169 +4152,6 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
     return (some acc', next)
 
 
-/-- Lift one rewrite-if SWAPPED-P normalization step
-    (`re_if_neg_test_swap`) from position `steps` (where `sub =
-    (IF (IF c 'NIL 'T) a b)` sits inside `root`) to the root:
-    `eval root ≡ eval root[steps ↦ swapped]`. Shared by
-    `bridgeIfNegTestSwap` and the if-finish joint normalization
-    (`normalizeSwapsToward`). -/
-def liftNegTestSwap (cfg : ReplayConfig) (steps : List PathStep)
-    (root sub c a b swapped : SExpr) : MetaM (Expr × SExpr) := do
-  let mut inner ← mkAppM ``re_if_neg_test_swap
-    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr a, reflectSExpr b]
-  let mut curL := sub
-  let mut curR := swapped
-  for st in steps.reverse do
-    inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
-    curL := rebuild st curL
-    curR := rebuild st curR
-  unless curL == root do
-    throwError "liftNegTestSwap: reconstructed {repr curL} ≠ {repr root}"
-  return (inner, curR)
-
-/-- The EQUAL-NIL variant of `liftNegTestSwap` (sorting-completion-2
-    Class A): `(IF (EQUAL 'NIL c) a b) ⇒ (IF c b a)` via
-    `re_if_equal_nil_test_swap` (EQUAL unshadowed — kernel-decided). -/
-def liftEqualNilTestSwap (cfg : ReplayConfig) (steps : List PathStep)
-    (root sub c a b swapped : SExpr) : MetaM (Expr × SExpr) := do
-  let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
-  let mut inner ← mkAppM ``re_if_equal_nil_test_swap
-    #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr a,
-      reflectSExpr b, hNoEq]
-  let mut curL := sub
-  let mut curR := swapped
-  for st in steps.reverse do
-    inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
-    curL := rebuild st curL
-    curR := rebuild st curR
-  unless curL == root do
-    throwError "liftEqualNilTestSwap: reconstructed {repr curL} ≠ {repr root}"
-  return (inner, curR)
-
-/-- The rewrite-if SWAPPED-P bridge (rewrite.lisp:17726-37): walk `rel` from
-    `start`; when the rewritten test of an if has the negation shape
-    `(IF c 'NIL 'T)`, ACL2 strips the negation and SWAPS the branches before
-    descending — unconditionally and without recording a step (subsequent
-    branch bkptrs refer to the swapped orientation). Two firing positions,
-    both deterministic shape checks (never a search): a frame DESCENDS into
-    such an if (the swap must precede the descent), or the node sits ON the
-    if — its recorded `lhs` IS the swapped orientation (exact match
-    required). Emits the normalization lifted to the chain root and returns
-    the swapped running term; `none` when neither case applies (the caller's
-    fail-closed navigation stands). -/
-def bridgeIfNegTestSwap (cfg : ReplayConfig) (rel : List PathFrame)
-    (start lhs : SExpr) : MetaM (Option (Expr × SExpr)) := do
-  let mut cur := start
-  let mut steps : List PathStep := []
-  let emitSwap (steps : List PathStep) (cur c a b swapped : SExpr) :
-      MetaM (Option (Expr × SExpr)) := do
-    let (inner, root') ← liftNegTestSwap cfg steps start cur c a b swapped
-    return some (inner, root')
-  for fr in rel do
-    match fr with
-    | .boundary .. => return none      -- residual boundary: not this bridge's case
-    | .argLam .. => return none        -- lambda descent: not this bridge's case
-    | .arg idx _ =>
-      if let .cons (.atom (.symbol ifS))
-          (.cons (.cons (.atom (.symbol ifS2))
-              (.cons c (.cons qn (.cons qt2 .nil))))
-            (.cons a (.cons b .nil))) := cur then
-        if ifS.name == "IF" && ifS2.name == "IF" && qn == quoteNil && qt2 == quoteT then
-          let swapped : SExpr :=
-            .cons (.atom (.symbol ifS)) (.cons c (.cons b (.cons a .nil)))
-          return ← emitSwap steps cur c a b swapped
-      match asApp cur with
-      | none => return none
-      | some (fn, args) =>
-        if args.length > 3 || idx < 1 || idx > args.length then return none
-        let siblings := (args.zipIdx).filterMap
-          (fun (a, i) => if i + 1 == idx then none else some a)
-        steps := steps ++ [{ fn, arity := args.length, argIdx := idx - 1, siblings }]
-        cur := args[idx - 1]!
-  -- TARGET case: the node is ON the swapped if — recorded lhs must BE the
-  -- swapped orientation exactly
-  if let .cons (.atom (.symbol ifS))
-      (.cons (.cons (.atom (.symbol ifS2))
-          (.cons c (.cons qn (.cons qt2 .nil))))
-        (.cons a (.cons b .nil))) := cur then
-    if ifS.name == "IF" && ifS2.name == "IF" && qn == quoteNil && qt2 == quoteT then
-      let swapped : SExpr :=
-        .cons (.atom (.symbol ifS)) (.cons c (.cons b (.cons a .nil)))
-      if swapped == lhs then
-        return ← emitSwap steps cur c a b swapped
-  return none
-
-/-- Find the first position where `cur` has a SWAPPED-P redex
-    `(IF (IF c 'NIL 'T) a b)` while `target` has the stripped test `c` at the
-    same position — descending only through structurally-parallel
-    applications into the FIRST differing argument (a deterministic zip,
-    never a search). Returns the path steps and the redex parts. -/
-partial def findSwapPos (cur target : SExpr) (steps : List PathStep) :
-    Option (List PathStep × SExpr × Bool × SExpr × SExpr × SExpr) :=
-  if cur == target then none
-  else
-    -- the Bool tags the variant: false = the NOT-shape `(IF (IF c 'NIL 'T)
-    -- a b)`; true = the EQUAL-NIL shape `(IF (EQUAL 'NIL c) a b)`
-    -- (sorting-completion-2 Class A) — both swap to `(IF c b a)`
-    let fire? : Option (Bool × SExpr × SExpr × SExpr) :=
-      match cur, target with
-      | .cons (.atom (.symbol ifS)) (.cons (.cons (.atom (.symbol ifS2))
-            (.cons c (.cons qn (.cons qt2 .nil)))) (.cons a (.cons b .nil))),
-        .cons (.atom (.symbol ifT')) (.cons c' _) =>
-        if ifS.name == "IF" && ifS2.name == "IF" && qn == quoteNil &&
-           qt2 == quoteT && ifT'.name == "IF" && c' == c then
-          some (false, c, a, b)
-        else none
-      | _, _ => none
-    let fire? := fire?.orElse fun _ =>
-      match cur, target with
-      | .cons (.atom (.symbol ifS)) (.cons (.cons (.atom (.symbol eqS))
-            (.cons qn (.cons c .nil))) (.cons a (.cons b .nil))),
-        .cons (.atom (.symbol ifT')) (.cons c' _) =>
-        if ifS.name == "IF" && eqS.name == "EQUAL" && qn == quoteNil &&
-           ifT'.name == "IF" && c' == c then
-          some (true, c, a, b)
-        else none
-      | _, _ => none
-    match fire? with
-    | some (v, c, a, b) => some (steps, cur, v, c, a, b)
-    | none =>
-      match asApp cur, asApp target with
-      | some (fn, args), some (fn', args') =>
-        if fn == fn' && args.length == args'.length && args.length ≤ 3 then
-          ((args.zip args').zipIdx).findSome? fun ((x, y), i) =>
-            if x == y then none
-            else
-              let siblings := (args.zipIdx).filterMap
-                (fun (s, j) => if j == i then none else some s)
-              findSwapPos x y (steps ++
-                [{ fn, arity := args.length, argIdx := i, siblings }])
-        else none
-      | _, _ => none
-
-/-- Normalize `cur` toward `target` by iterated SWAPPED-P steps at mismatch
-    positions (the if-finish JOINT case: a NOT unfold inside a test position
-    makes ACL2 swap the enclosing if between the recorded children and the
-    recorded rhs). Recompute-and-check: each step's position is dictated by
-    the target, and the caller's final `== rhs` gate still stands. -/
-def normalizeSwapsToward (cfg : ReplayConfig) (cur0 target : SExpr) :
-    MetaM (Option Expr × SExpr) := do
-  let mut cur := cur0
-  let mut chain : Option Expr := none
-  for _ in List.range 32 do
-    if cur == target then break
-    match findSwapPos cur target [] with
-    | none => break
-    | some (steps, sub, variant, c, a, b) =>
-      let swapped : SExpr :=
-        .cons (.atom (.symbol { name := "IF" }))
-          (.cons c (.cons b (.cons a .nil)))
-      let (inner, cur') ←
-        if variant then liftEqualNilTestSwap cfg steps cur sub c a b swapped
-        else liftNegTestSwap cfg steps cur sub c a b swapped
-      chain ← some <$> chainAfter chain inner
-      cur := cur'
-  return (chain, cur)
 
 /-- Lift an `EvRel SIff` node proof through ONE position step, per the
     congruence table (G1): if-THEN and if-ELSE positions preserve SIff (the
@@ -4192,21 +4231,21 @@ def applyStepSIff (cfg : ReplayConfig) (ctx : ReplayCtx) (st : PathStep)
 def nodeEquiv : ProofNode → String | .node _ _ _ _ p => p.equiv
 
 /-- Replay a chain of rewrite nodes, lifting each through the chain's start term by
-    path-directed congruence (paths relativized to `depth`) and chaining. Returns
-    the composed `∃N∀f≥N, eval start = eval finalTerm` (or `none` if the chain is
-    empty) and the final term. -/
+    path-directed congruence (window-local paths, drop-one relativization) and
+    chaining. Returns the composed `∃N∀f≥N, eval start = eval finalTerm` (or
+    `none` if the chain is empty) and the final term. -/
 partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr)
-    (nodes : List ProofNode) (depth : Nat)
+    (nodes : List ProofNode)
     -- the CURRENT literal chain's already-consumed nodes (G1 rung 1,
     -- inc-2b): the or-collapse bridge re-composes the TEST-position prefix
     -- on the then-copy. Consume-and-continue recursions append; re-process
     -- sites pass unchanged; sub-chain recursions (branch children) start
     -- fresh (the default).
-    (chainPrefix : List (ProofNode × Nat) := []) :
+    (chainPrefix : List ProofNode := []) :
     MetaM (Option (Expr × Bool) × SExpr) := do
-  match nodes, depth with
-  | [], _ => return (none, start)
-  | n :: rest, depth => do
+  match nodes with
+  | [] => return (none, start)
+  | n :: rest => do
     let (lhs, rhs) := nodeLhsRhs n
     -- INLINE branch-window group (path-emission Phase 1): nodes tagged
     -- if-left/if-right reaching the walk directly are the surviving
@@ -4223,6 +4262,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         | throwError "replayRewrites: {kind}-tagged node without a window \
             term (pre-Phase-1 log? recapture)"
       let wpath := innerPathOf n
+      let wswapped := innerSwappedOf n
       let mut group : List ProofNode := [n]
       let mut restG := rest
       let mut scanning := true
@@ -4230,89 +4270,238 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         match restG with
         | m :: r' =>
           if innerKindOf m == kind && innerTermOf m == some wterm &&
-              innerPathOf m == wpath then
+              innerPathOf m == wpath && innerSwappedOf m == wswapped then
             group := group ++ [m]
             restG := r'
           else scanning := false
         | [] => scanning := false
-      let (chOpt, wfinal) ← replayRewritesWith rec cfg ctx wterm
-        (group.map clearWindowTag) depth
-      let chOpt ← chainReqEq chOpt
-      -- the collapse that precedes the window already REPLACED the if by
-      -- its surviving branch in the running term, so the window term sits
-      -- AT the if's own position: the lift path is the window's entry path
-      -- alone (no branch frame)
+      -- when a RECORDED collapse preceding the window already replaced the
+      -- if by its surviving branch in the running term, the window term
+      -- sits AT the if's own position: the lift path is the window's entry
+      -- path alone (no branch frame)
       let relW := relativizeFrames wpath
-      -- The window's gstack entry path can UNDER-DETERMINE the position: a
-      -- window reached through TEST positions has no frames for them (the
-      -- test rewrite already returned and popped its frames — the gstack
-      -- crux the census recorded). Resolution ladder, all fail-closed:
-      -- 1. the entry path locates the term — use it;
-      -- 2. the entry path locates an IF that COLLAPSES to the term under
-      --    the in-scope facts (ACL2's must-be arms emit no collapse step —
-      --    the reconciled constant-test class) — derive, prepend, use;
-      -- 3. the term occurs EXACTLY ONCE in the running term — use that
-      --    position (a total function of record + running term, no choice;
-      --    multiple occurrences hard-fail). Fold-back audit item.
+      -- The window's gstack entry path can UNDER-DETERMINE the position
+      -- (fold-back audit 2026-07-31 V5 redesign; the earlier collapseEval
+      -- rung — dead corpus-wide and blind to branchFacts — is deleted).
+      -- Two structural facts, both record-directed:
+      -- (a) the entry path's FIRST frame is a literal-root DESCRIPTOR when
+      --     the enclosing collapses were RECORDED (the running term already
+      --     descended with them — drop it: `relW`), but a REAL descent
+      --     frame when an enclosing must-be arm collapsed SILENTLY (the
+      --     running term still carries the enclosing ifs — keep the full
+      --     `wpath`);
+      -- (b) the window term either sits AT the navigated position (a
+      --     recorded collapse replaced the if), or is the branch of a
+      --     still-uncollapsed 3-arg IF there — the branch named by the
+      --     window KIND and `:SWAPPED-P` (if-left = arg 2, or arg 3 when
+      --     the record says the running if is the pre-swap negation
+      --     shape).
+      -- Every reading is a TOTAL function of the record + running term
+      -- (no search): compute all that CHECK OUT and require them to agree
+      -- on the position; disagreement or none → the unique-occurrence
+      -- fallback, then hard-fail.
+      -- A `:SWAPPED-P` window whose if still has the PRE-swap negation
+      -- shape additionally applies ACL2's silent swap normalization
+      -- (`re_if_neg_test_swap`) at the if FIRST — the record is the
+      -- trigger (BUG-026; the old spurious no-op combined records used
+      -- to carry this via `normalizeSwapsToward`, BUG-025's guard fix
+      -- removed them). A candidate is (branch frames, pre-swap if base).
+      let branchDirect (S : SExpr) : Option Nat := do
+        let .cons (.atom (.symbol ifS)) (.cons _ (.cons thn (.cons els .nil))) := S
+          | none
+        guard (ifS.name == "IF")
+        if kind == "if-left" && thn == wterm then some 2
+        else if kind == "if-right" && els == wterm then some 3
+        else none
+      let branchPreSwap (S : SExpr) : Option Nat := do
+        guard wswapped
+        let .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) := S
+          | none
+        guard (ifS.name == "IF")
+        let .cons (.atom (.symbol ifS2)) (.cons _ (.cons qn (.cons qt .nil))) := c
+          | none
+        guard (ifS2.name == "IF" && qn == quoteNil && qt == quoteT)
+        -- after the swap the if is (IF c els thn): if-left names els
+        -- (post-swap arg 2), if-right names thn (post-swap arg 3)
+        if kind == "if-left" && els == wterm then some 2
+        else if kind == "if-right" && thn == wterm then some 3
+        else none
+      -- candidates: (branch frames, pre-swap if base, branch anchor).
+      -- A BRANCH-anchored window (the if is still uncollapsed — a silent
+      -- must-be arm) replays its sub-chain UNDER the branch hypothesis
+      -- (ACL2's assume-true-false: arg 2 under test≠nil, arg 3 under
+      -- test=nil) and lifts by the conditional branch congruence — the
+      -- context the combined partition supplies for ADOPTED windows.
+      let mut cands : List (List PathFrame × Option (List PathFrame) ×
+        Option (List PathFrame × Nat)) := []
+      for base in [relW, wpath] do
+        match pathStepsFromFrames start base wterm with
+        | .ok _ => cands := cands ++ [(base, none, none)]
+        | .error _ =>
+          match (navigateFrames start base).toOption with
+          | some (_, S) =>
+            match branchDirect S with
+            | some bidx =>
+              let c := base ++ [PathFrame.arg bidx { name := "IF" }]
+              if (pathStepsFromFrames start c wterm).toOption.isSome then
+                cands := cands ++ [(c, none, some (base, bidx))]
+            | none =>
+              match branchPreSwap S with
+              | some bidx =>
+                cands := cands ++
+                  [(base ++ [PathFrame.arg bidx { name := "IF" }],
+                    some base, some (base, bidx))]
+              | none => pure ()
+          | none => pure ()
       let mut start := start
-      let mut preChain : Option Expr := none
       let mut frames := relW
-      match pathStepsFromFrames start frames wterm with
-      | .ok _ => pure ()
-      | .error _ => do
-        let collapse? ← do
-          match (navigateFrames start frames).toOption with
-          | some (_, S) => do
-            let (chOpt, S') ← collapseEval cfg ctx [] S
-            if S' == wterm then pure (chOpt.map (S, ·)) else pure none
-          | none => pure none
-        match collapse? with
-        | some (S, ch) => do
-          let (lifted, newTerm) ←
-            emitCongruence cfg.worldExpr cfg.envExpr start
-              (PathFrame.arg 0 { name := "DUMMY" } :: frames) S wterm ch
-          preChain := some lifted
-          start := newTerm
-        | none =>
-          match occurrencePaths start wterm with
-          | [p] => frames := p
-          | [] => throwError "replayRewrites: inline {kind} window term \
-              {repr wterm} does not occur in the running term \
-              {repr start} (frontier)"
-          | ps => throwError "replayRewrites: inline {kind} window term \
-              {repr wterm} occurs {ps.length} times in the running term — \
-              ambiguous position (frontier)"
-      let steps ← match pathStepsFromFrames start frames wterm with
-        | .ok st => pure st
-        | .error e => throwError "replayRewrites: inline {kind} window's \
-            entry path does not locate its term in the running chain: {e}"
-      match chOpt with
-      | none =>
-        -- no effective rewrites in the window — a no-op group (the derived
-        -- collapse, if any, still moves the chain forward)
-        let (restProof, finalTerm) ←
-          replayRewritesWith rec cfg ctx start restG depth chainPrefix
-        match preChain with
-        | none => return (restProof, finalTerm)
-        | some pc =>
-          return (some (← chainWithR cfg ctx pc start restProof), finalTerm)
-      | some chain => do
-        let mut inner := chain
-        let mut curL := wterm
-        let mut curR := wfinal
-        for st in steps.reverse do
-          inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+      let mut preChain : Option Expr := none
+      let mut branchAnchor : Option (List PathFrame × Nat) := none
+      -- dedupe by POSITION (the frames): the relW and wpath readings can
+      -- name the SAME position with different anchoring modes (a direct
+      -- locate landing exactly on an if-branch IS the branch anchor's
+      -- position) — prefer the BRANCH-anchored reading, the
+      -- hypothesis-bearing faithful context (a sub-chain needing no
+      -- hypothesis composes under it unchanged)
+      let cands' := cands.foldl (fun (acc : List (List PathFrame ×
+          Option (List PathFrame) × Option (List PathFrame × Nat))) c =>
+        match acc.find? (·.1 == c.1) with
+        | some prev =>
+          if prev.2.2.isNone && c.2.2.isSome then
+            acc.map (fun p => if p.1 == c.1 then c else p)
+          else acc
+        | none => acc ++ [c]) []
+      match cands' with
+      | [(c, preSwap?, br?)] =>
+        frames := c
+        branchAnchor := br?
+        if let some base := preSwap? then
+          let (stepsToIf, S) ← ofExcept (navigateFrames start base)
+          let .cons (.atom (.symbol ifS))
+              (.cons (.cons (.atom (.symbol _))
+                  (.cons cIn (.cons _ (.cons _ .nil))))
+                (.cons a (.cons b .nil))) := S
+            | throwError "replayRewrites: internal — pre-swap candidate \
+                lost its negation shape at {repr S}"
+          let swapped : SExpr :=
+            .cons (.atom (.symbol ifS)) (.cons cIn (.cons b (.cons a .nil)))
+          let (pc, root') ← liftNegTestSwap cfg stepsToIf start S cIn a b swapped
+          preChain := some pc
+          start := root'
+      | [] =>
+        match occurrencePaths start wterm with
+        | [p] => frames := p
+        | [] => throwError "replayRewrites: inline {kind} window term \
+            {repr wterm} does not occur in the running term \
+            {repr start} (frontier)"
+        | ps => throwError "replayRewrites: inline {kind} window term \
+            {repr wterm} occurs {ps.length} times in the running term \
+            {repr start} (entry path {repr wpath}, swapped {wswapped}) — \
+            ambiguous position (frontier)"
+      | cs => throwError "replayRewrites: inline {kind} window term \
+          {repr wterm} admits {cs.length} distinct anchorings \
+          {repr (cs.map (·.1))} in the running term {repr start} (entry \
+          path {repr wpath}) — ambiguous position (frontier)"
+      let w := cfg.worldExpr
+      let e := cfg.envExpr
+      let mkIdEq (t : SExpr) : MetaM Expr := do
+        let fn ← withLocalDeclD `f (mkConst ``Nat) fun fV =>
+          mkLambdaFVars #[fV] (mkApp4 (mkConst ``evalOpt) fV w e (reflectSExpr t))
+        mkAppM ``fuel_eq_refl #[fn]
+      match branchAnchor with
+      | some (base, bidx) => do
+        -- branch-anchored: sub-walk under the branch hypothesis, lift by
+        -- the conditional congruence, then through the base frames
+        let (stepsToIf, S) ← ofExcept (navigateFrames start base)
+        let .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) := S
+          | throwError "replayRewrites: internal — branch anchor lost its \
+              if shape at {repr S}"
+        let ctx ← pinTermOpaques cfg e ctx c
+        let vC ← ctxValExpr cfg ctx c
+        let pC ← ctxValProof cfg ctx c
+        let nilC := mkConst ``SExpr.nil
+        let (lamT, lamE, thn', els') ←
+          if bidx == 2 then do
+            let (lamT, thn') ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
+              let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
+              let (chT, thn') ← replayRewritesWith rec cfg ctx' wterm
+                (group.map clearWindowTag)
+              let chT ← chainReqEq chT
+              let prf ← match chT with
+                | some p => pure p
+                | none => mkIdEq wterm
+              pure (← mkLambdaFVars #[hNe] prf, thn')
+            let lamE ← withLocalDeclD `hnil (← mkEq vC nilC) fun hNil => do
+              mkLambdaFVars #[hNil] (← mkIdEq els)
+            pure (lamT, lamE, thn', els)
+          else do
+            let (lamE, els') ← withLocalDeclD `hnil (← mkEq vC nilC) fun hNil => do
+              let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, false, hNil)] }
+              let (chE, els') ← replayRewritesWith rec cfg ctx' wterm
+                (group.map clearWindowTag)
+              let chE ← chainReqEq chE
+              let prf ← match chE with
+                | some p => pure p
+                | none => mkIdEq wterm
+              pure (← mkLambdaFVars #[hNil] prf, els')
+            let lamT ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
+              mkLambdaFVars #[hNe] (← mkIdEq thn)
+            pure (lamT, lamE, thn, els')
+        if thn' == thn && els' == els then
+          -- no effective rewrites — a no-op group (the swap normalization,
+          -- if any, still moves the chain forward)
+          let (restProof, finalTerm) ←
+            replayRewritesWith rec cfg ctx start restG chainPrefix
+          match preChain with
+          | none => return (restProof, finalTerm)
+          | some pc =>
+            return (some (← chainWithR cfg ctx pc start restProof), finalTerm)
+        let newIf : SExpr := .cons (.atom (.symbol ifS))
+          (.cons c (.cons thn' (.cons els' .nil)))
+        let mut inner ← mkAppM ``evalOpt_congr_if_branches_cond
+          #[w, e, reflectSExpr c, reflectSExpr thn, reflectSExpr els,
+            reflectSExpr thn', reflectSExpr els', vC, pC, lamT, lamE]
+        let mut curL := S
+        let mut curR := newIf
+        for st in stepsToIf.reverse do
+          inner ← applyStep w e st curL curR inner
           curL := rebuild st curL
           curR := rebuild st curR
         unless curL == start do
-          throwError "replayRewrites: inline {kind} window lift \
+          throwError "replayRewrites: inline {kind} branch-window lift \
               reconstructed {repr curL} ≠ running {repr start}"
         match preChain with
         | none => pure ()
         | some pc => inner ← mkAppM ``fuel_chain_eq #[pc, inner]
         let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR
-          restG depth (chainPrefix ++ [(n, depth)])
+          restG (chainPrefix ++ [n])
         return (some (← chainWithR cfg ctx inner curR restProof), finalTerm)
+      | none => do
+        let (chOpt, wfinal) ← replayRewritesWith rec cfg ctx wterm
+          (group.map clearWindowTag)
+        let chOpt ← chainReqEq chOpt
+        let steps ← match pathStepsFromFrames start frames wterm with
+          | .ok st => pure st
+          | .error e => throwError "replayRewrites: inline {kind} window's \
+              entry path does not locate its term in the running chain: {e}"
+        match chOpt with
+        | none =>
+          -- no effective rewrites in the window — a no-op group
+          return ← replayRewritesWith rec cfg ctx start restG chainPrefix
+        | some chain => do
+          let mut inner := chain
+          let mut curL := wterm
+          let mut curR := wfinal
+          for st in steps.reverse do
+            inner ← applyStep w e st curL curR inner
+            curL := rebuild st curL
+            curR := rebuild st curR
+          unless curL == start do
+            throwError "replayRewrites: inline {kind} window lift \
+                reconstructed {repr curL} ≠ running {repr start}"
+          let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR
+            restG (chainPrefix ++ [n])
+          return (some (← chainWithR cfg ctx inner curR restProof), finalTerm)
     -- rewrite-if SWAPPED-P bridge: apply ACL2's silent branch swap when this
     -- node's path descends into a negation-test if in the RUNNING term, then
     -- re-process the node on the normalized term. (Skipped for the
@@ -4321,7 +4510,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
       let rel := relativizeFrames (nodePath n)
       match ← bridgeIfNegTestSwap cfg rel start lhs with
       | some (swapEq, start') =>
-        let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) depth chainPrefix
+        let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) chainPrefix
         return (some (← chainWithR cfg ctx swapEq start' restAll), finalT)
       | none => pure ()
     -- OR-SHAPE IFF node (G1 rung 1, inc-2): rewrite-if-finish's
@@ -4373,7 +4562,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         if innerIff then
           throwError "replayRewrites: or-shape iff chain still IFF at the \
               literal root (frontier — R-parameterized literal chains)"
-        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR rest depth (chainPrefix ++ [(n, depth)])
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR rest (chainPrefix ++ [n])
         return (some (← chainWithR cfg ctx inner curR restProof), finalTerm)
     -- an if-simplification recorded as an IDENTITY (`X ⇒ X`, no children) is
     -- ambiguous: either a true no-op, or a DISPLAY-FOLDED constant-test
@@ -4386,7 +4575,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let rel := relativizeFrames (nodePath n)
         let (_, S) ← ofExcept (navigateFrames start rel)
         if S == rhs then
-          return ← replayRewritesWith rec cfg ctx start rest depth (chainPrefix ++ [(n, depth)])
+          return ← replayRewritesWith rec cfg ctx start rest (chainPrefix ++ [n])
         -- SYMBOLIC-test if resolved by an in-scope clause-context fact,
         -- record folded all the way past the constant (observed: 'T ⇒ 'T
         -- with running (IF (EQUAL (CAR X) E) 'NIL 'T) under that segment
@@ -4406,7 +4595,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                   emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S S'
                     ch
                 let (restProof, finalTerm) ←
-                  replayRewritesWith rec cfg ctx newTerm rest depth (chainPrefix ++ [(n, depth)])
+                  replayRewritesWith rec cfg ctx newTerm rest (chainPrefix ++ [n])
                 return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
         let .cons (.atom (.symbol ifS))
             (.cons (.cons (.atom (.symbol q)) (.cons cv .nil))
@@ -4428,8 +4617,8 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let (lifted, newTerm) ←
           emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S branch
             nodeEq
-        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth
-          (chainPrefix ++ [(n, depth)])
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest
+          (chainPrefix ++ [n])
         return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
     -- DISPLAY-FOLDED constant-test collapses (docs/notes/2026-06-14_exec-
     -- counterpart-and-folding-wall.md; extended 2026-07-20): a constant-test
@@ -4474,8 +4663,8 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
               let (lifted, newTerm) ←
                 emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S taken'
                   nodeEq
-              let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth
-                (chainPrefix ++ [(n, depth)])
+              let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest
+                (chainPrefix ++ [n])
               return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
     -- clause-context-resolution marker: ACL2's rewrite-atm emits this as a
     -- terminal REPORT ("we have proved the original literal … hence the
@@ -4491,13 +4680,17 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                     (chain did not reach the reported net result)"
       return (none, start)
     -- `if-finish/combined`: rewrite-if FINISHED an if whose test stayed
-    -- symbolic — the summary node's recorded lhs is DISPLAY-FOLDED (body
-    -- coordinates), so the running term is the ground truth: navigate to the
-    -- node's position for the REAL redex `S = (if c thn els)`, chain the
-    -- node's CHILDREN over the branch each descends into UNDER that branch's
-    -- test assumption (ACL2's assume-true-false — the conditional-congruence
-    -- lemma discharges the hypotheses), require the result to be the node's
-    -- recorded rhs, and lift by congruence.
+    -- symbolic. Since the fold-back audit fix (2026-07-31 V2) the recorded
+    -- lhs is the ACTUAL input to rewrite-if1 — `(if test rewritten-left
+    -- rewritten-right)`, raw cons — i.e. the running subterm AFTER the
+    -- branch windows apply; earlier logs carried an UNINSTANTIATED folded
+    -- shape (BUG-025). The replay still takes the running term as ground
+    -- truth: navigate to the node's position for the redex
+    -- `S = (if c thn els)`, chain the node's CHILDREN over the branch each
+    -- descends into UNDER that branch's test assumption (ACL2's
+    -- assume-true-false — the conditional-congruence lemma discharges the
+    -- hypotheses), require the result to be the node's recorded rhs, and
+    -- lift by congruence.
     if let .node ⟨"if-simplification", _, _⟩ _ _ children prov := n then
       if prov.origin == "if-finish/combined" then
         let rel := relativizeFrames (nodePath n)
@@ -4534,12 +4727,24 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             unless postCh.isEmpty do
               throwError "if-finish/combined: branch child after a whole-if \
                           child (frontier)"
+            -- :SWAPPED-P consistency (fold-back audit V3): this branch
+            -- window and the combined record come from the SAME
+            -- rewrite-if-finish invocation — their swap flags must agree
+            -- (a mismatch is a tree-shape or emission divergence).
+            unless innerSwappedOf chN == prov.swapped do
+              throwError "if-finish/combined: if-left window :SWAPPED-P \
+                          ({innerSwappedOf chN}) disagrees with the combined \
+                          record ({prov.swapped})"
             cur := 1
             thenCh := thenCh ++ [clearWindowTag chN]
           else if innerKindOf chN == "if-right" && innerTermOf chN == some els then
             unless postCh.isEmpty do
               throwError "if-finish/combined: branch child after a whole-if \
                           child (frontier)"
+            unless innerSwappedOf chN == prov.swapped do
+              throwError "if-finish/combined: if-right window :SWAPPED-P \
+                          ({innerSwappedOf chN}) disagrees with the combined \
+                          record ({prov.swapped})"
             cur := 2
             elseCh := elseCh ++ [clearWindowTag chN]
           else
@@ -4566,7 +4771,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           mkAppM ``fuel_eq_refl #[fn]
         let (lamT, thn') ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
-          let (chT, thn') ← replayRewritesWith rec cfg ctx' thn thenCh depth
+          let (chT, thn') ← replayRewritesWith rec cfg ctx' thn thenCh
           let chT ← chainReqEq chT
           let prf ← match chT with
             | some p => pure p
@@ -4574,7 +4779,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           pure (← mkLambdaFVars #[hNe] prf, thn')
         let (lamE, els') ← withLocalDeclD `hnil (← mkEq vC nilC) fun hNil => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, false, hNil)] }
-          let (chE, els') ← replayRewritesWith rec cfg ctx' els elseCh depth
+          let (chE, els') ← replayRewritesWith rec cfg ctx' els elseCh
           let chE ← chainReqEq chE
           let prf ← match chE with
             | some p => pure p
@@ -4604,11 +4809,18 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 throwError "if-finish/combined: or-collapse bridge below the \
                     literal root (frontier — needs the mixed lift)"
               let mut testNodes : List ProofNode := []
-              for (pn, _pd) in chainPrefix do
+              for pn in chainPrefix do
                 -- a prefix node whose path does not relativize under THIS
                 -- node's frame is at another position — a NON-MATCH, not an
                 -- error (audit Q1: deliberate; a wrong selection still
-                -- fails closed on the xA == c check below)
+                -- fails closed on the xA == c check below). WINDOW-TAGGED
+                -- prefix nodes are excluded outright (fold-back audit
+                -- B-F3): their paths are window-local — relative to their
+                -- own window's term, not the literal — so a leading
+                -- `.arg 1` frame there is a coincidence, not a
+                -- test-position descent.
+                if innerKindOf pn != "" then
+                  continue
                 let relPn? := some (relativizeFrames (nodePath pn))
                 if let some (.arg 1 _ :: _) := relPn? then
                   -- re-root at the then-copy: drop the test-position frame
@@ -4616,7 +4828,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                   -- uniform drop-one navigates within `thn` — the strips this
                   -- replaced retired with gstack-coordinate emission
                   testNodes := testNodes ++ [retargetAtIf pn 1]
-              let (chA, xA) ← replayRewritesWith rec cfg ctx thn testNodes depth
+              let (chA, xA) ← replayRewritesWith rec cfg ctx thn testNodes
               unless xA == c do
                 throwError "if-finish/combined: or-collapse bridge — the \
                     re-composed test chain reached {repr xA}, the rewritten \
@@ -4634,7 +4846,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 (.cons c (.cons quoteT (.cons els' .nil)))
         -- whole-if finishing steps apply AFTER the branch congruence, on the
         -- rebuilt if
-        let (postOpt, final) ← replayRewritesWith rec cfg ctx postStart postCh depth
+        let (postOpt, final) ← replayRewritesWith rec cfg ctx postStart postCh
         let postOpt ← chainReqEq postOpt
         -- the JOINT may need SWAPPED-P normalizations the children created
         -- (a NOT unfold inside a test position swaps the enclosing if,
@@ -4673,7 +4885,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             let postS ← mkAppM ``evrel_of_fuel_eq
               #[mkConst ``siff_refl, postEq, ← ctxValProof cfg ctx final]
             comp ← mkAppM ``evrel_trans #[mkConst ``siff_trans, comp, postS]
-          let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx final rest depth (chainPrefix ++ [(n, depth)])
+          let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx final rest (chainPrefix ++ [n])
           return (some (← chainIffWithR cfg ctx comp finalTerm restProof), finalTerm)
         let mut proofs : List Expr := []
         if target != S then
@@ -4691,11 +4903,11 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           unless S == rhs do
             throwError "if-finish/combined: no effective children but running \
                         subterm {repr S} ≠ rhs {repr rhs}"
-          return ← replayRewritesWith rec cfg ctx start rest depth (chainPrefix ++ [(n, depth)])
+          return ← replayRewritesWith rec cfg ctx start rest (chainPrefix ++ [n])
         let nodeProof ← chainEqs proofs
         let (lifted, newTerm) ←
           emitCongruence w e start (nodePath n) S final nodeProof
-        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth (chainPrefix ++ [(n, depth)])
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest (chainPrefix ++ [n])
         return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
     -- a CONSTANT-TEST if-simplification whose recorded test does not match
     -- the running term's test: the test was resolved by an UNEMITTED
@@ -4851,7 +5063,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     if let some (testChain, start') := reconciled? then
       -- eval start ≡ eval start[T := 'nil]; replay THIS node on the
       -- reconciled term and continue
-      let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) depth chainPrefix
+      let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) chainPrefix
       return (some (← chainWithR cfg ctx testChain start' restAll), finalT)
     -- REWRITE-EQUAL cons-decomposition (sorting-completion-2, ORDERED-PERMS
     -- Subgoal *1/7'5' literal 10, both polarities): ACL2's rewrite-equal on
@@ -4875,156 +5087,155 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           -- (cdrs-first arises when the cars phase decided with no scratch
           -- rewrite — its window is empty and unseen here.)
           if innerKindOf n == "equal-cars" || innerKindOf n == "equal-cdrs" then do
-            if true then
-              let mut ctx ← pinTermOpaques cfg cfg.envExpr ctx start
-              let vs1 ← ctxValExpr cfg ctx s1
-              let vs2 ← ctxValExpr cfg ctx s2
-              let mut nodesLeft : List ProofNode := n :: rest
-              -- verdict accumulator: none = still deciding; some hEq = the
-              -- final `Logic.equal vs1 vs2 = <const>` fact + the constant
-              let mut verdict : Option (Expr × SExpr) := none
-              let mut phaseComps : List Expr := []  -- car-, then cdr-phase
-              for pfn in ["CAR", "CDR"] do
-                if verdict.isSome then continue
-                let mut c1 : SExpr := .cons (.atom (.symbol { name := pfn }))
-                  (.cons s1 .nil)
-                let mut c2 : SExpr := .cons (.atom (.symbol { name := pfn }))
-                  (.cons s2 .nil)
-                ctx ← pinTermOpaques cfg cfg.envExpr ctx c1
-                ctx ← pinTermOpaques cfg cfg.envExpr ctx c2
-                let mut h1 ← mkEqRefl (← ctxValExpr cfg ctx c1)
-                let mut h2 ← mkEqRefl (← ctxValExpr cfg ctx c2)
-                -- consume this phase's scratch rewrites (either side, any
-                -- interleaving; each is a full node replayed by its own
-                -- recipe)
-                let mut scanning := true
-                while scanning do
-                  match nodesLeft with
-                  | [] => scanning := false
-                  | n' :: r' =>
-                    let (l', r'') := nodeLhsRhs n'
-                    let phaseKind := if pfn == "CAR" then "equal-cars"
-                                     else "equal-cdrs"
-                    let side? : Option Nat :=
-                      if innerKindOf n' == phaseKind then
-                        match nodePath n' with
-                        | .arg k _ :: _ => some k
-                        | _ => none
-                      else none
-                    match side? with
-                    | some 1 =>
-                      if l' == c1 then
-                        let e ← rec.node cfg ctx n' depth
-                        ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
-                        let ve ← mkAppM ``val_eq_of_eval_eq
-                          #[e, ← ctxValProof cfg ctx c1,
-                            ← ctxValProof cfg ctx r'']
-                        h1 ← mkAppM ``Eq.trans #[h1, ve]
-                        c1 := r''; nodesLeft := r'
-                      else scanning := false
-                    | some 2 =>
-                      if l' == c2 then
-                        let e ← rec.node cfg ctx n' depth
-                        ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
-                        let ve ← mkAppM ``val_eq_of_eval_eq
-                          #[e, ← ctxValProof cfg ctx c2,
-                            ← ctxValProof cfg ctx r'']
-                        h2 ← mkAppM ``Eq.trans #[h2, ve]
-                        c2 := r''; nodesLeft := r'
-                      else scanning := false
-                    | _ => scanning := false
-                -- the phase decision: a recorded (EQUAL c1 c2) node at the
-                -- EQUAL's own path, or a silent type-alist refutation
-                let decT : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
-                  (.cons c1 (.cons c2 .nil))
-                let dec? ← match nodesLeft with
-                  | n' :: r' => do
-                    let (l', rr') := nodeLhsRhs n'
-                    if l' == decT && (relativizeFrames (nodePath n')) == [] then
-                      pure (some (n', rr', r'))
-                    else pure none
-                  | [] => pure none
-                match dec? with
-                | some (n', rr', r') =>
-                  nodesLeft := r'
-                  let e ← rec.node cfg ctx n' depth
-                  ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
-                  let vDec ← ctxValExpr cfg ctx decT
-                  if rr' == quoteT then
-                    let vq ← mkAppM ``re_val_quote
-                      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-                    let ve ← mkAppM ``val_eq_of_eval_eq
-                      #[e, ← ctxValProof cfg ctx decT, vq]
-                    -- vDec = t → vc1 = vc2 → component equality
-                    let _ := vDec
-                    let hc ← mkAppM ``logic_eq_of_equal_t #[ve]
-                    let hcomp ← mkAppM ``Eq.trans
-                      #[h1, ← mkAppM ``Eq.trans #[hc, ← mkAppM ``Eq.symm #[h2]]]
-                    phaseComps := phaseComps ++ [hcomp]
-                  else if rr' == quoteNil then
-                    let vq ← mkAppM ``re_val_quote
-                      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
-                    let ve ← mkAppM ``val_eq_of_eval_eq
-                      #[e, ← ctxValProof cfg ctx decT, vq]
-                    let lem := if pfn == "CAR" then
-                      ``logic_equal_nil_of_car_components
-                      else ``logic_equal_nil_of_cdr_components
-                    verdict := some (← mkAppM lem #[h1, h2, ve], SExpr.nil)
-                  else
-                    throwError "replayRewrites: rewrite-equal {pfn} decision \
-                        node {repr decT} ⇒ {repr rr'} is not a constant \
-                        verdict (frontier)"
-                | none =>
-                  -- silent refutation from the in-scope context (the same
-                  -- facts ACL2's type-set consulted)
-                  let decFlip : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
-                    (.cons c2 (.cons c1 .nil))
-                  ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
-                  let hRef ← do
-                    match ← deriveNilFact cfg ctx decT with
-                    | some h => pure h
-                    | none =>
-                      match ← deriveNilFact cfg ctx decFlip with
-                      | some h => mkAppM ``logic_equal_nil_comm #[h]
-                      | none =>
-                        throwError "replayRewrites: rewrite-equal {pfn} \
-                            phase — no recorded decision and no in-scope \
-                            refutation of {repr decT} (frontier)"
+            let mut ctx ← pinTermOpaques cfg cfg.envExpr ctx start
+            let vs1 ← ctxValExpr cfg ctx s1
+            let vs2 ← ctxValExpr cfg ctx s2
+            let mut nodesLeft : List ProofNode := n :: rest
+            -- verdict accumulator: none = still deciding; some hEq = the
+            -- final `Logic.equal vs1 vs2 = <const>` fact + the constant
+            let mut verdict : Option (Expr × SExpr) := none
+            let mut phaseComps : List Expr := []  -- car-, then cdr-phase
+            for pfn in ["CAR", "CDR"] do
+              if verdict.isSome then continue
+              let mut c1 : SExpr := .cons (.atom (.symbol { name := pfn }))
+                (.cons s1 .nil)
+              let mut c2 : SExpr := .cons (.atom (.symbol { name := pfn }))
+                (.cons s2 .nil)
+              ctx ← pinTermOpaques cfg cfg.envExpr ctx c1
+              ctx ← pinTermOpaques cfg cfg.envExpr ctx c2
+              let mut h1 ← mkEqRefl (← ctxValExpr cfg ctx c1)
+              let mut h2 ← mkEqRefl (← ctxValExpr cfg ctx c2)
+              -- consume this phase's scratch rewrites (either side, any
+              -- interleaving; each is a full node replayed by its own
+              -- recipe)
+              let mut scanning := true
+              while scanning do
+                match nodesLeft with
+                | [] => scanning := false
+                | n' :: r' =>
+                  let (l', r'') := nodeLhsRhs n'
+                  let phaseKind := if pfn == "CAR" then "equal-cars"
+                                   else "equal-cdrs"
+                  let side? : Option Nat :=
+                    if innerKindOf n' == phaseKind then
+                      match nodePath n' with
+                      | .arg k _ :: _ => some k
+                      | _ => none
+                    else none
+                  match side? with
+                  | some 1 =>
+                    if l' == c1 then
+                      let e ← rec.node cfg ctx n'
+                      ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
+                      let ve ← mkAppM ``val_eq_of_eval_eq
+                        #[e, ← ctxValProof cfg ctx c1,
+                          ← ctxValProof cfg ctx r'']
+                      h1 ← mkAppM ``Eq.trans #[h1, ve]
+                      c1 := r''; nodesLeft := r'
+                    else scanning := false
+                  | some 2 =>
+                    if l' == c2 then
+                      let e ← rec.node cfg ctx n'
+                      ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
+                      let ve ← mkAppM ``val_eq_of_eval_eq
+                        #[e, ← ctxValProof cfg ctx c2,
+                          ← ctxValProof cfg ctx r'']
+                      h2 ← mkAppM ``Eq.trans #[h2, ve]
+                      c2 := r''; nodesLeft := r'
+                    else scanning := false
+                  | _ => scanning := false
+              -- the phase decision: a recorded (EQUAL c1 c2) node at the
+              -- EQUAL's own path, or a silent type-alist refutation
+              let decT : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+                (.cons c1 (.cons c2 .nil))
+              let dec? ← match nodesLeft with
+                | n' :: r' => do
+                  let (l', rr') := nodeLhsRhs n'
+                  if l' == decT && (relativizeFrames (nodePath n')) == [] then
+                    pure (some (n', rr', r'))
+                  else pure none
+                | [] => pure none
+              match dec? with
+              | some (n', rr', r') =>
+                nodesLeft := r'
+                let e ← rec.node cfg ctx n'
+                ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
+                let vDec ← ctxValExpr cfg ctx decT
+                if rr' == quoteT then
+                  let vq ← mkAppM ``re_val_quote
+                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+                  let ve ← mkAppM ``val_eq_of_eval_eq
+                    #[e, ← ctxValProof cfg ctx decT, vq]
+                  -- vDec = t → vc1 = vc2 → component equality
+                  let _ := vDec
+                  let hc ← mkAppM ``logic_eq_of_equal_t #[ve]
+                  let hcomp ← mkAppM ``Eq.trans
+                    #[h1, ← mkAppM ``Eq.trans #[hc, ← mkAppM ``Eq.symm #[h2]]]
+                  phaseComps := phaseComps ++ [hcomp]
+                else if rr' == quoteNil then
+                  let vq ← mkAppM ``re_val_quote
+                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
+                  let ve ← mkAppM ``val_eq_of_eval_eq
+                    #[e, ← ctxValProof cfg ctx decT, vq]
                   let lem := if pfn == "CAR" then
                     ``logic_equal_nil_of_car_components
                     else ``logic_equal_nil_of_cdr_components
-                  verdict := some (← mkAppM lem #[h1, h2, hRef], SExpr.nil)
-              let (hEq, cst) ← do
-                match verdict with
-                | some (h, c) => pure (h, c)
-                | none => do
-                  -- both phases component-equal: 'T by cons-extensionality;
-                  -- consp evidence for BOTH sides from value shape/context
-                  let [hcompCar, hcompCdr] := phaseComps
-                    | throwError "replayRewrites: rewrite-equal decomposition \
-                        finished with {phaseComps.length} component proofs \
-                        (internal)"
-                  let some hca ← conspEvidence? ctx s1 vs1
-                    | throwError "replayRewrites: rewrite-equal — no consp \
-                        evidence for {repr s1} (frontier)"
-                  let some hcb ← conspEvidence? ctx s2 vs2
-                    | throwError "replayRewrites: rewrite-equal — no consp \
-                        evidence for {repr s2} (frontier)"
-                  pure (← mkAppM ``logic_equal_t_of_components
-                    #[hca, hcb, hcompCar, hcompCdr], SExpr.t)
-              unless nodesLeft.isEmpty do
-                throwError "replayRewrites: rewrite-equal decomposition left \
-                    unconsumed nodes \
-                    {repr (nodesLeft.map (fun m => (nodeLhsRhs m).1))} \
-                    (frontier)"
-              let pl ← ctxValProof cfg ctx start
-              let pr ← mkAppM ``re_val_quote
-                #[cfg.worldExpr, cfg.envExpr, reflectSExpr cst]
-              let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hEq]
-              let resT : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
-                (.cons cst .nil)
-              return (some (step, false), resT)
-    let nodeEq ← rec.node cfg ctx n depth
+                  verdict := some (← mkAppM lem #[h1, h2, ve], SExpr.nil)
+                else
+                  throwError "replayRewrites: rewrite-equal {pfn} decision \
+                      node {repr decT} ⇒ {repr rr'} is not a constant \
+                      verdict (frontier)"
+              | none =>
+                -- silent refutation from the in-scope context (the same
+                -- facts ACL2's type-set consulted)
+                let decFlip : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+                  (.cons c2 (.cons c1 .nil))
+                ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
+                let hRef ← do
+                  match ← deriveNilFact cfg ctx decT with
+                  | some h => pure h
+                  | none =>
+                    match ← deriveNilFact cfg ctx decFlip with
+                    | some h => mkAppM ``logic_equal_nil_comm #[h]
+                    | none =>
+                      throwError "replayRewrites: rewrite-equal {pfn} \
+                          phase — no recorded decision and no in-scope \
+                          refutation of {repr decT} (frontier)"
+                let lem := if pfn == "CAR" then
+                  ``logic_equal_nil_of_car_components
+                  else ``logic_equal_nil_of_cdr_components
+                verdict := some (← mkAppM lem #[h1, h2, hRef], SExpr.nil)
+            let (hEq, cst) ← do
+              match verdict with
+              | some (h, c) => pure (h, c)
+              | none => do
+                -- both phases component-equal: 'T by cons-extensionality;
+                -- consp evidence for BOTH sides from value shape/context
+                let [hcompCar, hcompCdr] := phaseComps
+                  | throwError "replayRewrites: rewrite-equal decomposition \
+                      finished with {phaseComps.length} component proofs \
+                      (internal)"
+                let some hca ← conspEvidence? ctx s1 vs1
+                  | throwError "replayRewrites: rewrite-equal — no consp \
+                      evidence for {repr s1} (frontier)"
+                let some hcb ← conspEvidence? ctx s2 vs2
+                  | throwError "replayRewrites: rewrite-equal — no consp \
+                      evidence for {repr s2} (frontier)"
+                pure (← mkAppM ``logic_equal_t_of_components
+                  #[hca, hcb, hcompCar, hcompCdr], SExpr.t)
+            unless nodesLeft.isEmpty do
+              throwError "replayRewrites: rewrite-equal decomposition left \
+                  unconsumed nodes \
+                  {repr (nodesLeft.map (fun m => (nodeLhsRhs m).1))} \
+                  (frontier)"
+            let pl ← ctxValProof cfg ctx start
+            let pr ← mkAppM ``re_val_quote
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr cst]
+            let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hEq]
+            let resT : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+              (.cons cst .nil)
+            return (some (step, false), resT)
+    let nodeEq ← rec.node cfg ctx n
     let (lifted, newTerm) ←
       try
         emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq
@@ -5034,10 +5245,8 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           (kind {innerKindOf n}, {nch} children): {ex.toMessageData}"
     -- an if-simplification AT THE CHAIN ROOT selects a branch; ACL2's rewrite-if
     -- keeps the if on the gstack while rewriting inside that branch, so the
-    -- remaining nodes' paths carry the branch frame — record it for stripping.
-    -- (the strip' bookkeeping retired with gstack-coordinate emission)
-    let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth
-      (chainPrefix ++ [(n, depth)])
+    let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest
+      (chainPrefix ++ [n])
     return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
 
 /- The tied node-level knot — the ONLY remaining mutual at this layer.
@@ -5045,23 +5254,23 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
 mutual
 
 partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
-    (depth : Nat := 0) : MetaM Expr :=
-  replayNodeWith ⟨fun c x n' d => replayNode c x n' d,
-                  fun c x s ns d => replayRewrites c x s ns d⟩ cfg ctx n depth
+    : MetaM Expr :=
+  replayNodeWith ⟨fun c x n' => replayNode c x n',
+                  fun c x s ns => replayRewrites c x s ns⟩ cfg ctx n
 
 partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr) :
-    List ProofNode → (depth : Nat := 0) →
+    List ProofNode →
     MetaM (Option (Expr × Bool) × SExpr) :=
-  fun ns depth =>
-    replayRewritesWith ⟨fun c x n d => replayNode c x n d,
-                       fun c x s' ns' d => replayRewrites c x s' ns' d⟩ cfg ctx start ns depth
+  fun ns =>
+    replayRewritesWith ⟨fun c x n => replayNode c x n,
+                       fun c x s' ns' => replayRewrites c x s' ns'⟩ cfg ctx start ns
 
 end
 
 /-- The tied record itself (recipes outside this file recurse through it). -/
 def nodeRec : NodeRec :=
-  ⟨fun cfg ctx n d => replayNode cfg ctx n d,
-   fun cfg ctx s ns d => replayRewrites cfg ctx s ns d⟩
+  ⟨fun cfg ctx n => replayNode cfg ctx n,
+   fun cfg ctx s ns => replayRewrites cfg ctx s ns⟩
 
 
 /-- Replay a literal's rewrite chain at the LITERAL level. ACL2's rewriter works on
@@ -5076,7 +5285,7 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
       | throwError "replayLiteralChain: notFlg literal is not (not atm): {repr lp.literal}"
     unless notS.name == "NOT" do
       throwError "replayLiteralChain: notFlg literal head {notS.name} ≠ not"
-    let (chainOpt, finalAtom) ← replayRewrites cfg ctx atm lp.nodes 0
+    let (chainOpt, finalAtom) ← replayRewrites cfg ctx atm lp.nodes
     let chainOpt ← chainReqEq chainOpt
     -- HIDDEN definitional `implies` unfold: rewrite-atm expands an implies
     -- atom with NO emitted node (only the literal's :RESULT shows it) —
@@ -5132,7 +5341,7 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
         return (lifted.map ((·, false)), finalLit)
     | _ => return (lifted.map ((·, false)), finalLit)
   else
-    replayRewrites cfg ctx lp.literal lp.nodes 0
+    replayRewrites cfg ctx lp.literal lp.nodes
 
 /-- Replay a literal that closes to `t`: chain its rewrite nodes, then close with the
     terminal node. The closer is either `equal-self` (reflexivity of `equal`) or an
@@ -5163,7 +5372,7 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
   -- chain + the quote's evaluation.
   if lp.nodes.isEmpty then
     throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
-  let (chainOpt, finalT) ← replayRewrites cfg ctx lp.literal lp.nodes 0
+  let (chainOpt, finalT) ← replayRewrites cfg ctx lp.literal lp.nodes
   let chainOpt ← chainReqEq chainOpt
   unless finalT == quoteT do
     throwError "replayLiteral: closing literal's chain reached {repr finalT}, \

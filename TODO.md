@@ -179,6 +179,18 @@ _Last updated: 2026-07-29._
 > docs/plans/2026-07-31_path-emission-subarc.md; retires the
 > relativize/strip/boundary trio; folds back into this branch at
 > ≥69/79 parity. ORDEREDP-APPEND is its validating case.
+> **Fold-back audit RUN + fix round LANDED (2026-07-31): all 8
+> verified findings fixed (BUG-024/025/026 emission fixes at acl2
+> 9f12ded573 + full recapture; collapseEval rung deleted and replaced
+> by record-directed descriptor/real-frame anchoring; depth/strip
+> remnants deleted; :SWAPPED-P parsed + consistency-checked;
+> occurrencePaths lambda-arg descent). BUG-027 (J6 truthy-equal
+> closure widening) OPEN — ratify-or-narrow at the parent merge
+> review. NEW parent-arc epicycle item: emit :SWAPPED-P on the
+> if1/if11 record family and RETIRE the ~190-line swap-bridge
+> inventory (normalizeSwapsToward/bridgeIfNegTestSwap/findSwapPos)
+> in favor of record-directed swap replay — see the census fix-round
+> section.**
 > **Class A: 3 of 4 green as of
 > 2026-07-31 (TRUE-LISTP-MSORT, ORDEREDP-MEMB, ORDERED-PERMS;
 > ORDEREDP-APPEND still red at the nested if-finish/combined strip
