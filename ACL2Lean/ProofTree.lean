@@ -97,6 +97,12 @@ structure StepProvenance where
       anchor. Empty for macro-emitted window kinds (pre-adopted children
       located by the adopting node's own path). -/
   innerPath : List PathFrame := []
+  /-- The CLASSIC block (hyp/rhs/body/…) this node is a top-level member
+      of, when that differs from `innerKind` — a window-tagged node
+      (if-left/…) that stayed a chain sibling inside a classic block keeps
+      its window identity in `innerKind` and its block membership here
+      (the rule recipe partitions by block; the walk consumes by window). -/
+  blockKind : String := ""
   deriving Repr, Inhabited
 
 inductive ProofNode where
@@ -224,14 +230,20 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- :TERM/:PATH anchors, path-emission Phase 1) so the adopting step can
       -- partition its children (HYP-relief chains vs RHS continuation vs body).
       let (innerNodes, rest') ← parseProofNodesAux rest [] []
+      let isWindowKind := kind == "if-left" || kind == "if-right" ||
+        kind == "equal-cars" || kind == "equal-cdrs"
       let tagged := innerNodes.map fun
         | n@(.node rune lhs rhs children prov) =>
           -- an already-tagged node is a DEEPER block's unadopted flush-out
-          -- (see the pendingChildren note above) — keep its own kind.
+          -- (see the pendingChildren note above) — keep its own kind; a
+          -- CLASSIC block additionally records block membership on
+          -- window-tagged members (blockKind).
           if prov.innerKind.isEmpty then
             .node rune lhs rhs children
               { prov with innerKind := kind, innerTerm := term,
                           innerPath := wpath }
+          else if !isWindowKind && prov.blockKind.isEmpty then
+            .node rune lhs rhs children { prov with blockKind := kind }
           else n
       -- INLINE vs ADOPT (record-directed): an if-branch window whose input
       -- term is EXACTLY the previous step's rhs CONTINUES that step (the

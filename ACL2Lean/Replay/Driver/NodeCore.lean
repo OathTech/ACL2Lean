@@ -3281,12 +3281,14 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       throwError "rule {rname}: abbreviation-expansion step cites a rule \
                   with {spec.hyps.length} hypotheses — abbreviations are \
                   hyp-free (record/world mismatch)"
-    let innerKindOf : ProofNode → String := fun
-      | .node _ _ _ _ p => p.innerKind
-    let hypKids := children.filter fun c => innerKindOf c == "hyp"
-    let rhsKids := children.filter fun c => innerKindOf c == "rhs"
+    -- block membership: a window-tagged sibling inside a classic block
+    -- carries the block in `blockKind` (path-emission Phase 1)
+    let blockOf : ProofNode → String := fun
+      | .node _ _ _ _ p => if p.blockKind.isEmpty then p.innerKind else p.blockKind
+    let hypKids := children.filter fun c => blockOf c == "hyp"
+    let rhsKids := children.filter fun c => blockOf c == "rhs"
     let otherKids := children.filter fun c =>
-      innerKindOf c != "hyp" && innerKindOf c != "rhs"
+      blockOf c != "hyp" && blockOf c != "rhs"
     unless otherKids.isEmpty do
       throwError "rule {rname}: {otherKids.length} child(ren) outside the \
                   HYP/RHS blocks — unconsumed record (frontier)"
