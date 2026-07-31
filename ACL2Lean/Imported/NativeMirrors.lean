@@ -145,7 +145,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
               hard-fail at the decrease frontier"
           match reg? with
           | some conds => do
-            Lean.addDecl (.defnDecl {
+            Lean.addAndCompile (.defnDecl {
               name := condsName, levelParams := [], type := condsTy,
               value := Lean.toExpr conds, hints := .opaque,
               safety := .safe })
@@ -1490,6 +1490,60 @@ theorem how_many_qsort_native_driver (ev : SExpr) (xs : List SExpr) :
 
 #print axioms how_many_qsort_native_driver
 
+set_option maxHeartbeats 4000000 in
+/-- PERM-QSORT's conditional replayed statement (THE FLAGSHIP — twelve
+    hypotheses: PCE/O< totality, the HOW-MANY/ACL2-COUNT TP corollaries,
+    and the seven rule conditions incl. CONVERT-PERM-TO-HOW-MANY). -/
+def permQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "perm-qsort" with_termination
+
+set_option maxHeartbeats 1600000 in
+theorem permQsortReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.perm_qsortFormula = some v ∧ v ≠ SExpr.nil :=
+  permQsortReplayedCond env
+    (Worlds.Sorting.dis_pce_total qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide))
+    (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_acl2_count_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
+    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+    (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_if_lift qsortWorldD (by decide))
+    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+
+set_option maxHeartbeats 1600000 in
+/-- ENTRY, PROVED — PERM-QSORT natively: QUICKSORT PERMUTES —
+    `qsortL xs` is a permutation of `xs` (`isPerm`). -/
+theorem perm_qsort_native_driver (xs : List SExpr) :
+    (Worlds.Sorting.qsortL xs).isPerm xs = true :=
+  Worlds.Sorting.perm_qsort_native_of_replayed qsortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) permQsortReplayed_uncond xs
+
+/-- The idiomatic `List.Perm` form. -/
+theorem perm_qsort_perm_driver (xs : List SExpr) :
+    (Worlds.Sorting.qsortL xs).Perm xs :=
+  List.isPerm_iff.mp (perm_qsort_native_driver xs)
+
+#print axioms perm_qsort_native_driver
+
 /-! ## The msort book — merge sort, all four content rows. -/
 
 private def msortLog : String :=
@@ -1779,7 +1833,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
   ("sorting/qsort", "HOW-MANY-QSORT", .pending "how-many/qsort correspondences (landed 2026-07-31 via the truthy branch-fact channel; backlog)"),
-  ("sorting/qsort", "PERM-QSORT", .pending "qsort correspondence + isPerm lift (the flagship; backlog)"),
+  ("sorting/qsort", "PERM-QSORT", .native ``perm_qsort_native_driver ``permQsortReplayedCond),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-1", .native ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-2", .native ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond),

@@ -4668,4 +4668,427 @@ theorem how_many_qsort_native_of_replayed (w : World)
     (hreplayed e)
   omega
 
+/-! ## The PERM-COUNTER-EXAMPLE kit + the CONVERT-PERM-TO-HOW-MANY
+discharger (the perm-lane content of the qsort flagship: the counting
+characterization of permutation, proved at the exec level over ALL
+values — the included convert-perm-to-how-many book's main theorem,
+transcribed as the rule discharger). -/
+
+abbrev pceT (x y : SExpr) : SExpr := app2 "PERM-COUNTER-EXAMPLE" x y
+
+/-- `(defun perm-counter-example (x y) …)`, macroexpanded. -/
+def pceBody : SExpr :=
+  ifT (conspT xT)
+    (ifT (membT (carT xT) yT)
+      (pceT (cdrT xT) (rmT (carT xT) yT))
+      (carT xT))
+    (carT yT)
+
+private def pce_sym : Symbol :=
+  { package := "ACL2", name := "PERM-COUNTER-EXAMPLE" }
+
+private theorem pce_ns :
+    (pce_sym.isNamed "QUOTE" = false ∧ pce_sym.isNamed "IF" = false ∧
+     pce_sym.isNamed "LET" = false ∧ pce_sym.isNamed "LET*" = false) := by
+  decide
+
+/-- `perm-counter-example`'s body as a total Lean function. -/
+def pceExec (x y : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then
+    if Logic.toBool (membExec (Logic.car x) y) = true then
+      pceExec (Logic.cdr x) (rmExec (Logic.car x) y)
+    else Logic.car x
+  else Logic.car y
+termination_by x.consCount
+decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
+
+/-- Stage 1: a `perm-counter-example` call converges to `pceExec`. -/
+theorem pce_exec_corr (w : World)
+    (h_pce : w.defs.get? pce_sym = some ([xS, yS], pceBody))
+    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
+      = some ([{ package := "ACL2", name := "A" },
+               { package := "ACL2", name := "X" }], membBody))
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
+    ∀ (env : Env) (a b av bv : SExpr),
+      ConvTo w env a av → ConvTo w env b bv →
+      ConvTo w env (pceT a b) (pceExec av bv) := by
+  have hbody : ∀ xv yv : SExpr,
+      ConvTo w (bindArgs [xS, yS] [xv, yv]) pceBody (pceExec xv yv) := by
+    refine consCount_strong_induction
+      (fun xv => ∀ yv, ConvTo w (bindArgs [xS, yS] [xv, yv]) pceBody
+        (pceExec xv yv)) ?_
+    intro xv ih yv
+    have hxv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+      { name := "X" } xv (bindArgs_xy_x' xv yv)
+    have hyv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+      { name := "Y" } yv (bindArgs_xy_y' xv yv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcarx := conv_builtin1 w _ { name := "CAR" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcary := conv_builtin1 w _ { name := "CAR" } yT yv
+      (Logic.car yv) (by decide) h_no_car hyv (callBuiltin_car _)
+    have hcdrx := conv_builtin1 w _ { name := "CDR" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have hmemb := memb_exec_corr w h_memb h_no_consp h_no_equal h_no_car
+      h_no_cdr _ (carT xT) yT (Logic.car xv) yv hcarx hyv
+    have hrm := rm_exec_corr w h_rm h_no_consp h_no_equal h_no_car
+      h_no_cdr h_no_cons _ (carT xT) yT (Logic.car xv) yv hcarx hyv
+    have houter := conv_if_lift w (bindArgs [xS, yS] [xv, yv]) (conspT xT)
+      (ifT (membT (carT xT) yT)
+        (pceT (cdrT xT) (rmT (carT xT) yT))
+        (carT xT))
+      (carT yT) (Logic.consp xv)
+      (if Logic.toBool (membExec (Logic.car xv) yv) = true then
+        pceExec (Logic.cdr xv) (rmExec (Logic.car xv) yv)
+       else Logic.car xv)
+      (Logic.car yv) hconsp
+      (fun hb =>
+        conv_if_lift w _ (membT (carT xT) yT)
+          (pceT (cdrT xT) (rmT (carT xT) yT)) (carT xT)
+          (membExec (Logic.car xv) yv)
+          (pceExec (Logic.cdr xv) (rmExec (Logic.car xv) yv))
+          (Logic.car xv) hmemb
+          (fun _ =>
+            conv_defn_2 w _ pce_sym (cdrT xT) (rmT (carT xT) yT)
+              (Logic.cdr xv) (rmExec (Logic.car xv) yv) xS yS pceBody _
+              pce_ns h_pce hcdrx hrm
+              (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb)
+                (rmExec (Logic.car xv) yv)))
+          (fun _ => hcarx))
+      (fun _ => hcary)
+    rw [pceExec.eq_def]
+    exact houter
+  intro env a b av bv ha hb
+  exact conv_defn_2 w env pce_sym a b av bv xS yS pceBody _
+    pce_ns h_pce ha hb (hbody av bv)
+
+/-- `total:PERM-COUNTER-EXAMPLE` — the driver-shape totality statement. -/
+theorem dis_pce_total (w : World)
+    (h_pce : w.defs.get? pce_sym = some ([xS, yS], pceBody))
+    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
+      = some ([{ package := "ACL2", name := "A" },
+               { package := "ACL2", name := "X" }], membBody))
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
+    ∀ (env' : Env) (a0 a1 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (pceT a0 a1) = some v := by
+  intro env' a0 a1 ⟨N0, v0, h0⟩ ⟨N1, v1, h1⟩
+  obtain ⟨N, h⟩ := pce_exec_corr w h_pce h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons env' a0 a1 v0 v1 ⟨N0, h0⟩ ⟨N1, h1⟩
+  exact ⟨N, pceExec v0 v1, h⟩
+
+/-! ### The counting sub-lemmas (all at the exec level, over ALL
+values — the convert-perm book's ingredient facts) -/
+
+/-- `membExec` is two-valued. -/
+theorem membExec_t_or_nil (a x : SExpr) :
+    membExec a x = SExpr.t ∨ membExec a x = SExpr.nil := by
+  fun_induction membExec a x with
+  | case1 x _ _ => exact Or.inl rfl
+  | case2 x _ _ ih => exact ih
+  | case3 x _ => exact Or.inr rfl
+
+/-- The head counts itself: `how-many (car x) x ≥ 1` on a cons. -/
+private theorem howManyExec_head_pos (a d : SExpr) :
+    ∃ n : Nat, howManyExec (Logic.car (SExpr.cons a d)) (SExpr.cons a d)
+      = .atom (.number (.int (n + 1))) := by
+  rw [howManyExec.eq_def,
+      if_pos (show Logic.toBool (Logic.consp (SExpr.cons a d)) = true
+        from rfl),
+      if_pos (show Logic.toBool (Logic.equal (Logic.car (SExpr.cons a d))
+        (Logic.car (SExpr.cons a d))) = true from by
+          simp [Logic.equal, Logic.toBool, SExpr.t]),
+      show Logic.cdr (SExpr.cons a d) = d from rfl]
+  obtain ⟨n, hn⟩ := howManyExec_nat (Logic.car (SExpr.cons a d)) d
+  rw [hn, show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
+      logic_plus_int]
+  refine ⟨n, ?_⟩
+  congr 3
+  omega
+
+/-- One cons step of the count. -/
+private theorem howManyExec_cons (e hd z : SExpr) :
+    howManyExec e (SExpr.cons hd z)
+      = (if (e == hd) = true then
+          Logic.plus int1 (howManyExec e z)
+         else howManyExec e z) := by
+  rw [howManyExec.eq_def,
+      if_pos (show Logic.toBool (Logic.consp (SExpr.cons hd z)) = true
+        from rfl),
+      show Logic.car (SExpr.cons hd z) = hd from rfl,
+      show Logic.cdr (SExpr.cons hd z) = z from rfl,
+      toBool_equal]
+
+/-- The count/erase interaction: erasing `b` decrements `e`'s count
+    exactly when `e = b` and `b` was present, else leaves it
+    unchanged. -/
+private theorem howManyExec_rmExec (e b y : SExpr) :
+    howManyExec e (rmExec b y)
+      = (if e == b ∧ Logic.toBool (membExec b y) = true then
+          .atom (.number (.int (Logic.toInt (howManyExec e y) - 1)))
+         else howManyExec e y) := by
+  fun_induction rmExec b y with
+  | case1 y hc heq =>
+    -- rm hit the head: b == car y
+    cases y with
+    | nil => simp [Logic.consp, Logic.toBool] at hc
+    | atom _ => simp [Logic.consp, Logic.toBool] at hc
+    | cons hd tl =>
+      rw [show Logic.car (SExpr.cons hd tl) = hd from rfl,
+          toBool_equal] at heq
+      have h2 := eq_of_beq heq
+      subst h2
+      rw [show Logic.cdr (SExpr.cons b tl) = tl from rfl]
+      have hmemb : Logic.toBool (membExec b (SExpr.cons b tl)) = true := by
+        rw [membExec.eq_def, if_pos hc,
+            if_pos (by rw [show Logic.car (SExpr.cons b tl) = b from rfl,
+              toBool_equal]; simp)]
+        rfl
+      by_cases heb : (e == b) = true
+      · rw [if_pos ⟨heb, hmemb⟩, howManyExec_cons,
+            if_pos (by rw [show e = b from eq_of_beq heb]; simp)]
+        obtain ⟨n, hn⟩ := howManyExec_nat e tl
+        rw [hn, show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
+            logic_plus_int]
+        simp [Logic.toInt]
+      · rw [if_neg (fun hcon => heb hcon.1), howManyExec_cons,
+            if_neg (by intro hcon; exact heb (by
+              rw [show (e == b) = (e == b) from rfl]
+              have := eq_of_beq hcon
+              subst this; simp))]
+  | case2 y hc heq ih =>
+    -- rm recursed past the head
+    cases y with
+    | nil => simp [Logic.consp, Logic.toBool] at hc
+    | atom _ => simp [Logic.consp, Logic.toBool] at hc
+    | cons hd tl =>
+      rw [show Logic.car (SExpr.cons hd tl) = hd from rfl,
+          toBool_equal] at heq
+      have hbhd : (b == hd) = false := by
+        cases h : b == hd with
+        | true => exact absurd h (by simpa using heq)
+        | false => rfl
+      rw [show Logic.cdr (SExpr.cons hd tl) = tl from rfl] at ih ⊢
+      rw [show Logic.car (SExpr.cons hd tl) = hd from rfl]
+      have hmembEq : membExec b (SExpr.cons hd tl) = membExec b tl := by
+        rw [membExec.eq_def, if_pos hc,
+            if_neg (by rw [show Logic.car (SExpr.cons hd tl) = hd from rfl,
+              toBool_equal, hbhd]; simp),
+            show Logic.cdr (SExpr.cons hd tl) = tl from rfl]
+      rw [show Logic.cons hd (rmExec b tl) = SExpr.cons hd (rmExec b tl)
+            from rfl,
+          howManyExec_cons, howManyExec_cons, ih, hmembEq]
+      by_cases hcond : e == b ∧ Logic.toBool (membExec b tl) = true
+      · rw [if_pos hcond, if_pos hcond]
+        cases hehd : e == hd with
+        | true =>
+          rw [if_pos rfl, if_pos rfl]
+          obtain ⟨n, hn⟩ := howManyExec_nat e tl
+          rw [hn, show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
+              logic_plus_int, logic_plus_int]
+          simp only [Logic.toInt]
+          congr 3
+          omega
+        | false =>
+          rw [if_neg (by simp), if_neg (by simp)]
+      · rw [if_neg hcond, if_neg hcond]
+  | case3 y hc =>
+    -- y non-cons: rm = nil, memb = nil
+    have hm : membExec b y = SExpr.nil := by
+      rw [membExec.eq_def, if_neg hc]
+    rw [hm,
+        if_neg (by intro hcon; exact absurd hcon.2 (by
+          simp [Logic.toBool])),
+        howManyExec.eq_def (x := y), if_neg hc,
+        howManyExec.eq_def (x := SExpr.nil),
+        if_neg (by simp [Logic.consp, Logic.toBool])]
+
+private theorem logic_equal_int (a b : Int) :
+    Logic.equal (.atom (.number (.int a))) (.atom (.number (.int b)))
+      = (if a = b then SExpr.t else SExpr.nil) := by
+  by_cases h : a = b
+  · subst h; simp [Logic.equal]
+  · simp [Logic.equal, h]
+
+/-- THE CONVERT-PERM-TO-HOW-MANY content, at the exec level over ALL
+    values: `perm` IS the count comparison at the counter-example
+    element. (The included book's main theorem, value-level.) -/
+theorem permExec_eq_convert (x y : SExpr) :
+    permExec x y
+      = Logic.equal (howManyExec (pceExec x y) x)
+          (howManyExec (pceExec x y) y) := by
+  fun_induction pceExec x y with
+  | case1 x y hc hm ih =>
+    -- x cons, (memb (car x) y) true
+    cases x with
+    | nil => simp [Logic.consp, Logic.toBool] at hc
+    | atom _ => simp [Logic.consp, Logic.toBool] at hc
+    | cons hd tl =>
+      rw [show Logic.car (SExpr.cons hd tl) = hd from rfl] at hm ih
+      rw [show Logic.cdr (SExpr.cons hd tl) = tl from rfl] at ih
+      rw [permExec.eq_def, if_pos hc,
+          show Logic.car (SExpr.cons hd tl) = hd from rfl,
+          show Logic.cdr (SExpr.cons hd tl) = tl from rfl,
+          if_pos hm, ih]
+      set p := pceExec tl (rmExec hd y) with hp
+      rw [howManyExec_cons, howManyExec_rmExec]
+      obtain ⟨m, hmv⟩ := howManyExec_nat p tl
+      obtain ⟨k, hkv⟩ := howManyExec_nat p y
+      by_cases hph : (p == hd) = true
+      · rw [if_pos ⟨hph, hm⟩, if_pos hph, hmv, hkv,
+            show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
+            logic_plus_int]
+        simp only [Logic.toInt]
+        rw [logic_equal_int, logic_equal_int]
+        by_cases hmk : (m : Int) = (k : Int) - 1
+        · rw [if_pos hmk, if_pos (by omega)]
+        · rw [if_neg hmk, if_neg (by omega)]
+      · rw [if_neg (fun hcon => hph hcon.1), if_neg hph]
+  | case2 x y hc hm =>
+    -- x cons, (memb (car x) y) false: perm is nil, and the counter-example
+    -- (car x) witnesses it
+    cases x with
+    | nil => simp [Logic.consp, Logic.toBool] at hc
+    | atom _ => simp [Logic.consp, Logic.toBool] at hc
+    | cons hd tl =>
+      rw [permExec.eq_def, if_pos hc, if_neg hm]
+      have hmnil : membExec (Logic.car (SExpr.cons hd tl)) y
+          = SExpr.nil := by
+        rcases membExec_t_or_nil (Logic.car (SExpr.cons hd tl)) y with
+          h | h
+        · rw [h] at hm; exact absurd rfl hm
+        · exact h
+      rw [howManyExec_zero_of_membExec_nil _ _ hmnil]
+      obtain ⟨n, hn⟩ := howManyExec_head_pos hd tl
+      rw [hn, logic_equal_int, if_neg (by omega)]
+  | case3 x y hc =>
+    -- x non-cons: perm is (if (consp y) nil t); the counter-example is
+    -- (car y)
+    have hx0 : howManyExec (Logic.car y) x = .atom (.number (.int 0)) := by
+      rw [howManyExec.eq_def, if_neg hc]
+    rw [permExec.eq_def, if_neg hc, hx0]
+    cases y with
+    | nil =>
+      rw [if_neg (by simp [Logic.consp, Logic.toBool]),
+          show howManyExec (Logic.car SExpr.nil) SExpr.nil
+            = .atom (.number (.int 0)) from by
+              rw [howManyExec.eq_def]; rfl,
+          logic_equal_int, if_pos rfl]
+    | atom a =>
+      rw [if_neg (by simp [Logic.consp, Logic.toBool]),
+          show howManyExec (Logic.car (SExpr.atom a)) (SExpr.atom a)
+            = .atom (.number (.int 0)) from by
+              rw [howManyExec.eq_def]
+              exact if_neg (by simp [Logic.consp, Logic.toBool]),
+          logic_equal_int, if_pos rfl]
+    | cons hd tl =>
+      rw [if_pos (show Logic.toBool (Logic.consp (SExpr.cons hd tl))
+        = true from rfl)]
+      obtain ⟨n, hn⟩ := howManyExec_head_pos hd tl
+      rw [hn, logic_equal_int, if_neg (by omega)]
+
+/-- `rule:CONVERT-PERM-TO-HOW-MANY` — the stored included-book rule,
+    world-parametric, from the exec-level characterization. -/
+theorem dis_convert_perm (w : World)
+    (h_perm : w.defs.get? { package := "ACL2", name := "PERM" }
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }], permBody))
+    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
+      = some ([{ package := "ACL2", name := "A" },
+               { package := "ACL2", name := "X" }], membBody))
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_pce : w.defs.get? pce_sym = some ([xS, yS], pceBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
+    ∀ env' : Env, ∃ N, ∀ f ≥ N,
+      evalOpt f w env' (permT xT yT)
+        = evalOpt f w env'
+            (equalT (howManyT (pceT xT yT) xT)
+              (howManyT (pceT xT yT) yT)) := by
+  intro env'
+  obtain ⟨vx, hx⟩ := conv_var w env' xS (by decide)
+  obtain ⟨vy, hy⟩ := conv_var w env' yS (by decide)
+  have hperm := perm_exec_corr w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons env' xT yT vx vy hx hy
+  have hpce := pce_exec_corr w h_pce h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons env' xT yT vx vy hx hy
+  have hhm1 := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus env' (pceT xT yT) xT (pceExec vx vy) vx hpce hx
+  have hhm2 := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus env' (pceT xT yT) yT (pceExec vx vy) vy hpce hy
+  have hEq := conv_builtin2 w env' { name := "EQUAL" } _ _ _ _ _
+    (by decide) h_no_equal hhm1 hhm2 (callBuiltin_equal _ _)
+  exact fuel_eq_of_conv hperm hEq (permExec_eq_convert vx vy)
+
+/-! ## PERM-QSORT -/
+
+/-- `(PERM (QSORT X) X)`. -/
+def perm_qsortFormula : SExpr := permT (qsortT xT) xT
+
+/-- PERM-QSORT, natively: QUICKSORT PERMUTES — `qsortL xs` is a
+    permutation of `xs`. -/
+theorem perm_qsort_native_of_replayed (w : World)
+    (h_perm : w.defs.get? { package := "ACL2", name := "PERM" }
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }], permBody))
+    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
+      = some ([{ package := "ACL2", name := "A" },
+               { package := "ACL2", name := "X" }], membBody))
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_qs : w.defs.get? qsort_sym = some ([xS], qsortBody))
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_filter : w.defs.get? filter_sym = some ([fnS, xS, eS], filterBody))
+    (h_app : w.defs.get? append_sym
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env perm_qsortFormula = some v ∧ v ≠ SExpr.nil)
+    (xs : List SExpr) :
+    (qsortL xs).isPerm xs = true := by
+  let e : Env := ({} : Env).insert xS (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ({} : Env).insert xS (enc xs) from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hqs := qsort_exec_corr w h_qs h_rel h_filter h_app h_no_consp
+    h_no_equal h_no_car h_no_cdr h_no_cons h_no_lexorder e xT (enc xs) hx
+  rw [qsortExec_enc] at hqs
+  have hP := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons (qsortL xs) xs e (qsortT xT) xT hqs hx
+  exact bool_true_of_cond_truthy (toBool_true_of_ne_nil
+    (replayed_pins_ne_nil (hreplayed e) hP))
+
 end ACL2.Worlds.Sorting
