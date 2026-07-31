@@ -2457,4 +2457,261 @@ theorem how_many_filter_1_native_of_replayed (w : World)
   rw [hLT, hGTE] at hnat
   omega
 
+/-! ## ORDEREDP-APPEND -/
+
+private def append_sym : Symbol := { package := "ACL2", name := "BINARY-APPEND" }
+
+private theorem append_ns :
+    (append_sym.isNamed "QUOTE" = false ∧ append_sym.isNamed "IF" = false ∧
+     append_sym.isNamed "LET" = false ∧
+     append_sym.isNamed "LET*" = false) := by decide
+
+private theorem bindArgs_xy_x' (vx vy : SExpr) :
+    (bindArgs [xS, yS] [vx, vy]).get? xS = some vx := by
+  show ((({} : Env).insert yS vy).insert xS vx).get? xS = some vx
+  rw [Env.get?_insert, if_pos (by decide)]
+private theorem bindArgs_xy_y' (vx vy : SExpr) :
+    (bindArgs [xS, yS] [vx, vy]).get? yS = some vy := by
+  show ((({} : Env).insert yS vy).insert xS vx).get? yS = some vy
+  rw [Env.get?_insert, if_neg (by decide), Env.get?_insert,
+      if_pos (by decide)]
+
+/-- `binary-append`'s body as a total Lean function (over ARBITRARY
+    values — the enc-only `corr_append_enc` cannot serve the args-valued
+    TP hypothesis). -/
+def appendExec (x y : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then
+    Logic.cons (Logic.car x) (appendExec (Logic.cdr x) y)
+  else y
+termination_by x.consCount
+decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
+
+/-- Stage 1: a `binary-append` call converges to `appendExec`. -/
+theorem append_exec_corr (w : World)
+    (h_app : w.defs.get? append_sym
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
+    ∀ (env : Env) (a b av bv : SExpr),
+      ConvTo w env a av → ConvTo w env b bv →
+      ConvTo w env (appendT a b) (appendExec av bv) := by
+  have hbody : ∀ xv yv : SExpr,
+      ConvTo w (bindArgs [xS, yS] [xv, yv]) (appendBody "BINARY-APPEND")
+        (appendExec xv yv) := by
+    refine consCount_strong_induction
+      (fun xv => ∀ yv, ConvTo w (bindArgs [xS, yS] [xv, yv])
+        (appendBody "BINARY-APPEND") (appendExec xv yv)) ?_
+    intro xv ih yv
+    have hxv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+      { name := "X" } xv (bindArgs_xy_x' xv yv)
+    have hyv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+      { name := "Y" } yv (bindArgs_xy_y' xv yv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have houter := conv_if_lift w (bindArgs [xS, yS] [xv, yv]) (conspT xT)
+      (consT (carT xT) (appendT (cdrT xT) yT)) yT (Logic.consp xv)
+      (Logic.cons (Logic.car xv) (appendExec (Logic.cdr xv) yv)) yv hconsp
+      (fun hb =>
+        conv_builtin2 w _ { name := "CONS" } (carT xT)
+          (appendT (cdrT xT) yT) (Logic.car xv)
+          (appendExec (Logic.cdr xv) yv) _ (by decide) h_no_cons hcar
+          (conv_defn_2 w _ append_sym (cdrT xT) yT (Logic.cdr xv) yv
+            xS yS (appendBody "BINARY-APPEND") _ append_ns h_app hcdr hyv
+            (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb) yv))
+          rfl)
+      (fun _ => hyv)
+    rw [appendExec.eq_def]
+    exact houter
+  intro env a b av bv ha hb
+  exact conv_defn_2 w env append_sym a b av bv xS yS
+    (appendBody "BINARY-APPEND") _ append_ns h_app ha hb (hbody av bv)
+
+/-- `appendExec` is a cons or its second argument — the emitted TP
+    corollary's content. -/
+theorem appendExec_consp_or_eq (x y : SExpr) :
+    Logic.consp (appendExec x y) = SExpr.t ∨ appendExec x y = y := by
+  fun_induction appendExec x y with
+  | case1 x _ _ => exact Or.inl rfl
+  | case2 x _ => exact Or.inr rfl
+
+/-- `tp:BINARY-APPEND`, world-parametric — the args-valued TP hypothesis
+    (`(IF (CONSP (BINARY-APPEND X Y)) 'T (EQUAL (BINARY-APPEND X Y) Y))`). -/
+theorem dis_append_tp (w : World)
+    (h_app : w.defs.get? append_sym
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (e' : Env) (a0 a1 u0 u1 v : SExpr)
+    (h0 : ∃ N, ∀ f ≥ N, evalOpt f w e' a0 = some u0)
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w e' a1 = some u1)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (appendT a0 a1) = some v) :
+    (bif Logic.toBool (Logic.consp v) then SExpr.t else Logic.equal v u1)
+      = SExpr.t := by
+  have happ := append_exec_corr w h_app h_no_consp h_no_car h_no_cdr
+    h_no_cons e' a0 a1 u0 u1 h0 h1
+  rw [val_unique h happ]
+  rcases appendExec_consp_or_eq u0 u1 with ht | heq
+  · rw [ht]; rfl
+  · rw [heq]
+    cases hb : Logic.toBool (Logic.consp u1) with
+    | true => rfl
+    | false => simp [Logic.equal]
+
+/-- The three-guard if-nest of boolEncs computes the conjunction. -/
+private theorem conv_if3 (w : World) (e : Env) (c1 c2 c3 : SExpr)
+    (b1 b2 b3 : Bool)
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w e c1 = some (boolEnc b1))
+    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w e c2 = some (boolEnc b2))
+    (h3 : ∃ N, ∀ f ≥ N, evalOpt f w e c3 = some (boolEnc b3)) :
+    ∃ N, ∀ f ≥ N, evalOpt f w e (ifT c1 (ifT c2 c3 qNil) qNil)
+      = some (boolEnc (b1 && (b2 && b3))) := by
+  cases hb1 : b1 with
+  | false =>
+    have h1n : ∃ N, ∀ f ≥ N, evalOpt f w e c1 = some SExpr.nil := by
+      simpa [hb1, boolEnc] using h1
+    simpa [Bool.false_and, boolEnc] using
+      conv_if_false' w e c1 (ifT c2 c3 qNil) qNil SExpr.nil h1n
+        (re_val_quote w e SExpr.nil)
+  | true =>
+    have hInner : ∃ N, ∀ f ≥ N, evalOpt f w e (ifT c2 c3 qNil)
+        = some (boolEnc (b2 && b3)) := by
+      cases hb2 : b2 with
+      | false =>
+        have h2n : ∃ N, ∀ f ≥ N, evalOpt f w e c2 = some SExpr.nil := by
+          simpa [hb2, boolEnc] using h2
+        simpa [Bool.false_and, boolEnc] using
+          conv_if_false' w e c2 c3 qNil SExpr.nil h2n
+            (re_val_quote w e SExpr.nil)
+      | true =>
+        have := conv_if_true w e c2 c3 qNil (boolEnc b2) (boolEnc b3) h2
+          (by rw [hb2]; rfl) h3
+        simpa [hb2, Bool.true_and] using this
+    have := conv_if_true w e c1 (ifT c2 c3 qNil) qNil (boolEnc b1)
+      (boolEnc (b2 && b3)) h1 (by rw [hb1]; rfl) hInner
+    simpa [hb1, Bool.true_and] using this
+
+/-- Truthy `iff` of two boolEncs is Bool equality. -/
+private theorem bool_of_iff_truthy {x y : Bool}
+    (h : Logic.toBool (Logic.iff (boolEnc x) (boolEnc y)) = true) :
+    x = y := by
+  cases x <;> cases y <;> simp_all [Logic.iff, boolEnc, Logic.toBool]
+
+abbrev iffT (a b : SExpr) : SExpr := app2 "IFF" a b
+
+/-- The ORDEREDP-APPEND replayed-statement formula — the root Goal
+    clause (the AND if-expanded, APPEND macroexpanded):
+    `(IMPLIES (ORDEREDP A)
+       (IFF (ORDEREDP (BINARY-APPEND A (CONS E B)))
+            (IF (ORDEREDP B)
+                (IF (ALL-REL 'LTE A E) (ALL-REL 'GTE B E) 'NIL)
+                'NIL)))`. -/
+def orderedp_appendFormula : SExpr :=
+  impliesT (orderedpT aT)
+    (iffT (orderedpT (appendT aT (consT eT bT)))
+      (ifT (orderedpT bT)
+        (ifT (allRelT (qSym "LTE") aT eT) (allRelT (qSym "GTE") bT eT)
+          qNil)
+        qNil))
+
+/-- ORDEREDP-APPEND, natively: for sorted `as`, the append
+    `as ++ ev :: bs` is sorted EXACTLY when `bs` is sorted, everything
+    in `as` is lexorder-below `ev`, and everything in `bs` is
+    lexorder-above it — quicksort's assembly step. -/
+theorem orderedp_append_native_of_replayed (w : World)
+    (h_orderedp : w.defs.get? { package := "ACL2", name := "ORDEREDP" }
+      = some ([{ package := "ACL2", name := "X" }],
+              chain2Body "LEXORDER" "ORDEREDP"))
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
+    (h_app : w.defs.get? append_sym
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (h_no_iff : w.defs.get? ({ name := "IFF" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env orderedp_appendFormula = some v ∧ v ≠ SExpr.nil)
+    (ev : SExpr) (as bs : List SExpr)
+    (hord : orderedpRec as = true) :
+    orderedpRec (as ++ ev :: bs)
+      = (orderedpRec bs
+          && ((as.all fun a => lexorderB a ev)
+              && (bs.all fun b => lexorderB ev b))) := by
+  let e : Env := ((({} : Env).insert bS (enc bs)).insert eS ev).insert
+    aS (enc as)
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some (enc as) :=
+    re_val_var_get w e { name := "A" } (enc as) (by
+      show e.get? aS = some (enc as)
+      rw [show e = ((({} : Env).insert bS (enc bs)).insert eS ev).insert
+            aS (enc as) from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hev : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
+    re_val_var_get w e { name := "E" } ev (by
+      show e.get? eS = some ev
+      rw [show e = ((({} : Env).insert bS (enc bs)).insert eS ev).insert
+            aS (enc as) from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some (enc bs) :=
+    re_val_var_get w e { name := "B" } (enc bs) (by
+      show e.get? bS = some (enc bs)
+      rw [show e = ((({} : Env).insert bS (enc bs)).insert eS ev).insert
+            aS (enc as) from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  -- the antecedent
+  have hAnte := corr_orderedp_enc w h_orderedp h_no_consp h_no_cdr h_no_car
+    h_no_lexorder as e aT ha
+  -- iff LHS: orderedp of the append
+  have hcons : ∃ N, ∀ f ≥ N, evalOpt f w e (consT eT bT)
+      = some (enc (ev :: bs)) :=
+    conv_builtin2 w e { name := "CONS" } eT bT ev (enc bs)
+      (enc (ev :: bs)) (by decide) h_no_cons hev hb rfl
+  have happ := corr_append_enc w "BINARY-APPEND" (by decide) h_app
+    h_no_consp h_no_cdr h_no_car h_no_cons as e aT (consT eT bT)
+    (ev :: bs) ha hcons
+  have hL := corr_orderedp_enc w h_orderedp h_no_consp h_no_cdr h_no_car
+    h_no_lexorder (as ++ ev :: bs) e (appendT aT (consT eT bT)) happ
+  -- iff RHS: the three-guard nest
+  have h1 := corr_orderedp_enc w h_orderedp h_no_consp h_no_cdr h_no_car
+    h_no_lexorder bs e bT hb
+  have h2 := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_lexorder e (qSym "LTE") aT eT (symV "LTE") (enc as) ev
+    (re_val_quote w e (symV "LTE")) ha hev
+  rw [allRelExec_enc] at h2
+  have h3 := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_lexorder e (qSym "GTE") bT eT (symV "GTE") (enc bs) ev
+    (re_val_quote w e (symV "GTE")) hb hev
+  rw [allRelExec_enc] at h3
+  have hR := conv_if3 w e _ _ _ (orderedpRec bs)
+    (allRelL (symV "LTE") ev as) (allRelL (symV "GTE") ev bs) h1 h2 h3
+  -- compose, pin, project
+  have hIff := conv_builtin2 w e { name := "IFF" } _ _ _ _ _ (by decide)
+    h_no_iff hL hR (callBuiltin_iff _ _)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
+    h_no_implies hAnte hIff (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have hp : Logic.toBool (boolEnc (orderedpRec as)) = true := by
+    rw [hord]; rfl
+  have hiff := bool_of_iff_truthy (truthy_of_implies_t hIt hp)
+  simpa only [allRelL, relL_LTE, relL_GTE] using hiff
+
 end ACL2.Worlds.Sorting

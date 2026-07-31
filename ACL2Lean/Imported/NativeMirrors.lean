@@ -1357,6 +1357,41 @@ theorem how_many_filter_1_native_driver (ev dv : SExpr)
 
 #print axioms how_many_filter_1_native_driver
 
+set_option maxHeartbeats 4000000 in
+/-- The driver's CONDITIONAL replayed statement for ORDEREDP-APPEND
+    (hypotheses: `tp:ALL-REL`, `tp:BINARY-APPEND`, and the if-lifting
+    rule `(equal (if a b c) x)`). -/
+def orderedpAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "orderedp-append"
+
+/-- The unconditional form. -/
+theorem orderedpAppendReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.orderedp_appendFormula = some v ∧ v ≠ SExpr.nil :=
+  orderedpAppendReplayedCond env
+    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_append_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+
+/-- ENTRY, PROVED — ORDEREDP-APPEND natively: for sorted `as`, the
+    append `as ++ ev :: bs` is sorted EXACTLY when `bs` is sorted,
+    everything in `as` is lexorder-below `ev`, and everything in `bs`
+    is lexorder-above it — quicksort's assembly step. -/
+theorem orderedp_append_native_driver (ev : SExpr) (as bs : List SExpr)
+    (hord : Worlds.Sorting.orderedpRec as = true) :
+    Worlds.Sorting.orderedpRec (as ++ ev :: bs)
+      = (Worlds.Sorting.orderedpRec bs
+          && ((as.all fun a => Worlds.Sorting.lexorderB a ev)
+              && (bs.all fun b => Worlds.Sorting.lexorderB ev b))) :=
+  Worlds.Sorting.orderedp_append_native_of_replayed qsortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    orderedpAppendReplayed_uncond ev as bs hord
+
+#print axioms orderedp_append_native_driver
+
 /-! ## The idiomatic `List.IsChain` corollaries (mirror criterion 1):
 sortedness in Mathlib vocabulary — `IsChain (lexorderB · · = true)`,
 adjacent-pairs order over the imported total order (LexorderOrder.lean
@@ -1498,7 +1533,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/msort", "HOW-MANY-MSORT", .pending "how-many/msort correspondences (backlog)"),
   ("sorting/qsort", "termination:QSORT", .pending "termination replayed statement; native decrease fact not lifted"),
   ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
-  ("sorting/qsort", "ORDEREDP-APPEND", .pending "chain2/LEXORDER + all-rel/append correspondences + cond dischargers (backlog)"),
+  ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
   ("sorting/qsort", "HOW-MANY-QSORT", .pending "how-many/qsort correspondences (landed 2026-07-31 via the truthy branch-fact channel; backlog)"),
   ("sorting/qsort", "PERM-QSORT", .pending "qsort correspondence + isPerm lift (the flagship; backlog)"),
@@ -1615,7 +1650,8 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.all_rel_rm_2_native_driver,
             ``ACL2.Imported.Mirrors.all_rel_filter_1_native_driver,
             ``ACL2.Imported.Mirrors.all_rel_filter_2_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_filter_1_native_driver] do
+            ``ACL2.Imported.Mirrors.how_many_filter_1_native_driver,
+            ``ACL2.Imported.Mirrors.orderedp_append_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
