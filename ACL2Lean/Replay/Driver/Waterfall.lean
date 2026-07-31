@@ -178,6 +178,7 @@ partial def clauseSubtreeTerms (cn : ClauseNode) : List SExpr :=
       | .clausify info =>
           info.input :: (info.negClause ++ info.splits.flatMap (fun (l, c) => l :: c)
             ++ info.out.flatMap id)
+      | .useHint hyps ccl appC => hyps ++ ccl ++ appC.flatMap id
       | .branch _ items => items.flatMap goI
     goI it
   cn.inputClause ++ cn.steps.flatMap (·.items.flatMap itemTerms)

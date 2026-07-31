@@ -202,6 +202,11 @@ inductive ClauseItem where
   | branch (segment : SExpr) (items : List ClauseItem)
   /-- The clausification record of a preprocess step that SPLIT the clause. -/
   | clausify (info : ClausifyInfo)
+  /-- A `:USE` hint's payload (apply-top-hints-clause): the instantiated
+      lemma hyps, the constraint clause the step's chain walks, and the
+      surviving application clauses. -/
+  | useHint (hyps : List SExpr) (constraintCl : List SExpr)
+      (appClauses : List (List SExpr))
   deriving Repr, Inhabited
 
 /-! ## Parser: flat trace → rewriter-detail tree
@@ -327,7 +332,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- the literal's net result, captured separately by findLiteralResult.
       parseProofNodesAux rest pendingChildren nodes
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
-  | .endBranch :: _ | .caseSplit _ _ :: _
+  | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ :: _
   | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
   | .clausifyOut _ :: _ | .clausifyExpand _ _ _ _ :: _ =>
       -- A clause-structure boundary: stop and hand the remaining events back to
@@ -458,6 +463,9 @@ partial def parseClauseItems (events : List TraceEvent)
       let (info, rest') ← collectClausify input rest
       let (more, rest'') ← parseClauseItems rest'
       return (.clausify info :: more, rest'')
+  | .useHint hyps ccl appC :: rest =>
+      let (more, rest') ← parseClauseItems rest
+      return (.useHint hyps ccl appC :: more, rest')
   | .caseSplit _ _ :: rest =>
       -- Informational header (`clause/case-split`): the preceding literal split the
       -- clause into N branches. The branches themselves follow as BEGIN-BRANCH/

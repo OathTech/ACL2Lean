@@ -134,6 +134,11 @@ inductive TraceEvent where
   | endInnerRewrite (kind : String)
   | beginIfRewrite (test : SExpr) (unrewrittenTest : SExpr)
   | endIfRewrite (test : SExpr) (result : SExpr)
+  /-- A `:USE` hint's payload (`emit/use-hint`, apply-top-hints-clause):
+      the instantiated lemma HYPS, the CONSTRAINT-CL the step's rewrite
+      chain walks (its true root), and the surviving application clauses. -/
+  | useHint (hyps : List SExpr) (constraintCl : List SExpr)
+      (appClauses : List (List SExpr))
   /-- Clausify checkpoints (preprocess formula → clause set; emit/clausify/*):
       the input term, the neg-clause pass, per-negated-literal splits, the
       conjoined output set, and the expand-and-or marker (a replay frontier). -/
@@ -799,6 +804,25 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           |>.elim (throw "END-IF-REWRITE: missing :TEST") pure
         let result := (lookupKeyword "RESULT" rest).getD .nil
         pure (.endIfRewrite test result)
+    | .atom (.keyword "USE-HINT") :: rest =>
+        let hyps ← match lookupKeyword "HYPS" rest with
+          | some h => match h.toList? with
+            | some l => pure l
+            | none => throw s!"USE-HINT: :HYPS not a list: {repr h}"
+          | none => throw "USE-HINT: missing :HYPS"
+        let ccl ← match lookupKeyword "CONSTRAINT-CL" rest with
+          | some c => match c.toList? with
+            | some l => pure l
+            | none => throw s!"USE-HINT: :CONSTRAINT-CL not a list: {repr c}"
+          | none => throw "USE-HINT: missing :CONSTRAINT-CL"
+        let appC ← match lookupKeyword "APPLICATION-CLAUSES" rest with
+          | some a => match a.toList? with
+            | some cls => cls.mapM fun c => match c.toList? with
+              | some lits => pure lits
+              | none => throw s!"USE-HINT: application clause not a list: {repr c}"
+            | none => throw s!"USE-HINT: :APPLICATION-CLAUSES not a list: {repr a}"
+          | none => throw "USE-HINT: missing :APPLICATION-CLAUSES"
+        pure (.useHint hyps ccl appC)
     | .atom (.keyword "CLAUSIFY-INPUT") :: rest =>
         let term ← lookupKeyword "TERM" rest
           |>.elim (throw "CLAUSIFY-INPUT: missing :TERM") pure

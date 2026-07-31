@@ -368,6 +368,7 @@ private partial def collectHypEquivs : List ClauseItem → List (EquivSource × 
         ++ collectHypEquivs rest
   | .step _ :: rest => collectHypEquivs rest
   | .clausify _ :: rest => collectHypEquivs rest
+  | .useHint _ _ _ :: rest => collectHypEquivs rest
   | .branch _ items :: rest => collectHypEquivs items ++ collectHypEquivs rest
 
 /-- The hypotheses a clausify-branch SEGMENT contributes inside its branch:
@@ -396,6 +397,7 @@ private partial def linkItems (cands : List (EquivSource × SExpr))
       return .literal { lp with nodes } :: (← linkItems cands rest)
   | .step n :: rest => do return .step n :: (← linkItems cands rest)
   | .clausify info :: rest => do return .clausify info :: (← linkItems cands rest)
+  | .useHint h c a :: rest => do return .useHint h c a :: (← linkItems cands rest)
   | .branch seg items :: rest => do
       return .branch seg (← linkItems (cands ++ segmentHypEquivs seg) items)
         :: (← linkItems cands rest)
@@ -832,6 +834,7 @@ private partial def itemNodes : List ClauseItem → List ProofNode
   | .literal lp :: rest => lp.nodes.flatMap proofNodesOf ++ itemNodes rest
   | .step n :: rest => proofNodesOf n ++ itemNodes rest
   | .clausify _ :: rest => itemNodes rest
+  | .useHint _ _ _ :: rest => itemNodes rest
   | .branch _ items :: rest => itemNodes items ++ itemNodes rest
 
 private def allProofNodes (cp : ClauseProof) : List ProofNode :=
@@ -955,6 +958,12 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       IO.println s!"{pad}  │      out: {info.out}"
       if info.expanded then
         IO.println s!"{pad}  │      (expand-and-or fired — replay frontier)"
+    | .useHint hyps ccl appC =>
+      IO.println s!"{pad}  │    :use hint — {hyps.length} instantiated hyp(s):"
+      for h in hyps do
+        IO.println s!"{pad}  │      hyp: {h}"
+      IO.println s!"{pad}  │      constraint-cl: {ccl}"
+      IO.println s!"{pad}  │      application clauses: {appC}"
     | .branch segment subitems =>
       IO.println s!"{pad}  │    ┌ case branch: {segment}"
       printClauseItems subitems (pad ++ "    ") rwIndent

@@ -3374,20 +3374,39 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         let pr ← mkAppM ``re_val_quote
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
         return ← mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
-      let some hNotNil := ctx.litFactByTerm? notLhs
-        | throwError "type-alist: no spine (not …)-falsity fact for \
+      let vL ← ctxValExpr cfg ctx lhs
+      let hne ← do
+        match ctx.litFactByTerm? notLhs with
+        | some hNotNil => mkAppM ``logic_not_nil_ne #[vL, hNotNil]
+        | none => do
+          -- a TRUTHY branch fact on lhs itself: ACL2's assume-true-false
+          -- context IS the type-alist entry's source for a term made true
+          -- by the enclosing if's test (HOW-MANY-QSORT's
+          -- (EQUAL E (CAR X)) — the branch-anchored window rework routes
+          -- these facts here); consumed, not inferred.
+          let mut found : Option Expr := none
+          for (bt, vB, sign, h) in ctx.branchFacts do
+            if found.isNone && sign && bt == lhs then
+              if ← isDefEq vB vL then found := some h
+          match found with
+          | some h => pure h
+          | none => throwError "type-alist: no spine (not …)-falsity fact \
+                      or truthy branch fact for \
                       {repr lhs} (frontier; \
                       lit-facts {repr (ctx.litFacts.map (·.2.1))}; \
                       seg-facts {repr (ctx.segFacts.map (·.1))}; \
                       branch-facts {repr (ctx.branchFacts.map
                         (fun (t,_,sg,_) => (t, sg)))})"
-      let vL ← ctxValExpr cfg ctx lhs
-      let hne ← mkAppM ``logic_not_nil_ne #[vL, hNotNil]
-      -- TWO-VALUED BUILTIN lhs (G1 rung 1, p6): a `<`-valued term's truthy
-      -- pin needs no TP — the builtin's provable two-valuedness resolves
+      -- TWO-VALUED BUILTIN lhs (G1 rung 1, p6; EQUAL added with the
+      -- HOW-MANY-QSORT route): a `<`/`equal`-valued term's truthy pin
+      -- needs no TP — the builtin's provable two-valuedness resolves
       -- ≠ nil to = t directly.
-      if vL.isAppOfArity ``Logic.lt 2 then
-        let hd ← mkAppM ``logic_lt_t_or_nil #[vL.appFn!.appArg!, vL.appArg!]
+      if vL.isAppOfArity ``Logic.lt 2 || vL.isAppOfArity ``Logic.equal 2 then
+        let hd ←
+          if vL.isAppOfArity ``Logic.lt 2 then
+            mkAppM ``logic_lt_t_or_nil #[vL.appFn!.appArg!, vL.appArg!]
+          else
+            mkAppM ``logic_equal_t_or_nil #[vL.appFn!.appArg!, vL.appArg!]
         let hT ← mkAppM ``Or.resolve_right #[hd, hne]
         let pl ← ctxValProof cfg ctx lhs
         let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
@@ -5389,6 +5408,7 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .literal lp :: rest => (lp.index, lp) :: flattenLiterals rest
   | .step _ :: rest => flattenLiterals rest
   | .clausify _ :: rest => flattenLiterals rest
+  | .useHint _ _ _ :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
 
 /-- A clause-context falsity demand: either an exact clause-literal TERM, or

@@ -47,6 +47,7 @@ private partial def mapItem (f : ProofNode → ProofNode) : ClauseItem → Claus
   | .step n => .step (mapNode f n)
   | .branch seg its => .branch seg (its.map (mapItem f))
   | .clausify i => .clausify i
+  | .useHint h c a => .useHint h c a
 
 private partial def mapClause (f : ProofNode → ProofNode) (n : ClauseNode) : ClauseNode :=
   { n with

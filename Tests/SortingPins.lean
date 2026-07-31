@@ -86,8 +86,10 @@ elab "sorting_statement_pins_run% " : term => do
 rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]"),
      ("pins/sorting/qsort",
       "    PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, \
-tp:HOW-MANY, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, rule:CONVERT-PERM-TO-HOW-MANY, \
-rule:HOW-MANY-QSORT]"),
+tp:HOW-MANY, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, \
+rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0, rule:CONVERT-PERM-TO-HOW-MANY, \
+rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
+rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
      ("pins/sorting/qsort",
       "    TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, tp:ACL2-COUNT, \
 rule:FOLD-CONSTS-IN-+]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
@@ -95,7 +97,9 @@ cond[total:(QSORT X), tp:QSORT]]"),
      ("pins/sorting/qsort",
       "    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, \
 total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, \
-rule:CONVERT-PERM-TO-HOW-MANY, rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND]")]
+rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0, rule:CONVERT-PERM-TO-HOW-MANY, \
+rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
+rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]")]
   for (book, line) in mustHave do
     let some (_, lines) := expected.find? (·.1 == book)
       | throwError "sorting statement pins: unknown book {book}"
@@ -188,6 +192,11 @@ private def tpPred2 (w : World) (fn : String) (pred : SExpr → SExpr) : Prop :=
 private def ruleEqHyp (w : World) (lhs rhs : SExpr) : Prop :=
   ∀ env' : Env, ∃ N, ∀ f ≥ N, evalOpt f w env' lhs = evalOpt f w env' rhs
 
+/-- `rule:<thm>` for a ONE-hypothesis conditional rewrite. -/
+private def ruleEqHyp1 (w : World) (hyp lhs rhs : SExpr) : Prop :=
+  ∀ env' : Env, EvTrue w env' hyp →
+    ∃ N, ∀ f ≥ N, evalOpt f w env' lhs = evalOpt f w env' rhs
+
 /-- `rule:FOLD-CONSTS-IN-+` (arithmetic-3/pass1/basic-arithmetic.lisp:109):
     `(implies (and (syntaxp (quotep x)) (syntaxp (quotep y)))
               (equal (+ x (+ y z)) (+ (+ x y) z)))`
@@ -234,6 +243,12 @@ example :
       tpNonnegInt2 qsortPinsWorld "HOW-MANY" →
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
       foldConstsHyp qsortPinsWorld →
+      -- not-memb-implies-how-many-is-0 (how-many.lisp):
+      --   (implies (not (memb a x)) (equal (how-many a x) 0))
+      ruleEqHyp1 qsortPinsWorld
+        (ap1 "NOT" (ap2 "MEMB" (sym "A") (sym "X")))
+        (ap2 "HOW-MANY" (sym "A") (sym "X"))
+        (qt (SExpr.atom (Atom.number (Number.int 0)))) →
       -- convert-perm-to-how-many:
       --   (equal (perm x y) (equal (how-many (perm-counter-example x y) x)
       --                            (how-many (perm-counter-example x y) y)))
@@ -242,10 +257,29 @@ example :
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
           (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y"))) →
-      -- how-many-qsort: (equal (how-many e (qsort x)) (how-many e x))
+      -- the arithmetic-3 commutativity/associativity family + the two
+      -- if-lifting rules (all unconditional; cited by HOW-MANY-QSORT's own
+      -- replay, inherited since its rule: condition discharges from its
+      -- replayed statement)
       ruleEqHyp qsortPinsWorld
-        (ap2 "HOW-MANY" (sym "E") (ap1 "QSORT" (sym "X")))
-        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+        (ap2 "BINARY-+" (sym "Y") (sym "X"))
+        (ap2 "BINARY-+" (sym "X") (sym "Y")) →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "BINARY-+" (sym "Y") (ap2 "BINARY-+" (sym "X") (sym "Z")))
+        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "BINARY-+" (ap2 "BINARY-+" (sym "X") (sym "Y")) (sym "Z"))
+        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "BINARY-+" (sym "X") (ap3 "IF" (sym "A") (sym "B") (sym "C")))
+        (ap3 "IF" (sym "A")
+          (ap2 "BINARY-+" (sym "X") (sym "B"))
+          (ap2 "BINARY-+" (sym "X") (sym "C"))) →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "EQUAL" (ap3 "IF" (sym "A") (sym "B") (sym "C")) (sym "X"))
+        (ap3 "IF" (sym "A")
+          (ap2 "EQUAL" (sym "B") (sym "X"))
+          (ap2 "EQUAL" (sym "C") (sym "X"))) →
       EvTrue qsortPinsWorld env (ap2 "PERM" (ap1 "QSORT" (sym "X")) (sym "X")) :=
   ReplayedStatements.replayed_pins_sorting_qsort_PERM_QSORT
 
@@ -344,12 +378,6 @@ elab "p3_conj_statement_pin_run% " : term => do
 set_option maxHeartbeats 0 in
 def p3ConjStatementPinRun : True := p3_conj_statement_pin_run%
 
-/-- `rule:<thm>` with ONE truthiness hypothesis (the conditional-rewrite
-    hypothesis shape, `mkRuleHypType`). -/
-private def ruleEqHyp1 (w : World) (hyp lhs rhs : SExpr) : Prop :=
-  ∀ env' : Env, EvTrue w env' hyp →
-    ∃ N, ∀ f ≥ N, evalOpt f w env' lhs = evalOpt f w env' rhs
-
 /-- `(not x)` term. -/
 private def notOf (x : SExpr) : SExpr := .cons (sym "NOT") (.cons x .nil)
 
@@ -422,14 +450,43 @@ example :
       tpBool3 qsortPinsWorld "ALL-REL" →
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
       foldConstsHyp qsortPinsWorld →
+      -- not-memb-implies-how-many-is-0 (how-many.lisp):
+      --   (implies (not (memb a x)) (equal (how-many a x) 0))
+      ruleEqHyp1 qsortPinsWorld
+        (ap1 "NOT" (ap2 "MEMB" (sym "A") (sym "X")))
+        (ap2 "HOW-MANY" (sym "A") (sym "X"))
+        (qt (SExpr.atom (Atom.number (Number.int 0)))) →
+      -- convert-perm-to-how-many:
+      --   (equal (perm x y) (equal (how-many (perm-counter-example x y) x)
+      --                            (how-many (perm-counter-example x y) y)))
       ruleEqHyp qsortPinsWorld
         (ap2 "PERM" (sym "X") (sym "Y"))
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
           (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y"))) →
+      -- the arithmetic-3 commutativity/associativity family + the two
+      -- if-lifting rules (all unconditional; cited by HOW-MANY-QSORT's own
+      -- replay, inherited since its rule: condition discharges from its
+      -- replayed statement)
       ruleEqHyp qsortPinsWorld
-        (ap2 "HOW-MANY" (sym "E") (ap1 "QSORT" (sym "X")))
-        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+        (ap2 "BINARY-+" (sym "Y") (sym "X"))
+        (ap2 "BINARY-+" (sym "X") (sym "Y")) →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "BINARY-+" (sym "Y") (ap2 "BINARY-+" (sym "X") (sym "Z")))
+        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "BINARY-+" (ap2 "BINARY-+" (sym "X") (sym "Y")) (sym "Z"))
+        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "BINARY-+" (sym "X") (ap3 "IF" (sym "A") (sym "B") (sym "C")))
+        (ap3 "IF" (sym "A")
+          (ap2 "BINARY-+" (sym "X") (sym "B"))
+          (ap2 "BINARY-+" (sym "X") (sym "C"))) →
+      ruleEqHyp qsortPinsWorld
+        (ap2 "EQUAL" (ap3 "IF" (sym "A") (sym "B") (sym "C")) (sym "X"))
+        (ap3 "IF" (sym "A")
+          (ap2 "EQUAL" (sym "B") (sym "X"))
+          (ap2 "EQUAL" (sym "C") (sym "X"))) →
       ruleEqHyp1 qsortPinsWorld
         (ap1 "ORDEREDP" (sym "A"))
         (ap1 "ORDEREDP" (ap2 "BINARY-APPEND" (sym "A") (ap2 "CONS" (sym "E") (sym "B"))))
