@@ -40,6 +40,31 @@ def dischargeOrigins : List String :=
    "simplify-clause/fc-contradiction",
    "rewrite-clause/type-alist-contradiction"]
 
+
+/-- Discharge-node occurrences in a clause item (the top-level verdict-only
+    step nodes; single source — Runner and the conditional harness both
+    consume this; audit F7 2026-07-26 killed a Runner-local shadow copy). -/
+def itemDischargeOrigins : ClauseItem → List (String × SExpr)
+  | .literal _ => []
+  | .step (.node _ lhs _ _ prov) =>
+      if dischargeOrigins.contains prov.origin then
+        [(prov.origin, lhs)] else []
+  | .clausify _ => []
+  | .branch _ items => items.flatMap itemDischargeOrigins
+
+/-- Per-theorem: the discharge nodes on PROVED leaves — `(clauseId, origin,
+    the discharged clause)`. These leaves are emission-complete; their replay
+    is the DP lift, or (unprovable) the harness's ASSUMED:dp-fact condition. -/
+partial def theoremDischargeLeaves (cp : ClauseProof) : List (String × String × SExpr) :=
+  let rec go (n : ClauseNode) : List (String × String × SExpr) :=
+    let here :=
+      if n.children.isEmpty && n.induction.isNone then
+        (n.steps.flatMap (·.items.flatMap itemDischargeOrigins)).map
+          (fun (o, lhs) => (n.idStr, o, lhs))
+      else []
+    here ++ n.children.flatMap go
+  (cp.root.map go).getD []
+
 /-- Split a disjoined clause's if-spine `(if l₁ 't (if l₂ 't … lₖ))` into
     `([l₁ … l_{k-1}], lₖ)`. A non-spine term is a singleton clause `([], l)`. -/
 partial def dpSpine : SExpr → List SExpr × SExpr

@@ -989,13 +989,39 @@ def replayDischargeLeaf (cfg : ReplayConfig) (clauseTerm : SExpr)
             return (r, true)
   return (p, if assumed then conds ++ ["ASSUMED:dp-fact"] else conds)
 
+/-- The DP-fact obligation of a discharge leaf, computed from the CLAUSE TERM
+    alone plus the AVAILABLE value-only TP corollaries (name → corollary) —
+    shared by `replayDischargeNode` (whose ctx.tpHyps carry the same pairs)
+    and the conditional harness's dp-fact hypothesis offers, so an offered
+    hypothesis's type IS the replay-time obligation (isDefEq-checked at the
+    consumption site, fail-closed). -/
+def dpFactStmtOfClause (worldVal : World) (tpsAvail : List (String × SExpr))
+    (clauseTerm : SExpr) : MetaM Expr := do
+  let (tests, last) := dpSpine clauseTerm
+  let lits := tests ++ [last]
+  let vars := (lits.flatMap ACL2.Replay.freeVars).eraseDups
+  let opaques := (lits.flatMap collectOpaques).eraseDups
+  let tpCors ← opaques.filterMapM fun op => do
+    let .cons (.atom (.symbol fs)) argsSpine := op
+      | throwError "dpFactStmtOfClause: opaque is not an application: {repr op}"
+    match tpsAvail.lookup fs.name with
+    | none => return none
+    | some cor =>
+      let some (formals, _) := worldVal.defs.get? fs | return none
+      let args := (argsSpine.toList?).getD []
+      unless formals.length == args.length do
+        throwError "dpFactStmtOfClause: arity mismatch instantiating TP of \
+            {fs.name}"
+      return some (ACL2.Replay.substTerm formals args cor)
+  dpFactStmt tests last vars opaques tpCors
+
 /-- COMPOSE a verdict-only discharge node into a clause/preprocess replay: prove
     `EvTrue w env (disjoin clause)` (G2) under the AMBIENT `ReplayCtx` —
     opaque user-fn values come from the ctx PINS (placed there by
     `replayClause`'s uniform pinning), TP facts from the bound TP hypotheses.
-    An unclosable DP fact is a frontier error here (the standalone harness
-    reports such leaves ◌; conditional COMPOSITION needs condition threading —
-    tracked in TODO). -/
+    An unclosable DP fact falls back to the harness-offered ASSUMED:dp-fact
+    hypothesis (condition threading, sorting-completion-2); with no offer in
+    scope the failure surfaces as a frontier error. -/
 def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SExpr) :
     MetaM Expr := do
   let (tests, last) := dpSpine clauseTerm
@@ -1027,8 +1053,25 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
         ++ (args.map reflectSExpr).toArray ++ #[v, conv])
       return some (instCor, fact)
   let stmt ← dpFactStmt tests last vars opaques (tpData.map (·.1))
-  let fact ← proveDpFact stmt (vars.length + opaques.length)
-    (dpConeIndices tests last vars opaques (tpData.map (·.1)))
+  -- an UNPROVABLE fact falls back to the harness-offered dp-fact HYPOTHESIS
+  -- for this clause (condition threading — the ambient analog of the
+  -- standalone `assumeFact` route; the row reports ASSUMED:dp-fact via the
+  -- used-filter). No offer → the failure surfaces (frontier).
+  let prove : MetaM Expr :=
+    proveDpFact stmt (vars.length + opaques.length)
+      (dpConeIndices tests last vars opaques (tpData.map (·.1)))
+  let hypFallback (e : Lean.Exception) : MetaM Expr := do
+    match ctx.dpFactHyps.find? (fun (t, _) => t == clauseTerm) with
+    | some (_, hyp) => do
+      unless ← Lean.Meta.isDefEq (← Lean.Meta.inferType hyp) stmt do
+        throwError "replayDischargeNode: the offered dp-fact hypothesis for \
+            {repr clauseTerm} does not match the replay-time obligation \
+            (derivation drift — a defect)"
+      pure hyp
+    | none => throw e
+  let fact ← tryCatchRuntimeEx
+    (try prove catch e => hypFallback e)
+    hypFallback
   let concArgs ← vars.mapM (dpConcVar cfg.envExpr)
   let factConc := mkAppN fact (concArgs.toArray ++ (opqMap.map (·.2)).toArray
     ++ (tpData.map (·.2)).toArray)

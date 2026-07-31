@@ -100,37 +100,10 @@ partial def blackBoxLeafIds (n : ClauseNode) : List String :=
 def theoremBlackBoxLeaves (cp : ClauseProof) : List String :=
   (cp.root.map blackBoxLeafIds).getD []
 
-/-- Origins of the DECISION-PROCEDURE DISCHARGE nodes (emitted at the discharge
-    sites in `tau-clausep` / `built-in-clausep`): the top-level node recording that
-    ACL2 closed the clause by a verdict-only decision procedure. Under the ratified
-    carve-out (CLAUDE.md, 2026-06-09) such a leaf is EMISSION-complete — the replay
-    obligation is to discharge the recorded clause by a kernel-checked decision
-    procedure (omega / lean-smt) in the driver. -/
-
-private def itemDischargeOrigins : ClauseItem → List (String × SExpr)
-  | .literal _ => []
-  | .step (.node _ lhs _ _ prov) =>
-      -- `dischargeOrigins` is Driver/Discharge's — the SINGLE source (audit
-      -- F7, 2026-07-26: a Runner-local copy silently shadowed it and missed
-      -- the S1.3 additions, so the golden DP scoreboard UNDERCOUNTED the
-      -- whole-clause FC/type-alist contradiction discharges)
-      if ACL2.Replay.Driver.dischargeOrigins.contains prov.origin then
-        [(prov.origin, lhs)] else []
-  | .clausify _ => []
-  | .branch _ items => items.flatMap itemDischargeOrigins
-
-/-- Per-theorem: the discharge nodes on PROVED leaves — `(clauseId, origin, the
-    discharged clause)`. These leaves are emission-complete; their replay is the
-    DP lift (`replayDischargeLeaf`), attempted below per leaf. -/
-partial def theoremDischargeLeaves (cp : ClauseProof) : List (String × String × SExpr) :=
-  let rec go (n : ClauseNode) : List (String × String × SExpr) :=
-    let here :=
-      if n.children.isEmpty && n.induction.isNone then
-        (n.steps.flatMap (·.items.flatMap itemDischargeOrigins)).map
-          (fun (o, lhs) => (n.idStr, o, lhs))
-      else []
-    here ++ n.children.flatMap go
-  (cp.root.map go).getD []
+-- `itemDischargeOrigins` / `theoremDischargeLeaves` live in Driver/Discharge
+-- (the SINGLE source next to `dischargeOrigins` — audit F7 2026-07-26 killed a
+-- Runner-local shadow; the conditional harness now consumes them too), and
+-- ACL2.Replay.Driver is opened above.
 
 /-- The transitive AXIOM set of a proof term: axioms among the constants of
     the expression and everything those constants' definitions depend on

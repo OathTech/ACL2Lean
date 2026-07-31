@@ -423,9 +423,41 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
       else
         throwError "runCheckedExpand: expansion head {h.name} not in the \
             def-body registry (frontier: the S4 and-or lemma arm)"
+    | .cons (.atom (.symbol h)) (.cons a (.cons b .nil)) =>
+      -- S4 LEMMA arm, as the census demands (ORDERED-PERMS Subgoal *1/7'4',
+      -- rewrite:EQUAL-CONS): `(EQUAL (CONS x y) z)` expands to the exact
+      -- cons-decomposition if-form — a primitive-level identity
+      -- (`dpLiftF_equal_cons_expand`); any other binary shape or target
+      -- stays a fail-closed frontier.
+      let ok := h.name == "EQUAL" &&
+        (match a with
+         | .cons (.atom (.symbol cs)) (.cons _ (.cons _ .nil)) =>
+           cs.name == "CONS"
+         | _ => false)
+      unless ok do
+        throwError "runCheckedExpand: binary expansion FROM \
+            {repr e.fromTerm} is not the (EQUAL (CONS x y) z) lemma-arm \
+            shape (frontier)"
+      let .cons _ (.cons x (.cons y .nil)) := a
+        | throwError "runCheckedExpand: internal — shape re-check"
+      let expected : SExpr :=
+        .cons (.atom (.symbol { name := "IF" }))
+          (.cons (mkConspT b)
+            (.cons (.cons (.atom (.symbol { name := "IF" }))
+              (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+                (.cons x (.cons (.cons (.atom (.symbol { name := "CAR" }))
+                  (.cons b .nil)) .nil)))
+                (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+                  (.cons y (.cons (.cons (.atom (.symbol { name := "CDR" }))
+                    (.cons b .nil)) .nil)))
+                  (.cons quoteNil .nil))))
+              (.cons quoteNil .nil)))
+      unless e.toTerm == expected do
+        throwError "runCheckedExpand: EQUAL-CONS expansion target \
+            {repr e.toTerm} ≠ the registry decomposition form (frontier)"
     | _ =>
       throwError "runCheckedExpand: expansion FROM {repr e.fromTerm} is not \
-          a unary application (frontier)"
+          a registry application (frontier)"
   let cexps : List CExp := exps.map fun e => (e.fromTerm, e.toTerm, e.pos)
   let fuel := clausifyFuel cexps input
   let (t', leftover) ← match expandTerm fuel cexps input pos with
@@ -464,13 +496,19 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
       (mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE fst)
       (mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE toFst))
   let entryProofs ← exps.mapM fun e => do
-    let .cons (.atom (.symbol h)) (.cons x .nil) := e.fromTerm
-      | throwError "runCheckedExpand: internal — shape re-check"
-    let lem :=
-      if h.name == "NOT" then ``dpLiftF_not_expand
-      else if h.name == "ENDP" then ``dpLiftF_endp_expand
-      else ``dpLiftF_atom_expand
-    mkAppOptM lem #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x)]
+    match e.fromTerm with
+    | .cons (.atom (.symbol h)) (.cons x .nil) =>
+      let lem :=
+        if h.name == "NOT" then ``dpLiftF_not_expand
+        else if h.name == "ENDP" then ``dpLiftF_endp_expand
+        else ``dpLiftF_atom_expand
+      mkAppOptM lem #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x)]
+    | .cons _ (.cons (.cons _ (.cons x (.cons y .nil))) (.cons z .nil)) =>
+      -- the (EQUAL (CONS x y) z) lemma arm (validated above)
+      mkAppOptM ``dpLiftF_equal_cons_expand
+        #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
+          some (reflectSExpr y), some (reflectSExpr z)]
+    | _ => throwError "runCheckedExpand: internal — shape re-check"
   let (_, hexpRaw) ← mkForallMemProof cexpTy pFn (cexpEs.zip entryProofs)
   let memTy ← withLocalDeclD `e cexpTy fun eV => do
     let mem ← mkAppM ``Membership.mem #[cexpsE, eV]

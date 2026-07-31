@@ -283,6 +283,122 @@ theorem dpLiftF_atom_expand {vars : List (Symbol × SExpr)}
     rw [show callBuiltin "ATOM" [xv] = some (Logic.atom xv) from rfl]
     cases xv <;> rfl
 
+/-- `(EQUAL x y)` shape. -/
+abbrev equalAppCB (x y : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "EQUAL" })) (.cons x (.cons y .nil))
+
+/-- `(CONS x y)` shape. -/
+abbrev consAppCB (x y : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "CONS" })) (.cons x (.cons y .nil))
+
+/-- `(CAR x)` shape. -/
+abbrev carAppCB (x : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "CAR" })) (.cons x .nil)
+
+/-- `(CDR x)` shape. -/
+abbrev cdrAppCB (x : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "CDR" })) (.cons x .nil)
+
+private theorem dpLiftF_prim2 {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
+    (n : String) (x y : SExpr)
+    (hban : ((({ name := n } : Symbol)).isNamed "QUOTE" ||
+             (({ name := n } : Symbol)).isNamed "IF" ||
+             dpLiftHeads.contains n) = true)
+    (hnq : ((({ name := n } : Symbol)) == { name := "QUOTE" }) = false)
+    (hnif : ((({ name := n } : Symbol)) == { name := "IF" }) = false)
+    (hprim : ((({ name := n } : Symbol)).package == "ACL2" &&
+              dpLiftHeads.contains n) = true) :
+    dpLiftF vars opq
+        (.cons (.atom (.symbol { name := n })) (.cons x (.cons y .nil)))
+      = (dpLiftF vars opq x).bind (fun xv =>
+          (dpLiftF vars opq y).bind (fun yv => callBuiltin n [xv, yv])) := by
+  rw [dpLiftF.eq_def, dpOpqWF_find_banned opq hwf _ hban]
+  simp only [hnq, hnif, hprim, if_true, if_false, Bool.false_eq_true]
+  cases hx : dpLiftF vars opq x <;> cases hy : dpLiftF vars opq y <;> rfl
+
+/-- The cons-equality decomposition is a PRIMITIVE-level identity: the
+    S4 lemma-arm registry fact behind the EQUAL-CONS expansion. -/
+private theorem equal_cons_decomp (xv yv zv : SExpr) :
+    Logic.equal (SExpr.cons xv yv) zv
+      = cond (Logic.toBool (Logic.consp zv))
+          (cond (Logic.toBool (Logic.equal xv (Logic.car zv)))
+            (Logic.equal yv (Logic.cdr zv)) SExpr.nil)
+          SExpr.nil := by
+  cases zv with
+  | nil => rfl
+  | atom a => rfl
+  | cons b1 b2 =>
+    by_cases hxb : xv = b1
+    · subst hxb
+      by_cases hyb : yv = b2
+      · subst hyb
+        simp [Logic.equal, Logic.consp, Logic.car, Logic.cdr]
+      · have hc : SExpr.cons xv yv ≠ SExpr.cons xv b2 := by
+          intro h
+          injection h with h1 h2
+          exact hyb h2
+        simp [Logic.equal, Logic.consp, Logic.car, Logic.cdr,
+              beq_eq_false_iff_ne.mpr hyb, beq_eq_false_iff_ne.mpr hc]
+    · have hc : SExpr.cons xv yv ≠ SExpr.cons b1 b2 := by
+        intro h
+        injection h with h1 h2
+        exact hxb h1
+      simp [Logic.equal, Logic.consp, Logic.car, Logic.cdr,
+            beq_eq_false_iff_ne.mpr hxb, beq_eq_false_iff_ne.mpr hc]
+
+/-- `(EQUAL (CONS x y) z) ⇒
+    (IF (CONSP z) (IF (EQUAL x (CAR z)) (EQUAL y (CDR z)) 'NIL) 'NIL)`:
+    the EQUAL-CONS lemma-arm expansion preserves the lift (S4, as the
+    corpus census demands — ORDERED-PERMS Subgoal *1/7'4'; the target
+    shape is validated verbatim by the driver, and the equality itself is
+    the primitive-level `equal_cons_decomp`). -/
+theorem dpLiftF_equal_cons_expand {vars : List (Symbol × SExpr)}
+    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
+    (x y z : SExpr) :
+    dpLiftF vars opq (equalAppCB (consAppCB x y) z)
+      = dpLiftF vars opq
+          (ifT (conspAppCB z)
+            (ifT (equalAppCB x (carAppCB z))
+              (equalAppCB y (cdrAppCB z)) quoteNil)
+            quoteNil) := by
+  have hqn : dpLiftF vars opq quoteNil = some SExpr.nil := dpLiftF_quote hwf _
+  have hEo := dpLiftF_prim2 (vars := vars) hwf "EQUAL" (consAppCB x y) z
+    (by decide) (by decide) (by decide) (by decide)
+  have hCo := dpLiftF_prim2 (vars := vars) hwf "CONS" x y
+    (by decide) (by decide) (by decide) (by decide)
+  have hCp := dpLiftF_prim1 (vars := vars) hwf "CONSP" z
+    (by decide) (by decide) (by decide) (by decide)
+  have hCa := dpLiftF_prim1 (vars := vars) hwf "CAR" z
+    (by decide) (by decide) (by decide) (by decide)
+  have hCd := dpLiftF_prim1 (vars := vars) hwf "CDR" z
+    (by decide) (by decide) (by decide) (by decide)
+  have hE1x := dpLiftF_prim2 (vars := vars) hwf "EQUAL" x (carAppCB z)
+    (by decide) (by decide) (by decide) (by decide)
+  have hE1y := dpLiftF_prim2 (vars := vars) hwf "EQUAL" y (cdrAppCB z)
+    (by decide) (by decide) (by decide) (by decide)
+  have hIf1 := dpLiftF_ifT (vars := vars) (opq := opq) hwf (conspAppCB z)
+    (ifT (equalAppCB x (carAppCB z)) (equalAppCB y (cdrAppCB z)) quoteNil)
+    quoteNil
+  have hIf2 := dpLiftF_ifT (vars := vars) (opq := opq) hwf
+    (equalAppCB x (carAppCB z)) (equalAppCB y (cdrAppCB z)) quoteNil
+  have hCB1 : ∀ a b : SExpr, callBuiltin "CONS" [a, b]
+      = some (SExpr.cons a b) := fun _ _ => rfl
+  have hCB2 : ∀ a : SExpr, callBuiltin "CONSP" [a]
+      = some (Logic.consp a) := fun _ => rfl
+  have hCB3 : ∀ a : SExpr, callBuiltin "CAR" [a]
+      = some (Logic.car a) := fun _ => rfl
+  have hCB4 : ∀ a : SExpr, callBuiltin "CDR" [a]
+      = some (Logic.cdr a) := fun _ => rfl
+  have hCB5 : ∀ a b : SExpr, callBuiltin "EQUAL" [a, b]
+      = some (Logic.equal a b) := fun _ _ => rfl
+  simp only [hIf1, hIf2, hEo, hCo, hCp, hCa, hCd, hE1x, hE1y, hqn,
+    hCB1, hCB2, hCB3, hCB4, hCB5]
+  cases hx : dpLiftF vars opq x <;> cases hy : dpLiftF vars opq y <;>
+    cases hz : dpLiftF vars opq z <;>
+      simp only [Option.bind_some, Option.bind_none, Option.bind,
+        hCB1, hCB2, hCB3, hCB4, hCB5, equal_cons_decomp]
+
 /-! ## The disjoin characterization ladder (design doc, Fragment B helpers) -/
 
 /-- The empty clause's disjunction (`(quote nil)`) is never true. -/

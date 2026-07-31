@@ -125,9 +125,12 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
   let lit1 : SExpr := .cons (.atom (.symbol { name := "NOT" }))
     (.cons (.cons (.atom (.symbol { name := "CONSP" }))
       (.cons (.atom (.symbol v0)) .nil)) .nil)
-  unless (cn.inputClause.idxOf? lit1).isSome do
-    throwError "replayElim: the clause has no (not (consp {v0.name})) \
-                literal at {cn.idStr} (frontier)"
+  -- record 1's (not (consp v)) guard literal may be ABSENT from the clause
+  -- (ORDERED-PERMS Subgoal *1/2.1: B guarded only through TRUE-LISTP) — the
+  -- not-a-cons case is then a pushed guard child, recomputed below exactly
+  -- like a later record's
+  let _ := lit1
+  let _ := v0
   if cn.inputClause.length < 2 then
     throwError "replayElim: singleton clause at {cn.idStr} (frontier)"
   -- round-trip: recompute EVERY output clause (each later record's guard
@@ -151,11 +154,10 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
     -- later record's fresh var), prepend its σ-image, σ the rest
     let litV : SExpr := .cons (.atom (.symbol { name := "NOT" }))
       (.cons (.cons (.atom (.symbol { name := "CONSP" })) (.cons vT .nil)) .nil)
-    unless firstRec do
-      unless curC.contains litV do
-        computed := computed ++
-          [(SExpr.cons (.atom (.symbol { name := "CONSP" })) (.cons vT .nil)) :: curC]
-        guards := guards + 1
+    unless curC.contains litV do
+      computed := computed ++
+        [(SExpr.cons (.atom (.symbol { name := "CONSP" })) (.cons vT .nil)) :: curC]
+      guards := guards + 1
     let curRest := match curC.idxOf? litV with
       | some i => curC.eraseIdx i
       | none => curC
@@ -250,15 +252,12 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
           let hIf ← mkAppM ``re_if_false
             #[cfg.worldExpr, cfgK.envExpr, reflectSExpr rLit, reflectSExpr quoteT,
               reflectSExpr restT, vRest, hcNil, hRest]
+          -- evtrue_of_fuel_eq (hab : eval a ≡ eval b) (hb : EvTrue b) :
+          -- EvTrue a — we HAVE the if-form (pIn) and WANT rest, so a := rest
+          -- with hab := symm hIf (eval rest ≡ eval if-form)
           let pR ← mkAppM ``evtrue_of_fuel_eq
             #[← mkAppM ``fuel_eq_symm #[hIf], pIn]
-          -- pR : EvTrue (disjoin (rLit :: rest)) transported... direction:
-          -- hIf : eval (IF rLit 'T rest) = eval rest; we HAVE the if-form
-          -- (pIn) and WANT rest: evtrue_of_fuel_eq (symm hIf) pIn? — that
-          -- maps EvTrue rest → if-form; the forward direction uses hIf
-          let pR2 ← mkAppM ``evtrue_of_fuel_eq #[hIf, pIn]
-          let _ := pR
-          mkLambdaFVars #[hNil] pR2
+          mkLambdaFVars #[hNil] pR
         let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vR, nilC]) fun hNe => do
           -- vR ≠ nil and v(dupLit) = vR (defeq) → the member is truthy
           let pOut ← evtrueOfLitTrue { cfg with envExpr := cfgK.envExpr } ctxR
@@ -311,16 +310,19 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
               (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
             let hTrue ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
             evtrueOfLitTrue cfgK ctxK curClause litIdx notLit hTrue
-          else if isTop then
-            throwError "replayElim: record 1's clause lost its \
-                        (not (consp {v.name})) literal at {cn.idStr}"
           else do
-            -- a LATER record: the not-a-cons case is a pushed GUARD child
-            -- `(consp v) :: curClause` — peel its false head literal
+            -- the not-a-cons case is a pushed GUARD child
+            -- `(consp v) :: curClause` — peel its false head literal.
+            -- This arises for a LATER record's fresh var, and ALSO for a
+            -- record whose clause simply has no (not (consp v)) literal
+            -- (ORDERED-PERMS Subgoal *1/2.1: B guarded only by
+            -- (NOT (TRUE-LISTP B)) — ACL2 pushes *1/2.1.2).
+            let _ := isTop
             let gClause := conspLit :: curClause
             let some gChild := cn.children.find? (·.inputClause == gClause)
-              | throwError "replayElim: no guard child matches \
-                            {repr gClause} at {cn.idStr}"
+              | throwError "replayElim: the clause has no \
+                            (not (consp {v.name})) literal and no guard \
+                            child matches {repr gClause} at {cn.idStr}"
             let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [],
                                         segFacts := [], branchFacts := [] }
             let pG ← rec.clause cfgK ctxFresh gChild

@@ -3691,6 +3691,128 @@ theorem logic_trueListp_ne_nil_t (v : SExpr) (h : Logic.trueListp v ≠ SExpr.ni
     Logic.trueListp v = SExpr.t :=
   (trueListp_boolean v).resolve_right h
 
+/-- A non-nil `cdr` forces a cons (`cdr` of any non-cons is `nil`) —
+    consp evidence from a truthy `(CDR t)` clause fact
+    (sorting-completion-2, ORDERED-PERMS Subgoal *1/2.2's (NOT (CDR B))). -/
+theorem logic_consp_of_cdr_ne_nil {b : SExpr}
+    (h : Logic.cdr b ≠ SExpr.nil) : Logic.consp b = SExpr.t := by
+  cases b <;> simp_all [Logic.cdr, Logic.consp]
+
+/-- A NON-NIL proper list is a cons (type-set closure: TRUE-LISTP ∧ ≠nil ⇒
+    CONSP — ORDERED-PERMS Subgoal *1/2.2's (CONSP (CDR B)) recognizer). -/
+theorem logic_consp_of_trueListp_ne_nil {v : SExpr}
+    (ht : Logic.trueListp v ≠ SExpr.nil) (hv : v ≠ SExpr.nil) :
+    Logic.consp v = SExpr.t := by
+  cases v <;> simp_all [Logic.trueListp, Logic.consp]
+
+/-- `consp` of an `if` whose BOTH branches are conses (type-set's if-split —
+    ORDERED-PERMS: (CONSP (IF … (CDR B) (CONS …))) ⇒ 'T). -/
+theorem logic_consp_if_branches (c : Bool) {a b : SExpr}
+    (ha : Logic.consp a = SExpr.t) (hb : Logic.consp b = SExpr.t) :
+    Logic.consp (cond c a b) = SExpr.t := by
+  cases c <;> simpa
+
+/-- A FALSE `(IF v 'NIL 'T)` value (the clausify-expanded `(NOT v)`) makes
+    `v` truthy. -/
+theorem logic_ne_nil_of_if_nil_t_nil {v : SExpr}
+    (h : (cond (Logic.toBool v) SExpr.nil SExpr.t) = SExpr.nil) :
+    v ≠ SExpr.nil := by
+  intro hv
+  subst hv
+  simp [Logic.toBool, SExpr.t] at h
+
+/-- An ADJACENT duplicate literal frame collapses out of a disjunction:
+    `(IF l 'T (IF l 'T r)) ≡ (IF l 'T r)` (remove-trivial-equivalences'
+    add-literal dedup after a branch substitution — ORDERED-PERMS
+    Subgoal 2's B ⇒ A). -/
+theorem re_if_dup_adjacent (w : World) (env : Env) (l t r : SExpr)
+    (vl : SExpr)
+    (hl : ∃ N, ∀ f ≥ N, evalOpt f w env l = some vl)
+    (vr : SExpr)
+    (hr : ∃ N, ∀ f ≥ N, evalOpt f w env r = some vr) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
+        (.cons l (.cons t (.cons (.cons (.atom (.symbol { name := "IF" }))
+          (.cons l (.cons t (.cons r .nil)))) .nil))))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
+          (.cons l (.cons t (.cons r .nil)))) := by
+  obtain ⟨Nl, hl'⟩ := hl
+  obtain ⟨Nr, hr'⟩ := hr
+  refine ⟨Nl + Nr + 2, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  cases htb : Logic.toBool vl with
+  | true =>
+    rw [evalOpt_if_true g w env l t _ vl (hl' g (by omega)) htb,
+        evalOpt_if_true g w env l t r vl (hl' g (by omega)) htb]
+  | false =>
+    have hnil : vl = SExpr.nil := by
+      cases vl with
+      | nil => rfl
+      | atom a => simp [Logic.toBool] at htb
+      | cons a b => simp [Logic.toBool] at htb
+    subst hnil
+    rw [evalOpt_if_false g w env l t _ (hl' g (by omega)),
+        evalOpt_if_false g w env l t r (hl' g (by omega))]
+    obtain ⟨g', rfl⟩ : ∃ g', g = g' + 1 := ⟨g - 1, by omega⟩
+    rw [evalOpt_if_false g' w env l t r (hl' g' (by omega))]
+    have h1 := hr' g' (by omega)
+    have h2 := hr' (g' + 1) (by omega)
+    rw [h1, h2]
+
+/-- `equal`'s falsity is symmetric (orientation bridge for context facts). -/
+theorem logic_equal_nil_comm {a b : SExpr}
+    (h : Logic.equal a b = SExpr.nil) : Logic.equal b a = SExpr.nil := by
+  by_cases hab : b = a
+  · subst hab
+    simp [Logic.equal, SExpr.t] at h
+  · simp [Logic.equal, beq_eq_false_iff_ne.mpr hab]
+
+/-- Component decode: a TRUE `equal` pins value equality. -/
+theorem logic_eq_of_equal_t {a b : SExpr} (h : Logic.equal a b = SExpr.t) :
+    a = b := by
+  by_cases hab : a = b
+  · exact hab
+  · exfalso
+    simp [Logic.equal, beq_eq_false_iff_ne.mpr hab, SExpr.t] at h
+
+/-- rewrite-equal's cons-decomposition REFUTATION at the CAR components
+    (sorting-completion-2, ORDERED-PERMS Subgoal *1/7'5' literal 10): ACL2
+    rewrites the synthesized components `(car a)`/`(car b)` to `x`/`y` and
+    refutes the component equality from the type-alist; the outer
+    `(equal a b)` is then false — `a = b` would force `car a = car b`. -/
+theorem logic_equal_nil_of_car_components {a b x y : SExpr}
+    (h1 : Logic.car a = x) (h2 : Logic.car b = y)
+    (h : Logic.equal x y = SExpr.nil) : Logic.equal a b = SExpr.nil := by
+  by_cases hab : a = b
+  · exfalso
+    subst hab
+    rw [← h1, ← h2] at h
+    simp [Logic.equal, SExpr.t] at h
+  · simp [Logic.equal, beq_eq_false_iff_ne.mpr hab]
+
+/-- The CDR twin of `logic_equal_nil_of_car_components`. -/
+theorem logic_equal_nil_of_cdr_components {a b x y : SExpr}
+    (h1 : Logic.cdr a = x) (h2 : Logic.cdr b = y)
+    (h : Logic.equal x y = SExpr.nil) : Logic.equal a b = SExpr.nil := by
+  by_cases hab : a = b
+  · exfalso
+    subst hab
+    rw [← h1, ← h2] at h
+    simp [Logic.equal, SExpr.t] at h
+  · simp [Logic.equal, beq_eq_false_iff_ne.mpr hab]
+
+/-- rewrite-equal's POSITIVE cons-decomposition (ORDERED-PERMS Subgoal
+    *1/7'5' literal 10, the (EQUAL A1 (CAR B))-true branch): both sides
+    proper conses with equal cars and equal cdrs are equal —
+    cons-extensionality, exactly ACL2's "equality of the components"
+    conclusion. -/
+theorem logic_equal_t_of_components {a b : SExpr}
+    (ha : Logic.consp a = SExpr.t) (hb : Logic.consp b = SExpr.t)
+    (hcar : Logic.car a = Logic.car b) (hcdr : Logic.cdr a = Logic.cdr b) :
+    Logic.equal a b = SExpr.t := by
+  cases a <;> cases b <;>
+    simp_all [Logic.consp, Logic.car, Logic.cdr, Logic.equal, SExpr.t]
+
 /-- `integerp` is two-valued: non-nil means `t`. -/
 theorem logic_integerp_ne_nil_t (v : SExpr) (h : Logic.integerp v ≠ SExpr.nil) :
     Logic.integerp v = SExpr.t := by
@@ -5093,7 +5215,7 @@ theorem re_if_equal_nil_test_swap (w : World) (env : Env) (c a b : SExpr)
         simp [Logic.equal]
       rw [ht] at hinner
       rw [evalOpt_if_true (g'' + 2) w env _ a b SExpr.t hinner
-            (by simp [Logic.toBool, SExpr.t]),
+            (by simp [Logic.toBool]),
           evalOpt_if_false (g'' + 2) w env c b a hc2]
     · have hnil : Logic.equal SExpr.nil vc = SExpr.nil := by
         simp only [Logic.equal, beq_iff_eq]

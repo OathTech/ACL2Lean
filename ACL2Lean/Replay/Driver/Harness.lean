@@ -345,18 +345,35 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (equivSpecs.map fun c =>
       (Name.mkSimple s!"hequivrefl_{c.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkEquivReflHypType cfg c)).toArray
+  -- ASSUMED:dp-fact offers (condition threading, sorting-completion-2): one
+  -- hypothesis per DISCHARGE leaf in this theorem's tree, typed as the
+  -- leaf's DP-lift obligation (`dpFactStmtOfClause` — the same derivation
+  -- `replayDischargeNode` runs, isDefEq-checked there). The replay consumes
+  -- one only when the obligation is UNPROVABLE (the prove-first fallback),
+  -- and the used-filter below drops untouched offers — provable leaves keep
+  -- their rows unconditional.
+  let tpsAvail := tpFns.map fun (s, _, cor) => (s.name, cor)
+  let dpLeafTerms := ((theoremDischargeLeaves cp).map (·.2.2)).eraseDups
+  let dpStmts ← dpLeafTerms.mapM fun t => do
+    pure (t, ← dpFactStmtOfClause cfg.worldVal tpsAvail t)
+  let dpDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+    (dpStmts.zipIdx.map fun ((_, stmt), i) =>
+      (Name.mkSimple s!"hdpfact_{i}", BinderInfo.default,
+       fun (_ : Array Expr) => pure stmt)).toArray
   let condsAll :=
     fns.map (fun (s, _, _) => s!"total:{s.name}") ++
     tpFns.map (fun (s, _, _) => s!"tp:{s.name}") ++
     tpFnsAv.map (fun (s, _, _) => s!"tp:{s.name}") ++
     rules.map (fun r => s!"rule:{r.runeKey}") ++
     congs.map (fun c => s!"cong:{c.name}") ++
-    equivSpecs.map (fun c => s!"equivrefl:{c.name}")
+    equivSpecs.map (fun c => s!"equivrefl:{c.name}") ++
+    dpStmts.map (fun _ => "ASSUMED:dp-fact")
   withLocalDecls totalDecls fun totalVs => do
     withLocalDecls (tpDecls ++ tpAvDecls) fun tpAllVs => do
      withLocalDecls ruleDecls fun ruleVs => do
       withLocalDecls congDecls fun congVs => do
       withLocalDecls equivDecls fun equivVs => do
+      withLocalDecls dpDecls fun dpVs => do
       let tpVs := tpAllVs.extract 0 tpDecls.size
       let tpAvVs := tpAllVs.extract tpDecls.size tpAllVs.size
       let ctx : ReplayCtx :=
@@ -365,7 +382,8 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           tpHypsAv := (tpFnsAv.zip tpAvVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h),
           ruleHyps := rules.zip ruleVs.toList,
           congHyps := congs.zip congVs.toList,
-          equivReflHyps := equivSpecs.zip equivVs.toList }
+          equivReflHyps := equivSpecs.zip equivVs.toList,
+          dpFactHyps := (dpStmts.map (·.1)).zip dpVs.toList }
       let some root := cp.root
         | throwError "replayProofConditional: theorem {cp.name} has no proof tree"
       let prf ← instantiateMVars (← replayClause cfg ctx root)
@@ -424,7 +442,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).
-      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs).toList).filter
+      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs ++ dpVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
       -- #37 LAZY discharge: prove admission totality only for the USED
       -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
@@ -436,7 +454,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let usedTpNames := used.filterMap fun (c, _) =>
         if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
       let neededFns := usedTotalNames ++ usedTpNames
-      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs).toList)
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs ++ dpVs).toList)
       let totalEnv ←
         if neededFns.isEmpty then pure []
         else

@@ -218,6 +218,75 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       -- `var = val`, transport the remaining disjunction, and walk the
       -- substituted literals. Nothing to delete — the used literal is not
       -- part of this disjunction.
+      -- BARE-VARIABLE justification (sorting-completion-2, ORDERED-PERMS
+      -- Subgoal *1/2'5'): remove-trivial-equivalences' variable-literal case
+      -- with the variable a CLAUSE literal — the positive literal `var`
+      -- justifies `var := 'NIL` (its falsity IS the equation) and is DELETED
+      -- (it substitutes to 'NIL, which add-literal drops). byCases: truthy
+      -- closes the disjunction at the literal; falsity substitutes,
+      -- collapses the 'NIL frame out, and walks the shortened clause —
+      -- exactly the in-clause equality-literal composition below.
+      if inClause?.isNone && valT == quoteNil then
+        if let some (kIdx, _) := clauseLits.find? (fun (_, l) => l == varT) then
+          let mut ctx := ctx
+          ctx ← pinTermOpaques cfg cfg.envExpr ctx valT
+          let vK ← ctxValExpr cfg ctx varT
+          let nilC := mkConst ``SExpr.nil
+          let kPos := clauseLits.findIdx (fun (i, _) => i == kIdx)
+          let negL ← withLocalDeclD `hnil (← mkEq vK nilC) fun hNil => do
+            let pVar ← ctxValProof cfg ctx varT
+            let pVal ← ctxValProof cfg ctx valT
+            let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVar, pVal, hNil]
+            let substLits := clauseLits.map fun (i, l) => (i, substL l)
+            let ctx ← pinTermOpaques cfg cfg.envExpr ctx
+              (disjoinTerm (substLits.map (·.2)))
+            let chainOpt ← diffCollapse cfg.worldExpr cfg.envExpr varT valT
+              nodeEq (disjoinTerm (clauseLits.map (·.2)))
+              (disjoinTerm (substLits.map (·.2)))
+            unless kPos + 1 < clauseLits.length do
+              throwError "replayClauseSpine: bare-variable branch-substitution \
+                  literal is the clause's LAST literal at {idStr} (frontier)"
+            unless (substLits[kPos]?.map (·.2)) == some quoteNil do
+              throwError "replayClauseSpine: bare-variable substitution did \
+                  not fold the justifying literal to 'NIL at {idStr} (internal)"
+            let shortened := (substLits.eraseIdx kPos).zipIdx.map
+              fun ((_, l), j) => (j + 1, l)
+            let pTriv ← ctxValProof cfg ctx quoteNil
+            let vTriv ← ctxValExpr cfg ctx quoteNil
+            let hcNil ← mkAppM ``re_val_cast
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteNil, vTriv, nilC,
+                pTriv, ← mkExpectedTypeHint (← mkEqRefl nilC) (← mkEq vTriv nilC)]
+            let tailLits := (substLits.drop (kPos + 1)).map (·.2)
+            let tailTerm := disjoinTerm tailLits
+            let vTail ← ctxValExpr cfg ctx tailTerm
+            let hTail ← ctxValProof cfg ctx tailTerm
+            let _ := vTail
+            let mut inner ← mkAppM ``re_if_false
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteNil,
+                reflectSExpr quoteT, reflectSExpr tailTerm, vTail, hcNil, hTail]
+            let mut curL : SExpr := .cons (.atom (.symbol { name := "IF" }))
+              (.cons quoteNil (.cons quoteT (.cons tailTerm .nil)))
+            let mut curR : SExpr := tailTerm
+            for (_, l) in (substLits.take kPos).reverse do
+              let st : PathStep := { fn := { name := "IF" }, arity := 3,
+                                     argIdx := 2, siblings := [l, quoteT] }
+              inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+              curL := rebuild st curL
+              curR := rebuild st curR
+            unless curL == disjoinTerm (substLits.map (·.2)) &&
+                   curR == disjoinTerm (shortened.map (·.2)) do
+              throwError "replayClauseSpine: bare-variable shortening lift \
+                  reconstructed {repr curL} / {repr curR} at {idStr}"
+            let chainAll ← chainAfter chainOpt inner
+            let pRest ← replayClauseSpineWith rec cfg ctx idStr shortened rest
+              accClause children
+            let p ← mkAppM ``evtrue_of_fuel_eq #[chainAll, pRest]
+            mkLambdaFVars #[hNil] p
+          let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vK, nilC]) fun hNe => do
+            let p ← evtrueOfLitTrue cfg ctx (clauseLits.map (·.2)) kPos varT hNe
+            mkLambdaFVars #[hNe] p
+          return ← (try mkAppM ``Classical.byCases #[negL, posL]
+            catch e => throwError "byCases compose failed at {idStr}:\n{e.toMessageData}")
       if inClause?.isNone then
         let segEq? : Option ((SExpr × SExpr) × Expr) :=
           match ctx.segFacts.find? (fun (st, _) => st == mkNegEq varT valT) with
@@ -336,7 +405,10 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             throwError "replayClauseSpine: literal folded to 'NIL in LAST \
                 position at {idStr} (frontier)"
           let afterT := disjoinTerm (after.map (·.2))
-          let (dropEq, _) ← mkConstTestCollapse cfg ctx1 quoteNil SExpr.nil
+          -- ctx2, not ctx1: the tail contains SUBSTITUTED opaques (the
+          -- stale-ctx class — ORDERED-PERMS *1/2.1.2's (RM A1 'NIL))
+          ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 afterT
+          let (dropEq, _) ← mkConstTestCollapse cfg ctx2 quoteNil SExpr.nil
             quoteT afterT
           let mut inner := dropEq
           let mut curL : SExpr := .cons (.atom (.symbol { name := "IF" }))
@@ -512,7 +584,55 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           throwError "replayClauseSpine: branch-substitution shortening lift \
                       reconstructed {repr curL} / {repr curR} at {idStr}"
         let chainAll ← chainAfter chainOpt inner
-        let pRest ← replayClauseSpineWith rec cfg ctx idStr shortened rest accClause children
+        -- DEDUP: the substitution can make literals identical to their
+        -- neighbors (remove-trivial-equivalences' add-literal dedup —
+        -- ORDERED-PERMS Subgoal 2's B ⇒ A); collapse each ADJACENT
+        -- duplicate frame (`re_if_dup_adjacent`), lifted through the
+        -- preceding else-descents. A non-adjacent duplicate is not
+        -- collapsed here — any residual mismatch still fails closed at the
+        -- consumer.
+        let mut dedupLits := shortened
+        let mut chainAll := chainAll
+        repeat
+          let idx? := (List.range (dedupLits.length - 1)).find? fun i =>
+            i + 2 < dedupLits.length &&
+            (dedupLits[i]!).2 == (dedupLits[i+1]!).2
+          match idx? with
+          | none => break
+          | some i =>
+            let l := (dedupLits[i]!).2
+            let tailT := disjoinTerm ((dedupLits.drop (i+2)).map (·.2))
+            let ctxD ← pinTermOpaques cfg cfg.envExpr ctx
+              (disjoinTerm (dedupLits.map (·.2)))
+            let vl ← ctxValExpr cfg ctxD l
+            let hlp ← ctxValProof cfg ctxD l
+            let vr ← ctxValExpr cfg ctxD tailT
+            let hrp ← ctxValProof cfg ctxD tailT
+            let _ := vl; let _ := vr
+            let mut innerD ← mkAppM ``re_if_dup_adjacent
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, reflectSExpr quoteT,
+                reflectSExpr tailT, vl, hlp, vr, hrp]
+            let mut dupL : SExpr := .cons (.atom (.symbol { name := "IF" }))
+              (.cons l (.cons quoteT (.cons (SExpr.cons
+                (.atom (.symbol { name := "IF" }))
+                (.cons l (.cons quoteT (.cons tailT .nil)))) .nil)))
+            let mut dupR : SExpr := .cons (.atom (.symbol { name := "IF" }))
+              (.cons l (.cons quoteT (.cons tailT .nil)))
+            for (_, pl) in (dedupLits.take i).reverse do
+              let st : PathStep := { fn := { name := "IF" }, arity := 3,
+                                     argIdx := 2, siblings := [pl, quoteT] }
+              innerD ← applyStep cfg.worldExpr cfg.envExpr st dupL dupR innerD
+              dupL := rebuild st dupL
+              dupR := rebuild st dupR
+            let nextLits := (dedupLits.eraseIdx (i+1)).zipIdx.map
+              fun ((_, pl), j) => (j + 1, pl)
+            unless dupL == disjoinTerm (dedupLits.map (·.2)) &&
+                   dupR == disjoinTerm (nextLits.map (·.2)) do
+              throwError "replayClauseSpine: adjacent-dup collapse \
+                  reconstructed {repr dupL} / {repr dupR} at {idStr}"
+            chainAll ← mkAppM ``fuel_chain_eq #[chainAll, innerD]
+            dedupLits := nextLits
+        let pRest ← replayClauseSpineWith rec cfg ctx idStr dedupLits rest accClause children
         let p ← mkAppM ``evtrue_of_fuel_eq #[chainAll, pRest]
         mkLambdaFVars #[hNil] p
       let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vK, nilC]) fun hNe => do
@@ -738,6 +858,23 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                     (ctx.litFact? i).isNone then
                   unless ← inScopeChecked l do
                     found := some (i, l)
+          pure found
+        | .tlpCons w => do
+          -- a later `(NOT (TRUE-LISTP (CONS a w)))` literal, any car `a`
+          let isMatch : SExpr → Bool := fun l =>
+            match l with
+            | .cons (.atom (.symbol ns))
+                (.cons (.cons (.atom (.symbol rs))
+                  (.cons (.cons (.atom (.symbol cs))
+                    (.cons _ (.cons d .nil))) .nil)) .nil) =>
+              ns.name == "NOT" && rs.name == "TRUE-LISTP" &&
+                cs.name == "CONS" && d == w
+            | _ => false
+          let mut found : Option (Nat × SExpr) := none
+          for (i, l) in restLits do
+            if found.isNone && isMatch l then
+              unless ← inScopeChecked l do
+                found := some (i, l)
           pure found
       let some (k, notH) := resolved | continue
       let ctx ← pinTermOpaques cfg cfg.envExpr ctx notH

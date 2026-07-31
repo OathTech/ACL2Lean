@@ -215,3 +215,109 @@ closes with logic_car_of_consp_nil + the equal-nil decode (omega not
 needed — check whether the closer needs a small extension for the
 final ≠-nil step). Note the E-ELIMINATION already performed by the
 lift is correct (literal-3 equation + literal-2 rewrite).
+
+## ORDERED-PERMS root cause (2026-07-30): abandoned-rewrite log orphan (fork fix b236e17c28)
+
+The `TRUE-LISTP/CDR closure` frontier chased through THREE wrong hypotheses
+before ground truth settled it. Record for the audit trail:
+
+1. **Auto-TP emission (fork 7790095ce9)** — patched the TP emitter to
+   reconstruct auto corollaries via `convert-type-prescription-to-term`.
+   Correct generalization of the emitter, but it did NOT fire for RM:
+   probe `(getpropc 'myrm 'type-prescriptions …)` → the property is
+   genuinely EMPTY. RM returns `(cdr x)`-shaped results — its ts is
+   unknown, so ACL2 stores NO type prescription at all. Patch retained
+   (it is right for functions that do get placeholder-corollary TPs).
+2. **Evidence machinery (replay side, this branch)** — the closure arm
+   gained a cons-fact route + equation-transport route, and a `tlpCons`
+   PATTERN demand (`ContextDemand.tlpCons` + hoist arm): ACL2's
+   type-set justification here is the LATER literal
+   `(NOT (TRUE-LISTP (CONS a w)))` whose falsity gives
+   `trueListp (cons a w) ≡ trueListp w` definitionally
+   (`logic_trueListp_ne_nil_t`). This machinery WORKS (the arm
+   discharged) and stays — it is the honest replay for surviving
+   recognizer/true nodes of this shape.
+3. **Ground truth (the raw log)** — with the arm discharged, the chain
+   computes literal 1 ⇒ 'NIL but `END-LITERAL :RESULT` records the
+   literal UNCHANGED. `rewrite-atm` (simplify.lisp): the atom rewrote
+   to *t* by type reasoning alone, and the
+   `try-type-set-and-clause` heuristic ("don't let type-set remove
+   facts from the goal") ABANDONED the reduction, keeping the atom —
+   while the fork left the speculative derivation in the log. Same
+   speculative-rollback class as the rejected lambda/fncall
+   expansions. Fork fix b236e17c28: checkpoint the log tail before the
+   speculative `(rewrite atm …)`, roll back when the type-reasoning
+   reduction is abandoned (`tval == atm` at the non-implies
+   try-type-set-and-clause site). The IMPLIES-expansion site is left
+   untouched (returns the expansion — progress deliberately kept; if a
+   book hits a chain mismatch there, extend then, driven off that
+   record).
+
+Next after rebuild: `just recapture-all` → provenance → full sweep →
+re-test ORDERED-PERMS (literal 1 should now be a 0-step unchanged
+literal; the case-branch walk proceeds to the later literals).
+
+## ORDERED-PERMS GREEN (2026-07-31) — Class A at 3/4 (ORDEREDP-APPEND remains)
+
+After the fork rollback fix landed (b236e17c28) and the corpus was
+recaptured, the row advanced through ELEVEN further frontiers, each driven
+off the real record:
+
+1. **tlpCons pattern demand + cons-fact evidence** — the recognizer's
+   type-set justification is a later `(NOT (TRUE-LISTP (CONS a w)))`
+   literal; `ContextDemand.tlpCons` + the closure arm's cons-fact route
+   (`logic_trueListp_ne_nil_t`).
+2. **type-alist nil-closure ingredient demand** — a nil-verdict on `u`
+   also demands `(NOT (TRUE-LISTP u))` (later literal 9 justified
+   `B ⇒ 'NIL` with the branch's `(CONSP B)`-false segment).
+3. **rewrite-equal cons-decomposition** (`replayRewritesWith`): ACL2's
+   scratch components (`(car s1)`/`(car s2)` at gstack bkptr 1/2 — paths
+   that are NOT literal subterms), recorded or SILENT component decisions,
+   both polarities: refutation (`logic_equal_nil_of_{car,cdr}_components`)
+   and the positive cons-extensionality
+   (`logic_equal_t_of_components` + `conspEvidence?`).
+4. **S4 lemma arm, first consumer** — the census's ORDERED-PERMS
+   EQUAL-CONS clausify-expand row now demands it (per the S4 plan's own
+   "as the census demands"): `dpLiftF_equal_cons_expand` (+`dpLiftF_prim2`,
+   `equal_cons_decomp`) in ClausifyBridge; `runCheckedExpand` validates the
+   recorded target verbatim against the registry decomposition form.
+5. **elim restriction-strip transport direction** — `evtrue_of_fuel_eq`
+   maps EvTrue of its RHS; the strip's false-branch needed `symm hIf`
+   (latent since inc-3; first exercised now).
+6. **ASSUMED:dp-fact condition threading** — the documented TODO, now
+   demanded: `dpFactStmtOfClause` (shared obligation builder),
+   `ReplayCtx.dpFactHyps`, harness offers per discharge leaf
+   (`theoremDischargeLeaves` moved to Driver/Discharge as the single
+   source), `replayDischargeNode` prove-first-then-hypothesis fallback.
+   Provable leaves stay unconditional (used-filter).
+7. **bare-variable branch-substitution** — remove-trivial-equivalences'
+   variable-literal case with the variable a CLAUSE literal (`A2` positive,
+   `A2 ⇒ 'NIL`): byCases + substitute + 'NIL-frame drop.
+8. **equal-nil normalization at DEPTH** — `bridgeEqualNilNormDeep`
+   (unique-difference descent) wired into the if-finish/combined joint
+   alongside the swap normalizations.
+9. **record-1 elim guard child** — the elim'd var's `(not (consp v))`
+   literal can be ABSENT from record 1's clause too (B guarded only through
+   TRUE-LISTP); the guard-child route generalized, recompute loop pushes
+   record-1 guard clauses.
+10. **stale-ctx in the nil-literal drop loop** — `mkConstTestCollapse` got
+    ctx1 (pre-substitution pins) instead of ctx2; (RM A1 'NIL) unpinned.
+    Same class as audit F8 / the checked-hoist fix.
+11. **the CONSP closure kit** — `deriveConspT` (the CONSP twin of
+    deriveNilFact): syntactic-cons value, `conspEvidence?` (+ new
+    truthy-(CDR t) route `logic_consp_of_cdr_ne_nil`), IF-branch split
+    (`logic_consp_if_branches`), (CDR u)-of-proper-list
+    (`logic_consp_of_trueListp_ne_nil`), and the general
+    truthy+proper-list route (`logic_ne_nil_of_if_nil_t_nil` decode);
+    demands for all (CDR u) subterm ingredients. Plus the ADJACENT
+    duplicate-literal collapse after in-clause equality substitution
+    (`re_if_dup_adjacent` — Subgoal 2's B ⇒ A dedup).
+
+Final row: REPLAYED ✓ cond[rule:CONS-CAR-CDR, rule:ORDEREDP-MEMB,
+ASSUMED:dp-fact ×4] — the four tau/fc verdict leaves whose ∀-lift is
+stronger than the clause instance (PERM/ORDEREDP semantic content) are
+HONEST conditions in the statement, exactly the standalone probes' ◌ rows.
+AUDIT FLAGS for the pre-merge audit: the dp-fact hypothesis offers
+(soundness rests on dpFactStmtOfClause = replay-time obligation,
+isDefEq-checked), the rewrite-equal decomposition's silent-refutation
+route, and the S4 lemma-arm target validation.

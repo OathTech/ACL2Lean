@@ -209,6 +209,11 @@ structure ReplayCtx where
       Consumed by `litFactByTerm?` (recognizer/type-alist nodes) and by
       solidify `.segment` nodes (ACL2's `:CONTEXT-SUBST` hypotheses). -/
   segFacts : List (SExpr × Expr) := []
+  /-- Harness-offered DP-FACT hypotheses (condition threading): clause term ↦
+      the `hdpfact` fvar whose type is that discharge leaf's obligation
+      (`dpFactStmtOfClause`). Consulted by `replayDischargeNode` when the
+      obligation is unprovable — the row then reports ASSUMED:dp-fact. -/
+  dpFactHyps : List (SExpr × Expr) := []
   /-- The bound CONDITIONAL hypotheses (the generic mirror's telescope):
       per defined fn, its totality hypothesis; and — when the development emitted
       a :TYPE-PRESCRIPTION — its lifted-corollary hypothesis (with the corollary
@@ -292,7 +297,20 @@ def conspEvidence? (ctx : ReplayCtx) (t : SExpr) (v : Expr) :
       if ← isDefEq vB vC then
         return some (← mkAppM ``logic_consp_ne_nil_t #[v, hNe])
       else return none
-    | none => return none
+    | none =>
+      -- a truthy (CDR t) clause fact: cdr non-nil forces a cons
+      -- (ORDERED-PERMS Subgoal *1/2.2's (NOT (CDR B)) literal)
+      let cdrT : SExpr := .cons (.atom (.symbol { name := "CDR" }))
+        (.cons t .nil)
+      let notCdr : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+        (.cons cdrT .nil)
+      let vCdr := mkApp (mkConst ``Logic.cdr) v
+      match ← ctx.litFactByTermChecked? notCdr
+          (← mkEq (mkApp (mkConst ``Logic.not) vCdr) (mkConst ``SExpr.nil)) with
+      | some hNotNil =>
+        let hne ← mkAppM ``logic_not_nil_ne #[vCdr, hNotNil]
+        return some (← mkAppM ``logic_consp_of_cdr_ne_nil #[hne])
+      | none => return none
 
 /-- View `(equal X X)` as `X`. -/
 def asEqualSelf : SExpr → Option SExpr
@@ -1466,6 +1484,122 @@ partial def deriveNilFact (cfg : ReplayConfig) (ctx : ReplayCtx)
       return some (← Lean.Meta.mkAppM ``Eq.trans #[heqO, hOther])
   return none
 
+/-- Prove `Logic.consp v(w) = SExpr.t` from the value shape and the clause
+    context (sorting-completion-2 Class A closure kit, the CONSP twin of
+    `deriveNilFact`): a syntactic-cons VALUE; direct clause evidence
+    (`conspEvidence?`, incl. the truthy-(CDR w) route); an IF with BOTH
+    branches conses (`logic_consp_if_branches`); or `(CDR u)` of an in-scope
+    proper list (`logic_trueListp_cdr_t` + `logic_consp_of_trueListp_ne_nil`
+    — the truthy trueListp fact direct on `(CDR u)` or transported from
+    `u`). -/
+partial def deriveConspT (cfg : ReplayConfig) (ctx : ReplayCtx) (w : SExpr) :
+    MetaM (Option Expr) := do
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx w
+  let vW ← ctxValExpr cfg ctx w
+  if vW.isAppOfArity ``SExpr.cons 2 then
+    return some (← Lean.Meta.mkAppM ``logic_consp_cons_t
+      #[vW.appFn!.appArg!, vW.appArg!])
+  if let some h ← conspEvidence? ctx w vW then
+    return some h
+  if let .cons (.atom (.symbol ifS)) (.cons c (.cons a (.cons b .nil))) := w then
+    if ifS.name == "IF" then
+      if let some ha ← deriveConspT cfg ctx a then
+        if let some hb ← deriveConspT cfg ctx b then
+          let vC ← ctxValExpr cfg ctx c
+          return some (← Lean.Meta.mkAppM ``logic_consp_if_branches
+            #[mkApp (mkConst ``Logic.toBool) vC, ha, hb])
+  -- GENERAL truthy + proper-list route: (NOT (TRUE-LISTP w)) false in scope
+  -- plus w-truthy evidence — a false `(NOT w)` fact or a false expanded
+  -- `(IF w 'NIL 'T)` literal (ORDERED-PERMS Subgoal 3's (CONSP B))
+  do
+    let notOf (t : SExpr) : SExpr :=
+      .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+    let tlpW : SExpr := .cons (.atom (.symbol { name := "TRUE-LISTP" }))
+      (.cons w .nil)
+    let ifNilT : SExpr := .cons (.atom (.symbol { name := "IF" }))
+      (.cons w (.cons quoteNil (.cons quoteT .nil)))
+    let vTlpW := mkApp (mkConst ``Logic.trueListp) vW
+    let sources : List (SExpr × Expr) :=
+      ctx.segFacts ++ ctx.litFacts.map (fun (_, l, h) => (l, h)) ++
+      ctx.branchFacts.filterMap (fun (bt, _, sign, h) =>
+        if !sign then some (bt, h) else none)
+    let findFact (st : SExpr) (expected : Expr) : MetaM (Option Expr) := do
+      let mut r : Option Expr := none
+      for (t', h) in sources do
+        if r.isNone && t' == st then
+          if ← Lean.Meta.isDefEq (← Lean.Meta.inferType h) expected then
+            r := some h
+      pure r
+    let hTlp? ← findFact (notOf tlpW)
+      (← mkEq (mkApp (mkConst ``Logic.not) vTlpW) (mkConst ``SExpr.nil))
+    if let some hTlpF := hTlp? then do
+      let hTlpNe ← Lean.Meta.mkAppM ``logic_not_nil_ne #[vTlpW, hTlpF]
+      let hWne? ← do
+        match ← findFact (notOf w)
+            (← mkEq (mkApp (mkConst ``Logic.not) vW) (mkConst ``SExpr.nil)) with
+        | some hf =>
+          pure (some (← Lean.Meta.mkAppM ``logic_not_nil_ne #[vW, hf]))
+        | none =>
+          match ← findFact ifNilT
+              (← mkEq (← Lean.Meta.mkAppM ``cond
+                  #[mkApp (mkConst ``Logic.toBool) vW, mkConst ``SExpr.nil,
+                    mkConst ``SExpr.t])
+                (mkConst ``SExpr.nil)) with
+          | some hf =>
+            pure (some (← Lean.Meta.mkAppM ``logic_ne_nil_of_if_nil_t_nil #[hf]))
+          | none => pure none
+      if let some hWne := hWne? then
+        return some (← Lean.Meta.mkAppM ``logic_consp_of_trueListp_ne_nil
+          #[hTlpNe, hWne])
+  if let .cons (.atom (.symbol fs)) (.cons u .nil) := w then
+    if fs.name == "CDR" then do
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx u
+      let vU ← ctxValExpr cfg ctx u
+      let vCdrU := mkApp (mkConst ``Logic.cdr) vU
+      let vTlpU := mkApp (mkConst ``Logic.trueListp) vU
+      let vTlpCdrU := mkApp (mkConst ``Logic.trueListp) vCdrU
+      let notOf (t : SExpr) : SExpr :=
+        .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+      let tlpOf (t : SExpr) : SExpr :=
+        .cons (.atom (.symbol { name := "TRUE-LISTP" })) (.cons t .nil)
+      let sources : List (SExpr × Expr) :=
+        ctx.segFacts ++ ctx.litFacts.map (fun (_, l, h) => (l, h)) ++
+        ctx.branchFacts.filterMap (fun (bt, _, sign, h) =>
+          if !sign then some (bt, h) else none)
+      let findFact (st : SExpr) (expected : Expr) : MetaM (Option Expr) := do
+        let mut r : Option Expr := none
+        for (t', h) in sources do
+          if r.isNone && t' == st then
+            if ← Lean.Meta.isDefEq (← Lean.Meta.inferType h) expected then
+              r := some h
+        pure r
+      let some hCdrF ← findFact (notOf w)
+          (← mkEq (mkApp (mkConst ``Logic.not) vCdrU) (mkConst ``SExpr.nil))
+        | return none
+      let hCdrNe ← Lean.Meta.mkAppM ``logic_not_nil_ne #[vCdrU, hCdrF]
+      let hTlpCdrNe? ← do
+        match ← findFact (notOf (tlpOf w))
+            (← mkEq (mkApp (mkConst ``Logic.not) vTlpCdrU)
+              (mkConst ``SExpr.nil)) with
+        | some hf =>
+          pure (some (← Lean.Meta.mkAppM ``logic_not_nil_ne #[vTlpCdrU, hf]))
+        | none =>
+          match ← findFact (notOf (tlpOf u))
+              (← mkEq (mkApp (mkConst ``Logic.not) vTlpU)
+                (mkConst ``SExpr.nil)) with
+          | some hf => do
+            let hTlpNe ← Lean.Meta.mkAppM ``logic_not_nil_ne #[vTlpU, hf]
+            let hTlpCdrT ← Lean.Meta.mkAppM ``logic_trueListp_cdr_t #[hTlpNe]
+            let tNeNil ← proveByDecide
+              (← Lean.Meta.mkAppM ``Ne
+                #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
+            pure (some (← Lean.Meta.mkAppM ``ne_of_eq_of_ne #[hTlpCdrT, tNeNil]))
+          | none => pure none
+      let some hTlpCdrNe := hTlpCdrNe? | return none
+      return some (← Lean.Meta.mkAppM ``logic_consp_of_trueListp_ne_nil
+        #[hTlpCdrNe, hCdrNe])
+  return none
+
 /-- ONE-WAY term match: extend `σ` so that `pat`σ `== t` (`pat`'s variables
     drawn from `vars`; quoted subterms match only literally). Deterministic —
     the pool-subsumption witness recompute (validated by the caller,
@@ -1911,18 +2045,152 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
                       (← mkEq (mkApp (mkConst ``Logic.not) vTlpU)
                         (mkConst ``SExpr.nil)) then
                     hFact? := some hf
-              let some hf := hFact?
-                | throwError "replayRecognizer: TRUE-LISTP/CDR closure — no \
-                    truthy true-listp fact for {repr u} in scope (frontier)"
-              let hne ← mkAppM ``logic_not_nil_ne #[vTlpU, hf]
+              -- EQUATION-transport evidence (the observed ORDERED-PERMS
+              -- route): u equation-equals (CONS a d) via a false
+              -- (NOT (EQUAL …)) fact, and d carries the truthy true-listp
+              -- fact (the elim RESTRICTION literal) — trueListp vu then
+              -- reduces to trueListp vd definitionally.
+              let hT ← do
+                match hFact? with
+                | some hf => do
+                  let hne ← mkAppM ``logic_not_nil_ne #[vTlpU, hf]
+                  mkAppM ``logic_trueListp_cdr_t #[hne]
+                | none => do
+                  -- CONS-fact route (the hoisted `tlpCons` demand): a false
+                  -- `(NOT (TRUE-LISTP (CONS a w)))` fact on the recognizer's
+                  -- inner term w = (CDR u) — `trueListp (cons a w)` IS
+                  -- `trueListp w` definitionally, and two-valuedness gives
+                  -- the 'T verdict (ORDERED-PERMS Subgoal *1/7'5').
+                  let wT : SExpr := .cons (.atom (.symbol { name := "CDR" }))
+                    (.cons u .nil)
+                  let mut viaCons? : Option Expr := none
+                  for (st, hf) in sources do
+                    if viaCons?.isNone then
+                      let inner? : Option SExpr :=
+                        match st with
+                        | .cons (.atom (.symbol ns))
+                            (.cons (.cons (.atom (.symbol rs2))
+                              (.cons (.cons (.atom (.symbol cs))
+                                (.cons a2 (.cons d2 .nil))) .nil)) .nil) =>
+                          if ns.name == "NOT" && rs2.name == "TRUE-LISTP" &&
+                              cs.name == "CONS" && d2 == wT then
+                            some (.cons (.atom (.symbol { name := "CONS" }))
+                              (.cons a2 (.cons d2 .nil)))
+                          else none
+                        | _ => none
+                      if let some consT := inner? then do
+                        let tlpC : SExpr :=
+                          .cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                            (.cons consT .nil)
+                        let ctxC ← pinTermOpaques cfg cfg.envExpr ctxU tlpC
+                        let vTlpC ← ctxValExpr cfg ctxC tlpC
+                        if ← isDefEq (← inferType hf)
+                            (← mkEq (mkApp (mkConst ``Logic.not) vTlpC)
+                              (mkConst ``SExpr.nil)) then
+                          let hne ← mkAppM ``logic_not_nil_ne #[vTlpC, hf]
+                          viaCons? := some (← mkAppM
+                            ``logic_trueListp_ne_nil_t #[vTlpC.appArg!, hne])
+                  if let some h := viaCons? then pure h else do
+                  let mut viaEq? : Option Expr := none
+                  for (st, hf) in sources do
+                    if viaEq?.isNone then
+                      let eqSides? : Option (SExpr × SExpr) := do
+                        let .cons (.atom (.symbol ns))
+                            (.cons (.cons (.atom (.symbol eqS))
+                              (.cons p (.cons q .nil))) .nil) := st | none
+                        guard (ns.name == "NOT" && eqS.name == "EQUAL")
+                        if q == u then some (p, q)
+                        else if p == u then some (q, p)
+                        else none
+                      if let some (c, _) := eqSides? then
+                        if let .cons (.atom (.symbol cS))
+                            (.cons a2 (.cons d2 .nil)) := c then
+                          if cS.name == "CONS" then do
+                            let notTlpD : SExpr :=
+                              .cons (.atom (.symbol { name := "NOT" }))
+                                (.cons (.cons
+                                  (.atom (.symbol { name := "TRUE-LISTP" }))
+                                  (.cons d2 .nil)) .nil)
+                            let tlpD : SExpr :=
+                              .cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                                (.cons d2 .nil)
+                            let ctxD ← pinTermOpaques cfg cfg.envExpr ctxU
+                              (.cons (.atom (.symbol { name := "CONS" }))
+                                (.cons a2 (.cons d2 .nil)))
+                            let vTlpD ← ctxValExpr cfg ctxD tlpD
+                            let mut hD? : Option Expr := none
+                            for (st2, hf2) in sources do
+                              if hD?.isNone && st2 == notTlpD then
+                                if ← isDefEq (← inferType hf2)
+                                    (← mkEq (mkApp (mkConst ``Logic.not) vTlpD)
+                                      (mkConst ``SExpr.nil)) then
+                                  hD? := some hf2
+                            if let some hfD := hD? then do
+                              let pq : SExpr :=
+                                .cons (.atom (.symbol { name := "EQUAL" }))
+                                  (.cons c (.cons u .nil))
+                              -- the fact's own equality orientation
+                              let stEq := match st with
+                                | .cons _ (.cons e .nil) => e
+                                | _ => pq
+                              let ctxE ← pinTermOpaques cfg cfg.envExpr ctxD stEq
+                              let vPQ ← ctxValExpr cfg ctxE stEq
+                              if ← isDefEq (← inferType hf)
+                                  (← mkEq (mkApp (mkConst ``Logic.not) vPQ)
+                                    (mkConst ``SExpr.nil)) then
+                                let hneEq ← mkAppM ``logic_not_nil_ne #[vPQ, hf]
+                                let heq ← mkAppM ``Logic.eq_of_equal_ne_nil
+                                  #[hneEq]  -- vp = vq (record orientation)
+                                -- orient to vu = v(CONS a d)
+                                let .cons _ (.cons pT (.cons _ .nil)) := stEq
+                                  | pure ()
+                                let heqU ← if pT == u then pure heq
+                                  else mkAppM ``Eq.symm #[heq]
+                                let vd ← ctxValExpr cfg ctxE d2
+                                let va ← ctxValExpr cfg ctxE a2
+                                let _ := va
+                                -- trueListp vu = trueListp (cons va vd)
+                                --             ≡ trueListp vd (defeq)
+                                -- trueListp vu = trueListp (cons va vd)
+                                -- ≡ trueListp vd (defeq); ≠ nil from d
+                                let hcong ← mkAppM ``congrArg
+                                  #[mkConst ``Logic.trueListp, heqU]
+                                let hDne ← mkAppM ``logic_not_nil_ne
+                                  #[vTlpD, hfD]
+                                let _ := vd
+                                viaEq? := some (← mkAppM ``ne_of_eq_of_ne
+                                  #[hcong, hDne])
+                  match viaEq? with
+                  | some h => mkAppM ``logic_trueListp_cdr_t #[h]
+                  | none =>
+                    throwError "replayRecognizer: TRUE-LISTP/CDR closure — no \
+                        truthy true-listp fact for {repr u} in scope \
+                        (direct, cons-fact, or equation-transport; frontier)"
               unless vTlpU.isAppOfArity ``Logic.trueListp 1 do
                 throwError "replayRecognizer: value of {repr tlpU} is not \
                     (Logic.trueListp _)"
-              let hT ← mkAppM ``logic_trueListp_cdr_t #[hne]
               unless ← isDefEq v (mkApp (mkConst ``Logic.trueListp)
                   (mkApp (mkConst ``Logic.cdr) vTlpU.appArg!)) do
                 throwError "replayRecognizer: value of {repr term} does not \
                     match (Logic.trueListp (Logic.cdr _))"
+              mkAppM ``re_val_cast
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE,
+                  p, hT]
+            else if rs.name == "CONSP" && verdict == SExpr.t then do
+              -- CONSP closure (sorting-completion-2, ORDERED-PERMS):
+              -- `deriveConspT` — syntactic-cons value, clause evidence,
+              -- IF-branch split, or (CDR u)-of-a-proper-list
+              let .cons _ (.cons w .nil) := term
+                | throwError "replayRecognizer: CONSP closure — \
+                    unexpected term shape {repr term}"
+              let ctxU ← pinTermOpaques cfg cfg.envExpr ctx term
+              let some hT ← deriveConspT cfg ctxU w
+                | throwError "replayRecognizer: CONSP closure — no consp \
+                    derivation for {repr w} in scope (frontier)"
+              let vW ← ctxValExpr cfg (← pinTermOpaques cfg cfg.envExpr ctxU w) w
+              unless ← isDefEq v (mkApp (mkConst ``Logic.consp) vW) do
+                throwError "replayRecognizer: value of {repr term} does not \
+                    match (Logic.consp _)"
               mkAppM ``re_val_cast
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE,
                   p, hT]
@@ -1932,11 +2200,31 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
     else
       let p ← ctxValProof cfg ctx term
       let v ← ctxValExpr cfg ctx term
-      unless ← isDefEq v verdictE do
+      if ← isDefEq v verdictE then
+        let hv ← mkEqRefl verdictE
+        mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hv]
+      else if rs.name == "CONSP" && verdict == SExpr.t then do
+        -- CONSP of a variable/simple inner resolved from the clause context
+        -- (ORDERED-PERMS: (CONSP B) ⇒ 'T from the truthy-(CDR B) evidence)
+        let .cons _ (.cons w .nil) := term
+          | throwError "replayRecognizer: CONSP closure — unexpected term \
+              shape {repr term}"
+        let ctxU ← pinTermOpaques cfg cfg.envExpr ctx term
+        let some hT ← deriveConspT cfg ctxU w
+          | throwError "replayRecognizer: CONSP closure — no consp \
+              derivation for {repr w} in scope (frontier); lit \
+              {repr (ctxU.litFacts.map (·.2.1))}; seg \
+              {repr (ctxU.segFacts.map (·.1))}; branch \
+              {repr (ctxU.branchFacts.map (fun (t,_,sg,_) => (t, sg)))}"
+        let vW ← ctxValExpr cfg (← pinTermOpaques cfg cfg.envExpr ctxU w) w
+        unless ← isDefEq v (mkApp (mkConst ``Logic.consp) vW) do
+          throwError "replayRecognizer: value of {repr term} does not \
+              match (Logic.consp _)"
+        mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hT]
+      else
         throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict}"
-      let hv ← mkEqRefl verdictE
-      mkAppM ``re_val_cast
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hv]
   | _ => throwError "replayRecognizer: not a recognizer application: {repr term}"
 
 /-- The node-level recursion interface (WP2 Stage 2): the knot's entry
@@ -1992,6 +2280,30 @@ def bridgeEqualNilNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
   return some (← mkAppM ``re_equal_equalityp_norm
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, reflectSExpr r,
       hNoEq, ha, hb, hr])
+
+/-- `bridgeEqualNilNorm` at DEPTH: descend the UNIQUE-difference path of
+    reached vs recorded (same head/arity along it), bridge the mismatching
+    subterm, and lift through the common frames (sorting-completion-2,
+    ORDERED-PERMS Subgoal *1/2'5' literal 4: the normalization fires INSIDE
+    an if-finish/combined branch after the 'NIL substitution). More than one
+    differing child at any level → `none` (the caller's fail-closed
+    mismatch error stands). -/
+partial def bridgeEqualNilNormDeep (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (reached recorded : SExpr) : MetaM (Option Expr) := do
+  if let some h ← bridgeEqualNilNorm cfg ctx reached recorded then
+    return some h
+  let .cons (.atom (.symbol f1)) args1 := reached | return none
+  let .cons (.atom (.symbol f2)) args2 := recorded | return none
+  unless f1 == f2 && f1.name != "QUOTE" do return none
+  let some l1 := args1.toList? | return none
+  let some l2 := args2.toList? | return none
+  unless l1.length == l2.length do return none
+  let diffs := (l1.zip l2).zipIdx.filter fun ((x, y), _) => x != y
+  let [((x, y), i)] := diffs | return none
+  let some inner ← bridgeEqualNilNormDeep cfg ctx x y | return none
+  let st : PathStep := { fn := f1, arity := l1.length, argIdx := i,
+                         siblings := l1.eraseIdx i }
+  return some (← applyStep cfg.worldExpr cfg.envExpr st x y inner)
 
 /-- The DEFINITION-node recipe, UNIFORM: unfold `(fn args) ⇒ substTerm formals args
     body`, then chain the node's children (recognizer / if-simplification / deeper
@@ -2747,7 +3059,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       -- such entries emit :PARENTS NIL :RUNES NIL/fake — assumption-
       -- composed, no rune provenance to consume)
       let some hNil ← deriveNilFact cfg ctx lhs
-        | throwError "type-alist: no spine falsity fact for {repr lhs}             (frontier; lit-facts {repr (ctx.litFacts.map (·.2.1))};             branch-facts {repr (ctx.branchFacts.map (fun (t,_,sg,_) => (t, sg)))})"
+        | throwError "type-alist: no spine falsity fact for {repr lhs}             (frontier; lit-facts {repr (ctx.litFacts.map (·.2.1))};             seg-facts {repr (ctx.segFacts.map (·.1))};             branch-facts {repr (ctx.branchFacts.map (fun (t,_,sg,_) => (t, sg)))})"
       let pl ← ctxValProof cfg ctx lhs
       let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
       mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
@@ -4149,6 +4461,14 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         -- (a NOT unfold inside a test position swaps the enclosing if,
         -- unrecorded — ORDEREDP-MEMB)
         let (swapOpt, final) ← normalizeSwapsToward cfg final rhs
+        -- rewrite-equal's UNRECORDED nil-normalization inside a branch
+        -- (`bridgeEqualNilNormDeep`) — same joint treatment as the swaps
+        let (nilNormOpt, final) ← do
+          if final != rhs then
+            match ← bridgeEqualNilNormDeep cfg ctx final rhs with
+            | some h => pure ((some h : Option Expr), rhs)
+            | none => pure ((none : Option Expr), final)
+          else pure ((none : Option Expr), final)
         unless final == rhs do
           throwError "if-finish/combined: children chains reached {repr final}, \
                       node rhs is {repr rhs}"
@@ -4168,6 +4488,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           let mut postParts : List Expr := []
           if let some p := postOpt then postParts := postParts ++ [p]
           if let some p := swapOpt then postParts := postParts ++ [p]
+          if let some p := nilNormOpt then postParts := postParts ++ [p]
           unless postParts.isEmpty do
             let postEq ← chainEqs postParts
             let postS ← mkAppM ``evrel_of_fuel_eq
@@ -4184,6 +4505,8 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         if let some p := postOpt then
           proofs := proofs ++ [p]
         if let some p := swapOpt then
+          proofs := proofs ++ [p]
+        if let some p := nilNormOpt then
           proofs := proofs ++ [p]
         if proofs.isEmpty then
           -- no effective rewrites: a no-op summary node
@@ -4354,6 +4677,174 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
       -- reconciled term and continue
       let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) depth strip chainPrefix
       return (some (← chainWithR cfg ctx testChain start' restAll), finalT)
+    -- REWRITE-EQUAL cons-decomposition (sorting-completion-2, ORDERED-PERMS
+    -- Subgoal *1/7'5' literal 10, both polarities): ACL2's rewrite-equal on
+    -- (EQUAL s1 s2) rewrites the SYNTHESIZED components
+    -- (rewrite-args '((car lhs) (car rhs)) — gstack bkptr 1/2, so the path
+    -- frames name redexes that are NOT literal subterms), decides each
+    -- component equality (a recorded node at the EQUAL's own path, or a
+    -- SILENT type-alist refutation), then — cars equal — repeats for the
+    -- cdrs. Verdicts: any component refuted ⇒ 'NIL
+    -- (`logic_equal_nil_of_{car,cdr}_components`); both phases equal ⇒ 'T by
+    -- cons-extensionality with consp evidence for BOTH sides
+    -- (`logic_equal_t_of_components`). Detected at the FIRST scratch step;
+    -- the whole remaining chain is the protocol — anything off-shape
+    -- hard-fails.
+    if (runeOf n).ty != "clause-context-resolution" then
+      if let .cons (.atom (.symbol eqS)) (.cons s1 (.cons s2 .nil)) := start then
+        if eqS.name == "EQUAL" then
+          let rel ← relativizeAndStrip (nodePath n) depth strip
+          if let [.arg i fnF] := rel then
+            let scr1 : SExpr := .cons (.atom (.symbol fnF)) (.cons s1 .nil)
+            let scr2 : SExpr := .cons (.atom (.symbol fnF)) (.cons s2 .nil)
+            if fnF.name == "CAR" &&
+                ((i == 1 && lhs == scr1) || (i == 2 && lhs == scr2)) &&
+                lhs != s1 && lhs != s2 then
+              let mut ctx ← pinTermOpaques cfg cfg.envExpr ctx start
+              let vs1 ← ctxValExpr cfg ctx s1
+              let vs2 ← ctxValExpr cfg ctx s2
+              let mut nodesLeft : List ProofNode := n :: rest
+              -- verdict accumulator: none = still deciding; some hEq = the
+              -- final `Logic.equal vs1 vs2 = <const>` fact + the constant
+              let mut verdict : Option (Expr × SExpr) := none
+              let mut phaseComps : List Expr := []  -- car-, then cdr-phase
+              for pfn in ["CAR", "CDR"] do
+                if verdict.isSome then continue
+                let mut c1 : SExpr := .cons (.atom (.symbol { name := pfn }))
+                  (.cons s1 .nil)
+                let mut c2 : SExpr := .cons (.atom (.symbol { name := pfn }))
+                  (.cons s2 .nil)
+                ctx ← pinTermOpaques cfg cfg.envExpr ctx c1
+                ctx ← pinTermOpaques cfg cfg.envExpr ctx c2
+                let mut h1 ← mkEqRefl (← ctxValExpr cfg ctx c1)
+                let mut h2 ← mkEqRefl (← ctxValExpr cfg ctx c2)
+                -- consume this phase's scratch rewrites (either side, any
+                -- interleaving; each is a full node replayed by its own
+                -- recipe)
+                let mut scanning := true
+                while scanning do
+                  match nodesLeft with
+                  | [] => scanning := false
+                  | n' :: r' =>
+                    let (l', r'') := nodeLhsRhs n'
+                    let rel' ← relativizeAndStrip (nodePath n') depth strip
+                    let side? : Option Nat := match rel' with
+                      | [.arg k fnF'] =>
+                        if fnF'.name == pfn then some k else none
+                      | _ => none
+                    match side? with
+                    | some 1 =>
+                      if l' == c1 then
+                        let e ← rec.node cfg ctx n' depth
+                        ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
+                        let ve ← mkAppM ``val_eq_of_eval_eq
+                          #[e, ← ctxValProof cfg ctx c1,
+                            ← ctxValProof cfg ctx r'']
+                        h1 ← mkAppM ``Eq.trans #[h1, ve]
+                        c1 := r''; nodesLeft := r'
+                      else scanning := false
+                    | some 2 =>
+                      if l' == c2 then
+                        let e ← rec.node cfg ctx n' depth
+                        ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
+                        let ve ← mkAppM ``val_eq_of_eval_eq
+                          #[e, ← ctxValProof cfg ctx c2,
+                            ← ctxValProof cfg ctx r'']
+                        h2 ← mkAppM ``Eq.trans #[h2, ve]
+                        c2 := r''; nodesLeft := r'
+                      else scanning := false
+                    | _ => scanning := false
+                -- the phase decision: a recorded (EQUAL c1 c2) node at the
+                -- EQUAL's own path, or a silent type-alist refutation
+                let decT : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+                  (.cons c1 (.cons c2 .nil))
+                let dec? ← match nodesLeft with
+                  | n' :: r' => do
+                    let (l', rr') := nodeLhsRhs n'
+                    if l' == decT && (← relativizeAndStrip (nodePath n') depth strip) == [] then
+                      pure (some (n', rr', r'))
+                    else pure none
+                  | [] => pure none
+                match dec? with
+                | some (n', rr', r') =>
+                  nodesLeft := r'
+                  let e ← rec.node cfg ctx n' depth
+                  ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
+                  let vDec ← ctxValExpr cfg ctx decT
+                  if rr' == quoteT then
+                    let vq ← mkAppM ``re_val_quote
+                      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+                    let ve ← mkAppM ``val_eq_of_eval_eq
+                      #[e, ← ctxValProof cfg ctx decT, vq]
+                    -- vDec = t → vc1 = vc2 → component equality
+                    let _ := vDec
+                    let hc ← mkAppM ``logic_eq_of_equal_t #[ve]
+                    let hcomp ← mkAppM ``Eq.trans
+                      #[h1, ← mkAppM ``Eq.trans #[hc, ← mkAppM ``Eq.symm #[h2]]]
+                    phaseComps := phaseComps ++ [hcomp]
+                  else if rr' == quoteNil then
+                    let vq ← mkAppM ``re_val_quote
+                      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
+                    let ve ← mkAppM ``val_eq_of_eval_eq
+                      #[e, ← ctxValProof cfg ctx decT, vq]
+                    let lem := if pfn == "CAR" then
+                      ``logic_equal_nil_of_car_components
+                      else ``logic_equal_nil_of_cdr_components
+                    verdict := some (← mkAppM lem #[h1, h2, ve], SExpr.nil)
+                  else
+                    throwError "replayRewrites: rewrite-equal {pfn} decision \
+                        node {repr decT} ⇒ {repr rr'} is not a constant \
+                        verdict (frontier)"
+                | none =>
+                  -- silent refutation from the in-scope context (the same
+                  -- facts ACL2's type-set consulted)
+                  let decFlip : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+                    (.cons c2 (.cons c1 .nil))
+                  ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
+                  let hRef ← do
+                    match ← deriveNilFact cfg ctx decT with
+                    | some h => pure h
+                    | none =>
+                      match ← deriveNilFact cfg ctx decFlip with
+                      | some h => mkAppM ``logic_equal_nil_comm #[h]
+                      | none =>
+                        throwError "replayRewrites: rewrite-equal {pfn} \
+                            phase — no recorded decision and no in-scope \
+                            refutation of {repr decT} (frontier)"
+                  let lem := if pfn == "CAR" then
+                    ``logic_equal_nil_of_car_components
+                    else ``logic_equal_nil_of_cdr_components
+                  verdict := some (← mkAppM lem #[h1, h2, hRef], SExpr.nil)
+              let (hEq, cst) ← do
+                match verdict with
+                | some (h, c) => pure (h, c)
+                | none => do
+                  -- both phases component-equal: 'T by cons-extensionality;
+                  -- consp evidence for BOTH sides from value shape/context
+                  let [hcompCar, hcompCdr] := phaseComps
+                    | throwError "replayRewrites: rewrite-equal decomposition \
+                        finished with {phaseComps.length} component proofs \
+                        (internal)"
+                  let some hca ← conspEvidence? ctx s1 vs1
+                    | throwError "replayRewrites: rewrite-equal — no consp \
+                        evidence for {repr s1} (frontier)"
+                  let some hcb ← conspEvidence? ctx s2 vs2
+                    | throwError "replayRewrites: rewrite-equal — no consp \
+                        evidence for {repr s2} (frontier)"
+                  pure (← mkAppM ``logic_equal_t_of_components
+                    #[hca, hcb, hcompCar, hcompCdr], SExpr.t)
+              unless nodesLeft.isEmpty do
+                throwError "replayRewrites: rewrite-equal decomposition left \
+                    unconsumed nodes \
+                    {repr (nodesLeft.map (fun m => (nodeLhsRhs m).1))} \
+                    (frontier)"
+              let pl ← ctxValProof cfg ctx start
+              let pr ← mkAppM ``re_val_quote
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr cst]
+              let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hEq]
+              let resT : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons cst .nil)
+              return (some (step, false), resT)
     let nodeEq ← rec.node cfg ctx n depth
     let (lifted, newTerm) ←
       emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth strip
@@ -4530,6 +5021,14 @@ inductive ContextDemand where
       node's `:EQUIV-TERM` sides) are all demanded — the transitive
       type-alist equivalence needs the whole component in scope. -/
   | equivClass (a b : SExpr)
+  /-- A later literal of shape `(NOT (TRUE-LISTP (CONS a w)))` for the
+      recognizer's inner term `w` (any car `a`): ACL2's type-set closure
+      justifies `(TRUE-LISTP w) ⇒ 'T` from that literal's falsity —
+      `trueListp (cons a w)` reduces to `trueListp w` (sorting-completion-2
+      Class A, ORDERED-PERMS Subgoal *1/7'5' literal 1 after the
+      branch-substitutions). Pattern demand — the car is not knowable at
+      demand-collection time. -/
+  | tlpCons (w : SExpr)
   deriving BEq
 
 /-- Every IF-test subterm of `t`, recursively (never descending QUOTE):
@@ -4570,6 +5069,18 @@ def ifTestDemandsOf (t : SExpr) : List ContextDemand :=
          (.cons (.atom (.symbol es)) (.cons v (.cons u .nil)))]
      else []
    | _ => [])
+
+/-- Every `(CDR u)` subterm of `t` (never descending QUOTE) — the CONSP
+    closure's ingredient scan. -/
+partial def cdrSubterms : SExpr → List SExpr
+  | t@(.cons (.atom (.symbol f)) args) =>
+    if f.name == "QUOTE" then []
+    else
+      let rec argsOf : SExpr → List SExpr
+        | .cons a rest => cdrSubterms a ++ argsOf rest
+        | _ => []
+      (if f.name == "CDR" then [t] else []) ++ argsOf args
+  | _ => []
 
 /-- The CLAUSE-CONTEXT falsity demands of a literal's chain, as the exact
     clause-literal terms/indices whose falsity the chain's nodes consume
@@ -4613,7 +5124,14 @@ partial def collectContextDemands : ProofNode → List ContextDemand
           else []
         | _ => [])
      else if rty == "type-alist" then
-       if rh == quoteNil then [ContextDemand.term l]
+       if rh == quoteNil then
+         [ContextDemand.term l] ++
+         -- the nil-verdict closure's TRUE-LISTP∧¬CONSP ingredient: the
+         -- truthy true-listp fact may sit in a LATER literal
+         -- (ORDERED-PERMS *1/7'5' literal 5: `B ⇒ 'NIL` from segment
+         -- (CONSP B)-false + later literal 9 (NOT (TRUE-LISTP B)))
+         [ContextDemand.term (notOf
+           (.cons (.atom (.symbol { name := "TRUE-LISTP" })) (.cons l .nil)))]
        else if rh == quoteT then [ContextDemand.term (notOf l)]
        else []
      else if rty == "rewriting-equivalence" then
@@ -4631,7 +5149,49 @@ partial def collectContextDemands : ProofNode → List ContextDemand
        -- a recognizer resolved TRUE from the clause context (a later
        -- literal is its negation — EQUAL-CONS Subgoal 4); hoisting is a
        -- no-op when the fact is derivable another way
-       [ContextDemand.term (notOf l)]
+       [ContextDemand.term (notOf l)] ++
+       -- the TRUE-LISTP type-set-closure justifications: a later
+       -- `(NOT (TRUE-LISTP (CONS a w)))` literal (see `tlpCons`), and — for
+       -- the (TRUE-LISTP (CDR u)) shape — the closure arm's DIRECT
+       -- ingredient `(NOT (TRUE-LISTP u))` (ORDERED-PERMS: literal 9's
+       -- (NOT (TRUE-LISTP B)) justifies (TRUE-LISTP (CDR B)) ⇒ 'T)
+       (match l with
+        | .cons (.atom (.symbol rs)) (.cons w .nil) =>
+          if rs.name == "TRUE-LISTP" then
+            [ContextDemand.tlpCons w] ++
+            (match w with
+             | .cons (.atom (.symbol fs)) (.cons u .nil) =>
+               if fs.name == "CDR" then
+                 [ContextDemand.term (notOf
+                   (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                     (.cons u .nil)))]
+               else []
+             | _ => [])
+          else if rs.name == "CONSP" then
+            -- the CONSP-closure ingredients (ORDERED-PERMS *1/2.2 and the
+            -- IF-split shapes): for EVERY (CDR u) subterm of w, the truthy
+            -- (CDR u) / (TRUE-LISTP u) / (TRUE-LISTP (CDR u)) literals
+            ((cdrSubterms w).flatMap fun cu =>
+              match cu with
+              | .cons _ (.cons u .nil) =>
+                [ContextDemand.term (notOf cu),
+                 ContextDemand.term (notOf
+                   (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                     (.cons u .nil))),
+                 ContextDemand.term (notOf
+                   (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                     (.cons cu .nil)))]
+              | _ => []) ++
+            -- the conspEvidence? truthy-(CDR w) route on the inner term
+            -- itself ((CONSP B) with a later (NOT (CDR B)) literal), and the
+            -- general truthy+proper-list route's TRUE-LISTP ingredient
+            [ContextDemand.term (notOf
+              (.cons (.atom (.symbol { name := "CDR" })) (.cons w .nil))),
+             ContextDemand.term (notOf
+              (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                (.cons w .nil)))]
+          else []
+        | _ => [])
      else if prov.origin == "recognizer/false" then [ContextDemand.term l]
      else []) ++ ifTestDemands ++ children.flatMap collectContextDemands
 

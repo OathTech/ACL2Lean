@@ -167,7 +167,16 @@ _Last updated: 2026-07-29._
 > WORK.** MDD-ratified charter:
 > docs/plans/2026-07-30_sorting-completion-2-arc.md. Goal: every sweep
 > sorting row green + ORDEREDP-QSORT's rule:ORDEREDP-APPEND condition
-> discharged. Sequencing A→D→C→B: the type-alist relief family
+> discharged. Sequencing A→D→C→B. **Class A: 3 of 4 green as of
+> 2026-07-31 (TRUE-LISTP-MSORT, ORDEREDP-MEMB, ORDERED-PERMS;
+> ORDEREDP-APPEND still red at the nested if-finish/combined strip
+> composition). ORDERED-PERMS took a fork speculative-rollback fix
+> (rewrite-atm abandoned-reduction, b236e17c28) + 11 replay-side
+> frontiers incl. the rewrite-equal cons-decomposition, the S4
+> lemma-arm FIRST CONSUMER (EQUAL-CONS), ASSUMED:dp-fact condition
+> threading (the documented replayDischargeNode TODO), the CONSP
+> closure kit (deriveConspT), and the adjacent-dup collapse.**
+> Then originally: the type-alist relief family
 > (ORDEREDP-APPEND/ORDEREDP-MEMB/ORDERED-PERMS/TRUE-LISTP-MSORT — the
 > FC-conclusion third of rewrite-clause-type-alist; expected landing =
 > emitted entry provenance + bounded relief registry), then
