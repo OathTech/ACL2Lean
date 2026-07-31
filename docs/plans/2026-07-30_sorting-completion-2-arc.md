@@ -426,3 +426,48 @@ consolidation sees every demanded ray — then epicycle elimination, then
 the sorting mirrors (pulling the validator/lifter tranche-2 machinery
 forward as needed). The pre-merge audit proposal comes only after all
 three.
+
+## ORDEREDP-APPEND diagnosis (2026-07-31) — the path-accounting CHOICE POINT
+
+Ground truth (qsort.proof-log, Subgoal *1/2'-family literal 5): the
+failing node is `definition:ALL-REL (ALL-REL 'LTE A E) => 'NIL`, a child
+INSIDE nested if-finish/combined nodes. Its relativized frames
+`[arg 1 IF, arg 2 IF, arg 1 ALL-REL]` navigate the RECORDED pre-collapse
+structure `(IF (IF (ORDEREDP B) (IF (ALL-REL 'LTE A E) …) 'NIL) 'NIL 'T)`,
+but the walk's RUNNING term has already taken a constant-test collapse the
+chain recorded earlier, so the same frames land on `'GTE` (inside the
+collapsed sibling). This is exactly `relativizeAndStrip`'s documented
+not-handled case: a BRANCH frame interleaved between residual boundary
+frames — the strip machinery only accounts collapses at specific positions
+(chain root, if-finish's own steps).
+
+TWO general fixes exist; picking one is an architecture call (per the
+no-epicycles directive, patching this instance with a third ad-hoc strip
+list is NOT on the table):
+
+(a) **Lean-side, general frame accounting.** Replace the
+    relativize/strip/boundary trio with ONE coordinate map maintained by
+    the walk: every collapse/unfold the chain performs registers its
+    gstack-frame effect, and path navigation consults the map. Retires
+    three mechanisms into one; stays within the current emission format;
+    the map's correctness burden lives in the replayer (each collapse
+    class must register correctly — a new invariant to maintain as node
+    classes grow).
+
+(b) **Fork-side, re-architect :PATH emission.** Emit paths relative to
+    the node's position in the CURRENT rewrite-entry term (what the
+    replay actually walks) instead of raw gstack coordinates — the
+    mapping-plan's ratified "prefer fork emission over Lean-side
+    reconstruction" direction. Eliminates the whole
+    relativize/strip/boundary family, but changes instrumentation
+    semantics corpus-wide (full recapture; every existing path consumer
+    revalidated; the fork must compute term-relative positions at emit
+    time, which ACL2's rewrite does not track natively — feasibility
+    needs a fork-side spike).
+
+Status: PAUSED for MDD discussion at this choice point (goal ended per
+the 2026-07-31 directive). Remaining arc work after the decision:
+ORDEREDP-APPEND via the chosen mechanism, HOW-MANY-QSORT (D),
+MSORT-IS-ISORT/QSORT-IS-ISORT (B), then epicycle elimination (the
+type-set walker consolidation — same review found the closure kits'
+general form), then the sorting mirrors per the amended criteria.
