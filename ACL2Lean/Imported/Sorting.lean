@@ -2714,4 +2714,836 @@ theorem orderedp_append_native_of_replayed (w : World)
   have hiff := bool_of_iff_truthy (truthy_of_implies_t hIt hp)
   simpa only [allRelL, relL_LTE, relL_GTE] using hiff
 
+/-! ## The msort book: `merge2` / `evens` / `odds` / `msort` exec kit -/
+
+abbrev merge2T (x y : SExpr) : SExpr := app2 "MERGE2" x y
+abbrev evensT (x : SExpr) : SExpr := app1 "EVENS" x
+abbrev oddsT (x : SExpr) : SExpr := app1 "ODDS" x
+abbrev msortT (x : SExpr) : SExpr := app1 "MSORT" x
+
+private def lS : Symbol := { package := "ACL2", name := "L" }
+private def lT : SExpr := .atom (.symbol { name := "L" })
+
+/-- `(defun merge2 (x y) …)`, macroexpanded. -/
+def merge2Body : SExpr :=
+  ifT (conspT xT)
+    (ifT (conspT yT)
+      (ifT (lexT (carT xT) (carT yT))
+        (consT (carT xT) (merge2T (cdrT xT) yT))
+        (consT (carT yT) (merge2T xT (cdrT yT))))
+      xT)
+    yT
+
+/-- `(defun evens (l) …)`, macroexpanded. -/
+def evensBody : SExpr :=
+  ifT (conspT lT) (consT (carT lT) (evensT (cdrT (cdrT lT)))) qNil
+
+/-- `(defun odds (l) …)` — `(EVENS (CDR L))`. -/
+def oddsBody : SExpr := evensT (cdrT lT)
+
+/-- `(defun msort (x) …)`, macroexpanded. -/
+def msortBody : SExpr :=
+  ifT (conspT xT)
+    (ifT (conspT (cdrT xT))
+      (merge2T (msortT (evensT xT)) (msortT (oddsT xT)))
+      (consT (carT xT) qNil))
+    qNil
+
+private def merge2_sym : Symbol := { package := "ACL2", name := "MERGE2" }
+private def evens_sym : Symbol := { package := "ACL2", name := "EVENS" }
+private def odds_sym : Symbol := { package := "ACL2", name := "ODDS" }
+private def msort_sym : Symbol := { package := "ACL2", name := "MSORT" }
+
+private theorem merge2_ns :
+    (merge2_sym.isNamed "QUOTE" = false ∧ merge2_sym.isNamed "IF" = false ∧
+     merge2_sym.isNamed "LET" = false ∧
+     merge2_sym.isNamed "LET*" = false) := by decide
+private theorem evens_ns :
+    (evens_sym.isNamed "QUOTE" = false ∧ evens_sym.isNamed "IF" = false ∧
+     evens_sym.isNamed "LET" = false ∧
+     evens_sym.isNamed "LET*" = false) := by decide
+private theorem odds_ns :
+    (odds_sym.isNamed "QUOTE" = false ∧ odds_sym.isNamed "IF" = false ∧
+     odds_sym.isNamed "LET" = false ∧
+     odds_sym.isNamed "LET*" = false) := by decide
+private theorem msort_ns :
+    (msort_sym.isNamed "QUOTE" = false ∧ msort_sym.isNamed "IF" = false ∧
+     msort_sym.isNamed "LET" = false ∧
+     msort_sym.isNamed "LET*" = false) := by decide
+
+private theorem bindArgs_l_l (v : SExpr) :
+    (bindArgs [lS] [v]).get? lS = some v :=
+  bindArgs_single_get_self lS v
+
+/-- `merge2`'s body as a total Lean function. -/
+def merge2Exec (x y : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then
+    if Logic.toBool (Logic.consp y) = true then
+      if Logic.toBool (lexorder (Logic.car x) (Logic.car y)) = true then
+        Logic.cons (Logic.car x) (merge2Exec (Logic.cdr x) y)
+      else Logic.cons (Logic.car y) (merge2Exec x (Logic.cdr y))
+    else x
+  else y
+termination_by x.consCount + y.consCount
+decreasing_by
+  · exact consCount_cdr_sum_lt_left_consp (by assumption)
+  · exact consCount_cdr_sum_lt_right_consp (by assumption)
+
+/-- Stage 1: a `merge2` call converges to `merge2Exec` (strong induction
+    on the SUM of the argument counts — the emitted pair measure). -/
+theorem merge2_exec_corr (w : World)
+    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env : Env) (a b av bv : SExpr),
+      ConvTo w env a av → ConvTo w env b bv →
+      ConvTo w env (merge2T a b) (merge2Exec av bv) := by
+  have hbody : ∀ (n : Nat) (xv yv : SExpr),
+      xv.consCount + yv.consCount = n →
+      ConvTo w (bindArgs [xS, yS] [xv, yv]) merge2Body
+        (merge2Exec xv yv) := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | _ n ih =>
+      intro xv yv hn
+      have hxv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+        { name := "X" } xv (bindArgs_xy_x' xv yv)
+      have hyv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+        { name := "Y" } yv (bindArgs_xy_y' xv yv)
+      have hcx := conv_builtin1 w _ { name := "CONSP" } xT xv
+        (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+      have hcy := conv_builtin1 w _ { name := "CONSP" } yT yv
+        (Logic.consp yv) (by decide) h_no_consp hyv (callBuiltin_consp _)
+      have hcarx := conv_builtin1 w _ { name := "CAR" } xT xv
+        (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+      have hcary := conv_builtin1 w _ { name := "CAR" } yT yv
+        (Logic.car yv) (by decide) h_no_car hyv (callBuiltin_car _)
+      have hcdrx := conv_builtin1 w _ { name := "CDR" } xT xv
+        (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+      have hcdry := conv_builtin1 w _ { name := "CDR" } yT yv
+        (Logic.cdr yv) (by decide) h_no_cdr hyv (callBuiltin_cdr _)
+      have hlex := conv_builtin2 w _ { name := "LEXORDER" } (carT xT)
+        (carT yT) (Logic.car xv) (Logic.car yv) _ (by decide) h_no_lexorder
+        hcarx hcary (callBuiltin_lexorder _ _)
+      have houter := conv_if_lift w (bindArgs [xS, yS] [xv, yv]) (conspT xT)
+        (ifT (conspT yT)
+          (ifT (lexT (carT xT) (carT yT))
+            (consT (carT xT) (merge2T (cdrT xT) yT))
+            (consT (carT yT) (merge2T xT (cdrT yT))))
+          xT)
+        yT (Logic.consp xv)
+        (if Logic.toBool (Logic.consp yv) = true then
+          (if Logic.toBool (lexorder (Logic.car xv) (Logic.car yv))
+              = true then
+            Logic.cons (Logic.car xv) (merge2Exec (Logic.cdr xv) yv)
+           else Logic.cons (Logic.car yv) (merge2Exec xv (Logic.cdr yv)))
+         else xv)
+        yv hcx
+        (fun hbx =>
+          conv_if_lift w _ (conspT yT) _ xT (Logic.consp yv)
+            (if Logic.toBool (lexorder (Logic.car xv) (Logic.car yv))
+                = true then
+              Logic.cons (Logic.car xv) (merge2Exec (Logic.cdr xv) yv)
+             else Logic.cons (Logic.car yv) (merge2Exec xv (Logic.cdr yv)))
+            xv hcy
+            (fun hby =>
+              conv_if_lift w _ (lexT (carT xT) (carT yT)) _ _
+                (lexorder (Logic.car xv) (Logic.car yv))
+                (Logic.cons (Logic.car xv) (merge2Exec (Logic.cdr xv) yv))
+                (Logic.cons (Logic.car yv) (merge2Exec xv (Logic.cdr yv)))
+                hlex
+                (fun _ =>
+                  conv_builtin2 w _ { name := "CONS" } (carT xT)
+                    (merge2T (cdrT xT) yT) (Logic.car xv)
+                    (merge2Exec (Logic.cdr xv) yv) _ (by decide) h_no_cons
+                    hcarx
+                    (conv_defn_2 w _ merge2_sym (cdrT xT) yT (Logic.cdr xv)
+                      yv xS yS merge2Body _ merge2_ns h_m2 hcdrx hyv
+                      (ih ((Logic.cdr xv).consCount + yv.consCount)
+                        (hn ▸ consCount_cdr_sum_lt_left_consp hbx)
+                        (Logic.cdr xv) yv rfl))
+                    rfl)
+                (fun _ =>
+                  conv_builtin2 w _ { name := "CONS" } (carT yT)
+                    (merge2T xT (cdrT yT)) (Logic.car yv)
+                    (merge2Exec xv (Logic.cdr yv)) _ (by decide) h_no_cons
+                    hcary
+                    (conv_defn_2 w _ merge2_sym xT (cdrT yT) xv
+                      (Logic.cdr yv) xS yS merge2Body _ merge2_ns h_m2 hxv
+                      hcdry
+                      (ih (xv.consCount + (Logic.cdr yv).consCount)
+                        (hn ▸ consCount_cdr_sum_lt_right_consp hby)
+                        xv (Logic.cdr yv) rfl))
+                    rfl))
+            (fun _ => hxv))
+        (fun _ => hyv)
+      rw [merge2Exec.eq_def]
+      exact houter
+  intro env a b av bv ha hb
+  exact conv_defn_2 w env merge2_sym a b av bv xS yS merge2Body _
+    merge2_ns h_m2 ha hb (hbody (av.consCount + bv.consCount) av bv rfl)
+
+/-- The native merge: Lean's ordinary two-list merge by `lexorderB`. -/
+def merge2L : List SExpr → List SExpr → List SExpr
+  | [], ys => ys
+  | x :: xs, [] => x :: xs
+  | a :: xs, b :: ys =>
+    bif lexorderB a b then a :: merge2L xs (b :: ys)
+    else b :: merge2L (a :: xs) ys
+termination_by xs ys => xs.length + ys.length
+
+/-- Stage 2: `merge2Exec` on encoded lists computes `merge2L`. -/
+theorem merge2Exec_enc : ∀ (xs ys : List SExpr),
+    merge2Exec (enc xs) (enc ys) = enc (merge2L xs ys)
+  | [], ys => by
+    rw [merge2Exec.eq_def, show enc ([] : List SExpr) = SExpr.nil from rfl,
+        if_neg (by simp [Logic.consp, Logic.toBool])]
+    simp [merge2L]
+  | x :: xs, [] => by
+    rw [merge2Exec.eq_def,
+        if_pos (show Logic.toBool (Logic.consp (enc (x :: xs))) = true
+          from rfl),
+        show enc ([] : List SExpr) = SExpr.nil from rfl,
+        if_neg (by simp [Logic.consp, Logic.toBool])]
+    simp [merge2L]
+  | a :: xs, b :: ys => by
+    rw [merge2Exec.eq_def,
+        if_pos (show Logic.toBool (Logic.consp (enc (a :: xs))) = true
+          from rfl),
+        if_pos (show Logic.toBool (Logic.consp (enc (b :: ys))) = true
+          from rfl),
+        show Logic.car (enc (a :: xs)) = a from rfl,
+        show Logic.car (enc (b :: ys)) = b from rfl,
+        show Logic.cdr (enc (a :: xs)) = enc xs from rfl,
+        show Logic.cdr (enc (b :: ys)) = enc ys from rfl,
+        toBool_lexorder]
+    cases hb : lexorderB a b with
+    | true =>
+      rw [if_pos rfl, merge2Exec_enc xs (b :: ys)]
+      simp only [merge2L, hb, cond_true]
+      rfl
+    | false =>
+      rw [if_neg (by simp), merge2Exec_enc (a :: xs) ys]
+      simp only [merge2L, hb, cond_false]
+      rfl
+termination_by xs ys => xs.length + ys.length
+
+/-- `evens`'s body as a total Lean function. -/
+def evensExec (l : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp l) = true then
+    Logic.cons (Logic.car l) (evensExec (Logic.cdr (Logic.cdr l)))
+  else SExpr.nil
+termination_by l.consCount
+decreasing_by
+  calc (Logic.cdr (Logic.cdr l)).consCount
+      ≤ (Logic.cdr l).consCount := consCount_cdr_le _
+    _ < l.consCount := consCount_cdr_lt_of_consp (by assumption)
+
+/-- Stage 1: an `evens` call converges to `evensExec`. -/
+theorem evens_exec_corr (w : World)
+    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (evensT x) (evensExec xv) := by
+  have hbody : ∀ xv : SExpr,
+      ConvTo w (bindArgs [lS] [xv]) evensBody (evensExec xv) := by
+    refine consCount_strong_induction
+      (fun xv => ConvTo w (bindArgs [lS] [xv]) evensBody (evensExec xv)) ?_
+    intro xv ih
+    have hxv := re_val_var_get w (bindArgs [lS] [xv]) { name := "L" } xv
+      (bindArgs_l_l xv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } lT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "CAR" } lT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "CDR" } lT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have hcddr := conv_builtin1 w _ { name := "CDR" } (cdrT lT)
+      (Logic.cdr xv) (Logic.cdr (Logic.cdr xv)) (by decide) h_no_cdr hcdr
+      (callBuiltin_cdr _)
+    have houter := conv_if_lift w (bindArgs [lS] [xv]) (conspT lT)
+      (consT (carT lT) (evensT (cdrT (cdrT lT)))) qNil (Logic.consp xv)
+      (Logic.cons (Logic.car xv) (evensExec (Logic.cdr (Logic.cdr xv))))
+      SExpr.nil hconsp
+      (fun hb =>
+        conv_builtin2 w _ { name := "CONS" } (carT lT)
+          (evensT (cdrT (cdrT lT))) (Logic.car xv)
+          (evensExec (Logic.cdr (Logic.cdr xv))) _ (by decide) h_no_cons
+          hcar
+          (conv_defn_1 w _ evens_sym (cdrT (cdrT lT))
+            (Logic.cdr (Logic.cdr xv)) lS evensBody _ evens_ns h_evens
+            hcddr
+            (ih (Logic.cdr (Logic.cdr xv))
+              (lt_of_le_of_lt (consCount_cdr_le _)
+                (consCount_cdr_lt_of_consp hb))))
+          rfl)
+      (fun _ => re_val_quote w _ SExpr.nil)
+    rw [evensExec.eq_def]
+    exact houter
+  intro env x xv hx
+  exact conv_defn_1 w env evens_sym x xv lS evensBody _
+    evens_ns h_evens hx (hbody xv)
+
+/-- The native evens: every other element, starting at the head. -/
+def evensL : List SExpr → List SExpr
+  | [] => []
+  | a :: t => a :: evensL t.tail
+termination_by l => l.length
+decreasing_by
+  cases t with
+  | nil => simp
+  | cons b t' => simp
+
+/-- Stage 2: `evensExec` on an encoded list computes `evensL`. -/
+theorem evensExec_enc : ∀ xs : List SExpr,
+    evensExec (enc xs) = enc (evensL xs)
+  | [] => by
+    rw [evensExec.eq_def, show enc ([] : List SExpr) = SExpr.nil from rfl,
+        if_neg (by simp [Logic.consp, Logic.toBool])]
+    simp [evensL, enc]
+  | a :: t => by
+    rw [evensExec.eq_def,
+        if_pos (show Logic.toBool (Logic.consp (enc (a :: t))) = true
+          from rfl),
+        show Logic.car (enc (a :: t)) = a from rfl,
+        show Logic.cdr (enc (a :: t)) = enc t from rfl,
+        show Logic.cdr (enc t) = enc t.tail from by cases t <;> rfl,
+        evensExec_enc t.tail,
+        show evensL (a :: t) = a :: evensL t.tail from by simp [evensL]]
+    rfl
+termination_by xs => xs.length
+decreasing_by
+  cases t with
+  | nil => simp
+  | cons b t' => simp
+
+/-- `evensExec` never increases the count. -/
+theorem evensExec_consCount_le (l : SExpr) :
+    (evensExec l).consCount ≤ l.consCount := by
+  fun_induction evensExec l with
+  | case1 l hb ih =>
+    cases l with
+    | nil => simp [Logic.consp, Logic.toBool] at hb
+    | atom _ => simp [Logic.consp, Logic.toBool] at hb
+    | cons a d =>
+      have hle : (Logic.cdr (Logic.cdr (SExpr.cons a d))).consCount
+          ≤ d.consCount := by
+        calc (Logic.cdr (Logic.cdr (SExpr.cons a d))).consCount
+            = (Logic.cdr d).consCount := rfl
+          _ ≤ d.consCount := consCount_cdr_le _
+      simp only [Logic.cons, Logic.car, consCount_cons]
+      omega
+  | case2 l _ => simp
+
+/-- `evensExec` strictly decreases the count on a two-or-more list. -/
+theorem evensExec_consCount_lt {l : SExpr}
+    (h1 : Logic.toBool (Logic.consp l) = true)
+    (h2 : Logic.toBool (Logic.consp (Logic.cdr l)) = true) :
+    (evensExec l).consCount < l.consCount := by
+  cases l with
+  | nil => simp [Logic.consp, Logic.toBool] at h1
+  | atom _ => simp [Logic.consp, Logic.toBool] at h1
+  | cons a d =>
+    cases d with
+    | nil => simp [Logic.cdr, Logic.consp, Logic.toBool] at h2
+    | atom _ => simp [Logic.cdr, Logic.consp, Logic.toBool] at h2
+    | cons b d' =>
+      rw [evensExec.eq_def, if_pos h1,
+          show Logic.cdr (Logic.cdr (SExpr.cons a (SExpr.cons b d'))) = d'
+            from rfl,
+          show Logic.car (SExpr.cons a (SExpr.cons b d')) = a from rfl]
+      have hle := evensExec_consCount_le d'
+      simp only [Logic.cons, consCount_cons]
+      omega
+
+/-- `msort`'s body as a total Lean function. -/
+def msortExec (x : SExpr) : SExpr :=
+  if _h1 : Logic.toBool (Logic.consp x) = true then
+    if _h2 : Logic.toBool (Logic.consp (Logic.cdr x)) = true then
+      merge2Exec (msortExec (evensExec x))
+        (msortExec (evensExec (Logic.cdr x)))
+    else Logic.cons (Logic.car x) SExpr.nil
+  else SExpr.nil
+termination_by x.consCount
+decreasing_by
+  · exact evensExec_consCount_lt _h1 _h2
+  · calc (evensExec (Logic.cdr x)).consCount
+        ≤ (Logic.cdr x).consCount := evensExec_consCount_le _
+      _ < x.consCount := consCount_cdr_lt_of_consp _h1
+
+/-- Stage 1: an `msort` call converges to `msortExec`. -/
+theorem msort_exec_corr (w : World)
+    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
+    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
+    (h_odds : w.defs.get? odds_sym = some ([lS], oddsBody))
+    (h_msort : w.defs.get? msort_sym = some ([xS], msortBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (msortT x) (msortExec xv) := by
+  have hbody : ∀ xv : SExpr,
+      ConvTo w (bindArgs [xS] [xv]) msortBody (msortExec xv) := by
+    refine consCount_strong_induction
+      (fun xv => ConvTo w (bindArgs [xS] [xv]) msortBody (msortExec xv)) ?_
+    intro xv ih
+    have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+      (bindArgs_single_get_self xS xv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have hconsp2 := conv_builtin1 w _ { name := "CONSP" } (cdrT xT)
+      (Logic.cdr xv) (Logic.consp (Logic.cdr xv)) (by decide) h_no_consp
+      hcdr (callBuiltin_consp _)
+    -- the two-element-plus branch, conditional on BOTH consp verdicts
+    have hbig : Logic.toBool (Logic.consp xv) = true →
+        Logic.toBool (Logic.consp (Logic.cdr xv)) = true →
+        ConvTo w (bindArgs [xS] [xv])
+          (merge2T (msortT (evensT xT)) (msortT (oddsT xT)))
+          (merge2Exec (msortExec (evensExec xv))
+            (msortExec (evensExec (Logic.cdr xv)))) := by
+      intro hb1 hb2
+      have hevens := evens_exec_corr w h_evens h_no_consp h_no_car
+        h_no_cdr h_no_cons _ xT xv hxv
+      have hodds : ConvTo w (bindArgs [xS] [xv]) (oddsT xT)
+          (evensExec (Logic.cdr xv)) := by
+        refine conv_defn_1 w _ odds_sym xT xv lS oddsBody _
+          odds_ns h_odds hxv ?_
+        -- odds' body walk: (EVENS (CDR L)) at l ↦ xv
+        have hl := re_val_var_get w (bindArgs [lS] [xv]) { name := "L" }
+          xv (bindArgs_l_l xv)
+        have hcdrl := conv_builtin1 w _ { name := "CDR" } lT xv
+          (Logic.cdr xv) (by decide) h_no_cdr hl (callBuiltin_cdr _)
+        exact evens_exec_corr w h_evens h_no_consp h_no_car h_no_cdr
+          h_no_cons _ (cdrT lT) (Logic.cdr xv) hcdrl
+      have hmsE := conv_defn_1 w _ msort_sym (evensT xT) (evensExec xv)
+        xS msortBody _ msort_ns h_msort hevens
+        (ih (evensExec xv) (evensExec_consCount_lt hb1 hb2))
+      have hmsO := conv_defn_1 w _ msort_sym (oddsT xT)
+        (evensExec (Logic.cdr xv)) xS msortBody _ msort_ns h_msort hodds
+        (ih (evensExec (Logic.cdr xv))
+          (lt_of_le_of_lt (evensExec_consCount_le _)
+            (consCount_cdr_lt_of_consp hb1)))
+      exact merge2_exec_corr w h_m2 h_no_consp h_no_car h_no_cdr h_no_cons
+        h_no_lexorder _ (msortT (evensT xT)) (msortT (oddsT xT))
+        (msortExec (evensExec xv)) (msortExec (evensExec (Logic.cdr xv)))
+        hmsE hmsO
+    have houter := conv_if_lift w (bindArgs [xS] [xv]) (conspT xT)
+      (ifT (conspT (cdrT xT))
+        (merge2T (msortT (evensT xT)) (msortT (oddsT xT)))
+        (consT (carT xT) qNil))
+      qNil (Logic.consp xv)
+      (if Logic.toBool (Logic.consp (Logic.cdr xv)) = true then
+        merge2Exec (msortExec (evensExec xv))
+          (msortExec (evensExec (Logic.cdr xv)))
+       else Logic.cons (Logic.car xv) SExpr.nil)
+      SExpr.nil hconsp
+      (fun hb1 =>
+        conv_if_lift w _ (conspT (cdrT xT))
+          (merge2T (msortT (evensT xT)) (msortT (oddsT xT)))
+          (consT (carT xT) qNil) (Logic.consp (Logic.cdr xv))
+          (merge2Exec (msortExec (evensExec xv))
+            (msortExec (evensExec (Logic.cdr xv))))
+          (Logic.cons (Logic.car xv) SExpr.nil) hconsp2
+          (fun hb2 => hbig hb1 hb2)
+          (fun _ =>
+            conv_builtin2 w _ { name := "CONS" } (carT xT) qNil
+              (Logic.car xv) SExpr.nil _ (by decide) h_no_cons hcar
+              (re_val_quote w _ SExpr.nil) rfl))
+      (fun _ => re_val_quote w _ SExpr.nil)
+    rw [msortExec.eq_def]
+    -- the exec's dite matches the walk's ite branch values
+    simp only [dite_eq_ite] at *
+    exact houter
+  intro env x xv hx
+  exact conv_defn_1 w env msort_sym x xv xS msortBody _
+    msort_ns h_msort hx (hbody xv)
+
+/-- The evens split halves the length (rounding up). -/
+theorem evensL_length : ∀ l : List SExpr,
+    (evensL l).length = (l.length + 1) / 2
+  | [] => by simp [evensL]
+  | [_] => by simp [evensL]
+  | _ :: _ :: t => by
+    have := evensL_length t
+    simp only [evensL, List.tail_cons, List.length_cons, this]
+    omega
+termination_by l => l.length
+
+/-- The native merge sort. -/
+def msortL (xs : List SExpr) : List SExpr :=
+  match xs with
+  | [] => []
+  | [a] => [a]
+  | a :: b :: t =>
+    merge2L (msortL (evensL (a :: b :: t))) (msortL (evensL (b :: t)))
+termination_by xs.length
+decreasing_by
+  · rw [evensL_length]; simp; omega
+  · rw [evensL_length]; simp; omega
+
+/-- Stage 2: `msortExec` on an encoded list computes `msortL`. -/
+theorem msortExec_enc : ∀ xs : List SExpr,
+    msortExec (enc xs) = enc (msortL xs)
+  | [] => by
+    rw [msortExec.eq_def, show enc ([] : List SExpr) = SExpr.nil from rfl,
+        dif_neg (by simp [Logic.consp, Logic.toBool])]
+    simp [msortL, enc]
+  | [a] => by
+    rw [msortExec.eq_def,
+        dif_pos (show Logic.toBool (Logic.consp (enc [a])) = true from rfl),
+        dif_neg (show ¬(Logic.toBool (Logic.consp
+          (Logic.cdr (enc [a]))) = true) from by
+            simp [enc, Logic.cdr, Logic.consp, Logic.toBool]),
+        show Logic.car (enc [a]) = a from rfl]
+    simp [msortL, Logic.cons, enc]
+  | a :: b :: t => by
+    rw [msortExec.eq_def,
+        dif_pos (show Logic.toBool (Logic.consp (enc (a :: b :: t)))
+          = true from rfl),
+        dif_pos (show Logic.toBool (Logic.consp
+          (Logic.cdr (enc (a :: b :: t)))) = true from rfl),
+        show Logic.cdr (enc (a :: b :: t)) = enc (b :: t) from rfl,
+        evensExec_enc (a :: b :: t), evensExec_enc (b :: t),
+        msortExec_enc (evensL (a :: b :: t)), msortExec_enc (evensL (b :: t)),
+        merge2Exec_enc]
+    simp [msortL]
+termination_by xs => xs.length
+decreasing_by
+  · rw [evensL_length]; simp; omega
+  · rw [evensL_length]; simp; omega
+
+/-! ## The msort dischargers -/
+
+/-- `total:MERGE2` — the driver-shape totality statement. -/
+theorem dis_merge2_total (w : World)
+    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env' : Env) (a0 a1 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (merge2T a0 a1) = some v := by
+  intro env' a0 a1 ⟨N0, v0, h0⟩ ⟨N1, v1, h1⟩
+  obtain ⟨N, h⟩ := merge2_exec_corr w h_m2 h_no_consp h_no_car h_no_cdr
+    h_no_cons h_no_lexorder env' a0 a1 v0 v1 ⟨N0, h0⟩ ⟨N1, h1⟩
+  exact ⟨N, merge2Exec v0 v1, h⟩
+
+/-- `total:MSORT` — the driver-shape totality statement. -/
+theorem dis_msort_total (w : World)
+    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
+    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
+    (h_odds : w.defs.get? odds_sym = some ([lS], oddsBody))
+    (h_msort : w.defs.get? msort_sym = some ([xS], msortBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env' : Env) (a0 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (msortT a0) = some v := by
+  intro env' a0 ⟨N0, v0, h0⟩
+  obtain ⟨N, h⟩ := msort_exec_corr w h_m2 h_evens h_odds h_msort h_no_consp
+    h_no_car h_no_cdr h_no_cons h_no_lexorder env' a0 v0 ⟨N0, h0⟩
+  exact ⟨N, msortExec v0, h⟩
+
+/-- `evensExec` always yields a true-list. -/
+theorem evensExec_trueListp (l : SExpr) :
+    Logic.trueListp (evensExec l) = SExpr.t := by
+  fun_induction evensExec l with
+  | case1 l _ ih => simpa [Logic.cons, Logic.trueListp] using ih
+  | case2 l _ => rfl
+
+/-- 1-ary argument strictness, convergence form (local, mirroring the
+    2/3-ary versions). -/
+private theorem evalOpt_app1_args (f : Nat) (w : World) (env : Env)
+    (s : Symbol) (a1 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : evalOpt (f + 1) w env
+      (.cons (.atom (.symbol s)) (.cons a1 .nil)) = some v) :
+    ∃ u, evalOpt f w env a1 = some u := by
+  rw [show evalOpt (f + 1) w env
+        (.cons (.atom (.symbol s)) (.cons a1 .nil))
+        = evalOptStep (evalOpt f) w env
+            (.cons (.atom (.symbol s)) (.cons a1 .nil)) from rfl] at h
+  unfold evalOptStep at h
+  simp only [Symbol.isNamed, SExpr.toList?] at h
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
+             ↓reduceIte] at h
+  cases hu1 : evalOpt f w env a1 with
+  | none => simp [List.mapM, List.mapM.loop, hu1] at h
+  | some u1 => exact ⟨u1, rfl⟩
+
+private theorem conv_args1_of_conv_app (w : World) (env : Env) (s : Symbol)
+    (a1 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol s)) (.cons a1 .nil)) = some v) :
+    ∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u := by
+  obtain ⟨N, hN⟩ := h
+  exact conv_fix ⟨N, fun f hf =>
+    evalOpt_app1_args f w env s a1 v h_ns (hN (f + 1) (by omega))⟩
+
+/-- `tp:EVENS`, world-parametric — the emitted `(TRUE-LISTP (EVENS L))`
+    corollary. -/
+theorem dis_evens_tp (w : World)
+    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (e' : Env) (a0 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (evensT a0) = some v) :
+    Logic.trueListp v = SExpr.t := by
+  obtain ⟨N0, u0, h0⟩ :=
+    conv_args1_of_conv_app w e' { name := "EVENS" } a0 v (by decide) h
+  have happ := evens_exec_corr w h_evens h_no_consp h_no_car h_no_cdr
+    h_no_cons e' a0 u0 ⟨N0, h0⟩
+  rw [val_unique h happ]
+  exact evensExec_trueListp u0
+
+/-! ## The msort row assemblies -/
+
+/-- `(EQUAL (HOW-MANY E (MERGE2 X Y))
+            (BINARY-+ (HOW-MANY E X) (HOW-MANY E Y)))`. -/
+def how_many_merge2Formula : SExpr :=
+  equalT (howManyT eT (merge2T xT yT))
+    (plusT (howManyT eT xT) (howManyT eT yT))
+
+/-- HOW-MANY-MERGE2, natively: merging adds multiplicities. -/
+theorem how_many_merge2_native_of_replayed (w : World)
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env how_many_merge2Formula = some v ∧ v ≠ SExpr.nil)
+    (ev : SExpr) (xs ys : List SExpr) :
+    (merge2L xs ys).count ev = xs.count ev + ys.count ev := by
+  let e : Env := ((({} : Env).insert yS (enc ys)).insert xS
+    (enc xs)).insert eS ev
+  have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
+    re_val_var_get w e { name := "E" } ev (by
+      show e.get? eS = some ev
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS
+            (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS
+            (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
+    re_val_var_get w e { name := "Y" } (enc ys) (by
+      show e.get? yS = some (enc ys)
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS
+            (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  have hm2 := merge2_exec_corr w h_m2 h_no_consp h_no_car h_no_cdr
+    h_no_cons h_no_lexorder e xT yT (enc xs) (enc ys) hx hy
+  rw [merge2Exec_enc] at hm2
+  have hL := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT (merge2T xT yT) ev (enc (merge2L xs ys)) he hm2
+  rw [howManyExec_enc] at hL
+  have hcx := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT xT ev (enc xs) he hx
+  rw [howManyExec_enc] at hcx
+  have hcy := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT yT ev (enc ys) he hy
+  rw [howManyExec_enc] at hcy
+  have hR := conv_plusT w e _ _ _ _ h_no_plus hcx hcy
+  rw [logic_plus_int] at hR
+  have hnat := native_of_replayed_equal w e intRep _ _
+    ((merge2L xs ys).count ev : Int)
+    ((xs.count ev : Int) + (ys.count ev : Int)) h_no_equal hL hR
+    (hreplayed e)
+  omega
+
+/-- `(IMPLIES (CONSP X)
+       (EQUAL (BINARY-+ (HOW-MANY E (EVENS X)) (HOW-MANY E (EVENS (CDR X))))
+              (HOW-MANY E X)))`. -/
+def how_many_evens_and_oddsFormula : SExpr :=
+  impliesT (conspT xT)
+    (equalT
+      (plusT (howManyT eT (evensT xT)) (howManyT eT (evensT (cdrT xT))))
+      (howManyT eT xT))
+
+/-- HOW-MANY-EVENS-AND-ODDS, natively (at the cons instance, where the
+    hypothesis has content): the evens/odds split partitions every
+    element's multiplicity. -/
+theorem how_many_evens_and_odds_native_of_replayed (w : World)
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env how_many_evens_and_oddsFormula = some v ∧
+      v ≠ SExpr.nil)
+    (ev a : SExpr) (t : List SExpr) :
+    (evensL (a :: t)).count ev + (evensL t).count ev
+      = (a :: t).count ev := by
+  let e : Env := (({} : Env).insert eS ev).insert xS (enc (a :: t))
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc (a :: t)) :=
+    re_val_var_get w e { name := "X" } (enc (a :: t)) (by
+      show e.get? xS = some (enc (a :: t))
+      rw [show e = (({} : Env).insert eS ev).insert xS (enc (a :: t))
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
+    re_val_var_get w e { name := "E" } ev (by
+      show e.get? eS = some ev
+      rw [show e = (({} : Env).insert eS ev).insert xS (enc (a :: t))
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hconsp : ∃ N, ∀ f ≥ N, evalOpt f w e (conspT xT) = some SExpr.t := by
+    have h0 := conv_builtin1 w e { name := "CONSP" } xT (enc (a :: t))
+      (Logic.consp (enc (a :: t))) (by decide) h_no_consp hx
+      (callBuiltin_consp _)
+    simpa [enc, Logic.consp] using h0
+  have hcdr : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrT xT) = some (enc t) := by
+    have h0 := conv_builtin1 w e { name := "CDR" } xT (enc (a :: t))
+      (Logic.cdr (enc (a :: t))) (by decide) h_no_cdr hx (callBuiltin_cdr _)
+    simpa [enc, Logic.cdr] using h0
+  have hev1 := evens_exec_corr w h_evens h_no_consp h_no_car h_no_cdr
+    h_no_cons e xT (enc (a :: t)) hx
+  rw [evensExec_enc] at hev1
+  have hev2 := evens_exec_corr w h_evens h_no_consp h_no_car h_no_cdr
+    h_no_cons e (cdrT xT) (enc t) hcdr
+  rw [evensExec_enc] at hev2
+  have hc1 := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT (evensT xT) ev (enc (evensL (a :: t))) he hev1
+  rw [howManyExec_enc] at hc1
+  have hc2 := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT (evensT (cdrT xT)) ev (enc (evensL t)) he hev2
+  rw [howManyExec_enc] at hc2
+  have hplus := conv_plusT w e _ _ _ _ h_no_plus hc1 hc2
+  rw [logic_plus_int] at hplus
+  have hcx := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT xT ev (enc (a :: t)) he hx
+  rw [howManyExec_enc] at hcx
+  have hEq := conv_builtin2 w e { name := "EQUAL" } _ _ _ _ _ (by decide)
+    h_no_equal hplus hcx (callBuiltin_equal _ _)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
+    h_no_implies hconsp hEq (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have hconc := eq_of_equal_truthy (truthy_of_implies_t hIt rfl)
+  have := int_atom_inj hconc
+  omega
+
+/-- `(ORDEREDP (MSORT X))`. -/
+def orderedp_msortFormula : SExpr := orderedpT (msortT xT)
+
+/-- ORDEREDP-MSORT, natively: MERGE SORT ALWAYS SORTS. -/
+theorem orderedp_msort_native_of_replayed (w : World)
+    (h_orderedp : w.defs.get? { package := "ACL2", name := "ORDEREDP" }
+      = some ([{ package := "ACL2", name := "X" }],
+              chain2Body "LEXORDER" "ORDEREDP"))
+    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
+    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
+    (h_odds : w.defs.get? odds_sym = some ([lS], oddsBody))
+    (h_msort : w.defs.get? msort_sym = some ([xS], msortBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env orderedp_msortFormula = some v ∧ v ≠ SExpr.nil)
+    (xs : List SExpr) :
+    orderedpRec (msortL xs) = true := by
+  let e : Env := ({} : Env).insert xS (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ({} : Env).insert xS (enc xs) from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hms := msort_exec_corr w h_m2 h_evens h_odds h_msort h_no_consp
+    h_no_car h_no_cdr h_no_cons h_no_lexorder e xT (enc xs) hx
+  rw [msortExec_enc] at hms
+  have hord := corr_orderedp_enc w h_orderedp h_no_consp h_no_cdr h_no_car
+    h_no_lexorder (msortL xs) e (msortT xT) hms
+  exact bool_true_of_cond_truthy (toBool_true_of_ne_nil
+    (replayed_pins_ne_nil (hreplayed e) hord))
+
+/-- `(EQUAL (HOW-MANY E (MSORT X)) (HOW-MANY E X))`. -/
+def how_many_msortFormula : SExpr :=
+  equalT (howManyT eT (msortT xT)) (howManyT eT xT)
+
+/-- HOW-MANY-MSORT, natively: MERGE SORT PRESERVES MULTIPLICITY. -/
+theorem how_many_msort_native_of_replayed (w : World)
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
+    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
+    (h_odds : w.defs.get? odds_sym = some ([lS], oddsBody))
+    (h_msort : w.defs.get? msort_sym = some ([xS], msortBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env how_many_msortFormula = some v ∧ v ≠ SExpr.nil)
+    (ev : SExpr) (xs : List SExpr) :
+    (msortL xs).count ev = xs.count ev := by
+  let e : Env := (({} : Env).insert xS (enc xs)).insert eS ev
+  have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
+    re_val_var_get w e { name := "E" } ev (by
+      show e.get? eS = some ev
+      rw [show e = (({} : Env).insert xS (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = (({} : Env).insert xS (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hms := msort_exec_corr w h_m2 h_evens h_odds h_msort h_no_consp
+    h_no_car h_no_cdr h_no_cons h_no_lexorder e xT (enc xs) hx
+  rw [msortExec_enc] at hms
+  have hL := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT (msortT xT) ev (enc (msortL xs)) he hms
+  rw [howManyExec_enc] at hL
+  have hR := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT xT ev (enc xs) he hx
+  rw [howManyExec_enc] at hR
+  have hnat := native_of_replayed_equal w e intRep _ _
+    ((msortL xs).count ev : Int) ((xs.count ev : Int)) h_no_equal hL hR
+    (hreplayed e)
+  omega
+
 end ACL2.Worlds.Sorting

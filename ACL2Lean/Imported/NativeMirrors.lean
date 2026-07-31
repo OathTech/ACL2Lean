@@ -1392,6 +1392,151 @@ theorem orderedp_append_native_driver (ev : SExpr) (as bs : List SExpr)
 
 #print axioms orderedp_append_native_driver
 
+/-! ## The msort book — merge sort, all four content rows. -/
+
+private def msortLog : String :=
+  include_str "../../acl2_samples/sorting/msort.proof-log"
+
+/-- The parsed development — the ONLY input is the log. -/
+def msortDev : Development :=
+  (((ProofLog.parse msortLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world msortWorldD from msortDev
+
+set_option maxHeartbeats 1600000 in
+/-- HOW-MANY-MERGE2's conditional replayed statement. -/
+def howManyMerge2ReplayedCond := driver_replayed% msortDev msortWorldD
+  "how-many-merge2"
+
+theorem howManyMerge2Replayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
+      Worlds.Sorting.how_many_merge2Formula = some v ∧ v ≠ SExpr.nil :=
+  howManyMerge2ReplayedCond env
+    (Worlds.Sorting.dis_merge2_total msortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
+    (Worlds.Sorting.dis_not_memb_how_many_0 msortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-MERGE2 natively: merging adds
+    multiplicities. -/
+theorem how_many_merge2_native_driver (ev : SExpr) (xs ys : List SExpr) :
+    (Worlds.Sorting.merge2L xs ys).count ev = xs.count ev + ys.count ev :=
+  Worlds.Sorting.how_many_merge2_native_of_replayed msortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) howManyMerge2Replayed_uncond ev xs ys
+
+#print axioms how_many_merge2_native_driver
+
+set_option maxHeartbeats 1600000 in
+/-- HOW-MANY-EVENS-AND-ODDS's conditional replayed statement. -/
+def howManyEvensOddsReplayedCond := driver_replayed% msortDev msortWorldD
+  "how-many-evens-and-odds"
+
+theorem howManyEvensOddsReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
+      Worlds.Sorting.how_many_evens_and_oddsFormula = some v ∧
+      v ≠ SExpr.nil :=
+  howManyEvensOddsReplayedCond env
+    (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_default_car msortWorldD (by decide) (by decide)
+      (by decide))
+    (Worlds.Sorting.dis_default_cdr msortWorldD (by decide) (by decide)
+      (by decide))
+    (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
+    (Worlds.Sorting.dis_not_memb_how_many_0 msortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-EVENS-AND-ODDS natively: the evens/odds
+    split partitions every element's multiplicity. -/
+theorem how_many_evens_and_odds_native_driver (ev a : SExpr)
+    (t : List SExpr) :
+    (Worlds.Sorting.evensL (a :: t)).count ev
+      + (Worlds.Sorting.evensL t).count ev = (a :: t).count ev :=
+  Worlds.Sorting.how_many_evens_and_odds_native_of_replayed msortWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) howManyEvensOddsReplayed_uncond
+    ev a t
+
+#print axioms how_many_evens_and_odds_native_driver
+
+set_option maxHeartbeats 1600000 in
+/-- ORDEREDP-MSORT's conditional replayed statement. -/
+def orderedpMsortReplayedCond := driver_replayed% msortDev msortWorldD
+  "orderedp-msort"
+
+theorem orderedpMsortReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
+      Worlds.Sorting.orderedp_msortFormula = some v ∧ v ≠ SExpr.nil :=
+  orderedpMsortReplayedCond env
+    (Worlds.Sorting.dis_merge2_total msortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_msort_total msortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+    (Worlds.Sorting.dis_evens_tp msortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — ORDEREDP-MSORT natively: MERGE SORT ALWAYS SORTS —
+    `msortL` yields an adjacent-pair lexorder-sorted list for EVERY
+    input. -/
+theorem orderedp_msort_native_driver (xs : List SExpr) :
+    Worlds.Sorting.orderedpRec (Worlds.Sorting.msortL xs) = true :=
+  Worlds.Sorting.orderedp_msort_native_of_replayed msortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) orderedpMsortReplayed_uncond xs
+
+#print axioms orderedp_msort_native_driver
+
+set_option maxHeartbeats 1600000 in
+/-- HOW-MANY-MSORT's conditional replayed statement. -/
+def howManyMsortReplayedCond := driver_replayed% msortDev msortWorldD
+  "how-many-msort"
+
+theorem howManyMsortReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
+      Worlds.Sorting.how_many_msortFormula = some v ∧ v ≠ SExpr.nil :=
+  howManyMsortReplayedCond env
+    (Worlds.Sorting.dis_merge2_total msortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_msort_total msortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+    (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_default_car msortWorldD (by decide) (by decide)
+      (by decide))
+    (Worlds.Sorting.dis_default_cdr msortWorldD (by decide) (by decide)
+      (by decide))
+    (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
+    (Worlds.Sorting.dis_not_memb_how_many_0 msortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-MSORT natively: MERGE SORT PRESERVES
+    MULTIPLICITY. -/
+theorem how_many_msort_native_driver (ev : SExpr) (xs : List SExpr) :
+    (Worlds.Sorting.msortL xs).count ev = xs.count ev :=
+  Worlds.Sorting.how_many_msort_native_of_replayed msortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    howManyMsortReplayed_uncond ev xs
+
+#print axioms how_many_msort_native_driver
+
+/-- ORDEREDP-MSORT, Mathlib form. -/
+theorem orderedp_msort_isChain_driver (xs : List SExpr) :
+    (Worlds.Sorting.msortL xs).IsChain
+      (fun a b => Worlds.Sorting.lexorderB a b = true) :=
+  (Worlds.Sorting.chain2Rec_iff_isChain _ _).mp
+    (orderedp_msort_native_driver xs)
+
 /-! ## The idiomatic `List.IsChain` corollaries (mirror criterion 1):
 sortedness in Mathlib vocabulary — `IsChain (lexorderB · · = true)`,
 adjacent-pairs order over the imported total order (LexorderOrder.lean
@@ -1526,11 +1671,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/ordered-perms", "ORDERED-PERMS", .pending "chain2/LEXORDER + perm/rm/memb correspondences + the ASSUMED:dp-fact dischargers (backlog)"),
   ("sorting/ordered-perms", "CAR-RM", .native ``car_rm_native_driver ``carRmReplayed),
   ("sorting/ordered-perms", "TRUE-LISTP-RM", .replayedOnly "subsumed by the rm simulation: `true-listp` restricts the input to the enc image (exists_enc_of_trueListp), where corr_rm_enc already yields an encoded List — no native content beyond the sim (the type-absorbed true-listp doctrine; the flatten recipe applies only where NO simulation exists)"),
-  ("sorting/msort", "TRUE-LISTP-MSORT", .pending "the flatten-recipe mirror + its cond dischargers (total:MERGE2/MSORT, tp:EVENS)"),
-  ("sorting/msort", "HOW-MANY-MERGE2", .pending "how-many/merge2 correspondences (backlog)"),
-  ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .pending "how-many/evens/odds correspondences (backlog)"),
-  ("sorting/msort", "ORDEREDP-MSORT", .pending "chain2/LEXORDER + merge2/msort correspondences + cond dischargers (backlog)"),
-  ("sorting/msort", "HOW-MANY-MSORT", .pending "how-many/msort correspondences (backlog)"),
+  ("sorting/msort", "TRUE-LISTP-MSORT", .replayedOnly "subsumed by the msort simulation (msort_exec_corr/msortExec_enc) — the type-absorbed true-listp doctrine"),
+  ("sorting/msort", "HOW-MANY-MERGE2", .native ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond),
+  ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
+  ("sorting/msort", "ORDEREDP-MSORT", .native ``orderedp_msort_native_driver ``orderedpMsortReplayedCond),
+  ("sorting/msort", "HOW-MANY-MSORT", .native ``how_many_msort_native_driver ``howManyMsortReplayedCond),
   ("sorting/qsort", "termination:QSORT", .pending "termination replayed statement; native decrease fact not lifted"),
   ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
   ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
@@ -1651,7 +1796,12 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.all_rel_filter_1_native_driver,
             ``ACL2.Imported.Mirrors.all_rel_filter_2_native_driver,
             ``ACL2.Imported.Mirrors.how_many_filter_1_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_append_native_driver] do
+            ``ACL2.Imported.Mirrors.orderedp_append_native_driver,
+            ``ACL2.Imported.Mirrors.how_many_merge2_native_driver,
+            ``ACL2.Imported.Mirrors.how_many_evens_and_odds_native_driver,
+            ``ACL2.Imported.Mirrors.orderedp_msort_native_driver,
+            ``ACL2.Imported.Mirrors.how_many_msort_native_driver,
+            ``ACL2.Imported.Mirrors.orderedp_msort_isChain_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
