@@ -95,7 +95,13 @@ derive_world simpleWorldD from simpleDev
     for the named theorem of the development `dev`, over the derived world
     constant `world`: a `∀ env, <hypotheses> → ∃N∀f≥N ∃v, eval = some v ∧
     v ≠ nil` proof OBJECT (ACL2's truthiness claim, G2) produced by
-    `replayProofConditional` from the reconstructed tree. -/
+    `replayProofConditional` from the reconstructed tree.
+    UNCHECKED INVARIANT (audit 2026-07-31 inside finding 4): `world`
+    must be `derive_world`'s output for THIS `dev` — the macro takes
+    them as independent arguments; a mismatched pair is fail-closed
+    (the `by decide` world facts and defeq statement pins at every
+    consumer die), never silently wrong, but the pairing itself is by
+    convention. -/
 elab "driver_replayed%" devId:ident worldId:ident nm:str
     wt:(&" with_termination")? : term => do
   let devName ← Lean.resolveGlobalConstNoOverload devId
@@ -125,8 +131,18 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
         s!"term_mirror_{worldName}_{fn}"
       let mName := Name.mkStr2 "ReplayedTermination" base
       let condsName := Name.mkStr2 "ReplayedTermination" s!"{base}_conds"
+      -- CACHE-KEY HAZARD (audit 2026-07-31 inside finding 2, same
+      -- hazard the runner documents for its constants): the
+      -- alphanumeric sanitizer is not injective across (world, fn)
+      -- pairs. A collision is fail-closed (the cached constant is only
+      -- ever APPLIED, so a type mismatch fails unification) — but
+      -- guard the partial-state case with a named error.
       let conds? ← do
         if (← getEnv).contains mName then
+          unless (← getEnv).contains condsName do
+            throwError "driver_replayed% with_termination: cached \
+              termination constant {mName} exists WITHOUT its companion \
+              {condsName} (partial cache state or sanitizer collision)"
           some <$> (unsafe Meta.evalExpr (List String) condsTy
             (mkConst condsName))
         else
@@ -152,8 +168,15 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
             pure (some conds)
           | none => pure none
       if let some conds := conds? then
-        unless conds.contains s!"total:{fn}" || conds.contains s!"tp:{fn}"
-          do
+        if conds.contains s!"total:{fn}" || conds.contains s!"tp:{fn}" then
+          -- circularity guard, now LOUD (audit 2026-07-31 inside
+          -- finding 3): the consumer will hard-fail at the decrease
+          -- frontier; name the cause here.
+          logInfo m!"driver_replayed% with_termination: {fn}'s replayed \
+            admission is conditional on its own facts ({conds}) — \
+            SKIPPED (circularity guard); the consumer replay will \
+            hard-fail at the decrease frontier if it needs it"
+        else
           termReplayed := termReplayed
             ++ [(fn, mName, conds, (tcp.root.map (·.inputClause)).getD [])]
   Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
@@ -1806,10 +1829,15 @@ ACL2, with minimal Lean-side trust obligations. Two BANNED antipatterns:
    notions (`List`, `count`, `++`, `erase`, `headD`, `contains`,
    `IsChain`, `Perm`/`isPerm`, `Bool`, `==`) plus SELF-CONTAINED Lean
    definitions over the `SExpr` inductive (e.g. `lexorderB`, `isortL`,
-   `relL` — plain recursive functions with NO reference to `Logic.*`,
-   `evalOpt`, `EvTrue`, `World`, `boolEnc`, or any `*Exec` function).
-   SExpr-level notions are admissible exactly when the imported theorem
-   is genuinely ABOUT the ACL2 value universe (the lexorder ruling);
+   `relL` — plain recursive functions with NO reference to the
+   EVALUATOR LAYER: `evalOpt`, `EvTrue`, `World`, `boolEnc`, or any
+   `*Exec` function; pure SExpr value VIEWS such as `Logic.toRat`,
+   reached through `lexorder`'s number comparison, are acceptable —
+   audit 2026-07-31 §8 wording fix). Mechanized by the CRITERION-1 GATE
+   below. SExpr-level notions are admissible exactly when the imported
+   theorem is genuinely ABOUT the ACL2 value universe (the lexorder
+   ruling; note the value universe excludes complex rationals —
+   BUG-009 — so "every input" quantifiers range over the model);
    where a standard-Lean-type reading exists, prefer it.
 2. **Ornamental import.** The PROOF's Lean-side bridge may only
    EVALUATE (per-function simulation lemmas — a program computes its
@@ -1820,7 +1848,13 @@ ACL2, with minimal Lean-side trust obligations. Two BANNED antipatterns:
    and is banned. Mechanized below: the SEAM GATE checks each native
    entry's proof term transitively consumes its `driver_replayed%`
    constant (deterministic, in-Lean; catches fully-detached proofs —
-   the subtler ornamental cases remain an audit item). -/
+   the subtler ornamental cases remain an audit item). KNOWN GATE
+   LIMITATION (audit 2026-07-31, outside finding §4): the seam is
+   matched by NAME reachability, so within one book a mis-paired
+   catalog seam that the proof reaches through an in-book rule
+   discharge (e.g. ORDEREDP-QSORT reaches orderedpAppendReplayedCond
+   via dis_rule_orderedp_append) would pass — the gate rules out
+   DETACHMENT, not MIS-PAIRING; seam pairings stay an audit item. -/
 
 private def liftCoverageGolden : String :=
   include_str "../../Tests/driver-coverage.golden"
@@ -1896,7 +1930,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
   ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
-  ("sorting/qsort", "HOW-MANY-QSORT", .pending "how-many/qsort correspondences (landed 2026-07-31 via the truthy branch-fact channel; backlog)"),
+  ("sorting/qsort", "HOW-MANY-QSORT", .native ``how_many_qsort_native_driver ``howManyQsortReplayedCond),
   ("sorting/qsort", "PERM-QSORT", .native ``perm_qsort_native_driver ``permQsortReplayedCond),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-1", .native ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond),
@@ -2017,10 +2051,48 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.how_many_evens_and_odds_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_msort_native_driver,
             ``ACL2.Imported.Mirrors.how_many_msort_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_msort_isChain_driver] do
+            ``ACL2.Imported.Mirrors.orderedp_msort_isChain_driver,
+            ``ACL2.Imported.Mirrors.how_many_qsort_native_driver,
+            ``ACL2.Imported.Mirrors.perm_qsort_native_driver,
+            ``ACL2.Imported.Mirrors.perm_qsort_perm_driver,
+            ``ACL2.Imported.Mirrors.orderedp_qsort_native_driver,
+            ``ACL2.Imported.Mirrors.orderedp_qsort_isChain_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
       throwError "native-entry axiom gate: {n} uses forbidden axioms {bad}"
+
+-- CRITERION-1 GATE (audit 2026-07-31, outside finding §8): mirror
+-- STATEMENT vocabulary, mechanized — every `.native` entry's TYPE must
+-- be free of the evaluator layer (evalOpt/EvTrue/World/boolEnc) and of
+-- every `*Exec` function. (Value-VIEW helpers like `Logic.toRat`,
+-- reached through `lexorderB`'s definition, are acceptable: the ban is
+-- the interpreter/exec layer, not pure SExpr arithmetic views — the
+-- criterion header wording matches.) In-Lean, deterministic.
+open Lean in
+run_cmd Lean.Elab.Command.liftCoreM do
+  let banned : List Name :=
+    [``ACL2.evalOpt, ``ACL2.Replay.EvTrue, ``ACL2.World,
+     ``ACL2.Lifting.boolEnc]
+  -- The ONE ratified exception: the FLATTEN-RECIPE class (entry 17's
+  -- doc) — for a recognizer theorem whose SUBJECT is the imported
+  -- program itself, `evalOpt` deliberately remains in the statement
+  -- (a fully native restatement would need a simulation that
+  -- subsumes, and so bypasses, the replayed theorem).
+  let exempt : List Name :=
+    [``ACL2.Imported.Mirrors.true_listp_flatten_native_driver]
+  for (b, n, st) in liftCatalog do
+    if let .native decl _ := st then
+      if exempt.contains decl then continue
+      let some ci := (← getEnv).find? decl
+        | throwError "criterion-1 gate: {decl} missing"
+      for c in ci.type.getUsedConstants do
+        if banned.contains c then
+          throwError "criterion-1 gate: {b}/{n}'s statement mentions \
+            {c} — evaluator vocabulary in a mirror statement \
+            (mirror criterion 1)"
+        if c.toString.endsWith "Exec" then
+          throwError "criterion-1 gate: {b}/{n}'s statement mentions \
+            the exec function {c} (mirror criterion 1)"
 
 end ACL2.Imported.Mirrors

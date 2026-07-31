@@ -59,6 +59,16 @@ EQUAL-flip rung (CAR/CDR-symmetric silent refutation) lives inside
 `isNil` at depth 0. Gate held: coverage sweep byte-identical at 71/79,
 `just ci` green.
 
+CORRECTION (audit 2026-07-31, inside finding 5): "the rungs are the
+kits' existing rungs, moved" is not strictly true of the EQUAL-flip
+rung — it was previously CONSUMER-LOCAL (one site, the rewrite-equal
+component protocol, at the default depth 3 on the flipped term) and is
+now inside `isNil` at depth 0, reachable by EVERY isNil consumer. Reach
+widened in one direction (all consumers) and narrowed in the other
+(flip explored at depth 0, not 3). Sound either way (the commuting
+lemma is unconditional); the byte-identical sweep is the evidence no
+covered row's behavior changed; uncovered rows are unmeasured.
+
 Surviving consumer-local scans (noted, not folded — each is a
 STRUCTURAL search, not a fixed-term request, or has a deliberately
 narrower channel view):

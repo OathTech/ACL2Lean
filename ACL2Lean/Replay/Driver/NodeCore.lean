@@ -1454,10 +1454,16 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx t
     let vT ← ctxValExpr cfg ctx t
     -- a truthy branch fact on the term itself (ACL2's assume-true-false
-    -- context IS the type-alist entry's source — HOW-MANY-QSORT)
+    -- context IS the type-alist entry's source — HOW-MANY-QSORT).
+    -- The proof's TYPE is checked like every other rung (audit
+    -- 2026-07-31 inside finding 6 — this site relied on the
+    -- branchFacts tuple invariant alone).
     for (bt, vB, sign, h) in ctx.branchFacts do
       if sign && bt == t then
-        if ← Lean.Meta.isDefEq vB vT then return some h
+        if ← Lean.Meta.isDefEq vB vT then
+          if ← Lean.Meta.isDefEq (← Lean.Meta.inferType h)
+              (← Lean.Meta.mkAppM ``Ne #[vT, mkConst ``SExpr.nil]) then
+            return some h
     -- a false `(NOT t)` fact in any falsity channel
     let notT : SExpr := .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
     if let some hf ← findFactChecked (falsitySources ctx) notT

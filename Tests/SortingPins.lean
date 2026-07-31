@@ -20,7 +20,11 @@
   Sources transcribed (the acl2/ submodule is the canonical copy):
   - acl2/books/sorting/isort.lisp            (insert, isort, orderedp-isort)
   - acl2/books/sorting/qsort.lisp            (qsort, perm-qsort,
-                                              true-listp-qsort, how-many-qsort)
+                                              true-listp-qsort; audit
+                                              2026-07-31 §10: how-many-qsort
+                                              has NO pin — removed from this
+                                              list, statement anchored via
+                                              the native mirror instead)
   - acl2/books/sorting/convert-perm-to-how-many.lisp
                                              (convert-perm-to-how-many)
   - acl2/books/arithmetic-3/pass1/basic-arithmetic.lisp:109

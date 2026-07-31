@@ -954,7 +954,9 @@ private theorem conv_plusT (w : World) (env' : Env) (a b av bv : SExpr)
   conv_builtin2 w env' { name := "BINARY-+" } a b av bv _ (by decide)
     h_no_plus ha hb (callBuiltin_plus _ _)
 
-/-- `rule:(+ y x) ≡ (+ x y)` (commutativity-of-+). -/
+/-- `rule:(+ y x) ≡ (+ x y)` — the arithmetic-3 rune `|(+ y x)|`
+    (NOT ground-zero COMMUTATIVITY-OF-+, whose stored orientation is
+    the reverse — audit 2026-07-31 inside finding 1). -/
 theorem dis_plus_comm (w : World)
     (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
     ∀ env' : Env, ∃ N, ∀ f ≥ N,
@@ -965,7 +967,8 @@ theorem dis_plus_comm (w : World)
   exact fuel_eq_of_conv (conv_plusT w env' yT xT vy vx h_no_plus hy hx)
     (conv_plusT w env' xT yT vx vy h_no_plus hx hy) (logic_plus_comm vy vx)
 
-/-- `rule:(+ y (+ x z)) ≡ (+ x (+ y z))` (commutativity-2-of-+). -/
+/-- `rule:(+ y (+ x z)) ≡ (+ x (+ y z))` — the arithmetic-3 rune
+    `|(+ y (+ x z))|`. -/
 theorem dis_plus_comm2 (w : World)
     (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
     ∀ env' : Env, ∃ N, ∀ f ≥ N,
@@ -982,7 +985,9 @@ theorem dis_plus_comm2 (w : World)
       (conv_plusT w env' yT zT vy vz h_no_plus hy hz))
     (logic_plus_comm2 vy vx vz)
 
-/-- `rule:(+ (+ x y) z) ≡ (+ x (+ y z))` (associativity-of-+). -/
+/-- `rule:(+ (+ x y) z) ≡ (+ x (+ y z))` — the arithmetic-3 rune
+    `|(+ (+ x y) z)|` (no ASSOCIATIVITY-OF-+ is stored in these
+    logs). -/
 theorem dis_plus_assoc (w : World)
     (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
     ∀ env' : Env, ∃ N, ∀ f ≥ N,
