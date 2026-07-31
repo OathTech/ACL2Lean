@@ -201,6 +201,16 @@ _Last updated: 2026-07-29._
 > lemma-arm FIRST CONSUMER (EQUAL-CONS), ASSUMED:dp-fact condition
 > threading (the documented replayDischargeNode TODO), the CONSP
 > closure kit (deriveConspT), and the adjacent-dup collapse.**
+> **LANDED 2026-07-31 (post-fold-back): HOW-MANY-QSORT GREEN (71/79 —
+> the truthy branch-fact channel + EQUAL two-valued pin; the qsort book
+> 6/6). Class B DOWN: the :use-hint payload emission
+> (emit/use-hint/payload) roots the apply-top-hints chain at
+> CONSTRAINT-CL; MSORT-IS-ISORT/QSORT-IS-ISORT/LEN2-APP-VIA-USE now
+> fail truthfully at the R7 functional-instantiation frontier (the
+> following arc's scope). Remaining in-arc: epicycle elimination
+> (type-set walker consolidation + if1/if11 :SWAPPED-P and the
+> swap-inventory retirement + BUG-027 ratify-or-narrow), then the
+> sorting mirror program (~30 pending catalog rows).**
 > Then originally: the type-alist relief family
 > (ORDEREDP-APPEND/ORDEREDP-MEMB/ORDERED-PERMS/TRUE-LISTP-MSORT — the
 > FC-conclusion third of rewrite-clause-type-alist; expected landing =
