@@ -1332,4 +1332,154 @@ theorem how_many_isort_native_of_replayed (w : World)
     ((isortL xs).count ev) (xs.count ev) h_no_equal hL hR (hreplayed e)
   omega
 
+/-! ## The qsort book: HOW-MANY-APPEND / CAR-APPEND -/
+
+abbrev appendT (a b : SExpr) : SExpr := app2 "BINARY-APPEND" a b
+
+private theorem logic_plus_int (m n : Int) :
+    Logic.plus (.atom (.number (.int m))) (.atom (.number (.int n)))
+      = .atom (.number (.int (m + n))) := by
+  simp [Logic.plus, Logic.toRat, Logic.mkNumber]
+
+/-- The HOW-MANY-APPEND replayed-statement formula:
+    `(EQUAL (HOW-MANY E (BINARY-APPEND X Y))
+            (BINARY-+ (HOW-MANY E X) (HOW-MANY E Y)))`. -/
+def how_many_appendFormula : SExpr :=
+  equalT (howManyT eT (appendT xT yT))
+    (plusT (howManyT eT xT) (howManyT eT yT))
+
+/-- HOW-MANY-APPEND, natively: `List.count` distributes over `++`. -/
+theorem how_many_append_native_of_replayed (w : World)
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_app : w.defs.get? { package := "ACL2", name := "BINARY-APPEND" }
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env how_many_appendFormula = some v ∧ v ≠ SExpr.nil)
+    (ev : SExpr) (xs ys : List SExpr) :
+    (xs ++ ys).count ev = xs.count ev + ys.count ev := by
+  let e : Env := ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert
+    eS ev
+  have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
+    re_val_var_get w e { name := "E" } ev (by
+      show e.get? eS = some ev
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS
+            (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS
+            (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
+    re_val_var_get w e { name := "Y" } (enc ys) (by
+      show e.get? yS = some (enc ys)
+      rw [show e = ((({} : Env).insert yS (enc ys)).insert xS
+            (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  have happ := corr_append_enc w "BINARY-APPEND" (by decide) h_app
+    h_no_consp h_no_cdr h_no_car h_no_cons xs e xT yT ys hx hy
+  have hL := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT (appendT xT yT) ev (enc (xs ++ ys)) he happ
+  rw [howManyExec_enc] at hL
+  have hcx := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT xT ev (enc xs) he hx
+  rw [howManyExec_enc] at hcx
+  have hcy := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT yT ev (enc ys) he hy
+  rw [howManyExec_enc] at hcy
+  have hR := conv_plusT w e (howManyT eT xT) (howManyT eT yT) _ _ h_no_plus
+    hcx hcy
+  rw [logic_plus_int] at hR
+  have hnat := native_of_replayed_equal w e intRep _ _
+    ((xs ++ ys).count ev : Int) ((xs.count ev : Int) + (ys.count ev : Int))
+    h_no_equal hL hR (hreplayed e)
+  omega
+
+/-- The CAR-APPEND replayed-statement formula:
+    `(EQUAL (CAR (BINARY-APPEND A B)) (IF (CONSP A) (CAR A) (CAR B)))`. -/
+def car_appendFormula : SExpr :=
+  equalT (carT (appendT aT bT))
+    (ifT (conspT aT) (carT aT) (carT bT))
+
+/-- CAR-APPEND's native right-hand side. -/
+def carAppendSpec (xs ys : List SExpr) : SExpr :=
+  match xs with
+  | [] => ys.headD SExpr.nil
+  | a :: _ => a
+
+/-- CAR-APPEND, natively: the head of an append — the left head when the
+    left is a cons, else the right head. -/
+theorem car_append_native_of_replayed (w : World)
+    (h_app : w.defs.get? { package := "ACL2", name := "BINARY-APPEND" }
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env car_appendFormula = some v ∧ v ≠ SExpr.nil)
+    (xs ys : List SExpr) :
+    (xs ++ ys).headD SExpr.nil = carAppendSpec xs ys := by
+  let e : Env := (({} : Env).insert bS (enc ys)).insert aS (enc xs)
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some (enc xs) :=
+    re_val_var_get w e { name := "A" } (enc xs) (by
+      show e.get? aS = some (enc xs)
+      rw [show e = (({} : Env).insert bS (enc ys)).insert aS (enc xs)
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some (enc ys) :=
+    re_val_var_get w e { name := "B" } (enc ys) (by
+      show e.get? bS = some (enc ys)
+      rw [show e = (({} : Env).insert bS (enc ys)).insert aS (enc xs)
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have happ := corr_append_enc w "BINARY-APPEND" (by decide) h_app
+    h_no_consp h_no_cdr h_no_car h_no_cons xs e aT bT ys ha hb
+  have hL := conv_builtin1 w e { name := "CAR" } (appendT aT bT)
+    (enc (xs ++ ys)) (Logic.car (enc (xs ++ ys))) (by decide) h_no_car
+    happ (callBuiltin_car _)
+  have hconsp := conv_builtin1 w e { name := "CONSP" } aT (enc xs)
+    (Logic.consp (enc xs)) (by decide) h_no_consp ha (callBuiltin_consp _)
+  have hcarB : ∃ N, ∀ f ≥ N, evalOpt f w e (carT bT)
+      = some (Logic.car (enc ys)) :=
+    conv_builtin1 w e { name := "CAR" } bT (enc ys) (Logic.car (enc ys))
+      (by decide) h_no_car hb (callBuiltin_car _)
+  have hR : ∃ N, ∀ f ≥ N, evalOpt f w e
+      (ifT (conspT aT) (carT aT) (carT bT))
+      = some (carAppendSpec xs ys) := by
+    match xs with
+    | [] =>
+      have := conv_if_false' w e (conspT aT) (carT aT) (carT bT)
+        (Logic.car (enc ys)) hconsp hcarB
+      rw [car_enc] at this
+      exact this
+    | a :: t =>
+      have hcarA : ∃ N, ∀ f ≥ N, evalOpt f w e (carT aT) = some a := by
+        have h0 := conv_builtin1 w e { name := "CAR" } aT (enc (a :: t))
+          (Logic.car (enc (a :: t))) (by decide) h_no_car ha
+          (callBuiltin_car _)
+        simpa [enc, Logic.car] using h0
+      exact conv_if_true w e (conspT aT) (carT aT) (carT bT)
+        (Logic.consp (enc (a :: t))) a hconsp rfl hcarA
+  have hnat := native_of_replayed_equal w e idRep _ _
+    (Logic.car (enc (xs ++ ys))) (carAppendSpec xs ys) h_no_equal hL hR
+    (hreplayed e)
+  rw [← car_enc]
+  exact hnat
+
 end ACL2.Worlds.Sorting

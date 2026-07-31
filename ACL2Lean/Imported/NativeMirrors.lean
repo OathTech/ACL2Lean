@@ -1143,6 +1143,67 @@ theorem how_many_isort_native_driver (ev : SExpr) (xs : List SExpr) :
 
 #print axioms how_many_isort_native_driver
 
+/-! ## The qsort book — first tranche: the append rows. -/
+
+private def qsortLog : String :=
+  include_str "../../acl2_samples/sorting/qsort.proof-log"
+
+/-- The parsed development — the ONLY input is the log. -/
+def qsortDev : Development :=
+  (((ProofLog.parse qsortLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world qsortWorldD from qsortDev
+
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for HOW-MANY-APPEND
+    (hypotheses: `tp:HOW-MANY`, `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0`). -/
+def howManyAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "how-many-append"
+
+/-- The unconditional form. -/
+theorem howManyAppendReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.how_many_appendFormula = some v ∧ v ≠ SExpr.nil :=
+  howManyAppendReplayedCond env
+    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-APPEND natively: `List.count` distributes
+    over `++`. -/
+theorem how_many_append_native_driver (ev : SExpr) (xs ys : List SExpr) :
+    (xs ++ ys).count ev = xs.count ev + ys.count ev :=
+  Worlds.Sorting.how_many_append_native_of_replayed qsortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) howManyAppendReplayed_uncond ev xs ys
+
+#print axioms how_many_append_native_driver
+
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for CAR-APPEND (one
+    hypothesis: the if-lifting rule `(equal (if a b c) x)`). -/
+def carAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "car-append"
+
+/-- The unconditional form. -/
+theorem carAppendReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.car_appendFormula = some v ∧ v ≠ SExpr.nil :=
+  carAppendReplayedCond env
+    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+
+/-- ENTRY, PROVED — CAR-APPEND natively: the head of an append. -/
+theorem car_append_native_driver (xs ys : List SExpr) :
+    (xs ++ ys).headD SExpr.nil = Worlds.Sorting.carAppendSpec xs ys :=
+  Worlds.Sorting.car_append_native_of_replayed qsortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    carAppendReplayed_uncond xs ys
+
+#print axioms car_append_native_driver
+
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
@@ -1222,12 +1283,12 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/msort", "ORDEREDP-MSORT", .pending "chain2/LEXORDER + merge2/msort correspondences + cond dischargers (backlog)"),
   ("sorting/msort", "HOW-MANY-MSORT", .pending "how-many/msort correspondences (backlog)"),
   ("sorting/qsort", "termination:QSORT", .pending "termination replayed statement; native decrease fact not lifted"),
-  ("sorting/qsort", "HOW-MANY-APPEND", .pending "how-many correspondence (backlog)"),
+  ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver),
   ("sorting/qsort", "ORDEREDP-APPEND", .pending "chain2/LEXORDER + all-rel/append correspondences + cond dischargers (backlog)"),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .pending "how-many/filter correspondences (backlog)"),
   ("sorting/qsort", "HOW-MANY-QSORT", .pending "how-many/qsort correspondences (landed 2026-07-31 via the truthy branch-fact channel; backlog)"),
   ("sorting/qsort", "PERM-QSORT", .pending "qsort correspondence + isPerm lift (the flagship; backlog)"),
-  ("sorting/qsort", "CAR-APPEND", .pending "append correspondence at qsort world (backlog)"),
+  ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver),
   ("sorting/qsort", "ALL-REL-FILTER-1", .pending "all-rel/filter correspondences (backlog)"),
   ("sorting/qsort", "ALL-REL-FILTER-2", .pending "all-rel/filter correspondences (backlog)"),
   ("sorting/qsort", "ALL-REL-RM-1", .pending "all-rel/rm correspondences (backlog)"),
@@ -1305,7 +1366,9 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.orderedp_isort_native_driver,
             ``ACL2.Imported.Mirrors.equal_cons_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_memb_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_isort_native_driver] do
+            ``ACL2.Imported.Mirrors.how_many_isort_native_driver,
+            ``ACL2.Imported.Mirrors.how_many_append_native_driver,
+            ``ACL2.Imported.Mirrors.car_append_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
