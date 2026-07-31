@@ -2506,29 +2506,44 @@ def notEqualSides? : SExpr → Option (SExpr × SExpr)
     `(not (equal A B))`, as side pairs with the recorded falsity proof. This
     set's equivalence closure IS ACL2's type-alist class structure over the
     clause (assume-true-false on every literal). -/
-def inScopeEquations (ctx : ReplayCtx) : List (SExpr × SExpr × Expr) :=
+def inScopeEquations (ctx : ReplayCtx) :
+    List (SExpr × SExpr × Expr × Bool) :=
+  -- an edge is (a, b, proof, truthy): a FALSE `(not (equal a b))` fact
+  -- (proof : v(not(equal a b)) = nil), or — truthy = true — a TRUE
+  -- `(equal a b)` branch fact (proof : v(equal a b) ≠ nil, the assumed
+  -- if-test of an enclosing branch — PERM-CONS's (EQUAL X1 A) then-branch)
   (ctx.litFacts.filterMap fun (_, t, h) =>
-    (notEqualSides? t).map fun (a, b) => (a, b, h)) ++
+    (notEqualSides? t).map fun (a, b) => (a, b, h, false)) ++
   (ctx.segFacts.filterMap fun (t, h) =>
-    (notEqualSides? t).map fun (a, b) => (a, b, h))
+    (notEqualSides? t).map fun (a, b) => (a, b, h, false)) ++
+  (ctx.branchFacts.filterMap fun (bt, _, sign, h) =>
+    if sign then
+      match bt with
+      | .cons (.atom (.symbol es)) (.cons a (.cons b .nil)) =>
+        if es.name == "EQUAL" then some (a, b, h, true) else none
+      | _ => none
+    else none)
 
 /-- BFS a chain `src → dst` through the equation edges, each usable in either
     orientation. DETERMINISTIC, not search: the closure of a finite equation
     set is canonical, edges are tried in fact order, and the first (shortest)
     path is taken — any valid chain proves the same pinned equation. Each step
     is `(a, b, falsityProof, flipped)` (`flipped` = walked b→a). -/
-def eqChain? (eqs : List (SExpr × SExpr × Expr)) (src dst : SExpr) :
-    Option (List (SExpr × SExpr × Expr × Bool)) := Id.run do
+def eqChain? (eqs : List (SExpr × SExpr × Expr × Bool)) (src dst : SExpr) :
+    Option (List (SExpr × SExpr × Expr × Bool × Bool)) := Id.run do
   if src == dst then return some []
-  let mut paths : List (SExpr × List (SExpr × SExpr × Expr × Bool)) := [(src, [])]
+  let mut paths : List (SExpr × List (SExpr × SExpr × Expr × Bool × Bool)) :=
+    [(src, [])]
   let mut visited : List SExpr := [src]
   for _ in List.range (eqs.length + 1) do
-    let mut next : List (SExpr × List (SExpr × SExpr × Expr × Bool)) := []
+    let mut next : List (SExpr × List (SExpr × SExpr × Expr × Bool × Bool)) := []
     for (t, path) in paths do
-      for (a, b, h) in eqs do
+      for (a, b, h, truthy) in eqs do
         let step? :=
-          if a == t && !visited.contains b then some (b, (a, b, h, false))
-          else if b == t && !visited.contains a then some (a, (a, b, h, true))
+          if a == t && !visited.contains b then
+            some (b, (a, b, h, truthy, false))
+          else if b == t && !visited.contains a then
+            some (a, (a, b, h, truthy, true))
           else none
         if let some (t', edge) := step? then
           let path' := path ++ [edge]
@@ -2544,12 +2559,19 @@ def eqChain? (eqs : List (SExpr × SExpr × Expr)) (src dst : SExpr) :
     derived deterministically here, its target pinned by the solidify node's
     emitted `:EQUIV-TERM`). Returns `none` on an empty chain. -/
 def composeEqChain (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (chain : List (SExpr × SExpr × Expr × Bool)) : MetaM (Option Expr) := do
+    (chain : List (SExpr × SExpr × Expr × Bool × Bool)) :
+    MetaM (Option Expr) := do
   let mut acc : Option Expr := none
-  for (a, b, hNil, flipped) in chain do
+  for (a, b, hf, truthy, flipped) in chain do
     let va ← ctxValExpr cfg ctx a
     let vb ← ctxValExpr cfg ctx b
-    let hEq ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]
+    let hEq ←
+      if truthy then
+        -- a TRUE (equal a b) branch fact: v(equal a b) ≠ nil decodes to
+        -- va = vb directly
+        mkAppM ``Logic.eq_of_equal_ne_nil #[hf]
+      else
+        mkAppM ``logic_not_equal_nil_eq #[va, vb, hf]
     let hEq ← if flipped then mkAppM ``Eq.symm #[hEq] else pure hEq
     acc := some (← match acc with
       | none => pure hEq
