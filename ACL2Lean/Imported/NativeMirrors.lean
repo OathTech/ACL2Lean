@@ -1222,6 +1222,40 @@ theorem perm_implies_equal_all_rel_2_native_driver (fv ev : SExpr)
 
 #print axioms perm_implies_equal_all_rel_2_native_driver
 
+/-! ## The idiomatic `List.IsChain` corollaries (mirror criterion 1):
+sortedness in Mathlib vocabulary — `IsChain (lexorderB · · = true)`,
+adjacent-pairs order over the imported total order (LexorderOrder.lean
+proves it reflexive/antisymmetric/transitive/total). -/
+
+/-- Sortedness, idiomatically. -/
+abbrev LexSorted (xs : List SExpr) : Prop :=
+  xs.IsChain (fun a b => Worlds.Sorting.lexorderB a b = true)
+
+/-- ORDEREDP-ISORT, Mathlib form: insertion sort always sorts. -/
+theorem orderedp_isort_isChain_driver (xs : List SExpr) :
+    LexSorted (Worlds.Sorting.isortL xs) :=
+  (Worlds.Sorting.chain2Rec_iff_isChain _ _).mp
+    (orderedp_isort_native_driver xs)
+
+/-- ORDEREDP-RM, Mathlib form: erasing an element preserves
+    sortedness. -/
+theorem orderedp_rm_isChain_driver (ev : SExpr) (xs : List SExpr)
+    (h : LexSorted xs) : LexSorted (xs.erase ev) :=
+  (Worlds.Sorting.chain2Rec_iff_isChain _ _).mp
+    (orderedp_rm_native_driver ev xs
+      ((Worlds.Sorting.chain2Rec_iff_isChain _ _).mpr h))
+
+/-- ORDEREDP-MEMB, Mathlib form: an element strictly below the head of a
+    sorted list is not in it. -/
+theorem orderedp_memb_isChain_driver (ev a : SExpr) (t : List SExpr)
+    (hord : LexSorted (a :: t)) (hne : (ev == a) = false)
+    (hlex : Worlds.Sorting.lexorderB ev a = true) :
+    (a :: t).contains ev = false :=
+  orderedp_memb_native_driver ev a t
+    ((Worlds.Sorting.chain2Rec_iff_isChain _ _).mpr hord) hne hlex
+
+#print axioms orderedp_isort_isChain_driver
+
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
@@ -1230,26 +1264,53 @@ a native mirror (whose constant must exist), an explicit PENDING marker
 reflexive decodes and type-absorbed statements). A NEW green row without a
 catalog entry FAILS this build — "replayed but never lifted" can no longer
 accumulate silently (the survey's headline finding, now a ratchet). The
-golden is the input, so the catalog can never drift from the sweep. -/
+golden is the input, so the catalog can never drift from the sweep.
+
+### THE MIRROR CRITERION (MDD-ratified 2026-07-31)
+
+A mirror must be readable and trusted by a Lean user who does not speak
+ACL2, with minimal Lean-side trust obligations. Two BANNED antipatterns:
+
+1. **Mixed vocabulary.** The STATEMENT may use only Lean/Mathlib
+   notions (`List`, `count`, `++`, `erase`, `headD`, `contains`,
+   `IsChain`, `Perm`/`isPerm`, `Bool`, `==`) plus SELF-CONTAINED Lean
+   definitions over the `SExpr` inductive (e.g. `lexorderB`, `isortL`,
+   `relL` — plain recursive functions with NO reference to `Logic.*`,
+   `evalOpt`, `EvTrue`, `World`, `boolEnc`, or any `*Exec` function).
+   SExpr-level notions are admissible exactly when the imported theorem
+   is genuinely ABOUT the ACL2 value universe (the lexorder ruling);
+   where a standard-Lean-type reading exists, prefer it.
+2. **Ornamental import.** The PROOF's Lean-side bridge may only
+   EVALUATE (per-function simulation lemmas — a program computes its
+   own native reading on encoded inputs) and DECODE (two-valuedness,
+   projections). Every inter-function fact — the theorem's actual
+   content — must flow through the replayed-statement seam. A bridge
+   lemma relating two DIFFERENT functions is doing ACL2's job in Lean
+   and is banned. Mechanized below: the SEAM GATE checks each native
+   entry's proof term transitively consumes its `driver_replayed%`
+   constant (deterministic, in-Lean; catches fully-detached proofs —
+   the subtler ornamental cases remain an audit item). -/
 
 private def liftCoverageGolden : String :=
   include_str "../../Tests/driver-coverage.golden"
 
 inductive LiftStatus where
-  | native (decl : Lean.Name)
+  /-- A proved native mirror: the theorem constant + its SEAM (the
+      `driver_replayed%` constant its proof must consume). -/
+  | native (decl : Lean.Name) (seam : Lean.Name)
   | pending (blockedOn : String)
   | replayedOnly (why : String)
 
 /-- The catalog: one DECISION per green sweep row (book, theorem, status). -/
 def liftCatalog : List (String × String × LiftStatus) := [
-  ("simple", "MY-LEN-MY-APP", .native ``my_len_my_app_native_driver),
-  ("00-direct", "GROUND-ARITH", .native ``ground_arith_native),
-  ("00-direct", "SQ-OF-3", .native ``sq_of_3_native),
+  ("simple", "MY-LEN-MY-APP", .native ``my_len_my_app_native_driver ``mylenReplayedCond),
+  ("00-direct", "GROUND-ARITH", .native ``ground_arith_native ``groundArithReplayedCond),
+  ("00-direct", "SQ-OF-3", .native ``sq_of_3_native ``sqOf3ReplayedCond),
   ("00-direct", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
-  ("01-multi-theorem", "APP-CONS-CAR", .native ``car_cons_native),
+  ("01-multi-theorem", "APP-CONS-CAR", .native ``car_cons_native ``appConsCarReplayedCond),
   ("01-multi-theorem", "APP-NIL", .pending "rule:CONS-CAR-CDR discharger + the true-listp hypothesis decode (the row replays green; audit F7 corrected the stale G5 reason)"),
   ("01-multi-theorem", "LEN2-APP", .pending "len2 world dischargers (entry-1 recipe over the 01 world)"),
-  ("02-rev", "APP-ASSOC", .native ``app_assoc_native_driver),
+  ("02-rev", "APP-ASSOC", .native ``app_assoc_native_driver ``appAssocReplayedCond),
   ("02-rev", "TRUE-LISTP-REV", .pending "the flatten-recipe mirror (the image-of-enc fact, cf TRUE-LISTP-FLATTEN — unconditional, transfers directly)"),
   ("02-rev", "APP-NIL", .pending "rule:CONS-CAR-CDR discharger + the true-listp hypothesis decode"),
   ("02-rev", "REV-APP", .pending "rev correspondence + tp:REV/rule:CONS-CAR-CDR dischargers"),
@@ -1264,13 +1325,13 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("06-measure", "COUNT-DOWN-ZERO", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("07-mutual-recursion", "MY-EVENP-3-IS-NIL", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("07-mutual-recursion", "MY-ODDP-3-IS-T", .replayedOnly "reflexive decode — no non-vacuous native fact"),
-  ("08-equality-reasoning", "CDR-CONS-REFL", .native ``cdr_cons_native),
-  ("08-equality-reasoning", "EQUAL-SYMM", .native ``equal_symm_native),
-  ("08-equality-reasoning", "EQUAL-TRANS", .native ``equal_trans_native),
+  ("08-equality-reasoning", "CDR-CONS-REFL", .native ``cdr_cons_native ``cdrConsReplayedCond),
+  ("08-equality-reasoning", "EQUAL-SYMM", .native ``equal_symm_native ``equalSymmReplayedCond),
+  ("08-equality-reasoning", "EQUAL-TRANS", .native ``equal_trans_native ``equalTransReplayedCond),
   ("09-defn-unfold", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("09-defn-unfold", "IDF-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("10-tree-induction", "TRUE-LISTP-APP", .pending "the flatten-recipe mirror (unconditional — transfers directly)"),
-  ("10-tree-induction", "TRUE-LISTP-FLATTEN", .native ``true_listp_flatten_native_driver),
+  ("10-tree-induction", "TRUE-LISTP-FLATTEN", .native ``true_listp_flatten_native_driver ``trueListpFlattenReplayed),
   ("12-multi-controller", "LEN-ZIP2", .pending "zip2 correspondence (validator/lifter backlog)"),
   ("13-multi-measured-var", "LEN-INTERLEAVE", .pending "interleave correspondence (backlog)"),
   ("14-accumulator", "LEN-REV-ACC", .pending "accumulator correspondence (backlog)"),
@@ -1278,22 +1339,22 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("16-three-way", "LEN-ZIP3", .pending "zip3 correspondence (backlog)"),
   ("17-rule-application", "TLP-APP-NIL", .pending "rule-application family decode (backlog)"),
   ("17-rule-application", "TLP-APP-NIL-TWICE", .pending "rule-application family decode (backlog)"),
-  ("sorting/perm", "PERM-CONS", .native ``perm_cons_native_driver),
-  ("sorting/perm", "PERM-SYMMETRIC", .native ``perm_symmetric_native_driver),
-  ("sorting/perm", "MEMB-RM", .native ``memb_rm_native_driver),
-  ("sorting/perm", "PERM-MEMB", .native ``perm_memb_native_driver),
-  ("sorting/perm", "COMM-RM", .native ``comm_rm_native_driver),
-  ("sorting/perm", "PERM-RM", .native ``perm_rm_native_driver),
-  ("sorting/perm", "PERM-TRANSITIVE", .native ``perm_transitive_native_driver),
-  ("sorting/perm", "PERM-IS-AN-EQUIVALENCE", .native ``perm_refl_native_driver),
-  ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver),
+  ("sorting/perm", "PERM-CONS", .native ``perm_cons_native_driver ``permConsReplayedCond),
+  ("sorting/perm", "PERM-SYMMETRIC", .native ``perm_symmetric_native_driver ``permSymmetricReplayed),
+  ("sorting/perm", "MEMB-RM", .native ``memb_rm_native_driver ``membRmReplayed),
+  ("sorting/perm", "PERM-MEMB", .native ``perm_memb_native_driver ``permMembReplayed),
+  ("sorting/perm", "COMM-RM", .native ``comm_rm_native_driver ``commRmReplayed),
+  ("sorting/perm", "PERM-RM", .native ``perm_rm_native_driver ``permRmReplayed),
+  ("sorting/perm", "PERM-TRANSITIVE", .native ``perm_transitive_native_driver ``permTransitiveReplayed),
+  ("sorting/perm", "PERM-IS-AN-EQUIVALENCE", .native ``perm_refl_native_driver ``permEquivReplayed),
+  ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
-  ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver),
-  ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver),
-  ("sorting/ordered-perms", "ORDEREDP-MEMB", .native ``orderedp_memb_native_driver),
-  ("sorting/ordered-perms", "EQUAL-CONS", .native ``equal_cons_native_driver),
+  ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),
+  ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver ``orderedpRmReplayed),
+  ("sorting/ordered-perms", "ORDEREDP-MEMB", .native ``orderedp_memb_native_driver ``orderedpMembReplayedCond),
+  ("sorting/ordered-perms", "EQUAL-CONS", .native ``equal_cons_native_driver ``equalConsReplayedCond),
   ("sorting/ordered-perms", "ORDERED-PERMS", .pending "chain2/LEXORDER + perm/rm/memb correspondences + the ASSUMED:dp-fact dischargers (backlog)"),
-  ("sorting/ordered-perms", "CAR-RM", .native ``car_rm_native_driver),
+  ("sorting/ordered-perms", "CAR-RM", .native ``car_rm_native_driver ``carRmReplayed),
   ("sorting/ordered-perms", "TRUE-LISTP-RM", .replayedOnly "subsumed by the rm simulation: `true-listp` restricts the input to the enc image (exists_enc_of_trueListp), where corr_rm_enc already yields an encoded List — no native content beyond the sim (the type-absorbed true-listp doctrine; the flatten recipe applies only where NO simulation exists)"),
   ("sorting/msort", "TRUE-LISTP-MSORT", .pending "the flatten-recipe mirror + its cond dischargers (total:MERGE2/MSORT, tp:EVENS)"),
   ("sorting/msort", "HOW-MANY-MERGE2", .pending "how-many/merge2 correspondences (backlog)"),
@@ -1301,17 +1362,17 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/msort", "ORDEREDP-MSORT", .pending "chain2/LEXORDER + merge2/msort correspondences + cond dischargers (backlog)"),
   ("sorting/msort", "HOW-MANY-MSORT", .pending "how-many/msort correspondences (backlog)"),
   ("sorting/qsort", "termination:QSORT", .pending "termination replayed statement; native decrease fact not lifted"),
-  ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver),
+  ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
   ("sorting/qsort", "ORDEREDP-APPEND", .pending "chain2/LEXORDER + all-rel/append correspondences + cond dischargers (backlog)"),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .pending "how-many/filter correspondences (backlog)"),
   ("sorting/qsort", "HOW-MANY-QSORT", .pending "how-many/qsort correspondences (landed 2026-07-31 via the truthy branch-fact channel; backlog)"),
   ("sorting/qsort", "PERM-QSORT", .pending "qsort correspondence + isPerm lift (the flagship; backlog)"),
-  ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver),
+  ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-1", .pending "all-rel/filter correspondences (backlog)"),
   ("sorting/qsort", "ALL-REL-FILTER-2", .pending "all-rel/filter correspondences (backlog)"),
   ("sorting/qsort", "ALL-REL-RM-1", .pending "all-rel/rm correspondences (backlog)"),
   ("sorting/qsort", "ALL-REL-RM-2", .pending "all-rel/rm correspondences (backlog)"),
-  ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver),
+  ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
   ("sorting/qsort", "ORDEREDP-QSORT", .pending "chain2/LEXORDER + qsort correspondences (the headline; backlog)"),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .pending "the flatten-recipe mirror + its cond dischargers (total:O<, tp:QSORT, …)")]
 
@@ -1329,10 +1390,34 @@ run_cmd Lean.Elab.Command.liftCoreM do
   for (b, n) in rows do
     match liftCatalog.filter (fun (cb, cn, _) => cb == b && cn == n) with
     | [(_, _, st)] =>
-      if let .native decl := st then
+      if let .native decl seam := st then
         unless (← getEnv).contains decl do
           throwError "lift-coverage gate: {b}/{n} claims native {decl}, \
             which does not exist"
+        -- THE SEAM GATE (mirror criterion, antipattern 2): the native
+        -- proof must transitively CONSUME its replayed statement.
+        -- Deterministic in-Lean used-constants search; only constants
+        -- inside this namespace are expanded (the seam is matched by
+        -- name, never expanded — its proof object is huge).
+        let env ← getEnv
+        let mut frontier : List Name := [decl]
+        let mut visited : NameSet := {}
+        let mut found := false
+        while !found && !frontier.isEmpty do
+          let c := frontier.head!
+          frontier := frontier.tail!
+          unless visited.contains c do
+            visited := visited.insert c
+            if c == seam then
+              found := true
+            else if (`ACL2.Imported.Mirrors).isPrefixOf c then
+              if let some ci := env.find? c then
+                if let some v := ci.value? then
+                  frontier := v.getUsedConstants.toList ++ frontier
+        unless found do
+          throwError "lift-coverage gate: {b}/{n}'s native proof does \
+            not consume its replayed statement {seam} — the \
+            ornamental-import antipattern (mirror criterion 2)"
     | [] => throwError "lift-coverage gate: green row {b}/{n} has NO \
         catalog decision — add a native entry, a PENDING marker, or a \
         replayed-only justification"
@@ -1387,7 +1472,10 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.how_many_isort_native_driver,
             ``ACL2.Imported.Mirrors.how_many_append_native_driver,
             ``ACL2.Imported.Mirrors.car_append_native_driver,
-            ``ACL2.Imported.Mirrors.perm_implies_equal_all_rel_2_native_driver] do
+            ``ACL2.Imported.Mirrors.perm_implies_equal_all_rel_2_native_driver,
+            ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,
+            ``ACL2.Imported.Mirrors.orderedp_rm_isChain_driver,
+            ``ACL2.Imported.Mirrors.orderedp_memb_isChain_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do

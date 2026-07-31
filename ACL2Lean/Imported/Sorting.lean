@@ -29,6 +29,19 @@ theorem lexorder_t_or_nil (x y : SExpr) :
 /-- The Bool reading of the two-valued `lexorder`. -/
 def lexorderB (x y : SExpr) : Bool := lexorder x y == SExpr.t
 
+/-- The chain2 fold IS Mathlib's `List.IsChain` — the fully idiomatic
+    reading of the ORDEREDP-shaped recognizers. -/
+theorem chain2Rec_iff_isChain (p : SExpr → SExpr → Bool) :
+    ∀ xs : List SExpr,
+      chain2Rec p xs = true ↔ xs.IsChain (fun a b => p a b = true)
+  | [] => by simp [chain2Rec]
+  | [_] => by simp [chain2Rec]
+  | a :: b :: t => by
+    rw [show chain2Rec p (a :: b :: t)
+          = (p a b && chain2Rec p (b :: t)) from rfl,
+        Bool.and_eq_true, chain2Rec_iff_isChain p (b :: t),
+        List.isChain_cons_cons]
+
 theorem lexorder_eq_boolEnc (x y : SExpr) :
     lexorder x y = boolEnc (lexorderB x y) := by
   unfold lexorderB
@@ -1745,12 +1758,52 @@ theorem all_rel_exec_corr (w : World)
   exact conv_defn_3 w env all_rel_sym a x b av xv bv fnS xS eS allRelBody _
     all_rel_ns h_ar ha hx hb (hbody xv av bv)
 
-/-- The native reading of one REL verdict. -/
-def relB (fv ev a : SExpr) : Bool := Logic.toBool (relExec fv a ev)
+/-- The NATIVE reading of one REL verdict — an ordinary Lean match on the
+    four comparison modes, in `lexorderB`/`==` vocabulary only (the mirror
+    criterion: no exec function in a mirror statement). -/
+def relL (fv a e : SExpr) : Bool :=
+  if fv == symV "LT" then lexorderB a e && !(a == e)
+  else if fv == symV "LTE" then lexorderB a e
+  else if fv == symV "GT" then lexorderB e a && !(a == e)
+  else lexorderB e a
 
-/-- The native reading of ALL-REL: every element is REL-related to `ev`. -/
+private theorem toBool_equal (a b : SExpr) :
+    Logic.toBool (Logic.equal a b) = (a == b) := by
+  cases h : a == b <;> simp [Logic.equal, h]
+
+private theorem toBool_strict (x y a e : SExpr) :
+    Logic.toBool
+      (if Logic.toBool (lexorder x y) = true then
+        (if Logic.toBool (Logic.equal a e) = true then SExpr.nil
+         else SExpr.t)
+       else SExpr.nil)
+      = (lexorderB x y && !(a == e)) := by
+  rw [toBool_lexorder, toBool_equal]
+  cases hl : lexorderB x y <;> cases he : a == e <;>
+    simp [Logic.toBool, SExpr.t]
+
+/-- The exec dispatch computes exactly the native `relL` verdict. -/
+theorem toBool_relExec (fv a e : SExpr) :
+    Logic.toBool (relExec fv a e) = relL fv a e := by
+  unfold relExec relL
+  by_cases hLT : (fv == symV "LT") = true
+  · rw [if_pos (by rw [toBool_equal]; exact hLT), if_pos hLT]
+    exact toBool_strict a e a e
+  · rw [if_neg (by rw [toBool_equal]; exact hLT), if_neg hLT]
+    by_cases hLTE : (fv == symV "LTE") = true
+    · rw [if_pos (by rw [toBool_equal]; exact hLTE), if_pos hLTE]
+      exact toBool_lexorder a e
+    · rw [if_neg (by rw [toBool_equal]; exact hLTE), if_neg hLTE]
+      by_cases hGT : (fv == symV "GT") = true
+      · rw [if_pos (by rw [toBool_equal]; exact hGT), if_pos hGT]
+        exact toBool_strict e a a e
+      · rw [if_neg (by rw [toBool_equal]; exact hGT), if_neg hGT]
+        exact toBool_lexorder e a
+
+/-- The native reading of ALL-REL: every element is `relL`-related to
+    `ev`. -/
 def allRelL (fv ev : SExpr) (xs : List SExpr) : Bool :=
-  xs.all (relB fv ev)
+  xs.all (fun a => relL fv a ev)
 
 /-- Stage 2: `allRelExec` on an encoded list computes `allRelL`. -/
 theorem allRelExec_enc (fv ev : SExpr) (xs : List SExpr) :
@@ -1763,14 +1816,14 @@ theorem allRelExec_enc (fv ev : SExpr) (xs : List SExpr) :
           from rfl),
         show Logic.car (SExpr.cons hd (enc tl)) = hd from rfl,
         show Logic.cdr (SExpr.cons hd (enc tl)) = enc tl from rfl]
-    cases hb : relB fv ev hd with
+    cases hb : relL fv hd ev with
     | true =>
-      rw [if_pos (show Logic.toBool (relExec fv hd ev) = true from hb), ih]
+      rw [if_pos (show Logic.toBool (relExec fv hd ev) = true from by
+        rw [toBool_relExec, hb]), ih]
       simp only [allRelL, List.all_cons, hb, Bool.true_and]
     | false =>
       rw [if_neg (show ¬(Logic.toBool (relExec fv hd ev) = true) from by
-        rw [show Logic.toBool (relExec fv hd ev) = relB fv ev hd from rfl,
-            hb]; simp)]
+        rw [toBool_relExec, hb]; simp)]
       simp only [allRelL, List.all_cons, hb, Bool.false_and, boolEnc,
         cond_false]
 
