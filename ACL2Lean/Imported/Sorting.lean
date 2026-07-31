@@ -5091,4 +5091,254 @@ theorem perm_qsort_native_of_replayed (w : World)
   exact bool_true_of_cond_truthy (toBool_true_of_ne_nil
     (replayed_pins_ne_nil (hreplayed e) hP))
 
+/-! ## ORDEREDP-QSORT — the generic orderedp exec (arbitrary values,
+where `corr_chain2_enc` is enc-only) + the in-book rule discharger. -/
+
+/-- `orderedp`'s body as a total Lean function (the chain2 shape). -/
+def orderedpExec (x : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then
+    if Logic.toBool (Logic.consp (Logic.cdr x)) = true then
+      if Logic.toBool (lexorder (Logic.car x) (Logic.car (Logic.cdr x)))
+          = true then
+        orderedpExec (Logic.cdr x)
+      else SExpr.nil
+    else SExpr.t
+  else SExpr.t
+termination_by x.consCount
+decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
+
+theorem orderedpExec_t_or_nil (x : SExpr) :
+    orderedpExec x = SExpr.t ∨ orderedpExec x = SExpr.nil := by
+  fun_induction orderedpExec x with
+  | case1 x _ _ _ ih => exact ih
+  | case2 x _ _ _ => exact Or.inr rfl
+  | case3 x _ _ => exact Or.inl rfl
+  | case4 x _ => exact Or.inl rfl
+
+private def orderedp_sym : Symbol := { package := "ACL2", name := "ORDEREDP" }
+
+private theorem orderedp_ns :
+    (orderedp_sym.isNamed "QUOTE" = false ∧
+     orderedp_sym.isNamed "IF" = false ∧
+     orderedp_sym.isNamed "LET" = false ∧
+     orderedp_sym.isNamed "LET*" = false) := by decide
+
+/-- Stage 1: an `orderedp` call converges to `orderedpExec` (over
+    ARBITRARY values). -/
+theorem orderedp_exec_corr (w : World)
+    (h_ord : w.defs.get? orderedp_sym
+      = some ([{ package := "ACL2", name := "X" }],
+              chain2Body "LEXORDER" "ORDEREDP"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (orderedpT x) (orderedpExec xv)
+    := by
+  have hbody : ∀ xv : SExpr,
+      ConvTo w (bindArgs [xS] [xv]) (chain2Body "LEXORDER" "ORDEREDP")
+        (orderedpExec xv) := by
+    refine consCount_strong_induction
+      (fun xv => ConvTo w (bindArgs [xS] [xv])
+        (chain2Body "LEXORDER" "ORDEREDP") (orderedpExec xv)) ?_
+    intro xv ih
+    have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+      (bindArgs_single_get_self xS xv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have hconsp2 := conv_builtin1 w _ { name := "CONSP" } (cdrT xT)
+      (Logic.cdr xv) (Logic.consp (Logic.cdr xv)) (by decide) h_no_consp
+      hcdr (callBuiltin_consp _)
+    have hcadr := conv_builtin1 w _ { name := "CAR" } (cdrT xT)
+      (Logic.cdr xv) (Logic.car (Logic.cdr xv)) (by decide) h_no_car hcdr
+      (callBuiltin_car _)
+    have hlex := conv_builtin2 w _ { name := "LEXORDER" } (carT xT)
+      (carT (cdrT xT)) (Logic.car xv) (Logic.car (Logic.cdr xv)) _
+      (by decide) h_no_lexorder hcar hcadr (callBuiltin_lexorder _ _)
+    have houter := conv_if_lift w (bindArgs [xS] [xv]) (conspT xT)
+      (ifT (conspT (cdrT xT))
+        (ifT (lexT (carT xT) (carT (cdrT xT)))
+          (app1 "ORDEREDP" (cdrT xT)) qNil)
+        qT')
+      qT' (Logic.consp xv)
+      (if Logic.toBool (Logic.consp (Logic.cdr xv)) = true then
+        (if Logic.toBool (lexorder (Logic.car xv)
+            (Logic.car (Logic.cdr xv))) = true then
+          orderedpExec (Logic.cdr xv)
+         else SExpr.nil)
+       else SExpr.t)
+      SExpr.t hconsp
+      (fun hb =>
+        conv_if_lift w _ (conspT (cdrT xT)) _ qT'
+          (Logic.consp (Logic.cdr xv))
+          (if Logic.toBool (lexorder (Logic.car xv)
+              (Logic.car (Logic.cdr xv))) = true then
+            orderedpExec (Logic.cdr xv)
+           else SExpr.nil)
+          SExpr.t hconsp2
+          (fun _ =>
+            conv_if_lift w _ (lexT (carT xT) (carT (cdrT xT)))
+              (app1 "ORDEREDP" (cdrT xT)) qNil
+              (lexorder (Logic.car xv) (Logic.car (Logic.cdr xv)))
+              (orderedpExec (Logic.cdr xv)) SExpr.nil hlex
+              (fun _ =>
+                conv_defn_1 w _ orderedp_sym (cdrT xT) (Logic.cdr xv)
+                  { package := "ACL2", name := "X" }
+                  (chain2Body "LEXORDER" "ORDEREDP") _ orderedp_ns h_ord
+                  hcdr
+                  (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb)))
+              (fun _ => re_val_quote w _ SExpr.nil))
+          (fun _ => re_val_quote w _ SExpr.t))
+      (fun _ => re_val_quote w _ SExpr.t)
+    rw [orderedpExec.eq_def]
+    exact houter
+  intro env x xv hx
+  exact conv_defn_1 w env orderedp_sym x xv
+    { package := "ACL2", name := "X" } (chain2Body "LEXORDER" "ORDEREDP")
+    _ orderedp_ns h_ord hx (hbody xv)
+
+private theorem eq_of_iff_truthy_two_valued {p q : SExpr}
+    (hp : p = SExpr.t ∨ p = SExpr.nil) (hq : q = SExpr.t ∨ q = SExpr.nil)
+    (h : Logic.toBool (Logic.iff p q) = true) : p = q := by
+  rcases hp with rfl | rfl <;> rcases hq with rfl | rfl <;>
+    simp_all [Logic.iff, Logic.toBool, SExpr.t]
+
+/-- `rule:ORDEREDP-APPEND` — the in-book rule, discharged FROM the
+    theorem's own replayed statement (both sides two-valued, so the
+    replayed IFF pins the values EQUAL). -/
+theorem dis_rule_orderedp_append (w : World)
+    (h_ord : w.defs.get? orderedp_sym
+      = some ([{ package := "ACL2", name := "X" }],
+              chain2Body "LEXORDER" "ORDEREDP"))
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
+    (h_app : w.defs.get? append_sym
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (h_no_iff : w.defs.get? ({ name := "IFF" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env orderedp_appendFormula = some v ∧ v ≠ SExpr.nil) :
+    ∀ env' : Env, EvTrue w env' (orderedpT aT) →
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env' (orderedpT (appendT aT (consT eT bT)))
+        = evalOpt f w env'
+            (ifT (orderedpT bT)
+              (ifT (allRelT (qSym "LTE") aT eT)
+                (allRelT (qSym "GTE") bT eT) qNil)
+              qNil) := by
+  intro env' hyp
+  obtain ⟨va, ha⟩ := conv_var w env' aS (by decide)
+  obtain ⟨vb, hb⟩ := conv_var w env' bS (by decide)
+  obtain ⟨ve, he⟩ := conv_var w env' eS (by decide)
+  have hAnte := orderedp_exec_corr w h_ord h_no_consp h_no_car h_no_cdr
+    h_no_lexorder env' aT va ha
+  -- LHS: orderedp of the append
+  have hcons := conv_builtin2 w env' { name := "CONS" } eT bT ve vb
+    (Logic.cons ve vb) (by decide) h_no_cons he hb rfl
+  have happ := append_exec_corr w h_app h_no_consp h_no_car h_no_cdr
+    h_no_cons env' aT (consT eT bT) va (Logic.cons ve vb) ha hcons
+  have hL := orderedp_exec_corr w h_ord h_no_consp h_no_car h_no_cdr
+    h_no_lexorder env' (appendT aT (consT eT bT))
+    (appendExec va (Logic.cons ve vb)) happ
+  -- RHS: the if-nest
+  have hOrdB := orderedp_exec_corr w h_ord h_no_consp h_no_car h_no_cdr
+    h_no_lexorder env' bT vb hb
+  have hAr1 := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_lexorder env' (qSym "LTE") aT eT (symV "LTE")
+    va ve (re_val_quote w env' (symV "LTE")) ha he
+  have hAr2 := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_lexorder env' (qSym "GTE") bT eT (symV "GTE")
+    vb ve (re_val_quote w env' (symV "GTE")) hb he
+  have hInner := conv_if_lift w env' (allRelT (qSym "LTE") aT eT)
+    (allRelT (qSym "GTE") bT eT) qNil (allRelExec (symV "LTE") va ve)
+    (allRelExec (symV "GTE") vb ve) SExpr.nil hAr1
+    (fun _ => hAr2) (fun _ => re_val_quote w env' SExpr.nil)
+  have hR := conv_if_lift w env' (orderedpT bT) _ qNil (orderedpExec vb)
+    (if Logic.toBool (allRelExec (symV "LTE") va ve) = true then
+      allRelExec (symV "GTE") vb ve
+     else SExpr.nil)
+    SExpr.nil hOrdB (fun _ => hInner)
+    (fun _ => re_val_quote w env' SExpr.nil)
+  -- the replayed IFF pins the two-valued sides equal
+  have hIff := conv_builtin2 w env' { name := "IFF" } _ _ _ _ _
+    (by decide) h_no_iff hL hR (callBuiltin_iff _ _)
+  have hImp := conv_builtin2 w env' { name := "IMPLIES" } _ _ _ _ _
+    (by decide) h_no_implies hAnte hIff (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil
+    (replayed_pins_ne_nil (hreplayed env') hImp)
+  have hp : Logic.toBool (orderedpExec va) = true :=
+    toBool_true_of_ne_nil (ne_nil_of_evtrue_conv hyp hAnte)
+  have hiff := truthy_of_implies_t hIt hp
+  have hRtv : (if Logic.toBool (orderedpExec vb) = true then
+      (if Logic.toBool (allRelExec (symV "LTE") va ve) = true then
+        allRelExec (symV "GTE") vb ve
+       else SExpr.nil)
+     else SExpr.nil) = SExpr.t ∨
+      (if Logic.toBool (orderedpExec vb) = true then
+        (if Logic.toBool (allRelExec (symV "LTE") va ve) = true then
+          allRelExec (symV "GTE") vb ve
+         else SExpr.nil)
+       else SExpr.nil) = SExpr.nil := by
+    split
+    · split
+      · exact allRelExec_t_or_nil _ _ _
+      · exact Or.inr rfl
+    · exact Or.inr rfl
+  exact fuel_eq_of_conv hL hR
+    (eq_of_iff_truthy_two_valued (orderedpExec_t_or_nil _) hRtv hiff)
+
+/-! ## ORDEREDP-QSORT -/
+
+/-- `(ORDEREDP (QSORT X))`. -/
+def orderedp_qsortFormula : SExpr := orderedpT (qsortT xT)
+
+/-- ORDEREDP-QSORT, natively: QUICKSORT SORTS. -/
+theorem orderedp_qsort_native_of_replayed (w : World)
+    (h_ord : w.defs.get? orderedp_sym
+      = some ([{ package := "ACL2", name := "X" }],
+              chain2Body "LEXORDER" "ORDEREDP"))
+    (h_qs : w.defs.get? qsort_sym = some ([xS], qsortBody))
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_filter : w.defs.get? filter_sym = some ([fnS, xS, eS], filterBody))
+    (h_app : w.defs.get? append_sym
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env orderedp_qsortFormula = some v ∧ v ≠ SExpr.nil)
+    (xs : List SExpr) :
+    orderedpRec (qsortL xs) = true := by
+  let e : Env := ({} : Env).insert xS (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ({} : Env).insert xS (enc xs) from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hqs := qsort_exec_corr w h_qs h_rel h_filter h_app h_no_consp
+    h_no_equal h_no_car h_no_cdr h_no_cons h_no_lexorder e xT (enc xs) hx
+  rw [qsortExec_enc] at hqs
+  have hord := corr_orderedp_enc w h_ord h_no_consp h_no_cdr h_no_car
+    h_no_lexorder (qsortL xs) e (qsortT xT) hqs
+  exact bool_true_of_cond_truthy (toBool_true_of_ne_nil
+    (replayed_pins_ne_nil (hreplayed e) hord))
+
 end ACL2.Worlds.Sorting

@@ -1544,6 +1544,68 @@ theorem perm_qsort_perm_driver (xs : List SExpr) :
 
 #print axioms perm_qsort_native_driver
 
+set_option maxHeartbeats 4000000 in
+/-- ORDEREDP-QSORT's conditional replayed statement (THE HEADLINE —
+    fourteen hypotheses: PERM-QSORT's twelve plus `tp:ALL-REL` and the
+    in-book `rule:ORDEREDP-APPEND`). -/
+def orderedpQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "orderedp-qsort" with_termination
+
+set_option maxHeartbeats 1600000 in
+theorem orderedpQsortReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.orderedp_qsortFormula = some v ∧ v ≠ SExpr.nil :=
+  orderedpQsortReplayedCond env
+    (Worlds.Sorting.dis_pce_total qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide))
+    (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_acl2_count_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
+    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+    (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_if_lift qsortWorldD (by decide))
+    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+    (Worlds.Sorting.dis_rule_orderedp_append qsortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) orderedpAppendReplayed_uncond)
+
+set_option maxHeartbeats 1600000 in
+/-- ENTRY, PROVED — ORDEREDP-QSORT natively: QUICKSORT SORTS —
+    `qsortL xs` is adjacent-pair lexorder-sorted for EVERY input. -/
+theorem orderedp_qsort_native_driver (xs : List SExpr) :
+    Worlds.Sorting.orderedpRec (Worlds.Sorting.qsortL xs) = true :=
+  Worlds.Sorting.orderedp_qsort_native_of_replayed qsortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide)
+    orderedpQsortReplayed_uncond xs
+
+/-- ORDEREDP-QSORT, Mathlib form. -/
+theorem orderedp_qsort_isChain_driver (xs : List SExpr) :
+    (Worlds.Sorting.qsortL xs).IsChain
+      (fun a b => Worlds.Sorting.lexorderB a b = true) :=
+  (Worlds.Sorting.chain2Rec_iff_isChain _ _).mp
+    (orderedp_qsort_native_driver xs)
+
+#print axioms orderedp_qsort_native_driver
+
 /-! ## The msort book — merge sort, all four content rows. -/
 
 private def msortLog : String :=
@@ -1840,7 +1902,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ALL-REL-RM-1", .native ``all_rel_rm_1_native_driver ``allRelRm1ReplayedCond),
   ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
-  ("sorting/qsort", "ORDEREDP-QSORT", .pending "chain2/LEXORDER + qsort correspondences (the headline; backlog)"),
+  ("sorting/qsort", "ORDEREDP-QSORT", .native ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
 open Lean in
