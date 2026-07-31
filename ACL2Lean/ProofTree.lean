@@ -239,11 +239,16 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- branch AFTER emitting the collapse) — its nodes stay chain
       -- siblings. Every other window precedes its adopting step
       -- (body/hyp/rhs blocks; if-finish branch windows) — pendingChildren.
+      -- if/equal windows are ALWAYS chain items: inside a BEGIN-IF block
+      -- they stay siblings preceding the if1/combined steps (the combined
+      -- step adopts the whole block — the pre-window sibling shape, now
+      -- tagged); in a plain chain they are the constant-test collapse's
+      -- continuation (the walk's inline-group handler consumes them).
+      -- Classic kinds (hyp/rhs/body/…) remain pendingChildren for their
+      -- adopting step's recipe.
       let inline :=
-        (kind == "if-left" || kind == "if-right") &&
-        (match term, nodes with
-         | some t, .node _ _ prevRhs _ _ :: _ => t == prevRhs
-         | _, _ => false)
+        kind == "equal-cars" || kind == "equal-cdrs" ||
+        kind == "if-left" || kind == "if-right"
       if inline then
         parseProofNodesAux rest' pendingChildren (tagged.reverse ++ nodes)
       else

@@ -4787,13 +4787,13 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     if (runeOf n).ty != "clause-context-resolution" then
       if let .cons (.atom (.symbol eqS)) (.cons s1 (.cons s2 .nil)) := start then
         if eqS.name == "EQUAL" then
-          let rel ← relativizeAndStrip (nodePath n) depth strip
-          if let [.arg i fnF] := rel then
-            let scr1 : SExpr := .cons (.atom (.symbol fnF)) (.cons s1 .nil)
-            let scr2 : SExpr := .cons (.atom (.symbol fnF)) (.cons s2 .nil)
-            if fnF.name == "CAR" &&
-                ((i == 1 && lhs == scr1) || (i == 2 && lhs == scr2)) &&
-                lhs != s1 && lhs != s2 then
+          -- window-tagged detection (path-emission Phase 1): the fork
+          -- brackets the component descents in equal-cars/equal-cdrs
+          -- windows carrying BOTH synthesized redexes — no shape guessing.
+          -- (cdrs-first arises when the cars phase decided with no scratch
+          -- rewrite — its window is empty and unseen here.)
+          if innerKindOf n == "equal-cars" || innerKindOf n == "equal-cdrs" then do
+            if true then
               let mut ctx ← pinTermOpaques cfg cfg.envExpr ctx start
               let vs1 ← ctxValExpr cfg ctx s1
               let vs2 ← ctxValExpr cfg ctx s2
@@ -4821,11 +4821,14 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                   | [] => scanning := false
                   | n' :: r' =>
                     let (l', r'') := nodeLhsRhs n'
-                    let rel' ← relativizeAndStrip (nodePath n') depth strip
-                    let side? : Option Nat := match rel' with
-                      | [.arg k fnF'] =>
-                        if fnF'.name == pfn then some k else none
-                      | _ => none
+                    let phaseKind := if pfn == "CAR" then "equal-cars"
+                                     else "equal-cdrs"
+                    let side? : Option Nat :=
+                      if innerKindOf n' == phaseKind then
+                        match nodePath n' with
+                        | .arg k _ :: _ => some k
+                        | _ => none
+                      else none
                     match side? with
                     | some 1 =>
                       if l' == c1 then
@@ -4941,7 +4944,12 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
               return (some (step, false), resT)
     let nodeEq ← rec.node cfg ctx n depth
     let (lifted, newTerm) ←
-      emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth strip
+      try
+        emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth strip
+      catch ex =>
+        let nch : String := toString (match n with | .node _ _ _ ch _ => ch.length)
+        throwError "generic-tail lift for {(runeOf n).ty}/{nodeOrigin n} \
+          (kind {innerKindOf n}, {nch} children): {ex.toMessageData}"
     -- an if-simplification AT THE CHAIN ROOT selects a branch; ACL2's rewrite-if
     -- keeps the if on the gstack while rewriting inside that branch, so the
     -- remaining nodes' paths carry the branch frame — record it for stripping.

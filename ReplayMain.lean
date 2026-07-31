@@ -21,7 +21,21 @@ import ACL2Lean.Replay.Runner
 open Lean ACL2.Replay.Runner
 
 unsafe def main (args : List String) : IO Unit := do
-  let usage := "usage: acl2lean-replay <file.proof-log> [THEOREM-NAME]"
+  let usage := "usage: acl2lean-replay <file.proof-log> [THEOREM-NAME] | --dump <file.proof-log>"
+  -- --dump: print the reconstructed tree WITHOUT the Imported/ catalog
+  -- import cone (the CLI's dump-proof-tree is unusable mid-migration when
+  -- NativeMirrors' compile-time replays are red — path-emission Phase 1)
+  match args.filter (· ≠ "") with
+  | ["--dump", p] =>
+    let contents ← IO.FS.readFile p
+    match ACL2.ProofLog.parse contents with
+    | .error e => throw (IO.userError s!"Parse error: {e}")
+    | .ok log =>
+      match ACL2.ClauseTree.buildDevelopment log with
+      | .error e => throw (IO.userError s!"Reconstruction error: {e}")
+      | .ok dev => ACL2.printDevelopment dev
+    return
+  | _ => pure ()
   let (path, upTo?) ← match args.filter (· ≠ "") with
     | [p] => pure (p, (none : Option String))
     | [p, t] => pure (p, some t)
