@@ -65,6 +65,35 @@ the rewrite-if descent.)
   mechanisms (the parent arc's epicycle criterion — migration that
   keeps the old mechanisms alive does not pass the gate).
 
+## Fold-back AUDIT (required; defined per the 2026-07-31 goal amendment)
+
+Sub-arcs fold into the parent arc WITHOUT user sign-off but MUST pass a
+comprehensive audit first. Definition for THIS sub-arc (the CLAUDE.md
+audit pattern, adversarial, ground-truth first):
+
+- **Ground truth:** the full sweep on the new emission, `#print axioms`
+  on a replayed row, the retired-mechanism deletion diff, and a raw-log
+  window sample diffed against the corresponding gstack trace.
+- **Reviewer A (fork emission soundness, INSIDE):** does every emitted
+  window `:TERM` equal, verbatim, the term ACL2's rewriter actually
+  descends into (instantiation correctness — the lazy (term . alist)
+  pairs are the risk: a mis-instantiated window term would make the
+  replay silently prove steps against the wrong subterm)? Anchored to
+  the rewrite-entry/rewrite-if/rewrite-equal sites, adversarial persona.
+- **Reviewer B (replay fidelity, INSIDE):** did the consumer migration
+  add any inference or shape-guessing, and are the three mechanisms
+  DELETED (not bypassed)? Every navigation now record-directed?
+- **Reviewer C (OUTSIDE):** is the window semantics faithful to the
+  gstack as a black box — feed a chain and check window nesting equals
+  gstack bracketing; hunt for a frame class the census missed.
+- **Verification pass:** each falsifiable finding independently
+  re-checked against the source, default-refute; survivors adjudicated
+  and the highest-stakes ones spot-checked in the main session before
+  the fold-back.
+- Scale: one Opus reviewer per dimension (3) + one verifier — within
+  the standing mid-point audit authorization; NOT a merge-to-main
+  authorization.
+
 **Gate to fold back into the parent branch:** full sweep at ≥69/79
 parity on the new emission (byte-level row comparison for the
 unaffected rows), ORDEREDP-APPEND past its path wall (green, or

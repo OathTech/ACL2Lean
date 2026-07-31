@@ -143,3 +143,52 @@ pre-collapse structure. Success = the node arrives inside an if-branch
 window whose input term contains the redex at the emitted (window-local)
 path, and a hand-run of the window semantics over the whole literal-5
 chain needs NO strip accounting.
+
+## Deliverable 2 — emission semantics v2 (WINDOWED PATHS), reviewed per row
+
+**Extension point found:** the BEGIN/END-INNER-REWRITE machinery lives in
+the `rewrite-entry` macro itself (rewrite.lisp:7475-7560), keyed on the
+QUOTED bkptr being one of `(rhs body lambda-body expansion
+rewritten-body)`. Windows currently carry NO term payload — the spec
+below adds one and extends the kind list. This is a small, uniform
+change at ONE macro plus the rewrite-if/rewrite-equal call sites.
+
+Semantics:
+1. **`:TERM` payload on every window.** BEGIN-INNER-REWRITE gains
+   `:TERM <instantiated input term>` — the term the descent rewrites,
+   with the rewrite alist APPLIED (`structured-sublis-var-plain`, the
+   same instantiation idiom the constant-test emitter already uses;
+   audit 2026-07-26 F3 is the precedent for why plain instantiation,
+   not mcons-term folding). The lazy `(term . alist)` pair is the
+   correctness risk — fold-back audit Reviewer A's whole brief.
+2. **New window kinds, exactly where a divergence class exists** (rows
+   3, 4, 5 of the census; minimality keeps unaffected paths
+   byte-identical):
+   - `if-left` / `if-right` — rewrite-if's branch descents (17746/17754),
+     term = the instantiated branch. Retires the `strip` lists (row B2).
+   - `rewritten-if` — rewrite-if-finish's re-entries (17713/17718),
+     term = the re-entered branch. The REWRITTEN-BODY twin; retires the
+     if-finish `strip'` arithmetic (B3).
+   - `equal-component` — rewrite-equal's synthesized component descents,
+     term = the instantiated `(CAR lhs)`-style component. Retires the
+     scratch shape-detection (B5) — the decomposition interpreter keeps
+     its kernel lemmas but consumes windows instead of guessing shapes.
+3. **Window-local `:PATH`.** A parallel stack records `*deep-gstack*`
+   length at each window BEGIN; `structured-rewrite-path` stops
+   collecting at the innermost recorded depth. Steps outside any window
+   keep full-literal paths (unchanged for the stable rows 1, 2, 8, 9).
+4. **Body/rhs/expansion windows** (existing kinds) get the `:TERM`
+   payload too — retiring relativizeFrames' depth/boundary (B1): the
+   replay stops recomputing the instantiated definiens.
+5. **Tree builder:** the existing BEGIN/END nesting code adopts the
+   payload; `ProofTree.buildLiteralProofs` threads each window's term as
+   the chain anchor. **Replay:** `pathStepsFromFrames` unchanged in
+   kind; callers navigate within the innermost window term; the swap
+   bridge (B4) and preprocess consumer (B6) migrate mechanically.
+
+Per-census-row check: rows 1/2/8/9 (stable coordinates) — no window,
+paths unchanged ✓; row 3 → if-left/if-right ✓; row 4 → rewritten-if ✓;
+row 5 → equal-component ✓; row 6 → :TERM on existing body windows ✓;
+row 7 (hyp/rhs) — already windowed, gains :TERM ✓. Open rows (linear
+contexts, relieve-hyp bkptr detail) do not add window kinds; they are
+covered by "outside any window ⇒ unchanged".
