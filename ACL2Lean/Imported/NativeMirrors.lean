@@ -106,7 +106,8 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str : term => do
   Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst worldName, envExpr := env, worldVal := dev.toWorld,
-        gzDefs := dev.groundZeroSnapshotDefs, justs := dev.justifications }
+        gzDefs := dev.groundZeroSnapshotDefs, justs := dev.justifications,
+        fcRules := dev.groundZeroFcRuleSpecs }
     let (proof, _conds) ← replayProofConditional cfg dev.typePrescriptions cp
       dev.justifications (Driver.rulesBefore dev nm.getString)
       ((Driver.developmentTheoremsWithRules dev).map fun (c, _) => (c.name, c))
@@ -1016,6 +1017,46 @@ theorem car_rm_native_driver (ev : SExpr) (xs : List SExpr) :
 
 #print axioms car_rm_native_driver
 
+/-! ## The isort book — ORDEREDP-ISORT: insertion sort always sorts.
+The row's ONE condition (`tp:INSERT`, insert's emitted `(CONSP (INSERT E
+X))` corollary) is discharged by the world-parametric `dis_insert_tp`
+(every branch of the body is a `cons`), making the replayed statement
+unconditional; the `insert`/`isort` exec kit decodes it natively. -/
+
+private def isortLog : String :=
+  include_str "../../acl2_samples/sorting/isort.proof-log"
+
+/-- The parsed development — the ONLY input is the log. -/
+def isortDev : Development :=
+  (((ProofLog.parse isortLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world isortWorldD from isortDev
+
+/-- The driver's CONDITIONAL replayed statement (one hypothesis:
+    `tp:INSERT`). -/
+def orderedpIsortReplayedCond := driver_replayed% isortDev isortWorldD
+  "orderedp-isort"
+
+/-- The unconditional form — `tp:INSERT` discharged world-parametrically. -/
+theorem orderedpIsortReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f isortWorldD env
+      Worlds.Sorting.orderedp_isortFormula = some v ∧ v ≠ SExpr.nil :=
+  orderedpIsortReplayedCond env
+    (Worlds.Sorting.dis_insert_tp isortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — ORDEREDP-ISORT natively: INSERTION SORT ALWAYS SORTS —
+    `isortL` (insertion sort by `lexorderB`) yields an adjacent-pair
+    lexorder-sorted list for EVERY input list. -/
+theorem orderedp_isort_native_driver (xs : List SExpr) :
+    Worlds.Sorting.orderedpRec (Worlds.Sorting.isortL xs) = true :=
+  Worlds.Sorting.orderedp_isort_native_of_replayed isortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) orderedpIsortReplayed_uncond xs
+
+#print axioms orderedp_isort_native_driver
+
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
@@ -1080,8 +1121,8 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/perm", "PERM-RM", .native ``perm_rm_native_driver),
   ("sorting/perm", "PERM-TRANSITIVE", .native ``perm_transitive_native_driver),
   ("sorting/perm", "PERM-IS-AN-EQUIVALENCE", .native ``perm_refl_native_driver),
-  ("sorting/isort", "ORDEREDP-ISORT", .pending "chain2/LEXORDER + insert correspondence (p3-adjacent; backlog)"),
-  ("sorting/isort", "TRUE-LISTP-ISORT", .pending "the flatten-recipe mirror + the tp:INSERT discharger"),
+  ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver),
+  ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .pending "how-many correspondence (count fn; backlog)"),
   ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver),
   ("sorting/ordered-perms", "ORDEREDP-MEMB", .pending "chain2/LEXORDER + memb correspondences (backlog)"),
@@ -1174,7 +1215,8 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.equal_trans_native,
             ``ACL2.Imported.Mirrors.car_cons_native,
             ``ACL2.Imported.Mirrors.orderedp_rm_native_driver,
-            ``ACL2.Imported.Mirrors.car_rm_native_driver] do
+            ``ACL2.Imported.Mirrors.car_rm_native_driver,
+            ``ACL2.Imported.Mirrors.orderedp_isort_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
