@@ -441,3 +441,21 @@ green. These reworks are FIX-ROUND code the three reviewers did not see —
 validated by the byte-identical sweep, the new pins, and the negative
 pins, not by a fresh audit pass; flagged for the parent-arc pre-merge
 audit's scope.
+
+## Swap-inventory retirement: the marker experiment (2026-07-31, negative result)
+
+Attempted: materialize EMPTY swapped if-windows (begin/end pairs with no
+inner nodes — the pure silent-swap carriers) as tree MARKER nodes so the
+inline group handler applies the swap record-directedly, retiring the
+target-directed normalizers. RESULT: the anchoring under-determines in
+MULTI-LEVEL silent contexts (ORDP-MEMQ3/ORDEREDP-MEMB: the marker's
+entry path is window-local to an enclosing boundary whose own descent
+was silent, so neither the descriptor nor the real-frame reading locates
+the swapped if; the window term 'NIL is position-ambiguous). The
+target-directed `normalizeSwapsToward` (recompute-and-check toward the
+RECORDED result, positions dictated by the target, `== result`
+fail-closed gate) handles exactly these cases and is the GENERAL rule,
+not an epicycle — the retirement would need either full-ancestry window
+paths at the fork or explicit swap-step emission (a rewrite-if
+record when the mv-let fires), both fork-design choices for a future
+arc. Reverted cleanly; the swap inventory stays with this rationale.
