@@ -467,22 +467,25 @@ elab "#emitcongr_boundary_fails" : command => Elab.Command.liftTermElabM do
 #emitcongr_boundary_fails
 
 -- NEGATIVE: a consumed-branch `strip` index that does not match the node's path
--- frame (rewrite-if gstack discipline violated) — must hard-fail, never mis-navigate.
-elab "#emitcongr_strip_mismatch_fails" : command => Elab.Command.liftTermElabM do
+-- frame — must hard-fail, never mis-navigate. (Path-emission Phase 1: the
+-- strip mechanism this pinned retired with window-local paths; the invariant
+-- survives as pathStepsFromFrames' redex check — a path whose frames land on
+-- the wrong subterm is an ERROR, silence is impossible.)
+elab "#emitcongr_misaligned_path_fails" : command => Elab.Command.liftTermElabM do
   withLocalDeclD `w (mkConst ``World) fun w =>
   withLocalDeclD `e (mkConst ``Env) fun e => do
     let X := ap1 "CDR" (ap2 "CONS" (sym "A") (sym "B"))
     let lit := equalOf X (sym "B")
     let nodeProof ← Term.elabTermAndSynthesize (← `(⟨0, fun _ _ => rfl⟩)) (some (← mkEvalEqExist w e X X))
-    -- the chain consumed branch frame 2, but the node's path descends arg 1
+    -- window-local path whose frames navigate to `B`, not the redex X
     let frames : List PathFrame :=
-      [.arg 1 { name := "EQUAL" }, .arg 1 { name := "EQUAL" }, .arg 1 { name := "CDR" }]
+      [.arg 1 { name := "EQUAL" }, .arg 2 { name := "B" }]
     try
-      let _ ← emitCongruence w e lit frames X X nodeProof (strip := [(none, 2)])
-      throwError "NEGATIVE TEST FAILED: strip mismatch accepted"
-    catch e => logInfo m!"negative test OK (strip mismatch): {e.toMessageData}"
+      let _ ← emitCongruence w e lit frames X X nodeProof
+      throwError "NEGATIVE TEST FAILED: misaligned path accepted"
+    catch e => logInfo m!"negative test OK (misaligned path): {e.toMessageData}"
 
-#emitcongr_strip_mismatch_fails
+#emitcongr_misaligned_path_fails
 
 -- Hardening G5 (audit 2026-07-19 N1 pin): `proveNotSpecial`'s produced Prop
 -- must state the UPPERCASE special-form literals the congruence lemmas' h_ns
