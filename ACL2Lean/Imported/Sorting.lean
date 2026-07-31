@@ -559,4 +559,248 @@ theorem orderedp_isort_native_of_replayed (w : World)
   exact bool_true_of_cond_truthy (toBool_true_of_ne_nil
     (replayed_pins_ne_nil (hreplayed e) hord))
 
+/-! ## Ground-zero rule dischargers
+
+The stored ground-zero rewrite rules (`(:GROUND-ZERO-RULES …)`) cited as
+`rule:` conditions by the sorting rows, as world-parametric value-level
+facts. Each type matches `mkRuleHypType` of the emitted spec exactly:
+`∀ env', EvTrue hyp → … → ∃N ∀f≥N, eval lhs = eval rhs`. -/
+
+private abbrev notT (a : SExpr) : SExpr := app1 "NOT" a
+
+/-- The value of the variable `X` in an arbitrary env (total — unbound
+    reads `nil`). -/
+private theorem conv_varX (w : World) (env' : Env) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env' xT
+      = some ((env'.get? xS).getD .nil) :=
+  re_val_var w env' { name := "X" } (by decide)
+
+/-- `rule:DEFAULT-CAR` — `((NOT (CONSP X))) ⊢ (CAR X) ≡ 'NIL`. -/
+theorem dis_default_car (w : World)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none) :
+    ∀ env' : Env, EvTrue w env' (notT (conspT xT)) →
+    ∃ N, ∀ f ≥ N, evalOpt f w env' (carT xT) = evalOpt f w env' qNil := by
+  intro env' hyp
+  obtain ⟨vx, hx⟩ : ∃ vx, ∃ N, ∀ f ≥ N, evalOpt f w env' xT = some vx :=
+    ⟨_, conv_varX w env'⟩
+  have hconsp := conv_builtin1 w env' { name := "CONSP" } xT vx
+    (Logic.consp vx) (by decide) h_no_consp hx (callBuiltin_consp _)
+  have hnot := conv_builtin1 w env' { name := "NOT" } (conspT xT)
+    (Logic.consp vx) (Logic.not (Logic.consp vx)) (by decide) h_no_not
+    hconsp (callBuiltin_not _)
+  have hne := ne_nil_of_evtrue_conv hyp hnot
+  have hcar0 : Logic.car vx = SExpr.nil := by
+    cases vx <;> simp_all [Logic.consp, Logic.not, Logic.car, Logic.toBool]
+  have hL := conv_builtin1 w env' { name := "CAR" } xT vx
+    (Logic.car vx) (by decide) h_no_car hx (callBuiltin_car _)
+  rw [hcar0] at hL
+  exact fuel_eq_of_conv hL (re_val_quote w env' SExpr.nil) rfl
+
+/-- `rule:DEFAULT-CDR` — `((NOT (CONSP X))) ⊢ (CDR X) ≡ 'NIL`. -/
+theorem dis_default_cdr (w : World)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none) :
+    ∀ env' : Env, EvTrue w env' (notT (conspT xT)) →
+    ∃ N, ∀ f ≥ N, evalOpt f w env' (cdrT xT) = evalOpt f w env' qNil := by
+  intro env' hyp
+  obtain ⟨vx, hx⟩ : ∃ vx, ∃ N, ∀ f ≥ N, evalOpt f w env' xT = some vx :=
+    ⟨_, conv_varX w env'⟩
+  have hconsp := conv_builtin1 w env' { name := "CONSP" } xT vx
+    (Logic.consp vx) (by decide) h_no_consp hx (callBuiltin_consp _)
+  have hnot := conv_builtin1 w env' { name := "NOT" } (conspT xT)
+    (Logic.consp vx) (Logic.not (Logic.consp vx)) (by decide) h_no_not
+    hconsp (callBuiltin_not _)
+  have hne := ne_nil_of_evtrue_conv hyp hnot
+  have hcdr0 : Logic.cdr vx = SExpr.nil := by
+    cases vx <;> simp_all [Logic.consp, Logic.not, Logic.cdr, Logic.toBool]
+  have hL := conv_builtin1 w env' { name := "CDR" } xT vx
+    (Logic.cdr vx) (by decide) h_no_cdr hx (callBuiltin_cdr _)
+  rw [hcdr0] at hL
+  exact fuel_eq_of_conv hL (re_val_quote w env' SExpr.nil) rfl
+
+/-- `'(NIL)` — the CONS-CAR-CDR rule's else-value, `(cons nil nil)`
+    quoted. -/
+private def qNilList : SExpr :=
+  .cons (.atom (.symbol { name := "QUOTE" }))
+    (.cons (.cons SExpr.nil SExpr.nil) .nil)
+
+/-- `rule:CONS-CAR-CDR` — unconditional, the stored ground-zero form:
+    `(CONS (CAR X) (CDR X)) ≡ (IF (CONSP X) X '(NIL))`. -/
+theorem dis_cons_car_cdr (w : World)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
+    ∀ env' : Env,
+    ∃ N, ∀ f ≥ N, evalOpt f w env' (consT (carT xT) (cdrT xT))
+      = evalOpt f w env' (ifT (conspT xT) xT qNilList) := by
+  intro env'
+  obtain ⟨vx, hx⟩ : ∃ vx, ∃ N, ∀ f ≥ N, evalOpt f w env' xT = some vx :=
+    ⟨_, conv_varX w env'⟩
+  have hconsp := conv_builtin1 w env' { name := "CONSP" } xT vx
+    (Logic.consp vx) (by decide) h_no_consp hx (callBuiltin_consp _)
+  have hcar := conv_builtin1 w env' { name := "CAR" } xT vx
+    (Logic.car vx) (by decide) h_no_car hx (callBuiltin_car _)
+  have hcdr := conv_builtin1 w env' { name := "CDR" } xT vx
+    (Logic.cdr vx) (by decide) h_no_cdr hx (callBuiltin_cdr _)
+  have hL := conv_builtin2 w env' { name := "CONS" } (carT xT) (cdrT xT)
+    (Logic.car vx) (Logic.cdr vx) (Logic.cons (Logic.car vx) (Logic.cdr vx))
+    (by decide) h_no_cons hcar hcdr rfl
+  match vx with
+  | .cons a d =>
+    have hR := conv_if_true w env' (conspT xT) xT qNilList
+      (Logic.consp (.cons a d)) (.cons a d) hconsp rfl hx
+    exact fuel_eq_of_conv hL hR (by simp [Logic.cons, Logic.car, Logic.cdr])
+  | .nil =>
+    have hR := conv_if_false' w env' (conspT xT) xT qNilList
+      (.cons SExpr.nil SExpr.nil) hconsp
+      (re_val_quote w env' (.cons SExpr.nil SExpr.nil))
+    exact fuel_eq_of_conv hL hR (by simp [Logic.cons, Logic.car, Logic.cdr])
+  | .atom a =>
+    have hR := conv_if_false' w env' (conspT xT) xT qNilList
+      (.cons SExpr.nil SExpr.nil) hconsp
+      (re_val_quote w env' (.cons SExpr.nil SExpr.nil))
+    exact fuel_eq_of_conv hL hR (by simp [Logic.cons, Logic.car, Logic.cdr])
+
+/-! ## EQUAL-CONS -/
+
+private def bS : Symbol := { package := "ACL2", name := "B" }
+private def bT : SExpr := .atom (.symbol { name := "B" })
+
+/-- The EQUAL-CONS replayed-statement formula — the root Goal clause:
+    `(EQUAL (EQUAL (CONS A B) X)
+            (IF (CONSP X) (IF (EQUAL A (CAR X)) (EQUAL B (CDR X)) 'NIL)
+                'NIL))`. -/
+def equal_consFormula : SExpr :=
+  equalT (equalT (consT aT bT) xT)
+    (ifT (conspT xT)
+      (ifT (equalT aT (carT xT)) (equalT bT (cdrT xT)) qNil)
+      qNil)
+
+/-- EQUAL-CONS's native right-hand side: componentwise equality against a
+    cons, false against a non-cons. -/
+def equalConsSpec (av bv xv : SExpr) : Bool :=
+  match xv with
+  | .cons c d => av == c && bv == d
+  | _ => false
+
+/-- EQUAL-CONS, natively: equality with a cons decomposes componentwise
+    (ACL2's cons-equation decode, as a Bool fact over `==`). -/
+theorem equal_cons_native_of_replayed (w : World)
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env equal_consFormula = some v ∧ v ≠ SExpr.nil)
+    (av bv xv : SExpr) :
+    (SExpr.cons av bv == xv) = equalConsSpec av bv xv := by
+  let e : Env := ((({} : Env).insert xS xv).insert bS bv).insert aS av
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
+    re_val_var_get w e { name := "A" } av (by
+      show e.get? aS = some av
+      rw [show e = ((({} : Env).insert xS xv).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some bv :=
+    re_val_var_get w e { name := "B" } bv (by
+      show e.get? bS = some bv
+      rw [show e = ((({} : Env).insert xS xv).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some xv :=
+    re_val_var_get w e { name := "X" } xv (by
+      show e.get? xS = some xv
+      rw [show e = ((({} : Env).insert xS xv).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  -- LHS: (equal (cons a b) x) computes Logic.equal (cons av bv) xv
+  have hcons := conv_builtin2 w e { name := "CONS" } aT bT av bv
+    (Logic.cons av bv) (by decide) h_no_cons ha hb rfl
+  have hL := conv_builtin2 w e { name := "EQUAL" } (consT aT bT) xT
+    (Logic.cons av bv) xv (Logic.equal (Logic.cons av bv) xv) (by decide)
+    h_no_equal hcons hx (callBuiltin_equal _ _)
+  -- RHS: the if-tree, by cases on xv
+  have hconsp := conv_builtin1 w e { name := "CONSP" } xT xv
+    (Logic.consp xv) (by decide) h_no_consp hx (callBuiltin_consp _)
+  have hR : ∃ N, ∀ f ≥ N, evalOpt f w e
+      (ifT (conspT xT)
+        (ifT (equalT aT (carT xT)) (equalT bT (cdrT xT)) qNil)
+        qNil)
+      = some (boolEnc (equalConsSpec av bv xv)) := by
+    match xv with
+    | .cons c d =>
+      have hcar : ∃ N, ∀ f ≥ N, evalOpt f w e (carT xT) = some c := by
+        have h0 := conv_builtin1 w e { name := "CAR" } xT (.cons c d)
+          (Logic.car (.cons c d)) (by decide) h_no_car hx (callBuiltin_car _)
+        simpa [Logic.car] using h0
+      have hcdr : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrT xT) = some d := by
+        have h0 := conv_builtin1 w e { name := "CDR" } xT (.cons c d)
+          (Logic.cdr (.cons c d)) (by decide) h_no_cdr hx (callBuiltin_cdr _)
+        simpa [Logic.cdr] using h0
+      have heqA := conv_builtin2 w e { name := "EQUAL" } aT (carT xT) av c
+        (Logic.equal av c) (by decide) h_no_equal ha hcar
+        (callBuiltin_equal _ _)
+      have heqB := conv_builtin2 w e { name := "EQUAL" } bT (cdrT xT) bv d
+        (Logic.equal bv d) (by decide) h_no_equal hb hcdr
+        (callBuiltin_equal _ _)
+      have hinner : ∃ N, ∀ f ≥ N, evalOpt f w e
+          (ifT (equalT aT (carT xT)) (equalT bT (cdrT xT)) qNil)
+          = some (boolEnc (equalConsSpec av bv (.cons c d))) := by
+        cases hac : av == c with
+        | true =>
+          have := conv_if_true w e (equalT aT (carT xT))
+            (equalT bT (cdrT xT)) qNil (Logic.equal av c) (Logic.equal bv d)
+            heqA (by simp [Logic.equal, hac, SExpr.t]) heqB
+          have hval : Logic.equal bv d
+              = boolEnc (equalConsSpec av bv (.cons c d)) := by
+            simp only [equalConsSpec, hac, Bool.true_and, Logic.equal,
+              boolEnc]
+            cases hbd : bv == d <;> simp
+          rwa [hval] at this
+        | false =>
+          have heqAn : ∃ N, ∀ f ≥ N,
+              evalOpt f w e (equalT aT (carT xT)) = some SExpr.nil := by
+            simpa [Logic.equal, hac] using heqA
+          have := conv_if_false' w e (equalT aT (carT xT))
+            (equalT bT (cdrT xT)) qNil SExpr.nil heqAn
+            (re_val_quote w e SExpr.nil)
+          have hval : SExpr.nil
+              = boolEnc (equalConsSpec av bv (.cons c d)) := by
+            simp [equalConsSpec, hac, boolEnc]
+          rwa [hval] at this
+      have := conv_if_true w e (conspT xT) _ qNil
+        (Logic.consp (.cons c d))
+        (boolEnc (equalConsSpec av bv (.cons c d))) hconsp rfl hinner
+      exact this
+    | .nil =>
+      have := conv_if_false' w e (conspT xT)
+        (ifT (equalT aT (carT xT)) (equalT bT (cdrT xT)) qNil) qNil
+        SExpr.nil hconsp (re_val_quote w e SExpr.nil)
+      simpa [equalConsSpec, boolEnc] using this
+    | .atom a =>
+      have := conv_if_false' w e (conspT xT)
+        (ifT (equalT aT (carT xT)) (equalT bT (cdrT xT)) qNil) qNil
+        SExpr.nil hconsp (re_val_quote w e SExpr.nil)
+      simpa [equalConsSpec, boolEnc] using this
+  -- the equational ender, then read the Logic.equal as ==
+  have hnat := native_of_replayed_equal w e idRep _ _
+    (Logic.equal (Logic.cons av bv) xv) (boolEnc (equalConsSpec av bv xv))
+    h_no_equal hL hR (hreplayed e)
+  have hcond : ∀ b : Bool,
+      (if b = true then SExpr.t else SExpr.nil) = boolEnc b :=
+    fun b => by cases b <;> rfl
+  have : Logic.equal (Logic.cons av bv) xv
+      = boolEnc (SExpr.cons av bv == xv) := by
+    simp only [Logic.cons, Logic.equal]
+    exact hcond _
+  rw [this] at hnat
+  exact bool_of_cond_eq hnat
+
 end ACL2.Worlds.Sorting

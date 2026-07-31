@@ -1057,6 +1057,30 @@ theorem orderedp_isort_native_driver (xs : List SExpr) :
 
 #print axioms orderedp_isort_native_driver
 
+/-- The driver's CONDITIONAL replayed statement for EQUAL-CONS (one
+    hypothesis: `rule:CONS-CAR-CDR`, the stored ground-zero rule). -/
+def equalConsReplayedCond := driver_replayed% orderedPermsDev
+  orderedPermsWorldD "equal-cons"
+
+/-- The unconditional form — the ground-zero rule discharged
+    world-parametrically (`dis_cons_car_cdr`). -/
+theorem equalConsReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f orderedPermsWorldD env
+      Worlds.Sorting.equal_consFormula = some v ∧ v ≠ SExpr.nil :=
+  equalConsReplayedCond env
+    (Worlds.Sorting.dis_cons_car_cdr orderedPermsWorldD (by decide)
+      (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — EQUAL-CONS natively: equality with a cons decomposes
+    componentwise (`==` over SExpr). -/
+theorem equal_cons_native_driver (av bv xv : SExpr) :
+    (SExpr.cons av bv == xv) = Worlds.Sorting.equalConsSpec av bv xv :=
+  Worlds.Sorting.equal_cons_native_of_replayed orderedPermsWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide)
+    equalConsReplayed_uncond av bv xv
+
+#print axioms equal_cons_native_driver
+
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
@@ -1126,7 +1150,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/isort", "HOW-MANY-ISORT", .pending "how-many correspondence (count fn; backlog)"),
   ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver),
   ("sorting/ordered-perms", "ORDEREDP-MEMB", .pending "chain2/LEXORDER + memb correspondences (backlog)"),
-  ("sorting/ordered-perms", "EQUAL-CONS", .pending "cons-equation decode (backlog)"),
+  ("sorting/ordered-perms", "EQUAL-CONS", .native ``equal_cons_native_driver),
   ("sorting/ordered-perms", "ORDERED-PERMS", .pending "chain2/LEXORDER + perm/rm/memb correspondences + the ASSUMED:dp-fact dischargers (backlog)"),
   ("sorting/ordered-perms", "CAR-RM", .native ``car_rm_native_driver),
   ("sorting/ordered-perms", "TRUE-LISTP-RM", .replayedOnly "subsumed by the rm simulation: `true-listp` restricts the input to the enc image (exists_enc_of_trueListp), where corr_rm_enc already yields an encoded List — no native content beyond the sim (the type-absorbed true-listp doctrine; the flatten recipe applies only where NO simulation exists)"),
@@ -1216,7 +1240,8 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.car_cons_native,
             ``ACL2.Imported.Mirrors.orderedp_rm_native_driver,
             ``ACL2.Imported.Mirrors.car_rm_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_isort_native_driver] do
+            ``ACL2.Imported.Mirrors.orderedp_isort_native_driver,
+            ``ACL2.Imported.Mirrors.equal_cons_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
