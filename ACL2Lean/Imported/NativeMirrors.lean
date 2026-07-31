@@ -1111,6 +1111,38 @@ theorem orderedp_memb_native_driver (ev a : SExpr) (t : List SExpr)
 
 #print axioms orderedp_memb_native_driver
 
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for HOW-MANY-ISORT
+    (hypotheses: `tp:HOW-MANY`, `rule:FOLD-CONSTS-IN-+`,
+    `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0`). -/
+def howManyIsortReplayedCond := driver_replayed% isortDev isortWorldD
+  "how-many-isort"
+
+/-- The unconditional form — all three hypotheses discharged
+    world-parametrically (the how-many exec kit + the arithmetic rule
+    dischargers). -/
+theorem howManyIsortReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f isortWorldD env
+      Worlds.Sorting.how_many_isortFormula = some v ∧ v ≠ SExpr.nil :=
+  howManyIsortReplayedCond env
+    (Worlds.Sorting.dis_how_many_tp isortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_fold_consts isortWorldD (by decide) _ _)
+    (Worlds.Sorting.dis_not_memb_how_many_0 isortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-ISORT natively: INSERTION SORT PRESERVES
+    MULTIPLICITY — `List.count` of every element is unchanged by
+    `isortL`. -/
+theorem how_many_isort_native_driver (ev : SExpr) (xs : List SExpr) :
+    (Worlds.Sorting.isortL xs).count ev = xs.count ev :=
+  Worlds.Sorting.how_many_isort_native_of_replayed isortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) howManyIsortReplayed_uncond ev xs
+
+#print axioms how_many_isort_native_driver
+
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
@@ -1177,7 +1209,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/perm", "PERM-IS-AN-EQUIVALENCE", .native ``perm_refl_native_driver),
   ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
-  ("sorting/isort", "HOW-MANY-ISORT", .pending "how-many correspondence (count fn; backlog)"),
+  ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver),
   ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver),
   ("sorting/ordered-perms", "ORDEREDP-MEMB", .native ``orderedp_memb_native_driver),
   ("sorting/ordered-perms", "EQUAL-CONS", .native ``equal_cons_native_driver),
@@ -1272,7 +1304,8 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.car_rm_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_isort_native_driver,
             ``ACL2.Imported.Mirrors.equal_cons_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_memb_native_driver] do
+            ``ACL2.Imported.Mirrors.orderedp_memb_native_driver,
+            ``ACL2.Imported.Mirrors.how_many_isort_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
