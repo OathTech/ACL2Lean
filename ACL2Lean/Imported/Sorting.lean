@@ -803,4 +803,111 @@ theorem equal_cons_native_of_replayed (w : World)
   rw [this] at hnat
   exact bool_of_cond_eq hnat
 
+/-! ## ORDEREDP-MEMB -/
+
+/-- The ORDEREDP-MEMB replayed-statement formula — the root Goal clause
+    (the AND if-expanded):
+    `(IMPLIES (IF (ORDEREDP A)
+                  (IF (NOT (EQUAL E (CAR A))) (LEXORDER E (CAR A)) 'NIL)
+                  'NIL)
+              (NOT (MEMB E A)))`. -/
+def orderedp_membFormula : SExpr :=
+  impliesT
+    (ifT (orderedpT aT)
+      (ifT (notT (equalT eT (carT aT))) (lexT eT (carT aT)) qNil)
+      qNil)
+    (notT (membT eT aT))
+
+/-- ORDEREDP-MEMB, natively: an element strictly below the head of a
+    lexorder-sorted list is not in the list. (Stated at the cons
+    instance, where the ACL2 hypotheses have their content.) -/
+theorem orderedp_memb_native_of_replayed (w : World)
+    (h_orderedp : w.defs.get? { package := "ACL2", name := "ORDEREDP" }
+      = some ([{ package := "ACL2", name := "X" }],
+              chain2Body "LEXORDER" "ORDEREDP"))
+    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
+      = some ([{ package := "ACL2", name := "A" },
+               { package := "ACL2", name := "X" }], membBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env orderedp_membFormula = some v ∧ v ≠ SExpr.nil)
+    (ev a : SExpr) (t : List SExpr)
+    (hord : orderedpRec (a :: t) = true)
+    (hne : (ev == a) = false)
+    (hlex : lexorderB ev a = true) :
+    (a :: t).contains ev = false := by
+  let e : Env := (({} : Env).insert aS (enc (a :: t))).insert eS ev
+  have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
+    re_val_var_get w e { name := "E" } ev (by
+      show e.get? eS = some ev
+      rw [show e = (({} : Env).insert aS (enc (a :: t))).insert eS ev
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some (enc (a :: t)) :=
+    re_val_var_get w e { name := "A" } (enc (a :: t)) (by
+      show e.get? aS = some (enc (a :: t))
+      rw [show e = (({} : Env).insert aS (enc (a :: t))).insert eS ev
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  -- the antecedent's pieces
+  have hOrd := corr_orderedp_enc w h_orderedp h_no_consp h_no_cdr h_no_car
+    h_no_lexorder (a :: t) e aT ha
+  have hcarA : ∃ N, ∀ f ≥ N, evalOpt f w e (carT aT) = some a := by
+    have h0 := conv_builtin1 w e { name := "CAR" } aT (enc (a :: t))
+      (Logic.car (enc (a :: t))) (by decide) h_no_car ha (callBuiltin_car _)
+    simpa [enc, Logic.car] using h0
+  have hEq : ∃ N, ∀ f ≥ N, evalOpt f w e (equalT eT (carT aT))
+      = some SExpr.nil := by
+    have h0 := conv_builtin2 w e { name := "EQUAL" } eT (carT aT) ev a
+      (Logic.equal ev a) (by decide) h_no_equal he hcarA
+      (callBuiltin_equal _ _)
+    simpa [Logic.equal, hne] using h0
+  have hNot : ∃ N, ∀ f ≥ N,
+      evalOpt f w e (notT (equalT eT (carT aT))) = some SExpr.t := by
+    have h0 := conv_builtin1 w e { name := "NOT" } (equalT eT (carT aT))
+      SExpr.nil (Logic.not SExpr.nil) (by decide) h_no_not hEq
+      (callBuiltin_not _)
+    simpa [Logic.not] using h0
+  have hLex : ∃ N, ∀ f ≥ N, evalOpt f w e (lexT eT (carT aT))
+      = some SExpr.t := by
+    have h0 := conv_builtin2 w e { name := "LEXORDER" } eT (carT aT) ev a
+      (lexorder ev a) (by decide) h_no_lexorder he hcarA
+      (callBuiltin_lexorder _ _)
+    rw [lexorder_eq_boolEnc, hlex] at h0
+    exact h0
+  have hInner : ∃ N, ∀ f ≥ N, evalOpt f w e
+      (ifT (notT (equalT eT (carT aT))) (lexT eT (carT aT)) qNil)
+      = some SExpr.t :=
+    conv_if_true w e _ _ qNil SExpr.t SExpr.t hNot rfl hLex
+  have hAnte : ∃ N, ∀ f ≥ N, evalOpt f w e
+      (ifT (orderedpT aT)
+        (ifT (notT (equalT eT (carT aT))) (lexT eT (carT aT)) qNil)
+        qNil)
+      = some SExpr.t := by
+    refine conv_if_true w e _ _ qNil (boolEnc (orderedpRec (a :: t)))
+      SExpr.t hOrd ?_ hInner
+    rw [hord]; rfl
+  -- the consequent
+  have hMemb := corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car
+    h_no_cdr (a :: t) e eT aT ev he ha
+  have hC := conv_builtin1 w e { name := "NOT" } (membT eT aT)
+    (bif (a :: t).contains ev then SExpr.t else SExpr.nil)
+    (Logic.not (bif (a :: t).contains ev then SExpr.t else SExpr.nil))
+    (by decide) h_no_not hMemb (callBuiltin_not _)
+  -- pin + project
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
+    h_no_implies hAnte hC (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have hconc := truthy_of_implies_t hIt rfl
+  cases hcont : (a :: t).contains ev with
+  | true => rw [hcont] at hconc; exact absurd hconc (by decide)
+  | false => rfl
+
 end ACL2.Worlds.Sorting

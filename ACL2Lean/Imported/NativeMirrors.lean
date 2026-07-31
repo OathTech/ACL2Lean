@@ -1081,6 +1081,36 @@ theorem equal_cons_native_driver (av bv xv : SExpr) :
 
 #print axioms equal_cons_native_driver
 
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for ORDEREDP-MEMB (one
+    hypothesis: `rule:DEFAULT-CAR`). The raised heartbeat budget covers
+    the replay-time `isDefEq` pinning over this row's larger tree. -/
+def orderedpMembReplayedCond := driver_replayed% orderedPermsDev
+  orderedPermsWorldD "orderedp-memb"
+
+/-- The unconditional form — `rule:DEFAULT-CAR` discharged
+    world-parametrically. -/
+theorem orderedpMembReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f orderedPermsWorldD env
+      Worlds.Sorting.orderedp_membFormula = some v ∧ v ≠ SExpr.nil :=
+  orderedpMembReplayedCond env
+    (Worlds.Sorting.dis_default_car orderedPermsWorldD (by decide)
+      (by decide) (by decide))
+
+/-- ENTRY, PROVED — ORDEREDP-MEMB natively: an element strictly below the
+    head of a lexorder-sorted list is not in the list. -/
+theorem orderedp_memb_native_driver (ev a : SExpr) (t : List SExpr)
+    (hord : Worlds.Sorting.orderedpRec (a :: t) = true)
+    (hne : (ev == a) = false)
+    (hlex : Worlds.Sorting.lexorderB ev a = true) :
+    (a :: t).contains ev = false :=
+  Worlds.Sorting.orderedp_memb_native_of_replayed orderedPermsWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) orderedpMembReplayed_uncond
+    ev a t hord hne hlex
+
+#print axioms orderedp_memb_native_driver
+
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
@@ -1149,7 +1179,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .pending "how-many correspondence (count fn; backlog)"),
   ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver),
-  ("sorting/ordered-perms", "ORDEREDP-MEMB", .pending "chain2/LEXORDER + memb correspondences (backlog)"),
+  ("sorting/ordered-perms", "ORDEREDP-MEMB", .native ``orderedp_memb_native_driver),
   ("sorting/ordered-perms", "EQUAL-CONS", .native ``equal_cons_native_driver),
   ("sorting/ordered-perms", "ORDERED-PERMS", .pending "chain2/LEXORDER + perm/rm/memb correspondences + the ASSUMED:dp-fact dischargers (backlog)"),
   ("sorting/ordered-perms", "CAR-RM", .native ``car_rm_native_driver),
@@ -1241,7 +1271,8 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.orderedp_rm_native_driver,
             ``ACL2.Imported.Mirrors.car_rm_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_isort_native_driver,
-            ``ACL2.Imported.Mirrors.equal_cons_native_driver] do
+            ``ACL2.Imported.Mirrors.equal_cons_native_driver,
+            ``ACL2.Imported.Mirrors.orderedp_memb_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
