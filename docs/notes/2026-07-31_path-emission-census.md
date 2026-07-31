@@ -31,12 +31,16 @@ VERIFIED (file:line, bkptr, meaning):
    remains on the gstack. DIVERGENCE SOURCE 1: if the test resolved,
    the replay's running term collapses the if but deeper nodes still
    carry the branch frame → the Lean `strip` mechanism.
-4. rewrite-if-finish re-entries (rewrite.lisp:17682's family; 17713
-   left bkptr 2 / 17718 right bkptr 3 — TO CONFIRM which defun) —
-   re-rewriting already-rewritten branches. DIVERGENCE SOURCE 2: the
-   re-entry walks the REWRITTEN branch under frames whose terms are
-   pre-rewrite → the if-finish `strip'` arithmetic + or-collapse
-   bridge.
+4. rewrite-if-finish re-entries (CONFIRMED: 17713 left bkptr 2 /
+   17718 right bkptr 3 are inside `rewrite-if-finish`,
+   rewrite.lisp:17682) — re-rewriting already-rewritten branches.
+   DIVERGENCE SOURCE 2: the re-entry walks the REWRITTEN branch under
+   frames whose terms are pre-rewrite → the if-finish `strip'`
+   arithmetic + or-collapse bridge. NOTE the fncall analog ALREADY has
+   an explicit window: `BEGIN-INNER-REWRITE :KIND REWRITTEN-BODY`
+   (observed in qsort.proof-log Subgoal 2-family) — the if-finish
+   re-entry window is the MISSING twin, strong evidence the window
+   idiom is the right extension.
 5. rewrite-equal component descents (rewrite.lisp:7235 and
    17713/17718/17906/17907 area — `(rewrite left alist 2)` etc. under
    rewrite-equal; ALSO the synthesized `(car lhs)/(car rhs)`
@@ -57,23 +61,36 @@ VERIFIED (file:line, bkptr, meaning):
    by BEGIN/END-INNER-REWRITE window events (KIND HYP/RHS/BODY) the
    tree builder scopes with. Mostly WINDOWED already — the precedent
    the new emission extends.
-8. Special forms: HIDE (17153/17188 bkptr 1), IMPLIES-ish geneqv-iff
-   pair (17216 arg1 / 17225 arg2 — TO CONFIRM enclosing defun),
-   double-rewrite (17274 bkptr 1 then re-entry with OUTER bkptr),
-   'expansion (×2 — TO LOCATE), 'body at 20547, lambda-body
-   ('lambda-body bkptr at rewrite.lisp:20535-area — the lambda descent),
-   linear-arithmetic atoms (21248 arg 1 under add-linear-lemma-ish —
-   linear frames are NOT 'rewrite sys-fn so likely invisible to
-   structured-rewrite-path; TO CONFIRM).
+8. Special forms (ALL CONFIRMED): HIDE (17153/17188 bkptr 1, in
+   `rewrite`); IMPLIES (17216 arg1 / 17225 arg2, `rewrite`'s
+   `(eq (ffn-symb term) 'IMPLIES)` branch, geneqv-iff both);
+   double-rewrite (17274 bkptr 1 then re-entry with OUTER bkptr);
+   'expansion — 17555 (`rewrite`, alist-binding transfer) and
+   21012/21067 (`rewrite-with-lemmas`, expansion window incl.
+   `(rewrite hyp alist 'expansion)`); lambda-body — 17402 (`rewrite`'s
+   lambda application) and 20549 (`rewrite-fncall`); 20547 'body is
+   `rewrite-fncall`'s definiens descent, 24416 its quoted-constant
+   twin; 21248 arg 1 is `rewrite-linear-term` — its (rewrite … 1)
+   frames ARE 'rewrite frames, so linear-context emissions (if any
+   fire) carry them; whether the fork emits inside linear contexts
+   needs a corpus grep before Phase 1 (replay handling TBD).
 9. simplify.lisp:7210 (`atm` — rewrite-atm's literal-top entry, bkptr =
-   the literal index) and 18751 (TO CONFIRM — likely the built-in
-   clausep/tau window).
+   the literal index) and rewrite.lisp:18751 (`relieve-hyp`'s hyp
+   descent — rebadged HYP by structured-rewrite-path's parent check,
+   scoped by the BEGIN/END HYP windows).
 
-TO COMPLETE: the 'expansion sites; synp (14722 pushes sys-fn 'synp —
-invisible to structured-rewrite-path, confirm); the
-rewrite-solidify-family emissions (no rewrite frame of their own —
-paths inherited); scons-term/exec emissions (PATH NIL observed in the
-corpus — windowless, confirm harmless).
+CONFIRMED ALSO: synp pushes sys-fn 'synp (14722) — invisible to
+`structured-rewrite-path` (it collects only 'rewrite frames), so syntaxp
+relief cannot perturb paths ✓; scons-term/exec emissions carry
+:PATH NIL by design (clause-level folds — windowless, consumed
+positionally by the branch-substitution fold loop, harmless ✓);
+rewrite-atm's literal-top entry contributes the leading
+`(<literal-index> . <literal-head>)` frame (simplify.lisp:7210;
+observed as `(3 . O<)` in qsort Subgoal 2), which the tree builder
+already strips at the literal boundary. STILL OPEN (pre-Phase-1, not
+blocking the prototype): whether any corpus emission fires inside
+linear-arithmetic contexts (rewrite-linear-term frames); the
+relieve-hyp descent at rewrite.lisp:18751's exact bkptr conventions.
 
 ## B. Lean-side bridging mechanisms (to retire in Phase 1)
 
