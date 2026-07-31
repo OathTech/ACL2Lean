@@ -174,28 +174,11 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       -- that fact, so the literal is still true on this path; close the
       -- disjunction at its position.
       if value != quoteT then do
-        let notVal : SExpr := .cons (.atom (.symbol { name := "NOT" }))
-          (.cons value .nil)
-        let sources : List (SExpr × Expr) :=
-          ctx.segFacts ++ ctx.litFacts.map (fun (_, l, h) => (l, h)) ++
-          ctx.branchFacts.filterMap (fun (bt, _, sign, h) =>
-            if !sign then some (bt, h) else none) ++
-          facts.filterMap (fun (t, _, sign, h) =>
-            if !sign then some (t, h) else none)
         let ctxV ← pinTermOpaques cfg cfg.envExpr ctx value
-        let vVal ← ctxValExpr cfg ctxV value
-        let mut hne? : Option Expr := none
-        for (t, h) in sources do
-          if hne?.isNone && t == notVal then
-            if ← isDefEq (← inferType h)
-                (← mkEq (mkApp (mkConst ``Logic.not) vVal)
-                  (mkConst ``SExpr.nil)) then
-              hne? := some (← mkAppM ``logic_not_nil_ne #[vVal, h])
-        -- a TRUTHY branch fact on the value itself also serves
-        for (bt, vB, sign, h) in ctx.branchFacts do
-          if hne?.isNone && sign && bt == value then
-            if ← isDefEq vB vVal then hne? := some h
-        let some hne := hne?
+        -- the walker's truthy request over the clause context EXTENDED by
+        -- this split's own path facts (same tuple shape as branch facts)
+        let ctxF := { ctxV with branchFacts := ctxV.branchFacts ++ facts }
+        let some hne ← typeSetWalk cfg ctxF (.isTruthy value)
           | throwError "composeSplit: dropped leaf value {repr value} ≠ 't \
               and no in-scope truthy fact for it (tautology-absorption \
               frontier) at {idStr}"

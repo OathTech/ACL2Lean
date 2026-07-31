@@ -207,10 +207,22 @@ _Last updated: 2026-07-29._
 > (emit/use-hint/payload) roots the apply-top-hints chain at
 > CONSTRAINT-CL; MSORT-IS-ISORT/QSORT-IS-ISORT/LEN2-APP-VIA-USE now
 > fail truthfully at the R7 functional-instantiation frontier (the
-> following arc's scope). Remaining in-arc: epicycle elimination
-> (type-set walker consolidation + if1/if11 :SWAPPED-P and the
-> swap-inventory retirement + BUG-027 ratify-or-narrow), then the
-> sorting mirror program (~30 pending catalog rows).**
+> following arc's scope).**
+> **TYPE-SET WALKER LANDED (2026-07-31): the epicycle-elimination
+> criterion's kit consolidation is done —
+> deriveNilFact/deriveConspT/conspEvidence? DELETED, every consumer one
+> `typeSetWalk` call over the unified `falsitySources` channels
+> (incl. the ATOM-from-CONSP-false arm and the TRUE-LISTP/CDR direct
+> route); EQUAL-flip = the CAR/CDR-symmetric refutation, inside isNil.
+> Sweep byte-identical 71/79, ci green. Surviving structural scans +
+> the kit-5 equation closure (BUG-027's one-place home) are inventoried
+> in docs/notes/2026-07-31_type-set-walker-design.md §status. The
+> swap-inventory retirement half CLOSED as a census-recorded NEGATIVE
+> result (empty-window markers under-determine multi-level silent
+> contexts; normalizeSwapsToward is target-directed recompute-and-check,
+> a general rule, retained). Remaining in-arc: the sorting mirror
+> program (~30 pending catalog rows), then BUG-027 ratify-or-narrow at
+> merge review.**
 > Then originally: the type-alist relief family
 > (ORDEREDP-APPEND/ORDEREDP-MEMB/ORDERED-PERMS/TRUE-LISTP-MSORT — the
 > FC-conclusion third of rewrite-clause-type-alist; expected landing =

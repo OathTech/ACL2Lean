@@ -47,6 +47,37 @@ no consumer-local fact-channel scan survives outside the walker.
   ratify-or-narrow decision at the merge review; the walker keeps them
   in ONE place so the decision lands as one diff.
 
+## Implementation status (landed 2026-07-31, sorting-completion-2)
+
+Kits 1–4 are folded: `deriveNilFact` / `deriveConspT` / `conspEvidence?`
+are DELETED and every consumer (type-alist nil/truthy arms, component
+silent refutation, both CONSP-closure sites, args-valued TP,
+type-set-equality's consp demand, the absorption arm, the
+ATOM-from-CONSP-false recognizer arm, the TRUE-LISTP/CDR closure's
+direct route) is one `typeSetWalk` call over `falsitySources`. The
+EQUAL-flip rung (CAR/CDR-symmetric silent refutation) lives inside
+`isNil` at depth 0. Gate held: coverage sweep byte-identical at 71/79,
+`just ci` green.
+
+Surviving consumer-local scans (noted, not folded — each is a
+STRUCTURAL search, not a fixed-term request, or has a deliberately
+narrower channel view):
+
+- The TRUE-LISTP/CDR closure's cons-fact and equation-transport routes
+  (NodeCore ~2100): pattern scans for a false
+  `(NOT (TRUE-LISTP (CONS a w)))` / `(NOT (EQUAL u (CONS a d)))` with
+  a free `a` — not expressible as a `TsReq`; they now at least read
+  `falsitySources` rather than a hand-built channel list.
+- The G2 equation-transport rung's side-substitution search
+  (NodeCore ~4970): scans seg+lit equalities ONLY (no branch channel —
+  folding would widen its power); four substitution variants per
+  equality. A future `TsReq` extension could absorb it if a real book
+  demands the wider channels.
+- The equation closure (`inScopeEquations` / `eqChain?` /
+  `composeEqChain`, kit 5): stays its own single closure behind the
+  two solidify call sites pending the BUG-027 ratify-or-narrow
+  decision at merge review — one place, one diff when decided.
+
 ## Non-goals
 
 - No new derivation power: the walker's rungs are exactly the kits'
