@@ -3546,4 +3546,1126 @@ theorem how_many_msort_native_of_replayed (w : World)
     (hreplayed e)
   omega
 
+/-! ## The ordinal kit (`total:O<`): O-FINP / O-FIRST-EXPT /
+O-FIRST-COEFF / O-RST / O< — the ground-zero ordinal fns the qsort
+admissions cite. -/
+
+abbrev oFinpT (x : SExpr) : SExpr := app1 "O-FINP" x
+abbrev oFirstExptT (x : SExpr) : SExpr := app1 "O-FIRST-EXPT" x
+abbrev oFirstCoeffT (x : SExpr) : SExpr := app1 "O-FIRST-COEFF" x
+abbrev oRstT (x : SExpr) : SExpr := app1 "O-RST" x
+abbrev oLtT (x y : SExpr) : SExpr := app2 "O<" x y
+private abbrev ltT (a b : SExpr) : SExpr := app2 "<" a b
+
+def oFinpBody : SExpr := ifT (conspT xT) qNil qT'
+def oFirstExptBody : SExpr := ifT (oFinpT xT) q0 (carT (carT xT))
+def oFirstCoeffBody : SExpr := ifT (oFinpT xT) xT (cdrT (carT xT))
+def oRstBody : SExpr := cdrT xT
+def oLtBody : SExpr :=
+  ifT (oFinpT xT)
+    (ifT (oFinpT yT) (ltT xT yT) qT')
+    (ifT (oFinpT yT) qNil
+      (ifT (equalT (oFirstExptT xT) (oFirstExptT yT))
+        (ifT (equalT (oFirstCoeffT xT) (oFirstCoeffT yT))
+          (oLtT (oRstT xT) (oRstT yT))
+          (ltT (oFirstCoeffT xT) (oFirstCoeffT yT)))
+        (oLtT (oFirstExptT xT) (oFirstExptT yT))))
+
+private def o_finp_sym : Symbol := { package := "ACL2", name := "O-FINP" }
+private def o_fe_sym : Symbol := { package := "ACL2", name := "O-FIRST-EXPT" }
+private def o_fc_sym : Symbol :=
+  { package := "ACL2", name := "O-FIRST-COEFF" }
+private def o_rst_sym : Symbol := { package := "ACL2", name := "O-RST" }
+private def o_lt_sym : Symbol := { package := "ACL2", name := "O<" }
+
+private theorem o_finp_ns :
+    (o_finp_sym.isNamed "QUOTE" = false ∧ o_finp_sym.isNamed "IF" = false ∧
+     o_finp_sym.isNamed "LET" = false ∧
+     o_finp_sym.isNamed "LET*" = false) := by decide
+private theorem o_fe_ns :
+    (o_fe_sym.isNamed "QUOTE" = false ∧ o_fe_sym.isNamed "IF" = false ∧
+     o_fe_sym.isNamed "LET" = false ∧
+     o_fe_sym.isNamed "LET*" = false) := by decide
+private theorem o_fc_ns :
+    (o_fc_sym.isNamed "QUOTE" = false ∧ o_fc_sym.isNamed "IF" = false ∧
+     o_fc_sym.isNamed "LET" = false ∧
+     o_fc_sym.isNamed "LET*" = false) := by decide
+private theorem o_rst_ns :
+    (o_rst_sym.isNamed "QUOTE" = false ∧ o_rst_sym.isNamed "IF" = false ∧
+     o_rst_sym.isNamed "LET" = false ∧
+     o_rst_sym.isNamed "LET*" = false) := by decide
+private theorem o_lt_ns :
+    (o_lt_sym.isNamed "QUOTE" = false ∧ o_lt_sym.isNamed "IF" = false ∧
+     o_lt_sym.isNamed "LET" = false ∧
+     o_lt_sym.isNamed "LET*" = false) := by decide
+
+def oFinpExec (x : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then SExpr.nil else SExpr.t
+
+def oFirstExptExec (x : SExpr) : SExpr :=
+  if Logic.toBool (oFinpExec x) = true then .atom (.number (.int 0))
+  else Logic.car (Logic.car x)
+
+def oFirstCoeffExec (x : SExpr) : SExpr :=
+  if Logic.toBool (oFinpExec x) = true then x
+  else Logic.cdr (Logic.car x)
+
+/-- `oFinpExec x` is false exactly on conses. -/
+private theorem oFinpExec_false_consp {x : SExpr}
+    (h : Logic.toBool (oFinpExec x) = false) :
+    Logic.toBool (Logic.consp x) = true := by
+  unfold oFinpExec at h
+  by_cases hc : Logic.toBool (Logic.consp x) = true
+  · exact hc
+  · rw [if_neg hc] at h; exact absurd h (by decide)
+
+private theorem oFirstExptExec_consCount_lt {x : SExpr}
+    (h : Logic.toBool (oFinpExec x) = false) :
+    (oFirstExptExec x).consCount < x.consCount := by
+  rw [oFirstExptExec, if_neg (by rw [h]; decide)]
+  exact lt_of_le_of_lt (consCount_car_le _)
+    (consCount_car_lt_of_consp (oFinpExec_false_consp h))
+
+def oLtExec (x y : SExpr) : SExpr :=
+  if _h1 : Logic.toBool (oFinpExec x) = true then
+    (if Logic.toBool (oFinpExec y) = true then Logic.lt x y else SExpr.t)
+  else if Logic.toBool (oFinpExec y) = true then SExpr.nil
+  else if Logic.toBool (Logic.equal (oFirstExptExec x) (oFirstExptExec y))
+      = true then
+    (if Logic.toBool (Logic.equal (oFirstCoeffExec x) (oFirstCoeffExec y))
+        = true then
+      oLtExec (Logic.cdr x) (Logic.cdr y)
+     else Logic.lt (oFirstCoeffExec x) (oFirstCoeffExec y))
+  else oLtExec (oFirstExptExec x) (oFirstExptExec y)
+termination_by x.consCount
+decreasing_by
+  · exact consCount_cdr_lt_of_consp (oFinpExec_false_consp
+      (Bool.not_eq_true _ ▸ eq_false_of_ne_true _h1))
+  · exact oFirstExptExec_consCount_lt
+      (Bool.not_eq_true _ ▸ eq_false_of_ne_true _h1)
+
+/-- Stage 1 for the small ordinal fns (non-recursive walks). -/
+theorem o_finp_exec_corr (w : World)
+    (h_fn : w.defs.get? o_finp_sym = some ([xS], oFinpBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (oFinpT x) (oFinpExec xv) := by
+  intro env x xv hx
+  refine conv_defn_1 w env o_finp_sym x xv xS oFinpBody _
+    o_finp_ns h_fn hx ?_
+  have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+    (bindArgs_single_get_self xS xv)
+  have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
+    (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+  have h := conv_if_lift w (bindArgs [xS] [xv]) (conspT xT) qNil qT'
+    (Logic.consp xv) SExpr.nil SExpr.t hconsp
+    (fun _ => re_val_quote w _ SExpr.nil)
+    (fun _ => re_val_quote w _ SExpr.t)
+  rw [oFinpExec]
+  exact h
+
+theorem o_fe_exec_corr (w : World)
+    (h_fn : w.defs.get? o_fe_sym = some ([xS], oFirstExptBody))
+    (h_finp : w.defs.get? o_finp_sym = some ([xS], oFinpBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (oFirstExptT x) (oFirstExptExec xv)
+    := by
+  intro env x xv hx
+  refine conv_defn_1 w env o_fe_sym x xv xS oFirstExptBody _
+    o_fe_ns h_fn hx ?_
+  have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+    (bindArgs_single_get_self xS xv)
+  have hfinp := o_finp_exec_corr w h_finp h_no_consp _ xT xv hxv
+  have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
+    (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+  have hcarcar := conv_builtin1 w _ { name := "CAR" } (carT xT)
+    (Logic.car xv) (Logic.car (Logic.car xv)) (by decide) h_no_car hcar
+    (callBuiltin_car _)
+  have h := conv_if_lift w (bindArgs [xS] [xv]) (oFinpT xT) q0
+    (carT (carT xT)) (oFinpExec xv) (.atom (.number (.int 0)))
+    (Logic.car (Logic.car xv)) hfinp
+    (fun _ => re_val_quote w _ (.atom (.number (.int 0))))
+    (fun _ => hcarcar)
+  rw [oFirstExptExec]
+  exact h
+
+theorem o_fc_exec_corr (w : World)
+    (h_fn : w.defs.get? o_fc_sym = some ([xS], oFirstCoeffBody))
+    (h_finp : w.defs.get? o_finp_sym = some ([xS], oFinpBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv →
+      ConvTo w env (oFirstCoeffT x) (oFirstCoeffExec xv) := by
+  intro env x xv hx
+  refine conv_defn_1 w env o_fc_sym x xv xS oFirstCoeffBody _
+    o_fc_ns h_fn hx ?_
+  have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+    (bindArgs_single_get_self xS xv)
+  have hfinp := o_finp_exec_corr w h_finp h_no_consp _ xT xv hxv
+  have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
+    (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+  have hcdrcar := conv_builtin1 w _ { name := "CDR" } (carT xT)
+    (Logic.car xv) (Logic.cdr (Logic.car xv)) (by decide) h_no_cdr hcar
+    (callBuiltin_cdr _)
+  have h := conv_if_lift w (bindArgs [xS] [xv]) (oFinpT xT) xT
+    (cdrT (carT xT)) (oFinpExec xv) xv (Logic.cdr (Logic.car xv)) hfinp
+    (fun _ => hxv)
+    (fun _ => hcdrcar)
+  rw [oFirstCoeffExec]
+  exact h
+
+private theorem callBuiltin_lt (a b : SExpr) :
+    callBuiltin "<" [a, b] = some (Logic.lt a b) := rfl
+
+/-- Stage 1: an `O<` call converges to `oLtExec` (strong induction on
+    the FIRST argument's count — both recursion sites descend into
+    `x`). -/
+theorem o_lt_exec_corr (w : World)
+    (h_lt : w.defs.get? o_lt_sym = some ([xS, yS], oLtBody))
+    (h_finp : w.defs.get? o_finp_sym = some ([xS], oFinpBody))
+    (h_fe : w.defs.get? o_fe_sym = some ([xS], oFirstExptBody))
+    (h_fc : w.defs.get? o_fc_sym = some ([xS], oFirstCoeffBody))
+    (h_rst : w.defs.get? o_rst_sym = some ([xS], oRstBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_ltb : w.defs.get? ({ name := "<" } : Symbol) = none) :
+    ∀ (env : Env) (a b av bv : SExpr),
+      ConvTo w env a av → ConvTo w env b bv →
+      ConvTo w env (oLtT a b) (oLtExec av bv) := by
+  have hbody : ∀ (n : Nat) (xv yv : SExpr), xv.consCount = n →
+      ConvTo w (bindArgs [xS, yS] [xv, yv]) oLtBody (oLtExec xv yv) := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | _ n ih =>
+      intro xv yv hn
+      have hxv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+        { name := "X" } xv (bindArgs_xy_x' xv yv)
+      have hyv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
+        { name := "Y" } yv (bindArgs_xy_y' xv yv)
+      have hfx := o_finp_exec_corr w h_finp h_no_consp _ xT xv hxv
+      have hfy := o_finp_exec_corr w h_finp h_no_consp _ yT yv hyv
+      have hfex := o_fe_exec_corr w h_fe h_finp h_no_consp h_no_car _
+        xT xv hxv
+      have hfey := o_fe_exec_corr w h_fe h_finp h_no_consp h_no_car _
+        yT yv hyv
+      have hfcx := o_fc_exec_corr w h_fc h_finp h_no_consp h_no_car
+        h_no_cdr _ xT xv hxv
+      have hfcy := o_fc_exec_corr w h_fc h_finp h_no_consp h_no_car
+        h_no_cdr _ yT yv hyv
+      have heqFe := conv_builtin2 w _ { name := "EQUAL" } (oFirstExptT xT)
+        (oFirstExptT yT) (oFirstExptExec xv) (oFirstExptExec yv) _
+        (by decide) h_no_equal hfex hfey (callBuiltin_equal _ _)
+      have heqFc := conv_builtin2 w _ { name := "EQUAL" } (oFirstCoeffT xT)
+        (oFirstCoeffT yT) (oFirstCoeffExec xv) (oFirstCoeffExec yv) _
+        (by decide) h_no_equal hfcx hfcy (callBuiltin_equal _ _)
+      have hltxy := conv_builtin2 w _ { name := "<" } xT yT xv yv _
+        (by decide) h_no_ltb hxv hyv (callBuiltin_lt _ _)
+      have hltFc := conv_builtin2 w _ { name := "<" } (oFirstCoeffT xT)
+        (oFirstCoeffT yT) (oFirstCoeffExec xv) (oFirstCoeffExec yv) _
+        (by decide) h_no_ltb hfcx hfcy (callBuiltin_lt _ _)
+      -- (o-rst x/y) values
+      have hcdrx := conv_builtin1 w _ { name := "CDR" } xT xv
+        (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+      have hcdry := conv_builtin1 w _ { name := "CDR" } yT yv
+        (Logic.cdr yv) (by decide) h_no_cdr hyv (callBuiltin_cdr _)
+      have hrstx : ConvTo w (bindArgs [xS, yS] [xv, yv]) (oRstT xT)
+          (Logic.cdr xv) := by
+        refine conv_defn_1 w _ o_rst_sym xT xv xS oRstBody _
+          o_rst_ns h_rst hxv ?_
+        have hxv' := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" }
+          xv (bindArgs_single_get_self xS xv)
+        exact conv_builtin1 w _ { name := "CDR" } xT xv (Logic.cdr xv)
+          (by decide) h_no_cdr hxv' (callBuiltin_cdr _)
+      have hrsty : ConvTo w (bindArgs [xS, yS] [xv, yv]) (oRstT yT)
+          (Logic.cdr yv) := by
+        refine conv_defn_1 w _ o_rst_sym yT yv xS oRstBody _
+          o_rst_ns h_rst hyv ?_
+        have hyv' := re_val_var_get w (bindArgs [xS] [yv]) { name := "X" }
+          yv (bindArgs_single_get_self xS yv)
+        exact conv_builtin1 w _ { name := "CDR" } xT yv (Logic.cdr yv)
+          (by decide) h_no_cdr hyv' (callBuiltin_cdr _)
+      have houter := conv_if_lift w (bindArgs [xS, yS] [xv, yv])
+        (oFinpT xT)
+        (ifT (oFinpT yT) (ltT xT yT) qT')
+        (ifT (oFinpT yT) qNil
+          (ifT (equalT (oFirstExptT xT) (oFirstExptT yT))
+            (ifT (equalT (oFirstCoeffT xT) (oFirstCoeffT yT))
+              (oLtT (oRstT xT) (oRstT yT))
+              (ltT (oFirstCoeffT xT) (oFirstCoeffT yT)))
+            (oLtT (oFirstExptT xT) (oFirstExptT yT))))
+        (oFinpExec xv)
+        (if Logic.toBool (oFinpExec yv) = true then Logic.lt xv yv
+         else SExpr.t)
+        (if Logic.toBool (oFinpExec yv) = true then SExpr.nil
+         else if Logic.toBool (Logic.equal (oFirstExptExec xv)
+             (oFirstExptExec yv)) = true then
+           (if Logic.toBool (Logic.equal (oFirstCoeffExec xv)
+               (oFirstCoeffExec yv)) = true then
+             oLtExec (Logic.cdr xv) (Logic.cdr yv)
+            else Logic.lt (oFirstCoeffExec xv) (oFirstCoeffExec yv))
+         else oLtExec (oFirstExptExec xv) (oFirstExptExec yv))
+        hfx
+        (fun _ =>
+          conv_if_lift w _ (oFinpT yT) (ltT xT yT) qT' (oFinpExec yv)
+            (Logic.lt xv yv) SExpr.t hfy
+            (fun _ => hltxy)
+            (fun _ => re_val_quote w _ SExpr.t))
+        (fun hb1 =>
+          conv_if_lift w _ (oFinpT yT) qNil _ (oFinpExec yv) SExpr.nil
+            (if Logic.toBool (Logic.equal (oFirstExptExec xv)
+                (oFirstExptExec yv)) = true then
+              (if Logic.toBool (Logic.equal (oFirstCoeffExec xv)
+                  (oFirstCoeffExec yv)) = true then
+                oLtExec (Logic.cdr xv) (Logic.cdr yv)
+               else Logic.lt (oFirstCoeffExec xv) (oFirstCoeffExec yv))
+             else oLtExec (oFirstExptExec xv) (oFirstExptExec yv))
+            hfy
+            (fun _ => re_val_quote w _ SExpr.nil)
+            (fun _ =>
+              conv_if_lift w _
+                (equalT (oFirstExptT xT) (oFirstExptT yT)) _
+                (oLtT (oFirstExptT xT) (oFirstExptT yT))
+                (Logic.equal (oFirstExptExec xv) (oFirstExptExec yv))
+                (if Logic.toBool (Logic.equal (oFirstCoeffExec xv)
+                    (oFirstCoeffExec yv)) = true then
+                  oLtExec (Logic.cdr xv) (Logic.cdr yv)
+                 else Logic.lt (oFirstCoeffExec xv) (oFirstCoeffExec yv))
+                (oLtExec (oFirstExptExec xv) (oFirstExptExec yv))
+                heqFe
+                (fun _ =>
+                  conv_if_lift w _
+                    (equalT (oFirstCoeffT xT) (oFirstCoeffT yT))
+                    (oLtT (oRstT xT) (oRstT yT))
+                    (ltT (oFirstCoeffT xT) (oFirstCoeffT yT))
+                    (Logic.equal (oFirstCoeffExec xv) (oFirstCoeffExec yv))
+                    (oLtExec (Logic.cdr xv) (Logic.cdr yv))
+                    (Logic.lt (oFirstCoeffExec xv) (oFirstCoeffExec yv))
+                    heqFc
+                    (fun _ =>
+                      conv_defn_2 w _ o_lt_sym (oRstT xT) (oRstT yT)
+                        (Logic.cdr xv) (Logic.cdr yv) xS yS oLtBody _
+                        o_lt_ns h_lt hrstx hrsty
+                        (ih (Logic.cdr xv).consCount
+                          (hn ▸ consCount_cdr_lt_of_consp
+                            (oFinpExec_false_consp hb1))
+                          (Logic.cdr xv) (Logic.cdr yv) rfl))
+                    (fun _ => hltFc))
+                (fun _ =>
+                  conv_defn_2 w _ o_lt_sym (oFirstExptT xT)
+                    (oFirstExptT yT) (oFirstExptExec xv)
+                    (oFirstExptExec yv) xS yS oLtBody _
+                    o_lt_ns h_lt hfex hfey
+                    (ih (oFirstExptExec xv).consCount
+                      (hn ▸ oFirstExptExec_consCount_lt hb1)
+                      (oFirstExptExec xv) (oFirstExptExec yv) rfl))))
+      rw [oLtExec.eq_def]
+      simp only [dite_eq_ite]
+      exact houter
+  intro env a b av bv ha hb
+  exact conv_defn_2 w env o_lt_sym a b av bv xS yS oLtBody _
+    o_lt_ns h_lt ha hb (hbody av.consCount av bv rfl)
+
+/-- `total:O<` — the driver-shape totality statement. -/
+theorem dis_o_lt_total (w : World)
+    (h_lt : w.defs.get? o_lt_sym = some ([xS, yS], oLtBody))
+    (h_finp : w.defs.get? o_finp_sym = some ([xS], oFinpBody))
+    (h_fe : w.defs.get? o_fe_sym = some ([xS], oFirstExptBody))
+    (h_fc : w.defs.get? o_fc_sym = some ([xS], oFirstCoeffBody))
+    (h_rst : w.defs.get? o_rst_sym = some ([xS], oRstBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_ltb : w.defs.get? ({ name := "<" } : Symbol) = none) :
+    ∀ (env' : Env) (a0 a1 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (oLtT a0 a1) = some v := by
+  intro env' a0 a1 ⟨N0, v0, h0⟩ ⟨N1, v1, h1⟩
+  obtain ⟨N, h⟩ := o_lt_exec_corr w h_lt h_finp h_fe h_fc h_rst h_no_consp
+    h_no_equal h_no_car h_no_cdr h_no_ltb env' a0 a1 v0 v1
+    ⟨N0, h0⟩ ⟨N1, h1⟩
+  exact ⟨N, oLtExec v0 v1, h⟩
+
+/-! ## The `acl2-count` kit (`tp:ACL2-COUNT`): INTEGER-ABS / LENGTH /
+ACL2-COUNT. The COMPLEX-RATIONALP branch is DEAD in the model (the
+predicate is constantly nil — complexes are unrepresentable), so its
+recursion is discharged by contradiction. -/
+
+abbrev integerAbsT (x : SExpr) : SExpr := app1 "INTEGER-ABS" x
+abbrev lengthT (x : SExpr) : SExpr := app1 "LENGTH" x
+abbrev acl2CountT (x : SExpr) : SExpr := app1 "ACL2-COUNT" x
+
+def integerAbsBody : SExpr :=
+  ifT (app1 "INTEGERP" xT)
+    (ifT (ltT xT q0) (app1 "UNARY--" xT) xT)
+    q0
+
+def lengthBody : SExpr :=
+  ifT (app1 "STRINGP" xT)
+    (app1 "LEN" (app2 "COERCE" xT (qSym "LIST")))
+    (app1 "LEN" xT)
+
+def acl2CountBody : SExpr :=
+  ifT (conspT xT)
+    (plusT q1 (plusT (acl2CountT (carT xT)) (acl2CountT (cdrT xT))))
+    (ifT (app1 "RATIONALP" xT)
+      (ifT (app1 "INTEGERP" xT)
+        (integerAbsT xT)
+        (plusT (integerAbsT (app1 "NUMERATOR" xT))
+          (app1 "DENOMINATOR" xT)))
+      (ifT (app1 "COMPLEX-RATIONALP" xT)
+        (plusT q1 (plusT (acl2CountT (app1 "REALPART" xT))
+          (acl2CountT (app1 "IMAGPART" xT))))
+        (ifT (app1 "STRINGP" xT) (lengthT xT) q0)))
+
+private def integer_abs_sym : Symbol :=
+  { package := "ACL2", name := "INTEGER-ABS" }
+private def length_sym : Symbol := { package := "ACL2", name := "LENGTH" }
+private def acl2_count_sym : Symbol :=
+  { package := "ACL2", name := "ACL2-COUNT" }
+
+private theorem integer_abs_ns :
+    (integer_abs_sym.isNamed "QUOTE" = false ∧
+     integer_abs_sym.isNamed "IF" = false ∧
+     integer_abs_sym.isNamed "LET" = false ∧
+     integer_abs_sym.isNamed "LET*" = false) := by decide
+private theorem length_ns :
+    (length_sym.isNamed "QUOTE" = false ∧
+     length_sym.isNamed "IF" = false ∧
+     length_sym.isNamed "LET" = false ∧
+     length_sym.isNamed "LET*" = false) := by decide
+private theorem acl2_count_ns :
+    (acl2_count_sym.isNamed "QUOTE" = false ∧
+     acl2_count_sym.isNamed "IF" = false ∧
+     acl2_count_sym.isNamed "LET" = false ∧
+     acl2_count_sym.isNamed "LET*" = false) := by decide
+
+private theorem callBuiltin_integerp (a : SExpr) :
+    callBuiltin "INTEGERP" [a] = some (Logic.integerp a) := rfl
+private theorem callBuiltin_neg (a : SExpr) :
+    callBuiltin "UNARY--" [a] = some (Logic.neg a) := rfl
+private theorem callBuiltin_stringp (a : SExpr) :
+    callBuiltin "STRINGP" [a] = some (Logic.stringp a) := rfl
+private theorem callBuiltin_len (a : SExpr) :
+    callBuiltin "LEN" [a] = some (Logic.len a) := rfl
+private theorem callBuiltin_coerce (a b : SExpr) :
+    callBuiltin "COERCE" [a, b] = some (Logic.coerce a b) := rfl
+private theorem callBuiltin_rationalp (a : SExpr) :
+    callBuiltin "RATIONALP" [a]
+      = some (match a with
+              | .atom (.number _) => SExpr.t
+              | _ => SExpr.nil) := rfl
+private theorem callBuiltin_numerator (a : SExpr) :
+    callBuiltin "NUMERATOR" [a] = some (Logic.numerator a) := rfl
+private theorem callBuiltin_denominator (a : SExpr) :
+    callBuiltin "DENOMINATOR" [a] = some (Logic.denominator a) := rfl
+private theorem callBuiltin_complexRationalp (a : SExpr) :
+    callBuiltin "COMPLEX-RATIONALP" [a]
+      = some (Logic.complexRationalp a) := rfl
+private theorem callBuiltin_realpart (a : SExpr) :
+    callBuiltin "REALPART" [a] = some (Logic.realpart a) := rfl
+private theorem callBuiltin_imagpart (a : SExpr) :
+    callBuiltin "IMAGPART" [a] = some (Logic.imagpart a) := rfl
+
+/-- `rationalp`'s value as the callBuiltin match (the Logic twin). -/
+private abbrev rationalpV (a : SExpr) : SExpr :=
+  match a with
+  | .atom (.number _) => SExpr.t
+  | _ => SExpr.nil
+
+def integerAbsExec (x : SExpr) : SExpr :=
+  if Logic.toBool (Logic.integerp x) = true then
+    (if Logic.toBool (Logic.lt x (.atom (.number (.int 0)))) = true then
+      Logic.neg x
+     else x)
+  else .atom (.number (.int 0))
+
+def lengthExec (x : SExpr) : SExpr :=
+  if Logic.toBool (Logic.stringp x) = true then
+    Logic.len (Logic.coerce x (symV "LIST"))
+  else Logic.len x
+
+def acl2CountExec (x : SExpr) : SExpr :=
+  if Logic.toBool (Logic.consp x) = true then
+    Logic.plus int1 (Logic.plus (acl2CountExec (Logic.car x))
+      (acl2CountExec (Logic.cdr x)))
+  else if Logic.toBool (rationalpV x) = true then
+    (if Logic.toBool (Logic.integerp x) = true then integerAbsExec x
+     else Logic.plus (integerAbsExec (Logic.numerator x))
+       (Logic.denominator x))
+  else if _hc : Logic.toBool (Logic.complexRationalp x) = true then
+    Logic.plus int1 (Logic.plus (acl2CountExec (Logic.realpart x))
+      (acl2CountExec (Logic.imagpart x)))
+  else if Logic.toBool (Logic.stringp x) = true then lengthExec x
+  else .atom (.number (.int 0))
+termination_by x.consCount
+decreasing_by
+  · exact consCount_car_lt_of_consp (by assumption)
+  · exact consCount_cdr_lt_of_consp (by assumption)
+  · exact absurd _hc (by simp [Logic.complexRationalp, Logic.toBool])
+  · exact absurd _hc (by simp [Logic.complexRationalp, Logic.toBool])
+
+/-- Stage 1 for `integer-abs` (non-recursive). -/
+theorem integer_abs_exec_corr (w : World)
+    (h_fn : w.defs.get? integer_abs_sym = some ([xS], integerAbsBody))
+    (h_no_integerp : w.defs.get? ({ name := "INTEGERP" } : Symbol) = none)
+    (h_no_ltb : w.defs.get? ({ name := "<" } : Symbol) = none)
+    (h_no_neg : w.defs.get? ({ name := "UNARY--" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (integerAbsT x) (integerAbsExec xv)
+    := by
+  intro env x xv hx
+  refine conv_defn_1 w env integer_abs_sym x xv xS integerAbsBody _
+    integer_abs_ns h_fn hx ?_
+  have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+    (bindArgs_single_get_self xS xv)
+  have hip := conv_builtin1 w _ { name := "INTEGERP" } xT xv
+    (Logic.integerp xv) (by decide) h_no_integerp hxv
+    (callBuiltin_integerp _)
+  have hq0 : ConvTo w (bindArgs [xS] [xv]) q0 (.atom (.number (.int 0))) :=
+    re_val_quote w _ (.atom (.number (.int 0)))
+  have hlt := conv_builtin2 w _ { name := "<" } xT q0 xv
+    (.atom (.number (.int 0))) _ (by decide) h_no_ltb hxv hq0
+    (callBuiltin_lt _ _)
+  have hneg := conv_builtin1 w _ { name := "UNARY--" } xT xv
+    (Logic.neg xv) (by decide) h_no_neg hxv (callBuiltin_neg _)
+  have h := conv_if_lift w (bindArgs [xS] [xv]) (app1 "INTEGERP" xT)
+    (ifT (ltT xT q0) (app1 "UNARY--" xT) xT) q0 (Logic.integerp xv)
+    (if Logic.toBool (Logic.lt xv (.atom (.number (.int 0)))) = true then
+      Logic.neg xv
+     else xv)
+    (.atom (.number (.int 0))) hip
+    (fun _ => conv_if_lift w _ (ltT xT q0) (app1 "UNARY--" xT) xT
+      (Logic.lt xv (.atom (.number (.int 0)))) (Logic.neg xv) xv hlt
+      (fun _ => hneg) (fun _ => hxv))
+    (fun _ => hq0)
+  rw [integerAbsExec]
+  exact h
+
+/-- Stage 1 for `length` (non-recursive). -/
+theorem length_exec_corr (w : World)
+    (h_fn : w.defs.get? length_sym = some ([xS], lengthBody))
+    (h_no_stringp : w.defs.get? ({ name := "STRINGP" } : Symbol) = none)
+    (h_no_len : w.defs.get? ({ name := "LEN" } : Symbol) = none)
+    (h_no_coerce : w.defs.get? ({ name := "COERCE" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (lengthT x) (lengthExec xv) := by
+  intro env x xv hx
+  refine conv_defn_1 w env length_sym x xv xS lengthBody _
+    length_ns h_fn hx ?_
+  have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+    (bindArgs_single_get_self xS xv)
+  have hsp := conv_builtin1 w _ { name := "STRINGP" } xT xv
+    (Logic.stringp xv) (by decide) h_no_stringp hxv (callBuiltin_stringp _)
+  have hco := conv_builtin2 w _ { name := "COERCE" } xT (qSym "LIST") xv
+    (symV "LIST") _ (by decide) h_no_coerce hxv
+    (re_val_quote w _ (symV "LIST")) (callBuiltin_coerce _ _)
+  have hlen1 := conv_builtin1 w _ { name := "LEN" }
+    (app2 "COERCE" xT (qSym "LIST")) (Logic.coerce xv (symV "LIST"))
+    (Logic.len (Logic.coerce xv (symV "LIST"))) (by decide) h_no_len hco
+    (callBuiltin_len _)
+  have hlen2 := conv_builtin1 w _ { name := "LEN" } xT xv
+    (Logic.len xv) (by decide) h_no_len hxv (callBuiltin_len _)
+  have h := conv_if_lift w (bindArgs [xS] [xv]) (app1 "STRINGP" xT)
+    (app1 "LEN" (app2 "COERCE" xT (qSym "LIST"))) (app1 "LEN" xT)
+    (Logic.stringp xv) (Logic.len (Logic.coerce xv (symV "LIST")))
+    (Logic.len xv) hsp
+    (fun _ => hlen1) (fun _ => hlen2)
+  rw [lengthExec]
+  exact h
+
+/-- Stage 1: an `acl2-count` call converges to `acl2CountExec`. -/
+theorem acl2_count_exec_corr (w : World)
+    (h_ac : w.defs.get? acl2_count_sym = some ([xS], acl2CountBody))
+    (h_ia : w.defs.get? integer_abs_sym = some ([xS], integerAbsBody))
+    (h_len : w.defs.get? length_sym = some ([xS], lengthBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_rationalp : w.defs.get? ({ name := "RATIONALP" } : Symbol) = none)
+    (h_no_integerp : w.defs.get? ({ name := "INTEGERP" } : Symbol) = none)
+    (h_no_num : w.defs.get? ({ name := "NUMERATOR" } : Symbol) = none)
+    (h_no_den : w.defs.get? ({ name := "DENOMINATOR" } : Symbol) = none)
+    (h_no_crp : w.defs.get?
+      ({ name := "COMPLEX-RATIONALP" } : Symbol) = none)
+    (h_no_stringp : w.defs.get? ({ name := "STRINGP" } : Symbol) = none)
+    (h_no_len : w.defs.get? ({ name := "LEN" } : Symbol) = none)
+    (h_no_coerce : w.defs.get? ({ name := "COERCE" } : Symbol) = none)
+    (h_no_ltb : w.defs.get? ({ name := "<" } : Symbol) = none)
+    (h_no_neg : w.defs.get? ({ name := "UNARY--" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (acl2CountT x) (acl2CountExec xv)
+    := by
+  have hbody : ∀ xv : SExpr,
+      ConvTo w (bindArgs [xS] [xv]) acl2CountBody (acl2CountExec xv) := by
+    refine consCount_strong_induction
+      (fun xv => ConvTo w (bindArgs [xS] [xv]) acl2CountBody
+        (acl2CountExec xv)) ?_
+    intro xv ih
+    have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+      (bindArgs_single_get_self xS xv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have hrp := conv_builtin1 w _ { name := "RATIONALP" } xT xv
+      (rationalpV xv) (by decide) h_no_rationalp hxv
+      (callBuiltin_rationalp _)
+    have hip := conv_builtin1 w _ { name := "INTEGERP" } xT xv
+      (Logic.integerp xv) (by decide) h_no_integerp hxv
+      (callBuiltin_integerp _)
+    have hcrp := conv_builtin1 w _ { name := "COMPLEX-RATIONALP" } xT xv
+      (Logic.complexRationalp xv) (by decide) h_no_crp hxv
+      (callBuiltin_complexRationalp _)
+    have hsp := conv_builtin1 w _ { name := "STRINGP" } xT xv
+      (Logic.stringp xv) (by decide) h_no_stringp hxv
+      (callBuiltin_stringp _)
+    have hnum := conv_builtin1 w _ { name := "NUMERATOR" } xT xv
+      (Logic.numerator xv) (by decide) h_no_num hxv
+      (callBuiltin_numerator _)
+    have hden := conv_builtin1 w _ { name := "DENOMINATOR" } xT xv
+      (Logic.denominator xv) (by decide) h_no_den hxv
+      (callBuiltin_denominator _)
+    -- the cons branch: 1 + (count car + count cdr)
+    have hconsBranch : Logic.toBool (Logic.consp xv) = true →
+        ConvTo w (bindArgs [xS] [xv])
+          (plusT q1 (plusT (acl2CountT (carT xT)) (acl2CountT (cdrT xT))))
+          (Logic.plus int1 (Logic.plus (acl2CountExec (Logic.car xv))
+            (acl2CountExec (Logic.cdr xv)))) := by
+      intro hb
+      have hrec1 := conv_defn_1 w _ acl2_count_sym (carT xT)
+        (Logic.car xv) xS acl2CountBody _ acl2_count_ns h_ac hcar
+        (ih (Logic.car xv) (consCount_car_lt_of_consp hb))
+      have hrec2 := conv_defn_1 w _ acl2_count_sym (cdrT xT)
+        (Logic.cdr xv) xS acl2CountBody _ acl2_count_ns h_ac hcdr
+        (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb))
+      have hinner := conv_builtin2 w _ { name := "BINARY-+" }
+        (acl2CountT (carT xT)) (acl2CountT (cdrT xT)) _ _ _ (by decide)
+        h_no_plus hrec1 hrec2 (callBuiltin_plus _ _)
+      exact conv_builtin2 w _ { name := "BINARY-+" } q1 _ int1 _ _
+        (by decide) h_no_plus (re_val_quote w _ int1) hinner
+        (callBuiltin_plus _ _)
+    -- the rational branch
+    have hIA := integer_abs_exec_corr w h_ia h_no_integerp h_no_ltb
+      h_no_neg _ xT xv hxv
+    have hIAnum := integer_abs_exec_corr w h_ia h_no_integerp h_no_ltb
+      h_no_neg _ (app1 "NUMERATOR" xT) (Logic.numerator xv) hnum
+    have hratBranch : ConvTo w (bindArgs [xS] [xv])
+        (ifT (app1 "INTEGERP" xT)
+          (integerAbsT xT)
+          (plusT (integerAbsT (app1 "NUMERATOR" xT))
+            (app1 "DENOMINATOR" xT)))
+        (if Logic.toBool (Logic.integerp xv) = true then integerAbsExec xv
+         else Logic.plus (integerAbsExec (Logic.numerator xv))
+           (Logic.denominator xv)) :=
+      conv_if_lift w _ (app1 "INTEGERP" xT) _ _ (Logic.integerp xv)
+        (integerAbsExec xv)
+        (Logic.plus (integerAbsExec (Logic.numerator xv))
+          (Logic.denominator xv)) hip
+        (fun _ => hIA)
+        (fun _ =>
+          conv_builtin2 w _ { name := "BINARY-+" }
+            (integerAbsT (app1 "NUMERATOR" xT)) (app1 "DENOMINATOR" xT)
+            _ _ _ (by decide) h_no_plus hIAnum hden
+            (callBuiltin_plus _ _))
+    -- the string branch
+    have hLen := length_exec_corr w h_len h_no_stringp h_no_len
+      h_no_coerce _ xT xv hxv
+    have houter := conv_if_lift w (bindArgs [xS] [xv]) (conspT xT)
+      (plusT q1 (plusT (acl2CountT (carT xT)) (acl2CountT (cdrT xT))))
+      (ifT (app1 "RATIONALP" xT)
+        (ifT (app1 "INTEGERP" xT)
+          (integerAbsT xT)
+          (plusT (integerAbsT (app1 "NUMERATOR" xT))
+            (app1 "DENOMINATOR" xT)))
+        (ifT (app1 "COMPLEX-RATIONALP" xT)
+          (plusT q1 (plusT (acl2CountT (app1 "REALPART" xT))
+            (acl2CountT (app1 "IMAGPART" xT))))
+          (ifT (app1 "STRINGP" xT) (lengthT xT) q0)))
+      (Logic.consp xv)
+      (Logic.plus int1 (Logic.plus (acl2CountExec (Logic.car xv))
+        (acl2CountExec (Logic.cdr xv))))
+      (if Logic.toBool (rationalpV xv) = true then
+        (if Logic.toBool (Logic.integerp xv) = true then integerAbsExec xv
+         else Logic.plus (integerAbsExec (Logic.numerator xv))
+           (Logic.denominator xv))
+       else if Logic.toBool (Logic.stringp xv) = true then lengthExec xv
+       else .atom (.number (.int 0)))
+      hconsp hconsBranch
+      (fun _ =>
+        conv_if_lift w _ (app1 "RATIONALP" xT) _ _ (rationalpV xv)
+          (if Logic.toBool (Logic.integerp xv) = true then
+            integerAbsExec xv
+           else Logic.plus (integerAbsExec (Logic.numerator xv))
+             (Logic.denominator xv))
+          (if Logic.toBool (Logic.stringp xv) = true then lengthExec xv
+           else .atom (.number (.int 0)))
+          hrp
+          (fun _ => hratBranch)
+          (fun _ =>
+            have hcomplex : ConvTo w (bindArgs [xS] [xv])
+                (ifT (app1 "COMPLEX-RATIONALP" xT)
+                  (plusT q1 (plusT (acl2CountT (app1 "REALPART" xT))
+                    (acl2CountT (app1 "IMAGPART" xT))))
+                  (ifT (app1 "STRINGP" xT) (lengthT xT) q0))
+                (if Logic.toBool (Logic.stringp xv) = true then
+                  lengthExec xv
+                 else .atom (.number (.int 0))) := by
+              have := conv_if_lift w (bindArgs [xS] [xv])
+                (app1 "COMPLEX-RATIONALP" xT)
+                (plusT q1 (plusT (acl2CountT (app1 "REALPART" xT))
+                  (acl2CountT (app1 "IMAGPART" xT))))
+                (ifT (app1 "STRINGP" xT) (lengthT xT) q0)
+                (Logic.complexRationalp xv)
+                (if Logic.toBool (Logic.stringp xv) = true then
+                  lengthExec xv
+                 else .atom (.number (.int 0)))
+                (if Logic.toBool (Logic.stringp xv) = true then
+                  lengthExec xv
+                 else .atom (.number (.int 0)))
+                hcrp
+                (fun hb =>
+                  absurd hb (by
+                    simp [Logic.complexRationalp, Logic.toBool]))
+                (fun _ =>
+                  conv_if_lift w _ (app1 "STRINGP" xT) (lengthT xT) q0
+                    (Logic.stringp xv) (lengthExec xv)
+                    (.atom (.number (.int 0))) hsp
+                    (fun _ => hLen)
+                    (fun _ => re_val_quote w _ (.atom (.number (.int 0)))))
+              simpa [ite_self] using this
+            hcomplex))
+    rw [acl2CountExec.eq_def]
+    simp only [dite_eq_ite]
+    exact houter
+  intro env x xv hx
+  exact conv_defn_1 w env acl2_count_sym x xv xS acl2CountBody _
+    acl2_count_ns h_ac hx (hbody xv)
+
+/-- `Logic.neg` of an integer atom. -/
+private theorem logic_neg_int (m : Int) :
+    Logic.neg (.atom (.number (.int m))) = .atom (.number (.int (-m))) := by
+  simp [Logic.neg, Logic.toRat, Logic.mkNumber]
+
+/-- `integerAbsExec` always yields a non-negative integer. -/
+theorem integerAbsExec_nat (x : SExpr) :
+    ∃ n : Nat, integerAbsExec x = .atom (.number (.int n)) := by
+  unfold integerAbsExec
+  match x with
+  | .nil => exact ⟨0, rfl⟩
+  | .cons a b => exact ⟨0, rfl⟩
+  | .atom (.symbol s) => exact ⟨0, rfl⟩
+  | .atom (.keyword k) => exact ⟨0, rfl⟩
+  | .atom (.char c) => exact ⟨0, rfl⟩
+  | .atom (.string s) => exact ⟨0, rfl⟩
+  | .atom (.number (.rational n d hc)) => exact ⟨0, rfl⟩
+  | .atom (.number (.int m)) =>
+    rw [if_pos (show Logic.toBool
+      (Logic.integerp (.atom (.number (.int m)))) = true from rfl)]
+    have hcond : Logic.lt (.atom (.number (.int m)))
+        (.atom (.number (.int 0)))
+        = (if m < 0 then SExpr.t else SExpr.nil) := by
+      simp [Logic.lt, Logic.toRat]
+    rcases lt_or_ge m 0 with hm | hm
+    · rw [if_pos (by rw [hcond, if_pos hm]; rfl), logic_neg_int]
+      exact ⟨(-m).toNat, by rw [Int.toNat_of_nonneg (by omega)]⟩
+    · rw [if_neg (by rw [hcond, if_neg (by omega)]; decide)]
+      exact ⟨m.toNat, by rw [Int.toNat_of_nonneg hm]⟩
+
+/-- `Logic.len` always yields a non-negative integer. -/
+private theorem logic_len_nat (x : SExpr) :
+    ∃ n : Nat, Logic.len x = .atom (.number (.int n)) := by
+  induction x with
+  | nil => exact ⟨0, rfl⟩
+  | atom a => exact ⟨0, rfl⟩
+  | cons a b iha ihb =>
+    obtain ⟨n, hn⟩ := ihb
+    exact ⟨n + 1, by rw [Logic.len, hn]; simp [Logic.toInt]⟩
+
+/-- `lengthExec` always yields a non-negative integer. -/
+theorem lengthExec_nat (x : SExpr) :
+    ∃ n : Nat, lengthExec x = .atom (.number (.int n)) := by
+  unfold lengthExec
+  by_cases h : Logic.toBool (Logic.stringp x) = true
+  · rw [if_pos h]; exact logic_len_nat _
+  · rw [if_neg h]; exact logic_len_nat _
+
+/-- `Logic.denominator` always yields a non-negative integer. -/
+private theorem logic_denominator_nat (x : SExpr) :
+    ∃ n : Nat, Logic.denominator x = .atom (.number (.int n)) := by
+  cases x with
+  | nil => exact ⟨1, rfl⟩
+  | cons a b => exact ⟨1, rfl⟩
+  | atom a =>
+    cases a with
+    | number nm =>
+      cases nm with
+      | int m => exact ⟨1, rfl⟩
+      | rational n d hc => exact ⟨d, rfl⟩
+    | _ => exact ⟨1, rfl⟩
+
+/-- `acl2CountExec` always yields a non-negative integer. -/
+theorem acl2CountExec_nat (x : SExpr) :
+    ∃ n : Nat, acl2CountExec x = .atom (.number (.int n)) := by
+  fun_induction acl2CountExec x with
+  | case1 x _ ih1 ih2 =>
+    obtain ⟨n1, h1⟩ := ih1
+    obtain ⟨n2, h2⟩ := ih2
+    rw [h1, h2, logic_plus_int,
+        show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
+        logic_plus_int]
+    exact ⟨1 + (n1 + n2), by push_cast; ring_nf⟩
+  | case2 x _ _ _ => exact integerAbsExec_nat _
+  | case3 x _ _ _ =>
+    obtain ⟨n1, h1⟩ := integerAbsExec_nat (Logic.numerator x)
+    obtain ⟨n2, h2⟩ := logic_denominator_nat x
+    rw [h1, h2, logic_plus_int]
+    exact ⟨n1 + n2, by push_cast; ring_nf⟩
+  | case4 x _ _ hc =>
+    exact absurd hc (by simp [Logic.complexRationalp, Logic.toBool])
+  | case5 x _ _ _ _ => exact lengthExec_nat _
+  | case6 x _ _ _ _ => exact ⟨0, rfl⟩
+
+/-- `tp:ACL2-COUNT`, world-parametric — the emitted non-negative-integer
+    TP corollary (unary). -/
+theorem dis_acl2_count_tp (w : World)
+    (h_ac : w.defs.get? acl2_count_sym = some ([xS], acl2CountBody))
+    (h_ia : w.defs.get? integer_abs_sym = some ([xS], integerAbsBody))
+    (h_len : w.defs.get? length_sym = some ([xS], lengthBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_rationalp : w.defs.get? ({ name := "RATIONALP" } : Symbol) = none)
+    (h_no_integerp : w.defs.get? ({ name := "INTEGERP" } : Symbol) = none)
+    (h_no_num : w.defs.get? ({ name := "NUMERATOR" } : Symbol) = none)
+    (h_no_den : w.defs.get? ({ name := "DENOMINATOR" } : Symbol) = none)
+    (h_no_crp : w.defs.get?
+      ({ name := "COMPLEX-RATIONALP" } : Symbol) = none)
+    (h_no_stringp : w.defs.get? ({ name := "STRINGP" } : Symbol) = none)
+    (h_no_len : w.defs.get? ({ name := "LEN" } : Symbol) = none)
+    (h_no_coerce : w.defs.get? ({ name := "COERCE" } : Symbol) = none)
+    (h_no_ltb : w.defs.get? ({ name := "<" } : Symbol) = none)
+    (h_no_neg : w.defs.get? ({ name := "UNARY--" } : Symbol) = none)
+    (e' : Env) (a0 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (acl2CountT a0) = some v) :
+    (bif Logic.toBool (Logic.integerp v) then
+      Logic.not (Logic.lt v (.atom (.number (.int 0))))
+    else SExpr.nil) = SExpr.t := by
+  obtain ⟨N0, u0, h0⟩ :=
+    conv_args1_of_conv_app w e' { name := "ACL2-COUNT" } a0 v (by decide) h
+  have happ := acl2_count_exec_corr w h_ac h_ia h_len h_no_consp h_no_car
+    h_no_cdr h_no_plus h_no_rationalp h_no_integerp h_no_num h_no_den
+    h_no_crp h_no_stringp h_no_len h_no_coerce h_no_ltb h_no_neg
+    e' a0 u0 ⟨N0, h0⟩
+  rw [val_unique h happ]
+  obtain ⟨n, hn⟩ := acl2CountExec_nat u0
+  rw [hn]
+  simp [Logic.integerp, Logic.lt, Logic.not, Logic.toRat, Logic.toBool,
+    show ¬((n : Int) < 0) from by omega]
+
+/-! ## The `qsort` exec kit -/
+
+abbrev qsortT (x : SExpr) : SExpr := app1 "QSORT" x
+
+/-- `(defun qsort (x) …)`, macroexpanded. -/
+def qsortBody : SExpr :=
+  ifT (conspT xT)
+    (ifT (conspT (cdrT xT))
+      (appendT
+        (qsortT (filterT (qSym "LT") (cdrT xT) (carT xT)))
+        (consT (carT xT)
+          (qsortT (filterT (qSym "GTE") (cdrT xT) (carT xT)))))
+      (consT (carT xT) qNil))
+    qNil
+
+private def qsort_sym : Symbol := { package := "ACL2", name := "QSORT" }
+
+private theorem qsort_ns :
+    (qsort_sym.isNamed "QUOTE" = false ∧ qsort_sym.isNamed "IF" = false ∧
+     qsort_sym.isNamed "LET" = false ∧
+     qsort_sym.isNamed "LET*" = false) := by decide
+
+/-- `filterExec` never increases the count. -/
+theorem filterExec_consCount_le (fv x ev : SExpr) :
+    (filterExec fv x ev).consCount ≤ x.consCount := by
+  fun_induction filterExec fv x ev with
+  | case1 x hc _ ih =>
+    cases x with
+    | nil => simp [Logic.consp, Logic.toBool] at hc
+    | atom _ => simp [Logic.consp, Logic.toBool] at hc
+    | cons a d =>
+      rw [show Logic.cdr (SExpr.cons a d) = d from rfl] at ih
+      simp only [Logic.cons, Logic.car, Logic.cdr, consCount_cons]
+      omega
+  | case2 x hc _ ih =>
+    exact le_trans ih (consCount_cdr_le _)
+  | case3 x _ => simp
+
+def qsortExec (x : SExpr) : SExpr :=
+  if _h1 : Logic.toBool (Logic.consp x) = true then
+    if Logic.toBool (Logic.consp (Logic.cdr x)) = true then
+      appendExec
+        (qsortExec (filterExec (symV "LT") (Logic.cdr x) (Logic.car x)))
+        (Logic.cons (Logic.car x)
+          (qsortExec (filterExec (symV "GTE") (Logic.cdr x) (Logic.car x))))
+    else Logic.cons (Logic.car x) SExpr.nil
+  else SExpr.nil
+termination_by x.consCount
+decreasing_by
+  · exact lt_of_le_of_lt (filterExec_consCount_le _ _ _)
+      (consCount_cdr_lt_of_consp _h1)
+  · exact lt_of_le_of_lt (filterExec_consCount_le _ _ _)
+      (consCount_cdr_lt_of_consp _h1)
+
+/-- Stage 1: a `qsort` call converges to `qsortExec`. -/
+theorem qsort_exec_corr (w : World)
+    (h_qs : w.defs.get? qsort_sym = some ([xS], qsortBody))
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_filter : w.defs.get? filter_sym = some ([fnS, xS, eS], filterBody))
+    (h_app : w.defs.get? append_sym
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (qsortT x) (qsortExec xv) := by
+  have hbody : ∀ xv : SExpr,
+      ConvTo w (bindArgs [xS] [xv]) qsortBody (qsortExec xv) := by
+    refine consCount_strong_induction
+      (fun xv => ConvTo w (bindArgs [xS] [xv]) qsortBody (qsortExec xv)) ?_
+    intro xv ih
+    have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+      (bindArgs_single_get_self xS xv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have hconsp2 := conv_builtin1 w _ { name := "CONSP" } (cdrT xT)
+      (Logic.cdr xv) (Logic.consp (Logic.cdr xv)) (by decide) h_no_consp
+      hcdr (callBuiltin_consp _)
+    have hfilLT := filter_exec_corr w h_rel h_filter h_no_consp h_no_equal
+      h_no_car h_no_cdr h_no_cons h_no_lexorder _ (qSym "LT") (cdrT xT)
+      (carT xT) (symV "LT") (Logic.cdr xv) (Logic.car xv)
+      (re_val_quote w _ (symV "LT")) hcdr hcar
+    have hfilGTE := filter_exec_corr w h_rel h_filter h_no_consp h_no_equal
+      h_no_car h_no_cdr h_no_cons h_no_lexorder _ (qSym "GTE") (cdrT xT)
+      (carT xT) (symV "GTE") (Logic.cdr xv) (Logic.car xv)
+      (re_val_quote w _ (symV "GTE")) hcdr hcar
+    have hbig : Logic.toBool (Logic.consp xv) = true →
+        ConvTo w (bindArgs [xS] [xv])
+          (appendT
+            (qsortT (filterT (qSym "LT") (cdrT xT) (carT xT)))
+            (consT (carT xT)
+              (qsortT (filterT (qSym "GTE") (cdrT xT) (carT xT)))))
+          (appendExec
+            (qsortExec (filterExec (symV "LT") (Logic.cdr xv)
+              (Logic.car xv)))
+            (Logic.cons (Logic.car xv)
+              (qsortExec (filterExec (symV "GTE") (Logic.cdr xv)
+                (Logic.car xv))))) := by
+      intro hb1
+      have hlt : (filterExec (symV "LT") (Logic.cdr xv)
+          (Logic.car xv)).consCount < xv.consCount :=
+        lt_of_le_of_lt (filterExec_consCount_le _ _ _)
+          (consCount_cdr_lt_of_consp hb1)
+      have hgte : (filterExec (symV "GTE") (Logic.cdr xv)
+          (Logic.car xv)).consCount < xv.consCount :=
+        lt_of_le_of_lt (filterExec_consCount_le _ _ _)
+          (consCount_cdr_lt_of_consp hb1)
+      have hqsLT := conv_defn_1 w _ qsort_sym
+        (filterT (qSym "LT") (cdrT xT) (carT xT))
+        (filterExec (symV "LT") (Logic.cdr xv) (Logic.car xv))
+        xS qsortBody _ qsort_ns h_qs hfilLT
+        (ih _ hlt)
+      have hqsGTE := conv_defn_1 w _ qsort_sym
+        (filterT (qSym "GTE") (cdrT xT) (carT xT))
+        (filterExec (symV "GTE") (Logic.cdr xv) (Logic.car xv))
+        xS qsortBody _ qsort_ns h_qs hfilGTE
+        (ih _ hgte)
+      have hcons2 := conv_builtin2 w _ { name := "CONS" } (carT xT)
+        (qsortT (filterT (qSym "GTE") (cdrT xT) (carT xT)))
+        (Logic.car xv) _ _ (by decide) h_no_cons hcar hqsGTE rfl
+      exact append_exec_corr w h_app h_no_consp h_no_car h_no_cdr
+        h_no_cons _ _ _ _ _ hqsLT hcons2
+    have houter := conv_if_lift w (bindArgs [xS] [xv]) (conspT xT)
+      (ifT (conspT (cdrT xT))
+        (appendT
+          (qsortT (filterT (qSym "LT") (cdrT xT) (carT xT)))
+          (consT (carT xT)
+            (qsortT (filterT (qSym "GTE") (cdrT xT) (carT xT)))))
+        (consT (carT xT) qNil))
+      qNil (Logic.consp xv)
+      (if Logic.toBool (Logic.consp (Logic.cdr xv)) = true then
+        appendExec
+          (qsortExec (filterExec (symV "LT") (Logic.cdr xv) (Logic.car xv)))
+          (Logic.cons (Logic.car xv)
+            (qsortExec (filterExec (symV "GTE") (Logic.cdr xv)
+              (Logic.car xv))))
+       else Logic.cons (Logic.car xv) SExpr.nil)
+      SExpr.nil hconsp
+      (fun hb1 =>
+        conv_if_lift w _ (conspT (cdrT xT)) _ (consT (carT xT) qNil)
+          (Logic.consp (Logic.cdr xv))
+          (appendExec
+            (qsortExec (filterExec (symV "LT") (Logic.cdr xv)
+              (Logic.car xv)))
+            (Logic.cons (Logic.car xv)
+              (qsortExec (filterExec (symV "GTE") (Logic.cdr xv)
+                (Logic.car xv)))))
+          (Logic.cons (Logic.car xv) SExpr.nil) hconsp2
+          (fun _ => hbig hb1)
+          (fun _ =>
+            conv_builtin2 w _ { name := "CONS" } (carT xT) qNil
+              (Logic.car xv) SExpr.nil _ (by decide) h_no_cons hcar
+              (re_val_quote w _ SExpr.nil) rfl))
+      (fun _ => re_val_quote w _ SExpr.nil)
+    rw [qsortExec.eq_def]
+    simp only [dite_eq_ite]
+    exact houter
+  intro env x xv hx
+  exact conv_defn_1 w env qsort_sym x xv xS qsortBody _
+    qsort_ns h_qs hx (hbody xv)
+
+/-- Pure append on encodings (the world-free twin of
+    `corr_append_enc`). -/
+theorem appendExec_enc : ∀ (xs ys : List SExpr),
+    appendExec (enc xs) (enc ys) = enc (xs ++ ys)
+  | [], ys => by
+    rw [appendExec.eq_def, show enc ([] : List SExpr) = SExpr.nil from rfl,
+        if_neg (by simp [Logic.consp, Logic.toBool])]
+    rfl
+  | a :: t, ys => by
+    rw [appendExec.eq_def,
+        if_pos (show Logic.toBool (Logic.consp (enc (a :: t))) = true
+          from rfl),
+        show Logic.car (enc (a :: t)) = a from rfl,
+        show Logic.cdr (enc (a :: t)) = enc t from rfl,
+        appendExec_enc t ys]
+    rfl
+
+/-- The native quicksort. -/
+def qsortL (xs : List SExpr) : List SExpr :=
+  match xs with
+  | [] => []
+  | [a] => [a]
+  | a :: b :: t =>
+    qsortL ((b :: t).filter (fun c => relL (symV "LT") c a))
+      ++ a :: qsortL ((b :: t).filter (fun c => relL (symV "GTE") c a))
+termination_by xs.length
+decreasing_by
+  · exact Nat.lt_succ_of_le (List.length_filter_le _ _)
+  · exact Nat.lt_succ_of_le (List.length_filter_le _ _)
+
+/-- Stage 2: `qsortExec` on an encoded list computes `qsortL`. -/
+theorem qsortExec_enc (xs : List SExpr) :
+    qsortExec (enc xs) = enc (qsortL xs) := by
+  induction hn : xs.length using Nat.strong_induction_on generalizing xs
+    with
+  | _ n ih =>
+    match xs with
+    | [] => rw [qsortExec.eq_def,
+        show enc ([] : List SExpr) = SExpr.nil from rfl,
+        dif_neg (by simp [Logic.consp, Logic.toBool])]; simp [qsortL, enc]
+    | [a] =>
+      rw [qsortExec.eq_def,
+          dif_pos (show Logic.toBool (Logic.consp (enc [a])) = true
+            from rfl),
+          if_neg (show ¬(Logic.toBool (Logic.consp
+            (Logic.cdr (enc [a]))) = true) from by
+              simp [enc, Logic.cdr, Logic.consp, Logic.toBool]),
+          show Logic.car (enc [a]) = a from rfl]
+      simp [qsortL, Logic.cons, enc]
+    | a :: b :: t =>
+      rw [qsortExec.eq_def,
+          dif_pos (show Logic.toBool (Logic.consp (enc (a :: b :: t)))
+            = true from rfl),
+          if_pos (show Logic.toBool (Logic.consp
+            (Logic.cdr (enc (a :: b :: t)))) = true from rfl),
+          show Logic.cdr (enc (a :: b :: t)) = enc (b :: t) from rfl,
+          show Logic.car (enc (a :: b :: t)) = a from rfl,
+          filterExec_enc, filterExec_enc,
+          ih (filterL (symV "LT") a (b :: t)).length
+            (by subst hn; simp only [filterL, List.length_cons]
+                exact Nat.lt_succ_of_le (List.length_filter_le _ _))
+            _ rfl,
+          ih (filterL (symV "GTE") a (b :: t)).length
+            (by subst hn; simp only [filterL, List.length_cons]
+                exact Nat.lt_succ_of_le (List.length_filter_le _ _))
+            _ rfl,
+          show Logic.cons a (enc (qsortL (filterL (symV "GTE") a (b :: t))))
+            = enc (a :: qsortL (filterL (symV "GTE") a (b :: t))) from rfl,
+          appendExec_enc]
+      simp only [filterL, qsortL]
+
+/-! ## HOW-MANY-QSORT -/
+
+/-- `(EQUAL (HOW-MANY E (QSORT X)) (HOW-MANY E X))`. -/
+def how_many_qsortFormula : SExpr :=
+  equalT (howManyT eT (qsortT xT)) (howManyT eT xT)
+
+/-- HOW-MANY-QSORT, natively: QUICKSORT PRESERVES MULTIPLICITY. -/
+theorem how_many_qsort_native_of_replayed (w : World)
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_qs : w.defs.get? qsort_sym = some ([xS], qsortBody))
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_filter : w.defs.get? filter_sym = some ([fnS, xS, eS], filterBody))
+    (h_app : w.defs.get? append_sym
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }],
+              appendBody "BINARY-APPEND"))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env how_many_qsortFormula = some v ∧ v ≠ SExpr.nil)
+    (ev : SExpr) (xs : List SExpr) :
+    (qsortL xs).count ev = xs.count ev := by
+  let e : Env := (({} : Env).insert xS (enc xs)).insert eS ev
+  have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
+    re_val_var_get w e { name := "E" } ev (by
+      show e.get? eS = some ev
+      rw [show e = (({} : Env).insert xS (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = (({} : Env).insert xS (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hqs := qsort_exec_corr w h_qs h_rel h_filter h_app h_no_consp
+    h_no_equal h_no_car h_no_cdr h_no_cons h_no_lexorder e xT (enc xs) hx
+  rw [qsortExec_enc] at hqs
+  have hL := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT (qsortT xT) ev (enc (qsortL xs)) he hqs
+  rw [howManyExec_enc] at hL
+  have hR := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT xT ev (enc xs) he hx
+  rw [howManyExec_enc] at hR
+  have hnat := native_of_replayed_equal w e intRep _ _
+    ((qsortL xs).count ev : Int) ((xs.count ev : Int)) h_no_equal hL hR
+    (hreplayed e)
+  omega
+
 end ACL2.Worlds.Sorting

@@ -63,6 +63,7 @@
   ──────────────────────────────────────────────────────────────────────────
 -/
 import ACL2Lean.Replay.Driver
+import ACL2Lean.Replay.Runner
 import ACL2Lean.Imported.SimpleWorld
 import ACL2Lean.Imported.AppAssoc
 import ACL2Lean.Imported.Lifting
@@ -95,7 +96,8 @@ derive_world simpleWorldD from simpleDev
     constant `world`: a `∀ env, <hypotheses> → ∃N∀f≥N ∃v, eval = some v ∧
     v ≠ nil` proof OBJECT (ACL2's truthiness claim, G2) produced by
     `replayProofConditional` from the reconstructed tree. -/
-elab "driver_replayed%" devId:ident worldId:ident nm:str : term => do
+elab "driver_replayed%" devId:ident worldId:ident nm:str
+    wt:(&" with_termination")? : term => do
   let devName ← Lean.resolveGlobalConstNoOverload devId
   let worldName ← Lean.resolveGlobalConstNoOverload worldId
   let dev ← unsafe Meta.evalExpr Development (mkConst ``ACL2.Development)
@@ -103,14 +105,67 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str : term => do
   let some cp := Driver.findThm dev nm.getString
     | throwError "{nm.getString}: not found in the development (or ambiguous \
                   up to case — findThm refuses to guess)"
+  let thms := Driver.developmentTheoremsWithRules dev
+  -- TERMINATION PRE-PASS (the runner's route, mirrored; OPT-IN via
+  -- `with_termination` — a consumer whose induction scheme needs a
+  -- non-destructor decrease, e.g. qsort's filter call sites, discharges
+  -- its totality from the fn's REPLAYED admission waterfall). Each
+  -- recorded admission is replayed ONCE PER WORLD and declared as a
+  -- `ReplayedTermination.*` constant, its undischarged conditions
+  -- persisted in a companion `*_conds` constant so later invocations
+  -- reuse both without re-replaying. A failed or circular replay is
+  -- skipped (the consumer then hard-fails at the honest frontier).
+  let mut termReplayed : List (String × Name × List String × List SExpr)
+    := []
+  if wt.isSome then
+    let condsTy := mkApp (mkConst ``List [.zero]) (mkConst ``String)
+    for (fn, tcp) in ACL2.Replay.Runner.recordedTerminationDefuns
+        dev.justifications dev do
+      let base := String.map (fun c => if c.isAlphanum then c else '_')
+        s!"term_mirror_{worldName}_{fn}"
+      let mName := Name.mkStr2 "ReplayedTermination" base
+      let condsName := Name.mkStr2 "ReplayedTermination" s!"{base}_conds"
+      let conds? ← do
+        if (← getEnv).contains mName then
+          some <$> (unsafe Meta.evalExpr (List String) condsTy
+            (mkConst condsName))
+        else
+          let cited := ACL2.Replay.Runner.citedRuneNames tcp
+          let termRules := ((thms.map (·.2)).flatten.filter
+            (fun r => cited.contains r.name)).eraseDups
+          let (status, reg?) ← ACL2.Replay.Runner.tryReplay dev.toWorld
+            (mkConst worldName) dev.typePrescriptions dev.justifications
+            tcp termRules (thms.map fun (c, _) => (c.name, c))
+            (gzDefs := dev.groundZeroSnapshotDefs)
+            (fcRules := dev.groundZeroFcRuleSpecs)
+            (replayedName? := some mName) (budget := 10000000)
+          if reg?.isNone then
+            throwError "driver_replayed% with_termination: the {fn} \
+              admission pre-pass FAILED ({status}) — the consumer would \
+              hard-fail at the decrease frontier"
+          match reg? with
+          | some conds => do
+            Lean.addDecl (.defnDecl {
+              name := condsName, levelParams := [], type := condsTy,
+              value := Lean.toExpr conds, hints := .opaque,
+              safety := .safe })
+            pure (some conds)
+          | none => pure none
+      if let some conds := conds? then
+        unless conds.contains s!"total:{fn}" || conds.contains s!"tp:{fn}"
+          do
+          termReplayed := termReplayed
+            ++ [(fn, mName, conds, (tcp.root.map (·.inputClause)).getD [])]
   Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg : ReplayConfig :=
       { worldExpr := mkConst worldName, envExpr := env, worldVal := dev.toWorld,
         gzDefs := dev.groundZeroSnapshotDefs, justs := dev.justifications,
-        fcRules := dev.groundZeroFcRuleSpecs }
+        fcRules := dev.groundZeroFcRuleSpecs,
+        termReplayed := termReplayed }
     let (proof, _conds) ← replayProofConditional cfg dev.typePrescriptions cp
       dev.justifications (Driver.rulesBefore dev nm.getString)
-      ((Driver.developmentTheoremsWithRules dev).map fun (c, _) => (c.name, c))
+      (thms.map fun (c, _) => (c.name, c))
+      (termReplayed := termReplayed)
     Meta.mkLambdaFVars #[env] proof
 
 /-- The conditional replayed statement as a definition (the driver's proof OBJECT). -/
@@ -1392,6 +1447,49 @@ theorem orderedp_append_native_driver (ev : SExpr) (as bs : List SExpr)
 
 #print axioms orderedp_append_native_driver
 
+set_option maxHeartbeats 4000000 in
+/-- HOW-MANY-QSORT's conditional replayed statement (ten hypotheses:
+    `total:O<`, `tp:HOW-MANY`, `tp:ACL2-COUNT`, and the seven rule
+    conditions). -/
+def howManyQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "how-many-qsort" with_termination
+
+set_option maxHeartbeats 1600000 in
+theorem howManyQsortReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.how_many_qsortFormula = some v ∧ v ≠ SExpr.nil :=
+  howManyQsortReplayedCond env
+    (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_acl2_count_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
+    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+    (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
+    (Worlds.Sorting.dis_plus_if_lift qsortWorldD (by decide))
+    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+
+set_option maxHeartbeats 1600000 in
+/-- ENTRY, PROVED — HOW-MANY-QSORT natively: QUICKSORT PRESERVES
+    MULTIPLICITY. -/
+theorem how_many_qsort_native_driver (ev : SExpr) (xs : List SExpr) :
+    (Worlds.Sorting.qsortL xs).count ev = xs.count ev :=
+  Worlds.Sorting.how_many_qsort_native_of_replayed qsortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    howManyQsortReplayed_uncond ev xs
+
+#print axioms how_many_qsort_native_driver
+
 /-! ## The msort book — merge sort, all four content rows. -/
 
 private def msortLog : String :=
@@ -1676,7 +1774,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
   ("sorting/msort", "ORDEREDP-MSORT", .native ``orderedp_msort_native_driver ``orderedpMsortReplayedCond),
   ("sorting/msort", "HOW-MANY-MSORT", .native ``how_many_msort_native_driver ``howManyMsortReplayedCond),
-  ("sorting/qsort", "termination:QSORT", .pending "termination replayed statement; native decrease fact not lifted"),
+  ("sorting/qsort", "termination:QSORT", .replayedOnly "an internal admission obligation, not a user-facing theorem: its native content (the filter-count decreases) IS qsortExec own kernel-checked Lean termination proof (filterExec_consCount_le)"),
   ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
   ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
@@ -1689,7 +1787,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
   ("sorting/qsort", "ORDEREDP-QSORT", .pending "chain2/LEXORDER + qsort correspondences (the headline; backlog)"),
-  ("sorting/qsort", "TRUE-LISTP-QSORT", .pending "the flatten-recipe mirror + its cond dischargers (total:O<, tp:QSORT, …)")]
+  ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
