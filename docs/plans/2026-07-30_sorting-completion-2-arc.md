@@ -465,8 +465,11 @@ list is NOT on the table):
     time, which ACL2's rewrite does not track natively — feasibility
     needs a fork-side spike).
 
-Status: PAUSED for MDD discussion at this choice point (goal ended per
-the 2026-07-31 directive). Remaining arc work after the decision:
+Status: RESOLVED (MDD 2026-07-31) — option (b), fork-side emission, as a
+SUB-ARC: branch `mdd/path-emission` off this arc's branch, charter in
+docs/plans/2026-07-31_path-emission-subarc.md (spike → MDD decision
+checkpoint → corpus-wide implementation with mechanism retirement;
+folds back here at ≥69/79 parity, never merging to main alone). Remaining arc work after the decision:
 ORDEREDP-APPEND via the chosen mechanism, HOW-MANY-QSORT (D),
 MSORT-IS-ISORT/QSORT-IS-ISORT (B), then epicycle elimination (the
 type-set walker consolidation — same review found the closure kits'

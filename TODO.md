@@ -174,6 +174,11 @@ _Last updated: 2026-07-29._
 > for every reasonable green sorting row (pending catalog entries do
 > not count); see the charter's amended-criteria section.**
 > Sequencing A→D→C→B, then epicycle elimination, then mirrors.
+> **ACTIVE SUB-ARC (2026-07-31): `mdd/path-emission`** — fork-side
+> term-relative :PATH emission (MDD-picked option b), charter
+> docs/plans/2026-07-31_path-emission-subarc.md; retires the
+> relativize/strip/boundary trio; folds back into this branch at
+> ≥69/79 parity. ORDEREDP-APPEND is its validating case.
 > **Class A: 3 of 4 green as of
 > 2026-07-31 (TRUE-LISTP-MSORT, ORDEREDP-MEMB, ORDERED-PERMS;
 > ORDEREDP-APPEND still red at the nested if-finish/combined strip
