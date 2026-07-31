@@ -67,6 +67,7 @@ import ACL2Lean.Imported.SimpleWorld
 import ACL2Lean.Imported.AppAssoc
 import ACL2Lean.Imported.Lifting
 import ACL2Lean.Imported.Perm
+import ACL2Lean.Imported.Sorting
 
 namespace ACL2.Imported.Mirrors
 
@@ -968,6 +969,53 @@ theorem p5_dupp_prepend_native_driver (e : SExpr) (tl : List SExpr)
   | false => rw [hc] at hconc; exact absurd hconc (by decide)
 
 
+/-! ## The ordered-perms book — the SORTING MIRROR PROGRAM's first tranche
+(sorting-completion-2 amended criteria). The `Imported/Sorting.lean`
+support: the LEXORDER Bool kit + the ORDEREDP chain2 instance; `rm`'s
+simulation is the perm book's, reused verbatim. -/
+
+private def orderedPermsLog : String :=
+  include_str "../../acl2_samples/sorting/ordered-perms.proof-log"
+
+/-- The parsed development — the ONLY input is the log. -/
+def orderedPermsDev : Development :=
+  (((ProofLog.parse orderedPermsLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+derive_world orderedPermsWorldD from orderedPermsDev
+
+/-- The UNCONDITIONAL driver replayed statement (zero hypotheses — see the
+    coverage row). -/
+def orderedpRmReplayed := driver_replayed% orderedPermsDev orderedPermsWorldD
+  "orderedp-rm"
+
+/-- ENTRY, PROVED — ORDEREDP-RM natively: erasing an element preserves
+    adjacent-pair lexorder-sortedness (`chain2Rec lexorderB`, the ORDEREDP
+    reading over encoded lists). -/
+theorem orderedp_rm_native_driver (ev : SExpr) (xs : List SExpr)
+    (h : Worlds.Sorting.orderedpRec xs = true) :
+    Worlds.Sorting.orderedpRec (xs.erase ev) = true :=
+  Worlds.Sorting.orderedp_rm_native_of_replayed orderedPermsWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) orderedpRmReplayed ev xs h
+
+#print axioms orderedp_rm_native_driver
+
+/-- The UNCONDITIONAL driver replayed statement for CAR-RM. -/
+def carRmReplayed := driver_replayed% orderedPermsDev orderedPermsWorldD
+  "car-rm"
+
+/-- ENTRY, PROVED — CAR-RM natively: the head of `xs.erase ev` — nil on
+    the empty list, the tail's head if the head was erased, else the
+    head (`carRmSpec`). -/
+theorem car_rm_native_driver (ev : SExpr) (xs : List SExpr) :
+    (xs.erase ev).headD SExpr.nil = Worlds.Sorting.carRmSpec ev xs :=
+  Worlds.Sorting.car_rm_native_of_replayed orderedPermsWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    carRmReplayed ev xs
+
+#print axioms car_rm_native_driver
+
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
@@ -1035,12 +1083,12 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/isort", "ORDEREDP-ISORT", .pending "chain2/LEXORDER + insert correspondence (p3-adjacent; backlog)"),
   ("sorting/isort", "TRUE-LISTP-ISORT", .pending "the flatten-recipe mirror + the tp:INSERT discharger"),
   ("sorting/isort", "HOW-MANY-ISORT", .pending "how-many correspondence (count fn; backlog)"),
-  ("sorting/ordered-perms", "ORDEREDP-RM", .pending "chain2/LEXORDER + rm correspondence (backlog)"),
+  ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver),
   ("sorting/ordered-perms", "ORDEREDP-MEMB", .pending "chain2/LEXORDER + memb correspondences (backlog)"),
   ("sorting/ordered-perms", "EQUAL-CONS", .pending "cons-equation decode (backlog)"),
   ("sorting/ordered-perms", "ORDERED-PERMS", .pending "chain2/LEXORDER + perm/rm/memb correspondences + the ASSUMED:dp-fact dischargers (backlog)"),
-  ("sorting/ordered-perms", "CAR-RM", .pending "rm correspondence (backlog)"),
-  ("sorting/ordered-perms", "TRUE-LISTP-RM", .pending "the flatten-recipe mirror + its cond dischargers"),
+  ("sorting/ordered-perms", "CAR-RM", .native ``car_rm_native_driver),
+  ("sorting/ordered-perms", "TRUE-LISTP-RM", .replayedOnly "subsumed by the rm simulation: `true-listp` restricts the input to the enc image (exists_enc_of_trueListp), where corr_rm_enc already yields an encoded List — no native content beyond the sim (the type-absorbed true-listp doctrine; the flatten recipe applies only where NO simulation exists)"),
   ("sorting/msort", "TRUE-LISTP-MSORT", .pending "the flatten-recipe mirror + its cond dischargers (total:MERGE2/MSORT, tp:EVENS)"),
   ("sorting/msort", "HOW-MANY-MERGE2", .pending "how-many/merge2 correspondences (backlog)"),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .pending "how-many/evens/odds correspondences (backlog)"),
@@ -1124,7 +1172,9 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.cdr_cons_native,
             ``ACL2.Imported.Mirrors.equal_symm_native,
             ``ACL2.Imported.Mirrors.equal_trans_native,
-            ``ACL2.Imported.Mirrors.car_cons_native] do
+            ``ACL2.Imported.Mirrors.car_cons_native,
+            ``ACL2.Imported.Mirrors.orderedp_rm_native_driver,
+            ``ACL2.Imported.Mirrors.car_rm_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
