@@ -221,9 +221,8 @@ def asLamHead (t : SExpr) : Option (Symbol × SExpr × SExpr) :=
     for any residual misalignment. The `depth` parameter is retained for
     signature stability during the migration and is DEAD — the boundary
     accounting it drove retired with the gstack-coordinate emission. -/
-def relativizeFrames (frames : List PathFrame) (depth : Nat) : Except String (List PathFrame) :=
-  let _ := depth
-  pure (frames.drop 1)
+def relativizeFrames (frames : List PathFrame) : List PathFrame :=
+  frames.drop 1
 
 /-- Navigate `descentFrames` (already relativized/stripped) from `term`,
     returning the path steps and the subterm reached — the redex-check-free
@@ -362,51 +361,10 @@ def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : Expr) : M
         reflectSExpr sub', ns, inner]
   | _, _, _ => throwError "applyStep: unsupported arity/argIdx {st.arity}/{st.argIdx}"
 
-/-- The KIND of the innermost boundary consumed by relativization at `depth`
-    (`none` at depth 0) — identifies which inner BLOCK of the parent node the
-    chain node lives in (BODY / RHS / HYP / REWRITTEN-BODY). Chain-root strip
-    entries are PASS-LOCAL: a resolved if's residual branch frame leaks only
-    into later nodes of the SAME rewrite pass — in particular the RUNOUT pass
-    restarts from the rewritten body on a fresh gstack, so a BODY-pass strip
-    must not reach REWRITTEN-BODY nodes (emission arc inc-5), while the runout
-    pass's OWN root collapses still leak into its own later nodes (inc-8:
-    HOW-MANY-EVENS-AND-ODDS). Strip entries carry this tag at append time and
-    apply only to nodes with the same one. -/
-def innermostConsumedKind (frames : List PathFrame) (depth : Nat) : Option String :=
-  (((frames.filter fun | .boundary .. => true | _ => false).take depth).getLast?).bind
-    fun | .boundary k _ => some k.name | _ => none
-
-/-- Lift a node proof `nodeProof : ∃N∀f≥N, eval lhs = eval rhs` to the whole literal
-    `term`, DIRECTED by the node's `:PATH` (`frames`) — no subterm search. Returns the
-    lifted proof and the rewritten term `term[lhs := rhs]`.
-
-    `strip`: branch frames already CONSUMED by earlier chain steps. ACL2's
-    `rewrite-if` recurses into a resolved if's surviving branch with the if still
-    on its gstack, so a node logged after an if-simplification carries the
-    branch's `:PATH` frame even though the chain's current term no longer has the
-    if — each `k ∈ strip` (in order) must match and is dropped.
-
-    SCOPE: `strip` covers exactly the chain-ROOT if-simplification case (the only
-    place `replayRewrites` records one); unfold/rule-RHS nesting is the SEPARATE
-    `.boundary`/`depth` mechanism in `relativizeFrames`. Their composition
-    (a branch frame interleaved between residual boundary frames) is NOT handled —
-    and cannot mis-navigate silently: a strip/frame mismatch throws here, and any
-    leftover misalignment fails `pathStepsFromFrames`' final redex check. -/
-def relativizeAndStrip (frames : List PathFrame) (depth : Nat)
-    (strip : List (Option String × Nat)) : MetaM (List PathFrame) := do
-  -- path-emission Phase 1: window-local paths never cross a collapse, so
-  -- there is nothing to strip — the parameter is DEAD (retained for
-  -- signature stability during the migration; the threading deletes with
-  -- the parameter in the cleanup commit).
-  let _ := strip
-  ofExcept (relativizeFrames frames depth)
-
 def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
-    (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0)
-    (strip : List (Option String × Nat) := [])
+    (lhs rhs : SExpr) (nodeProof : Expr)
     : MetaM (Expr × SExpr) := do
-  let rel ← relativizeAndStrip frames depth strip
-  let path ← ofExcept (pathStepsFromFrames term rel lhs)
+  let path ← ofExcept (pathStepsFromFrames term (relativizeFrames frames) lhs)
   -- Fold from the innermost path step outward.
   let mut inner := nodeProof
   let mut curL := lhs

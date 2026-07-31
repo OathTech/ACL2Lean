@@ -2278,10 +2278,10 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
 structure NodeRec where
   /-- `replayNode` — the per-node rune dispatcher. -/
   node : ReplayConfig → ReplayCtx → ProofNode → Nat → MetaM Expr
-  /-- `replayRewrites` — the chain walker (explicit depth AND strip; strip
-      entries tagged with the appending node's block kind — pass-local). -/
+  /-- `replayRewrites` — the chain walker (explicit depth; the strip
+      machinery retired with gstack-coordinate emission). -/
   rewrites : ReplayConfig → ReplayCtx → SExpr → List ProofNode → Nat →
-    List (Option String × Nat) → MetaM (Option (Expr × Bool) × SExpr)
+    MetaM (Option (Expr × Bool) × SExpr)
 
 /-- Bridge rewrite-equal's built-in NIL NORMALIZATION (rewrite.lisp:18089-92,
     unconditional/syntactic — ACL2 never records it): a chain-end mismatch of
@@ -2444,7 +2444,7 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
   -- children chain over the substituted body (depth+1: their paths carry one more
   -- boundary frame), reaching the node's recorded rhs
   let substBody := ACL2.Replay.substTerm formals args body
-  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children (depth + 1) []
+  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children (depth + 1)
   let chainOpt ← chainReqEq chainOpt
   let chainOpt ← do
     if finalTerm == rhs then pure chainOpt else
@@ -2507,7 +2507,7 @@ partial def replayLambdaBody (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
   -- the adopted LAMBDA-BODY block rewrites the substituted body (depth+1: its
   -- paths carry the LAMBDA-BODY boundary frame)
   let substBody := ACL2.Replay.substTerm lformals actuals lamBody
-  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children (depth + 1) []
+  let (chainOpt, finalTerm) ← rec.rewrites cfg ctx substBody children (depth + 1)
   let chainOpt ← chainReqEq chainOpt
   unless finalTerm == rhs do
     throwError "lambda-body: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
@@ -2810,7 +2810,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let ruleEq ← mkAppM ``re_cdr_cons_conv
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, hNoCdr, hNoCons, ha, hb]
       -- children may rewrite the rule's result further (see car-cons)
-      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx b children (depth + 1) []
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx b children (depth + 1)
       let chainOpt ← chainReqEq chainOpt
       unless finalTerm == rhs do
         throwError "cdr-cons: children chain reached {repr finalTerm}, \
@@ -2835,7 +2835,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       -- the rule's result may be FURTHER rewritten by children (e.g. a
       -- solidify inside the rule's RHS — their paths carry the (RHS . _)
       -- boundary, consumed at depth+1); the node's rhs is the NET result.
-      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx a children (depth + 1) []
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx a children (depth + 1)
       let chainOpt ← chainReqEq chainOpt
       unless finalTerm == rhs do
         throwError "car-cons: children chain reached {repr finalTerm}, \
@@ -2897,7 +2897,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, va, vb, hNoPlus, ha, hb]
       let swapped : SExpr :=
         .cons (.atom (.symbol plusS)) (.cons b (.cons a .nil))
-      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children (depth + 1) []
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children (depth + 1)
       let chainOpt ← chainReqEq chainOpt
       unless finalTerm == rhs do
         throwError "commutativity-of-+: children chain reached {repr finalTerm}, \
@@ -2927,7 +2927,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let swapped : SExpr :=
         .cons (.atom (.symbol plusS))
           (.cons b (.cons (.cons (.atom (.symbol plusS2)) (.cons a (.cons c .nil))) .nil))
-      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children (depth + 1) []
+      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children (depth + 1)
       let chainOpt ← chainReqEq chainOpt
       unless finalTerm == rhs do
         throwError "commutativity-2-of-+: children chain reached {repr finalTerm}, \
@@ -3540,7 +3540,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           -- `(not 'nil) ⇒ 't` by re-running the same closed computation
           -- (the exec-counterpart carve-out), as `replayLiteralChain` does
           -- for :NOT-FLG literals.
-          let (chainOpt, finalAtom) ← rec.rewrites cfg ctx atm chainKids (depth + 1) []
+          let (chainOpt, finalAtom) ← rec.rewrites cfg ctx atm chainKids (depth + 1)
           let chainOpt ← chainReqEq chainOpt
           unless finalAtom == quoteNil do
             throwError "rule {rname}: negated-hyp relief chain for {repr hσ} \
@@ -3564,7 +3564,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         else do
           -- the recorded HYP chain rewrites hσ ⇒ … ⇒ 't (paths carry one
           -- more boundary frame, as definition-body children do)
-          let (chainOpt, finalT) ← rec.rewrites cfg ctx hσ chainKids (depth + 1) []
+          let (chainOpt, finalT) ← rec.rewrites cfg ctx hσ chainKids (depth + 1)
           let chainOpt ← chainReqEq chainOpt
           unless finalT == quoteT do
             throwError "rule {rname}: relief chain for {repr hσ} ends at \
@@ -3603,7 +3603,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- the RHS continuation: replay the recorded chain from rhsσ; it must land
     -- exactly on the node's recorded rhs (fail-closed)
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx rhsσ
-    let (chainOpt, finalT) ← rec.rewrites cfg ctx rhsσ rhsKids (depth + 1) []
+    let (chainOpt, finalT) ← rec.rewrites cfg ctx rhsσ rhsKids (depth + 1)
     let chainOpt ← chainReqEq chainOpt
     unless finalT == rhs do
       throwError "rule {rname}: RHS chain reached {repr finalT}, node rhs is \
@@ -4196,17 +4196,17 @@ def nodeEquiv : ProofNode → String | .node _ _ _ _ p => p.equiv
     the composed `∃N∀f≥N, eval start = eval finalTerm` (or `none` if the chain is
     empty) and the final term. -/
 partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr)
-    (nodes : List ProofNode) (depth : Nat) (strip : List (Option String × Nat))
-    -- the CURRENT literal chain's already-consumed nodes with their
-    -- depth/strip (G1 rung 1, inc-2b): the or-collapse bridge re-composes
-    -- the TEST-position prefix on the then-copy. Consume-and-continue
-    -- recursions append; re-process sites pass unchanged; sub-chain
-    -- recursions (branch children) start fresh (the default).
-    (chainPrefix : List (ProofNode × Nat × List (Option String × Nat)) := []) :
+    (nodes : List ProofNode) (depth : Nat)
+    -- the CURRENT literal chain's already-consumed nodes (G1 rung 1,
+    -- inc-2b): the or-collapse bridge re-composes the TEST-position prefix
+    -- on the then-copy. Consume-and-continue recursions append; re-process
+    -- sites pass unchanged; sub-chain recursions (branch children) start
+    -- fresh (the default).
+    (chainPrefix : List (ProofNode × Nat) := []) :
     MetaM (Option (Expr × Bool) × SExpr) := do
-  match nodes, depth, strip with
-  | [], _, _ => return (none, start)
-  | n :: rest, depth, strip => do
+  match nodes, depth with
+  | [], _ => return (none, start)
+  | n :: rest, depth => do
     let (lhs, rhs) := nodeLhsRhs n
     -- INLINE branch-window group (path-emission Phase 1): nodes tagged
     -- if-left/if-right reaching the walk directly are the surviving
@@ -4236,13 +4236,13 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           else scanning := false
         | [] => scanning := false
       let (chOpt, wfinal) ← replayRewritesWith rec cfg ctx wterm
-        (group.map clearWindowTag) depth []
+        (group.map clearWindowTag) depth
       let chOpt ← chainReqEq chOpt
       -- the collapse that precedes the window already REPLACED the if by
       -- its surviving branch in the running term, so the window term sits
       -- AT the if's own position: the lift path is the window's entry path
       -- alone (no branch frame)
-      let relW ← ofExcept (relativizeFrames wpath depth)
+      let relW := relativizeFrames wpath
       -- The window's gstack entry path can UNDER-DETERMINE the position: a
       -- window reached through TEST positions has no frames for them (the
       -- test rewrite already returned and popped its frames — the gstack
@@ -4270,7 +4270,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         | some (S, ch) => do
           let (lifted, newTerm) ←
             emitCongruence cfg.worldExpr cfg.envExpr start
-              (PathFrame.arg 0 { name := "DUMMY" } :: frames) S wterm ch depth []
+              (PathFrame.arg 0 { name := "DUMMY" } :: frames) S wterm ch
           preChain := some lifted
           start := newTerm
         | none =>
@@ -4291,7 +4291,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         -- no effective rewrites in the window — a no-op group (the derived
         -- collapse, if any, still moves the chain forward)
         let (restProof, finalTerm) ←
-          replayRewritesWith rec cfg ctx start restG depth strip chainPrefix
+          replayRewritesWith rec cfg ctx start restG depth chainPrefix
         match preChain with
         | none => return (restProof, finalTerm)
         | some pc =>
@@ -4311,17 +4311,18 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         | none => pure ()
         | some pc => inner ← mkAppM ``fuel_chain_eq #[pc, inner]
         let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR
-          restG depth strip (chainPrefix ++ [(n, depth, strip)])
+          restG depth (chainPrefix ++ [(n, depth)])
         return (some (← chainWithR cfg ctx inner curR restProof), finalTerm)
     -- rewrite-if SWAPPED-P bridge: apply ACL2's silent branch swap when this
     -- node's path descends into a negation-test if in the RUNNING term, then
     -- re-process the node on the normalized term. (Skipped for the
     -- clause-context-resolution marker — it never navigates its path.)
     if (runeOf n).ty != "clause-context-resolution" then
-      let rel ← relativizeAndStrip (nodePath n) depth strip
+      let rel := relativizeFrames (nodePath n)
       match ← bridgeIfNegTestSwap cfg rel start lhs with
       | some (swapEq, start') =>
-        let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) depth strip chainPrefix
+        Lean.logInfo "LIVENESS: bridgeIfNegTestSwap fired"
+        let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) depth chainPrefix
         return (some (← chainWithR cfg ctx swapEq start' restAll), finalT)
       | none => pure ()
     -- OR-SHAPE IFF node (G1 rung 1, inc-2): rewrite-if-finish's
@@ -4344,7 +4345,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         unless rhs == expectedRhs do
           throwError "replayRewrites: iff or-shape rhs {repr rhs} is not \
               (if a 't b) (frontier)"
-        let rel ← relativizeAndStrip (nodePath n) depth strip
+        let rel := relativizeFrames (nodePath n)
         let steps ← match pathStepsFromFrames start rel lhs with
           | .ok s => pure s
           | .error e => throwError "replayRewrites: iff or-shape :PATH does \
@@ -4373,8 +4374,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         if innerIff then
           throwError "replayRewrites: or-shape iff chain still IFF at the \
               literal root (frontier — R-parameterized literal chains)"
-        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR rest depth strip
-          (chainPrefix ++ [(n, depth, strip)])
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR rest depth (chainPrefix ++ [(n, depth)])
         return (some (← chainWithR cfg ctx inner curR restProof), finalTerm)
     -- an if-simplification recorded as an IDENTITY (`X ⇒ X`, no children) is
     -- ambiguous: either a true no-op, or a DISPLAY-FOLDED constant-test
@@ -4384,11 +4384,10 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     -- a constant-test if collapsing to rhs → replay the collapse.
     if lhs == rhs && (runeOf n).ty == "if-simplification" then
       if let .node _ _ _ [] _ := n then
-        let rel ← relativizeAndStrip (nodePath n) depth strip
+        let rel := relativizeFrames (nodePath n)
         let (_, S) ← ofExcept (navigateFrames start rel)
         if S == rhs then
-          return ← replayRewritesWith rec cfg ctx start rest depth strip
-            (chainPrefix ++ [(n, depth, strip)])
+          return ← replayRewritesWith rec cfg ctx start rest depth (chainPrefix ++ [(n, depth)])
         -- SYMBOLIC-test if resolved by an in-scope clause-context fact,
         -- record folded all the way past the constant (observed: 'T ⇒ 'T
         -- with running (IF (EQUAL (CAR X) E) 'NIL 'T) under that segment
@@ -4406,10 +4405,9 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
               if S' == rhs then
                 let (lifted, newTerm) ←
                   emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S S'
-                    ch depth strip
+                    ch
                 let (restProof, finalTerm) ←
-                  replayRewritesWith rec cfg ctx newTerm rest depth strip
-                    (chainPrefix ++ [(n, depth, strip)])
+                  replayRewritesWith rec cfg ctx newTerm rest depth (chainPrefix ++ [(n, depth)])
                 return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
         let .cons (.atom (.symbol ifS))
             (.cons (.cons (.atom (.symbol q)) (.cons cv .nil))
@@ -4430,17 +4428,9 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let (nodeEq, _) ← mkConstTestCollapse cfg ctx c cv thn els
         let (lifted, newTerm) ←
           emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S branch
-            nodeEq depth strip
-        -- a ROOT collapse selects a branch that ACL2's rewrite-if keeps on the
-        -- gstack while rewriting inside it — record the branch frame for
-        -- stripping, exactly like the generic root if-simplification below
-        -- (this arm bypasses that rule because the recorded lhs is folded)
-        let strip' := if rel.isEmpty then
-                        strip ++ [(innermostConsumedKind (nodePath n) depth,
-                                   if cv == SExpr.nil then 3 else 2)]
-                      else strip
-        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip'
-          (chainPrefix ++ [(n, depth, strip)])
+            nodeEq
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth
+          (chainPrefix ++ [(n, depth)])
         return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
     -- DISPLAY-FOLDED constant-test collapses (docs/notes/2026-06-14_exec-
     -- counterpart-and-folding-wall.md; extended 2026-07-20): a constant-test
@@ -4462,7 +4452,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             (.cons c@(.cons (.atom (.symbol q)) (.cons cv .nil))
               (.cons thn (.cons els .nil))) := lhs then
           if ifS.name == "IF" && q.name == "QUOTE" then
-            let rel ← relativizeAndStrip (nodePath n) depth strip
+            let rel := relativizeFrames (nodePath n)
             let (_, S) ← ofExcept (navigateFrames start rel)
             -- take the relaxation ONLY on the folded-collapse shape: same
             -- test, recorded rhs == recorded taken branch. Anything else
@@ -4484,17 +4474,9 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
               let (nodeEq, taken') ← mkConstTestCollapse cfg ctx c cv thn' els'
               let (lifted, newTerm) ←
                 emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) S taken'
-                  nodeEq depth strip
-              -- ROOT collapse: record the surviving-branch frame for stripping
-              -- (same gstack rule as the generic root if-simplification below —
-              -- this arm bypasses it because the recorded lhs is dead-branch
-              -- folded and so never equals the running chain term)
-              let strip' := if rel.isEmpty then
-                              strip ++ [(innermostConsumedKind (nodePath n) depth,
-                                         if cv == SExpr.nil then 3 else 2)]
-                            else strip
-              let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip'
-                (chainPrefix ++ [(n, depth, strip)])
+                  nodeEq
+              let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth
+                (chainPrefix ++ [(n, depth)])
               return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
     -- clause-context-resolution marker: ACL2's rewrite-atm emits this as a
     -- terminal REPORT ("we have proved the original literal … hence the
@@ -4519,10 +4501,9 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     -- recorded rhs, and lift by congruence.
     if let .node ⟨"if-simplification", _, _⟩ _ _ children prov := n then
       if prov.origin == "if-finish/combined" then
-        let rel ← relativizeAndStrip (nodePath n) depth strip
+        let rel := relativizeFrames (nodePath n)
         let (steps, S) ← ofExcept (navigateFrames start rel)
-        let myKind := innermostConsumedKind (nodePath n) depth
-        let strip' := strip ++ steps.map (fun st => (myKind, st.argIdx + 1))
+        let _ := steps
         let .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) := S
           | throwError "if-finish/combined: running subterm {repr S} is not a \
                         3-arg if"
@@ -4563,9 +4544,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             cur := 2
             elseCh := elseCh ++ [clearWindowTag chN]
           else
-            let chRel? ←
-              try pure (some (← relativizeAndStrip (nodePath chN) depth strip'))
-              catch _ => pure none
+            let chRel? := some (relativizeFrames (nodePath chN))
             if chRel? == some rel && innerKindOf chN == "" then
               cur := 0
               postCh := postCh ++ [retargetAtIf chN rel.length]
@@ -4588,8 +4567,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           mkAppM ``fuel_eq_refl #[fn]
         let (lamT, thn') ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
-          let (chT, thn') ← replayRewritesWith rec cfg ctx' thn
-            thenCh depth (strip' ++ [(myKind, 2)])
+          let (chT, thn') ← replayRewritesWith rec cfg ctx' thn thenCh depth
           let chT ← chainReqEq chT
           let prf ← match chT with
             | some p => pure p
@@ -4597,8 +4575,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           pure (← mkLambdaFVars #[hNe] prf, thn')
         let (lamE, els') ← withLocalDeclD `hnil (← mkEq vC nilC) fun hNil => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, false, hNil)] }
-          let (chE, els') ← replayRewritesWith rec cfg ctx' els
-            elseCh depth (strip' ++ [(myKind, 3)])
+          let (chE, els') ← replayRewritesWith rec cfg ctx' els elseCh depth
           let chE ← chainReqEq chE
           let prf ← match chE with
             | some p => pure p
@@ -4628,17 +4605,15 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 throwError "if-finish/combined: or-collapse bridge below the \
                     literal root (frontier — needs the mixed lift)"
               let mut testNodes : List ProofNode := []
-              for (pn, pd, ps) in chainPrefix do
+              for (pn, _pd) in chainPrefix do
                 -- a prefix node whose path does not relativize under THIS
                 -- node's frame is at another position — a NON-MATCH, not an
                 -- error (audit Q1: deliberate; a wrong selection still
                 -- fails closed on the xA == c check below)
-                let relPn? ← try pure (some (← relativizeAndStrip (nodePath pn) pd ps))
-                  catch _ => pure none
+                let relPn? := some (relativizeFrames (nodePath pn))
                 if let some (.arg 1 _ :: _) := relPn? then
                   testNodes := testNodes ++ [pn]
               let (chA, xA) ← replayRewritesWith rec cfg ctx thn testNodes depth
-                (strip' ++ [(myKind, 1)])
               unless xA == c do
                 throwError "if-finish/combined: or-collapse bridge — the \
                     re-composed test chain reached {repr xA}, the rewritten \
@@ -4648,6 +4623,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 | some hp => pure hp
                 | none => throwError "if-finish/combined: or-collapse bridge — \
                     empty test chain but then-copy {repr thn} ≠ test {repr c}"
+              Lean.logInfo "LIVENESS: or-collapse bridge fired"
               bridge? := some (← mkAppM ``evrel_siff_if_or_bridge
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
                   reflectSExpr els', vC, ← ctxValExpr cfg ctx els',
@@ -4656,7 +4632,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 (.cons c (.cons quoteT (.cons els' .nil)))
         -- whole-if finishing steps apply AFTER the branch congruence, on the
         -- rebuilt if
-        let (postOpt, final) ← replayRewritesWith rec cfg ctx postStart postCh depth strip'
+        let (postOpt, final) ← replayRewritesWith rec cfg ctx postStart postCh depth
         let postOpt ← chainReqEq postOpt
         -- the JOINT may need SWAPPED-P normalizations the children created
         -- (a NOT unfold inside a test position swaps the enclosing if,
@@ -4695,8 +4671,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             let postS ← mkAppM ``evrel_of_fuel_eq
               #[mkConst ``siff_refl, postEq, ← ctxValProof cfg ctx final]
             comp ← mkAppM ``evrel_trans #[mkConst ``siff_trans, comp, postS]
-          let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx final rest depth strip
-            (chainPrefix ++ [(n, depth, strip)])
+          let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx final rest depth (chainPrefix ++ [(n, depth)])
           return (some (← chainIffWithR cfg ctx comp finalTerm restProof), finalTerm)
         let mut proofs : List Expr := []
         if target != S then
@@ -4714,13 +4689,11 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           unless S == rhs do
             throwError "if-finish/combined: no effective children but running \
                         subterm {repr S} ≠ rhs {repr rhs}"
-          return ← replayRewritesWith rec cfg ctx start rest depth strip
-            (chainPrefix ++ [(n, depth, strip)])
+          return ← replayRewritesWith rec cfg ctx start rest depth (chainPrefix ++ [(n, depth)])
         let nodeProof ← chainEqs proofs
         let (lifted, newTerm) ←
-          emitCongruence w e start (nodePath n) S final nodeProof depth strip
-        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip
-          (chainPrefix ++ [(n, depth, strip)])
+          emitCongruence w e start (nodePath n) S final nodeProof
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth (chainPrefix ++ [(n, depth)])
         return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
     -- a CONSTANT-TEST if-simplification whose recorded test does not match
     -- the running term's test: the test was resolved by an UNEMITTED
@@ -4734,7 +4707,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         | .cons (.atom (.symbol ifS))
             (.cons (.cons (.atom (.symbol q)) (.cons cv .nil)) _) =>
           if ifS.name == "IF" && q.name == "QUOTE" && cv == SExpr.nil then
-            let rel ← relativizeAndStrip (nodePath n) depth strip
+            let rel := relativizeFrames (nodePath n)
             let (steps, S) ← ofExcept (navigateFrames start rel)
             match S with
             | .cons (.atom (.symbol ifS'))
@@ -4876,7 +4849,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     if let some (testChain, start') := reconciled? then
       -- eval start ≡ eval start[T := 'nil]; replay THIS node on the
       -- reconciled term and continue
-      let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) depth strip chainPrefix
+      let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) depth chainPrefix
       return (some (← chainWithR cfg ctx testChain start' restAll), finalT)
     -- REWRITE-EQUAL cons-decomposition (sorting-completion-2, ORDERED-PERMS
     -- Subgoal *1/7'5' literal 10, both polarities): ACL2's rewrite-equal on
@@ -4965,7 +4938,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 let dec? ← match nodesLeft with
                   | n' :: r' => do
                     let (l', rr') := nodeLhsRhs n'
-                    if l' == decT && (← relativizeAndStrip (nodePath n') depth strip) == [] then
+                    if l' == decT && (relativizeFrames (nodePath n')) == [] then
                       pure (some (n', rr', r'))
                     else pure none
                   | [] => pure none
@@ -5052,7 +5025,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     let nodeEq ← rec.node cfg ctx n depth
     let (lifted, newTerm) ←
       try
-        emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq depth strip
+        emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq
       catch ex =>
         let nch : String := toString (match n with | .node _ _ _ ch _ => ch.length)
         throwError "generic-tail lift for {(runeOf n).ty}/{nodeOrigin n} \
@@ -5060,22 +5033,9 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     -- an if-simplification AT THE CHAIN ROOT selects a branch; ACL2's rewrite-if
     -- keeps the if on the gstack while rewriting inside that branch, so the
     -- remaining nodes' paths carry the branch frame — record it for stripping.
-    let strip' ←
-      -- BRANCH-SELECTING root if-simplifications only: an `if1/boolean`
-      -- collapse replaces the if by its (boolean) test — no branch frame
-      -- remains on the gstack, so nothing to strip.
-      if (runeOf n).ty == "if-simplification" && lhs == start &&
-         (nodeOrigin n) != "if1/boolean" then
-        let myKind := innermostConsumedKind (nodePath n) depth
-        match lhs with
-        | .cons _ (.cons _ (.cons thn (.cons els .nil))) =>
-          if rhs == thn then pure (strip ++ [(myKind, 2)])
-          else if rhs == els then pure (strip ++ [(myKind, 3)])
-          else throwError "replayRewrites: root if-simplification rhs is neither branch"
-        | _ => throwError "replayRewrites: root if-simplification lhs not a 3-arg if"
-      else pure strip
-    let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth strip'
-      (chainPrefix ++ [(n, depth, strip)])
+    -- (the strip' bookkeeping retired with gstack-coordinate emission)
+    let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest depth
+      (chainPrefix ++ [(n, depth)])
     return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
 
 /- The tied node-level knot — the ONLY remaining mutual at this layer.
@@ -5085,21 +5045,21 @@ mutual
 partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     (depth : Nat := 0) : MetaM Expr :=
   replayNodeWith ⟨fun c x n' d => replayNode c x n' d,
-                  fun c x s ns d st => replayRewrites c x s ns d st⟩ cfg ctx n depth
+                  fun c x s ns d => replayRewrites c x s ns d⟩ cfg ctx n depth
 
 partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr) :
-    List ProofNode → (depth : Nat := 0) → (strip : List (Option String × Nat) := []) →
+    List ProofNode → (depth : Nat := 0) →
     MetaM (Option (Expr × Bool) × SExpr) :=
-  fun ns depth strip =>
+  fun ns depth =>
     replayRewritesWith ⟨fun c x n d => replayNode c x n d,
-                       fun c x s' ns' d st => replayRewrites c x s' ns' d st⟩ cfg ctx start ns depth strip
+                       fun c x s' ns' d => replayRewrites c x s' ns' d⟩ cfg ctx start ns depth
 
 end
 
 /-- The tied record itself (recipes outside this file recurse through it). -/
 def nodeRec : NodeRec :=
   ⟨fun cfg ctx n d => replayNode cfg ctx n d,
-   fun cfg ctx s ns d st => replayRewrites cfg ctx s ns d st⟩
+   fun cfg ctx s ns d => replayRewrites cfg ctx s ns d⟩
 
 
 /-- Replay a literal's rewrite chain at the LITERAL level. ACL2's rewriter works on

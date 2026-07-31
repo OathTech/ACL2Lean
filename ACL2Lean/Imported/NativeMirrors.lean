@@ -1048,6 +1048,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/msort", "HOW-MANY-MSORT", .pending "how-many/msort correspondences (backlog)"),
   ("sorting/qsort", "termination:QSORT", .pending "termination replayed statement; native decrease fact not lifted"),
   ("sorting/qsort", "HOW-MANY-APPEND", .pending "how-many correspondence (backlog)"),
+  ("sorting/qsort", "ORDEREDP-APPEND", .pending "chain2/LEXORDER + all-rel/append correspondences + cond dischargers (backlog)"),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .pending "how-many/filter correspondences (backlog)"),
   ("sorting/qsort", "PERM-QSORT", .pending "qsort correspondence + isPerm lift (the flagship; backlog)"),
   ("sorting/qsort", "CAR-APPEND", .pending "append correspondence at qsort world (backlog)"),
