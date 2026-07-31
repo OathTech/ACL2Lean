@@ -167,7 +167,14 @@ _Last updated: 2026-07-29._
 > WORK.** MDD-ratified charter:
 > docs/plans/2026-07-30_sorting-completion-2-arc.md. Goal: every sweep
 > sorting row green + ORDEREDP-QSORT's rule:ORDEREDP-APPEND condition
-> discharged. Sequencing A→D→C→B. **Class A: 3 of 4 green as of
+> discharged. **COMPLETION CRITERIA AMENDED (MDD 2026-07-31): no merge
+> until (1) ALL EPICYCLES ELIMINATED — the type-set closure kits
+> consolidated into a bounded value-level type-set walker, whole-clause
+> dedup, CAR/CDR-symmetric silent refutation — and (2) NATIVE MIRRORS
+> for every reasonable green sorting row (pending catalog entries do
+> not count); see the charter's amended-criteria section.**
+> Sequencing A→D→C→B, then epicycle elimination, then mirrors.
+> **Class A: 3 of 4 green as of
 > 2026-07-31 (TRUE-LISTP-MSORT, ORDEREDP-MEMB, ORDERED-PERMS;
 > ORDEREDP-APPEND still red at the nested if-finish/combined strip
 > composition). ORDERED-PERMS took a fork speculative-rollback fix

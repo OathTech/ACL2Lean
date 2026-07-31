@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 67/79 (30 unconditional + 37 conditional); DP-discharge leaves ✓38 ◌5 ✗0 of 43:
+Driver coverage — REPLAYED 69/79 (30 unconditional + 39 conditional); DP-discharge leaves ✓38 ◌5 ✗0 of 43:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -76,11 +76,11 @@ Driver coverage — REPLAYED 67/79 (30 unconditional + 37 conditional); DP-disch
     EQUAL-CONS → REPLAYED ✓ cond[rule:CONS-CAR-CDR]  [DISCHARGE: Subgoal 2:preprocess/tau-contradiction ✓]
     CAR-RM → REPLAYED ✓
     TRUE-LISTP-RM → REPLAYED ✓  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]
-    ORDERED-PERMS → FAIL: type-alist: no spine (not …)-falsity fact for (PERM (CDR (CDR A)) (CDR (CDR A))) (frontier)  [DISCHARGE: Subgoal 2:simplify-clause/fc-contradiction ◌ assumed cond[total:(ORDEREDP A), total:(PERM A A), tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/6:preprocess/tau ◌ assumed cond[total:(ORDEREDP (RM (CAR A) B)), total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau ◌ assumed cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ◌ assumed cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact]]
+    ORDERED-PERMS → REPLAYED ✓ cond[rule:CONS-CAR-CDR, rule:ORDEREDP-MEMB, ASSUMED:dp-fact, ASSUMED:dp-fact, ASSUMED:dp-fact, ASSUMED:dp-fact]  [DISCHARGE: Subgoal 2:simplify-clause/fc-contradiction ◌ assumed cond[total:(ORDEREDP A), total:(PERM A A), tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/6:preprocess/tau ◌ assumed cond[total:(ORDEREDP (RM (CAR A) B)), total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau ◌ assumed cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ◌ assumed cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact]]
 • sorting/msort  (world: 29 defun(s), 7 theorem(s))
     ACL2-COUNT-EVENS-STRONG → FAIL: replayClauseSpine: branch-substitution literal (not (equal (ACL2-COUNT (CDR X)) '0)) is neither in the clause nor a segment fact at Subgoal *1/2.3'  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(ACL2-COUNT (EVENS X)), total:(ACL2-COUNT X), tp:ACL2-COUNT, tp:ACL2-COUNT]]
     ACL2-COUNT-EVENS-WEAK → FAIL: replayClauseSpine: ran out of items with no closer at Subgoal *1/2.2'  [DISCHARGE: Subgoal *1/1'':preprocess/tau-contradiction ✓ cond[total:(ACL2-COUNT X), tp:ACL2-COUNT]]
-    ORDEREDP-MSORT → FAIL: replayClauseSpine: literal 9 chain reached 'NIL at Subgoal *1.1/6.1, recorded result is (NOT (CONSP (MERGE2 MT0 (CONS MT3 MT4))))
+    ORDEREDP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, tp:EVENS]
     TRUE-LISTP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, tp:EVENS]  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2], Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2]]
     HOW-MANY-MERGE2 → REPLAYED ✓ cond[total:MERGE2, tp:HOW-MANY, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]
     HOW-MANY-EVENS-AND-ODDS → REPLAYED ✓ cond[tp:HOW-MANY, rule:DEFAULT-CAR, rule:DEFAULT-CDR, rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(HOW-MANY E (EVENS X)), total:(HOW-MANY E (EVENS (CDR X))), total:(HOW-MANY E X), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY]]

@@ -321,3 +321,108 @@ AUDIT FLAGS for the pre-merge audit: the dp-fact hypothesis offers
 (soundness rests on dpFactStmtOfClause = replay-time obligation,
 isDefEq-checked), the rewrite-equal decomposition's silent-refutation
 route, and the S4 lemma-arm target validation.
+
+## Sweep checkpoint (2026-07-31): 69/79 — ORDEREDP-MSORT green as a BONUS
+
+Full sweep after the ORDERED-PERMS increment: **69/79 (30 unconditional +
+39 conditional); DP leaves ✓38 ◌5 ✗0 of 43**. Two flips, zero regressions
+(all other rows byte-identical):
+- ORDERED-PERMS → REPLAYED ✓ (the inc-5 arc above);
+- ORDEREDP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, tp:EVENS] —
+  its old wall ("literal 9 chain reached 'NIL, recorded result
+  (NOT (CONSP (MERGE2 …)))") was EXACTLY the rewrite-atm
+  abandoned-reduction log-orphan class; the fork rollback fix cured it
+  with no row-specific work. One Class C row down for free.
+
+Remaining ARC-scoPED reds (4): ORDEREDP-APPEND (Class A —
+"pathStepsFromFrames: navigated to 'GTE, expected redex
+(ALL-REL 'LTE A E)"), HOW-MANY-QSORT (Class D — J6 solidify),
+MSORT-IS-ISORT + QSORT-IS-ISORT (Class B — the shared
+"(HOW-MANY E (ISORT X)) :PATH does not navigate" preprocess class).
+BSORT-IS-ISORT stays excluded (bsort recon wall, next arc). The other
+FAIL rows (CLASSIFY-POS, LEN2-APP-VIA-USE, CD2-BOUND,
+ACL2-COUNT-EVENS-*) are pattern-book rows outside this arc's charter.
+
+## Generality review (2026-07-31, prompted by MDD mid-arc guidance)
+
+Honest classification of the inc-5 machinery, principled vs epicyclic —
+"epicycle" = per-shape pattern matching where ACL2 itself runs ONE general
+procedure:
+
+PRINCIPLED (mirrors an identifiable ACL2 mechanism):
+- The rewrite-equal cons-decomposition interpreter — mirrors
+  rewrite-equal's own code structure (rewrite-args on the synthesized
+  car/cdr components, recursive decision, cars-then-cdrs). Narrowness to
+  fix when observed: silent refutation only tried at the CAR phase;
+  scratch detection requires the EQUAL at the literal root.
+- The S4 lemma arm — per-rule registry facts are the RATIFIED S4 Route A;
+  EQUAL-CONS validated verbatim. bsort's CONS-EQUAL (flipped orientation)
+  is the known next entry.
+- ASSUMED:dp-fact threading — the standalone assumeFact route's ambient
+  analog, shape-free.
+- The fork rewrite-atm rollback — emission-side, general (proved by
+  ORDEREDP-MSORT going green for free).
+
+EPICYCLIC (per-shape instances of ACL2's ONE type-set procedure) — all
+of these are hand-derived rays of `type-set-rec` + the type-alist:
+- deriveNilFact's rule list (tlp∧¬consp→nil, car/cdr-of-non-cons,
+  equation transport);
+- deriveConspT's route list (syntactic cons, truthy-(CDR t), IF-branch
+  split, (CDR u)-of-proper-list, truthy+proper-list, the (IF w 'NIL 'T)
+  decode);
+- the recognizer closure arms (TRUE-LISTP/CDR direct/cons-fact/equation
+  routes; the CONSP arm);
+- the tlpCons/ingredient DEMAND generation (per-shape guesses at which
+  later literals type-set consulted).
+The GENERAL rule they all approximate: a bounded VALUE-LEVEL TYPE-SET
+WALKER — compute ts(term) under the in-scope facts exactly as
+type-set-rec does (per-primitive ts transfer + type-alist lookup +
+assume-true-false entries), with one soundness statement per primitive
+transfer, as a fragment-local judgment (L1). The arc charter's Class A
+"expected landing = emitted entry provenance + bounded relief registry"
+pointed the same way; inc-2..5 built shape routes instead because each
+row demanded one ray at a time. CONSOLIDATION CANDIDATE (end-of-arc or
+next arc, MDD's call at the merge point): fold the closure kits into the
+walker; the per-shape kernel lemmas become the walker's transfer lemmas
+(they are the right primitives — none is wasted); the demand generation
+becomes "the type-set ingredients of the verdict" computed by the same
+walker run in discovery mode.
+- Adjacent-ONLY duplicate collapse: ACL2's add-literal dedups against
+  the WHOLE clause (member-term). General form: drop a literal equal to
+  ANY earlier literal (byCases: the earlier occurrence closes / the
+  frame drops); adjacent-only is an artifact of the observed instance.
+
+## COMPLETION CRITERIA AMENDED (MDD directive, 2026-07-31)
+
+The arc does NOT reach its merge point until, in addition to the original
+goal (every sweep sorting row green):
+
+1. **All epicycles eliminated.** The generality review's EPICYCLIC list
+   above is a work list, not a note: the type-set closure kits
+   (deriveNilFact / deriveConspT / the recognizer closure arms / the
+   per-shape demand generation) must be consolidated into the bounded
+   value-level TYPE-SET WALKER (fragment-local judgment per L1; the
+   existing per-shape kernel lemmas become its transfer lemmas); the
+   duplicate-literal collapse must dedup against the WHOLE clause (not
+   adjacent-only); the rewrite-equal silent refutation must be
+   CAR/CDR-symmetric. No merge with shape-dispatch epicycles in place.
+
+2. **Mirrors for every reasonable example in the arc's target.** The
+   arc's target = the sorting-corpus theorems. Every green sorting row
+   needs a NATIVE MIRROR (Lean-idiomatic statement proved FROM its
+   replayed statement) — `.pending` catalog entries do not satisfy the
+   arc. Proposed reading of "reasonable" (for MDD review at the merge
+   point, not silently assumed): all green sorting rows EXCEPT those
+   whose mirrors require machinery the charter explicitly defers
+   (equisort R6 / functional instantiation R7 / bsort-recon-walled rows),
+   and helper lemmas whose statements are internal stepping stones with
+   no natural native reading may share the MAIN theorem's mirror file
+   rather than get one each — the enumeration to be listed explicitly
+   before the merge proposal.
+
+Sequencing (amended): remaining red rows (A: ORDEREDP-APPEND, D:
+HOW-MANY-QSORT, B: MSORT-IS-ISORT/QSORT-IS-ISORT) FIRST — so the walker
+consolidation sees every demanded ray — then epicycle elimination, then
+the sorting mirrors (pulling the validator/lifter tranche-2 machinery
+forward as needed). The pre-merge audit proposal comes only after all
+three.
