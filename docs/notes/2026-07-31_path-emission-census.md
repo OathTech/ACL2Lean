@@ -192,3 +192,61 @@ row 5 → equal-component ✓; row 6 → :TERM on existing body windows ✓;
 row 7 (hyp/rhs) — already windowed, gains :TERM ✓. Open rows (linear
 contexts, relieve-hyp bkptr detail) do not add window kinds; they are
 covered by "outside any window ⇒ unchanged".
+
+## Deliverable 4 — consumer-migration cost estimate (measured)
+
+Lean touchpoints (grep-measured on the current tree):
+- `relativizeFrames`/`relativizeAndStrip` call sites: 19 across the
+  Driver (Reflect definitions + NodeCore/Core/Preprocess/Elim callers).
+- `strip` occurrences in NodeCore alone: 66 (the threading parameter
+  through `replayRewritesWith` and every recipe that forwards it) —
+  Phase 1 deletes the parameter entirely, a mechanical but WIDE change.
+- `innermostConsumedKind`: 7 sites (strip tagging) — deleted with it.
+- Parser: `ProofLog.beginInnerRewrite/endInnerRewrite` currently carry
+  `kind` only (ProofLog.lean:127-128, parse at :731) — gains the
+  optional `:TERM` payload (hard-fail if absent on the NEW kinds,
+  tolerated absent on legacy kinds during the one migration commit,
+  then mandatory everywhere once the corpus is recaptured).
+- Tree builder: ProofTree.lean:211/226 bracket on begin/end — gains
+  window nodes carrying the term; `buildLiteralProofs` threads the
+  window term as the chain anchor for its enclosed steps.
+- Replay: `pathStepsFromFrames` unchanged; every caller drops the
+  relativize/strip plumbing and navigates the innermost window term.
+  The window's LEADING ENTRY FRAME (the branch's own `(2 . fn)` /
+  `(3 . fn)`) is VALIDATED-AND-DROPPED against the window kind
+  (if-left ⇒ 2, if-right ⇒ 3) — record-directed, fail-closed
+  (implementation decision, recorded during the prototype).
+
+## Prototype (deliverable 3) — implementation notes
+
+Fork changes (rewrite.lisp, tags `infra/path-window`,
+`emit/if-window/begin`, `emit/if-window/end`):
+- `*structured-window-gstacks*` — gstack-pointer stack; the path walker
+  stops collecting at the innermost boundary (`eq` pointer test, O(1)).
+- `structured-window-begin/end kind term boundary-gstack` — emit
+  `:begin/end-inner-rewrite :origin if-window/* :kind if-left|if-right
+  :term <sublis-var alist branch>`; boundary = the LOCAL `gstack`
+  formal (NOT `*deep-gstack*`, which is only restored after listed
+  callees — the local is the lexically correct boundary).
+- All FOUR rewrite-if-finish branch descents wrapped (must-be-true,
+  must-be-false, general left, general right); the or-collapse
+  shortcircuit `(mv … *t* …)` paths do not descend and get no window.
+- Phase-1 hardening noted: balance begin/end under non-local exit
+  (unwind-protect) — acceptable risk for the scratch prototype only.
+
+## Prototype VALIDATED (2026-07-31) — Phase 0 complete
+
+Scratch capture of sorting/qsort on the windowed fork (c71b72a628):
+- The node that walls ORDEREDP-APPEND arrives inside
+  `:ORIGIN IF-WINDOW/BEGIN :KIND IF-LEFT
+  :TERM (IF (ALL-REL 'LTE A E) (ALL-REL 'GTE B E) 'NIL)` with
+  window-local `:PATH ((2 . IF) (1 . ALL-REL))` — validate-and-drop the
+  entry frame (bkptr 2 ⇔ if-left ✓), navigate arg 1 of the window term,
+  land EXACTLY on the redex. The success criterion holds: no strip
+  accounting anywhere in the chain.
+- 719 BEGIN = 719 END (balanced); log size +3.5% (126967 vs 122697
+  lines). 14 occurrences of the ALL-REL redex all windowed identically.
+
+Phase 0 deliverables 1-4 all complete → the charter's DECISION
+CHECKPOINT (MDD) is next: approve the semantics for the corpus-wide
+Phase 1 switch.
