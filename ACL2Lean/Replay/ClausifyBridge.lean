@@ -396,8 +396,7 @@ theorem dpLiftF_equal_cons_expand {vars : List (Symbol × SExpr)}
     hCB1, hCB2, hCB3, hCB4, hCB5]
   cases hx : dpLiftF vars opq x <;> cases hy : dpLiftF vars opq y <;>
     cases hz : dpLiftF vars opq z <;>
-      simp only [Option.bind_some, Option.bind_none, Option.bind,
-        hCB1, hCB2, hCB3, hCB4, hCB5, equal_cons_decomp]
+      simp only [Option.bind, equal_cons_decomp]
 
 /-! ## The disjoin characterization ladder (design doc, Fragment B helpers) -/
 

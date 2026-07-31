@@ -124,7 +124,8 @@ inductive TraceEvent where
   | hypRelief (hyp : SExpr) (origin : String) (taRunes : List Rune)
       (parents : List SExpr := [])
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
-  | beginInnerRewrite (kind : String)
+  | beginInnerRewrite (kind : String) (term : Option SExpr := none)
+      (path : List PathFrame := [])
   | endInnerRewrite (kind : String)
   | beginIfRewrite (test : SExpr) (unrewrittenTest : SExpr)
   | endIfRewrite (test : SExpr) (result : SExpr)
@@ -730,12 +731,30 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
         pure (.typeSetReasoning term result notFlg justification)
     | .atom (.keyword "BEGIN-INNER-REWRITE") :: rest =>
         -- KIND is an internal dispatch tag (hyp/rhs/…), not a symbol-identity
-        -- value — lowercase at the boundary.
+        -- value — lowercase at the boundary. :TERM (path-emission Phase 1) is
+        -- the window's INSTANTIATED input term (a two-term LIST for the
+        -- equal-cars/equal-cdrs component windows) — the window-local :PATH
+        -- anchor. Mandatory on the windowed kinds; hyp windows carry none.
         let kind := match lookupKeyword "KIND" rest with
           | some (.atom (.symbol s)) => s.name.map Char.toLower
           | some (.atom (.keyword k)) => k.map Char.toLower
           | _ => "unknown"
-        pure (.beginInnerRewrite kind)
+        let term := lookupKeyword "TERM" rest
+        if term.isNone &&
+            ["rhs", "body", "lambda-body", "expansion", "rewritten-body",
+             "if-left", "if-right", "equal-cars", "equal-cdrs"].contains kind then
+          throw s!"BEGIN-INNER-REWRITE kind {kind}: missing :TERM (windowed             kinds carry their input term — pre-Phase-1 log? recapture)"
+        -- :PATH (if/equal windows): the window's position in the ENCLOSING
+        -- window's coordinates, logged at entry — the inline-window lift
+        -- anchor. Absent on the macro-emitted kinds (their windows are
+        -- pre-adopted children located by the adopting node's own path).
+        let path ← match lookupKeyword "PATH" rest with
+          | none => pure []
+          | some .nil => pure []
+          | some p => match p.toList? with
+            | some items => items.mapM parsePathFrame
+            | none => throw s!"BEGIN-INNER-REWRITE :PATH not a list: {repr p}"
+        pure (.beginInnerRewrite kind term path)
     | .atom (.keyword "END-INNER-REWRITE") :: rest =>
         -- KIND is an internal dispatch tag (hyp/rhs/…), not a symbol-identity
         -- value — lowercase at the boundary.

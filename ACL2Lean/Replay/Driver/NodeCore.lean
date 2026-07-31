@@ -322,6 +322,29 @@ def runeOf : ProofNode → Rune | .node r _ _ _ _ => r
 def nodeLhsRhs : ProofNode → SExpr × SExpr | .node _ lhs rhs _ _ => (lhs, rhs)
 def nodePath : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 def nodeOrigin : ProofNode → String | .node _ _ _ _ p => p.origin
+/-- The node's enclosing-window kind ("" = none / literal level). -/
+def innerKindOf : ProofNode → String | .node _ _ _ _ p => p.innerKind
+/-- The node's enclosing-window input term (path-emission Phase 1). -/
+def innerTermOf : ProofNode → Option SExpr | .node _ _ _ _ p => p.innerTerm
+/-- The node's enclosing-window entry path (path-emission Phase 1). -/
+def innerPathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.innerPath
+/-- Strip the window tag — recipes that CONSUME a window (the if-finish
+    branch partition; the inline-window group handler) clear it before
+    handing the nodes to a sub-walk anchored at the window term. -/
+def clearWindowTag : ProofNode → ProofNode
+  | .node rune lhs rhs children prov =>
+    .node rune lhs rhs children
+      { prov with innerKind := "", innerTerm := none, innerPath := [] }
+/-- RE-ROOT a whole-if finishing child at the if: keep the path's entry
+    frame, drop the `k` window→if frames after it, so the post-walk's
+    uniform drop-1 navigates from the if itself. VALIDATED by the caller
+    (the child's window-local path must equal the if-finish node's own)
+    — an `if-post` fork window would retire this (fold-back audit note). -/
+def retargetAtIf (n : ProofNode) (k : Nat) : ProofNode :=
+  match n with
+  | .node rune lhs rhs children prov =>
+    .node rune lhs rhs children
+      { prov with path := prov.path.take 1 ++ prov.path.drop (1 + k) }
 
 /-- `worldExpr.defs.get? s` as an `Expr` (a `DefMap.get?` application). -/
 private def mkDefsGet (cfg : ReplayConfig) (s : Symbol) : MetaM Expr := do
@@ -4141,6 +4164,64 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
   | [], _, _ => return (none, start)
   | n :: rest, depth, strip => do
     let (lhs, rhs) := nodeLhsRhs n
+    -- INLINE branch-window group (path-emission Phase 1): nodes tagged
+    -- if-left/if-right reaching the walk directly are the surviving
+    -- branch's sub-chain after a rewrite-if constant-test collapse (the
+    -- tree builder attaches them inline exactly when the window term
+    -- equals the collapse step's rhs). Replay the run as a chain over the
+    -- window TERM and lift the composite at the window's :PATH plus the
+    -- branch position its KIND names. Recipes that consume windows
+    -- (if-finish's partition) strip the tag first — reaching here tagged
+    -- means the inline case.
+    if innerKindOf n == "if-left" || innerKindOf n == "if-right" then do
+      let kind := innerKindOf n
+      let some wterm := innerTermOf n
+        | throwError "replayRewrites: {kind}-tagged node without a window \
+            term (pre-Phase-1 log? recapture)"
+      let wpath := innerPathOf n
+      let mut group : List ProofNode := [n]
+      let mut restG := rest
+      let mut scanning := true
+      while scanning do
+        match restG with
+        | m :: r' =>
+          if innerKindOf m == kind && innerTermOf m == some wterm &&
+              innerPathOf m == wpath then
+            group := group ++ [m]
+            restG := r'
+          else scanning := false
+        | [] => scanning := false
+      let (chOpt, wfinal) ← replayRewritesWith rec cfg ctx wterm
+        (group.map clearWindowTag) depth []
+      let chOpt ← chainReqEq chOpt
+      -- the collapse that precedes the window already REPLACED the if by
+      -- its surviving branch in the running term, so the window term sits
+      -- AT the if's own position: the lift path is the window's entry path
+      -- alone (no branch frame)
+      let relW ← ofExcept (relativizeFrames wpath depth)
+      let frames := relW
+      let steps ← match pathStepsFromFrames start frames wterm with
+        | .ok st => pure st
+        | .error e => throwError "replayRewrites: inline {kind} window's \
+            entry path does not locate its term in the running chain: {e}"
+      match chOpt with
+      | none =>
+        -- no effective rewrites in the window — a no-op group
+        return ← replayRewritesWith rec cfg ctx start restG depth strip chainPrefix
+      | some chain => do
+        let mut inner := chain
+        let mut curL := wterm
+        let mut curR := wfinal
+        for st in steps.reverse do
+          inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
+          curL := rebuild st curL
+          curR := rebuild st curR
+        unless curL == start do
+          throwError "replayRewrites: inline {kind} window lift \
+              reconstructed {repr curL} ≠ running {repr start}"
+        let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR
+          restG depth strip (chainPrefix ++ [(n, depth, strip)])
+        return (some (← chainWithR cfg ctx inner curR restProof), finalTerm)
     -- rewrite-if SWAPPED-P bridge: apply ACL2's silent branch swap when this
     -- node's path descends into a negation-test if in the RUNNING term, then
     -- re-process the node on the normalized term. (Skipped for the
@@ -4356,28 +4437,39 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                         3-arg if"
         unless ifS.name == "IF" do
           throwError "if-finish/combined: running subterm head {ifS.name} ≠ if"
-        -- partition the children: branch rewrites (path descends arg 2/3),
-        -- then whole-if FINISHING steps (path AT the if, e.g. if1/boolean) —
-        -- ACL2 finishes the branches first, then combines
+        -- partition the children by their WINDOW (path-emission Phase 1):
+        -- branch rewrites arrive inside if-left/if-right windows
+        -- (record-directed — the fork brackets rewrite-if-finish's branch
+        -- descents); whole-if FINISHING steps (if1/boolean, same-branches)
+        -- fire after the branch windows close, so they carry the ENCLOSING
+        -- window's coordinates — their window-local path must equal the
+        -- if-finish node's own (`rel`), validated fail-closed, and the walk
+        -- below re-roots them at the if by PATH TRIMMING (kept ONLY here;
+        -- an `if-post` window at the fork would retire it — noted for the
+        -- fold-back audit).
         let mut thenCh : List ProofNode := []
         let mut elseCh : List ProofNode := []
         let mut postCh : List ProofNode := []
         for chN in children do
-          let chRel ← relativizeAndStrip (nodePath chN) depth strip'
-          match chRel with
-          | .arg 2 _ :: _ =>
+          match innerKindOf chN with
+          | "if-left" =>
             unless postCh.isEmpty do
               throwError "if-finish/combined: branch child after a whole-if \
                           child (frontier)"
             thenCh := thenCh ++ [chN]
-          | .arg 3 _ :: _ =>
+          | "if-right" =>
             unless postCh.isEmpty do
               throwError "if-finish/combined: branch child after a whole-if \
                           child (frontier)"
             elseCh := elseCh ++ [chN]
-          | [] => postCh := postCh ++ [chN]
-          | _ => throwError "if-finish/combined: child path does not descend \
-                             a branch of the if (frontier): {repr (nodePath chN)}"
+          | _ =>
+            let chRel ← relativizeAndStrip (nodePath chN) depth strip'
+            unless chRel == rel do
+              throwError "if-finish/combined: non-branch child's path \
+                  {repr chRel} is not at the if ({repr rel}) (frontier)"
+            -- re-root at the if: keep the entry frame, drop the window→if
+            -- frames so the post-walk's uniform drop-1 yields []
+            postCh := postCh ++ [retargetAtIf chN rel.length]
         let w := cfg.worldExpr
         let e := cfg.envExpr
         let vC ← ctxValExpr cfg ctx c
@@ -4389,7 +4481,8 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           mkAppM ``fuel_eq_refl #[fn]
         let (lamT, thn') ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
-          let (chT, thn') ← replayRewritesWith rec cfg ctx' thn thenCh depth (strip' ++ [(myKind, 2)])
+          let (chT, thn') ← replayRewritesWith rec cfg ctx' thn
+            (thenCh.map clearWindowTag) depth (strip' ++ [(myKind, 2)])
           let chT ← chainReqEq chT
           let prf ← match chT with
             | some p => pure p
@@ -4397,7 +4490,8 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           pure (← mkLambdaFVars #[hNe] prf, thn')
         let (lamE, els') ← withLocalDeclD `hnil (← mkEq vC nilC) fun hNil => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, false, hNil)] }
-          let (chE, els') ← replayRewritesWith rec cfg ctx' els elseCh depth (strip' ++ [(myKind, 3)])
+          let (chE, els') ← replayRewritesWith rec cfg ctx' els
+            (elseCh.map clearWindowTag) depth (strip' ++ [(myKind, 3)])
           let chE ← chainReqEq chE
           let prf ← match chE with
             | some p => pure p

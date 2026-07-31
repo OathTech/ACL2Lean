@@ -210,20 +210,20 @@ def asLamHead (t : SExpr) : Option (Symbol × SExpr × SExpr) :=
   | .cons (.atom (.symbol lam)) (.cons formalsE (.cons lamBody .nil)) => some (lam, formalsE, lamBody)
   | _ => none
 
-/-- Relativize a node's `:PATH` to its nesting depth: at depth 0 (a top-level chain
-    node) drop the literal-root descriptor frame; at depth d > 0 (a child d unfold/
-    rule boundaries deep) drop everything through the d-th `.boundary` frame — the
-    remainder navigates within the chain's start term (the substituted body /
-    rule rhs). -/
+/-- Relativize a node's `:PATH` (path-emission Phase 1 — WINDOW-LOCAL
+    paths): every path begins with exactly ONE descriptor frame — the
+    literal-root frame for a top-level chain node, or the enclosing
+    window's ENTRY frame for a windowed node (`(BODY . IF)`, `(2 . fn)`
+    for an if-left branch, …) — regardless of nesting depth, because the
+    fork emits frames only down to the INNERMOST window boundary. Drop it;
+    the remainder navigates within the chain's start term.
+    `pathStepsFromFrames`' final redex check is the fail-closed backstop
+    for any residual misalignment. The `depth` parameter is retained for
+    signature stability during the migration and is DEAD — the boundary
+    accounting it drove retired with the gstack-coordinate emission. -/
 def relativizeFrames (frames : List PathFrame) (depth : Nat) : Except String (List PathFrame) :=
-  if depth == 0 then pure (frames.drop 1)
-  else go frames depth
-where
-  go : List PathFrame → Nat → Except String (List PathFrame)
-    | fs, 0 => pure fs
-    | [], d => throw s!"relativizeFrames: path exhausted with {d} boundaries still expected"
-    | .boundary _ _ :: rest, d => go rest (d - 1)
-    | _ :: rest, d => go rest d
+  let _ := depth
+  pure (frames.drop 1)
 
 /-- Navigate `descentFrames` (already relativized/stripped) from `term`,
     returning the path steps and the subterm reached — the redex-check-free
@@ -394,22 +394,12 @@ def innermostConsumedKind (frames : List PathFrame) (depth : Nat) : Option Strin
     leftover misalignment fails `pathStepsFromFrames`' final redex check. -/
 def relativizeAndStrip (frames : List PathFrame) (depth : Nat)
     (strip : List (Option String × Nat)) : MetaM (List PathFrame) := do
-  let mut rel ← ofExcept (relativizeFrames frames depth)
-  let myKind := innermostConsumedKind frames depth
-  for (tag, k) in strip do
-    -- PASS-LOCAL: entries appended by a node of a DIFFERENT block don't
-    -- apply here (see `innermostConsumedKind`) — skipped, never an error
-    if tag != myKind then continue
-    match rel with
-    | .arg idx _ :: restF =>
-      unless idx == k do
-        throwError "relativizeAndStrip: chain consumed branch frame {k}, but the \
-                    node's path has arg {idx} there"
-      rel := restF
-    | _ =>
-      throwError "relativizeAndStrip: chain consumed branch frame {k}, but the \
-                  node's path has no arg frame there"
-  return rel
+  -- path-emission Phase 1: window-local paths never cross a collapse, so
+  -- there is nothing to strip — the parameter is DEAD (retained for
+  -- signature stability during the migration; the threading deletes with
+  -- the parameter in the cleanup commit).
+  let _ := strip
+  ofExcept (relativizeFrames frames depth)
 
 def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
     (lhs rhs : SExpr) (nodeProof : Expr) (depth : Nat := 0)

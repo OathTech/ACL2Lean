@@ -250,3 +250,33 @@ Scratch capture of sorting/qsort on the windowed fork (c71b72a628):
 Phase 0 deliverables 1-4 all complete → the charter's DECISION
 CHECKPOINT (MDD) is next: approve the semantics for the corpus-wide
 Phase 1 switch.
+
+## Phase-1 migration log (running)
+
+- Parser: `:TERM` (mandatory on windowed kinds) + `:PATH` on
+  BEGIN-INNER-REWRITE; tree builder threads `innerKind/innerTerm/
+  innerPath` and decides INLINE-vs-ADOPT by record (an if-branch window
+  whose term equals the previous step's rhs continues the chain — the
+  constant-test collapse descent; all other windows precede their
+  adopting step).
+- `relativizeFrames` → uniform drop-one (the entry frame);
+  `relativizeAndStrip` → strip is DEAD (no-op shim pending the
+  parameter-deletion cleanup).
+- if-finish/combined: children partitioned by WINDOW KIND (if-left/
+  if-right), tags stripped before the branch sub-walks; non-branch
+  children validated at the if and re-rooted by path trimming
+  (retargetAtIf — an `if-post` fork window would retire it).
+- The walk: INLINE window groups replayed over the window :TERM and
+  lifted at the window's entry :PATH alone — the preceding collapse
+  already put the branch at the if's position (the branch-frame append
+  was an overshoot, caught by the lift validation).
+- FORK LEAK FOUND (the big one): the failed-hyp-relief rollback
+  (infra/hyp-log-tail) discards the BEGIN-HYPS event but left its
+  window BOUNDARY pushed — every failed rule attempt leaked one
+  boundary, truncating all later :PATHs in the theorem (the corpus-wide
+  1-frame paths). Fix: the rollback pops the boundary stack. The
+  general rule recorded for the fold-back audit: EVERY log-tail
+  rollback site must restore *structured-window-gstacks* alongside the
+  log; currently the only rollback that can fire with an outstanding
+  push is the hyp one (the lambda/fncall/rewrite-atm rollbacks wrap
+  regions whose windows balance internally before the rollback point).

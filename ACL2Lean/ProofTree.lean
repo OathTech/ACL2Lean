@@ -86,6 +86,17 @@ structure StepProvenance where
       "" = not from an inner block). Set on the block's TOP-LEVEL nodes only —
       the rule-application recipe partitions children by it. -/
   innerKind : String := ""
+  /-- The window's INSTANTIATED input term (path-emission Phase 1: the
+      `:TERM` payload of the enclosing `BEGIN-INNER-REWRITE`) — the anchor
+      the node's window-local `:PATH` navigates. A two-term LIST for the
+      equal-cars/equal-cdrs component windows. `none` = a pre-window kind
+      (hyp) with full-path coordinates. Set alongside `innerKind`. -/
+  innerTerm : Option SExpr := none
+  /-- The window's POSITION in the enclosing window's coordinates (the
+      BEGIN event's `:PATH`, logged at entry) — the INLINE-window lift
+      anchor. Empty for macro-emitted window kinds (pre-adopted children
+      located by the adopting node's own path). -/
+  innerPath : List PathFrame := []
   deriving Repr, Inhabited
 
 inductive ProofNode where
@@ -208,8 +219,9 @@ partial def parseProofNodesAux (events : List TraceEvent)
   -- is already empty at a return, so the flush is a no-op.)
   match events with
   | [] => return (nodes.reverse ++ pendingChildren, [])
-  | .beginInnerRewrite kind :: rest =>
-      -- tag the block's top-level nodes with its :KIND so the adopting step can
+  | .beginInnerRewrite kind term wpath :: rest =>
+      -- tag the block's top-level nodes with its :KIND (and the window's
+      -- :TERM/:PATH anchors, path-emission Phase 1) so the adopting step can
       -- partition its children (HYP-relief chains vs RHS continuation vs body).
       let (innerNodes, rest') ← parseProofNodesAux rest [] []
       let tagged := innerNodes.map fun
@@ -217,9 +229,25 @@ partial def parseProofNodesAux (events : List TraceEvent)
           -- an already-tagged node is a DEEPER block's unadopted flush-out
           -- (see the pendingChildren note above) — keep its own kind.
           if prov.innerKind.isEmpty then
-            .node rune lhs rhs children { prov with innerKind := kind }
+            .node rune lhs rhs children
+              { prov with innerKind := kind, innerTerm := term,
+                          innerPath := wpath }
           else n
-      parseProofNodesAux rest' (pendingChildren ++ tagged) nodes
+      -- INLINE vs ADOPT (record-directed): an if-branch window whose input
+      -- term is EXACTLY the previous step's rhs CONTINUES that step (the
+      -- rewrite-if constant-test collapse descends into the surviving
+      -- branch AFTER emitting the collapse) — its nodes stay chain
+      -- siblings. Every other window precedes its adopting step
+      -- (body/hyp/rhs blocks; if-finish branch windows) — pendingChildren.
+      let inline :=
+        (kind == "if-left" || kind == "if-right") &&
+        (match term, nodes with
+         | some t, .node _ _ prevRhs _ _ :: _ => t == prevRhs
+         | _, _ => false)
+      if inline then
+        parseProofNodesAux rest' pendingChildren (tagged.reverse ++ nodes)
+      else
+        parseProofNodesAux rest' (pendingChildren ++ tagged) nodes
   | .beginIfRewrite _ _ :: rest =>
       let (innerNodes, rest') ← parseProofNodesAux rest [] []
       parseProofNodesAux rest' (pendingChildren ++ innerNodes) nodes
