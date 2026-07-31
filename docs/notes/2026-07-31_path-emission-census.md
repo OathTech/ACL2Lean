@@ -280,3 +280,14 @@ Phase 1 switch.
   log; currently the only rollback that can fire with an outstanding
   push is the hyp one (the lambda/fncall/rewrite-atm rollbacks wrap
   regions whose windows balance internally before the rollback point).
+- FORK FIX 2 (the audit-F3 recurrence): window :TERMs were emitted with
+  `sublis-var`, which CONST-FOLDS ground subterms via cons-term — the
+  REL-dispatch tests arrived as pre-folded `(IF 'NIL …)`, diverging from
+  the replay's own substTerm and breaking window matching downstream.
+  All emissions switched to `structured-sublis-var-plain` (the spec said
+  so; the implementation slipped — worth a fold-back-audit assertion
+  that greps the fork for `sublis-var` inside TRACE-LOG emit regions).
+- Lean consumers hardened along the way: identity-ordered if-finish
+  partition (nested windows stay with their branch group, own-window
+  tags cleared selectively), blockKind for window siblings in classic
+  blocks, truthy-equal edges in the solidify equation closure.

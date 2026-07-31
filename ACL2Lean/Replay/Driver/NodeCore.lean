@@ -4471,29 +4471,45 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         -- below re-roots them at the if by PATH TRIMMING (kept ONLY here;
         -- an `if-post` window at the fork would retire it — noted for the
         -- fold-back audit).
+        -- group by WINDOW IDENTITY + recorded order: a child whose window
+        -- term IS the then/else branch OPENS that branch's group; following
+        -- children (nested windows, post-collapse continuations) stay in
+        -- the open group until the other branch's window opens. Children at
+        -- the if itself (whole-if finishing steps) close the branch groups.
+        -- Only the OWN branch window's tag is cleared for the sub-walk —
+        -- nested window tags survive for the recursive inline handler.
         let mut thenCh : List ProofNode := []
         let mut elseCh : List ProofNode := []
         let mut postCh : List ProofNode := []
+        let mut cur : Nat := 0  -- 0 = none, 1 = then, 2 = else
         for chN in children do
-          match innerKindOf chN with
-          | "if-left" =>
+          if innerKindOf chN == "if-left" && innerTermOf chN == some thn then
             unless postCh.isEmpty do
               throwError "if-finish/combined: branch child after a whole-if \
                           child (frontier)"
-            thenCh := thenCh ++ [chN]
-          | "if-right" =>
+            cur := 1
+            thenCh := thenCh ++ [clearWindowTag chN]
+          else if innerKindOf chN == "if-right" && innerTermOf chN == some els then
             unless postCh.isEmpty do
               throwError "if-finish/combined: branch child after a whole-if \
                           child (frontier)"
-            elseCh := elseCh ++ [chN]
-          | _ =>
-            let chRel ← relativizeAndStrip (nodePath chN) depth strip'
-            unless chRel == rel do
-              throwError "if-finish/combined: non-branch child's path \
-                  {repr chRel} is not at the if ({repr rel}) (frontier)"
-            -- re-root at the if: keep the entry frame, drop the window→if
-            -- frames so the post-walk's uniform drop-1 yields []
-            postCh := postCh ++ [retargetAtIf chN rel.length]
+            cur := 2
+            elseCh := elseCh ++ [clearWindowTag chN]
+          else
+            let chRel? ←
+              try pure (some (← relativizeAndStrip (nodePath chN) depth strip'))
+              catch _ => pure none
+            if chRel? == some rel && innerKindOf chN == "" then
+              cur := 0
+              postCh := postCh ++ [retargetAtIf chN rel.length]
+            else if cur == 1 then
+              thenCh := thenCh ++ [chN]
+            else if cur == 2 then
+              elseCh := elseCh ++ [chN]
+            else
+              throwError "if-finish/combined: child {repr (nodeLhsRhs chN).1} \
+                  (kind {innerKindOf chN}) precedes both branch windows and \
+                  is not at the if (frontier)"
         let w := cfg.worldExpr
         let e := cfg.envExpr
         let vC ← ctxValExpr cfg ctx c
@@ -4506,7 +4522,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let (lamT, thn') ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
           let (chT, thn') ← replayRewritesWith rec cfg ctx' thn
-            (thenCh.map clearWindowTag) depth (strip' ++ [(myKind, 2)])
+            thenCh depth (strip' ++ [(myKind, 2)])
           let chT ← chainReqEq chT
           let prf ← match chT with
             | some p => pure p
@@ -4515,7 +4531,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let (lamE, els') ← withLocalDeclD `hnil (← mkEq vC nilC) fun hNil => do
           let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, false, hNil)] }
           let (chE, els') ← replayRewritesWith rec cfg ctx' els
-            (elseCh.map clearWindowTag) depth (strip' ++ [(myKind, 3)])
+            elseCh depth (strip' ++ [(myKind, 3)])
           let chE ← chainReqEq chE
           let prf ← match chE with
             | some p => pure p
