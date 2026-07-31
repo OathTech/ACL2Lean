@@ -1827,6 +1827,92 @@ theorem allRelExec_enc (fv ev : SExpr) (xs : List SExpr) :
       simp only [allRelL, List.all_cons, hb, Bool.false_and, boolEnc,
         cond_false]
 
+/-- 3-ary argument STRICTNESS (the 2-ary `evalOpt_app2_args`, one more
+    argument): a converging 3-ary (non-special) application has
+    converging arguments. -/
+private theorem evalOpt_app3_args (f : Nat) (w : World) (env : Env)
+    (s : Symbol) (a1 a2 a3 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : evalOpt (f + 1) w env
+      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+      = some v) :
+    (∃ u, evalOpt f w env a1 = some u) ∧
+    (∃ u, evalOpt f w env a2 = some u) ∧
+    (∃ u, evalOpt f w env a3 = some u) := by
+  rw [show evalOpt (f + 1) w env
+        (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+        = evalOptStep (evalOpt f) w env
+            (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+        from rfl] at h
+  unfold evalOptStep at h
+  simp only [Symbol.isNamed, SExpr.toList?] at h
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
+             ↓reduceIte] at h
+  cases hu1 : evalOpt f w env a1 with
+  | none => simp [List.mapM, List.mapM.loop, hu1] at h
+  | some u1 =>
+    cases hu2 : evalOpt f w env a2 with
+    | none => simp [List.mapM, List.mapM.loop, hu1, hu2] at h
+    | some u2 =>
+      cases hu3 : evalOpt f w env a3 with
+      | none => simp [List.mapM, List.mapM.loop, hu1, hu2, hu3] at h
+      | some u3 => exact ⟨⟨u1, rfl⟩, ⟨u2, rfl⟩, ⟨u3, rfl⟩⟩
+
+private theorem conv_args3_of_conv_app (w : World) (env : Env) (s : Symbol)
+    (a1 a2 a3 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+      = some v) :
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u) ∧
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a2 = some u) ∧
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a3 = some u) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨conv_fix ⟨N, fun f hf => ?_⟩, conv_fix ⟨N, fun f hf => ?_⟩,
+          conv_fix ⟨N, fun f hf => ?_⟩⟩
+  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
+      (hN (f + 1) (by omega))).1
+  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
+      (hN (f + 1) (by omega))).2.1
+  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
+      (hN (f + 1) (by omega))).2.2
+
+/-- `allRelExec` is two-valued. -/
+theorem allRelExec_t_or_nil (fv x ev : SExpr) :
+    allRelExec fv x ev = SExpr.t ∨ allRelExec fv x ev = SExpr.nil := by
+  fun_induction allRelExec fv x ev with
+  | case1 x _ _ ih => exact ih
+  | case2 x _ _ => exact Or.inr rfl
+  | case3 x _ => exact Or.inl rfl
+
+/-- `tp:ALL-REL`, world-parametric — the emitted boolean TP corollary. -/
+theorem dis_all_rel_tp (w : World)
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 a1 a2 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (allRelT a0 a1 a2) = some v) :
+    (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+     else Logic.equal v SExpr.nil) = SExpr.t := by
+  obtain ⟨⟨N0, u0, h0⟩, ⟨N1, u1, h1⟩, ⟨N2, u2, h2⟩⟩ :=
+    conv_args3_of_conv_app w e' { name := "ALL-REL" } a0 a1 a2 v
+      (by decide) h
+  have happ := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_lexorder e' a0 a1 a2 u0 u1 u2
+    ⟨N0, h0⟩ ⟨N1, h1⟩ ⟨N2, h2⟩
+  rw [val_unique h happ]
+  rcases allRelExec_t_or_nil u0 u1 u2 with ht | hn
+  · rw [ht]; simp [Logic.equal, Logic.toBool]
+  · rw [hn]; rfl
+
 /-! ## PERM-IMPLIES-EQUAL-ALL-REL-2 -/
 
 /-- The replayed-statement formula:
@@ -1913,5 +1999,142 @@ theorem perm_implies_equal_all_rel_2_native_of_replayed (w : World)
   have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
   have hconc := truthy_of_implies_t hIt rfl
   exact bool_of_cond_eq (eq_of_equal_truthy hconc)
+
+/-! ## ALL-REL-RM-1 / ALL-REL-RM-2 -/
+
+/-- `(IMPLIES (ALL-REL FN X E) (ALL-REL FN (RM D X) E))`. -/
+def all_rel_rm_1Formula : SExpr :=
+  impliesT (allRelT fnT xT eT) (allRelT fnT (rmT dT xT) eT)
+
+/-- `(IMPLIES (IF (ALL-REL FN (RM D X) E) (REL FN D E) 'NIL)
+              (ALL-REL FN X E))` — the AND if-expanded. -/
+def all_rel_rm_2Formula : SExpr :=
+  impliesT
+    (ifT (allRelT fnT (rmT dT xT) eT) (relT fnT dT eT) qNil)
+    (allRelT fnT xT eT)
+
+/-- The shared env for the two RM rows: FN/X/E/D. -/
+private def rmRowEnv (fv ev dv : SExpr) (xs : List SExpr) : Env :=
+  (((({} : Env).insert dS dv).insert eS ev).insert fnS fv).insert
+    xS (enc xs)
+
+private theorem rmRow_hx (w : World) (fv ev dv : SExpr) (xs : List SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (rmRowEnv fv ev dv xs) xT
+      = some (enc xs) :=
+  re_val_var_get w _ { name := "X" } (enc xs) (by
+    show (rmRowEnv fv ev dv xs).get? xS = some (enc xs)
+    rw [rmRowEnv, Env.get?_insert, if_pos (by decide)])
+
+private theorem rmRow_hfn (w : World) (fv ev dv : SExpr) (xs : List SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (rmRowEnv fv ev dv xs) fnT = some fv :=
+  re_val_var_get w _ { name := "FN" } fv (by
+    show (rmRowEnv fv ev dv xs).get? fnS = some fv
+    rw [rmRowEnv, Env.get?_insert, if_neg (by decide), Env.get?_insert,
+        if_pos (by decide)])
+
+private theorem rmRow_he (w : World) (fv ev dv : SExpr) (xs : List SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (rmRowEnv fv ev dv xs) eT = some ev :=
+  re_val_var_get w _ { name := "E" } ev (by
+    show (rmRowEnv fv ev dv xs).get? eS = some ev
+    rw [rmRowEnv, Env.get?_insert, if_neg (by decide), Env.get?_insert,
+        if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+
+private theorem rmRow_hd (w : World) (fv ev dv : SExpr) (xs : List SExpr) :
+    ∃ N, ∀ f ≥ N, evalOpt f w (rmRowEnv fv ev dv xs) dT = some dv :=
+  re_val_var_get w _ { name := "D" } dv (by
+    show (rmRowEnv fv ev dv xs).get? dS = some dv
+    rw [rmRowEnv, Env.get?_insert, if_neg (by decide), Env.get?_insert,
+        if_neg (by decide), Env.get?_insert, if_neg (by decide),
+        Env.get?_insert, if_pos (by decide)])
+
+/-- ALL-REL-RM-1, natively: a universally `relL`-related list stays so
+    after erasing an element. -/
+theorem all_rel_rm_1_native_of_replayed (w : World)
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env all_rel_rm_1Formula = some v ∧ v ≠ SExpr.nil)
+    (fv ev dv : SExpr) (xs : List SExpr)
+    (h : allRelL fv ev xs = true) :
+    allRelL fv ev (xs.erase dv) = true := by
+  let e := rmRowEnv fv ev dv xs
+  have hP := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_lexorder e fnT xT eT fv (enc xs) ev
+    (rmRow_hfn w fv ev dv xs) (rmRow_hx w fv ev dv xs)
+    (rmRow_he w fv ev dv xs)
+  rw [allRelExec_enc] at hP
+  have hrm := corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr
+    h_no_cons xs e dT xT dv (rmRow_hd w fv ev dv xs)
+    (rmRow_hx w fv ev dv xs)
+  have hC := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_lexorder e fnT (rmT dT xT) eT fv (enc (xs.erase dv)) ev
+    (rmRow_hfn w fv ev dv xs) hrm (rmRow_he w fv ev dv xs)
+  rw [allRelExec_enc] at hC
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
+    h_no_implies hP hC (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have hp : Logic.toBool (boolEnc (allRelL fv ev xs)) = true := by
+    rw [h]; rfl
+  exact bool_true_of_cond_truthy (truthy_of_implies_t hIt hp)
+
+/-- ALL-REL-RM-2, natively: restoring an erased `relL`-related element
+    keeps the list universally related. -/
+theorem all_rel_rm_2_native_of_replayed (w : World)
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env all_rel_rm_2Formula = some v ∧ v ≠ SExpr.nil)
+    (fv ev dv : SExpr) (xs : List SExpr)
+    (h1 : allRelL fv ev (xs.erase dv) = true)
+    (h2 : relL fv dv ev = true) :
+    allRelL fv ev xs = true := by
+  let e := rmRowEnv fv ev dv xs
+  have hrm := corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr
+    h_no_cons xs e dT xT dv (rmRow_hd w fv ev dv xs)
+    (rmRow_hx w fv ev dv xs)
+  have hAr := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_lexorder e fnT (rmT dT xT) eT fv (enc (xs.erase dv)) ev
+    (rmRow_hfn w fv ev dv xs) hrm (rmRow_he w fv ev dv xs)
+  rw [allRelExec_enc] at hAr
+  have hRel := rel_exec_corr w h_rel h_no_equal h_no_lexorder e
+    fnT dT eT fv dv ev (rmRow_hfn w fv ev dv xs) (rmRow_hd w fv ev dv xs)
+    (rmRow_he w fv ev dv xs)
+  have hAnte : ∃ N, ∀ f ≥ N, evalOpt f w e
+      (ifT (allRelT fnT (rmT dT xT) eT) (relT fnT dT eT) qNil)
+      = some (relExec fv dv ev) := by
+    refine conv_if_true w e _ _ qNil (boolEnc (allRelL fv ev (xs.erase dv)))
+      (relExec fv dv ev) hAr ?_ hRel
+    rw [h1]; rfl
+  have hC := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_lexorder e fnT xT eT fv (enc xs) ev
+    (rmRow_hfn w fv ev dv xs) (rmRow_hx w fv ev dv xs)
+    (rmRow_he w fv ev dv xs)
+  rw [allRelExec_enc] at hC
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
+    h_no_implies hAnte hC (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have hp : Logic.toBool (relExec fv dv ev) = true := by
+    rw [toBool_relExec, h2]
+  exact bool_true_of_cond_truthy (truthy_of_implies_t hIt hp)
 
 end ACL2.Worlds.Sorting

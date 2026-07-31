@@ -1222,6 +1222,59 @@ theorem perm_implies_equal_all_rel_2_native_driver (fv ev : SExpr)
 
 #print axioms perm_implies_equal_all_rel_2_native_driver
 
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for ALL-REL-RM-1 (one
+    hypothesis: `tp:ALL-REL`). -/
+def allRelRm1ReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "all-rel-rm-1"
+
+/-- The unconditional form. -/
+theorem allRelRm1Replayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.all_rel_rm_1Formula = some v ∧ v ≠ SExpr.nil :=
+  allRelRm1ReplayedCond env
+    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — ALL-REL-RM-1 natively: a universally `relL`-related
+    list stays so after erasing an element. -/
+theorem all_rel_rm_1_native_driver (fv ev dv : SExpr) (xs : List SExpr)
+    (h : Worlds.Sorting.allRelL fv ev xs = true) :
+    Worlds.Sorting.allRelL fv ev (xs.erase dv) = true :=
+  Worlds.Sorting.all_rel_rm_1_native_of_replayed qsortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) allRelRm1Replayed_uncond
+    fv ev dv xs h
+
+#print axioms all_rel_rm_1_native_driver
+
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for ALL-REL-RM-2 (one
+    hypothesis: `tp:ALL-REL`). -/
+def allRelRm2ReplayedCond := driver_replayed% qsortDev qsortWorldD
+  "all-rel-rm-2"
+
+/-- The unconditional form. -/
+theorem allRelRm2Replayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
+      Worlds.Sorting.all_rel_rm_2Formula = some v ∧ v ≠ SExpr.nil :=
+  allRelRm2ReplayedCond env
+    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — ALL-REL-RM-2 natively: restoring an erased
+    `relL`-related element keeps the list universally related. -/
+theorem all_rel_rm_2_native_driver (fv ev dv : SExpr) (xs : List SExpr)
+    (h1 : Worlds.Sorting.allRelL fv ev (xs.erase dv) = true)
+    (h2 : Worlds.Sorting.relL fv dv ev = true) :
+    Worlds.Sorting.allRelL fv ev xs = true :=
+  Worlds.Sorting.all_rel_rm_2_native_of_replayed qsortWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) allRelRm2Replayed_uncond
+    fv ev dv xs h1 h2
+
+#print axioms all_rel_rm_2_native_driver
+
 /-! ## The idiomatic `List.IsChain` corollaries (mirror criterion 1):
 sortedness in Mathlib vocabulary — `IsChain (lexorderB · · = true)`,
 adjacent-pairs order over the imported total order (LexorderOrder.lean
@@ -1370,8 +1423,8 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-1", .pending "all-rel/filter correspondences (backlog)"),
   ("sorting/qsort", "ALL-REL-FILTER-2", .pending "all-rel/filter correspondences (backlog)"),
-  ("sorting/qsort", "ALL-REL-RM-1", .pending "all-rel/rm correspondences (backlog)"),
-  ("sorting/qsort", "ALL-REL-RM-2", .pending "all-rel/rm correspondences (backlog)"),
+  ("sorting/qsort", "ALL-REL-RM-1", .native ``all_rel_rm_1_native_driver ``allRelRm1ReplayedCond),
+  ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
   ("sorting/qsort", "ORDEREDP-QSORT", .pending "chain2/LEXORDER + qsort correspondences (the headline; backlog)"),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .pending "the flatten-recipe mirror + its cond dischargers (total:O<, tp:QSORT, …)")]
@@ -1475,7 +1528,9 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.perm_implies_equal_all_rel_2_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,
             ``ACL2.Imported.Mirrors.orderedp_rm_isChain_driver,
-            ``ACL2.Imported.Mirrors.orderedp_memb_isChain_driver] do
+            ``ACL2.Imported.Mirrors.orderedp_memb_isChain_driver,
+            ``ACL2.Imported.Mirrors.all_rel_rm_1_native_driver,
+            ``ACL2.Imported.Mirrors.all_rel_rm_2_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
