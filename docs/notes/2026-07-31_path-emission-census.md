@@ -320,3 +320,10 @@ DEFERRED pending corpus-wide liveness (probes in the ci run):
 `bridgeIfNegTestSwap`'s call site and the or-collapse bridge's
 `chainPrefix` re-composition — ZERO liveness hits across
 simple/perm/ordered-perms/qsort/msort; the pattern books decide.
+- LIVENESS VERDICT (ci probes, corpus-wide): `bridgeIfNegTestSwap` and
+  the or-collapse bridge FIRE on the p3-conj pattern rows — both STAY
+  (they are term-normalization mirrors, not coordinate reconstruction;
+  the census's B4 "path juggling" phrasing was too broad). The bridge's
+  test-node re-composition now re-roots by validated path retargeting
+  (`retargetAtIf pn 1`) instead of the deleted strips. `chainPrefix`
+  stays as its carrier ((ProofNode × Nat) now).

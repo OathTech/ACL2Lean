@@ -192,7 +192,7 @@ def main (args : List String) : IO Unit := do
           -- Exit non-zero so callers/CI detect the failure (a failed/truncated
           -- ACL2 proof must not look like a clean run).
           | .error e => throw (IO.userError s!"Reconstruction error: {e}")
-          | .ok dev => printDevelopment dev
+          | .ok dev => ACL2.printDevelopment dev
   | _ => do
       IO.println "Usage:"
       IO.println "  acl2lean report"

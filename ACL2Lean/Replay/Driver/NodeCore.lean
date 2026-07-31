@@ -4321,7 +4321,6 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
       let rel := relativizeFrames (nodePath n)
       match ← bridgeIfNegTestSwap cfg rel start lhs with
       | some (swapEq, start') =>
-        Lean.logInfo "LIVENESS: bridgeIfNegTestSwap fired"
         let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) depth chainPrefix
         return (some (← chainWithR cfg ctx swapEq start' restAll), finalT)
       | none => pure ()
@@ -4612,7 +4611,11 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 -- fails closed on the xA == c check below)
                 let relPn? := some (relativizeFrames (nodePath pn))
                 if let some (.arg 1 _ :: _) := relPn? then
-                  testNodes := testNodes ++ [pn]
+                  -- re-root at the then-copy: drop the test-position frame
+                  -- (validated by the .arg 1 filter above) so the sub-walk's
+                  -- uniform drop-one navigates within `thn` — the strips this
+                  -- replaced retired with gstack-coordinate emission
+                  testNodes := testNodes ++ [retargetAtIf pn 1]
               let (chA, xA) ← replayRewritesWith rec cfg ctx thn testNodes depth
               unless xA == c do
                 throwError "if-finish/combined: or-collapse bridge — the \
@@ -4623,7 +4626,6 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 | some hp => pure hp
                 | none => throwError "if-finish/combined: or-collapse bridge — \
                     empty test chain but then-copy {repr thn} ≠ test {repr c}"
-              Lean.logInfo "LIVENESS: or-collapse bridge fired"
               bridge? := some (← mkAppM ``evrel_siff_if_or_bridge
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
                   reflectSExpr els', vC, ← ctxValExpr cfg ctx els',
