@@ -220,9 +220,31 @@ _Last updated: 2026-07-29._
 > swap-inventory retirement half CLOSED as a census-recorded NEGATIVE
 > result (empty-window markers under-determine multi-level silent
 > contexts; normalizeSwapsToward is target-directed recompute-and-check,
-> a general rule, retained). Remaining in-arc: the sorting mirror
-> program (~30 pending catalog rows), then BUG-027 ratify-or-narrow at
-> merge review.**
+> a general rule, retained).**
+> **SORTING MIRROR PROGRAM COMPLETE (2026-07-31): every green sorting
+> row DECIDED. 24 new native rows across ordered-perms/isort/msort/
+> qsort (+ IsChain/List.Perm corollary forms), incl. the flagships —
+> ORDEREDP-ISORT/ORDEREDP-MSORT/ORDEREDP-QSORT (insertion/merge/quick
+> sort SORT), HOW-MANY-* (all four sorts/splits PRESERVE MULTIPLICITY),
+> PERM-QSORT (QUICKSORT PERMUTES, List.Perm form), ORDEREDP-APPEND.
+> Support: ~5.5k-line Imported/Sorting.lean (exec kits for 20+ defuns
+> incl. the ordinal O< pile, acl2-count, merge2's pair measure, msort's
+> evens-decrease, qsort's filter-decrease; the discharger library:
+> gz rules, arithmetic-3 family, TP corollaries, totalities, the
+> value-level CONVERT-PERM-TO-HOW-MANY characterization, in-book rule
+> discharges from sibling replayed statements). Mirror criterion
+> (MDD-ratified) written into the catalog header + the SEAM GATE
+> (in-Lean, deterministic). driver_replayed% gained the runner's
+> missing channels (fcRules, termination pre-pass with world-scoped
+> cache, equivRefls) — unify with the runner as an industrialization
+> item (docs/notes/2026-07-31_mirror-industrialization.md).
+> replayedOnly decisions: TRUE-LISTP-{RM,ISORT,MSORT,QSORT} (sim
+> subsumption), termination:QSORT (internal admission obligation).
+> SOLE remaining pending row: ORDERED-PERMS — BLOCKED ON EMISSION
+> (probed: the four ASSUMED:dp-fact hypotheses are unprovable as
+> emitted; the DP-value abstraction drops the value-defining links —
+> the replayDischargeNode threading follow-up). Remaining at merge
+> review: BUG-027 ratify-or-narrow.**
 > Then originally: the type-alist relief family
 > (ORDEREDP-APPEND/ORDEREDP-MEMB/ORDERED-PERMS/TRUE-LISTP-MSORT — the
 > FC-conclusion third of rewrite-clause-type-alist; expected landing =

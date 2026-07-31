@@ -165,6 +165,8 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     let (proof, _conds) ← replayProofConditional cfg dev.typePrescriptions cp
       dev.justifications (Driver.rulesBefore dev nm.getString)
       (thms.map fun (c, _) => (c.name, c))
+      (equivRefls := (thms.map fun (c, _) => (c.name, c.formula)) ++
+        dev.includedTheorems)
       (termReplayed := termReplayed)
     Meta.mkLambdaFVars #[env] proof
 
@@ -1882,7 +1884,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver ``orderedpRmReplayed),
   ("sorting/ordered-perms", "ORDEREDP-MEMB", .native ``orderedp_memb_native_driver ``orderedpMembReplayedCond),
   ("sorting/ordered-perms", "EQUAL-CONS", .native ``equal_cons_native_driver ``equalConsReplayedCond),
-  ("sorting/ordered-perms", "ORDERED-PERMS", .pending "chain2/LEXORDER + perm/rm/memb correspondences + the ASSUMED:dp-fact dischargers (backlog)"),
+  ("sorting/ordered-perms", "ORDERED-PERMS", .pending "BLOCKED ON EMISSION, not mirror work (probed 2026-07-31): the four ASSUMED:dp-fact hypotheses are UNPROVABLE AS EMITTED — the DP-value abstraction quantifies free dpv values constrained only by their boolean TP corollaries and drops the functional connections (e.g. the (PERM A A) reflexive tie), so dpv := nil falsifies them. The replayDischargeNode condition-threading follow-up must carry the value-defining links before this row can be lifted"),
   ("sorting/ordered-perms", "CAR-RM", .native ``car_rm_native_driver ``carRmReplayed),
   ("sorting/ordered-perms", "TRUE-LISTP-RM", .replayedOnly "subsumed by the rm simulation: `true-listp` restricts the input to the enc image (exists_enc_of_trueListp), where corr_rm_enc already yields an encoded List — no native content beyond the sim (the type-absorbed true-listp doctrine; the flatten recipe applies only where NO simulation exists)"),
   ("sorting/msort", "TRUE-LISTP-MSORT", .replayedOnly "subsumed by the msort simulation (msort_exec_corr/msortExec_enc) — the type-absorbed true-listp doctrine"),

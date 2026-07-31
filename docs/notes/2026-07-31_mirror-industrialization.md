@@ -75,6 +75,17 @@ bodies/formulas verbatim-comparable to the log. Not worth jumping into
 now; natural companion to the exec-kit generator (#1), which would
 subsume most body transcriptions anyway.
 
+## 6. Unify `driver_replayed%` with the runner's replay entry point
+
+The macro accreted the runner's channels one hard-failure at a time —
+`fcRules` (BUG-class: the isort FC snapshot), the termination pre-pass
+(`with_termination`, qsort's non-destructor decreases; now with a
+world-scoped cache since re-replaying the admission per row is
+minutes), and `equivRefls` (ORDERED-PERMS' `(PERM u u)` evidence).
+Every future runner channel will miss the macro the same way. ONE
+shared replay-configuration builder (dev → cfg + all channels)
+consumed by both the runner and the macro removes the class.
+
 ## Non-opportunity (flagged)
 
 The `rule:` dischargers for included-book theorems (FOLD-CONSTS,
