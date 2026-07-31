@@ -1204,6 +1204,24 @@ theorem car_append_native_driver (xs ys : List SExpr) :
 
 #print axioms car_append_native_driver
 
+set_option maxHeartbeats 1600000 in
+/-- The UNCONDITIONAL driver replayed statement for
+    PERM-IMPLIES-EQUAL-ALL-REL-2 (ACL2's defcong). -/
+def permImpliesAllRel2Replayed := driver_replayed% qsortDev qsortWorldD
+  "perm-implies-equal-all-rel-2"
+
+/-- ENTRY, PROVED — PERM-IMPLIES-EQUAL-ALL-REL-2 natively: `allRelL` is
+    invariant under permutation (the defcong, over `isPerm`). -/
+theorem perm_implies_equal_all_rel_2_native_driver (fv ev : SExpr)
+    (xs ys : List SExpr) (hp : xs.isPerm ys = true) :
+    Worlds.Sorting.allRelL fv ev xs = Worlds.Sorting.allRelL fv ev ys :=
+  Worlds.Sorting.perm_implies_equal_all_rel_2_native_of_replayed qsortWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    permImpliesAllRel2Replayed fv ev xs ys hp
+
+#print axioms perm_implies_equal_all_rel_2_native_driver
+
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
@@ -1293,7 +1311,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ALL-REL-FILTER-2", .pending "all-rel/filter correspondences (backlog)"),
   ("sorting/qsort", "ALL-REL-RM-1", .pending "all-rel/rm correspondences (backlog)"),
   ("sorting/qsort", "ALL-REL-RM-2", .pending "all-rel/rm correspondences (backlog)"),
-  ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .pending "all-rel correspondence; the defcong congruence fact natively (backlog)"),
+  ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver),
   ("sorting/qsort", "ORDEREDP-QSORT", .pending "chain2/LEXORDER + qsort correspondences (the headline; backlog)"),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .pending "the flatten-recipe mirror + its cond dischargers (total:O<, tp:QSORT, …)")]
 
@@ -1368,7 +1386,8 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.orderedp_memb_native_driver,
             ``ACL2.Imported.Mirrors.how_many_isort_native_driver,
             ``ACL2.Imported.Mirrors.how_many_append_native_driver,
-            ``ACL2.Imported.Mirrors.car_append_native_driver] do
+            ``ACL2.Imported.Mirrors.car_append_native_driver,
+            ``ACL2.Imported.Mirrors.perm_implies_equal_all_rel_2_native_driver] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
