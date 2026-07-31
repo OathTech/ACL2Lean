@@ -291,3 +291,21 @@ Phase 1 switch.
   partition (nested windows stay with their branch group, own-window
   tags cleared selectively), blockKind for window siblings in classic
   blocks, truthy-equal edges in the solidify equation closure.
+- WINDOW-POSITION RESOLUTION LADDER (the inline handler, fail-closed at
+  every rung): (1) the window's gstack entry path; (2) the entry path
+  locates an IF that COLLAPSES to the window term under the in-scope
+  facts (`collapseEval` — ACL2's must-be arms emit no collapse step);
+  (3) UNIQUE-occurrence location of the window term in the running term
+  — a total function of record + running term with ambiguity a hard
+  fail (no choice is ever made). Rung 3 exists because window entry
+  paths CANNOT encode test-position ancestry (the gstack frames for
+  test descents are popped before the branch descends — the census's
+  crux, now with a concrete witness: ORDEREDP-APPEND's *1/2'-family
+  (ALL-REL 'GTE B E) window). FOLD-BACK AUDIT ITEM: review rung 3's
+  no-search argument.
+- TAUTOLOGY-ABSORPTION dropped leaves (`composeSplit`): if-interp drops
+  a leaf whose value's negation is an in-scope segment literal (the
+  branch clause would be a tautology); the value is truthy by that fact
+  and the literal closes the disjunction at its position. ORDEREDP-APPEND
+  GREEN with this — the sub-arc's validating case complete:
+  cond[tp:ALL-REL, tp:BINARY-APPEND, rule:(equal (if a b c) x)].
