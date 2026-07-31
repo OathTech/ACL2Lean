@@ -309,3 +309,14 @@ Phase 1 switch.
   and the literal closes the disjunction at its position. ORDEREDP-APPEND
   GREEN with this — the sub-arc's validating case complete:
   cond[tp:ALL-REL, tp:BINARY-APPEND, rule:(equal (if a b c) x)].
+
+## Phase-1 mechanism deletion (2026-07-31)
+
+DELETED (the gate's three): `relativizeAndStrip`, `innermostConsumedKind`,
+the `strip` parameter + all threading (strip' computations, `(myKind, k)`
+appends, pass-local tagging) from `replayRewritesWith`/`NodeRec`/the
+knot/all recipes; `relativizeFrames` is the infallible drop-one.
+DEFERRED pending corpus-wide liveness (probes in the ci run):
+`bridgeIfNegTestSwap`'s call site and the or-collapse bridge's
+`chainPrefix` re-composition — ZERO liveness hits across
+simple/perm/ordered-perms/qsort/msort; the pattern books decide.
