@@ -242,6 +242,59 @@ def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
     let pf ← mkLambdaFVars #[envV] pDep
     mkExpectedTypeHint pf (← mkCongHypType cfg spec)
 
+/-- DISCHARGE an `equivrefl:<thm>` hypothesis from its dependency's replayed
+    statement (P3, the ORDERED-PERMS mirror): the dependency is the
+    defequiv-shaped theorem (e.g. PERM-IS-AN-EQUIVALENCE) whose translated
+    Goal is `(IF (BOOLEANP (R x y)) (IF (R x x) rest 'NIL) 'NIL)` — the
+    reflexivity conjunct sits SECOND. Project it at `env'` by the
+    and-projection lemmas: conjunct 1 truthy steps right
+    (`evtrue_and_left` + `evtrue_and_right`), the refl conjunct's truthiness
+    is the offered hypothesis (`evtrue_of_conv_ne_nil`). Shape
+    recompute-and-checked against the OFFERED spec; any divergence keeps
+    the hypothesis (frontier). -/
+def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (spec : EquivReflSpec) (depProofs : List (String × ClauseProof))
+    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
+  let some cp := depProofs.lookup spec.name
+    | throwFrontier m!"dischargeEquivReflHyp: no dependency proof for \
+        {spec.name}"
+  let some depRoot := cp.root
+    | throwFrontier m!"dischargeEquivReflHyp: dependency {spec.name} has no \
+        proof tree"
+  let [formula] := depRoot.inputClause
+    | throwFrontier m!"dischargeEquivReflHyp: dependency {spec.name}'s Goal \
+        is not a single-literal clause (frontier)"
+  let rxx : SExpr := .cons (.atom (.symbol spec.rel))
+    (.cons (.atom (.symbol spec.vx)) (.cons (.atom (.symbol spec.vx)) .nil))
+  let qNil : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+    (.cons .nil .nil)
+  let c1 ← match formula with
+    | .cons (.atom (.symbol if1)) (.cons c1
+        (.cons (.cons (.atom (.symbol if2)) (.cons r2
+          (.cons _rest (.cons e2 .nil)))) (.cons e1 .nil))) =>
+      if if1.name == "IF" && if2.name == "IF" && r2 == rxx
+          && e1 == qNil && e2 == qNil then pure c1
+      else throwFrontier m!"dischargeEquivReflHyp: {spec.name}'s Goal \
+          {repr formula} is not the defequiv and-shape with the OFFERED \
+          reflexivity conjunct {repr rxx} second (frontier)"
+    | _ => throwFrontier m!"dischargeEquivReflHyp: {spec.name}'s Goal \
+        {repr formula} is not an IF-conjunction (frontier)"
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let cfgD := { cfg with envExpr := envV }
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
+                               branchFacts := [], segFacts := [] }
+    ctxD ← pinTermOpaques cfgD envV ctxD formula
+    let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
+    let conv1 ← ctxValProof cfgD ctxD c1
+    let hne1 ← mkAppM ``evtrue_and_left #[conv1, pDep]
+    let htb1 ← mkAppM ``toBool_true_of_ne_nil #[hne1]
+    let hRight ← mkAppM ``evtrue_and_right #[conv1, htb1, pDep]
+    let convR ← ctxValProof cfgD ctxD rxx
+    let hneR ← mkAppM ``evtrue_and_left #[convR, hRight]
+    let body ← mkAppM ``evtrue_of_conv_ne_nil #[convR, hneR]
+    let pf ← mkLambdaFVars #[envV] body
+    mkExpectedTypeHint pf (← mkEquivReflHypType cfg spec)
+
 /-- The CONDITIONAL generic mirror: bind the machine-generated hypothesis
     telescope (per defined fn: totality; plus the lifted TP corollary when one was
     emitted), replay the theorem under it, and λ-abstract. Returns the proof and
@@ -461,6 +514,18 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
                 throw e
         pure prfC
       prfR ← dischargeCongs prfR
+      -- equivrefl:<thm> discharge (P3, the ORDERED-PERMS mirror): projected
+      -- from the dependency's replayed statement; BEFORE the rule pass —
+      -- the dependency's replay can consume rule:/cong: fvars, caught by
+      -- the passes below. Frontier failures keep the hypothesis (D6).
+      for (spec, hypV) in (equivSpecs.zip equivVs.toList).reverse do
+        if prfR.containsFVar hypV.fvarId! then
+          try
+            let pf ← dischargeEquivReflHyp cfg ctx spec depProofs mirrors
+            prfR ← letBindFVar prfR hypV pf
+          catch e =>
+            unless isFrontierErr e do
+              throw e
       for (spec, hypV) in (rules.zip ruleVs.toList).reverse do
         if prfR.containsFVar hypV.fvarId! then
           try

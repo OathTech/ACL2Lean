@@ -310,7 +310,23 @@ _Last updated: 2026-08-01._
 > be a new class if a book ever needs it).
 > NEXT: full-sweep golden review (widened triggers + the trueListp
 > bridge can move OTHER rows — review row by row), then the
-> dp-premises comprehensive audit + fold-back.**
+> dp-premises comprehensive audit + fold-back. [DONE — audited,
+> fixes applied, folded back.]**
+> **P3 MIRROR PROBE FINDING (2026-08-01, the ORDERED-PERMS mirror):
+> the mirror is GATED on CROSS-BOOK RULE OFFERS — discharging
+> equivrefl:PERM-IS-AN-EQUIVALENCE re-replays the perm-book tree at
+> the ordered-perms world, which transitively cites
+> rule:PERM-SYMMETRIC, a rule the ordered-perms log NEVER re-emits
+> (grep: zero occurrences) — the consumer telescope cannot offer it.
+> Fix = the 2a completion: bookChannels carries the dep books' STORED
+> RULES alongside their trees (crossRules), the telescope offers them,
+> and the discharge loop closes them transitively from crossTrees.
+> NOT a hand discharger (the flagged non-opportunity species).
+> dischargeEquivReflHyp is BUILT (Harness; the and-projection route,
+> fail-closed, sweep byte-identical) and fires when the channel
+> lands. rule:ORDEREDP-MEMB's discharge frontiers on the same
+> transitive-offer class. Queued as the first item of the
+> post-ratification arc segment.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d) — DRAFTED:
 > docs/notes/2026-08-01_r7-use-functional-instantiation-design.md
