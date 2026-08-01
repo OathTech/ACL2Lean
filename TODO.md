@@ -221,10 +221,20 @@ _Last updated: 2026-08-01._
 > type-set-fc, *1/4 tau, *1/6 tau — NOTE: grep the dump WITHIN the
 > ORDERED-PERMS theorem region; the first *1/3-*1/4 matches are
 > ORDEREDP-RM's unrelated subgoals) to be classified the same way;
-> *1/6 (seen) is a TAU verdict over the ORDEREDP/PERM network — richer
-> than equivrefl, likely needs the tau/FC rule content as premises
-> (cfg.fcRules is already in the config). Only residue after the
-> premise classes becomes fork work.**
+> CLASSIFICATION COMPLETE (region-scoped, op-tree 1647+): ALL FOUR are
+> replay-side premise work — NO fork emission needed (the catalog's
+> 'blocked on emission' is SUPERSEDED by 2b's premise architecture):
+> (1) Subgoal 2 — equivrefl (PERM u u) + arg-congruence transport
+> under the clause's A = B (designed above); (2) *1/3 — the
+> TRUE-LISTP/CDR value-defining link: a DEFN-UNFOLD premise (one conv
+> unfold of the opaque (TRUE-LISTP A) at pinned values relates it to
+> (TRUE-LISTP (CDR A)) — the emitted defn body IS the link); (3) *1/4
+> — TRUE-LISTP-RM's content: the SAME-BOOK replayed-statement premise
+> route (the theorem is a GREEN row in this very book — apply its D1
+> mirror as a dp premise, the dischargeRuleHyp pattern
+> premise-shaped); (4) *1/6 — ORDEREDP-RM's content, same route.
+> Implementation order: (3)/(4) first (the same-book premise row —
+> one mechanism, two leaves), then (1), then (2).**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
 > call — WIDENED per fold-back audit H2, ratify the DELIVERED scope:
