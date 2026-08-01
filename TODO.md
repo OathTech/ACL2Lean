@@ -76,6 +76,26 @@ _Last updated: 2026-08-01._
 > item targeting (ACL2-COUNT X) which does NOT occur in the child's
 > clause — investigate buildLiteralProofs' linking for this record
 > class BEFORE writing replay support; raw log line ~2937, msort book).
+> Increment 2 LANDED: clause-level solidify/with-lemma SETUP MEMOS
+> consumed under the ratified positional gate (forensics agent report:
+> they are rewrite-linear-term's pot-setup rewrites of the instantiated
+> :LINEAR lemma conclusion — not clause transformations; the real
+> change is re-recorded at its literal; the step's :RUNES omit the
+> memos' runes — witness). STRONG now at *1/2.3''' —
+> process-equational-polys ADDS the derived equation literal
+> (NOT (EQUAL (AC (CAR X)) (B+ '-1 (AC X)))) with NO transforming
+> item. CONVERGED DESIGN with WEAK: both need DP obligations that
+> consume the cited :LINEAR rule's fact (ACL2-COUNT-CAR-CDR-LINEAR —
+> an in-book theorem; feed its replayed statement/instantiated fact
+> into replayDischargeNode's premise set alongside tpData, or as a
+> rule:-condition). CORRECTION: ACL2-COUNT-CAR-CDR-LINEAR is a
+> GROUND-ZERO linear rule (acl2/axioms.lisp:30540), NOT an in-book
+> theorem — its fact takes the gz value-level route (provable from the
+> acl2CountExec kit: count(cons) = 1 + count(car) + count(cdr)) as a
+> linear:-class hypothesis/discharger, not a replayed statement. STRONG's remaining piece: an items-exhausted arm
+> for the equation-ADD shape (child = ¬eq ∨ parent unsubstituted;
+> byCases like increment 1 but no transport; ¬eq case = the DP
+> obligation eq ∨ parent WITH the linear-rule fact).
 > WEAK (*1/2.2') is the LINEAR-IN-SIMPLIFY EMISSION GAP (whole clause
 > closed by linear:ACL2-COUNT-CAR-CDR-LINEAR verdict, no discharge
 > record emitted) — fork-side: emit a discharge node when simplify's

@@ -874,6 +874,25 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                     literal items at {idStr} (not a setup-phase memo — \
                     frontier)"
       return ← replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
+    -- SOLIDIFY/WITH-LEMMA setup memos (linear-verdicts 2, forensics
+    -- 2026-08-01): `rewrite-linear-term` rewrites the args of an
+    -- instantiated :LINEAR lemma CONCLUSION during pot-lst setup (msort
+    -- *1/2.3'': ACL2-COUNT-CAR-CDR-LINEAR's `(ACL2-COUNT X)` — a term NOT
+    -- in the clause), with the clause's assumed-false literals on the
+    -- type-alist solidifying `(ACL2-COUNT (CDR X)) ⇒ '0` and COMM-+/
+    -- UNICITY-0 normalizing. The pot feeds the NEXT step's equational
+    -- polys; the CURRENT step's clause change is re-recorded at its
+    -- literal (the step's own :RUNES omit these memos' runes — witness).
+    -- Same no-op semantics and the SAME positional gate as the definition
+    -- memos above; a mid-walk instance stays a loud frontier
+    -- (ordered-perms has one — deliberately NOT consumed here).
+    if (runeOf n).ty == "rewriting-equivalence" ||
+       (runeOf n).ty == "rewrite" then
+      unless accClause.isEmpty do
+        throwError "replayClauseSpine: clause-level {(runeOf n).ty} step \
+                    after literal items at {idStr} (not a setup-phase \
+                    memo — frontier)"
+      return ← replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
     throwError "replayClauseSpine: clause-level step item (rune \
                 {repr (runeOf n)}) in the spine at {idStr} (frontier)"
   | .branch seg _ :: _ =>
