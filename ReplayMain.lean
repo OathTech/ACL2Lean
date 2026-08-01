@@ -49,6 +49,7 @@ unsafe def main (args : List String) : IO Unit := do
     | [p, t] => pure (p, some t)
     | _ => throw <| IO.userError usage
   let mut crossTrees : List (String × ACL2.ClauseProof) := []
+  let mut crossRules : List ACL2.RuleSpec := []
   for dp in depPaths do
     let c ← IO.FS.readFile dp
     match ACL2.ProofLog.parse c with
@@ -56,7 +57,10 @@ unsafe def main (args : List String) : IO Unit := do
     | .ok log =>
       match ACL2.ClauseTree.buildDevelopment log with
       | .error e => throw (IO.userError s!"deps {dp}: recon error: {e}")
-      | .ok ddev => crossTrees := crossTrees ++ bookTrees ddev
+      | .ok ddev =>
+        crossTrees := crossTrees ++ bookTrees ddev
+        crossRules := crossRules ++ (allBookRules ddev).filter
+          (fun r => !crossRules.any (fun o => o.runeKey == r.runeKey))
   let tR0 ← IO.monoMsNow
   let content ← IO.FS.readFile path
   let tR1 ← IO.monoMsNow
@@ -77,9 +81,10 @@ unsafe def main (args : List String) : IO Unit := do
     -- (withRealMaxHeartbeats); unlimited at the top, as in the sweep
     maxHeartbeats := 0 }
   let t0 ← IO.monoMsNow
-  let act : MetaM (BookResult × List (String × ACL2.ClauseProof)) :=
+  let act : MetaM (BookResult × List (String × ACL2.ClauseProof)
+      × List ACL2.RuleSpec) :=
     Elab.Term.TermElabM.run' (runBook name content upTo? (timings := true)
-      (crossTrees := crossTrees))
+      (crossTrees := crossTrees) (crossRules := crossRules))
   let ((res, _), _) ← (act.run' {} {}).toIO coreCtx { env }
   let t1 ← IO.monoMsNow
   for l in res.lines do IO.println l

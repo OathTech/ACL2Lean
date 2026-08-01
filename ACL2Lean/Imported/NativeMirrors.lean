@@ -120,6 +120,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
   -- the included defuns, so the trees replay at THIS world; fail-closed —
   -- a missing tree keeps the hypothesis).
   let mut crossTrees : List (String × ClauseProof) := []
+  let mut crossRules : List ACL2.RuleSpec := []
   if let some d := deps then
     -- depsClauseDR children: [0] atom " deps " [1] "[" [2] sepBy [3] "]"
     for depId in (d.raw[2].getSepArgs.map (fun a => (⟨a⟩ : Ident))) do
@@ -127,6 +128,10 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
       let depDev ← unsafe Meta.evalExpr Development
         (mkConst ``ACL2.Development) (mkConst depName)
       crossTrees := crossTrees ++ ACL2.Replay.Runner.bookTrees depDev
+      -- P3 cross-rules: the dep book's stored rules ride with its trees
+      crossRules := crossRules
+        ++ (ACL2.Replay.Runner.allBookRules depDev).filter
+          (fun r => !crossRules.any (fun o => o.runeKey == r.runeKey))
   -- TERMINATION PRE-PASS (the runner's route, mirrored; OPT-IN via
   -- `with_termination` — a consumer whose induction scheme needs a
   -- non-destructor decrease, e.g. qsort's filter call sites, discharges
@@ -194,11 +199,13 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     -- derivation site, so a runner channel can never miss the macro again
     -- (the class that hard-failed fcRules/termination/equivRefls one at a
     -- time, and had silently dropped gzTps here until the unification).
-    let ch := ACL2.Replay.Runner.bookChannels dev crossTrees
+    let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
     let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
       (mkConst worldName) env termReplayed
     let (proof, _conds) ← replayProofConditional cfg ch.tps cp
-      dev.justifications (Driver.rulesBefore dev nm.getString) ch.depProofs
+      dev.justifications
+      (ACL2.Replay.Runner.combineRules
+        (Driver.rulesBefore dev nm.getString) ch.crossRules) ch.depProofs
       (equivRefls := ch.equivRefls) (termReplayed := termReplayed)
       (congTrees := some ch.localTrees)
     Meta.mkLambdaFVars #[env] proof

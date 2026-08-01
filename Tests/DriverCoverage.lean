@@ -120,12 +120,17 @@ elab "#driver_coverage" : command => do
     -- 2a: prior books' theorem trees, accumulated in corpus order — the
     -- CROSS-BOOK dependency offer for each subsequent book
     let mut priorTrees : List (String × ClauseProof) := []
+    -- P3 cross-rules: prior books' STORED RULES, same corpus-order
+    -- accumulation — a dep tree re-replayed at a consumer world can cite
+    -- rules the consumer's log never re-emits
+    let mut priorRules : List ACL2.RuleSpec := []
     -- per-file wall times, logged SEPARATELY from the golden-compared report
     -- (timings vary run to run; the baseline must stay deterministic)
     let mut timings : Array String := #[]
     for (name, content) in corpus do
       let tFile0 ← IO.monoMsNow
-      let (r, trees) ← runBook name content (crossTrees := priorTrees)
+      let (r, trees, rules) ← runBook name content (crossTrees := priorTrees)
+        (crossRules := priorRules)
       agg := { lines := agg.lines ++ r.lines,
                total := agg.total + r.total,
                replayed := agg.replayed + r.replayed,
@@ -136,6 +141,8 @@ elab "#driver_coverage" : command => do
                integrityFails := agg.integrityFails ++ r.integrityFails,
                emissionFrontiers := agg.emissionFrontiers ++ r.emissionFrontiers }
       priorTrees := priorTrees ++ trees
+      priorRules := priorRules ++ rules.filter
+        (fun r => !priorRules.any (fun o => o.runeKey == r.runeKey))
       let tFile1 ← IO.monoMsNow
       timings := timings.push s!"  {name}: {tFile1 - tFile0} ms"
     let lines := agg.lines

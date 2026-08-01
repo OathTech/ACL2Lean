@@ -326,7 +326,19 @@ _Last updated: 2026-08-01._
 > fail-closed, sweep byte-identical) and fires when the channel
 > lands. rule:ORDEREDP-MEMB's discharge frontiers on the same
 > transitive-offer class. Queued as the first item of the
-> post-ratification arc segment.**
+> post-ratification arc segment.
+> CHANNEL LANDED (sub-arc mdd/cross-rules, same day): allBookRules +
+> combineRules + BookChannels.crossRules; corpus-order priorRules in
+> the sweep; deps[devs] in the macro; --deps in the CLI. Sweep diff
+> exactly the ORDERED-PERMS row: equivrefl:PERM-IS-AN-EQUIVALENCE
+> DISCHARGED (the equivrefl arm fires); row now
+> cond[rule:CONS-CAR-CDR, rule:ORDEREDP-MEMB]. v1 gap logged in the
+> allBookRules docstring (a book's LAST theorem's own rule is in no
+> snapshot — fail-closed). NEXT for the mirror: probe why
+> rule:ORDEREDP-MEMB's same-book discharge still frontiers (its D1
+> registry constant keeps rule:DEFAULT-CAR — the registry route
+> should map it to the consumer telescope), then the native
+> statement assembly.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d) — DRAFTED:
 > docs/notes/2026-08-01_r7-use-functional-instantiation-design.md

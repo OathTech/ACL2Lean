@@ -94,6 +94,10 @@ structure BookChannels where
   localTrees : List (String × ClauseProof)
   /-- equivalence-reflexivity evidence: this book's formulas + included ones -/
   equivRefls : List (String × SExpr)
+  /-- prior books' STORED RULES (the cross-rules channel, P3) — offered in
+      the telescope after the consumer's own; transitive citations in a
+      dependency re-replay bind them and discharge from `depProofs` -/
+  crossRules : List ACL2.RuleSpec := []
 
 /-- One book's LOCAL theorem trees (proved or not — each is re-checked
     at the consumer), keyed by name — the CROSS-BOOK dependency offer
@@ -107,18 +111,40 @@ structure BookChannels where
 def bookTrees (dev : Development) : List (String × ClauseProof) :=
   (developmentTheoremsWithRules dev).map fun (c, _) => (c.name, c)
 
+/-- One book's STORED RULES — the union of its theorems' `(:RULES …)`
+    snapshots, deduped by rune key (cross-rules channel, P3: a dependency
+    tree re-replayed at the consumer's world can cite rules the CONSUMER's
+    log never re-emits — PERM-IS-AN-EQUIVALENCE's tree cites
+    rule:PERM-SYMMETRIC, absent from the ordered-perms log. Offering the
+    dep book's rules lets the transitive citation bind; its own tree in
+    `crossTrees` then discharges it). The LAST theorem's own rule appears
+    in no snapshot — an accepted v1 gap (fail-closed: its citation keeps
+    the hypothesis). -/
+def allBookRules (dev : Development) : List ACL2.RuleSpec :=
+  ((developmentTheoremsWithRules dev).flatMap (·.2)).foldl
+    (init := []) fun acc r =>
+      if acc.any (fun o => o.runeKey == r.runeKey) then acc else acc ++ [r]
+
+/-- Combine a theorem's own rule snapshot with the cross-book offers —
+    OWN entries take precedence (same-book identity preserved; a
+    same-keyed cross copy is the same re-emitted rule). -/
+def combineRules (own cross : List ACL2.RuleSpec) : List ACL2.RuleSpec :=
+  own ++ cross.filter fun c => !own.any (fun o => o.runeKey == c.runeKey)
+
 /-- The channel set of a development — the single derivation site.
     `crossTrees`: prior books' theorem trees (2a); appended AFTER the
     same-book entries so same-book precedence is unchanged. -/
 def bookChannels (dev : Development)
-    (crossTrees : List (String × ClauseProof) := []) : BookChannels :=
+    (crossTrees : List (String × ClauseProof) := [])
+    (crossRules : List ACL2.RuleSpec := []) : BookChannels :=
   let thms := developmentTheoremsWithRules dev
   { thms := thms
     tps := dev.typePrescriptions
     depProofs := (thms.map fun (c, _) => (c.name, c)) ++ crossTrees
     localTrees := thms.map fun (c, _) => (c.name, c)
     equivRefls := (thms.map fun (c, _) => (c.name, c.formula))
-      ++ dev.includedTheorems }
+      ++ dev.includedTheorems
+    crossRules := crossRules }
 
 /-- The canonical `ReplayConfig` of a book replay — the ONE construction
     site for both the runner and the mirror macro. `gzTps`: BUILTIN-named
@@ -195,7 +221,8 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
     (replayedName? : Option Name := none)
     (budget : Nat := 3000000)
     (termReplayed : List (String × Name × List String × List SExpr) := [])
-    (crossTrees : List (String × ClauseProof) := []) :
+    (crossTrees : List (String × ClauseProof) := [])
+    (crossRules : List ACL2.RuleSpec := []) :
     TermElabM (String × Option (List String)) := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -217,10 +244,11 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
   withRealMaxHeartbeats budget <| withRealMaxRecDepth 8192 <| tryCatchRuntimeEx
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
-        let ch := bookChannels dev crossTrees
+        let ch := bookChannels dev crossTrees crossRules
         let cfg := mkBookConfig dev w wExpr envFV termReplayed
         let (prf, conds) ← replayProofConditional cfg ch.tps cp
-          dev.justifications rules ch.depProofs mirrors
+          dev.justifications (combineRules rules ch.crossRules)
+          ch.depProofs mirrors
           (equivRefls := ch.equivRefls) termReplayed
           (congTrees := some ch.localTrees)
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
@@ -341,15 +369,17 @@ structure BookResult where
     focused row is directly comparable to the golden. -/
 def runBook (name : String) (content : String) (upTo : Option String := none)
     (timings : Bool := false)
-    (crossTrees : List (String × ClauseProof) := []) :
-    TermElabM (BookResult × List (String × ClauseProof)) := do
+    (crossTrees : List (String × ClauseProof) := [])
+    (crossRules : List ACL2.RuleSpec := []) :
+    TermElabM (BookResult × List (String × ClauseProof)
+      × List ACL2.RuleSpec) := do
   let mut res : BookResult := {}
   let tParse0 ← IO.monoMsNow
   match ProofLog.parse content with
   | .error msg =>
     res := { res with lines := res.lines.push (s!"• {name}: PARSE-FAIL {msg}"),
                       integrityFails := res.integrityFails.push (s!"{name}: PARSE-FAIL {msg}") }
-    return (res, [])
+    return (res, [], [])
   | .ok log =>
     let tParse1 ← IO.monoMsNow
     if timings then IO.println s!"[t] parse: {tParse1 - tParse0} ms"
@@ -357,7 +387,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
     | .error msg =>
       res := { res with lines := res.lines.push (s!"• {name}: RECON-FAIL {msg}"),
                         integrityFails := res.integrityFails.push (s!"{name}: RECON-FAIL {msg}") }
-      return (res, [])
+      return (res, [], [])
     | .ok dev =>
       let tRecon ← IO.monoMsNow
       if timings then IO.println s!"[t] recon: {tRecon - tParse1} ms"
@@ -446,6 +476,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let (status, reg?) ← tryReplay dev w wExpr cp rules
           (mirrors := mirrors) (replayedName? := some mName)
           (termReplayed := termReplayed) (crossTrees := crossTrees)
+          (crossRules := crossRules)
         let tThm1 ← IO.monoMsNow
         if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"
         if let some conds := reg? then
@@ -490,7 +521,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let row := s!"    {cp.name} → {status}{tag}{disTag}"
         res := { res with lines := res.lines.push row }
         if upTo == some cp.name then
-          return (res, bookTrees dev)
-      return (res, bookTrees dev)
+          return (res, bookTrees dev, allBookRules dev)
+      return (res, bookTrees dev, allBookRules dev)
 
 end ACL2.Replay.Runner
