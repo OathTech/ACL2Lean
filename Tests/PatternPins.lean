@@ -80,8 +80,13 @@ elab "sorting_arc_pattern_pins% " : term => do
   -- replays) composed.
   let (resP6, _) ← ACL2.Replay.Runner.runBook "p6-or-collapse-arith" orCollapseArithLog none
   unless resP6.lines.any (fun l =>
-      l.startsWith "    ORDN-INSN-MID → FAIL: replayClauseSpine: ran out of \
-items with no closer at Subgoal *1/3.14'") do
+      -- RE-PINNED (2b, linear-verdicts): the previous pin (*1/3.14' "ran
+      -- out of items with no closer") WAS the linear-in-simplify emission
+      -- gap — closed by emit/simplify-clause/linear-contradiction (the
+      -- row's DP leaves now prove ✓); the walk advances to the
+      -- DEFAULT-<-1 hypothesis-relief emission gap.
+      l.startsWith "    ORDN-INSN-MID → FAIL: rule DEFAULT-<-1: hyp \
+(NOT (ACL2-NUMBERP 'NIL)) has NO emitted relief record") do
     throwError "pattern pin p6-or-collapse-arith: the pinned frontier message \
       moved — got:\n{"\n".intercalate resP6.lines.toList}\nre-pin truthfully \
       (an EARLIER failure means the or-collapse bridge regressed)"

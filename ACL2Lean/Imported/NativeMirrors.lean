@@ -1953,6 +1953,19 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/ordered-perms", "ORDERED-PERMS", .pending "BLOCKED ON EMISSION, not mirror work (probed 2026-07-31): the four ASSUMED:dp-fact hypotheses are UNPROVABLE AS EMITTED — the DP-value abstraction quantifies free dpv values constrained only by their boolean TP corollaries and drops the functional connections (e.g. the (PERM A A) reflexive tie), so dpv := nil falsifies them. The replayDischargeNode condition-threading follow-up must carry the value-defining links before this row can be lifted"),
   ("sorting/ordered-perms", "CAR-RM", .native ``car_rm_native_driver ``carRmReplayed),
   ("sorting/ordered-perms", "TRUE-LISTP-RM", .replayedOnly "subsumed by the rm simulation: `true-listp` restricts the input to the enc image (exists_enc_of_trueListp), where corr_rm_enc already yields an encoded List — no native content beyond the sim (the type-absorbed true-listp doctrine; the flatten recipe applies only where NO simulation exists)"),
+  -- 2b (linear-verdicts): the two admission-lemma count rows, GREEN via
+  -- the linear-verdict machinery. Their Lean-side content EXISTS as the
+  -- Count-library facts the hand msort exec kit already uses
+  -- (evensExec_consCount_le/lt); the native form (acl2-count over enc)
+  -- is P3's decode decision.
+  ("sorting/msort", "ACL2-COUNT-EVENS-WEAK",
+    .pending "the evens-split count bound — value-level content exists \
+      (evensExec_consCount_le); the acl2-count/enc native reading is \
+      P3's decode decision"),
+  ("sorting/msort", "ACL2-COUNT-EVENS-STRONG",
+    .pending "the strict evens-split count bound — value-level content \
+      exists (evensExec_consCount_lt); the acl2-count/enc native \
+      reading is P3's decode decision"),
   ("sorting/msort", "TRUE-LISTP-MSORT", .replayedOnly "subsumed by the msort simulation (msort_exec_corr/msortExec_enc) — the type-absorbed true-listp doctrine"),
   ("sorting/msort", "HOW-MANY-MERGE2", .native ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
