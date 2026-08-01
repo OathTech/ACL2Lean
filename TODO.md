@@ -217,9 +217,14 @@ _Last updated: 2026-08-01._
 > (PERM A A); the fuel_eq/diffCollapse machinery). Same conditional
 > cond-shape as 2b's linear premises; implement as an equivreflHyps
 > premise row in replayDischargeNode with the substN + congruence
-> transport. The other three leaves (preprocess/tau at *1/3, *1/4,
-> *1/6) to be dumped and classified the same way; only residue after
-> the premise classes becomes fork work.**
+> transport. The other three leaves (ORDERED-PERMS' OWN *1/3
+> type-set-fc, *1/4 tau, *1/6 tau — NOTE: grep the dump WITHIN the
+> ORDERED-PERMS theorem region; the first *1/3-*1/4 matches are
+> ORDEREDP-RM's unrelated subgoals) to be classified the same way;
+> *1/6 (seen) is a TAU verdict over the ORDEREDP/PERM network — richer
+> than equivrefl, likely needs the tau/FC rule content as premises
+> (cfg.fcRules is already in the config). Only residue after the
+> premise classes becomes fork work.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
 > call — WIDENED per fold-back audit H2, ratify the DELIVERED scope:
