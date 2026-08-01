@@ -97,7 +97,8 @@ def dpLeafTactic : MetaM (TSyntax `tactic) :=
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
                    SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
-                   Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat,
+                   Logic.trueListp_ne_nil_iff, Logic.trueListp_cdr_of_consp,
+                   logic_len_eq_lenNat,
                    logic_endp_eq_not_consp,
                    logic_car_of_consp_nil, logic_cdr_of_consp_nil] <;>
           omega)
@@ -106,7 +107,8 @@ def dpLeafTactic : MetaM (TSyntax `tactic) :=
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
                    Logic.implies, Logic.iff, beq_iff_eq, Bool.cond_eq_ite,
                    SExpr.t, Logic.toBool_eq_true, Logic.toBool_eq_false,
-                   Logic.trueListp_ne_nil_iff, logic_len_eq_lenNat,
+                   Logic.trueListp_ne_nil_iff, Logic.trueListp_cdr_of_consp,
+                   logic_len_eq_lenNat,
                    logic_endp_eq_not_consp,
                    logic_car_of_consp_nil, logic_cdr_of_consp_nil] <;>
           -- `at *`: a HYPOTHESIS can be stuck on an if too (a `toBool`

@@ -1165,17 +1165,24 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
             newOps := (newOps ++ collectOpaques premise).eraseDups
     -- RULE-content premises (2c): boolean-strengthened stored rules
     -- (equiv EQUAL, rhs 'T, one hyp — TRUE-LISTP-RM / ORDEREDP-RM's
-    -- shape) whose LHS one-way-matches an obligation opaque contribute
-    -- `(IF hyp (EQUAL lhs 'T) 'T)` premises — the linear row's twin
-    -- with the trigger := the stored lhs and the fact via
+    -- shape) whose LHS one-way-matches an obligation APPLICATION SUBTERM
+    -- contribute `(IF hyp (EQUAL lhs 'T) 'T)` premises — the linear
+    -- row's twin with the trigger := the stored lhs and the fact via
     -- `rule_premise_fact` (the hypothesis's conclusion is an
     -- EVAL-EQUALITY, transported along the same substN bridges).
-    -- Non-matching rule shapes are simply not offered here (they keep
-    -- their with-lemma consumers); nothing is inferred.
+    -- Match targets are ALL application subterms of the clause literals
+    -- plus the (round-extended) opaque set — NOT opaques alone: a rule
+    -- LHS headed by a lift primitive (`(TRUE-LISTP (RM E A))`) never
+    -- appears as an opaque (only its inner `RM` application does), and
+    -- the opaque-only v1 silently missed exactly that trigger
+    -- (ORDERED-PERMS *1/4 vs *1/6). Non-matching rule shapes are simply
+    -- not offered here (they keep their with-lemma consumers); nothing
+    -- is inferred.
+    let ruleTargets := ((lits.flatMap collectAppSubterms) ++ srcOps).eraseDups
     for (spec, hypV) in ctx.ruleHyps do
       if spec.equiv == "equal" && spec.rhs == quoteT then
         if let [hT] := spec.hyps then
-          for op in srcOps do
+          for op in ruleTargets do
             if let some σ := oneWayMatch spec.lhs op then
               let ruleFrees := (ACL2.Replay.freeVars hT ++
                 ACL2.Replay.freeVars spec.lhs).eraseDups
@@ -1249,6 +1256,33 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
                   let fact ← mkAppM ``rule_premise_fact #[hypInst, phC, plC]
                   linData := linData ++ [(premise, fact)]
                   newOps := (newOps ++ collectOpaques premise).eraseDups
+    -- EQUIVREFL premises (2c): a stored :EQUIVALENCE rule's reflexivity
+    -- content applies to any SYNTACTICALLY reflexive application subterm
+    -- `(R u u)` of the clause: contribute `(NOT (NOT (R u u)))` — the
+    -- refl instance under `EvTrue` gives only non-nil (hence the double
+    -- negation, which lifts to `t` outright); the obligation's TP
+    -- booleanp cell then forces `= T` inside the fact, exactly ACL2's
+    -- tau composition (refl content + recognizer booleanness). The
+    -- instance rides `instantiateEvTrueHypAt` (the shared premise-free
+    -- substN slice), so no scaffold copy here.
+    for (sp, hypV) in ctx.equivReflHyps do
+      for op in ruleTargets do
+        if let .cons (.atom (.symbol rS)) (.cons u1 (.cons u2 .nil)) := op then
+          if rS == sp.rel && u1 == u2 then
+            let notT : SExpr → SExpr := fun t =>
+              .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+            let premise := notT (notT op)
+            unless linData.any (fun (t, _) => t == premise) do
+              let (hev, ctxL') ← instantiateEvTrueHypAt cfg ctxL hypV
+                [sp.vx] [u1]
+                (.cons (.atom (.symbol sp.rel))
+                  (.cons (.atom (.symbol sp.vx))
+                    (.cons (.atom (.symbol sp.vx)) .nil)))
+              ctxL := ctxL'
+              let pa ← ctxValProof cfg ctxL op
+              let fact ← mkAppM ``equivrefl_premise_fact #[hev, pa]
+              linData := linData ++ [(premise, fact)]
+              newOps := (newOps ++ collectOpaques premise).eraseDups
     srcOps := (srcOps ++ newOps).eraseDups
   -- premise instances may mention opaques BEYOND the obligation's (a
   -- max-term match on (CDR X) instantiates the conclusion with

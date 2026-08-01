@@ -629,6 +629,24 @@ where
     | .cons a rest => go a ++ goSpine rest
     | _ => []
 
+/-- Collect ALL application subterms of a term (primitive-headed AND opaque),
+    first-occurrence order, deduplicated; `QUOTE` stops the walk. These are the
+    match targets for the RULE-content premise pass: a stored rule's LHS can be
+    headed by a DP-lift PRIMITIVE (`(TRUE-LISTP (RM E A))` — `TRUE-LISTP` lifts
+    to `Logic.trueListp`, so only the inner `RM` application is opaque and
+    `collectOpaques` never surfaces the match target). -/
+partial def collectAppSubterms (t : SExpr) : List SExpr :=
+  go t |>.eraseDups
+where
+  go : SExpr → List SExpr
+    | .cons (.atom (.symbol fs)) args =>
+      if fs.name == "QUOTE" then []
+      else .cons (.atom (.symbol fs)) args :: goSpine args
+    | _ => []
+  goSpine : SExpr → List SExpr
+    | .cons a rest => go a ++ goSpine rest
+    | _ => []
+
 /-- The `Logic`-primitive VALUE of a term: opaque subterms via `opq` (term ↦ value
     expr), variables via `varVal`. -/
 partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Expr)

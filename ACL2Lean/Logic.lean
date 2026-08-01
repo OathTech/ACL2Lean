@@ -693,6 +693,15 @@ theorem trueListp_ne_nil_iff (x : SExpr) :
     (trueListp x ≠ SExpr.nil) ↔ trueListp x = SExpr.t := by
   rcases trueListp_t_or_nil x with h | h <;> simp [h, SExpr.t]
 
+/-- The DP-leaf bridge for `trueListp`'s recursion: under `consp` evidence the
+    recognizer steps to the tail. The conditional form a SYMBOLIC leaf value
+    needs — `trueListp_cons` fires only on literal conses, so a clause whose
+    type-set verdict rests on the `TRUE-LISTP`/`CDR` link (consp x ∧
+    true-listp x → true-listp (cdr x)) is unreachable without it. -/
+theorem trueListp_cdr_of_consp (x : SExpr) (h : consp x ≠ SExpr.nil) :
+    trueListp x = trueListp (cdr x) := by
+  cases x <;> simp_all [consp, cdr]
+
 /-- ACL2 `iff` — biconditional. -/
 @[inline, simp] def iff (p q : SExpr) : SExpr :=
   if toBool p then

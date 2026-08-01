@@ -239,10 +239,33 @@ _Last updated: 2026-08-01._
 > the RULE-content premise pass in replayDischargeNode (boolean-
 > strengthened equal/'T one-hyp stored rules; lhs as the trigger; the
 > substN scaffold's THIRD copy — extraction queued). ORDERED-PERMS
-> 4 → 3 ASSUMED:dp-fact. NEXT: identify which leaf flipped and why
-> the other rule-matched leaf didn't (probe the failing obligations'
-> proveDpFact residue); then the equivrefl (Subgoal 2) and defn-unfold
-> (*1/3) premise classes.**
+> 4 → 3 ASSUMED:dp-fact (the flipped leaf was *1/6/ORDEREDP-RM).
+> INCREMENTS 2–4 (all four leaves now close; zero ASSUMED:dp-fact,
+> conds = [rule:CONS-CAR-CDR, rule:ORDEREDP-MEMB,
+> equivrefl:PERM-IS-AN-EQUIVALENCE]):
+> (2) *1/4 — the v1 opaque-only trigger MISSED lift-primitive-headed
+> rule LHSes ((TRUE-LISTP (RM E A)): TRUE-LISTP lifts to
+> Logic.trueListp, only the inner RM is opaque) — match targets
+> widened to ALL application subterms (collectAppSubterms in
+> NodeCore + ruleTargets in the rule pass).
+> (3) *1/3 — NOT a premise class after all: the missing link is the
+> trusted-core primitive's OWN recursion (Logic.trueListp under consp
+> evidence), a DP-leaf BRIDGE in the endp/len precedent —
+> Logic.trueListp_cdr_of_consp added to dpLeafTactic's simp sets
+> (the split path's cone mode clears the A-hyps, so the DIRECT
+> simp_all path is the closer, as in *1/4).
+> (4) Subgoal 2 — equivrefl premise class, SIMPLER than classified:
+> the probed leaf's application is syntactically reflexive
+> ((PERM A A) — no arg-congruence transport needed): premise
+> (NOT (NOT (R u u))) via instantiateEvTrueHypAt (the SHARED substN
+> slice — no new scaffold copy) + equivrefl_premise_fact (EvTrue
+> gives ≠ nil; the TP booleanp cell closes to 'T inside the fact).
+> The classified congruence-transport variant ((PERM A B) under
+> EQUAL A B) did NOT occur in the real obligation — not built (would
+> be a new class if a book ever needs it).
+> NEXT: full-sweep golden review (widened triggers + the trueListp
+> bridge can move OTHER rows — review row by row), then the
+> dp-premises comprehensive audit + fold-back.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
 > call — WIDENED per fold-back audit H2, ratify the DELIVERED scope:

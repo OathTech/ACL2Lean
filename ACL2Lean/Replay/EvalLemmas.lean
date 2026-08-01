@@ -5173,6 +5173,22 @@ theorem rule_premise_fact {w : World} {env : Env} {h l vh vl : SExpr}
     rw [hvl]
     rfl
 
+/-- The EQUIVREFL premise fact (2c): a stored :EQUIVALENCE rule's reflexivity
+    instance `(R u u)` is TRUE, so the double-negation premise
+    `(NOT (NOT (R u u)))` lifts to `t` at the pinned value. Double-negation
+    (not truthiness-as-`= t`) because `EvTrue` alone gives only `≠ nil` —
+    the obligation's TP booleanp cell then forces `= T` inside the fact,
+    exactly ACL2's tau composition (refl content + recognizer booleanness). -/
+theorem equivrefl_premise_fact {w : World} {env : Env} {a va : SExpr}
+    (ht : EvTrue w env a)
+    (pa : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va) :
+    Logic.not (Logic.not va) = SExpr.t := by
+  have hne := ne_nil_of_evtrue_conv ht pa
+  cases va with
+  | nil => exact absurd rfl hne
+  | atom a => rfl
+  | cons a b => rfl
+
 /-- The `EvTrue` spine combinator (D9): VALUE-characterized convergence of the
     test and truth of the branch selected by EITHER case of `cv` (both
     implications supplied; the proof case-splits on `cv = nil`). One lemma
