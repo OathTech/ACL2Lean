@@ -107,6 +107,28 @@ _Last updated: 2026-08-01._
 > kit — count(cons) = 1 + count(car) + count(cdr), which the kit
 > states directly). The obligation is NOT valid without it
 > (independent-opaque counter-model) — no shortcut exists.
+> 3a LANDED (50e6ec9 + fork c85dcd80): the gz :LINEAR spec emission
+> end-to-end (collectors + event + parser + Development accessor +
+> recapture-all at clean stamps; ci green, rows unchanged).
+> 3b REFINED DESIGN (dpFactStmt read): (i) ReplayConfig gains
+> linearRules from dev.groundZeroLinearRuleSpecs via mkBookConfig (one
+> site, 1a); (ii) NEW hypothesis class `linear:<rune>` in the
+> conditional harness — schematic over env' like mkRuleHypType:
+> ∀ env', EvTrue hyps → EvTrue concl; (iii) replayDischargeNode
+> matches opaques against specs' maxTerm (unify → substitution),
+> instantiates (hyps→concl) as an IMPLIES term, adds it to dpFactStmt's
+> premise row as a tpCors-STYLE value premise (v(implies-term) = t);
+> the concrete fact at application: linear-hyp fvar at env → EvTrue →
+> conv pin → ne_nil → two-valued implies → = t; (iv) proveDpFact's
+> INT-VIEW lift may need an implies-decomposition row (iterate on the
+> real error); (v) stage-5 accounting: linear: conds ride the
+> used-filter like tp:; assemblies discharge them from the
+> acl2CountExec kit later (or keep honest conds).
+> Then: the STRONG equation-ADD arm (items-exhausted, design settled
+> above) consumes the same premise machinery; WEAK additionally needs
+> the fork discharge record for linear-PROVED simplify leaves
+> (*1/2.2', :RESULT :PROVED, no transforming items) — the remaining
+> fork half.
 > ROUTING DECISION (2026-08-01): the cited :LINEAR rule's FORMULA is
 > NOT emitted (rune name only — verified against the msort log), and
 > CLAUDE.md's emit-more rule forbids hand-stating it Lean-side. So
