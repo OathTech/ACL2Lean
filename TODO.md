@@ -201,6 +201,17 @@ _Last updated: 2026-08-01._
 > Tests.DriverCoverage` or `just ci`; auditors should not accept
 > "build green" as "sweep gate ran" without timings/actual-freshness
 > evidence.**
+> **2c DESIGN (post-2b reassessment): the ORDERED-PERMS dp-fact gap is
+> now the ESTABLISHED premise pattern, likely NO fork emission needed —
+> the four ASSUMED obligations need value-defining links ((PERM A A)
+> truthy = reflexivity; the ORDEREDP/PERM functional ties), and 2b's
+> replayDischargeNode premise architecture is the vehicle: instantiate
+> the ALREADY-OFFERED equivrefl:/fc-rule content as tpCors-style
+> premises via the same substN transport (oneWayMatch on (R u u)
+> opaque shapes for equivrefl; cfg.fcRules' trigger/concls for FC).
+> Start by dumping the four leaves' obligations and checking which
+> premise classes close them; only an emission gap remaining AFTER
+> that becomes fork work.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
 > call — WIDENED per fold-back audit H2, ratify the DELIVERED scope:
