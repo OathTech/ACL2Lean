@@ -3911,7 +3911,7 @@ theorem logic_equal_nil_of_plus1_nonneg {a b : SExpr}
   obtain ⟨m, rfl⟩ := dp_nonneg_int_of_tp ha
   obtain ⟨n, rfl⟩ := dp_nonneg_int_of_tp hb
   rw [logic_plus_int, logic_plus_int]
-  simp [Logic.equal, Logic.toBool, SExpr.t]
+  simp [Logic.equal, SExpr.t]
   omega
 
 /-- `car` of a NON-cons defaults to `nil` (ACL2's completion axiom, value

@@ -413,7 +413,18 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           tpHypsAv := (tpFnsAv.zip tpAvVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h),
           ruleHyps := rules.zip ruleVs.toList,
           congHyps := congs.zip congVs.toList,
-          linearHyps := linearSpecs.zip linearVs.toList,
+          -- audit F1 (linear-verdicts fold-back): the DECLARATION is
+          -- content-deduped (hyps/concl determine the hypothesis; ONE
+          -- fvar), but the OFFER carries EVERY emitted spec — max-term is
+          -- the ONLY thing the premise matcher consumes, and ACL2 stores
+          -- one linear-lemma per max-term (dropping the CAR trigger cost
+          -- STRONG a spurious ASSUMED:dp-fact). Each spec points at its
+          -- content-representative's fvar; the used-filter and cond
+          -- labels stay per-declaration.
+          linearHyps := cfg.linearRules.filterMap (fun r =>
+            (linearSpecs.zipIdx.find? (fun (q, _) =>
+              q.name == r.name && q.hyps == r.hyps && q.concl == r.concl)
+            ).bind fun (_, i) => linearVs[i]?.map fun v => (r, v)),
           equivReflHyps := equivSpecs.zip equivVs.toList,
           dpFactHyps := (dpStmts.map (·.1)).zip dpVs.toList }
       let some root := cp.root

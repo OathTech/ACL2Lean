@@ -111,7 +111,14 @@ _Last updated: 2026-08-01._
 > rules), ACL2-COUNT-EVENS-STRONG ✓ (+ linear:ACL2-COUNT-CAR-CDR-LINEAR
 > and one honest ASSUMED:dp-fact whose full closure needs WEAK's own
 > content as a same-book linear rule — the replayed-statement route,
-> queued). The linear-verdicts machinery end-to-end: gz :LINEAR spec
+> queued). CORRECTED (fold-back audit F1, experimentally refuted): the
+> ASSUMED leaf needed the CAR-trigger instance of the SAME emitted rule
+> — the harness dedup discarded per-max-term records; FIXED (offers
+> carry every emitted spec sharing the content-deduped fvar), STRONG's
+> ASSUMED:dp-fact is GONE, that follow-up retired. Audit follow-ups
+> queued instead: F2/F4 provenance gates; F5 gz-defun closure over
+> linear/fc entry fns; F7 user-defined :LINEAR rules (no snapshot).
+> The linear-verdicts machinery end-to-end: gz :LINEAR spec
 > emission → linear: hypothesis class → max-term-matched DP premises
 > (bounded-fixpoint instantiation; premise-free fallback twin for the
 > harness offer) → the equation-ADD and case-split spine arms → the
@@ -196,12 +203,21 @@ _Last updated: 2026-08-01._
 > evidence.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
-> call — ACL2-COUNT-EVENS-STRONG's branch-substitution class closes its
-> ≠-case by verdict-only linear arithmetic (fake-rune-for-linear-
-> equalities + TP runes, no internal record) at BRANCH granularity —
-> implemented under the ratified verdict-class principle (DP leaves /
-> admission decreases), granularity extension disclosed, Mike to
-> ratify-or-narrow; (3) BUG-027 ratify-or-narrow (2f, carried).**
+> call — WIDENED per fold-back audit H2, ratify the DELIVERED scope:
+> BOTH new spine arms (the LINEAR-EQUALITIES CASE SPLIT and the
+> EQUATION-ADD close) close their ≠-case by verdict-only linear
+> arithmetic at BRANCH granularity via CONSTRUCTED obligations
+> `eq ∨ parent` (emitted substitution equation + the clause, nothing
+> else; never ASSUMED — prove-or-hard-fail, audit F2a), plus
+> oneWayMatch (the replay's only matcher, emitted max-term patterns)
+> and the linear: premise instantiation. Auditor caveats: the arms
+> gate on SHAPE, not the emitted fake-rune-for-linear-equalities
+> provenance (F2 — recommends ratifying WITH a provenance-gate
+> condition; queued follow-up with F4's memo-rune assertion); ACL2's
+> conclusion is modulo unemitted forced numericity assumptions (F6 —
+> the replay's burden is strictly HARDER, conservative). Full
+> assessment in the audit report. Mike to ratify-or-narrow;
+> (3) BUG-027 ratify-or-narrow (2f, carried).**
 
 > **FULL-PIPELINE AUDIT (2026-07-26, user-run 6-dimension team + refutation
 > pass; report `docs/audits/2026-07-26_full-pipeline-audit.md`) — GOVERNS

@@ -1163,8 +1163,7 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
             let fact ← mkAppM ``linear_premise_fact #[hnd, hypInst, phC, plC, prC]
             linData := linData ++ [(premise, fact)]
             newOps := (newOps ++ collectOpaques premise).eraseDups
-    let ctx := ctxL
-    srcOps := (srcOps ++ newOps).eraseDups
+      srcOps := (srcOps ++ newOps).eraseDups
   -- premise instances may mention opaques BEYOND the obligation's (a
   -- max-term match on (CDR X) instantiates the conclusion with
   -- (ACL2-COUNT X)); extend the opaque set so the lift and the
@@ -1172,8 +1171,11 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
   -- pass above)
   let opaques := (opaques0 ++
     ((linData.map (·.1)).flatMap collectOpaques)).eraseDups
+  -- audit F3: the lookups consume ctxL (the loop's pin accumulation) —
+  -- the earlier `let ctx := ctxL` was a DEAD shadow and premise-introduced
+  -- opaques only resolved by luck of the ambient pins
   let pinned ← opaques.mapM fun op => do
-    let some (v, p) := ctx.val? op
+    let some (v, p) := ctxL.val? op
       | throwError "replayDischargeNode: opaque {repr op} has no pinned value \
                     (totality hypothesis missing? frontier)"
     pure (op, v, p)
@@ -1191,7 +1193,7 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
       unless formals.length == args.length do
         throwError "replayDischargeNode: arity mismatch instantiating TP of {fs.name}"
       let instCor := ACL2.Replay.substTerm formals args cor
-      let some (v, conv) := ctx.val? op
+      let some (v, conv) := ctxL.val? op
         | throwError "replayDischargeNode: unpinned TP opaque {repr op}"
       let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
         ++ (args.map reflectSExpr).toArray ++ #[v, conv])
