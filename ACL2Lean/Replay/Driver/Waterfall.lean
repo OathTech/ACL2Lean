@@ -145,6 +145,25 @@ def mkRuleHypType (cfg : ReplayConfig) (spec : RuleSpec) : MetaM Expr := do
       concl
     mkForallFVars #[envV] body
 
+/-- The `linear:<rune>` hypothesis TYPE for a cited ground-zero :LINEAR
+    rule (sorting-absolute 2b): schematic over the ambient env exactly
+    like `mkRuleHypType`'s premise chain, concluding the rule's stored
+    conclusion as `EvTrue` — `∀ env', EvTrue w env' h₁ → … →
+    EvTrue w env' concl`. The stored fields are EMITTED verbatim
+    (`(:GROUND-ZERO-LINEAR-RULES …)`); nothing is normalized. Consumed by
+    `replayDischargeNode` as a DP-obligation premise; discharged
+    Imported-side (the acl2CountExec-class kits) or kept as an honest
+    D6 condition. -/
+def mkLinearHypType (cfg : ReplayConfig) (spec : LinearRuleSpec) :
+    MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let concl := mkAppN (mkConst ``EvTrue)
+      #[cfg.worldExpr, envV, reflectSExpr spec.concl]
+    let body ← spec.hyps.foldrM (fun h acc => do
+      mkArrow (mkAppN (mkConst ``EvTrue)
+        #[cfg.worldExpr, envV, reflectSExpr h]) acc) concl
+    mkForallFVars #[envV] body
+
 /-- The `cong:<thm>` hypothesis TYPE for a congruence-shaped defthm (G2
     rung 2): the WHOLE formula's replayed statement, `∀ env', EvTrue w env' formula` —
     exactly the theorem, no normalization. Consumed by the R-collapse at a

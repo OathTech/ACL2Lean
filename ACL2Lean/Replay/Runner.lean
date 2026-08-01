@@ -129,7 +129,9 @@ def mkBookConfig (dev : Development) (w : World) (wExpr envExpr : Expr)
     ReplayConfig :=
   { worldExpr := wExpr, envExpr := envExpr, worldVal := w,
     gzDefs := dev.groundZeroSnapshotDefs, justs := dev.justifications,
-    fcRules := dev.groundZeroFcRuleSpecs, termReplayed := termReplayed,
+    fcRules := dev.groundZeroFcRuleSpecs,
+    linearRules := dev.groundZeroLinearRuleSpecs,
+    termReplayed := termReplayed,
     gzTps := dev.typePrescriptions.filter fun (n, _) =>
       (w.defs.get? { name := n }).isNone }
 

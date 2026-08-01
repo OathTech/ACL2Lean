@@ -67,6 +67,13 @@ structure ReplayConfig where
       registered Lean lemma against the emitted shape (audit-F2 style) —
       an unlisted or drifted rule hard-fails. -/
   fcRules : List FcRuleSpec := []
+  /-- The development's ground-zero LINEAR rule snapshots
+      (`(:GROUND-ZERO-LINEAR-RULES …)`, sorting-absolute 2b): hyps/concl/
+      max-term verbatim. Consumed by `replayDischargeNode` as DP-obligation
+      premises where simplify's linear arithmetic cites the rune
+      (verdict-only) — instantiated by max-term match against the
+      obligation's opaques, backed by the `linear:` hypothesis class. -/
+  linearRules : List LinearRuleSpec := []
   /-- RECORDED-TERMINATION mirrors (sorting arc 2026-07-28): per defun with
       a replayed admission waterfall, its replayed-statement constant, condition names,
       and root goal clause. Consumed by the totality prover (via the
