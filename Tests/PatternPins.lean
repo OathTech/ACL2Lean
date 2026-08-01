@@ -31,6 +31,8 @@ private def orShapeFlippedLog : String :=
   include_str "../acl2_samples/pattern-tests/p5-or-shape-flipped.proof-log"
 private def orCollapseArithLog : String :=
   include_str "../acl2_samples/pattern-tests/p6-or-collapse-arith.proof-log"
+private def clausifyDetailLog : String :=
+  include_str "../acl2_samples/pattern-tests/p8-clausify-detail.proof-log"
 
 elab "sorting_arc_pattern_pins% " : term => do
   -- (book, log, expected replayed, expected total)
@@ -105,9 +107,25 @@ chain still IFF at the literal root") do
       integrity {res.integrityFails.toList}, got:\n\
       {"\n".intercalate res.lines.toList}\nre-pin truthfully (an integrity \
       failure means the clausify recon REGRESSED)"
+  -- p8-clausify-detail (2e fold-back audit F2): the DETAIL-ATTACHMENT
+  -- coverage pin — the synthetic anchor of bsort *1/4.1.3' (three
+  -- expansions, two detail steps, the expansion they produce). The row
+  -- must land EXACTLY on runCheckedExpand's never-ignore frontier NAMING
+  -- the detailed expansion (EQUAL (CONS B D) (CONS A D)) with BOTH steps:
+  -- a wrong attachment direction names a different term or dies at the
+  -- trailing-steps recon hard-fail; a dropped-detail regression replays
+  -- further (or greens) — every tamper flips this pin. COMPLETION
+  -- CRITERION (MDD 2026-08-01): when the detail-chain replay lands this
+  -- book goes GREEN ROW + NATIVE MIRROR, not a re-pin.
+  let (resP8, _) ← ACL2.Replay.Runner.runBook "p8-clausify-detail"
+    clausifyDetailLog none
+  unless resP8.integrityFails.isEmpty && resP8.lines.any (fun l =>
+      l.startsWith "    CONS-NEQ-DETAIL → FAIL: runCheckedExpand: expansion (EQUAL (CONS B D) (CONS A D)) carries 2 recorded detail step(s)") do
+    throwError "pattern pin p8-clausify-detail: the pinned never-ignore       frontier moved — integrity {resP8.integrityFails.toList}, got:\n      {"\n".intercalate resP8.lines.toList}\nre-pin truthfully (a DIFFERENT       expansion term means the detail ATTACHMENT direction broke; further       progress means the detail-chain replay landed — take this book to a       green row + native mirror, per the MDD completion criterion)"
   logInfo "sorting-arc pattern pins hold (p3-recorded-termination 2/2, \
     p3-conj-mid-literal 1/1 — the mid-literal composer validated; \
-    p4-iff-or-shape at the R-parameterized literal-chain frontier)"
+    p4-iff-or-shape at the R-parameterized literal-chain frontier; \
+    p8-clausify-detail at the never-ignore frontier)"
   return mkConst ``True.intro
 
 -- unlimited at the command like the coverage sweep — the harness enforces

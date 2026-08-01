@@ -1,0 +1,47 @@
+This is SBCL 2.2.9.debian, an implementation of ANSI Common Lisp.
+More information about SBCL is available at <http://www.sbcl.org/>.
+
+SBCL is free software, provided as is, with absolutely no warranty.
+It is mostly in the public domain; some portions are provided under
+BSD-style licenses.  See the CREDITS and COPYING files in the
+distribution for more information.
+
+ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ + ACL2 Version 8.6+ (a development snapshot based on ACL2 Version 8.6) +
+ +   built August 1, 2026  10:22:54.                                    +
+ +   (Git commit hash: c85dcd80b54923f2e089700e4b897059230c2891)        +
+ + Copyright (C) 2026, Regents of the University of Texas.              +
+ + ACL2 comes with ABSOLUTELY NO WARRANTY.  This is free software and   +
+ + you are welcome to redistribute it under certain conditions.  For    +
+ + details, see the LICENSE file distributed with ACL2.                 +
+ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Project-dir-alist:
+((:SYSTEM . "/home/dev/projects/ACL2Lean/acl2/books/")).
+Type :help for help.
+Type (quit) to quit completely out of ACL2.
+
+ACL2 !>
+(:BEGIN-PROOF-LOG)
+
+(:DEFTHM CONS-NEQ-DETAIL :FORMULA (IMPLIES (NOT (EQUAL A B)) (NOT (EQUAL (LIST* A B D) (LIST* B A D)))) :SOURCE :LOCAL)
+
+(:STEP :CLAUSEID "Goal" :PROCESSOR PREPROCESS-CLAUSE :RESULT :PROVED :RUNES ((:DEFINITION NOT) (:REWRITE CONS-EQUAL)) :INPUTCLAUSE ((IMPLIES (NOT (EQUAL A B)) (NOT (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D)))))) :REWRITES ((:REWRITE-STEP :RUNE (:DEFINITION IMPLIES) :ORIGIN FINAL-IMPLIES/EXPAND :EQUIV EQUAL :LHS (IMPLIES (NOT (EQUAL A B)) (NOT (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D))))) :RHS (IF (NOT (EQUAL A B)) (IF (NOT (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D)))) 'T 'NIL) 'T)) (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL) :ORIGIN PREPROCESS/IF-IFF :EQUIV IFF :LHS (IF (NOT (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D)))) 'T 'NIL) :RHS (NOT (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D))))) (:CLAUSIFY-INPUT :ORIGIN CLAUSIFY/INPUT :EQUIV EQUAL :TERM (IF (NOT (EQUAL A B)) (NOT (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D)))) 'T)) (:CLAUSIFY-NEG :ORIGIN CLAUSIFY/NEG :EQUIV EQUAL :CLAUSE ((NOT (IF (NOT (EQUAL A B)) (NOT (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D)))) 'T)))) (:CLAUSIFY-EXPAND :ORIGIN CLAUSIFY/EXPAND :EQUIV EQUAL :BOOL NIL :FROM (NOT (EQUAL A B)) :TO (IF (EQUAL A B) 'NIL 'T) :RUNES ((:DEFINITION NOT))) (:CLAUSIFY-EXPAND :ORIGIN CLAUSIFY/EXPAND :EQUIV EQUAL :BOOL T :FROM (NOT (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D)))) :TO (IF (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D))) 'NIL 'T) :RUNES NIL) (:CLAUSIFY-EXPAND :ORIGIN CLAUSIFY/EXPAND :EQUIV EQUAL :BOOL NIL :FROM (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D))) :TO (IF (EQUAL A B) (EQUAL (CONS B D) (CONS A D)) 'NIL) :RUNES ((:REWRITE CONS-EQUAL))) (:REWRITE-STEP :RUNE (:EQUAL-SELF NIL) :ORIGIN PREPROCESS/EQUAL-SELF :EQUIV EQUAL :LHS (EQUAL D D) :RHS 'T) (:REWRITE-STEP :RUNE (:IF-SIMPLIFICATION NIL) :ORIGIN PREPROCESS/IF-IFF :EQUIV IFF :LHS (IF (EQUAL B A) 'T 'NIL) :RHS (EQUAL B A)) (:CLAUSIFY-EXPAND :ORIGIN CLAUSIFY/EXPAND :EQUIV EQUAL :BOOL NIL :FROM (EQUAL (CONS B D) (CONS A D)) :TO (EQUAL B A) :RUNES NIL) (:CLAUSIFY-SPLIT :ORIGIN CLAUSIFY/SPLIT :EQUIV EQUAL :LIT (IF (NOT (EQUAL A B)) (NOT (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D)))) 'T) :CLAUSE ('T)) (:CLAUSIFY-OUT :ORIGIN CLAUSIFY/OUT :EQUIV EQUAL :CLAUSES NIL)))
+
+(:QED)
+
+(:RULES (((:REWRITE CONS-NEQ-DETAIL) ((NOT (EQUAL A B))) EQUAL (EQUAL (CONS A (CONS B D)) (CONS B (CONS A D))) 'NIL NIL)))
+
+(:DEFUN IMPLIES :FORMALS (P Q) :BODY (IF P (IF Q 'T 'NIL) 'T) :SOURCE :GROUND-ZERO)
+
+(:TYPE-PRESCRIPTION IMPLIES :COROLLARY (IF (EQUAL (IMPLIES P Q) 'T) 'T (EQUAL (IMPLIES P Q) 'NIL)) :BASICTS 384 :LEAVES (('T 256) ('NIL 128) ('T 256)))
+
+(:DEFUN NOT :FORMALS (P) :BODY (IF P 'NIL 'T) :SOURCE :GROUND-ZERO)
+
+(:TYPE-PRESCRIPTION NOT :COROLLARY (IF (EQUAL (NOT P) 'T) 'T (EQUAL (NOT P) 'NIL)) :BASICTS 384 :LEAVES (('NIL 128) ('T 256)))
+
+(:DEFUN IFF :FORMALS (P Q) :BODY (IF P (IF Q 'T 'NIL) (IF Q 'NIL 'T)) :SOURCE :GROUND-ZERO)
+
+(:TYPE-PRESCRIPTION IFF :COROLLARY (IF (EQUAL (IFF P Q) 'T) 'T (EQUAL (IFF P Q) 'NIL)) :BASICTS 384 :LEAVES (('T 256) ('NIL 128) ('NIL 128) ('T 256)))
+
+(:GROUND-ZERO-RULES (((:REWRITE CONS-EQUAL) NIL EQUAL (EQUAL (CONS X1 Y1) (CONS X2 Y2)) (IF (EQUAL X1 X2) (EQUAL Y1 Y2) 'NIL) NIL)))

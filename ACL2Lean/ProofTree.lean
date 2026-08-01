@@ -413,7 +413,18 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
       : List TraceEvent → Except String (List ClausifyExpansion × List TraceEvent)
     | .clausifyExpand fr to pos runes :: rest =>
         takeExpands (acc ++ [⟨fr, to, pos, runes, pend⟩]) [] rest
-    | ev@(.rewriteStep ..) :: rest => takeExpands acc (pend ++ [ev]) rest
+    | ev@(.rewriteStep st) :: rest =>
+        -- origin whitelist (fold-back audit F4): only expand-abbreviations'
+        -- own emitters may be absorbed as expansion detail — anything else
+        -- interleaved here is unexplained and hard-fails AT RECON (the
+        -- pre-2e behavior for every non-step event)
+        if st.origin.startsWith "preprocess/" ||
+            st.origin == "abbreviation-expansion" then
+          takeExpands acc (pend ++ [ev]) rest
+        else
+          throw s!"collectClausify: rewrite step with origin {st.origin} \
+            inside a clausify region is not an expand-abbreviations detail \
+            step (unexplained interleaving)"
     | rest =>
         match pend with
         | [] => pure (acc, rest)
@@ -433,7 +444,14 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
       : List TraceEvent → Except String (ClausifyInfo × List TraceEvent)
     | .clausifyExpand fr to pos runes :: rest =>
         go acc (sx ++ [(acc.length, ⟨fr, to, pos, runes, pend⟩)]) [] rest
-    | ev@(.rewriteStep ..) :: rest => go acc sx (pend ++ [ev]) rest
+    | ev@(.rewriteStep st) :: rest =>
+        if st.origin.startsWith "preprocess/" ||
+            st.origin == "abbreviation-expansion" then
+          go acc sx (pend ++ [ev]) rest
+        else
+          throw s!"collectClausify: rewrite step with origin {st.origin} \
+            inside a clausify region is not an expand-abbreviations detail \
+            step (unexplained interleaving)"
     | .clausifySplit lit cl :: rest =>
         match pend with
         | [] => go (acc ++ [(lit, cl)]) sx [] rest

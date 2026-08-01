@@ -1470,6 +1470,15 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- trivially-true `(quote t)` with an EMPTY output set, certifies that the
   -- pass changed nothing the replay must mirror.
   let isNoopClausify : ClausifyInfo → Bool := fun i =>
+    -- DETAIL-emptiness (fold-back audit F5b, refined): a noop-SHAPED record
+    -- whose expansions carry recorded DETAIL steps must NOT be filtered —
+    -- filtering would take the detail out of the pipeline entirely,
+    -- bypassing runCheckedExpand's never-ignore guard. Plain registry
+    -- expansions on a net-zero record ARE still filtered: the walk has no
+    -- net effect on the output clause (the long-validated pre-2e behavior —
+    -- the auditor's blanket expansion-emptiness variant regressed 34 sweep
+    -- rows, every trivial clausify carrying a NOT/ENDP registry expansion).
+    (i.negExpands ++ i.splitExpands.map (·.2)).all (·.detail.isEmpty) &&
     match i.out with
     | [cl] => disjoinTerm cl == i.input
     | [] => i.input == quoteT
@@ -1535,6 +1544,20 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- output clause (the pushed/pool-root child) back through the if-recursion
   match clausifyInfos with
   | [info] =>
+    -- never-silently-skip (fold-back audit F12): a :USE-HINT payload on a
+    -- clausify-bearing node was DISCARDED here (useHints is consumed only
+    -- by the no-clausify arm), and the constraint chain then walked the
+    -- GOAL — failing only incidentally on an lhs mismatch
+    -- (BSORT-IS-ISORT). Hard-fail precisely: the composition (constraint
+    -- chain on CONSTRAINT-CL, clausify on the application side) is the R7
+    -- work.
+    let useHs := (cn.steps.flatMap (·.items)).filterMap fun
+      | .useHint h c a => some (h, c, a) | _ => none
+    unless useHs.isEmpty do
+      throwError "replayClause: a :USE-HINT payload alongside an effective \
+          clausify record at {cn.idStr} — the useHint/clausify composition \
+          awaits functional-instantiation/:use soundness (R7 frontier; the \
+          constraint chain must walk CONSTRAINT-CL, not the goal)"
     -- literal items on the same (merged) node: from a PUSH step's
     -- per-literal scan they are identity displays only; from a merged
     -- SAME-CLAUSE-ID SIMPLIFY step they are the REAL walk of a clausify

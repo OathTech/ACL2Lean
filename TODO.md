@@ -45,8 +45,12 @@ _Last updated: 2026-08-01._
 > collectClausify accumulates pending steps per phase and hard-fails
 > on trailing steps with no owning marker; runCheckedExpand hard-fails
 > (never ignores) an expansion carrying detail — the detail-chain
-> REPLAY is the remaining 2e follow-up that actually greens
-> BSORT-IS-ISORT. bsort's dump-proof-tree now reconstructs end-to-end;
+> REPLAY is the remaining 2e follow-up (it gates the BSORT-BOOK rows'
+> clausify regions; BSORT-IS-ISORT itself is R7-gated — the fold-back
+> audit F10 confirmed its clausify block has NO expands/detail, and
+> its wall is the useHint/clausify composition, now a precise R7
+> hard-fail per F12). bsort's dump-proof-tree now reconstructs
+> end-to-end;
 > p4-iff-or-shape re-pinned truthfully to its next frontier (or-shape
 > iff chain still IFF at literal root — the R-parameterized
 > literal-chain class, the book's original target class).**

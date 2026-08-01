@@ -81,9 +81,12 @@ def corpus : List (String × String) :=
    -- J5: ordered-perms reconstructs (its revert wall fell).
    -- J6: the type-set-derived equivalence source class lets msort
    -- reconstruct; its rows sit on named decrease-fragment frontiers.
-   -- bsort cleared the equivalence-source wall but hits a clausify-stream
-   -- shape RECON wall (equal-self step inside a clausify record region) —
-   -- it enters the corpus when that frontier falls.
+   -- 2e (bsort-recon): the clausify-stream RECON wall fell — expand-and-or
+   -- detail steps now attach to their expansion markers — so bsort enters
+   -- the corpus (fold-back audit F3). Its rows sit on named replay
+   -- frontiers (μ-registry, detail-chain replay); the corpus entry is what
+   -- exercises the detail recon + the never-ignore guard in-sweep (F2).
+   ("sorting/bsort",           include_str "../acl2_samples/sorting/bsort.proof-log"),
    ("sorting/ordered-perms",   include_str "../acl2_samples/sorting/ordered-perms.proof-log"),
    ("sorting/msort",           include_str "../acl2_samples/sorting/msort.proof-log"),
    -- J7: the dotted-rune parse (multi-rule events, (:REWRITE FOO . k)) lets

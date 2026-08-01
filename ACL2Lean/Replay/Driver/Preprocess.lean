@@ -645,6 +645,12 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
     (`clausifyAllFalse_sound` — the conjunction lemma). -/
 def bridgeClausifyMulti (cfg : ReplayConfig) (ctx : ReplayCtx)
     (info : ClausifyInfo) (pOuts : List Expr) : MetaM Expr := do
+  -- never-ignore (fold-back audit F5a): the multi path has NO negExpands
+  -- consumer — phase-1 expansions here would be silently dropped (their
+  -- only backstop the incidental neg-clause recompute below). Hard-fail
+  -- until the multi path consumes them.
+  unless info.negExpands.isEmpty do
+    throwError "clausify multi-bridge: {info.negExpands.length} phase-1         expansion(s) on a multi-clause clausify — the multi path does not         consume negExpands (frontier; never dropped)"
   let negRecomputed := clausifyPure info.input false
   unless negRecomputed == info.negClause do
     throwError "clausify multi-bridge: recomputed neg-clause                 {repr negRecomputed} ≠ recorded {repr info.negClause}"

@@ -789,9 +789,11 @@ Authored to VALIDATE the arc's new capability decorrelated from qsort
   clausify-region RECON wall (the bsort wall, now with if-iff steps):
   ACL2's clausify-input runs a SECOND expand-abbreviations whose steps
   (here `preprocess/if-iff`, `expand-abbreviations/nonrec-body`) emit
-  BETWEEN the clausify events, and `collectClausify` expects a strict
-  stream (RECON-FAIL, PatternPins-gated as a truthful tripwire — flips
-  when the clausify-region wall falls, which also unblocks bsort).
+  BETWEEN the clausify events. WALL FELL (2e bsort-recon, 2026-08-01):
+  collectClausify attaches the detail steps to their expansion markers;
+  re-pinned at its next truthful frontier — the literal chain ends
+  still-IFF at the literal root (the R-parameterized literal-chain
+  class, the book's original target, now actually reachable).
   Audit note (2026-07-30): its six IFF-combined records all sit BELOW the
   literal root — even past the recon wall this book would hit the
   bridge's below-root frontier, not exercise the bridge.
@@ -804,6 +806,20 @@ Authored to VALIDATE the arc's new capability decorrelated from qsort
   the IFF PREPROCESS LANE 1/1 unconditional, not the bridge. Pinned in
   PatternPins.
 
+- `p8-clausify-detail` (sorting-absolute arc 2e, 2026-08-01) — the
+  clausify-region DETAIL-STEP class: wild anchor bsort Subgoal *1/4.1.3'
+  (clausify-input's expand-and-or fires CONS-EQUAL on a NEGATED
+  equal-cons-cons clause literal; its internal expand-abbreviations pass
+  emits the cleanup steps — equal-self on the shared-component residue,
+  if-iff on the (IF c 'T 'NIL) shell — BEFORE the :CLAUSIFY-EXPAND
+  marker). Axes = the negated crossed equal-cons conclusion (so no
+  branch-substitution closure), goal-level clausify (smallest end-to-end
+  path to the expansion consumer). PatternPins-gated at runCheckedExpand's
+  never-ignore frontier NAMING the detailed expansion — the coverage pin
+  for the detail ATTACHMENT direction (2e fold-back audit F2: a
+  wrong-attachment tamper ran the suite green before this book).
+  COMPLETION CRITERION (MDD): green row + native mirror when the
+  detail-chain replay lands, not a re-pin.
 - `p6-or-collapse-arith` (equiv-lane arc, 2026-07-29) — the or-collapse
   bridge's second covering instance: the p3 skeleton with the RELATION
   axis varied (arithmetic `<=`, whose `(not (< b a))` macro-expansion
