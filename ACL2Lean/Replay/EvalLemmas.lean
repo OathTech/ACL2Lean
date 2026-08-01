@@ -5143,6 +5143,36 @@ theorem linear_premise_fact {w : World} {env : Env} {h l r vh vl vr : SExpr}
     · exact ht
     · exact absurd hn hne2
 
+/-- The RULE-content premise fact (2c): from a boolean-strengthened
+    stored-rule hypothesis instance (`EvTrue h → eval l ≐ eval 'T`) and
+    the two terms' pinned values, the DP-obligation premise
+    `(IF h (EQUAL l 'T) 'T)`'s value is `t` — the `linear_premise_fact`
+    twin for `rule:` content (lhs ⇒ 'T shapes: TRUE-LISTP-RM /
+    ORDEREDP-RM). -/
+theorem rule_premise_fact {w : World} {env : Env} {h l vh vl : SExpr}
+    (hyp : EvTrue w env h → ∃ N, ∀ f ≥ N,
+      evalOpt f w env l = evalOpt f w env
+        (.cons (.atom (.symbol { name := "QUOTE" }))
+          (.cons SExpr.t .nil)))
+    (ph : ∃ N, ∀ f ≥ N, evalOpt f w env h = some vh)
+    (pl : ∃ N, ∀ f ≥ N, evalOpt f w env l = some vl) :
+    cond (Logic.toBool vh) (Logic.equal vl SExpr.t) SExpr.t = SExpr.t := by
+  cases hb : Logic.toBool vh with
+  | false => rfl
+  | true =>
+    have hne : vh ≠ SExpr.nil := fun hnil => by
+      rw [hnil] at hb; exact absurd hb (by decide)
+    obtain ⟨N1, hEq⟩ := hyp (evtrue_of_conv_ne_nil ph hne)
+    obtain ⟨N2, hpl⟩ := pl
+    obtain ⟨N3, hqt⟩ := re_val_quote w env SExpr.t
+    have hvl : vl = SExpr.t := by
+      have h1 := hpl (N1 + N2 + N3) (by omega)
+      have h2 := hEq (N1 + N2 + N3) (by omega)
+      have h3 := hqt (N1 + N2 + N3) (by omega)
+      exact Option.some.inj ((h1.symm.trans h2).trans h3)
+    rw [hvl]
+    rfl
+
 /-- The `EvTrue` spine combinator (D9): VALUE-characterized convergence of the
     test and truth of the branch selected by EITHER case of `cv` (both
     implications supplied; the proof case-splits on `cv = nil`). One lemma

@@ -234,7 +234,15 @@ _Last updated: 2026-08-01._
 > mirror as a dp premise, the dischargeRuleHyp pattern
 > premise-shaped); (4) *1/6 — ORDEREDP-RM's content, same route.
 > Implementation order: (3)/(4) first (the same-book premise row —
-> one mechanism, two leaves), then (1), then (2).**
+> one mechanism, two leaves), then (1), then (2).
+> INCREMENT 1 LANDED (sub-arc mdd/dp-premises): rule_premise_fact +
+> the RULE-content premise pass in replayDischargeNode (boolean-
+> strengthened equal/'T one-hyp stored rules; lhs as the trigger; the
+> substN scaffold's THIRD copy — extraction queued). ORDERED-PERMS
+> 4 → 3 ASSUMED:dp-fact. NEXT: identify which leaf flipped and why
+> the other rule-matched leaf didn't (probe the failing obligations'
+> proveDpFact residue); then the equivrefl (Subgoal 2) and defn-unfold
+> (*1/3) premise classes.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
 > call — WIDENED per fold-back audit H2, ratify the DELIVERED scope:
