@@ -267,7 +267,11 @@ _Last updated: 2026-08-01._
 > bridge can move OTHER rows — review row by row), then the
 > dp-premises comprehensive audit + fold-back.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
-> these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
+> these): (1) the R7 design note (2d) — DRAFTED:
+> docs/notes/2026-08-01_r7-use-functional-instantiation-design.md
+> (recommendation: world-parametric constrained theorems + alias-world
+> commutation lemma; R7a plain-:use split off, R6-independent; four
+> ratification questions at the bottom of the note); (2) the 2b carve-out-boundary
 > call — WIDENED per fold-back audit H2, ratify the DELIVERED scope:
 > BOTH new spine arms (the LINEAR-EQUALITIES CASE SPLIT and the
 > EQUATION-ADD close) close their ≠-case by verdict-only linear
