@@ -510,7 +510,98 @@ partial def corrTerm (ctx : CorrCtx) (path : String := "") :
           throwError "derive_exec% corr: unregistered head {hd.name}"
   | t => throwError "derive_exec% corr: unsupported body shape {repr t}"
 
+/-! ## Argument strictness + TP/totality discharger support (1c)
+
+Moved (publicized) from `Imported/Sorting.lean`'s private copies so the
+generated dischargers can cite them; `conv_args2_of_conv_app` stays in
+EvalLemmas. -/
+
+theorem evalOpt_app1_args (f : Nat) (w : World) (env : Env)
+    (s : Symbol) (a1 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : evalOpt (f + 1) w env
+      (.cons (.atom (.symbol s)) (.cons a1 .nil)) = some v) :
+    ∃ u, evalOpt f w env a1 = some u := by
+  rw [show evalOpt (f + 1) w env
+        (.cons (.atom (.symbol s)) (.cons a1 .nil))
+        = evalOptStep (evalOpt f) w env
+            (.cons (.atom (.symbol s)) (.cons a1 .nil)) from rfl] at h
+  unfold evalOptStep at h
+  simp only [Symbol.isNamed, SExpr.toList?] at h
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
+             ↓reduceIte] at h
+  cases hu1 : evalOpt f w env a1 with
+  | none => simp [List.mapM, List.mapM.loop, hu1] at h
+  | some u1 => exact ⟨u1, rfl⟩
+
+theorem evalOpt_app3_args (f : Nat) (w : World) (env : Env)
+    (s : Symbol) (a1 a2 a3 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : evalOpt (f + 1) w env
+      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+      = some v) :
+    (∃ u, evalOpt f w env a1 = some u) ∧
+    (∃ u, evalOpt f w env a2 = some u) ∧
+    (∃ u, evalOpt f w env a3 = some u) := by
+  rw [show evalOpt (f + 1) w env
+        (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+        = evalOptStep (evalOpt f) w env
+            (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+        from rfl] at h
+  unfold evalOptStep at h
+  simp only [Symbol.isNamed, SExpr.toList?] at h
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
+             ↓reduceIte] at h
+  cases hu1 : evalOpt f w env a1 with
+  | none => simp [List.mapM, List.mapM.loop, hu1] at h
+  | some u1 =>
+    cases hu2 : evalOpt f w env a2 with
+    | none => simp [List.mapM, List.mapM.loop, hu1, hu2] at h
+    | some u2 =>
+      cases hu3 : evalOpt f w env a3 with
+      | none => simp [List.mapM, List.mapM.loop, hu1, hu2, hu3] at h
+      | some u3 => exact ⟨⟨u1, rfl⟩, ⟨u2, rfl⟩, ⟨u3, rfl⟩⟩
+
+theorem conv_args1_of_conv_app (w : World) (env : Env) (s : Symbol)
+    (a1 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol s)) (.cons a1 .nil)) = some v) :
+    ∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u := by
+  obtain ⟨N, hN⟩ := h
+  exact ACL2.Replay.conv_fix ⟨N, fun f hf =>
+    evalOpt_app1_args f w env s a1 v h_ns (hN (f + 1) (by omega))⟩
+
+theorem conv_args3_of_conv_app (w : World) (env : Env) (s : Symbol)
+    (a1 a2 a3 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+      = some v) :
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u) ∧
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a2 = some u) ∧
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a3 = some u) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨ACL2.Replay.conv_fix ⟨N, fun f hf => ?_⟩,
+          ACL2.Replay.conv_fix ⟨N, fun f hf => ?_⟩,
+          ACL2.Replay.conv_fix ⟨N, fun f hf => ?_⟩⟩
+  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
+      (hN (f + 1) (by omega))).1
+  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
+      (hN (f + 1) (by omega))).2.1
+  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
+      (hN (f + 1) (by omega))).2.2
+
 /-! ## The commands -/
+
 
 /-- Everything `derive_exec%` computes once per kit. -/
 structure KitInput where
@@ -865,6 +956,197 @@ syntax (name := deriveExecCmd)
         symC := symName, formalCs := formalNames.toList,
         bodyC := bodyName, defnHyps := defnAcls,
         builtinHyps := builtinAcls }
+
+/-! ## Discharger generation (1c)
+
+`dis_<fn>_total` and the `dis_<fn>_tp` WRAPPER are mechanical given the
+registered kit (docs/notes/2026-07-31_mirror-industrialization.md §2):
+totality = corr + one witness triple; tp = argument strictness
+(`conv_argsN_of_conv_app`) + corr + `val_unique`, then a HUMAN ending
+(the value-shape argument — the fidelity-bearing part). Contract for the
+tp ending: the argument-value binders are named `u0 … u(n-1)` and the
+goal is the conclusion with `v` rewritten to `<fn>Exec u0 …`. -/
+
+/-- Rebuild a registered kit's hypothesis telescope (binders + binder
+    idents for application) from the registry. Every defn-hyp name must
+    itself be registered with statement metadata. -/
+def telescopeOfKit (kit : KitInfo) (wId : Ident) :
+    CommandElabM (Array (TSyntax ``Lean.Parser.Term.bracketedBinder)
+      × Array Ident) := do
+  let env ← getEnv
+  let symTy : Term := mkCIdent ``ACL2.Symbol
+  let mut binders := #[]
+  let mut hypIds := #[]
+  for a in kit.defnHyps do
+    let some k := findKit env a
+      | throwError "discharger generation: defn hyp {a} unregistered"
+    if k.symC == .anonymous then
+      throwError "discharger generation: {a} registered without statement \
+          metadata"
+    let hId := mkIdent (Name.mkSimple s!"h_{hypSuffix a}")
+    let fIds := (k.formalCs.map mkCIdent).toArray
+    binders := binders.push <| ← `(bracketedBinderF| ($hId:ident :
+        ($wId).defs.get? $(mkCIdent k.symC)
+          = some ([$[$fIds],*], $(mkCIdent k.bodyC))))
+    hypIds := hypIds.push hId
+  for b in kit.builtinHyps do
+    let hId := mkIdent (Name.mkSimple s!"h_no_{hypSuffix b}")
+    let bLit := Syntax.mkStrLit b
+    binders := binders.push <| ← `(bracketedBinderF| ($hId:ident :
+        ($wId).defs.get? ({ name := $bLit } : $symTy) = none))
+    hypIds := hypIds.push hId
+  ensureDistinct "hypothesis binder" hypIds
+  return (binders, hypIds)
+
+/-- Shared discharger scaffolding: kit lookup + arg idents + the
+    application term. -/
+def dischargerParts (aclName : String) (wId : Ident) :
+    CommandElabM (KitInfo
+      × Array (TSyntax ``Lean.Parser.Term.bracketedBinder) × Array Ident
+      × Array Ident × Term) := do
+  let some kit := findKit (← getEnv) aclName
+    | throwError "discharger generation: {aclName} is not a registered kit"
+  if kit.corrName == .anonymous then
+    throwError "discharger generation: {aclName} has no registered corr"
+  let (binders, hypIds) ← telescopeOfKit kit wId
+  let aIds := (Array.range kit.arity).map fun i =>
+    mkIdent (Name.mkSimple s!"a{i}")
+  let nilT : Term := mkCIdent ``SExpr.nil
+  let appArgs ← aIds.foldrM (init := nilT)
+    fun a acc => `($(mkCIdent ``SExpr.cons) $a $acc)
+  let appT ← `($(mkCIdent ``SExpr.cons)
+      ($(mkCIdent ``SExpr.atom) ($(mkCIdent ``Atom.symbol)
+        $(mkCIdent kit.symC))) $appArgs)
+  return (kit, binders, hypIds, aIds, appT)
+
+syntax (name := deriveExecTotalCmd)
+  (docComment)? "derive_exec_total% " ident " for " str : command
+
+/-- `derive_exec_total% <name> for "<ACL2-NAME>"` — the driver-shape
+    totality discharger from the registered kit's corr: converging
+    arguments make the application converge (witness: the exec value). -/
+@[command_elab deriveExecTotalCmd] def elabDeriveExecTotal : CommandElab :=
+  fun stx => do
+    let doc? : Option (TSyntax ``Lean.Parser.Command.docComment) :=
+      if stx[0].getNumArgs > 0 then some ⟨stx[0][0]⟩ else none
+    let name : Ident := ⟨stx[2]⟩
+    let some acl := stx[4].isStrLit?
+      | throwError "derive_exec_total%: expected a string literal"
+    let wId := mkIdent `w
+    let (kit, binders, hypIds, aIds, appT) ← dischargerParts acl wId
+    let envId := mkIdent `env'
+    let sexprTy : Term := mkCIdent ``ACL2.SExpr
+    let evalT : Term := mkCIdent ``ACL2.evalOpt
+    let fId := mkIdent `f
+    let nId := mkIdent `N
+    let vId := mkIdent `v
+    let convOf (t : Term) : CommandElabM Term :=
+      `(∃ $nId:ident, ∃ $vId:ident, ∀ $fId:ident ≥ $nId,
+          $evalT $fId $wId $envId $t = some $vId)
+    let concl ← convOf appT
+    let stmtCore ← aIds.foldrM (init := concl) fun a acc => do
+      `($(← convOf a) → $acc)
+    let stmt ← `(∀ ($envId:ident : $(mkCIdent ``ACL2.Env))
+        ($[$aIds:ident]* : $sexprTy), $stmtCore)
+    -- intro patterns ⟨Ni, vi, hi⟩ per argument
+    let triples ← (Array.range kit.arity).mapM fun i => do
+      let n := mkIdent (Name.mkSimple s!"N{i}")
+      let v := mkIdent (Name.mkSimple s!"v{i}")
+      let h := mkIdent (Name.mkSimple s!"h{i}")
+      pure (n, v, h)
+    let introPats : Array (TSyntax `term) ← triples.mapM
+      fun (n, v, h) => `(⟨$n, $v, $h⟩)
+    let corrArgs : Array Term :=
+      #[(wId : Term)] ++ hypIds.map (fun i => (i : Term))
+      ++ #[(envId : Term)] ++ aIds.map (fun i => (i : Term))
+      ++ triples.map (fun (_, v, _) => (v : Term))
+    let corrConvs ← triples.mapM fun (n, _, h) => `(⟨$n, $h⟩)
+    let corrApp := Syntax.mkApp (mkCIdent kit.corrName)
+      (corrArgs ++ corrConvs)
+    let execApp := Syntax.mkApp (mkCIdent kit.execName)
+      (triples.map fun (_, v, _) => (v : Term))
+    let hId := mkIdent `h
+    let proof ← `(by
+        intro $envId:ident $[$aIds:ident]* $[$introPats:term]*
+        obtain ⟨$nId, $hId⟩ := $corrApp
+        exact ⟨$nId, $execApp, $hId⟩)
+    let thm ← `($[$doc?:docComment]? theorem $name
+        ($wId:ident : $(mkCIdent ``ACL2.World)) $binders* : $stmt := $proof)
+    elabCommand thm
+
+syntax (name := deriveExecTpCmd)
+  (docComment)? "derive_exec_tp% " ident " for " str
+  " (" ident " => " term ")" &" ending " tacticSeq : command
+
+/-- `derive_exec_tp% <name> for "<ACL2-NAME>" (v => <conclusion>) ending
+    <tactics>` — the TP-corollary discharger wrapper: argument strictness
+    recovers the argument values `u0 … u(n-1)`, the corr pins the
+    application's value to `<fn>Exec u0 …`, `val_unique` rewrites the
+    conclusion to it, and the ENDING (human — the value-shape argument)
+    closes the goal. -/
+@[command_elab deriveExecTpCmd] def elabDeriveExecTp : CommandElab :=
+  fun stx => do
+    let doc? : Option (TSyntax ``Lean.Parser.Command.docComment) :=
+      if stx[0].getNumArgs > 0 then some ⟨stx[0][0]⟩ else none
+    let name : Ident := ⟨stx[2]⟩
+    let some acl := stx[4].isStrLit?
+      | throwError "derive_exec_tp%: expected a string literal"
+    let vBind : Ident := ⟨stx[6]⟩
+    let concl : Term := ⟨stx[8]⟩
+    let ending : TSyntax ``Lean.Parser.Tactic.tacticSeq := ⟨stx[11]⟩
+    let wId := mkIdent `w
+    let (kit, binders, hypIds, aIds, appT) ← dischargerParts acl wId
+    let envId := mkIdent `e'
+    let sexprTy : Term := mkCIdent ``ACL2.SExpr
+    let evalT : Term := mkCIdent ``ACL2.evalOpt
+    let fId := mkIdent `f
+    let nId := mkIdent `N
+    let hId := mkIdent `h
+    let hypT ← `(∃ $nId:ident, ∀ $fId:ident ≥ $nId,
+        $evalT $fId $wId $envId $appT = some $vBind)
+    -- strictness obtain pattern + corr application over u0…
+    let uTriples ← (Array.range kit.arity).mapM fun i => do
+      pure (mkIdent (Name.mkSimple s!"N{i}"),
+            mkIdent (Name.mkSimple s!"u{i}"),
+            mkIdent (Name.mkSimple s!"h{i}"))
+    let uPats : Array (TSyntax `rcasesPat) ← uTriples.mapM
+      fun (n, u, h) => `(rcasesPat| ⟨$n, $u, $h⟩)
+    let obtainPat ← match kit.arity with
+      | 1 => pure uPats[0]!
+      | 2 => `(rcasesPat| ⟨$(uPats[0]!), $(uPats[1]!)⟩)
+      | 3 => `(rcasesPat| ⟨$(uPats[0]!), $(uPats[1]!), $(uPats[2]!)⟩)
+      | n => throwError "derive_exec_tp%: arity {n} beyond \
+          conv_args3_of_conv_app (frontier)"
+    let convArgsLemma := match kit.arity with
+      | 1 => ``conv_args1_of_conv_app
+      | 3 => ``conv_args3_of_conv_app
+      | _ => ``conv_args2_of_conv_app
+    let nsP ← `((by decide))
+    let strictApp := Syntax.mkApp (mkCIdent convArgsLemma)
+      (#[(wId : Term), (envId : Term), (mkCIdent kit.symC : Term)]
+        ++ aIds.map (fun i => (i : Term))
+        ++ #[(vBind : Term), nsP, (hId : Term)])
+    let corrArgs : Array Term :=
+      #[(wId : Term)] ++ hypIds.map (fun i => (i : Term))
+      ++ #[(envId : Term)] ++ aIds.map (fun i => (i : Term))
+      ++ uTriples.map (fun (_, u, _) => (u : Term))
+    let corrConvs ← uTriples.mapM fun (n, _, h) => `(⟨$n, $h⟩)
+    let corrApp := Syntax.mkApp (mkCIdent kit.corrName)
+      (corrArgs ++ corrConvs)
+    let happId := mkIdent `happ
+    let vuApp := Syntax.mkApp (mkCIdent ``val_unique)
+      #[(hId : Term), (happId : Term)]
+    let proof ← `(by
+        obtain $obtainPat:rcasesPat := $strictApp
+        have $happId:ident := $corrApp
+        rw [$vuApp:term]
+        ($ending))
+    let thm ← `($[$doc?:docComment]? theorem $name
+        ($wId:ident : $(mkCIdent ``ACL2.World)) $binders*
+        ($envId:ident : $(mkCIdent ``ACL2.Env))
+        ($[$aIds:ident]* $vBind:ident : $sexprTy)
+        ($hId:ident : $hypT) : $concl := $proof)
+    elabCommand thm
 
 syntax (name := registerExecKitCmd)
   "register_exec_kit% " str " => " ident &" arity " num : command

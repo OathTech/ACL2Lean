@@ -13,7 +13,7 @@ entries. The `memb`/`rm`/`perm` simulations are REUSED from
 (same formals, same bodies; the `by decide` world facts at each
 log-derived world enforce this at build time). -/
 
-open ACL2 ACL2.Replay ACL2.Lifting ACL2.Worlds.Perm
+open ACL2 ACL2.Replay ACL2.Lifting ACL2.Worlds.Perm ACL2.ExecGen
 
 namespace ACL2.Worlds.Sorting
 
@@ -384,25 +384,11 @@ theorem insertExec_consp (e x : SExpr) :
   · split <;> rfl
   · rfl
 
-/-- `tp:INSERT`, world-parametric — the driver-shape TP hypothesis:
-    any value `(insert a0 a1)` converges to satisfies insert's emitted
-    `consp` TP corollary. -/
-theorem dis_insert_tp (w : World)
-    (h_insert : w.defs.get? insert_sym = some ([eS, xS], insertBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
-    (e' : Env) (a0 a1 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (insertT a0 a1) = some v) :
-    Logic.consp v = SExpr.t := by
-  obtain ⟨⟨N0, u0, h0⟩, ⟨N1, u1, h1⟩⟩ :=
-    conv_args2_of_conv_app w e' { name := "INSERT" } a0 a1 v (by decide) h
-  have happ := insert_exec_corr w h_insert h_no_consp h_no_car h_no_cdr
-    h_no_cons h_no_lexorder e' a0 a1 u0 u1 ⟨N0, h0⟩ ⟨N1, h1⟩
-  rw [val_unique h happ]
-  exact insertExec_consp u0 u1
+/-- `tp:INSERT` — the emitted `(CONSP (INSERT E X))` corollary; wrapper
+    GENERATED (1c), value-shape ending human. -/
+derive_exec_tp% dis_insert_tp for "INSERT"
+  (v => Logic.consp v = SExpr.t)
+  ending exact insertExec_consp u0 u1
 
 /-! ## The ORDEREDP-ISORT assembly -/
 
@@ -1014,29 +1000,17 @@ theorem howManyExec_nat (e x : SExpr) :
   | case2 x _ _ ih => exact ih
   | case3 x _ => exact ⟨0, rfl⟩
 
-/-- `tp:HOW-MANY`, world-parametric — the emitted non-negative-integer TP
-    corollary. -/
-theorem dis_how_many_tp (w : World)
-    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (e' : Env) (a0 a1 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (howManyT a0 a1) = some v) :
-    (bif Logic.toBool (Logic.integerp v) then
+/-- `tp:HOW-MANY` — the emitted non-negative-integer corollary; wrapper
+    GENERATED (1c). -/
+derive_exec_tp% dis_how_many_tp for "HOW-MANY"
+  (v => (bif Logic.toBool (Logic.integerp v) then
       Logic.not (Logic.lt v (.atom (.number (.int 0))))
-    else SExpr.nil) = SExpr.t := by
-  obtain ⟨⟨N0, u0, h0⟩, ⟨N1, u1, h1⟩⟩ :=
-    conv_args2_of_conv_app w e' { name := "HOW-MANY" } a0 a1 v (by decide) h
-  have happ := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
-    h_no_cdr h_no_plus e' a0 a1 u0 u1 ⟨N0, h0⟩ ⟨N1, h1⟩
-  rw [val_unique h happ]
-  obtain ⟨n, hn⟩ := howManyExec_nat u0 u1
-  rw [hn]
-  simp [Logic.integerp, Logic.lt, Logic.not, Logic.toRat, Logic.toBool,
-    show ¬((n : Int) < 0) from by omega]
+    else SExpr.nil) = SExpr.t)
+  ending
+    obtain ⟨n, hn⟩ := howManyExec_nat u0 u1
+    rw [hn]
+    simp [Logic.integerp, Logic.lt, Logic.not, Logic.toRat, Logic.toBool,
+      show ¬((n : Int) < 0) from by omega]
 
 /-- `membExec = nil` forces `howManyExec = 0` — the value-level content
     of NOT-MEMB-IMPLIES-HOW-MANY-IS-0, over ALL SExpr values. -/
@@ -1418,60 +1392,6 @@ theorem allRelExec_enc (fv ev : SExpr) (xs : List SExpr) :
       simp only [allRelL, List.all_cons, hb, Bool.false_and, boolEnc,
         cond_false]
 
-/-- 3-ary argument STRICTNESS (the 2-ary `evalOpt_app2_args`, one more
-    argument): a converging 3-ary (non-special) application has
-    converging arguments. -/
-private theorem evalOpt_app3_args (f : Nat) (w : World) (env : Env)
-    (s : Symbol) (a1 a2 a3 v : SExpr)
-    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
-            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
-    (h : evalOpt (f + 1) w env
-      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
-      = some v) :
-    (∃ u, evalOpt f w env a1 = some u) ∧
-    (∃ u, evalOpt f w env a2 = some u) ∧
-    (∃ u, evalOpt f w env a3 = some u) := by
-  rw [show evalOpt (f + 1) w env
-        (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
-        = evalOptStep (evalOpt f) w env
-            (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
-        from rfl] at h
-  unfold evalOptStep at h
-  simp only [Symbol.isNamed, SExpr.toList?] at h
-  obtain ⟨hq, hi, hl, hls⟩ := h_ns
-  simp only [Symbol.isNamed] at hq hi hl hls
-  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
-             ↓reduceIte] at h
-  cases hu1 : evalOpt f w env a1 with
-  | none => simp [List.mapM, List.mapM.loop, hu1] at h
-  | some u1 =>
-    cases hu2 : evalOpt f w env a2 with
-    | none => simp [List.mapM, List.mapM.loop, hu1, hu2] at h
-    | some u2 =>
-      cases hu3 : evalOpt f w env a3 with
-      | none => simp [List.mapM, List.mapM.loop, hu1, hu2, hu3] at h
-      | some u3 => exact ⟨⟨u1, rfl⟩, ⟨u2, rfl⟩, ⟨u3, rfl⟩⟩
-
-private theorem conv_args3_of_conv_app (w : World) (env : Env) (s : Symbol)
-    (a1 a2 a3 v : SExpr)
-    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
-            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
-      = some v) :
-    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u) ∧
-    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a2 = some u) ∧
-    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a3 = some u) := by
-  obtain ⟨N, hN⟩ := h
-  refine ⟨conv_fix ⟨N, fun f hf => ?_⟩, conv_fix ⟨N, fun f hf => ?_⟩,
-          conv_fix ⟨N, fun f hf => ?_⟩⟩
-  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
-      (hN (f + 1) (by omega))).1
-  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
-      (hN (f + 1) (by omega))).2.1
-  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
-      (hN (f + 1) (by omega))).2.2
-
 /-- `allRelExec` is two-valued. -/
 theorem allRelExec_t_or_nil (fv x ev : SExpr) :
     allRelExec fv x ev = SExpr.t ∨ allRelExec fv x ev = SExpr.nil := by
@@ -1480,29 +1400,14 @@ theorem allRelExec_t_or_nil (fv x ev : SExpr) :
   | case2 x _ _ => exact Or.inr rfl
   | case3 x _ => exact Or.inl rfl
 
-/-- `tp:ALL-REL`, world-parametric — the emitted boolean TP corollary. -/
-theorem dis_all_rel_tp (w : World)
-    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
-    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
-    (e' : Env) (a0 a1 a2 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (allRelT a0 a1 a2) = some v) :
-    (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
-     else Logic.equal v SExpr.nil) = SExpr.t := by
-  obtain ⟨⟨N0, u0, h0⟩, ⟨N1, u1, h1⟩, ⟨N2, u2, h2⟩⟩ :=
-    conv_args3_of_conv_app w e' { name := "ALL-REL" } a0 a1 a2 v
-      (by decide) h
-  have happ := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal
-    h_no_car h_no_cdr h_no_lexorder e' a0 a1 a2 u0 u1 u2
-    ⟨N0, h0⟩ ⟨N1, h1⟩ ⟨N2, h2⟩
-  rw [val_unique h happ]
-  rcases allRelExec_t_or_nil u0 u1 u2 with ht | hn
-  · rw [ht]; simp [Logic.equal, Logic.toBool]
-  · rw [hn]; rfl
+/-- `tp:ALL-REL` — the emitted boolean corollary; wrapper GENERATED (1c). -/
+derive_exec_tp% dis_all_rel_tp for "ALL-REL"
+  (v => (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+     else Logic.equal v SExpr.nil) = SExpr.t)
+  ending
+    rcases allRelExec_t_or_nil u0 u1 u2 with ht | hn
+    · rw [ht]; simp [Logic.equal, Logic.toBool]
+    · rw [hn]; rfl
 
 /-! ## PERM-IMPLIES-EQUAL-ALL-REL-2 -/
 
@@ -2568,22 +2473,8 @@ decreasing_by
 
 /-! ## The msort dischargers -/
 
-/-- `total:MERGE2` — the driver-shape totality statement. -/
-theorem dis_merge2_total (w : World)
-    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env' : Env) (a0 a1 : SExpr),
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (merge2T a0 a1) = some v := by
-  intro env' a0 a1 ⟨N0, v0, h0⟩ ⟨N1, v1, h1⟩
-  obtain ⟨N, h⟩ := merge2_exec_corr w h_m2 h_no_consp h_no_car h_no_cdr
-    h_no_cons h_no_lexorder env' a0 a1 v0 v1 ⟨N0, h0⟩ ⟨N1, h1⟩
-  exact ⟨N, merge2Exec v0 v1, h⟩
+/-- `total:MERGE2` — GENERATED (1c). -/
+derive_exec_total% dis_merge2_total for "MERGE2"
 
 /-- `total:MSORT` — the driver-shape totality statement. -/
 theorem dis_msort_total (w : World)
@@ -2611,57 +2502,11 @@ theorem evensExec_trueListp (l : SExpr) :
   | case1 l _ ih => simpa [Logic.cons, Logic.trueListp] using ih
   | case2 l _ => rfl
 
-/-- 1-ary argument strictness, convergence form (local, mirroring the
-    2/3-ary versions). -/
-private theorem evalOpt_app1_args (f : Nat) (w : World) (env : Env)
-    (s : Symbol) (a1 v : SExpr)
-    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
-            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
-    (h : evalOpt (f + 1) w env
-      (.cons (.atom (.symbol s)) (.cons a1 .nil)) = some v) :
-    ∃ u, evalOpt f w env a1 = some u := by
-  rw [show evalOpt (f + 1) w env
-        (.cons (.atom (.symbol s)) (.cons a1 .nil))
-        = evalOptStep (evalOpt f) w env
-            (.cons (.atom (.symbol s)) (.cons a1 .nil)) from rfl] at h
-  unfold evalOptStep at h
-  simp only [Symbol.isNamed, SExpr.toList?] at h
-  obtain ⟨hq, hi, hl, hls⟩ := h_ns
-  simp only [Symbol.isNamed] at hq hi hl hls
-  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
-             ↓reduceIte] at h
-  cases hu1 : evalOpt f w env a1 with
-  | none => simp [List.mapM, List.mapM.loop, hu1] at h
-  | some u1 => exact ⟨u1, rfl⟩
-
-private theorem conv_args1_of_conv_app (w : World) (env : Env) (s : Symbol)
-    (a1 v : SExpr)
-    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
-            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol s)) (.cons a1 .nil)) = some v) :
-    ∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u := by
-  obtain ⟨N, hN⟩ := h
-  exact conv_fix ⟨N, fun f hf =>
-    evalOpt_app1_args f w env s a1 v h_ns (hN (f + 1) (by omega))⟩
-
-/-- `tp:EVENS`, world-parametric — the emitted `(TRUE-LISTP (EVENS L))`
-    corollary. -/
-theorem dis_evens_tp (w : World)
-    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (e' : Env) (a0 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (evensT a0) = some v) :
-    Logic.trueListp v = SExpr.t := by
-  obtain ⟨N0, u0, h0⟩ :=
-    conv_args1_of_conv_app w e' { name := "EVENS" } a0 v (by decide) h
-  have happ := evens_exec_corr w h_evens h_no_consp h_no_car h_no_cdr
-    h_no_cons e' a0 u0 ⟨N0, h0⟩
-  rw [val_unique h happ]
-  exact evensExec_trueListp u0
+/-- `tp:EVENS` — the emitted `(TRUE-LISTP (EVENS L))` corollary; wrapper
+    GENERATED (1c). -/
+derive_exec_tp% dis_evens_tp for "EVENS"
+  (v => Logic.trueListp v = SExpr.t)
+  ending exact evensExec_trueListp u0
 
 /-! ## The msort row assemblies -/
 
