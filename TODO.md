@@ -5,7 +5,24 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-07-29._
+_Last updated: 2026-08-01._
+
+> **SORTING-ABSOLUTE ARC (branch `mdd/sorting-absolute`, opened
+> 2026-08-01 at main 557c37b) — IN PROGRESS; GOVERNS THE CURRENT WORK.**
+> MDD-ratified charter: docs/plans/2026-08-01_sorting-absolute-arc.md.
+> Goal: the 11-book sorting family to ABSOLUTE completion,
+> generalization first. Phase 1 INDUSTRIALIZATION (1a
+> driver_replayed%/runner unification; 1b the exec-kit generator
+> `derive_exec%` validated by regenerating + retiring the ~20 hand kits;
+> 1c the total:/tp: discharger registry; 1d decode-kit v2 into
+> Imported/Lifting.lean); Phase 2 WHOLE-BOOK FEATURES (2a cross-world
+> rule: discharge + how-many/orderedp/convert-perm-to-how-many
+> first-class; 2b the msort ACL2-COUNT-EVENS frontiers; 2c ORDERED-PERMS
+> dp-fact emission; 2d R7 :use/functional-instantiation DESIGN NOTE —
+> the arc's planned MDD checkpoint; 2e the bsort clausify-region recon
+> wall; 2f BUG-027 ratify-or-narrow); Phase 3 REST OF BOOK (bsort +
+> equisort/R6 into the sweep, mirrors via the generator, pins toward one
+> per book).
 
 > **FULL-PIPELINE AUDIT (2026-07-26, user-run 6-dimension team + refutation
 > pass; report `docs/audits/2026-07-26_full-pipeline-audit.md`) — GOVERNS
