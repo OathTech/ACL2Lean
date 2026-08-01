@@ -38,7 +38,12 @@ def dischargeOrigins : List String :=
    -- (simplify-clause1), or the literal's type-alist construction did
    -- (rewrite-clause). Both emit the preprocess/type-set-fc shape.
    "simplify-clause/fc-contradiction",
-   "rewrite-clause/type-alist-contradiction"]
+   "rewrite-clause/type-alist-contradiction",
+   -- 2b (sorting-absolute): the initial LINEAR pot construction reached a
+   -- contradiction over the negated literals (setup-simplify-clause-pot-lst
+   -- in simplify-clause1) — verdict-only, cited :LINEAR rules' content
+   -- rides the gz snapshot into the replay-side linear: premises.
+   "simplify-clause/linear-contradiction"]
 
 
 /-- Discharge-node occurrences in a clause item (the top-level verdict-only

@@ -107,7 +107,19 @@ _Last updated: 2026-08-01._
 > kit — count(cons) = 1 + count(car) + count(cdr), which the kit
 > states directly). The obligation is NOT valid without it
 > (independent-opaque counter-model) — no shortcut exists.
-> 3b-iv LANDED (pending sweep/commit): oneWayMatch (the replay's ONLY
+> NUMERIC CELL LANDED (pending sweep/commit): the second registered
+> equal/type-set-nil disjointness cell — POSITIVE-SUM vs '0
+> (logic_equal_nil_of_plus1_nonneg; x = (B+ '1 (B+ p q)) with p q's
+> EMITTED nonneg-int TP corollaries at pinned values; falls through to
+> cons-vs-atom otherwise). STRONG advanced past *1/2.1 → now at
+> *1/2.1.2' = a simplify :RESULT :PROVED by linear verdict with NO
+> discharge record — EXACTLY WEAK's wall (raw log line ~6430). ONE
+> remaining 2b piece: the fork discharge record for linear-PROVED
+> simplify leaves (emit a discharge node when simplify closes a clause
+> with fake-rune-for-linear + :LINEAR runes and no transforming items;
+> the existing DP-leaf machinery + the landed linear: premises replay
+> it). Closes BOTH rows.
+> 3b-iv LANDED: oneWayMatch (the replay's ONLY
 > matcher — verdict-class :LINEAR premises record no :SUBST; pattern =
 > the EMITTED max-term), linData premises in replayDischargeNode
 > ((IF hyp (EQUAL l r) 'T) — cond-shaped like TP corollaries, zero new

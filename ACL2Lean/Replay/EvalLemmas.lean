@@ -3894,6 +3894,26 @@ theorem dp_nonneg_int_of_tp {v : SExpr}
   | nil => simp [Logic.integerp, Logic.toBool] at h
   | cons a b => simp [Logic.integerp, Logic.toBool] at h
 
+
+/-- The POSITIVE-SUM vs '0 type-set cell (2b): `1 + a + b` with `a b`
+    nonneg integers (their emitted TP shape) can never equal 0 — the
+    second registered disjointness cell of the `equal/type-set-nil`
+    recipe (the first is cons-vs-atom). -/
+theorem logic_equal_nil_of_plus1_nonneg {a b : SExpr}
+    (ha : (bif Logic.toBool (Logic.integerp a)
+          then Logic.not (Logic.lt a (.atom (.number (.int 0))))
+          else SExpr.nil) = SExpr.t)
+    (hb : (bif Logic.toBool (Logic.integerp b)
+          then Logic.not (Logic.lt b (.atom (.number (.int 0))))
+          else SExpr.nil) = SExpr.t) :
+    Logic.equal (Logic.plus (.atom (.number (.int 1))) (Logic.plus a b))
+      (.atom (.number (.int 0))) = SExpr.nil := by
+  obtain ⟨m, rfl⟩ := dp_nonneg_int_of_tp ha
+  obtain ⟨n, rfl⟩ := dp_nonneg_int_of_tp hb
+  rw [logic_plus_int, logic_plus_int]
+  simp [Logic.equal, Logic.toBool, SExpr.t]
+  omega
+
 /-- `car` of a NON-cons defaults to `nil` (ACL2's completion axiom, value
     level — the type-set entry composition consumes it). -/
 theorem logic_car_of_consp_nil {v : SExpr} (h : Logic.consp v = SExpr.nil) :

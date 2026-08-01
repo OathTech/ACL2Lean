@@ -3847,13 +3847,68 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           cons-vs-atom cell is registered (frontier)"
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx x
     let vx ← ctxValExpr cfg ctx x
-    let some hConsp ← typeSetWalk cfg ctx (.isConspT x)
-      | throwError "type-set-equality: no consp evidence for {repr x} in the \
-          clause context (frontier)"
-    let hC ← proveByDecide
-      (← mkEq (mkApp (mkConst ``Logic.consp) (reflectSExpr cv)) (mkConst ``SExpr.nil))
-      "consp of the quoted constant is nil"
-    let hVal ← mkAppM ``logic_equal_nil_of_consp_t_nil #[hConsp, hC]
+    -- SECOND registered cell (sorting-absolute 2b): POSITIVE-SUM vs '0 —
+    -- x = (BINARY-+ '1 (BINARY-+ p q)) with p q fn applications whose
+    -- EMITTED TP corollaries are the nonneg-int shape, and the constant
+    -- '0: 1 + p + q ≥ 1 ≠ 0 (`logic_equal_nil_of_plus1_nonneg`).
+    -- Consumed, not inferred — the facts are the fns' emitted
+    -- corollaries at the pinned values (ACL2-COUNT-EVENS-STRONG's
+    -- *1/2.1 CAR-CONS window is the driving instance). Non-matching
+    -- shapes fall through to the cons-vs-atom cell.
+    let q1 : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons (.atom (.number (.int 1))) .nil)
+    let q0 : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons (.atom (.number (.int 0))) .nil)
+    let tpNonnegFactOf : SExpr → MetaM (Option Expr) := fun z => do
+      let .cons (.atom (.symbol fs)) argsSpine := z | return none
+      match ctx.tpHyps.find? (fun (n, _, _) => n == fs.name) with
+      | none => return none
+      | some (_, cor, tpHyp) =>
+        let some (formals, _) := cfg.worldVal.defs.get? fs | return none
+        let args := (argsSpine.toList?).getD []
+        unless formals.length == args.length do return none
+        let inst := ACL2.Replay.substTerm formals args cor
+        let ok := match inst with
+          | .cons (.atom (.symbol ifS))
+              (.cons (.cons (.atom (.symbol intS)) (.cons z1 .nil))
+                (.cons (.cons (.atom (.symbol notS))
+                  (.cons (.cons (.atom (.symbol ltS))
+                    (.cons z2 (.cons zeroT .nil))) .nil))
+                  (.cons elseB .nil))) =>
+            ifS.name == "IF" && intS.name == "INTEGERP" &&
+            notS.name == "NOT" && ltS.name == "<" &&
+            z1 == z && z2 == z && elseB == quoteNil && zeroT == q0
+          | _ => false
+        unless ok do return none
+        let some (vz, convz) := ctx.val? z | return none
+        return some (mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+          ++ (args.map reflectSExpr).toArray ++ #[vz, convz]))
+    let numericCell? ← do
+      match x, cv with
+      | .cons (.atom (.symbol pS))
+          (.cons oneT (.cons (.cons (.atom (.symbol pS2))
+            (.cons pT (.cons qT .nil))) .nil)),
+        .atom (.number (.int 0)) =>
+        if pS.name == "BINARY-+" && pS2.name == "BINARY-+" && oneT == q1 then
+          match ← tpNonnegFactOf pT, ← tpNonnegFactOf qT with
+          | some fp, some fq =>
+            pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg #[fp, fq]))
+          | _, _ => pure none
+        else pure none
+      | _, _ => pure none
+    let hVal ←
+      match numericCell? with
+      | some h => pure h
+      | none => do
+        let some hConsp ← typeSetWalk cfg ctx (.isConspT x)
+          | throwError "type-set-equality: no consp evidence for {repr x} \
+              in the clause context, and the positive-sum cell does not \
+              apply (frontier)"
+        let hC ← proveByDecide
+          (← mkEq (mkApp (mkConst ``Logic.consp) (reflectSExpr cv))
+            (mkConst ``SExpr.nil))
+          "consp of the quoted constant is nil"
+        mkAppM ``logic_equal_nil_of_consp_t_nil #[hConsp, hC]
     let pL ← ctxValProof cfg ctx lhs
     let pR ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
     mkAppM ``fuel_eq_of_conv #[pL, pR, hVal]
