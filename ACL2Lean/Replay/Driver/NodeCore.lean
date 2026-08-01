@@ -239,6 +239,13 @@ structure ReplayCtx where
       with-lemma node recipe; discharged lazily from the dependency's own
       replayed statement (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). -/
   ruleHyps : List (RuleSpec × Expr) := []
+  /-- LINEAR-rule hypotheses (`linear:<rune>`, sorting-absolute 2b): per
+      cited ground-zero :LINEAR rule snapshot (content-deduped), the spec
+      and the bound hypothesis stating `∀ env', EvTrue hyps → EvTrue
+      concl` (`mkLinearHypType`). Consumed by `replayDischargeNode` as a
+      DP-obligation premise (max-term-matched instantiation); kept as an
+      honest D6 condition until an Imported-side discharger proves it. -/
+  linearHyps : List (LinearRuleSpec × Expr) := []
   /-- Congruence-rule hypotheses (`cong:<thm>`, G2 rung 2): per
       congruence-shaped in-scope defthm, the spec and the bound hypothesis
       stating its whole-formula mirror (`mkCongHypType`). Consumed by the

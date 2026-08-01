@@ -55,6 +55,13 @@ def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
             {name} keeps {c} but the consumer telescope offers \
             several same-named rules (ambiguous — refuse rather than \
             guess)"
+      else if c.startsWith "linear:" then
+        let rn := (c.drop "linear:".length).toString
+        match ctx.linearHyps.filter (fun (r, _) => r.name == rn) with
+        | [(_, h)] => pure h
+        | _ => throwError "depMirrorProofAt: registry dependency \
+            {name} keeps {c}, absent or ambiguous in the consumer \
+            telescope (internal)"
       else if c.startsWith "cong:" then
         let cn := (c.drop "cong:".length).toString
         match ctx.congHyps.filter (fun (s, _) => s.name == cn) with
@@ -367,6 +374,21 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (dpStmts.zipIdx.map fun ((_, stmt), i) =>
       (Name.mkSimple s!"hdpfact_{i}", BinderInfo.default,
        fun (_ : Array Expr) => pure stmt)).toArray
+  -- linear:<rune> declarations (sorting-absolute 2b): one hypothesis per
+  -- CONTENT-distinct cited ground-zero :LINEAR rule snapshot (the emission
+  -- carries one entry per stored trigger; maxTerm is instantiation
+  -- metadata, not content). Consumed by replayDischargeNode as a
+  -- DP-obligation premise; unconsumed offers are dropped by the
+  -- used-filter, consumed ones stay honest D6 conditions.
+  let linearSpecs := cfg.linearRules.foldl (init := [])
+    fun acc r =>
+      if acc.any (fun (q : LinearRuleSpec) =>
+          q.name == r.name && q.hyps == r.hyps && q.concl == r.concl)
+      then acc else acc ++ [r]
+  let linearDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+    (linearSpecs.map fun r =>
+      (Name.mkSimple s!"hlinear_{r.name}", BinderInfo.default,
+       fun (_ : Array Expr) => mkLinearHypType cfg r)).toArray
   let condsAll :=
     fns.map (fun (s, _, _) => s!"total:{s.name}") ++
     tpFns.map (fun (s, _, _) => s!"tp:{s.name}") ++
@@ -374,12 +396,14 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     rules.map (fun r => s!"rule:{r.runeKey}") ++
     congs.map (fun c => s!"cong:{c.name}") ++
     equivSpecs.map (fun c => s!"equivrefl:{c.name}") ++
+    linearSpecs.map (fun r => s!"linear:{r.name}") ++
     dpStmts.map (fun _ => "ASSUMED:dp-fact")
   withLocalDecls totalDecls fun totalVs => do
     withLocalDecls (tpDecls ++ tpAvDecls) fun tpAllVs => do
      withLocalDecls ruleDecls fun ruleVs => do
       withLocalDecls congDecls fun congVs => do
       withLocalDecls equivDecls fun equivVs => do
+      withLocalDecls linearDecls fun linearVs => do
       withLocalDecls dpDecls fun dpVs => do
       let tpVs := tpAllVs.extract 0 tpDecls.size
       let tpAvVs := tpAllVs.extract tpDecls.size tpAllVs.size
@@ -389,6 +413,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           tpHypsAv := (tpFnsAv.zip tpAvVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h),
           ruleHyps := rules.zip ruleVs.toList,
           congHyps := congs.zip congVs.toList,
+          linearHyps := linearSpecs.zip linearVs.toList,
           equivReflHyps := equivSpecs.zip equivVs.toList,
           dpFactHyps := (dpStmts.map (·.1)).zip dpVs.toList }
       let some root := cp.root
@@ -449,7 +474,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).
-      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs ++ dpVs).toList).filter
+      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs ++ linearVs ++ dpVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
       -- #37 LAZY discharge: prove admission totality only for the USED
       -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
@@ -461,7 +486,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let usedTpNames := used.filterMap fun (c, _) =>
         if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
       let neededFns := usedTotalNames ++ usedTpNames
-      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs ++ dpVs).toList)
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs ++ linearVs ++ dpVs).toList)
       let totalEnv ←
         if neededFns.isEmpty then pure []
         else
