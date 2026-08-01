@@ -200,6 +200,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     let (proof, _conds) ← replayProofConditional cfg ch.tps cp
       dev.justifications (Driver.rulesBefore dev nm.getString) ch.depProofs
       (equivRefls := ch.equivRefls) (termReplayed := termReplayed)
+      (congTrees := some ch.localTrees)
     Meta.mkLambdaFVars #[env] proof
 
 /-- The conditional replayed statement as a definition (the driver's proof OBJECT). -/
@@ -1230,7 +1231,7 @@ theorem howManyIsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_how_many_tp isortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts isortWorldD (by decide) _ _)
-    
+
 
 /-- ENTRY, PROVED — HOW-MANY-ISORT natively: INSERTION SORT PRESERVES
     MULTIPLICITY — `List.count` of every element is unchanged by
@@ -1268,7 +1269,7 @@ theorem howManyAppendReplayed_uncond (env : Env) :
   howManyAppendReplayedCond env
     (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
-    
+
 
 /-- ENTRY, PROVED — HOW-MANY-APPEND natively: `List.count` distributes
     over `++`. -/
@@ -1434,7 +1435,7 @@ theorem howManyFilter1Replayed_uncond (env : Env) :
   howManyFilter1ReplayedCond env
     (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
-    
+
     (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
@@ -1510,7 +1511,7 @@ theorem howManyQsortReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
-    
+
     (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
@@ -1554,7 +1555,7 @@ theorem permQsortReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
-    
+
     (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
@@ -1608,7 +1609,7 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
-    
+
     (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
@@ -1667,7 +1668,7 @@ theorem howManyMerge2Replayed_uncond (env : Env) :
     (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
-    
+
 
 /-- ENTRY, PROVED — HOW-MANY-MERGE2 natively: merging adds
     multiplicities. -/
@@ -1696,7 +1697,7 @@ theorem howManyEvensOddsReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_default_cdr msortWorldD (by decide) (by decide)
       (by decide))
     (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
-    
+
 
 /-- ENTRY, PROVED — HOW-MANY-EVENS-AND-ODDS natively: the evens/odds
     split partitions every element's multiplicity. -/
@@ -1760,7 +1761,7 @@ theorem howManyMsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_default_cdr msortWorldD (by decide) (by decide)
       (by decide))
     (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
-    
+
 
 /-- ENTRY, PROVED — HOW-MANY-MSORT natively: MERGE SORT PRESERVES
     MULTIPLICITY. -/
@@ -1925,9 +1926,9 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .pending "count/erase interaction — native-worthy (howManyExec_rmExec \
       already proves the value-level fact); P3 decides"),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-RM-IS-NO-OP",
-    .replayedOnly "internal rm plumbing toward the counter-example ladder; \
-      the erase-of-absent fact is subsumed by the pending HOW-MANY-RM \
-      family natives"),
+    .pending "erase-of-absent (List.erase_of_not_mem under the true-listp \
+      hypothesis) — native-worthy in its own right (audit F2 corrected the \
+      earlier subsumption claim); P3 decides"),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-HOW-MANY-IS-0",
     .pending "count-of-absent-element — native-worthy \
       (List.count_eq_zero); P3 decides"),

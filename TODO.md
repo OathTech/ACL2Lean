@@ -54,6 +54,21 @@ _Last updated: 2026-08-01._
 > logs, by design). En-route defect fixed: an `elab` optional
 > multi-parser group binds `none` even when present — the deps clause
 > now a named syntax node (same lesson as derive_exec%'s corrClause).
+> **SEQUENCING AMENDMENT (Mike, 2026-08-01, going AFK): the R7 design
+> note (2d) is DEFERRED TO LAST — do not block on it while Mike is
+> unavailable; draft it en route, present for ratification when they
+> return, build NOTHING on it before ratification. Order is now
+> 2b → 2c → 2e → R7-independent P3 work (bsort sweep entry, mirrors,
+> pins), THEN 2d + its dependents (the *-IS-ISORT capstones,
+> dis_convert_perm retirement, equisort/R6 pairing).**
+> **RATIFICATION QUEUE for Mike's return (do not let compaction drop
+> these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
+> call — ACL2-COUNT-EVENS-STRONG's branch-substitution class closes its
+> ≠-case by verdict-only linear arithmetic (fake-rune-for-linear-
+> equalities + TP runes, no internal record) at BRANCH granularity —
+> implemented under the ratified verdict-class principle (DP leaves /
+> admission decreases), granularity extension disclosed, Mike to
+> ratify-or-narrow; (3) BUG-027 ratify-or-narrow (2f, carried).**
 
 > **FULL-PIPELINE AUDIT (2026-07-26, user-run 6-dimension team + refutation
 > pass; report `docs/audits/2026-07-26_full-pipeline-audit.md`) — GOVERNS

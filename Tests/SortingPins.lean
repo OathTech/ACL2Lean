@@ -50,6 +50,15 @@ private def qsortLog : String := include_str "../acl2_samples/sorting/qsort.proo
 private def convertPermLog : String :=
   include_str "../acl2_samples/sorting/convert-perm-to-how-many.proof-log"
 
+/-- The committed sweep golden — the pins' MECHANICAL LINK to the sweep
+    (audit F3): every pinned status line must be a PREFIX of some golden
+    line (prefix, not equality: the pin runs skip non-target theorems'
+    independent DP probes, so pinned lines omit `[DISCHARGE: …]`
+    suffixes). Without this, a future sweep-side discharge the pins'
+    narrower tree offer cannot reproduce would silently keep the pins
+    green against a stale expectation. -/
+private def sweepGolden : String := include_str "driver-coverage.golden"
+
 /-- The convert-perm-to-how-many dependency trees (2a): the pins' runBook
     calls offer them like the sweep's prior-book accumulation, so the
     pinned rows match the sweep exactly. SCOPE: only this dependency's
@@ -119,12 +128,20 @@ total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]")]
+  let goldenLines := sweepGolden.splitOn "\n"
   for (book, line) in mustHave do
     let some (_, lines) := expected.find? (·.1 == book)
       | throwError "sorting statement pins: unknown book {book}"
     unless lines.any (· == line) do
       throwError "sorting statement pins: {book} lost pinned status line\n  \
         {line}\ngot:\n{"\n".intercalate lines.toList}"
+    -- audit F3: the pinned expectation itself must match the SWEEP's
+    -- committed golden (prefix — see sweepGolden's docstring), so pins
+    -- and sweep cannot drift apart silently
+    unless goldenLines.any (·.startsWith line) do
+      throwError "sorting statement pins: pinned line is NOT a prefix of \
+        any committed sweep-golden line (pins/sweep drift — audit F3)\n  \
+        {line}"
   -- the QSORT termination replayed statement's existence is asserted here
   -- (the type pin below is the content gate); since W1 item 6 it ALSO
   -- registers a golden row (termination:QSORT)

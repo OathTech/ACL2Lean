@@ -94,7 +94,13 @@ green, never a generator feature in isolation.
 - **2d. R7 — :use / functional-instantiation soundness.** DESIGN-HEAVY.
   An MDD design note for ratification BEFORE building (the arc's one
   planned mid-arc user checkpoint). Targets MSORT-IS-ISORT,
-  QSORT-IS-ISORT, LEN2-APP-VIA-USE.
+  QSORT-IS-ISORT, LEN2-APP-VIA-USE, and (post-2a) the
+  CONVERT-PERM-TO-HOW-MANY replay that retires dis_convert_perm.
+  **AMENDMENT (Mike, 2026-08-01): DEFERRED TO LAST in the arc — Mike is
+  AFK and the ratification checkpoint must not block the other work.
+  Draft the note en route; present on their return; build nothing on it
+  before ratification. All other phase-2/3 items are R7-independent and
+  proceed first.**
 - **2e. The bsort recon wall.** clausify-input's second
   expand-abbreviations interleaving into the clausify event stream
   (ProofTree crash sites); flips BSORT-IS-ISORT's blocker and the

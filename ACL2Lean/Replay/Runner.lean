@@ -87,19 +87,23 @@ structure BookChannels where
   thms : List (ClauseProof × List ACL2.RuleSpec)
   /-- emitted TP corollaries (fn name ↦ corollary term) -/
   tps : List (String × SExpr)
-  /-- dependency proof trees for `rule:`/`cong:` discharge -/
+  /-- dependency proof trees for `rule:`/`cong:` discharge (same-book
+      first, then cross-book — 2a) -/
   depProofs : List (String × ClauseProof)
+  /-- the SAME-BOOK trees only — the `cong:` OFFER source (audit F1) -/
+  localTrees : List (String × ClauseProof)
   /-- equivalence-reflexivity evidence: this book's formulas + included ones -/
   equivRefls : List (String × SExpr)
 
-/-- One book's proved-theorem trees, keyed by name — the CROSS-BOOK
-    dependency offer (sorting-absolute 2a): a consumer book's included
-    `rule:<thm>` hypotheses discharge by re-replaying the dependency
-    book's tree at the CONSUMER's world (`dischargeRuleHyp`'s
-    no-registry route), inside the shared telescope. Fail-closed at
-    every layer: no tree → the hypothesis stays (today's behavior); a
-    same-named tree with the wrong formula fails the stored-rule
-    recompute-check; a replay wall in the tree is a kept-hyp frontier. -/
+/-- One book's LOCAL theorem trees (proved or not — each is re-checked
+    at the consumer), keyed by name — the CROSS-BOOK dependency offer
+    (sorting-absolute 2a): a consumer book's included `rule:<thm>`
+    hypotheses discharge by re-replaying the dependency book's tree at
+    the CONSUMER's world (`dischargeRuleHyp`'s no-registry route),
+    inside the shared telescope. Fail-closed at every layer: no tree
+    (or a rootless one) → the hypothesis stays; a same-named tree with
+    the wrong formula fails the stored-rule recompute-check; a replay
+    wall in the tree is a kept-hyp frontier. -/
 def bookTrees (dev : Development) : List (String × ClauseProof) :=
   (developmentTheoremsWithRules dev).map fun (c, _) => (c.name, c)
 
@@ -112,6 +116,7 @@ def bookChannels (dev : Development)
   { thms := thms
     tps := dev.typePrescriptions
     depProofs := (thms.map fun (c, _) => (c.name, c)) ++ crossTrees
+    localTrees := thms.map fun (c, _) => (c.name, c)
     equivRefls := (thms.map fun (c, _) => (c.name, c.formula))
       ++ dev.includedTheorems }
 
@@ -215,6 +220,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
         let (prf, conds) ← replayProofConditional cfg ch.tps cp
           dev.justifications rules ch.depProofs mirrors
           (equivRefls := ch.equivRefls) termReplayed
+          (congTrees := some ch.localTrees)
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts

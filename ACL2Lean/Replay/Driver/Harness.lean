@@ -245,7 +245,8 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (rules : List RuleSpec := []) (depProofs : List (String × ClauseProof) := [])
     (mirrors : ReplayedRegistry := [])
     (equivRefls : List (String × SExpr) := [])
-    (termReplayed : List (String × Name × List String × List SExpr) := []) :
+    (termReplayed : List (String × Name × List String × List SExpr) := [])
+    (congTrees : Option (List (String × ClauseProof)) := none) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
   -- hypothesis declarations: totality for every defined fn, TP where
@@ -324,9 +325,15 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- cong:<thm> hypothesis declarations (G2 rung 2): every strictly-earlier
   -- LOCAL theorem whose formula is congruence-shaped is offered as its
   -- whole-formula mirror (`mkCongHypType`); non-matching formulas are not
-  -- offered. depProofs is already the earlier-theorems list in creation
-  -- order, so citations stay topological.
-  let congs : List CongSpec := depProofs.filterMap fun (n, cp) =>
+  -- offered. The OFFER derives from `congTrees` — the SAME-BOOK
+  -- earlier-theorems list in creation order (topological citations) —
+  -- NOT the full depProofs, which since 2a also carries CROSS-BOOK trees
+  -- (audit F1: deriving offers from those would widen the telescope
+  -- O(corpus) and break the topological premise; cross-book cong
+  -- discharge is a deliberate future extension, not a side effect).
+  -- Callers that pass no congTrees (the per-theorem test macros, whose
+  -- depProofs IS same-book) keep the old behavior.
+  let congs : List CongSpec := (congTrees.getD depProofs).filterMap fun (n, cp) =>
     cp.root.bind fun root =>
       match root.inputClause with
       | [f] => congSpecOfFormula? n f
