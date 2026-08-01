@@ -461,8 +461,26 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
               convOf := fun u => ctxValProof cfg' ctxNow u
               conspTrueOf := fun b => match b with
                 | .atom (.symbol mv) => conspToBoolOf mv
-                | _ => throwFrontier m!"replayInduction: consp of non-var \
-                    measured base {repr b} (frontier)"
+                | _ => do
+                  -- non-var base (P3, the LEN walk's CONS-of-CDR arm asks
+                  -- consp of `(CDR X)`): a refuted `(ENDP b)` ruling fact in
+                  -- scope bridges via `consp_toBool_of_endp_nil` — same
+                  -- value-alignment discipline as `endpFalseOf` below
+                  let endpT : SExpr :=
+                    .cons (.atom (.symbol { name := "ENDP" })) (.cons b .nil)
+                  match facts.find? (fun f => f.test == endpT && !f.sign) with
+                  | some cf => do
+                    let vB ← ctxValExpr cfg' ctxNow b
+                    let eqTy ← mkEq (mkApp (mkConst ``Logic.endp) vB)
+                      (mkConst ``SExpr.nil)
+                    unless ← isDefEq (← inferType cf.signE) eqTy do
+                      throwError "replayInduction: the falsy (endp {repr b}) \
+                          fact's value is not Logic.endp of the term's value"
+                    let hCast ← mkExpectedTypeHint cf.signE eqTy
+                    mkAppM ``consp_toBool_of_endp_nil #[hCast]
+                  | none => throwFrontier m!"replayInduction: consp of \
+                      non-var measured base {repr b} needs a refuted \
+                      (ENDP {repr b}) ruling fact in scope (frontier)"
               endpFalseOf := fun b => do
                 -- a refuted (ENDP b) ruling fact, normalized to
                 -- `toBool (endp (val b)) = false` (the falsy TestFact

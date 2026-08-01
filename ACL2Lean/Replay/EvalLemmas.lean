@@ -5508,6 +5508,34 @@ theorem logic_len_eq_lenNat (x : SExpr) :
   | nil => simp [Logic.len, lenNat]
   | atom a => simp [Logic.len, lenNat]
 
+/-! LEN decrease walk (P3, bsort — BNEXT's `:MEASURE (LEN X)`): the
+    `lenNat` mirrors of the Count library's decrease lemmas, consumed by
+    `chainLtLen` in `Totality.lean`. -/
+
+/-- cdr strictly decreases `lenNat` under consp evidence. -/
+theorem lenNat_cdr_lt_of_consp {x : SExpr}
+    (h : Logic.toBool (Logic.consp x) = true) :
+    lenNat (Logic.cdr x) < lenNat x := by
+  cases x with
+  | nil => simp [Logic.consp, Logic.toBool] at h
+  | atom a => simp [Logic.consp, Logic.toBool] at h
+  | cons a b => simp [Logic.cdr, lenNat]
+
+/-- cdr never increases `lenNat` (cdr of a non-cons is nil, length 0). -/
+theorem lenNat_cdr_le (x : SExpr) : lenNat (Logic.cdr x) ≤ lenNat x := by
+  cases x <;> simp [Logic.cdr, lenNat]
+
+/-- Re-consing ANY car onto a cdr PRESERVES `lenNat` — the length-measure
+    fact `consCount` cannot have (car contents are invisible to length),
+    and exactly BNEXT's swap call site `(CONS (CAR X) (CDR (CDR X)))`. -/
+theorem lenNat_cons_cdr_eq_of_consp (a : SExpr) {w : SExpr}
+    (h : Logic.toBool (Logic.consp w) = true) :
+    lenNat (Logic.cons a (Logic.cdr w)) = lenNat w := by
+  cases w with
+  | nil => simp [Logic.consp, Logic.toBool] at h
+  | atom x => simp [Logic.consp, Logic.toBool] at h
+  | cons c d => simp [Logic.cons, Logic.cdr, lenNat]
+
 /-- `Logic.len` is always an ACL2 integer — the kernel-checked counterpart of
     LEN's ground-zero `:TYPE-PRESCRIPTION` corollary
     `(IF (INTEGERP (LEN X)) (NOT (< (LEN X) '0)) 'NIL)`. The builtin TP pin

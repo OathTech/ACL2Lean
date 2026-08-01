@@ -64,6 +64,50 @@ def countOfView (t : SExpr) : Option SExpr :=
     if c.name == "ACL2-COUNT" then some u else none
   | _ => none
 
+/-- View `(LEN u)` → `u` (P3, bsort — BNEXT's `:MEASURE (LEN X)`). -/
+def lenOfView (t : SExpr) : Option SExpr :=
+  match t with
+  | .cons (.atom (.symbol c)) (.cons u .nil) =>
+    if c.name == "LEN" then some u else none
+  | _ => none
+
+/-- LEN-measure decrease walk (the `lenNat` twin of `chainLt`, P3): prove
+    `lenNat (valOf t) < lenNat (valOf base)`. Arms, each keyed to a real
+    emitted call-site shape and fail-closed otherwise:
+    - `(CDR u)`: strict at the base under consp evidence; `≤`-composed over
+      an inner strict chain otherwise (the `chainLt` pattern).
+    - `(CONS a (CDR w))`: re-consing onto a cdr PRESERVES length under
+      `consp w` (`lenNat_cons_cdr_eq_of_consp` — BNEXT's swap site), so the
+      walk collapses to `w` and recurses; `w == base` then fails at the
+      recursion's missing arm, never proves a non-decrease. -/
+partial def chainLtLen (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
+  match t with
+  | .cons (.atom (.symbol d)) (.cons u .nil) =>
+    unless d.name == "CDR" do
+      throwFrontier m!"chainLtLen: unary head {d.name} has no LEN decrease \
+          arm (frontier): {repr t}"
+    if u == base then
+      let hConsp ← kit.conspTrueOf base
+      mkAppM ``ACL2.Replay.lenNat_cdr_lt_of_consp #[hConsp]
+    else
+      let inner ← chainLtLen kit base u
+      let vu ← kit.valOf u
+      mkAppM ``Nat.lt_of_le_of_lt
+        #[← mkAppM ``ACL2.Replay.lenNat_cdr_le #[vu], inner]
+  | .cons (.atom (.symbol c))
+      (.cons a (.cons (.cons (.atom (.symbol d2)) (.cons w .nil)) .nil)) => do
+    unless c.name == "CONS" && d2.name == "CDR" do
+      throwFrontier m!"chainLtLen: shape {repr t} has no LEN decrease arm \
+          (frontier)"
+    let hConspW ← kit.conspTrueOf w
+    let va ← kit.valOf a
+    let hEq ← mkAppM ``ACL2.Replay.lenNat_cons_cdr_eq_of_consp
+      #[va, hConspW]
+    let hLt ← chainLtLen kit base w
+    mkAppM ``Nat.lt_of_le_of_lt #[← mkAppM ``Nat.le_of_eq #[hEq], hLt]
+  | _ => throwFrontier m!"chainLtLen: shape {repr t} has no LEN decrease \
+      arm (frontier)"
+
 /-- Count-walk ≤ leg: `(valOf t).consCount ≤ (valOf base).consCount` for `t`
     a (possibly empty) cdr/car chain over `base` — unconditional per-step
     `consCount_cdr_le`/`car_le` composed by transitivity. -/
@@ -514,6 +558,9 @@ def dischargeDecrease (just : Justification)
   -- 3. the Count walk, by measure shape
   if let some base := countOfView measure' then
     return ← chainLt kit base (sub base)
+  -- 3'. the LEN walk (P3, bsort — `chainLtLen`, the lenNat twin)
+  if let some base := lenOfView measure' then
+    return ← chainLtLen kit base (sub base)
   match measure' with
   | .cons (.atom (.symbol plus)) (.cons cx (.cons cy .nil)) =>
     unless plus.name == "BINARY-+" do

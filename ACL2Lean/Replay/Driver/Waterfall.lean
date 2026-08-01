@@ -289,13 +289,19 @@ partial def buildMeasureFn (measure : SExpr) : MetaM Expr := do
 where
   go (envV : Expr) : SExpr → MetaM Expr
     | .cons (.atom (.symbol h)) (.cons arg .nil) => do
-      unless h.name == "ACL2-COUNT" do
-        throwError "μ-registry: unary measure head {h.name} not registered \
-                    (frontier)"
+      -- LEN registered (P3, bsort: BNEXT's `:MEASURE (LEN X)`) — the Nat
+      -- interpretation is the trusted-core `lenNat` twin (`Logic.len`
+      -- computes it as an int atom, `logic_len_eq_lenNat`); additive
+      -- registration exactly parallel to ACL2-COUNT/consCount.
+      let fn ← match h.name with
+        | "ACL2-COUNT" => pure ``SExpr.consCount
+        | "LEN" => pure ``ACL2.Replay.lenNat
+        | _ => throwError "μ-registry: unary measure head {h.name} not \
+                    registered (frontier)"
       let .atom (.symbol v) := arg
-        | throwError "μ-registry: (ACL2-COUNT {repr arg}) — non-variable \
+        | throwError "μ-registry: ({h.name} {repr arg}) — non-variable \
                       measured argument (frontier)"
-      mkAppM ``SExpr.consCount #[← dpConcVar envV v]
+      mkAppM fn #[← dpConcVar envV v]
     | .cons (.atom (.symbol h)) (.cons m1 (.cons m2 .nil)) => do
       unless h.name == "BINARY-+" do
         throwError "μ-registry: binary measure head {h.name} not registered \
