@@ -15,6 +15,16 @@
       lake build Tests.DriverCoverage
   reads the table from the build output.
 
+  LEGEND — the two columns of a row can legitimately disagree (fold-back audit
+  F8, dp-premises): a row's `cond[…]` reflects the COMPOSED conditional replay
+  (`replayProofConditional` — rule/linear/equivrefl premise machinery in
+  scope), while its `[DISCHARGE: …]` detail is the STANDALONE per-leaf probe
+  (`tryDischarge` → `replayDischargeLeaf`, no ambient telescope, no premise
+  machinery, `assumeFact := true`). A leaf can therefore read `◌ assumed …
+  ASSUMED:dp-fact` in the detail while the composed row carries no ASSUMED
+  cond at all — the composed row is the claim that matters; the probe column
+  measures telescope-independent leaf strength.
+
   NO SILENT SKIPS: each log is `include_str`'d, so an ABSENT log is a HARD compile
   error naming the file (never silently skipped). CAVEAT (audited 2026-06-10): Lake
   does NOT track the embedded files as dependencies — a CHANGED log does not trigger

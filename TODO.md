@@ -23,6 +23,20 @@ _Last updated: 2026-08-01._
 > wall; 2f BUG-027 ratify-or-narrow); Phase 3 REST OF BOOK (bsort +
 > equisort/R6 into the sweep, mirrors via the generator, pins toward one
 > per book).
+> **2e SCOPED (read-only, 2026-08-01): the bsort recon crash is
+> `collectClausify: expected split/out, got rewriteStep` (ProofTree.lean
+> ~390-417): inside a clausify block, CLAUSIFY-EXPAND markers interleave
+> with the ordinary REWRITE-STEP events DETAILING each expansion's
+> internal chain (the second expand-abbreviations pass inside
+> clausify-input — bsort log line ~18428: CONS-EQUAL expand, then
+> preprocess/equal-self (EQUAL X4 X4)→'T + preprocess/if-iff steps,
+> then the next expand). Census: 4 interleaved steps in the whole bsort
+> log — small class. Fix shape: collect the steps into the clausify
+> structure attached to their expansion (recon), then bridgeClausify
+> replays the expansion chains (the BSORT-IS-ISORT
+> "replayPreprocessChain lhs mismatch" downstream blocker). Verify
+> against the fork's emission order which side of the marker the steps
+> attach to before building.**
 > **PHASE 1 COMPLETE (2026-08-01, commits 5e01361..89e64ea).** 1a: one
 > shared replay-channel builder (bookChannels/mkBookConfig/
 > replayAdmission) for runner + macro — found and fixed the macro's
@@ -118,6 +132,16 @@ _Last updated: 2026-08-01._
 > ASSUMED:dp-fact is GONE, that follow-up retired. Audit follow-ups
 > queued instead: F2/F4 provenance gates; F5 gz-defun closure over
 > linear/fc entry fns; F7 user-defined :LINEAR rules (no snapshot).
+> DP-PREMISES fold-back follow-ups (2026-08-01) queued: leaf-class
+> gating for the rule pass (plumb the leaf origin into
+> replayDischargeNode — the open ratification sub-question);
+> :rule-classes/:equivalence provenance emission (equivrefl gate is
+> shape-parse only); audit F6 — a throwFrontier while BUILDING a
+> premise downgrades the leaf to the ASSUMED fallback even if
+> provable premise-free (needs a design that never silently drops a
+> premise); substN scaffold extraction DONE (mkSubstNBridge — the
+> linear/rule/instantiateEvTrueHypAt copies retired, σ-term pinning
+> now uniform, audit F3 fixed).
 > The linear-verdicts machinery end-to-end: gz :LINEAR spec
 > emission → linear: hypothesis class → max-term-matched DP premises
 > (bounded-fixpoint instantiation; premise-free fallback twin for the
@@ -240,9 +264,13 @@ _Last updated: 2026-08-01._
 > strengthened equal/'T one-hyp stored rules; lhs as the trigger; the
 > substN scaffold's THIRD copy — extraction queued). ORDERED-PERMS
 > 4 → 3 ASSUMED:dp-fact (the flipped leaf was *1/6/ORDEREDP-RM).
-> INCREMENTS 2–4 (all four leaves now close; zero ASSUMED:dp-fact,
+> INCREMENTS 2–4 (all four leaves now close IN-TELESCOPE — the
+> composed cond row carries zero ASSUMED:dp-fact,
 > conds = [rule:CONS-CAR-CDR, rule:ORDEREDP-MEMB,
-> equivrefl:PERM-IS-AN-EQUIVALENCE]):
+> equivrefl:PERM-IS-AN-EQUIVALENCE]; the standalone DISCHARGE probes
+> have no premise machinery, so three still read ◌ there and the DP
+> scoreboard moved 45→46 (the trueListp bridge only) — legend now in
+> Tests/DriverCoverage.lean, audit F8):
 > (2) *1/4 — the v1 opaque-only trigger MISSED lift-primitive-headed
 > rule LHSes ((TRUE-LISTP (RM E A)): TRUE-LISTP lifts to
 > Logic.trueListp, only the inner RM is opaque) — match targets
@@ -285,7 +313,28 @@ _Last updated: 2026-08-01._
 > condition; queued follow-up with F4's memo-rune assertion); ACL2's
 > conclusion is modulo unemitted forced numericity assumptions (F6 —
 > the replay's burden is strictly HARDER, conservative). Full
-> assessment in the audit report. Mike to ratify-or-narrow;
+> assessment in the audit report. Mike to ratify-or-narrow.
+> **EXTENSION (dp-premises sub-arc, 2026-08-01 — the 2c fold-back
+> audit found the queued 2b wording covers NONE of these; design note
+> docs/notes/2026-08-01_dp-premise-classes.md): additionally ratify,
+> at a verdict-only DP leaf, premises drawn from in-scope stored
+> content — (i) boolean-strengthened :REWRITE rules (equiv EQUAL, rhs
+> 'T, one hyp) whose stored LHS one-way-matches ANY application
+> subterm of the emitted clause, GATED on ACL2's tau Signature Form 1
+> shape (tauSigForm1 — distinct-variable args, recognizer hyp on one
+> of them; added post-audit per soundness F1); (ii) the reflexivity
+> conjunct of an equivalence-shaped theorem at syntactically
+> reflexive application subterms (mirrors ACL2's
+> assoc-equiv+/(equal arg1 arg2) verbatim; auditor F2 caveat: the
+> defequiv provenance (:rule-classes :equivalence) is NOT emitted —
+> shape-parse only; closing it needs instrumentation); (iii)
+> trusted-core recursion equations of DP-lift primitives in the leaf
+> tactic's simp set (trueListp_cdr_of_consp — mirrors type-set-cdr's
+> rune-free *ts-proper-cons* → *ts-true-list* propagation). Each
+> premise is PROVED at the leaf's pinned values and kernel-checked;
+> none is assumed. OPEN sub-question for Mike: should (i) also gate
+> on the LEAF's class (tau vs fake-rune-for-type-set)? — the leaf
+> origin is not currently plumbed into replayDischargeNode;
 > (3) BUG-027 ratify-or-narrow (2f, carried).**
 
 > **FULL-PIPELINE AUDIT (2026-07-26, user-run 6-dimension team + refutation

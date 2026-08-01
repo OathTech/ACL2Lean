@@ -390,7 +390,12 @@ partial def dpSplitAndClose (tac : Lean.TSyntax `tactic) (l : Lean.MVarId)
     (fuel : Nat) : MetaM Bool := do
   let ok ← l.withContext do
     let m2 ← mkFreshExprMVar (← l.getType)
-    let ok ← try
+    -- HEARTBEAT BOUND (fold-back audit F1): the split path was the one
+    -- unbounded leaf-tactic run — a simp divergence (e.g. a growing
+    -- conditional rewrite meeting unbounded evidence) would hang here
+    -- rather than fail fast. Bounded per attempt; a tripped bound is a
+    -- failed attempt (loud downstream), never a silent success.
+    let ok ← withRealMaxHeartbeats dpOnlyProverGuard <| try
         let r ← Lean.Elab.runTactic m2.mvarId! tac
         pure r.1.isEmpty
       catch _ => pure false

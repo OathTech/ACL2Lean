@@ -629,11 +629,13 @@ where
     | .cons a rest => go a ++ goSpine rest
     | _ => []
 
-/-- Collect ALL application subterms of a term (primitive-headed AND opaque),
-    first-occurrence order, deduplicated; `QUOTE` stops the walk. These are the
-    match targets for the RULE-content premise pass: a stored rule's LHS can be
-    headed by a DP-lift PRIMITIVE (`(TRUE-LISTP (RM E A))` — `TRUE-LISTP` lifts
-    to `Logic.trueListp`, so only the inner `RM` application is opaque and
+/-- Collect the SYMBOL-HEADED application subterms of a term (primitive-headed
+    AND opaque), first-occurrence order, deduplicated; `QUOTE` stops the walk
+    and LAMBDA applications are not descended (mirroring `collectOpaques` —
+    neither body nor actuals contribute targets). These are the match targets
+    for the RULE-content premise pass: a stored rule's LHS can be headed by a
+    DP-lift PRIMITIVE (`(TRUE-LISTP (RM E A))` — `TRUE-LISTP` lifts to
+    `Logic.trueListp`, so only the inner `RM` application is opaque and
     `collectOpaques` never surfaces the match target). -/
 partial def collectAppSubterms (t : SExpr) : List SExpr :=
   go t |>.eraseDups
@@ -1749,18 +1751,27 @@ def mkForallMemProof (entryTy P : Expr) (entries : List (Expr × Expr)) :
       #[some entryTy, some P, some e, some restE]
     return (listE, ← mkAppM ``Iff.mpr #[consIff, andP])
 
-/-- Instantiate a PREMISE-FREE `∀ env', EvTrue w env' t`-shaped hypothesis
-    at the current env under σ: returns `EvTrue w env (substTerm σ t)` via
-    the substN bridge (the with-lemma scaffold's premise-free slice — G2
-    rung 2; used for user-equivalence rule conclusions and `cong:` formula
-    instances). Also returns the pinned ctx (σ-term opaques). -/
-def instantiateEvTrueHypAt (cfg : ReplayConfig) (ctx : ReplayCtx) (hypV : Expr)
-    (σvars : List Symbol) (σterms : List SExpr) (t : SExpr) :
-    MetaM (Expr × ReplayCtx) := do
+/-- The shared substN BRIDGE slice (dp-premises fold-back extraction): pin
+    the σ terms, build `env' = bindArgsOver env formals vals`, and return the
+    transport `bridge t : eval env (substTerm σ t) ≐ eval env' t`
+    (`evalOpt_substTerm_substN` with kernel-decided WellScoped + length
+    certificates). The SINGLE derivation site for the with-lemma recipe's
+    scaffold — `instantiateEvTrueHypAt` and the linear/rule premise passes
+    all consume it (three inline copies retired). σ-term pinning is part of
+    the contract (audit F3: the linear copy relied on every σ term occurring
+    inside the assembled premise — a latent hard-fail for a max-term-only
+    variable). -/
+structure SubstNBridge where
+  env' : Expr
+  bridge : SExpr → MetaM Expr
+  ctx : ReplayCtx
+
+def mkSubstNBridge (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (σvars : List Symbol) (σterms : List SExpr) (label : String) :
+    MetaM SubstNBridge := do
   let w := cfg.worldExpr
   let env := cfg.envExpr
-  let tσ := ACL2.Replay.substTerm σvars σterms t
-  let mut ctx ← pinTermOpaques cfg env ctx tσ
+  let mut ctx := ctx
   for tt in σterms do
     ctx ← pinTermOpaques cfg env ctx tt
   let vals ← σterms.mapM (ctxValExpr cfg ctx)
@@ -1771,7 +1782,7 @@ def instantiateEvTrueHypAt (cfg : ReplayConfig) (ctx : ReplayCtx) (hypV : Expr)
   let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
   let hlenPf ← proveByDecide
     (← mkEq (← mkAppM ``List.length #[argsE]) (← mkAppM ``List.length #[valsE]))
-    "instantiateEvTrueHypAt: substN lengths"
+    s!"substN lengths ({label})"
   let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
   let pFn ← withLocalDeclD `pr prodTy fun prV => do
     let fst ← mkAppM ``Prod.fst #[prV]
@@ -1785,15 +1796,29 @@ def instantiateEvTrueHypAt (cfg : ReplayConfig) (ctx : ReplayCtx) (hypV : Expr)
     let mem ← mkAppM ``Membership.mem #[zipE, prV]
     mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
   let hargs ← mkExpectedTypeHint hargsRaw hargsTy
-  let hWellScoped ← proveByDecide
-    (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr t])
-       (mkConst ``Bool.true))
-    "instantiateEvTrueHypAt: WellScoped"
-  -- pB : eval env (substTerm σ t) ≡ eval env' t
-  let pB ← mkAppM ``evalOpt_substTerm_substN
-    #[w, env, formalsE, argsE, valsE, reflectSExpr t, hWellScoped, hlenPf, hargs]
-  let happ := mkApp hypV env'
-  return (← mkAppM ``evtrue_of_fuel_eq #[pB, happ], ctx)
+  let bridge : SExpr → MetaM Expr := fun t => do
+    let hWellScoped ← proveByDecide
+      (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr t])
+         (mkConst ``Bool.true))
+      s!"WellScoped ({label}): {repr t}"
+    mkAppM ``evalOpt_substTerm_substN
+      #[w, env, formalsE, argsE, valsE, reflectSExpr t,
+        hWellScoped, hlenPf, hargs]
+  return { env', bridge, ctx }
+
+/-- Instantiate a PREMISE-FREE `∀ env', EvTrue w env' t`-shaped hypothesis
+    at the current env under σ: returns `EvTrue w env (substTerm σ t)` via
+    the substN bridge (the with-lemma scaffold's premise-free slice — G2
+    rung 2; used for user-equivalence rule conclusions and `cong:` formula
+    instances). Also returns the pinned ctx (σ-term opaques). -/
+def instantiateEvTrueHypAt (cfg : ReplayConfig) (ctx : ReplayCtx) (hypV : Expr)
+    (σvars : List Symbol) (σterms : List SExpr) (t : SExpr) :
+    MetaM (Expr × ReplayCtx) := do
+  let tσ := ACL2.Replay.substTerm σvars σterms t
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx tσ
+  let sb ← mkSubstNBridge cfg ctx σvars σterms "instantiateEvTrueHypAt"
+  let happ := mkApp hypV sb.env'
+  return (← mkAppM ``evtrue_of_fuel_eq #[← sb.bridge t, happ], sb.ctx)
 
 /-- The D4 BUILTIN-DEFINITION unfold (design §D4, WP2): `(fn a) ⇒ body[a]` for a
     `callBuiltin` builtin ABSENT from the world, where `body` is the fn's EMITTED

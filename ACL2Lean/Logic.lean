@@ -694,10 +694,24 @@ theorem trueListp_ne_nil_iff (x : SExpr) :
   rcases trueListp_t_or_nil x with h | h <;> simp [h, SExpr.t]
 
 /-- The DP-leaf bridge for `trueListp`'s recursion: under `consp` evidence the
-    recognizer steps to the tail. The conditional form a SYMBOLIC leaf value
-    needs — `trueListp_cons` fires only on literal conses, so a clause whose
-    type-set verdict rests on the `TRUE-LISTP`/`CDR` link (consp x ∧
-    true-listp x → true-listp (cdr x)) is unreachable without it. -/
+    recognizer of the TAIL collapses to the recognizer of the whole. The
+    conditional form a SYMBOLIC leaf value needs — `trueListp_cons` fires only
+    on literal conses, so a clause whose type-set verdict rests on the
+    `TRUE-LISTP`/`CDR` link (ACL2's `type-set-cdr`:
+    `*ts-proper-cons* → *ts-true-list*`, rune-free) is unreachable without it.
+    KNOWN LOOP HAZARD (fold-back audit F1, mechanism): this is a GROWING
+    rewrite (`trueListp x → trueListp (cdr x)`), so simp diverges in any
+    context where the `consp` side condition is dischargeable unboundedly
+    (demonstrated with a ∀-quantified consp hypothesis). It is safe in the DP
+    leaf tactic ONLY because `proveDpFact` runs leaves in a pristine empty
+    local context whose finite `consp (cdr^n …)` evidence bounds the chain,
+    and the tactic's callers are heartbeat-bounded (the direct attempt
+    explicitly; the split path via `dpSplitAndClose`'s wrapper, added with
+    this note). The shrinking orientation would be loop-free but CANNOT FIRE:
+    its LHS pattern `trueListp (cdr x)` is destroyed by the leaf simp set's
+    own `Logic.cdr` unfold before conditional rewriting is attempted
+    (verified empirically — the *1/3 leaf regressed under it). Do not put
+    this lemma in any simp set that runs in a non-pristine context. -/
 theorem trueListp_cdr_of_consp (x : SExpr) (h : consp x ≠ SExpr.nil) :
     trueListp x = trueListp (cdr x) := by
   cases x <;> simp_all [consp, cdr]
