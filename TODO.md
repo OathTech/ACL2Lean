@@ -36,7 +36,20 @@ _Last updated: 2026-08-01._
 > replays the expansion chains (the BSORT-IS-ISORT
 > "replayPreprocessChain lhs mismatch" downstream blocker). Verify
 > against the fork's emission order which side of the marker the steps
-> attach to before building.**
+> attach to before building.
+> RECON LANDED (sub-arc mdd/bsort-recon): fork emission order settled
+> the attachment — the marker is pushed AFTER expand-and-or returns
+> (induct.lisp emit/clausify/expand), so detail steps PRECEDE their
+> marker; steps between markers N and N+1 belong to N+1.
+> ClausifyExpansion.detail carries them (raw events, emission order);
+> collectClausify accumulates pending steps per phase and hard-fails
+> on trailing steps with no owning marker; runCheckedExpand hard-fails
+> (never ignores) an expansion carrying detail — the detail-chain
+> REPLAY is the remaining 2e follow-up that actually greens
+> BSORT-IS-ISORT. bsort's dump-proof-tree now reconstructs end-to-end;
+> p4-iff-or-shape re-pinned truthfully to its next frontier (or-shape
+> iff chain still IFF at literal root — the R-parameterized
+> literal-chain class, the book's original target class).**
 > **PHASE 1 COMPLETE (2026-08-01, commits 5e01361..89e64ea).** 1a: one
 > shared replay-channel builder (bookChannels/mkBookConfig/
 > replayAdmission) for runner + macro — found and fixed the macro's

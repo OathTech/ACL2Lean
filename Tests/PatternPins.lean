@@ -90,21 +90,24 @@ elab "sorting_arc_pattern_pins% " : term => do
     throwError "pattern pin p6-or-collapse-arith: the pinned frontier message \
       moved — got:\n{"\n".intercalate resP6.lines.toList}\nre-pin truthfully \
       (an EARLIER failure means the or-collapse bridge regressed)"
-  -- p4-iff-or-shape (equiv-lane arc): a TRUTHFUL RECON TRIPWIRE — the
-  -- book lands on the KNOWN clausify-region reconstruction wall (the
-  -- bsort wall: clausify-input's second expand-abbreviations interleaves
-  -- steps into the clausify event stream). The pin flips when that wall
-  -- falls, which also unblocks bsort's corpus entry.
+  -- p4-iff-or-shape RE-PINNED (2e, bsort-recon): the clausify-region
+  -- RECON wall FELL — collectClausify now attaches the interleaved
+  -- expand-and-or detail steps to their expansion markers (the tree
+  -- builds; bsort's corpus entry unblocked). The book advances to its
+  -- next truthful frontier: the literal chain ends still-IFF at the
+  -- literal root (the R-parameterized literal-chain class, equiv-lane
+  -- rung 2 — the book's original target class, now actually reachable).
   let (res, _) ← ACL2.Replay.Runner.runBook "p4-iff-or-shape" iffOrShapeLog none
-  unless res.integrityFails.size == 1 &&
-      ((res.integrityFails[0]!).splitOn "collectClausify").length > 1 do
-    throwError "pattern pin p4-iff-or-shape: expected the clausify-region \
-      RECON tripwire, got integrity {res.integrityFails.toList} \
-      ({res.replayed}/{res.total} replayed) — the wall moved: re-pin \
-      truthfully"
+  unless res.integrityFails.isEmpty && res.lines.any (fun l =>
+      l.startsWith "    HAS-E-SNOC → FAIL: replayRewrites: or-shape iff \
+chain still IFF at the literal root") do
+    throwError "pattern pin p4-iff-or-shape: the pinned frontier moved — \
+      integrity {res.integrityFails.toList}, got:\n\
+      {"\n".intercalate res.lines.toList}\nre-pin truthfully (an integrity \
+      failure means the clausify recon REGRESSED)"
   logInfo "sorting-arc pattern pins hold (p3-recorded-termination 2/2, \
     p3-conj-mid-literal 1/1 — the mid-literal composer validated; \
-    p4-iff-or-shape recon-tripwire)"
+    p4-iff-or-shape at the R-parameterized literal-chain frontier)"
   return mkConst ``True.intro
 
 -- unlimited at the command like the coverage sweep — the harness enforces

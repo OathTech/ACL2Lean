@@ -403,6 +403,17 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
     (exps : List ClausifyExpansion) (input : SExpr) (pos : Bool) :
     MetaM (SExpr × Option Expr) := do
   if exps.isEmpty then return (input, none)
+  -- NEVER-IGNORE (2e): an expansion carrying recorded DETAIL steps (the
+  -- expand-and-or internal abbreviation pass — the bsort/p4 class) is a
+  -- replay frontier until the detail-chain replay lands; consuming the
+  -- expansion while dropping its steps would misreplay the :TO derivation.
+  for e in exps do
+    unless e.detail.isEmpty do
+      throwError "runCheckedExpand: expansion {repr e.fromTerm} carries \
+          {e.detail.length} recorded detail step(s) (expand-and-or's \
+          internal abbreviation pass) — detail-chain replay is a frontier \
+          (2e; the recon now represents it, the replay does not yet \
+          consume it)"
   -- registry shape validation (value-level, fail-closed)
   let mkIfT (c : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := "IF" }))

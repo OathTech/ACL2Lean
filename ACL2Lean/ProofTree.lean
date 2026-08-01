@@ -166,6 +166,16 @@ structure ClausifyExpansion where
   toTerm : SExpr
   pos : Bool
   runes : List Rune
+  /-- The expansion's DETAIL steps (2e, the bsort wall): `expand-and-or`
+      internally re-runs abbreviation rewriting on the expanded body
+      (`preprocess/equal-self`, `preprocess/if-iff`, … origins), and those
+      step events are emitted DURING the expansion — i.e. they appear in the
+      log BEFORE this expansion's own `:CLAUSIFY-EXPAND` marker, which the
+      fork pushes only after `expand-and-or` returns (induct.lisp,
+      `emit/clausify/expand`). Steps between marker N and marker N+1 thus
+      belong to N+1. Raw events, in emission order; the replay must consume
+      them or hard-fail — never ignore them. -/
+  detail : List TraceEvent := []
   deriving Repr, Inhabited
 
 /-- The recorded CLAUSIFY checkpoints (preprocess formula → clause set;
@@ -386,16 +396,31 @@ private def findLiteralResult (events : List TraceEvent) (original : SExpr) : SE
 /-- Collect a CLAUSIFY checkpoint block following a `:CLAUSIFY-INPUT` event:
     optional `:CLAUSIFY-EXPAND` markers (flagged), then `:CLAUSIFY-NEG`, the
     `:CLAUSIFY-SPLIT`s (markers may interleave), then `:CLAUSIFY-OUT`.
-    Out-of-order structure hard-fails. -/
+    Out-of-order structure hard-fails.
+
+    DETAIL-STEP interleaving (2e, the bsort wall): plain `:REWRITE-STEP`
+    events may interleave with the expand markers — `expand-and-or`'s
+    internal abbreviation pass emits them DURING an expansion, so they
+    precede their own marker (see `ClausifyExpansion.detail`). Pending steps
+    attach to the NEXT expand marker; pending steps with no following marker
+    in the same phase are an unexplained shape and hard-fail (never
+    dropped). -/
 private def collectClausify (input : SExpr) (evs : List TraceEvent)
     : Except String (ClausifyInfo × List TraceEvent) := do
   -- phase 1: whole-formula (bool=nil) expansions before the neg event
   let rec takeExpands (acc : List ClausifyExpansion)
-      : List TraceEvent → (List ClausifyExpansion × List TraceEvent)
+      (pend : List TraceEvent)
+      : List TraceEvent → Except String (List ClausifyExpansion × List TraceEvent)
     | .clausifyExpand fr to pos runes :: rest =>
-        takeExpands (acc ++ [⟨fr, to, pos, runes⟩]) rest
-    | rest => (acc, rest)
-  let (negExpands, evs) := takeExpands [] evs
+        takeExpands (acc ++ [⟨fr, to, pos, runes, pend⟩]) [] rest
+    | ev@(.rewriteStep ..) :: rest => takeExpands acc (pend ++ [ev]) rest
+    | rest =>
+        match pend with
+        | [] => pure (acc, rest)
+        | ev :: _ => throw s!"collectClausify: {pend.length} detail step(s) \
+            with no following :CLAUSIFY-EXPAND marker before :CLAUSIFY-NEG \
+            (unexplained interleaving — first: {repr ev})"
+  let (negExpands, evs) ← takeExpands [] [] evs
   let (negClause, evs) ← match evs with
     | .clausifyNeg cl :: rest => pure (cl, rest)
     | ev :: _ => throw s!"collectClausify: expected :CLAUSIFY-NEG, got {repr ev}"
@@ -404,17 +429,29 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
   -- checkpoint; then out
   let rec go (acc : List (SExpr × List SExpr))
       (sx : List (Nat × ClausifyExpansion))
+      (pend : List TraceEvent)
       : List TraceEvent → Except String (ClausifyInfo × List TraceEvent)
     | .clausifyExpand fr to pos runes :: rest =>
-        go acc (sx ++ [(acc.length, ⟨fr, to, pos, runes⟩)]) rest
-    | .clausifySplit lit cl :: rest => go (acc ++ [(lit, cl)]) sx rest
+        go acc (sx ++ [(acc.length, ⟨fr, to, pos, runes, pend⟩)]) [] rest
+    | ev@(.rewriteStep ..) :: rest => go acc sx (pend ++ [ev]) rest
+    | .clausifySplit lit cl :: rest =>
+        match pend with
+        | [] => go (acc ++ [(lit, cl)]) sx [] rest
+        | ev :: _ => throw s!"collectClausify: {pend.length} detail step(s) \
+            with no following :CLAUSIFY-EXPAND marker before a \
+            :CLAUSIFY-SPLIT (unexplained interleaving — first: {repr ev})"
     | .clausifyOut clauses :: rest =>
-        return ({ input, negClause, splits := acc, out := clauses,
-                  expanded := !negExpands.isEmpty || !sx.isEmpty,
-                  negExpands, splitExpands := sx }, rest)
+        match pend with
+        | [] =>
+          return ({ input, negClause, splits := acc, out := clauses,
+                    expanded := !negExpands.isEmpty || !sx.isEmpty,
+                    negExpands, splitExpands := sx }, rest)
+        | ev :: _ => throw s!"collectClausify: {pend.length} detail step(s) \
+            with no following :CLAUSIFY-EXPAND marker before :CLAUSIFY-OUT \
+            (unexplained interleaving — first: {repr ev})"
     | ev :: _ => throw s!"collectClausify: expected split/out, got {repr ev}"
     | [] => throw "collectClausify: events ended before :CLAUSIFY-OUT"
-  go [] [] evs
+  go [] [] [] evs
 
 /-- Parse a clause-level event list (ACL2's `:REWRITES`) into its branch tree, in
     log order, returning the items and the events after this branch. A
