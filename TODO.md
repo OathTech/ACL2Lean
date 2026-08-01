@@ -107,6 +107,25 @@ _Last updated: 2026-08-01._
 > kit — count(cons) = 1 + count(car) + count(cdr), which the kit
 > states directly). The obligation is NOT valid without it
 > (independent-opaque counter-model) — no shortcut exists.
+> 3b-iv LANDED (pending sweep/commit): oneWayMatch (the replay's ONLY
+> matcher — verdict-class :LINEAR premises record no :SUBST; pattern =
+> the EMITTED max-term), linData premises in replayDischargeNode
+> ((IF hyp (EQUAL l r) 'T) — cond-shaped like TP corollaries, zero new
+> lift machinery; concrete facts via the substN scaffold
+> (bindArgsOver/evalOpt_substTerm_substN — inline twin of the
+> with-lemma recipe's, extraction queued) + linear_premise_fact
+> (EvalLemmas); premise opaques EXTEND the obligation's opaque set;
+> v1 gates: exactly 1 stored hyp, EQUAL concl, all rule vars bound).
+> + the EQUATION-ADD close in the spine's base case (tryEqAdd probe:
+> one child = ¬eq :: unchanged lits; byCases; nil peels the replayed
+> child, ≠ closes by the DP obligation eq ∨ clause). ACL2-COUNT-EVENS-
+> STRONG advanced THROUGH *1/2.3''' — now at a NEW class:
+> "type-set-equality: no consp evidence for (BINARY-+ '1 …)" with
+> induction vars X3/X4 — the numeric-TP ⇒ ¬consp lattice rung (the
+> INC-1a recognizer class) missing at the type-set-equality consumer;
+> extend typeSetWalk's isConspT/isNil evidence with the
+> arithmetic-value route (TP nonneg-int of the BINARY-+ args ⇒ the
+> sum is a number ⇒ not a cons).
 > 3a LANDED (50e6ec9 + fork c85dcd80): the gz :LINEAR spec emission
 > end-to-end (collectors + event + parser + Development accessor +
 > recapture-all at clean stamps; ci green, rows unchanged).

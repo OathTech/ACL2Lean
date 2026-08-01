@@ -64,6 +64,58 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
     if children.isEmpty && lits.any (fun l => lits.contains (notOfL l)) then
       return ← tautClauseClose cfg ctx lits s!"replayClauseSpine at {idStr}"
+    -- LINEAR EQUATION-ADD close (2b increment 3; ACL2-COUNT-EVENS-STRONG
+    -- *1/2.3'''): process-equational-polys derives an equation from the
+    -- linear pot (verdict-only — fake-rune-for-linear-equalities + the
+    -- cited :LINEAR rules) and pushes ONE child = ¬eq ∨ (this clause,
+    -- UNCHANGED). byCases on the escape literal's value: false peels the
+    -- replayed child's head (no transport — the clause is unchanged);
+    -- true closes the parent by the DP obligation `eq ∨ clause`
+    -- (`replayDischargeNode`, carrying the cited gz :LINEAR rules'
+    -- instantiated premises — 3b-iv). Every non-matching shape falls
+    -- through to the loud frontier below.
+    let tryEqAdd : MetaM (Option Expr) := do
+      let [child] := children | return none
+      let negEqL :: restL := child.inputClause | return none
+      unless restL == lits do return none
+      let .cons (.atom (.symbol notS))
+          (.cons (.cons (.atom (.symbol eqS))
+            (.cons aT (.cons bT .nil))) .nil) := negEqL | return none
+      unless notS.name == "NOT" && eqS.name == "EQUAL" do return none
+      let eqT : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+        (.cons aT (.cons bT .nil))
+      let obligation := disjoinTerm (eqT :: lits)
+      let mut ctx1 := ctx
+      ctx1 ← pinTermOpaques cfg cfg.envExpr ctx1 obligation
+      ctx1 ← pinTermOpaques cfg cfg.envExpr ctx1 negEqL
+      let dpFact ← replayDischargeNode cfg ctx1 obligation
+      let vNeg ← ctxValExpr cfg ctx1 negEqL
+      let pNeg ← ctxValProof cfg ctx1 negEqL
+      let vEq ← ctxValExpr cfg ctx1 eqT
+      let pEq ← ctxValProof cfg ctx1 eqT
+      let va ← ctxValExpr cfg ctx1 aT
+      let vb ← ctxValExpr cfg ctx1 bT
+      let nilC := mkConst ``SExpr.nil
+      let pChild ← rec.clause cfg { ctx1 with litFacts := [] } child
+      let negL ← withLocalDeclD `hnil (← mkEq vNeg nilC) fun hNil => do
+        let hcNil ← mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr negEqL,
+            vNeg, nilC, pNeg, hNil]
+        let p ← mkAppM ``evtrue_tail_of_if_head_nil #[hcNil, pChild]
+        mkLambdaFVars #[hNil] p
+      let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vNeg, nilC])
+          fun hNe => do
+        let hEqNil ← mkAppM ``logic_not_equal_ne_nil_eq_nil #[va, vb, hNe]
+        let hcNil ← mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr eqT, vEq,
+            nilC, pEq, hEqNil]
+        let p ← mkAppM ``evtrue_tail_of_if_head_nil #[hcNil, dpFact]
+        mkLambdaFVars #[hNe] p
+      let p ← (try mkAppM ``Classical.byCases #[negL, posL]
+        catch e => throwError "byCases compose failed (equation-add) \
+            at {idStr}:\n{e.toMessageData}")
+      return some p
+    if let some p ← tryEqAdd then return p
     throwError "replayClauseSpine: ran out of items with no closer \
                 at {idStr}"
   | .clausify _ :: _ =>

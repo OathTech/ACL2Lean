@@ -1015,6 +1015,39 @@ def dpFactStmtOfClause (worldVal : World) (tpsAvail : List (String × SExpr))
       return some (ACL2.Replay.substTerm formals args cor)
   dpFactStmt tests last vars opaques tpCors
 
+/-- First-order ONE-WAY match: bind the pattern's VARIABLES (bare symbol
+    atoms — ACL2 constants are quoted, functions are application heads) to
+    subterms of `target`. Deterministic; fail-closed on conflicting
+    bindings. The replay's ONLY matcher, justified at the verdict-class
+    :LINEAR premise site alone (2b): ACL2 records no :SUBST for pot-setup
+    rule uses, and the pattern is the EMITTED max-term — nothing is
+    invented, and the instantiated premise is re-proved from the
+    hypothesis, kernel-checked. -/
+partial def oneWayMatch (pat target : SExpr)
+    (acc : List (Symbol × SExpr) := []) :
+    Option (List (Symbol × SExpr)) :=
+  match pat with
+  | .atom (.symbol s) =>
+    (match acc.find? (fun (v, _) => v == s) with
+     | some (_, t) => if t == target then some acc else none
+     | none => some ((s, target) :: acc))
+  | .cons (.atom (.symbol f)) pargs =>
+    if f.name == "QUOTE" then (if pat == target then some acc else none)
+    else
+      (match target with
+       | .cons (.atom (.symbol g)) targs =>
+         if f == g then goArgs pargs targs acc else none
+       | _ => none)
+  | _ => if pat == target then some acc else none
+where
+  goArgs (pargs targs : SExpr) (acc : List (Symbol × SExpr)) :
+      Option (List (Symbol × SExpr)) :=
+    match pargs, targs with
+    | .nil, .nil => some acc
+    | .cons p pr, .cons t tr =>
+      (oneWayMatch p t acc).bind fun acc' => goArgs pr tr acc'
+    | _, _ => none
+
 /-- COMPOSE a verdict-only discharge node into a clause/preprocess replay: prove
     `EvTrue w env (disjoin clause)` (G2) under the AMBIENT `ReplayCtx` —
     opaque user-fn values come from the ctx PINS (placed there by
@@ -1027,7 +1060,110 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
   let (tests, last) := dpSpine clauseTerm
   let lits := tests ++ [last]
   let vars := (lits.flatMap ACL2.Replay.freeVars).eraseDups
-  let opaques := (lits.flatMap collectOpaques).eraseDups
+  let opaques0 := (lits.flatMap collectOpaques).eraseDups
+  -- LINEAR-rule premises (2b-iv): each offered `linear:` hypothesis whose
+  -- EMITTED max-term one-way-matches an obligation opaque contributes the
+  -- instantiated `(IF hyp (EQUAL l r) 'T)` premise — cond-shaped exactly
+  -- like a TP corollary, so the INT-VIEW lift consumes it unchanged. The
+  -- concrete fact: the schematic hypothesis applied at
+  -- `bindArgsOver env σvars σvals` and transported to the substituted
+  -- terms along `evalOpt_substTerm_substN` (the with-lemma recipe's
+  -- substN scaffold — inline twin, extraction queued), then
+  -- `linear_premise_fact`. v1 gates, all fail-closed: exactly one stored
+  -- hyp; EQUAL-headed conclusion; well-scoped rule terms; every rule
+  -- variable bound by the match.
+  let mut linData : List (SExpr × Expr) := []
+  let mut ctxL := ctx
+  for (spec, hypV) in ctx.linearHyps do
+    for op in opaques0 do
+      if let some σ := oneWayMatch spec.maxTerm op then
+        let (lT, rT) ← match spec.concl with
+          | .cons (.atom (.symbol eqS)) (.cons l (.cons r .nil)) =>
+            if eqS.name == "EQUAL" then pure (l, r)
+            else throwFrontier m!"replayDischargeNode: linear rule \
+              {spec.name} conclusion head {eqS.name} ≠ EQUAL (frontier)"
+          | _ => throwFrontier m!"replayDischargeNode: linear rule \
+              {spec.name} conclusion {repr spec.concl} not an equality \
+              (frontier)"
+        let hT ← match spec.hyps with
+          | [h] => pure h
+          | hs => throwFrontier m!"replayDischargeNode: linear rule \
+              {spec.name} has {hs.length} hyps (v1 supports exactly 1 — \
+              frontier)"
+        let ruleFrees := (ACL2.Replay.freeVars hT ++
+          ACL2.Replay.freeVars spec.concl).eraseDups
+        for v in ruleFrees do
+          unless σ.any (fun (x, _) => x == v) do
+            throwFrontier m!"replayDischargeNode: linear rule {spec.name} \
+              variable {v.name} not bound by the max-term match (frontier)"
+        let σvars := σ.map (·.1)
+        let σterms := σ.map (·.2)
+        let inst := ACL2.Replay.substTerm σvars σterms
+        let (hI, lI, rI) := (inst hT, inst lT, inst rT)
+        let eqI : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+          (.cons lI (.cons rI .nil))
+        let premise : SExpr := .cons (.atom (.symbol { name := "IF" }))
+          (.cons hI (.cons eqI (.cons quoteT .nil)))
+        unless linData.any (fun (t, _) => t == premise) do
+          ctxL ← pinTermOpaques cfg cfg.envExpr ctxL premise
+          -- substN scaffold (twin of the with-lemma recipe's)
+          let w := cfg.worldExpr
+          let env := cfg.envExpr
+          let σvals ← σterms.mapM (ctxValExpr cfg ctxL)
+          let σconvs ← σterms.mapM (ctxValProof cfg ctxL)
+          let formalsE ← mkListLit (mkConst ``Symbol) (σvars.map reflectSymbol)
+          let argsE ← mkListLit (mkConst ``SExpr) (σterms.map reflectSExpr)
+          let valsE ← mkListLit (mkConst ``SExpr) σvals
+          let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
+          let hlenPf ← proveByDecide
+            (← mkEq (← mkAppM ``List.length #[argsE])
+                    (← mkAppM ``List.length #[valsE]))
+            s!"substN lengths (linear {spec.name})"
+          let prodTy ← mkAppM ``Prod #[mkConst ``SExpr, mkConst ``SExpr]
+          let pFn ← withLocalDeclD `pr prodTy fun prV => do
+            let fst ← mkAppM ``Prod.fst #[prV]
+            let snd ← mkAppM ``Prod.snd #[prV]
+            mkLambdaFVars #[prV] (← mkValConvPropEx w env fst snd)
+          let entries ← (σterms.zip σvals).mapM fun (t, v) =>
+            mkAppM ``Prod.mk #[reflectSExpr t, v]
+          let (_, hargsRaw) ← mkForallMemProof prodTy pFn (entries.zip σconvs)
+          let zipE ← mkAppM ``List.zip #[argsE, valsE]
+          let hargsTy ← withLocalDeclD `pr prodTy fun prV => do
+            let mem ← mkAppM ``Membership.mem #[zipE, prV]
+            mkForallFVars #[prV] (← mkArrow mem (mkApp pFn prV).headBeta)
+          let hargs ← mkExpectedTypeHint hargsRaw hargsTy
+          let bridge : SExpr → MetaM Expr := fun t => do
+            let hWellScoped ← proveByDecide
+              (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[reflectSExpr t])
+                      (mkConst ``Bool.true))
+              s!"WellScoped linear rule term ({spec.name})"
+            mkAppM ``evalOpt_substTerm_substN
+              #[w, env, formalsE, argsE, valsE, reflectSExpr t,
+                hWellScoped, hlenPf, hargs]
+          -- hypInst : EvTrue env (subst h) → EvTrue env (subst concl)
+          let evT : SExpr → MetaM Expr := fun t =>
+            pure (mkAppN (mkConst ``EvTrue) #[w, env, reflectSExpr t])
+          let hypInst ← withLocalDeclD `hh (← evT hI) fun hhV => do
+            let hEnv' ← mkAppM ``evtrue_of_fuel_eq
+              #[← mkAppM ``fuel_eq_symm #[← bridge hT], hhV]
+            let cEnv' := mkAppN hypV #[env', hEnv']
+            let cBack ← mkAppM ``evtrue_of_fuel_eq #[← bridge spec.concl, cEnv']
+            mkLambdaFVars #[hhV] cBack
+          -- the premise fact via linear_premise_fact
+          let hnd ← proveNoShadow cfg ({ name := "EQUAL" } : Symbol)
+          let phC ← ctxValProof cfg ctxL hI
+          let plC ← ctxValProof cfg ctxL lI
+          let prC ← ctxValProof cfg ctxL rI
+          let fact ← mkAppM ``linear_premise_fact #[hnd, hypInst, phC, plC, prC]
+          linData := linData ++ [(premise, fact)]
+  let ctx := ctxL
+  -- premise instances may mention opaques BEYOND the obligation's (a
+  -- max-term match on (CDR X) instantiates the conclusion with
+  -- (ACL2-COUNT X)); extend the opaque set so the lift and the
+  -- application cover them (their pins came from the pinTermOpaques
+  -- pass above)
+  let opaques := (opaques0 ++
+    ((linData.map (·.1)).flatMap collectOpaques)).eraseDups
   let pinned ← opaques.mapM fun op => do
     let some (v, p) := ctx.val? op
       | throwError "replayDischargeNode: opaque {repr op} has no pinned value \
@@ -1052,14 +1188,16 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
       let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
         ++ (args.map reflectSExpr).toArray ++ #[v, conv])
       return some (instCor, fact)
-  let stmt ← dpFactStmt tests last vars opaques (tpData.map (·.1))
+  let stmt ← dpFactStmt tests last vars opaques
+    (tpData.map (·.1) ++ linData.map (·.1))
   -- an UNPROVABLE fact falls back to the harness-offered dp-fact HYPOTHESIS
   -- for this clause (condition threading — the ambient analog of the
   -- standalone `assumeFact` route; the row reports ASSUMED:dp-fact via the
   -- used-filter). No offer → the failure surfaces (frontier).
   let prove : MetaM Expr :=
     proveDpFact stmt (vars.length + opaques.length)
-      (dpConeIndices tests last vars opaques (tpData.map (·.1)))
+      (dpConeIndices tests last vars opaques
+        (tpData.map (·.1) ++ linData.map (·.1)))
   let hypFallback (e : Lean.Exception) : MetaM Expr := do
     match ctx.dpFactHyps.find? (fun (t, _) => t == clauseTerm) with
     | some (_, hyp) => do
@@ -1074,7 +1212,7 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
     hypFallback
   let concArgs ← vars.mapM (dpConcVar cfg.envExpr)
   let factConc := mkAppN fact (concArgs.toArray ++ (opqMap.map (·.2)).toArray
-    ++ (tpData.map (·.2)).toArray)
+    ++ (tpData.map (·.2)).toArray ++ (linData.map (·.2)).toArray)
   let bundle ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
   dischargeSpine cfg bundle opqMap clauseTerm factConc
 
