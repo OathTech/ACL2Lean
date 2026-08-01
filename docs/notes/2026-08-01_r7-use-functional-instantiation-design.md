@@ -43,6 +43,18 @@ BSORT-IS-ISORT is the same shape with the weak (IMPLIES-guarded)
 variant and one surviving preprocess child. QSORT-IS-ISORT is the
 MSORT twin.
 
+**Composition finding (2e, 2026-08-01):** the driver's `useHint` arm
+today fires only in the NO-clausify-records branch
+(`Core.lean` `| [] =>`), but BSORT-IS-ISORT's Goal node carries BOTH
+the `:USE-HINT` payload AND clausify records (the weak variant's
+application clause survives tautology-dropping and clausifies). Its
+current failure — `replayPreprocessChain` walking the constraint-chain
+steps against the GOAL formula — is exactly this: the clausify-bearing
+branch never consults the useHint payload. The R7a composition must
+route the step stream by the payload (constraint chain on
+`constraint-cl`, then the clausify block on the application side)
+regardless of which branch the node's record shape lands in.
+
 What ACL2's `apply-top-hints-clause` does: goal clause `G` with `:use`
 instances `L₁…Lₙ` becomes (a) the application clause
 `(¬L₁ ∨ … ∨ ¬Lₙ ∨ G)` (dropped when tautologous) and (b) for a
