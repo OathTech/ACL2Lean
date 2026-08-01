@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Perm
+import ACL2Lean.Imported.ExecGen
 
 /-! # Imported: the sorting books — world-parametric support beyond perm
 
@@ -322,14 +323,12 @@ private theorem bindArgs_ex_x (ve vx : SExpr) :
   rw [Env.get?_insert, if_neg (by decide), Env.get?_insert,
       if_pos (by decide)]
 
-/-- `insert`'s body as a total Lean function (shape-exact, D2). -/
-def insertExec (e x : SExpr) : SExpr :=
-  if Logic.toBool (Logic.consp x) = true then
-    if Logic.toBool (lexorder e (Logic.car x)) = true then Logic.cons e x
-    else Logic.cons (Logic.car x) (insertExec e (Logic.cdr x))
-  else Logic.cons e x
-termination_by x.consCount
-decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
+/-- `insert`'s body as a total Lean function (shape-exact, D2) —
+    GENERATED (1b retirement: the hand def this replaces is reproduced
+    by the generator's body walk; every downstream consumer, starting
+    with the hand `insert_exec_corr`, re-elaborates against it). -/
+derive_exec% insertExec for insert_sym formals [eS, xS]
+  body insertBody measured 1
 
 /-- Stage 1: an `insert` call converges to `insertExec` of its argument
     values. -/
@@ -425,13 +424,9 @@ theorem insertExec_enc (e : SExpr) (xs : List SExpr) :
       rw [ih]
       rfl
 
-/-- `isort`'s body as a total Lean function. -/
-def isortExec (x : SExpr) : SExpr :=
-  if Logic.toBool (Logic.consp x) = true then
-    insertExec (Logic.car x) (isortExec (Logic.cdr x))
-  else SExpr.nil
-termination_by x.consCount
-decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
+/-- `isort`'s body as a total Lean function — GENERATED (the INSERT call
+    resolves through the kit registry). -/
+derive_exec% isortExec for isort_sym formals [xS] body isortBody measured 0
 
 /-- Stage 1: an `isort` call converges to `isortExec` of its argument
     value. -/
@@ -1113,14 +1108,8 @@ private theorem how_many_ns :
      how_many_sym.isNamed "LET*" = false) := by decide
 
 /-- `how-many`'s body as a total Lean function. -/
-def howManyExec (e x : SExpr) : SExpr :=
-  if Logic.toBool (Logic.consp x) = true then
-    if Logic.toBool (Logic.equal e (Logic.car x)) = true then
-      Logic.plus int1 (howManyExec e (Logic.cdr x))
-    else howManyExec e (Logic.cdr x)
-  else .atom (.number (.int 0))
-termination_by x.consCount
-decreasing_by all_goals exact consCount_cdr_lt_of_consp (by assumption)
+derive_exec% howManyExec for how_many_sym formals [eS, xS]
+  body howManyBody measured 1
 
 /-- Stage 1: a `how-many` call converges to `howManyExec` of its argument
     values. -/
@@ -1209,7 +1198,7 @@ theorem howManyExec_enc (e : SExpr) (xs : List SExpr) :
       have : (hd :: tl).count e = tl.count e + 1 := by
         simp [eq_of_beq hbeq]
       rw [this]
-      simp [Logic.plus, int1, Logic.toRat, Logic.mkNumber]
+      simp [Logic.plus, Logic.toRat, Logic.mkNumber]
       omega
     | false =>
       rw [if_neg (by simp [Logic.equal, hbeq, Logic.toBool]), ih]
@@ -1223,7 +1212,7 @@ theorem howManyExec_nat (e x : SExpr) :
   fun_induction howManyExec e x with
   | case1 x _ _ ih =>
     obtain ⟨n, hn⟩ := ih
-    exact ⟨n + 1, by rw [hn]; simp [Logic.plus, int1, Logic.toRat,
+    exact ⟨n + 1, by rw [hn]; simp [Logic.plus, Logic.toRat,
       Logic.mkNumber]; omega⟩
   | case2 x _ _ ih => exact ih
   | case3 x _ => exact ⟨0, rfl⟩
@@ -1593,18 +1582,8 @@ private theorem bindArgs_fxe_e (vf vx ve : SExpr) :
       if_neg (by decide), Env.get?_insert, if_pos (by decide)]
 
 /-- `rel`'s body as a total Lean function (non-recursive dispatch). -/
-def relExec (fv i j : SExpr) : SExpr :=
-  if Logic.toBool (Logic.equal fv (symV "LT")) = true then
-    if Logic.toBool (lexorder i j) = true then
-      if Logic.toBool (Logic.equal i j) = true then SExpr.nil else SExpr.t
-    else SExpr.nil
-  else if Logic.toBool (Logic.equal fv (symV "LTE")) = true then
-    lexorder i j
-  else if Logic.toBool (Logic.equal fv (symV "GT")) = true then
-    if Logic.toBool (lexorder j i) = true then
-      if Logic.toBool (Logic.equal i j) = true then SExpr.nil else SExpr.t
-    else SExpr.nil
-  else lexorder j i
+derive_exec% relExec for rel_sym formals [fnS, iS, jS]
+  body relBody measured 0
 
 theorem relExec_t_or_nil (f i j : SExpr) :
     relExec f i j = SExpr.t ∨ relExec f i j = SExpr.nil := by
@@ -1695,14 +1674,8 @@ theorem rel_exec_corr (w : World)
     rel_ns h_rel ha hb hc (hbody av bv cv)
 
 /-- `all-rel`'s body as a total Lean function. -/
-def allRelExec (fv x ev : SExpr) : SExpr :=
-  if Logic.toBool (Logic.consp x) = true then
-    if Logic.toBool (relExec fv (Logic.car x) ev) = true then
-      allRelExec fv (Logic.cdr x) ev
-    else SExpr.nil
-  else SExpr.t
-termination_by x.consCount
-decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
+derive_exec% allRelExec for all_rel_sym formals [fnS, xS, eS]
+  body allRelBody measured 1
 
 /-- Stage 1: an `all-rel` call converges to `allRelExec` of its argument
     values. -/
@@ -2164,14 +2137,8 @@ private theorem filter_ns :
      filter_sym.isNamed "LET*" = false) := by decide
 
 /-- `filter`'s body as a total Lean function. -/
-def filterExec (fv x ev : SExpr) : SExpr :=
-  if Logic.toBool (Logic.consp x) = true then
-    if Logic.toBool (relExec fv (Logic.car x) ev) = true then
-      Logic.cons (Logic.car x) (filterExec fv (Logic.cdr x) ev)
-    else filterExec fv (Logic.cdr x) ev
-  else SExpr.nil
-termination_by x.consCount
-decreasing_by all_goals exact consCount_cdr_lt_of_consp (by assumption)
+derive_exec% filterExec for filter_sym formals [fnS, xS, eS]
+  body filterBody measured 1
 
 /-- Stage 1: a `filter` call converges to `filterExec` of its argument
     values. -/
@@ -2937,15 +2904,8 @@ theorem merge2Exec_enc : ∀ (xs ys : List SExpr),
 termination_by xs ys => xs.length + ys.length
 
 /-- `evens`'s body as a total Lean function. -/
-def evensExec (l : SExpr) : SExpr :=
-  if Logic.toBool (Logic.consp l) = true then
-    Logic.cons (Logic.car l) (evensExec (Logic.cdr (Logic.cdr l)))
-  else SExpr.nil
-termination_by l.consCount
-decreasing_by
-  calc (Logic.cdr (Logic.cdr l)).consCount
-      ≤ (Logic.cdr l).consCount := consCount_cdr_le _
-    _ < l.consCount := consCount_cdr_lt_of_consp (by assumption)
+derive_exec% evensExec for evens_sym formals [lS]
+  body evensBody measured 0
 
 /-- Stage 1: an `evens` call converges to `evensExec`. -/
 theorem evens_exec_corr (w : World)
@@ -4821,8 +4781,7 @@ private theorem howManyExec_head_pos (a d : SExpr) :
           simp [Logic.equal, Logic.toBool, SExpr.t]),
       show Logic.cdr (SExpr.cons a d) = d from rfl]
   obtain ⟨n, hn⟩ := howManyExec_nat (Logic.car (SExpr.cons a d)) d
-  rw [hn, show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
-      logic_plus_int]
+  rw [hn, logic_plus_int]
   refine ⟨n, ?_⟩
   congr 3
   omega
@@ -4839,6 +4798,7 @@ private theorem howManyExec_cons (e hd z : SExpr) :
       show Logic.car (SExpr.cons hd z) = hd from rfl,
       show Logic.cdr (SExpr.cons hd z) = z from rfl,
       toBool_equal]
+  rfl
 
 /-- The count/erase interaction: erasing `b` decrements `e`'s count
     exactly when `e = b` and `b` was present, else leaves it
