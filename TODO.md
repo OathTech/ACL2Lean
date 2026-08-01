@@ -107,7 +107,17 @@ _Last updated: 2026-08-01._
 > kit — count(cons) = 1 + count(car) + count(cdr), which the kit
 > states directly). The obligation is NOT valid without it
 > (independent-opaque counter-model) — no shortcut exists.
-> NUMERIC CELL LANDED (pending sweep/commit): the second registered
+> **2b COMPLETE (sweep 80/92): ACL2-COUNT-EVENS-WEAK ✓ (tp + 2 gz
+> rules), ACL2-COUNT-EVENS-STRONG ✓ (+ linear:ACL2-COUNT-CAR-CDR-LINEAR
+> and one honest ASSUMED:dp-fact whose full closure needs WEAK's own
+> content as a same-book linear rule — the replayed-statement route,
+> queued). The linear-verdicts machinery end-to-end: gz :LINEAR spec
+> emission → linear: hypothesis class → max-term-matched DP premises
+> (bounded-fixpoint instantiation; premise-free fallback twin for the
+> harness offer) → the equation-ADD and case-split spine arms → the
+> POSITIVE-SUM type-set cell → the linear-contradiction discharge
+> emission (fork 1a8e379684). Fold-back audit NEXT.**
+> NUMERIC CELL LANDED: the second registered
 > equal/type-set-nil disjointness cell — POSITIVE-SUM vs '0
 > (logic_equal_nil_of_plus1_nonneg; x = (B+ '1 (B+ p q)) with p q's
 > EMITTED nonneg-int TP corollaries at pinned values; falls through to
