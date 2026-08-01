@@ -23,6 +23,37 @@ _Last updated: 2026-08-01._
 > wall; 2f BUG-027 ratify-or-narrow); Phase 3 REST OF BOOK (bsort +
 > equisort/R6 into the sweep, mirrors via the generator, pins toward one
 > per book).
+> **PHASE 1 COMPLETE (2026-08-01, commits 5e01361..89e64ea).** 1a: one
+> shared replay-channel builder (bookChannels/mkBookConfig/
+> replayAdmission) for runner + macro — found and fixed the macro's
+> missing gzTps channel. 1b (sub-arc mdd/exec-gen, AUDITED — 1 Opus,
+> zero soundness findings, F1/F2/F3/F4b fail-open holes fixed):
+> `derive_exec%` generates exec def + stage-1 corr (M1 destructor
+> chains + M2 pair sums), kit registry, canonical telescopes; RETIRED
+> same-name+same-statement 8 kits (~600 hand lines) — insert, isort,
+> how-many, rel, all-rel, filter, evens, merge2; M3
+> (decrease-through-function: msort/qsort/oLt) stays hand, named
+> frontier. 1c: derive_exec_total% / derive_exec_tp% (wrapper generated,
+> value-shape ending human, u0…uN binder contract) — 5 dischargers
+> retired. 1d: five decode combinators promoted to Imported/Lifting.
+> Every increment build-green + sweep golden byte-identical.
+> **2a CROSS-WORLD RULE DISCHARGE (sub-arc mdd/cross-world, 2026-08-01):
+> convert-perm-to-how-many is a first-class sweep book (13 rows, 7
+> green; how-many/orderedp are DEFUN-ONLY — nothing to replay); prior
+> books' theorem trees ride the shared depProofs channel (sweep
+> corpus-order accumulation / macro `deps [devs]` clause / CLI
+> `--deps`), so included rule: hypotheses discharge by re-replaying the
+> dependency tree AT THE CONSUMER'S WORLD (dischargeRuleHyp's
+> no-registry route, formula cross-checked against the stored rule,
+> fail-closed at every layer). Sweep 71/79 → 78/92; the 9
+> rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0 conditions DISCHARGED across
+> isort/qsort/msort rows; dis_not_memb_how_many_0 DELETED; SortingPins
+> telescopes re-transcribed. rule:CONVERT-PERM-TO-HOW-MANY stays a
+> condition (its own replay is R7-blocked — retires with 2d);
+> arithmetic-3/gz rules stay on value-level gz dischargers (no captured
+> logs, by design). En-route defect fixed: an `elab` optional
+> multi-parser group binds `none` even when present — the deps clause
+> now a named syntax node (same lesson as derive_exec%'s corrClause).
 
 > **FULL-PIPELINE AUDIT (2026-07-26, user-run 6-dimension team + refutation
 > pass; report `docs/audits/2026-07-26_full-pipeline-audit.md`) — GOVERNS

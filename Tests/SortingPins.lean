@@ -47,6 +47,19 @@ open Lean ACL2 ACL2.Replay ACL2.Replay.Driver
 
 private def isortLog : String := include_str "../acl2_samples/sorting/isort.proof-log"
 private def qsortLog : String := include_str "../acl2_samples/sorting/qsort.proof-log"
+private def convertPermLog : String :=
+  include_str "../acl2_samples/sorting/convert-perm-to-how-many.proof-log"
+
+/-- The convert-perm-to-how-many dependency trees (2a): the pins' runBook
+    calls offer them like the sweep's prior-book accumulation, so the
+    pinned rows match the sweep exactly. SCOPE: only this dependency's
+    trees are offered (the sweep also accumulates perm/isort/… trees, but
+    per the golden no isort/qsort row consumes any of those — the exact
+    pinned status lines below are the drift detector for that claim). -/
+def convertPermPinsTrees : List (String × ClauseProof) :=
+  (((ProofLog.parse convertPermLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).map
+    Runner.bookTrees |>.getD []
 
 /-- The parsed isort development — the ONLY input is the log (as in the sweep). -/
 def isortPinsDev : Development :=
@@ -70,8 +83,10 @@ derive_world qsortPinsWorld from qsortPinsDev
     pins are even reached. -/
 
 elab "sorting_statement_pins_run% " : term => do
-  let r1 ← Runner.runBook "pins/sorting/isort" isortLog (upTo := some "HOW-MANY-ISORT")
-  let r2 ← Runner.runBook "pins/sorting/qsort" qsortLog (upTo := some "TRUE-LISTP-QSORT")
+  let (r1, _) ← Runner.runBook "pins/sorting/isort" isortLog
+    (upTo := some "HOW-MANY-ISORT") (crossTrees := convertPermPinsTrees)
+  let (r2, _) ← Runner.runBook "pins/sorting/qsort" qsortLog
+    (upTo := some "TRUE-LISTP-QSORT") (crossTrees := convertPermPinsTrees)
   unless r1.integrityFails.isEmpty && r2.integrityFails.isEmpty do
     throwError "sorting statement pins: integrity failures \
       {r1.integrityFails.toList ++ r2.integrityFails.toList}"
@@ -87,11 +102,11 @@ elab "sorting_statement_pins_run% " : term => do
       "    TRUE-LISTP-ISORT → REPLAYED ✓ cond[tp:INSERT]"),
      ("pins/sorting/isort",
       "    HOW-MANY-ISORT → REPLAYED ✓ cond[tp:HOW-MANY, \
-rule:FOLD-CONSTS-IN-+, rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0]"),
+rule:FOLD-CONSTS-IN-+]"),
      ("pins/sorting/qsort",
       "    PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, \
 tp:HOW-MANY, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, \
-rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0, rule:CONVERT-PERM-TO-HOW-MANY, \
+rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
      ("pins/sorting/qsort",
@@ -101,7 +116,7 @@ cond[total:(QSORT X), tp:QSORT]]"),
      ("pins/sorting/qsort",
       "    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, \
 total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, \
-rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0, rule:CONVERT-PERM-TO-HOW-MANY, \
+rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]")]
   for (book, line) in mustHave do
@@ -247,12 +262,8 @@ example :
       tpNonnegInt2 qsortPinsWorld "HOW-MANY" →
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
       foldConstsHyp qsortPinsWorld →
-      -- not-memb-implies-how-many-is-0 (how-many.lisp):
-      --   (implies (not (memb a x)) (equal (how-many a x) 0))
-      ruleEqHyp1 qsortPinsWorld
-        (ap1 "NOT" (ap2 "MEMB" (sym "A") (sym "X")))
-        (ap2 "HOW-MANY" (sym "A") (sym "X"))
-        (qt (SExpr.atom (Atom.number (Number.int 0)))) →
+      -- (the not-memb-implies-how-many-is-0 hypothesis is GONE: discharged
+      -- CROSS-BOOK from the dependency book's replayed tree — 2a)
       -- convert-perm-to-how-many:
       --   (equal (perm x y) (equal (how-many (perm-counter-example x y) x)
       --                            (how-many (perm-counter-example x y) y)))
@@ -368,7 +379,7 @@ def p3ConjPinsDev : Development :=
 derive_world p3ConjPinsWorld from p3ConjPinsDev
 
 elab "p3_conj_statement_pin_run% " : term => do
-  let r ← Runner.runBook "pins/p3-conj" p3ConjLog none
+  let (r, _) ← Runner.runBook "pins/p3-conj" p3ConjLog none
   unless r.integrityFails.isEmpty do
     throwError "p3-conj statement pin: integrity failures \
       {r.integrityFails.toList}"
@@ -454,12 +465,7 @@ example :
       tpBool3 qsortPinsWorld "ALL-REL" →
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
       foldConstsHyp qsortPinsWorld →
-      -- not-memb-implies-how-many-is-0 (how-many.lisp):
-      --   (implies (not (memb a x)) (equal (how-many a x) 0))
-      ruleEqHyp1 qsortPinsWorld
-        (ap1 "NOT" (ap2 "MEMB" (sym "A") (sym "X")))
-        (ap2 "HOW-MANY" (sym "A") (sym "X"))
-        (qt (SExpr.atom (Atom.number (Number.int 0)))) →
+      -- (not-memb-implies-how-many-is-0: discharged cross-book, 2a)
       -- convert-perm-to-how-many:
       --   (equal (perm x y) (equal (how-many (perm-counter-example x y) x)
       --                            (how-many (perm-counter-example x y) y)))
@@ -549,8 +555,8 @@ def p7CongPinsDev : Development :=
 derive_world p7CongPinsWorld from p7CongPinsDev
 
 elab "pattern_statement_pins_run% " : term => do
-  let r5 ← Runner.runBook "pins/p5-flip" p5FlipLog none
-  let r7 ← Runner.runBook "pins/p7-cong" p7CongLog none
+  let (r5, _) ← Runner.runBook "pins/p5-flip" p5FlipLog none
+  let (r7, _) ← Runner.runBook "pins/p7-cong" p7CongLog none
   unless r5.integrityFails.isEmpty && r7.integrityFails.isEmpty do
     throwError "pattern statement pins: integrity failures \
       {r5.integrityFails.toList ++ r7.integrityFails.toList}"
@@ -627,18 +633,13 @@ example :
 #print axioms ReplayedStatements.replayed_pins_sorting_isort_TRUE_LISTP_ISORT
 
 /-- PIN `HOW-MANY-ISORT`: `(equal (how-many e (isort x)) (how-many e x))`,
-    conditional on how-many's non-negative-integer TP, fold-consts-in-+,
-    and `not-memb-implies-how-many-is-0`
-    (`(implies (not (memb a x)) (equal (how-many a x) 0))` — transcribed
-    from its book; kept because its own replay is cross-book). -/
+    conditional on how-many's non-negative-integer TP and fold-consts-in-+
+    (`not-memb-implies-how-many-is-0` now discharges CROSS-BOOK from the
+    dependency book's replayed tree — 2a). -/
 example :
     ∀ (env : Env),
       tpNonnegInt2 isortPinsWorld "HOW-MANY" →
       foldConstsHyp isortPinsWorld →
-      ruleEqHyp1 isortPinsWorld
-        (notOf (ap2 "MEMB" (sym "A") (sym "X")))
-        (ap2 "HOW-MANY" (sym "A") (sym "X"))
-        (qt (.atom (.number (.int 0)))) →
       EvTrue isortPinsWorld env
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (sym "E") (ap1 "ISORT" (sym "X")))

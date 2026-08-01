@@ -1018,7 +1018,7 @@ elab "s2b_beta_books_pin% " : term => do
   for (nm, content, exp) in
       [("p2-beta-preprocess", betaPreprocessLog, 2),
        ("p2-beta-iff-context", betaIffContextLog, 1)] do
-    let res ← ACL2.Replay.Runner.runBook nm content none
+    let (res, _) ← ACL2.Replay.Runner.runBook nm content none
     unless res.replayed == exp && res.total == exp && res.integrityFails.isEmpty do
       throwError "S2b pin: {nm} replayed {res.replayed}/{res.total}                   (expected {exp}/{exp}); integrity: {res.integrityFails.toList}"
   logInfo "S2b pin: p2-beta-preprocess 2/2 + p2-beta-iff-context 1/1 replay (axiom-clean)"

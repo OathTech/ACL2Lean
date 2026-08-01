@@ -102,8 +102,11 @@ derive_world simpleWorldD from simpleDev
     (the `by decide` world facts and defeq statement pins at every
     consumer die), never silently wrong, but the pairing itself is by
     convention. -/
+syntax depsClauseDR := &" deps " "[" ident,* "]"
+
 elab "driver_replayed%" devId:ident worldId:ident nm:str
-    wt:(&" with_termination")? : term => do
+    wt:(&" with_termination")?
+    deps:(depsClauseDR)? : term => do
   let devName ← Lean.resolveGlobalConstNoOverload devId
   let worldName ← Lean.resolveGlobalConstNoOverload worldId
   let dev ← unsafe Meta.evalExpr Development (mkConst ``ACL2.Development)
@@ -111,6 +114,19 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
   let some cp := Driver.findThm dev nm.getString
     | throwError "{nm.getString}: not found in the development (or ambiguous \
                   up to case — findThm refuses to guess)"
+  -- CROSS-BOOK dependency trees (2a): `deps [devA, devB]` offers the named
+  -- developments' theorem trees for rule:/cong: discharge, mirroring the
+  -- sweep's prior-book accumulation (the consumer books' worlds re-emit
+  -- the included defuns, so the trees replay at THIS world; fail-closed —
+  -- a missing tree keeps the hypothesis).
+  let mut crossTrees : List (String × ClauseProof) := []
+  if let some d := deps then
+    -- depsClauseDR children: [0] atom " deps " [1] "[" [2] sepBy [3] "]"
+    for depId in (d.raw[2].getSepArgs.map (fun a => (⟨a⟩ : Ident))) do
+      let depName ← Lean.resolveGlobalConstNoOverload depId
+      let depDev ← unsafe Meta.evalExpr Development
+        (mkConst ``ACL2.Development) (mkConst depName)
+      crossTrees := crossTrees ++ ACL2.Replay.Runner.bookTrees depDev
   -- TERMINATION PRE-PASS (the runner's route, mirrored; OPT-IN via
   -- `with_termination` — a consumer whose induction scheme needs a
   -- non-destructor decrease, e.g. qsort's filter call sites, discharges
@@ -147,6 +163,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
         else
           let (status, reg?) ← ACL2.Replay.Runner.replayAdmission dev
             dev.toWorld (mkConst worldName) tcp mName
+            (crossTrees := crossTrees)
           if reg?.isNone then
             throwError "driver_replayed% with_termination: the {fn} \
               admission pre-pass FAILED ({status}) — the consumer would \
@@ -177,7 +194,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     -- derivation site, so a runner channel can never miss the macro again
     -- (the class that hard-failed fcRules/termination/equivRefls one at a
     -- time, and had silently dropped gzTps here until the unification).
-    let ch := ACL2.Replay.Runner.bookChannels dev
+    let ch := ACL2.Replay.Runner.bookChannels dev crossTrees
     let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
       (mkConst worldName) env termReplayed
     let (proof, _conds) ← replayProofConditional cfg ch.tps cp
@@ -1099,6 +1116,18 @@ private def isortLog : String :=
   include_str "../../acl2_samples/sorting/isort.proof-log"
 
 /-- The parsed development — the ONLY input is the log. -/
+private def convertPermLog : String :=
+  include_str "../../acl2_samples/sorting/convert-perm-to-how-many.proof-log"
+
+/-- The convert-perm-to-how-many DEPENDENCY development (2a): its theorem
+    trees are offered via `deps [convertPermDev]` so consumer rows'
+    included `rule:` hypotheses (NOT-MEMB-IMPLIES-HOW-MANY-IS-0 today)
+    discharge by replaying the dependency's tree at the CONSUMER's world —
+    no `derive_world`: the dev is a tree source only. -/
+def convertPermDev : Development :=
+  (((ProofLog.parse convertPermLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
 def isortDev : Development :=
   (((ProofLog.parse isortLog).toOption.bind
     fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
@@ -1185,12 +1214,13 @@ theorem orderedp_memb_native_driver (ev a : SExpr) (t : List SExpr)
 
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-ISORT
-    (hypotheses: `tp:HOW-MANY`, `rule:FOLD-CONSTS-IN-+`,
-    `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0`). -/
+    (hypotheses: `tp:HOW-MANY`, `rule:FOLD-CONSTS-IN-+`;
+    `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` discharged CROSS-BOOK from the
+    dependency's replayed tree — 2a). -/
 def howManyIsortReplayedCond := driver_replayed% isortDev isortWorldD
-  "how-many-isort"
+  "how-many-isort" deps [convertPermDev]
 
-/-- The unconditional form — all three hypotheses discharged
+/-- The unconditional form — both remaining hypotheses discharged
     world-parametrically (the how-many exec kit + the arithmetic rule
     dischargers). -/
 theorem howManyIsortReplayed_uncond (env : Env) :
@@ -1200,9 +1230,7 @@ theorem howManyIsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_how_many_tp isortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts isortWorldD (by decide) _ _)
-    (Worlds.Sorting.dis_not_memb_how_many_0 isortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
+    
 
 /-- ENTRY, PROVED — HOW-MANY-ISORT natively: INSERTION SORT PRESERVES
     MULTIPLICITY — `List.count` of every element is unchanged by
@@ -1231,7 +1259,7 @@ set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-APPEND
     (hypotheses: `tp:HOW-MANY`, `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0`). -/
 def howManyAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
-  "how-many-append"
+  "how-many-append" deps [convertPermDev]
 
 /-- The unconditional form. -/
 theorem howManyAppendReplayed_uncond (env : Env) :
@@ -1240,9 +1268,7 @@ theorem howManyAppendReplayed_uncond (env : Env) :
   howManyAppendReplayedCond env
     (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
+    
 
 /-- ENTRY, PROVED — HOW-MANY-APPEND natively: `List.count` distributes
     over `++`. -/
@@ -1400,7 +1426,7 @@ set_option maxHeartbeats 1600000 in
     (hypotheses: `tp:HOW-MANY`, `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0`,
     and the three arithmetic-3 comm/assoc rules). -/
 def howManyFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
-  "how-many-filter-1"
+  "how-many-filter-1" deps [convertPermDev]
 
 theorem howManyFilter1Replayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
@@ -1408,9 +1434,7 @@ theorem howManyFilter1Replayed_uncond (env : Env) :
   howManyFilter1ReplayedCond env
     (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
+    
     (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
@@ -1469,7 +1493,7 @@ set_option maxHeartbeats 4000000 in
     `total:O<`, `tp:HOW-MANY`, `tp:ACL2-COUNT`, and the seven rule
     conditions). -/
 def howManyQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
-  "how-many-qsort" with_termination
+  "how-many-qsort" with_termination deps [convertPermDev]
 
 set_option maxHeartbeats 1600000 in
 theorem howManyQsortReplayed_uncond (env : Env) :
@@ -1486,9 +1510,7 @@ theorem howManyQsortReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
-    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
+    
     (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
@@ -1512,7 +1534,7 @@ set_option maxHeartbeats 4000000 in
     hypotheses: PCE/O< totality, the HOW-MANY/ACL2-COUNT TP corollaries,
     and the seven rule conditions incl. CONVERT-PERM-TO-HOW-MANY). -/
 def permQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
-  "perm-qsort" with_termination
+  "perm-qsort" with_termination deps [convertPermDev]
 
 set_option maxHeartbeats 1600000 in
 theorem permQsortReplayed_uncond (env : Env) :
@@ -1532,9 +1554,7 @@ theorem permQsortReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
-    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
+    
     (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
@@ -1566,7 +1586,7 @@ set_option maxHeartbeats 4000000 in
     fourteen hypotheses: PERM-QSORT's twelve plus `tp:ALL-REL` and the
     in-book `rule:ORDEREDP-APPEND`). -/
 def orderedpQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
-  "orderedp-qsort" with_termination
+  "orderedp-qsort" with_termination deps [convertPermDev]
 
 set_option maxHeartbeats 1600000 in
 theorem orderedpQsortReplayed_uncond (env : Env) :
@@ -1588,9 +1608,7 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
-    (Worlds.Sorting.dis_not_memb_how_many_0 qsortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
+    
     (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
@@ -1638,7 +1656,7 @@ derive_world msortWorldD from msortDev
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-MERGE2's conditional replayed statement. -/
 def howManyMerge2ReplayedCond := driver_replayed% msortDev msortWorldD
-  "how-many-merge2"
+  "how-many-merge2" deps [convertPermDev]
 
 theorem howManyMerge2Replayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
@@ -1649,9 +1667,7 @@ theorem howManyMerge2Replayed_uncond (env : Env) :
     (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
-    (Worlds.Sorting.dis_not_memb_how_many_0 msortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
+    
 
 /-- ENTRY, PROVED — HOW-MANY-MERGE2 natively: merging adds
     multiplicities. -/
@@ -1666,7 +1682,7 @@ theorem how_many_merge2_native_driver (ev : SExpr) (xs ys : List SExpr) :
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-EVENS-AND-ODDS's conditional replayed statement. -/
 def howManyEvensOddsReplayedCond := driver_replayed% msortDev msortWorldD
-  "how-many-evens-and-odds"
+  "how-many-evens-and-odds" deps [convertPermDev]
 
 theorem howManyEvensOddsReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
@@ -1680,9 +1696,7 @@ theorem howManyEvensOddsReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_default_cdr msortWorldD (by decide) (by decide)
       (by decide))
     (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
-    (Worlds.Sorting.dis_not_memb_how_many_0 msortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
+    
 
 /-- ENTRY, PROVED — HOW-MANY-EVENS-AND-ODDS natively: the evens/odds
     split partitions every element's multiplicity. -/
@@ -1728,7 +1742,7 @@ theorem orderedp_msort_native_driver (xs : List SExpr) :
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-MSORT's conditional replayed statement. -/
 def howManyMsortReplayedCond := driver_replayed% msortDev msortWorldD
-  "how-many-msort"
+  "how-many-msort" deps [convertPermDev]
 
 theorem howManyMsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
@@ -1746,9 +1760,7 @@ theorem howManyMsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_default_cdr msortWorldD (by decide) (by decide)
       (by decide))
     (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
-    (Worlds.Sorting.dis_not_memb_how_many_0 msortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
+    
 
 /-- ENTRY, PROVED — HOW-MANY-MSORT natively: MERGE SORT PRESERVES
     MULTIPLICITY. -/
@@ -1904,6 +1916,33 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/perm", "PERM-RM", .native ``perm_rm_native_driver ``permRmReplayed),
   ("sorting/perm", "PERM-TRANSITIVE", .native ``perm_transitive_native_driver ``permTransitiveReplayed),
   ("sorting/perm", "PERM-IS-AN-EQUIVALENCE", .native ``perm_refl_native_driver ``permEquivReplayed),
+  -- convert-perm-to-how-many (2a — the DEPENDENCY book, in the sweep so
+  -- its trees discharge consumer rule: hypotheses cross-book). Its green
+  -- rows are the book's internal lemma ladder toward the R7-blocked
+  -- CONVERT-PERM-TO-HOW-MANY; the two native-worthy count facts are
+  -- PENDING (P3 decides), the tlfix/plumbing rows replayed-only.
+  ("sorting/convert-perm-to-how-many", "HOW-MANY-RM",
+    .pending "count/erase interaction — native-worthy (howManyExec_rmExec \
+      already proves the value-level fact); P3 decides"),
+  ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-RM-IS-NO-OP",
+    .replayedOnly "internal rm plumbing toward the counter-example ladder; \
+      the erase-of-absent fact is subsumed by the pending HOW-MANY-RM \
+      family natives"),
+  ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-HOW-MANY-IS-0",
+    .pending "count-of-absent-element — native-worthy \
+      (List.count_eq_zero); P3 decides"),
+  ("sorting/convert-perm-to-how-many", "PERM-COUNTER-EXAMPLE-TLFIX-1",
+    .replayedOnly "tlfix normalization plumbing for the R7 functional \
+      instantiation — no user-facing content"),
+  ("sorting/convert-perm-to-how-many", "MEMB-TLFIX",
+    .replayedOnly "tlfix normalization plumbing (memb ignores the final \
+      cdr) — no user-facing content"),
+  ("sorting/convert-perm-to-how-many", "PERM-COUNTER-EXAMPLE-TLFIX-2",
+    .replayedOnly "tlfix normalization plumbing for the R7 functional \
+      instantiation — no user-facing content"),
+  ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
+    .replayedOnly "tlfix normalization plumbing (count ignores the final \
+      cdr) — no user-facing content"),
   ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),

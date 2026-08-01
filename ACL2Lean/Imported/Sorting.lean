@@ -1019,39 +1019,6 @@ private theorem howManyExec_zero_of_membExec_nil (a x : SExpr) :
     intro _
     rw [howManyExec.eq_def, if_neg hc]
 
-/-- `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` — the ONE-hypothesis
-    conditional rewrite, world-parametric. -/
-theorem dis_not_memb_how_many_0 (w : World)
-    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
-    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
-      = some ([{ package := "ACL2", name := "A" },
-               { package := "ACL2", name := "X" }], membBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none) :
-    ∀ env' : Env, EvTrue w env' (notT (membT aT xT)) →
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (howManyT aT xT) = evalOpt f w env' q0 := by
-  intro env' hyp
-  obtain ⟨va, ha⟩ := conv_var w env' aS (by decide)
-  obtain ⟨vx, hx⟩ := conv_var w env' xS (by decide)
-  have hmemb := memb_exec_corr w h_memb h_no_consp h_no_equal h_no_car
-    h_no_cdr env' aT xT va vx ha hx
-  have hnot := conv_builtin1 w env' { name := "NOT" } (membT aT xT)
-    (membExec va vx) (Logic.not (membExec va vx)) (by decide) h_no_not
-    hmemb (callBuiltin_not _)
-  have hnil : membExec va vx = SExpr.nil := by
-    have hne := ne_nil_of_evtrue_conv hyp hnot
-    cases hm : membExec va vx <;> simp_all [Logic.not, Logic.toBool]
-  have hhm := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
-    h_no_cdr h_no_plus env' aT xT va vx ha hx
-  rw [howManyExec_zero_of_membExec_nil va vx hnil] at hhm
-  exact fuel_eq_of_conv hhm
-    (re_val_quote w env' (.atom (.number (.int 0)))) rfl
-
 /-! ## HOW-MANY-ISORT -/
 
 /-- The HOW-MANY-ISORT replayed-statement formula:

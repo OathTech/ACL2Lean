@@ -68,7 +68,7 @@ elab "sorting_arc_pattern_pins% " : term => do
        ("p3-conj-mid-literal", conjMidLog, 1, 1),
        ("p5-or-shape-flipped", orShapeFlippedLog, 1, 1),
        ("p6-or-collapse-arith", orCollapseArithLog, 0, 1)] do
-    let res ← ACL2.Replay.Runner.runBook nm content none
+    let (res, _) ← ACL2.Replay.Runner.runBook nm content none
     unless res.replayed == expR && res.total == expT &&
         res.integrityFails.isEmpty do
       throwError "pattern pin {nm}: replayed {res.replayed}/{res.total} \
@@ -78,7 +78,7 @@ elab "sorting_arc_pattern_pins% " : term => do
   -- failure; pin the frontier MESSAGE — reaching *1/3.14''s
   -- ran-out-of-items means everything before it (including the 7 bridge
   -- replays) composed.
-  let resP6 ← ACL2.Replay.Runner.runBook "p6-or-collapse-arith" orCollapseArithLog none
+  let (resP6, _) ← ACL2.Replay.Runner.runBook "p6-or-collapse-arith" orCollapseArithLog none
   unless resP6.lines.any (fun l =>
       l.startsWith "    ORDN-INSN-MID → FAIL: replayClauseSpine: ran out of \
 items with no closer at Subgoal *1/3.14'") do
@@ -90,7 +90,7 @@ items with no closer at Subgoal *1/3.14'") do
   -- bsort wall: clausify-input's second expand-abbreviations interleaves
   -- steps into the clausify event stream). The pin flips when that wall
   -- falls, which also unblocks bsort's corpus entry.
-  let res ← ACL2.Replay.Runner.runBook "p4-iff-or-shape" iffOrShapeLog none
+  let (res, _) ← ACL2.Replay.Runner.runBook "p4-iff-or-shape" iffOrShapeLog none
   unless res.integrityFails.size == 1 &&
       ((res.integrityFails[0]!).splitOn "collectClausify").length > 1 do
     throwError "pattern pin p4-iff-or-shape: expected the clausify-region \
@@ -125,7 +125,7 @@ elab "perm_arc_pattern_pins% " : term => do
   --   TAUT-DROPPED split (the sym conjunct, recorded :CLAUSE ('T)),
   --   closed by the COMMUTED-EQUAL tautology pair;
   -- - the defcong and R-rule replayed statements themselves.
-  let res ← ACL2.Replay.Runner.runBook "p7-cong-collapse" congCollapseLog none
+  let (res, _) ← ACL2.Replay.Runner.runBook "p7-cong-collapse" congCollapseLog none
   unless res.replayed == 4 && res.total == 4 && res.integrityFails.isEmpty do
     throwError "pattern pin p7-cong-collapse: replayed \
       {res.replayed}/{res.total} (expected 4/4); integrity: \
@@ -163,7 +163,7 @@ elab "swap_family_pattern_pins% " : term => do
       [("p1-swap-descend", swapDescendLog, 1, 1),
        ("p1-swap-double-neg", swapDoubleNegLog, 1, 1),
        ("p1-swap-joint", swapJointLog, 1, 1)] do
-    let res ← ACL2.Replay.Runner.runBook nm content none
+    let (res, _) ← ACL2.Replay.Runner.runBook nm content none
     unless res.replayed == expR && res.total == expT &&
         res.integrityFails.isEmpty do
       throwError "pattern pin {nm}: replayed {res.replayed}/{res.total} \

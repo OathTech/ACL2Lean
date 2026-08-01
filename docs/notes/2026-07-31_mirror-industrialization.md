@@ -144,7 +144,7 @@ Every future runner channel will miss the macro the same way. ONE
 shared replay-configuration builder (dev → cfg + all channels)
 consumed by both the runner and the macro removes the class.
 
-## Non-opportunity (flagged)
+## Non-opportunity (flagged) — PARTIALLY RETIRED (2a, 2026-08-01)
 
 The `rule:` dischargers for included-book theorems (FOLD-CONSTS,
 NOT-MEMB-…, and especially the upcoming CONVERT-PERM-TO-HOW-MANY)
@@ -154,3 +154,17 @@ tracked wiring: replay the dependency book's own log and discharge the
 rule hypothesis from ITS replayed statement (needs cross-world
 transfer). Until then each such discharger is a hand proof and should
 stay conspicuous in review.
+
+**2a status (sub-arc mdd/cross-world):** the wiring EXISTS — prior
+books' theorem trees ride the shared `depProofs` channel (sweep:
+corpus-order accumulation; macro: the `deps [devs]` clause; CLI:
+`--deps`), and `dischargeRuleHyp`'s no-registry route re-replays the
+dependency tree AT THE CONSUMER'S WORLD, kernel-checked, formula
+cross-checked against the stored rule. RETIRED:
+`dis_not_memb_how_many_0` (9 consumer rows discharge from
+NOT-MEMB-IMPLIES-HOW-MANY-IS-0's replayed tree). STILL HAND, each for
+a stated reason: `dis_convert_perm` (the dependency theorem itself is
+R7-blocked — retires when 2d lands), the arithmetic-3 family + gz
+rules (no captured logs — value-level gz dischargers are the faithful
+route), `dis_rule_orderedp_append` (same-book, discharged from the
+theorem's own replayed statement already).

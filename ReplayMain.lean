@@ -21,7 +21,8 @@ import ACL2Lean.Replay.Runner
 open Lean ACL2.Replay.Runner
 
 unsafe def main (args : List String) : IO Unit := do
-  let usage := "usage: acl2lean-replay <file.proof-log> [THEOREM-NAME] | --dump <file.proof-log>"
+  let usage := "usage: acl2lean-replay [--deps <log1,log2,…>] \
+<file.proof-log> [THEOREM-NAME] | --dump <file.proof-log>"
   -- --dump: print the reconstructed tree WITHOUT the Imported/ catalog
   -- import cone (the CLI's dump-proof-tree is unusable mid-migration when
   -- NativeMirrors' compile-time replays are red — path-emission Phase 1)
@@ -36,10 +37,26 @@ unsafe def main (args : List String) : IO Unit := do
       | .ok dev => ACL2.printDevelopment dev
     return
   | _ => pure ()
-  let (path, upTo?) ← match args.filter (· ≠ "") with
+  -- --deps: comma-separated dependency logs whose theorem trees are offered
+  -- for cross-book rule discharge (2a) — matching the sweep's prior-book
+  -- accumulation for this book. WITHOUT it, a consumer book's cross-book
+  -- rule: conds stay hypothesis-backed and its rows DIFFER from the sweep.
+  let (depPaths, rest) ← match args.filter (· ≠ "") with
+    | "--deps" :: ds :: rest => pure (ds.splitOn ",", rest)
+    | rest => pure ([], rest)
+  let (path, upTo?) ← match rest with
     | [p] => pure (p, (none : Option String))
     | [p, t] => pure (p, some t)
     | _ => throw <| IO.userError usage
+  let mut crossTrees : List (String × ACL2.ClauseProof) := []
+  for dp in depPaths do
+    let c ← IO.FS.readFile dp
+    match ACL2.ProofLog.parse c with
+    | .error e => throw (IO.userError s!"deps {dp}: parse error: {e}")
+    | .ok log =>
+      match ACL2.ClauseTree.buildDevelopment log with
+      | .error e => throw (IO.userError s!"deps {dp}: recon error: {e}")
+      | .ok ddev => crossTrees := crossTrees ++ bookTrees ddev
   let tR0 ← IO.monoMsNow
   let content ← IO.FS.readFile path
   let tR1 ← IO.monoMsNow
@@ -60,9 +77,10 @@ unsafe def main (args : List String) : IO Unit := do
     -- (withRealMaxHeartbeats); unlimited at the top, as in the sweep
     maxHeartbeats := 0 }
   let t0 ← IO.monoMsNow
-  let act : MetaM BookResult :=
-    Elab.Term.TermElabM.run' (runBook name content upTo? (timings := true))
-  let (res, _) ← (act.run' {} {}).toIO coreCtx { env }
+  let act : MetaM (BookResult × List (String × ACL2.ClauseProof)) :=
+    Elab.Term.TermElabM.run' (runBook name content upTo? (timings := true)
+      (crossTrees := crossTrees))
+  let ((res, _), _) ← (act.run' {} {}).toIO coreCtx { env }
   let t1 ← IO.monoMsNow
   for l in res.lines do IO.println l
   IO.println s!"— {res.replayed}/{res.total} replayed ({res.replayed - res.replayedCond} unconditional + {res.replayedCond} conditional); DP leaves ✓{res.dpReplayed} ◌{res.dpAssumed} ✗{res.dpTotal - res.dpReplayed - res.dpAssumed} of {res.dpTotal}; {t1 - t0} ms"

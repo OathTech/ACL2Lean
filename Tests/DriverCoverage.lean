@@ -57,6 +57,11 @@ def corpus : List (String × String) :=
    -- distinguish a theorem-less book from a TRUNCATED capture, so they stay
    -- out until R2 consumes their defuns via include-book composition.
    ("sorting/perm",            include_str "../acl2_samples/sorting/perm.proof-log"),
+   -- 2a: the dependency book carrying the include-book theorems the later
+   -- sorting books cite (NOT-MEMB-IMPLIES-HOW-MANY-IS-0 & co.) — placed
+   -- BEFORE its consumers so its trees are in the cross-book offer.
+   ("sorting/convert-perm-to-how-many",
+    include_str "../acl2_samples/sorting/convert-perm-to-how-many.proof-log"),
    -- R2: the first include-book composition — included defuns re-emit with
    -- :INCLUDED T (justification, no termination clauses → total: stays
    -- hypothesis-backed, D6) and included theorems with :SOURCE :INCLUDE-BOOK
@@ -99,12 +104,15 @@ elab "#driver_coverage" : command => do
     -- failures (black-box PROVED leaves, Track B gap) HARD-FAIL the build
     -- below — never a silent skip.
     let mut agg : BookResult := {}
+    -- 2a: prior books' theorem trees, accumulated in corpus order — the
+    -- CROSS-BOOK dependency offer for each subsequent book
+    let mut priorTrees : List (String × ClauseProof) := []
     -- per-file wall times, logged SEPARATELY from the golden-compared report
     -- (timings vary run to run; the baseline must stay deterministic)
     let mut timings : Array String := #[]
     for (name, content) in corpus do
       let tFile0 ← IO.monoMsNow
-      let r ← runBook name content
+      let (r, trees) ← runBook name content (crossTrees := priorTrees)
       agg := { lines := agg.lines ++ r.lines,
                total := agg.total + r.total,
                replayed := agg.replayed + r.replayed,
@@ -114,6 +122,7 @@ elab "#driver_coverage" : command => do
                dpAssumed := agg.dpAssumed + r.dpAssumed,
                integrityFails := agg.integrityFails ++ r.integrityFails,
                emissionFrontiers := agg.emissionFrontiers ++ r.emissionFrontiers }
+      priorTrees := priorTrees ++ trees
       let tFile1 ← IO.monoMsNow
       timings := timings.push s!"  {name}: {tFile1 - tFile0} ms"
     let lines := agg.lines

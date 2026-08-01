@@ -92,12 +92,26 @@ structure BookChannels where
   /-- equivalence-reflexivity evidence: this book's formulas + included ones -/
   equivRefls : List (String × SExpr)
 
-/-- The channel set of a development — the single derivation site. -/
-def bookChannels (dev : Development) : BookChannels :=
+/-- One book's proved-theorem trees, keyed by name — the CROSS-BOOK
+    dependency offer (sorting-absolute 2a): a consumer book's included
+    `rule:<thm>` hypotheses discharge by re-replaying the dependency
+    book's tree at the CONSUMER's world (`dischargeRuleHyp`'s
+    no-registry route), inside the shared telescope. Fail-closed at
+    every layer: no tree → the hypothesis stays (today's behavior); a
+    same-named tree with the wrong formula fails the stored-rule
+    recompute-check; a replay wall in the tree is a kept-hyp frontier. -/
+def bookTrees (dev : Development) : List (String × ClauseProof) :=
+  (developmentTheoremsWithRules dev).map fun (c, _) => (c.name, c)
+
+/-- The channel set of a development — the single derivation site.
+    `crossTrees`: prior books' theorem trees (2a); appended AFTER the
+    same-book entries so same-book precedence is unchanged. -/
+def bookChannels (dev : Development)
+    (crossTrees : List (String × ClauseProof) := []) : BookChannels :=
   let thms := developmentTheoremsWithRules dev
   { thms := thms
     tps := dev.typePrescriptions
-    depProofs := thms.map fun (c, _) => (c.name, c)
+    depProofs := (thms.map fun (c, _) => (c.name, c)) ++ crossTrees
     equivRefls := (thms.map fun (c, _) => (c.name, c.formula))
       ++ dev.includedTheorems }
 
@@ -173,7 +187,8 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
     (mirrors : ReplayedRegistry := [])
     (replayedName? : Option Name := none)
     (budget : Nat := 3000000)
-    (termReplayed : List (String × Name × List String × List SExpr) := []) :
+    (termReplayed : List (String × Name × List String × List SExpr) := [])
+    (crossTrees : List (String × ClauseProof) := []) :
     TermElabM (String × Option (List String)) := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -195,7 +210,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
   withRealMaxHeartbeats budget <| withRealMaxRecDepth 8192 <| tryCatchRuntimeEx
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
-        let ch := bookChannels dev
+        let ch := bookChannels dev crossTrees
         let cfg := mkBookConfig dev w wExpr envFV termReplayed
         let (prf, conds) ← replayProofConditional cfg ch.tps cp
           dev.justifications rules ch.depProofs mirrors
@@ -236,7 +251,8 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
     rule offer is DEMAND-filtered to the proof's cited runes; the budget is
     the admission-class guard (see `tryReplay`'s budget doc). -/
 def replayAdmission (dev : Development) (w : World) (wExpr : Expr)
-    (tcp : ClauseProof) (mName : Name) :
+    (tcp : ClauseProof) (mName : Name)
+    (crossTrees : List (String × ClauseProof) := []) :
     TermElabM (String × Option (List String)) := do
   let thms := developmentTheoremsWithRules dev
   let cited := citedRuneNames tcp
@@ -244,6 +260,7 @@ def replayAdmission (dev : Development) (w : World) (wExpr : Expr)
     (fun r => cited.contains r.name)).eraseDups
   tryReplay dev w wExpr tcp termRules
     (replayedName? := some mName) (budget := 10000000)
+    (crossTrees := crossTrees)
 
 /-- The termination-mirror CIRCULARITY predicate (audit F3): an admission
     proof conditional on the defun's OWN totality/TP facts must be
@@ -315,14 +332,16 @@ structure BookResult where
     replayed registry state at the target must be identical to the sweep's, so a
     focused row is directly comparable to the golden. -/
 def runBook (name : String) (content : String) (upTo : Option String := none)
-    (timings : Bool := false) : TermElabM BookResult := do
+    (timings : Bool := false)
+    (crossTrees : List (String × ClauseProof) := []) :
+    TermElabM (BookResult × List (String × ClauseProof)) := do
   let mut res : BookResult := {}
   let tParse0 ← IO.monoMsNow
   match ProofLog.parse content with
   | .error msg =>
     res := { res with lines := res.lines.push (s!"• {name}: PARSE-FAIL {msg}"),
                       integrityFails := res.integrityFails.push (s!"{name}: PARSE-FAIL {msg}") }
-    return res
+    return (res, [])
   | .ok log =>
     let tParse1 ← IO.monoMsNow
     if timings then IO.println s!"[t] parse: {tParse1 - tParse0} ms"
@@ -330,7 +349,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
     | .error msg =>
       res := { res with lines := res.lines.push (s!"• {name}: RECON-FAIL {msg}"),
                         integrityFails := res.integrityFails.push (s!"{name}: RECON-FAIL {msg}") }
-      return res
+      return (res, [])
     | .ok dev =>
       let tRecon ← IO.monoMsNow
       if timings then IO.println s!"[t] recon: {tRecon - tParse1} ms"
@@ -376,6 +395,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
             s!"term_{name}_{fn}")
         let tTm0 ← IO.monoMsNow
         let (status, reg?) ← replayAdmission dev w wExpr tcp mName
+          (crossTrees := crossTrees)
         let tTm1 ← IO.monoMsNow
         if timings then
           IO.println s!"[t] termination {fn}: {tTm1 - tTm0} ms ({status})"
@@ -417,7 +437,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let tThm0 ← IO.monoMsNow
         let (status, reg?) ← tryReplay dev w wExpr cp rules
           (mirrors := mirrors) (replayedName? := some mName)
-          (termReplayed := termReplayed)
+          (termReplayed := termReplayed) (crossTrees := crossTrees)
         let tThm1 ← IO.monoMsNow
         if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"
         if let some conds := reg? then
@@ -462,7 +482,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let row := s!"    {cp.name} → {status}{tag}{disTag}"
         res := { res with lines := res.lines.push row }
         if upTo == some cp.name then
-          return res
-      return res
+          return (res, bookTrees dev)
+      return (res, bookTrees dev)
 
 end ACL2.Replay.Runner
