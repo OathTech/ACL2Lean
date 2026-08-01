@@ -313,6 +313,18 @@ structure FcRuleSpec where
   matchFree : Option String := none
   deriving Repr, Inhabited
 
+/-- A LINEAR-class ground-zero rule snapshot entry
+    (`(:GROUND-ZERO-LINEAR-RULES ((rune hyps concl max-term) …))`,
+    sorting-absolute 2b): the stored `linear-lemma` fields verbatim.
+    Consumed as the DP obligation's premise where simplify's linear
+    arithmetic cites the rune (verdict-only). -/
+structure LinearRuleSpec where
+  name : String
+  hyps : List SExpr
+  concl : SExpr
+  maxTerm : SExpr
+  deriving Repr, Inhabited
+
 /-- The spec's identity key for name-keyed maps/tags: the rune name, with the
     multi-rule index appended in ACL2's own print form (`FOO . 2`). Distinct
     stored rules of one event get distinct keys (spaces cannot occur in an
@@ -345,6 +357,9 @@ inductive ProofEvent where
   /-- The cited ground-zero FORWARD-CHAINING rules (`(:GROUND-ZERO-FC-RULES
       …)`, emission arc 2026-07-21): stored trigger/hyps/concls verbatim. -/
   | groundZeroFcRules (specs : List FcRuleSpec)
+  /-- The cited ground-zero LINEAR rules (`(:GROUND-ZERO-LINEAR-RULES …)`,
+      sorting-absolute 2b): stored hyps/concl/max-term verbatim. -/
+  | groundZeroLinearRules (specs : List LinearRuleSpec)
   /-- Pool-processing events (`emit/pool-consider` / `emit/pool-subsumed`):
       pop-clause CONSIDERS pool roots in its own (subsumption-reordered)
       order — the steps/induction after a `poolConsider` belong to that pool
@@ -1026,6 +1041,24 @@ private def parseFcRuleSpecEntry (e : SExpr) : Except String FcRuleSpec := do
     | other => throw s!"GROUND-ZERO-FC-RULES {rune.name}: bad match-free: {repr other}"
   return { name := rune.name, trigger := triggerS, hyps, concls, matchFree }
 
+/-- One `(:GROUND-ZERO-LINEAR-RULES …)` entry: `(rune hyps concl max-term)`
+    — the stored `linear-lemma` fields; exact arity, hard-fail otherwise. -/
+private def parseLinearRuleSpecEntry (e : SExpr) :
+    Except String LinearRuleSpec := do
+  let some items := e.toList?
+    | throw s!"GROUND-ZERO-LINEAR-RULES: bad entry (not a list): {repr e}"
+  let [runeS, hypsS, conclS, maxTermS] := items
+    | throw s!"GROUND-ZERO-LINEAR-RULES: bad entry (want (rune hyps concl \
+              max-term)): {repr e}"
+  let some rune := parseRune? runeS
+    | throw s!"GROUND-ZERO-LINEAR-RULES: bad rune: {repr runeS}"
+  unless rune.ty == "linear" do
+    throw s!"GROUND-ZERO-LINEAR-RULES: rune class {rune.ty} unexpected"
+  let hyps ← hypsS.toList?.elim
+    (throw s!"GROUND-ZERO-LINEAR-RULES {rune.name}: :HYPS not a list: \
+      {repr hypsS}") pure
+  return { name := rune.name, hyps, concl := conclS, maxTerm := maxTermS }
+
 private def parseRuleSpecEntry (ctx : String) (withMatchFree : Bool)
     (e : SExpr) : Except String RuleSpec := do
   let some items := e.toList?
@@ -1245,6 +1278,15 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
       return .groundZeroFcRules (← entries.mapM parseFcRuleSpecEntry)
     | _ => throw s!"GROUND-ZERO-FC-RULES: expected a single payload list, \
                    got {repr rest}"
+  | .cons (.atom (.keyword "GROUND-ZERO-LINEAR-RULES")) rest =>
+    match rest.toList? with
+    | some [rulesList] =>
+      let some entries := rulesList.toList?
+        | throw s!"GROUND-ZERO-LINEAR-RULES: payload is not a list: \
+            {repr rulesList}"
+      return .groundZeroLinearRules (← entries.mapM parseLinearRuleSpecEntry)
+    | _ => throw s!"GROUND-ZERO-LINEAR-RULES: expected a single payload \
+                   list, got {repr rest}"
   | .cons (.atom (.keyword "POOL-CONSIDER")) rest =>
     let some nameS := lookupKeyword "NAME" (rest.toList?.getD [])
       | throw "POOL-CONSIDER: missing :NAME"

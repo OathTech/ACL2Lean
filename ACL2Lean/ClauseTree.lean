@@ -101,6 +101,10 @@ inductive WorldEvent where
       2026-07-21) — trigger/hyps/concls verbatim; consumed by the
       FC-derived type-alist relief recipe. -/
   | groundZeroFcRules (specs : List FcRuleSpec)
+  /-- The cited ground-zero LINEAR rules (sorting-absolute 2b) —
+      hyps/concl/max-term verbatim; consumed as the DP obligation's
+      premise where simplify's linear arithmetic cites the rune. -/
+  | groundZeroLinearRules (specs : List LinearRuleSpec)
   /-- A proved theorem and its clause-tree proof. -/
   | theorem (proof : ClauseProof)
   /-- An INCLUDE-BOOK'd theorem (R2): certified in its OWN book — no
@@ -208,6 +212,16 @@ def Development.groundZeroFcRuleSpecs : Development → List FcRuleSpec
     match ev with
     | .groundZeroFcRules specs => specs ++ rest.groundZeroFcRuleSpecs
     | _ => rest.groundZeroFcRuleSpecs
+
+/-- All LINEAR-rule snapshot specs in the development (2b). -/
+def Development.groundZeroLinearRuleSpecs :
+    Development → List LinearRuleSpec
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .groundZeroLinearRules specs =>
+      specs ++ rest.groundZeroLinearRuleSpecs
+    | _ => rest.groundZeroLinearRuleSpecs
 
 /-- The admission justifications of a development's RECURSIVE defuns
     (fn name ↦ measure/wfrel/measured-subset + the raw termination clauses),
@@ -774,6 +788,8 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       events := events.push (.groundZeroRules specs)
     | .groundZeroFcRules specs =>
       events := events.push (.groundZeroFcRules specs)
+    | .groundZeroLinearRules specs =>
+      events := events.push (.groundZeroLinearRules specs)
     | .typePrescription n cor bts leaves =>
       events := events.push (.typePrescription n cor bts leaves)
     | .rules specs =>
@@ -1067,6 +1083,11 @@ partial def printDevelopment : ACL2.Development → IO Unit
         let hs := String.intercalate " ∧ " (r.hyps.map (·.toString))
         let cs := String.intercalate " ∧ " (r.concls.map (·.toString))
         IO.println s!"  {r.name}: trigger {r.trigger}; hyps {hs} ⇒ concls {cs}"
+    | .groundZeroLinearRules specs =>
+      IO.println s!"\n── ground-zero LINEAR rules ──"
+      for r in specs do
+        let hs := String.intercalate " ∧ " (r.hyps.map (·.toString))
+        IO.println s!"  {r.name}: hyps {hs} ⇒ {r.concl} (max-term {r.maxTerm})"
     | .typePrescription name cor _ _ =>
       IO.println s!"\n── type-prescription {name} ──"
       IO.println s!"  {cor}"

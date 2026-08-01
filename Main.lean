@@ -178,6 +178,10 @@ def main (args : List String) : IO Unit := do
                 IO.println s!"\n  GROUND-ZERO-FC-RULES ({specs.length} snapshot):"
                 for r in specs do
                   IO.println s!"    {r.name}: trigger {r.trigger} ({r.hyps.length} hyps, {r.concls.length} concls)"
+            | .groundZeroLinearRules specs =>
+                IO.println s!"\n  GROUND-ZERO-LINEAR-RULES ({specs.length} snapshot):"
+                for r in specs do
+                  IO.println s!"    {r.name}: {r.hyps.length} hyps ⇒ {r.concl} (max-term {r.maxTerm})"
             | .induction i =>
                 IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
             | .qed =>
