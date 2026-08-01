@@ -61,6 +61,35 @@ _Last updated: 2026-08-01._
 > 2b → 2c → 2e → R7-independent P3 work (bsort sweep entry, mirrors,
 > pins), THEN 2d + its dependents (the *-IS-ISORT capstones,
 > dis_convert_perm retirement, equisort/R6 pairing).**
+> **2b IN PROGRESS (sub-arc mdd/linear-verdicts): increment 1 LANDED —
+> the LINEAR-EQUALITIES CASE SPLIT arm (Core.lean, the branch-
+> substitution none-justification route): byCases on the derived
+> equation's escape literal; equation-holds peels the child's ¬eq head
+> (evtrue_tail_of_if_head_nil) + diffCollapse transport; equation-fails
+> closes by the DP carve-out on the constructed obligation
+> `eq ∨ parent-clause` (replayDischargeNode; BRANCH-granularity
+> verdict class — see the ratification queue). Child adopted via
+> rec.clause on the exact recorded clause. + logic_not_equal_ne_nil_
+> eq_nil (EvalLemmas). ACL2-COUNT-EVENS-STRONG advanced TWO frontiers;
+> now at: *1/2.3''s spine carries CLAUSE-LEVEL rewriting-equivalence/
+> rewrite/definition items the linker left unattached (a definition
+> item targeting (ACL2-COUNT X) which does NOT occur in the child's
+> clause — investigate buildLiteralProofs' linking for this record
+> class BEFORE writing replay support; raw log line ~2937, msort book).
+> WEAK (*1/2.2') is the LINEAR-IN-SIMPLIFY EMISSION GAP (whole clause
+> closed by linear:ACL2-COUNT-CAR-CDR-LINEAR verdict, no discharge
+> record emitted) — fork-side: emit a discharge node when simplify's
+> linear arithmetic closes a clause; then the DP-leaf carve-out
+> replays it (the cited linear rule as a hypothesis).**
+> **PROCESS NOTE (2026-08-01, for the fold-back audit): a plain
+> `lake build` did NOT re-elaborate Tests.DriverCoverage after a
+> Driver-core change in one observed instance (stale .actual, golden
+> gate silently not exercised) while it demonstrably DID in earlier
+> increments — unresolved lake target/caching inconsistency. Golden
+> verification now ALWAYS via explicit `lake build
+> Tests.DriverCoverage` or `just ci`; auditors should not accept
+> "build green" as "sweep gate ran" without timings/actual-freshness
+> evidence.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
 > call — ACL2-COUNT-EVENS-STRONG's branch-substitution class closes its

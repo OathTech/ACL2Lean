@@ -315,10 +315,139 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                      (ctx.segFacts.find? (fun (st, _) => st == varT)).map (·.2)
                    else none) with
             | some hNil => pure hNil
-            | none =>
-              throwError "replayClauseSpine: branch-substitution literal \
-                          (not (equal {repr varT} {repr valT})) is neither in \
-                          the clause nor a segment fact at {idStr}"
+            | none => do
+              -- LINEAR-EQUALITIES CASE SPLIT (sorting-absolute 2b;
+              -- ACL2-COUNT-EVENS-STRONG Subgoal *1/2.3'): the equation
+              -- `varT = valT` is DERIVED by linear arithmetic from the
+              -- clause context (fake-rune-for-linear-equalities —
+              -- verdict-only, no internal record); ACL2 substitutes it
+              -- through the clause and PREPENDS its negation as an escape
+              -- literal. Replay: byCases on the escape literal's value —
+              -- false (the equation holds): peel the child's ¬eq head and
+              -- transport the substituted clause back along the equation
+              -- chain; true (the equation fails): the linear VERDICT
+              -- closes the parent — the precisely-stated obligation
+              -- `eq ∨ parent-clause` (constructed from the emitted
+              -- substitution equation + the clause, nothing else)
+              -- discharged through the DP carve-out machinery
+              -- (`replayDischargeNode`; an unprovable obligation
+              -- hard-fails). CARVE-OUT BOUNDARY (disclosed; ratification
+              -- queued in TODO): the ratified verdict-class principle at
+              -- BRANCH granularity. Gate: quoted-constant rhs (the
+              -- derived-equation class signature); anything else keeps
+              -- the original frontier.
+              let isQuoted := match valT with
+                | .cons (.atom (.symbol q)) (.cons _ .nil) =>
+                  q.name == "QUOTE"
+                | _ => false
+              unless isQuoted do
+                throwError "replayClauseSpine: branch-substitution literal \
+                            (not (equal {repr varT} {repr valT})) is neither \
+                            in the clause nor a segment fact at {idStr}"
+              let eqLit : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+                (.cons varT (.cons valT .nil))
+              let negEqLit := mkNegEq varT valT
+              let parentTerm := disjoinTerm (clauseLits.map (·.2))
+              let obligation := disjoinTerm (eqLit :: clauseLits.map (·.2))
+              let mut ctxL := ctx1
+              ctxL ← pinTermOpaques cfg cfg.envExpr ctxL obligation
+              ctxL ← pinTermOpaques cfg cfg.envExpr ctxL negEqLit
+              let dpFact ← replayDischargeNode cfg ctxL obligation
+              let vNeg ← ctxValExpr cfg ctxL negEqLit
+              let pNeg ← ctxValProof cfg ctxL negEqLit
+              let vEqV ← ctxValExpr cfg ctxL eqLit
+              let pEqV ← ctxValProof cfg ctxL eqLit
+              let va ← ctxValExpr cfg ctxL varT
+              let vb ← ctxValExpr cfg ctxL valT
+              let pVarL ← ctxValProof cfg ctxL varT
+              let pValL ← ctxValProof cfg ctxL valT
+              let nilC := mkConst ``SExpr.nil
+              let substLits := clauseLits.map fun (i, l) => (i, substL l)
+              let substTerm := disjoinTerm (substLits.map (·.2))
+              let newLits := (negEqLit :: substLits.map (·.2)).zipIdx.map
+                fun (l, j) => (j + 1, l)
+              let negL ← withLocalDeclD `hnil (← mkEq vNeg nilC) fun hNil => do
+                let hVeqL ← mkAppM ``logic_not_equal_nil_eq #[va, vb, hNil]
+                let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVarL, pValL, hVeqL]
+                -- fact transport across the substitution (twin of the
+                -- segment route's block below — extraction candidate,
+                -- noted)
+                let mut ctx2 := ctxL
+                ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 substTerm
+                for (i, l, h) in ctx2.litFacts do
+                  let l' := substL l
+                  if l' != l then
+                    ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 l'
+                    let some chL ← diffCollapse cfg.worldExpr cfg.envExpr
+                      varT valT nodeEq l l'
+                      | throwError "replayClauseSpine: linear-split fact \
+                                    transport of {repr l} produced no chain \
+                                    at {idStr}"
+                    let vE ← mkAppM ``val_eq_of_eval_eq
+                      #[chL, ← ctxValProof cfg ctx2 l,
+                        ← ctxValProof cfg ctx2 l']
+                    let h' ← mkAppM ``Eq.trans
+                      #[← mkAppM ``Eq.symm #[vE], h]
+                    ctx2 := { ctx2 with
+                      litFacts := ctx2.litFacts ++ [(i, l', h')] }
+                for (st, h) in ctx2.segFacts do
+                  let st' := substL st
+                  if st' != st then
+                    ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 st'
+                    let some chL ← diffCollapse cfg.worldExpr cfg.envExpr
+                      varT valT nodeEq st st'
+                      | throwError "replayClauseSpine: linear-split fact \
+                                    transport of {repr st} produced no chain \
+                                    at {idStr}"
+                    let vE ← mkAppM ``val_eq_of_eval_eq
+                      #[chL, ← ctxValProof cfg ctx2 st,
+                        ← ctxValProof cfg ctx2 st']
+                    let h' ← mkAppM ``Eq.trans
+                      #[← mkAppM ``Eq.symm #[vE], h]
+                    ctx2 := { ctx2 with
+                      segFacts := ctx2.segFacts ++ [(st', h')] }
+                -- the substituted-with-escape clause is PUSHED as the
+                -- recorded child (the residual pattern): match it exactly
+                -- and replay the child node; a non-empty item tail would
+                -- be a different shape — keep walking it
+                let expected := newLits.map (·.2)
+                let pRest ←
+                  if rest.isEmpty then do
+                    let some child := children.find?
+                        (·.inputClause == expected)
+                      | throwError "replayClauseSpine: linear-split — no \
+                          child clause matches {repr expected} at {idStr} \
+                          (frontier)"
+                    rec.clause cfg { ctx2 with litFacts := [] } child
+                  else
+                    replayClauseSpineWith rec cfg ctx2 idStr newLits rest
+                      accClause children
+                let hcNil ← mkAppM ``re_val_cast
+                  #[cfg.worldExpr, cfg.envExpr, reflectSExpr negEqLit, vNeg,
+                    nilC, pNeg, hNil]
+                let pSubst ← mkAppM ``evtrue_tail_of_if_head_nil
+                  #[hcNil, pRest]
+                if substTerm == parentTerm then
+                  mkLambdaFVars #[hNil] pSubst
+                else
+                  let some chain ← diffCollapse cfg.worldExpr cfg.envExpr
+                    varT valT nodeEq parentTerm substTerm
+                    | throwError "replayClauseSpine: linear-split clause \
+                                  chain produced no chain at {idStr}"
+                  let p ← mkAppM ``evtrue_of_fuel_eq #[chain, pSubst]
+                  mkLambdaFVars #[hNil] p
+              let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vNeg, nilC])
+                  fun hNe => do
+                let hEqNil ← mkAppM ``logic_not_equal_ne_nil_eq_nil
+                  #[va, vb, hNe]
+                let hcNil ← mkAppM ``re_val_cast
+                  #[cfg.worldExpr, cfg.envExpr, reflectSExpr eqLit, vEqV,
+                    nilC, pEqV, hEqNil]
+                let p ← mkAppM ``evtrue_tail_of_if_head_nil #[hcNil, dpFact]
+                mkLambdaFVars #[hNe] p
+              return ← (try mkAppM ``Classical.byCases #[negL, posL]
+                catch e => throwError "byCases compose failed (linear \
+                    split) at {idStr}:\n{e.toMessageData}")
         let pVar ← ctxValProof cfg ctx1 varT
         let pVal ← ctxValProof cfg ctx1 valT
         let nodeEq ← mkAppM ``fuel_eq_of_conv #[pVar, pVal, hVeq]

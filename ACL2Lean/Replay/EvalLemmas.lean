@@ -3655,6 +3655,13 @@ theorem logic_not_equal_nil_eq (a b : SExpr)
     have hbeq : (a == b) = false := beq_eq_false_iff_ne.mpr hab
     simp [Logic.not, Logic.equal, Logic.toBool, hbeq, SExpr.t] at h
 
+/-- A TRUE `(not (equal a b))` literal value makes the equality nil (the
+    linear-equalities case split's escape branch — 2b). -/
+theorem logic_not_equal_ne_nil_eq_nil (a b : SExpr)
+    (h : Logic.not (Logic.equal a b) ≠ SExpr.nil) :
+    Logic.equal a b = SExpr.nil := by
+  by_cases hab : a == b <;> simp_all [Logic.equal, Logic.not, Logic.toBool]
+
 /-- A FALSE `(not P)` literal value makes `P`'s value non-nil. (The step case's
     `(not (consp x))` literal: its falsity gives `consp xv ≠ nil`.) -/
 theorem logic_not_nil_ne (p : SExpr) (h : Logic.not p = SExpr.nil) : p ≠ SExpr.nil := by
