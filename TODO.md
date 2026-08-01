@@ -209,9 +209,17 @@ _Last updated: 2026-08-01._
 > the ALREADY-OFFERED equivrefl:/fc-rule content as tpCors-style
 > premises via the same substN transport (oneWayMatch on (R u u)
 > opaque shapes for equivrefl; cfg.fcRules' trigger/concls for FC).
-> Start by dumping the four leaves' obligations and checking which
-> premise classes close them; only an emission gap remaining AFTER
-> that becomes fork work.**
+> REFINED (Subgoal 2 dumped, op-tree line 1675): the leaf
+> {…¬(EQUAL A B) ∨ (EQUAL (PERM A B) 'T)} needs the premise
+> `(IF (EQUAL A B) (EQUAL (PERM A B) 'T) 'T)` — the equivrefl instance
+> (PERM u u truthy) carried to the pinned (PERM A B) opaque across an
+> ARG-CONGRUENCE eval transport (va = vb → eval (PERM A B) = eval
+> (PERM A A); the fuel_eq/diffCollapse machinery). Same conditional
+> cond-shape as 2b's linear premises; implement as an equivreflHyps
+> premise row in replayDischargeNode with the substN + congruence
+> transport. The other three leaves (preprocess/tau at *1/3, *1/4,
+> *1/6) to be dumped and classified the same way; only residue after
+> the premise classes becomes fork work.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d); (2) the 2b carve-out-boundary
 > call — WIDENED per fold-back audit H2, ratify the DELIVERED scope:
