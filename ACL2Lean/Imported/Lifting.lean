@@ -1150,4 +1150,81 @@ theorem implements_len (w : World) (fn : String)
   fun e a xs ha =>
     corr_len_enc w fn h_ns h_fn h_no_consp h_no_plus h_no_cdr xs e a ha
 
+
+/-! ## Decode-kit v2 (sorting-absolute 1d — promoted from Sorting.lean's
+privates at 3+ consumers each: the boolEnc conjunction ladder
+(`conv_if3`), the false-branch collapse (`conv_if_false'`), the
+EQUAL/IFF Bool readings (`toBool_equal`, `bool_of_iff_truthy`,
+`eq_of_iff_truthy_two_valued`)). -/
+
+/-- `(IF c t e)` term builder (the decode kit's own copy — `ifT` lives in
+    the Replay namespace and aliasing it here would make every
+    open-both consumer ambiguous). -/
+abbrev appIf (c t e : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))
+
+/-- `(QUOTE NIL)`. -/
+abbrev qNilT : SExpr :=
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)
+
+
+/-- Value-level if-false composition (the `re_if_false` + else-value glue
+    used throughout the mirrors). -/
+theorem conv_if_false' (w : World) (e : Env) (c t el ev : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w e c = some SExpr.nil)
+    (he : ∃ N, ∀ f ≥ N, evalOpt f w e el = some ev) :
+    ∃ N, ∀ f ≥ N, evalOpt f w e (appIf c t el) = some ev := by
+  obtain ⟨Ni, hi⟩ := re_if_false w e c t el ev hc he
+  obtain ⟨Ne, he'⟩ := he
+  exact ⟨max Ni Ne, fun f hf => (hi f (by omega)).trans (he' f (by omega))⟩
+
+theorem toBool_equal (a b : SExpr) :
+    Logic.toBool (Logic.equal a b) = (a == b) := by
+  cases h : a == b <;> simp [Logic.equal, h]
+
+/-- The three-guard if-nest of boolEncs computes the conjunction. -/
+theorem conv_if3 (w : World) (e : Env) (c1 c2 c3 : SExpr)
+    (b1 b2 b3 : Bool)
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w e c1 = some (boolEnc b1))
+    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w e c2 = some (boolEnc b2))
+    (h3 : ∃ N, ∀ f ≥ N, evalOpt f w e c3 = some (boolEnc b3)) :
+    ∃ N, ∀ f ≥ N, evalOpt f w e (appIf c1 (appIf c2 c3 qNilT) qNilT)
+      = some (boolEnc (b1 && (b2 && b3))) := by
+  cases hb1 : b1 with
+  | false =>
+    have h1n : ∃ N, ∀ f ≥ N, evalOpt f w e c1 = some SExpr.nil := by
+      simpa [hb1, boolEnc] using h1
+    simpa [Bool.false_and, boolEnc] using
+      conv_if_false' w e c1 (appIf c2 c3 qNilT) qNilT SExpr.nil h1n
+        (re_val_quote w e SExpr.nil)
+  | true =>
+    have hInner : ∃ N, ∀ f ≥ N, evalOpt f w e (appIf c2 c3 qNilT)
+        = some (boolEnc (b2 && b3)) := by
+      cases hb2 : b2 with
+      | false =>
+        have h2n : ∃ N, ∀ f ≥ N, evalOpt f w e c2 = some SExpr.nil := by
+          simpa [hb2, boolEnc] using h2
+        simpa [Bool.false_and, boolEnc] using
+          conv_if_false' w e c2 c3 qNilT SExpr.nil h2n
+            (re_val_quote w e SExpr.nil)
+      | true =>
+        have := conv_if_true w e c2 c3 qNilT (boolEnc b2) (boolEnc b3) h2
+          (by rw [hb2]; rfl) h3
+        simpa [hb2, Bool.true_and] using this
+    have := conv_if_true w e c1 (appIf c2 c3 qNilT) qNilT (boolEnc b1)
+      (boolEnc (b2 && b3)) h1 (by rw [hb1]; rfl) hInner
+    simpa [hb1, Bool.true_and] using this
+
+/-- Truthy `iff` of two boolEncs is Bool equality. -/
+theorem bool_of_iff_truthy {x y : Bool}
+    (h : Logic.toBool (Logic.iff (boolEnc x) (boolEnc y)) = true) :
+    x = y := by
+  cases x <;> cases y <;> simp_all [Logic.iff, boolEnc, Logic.toBool]
+
+theorem eq_of_iff_truthy_two_valued {p q : SExpr}
+    (hp : p = SExpr.t ∨ p = SExpr.nil) (hq : q = SExpr.t ∨ q = SExpr.nil)
+    (h : Logic.toBool (Logic.iff p q) = true) : p = q := by
+  rcases hp with rfl | rfl <;> rcases hq with rfl | rfl <;>
+    simp_all [Logic.iff, Logic.toBool, SExpr.t]
+
 end ACL2.Lifting

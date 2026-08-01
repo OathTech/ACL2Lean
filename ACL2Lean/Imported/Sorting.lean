@@ -154,16 +154,6 @@ private def qNil : SExpr :=
 theorem car_enc (l : List SExpr) : Logic.car (enc l) = l.headD SExpr.nil := by
   cases l <;> rfl
 
-/-- Value-level if-false composition (the `re_if_false` + else-value glue
-    used throughout the mirrors). -/
-private theorem conv_if_false' (w : World) (e : Env) (c t el ev : SExpr)
-    (hc : ∃ N, ∀ f ≥ N, evalOpt f w e c = some SExpr.nil)
-    (he : ∃ N, ∀ f ≥ N, evalOpt f w e el = some ev) :
-    ∃ N, ∀ f ≥ N, evalOpt f w e (ifT c t el) = some ev := by
-  obtain ⟨Ni, hi⟩ := re_if_false w e c t el ev hc he
-  obtain ⟨Ne, he'⟩ := he
-  exact ⟨max Ni Ne, fun f hf => (hi f (by omega)).trans (he' f (by omega))⟩
-
 /-- The CAR-RM replayed-statement formula — the root Goal clause, exactly
     as the log emits it (the AND already if-expanded by clausification):
     `(EQUAL (CAR (RM E A))
@@ -1332,10 +1322,6 @@ def relL (fv a e : SExpr) : Bool :=
   else if fv == symV "GT" then lexorderB e a && !(a == e)
   else lexorderB e a
 
-private theorem toBool_equal (a b : SExpr) :
-    Logic.toBool (Logic.equal a b) = (a == b) := by
-  cases h : a == b <;> simp [Logic.equal, h]
-
 private theorem toBool_strict (x y a e : SExpr) :
     Logic.toBool
       (if Logic.toBool (lexorder x y) = true then
@@ -1982,45 +1968,6 @@ theorem dis_append_tp (w : World)
     cases hb : Logic.toBool (Logic.consp u1) with
     | true => rfl
     | false => simp [Logic.equal]
-
-/-- The three-guard if-nest of boolEncs computes the conjunction. -/
-private theorem conv_if3 (w : World) (e : Env) (c1 c2 c3 : SExpr)
-    (b1 b2 b3 : Bool)
-    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w e c1 = some (boolEnc b1))
-    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w e c2 = some (boolEnc b2))
-    (h3 : ∃ N, ∀ f ≥ N, evalOpt f w e c3 = some (boolEnc b3)) :
-    ∃ N, ∀ f ≥ N, evalOpt f w e (ifT c1 (ifT c2 c3 qNil) qNil)
-      = some (boolEnc (b1 && (b2 && b3))) := by
-  cases hb1 : b1 with
-  | false =>
-    have h1n : ∃ N, ∀ f ≥ N, evalOpt f w e c1 = some SExpr.nil := by
-      simpa [hb1, boolEnc] using h1
-    simpa [Bool.false_and, boolEnc] using
-      conv_if_false' w e c1 (ifT c2 c3 qNil) qNil SExpr.nil h1n
-        (re_val_quote w e SExpr.nil)
-  | true =>
-    have hInner : ∃ N, ∀ f ≥ N, evalOpt f w e (ifT c2 c3 qNil)
-        = some (boolEnc (b2 && b3)) := by
-      cases hb2 : b2 with
-      | false =>
-        have h2n : ∃ N, ∀ f ≥ N, evalOpt f w e c2 = some SExpr.nil := by
-          simpa [hb2, boolEnc] using h2
-        simpa [Bool.false_and, boolEnc] using
-          conv_if_false' w e c2 c3 qNil SExpr.nil h2n
-            (re_val_quote w e SExpr.nil)
-      | true =>
-        have := conv_if_true w e c2 c3 qNil (boolEnc b2) (boolEnc b3) h2
-          (by rw [hb2]; rfl) h3
-        simpa [hb2, Bool.true_and] using this
-    have := conv_if_true w e c1 (ifT c2 c3 qNil) qNil (boolEnc b1)
-      (boolEnc (b2 && b3)) h1 (by rw [hb1]; rfl) hInner
-    simpa [hb1, Bool.true_and] using this
-
-/-- Truthy `iff` of two boolEncs is Bool equality. -/
-private theorem bool_of_iff_truthy {x y : Bool}
-    (h : Logic.toBool (Logic.iff (boolEnc x) (boolEnc y)) = true) :
-    x = y := by
-  cases x <;> cases y <;> simp_all [Logic.iff, boolEnc, Logic.toBool]
 
 abbrev iffT (a b : SExpr) : SExpr := app2 "IFF" a b
 
@@ -4388,12 +4335,6 @@ theorem orderedp_exec_corr (w : World)
   exact conv_defn_1 w env orderedp_sym x xv
     { package := "ACL2", name := "X" } (chain2Body "LEXORDER" "ORDEREDP")
     _ orderedp_ns h_ord hx (hbody xv)
-
-private theorem eq_of_iff_truthy_two_valued {p q : SExpr}
-    (hp : p = SExpr.t ∨ p = SExpr.nil) (hq : q = SExpr.t ∨ q = SExpr.nil)
-    (h : Logic.toBool (Logic.iff p q) = true) : p = q := by
-  rcases hp with rfl | rfl <;> rcases hq with rfl | rfl <;>
-    simp_all [Logic.iff, Logic.toBool, SExpr.t]
 
 /-- `rule:ORDEREDP-APPEND` — the in-book rule, discharged FROM the
     theorem's own replayed statement (both sides two-valued, so the
