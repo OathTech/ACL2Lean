@@ -121,6 +121,17 @@ initialize execKitExt :
 def findKit (env : Environment) (aclName : String) : Option KitInfo :=
   (execKitExt.getState env).find? (·.aclName == aclName)
 
+/-- Register a kit, hard-failing on a duplicate ACL2 name (audit F2: with
+    first-match lookup, a re-registration would silently redirect every
+    later caller's callee resolution). -/
+def registerKit (info : KitInfo) : CommandElabM Unit := do
+  if let some prior := findKit (← getEnv) info.aclName then
+    throwError "derive_exec%: {info.aclName} is already registered \
+        (exec {prior.execName}) — duplicate registration would silently \
+        redirect callee resolution (fail-closed); scope the registry \
+        before generating same-named kits from another book"
+  modifyEnv fun env => execKitExt.addEntry env info
+
 /-- The builtin twin table: ACL2 builtin name → the `Logic`-level Lean
     function of the same semantics + the `callBuiltin` bridge lemma the
     corr side cites. TABLE ORDER IS THE CANONICAL TELESCOPE ORDER for
@@ -228,6 +239,16 @@ def formalBinderName (aclVar : String) : Name :=
 /-- Sanitized hypothesis-binder suffix for an ACL2 name. -/
 def hypSuffix (acl : String) : String :=
   acl.toLower.map fun c => if c.isAlphanum then c else '_'
+
+/-- Hard-fail on sanitization collisions (audit F1/F3: `A-B`/`A_B` formals
+    both sanitize to `a_b` and would silently generate the WRONG function;
+    `BINARY-+`/`BINARY-*` hyp binders collide the same way). -/
+def ensureDistinct (what : String) (ids : Array Ident) :
+    CommandElabM Unit := do
+  let names := ids.map (·.getId)
+  if names.toList.eraseDups.length != names.size then
+    throwError "derive_exec%: sanitized {what} names collide ({names}) — \
+        the generated artifact would silently mis-bind (fail-closed)"
 
 /-! ## Exec-def generation -/
 
@@ -535,6 +556,8 @@ def genCorr (inp : KitInput) (corrId : Ident) :
     mkIdent (Name.mkSimple s!"h_{hypSuffix a}")
   let builtinHypIds := builtinAcls.map fun b =>
     mkIdent (Name.mkSimple s!"h_no_{hypSuffix b}")
+  ensureDistinct "hypothesis binder"
+    (defnHypIds.toArray ++ builtinHypIds.toArray)
   let sexprTy : Term := mkCIdent ``ACL2.SExpr
   let symTy : Term := mkCIdent ``ACL2.Symbol
   -- hypothesis binders
@@ -688,7 +711,7 @@ syntax corrClause := &" corr " ident
 syntax (name := deriveExecCmd)
   (docComment)? "derive_exec% " ident (corrClause)? " for " ident
   &" formals " "[" ident,* "]" &" body " ident
-  &" measured " num (num)? : command
+  (&" measured " num (num)?)? : command
 
 /-- `derive_exec% <execName> [corr <corrName>] for <symConst> formals
     [<symConsts>] body <bodyConst> measured <i>` — generate the M1 exec
@@ -708,10 +731,19 @@ syntax (name := deriveExecCmd)
     let symId : Ident := ⟨stx[5]⟩
     let formalIds : Array Ident := stx[8].getSepArgs.map (⟨·⟩)
     let bodyId : Ident := ⟨stx[11]⟩
-    let some idxN := stx[13].isNatLit?
-      | throwError "derive_exec%: measured index must be a numeral"
-    let idx2? : Option Nat :=
-      if stx[14].getNumArgs > 0 then stx[14][0].isNatLit? else none
+    -- optional measured clause: [12] is a null node wrapping
+    -- (atom " measured ") num (num)?
+    let measured? : Option (Nat × Option Nat) ← do
+      if stx[12].getNumArgs == 0 then pure none
+      else
+        -- the optional group flattens: [0] atom " measured " [1] num
+        -- [2] (num)?
+        let mstx := stx[12]
+        let some idxN := mstx[1].isNatLit?
+          | throwError "derive_exec%: measured index must be a numeral"
+        let idx2? : Option Nat :=
+          if mstx[2].getNumArgs > 0 then mstx[2][0].isNatLit? else none
+        pure (some (idxN, idx2?))
     let symName ← liftTermElabM <| realizeGlobalConstNoOverloadWithInfo symId
     let bodyName ← liftTermElabM <| realizeGlobalConstNoOverloadWithInfo bodyId
     let formalNames ← formalIds.mapM fun fid =>
@@ -724,9 +756,21 @@ syntax (name := deriveExecCmd)
     let formalSyms ← formalNames.mapM fun fn =>
       liftTermElabM <| unsafe evalExpr Symbol
         (mkConst ``ACL2.Symbol) (mkConst fn)
-    let measure : MeasureSpec := match idx2? with
-      | some j => .m2 idxN j
-      | none => .m1 idxN
+    -- F4b: the clause is a fidelity claim about the emitted :MEASURE —
+    -- required exactly when the defun recurses
+    let sitesEarly := selfCallSites sym.name body
+    let measure : MeasureSpec ← do
+      match measured?, sitesEarly.isEmpty with
+      | some _, true =>
+        throwError "derive_exec%: 'measured' supplied but {sym.name} is \
+            non-recursive (no emitted :MEASURE — drop the clause)"
+      | none, false =>
+        throwError "derive_exec%: {sym.name} recurses but no 'measured' \
+            clause was given (transcribe the emitted :MEASURE)"
+      | none, true => pure (.m1 0)  -- unused: no sites, no measure
+      | some (i, j?), false => pure (match j? with
+        | some j => .m2 i j
+        | none => .m1 i)
     let idxOk (k : Nat) : CommandElabM Unit := do
       unless k < formalSyms.size do
         throwError "derive_exec%: measured index {k} out of range \
@@ -737,6 +781,7 @@ syntax (name := deriveExecCmd)
     -- binder idents, in formal order
     let binderIds : Array Ident := formalSyms.map fun s =>
       mkIdent (formalBinderName s.name)
+    ensureDistinct "formal binder" binderIds
     let formalMap : List (String × Ident) :=
       (formalSyms.zip binderIds).toList.map fun (s, id) => (s.name, id)
     -- measure-class validation of every self-call site, producing the
@@ -814,7 +859,7 @@ syntax (name := deriveExecCmd)
     -- register
     let execName ← liftTermElabM <|
       realizeGlobalConstNoOverloadWithInfo execId
-    modifyEnv fun env => execKitExt.addEntry env
+    registerKit
       { aclName := sym.name, execName := execName,
         arity := formalSyms.size, corrName := corrName,
         symC := symName, formalCs := formalNames.toList,
@@ -832,8 +877,9 @@ syntax (name := registerExecKitCmd)
     | `(register_exec_kit% $acl:str => $execId:ident arity $n:num) => do
       let execName ← liftTermElabM <|
         realizeGlobalConstNoOverloadWithInfo execId
-      modifyEnv fun env => execKitExt.addEntry env
-        { aclName := acl.getString, execName := execName, arity := n.getNat }
+      registerKit
+        { aclName := acl.getString, execName := execName,
+          arity := n.getNat }
     | _ => throwUnsupportedSyntax
 
 end ACL2.ExecGen

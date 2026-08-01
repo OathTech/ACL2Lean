@@ -1332,45 +1332,9 @@ def allRelBody : SExpr :=
 private def rel_sym : Symbol := { package := "ACL2", name := "REL" }
 private def all_rel_sym : Symbol := { package := "ACL2", name := "ALL-REL" }
 
-private theorem bindArgs_fij_fn (vf vi vj : SExpr) :
-    (bindArgs [fnS, iS, jS] [vf, vi, vj]).get? fnS = some vf := by
-  show (((({} : Env).insert jS vj).insert iS vi).insert fnS vf).get? fnS
-    = some vf
-  rw [Env.get?_insert, if_pos (by decide)]
-private theorem bindArgs_fij_i (vf vi vj : SExpr) :
-    (bindArgs [fnS, iS, jS] [vf, vi, vj]).get? iS = some vi := by
-  show (((({} : Env).insert jS vj).insert iS vi).insert fnS vf).get? iS
-    = some vi
-  rw [Env.get?_insert, if_neg (by decide), Env.get?_insert,
-      if_pos (by decide)]
-private theorem bindArgs_fij_j (vf vi vj : SExpr) :
-    (bindArgs [fnS, iS, jS] [vf, vi, vj]).get? jS = some vj := by
-  show (((({} : Env).insert jS vj).insert iS vi).insert fnS vf).get? jS
-    = some vj
-  rw [Env.get?_insert, if_neg (by decide), Env.get?_insert,
-      if_neg (by decide), Env.get?_insert, if_pos (by decide)]
-
-private theorem bindArgs_fxe_fn (vf vx ve : SExpr) :
-    (bindArgs [fnS, xS, eS] [vf, vx, ve]).get? fnS = some vf := by
-  show (((({} : Env).insert eS ve).insert xS vx).insert fnS vf).get? fnS
-    = some vf
-  rw [Env.get?_insert, if_pos (by decide)]
-private theorem bindArgs_fxe_x (vf vx ve : SExpr) :
-    (bindArgs [fnS, xS, eS] [vf, vx, ve]).get? xS = some vx := by
-  show (((({} : Env).insert eS ve).insert xS vx).insert fnS vf).get? xS
-    = some vx
-  rw [Env.get?_insert, if_neg (by decide), Env.get?_insert,
-      if_pos (by decide)]
-private theorem bindArgs_fxe_e (vf vx ve : SExpr) :
-    (bindArgs [fnS, xS, eS] [vf, vx, ve]).get? eS = some ve := by
-  show (((({} : Env).insert eS ve).insert xS vx).insert fnS vf).get? eS
-    = some ve
-  rw [Env.get?_insert, if_neg (by decide), Env.get?_insert,
-      if_neg (by decide), Env.get?_insert, if_pos (by decide)]
-
 /-- `rel`'s body as a total Lean function (non-recursive dispatch). -/
 derive_exec% relExec corr rel_exec_corr for rel_sym
-  formals [fnS, iS, jS] body relBody measured 0
+  formals [fnS, iS, jS] body relBody
 
 theorem relExec_t_or_nil (f i j : SExpr) :
     relExec f i j = SExpr.t ∨ relExec f i j = SExpr.nil := by

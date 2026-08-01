@@ -82,7 +82,16 @@ branch by contradiction + integerAbs/length callees), append/orderedp/
 chain2 (parameterized-body schematics), pce (check), memb/rm/perm
 (Imported/Perm.lean — M1-shaped, retirable when that module is next
 touched). v2 backlog: M3 side-lemma registry hook; log-side body
-extraction with the quotation macro (§5); dite guards.
+extraction with the quotation macro (§5); dite guards; corr doc
+comments (audit H2). FIDELITY STATUS (audit F4): the `measured`
+indices and body constants are HAND-TRANSCRIBED from the emitted
+:MEASURE/:BODY and were cross-checked against the real logs at the
+sub-arc audit (8/8 match); the generator itself reads neither — the
+log-side anchoring is the consumers' `by decide` world facts until
+v2's log extraction lands. Fold-back audit 2026-08-01 (1 Opus,
+adversarial): no soundness findings; F1/F2/F3 fail-open holes FIXED
+(sanitization-collision + duplicate-registration guards), F4b FIXED
+(measured clause required iff recursive), H1 orphans deleted.
 
 ## 2. Discharger generation (free once #1 exists)
 
