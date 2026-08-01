@@ -74,12 +74,45 @@ where
     n.steps.flatMap (fun s => s.runes.map (·.name))
     ++ n.children.flatMap go
 
-/-- The emitted type-prescription corollaries of a development (fn name ↦
-    corollary term) — the type facts the DP lift may consume as hypotheses. -/
-partial def developmentTPs : Development → List (String × SExpr)
-  | .bind (.typePrescription n cor _ _) rest => (n, cor) :: developmentTPs rest
-  | .bind _ rest => developmentTPs rest
-  | .done => []
+/-- EVERY replay channel the conditional harness consumes, derived from the
+    development in ONE place (sorting-absolute arc 1a). The sweep runner
+    (`runBook`) and the `driver_replayed%` mirror macro BOTH consume this
+    structure — a channel added for one is automatically seen by the other.
+    The bug class this closes is real: `fcRules`, the termination pre-pass,
+    and `equivRefls` each hard-failed the macro AFTER the runner had them
+    (mirror program 2026-07-31), and the macro's hand-built config was
+    missing `gzTps` outright when this builder landed. -/
+structure BookChannels where
+  /-- theorems in creation order, each with the rules created before it -/
+  thms : List (ClauseProof × List ACL2.RuleSpec)
+  /-- emitted TP corollaries (fn name ↦ corollary term) -/
+  tps : List (String × SExpr)
+  /-- dependency proof trees for `rule:`/`cong:` discharge -/
+  depProofs : List (String × ClauseProof)
+  /-- equivalence-reflexivity evidence: this book's formulas + included ones -/
+  equivRefls : List (String × SExpr)
+
+/-- The channel set of a development — the single derivation site. -/
+def bookChannels (dev : Development) : BookChannels :=
+  let thms := developmentTheoremsWithRules dev
+  { thms := thms
+    tps := dev.typePrescriptions
+    depProofs := thms.map fun (c, _) => (c.name, c)
+    equivRefls := (thms.map fun (c, _) => (c.name, c.formula))
+      ++ dev.includedTheorems }
+
+/-- The canonical `ReplayConfig` of a book replay — the ONE construction
+    site for both the runner and the mirror macro. `gzTps`: BUILTIN-named
+    TP snapshots (world-defined fns get theirs as `tp:` hypotheses
+    instead). -/
+def mkBookConfig (dev : Development) (w : World) (wExpr envExpr : Expr)
+    (termReplayed : List (String × Name × List String × List SExpr) := []) :
+    ReplayConfig :=
+  { worldExpr := wExpr, envExpr := envExpr, worldVal := w,
+    gzDefs := dev.groundZeroSnapshotDefs, justs := dev.justifications,
+    fcRules := dev.groundZeroFcRuleSpecs, termReplayed := termReplayed,
+    gzTps := dev.typePrescriptions.filter fun (n, _) =>
+      (w.defs.get? { name := n }).isNone }
 
 /-- Clause-ids of BLACK-BOX leaves under a clause node: a leaf clause (no child
     clauses, no induction) that ACL2 marks PROVED but for which NO replayable proof
@@ -135,13 +168,8 @@ def collectProofAxioms (e : Expr) : MetaM (List Name) := do
     structural facts are DERIVED by the driver (P3). A message that is
     neither a `replayClause`/`replayNode`/`replayLiteral` frontier flags a
     real bug in the new code, not an expected frontier. -/
-def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
-    (justs : List (String × ACL2.Justification)) (cp : ClauseProof)
-    (rules : List ACL2.RuleSpec := [])
-    (depProofs : List (String × ClauseProof) := [])
-    (equivRefls : List (String × SExpr) := [])
-    (gzDefs : List (Symbol × List Symbol × SExpr) := [])
-    (fcRules : List ACL2.FcRuleSpec := [])
+def tryReplay (dev : Development) (w : World) (wExpr : Expr)
+    (cp : ClauseProof) (rules : List ACL2.RuleSpec := [])
     (mirrors : ReplayedRegistry := [])
     (replayedName? : Option Name := none)
     (budget : Nat := 3000000)
@@ -167,16 +195,11 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
   withRealMaxHeartbeats budget <| withRealMaxRecDepth 8192 <| tryCatchRuntimeEx
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
-        let cfg : ReplayConfig := { worldExpr := wExpr, envExpr := envFV, worldVal := w,
-                                    gzDefs := gzDefs, justs := justs,
-                                    fcRules := fcRules,
-                                    termReplayed := termReplayed,
-                                    -- BUILTIN-named TP snapshots (world-defined
-                                    -- fns get theirs as tp: hypotheses instead)
-                                    gzTps := tps.filter fun (n, _) =>
-                                      (w.defs.get? { name := n }).isNone }
-        let (prf, conds) ← replayProofConditional cfg tps cp justs rules depProofs
-          mirrors (equivRefls := equivRefls) termReplayed
+        let ch := bookChannels dev
+        let cfg := mkBookConfig dev w wExpr envFV termReplayed
+        let (prf, conds) ← replayProofConditional cfg ch.tps cp
+          dev.justifications rules ch.depProofs mirrors
+          (equivRefls := ch.equivRefls) termReplayed
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts
@@ -206,6 +229,29 @@ def tryReplay (w : World) (wExpr : Expr) (tps : List (String × SExpr))
     catch e => return (s!"FAIL: {(← e.toMessageData.toString).replace "\n" " "}", none))
     (fun e =>
       return (s!"FAIL: (runtime: {(← e.toMessageData.toString).replace "\n" " "})", none))
+
+/-- The recorded-admission replay of one defun — the TERMINATION PRE-PASS
+    core shared by `runBook` and `driver_replayed%`'s `with_termination`
+    (1a; cache handling and failure policy stay at the call sites). The
+    rule offer is DEMAND-filtered to the proof's cited runes; the budget is
+    the admission-class guard (see `tryReplay`'s budget doc). -/
+def replayAdmission (dev : Development) (w : World) (wExpr : Expr)
+    (tcp : ClauseProof) (mName : Name) :
+    TermElabM (String × Option (List String)) := do
+  let thms := developmentTheoremsWithRules dev
+  let cited := citedRuneNames tcp
+  let termRules := ((thms.map (·.2)).flatten.filter
+    (fun r => cited.contains r.name)).eraseDups
+  tryReplay dev w wExpr tcp termRules
+    (replayedName? := some mName) (budget := 10000000)
+
+/-- The termination-mirror CIRCULARITY predicate (audit F3): an admission
+    proof conditional on the defun's OWN totality/TP facts must be
+    discarded — `thmAt` would resolve the condition to the consumer's
+    hypothesis fvar and silently accept the circle. One predicate, both
+    call sites (runner discards; the macro skips loudly). -/
+def admissionCircular (fn : String) (conds : List String) : Bool :=
+  conds.contains s!"total:{fn}" || conds.contains s!"tp:{fn}"
 
 /-- Attempt the DP-lift replay of one discharge leaf: prove the discharge node's
     claim `∃N∀f≥N, eval (disjoin clause) = some t` over a QUANTIFIED env (the
@@ -325,19 +371,11 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
       let mut termReplayed : List (String × Name × List String × List SExpr) := []
       let recTermDefuns := recordedTerminationDefuns dev.justifications dev
       for (fn, tcp) in recTermDefuns do
-        let cited := citedRuneNames tcp
-        let termRules := ((thms.map (·.2)).flatten.filter
-          (fun r => cited.contains r.name)).eraseDups
         let mName := Name.mkStr2 "ReplayedTermination"
           (String.map (fun c => if c.isAlphanum then c else '_')
             s!"term_{name}_{fn}")
         let tTm0 ← IO.monoMsNow
-        let (status, reg?) ← tryReplay w wExpr (developmentTPs dev)
-          dev.justifications tcp termRules
-          (thms.map fun (c, _) => (c.name, c))
-          (gzDefs := dev.groundZeroSnapshotDefs)
-          (fcRules := dev.groundZeroFcRuleSpecs)
-          (replayedName? := some mName) (budget := 10000000)
+        let (status, reg?) ← replayAdmission dev w wExpr tcp mName
         let tTm1 ← IO.monoMsNow
         if timings then
           IO.println s!"[t] termination {fn}: {tTm1 - tTm0} ms ({status})"
@@ -354,7 +392,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
           -- hypothesis fvar and silently accept the circle as an "honest
           -- condition". Chronology makes it near-impossible (admission-time
           -- runes only), but the guard is structural, not probabilistic.
-          if conds.contains s!"total:{fn}" || conds.contains s!"tp:{fn}" then
+          if admissionCircular fn conds then
             IO.println s!"    [termination {fn}: mirror DISCARDED — \
               conditional on its own {fn} facts (circularity guard)]"
           else
@@ -372,17 +410,12 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         -- Discharge leaves (decision-procedure nodes): emission-complete under the
         -- ratified carve-out; attempt the DP-lift replay (c1) per leaf.
         let dis := theoremDischargeLeaves cp
-        let tps := developmentTPs dev
+        let tps := dev.typePrescriptions
         let mName := Name.mkStr2 "ReplayedStatements"
           (String.map (fun c => if c.isAlphanum then c else '_')
             s!"replayed_{name}_{cp.name}")
         let tThm0 ← IO.monoMsNow
-        let (status, reg?) ← tryReplay w wExpr tps dev.justifications cp rules
-          (thms.map fun (c, _) => (c.name, c))
-          (equivRefls := (thms.map fun (c, _) => (c.name, c.formula)) ++
-            dev.includedTheorems)
-          (gzDefs := dev.groundZeroSnapshotDefs)
-          (fcRules := dev.groundZeroFcRuleSpecs)
+        let (status, reg?) ← tryReplay dev w wExpr cp rules
           (mirrors := mirrors) (replayedName? := some mName)
           (termReplayed := termReplayed)
         let tThm1 ← IO.monoMsNow

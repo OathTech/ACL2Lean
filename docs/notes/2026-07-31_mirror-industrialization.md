@@ -35,6 +35,36 @@ event:
   fidelity judgment — the mirror criterion's whole point), but the
   proof skeleton (induction + the same rw/simp cadence) is templatable.
 
+### v1 scope (sorting-absolute arc 1b, measure-class inventory 2026-08-01)
+
+Read off the ~20 hand kits in `Imported/Sorting.lean`; the decrease
+obligation class determines what the generator can emit:
+
+- **Class M1 — `(ACL2-COUNT v)` + destructor-chain recursive args**
+  (insert, isort, how-many, rel, all-rel, filter, append, orderedp,
+  evens' cddr, …): `termination_by v.consCount`, decrease = a chain of
+  `consCount_cdr_le`/`consCount_car_le` ending in
+  `consCount_cdr_lt_of_consp`/`_car_` at the consp-ruled variable (the
+  ruling test is in scope from the IF context). Fully mechanical; the
+  bulk of the kits.
+- **Class M2 — `(+ (ACL2-COUNT x) (ACL2-COUNT y))`** (merge2):
+  `Nat.strong_induction_on` over the sum; per-call-site
+  `consCount_cdr_sum_lt_left/right_consp`. Mechanical, one template
+  variant.
+- **Class M3 — decrease THROUGH a defined function** (msort's
+  `(EVENS l)` sites, qsort's `(FILTER …)` sites — need
+  `evensExec_consCount_le/lt` / `filterExec_consCount_le` side lemmas):
+  HARD-FAIL in v1 (msort/qsort keep their hand kits); a side-lemma
+  registry hook is the v2 extension, keyed by the emitted
+  justification's measured-decrease term.
+
+The `_exec_corr` proof template is measure-class-independent: one
+`re_val_var_get` per formal, `conv_builtin1/2` per builtin node,
+`conv_if_lift` per IF, `conv_defn_N` per defn call, IH at recursive
+sites with the same Count lemma chain as the decrease. Validation
+protocol: regenerate the hand kits, require statement match, retire
+incrementally.
+
 ## 2. Discharger generation (free once #1 exists)
 
 `dis_<fn>_total` is literally `exec_corr` + one `⟨N, exec v, h⟩`

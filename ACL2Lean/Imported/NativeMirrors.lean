@@ -111,7 +111,6 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
   let some cp := Driver.findThm dev nm.getString
     | throwError "{nm.getString}: not found in the development (or ambiguous \
                   up to case — findThm refuses to guess)"
-  let thms := Driver.developmentTheoremsWithRules dev
   -- TERMINATION PRE-PASS (the runner's route, mirrored; OPT-IN via
   -- `with_termination` — a consumer whose induction scheme needs a
   -- non-destructor decrease, e.g. qsort's filter call sites, discharges
@@ -146,15 +145,8 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
           some <$> (unsafe Meta.evalExpr (List String) condsTy
             (mkConst condsName))
         else
-          let cited := ACL2.Replay.Runner.citedRuneNames tcp
-          let termRules := ((thms.map (·.2)).flatten.filter
-            (fun r => cited.contains r.name)).eraseDups
-          let (status, reg?) ← ACL2.Replay.Runner.tryReplay dev.toWorld
-            (mkConst worldName) dev.typePrescriptions dev.justifications
-            tcp termRules (thms.map fun (c, _) => (c.name, c))
-            (gzDefs := dev.groundZeroSnapshotDefs)
-            (fcRules := dev.groundZeroFcRuleSpecs)
-            (replayedName? := some mName) (budget := 10000000)
+          let (status, reg?) ← ACL2.Replay.Runner.replayAdmission dev
+            dev.toWorld (mkConst worldName) tcp mName
           if reg?.isNone then
             throwError "driver_replayed% with_termination: the {fn} \
               admission pre-pass FAILED ({status}) — the consumer would \
@@ -168,7 +160,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
             pure (some conds)
           | none => pure none
       if let some conds := conds? then
-        if conds.contains s!"total:{fn}" || conds.contains s!"tp:{fn}" then
+        if ACL2.Replay.Runner.admissionCircular fn conds then
           -- circularity guard, now LOUD (audit 2026-07-31 inside
           -- finding 3): the consumer will hard-fail at the decrease
           -- frontier; name the cause here.
@@ -180,17 +172,17 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
           termReplayed := termReplayed
             ++ [(fn, mName, conds, (tcp.root.map (·.inputClause)).getD [])]
   Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
-    let cfg : ReplayConfig :=
-      { worldExpr := mkConst worldName, envExpr := env, worldVal := dev.toWorld,
-        gzDefs := dev.groundZeroSnapshotDefs, justs := dev.justifications,
-        fcRules := dev.groundZeroFcRuleSpecs,
-        termReplayed := termReplayed }
-    let (proof, _conds) ← replayProofConditional cfg dev.typePrescriptions cp
-      dev.justifications (Driver.rulesBefore dev nm.getString)
-      (thms.map fun (c, _) => (c.name, c))
-      (equivRefls := (thms.map fun (c, _) => (c.name, c.formula)) ++
-        dev.includedTheorems)
-      (termReplayed := termReplayed)
+    -- channels + config from the SHARED builder (1a): the macro constructs
+    -- NO channel of its own — `bookChannels`/`mkBookConfig` are the single
+    -- derivation site, so a runner channel can never miss the macro again
+    -- (the class that hard-failed fcRules/termination/equivRefls one at a
+    -- time, and had silently dropped gzTps here until the unification).
+    let ch := ACL2.Replay.Runner.bookChannels dev
+    let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
+      (mkConst worldName) env termReplayed
+    let (proof, _conds) ← replayProofConditional cfg ch.tps cp
+      dev.justifications (Driver.rulesBefore dev nm.getString) ch.depProofs
+      (equivRefls := ch.equivRefls) (termReplayed := termReplayed)
     Meta.mkLambdaFVars #[env] proof
 
 /-- The conditional replayed statement as a definition (the driver's proof OBJECT). -/
