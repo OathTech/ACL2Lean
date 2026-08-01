@@ -92,15 +92,36 @@ _Last updated: 2026-08-01._
 > GROUND-ZERO linear rule (acl2/axioms.lisp:30540), NOT an in-book
 > theorem — its fact takes the gz value-level route (provable from the
 > acl2CountExec kit: count(cons) = 1 + count(car) + count(cdr)) as a
-> linear:-class hypothesis/discharger, not a replayed statement. STRONG's remaining piece: an items-exhausted arm
-> for the equation-ADD shape (child = ¬eq ∨ parent unsubstituted;
-> byCases like increment 1 but no transport; ¬eq case = the DP
-> obligation eq ∨ parent WITH the linear-rule fact).
-> WEAK (*1/2.2') is the LINEAR-IN-SIMPLIFY EMISSION GAP (whole clause
-> closed by linear:ACL2-COUNT-CAR-CDR-LINEAR verdict, no discharge
-> record emitted) — fork-side: emit a discharge node when simplify's
-> linear arithmetic closes a clause; then the DP-leaf carve-out
-> replays it (the cited linear rule as a hypothesis).**
+> linear:-class hypothesis/discharger, not a replayed statement. STRONG's remaining piece
+> (increment 3, DESIGN SETTLED): an items-exhausted arm for the
+> equation-ADD shape — gate: exactly one recorded child whose
+> inputClause = ¬eq :: (current lits unchanged), step runes citing
+> fake-rune-for-linear-equalities + a :LINEAR rune. byCases on v(¬eq):
+> nil peels the replayed child's head (evtrue_tail_of_if_head_nil — no
+> transport, clause unchanged); ≠ nil = the DP obligation `eq ∨ parent`
+> WITH the cited gz :LINEAR rule's content as a NEW HONEST HYPOTHESIS
+> CLASS `linear:ACL2-COUNT-CAR-CDR-LINEAR` (the D6 pattern: declared in
+> the conditional harness like tp:/rule:, consumed by
+> replayDischargeNode's premise set alongside tpData, kept in cond[…]
+> until the Imported-side discharger proves it from the acl2CountExec
+> kit — count(cons) = 1 + count(car) + count(cdr), which the kit
+> states directly). The obligation is NOT valid without it
+> (independent-opaque counter-model) — no shortcut exists.
+> ROUTING DECISION (2026-08-01): the cited :LINEAR rule's FORMULA is
+> NOT emitted (rune name only — verified against the msort log), and
+> CLAUDE.md's emit-more rule forbids hand-stating it Lean-side. So
+> increment 3 is FORK-FIRST: one fork batch emitting (a) gz
+> :LINEAR-rule spec snapshots for cited runes (the
+> groundZeroFcRuleSpecs precedent — hyps + trigger + concl), and
+> (b) the WEAK discharge record — a discharge node when simplify's
+> linear arithmetic closes a clause (*1/2.2', :RESULT :PROVED with
+> linear runes and NO transforming items). Then recapture-all; then
+> the walker consumes the spec as the DP obligation's premise
+> (replayDischargeNode premise set alongside tpData) for BOTH the
+> STRONG equation-ADD arm and WEAK's discharge leaf.
+> WEAK (*1/2.2') detail: whole clause closed by
+> linear:ACL2-COUNT-CAR-CDR-LINEAR verdict, no discharge record
+> emitted.**
 > **PROCESS NOTE (2026-08-01, for the fold-back audit): a plain
 > `lake build` did NOT re-elaborate Tests.DriverCoverage after a
 > Driver-core change in one observed instance (stale .actual, golden
