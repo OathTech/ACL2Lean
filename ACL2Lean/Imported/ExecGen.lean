@@ -308,12 +308,22 @@ def decreaseScript (chain : List String) :
 
 /-! ## Corr-proof generation -/
 
+/-- The v1 measure classes: M1 = `(ACL2-COUNT formalᵢ)` with
+    destructor-chain recursion; M2 = `(+ (ACL2-COUNT formalᵢ)
+    (ACL2-COUNT formalⱼ))` with single-CDR one-side decreases (merge2's
+    shape). -/
+inductive MeasureSpec where
+  | m1 (idx : Nat)
+  | m2 (idx1 idx2 : Nat)
+  deriving Repr, BEq
+
 /-- Context of the corr body walk. -/
 structure CorrCtx where
   wId : Ident
   selfAcl : String
-  measuredAcl : String
-  measuredIdx : Nat
+  measure : MeasureSpec
+  /-- ACL2 formal names, in order (index ↔ name) -/
+  formalAcls : Array String
   /-- formal name → the `re_val_var_get` have -/
   hvMap : List (String × Ident)
   /-- formal name → value ident (for exec value projection) -/
@@ -322,8 +332,10 @@ structure CorrCtx where
   builtinHypMap : List (String × Ident)
   execId : Ident
   ihId : Ident
-  /-- the in-scope CONSP guard on the measured formal, if any -/
-  guard? : Option Ident := none
+  /-- M2 only: the `sum = n` hypothesis for the ▸-transport -/
+  hnId : Ident
+  /-- in-scope CONSP guards, per formal name -/
+  guards : List (String × Ident) := []
 
 private def holes (n : Nat) : CommandElabM (Array Term) :=
   (Array.range n).mapM fun _ => `(_)
@@ -346,11 +358,12 @@ def mkConvDefn (wId : Ident) (n : Nat) (ps : List Term) (hDef : Ident)
     (#[(wId : Term)] ++ hs ++ #[nsP, (hDef : Term)]
       ++ ps.toArray ++ #[cont])
 
-/-- Is this term `(CONSP <measured-formal>)`? -/
-def isConspOnMeasured (measuredAcl : String) : SExpr → Bool
+/-- If this term is `(CONSP <formal>)`, the formal's name. -/
+def conspTestFormal (formalAcls : Array String) : SExpr → Option String
   | .cons (.atom (.symbol c)) (.cons (.atom (.symbol v)) .nil) =>
-    c.name == "CONSP" && v.name == measuredAcl
-  | _ => false
+    if c.name == "CONSP" && formalAcls.contains v.name then some v.name
+    else none
+  | _ => none
 
 /-- The corr walk: body syntax → the `ConvTo` proof TERM (goal-driven —
     value-side arguments are holes filled by unification against the
@@ -375,8 +388,9 @@ partial def corrTerm (ctx : CorrCtx) (path : String := "") :
       | [c, t, e] => do
         let pc ← corrTerm ctx (path ++ "c") c
         let hb := mkIdent (Name.mkSimple s!"hb{path}")
-        let ctxT := if isConspOnMeasured ctx.measuredAcl c then
-          { ctx with guard? := some hb } else ctx
+        let ctxT := match conspTestFormal ctx.formalAcls c with
+          | some f => { ctx with guards := (f, hb) :: ctx.guards }
+          | none => ctx
         let pt ← corrTerm ctxT (path ++ "t") t
         let pe ← corrTerm ctx (path ++ "e") e
         let hs ← holes 7
@@ -385,19 +399,52 @@ partial def corrTerm (ctx : CorrCtx) (path : String := "") :
       | _ => throwError "derive_exec% corr: IF with {as.length} arguments"
     else if hd.name == ctx.selfAcl then do
       let ps ← as.mapM (corrTerm ctx (path ++ "s"))
-      let some guard := ctx.guard?
-        | throwError "derive_exec% corr: self-call outside the measured \
-            CONSP guard (M1 frontier — hand-write this kit)"
-      let mArg := as[ctx.measuredIdx]!
-      let some (chain, _) := destructorChain mArg
-        | throwError "derive_exec% corr: measured argument shape (validated \
-            earlier — internal)"
-      let decP ← decreaseTerm chain guard
-      let mVal ← execTerm ctx.selfAcl ctx.execId ctx.valMap mArg
-      let otherVals ← (as.zipIdx.filter (·.2 != ctx.measuredIdx)).mapM
-        fun (a, _) => execTerm ctx.selfAcl ctx.execId ctx.valMap a
-      let ihApp := Syntax.mkApp ctx.ihId
-        (#[mVal, decP] ++ otherVals.toArray)
+      let proj := execTerm ctx.selfAcl ctx.execId ctx.valMap
+      let ihApp ← match ctx.measure with
+        | .m1 mIdx => do
+          let mArg := as[mIdx]!
+          let some (chain, root) := destructorChain mArg
+            | throwError "derive_exec% corr: measured argument shape \
+                (validated earlier — internal)"
+          let some guard := ctx.guards.lookup root
+            | throwError "derive_exec% corr: self-call outside a CONSP \
+                guard on {root} (M1 frontier — hand-write this kit)"
+          let decP ← decreaseTerm chain guard
+          let mVal ← proj mArg
+          let otherVals ← (as.zipIdx.filter (·.2 != mIdx)).mapM
+            fun (a, _) => proj a
+          pure <| Syntax.mkApp ctx.ihId
+            (#[mVal, decP] ++ otherVals.toArray)
+        | .m2 i j => do
+          -- one side descends by a single CDR, the other is unchanged
+          let ci := destructorChain as[i]!
+          let cj := destructorChain as[j]!
+          let (descFormal, sumLemma) ←
+            match ci, cj with
+            | some (["CDR"], fi), some ([], fj) => do
+              unless fi == ctx.formalAcls[i]! && fj == ctx.formalAcls[j]! do
+                throwError "derive_exec% corr: M2 site formals mismatch"
+              pure (fi, ``consCount_cdr_sum_lt_left_consp)
+            | some ([], fi), some (["CDR"], fj) => do
+              unless fi == ctx.formalAcls[i]! && fj == ctx.formalAcls[j]! do
+                throwError "derive_exec% corr: M2 site formals mismatch"
+              pure (fj, ``consCount_cdr_sum_lt_right_consp)
+            | _, _ =>
+              throwError "derive_exec% corr: M2 site is not a single-CDR \
+                  one-side decrease (frontier — hand-write this kit)"
+          let some guard := ctx.guards.lookup descFormal
+            | throwError "derive_exec% corr: M2 self-call outside a CONSP \
+                guard on {descFormal} (frontier)"
+          let sumT ← do
+            let pi ← proj as[i]!
+            let pj ← proj as[j]!
+            `($(mkCIdent ``SExpr.consCount) $pi
+                + $(mkCIdent ``SExpr.consCount) $pj)
+          let decP ← `($(ctx.hnId) ▸ $(mkCIdent sumLemma) $guard)
+          let argVals ← as.mapM proj
+          let rflP ← `(rfl)
+          pure <| Syntax.mkApp ctx.ihId
+            (#[sumT, decP] ++ argVals.toArray ++ #[rflP])
       let some hSelf := ctx.defnHypMap.lookup ctx.selfAcl
         | throwError "derive_exec% corr: no self defn hyp (internal)"
       mkConvDefn ctx.wId as.length ps hSelf ihApp
@@ -453,7 +500,7 @@ structure KitInput where
   sym : Symbol
   body : SExpr
   formalSyms : Array Symbol
-  measuredIdx : Nat
+  measure : MeasureSpec
   recursive : Bool
 
 /-- Generate the corr theorem for a kit; returns the telescope metadata
@@ -539,63 +586,88 @@ def genCorr (inp : KitInput) (corrId : Ident) :
     `(tactic| have $(hvIds[i]!):ident := $(mkCIdent ``re_val_var_get)
         $wId $benv $(mkCIdent inp.formalNames[i]!) $(vIds[i]!) $gp)
   let ihId := mkIdent `ih
+  let hnId := mkIdent `hn
   let ctx : CorrCtx :=
     { wId := wId, selfAcl := selfAcl,
-      measuredAcl := inp.formalSyms[inp.measuredIdx]!.name,
-      measuredIdx := inp.measuredIdx,
+      measure := inp.measure,
+      formalAcls := inp.formalSyms.map (·.name),
       hvMap := (inp.formalSyms.zip hvIds).toList.map
         fun (s, id) => (s.name, id),
       valMap := (inp.formalSyms.zip vIds).toList.map
         fun (s, id) => (s.name, id),
       defnHypMap := defnAcls.zip defnHypIds,
       builtinHypMap := builtinAcls.zip builtinHypIds,
-      execId := inp.execId, ihId := ihId }
+      execId := inp.execId, ihId := ihId, hnId := hnId }
   let walk ← corrTerm ctx "" inp.body
   let eqDefId : Term :=
     mkCIdent ((← liftTermElabM <|
       realizeGlobalConstNoOverloadWithInfo inp.execId) ++ `eq_def)
   let hbodyId := mkIdent `hbody
   let hbodyGoal ← `($convTo $wId $benv $(mkCIdent inp.bodyName) $execApp)
-  let vm := vIds[inp.measuredIdx]!
-  let others := (vIds.zipIdx.filter (·.2 != inp.measuredIdx)).map (·.1)
-  let hbodyStmt ←
-    if inp.recursive then
-      if others.isEmpty then
-        `(∀ ($vm:ident : $sexprTy), $hbodyGoal)
-      else
-        `(∀ ($vm:ident : $sexprTy), ∀ ($[$others:ident]* : $sexprTy),
-            $hbodyGoal)
-    else
-      `(∀ ($[$vIds:ident]* : $sexprTy), $hbodyGoal)
-  let hbodyTac ←
-    if inp.recursive then do
+  let natTy : Term := mkCIdent ``Nat
+  let ccT : Term := mkCIdent ``SExpr.consCount
+  let (hbodyStmt, hbodyTac) ← do
+    match inp.recursive, inp.measure with
+    | true, .m1 mIdx => do
+      let vm := vIds[mIdx]!
+      let others := (vIds.zipIdx.filter (·.2 != mIdx)).map (·.1)
+      let stmt ←
+        if others.isEmpty then
+          `(∀ ($vm:ident : $sexprTy), $hbodyGoal)
+        else
+          `(∀ ($vm:ident : $sexprTy), ∀ ($[$others:ident]* : $sexprTy),
+              $hbodyGoal)
       let motive ←
         if others.isEmpty then
           `(fun $vm:ident => $hbodyGoal)
         else
           `(fun $vm:ident => ∀ ($[$others:ident]* : $sexprTy), $hbodyGoal)
       let introIds := #[vm, ihId] ++ others
-      `(Lean.Parser.Tactic.tacticSeq|
+      let tac ← `(Lean.Parser.Tactic.tacticSeq|
           refine $(mkCIdent ``consCount_strong_induction) $motive ?_
           intro $[$introIds:ident]*
           $[$hvHaves:tactic]*
           rw [$eqDefId:term]
           exact $walk)
-    else
+      pure (stmt, tac)
+    | true, .m2 i j => do
+      -- Nat strong induction over the pair-sum (merge2's shape)
+      let nId := mkIdent `n
+      let sumT ← `($ccT $(vIds[i]!) + $ccT $(vIds[j]!))
+      let stmt ← `(∀ ($nId:ident : $natTy) ($[$vIds:ident]* : $sexprTy),
+          $sumT = $nId → $hbodyGoal)
+      let introIds := #[nId, ihId] ++ vIds ++ #[hnId]
+      let tac ← `(Lean.Parser.Tactic.tacticSeq|
+          refine fun $nId:ident => Nat.strong_induction_on $nId ?_
+          intro $[$introIds:ident]*
+          $[$hvHaves:tactic]*
+          rw [$eqDefId:term]
+          exact $walk)
+      pure (stmt, tac)
+    | false, _ => do
       -- plain defs have no equation lemma; delta-unfold instead
-      `(Lean.Parser.Tactic.tacticSeq|
+      let stmt ← `(∀ ($[$vIds:ident]* : $sexprTy), $hbodyGoal)
+      let tac ← `(Lean.Parser.Tactic.tacticSeq|
           intro $[$vIds:ident]*
           $[$hvHaves:tactic]*
           unfold $(mkIdent (inp.execId.getId)):ident
           exact $walk)
+      pure (stmt, tac)
   -- closing: conv_defn_N + hbody applied at (measured, others) order
   let hIds := inp.formalSyms.map fun s =>
     mkIdent (Name.appendAfter `h s!"_{(formalBinderName s.name)}")
-  let hbodyArgs :=
-    if inp.recursive then
-      #[(vm : Term)] ++ others.map (fun i => (i : Term))
-    else vTerms
-  let hbodyApp := Syntax.mkApp hbodyId hbodyArgs
+  let hbodyApp ← do
+    match inp.recursive, inp.measure with
+    | true, .m1 mIdx =>
+      let vm := vIds[mIdx]!
+      let others := (vIds.zipIdx.filter (·.2 != mIdx)).map (·.1)
+      pure <| Syntax.mkApp hbodyId
+        (#[(vm : Term)] ++ others.map (fun i => (i : Term)))
+    | true, .m2 i j => do
+      let sumT ← `($ccT $(vIds[i]!) + $ccT $(vIds[j]!))
+      let rflP ← `(rfl)
+      pure <| Syntax.mkApp hbodyId (#[sumT] ++ vTerms ++ #[rflP])
+    | false, _ => pure <| Syntax.mkApp hbodyId vTerms
   let some hSelfId := (defnAcls.zip defnHypIds).lookup selfAcl
     | throwError "derive_exec% corr: internal — self defn hyp missing"
   let closing ← mkConvDefn wId n (hIds.map (fun i => (i : Term))).toList
@@ -615,7 +687,8 @@ syntax corrClause := &" corr " ident
 
 syntax (name := deriveExecCmd)
   (docComment)? "derive_exec% " ident (corrClause)? " for " ident
-  &" formals " "[" ident,* "]" &" body " ident &" measured " num : command
+  &" formals " "[" ident,* "]" &" body " ident
+  &" measured " num (num)? : command
 
 /-- `derive_exec% <execName> [corr <corrName>] for <symConst> formals
     [<symConsts>] body <bodyConst> measured <i>` — generate the M1 exec
@@ -637,6 +710,8 @@ syntax (name := deriveExecCmd)
     let bodyId : Ident := ⟨stx[11]⟩
     let some idxN := stx[13].isNatLit?
       | throwError "derive_exec%: measured index must be a numeral"
+    let idx2? : Option Nat :=
+      if stx[14].getNumArgs > 0 then stx[14][0].isNatLit? else none
     let symName ← liftTermElabM <| realizeGlobalConstNoOverloadWithInfo symId
     let bodyName ← liftTermElabM <| realizeGlobalConstNoOverloadWithInfo bodyId
     let formalNames ← formalIds.mapM fun fid =>
@@ -649,33 +724,63 @@ syntax (name := deriveExecCmd)
     let formalSyms ← formalNames.mapM fun fn =>
       liftTermElabM <| unsafe evalExpr Symbol
         (mkConst ``ACL2.Symbol) (mkConst fn)
-    let i := idxN
-    unless i < formalSyms.size do
-      throwError "derive_exec%: measured index {i} out of range \
-          ({formalSyms.size} formals)"
+    let measure : MeasureSpec := match idx2? with
+      | some j => .m2 idxN j
+      | none => .m1 idxN
+    let idxOk (k : Nat) : CommandElabM Unit := do
+      unless k < formalSyms.size do
+        throwError "derive_exec%: measured index {k} out of range \
+            ({formalSyms.size} formals)"
+    match measure with
+    | .m1 k => idxOk k
+    | .m2 k l => do idxOk k; idxOk l
     -- binder idents, in formal order
     let binderIds : Array Ident := formalSyms.map fun s =>
       mkIdent (formalBinderName s.name)
     let formalMap : List (String × Ident) :=
       (formalSyms.zip binderIds).toList.map fun (s, id) => (s.name, id)
-    -- M1 validation: every self-call's measured argument is a destructor
-    -- chain over the measured formal; other arguments are unrestricted.
-    let measuredAcl := formalSyms[i]!.name
+    -- measure-class validation of every self-call site, producing the
+    -- decreasing_by script per site
     let sites := selfCallSites sym.name body
-    let mut chains : List (List String) := []
+    let mut scripts : Array (TSyntax ``Lean.Parser.Tactic.tacticSeq) := #[]
     for site in sites do
       unless site.length == formalSyms.size do
         throwError "derive_exec%: self-call arity {site.length} ≠ \
             {formalSyms.size}"
-      let some (chain, v) := destructorChain site[i]!
-        | throwError "derive_exec%: measured argument {repr site[i]!} is \
-            not a destructor chain (M3 frontier — hand-write this kit)"
-      unless v == measuredAcl do
-        throwError "derive_exec%: measured argument descends {v}, not the \
-            measured formal {measuredAcl} (frontier)"
-      chains := chains ++ [chain]
+      match measure with
+      | .m1 i => do
+        -- M1: the measured argument is a destructor chain over the
+        -- measured formal
+        let measuredAcl := formalSyms[i]!.name
+        let some (chain, v) := destructorChain site[i]!
+          | throwError "derive_exec%: measured argument {repr site[i]!} \
+              is not a destructor chain (M3 frontier — hand-write this \
+              kit)"
+        unless v == measuredAcl do
+          throwError "derive_exec%: measured argument descends {v}, not \
+              the measured formal {measuredAcl} (frontier)"
+        scripts := scripts.push (← decreaseScript chain)
+      | .m2 i j => do
+        -- M2: exactly one measured side descends by a single CDR, the
+        -- other is the bare formal
+        let lemName ←
+          match destructorChain site[i]!, destructorChain site[j]! with
+          | some (["CDR"], fi), some ([], fj) => do
+            unless fi == formalSyms[i]!.name && fj == formalSyms[j]!.name do
+              throwError "derive_exec%: M2 site formals mismatch"
+            pure ``consCount_cdr_sum_lt_left_consp
+          | some ([], fi), some (["CDR"], fj) => do
+            unless fi == formalSyms[i]!.name && fj == formalSyms[j]!.name do
+              throwError "derive_exec%: M2 site formals mismatch"
+            pure ``consCount_cdr_sum_lt_right_consp
+          | _, _ =>
+            throwError "derive_exec%: M2 site {repr site} is not a \
+                single-CDR one-side decrease (frontier — hand-write this \
+                kit)"
+        let pf ← `($(mkCIdent lemName) (by assumption))
+        scripts := scripts.push
+          (← `(Lean.Parser.Tactic.tacticSeq| exact $pf))
     let bodyS ← execTerm sym.name execId formalMap body
-    let measuredId := binderIds[i]!
     let sexprTy : Term := mkCIdent ``ACL2.SExpr
     let binders ← binderIds.mapM fun id =>
       `(bracketedBinderF| ($id:ident : $sexprTy))
@@ -684,8 +789,11 @@ syntax (name := deriveExecCmd)
         -- non-recursive defun: a plain def, no measure
         `($[$doc?:docComment]? def $execId $binders* : $sexprTy := $bodyS)
       else do
-        let scripts := (← chains.mapM decreaseScript).toArray
-        let measT ← `($(mkCIdent ``SExpr.consCount) $measuredId)
+        let measT ← match measure with
+          | .m1 i => `($(mkCIdent ``SExpr.consCount) $(binderIds[i]!))
+          | .m2 i j =>
+            `($(mkCIdent ``SExpr.consCount) $(binderIds[i]!)
+                + $(mkCIdent ``SExpr.consCount) $(binderIds[j]!))
         `($[$doc?:docComment]? def $execId $binders* : $sexprTy := $bodyS
           termination_by $measT
           decreasing_by all_goals first $[| $scripts]*)
@@ -693,7 +801,7 @@ syntax (name := deriveExecCmd)
     let inp : KitInput :=
       { execId := execId, symName := symName, bodyName := bodyName,
         formalNames := formalNames, sym := sym, body := body,
-        formalSyms := formalSyms, measuredIdx := i,
+        formalSyms := formalSyms, measure := measure,
         recursive := !sites.isEmpty }
     -- corr (optional clause)
     let (corrName, defnAcls, builtinAcls) ←

@@ -65,6 +65,25 @@ sites with the same Count lemma chain as the decrease. Validation
 protocol: regenerate the hand kits, require statement match, retire
 incrementally.
 
+### BUILT (sub-arc mdd/exec-gen, 2026-08-01)
+
+`Imported/ExecGen.lean`: `derive_exec%` generates def + corr (M1 + M2),
+kit registry (persistent env extension), canonical telescope
+(callee-then-self defn hyps; twin-table-order builtin hyps — reproduces
+every hand telescope), the generic `bindArgs_get_head/tail` pair
+(item 3 RETIRED), goal-driven corr walk with unification holes.
+RETIRED same-name+same-statement (~600 hand lines): insert, isort,
+how-many, rel (non-recursive), all-rel, filter, evens (cddr chain) —
+M1 — and merge2 (M2, Nat strong induction over the pair sum).
+REMAINING HAND KITS, each a named v1 frontier: msort/qsort (M3
+decrease-through-function), oLt (dite guard + M3 via oFirstExpt + the
+Logic.lt twin), acl2Count (CAR-descent pair + dead COMPLEX-RATIONALP
+branch by contradiction + integerAbs/length callees), append/orderedp/
+chain2 (parameterized-body schematics), pce (check), memb/rm/perm
+(Imported/Perm.lean — M1-shaped, retirable when that module is next
+touched). v2 backlog: M3 side-lemma registry hook; log-side body
+extraction with the quotation macro (§5); dite guards.
+
 ## 2. Discharger generation (free once #1 exists)
 
 `dis_<fn>_total` is literally `exec_corr` + one `⟨N, exec v, h⟩`

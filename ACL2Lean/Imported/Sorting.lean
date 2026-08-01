@@ -300,28 +300,8 @@ def isortBody : SExpr :=
 private def insert_sym : Symbol := { package := "ACL2", name := "INSERT" }
 private def isort_sym : Symbol := { package := "ACL2", name := "ISORT" }
 
-private theorem insert_ns :
-    (insert_sym.isNamed "QUOTE" = false ∧ insert_sym.isNamed "IF" = false ∧
-     insert_sym.isNamed "LET" = false ∧ insert_sym.isNamed "LET*" = false) := by
-  decide
-private theorem isort_ns :
-    (isort_sym.isNamed "QUOTE" = false ∧ isort_sym.isNamed "IF" = false ∧
-     isort_sym.isNamed "LET" = false ∧ isort_sym.isNamed "LET*" = false) := by
-  decide
-
 private theorem callBuiltin_lexorder (a b : SExpr) :
     callBuiltin "LEXORDER" [a, b] = some (lexorder a b) := rfl
-
-private theorem bindArgs_ex_e (ve vx : SExpr) :
-    (bindArgs [eS, xS] [ve, vx]).get? eS = some ve := by
-  show ((({} : Env).insert xS vx).insert eS ve).get? eS = some ve
-  rw [Env.get?_insert, if_pos (by decide)]
-
-private theorem bindArgs_ex_x (ve vx : SExpr) :
-    (bindArgs [eS, xS] [ve, vx]).get? xS = some vx := by
-  show ((({} : Env).insert xS vx).insert eS ve).get? xS = some vx
-  rw [Env.get?_insert, if_neg (by decide), Env.get?_insert,
-      if_pos (by decide)]
 
 /-- `insert`'s body as a total Lean function (shape-exact, D2) —
     GENERATED (1b retirement: the hand def this replaces is reproduced
@@ -993,12 +973,6 @@ def howManyBody : SExpr :=
 
 private def how_many_sym : Symbol := { package := "ACL2", name := "HOW-MANY" }
 
-private theorem how_many_ns :
-    (how_many_sym.isNamed "QUOTE" = false ∧
-     how_many_sym.isNamed "IF" = false ∧
-     how_many_sym.isNamed "LET" = false ∧
-     how_many_sym.isNamed "LET*" = false) := by decide
-
 /-- `how-many`'s body as a total Lean function. -/
 derive_exec% howManyExec corr how_many_exec_corr for how_many_sym
   formals [eS, xS] body howManyBody measured 1
@@ -1357,16 +1331,6 @@ def allRelBody : SExpr :=
 
 private def rel_sym : Symbol := { package := "ACL2", name := "REL" }
 private def all_rel_sym : Symbol := { package := "ACL2", name := "ALL-REL" }
-
-private theorem rel_ns :
-    (rel_sym.isNamed "QUOTE" = false ∧ rel_sym.isNamed "IF" = false ∧
-     rel_sym.isNamed "LET" = false ∧ rel_sym.isNamed "LET*" = false) := by
-  decide
-private theorem all_rel_ns :
-    (all_rel_sym.isNamed "QUOTE" = false ∧
-     all_rel_sym.isNamed "IF" = false ∧
-     all_rel_sym.isNamed "LET" = false ∧
-     all_rel_sym.isNamed "LET*" = false) := by decide
 
 private theorem bindArgs_fij_fn (vf vi vj : SExpr) :
     (bindArgs [fnS, iS, jS] [vf, vi, vj]).get? fnS = some vf := by
@@ -1815,11 +1779,6 @@ def filterBody : SExpr :=
     qNil
 
 private def filter_sym : Symbol := { package := "ACL2", name := "FILTER" }
-
-private theorem filter_ns :
-    (filter_sym.isNamed "QUOTE" = false ∧ filter_sym.isNamed "IF" = false ∧
-     filter_sym.isNamed "LET" = false ∧
-     filter_sym.isNamed "LET*" = false) := by decide
 
 /-- `filter`'s body as a total Lean function. -/
 derive_exec% filterExec corr filter_exec_corr for filter_sym
@@ -2340,14 +2299,6 @@ private def evens_sym : Symbol := { package := "ACL2", name := "EVENS" }
 private def odds_sym : Symbol := { package := "ACL2", name := "ODDS" }
 private def msort_sym : Symbol := { package := "ACL2", name := "MSORT" }
 
-private theorem merge2_ns :
-    (merge2_sym.isNamed "QUOTE" = false ∧ merge2_sym.isNamed "IF" = false ∧
-     merge2_sym.isNamed "LET" = false ∧
-     merge2_sym.isNamed "LET*" = false) := by decide
-private theorem evens_ns :
-    (evens_sym.isNamed "QUOTE" = false ∧ evens_sym.isNamed "IF" = false ∧
-     evens_sym.isNamed "LET" = false ∧
-     evens_sym.isNamed "LET*" = false) := by decide
 private theorem odds_ns :
     (odds_sym.isNamed "QUOTE" = false ∧ odds_sym.isNamed "IF" = false ∧
      odds_sym.isNamed "LET" = false ∧
@@ -2361,116 +2312,12 @@ private theorem bindArgs_l_l (v : SExpr) :
     (bindArgs [lS] [v]).get? lS = some v :=
   bindArgs_single_get_self lS v
 
-/-- `merge2`'s body as a total Lean function. -/
-def merge2Exec (x y : SExpr) : SExpr :=
-  if Logic.toBool (Logic.consp x) = true then
-    if Logic.toBool (Logic.consp y) = true then
-      if Logic.toBool (lexorder (Logic.car x) (Logic.car y)) = true then
-        Logic.cons (Logic.car x) (merge2Exec (Logic.cdr x) y)
-      else Logic.cons (Logic.car y) (merge2Exec x (Logic.cdr y))
-    else x
-  else y
-termination_by x.consCount + y.consCount
-decreasing_by
-  · exact consCount_cdr_sum_lt_left_consp (by assumption)
-  · exact consCount_cdr_sum_lt_right_consp (by assumption)
-
-/-- Stage 1: a `merge2` call converges to `merge2Exec` (strong induction
-    on the SUM of the argument counts — the emitted pair measure). -/
-theorem merge2_exec_corr (w : World)
-    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env : Env) (a b av bv : SExpr),
-      ConvTo w env a av → ConvTo w env b bv →
-      ConvTo w env (merge2T a b) (merge2Exec av bv) := by
-  have hbody : ∀ (n : Nat) (xv yv : SExpr),
-      xv.consCount + yv.consCount = n →
-      ConvTo w (bindArgs [xS, yS] [xv, yv]) merge2Body
-        (merge2Exec xv yv) := by
-    intro n
-    induction n using Nat.strong_induction_on with
-    | _ n ih =>
-      intro xv yv hn
-      have hxv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
-        { name := "X" } xv (bindArgs_xy_x' xv yv)
-      have hyv := re_val_var_get w (bindArgs [xS, yS] [xv, yv])
-        { name := "Y" } yv (bindArgs_xy_y' xv yv)
-      have hcx := conv_builtin1 w _ { name := "CONSP" } xT xv
-        (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
-      have hcy := conv_builtin1 w _ { name := "CONSP" } yT yv
-        (Logic.consp yv) (by decide) h_no_consp hyv (callBuiltin_consp _)
-      have hcarx := conv_builtin1 w _ { name := "CAR" } xT xv
-        (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
-      have hcary := conv_builtin1 w _ { name := "CAR" } yT yv
-        (Logic.car yv) (by decide) h_no_car hyv (callBuiltin_car _)
-      have hcdrx := conv_builtin1 w _ { name := "CDR" } xT xv
-        (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-      have hcdry := conv_builtin1 w _ { name := "CDR" } yT yv
-        (Logic.cdr yv) (by decide) h_no_cdr hyv (callBuiltin_cdr _)
-      have hlex := conv_builtin2 w _ { name := "LEXORDER" } (carT xT)
-        (carT yT) (Logic.car xv) (Logic.car yv) _ (by decide) h_no_lexorder
-        hcarx hcary (callBuiltin_lexorder _ _)
-      have houter := conv_if_lift w (bindArgs [xS, yS] [xv, yv]) (conspT xT)
-        (ifT (conspT yT)
-          (ifT (lexT (carT xT) (carT yT))
-            (consT (carT xT) (merge2T (cdrT xT) yT))
-            (consT (carT yT) (merge2T xT (cdrT yT))))
-          xT)
-        yT (Logic.consp xv)
-        (if Logic.toBool (Logic.consp yv) = true then
-          (if Logic.toBool (lexorder (Logic.car xv) (Logic.car yv))
-              = true then
-            Logic.cons (Logic.car xv) (merge2Exec (Logic.cdr xv) yv)
-           else Logic.cons (Logic.car yv) (merge2Exec xv (Logic.cdr yv)))
-         else xv)
-        yv hcx
-        (fun hbx =>
-          conv_if_lift w _ (conspT yT) _ xT (Logic.consp yv)
-            (if Logic.toBool (lexorder (Logic.car xv) (Logic.car yv))
-                = true then
-              Logic.cons (Logic.car xv) (merge2Exec (Logic.cdr xv) yv)
-             else Logic.cons (Logic.car yv) (merge2Exec xv (Logic.cdr yv)))
-            xv hcy
-            (fun hby =>
-              conv_if_lift w _ (lexT (carT xT) (carT yT)) _ _
-                (lexorder (Logic.car xv) (Logic.car yv))
-                (Logic.cons (Logic.car xv) (merge2Exec (Logic.cdr xv) yv))
-                (Logic.cons (Logic.car yv) (merge2Exec xv (Logic.cdr yv)))
-                hlex
-                (fun _ =>
-                  conv_builtin2 w _ { name := "CONS" } (carT xT)
-                    (merge2T (cdrT xT) yT) (Logic.car xv)
-                    (merge2Exec (Logic.cdr xv) yv) _ (by decide) h_no_cons
-                    hcarx
-                    (conv_defn_2 w _ merge2_sym (cdrT xT) yT (Logic.cdr xv)
-                      yv xS yS merge2Body _ merge2_ns h_m2 hcdrx hyv
-                      (ih ((Logic.cdr xv).consCount + yv.consCount)
-                        (hn ▸ consCount_cdr_sum_lt_left_consp hbx)
-                        (Logic.cdr xv) yv rfl))
-                    rfl)
-                (fun _ =>
-                  conv_builtin2 w _ { name := "CONS" } (carT yT)
-                    (merge2T xT (cdrT yT)) (Logic.car yv)
-                    (merge2Exec xv (Logic.cdr yv)) _ (by decide) h_no_cons
-                    hcary
-                    (conv_defn_2 w _ merge2_sym xT (cdrT yT) xv
-                      (Logic.cdr yv) xS yS merge2Body _ merge2_ns h_m2 hxv
-                      hcdry
-                      (ih (xv.consCount + (Logic.cdr yv).consCount)
-                        (hn ▸ consCount_cdr_sum_lt_right_consp hby)
-                        xv (Logic.cdr yv) rfl))
-                    rfl))
-            (fun _ => hxv))
-        (fun _ => hyv)
-      rw [merge2Exec.eq_def]
-      exact houter
-  intro env a b av bv ha hb
-  exact conv_defn_2 w env merge2_sym a b av bv xS yS merge2Body _
-    merge2_ns h_m2 ha hb (hbody (av.consCount + bv.consCount) av bv rfl)
+/-- `merge2`'s body as a total Lean function — GENERATED (M2: the emitted
+    pair-sum measure `(+ (ACL2-COUNT X) (ACL2-COUNT Y))`; per-site
+    single-CDR one-side decreases; corr by Nat strong induction over the
+    sum). -/
+derive_exec% merge2Exec corr merge2_exec_corr for merge2_sym
+  formals [xS, yS] body merge2Body measured 0 1
 
 /-- The native merge: Lean's ordinary two-list merge by `lexorderB`. -/
 def merge2L : List SExpr → List SExpr → List SExpr
