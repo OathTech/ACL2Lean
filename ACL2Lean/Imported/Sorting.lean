@@ -327,74 +327,8 @@ private theorem bindArgs_ex_x (ve vx : SExpr) :
     GENERATED (1b retirement: the hand def this replaces is reproduced
     by the generator's body walk; every downstream consumer, starting
     with the hand `insert_exec_corr`, re-elaborates against it). -/
-derive_exec% insertExec for insert_sym formals [eS, xS]
-  body insertBody measured 1
-
-/-- Stage 1: an `insert` call converges to `insertExec` of its argument
-    values. -/
-theorem insert_exec_corr (w : World)
-    (h_insert : w.defs.get? insert_sym = some ([eS, xS], insertBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env : Env) (a x av xv : SExpr),
-      ConvTo w env a av → ConvTo w env x xv →
-      ConvTo w env (insertT a x) (insertExec av xv) := by
-  have hbody : ∀ xv av : SExpr,
-      ConvTo w (bindArgs [eS, xS] [av, xv]) insertBody (insertExec av xv) := by
-    refine consCount_strong_induction
-      (fun xv => ∀ av, ConvTo w (bindArgs [eS, xS] [av, xv]) insertBody
-        (insertExec av xv)) ?_
-    intro xv ih av
-    have hav := re_val_var_get w (bindArgs [eS, xS] [av, xv])
-      { name := "E" } av (bindArgs_ex_e av xv)
-    have hxv := re_val_var_get w (bindArgs [eS, xS] [av, xv])
-      { name := "X" } xv (bindArgs_ex_x av xv)
-    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
-      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
-    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
-      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
-    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
-      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-    have hlex := conv_builtin2 w _ { name := "LEXORDER" } eT (carT xT) av
-      (Logic.car xv) (lexorder av (Logic.car xv)) (by decide) h_no_lexorder
-      hav hcar (callBuiltin_lexorder _ _)
-    have hconsEX : ConvTo w (bindArgs [eS, xS] [av, xv]) (consT eT xT)
-        (Logic.cons av xv) :=
-      conv_builtin2 w _ { name := "CONS" } eT xT av xv
-        (Logic.cons av xv) (by decide) h_no_cons hav hxv rfl
-    have houter := conv_if_lift w (bindArgs [eS, xS] [av, xv]) (conspT xT)
-      (ifT (lexT eT (carT xT)) (consT eT xT)
-        (consT (carT xT) (insertT eT (cdrT xT))))
-      (consT eT xT) (Logic.consp xv)
-      (if Logic.toBool (lexorder av (Logic.car xv)) = true then
-        Logic.cons av xv
-       else Logic.cons (Logic.car xv) (insertExec av (Logic.cdr xv)))
-      (Logic.cons av xv) hconsp
-      (fun hb =>
-        conv_if_lift w _ (lexT eT (carT xT)) (consT eT xT)
-          (consT (carT xT) (insertT eT (cdrT xT)))
-          (lexorder av (Logic.car xv)) (Logic.cons av xv)
-          (Logic.cons (Logic.car xv) (insertExec av (Logic.cdr xv))) hlex
-          (fun _ => hconsEX)
-          (fun _ =>
-            conv_builtin2 w _ { name := "CONS" } (carT xT)
-              (insertT eT (cdrT xT)) (Logic.car xv)
-              (insertExec av (Logic.cdr xv))
-              (Logic.cons (Logic.car xv) (insertExec av (Logic.cdr xv)))
-              (by decide) h_no_cons hcar
-              (conv_defn_2 w _ insert_sym eT (cdrT xT) av (Logic.cdr xv)
-                eS xS insertBody _ insert_ns h_insert hav hcdr
-                (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb) av))
-              rfl))
-      (fun _ => hconsEX)
-    rw [insertExec.eq_def]
-    exact houter
-  intro env a x av xv ha hx
-  exact conv_defn_2 w env insert_sym a x av xv eS xS insertBody _
-    insert_ns h_insert ha hx (hbody xv av)
+derive_exec% insertExec corr insert_exec_corr for insert_sym
+  formals [eS, xS] body insertBody measured 1
 
 /-- `insert`'s native reading: ordered insertion by `lexorderB`. -/
 def insertL (e : SExpr) : List SExpr → List SExpr
@@ -426,50 +360,8 @@ theorem insertExec_enc (e : SExpr) (xs : List SExpr) :
 
 /-- `isort`'s body as a total Lean function — GENERATED (the INSERT call
     resolves through the kit registry). -/
-derive_exec% isortExec for isort_sym formals [xS] body isortBody measured 0
-
-/-- Stage 1: an `isort` call converges to `isortExec` of its argument
-    value. -/
-theorem isort_exec_corr (w : World)
-    (h_insert : w.defs.get? insert_sym = some ([eS, xS], insertBody))
-    (h_isort : w.defs.get? isort_sym = some ([xS], isortBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env : Env) (x xv : SExpr),
-      ConvTo w env x xv → ConvTo w env (isortT x) (isortExec xv) := by
-  have hbody : ∀ xv : SExpr,
-      ConvTo w (bindArgs [xS] [xv]) isortBody (isortExec xv) := by
-    refine consCount_strong_induction
-      (fun xv => ConvTo w (bindArgs [xS] [xv]) isortBody (isortExec xv)) ?_
-    intro xv ih
-    have hxv := re_val_var_get w (bindArgs [xS] [xv])
-      { name := "X" } xv (bindArgs_single_get_self xS xv)
-    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
-      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
-    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
-      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
-    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
-      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-    have houter := conv_if_lift w (bindArgs [xS] [xv]) (conspT xT)
-      (insertT (carT xT) (isortT (cdrT xT))) qNil (Logic.consp xv)
-      (insertExec (Logic.car xv) (isortExec (Logic.cdr xv))) SExpr.nil
-      hconsp
-      (fun hb =>
-        insert_exec_corr w h_insert h_no_consp h_no_car h_no_cdr h_no_cons
-          h_no_lexorder _ (carT xT) (isortT (cdrT xT)) (Logic.car xv)
-          (isortExec (Logic.cdr xv)) hcar
-          (conv_defn_1 w _ isort_sym (cdrT xT) (Logic.cdr xv) xS isortBody _
-            isort_ns h_isort hcdr
-            (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb))))
-      (fun _ => re_val_quote w _ SExpr.nil)
-    rw [isortExec.eq_def]
-    exact houter
-  intro env x xv hx
-  exact conv_defn_1 w env isort_sym x xv xS isortBody _
-    isort_ns h_isort hx (hbody xv)
+derive_exec% isortExec corr isort_exec_corr for isort_sym
+  formals [xS] body isortBody measured 0
 
 /-- `isort`'s native reading: insertion sort by `lexorderB`. -/
 def isortL : List SExpr → List SExpr
@@ -1108,77 +1000,8 @@ private theorem how_many_ns :
      how_many_sym.isNamed "LET*" = false) := by decide
 
 /-- `how-many`'s body as a total Lean function. -/
-derive_exec% howManyExec for how_many_sym formals [eS, xS]
-  body howManyBody measured 1
-
-/-- Stage 1: a `how-many` call converges to `howManyExec` of its argument
-    values. -/
-theorem how_many_exec_corr (w : World)
-    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
-    ∀ (env : Env) (a x av xv : SExpr),
-      ConvTo w env a av → ConvTo w env x xv →
-      ConvTo w env (howManyT a x) (howManyExec av xv) := by
-  have hbody : ∀ xv av : SExpr,
-      ConvTo w (bindArgs [eS, xS] [av, xv]) howManyBody
-        (howManyExec av xv) := by
-    refine consCount_strong_induction
-      (fun xv => ∀ av, ConvTo w (bindArgs [eS, xS] [av, xv]) howManyBody
-        (howManyExec av xv)) ?_
-    intro xv ih av
-    have hav := re_val_var_get w (bindArgs [eS, xS] [av, xv])
-      { name := "E" } av (bindArgs_ex_e av xv)
-    have hxv := re_val_var_get w (bindArgs [eS, xS] [av, xv])
-      { name := "X" } xv (bindArgs_ex_x av xv)
-    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
-      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
-    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
-      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
-    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
-      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-    have heq := conv_builtin2 w _ { name := "EQUAL" } eT (carT xT) av
-      (Logic.car xv) (Logic.equal av (Logic.car xv)) (by decide) h_no_equal
-      hav hcar (callBuiltin_equal _ _)
-    have hrec : ConvTo w (bindArgs [eS, xS] [av, xv])
-        (howManyT eT (cdrT xT)) (howManyExec av (Logic.cdr xv)) →
-        True := fun _ => trivial
-    have houter := conv_if_lift w (bindArgs [eS, xS] [av, xv]) (conspT xT)
-      (ifT (equalT eT (carT xT))
-        (plusT q1 (howManyT eT (cdrT xT)))
-        (howManyT eT (cdrT xT)))
-      q0 (Logic.consp xv)
-      (if Logic.toBool (Logic.equal av (Logic.car xv)) = true then
-        Logic.plus int1 (howManyExec av (Logic.cdr xv))
-       else howManyExec av (Logic.cdr xv))
-      (.atom (.number (.int 0))) hconsp
-      (fun hb =>
-        have hrecc : ConvTo w (bindArgs [eS, xS] [av, xv])
-            (howManyT eT (cdrT xT)) (howManyExec av (Logic.cdr xv)) :=
-          conv_defn_2 w _ how_many_sym eT (cdrT xT) av (Logic.cdr xv)
-            eS xS howManyBody _ how_many_ns h_hm hav hcdr
-            (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb) av)
-        conv_if_lift w _ (equalT eT (carT xT))
-          (plusT q1 (howManyT eT (cdrT xT)))
-          (howManyT eT (cdrT xT))
-          (Logic.equal av (Logic.car xv))
-          (Logic.plus int1 (howManyExec av (Logic.cdr xv)))
-          (howManyExec av (Logic.cdr xv)) heq
-          (fun _ =>
-            conv_builtin2 w _ { name := "BINARY-+" } q1
-              (howManyT eT (cdrT xT)) int1
-              (howManyExec av (Logic.cdr xv)) _ (by decide) h_no_plus
-              (re_val_quote w _ int1) hrecc (callBuiltin_plus _ _))
-          (fun _ => hrecc))
-      (fun _ => re_val_quote w _ (.atom (.number (.int 0))))
-    rw [howManyExec.eq_def]
-    exact houter
-  intro env a x av xv ha hx
-  exact conv_defn_2 w env how_many_sym a x av xv eS xS howManyBody _
-    how_many_ns h_hm ha hx (hbody xv av)
+derive_exec% howManyExec corr how_many_exec_corr for how_many_sym
+  formals [eS, xS] body howManyBody measured 1
 
 /-- Stage 2: `howManyExec` on an encoded list computes `List.count`
     (as an SExpr integer). -/
@@ -1582,8 +1405,8 @@ private theorem bindArgs_fxe_e (vf vx ve : SExpr) :
       if_neg (by decide), Env.get?_insert, if_pos (by decide)]
 
 /-- `rel`'s body as a total Lean function (non-recursive dispatch). -/
-derive_exec% relExec for rel_sym formals [fnS, iS, jS]
-  body relBody measured 0
+derive_exec% relExec corr rel_exec_corr for rel_sym
+  formals [fnS, iS, jS] body relBody measured 0
 
 theorem relExec_t_or_nil (f i j : SExpr) :
     relExec f i j = SExpr.t ∨ relExec f i j = SExpr.nil := by
@@ -1594,147 +1417,9 @@ theorem relExec_t_or_nil (f i j : SExpr) :
     | exact Or.inr rfl
     | exact lexorder_t_or_nil _ _
 
-/-- Stage 1: a `rel` call converges to `relExec` of its argument
-    values. -/
-theorem rel_exec_corr (w : World)
-    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env : Env) (a b c av bv cv : SExpr),
-      ConvTo w env a av → ConvTo w env b bv → ConvTo w env c cv →
-      ConvTo w env (relT a b c) (relExec av bv cv) := by
-  have hbody : ∀ vf vi vj : SExpr,
-      ConvTo w (bindArgs [fnS, iS, jS] [vf, vi, vj]) relBody
-        (relExec vf vi vj) := by
-    intro vf vi vj
-    set be := bindArgs [fnS, iS, jS] [vf, vi, vj] with hbe
-    have hf := re_val_var_get w be { name := "FN" } vf
-      (bindArgs_fij_fn vf vi vj)
-    have hi := re_val_var_get w be { name := "I" } vi
-      (bindArgs_fij_i vf vi vj)
-    have hj := re_val_var_get w be { name := "J" } vj
-      (bindArgs_fij_j vf vi vj)
-    have hqLT : ConvTo w be (qSym "LT") (symV "LT") :=
-      re_val_quote w be (symV "LT")
-    have hqLTE : ConvTo w be (qSym "LTE") (symV "LTE") :=
-      re_val_quote w be (symV "LTE")
-    have hqGT : ConvTo w be (qSym "GT") (symV "GT") :=
-      re_val_quote w be (symV "GT")
-    have heqLT := conv_builtin2 w be { name := "EQUAL" } fnT (qSym "LT")
-      vf (symV "LT") _ (by decide) h_no_equal hf hqLT (callBuiltin_equal _ _)
-    have heqLTE := conv_builtin2 w be { name := "EQUAL" } fnT (qSym "LTE")
-      vf (symV "LTE") _ (by decide) h_no_equal hf hqLTE
-      (callBuiltin_equal _ _)
-    have heqGT := conv_builtin2 w be { name := "EQUAL" } fnT (qSym "GT")
-      vf (symV "GT") _ (by decide) h_no_equal hf hqGT
-      (callBuiltin_equal _ _)
-    have hlexIJ := conv_builtin2 w be { name := "LEXORDER" } iT jT vi vj
-      (lexorder vi vj) (by decide) h_no_lexorder hi hj
-      (callBuiltin_lexorder _ _)
-    have hlexJI := conv_builtin2 w be { name := "LEXORDER" } jT iT vj vi
-      (lexorder vj vi) (by decide) h_no_lexorder hj hi
-      (callBuiltin_lexorder _ _)
-    have heqIJ := conv_builtin2 w be { name := "EQUAL" } iT jT vi vj
-      (Logic.equal vi vj) (by decide) h_no_equal hi hj
-      (callBuiltin_equal _ _)
-    -- the two strict-comparison sub-nests
-    have hStrictIJ : ConvTo w be
-        (ifT (lexT iT jT) (ifT (equalT iT jT) qNil qT') qNil)
-        (if Logic.toBool (lexorder vi vj) = true then
-          (if Logic.toBool (Logic.equal vi vj) = true then SExpr.nil
-           else SExpr.t)
-         else SExpr.nil) :=
-      conv_if_lift w be _ _ _ _ _ _ hlexIJ
-        (fun _ => conv_if_lift w be _ _ _ _ _ _ heqIJ
-          (fun _ => re_val_quote w be SExpr.nil)
-          (fun _ => re_val_quote w be SExpr.t))
-        (fun _ => re_val_quote w be SExpr.nil)
-    have hStrictJI : ConvTo w be
-        (ifT (lexT jT iT) (ifT (equalT iT jT) qNil qT') qNil)
-        (if Logic.toBool (lexorder vj vi) = true then
-          (if Logic.toBool (Logic.equal vi vj) = true then SExpr.nil
-           else SExpr.t)
-         else SExpr.nil) :=
-      conv_if_lift w be _ _ _ _ _ _ hlexJI
-        (fun _ => conv_if_lift w be _ _ _ _ _ _ heqIJ
-          (fun _ => re_val_quote w be SExpr.nil)
-          (fun _ => re_val_quote w be SExpr.t))
-        (fun _ => re_val_quote w be SExpr.nil)
-    have houter := conv_if_lift w be _ _ _ _ _ _ heqLT
-      (fun _ => hStrictIJ)
-      (fun _ => conv_if_lift w be _ _ _ _ _ _ heqLTE
-        (fun _ => hlexIJ)
-        (fun _ => conv_if_lift w be _ _ _ _ _ _ heqGT
-          (fun _ => hStrictJI)
-          (fun _ => hlexJI)))
-    unfold relExec
-    exact houter
-  intro env a b c av bv cv ha hb hc
-  exact conv_defn_3 w env rel_sym a b c av bv cv fnS iS jS relBody _
-    rel_ns h_rel ha hb hc (hbody av bv cv)
-
 /-- `all-rel`'s body as a total Lean function. -/
-derive_exec% allRelExec for all_rel_sym formals [fnS, xS, eS]
-  body allRelBody measured 1
-
-/-- Stage 1: an `all-rel` call converges to `allRelExec` of its argument
-    values. -/
-theorem all_rel_exec_corr (w : World)
-    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
-    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env : Env) (a x b av xv bv : SExpr),
-      ConvTo w env a av → ConvTo w env x xv → ConvTo w env b bv →
-      ConvTo w env (allRelT a x b) (allRelExec av xv bv) := by
-  have hbody : ∀ (xv : SExpr) (vf ve : SExpr),
-      ConvTo w (bindArgs [fnS, xS, eS] [vf, xv, ve]) allRelBody
-        (allRelExec vf xv ve) := by
-    refine consCount_strong_induction
-      (fun xv => ∀ vf ve, ConvTo w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-        allRelBody (allRelExec vf xv ve)) ?_
-    intro xv ih vf ve
-    have hf := re_val_var_get w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-      { name := "FN" } vf (bindArgs_fxe_fn vf xv ve)
-    have hx := re_val_var_get w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-      { name := "X" } xv (bindArgs_fxe_x vf xv ve)
-    have he := re_val_var_get w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-      { name := "E" } ve (bindArgs_fxe_e vf xv ve)
-    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
-      (Logic.consp xv) (by decide) h_no_consp hx (callBuiltin_consp _)
-    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
-      (Logic.car xv) (by decide) h_no_car hx (callBuiltin_car _)
-    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
-      (Logic.cdr xv) (by decide) h_no_cdr hx (callBuiltin_cdr _)
-    have hrel := rel_exec_corr w h_rel h_no_equal h_no_lexorder _
-      fnT (carT xT) eT vf (Logic.car xv) ve hf hcar he
-    have houter := conv_if_lift w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-      (conspT xT)
-      (ifT (relT fnT (carT xT) eT) (allRelT fnT (cdrT xT) eT) qNil)
-      qT' (Logic.consp xv)
-      (if Logic.toBool (relExec vf (Logic.car xv) ve) = true then
-        allRelExec vf (Logic.cdr xv) ve
-       else SExpr.nil)
-      SExpr.t hconsp
-      (fun hb =>
-        conv_if_lift w _ (relT fnT (carT xT) eT)
-          (allRelT fnT (cdrT xT) eT) qNil
-          (relExec vf (Logic.car xv) ve)
-          (allRelExec vf (Logic.cdr xv) ve) SExpr.nil hrel
-          (fun _ =>
-            conv_defn_3 w _ all_rel_sym fnT (cdrT xT) eT vf (Logic.cdr xv)
-              ve fnS xS eS allRelBody _ all_rel_ns h_ar hf hcdr he
-              (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb) vf ve))
-          (fun _ => re_val_quote w _ SExpr.nil))
-      (fun _ => re_val_quote w _ SExpr.t)
-    rw [allRelExec.eq_def]
-    exact houter
-  intro env a x b av xv bv ha hx hb
-  exact conv_defn_3 w env all_rel_sym a x b av xv bv fnS xS eS allRelBody _
-    all_rel_ns h_ar ha hx hb (hbody xv av bv)
+derive_exec% allRelExec corr all_rel_exec_corr for all_rel_sym
+  formals [fnS, xS, eS] body allRelBody measured 1
 
 /-- The NATIVE reading of one REL verdict — an ordinary Lean match on the
     four comparison modes, in `lexorderB`/`==` vocabulary only (the mirror
@@ -2137,79 +1822,8 @@ private theorem filter_ns :
      filter_sym.isNamed "LET*" = false) := by decide
 
 /-- `filter`'s body as a total Lean function. -/
-derive_exec% filterExec for filter_sym formals [fnS, xS, eS]
-  body filterBody measured 1
-
-/-- Stage 1: a `filter` call converges to `filterExec` of its argument
-    values. -/
-theorem filter_exec_corr (w : World)
-    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
-    (h_filter : w.defs.get? filter_sym = some ([fnS, xS, eS], filterBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env : Env) (a x b av xv bv : SExpr),
-      ConvTo w env a av → ConvTo w env x xv → ConvTo w env b bv →
-      ConvTo w env (filterT a x b) (filterExec av xv bv) := by
-  have hbody : ∀ (xv : SExpr) (vf ve : SExpr),
-      ConvTo w (bindArgs [fnS, xS, eS] [vf, xv, ve]) filterBody
-        (filterExec vf xv ve) := by
-    refine consCount_strong_induction
-      (fun xv => ∀ vf ve, ConvTo w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-        filterBody (filterExec vf xv ve)) ?_
-    intro xv ih vf ve
-    have hf := re_val_var_get w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-      { name := "FN" } vf (bindArgs_fxe_fn vf xv ve)
-    have hx := re_val_var_get w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-      { name := "X" } xv (bindArgs_fxe_x vf xv ve)
-    have he := re_val_var_get w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-      { name := "E" } ve (bindArgs_fxe_e vf xv ve)
-    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
-      (Logic.consp xv) (by decide) h_no_consp hx (callBuiltin_consp _)
-    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
-      (Logic.car xv) (by decide) h_no_car hx (callBuiltin_car _)
-    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
-      (Logic.cdr xv) (by decide) h_no_cdr hx (callBuiltin_cdr _)
-    have hrel := rel_exec_corr w h_rel h_no_equal h_no_lexorder _
-      fnT (carT xT) eT vf (Logic.car xv) ve hf hcar he
-    have houter := conv_if_lift w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-      (conspT xT)
-      (ifT (relT fnT (carT xT) eT)
-        (consT (carT xT) (filterT fnT (cdrT xT) eT))
-        (filterT fnT (cdrT xT) eT))
-      qNil (Logic.consp xv)
-      (if Logic.toBool (relExec vf (Logic.car xv) ve) = true then
-        Logic.cons (Logic.car xv) (filterExec vf (Logic.cdr xv) ve)
-       else filterExec vf (Logic.cdr xv) ve)
-      SExpr.nil hconsp
-      (fun hb =>
-        have hrecc : ConvTo w (bindArgs [fnS, xS, eS] [vf, xv, ve])
-            (filterT fnT (cdrT xT) eT)
-            (filterExec vf (Logic.cdr xv) ve) :=
-          conv_defn_3 w _ filter_sym fnT (cdrT xT) eT vf (Logic.cdr xv) ve
-            fnS xS eS filterBody _ filter_ns h_filter hf hcdr he
-            (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb) vf ve)
-        conv_if_lift w _ (relT fnT (carT xT) eT)
-          (consT (carT xT) (filterT fnT (cdrT xT) eT))
-          (filterT fnT (cdrT xT) eT)
-          (relExec vf (Logic.car xv) ve)
-          (Logic.cons (Logic.car xv) (filterExec vf (Logic.cdr xv) ve))
-          (filterExec vf (Logic.cdr xv) ve) hrel
-          (fun _ =>
-            conv_builtin2 w _ { name := "CONS" } (carT xT)
-              (filterT fnT (cdrT xT) eT) (Logic.car xv)
-              (filterExec vf (Logic.cdr xv) ve) _ (by decide) h_no_cons
-              hcar hrecc rfl)
-          (fun _ => hrecc))
-      (fun _ => re_val_quote w _ SExpr.nil)
-    rw [filterExec.eq_def]
-    exact houter
-  intro env a x b av xv bv ha hx hb
-  exact conv_defn_3 w env filter_sym a x b av xv bv fnS xS eS filterBody _
-    filter_ns h_filter ha hx hb (hbody xv av bv)
+derive_exec% filterExec corr filter_exec_corr for filter_sym
+  formals [fnS, xS, eS] body filterBody measured 1
 
 /-- The native reading of FILTER: `List.filter` by the `relL` verdict. -/
 def filterL (fv ev : SExpr) (xs : List SExpr) : List SExpr :=
@@ -2904,56 +2518,8 @@ theorem merge2Exec_enc : ∀ (xs ys : List SExpr),
 termination_by xs ys => xs.length + ys.length
 
 /-- `evens`'s body as a total Lean function. -/
-derive_exec% evensExec for evens_sym formals [lS]
-  body evensBody measured 0
-
-/-- Stage 1: an `evens` call converges to `evensExec`. -/
-theorem evens_exec_corr (w : World)
-    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
-    ∀ (env : Env) (x xv : SExpr),
-      ConvTo w env x xv → ConvTo w env (evensT x) (evensExec xv) := by
-  have hbody : ∀ xv : SExpr,
-      ConvTo w (bindArgs [lS] [xv]) evensBody (evensExec xv) := by
-    refine consCount_strong_induction
-      (fun xv => ConvTo w (bindArgs [lS] [xv]) evensBody (evensExec xv)) ?_
-    intro xv ih
-    have hxv := re_val_var_get w (bindArgs [lS] [xv]) { name := "L" } xv
-      (bindArgs_l_l xv)
-    have hconsp := conv_builtin1 w _ { name := "CONSP" } lT xv
-      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
-    have hcar := conv_builtin1 w _ { name := "CAR" } lT xv
-      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
-    have hcdr := conv_builtin1 w _ { name := "CDR" } lT xv
-      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
-    have hcddr := conv_builtin1 w _ { name := "CDR" } (cdrT lT)
-      (Logic.cdr xv) (Logic.cdr (Logic.cdr xv)) (by decide) h_no_cdr hcdr
-      (callBuiltin_cdr _)
-    have houter := conv_if_lift w (bindArgs [lS] [xv]) (conspT lT)
-      (consT (carT lT) (evensT (cdrT (cdrT lT)))) qNil (Logic.consp xv)
-      (Logic.cons (Logic.car xv) (evensExec (Logic.cdr (Logic.cdr xv))))
-      SExpr.nil hconsp
-      (fun hb =>
-        conv_builtin2 w _ { name := "CONS" } (carT lT)
-          (evensT (cdrT (cdrT lT))) (Logic.car xv)
-          (evensExec (Logic.cdr (Logic.cdr xv))) _ (by decide) h_no_cons
-          hcar
-          (conv_defn_1 w _ evens_sym (cdrT (cdrT lT))
-            (Logic.cdr (Logic.cdr xv)) lS evensBody _ evens_ns h_evens
-            hcddr
-            (ih (Logic.cdr (Logic.cdr xv))
-              (lt_of_le_of_lt (consCount_cdr_le _)
-                (consCount_cdr_lt_of_consp hb))))
-          rfl)
-      (fun _ => re_val_quote w _ SExpr.nil)
-    rw [evensExec.eq_def]
-    exact houter
-  intro env x xv hx
-  exact conv_defn_1 w env evens_sym x xv lS evensBody _
-    evens_ns h_evens hx (hbody xv)
+derive_exec% evensExec corr evens_exec_corr for evens_sym
+  formals [lS] body evensBody measured 0
 
 /-- The native evens: every other element, starting at the head. -/
 def evensL : List SExpr → List SExpr

@@ -2,15 +2,27 @@
   THE EXEC-KIT GENERATOR (sorting-absolute arc 1b — the dominant
   industrialization item, docs/notes/2026-07-31_mirror-industrialization.md §1).
 
-  `derive_exec%` mechanically emits, for one world defun, the shape-exact
-  total Lean function that was previously hand-written per kit:
+  `derive_exec%` mechanically emits, for one world defun, the two
+  hand-written artifacts every mirror-consumed defun needs:
 
-  - `<fn>Exec` — a pure syntax walk over the body (`IF` → `ite` on
-    `Logic.toBool`, builtin call → the `Logic.*` twin, self call →
-    recursion, defn call → the callee's registered exec), termination from
-    the measure class (M1: `consCount` of the measured formal, destructor
-    chains under a ruling CONSP test) with decreases discharged by the
-    Count library.
+  - `<fn>Exec` — the shape-exact total Lean function: a pure syntax walk
+    over the body (`IF` → `ite` on `Logic.toBool`, builtin call → the
+    `Logic.*` twin, self call → recursion, defn call → the callee's
+    registered exec), termination from the measure class (M1: `consCount`
+    of the measured formal, destructor chains under a ruling CONSP test)
+    with decreases discharged by the Count library.
+  - `<fn>_exec_corr` (the optional `corr` clause) — the stage-1 walk: a
+    `ConvTo` fold over the SAME body syntax. One `re_val_var_get` per
+    formal (env-get facts from the generic `bindArgs_get_head/tail` pair —
+    the env-binding boilerplate item §3, retired), `conv_builtin1/2` per
+    builtin node with its `callBuiltin` bridge lemma, `conv_if_lift` per
+    IF, `conv_defn_N` per defn call, and the `consCount_strong_induction`
+    IH at self-call sites (decrease re-derived from the site's destructor
+    chain against the ruling CONSP guard binder).
+
+  HYPOTHESIS TELESCOPE (canonical, matches every hand kit): defn hyps in
+  callee-first-occurrence order then self; builtin no-def hyps in the twin
+  table's order filtered to those used (own body ∪ callees' telescopes).
 
   The generator's input body is the in-scope body CONSTANT (the same one
   the kit hypotheses mention); fidelity to the emitted `:DEFUN` is enforced
@@ -21,34 +33,63 @@
 
   `<fn>Exec_enc` (the NATIVE reading) is deliberately NOT generated: the
   choice of native counterpart is the mirror criterion's human fidelity
-  judgment. The stage-1 `_exec_corr` generation is the next increment of
-  this sub-arc.
+  judgment.
 
   VALIDATION PROTOCOL (the arc charter's 1b clause): the generator is
-  validated by RETIREMENT — each hand kit's def is replaced by a generator
-  invocation emitting the SAME NAME, so every existing consumer (the hand
-  corr proofs first of all, then assemblies, dischargers, `_enc` lemmas,
-  golden mirrors) re-elaborates against the generated artifact. A generated
-  def that diverges from the hand shape breaks its consumers — the build is
-  the gate. No kit is generated "for later".
+  validated by RETIREMENT — each hand kit's def/theorem is replaced by a
+  generator invocation emitting the SAME NAME and SAME STATEMENT, so every
+  existing consumer (assemblies, dischargers, `_enc` lemmas, golden
+  mirrors) re-elaborates against the generated artifact. The build is the
+  gate. No kit is generated "for later".
 
   Fail-closed throughout: an unknown head symbol, a free variable, a
   recursion site whose measured argument is not a destructor chain over the
-  measured formal, or a measure shape outside v1 (M3: decrease through a
-  defined function — msort's EVENS, qsort's FILTER) is a HARD elaboration
-  error naming the frontier; those kits stay hand-written.
+  measured formal, a self-call outside the measured CONSP guard, or a
+  measure shape outside v1 (M3: decrease through a defined function —
+  msort's EVENS, qsort's FILTER) is a HARD elaboration error naming the
+  frontier; those kits stay hand-written.
 -/
 import ACL2Lean.Replay.EvalLemmas
 import ACL2Lean.Imported.Lifting
 
 namespace ACL2.ExecGen
 
-open ACL2 Lean Lean.Meta Lean.Elab Lean.Elab.Command Lean.Parser.Term
+open ACL2 ACL2.Replay Lean Lean.Meta Lean.Elab Lean.Elab.Command
+  Lean.Parser.Term
 
-/-- Registered kit metadata: what a CALLER's generated def (and, next
-    increment, corr proof) needs to know about a callee's kit. Populated by
-    `derive_exec%` for generated kits and `register_exec_kit%` for the
-    hand-written ones (M3 measures). -/
+/-! ## Generic support lemmas (the env-binding boilerplate, retired) -/
+
+/-- `bindArgs` head lookup: the first formal binds the first value
+    (`bindArgs` inserts the head LAST, i.e. outermost). -/
+theorem bindArgs_get_head {f : Symbol} {fs : List Symbol} {v : SExpr}
+    {vs : List SExpr} : (bindArgs (f :: fs) (v :: vs)).get? f = some v := by
+  show ((bindArgs fs vs).insert f v).get? f = some v
+  rw [Env.get?_insert, if_pos (by simp)]
+
+/-- `bindArgs` tail lookup: a different symbol falls through the head
+    binding. -/
+theorem bindArgs_get_tail {g f : Symbol} {fs : List Symbol} {v : SExpr}
+    {vs : List SExpr} (h : (g == f) = false) :
+    (bindArgs (f :: fs) (v :: vs)).get? g = (bindArgs fs vs).get? g := by
+  show ((bindArgs fs vs).insert f v).get? g = _
+  rw [Env.get?_insert, if_neg (by simp_all)]
+
+/-- `callBuiltin` bridge for LEXORDER (the trusted-core comparison). -/
+theorem callBuiltin_lexorder_gen (a b : SExpr) :
+    callBuiltin "LEXORDER" [a, b] = some (lexorder a b) := rfl
+
+/-- `callBuiltin` bridge for CONS. -/
+theorem callBuiltin_cons_gen (a b : SExpr) :
+    callBuiltin "CONS" [a, b] = some (Logic.cons a b) := rfl
+
+/-! ## The kit registry -/
+
+/-- Registered kit metadata: what a CALLER's generated def and corr proof
+    need to know about a callee's kit. Populated by `derive_exec%`;
+    `register_exec_kit%` registers hand-written kits (M3 measures) for
+    exec-side callee use (corr-side callee use additionally needs the corr
+    fields — extend the registration when a generated corr first needs a
+    hand callee). -/
 structure KitInfo where
   /-- the ACL2 function name, e.g. "INSERT" -/
   aclName : String
@@ -56,6 +97,18 @@ structure KitInfo where
   execName : Name
   /-- arity (formal count) -/
   arity : Nat
+  /-- the stage-1 corr theorem (`.anonymous` = none registered) -/
+  corrName : Name := .anonymous
+  /-- the Symbol constant naming the fn -/
+  symC : Name := .anonymous
+  /-- the formal Symbol constants, in order -/
+  formalCs : List Name := []
+  /-- the body constant -/
+  bodyC : Name := .anonymous
+  /-- the corr's defn-hypothesis ACL2 names, telescope order -/
+  defnHyps : List String := []
+  /-- the corr's builtin no-def hypothesis names, telescope order -/
+  builtinHyps : List String := []
   deriving Inhabited, Repr
 
 initialize execKitExt :
@@ -69,19 +122,22 @@ def findKit (env : Environment) (aclName : String) : Option KitInfo :=
   (execKitExt.getState env).find? (·.aclName == aclName)
 
 /-- The builtin twin table: ACL2 builtin name → the `Logic`-level Lean
-    function of the same semantics (the exec def calls the twin; the corr
-    side will discharge `callBuiltin name [..] = some (twin ..)` by `rfl`).
-    Extending to a new builtin is one row. Fail-closed: a head symbol not
-    here, not IF/QUOTE, not the self/registered-callee set, is a hard
-    error. -/
-def builtinTwins : List (String × Name × Nat) :=
-  [ ("CONSP",    ``Logic.consp, 1),
-    ("CAR",      ``Logic.car, 1),
-    ("CDR",      ``Logic.cdr, 1),
-    ("CONS",     ``Logic.cons, 2),
-    ("LEXORDER", ``lexorder, 2),
-    ("EQUAL",    ``Logic.equal, 2),
-    ("BINARY-+", ``Logic.plus, 2) ]
+    function of the same semantics + the `callBuiltin` bridge lemma the
+    corr side cites. TABLE ORDER IS THE CANONICAL TELESCOPE ORDER for
+    `h_no_*` hypotheses (matches every hand kit). Extending to a new
+    builtin is one row (+ a bridge lemma if none exists). Fail-closed: a
+    head symbol not here, not IF/QUOTE, not the self/registered-callee
+    set, is a hard error. -/
+def builtinTwins : List (String × Name × Nat × Name) :=
+  [ ("CONSP",    ``Logic.consp, 1, ``callBuiltin_consp),
+    ("EQUAL",    ``Logic.equal, 2, ``callBuiltin_equal),
+    ("CAR",      ``Logic.car, 1, ``callBuiltin_car),
+    ("CDR",      ``Logic.cdr, 1, ``callBuiltin_cdr),
+    ("CONS",     ``Logic.cons, 2, ``callBuiltin_cons_gen),
+    ("LEXORDER", ``lexorder, 2, ``callBuiltin_lexorder_gen),
+    ("BINARY-+", ``Logic.plus, 2, ``callBuiltin_plus) ]
+
+/-! ## Body analysis -/
 
 /-- SExpr list view of a cons chain (the argument list of an application). -/
 partial def argList : SExpr → Option (List SExpr)
@@ -137,12 +193,48 @@ partial def selfCallSites (selfName : String) : SExpr → List (List SExpr)
     here ++ inner
   | _ => []
 
+/-- Head symbols of a body that are neither IF/QUOTE, builtins, nor the fn
+    itself — the CALLEES, in first-occurrence (pre-order) order. -/
+partial def calleeNames (selfName : String) : SExpr → List String
+  | .cons (.atom (.symbol hd)) args =>
+    (match argList args with
+     | some as =>
+       let here :=
+         if hd.name == "QUOTE" || hd.name == "IF" || hd.name == selfName ||
+            (builtinTwins.find? (·.1 == hd.name)).isSome then []
+         else [hd.name]
+       if hd.name == "QUOTE" then here
+       else here ++ as.flatMap (calleeNames selfName)
+     | none => [])
+  | _ => []
+
+/-- Builtin head symbols used by a body (as a set; order comes from the
+    twin table). -/
+partial def usedBuiltins (selfName : String) : SExpr → List String
+  | .cons (.atom (.symbol hd)) args =>
+    (match argList args with
+     | some as =>
+       let here := if (builtinTwins.find? (·.1 == hd.name)).isSome
+         then [hd.name] else []
+       if hd.name == "QUOTE" then []
+       else (here ++ as.flatMap (usedBuiltins selfName)).eraseDups
+     | none => [])
+  | _ => []
+
 /-- Lean binder name for an ACL2 formal ("E" ⇒ `e`, "ACC-X" ⇒ `acc_x`). -/
 def formalBinderName (aclVar : String) : Name :=
   Name.mkSimple <| aclVar.toLower.map fun c => if c == '-' then '_' else c
 
+/-- Sanitized hypothesis-binder suffix for an ACL2 name. -/
+def hypSuffix (acl : String) : String :=
+  acl.toLower.map fun c => if c.isAlphanum then c else '_'
+
+/-! ## Exec-def generation -/
+
 /-- The exec-def body walk: emitted `:BODY` syntax → the total Lean
-    function's term syntax. Fail-closed on every unrecognized shape. -/
+    function's term syntax. Also the VALUE-PROJECTION walk for the corr
+    side (formals mapped to value idents). Fail-closed on every
+    unrecognized shape. -/
 partial def execTerm (selfName : String) (selfId : Ident)
     (formals : List (String × Ident)) : SExpr → CommandElabM Term
   | .atom (.symbol s) =>
@@ -170,7 +262,7 @@ partial def execTerm (selfName : String) (selfId : Ident)
       `($selfId $(asS.toArray)*)
     else
       match builtinTwins.find? (·.1 == hd.name) with
-      | some (_, twin, ar) => do
+      | some (_, twin, ar, _) => do
         unless as.length == ar do
           throwError "derive_exec%: {hd.name} arity {as.length} ≠ twin \
               arity {ar}"
@@ -189,13 +281,12 @@ partial def execTerm (selfName : String) (selfId : Ident)
               kit (frontier — extend the table or hand-write the kit)"
   | t => throwError "derive_exec%: unsupported body shape {repr t}"
 
-/-- The M1 decrease script for one recursion site: the measured argument's
-    destructor chain `[d₁, …, dₖ]` (outermost first) becomes
-    `lt_of_le_of_lt (consCount_d₁_le _) (… (consCount_dₖ_lt_of_consp (by
-    assumption)))` — k−1 `le` links and the innermost `lt` at the
-    CONSP-ruled variable. -/
-def decreaseScript (chain : List String) :
-    CommandElabM (TSyntax ``Lean.Parser.Tactic.tacticSeq) := do
+/-- The M1 decrease TERM for one recursion site, against an explicit CONSP
+    guard hypothesis: chain `[d₁, …, dₖ]` (outermost first) becomes
+    `lt_of_le_of_lt (consCount_d₁_le _) (… (consCount_dₖ_lt_of_consp
+    hguard))`. -/
+def decreaseTerm (chain : List String) (guard : Term) :
+    CommandElabM Term := do
   let lastLemma (d : String) : Name :=
     if d == "CDR" then ``consCount_cdr_lt_of_consp
     else ``consCount_car_lt_of_consp
@@ -205,27 +296,350 @@ def decreaseScript (chain : List String) :
   | [] => throwError "derive_exec%: recursion site with an EMPTY destructor \
       chain (the measured argument is the formal itself — no decrease)"
   | dInner :: dsOuterRev => do
-    let base ← `($(mkCIdent (lastLemma dInner)) (by assumption))
-    let proof ← dsOuterRev.foldlM (init := base) fun acc d =>
+    let base ← `($(mkCIdent (lastLemma dInner)) $guard)
+    dsOuterRev.foldlM (init := base) fun acc d =>
       `(lt_of_le_of_lt ($(mkCIdent (leLemma d)) _) $acc)
-    `(Lean.Parser.Tactic.tacticSeq| exact $proof)
+
+/-- The M1 decrease SCRIPT (for `decreasing_by`, guard via `assumption`). -/
+def decreaseScript (chain : List String) :
+    CommandElabM (TSyntax ``Lean.Parser.Tactic.tacticSeq) := do
+  let proof ← decreaseTerm chain (← `((by assumption)))
+  `(Lean.Parser.Tactic.tacticSeq| exact $proof)
+
+/-! ## Corr-proof generation -/
+
+/-- Context of the corr body walk. -/
+structure CorrCtx where
+  wId : Ident
+  selfAcl : String
+  measuredAcl : String
+  measuredIdx : Nat
+  /-- formal name → the `re_val_var_get` have -/
+  hvMap : List (String × Ident)
+  /-- formal name → value ident (for exec value projection) -/
+  valMap : List (String × Ident)
+  defnHypMap : List (String × Ident)
+  builtinHypMap : List (String × Ident)
+  execId : Ident
+  ihId : Ident
+  /-- the in-scope CONSP guard on the measured formal, if any -/
+  guard? : Option Ident := none
+
+private def holes (n : Nat) : CommandElabM (Array Term) :=
+  (Array.range n).mapM fun _ => `(_)
+
+/-- `conv_defn_N` application: N=1/2/3 with 7/10/13 value holes (after
+    `w`), then `(by decide)` (the ns conjunction), the defn hypothesis,
+    the arg proofs, the body continuation. -/
+def mkConvDefn (wId : Ident) (n : Nat) (ps : List Term) (hDef : Ident)
+    (cont : Term) : CommandElabM Term := do
+  let (lem, holeN) ←
+    match n with
+    | 1 => pure (``conv_defn_1, 7)
+    | 2 => pure (``conv_defn_2, 10)
+    | 3 => pure (``conv_defn_3, 13)
+    | _ => throwError "derive_exec% corr: defn arity {n} beyond \
+        conv_defn_3 (frontier)"
+  let hs ← holes holeN
+  let nsP ← `((by decide))
+  pure <| Syntax.mkApp (mkCIdent lem)
+    (#[(wId : Term)] ++ hs ++ #[nsP, (hDef : Term)]
+      ++ ps.toArray ++ #[cont])
+
+/-- Is this term `(CONSP <measured-formal>)`? -/
+def isConspOnMeasured (measuredAcl : String) : SExpr → Bool
+  | .cons (.atom (.symbol c)) (.cons (.atom (.symbol v)) .nil) =>
+    c.name == "CONSP" && v.name == measuredAcl
+  | _ => false
+
+/-- The corr walk: body syntax → the `ConvTo` proof TERM (goal-driven —
+    value-side arguments are holes filled by unification against the
+    unfolded exec goal). `path` names the IF guard binders
+    deterministically. -/
+partial def corrTerm (ctx : CorrCtx) (path : String := "") :
+    SExpr → CommandElabM Term
+  | .atom (.symbol s) => do
+    match ctx.hvMap.lookup s.name with
+    | some hv => pure hv
+    | none => throwError "derive_exec% corr: free variable {s.name}"
+  | .cons (.atom (.symbol hd)) args => do
+    let some as := argList args
+      | throwError "derive_exec% corr: improper args under {hd.name}"
+    if hd.name == "QUOTE" then
+      match as with
+      | [v] => do
+        `($(mkCIdent ``re_val_quote) $(ctx.wId) _ $(← valueToStx v))
+      | _ => throwError "derive_exec% corr: malformed QUOTE"
+    else if hd.name == "IF" then
+      match as with
+      | [c, t, e] => do
+        let pc ← corrTerm ctx (path ++ "c") c
+        let hb := mkIdent (Name.mkSimple s!"hb{path}")
+        let ctxT := if isConspOnMeasured ctx.measuredAcl c then
+          { ctx with guard? := some hb } else ctx
+        let pt ← corrTerm ctxT (path ++ "t") t
+        let pe ← corrTerm ctx (path ++ "e") e
+        let hs ← holes 7
+        `($(mkCIdent ``conv_if_lift) $(ctx.wId) $hs*
+            $pc (fun $hb => $pt) (fun _ => $pe))
+      | _ => throwError "derive_exec% corr: IF with {as.length} arguments"
+    else if hd.name == ctx.selfAcl then do
+      let ps ← as.mapM (corrTerm ctx (path ++ "s"))
+      let some guard := ctx.guard?
+        | throwError "derive_exec% corr: self-call outside the measured \
+            CONSP guard (M1 frontier — hand-write this kit)"
+      let mArg := as[ctx.measuredIdx]!
+      let some (chain, _) := destructorChain mArg
+        | throwError "derive_exec% corr: measured argument shape (validated \
+            earlier — internal)"
+      let decP ← decreaseTerm chain guard
+      let mVal ← execTerm ctx.selfAcl ctx.execId ctx.valMap mArg
+      let otherVals ← (as.zipIdx.filter (·.2 != ctx.measuredIdx)).mapM
+        fun (a, _) => execTerm ctx.selfAcl ctx.execId ctx.valMap a
+      let ihApp := Syntax.mkApp ctx.ihId
+        (#[mVal, decP] ++ otherVals.toArray)
+      let some hSelf := ctx.defnHypMap.lookup ctx.selfAcl
+        | throwError "derive_exec% corr: no self defn hyp (internal)"
+      mkConvDefn ctx.wId as.length ps hSelf ihApp
+    else
+      match builtinTwins.find? (·.1 == hd.name) with
+      | some (_, _, ar, bridge) => do
+        unless as.length == ar do
+          throwError "derive_exec% corr: {hd.name} arity mismatch"
+        let ps ← as.mapM (corrTerm ctx (path ++ "b"))
+        let some hNo := ctx.builtinHypMap.lookup hd.name
+          | throwError "derive_exec% corr: no h_no hyp for {hd.name} \
+              (internal — telescope derivation missed it)"
+        let bridgeApp := Syntax.mkApp (mkCIdent bridge)
+          (← holes ar)
+        if ar == 1 then do
+          let hs ← holes 5
+          `($(mkCIdent ``conv_builtin1) $(ctx.wId) $hs* (by decide) $hNo
+              $(ps[0]!) $bridgeApp)
+        else do
+          let hs ← holes 7
+          `($(mkCIdent ``conv_builtin2) $(ctx.wId) $hs* (by decide) $hNo
+              $(ps[0]!) $(ps[1]!) $bridgeApp)
+      | none => do
+        match findKit (← getEnv) hd.name with
+        | some kit => do
+          if kit.corrName == .anonymous then
+            throwError "derive_exec% corr: callee {hd.name} has no \
+                registered corr theorem (register or generate it first)"
+          let ps ← as.mapM (corrTerm ctx (path ++ "k"))
+          let hypIds ← (kit.defnHyps ++ kit.builtinHyps).mapM fun h => do
+            let m := ctx.defnHypMap.lookup h <|> ctx.builtinHypMap.lookup h
+            let some hId := m
+              | throwError "derive_exec% corr: callee {hd.name} needs \
+                  hypothesis {h}, absent from the caller telescope \
+                  (internal — telescope derivation missed it)"
+            pure (hId : Term)
+          let envAndArgs ← holes (1 + 2 * kit.arity)
+          pure <| Syntax.mkApp (mkCIdent kit.corrName)
+            (#[(ctx.wId : Term)] ++ hypIds.toArray ++ envAndArgs
+              ++ ps.toArray)
+        | none =>
+          throwError "derive_exec% corr: unregistered head {hd.name}"
+  | t => throwError "derive_exec% corr: unsupported body shape {repr t}"
+
+/-! ## The commands -/
+
+/-- Everything `derive_exec%` computes once per kit. -/
+structure KitInput where
+  execId : Ident
+  symName : Name
+  bodyName : Name
+  formalNames : Array Name
+  sym : Symbol
+  body : SExpr
+  formalSyms : Array Symbol
+  measuredIdx : Nat
+  recursive : Bool
+
+/-- Generate the corr theorem for a kit; returns the telescope metadata
+    (defn-hyp ACL2 names, builtin-hyp names) to register. -/
+def genCorr (inp : KitInput) (corrId : Ident) :
+    CommandElabM (List String × List String) := do
+  let env ← getEnv
+  let selfAcl := inp.sym.name
+  -- callee kits, first-occurrence order (each must carry a corr)
+  let calleeKits ← (calleeNames selfAcl inp.body).mapM fun c => do
+    let some k := findKit env c
+      | throwError "derive_exec% corr: unregistered callee {c}"
+    if k.corrName == .anonymous || k.symC == .anonymous then
+      throwError "derive_exec% corr: callee {c}'s kit has no corr/statement \
+          metadata (generate its corr first, or extend its registration)"
+    pure k
+  -- canonical telescopes
+  let defnAcls := (calleeKits.flatMap (·.defnHyps) ++ [selfAcl]).eraseDups
+  let own := usedBuiltins selfAcl inp.body
+  let builtinAcls := (builtinTwins.map (·.1)).filter fun b =>
+    own.contains b || calleeKits.any (·.builtinHyps.contains b)
+  -- statement pieces per defn hyp: (symC, formalCs, bodyC)
+  let defnMeta ← defnAcls.mapM fun a => do
+    if a == selfAcl then
+      pure (inp.symName, inp.formalNames.toList, inp.bodyName)
+    else
+      let some k := findKit env a
+        | throwError "derive_exec% corr: internal — {a} unregistered"
+      pure (k.symC, k.formalCs, k.bodyC)
+  let wId := mkIdent `w
+  let defnHypIds := defnAcls.map fun a =>
+    mkIdent (Name.mkSimple s!"h_{hypSuffix a}")
+  let builtinHypIds := builtinAcls.map fun b =>
+    mkIdent (Name.mkSimple s!"h_no_{hypSuffix b}")
+  let sexprTy : Term := mkCIdent ``ACL2.SExpr
+  let symTy : Term := mkCIdent ``ACL2.Symbol
+  -- hypothesis binders
+  let defnBinders ← (defnHypIds.zip defnMeta).mapM
+    fun (hId, sC, fCs, bC) => do
+      let fIds := (fCs.map mkCIdent).toArray
+      `(bracketedBinderF| ($hId:ident :
+          ($wId).defs.get? $(mkCIdent sC)
+            = some ([$[$fIds],*], $(mkCIdent bC))))
+  let builtinBinders ← (builtinAcls.zip builtinHypIds).mapM
+    fun (b, hId) => do
+      let bLit := Syntax.mkStrLit b
+      `(bracketedBinderF| ($hId:ident :
+          ($wId).defs.get? ({ name := $bLit } : $symTy) = none))
+  -- conclusion: ∀ env aᵢ vᵢ, ConvTo … → ConvTo w env (fn a…) (Exec v…)
+  let n := inp.formalSyms.size
+  let envId := mkIdent `env
+  let aIds := inp.formalSyms.map fun s =>
+    mkIdent (Name.appendAfter `a s!"_{(formalBinderName s.name)}")
+  let vIds := inp.formalSyms.map fun s =>
+    mkIdent (Name.appendAfter `v s!"_{(formalBinderName s.name)}")
+  let convTo : Term := mkCIdent ``ACL2.Replay.ConvTo
+  let nilT : Term := mkCIdent ``SExpr.nil
+  let appArgs ← aIds.foldrM (init := nilT)
+    fun a acc => `($(mkCIdent ``SExpr.cons) $a $acc)
+  let appT ← `($(mkCIdent ``SExpr.cons)
+      ($(mkCIdent ``SExpr.atom) ($(mkCIdent ``Atom.symbol)
+        $(mkCIdent inp.symName))) $appArgs)
+  let execApp := Syntax.mkApp inp.execId (vIds.map (fun i => (i : Term)))
+  let concl ← `($convTo $wId $envId $appT $execApp)
+  let stmtCore ← (aIds.zip vIds).foldrM (init := concl) fun (a, v) acc =>
+    `($convTo $wId $envId $a $v → $acc)
+  let allIds := aIds ++ vIds
+  let stmt ← `(∀ ($envId:ident : $(mkCIdent ``ACL2.Env))
+      ($[$allIds:ident]* : $sexprTy), $stmtCore)
+  -- proof pieces
+  let benvSyms : Array Term := inp.formalNames.map fun n => (mkCIdent n : Term)
+  let vTerms := vIds.map (fun i => (i : Term))
+  let benv ← `($(mkCIdent ``bindArgs) [$[$benvSyms],*] [$[$vTerms],*])
+  -- env-get proof for formal i: i tail steps then head
+  let getProof (i : Nat) : CommandElabM Term := do
+    let base : Term := mkCIdent ``bindArgs_get_head
+    (List.range i).foldlM (init := base) fun acc _ =>
+      `(($(mkCIdent ``bindArgs_get_tail) (by decide)).trans $acc)
+  let hvIds := inp.formalSyms.map fun s =>
+    mkIdent (Name.appendAfter `hv s!"_{(formalBinderName s.name)}")
+  let hvHaves ← (Array.range n).mapM fun i => do
+    let gp ← getProof i
+    `(tactic| have $(hvIds[i]!):ident := $(mkCIdent ``re_val_var_get)
+        $wId $benv $(mkCIdent inp.formalNames[i]!) $(vIds[i]!) $gp)
+  let ihId := mkIdent `ih
+  let ctx : CorrCtx :=
+    { wId := wId, selfAcl := selfAcl,
+      measuredAcl := inp.formalSyms[inp.measuredIdx]!.name,
+      measuredIdx := inp.measuredIdx,
+      hvMap := (inp.formalSyms.zip hvIds).toList.map
+        fun (s, id) => (s.name, id),
+      valMap := (inp.formalSyms.zip vIds).toList.map
+        fun (s, id) => (s.name, id),
+      defnHypMap := defnAcls.zip defnHypIds,
+      builtinHypMap := builtinAcls.zip builtinHypIds,
+      execId := inp.execId, ihId := ihId }
+  let walk ← corrTerm ctx "" inp.body
+  let eqDefId : Term :=
+    mkCIdent ((← liftTermElabM <|
+      realizeGlobalConstNoOverloadWithInfo inp.execId) ++ `eq_def)
+  let hbodyId := mkIdent `hbody
+  let hbodyGoal ← `($convTo $wId $benv $(mkCIdent inp.bodyName) $execApp)
+  let vm := vIds[inp.measuredIdx]!
+  let others := (vIds.zipIdx.filter (·.2 != inp.measuredIdx)).map (·.1)
+  let hbodyStmt ←
+    if inp.recursive then
+      if others.isEmpty then
+        `(∀ ($vm:ident : $sexprTy), $hbodyGoal)
+      else
+        `(∀ ($vm:ident : $sexprTy), ∀ ($[$others:ident]* : $sexprTy),
+            $hbodyGoal)
+    else
+      `(∀ ($[$vIds:ident]* : $sexprTy), $hbodyGoal)
+  let hbodyTac ←
+    if inp.recursive then do
+      let motive ←
+        if others.isEmpty then
+          `(fun $vm:ident => $hbodyGoal)
+        else
+          `(fun $vm:ident => ∀ ($[$others:ident]* : $sexprTy), $hbodyGoal)
+      let introIds := #[vm, ihId] ++ others
+      `(Lean.Parser.Tactic.tacticSeq|
+          refine $(mkCIdent ``consCount_strong_induction) $motive ?_
+          intro $[$introIds:ident]*
+          $[$hvHaves:tactic]*
+          rw [$eqDefId:term]
+          exact $walk)
+    else
+      -- plain defs have no equation lemma; delta-unfold instead
+      `(Lean.Parser.Tactic.tacticSeq|
+          intro $[$vIds:ident]*
+          $[$hvHaves:tactic]*
+          unfold $(mkIdent (inp.execId.getId)):ident
+          exact $walk)
+  -- closing: conv_defn_N + hbody applied at (measured, others) order
+  let hIds := inp.formalSyms.map fun s =>
+    mkIdent (Name.appendAfter `h s!"_{(formalBinderName s.name)}")
+  let hbodyArgs :=
+    if inp.recursive then
+      #[(vm : Term)] ++ others.map (fun i => (i : Term))
+    else vTerms
+  let hbodyApp := Syntax.mkApp hbodyId hbodyArgs
+  let some hSelfId := (defnAcls.zip defnHypIds).lookup selfAcl
+    | throwError "derive_exec% corr: internal — self defn hyp missing"
+  let closing ← mkConvDefn wId n (hIds.map (fun i => (i : Term))).toList
+    hSelfId hbodyApp
+  let introIds := #[envId] ++ aIds ++ vIds ++ hIds
+  let proof ← `(by
+      have $hbodyId:ident : $hbodyStmt := by $hbodyTac
+      intro $[$introIds:ident]*
+      exact $closing)
+  let allBinders := defnBinders.toArray ++ builtinBinders.toArray
+  let thm ← `(theorem $corrId ($wId:ident : $(mkCIdent ``ACL2.World))
+      $allBinders* : $stmt := $proof)
+  elabCommand thm
+  return (defnAcls, builtinAcls)
+
+syntax corrClause := &" corr " ident
 
 syntax (name := deriveExecCmd)
-  (docComment)? "derive_exec% " ident " for " ident &" formals "
-  "[" ident,* "]" &" body " ident &" measured " num : command
+  (docComment)? "derive_exec% " ident (corrClause)? " for " ident
+  &" formals " "[" ident,* "]" &" body " ident &" measured " num : command
 
-/-- `derive_exec% <execName> for <symConst> formals [<symConsts>] body
-    <bodyConst> measured <i>` — generate the M1 exec def and register the
-    kit. `measured i` is the 0-based index of the measured formal (from the
+/-- `derive_exec% <execName> [corr <corrName>] for <symConst> formals
+    [<symConsts>] body <bodyConst> measured <i>` — generate the M1 exec
+    def (+ optionally the stage-1 corr theorem) and register the kit.
+    `measured i` is the 0-based index of the measured formal (from the
     emitted `:MEASURE (ACL2-COUNT <formal_i>)`). -/
 @[command_elab deriveExecCmd] def elabDeriveExec : CommandElab := fun stx => do
-  match stx with
-  | `($[$doc?:docComment]? derive_exec% $execId:ident for $symId:ident
-        formals [$formalIds:ident,*] body $bodyId:ident
-        measured $idx:num) => do
+    -- raw destructuring (two optional groups defeat the quotation-pattern
+    -- lifter): [0] doc? [1] atom [2] exec [3] corrClause? [4] for [5] sym
+    -- [6] formals [7] "[" [8] formal idents [9] "]" [10] body [11] bodyC
+    -- [12] measured [13] num
+    let doc? : Option (TSyntax ``Lean.Parser.Command.docComment) :=
+      if stx[0].getNumArgs > 0 then some ⟨stx[0][0]⟩ else none
+    let execId : Ident := ⟨stx[2]⟩
+    let corrId? : Option Ident :=
+      if stx[3].getNumArgs > 0 then some ⟨stx[3][0][1]⟩ else none
+    let symId : Ident := ⟨stx[5]⟩
+    let formalIds : Array Ident := stx[8].getSepArgs.map (⟨·⟩)
+    let bodyId : Ident := ⟨stx[11]⟩
+    let some idxN := stx[13].isNatLit?
+      | throwError "derive_exec%: measured index must be a numeral"
     let symName ← liftTermElabM <| realizeGlobalConstNoOverloadWithInfo symId
     let bodyName ← liftTermElabM <| realizeGlobalConstNoOverloadWithInfo bodyId
-    let formalNames ← formalIds.getElems.mapM fun fid =>
+    let formalNames ← formalIds.mapM fun fid =>
       liftTermElabM <| realizeGlobalConstNoOverloadWithInfo fid
     -- evaluate the symbol/body constants (compiled defs in scope)
     let sym ← liftTermElabM <| unsafe evalExpr Symbol
@@ -235,7 +649,7 @@ syntax (name := deriveExecCmd)
     let formalSyms ← formalNames.mapM fun fn =>
       liftTermElabM <| unsafe evalExpr Symbol
         (mkConst ``ACL2.Symbol) (mkConst fn)
-    let i := idx.getNat
+    let i := idxN
     unless i < formalSyms.size do
       throwError "derive_exec%: measured index {i} out of range \
           ({formalSyms.size} formals)"
@@ -276,13 +690,28 @@ syntax (name := deriveExecCmd)
           termination_by $measT
           decreasing_by all_goals first $[| $scripts]*)
     elabCommand cmd
+    let inp : KitInput :=
+      { execId := execId, symName := symName, bodyName := bodyName,
+        formalNames := formalNames, sym := sym, body := body,
+        formalSyms := formalSyms, measuredIdx := i,
+        recursive := !sites.isEmpty }
+    -- corr (optional clause)
+    let (corrName, defnAcls, builtinAcls) ←
+      match corrId? with
+      | some corrId => do
+        let (d, b) ← genCorr inp corrId
+        let cn ← liftTermElabM <| realizeGlobalConstNoOverloadWithInfo corrId
+        pure (cn, d, b)
+      | none => pure (Name.anonymous, [], [])
     -- register
     let execName ← liftTermElabM <|
       realizeGlobalConstNoOverloadWithInfo execId
     modifyEnv fun env => execKitExt.addEntry env
       { aclName := sym.name, execName := execName,
-        arity := formalSyms.size }
-  | _ => throwUnsupportedSyntax
+        arity := formalSyms.size, corrName := corrName,
+        symC := symName, formalCs := formalNames.toList,
+        bodyC := bodyName, defnHyps := defnAcls,
+        builtinHyps := builtinAcls }
 
 syntax (name := registerExecKitCmd)
   "register_exec_kit% " str " => " ident &" arity " num : command
