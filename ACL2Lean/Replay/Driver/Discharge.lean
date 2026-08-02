@@ -56,6 +56,7 @@ def itemDischargeOrigins : ClauseItem → List (String × SExpr)
         [(prov.origin, lhs)] else []
   | .clausify _ => []
   | .useHint _ _ _ _ => []
+  | .fcDerivations _ => []
   | .branch _ items => items.flatMap itemDischargeOrigins
 
 /-- Per-theorem: the discharge nodes on PROVED leaves — `(clauseId, origin,

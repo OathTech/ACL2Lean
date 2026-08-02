@@ -52,6 +52,11 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     (accClause : List SExpr) (children : List ClauseNode) :
     MetaM Expr := do
   match items with
+  | .fcDerivations _ :: rest =>
+    -- FC provenance blocks are clause DATA, not spine steps (cluster item
+    -- 4; the Phase-6 consumer reads them from the clause items) — skip in
+    -- the spine walk, never a step
+    replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
   | [] =>
     -- SILENT TAUTOLOGY close (G2 rung 2): a branch-substitution can create a
     -- complementary literal pair (qsort's PERM-IMPLIES-EQUAL-ALL-REL-2
@@ -844,6 +849,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                             | some (.literal lp) => s!"literal {lp.index}"
                             | some (.clausify _) => "clausify"
                             | some (.useHint ..) => "use-hint"
+                            | some (.fcDerivations ..) => "fc-derivations"
                             | some (.branch ..) => "branch"
                             | none => "none"}"
       let (lhs, rhs) := nodeLhsRhs n

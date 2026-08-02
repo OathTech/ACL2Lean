@@ -220,6 +220,11 @@ inductive ClauseItem where
       -- lmis: the used lemma instances (:LMI-LST), aligned with hyps —
       -- R7a's discharge source; [] on pre-cluster logs (hard-fail there)
       (lmis : List SExpr := [])
+  /-- The clause's approved FC derivations (cluster item 4): collected at
+      clause level (and partitioned out of literal chains — they are
+      provenance, not chain steps); the Phase-6 consumer joins :CONCL with
+      relieved hyps. -/
+  | fcDerivations (derivations : List SExpr)
   deriving Repr, Inhabited
 
 /-! ## Parser: flat trace → rewriter-detail tree
@@ -513,20 +518,27 @@ partial def parseClauseItems (events : List TraceEvent)
       let splitReshaped := litEvents.filterMap fun
         | .clausifySetReshaped w => some w
         | _ => none
+      let litFcDerivs := litEvents.filterMap fun
+        | .fcDerivations d => some d
+        | _ => none
       let chainEvents := litEvents.filter fun
         | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _
-        | .clausifyConjunction .. => false
+        | .clausifyConjunction .. | .fcDerivations _ => false
         | _ => true
       let nodes ← buildProofNodes chainEvents
       let litResult := findLiteralResult chainEvents literal
       let (more, rest'') ← parseClauseItems rest'
       return (.literal { index, literal, notFlg, nodes, result := litResult,
-                         splitTrace, splitReshaped } :: more, rest'')
+                         splitTrace, splitReshaped }
+        :: (litFcDerivs.map .fcDerivations) ++ more, rest'')
   | .clausifyInput input :: rest =>
       -- collect the contiguous clausify block: [expand*] neg ([expand*] split)* out
       let (info, rest') ← collectClausify input rest
       let (more, rest'') ← parseClauseItems rest'
       return (.clausify info :: more, rest'')
+  | .fcDerivations derivs :: rest =>
+      let (more, rest') ← parseClauseItems rest
+      return (.fcDerivations derivs :: more, rest')
   | .useHint hyps ccl appC lmis :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.useHint hyps ccl appC lmis :: more, rest')
