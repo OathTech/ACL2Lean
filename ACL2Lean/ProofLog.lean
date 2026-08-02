@@ -128,6 +128,18 @@ inductive TraceEvent where
       the replay's rule recipe consumes it in place of a relief chain. -/
   | hypRelief (hyp : SExpr) (origin : String) (taRunes : List Rune)
       (parents : List SExpr := [])
+      -- taDerivations: the entry's UNFLATTENED fc-derivation structure
+      -- (:TA-DERIVATIONS, cluster item 4). NIL by construction at today's
+      -- relief sites (fcds are expunged before the type-alist — the real
+      -- provenance rides the clause-level :FC-DERIVATIONS event, joined by
+      -- :CONCL); kept for a future unexpunged path.
+      (taDerivations : List SExpr := [])
+  /-- The clause's approved forward-chaining derivations, emitted where
+      ACL2 flattens them (`emit/fc-derivations`, cluster item 4): raw
+      per-derivation plists (:RUNE :CONCL :TRIGGER :SUBST :PARENTS
+      :SUPPORTS). The Phase-6 consumer joins :CONCL with relieved
+      hyps/entry terms. -/
+  | fcDerivations (derivations : List SExpr)
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
   | beginInnerRewrite (kind : String) (swapped : Bool := false) (term : Option SExpr := none)
       (path : List PathFrame := [])
@@ -139,6 +151,11 @@ inductive TraceEvent where
       chain walks (its true root), and the surviving application clauses. -/
   | useHint (hyps : List SExpr) (constraintCl : List SExpr)
       (appClauses : List (List SExpr))
+      -- lmiLst: the lemma instances that generated `hyps`, verbatim and
+      -- positionally aligned (:LMI-LST, close-out cluster item 1): each a
+      -- name, (:instance name (var . term)…), or (:functional-instance …).
+      -- [] on pre-cluster logs — the R7a composition hard-fails on absence.
+      (lmiLst : List SExpr := [])
   /-- Clausify checkpoints (preprocess formula → clause set; emit/clausify/*):
       the input term, the neg-clause pass, per-negated-literal splits, the
       conjoined output set, and the expand-and-or marker (a replay frontier). -/
@@ -338,7 +355,22 @@ def RuleSpec.runeKey (r : RuleSpec) : String :=
 inductive ProofEvent where
   | defun (name : String) (formals : List Symbol) (body : SExpr)
           (just : Option Justification := none)
+  /-- Encapsulate bracket OPEN (`:ENCAPSULATE-BEGIN`, cluster item 2 /
+      R6): everything to the matching END belongs to the scope; BOTH
+      passes' events are inside (the parser dedups per-scope). Scope
+      SEMANTICS (toWorld witness handling, ScopeHolds) land with Phase 4's
+      scoped extensions — until then Development records the brackets. -/
+  | encapsulateBegin (sigs : List Symbol)
+  | encapsulateEnd
+  /-- The scope's constraint axioms (`:CONSTRAINTS`, verbatim from ACL2's
+      constraint-lst). `:UNKNOWN-CONSTRAINTS` hard-fails at parse. -/
+  | constraints (fns : List Symbol) (formulas : List SExpr)
   | defthm (name : String) (formula : SExpr := .nil) (source : TheoremSource := .unknown)
+      -- classes: the RAW rule-classes, verbatim (:CLASSES, cluster item 5);
+      -- .nil on pre-cluster logs — the equivalence/congruence gates consume
+      -- the DECLARED class once present (fail-closed: absence keeps the
+      -- shape-parse behavior, presence gates on it)
+      (classes : SExpr := .nil)
   | typePrescription (name : String) (corollary : SExpr)
       (basicTs : Option Int := none) (leaves : List (SExpr × Int) := [])
   /-- The stored rewrite rules created since the previous flush (in creation
@@ -700,7 +732,27 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
             match r.toList? with
             | none => throw s!"HYP-RELIEF: :PARENTS not a list: {repr r}"
             | some l => pure l
-        pure (.hypRelief hyp origin taRunes parents)
+        -- :TA-DERIVATIONS (cluster item 4): raw derivation plists; NIL at
+        -- today's relief sites (fcds expunged upstream — the clause-level
+        -- :FC-DERIVATIONS event carries the real provenance)
+        let taDerivs ← match lookupKeyword "TA-DERIVATIONS" rest with
+          | none => pure []
+          | some (.atom (.symbol s)) =>
+            if s.name == "NIL" then pure []
+            else throw s!"HYP-RELIEF: bad :TA-DERIVATIONS atom: {s.name}"
+          | some r =>
+            match r.toList? with
+            | none => throw s!"HYP-RELIEF: :TA-DERIVATIONS not a list: {repr r}"
+            | some l => pure l
+        pure (.hypRelief hyp origin taRunes parents taDerivs)
+    | .atom (.keyword "FC-DERIVATIONS") :: rest =>
+        -- cluster item 4: the clause's approved fc derivations, raw plists
+        let derivs ← match lookupKeyword "DERIVATIONS" rest with
+          | some d => match d.toList? with
+            | some l => pure l
+            | none => throw s!"FC-DERIVATIONS: :DERIVATIONS not a list: {repr d}"
+          | none => throw "FC-DERIVATIONS: missing :DERIVATIONS"
+        pure (.fcDerivations derivs)
     | .atom (.keyword "CLAUSIFY-TEST") :: rest =>
         let test ← lookupKeyword "TEST" rest
           |>.elim (throw "CLAUSIFY-TEST: missing :TEST") pure
@@ -837,7 +889,14 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
               | none => throw s!"USE-HINT: application clause not a list: {repr c}"
             | none => throw s!"USE-HINT: :APPLICATION-CLAUSES not a list: {repr a}"
           | none => throw "USE-HINT: missing :APPLICATION-CLAUSES"
-        pure (.useHint hyps ccl appC)
+        -- :LMI-LST (cluster item 1): absent on pre-cluster logs (parse
+        -- tolerates absence; consumers hard-fail), MALFORMED hard-fails
+        let lmis ← match lookupKeyword "LMI-LST" rest with
+          | some l => match l.toList? with
+            | some ls => pure ls
+            | none => throw s!"USE-HINT: :LMI-LST not a list: {repr l}"
+          | none => pure []
+        pure (.useHint hyps ccl appC lmis)
     | .atom (.keyword "CLAUSIFY-INPUT") :: rest =>
         let term ← lookupKeyword "TERM" rest
           |>.elim (throw "CLAUSIFY-INPUT: missing :TERM") pure
@@ -1122,6 +1181,45 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
     | none => throw s!"INDUCTION: expected plist, got {repr rest}"
   | .cons (.atom (.keyword "QED")) _ =>
     return .qed
+  | .cons (.atom (.keyword "ENCAPSULATE-BEGIN")) rest =>
+    -- cluster item 2 / R6: bracket OPEN; :SIGS may be NIL (trivial scope)
+    match rest.toList? with
+    | some fields =>
+      let sigs ← match lookupKeyword "SIGS" fields with
+        | none => pure []
+        | some (.atom (.symbol s)) =>
+          if s.name == "NIL" then pure ([] : List Symbol)
+          else throw s!"ENCAPSULATE-BEGIN: bad :SIGS atom: {s.name}"
+        | some l => match l.toList? with
+          | none => throw s!"ENCAPSULATE-BEGIN: :SIGS not a list: {repr l}"
+          | some syms => syms.mapM fun e => match e with
+            | .atom (.symbol sy) => pure sy
+            | _ => throw s!"ENCAPSULATE-BEGIN: non-symbol sig: {repr e}"
+      return .encapsulateBegin sigs
+    | none => throw s!"ENCAPSULATE-BEGIN: expected plist, got {repr rest}"
+  | .cons (.atom (.keyword "ENCAPSULATE-END")) _ =>
+    return .encapsulateEnd
+  | .cons (.atom (.keyword "CONSTRAINTS")) rest =>
+    -- cluster item 2 / R6: the scope's constraint axioms, verbatim.
+    -- :UNKNOWN-CONSTRAINTS hard-fails (fail-closed, ratified).
+    match rest.toList? with
+    | some fields =>
+      let fns ← match lookupKeyword "FNS" fields with
+        | some l => match l.toList? with
+          | none => throw s!"CONSTRAINTS: :FNS not a list: {repr l}"
+          | some syms => syms.mapM fun e => match e with
+            | .atom (.symbol sy) => pure sy
+            | _ => throw s!"CONSTRAINTS: non-symbol fn: {repr e}"
+        | none => throw "CONSTRAINTS: missing :FNS"
+      let formulas ← match lookupKeyword "FORMULAS" fields with
+        | some (.atom (.keyword "UNKNOWN-CONSTRAINTS")) =>
+          throw "CONSTRAINTS: :UNKNOWN-CONSTRAINTS scope (fail-closed —             unsupported by design, R6 ratification)"
+        | some l => match l.toList? with
+          | none => throw s!"CONSTRAINTS: :FORMULAS not a list: {repr l}"
+          | some fs => pure fs
+        | none => throw "CONSTRAINTS: missing :FORMULAS"
+      return .constraints fns formulas
+    | none => throw s!"CONSTRAINTS: expected plist, got {repr rest}"
   | .cons (.atom (.keyword "DEFTHM")) rest =>
     match rest.toList? with
     | some (nameExpr :: fields) =>
@@ -1133,7 +1231,10 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | some (.atom (.keyword "INCLUDE-BOOK")) => TheoremSource.includeBook
           | some (.atom (.keyword "LOCAL")) => TheoremSource.local
           | _ => TheoremSource.unknown
-        return .defthm name formula source
+        -- :CLASSES (cluster item 5): raw rule-classes, absent on
+        -- pre-cluster logs
+        let classes := (lookupKeyword "CLASSES" fields).getD .nil
+        return .defthm name formula source classes
       | none => throw s!"DEFTHM: bad name: {repr nameExpr}"
     | some [] => throw s!"DEFTHM: missing name"
     | none => throw s!"DEFTHM: expected plist, got {repr rest}"
