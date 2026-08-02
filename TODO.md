@@ -431,7 +431,15 @@ _Last updated: 2026-08-02._
 > exactly the list; emit verbatim per signature group + tag the
 > scope's :LOCAL-WITNESS defuns and exported defthms with the
 > encapsulate id). R6-ratified shape.
-> (3) BNEXT-SIZE admission-waterfall logging — the defun admission
+> (3) RECLASSIFIED (2026-08-02, artifact check): admission waterfalls
+> are ALREADY logged (steps + (:QED) precede each :DEFUN — bsort's
+> BNEXT admission tree confirmed in-log) AND recon'd (ClauseTree
+> 715-726 attaches them as the defun's `termination` field; the
+> runner's replayAdmission pre-pass consumes them — the qsort
+> with_termination route). The ratified BNEXT-SIZE route is LEAN-SIDE
+> replay wiring (extend the termination pre-pass to bsort's scheme in
+> the sweep) — moves to Phase 6, OUT of the fork cluster.
+> ORIGINAL: BNEXT-SIZE admission-waterfall logging — the defun admission
 > path (defthm.lisp/defuns admission → prove): when a REAL waterfall
 > runs for termination, route the structured logging through it (the
 > carve-out's 'termination field' follow-up; ratified route for
