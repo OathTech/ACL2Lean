@@ -403,6 +403,35 @@ _Last updated: 2026-08-02._
 > because every consumer pins the body against the log-derived world
 > by decide, but the generator-reads-the-log step is still owed
 > (12 hand exec defs remain of the ~20; 8 retired).**
+> **PHASE-1 EMISSION CLUSTER WORKLIST (close-out, 2026-08-02 — the
+> single fork round-trip; every insertion TRACE-LOG-tagged, round-trip
+> checked by just check-acl2-tags; ONE recapture at the end, goldens
+> re-pinned row-by-row):
+> (1) :LEMMAS in the use-hint payload — extend the existing
+> emit/use-hint/payload site (acl2/prove.lisp:754) with the hint's
+> lemma names + substitutions (the translated :use hint carries them;
+> read off, no computation). Unblocks R7a.
+> (2) :CONSTRAINTS + :ENCAPSULATE boundary tags — encapsulate close in
+> acl2/other-events.lisp (constraint-lst-etc machinery ~5114 computes
+> exactly the list; emit verbatim per signature group + tag the
+> scope's :LOCAL-WITNESS defuns and exported defthms with the
+> encapsulate id). R6-ratified shape.
+> (3) BNEXT-SIZE admission-waterfall logging — the defun admission
+> path (defthm.lisp/defuns admission → prove): when a REAL waterfall
+> runs for termination, route the structured logging through it (the
+> carve-out's 'termination field' follow-up; ratified route for
+> BNEXT-SIZE). bsort is the activating instance.
+> (4) Type-alist derived-entry provenance — the relieve-hyp/
+> free-type-alist + type-alist emission points (rewrite.lisp): emit
+> parent literal(s) + deriving FC rule per derived entry. Serves
+> BUG-027 (narrow-via-emission), the LEXORDER-TRANSITIVE marker-relief
+> class (bsort HOW-MANY-SMALLER-BNEXT + parked backlog), and the
+> free-type-alist relief class.
+> (5) :RULE-CLASSES on defthm events — extend emit/defthm
+> (acl2/defthm.lisp:12211) with the event's rule-classes (closes the
+> equivrefl shape-parse caveat).
+> Lean-side parsers extend with each (fail-closed on absence for old
+> logs); the recapture activates them together.**
 > **R7a PROBE FINDING (close-out, 2026-08-02): the :USE-HINT payload
 > lacks the used LEMMA NAMES + substitutions (only instantiated hyp
 > formulas are emitted — LEN2-APP-VIA-USE payload inspected).
