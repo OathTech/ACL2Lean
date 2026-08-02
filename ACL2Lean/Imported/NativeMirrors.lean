@@ -213,7 +213,12 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
       mirrors
       (equivRefls := ch.equivRefls) (termReplayed := termReplayed)
       (congTrees := some ch.localTrees)
-    -- register the enclosing definition for later same-world consumers
+    -- register the enclosing definition for later same-world consumers.
+    -- INVARIANT (audit F6): the registered decl must be a plain
+    -- `def X := driver_replayed% …` — the entry records THIS elaboration's
+    -- kept-cond list as the constant's binder telescope; a differently-
+    -- ascribed enclosing decl would register a lying shape (caught loudly
+    -- by unification at the consumer, never silently).
     if let some declName ← Lean.Elab.Term.getDeclName? then
       Lean.modifyEnv fun e =>
         mirrorRegistryExt.addEntry e (worldName, cp.name, declName, conds)
@@ -2144,6 +2149,8 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.car_rm_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_isort_native_driver,
             ``ACL2.Imported.Mirrors.equal_cons_native_driver,
+            ``ACL2.Imported.Mirrors.ordered_perms_native_driver,
+            ``ACL2.Imported.Mirrors.ordered_perms_native_perm_driver,
             ``ACL2.Imported.Mirrors.orderedp_memb_native_driver,
             ``ACL2.Imported.Mirrors.how_many_isort_native_driver,
             ``ACL2.Imported.Mirrors.how_many_append_native_driver,

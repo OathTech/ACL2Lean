@@ -338,7 +338,21 @@ _Last updated: 2026-08-01._
 > rule:ORDEREDP-MEMB's same-book discharge still frontiers (its D1
 > registry constant keeps rule:DEFAULT-CAR — the registry route
 > should map it to the consumer telescope), then the native
-> statement assembly.**
+> statement assembly.
+> CAPSTONE LANDED (bfc93ed): ordered_perms_native_driver —
+> (xs == ys) = xs.isPerm ys for lexorder-sorted lists + the List.Perm
+> corollary (sorted permutations are EQUAL), kernel-checked from the
+> replay, axioms clean, seam gate green, catalog .native — the last
+> pending ordered-perms mirror. En route: routeNotBool (the negative
+> boolean strengthening, ORDEREDP-MEMB's shape — no TP pin needed,
+> Logic.not is nil-dichotomous) and the MACRO-SIDE D1 REGISTRY
+> (mirrorRegistryExt in Provers + getDeclName? registration +
+> world-filtered mirrors — parity with the runner's
+> ReplayedStatements route; the re-replay route frontiered on
+> TRUE-LISTP-RM inside the consumer telescope where the registry
+> route composes; trueListpRmReplayed registered as the dep).
+> Sub-arc audit IN FLIGHT (2 Opus reviewers: discharge-machinery
+> soundness + mirror criterion).**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d) — DRAFTED:
 > docs/notes/2026-08-01_r7-use-functional-instantiation-design.md

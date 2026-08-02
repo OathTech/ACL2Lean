@@ -117,9 +117,11 @@ def bookTrees (dev : Development) : List (String × ClauseProof) :=
     log never re-emits — PERM-IS-AN-EQUIVALENCE's tree cites
     rule:PERM-SYMMETRIC, absent from the ordered-perms log. Offering the
     dep book's rules lets the transitive citation bind; its own tree in
-    `crossTrees` then discharges it). The LAST theorem's own rule appears
-    in no snapshot — an accepted v1 gap (fail-closed: its citation keeps
-    the hypothesis). -/
+    `crossTrees` then discharges it). Every `(:RULES …)` event AFTER the
+    last theorem event is in no snapshot (not only the last theorem's own
+    rule — a final and-splitting defthm drops several) — an accepted v1
+    gap (fail-closed: such a citation keeps the hypothesis); the fix is a
+    direct walk over the development's rule events. -/
 def allBookRules (dev : Development) : List ACL2.RuleSpec :=
   ((developmentTheoremsWithRules dev).flatMap (·.2)).foldl
     (init := []) fun acc r =>
@@ -129,7 +131,18 @@ def allBookRules (dev : Development) : List ACL2.RuleSpec :=
     OWN entries take precedence (same-book identity preserved; a
     same-keyed cross copy is the same re-emitted rule). -/
 def combineRules (own cross : List ACL2.RuleSpec) : List ACL2.RuleSpec :=
-  own ++ cross.filter fun c => !own.any (fun o => o.runeKey == c.runeKey)
+  -- cross entries FIRST in list position (fold-back audit F3): cross rules
+  -- are chronologically EARLIER (an included book precedes the consumer),
+  -- and the discharge pass substitutes in REVERSE creation order under the
+  -- topological premise — a same-book rule's discharge may introduce a
+  -- cross rule's fvar, so the cross fvar must be discharged LATER, i.e.
+  -- sit earlier in the list. OWN entries keep dedup precedence.
+  -- SCOPE NOTE (audit F2): this widens the rule telescope O(corpus) —
+  -- deliberately UNLIKE the cong-offer decision (same-book only); the
+  -- widening is fail-closed (an offer is a hypothesis unless discharged,
+  -- and the discharge recompute-checks the dep formula against the spec);
+  -- an include-book provenance gate is queued in TODO.
+  cross.filter (fun c => !own.any (fun o => o.runeKey == c.runeKey)) ++ own
 
 /-- The channel set of a development — the single derivation site.
     `crossTrees`: prior books' theorem trees (2a); appended AFTER the

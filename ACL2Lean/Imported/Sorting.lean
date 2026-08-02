@@ -686,7 +686,7 @@ private theorem enc_beq (xs ys : List SExpr) :
   by_cases h : xs = ys
   · subst h; simp
   · have hne : enc xs ≠ enc ys := fun hE => h (enc_inj hE)
-    simp [beq_iff_eq, h, hne]
+    simp [h, hne]
 
 /-- ORDERED-PERMS, natively: for lexorder-sorted lists, list equality IS
     permutation-equivalence (the Bool identity `(xs == ys) = xs.isPerm ys`).

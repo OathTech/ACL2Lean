@@ -294,7 +294,7 @@ def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     | .cons (.atom (.symbol if1)) (.cons c1
         (.cons (.cons (.atom (.symbol if2)) (.cons r2
           (.cons _rest (.cons e2 .nil)))) (.cons e1 .nil))) =>
-      if if1.name == "IF" && if2.name == "IF" && r2 == rxx
+      if if1.isNamed "IF" && if2.isNamed "IF" && r2 == rxx
           && e1 == qNil && e2 == qNil then pure c1
       else throwFrontier m!"dischargeEquivReflHyp: {spec.name}'s Goal \
           {repr formula} is not the defequiv and-shape with the OFFERED \
@@ -524,12 +524,23 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- rule's discharge replay can itself consume a strictly-earlier
       -- congruence (caught by the second pass). Both passes share the
       -- containsFVar guard, so a quiet pass is free.
+      -- PER-DISCHARGE heartbeat window (fold-back audit, the F1
+      -- nondeterminism): a discharge re-replays a dependency TREE, whose
+      -- cost rides the CONSUMER's telescope size (O(corpus) offers in the
+      -- sweep) — under the theorem's single budget, main-replay + Σdeps
+      -- raced the bound and a near-boundary dep flip was process-state
+      -- dependent (the golden flipped between elaborations). A fresh
+      -- window per discharge (the ordinary theorem default — a dep
+      -- re-replay is at most a theorem replay) makes each outcome
+      -- individually far from its bound.
+      let dischargeBudget : Nat := 3000000
       let dischargeCongs (prf0 : Expr) : MetaM Expr := do
         let mut prfC := prf0
         for (spec, hypV) in (congs.zip congVs.toList).reverse do
           if prfC.containsFVar hypV.fvarId! then
             try
-              let pf ← dischargeCongHyp cfg ctx spec depProofs mirrors
+              let pf ← withRealMaxHeartbeats dischargeBudget <|
+                dischargeCongHyp cfg ctx spec depProofs mirrors
               prfC ← letBindFVar prfC hypV pf
             catch e =>
               unless isFrontierErr e do
@@ -543,7 +554,8 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       for (spec, hypV) in (equivSpecs.zip equivVs.toList).reverse do
         if prfR.containsFVar hypV.fvarId! then
           try
-            let pf ← dischargeEquivReflHyp cfg ctx spec depProofs mirrors
+            let pf ← withRealMaxHeartbeats dischargeBudget <|
+              dischargeEquivReflHyp cfg ctx spec depProofs mirrors
             prfR ← letBindFVar prfR hypV pf
           catch e =>
             unless isFrontierErr e do
@@ -551,7 +563,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       for (spec, hypV) in (rules.zip ruleVs.toList).reverse do
         if prfR.containsFVar hypV.fvarId! then
           try
-            let pf ←
+            let pf ← withRealMaxHeartbeats dischargeBudget <|
               -- a GROUND-ZERO rule has no dependency theorem to replay
               -- (boot-admitted, proofs skipped): its D5 prelude constant
               -- discharges it instead
