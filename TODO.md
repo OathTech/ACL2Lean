@@ -403,6 +403,27 @@ _Last updated: 2026-08-02._
 > because every consumer pins the body against the log-derived world
 > by decide, but the generator-reads-the-log step is still owed
 > (12 hand exec defs remain of the ~20; 8 retired).**
+> **R6 RATIFIED (MDD 2026-08-02, all four questions — the close-out
+> arc's Phase 0 checkpoint, cleared BEFORE the arc opened):
+> docs/notes/2026-08-02_r6-encapsulate-design.md. (1) the
+> JUSTIFIED-EXTENSIONS design ("not a special case, but general
+> machinery" — Mike's direction): scoped extensions as the
+> Development primitive, toWorld = canonical model uniformly (witness
+> bodies = the constrained scope's canonical model), sweep at the
+> canonical model, ONE generic scope-abstraction statement builder
+> (encapsulate = the constrained-scope instance; defchoose/defaxiom/
+> partial-encapsulate are future scope KINDS); (2) emission =
+> :CONSTRAINTS verbatim from ACL2's constraint-lst + :ENCAPSULATE
+> boundary tags; (3) equisort catalog doctrine (re-proofs
+> .replayedOnly → originals; parametric constants for
+> post-encapsulate theorems; the three capstone native shapes);
+> (4) BUG-019's equisort instance resolved by tag + scope structure
+> (general bug stays open for unmarked witnesses). The justificatory
+> reading validated against equisort.lisp + both logs: constraints
+> are AXIOMS, witnesses are the (meta) conservativity argument made
+> object-level, post-encapsulate theorems are ordinary
+> constrained-theory proofs, functional instantiation = the derived
+> rule with constraint-instance obligations.**
 > **RATIFICATION QUEUE — RESOLVED (MDD 2026-08-02, all five):
 > (1) R7 RATIFIED in full: option (a) world-parametric constrained
 > theorems + (a1) alias-world commutation lemma; the note's Q2-Q4 are
