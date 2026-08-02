@@ -121,7 +121,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
   | .clausify _ :: _ =>
     throwError "replayClauseSpine: clausify record in the spine at {idStr} \
                 (frontier)"
-  | .useHint _ _ _ :: _ =>
+  | .useHint _ _ _ _ :: _ =>
     throwError "replayClauseSpine: :use-hint payload in the spine at {idStr} \
                 (frontier — the use-hint arm consumes it at the clause level)"
   | .step n :: rest =>
@@ -1552,7 +1552,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     -- chain on CONSTRAINT-CL, clausify on the application side) is the R7
     -- work.
     let useHs := (cn.steps.flatMap (·.items)).filterMap fun
-      | .useHint h c a => some (h, c, a) | _ => none
+      | .useHint h c a l => some (h, c, a, l) | _ => none
     unless useHs.isEmpty do
       throwError "replayClause: a :USE-HINT payload alongside an effective \
           clausify record at {cn.idStr} — the useHint/clausify composition \
@@ -1687,8 +1687,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- frontier: adding the instantiated lemma as a hypothesis is
   -- functional-instantiation/:use soundness (R7 — the following arc).
   let useHints := (cn.steps.flatMap (·.items)).filterMap fun
-    | .useHint h c a => some (h, c, a) | _ => none
-  if let [(hyps, constraintCl, appClauses)] := useHints then
+    | .useHint h c a l => some (h, c, a, l) | _ => none
+  if let [(hyps, constraintCl, appClauses, _lmis)] := useHints then
     let cFormula := disjoinTerm constraintCl
     let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx cFormula stepNodes
       ((cn.steps.flatMap (·.runes)).filterMap

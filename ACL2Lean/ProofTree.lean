@@ -217,6 +217,9 @@ inductive ClauseItem where
       surviving application clauses. -/
   | useHint (hyps : List SExpr) (constraintCl : List SExpr)
       (appClauses : List (List SExpr))
+      -- lmis: the used lemma instances (:LMI-LST), aligned with hyps —
+      -- R7a's discharge source; [] on pre-cluster logs (hard-fail there)
+      (lmis : List SExpr := [])
   deriving Repr, Inhabited
 
 /-! ## Parser: flat trace → rewriter-detail tree
@@ -325,7 +328,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
         (.node ⟨"branch-substitution", "", none⟩ lhs rhs pendingChildren { equivTerm := equiv } :: nodes)
   | .contextSubst var value _ :: rest =>
       parseProofNodesAux rest [] (.node ⟨"context-subst", "", none⟩ var value pendingChildren {} :: nodes)
-  | .hypRelief hyp origin taRunes parents :: rest =>
+  | .hypRelief hyp origin taRunes parents _taDerivs :: rest =>
       -- a silent hyp-relief marker (no rewrite events): recorded as a leaf
       -- node; the adopting rule step's recipe consumes it in place of a
       -- relief chain. It never adopts children.
@@ -342,7 +345,8 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- the literal's net result, captured separately by findLiteralResult.
       parseProofNodesAux rest pendingChildren nodes
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
-  | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ :: _
+  | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ _ :: _
+  | .fcDerivations _ :: _
   | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
   | .clausifyOut _ :: _ | .clausifyExpand _ _ _ _ :: _ =>
       -- A clause-structure boundary: stop and hand the remaining events back to
@@ -501,6 +505,11 @@ partial def parseClauseItems (events : List TraceEvent)
         -- READS the marker is the tracked follow-up (map P8)
         | .clausifyConjunction .. => none
         | _ => none
+      -- FC-DERIVATIONS (cluster item 4): clause-level provenance blocks —
+      -- partitioned out of the chain stream here; the Phase-6 consumer
+      -- (joining :CONCL with relieved hyps for the LEXORDER-TRANSITIVE
+      -- marker-relief class + BUG-027's equation edges) is the tracked
+      -- follow-up. Collected below, never silently dropped.
       let splitReshaped := litEvents.filterMap fun
         | .clausifySetReshaped w => some w
         | _ => none
@@ -518,9 +527,9 @@ partial def parseClauseItems (events : List TraceEvent)
       let (info, rest') ← collectClausify input rest
       let (more, rest'') ← parseClauseItems rest'
       return (.clausify info :: more, rest'')
-  | .useHint hyps ccl appC :: rest =>
+  | .useHint hyps ccl appC lmis :: rest =>
       let (more, rest') ← parseClauseItems rest
-      return (.useHint hyps ccl appC :: more, rest')
+      return (.useHint hyps ccl appC lmis :: more, rest')
   | .caseSplit _ _ :: rest =>
       -- Informational header (`clause/case-split`): the preceding literal split the
       -- clause into N branches. The branches themselves follow as BEGIN-BRANCH/

@@ -128,6 +128,15 @@ def main (args : List String) : IO Unit := do
           IO.println ""
           for event in log.events do
             match event with
+            | .encapsulateBegin sigs =>
+                IO.println s!"  ENCAPSULATE-BEGIN sigs: \
+                  {String.intercalate " " (sigs.map (·.name))}"
+            | .encapsulateEnd =>
+                IO.println "  ENCAPSULATE-END"
+            | .constraints fns formulas =>
+                IO.println s!"  CONSTRAINTS for \
+                  {String.intercalate " " (fns.map (·.name))}: \
+                  {formulas.length} formula(s)"
             | .step s =>
                 IO.println s!"  STEP {s.clauseId} [{s.processor}] → {repr s.result}"
                 if !s.runes.isEmpty then
@@ -148,7 +157,7 @@ def main (args : List String) : IO Unit := do
                 IO.println s!"\n  DEFUN {name} ({formalStr}) = {body}"
                 if let some j := just then
                   IO.println s!"    admission: measure {j.measure} under {j.wfRel.name}"
-            | .defthm name formula source =>
+            | .defthm name formula source _ =>
                 let srcStr := match source with
                   | .local => " [local]"
                   | .includeBook => " [include-book]"

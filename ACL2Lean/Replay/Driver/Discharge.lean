@@ -55,7 +55,7 @@ def itemDischargeOrigins : ClauseItem → List (String × SExpr)
       if dischargeOrigins.contains prov.origin then
         [(prov.origin, lhs)] else []
   | .clausify _ => []
-  | .useHint _ _ _ => []
+  | .useHint _ _ _ _ => []
   | .branch _ items => items.flatMap itemDischargeOrigins
 
 /-- Per-theorem: the discharge nodes on PROVED leaves — `(clauseId, origin,

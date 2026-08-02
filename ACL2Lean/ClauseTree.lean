@@ -85,6 +85,15 @@ inductive WorldEvent where
   /-- Stored rewrite rules created by preceding defthms (emitted before any
       use — the source for `rule:<thm>` dependency hypotheses). -/
   | rules (specs : List RuleSpec)
+  /-- Encapsulate scope OPEN (cluster item 2 / R6 justified-extensions):
+      recorded in event order; SCOPE SEMANTICS (witness admission into the
+      canonical model, per-scope dedup, ScopeHolds) land with the close-out
+      arc's Phase 4 — until then `toWorld` treats the brackets as inert
+      (an EXPLICIT decision, not a default-case skip). -/
+  | encapsulateBegin (sigs : List Symbol)
+  | encapsulateEnd
+  /-- The scope's constraint axioms (verbatim from ACL2's constraint-lst). -/
+  | constraints (fns : List Symbol) (formulas : List SExpr)
   /-- A ground-zero defun SNAPSHOT (design D3): a boot-strap definition read
       off ACL2's world at capture end because the captured events cite it
       (recursive ones carry RECOMPUTED termination clauses in `just`).
@@ -382,7 +391,7 @@ private partial def collectHypEquivs : List ClauseItem → List (EquivSource × 
         ++ collectHypEquivs rest
   | .step _ :: rest => collectHypEquivs rest
   | .clausify _ :: rest => collectHypEquivs rest
-  | .useHint _ _ _ :: rest => collectHypEquivs rest
+  | .useHint _ _ _ _ :: rest => collectHypEquivs rest
   | .branch _ items :: rest => collectHypEquivs items ++ collectHypEquivs rest
 
 /-- The hypotheses a clausify-branch SEGMENT contributes inside its branch:
@@ -411,7 +420,7 @@ private partial def linkItems (cands : List (EquivSource × SExpr))
       return .literal { lp with nodes } :: (← linkItems cands rest)
   | .step n :: rest => do return .step n :: (← linkItems cands rest)
   | .clausify info :: rest => do return .clausify info :: (← linkItems cands rest)
-  | .useHint h c a :: rest => do return .useHint h c a :: (← linkItems cands rest)
+  | .useHint h c a l :: rest => do return .useHint h c a l :: (← linkItems cands rest)
   | .branch seg items :: rest => do
       return .branch seg (← linkItems (cands ++ segmentHypEquivs seg) items)
         :: (← linkItems cands rest)
@@ -743,7 +752,7 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
   let mut pendingTermination : Option ClauseProof := none
   for ev in log.events do
     match ev with
-    | .defthm name formula .includeBook =>
+    | .defthm name formula .includeBook _ =>
       -- an INCLUDE-BOOK'd theorem: no waterfall runs, no proof block, no
       -- QED. An OPEN named block here still means THAT theorem's proof
       -- never closed — hard-fail exactly as below.
@@ -755,14 +764,14 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       if let some p := p? then pendingTermination := some p
       events := events.push (.includedTheorem name formula)
       curEvents := #[]
-    | .defthm _ _ _ | .qed =>
+    | .defthm _ _ _ _ | .qed =>
       -- A named (:DEFTHM) block is a completed proof ONLY if it ends with its
       -- (:QED). If a NEW :DEFTHM closes it instead, ACL2 never emitted QED for the
       -- open theorem — its proof FAILED/aborted (the log is truncated mid-proof).
       -- Hard-fail: a failed proof must never flow through as a reconstructed
       -- theorem (the no-silent-skip rule; a failed ACL2 run is not a theorem).
       if let some openName := curName then
-        if (match ev with | .defthm _ _ _ => true | _ => false) then
+        if (match ev with | .defthm _ _ _ _ => true | _ => false) then
           throw s!"buildDevelopment: theorem '{openName}' has no closing (:QED) before the next (:DEFTHM) — ACL2 proof incomplete or FAILED (log truncated mid-proof)."
       -- Close the current block: named → a theorem event; anonymous with steps
       -- → the pending termination proof for the next defun.
@@ -773,7 +782,7 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
         else pendingTermination := some p
       -- A :DEFTHM opens the next block; a :QED closes to the between-blocks state.
       match ev with
-      | .defthm name formula _ => curName := some name; curFormula := formula; curEvents := #[]
+      | .defthm name formula _ _ => curName := some name; curFormula := formula; curEvents := #[]
       | _ => curName := none; curFormula := .nil; curEvents := #[]
     | .defun n formals body just =>
       let termination := pendingTermination.map fun t => { t with name := s!"termination of {n}" }
@@ -794,6 +803,23 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       events := events.push (.typePrescription n cor bts leaves)
     | .rules specs =>
       events := events.push (.rules specs)
+    | .encapsulateBegin sigs =>
+      -- cluster item 2 / R6: bracket recorded; a bracket INSIDE an open
+      -- theorem block would be malformed (encapsulate events are top-level)
+      if curName.isSome then
+        throw "buildDevelopment: (:ENCAPSULATE-BEGIN) inside an open           theorem block (malformed log)"
+      events := events.push (.encapsulateBegin sigs)
+    | .encapsulateEnd =>
+      if curName.isSome then
+        throw "buildDevelopment: (:ENCAPSULATE-END) inside an open           theorem block (malformed log)"
+      -- flush a pending anonymous (admission) block at the boundary
+      let (p?, a) ← closeBlock curName curFormula curEvents anon
+      anon := a
+      if let some p := p? then pendingTermination := some p
+      curEvents := #[]
+      events := events.push .encapsulateEnd
+    | .constraints fns formulas =>
+      events := events.push (.constraints fns formulas)
     | .step _ | .induction _ | .poolConsider _ | .poolSubsumed _ _ =>
       curEvents := curEvents.push ev
   -- Close any trailing block. A still-open NAMED block at end-of-log means the
@@ -850,7 +876,7 @@ private partial def itemNodes : List ClauseItem → List ProofNode
   | .literal lp :: rest => lp.nodes.flatMap proofNodesOf ++ itemNodes rest
   | .step n :: rest => proofNodesOf n ++ itemNodes rest
   | .clausify _ :: rest => itemNodes rest
-  | .useHint _ _ _ :: rest => itemNodes rest
+  | .useHint _ _ _ _ :: rest => itemNodes rest
   | .branch _ items :: rest => itemNodes items ++ itemNodes rest
 
 private def allProofNodes (cp : ClauseProof) : List ProofNode :=
@@ -974,7 +1000,7 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       IO.println s!"{pad}  │      out: {info.out}"
       if info.expanded then
         IO.println s!"{pad}  │      (expand-and-or fired — replay frontier)"
-    | .useHint hyps ccl appC =>
+    | .useHint hyps ccl appC _lmis =>
       IO.println s!"{pad}  │    :use hint — {hyps.length} instantiated hyp(s):"
       for h in hyps do
         IO.println s!"{pad}  │      hyp: {h}"
@@ -1049,6 +1075,15 @@ partial def printDevelopment : ACL2.Development → IO Unit
   | .done => pure ()
   | .bind event rest => do
     match event with
+    | .encapsulateBegin sigs =>
+      IO.println s!"\n── encapsulate begin (sigs: \
+        {String.intercalate " " (sigs.map (·.name))}) ──"
+    | .encapsulateEnd =>
+      IO.println "── encapsulate end ──"
+    | .constraints fns formulas =>
+      IO.println s!"── constraints for \
+        {String.intercalate " " (fns.map (·.name))}: \
+        {formulas.length} formula(s) ──"
     | .defun name formals body just termination =>
       let fs := String.intercalate " " (formals.map (·.name))
       IO.println s!"\n── def {name} ({fs}) ──"
