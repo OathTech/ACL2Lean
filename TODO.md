@@ -451,6 +451,15 @@ _Last updated: 2026-08-02._
 > fc-derivation records (defrec fc-derivation — read its fields
 > first) and emit per derivation the deriving rune + instantiated
 > concl + supporting facts, as :TA-DERIVATIONS alongside :ta-runes.
+> FIELDS (linear-a.lisp:711): fc-derivation = :concl (instantiated
+> conclusion) / :ttree (nested — supporting chain, recursively more
+> fcds or literal-level tags) / :rune (the FC rule) / :inst-trigger /
+> :unify-subst / :fc-round. The walker: tagged-objects 'fc-derivation
+> on the entry's ttree, recurse nested ttrees; ground leaves carry
+> 'pt (parent-tree) tags naming the CLAUSE LITERAL indices — exactly
+> the parent-literal provenance the replay needs. Emit
+> :TA-DERIVATIONS ((:RUNE r :CONCL c :TRIGGER t :SUBST s :PARENTS
+> (lit-idxs…) :SUPPORTS (nested…)) …).
 > The SAME extraction serves BUG-027's equation-edge justifications
 > (the solidify sites' emitted equiv provenance) — one ttree-walker,
 > two consumers. Also apply at the marker twins (19676, 19749 — 'as
