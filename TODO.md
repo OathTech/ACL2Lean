@@ -444,7 +444,18 @@ _Last updated: 2026-08-02._
 > runs for termination, route the structured logging through it (the
 > carve-out's 'termination field' follow-up; ratified route for
 > BNEXT-SIZE). bsort is the activating instance.
-> (4) Type-alist derived-entry provenance — the relieve-hyp/
+> (4) IN PROGRESS — site + gap precise: the free-type-alist relief
+> emission (rewrite.lisp:19483-19511) grabs the entry's ttree runes
+> (:ta-runes via all-runes-in-ttree (cddr entry)) but FLATTENS AWAY
+> the fc-derivation structure. The extension: extract the ttree's
+> fc-derivation records (defrec fc-derivation — read its fields
+> first) and emit per derivation the deriving rune + instantiated
+> concl + supporting facts, as :TA-DERIVATIONS alongside :ta-runes.
+> The SAME extraction serves BUG-027's equation-edge justifications
+> (the solidify sites' emitted equiv provenance) — one ttree-walker,
+> two consumers. Also apply at the marker twins (19676, 19749 — 'as
+> emit/relieve-hyp/free-type-alist' comments).
+> ORIGINAL: Type-alist derived-entry provenance — the relieve-hyp/
 > free-type-alist + type-alist emission points (rewrite.lisp): emit
 > parent literal(s) + deriving FC rule per derived entry. Serves
 > BUG-027 (narrow-via-emission), the LEXORDER-TRANSITIVE marker-relief
