@@ -403,6 +403,25 @@ _Last updated: 2026-08-02._
 > because every consumer pins the body against the log-derived world
 > by decide, but the generator-reads-the-log step is still owed
 > (12 hand exec defs remain of the ~20; 8 retired).**
+> **PHASE-1 CLUSTER STATUS (2026-08-02): fork code COMPLETE + BUILT
+> (saved_acl2 rebuilt; encapsulate-pass-2 registered for the parity
+> check) + SMOKE-TESTED: the recaptured equisort log carries
+> (:ENCAPSULATE-BEGIN :SIGS (SORTFN1 SORTFN2)) + (:CONSTRAINTS :FNS …
+> :FORMULAS …) with the six constraint formulas VERBATIM (incl. the
+> IMPLIES-guarded true-listp forms) — the R6-ratified shape exactly.
+> Lean parsers: :LMI-LST (useHint) + :CLASSES (defthm) DONE, building
+> green. REMAINING to close the cluster: (a) smoke-check :LMI-LST
+> (05-hints capture), :TA-DERIVATIONS (a bsort/qsort capture);
+> (b) parser layer for the three bracket events (ProofEvent
+> constructors + ClauseTree pass-through — scope SEMANTICS land with
+> Phase 4's scoped extensions; for now buildDevelopment records them
+> without changing toWorld, equisort still parse-fails at
+> :LOCAL-WITNESS until Phase 4) + hypRelief.taDerivations field;
+> (c) the FULL corpus recapture (scripts/capture-proof-log.sh — one
+> pass, all books) + golden re-pin ROW-BY-ROW (stop-early condition 4
+> if churn exceeds review); (d) cluster sub-arc audit + fold-back to
+> mdd/sorting-closeout. Smoke capture parked at the session scratchpad
+> (NOT the corpus — the corpus recapture is one deliberate pass).**
 > **PHASE-1 EMISSION CLUSTER WORKLIST (close-out, 2026-08-02 — the
 > single fork round-trip; every insertion TRACE-LOG-tagged, round-trip
 > checked by just check-acl2-tags; ONE recapture at the end, goldens
