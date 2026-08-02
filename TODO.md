@@ -403,6 +403,23 @@ _Last updated: 2026-08-02._
 > because every consumer pins the body against the log-derived world
 > by decide, but the generator-reads-the-log step is still owed
 > (12 hand exec defs remain of the ~20; 8 retired).**
+> **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
+> at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
+> (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
+> BEFORE the type-alist entries are built (that's why :ta-runes shows
+> (:FORWARD-CHAINING LEXORDER-TOTAL) but the structure is gone). FIX:
+> emit at the EXPUNGE CALL SITES (simplify.lisp ~1713-1731, where the
+> pre-expunge ttree still carries fcds): run structured-ta-derivations
+> on the ttree BEFORE expunging and emit one (:FC-DERIVATIONS …)
+> block (per clause/round), keyed by :CONCL; the relief-site replay
+> JOINS by concl-term equality with the relieved hyp (deterministic).
+> ACL2's own prettyify-fc-derivation (simplify.lisp ~1620, the
+> fc-report facility) confirms the fields incl. :LITERALS =
+> collect-parents (the parent clause literals). The :TA-DERIVATIONS
+> field at the relief marker STAYS (it is correct when a future path
+> carries unexpunged ttrees; NIL is honest). LMI-LST + CLASSES smoke
+> PASS ((:INSTANCE LEN2-APP-HELPER (X (CONS A B))) verbatim;
+> (:CLASSES (:REWRITE))).**
 > **PHASE-1 CLUSTER STATUS (2026-08-02): fork code COMPLETE + BUILT
 > (saved_acl2 rebuilt; encapsulate-pass-2 registered for the parity
 > check) + SMOKE-TESTED: the recaptured equisort log carries
