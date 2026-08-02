@@ -351,8 +351,20 @@ _Last updated: 2026-08-01._
 > ReplayedStatements route; the re-replay route frontiered on
 > TRUE-LISTP-RM inside the consumer telescope where the registry
 > route composes; trueListpRmReplayed registered as the dep).
-> Sub-arc audit IN FLIGHT (2 Opus reviewers: discharge-machinery
-> soundness + mirror criterion).**
+> Sub-arc audit COMPLETE (2 Opus reviewers, both
+> fold-back-with-fixes; mirror confirmed FAITHFUL incl. the
+> PERM/isPerm duplicate-semantics question refuted; tamper probe
+> fail-closed; fixes applied in a7e9469: axiom-gate names,
+> PER-DISCHARGE heartbeat windows — the golden-nondeterminism root
+> cause, a dep re-replay racing the theorem budget over the O(corpus)
+> telescope, 3 data points — combineRules topological order, widening
+> doc + provenance-gate queue, enc_beq warning, docstrings).
+> FOLDED BACK; definitive just ci (pipefail): CI_EXIT=0,
+> GOLDEN_MATCH.
+> ARC MERGE POINT REACHED (2026-08-02): everything remaining is
+> ratification-gated (R7/R6/BNEXT-SIZE/BUG-027/carve-outs) or a named
+> emission class (bsort per-row walls, detail-chain replay); the
+> pre-merge audit proposal is with Mike.**
 > **RATIFICATION QUEUE for Mike's return (do not let compaction drop
 > these): (1) the R7 design note (2d) — DRAFTED:
 > docs/notes/2026-08-01_r7-use-functional-instantiation-design.md
