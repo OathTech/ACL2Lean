@@ -403,6 +403,15 @@ _Last updated: 2026-08-02._
 > because every consumer pins the body against the log-derived world
 > by decide, but the generator-reads-the-log step is still owed
 > (12 hand exec defs remain of the ~20; 8 retired).**
+> **R7a PROBE FINDING (close-out, 2026-08-02): the :USE-HINT payload
+> lacks the used LEMMA NAMES + substitutions (only instantiated hyp
+> formulas are emitted — LEN2-APP-VIA-USE payload inspected).
+> Recovering them by matching prior theorems would be Lean-side
+> inference (banned); the hint names the lemma, ACL2 has it — EMIT
+> IT. `:LEMMAS ((name . subst) …)` joins the Phase-1 emission
+> cluster; R7a's Lean composition builds against the recaptured
+> payloads (fail-closed on absence for old logs). Sequencing:
+> fork-first (the cluster gates R7a activation anyway).**
 > **R6 CENSUS PASSED (close-out arc increment 0, 2026-08-02): the
 > exported-tree census over equisort.proof-log confirms the ratified
 > expectation — witness leakage (SORTFN1-INSERT/SSORTFN1-INSERT
