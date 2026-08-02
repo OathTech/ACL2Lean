@@ -365,8 +365,30 @@ _Last updated: 2026-08-01._
 > ratification-gated (R7/R6/BNEXT-SIZE/BUG-027/carve-outs) or a named
 > emission class (bsort per-row walls, detail-chain replay); the
 > pre-merge audit proposal is with Mike.**
-> **RATIFICATION QUEUE for Mike's return (do not let compaction drop
-> these): (1) the R7 design note (2d) — DRAFTED:
+> **RATIFICATION QUEUE — RESOLVED (MDD 2026-08-02, all five):
+> (1) R7 RATIFIED in full: option (a) world-parametric constrained
+> theorems + (a1) alias-world commutation lemma; the note's Q2-Q4 are
+> determined by it (R7a first, R6-gated R7b; abstract-world driver
+> parameter at minimal reach; ConstraintsHold = emitted constraint
+> terms, guards as-is). R7a is buildable next arc.
+> (2) The widened DP carve-out (2b linear + 2c premise classes + the
+> spine arms + oneWayMatch + the trueListp leaf bridge) RATIFIED for
+> now, with MIKE'S DRIFT TEST as the standing revisit criterion:
+> "if we find ourselves writing custom proofs or checkers per case,
+> we are no longer mirroring ACL2 — we are building custom search to
+> replace it." Revisit-TODO below.
+> (3) BUG-027: NARROW via emission (emit the type-alist equation-edge
+> justifications; gate the truthy-equal edges on them) — recorded in
+> docs/BUGS.md; open until the emission lands.
+> (4) BNEXT-SIZE: the ADMISSION-WATERFALL route (log + replay bsort's
+> real admission proof — replay-don't-infer decides it; the CountSim
+> Lean-model route is rejected). Fork emission + termination-field
+> replay, next arc.
+> (5) Count rows (ACL2-COUNT-EVENS-*): .replayedOnly, NO native
+> mirror — internal admission lemmas absorbed by the exec-kit sim
+> (the measure-absorbed doctrine); introduce an acl2Count native
+> vocabulary only if a user-facing count theorem ever needs it.
+> ORIGINAL QUEUE TEXT (kept for the record): (1) the R7 design note (2d) — DRAFTED:
 > docs/notes/2026-08-01_r7-use-functional-instantiation-design.md
 > (recommendation: world-parametric constrained theorems + alias-world
 > commutation lemma; R7a plain-:use split off, R6-independent; four
@@ -2204,6 +2226,14 @@ obligation is stated precisely in its conditional proof's type:
       deferred.
 
 ## Other pipeline / cross-cutting work
+
+- [ ] **Carve-out drift test (MDD 2026-08-02, standing revisit).**
+      The widened DP-leaf premise/verdict machinery is ratified FOR NOW
+      under this test: if we find ourselves writing CUSTOM PROOFS OR
+      CHECKERS PER CASE, we are no longer mirroring ACL2 — we are
+      building custom search to replace it. Revisit at each arc review:
+      count the per-case (non-general) discharge code added since the
+      last review; a growing count fails the test.
 
 - [ ] **Build-gate parallelization (2026-08-01, MDD-raised).** The dev
       machine has many cores/memory; iteration speed is gated by two

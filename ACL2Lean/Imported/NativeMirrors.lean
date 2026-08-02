@@ -2030,13 +2030,16 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- (evensExec_consCount_le/lt); the native form (acl2-count over enc)
   -- is P3's decode decision.
   ("sorting/msort", "ACL2-COUNT-EVENS-WEAK",
-    .pending "the evens-split count bound — value-level content exists \
-      (evensExec_consCount_le); the acl2-count/enc native reading is \
-      P3's decode decision"),
+    .replayedOnly "internal admission lemma, MEASURE-ABSORBED by the \
+      exec-kit simulation (MDD 2026-08-02, the type-absorbed doctrine's \
+      measure sibling) — value-level content lives in the Count library \
+      (evensExec_consCount_le); a native acl2Count vocabulary enters \
+      only if a user-facing count theorem ever needs it"),
   ("sorting/msort", "ACL2-COUNT-EVENS-STRONG",
-    .pending "the strict evens-split count bound — value-level content \
-      exists (evensExec_consCount_lt); the acl2-count/enc native \
-      reading is P3's decode decision"),
+    .replayedOnly "internal admission lemma, MEASURE-ABSORBED by the \
+      exec-kit simulation (MDD 2026-08-02) — value-level content lives \
+      in the Count library (evensExec_consCount_lt); see the WEAK \
+      entry's rationale"),
   ("sorting/msort", "TRUE-LISTP-MSORT", .replayedOnly "subsumed by the msort simulation (msort_exec_corr/msortExec_enc) — the type-absorbed true-listp doctrine"),
   ("sorting/msort", "HOW-MANY-MERGE2", .native ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),

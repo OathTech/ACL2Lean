@@ -403,7 +403,10 @@ swap-bridge inventory is validated-but-not-yet-retired — retiring it
 (record-directed swap replay) is tracked in TODO.md.
 
 ## BUG-027 — truthy-equal edges widened the J6 solidify equation closure without ratification
-Status: open
+Status: open — DECISION RECORDED (MDD 2026-08-02): NARROW via emission.
+Emit the type-alist equation-edge justifications from the fork (ACL2
+consulted those facts and has them) and gate the truthy-equal edges on
+the emitted provenance. Open until that emission lands.
 Pinned-by: none (replay-side derivation scope, not a differential-visible
 divergence — no value stream to diff)
 
