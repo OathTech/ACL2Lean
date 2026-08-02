@@ -2273,6 +2273,18 @@ obligation is stated precisely in its conditional proof's type:
       count the per-case (non-general) discharge code added since the
       last review; a growing count fails the test.
 
+- [x] **Build-gate parallelization — INCREMENT 1 DONE (sprint,
+      2026-08-02, merged 9b1403d):** NativeMirrors split into 12
+      per-book modules + facade (behavior-preserving: decl set,
+      body-line multiset, axiom lines, gates, golden all verified
+      identical). Full mirror re-elaboration 15m31s → 9m13s (parallel,
+      32 cores); SINGLE-BOOK edit 15m31s → 41s. Remaining ceiling:
+      Qsort.lean (540s critical path — sub-split when it hurts).
+      INCREMENT 2 (the sweep split) DEFERRED to the close-out arc by
+      design: sweep parallelism requires replacing linear corpus-order
+      accumulation with the real include graph = the queued
+      include-book provenance gate, and it moves golden rows —
+      deliberate row-by-row review in-arc. Original item follows.
 - [ ] **Build-gate parallelization (2026-08-01, MDD-raised).** The dev
       machine has many cores/memory; iteration speed is gated by two
       SERIAL artifacts, distinct from what users need:
