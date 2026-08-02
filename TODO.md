@@ -5,7 +5,7 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-08-01._
+_Last updated: 2026-08-02._
 
 > **SORTING-ABSOLUTE ARC (branch `mdd/sorting-absolute`, opened
 > 2026-08-01 at main 557c37b) — IN PROGRESS; GOVERNS THE CURRENT WORK.**
@@ -361,10 +361,48 @@ _Last updated: 2026-08-01._
 > doc + provenance-gate queue, enc_beq warning, docstrings).
 > FOLDED BACK; definitive just ci (pipefail): CI_EXIT=0,
 > GOLDEN_MATCH.
-> ARC MERGE POINT REACHED (2026-08-02): everything remaining is
-> ratification-gated (R7/R6/BNEXT-SIZE/BUG-027/carve-outs) or a named
-> emission class (bsort per-row walls, detail-chain replay); the
-> pre-merge audit proposal is with Mike.**
+> ARC MERGE POINT (2026-08-02) — PLAIN NUMBERS (rewritten per the
+> pre-merge outside audit F1/F2/F4/F5; the earlier "everything
+> remaining is ratification-gated" framing was overstated): sweep
+> 71/79 → 80/100 (sorting: 45 green of 62 rows; family-wide 45 of
+> ~103 theorems — equisort's 41 defthms are NOT in the sweep and R6
+> is UNBUILT fork-emission + design work, not ratification-gated);
+> +2 green on rows that existed at arc open (the msort count rows);
+> 0 new unconditional rows; red rows 8 → 20 (bsort's 8 entered as
+> honest frontiers; 3 newly-red rows are NOT yet frontier-tagged —
+> named below); statement pins 11 → 11 (ZERO new pins this arc — the
+> P3 "pins toward one per book" bullet was skipped; existing pins
+> strengthened instead); 3 native-worthy convert-perm mirrors still
+> .pending (carried debt below). What the arc genuinely delivered:
+> the industrialization (generator −773 hand lines), the premise/
+> cross-rules/registry machinery (each unblocking a named target),
+> bsort recon + corpus entry, the ORDERED-PERMS capstone mirror
+> (verified non-ornamental), and 6 audited sub-arc fold-backs
+> (consolidated record: docs/audits/2026-08-02_sorting-absolute-
+> arc-audits.md). Post-ratification the residual is DECIDED-BUT-
+> UNBUILT (R7a, R6, BNEXT-SIZE admission route, BUG-027 emission),
+> not externally gated.**
+> **CARRIED DEBT (pre-merge audit F3/F4/F12, explicit): (a) three
+> native-worthy convert-perm green rows still .pending — HOW-MANY-RM,
+> NOT-MEMB-IMPLIES-RM-IS-NO-OP, NOT-MEMB-IMPLIES-HOW-MANY-IS-0
+> (small mirrors: List.count_eq_zero / List.erase_of_not_mem class);
+> (b) statement pins: 0 added this arc, 2 of 8 sweep books covered —
+> next arc's P3-equivalent owes pins for convert-perm + bsort at
+> minimum; (c) three newly-red rows lack the (frontier) tag and are
+> unclassified frontier-or-bug: ORDEREDP-WHEN-BNEXT-CONSTANT
+> (pathStepsFromFrames, frames []), PERM-COUNTER-EXAMPLE-IS-
+> COUNTEREXAMPLE-FOR-TRUE-LISTS (replayRecognizer does not reduce to
+> T), PERM-TLFIX (solidify: source literal heads NOT/PERM) — all
+> hard-fail (no silent skip), classification owed; also the
+> (frontier) suffix is per-message prose, not a mechanism — a
+> frontier-classification mechanism is a queued improvement;
+> (d) derive_exec% FIDELITY CAVEAT (surfaced from the
+> industrialization note per audit F7): the generator reads
+> HAND-TRANSCRIBED Lean SExpr body constants + hand-supplied measured
+> indices, NOT the emitted :DEFUN :BODY/:MEASURE — fidelity holds
+> because every consumer pins the body against the log-derived world
+> by decide, but the generator-reads-the-log step is still owed
+> (12 hand exec defs remain of the ~20; 8 retired).**
 > **RATIFICATION QUEUE — RESOLVED (MDD 2026-08-02, all five):
 > (1) R7 RATIFIED in full: option (a) world-parametric constrained
 > theorems + (a1) alias-world commutation lemma; the note's Q2-Q4 are

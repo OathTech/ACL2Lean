@@ -1991,7 +1991,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- convert-perm-to-how-many (2a — the DEPENDENCY book, in the sweep so
   -- its trees discharge consumer rule: hypotheses cross-book). Its green
   -- rows are the book's internal lemma ladder toward the R7-blocked
-  -- CONVERT-PERM-TO-HOW-MANY; the two native-worthy count facts are
+  -- CONVERT-PERM-TO-HOW-MANY; the three native-worthy count facts are
   -- PENDING (P3 decides), the tlfix/plumbing rows replayed-only.
   ("sorting/convert-perm-to-how-many", "HOW-MANY-RM",
     .pending "count/erase interaction — native-worthy (howManyExec_rmExec \

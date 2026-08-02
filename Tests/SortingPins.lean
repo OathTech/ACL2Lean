@@ -92,6 +92,10 @@ derive_world qsortPinsWorld from qsortPinsDev
     pins are even reached. -/
 
 elab "sorting_statement_pins_run% " : term => do
+  -- NOTE (seams audit F5): the pin runs pass crossTrees but NOT
+  -- crossRules — pins predate the channel and wiring it changes pin
+  -- behavior; the golden-prefix cross-check below being green is the
+  -- evidence no pinned row depends on it. Wire with the close-out arc.
   let (r1, _) ← Runner.runBook "pins/sorting/isort" isortLog
     (upTo := some "HOW-MANY-ISORT") (crossTrees := convertPermPinsTrees)
   let (r2, _) ← Runner.runBook "pins/sorting/qsort" qsortLog

@@ -46,6 +46,11 @@ issued the verdict.
    `collectAppSubterms`): a lift-primitive-headed LHS
    (`(TRUE-LISTP (RM E A))`) never appears as an opaque. Premise
    `(IF hyp (EQUAL lhs 'T) 'T)`, fact via `rule_premise_fact`.
+   SCOPE CHANGE AFTER THIS CLASS'S AUDIT (pre-merge seams audit F2,
+   2026-08-02): the pass's input `ctx.ruleHyps` became O(corpus) when
+   the cross-rules channel landed — cross-book rules now reach the
+   trigger match. The tau shape gate still applies; the include-book
+   provenance gate (queued) is the scope restoration.
    SILENTLY skips non-qualifying rules (policy note at the site: this
    pass scans every stored rule in scope; skipping is the fail-closed
    direction).

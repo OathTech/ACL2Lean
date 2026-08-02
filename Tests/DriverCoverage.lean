@@ -70,6 +70,15 @@ def corpus : List (String × String) :=
    -- 2a: the dependency book carrying the include-book theorems the later
    -- sorting books cite (NOT-MEMB-IMPLIES-HOW-MANY-IS-0 & co.) — placed
    -- BEFORE its consumers so its trees are in the cross-book offer.
+   -- KNOWN MISMATCH (pre-merge seams audit F1, 2026-08-02): corpus order
+   -- is NOT the include graph — isort/bsort actually include
+   -- ordered-perms (which sits AFTER them here), so they never see its
+   -- offers (a silently missed capability, fail-closed), while every
+   -- sorting book sees the 19 unrelated recon-test books' rules
+   -- (over-offer; measured impact nil — deps=perm-only vs deps=all give
+   -- byte-identical rows). Reordering changes golden rows, so it rides
+   -- the include-book provenance gate (close-out arc Phase 7 debt)
+   -- rather than a quiet edit here.
    ("sorting/convert-perm-to-how-many",
     include_str "../acl2_samples/sorting/convert-perm-to-how-many.proof-log"),
    -- R2: the first include-book composition — included defuns re-emit with
@@ -93,6 +102,11 @@ def corpus : List (String × String) :=
    -- qsort and sorts-equivalent — the D7 consumer — reconstruct.
    ("sorting/qsort",           include_str "../acl2_samples/sorting/qsort.proof-log"),
    ("sorting/sorts-equivalent", include_str "../acl2_samples/sorting/sorts-equivalent.proof-log")]
+
+/-! NOTE (seams audit F7): `termination:<fn>` rows are pushed as display
+    lines but NOT counted in `res.total` — the header's N/M counts
+    theorem rows only (101 status rows vs the 80/100 header is by
+    construction, not drift). -/
 
 /-- The committed GOLDEN coverage table (audit-debt item, #37 full audit): the
     whole report — every per-theorem status line and the summary counts — is
