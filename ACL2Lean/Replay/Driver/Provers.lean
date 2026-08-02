@@ -710,4 +710,22 @@ def dischargeGzRuleHyp (cfg : ReplayConfig) (spec : RuleSpec) (decl : Name)
     (the ≈557M-node perm-equivalence precedent, design §4). -/
 abbrev ReplayedRegistry := List (String × Name × List String)
 
+/-- Macro-side D1 registry (P3, the capstone-mirror finding): each
+    `driver_replayed%` invocation registers its enclosing definition
+    (world, ACL2 theorem name, decl, kept conds) so LATER same-world
+    invocations' dependency discharges APPLY the constant instead of
+    re-replaying the tree — parity with the runner's ReplayedStatements
+    route. The re-replay route can frontier where the standalone replay
+    was green (TRUE-LISTP-RM inside the ORDERED-PERMS telescope); the
+    registry route maps the dep's kept conds onto the consumer's own
+    telescope fvars (`depMirrorProofAt`). Lives here (upstream) because
+    an `initialize` cannot be evaluated in its defining module. -/
+initialize mirrorRegistryExt :
+    Lean.SimplePersistentEnvExtension
+      (Name × String × Name × List String)
+      (List (Name × String × Name × List String)) ←
+  Lean.registerSimplePersistentEnvExtension {
+    addEntryFn := fun l e => e :: l
+    addImportedFn := fun ess => (ess.map (·.toList)).toList.flatten }
+
 end ACL2.Replay.Driver

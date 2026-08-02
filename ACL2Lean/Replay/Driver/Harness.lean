@@ -120,7 +120,17 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
     (.atom (.symbol { name := spec.equiv.map Char.toUpper }))
     (.cons spec.lhs (.cons spec.rhs .nil))
   let routeRel := spec.equiv != "equal" && concl == relForm
-  unless routeEqual || routeBool || routeRel do
+  -- NEGATIVE boolean strengthening (P3, ORDEREDP-MEMB's shape): a defthm
+  -- conclusion `(NOT lhs)` stores as `lhs = 'NIL` — the truthy NOT pins
+  -- the lhs VALUE to exactly nil (Logic.not is nil-dichotomous; no TP
+  -- needed, unlike the positive route's exact-t pin)
+  let notForm : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+    (.cons spec.lhs .nil)
+  let quoteNilS : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+    (.cons .nil .nil)
+  let routeNotBool := spec.equiv == "equal" && concl == notForm
+    && spec.rhs == quoteNilS
+  unless routeEqual || routeBool || routeRel || routeNotBool do
     throwFrontier m!"dischargeRuleHyp: {spec.name}'s conclusion {repr concl}                 matches neither (equal lhs rhs), the boolean-strengthened                 lhs ⇒ 'T shape, nor the stored-equivalence application                 (frontier)"
   let w := cfg.worldExpr
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
@@ -172,6 +182,18 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
           let convL ← ctxValProof cfgD ctxDFixed spec.lhs
           let convR ← ctxValProof cfgD ctxDFixed spec.rhs
           mkAppM ``fuel_eq_of_conv #[convL, convR, hEq]
+        else if routeNotBool then do
+          let vC ← ctxValExpr cfgD ctxDFixed concl
+          unless vC.isAppOfArity ``Logic.not 1 do
+            throwFrontier m!"dischargeRuleHyp: value of {repr concl} is                 not (Logic.not _) (frontier)"
+          let hNil ← mkAppM ``nil_of_logic_not_ne_nil #[hvC]
+          let pq ← mkAppM ``re_val_quote #[w, envV, reflectSExpr SExpr.nil]
+          let hCast ← proveByDecide
+            (← mkEq (mkConst ``SExpr.nil) (reflectSExpr SExpr.nil))
+            "nil reflects"
+          let hEq ← mkAppM ``Eq.trans #[hNil, hCast]
+          mkAppM ``fuel_eq_of_conv
+            #[← ctxValProof cfgD ctxDFixed spec.lhs, pq, hEq]
         else do
           -- boolean route: the conclusion's head fn's EMITTED TP pins the
           -- truthy value to exactly t

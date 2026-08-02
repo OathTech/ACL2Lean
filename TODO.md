@@ -2179,6 +2179,31 @@ obligation is stated precisely in its conditional proof's type:
 
 ## Other pipeline / cross-cutting work
 
+- [ ] **Build-gate parallelization (2026-08-01, MDD-raised).** The dev
+      machine has many cores/memory; iteration speed is gated by two
+      SERIAL artifacts, distinct from what users need:
+      (a) OUR GATE: `Tests/DriverCoverage.lean` is ONE module elaborating
+      the whole corpus in corpus order (~13 min). The priorTrees/priorRules
+      accumulation makes it LOOK serial, but the real dependency structure
+      is a sparse DAG (isort needs how-many/orderedp; qsort needs perm;
+      most books are pairwise independent) — splitting into per-book
+      modules with explicit dep imports would let Lake parallelize the
+      independent books across cores, with the golden re-assembled from
+      per-book fragments. Similarly `Imported/NativeMirrors.lean` is one
+      giant module (every mirror re-elaborates on any harness change,
+      ~15 min); per-book mirror modules would confine rebuilds and
+      parallelize. Both are refactors of test/mirror ORGANIZATION only —
+      no replay-semantics change — but the golden format and the
+      accumulation-order semantics (same-book precedence, corpus order)
+      must be preserved byte-compatibly or re-pinned deliberately.
+      (b) USERS: care about single-theorem end-to-end replay latency, a
+      different axis — intra-replay parallelism (e.g. independent DP
+      leaves / independent subgoal replays within one waterfall are
+      MetaM-sequential today) and is architecture-dependent (MetaM state
+      sharing); assess separately, no commitment implied by (a).
+      Lake already parallelizes module-level builds — the win is making
+      module granularity match the actual dependency DAG.
+
 - [ ] **Vacuity-guard audit (2026-07-19, MDD-raised).** Do we have
       SUFFICIENT guards against vacuously-true results across the pipeline?
       Surfaces to assess systematically: (a) CONDITIONAL replays — a

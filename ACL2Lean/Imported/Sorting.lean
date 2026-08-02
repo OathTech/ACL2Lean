@@ -659,6 +659,143 @@ theorem equal_cons_native_of_replayed (w : World)
   rw [this] at hnat
   exact bool_of_cond_eq hnat
 
+/-! ## ORDERED-PERMS — the book's capstone: for lexorder-sorted lists,
+    equality IS permutation-equivalence -/
+
+private def permT' (x y : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "PERM" })) (.cons x (.cons y .nil))
+private def trueListpT (x : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "TRUE-LISTP" })) (.cons x .nil)
+
+/-- The ORDERED-PERMS replayed-statement formula — the root Goal clause,
+    exactly as the log emits it:
+    `(IMPLIES (IF (TRUE-LISTP A) (IF (TRUE-LISTP B)
+                 (IF (ORDEREDP A) (ORDEREDP B) 'NIL) 'NIL) 'NIL)
+              (EQUAL (EQUAL A B) (PERM A B)))`. -/
+def ordered_permsFormula : SExpr :=
+  impliesT
+    (ifT (trueListpT aT)
+      (ifT (trueListpT bT)
+        (ifT (orderedpT aT) (orderedpT bT) qNil) qNil) qNil)
+    (equalT (equalT aT bT) (permT' aT bT))
+
+/-- Encodings are BEq exactly when the lists are (`enc` is injective and
+    `SExpr`'s BEq is lawful decidable equality). -/
+private theorem enc_beq (xs ys : List SExpr) :
+    (enc xs == enc ys) = (xs == ys) := by
+  by_cases h : xs = ys
+  · subst h; simp
+  · have hne : enc xs ≠ enc ys := fun hE => h (enc_inj hE)
+    simp [beq_iff_eq, h, hne]
+
+/-- ORDERED-PERMS, natively: for lexorder-sorted lists, list equality IS
+    permutation-equivalence (the Bool identity `(xs == ys) = xs.isPerm ys`).
+    The replayed statement is consumed at exactly one seam. -/
+theorem ordered_perms_native_of_replayed (w : World)
+    (h_orderedp : w.defs.get? { package := "ACL2", name := "ORDEREDP" }
+      = some ([{ package := "ACL2", name := "X" }],
+              chain2Body "LEXORDER" "ORDEREDP"))
+    (h_perm : w.defs.get? { package := "ACL2", name := "PERM" }
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }], permBody))
+    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
+      = some ([{ package := "ACL2", name := "A" },
+               { package := "ACL2", name := "X" }], membBody))
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (h_no_truelistp : w.defs.get? ({ name := "TRUE-LISTP" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env ordered_permsFormula = some v ∧ v ≠ SExpr.nil)
+    (xs ys : List SExpr)
+    (hx : orderedpRec xs = true) (hy : orderedpRec ys = true) :
+    (xs == ys) = xs.isPerm ys := by
+  let e : Env := (({} : Env).insert bS (enc ys)).insert aS (enc xs)
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some (enc xs) :=
+    re_val_var_get w e { name := "A" } (enc xs) (by
+      show e.get? aS = some (enc xs)
+      rw [show e = (({} : Env).insert bS (enc ys)).insert aS (enc xs)
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some (enc ys) :=
+    re_val_var_get w e { name := "B" } (enc ys) (by
+      show e.get? bS = some (enc ys)
+      rw [show e = (({} : Env).insert bS (enc ys)).insert aS (enc xs)
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  -- the four antecedent conjuncts, all truthy
+  have htlA : ∃ N, ∀ f ≥ N,
+      evalOpt f w e (trueListpT aT) = some SExpr.t := by
+    have := conv_builtin1 w e { name := "TRUE-LISTP" } aT (enc xs)
+      (Logic.trueListp (enc xs)) (by decide) h_no_truelistp ha rfl
+    rwa [trueListp_enc] at this
+  have htlB : ∃ N, ∀ f ≥ N,
+      evalOpt f w e (trueListpT bT) = some SExpr.t := by
+    have := conv_builtin1 w e { name := "TRUE-LISTP" } bT (enc ys)
+      (Logic.trueListp (enc ys)) (by decide) h_no_truelistp hb rfl
+    rwa [trueListp_enc] at this
+  have hoA := corr_orderedp_enc w h_orderedp h_no_consp h_no_cdr h_no_car
+    h_no_lexorder xs e aT ha
+  have hoB := corr_orderedp_enc w h_orderedp h_no_consp h_no_cdr h_no_car
+    h_no_lexorder ys e bT hb
+  -- the antecedent IF-nest evaluates through its all-true spine to the
+  -- innermost conjunct's value, `boolEnc (orderedpRec ys)` = t
+  have hAnt : ∃ N, ∀ f ≥ N,
+      evalOpt f w e (ifT (trueListpT aT)
+        (ifT (trueListpT bT)
+          (ifT (orderedpT aT) (orderedpT bT) qNil) qNil) qNil)
+        = some (boolEnc (orderedpRec ys)) := by
+    have h3 := conv_if_true w e (orderedpT aT) (orderedpT bT) qNil
+      (boolEnc (orderedpRec xs)) (boolEnc (orderedpRec ys)) hoA
+      (by rw [hx]; rfl) hoB
+    have h2 := conv_if_true w e (trueListpT bT)
+      (ifT (orderedpT aT) (orderedpT bT) qNil) qNil SExpr.t
+      (boolEnc (orderedpRec ys)) htlB rfl h3
+    exact conv_if_true w e (trueListpT aT)
+      (ifT (trueListpT bT)
+        (ifT (orderedpT aT) (orderedpT bT) qNil) qNil) qNil SExpr.t
+      (boolEnc (orderedpRec ys)) htlA rfl h2
+  -- the conclusion's value: Logic.equal of the two boolean sides
+  have hEqAB := conv_builtin2 w e { name := "EQUAL" } aT bT (enc xs)
+    (enc ys) (Logic.equal (enc xs) (enc ys)) (by decide) h_no_equal
+    ha hb (callBuiltin_equal _ _)
+  have hPerm := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons xs ys e aT bT ha hb
+  have hConcl := conv_builtin2 w e { name := "EQUAL" } (equalT aT bT)
+    (permT' aT bT) (Logic.equal (enc xs) (enc ys))
+    (boolEnc (xs.isPerm ys))
+    (Logic.equal (Logic.equal (enc xs) (enc ys)) (boolEnc (xs.isPerm ys)))
+    (by decide) h_no_equal hEqAB hPerm (callBuiltin_equal _ _)
+  -- the whole formula's value, pinned truthy by the replayed statement
+  have hImp := conv_builtin2 w e { name := "IMPLIES" }
+    (ifT (trueListpT aT)
+      (ifT (trueListpT bT)
+        (ifT (orderedpT aT) (orderedpT bT) qNil) qNil) qNil)
+    (equalT (equalT aT bT) (permT' aT bT))
+    (boolEnc (orderedpRec ys))
+    (Logic.equal (Logic.equal (enc xs) (enc ys)) (boolEnc (xs.isPerm ys)))
+    (Logic.implies (boolEnc (orderedpRec ys))
+      (Logic.equal (Logic.equal (enc xs) (enc ys))
+        (boolEnc (xs.isPerm ys))))
+    (by decide) h_no_implies hAnt hConcl (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have htq := truthy_of_implies_t hIt (by rw [hy]; rfl)
+  have hEq : Logic.equal (enc xs) (enc ys) = boolEnc (xs.isPerm ys) :=
+    eq_of_equal_truthy htq
+  have hL : Logic.equal (enc xs) (enc ys)
+      = boolEnc (enc xs == enc ys) := by
+    cases h : enc xs == enc ys <;> simp [Logic.equal, boolEnc, h]
+  rw [← enc_beq]
+  exact bool_of_cond_eq (hL.symm.trans hEq)
+
 /-! ## ORDEREDP-MEMB -/
 
 /-- The ORDEREDP-MEMB replayed-statement formula — the root Goal clause

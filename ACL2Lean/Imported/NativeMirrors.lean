@@ -202,12 +202,21 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
     let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
       (mkConst worldName) env termReplayed
-    let (proof, _conds) ← replayProofConditional cfg ch.tps cp
+    let mirrors : ACL2.Replay.Driver.ReplayedRegistry :=
+      ((mirrorRegistryExt.getState (← getEnv)).filterMap
+        fun (wn, thm, decl, conds) =>
+          if wn == worldName then some (thm, decl, conds) else none)
+    let (proof, conds) ← replayProofConditional cfg ch.tps cp
       dev.justifications
       (ACL2.Replay.Runner.combineRules
         (Driver.rulesBefore dev nm.getString) ch.crossRules) ch.depProofs
+      mirrors
       (equivRefls := ch.equivRefls) (termReplayed := termReplayed)
       (congTrees := some ch.localTrees)
+    -- register the enclosing definition for later same-world consumers
+    if let some declName ← Lean.Elab.Term.getDeclName? then
+      Lean.modifyEnv fun e =>
+        mirrorRegistryExt.addEntry e (worldName, cp.name, declName, conds)
     Meta.mkLambdaFVars #[env] proof
 
 /-- The conditional replayed statement as a definition (the driver's proof OBJECT). -/
@@ -1190,6 +1199,56 @@ theorem equal_cons_native_driver (av bv xv : SExpr) :
 
 #print axioms equal_cons_native_driver
 
+/-- TRUE-LISTP-RM's replayed statement (unconditional) — registered so the
+    capstone's `rule:TRUE-LISTP-RM` discharge takes the registry route
+    (its re-replay inside the consumer telescope frontiers). -/
+def trueListpRmReplayed := driver_replayed% orderedPermsDev
+  orderedPermsWorldD "true-listp-rm"
+
+set_option maxHeartbeats 3200000 in
+/-- The driver's CONDITIONAL replayed statement for ORDERED-PERMS — the
+    book's capstone (deps: the perm book, riding the 2a trees + P3
+    cross-rules channels; the equivrefl and ORDEREDP-MEMB conditions
+    discharge there; TRUE-LISTP-RM via the macro registry — leaving the
+    two ground-zero rules). -/
+def orderedPermsCapReplayedCond := driver_replayed% orderedPermsDev
+  orderedPermsWorldD "ordered-perms" deps [permDev]
+
+/-- The unconditional form — the two ground-zero rules discharged
+    world-parametrically. -/
+theorem orderedPermsCapReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f orderedPermsWorldD env
+      Worlds.Sorting.ordered_permsFormula = some v ∧ v ≠ SExpr.nil :=
+  orderedPermsCapReplayedCond env
+    (Worlds.Sorting.dis_cons_car_cdr orderedPermsWorldD (by decide)
+      (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_default_car orderedPermsWorldD (by decide)
+      (by decide) (by decide))
+
+/-- ENTRY, PROVED — ORDERED-PERMS natively: for lexorder-sorted lists,
+    equality IS permutation-equivalence (the Bool identity). -/
+theorem ordered_perms_native_driver (xs ys : List SExpr)
+    (hx : Worlds.Sorting.orderedpRec xs = true)
+    (hy : Worlds.Sorting.orderedpRec ys = true) :
+    (xs == ys) = xs.isPerm ys :=
+  Worlds.Sorting.ordered_perms_native_of_replayed orderedPermsWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    orderedPermsCapReplayed_uncond xs ys hx hy
+
+/-- The idiomatic corollary over `List.Perm`: sorted permutations are
+    EQUAL. -/
+theorem ordered_perms_native_perm_driver (xs ys : List SExpr)
+    (hx : Worlds.Sorting.orderedpRec xs = true)
+    (hy : Worlds.Sorting.orderedpRec ys = true)
+    (hp : xs.Perm ys) : xs = ys := by
+  have h := ordered_perms_native_driver xs ys hx hy
+  rw [List.isPerm_iff.mpr hp] at h
+  exact beq_iff_eq.mp h
+
+#print axioms ordered_perms_native_driver
+#print axioms ordered_perms_native_perm_driver
+
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for ORDEREDP-MEMB (one
     hypothesis: `rule:DEFAULT-CAR`). The raised heartbeat budget covers
@@ -1957,7 +2016,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver ``orderedpRmReplayed),
   ("sorting/ordered-perms", "ORDEREDP-MEMB", .native ``orderedp_memb_native_driver ``orderedpMembReplayedCond),
   ("sorting/ordered-perms", "EQUAL-CONS", .native ``equal_cons_native_driver ``equalConsReplayedCond),
-  ("sorting/ordered-perms", "ORDERED-PERMS", .pending "replay-side complete (dp-premises, 2026-08-01: zero ASSUMED in-telescope) but the mirror is GATED on cross-book RULE OFFERS (P3 probe finding): discharging equivrefl:PERM-IS-AN-EQUIVALENCE re-replays the dep tree at this world, which transitively cites rule:PERM-SYMMETRIC — a rule the ordered-perms log never re-emits, so the consumer telescope cannot offer it. The fix is the 2a completion (offer the dep BOOKS' stored rules alongside their trees; transitive discharge then composes from crossTrees) — NOT a hand discharger (the flagged non-opportunity: included-book content proved value-level in Lean is the species 2a exists to retire). dischargeEquivReflHyp itself is built and fail-closed; it fires the moment the rule-offer channel lands. rule:ORDEREDP-MEMB's same-book discharge frontiers on the same transitive-offer class"),
+  ("sorting/ordered-perms", "ORDERED-PERMS", .native ``ordered_perms_native_driver ``orderedPermsCapReplayedCond),
   ("sorting/ordered-perms", "CAR-RM", .native ``car_rm_native_driver ``carRmReplayed),
   ("sorting/ordered-perms", "TRUE-LISTP-RM", .replayedOnly "subsumed by the rm simulation: `true-listp` restricts the input to the enc image (exists_enc_of_trueListp), where corr_rm_enc already yields an encoded List — no native content beyond the sim (the type-absorbed true-listp doctrine; the flatten recipe applies only where NO simulation exists)"),
   -- 2b (linear-verdicts): the two admission-lemma count rows, GREEN via
