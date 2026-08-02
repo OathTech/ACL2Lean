@@ -403,6 +403,14 @@ _Last updated: 2026-08-02._
 > because every consumer pins the body against the log-derived world
 > by decide, but the generator-reads-the-log step is still owed
 > (12 hand exec defs remain of the ~20; 8 retired).**
+> **R6 CENSUS PASSED (close-out arc increment 0, 2026-08-02): the
+> exported-tree census over equisort.proof-log confirms the ratified
+> expectation — witness leakage (SORTFN1-INSERT/SSORTFN1-INSERT
+> helpers, :DEFINITION unfolds of constrained symbols) occurs ONLY in
+> the twelve constraint theorems (pass 1, correct and required);
+> WEAK-SORTFN1-IS-SORTFN2 and STRONG-SSORTFN1-IS-SSORTFN2 have CLEAN
+> trees (constrained symbols in formulas only). Stop-early tripwire 1
+> does not fire; the justified-extensions design is safe to build on.**
 > **R6 RATIFIED (MDD 2026-08-02, all four questions — the close-out
 > arc's Phase 0 checkpoint, cleared BEFORE the arc opened):
 > docs/notes/2026-08-02_r6-encapsulate-design.md. (1) the
