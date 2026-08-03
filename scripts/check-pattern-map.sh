@@ -118,6 +118,14 @@ nosig p2-beta-quoted-actuals ":SOURCE :LOCAL-WITNESS"
 nosig p2-beta-hide ":SOURCE :LOCAL-WITNESS"
 sig cov-verify-guards 1 "(:VERIFY-GUARDS :NAMES (GSUM)"
 sig cov-verify-guards 2 "(:QED)"
+# Empty-encapsulate SUCCESS exits balanced (fresh-verify N1, 2026-08-03):
+# the helper exercises the PROVING path's :empty-encapsulate exit, the
+# include book the INCLUDE-BOOK path's (the fourth success exit — its END
+# was the N1 gap). Both logs must carry BEGIN and END.
+sig cov-encapsulate-empty-helper  1 "(:ENCAPSULATE-BEGIN"
+sig cov-encapsulate-empty-helper  1 "(:ENCAPSULATE-END)"
+sig cov-encapsulate-empty-include 1 "(:ENCAPSULATE-BEGIN"
+sig cov-encapsulate-empty-include 1 "(:ENCAPSULATE-END)"
 # rewrite-cache: ONE recorded unfold for two occurrences
 n=$(grep -cF "RUNE (:DEFINITION RC2)" "$DIR/cov-rewrite-cache.proof-log" 2>/dev/null || echo 0)
 if [ "$n" != "1" ]; then

@@ -38,8 +38,14 @@ while IFS= read -r log; do
   # tree at CAPTURE time. A skew means the image predates the stamped commit
   # ("build → commit → recapture" defeated the dirty-tree guard once, by
   # 33 seconds). The banner commit must equal the meta stamp.
+  # FAIL-CLOSED (fresh-verify N5): a log with NO banner commit can't be
+  # cross-checked — reject it rather than skip (every healthy capture
+  # starts with the ACL2 banner; its absence means a truncated/foreign log).
   banner="$(sed -n 's/.*(Git commit hash: \([0-9a-f]\{40\}\)).*/\1/p' "$log" | head -1)"
-  if [ -n "$banner" ] && [ "$banner" != "$commit" ]; then
+  if [ -z "$banner" ]; then
+    echo "NO-BANNER log: $log — no '(Git commit hash: …)' banner line; truncated or non-capture file (recapture: just recapture-all)" >&2
+    fail=1
+  elif [ "$banner" != "$commit" ]; then
     echo "IMAGE-SKEW log: $log — image built from $banner but meta stamped $commit (rebuild the image AFTER committing, then recapture)" >&2
     fail=1
   fi

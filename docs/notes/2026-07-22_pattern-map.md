@@ -97,10 +97,22 @@ through real ACL2):
   replay. Pins: instrumentation cannot yet log a book containing `#c`
   literals.
 - `cov-defun-sk` — captures (1 QED) but **RECONSTRUCTION fails**:
-  `theorem 'EXISTS-DOUBLE-SUFF' has no closing (:QED) before included
-  theorem 'EXISTS-DOUBLE-SUFF'` — defun-sk's generated `-suff` rule is
-  admitted without the standard proof-log shape. Pins the defun-sk
-  event structure.
+  `theorem 'EXISTS-DOUBLE-SUFF' has no closing (:QED) before
+  (:ENCAPSULATE-BEGIN)` — defun-sk's generated `-suff` rule is admitted
+  without the standard proof-log shape. (Message re-pinned 2026-08-03,
+  fresh-verify N2: the encapsulate-bracket emission moved the first
+  event the open theorem collides with; the CAUSE — the :DEFTHM without
+  :QED — is unchanged and is what the diagnosis now names, per the F4
+  misdiagnosis fix.) Pins the defun-sk event structure.
+- `cov-encapsulate-empty-helper` / `cov-encapsulate-empty-include`
+  (2026-08-03, fresh-verify N1) — a LOCAL-ONLY encapsulate captured
+  directly (proving path's `:empty-encapsulate` SUCCESS exit) and via
+  `include-book` (the include path's empty exit — the FOURTH success
+  exit, whose `(:ENCAPSULATE-END)` the first bracket fix round missed;
+  pre-fix the include capture emitted BEGIN with no END and
+  `buildDevelopment` hard-failed a legitimate ACL2 pattern). Both logs
+  sig-pinned balanced (BEGIN and END present); recon accepts both
+  (PatternPins `encapsulate_empty_pins%`).
 - `cov-encapsulate` — REFUSED at reconstruction (BUG-019 fix,
   2026-07-26): the encapsulate's local witness `(:DEFUN CF … :SOURCE
   :LOCAL-WITNESS)` hard-fails the parse with the statement-substitution

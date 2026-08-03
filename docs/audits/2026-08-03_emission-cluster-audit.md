@@ -170,3 +170,30 @@ row-by-row golden review, claim-gate TRUE_EXIT=0, and a targeted
 mechanical re-check of each of a-e (narrow, file:line-checkable —
 no fresh full audit needed for a fold-back-with-fixes verdict, per
 the cross-rules precedent).
+
+### Fix set EXECUTED (2026-08-03, fork 286e7ac871) — mechanical re-check
+
+- a ✓ END emitted on the include-book `:empty-encapsulate` exit
+  (`other-events.lisp`, tagged emit/encapsulate-end); invariant comment
+  now states FOUR success exits. Pinned by two new pattern books:
+  `cov-encapsulate-empty-helper` (proving empty exit; runBook 1/1) +
+  `cov-encapsulate-empty-include` (the N1 exit; log BEGIN=1 END=1,
+  recon SUCCEEDS — pre-fix this hard-failed unclosed-BEGIN). Sig pins
+  in check-pattern-map.sh; Lean gate `encapsulate_empty_pins%`
+  (Tests/PatternPins.lean).
+- b ✓ pattern-map cov-defun-sk pin re-pinned to the live message
+  (reproduced verbatim against the recaptured log) + new-book entries.
+- c ✓ `classes` threaded through `WorldEvent.includedTheorem`
+  (ClauseTree.lean: constructor, build push, `includedTheorems` with an
+  EXPLICIT wildcard — a 2-arg pattern would default-fill `none`, the F1
+  trap); dump prints it.
+- d ✓ `image-mtime` GNU-first stat (sidecars now a single epoch);
+  banner check FAIL-CLOSED (NO-BANNER arm rejects banner-less logs).
+- e ✓ TODO.md historical block struck through with pointer to the
+  corrected entry.
+
+Round gates: rebuild after fork commit (banner==stamp==286e7ac8713a by
+construction); `just recapture-all` clean (91 logs; the only tracked-log
+churn is p8's banner lines); check-log-provenance 91/91; golden
+BYTE-IDENTICAL (sweep unchanged, 80/100); claim-gate TRUE_EXIT=0.
+**Fold-back-ready.**

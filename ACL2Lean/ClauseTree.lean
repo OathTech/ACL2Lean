@@ -126,8 +126,13 @@ inductive WorldEvent where
       separately, its stored rules via a `.rules` event) but NO proof tree.
       A `rule:<name>` citation of it replays fine (the rule is offered);
       only the step-5 DISCHARGE stays hypothesis-backed from this log (D6) —
-      cross-book proof import is the tracked follow-up. -/
+      cross-book proof import is the tracked follow-up. `classes` carries the
+      emitted raw `:CLASSES` (fresh-verify N3, 2026-08-03: the equivalence/
+      congruence consumers' data arrives on THIS arm — e.g.
+      PERM-IS-AN-EQUIVALENCE is `:SOURCE :INCLUDE-BOOK` in qsort/equisort);
+      `none` = key absent, `some .nil` = declared `:rule-classes nil`. -/
   | includedTheorem (name : String) (formula : SExpr)
+      (classes : Option SExpr := none)
   deriving Repr, Inhabited
 
 /-- An ACL2 development reconstructed as a SINGLE proof tree: a right-nested
@@ -142,9 +147,11 @@ inductive Development where
   | done
   deriving Repr, Inhabited
 
-/-- All INCLUDE-BOOK'd theorems in development order. -/
+/-- All INCLUDE-BOOK'd theorems in development order. (The explicit `_` for
+    `classes` matters: a 2-arg pattern would DEFAULT-FILL `classes := none`
+    and silently skip classed entries — the TamperTests F1 lesson.) -/
 def Development.includedTheorems : Development → List (String × SExpr)
-  | .bind (.includedTheorem n f) rest => (n, f) :: rest.includedTheorems
+  | .bind (.includedTheorem n f _) rest => (n, f) :: rest.includedTheorems
   | .bind _ rest => rest.includedTheorems
   | .done => []
 /-- Project the `evalOpt` `World` from a reconstructed `Development`: fold each `defun`
@@ -765,7 +772,7 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
   let mut curClasses : Option SExpr := none
   for ev in log.events do
     match ev with
-    | .defthm name formula .includeBook _ =>
+    | .defthm name formula .includeBook cls =>
       -- an INCLUDE-BOOK'd theorem: no waterfall runs, no proof block, no
       -- QED. An OPEN named block here still means THAT theorem's proof
       -- never closed — hard-fail exactly as below.
@@ -775,7 +782,7 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       let (p?, a) ← closeBlock curName curFormula curEvents anon
       anon := a
       if let some p := p? then pendingTermination := some p
-      events := events.push (.includedTheorem name formula)
+      events := events.push (.includedTheorem name formula cls)
       curEvents := #[]
     | .defthm _ _ _ _ | .qed =>
       -- A named (:DEFTHM) block is a completed proof ONLY if it ends with its
@@ -1173,9 +1180,11 @@ partial def printDevelopment : ACL2.Development → IO Unit
     | .theorem proof =>
       IO.println s!"\n══ THEOREM {proof.name} ══"
       printClauseProof proof 2
-    | .includedTheorem name formula =>
+    | .includedTheorem name formula cls =>
       IO.println s!"\n── included theorem {name} (certified in its own book) ──"
       IO.println s!"  {formula}"
+      if let some c := cls then
+        IO.println s!"  :CLASSES {c}"
     printDevelopment rest
 
 

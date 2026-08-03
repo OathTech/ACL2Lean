@@ -114,7 +114,11 @@ for INPUT in "$@"; do
       commit="$commit-dirty"
     fi
     echo "acl2-commit: $commit"
-    echo "image-mtime: $(stat -f %m "$ACL2" 2>/dev/null || stat -c %Y "$ACL2" 2>/dev/null || echo unknown)"
+    # GNU stat first (fresh-verify N4: BSD-form `stat -f %m` on GNU prints a
+    # filesystem dump to stdout AND fails, so the fallback appended to the
+    # garbage — every sidecar carried a 6-line value). GNU `-c` on BSD fails
+    # cleanly with no stdout, so this order is safe both ways.
+    echo "image-mtime: $(stat -c %Y "$ACL2" 2>/dev/null || stat -f %m "$ACL2" 2>/dev/null || echo unknown)"
     echo "captured-at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } > "$OUTPUT.meta"
 

@@ -201,4 +201,43 @@ elab "swap_family_pattern_pins% " : term => do
 set_option maxHeartbeats 0 in
 def swapFamilyPatternPins : True := swap_family_pattern_pins%
 
+/-! ## Empty-encapsulate success exits (fresh-verify N1, 2026-08-03): a
+    LOCAL-ONLY encapsulate exits by `:empty-encapsulate` on BOTH the
+    proving path (helper book, captured directly) and the include-book
+    path (include book — the FOURTH success exit, whose
+    `(:ENCAPSULATE-END)` the first bracket fix round missed; pre-fix the
+    include capture left the BEGIN unclosed and `buildDevelopment`
+    hard-failed a legitimate ACL2 pattern). -/
+
+private def encEmptyHelperLog : String :=
+  include_str "../acl2_samples/pattern-tests/cov-encapsulate-empty-helper.proof-log"
+private def encEmptyIncludeLog : String :=
+  include_str "../acl2_samples/pattern-tests/cov-encapsulate-empty-include.proof-log"
+
+elab "encapsulate_empty_pins% " : term => do
+  -- helper 1/1: the local defthm proves during direct ld and replays.
+  let (res, _) ← ACL2.Replay.Runner.runBook
+    "cov-encapsulate-empty-helper" encEmptyHelperLog none
+  unless res.replayed == 1 && res.total == 1 && res.integrityFails.isEmpty do
+    throwError "pattern pin cov-encapsulate-empty-helper: replayed \
+      {res.replayed}/{res.total} (expected 1/1); integrity: \
+      {res.integrityFails.toList}"
+  -- include book: recon must SUCCEED (bracket balance holds — the N1
+  -- teeth; pre-fix this hard-failed "1 unclosed (:ENCAPSULATE-BEGIN)").
+  -- 0 theorems is TRUTHFUL (include-book skips proofs; the local probe
+  -- never re-proves), so runBook's zero-theorems integrity heuristic is
+  -- expected here and recon is pinned directly instead.
+  match (ProofLog.parse encEmptyIncludeLog).bind ClauseTree.buildDevelopment with
+  | .error msg =>
+    throwError "pattern pin cov-encapsulate-empty-include: parse/recon \
+      FAILED — the include-path empty-encapsulate bracket balance \
+      regressed (N1): {msg}"
+  | .ok _ => pure ()
+  logInfo "encapsulate-empty pins hold (helper 1/1; include-path \
+    empty-encapsulate balanced + reconstructed)"
+  return mkConst ``True.intro
+
+set_option maxHeartbeats 0 in
+def encapsulateEmptyPins : True := encapsulate_empty_pins%
+
 end ACL2.Tests.PatternPins

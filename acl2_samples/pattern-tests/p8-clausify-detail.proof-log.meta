@@ -1,8 +1,3 @@
-acl2-commit: c93f8d59385132cf2b1c8743e998254bdc2a478e
-image-mtime:   File: "/home/dev/projects/ACL2Lean/scripts/../acl2/saved_acl2"
-    ID: 5504e317e4bad8be Namelen: 255     Type: ext2/ext3
-Block size: 4096       Fundamental block size: 4096
-Blocks: Total: 459815742  Free: 428261173  Available: 404885387
-Inodes: Total: 116858880  Free: 114945032
-1785790430
-captured-at: 2026-08-03T20:54:11Z
+acl2-commit: 286e7ac8713a029113ae3c9d13b654d206de1531
+image-mtime: 1785795838
+captured-at: 2026-08-03T22:25:16Z

@@ -465,17 +465,22 @@ _Last updated: 2026-08-02._
 > lemma names + substitutions (the translated :use hint carries them;
 > read off, no computation). Unblocks R7a.
 > (2) IN PROGRESS — design settled, sites located: BRACKET MARKERS,
-> not per-event tags. (:ENCAPSULATE-BEGIN) before pass 1
+> not per-event tags. [STALE PLAN-TIME CLAIMS, corrected by audit
+> 2026-08-03 F2/F5 + fresh-verify N1/N6 — see the CORRECTED entry
+> above: brackets are balanced only across the FOUR success exits
+> (BEGIN on both entry paths), error exits abort the capture, and the
+> parser does NOT dedup — per-scope :DEFTHM dedup is the Phase-4
+> obligation.] (:ENCAPSULATE-BEGIN) before pass 1
 > (other-events.lisp:8669's process-embedded-events 'encapsulate-pass-1,
 > inside the state-global-let* at 8660, within encapsulate-fn 8452) and
-> (:ENCAPSULATE-END) at encapsulate-fn's success exit — ALWAYS
-> balanced (trivial encapsulates included); the constraint DATA is a
+> (:ENCAPSULATE-END) at encapsulate-fn's success exit — ~~ALWAYS
+> balanced~~ (trivial encapsulates included); the constraint DATA is a
 > separate (:CONSTRAINTS :FNS sig+constrained :FORMULAS (car
 > constraint-lst-etc)) event at the putprop-constraints call site
 > (other-events.lisp:6452, inside encapsulate-pass-2 at 6132) —
 > present only for constrained scopes. Parser: bracket = scope; the
-> census showed BOTH passes emit :DEFTHM events (duplicates!) — the
-> parser dedups within a bracket by name. Emission style: top-level
+> census showed BOTH passes emit :DEFTHM events (duplicates!) —
+> ~~the parser dedups within a bracket by name~~. Emission style: top-level
 > fms like emit/defthm (gated on raw-proof-format :structured), needs
 > state threading through encapsulate-fn's er-let* chain — read the
 > monadic structure fresh before inserting.
