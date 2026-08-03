@@ -37,6 +37,39 @@ admission-waterfall route; count rows measure-absorbed.
   forced double elaboration (the determinism check), audit reports
   committed in docs/audits/.
 
+## STANDING RULES (goal-referenced; survive context loss)
+
+Amended 2026-08-03 at goal reinstatement — the goal text points HERE.
+
+- STATE DISCOVERY on every (re)start: `git log` on the arc branch, the
+  close-out sections of TODO.md, docs/audits/, and this plan. Never
+  assume conversation memory.
+- SUB-ARC DISCIPLINE: substantial increments run as sub-arcs; each
+  passes a comprehensive adversarial audit whose findings + verdict
+  are COMMITTED to docs/audits/ BEFORE fold-back (conversation-only
+  audit records do not count). A NOT-READY verdict's fix round is
+  re-verified by a FRESH verifier against the committed record.
+- CLAIM GATE: no commit may claim completion or green status without
+  a pipefail-honest full `just ci` exit recorded in it
+  (`just claim-gate`).
+- FORK BATCHING: emission changes batch into one rebuild + one
+  `just recapture-all` + row-by-row golden review per round.
+- STOP-EARLY CONDITIONS (stop and report plainly, no reframing):
+  1. A ratified design fails against the artifact (design notes are
+     amended by the user, not unilaterally).
+  2. Any soundness concern, or the carve-out drift test failing
+     (per-case custom proofs/checkers accreting — see the memory +
+     TODO record).
+  3. The equisort honest-split point: if its frontier tail runs long,
+     stop at "equisort in + capstones green" with the numbers.
+  4. Golden churn beyond row-by-row review.
+  5. A structural instrumentation wall (ACL2-side needs something
+     architecturally new, beyond more emission at existing joints).
+  6. A sub-arc audit returns NOT-READY and the findings survive
+     verification (happened once: docs/audits/
+     2026-08-03_emission-cluster-audit.md), or a phase exceeds ~2×
+     its expected scale without converging.
+
 ## Phase 0 — MDD CHECKPOINTS FIRST (the R6 design note)
 
 The ONE remaining design item. Note covers: encapsulate emission

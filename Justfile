@@ -99,6 +99,13 @@ recapture-all: capture-all-logs
 golden-review:
     bash scripts/golden-diff.sh
 
+# CLAIM GATE (2026-08-03, the emission-cluster audit's F1 remedy): the
+# pipefail-honest full ci whose TRUE exit must be recorded in any commit
+# claiming completion or green status. Exists because a completion commit
+# was once made against a red build with the failure masked by a pipe.
+claim-gate:
+    bash -c 'set -o pipefail; just ci; echo "TRUE_EXIT=$?"'
+
 # Pre-push guard: the acl2 submodule pointer must be reachable from the
 # fork REMOTE before any superproject push (2026-07-21 incident: main
 # pushed with the fork 3 commits unpushed — GitHub CI "not our ref").
