@@ -510,27 +510,27 @@ partial def parseClauseItems (events : List TraceEvent)
         -- READS the marker is the tracked follow-up (map P8)
         | .clausifyConjunction .. => none
         | _ => none
-      -- FC-DERIVATIONS (cluster item 4): clause-level provenance blocks —
-      -- partitioned out of the chain stream here; the Phase-6 consumer
-      -- (joining :CONCL with relieved hyps for the LEXORDER-TRANSITIVE
-      -- marker-relief class + BUG-027's equation edges) is the tracked
-      -- follow-up. Collected below, never silently dropped.
       let splitReshaped := litEvents.filterMap fun
         | .clausifySetReshaped w => some w
         | _ => none
-      let litFcDerivs := litEvents.filterMap fun
-        | .fcDerivations d => some d
-        | _ => none
+      -- fcDerivations inside a LITERAL window: no corpus occurrence (all
+      -- 375 are clause-level — audit 2026-08-03 F7 probe); the earlier
+      -- collect-and-reorder branch was dead code with wrong ordering.
+      -- HARD-FAIL instead: if one ever appears here, that is a new
+      -- emission shape to design for, not to silently reorder.
+      if litEvents.any (fun | .fcDerivations _ => true | _ => false) then
+        throw s!"parseClauseItems: (:FC-DERIVATIONS) inside literal \
+          {index}'s window — unhandled emission shape (frontier; audit \
+          2026-08-03 F7)"
       let chainEvents := litEvents.filter fun
         | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _
-        | .clausifyConjunction .. | .fcDerivations _ => false
+        | .clausifyConjunction .. => false
         | _ => true
       let nodes ← buildProofNodes chainEvents
       let litResult := findLiteralResult chainEvents literal
       let (more, rest'') ← parseClauseItems rest'
       return (.literal { index, literal, notFlg, nodes, result := litResult,
-                         splitTrace, splitReshaped }
-        :: (litFcDerivs.map .fcDerivations) ++ more, rest'')
+                         splitTrace, splitReshaped } :: more, rest'')
   | .clausifyInput input :: rest =>
       -- collect the contiguous clausify block: [expand*] neg ([expand*] split)* out
       let (info, rest') ← collectClausify input rest

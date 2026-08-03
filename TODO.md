@@ -403,6 +403,23 @@ _Last updated: 2026-08-02._
 > because every consumer pins the body against the log-derived world
 > by decide, but the generator-reads-the-log step is still owed
 > (12 hand exec defs remain of the ~20; 8 retired).**
+> **AUDIT FIX ROUND (2026-08-03, per docs/audits/
+> 2026-08-03_emission-cluster-audit.md — the ratified remedy):
+> brackets structural (include-path BEGIN + empty-encapsulate END +
+> honest invariant comments + Lean depth enforcement with stray-END/
+> unclosed-EOF hard-fails + the cov-defun-sk misdiagnosis fixed to
+> name the missing :QED); TamperTests arms; :CLASSES → Option SExpr
+> threaded into ClauseProof; dead literal-window fcDerivations branch
+> DROPPED (hard-fails if the shape ever appears); collect-parents +
+> :fc-round in both fcd emissions; provenance BANNER cross-check in
+> check-log-provenance (catches image/commit skew); claim-gate.
+> STANDING OBLIGATIONS RECORDED: (a) PHASE-4 per-scope :DEFTHM dedup
+> (both passes re-emit inside the bracket — the parser does NOT dedup
+> yet; two earlier present-tense claims corrected); (b) the PHASE-6
+> :FC-DERIVATIONS consumer must HARD-FAIL on a missing :CONCL join —
+> the event is silently absent when no log is open (forward-chain-top
+> also runs from induct/built-in-clausep/bdd), so absence must never
+> read as "no forward chaining" (audit F10).**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

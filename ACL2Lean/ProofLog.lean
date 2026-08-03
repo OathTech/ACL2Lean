@@ -357,20 +357,27 @@ inductive ProofEvent where
           (just : Option Justification := none)
   /-- Encapsulate bracket OPEN (`:ENCAPSULATE-BEGIN`, cluster item 2 /
       R6): everything to the matching END belongs to the scope; BOTH
-      passes' events are inside (the parser dedups per-scope). Scope
-      SEMANTICS (toWorld witness handling, ScopeHolds) land with Phase 4's
-      scoped extensions — until then Development records the brackets. -/
+      passes' events are inside — per-scope :DEFTHM dedup is a PHASE-4
+      obligation (recorded in TODO; audit 2026-08-03 F5 corrected an
+      earlier present-tense claim). Scope SEMANTICS (toWorld witness
+      handling, ScopeHolds, dedup) land with Phase 4's scoped
+      extensions — until then Development records the brackets and
+      `buildDevelopment` enforces BALANCE (a stray END or an unclosed
+      BEGIN at EOF hard-fails — audit F3). -/
   | encapsulateBegin (sigs : List Symbol)
   | encapsulateEnd
   /-- The scope's constraint axioms (`:CONSTRAINTS`, verbatim from ACL2's
       constraint-lst). `:UNKNOWN-CONSTRAINTS` hard-fails at parse. -/
   | constraints (fns : List Symbol) (formulas : List SExpr)
   | defthm (name : String) (formula : SExpr := .nil) (source : TheoremSource := .unknown)
-      -- classes: the RAW rule-classes, verbatim (:CLASSES, cluster item 5);
-      -- .nil on pre-cluster logs — the equivalence/congruence gates consume
-      -- the DECLARED class once present (fail-closed: absence keeps the
-      -- shape-parse behavior, presence gates on it)
-      (classes : SExpr := .nil)
+      -- classes: the RAW rule-classes, verbatim (:CLASSES, cluster item 5).
+      -- `none` = pre-cluster log (no :CLASSES key); `some .nil` = the
+      -- event DECLARED `:rule-classes nil` — distinct by design (audit
+      -- 2026-08-03 F6: conflating them made the ratified
+      -- absence-vs-presence gating unimplementable). The
+      -- equivalence/congruence gates consume the declared class once
+      -- present.
+      (classes : Option SExpr := none)
   | typePrescription (name : String) (corollary : SExpr)
       (basicTs : Option Int := none) (leaves : List (SExpr × Int) := [])
   /-- The stored rewrite rules created since the previous flush (in creation
@@ -1231,9 +1238,9 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | some (.atom (.keyword "INCLUDE-BOOK")) => TheoremSource.includeBook
           | some (.atom (.keyword "LOCAL")) => TheoremSource.local
           | _ => TheoremSource.unknown
-        -- :CLASSES (cluster item 5): raw rule-classes, absent on
-        -- pre-cluster logs
-        let classes := (lookupKeyword "CLASSES" fields).getD .nil
+        -- :CLASSES (cluster item 5): raw rule-classes; none = absent
+        -- (pre-cluster log), some .nil = declared :rule-classes nil
+        let classes := lookupKeyword "CLASSES" fields
         return .defthm name formula source classes
       | none => throw s!"DEFTHM: bad name: {repr nameExpr}"
     | some [] => throw s!"DEFTHM: missing name"

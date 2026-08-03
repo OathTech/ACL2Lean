@@ -33,6 +33,16 @@ while IFS= read -r log; do
     echo "STALE log: $log — captured at acl2 commit ${commit:-<none>}, submodule HEAD is $HEAD (recapture: just recapture-all)" >&2
     fail=1
   fi
+  # BANNER cross-check (audit 2026-08-03 F8): the log's own ACL2 banner
+  # records the commit the IMAGE was built from; the meta stamp records the
+  # tree at CAPTURE time. A skew means the image predates the stamped commit
+  # ("build → commit → recapture" defeated the dirty-tree guard once, by
+  # 33 seconds). The banner commit must equal the meta stamp.
+  banner="$(sed -n 's/.*(Git commit hash: \([0-9a-f]\{40\}\)).*/\1/p' "$log" | head -1)"
+  if [ -n "$banner" ] && [ "$banner" != "$commit" ]; then
+    echo "IMAGE-SKEW log: $log — image built from $banner but meta stamped $commit (rebuild the image AFTER committing, then recapture)" >&2
+    fail=1
+  fi
 done < <(find "$ROOT/acl2_samples" -name '*.proof-log' | sort)
 
 if [ "$count" -eq 0 ]; then

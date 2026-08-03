@@ -66,6 +66,11 @@ structure ClauseProof where
   name : String
   formula : SExpr
   root : Option ClauseNode
+  /-- The RAW declared rule-classes (`:CLASSES`, cluster item 5):
+      `none` = pre-cluster log; `some .nil` = declared `:rule-classes nil`
+      (distinct by design — audit 2026-08-03 F6). Consumed by the
+      equivalence/congruence gates once their consumption lands. -/
+  classes : Option SExpr := none
   deriving Repr, Inhabited
 
 /-- One world-extending event of an ACL2 development, in file order. In the
@@ -752,6 +757,12 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
   let mut curEvents : Array ProofEvent := #[]
   let mut anon : Nat := 0
   let mut pendingTermination : Option ClauseProof := none
+  -- encapsulate bracket DEPTH (audit 2026-08-03 F3): balance is enforced —
+  -- a stray END (depth 0) or an unclosed BEGIN at EOF hard-fails. Nesting
+  -- is supported by the counter (cov-defun-sk nests 3 deep); PAIRING
+  -- semantics (scope membership, per-scope dedup) are Phase 4.
+  let mut encDepth : Nat := 0
+  let mut curClasses : Option SExpr := none
   for ev in log.events do
     match ev with
     | .defthm name formula .includeBook _ =>
@@ -780,11 +791,14 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       let (p?, a) ← closeBlock curName curFormula curEvents anon
       anon := a
       if let some p := p? then
-        if curName.isSome then events := events.push (.theorem p)
+        if curName.isSome then
+          events := events.push (.theorem { p with classes := curClasses })
         else pendingTermination := some p
       -- A :DEFTHM opens the next block; a :QED closes to the between-blocks state.
       match ev with
-      | .defthm name formula _ _ => curName := some name; curFormula := formula; curEvents := #[]
+      | .defthm name formula _ cls =>
+        curName := some name; curFormula := formula; curClasses := cls
+        curEvents := #[]
       | _ => curName := none; curFormula := .nil; curEvents := #[]
     | .defun n formals body just =>
       let termination := pendingTermination.map fun t => { t with name := s!"termination of {n}" }
@@ -806,14 +820,27 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
     | .rules specs =>
       events := events.push (.rules specs)
     | .encapsulateBegin sigs =>
-      -- cluster item 2 / R6: bracket recorded; a bracket INSIDE an open
-      -- theorem block would be malformed (encapsulate events are top-level)
-      if curName.isSome then
-        throw "buildDevelopment: (:ENCAPSULATE-BEGIN) inside an open           theorem block (malformed log)"
+      -- a bracket while a THEOREM block is open means that theorem never
+      -- closed — the true malformation is the missing :QED (audit
+      -- 2026-08-03 F4: name the real cause, not the bracket)
+      if let some openName := curName then
+        throw s!"buildDevelopment: theorem '{openName}' has no closing \
+          (:QED) before (:ENCAPSULATE-BEGIN) — ACL2 proof incomplete or \
+          FAILED (log truncated mid-proof)."
+      encDepth := encDepth + 1
       events := events.push (.encapsulateBegin sigs)
     | .encapsulateEnd =>
-      if curName.isSome then
-        throw "buildDevelopment: (:ENCAPSULATE-END) inside an open           theorem block (malformed log)"
+      if let some openName := curName then
+        throw s!"buildDevelopment: theorem '{openName}' has no closing \
+          (:QED) before (:ENCAPSULATE-END) — ACL2 proof incomplete or \
+          FAILED (log truncated mid-proof)."
+      -- balance (audit F3): a stray END is a malformed log — the capture
+      -- came from a fork predating the include-path BEGIN, or the
+      -- emission regressed
+      if encDepth == 0 then
+        throw "buildDevelopment: stray (:ENCAPSULATE-END) with no open \
+          bracket (malformed log — recapture with the current fork)"
+      encDepth := encDepth - 1
       -- flush a pending anonymous (admission) block at the boundary
       let (p?, a) ← closeBlock curName curFormula curEvents anon
       anon := a
@@ -824,6 +851,12 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       events := events.push (.constraints fns formulas)
     | .step _ | .induction _ | .poolConsider _ | .poolSubsumed _ _ =>
       curEvents := curEvents.push ev
+  -- balance at EOF (audit 2026-08-03 F3): an unclosed BEGIN means the
+  -- encapsulate errored mid-event — an invalid capture
+  unless encDepth == 0 do
+    throw s!"buildDevelopment: {encDepth} unclosed (:ENCAPSULATE-BEGIN) \
+      bracket(s) at end of log (the encapsulate failed mid-capture — \
+      invalid log)"
   -- Close any trailing block. A still-open NAMED block at end-of-log means the
   -- final theorem never emitted its (:QED) — ACL2's proof FAILED or the log was
   -- truncated mid-proof. Hard-fail rather than accept it as a proven theorem.
