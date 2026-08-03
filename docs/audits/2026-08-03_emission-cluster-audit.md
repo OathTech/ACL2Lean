@@ -110,3 +110,63 @@ golden review), then a FRESH verifier re-audits against this list:
 
 Fold-back only after: fresh verifier confirms each numbered fix,
 claim-gate TRUE_EXIT=0, golden reviewed row-by-row post-recapture.
+
+## Fresh verification (2026-08-03) — verdict: FOLD-BACK-WITH-FIXES
+
+One fresh adversarial Opus verifier (no prior context), against the
+nine-item list above, at repo 07e5616 / fork c93f8d5938. Six items
+VERIFIED clean; three PARTIAL. It independently re-ran the full claim
+gate with forced re-elaboration of all 17 include_str consumers
+(TRUE_EXIT=0), confirmed golden byte-identity, confirmed corpus
+bracket balance (12/12 bracket-carrying logs), and tamper-probed the
+new enforcement (deleted END → unclosed-BEGIN hard-fail; deleted
+BEGIN → stray-END hard-fail; both on scratch copies).
+
+New findings:
+
+- **N1 HIGH (item 1 incomplete).** The INCLUDE-BOOK path's
+  `:empty-encapsulate` success exit (`other-events.lisp:9047`) emits
+  no END — the newly-added include-path BEGIN is left unclosed, and
+  the new invariant comment ("three success exits") is false: there
+  are FOUR. Demonstrated empirically: an include-book'd
+  `(encapsulate () (local (defthm …)))` captures BEGIN=1 END=0 on a
+  clean ACL2 exit, and `dump-proof-tree` then hard-fails a LEGITIMATE
+  pattern with the misdiagnosis "the encapsulate failed mid-capture".
+  Same defect class the round was convened to close.
+- **N2 MEDIUM (item 1 tail missed).** `pattern-map.md:99-103` still
+  pins the OLD cov-defun-sk frontier message; the fix round never
+  touched the file, and `check-pattern-map.sh` cannot catch prose
+  pins going stale.
+- **N3 MEDIUM (item 4 half-delivered).** `:CLASSES` is threaded only
+  through the in-book arm; the include-book arm
+  (`ClauseTree.lean:778`, `WorldEvent.includedTheorem`) drops it —
+  and that is where the target consumers' data arrives
+  (`PERM-IS-AN-EQUIVALENCE` is `:SOURCE :INCLUDE-BOOK` in qsort and
+  equisort; all 542 include-book :DEFTHMs in qsort carry `:CLASSES`).
+- **N4 LOW (item 6 second clause not done).** The `image-mtime`
+  BSD-stat noise in `capture-proof-log.sh` was never fixed — all 89
+  `.meta` sidecars carry a 6-line filesystem dump as the value
+  (harmless to the line-anchored commit check, but malformed).
+- **N5 LOW.** The banner cross-check is fail-open when a log has no
+  banner line (currently all 89 have one).
+- **N6 LOW.** A stale "ALWAYS balanced" / "the parser dedups" copy
+  survives in TODO.md's historical worklist block (~:473-478),
+  contradicting the corrected entry above it.
+
+### Ratified remedy (this verdict's fix set — one more fork round-trip)
+
+- a. END on the include-book `:empty-encapsulate` exit; invariant
+  comment corrected to four success exits. Pin the pattern with a
+  synthetic pattern BOOK (include-book'd local-only encapsulate) so
+  the corpus exercises it permanently.
+- b. Update the pattern-map cov-defun-sk pin to the current message.
+- c. Thread `classes` through `WorldEvent.includedTheorem`.
+- d. Fix the `image-mtime` stat call (falls out of the same
+  recapture); make the banner check fail-closed (require a banner).
+- e. Fix the stale TODO.md historical block.
+
+Fold-back after: fix set applied, one rebuild + recapture +
+row-by-row golden review, claim-gate TRUE_EXIT=0, and a targeted
+mechanical re-check of each of a-e (narrow, file:line-checkable —
+no fresh full audit needed for a fold-back-with-fixes verdict, per
+the cross-rules precedent).
