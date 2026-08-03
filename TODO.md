@@ -420,6 +420,17 @@ _Last updated: 2026-08-02._
 > the event is silently absent when no log is open (forward-chain-top
 > also runs from induct/built-in-clausep/bdd), so absence must never
 > read as "no forward chaining" (audit F10).**
+> **PHASE 1 COMPLETE (2026-08-03, folded back at 2dbb289): fresh
+> verifier returned FOLD-BACK-WITH-FIXES (N1-N6, recorded in the audit
+> file); fix set a-e executed — include-path :empty-encapsulate END
+> (the FOURTH success exit, fork 286e7ac871) pinned by the new
+> cov-encapsulate-empty-{helper,include} pattern books (sig pins +
+> encapsulate_empty_pins%), pattern-map re-pin, :CLASSES threaded
+> through includedTheorem, sidecar image-mtime + banner fail-closed,
+> stale-block strike-through. Round gates: recapture 91 logs,
+> provenance 91/91 banner==stamp, golden BYTE-IDENTICAL (80/100
+> unchanged), claim-gate TRUE_EXIT=0. Phase 2 (R7a) unblocked on the
+> :LMI-LST payloads.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
