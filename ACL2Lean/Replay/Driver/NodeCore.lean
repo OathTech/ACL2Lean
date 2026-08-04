@@ -1801,10 +1801,12 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
         -- equal/type-alist-nil class — MEMB-RM's (EQUAL A B) ⇒ 'NIL from
         -- A ≠ (CAR X) ∧ B = (CAR X)): connect each side through the
         -- in-scope equation closure to the two ends of ONE in-scope
-        -- DISEQUALITY (a falsity fact on an (EQUAL x y) term).
-        -- Deterministic: the closure is canonical, facts in fact order,
-        -- the first match taken — any valid connection proves the same
-        -- pinned value.
+        -- DISEQUALITY (a falsity fact on an (EQUAL x y) term). This is
+        -- BOUNDED DETERMINISTIC SEARCH (audit 2026-08-04 F7 — the honest
+        -- label): candidates in fact order, both orientations, first
+        -- type-checking connection taken; reproducible, and any valid
+        -- connection proves the same PINNED value (the node's emitted
+        -- verdict) — the target is never chosen by the search.
         let eqs := inScopeEquations ctx
         let disCands : List SExpr :=
           (ctx.litFacts.map (·.2.1) ++ ctx.segFacts.map (·.1)).filter
@@ -3689,7 +3691,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     unless vSplit.isAppOfArity ``Logic.equal 2 do
       throwError "equal-case-split: split value is not (Logic.equal _ _) \
                   (internal — the value walker's EQUAL composition)"
-    let hq ← mkAppM ``logic_equal_two_valued
+    let hq ← mkAppM ``logic_equal_t_or_nil
       #[vSplit.appFn!.appArg!, vSplit.appArg!]
     let idRhs ← mkAppM ``logic_equal_case_split #[vOther, vSplit, hq]
     -- lhs value: equal p q — for the rhs-variant that IS equal other split;

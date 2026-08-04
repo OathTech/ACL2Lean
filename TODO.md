@@ -652,6 +652,29 @@ _Last updated: 2026-08-02._
 > (HOW-MANY-RM-GENERAL: prefer the emitted entry path when it is
 > among the anchoring candidates — a read-off, not inference), the
 > R-lane rung-2, and BNEXT-SIZE wiring.**
+> **EMISSION-BATCH AUDIT RESIDUE (READY-WITH-FIXES, 2026-08-04; F5/F6/
+> F7 fixed in-arc — see docs/audits/2026-08-04_emission-batch-audit.md):
+> (F1) equal/type-alist-t fires ZERO times in the corpus (348 for
+> -NIL) — a shipped, sweep-unvalidatable path; its consumer (the
+> truthy branch on an (EQUAL a b) ⇒ 'T node) is untested until an
+> artifact exercises it. (F2) :GENEQV landed EMISSION-ONLY — no
+> parser field, no consumer; the with-lemma gate still reads the
+> RULE's :equiv (the F12 under-report is still live; the rung-2
+> R-threading is its consumer). (F3) :TFORMULA landed EMISSION-ONLY —
+> the R7a include-book use: consumer is pending; the emit/defthm TAG
+> TEXT is now stale ((:DEFTHM name :FORMULA :SOURCE :CLASSES) — says
+> nothing of :TFORMULA) — QUEUED for the next fork round (comment-
+> only, but any fork commit forces a full recapture). (F4) :TA-RUNES
+> on the new type-alist steps is parsed-and-dropped (rewrite-step has
+> no taRunes field). (F9) the case-split consumer models fcons-term*
+> where ACL2 uses cons-term (constant-folding) — a folded emission
+> would trip the divergence error blaming the emitter; no corpus
+> instance. (F11) the batch's third consumer (equisort strong/weak)
+> is still outstanding — zero equisort rows moved (they also need the
+> IF-collapse composition + the abstract-world statements). (F13) the
+> equal/type-alist origins share the (:TYPE-ALIST NIL) rune with
+> solidify/type-alist; dispatch is rune-only — the docstring narrows
+> honestly but the distinction survives only in :ORIGIN.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

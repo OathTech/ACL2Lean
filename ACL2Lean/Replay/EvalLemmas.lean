@@ -4850,19 +4850,6 @@ theorem logic_implies_boolean (p q : SExpr) :
   rw [logic_implies_cond]
   cases Logic.toBool p <;> cases Logic.toBool q <;> simp
 
-/-- `Logic.equal` is two-valued (its range is `{t, nil}` by definition) —
-    the equal-case-split recipe's boolean supply. -/
-theorem logic_equal_two_valued (a b : SExpr) :
-    Logic.equal a b = SExpr.t ∨ Logic.equal a b = SExpr.nil := by
-  by_cases h : a == b <;> simp [Logic.equal, h]
-
-/-- `a ≠ b` makes `Logic.equal` nil — the equation-closure disequality
-    composition's closing step. -/
-theorem logic_equal_nil_of_ne {a b : SExpr} (h : a ≠ b) :
-    Logic.equal a b = SExpr.nil := by
-  have hb : (a == b) = false := by simp [h]
-  simp [Logic.equal, hb]
-
 /-- The rewrite-equal boolean CASE-RESTRUCTURING identity (fork-batch
     item 1's consumer): `(EQUAL p q)` with `q` TWO-VALUED equals
     `(IF q (EQUAL p 'T) (IF p 'NIL 'T))` at the value level. -/
