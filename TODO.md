@@ -589,6 +589,27 @@ _Last updated: 2026-08-02._
 > trusted-core two-valued registry now has THREE diverged copies
 > (NodeCore ~2082/~2532, Harness ~232) — extract; TamperTests pins
 > for the two anchoring gates.**
+> **PHASE 4 OPENING STATE (2026-08-04, Phase 3 complete at d102d72):
+> equisort.proof-log carries the full Phase-1 surface — both scopes
+> bracketed with (:CONSTRAINTS :FNS (SORTFN1 SORTFN2)/(SSORTFN1
+> SSORTFN2) …), 6 :SOURCE :LOCAL-WITNESS defuns, 14 QEDs — and recon
+> currently REFUSES at the first witness (the BUG-019 fail-closed
+> parse guard, pinned by cov-encapsulate). The ratified resolution
+> (2026-08-02 R6 + BUG-019-by-tag+scope): witnesses enter recon
+> SCOPED (never the certified world), the constraint theorems become
+> the ConstraintsHold surface, constrained-book theorems get
+> world-parametric statements (∀ w, ConstraintsHold w → …, per the R7
+> (a) ratification), and the equisort waterfall replays over abstract
+> w (the WATCH ITEM: cfg.worldExpr abstract — stop per condition 1 if
+> the artifact resists the ratified note). Build order per the R6
+> note: parse/world scoping → sweep entry → parametric statements →
+> the recorded-tree replay over abstract w. Phase-3 residue riding
+> the FORK BATCH: rewrite-equal (equalityp rhs) arm tagging+emission
+> (rewrite.lisp:18434); :PATH coverage (HOW-MANY-RM-GENERAL);
+> per-step relation at solidify/with-lemma (Phase-6 prerequisite);
+> include-book translated statements (R7a follow-up). Phase-3
+> CONSUMER residue (no fork): the IF-TEST-TRUE marker consumption
+> (ProofTree ~346).**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
