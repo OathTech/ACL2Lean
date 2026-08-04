@@ -97,6 +97,14 @@ def corpus : List (String × String) :=
    -- exercises the detail recon + the never-ignore guard in-sweep (F2).
    ("sorting/bsort",           include_str "../acl2_samples/sorting/bsort.proof-log"),
    ("sorting/ordered-perms",   include_str "../acl2_samples/sorting/ordered-perms.proof-log"),
+   -- Phase 4 (R6): equisort ENTERS on the witness-scoping recon (BUG-019
+   -- by structure — witnesses recorded scoped, excluded from the world).
+   -- Its rows are HONESTLY RED until the parametric-statement machinery
+   -- lands: the constraint theorems' trees reference the scoped witness
+   -- fns and the strong/weak theorems the constrained fns, both opaque in
+   -- the certified world (P1 progress: the row-bearing book is in the
+   -- sweep; the rows are the Phase-4 build's scoreboard).
+   ("sorting/equisort",        include_str "../acl2_samples/sorting/equisort.proof-log"),
    ("sorting/msort",           include_str "../acl2_samples/sorting/msort.proof-log"),
    -- J7: the dotted-rune parse (multi-rule events, (:REWRITE FOO . k)) lets
    -- qsort and sorts-equivalent — the D7 consumer — reconstruct.
