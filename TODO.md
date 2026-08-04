@@ -447,6 +447,20 @@ _Last updated: 2026-08-02._
 > MSORT/QSORT-IS-ISORT re-pinned at the precise R7b frontier
 > (non-trivial :CONSTRAINT-CL named). Golden re-pinned row-by-row
 > (4 changes reviewed).**
+> **R7a AUDIT FOLLOW-UPS (READY-WITH-FIXES, 2026-08-04; F1-F4 fixed
+> in-arc — see docs/audits/2026-08-04_r7a-use-composition-audit.md):
+> (F5) the arm's `negs` re-derives dumb-negate-lit as a naive (NOT h)
+> wrap while ClausifyBridge.dumbNegateLit exists — a (NOT p) hyp's
+> app clause won't match (hard-fails honestly); unifying needs the
+> peel's falsity derivation per dumbNegateLit arm. (F6) the R7b
+> frontier message is inferred from constraint-clause SHAPE, not the
+> lmi — :use (:theorem …) would be mislabeled; label off the lmi when
+> R7b lands. (F7) dischargeUseHyp's formula check is a same-source
+> assert, documented as such. (F8) the depMirrorProofAt use: registry
+> arm is corpus-unexercised (no row keeps a use: cond yet) — exercise
+> when a multi-book :use chain appears. Also: include-book :use
+> citations need the TRANSLATED statement emitted (the F1 fallback was
+> dropped as untranslated) — an emission follow-up.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

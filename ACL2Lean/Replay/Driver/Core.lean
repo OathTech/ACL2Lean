@@ -1467,7 +1467,18 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     Induction nodes hard-fail (the scaffold lands next); a pushed clause delegates
     to its pool-root child when the clauses coincide. -/
 partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) : MetaM Expr := do
+  -- never-silently-skip (R7a audit F4, the F12 class): a :USE-HINT
+  -- payload is consumed ONLY by the apply-top-hints arm (the no-clausify
+  -- branch below) — any node routed to another processor arm with a
+  -- payload aboard must hard-fail, not drop it.
+  let hasUseHint := (cn.steps.flatMap (·.items)).any fun
+    | .useHint .. => true | _ => false
+  let guardNoUseHint (arm : String) : MetaM Unit := do
+    if hasUseHint then
+      throwError "replayClause: a :USE-HINT payload on a {arm} node at \
+                  {cn.idStr} (frontier — the payload would be dropped)"
   if cn.induction.isSome then
+    guardNoUseHint "induction"
     return ← replayInduction rec cfg ctx cn
   -- EFFECTIVE clausify records: clausify-input emits its checkpoints on every
   -- preprocess pass, including 'miss passes (whose events flush into the NEXT
@@ -1495,6 +1506,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- effective clausify record changed the clause first (the clausify path
   -- below replays the chain + split and consumes the child itself)
   if clausifyInfos.isEmpty && cn.steps.any (fun s => s.processor.toLower == "push-clause") then
+    guardNoUseHint "push-clause"
     match cn.children with
     | [child] =>
       unless child.inputClause == cn.inputClause do
@@ -1504,10 +1516,12 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- a POOL-SUBSUMED root (synthetic; from (:POOL-SUBSUMED …)): its clause is
   -- an instance-superset of the MORE GENERAL pool root attached as its child
   if cn.steps.any (fun s => s.processor.toLower == "pool-subsumed") then
+    guardNoUseHint "pool-subsumed"
     return ← replaySubsumed rec cfg ctx cn
   -- a DESTRUCTOR-ELIMINATION node: the child clause is over the elim's fresh
   -- variables; replayElim bridges it back through the emitted ELIMSEQUENCE
   if let some st := cn.steps.find? (fun s => s.processor.toLower == "eliminate-destructors-clause") then
+    guardNoUseHint "eliminate-destructors"
     unless clausifyInfos.isEmpty do
       throwError "replayClause: elim step alongside an effective clausify \
                   record at {cn.idStr} (frontier)"
@@ -1519,6 +1533,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- items are the PRECEDING simplify miss's flushed events — not this
   -- transformation's record — and are deliberately not consumed.
   if let some st := cn.steps.find? (fun s => s.processor.toLower == "fertilize-clause") then
+    guardNoUseHint "fertilize"
     unless clausifyInfos.isEmpty do
       throwError "replayClause: fertilize step alongside an effective \
                   clausify record at {cn.idStr} (frontier)"
@@ -1527,6 +1542,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- :VARS; replayGeneralize replays the child at the env binding the fresh
   -- vars to the terms' values and substN-bridges back
   if let some st := cn.steps.find? (fun s => s.processor.toLower == "generalize-clause") then
+    guardNoUseHint "generalize"
     unless clausifyInfos.isEmpty do
       throwError "replayClause: generalize step alongside an effective \
                   clausify record at {cn.idStr} (frontier)"
@@ -1535,6 +1551,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- SUBSET of this clause (irrelevant literals dropped) — the child's truth
   -- closes the parent disjunction through whichever literal is truthy
   if cn.steps.any (fun s => s.processor.toLower == "eliminate-irrelevance-clause") then
+    guardNoUseHint "eliminate-irrelevance"
     unless clausifyInfos.isEmpty do
       throwError "replayClause: eliminate-irrelevance step alongside an \
                   effective clausify record at {cn.idStr} (frontier)"
@@ -1694,7 +1711,18 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- functional-instantiation/:use soundness (R7 — the following arc).
   let useHints := (cn.steps.flatMap (·.items)).filterMap fun
     | .useHint h c a l => some (h, c, a, l) | _ => none
+  -- never-silently-skip (R7a audit F3, the F12 class): a node with
+  -- SEVERAL payloads must not fall through to the ordinary arms below
+  -- (they would chain against the goal with an unrelated failure), and
+  -- literal items alongside the payload have no consumer in this arm.
+  if useHints.length > 1 then
+    throwError "replayClause: {useHints.length} :USE-HINT payloads at \
+                {cn.idStr} (frontier — one payload per apply-top-hints \
+                node)"
   if let [(hyps, constraintCl, appClauses, lmis)] := useHints then
+    unless lits.isEmpty do
+      throwError "use-hint: literal items alongside the :USE-HINT payload \
+                  at {cn.idStr} (frontier — no consumer in this arm)"
     -- PLAIN :use (R7a, close-out Phase 2): the recorded chain walks the
     -- emitted CONSTRAINT-CL (trivial `('T)` for a plain :use — a
     -- NON-trivial constraint clause is a functional instance, R7b); each

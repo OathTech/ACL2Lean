@@ -278,9 +278,11 @@ def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
 /-- DISCHARGE a `use:<thm>` hypothesis from its dependency's replayed
     statement (R7a): identical to `dischargeCongHyp` — the hypothesis
     states the WHOLE formula and the dependency's Goal clause IS that
-    single-literal formula (recompute-and-checked), the mirror applied at
-    `env'`. An offer sourced from a statement-only surface (include-book)
-    frontiers at the missing proof tree — the D6-honest kept condition. -/
+    single-literal formula, the mirror applied at `env'`. The formula
+    equality below is a SAME-SOURCE consistency assert (offer and
+    discharge read the same depProofs root — R7a audit F7), not an
+    independent cross-check; the load-bearing check for `use:` is the
+    verbatim σ/:HYPS comparison in the consuming arm. -/
 def dischargeUseHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : UseSpec)
     (depProofs : List (String × ClauseProof))
     (mirrors : ReplayedRegistry := []) : MetaM Expr := do
@@ -467,23 +469,33 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- whole-formula offer per theorem NAME cited by a plain-:use LMI in
   -- THIS theorem's tree (the payload's :LMI-LST; the offer set stays
   -- narrow, unlike a per-corpus surface). Formula source: the
-  -- dependency's Goal clause (depProofs — same-book + 2a cross-book),
-  -- else the (name, formula) statement surface (`equivRefls` carries
-  -- every local + include-book theorem statement); an include-book
-  -- citation thus offers but its discharge frontiers on the missing
-  -- proof tree — the D6-honest kept condition. Self-citation is
-  -- excluded (a theorem cannot :use itself; offering it would let the
-  -- discharge chase its own tree). A cited name with no formula
-  -- anywhere is NOT offered — the consuming arm hard-fails in-walk.
+  -- dependency's Goal clause ONLY (depProofs — same-book + 2a
+  -- cross-book), i.e. the TRANSLATED statement. R7a audit F1: statement
+  -- surfaces (`equivRefls`/includedTheorems) carry RAW untranslated
+  -- formulas (`(+ …)`, `(AND …)`), which can never pass the arm's
+  -- verbatim :HYPS cross-check — offering them mislabeled the failure
+  -- as "emission divergence"; a cited theorem with no translated Goal
+  -- clause is NOT offered and the arm hard-fails honestly in-walk
+  -- (the include-book translated-statement emission is the tracked
+  -- follow-up). TOPOLOGICAL guard (audit F2): a SAME-BOOK citation
+  -- must name a STRICTLY EARLIER theorem — ACL2 cannot cite a later
+  -- one, and accepting it also opens a mutual-citation discharge
+  -- cycle; cross-book dependency entries are earlier by construction.
+  let useSameBook := congTrees.getD depProofs
+  let useEarlier :=
+    (useSameBook.takeWhile (fun (n, _) => n != cp.name)).map (·.1)
   let useSpecs : List UseSpec :=
     (theoremUseCitedNames cp).filterMap fun n =>
-      if n == cp.name then none else
-      match (depProofs.lookup n).bind (·.root) with
-      | some root =>
-        match root.inputClause with
-        | [f] => some { name := n, formula := f }
-        | _ => none
-      | none => (equivRefls.lookup n).map fun f => { name := n, formula := f }
+      if n == cp.name then none
+      else if useSameBook.any (fun (m, _) => m == n)
+              && !useEarlier.contains n then none
+      else
+        match (depProofs.lookup n).bind (·.root) with
+        | some root =>
+          match root.inputClause with
+          | [f] => some { name := n, formula := f }
+          | _ => none
+        | none => none
   let useDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
     (useSpecs.map fun u =>
       (Name.mkSimple s!"husethm_{u.name}", BinderInfo.default,
