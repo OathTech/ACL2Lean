@@ -183,6 +183,16 @@ def mkUseHypType (cfg : ReplayConfig) (spec : UseSpec) : MetaM Expr := do
     mkForallFVars #[envV]
       (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr spec.formula])
 
+/-- The `equivfull:<thm>` hypothesis TYPE (the R-solidify lane): the
+    equivalence theorem's whole TRANSLATED Goal statement,
+    `∀ env', EvTrue w env' formula` — all four defequiv conjuncts, consumed
+    by the equivalence-rune own-position congruence. -/
+def mkEquivFullHypType (cfg : ReplayConfig) (spec : EquivFullSpec) :
+    MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    mkForallFVars #[envV]
+      (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr spec.formula])
+
 /-- The `equivrefl:<thm>` hypothesis TYPE: the equivalence rule's
     reflexivity component, `∀ env', EvTrue w env' (R x x)`. -/
 def mkEquivReflHypType (cfg : ReplayConfig) (spec : EquivReflSpec) : MetaM Expr := do

@@ -191,6 +191,66 @@ structure EquivReflSpec where
   vx : Symbol
   deriving BEq, Repr
 
+/-- The FULL defequiv statement surface (`equivfull:<thm>`, the R-solidify
+    lane): the equivalence theorem's TRANSLATED Goal clause with the
+    variable names of all four conjuncts, offered as the whole-formula
+    replayed statement. Consumed by the equivalence-rune own-position
+    congruence (`equivOwnPosCongr`): ACL2's geneqv treats an :EQUIVALENCE
+    rule as a congruence at the relation's own argument positions, so the
+    license cites the equivalence rune and NO defcong — the kernel content
+    is the conjuncts (booleanp pins both applications two-valued, sym +
+    trans give mutual truthiness). -/
+structure EquivFullSpec where
+  name : String
+  /-- The TRANSLATED Goal-clause formula (the IF-conjunction). -/
+  formula : SExpr
+  rel : Symbol
+  vx : Symbol
+  vy : Symbol
+  vz : Symbol
+  deriving BEq, Repr
+
+/-- Shape-parse a TRANSLATED defequiv Goal clause:
+    `(IF (BOOLEANP (R x y)) (IF (R x x) (IF (IMPLIES (R x y) (R y x))
+    (IMPLIES (IF (R x y) (R y z) 'NIL) (R x z)) 'NIL) 'NIL) 'NIL)`.
+    `none` when not exactly this shape (never mis-stated). -/
+def equivFullSpecOfGoal? (name : String) (formula : SExpr) :
+    Option EquivFullSpec := do
+  let qNil : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+    (.cons .nil .nil)
+  let rApp (r : Symbol) (p q : Symbol) : SExpr :=
+    .cons (.atom (.symbol r))
+      (.cons (.atom (.symbol p)) (.cons (.atom (.symbol q)) .nil))
+  let .cons (.atom (.symbol if1)) (.cons c1 (.cons rest1 (.cons e1 .nil)))
+    := formula | none
+  guard (if1.isNamed "IF" && e1 == qNil)
+  -- c1 = (BOOLEANP (R x y))
+  let .cons (.atom (.symbol bS)) (.cons (.cons (.atom (.symbol rel))
+      (.cons (.atom (.symbol vx)) (.cons (.atom (.symbol vy)) .nil))) .nil)
+    := c1 | none
+  guard (bS.isNamed "BOOLEANP" && vx != vy)
+  let .cons (.atom (.symbol if2)) (.cons c2 (.cons rest2 (.cons e2 .nil)))
+    := rest1 | none
+  guard (if2.isNamed "IF" && e2 == qNil && c2 == rApp rel vx vx)
+  let .cons (.atom (.symbol if3)) (.cons c3 (.cons c4 (.cons e3 .nil)))
+    := rest2 | none
+  guard (if3.isNamed "IF" && e3 == qNil)
+  -- c3 = (IMPLIES (R x y) (R y x))
+  let .cons (.atom (.symbol imp3)) (.cons h3 (.cons con3 .nil)) := c3 | none
+  guard (imp3.isNamed "IMPLIES" && h3 == rApp rel vx vy
+         && con3 == rApp rel vy vx)
+  -- c4 = (IMPLIES (IF (R x y) (R y z) 'NIL) (R x z))
+  let .cons (.atom (.symbol imp4)) (.cons h4 (.cons con4 .nil)) := c4 | none
+  guard (imp4.isNamed "IMPLIES")
+  let .cons (.atom (.symbol if4)) (.cons a4 (.cons b4 (.cons e4 .nil)))
+    := h4 | none
+  guard (if4.isNamed "IF" && e4 == qNil && a4 == rApp rel vx vy)
+  let .cons (.atom (.symbol rel4)) (.cons (.atom (.symbol vy4))
+      (.cons (.atom (.symbol vz)) .nil)) := b4 | none
+  guard (rel4 == rel && vy4 == vy && vz != vx && vz != vy
+         && con4 == rApp rel vx vz)
+  return { name, formula, rel, vx, vy, vz }
+
 /-- Shape-parse a RAW equivalence formula. `none` if not the defequiv
     shape (never mis-stated). -/
 def equivReflSpecOfFormula? (name : String) (formula : SExpr) :
@@ -287,6 +347,12 @@ structure ReplayCtx where
       at an `apply-top-hints-clause` node; discharged lazily from the
       dependency's replayed statement like `cong:` hyps. -/
   useHyps : List (UseSpec × Expr) := []
+  /-- FULL-defequiv hypotheses (`equivfull:<thm>`, the R-solidify lane):
+      per equivalence theorem whose TRANSLATED Goal parses as the defequiv
+      IF-conjunction, the spec and the bound whole-formula hypothesis.
+      Consumed by the equivalence-rune own-position congruence
+      (`equivOwnPosCongr`); discharged like `cong:` hyps. -/
+  equivFullHyps : List (EquivFullSpec × Expr) := []
   /-- Equivalence-REFLEXIVITY hypotheses (`equivrefl:<thm>`): per
       equivalence-shaped in-scope defthm (incl. INCLUDE-BOOK'd ones), the
       spec and the bound hypothesis `∀ env', EvTrue w env' (R x x)`.

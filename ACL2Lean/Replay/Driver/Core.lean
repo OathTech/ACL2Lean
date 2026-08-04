@@ -1603,6 +1603,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula preSteps
       ((cn.steps.flatMap (·.runes)).filterMap
         (fun r => if r.ty == "congruence" then some r.name else none))
+      ((cn.steps.flatMap (·.runes)).filterMap
+        (fun r => if r.ty == "equivalence" then some r.name else none))
     unless finalT == info.input do
       throwError "replayClause: preprocess chain reached {repr finalT}, the \
                   clausify input is {repr info.input}"
@@ -1738,6 +1740,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx cFormula stepNodes
       ((cn.steps.flatMap (·.runes)).filterMap
         (fun r => if r.ty == "congruence" then some r.name else none))
+      ((cn.steps.flatMap (·.runes)).filterMap
+        (fun r => if r.ty == "equivalence" then some r.name else none))
     let _ := chainOpt
     unless finalT == quoteT do
       throwError "use-hint: the constraint chain reached {repr finalT}, \
@@ -1823,7 +1827,9 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     if let [child] := cn.children then
       let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula stepNodes
         ((cn.steps.flatMap (·.runes)).filterMap
-        (fun r => if r.ty == "congruence" then some r.name else none))
+          (fun r => if r.ty == "congruence" then some r.name else none))
+        ((cn.steps.flatMap (·.runes)).filterMap
+          (fun r => if r.ty == "equivalence" then some r.name else none))
       unless finalT == disjoinTerm child.inputClause do
         throwError "replayClause: preprocess chain reached {repr finalT}, the \
                     single child's clause disjoins to \
@@ -1839,6 +1845,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     return ← replayPreprocessChain cfg ctx formula stepNodes
       ((cn.steps.flatMap (·.runes)).filterMap
         (fun r => if r.ty == "congruence" then some r.name else none))
+      ((cn.steps.flatMap (·.runes)).filterMap
+        (fun r => if r.ty == "equivalence" then some r.name else none))
   -- a MULTI-literal PREPROCESS node whose step chain rewrote the clause and
   -- whose clausify was a NO-OP relative to its own input (filtered above),
   -- continuing in a single child (msort *1/3'': the (ODDS X) ⇒
@@ -1853,7 +1861,9 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       let formula := disjoinTerm cn.inputClause
       let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula stepNodes
         ((cn.steps.flatMap (·.runes)).filterMap
-        (fun r => if r.ty == "congruence" then some r.name else none))
+          (fun r => if r.ty == "congruence" then some r.name else none))
+        ((cn.steps.flatMap (·.runes)).filterMap
+          (fun r => if r.ty == "equivalence" then some r.name else none))
       unless finalT == disjoinTerm child.inputClause do
         throwError "replayClause: preprocess chain reached {repr finalT}, the \
                     single child's clause disjoins to \
@@ -1874,6 +1884,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       return ← replayPreprocessChain cfg ctx formula stepNodes
         ((cn.steps.flatMap (·.runes)).filterMap
           (fun r => if r.ty == "congruence" then some r.name else none))
+        ((cn.steps.flatMap (·.runes)).filterMap
+          (fun r => if r.ty == "equivalence" then some r.name else none))
   rec.clauseSpine cfg ctx cn.idStr (cn.inputClause.zipIdx.map fun (l, i) => (i + 1, l))
     ((cn.steps.flatMap (·.items)).filter fun
       | .clausify _ => false | _ => true)

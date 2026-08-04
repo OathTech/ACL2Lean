@@ -128,6 +128,111 @@ def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     (`replayRewritesWith`) lifts or-shape SIff payloads with it, and
     NodeCore is upstream of this module. -/
 
+/-- The EQUIVALENCE-RUNE own-position congruence (the R-solidify lane,
+    close-out Phase 3): `v(R …a…) = v(R …a'…)` where the parent
+    application is the relation R ITSELF and the rewrite replaces the
+    argument at `argIdx` (0-based) by an R-equivalent term (`hR : EvTrue
+    env (R a a')`). ACL2's license is the :EQUIVALENCE rune — geneqv
+    treats an equivalence rule as a congruence at its own argument
+    positions, citing NO defcong — and the kernel content is the defequiv
+    conjuncts, all value-level: conjunct 1 (booleanp) pins both parent
+    applications two-valued (`booleanp_truthy_cases`); conjunct 3 (sym)
+    turns `hR` around; conjunct 4 (trans) gives each direction of the
+    mutual truthiness; `boolean_biimpl_eq` closes to the value equality.
+    Every instantiation rides `instantiateEvTrueHypAt` on the offered
+    whole-formula statement; the conjunct shapes were recompute-checked at
+    offer time (`equivFullSpecOfGoal?`). -/
+def equivOwnPosCongr (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (spec : EquivFullSpec) (hypV : Expr) (a a' other : SExpr)
+    (argIdx : Nat) (hR : Expr) : MetaM (Expr × ReplayCtx) := do
+  unless argIdx == 0 || argIdx == 1 do
+    throwError "equivOwnPosCongr: arg index {argIdx} out of range for the \
+                binary relation {spec.rel.name}"
+  let rApp (p q : SExpr) : SExpr :=
+    .cons (.atom (.symbol spec.rel)) (.cons p (.cons q .nil))
+  let (parentL, parentR) :=
+    if argIdx == 0 then (rApp a other, rApp a' other)
+    else (rApp other a, rApp other a')
+  let mut ctx := ctx
+  for t in [a, a', other, parentL, parentR, rApp a a', rApp a' a] do
+    ctx ← pinTermOpaques cfg cfg.envExpr ctx t
+  -- project conjunct k (1-4) of an instantiated defequiv conjunction
+  -- (IF c1 (IF c2 (IF c3 c4 'NIL) 'NIL) 'NIL) to its value-truthiness
+  let project (ctx0 : ReplayCtx) (instF : SExpr) (inst : Expr) (k : Nat) :
+      MetaM (Expr × ReplayCtx) := do
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx0 instF
+    let mut cur := instF
+    let mut curP := inst
+    for _ in [0:(k - 1)] do
+      let .cons _ (.cons c (.cons b _)) := cur
+        | throwError "equivOwnPosCongr: conjunction shape mismatch at \
+                      {repr cur} (internal — offer-time shape check missed)"
+      let convC ← ctxValProof cfg ctx c
+      let hne ← mkAppM ``evtrue_and_left #[convC, curP]
+      let htb ← mkAppM ``toBool_true_of_ne_nil #[hne]
+      curP ← mkAppM ``evtrue_and_right #[convC, htb, curP]
+      cur := b
+    if k == 4 then
+      -- after three descents `cur` IS conjunct 4 and `curP` its EvTrue
+      pure (← mkAppM ``ne_nil_of_evtrue_conv
+        #[curP, ← ctxValProof cfg ctx cur], ctx)
+    else
+      let .cons _ (.cons c _) := cur
+        | throwError "equivOwnPosCongr: conjunction shape mismatch at \
+                      {repr cur} (internal)"
+      pure (← mkAppM ``evtrue_and_left #[← ctxValProof cfg ctx c, curP], ctx)
+  let instProject (ctx0 : ReplayCtx) (tx ty tz : SExpr) (k : Nat) :
+      MetaM (Expr × ReplayCtx) := do
+    let σv := [spec.vx, spec.vy, spec.vz]
+    let σt := [tx, ty, tz]
+    let (h, ctx1) ← instantiateEvTrueHypAt cfg ctx0 hypV σv σt spec.formula
+    project ctx1 (ACL2.Replay.substTerm σv σt spec.formula) h k
+  -- v(R a a') ≠ nil from hR
+  let hRne ← mkAppM ``ne_nil_of_evtrue_conv
+    #[hR, ← ctxValProof cfg ctx (rApp a a')]
+  -- sym: conjunct 3 at (a, a') gives v(R a' a) ≠ nil
+  let (hSymImp, ctx1) ← instProject ctx a a' other 3
+  let hSymNe ← mkAppM ``implies_value_mp #[hSymImp, hRne]
+  -- booleanp pins for both parent applications (conjunct 1)
+  let (pL, qL) := if argIdx == 0 then (a, other) else (other, a)
+  let (pR, qR) := if argIdx == 0 then (a', other) else (other, a')
+  let (hbL, ctx2) ← instProject ctx1 pL qL other 1
+  let (hbR, ctx3) ← instProject ctx2 pR qR other 1
+  let pinL ← mkAppM ``booleanp_truthy_cases #[hbL]
+  let pinR ← mkAppM ``booleanp_truthy_cases #[hbR]
+  -- forward / backward truthiness implications via conjunct 4 (trans)
+  let vParentL ← ctxValExpr cfg ctx3 parentL
+  let vParentR ← ctxValExpr cfg ctx3 parentR
+  -- λ (h : assumedV ≠ nil), implies_value_mp trans₄ (and …) — one direction
+  -- of the mutual truthiness; `firstIsAssumed` orders the and-antecedent
+  let mkDir (ctx0 : ReplayCtx) (assumedV : Expr)
+      (txyz : SExpr × SExpr × SExpr) (hFirst : Expr)
+      (firstIsAssumed : Bool) : MetaM (Expr × ReplayCtx) := do
+    let (tx, ty, tz) := txyz
+    let (hTrans, ctxN) ← instProject ctx0 tx ty tz 4
+    let neTy ← mkAppM ``Ne #[assumedV, mkConst ``SExpr.nil]
+    let lam ← withLocalDeclD `hass neTy fun hAss => do
+      let hAnt ←
+        if firstIsAssumed then mkAppM ``and_value_ne_nil #[hAss, hFirst]
+        else mkAppM ``and_value_ne_nil #[hFirst, hAss]
+      mkLambdaFVars #[hAss] (← mkAppM ``implies_value_mp #[hTrans, hAnt])
+    pure (lam, ctxN)
+  let (hFwd, hBwd, ctxF) ←
+    if argIdx == 0 then do
+      -- fwd: trans (a', a, other): (R a' a) ∧ (R a other) → (R a' other)
+      let (f, ctxA) ← mkDir ctx3 vParentL (a', a, other) hSymNe false
+      -- bwd: trans (a, a', other): (R a a') ∧ (R a' other) → (R a other)
+      let (b, ctxB) ← mkDir ctxA vParentR (a, a', other) hRne false
+      pure (f, b, ctxB)
+    else do
+      -- fwd: trans (other, a, a'): (R other a) ∧ (R a a') → (R other a')
+      let (f, ctxA) ← mkDir ctx3 vParentL (other, a, a') hRne true
+      -- bwd: trans (other, a', a): (R other a') ∧ (R a' a) → (R other a)
+      let (b, ctxB) ← mkDir ctxA vParentR (other, a', a) hSymNe true
+      pure (f, b, ctxB)
+  let valueEq ← mkAppM ``boolean_biimpl_eq #[pinL, pinR, hFwd, hBwd]
+  pure (valueEq, ctxF)
+
 /-- The R-COLLAPSE step (G2 rung 2): a preprocess rewrite under a USER
     equivalence R (`:EQUIV perm` — qsort's ORDEREDP-QSORT applying
     PERM-QSORT at ALL-REL's arg 2). The R-payload lives for exactly ONE
@@ -146,7 +251,8 @@ def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     Hyp-bearing R-rules and ambiguous congruence matches are loud
     frontiers. Returns the parent-level fuel-eq. -/
 def replayCongCollapse (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
-    (parentStep : PathStep) (citedCongs : List String) : MetaM Expr := do
+    (parentStep : PathStep) (citedCongs : List String)
+    (citedEquivs : List String := []) : MetaM Expr := do
   let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ children prov := n
   let rune := runeOf n
@@ -203,6 +309,39 @@ def replayCongCollapse (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
   let congMatches := ctx1.congHyps.filter fun (c, _) =>
     c.fn == parentStep.fn && c.pos == parentStep.argIdx && c.rel == rSym &&
     citedCongs.contains c.name
+  if congMatches.isEmpty && parentStep.fn == rSym then
+    -- EQUIVALENCE-RUNE own-position license (the R-solidify lane, Phase 3):
+    -- the parent application is R ITSELF — no defcong exists for R's own
+    -- argument positions; ACL2's geneqv built-in makes the :EQUIVALENCE
+    -- rule the congruence there and the step cites the equivalence rune.
+    -- Anchored exactly as BUG-023 demands: the matched equivfull spec must
+    -- be STEP-CITED (citedEquivs), never shape-matched alone.
+    let eqMatches := ctx1.equivFullHyps.filter fun (e, _) =>
+      e.rel == rSym && citedEquivs.contains e.name
+    let [(eSpec, eHyp)] := eqMatches
+      | throwError "replayCongCollapse: own-position rewrite under \
+          {rSym.name} at arg {parentStep.argIdx}: {eqMatches.length} \
+          step-cited equivfull hypotheses (need exactly 1; cited \
+          equivalence runes {citedEquivs}) (frontier)"
+    let parentL := rebuild parentStep lhs
+    let parentR := rebuild parentStep rhs
+    let some pArgs := (match parentL with
+        | .cons _ argsS => argsS.toList?
+        | _ => none)
+      | throwError "replayCongCollapse: parent {repr parentL} is not an \
+          application"
+    let [arg0, arg1] := pArgs
+      | throwError "replayCongCollapse: own-position parent {repr parentL} \
+          is not a binary application (frontier)"
+    unless pArgs[parentStep.argIdx]? == some lhs do
+      throwError "replayCongCollapse: the parent's arg at the rewrite \
+          position is not the node lhs (internal)"
+    let other := if parentStep.argIdx == 0 then arg1 else arg0
+    let (valueEq, ctxE) ← equivOwnPosCongr cfg ctx1 eSpec eHyp lhs rhs other
+      parentStep.argIdx hRel
+    return ← mkAppM ``fuel_eq_of_conv
+      #[← ctxValProof cfg ctxE parentL, ← ctxValProof cfg ctxE parentR,
+        valueEq]
   let [(cSpec, cHyp)] := congMatches
     | throwError "replayCongCollapse: {congMatches.length} congruence \
         hypotheses match ({parentStep.fn.name} arg {parentStep.argIdx} under \
@@ -256,7 +395,8 @@ def replayCongCollapse (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     refinement (`evrel_of_fuel_eq` + `siff_refl`). -/
 def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
     (formula : SExpr) (nodes : List ProofNode)
-    (citedCongs : List String := []) :
+    (citedCongs : List String := [])
+    (citedEquivs : List String := []) :
     MetaM (Option (Expr × Bool) × SExpr) := do
   let mut cur := formula
   let mut acc : Option (Expr × Bool) := none
@@ -309,7 +449,7 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
           | throwError "replayPreprocessChain: user-equivalence step \
               ({prov.equiv}) at the chain root — no congruence frame \
               (frontier)"
-        let p ← replayCongCollapse cfg ctx n parentStep citedCongs
+        let p ← replayCongCollapse cfg ctx n parentStep citedCongs citedEquivs
         pure (p, false, rebuild parentStep lhs, rebuild parentStep rhs,
               path.dropLast)
       else do
@@ -364,8 +504,10 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
     `strengthenIffChain`/`formulaBooleanFact` pair is gone, G2). -/
 def replayPreprocessChain (cfg : ReplayConfig) (ctx : ReplayCtx)
     (formula : SExpr) (nodes : List ProofNode)
-    (citedCongs : List String := []) : MetaM Expr := do
+    (citedCongs : List String := [])
+    (citedEquivs : List String := []) : MetaM Expr := do
   let (acc, cur) ← replayPreprocessChainCore cfg ctx formula nodes citedCongs
+    citedEquivs
   unless cur == quoteT do
     throwError "replayPreprocessChain: chain ended at {repr cur}, expected (quote t)"
   let some (chain, isIff) := acc

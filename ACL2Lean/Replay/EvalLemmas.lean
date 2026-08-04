@@ -4850,6 +4850,30 @@ theorem logic_implies_boolean (p q : SExpr) :
   rw [logic_implies_cond]
   cases Logic.toBool p <;> cases Logic.toBool q <;> simp
 
+/-- A truthy `Logic.booleanp` pins its argument two-valued (the
+    equivalence-rune own-position congruence's boolean pin — the defequiv
+    booleanp conjunct applied at each R-application). -/
+theorem booleanp_truthy_cases {v : SExpr}
+    (h : Logic.booleanp v ≠ SExpr.nil) : v = SExpr.t ∨ v = SExpr.nil := by
+  by_cases ht : v == SExpr.t <;> by_cases hn : v == SExpr.nil <;>
+    simp_all [Logic.booleanp]
+
+/-- Two boolean values with mutually-implied truthiness are EQUAL — the
+    equivalence-rune own-position congruence's closing step: the R
+    applications at the original and R-rewritten argument are both boolean
+    (defequiv conjunct 1) and each truthy iff the other (sym + trans), so
+    their VALUES coincide. -/
+theorem boolean_biimpl_eq {va vb : SExpr}
+    (ha : va = SExpr.t ∨ va = SExpr.nil) (hb : vb = SExpr.t ∨ vb = SExpr.nil)
+    (hfwd : va ≠ SExpr.nil → vb ≠ SExpr.nil)
+    (hbwd : vb ≠ SExpr.nil → va ≠ SExpr.nil) : va = vb := by
+  have htn : SExpr.t ≠ SExpr.nil := by decide
+  rcases ha with ha | ha <;> rcases hb with hb | hb <;> subst ha <;> subst hb
+  · rfl
+  · exact absurd rfl (hfwd htn)
+  · exact absurd rfl (hbwd htn)
+  · rfl
+
 /-! ## The truthiness judgment `EvTrue` (G2)
 
 ACL2's notion of clause/theorem truth is *the term is non-nil*; the exact-t

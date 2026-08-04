@@ -150,6 +150,10 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),
+  ("sorting/convert-perm-to-how-many", "CONVERT-PERM-TO-HOW-MANY",
+    .pending "the book's capstone (perm ↔ counts agree — List.Perm iff \
+      count-eq native reading is the natural mirror); greened by R7a + the \
+      equivalence-rune own-position congruence (Phase 3); P3/P7 decides"),
   ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),
