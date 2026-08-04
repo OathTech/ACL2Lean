@@ -610,6 +610,23 @@ _Last updated: 2026-08-02._
 > include-book translated statements (R7a follow-up). Phase-3
 > CONSUMER residue (no fork): the IF-TEST-TRUE marker consumption
 > (ProofTree ~346).**
+> **EQUISORT STRONG/WEAK FINAL WALL DIAGNOSED (2026-08-04, closing
+> the equisort-r6 sub-arc): the capstone-shape rows' remaining
+> failure is EMISSION-BLOCKED on the fork batch's rewrite-equal item.
+> Read off the WEAK-SORTFN1-IS-SORTFN2 Goal'' literal-1 chain: after
+> the constraint rules close the antecedent and CONVERT-PERM-TO-
+> HOW-MANY closes (PERM s1 s2) ⇒ 'T, the recorded chain JUMPS to
+> (EQUAL 'NIL 'T) ⇒ 'NIL — the intermediate collapse of
+> (EQUAL (SORTFN1 X) (SORTFN2 X)) ⇒ 'NIL from the clause context
+> (literal 3's assumed falsity, ACL2's rewrite-equal type-alist
+> route) is UNRECORDED — the same untagged rewrite-equal arm family
+> the tpthm audit pinned (rewrite.lisp ~18428/18434). The batch item
+> now carries THREE consumers: the counter-example row, HOW-MANY-RM-
+> GENERAL's family, and the equisort capstule-shape rows. Everything
+> Lean-side up to that emission is BUILT and validated: R7a resolves
+> the :use ORDERED-PERMS payload cross-book, the constraint rules
+> apply as ordinary rule: hyps over the constrained telescope, the
+> chain walks with no witness dereference (the watch item holds).**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
