@@ -151,6 +151,62 @@ def congSpecOfFormula? (name : String) (formula : SExpr) : Option CongSpec := do
   return { name, formula, rel, fn := fnL, pos, argVars, vy,
            hyp, lhsApp, rhsApp }
 
+/-- Deterministic ONE-WAY first-order matching of `term` against `pattern`:
+    bind the pattern's ARGUMENT-position variables (bare symbols) to
+    subterms so the instantiated pattern equals the term; application HEADS
+    must match exactly; QUOTE subterms are opaque constants; bindings must
+    be consistent. `none` on any mismatch — the consumer's loud frontier.
+    Used where ACL2 emits NO substitution (type-set TP-rule applications):
+    unique first-order matching is a read-off, not search, and the caller
+    recompute-checks `substTerm σ pattern == term`. -/
+partial def matchPatternGo (p t : SExpr) (σ : List (Symbol × SExpr)) :
+    Option (List (Symbol × SExpr)) :=
+  match p, t with
+  | .atom (.symbol v), _ =>
+    match σ.find? (fun (w, _) => w == v) with
+    | some (_, t') => if t' == t then some σ else none
+    | none => some ((v, t) :: σ)
+  | .cons (.atom (.symbol pf)) pargs, .cons (.atom (.symbol tf)) targs =>
+    if pf.name == "QUOTE" then if p == t then some σ else none
+    else if pf != tf then none
+    else
+      pargs.toList?.bind fun pl =>
+      targs.toList?.bind fun tl =>
+      if pl.length != tl.length then none
+      else (pl.zip tl).foldlM (fun σ (pp, tt) => matchPatternGo pp tt σ) σ
+  | _, _ => if p == t then some σ else none
+
+def matchPattern? (pattern term : SExpr) :
+    Option (List (Symbol × SExpr)) :=
+  matchPatternGo pattern term []
+
+/-- A THEOREM-classed :TYPE-PRESCRIPTION rule's hypothesis surface
+    (`tpthm:<thm>`, close-out Phase 3 — the FIRST `:CLASSES` consumer):
+    the theorem name and its Goal-clause formula, offered as the
+    whole-formula replayed statement. Consumed by `replayRecognizer`'s
+    cited-rune fallback (a recognizer verdict whose ttree cites a
+    `(:TYPE-PRESCRIPTION <thm>)` rune naming a defthm, not a defun
+    admission TP — RM has none; TRUE-LISTP-RM is the anchor case). -/
+structure TpThmSpec where
+  name : String
+  formula : SExpr
+  deriving BEq, Repr
+
+/-- Does an emitted `:CLASSES` value name :TYPE-PRESCRIPTION — either the
+    bare keyword (TRUE-LISTP-RM's shape) or a member of the class list
+    (each entry a keyword or a `(keyword …)` spec)? -/
+def classesNameTP : Option SExpr → Bool
+  | some (.atom (.keyword k)) => k == "TYPE-PRESCRIPTION"
+  | some l =>
+    match l.toList? with
+    | some items => items.any fun it =>
+        match it with
+        | .atom (.keyword k) => k == "TYPE-PRESCRIPTION"
+        | .cons (.atom (.keyword k)) _ => k == "TYPE-PRESCRIPTION"
+        | _ => false
+    | none => false
+  | none => false
+
 /-- A `:use`-cited theorem's hypothesis surface (R7a, close-out Phase 2):
     the theorem NAME and its Goal-clause formula. The hypothesis states the
     WHOLE formula (`∀ env', EvTrue w env' formula` — `mkUseHypType`);
@@ -353,6 +409,12 @@ structure ReplayCtx where
       Consumed by the equivalence-rune own-position congruence
       (`equivOwnPosCongr`); discharged like `cong:` hyps. -/
   equivFullHyps : List (EquivFullSpec × Expr) := []
+  /-- THEOREM-classed :TYPE-PRESCRIPTION hypotheses (`tpthm:<thm>`): per
+      dependency theorem whose emitted `:CLASSES` names :TYPE-PRESCRIPTION,
+      the spec and the bound whole-formula hypothesis. Consumed by
+      `replayRecognizer`'s cited-rune fallback; discharged like `cong:`
+      hyps. -/
+  tpThmHyps : List (TpThmSpec × Expr) := []
   /-- Equivalence-REFLEXIVITY hypotheses (`equivrefl:<thm>`): per
       equivalence-shaped in-scope defthm (incl. INCLUDE-BOOK'd ones), the
       spec and the bound hypothesis `∀ env', EvTrue w env' (R x x)`.
@@ -1985,7 +2047,8 @@ partial def trueListpConsPeels (term : SExpr) : List SExpr :=
     `acl2-numberp`-of-pinned-int recipe (the TP bridge); a structurally-computing
     value (e.g. `consp (cons …) = t`, where the cast is definitional). -/
 partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (term : SExpr) (verdict : SExpr) : MetaM Expr := do
+    (term : SExpr) (verdict : SExpr)
+    (citedTpThms : List String := []) : MetaM Expr := do
   let verdictE := reflectSExpr verdict
   if let some (v, p) := ctx.val? term then
     unless ← isDefEq v verdictE do
@@ -2402,9 +2465,91 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
               mkAppM ``re_val_cast
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE,
                   p, hT]
+            else if let some (spec, hypV) := citedTpThms.findSome? (fun tn =>
+                ctx.tpThmHyps.find? (fun (s, _) => s.name == tn)) then do
+              -- TP-CLASSED THEOREM route (tpthm sub-arc 2026-08-04 — the
+              -- FIRST :CLASSES consumer): the node's ttree cites a
+              -- (:TYPE-PRESCRIPTION <defthm>) rune naming a theorem, not a
+              -- defun admission TP (RM has none; TRUE-LISTP-RM is
+              -- `:CLASSES :TYPE-PRESCRIPTION`). Match the theorem's
+              -- conclusion against the recognizer term (no σ is emitted
+              -- for type-set rule applications; one-way matching is
+              -- deterministic and recompute-checked), relieve the hyp
+              -- instance from the clause context, MP, and pin the exact
+              -- verdict by the recognizer's trusted-core two-valued
+              -- range. Anchored per BUG-023: CITED runes only.
+              let (hyp?, concl) := match spec.formula with
+                | .cons (.atom (.symbol imp)) (.cons h (.cons c .nil)) =>
+                  if imp.name == "IMPLIES" then (some h, c)
+                  else (none, spec.formula)
+                | f => (none, f)
+              let some σ := matchPattern? concl term
+                | throwError "replayRecognizer/tpthm: {spec.name}'s \
+                    conclusion {repr concl} does not match {repr term} \
+                    (frontier)"
+              let σvars := σ.map (·.1)
+              let σterms := σ.map (·.2)
+              unless ACL2.Replay.substTerm σvars σterms concl == term do
+                throwError "replayRecognizer/tpthm: match recompute failed \
+                    (internal)"
+              unless (ACL2.Replay.freeVars spec.formula).all
+                  (σvars.contains ·) do
+                throwError "replayRecognizer/tpthm: {spec.name} has free \
+                    variables outside the conclusion match (frontier — \
+                    free-variable TP hyps)"
+              unless verdict == SExpr.t do
+                throwError "replayRecognizer/tpthm: verdict {repr verdict} \
+                    ≠ 'T (frontier)"
+              let (hInst, ctx1) ← instantiateEvTrueHypAt cfg ctx hypV
+                σvars σterms spec.formula
+              let instF := ACL2.Replay.substTerm σvars σterms spec.formula
+              let ctx2 ← pinTermOpaques cfg cfg.envExpr ctx1 instF
+              let hFne ← mkAppM ``ne_nil_of_evtrue_conv
+                #[hInst, ← ctxValProof cfg ctx2 instF]
+              let (hCne, ctxF) ← match hyp? with
+                | none => pure (hFne, ctx2)
+                | some h => do
+                  let hσ := ACL2.Replay.substTerm σvars σterms h
+                  let notH : SExpr := .cons
+                    (.atom (.symbol { name := "NOT" })) (.cons hσ .nil)
+                  let ctx3 ← pinTermOpaques cfg cfg.envExpr ctx2 hσ
+                  let vH ← ctxValExpr cfg ctx3 hσ
+                  let hit ← ctx3.litFactByTermChecked? notH
+                    (← mkEq (mkApp (mkConst ``Logic.not) vH)
+                      (mkConst ``SExpr.nil))
+                  let hNotNil ← match hit with
+                    | some hh => pure hh
+                    | none =>
+                      match ctx3.segFacts.find? (fun (st, _) => st == notH) with
+                      | some (_, hh) => pure hh
+                      | none => throwError "replayRecognizer/tpthm: \
+                          {spec.name}'s hyp instance {repr hσ} has no \
+                          (not …)-falsity fact in scope (frontier)"
+                  let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
+                  pure (← mkAppM ``implies_value_mp #[hFne, hne], ctx3)
+              -- exact-'T pin: the recognizer's TRUSTED-CORE two-valued
+              -- range (same registry as dischargeRuleHyp's routeBool)
+              let coreBool? : Option (Name × Name) :=
+                if rs.name == "TRUE-LISTP" then
+                  some (``Logic.trueListp, ``logic_trueListp_ne_nil_t)
+                else if rs.name == "CONSP" then
+                  some (``Logic.consp, ``logic_consp_ne_nil_t)
+                else none
+              let some (liftC, neLemma) := coreBool?
+                | throwError "replayRecognizer/tpthm: {rs.name} has no \
+                    trusted-core two-valued range registered (frontier)"
+              let vC ← ctxValExpr cfg ctxF term
+              unless vC.isAppOfArity liftC 1 do
+                throwError "replayRecognizer/tpthm: value of {repr term} \
+                    is not ({liftC} _)"
+              let hT ← mkAppM neLemma #[vC.appArg!, hCne]
+              mkAppM ``re_val_cast
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vC,
+                  verdictE, ← ctxValProof cfg ctxF term, hT]
             else
               throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict} \
-                        (no TP hypothesis for {fs.name})"
+                        (no TP hypothesis for {fs.name}; cited TP runes \
+                        {citedTpThms})"
     else
       let p ← ctxValProof cfg ctx term
       let v ← ctxValExpr cfg ctx term
@@ -3295,7 +3440,13 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let verdictV := match rhs with
       | .cons (.atom (.symbol q)) (.cons v .nil) => if q.name == "QUOTE" then v else rhs
       | v => v
-    let fact ← replayRecognizer cfg ctx lhs verdictV
+    -- the node's cited (:TYPE-PRESCRIPTION <name>) runes — the tpthm
+    -- route's BUG-023 anchor (theorem-classed TP rules; defun-TP names
+    -- simply have no tpthm offer and fall through to the tp: routes)
+    let .node _ _ _ _ provR := n
+    let citedTpThms := provR.runes.filterMap fun r =>
+      if r.ty == "type-prescription" then some r.name else none
+    let fact ← replayRecognizer cfg ctx lhs verdictV (citedTpThms := citedTpThms)
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr verdictV]
     mkAppM ``fuel_eq_of_conv #[fact, hq, ← mkEqRefl (reflectSExpr verdictV)]
   | "if-simplification", _ =>
@@ -5772,6 +5923,18 @@ partial def collectContextDemands : ProofNode → List ContextDemand
                    (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
                      (.cons u .nil)))]
                else []
+             | _ => []) ++
+            -- tpthm ingredients (the :CLASSES consumer): a THEOREM-classed
+            -- TP rule's hyp instance is typically the recognizer at an
+            -- ARGUMENT of the inner application ((TRUE-LISTP (RM E X))'s
+            -- hyp is (TRUE-LISTP X)) — demand each; unmatched demands are
+            -- skipped harmlessly at the hoist site
+            (match w with
+             | .cons (.atom (.symbol _)) argsS =>
+               (argsS.toList?.getD []).map fun a =>
+                 ContextDemand.term (notOf
+                   (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                     (.cons a .nil)))
              | _ => [])
           else if rs.name == "CONSP" then
             -- the CONSP-closure ingredients (ORDERED-PERMS *1/2.2 and the
