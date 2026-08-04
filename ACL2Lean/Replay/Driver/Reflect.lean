@@ -181,7 +181,7 @@ structure PathStep where
       `rebuild`/`applyStep` DISPATCH on this field; `fn` then carries only the
       binder's `LAMBDA` symbol and is not used to name a function. -/
   lamHead : Option SExpr := none
-  deriving Inhabited
+  deriving Inhabited, BEq
 
 /-- View an SExpr as `(fn arg₀ … argₖ)`: head must be a symbol. -/
 def asApp (t : SExpr) : Option (Symbol × List SExpr) :=

@@ -4854,8 +4854,46 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             acc.map (fun p => if p.1 == c.1 then c else p)
           else acc
         | none => acc ++ [c]) []
+      let mut chosen? : Option (List PathFrame × Option (List PathFrame) ×
+        Option (List PathFrame × Nat)) := none
       match cands' with
-      | [(c, preSwap?, br?)] =>
+      | [c] => chosen? := some c
+      | [] =>
+        match occurrencePaths start wterm with
+        | [p] => frames := p
+        | [] => throwError "replayRewrites: inline {kind} window term \
+            {repr wterm} does not occur in the running term \
+            {repr start} (frontier)"
+        | ps => throwError "replayRewrites: inline {kind} window term \
+            {repr wterm} occurs {ps.length} times in the running term \
+            {repr start} (entry path {repr wpath}, swapped {wswapped}) — \
+            ambiguous position (frontier)"
+      | cs => do
+        -- POSITION-CANONICAL disambiguation (close-out queue, the
+        -- HOW-MANY-RM-GENERAL class): distinct FRAME SPELLINGS can name
+        -- the SAME position — navigation checks arity positions; a
+        -- frame's fn symbol is a display descriptor — so the syntactic
+        -- dedupe above can miss semantic equality. Canonicalize each
+        -- candidate by its VALIDATED PathStep list against the running
+        -- term (a read-off, not preference): all equal → one position →
+        -- take the branch-anchored reading if present (the
+        -- hypothesis-bearing faithful context), else the first. Genuine
+        -- positional disagreement still hard-fails.
+        let canon ← cs.mapM (fun c => do
+          match pathStepsFromFrames start c.1 wterm with
+          | .ok p => pure (some p)
+          | .error _ => pure (none : Option (List PathStep)))
+        let allSame := match canon.head?.bind id with
+          | some p0 => canon.all (· == some p0)
+          | none => false
+        if allSame then
+          chosen? := some ((cs.find? (·.2.2.isSome)).getD cs.head!)
+        else
+          throwError "replayRewrites: inline {kind} window term \
+              {repr wterm} admits {cs.length} distinct anchorings \
+              {repr (cs.map (·.1))} in the running term {repr start} (entry \
+              path {repr wpath}) — ambiguous position (frontier)"
+      if let some (c, preSwap?, br?) := chosen? then
         frames := c
         branchAnchor := br?
         if let some base := preSwap? then
@@ -4871,20 +4909,6 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           let (pc, root') ← liftNegTestSwap cfg stepsToIf start S cIn a b swapped
           preChain := some pc
           start := root'
-      | [] =>
-        match occurrencePaths start wterm with
-        | [p] => frames := p
-        | [] => throwError "replayRewrites: inline {kind} window term \
-            {repr wterm} does not occur in the running term \
-            {repr start} (frontier)"
-        | ps => throwError "replayRewrites: inline {kind} window term \
-            {repr wterm} occurs {ps.length} times in the running term \
-            {repr start} (entry path {repr wpath}, swapped {wswapped}) — \
-            ambiguous position (frontier)"
-      | cs => throwError "replayRewrites: inline {kind} window term \
-          {repr wterm} admits {cs.length} distinct anchorings \
-          {repr (cs.map (·.1))} in the running term {repr start} (entry \
-          path {repr wpath}) — ambiguous position (frontier)"
       let w := cfg.worldExpr
       let e := cfg.envExpr
       let mkIdEq (t : SExpr) : MetaM Expr := do
