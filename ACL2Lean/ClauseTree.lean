@@ -222,6 +222,20 @@ def Development.scopes (dev : Development) : Except String (List Scope) := do
       | _ => go rest depth cur acc
   go dev 0 none []
 
+/-- The constrained fns of a development with their arities (each scope's
+    sig fns paired with their scoped witness's formal count) — the config
+    surface for the R6 telescope. Scope balance is enforced upstream; a
+    sig with no in-scope witness is skipped (its applications then stay
+    unpinned — the honest frontier). -/
+def Development.constrainedFnArities (dev : Development) :
+    List (Symbol × Nat) :=
+  match dev.scopes with
+  | .ok scopes => scopes.flatMap fun s =>
+      s.sigs.filterMap fun sg =>
+        (s.witnesses.find? (fun (n, _, _) => n == sg.name)).map
+          (fun (_, formals, _) => (sg, formals.length))
+  | .error _ => []
+
 /-- All INCLUDE-BOOK'd theorems in development order. (The explicit `_` for
     `classes` matters: a 2-arg pattern would DEFAULT-FILL `classes := none`
     and silently skip classed entries — the TamperTests F1 lesson.) -/

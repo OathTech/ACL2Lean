@@ -89,6 +89,16 @@ structure ReplayConfig where
       shape exactly (type facts from ACL2, proof from the trusted core);
       an emitted-but-drifted corollary hard-fails. -/
   gzTps : List (String × SExpr) := []
+  /-- CONSTRAINED fns (R6/Phase 4, the ratified option (a) telescope
+      form): the encapsulate signature fns with their arities, read off
+      `Development.scopes`. They have NO definition in the certified world
+      (witnesses are excluded by construction); the telescope offers them
+      totality hypotheses like world fns, so their applications pin as
+      opaque values, and the constraint theorems ride the ordinary
+      `rule:`/`tp:` hypothesis channels — the kept-hypothesis set IS the
+      ConstraintsHold surface, and the parametric statement is its
+      λ-abstraction. -/
+  constrainedFns : List (Symbol × Nat) := []
 
 /-- A CONGRUENCE rule consumed by the R-collapse (G2 rung 2), shape-parsed
     from a defcong-style defthm formula
@@ -1562,7 +1572,11 @@ partial def pinTermOpaques (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCt
     let mut ctx := ctx
     for a in args do
       ctx ← pinTermOpaques cfg envExpr ctx a
-    if (cfg.worldVal.defs.get? fs).isNone then return ctx
+    -- CONSTRAINED fns (R6/Phase 4) have no world def but DO carry a
+    -- totality hypothesis (the ConstraintsHold signature fact) — pin
+    -- their applications opaque exactly like world fns.
+    if (cfg.worldVal.defs.get? fs).isNone
+        && !(cfg.constrainedFns.any (·.1 == fs)) then return ctx
     if (ctx.val? t).isSome then return ctx
     -- PROVISIONING, not consumption: with no totality hypothesis bound (the
     -- unconditional harness) the value is simply not offered — a replay that
