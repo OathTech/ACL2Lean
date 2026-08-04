@@ -41,7 +41,10 @@ partial def recordedTerminationDefuns
 where
   /-- some emitted decrease argument is beyond a cdr/car chain over a
       variable and not an EVENS/ODDS registry application — the exact
-      precondition of `dischargeDecrease`'s frontier. -/
+      precondition of `dischargeDecrease`'s frontier. A USER measure fn
+      head (BNEXT-SIZE — the MDD-ratified admission-replay route; the
+      μ-registry's interpretation covers only the trusted-core
+      ACL2-COUNT/LEN family) always takes the recorded route. -/
   needsRecorded (just : Justification) : Bool :=
     just.terminationClauses.any fun c =>
       match c.toList? with
@@ -49,7 +52,8 @@ where
         match l with
         | .cons (.atom (.symbol olt))
             (.cons (.cons (.atom (.symbol cnt1)) (.cons d .nil)) _) =>
-          olt.name == "O<" && cnt1.name == "ACL2-COUNT" && !chainOk d
+          olt.name == "O<" &&
+            (if cnt1.name == "ACL2-COUNT" then !chainOk d else true)
         | _ => false
       | none => false
   chainOk : SExpr → Bool

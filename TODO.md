@@ -675,6 +675,23 @@ _Last updated: 2026-08-02._
 > equal/type-alist origins share the (:TYPE-ALIST NIL) rune with
 > solidify/type-alist; dispatch is rune-only — the docstring narrows
 > honestly but the distinction survives only in :ORIGIN.**
+> **BNEXT-SIZE ROUTE, LAYER 2 (2026-08-04, consumer-queue sub-arc):
+> the recorded-termination demand filter widened — a USER measure fn
+> head (non-ACL2-COUNT) always takes the recorded route (it can never
+> ride the μ-registry, whose interpretation covers the trusted-core
+> family only). BNEXT and BSORT now ENTER the admission pre-pass and
+> both replays fail at ONE shared class: the measure obligations of a
+> non-ACL2-COUNT measure state ordinal machinery — dpValExpr lacks
+> POSP and O-FIRST-COEFF as DP-lift primitives ((POSP (O-FIRST-COEFF
+> (LEN X))) / (… (BNEXT-SIZE X))). NEXT INCREMENT: register the
+> ordinal-on-naturals family in the DP lift + the leaf tactic (the
+> Count-library extension the ratified carve-out anticipates —
+> additive registration, no per-case content): posp, o-first-coeff /
+> o-first-expt / o-rst on NATP arguments (where they are the
+> identity/0/0 — the natp branch of ACL2's ordinal defs), enough for
+> natural-valued user measures. The 3 μ-registry rows flip when the
+> admission replays register (they fall back only on pre-pass
+> failure).**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
