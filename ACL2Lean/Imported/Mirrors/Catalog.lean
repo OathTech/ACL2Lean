@@ -88,6 +88,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("03-linear", "LINEAR-CHAIN", .pending "#50 DP tactic decode"),
   ("04-multi-case-induction", "EVENLEN-BOOLEANP", .pending "boolean-recognizer decode (near type-absorbed)"),
   ("05-hints", "LEN2-APP-HELPER", .pending "len2 dischargers"),
+  ("05-hints", "LEN2-APP-VIA-USE", .pending "len2 dischargers"),
   ("05-hints", "LEN2-APP-VIA-INDUCT", .pending "len2 dischargers"),
   ("05-hints", "LEN2-APP-NO-HELPER", .pending "len2 dischargers"),
   ("06-measure", "COUNT-DOWN-ZERO", .replayedOnly "reflexive decode — no non-vacuous native fact"),

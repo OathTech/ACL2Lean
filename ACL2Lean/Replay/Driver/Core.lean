@@ -1694,7 +1694,18 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- functional-instantiation/:use soundness (R7 — the following arc).
   let useHints := (cn.steps.flatMap (·.items)).filterMap fun
     | .useHint h c a l => some (h, c, a, l) | _ => none
-  if let [(hyps, constraintCl, appClauses, _lmis)] := useHints then
+  if let [(hyps, constraintCl, appClauses, lmis)] := useHints then
+    -- PLAIN :use (R7a, close-out Phase 2): the recorded chain walks the
+    -- emitted CONSTRAINT-CL (trivial `('T)` for a plain :use — a
+    -- NON-trivial constraint clause is a functional instance, R7b); each
+    -- `:LMI-LST` instance's truth comes from the cited theorem's
+    -- whole-formula replayed statement (`use:` hypothesis) transported
+    -- under the lmi's σ (`instantiateEvTrueHypAt`), recompute-checked
+    -- against the emitted `:HYPS` entry; the application clause
+    -- `(¬L₁ … ¬Lₙ G-lits)` is proved by its child subgoal and each `¬Lᵢ`
+    -- head is peeled along `Lᵢ`'s truthiness (`evtrue_extract_else`) —
+    -- exactly ACL2's apply-top-hints-clause composition, read off the
+    -- emission with every piece cross-checked.
     let cFormula := disjoinTerm constraintCl
     let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx cFormula stepNodes
       ((cn.steps.flatMap (·.runes)).filterMap
@@ -1703,10 +1714,68 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     unless finalT == quoteT do
       throwError "use-hint: the constraint chain reached {repr finalT}, \
                   not 't at {cn.idStr} (frontier)"
-    throwError "use-hint: constraint chain discharged; the {hyps.length} \
-                instantiated hyp(s) and {appClauses.length} application \
-                clause(s) await functional-instantiation/:use soundness \
-                (R7 frontier) at {cn.idStr}"
+    unless constraintCl == [quoteT] do
+      throwError "use-hint: non-trivial :CONSTRAINT-CL {repr constraintCl} \
+                  at {cn.idStr} — functional-instantiation constraint \
+                  obligations (R7b frontier)"
+    unless lmis.length == hyps.length do
+      throwError "use-hint: {lmis.length} :LMI-LST entries ≠ {hyps.length} \
+                  :HYPS at {cn.idStr} (emission misalignment — pre-cluster \
+                  log?)"
+    -- each lmi: resolve the use:<thm> offer, transport its statement
+    -- under σ, cross-check the emitted instance verbatim
+    let mut hLs : List (SExpr × Expr) := []
+    let mut ctxU := ctx
+    for (lmi, hypI) in lmis.zip hyps do
+      let some (thmName, σpairs) := lmiInstance? lmi
+        | throwError "use-hint: LMI {repr lmi} at {cn.idStr} is not a bare \
+            theorem name or (:INSTANCE thm (var term)…) — \
+            functional-instantiation/nested lmi is the R7b frontier"
+      let [(spec, hypV)] := ctxU.useHyps.filter (fun (u, _) => u.name == thmName)
+        | throwError "use-hint: no use:{thmName} hypothesis in scope at \
+            {cn.idStr} (the cited theorem is outside the dependency \
+            surface — frontier)"
+      let σvars := σpairs.map (·.1)
+      let σterms := σpairs.map (·.2)
+      unless ACL2.Replay.substTerm σvars σterms spec.formula == hypI do
+        throwError "use-hint: substTerm(σ, {thmName}) ≠ the emitted :HYPS \
+            instance {repr hypI} at {cn.idStr} (emission divergence)"
+      let (hL, ctxU') ← instantiateEvTrueHypAt cfg ctxU hypV σvars σterms
+        spec.formula
+      ctxU := ctxU'
+      hLs := hLs ++ [(hypI, hL)]
+    -- the surviving application clause: read off and shape-checked as
+    -- (¬hyps ++ input clause); its proof is the child subgoal's replay
+    let [appCl] := appClauses
+      | throwError "use-hint: {appClauses.length} application clause(s) at \
+          {cn.idStr} (frontier — the single-surviving-clause composition; \
+          a tautology-dropped application clause is the R7b capstone shape)"
+    let negs : List SExpr := hyps.map fun h =>
+      .cons (.atom (.symbol { name := "NOT" })) (.cons h .nil)
+    unless appCl == negs ++ cn.inputClause do
+      throwError "use-hint: application clause {repr appCl} ≠ ¬hyps ++ the \
+          input clause at {cn.idStr} (shape divergence)"
+    let some child := cn.children.find? (·.inputClause == appCl)
+      | throwError "use-hint: no child subgoal matches the application \
+          clause at {cn.idStr} (linking gap)"
+    for c in cn.children do
+      unless c.idStr == child.idStr do
+        throwError "use-hint: child {c.idStr} matches no application \
+            clause at {cn.idStr} (linking gap)"
+    let pApp ← replayClauseWith rec cfg { ctxU with litFacts := [] } child
+    -- peel each ¬Lᵢ head: Lᵢ truthy (its instantiated statement) makes
+    -- (NOT Lᵢ) nil, and evtrue_extract_else drops it from the disjunction
+    let mut p := pApp
+    for (hypI, hL) in hLs do
+      let negL : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+        (.cons hypI .nil)
+      ctxU ← pinTermOpaques cfg cfg.envExpr ctxU negL
+      let hNe ← mkAppM ``ne_nil_of_evtrue_conv
+        #[hL, ← ctxValProof cfg ctxU hypI]
+      let hfNot ← mkAppM ``not_nil_of_truthy #[hNe]
+      p ← mkAppM ``evtrue_extract_else
+        #[← castConvToNil cfg ctxU negL hfNot, p]
+    return p
   if lits.isEmpty && cn.inputClause.length == 1 then
     -- a SINGLE-literal clause discharged entirely at PREPROCESS: clause-level
     -- step nodes chain the formula to 't (no literal bracketing is emitted at

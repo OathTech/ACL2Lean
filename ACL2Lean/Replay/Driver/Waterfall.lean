@@ -174,6 +174,15 @@ def mkCongHypType (cfg : ReplayConfig) (spec : CongSpec) : MetaM Expr := do
     mkForallFVars #[envV]
       (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr spec.formula])
 
+/-- The `use:<thm>` hypothesis TYPE (R7a): the cited theorem's
+    whole-formula replayed statement, `∀ env', EvTrue w env' formula` —
+    exactly the theorem, no normalization (the `cong:` shape without the
+    congruence parse). -/
+def mkUseHypType (cfg : ReplayConfig) (spec : UseSpec) : MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    mkForallFVars #[envV]
+      (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr spec.formula])
+
 /-- The `equivrefl:<thm>` hypothesis TYPE: the equivalence rule's
     reflexivity component, `∀ env', EvTrue w env' (R x x)`. -/
 def mkEquivReflHypType (cfg : ReplayConfig) (spec : EquivReflSpec) : MetaM Expr := do

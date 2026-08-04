@@ -69,6 +69,17 @@ def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         | _ => throwError "depMirrorProofAt: registry dependency \
             {name} keeps {c}, absent or ambiguous in the consumer \
             telescope (internal)"
+      else if c.startsWith "use:" then
+        -- a dependency replayed with a KEPT use: condition (R7a): the
+        -- consumer's telescope offers it only when the same name is cited
+        -- in the consumer's own tree — otherwise refuse (frontier at the
+        -- registry application, kept honest by the discharge pass)
+        let un := (c.drop "use:".length).toString
+        match ctx.useHyps.filter (fun (u, _) => u.name == un) with
+        | [(_, h)] => pure h
+        | _ => throwError "depMirrorProofAt: registry dependency \
+            {name} keeps {c}, absent or ambiguous in the consumer \
+            telescope (internal)"
       else throwError "depMirrorProofAt: registry dependency \
           {name} keeps unrecognized condition {c} (internal)"
     pure (mkAppN (mkConst decl) (#[envV] ++ condArgs))
@@ -264,6 +275,34 @@ def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
     let pf ← mkLambdaFVars #[envV] pDep
     mkExpectedTypeHint pf (← mkCongHypType cfg spec)
 
+/-- DISCHARGE a `use:<thm>` hypothesis from its dependency's replayed
+    statement (R7a): identical to `dischargeCongHyp` — the hypothesis
+    states the WHOLE formula and the dependency's Goal clause IS that
+    single-literal formula (recompute-and-checked), the mirror applied at
+    `env'`. An offer sourced from a statement-only surface (include-book)
+    frontiers at the missing proof tree — the D6-honest kept condition. -/
+def dischargeUseHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : UseSpec)
+    (depProofs : List (String × ClauseProof))
+    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
+  let some cp := depProofs.lookup spec.name
+    | throwFrontier m!"dischargeUseHyp: no dependency proof for {spec.name}"
+  let some depRoot := cp.root
+    | throwFrontier m!"dischargeUseHyp: dependency {spec.name} has no proof tree"
+  let [formula] := depRoot.inputClause
+    | throwFrontier m!"dischargeUseHyp: dependency {spec.name}'s Goal is not \
+        a single-literal clause (frontier)"
+  unless formula == spec.formula do
+    throwError "dischargeUseHyp: {spec.name}'s Goal {repr formula} ≠ the \
+        offered use formula {repr spec.formula} (internal)"
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let cfgD := { cfg with envExpr := envV }
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
+                               branchFacts := [], segFacts := [] }
+    ctxD ← pinTermOpaques cfgD envV ctxD formula
+    let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
+    let pf ← mkLambdaFVars #[envV] pDep
+    mkExpectedTypeHint pf (← mkUseHypType cfg spec)
+
 /-- DISCHARGE an `equivrefl:<thm>` hypothesis from its dependency's replayed
     statement (P3, the ORDERED-PERMS mirror): the dependency is the
     defequiv-shaped theorem (e.g. PERM-IS-AN-EQUIVALENCE) whose translated
@@ -424,6 +463,31 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (congs.map fun c =>
       (Name.mkSimple s!"hcong_{c.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkCongHypType cfg c)).toArray
+  -- use:<thm> offers (R7a, close-out Phase 2): DEMAND-DRIVEN — one
+  -- whole-formula offer per theorem NAME cited by a plain-:use LMI in
+  -- THIS theorem's tree (the payload's :LMI-LST; the offer set stays
+  -- narrow, unlike a per-corpus surface). Formula source: the
+  -- dependency's Goal clause (depProofs — same-book + 2a cross-book),
+  -- else the (name, formula) statement surface (`equivRefls` carries
+  -- every local + include-book theorem statement); an include-book
+  -- citation thus offers but its discharge frontiers on the missing
+  -- proof tree — the D6-honest kept condition. Self-citation is
+  -- excluded (a theorem cannot :use itself; offering it would let the
+  -- discharge chase its own tree). A cited name with no formula
+  -- anywhere is NOT offered — the consuming arm hard-fails in-walk.
+  let useSpecs : List UseSpec :=
+    (theoremUseCitedNames cp).filterMap fun n =>
+      if n == cp.name then none else
+      match (depProofs.lookup n).bind (·.root) with
+      | some root =>
+        match root.inputClause with
+        | [f] => some { name := n, formula := f }
+        | _ => none
+      | none => (equivRefls.lookup n).map fun f => { name := n, formula := f }
+  let useDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+    (useSpecs.map fun u =>
+      (Name.mkSimple s!"husethm_{u.name}", BinderInfo.default,
+       fun (_ : Array Expr) => mkUseHypType cfg u)).toArray
   -- equivrefl:<thm> declarations (sorting-completion-2 Class A): every
   -- equivalence-SHAPED defthm formula in scope (incl. INCLUDE-BOOK'd —
   -- passed by the caller) offers its REFLEXIVITY component; include-book
@@ -470,6 +534,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     tpFnsAv.map (fun (s, _, _) => s!"tp:{s.name}") ++
     rules.map (fun r => s!"rule:{r.runeKey}") ++
     congs.map (fun c => s!"cong:{c.name}") ++
+    useSpecs.map (fun u => s!"use:{u.name}") ++
     equivSpecs.map (fun c => s!"equivrefl:{c.name}") ++
     linearSpecs.map (fun r => s!"linear:{r.name}") ++
     dpStmts.map (fun _ => "ASSUMED:dp-fact")
@@ -477,6 +542,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     withLocalDecls (tpDecls ++ tpAvDecls) fun tpAllVs => do
      withLocalDecls ruleDecls fun ruleVs => do
       withLocalDecls congDecls fun congVs => do
+      withLocalDecls useDecls fun useVs => do
       withLocalDecls equivDecls fun equivVs => do
       withLocalDecls linearDecls fun linearVs => do
       withLocalDecls dpDecls fun dpVs => do
@@ -488,6 +554,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           tpHypsAv := (tpFnsAv.zip tpAvVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h),
           ruleHyps := rules.zip ruleVs.toList,
           congHyps := congs.zip congVs.toList,
+          useHyps := useSpecs.zip useVs.toList,
           -- audit F1 (linear-verdicts fold-back): the DECLARATION is
           -- content-deduped (hyps/concl determine the hypothesis; ONE
           -- fvar), but the OFFER carries EVERY emitted spec — max-term is
@@ -546,6 +613,20 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
               unless isFrontierErr e do
                 throw e
         pure prfC
+      -- use:<thm> discharge (R7a) FIRST: a use discharge re-replays the
+      -- cited theorem's whole tree, which can consume rule:/cong:/
+      -- equivrefl:/total:/tp: fvars — all caught by the passes below. A
+      -- use-discharge that would itself need a use: fvar (nested :use
+      -- chains) frontiers and stays kept (honest; single pass).
+      for (spec, hypV) in (useSpecs.zip useVs.toList).reverse do
+        if prfR.containsFVar hypV.fvarId! then
+          try
+            let pf ← withRealMaxHeartbeats dischargeBudget <|
+              dischargeUseHyp cfg ctx spec depProofs mirrors
+            prfR ← letBindFVar prfR hypV pf
+          catch e =>
+            unless isFrontierErr e do
+              throw e
       prfR ← dischargeCongs prfR
       -- equivrefl:<thm> discharge (P3, the ORDERED-PERMS mirror): projected
       -- from the dependency's replayed statement; BEFORE the rule pass —
@@ -584,7 +665,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).
-      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs ++ linearVs ++ dpVs).toList).filter
+      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ linearVs ++ dpVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
       -- #37 LAZY discharge: prove admission totality only for the USED
       -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
@@ -596,7 +677,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let usedTpNames := used.filterMap fun (c, _) =>
         if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
       let neededFns := usedTotalNames ++ usedTpNames
-      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ equivVs ++ linearVs ++ dpVs).toList)
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ linearVs ++ dpVs).toList)
       let totalEnv ←
         if neededFns.isEmpty then pure []
         else

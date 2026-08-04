@@ -72,6 +72,19 @@ partial def theoremDischargeLeaves (cp : ClauseProof) : List (String × String �
     here ++ n.children.flatMap go
   (cp.root.map go).getD []
 
+/-- Per-theorem: the theorem NAMES cited by `:LMI-LST` entries of the
+    tree's `:USE-HINT` payloads (R7a) — the demand-driven `use:` offer
+    set. Only the plain-`:use` lmi forms contribute (`lmiInstance?`);
+    a functional-instance lmi yields no offer and its consuming arm
+    hard-fails (R7b frontier), so nothing is silently skipped. -/
+partial def theoremUseCitedNames (cp : ClauseProof) : List String :=
+  let itemNames : ClauseItem → List String := fun
+    | .useHint _ _ _ lmis => lmis.filterMap fun l => (lmiInstance? l).map (·.1)
+    | _ => []
+  let rec go (n : ClauseNode) : List String :=
+    (n.steps.flatMap (·.items.flatMap itemNames)) ++ n.children.flatMap go
+  ((cp.root.map go).getD []).eraseDups
+
 /-- Split a disjoined clause's if-spine `(if l₁ 't (if l₂ 't … lₖ))` into
     `([l₁ … l_{k-1}], lₖ)`. A non-spine term is a singleton clause `([], l)`. -/
 partial def dpSpine : SExpr → List SExpr × SExpr

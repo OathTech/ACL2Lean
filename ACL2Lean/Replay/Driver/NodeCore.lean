@@ -151,6 +151,33 @@ def congSpecOfFormula? (name : String) (formula : SExpr) : Option CongSpec := do
   return { name, formula, rel, fn := fnL, pos, argVars, vy,
            hyp, lhsApp, rhsApp }
 
+/-- A `:use`-cited theorem's hypothesis surface (R7a, close-out Phase 2):
+    the theorem NAME and its Goal-clause formula. The hypothesis states the
+    WHOLE formula (`∀ env', EvTrue w env' formula` — `mkUseHypType`);
+    nothing is derived from the shape — the emitted `:HYPS` instance is the
+    recompute-and-check at the use site (`substTerm σ formula` must equal
+    it verbatim). -/
+structure UseSpec where
+  name : String
+  formula : SExpr
+  deriving BEq, Repr
+
+/-- Parse one `:LMI-LST` entry of the PLAIN-`:use` classes (R7a): a bare
+    theorem symbol (empty σ), or `(:INSTANCE thm (var term)…)` with a
+    variable-to-term substitution. `none` for every other lmi form —
+    `:functional-instance`, `:theorem`, nested `:instance` — which the
+    consuming arm hard-fails as the R7b frontier (never silently skipped). -/
+def lmiInstance? : SExpr → Option (String × List (Symbol × SExpr))
+  | .atom (.symbol s) => some (s.name, [])
+  | .cons (.atom (.keyword "INSTANCE"))
+      (.cons (.atom (.symbol s)) pairsS) => do
+    let pairs ← pairsS.toList?
+    let σ ← pairs.mapM fun p => match p with
+      | .cons (.atom (.symbol v)) (.cons t .nil) => some (v, t)
+      | _ => none
+    some (s.name, σ)
+  | _ => none
+
 /-- An EQUIVALENCE rule's REFLEXIVITY component (sorting-completion-2
     Class A, ORDERED-PERMS): shape-parsed from the RAW equivalence defthm
     formula `(AND (BOOLEANP (R x y)) (R x x) …)` — ACL2's defequiv shape.
@@ -252,6 +279,14 @@ structure ReplayCtx where
       R-collapse at a user-equivalence step's congruence frame; discharged
       lazily from the dependency's replayed statement like `rule:` hyps. -/
   congHyps : List (CongSpec × Expr) := []
+  /-- `:use`-cited theorem hypotheses (`use:<thm>`, R7a): per LMI-cited
+      theorem in THIS theorem's tree (demand-driven — the offer set is read
+      off the tree's `:USE-HINT` payloads, keeping the telescope narrow),
+      the spec and the bound hypothesis stating its whole-formula replayed
+      statement (`mkUseHypType`). Consumed by the plain-`:use` composition
+      at an `apply-top-hints-clause` node; discharged lazily from the
+      dependency's replayed statement like `cong:` hyps. -/
+  useHyps : List (UseSpec × Expr) := []
   /-- Equivalence-REFLEXIVITY hypotheses (`equivrefl:<thm>`): per
       equivalence-shaped in-scope defthm (incl. INCLUDE-BOOK'd ones), the
       spec and the bound hypothesis `∀ env', EvTrue w env' (R x x)`.

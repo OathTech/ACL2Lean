@@ -431,6 +431,22 @@ _Last updated: 2026-08-02._
 > provenance 91/91 banner==stamp, golden BYTE-IDENTICAL (80/100
 > unchanged), claim-gate TRUE_EXIT=0. Phase 2 (R7a) unblocked on the
 > :LMI-LST payloads.**
+> **PHASE 2 (R7a) BUILT (2026-08-04, sub-arc mdd/r7a): the plain-:use
+> composition — `use:<thm>` premise channel (UseSpec + lmiInstance? +
+> mkUseHypType + demand-driven offers read off the tree's :LMI-LST +
+> dischargeUseHyp from the dependency's replayed statement +
+> depMirrorProofAt use: arm), and the apply-top-hints-clause arm:
+> constraint chain on CONSTRAINT-CL (trivial-('T)-only — non-trivial =
+> R7b hard-fail), per-lmi σ-transport via instantiateEvTrueHypAt with
+> verbatim :HYPS cross-check, application clause (¬hyps ++ input,
+> shape-checked) proved by its child, ¬Lᵢ heads peeled by
+> evtrue_extract_else. Sweep 80→81: LEN2-APP-VIA-USE REPLAYED ✓
+> cond[tp:LEN2] (use: hyp discharged); CONVERT-PERM-TO-HOW-MANY
+> advances past the R7 frontier to the congruence-collapse wall
+> (PERM arg 0 under PERM, cited runes [] — Phase-3 class);
+> MSORT/QSORT-IS-ISORT re-pinned at the precise R7b frontier
+> (non-trivial :CONSTRAINT-CL named). Golden re-pinned row-by-row
+> (4 changes reviewed).**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
