@@ -669,4 +669,41 @@ example :
 
 #print axioms ReplayedStatements.replayed_pins_sorting_isort_HOW_MANY_ISORT
 
+/-! ## Equisort SCOPE pins (Phase 4, R6): the structured scope surface
+    read off the recaptured log — the single derivation the parametric
+    machinery (ConstraintsHold, R7b instantiation) consumes. Pinned
+    truthfully against the artifact: three top-level scopes (a trivial
+    grouping one, then SORTFN and SSORTFN), six constraint formulas and
+    three scoped witnesses each. -/
+
+private def equisortScopeLog : String :=
+  include_str "../acl2_samples/sorting/equisort.proof-log"
+
+elab "equisort_scope_pins% " : term => do
+  let log ← match ProofLog.parse equisortScopeLog with
+    | .ok l => pure l
+    | .error e => throwError "equisort scope pin: parse failed: {e}"
+  let dev ← match ClauseTree.buildDevelopment log with
+    | .ok d => pure d
+    | .error e => throwError "equisort scope pin: recon failed: {e}"
+  let scopes ← match dev.scopes with
+    | .ok s => pure s
+    | .error e => throwError "equisort scope pin: scopes failed: {e}"
+  let shape := scopes.map fun s =>
+    (s.sigs.map (·.name), s.constraintFns.map (·.map (·.name)),
+     s.constraintFormulas.length, s.witnesses.length,
+     s.theoremNames.length)
+  let expected : List (List String × Option (List String) × Nat × Nat × Nat) :=
+    [([], none, 0, 0, 0),
+     (["SORTFN1", "SORTFN2"], some ["SORTFN1", "SORTFN2"], 6, 3, 6),
+     (["SSORTFN1", "SSORTFN2"], some ["SSORTFN1", "SSORTFN2"], 6, 3, 6)]
+  unless shape == expected do
+    throwError "equisort scope pin: shape {repr shape} ≠ expected \
+      {repr expected} — re-pin truthfully"
+  logInfo "equisort scope pins hold (3 scopes; 6 constraints + 3 \
+    witnesses each on the two constrained scopes)"
+  return Lean.mkConst ``True.intro
+
+def equisortScopePins : True := equisort_scope_pins%
+
 end ACL2.Tests.SortingPins

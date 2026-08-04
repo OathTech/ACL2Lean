@@ -156,6 +156,72 @@ inductive Development where
   | done
   deriving Repr, Inhabited
 
+/-- A reconstructed ENCAPSULATE scope (R6/Phase 4): the signature fns, the
+    emitted constraint axioms (verbatim from ACL2's constraint-lst), the
+    scoped witnesses, and the in-scope theorem names (BOTH passes' events
+    ride inside the bracket — the per-scope dedup obligation). This is the
+    single structured read-off for the parametric-statement machinery
+    (ConstraintsHold, the R7b instantiation). -/
+structure Scope where
+  sigs : List Symbol
+  /-- The constrained fns as EMITTED on the (:CONSTRAINTS …) event —
+      `none` when the scope emitted no constraints event (a trivial
+      grouping encapsulate). -/
+  constraintFns : Option (List Symbol) := none
+  constraintFormulas : List SExpr := []
+  witnesses : List (String × List Symbol × SExpr) := []
+  theoremNames : List String := []
+  deriving Repr, Inhabited
+
+/-- The TOP-LEVEL scopes of a development, in file order (nested scopes
+    fold into their outermost bracket — pairing beyond depth counting is
+    the recorded Phase-4 frontier; equisort's scopes are flat). Hard-fails
+    on imbalance are buildDevelopment's job — here a stray shape means the
+    Development itself is malformed, so mismatches throw. -/
+def Development.scopes (dev : Development) : Except String (List Scope) := do
+  let rec go (d : Development) (depth : Nat) (cur : Option Scope)
+      (acc : List Scope) : Except String (List Scope) :=
+    match d with
+    | .done =>
+      match cur with
+      | none => pure acc.reverse
+      | some _ => throw "Development.scopes: unclosed scope at end (internal — buildDevelopment enforces balance)"
+    | .bind ev rest =>
+      match ev with
+      | .encapsulateBegin sigs =>
+        if depth == 0 then
+          go rest 1 (some { sigs }) acc
+        else go rest (depth + 1) cur acc
+      | .encapsulateEnd =>
+        if depth == 0 then
+          throw "Development.scopes: stray scope end (internal)"
+        else if depth == 1 then
+          match cur with
+          | some s => go rest 0 none (s :: acc)
+          | none => throw "Development.scopes: internal — no open scope at depth 1"
+        else go rest (depth - 1) cur acc
+      | .constraints fns formulas =>
+        match cur with
+        | some s =>
+          if s.constraintFns.isSome then
+            throw "Development.scopes: second (:CONSTRAINTS) in one scope (frontier)"
+          else go rest depth
+            (some { s with constraintFns := some fns,
+                           constraintFormulas := formulas }) acc
+        | none => throw "Development.scopes: (:CONSTRAINTS) outside any scope (malformed)"
+      | .witnessDefun n formals body _ _ =>
+        match cur with
+        | some s => go rest depth
+            (some { s with witnesses := s.witnesses ++ [(n, formals, body)] }) acc
+        | none => throw s!"Development.scopes: witness '{n}' outside any scope (internal — buildDevelopment enforces)"
+      | .theorem cp =>
+        match cur with
+        | some s => go rest depth
+            (some { s with theoremNames := s.theoremNames ++ [cp.name] }) acc
+        | none => go rest depth cur acc
+      | _ => go rest depth cur acc
+  go dev 0 none []
+
 /-- All INCLUDE-BOOK'd theorems in development order. (The explicit `_` for
     `classes` matters: a 2-arg pattern would DEFAULT-FILL `classes := none`
     and silently skip classed entries — the TamperTests F1 lesson.) -/
