@@ -445,16 +445,10 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- emitted. #37 discharges USED totality hypotheses LAZILY after the
   -- replay (prove + substitute) — so theorems that consume no totality pay
   -- nothing, and the per-theorem prover cost is proportional to use.
-  -- CONSTRAINED fns (R6/Phase 4) join the totality surface by (name,
-  -- arity): they have no world def, so their hypotheses can never be
-  -- lazily discharged — a consumed one stays KEPT (D6), and the kept set
-  -- IS the ConstraintsHold signature-fact component.
-  let totalFns : List (Symbol × Nat) :=
-    fns.map (fun (s, formals, _) => (s, formals.length)) ++ cfg.constrainedFns
   let totalDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
-    (totalFns.map fun (s, arity) =>
+    (fns.map fun (s, formals, _) =>
       (Name.mkSimple s!"htotal_{s.name}", BinderInfo.default,
-       fun (_ : Array Expr) => mkTotalityHypType cfg s arity)).toArray
+       fun (_ : Array Expr) => mkTotalityHypType cfg s formals.length)).toArray
   -- only LIFTABLE corollaries become hypotheses: every variable occurrence must be
   -- inside the (fn formals) application (the value-only hypothesis shape). An
   -- unliftable corollary (e.g. my-app's (EQUAL (MY-APP X Y) Y), which mentions Y
@@ -665,7 +659,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       (Name.mkSimple s!"hlinear_{r.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkLinearHypType cfg r)).toArray
   let condsAll :=
-    totalFns.map (fun (s, _) => s!"total:{s.name}") ++
+    fns.map (fun (s, _, _) => s!"total:{s.name}") ++
     tpFns.map (fun (s, _, _) => s!"tp:{s.name}") ++
     tpFnsAv.map (fun (s, _, _) => s!"tp:{s.name}") ++
     rules.map (fun r => s!"rule:{r.runeKey}") ++
@@ -689,7 +683,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let tpVs := tpAllVs.extract 0 tpDecls.size
       let tpAvVs := tpAllVs.extract tpDecls.size tpAllVs.size
       let ctx : ReplayCtx :=
-        { totalHyps := (totalFns.map (fun (s, _) => s.name)).zip totalVs.toList,
+        { totalHyps := (fns.map (fun (s, _, _) => s.name)).zip totalVs.toList,
           tpHyps := (tpFns.zip tpVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h),
           tpHypsAv := (tpFnsAv.zip tpAvVs.toList).map fun ((s, _, cor), h) => (s.name, cor, h),
           ruleHyps := rules.zip ruleVs.toList,
