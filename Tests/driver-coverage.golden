@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 80/116 (25 unconditional + 55 conditional); DP-discharge leaves ✓60 ◌11 ✗0 of 71:
+Driver coverage — REPLAYED 85/116 (31 unconditional + 54 conditional); DP-discharge leaves ✓60 ◌11 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -60,26 +60,26 @@ Driver coverage — REPLAYED 80/116 (25 unconditional + 55 conditional); DP-disc
 • sorting/perm  (world: 14 defun(s), 8 theorem(s))
     PERM-CONS → REPLAYED ✓
     PERM-SYMMETRIC → REPLAYED ✓
-    MEMB-RM → FAIL: type-alist: no spine falsity fact for (EQUAL A B)             (frontier; lit-facts [(NOT (CONSP X)),  (EQUAL A (CAR X)),  (NOT (MEMB A (CDR X))),  (NOT (MEMB A (IF (EQUAL B (CAR X)) (CDR X) (CONS (CAR X) (RM B (CDR X))))))];             seg-facts [(NOT (EQUAL B (CAR X)))];             branch-facts [])
-    PERM-MEMB → REPLAYED ✓ cond[rule:MEMB-RM]
+    MEMB-RM → REPLAYED ✓
+    PERM-MEMB → REPLAYED ✓
     COMM-RM → REPLAYED ✓
-    PERM-RM → REPLAYED ✓ cond[rule:MEMB-RM]
-    PERM-TRANSITIVE → REPLAYED ✓ cond[rule:MEMB-RM]
-    PERM-IS-AN-EQUIVALENCE → REPLAYED ✓ cond[rule:MEMB-RM]
+    PERM-RM → REPLAYED ✓
+    PERM-TRANSITIVE → REPLAYED ✓
+    PERM-IS-AN-EQUIVALENCE → REPLAYED ✓
 • sorting/convert-perm-to-how-many  (world: 18 defun(s), 13 theorem(s))
     HOW-MANY-RM → REPLAYED ✓ cond[tp:HOW-MANY]
     NOT-MEMB-IMPLIES-RM-IS-NO-OP → REPLAYED ✓ cond[rule:CONS-CAR-CDR]  [DISCHARGE: Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(MEMB A X), tp:MEMB]]
     TRUE-LISTP-RM → REPLAYED ✓ cond[rule:CONS-CAR-CDR]  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]
     NOT-MEMB-IMPLIES-HOW-MANY-IS-0 → REPLAYED ✓ cond[tp:HOW-MANY]
     HOW-MANY-RM-GENERAL → FAIL: replayRewrites: inline if-left window term (BINARY-+ '-1 (HOW-MANY (CAR X) (CDR X))) admits 2 distinct anchorings [[ACL2.PathFrame.arg     2     IF,   ACL2.PathFrame.arg 2 IF],  [ACL2.PathFrame.arg 2 EQUAL,   ACL2.PathFrame.arg     2     IF]] in the running term (EQUAL (HOW-MANY (CAR X) (RM B (CDR X))) (IF (IF (EQUAL (CAR X) B) (MEMB B (CDR X)) 'NIL) (BINARY-+ '-1 (HOW-MANY (CAR X) (CDR X))) (HOW-MANY (CAR X) (CDR X)))) (entry path [ACL2.PathFrame.arg    2    EQUAL,  ACL2.PathFrame.arg 2 IF]) — ambiguous position (frontier)  [DISCHARGE: Subgoal *1/3.2:preprocess/tau ◌ assumed cond[total:(MEMB A (CDR X)), total:(HOW-MANY A (RM B (CDR X))), total:(HOW-MANY A (CDR X)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
-    PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS → FAIL: replayNode: no rule for rune (equal-case-split, NIL) — unimplemented frontier  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM]]
+    PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS → FAIL: replayClauseSpine: literal 3 chain reached (NOT (IF (IF (TRUE-LISTP (CDR X)) 'T 'NIL) (IF (IF (EQUAL (HOW-MANY (PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)) (CDR X)) (HOW-MANY (PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)) Y)) (EQUAL (PERM (CDR X) (RM (CAR X) Y)) 'T) (IF (PERM (CDR X) (RM (CAR X) Y)) 'NIL 'T)) 'T 'NIL) 'T)) at Subgoal *1/3', recorded result is (NOT (IF (EQUAL (HOW-MANY (PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)) (CDR X)) (HOW-MANY (PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)) Y)) (EQUAL (PERM (CDR X) (RM (CAR X) Y)) 'T) (IF (PERM (CDR X) (RM (CAR X) Y)) 'NIL 'T)))  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM]]
     PERM-TLFIX → FAIL: replayNode: rune (rewriting-equivalence, NIL) applied under equivalence perm — R-parameterized recipe pending (G1 frontier)
     PERM-COUNTER-EXAMPLE-TLFIX-1 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE]
     RM-TLFIX → REPLAYED ✓ cond[rule:CONS-CAR-CDR]
     MEMB-TLFIX → REPLAYED ✓
     PERM-COUNTER-EXAMPLE-TLFIX-2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, rule:CONS-CAR-CDR, rule:DEFAULT-CAR]
     HOW-MANY-TLFIX → REPLAYED ✓ cond[tp:HOW-MANY]
-    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, tp:TLFIX, rule:MEMB-RM, rule:CONS-CAR-CDR, rule:DEFAULT-CAR, rule:PERM-TLFIX, use:PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS]  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
+    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, tp:TLFIX, rule:CONS-CAR-CDR, rule:DEFAULT-CAR, rule:PERM-TLFIX, use:PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS]  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
 • sorting/isort  (world: 27 defun(s), 3 theorem(s))
     ORDEREDP-ISORT → REPLAYED ✓ cond[tp:INSERT]
     TRUE-LISTP-ISORT → REPLAYED ✓ cond[tp:INSERT]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(INSERT X1 IT), tp:INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
@@ -96,10 +96,10 @@ Driver coverage — REPLAYED 80/116 (25 unconditional + 55 conditional); DP-disc
 • sorting/ordered-perms  (world: 21 defun(s), 6 theorem(s))
     ORDEREDP-RM → REPLAYED ✓
     ORDEREDP-MEMB → REPLAYED ✓ cond[rule:DEFAULT-CAR]  [DISCHARGE: Subgoal *1/1.2:simplify-clause/fc-contradiction ✓, Subgoal *1/1.1:simplify-clause/fc-contradiction ✓ cond[total:(ORDEREDP (CDR A)), total:(MEMB (CAR (CDR A)) (CDR A)), tp:ORDEREDP, tp:MEMB]]
-    EQUAL-CONS → FAIL: replayNode: no rule for rune (equal-case-split, NIL) — unimplemented frontier  [DISCHARGE: Subgoal 2:preprocess/tau-contradiction ✓]
+    EQUAL-CONS → REPLAYED ✓ cond[rule:CONS-CAR-CDR]  [DISCHARGE: Subgoal 2:preprocess/tau-contradiction ✓]
     CAR-RM → REPLAYED ✓
     TRUE-LISTP-RM → REPLAYED ✓  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]
-    ORDERED-PERMS → FAIL: replayNode: no rule for rune (equal-case-split, NIL) — unimplemented frontier  [DISCHARGE: Subgoal 2:simplify-clause/fc-contradiction ◌ assumed cond[total:(ORDEREDP A), total:(PERM A A), tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/6:preprocess/tau ◌ assumed cond[total:(ORDEREDP (RM (CAR A) B)), total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau ◌ assumed cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM]]
+    ORDERED-PERMS → REPLAYED ✓ cond[rule:CONS-CAR-CDR, rule:DEFAULT-CAR]  [DISCHARGE: Subgoal 2:simplify-clause/fc-contradiction ◌ assumed cond[total:(ORDEREDP A), total:(PERM A A), tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/6:preprocess/tau ◌ assumed cond[total:(ORDEREDP (RM (CAR A) B)), total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau ◌ assumed cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM]]
 • sorting/equisort  (world: 25 defun(s), 14 theorem(s))
     ORDEREDP-SORTFN1 → FAIL: replayInduction: scheme fn SORTFN1 neither in the world nor a ground-zero snapshot (frontier)
     TRUE-LISTP-SORTFN1 → FAIL: dpValExpr: unary SORTFN1 is not a DP-lift primitive (frontier): (SORTFN1 X)  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(SORTFN1-INSERT X1 S1)], Subgoal *1.1/2'':preprocess/tau-contradiction ✓, Subgoal *1/2:preprocess/type-set-fc ✓ cond[total:(SORTFN1 X)]]
@@ -137,9 +137,9 @@ Driver coverage — REPLAYED 80/116 (25 unconditional + 55 conditional); DP-disc
     ALL-REL-FILTER-1 → REPLAYED ✓ cond[tp:ALL-REL]
     ALL-REL-FILTER-2 → REPLAYED ✓ cond[tp:ALL-REL]
     ALL-REL-RM-1 → REPLAYED ✓ cond[tp:ALL-REL]
-    ALL-REL-RM-2 → FAIL: type-alist: no spine falsity fact for (EQUAL D E)             (frontier; lit-facts [(NOT (CONSP X)),  (NOT (IF (EQUAL FN 'LT) (IF (LEXORDER (CAR X) E) (IF (EQUAL (CAR X) E) 'NIL 'T) 'NIL) (IF (EQUAL FN 'LTE) (LEXORDER (CAR X) E) (IF (EQUAL FN 'GT) (IF (LEXORDER E (CAR X)) (IF (EQUAL (CAR X) E) 'NIL 'T) 'NIL) (LEXORDER E (CAR X)))))),  (NOT (IF (EQUAL 'GT 'LT) (IF (LEXORDER (CAR X) E) (IF (EQUAL (CAR X) E) 'NIL 'T) 'NIL) (IF (EQUAL 'GT 'LTE) (LEXORDER (CAR X) E) (IF (EQUAL 'GT 'GT) (IF (LEXORDER E (CAR X)) (IF (EQUAL (CAR X) E) 'NIL 'T) 'NIL) (LEXORDER E (CAR X)))))),  (NOT (IF (IF (ALL-REL 'GT (RM D (CDR X)) E) (IF (LEXORDER E D) (IF (EQUAL D E) 'NIL 'T) 'NIL) 'NIL) (IF (ALL-REL 'GT (CDR X) E) 'T 'NIL) 'T)),  (NOT (ALL-REL 'GT (IF (EQUAL D (CAR X)) (CDR X) (CONS (CAR X) (RM D (CDR X)))) E))];             seg-facts [(NOT (EQUAL FN 'GT)),  (NOT (LEXORDER E (CAR X))),  (EQUAL (CAR X) E),  (NOT (EQUAL 'GT 'GT)),  (ALL-REL 'GT (RM D (CDR X)) E),  (NOT (EQUAL D (CAR X))),  (NOT (ALL-REL 'GT (CDR X) E))];             branch-facts [])
-    PERM-IMPLIES-EQUAL-ALL-REL-2 → FAIL: type-alist: no spine falsity fact for (EQUAL X1 E)             (frontier; lit-facts [(NOT (CONSP X-EQUIV)),  (EQUAL FN 'LT),  (EQUAL FN 'LTE),  (NOT (IF (EQUAL FN 'GT) (IF (LEXORDER E (CAR X-EQUIV)) (IF (EQUAL (CAR X-EQUIV) E) 'NIL 'T) 'NIL) (LEXORDER E (CAR X-EQUIV)))),  (ALL-REL FN (CDR X-EQUIV) E),  (EQUAL FN 'LT),  (EQUAL FN 'LTE),  (LEXORDER E X1),  (NOT (IF (EQUAL X1 (CAR X-EQUIV)) 'T (MEMB X1 (CDR X-EQUIV))))];             seg-facts [(NOT (LEXORDER E (CAR X-EQUIV))),  (EQUAL (CAR X-EQUIV) E),  (NOT (EQUAL X1 (CAR X-EQUIV)))];             branch-facts [((EQUAL FN 'GT), true)])
-    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND, cong:PERM-IMPLIES-EQUAL-ALL-REL-2]
+    ALL-REL-RM-2 → REPLAYED ✓ cond[tp:ALL-REL]
+    PERM-IMPLIES-EQUAL-ALL-REL-2 → REPLAYED ✓
+    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
 • sorting/sorts-equivalent  (world: 214 defun(s), 3 theorem(s))
     MSORT-IS-ISORT → FAIL: use-hint: non-trivial :CONSTRAINT-CL [(IF (EQUAL (HOW-MANY E (ISORT X)) (HOW-MANY E X)) (IF (EQUAL (HOW-MANY E (MSORT X)) (HOW-MANY E X)) (IF (TRUE-LISTP (ISORT X)) (IF (ORDEREDP (ISORT X)) (IF (TRUE-LISTP (MSORT X)) (ORDEREDP (MSORT X)) 'NIL) 'NIL) 'NIL) 'NIL) 'NIL)] at Goal — functional-instantiation constraint obligations (R7b frontier)

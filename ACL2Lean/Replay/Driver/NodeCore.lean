@@ -1634,6 +1634,89 @@ def findFactChecked (sources : List (SExpr × Expr)) (st : SExpr)
         r := some h
   pure r
 
+/-- A clause-context equation literal `(not (equal A B))`, viewed as its sides. -/
+def notEqualSides? : SExpr → Option (SExpr × SExpr)
+  | .cons (.atom (.symbol ns))
+      (.cons (.cons (.atom (.symbol es)) (.cons a (.cons b .nil))) .nil) =>
+    if ns.name == "NOT" && es.name == "EQUAL" then some (a, b) else none
+  | _ => none
+
+/-- The in-scope clause-context EQUATIONS: every litFact/segFact of shape
+    `(not (equal A B))`, as side pairs with the recorded falsity proof. This
+    set's equivalence closure IS ACL2's type-alist class structure over the
+    clause (assume-true-false on every literal). -/
+def inScopeEquations (ctx : ReplayCtx) :
+    List (SExpr × SExpr × Expr × Bool) :=
+  -- an edge is (a, b, proof, truthy): a FALSE `(not (equal a b))` fact
+  -- (proof : v(not(equal a b)) = nil), or — truthy = true — a TRUE
+  -- `(equal a b)` branch fact (proof : v(equal a b) ≠ nil, the assumed
+  -- if-test of an enclosing branch — PERM-CONS's (EQUAL X1 A) then-branch)
+  (ctx.litFacts.filterMap fun (_, t, h) =>
+    (notEqualSides? t).map fun (a, b) => (a, b, h, false)) ++
+  (ctx.segFacts.filterMap fun (t, h) =>
+    (notEqualSides? t).map fun (a, b) => (a, b, h, false)) ++
+  (ctx.branchFacts.filterMap fun (bt, _, sign, h) =>
+    if sign then
+      match bt with
+      | .cons (.atom (.symbol es)) (.cons a (.cons b .nil)) =>
+        if es.name == "EQUAL" then some (a, b, h, true) else none
+      | _ => none
+    else none)
+
+/-- BFS a chain `src → dst` through the equation edges, each usable in either
+    orientation. DETERMINISTIC, not search: the closure of a finite equation
+    set is canonical, edges are tried in fact order, and the first (shortest)
+    path is taken — any valid chain proves the same pinned equation. Each step
+    is `(a, b, falsityProof, flipped)` (`flipped` = walked b→a). -/
+def eqChain? (eqs : List (SExpr × SExpr × Expr × Bool)) (src dst : SExpr) :
+    Option (List (SExpr × SExpr × Expr × Bool × Bool)) := Id.run do
+  if src == dst then return some []
+  let mut paths : List (SExpr × List (SExpr × SExpr × Expr × Bool × Bool)) :=
+    [(src, [])]
+  let mut visited : List SExpr := [src]
+  for _ in List.range (eqs.length + 1) do
+    let mut next : List (SExpr × List (SExpr × SExpr × Expr × Bool × Bool)) := []
+    for (t, path) in paths do
+      for (a, b, h, truthy) in eqs do
+        let step? :=
+          if a == t && !visited.contains b then
+            some (b, (a, b, h, truthy, false))
+          else if b == t && !visited.contains a then
+            some (a, (a, b, h, truthy, true))
+          else none
+        if let some (t', edge) := step? then
+          let path' := path ++ [edge]
+          if t' == dst then return some path'
+          visited := visited ++ [t']
+          next := next ++ [(t', path')]
+    paths := next
+  return none
+
+/-- Compose the value-level equality `val(src) = val(dst)` along an equation
+    chain (TRANSITIVE type-alist equivalence, MDD-ratified 2026-07-23: ACL2's
+    type-alist stores equivalence CLASSES, never a chain — the composition is
+    derived deterministically here, its target pinned by the solidify node's
+    emitted `:EQUIV-TERM`). Returns `none` on an empty chain. -/
+def composeEqChain (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (chain : List (SExpr × SExpr × Expr × Bool × Bool)) :
+    MetaM (Option Expr) := do
+  let mut acc : Option Expr := none
+  for (a, b, hf, truthy, flipped) in chain do
+    let va ← ctxValExpr cfg ctx a
+    let vb ← ctxValExpr cfg ctx b
+    let hEq ←
+      if truthy then
+        -- a TRUE (equal a b) branch fact: v(equal a b) ≠ nil decodes to
+        -- va = vb directly
+        mkAppM ``Logic.eq_of_equal_ne_nil #[hf]
+      else
+        mkAppM ``logic_not_equal_nil_eq #[va, vb, hf]
+    let hEq ← if flipped then mkAppM ``Eq.symm #[hEq] else pure hEq
+    acc := some (← match acc with
+      | none => pure hEq
+      | some p => mkAppM ``Eq.trans #[p, hEq])
+  return acc
+
 /-- The bounded VALUE-LEVEL TYPE-SET WALKER (the epicycle consolidation —
     design: docs/notes/2026-07-31_type-set-walker-design.md): every
     clause-context type-fact derivation goes through this ONE request
@@ -1714,6 +1797,52 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
         let flip : SExpr := .cons (.atom (.symbol eqS)) (.cons b (.cons a .nil))
         if let some h ← typeSetWalk cfg ctx (.isNil flip) 0 then
           return some (← Lean.Meta.mkAppM ``logic_equal_nil_comm #[h])
+        -- EQUATION-CLOSURE DISEQUALITY (fork-batch item 1's consumer: the
+        -- equal/type-alist-nil class — MEMB-RM's (EQUAL A B) ⇒ 'NIL from
+        -- A ≠ (CAR X) ∧ B = (CAR X)): connect each side through the
+        -- in-scope equation closure to the two ends of ONE in-scope
+        -- DISEQUALITY (a falsity fact on an (EQUAL x y) term).
+        -- Deterministic: the closure is canonical, facts in fact order,
+        -- the first match taken — any valid connection proves the same
+        -- pinned value.
+        let eqs := inScopeEquations ctx
+        let disCands : List SExpr :=
+          (ctx.litFacts.map (·.2.1) ++ ctx.segFacts.map (·.1)).filter
+            fun t2 => match t2 with
+              | .cons (.atom (.symbol e2)) (.cons _ (.cons _ .nil)) =>
+                e2.name == "EQUAL" && t2 != t
+              | _ => false
+        for dt in disCands do
+          let .cons _ (.cons x (.cons y .nil)) := dt | continue
+          for (xa, ya, useComm) in [(x, y, false), (y, x, true)] do
+            match eqChain? eqs a xa, eqChain? eqs b ya with
+            | some chA, some chB =>
+              let ctxD ← pinTermOpaques cfg cfg.envExpr ctx dt
+              let vX ← ctxValExpr cfg ctxD x
+              let vY ← ctxValExpr cfg ctxD y
+              let hDis? ← findFactChecked (falsitySources ctxD) dt
+                (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vX, vY])
+                  (mkConst ``SExpr.nil))
+              let some hDis := hDis? | continue
+              -- orient the disequality's value shape to (xa, ya)
+              let hXY ← if useComm then
+                  Lean.Meta.mkAppM ``logic_equal_nil_comm #[hDis]
+                else pure hDis
+              -- v(a) = v(xa), v(b) = v(ya) along the chains (refl on [])
+              let pa ← match ← composeEqChain cfg ctxD chA with
+                | some e => pure e
+                | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD a)
+              let pb ← match ← composeEqChain cfg ctxD chB with
+                | some e => pure e
+                | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD b)
+              -- Logic.equal v(a) v(b) = Logic.equal v(xa) v(ya) = nil
+              let hCong ← Lean.Meta.mkAppM ``congr
+                #[← Lean.Meta.mkAppM ``congrArg
+                    #[mkConst ``Logic.equal, pa], pb]
+              let hNil ← Lean.Meta.mkAppM ``Eq.trans #[hCong, hXY]
+              if ← Lean.Meta.isDefEq (← Lean.Meta.inferType hNil) expected then
+                return some hNil
+            | _, _ => pure ()
     -- TRUE-LISTP ∧ ¬CONSP → 'NIL (TRUE-LISTP-MSORT's `MT ⇒ 'NIL`): a
     -- TRUTHY true-listp fact (a false `(not (true-listp t))`) composed with
     -- consp-false evidence pins the value to exactly nil
@@ -3005,88 +3134,6 @@ partial def replayLambdaBody (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
   | none => return unfold
   | some ch => mkAppM ``fuel_chain_eq #[unfold, ch]
 
-/-- A clause-context equation literal `(not (equal A B))`, viewed as its sides. -/
-def notEqualSides? : SExpr → Option (SExpr × SExpr)
-  | .cons (.atom (.symbol ns))
-      (.cons (.cons (.atom (.symbol es)) (.cons a (.cons b .nil))) .nil) =>
-    if ns.name == "NOT" && es.name == "EQUAL" then some (a, b) else none
-  | _ => none
-
-/-- The in-scope clause-context EQUATIONS: every litFact/segFact of shape
-    `(not (equal A B))`, as side pairs with the recorded falsity proof. This
-    set's equivalence closure IS ACL2's type-alist class structure over the
-    clause (assume-true-false on every literal). -/
-def inScopeEquations (ctx : ReplayCtx) :
-    List (SExpr × SExpr × Expr × Bool) :=
-  -- an edge is (a, b, proof, truthy): a FALSE `(not (equal a b))` fact
-  -- (proof : v(not(equal a b)) = nil), or — truthy = true — a TRUE
-  -- `(equal a b)` branch fact (proof : v(equal a b) ≠ nil, the assumed
-  -- if-test of an enclosing branch — PERM-CONS's (EQUAL X1 A) then-branch)
-  (ctx.litFacts.filterMap fun (_, t, h) =>
-    (notEqualSides? t).map fun (a, b) => (a, b, h, false)) ++
-  (ctx.segFacts.filterMap fun (t, h) =>
-    (notEqualSides? t).map fun (a, b) => (a, b, h, false)) ++
-  (ctx.branchFacts.filterMap fun (bt, _, sign, h) =>
-    if sign then
-      match bt with
-      | .cons (.atom (.symbol es)) (.cons a (.cons b .nil)) =>
-        if es.name == "EQUAL" then some (a, b, h, true) else none
-      | _ => none
-    else none)
-
-/-- BFS a chain `src → dst` through the equation edges, each usable in either
-    orientation. DETERMINISTIC, not search: the closure of a finite equation
-    set is canonical, edges are tried in fact order, and the first (shortest)
-    path is taken — any valid chain proves the same pinned equation. Each step
-    is `(a, b, falsityProof, flipped)` (`flipped` = walked b→a). -/
-def eqChain? (eqs : List (SExpr × SExpr × Expr × Bool)) (src dst : SExpr) :
-    Option (List (SExpr × SExpr × Expr × Bool × Bool)) := Id.run do
-  if src == dst then return some []
-  let mut paths : List (SExpr × List (SExpr × SExpr × Expr × Bool × Bool)) :=
-    [(src, [])]
-  let mut visited : List SExpr := [src]
-  for _ in List.range (eqs.length + 1) do
-    let mut next : List (SExpr × List (SExpr × SExpr × Expr × Bool × Bool)) := []
-    for (t, path) in paths do
-      for (a, b, h, truthy) in eqs do
-        let step? :=
-          if a == t && !visited.contains b then
-            some (b, (a, b, h, truthy, false))
-          else if b == t && !visited.contains a then
-            some (a, (a, b, h, truthy, true))
-          else none
-        if let some (t', edge) := step? then
-          let path' := path ++ [edge]
-          if t' == dst then return some path'
-          visited := visited ++ [t']
-          next := next ++ [(t', path')]
-    paths := next
-  return none
-
-/-- Compose the value-level equality `val(src) = val(dst)` along an equation
-    chain (TRANSITIVE type-alist equivalence, MDD-ratified 2026-07-23: ACL2's
-    type-alist stores equivalence CLASSES, never a chain — the composition is
-    derived deterministically here, its target pinned by the solidify node's
-    emitted `:EQUIV-TERM`). Returns `none` on an empty chain. -/
-def composeEqChain (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (chain : List (SExpr × SExpr × Expr × Bool × Bool)) :
-    MetaM (Option Expr) := do
-  let mut acc : Option Expr := none
-  for (a, b, hf, truthy, flipped) in chain do
-    let va ← ctxValExpr cfg ctx a
-    let vb ← ctxValExpr cfg ctx b
-    let hEq ←
-      if truthy then
-        -- a TRUE (equal a b) branch fact: v(equal a b) ≠ nil decodes to
-        -- va = vb directly
-        mkAppM ``Logic.eq_of_equal_ne_nil #[hf]
-      else
-        mkAppM ``logic_not_equal_nil_eq #[va, vb, hf]
-    let hEq ← if flipped then mkAppM ``Eq.symm #[hEq] else pure hEq
-    acc := some (← match acc with
-      | none => pure hEq
-      | some p => mkAppM ``Eq.trans #[p, hEq])
-  return acc
 
 /-- Replay one rewrite node to its eval-equality `∃N∀f≥N, eval lhs = eval rhs`, by
     applying that rune's recipe. (equal-self is the literal closer, handled in
@@ -3602,6 +3649,59 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let pQ ← mkAppM ``re_val_quote
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
     mkAppM ``fuel_eq_of_conv #[p, pQ, hT]
+  | "equal-case-split", _ =>
+    -- rewrite-equal's boolean CASE-RESTRUCTURING (fork-batch item 1's
+    -- consumer): `(EQUAL p q)` with the split side an EQUALITY — hence
+    -- two-valued — restructures to `(IF split (EQUAL other 'T) (IF other
+    -- 'NIL 'T))`. The emitted rhs is RECOMPUTE-AND-CHECKED against the
+    -- origin's exact construction; the close is the value identity
+    -- `logic_equal_case_split` (the split side's two-valuedness from
+    -- `Logic.equal`'s range), with `logic_equal_comm` orienting the
+    -- lhs-variant.
+    let .cons (.atom (.symbol eqS)) (.cons p (.cons q .nil)) := lhs
+      | throwError "equal-case-split: lhs {repr lhs} is not (EQUAL p q)"
+    unless eqS.name == "EQUAL" do
+      throwError "equal-case-split: lhs head {eqS.name} ≠ EQUAL"
+    let origin := nodeOrigin n
+    let (splitT, otherT) ←
+      if origin == "equal/case-split-rhs" then pure (q, p)
+      else if origin == "equal/case-split-lhs" then pure (p, q)
+      else throwError "equal-case-split: origin {origin} (frontier)"
+    let isEqApp : SExpr → Bool := fun s => match s with
+      | .cons (.atom (.symbol e2)) (.cons _ (.cons _ .nil)) =>
+        e2.name == "EQUAL"
+      | _ => false
+    unless isEqApp splitT do
+      throwError "equal-case-split: split side {repr splitT} is not an \
+                  EQUAL application (emission divergence)"
+    let expectedRhs : SExpr := .cons (.atom (.symbol { name := "IF" }))
+      (.cons splitT (.cons
+        (.cons (.atom (.symbol { name := "EQUAL" }))
+          (.cons otherT (.cons quoteT .nil)))
+        (.cons (.cons (.atom (.symbol { name := "IF" }))
+          (.cons otherT (.cons quoteNil (.cons quoteT .nil)))) .nil)))
+    unless rhs == expectedRhs do
+      throwError "equal-case-split: rhs {repr rhs} ≠ the recomputed \
+                  restructure of {repr lhs} (emission divergence)"
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
+    let vSplit ← ctxValExpr cfg ctx splitT
+    let vOther ← ctxValExpr cfg ctx otherT
+    unless vSplit.isAppOfArity ``Logic.equal 2 do
+      throwError "equal-case-split: split value is not (Logic.equal _ _) \
+                  (internal — the value walker's EQUAL composition)"
+    let hq ← mkAppM ``logic_equal_two_valued
+      #[vSplit.appFn!.appArg!, vSplit.appArg!]
+    let idRhs ← mkAppM ``logic_equal_case_split #[vOther, vSplit, hq]
+    -- lhs value: equal p q — for the rhs-variant that IS equal other split;
+    -- the lhs-variant needs the comm bridge (equal split other)
+    let valueEq ←
+      if origin == "equal/case-split-rhs" then pure idRhs
+      else do
+        let comm ← mkAppM ``logic_equal_comm #[vSplit, vOther]
+        mkAppM ``Eq.trans #[comm, idRhs]
+    let pl ← ctxValProof cfg ctx lhs
+    let pr ← ctxValProof cfg ctx rhs
+    mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
   | "type-alist", _ =>
     -- SOLIDIFY from the type-alist: the clause context — a spine literal's
     -- falsity — pins the term's value; the node rewrites the term to that
