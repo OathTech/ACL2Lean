@@ -514,12 +514,20 @@ _Last updated: 2026-08-02._
 > rung-2 relation threading through the literal-chain composer with
 > the one-frame collapse (equivOwnPosCongr, already built) at the
 > parent R-application — NOT a sub-arc-local patch. Emission facts
-> pinned: emit/solidify/rewriting-equiv HARDCODES :equiv 'equal
-> (rewrite.lisp ~5244) but the licensing relation IS recorded — it is
-> the :EQUIV-TERM's head (find-rewriting-equivalence guarantees it
-> refines the geneqv), so the Lean side is a read-off, no fork change
-> required; OPTIONAL fork-batch item: emit :equiv (ffn-symb eterm)
-> for honesty (only R-cases change — zero churn on green rows).
+> pinned (CORRECTED per audit 2026-08-04 F12): emit/solidify/
+> rewriting-equiv HARDCODES :equiv 'equal (rewrite.lisp ~5244) but
+> the licensing relation IS recorded as the :EQUIV-TERM's head
+> (find-rewriting-equivalence guarantees geneqv refinement) — AND the
+> mislabeling is NOT confined to solidify: the enclosing WITH-LEMMA
+> step records the RULE's :equiv (EQUAL) against a :RHS that is the
+> rule rhs AFTER the R-solidify (rewrite.lisp ~20627), making its
+> recorded lhs/rhs pair a FALSE EQUAL equation (holds only up to R;
+> harmless today — the solidify child hard-fails first and the kernel
+> would reject the equation). The fork emission fix (true per-step
+> relation at solidify AND with-lemma sites) is therefore a
+> PREREQUISITE for the rung-2 R threading, not optional — an R-aware
+> consumer must never trust a with-lemma step's :EQUIV for its
+> recorded pair. Fork-batch item.
 > (B) PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS is a
 > CONSUMER GAP, not emission: TRUE-LISTP-RM is `:CLASSES
 > :TYPE-PRESCRIPTION` (a THEOREM-classed TP rule; RM has NO admission

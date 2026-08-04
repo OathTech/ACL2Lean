@@ -3812,13 +3812,20 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             else if (ACL2.Replay.freeVars hσ).isEmpty then do
               -- GROUND hyp KNOWN-TRUE (Phase-3 class, 2026-08-04:
               -- convert-perm's TRUE-LISTP-RM / RM-TLFIX — marker
-              -- RELIEVE-HYP/KNOWN-TRUE on (TRUE-LISTP 'NIL)): the
-              -- instantiated hyp is CLOSED, so ACL2's type-set verdict is
-              -- a computation recorded verdict-plus-rune-set only — the
-              -- ratified DP carve-out shape. Replay it as the closed-form
-              -- evaluation (the SYNP/exec-counterpart treatment); a ground
-              -- hyp whose value is not exactly t hard-fails inside
-              -- replayExecGround (honest frontier).
+              -- RELIEVE-HYP/KNOWN-TRUE on (TRUE-LISTP 'NIL)). Audit
+              -- 2026-08-04 F1 corrected the mechanism attribution: ACL2's
+              -- verdict here comes from the BUILT-IN RECOGNIZER TUPLE in
+              -- type-set-rec (probed live: knownp=T with ZERO runes added
+              -- — type-set-rec has no ground-evaluation clause), NOT from
+              -- the executable counterpart. It is a VERDICT-ONLY type-set
+              -- step — the ratified DP carve-out shape — and the replay
+              -- SUBSTITUTES closed-form evaluation for it on the closed
+              -- hyp instance: same value, kernel-checked, leaf-granular.
+              -- F2 caution: the marker's :TA-RUNES are the cumulative
+              -- incoming set (the verdict adds none), so there is nothing
+              -- verdict-specific to anchor on; the arm keys on the closed
+              -- term alone. A ground hyp whose value is not exactly t
+              -- hard-fails inside replayExecGround (honest frontier).
               let conv ← replayExecGround cfg hσ SExpr.t
               mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
             else do
