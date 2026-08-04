@@ -2514,17 +2514,18 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
                     (.atom (.symbol { name := "NOT" })) (.cons hσ .nil)
                   let ctx3 ← pinTermOpaques cfg cfg.envExpr ctx2 hσ
                   let vH ← ctxValExpr cfg ctx3 hσ
+                  -- litFactByTermChecked? already scans litFacts THEN
+                  -- segFacts with a per-candidate type check; an unchecked
+                  -- segFacts fallback would re-open the cross-env-context
+                  -- hole that helper closes (tpthm audit F1 — a dead arm
+                  -- deleted)
                   let hit ← ctx3.litFactByTermChecked? notH
                     (← mkEq (mkApp (mkConst ``Logic.not) vH)
                       (mkConst ``SExpr.nil))
-                  let hNotNil ← match hit with
-                    | some hh => pure hh
-                    | none =>
-                      match ctx3.segFacts.find? (fun (st, _) => st == notH) with
-                      | some (_, hh) => pure hh
-                      | none => throwError "replayRecognizer/tpthm: \
-                          {spec.name}'s hyp instance {repr hσ} has no \
-                          (not …)-falsity fact in scope (frontier)"
+                  let some hNotNil := hit
+                    | throwError "replayRecognizer/tpthm: {spec.name}'s hyp \
+                        instance {repr hσ} has no (not …)-falsity fact in \
+                        scope (frontier)"
                   let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
                   pure (← mkAppM ``implies_value_mp #[hFne, hne], ctx3)
               -- exact-'T pin: the recognizer's TRUSTED-CORE two-valued
@@ -5927,15 +5928,21 @@ partial def collectContextDemands : ProofNode → List ContextDemand
             -- tpthm ingredients (the :CLASSES consumer): a THEOREM-classed
             -- TP rule's hyp instance is typically the recognizer at an
             -- ARGUMENT of the inner application ((TRUE-LISTP (RM E X))'s
-            -- hyp is (TRUE-LISTP X)) — demand each; unmatched demands are
-            -- skipped harmlessly at the hoist site
-            (match w with
-             | .cons (.atom (.symbol _)) argsS =>
-               (argsS.toList?.getD []).map fun a =>
-                 ContextDemand.term (notOf
-                   (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
-                     (.cons a .nil)))
-             | _ => [])
+            -- hyp is (TRUE-LISTP X)) — demand each. GATED on the node
+            -- citing a :TYPE-PRESCRIPTION rune (tpthm audit F9 — cuts the
+            -- 26 recognizer/true blast radius to the citing nodes) and
+            -- QUOTE-guarded (F10). A demand is hoisted only if its value
+            -- constructs in scope; over-approximation is bounded by both.
+            (if prov.runes.any (·.ty == "type-prescription") then
+              match w with
+              | .cons (.atom (.symbol wf)) argsS =>
+                if wf.name == "QUOTE" then []
+                else (argsS.toList?.getD []).map fun a =>
+                  ContextDemand.term (notOf
+                    (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                      (.cons a .nil)))
+              | _ => []
+             else [])
           else if rs.name == "CONSP" then
             -- the CONSP-closure ingredients (ORDERED-PERMS *1/2.2 and the
             -- IF-split shapes): for EVERY (CDR u) subterm of w, the truthy

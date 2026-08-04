@@ -568,19 +568,27 @@ _Last updated: 2026-08-02._
 > per the type-facts-from-ACL2 rule). Target:
 > PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS green
 > (convert-perm 11/13); then sub-arc audit → fold-back.**
-> **TPTHM OUTCOME + THE ROW'S NEXT WALL (2026-08-04): the consumer
-> WORKS — the recognizer node discharges (sweep message advances) —
-> but the row stays FAIL at a NEW, now-diagnosed wall: literal 3's
-> chain records only 2 nodes (the tpthm recognizer + the
-> HOW-MANY-RM-GENERAL with-lemma), while ACL2's recorded end-state
-> additionally reflects UNRECORDED normalization: the in-rewrite
-> IMPLIES expansion ((NOT (IMPLIES (IF tlp T NIL) c)) with the tlp
-> conjunct dropped) and rewrite-equal's boolean CASE-RESTRUCTURING of
-> (EQUAL perm eqhm) into (IF eqhm (EQUAL perm 'T) (IF perm 'NIL 'T)).
-> EMISSION-BATCH ITEM (same family as :PATH): log the literal-level
-> IMPLIES/EQUAL-boolean normalization steps at their rewrite sites.
-> The row joins HOW-MANY-RM-GENERAL in the batch. Sub-arc remaining:
-> the adversarial audit of the tpthm machinery → fold-back.**
+> **TPTHM OUTCOME + THE ROW'S NEXT WALL (2026-08-04; CORRECTED per
+> the sub-arc audit F6/F7): the route FIRES and its guards pass (the
+> recognizer wall falls — the sweep message advances past it), but
+> NOTHING tpthm-built is kernel-checked yet (the row still FAILs, so
+> Meta.check/axiom-filter/addDecl never run; dischargeTpThmHyp and
+> the depMirror tpthm arm are corpus-unexercised — a green consumer
+> row is the validation gate). The next wall, audit-corrected: TWO
+> distinct gaps. (a) CONSUMER gap: the fork ALREADY EMITS the
+> IF-collapse marker (:IF-TEST-TRUE :ORIGIN IF-FINISH/IF-TEST with
+> its own :JUSTIFICATION :RUNES, log ~5888) and ProofTree.lean
+> ~346-348 DISCARDS it ("IF-test markers … not standalone nodes") —
+> fix at the consumer, NOT the fork. (b) EMISSION gap, precisely
+> located: rewrite.lisp:18434-18440's `((equalityp rhs) …)` arm
+> produces the (IF eqhm (EQUAL lhs 'T) (IF lhs 'NIL 'T)) boolean
+> case-restructuring and is UNTAGGED/unlogged (its four neighbours
+> at 18316/18332/18377/18392 all emit) — THIS one joins the fork
+> batch. Audit follow-ups recorded: F2 flattenAnd for conjunctive TP
+> hyps; F4 hard-fail :COROLLARY-bearing TP class specs; F11 the
+> trusted-core two-valued registry now has THREE diverged copies
+> (NodeCore ~2082/~2532, Harness ~232) — extract; TamperTests pins
+> for the two anchoring gates.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

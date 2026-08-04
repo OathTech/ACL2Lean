@@ -607,11 +607,18 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- (bare keyword or a class-list member), the whole-formula statement.
   -- Rare class (one per hand-classed TP theorem); consumed by
   -- replayRecognizer's cited-rune fallback, unused offers dropped.
+  -- topological guard (tpthm audit F5, mirroring useSpecs): no
+  -- self-offer, and a SAME-BOOK entry must be strictly earlier — ACL2
+  -- cannot cite a not-yet-admitted rule, and the cited-rune anchor alone
+  -- rests on untrusted fork emission (the BUG-023 class).
   let tpThmSpecs : List TpThmSpec := depProofs.foldl (init := [])
-    fun acc (n, cp) =>
+    fun acc (n, dcp) =>
       if acc.any (·.name == n) then acc
-      else if !classesNameTP cp.classes then acc
-      else match cp.root with
+      else if n == cp.name then acc
+      else if useSameBook.any (fun (m, _) => m == n)
+              && !useEarlier.contains n then acc
+      else if !classesNameTP dcp.classes then acc
+      else match dcp.root with
       | some root =>
         match root.inputClause with
         | [f] => acc ++ [{ name := n, formula := f }]
