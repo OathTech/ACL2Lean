@@ -105,6 +105,13 @@ def corpus : List (String × String) :=
    -- the certified world (P1 progress: the row-bearing book is in the
    -- sweep; the rows are the Phase-4 build's scoreboard).
    ("sorting/equisort",        include_str "../acl2_samples/sorting/equisort.proof-log"),
+   -- BUG-019 GATE VISIBILITY (equisort-r6 audit F1): the pin book was
+   -- outside the sweep, so a regression re-greening its rows (the vacuous
+   -- constrained-telescope greens, caught NOT-READY and reverted) was
+   -- invisible to `just ci`. Its two rows are pinned HONESTLY RED (opaque
+   -- CF — the constrained fn has no world definition); any green here is
+   -- a statement-vacuity/substitution alarm, not progress.
+   ("cov-encapsulate",         include_str "../acl2_samples/pattern-tests/cov-encapsulate.proof-log"),
    ("sorting/msort",           include_str "../acl2_samples/sorting/msort.proof-log"),
    -- J7: the dotted-rune parse (multi-rule events, (:REWRITE FOO . k)) lets
    -- qsort and sorts-equivalent — the D7 consumer — reconstruct.

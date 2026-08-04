@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 84/114 (31 unconditional + 53 conditional); DP-discharge leaves ✓60 ◌9 ✗0 of 69:
+Driver coverage — REPLAYED 84/116 (31 unconditional + 53 conditional); DP-discharge leaves ✓60 ◌11 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -115,6 +115,9 @@ Driver coverage — REPLAYED 84/114 (31 unconditional + 53 conditional); DP-disc
     HOW-MANY-SSORTFN1 → FAIL: proveConv: unary SSORTFN1 not in the builtin registry (frontier): (SSORTFN1 (CDR X))
     HOW-MANY-SSORTFN2 → FAIL: proveConv: unary SSORTFN2 not in the builtin registry (frontier): (SSORTFN2 X)
     STRONG-SSORTFN1-IS-SSORTFN2 → FAIL: proveConv: unary SSORTFN1 not in the builtin registry (frontier): (SSORTFN1 X)
+• cov-encapsulate  (world: 1 defun(s), 2 theorem(s))
+    CF-NUMBERP → FAIL: replayDischargeNode: opaque (CF X) has no pinned value (totality hypothesis missing? frontier)  [DISCHARGE: Goal:preprocess/type-set-fc ◌ assumed cond[total:(CF X), ASSUMED:dp-fact]]
+    CF-PLUS-COMM → FAIL: replayDischargeNode: opaque (CF A) has no pinned value (totality hypothesis missing? frontier)  [DISCHARGE: Goal:preprocess/tau-contradiction ◌ assumed cond[total:(CF A), total:(CF B), ASSUMED:dp-fact]]
 • sorting/msort  (world: 29 defun(s), 7 theorem(s))
     ACL2-COUNT-EVENS-STRONG → REPLAYED ✓ cond[tp:ACL2-COUNT, rule:DEFAULT-CDR, rule:FOLD-CONSTS-IN-+, linear:ACL2-COUNT-CAR-CDR-LINEAR]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ◌ assumed cond[total:(ACL2-COUNT (EVENS (CDR (CDR X)))), total:(ACL2-COUNT (CDR (CDR X))), total:(ACL2-COUNT (CAR X)), total:(ACL2-COUNT (CDR X)), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, ASSUMED:dp-fact], Subgoal *1/2.1.2':simplify-clause/linear-contradiction ◌ assumed cond[total:(ACL2-COUNT (CAR X)), total:(ACL2-COUNT (CAR (CDR (CDR X)))), total:(ACL2-COUNT (CDR X)), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, ASSUMED:dp-fact], Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(ACL2-COUNT (EVENS X)), total:(ACL2-COUNT X), tp:ACL2-COUNT, tp:ACL2-COUNT]]
     ACL2-COUNT-EVENS-WEAK → REPLAYED ✓ cond[tp:ACL2-COUNT, rule:DEFAULT-CDR, rule:FOLD-CONSTS-IN-+]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(ACL2-COUNT X1), total:(ACL2-COUNT X2), tp:ACL2-COUNT, tp:ACL2-COUNT], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(ACL2-COUNT X4), total:(ACL2-COUNT (EVENS X4)), total:(ACL2-COUNT X1), total:(ACL2-COUNT X3), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT], Subgoal *1/1'':preprocess/tau-contradiction ✓ cond[total:(ACL2-COUNT X), tp:ACL2-COUNT]]

@@ -619,10 +619,17 @@ _Last updated: 2026-08-02._
 > (EQUAL 'NIL 'T) ⇒ 'NIL — the intermediate collapse of
 > (EQUAL (SORTFN1 X) (SORTFN2 X)) ⇒ 'NIL from the clause context
 > (literal 3's assumed falsity, ACL2's rewrite-equal type-alist
-> route) is UNRECORDED — the same untagged rewrite-equal arm family
-> the tpthm audit pinned (rewrite.lisp ~18428/18434). The batch item
-> now carries THREE consumers: the counter-example row, HOW-MANY-RM-
-> GENERAL's family, and the equisort capstule-shape rows. Everything
+> route) is UNRECORDED. SITE CORRECTED (equisort-r6 audit F5): the
+> responsible untagged arm is the ASSOC-TYPE-ALIST lookup at
+> rewrite.lisp:18348-18354 ((assoc-type-alist (fcons-term* 'equal
+> lhs rhs) …) with silent *ts-t*/*ts-nil* returns) — NOT the
+> equalityp arms at 18428/18434 (the collapsed lhs (SORTFN1 X) is
+> not an equality; the tagged ts-equality/solidify routes at
+> 18377/18392/5270 would have emitted). Tagging only 18428/18434
+> would NOT unblock these rows — the batch item covers BOTH the
+> equalityp arms AND the 18348 type-alist arms. The batch item
+> carries THREE consumers: the counter-example row, HOW-MANY-RM-
+> GENERAL's family, and the equisort capstone-shape rows. Everything
 > Lean-side up to that emission is BUILT and validated: R7a resolves
 > the :use ORDERED-PERMS payload cross-book, the constraint rules
 > apply as ordinary rule: hyps over the constrained telescope, the

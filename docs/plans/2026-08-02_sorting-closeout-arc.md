@@ -22,6 +22,30 @@ Standing ratifications (MDD 2026-08-02): R7 (a)/(a1); carve-out with
 the drift test; BUG-027 narrow-via-emission; BNEXT-SIZE
 admission-waterfall route; count rows measure-absorbed.
 
+## ARC EXIT AMENDED (MDD 2026-08-04, after the equisort-r6 NOT-READY)
+
+The equisort-r6 audit established that every equisort row and all three
+capstones REQUIRE the abstract-world driver surface (their statements
+are false at the certified world — no concrete-world route to green
+exists; the attempted concrete-world proxy was the audit's F2/F3 and
+was reverted). MDD direction, verbatim: "if there are things we can do
+that are orthogonal to this big push, and won't build redundant infra
+we'll need to replace later, let's work on them in this arc. And then
+we'll close the arc with one major missing piece."
+
+- The ABSTRACT-WORLD BUILDOUT (parametric statements, ConstraintsHold
+  over the extended world, the R7b capstone application) is DEFERRED to
+  a follow-on arc, opened by a design note extending the R7 note's Q3,
+  ratified before building.
+- This arc's remaining scope: the orthogonal, non-redundant work — the
+  fork emission batch (once reviewed), bsort's walls + BNEXT-SIZE
+  replay wiring, the R-lane rung-2 threading (concrete-world consumers:
+  PERM-TLFIX, bsort), the IF-TEST-TRUE consumer, Phase-7 mirrors/pins/
+  catalog/machinery debt.
+- The predicates below are READ UNDER the amendment: P2/P3/P4 exclude
+  the equisort rows and the three capstones, which close the follow-on
+  arc; the pre-merge audit DECLARES the missing piece with numbers.
+
 ## COMPLETION PREDICATES (the arc is done exactly when all hold)
 
 - P1. All 9 row-bearing family books in the sweep (the 8 current +
