@@ -568,6 +568,19 @@ _Last updated: 2026-08-02._
 > per the type-facts-from-ACL2 rule). Target:
 > PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS green
 > (convert-perm 11/13); then sub-arc audit → fold-back.**
+> **TPTHM OUTCOME + THE ROW'S NEXT WALL (2026-08-04): the consumer
+> WORKS — the recognizer node discharges (sweep message advances) —
+> but the row stays FAIL at a NEW, now-diagnosed wall: literal 3's
+> chain records only 2 nodes (the tpthm recognizer + the
+> HOW-MANY-RM-GENERAL with-lemma), while ACL2's recorded end-state
+> additionally reflects UNRECORDED normalization: the in-rewrite
+> IMPLIES expansion ((NOT (IMPLIES (IF tlp T NIL) c)) with the tlp
+> conjunct dropped) and rewrite-equal's boolean CASE-RESTRUCTURING of
+> (EQUAL perm eqhm) into (IF eqhm (EQUAL perm 'T) (IF perm 'NIL 'T)).
+> EMISSION-BATCH ITEM (same family as :PATH): log the literal-level
+> IMPLIES/EQUAL-boolean normalization steps at their rewrite sites.
+> The row joins HOW-MANY-RM-GENERAL in the batch. Sub-arc remaining:
+> the adversarial audit of the tpthm machinery → fold-back.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
