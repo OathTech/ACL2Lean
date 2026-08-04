@@ -482,6 +482,30 @@ _Last updated: 2026-08-02._
 > unclassified: PERM-COUNTER-EXAMPLE-…-TRUE-LISTS (replayRecognizer:
 > no TP for RM), HOW-MANY-RM-GENERAL (ambiguous anchoring),
 > ORDEREDP-WHEN-BNEXT-CONSTANT (pathSteps frames []).**
+> **THE R-SOLIDIFY LANE, ARTIFACT-ANCHORED DESIGN RECORD (2026-08-04;
+> the L2 build the class needs — read the PERM-TLFIX Subgoal *1/2'
+> literal-3 chain, e.g. `lake exe acl2lean dump-proof-tree
+> acl2_samples/sorting/convert-perm-to-how-many.proof-log`): the
+> failing node is `rewriting-equivalence:NIL [solidify/rewriting-
+> equiv] ⟨rhs⟩ (TLFIX (CDR X)) => (CDR X), equiv: (PERM (TLFIX (CDR
+> X)) (CDR X)), justified by hypothesis literal 2 (the IH)` — an
+> R-rewrite at PERM's OWN arg-1 position, runes citing
+> equivalence:PERM-IS-AN-EQUIVALENCE and NO defcong. THE LICENSE IS
+> ACL2'S BUILT-IN GENEQV RULE: an :EQUIVALENCE rune doubles as
+> congruence at the relation's own argument positions. So the build
+> is: (a) R-frames for equivalence-rune-licensed positions (the L2
+> "congruence-rune recipe" with the equivalence rule as the recipe);
+> (b) solidify decode for an R-source literal — (NOT (PERM A B))
+> assumed false gives EvTrue (PERM A B); (c) value-level composition
+> v(PERM A b) = v(PERM A' b) from the equivalence rule's replayed
+> statement (booleanp+sym+trans conjuncts — widen the equivrefl
+> channel to the FULL defequiv statement or reuse the whole-formula
+> hypothesis shape) + the R-fact; (d) the follow-on reflexive close
+> `type-alist:NIL [solidify/type-alist] (PERM (CDR X) (CDR X)) =>
+> 'T` rides the existing equivrefl truthy arm. Same machinery closes
+> CONVERT-PERM-TO-HOW-MANY's replayCongCollapse wall (its congruence
+> frame with cited congruence runes [] is the same equivalence-rune
+> license).**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
