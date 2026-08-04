@@ -157,6 +157,11 @@ def main (args : List String) : IO Unit := do
                 IO.println s!"\n  DEFUN {name} ({formalStr}) = {body}"
                 if let some j := just then
                   IO.println s!"    admission: measure {j.measure} under {j.wfRel.name}"
+            | .witnessDefun name formals body just =>
+                let formalStr := String.intercalate " " (formals.map (·.name))
+                IO.println s!"\n  WITNESS-DEFUN {name} ({formalStr}) = {body}  [scoped; excluded from the world]"
+                if let some j := just then
+                  IO.println s!"    admission: measure {j.measure} under {j.wfRel.name}"
             | .defthm name formula source _ =>
                 let srcStr := match source with
                   | .local => " [local]"

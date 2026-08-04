@@ -113,13 +113,16 @@ through real ACL2):
   `buildDevelopment` hard-failed a legitimate ACL2 pattern). Both logs
   sig-pinned balanced (BEGIN and END present); recon accepts both
   (PatternPins `encapsulate_empty_pins%`).
-- `cov-encapsulate` — REFUSED at reconstruction (BUG-019 fix,
-  2026-07-26): the encapsulate's local witness `(:DEFUN CF … :SOURCE
-  :LOCAL-WITNESS)` hard-fails the parse with the statement-substitution
-  explanation. Pre-fix state (the audit-F1 false green): the witness
-  entered the World unconditionally and BOTH theorems replayed 2/2
-  about `λx. 0` — with the same world validating `(EQUAL (CF X) '0)`,
-  which real ACL2 explicitly refuses. sig-pinned on the witness tag.
+- `cov-encapsulate` — RECONSTRUCTS SCOPED (re-pinned 2026-08-04,
+  Phase 4's witness scoping): the local witness `(:DEFUN CF … :SOURCE
+  :LOCAL-WITNESS)` is recorded inside its bracket and EXCLUDED from
+  `toWorld` by construction — BUG-019's protection is now structural,
+  not a refusal. Both rows replay HONESTLY RED ("opaque (CF X) has no
+  pinned value") — the constrained fn has no definition in the world,
+  so nothing can be proved about the witness (the pre-BUG-019 false
+  green — 2/2 about `λx. 0` — is unreachable). History: 2026-07-26 to
+  2026-08-04 this book was REFUSED at parse (the interim fail-closed
+  guard). Still sig-pinned on the witness tag.
 - `cov-congruence` — RECONSTRUCTS, including the defequiv-generated
   equivalence obligation and the defcong congruence theorem as
   ordinary defthms. The rule-class CONSUMPTION side (rewriting under

@@ -355,6 +355,14 @@ def RuleSpec.runeKey (r : RuleSpec) : String :=
 inductive ProofEvent where
   | defun (name : String) (formals : List Symbol) (body : SExpr)
           (just : Option Justification := none)
+  /-- A `local` WITNESS defun (`:SOURCE :LOCAL-WITNESS`, R6/Phase 4):
+      admitted inside an encapsulate whose world effects ACL2 discards at
+      scope close. Recorded SCOPED — `buildDevelopment` requires an open
+      bracket, and `Development.toWorld` excludes it by construction
+      (BUG-019's resolution by tag+scope: the certified world never
+      contains witness bodies). -/
+  | witnessDefun (name : String) (formals : List Symbol) (body : SExpr)
+      (just : Option Justification := none)
   /-- Encapsulate bracket OPEN (`:ENCAPSULATE-BEGIN`, cluster item 2 /
       R6): everything to the matching END belongs to the scope; BOTH
       passes' events are inside — per-scope :DEFTHM dedup is a PHASE-4
@@ -1280,22 +1288,24 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         -- replayed about the witness). HARD-FAIL, named. A missing or
         -- unrecognized :SOURCE also hard-fails (a pre-provenance log
         -- prompts recapture; an unknown value is an emission drift).
-        let groundZero ← match lookupKeyword "SOURCE" fields with
+        -- src: 0 = ground-zero snapshot, 1 = world-entering (admitted /
+        -- include-book), 2 = LOCAL-WITNESS. A witness (R6/Phase 4) is
+        -- accepted SCOPED: `buildDevelopment` requires an open encapsulate
+        -- bracket and `Development.toWorld` excludes it by construction —
+        -- the BUG-019 statement-substitution class resolved by tag+scope
+        -- structure (the ratified R6 shape), replacing the earlier
+        -- fail-closed refusal.
+        let src ← match lookupKeyword "SOURCE" fields with
           | none => throw s!"DEFUN {name}: missing :SOURCE — every \
                             world-entering defun carries provenance \
                             (audit F1; recapture with the current fork)"
-          | some (.atom (.keyword "GROUND-ZERO")) => pure true
-          | some (.atom (.keyword "ADMITTED")) => pure false
-          | some (.atom (.keyword "INCLUDE-BOOK")) => pure false
-          | some (.atom (.keyword "LOCAL-WITNESS")) =>
-            throw s!"DEFUN {name}: :SOURCE :LOCAL-WITNESS — a `local` \
-                    witness (encapsulate/certification) whose world effects \
-                    ACL2 discards; building a World over it would state \
-                    every mirror about the witness instead of the \
-                    constrained function (BUG-019, statement substitution; \
-                    encapsulate support is an unbuilt frontier)"
+          | some (.atom (.keyword "GROUND-ZERO")) => pure 0
+          | some (.atom (.keyword "ADMITTED")) => pure 1
+          | some (.atom (.keyword "INCLUDE-BOOK")) => pure 1
+          | some (.atom (.keyword "LOCAL-WITNESS")) => pure 2
           | some other => throw s!"DEFUN {name}: unsupported :SOURCE \
                                   {repr other}"
+        let groundZero := src == 0
         -- The admission justification: :MEASURE/:WFREL/:MEASURED travel
         -- together (recursive defun) or are all absent (non-recursive); a
         -- PARTIAL set is a malformed emission and hard-fails.
@@ -1357,6 +1367,7 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | _, _, _ => throw s!"DEFUN {name}: partial admission justification \
                                (:MEASURE/:WFREL/:MEASURED must travel together)"
         return if groundZero then .groundZeroDefun name formals body just
+               else if src == 2 then .witnessDefun name formals body just
                else .defun name formals body just
       | _ => throw s!"DEFUN: bad name: {repr nameExpr}"
     | _ => throw s!"DEFUN: expected plist, got {repr rest}"

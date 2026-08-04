@@ -84,6 +84,15 @@ inductive WorldEvent where
       the admission was non-trivial. -/
   | defun (name : String) (formals : List Symbol) (body : SExpr)
           (just : Option Justification) (termination : Option ClauseProof)
+  /-- A scoped `local` WITNESS defun (R6/Phase 4): recorded with its
+      admission tree, EXCLUDED from `toWorld` by construction (BUG-019 —
+      the certified world never contains witness bodies; the witness model
+      is the scope's conservativity artifact, consumed by the ScopeHolds
+      machinery when it lands). `buildDevelopment` hard-fails a witness
+      outside any bracket. -/
+  | witnessDefun (name : String) (formals : List Symbol) (body : SExpr)
+      (just : Option Justification := none)
+      (termination : Option ClauseProof := none)
   /-- A type-prescription corollary ACL2 derived for a function. -/
   | typePrescription (name : String) (corollary : SExpr)
           (basicTs : Option Int) (leaves : List (SExpr × Int))
@@ -811,6 +820,16 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       let termination := pendingTermination.map fun t => { t with name := s!"termination of {n}" }
       events := events.push (.defun n formals body just termination)
       pendingTermination := none
+    | .witnessDefun n formals body just =>
+      -- BUG-019 by tag+scope (R6/Phase 4): a witness OUTSIDE any bracket
+      -- has no scope to be conservative for — malformed emission.
+      if encDepth == 0 then
+        throw s!"buildDevelopment: witness defun '{n}' outside any \
+                (:ENCAPSULATE-BEGIN) scope (malformed emission)"
+      let termination := pendingTermination.map fun t =>
+        { t with name := s!"termination of {n}" }
+      events := events.push (.witnessDefun n formals body just termination)
+      pendingTermination := none
     | .groundZeroDefun n formals body just =>
       -- A world snapshot, not an admission: it must NOT consume a pending
       -- anonymous proof block as its termination proof (its clauses are
@@ -1185,6 +1204,12 @@ partial def printDevelopment : ACL2.Development → IO Unit
       IO.println s!"  {formula}"
       if let some c := cls then
         IO.println s!"  :CLASSES {c}"
+    | .witnessDefun name formals body _ termination =>
+      let fstr := String.intercalate " " (formals.map (·.name))
+      IO.println s!"\n── witness defun {name} ({fstr}) — scoped, EXCLUDED from the world ──"
+      IO.println s!"  {body}"
+      if let some t := termination then
+        IO.println s!"  (admission proof recorded: {t.name})"
     printDevelopment rest
 
 

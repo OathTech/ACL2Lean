@@ -485,9 +485,17 @@ use the same terminator set as `isCharTokChar`
 ## BUG-019 — `local` witnesses entered the World: mirrors stated about the witness
 Status: fixed
 Pinned-by: none (pattern-corpus pin: cov-encapsulate's log carries
-`:SOURCE :LOCAL-WITNESS` — sig-gated by check-pattern-map — and its
-reconstruction hard-fails with the named message; a differential form
-cannot express a replay-layer statement bug)
+`:SOURCE :LOCAL-WITNESS` — sig-gated by check-pattern-map; a
+differential form cannot express a replay-layer statement bug).
+Fix EVOLUTION (2026-08-04, Phase 4's witness scoping — the ratified
+tag+scope resolution): the interim fail-closed PARSE REFUSAL is
+replaced by structural exclusion — a `:LOCAL-WITNESS` defun is
+recorded as a SCOPED `witnessDefun` event (hard-fail outside any
+encapsulate bracket) and `Development.toWorld` excludes it BY
+CONSTRUCTION, so the certified world never contains a witness body
+and the false-green statement substitution is unreachable
+(cov-encapsulate now reconstructs and replays honestly red — the
+constrained fn is opaque; equisort reconstructs end-to-end).
 Every `.defun` event entered the World unconditionally
 (ClauseTree.lean), and the fork emitted an encapsulate/defstub/
 defevaluator LOCAL witness's admission as a plain `(:DEFUN …)` — so the
