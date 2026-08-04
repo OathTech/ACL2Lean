@@ -506,6 +506,33 @@ _Last updated: 2026-08-02._
 > CONVERT-PERM-TO-HOW-MANY's replayCongCollapse wall (its congruence
 > frame with cited congruence runes [] is the same equivalence-rune
 > license).**
+> **PHASE 3 FINAL CLASSIFICATIONS (2026-08-04, closing the sub-arc):
+> (A) PERM-TLFIX assigned to the PHASE-6 R-LANE (the p4-pinned
+> R-parameterized literal-chain class): its solidify R-step rides the
+> with-lemma RHS chain (`rec.rewrites` + `chainReqEq` at
+> NodeCore:~3975 rejects non-equal chains), so the fix is the
+> rung-2 relation threading through the literal-chain composer with
+> the one-frame collapse (equivOwnPosCongr, already built) at the
+> parent R-application — NOT a sub-arc-local patch. Emission facts
+> pinned: emit/solidify/rewriting-equiv HARDCODES :equiv 'equal
+> (rewrite.lisp ~5244) but the licensing relation IS recorded — it is
+> the :EQUIV-TERM's head (find-rewriting-equivalence guarantees it
+> refines the geneqv), so the Lean side is a read-off, no fork change
+> required; OPTIONAL fork-batch item: emit :equiv (ffn-symb eterm)
+> for honesty (only R-cases change — zero churn on green rows).
+> (B) PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS is a
+> CONSUMER GAP, not emission: TRUE-LISTP-RM is `:CLASSES
+> :TYPE-PRESCRIPTION` (a THEOREM-classed TP rule; RM has NO admission
+> TP in the log) and replayRecognizer consults only defun-admission
+> tp: hypotheses. THE FIRST :CLASSES CONSUMER (Phase-1 cluster item 5
+> + fresh-verify N3 threading exist for exactly this): offer
+> TP-classed theorems' whole-formula statements (the use:/equivfull
+> hypothesis shape), consumed by replayRecognizer's fallback —
+> match the recognizer term against the theorem conclusion (σ via
+> substTerm cross-check), relieve the hyp instance from the clause
+> context falsity facts, MP + boolean pin to the exact-'T verdict.
+> Anchor to the node's cited rune per BUG-023. (C) HOW-MANY-RM-GENERAL
+> (ambiguous anchoring) stays the :PATH-emission batch item.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
