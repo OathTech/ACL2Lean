@@ -131,6 +131,13 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-HOW-MANY-IS-0",
     .pending "count-of-absent-element — native-worthy \
       (List.count_eq_zero); P3 decides"),
+  ("sorting/convert-perm-to-how-many", "TRUE-LISTP-RM",
+    .pending "erase preserves true-listness (List reading is native-worthy \
+      alongside the RM family); greened by the ground-hyp KNOWN-TRUE arm \
+      (Phase 3); P3 decides"),
+  ("sorting/convert-perm-to-how-many", "RM-TLFIX",
+    .replayedOnly "tlfix normalization plumbing (erase commutes with \
+      tlfix) — no user-facing content"),
   ("sorting/convert-perm-to-how-many", "PERM-COUNTER-EXAMPLE-TLFIX-1",
     .replayedOnly "tlfix normalization plumbing for the R7 functional \
       instantiation — no user-facing content"),

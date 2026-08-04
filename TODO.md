@@ -461,6 +461,27 @@ _Last updated: 2026-08-02._
 > when a multi-book :use chain appears. Also: include-book :use
 > citations need the TRANSLATED statement emitted (the F1 fallback was
 > dropped as untranslated) — an emission follow-up.**
+> **PHASE 3 CLASSIFICATION + FIRST CLASS FIX (2026-08-04, sub-arc
+> mdd/convert-perm-reds): (1) GROUND-HYP KNOWN-TRUE class FIXED —
+> RELIEVE-HYP/KNOWN-TRUE markers on a CLOSED hyp instance
+> ((TRUE-LISTP 'NIL)) are ACL2 type-set computations recorded
+> verdict+runes only (the ratified carve-out shape); replayed by
+> replayExecGround (the SYNP treatment). TRUE-LISTP-RM + RM-TLFIX
+> flip green (sweep 81→83); PERM-COUNTER-EXAMPLE-TLFIX-2's cond set
+> shifts honestly (rule:RM-TLFIX now DISCHARGED, transitive
+> rule:CONS-CAR-CDR surfaces). (2) PERM-TLFIX CLASSIFIED: the
+> R-SOLIDIFY class — the solidify source literal is the IH under the
+> USER EQUIVALENCE PERM ((NOT (PERM (TLFIX (CDR X)) (CDR X)))), and
+> solidify only decodes EQUAL equations; the fix is the L2
+> R-parameterized solidify lane (type-alist equivalence classes under
+> R). (3) CONVERT-PERM-TO-HOW-MANY's post-R7a wall CLASSIFIED: same
+> lane — replayCongCollapse needs a PERM-arg-0-under-PERM congruence
+> frame with EMPTY step-cited congruence runes (ACL2's type-alist
+> R-class rewrite cites no defcong; the license is the equivalence
+> rule itself). (2)+(3) are ONE class: type-alist-under-R. Remaining
+> unclassified: PERM-COUNTER-EXAMPLE-…-TRUE-LISTS (replayRecognizer:
+> no TP for RM), HOW-MANY-RM-GENERAL (ambiguous anchoring),
+> ORDEREDP-WHEN-BNEXT-CONSTANT (pathSteps frames []).**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

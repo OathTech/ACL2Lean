@@ -3743,6 +3743,18 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
               let hT ← mkAppM ``logic_not_t_of_nil #[hAtmNil]
               let hne ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
               mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
+            else if (ACL2.Replay.freeVars hσ).isEmpty then do
+              -- GROUND hyp KNOWN-TRUE (Phase-3 class, 2026-08-04:
+              -- convert-perm's TRUE-LISTP-RM / RM-TLFIX — marker
+              -- RELIEVE-HYP/KNOWN-TRUE on (TRUE-LISTP 'NIL)): the
+              -- instantiated hyp is CLOSED, so ACL2's type-set verdict is
+              -- a computation recorded verdict-plus-rune-set only — the
+              -- ratified DP carve-out shape. Replay it as the closed-form
+              -- evaluation (the SYNP/exec-counterpart treatment); a ground
+              -- hyp whose value is not exactly t hard-fails inside
+              -- replayExecGround (honest frontier).
+              let conv ← replayExecGround cfg hσ SExpr.t
+              mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
             else do
             -- FC-DERIVED type-alist entry (emission arc 2026-07-21): the
             -- marker's :TA-RUNES name the forward-chaining rule that put the

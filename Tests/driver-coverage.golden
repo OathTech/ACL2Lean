@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 81/100 (31 unconditional + 50 conditional); DP-discharge leaves ✓55 ◌8 ✗0 of 63:
+Driver coverage — REPLAYED 83/100 (31 unconditional + 52 conditional); DP-discharge leaves ✓55 ◌8 ✗0 of 63:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -69,15 +69,15 @@ Driver coverage — REPLAYED 81/100 (31 unconditional + 50 conditional); DP-disc
 • sorting/convert-perm-to-how-many  (world: 18 defun(s), 13 theorem(s))
     HOW-MANY-RM → REPLAYED ✓ cond[tp:HOW-MANY]
     NOT-MEMB-IMPLIES-RM-IS-NO-OP → REPLAYED ✓ cond[rule:CONS-CAR-CDR]  [DISCHARGE: Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(MEMB A X), tp:MEMB]]
-    TRUE-LISTP-RM → FAIL: rule NOT-MEMB-IMPLIES-RM-IS-NO-OP: marker-relieved hyp (TRUE-LISTP 'NIL) has no (not …)-falsity fact in scope, and its :TA-RUNES ["MEMB",  "CONSP"] name no registered FC relief (frontier; lit-facts [(CONSP X),  (NOT (IF X 'NIL 'T)),  (CONSP 'NIL),  (NOT (IF 'NIL 'NIL 'T))]; seg-facts [X,  'NIL]; candidate types: []; expected: ACL2.Logic.not (ACL2.Logic.trueListp ACL2.SExpr.nil) = ACL2.SExpr.nil)  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]
+    TRUE-LISTP-RM → REPLAYED ✓ cond[rule:CONS-CAR-CDR]  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]
     NOT-MEMB-IMPLIES-HOW-MANY-IS-0 → REPLAYED ✓ cond[tp:HOW-MANY]
     HOW-MANY-RM-GENERAL → FAIL: replayRewrites: inline if-left window term (BINARY-+ '-1 (HOW-MANY (CAR X) (CDR X))) admits 2 distinct anchorings [[ACL2.PathFrame.arg     2     IF,   ACL2.PathFrame.arg 2 IF],  [ACL2.PathFrame.arg 2 EQUAL,   ACL2.PathFrame.arg     2     IF]] in the running term (EQUAL (HOW-MANY (CAR X) (RM B (CDR X))) (IF (IF (EQUAL (CAR X) B) (MEMB B (CDR X)) 'NIL) (BINARY-+ '-1 (HOW-MANY (CAR X) (CDR X))) (HOW-MANY (CAR X) (CDR X)))) (entry path [ACL2.PathFrame.arg    2    EQUAL,  ACL2.PathFrame.arg 2 IF]) — ambiguous position (frontier)  [DISCHARGE: Subgoal *1/3.2:preprocess/tau ◌ assumed cond[total:(MEMB A (CDR X)), total:(HOW-MANY A (RM B (CDR X))), total:(HOW-MANY A (CDR X)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
     PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS → FAIL: replayRecognizer: value of (TRUE-LISTP (RM (CAR X) Y)) does not reduce to T (no TP hypothesis for RM)  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM]]
     PERM-TLFIX → FAIL: solidify: source literal heads NOT/PERM
     PERM-COUNTER-EXAMPLE-TLFIX-1 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE]
-    RM-TLFIX → FAIL: rule NOT-MEMB-IMPLIES-RM-IS-NO-OP: marker-relieved hyp (TRUE-LISTP 'NIL) has no (not …)-falsity fact in scope, and its :TA-RUNES ["MEMB",  "CONSP",  "TLFIX"] name no registered FC relief (frontier; lit-facts [(CONSP X)]; seg-facts []; candidate types: []; expected: ACL2.Logic.not     (ACL2.Logic.trueListp ACL2.SExpr.nil) =   ACL2.SExpr.nil)
+    RM-TLFIX → REPLAYED ✓ cond[rule:CONS-CAR-CDR]
     MEMB-TLFIX → REPLAYED ✓
-    PERM-COUNTER-EXAMPLE-TLFIX-2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, rule:DEFAULT-CAR, rule:RM-TLFIX]
+    PERM-COUNTER-EXAMPLE-TLFIX-2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, rule:CONS-CAR-CDR, rule:DEFAULT-CAR]
     HOW-MANY-TLFIX → REPLAYED ✓ cond[tp:HOW-MANY]
     CONVERT-PERM-TO-HOW-MANY → FAIL: replayCongCollapse: 0 congruence hypotheses match (PERM arg 0 under PERM) among the step-cited congruence runes [] — need exactly 1 (frontier)  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
 • sorting/isort  (world: 27 defun(s), 3 theorem(s))
