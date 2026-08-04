@@ -634,6 +634,24 @@ _Last updated: 2026-08-02._
 > the :use ORDERED-PERMS payload cross-book, the constraint rules
 > apply as ordinary rule: hyps over the constrained telescope, the
 > chain walks with no witness dereference (the watch item holds).**
+> **IF-TEST-TRUE CONSUMER, REFINED DESIGN (2026-08-04, the
+> counter-example row's LAST wall — post-batch the row reaches within
+> one wrapper of the recorded result): the marker is
+> (:IF-TEST-TRUE :ORIGIN IF-FINISH/IF-TEST :TEST (TRUE-LISTP (CDR X))
+> :JUSTIFICATION (:RUNES ((:FAKE-RUNE-FOR-TYPE-SET NIL)) …)) — a
+> verdict-only type-set resolution of an enclosing IF's test (TRUE →
+> then-branch taken). ProofTree drops IF-test markers at recon
+> (~:346); the consumer must thread them into the IF-FINISH window
+> composition (BEGIN-IF-REWRITE/END-IF-REWRITE brackets) so the
+> walker can collapse (IF test then else) ⇒ then justified by the
+> test's truthiness — which for THIS instance rides the EXISTING
+> TRUE-LISTP/CDR closure in typeSetWalk.isTruthy (literal 4's
+> (TRUE-LISTP X) falsity context). The marker does NOT carry the
+> enclosing IF term — the window brackets do. Queue position: after
+> the sub-arc audit, alongside the anchoring-preference fix
+> (HOW-MANY-RM-GENERAL: prefer the emitted entry path when it is
+> among the anchoring candidates — a read-off, not inference), the
+> R-lane rung-2, and BNEXT-SIZE wiring.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
