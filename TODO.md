@@ -541,6 +541,33 @@ _Last updated: 2026-08-02._
 > context falsity facts, MP + boolean pin to the exact-'T verdict.
 > Anchor to the node's cited rune per BUG-023. (C) HOW-MANY-RM-GENERAL
 > (ambiguous anchoring) stays the :PATH-emission batch item.**
+> **TPTHM-CONSUMER SUB-ARC WORKLIST (mdd/tpthm-consumer, opened
+> 2026-08-04 — every piece located): (1) `matchPattern? (pattern term)
+> : Option (List (Symbol × SExpr))` — deterministic one-way
+> first-order matching (consistent bindings; no emitted σ exists for
+> type-set TP applications, and unique matching is a read-off — the
+> no-match case is a loud frontier). (2) `tpthm:<name>` offers: per
+> depProofs entry whose `ClauseProof.classes` names TYPE-PRESCRIPTION
+> (bare keyword like TRUE-LISTP-RM's, or a member of the classes
+> list), the whole-formula ∀env statement (mkUseHypType shape; the
+> FIRST :CLASSES consumer — Phase-1 item 5 + fresh-verify N3 exist
+> for this). Same 4-site telescope alignment discipline + a
+> dischargeCongHyp-clone + depMirrorProofAt arm. (3) Consumption in
+> replayRecognizer's fallback (NodeCore ~2405 "no TP hypothesis
+> for"): for each node-cited (:TYPE-PRESCRIPTION <name>) rune with an
+> offer (BUG-023: cited runes only — the target node cites
+> TRUE-LISTP-RM verbatim, log lines 5905-5911): parse the theorem
+> formula (IMPLIES hyp concl | bare concl), matchPattern? concl
+> against the recognizer term → σ; relieve σ(hyp) truthiness from the
+> clause-context falsity facts (litFactByTermChecked? on (NOT hypσ) /
+> segFacts — the marker-relief arm-1 lookups); instantiateEvTrueHypAt
+> at σ → implies_value_mp → concl-instance ≠ nil; close the exact-'T
+> verdict via the coreBool registry (logic_trueListp_ne_nil_t /
+> logic_consp_ne_nil_t — dischargeRuleHyp routeBool's table at
+> Harness ~225; USER-fn recognizers consume the emitted TP instead,
+> per the type-facts-from-ACL2 rule). Target:
+> PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS green
+> (convert-perm 11/13); then sub-arc audit → fold-back.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
