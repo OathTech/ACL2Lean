@@ -5894,6 +5894,40 @@ theorem logic_equal_t_equal_l (a b : SExpr) :
     Logic.equal SExpr.t (Logic.equal a b) = Logic.equal a b := by
   by_cases h : (a == b) = true <;> simp [Logic.equal, h, SExpr.t]
 
+/-- The boolean wrapper is the identity on `Logic.equal`'s range (the
+    last-position nil-drop's tail-frame change). -/
+theorem logic_boolwrap_self_equal (a b : SExpr) :
+    (bif Logic.toBool (Logic.equal a b) then SExpr.t else SExpr.nil)
+      = Logic.equal a b := by
+  by_cases h : (a == b) = true <;>
+    simp [Logic.equal, h, Logic.toBool, SExpr.t]
+
+/-- The boolean wrapper is the identity on `Logic.not`'s range. -/
+theorem logic_boolwrap_self_not (v : SExpr) :
+    (bif Logic.toBool (Logic.not v) then SExpr.t else SExpr.nil)
+      = Logic.not v := by
+  cases v <;> rfl
+
+/-- The boolean wrapper is the identity on a value pinned two-valued by
+    the emitted BOOLEAN TP corollary (the last-position nil-drop's
+    world-fn predecessor — PERM/MEMB class). -/
+theorem logic_boolwrap_self_of_boolean_tp {v : SExpr}
+    (h : (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+          else Logic.equal v SExpr.nil) = SExpr.t) :
+    (bif Logic.toBool v then SExpr.t else SExpr.nil) = v := by
+  by_cases hv : (v == SExpr.t) = true
+  · have hveq := eq_of_beq hv
+    subst hveq; rfl
+  · have h1 : Logic.equal v SExpr.t = SExpr.nil := by
+      simp [Logic.equal, hv]
+    rw [h1] at h
+    simp only [Logic.toBool, cond_false] at h
+    have hnil : v = SExpr.nil := by
+      by_cases h2 : (v == SExpr.nil) = true
+      · exact eq_of_beq h2
+      · simp [Logic.equal, h2, SExpr.t] at h
+    subst hnil; rfl
+
 /-- The BOOLEAN-TP fold's value identity: a two-valued `v` (the emitted
     boolean TP corollary's lifted content) satisfies `(equal v 't) = v`. -/
 theorem logic_equal_t_self_of_boolean_tp {v : SExpr}
