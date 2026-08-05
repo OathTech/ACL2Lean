@@ -115,19 +115,27 @@ structure BookChannels where
 def bookTrees (dev : Development) : List (String × ClauseProof) :=
   (developmentTheoremsWithRules dev).map fun (c, _) => (c.name, c)
 
-/-- One book's STORED RULES — the union of its theorems' `(:RULES …)`
-    snapshots, deduped by rune key (cross-rules channel, P3: a dependency
-    tree re-replayed at the consumer's world can cite rules the CONSUMER's
-    log never re-emits — PERM-IS-AN-EQUIVALENCE's tree cites
-    rule:PERM-SYMMETRIC, absent from the ordered-perms log. Offering the
-    dep book's rules lets the transitive citation bind; its own tree in
-    `crossTrees` then discharges it). Every `(:RULES …)` event AFTER the
-    last theorem event is in no snapshot (not only the last theorem's own
-    rule — a final and-splitting defthm drops several) — an accepted v1
-    gap (fail-closed: such a citation keeps the hypothesis); the fix is a
-    direct walk over the development's rule events. -/
+/-- One book's STORED RULES, deduped by rune key (cross-rules channel,
+    P3: a dependency tree re-replayed at the consumer's world can cite
+    rules the CONSUMER's log never re-emits — PERM-IS-AN-EQUIVALENCE's
+    tree cites rule:PERM-SYMMETRIC, absent from the ordered-perms log.
+    Offering the dep book's rules lets the transitive citation bind; its
+    own tree in `crossTrees` then discharges it). The v1 gap (every
+    `(:RULES …)` event after the last theorem event was in no snapshot)
+    is CLOSED: this is now the direct walk over the development's rule
+    events, ground-zero seed included. -/
+private partial def allBookRulesGo : Development → List ACL2.RuleSpec
+  | .bind (.rules specs) rest => specs ++ allBookRulesGo rest
+  | .bind _ rest => allBookRulesGo rest
+  | .done => []
+
 def allBookRules (dev : Development) : List ACL2.RuleSpec :=
-  ((developmentTheoremsWithRules dev).flatMap (·.2)).foldl
+  -- machinery debt (close-out 2026-08-05): the DIRECT walk over the
+  -- development's `.rules` events, closing the v1 gap above — rules
+  -- created by the book's LAST theorem (and a theorem-less dep book's
+  -- rules) are now included. Ground-zero seed first, then creation
+  -- order — the same relative order the per-theorem snapshots gave.
+  (dev.groundZeroRuleSpecs ++ allBookRulesGo dev).foldl
     (init := []) fun acc r =>
       if acc.any (fun o => o.runeKey == r.runeKey) then acc else acc ++ [r]
 
