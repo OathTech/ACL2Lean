@@ -715,6 +715,36 @@ _Last updated: 2026-08-02._
 > same family, third consumer. BNEXT-SIZE (a WORLD fn) rides the
 > EXISTING pinTermOpaques TP-refinement (tpHyps has BNEXT-SIZE's
 > emitted corollary) — verify its admission tree after (a)+(b).**
+> **BNEXT-SIZE ROUTE, LAYER 4 (2026-08-05, consumer-queue sub-arc):
+> BUILT — (i) the compound-recognizer WORLD-fn branch: the natp fact
+> from the fn's emitted nonneg-int TP corollary through the tpHyps
+> channel (`logic_natp_t_of_int_tp_fact` on the lifted fact at the
+> application's pinned value; corollary instantiated at the actual
+> arg must BE `intTpCorollary inner` — drift-fails); (ii)
+> `mkRecTermInfo` generalized off its two ACL2-COUNT hardwirings,
+> both read off the artifact: cntSym is now the justification
+> measure's HEAD, and the goal-conjoin check also accepts ALL emitted
+> clauses (a USER measure's `(O-P (cnt v))` obligation survives into
+> the waterfall — bsort's Goal conjoins both clauses; the ACL2-COUNT
+> class keeps the non-O-P-only spine; `interp_decrease_decode` was
+> already generic over cnt). termination:BSORT → REPLAYED ✓
+> cond[total:BNEXT, total:O<, total:O-P, tp:BNEXT-SIZE,
+> ASSUMED:dp-fact]. FINAL WALL for the 3 μ-registry rows
+> (ORDEREDP/TRUE-LISTP/HOW-MANY-BSORT), diagnosed to the emission:
+> the assumed dp leaf is Subgoal 1' — simplify-clause/linear-
+> contradiction citing (:LINEAR HOW-MANY-BAD-PAIRS-BNEXT), a LOCAL
+> defthm's linear rule. The fork's gz-linear collectors
+> (infra/gz-linear-rules, ld.lisp ~5474) walk only PREDEFINED syms,
+> so a cited LOCAL :LINEAR rule's stored hyps/concl/max-term are
+> never snapshotted → the DP premise is unstatable → the leaf falls
+> back to ASSUMED:dp-fact → consumers honestly refuse ("recorded
+> route: condition ASSUMED:dp-fact not offered"). QUEUED FORK ITEM
+> (next round, batched): extend the cited-closure linear collector to
+> LOCAL :LINEAR rules (same (rune hyps concl max-term) entry shape,
+> same event; information ACL2 already stores in the linear-lemma
+> record). The three rows flip when the premise threads (they then
+> also need linear:HOW-MANY-BAD-PAIRS-BNEXT in the consumer
+> telescope, which the existing 2b channel provides).**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

@@ -214,9 +214,12 @@ structure RecTermInfo where
   /-- The goal literal (the root clause's single literal — the IF-encoded
       conjunction of the non-trivial obligations). -/
   goalLit : SExpr
-  /-- The non-`O-P` emitted termination clauses, in goal (emission) order. -/
+  /-- The emitted termination clauses the goal conjoins, in goal order
+      (non-`O-P` only for the ACL2-COUNT class; ALL clauses when the `O-P`
+      obligation survives into the waterfall — user measure fns). -/
   clauses : List (List SExpr)
-  /-- The count fn (the justification measure's head — `ACL2-COUNT`). -/
+  /-- The count fn (the justification measure's head — `ACL2-COUNT` for the
+      default measure, the user fn otherwise). -/
   cntSym : Symbol
   hNsCnt : Expr
   hDefCnt : Expr
@@ -244,7 +247,8 @@ def conjoinDisjTerm : List SExpr → SExpr
     2026-07-28): byte-check every world shape the decode consumes, resolve
     the mirror's conditions against the consumer telescope's hypothesis
     fvars, and validate the goal literal against the conjoin of the emitted
-    non-`O-P` clauses (emission order, else reversed — the goal pins it).
+    clauses (non-`O-P` only or all, emission order or reversed — the goal
+    pins which).
     Frontier-throws on any gap, so a failed assembly keeps the fn on the
     destructor route's honest frontier. -/
 def mkRecTermInfo (cfg : ReplayConfig)
@@ -257,21 +261,39 @@ def mkRecTermInfo (cfg : ReplayConfig)
   let [goalLit] := goalLits
     | throwFrontier m!"recorded route: multi-literal termination goal \
         (frontier)"
-  let cntSym : Symbol := { name := "ACL2-COUNT" }
-  -- the emitted non-O-P clauses, ordered to match the goal's conjoin spine
+  -- the count fn IS the justification measure's head (read off the emitted
+  -- :MEASURE — ACL2-COUNT for the default, the user fn for a user measure
+  -- like bsort's BNEXT-SIZE); every shape below is checked against it
+  let cntSym ← match just.measure with
+    | .cons (.atom (.symbol c)) (.cons _ .nil) => pure c
+    | _ => throwFrontier m!"recorded route: measure {repr just.measure} is \
+        not a unary application (frontier)"
+  -- the emitted clauses, ordered to match the goal's conjoin spine. ACL2
+  -- discharges the `(O-P (cnt v))` obligation BEFORE clausify when its
+  -- type-set already knows the measure is an ordinal (the ACL2-COUNT
+  -- class — the goal conjoins only the non-O-P clauses); for a USER
+  -- measure fn the obligation survives into the waterfall and the goal
+  -- conjoins ALL emitted clauses (bsort's BNEXT-SIZE). Both shapes are
+  -- recompute-checked against the emitted goal, either order.
   let isOp (c : SExpr) : Bool :=
     match c.toList? with
     | some [.cons (.atom (.symbol op)) _] => op.name == "O-P"
     | _ => false
-  let nonOp ← (just.terminationClauses.filter (fun c => !isOp c)).mapM
+  let allCl ← just.terminationClauses.mapM
     fun c => match c.toList? with
       | some lits => pure lits
       | none => throwError "recorded route: malformed termination clause \
           {repr c}"
+  let nonOp := (just.terminationClauses.zip allCl).filterMap
+    fun (c, lits) => if isOp c then none else some lits
   let clauses ←
     if conjoinDisjTerm (nonOp.map disjoinTerm) == goalLit then pure nonOp
     else if conjoinDisjTerm (nonOp.reverse.map disjoinTerm) == goalLit then
       pure nonOp.reverse
+    else if conjoinDisjTerm (allCl.map disjoinTerm) == goalLit then
+      pure allCl
+    else if conjoinDisjTerm (allCl.reverse.map disjoinTerm) == goalLit then
+      pure allCl.reverse
     else throwFrontier m!"recorded route: goal literal does not conjoin the \
         emitted clauses (either order) — recompute/emission divergence"
   -- byte-checked world shapes

@@ -3724,27 +3724,63 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let .cons (.atom (.symbol fs)) (.cons innerArg .nil) := inner
       | throwError "compound-recognizer: inner {repr inner} is not a unary \
                     application (frontier)"
-    let some (_, _, natpLem) :=
-        builtinRecogFacts.find? (fun e => e.1 == fs.name)
-      | throwError "compound-recognizer: inner fn {fs.name} has no \
-                    registered trusted-core natp fact (frontier — the \
-                    world-fn route is pending)"
-    let some cor := cfg.gzTps.lookup fs.name
-      | throwError "compound-recognizer: {fs.name}'s TP corollary not \
-                    emitted (type facts from ACL2 — emission gap)"
-    let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
-      | throwError "compound-recognizer: corollary destructure failed: \
-                    {repr cor}"
-    unless cor == intTpCorollary app do
-      throwError "compound-recognizer: {fs.name}'s corollary drifted from \
-                  the nonneg-int shape: {repr cor}"
-    let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
-    let vArg ← ctxValExpr cfg ctx innerArg
-    let hT ← mkAppM natpLem #[vArg]
-    let pl ← ctxValProof cfg ctx lhs
-    let pr ← mkAppM ``re_val_quote
-      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-    mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
+    if let some (_, _, natpLem) :=
+        builtinRecogFacts.find? (fun e => e.1 == fs.name) then
+      let some cor := cfg.gzTps.lookup fs.name
+        | throwError "compound-recognizer: {fs.name}'s TP corollary not \
+                      emitted (type facts from ACL2 — emission gap)"
+      let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
+        | throwError "compound-recognizer: corollary destructure failed: \
+                      {repr cor}"
+      unless cor == intTpCorollary app do
+        throwError "compound-recognizer: {fs.name}'s corollary drifted from \
+                    the nonneg-int shape: {repr cor}"
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
+      let vArg ← ctxValExpr cfg ctx innerArg
+      let hT ← mkAppM natpLem #[vArg]
+      let pl ← ctxValProof cfg ctx lhs
+      let pr ← mkAppM ``re_val_quote
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+      mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
+    else
+      -- WORLD-fn inner (BNEXT-SIZE — layer 4 of the route): the natp fact
+      -- comes from the fn's EMITTED nonneg-int TP corollary through the
+      -- tpHyps channel (type facts from ACL2, the proof by the trusted-core
+      -- composition `logic_natp_t_of_int_tp_fact` on the lifted fact at the
+      -- application's pinned value — the `replayRecognizer` TP-lattice
+      -- precedent). Consumed, not inferred: the corollary instantiated at
+      -- the ACTUAL argument must BE the standard nonneg-int shape at this
+      -- exact application.
+      let some (_, cor, tpHyp) :=
+          ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
+        | throwError "compound-recognizer: inner fn {fs.name} has neither a \
+                      registered trusted-core natp fact nor an emitted TP \
+                      hypothesis in scope (type facts from ACL2 — emission \
+                      gap or frontier)"
+      let some (formals, _) := cfg.worldVal.defs.get? fs
+        | throwError "compound-recognizer: {fs.name} not defined in the world"
+      unless formals.length == 1 do
+        throwError "compound-recognizer: {fs.name} is not unary (frontier)"
+      unless ACL2.Replay.substTerm formals [innerArg] cor
+          == intTpCorollary inner do
+        throwError "compound-recognizer: {fs.name}'s TP corollary \
+                    ({repr cor}) instantiated at {repr innerArg} is not the \
+                    nonneg-int shape at {repr inner} (frontier)"
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
+      let some (vz, convz) := ctx.val? inner
+        | throwError "compound-recognizer: {repr inner} has no pinned value \
+                      (world-fn route, frontier)"
+      let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+        ++ #[reflectSExpr innerArg, vz, convz])
+      let hT ← mkAppM ``logic_natp_t_of_int_tp_fact #[fact]
+      let v ← ctxValExpr cfg ctx lhs
+      unless ← isDefEq v (mkApp (mkConst ``Logic.natp) vz) do
+        throwError "compound-recognizer: value of {repr lhs} does not match \
+                    (Logic.natp _) at the pinned inner value"
+      let pl ← ctxValProof cfg ctx lhs
+      let pr ← mkAppM ``re_val_quote
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+      mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
   | "equal-case-split", _ =>
     -- rewrite-equal's boolean CASE-RESTRUCTURING (fork-batch item 1's
     -- consumer): `(EQUAL p q)` with the split side an EQUALITY — hence

@@ -5588,7 +5588,31 @@ theorem logic_consp_len_nil (x : SExpr) :
 theorem logic_natp_len_t (x : SExpr) :
     Logic.natp (Logic.len x) = SExpr.t := by
   rw [logic_len_eq_lenNat]
-  simp [Logic.natp, Int.natCast_nonneg]
+  simp [Logic.natp]
+
+/-- NATP from a WORLD fn's lifted nonneg-int TP-corollary fact (the
+    compound-recognizer world-fn route — BNEXT-SIZE): the corollary
+    `(IF (INTEGERP app) (NOT (< app '0)) 'NIL)` lifted at the value and
+    known `= t` pins the value to a nonnegative integer. -/
+theorem logic_natp_t_of_int_tp_fact {v : SExpr}
+    (hfact : cond (Logic.toBool (Logic.integerp v))
+        (Logic.not (Logic.lt v (SExpr.atom (.number (.int 0)))))
+        SExpr.nil
+      = SExpr.t) :
+    Logic.natp v = SExpr.t := by
+  match v with
+  | .atom (.number (.int k)) =>
+    have hk : ¬ k < 0 := fun hk => by
+      simp [Logic.toBool, Logic.not, Logic.lt, Logic.toRat, hk, SExpr.t] at hfact
+    have hk' : k ≥ 0 := by omega
+    simp [Logic.natp, hk']
+  | .atom (.number (.rational _ _ _)) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .atom (.symbol _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .atom (.keyword _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .atom (.char _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .atom (.string _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .nil => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .cons _ _ => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
 
 /-- `Logic.len` is always an ACL2 integer — the kernel-checked counterpart of
     LEN's ground-zero `:TYPE-PRESCRIPTION` corollary
