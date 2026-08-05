@@ -791,6 +791,26 @@ _Last updated: 2026-08-02._
 > discrimination predicate is a calibrated heuristic (D7) — honest
 > comment queued with the dedupe; builtinRecogFacts deviates from the
 > 97190e1 designed builtinIntVal? route (D5) — KEPT (it gates the
+> **PHASE7-CLOSE SUB-ARC (mdd/phase7-close, opened 2026-08-05 after
+> the consumer-queue fold-back): the arc's final Lean-side stretch.
+> (1) P4 DONE at c10baf1 — pins for perm/ordered-perms/msort/bsort
+> (7 of 7 amendment-scoped books; sorts-equivalent + equisort
+> amendment-excluded). (2) P3 IN PROGRESS: 6 sorting .pending catalog
+> entries — the 3 convert-perm mirror targets
+> (NOT-MEMB-IMPLIES-HOW-MANY-IS-0 → contains=false ⇒ count=0;
+> NOT-MEMB-IMPLIES-RM-IS-NO-OP → List.erase_of_not_mem class;
+> HOW-MANY-RM → count-of-erase) via the Imported/Sorting.lean decode
+> pattern (per-theorem *_native_of_replayed over the enc/corr kit;
+> the conditional-IMPLIES eliminator precedent is Worlds.Perm's
+> perm_cons decode) + TRUE-LISTP-RM / CONVERT-PERM-TO-HOW-MANY /
+> HOW-MANY-BNEXT (native or .replayedOnly-with-rationale per the
+> mirror criterion). (3) Then machinery debt (allBookRules walk,
+> dp-premises F6, include-book provenance gate, leaf-class gating,
+> generator-reads-the-log), then the mechanical P1–P6 predicate
+> check under the amendment, the accumulated fork-batch list for
+> review, and the pre-merge audit proposal. P2 remains OPEN by
+> design: bsort walls + PERM-TLFIX wait on the queued fork round /
+> R-lane rung-2 — declared with numbers at close.**
 > valid termination:BNEXT green and the audit verified it sound and
 > properly emission-gated) with the redesign queued alongside the
 > recognizer-tuple emission, which subsumes it. VERIFIER RESIDUALS
