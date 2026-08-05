@@ -23,7 +23,12 @@
   machinery, `assumeFact := true`). A leaf can therefore read `◌ assumed …
   ASSUMED:dp-fact` in the detail while the composed row carries no ASSUMED
   cond at all — the composed row is the claim that matters; the probe column
-  measures telescope-independent leaf strength.
+  measures telescope-independent leaf strength. ENFORCED (consumer-queue
+  audit 2026-08-05 S1/S4): a composed replay whose kept conds contain
+  ASSUMED:dp-fact renders `ASSUMED ◌`, never `REPLAYED ✓`, and is never
+  registered as a consumable mirror (`tryReplay`'s single choke point) —
+  the assumed obligation is stated over independently-quantified opaques
+  and can be FALSE, making the ✓ vacuous.
 
   NO SILENT SKIPS: each log is `include_str`'d, so an ABSENT log is a HARD compile
   error naming the file (never silently skipped). CAVEAT (audited 2026-06-10): Lake

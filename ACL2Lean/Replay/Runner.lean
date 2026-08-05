@@ -278,6 +278,18 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
         a != ``propext && a != ``Classical.choice && a != ``Quot.sound)
       unless bad.isEmpty do
         return (s!"FAIL: replay produced a proof using axioms {bad} (sorryAx?)", none)
+      -- ASSUMED-conditioned composed replays are NEVER ✓ and NEVER
+      -- registered (consumer-queue audit 2026-08-05 S1/S2/S4): the assumed
+      -- dp-fact hypothesis is stated over INDEPENDENTLY-quantified opaques
+      -- and can be FALSE (machine-refuted for BSORT's linear leaf,
+      -- `bsortDpFact_false` with [propext]) — the conditional is then
+      -- vacuous. Render like `tryDischarge`'s ◌ (the legend's invariant:
+      -- a composed row never carries an ASSUMED cond as ✓) and refuse
+      -- registration at this single choke point so no consumer can ever
+      -- resolve the condition to a hypothesis fvar.
+      if p.2.contains "ASSUMED:dp-fact" then
+        let condStr := s!" cond[{", ".intercalate p.2}]"
+        return (s!"ASSUMED ◌{condStr}", none)
       -- D1: emit the replayed-statement constant (checked + axiom-clean above)
       let mut registered : Option (List String) := none
       if let some nm := replayedName? then

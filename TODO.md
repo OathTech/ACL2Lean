@@ -745,50 +745,55 @@ _Last updated: 2026-08-02._
 > record). The three rows flip when the premise threads (they then
 > also need linear:HOW-MANY-BAD-PAIRS-BNEXT in the consumer
 > telescope, which the existing 2b channel provides).**
-> **NFIX-EXPANSION WALK (2026-08-05, consumer-queue sub-arc): BUILT —
-> `tsRecogWalk` (NodeCore), the bounded deterministic mirror of ACL2's
-> assume-true-false type-set walk over a DP-composed IF tree, in two
-> goal modes: `(CONSP <if-tree>) ⇒ 'NIL` (recognizer/false arm; quoted
-> non-cons leaves definitional, term leaves by a truthy INTEGERP guard
-> on the walk's own spine — `logic_consp_nil_of_integerp_true` /
-> `logic_consp_cond_nil`) and `(NATP <if-tree>) ⇒ 'T` (the
-> compound-recognizer arm's IF-inner route; term leaves need the
-> truthy INTEGERP AND falsy `(< _ '0)` signed guards —
-> `logic_natp_t_of_int_nonneg` / `logic_natp_cond_t`). The 3
-> nfix-measure termination rows (COUNT-DOWN/MY-EVENP/CD2) advance two
-> nodes each to the NEXT class in the same trees: recognizer/true
-> `(INTEGERP (BINARY-+ 'k N)) ⇒ 'T` citing ((:FAKE-RUNE-FOR-TYPE-SET)
-> (:COMPOUND-RECOGNIZER ZP-COMPOUND-RECOGNIZER)) — the ZP-FALSITY
-> INTEGER KIT: the branch's falsy (ZP N) clause literal gives
-> integer(N) (+ positivity) via zp's compound-recognizer content, then
-> int closure over BINARY-+ with the quoted int (type-set-binary-+),
-> and the same root fact justifies the trees' later IF-TEST-FALSE
-> `(< (BINARY-+ 'k N) '0)` type-set justifications and consp-nil
-> nodes. Design: trusted-core lemmas (zp-nil ⇒ int-and-pos;
-> integerp-plus closure; lt-0-false from pos), consumed off the
-> recorded runes — the natural next consumer-queue increment.
-> BUILT (2026-08-05, same sub-arc): `integerpTWalk` + the INTEGERP
-> recognizer/true arms (both the application-inner and variable-inner
-> branches of replayRecognizer) — leaf sources: a falsy (ZP t) clause
-> fact (`logic_integerp_t_of_zp_nil`) or a falsified
-> (NOT (INTEGERP t)) if-interp segment fact
-> (`logic_integerp_t_of_not_nil`); BINARY-+ composes by
-> `logic_integerp_plus_t`; quoted ints definitional. ALL THREE rows
-> (COUNT-DOWN/MY-EVENP/CD2) now converge on ONE shared wall: the
-> IF-FINISH WINDOW-COMPOSITION consumer — "definition: children chain
-> reached (IF (< …) '0 …), node rhs is …": the type-set-justified
-> IF-TEST-FALSE (`:ORIGIN IF-FINISH/IF-TEST :JUSTIFICATION (:RUNES
-> …)`) collapses the body IF with NO if-simplification rewrite-step,
-> and the tree builder DROPS the if-test markers
-> (ProofTree.lean:346), so the definition children chain cannot cross
-> the collapse. This is the SAME class as the counter-example row's
-> IF-TEST-TRUE window-composition design already on the queue —
-> building it needs (a) the marker threaded into the tree (ProofTree)
-> and (b) the falsity/truth of the test derived from the justification
-> runes (here: zp-falsity ⇒ (< (+ -1 N) '0) false — N ≥ 1 ⇒ N-1 ≥ 0;
-> note CD2's variant is (< N '0) under the SEGMENT integerp guard +
-> (NOT (< N '0)) segment — read each tree, don't assume one shape).
-> Four+ rows ride this consumer.**
+> **CONSUMER-QUEUE AUDIT REMEDIATION (2026-08-05 — see
+> docs/audits/2026-08-05_consumer-queue-audit.md, NOT-READY, both
+> reviewers):**
+> **(1) VACUOUS ASSUMED GREEN FIXED (S1/S2/S4): termination:BSORT's
+> `REPLAYED ✓ cond[…ASSUMED:dp-fact]` was vacuous — the assumed
+> dp-fact hypothesis quantifies opaques INDEPENDENTLY, severing the
+> (BNEXT-SIZE (BNEXT X))/(BNEXT-SIZE X) link, and is machine-refutable
+> (`bsortDpFact_false`, [propext] only). `tryReplay` now renders any
+> ASSUMED-conditioned composed replay `ASSUMED ◌` and refuses
+> registration (single choke point — no consumer can resolve the
+> condition); the DriverCoverage legend invariant is enforced; the
+> catalog entry removed. ROOT-CAUSE FOLLOW-UP (queued): state assumed
+> obligations at the ACTUAL applications instead of independent
+> opaques — would make BSORT's leaf hypothesis the true
+> HOW-MANY-BAD-PAIRS-BNEXT fact; also affects every ◌-assumed probe
+> row. The REAL fix for the row remains the queued fork item: local
+> :LINEAR rule snapshot (gz-linear collectors walk only PREDEFINED
+> syms — extend the cited-closure to LOCAL :LINEAR rules).**
+> **(2) WALKERS REVERTED per ratified policy (D1–D4): tsRecogWalk +
+> integerpTWalk + their 7 lemmas recomputed "type-set inside the
+> rewriter", which generality-design §3(c) directs to TARGETED
+> EMISSION instead ("recomputation would have to clone the lattice +
+> cycle-breaking heuristics bug-for-bug"), and violated the July-31
+> one-typeSetWalk consolidation charter (walkers 1→3, consumer-local
+> fact scans, new derivation power). Reverting conforms to standing
+> policy — re-ratifying walkers stays open to MDD. QUEUED FORK ITEMS
+> (next round, batched): (a) emit `:FALSETS` alongside the existing
+> :TYPESET/:TRUETS at the two recognizer sites (rewrite.lisp ~5556/
+> 5618 — already in scope there); (b) snapshot the cited recognizer
+> tuples ('recognizer-alist entries: fn, true-ts, false-ts, strongp)
+> — together these make recognizer verdicts DATA-DRIVEN off emitted
+> content (one rule, no per-recognizer code), the shape of ACL2's own
+> type-set-recognizer. The 3 nfix-measure termination rows
+> (COUNT-DOWN/MY-EVENP/CD2) and their downstream IF-FINISH
+> window-composition wall wait on this route. Also queued: consume
+> :TYPESET/:TRUETS as a cross-check on recognizer replays (D9 — cheap
+> even before the redesign).**
+> **(3) Hardening landed with the remediation: `thmAt` now
+> `Meta.check`s the mirror application (S3 — string-keyed positional
+> condition resolution could silently accept a defeq mis-pairing).
+> RECORDED, not yet done: dedupe the two `chainOk` clones
+> (Runner.lean vs Induction.lean — DELIBERATELY different reach, the
+> CONS arm; unify with an explicit parameter, S7/D7); the μ-route
+> discrimination predicate is a calibrated heuristic (D7) — honest
+> comment queued with the dedupe; builtinRecogFacts deviates from the
+> 97190e1 designed builtinIntVal? route (D5) — KEPT (it gates the
+> valid termination:BNEXT green and the audit verified it sound and
+> properly emission-gated) with the redesign queued alongside the
+> recognizer-tuple emission, which subsumes it.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

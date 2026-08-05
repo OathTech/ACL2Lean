@@ -185,11 +185,6 @@ def liftCatalog : List (String × String × LiftStatus) := [
       decrease), not a user-facing theorem — the termination:QSORT
       doctrine; its native content is the exec kit's own Lean
       termination"),
-  ("sorting/bsort", "termination:BSORT",
-    .replayedOnly "an internal admission obligation (BSORT's BNEXT-SIZE
-      user-measure decrease), not a user-facing theorem — the
-      termination:QSORT doctrine; conditional on ASSUMED:dp-fact until
-      the local :LINEAR snapshot fork item lands (TODO layer 4)"),
   ("sorting/bsort", "HOW-MANY-BNEXT",
     .pending "bnext preserves counts (the bubble pass is a permutation —
       List.count-invariance native reading); greened by the fork batch's

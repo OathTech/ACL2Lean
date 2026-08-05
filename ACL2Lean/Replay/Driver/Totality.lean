@@ -379,7 +379,13 @@ def mkRecTermInfo (cfg : ReplayConfig)
       | some fv => pure fv
       | none => throwFrontier m!"recorded route: condition {c} not offered \
           by the consumer telescope (frontier)"
-    pure (mkAppN (mkApp (mkConst mirrorConst) envE) condArgs.toArray)
+    let app := mkAppN (mkApp (mkConst mirrorConst) envE) condArgs.toArray
+    -- condition resolution is by STRING key, positionally (audit 2026-08-05
+    -- S3: "ASSUMED:dp-fact" is one key for many leaves; `tp:` can be
+    -- offered twice per fn) — type-check the application here so a
+    -- mis-paired hypothesis can never be accepted silently.
+    Lean.Meta.check app
+    pure app
   return { thmAt, goalLit, clauses, cntSym, hNsCnt, hDefCnt, hNoLt,
            hNoConsp, hDefF, hDefO, cntTotal, tpFVar }
 
