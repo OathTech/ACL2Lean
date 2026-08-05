@@ -130,9 +130,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .native ``not_memb_how_many_0_native_driver
       ``notMembHowMany0ReplayedCond),
   ("sorting/convert-perm-to-how-many", "TRUE-LISTP-RM",
-    .pending "erase preserves true-listness (List reading is native-worthy \
-      alongside the RM family); greened by the ground-hyp KNOWN-TRUE arm \
-      (Phase 3); P3 decides"),
+    .replayedOnly "subsumed by the rm simulation: `true-listp` restricts \
+      the input to the enc image (exists_enc_of_trueListp), where \
+      corr_rm_enc already yields an encoded List — no native content \
+      beyond the sim (the type-absorbed true-listp doctrine; the SAME \
+      theorem in the ordered-perms book carries the identical decision)"),
   ("sorting/convert-perm-to-how-many", "RM-TLFIX",
     .replayedOnly "tlfix normalization plumbing (erase commutes with \
       tlfix) — no user-facing content"),
@@ -150,8 +152,10 @@ def liftCatalog : List (String × String × LiftStatus) := [
       cdr) — no user-facing content"),
   ("sorting/convert-perm-to-how-many", "CONVERT-PERM-TO-HOW-MANY",
     .pending "the book's capstone (perm ↔ counts agree — List.Perm iff \
-      count-eq native reading is the natural mirror); greened by R7a + the \
-      equivalence-rune own-position congruence (Phase 3); P3/P7 decides"),
+      count-eq native reading is the natural mirror); NEEDS the PCE \
+      witness simulation (pceExec + corr) — DECLARED at the close-out \
+      arc's close (2026-08-05) as a P3 gap, queued first in the \
+      follow-on arc's mirror tranche"),
   ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),
@@ -185,9 +189,10 @@ def liftCatalog : List (String × String × LiftStatus) := [
       termination"),
   ("sorting/bsort", "HOW-MANY-BNEXT",
     .pending "bnext preserves counts (the bubble pass is a permutation —
-      List.count-invariance native reading); greened by the fork batch's
-      type-alist verdict emission (the unemitted-test class fell); P7
-      decides alongside the other bsort mirrors"),
+      List.count-invariance native reading); NEEDS a Lean bnext model +
+      simulation (the isortL/msortExec precedent) — DECLARED at the
+      close-out arc's close (2026-08-05) as a P3 gap, queued in the
+      follow-on arc's mirror tranche alongside the other bsort mirrors"),
   ("sorting/msort", "HOW-MANY-MERGE2", .native ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
   ("sorting/msort", "ORDEREDP-MSORT", .native ``orderedp_msort_native_driver ``orderedpMsortReplayedCond),
