@@ -692,6 +692,29 @@ _Last updated: 2026-08-02._
 > natural-valued user measures. The 3 μ-registry rows flip when the
 > admission replays register (they fall back only on pre-pass
 > failure).**
+> **BNEXT-SIZE ROUTE, LAYER 3 DESIGN (2026-08-05, read off the bsort
+> admission trees at Subgoal 3/2 of termination:BNEXT/BSORT): the two
+> remaining node classes share ONE route — `builtinIntVal?` (the
+> emitted-corollary-gated int-atom refinement, NodeCore ~1523).
+> (a) recognizer/false (CONSP (LEN X)) ⇒ 'NIL, cited (:TYPE-
+> PRESCRIPTION LEN): Logic.len is STRUCTURALLY recursive (stuck on an
+> opaque arg — the isDefEq route can't reduce), but builtinIntVal?'s
+> value' is literally (SExpr.atom (Atom.number (Number.int k))) —
+> Logic.consp of it reduces to nil DEFINITIONALLY. Wire the
+> recognizer/false arm: inner fn ∈ builtinIntTps → builtinIntVal? →
+> re-cast the application's conv to value' → isDefEq closes.
+> (b) RECOGNIZER/TRUE with rune ty compound-recognizer
+> ((NATP (LEN X)) ⇒ 'T, rune NATP-COMPOUND-RECOGNIZER, cited TP LEN):
+> dispatch arm for the "compound-recognizer" rune ty; NATP is now a
+> DP primitive; needs value' PLUS the corollary's NONNEG conjunct —
+> extend builtinIntVal? to also return the (NOT (< app '0)) fact
+> (its gate already pins the full intTpCorollary shape), then
+> Logic.natp (int k≥0) = t closes. The nfix-measure rows' (CONSP
+> (IF (INTEGERP N)…'0)) class: the value composes fully through DP
+> primitives — needs a cond-case consp lemma (all branches atoms) —
+> same family, third consumer. BNEXT-SIZE (a WORLD fn) rides the
+> EXISTING pinTermOpaques TP-refinement (tpHyps has BNEXT-SIZE's
+> emitted corollary) — verify its admission tree after (a)+(b).**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag
