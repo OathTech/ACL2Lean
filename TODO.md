@@ -766,7 +766,29 @@ _Last updated: 2026-08-02._
 > `(< (BINARY-+ 'k N) '0)` type-set justifications and consp-nil
 > nodes. Design: trusted-core lemmas (zp-nil ⇒ int-and-pos;
 > integerp-plus closure; lt-0-false from pos), consumed off the
-> recorded runes — the natural next consumer-queue increment.**
+> recorded runes — the natural next consumer-queue increment.
+> BUILT (2026-08-05, same sub-arc): `integerpTWalk` + the INTEGERP
+> recognizer/true arms (both the application-inner and variable-inner
+> branches of replayRecognizer) — leaf sources: a falsy (ZP t) clause
+> fact (`logic_integerp_t_of_zp_nil`) or a falsified
+> (NOT (INTEGERP t)) if-interp segment fact
+> (`logic_integerp_t_of_not_nil`); BINARY-+ composes by
+> `logic_integerp_plus_t`; quoted ints definitional. ALL THREE rows
+> (COUNT-DOWN/MY-EVENP/CD2) now converge on ONE shared wall: the
+> IF-FINISH WINDOW-COMPOSITION consumer — "definition: children chain
+> reached (IF (< …) '0 …), node rhs is …": the type-set-justified
+> IF-TEST-FALSE (`:ORIGIN IF-FINISH/IF-TEST :JUSTIFICATION (:RUNES
+> …)`) collapses the body IF with NO if-simplification rewrite-step,
+> and the tree builder DROPS the if-test markers
+> (ProofTree.lean:346), so the definition children chain cannot cross
+> the collapse. This is the SAME class as the counter-example row's
+> IF-TEST-TRUE window-composition design already on the queue —
+> building it needs (a) the marker threaded into the tree (ProofTree)
+> and (b) the falsity/truth of the test derived from the justification
+> runes (here: zp-falsity ⇒ (< (+ -1 N) '0) false — N ≥ 1 ⇒ N-1 ≥ 0;
+> note CD2's variant is (< N '0) under the SEGMENT integerp guard +
+> (NOT (< N '0)) segment — read each tree, don't assume one shape).
+> Four+ rows ride this consumer.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

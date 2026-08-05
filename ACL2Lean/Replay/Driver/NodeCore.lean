@@ -2256,6 +2256,59 @@ partial def tsRecogWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
     else guardLeaf
   | _ => guardLeaf
 
+/-- Bounded deterministic INTEGERP-verdict derivation (the zp-falsity
+    integer kit — nfix-measure admission trees' recognizer/true
+    `(INTEGERP u) ⇒ 'T` nodes citing ZP-COMPOUND-RECOGNIZER): a quoted
+    integer closes definitionally; a `BINARY-+` node composes by integer
+    closure (`logic_integerp_plus_t`, ACL2's `type-set-binary-+`); any
+    other term closes from the branch's FALSY `(ZP t)` clause fact
+    (`logic_integerp_t_of_zp_nil` — zp's compound-recognizer false
+    content). Anything else frontier-throws. -/
+partial def integerpTWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (t : SExpr) : MetaM Expr := do
+  let zpLeaf : MetaM Expr := do
+    let vT ← ctxValExpr cfg ctx t
+    -- source 1: a falsy `(ZP t)` clause literal (zp's compound-recognizer
+    -- false content)
+    let zpT : SExpr :=
+      .cons (.atom (.symbol { name := "ZP" })) (.cons t .nil)
+    let zpTy ← mkEq (mkApp (mkConst ``Logic.zp) vT) (mkConst ``SExpr.nil)
+    if let some hNil ← ctx.litFactByTermChecked? zpT zpTy then
+      mkAppM ``logic_integerp_t_of_zp_nil #[hNil]
+    else
+      -- source 2: a falsified `(NOT (INTEGERP t))` if-interp SEGMENT fact
+      -- (the branch entered under the truthy test — integerp two-valued)
+      let notIntT : SExpr :=
+        .cons (.atom (.symbol { name := "NOT" }))
+          (.cons (.cons (.atom (.symbol { name := "INTEGERP" }))
+            (.cons t .nil)) .nil)
+      let notTy ← mkEq
+        (mkApp (mkConst ``Logic.not)
+          (mkApp (mkConst ``Logic.integerp) vT))
+        (mkConst ``SExpr.nil)
+      let some hNot ← ctx.litFactByTermChecked? notIntT notTy
+        | throwError "integerpTWalk: term {repr t} has neither a falsy \
+            (ZP _) clause fact nor a falsified (NOT (INTEGERP _)) segment \
+            fact in scope (frontier)"
+      mkAppM ``logic_integerp_t_of_not_nil #[hNot]
+  match t with
+  | .cons (.atom (.symbol q)) (.cons c .nil) =>
+    if q.name == "QUOTE" then do
+      unless Logic.integerp c == SExpr.t do
+        throwError "integerpTWalk: quoted leaf {repr c} is not an \
+            integer — the recorded verdict is wrong (emission divergence)"
+      let vT ← ctxValExpr cfg ctx t
+      mkExpectedTypeHint (← mkEqRefl (mkConst ``SExpr.t))
+        (← mkEq (mkApp (mkConst ``Logic.integerp) vT) (mkConst ``SExpr.t))
+    else zpLeaf
+  | .cons (.atom (.symbol p)) (.cons a (.cons b .nil)) =>
+    if p.name == "BINARY-+" then do
+      let ha ← integerpTWalk cfg ctx a
+      let hb ← integerpTWalk cfg ctx b
+      mkAppM ``logic_integerp_plus_t #[ha, hb]
+    else zpLeaf
+  | _ => zpLeaf
+
 /-- Recognizer fact `∃N∀f≥N, eval term = some verdict` (verdict the node's recorded
     `(quote t)`/`(quote nil)` value). Sources, in order: a fact pinned in the ctx by
     the scaffold/spine (e.g. `(consp x)` under a case hypothesis); the
@@ -2737,6 +2790,28 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
               mkAppM ``re_val_cast
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vI,
                   verdictE, pI, hT]
+            else if rs.name == "INTEGERP" && verdict == SExpr.t then do
+              -- ZP-FALSITY INTEGER KIT (the nfix-measure admission
+              -- trees' recognizer/true `(INTEGERP (BINARY-+ 'k N)) ⇒ 'T`
+              -- nodes, cited runes (:FAKE-RUNE-FOR-TYPE-SET)
+              -- (:COMPOUND-RECOGNIZER ZP-COMPOUND-RECOGNIZER)): the
+              -- branch's falsy (ZP n) clause literal pins n to a positive
+              -- integer, and integer closure over BINARY-+ composes the
+              -- verdict — `integerpTWalk`, consumed off the recorded term.
+              let .cons _ (.cons u .nil) := term
+                | throwError "replayRecognizer: internal — non-unary \
+                    recognizer at the INTEGERP arm"
+              let ctxZ ← pinTermOpaques cfg cfg.envExpr ctx term
+              let hT ← integerpTWalk cfg ctxZ u
+              let pZ ← ctxValProof cfg ctxZ term
+              let vZ ← ctxValExpr cfg ctxZ term
+              let vU ← ctxValExpr cfg ctxZ u
+              unless ← isDefEq vZ (mkApp (mkConst ``Logic.integerp) vU) do
+                throwError "replayRecognizer: value of {repr term} does \
+                    not match (Logic.integerp _) at the INTEGERP arm"
+              mkAppM ``re_val_cast
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vZ,
+                  verdictE, pZ, hT]
             else if let some (spec, hypV) := citedTpThms.findSome? (fun tn =>
                 ctx.tpThmHyps.find? (fun (s, _) => s.name == tn)) then do
               -- TP-CLASSED THEOREM route (tpthm sub-arc 2026-08-04 — the
@@ -2847,6 +2922,22 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         unless ← isDefEq v (mkApp (mkConst ``Logic.consp) vW) do
           throwError "replayRecognizer: value of {repr term} does not \
               match (Logic.consp _)"
+        mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hT]
+      else if rs.name == "INTEGERP" && verdict == SExpr.t then do
+        -- ZP-FALSITY INTEGER KIT, variable-inner twin (CD2's
+        -- `(INTEGERP N) ⇒ 'T` under an if-interp segment or a falsy
+        -- (ZP N) clause literal — the application-inner arm's walk
+        -- handles the leaf directly).
+        let .cons _ (.cons u .nil) := term
+          | throwError "replayRecognizer: internal — non-unary recognizer \
+              at the INTEGERP arm"
+        let ctxZ ← pinTermOpaques cfg cfg.envExpr ctx term
+        let hT ← integerpTWalk cfg ctxZ u
+        let vU ← ctxValExpr cfg ctxZ u
+        unless ← isDefEq v (mkApp (mkConst ``Logic.integerp) vU) do
+          throwError "replayRecognizer: value of {repr term} does not \
+              match (Logic.integerp _) at the INTEGERP arm"
         mkAppM ``re_val_cast
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hT]
       else

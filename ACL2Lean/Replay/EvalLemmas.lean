@@ -5612,6 +5612,71 @@ theorem logic_consp_nil_of_integerp_true {v : SExpr}
   | .nil => rfl
   | .cons _ _ => simp [Logic.integerp, Logic.toBool] at h
 
+/-- ZP-COMPOUND-RECOGNIZER's false content: `(zp v) = nil` pins `v` to a
+    positive integer — the type-set belief a falsy `(ZP N)` clause literal
+    carries into recognizer/true `(INTEGERP …)` nodes of nfix-measure
+    admission trees. -/
+theorem logic_integerp_t_of_zp_nil {v : SExpr}
+    (h : Logic.zp v = SExpr.nil) : Logic.integerp v = SExpr.t := by
+  match v with
+  | .atom (.number (.int k)) => rfl
+  | .atom (.number (.rational _ _ _)) => simp [Logic.zp, Logic.toInt, SExpr.t] at h
+  | .atom (.symbol _) => simp [Logic.zp, Logic.toInt, SExpr.t] at h
+  | .atom (.keyword _) => simp [Logic.zp, Logic.toInt, SExpr.t] at h
+  | .atom (.char _) => simp [Logic.zp, Logic.toInt, SExpr.t] at h
+  | .atom (.string _) => simp [Logic.zp, Logic.toInt, SExpr.t] at h
+  | .nil => simp [Logic.zp, Logic.toInt, SExpr.t] at h
+  | .cons _ _ => simp [Logic.zp, Logic.toInt, SExpr.t] at h
+
+/-- INTEGERP from its own falsified negation (an if-interp SEGMENT fact
+    `(NOT (INTEGERP v))` assumed false on the branch): integerp is
+    two-valued, so `not (integerp v) = nil` forces `integerp v = t`. -/
+theorem logic_integerp_t_of_not_nil {v : SExpr}
+    (h : Logic.not (Logic.integerp v) = SExpr.nil) :
+    Logic.integerp v = SExpr.t := by
+  match v with
+  | .atom (.number (.int _)) => rfl
+  | .atom (.number (.rational _ _ _)) =>
+    simp [Logic.integerp, Logic.not, Logic.toBool, SExpr.t] at h
+  | .atom (.symbol _) =>
+    simp [Logic.integerp, Logic.not, Logic.toBool, SExpr.t] at h
+  | .atom (.keyword _) =>
+    simp [Logic.integerp, Logic.not, Logic.toBool, SExpr.t] at h
+  | .atom (.char _) =>
+    simp [Logic.integerp, Logic.not, Logic.toBool, SExpr.t] at h
+  | .atom (.string _) =>
+    simp [Logic.integerp, Logic.not, Logic.toBool, SExpr.t] at h
+  | .nil => simp [Logic.integerp, Logic.not, Logic.toBool, SExpr.t] at h
+  | .cons _ _ =>
+    simp [Logic.integerp, Logic.not, Logic.toBool, SExpr.t] at h
+
+/-- Integer closure of `+` (ACL2's `type-set-binary-+` on two integer
+    summands) — the composition step of the same recognizer/true chain
+    (`(INTEGERP (BINARY-+ 'k N)) ⇒ 'T`). -/
+theorem logic_integerp_plus_t {a b : SExpr}
+    (ha : Logic.integerp a = SExpr.t) (hb : Logic.integerp b = SExpr.t) :
+    Logic.integerp (Logic.plus a b) = SExpr.t := by
+  match a, b with
+  | .atom (.number (.int m)), .atom (.number (.int n)) =>
+    simp [Logic.plus, Logic.toRat, Logic.mkNumber, Logic.integerp,
+      Nat.gcd_one_right]
+  | .atom (.number (.rational _ _ _)), _ =>
+    simp [Logic.integerp, SExpr.t] at ha
+  | .atom (.symbol _), _ => simp [Logic.integerp, SExpr.t] at ha
+  | .atom (.keyword _), _ => simp [Logic.integerp, SExpr.t] at ha
+  | .atom (.char _), _ => simp [Logic.integerp, SExpr.t] at ha
+  | .atom (.string _), _ => simp [Logic.integerp, SExpr.t] at ha
+  | .nil, _ => simp [Logic.integerp, SExpr.t] at ha
+  | .cons _ _, _ => simp [Logic.integerp, SExpr.t] at ha
+  | _, .atom (.number (.rational _ _ _)) =>
+    simp [Logic.integerp, SExpr.t] at hb
+  | _, .atom (.symbol _) => simp [Logic.integerp, SExpr.t] at hb
+  | _, .atom (.keyword _) => simp [Logic.integerp, SExpr.t] at hb
+  | _, .atom (.char _) => simp [Logic.integerp, SExpr.t] at hb
+  | _, .atom (.string _) => simp [Logic.integerp, SExpr.t] at hb
+  | _, .nil => simp [Logic.integerp, SExpr.t] at hb
+  | _, .cons _ _ => simp [Logic.integerp, SExpr.t] at hb
+
 /-- The NATP twin of `logic_consp_cond_nil` — the same one-step
     assume-true-false composition for `(NATP <if-tree>) ⇒ 'T` (the
     nfix-expansion compound-recognizer class). -/

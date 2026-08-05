@@ -28,10 +28,10 @@ Driver coverage — REPLAYED 85/116 (31 unconditional + 54 conditional); DP-disc
     LEN2-APP-VIA-INDUCT → REPLAYED ✓ cond[tp:LEN2]
     LEN2-APP-NO-HELPER → REPLAYED ✓ cond[tp:LEN2]
 • 06-measure  (world: 14 defun(s), 1 theorem(s))
-    termination:COUNT-DOWN → FAIL: replayRecognizer: value of (INTEGERP (BINARY-+ '-1 N)) does not reduce to T (no TP hypothesis for BINARY-+; cited TP runes [])
+    termination:COUNT-DOWN → FAIL: definition: children chain reached (IF (< (BINARY-+ '-1 N) '0) '0 (BINARY-+ '-1 N)), node rhs is (BINARY-+ '-1 N)
     COUNT-DOWN-ZERO → REPLAYED ✓
 • 07-mutual-recursion  (world: 13 defun(s), 2 theorem(s))
-    termination:MY-EVENP → FAIL: replayRecognizer: value of (INTEGERP (BINARY-+ '-1 N)) does not reduce to T (no TP hypothesis for BINARY-+; cited TP runes [])
+    termination:MY-EVENP → FAIL: definition: children chain reached (IF (< (BINARY-+ '-1 N) '0) '0 (BINARY-+ '-1 N)), node rhs is (BINARY-+ '-1 N)
     MY-EVENP-3-IS-NIL → REPLAYED ✓
     MY-ODDP-3-IS-T → REPLAYED ✓
 • 08-equality-reasoning  (world: 0 defun(s), 3 theorem(s))
@@ -45,7 +45,7 @@ Driver coverage — REPLAYED 85/116 (31 unconditional + 54 conditional); DP-disc
     TRUE-LISTP-APP → REPLAYED ✓
     TRUE-LISTP-FLATTEN → REPLAYED ✓
 • 11-custom-measure  (world: 12 defun(s), 1 theorem(s))
-    termination:CD2 → FAIL: replayRecognizer: value of (INTEGERP (BINARY-+ '-2 N)) does not reduce to T (no TP hypothesis for BINARY-+; cited TP runes [])
+    termination:CD2 → FAIL: definition: children chain reached (IF (< N '0) '0 N), node rhs is N
     CD2-BOUND → FAIL: μ-registry: unary measure head NFIX not registered (frontier)  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ✓ cond[total:(CD2 (BINARY-+ '-2 N)), tp:CD2], Subgoal *1/4:preprocess/tau-contradiction ✓ cond[total:(CD2 N), tp:CD2], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(CD2 N), tp:CD2]]
 • 12-multi-controller  (world: 12 defun(s), 1 theorem(s))
     LEN-ZIP2 → REPLAYED ✓ cond[total:ZIP2, tp:ZIP2]  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ✓ cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2], Subgoal *1/1':preprocess/tau-contradiction ✓]
