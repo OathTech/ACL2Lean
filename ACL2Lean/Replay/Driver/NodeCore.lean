@@ -2187,6 +2187,75 @@ partial def trueListpConsPeels (term : SExpr) : List SExpr :=
     else []
   | _ => []
 
+/-- The goal of a `tsRecogWalk` derivation: never-a-cons
+    (`consp v = nil`) or nonneg-int (`natp v = t`). -/
+inductive TsWalkGoal | conspNil | natpT
+  deriving BEq
+
+/-- Bounded deterministic recognizer-verdict derivation over a DP-composed
+    `IF` tree (the nfix-expansion classes `(CONSP <if-tree>) ⇒ 'NIL` and
+    `(NATP <if-tree>) ⇒ 'T` — the mirror of ACL2's assume-true-false
+    type-set walk on the SAME recorded term): quoted non-cons/natural
+    leaves close definitionally; a term leaf closes by its own SIGNED
+    guards on the walk's spine (a truthy `INTEGERP` for consp-nil; that
+    plus a falsy `(< t '0)` for natp-t); `IF` nodes case-split via the
+    cond lemmas. Anything else frontier-throws — the walk derives nothing
+    ACL2's type-set did not. -/
+partial def tsRecogWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (goal : TsWalkGoal) (guards : List (SExpr × Bool × Expr)) (t : SExpr) :
+    MetaM Expr := do
+  let guardLeaf : MetaM Expr := do
+    let intG : SExpr :=
+      .cons (.atom (.symbol { name := "INTEGERP" })) (.cons t .nil)
+    let some (_, _, hInt) := guards.find? (fun (g, s, _) => s && g == intG)
+      | throwError "tsRecogWalk: leaf {repr t} has no covering truthy \
+          INTEGERP guard on this branch (frontier)"
+    match goal with
+    | .conspNil => mkAppM ``logic_consp_nil_of_integerp_true #[hInt]
+    | .natpT => do
+      let ltG : SExpr := .cons (.atom (.symbol { name := "<" }))
+        (.cons t (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+          (.cons (.atom (.number (.int 0))) .nil)) .nil))
+      let some (_, _, hLt) := guards.find? (fun (g, s, _) => !s && g == ltG)
+        | throwError "tsRecogWalk: leaf {repr t} has no covering falsy \
+            (< _ '0) guard on this branch (frontier)"
+      mkAppM ``logic_natp_t_of_int_nonneg #[hInt, hLt]
+  match t with
+  | .cons (.atom (.symbol q)) (.cons c .nil) =>
+    if q.name == "QUOTE" then do
+      let ok := match goal with
+        | .conspNil => match c with | .cons _ _ => false | _ => true
+        | .natpT => Logic.natp c == SExpr.t
+      unless ok do
+        throwError "tsRecogWalk: quoted leaf {repr c} does not satisfy the \
+            walk's verdict — the recorded verdict is wrong (emission \
+            divergence)"
+      let vT ← ctxValExpr cfg ctx t
+      let (fnC, rhsC) := match goal with
+        | .conspNil => (``Logic.consp, ``SExpr.nil)
+        | .natpT => (``Logic.natp, ``SExpr.t)
+      mkExpectedTypeHint (← mkEqRefl (mkConst rhsC))
+        (← mkEq (mkApp (mkConst fnC) vT) (mkConst rhsC))
+    else guardLeaf
+  | .cons (.atom (.symbol i)) (.cons g (.cons a (.cons b .nil))) =>
+    if i.name == "IF" then do
+      let gv ← ctxValExpr cfg ctx g
+      let tb := mkApp (mkConst ``Logic.toBool) gv
+      let hx ← withLocalDeclD `hg (← mkEq tb (mkConst ``Bool.true))
+        fun h => do
+          mkLambdaFVars #[h]
+            (← tsRecogWalk cfg ctx goal (guards ++ [(g, true, h)]) a)
+      let hy ← withLocalDeclD `hg (← mkEq tb (mkConst ``Bool.false))
+        fun h => do
+          mkLambdaFVars #[h]
+            (← tsRecogWalk cfg ctx goal (guards ++ [(g, false, h)]) b)
+      let condLem := match goal with
+        | .conspNil => ``logic_consp_cond_nil
+        | .natpT => ``logic_natp_cond_t
+      mkAppM condLem #[hx, hy]
+    else guardLeaf
+  | _ => guardLeaf
+
 /-- Recognizer fact `∃N∀f≥N, eval term = some verdict` (verdict the node's recorded
     `(quote t)`/`(quote nil)` value). Sources, in order: a fact pinned in the ctx by
     the scaffold/spine (e.g. `(consp x)` under a case hypothesis); the
@@ -2645,6 +2714,29 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
               mkAppM ``re_val_cast
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vB,
                   verdictE, pB, hT]
+            else if rs.name == "CONSP" && verdict == SExpr.nil &&
+                fs.name == "IF" then do
+              -- IF-COMPOSED never-a-cons (the nfix-measure admission
+              -- class: `(CONSP (IF (INTEGERP N) (IF (< N '0) '0 N) '0))
+              -- ⇒ 'NIL`): ACL2's type-set closes it by the
+              -- assume-true-false IF walk with no recorded derivation;
+              -- `tsRecogWalk` mirrors that walk on the SAME recorded
+              -- term — quoted-atom leaves definitionally, the variable
+              -- leaf by its own truthy INTEGERP guard on the spine.
+              let .cons _ (.cons inner .nil) := term
+                | throwError "replayRecognizer: internal — non-unary \
+                    recognizer at the IF arm"
+              let ctxI ← pinTermOpaques cfg cfg.envExpr ctx term
+              let hT ← tsRecogWalk cfg ctxI .conspNil [] inner
+              let pI ← ctxValProof cfg ctxI term
+              let vI ← ctxValExpr cfg ctxI term
+              let vInner ← ctxValExpr cfg ctxI inner
+              unless ← isDefEq vI (mkApp (mkConst ``Logic.consp) vInner) do
+                throwError "replayRecognizer: value of {repr term} does \
+                    not match (Logic.consp _) at the IF arm"
+              mkAppM ``re_val_cast
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vI,
+                  verdictE, pI, hT]
             else if let some (spec, hypV) := citedTpThms.findSome? (fun tn =>
                 ctx.tpThmHyps.find? (fun (s, _) => s.name == tn)) then do
               -- TP-CLASSED THEOREM route (tpthm sub-arc 2026-08-04 — the
@@ -3722,8 +3814,31 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     unless rhs == quoteT do
       throwError "compound-recognizer: rhs {repr rhs} ≠ 'T (frontier)"
     let .cons (.atom (.symbol fs)) (.cons innerArg .nil) := inner
-      | throwError "compound-recognizer: inner {repr inner} is not a unary \
-                    application (frontier)"
+      | do
+        -- IF-COMPOSED inner (the nfix-expansion class:
+        -- `(NATP (IF (INTEGERP N) (IF (< N '0) '0 N) '0)) ⇒ 'T`):
+        -- the same assume-true-false type-set walk as the recognizer/
+        -- false twin, in NATP mode — the variable leaf needs BOTH its
+        -- truthy INTEGERP and falsy `(< _ '0)` guards from the walk's
+        -- own spine. Any non-IF non-unary inner still frontier-throws.
+        let isIf := match inner with
+          | .cons (.atom (.symbol ifs)) (.cons _ (.cons _ (.cons _ .nil))) =>
+            ifs.name == "IF"
+          | _ => false
+        unless isIf do
+          throwError "compound-recognizer: inner {repr inner} is not a \
+                      unary application (frontier)"
+        let ctxI ← pinTermOpaques cfg cfg.envExpr ctx lhs
+        let hT ← tsRecogWalk cfg ctxI .natpT [] inner
+        let vI ← ctxValExpr cfg ctxI lhs
+        let vInner ← ctxValExpr cfg ctxI inner
+        unless ← isDefEq vI (mkApp (mkConst ``Logic.natp) vInner) do
+          throwError "compound-recognizer: value of {repr lhs} does not \
+                      match (Logic.natp _) at the IF arm"
+        let pl ← ctxValProof cfg ctxI lhs
+        let pr ← mkAppM ``re_val_quote
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+        return ← mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
     if let some (_, _, natpLem) :=
         builtinRecogFacts.find? (fun e => e.1 == fs.name) then
       let some cor := cfg.gzTps.lookup fs.name

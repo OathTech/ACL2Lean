@@ -745,6 +745,28 @@ _Last updated: 2026-08-02._
 > record). The three rows flip when the premise threads (they then
 > also need linear:HOW-MANY-BAD-PAIRS-BNEXT in the consumer
 > telescope, which the existing 2b channel provides).**
+> **NFIX-EXPANSION WALK (2026-08-05, consumer-queue sub-arc): BUILT —
+> `tsRecogWalk` (NodeCore), the bounded deterministic mirror of ACL2's
+> assume-true-false type-set walk over a DP-composed IF tree, in two
+> goal modes: `(CONSP <if-tree>) ⇒ 'NIL` (recognizer/false arm; quoted
+> non-cons leaves definitional, term leaves by a truthy INTEGERP guard
+> on the walk's own spine — `logic_consp_nil_of_integerp_true` /
+> `logic_consp_cond_nil`) and `(NATP <if-tree>) ⇒ 'T` (the
+> compound-recognizer arm's IF-inner route; term leaves need the
+> truthy INTEGERP AND falsy `(< _ '0)` signed guards —
+> `logic_natp_t_of_int_nonneg` / `logic_natp_cond_t`). The 3
+> nfix-measure termination rows (COUNT-DOWN/MY-EVENP/CD2) advance two
+> nodes each to the NEXT class in the same trees: recognizer/true
+> `(INTEGERP (BINARY-+ 'k N)) ⇒ 'T` citing ((:FAKE-RUNE-FOR-TYPE-SET)
+> (:COMPOUND-RECOGNIZER ZP-COMPOUND-RECOGNIZER)) — the ZP-FALSITY
+> INTEGER KIT: the branch's falsy (ZP N) clause literal gives
+> integer(N) (+ positivity) via zp's compound-recognizer content, then
+> int closure over BINARY-+ with the quoted int (type-set-binary-+),
+> and the same root fact justifies the trees' later IF-TEST-FALSE
+> `(< (BINARY-+ 'k N) '0)` type-set justifications and consp-nil
+> nodes. Design: trusted-core lemmas (zp-nil ⇒ int-and-pos;
+> integerp-plus closure; lt-0-false from pos), consumed off the
+> recorded runes — the natural next consumer-queue increment.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

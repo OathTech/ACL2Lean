@@ -5590,6 +5590,62 @@ theorem logic_natp_len_t (x : SExpr) :
   rw [logic_len_eq_lenNat]
   simp [Logic.natp]
 
+/-- Case-split composition for never-a-cons through a DP-lifted `IF` (the
+    nfix-measure recognizer/false class): each branch non-cons under its
+    side of the test makes the whole cond non-cons — one step of ACL2's
+    assume-true-false type-set walk. -/
+theorem logic_consp_cond_nil {g : Bool} {x y : SExpr}
+    (hx : g = true → Logic.consp x = SExpr.nil)
+    (hy : g = false → Logic.consp y = SExpr.nil) :
+    Logic.consp (cond g x y) = SExpr.nil := by
+  cases g with
+  | true => exact hx rfl
+  | false => exact hy rfl
+
+/-- An ACL2 integer is never a cons — the leaf of the assume-true-false
+    walk under a truthy `INTEGERP` guard. -/
+theorem logic_consp_nil_of_integerp_true {v : SExpr}
+    (h : Logic.toBool (Logic.integerp v) = true) :
+    Logic.consp v = SExpr.nil := by
+  match v with
+  | .atom _ => rfl
+  | .nil => rfl
+  | .cons _ _ => simp [Logic.integerp, Logic.toBool] at h
+
+/-- The NATP twin of `logic_consp_cond_nil` — the same one-step
+    assume-true-false composition for `(NATP <if-tree>) ⇒ 'T` (the
+    nfix-expansion compound-recognizer class). -/
+theorem logic_natp_cond_t {g : Bool} {x y : SExpr}
+    (hx : g = true → Logic.natp x = SExpr.t)
+    (hy : g = false → Logic.natp y = SExpr.t) :
+    Logic.natp (cond g x y) = SExpr.t := by
+  cases g with
+  | true => exact hx rfl
+  | false => exact hy rfl
+
+/-- The variable leaf of the NATP walk: a truthy `INTEGERP` guard plus a
+    FALSY `(< v '0)` guard on the same spine pin the value to a
+    nonnegative integer. -/
+theorem logic_natp_t_of_int_nonneg {v : SExpr}
+    (hint : Logic.toBool (Logic.integerp v) = true)
+    (hlt : Logic.toBool (Logic.lt v (SExpr.atom (.number (.int 0)))) = false) :
+    Logic.natp v = SExpr.t := by
+  match v with
+  | .atom (.number (.int k)) =>
+    by_cases hk : k < 0
+    · exfalso
+      simp [Logic.lt, Logic.toRat, Logic.toBool, hk] at hlt
+    · have hk' : k ≥ 0 := by omega
+      simp [Logic.natp, hk']
+  | .atom (.number (.rational _ _ _)) =>
+    simp [Logic.integerp, Logic.toBool] at hint
+  | .atom (.symbol _) => simp [Logic.integerp, Logic.toBool] at hint
+  | .atom (.keyword _) => simp [Logic.integerp, Logic.toBool] at hint
+  | .atom (.char _) => simp [Logic.integerp, Logic.toBool] at hint
+  | .atom (.string _) => simp [Logic.integerp, Logic.toBool] at hint
+  | .nil => simp [Logic.integerp, Logic.toBool] at hint
+  | .cons _ _ => simp [Logic.integerp, Logic.toBool] at hint
+
 /-- NATP from a WORLD fn's lifted nonneg-int TP-corollary fact (the
     compound-recognizer world-fn route — BNEXT-SIZE): the corollary
     `(IF (INTEGERP app) (NOT (< app '0)) 'NIL)` lifted at the value and
