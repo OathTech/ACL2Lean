@@ -30,15 +30,21 @@ golden at HEAD, gate TRUE_EXIT=0.
   - Lean-side machinery (2): PERM-TLFIX (the R-lane rung-2
     R-parameterized rewriting-equivalence recipe — G1 frontier),
     HOW-MANY-RM-GENERAL (solidify equation-closure gap).
-- **P3 — DECIDED with 2 declared gaps.** The 50 sorting catalog entries:
-  48 decided (.native or .replayedOnly-with-rationale), 0 undecided,
-  2 DECLARED simulation-scale gaps queued first in the follow-on arc's
-  mirror tranche: CONVERT-PERM-TO-HOW-MANY (needs the PCE witness
-  simulation) and HOW-MANY-BNEXT (needs a Lean bnext model). This arc
-  built the three planned convert-perm mirrors —
-  NOT-MEMB-IMPLIES-HOW-MANY-IS-0 (`List.count_eq_zero` class),
-  NOT-MEMB-IMPLIES-RM-IS-NO-OP (`List.erase_of_not_mem` class),
-  HOW-MANY-RM (count-of-erase) — all `.native`, seam-gated, axiom-clean.
+- **P3 — DECIDED with 1 declared gap (amended post-close, commits
+  75d8e39/e745263).** The 50 sorting catalog entries: 49 decided
+  (.native or .replayedOnly-with-rationale), 0 undecided. This arc built
+  FOUR native mirrors — the three planned convert-perm ones
+  (NOT-MEMB-IMPLIES-HOW-MANY-IS-0, `List.count_eq_zero` class;
+  NOT-MEMB-IMPLIES-RM-IS-NO-OP, `List.erase_of_not_mem` class;
+  HOW-MANY-RM, count-of-erase) plus HOW-MANY-BNEXT (the full
+  bnextExec/bnextL hand simulation — the msortExec-precedent route) —
+  all `.native`, seam-gated, axiom-clean. The ONE declared gap:
+  CONVERT-PERM-TO-HOW-MANY, whose honest blocker is NOT simulation work
+  (the PCE exec kit exists; a decode was drafted, built green, and
+  reverted per the unwired-infrastructure ban) but its conds
+  rule:PERM-TLFIX and use:PCE-IS-COUNTEREXAMPLE — both from RED rows
+  whose replayed statements are the only criterion-clean dischargers.
+  It wires the moment those two P2 rows green.
 - **P4 — HOLDS (amendment scope).** Statement pins ≥1 per book for all 7
   amendment-scoped books (isort, qsort, convert-perm existing; perm,
   ordered-perms, msort, bsort added this close — each transcribed by hand
@@ -62,15 +68,20 @@ golden at HEAD, gate TRUE_EXIT=0.
   2026-08-05_consumer-queue-audit.md (NOT-READY → remediated →
   fresh-verified READY, addendum in place) and this close report.
 
-## Machinery debt — CARRIED, not swept (deviation from the plan's Phase 7)
+## Machinery debt — SWEPT where buildable (amended post-close)
 
-The plan wanted these in-arc; the amendment's re-scope plus the
-consumer-queue audit round consumed that budget. Carried explicitly:
-allBookRules direct walk; dp-premises F6 (premise-build failure must not
-silently downgrade a provable leaf); include-book provenance gate on cross
-offers; leaf-class gating plumb; generator-reads-the-log (12 hand exec
-defs); plus the audit-recorded S6 (position-canonical preSwap? pinning),
-N2 (the ASSUMED:dp-fact literal), chainOk dedupe, and the dpFactStmt
+Done in-arc after all (commits 04120bb, a6f5f77): **dp-premises F6** — a
+proved DP leaf can no longer silently downgrade to ASSUMED (only genuine
+prover failure or a runtime bound falls back; post-prove machinery
+failures surface); **allBookRules v1 gap** — the direct rule-events walk
+(last-theorem rules and theorem-less dep books now offered; golden
+byte-identical). Not buildable in-arc, with reasons: **include-book
+provenance gate** — the include EDGES are not emitted (only per-theorem
+:SOURCE marks), so it joins the fork batch (item 5 below);
+**leaf-class gating plumb** — the open ratification sub-question (MDD);
+**generator-reads-the-log** — simulation-scale (12 hand exec defs),
+declared. Also carried: S6 (position-canonical preSwap? pinning), N2
+(the ASSUMED:dp-fact literal), chainOk dedupe, and the dpFactStmt
 root-cause fix (assumed obligations at actual applications).
 
 ## The accumulated fork batch (ONE round-trip, pending review)
@@ -96,6 +107,11 @@ root-cause fix (assumed obligations at actual applications).
    (HOW-MANY-SMALLER-BNEXT + the parked ORDEREDP-APPEND/MEMB backlog).
 4. **emit/defthm tag text refresh** (comment-only: the tag omits
    `:TFORMULA`) — rides along.
+5. **include-book EDGE emission** (one event per include-book with the
+   included book's name) — the include graph the provenance gate on
+   cross offers needs (currently only per-theorem `:SOURCE
+   :INCLUDE-BOOK` marks are emitted); also the prerequisite for the
+   queued sweep parallelization.
 
 Every item is information ACL2 already stores; per the batching rule the
 round is ONE rebuild + one full recapture + row-by-row golden review, and
