@@ -4806,4 +4806,299 @@ theorem orderedp_qsort_native_of_replayed (w : World)
   exact bool_true_of_cond_truthy (toBool_true_of_ne_nil
     (replayed_pins_ne_nil (hreplayed e) hord))
 
+/-! ## The bsort book: BNEXT (the bubble pass) — HOW-MANY-BNEXT
+
+The P3 close-gap build: `bnext`'s recursion carries a CONS-argument call
+site (`(BNEXT (CONS (CAR X) (CDR (CDR X))))`), beyond `derive_exec%`'s
+reach — the hand route (the `msortExec` precedent). -/
+
+/-- `(defun bnext (x) …)`, macroexpanded — the bubble pass: adjacent
+    in-order heads keep, out-of-order heads swap; recursion continues past
+    the (possibly swapped) head. -/
+def bnextBody : SExpr :=
+  ifT (conspT xT)
+    (ifT (conspT (cdrT xT))
+      (ifT (lexT (carT xT) (carT (cdrT xT)))
+        (consT (carT xT) (app1 "BNEXT" (cdrT xT)))
+        (consT (carT (cdrT xT))
+          (app1 "BNEXT" (consT (carT xT) (cdrT (cdrT xT))))))
+      xT)
+    xT
+
+def bnext_sym : Symbol := { package := "ACL2", name := "BNEXT" }
+
+theorem bnext_ns :
+    (bnext_sym.isNamed "QUOTE" = false ∧ bnext_sym.isNamed "IF" = false ∧
+     bnext_sym.isNamed "LET" = false ∧
+     bnext_sym.isNamed "LET*" = false) := by decide
+
+/-- The swap-site decrease: replacing the two-element head prefix by the
+    (single) first element strictly drops `consCount`. -/
+theorem consCount_bnext_swap_lt {x : SExpr}
+    (h1 : Logic.toBool (Logic.consp x) = true)
+    (h2 : Logic.toBool (Logic.consp (Logic.cdr x)) = true) :
+    (Logic.cons (Logic.car x) (Logic.cdr (Logic.cdr x))).consCount
+      < x.consCount := by
+  match x with
+  | .cons a d =>
+    match d with
+    | .cons b d' =>
+      simp only [Logic.car, Logic.cdr, Logic.cons, consCount_cons]
+      omega
+    | .atom _ => simp [Logic.cdr, Logic.consp, Logic.toBool] at h2
+    | .nil => simp [Logic.cdr, Logic.consp, Logic.toBool] at h2
+  | .atom _ => simp [Logic.consp, Logic.toBool] at h1
+  | .nil => simp [Logic.consp, Logic.toBool] at h1
+
+/-- `bnext`'s body as a total Lean function. -/
+def bnextExec (x : SExpr) : SExpr :=
+  if _h1 : Logic.toBool (Logic.consp x) = true then
+    if _h2 : Logic.toBool (Logic.consp (Logic.cdr x)) = true then
+      if Logic.toBool (lexorder (Logic.car x) (Logic.car (Logic.cdr x)))
+          = true then
+        Logic.cons (Logic.car x) (bnextExec (Logic.cdr x))
+      else
+        Logic.cons (Logic.car (Logic.cdr x))
+          (bnextExec (Logic.cons (Logic.car x) (Logic.cdr (Logic.cdr x))))
+    else x
+  else x
+termination_by x.consCount
+decreasing_by
+  all_goals first
+    | exact consCount_cdr_lt_of_consp _h1
+    | exact consCount_bnext_swap_lt _h1 _h2
+
+/-- The NATIVE bubble pass over Lean lists — self-contained (mirror
+    criterion: `lexorderB` only, no evaluator vocabulary). -/
+def bnextL : List SExpr → List SExpr
+  | [] => []
+  | [x] => [x]
+  | x1 :: x2 :: rest =>
+    bif lexorderB x1 x2 then x1 :: bnextL (x2 :: rest)
+    else x2 :: bnextL (x1 :: rest)
+termination_by l => l.length
+
+/-- Stage 2: `bnextExec` on an encoded list computes the native bubble
+    pass. -/
+theorem bnextExec_enc : ∀ (xs : List SExpr),
+    bnextExec (enc xs) = enc (bnextL xs)
+  | [] => by
+    rw [bnextExec.eq_def]
+    simp [bnextL, enc, Logic.consp, Logic.toBool]
+  | [x] => by
+    rw [bnextExec.eq_def]
+    simp [bnextL, enc, Logic.consp, Logic.toBool, Logic.cdr, Logic.car]
+  | x1 :: x2 :: rest => by
+    rw [bnextExec.eq_def,
+        show enc (x1 :: x2 :: rest) = .cons x1 (.cons x2 (enc rest))
+          from rfl]
+    simp only [show Logic.consp (SExpr.cons x1 (.cons x2 (enc rest)))
+        = SExpr.t from rfl,
+      show Logic.cdr (SExpr.cons x1 (.cons x2 (enc rest)))
+        = .cons x2 (enc rest) from rfl,
+      show Logic.car (SExpr.cons x1 (.cons x2 (enc rest))) = x1 from rfl,
+      show Logic.consp (SExpr.cons x2 (enc rest)) = SExpr.t from rfl,
+      show Logic.car (SExpr.cons x2 (enc rest)) = x2 from rfl,
+      show Logic.cdr (SExpr.cons x2 (enc rest)) = enc rest from rfl]
+    rw [lexorder_eq_boolEnc,
+        dif_pos (show Logic.toBool SExpr.t = true from rfl),
+        dif_pos (show Logic.toBool SExpr.t = true from rfl)]
+    cases hlex : lexorderB x1 x2 with
+    | true =>
+      rw [if_pos (show Logic.toBool (boolEnc true) = true from rfl),
+          show SExpr.cons x2 (enc rest) = enc (x2 :: rest) from rfl,
+          bnextExec_enc (x2 :: rest)]
+      simp [bnextL, hlex, Logic.cons, enc]
+    | false =>
+      rw [if_neg (show ¬ Logic.toBool (boolEnc false) = true by decide),
+          show Logic.cons x1 (enc rest) = enc (x1 :: rest) from rfl,
+          bnextExec_enc (x1 :: rest)]
+      simp [bnextL, hlex, Logic.cons, enc]
+termination_by xs => xs.length
+decreasing_by all_goals simp
+
+/-- Stage 1: a `bnext` call converges to `bnextExec`. -/
+theorem bnext_exec_corr (w : World)
+    (h_bnext : w.defs.get? bnext_sym = some ([xS], bnextBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env : Env) (x xv : SExpr),
+      ConvTo w env x xv → ConvTo w env (app1 "BNEXT" x) (bnextExec xv) := by
+  have hbody : ∀ xv : SExpr,
+      ConvTo w (bindArgs [xS] [xv]) bnextBody (bnextExec xv) := by
+    refine consCount_strong_induction
+      (fun xv => ConvTo w (bindArgs [xS] [xv]) bnextBody (bnextExec xv)) ?_
+    intro xv ih
+    have hxv := re_val_var_get w (bindArgs [xS] [xv]) { name := "X" } xv
+      (bindArgs_single_get_self xS xv)
+    have hconsp := conv_builtin1 w _ { name := "CONSP" } xT xv
+      (Logic.consp xv) (by decide) h_no_consp hxv (callBuiltin_consp _)
+    have hcar := conv_builtin1 w _ { name := "CAR" } xT xv
+      (Logic.car xv) (by decide) h_no_car hxv (callBuiltin_car _)
+    have hcdr := conv_builtin1 w _ { name := "CDR" } xT xv
+      (Logic.cdr xv) (by decide) h_no_cdr hxv (callBuiltin_cdr _)
+    have hconsp2 := conv_builtin1 w _ { name := "CONSP" } (cdrT xT)
+      (Logic.cdr xv) (Logic.consp (Logic.cdr xv)) (by decide) h_no_consp
+      hcdr (callBuiltin_consp _)
+    have hcar2 := conv_builtin1 w _ { name := "CAR" } (cdrT xT)
+      (Logic.cdr xv) (Logic.car (Logic.cdr xv)) (by decide) h_no_car
+      hcdr (callBuiltin_car _)
+    have hcddr := conv_builtin1 w _ { name := "CDR" } (cdrT xT)
+      (Logic.cdr xv) (Logic.cdr (Logic.cdr xv)) (by decide) h_no_cdr
+      hcdr (callBuiltin_cdr _)
+    have hlex := conv_builtin2 w _ { name := "LEXORDER" } (carT xT)
+      (carT (cdrT xT)) (Logic.car xv) (Logic.car (Logic.cdr xv)) _
+      (by decide) h_no_lexorder hcar hcar2 (callBuiltin_lexorder _ _)
+    have hkeep : Logic.toBool (Logic.consp xv) = true →
+        ConvTo w (bindArgs [xS] [xv])
+          (consT (carT xT) (app1 "BNEXT" (cdrT xT)))
+          (Logic.cons (Logic.car xv) (bnextExec (Logic.cdr xv))) := by
+      intro hb1
+      exact conv_builtin2 w _ { name := "CONS" } (carT xT)
+        (app1 "BNEXT" (cdrT xT)) (Logic.car xv)
+        (bnextExec (Logic.cdr xv)) _ (by decide) h_no_cons hcar
+        (conv_defn_1 w _ bnext_sym (cdrT xT) (Logic.cdr xv) xS bnextBody _
+          bnext_ns h_bnext hcdr
+          (ih (Logic.cdr xv) (consCount_cdr_lt_of_consp hb1))) rfl
+    have hswap : Logic.toBool (Logic.consp xv) = true →
+        Logic.toBool (Logic.consp (Logic.cdr xv)) = true →
+        ConvTo w (bindArgs [xS] [xv])
+          (consT (carT (cdrT xT))
+            (app1 "BNEXT" (consT (carT xT) (cdrT (cdrT xT)))))
+          (Logic.cons (Logic.car (Logic.cdr xv))
+            (bnextExec (Logic.cons (Logic.car xv)
+              (Logic.cdr (Logic.cdr xv))))) := by
+      intro hb1 hb2
+      have hArg := conv_builtin2 w _ { name := "CONS" } (carT xT)
+        (cdrT (cdrT xT)) (Logic.car xv) (Logic.cdr (Logic.cdr xv)) _
+        (by decide) h_no_cons hcar hcddr rfl
+      exact conv_builtin2 w _ { name := "CONS" } (carT (cdrT xT))
+        (app1 "BNEXT" (consT (carT xT) (cdrT (cdrT xT))))
+        (Logic.car (Logic.cdr xv))
+        (bnextExec (Logic.cons (Logic.car xv) (Logic.cdr (Logic.cdr xv))))
+        _ (by decide) h_no_cons hcar2
+        (conv_defn_1 w _ bnext_sym (consT (carT xT) (cdrT (cdrT xT)))
+          (Logic.cons (Logic.car xv) (Logic.cdr (Logic.cdr xv))) xS
+          bnextBody _ bnext_ns h_bnext hArg
+          (ih (Logic.cons (Logic.car xv) (Logic.cdr (Logic.cdr xv)))
+            (consCount_bnext_swap_lt hb1 hb2))) rfl
+    have houter := conv_if_lift w (bindArgs [xS] [xv]) (conspT xT)
+      (ifT (conspT (cdrT xT))
+        (ifT (lexT (carT xT) (carT (cdrT xT)))
+          (consT (carT xT) (app1 "BNEXT" (cdrT xT)))
+          (consT (carT (cdrT xT))
+            (app1 "BNEXT" (consT (carT xT) (cdrT (cdrT xT))))))
+        xT)
+      xT (Logic.consp xv)
+      (if Logic.toBool (Logic.consp (Logic.cdr xv)) = true then
+        (if Logic.toBool (lexorder (Logic.car xv)
+            (Logic.car (Logic.cdr xv))) = true then
+          Logic.cons (Logic.car xv) (bnextExec (Logic.cdr xv))
+        else
+          Logic.cons (Logic.car (Logic.cdr xv))
+            (bnextExec (Logic.cons (Logic.car xv)
+              (Logic.cdr (Logic.cdr xv)))))
+       else xv)
+      xv hconsp
+      (fun hb1 =>
+        conv_if_lift w _ (conspT (cdrT xT))
+          (ifT (lexT (carT xT) (carT (cdrT xT)))
+            (consT (carT xT) (app1 "BNEXT" (cdrT xT)))
+            (consT (carT (cdrT xT))
+              (app1 "BNEXT" (consT (carT xT) (cdrT (cdrT xT))))))
+          xT (Logic.consp (Logic.cdr xv))
+          (if Logic.toBool (lexorder (Logic.car xv)
+              (Logic.car (Logic.cdr xv))) = true then
+            Logic.cons (Logic.car xv) (bnextExec (Logic.cdr xv))
+          else
+            Logic.cons (Logic.car (Logic.cdr xv))
+              (bnextExec (Logic.cons (Logic.car xv)
+                (Logic.cdr (Logic.cdr xv)))))
+          xv hconsp2
+          (fun hb2 =>
+            conv_if_lift w _ (lexT (carT xT) (carT (cdrT xT)))
+              (consT (carT xT) (app1 "BNEXT" (cdrT xT)))
+              (consT (carT (cdrT xT))
+                (app1 "BNEXT" (consT (carT xT) (cdrT (cdrT xT)))))
+              (lexorder (Logic.car xv) (Logic.car (Logic.cdr xv)))
+              (Logic.cons (Logic.car xv) (bnextExec (Logic.cdr xv)))
+              (Logic.cons (Logic.car (Logic.cdr xv))
+                (bnextExec (Logic.cons (Logic.car xv)
+                  (Logic.cdr (Logic.cdr xv)))))
+              hlex
+              (fun _ => hkeep hb1) (fun _ => hswap hb1 hb2))
+          (fun _ => hxv))
+      (fun _ => hxv)
+    rw [bnextExec.eq_def]
+    simp only [dite_eq_ite] at *
+    exact houter
+  intro env x xv hx
+  exact conv_defn_1 w env bnext_sym x xv xS bnextBody _
+    bnext_ns h_bnext hx (hbody xv)
+
+/-- The `total:BNEXT` discharger — bnext's totality from the corr. -/
+theorem dis_bnext_total (w : World)
+    (h_bnext : w.defs.get? bnext_sym = some ([xS], bnextBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env' : Env) (a0 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (app1 "BNEXT" a0) = some v := by
+  intro env' a0 ⟨N0, v0, h0⟩
+  obtain ⟨N, h⟩ := bnext_exec_corr w h_bnext h_no_consp h_no_car h_no_cdr
+    h_no_cons h_no_lexorder env' a0 v0 ⟨N0, h0⟩
+  exact ⟨N, bnextExec v0, h⟩
+
+/-- The HOW-MANY-BNEXT replayed-statement formula:
+    `(EQUAL (HOW-MANY E (BNEXT X)) (HOW-MANY E X))`. -/
+def how_many_bnextFormula : SExpr :=
+  equalT (howManyT eT (app1 "BNEXT" xT)) (howManyT eT xT)
+
+/-- HOW-MANY-BNEXT, natively: the bubble pass preserves `List.count`. -/
+theorem how_many_bnext_native_of_replayed (w : World)
+    (h_bnext : w.defs.get? bnext_sym = some ([xS], bnextBody))
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env how_many_bnextFormula = some v ∧ v ≠ SExpr.nil)
+    (ev : SExpr) (xs : List SExpr) :
+    (bnextL xs).count ev = xs.count ev := by
+  let e : Env := (({} : Env).insert xS (enc xs)).insert eS ev
+  have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
+    re_val_var_get w e { name := "E" } ev (by
+      show e.get? eS = some ev
+      rw [show e = (({} : Env).insert xS (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = (({} : Env).insert xS (enc xs)).insert eS ev from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hbn : ConvTo w e (app1 "BNEXT" xT) (bnextExec (enc xs)) :=
+    bnext_exec_corr w h_bnext h_no_consp h_no_car h_no_cdr h_no_cons
+      h_no_lexorder e xT (enc xs) hx
+  rw [bnextExec_enc] at hbn
+  have hL := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT (app1 "BNEXT" xT) ev (enc (bnextL xs)) he hbn
+  rw [howManyExec_enc] at hL
+  have hR := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e eT xT ev (enc xs) he hx
+  rw [howManyExec_enc] at hR
+  have hnat := native_of_replayed_equal w e intRep _ _
+    ((bnextL xs).count ev) (xs.count ev) h_no_equal hL hR (hreplayed e)
+  omega
+
 end ACL2.Worlds.Sorting

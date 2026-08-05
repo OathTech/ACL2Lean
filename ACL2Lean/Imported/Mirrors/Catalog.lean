@@ -8,6 +8,7 @@ import ACL2Lean.Imported.Mirrors.Isort
 import ACL2Lean.Imported.Mirrors.Qsort
 import ACL2Lean.Imported.Mirrors.Msort
 import ACL2Lean.Imported.Mirrors.IsChain
+import ACL2Lean.Imported.Mirrors.Bsort
 
 namespace ACL2.Imported.Mirrors
 
@@ -188,11 +189,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
       doctrine; its native content is the exec kit's own Lean
       termination"),
   ("sorting/bsort", "HOW-MANY-BNEXT",
-    .pending "bnext preserves counts (the bubble pass is a permutation —
-      List.count-invariance native reading); NEEDS a Lean bnext model +
-      simulation (the isortL/msortExec precedent) — DECLARED at the
-      close-out arc's close (2026-08-05) as a P3 gap, queued in the
-      follow-on arc's mirror tranche alongside the other bsort mirrors"),
+    .native ``how_many_bnext_native_driver ``howManyBnextReplayedCond),
   ("sorting/msort", "HOW-MANY-MERGE2", .native ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
   ("sorting/msort", "ORDEREDP-MSORT", .native ``orderedp_msort_native_driver ``orderedpMsortReplayedCond),
@@ -312,6 +309,7 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.not_memb_how_many_0_native_driver,
             ``ACL2.Imported.Mirrors.not_memb_rm_noop_native_driver,
             ``ACL2.Imported.Mirrors.how_many_rm_native_driver,
+            ``ACL2.Imported.Mirrors.how_many_bnext_native_driver,
             ``ACL2.Imported.Mirrors.car_append_native_driver,
             ``ACL2.Imported.Mirrors.perm_implies_equal_all_rel_2_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,
