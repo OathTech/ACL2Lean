@@ -6,9 +6,11 @@ rows + the 3 sorts-equivalent capstones) is deferred to the follow-on arc;
 P2/P3/P4 are read excluding those rows; the close DECLARES the missing
 pieces with numbers.
 
-Headline: **REPLAYED 85/116 (31 unconditional + 54 conditional);
+Headline: **REPLAYED 86/116 (31 unconditional + 55 conditional);
 DP-discharge leaves ✓60 ◌11 ✗0 of 71** — every count from the committed
-golden at HEAD, gate TRUE_EXIT=0.
+golden at HEAD, gate TRUE_EXIT=0. (Post-close continuation e5eeab9: the
+complement-tautology close flipped TRUE-LISTP-BNEXT green — the
+add-literal complement class, previously a loud frontier.)
 
 ## The six predicates
 
@@ -16,20 +18,26 @@ golden at HEAD, gate TRUE_EXIT=0.
   convert-perm-to-how-many, isort, bsort, ordered-perms, equisort, msort,
   qsort, sorts-equivalent. how-many/orderedp contribute defuns to their
   dependents' worlds and bear no rows of their own.
-- **P2 — OPEN (declared).** Sorting FAIL rows under the amendment: **10**
-  (bsort 7, convert-perm 3; the excluded equisort 14 and capstones 3 are
-  the deferred piece). Every row carries a named class:
+- **P2 — OPEN (declared; amended post-close).** Sorting FAIL rows under
+  the amendment: **9** (bsort 6, convert-perm 3; the excluded equisort 14
+  and capstones 3 are the deferred piece; TRUE-LISTP-BNEXT flipped green
+  via the complement-tautology close). Every row carries a named class:
   - Fork-blocked (8): the 3 μ-registry bsort rows (ORDEREDP-BSORT,
     TRUE-LISTP-BSORT, HOW-MANY-BSORT — the local `:LINEAR` snapshot gap
     behind termination:BSORT's honest `ASSUMED ◌`), HOW-MANY-SMALLER-BNEXT
     (the :TA-DERIVATIONS/marker-relief emission), HOW-MANY-BAD-PAIRS-BNEXT
     (rewrite-equal CAR phase — no recorded decision),
-    ORDEREDP-WHEN-BNEXT-CONSTANT (equal-cars frames), TRUE-LISTP-BNEXT
-    (spine literal-4 continuation), and the IF-FINISH window class rides
-    the recognizer-tuple emission.
-  - Lean-side machinery (2): PERM-TLFIX (the R-lane rung-2
-    R-parameterized rewriting-equivalence recipe — G1 frontier),
-    HOW-MANY-RM-GENERAL (solidify equation-closure gap).
+    ORDEREDP-WHEN-BNEXT-CONSTANT (equal-cars frames), and the IF-FINISH
+    window class rides the recognizer-tuple emission.
+  - PERM-TLFIX: sharpened post-close — its node is the R-VALUED payload
+    class the ratified equiv-lane design explicitly deferred to rung 3;
+    its red is design-consistent (TODO records the rung-3 outline).
+  - HOW-MANY-RM-GENERAL: the solidify equation comes from a type-alist
+    DERIVED entry — fork-blocked on the provenance emission (batch
+    item 3).
+  - PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS: the spine literal-chain
+    mismatch class (Lean-side, undiagnosed depth — the one remaining
+    possibly-buildable row).
 - **P3 — DECIDED with 1 declared gap (amended post-close, commits
   75d8e39/e745263).** The 50 sorting catalog entries: 49 decided
   (.native or .replayedOnly-with-rationale), 0 undecided. This arc built
