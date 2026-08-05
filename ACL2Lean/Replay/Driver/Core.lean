@@ -634,10 +634,11 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                       | none => pure none
                     else pure none
               | _ => pure none
-            unless isEq || isNot || boolTpFact?.isSome do
+            let isQT := lprev == quoteT
+            unless isEq || isNot || isQT || boolTpFact?.isSome do
               throwError "replayClauseSpine: literal folded to 'NIL in \
                   LAST position at {idStr} with a non-two-valued \
-                  predecessor (frontier)"
+                  predecessor {repr lprev} (frontier)"
             let hwrap ← mkAppM ``re_val_if_t_nil
               #[cfg.worldExpr, cfg.envExpr, reflectSExpr lprev, vP, hP]
             let hident ← if isEq then
@@ -645,6 +646,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                   #[vP.appFn!.appArg!, vP.appArg!]
               else if isNot then
                 mkAppM ``logic_boolwrap_self_not #[vP.appArg!]
+              else if isQT then
+                mkAppM ``logic_boolwrap_self_t #[]
               else
                 mkAppM ``logic_boolwrap_self_of_boolean_tp
                   #[boolTpFact?.get!]

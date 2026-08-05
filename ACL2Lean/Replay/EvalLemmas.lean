@@ -3929,6 +3929,29 @@ theorem logic_equal_nil_of_plus1_nonneg1 {a : SExpr}
   simp [Logic.equal, SExpr.t]
   omega
 
+/-- Term-vs-sum disjointness, RIGHT orientation: `u ≠ 1 + u` for a
+    nonneg-int `u` (its emitted TP shape) — `(equal u (+ 1 u)) = nil`. -/
+theorem logic_equal_nil_of_plus1_self_r {a : SExpr}
+    (ha : (bif Logic.toBool (Logic.integerp a)
+          then Logic.not (Logic.lt a (.atom (.number (.int 0))))
+          else SExpr.nil) = SExpr.t) :
+    Logic.equal a (Logic.plus (.atom (.number (.int 1))) a)
+      = SExpr.nil := by
+  obtain ⟨m, rfl⟩ := dp_nonneg_int_of_tp ha
+  rw [logic_plus_int]
+  simp [Logic.equal]
+
+/-- Term-vs-sum disjointness, LEFT orientation. -/
+theorem logic_equal_nil_of_plus1_self_l {a : SExpr}
+    (ha : (bif Logic.toBool (Logic.integerp a)
+          then Logic.not (Logic.lt a (.atom (.number (.int 0))))
+          else SExpr.nil) = SExpr.t) :
+    Logic.equal (Logic.plus (.atom (.number (.int 1))) a) a
+      = SExpr.nil := by
+  obtain ⟨m, rfl⟩ := dp_nonneg_int_of_tp ha
+  rw [logic_plus_int]
+  simp [Logic.equal]
+
 /-- `car` of a NON-cons defaults to `nil` (ACL2's completion axiom, value
     level — the type-set entry composition consumes it). -/
 theorem logic_car_of_consp_nil {v : SExpr} (h : Logic.consp v = SExpr.nil) :
@@ -5901,6 +5924,11 @@ theorem logic_boolwrap_self_equal (a b : SExpr) :
       = Logic.equal a b := by
   by_cases h : (a == b) = true <;>
     simp [Logic.equal, h, Logic.toBool, SExpr.t]
+
+/-- The boolean wrapper is the identity on the constant `'T` (the
+    last-position nil-drop's trivial predecessor). -/
+theorem logic_boolwrap_self_t :
+    (bif Logic.toBool SExpr.t then SExpr.t else SExpr.nil) = SExpr.t := rfl
 
 /-- The boolean wrapper is the identity on `Logic.not`'s range. -/
 theorem logic_boolwrap_self_not (v : SExpr) :
