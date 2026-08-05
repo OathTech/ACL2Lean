@@ -29,6 +29,10 @@
                                              (convert-perm-to-how-many)
   - acl2/books/arithmetic-3/pass1/basic-arithmetic.lisp:109
                                              (fold-consts-in-+)
+  - acl2/books/sorting/perm.lisp             (perm-cons)
+  - acl2/books/sorting/ordered-perms.lisp    (orderedp-rm)
+  - acl2/books/sorting/msort.lisp            (orderedp-msort)
+  - acl2/books/sorting/bsort.lisp            (how-many-bnext)
 
   HYPOTHESIS discipline: a conditional replayed statement's `cond[…]` hypotheses are
   replay artifacts (emitted TP corollaries, totality of world fns, cited
@@ -49,6 +53,16 @@ private def isortLog : String := include_str "../acl2_samples/sorting/isort.proo
 private def qsortLog : String := include_str "../acl2_samples/sorting/qsort.proof-log"
 private def convertPermLog : String :=
   include_str "../acl2_samples/sorting/convert-perm-to-how-many.proof-log"
+-- P4 completion (close-out arc Phase 7, 2026-08-05): one pin per remaining
+-- row-bearing sweep book. sorts-equivalent and equisort are EXCLUDED by the
+-- MDD arc-exit amendment (their only rows are the three capstones / the
+-- abstract-world re-proofs, deferred to the follow-on arc — no green row
+-- exists to pin).
+private def permLog : String := include_str "../acl2_samples/sorting/perm.proof-log"
+private def orderedPermsLog : String :=
+  include_str "../acl2_samples/sorting/ordered-perms.proof-log"
+private def msortLog : String := include_str "../acl2_samples/sorting/msort.proof-log"
+private def bsortLog : String := include_str "../acl2_samples/sorting/bsort.proof-log"
 
 /-- The committed sweep golden — the pins' MECHANICAL LINK to the sweep
     (audit F3): every pinned status line must be a PREFIX of some golden
@@ -80,8 +94,32 @@ def qsortPinsDev : Development :=
   (((ProofLog.parse qsortLog).toOption.bind
     fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
 
+/-- The parsed perm development. -/
+def permPinsDev : Development :=
+  (((ProofLog.parse permLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+/-- The parsed ordered-perms development. -/
+def orderedPermsPinsDev : Development :=
+  (((ProofLog.parse orderedPermsLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+/-- The parsed msort development. -/
+def msortPinsDev : Development :=
+  (((ProofLog.parse msortLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
+/-- The parsed bsort development. -/
+def bsortPinsDev : Development :=
+  (((ProofLog.parse bsortLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
 derive_world isortPinsWorld from isortPinsDev
 derive_world qsortPinsWorld from qsortPinsDev
+derive_world permPinsWorld from permPinsDev
+derive_world orderedPermsPinsWorld from orderedPermsPinsDev
+derive_world msortPinsWorld from msortPinsDev
+derive_world bsortPinsWorld from bsortPinsDev
 
 /-! ## The replay run — the exact sweep semantics (`runBook`), registering
     the replayed-statement constants the pins below are stated against. `upTo` the last
@@ -100,12 +138,33 @@ elab "sorting_statement_pins_run% " : term => do
     (upTo := some "HOW-MANY-ISORT") (crossTrees := convertPermPinsTrees)
   let (r2, _) ← Runner.runBook "pins/sorting/qsort" qsortLog
     (upTo := some "TRUE-LISTP-QSORT") (crossTrees := convertPermPinsTrees)
-  unless r1.integrityFails.isEmpty && r2.integrityFails.isEmpty do
+  -- P4 books (Phase 7): each pinned at its earliest green row that
+  -- exercises the book's own defuns; bsort gets the convert-perm trees
+  -- like the sweep (the cross-book rule: discharge — without them the
+  -- HOW-MANY-BNEXT row keeps rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0 as a
+  -- residual hypothesis and the golden-prefix cross-check fails).
+  let (r3, _) ← Runner.runBook "pins/sorting/perm" permLog
+    (upTo := some "PERM-CONS")
+  let (r4, _) ← Runner.runBook "pins/sorting/ordered-perms" orderedPermsLog
+    (upTo := some "ORDEREDP-RM")
+  let (r5, _) ← Runner.runBook "pins/sorting/msort" msortLog
+    (upTo := some "ORDEREDP-MSORT")
+  let (r6, _) ← Runner.runBook "pins/sorting/bsort" bsortLog
+    (upTo := some "HOW-MANY-BNEXT") (crossTrees := convertPermPinsTrees)
+  unless r1.integrityFails.isEmpty && r2.integrityFails.isEmpty &&
+      r3.integrityFails.isEmpty && r4.integrityFails.isEmpty &&
+      r5.integrityFails.isEmpty && r6.integrityFails.isEmpty do
     throwError "sorting statement pins: integrity failures \
-      {r1.integrityFails.toList ++ r2.integrityFails.toList}"
+      {r1.integrityFails.toList ++ r2.integrityFails.toList ++
+       r3.integrityFails.toList ++ r4.integrityFails.toList ++
+       r5.integrityFails.toList ++ r6.integrityFails.toList}"
   let expected : List (String × Array String) :=
     [("pins/sorting/isort", r1.lines),
-     ("pins/sorting/qsort", r2.lines)]
+     ("pins/sorting/qsort", r2.lines),
+     ("pins/sorting/perm", r3.lines),
+     ("pins/sorting/ordered-perms", r4.lines),
+     ("pins/sorting/msort", r5.lines),
+     ("pins/sorting/bsort", r6.lines)]
   let mustHave : List (String × String) :=
     [("pins/sorting/isort",
       "    ORDEREDP-ISORT → REPLAYED ✓ cond[tp:INSERT]"),
@@ -131,7 +190,16 @@ cond[total:(QSORT X), tp:QSORT]]"),
 total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
-rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]")]
+rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
+     ("pins/sorting/perm",
+      "    PERM-CONS → REPLAYED ✓"),
+     ("pins/sorting/ordered-perms",
+      "    ORDEREDP-RM → REPLAYED ✓"),
+     ("pins/sorting/msort",
+      "    ORDEREDP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, \
+tp:EVENS]"),
+     ("pins/sorting/bsort",
+      "    HOW-MANY-BNEXT → REPLAYED ✓ cond[total:BNEXT, tp:HOW-MANY]")]
   let goldenLines := sweepGolden.splitOn "\n"
   for (book, line) in mustHave do
     let some (_, lines) := expected.find? (·.1 == book)
@@ -153,7 +221,8 @@ rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]")]
       (Name.mkStr2 "ReplayedTermination" "term_pins_sorting_qsort_QSORT") do
     throwError "sorting statement pins: QSORT termination replayed statement was not registered"
   logInfo "sorting statement pins: replay statuses hold (ORDEREDP-ISORT, \
-    PERM-QSORT, TRUE-LISTP-QSORT + QSORT termination replayed statement)"
+    PERM-QSORT, TRUE-LISTP-QSORT, PERM-CONS, ORDEREDP-RM, ORDEREDP-MSORT, \
+    HOW-MANY-BNEXT + QSORT termination replayed statement)"
   return mkConst ``True.intro
 
 -- unlimited at the command like the coverage sweep — the harness enforces
@@ -371,6 +440,81 @@ example :
   ReplayedTermination.term_pins_sorting_qsort_QSORT
 
 #print axioms ReplayedTermination.term_pins_sorting_qsort_QSORT
+
+/-! ## perm book (acl2/books/sorting/perm.lisp) -/
+
+/-- PIN the machine-generated statement of `PERM-CONS` (perm.lisp:32, a
+    local defthm): the mirror of
+      `(implies (memb a x) (equal (perm x (cons a y)) (perm (rm a x) y)))`
+    — UNCONDITIONAL (the sweep row carries no cond). The pinned term is
+    ACL2's translation: the IMPLIES form exactly as the source states it. -/
+example :
+    ∀ (env : Env),
+      EvTrue permPinsWorld env
+        (ap2 "IMPLIES" (ap2 "MEMB" (sym "A") (sym "X"))
+          (ap2 "EQUAL"
+            (ap2 "PERM" (sym "X") (ap2 "CONS" (sym "A") (sym "Y")))
+            (ap2 "PERM" (ap2 "RM" (sym "A") (sym "X")) (sym "Y")))) :=
+  ReplayedStatements.replayed_pins_sorting_perm_PERM_CONS
+
+#print axioms ReplayedStatements.replayed_pins_sorting_perm_PERM_CONS
+
+/-! ## ordered-perms book (acl2/books/sorting/ordered-perms.lisp) -/
+
+/-- PIN the machine-generated statement of `ORDEREDP-RM`
+    (ordered-perms.lisp:10, a local defthm): the mirror of
+      `(implies (orderedp a) (orderedp (rm e a)))`
+    — UNCONDITIONAL. -/
+example :
+    ∀ (env : Env),
+      EvTrue orderedPermsPinsWorld env
+        (ap2 "IMPLIES" (ap1 "ORDEREDP" (sym "A"))
+          (ap1 "ORDEREDP" (ap2 "RM" (sym "E") (sym "A")))) :=
+  ReplayedStatements.replayed_pins_sorting_ordered_perms_ORDEREDP_RM
+
+#print axioms
+  ReplayedStatements.replayed_pins_sorting_ordered_perms_ORDEREDP_RM
+
+/-! ## msort book (acl2/books/sorting/msort.lisp) -/
+
+/-- PIN the machine-generated statement of `ORDEREDP-MSORT`
+    (msort.lisp:40): the mirror of `(orderedp (msort x))`, conditional on
+    - totality of `merge2` (binary) and `msort` (unary) — world fns whose
+      totality is not auto-discharged on this row,
+    - evens' emitted TP corollary `(true-listp (evens l))` (source-true:
+      the nil branch is a true-list and the cons branch conses onto the
+      recursion). -/
+example :
+    ∀ (env : Env),
+      totalHyp2 msortPinsWorld "MERGE2" →
+      totalHyp1 msortPinsWorld "MSORT" →
+      tpPred1 msortPinsWorld "EVENS" Logic.trueListp →
+      EvTrue msortPinsWorld env (ap1 "ORDEREDP" (ap1 "MSORT" (sym "X"))) :=
+  ReplayedStatements.replayed_pins_sorting_msort_ORDEREDP_MSORT
+
+#print axioms ReplayedStatements.replayed_pins_sorting_msort_ORDEREDP_MSORT
+
+/-! ## bsort book (acl2/books/sorting/bsort.lisp) -/
+
+/-- PIN the machine-generated statement of `HOW-MANY-BNEXT`
+    (bsort.lisp:72): the mirror of
+      `(equal (how-many e (bnext x)) (how-many e x))`
+    conditional on `bnext` totality and how-many's emitted
+    non-negative-integer TP corollary (source-true: it counts). The
+    cross-book rule condition `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` is
+    GONE from the row exactly because the pin run offers the convert-perm
+    dependency trees like the sweep (2a cross-discharge). -/
+example :
+    ∀ (env : Env),
+      totalHyp1 bsortPinsWorld "BNEXT" →
+      tpNonnegInt2 bsortPinsWorld "HOW-MANY" →
+      EvTrue bsortPinsWorld env
+        (ap2 "EQUAL"
+          (ap2 "HOW-MANY" (sym "E") (ap1 "BNEXT" (sym "X")))
+          (ap2 "HOW-MANY" (sym "E") (sym "X"))) :=
+  ReplayedStatements.replayed_pins_sorting_bsort_HOW_MANY_BNEXT
+
+#print axioms ReplayedStatements.replayed_pins_sorting_bsort_HOW_MANY_BNEXT
 
 /-! ## p3-conj-mid-literal (acl2_samples/pattern-tests/p3-conj-mid-literal.lisp)
 
