@@ -791,6 +791,26 @@ _Last updated: 2026-08-02._
 > discrimination predicate is a calibrated heuristic (D7) — honest
 > comment queued with the dedupe; builtinRecogFacts deviates from the
 > 97190e1 designed builtinIntVal? route (D5) — KEPT (it gates the
+> **PCE-IS-COUNTEREXAMPLE SPINE CLASS — DIAGNOSED, BUILD DESIGNED
+> (2026-08-05): the literal-3 chain mismatch at its Subgoal *1/3' is
+> the UNRECORDED literal-boundary IFF-normalization tower: the chain
+> composes to (NOT (IF (IF (TRUE-LISTP (CDR X)) 'T 'NIL) (IF <inner>
+> 'T 'NIL) 'T)) while the record collapses to (NOT <inner>) — the IH
+> antecedent (known true on the branch) dropped and the boolean-IF
+> wrappers gone, none recorded as steps (rewrite-atm's iff-context
+> literal normalization). ALL steps are value-level EQUAL-sound:
+> (A) (IF (IF a 'T 'NIL) b c) = (IF a b c) [toBool-collapse];
+> (B) (IF t b 'T) → b GIVEN test truthy from the clause context
+> [fact-gated]; (C) (NOT (IF a 'T 'NIL)) = (NOT a) [not is
+> toBool-based]. BUILD (the bridgeEqualNilNorm precedent — a
+> recompute-and-check chain-end bridge toward the RECORDED result,
+> hard-fail if not reached): `bridgeIffBoolNorm cfg ctx finalT
+> target` — normalize stepwise via the three moves; each step = conv
+> both terms (conv_if_lift compositions at ctx values) + the value
+> lemma + fuel_eq_of_conv; compose fuel_chain_eq; wire beside
+> bridgeEqualNilNorm at the literal chain end (Core.lean ~1150) and
+> the definition/lambda chain ends. Verify the branch fact for (B)
+> exists in the PCE *1/3' context (the theorem's TRUE-LISTP hyps).**
 > **PERM-TLFIX — CLASSIFICATION SHARPENED (2026-08-05, read off the
 > dump + the ratified equiv-lane design): the failing node is the
 > IH-as-rewriting-equivalence with equiv (PERM (TLFIX (CDR X))
