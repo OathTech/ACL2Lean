@@ -48,4 +48,31 @@ theorem not_memb_how_many_0_native_driver (av : SExpr) (xs : List SExpr)
 
 #print axioms not_memb_how_many_0_native_driver
 
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for
+    NOT-MEMB-IMPLIES-RM-IS-NO-OP (hypothesis: `rule:CONS-CAR-CDR`). -/
+def notMembRmNoopReplayedCond := driver_replayed% convertPermDev
+  convertPermWorldD "not-memb-implies-rm-is-no-op"
+
+/-- The unconditional form (the ground-zero rule discharged
+    world-parametrically). -/
+theorem notMembRmNoopReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
+      Worlds.Sorting.not_memb_rm_noopFormula = some v ∧ v ≠ SExpr.nil :=
+  notMembRmNoopReplayedCond env
+    (Worlds.Sorting.dis_cons_car_cdr convertPermWorldD (by decide)
+      (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — NOT-MEMB-IMPLIES-RM-IS-NO-OP natively: erasing an
+    absent element is the identity (the `List.erase_of_not_mem` class). -/
+theorem not_memb_rm_noop_native_driver (av : SExpr) (xs : List SExpr)
+    (h : xs.contains av = false) :
+    xs.erase av = xs :=
+  Worlds.Sorting.not_memb_rm_noop_native_of_replayed convertPermWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide)
+    notMembRmNoopReplayed_uncond av xs h
+
+#print axioms not_memb_rm_noop_native_driver
+
 end ACL2.Imported.Mirrors

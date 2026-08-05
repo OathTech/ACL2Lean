@@ -1272,6 +1272,87 @@ theorem not_memb_how_many_0_native_of_replayed (w : World)
     injection hEqv with h1; injection h1 with h2; injection h2
   omega
 
+/-- The NOT-MEMB-IMPLIES-RM-IS-NO-OP replayed-statement formula (the
+    source AND translated to an IF):
+    `(IMPLIES (IF (NOT (MEMB A X)) (TRUE-LISTP X) 'NIL)
+              (EQUAL (RM A X) X))`. -/
+def not_memb_rm_noopFormula : SExpr :=
+  impliesT
+    (ifT (notT (membT aT xT)) (trueListpT xT) qNil)
+    (equalT (rmT aT xT) xT)
+
+/-- NOT-MEMB-IMPLIES-RM-IS-NO-OP, natively: erasing an absent element is
+    the identity (`List.erase_of_not_mem` class; the source's true-listp
+    hypothesis is intrinsic to the encoding — `trueListp_enc`). -/
+theorem not_memb_rm_noop_native_of_replayed (w : World)
+    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
+      = some ([{ package := "ACL2", name := "A" },
+               { package := "ACL2", name := "X" }], membBody))
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none)
+    (h_no_truelistp : w.defs.get? ({ name := "TRUE-LISTP" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env not_memb_rm_noopFormula = some v ∧ v ≠ SExpr.nil)
+    (av : SExpr) (xs : List SExpr) (hmem : xs.contains av = false) :
+    xs.erase av = xs := by
+  let e : Env := (({} : Env).insert xS (enc xs)).insert aS av
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
+    re_val_var_get w e { name := "A" } av (by
+      show e.get? aS = some av
+      rw [show e = (({} : Env).insert xS (enc xs)).insert aS av from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = (({} : Env).insert xS (enc xs)).insert aS av from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  -- the antecedent: (not (memb a x)) is truthy (absent) and
+  -- (true-listp x) computes t on any encoded list
+  have hMemb := corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car
+    h_no_cdr xs e aT xT av ha hx
+  have hMembNil : ∃ N, ∀ f ≥ N,
+      evalOpt f w e (membT aT xT) = some SExpr.nil := by
+    simpa only [hmem, cond_false] using hMemb
+  have hNot := conv_builtin1 w e { name := "NOT" } (membT aT xT)
+    SExpr.nil (Logic.not SExpr.nil) (by decide) h_no_not hMembNil
+    (callBuiltin_not _)
+  have hTl : ∃ N, ∀ f ≥ N,
+      evalOpt f w e (trueListpT xT) = some SExpr.t := by
+    have h := conv_builtin1 w e { name := "TRUE-LISTP" } xT (enc xs)
+      (Logic.trueListp (enc xs)) (by decide) h_no_truelistp hx rfl
+    rwa [trueListp_enc] at h
+  have hAnte : ∃ N, ∀ f ≥ N, evalOpt f w e
+      (ifT (notT (membT aT xT)) (trueListpT xT) qNil) = some SExpr.t := by
+    have h := conv_if_lift w e (notT (membT aT xT)) (trueListpT xT) qNil
+      (Logic.not SExpr.nil) SExpr.t SExpr.nil hNot
+      (fun _ => hTl) (fun hb => absurd hb (by decide))
+    simpa [Logic.not, Logic.toBool] using h
+  -- the consequent sides: (rm a x) computes the erase; x itself
+  have hRm : ∃ N, ∀ f ≥ N,
+      evalOpt f w e (rmT aT xT) = some (enc (xs.erase av)) :=
+    corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
+      xs e aT xT av ha hx
+  have hEq := conv_builtin2 w e { name := "EQUAL" } _ _ _ _ _ (by decide)
+    h_no_equal hRm hx (callBuiltin_equal _ _)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
+    h_no_implies hAnte hEq (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have hconc := truthy_of_implies_t hIt rfl
+  have hEqv : enc (xs.erase av) = enc xs := by
+    refine Logic.eq_of_equal_ne_nil (fun hnil => ?_)
+    rw [hnil] at hconc
+    exact absurd hconc (by decide)
+  exact enc_inj hEqv
+
 /-! ## The qsort book: HOW-MANY-APPEND / CAR-APPEND -/
 
 abbrev appendT (a b : SExpr) : SExpr := app2 "BINARY-APPEND" a b

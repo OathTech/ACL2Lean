@@ -125,9 +125,8 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .pending "count/erase interaction — native-worthy (howManyExec_rmExec \
       already proves the value-level fact); P3 decides"),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-RM-IS-NO-OP",
-    .pending "erase-of-absent (List.erase_of_not_mem under the true-listp \
-      hypothesis) — native-worthy in its own right (audit F2 corrected the \
-      earlier subsumption claim); P3 decides"),
+    .native ``not_memb_rm_noop_native_driver
+      ``notMembRmNoopReplayedCond),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-HOW-MANY-IS-0",
     .native ``not_memb_how_many_0_native_driver
       ``notMembHowMany0ReplayedCond),
@@ -307,6 +306,7 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.how_many_isort_native_driver,
             ``ACL2.Imported.Mirrors.how_many_append_native_driver,
             ``ACL2.Imported.Mirrors.not_memb_how_many_0_native_driver,
+            ``ACL2.Imported.Mirrors.not_memb_rm_noop_native_driver,
             ``ACL2.Imported.Mirrors.car_append_native_driver,
             ``ACL2.Imported.Mirrors.perm_implies_equal_all_rel_2_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,
