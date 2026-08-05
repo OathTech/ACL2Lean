@@ -791,35 +791,29 @@ _Last updated: 2026-08-02._
 > discrimination predicate is a calibrated heuristic (D7) — honest
 > comment queued with the dedupe; builtinRecogFacts deviates from the
 > 97190e1 designed builtinIntVal? route (D5) — KEPT (it gates the
-> **PCE-IS-COUNTEREXAMPLE SPINE CLASS — DIAGNOSED, BUILD DESIGNED
-> (2026-08-05): the literal-3 chain mismatch at its Subgoal *1/3' is
-> the UNRECORDED literal-boundary IFF-normalization tower: the chain
-> composes to (NOT (IF (IF (TRUE-LISTP (CDR X)) 'T 'NIL) (IF <inner>
-> 'T 'NIL) 'T)) while the record collapses to (NOT <inner>) — the IH
-> antecedent (known true on the branch) dropped and the boolean-IF
-> wrappers gone, none recorded as steps (rewrite-atm's iff-context
-> literal normalization). ALL steps are value-level EQUAL-sound:
-> (A) (IF (IF a 'T 'NIL) b c) = (IF a b c) [toBool-collapse];
-> (B) (IF t b 'T) → b GIVEN test truthy from the clause context
-> [fact-gated]; (C) (NOT (IF a 'T 'NIL)) = (NOT a) [not is
-> toBool-based]. BUILD (the bridgeEqualNilNorm precedent — a
-> recompute-and-check chain-end bridge toward the RECORDED result,
-> hard-fail if not reached): `bridgeIffBoolNorm cfg ctx finalT
-> target` — normalize stepwise via the three moves; each step = conv
-> both terms (conv_if_lift compositions at ctx values) + the value
-> lemma + fuel_eq_of_conv; compose fuel_chain_eq; wire beside
-> bridgeEqualNilNorm at the literal chain end (Core.lean ~1150) and
-> the definition/lambda chain ends. Verify the branch fact for (B)
-> exists in the PCE *1/3' context (the theorem's TRUE-LISTP hyps).
-> BUILT + WALL DEEPENED (257dbf8): the bridge is in (4 conv lemmas +
-> the bounded normalizer, fail-closed, golden byte-identical) but the
-> PCE row honestly declines it — the RECORDED result carries FURTHER
-> inner rewrites (a HOW-MANY unfolding inside the IF's test position)
-> beyond the tower: the chain builder never composed those recorded
-> steps, i.e. the row's true wall is a WINDOW-COMPOSITION gap under
-> the tower (the IF-FINISH window family — the same class the
-> recognizer-tuple fork item feeds). The bridge stands for the
-> pure-tower class; the row waits on the window composition.**
+> **PCE-IS-COUNTEREXAMPLE — RESOLVED TO THE EMISSION ROUTE
+> (2026-08-05, the drift tidy-up): the session's per-class chase of
+> this row (the IFF-normalization tower bridge + the tlp-cdr demand
+> emitter) was KILLED as infra-mirroring — a bounded rewriter loop
+> over the term's own shape plus an invented hoist demand
+> re-implemented rewrite-atm's silent literal-boundary normalization,
+> which the fork can emit instead (fork batch item 6: record the
+> iff-context normalization steps at the literal boundary). KEPT from
+> the same stretch, as single-composition replay pieces: the
+> complement-tautology close (greened TRUE-LISTP-BNEXT), the two
+> call-stack folds (rewrite.lisp:3791/18089 — the ratified
+> bridgeEqualNilNorm class), the boolean-TP fold, the two registered
+> disjointness cells (single-summand, term-vs-sum — emitted-TP-keyed;
+> subsume under the recognizer-tuple emission when it lands), the
+> type-set-equality orientation normalization, and the last-position
+> nil-drop completion. The row is honestly red at the literal-3
+> chain frontier until the emission lands. Distinguishing test
+> (ratified in practice by this tidy-up): REPLAY consumes a recorded
+> step or emitted fact in one deterministic composition, or
+> recomputes a step dictated by the RECORDED TARGET where the
+> artifact genuinely cannot record it (the normalizeSwapsToward /
+> BUG-026 precedent); a walk over the term's own shape with
+> fact-gated moves is INFRA-MIRRORING — emit instead.**
 > **PERM-TLFIX — CLASSIFICATION SHARPENED (2026-08-05, read off the
 > dump + the ratified equiv-lane design): the failing node is the
 > IH-as-rewriting-equivalence with equiv (PERM (TLFIX (CDR X))

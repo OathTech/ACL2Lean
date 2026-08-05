@@ -186,19 +186,11 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
       -- pre-pass demand stays WIDE (a replayed admission is its own
       -- scoreboard row) — this choice is only about the consuming
       -- induction's bookkeeping μ.
-      let chainOk : SExpr → Bool :=
-        let rec chainWalk : SExpr → Bool
-          | .atom (.symbol _) => true
-          | .cons (.atom (.symbol d)) (.cons u .nil) =>
-            (d.name == "CDR" || d.name == "CAR" || d.name == "EVENS"
-              || d.name == "ODDS") && chainWalk u
-          -- CONS of chains is inside the Count kit's reach (BNEXT's
-          -- X → (CONS (CAR X) (CDR (CDR X))) substitution replays on the
-          -- registry route — its pre-widening green is the witness)
-          | .cons (.atom (.symbol c)) (.cons a (.cons d .nil)) =>
-            c.name == "CONS" && chainWalk a && chainWalk d
-          | _ => false
-        chainWalk
+      -- CONS of chains is inside the Count kit's reach (BNEXT's
+      -- X → (CONS (CAR X) (CDR (CDR X))) substitution replays on the
+      -- registry route — its pre-widening green is the witness); the
+      -- shared walk with the reach parameter is the S7/D7 dedupe.
+      let chainOk : SExpr → Bool := destructorChainOk true
       let registryCovered := cnt.name == "ACL2-COUNT" || cnt.name == "LEN"
       let decreasesChainOk :=
         match schemeFn?.bind (fun f => cfg.justs.lookup f.name) with

@@ -115,7 +115,12 @@ root-cause fix (assumed obligations at actual applications).
    (HOW-MANY-SMALLER-BNEXT + the parked ORDEREDP-APPEND/MEMB backlog).
 4. **emit/defthm tag text refresh** (comment-only: the tag omits
    `:TFORMULA`) — rides along.
-5. **include-book EDGE emission** (one event per include-book with the
+5. **Literal-boundary normalization steps** (rewrite-atm's iff-context
+   collapses — the IMPLIES-antecedent drop, the boolean-IF wrappers):
+   the silent normalizations the killed tower bridge re-implemented; with
+   them recorded, the PCE literal composes from recorded steps like every
+   other chain (the drift tidy-up's replacement route, 2026-08-05).
+6. **include-book EDGE emission** (one event per include-book with the
    included book's name) — the include graph the provenance gate on
    cross offers needs (currently only per-theorem `:SOURCE
    :INCLUDE-BOOK` marks are emitted); also the prerequisite for the

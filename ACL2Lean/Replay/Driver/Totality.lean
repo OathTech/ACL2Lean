@@ -1062,7 +1062,7 @@ def replayDischargeLeaf (cfg : ReplayConfig) (clauseTerm : SExpr)
             let prf ← dischargeSpine cfg bundle opqMap clauseTerm factConc
             let r ← closeOver prf #[hFact]
             return (r, true)
-  return (p, if assumed then conds ++ ["ASSUMED:dp-fact"] else conds)
+  return (p, if assumed then conds ++ [assumedDpFactCond] else conds)
 
 /-- The DP-fact obligation of a discharge leaf, computed from the CLAUSE TERM
     alone plus the AVAILABLE value-only TP corollaries (name → corollary) —

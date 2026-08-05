@@ -56,12 +56,7 @@ where
             (if cnt1.name == "ACL2-COUNT" then !chainOk d else true)
         | _ => false
       | none => false
-  chainOk : SExpr → Bool
-    | .atom (.symbol _) => true
-    | .cons (.atom (.symbol d)) (.cons u .nil) =>
-      (d.name == "CDR" || d.name == "CAR" || d.name == "EVENS"
-        || d.name == "ODDS") && chainOk u
-    | _ => false
+  chainOk (t : SExpr) : Bool := destructorChainOk false t
 
 /-- Every rune NAME cited by any step of a clause proof — the DEMAND filter
     for the termination replay's rule offers (sorting arc 2026-07-29:
@@ -295,7 +290,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
       -- a composed row never carries an ASSUMED cond as ✓) and refuse
       -- registration at this single choke point so no consumer can ever
       -- resolve the condition to a hypothesis fvar.
-      if p.2.contains "ASSUMED:dp-fact" then
+      if p.2.contains assumedDpFactCond then
         let condStr := s!" cond[{", ".intercalate p.2}]"
         return (s!"ASSUMED ◌{condStr}", none)
       -- D1: emit the replayed-statement constant (checked + axiom-clean above)
@@ -375,7 +370,7 @@ def tryDischarge (w : World) (wExpr : Expr) (tps : List (String × SExpr))
       -- An ASSUMED leaf (the DP fact is a bound hypothesis of the returned
       -- CONDITIONAL proof — its type states the missing obligation; no sorryAx;
       -- the lift/spine pipeline ran end-to-end) is reported as ◌, never as ✓.
-      let assumed := conds.contains "ASSUMED:dp-fact"
+      let assumed := conds.contains assumedDpFactCond
       let condStr := if conds.isEmpty then "" else s!" cond[{", ".intercalate conds}]"
       if assumed then return s!"{id}:{origin} ◌ assumed{condStr}"
       else return s!"{id}:{origin} ✓{condStr}"

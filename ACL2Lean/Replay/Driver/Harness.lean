@@ -669,7 +669,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     equivFullSpecs.map (fun e => s!"equivfull:{e.name}") ++
     tpThmSpecs.map (fun s => s!"tpthm:{s.name}") ++
     linearSpecs.map (fun r => s!"linear:{r.name}") ++
-    dpStmts.map (fun _ => "ASSUMED:dp-fact")
+    dpStmts.map (fun _ => assumedDpFactCond)
   withLocalDecls totalDecls fun totalVs => do
     withLocalDecls (tpDecls ++ tpAvDecls) fun tpAllVs => do
      withLocalDecls ruleDecls fun ruleVs => do

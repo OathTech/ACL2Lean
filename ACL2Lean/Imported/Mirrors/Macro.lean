@@ -144,7 +144,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     -- independently-quantified opaques that can be FALSE, so a mirror
     -- carrying it must never be registered (same policy as the sweep;
     -- the with_termination sub-path already fails loudly via reg? none).
-    if conds.contains "ASSUMED:dp-fact" then
+    if conds.contains assumedDpFactCond then
       throwError "driver_replayed%: the replay is conditional on an \
         ASSUMED dp-fact (an unproved, possibly-false obligation) — \
         refusing to register the mirror; fix the leaf's emission instead"

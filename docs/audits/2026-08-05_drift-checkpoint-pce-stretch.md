@@ -1,5 +1,16 @@
 # MDD CHECKPOINT — stop-early condition 2 (drift test) on the PCE stretch
 
+> **RESOLUTION (same day, user-directed drift tidy-up).** The user ruled:
+> replay, not infra-mirroring. The infra-mirror pieces were KILLED
+> (bridgeIffBoolNorm + the tlp-cdr demand emitter + their orphaned
+> lemmas) and replaced by fork batch item 5 (literal-boundary
+> normalization emission); the single-composition replay pieces were
+> KEPT (the complement close, the two call-stack folds, the boolean-TP
+> fold, the two disjointness cells, the orientation fix, the nil-drop
+> completion). The distinguishing test is recorded in TODO. A follow-up
+> Opus review of ALL branch features against the replay-vs-infra test
+> was commissioned by the user.
+
 **Declared 2026-08-05, plainly, per the arc plan's stop-early clause.**
 Corroborating signal: the user's mid-run drift question ("we want to make
 sure we're not drifting").

@@ -5739,18 +5739,6 @@ theorem re_val_if_nil_t (w : World) (env : Env) (x vx : SExpr)
     obtain ⟨g', rfl⟩ : ∃ g', g = g' + 1 := ⟨g - 1, by omega⟩
     exact evalOpt_quote g' w env SExpr.t
 
-/-- true-listness closes under `cdr` — ACL2's type-set closure consumed by
-    the tower bridge's move B when the known-true test is
-    `(TRUE-LISTP (CDR u))` sourced from a `(NOT (TRUE-LISTP u))` clause
-    literal's falsity (the demand-hoisted later literal). -/
-theorem logic_trueListp_cdr {x : SExpr}
-    (h : Logic.trueListp x = SExpr.t) :
-    Logic.trueListp (Logic.cdr x) = SExpr.t := by
-  match x with
-  | .cons a d => simpa [Logic.trueListp, Logic.cdr] using h
-  | .nil => rfl
-  | .atom a => simp [Logic.trueListp, SExpr.t] at h
-
 /-- `(if x 't 'nil)` converges to `(bif toBool vx then t else nil)` — the
     boolean wrapper's value form (the literal-boundary iff-normalization
     bridge's wrapper). -/
@@ -5777,110 +5765,6 @@ theorem re_val_if_t_nil (w : World) (env : Env) (x vx : SExpr)
     obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
     rw [evalOpt_if_false (g + 1) w env x _ _ (ha' (g + 1) (by omega))]
     simpa using evalOpt_quote g w env SExpr.nil
-
-/-- Move A of the literal-boundary iff-normalization bridge: the
-    boolean-wrapped test is toBool-transparent —
-    `(IF (IF a 'T 'NIL) b c) ≡ (IF a b c)`, fuel-robust, given the test
-    and both branches converge. -/
-theorem re_if_boolwrap_test (w : World) (env : Env) (a b c va : SExpr)
-    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
-    (hbe : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env b = some v)
-    (hce : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env c = some v) :
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
-        (.cons (.cons (.atom (.symbol { name := "IF" }))
-            (.cons a (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-              (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) .nil))))
-          (.cons b (.cons c .nil))))
-      = evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
-          (.cons a (.cons b (.cons c .nil)))) := by
-  obtain ⟨Nb, vb, hb⟩ := hbe
-  obtain ⟨Nc, vc, hc⟩ := hce
-  have hwrap := re_val_if_t_nil w env a va ha
-  cases htb : Logic.toBool va with
-  | true =>
-    have h1 := conv_if_true w env
-      (.cons (.atom (.symbol { name := "IF" }))
-        (.cons a (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) .nil))))
-      b c (bif Logic.toBool va then SExpr.t else SExpr.nil) vb hwrap
-      (by rw [htb]; rfl) ⟨Nb, hb⟩
-    have h2 := conv_if_true w env a b c va vb ha htb ⟨Nb, hb⟩
-    exact fuel_eq_of_conv h1 h2 rfl
-  | false =>
-    have hva : va = SExpr.nil := by
-      cases va <;> simp_all [Logic.toBool]
-    subst hva
-    have h1 := re_if_false w env
-      (.cons (.atom (.symbol { name := "IF" }))
-        (.cons a (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) .nil))))
-      b c vc hwrap ⟨Nc, hc⟩
-    have h2 := re_if_false w env a b c vc ha ⟨Nc, hc⟩
-    obtain ⟨N1, e1⟩ := h1
-    obtain ⟨N2, e2⟩ := h2
-    exact ⟨max N1 N2, fun f hf =>
-      (e1 f (by omega)).trans (e2 f (by omega)).symm⟩
-
-/-- Move B: a KNOWN-TRUE test drops — `(IF a b 'T) ≡ b` given the test
-    converges truthy and `b` converges. The truth is consumed from the
-    clause context at the call site, never derived here. -/
-theorem re_if_true_test_drop (w : World) (env : Env) (a b va : SExpr)
-    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
-    (htb : Logic.toBool va = true)
-    (hbe : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env b = some v) :
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
-        (.cons a (.cons b
-          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)) .nil))))
-      = evalOpt f w env b := by
-  obtain ⟨Nb, vb, hb⟩ := hbe
-  have h1 := conv_if_true w env a b
-    (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-    va vb ha htb ⟨Nb, hb⟩
-  exact fuel_eq_of_conv h1 ⟨Nb, hb⟩ rfl
-
-/-- Move C: NOT through the boolean wrapper —
-    `(NOT (IF a 'T 'NIL)) ≡ (NOT a)`, given `a` converges and `NOT` is
-    unshadowed. -/
-theorem re_not_boolwrap (w : World) (env : Env) (a va : SExpr)
-    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none)
-    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va) :
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "NOT" }))
-        (.cons (.cons (.atom (.symbol { name := "IF" }))
-          (.cons a (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-            (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) .nil)))) .nil))
-      = evalOpt f w env (.cons (.atom (.symbol { name := "NOT" })) (.cons a .nil)) := by
-  have hwrap := re_val_if_t_nil w env a va ha
-  have h1 := conv_builtin1 w env { name := "NOT" }
-    (.cons (.atom (.symbol { name := "IF" }))
-      (.cons a (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) .nil))))
-    (bif Logic.toBool va then SExpr.t else SExpr.nil)
-    (Logic.not (bif Logic.toBool va then SExpr.t else SExpr.nil))
-    (by decide) h_no_not hwrap (callBuiltin_not _)
-  have h2 := conv_builtin1 w env { name := "NOT" } a va (Logic.not va)
-    (by decide) h_no_not ha (callBuiltin_not _)
-  refine fuel_eq_of_conv h1 h2 ?_
-  cases va <;> rfl
-
-/-- Lift an eval-equality through a NOT frame (both sides converging) —
-    the composer for the moves above under the literal's NOT wrapper. -/
-theorem re_not_congr_eval (w : World) (env : Env) (u1 u2 v1 v2 : SExpr)
-    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none)
-    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env u1 = some v1)
-    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env u2 = some v2)
-    (heq : ∃ N, ∀ f ≥ N, evalOpt f w env u1 = evalOpt f w env u2) :
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "NOT" })) (.cons u1 .nil))
-      = evalOpt f w env (.cons (.atom (.symbol { name := "NOT" })) (.cons u2 .nil)) := by
-  have hv : v1 = v2 := val_eq_of_eval_eq heq h1 h2
-  have hn1 := conv_builtin1 w env { name := "NOT" } u1 v1 (Logic.not v1)
-    (by decide) h_no_not h1 (callBuiltin_not _)
-  have hn2 := conv_builtin1 w env { name := "NOT" } u2 v2 (Logic.not v2)
-    (by decide) h_no_not h2 (callBuiltin_not _)
-  exact fuel_eq_of_conv hn1 hn2 (congrArg Logic.not hv)
 
 /-- rewrite-equal's built-in NIL normalization, LEFT form (rewrite.lisp:18089,
     unconditional/syntactic): `(equal 'nil x) ≡ (if x 'nil 't)`, fuel-robust,

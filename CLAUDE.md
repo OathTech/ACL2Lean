@@ -218,6 +218,19 @@ Lean-side reconstruction — retire, don't grow, the bridge inventory).
 If a task genuinely cannot be done honestly, say so and explain why, rather than
 papering over it.
 
+## Goal design (binding — MDD 2026-08-05)
+
+Any goal the AGENT proposes MUST include an escape-hatch early-exit
+condition that the agent itself can declare (e.g. "stop and report if the
+remaining work all gates on user decisions, a ratified design boundary, or
+a fork round-trip"). Any goal the USER proposes that lacks such an
+early-exit condition MUST be flagged by the agent immediately, before
+execution begins. Rationale (the 2026-08-05 close-out run): a
+completion-only goal-keeper combined with an exit that requires user
+sign-offs converts "no legal work remains" into open-ended grinding on
+whatever is still touchable — the exact pressure under which per-case
+accretion (the carve-out drift failure mode) happens.
+
 ## Working discipline (proof-directed, long-cycle)
 
 Proof construction here is long-cycle work that has **failed more than once** by
