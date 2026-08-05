@@ -1478,6 +1478,16 @@ def builtinIntTps : List (String × Name) :=
 
 #guard builtinIntTps.all (fun e => (dpUnary.lookup e.1).isSome)
 
+/-- Trusted-core RECOGNIZER facts for int-valued BUILTINS (BNEXT-SIZE
+    route layer 3): (fn, consp-nil lemma, natp-t lemma). Consumed by the
+    recognizer/false and compound-recognizer arms, each GATED on the fn's
+    EMITTED nonneg-int TP corollary (type facts from ACL2; the proof from
+    the trusted core — the builtinIntTps precedent). -/
+def builtinRecogFacts : List (String × Name × Name) :=
+  [("LEN", ``logic_consp_len_nil, ``logic_natp_len_t)]
+
+#guard builtinRecogFacts.all (fun e => (dpUnary.lookup e.1).isSome)
+
 /-- The standard nonneg-int TP corollary at application `app`:
     `(IF (INTEGERP app) (NOT (< app '0)) 'NIL)`. -/
 def intTpCorollary (app : SExpr) : SExpr :=
@@ -2601,6 +2611,40 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
               mkAppM ``re_val_cast
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE,
                   p, hT]
+            else if rs.name == "CONSP" && verdict == SExpr.nil &&
+                (builtinRecogFacts.find? (fun e => e.1 == fs.name)).isSome then do
+              -- BUILTIN never-a-cons (BNEXT-SIZE route layer 3: the
+              -- recognizer/false class in admission trees of LEN-based
+              -- measures — (CONSP (LEN X)) ⇒ 'NIL). The trusted-core
+              -- consp-nil lemma applies at the composed value, GATED on
+              -- the fn's EMITTED nonneg-int TP corollary.
+              let some (_, conspLem, _) :=
+                  builtinRecogFacts.find? (fun e => e.1 == fs.name)
+                | throwError "replayRecognizer: internal — registry vanished"
+              let some cor := cfg.gzTps.lookup fs.name
+                | throwError "replayRecognizer: builtin {fs.name}'s TP \
+                    corollary not emitted (type facts from ACL2 — \
+                    emission gap)"
+              let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
+                | throwError "replayRecognizer: {fs.name} corollary \
+                    destructure failed: {repr cor}"
+              unless cor == intTpCorollary app do
+                throwError "replayRecognizer: {fs.name}'s emitted corollary \
+                    drifted from the nonneg-int shape: {repr cor}"
+              let .cons _ (.cons inner .nil) := term
+                | throwError "replayRecognizer: internal — non-unary \
+                    recognizer at the builtin arm"
+              let .cons _ (.cons innerArg .nil) := inner
+                | throwError "replayRecognizer: builtin {fs.name} not \
+                    applied to exactly one arg: {repr inner}"
+              let ctxB ← pinTermOpaques cfg cfg.envExpr ctx innerArg
+              let vArg ← ctxValExpr cfg ctxB innerArg
+              let hT ← mkAppM conspLem #[vArg]
+              let pB ← ctxValProof cfg ctxB term
+              let vB ← ctxValExpr cfg ctxB term
+              mkAppM ``re_val_cast
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vB,
+                  verdictE, pB, hT]
             else if let some (spec, hypV) := citedTpThms.findSome? (fun tn =>
                 ctx.tpThmHyps.find? (fun (s, _) => s.name == tn)) then do
               -- TP-CLASSED THEOREM route (tpthm sub-arc 2026-08-04 — the
@@ -3656,6 +3700,51 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let pQ ← mkAppM ``re_val_quote
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
     mkAppM ``fuel_eq_of_conv #[p, pQ, hT]
+  | "compound-recognizer", rname =>
+    -- ACL2's built-in COMPOUND-RECOGNIZER rules (BNEXT-SIZE route layer
+    -- 3: (NATP (LEN X)) ⇒ 'T in non-ACL2-COUNT measure admissions).
+    -- Registered rune → recognizer head (a read-off check, never
+    -- shape-inferred); the inner fn's fact from the trusted-core builtin
+    -- registry, GATED on the EMITTED nonneg-int TP corollary. A WORLD-fn
+    -- inner (BNEXT-SIZE itself) is the named next frontier.
+    unless nodeOrigin n == "recognizer/true" do
+      throwError "compound-recognizer: origin {nodeOrigin n} (frontier)"
+    let some recogHead :=
+        ([("NATP-COMPOUND-RECOGNIZER", "NATP")].lookup rname)
+      | throwError "compound-recognizer: rune {rname} not registered \
+                    (frontier)"
+    let .cons (.atom (.symbol rs)) (.cons inner .nil) := lhs
+      | throwError "compound-recognizer: lhs {repr lhs} is not a unary \
+                    recognizer application (frontier)"
+    unless rs.name == recogHead do
+      throwError "compound-recognizer: lhs head {rs.name} ≠ the rune's \
+                  recognizer {recogHead} (emission divergence)"
+    unless rhs == quoteT do
+      throwError "compound-recognizer: rhs {repr rhs} ≠ 'T (frontier)"
+    let .cons (.atom (.symbol fs)) (.cons innerArg .nil) := inner
+      | throwError "compound-recognizer: inner {repr inner} is not a unary \
+                    application (frontier)"
+    let some (_, _, natpLem) :=
+        builtinRecogFacts.find? (fun e => e.1 == fs.name)
+      | throwError "compound-recognizer: inner fn {fs.name} has no \
+                    registered trusted-core natp fact (frontier — the \
+                    world-fn route is pending)"
+    let some cor := cfg.gzTps.lookup fs.name
+      | throwError "compound-recognizer: {fs.name}'s TP corollary not \
+                    emitted (type facts from ACL2 — emission gap)"
+    let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
+      | throwError "compound-recognizer: corollary destructure failed: \
+                    {repr cor}"
+    unless cor == intTpCorollary app do
+      throwError "compound-recognizer: {fs.name}'s corollary drifted from \
+                  the nonneg-int shape: {repr cor}"
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
+    let vArg ← ctxValExpr cfg ctx innerArg
+    let hT ← mkAppM natpLem #[vArg]
+    let pl ← ctxValProof cfg ctx lhs
+    let pr ← mkAppM ``re_val_quote
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+    mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
   | "equal-case-split", _ =>
     -- rewrite-equal's boolean CASE-RESTRUCTURING (fork-batch item 1's
     -- consumer): `(EQUAL p q)` with the split side an EQUALITY — hence

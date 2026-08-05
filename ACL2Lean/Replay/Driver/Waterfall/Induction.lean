@@ -175,9 +175,49 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
   let μE ←
     match recMirror?, ind.measure with
     | some _, .cons (.atom (.symbol cnt)) (.cons (.atom (.symbol v)) .nil) =>
-      withLocalDeclD `env (mkConst ``ACL2.Env) fun envV => do
-        mkLambdaFVars #[envV] (← mkAppM ``ACL2.Replay.interpCount
-          #[cfg.worldExpr, reflectSymbol cnt, ← dpConcVar envV v])
+      -- ROUTE DISCRIMINATION (consumer-queue 2026-08-05, both directions
+      -- regression-tested: BNEXT's newly-registered mirror must NOT flip
+      -- HOW-MANY-BNEXT off the working registry route, and QSORT's
+      -- beyond-chain ACL2-COUNT scheme must KEEP the interpCount route):
+      -- the registry μ applies iff the head is registry-covered AND every
+      -- emitted decrease argument is destructor-chain dischargeable (the
+      -- Count library's reach — the twin of the Runner's demand filter);
+      -- otherwise the recorded mirror's interpCount μ. The admission
+      -- pre-pass demand stays WIDE (a replayed admission is its own
+      -- scoreboard row) — this choice is only about the consuming
+      -- induction's bookkeeping μ.
+      let chainOk : SExpr → Bool :=
+        let rec chainWalk : SExpr → Bool
+          | .atom (.symbol _) => true
+          | .cons (.atom (.symbol d)) (.cons u .nil) =>
+            (d.name == "CDR" || d.name == "CAR" || d.name == "EVENS"
+              || d.name == "ODDS") && chainWalk u
+          -- CONS of chains is inside the Count kit's reach (BNEXT's
+          -- X → (CONS (CAR X) (CDR (CDR X))) substitution replays on the
+          -- registry route — its pre-widening green is the witness)
+          | .cons (.atom (.symbol c)) (.cons a (.cons d .nil)) =>
+            c.name == "CONS" && chainWalk a && chainWalk d
+          | _ => false
+        chainWalk
+      let registryCovered := cnt.name == "ACL2-COUNT" || cnt.name == "LEN"
+      let decreasesChainOk :=
+        match schemeFn?.bind (fun f => cfg.justs.lookup f.name) with
+        | some just => just.terminationClauses.all fun c =>
+          match c.toList? with
+          | some lits => lits.all fun l =>
+            match l with
+            | .cons (.atom (.symbol olt))
+                (.cons (.cons (.atom (.symbol _)) (.cons d .nil)) _) =>
+              if olt.name == "O<" then chainOk d else true
+            | _ => true
+          | none => false
+        | none => false
+      if registryCovered && decreasesChainOk then
+        buildMeasureFn ind.measure
+      else
+        withLocalDeclD `env (mkConst ``ACL2.Env) fun envV => do
+          mkLambdaFVars #[envV] (← mkAppM ``ACL2.Replay.interpCount
+            #[cfg.worldExpr, reflectSymbol cnt, ← dpConcVar envV v])
     | _, _ => buildMeasureFn ind.measure
   let relOk := match ind.rel with
     | .atom (.symbol r) => r.name == "O<"

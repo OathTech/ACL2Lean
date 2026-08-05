@@ -180,6 +180,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
       in the Count library (evensExec_consCount_lt); see the WEAK \
       entry's rationale"),
   ("sorting/msort", "TRUE-LISTP-MSORT", .replayedOnly "subsumed by the msort simulation (msort_exec_corr/msortExec_enc) — the type-absorbed true-listp doctrine"),
+  ("sorting/bsort", "termination:BNEXT",
+    .replayedOnly "an internal admission obligation (BNEXT's LEN-measure
+      decrease), not a user-facing theorem — the termination:QSORT
+      doctrine; its native content is the exec kit's own Lean
+      termination"),
   ("sorting/bsort", "HOW-MANY-BNEXT",
     .pending "bnext preserves counts (the bubble pass is a permutation —
       List.count-invariance native reading); greened by the fork batch's

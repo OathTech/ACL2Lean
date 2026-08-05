@@ -5575,6 +5575,21 @@ theorem lenNat_cons_cdr_eq_of_consp (a : SExpr) {w : SExpr}
   | atom x => simp [Logic.consp, Logic.toBool] at h
   | cons c d => simp [Logic.cons, Logic.cdr, lenNat]
 
+/-- `Logic.len` never returns a cons (the recognizer/false class in
+    admission trees of LEN-based measures — BNEXT's `:MEASURE (LEN X)`;
+    the same emitted-corollary gate as the integerp twin below applies at
+    the consumer). -/
+theorem logic_consp_len_nil (x : SExpr) :
+    Logic.consp (Logic.len x) = SExpr.nil := by
+  rw [logic_len_eq_lenNat]; rfl
+
+/-- `Logic.len` is a natural (the NATP-COMPOUND-RECOGNIZER class in the
+    same admission trees: a length is a nonnegative integer). -/
+theorem logic_natp_len_t (x : SExpr) :
+    Logic.natp (Logic.len x) = SExpr.t := by
+  rw [logic_len_eq_lenNat]
+  simp [Logic.natp, Int.natCast_nonneg]
+
 /-- `Logic.len` is always an ACL2 integer — the kernel-checked counterpart of
     LEN's ground-zero `:TYPE-PRESCRIPTION` corollary
     `(IF (INTEGERP (LEN X)) (NOT (< (LEN X) '0)) 'NIL)`. The builtin TP pin
