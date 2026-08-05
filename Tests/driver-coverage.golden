@@ -28,10 +28,10 @@ Driver coverage — REPLAYED 85/116 (31 unconditional + 54 conditional); DP-disc
     LEN2-APP-VIA-INDUCT → REPLAYED ✓ cond[tp:LEN2]
     LEN2-APP-NO-HELPER → REPLAYED ✓ cond[tp:LEN2]
 • 06-measure  (world: 14 defun(s), 1 theorem(s))
-    termination:COUNT-DOWN → FAIL: dpValExpr: unary POSP is not a DP-lift primitive (frontier): (POSP (O-FIRST-COEFF (IF (INTEGERP N) (IF (< N '0) '0 N) '0)))
+    termination:COUNT-DOWN → FAIL: replayRecognizer: value of (CONSP (IF (INTEGERP N) (IF (< N '0) '0 N) '0)) does not reduce to NIL (no TP hypothesis for IF; cited TP runes [])
     COUNT-DOWN-ZERO → REPLAYED ✓
 • 07-mutual-recursion  (world: 13 defun(s), 2 theorem(s))
-    termination:MY-EVENP → FAIL: dpValExpr: unary POSP is not a DP-lift primitive (frontier): (POSP (O-FIRST-COEFF (IF (INTEGERP N) (IF (< N '0) '0 N) '0)))
+    termination:MY-EVENP → FAIL: replayRecognizer: value of (CONSP (IF (INTEGERP N) (IF (< N '0) '0 N) '0)) does not reduce to NIL (no TP hypothesis for IF; cited TP runes [])
     MY-EVENP-3-IS-NIL → REPLAYED ✓
     MY-ODDP-3-IS-T → REPLAYED ✓
 • 08-equality-reasoning  (world: 0 defun(s), 3 theorem(s))
@@ -45,7 +45,7 @@ Driver coverage — REPLAYED 85/116 (31 unconditional + 54 conditional); DP-disc
     TRUE-LISTP-APP → REPLAYED ✓
     TRUE-LISTP-FLATTEN → REPLAYED ✓
 • 11-custom-measure  (world: 12 defun(s), 1 theorem(s))
-    termination:CD2 → FAIL: dpValExpr: unary POSP is not a DP-lift primitive (frontier): (POSP (O-FIRST-COEFF (IF (INTEGERP N) (IF (< N '0) '0 N) '0)))
+    termination:CD2 → FAIL: replayRecognizer: value of (CONSP (IF (INTEGERP N) (IF (< N '0) '0 N) '0)) does not reduce to NIL (no TP hypothesis for IF; cited TP runes [])
     CD2-BOUND → FAIL: μ-registry: unary measure head NFIX not registered (frontier)  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ✓ cond[total:(CD2 (BINARY-+ '-2 N)), tp:CD2], Subgoal *1/4:preprocess/tau-contradiction ✓ cond[total:(CD2 N), tp:CD2], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(CD2 N), tp:CD2]]
 • 12-multi-controller  (world: 12 defun(s), 1 theorem(s))
     LEN-ZIP2 → REPLAYED ✓ cond[total:ZIP2, tp:ZIP2]  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ✓ cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2], Subgoal *1/1':preprocess/tau-contradiction ✓]
@@ -88,8 +88,8 @@ Driver coverage — REPLAYED 85/116 (31 unconditional + 54 conditional); DP-disc
     TRUE-LISTP-ISORT → REPLAYED ✓ cond[tp:INSERT]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(INSERT X1 IT), tp:INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
     HOW-MANY-ISORT → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+]
 • sorting/bsort  (world: 29 defun(s), 8 theorem(s))
-    termination:BNEXT → FAIL: dpValExpr: unary POSP is not a DP-lift primitive (frontier): (POSP (O-FIRST-COEFF (LEN X)))
-    termination:BSORT → FAIL: dpValExpr: unary POSP is not a DP-lift primitive (frontier): (POSP (O-FIRST-COEFF (BNEXT-SIZE X)))
+    termination:BNEXT → FAIL: replayRecognizer: value of (CONSP (LEN X)) does not reduce to NIL (no TP hypothesis for LEN; cited TP runes [LEN])
+    termination:BSORT → FAIL: replayNode: no rule for rune (compound-recognizer, NATP-COMPOUND-RECOGNIZER) — unimplemented frontier
     HOW-MANY-SMALLER-BNEXT → FAIL: rule LEXORDER-TRANSITIVE: marker-relieved hyp (LEXORDER E (CAR (CDR X))) has no (not …)-falsity fact in scope, and its :TA-RUNES [] name no registered FC relief (frontier; lit-facts [(NOT (CONSP X)),  (NOT (CONSP (CDR X))),  (NOT (LEXORDER (CAR X) E))]; seg-facts []; candidate types: []; expected: ACL2.Logic.not     (ACL2.lexorder ((e.get? { name := "E", canon := ⋯ }).getD ACL2.SExpr.nil)       (ACL2.Logic.car (ACL2.Logic.cdr ((e.get? { name := "X", canon := ⋯ }).getD ACL2.SExpr.nil)))) =   ACL2.SExpr.nil)  [DISCHARGE: Subgoal *1/4.1:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY-SMALLER (CAR X) (BNEXT (CONS (CAR X) (CDR (CDR X))))), total:(HOW-MANY-SMALLER (CAR X) (CONS (CAR X) (CDR (CDR X)))), total:(HOW-MANY-SMALLER (CAR X) (CDR X)), tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER]]
     HOW-MANY-BAD-PAIRS-BNEXT → FAIL: replayRewrites: rewrite-equal CAR phase — no recorded decision and no in-scope refutation of (EQUAL (CAR X) (CAR (CDR X))) (frontier)  [DISCHARGE: Subgoal *1/6.1':simplify-clause/linear-contradiction ✓ cond[total:(BNEXT-SIZE (BNEXT (CONS (CAR X) (CDR (CDR X))))), total:(BNEXT-SIZE (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR X) (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR (CDR X)) (CDR (CDR X))), tp:BNEXT-SIZE, tp:BNEXT-SIZE, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER], Subgoal *1/5.1':simplify-clause/linear-contradiction ✓ cond[total:(BNEXT (CONS (CAR X) (CDR (CDR X)))), total:(BNEXT-SIZE (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR X) (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR (CDR X)) (CDR (CDR X))), tp:BNEXT, tp:BNEXT-SIZE, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER], Subgoal *1/4'':preprocess/tau-contradiction ✓ cond[total:(BNEXT-SIZE (BNEXT (CDR X))), total:(BNEXT-SIZE (CDR X)), total:(BNEXT (CDR X)), total:(HOW-MANY-SMALLER (CAR X) (CDR X)), tp:BNEXT-SIZE, tp:BNEXT-SIZE, tp:BNEXT, tp:HOW-MANY-SMALLER]]
     ORDEREDP-WHEN-BNEXT-CONSTANT → FAIL: generic-tail lift for rewrite/with-lemma (kind equal-cars, 0 children): pathStepsFromFrames: navigated to (IMPLIES (EQUAL (BNEXT (CONS (CAR X) (CDR (CDR X)))) (CONS (CAR X) (CDR (CDR X)))) (ORDEREDP (CONS (CAR X) (CDR (CDR X))))), expected redex (CAR (CONS (CAR X) (CDR (CDR X)))) (frames [])  [DISCHARGE: Subgoal *1/4.1.3'':simplify-clause/fc-contradiction ✓, Subgoal *1/4.1.2'':simplify-clause/fc-contradiction ✓ cond[total:(ORDEREDP (CONS X5 X6)), total:(BNEXT (CONS X5 X6)), tp:ORDEREDP, tp:BNEXT], Subgoal *1/4.1.1''':simplify-clause/fc-contradiction ✓]

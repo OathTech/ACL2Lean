@@ -597,6 +597,11 @@ def dpUnary : List (String × Name × Name) :=
    ("RATIONALP", ``Logic.rationalp, ``callBuiltin_rationalp),
    ("BOOLEANP", ``Logic.booleanp, ``callBuiltin_booleanp),
    ("NFIX",     ``Logic.nfix,     ``callBuiltin_nfix),
+   -- ordinal-on-naturals family, layer 1 (consumer-queue 2026-08-04: the
+   -- non-ACL2-COUNT measure obligations' conjuncts — POSP/NATP are
+   -- already callBuiltin builtins; pure registration)
+   ("POSP",     ``Logic.posp,     ``callBuiltin_posp),
+   ("NATP",     ``Logic.natp,     ``callBuiltin_natp),
    ("FIX",      ``Logic.fix,      ``callBuiltin_fix),
    ("LEN",      ``Logic.len,      ``callBuiltin_len),
    ("ENDP",     ``Logic.endp,     ``callBuiltin_endp),
