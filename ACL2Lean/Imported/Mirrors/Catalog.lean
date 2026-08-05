@@ -193,6 +193,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
       decrease), not a user-facing theorem — the termination:QSORT
       doctrine; its native content is the exec kit's own Lean
       termination"),
+  ("sorting/bsort", "TRUE-LISTP-BNEXT",
+    .replayedOnly "subsumed by the bnext simulation: `true-listp` \
+      restricts the input to the enc image, where bnextExec_enc already \
+      yields an encoded List — no native content beyond the sim (the \
+      type-absorbed true-listp doctrine, the TRUE-LISTP-RM precedent)"),
   ("sorting/bsort", "HOW-MANY-BNEXT",
     .native ``how_many_bnext_native_driver ``howManyBnextReplayedCond),
   ("sorting/msort", "HOW-MANY-MERGE2", .native ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond),

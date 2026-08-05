@@ -791,6 +791,23 @@ _Last updated: 2026-08-02._
 > discrimination predicate is a calibrated heuristic (D7) — honest
 > comment queued with the dedupe; builtinRecogFacts deviates from the
 > 97190e1 designed builtinIntVal? route (D5) — KEPT (it gates the
+> **PERM-TLFIX — CLASSIFICATION SHARPENED (2026-08-05, read off the
+> dump + the ratified equiv-lane design): the failing node is the
+> IH-as-rewriting-equivalence with equiv (PERM (TLFIX (CDR X))
+> (CDR X)) nested at a PERM-arg congruence position — the R-VALUED
+> PAYLOAD class that docs/plans/2026-07-29_equiv-lane-design.md
+> EXPLICITLY deferred: "Congruence CHAINS … need the R-valued payload
+> rung 2 skipped; rung 3 adds it additively" (the built rung-2
+> collapse routes cover the with-lemma one-frame class and the
+> branch-substitution class only; this node is the solidify recipe
+> with a live R payload). Its red is DESIGN-CONSISTENT per the
+> ratified rung boundary — building rung 3 is the follow-on arc's
+> item, with the design outline already in the note (extend the
+> collapse route to the solidify node kind: the R-fact from the
+> clause context's (NOT (PERM …)) falsity, then the same one-frame
+> congruence collapse — verify the :PATH frame structure first).
+> Downstream of this row: the capstone mirror's rule:PERM-TLFIX
+> discharger and P3's last gap.**
 > **PCE MIRROR — OUTCOME (2026-08-05): the plan below was probed and
 > the honest blocker is NOT simulation work. The PCE exec kit already
 > existed (pceExec/pce_exec_corr/dis_pce_total — the discharger-

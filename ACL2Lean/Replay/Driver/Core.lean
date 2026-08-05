@@ -1187,6 +1187,49 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             ctx ← pinTermOpaques cfg cfg.envExpr ctx v
         return ← composeSplit rec cfg ctx idStr lp chainOpt clit restLits branchSegs
           accClause children [] tree
+      -- COMPLEMENT-TAUTOLOGY close (close-out 2026-08-05 — the
+      -- add-literal complement-recognition class the equiv-lane audit
+      -- F2/F3 recorded as a loud frontier): a non-closing literal with NO
+      -- recorded continuation is how the log shows ACL2's `add-literal`
+      -- recognizing the rewritten result's COMPLEMENT among the earlier
+      -- assumed-false literals and dropping the clause as proved. The
+      -- mirror: the in-scope FALSITY of `(NOT result)` makes the result's
+      -- value ≠ nil; the literal's own chain transports that to the
+      -- original literal; the whole disjunction closes at this position.
+      -- Consumed from the clause context — no fact is derived that the
+      -- branch walk did not already establish.
+      if branchSegs.isEmpty then
+        let notR : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+          (.cons lp.result .nil)
+        let ctxC ← pinTermOpaques cfg cfg.envExpr ctx lp.result
+        let vR ← ctxValExpr cfg ctxC lp.result
+        let hit ← ctxC.litFactByTermChecked? notR
+          (← mkEq (mkApp (mkConst ``Logic.not) vR) (mkConst ``SExpr.nil))
+        let some hNotNil := hit
+          | throwError "replayClauseSpine: non-closing literal {idx} with \
+              no continuation branch at {idStr} (frontier; no in-scope \
+              complement for {repr lp.result})"
+        let hneR ← mkAppM ``logic_not_nil_ne #[vR, hNotNil]
+        let pR ← ctxValProof cfg ctxC lp.result
+        let ctxL ← pinTermOpaques cfg cfg.envExpr ctxC lp.literal
+        let pLit ← ctxValProof cfg ctxL lp.literal
+        let hne ← match chainOpt with
+          | none => do
+            unless lp.literal == lp.result do
+              throwError "replayClauseSpine: complement close — no chain \
+                  but literal ≠ result at {idStr} (internal)"
+            pure hneR
+          | some (ch, false) => do
+            let vE ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pR]
+            mkAppM ``ne_of_eq_of_ne #[vE, hneR]
+          | some (_, true) =>
+            throwError "replayClauseSpine: complement close under an IFF \
+                chain at {idStr} (frontier)"
+        let allLits := clauseLits.map (·.2)
+        let some pos := clauseLits.findIdx? (fun (i, _) => i == idx)
+          | throwError "replayClauseSpine: internal — literal {idx} not in \
+              the clause at {idStr}"
+        return ← evtrueOfLitTrue cfg ctxL allLits pos lp.literal hne
       -- TRIVIAL continuation: exactly one branch, its segment matching the
       -- single trace leaf's clause segment
       let (contItems, segLits) ← match branchSegs with
