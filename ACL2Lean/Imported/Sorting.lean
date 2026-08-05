@@ -1204,6 +1204,74 @@ theorem how_many_isort_native_of_replayed (w : World)
     ((isortL xs).count ev) (xs.count ev) h_no_equal hL hR (hreplayed e)
   omega
 
+/-! ## The convert-perm book: NOT-MEMB-IMPLIES-HOW-MANY-IS-0 -/
+
+/-- The NOT-MEMB-IMPLIES-HOW-MANY-IS-0 replayed-statement formula:
+    `(IMPLIES (NOT (MEMB A X)) (EQUAL (HOW-MANY A X) '0))`. -/
+def not_memb_how_many_0Formula : SExpr :=
+  impliesT (notT (membT aT xT)) (equalT (howManyT aT xT) q0)
+
+/-- NOT-MEMB-IMPLIES-HOW-MANY-IS-0, natively: an absent element has
+    `List.count` zero. -/
+theorem not_memb_how_many_0_native_of_replayed (w : World)
+    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
+      = some ([{ package := "ACL2", name := "A" },
+               { package := "ACL2", name := "X" }], membBody))
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env not_memb_how_many_0Formula = some v ∧ v ≠ SExpr.nil)
+    (av : SExpr) (xs : List SExpr) (hmem : xs.contains av = false) :
+    xs.count av = 0 := by
+  let e : Env := (({} : Env).insert xS (enc xs)).insert aS av
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
+    re_val_var_get w e { name := "A" } av (by
+      show e.get? aS = some av
+      rw [show e = (({} : Env).insert xS (enc xs)).insert aS av from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = (({} : Env).insert xS (enc xs)).insert aS av from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  -- the antecedent: (memb a x) computes nil (absent), so (not …) is truthy
+  have hMemb := corr_memb_enc w h_memb h_no_consp h_no_equal h_no_car
+    h_no_cdr xs e aT xT av ha hx
+  have hNot := conv_builtin1 w e { name := "NOT" } (membT aT xT)
+    (bif xs.contains av then SExpr.t else SExpr.nil)
+    (Logic.not (bif xs.contains av then SExpr.t else SExpr.nil))
+    (by decide) h_no_not hMemb (callBuiltin_not _)
+  -- the count side: (how-many a x) computes the int count; '0 is int 0
+  have hHM : ∃ N, ∀ f ≥ N, evalOpt f w e (howManyT aT xT)
+      = some (.atom (.number (.int (xs.count av)))) := by
+    have h := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+      h_no_cdr h_no_plus e aT xT av (enc xs) ha hx
+    rw [howManyExec_enc] at h
+    exact h
+  have h0 : ∃ N, ∀ f ≥ N, evalOpt f w e q0
+      = some (.atom (.number (.int 0))) := re_val_quote w e _
+  have hEq := conv_builtin2 w e { name := "EQUAL" } _ _ _ _ _ (by decide)
+    h_no_equal hHM h0 (callBuiltin_equal _ _)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
+    h_no_implies hNot hEq (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have hconc := truthy_of_implies_t hIt (by rw [hmem]; rfl)
+  have hEqv : SExpr.atom (.number (.int (xs.count av)))
+      = SExpr.atom (.number (.int 0)) := by
+    refine Logic.eq_of_equal_ne_nil (fun hnil => ?_)
+    rw [hnil] at hconc
+    exact absurd hconc (by decide)
+  have : (xs.count av : Int) = 0 := by
+    injection hEqv with h1; injection h1 with h2; injection h2
+  omega
+
 /-! ## The qsort book: HOW-MANY-APPEND / CAR-APPEND -/
 
 abbrev appendT (a b : SExpr) : SExpr := app2 "BINARY-APPEND" a b

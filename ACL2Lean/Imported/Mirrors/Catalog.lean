@@ -129,8 +129,8 @@ def liftCatalog : List (String × String × LiftStatus) := [
       hypothesis) — native-worthy in its own right (audit F2 corrected the \
       earlier subsumption claim); P3 decides"),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-HOW-MANY-IS-0",
-    .pending "count-of-absent-element — native-worthy \
-      (List.count_eq_zero); P3 decides"),
+    .native ``not_memb_how_many_0_native_driver
+      ``notMembHowMany0ReplayedCond),
   ("sorting/convert-perm-to-how-many", "TRUE-LISTP-RM",
     .pending "erase preserves true-listness (List reading is native-worthy \
       alongside the RM family); greened by the ground-hyp KNOWN-TRUE arm \
@@ -306,6 +306,7 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.orderedp_memb_native_driver,
             ``ACL2.Imported.Mirrors.how_many_isort_native_driver,
             ``ACL2.Imported.Mirrors.how_many_append_native_driver,
+            ``ACL2.Imported.Mirrors.not_memb_how_many_0_native_driver,
             ``ACL2.Imported.Mirrors.car_append_native_driver,
             ``ACL2.Imported.Mirrors.perm_implies_equal_all_rel_2_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,

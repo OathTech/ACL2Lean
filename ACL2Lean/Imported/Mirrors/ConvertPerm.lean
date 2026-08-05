@@ -17,4 +17,35 @@ def convertPermDev : Development :=
   (((ProofLog.parse convertPermLog).toOption.bind
     fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
 
+/-! ## The convert-perm book's own mirrors (Phase 7 of the close-out arc) -/
+
+derive_world convertPermWorldD from convertPermDev
+
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for
+    NOT-MEMB-IMPLIES-HOW-MANY-IS-0 (hypothesis: `tp:HOW-MANY`). -/
+def notMembHowMany0ReplayedCond := driver_replayed% convertPermDev
+  convertPermWorldD "not-memb-implies-how-many-is-0"
+
+/-- The unconditional form (the `tp:HOW-MANY` hypothesis discharged by the
+    standard nonneg-int TP discharger at this world). -/
+theorem notMembHowMany0Replayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
+      Worlds.Sorting.not_memb_how_many_0Formula = some v ∧ v ≠ SExpr.nil :=
+  notMembHowMany0ReplayedCond env
+    (Worlds.Sorting.dis_how_many_tp convertPermWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — NOT-MEMB-IMPLIES-HOW-MANY-IS-0 natively: an absent
+    element has `List.count` zero (the `List.count_eq_zero` class). -/
+theorem not_memb_how_many_0_native_driver (av : SExpr) (xs : List SExpr)
+    (h : xs.contains av = false) :
+    xs.count av = 0 :=
+  Worlds.Sorting.not_memb_how_many_0_native_of_replayed convertPermWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) notMembHowMany0Replayed_uncond
+    av xs h
+
+#print axioms not_memb_how_many_0_native_driver
+
 end ACL2.Imported.Mirrors
