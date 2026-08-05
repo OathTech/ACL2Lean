@@ -1157,8 +1157,21 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             let brS ← mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, br, pConv]
             pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, ch, brS], true))
         | none =>
-          throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
-                      at {idStr}, recorded result is {repr lp.result}"
+          -- the literal-boundary IFF-normalization tower (bridgeIffBoolNorm)
+          match ← bridgeIffBoolNorm cfg ctx finalT lp.result with
+          | some br => match chainOpt with
+            | none => pure (some ((br, false) : Expr × Bool))
+            | some (ch, false) =>
+              pure (some (← mkAppM ``fuel_chain_eq #[ch, br], false))
+            | some (ch, true) => do
+              let pConv ← ctxValProof cfg ctx lp.result
+              let brS ← mkAppM ``evrel_of_fuel_eq
+                #[mkConst ``siff_refl, br, pConv]
+              pure (some (← mkAppM ``evrel_trans
+                #[mkConst ``siff_trans, ch, brS], true))
+          | none =>
+            throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
+                        at {idStr}, recorded result is {repr lp.result}"
       -- does the clausify decision trace SPLIT?
       let hasSplit := lp.splitTrace.any fun
         | .test _ v _ _ => v == "split"

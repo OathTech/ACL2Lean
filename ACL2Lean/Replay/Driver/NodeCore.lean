@@ -2816,6 +2816,108 @@ def bridgeEqualNilNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, reflectSExpr r,
       hNoEq, ha, hb, hr])
 
+/-- Bridge the UNRECORDED literal-boundary IFF-normalization tower
+    (rewrite-atm's iff-context literal normalization — no recorded steps;
+    the PCE-IS-COUNTEREXAMPLE class): a chain-end mismatch `(NOT u)`
+    (reached) vs `(NOT v)` (recorded) where `u` reduces to `v` (or its
+    boolean wrapper) by TOP-LEVEL moves — (A) the boolean-wrapped test
+    collapse `(IF (IF a 'T 'NIL) b c) → (IF a b c)`, (B) the KNOWN-TRUE
+    test drop `(IF t b 'T) → b` (the truth consumed from the clause
+    context's falsified `(NOT t)` fact, never derived), and the final (C)
+    NOT-boolean-wrapper collapse. Recompute-and-check toward the RECORDED
+    term; any residue → `none` (the caller's fail-closed mismatch error
+    stands). -/
+partial def bridgeIffBoolNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (reached recorded : SExpr) : MetaM (Option Expr) := do
+  let notOf : SExpr → Option SExpr := fun s => match s with
+    | .cons (.atom (.symbol n)) (.cons u .nil) =>
+      if n.name == "NOT" then some u else none
+    | _ => none
+  let boolWrap (a : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "IF" }))
+      (.cons a (.cons quoteT (.cons quoteNil .nil)))
+  let some u0 := notOf reached | return none
+  let some v := notOf recorded | return none
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx reached
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx recorded
+  let step (cur : SExpr) : MetaM (Option (SExpr × Expr)) := do
+    match cur with
+    | .cons (.atom (.symbol ifS)) (.cons t (.cons b (.cons e .nil))) => do
+      unless ifS.name == "IF" do return none
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx cur
+      -- move A: the test is a boolean wrapper
+      if let some a := (match t with
+          | .cons (.atom (.symbol i2)) (.cons a (.cons th (.cons el .nil))) =>
+            if i2.name == "IF" && th == quoteT && el == quoteNil then some a
+            else none
+          | _ => none) then
+        let va ← ctxValExpr cfg ctx a
+        let ha ← ctxValProof cfg ctx a
+        let hbe ← proveConv cfg cfg.envExpr ctx b
+        let hce ← proveConv cfg cfg.envExpr ctx e
+        let next : SExpr := .cons (.atom (.symbol { name := "IF" }))
+          (.cons a (.cons b (.cons e .nil)))
+        let h ← mkAppM ``re_if_boolwrap_test
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b,
+            reflectSExpr e, va, ha, hbe, hce]
+        return some (next, h)
+      -- move B: else is 'T and the test is KNOWN TRUE from the clause ctx
+      if e == quoteT then
+        let notT : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+          (.cons t .nil)
+        let vT ← ctxValExpr cfg ctx t
+        let hit ← ctx.litFactByTermChecked? notT
+          (← mkEq (mkApp (mkConst ``Logic.not) vT) (mkConst ``SExpr.nil))
+        let some hNot := hit | return none
+        let hne ← mkAppM ``logic_not_nil_ne #[vT, hNot]
+        let htb ← mkAppM ``toBool_true_of_ne_nil #[hne]
+        let hT ← ctxValProof cfg ctx t
+        let hbe ← proveConv cfg cfg.envExpr ctx b
+        let h ← mkAppM ``re_if_true_test_drop
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr t, reflectSExpr b,
+            vT, hT, htb, hbe]
+        return some (b, h)
+      return none
+    | _ => return none
+  let mut cur := u0
+  let mut chain? : Option Expr := none
+  for _ in List.range 8 do
+    if cur == v || cur == boolWrap v then break
+    match ← step cur with
+    | some (next, h) =>
+      chain? := some (← match chain? with
+        | none => pure h
+        | some ch => mkAppM ``fuel_chain_eq #[ch, h])
+      cur := next
+    | none => return none
+  let hNoNot ← proveNoShadow cfg { name := "NOT" }
+  if cur == v then
+    let some ch := chain? | return none
+    let ctxF ← pinTermOpaques cfg cfg.envExpr ctx u0
+    let ctxF ← pinTermOpaques cfg cfg.envExpr ctxF v
+    return some (← mkAppM ``re_not_congr_eval
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr u0, reflectSExpr v,
+        ← ctxValExpr cfg ctxF u0, ← ctxValExpr cfg ctxF v,
+        hNoNot, ← ctxValProof cfg ctxF u0, ← ctxValProof cfg ctxF v, ch])
+  else if cur == boolWrap v then
+    let ctxF ← pinTermOpaques cfg cfg.envExpr ctx u0
+    let ctxF ← pinTermOpaques cfg cfg.envExpr ctxF (boolWrap v)
+    let vV ← ctxValExpr cfg ctxF v
+    let hV ← ctxValProof cfg ctxF v
+    let hC ← mkAppM ``re_not_boolwrap
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr v, vV, hNoNot, hV]
+    match chain? with
+    | none => return some hC
+    | some ch =>
+      let hLift ← mkAppM ``re_not_congr_eval
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr u0,
+          reflectSExpr (boolWrap v), ← ctxValExpr cfg ctxF u0,
+          ← ctxValExpr cfg ctxF (boolWrap v), hNoNot,
+          ← ctxValProof cfg ctxF u0, ← ctxValProof cfg ctxF (boolWrap v),
+          ch]
+      return some (← mkAppM ``fuel_chain_eq #[hLift, hC])
+  else return none
+
 /-- `bridgeEqualNilNorm` at DEPTH: descend the UNIQUE-difference path of
     reached vs recorded (same head/arity along it), bridge the mismatching
     subterm, and lift through the common frames (sorting-completion-2,
