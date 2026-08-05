@@ -810,7 +810,16 @@ _Last updated: 2026-08-02._
 > lemma + fuel_eq_of_conv; compose fuel_chain_eq; wire beside
 > bridgeEqualNilNorm at the literal chain end (Core.lean ~1150) and
 > the definition/lambda chain ends. Verify the branch fact for (B)
-> exists in the PCE *1/3' context (the theorem's TRUE-LISTP hyps).**
+> exists in the PCE *1/3' context (the theorem's TRUE-LISTP hyps).
+> BUILT + WALL DEEPENED (257dbf8): the bridge is in (4 conv lemmas +
+> the bounded normalizer, fail-closed, golden byte-identical) but the
+> PCE row honestly declines it — the RECORDED result carries FURTHER
+> inner rewrites (a HOW-MANY unfolding inside the IF's test position)
+> beyond the tower: the chain builder never composed those recorded
+> steps, i.e. the row's true wall is a WINDOW-COMPOSITION gap under
+> the tower (the IF-FINISH window family — the same class the
+> recognizer-tuple fork item feeds). The bridge stands for the
+> pure-tower class; the row waits on the window composition.**
 > **PERM-TLFIX — CLASSIFICATION SHARPENED (2026-08-05, read off the
 > dump + the ratified equiv-lane design): the failing node is the
 > IH-as-rewriting-equivalence with equiv (PERM (TLFIX (CDR X))
