@@ -138,6 +138,16 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     -- kept-cond list as the constant's binder telescope; a differently-
     -- ascribed enclosing decl would register a lying shape (caught loudly
     -- by unification at the consumer, never silently).
+    -- ASSUMED guard (remediation verifier N1, 2026-08-05): this path
+    -- registers conds verbatim, bypassing `tryReplay`'s choke point — an
+    -- ASSUMED:dp-fact condition states an obligation over
+    -- independently-quantified opaques that can be FALSE, so a mirror
+    -- carrying it must never be registered (same policy as the sweep;
+    -- the with_termination sub-path already fails loudly via reg? none).
+    if conds.contains "ASSUMED:dp-fact" then
+      throwError "driver_replayed%: the replay is conditional on an \
+        ASSUMED dp-fact (an unproved, possibly-false obligation) — \
+        refusing to register the mirror; fix the leaf's emission instead"
     if let some declName ← Lean.Elab.Term.getDeclName? then
       Lean.modifyEnv fun e =>
         mirrorRegistryExt.addEntry e (worldName, cp.name, declName, conds)

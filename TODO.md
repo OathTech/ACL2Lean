@@ -793,7 +793,17 @@ _Last updated: 2026-08-02._
 > 97190e1 designed builtinIntVal? route (D5) — KEPT (it gates the
 > valid termination:BNEXT green and the audit verified it sound and
 > properly emission-gated) with the redesign queued alongside the
-> recognizer-tuple emission, which subsumes it.**
+> recognizer-tuple emission, which subsumes it. VERIFIER RESIDUALS
+> (fresh re-verification, READY): N1 closed — the driver_replayed%
+> registration path now refuses ASSUMED conds loudly (Macro.lean;
+> the with_termination sub-path already failed loudly). RECORDED:
+> S6 — position-canonical disambiguation (d136e6a) pins candidate
+> FRAMES but not preSwap?/branchAnchor across survivors, then
+> prefers the branch-anchored one (fail-closed downstream, LOW-MED;
+> pin all three or prove uniqueness). N2 — "ASSUMED:dp-fact" is a
+> string literal at three sites (Runner ×2, Harness, now Macro);
+> extract one named constant so a rename cannot silently disable
+> the guard.**
 > **ITEM-4 SMOKE DIAGNOSIS (2026-08-02): :TA-DERIVATIONS is all-NIL
 > at the relief site — CONFIRMED CAUSE: expunge-fc-derivations
 > (simplify.lisp:1655) flattens every fcd into a 'lemma rune tag

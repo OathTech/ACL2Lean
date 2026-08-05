@@ -1,5 +1,24 @@
 # Consumer-queue sub-arc audit — 2026-08-05
 
+> **REMEDIATION ADDENDUM (same day).** Fix round applied in commit
+> `3029890` (S1/S2/S4: ASSUMED-conditioned composed replays render
+> `ASSUMED ◌`, never register — single choke point in `tryReplay`; catalog
+> entry removed; legend enforced. D1–D4: the two walker commits REVERTED
+> byte-exactly per ratified §3(c), fork emission items queued in TODO —
+> `:FALSETS` + recognizer-tuple snapshot + `:TYPESET`/`:TRUETS`
+> cross-check. S3: `thmAt` now `Meta.check`s the application. S7/D5/D7
+> dispositions recorded in TODO). Re-verified by a FRESH verifier against
+> this record: **READY for fold-back** — revert confirmed byte-identical
+> to `4e4ac03` outside the three remediation files; no
+> `ReplayedTermination.*_BSORT` constant declared; mirror registry scanned
+> clean (43 entries, none ASSUMED); `just ci` TRUE_EXIT=0 re-run
+> independently; no theorem row regressed vs the sub-arc base `e3b33e9`.
+> Verifier residuals closed in the follow-up commit: N1 (the
+> `driver_replayed%` registration path now refuses ASSUMED conds loudly),
+> N4 (this addendum), S6/N2 recorded in TODO. Root cause of S1
+> (`dpFactStmt`'s independent quantification) remains QUEUED, contained
+> structurally.
+
 **Scope:** branch `mdd/consumer-queue`, commits `d136e6a..5053e7c` (8 commits,
 base `e3b33e9`): position-canonical anchoring; recorded-termination demand
 widening; POSP/NATP DP registration; BNEXT-SIZE layers 3–4 (builtinRecogFacts,
