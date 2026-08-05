@@ -2785,6 +2785,54 @@ def bridgeEqualNilNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
     (reached recorded : SExpr) : MetaM (Option Expr) := do
   let eqT (a b : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil))
+  -- the if-interp call-stack fold, L-orientation (rewrite.lisp:3791-3793,
+  -- the PCE tower's residue): reached (EQUAL 'T (EQUAL a b)) vs recorded
+  -- (EQUAL a b)
+  if let .cons (.atom (.symbol re2)) (.cons a (.cons b .nil)) := recorded then
+    if re2.name == "EQUAL" && reached == eqT quoteT recorded then
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx recorded
+      let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
+      let va ← ctxValExpr cfg ctx a
+      let vb ← ctxValExpr cfg ctx b
+      let ha ← ctxValProof cfg ctx a
+      let hb ← ctxValProof cfg ctx b
+      return some (← mkAppM ``re_equal_t_fold_l
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b,
+          va, vb, hNoEq, ha, hb])
+  -- the BOOLEAN-TP fold (the PCE tower's residue): reached (EQUAL p 'T)
+  -- vs recorded p, where p's fn carries an emitted BOOLEAN TP corollary
+  -- `(IF (EQUAL p 'T) 'T (EQUAL p 'NIL))` — two-valuedness makes the
+  -- fold a value identity (consumed, not inferred).
+  if reached == eqT recorded quoteT then
+    if let .cons (.atom (.symbol fs)) argsSpine := recorded then
+      if let some (_, cor, tpHyp) :=
+          ctx.tpHyps.find? (fun (n, _, _) => n == fs.name) then do
+        let some (formals, _) := cfg.worldVal.defs.get? fs | return none
+        let args := (argsSpine.toList?).getD []
+        if formals.length == args.length then do
+          let inst := ACL2.Replay.substTerm formals args cor
+          let expected : SExpr :=
+            .cons (.atom (.symbol { name := "IF" }))
+              (.cons (eqT recorded quoteT)
+                (.cons quoteT (.cons (eqT recorded quoteNil) .nil)))
+          if inst == expected then do
+            let ctx ← pinTermOpaques cfg cfg.envExpr ctx recorded
+            let some (vp, convp) := ctx.val? recorded | return none
+            let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+              ++ (args.map reflectSExpr).toArray ++ #[vp, convp])
+            let hveq ← mkAppM ``logic_equal_t_self_of_boolean_tp #[fact]
+            let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
+            let hp ← ctxValProof cfg ctx recorded
+            let hOuter ← mkAppM ``conv_builtin2
+              #[cfg.worldExpr, cfg.envExpr,
+                reflectSymbol { name := "EQUAL" }, reflectSExpr recorded,
+                reflectSExpr quoteT, vp, mkConst ``SExpr.t,
+                mkApp2 (mkConst ``Logic.equal) vp (mkConst ``SExpr.t),
+                ← proveNotSpecial { name := "EQUAL" }, hNoEq, hp,
+                ← mkAppM ``re_val_quote
+                  #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t],
+                ← mkAppM ``callBuiltin_equal #[vp, mkConst ``SExpr.t]]
+            return some (← mkAppM ``fuel_eq_of_conv #[hOuter, hp, hveq])
   let .cons (.atom (.symbol ifS)) (.cons x (.cons thn (.cons els .nil))) := recorded
     | return none
   unless ifS.name == "IF" do return none
@@ -2868,9 +2916,51 @@ partial def bridgeIffBoolNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
         let vT ← ctxValExpr cfg ctx t
         let hit ← ctx.litFactByTermChecked? notT
           (← mkEq (mkApp (mkConst ``Logic.not) vT) (mkConst ``SExpr.nil))
-        let some hNot := hit | return none
-        let hne ← mkAppM ``logic_not_nil_ne #[vT, hNot]
-        let htb ← mkAppM ``toBool_true_of_ne_nil #[hne]
+        let htb? : Option Expr ← do
+          match hit with
+          | some hNot => do
+            let hne ← mkAppM ``logic_not_nil_ne #[vT, hNot]
+            pure (some (← mkAppM ``toBool_true_of_ne_nil #[hne]))
+          | none =>
+            -- the TLP-CDR source: `t = (TRUE-LISTP (CDR u))` from the
+            -- demand-hoisted `(NOT (TRUE-LISTP u))` literal's falsity
+            -- through the cdr closure (logic_trueListp_cdr)
+            match t with
+            | .cons (.atom (.symbol tls))
+                (.cons (.cons (.atom (.symbol cs)) (.cons u .nil)) .nil) => do
+              if !(tls.name == "TRUE-LISTP" && cs.name == "CDR") then
+                pure none
+              else do
+                let tlpU : SExpr :=
+                  .cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                    (.cons u .nil)
+                let notTlpU : SExpr :=
+                  .cons (.atom (.symbol { name := "NOT" })) (.cons tlpU .nil)
+                let ctx ← pinTermOpaques cfg cfg.envExpr ctx tlpU
+                let vU ← ctxValExpr cfg ctx u
+                let hitU ← ctx.litFactByTermChecked? notTlpU
+                  (← mkEq (mkApp (mkConst ``Logic.not)
+                      (mkApp (mkConst ``Logic.trueListp) vU))
+                    (mkConst ``SExpr.nil))
+                match hitU with
+                | none => pure none
+                | some hNotU => do
+                  let hneU ← mkAppM ``logic_not_nil_ne
+                    #[mkApp (mkConst ``Logic.trueListp) vU, hNotU]
+                  let hTlU ← mkAppM ``logic_trueListp_ne_nil_t #[vU, hneU]
+                  let hTlCdr ← mkAppM ``logic_trueListp_cdr #[hTlU]
+                  -- vT must BE trueListp (cdr vU); the toBool cast is then
+                  -- definitional (toBool t ≡ true)
+                  if ← isDefEq vT (mkApp (mkConst ``Logic.trueListp)
+                      (mkApp (mkConst ``Logic.cdr) vU)) then
+                    let htbEq ← mkAppM ``congrArg
+                      #[mkConst ``Logic.toBool, hTlCdr]
+                    pure (some (← mkExpectedTypeHint htbEq
+                      (← mkEq (mkApp (mkConst ``Logic.toBool) vT)
+                        (mkConst ``Bool.true))))
+                  else pure none
+            | _ => pure none
+        let some htb := htb? | return none
         let hT ← ctxValProof cfg ctx t
         let hbe ← proveConv cfg cfg.envExpr ctx b
         let h ← mkAppM ``re_if_true_test_drop
@@ -4534,15 +4624,29 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           ++ (args.map reflectSExpr).toArray ++ #[vz, convz]))
     let numericCell? ← do
       match x, cv with
-      | .cons (.atom (.symbol pS))
-          (.cons oneT (.cons (.cons (.atom (.symbol pS2))
-            (.cons pT (.cons qT .nil))) .nil)),
+      | .cons (.atom (.symbol pS)) (.cons oneT (.cons uT .nil)),
         .atom (.number (.int 0)) =>
-        if pS.name == "BINARY-+" && pS2.name == "BINARY-+" && oneT == q1 then
-          match ← tpNonnegFactOf pT, ← tpNonnegFactOf qT with
-          | some fp, some fq =>
-            pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg #[fp, fq]))
-          | _, _ => pure none
+        if pS.name == "BINARY-+" && oneT == q1 then do
+          -- nested-sum sub-case (BINARY-+ '1 (BINARY-+ p q)) first; any
+          -- other summand (the PCE tower's HOW-MANY) takes the
+          -- SINGLE-SUMMAND sibling off its own emitted nonneg-int TP
+          let nested? ← match uT with
+            | .cons (.atom (.symbol pS2)) (.cons pT (.cons qT .nil)) =>
+              if pS2.name == "BINARY-+" then
+                match ← tpNonnegFactOf pT, ← tpNonnegFactOf qT with
+                | some fp, some fq =>
+                  pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg
+                    #[fp, fq]))
+                | _, _ => pure none
+              else pure none
+            | _ => pure none
+          match nested? with
+          | some h => pure (some h)
+          | none =>
+            match ← tpNonnegFactOf uT with
+            | some fu =>
+              pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg1 #[fu]))
+            | none => pure none
         else pure none
       | _, _ => pure none
     let hVal ←

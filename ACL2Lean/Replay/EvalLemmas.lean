@@ -3914,6 +3914,21 @@ theorem logic_equal_nil_of_plus1_nonneg {a b : SExpr}
   simp [Logic.equal, SExpr.t]
   omega
 
+/-- The SINGLE-SUMMAND positive-sum vs '0 cell: `1 + a` with `a` a nonneg
+    integer (its emitted TP shape) can never equal 0 — the same
+    disjointness cell at the `(BINARY-+ '1 u)` shape (the PCE tower's
+    HOW-MANY summand). -/
+theorem logic_equal_nil_of_plus1_nonneg1 {a : SExpr}
+    (ha : (bif Logic.toBool (Logic.integerp a)
+          then Logic.not (Logic.lt a (.atom (.number (.int 0))))
+          else SExpr.nil) = SExpr.t) :
+    Logic.equal (Logic.plus (.atom (.number (.int 1))) a)
+      (.atom (.number (.int 0))) = SExpr.nil := by
+  obtain ⟨m, rfl⟩ := dp_nonneg_int_of_tp ha
+  rw [logic_plus_int]
+  simp [Logic.equal, SExpr.t]
+  omega
+
 /-- `car` of a NON-cons defaults to `nil` (ACL2's completion axiom, value
     level — the type-set entry composition consumes it). -/
 theorem logic_car_of_consp_nil {v : SExpr} (h : Logic.consp v = SExpr.nil) :
@@ -5701,6 +5716,18 @@ theorem re_val_if_nil_t (w : World) (env : Env) (x vx : SExpr)
     obtain ⟨g', rfl⟩ : ∃ g', g = g' + 1 := ⟨g - 1, by omega⟩
     exact evalOpt_quote g' w env SExpr.t
 
+/-- true-listness closes under `cdr` — ACL2's type-set closure consumed by
+    the tower bridge's move B when the known-true test is
+    `(TRUE-LISTP (CDR u))` sourced from a `(NOT (TRUE-LISTP u))` clause
+    literal's falsity (the demand-hoisted later literal). -/
+theorem logic_trueListp_cdr {x : SExpr}
+    (h : Logic.trueListp x = SExpr.t) :
+    Logic.trueListp (Logic.cdr x) = SExpr.t := by
+  match x with
+  | .cons a d => simpa [Logic.trueListp, Logic.cdr] using h
+  | .nil => rfl
+  | .atom a => simp [Logic.trueListp, SExpr.t] at h
+
 /-- `(if x 't 'nil)` converges to `(bif toBool vx then t else nil)` — the
     boolean wrapper's value form (the literal-boundary iff-normalization
     bridge's wrapper). -/
@@ -5860,6 +5887,58 @@ theorem re_equal_nil_norm_l (w : World) (env : Env) (x : SExpr)
 theorem logic_equal_equal_t_r (a b : SExpr) :
     Logic.equal (Logic.equal a b) SExpr.t = Logic.equal a b := by
   by_cases h : (a == b) = true <;> simp [Logic.equal, h, SExpr.t]
+
+/-- The L-orientation of the same fold: `(equal 't (equal a b)) = (equal
+    a b)`. -/
+theorem logic_equal_t_equal_l (a b : SExpr) :
+    Logic.equal SExpr.t (Logic.equal a b) = Logic.equal a b := by
+  by_cases h : (a == b) = true <;> simp [Logic.equal, h, SExpr.t]
+
+/-- The BOOLEAN-TP fold's value identity: a two-valued `v` (the emitted
+    boolean TP corollary's lifted content) satisfies `(equal v 't) = v`. -/
+theorem logic_equal_t_self_of_boolean_tp {v : SExpr}
+    (h : (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+          else Logic.equal v SExpr.nil) = SExpr.t) :
+    Logic.equal v SExpr.t = v := by
+  by_cases hv : (v == SExpr.t) = true
+  · have hveq : v = SExpr.t := eq_of_beq hv
+    subst hveq
+    simp [Logic.equal]
+  · have h1 : Logic.equal v SExpr.t = SExpr.nil := by
+      simp [Logic.equal, hv]
+    rw [h1]
+    rw [h1] at h
+    simp only [Logic.toBool, cond_false] at h
+    have hnil : v = SExpr.nil := by
+      by_cases h2 : (v == SExpr.nil) = true
+      · exact eq_of_beq h2
+      · simp [Logic.equal, h2, SExpr.t] at h
+    rw [hnil]
+
+/-- The eval-equality form of the L-fold, for the chain-end bridge:
+    `(EQUAL 'T (EQUAL a b)) ≡ (EQUAL a b)` given both sides' args
+    converge and `EQUAL` is unshadowed. -/
+theorem re_equal_t_fold_l (w : World) (env : Env) (a b va vb : SExpr)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some vb) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol { name := "EQUAL" }))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+          (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+            (.cons a (.cons b .nil))) .nil)))
+      = evalOpt f w env (.cons (.atom (.symbol { name := "EQUAL" }))
+          (.cons a (.cons b .nil))) := by
+  have hInner := conv_builtin2 w env { name := "EQUAL" } a b va vb
+    (Logic.equal va vb) (by decide) h_no_equal ha hb
+    (callBuiltin_equal va vb)
+  have hOuter := conv_builtin2 w env { name := "EQUAL" }
+    (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
+    (.cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil)))
+    SExpr.t (Logic.equal va vb) (Logic.equal SExpr.t (Logic.equal va vb))
+    (by decide) h_no_equal (re_val_quote w env SExpr.t) hInner
+    (callBuiltin_equal SExpr.t (Logic.equal va vb))
+  exact fuel_eq_of_conv hOuter hInner (logic_equal_t_equal_l va vb)
 
 /-- Mirrored: `(equal 't (equal a b)) = (equal a b)` (rewrite.lisp:3785-3789). -/
 theorem logic_equal_equal_t_l (a b : SExpr) :

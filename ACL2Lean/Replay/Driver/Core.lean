@@ -1019,8 +1019,34 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- later clause literal with no fact in scope, case-split on that literal
     -- FIRST — its truth closes the whole disjunction; its falsity joins
     -- litFacts and the walk re-enters (one fewer demand each time).
+    -- the TLP-CDR demand (PCE tower class, 2026-08-05): a literal whose
+    -- own term mentions `(TRUE-LISTP (CDR u))` (an IMPLIES antecedent
+    -- conjunct) consumes the LATER `(NOT (TRUE-LISTP u))` literal's
+    -- falsity through the cdr closure — demand that literal so the hoist
+    -- case-splits on it first. A demand that matches no later literal is
+    -- skipped harmlessly at the hoist site.
+    let tlpCdrDemands : SExpr → List ContextDemand := fun lit =>
+      let rec walk : SExpr → List SExpr
+        | .cons (.atom (.symbol q)) args =>
+          if q.name == "QUOTE" then []
+          else
+            (match q.name, args with
+             | "TRUE-LISTP", .cons (.cons (.atom (.symbol c))
+                 (.cons u .nil)) .nil =>
+               if c.name == "CDR" then [u] else []
+             | _, _ => []) ++
+            (let rec walkArgs : SExpr → List SExpr
+              | .cons a rest => walk a ++ walkArgs rest
+              | _ => []
+             walkArgs args)
+        | _ => []
+      (walk lit).map fun u =>
+        ContextDemand.term (.cons (.atom (.symbol { name := "NOT" }))
+          (.cons (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+            (.cons u .nil)) .nil))
     let demanded := (lp.nodes.flatMap collectContextDemands ++
-      lp.nodes.flatMap (collectDefBodyDemands cfg)).eraseDups
+      lp.nodes.flatMap (collectDefBodyDemands cfg) ++
+      tlpCdrDemands lp.literal).eraseDups
     -- "fact in scope" must mean a WELL-TYPED fact (sorting-completion-2
     -- class A: an env-crossed segFact leaked from a parent elim walk
     -- satisfies the UNCHECKED lookup, suppressing the hoist — and then the
@@ -1170,8 +1196,22 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
               pure (some (← mkAppM ``evrel_trans
                 #[mkConst ``siff_trans, ch, brS], true))
           | none =>
-            throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
-                        at {idStr}, recorded result is {repr lp.result}"
+            -- the deep walker lifts the shallow bridge shapes (incl. the
+            -- new boolean-TP fold) through common frames (NOT, …)
+            match ← bridgeEqualNilNormDeep cfg ctx finalT lp.result with
+            | some br => match chainOpt with
+              | none => pure (some ((br, false) : Expr × Bool))
+              | some (ch, false) =>
+                pure (some (← mkAppM ``fuel_chain_eq #[ch, br], false))
+              | some (ch, true) => do
+                let pConv ← ctxValProof cfg ctx lp.result
+                let brS ← mkAppM ``evrel_of_fuel_eq
+                  #[mkConst ``siff_refl, br, pConv]
+                pure (some (← mkAppM ``evrel_trans
+                  #[mkConst ``siff_trans, ch, brS], true))
+            | none =>
+              throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
+                          at {idStr}, recorded result is {repr lp.result}"
       -- does the clausify decision trace SPLIT?
       let hasSplit := lp.splitTrace.any fun
         | .test _ v _ _ => v == "split"
