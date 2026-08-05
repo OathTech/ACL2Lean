@@ -122,8 +122,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- CONVERT-PERM-TO-HOW-MANY; the three native-worthy count facts are
   -- PENDING (P3 decides), the tlfix/plumbing rows replayed-only.
   ("sorting/convert-perm-to-how-many", "HOW-MANY-RM",
-    .pending "count/erase interaction — native-worthy (howManyExec_rmExec \
-      already proves the value-level fact); P3 decides"),
+    .native ``how_many_rm_native_driver ``howManyRmReplayedCond),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-RM-IS-NO-OP",
     .native ``not_memb_rm_noop_native_driver
       ``notMembRmNoopReplayedCond),
@@ -307,6 +306,7 @@ run_cmd Lean.Elab.Command.liftCoreM do
             ``ACL2.Imported.Mirrors.how_many_append_native_driver,
             ``ACL2.Imported.Mirrors.not_memb_how_many_0_native_driver,
             ``ACL2.Imported.Mirrors.not_memb_rm_noop_native_driver,
+            ``ACL2.Imported.Mirrors.how_many_rm_native_driver,
             ``ACL2.Imported.Mirrors.car_append_native_driver,
             ``ACL2.Imported.Mirrors.perm_implies_equal_all_rel_2_native_driver,
             ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,

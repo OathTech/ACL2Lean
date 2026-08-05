@@ -1353,6 +1353,90 @@ theorem not_memb_rm_noop_native_of_replayed (w : World)
     exact absurd hconc (by decide)
   exact enc_inj hEqv
 
+/-- The HOW-MANY-RM replayed-statement formula:
+    `(IMPLIES (NOT (EQUAL A B)) (EQUAL (HOW-MANY A (RM B X)) (HOW-MANY A X)))`. -/
+def how_many_rmFormula : SExpr :=
+  impliesT (notT (equalT aT bT))
+    (equalT (howManyT aT (rmT bT xT)) (howManyT aT xT))
+
+/-- HOW-MANY-RM, natively: erasing a DIFFERENT element preserves the
+    count (the count-of-erase class). -/
+theorem how_many_rm_native_of_replayed (w : World)
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env how_many_rmFormula = some v ∧ v ≠ SExpr.nil)
+    (av bv : SExpr) (xs : List SExpr) (h : (av == bv) = false) :
+    (xs.erase bv).count av = xs.count av := by
+  let e : Env := ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+  have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
+    re_val_var_get w e { name := "A" } av (by
+      show e.get? aS = some av
+      rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hb : ∃ N, ∀ f ≥ N, evalOpt f w e bT = some bv :=
+    re_val_var_get w e { name := "B" } bv (by
+      show e.get? bS = some bv
+      rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_neg (by decide), Env.get?_insert, if_pos (by decide)])
+  -- the antecedent: (not (equal a b)) is truthy on distinct values
+  have hEqAB := conv_equalT w e aT bT av bv h_no_equal ha hb
+  have hNe : Logic.equal av bv = SExpr.nil := by simp [Logic.equal, h]
+  have hNot := conv_builtin1 w e { name := "NOT" } (equalT aT bT)
+    (Logic.equal av bv) (Logic.not (Logic.equal av bv)) (by decide)
+    h_no_not hEqAB (callBuiltin_not _)
+  -- the two count sides
+  have hRm : ∃ N, ∀ f ≥ N,
+      evalOpt f w e (rmT bT xT) = some (enc (xs.erase bv)) :=
+    corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
+      xs e bT xT bv hb hx
+  have hL : ∃ N, ∀ f ≥ N, evalOpt f w e (howManyT aT (rmT bT xT))
+      = some (.atom (.number (.int ((xs.erase bv).count av)))) := by
+    have hcorr := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+      h_no_cdr h_no_plus e aT (rmT bT xT) av (enc (xs.erase bv)) ha hRm
+    rw [howManyExec_enc] at hcorr
+    exact hcorr
+  have hR : ∃ N, ∀ f ≥ N, evalOpt f w e (howManyT aT xT)
+      = some (.atom (.number (.int (xs.count av)))) := by
+    have hcorr := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+      h_no_cdr h_no_plus e aT xT av (enc xs) ha hx
+    rw [howManyExec_enc] at hcorr
+    exact hcorr
+  have hEq := conv_builtin2 w e { name := "EQUAL" } _ _ _ _ _ (by decide)
+    h_no_equal hL hR (callBuiltin_equal _ _)
+  have hImp := conv_builtin2 w e { name := "IMPLIES" } _ _ _ _ _ (by decide)
+    h_no_implies hNot hEq (callBuiltin_implies _ _)
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have hconc := truthy_of_implies_t hIt (by rw [hNe]; rfl)
+  have hEqv : SExpr.atom (.number (.int ((xs.erase bv).count av)))
+      = SExpr.atom (.number (.int (xs.count av))) := by
+    refine Logic.eq_of_equal_ne_nil (fun hnil => ?_)
+    rw [hnil] at hconc
+    exact absurd hconc (by decide)
+  have : ((xs.erase bv).count av : Int) = (xs.count av : Int) := by
+    injection hEqv with h1; injection h1 with h2; injection h2
+  omega
+
 /-! ## The qsort book: HOW-MANY-APPEND / CAR-APPEND -/
 
 abbrev appendT (a b : SExpr) : SExpr := app2 "BINARY-APPEND" a b

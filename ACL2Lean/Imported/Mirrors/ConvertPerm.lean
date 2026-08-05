@@ -75,4 +75,30 @@ theorem not_memb_rm_noop_native_driver (av : SExpr) (xs : List SExpr)
 
 #print axioms not_memb_rm_noop_native_driver
 
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for HOW-MANY-RM
+    (hypothesis: `tp:HOW-MANY`). -/
+def howManyRmReplayedCond := driver_replayed% convertPermDev
+  convertPermWorldD "how-many-rm"
+
+/-- The unconditional form. -/
+theorem howManyRmReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
+      Worlds.Sorting.how_many_rmFormula = some v ∧ v ≠ SExpr.nil :=
+  howManyRmReplayedCond env
+    (Worlds.Sorting.dis_how_many_tp convertPermWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-RM natively: erasing a different element
+    preserves the count (the count-of-erase class). -/
+theorem how_many_rm_native_driver (av bv : SExpr) (xs : List SExpr)
+    (h : (av == bv) = false) :
+    (xs.erase bv).count av = xs.count av :=
+  Worlds.Sorting.how_many_rm_native_of_replayed convertPermWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide)
+    howManyRmReplayed_uncond av bv xs h
+
+#print axioms how_many_rm_native_driver
+
 end ACL2.Imported.Mirrors
