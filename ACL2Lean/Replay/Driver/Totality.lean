@@ -1393,12 +1393,6 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
       (dpConeIndices tests last vars opaques
         (tpData.map (·.2.1) ++ linData.map (·.1)))
   let concArgs ← vars.mapM (dpConcVar cfg.envExpr)
-  let proveAndFinish : MetaM Expr := do
-    let fact ← prove
-    let factConc := mkAppN fact (concArgs.toArray ++ (opqMap.map (·.2)).toArray
-      ++ (tpData.map (·.2.2)).toArray ++ (linData.map (·.2)).toArray)
-    let bundle ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
-    dischargeSpine cfg bundle opqMap clauseTerm factConc
   let hypFallback (e : Lean.Exception) : MetaM Expr := do
     match ctx.dpFactHyps.find? (fun (t, _) => t == clauseTerm) with
     | some (_, hyp) => do
@@ -1416,8 +1410,31 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
       let bundle ← mkDpLiftBundle cfg cfg.envExpr vars opqMap0 opqP0
       dischargeSpine cfg bundle opqMap0 clauseTerm factConc
     | none => throw e
+  -- F6 (close-out machinery debt, 2026-08-05): only the DP TACTIC's own
+  -- failure (the fact is genuinely unprovable) or a RUNTIME bound (the
+  -- pathological-leaf guard) may fall back to the ASSUMED hypothesis. A
+  -- failure AFTER a successful proveDpFact — the fact application, the
+  -- lift bundle, the spine — is a machinery defect on a PROVABLE leaf and
+  -- must surface, never silently downgrade.
+  let proveOnly : MetaM (Option Expr) :=
+    tryCatchRuntimeEx
+      (try pure (some (← prove)) catch _ => pure none)
+      (fun _ => pure none)
   tryCatchRuntimeEx
-    (try proveAndFinish catch e => hypFallback e)
+    (do
+      match ← proveOnly with
+      | some fact =>
+        let factConc := mkAppN fact (concArgs.toArray
+          ++ (opqMap.map (·.2)).toArray
+          ++ (tpData.map (·.2.2)).toArray ++ (linData.map (·.2)).toArray)
+        let bundle ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
+        dischargeSpine cfg bundle opqMap clauseTerm factConc
+      | none =>
+        try
+          throwError "replayDischargeNode: the DP fact for \
+            {repr clauseTerm} is unprovable (the tactic failed) — \
+            falling back to the offered hypothesis"
+        catch e => hypFallback e)
     hypFallback
 
 end ACL2.Replay.Driver
