@@ -4887,7 +4887,7 @@ theorem bnextExec_enc : ∀ (xs : List SExpr),
     simp [bnextL, enc, Logic.consp, Logic.toBool]
   | [x] => by
     rw [bnextExec.eq_def]
-    simp [bnextL, enc, Logic.consp, Logic.toBool, Logic.cdr, Logic.car]
+    simp [bnextL, enc, Logic.consp, Logic.toBool, Logic.cdr]
   | x1 :: x2 :: rest => by
     rw [bnextExec.eq_def,
         show enc (x1 :: x2 :: rest) = .cons x1 (.cons x2 (enc rest))

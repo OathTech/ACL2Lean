@@ -152,11 +152,16 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),
   ("sorting/convert-perm-to-how-many", "CONVERT-PERM-TO-HOW-MANY",
-    .pending "the book's capstone (perm ↔ counts agree — List.Perm iff \
-      count-eq native reading is the natural mirror); NEEDS the PCE \
-      witness simulation (pceExec + corr) — DECLARED at the close-out \
-      arc's close (2026-08-05) as a P3 gap, queued first in the \
-      follow-on arc's mirror tranche"),
+    .pending "the book's capstone (perm ↔ counts agree at the witness — \
+      the natural native mirror). The PCE exec kit exists (pceExec/\
+      pce_exec_corr/dis_pce_total) and the bnext build demonstrates the \
+      remaining sim pattern, but the row's conds include rule:PERM-TLFIX \
+      and use:PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS, whose ONLY \
+      criterion-clean dischargers are those theorems' replayed statements \
+      — and both rows are RED (the R-lane rung-2 wall; the spine \
+      literal-chain frontier). A hand bridge would be the banned \
+      ornamental-import pattern. DECLARED at the close-out arc's close \
+      (2026-08-05): blocked on those two rows, not on simulation work"),
   ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),

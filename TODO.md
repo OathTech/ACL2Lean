@@ -791,6 +791,39 @@ _Last updated: 2026-08-02._
 > discrimination predicate is a calibrated heuristic (D7) — honest
 > comment queued with the dedupe; builtinRecogFacts deviates from the
 > 97190e1 designed builtinIntVal? route (D5) — KEPT (it gates the
+> **PCE MIRROR — OUTCOME (2026-08-05): the plan below was probed and
+> the honest blocker is NOT simulation work. The PCE exec kit already
+> existed (pceExec/pce_exec_corr/dis_pce_total — the discharger-
+> registry arc); a pceL + pceExec_enc + capstone decode were drafted,
+> BUILT GREEN, and then REVERTED per the unwired-infrastructure ban:
+> the capstone row's conds include rule:PERM-TLFIX and
+> use:PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS, both from RED rows (the
+> rung-2 wall; the spine literal-chain frontier), and their only
+> criterion-clean dischargers are those theorems' replayed statements
+> — a hand bridge is the banned ornamental-import pattern. The
+> capstone mirror wires the moment those two rows green (the draft's
+> shape is in this entry's git history at the phase7-close commits).
+> ORIGINAL PLAN (kept for that moment):**
+> **PCE MIRROR BUILD PLAN (2026-08-05, in flight — the LAST P3 gap,
+> CONVERT-PERM-TO-HOW-MANY): the value-level kit already exists in
+> Imported/Perm.lean (membExec/rmExec/memb_exec_corr/rm_exec_corr/
+> perm_exec_corr — perm's body recursion is nearly IDENTICAL to
+> pce's, the direct template). Build: (1) pceExec (consCount on x;
+> body (IF (CONSP X) (IF (MEMB (CAR X) Y) (PCE (CDR X) (RM (CAR X)
+> Y)) (CAR X)) (CAR Y))) + pce_exec_corr on the perm_exec_corr
+> pattern + dis_pce_total (the row's total:PERM-COUNTER-EXAMPLE
+> cond); (2) pceL : List → List → SExpr native ([],ys ↦ ys.headD
+> nil; x::xs,ys ↦ bif ys.contains x then pceL xs (ys.erase x) else
+> x) + pceExec_enc; (3) the decode: formula (EQUAL (PERM X Y) (EQUAL
+> (HOW-MANY pce X) (HOW-MANY pce Y))); native `xs.isPerm ys =
+> (xs.count (pceL xs ys) == ys.count (pceL xs ys))` — corr_perm_enc
+> gives the bif-isPerm side, how_many_exec_corr both counts,
+> Logic.eq_of_equal_ne_nil then boolEnc-injectivity cases; (4) the
+> assembly in Mirrors/ConvertPerm.lean (the row's conds per the
+> sweep golden line for CONVERT-PERM-TO-HOW-MANY — incl. the use:
+> and rule: conds discharged via deps [permDev?] / registry; READ
+> the golden line and mirror the qsort capstone's discharger set) +
+> catalog flip + axiom gate.**
 > **PHASE7-CLOSE SUB-ARC (mdd/phase7-close, opened 2026-08-05 after
 > the consumer-queue fold-back): the arc's final Lean-side stretch.
 > (1) P4 DONE at c10baf1 — pins for perm/ordered-perms/msort/bsort
