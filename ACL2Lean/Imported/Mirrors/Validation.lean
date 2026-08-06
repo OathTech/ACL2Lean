@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Mirrors
 
@@ -22,8 +23,7 @@ private def p7Log : String :=
   include_str "../../../acl2_samples/pattern-tests/p7-cong-collapse.proof-log"
 
 def p7Dev : Development :=
-  (((ProofLog.parse p7Log).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% p7Log
 
 derive_world p7WorldD from p7Dev
 
@@ -91,8 +91,7 @@ private def p5MirrorLog : String :=
   include_str "../../../acl2_samples/pattern-tests/p5-or-shape-flipped.proof-log"
 
 def p5Dev : Development :=
-  (((ProofLog.parse p5MirrorLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% p5MirrorLog
 
 derive_world p5WorldD from p5Dev
 

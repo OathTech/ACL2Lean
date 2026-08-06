@@ -1,5 +1,6 @@
 import ACL2Lean.Imported.Mirrors.Macro
 import ACL2Lean.Imported.Mirrors.PermBook
+import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Mirrors
 
@@ -15,8 +16,7 @@ private def orderedPermsLog : String :=
 
 /-- The parsed development — the ONLY input is the log. -/
 def orderedPermsDev : Development :=
-  (((ProofLog.parse orderedPermsLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% orderedPermsLog
 
 derive_world orderedPermsWorldD from orderedPermsDev
 

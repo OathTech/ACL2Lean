@@ -16,6 +16,17 @@ test:
 check-proof-logs:
     ./scripts/check-proof-logs.sh
 
+# NEGATIVE tests for the provenance/completeness gates (capstone-demo arc
+# Phase 0): a source-edited book, a truncated log, and a field-stripped
+# sidecar must each FAIL the checker; an untouched fixture must pass.
+test-provenance-gates:
+    ./scripts/test-provenance-gates.sh
+
+# Ban the silent-empty-development idiom: embedded-log sites must use
+# load_development% (compile-time parse/build validation) — audit P2-10.
+check-no-getd-done:
+    ./scripts/check-no-getd-done.sh
+
 # Cross-check the canonical fidelity-bug index (docs/BUGS.md) against the
 # self-enforcing differential corpus, so a logged bug can't rot in prose or be
 # silently dropped. Static (no ACL2/Lean build needed), so it runs in `ci`.
@@ -34,7 +45,7 @@ check-no-shadow:
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
 # include_str's the gitignored .proof-log corpus; check-proof-logs runs first
 # so a missing log is a clear error, not a deep elaboration-trace failure.
-ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-dark-files check-proof-logs check-log-provenance check-pattern-map build test driver-coverage
+ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-dark-files check-proof-logs check-log-provenance test-provenance-gates check-no-getd-done check-pattern-map build test driver-coverage
 
 # Run the corpus report
 report:
@@ -158,5 +169,8 @@ lint-sh:
       echo "shellcheck not installed — skipping (install: brew install shellcheck)"
       exit 0
     fi
-    shellcheck scripts/*.sh
+    # -x follows `source`d files (lib-log-provenance.sh) so the shared
+    # lib is ANALYZED, not skipped — fixing SC1091 by inclusion, not by
+    # silencing.
+    shellcheck -x -P scripts scripts/*.sh
     echo "shellcheck: all scripts clean"

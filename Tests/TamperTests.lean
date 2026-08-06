@@ -21,6 +21,7 @@ import ACL2Lean.Replay.Driver
 import ACL2Lean.ProofLog
 import ACL2Lean.ClauseTree
 import Lean
+import ACL2Lean.DevLoad
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver Lean Lean.Elab Lean.Meta
 
@@ -29,8 +30,7 @@ namespace ACL2.Tests.Tamper
 private def permLog : String := include_str "../acl2_samples/sorting/perm.proof-log"
 
 private def permDev : Development :=
-  (((ProofLog.parse permLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% permLog
 
 private def permTransCp : Option ClauseProof := do
   let log ← (ProofLog.parse permLog).toOption

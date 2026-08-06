@@ -44,6 +44,7 @@
   exact `cond[…]` status lines besides.
 -/
 import ACL2Lean.Replay.Runner
+import ACL2Lean.DevLoad
 
 namespace ACL2.Tests.SortingPins
 
@@ -86,40 +87,33 @@ def convertPermPinsTrees : List (String × ClauseProof) :=
 
 /-- The parsed isort development — the ONLY input is the log (as in the sweep). -/
 def isortPinsDev : Development :=
-  (((ProofLog.parse isortLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% isortLog
 
 /-- The parsed qsort development. -/
 def qsortPinsDev : Development :=
-  (((ProofLog.parse qsortLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% qsortLog
 
 /-- The parsed perm development. -/
 def permPinsDev : Development :=
-  (((ProofLog.parse permLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% permLog
 
 /-- The parsed ordered-perms development. -/
 def orderedPermsPinsDev : Development :=
-  (((ProofLog.parse orderedPermsLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% orderedPermsLog
 
 /-- The parsed msort development. -/
 def msortPinsDev : Development :=
-  (((ProofLog.parse msortLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% msortLog
 
 /-- The parsed bsort development. -/
 def bsortPinsDev : Development :=
-  (((ProofLog.parse bsortLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% bsortLog
 
 /-- The parsed convert-perm-to-how-many development (pre-merge audit fix
     M2, 2026-08-06: the book had trees offered cross-book but NO
     statement pin of its own — P4's "all 7 books" claim was 6/7). -/
 def convertPermPinsDev : Development :=
-  (((ProofLog.parse convertPermLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% convertPermLog
 
 derive_world isortPinsWorld from isortPinsDev
 derive_world qsortPinsWorld from qsortPinsDev
@@ -579,8 +573,7 @@ private def p3ConjLog : String :=
   include_str "../acl2_samples/pattern-tests/p3-conj-mid-literal.proof-log"
 
 def p3ConjPinsDev : Development :=
-  (((ProofLog.parse p3ConjLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% p3ConjLog
 
 derive_world p3ConjPinsWorld from p3ConjPinsDev
 
@@ -731,8 +724,7 @@ private def p5FlipLog : String :=
   include_str "../acl2_samples/pattern-tests/p5-or-shape-flipped.proof-log"
 
 def p5FlipPinsDev : Development :=
-  (((ProofLog.parse p5FlipLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% p5FlipLog
 
 derive_world p5FlipPinsWorld from p5FlipPinsDev
 
@@ -755,8 +747,7 @@ private def p7CongLog : String :=
   include_str "../acl2_samples/pattern-tests/p7-cong-collapse.proof-log"
 
 def p7CongPinsDev : Development :=
-  (((ProofLog.parse p7CongLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% p7CongLog
 
 derive_world p7CongPinsWorld from p7CongPinsDev
 

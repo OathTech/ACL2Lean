@@ -12,6 +12,7 @@
 -/
 import ACL2Lean.Replay.Driver
 import ACL2Lean.Replay.Runner
+import ACL2Lean.DevLoad
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver Lean Lean.Elab Lean.Meta
 
@@ -259,8 +260,7 @@ private def sqLog : String := include_str "../acl2_samples/recon-tests/09-defn-u
     (`derive_world` below) and the theorem (`sqRealProof`) are projected from THIS — the
     only input is the log. -/
 def sqDevelopment : Development :=
-  (((ProofLog.parse sqLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% sqLog
 
 /-- The REAL parsed `sq-rewrites` proof tree, extracted from the development. -/
 def sqRealProof : Option ClauseProof := findThm sqDevelopment "sq-rewrites"
@@ -322,8 +322,7 @@ def mylenRealProof : Option ClauseProof := do
 /-- The parsed development of `simple.proof-log` (world + theorem + TPs all
     projected from THIS — the only input is the log). -/
 def simpleDevelopment : Development :=
-  (((ProofLog.parse simpleLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% simpleLog
 
 derive_world simpleWorld from simpleDevelopment
 
@@ -627,8 +626,7 @@ private def permLog : String := include_str "../acl2_samples/sorting/perm.proof-
 /-- The parsed development of `perm.proof-log` (world + theorems + TPs all
     projected from THIS — the only input is the log). -/
 def permDevelopment : Development :=
-  (((ProofLog.parse permLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% permLog
 
 def permConsProof : Option ClauseProof := do
   let log ← (ProofLog.parse permLog).toOption
@@ -748,8 +746,7 @@ private def isortLog : String := include_str "../acl2_samples/sorting/isort.proo
 /-- The parsed development of `isort.proof-log` (parse failure ⇒ `.done` ⇒
     every pin below fails loudly). -/
 def isortDevelopment : Development :=
-  (((ProofLog.parse isortLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% isortLog
 
 private partial def gzDefunEvents :
     Development → List (String × SExpr × Option Justification)
@@ -919,8 +916,7 @@ private def letLambdaLog : String :=
   include_str "../acl2_samples/pattern-tests/cov-let-lambda.proof-log"
 
 def letLambdaDevelopment : Development :=
-  (((ProofLog.parse letLambdaLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% letLambdaLog
 
 def fsqUnfoldsProof : Option ClauseProof := do
   let log ← (ProofLog.parse letLambdaLog).toOption

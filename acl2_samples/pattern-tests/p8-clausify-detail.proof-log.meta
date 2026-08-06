@@ -1,3 +1,6 @@
 acl2-commit: 24e6dbc1382bd219fb2bd5b7908c10a021e34688
 image-mtime: 1785869018
 captured-at: 2026-08-04T18:51:34Z
+source-path: acl2_samples/pattern-tests/p8-clausify-detail.lisp
+source-sha256: 7b0935f8bd78ed30188636a03987348b7a07a1862652ac070519949771fa4f15
+source-provenance: backfilled-2026-08-06

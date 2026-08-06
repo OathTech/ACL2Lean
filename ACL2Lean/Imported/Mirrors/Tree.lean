@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Mirrors
 
@@ -26,8 +27,7 @@ private def treeLog : String :=
 
 /-- The parsed development — the ONLY input is the log. -/
 def treeDev : Development :=
-  (((ProofLog.parse treeLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% treeLog
 
 derive_world treeWorldD from treeDev
 

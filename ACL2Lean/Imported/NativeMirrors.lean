@@ -9,7 +9,14 @@
   The accumulated patterns are the seed of a future standard lifting library
   (polymorphic `α ↪ SExpr` statements are deliberately deferred — TODO.md).
 
-  ── SCOREBOARD ────────────────────────────────────────────────────────────
+  ── THE LIVE SCOREBOARD IS `liftCatalog` (Mirrors/Catalog.lean) ───────────
+  (Correction 2026-08-06, overall-project audit P2-11: this header's table
+  below stops at entry 18 and predates the sorting-book mirrors — it is
+  HISTORY, not status. The catalog module holds one decision per green
+  sweep row, gated build-failing: lift-coverage/seam, axioms, and the
+  mirror criterion. Count entries there, not here.)
+
+  ── HISTORICAL SCOREBOARD (first 18 entries, kept as narrative) ───────────
   PROVED (via the driver's replayed statement):
     1. my-len-my-app   (xs ++ ys).length = xs.length + ys.length  [List SExpr]
     2. app-assoc       (xs ++ ys) ++ zs = xs ++ (ys ++ zs)        [List SExpr]

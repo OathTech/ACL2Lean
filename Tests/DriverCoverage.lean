@@ -184,7 +184,11 @@ elab "#driver_coverage" : command => do
     let (dpTotal, dpReplayed, dpAssumed) := (agg.dpTotal, agg.dpReplayed, agg.dpAssumed)
     let integrityFails := agg.integrityFails
     let emissionFrontiers := agg.emissionFrontiers
-    let report := s!"Driver coverage — REPLAYED {replayed}/{total} ({replayed - replayedCond} unconditional + {replayedCond} conditional); DP-discharge leaves ✓{dpReplayed} ◌{dpAssumed} ✗{dpTotal - dpReplayed - dpAssumed} of {dpTotal}:\n{"\n".intercalate lines.toList}"
+    -- P1-9 (overall-project audit, 2026-08-06): the standalone DP probes
+    -- run under `assumeFact := true` and are NOT replay — their census
+    -- lives on its OWN labeled line so the headline REPLAYED count can
+    -- never be read as including probe verdicts.
+    let report := s!"Driver coverage — REPLAYED {replayed}/{total} ({replayed - replayedCond} unconditional + {replayedCond} conditional)\nStandalone DP probes (assumeFact — informational, NOT replay): ✓{dpReplayed} ◌{dpAssumed} ✗{dpTotal - dpReplayed - dpAssumed} of {dpTotal}:\n{"\n".intercalate lines.toList}"
     logInfo report
     logInfo m!"per-file wall times (informational — NOT golden-compared):\n{"\n".intercalate timings.toList}"
     -- GOLDEN-TABLE GATE: write the fresh table, then diff against the committed

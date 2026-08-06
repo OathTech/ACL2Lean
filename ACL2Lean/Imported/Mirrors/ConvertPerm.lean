@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Mirrors
 
@@ -14,8 +15,7 @@ private def convertPermLog : String :=
     discharge by replaying the dependency's tree at the CONSUMER's world —
     no `derive_world`: the dev is a tree source only. -/
 def convertPermDev : Development :=
-  (((ProofLog.parse convertPermLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% convertPermLog
 
 /-! ## The convert-perm book's own mirrors (Phase 7 of the close-out arc) -/
 

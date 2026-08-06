@@ -14,6 +14,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib-log-provenance.sh
+. "$SCRIPT_DIR/lib-log-provenance.sh"
 ACL2="${ACL2:-$SCRIPT_DIR/../acl2/saved_acl2}"
 OUTDIR="${OUTDIR:-}"
 
@@ -51,50 +54,34 @@ for INPUT in "$@"; do
   # emit-ground-zero-snapshots (fork, ld.lisp): after the book completes,
   # append the cited-closure ground-zero defun snapshots + rule statements
   # (external-knowledge design D3/D5) to the log's tail.
+  # ATOMIC output (capstone-demo arc Phase 0, review-1 P0-2): write to a
+  # temp path; the real $OUTPUT and its sidecar appear ONLY on a verified
+  # complete capture. A failed run leaves any previous artifacts
+  # untouched (their sidecar hashes still bind them to the source that
+  # produced them).
   printf '(set-raw-proof-format :structured)
 (ld "%s")
 (emit-ground-zero-snapshots state)
 (good-bye)
-' "$INPUT_ABS" | "$ACL2" --no-sysinit > "$OUTPUT" 2>&1
+' "$INPUT_ABS" | "$ACL2" --no-sysinit > "$OUTPUT.tmp" 2>&1
 
-  # Failure detection. `ld` halts on the first failed event (e.g. a defthm whose
-  # PROOF succeeds but whose rule STORAGE is rejected — `:rule-classes nil` avoids
-  # that). Under `:structured`, ACL2 suppresses the `:STOP-LD` / `******** FAILED`
-  # text, so that grep alone can MISS a halt — a truncated log then looks clean.
-  #
-  # The PRIMARY signal is QED-per-DEFTHM: a successful proof emits one `(:QED)` per
-  # `(:DEFTHM …)` it started, but a FAILED proof emits the `(:DEFTHM …)` (at proof
-  # START) with NO matching `(:QED)` — so `got_qed < got_defthm` means a proof
-  # failed even though every theorem was *attempted*. (The old `got_defthm` vs
-  # source-count check only catches a halt BEFORE a later defthm starts, not a
-  # defthm that starts and then fails — which is the common case.) We also grep
-  # ACL2's "proof attempt has failed" prose, which DOES survive :structured mode.
-  # NOTE: this is a heuristic backstop — the load-bearing guard is downstream, in
-  # buildDevelopment, which hard-fails on any :DEFTHM block lacking its :QED. The
-  # proper positive signal (an explicit emit/proof-failed event) is a tracked
-  # infra-revision item; see TODO.md.
-  # Count only UNCOMMENTED defthms in the source (a leading `;` comments the
-  # form out — isort's perm-isort taught us this), and only :SOURCE :LOCAL
-  # theorem events in the log: theorems arriving via include-book are
-  # announced as `(:DEFTHM … :SOURCE :INCLUDE-BOOK)` with NO proof and NO
-  # :QED (include skips proofs), so counting them against :QED is a false
-  # alarm. Events line-wrap arbitrarily (`:SOURCE` and `:LOCAL` can land on
-  # different lines), so normalize whitespace before counting. Note the log
-  # count can legitimately EXCEED the source count (defequiv/defcong generate
-  # theorems, e.g. PERM-IS-AN-EQUIVALENCE); only a SHORTFALL warns.
-  want_defthm=$(grep -cE '^[^;]*\(defthmd?\b' "$INPUT_ABS" || true)
-  # `|| true`: grep exits 1 on zero matches, and under pipefail that would
-  # silently kill the whole run at the first book with no local defthms
-  # (how-many.lisp is all defuns).
-  got_defthm=$(tr -s ' \n' '  ' < "$OUTPUT" | { grep -o ':SOURCE :LOCAL' || true; } | wc -l | tr -d ' ')
-  got_qed=$(grep -c '(:QED' "$OUTPUT" || true)
-  if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED\|proof attempt has failed\|HARD ACL2 ERROR" "$OUTPUT"; then
-    echo "WARNING: $(basename "$INPUT") — ACL2 reported a FAILED/aborted/HARD-ERROR event; log is INCOMPLETE." >&2
-  elif [ "$got_qed" -lt "$got_defthm" ]; then
-    echo "WARNING: $(basename "$INPUT") — $got_qed (:QED) for $got_defthm (:DEFTHM): a proof started but did NOT complete (no closing :QED). ACL2 FAILED a proof. Log is INCOMPLETE." >&2
-  elif [ "$got_defthm" -lt "$want_defthm" ]; then
-    echo "WARNING: $(basename "$INPUT") — logged $got_defthm of $want_defthm defthm proof(s); ACL2 likely FAILED/halted before a later event. Log is INCOMPLETE." >&2
+  # Failure detection — FATAL (capstone-demo arc Phase 0, review-1 P0-2;
+  # the pre-2026-08-06 version WARNED and exited 0, so a failed/truncated
+  # ACL2 run could be accepted as producer output). The completeness
+  # logic (QED-per-DEFTHM primary signal, source-count halt detection,
+  # FAILED/HARD-ERROR prose) lives in lib-log-provenance.sh, shared with
+  # check-log-provenance.sh so ci re-verifies the same invariant
+  # statically. The proper positive signal (an explicit emit/proof-failed
+  # event + post-ld manifest) is fork-batch item 8.
+  if ! check_capture_complete "$INPUT_ABS" "$OUTPUT.tmp" >&2; then
+    echo "Error: $(basename "$INPUT") capture INCOMPLETE — no log/sidecar written; ACL2 output kept at $OUTPUT.tmp for diagnosis." >&2
+    exit 1
   fi
+
+  # Include closure computed OUTSIDE the sidecar subshell: a plain
+  # assignment propagates include_closure's fail-closed error under
+  # set -e, where a process substitution would swallow it.
+  closure="$(include_closure "$INPUT_ABS" "|$INPUT_ABS|")"
 
   # Hardening G2: provenance sidecar — bind this log to the fork commit and
   # image that produced it. check-log-provenance.sh (in `just ci`, static)
@@ -120,9 +107,30 @@ for INPUT in "$@"; do
     # cleanly with no stdout, so this order is safe both ways.
     echo "image-mtime: $(stat -c %Y "$ACL2" 2>/dev/null || stat -f %m "$ACL2" 2>/dev/null || echo unknown)"
     echo "captured-at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  } > "$OUTPUT.meta"
+    # SOURCE provenance (capstone-demo arc Phase 0, review-1 P0-1): bind
+    # the log to the exact source text and its transitive include-book
+    # closure. check-log-provenance.sh recomputes these against the
+    # CURRENT tree — an edited book paired with an old log now fails the
+    # local gate instead of certifying a proof about the old text.
+    echo "source-path: $(repo_rel "$INPUT_ABS")"
+    echo "source-sha256: $(sha256_of "$INPUT_ABS")"
+    while IFS= read -r inc; do
+      [ -n "$inc" ] || continue
+      case "$inc" in
+        *" SYSTEM") incf="${inc% SYSTEM}"
+          echo "include: $(repo_rel "$incf") $(sha256_of "$incf") system";;
+        *) echo "include: $(repo_rel "$inc") $(sha256_of "$inc")";;
+      esac
+    done <<< "$closure"
+    echo "source-provenance: captured"
+  } > "$OUTPUT.meta.tmp"
 
-  echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines, $got_qed/$got_defthm qed/defthm (source: $want_defthm) → $OUTPUT"
+  # Atomic promote: log first, then sidecar (a crash between the two
+  # leaves a log whose OLD sidecar hashes fail the checker — fail-closed).
+  mv "$OUTPUT.tmp" "$OUTPUT"
+  mv "$OUTPUT.meta.tmp" "$OUTPUT.meta"
+
+  echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines, $(count_log_qeds "$OUTPUT")/$(count_log_local_defthms "$OUTPUT") qed/defthm (source: $(count_source_defthms "$INPUT_ABS")) → $OUTPUT"
 done
 
 # include_str does NOT register a Lake file dependency, and Lake hashes module

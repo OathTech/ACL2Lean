@@ -29,44 +29,76 @@ proof search is this repo's code:
    `ACL2Lean/ProofTree.lean`) — events → a single proof tree for the whole
    development: the clause tree ACL2's waterfall actually is, with per-literal
    rewriter detail. Unlinkable structure hard-fails.
-5. **Source translation** (`ACL2Lean/WorldGen.lean`,
-   `ACL2Lean/Translator.lean`) — the same ACL2 source → a Lean `World`
-   (function definitions) and the **mirror-theorem statement**: that the
-   formula is eventually *true* in ACL2's sense — `∃ N, ∀ f ≥ N, ∃ v,
-   evalOpt f world env <formula> = some v ∧ v ≠ nil` (truthiness, not
-   exact-`t`; non-`nil` is ACL2's notion of truth).
+5. **Statement derivation** — the stage that decides *what theorem we are
+   proving*. **As wired today this is the PROOF-LOG path** (audit
+   2026-07-26 F5b): the certified `World` is `Development.toWorld` from
+   the log's `:DEFUN` events and the replayed statement is truth of the
+   log's root Goal clause — i.e. the statement comes from the same
+   untrusted emission as the proof, anchored to the `.lisp` source by the
+   sidecar source hashes and the hand statement pins.
+   `ACL2Lean/WorldGen.lean` / `ACL2Lean/Translator.lean` translate the
+   source directly and are the intended INDEPENDENT frontend, but they
+   are NOT in the certified pipeline yet (tracked; the follow-on arc's
+   statement-identity gate).
 6. **ACL2-logic interpreter** (`ACL2Lean/EvalOpt.lean`,
    `ACL2Lean/Logic.lean`) — the fuel-bounded semantic model that defines what
    the mirror theorem means (differential-tested against real ACL2).
 7. **Proof replay** (`ACL2Lean/Replay/Driver.lean`,
    `ACL2Lean/Replay/EvalLemmas.lean`) — recurses the reconstructed tree and
    emits a Lean proof object for the mirror theorem, node by node; the Lean
-   kernel checks it. The replay does **no inference**: if the tree lacks the
-   information to replay a step, the fix is more instrumentation at the ACL2
-   source, never a heuristic in Lean. The sole ratified exception is
-   decision-procedure *leaves* (clauses ACL2 itself closes by a verdict-only
-   procedure), which are discharged by a kernel-checked decision procedure on
-   the precisely-stated leaf obligation.
+   kernel checks it. The replay does **no inference** as its governing
+   rule: if the tree lacks the information to replay a step, the fix is
+   more instrumentation at the ACL2 source, never a heuristic in Lean.
+   Current deviations are EXPLICIT, not silent: the ratified
+   decision-procedure *leaf* carve-out (clauses ACL2 itself closes by a
+   verdict-only procedure, discharged by a kernel-checked decision
+   procedure on the precisely-stated leaf obligation), and a small set of
+   expiry-held mechanisms (marked `DRIFT MARKER` in
+   `ACL2Lean/Replay/Driver/`, each retiring against a queued fork
+   emission — see the 2026-08-05 branch drift audit).
 8. **Native bridge** (`ACL2Lean/Imported/`) — the mirror theorem is decoded
    into a *native Lean statement* (e.g. `(xs ++ ys).length = xs.length +
    ys.length`), so the imported fact is usable as an ordinary Lean theorem.
    `Imported/Lifting.lean` is the lifting library: representations of Lean
    types in ACL2's value space (`Rep`, with ACL2 recognizers as the type
    discipline), correspondences between ACL2 functions and Lean operations
-   (`Implements`), and the generic decode lemmas. `Imported/NativeMirrors.lean`
-   is the catalog of native theorems proved end-to-end through the driver —
-   its header scoreboard is the live status.
+   (`Implements`), and the generic decode lemmas. The LIVE catalog of
+   native theorems is `liftCatalog` in `Imported/Mirrors/Catalog.lean`
+   (one decision per green sweep row, enforced by build-failing
+   coverage/seam/axiom/criterion gates); `Imported/NativeMirrors.lean` is
+   the module facade, and its header narrative covers only the first 18
+   entries (historical).
 
 ## Trust model
 
-The kernel certifies the proof object *for the mirror theorem exactly as
-stated by stages 5–6*. Until a native-theorem bridge exists for a given
-result, a bug in stages 2–6 could yield a kernel-accepted proof of a subtly
-wrong statement — so each stage is validated against the real artifacts
-(differential testing of the interpreter, log↔tree fidelity checks,
-adversarial audits). Once a result is decoded to a native Lean statement, the
-entire ACL2 pipeline becomes untrusted for it: a bug anywhere makes the
-composed proof fail to typecheck; it can never certify a false native theorem.
+Three DISTINCT properties, separately enforced (rewritten 2026-08-06 after
+the overall-project audit — the earlier text conflated them):
+
+1. **Lean logical soundness** — the declared Lean theorem follows from
+   Lean's trusted basis plus its listed axioms (`propext`,
+   `Classical.choice`, `Quot.sound`; the build-failing axiom gate). This
+   one the kernel gives us outright: no pipeline bug can ever certify a
+   FALSE Lean theorem.
+2. **Statement authenticity** — the proved proposition really is the named
+   ACL2 theorem (same formula, functions, scope, value universe). The
+   kernel does NOT check this: a bug in instrumentation, parsing, world
+   construction, or statement derivation can produce a kernel-accepted
+   proof of a *different but true* statement presented under the intended
+   name (BUG-019 was a concrete incident of exactly this class). Enforced
+   instead by: source/include-closure hash provenance + fatal capture
+   (`scripts/check-log-provenance.sh`), hand statement pins per book
+   (`Tests/SortingPins.lean`), tamper tests, and adversarial audits.
+3. **Replay fidelity** — the proof follows ACL2's recorded reasoning
+   rather than a stronger Lean-side derivation. Enforced by the replay
+   drivers' hard-fail frontiers, the mirror criterion + seam gates
+   (`Imported/Mirrors/Catalog.lean`), and the drift-test discipline.
+
+A native mirror narrows the API surface a reader must trust to the native
+statement itself, but does NOT retroactively make stages 2–6 irrelevant:
+authenticity and fidelity remain separately-enforced invariants, and the
+current deviations from perfection are explicit (the expiry-held
+mechanisms marked `DRIFT MARKER` in the drivers, each retiring against a
+queued fork emission; the ratified decision-procedure leaf carve-out).
 
 ## Getting started
 

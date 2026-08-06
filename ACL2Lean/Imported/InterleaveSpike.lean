@@ -34,6 +34,7 @@
 -/
 import ACL2Lean.Replay.Driver
 import ACL2Lean.Count
+import ACL2Lean.DevLoad
 
 namespace ACL2.Spike.Interleave
 
@@ -45,8 +46,7 @@ private def ivLog : String :=
   include_str "../../acl2_samples/recon-tests/13-multi-measured-var.proof-log"
 
 def ivDevelopment : Development :=
-  (((ProofLog.parse ivLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% ivLog
 
 derive_world ivWorld from ivDevelopment
 

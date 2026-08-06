@@ -1,5 +1,6 @@
 import ACL2Lean.Imported.Mirrors.Macro
 import ACL2Lean.Imported.Mirrors.ConvertPerm
+import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Mirrors
 
@@ -12,8 +13,7 @@ private def msortLog : String :=
 
 /-- The parsed development — the ONLY input is the log. -/
 def msortDev : Development :=
-  (((ProofLog.parse msortLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% msortLog
 
 derive_world msortWorldD from msortDev
 

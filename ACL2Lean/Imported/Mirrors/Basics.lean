@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Mirrors
 
@@ -16,8 +17,7 @@ private def simpleLog : String := include_str "../../../acl2_samples/simple.proo
 
 /-- The parsed development — the ONLY input is the log. -/
 def simpleDev : Development :=
-  (((ProofLog.parse simpleLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% simpleLog
 
 derive_world simpleWorldD from simpleDev
 /-- The conditional replayed statement as a definition (the driver's proof OBJECT). -/
@@ -65,8 +65,7 @@ private def revLog : String := include_str "../../../acl2_samples/recon-tests/02
 
 /-- The parsed development — the ONLY input is the log. -/
 def revDev : Development :=
-  (((ProofLog.parse revLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% revLog
 
 derive_world revWorldD from revDev
 
@@ -104,8 +103,7 @@ private def directLog : String := include_str "../../../acl2_samples/recon-tests
 
 /-- The parsed development — the ONLY input is the log. -/
 def directDev : Development :=
-  (((ProofLog.parse directLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% directLog
 
 derive_world directWorldD from directDev
 
@@ -183,8 +181,7 @@ private def eqLog : String := include_str "../../../acl2_samples/recon-tests/08-
 
 /-- The parsed development — the ONLY input is the log. -/
 def eqDev : Development :=
-  (((ProofLog.parse eqLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% eqLog
 
 derive_world eqWorldD from eqDev
 
@@ -289,8 +286,7 @@ private def multiLog : String := include_str "../../../acl2_samples/recon-tests/
 
 /-- The parsed development — the ONLY input is the log. -/
 def multiDev : Development :=
-  (((ProofLog.parse multiLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% multiLog
 
 derive_world multiWorldD from multiDev
 

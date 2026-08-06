@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Mirrors
 
@@ -20,8 +21,7 @@ private def permLog9 : String := include_str "../../../acl2_samples/sorting/perm
 
 /-- The parsed development — the ONLY input is the log. -/
 def permDev : Development :=
-  (((ProofLog.parse permLog9).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% permLog9
 
 derive_world permWorldD from permDev
 

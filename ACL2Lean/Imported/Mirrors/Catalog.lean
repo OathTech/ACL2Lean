@@ -273,74 +273,39 @@ run_cmd Lean.Elab.Command.liftCoreM do
         green golden row (stale — remove or fix)"
 
 -- BUILD-FAILING axiom gate (audit #4; completed to ALL native entries in
--- audit #5): `#print axioms` only prints — this run_cmd THROWS if any native
--- entry ever acquires an axiom beyond the classical trio (sorryAx,
+-- audit #5; DERIVED from the catalog 2026-08-06 — overall-project audit
+-- P2-12/N6): `#print axioms` only prints — this run_cmd THROWS if any
+-- native entry ever acquires an axiom beyond the classical trio (sorryAx,
 -- native_decide's ofReduceBool, …), so a future edit cannot smuggle a hole
--- into the native layer without failing CI. The list must name EVERY proved
--- native entry in this file (the earlier list omitted the 7 pre-perm
--- entries — all clean, but ungated; audit #5 closed that gap).
+-- into the native layer without failing CI. The `.native` set comes
+-- straight from `liftCatalog` (a new entry is gated AUTOMATICALLY — the
+-- earlier hand list was one more thing to desync); only the downstream
+-- COROLLARIES, which are not catalog rows by design (Mathlib-form
+-- restatements of catalog natives), remain enumerated.
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
-  for n in [``ACL2.Imported.Mirrors.p5_dupp_prepend_native_driver,
-            ``ACL2.Imported.Mirrors.p7_dub_len_native_driver,
-            ``ACL2.Imported.Mirrors.perm_cons_native_driver,
-            ``ACL2.Imported.Mirrors.perm_cons_native_perm_driver,
-            ``ACL2.Imported.Mirrors.perm_symmetric_native_driver,
-            ``ACL2.Imported.Mirrors.memb_rm_native_driver,
-            ``ACL2.Imported.Mirrors.comm_rm_native_driver,
-            ``ACL2.Imported.Mirrors.perm_memb_native_driver,
-            ``ACL2.Imported.Mirrors.perm_rm_native_driver,
-            ``ACL2.Imported.Mirrors.perm_transitive_native_driver,
-            ``ACL2.Imported.Mirrors.perm_refl_native_driver,
-            ``ACL2.Imported.Mirrors.isPerm_equivalence_driver,
-            ``ACL2.Imported.Mirrors.perm_symm_perm_driver,
-            ``ACL2.Imported.Mirrors.perm_trans_perm_driver,
-            ``ACL2.Imported.Mirrors.perm_erase_perm_driver,
-            ``ACL2.Imported.Mirrors.mem_transport_perm_driver,
-            ``ACL2.Imported.Mirrors.true_listp_flatten_native_driver,
-            ``ACL2.Imported.Mirrors.my_len_my_app_native_driver,
-            ``ACL2.Imported.Mirrors.app_assoc_native_driver,
-            ``ACL2.Imported.Mirrors.ground_arith_native,
-            ``ACL2.Imported.Mirrors.sq_of_3_native,
-            ``ACL2.Imported.Mirrors.cdr_cons_native,
-            ``ACL2.Imported.Mirrors.equal_symm_native,
-            ``ACL2.Imported.Mirrors.equal_trans_native,
-            ``ACL2.Imported.Mirrors.car_cons_native,
-            ``ACL2.Imported.Mirrors.orderedp_rm_native_driver,
-            ``ACL2.Imported.Mirrors.car_rm_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_isort_native_driver,
-            ``ACL2.Imported.Mirrors.equal_cons_native_driver,
-            ``ACL2.Imported.Mirrors.ordered_perms_native_driver,
-            ``ACL2.Imported.Mirrors.ordered_perms_native_perm_driver,
-            ``ACL2.Imported.Mirrors.orderedp_memb_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_isort_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_append_native_driver,
-            ``ACL2.Imported.Mirrors.not_memb_how_many_0_native_driver,
-            ``ACL2.Imported.Mirrors.not_memb_rm_noop_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_rm_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_bnext_native_driver,
-            ``ACL2.Imported.Mirrors.car_append_native_driver,
-            ``ACL2.Imported.Mirrors.perm_implies_equal_all_rel_2_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,
-            ``ACL2.Imported.Mirrors.orderedp_rm_isChain_driver,
-            ``ACL2.Imported.Mirrors.orderedp_memb_isChain_driver,
-            ``ACL2.Imported.Mirrors.all_rel_rm_1_native_driver,
-            ``ACL2.Imported.Mirrors.all_rel_rm_2_native_driver,
-            ``ACL2.Imported.Mirrors.all_rel_filter_1_native_driver,
-            ``ACL2.Imported.Mirrors.all_rel_filter_2_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_filter_1_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_append_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_merge2_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_evens_and_odds_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_msort_native_driver,
-            ``ACL2.Imported.Mirrors.how_many_msort_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_msort_isChain_driver,
-            ``ACL2.Imported.Mirrors.how_many_qsort_native_driver,
-            ``ACL2.Imported.Mirrors.perm_qsort_native_driver,
-            ``ACL2.Imported.Mirrors.perm_qsort_perm_driver,
-            ``ACL2.Imported.Mirrors.orderedp_qsort_native_driver,
-            ``ACL2.Imported.Mirrors.orderedp_qsort_isChain_driver] do
+  let catalogNatives : List Name := liftCatalog.filterMap fun (_, _, st) =>
+    match st with
+    | .native decl _ => some decl
+    | _ => none
+  let corollaries : List Name :=
+    [``ACL2.Imported.Mirrors.perm_cons_native_perm_driver,
+     ``ACL2.Imported.Mirrors.isPerm_equivalence_driver,
+     ``ACL2.Imported.Mirrors.perm_symm_perm_driver,
+     ``ACL2.Imported.Mirrors.perm_trans_perm_driver,
+     ``ACL2.Imported.Mirrors.perm_erase_perm_driver,
+     ``ACL2.Imported.Mirrors.mem_transport_perm_driver,
+     ``ACL2.Imported.Mirrors.ordered_perms_native_perm_driver,
+     ``ACL2.Imported.Mirrors.perm_qsort_perm_driver,
+     ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,
+     ``ACL2.Imported.Mirrors.orderedp_rm_isChain_driver,
+     ``ACL2.Imported.Mirrors.orderedp_memb_isChain_driver,
+     ``ACL2.Imported.Mirrors.orderedp_msort_isChain_driver,
+     ``ACL2.Imported.Mirrors.orderedp_qsort_isChain_driver,
+     ``ACL2.Imported.Mirrors.p5_dupp_prepend_native_driver,
+     ``ACL2.Imported.Mirrors.p7_dub_len_native_driver]
+  for n in (catalogNatives ++ corollaries) do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do

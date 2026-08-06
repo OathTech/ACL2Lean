@@ -49,6 +49,7 @@
 -/
 import ACL2Lean.Replay.Driver
 import ACL2Lean.Count
+import ACL2Lean.DevLoad
 
 namespace ACL2.Spike.Flatten
 
@@ -62,8 +63,7 @@ private def flattenLog : String :=
 /-- Parse failure ⇒ `.done` ⇒ the world below is empty and every proof
     fails loudly. -/
 def flattenDevelopment : Development :=
-  (((ProofLog.parse flattenLog).toOption.bind
-    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+  load_development% flattenLog
 
 derive_world flattenWorld from flattenDevelopment
 
