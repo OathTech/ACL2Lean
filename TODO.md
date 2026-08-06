@@ -18,9 +18,12 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > the outside auditor's could-not-verify #6 was right to doubt).
 > In-batch withdrawal: emit/if-finish/test-left-iff (redundant record
 > class, no consumer). REMAINING Phase-1 work (2/2b) — the three
-> retirements, emissions live, consumers to build: R1 (equation-closure
-> search rung → read the (:FC-DERIVATIONS :origin
-> fc-derivations-expunged) records now emitted at the expunge point);
+> retirements: R1 — BLOCKED ON A NEW EMISSION (verified 2026-08-06:
+> the item-3 expunge-point records fire in bsort only, NOT in
+> perm/convert-perm where the equation-closure rung's 3 rows live —
+> the equal/type-alist-nil verdict's provenance needs its own emission
+> at the verdict site, a NEXT-batch item; the rung stays under expiry
+> with this sharpened target — goal early-exit (d) applies to it);
 > R2 (builtinRecogFacts registry → consume
 > (:GROUND-ZERO-RECOGNIZER-TUPLES) — needs a ts-bit → Logic-predicate
 > decode layer); ground-hyp (same tuple consumer, per the R4 ruling).
