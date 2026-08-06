@@ -5,7 +5,28 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-08-06._
+_Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
+
+> **CAPSTONE-DEMO ARC — LIVE STATE (branch mdd/capstone-demo-arc,
+> HEAD b611dfd).** Phase 0 DONE (ff70eb2). Phase 1: the 8-item fork
+> batch is LANDED (d8b83cb — fork submodule 68ce6cb, all emissions
+> live, corpus recaptured through the fatal gates, golden
+> BYTE-IDENTICAL at 86/116) and B1 is RETIRED (b611dfd — the
+> complement arm consumes the recorded DROPPED clausify leaf or the
+> item-7 event; inference-from-absence gone; NOTE the mechanism for
+> TRUE-LISTP-BNEXT was clausify-under-assumptions, not add-literal —
+> the outside auditor's could-not-verify #6 was right to doubt).
+> In-batch withdrawal: emit/if-finish/test-left-iff (redundant record
+> class, no consumer). REMAINING Phase-1 work (2/2b) — the three
+> retirements, emissions live, consumers to build: R1 (equation-closure
+> search rung → read the (:FC-DERIVATIONS :origin
+> fc-derivations-expunged) records now emitted at the expunge point);
+> R2 (builtinRecogFacts registry → consume
+> (:GROUND-ZERO-RECOGNIZER-TUPLES) — needs a ts-bit → Logic-predicate
+> decode layer); ground-hyp (same tuple consumer, per the R4 ruling).
+> Exit criterion: gate green, all remaining drift markers gone,
+> bsort residue honestly classified. Then Phase 2 (equisort =
+> parametric encapsulate).
 
 > **CURRENT STATE (2026-08-06): the close-out arc MERGED to main
 > (c85d2be, ff; sign-off at the moment of merge). B1 and R4 both
