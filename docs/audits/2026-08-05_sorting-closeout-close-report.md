@@ -92,6 +92,38 @@ declared. Also carried: S6 (position-canonical preSwap? pinning), N2
 (the ASSUMED:dp-fact literal), chainOk dedupe, and the dpFactStmt
 root-cause fix (assumed obligations at actual applications).
 
+## Branch drift audit + second kill round (2026-08-05, post-close)
+
+The commissioned Opus branch-wide drift review (user-directed) returned:
+**"the branch's direction is right; its tail accreted."** 28-feature
+inventory; 9 per-case mechanisms, 6 with zero dependent green rows
+(verified per-commit — every new mechanism replaced a throwError, so the
+golden delta is an exact dependency read-off). The full fix list was
+executed the same day (zero scoreboard cost; all golden diffs are
+error-text-only on red rows):
+
+- **KILLED**: the tpthm consumer stack (Harness offers, replayRecognizer
+  tpthm arm, tpthm demand emitter); Core's chain-end deep-walker
+  fallback and last-position nil-drop completion (throws restored); the
+  L-orientation call-stack fold and the boolean-TP fold; the
+  single-summand and term-vs-sum disjointness cells (the NESTED-SUM cell
+  and its match-capture fix kept); the type-set-equality orientation
+  normalization; the world-fn compound-recognizer route (item 9); the
+  ambiguous-position preference (hard-fail restored, item 15); 12
+  orphaned EvalLemmas.
+- **HELD UNDER EXPIRY** (in-code drift markers): R1 the
+  equation-closure disequality rung — expires at fork item 3; R2
+  `builtinRecogFacts` — expires at fork item 2; R3 the μ-route
+  discrimination heuristic — revisit at the fork-batch review.
+- **EXPLICIT KEEP**: the unwired emission surfaces (:TA-DERIVATIONS,
+  :FC-DERIVATIONS, Development.scopes, encapsulate events) — the queued
+  fork batch's consumers.
+- **OPEN MDD QUESTION (R4)**: does GROUND-HYP discharge sit inside the
+  DP-leaf carve-out, or does it need its own ratification?
+- **Verified**: `bnextBody` mechanically equal to the log's `:DEFUN
+  BODY` (parse-and-compare); the complement-tautology close re-commented
+  as inferred-from-absence.
+
 ## The accumulated fork batch (ONE round-trip, pending review)
 
 1. **Local `:LINEAR` rule snapshot** — extend the gz-linear cited-closure

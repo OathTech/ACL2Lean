@@ -814,6 +814,41 @@ _Last updated: 2026-08-02._
 > artifact genuinely cannot record it (the normalizeSwapsToward /
 > BUG-026 precedent); a walk over the term's own shape with
 > fact-gated moves is INFRA-MIRRORING — emit instead.**
+> **BRANCH DRIFT AUDIT — SECOND KILL ROUND EXECUTED (2026-08-05, the
+> commissioned Opus branch-wide review; verdict: "the branch's
+> direction is right; its tail accreted" — 28-feature inventory, 9
+> per-case mechanisms of which 6 had ZERO dependent green rows,
+> verified per-commit by golden-diff dependency read-off). KILLED
+> beyond the first round (zero scoreboard cost, error-text-only
+> golden diffs): the tpthm consumer stack (Harness offers + the
+> replayRecognizer tpthm arm + the tpthm demand emitter), the
+> chain-end deep-walker fallback and the last-position nil-drop
+> completion in Core, the L-orientation call-stack fold + the
+> boolean-TP fold, the single-summand and term-vs-sum disjointness
+> cells (the nested-sum cell + its match-capture fix KEPT), the
+> type-set-equality orientation normalization, the world-fn
+> compound-recognizer route, the ambiguous-position preference
+> (hard-fail restored), and 12 orphaned EvalLemmas. HELD UNDER
+> EXPIRY (drift markers in-code): R1 the equation-closure
+> disequality rung (3 green rows; EXPIRES at fork item 3 —
+> fc/type-alist provenance); R2 builtinRecogFacts (termination:BNEXT
+> rows; EXPIRES at fork item 2 — recognizer-tuple snapshot); R3 the
+> μ-route discrimination heuristic (honest-heuristic comment;
+> revisit at the fork-batch review). Frontier moves from the round
+> (all red→red): PCE now reds EARLIER, at the recognizer TP frontier
+> (no TP hypothesis for RM — the killed tpthm consumer's row; both
+> its frontiers are fork-blocked); termination:BSORT's assumed leaf
+> is now the LOUD parked frontier (fork item 1). EXPLICIT KEEP: the
+> unwired
+> emission surfaces (:TA-DERIVATIONS, :FC-DERIVATIONS,
+> Development.scopes, encapsulate events) — they are the queued fork
+> batch's consumers, not ornament. OPEN MDD QUESTION (R4, for Mike):
+> whether GROUND-HYP discharge (evaluating a rule hypothesis's
+> ground instance) sits inside the DP-leaf carve-out's scope or
+> needs its own ratification. bnextBody transcription verified
+> MECHANICALLY against the log's :DEFUN BODY (parse-and-compare,
+> equal). Complement-tautology close re-commented as
+> inferred-from-absence (fork does not yet emit the close).**
 > **PERM-TLFIX — CLASSIFICATION SHARPENED (2026-08-05, read off the
 > dump + the ratified equiv-lane design): the failing node is the
 > IH-as-rewriting-equivalence with equiv (PERM (TLFIX (CDR X))

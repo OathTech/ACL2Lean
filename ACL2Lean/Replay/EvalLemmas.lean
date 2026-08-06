@@ -3914,44 +3914,6 @@ theorem logic_equal_nil_of_plus1_nonneg {a b : SExpr}
   simp [Logic.equal, SExpr.t]
   omega
 
-/-- The SINGLE-SUMMAND positive-sum vs '0 cell: `1 + a` with `a` a nonneg
-    integer (its emitted TP shape) can never equal 0 — the same
-    disjointness cell at the `(BINARY-+ '1 u)` shape (the PCE tower's
-    HOW-MANY summand). -/
-theorem logic_equal_nil_of_plus1_nonneg1 {a : SExpr}
-    (ha : (bif Logic.toBool (Logic.integerp a)
-          then Logic.not (Logic.lt a (.atom (.number (.int 0))))
-          else SExpr.nil) = SExpr.t) :
-    Logic.equal (Logic.plus (.atom (.number (.int 1))) a)
-      (.atom (.number (.int 0))) = SExpr.nil := by
-  obtain ⟨m, rfl⟩ := dp_nonneg_int_of_tp ha
-  rw [logic_plus_int]
-  simp [Logic.equal, SExpr.t]
-  omega
-
-/-- Term-vs-sum disjointness, RIGHT orientation: `u ≠ 1 + u` for a
-    nonneg-int `u` (its emitted TP shape) — `(equal u (+ 1 u)) = nil`. -/
-theorem logic_equal_nil_of_plus1_self_r {a : SExpr}
-    (ha : (bif Logic.toBool (Logic.integerp a)
-          then Logic.not (Logic.lt a (.atom (.number (.int 0))))
-          else SExpr.nil) = SExpr.t) :
-    Logic.equal a (Logic.plus (.atom (.number (.int 1))) a)
-      = SExpr.nil := by
-  obtain ⟨m, rfl⟩ := dp_nonneg_int_of_tp ha
-  rw [logic_plus_int]
-  simp [Logic.equal]
-
-/-- Term-vs-sum disjointness, LEFT orientation. -/
-theorem logic_equal_nil_of_plus1_self_l {a : SExpr}
-    (ha : (bif Logic.toBool (Logic.integerp a)
-          then Logic.not (Logic.lt a (.atom (.number (.int 0))))
-          else SExpr.nil) = SExpr.t) :
-    Logic.equal (Logic.plus (.atom (.number (.int 1))) a) a
-      = SExpr.nil := by
-  obtain ⟨m, rfl⟩ := dp_nonneg_int_of_tp ha
-  rw [logic_plus_int]
-  simp [Logic.equal]
-
 /-- `car` of a NON-cons defaults to `nil` (ACL2's completion axiom, value
     level — the type-set entry composition consumes it). -/
 theorem logic_car_of_consp_nil {v : SExpr} (h : Logic.consp v = SExpr.nil) :
@@ -5628,30 +5590,6 @@ theorem logic_natp_len_t (x : SExpr) :
   rw [logic_len_eq_lenNat]
   simp [Logic.natp]
 
-/-- NATP from a WORLD fn's lifted nonneg-int TP-corollary fact (the
-    compound-recognizer world-fn route — BNEXT-SIZE): the corollary
-    `(IF (INTEGERP app) (NOT (< app '0)) 'NIL)` lifted at the value and
-    known `= t` pins the value to a nonnegative integer. -/
-theorem logic_natp_t_of_int_tp_fact {v : SExpr}
-    (hfact : cond (Logic.toBool (Logic.integerp v))
-        (Logic.not (Logic.lt v (SExpr.atom (.number (.int 0)))))
-        SExpr.nil
-      = SExpr.t) :
-    Logic.natp v = SExpr.t := by
-  match v with
-  | .atom (.number (.int k)) =>
-    have hk : ¬ k < 0 := fun hk => by
-      simp [Logic.toBool, Logic.not, Logic.lt, Logic.toRat, hk, SExpr.t] at hfact
-    have hk' : k ≥ 0 := by omega
-    simp [Logic.natp, hk']
-  | .atom (.number (.rational _ _ _)) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
-  | .atom (.symbol _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
-  | .atom (.keyword _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
-  | .atom (.char _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
-  | .atom (.string _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
-  | .nil => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
-  | .cons _ _ => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
-
 /-- `Logic.len` is always an ACL2 integer — the kernel-checked counterpart of
     LEN's ground-zero `:TYPE-PRESCRIPTION` corollary
     `(IF (INTEGERP (LEN X)) (NOT (< (LEN X) '0)) 'NIL)`. The builtin TP pin
@@ -5739,33 +5677,6 @@ theorem re_val_if_nil_t (w : World) (env : Env) (x vx : SExpr)
     obtain ⟨g', rfl⟩ : ∃ g', g = g' + 1 := ⟨g - 1, by omega⟩
     exact evalOpt_quote g' w env SExpr.t
 
-/-- `(if x 't 'nil)` converges to `(bif toBool vx then t else nil)` — the
-    boolean wrapper's value form (the literal-boundary iff-normalization
-    bridge's wrapper). -/
-theorem re_val_if_t_nil (w : World) (env : Env) (x vx : SExpr)
-    (hx : ∃ N, ∀ f ≥ N, evalOpt f w env x = some vx) :
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "IF" }))
-        (.cons x (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-          (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)) .nil))))
-      = some (bif Logic.toBool vx then .t else .nil) := by
-  cases htb : Logic.toBool vx with
-  | true =>
-    have h := conv_if_true w env x
-      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
-      vx SExpr.t hx htb (re_val_quote w env SExpr.t)
-    simpa using h
-  | false =>
-    have hva : vx = SExpr.nil := by
-      cases vx <;> simp_all [Logic.toBool]
-    subst hva
-    obtain ⟨Na, ha'⟩ := hx
-    refine ⟨Na + 2, fun f hf => ?_⟩
-    obtain ⟨g, rfl⟩ : ∃ g, f = g + 2 := ⟨f - 2, by omega⟩
-    rw [evalOpt_if_false (g + 1) w env x _ _ (ha' (g + 1) (by omega))]
-    simpa using evalOpt_quote g w env SExpr.nil
-
 /-- rewrite-equal's built-in NIL normalization, LEFT form (rewrite.lisp:18089,
     unconditional/syntactic): `(equal 'nil x) ≡ (if x 'nil 't)`, fuel-robust,
     given `x` converges and `equal` is unshadowed. -/
@@ -5794,97 +5705,6 @@ theorem re_equal_nil_norm_l (w : World) (env : Env) (x : SExpr)
 theorem logic_equal_equal_t_r (a b : SExpr) :
     Logic.equal (Logic.equal a b) SExpr.t = Logic.equal a b := by
   by_cases h : (a == b) = true <;> simp [Logic.equal, h, SExpr.t]
-
-/-- The L-orientation of the same fold: `(equal 't (equal a b)) = (equal
-    a b)`. -/
-theorem logic_equal_t_equal_l (a b : SExpr) :
-    Logic.equal SExpr.t (Logic.equal a b) = Logic.equal a b := by
-  by_cases h : (a == b) = true <;> simp [Logic.equal, h, SExpr.t]
-
-/-- The boolean wrapper is the identity on `Logic.equal`'s range (the
-    last-position nil-drop's tail-frame change). -/
-theorem logic_boolwrap_self_equal (a b : SExpr) :
-    (bif Logic.toBool (Logic.equal a b) then SExpr.t else SExpr.nil)
-      = Logic.equal a b := by
-  by_cases h : (a == b) = true <;>
-    simp [Logic.equal, h, Logic.toBool, SExpr.t]
-
-/-- The boolean wrapper is the identity on the constant `'T` (the
-    last-position nil-drop's trivial predecessor). -/
-theorem logic_boolwrap_self_t :
-    (bif Logic.toBool SExpr.t then SExpr.t else SExpr.nil) = SExpr.t := rfl
-
-/-- The boolean wrapper is the identity on `Logic.not`'s range. -/
-theorem logic_boolwrap_self_not (v : SExpr) :
-    (bif Logic.toBool (Logic.not v) then SExpr.t else SExpr.nil)
-      = Logic.not v := by
-  cases v <;> rfl
-
-/-- The boolean wrapper is the identity on a value pinned two-valued by
-    the emitted BOOLEAN TP corollary (the last-position nil-drop's
-    world-fn predecessor — PERM/MEMB class). -/
-theorem logic_boolwrap_self_of_boolean_tp {v : SExpr}
-    (h : (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
-          else Logic.equal v SExpr.nil) = SExpr.t) :
-    (bif Logic.toBool v then SExpr.t else SExpr.nil) = v := by
-  by_cases hv : (v == SExpr.t) = true
-  · have hveq := eq_of_beq hv
-    subst hveq; rfl
-  · have h1 : Logic.equal v SExpr.t = SExpr.nil := by
-      simp [Logic.equal, hv]
-    rw [h1] at h
-    simp only [Logic.toBool, cond_false] at h
-    have hnil : v = SExpr.nil := by
-      by_cases h2 : (v == SExpr.nil) = true
-      · exact eq_of_beq h2
-      · simp [Logic.equal, h2, SExpr.t] at h
-    subst hnil; rfl
-
-/-- The BOOLEAN-TP fold's value identity: a two-valued `v` (the emitted
-    boolean TP corollary's lifted content) satisfies `(equal v 't) = v`. -/
-theorem logic_equal_t_self_of_boolean_tp {v : SExpr}
-    (h : (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
-          else Logic.equal v SExpr.nil) = SExpr.t) :
-    Logic.equal v SExpr.t = v := by
-  by_cases hv : (v == SExpr.t) = true
-  · have hveq : v = SExpr.t := eq_of_beq hv
-    subst hveq
-    simp [Logic.equal]
-  · have h1 : Logic.equal v SExpr.t = SExpr.nil := by
-      simp [Logic.equal, hv]
-    rw [h1]
-    rw [h1] at h
-    simp only [Logic.toBool, cond_false] at h
-    have hnil : v = SExpr.nil := by
-      by_cases h2 : (v == SExpr.nil) = true
-      · exact eq_of_beq h2
-      · simp [Logic.equal, h2, SExpr.t] at h
-    rw [hnil]
-
-/-- The eval-equality form of the L-fold, for the chain-end bridge:
-    `(EQUAL 'T (EQUAL a b)) ≡ (EQUAL a b)` given both sides' args
-    converge and `EQUAL` is unshadowed. -/
-theorem re_equal_t_fold_l (w : World) (env : Env) (a b va vb : SExpr)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some va)
-    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some vb) :
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "EQUAL" }))
-        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-          (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
-            (.cons a (.cons b .nil))) .nil)))
-      = evalOpt f w env (.cons (.atom (.symbol { name := "EQUAL" }))
-          (.cons a (.cons b .nil))) := by
-  have hInner := conv_builtin2 w env { name := "EQUAL" } a b va vb
-    (Logic.equal va vb) (by decide) h_no_equal ha hb
-    (callBuiltin_equal va vb)
-  have hOuter := conv_builtin2 w env { name := "EQUAL" }
-    (.cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil))
-    (.cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil)))
-    SExpr.t (Logic.equal va vb) (Logic.equal SExpr.t (Logic.equal va vb))
-    (by decide) h_no_equal (re_val_quote w env SExpr.t) hInner
-    (callBuiltin_equal SExpr.t (Logic.equal va vb))
-  exact fuel_eq_of_conv hOuter hInner (logic_equal_t_equal_l va vb)
 
 /-- Mirrored: `(equal 't (equal a b)) = (equal a b)` (rewrite.lisp:3785-3789). -/
 theorem logic_equal_equal_t_l (a b : SExpr) :

@@ -151,62 +151,6 @@ def congSpecOfFormula? (name : String) (formula : SExpr) : Option CongSpec := do
   return { name, formula, rel, fn := fnL, pos, argVars, vy,
            hyp, lhsApp, rhsApp }
 
-/-- Deterministic ONE-WAY first-order matching of `term` against `pattern`:
-    bind the pattern's ARGUMENT-position variables (bare symbols) to
-    subterms so the instantiated pattern equals the term; application HEADS
-    must match exactly; QUOTE subterms are opaque constants; bindings must
-    be consistent. `none` on any mismatch — the consumer's loud frontier.
-    Used where ACL2 emits NO substitution (type-set TP-rule applications):
-    unique first-order matching is a read-off, not search, and the caller
-    recompute-checks `substTerm σ pattern == term`. -/
-partial def matchPatternGo (p t : SExpr) (σ : List (Symbol × SExpr)) :
-    Option (List (Symbol × SExpr)) :=
-  match p, t with
-  | .atom (.symbol v), _ =>
-    match σ.find? (fun (w, _) => w == v) with
-    | some (_, t') => if t' == t then some σ else none
-    | none => some ((v, t) :: σ)
-  | .cons (.atom (.symbol pf)) pargs, .cons (.atom (.symbol tf)) targs =>
-    if pf.name == "QUOTE" then if p == t then some σ else none
-    else if pf != tf then none
-    else
-      pargs.toList?.bind fun pl =>
-      targs.toList?.bind fun tl =>
-      if pl.length != tl.length then none
-      else (pl.zip tl).foldlM (fun σ (pp, tt) => matchPatternGo pp tt σ) σ
-  | _, _ => if p == t then some σ else none
-
-def matchPattern? (pattern term : SExpr) :
-    Option (List (Symbol × SExpr)) :=
-  matchPatternGo pattern term []
-
-/-- A THEOREM-classed :TYPE-PRESCRIPTION rule's hypothesis surface
-    (`tpthm:<thm>`, close-out Phase 3 — the FIRST `:CLASSES` consumer):
-    the theorem name and its Goal-clause formula, offered as the
-    whole-formula replayed statement. Consumed by `replayRecognizer`'s
-    cited-rune fallback (a recognizer verdict whose ttree cites a
-    `(:TYPE-PRESCRIPTION <thm>)` rune naming a defthm, not a defun
-    admission TP — RM has none; TRUE-LISTP-RM is the anchor case). -/
-structure TpThmSpec where
-  name : String
-  formula : SExpr
-  deriving BEq, Repr
-
-/-- Does an emitted `:CLASSES` value name :TYPE-PRESCRIPTION — either the
-    bare keyword (TRUE-LISTP-RM's shape) or a member of the class list
-    (each entry a keyword or a `(keyword …)` spec)? -/
-def classesNameTP : Option SExpr → Bool
-  | some (.atom (.keyword k)) => k == "TYPE-PRESCRIPTION"
-  | some l =>
-    match l.toList? with
-    | some items => items.any fun it =>
-        match it with
-        | .atom (.keyword k) => k == "TYPE-PRESCRIPTION"
-        | .cons (.atom (.keyword k)) _ => k == "TYPE-PRESCRIPTION"
-        | _ => false
-    | none => false
-  | none => false
-
 /-- A `:use`-cited theorem's hypothesis surface (R7a, close-out Phase 2):
     the theorem NAME and its Goal-clause formula. The hypothesis states the
     WHOLE formula (`∀ env', EvTrue w env' formula` — `mkUseHypType`);
@@ -409,12 +353,6 @@ structure ReplayCtx where
       Consumed by the equivalence-rune own-position congruence
       (`equivOwnPosCongr`); discharged like `cong:` hyps. -/
   equivFullHyps : List (EquivFullSpec × Expr) := []
-  /-- THEOREM-classed :TYPE-PRESCRIPTION hypotheses (`tpthm:<thm>`): per
-      dependency theorem whose emitted `:CLASSES` names :TYPE-PRESCRIPTION,
-      the spec and the bound whole-formula hypothesis. Consumed by
-      `replayRecognizer`'s cited-rune fallback; discharged like `cong:`
-      hyps. -/
-  tpThmHyps : List (TpThmSpec × Expr) := []
   /-- Equivalence-REFLEXIVITY hypotheses (`equivrefl:<thm>`): per
       equivalence-shaped in-scope defthm (incl. INCLUDE-BOOK'd ones), the
       spec and the bound hypothesis `∀ env', EvTrue w env' (R x x)`.
@@ -456,7 +394,12 @@ def ReplayCtx.litFactByTermChecked? (ctx : ReplayCtx) (t : SExpr)
     stays wide) and the μ-route discrimination (Induction,
     `allowCons := true` — CONS-of-chains is inside the Count kit's
     reach). The deliberate reach difference is now an explicit parameter,
-    not a silent divergence. -/
+    not a silent divergence.
+    DRIFT MARKER (branch drift audit 2026-08-05, item R3): as a μ-route
+    discriminator this is a CALIBRATED HEURISTIC — it predicts which
+    route can discharge, rather than reading a recorded route choice.
+    Held pending the fork-batch review; if it ever misclassifies, emit
+    the route instead of widening the predicate. -/
 partial def destructorChainOk (allowCons : Bool) : SExpr → Bool
   | .atom (.symbol _) => true
   | .cons (.atom (.symbol d)) (.cons u .nil) =>
@@ -1504,7 +1447,13 @@ def builtinIntTps : List (String × Name) :=
     route layer 3): (fn, consp-nil lemma, natp-t lemma). Consumed by the
     recognizer/false and compound-recognizer arms, each GATED on the fn's
     EMITTED nonneg-int TP corollary (type facts from ACL2; the proof from
-    the trusted core — the builtinIntTps precedent). -/
+    the trusted core — the builtinIntTps precedent).
+    DRIFT MARKER, held under EXPIRY (branch drift audit 2026-08-05, item
+    R2): a Lean-side registry of per-builtin recognizer facts is
+    knowledge ACL2 has and could emit; retained only for the green
+    termination:BNEXT rows. EXPIRES when fork-batch item 2 (:FALSETS +
+    recognizer-tuple snapshot) lands: consume the emitted tuples and
+    delete this table; do NOT add entries. -/
 def builtinRecogFacts : List (String × Name × Name) :=
   [("LEN", ``logic_consp_len_nil, ``logic_natp_len_t)]
 
@@ -1834,16 +1783,18 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
         let flip : SExpr := .cons (.atom (.symbol eqS)) (.cons b (.cons a .nil))
         if let some h ← typeSetWalk cfg ctx (.isNil flip) 0 then
           return some (← Lean.Meta.mkAppM ``logic_equal_nil_comm #[h])
-        -- EQUATION-CLOSURE DISEQUALITY (fork-batch item 1's consumer: the
-        -- equal/type-alist-nil class — MEMB-RM's (EQUAL A B) ⇒ 'NIL from
-        -- A ≠ (CAR X) ∧ B = (CAR X)): connect each side through the
-        -- in-scope equation closure to the two ends of ONE in-scope
-        -- DISEQUALITY (a falsity fact on an (EQUAL x y) term). This is
-        -- BOUNDED DETERMINISTIC SEARCH (audit 2026-08-04 F7 — the honest
-        -- label): candidates in fact order, both orientations, first
-        -- type-checking connection taken; reproducible, and any valid
+        -- EQUATION-CLOSURE DISEQUALITY — DRIFT MARKER, held under EXPIRY
+        -- (branch drift audit 2026-08-05, item R1): this rung is BOUNDED
+        -- DETERMINISTIC SEARCH (audit 2026-08-04 F7), not replay of a
+        -- recorded step — it re-derives which type-alist entry ACL2 used
+        -- (the equal/type-alist-nil class — MEMB-RM's (EQUAL A B) ⇒ 'NIL
+        -- from A ≠ (CAR X) ∧ B = (CAR X)) by connecting each side through
+        -- the in-scope equation closure to ONE in-scope DISEQUALITY.
+        -- Retained ONLY because 3 green rows depend on it and any valid
         -- connection proves the same PINNED value (the node's emitted
-        -- verdict) — the target is never chosen by the search.
+        -- verdict). EXPIRES when fork-batch item 3 (fc/type-alist
+        -- provenance at expunge sites) lands: replace with a direct read
+        -- of the emitted provenance; do NOT extend this search.
         let eqs := inScopeEquations ctx
         let disCands : List SExpr :=
           (ctx.litFacts.map (·.2.1) ++ ctx.segFacts.map (·.1)).filter
@@ -2215,8 +2166,7 @@ partial def trueListpConsPeels (term : SExpr) : List SExpr :=
     `acl2-numberp`-of-pinned-int recipe (the TP bridge); a structurally-computing
     value (e.g. `consp (cons …) = t`, where the cast is definitional). -/
 partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (term : SExpr) (verdict : SExpr)
-    (citedTpThms : List String := []) : MetaM Expr := do
+    (term : SExpr) (verdict : SExpr) : MetaM Expr := do
   let verdictE := reflectSExpr verdict
   if let some (v, p) := ctx.val? term then
     unless ← isDefEq v verdictE do
@@ -2667,92 +2617,9 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
               mkAppM ``re_val_cast
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vB,
                   verdictE, pB, hT]
-            else if let some (spec, hypV) := citedTpThms.findSome? (fun tn =>
-                ctx.tpThmHyps.find? (fun (s, _) => s.name == tn)) then do
-              -- TP-CLASSED THEOREM route (tpthm sub-arc 2026-08-04 — the
-              -- FIRST :CLASSES consumer): the node's ttree cites a
-              -- (:TYPE-PRESCRIPTION <defthm>) rune naming a theorem, not a
-              -- defun admission TP (RM has none; TRUE-LISTP-RM is
-              -- `:CLASSES :TYPE-PRESCRIPTION`). Match the theorem's
-              -- conclusion against the recognizer term (no σ is emitted
-              -- for type-set rule applications; one-way matching is
-              -- deterministic and recompute-checked), relieve the hyp
-              -- instance from the clause context, MP, and pin the exact
-              -- verdict by the recognizer's trusted-core two-valued
-              -- range. Anchored per BUG-023: CITED runes only.
-              let (hyp?, concl) := match spec.formula with
-                | .cons (.atom (.symbol imp)) (.cons h (.cons c .nil)) =>
-                  if imp.name == "IMPLIES" then (some h, c)
-                  else (none, spec.formula)
-                | f => (none, f)
-              let some σ := matchPattern? concl term
-                | throwError "replayRecognizer/tpthm: {spec.name}'s \
-                    conclusion {repr concl} does not match {repr term} \
-                    (frontier)"
-              let σvars := σ.map (·.1)
-              let σterms := σ.map (·.2)
-              unless ACL2.Replay.substTerm σvars σterms concl == term do
-                throwError "replayRecognizer/tpthm: match recompute failed \
-                    (internal)"
-              unless (ACL2.Replay.freeVars spec.formula).all
-                  (σvars.contains ·) do
-                throwError "replayRecognizer/tpthm: {spec.name} has free \
-                    variables outside the conclusion match (frontier — \
-                    free-variable TP hyps)"
-              unless verdict == SExpr.t do
-                throwError "replayRecognizer/tpthm: verdict {repr verdict} \
-                    ≠ 'T (frontier)"
-              let (hInst, ctx1) ← instantiateEvTrueHypAt cfg ctx hypV
-                σvars σterms spec.formula
-              let instF := ACL2.Replay.substTerm σvars σterms spec.formula
-              let ctx2 ← pinTermOpaques cfg cfg.envExpr ctx1 instF
-              let hFne ← mkAppM ``ne_nil_of_evtrue_conv
-                #[hInst, ← ctxValProof cfg ctx2 instF]
-              let (hCne, ctxF) ← match hyp? with
-                | none => pure (hFne, ctx2)
-                | some h => do
-                  let hσ := ACL2.Replay.substTerm σvars σterms h
-                  let notH : SExpr := .cons
-                    (.atom (.symbol { name := "NOT" })) (.cons hσ .nil)
-                  let ctx3 ← pinTermOpaques cfg cfg.envExpr ctx2 hσ
-                  let vH ← ctxValExpr cfg ctx3 hσ
-                  -- litFactByTermChecked? already scans litFacts THEN
-                  -- segFacts with a per-candidate type check; an unchecked
-                  -- segFacts fallback would re-open the cross-env-context
-                  -- hole that helper closes (tpthm audit F1 — a dead arm
-                  -- deleted)
-                  let hit ← ctx3.litFactByTermChecked? notH
-                    (← mkEq (mkApp (mkConst ``Logic.not) vH)
-                      (mkConst ``SExpr.nil))
-                  let some hNotNil := hit
-                    | throwError "replayRecognizer/tpthm: {spec.name}'s hyp \
-                        instance {repr hσ} has no (not …)-falsity fact in \
-                        scope (frontier)"
-                  let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
-                  pure (← mkAppM ``implies_value_mp #[hFne, hne], ctx3)
-              -- exact-'T pin: the recognizer's TRUSTED-CORE two-valued
-              -- range (same registry as dischargeRuleHyp's routeBool)
-              let coreBool? : Option (Name × Name) :=
-                if rs.name == "TRUE-LISTP" then
-                  some (``Logic.trueListp, ``logic_trueListp_ne_nil_t)
-                else if rs.name == "CONSP" then
-                  some (``Logic.consp, ``logic_consp_ne_nil_t)
-                else none
-              let some (liftC, neLemma) := coreBool?
-                | throwError "replayRecognizer/tpthm: {rs.name} has no \
-                    trusted-core two-valued range registered (frontier)"
-              let vC ← ctxValExpr cfg ctxF term
-              unless vC.isAppOfArity liftC 1 do
-                throwError "replayRecognizer/tpthm: value of {repr term} \
-                    is not ({liftC} _)"
-              let hT ← mkAppM neLemma #[vC.appArg!, hCne]
-              mkAppM ``re_val_cast
-                #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vC,
-                  verdictE, ← ctxValProof cfg ctxF term, hT]
             else
               throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict} \
-                        (no TP hypothesis for {fs.name}; cited TP runes \
-                        {citedTpThms})"
+                        (no TP hypothesis for {fs.name})"
     else
       let p ← ctxValProof cfg ctx term
       let v ← ctxValExpr cfg ctx term
@@ -2807,54 +2674,6 @@ def bridgeEqualNilNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
     (reached recorded : SExpr) : MetaM (Option Expr) := do
   let eqT (a b : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil))
-  -- the if-interp call-stack fold, L-orientation (rewrite.lisp:3791-3793,
-  -- the PCE tower's residue): reached (EQUAL 'T (EQUAL a b)) vs recorded
-  -- (EQUAL a b)
-  if let .cons (.atom (.symbol re2)) (.cons a (.cons b .nil)) := recorded then
-    if re2.name == "EQUAL" && reached == eqT quoteT recorded then
-      let ctx ← pinTermOpaques cfg cfg.envExpr ctx recorded
-      let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
-      let va ← ctxValExpr cfg ctx a
-      let vb ← ctxValExpr cfg ctx b
-      let ha ← ctxValProof cfg ctx a
-      let hb ← ctxValProof cfg ctx b
-      return some (← mkAppM ``re_equal_t_fold_l
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b,
-          va, vb, hNoEq, ha, hb])
-  -- the BOOLEAN-TP fold (the PCE tower's residue): reached (EQUAL p 'T)
-  -- vs recorded p, where p's fn carries an emitted BOOLEAN TP corollary
-  -- `(IF (EQUAL p 'T) 'T (EQUAL p 'NIL))` — two-valuedness makes the
-  -- fold a value identity (consumed, not inferred).
-  if reached == eqT recorded quoteT then
-    if let .cons (.atom (.symbol fs)) argsSpine := recorded then
-      if let some (_, cor, tpHyp) :=
-          ctx.tpHyps.find? (fun (n, _, _) => n == fs.name) then do
-        let some (formals, _) := cfg.worldVal.defs.get? fs | return none
-        let args := (argsSpine.toList?).getD []
-        if formals.length == args.length then do
-          let inst := ACL2.Replay.substTerm formals args cor
-          let expected : SExpr :=
-            .cons (.atom (.symbol { name := "IF" }))
-              (.cons (eqT recorded quoteT)
-                (.cons quoteT (.cons (eqT recorded quoteNil) .nil)))
-          if inst == expected then do
-            let ctx ← pinTermOpaques cfg cfg.envExpr ctx recorded
-            let some (vp, convp) := ctx.val? recorded | return none
-            let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
-              ++ (args.map reflectSExpr).toArray ++ #[vp, convp])
-            let hveq ← mkAppM ``logic_equal_t_self_of_boolean_tp #[fact]
-            let hNoEq ← proveNoShadow cfg { name := "EQUAL" }
-            let hp ← ctxValProof cfg ctx recorded
-            let hOuter ← mkAppM ``conv_builtin2
-              #[cfg.worldExpr, cfg.envExpr,
-                reflectSymbol { name := "EQUAL" }, reflectSExpr recorded,
-                reflectSExpr quoteT, vp, mkConst ``SExpr.t,
-                mkApp2 (mkConst ``Logic.equal) vp (mkConst ``SExpr.t),
-                ← proveNotSpecial { name := "EQUAL" }, hNoEq, hp,
-                ← mkAppM ``re_val_quote
-                  #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t],
-                ← mkAppM ``callBuiltin_equal #[vp, mkConst ``SExpr.t]]
-            return some (← mkAppM ``fuel_eq_of_conv #[hOuter, hp, hveq])
   let .cons (.atom (.symbol ifS)) (.cons x (.cons thn (.cons els .nil))) := recorded
     | return none
   unless ifS.name == "IF" do return none
@@ -3609,13 +3428,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let verdictV := match rhs with
       | .cons (.atom (.symbol q)) (.cons v .nil) => if q.name == "QUOTE" then v else rhs
       | v => v
-    -- the node's cited (:TYPE-PRESCRIPTION <name>) runes — the tpthm
-    -- route's BUG-023 anchor (theorem-classed TP rules; defun-TP names
-    -- simply have no tpthm offer and fall through to the tp: routes)
-    let .node _ _ _ _ provR := n
-    let citedTpThms := provR.runes.filterMap fun r =>
-      if r.ty == "type-prescription" then some r.name else none
-    let fact ← replayRecognizer cfg ctx lhs verdictV (citedTpThms := citedTpThms)
+    let fact ← replayRecognizer cfg ctx lhs verdictV
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr verdictV]
     mkAppM ``fuel_eq_of_conv #[fact, hq, ← mkEqRefl (reflectSExpr verdictV)]
   | "if-simplification", _ =>
@@ -3794,63 +3607,29 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let .cons (.atom (.symbol fs)) (.cons innerArg .nil) := inner
       | throwError "compound-recognizer: inner {repr inner} is not a unary \
                     application (frontier)"
-    if let some (_, _, natpLem) :=
-        builtinRecogFacts.find? (fun e => e.1 == fs.name) then
-      let some cor := cfg.gzTps.lookup fs.name
-        | throwError "compound-recognizer: {fs.name}'s TP corollary not \
-                      emitted (type facts from ACL2 — emission gap)"
-      let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
-        | throwError "compound-recognizer: corollary destructure failed: \
-                      {repr cor}"
-      unless cor == intTpCorollary app do
-        throwError "compound-recognizer: {fs.name}'s corollary drifted from \
-                    the nonneg-int shape: {repr cor}"
-      let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
-      let vArg ← ctxValExpr cfg ctx innerArg
-      let hT ← mkAppM natpLem #[vArg]
-      let pl ← ctxValProof cfg ctx lhs
-      let pr ← mkAppM ``re_val_quote
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-      mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
-    else
-      -- WORLD-fn inner (BNEXT-SIZE — layer 4 of the route): the natp fact
-      -- comes from the fn's EMITTED nonneg-int TP corollary through the
-      -- tpHyps channel (type facts from ACL2, the proof by the trusted-core
-      -- composition `logic_natp_t_of_int_tp_fact` on the lifted fact at the
-      -- application's pinned value — the `replayRecognizer` TP-lattice
-      -- precedent). Consumed, not inferred: the corollary instantiated at
-      -- the ACTUAL argument must BE the standard nonneg-int shape at this
-      -- exact application.
-      let some (_, cor, tpHyp) :=
-          ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
-        | throwError "compound-recognizer: inner fn {fs.name} has neither a \
-                      registered trusted-core natp fact nor an emitted TP \
-                      hypothesis in scope (type facts from ACL2 — emission \
-                      gap or frontier)"
-      let some (formals, _) := cfg.worldVal.defs.get? fs
-        | throwError "compound-recognizer: {fs.name} not defined in the world"
-      unless formals.length == 1 do
-        throwError "compound-recognizer: {fs.name} is not unary (frontier)"
-      unless ACL2.Replay.substTerm formals [innerArg] cor
-          == intTpCorollary inner do
-        throwError "compound-recognizer: {fs.name}'s TP corollary \
-                    ({repr cor}) instantiated at {repr innerArg} is not the \
-                    nonneg-int shape at {repr inner} (frontier)"
-      let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
-      let some (vz, convz) := ctx.val? inner
-        | throwError "compound-recognizer: {repr inner} has no pinned value \
-                      (world-fn route, frontier)"
-      let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
-        ++ #[reflectSExpr innerArg, vz, convz])
-      let hT ← mkAppM ``logic_natp_t_of_int_tp_fact #[fact]
-      let v ← ctxValExpr cfg ctx lhs
-      unless ← isDefEq v (mkApp (mkConst ``Logic.natp) vz) do
-        throwError "compound-recognizer: value of {repr lhs} does not match \
-                    (Logic.natp _) at the pinned inner value"
-      let pl ← ctxValProof cfg ctx lhs
-      let pr ← mkAppM ``re_val_quote
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-      mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
+    let some (_, _, natpLem) :=
+        builtinRecogFacts.find? (fun e => e.1 == fs.name)
+      | throwError "compound-recognizer: inner fn {fs.name} has no \
+                    registered trusted-core natp fact (frontier — the \
+                    world-fn route parked behind fork batch item 1, the \
+                    local :LINEAR snapshot; see the 2026-08-05 branch \
+                    drift audit, item 9)"
+    let some cor := cfg.gzTps.lookup fs.name
+      | throwError "compound-recognizer: {fs.name}'s TP corollary not \
+                    emitted (type facts from ACL2 — emission gap)"
+    let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
+      | throwError "compound-recognizer: corollary destructure failed: \
+                    {repr cor}"
+    unless cor == intTpCorollary app do
+      throwError "compound-recognizer: {fs.name}'s corollary drifted from \
+                  the nonneg-int shape: {repr cor}"
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
+    let vArg ← ctxValExpr cfg ctx innerArg
+    let hT ← mkAppM natpLem #[vArg]
+    let pl ← ctxValProof cfg ctx lhs
+    let pr ← mkAppM ``re_val_quote
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+    mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
   | "equal-case-split", _ =>
     -- rewrite-equal's boolean CASE-RESTRUCTURING (fork-batch item 1's
     -- consumer): `(EQUAL p q)` with the split side an EQUALITY — hence
@@ -4449,76 +4228,14 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- inferred; anything else is a frontier.
     unless nodeOrigin n == "equal/type-set-nil" do
       throwError "type-set-equality: origin {nodeOrigin n} (frontier)"
-    let .cons (.atom (.symbol eqS)) (.cons x0 (.cons qc0 .nil)) := lhs
+    let .cons (.atom (.symbol eqS)) (.cons x (.cons qc .nil)) := lhs
       | throwError "type-set-equality: lhs {repr lhs} is not (equal x 'c) (frontier)"
     unless eqS.name == "EQUAL" do
       throwError "type-set-equality: lhs head {eqS.name} (frontier)"
     unless rhs == quoteNil do
       throwError "type-set-equality: rhs {repr rhs} ≠ 'nil (frontier)"
-    -- orientation-normalize (PCE *1/1.x: the quoted constant may sit
-    -- LEFT — (EQUAL '0 (BINARY-+ ...))); the cells below assume
-    -- (term, constant) order, and a flip re-orients the final value fact
-    -- through logic_equal_comm.
-    let isQuoteS : SExpr → Bool := fun s => match s with
-      | .cons (.atom (.symbol q)) (.cons _ .nil) => q.name == "QUOTE"
-      | _ => false
-    let (x, qc, flippedEq) :=
-      if isQuoteS x0 && !isQuoteS qc0 then (qc0, x0, true)
-      else (x0, qc0, false)
-    -- TERM-vs-SUM disjointness (PCE *1/1.x): `(EQUAL u (BINARY-+ '1 u))`
-    -- (either orientation) ⇒ 'NIL off u's emitted nonneg-int TP —
-    -- `m ≠ 1 + m` (logic_equal_nil_of_plus1_self / its flip).
-    let q1' : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
-      (.cons (.atom (.number (.int 1))) .nil)
-    let plus1Of : SExpr → Option SExpr := fun s => match s with
-      | .cons (.atom (.symbol pS)) (.cons oneT (.cons u .nil)) =>
-        if pS.name == "BINARY-+" && oneT == q1' then some u else none
-      | _ => none
-    let sumSelf? : Option (SExpr × Bool) :=
-      match plus1Of qc with
-      | some u => if u == x then some (x, false) else none
-      | none => match plus1Of x with
-        | some u => if u == qc then some (qc, true) else none
-        | none => none
-    if let some (u, flipped) := sumSelf? then do
-      let ctxS ← pinTermOpaques cfg cfg.envExpr ctx u
-      let tpFact? ← do
-        match u with
-        | .cons (.atom (.symbol fs)) argsSpine =>
-          match ctxS.tpHyps.find? (fun (nm, _, _) => nm == fs.name) with
-          | none => pure none
-          | some (_, cor, tpHyp) => do
-            let some (formals, _) := cfg.worldVal.defs.get? fs | pure none
-            let args := (argsSpine.toList?).getD []
-            if formals.length != args.length then pure none
-            else do
-              let inst := ACL2.Replay.substTerm formals args cor
-              if inst == intTpCorollary u then
-                match ctxS.val? u with
-                | some (vu, convu) =>
-                  pure (some (mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
-                    ++ (args.map reflectSExpr).toArray ++ #[vu, convu])))
-                | none => pure none
-              else pure none
-        | _ => pure none
-      let some fact := tpFact?
-        | throwError "type-set-equality: term-vs-sum {repr u} has no \
-            emitted nonneg-int TP in scope (frontier)"
-      let hVal ← if flipped then
-          mkAppM ``logic_equal_nil_of_plus1_self_l #[fact]
-        else
-          mkAppM ``logic_equal_nil_of_plus1_self_r #[fact]
-      let p ← ctxValProof cfg ctxS lhs
-      let v ← ctxValExpr cfg ctxS lhs
-      unless ← isDefEq v (← Lean.Meta.inferType hVal).appFn!.appArg! do
-        throwError "type-set-equality: term-vs-sum value mismatch at \
-            {repr lhs}"
-      return ← mkAppM ``re_val_cast
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr lhs, v,
-          reflectSExpr SExpr.nil, p, hVal]
     let .cons (.atom (.symbol q)) (.cons cv .nil) := qc
-      | throwError "type-set-equality: {repr qc} is not a quoted constant \
-          (lhs-x {repr x}) (frontier)"
+      | throwError "type-set-equality: {repr qc} is not a quoted constant (frontier)"
     unless q.name == "QUOTE" do
       throwError "type-set-equality: {repr qc} is not a quoted constant (frontier)"
     if cv matches .cons _ _ then
@@ -4566,27 +4283,21 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       match x, cv with
       | .cons (.atom (.symbol pS)) (.cons oneT (.cons uT .nil)),
         .atom (.number (.int 0)) =>
-        if pS.name == "BINARY-+" && oneT == q1 then do
-          -- nested-sum sub-case (BINARY-+ '1 (BINARY-+ p q)) first; any
-          -- other summand (the PCE tower's HOW-MANY) takes the
-          -- SINGLE-SUMMAND sibling off its own emitted nonneg-int TP
-          let nested? ← match uT with
-            | .cons (.atom (.symbol pS2)) (.cons pT (.cons qT .nil)) =>
-              if pS2.name == "BINARY-+" then
-                match ← tpNonnegFactOf pT, ← tpNonnegFactOf qT with
-                | some fp, some fq =>
-                  pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg
-                    #[fp, fq]))
-                | _, _ => pure none
-              else pure none
-            | _ => pure none
-          match nested? with
-          | some h => pure (some h)
-          | none =>
-            match ← tpNonnegFactOf uT with
-            | some fu =>
-              pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg1 #[fu]))
-            | none => pure none
+        -- the general binary-application pattern with an INNER dispatch —
+        -- the match-capture fix (a specific nested pattern here dead-ended
+        -- the arm for non-BINARY-+ summands); only the NESTED-SUM cell is
+        -- registered.
+        if pS.name == "BINARY-+" && oneT == q1 then
+          match uT with
+          | .cons (.atom (.symbol pS2)) (.cons pT (.cons qT .nil)) =>
+            if pS2.name == "BINARY-+" then
+              match ← tpNonnegFactOf pT, ← tpNonnegFactOf qT with
+              | some fp, some fq =>
+                pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg
+                  #[fp, fq]))
+              | _, _ => pure none
+            else pure none
+          | _ => pure none
         else pure none
       | _, _ => pure none
     let hVal ←
@@ -4602,14 +4313,6 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             (mkConst ``SExpr.nil))
           "consp of the quoted constant is nil"
         mkAppM ``logic_equal_nil_of_consp_t_nil #[hConsp, hC]
-    let hVal ← do
-      if flippedEq then
-        -- re-orient: the cells prove (equal v_term v_const) = nil; the
-        -- lhs value composes in the ORIGINAL (const, term) order
-        let vx ← ctxValExpr cfg (← pinTermOpaques cfg cfg.envExpr ctx x) x
-        mkAppM ``Eq.trans
-          #[← mkAppM ``logic_equal_comm #[reflectSExpr cv, vx], hVal]
-      else pure hVal
     let pL ← ctxValProof cfg ctx lhs
     let pR ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
     mkAppM ``fuel_eq_of_conv #[pL, pR, hVal]
@@ -5153,30 +4856,16 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             {repr start} (entry path {repr wpath}, swapped {wswapped}) — \
             ambiguous position (frontier)"
       | cs => do
-        -- POSITION-CANONICAL disambiguation (close-out queue, the
-        -- HOW-MANY-RM-GENERAL class): distinct FRAME SPELLINGS can name
-        -- the SAME position — navigation checks arity positions; a
-        -- frame's fn symbol is a display descriptor — so the syntactic
-        -- dedupe above can miss semantic equality. Canonicalize each
-        -- candidate by its VALIDATED PathStep list against the running
-        -- term (a read-off, not preference): all equal → one position →
-        -- take the branch-anchored reading if present (the
-        -- hypothesis-bearing faithful context), else the first. Genuine
-        -- positional disagreement still hard-fails.
-        let canon ← cs.mapM (fun c => do
-          match pathStepsFromFrames start c.1 wterm with
-          | .ok p => pure (some p)
-          | .error _ => pure (none : Option (List PathStep)))
-        let allSame := match canon.head?.bind id with
-          | some p0 => canon.all (· == some p0)
-          | none => false
-        if allSame then
-          chosen? := some ((cs.find? (·.2.2.isSome)).getD cs.head!)
-        else
-          throwError "replayRewrites: inline {kind} window term \
-              {repr wterm} admits {cs.length} distinct anchorings \
-              {repr (cs.map (·.1))} in the running term {repr start} (entry \
-              path {repr wpath}) — ambiguous position (frontier)"
+        -- REVERTED to the hard-fail (branch drift audit item 15,
+        -- 2026-08-05): the earlier disambiguation canonicalized frames
+        -- but not preSwap?/branchAnchor across survivors, then PREFERRED
+        -- the branch-anchored reading — a preference among ambiguous
+        -- readings is search, not read-off. Complete it (pin all three,
+        -- or prove uniqueness) before re-landing.
+        throwError "replayRewrites: inline {kind} window term \
+            {repr wterm} admits {cs.length} distinct anchorings \
+            {repr (cs.map (·.1))} in the running term {repr start} (entry \
+            path {repr wpath}) — ambiguous position (frontier)"
       if let some (c, preSwap?, br?) := chosen? then
         frames := c
         branchAnchor := br?
@@ -6334,25 +6023,7 @@ partial def collectContextDemands : ProofNode → List ContextDemand
                    (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
                      (.cons u .nil)))]
                else []
-             | _ => []) ++
-            -- tpthm ingredients (the :CLASSES consumer): a THEOREM-classed
-            -- TP rule's hyp instance is typically the recognizer at an
-            -- ARGUMENT of the inner application ((TRUE-LISTP (RM E X))'s
-            -- hyp is (TRUE-LISTP X)) — demand each. GATED on the node
-            -- citing a :TYPE-PRESCRIPTION rune (tpthm audit F9 — cuts the
-            -- 26 recognizer/true blast radius to the citing nodes) and
-            -- QUOTE-guarded (F10). A demand is hoisted only if its value
-            -- constructs in scope; over-approximation is bounded by both.
-            (if prov.runes.any (·.ty == "type-prescription") then
-              match w with
-              | .cons (.atom (.symbol wf)) argsS =>
-                if wf.name == "QUOTE" then []
-                else (argsS.toList?.getD []).map fun a =>
-                  ContextDemand.term (notOf
-                    (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
-                      (.cons a .nil)))
-              | _ => []
-             else [])
+             | _ => [])
           else if rs.name == "CONSP" then
             -- the CONSP-closure ingredients (ORDERED-PERMS *1/2.2 and the
             -- IF-split shapes): for EVERY (CDR u) subterm of w, the truthy

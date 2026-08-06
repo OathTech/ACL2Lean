@@ -87,13 +87,6 @@ def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         | _ => throwError "depMirrorProofAt: registry dependency \
             {name} keeps {c}, absent or ambiguous in the consumer \
             telescope (internal)"
-      else if c.startsWith "tpthm:" then
-        let tn := (c.drop "tpthm:".length).toString
-        match ctx.tpThmHyps.filter (fun (s, _) => s.name == tn) with
-        | [(_, h)] => pure h
-        | _ => throwError "depMirrorProofAt: registry dependency \
-            {name} keeps {c}, absent or ambiguous in the consumer \
-            telescope (internal)"
       else throwError "depMirrorProofAt: registry dependency \
           {name} keeps unrecognized condition {c} (internal)"
     pure (mkAppN (mkConst decl) (#[envV] ++ condArgs))
@@ -317,32 +310,6 @@ def dischargeEquivFullHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
     let pf ← mkLambdaFVars #[envV] pDep
     mkExpectedTypeHint pf (← mkEquivFullHypType cfg spec)
-
-/-- DISCHARGE a `tpthm:<thm>` hypothesis (the first :CLASSES consumer):
-    whole-formula from the dependency's replayed statement — the
-    `dischargeCongHyp` shape (same-source formula assert). -/
-def dischargeTpThmHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (spec : TpThmSpec) (depProofs : List (String × ClauseProof))
-    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
-  let some cp := depProofs.lookup spec.name
-    | throwFrontier m!"dischargeTpThmHyp: no dependency proof for {spec.name}"
-  let some depRoot := cp.root
-    | throwFrontier m!"dischargeTpThmHyp: dependency {spec.name} has no \
-        proof tree"
-  let [formula] := depRoot.inputClause
-    | throwFrontier m!"dischargeTpThmHyp: dependency {spec.name}'s Goal is \
-        not a single-literal clause (frontier)"
-  unless formula == spec.formula do
-    throwError "dischargeTpThmHyp: {spec.name}'s Goal {repr formula} ≠ the \
-        offered formula {repr spec.formula} (internal)"
-  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
-    let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
-                               branchFacts := [], segFacts := [] }
-    ctxD ← pinTermOpaques cfgD envV ctxD formula
-    let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
-    let pf ← mkLambdaFVars #[envV] pDep
-    mkExpectedTypeHint pf (← mkTpThmHypType cfg spec)
 
 /-- DISCHARGE a `use:<thm>` hypothesis from its dependency's replayed
     statement (R7a): identical to `dischargeCongHyp` — the hypothesis
@@ -602,32 +569,6 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (equivFullSpecs.map fun e =>
       (Name.mkSimple s!"hequivfull_{e.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkEquivFullHypType cfg e)).toArray
-  -- tpthm:<thm> offers (the FIRST :CLASSES consumer, tpthm sub-arc): per
-  -- dependency theorem whose emitted :CLASSES names :TYPE-PRESCRIPTION
-  -- (bare keyword or a class-list member), the whole-formula statement.
-  -- Rare class (one per hand-classed TP theorem); consumed by
-  -- replayRecognizer's cited-rune fallback, unused offers dropped.
-  -- topological guard (tpthm audit F5, mirroring useSpecs): no
-  -- self-offer, and a SAME-BOOK entry must be strictly earlier — ACL2
-  -- cannot cite a not-yet-admitted rule, and the cited-rune anchor alone
-  -- rests on untrusted fork emission (the BUG-023 class).
-  let tpThmSpecs : List TpThmSpec := depProofs.foldl (init := [])
-    fun acc (n, dcp) =>
-      if acc.any (·.name == n) then acc
-      else if n == cp.name then acc
-      else if useSameBook.any (fun (m, _) => m == n)
-              && !useEarlier.contains n then acc
-      else if !classesNameTP dcp.classes then acc
-      else match dcp.root with
-      | some root =>
-        match root.inputClause with
-        | [f] => acc ++ [{ name := n, formula := f }]
-        | _ => acc
-      | none => acc
-  let tpThmDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
-    (tpThmSpecs.map fun s =>
-      (Name.mkSimple s!"htpthm_{s.name}", BinderInfo.default,
-       fun (_ : Array Expr) => mkTpThmHypType cfg s)).toArray
   -- ASSUMED:dp-fact offers (condition threading, sorting-completion-2): one
   -- hypothesis per DISCHARGE leaf in this theorem's tree, typed as the
   -- leaf's DP-lift obligation (`dpFactStmtOfClause` — the same derivation
@@ -667,7 +608,6 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     useSpecs.map (fun u => s!"use:{u.name}") ++
     equivSpecs.map (fun c => s!"equivrefl:{c.name}") ++
     equivFullSpecs.map (fun e => s!"equivfull:{e.name}") ++
-    tpThmSpecs.map (fun s => s!"tpthm:{s.name}") ++
     linearSpecs.map (fun r => s!"linear:{r.name}") ++
     dpStmts.map (fun _ => assumedDpFactCond)
   withLocalDecls totalDecls fun totalVs => do
@@ -677,7 +617,6 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       withLocalDecls useDecls fun useVs => do
       withLocalDecls equivDecls fun equivVs => do
       withLocalDecls equivFullDecls fun equivFullVs => do
-      withLocalDecls tpThmDecls fun tpThmVs => do
       withLocalDecls linearDecls fun linearVs => do
       withLocalDecls dpDecls fun dpVs => do
       let tpVs := tpAllVs.extract 0 tpDecls.size
@@ -703,7 +642,6 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             ).bind fun (_, i) => linearVs[i]?.map fun v => (r, v)),
           equivReflHyps := equivSpecs.zip equivVs.toList,
           equivFullHyps := equivFullSpecs.zip equivFullVs.toList,
-          tpThmHyps := tpThmSpecs.zip tpThmVs.toList,
           dpFactHyps := (dpStmts.map (·.1)).zip dpVs.toList }
       let some root := cp.root
         | throwError "replayProofConditional: theorem {cp.name} has no proof tree"
@@ -777,17 +715,6 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           catch e =>
             unless isFrontierErr e do
               throw e
-      -- tpthm:<thm> discharge (the first :CLASSES consumer): same
-      -- whole-formula shape and pass discipline.
-      for (spec, hypV) in (tpThmSpecs.zip tpThmVs.toList).reverse do
-        if prfR.containsFVar hypV.fvarId! then
-          try
-            let pf ← withRealMaxHeartbeats dischargeBudget <|
-              dischargeTpThmHyp cfg ctx spec depProofs mirrors
-            prfR ← letBindFVar prfR hypV pf
-          catch e =>
-            unless isFrontierErr e do
-              throw e
       -- equivrefl:<thm> discharge (P3, the ORDERED-PERMS mirror): projected
       -- from the dependency's replayed statement; BEFORE the rule pass —
       -- the dependency's replay can consume rule:/cong: fvars, caught by
@@ -825,7 +752,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).
-      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ tpThmVs ++ linearVs ++ dpVs).toList).filter
+      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
       -- #37 LAZY discharge: prove admission totality only for the USED
       -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
@@ -837,7 +764,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let usedTpNames := used.filterMap fun (c, _) =>
         if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
       let neededFns := usedTotalNames ++ usedTpNames
-      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ tpThmVs ++ linearVs ++ dpVs).toList)
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs).toList)
       let totalEnv ←
         if neededFns.isEmpty then pure []
         else

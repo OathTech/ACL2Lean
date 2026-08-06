@@ -591,84 +591,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           let before := curLits.take pos
           let after := curLits.drop (pos + 1)
           if after.isEmpty then
-            -- LAST-position drop (PCE *1/1.2): the tail frame changes
-            -- (IF lprev 'T 'NIL) → lprev — EQUAL-sound exactly when
-            -- lprev's value is TWO-VALUED (Logic.equal/Logic.not range);
-            -- otherwise the frontier stands.
-            let some (_, lprev) := before.getLast?
-              | throwError "replayClauseSpine: nil-only clause at {idStr} \
-                  (frontier)"
-            ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 lprev
-            let vP ← ctxValExpr cfg ctx2 lprev
-            let hP ← ctxValProof cfg ctx2 lprev
-            let isEq := vP.isAppOfArity ``Logic.equal 2
-            let isNot := vP.isAppOfArity ``Logic.not 1
-            -- world-fn predecessors: two-valued via the emitted BOOLEAN
-            -- TP corollary (PERM/MEMB class — consumed, not inferred)
-            let boolTpFact? : Option Expr ← do
-              match lprev with
-              | .cons (.atom (.symbol fs)) argsSpine =>
-                match ctx2.tpHyps.find? (fun (n, _, _) => n == fs.name) with
-                | none => pure none
-                | some (_, cor, tpHyp) => do
-                  let some (formals, _) := cfg.worldVal.defs.get? fs
-                    | pure none
-                  let args := (argsSpine.toList?).getD []
-                  if formals.length != args.length then pure none
-                  else do
-                    let eqT (x y : SExpr) : SExpr :=
-                      .cons (.atom (.symbol { name := "EQUAL" }))
-                        (.cons x (.cons y .nil))
-                    let inst := ACL2.Replay.substTerm formals args cor
-                    let expected : SExpr :=
-                      .cons (.atom (.symbol { name := "IF" }))
-                        (.cons (eqT lprev quoteT)
-                          (.cons quoteT (.cons (eqT lprev quoteNil) .nil)))
-                    if inst == expected then
-                      match ctx2.val? lprev with
-                      | some (vp, convp) =>
-                        pure (some (mkAppN tpHyp
-                          ((#[cfg.envExpr] : Array Expr)
-                            ++ (args.map reflectSExpr).toArray
-                            ++ #[vp, convp])))
-                      | none => pure none
-                    else pure none
-              | _ => pure none
-            let isQT := lprev == quoteT
-            unless isEq || isNot || isQT || boolTpFact?.isSome do
-              throwError "replayClauseSpine: literal folded to 'NIL in \
-                  LAST position at {idStr} with a non-two-valued \
-                  predecessor {repr lprev} (frontier)"
-            let hwrap ← mkAppM ``re_val_if_t_nil
-              #[cfg.worldExpr, cfg.envExpr, reflectSExpr lprev, vP, hP]
-            let hident ← if isEq then
-                mkAppM ``logic_boolwrap_self_equal
-                  #[vP.appFn!.appArg!, vP.appArg!]
-              else if isNot then
-                mkAppM ``logic_boolwrap_self_not #[vP.appArg!]
-              else if isQT then
-                mkAppM ``logic_boolwrap_self_t #[]
-              else
-                mkAppM ``logic_boolwrap_self_of_boolean_tp
-                  #[boolTpFact?.get!]
-            let stepEq ← mkAppM ``fuel_eq_of_conv #[hwrap, hP, hident]
-            let mut innerL := stepEq
-            let mut curLL : SExpr := .cons (.atom (.symbol { name := "IF" }))
-              (.cons lprev (.cons quoteT (.cons quoteNil .nil)))
-            let mut curRL : SExpr := lprev
-            for l in (before.dropLast.map (·.2)).reverse do
-              let stp : PathStep := { fn := { name := "IF" }, arity := 3,
-                                      argIdx := 2, siblings := [l, quoteT] }
-              innerL ← applyStep cfg.worldExpr cfg.envExpr stp curLL curRL
-                innerL
-              curLL := rebuild stp curLL
-              curRL := rebuild stp curRL
-            unless curLL == disjoinTerm (curLits.map (·.2)) do
-              throwError "replayClauseSpine: last-nil drop reconstructed \
-                  {repr curLL} ≠ the folded clause at {idStr}"
-            extraChains := extraChains ++ [innerL]
-            curLits := before
-            continue
+            throwError "replayClauseSpine: literal folded to 'NIL in LAST \
+                position at {idStr} (frontier)"
           let afterT := disjoinTerm (after.map (·.2))
           -- ctx2, not ctx1: the tail contains SUBSTITUTED opaques (the
           -- stale-ctx class — ORDERED-PERMS *1/2.1.2's (RM A1 'NIL))
@@ -1233,22 +1157,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             let brS ← mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, br, pConv]
             pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, ch, brS], true))
         | none =>
-          -- the deep walker lifts the shallow bridge shapes (incl. the
-          -- boolean-TP fold) through common frames (NOT, …)
-          match ← bridgeEqualNilNormDeep cfg ctx finalT lp.result with
-          | some br => match chainOpt with
-            | none => pure (some ((br, false) : Expr × Bool))
-            | some (ch, false) =>
-              pure (some (← mkAppM ``fuel_chain_eq #[ch, br], false))
-            | some (ch, true) => do
-              let pConv ← ctxValProof cfg ctx lp.result
-              let brS ← mkAppM ``evrel_of_fuel_eq
-                #[mkConst ``siff_refl, br, pConv]
-              pure (some (← mkAppM ``evrel_trans
-                #[mkConst ``siff_trans, ch, brS], true))
-          | none =>
-            throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
-                        at {idStr}, recorded result is {repr lp.result}"
+          throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
+                      at {idStr}, recorded result is {repr lp.result}"
       -- does the clausify decision trace SPLIT?
       let hasSplit := lp.splitTrace.any fun
         | .test _ v _ _ => v == "split"
@@ -1279,15 +1189,17 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           accClause children [] tree
       -- COMPLEMENT-TAUTOLOGY close (close-out 2026-08-05 — the
       -- add-literal complement-recognition class the equiv-lane audit
-      -- F2/F3 recorded as a loud frontier): a non-closing literal with NO
-      -- recorded continuation is how the log shows ACL2's `add-literal`
-      -- recognizing the rewritten result's COMPLEMENT among the earlier
-      -- assumed-false literals and dropping the clause as proved. The
-      -- mirror: the in-scope FALSITY of `(NOT result)` makes the result's
-      -- value ≠ nil; the literal's own chain transports that to the
-      -- original literal; the whole disjunction closes at this position.
-      -- Consumed from the clause context — no fact is derived that the
-      -- branch walk did not already establish.
+      -- F2/F3 recorded as a loud frontier). NOTE (branch drift audit
+      -- 2026-08-05): this close is INFERRED FROM ABSENCE — the log
+      -- records no continuation for the literal, and we read that
+      -- absence as ACL2's `add-literal` having recognized the rewritten
+      -- result's COMPLEMENT among the earlier assumed-false literals and
+      -- dropped the clause as proved. The fork does not yet emit the
+      -- close itself. The replay: the in-scope FALSITY of `(NOT result)`
+      -- makes the result's value ≠ nil; the literal's own chain
+      -- transports that to the original literal; the whole disjunction
+      -- closes at this position. Consumed from the clause context — no
+      -- fact is derived that the branch walk did not already establish.
       if branchSegs.isEmpty then
         let notR : SExpr := .cons (.atom (.symbol { name := "NOT" }))
           (.cons lp.result .nil)
