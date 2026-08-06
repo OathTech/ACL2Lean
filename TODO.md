@@ -7,15 +7,20 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 
 _Last updated: 2026-08-06._
 
-> **CURRENT STATE (2026-08-06): branch `mdd/sorting-closeout`,
-> pre-merge.** The sorting close-out arc is CLOSED
-> (docs/audits/2026-08-05_sorting-closeout-close-report.md — predicates,
-> the second kill round, and the two-lane pre-merge audit outcome all
-> recorded there); the branch awaits merge sign-off. Open user
-> decisions: the fork batch review (7 items), B1's disposition
-> (complement close), R4 (ground-hyp carve-out scope). The arc records
-> below start near "SORTING CLOSE-OUT"; the SORTING-ABSOLUTE block
-> below is its predecessor, kept for history.
+> **CURRENT STATE (2026-08-06): the close-out arc MERGED to main
+> (c85d2be, ff; sign-off at the moment of merge). B1 and R4 both
+> user-ruled and expiry-marked. Two external reviews received and
+> verified (docs/audits/2026-08-06_overall-project-audit.md +
+> 2026-08-06_full-acl2-forward-design-review.md). GOVERNING NEXT:
+> docs/plans/2026-08-06_capstone-demo-arc.md (DRAFT, awaiting MDD
+> ratification) — sorts-equivalent by PURE REPLAY (fork batch, now 8
+> items → equisort/parametric-encapsulate → R7b functional
+> instantiation → capstone mirrors), with Phase 0 remediating the
+> reviews' P0 authenticity findings and every review finding mapped to
+> a phase or an explicit recorded deferral. The demo framing and the
+> banned content-supplying-bridge line are user-ruled 2026-08-06.
+> Open user gates: ratify the arc plan; item-by-item fork-batch
+> review before the Phase-1 rebuild.
 
 > **SORTING-ABSOLUTE ARC (branch `mdd/sorting-absolute`, opened
 > 2026-08-01 at main 557c37b) — CLOSED (superseded by the close-out
