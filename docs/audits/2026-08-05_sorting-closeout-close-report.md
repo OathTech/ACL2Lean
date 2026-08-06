@@ -22,25 +22,35 @@ add-literal complement class, previously a loud frontier.)
   the amendment: **9** (bsort 6, convert-perm 3; the excluded equisort 14
   and capstones 3 are the deferred piece; TRUE-LISTP-BNEXT flipped green
   via the complement-tautology close). Every row carries a named class:
-  - Fork-blocked (8): the 3 μ-registry bsort rows (ORDEREDP-BSORT,
+  - *(Sub-counts corrected + refreshed 2026-08-06, pre-merge audit N2 —
+    the original bullet said "(8)" while naming 6 rows, and described
+    termination:BSORT as `ASSUMED ◌`, stale after the second kill
+    round.)*
+  - Fork-blocked (6): the 3 μ-registry bsort rows (ORDEREDP-BSORT,
     TRUE-LISTP-BSORT, HOW-MANY-BSORT — the local `:LINEAR` snapshot gap
-    behind termination:BSORT's honest `ASSUMED ◌`), HOW-MANY-SMALLER-BNEXT
-    (the :TA-DERIVATIONS/marker-relief emission), HOW-MANY-BAD-PAIRS-BNEXT
-    (rewrite-equal CAR phase — no recorded decision),
-    ORDEREDP-WHEN-BNEXT-CONSTANT (equal-cars frames), and the IF-FINISH
-    window class rides the recognizer-tuple emission.
+    behind termination:BSORT's now-LOUD parked frontier),
+    HOW-MANY-SMALLER-BNEXT (the :TA-DERIVATIONS/marker-relief emission),
+    HOW-MANY-BAD-PAIRS-BNEXT (rewrite-equal CAR phase — no recorded
+    decision), ORDEREDP-WHEN-BNEXT-CONSTANT (equal-cars frames); the
+    IF-FINISH window class rides the recognizer-tuple emission.
   - PERM-TLFIX: sharpened post-close — its node is the R-VALUED payload
     class the ratified equiv-lane design explicitly deferred to rung 3;
     its red is design-consistent (TODO records the rung-3 outline).
-  - HOW-MANY-RM-GENERAL: the solidify equation comes from a type-alist
-    DERIVED entry — fork-blocked on the provenance emission (batch
-    item 3).
-  - PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS: the spine literal-chain
-    mismatch class (Lean-side, undiagnosed depth — the one remaining
-    possibly-buildable row).
+  - HOW-MANY-RM-GENERAL: now reds at the restored ambiguous-position
+    hard-fail (Lean-side completion first: pin preSwap?/branchAnchor
+    across survivors or prove uniqueness — the parked item-15 work);
+    behind that, the solidify equation's type-alist DERIVED entry is
+    fork-blocked on the provenance emission (batch item 3).
+  - PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS: now reds at the recognizer TP
+    frontier (the killed tpthm consumer's row); both its frontiers are
+    fork-blocked (batch items 2 and 5).
+  (6 + 1 + 1 + 1 = 9 ✓.)
 - **P3 — DECIDED with 1 declared gap (amended post-close, commits
-  75d8e39/e745263).** The 50 sorting catalog entries: 49 decided
-  (.native or .replayedOnly-with-rationale), 0 undecided. This arc built
+  75d8e39/e745263).** The **51** sorting catalog entries: **50** decided
+  (.native or .replayedOnly-with-rationale), 1 `.pending` — the declared
+  gap below. *(Numbers corrected 2026-08-06, pre-merge audit N1: the
+  original text said "50 entries: 49 decided, 0 undecided", which both
+  miscounted and contradicted the declared gap.)* This arc built
   FOUR native mirrors — the three planned convert-perm ones
   (NOT-MEMB-IMPLIES-HOW-MANY-IS-0, `List.count_eq_zero` class;
   NOT-MEMB-IMPLIES-RM-IS-NO-OP, `List.erase_of_not_mem` class;
@@ -53,12 +63,17 @@ add-literal complement class, previously a loud frontier.)
   rule:PERM-TLFIX and use:PCE-IS-COUNTEREXAMPLE — both from RED rows
   whose replayed statements are the only criterion-clean dischargers.
   It wires the moment those two P2 rows green.
-- **P4 — HOLDS (amendment scope).** Statement pins ≥1 per book for all 7
-  amendment-scoped books (isort, qsort, convert-perm existing; perm,
-  ordered-perms, msort, bsort added this close — each transcribed by hand
-  from the `.lisp` source, hypothesis sets source-checked, golden-prefix
-  cross-checked). sorts-equivalent/equisort excluded (no green row exists
-  by the amendment's own deferral).
+- **P4 — HOLDS as of 2026-08-06 (was an overreach as originally
+  declared — pre-merge audit M2).** The original text claimed
+  "convert-perm existing"; in fact NO statement pin for any
+  convert-perm-to-how-many theorem existed (its log was offered only as
+  a cross-book dependency source), so the honest state at close was
+  **6 of 7**. Fixed 2026-08-06: HOW-MANY-RM pinned
+  (`Tests/SortingPins.lean`, the book's own `derive_world` + status-line
+  + statement pin, transcribed from convert-perm-to-how-many.lisp:30).
+  The other six books' pins were audit-verified against their `.lisp`
+  sources (inside lane, term-for-term). sorts-equivalent/equisort
+  excluded (no green row exists by the amendment's own deferral).
 - **P5 — RUN, recorded.** The drift-test review ran mid-arc as the
   consumer-queue audit's outside lane and returned FAILS; the remediation
   REVERTED the offending walkers (conforming to ratified §3(c)) and
@@ -75,6 +90,11 @@ add-literal complement class, previously a loud frontier.)
   double-elaboration evidence); audit records committed:
   2026-08-05_consumer-queue-audit.md (NOT-READY → remediated →
   fresh-verified READY, addendum in place) and this close report.
+  *(Amended 2026-08-06, pre-merge audit M1: the branch drift audit
+  itself had NO committed record — its item numbers were cited from six
+  code sites and the golden with nothing to read. Now committed:
+  2026-08-05_branch-drift-audit.md, the reviewer's report verbatim,
+  recovered from the session transcript.)*
 
 ## Machinery debt — SWEPT where buildable (amended post-close)
 
@@ -157,6 +177,16 @@ error-text-only on red rows):
    cross offers needs (currently only per-theorem `:SOURCE
    :INCLUDE-BOOK` marks are emitted); also the prerequisite for the
    queued sweep parallelization.
+7. **add-literal complement-close emission** (added 2026-08-06, pre-merge
+   audit B1): record the clause close when `add-literal` recognizes the
+   rewritten result's complement among the earlier assumed-false literals
+   — today the replay INFERS this close from the ABSENCE of a recorded
+   continuation (`Core.lean`, the complement-tautology arm;
+   TRUE-LISTP-BNEXT depends on it). Emitting it converts the one
+   inferred-from-absence step into a recorded one. (The DISPOSITION of
+   the existing arm meanwhile — hold under expiry vs restore the throw
+   vs ratify — is an open user decision; see the pre-merge audit
+   section.)
 
 Every item is information ACL2 already stores; per the batching rule the
 round is ONE rebuild + one full recapture + row-by-row golden review, and
@@ -174,3 +204,64 @@ the three new mirrors) — then a fresh verifier on the findings.
 Estimated cost: on the order of the consumer-queue audit (~500k tokens
 total). The merge into main additionally requires explicit sign-off at
 the moment of merge, per the standing rules.
+
+## Pre-merge audit — RUN (2026-08-06, two decorrelated Opus lanes)
+
+User-approved two-lane version. Both lanes independently established
+ground truth (build exit 0, `just ci` TRUE_EXIT=0, golden header
+arithmetic reproduced, `#print axioms` clean on 5+ mirrors each, zero
+sorry/axiom/native_decide in the branch diff). Findings, each
+independently re-verified against the source before acting:
+
+- **M1 (both lanes)** — the branch drift audit had no committed record
+  while six code sites + the golden cite its item numbers. FIXED:
+  `2026-08-05_branch-drift-audit.md` committed verbatim from the session
+  transcript; P6 amended.
+- **M2 (inside)** — P4 overreach: no convert-perm-to-how-many statement
+  pin existed ("convert-perm existing" was false; 6/7). FIXED:
+  HOW-MANY-RM pinned; P4 amended.
+- **B1 (outside)** — the complement-tautology close is INFERRED FROM
+  ABSENCE of a recorded continuation (the one such step on the branch;
+  TRUE-LISTP-BNEXT depends on it; no expiry, no ratification). PARTIAL:
+  emission queued as fork batch item 7; the arm's disposition
+  (expiry-hold vs restore-throw vs ratify) is an OPEN USER DECISION.
+- **B2 (outside)** — the complement arm could close a clause while
+  silently dropping pushed children. FIXED: explicit
+  `children.isEmpty` guard (throw).
+- **S1/S3-inside/R4 (both lanes)** — the GROUND-hyp closed-form relief
+  sits in rewrite-chain territory while the carve-out text is
+  clause-leaf-scoped; merging must not settle it silently. FIXED
+  (marking): explicit UNDER-OPEN-MDD-QUESTION-R4 marker at the arm;
+  the R4 decision itself remains open.
+- **S3-inside (both lanes)** — `bsortDpFact_false` cited in code, TODO,
+  and the consumer-queue audit but never committed. FIXED: citations
+  reworded (the structural fix it justified is real and stands);
+  correction addendum added to the consumer-queue audit.
+- **S2-outside** — the fork now emits `:GENEQV` (the honest net-step
+  relation; R-lane prerequisite) and nothing parses it; the R-gate still
+  keys on the under-reporting `:EQUIV`. RECORDED in TODO as the rung-3
+  arc's designated consumer (deliberate queued surface, same class as
+  :TA-DERIVATIONS).
+- **N1/N2 (inside)** — P3's entry counts wrong (50/49/0 vs actual
+  51/50/1) and P2's sub-count "(8)" naming 6 rows, with a stale
+  `ASSUMED ◌` description. FIXED: both amended with dated corrections.
+- **N3 (inside)** — TODO.md's top-of-file governing-arc pointer was
+  stale. FIXED.
+- **N5 (outside)** — the load-bearing witness-defun world exclusion was
+  a `| _ => w` catch-all. FIXED: explicit `.witnessDefun` arm.
+- **N8 (outside)** — the `:use` topological guard admitted everything
+  when the citing theorem was absent from its book list. FIXED:
+  fail-closed.
+- **N4/N6/N7 (both lanes)** — scoreboard-reading hazard (green capstone
+  with conds from red rows), the hand-maintained mirror axiom-gate list,
+  the nested-`:use` cyclic-let robustness note, and the EVENS/ODDS
+  destructor-whitelist watch item: RECORDED in TODO as queued hardening.
+
+Both lanes credited (verified, not prose): the plain-`:use` composition,
+the ASSUMED-vacuity fix, the four P4 pins' term-for-term transcription
+fidelity, the tamper tests, and the end-to-end statement-fidelity traces
+(HOW-MANY-BNEXT et al., .lisp → log → replayed statement → native
+mirror, exact at every hop).
+
+OPEN USER DECISIONS AT MERGE: (1) B1's disposition; (2) R4's answer —
+neither is settled by merging; both are marked in-code and queued.

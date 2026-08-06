@@ -5,10 +5,21 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-08-02._
+_Last updated: 2026-08-06._
+
+> **CURRENT STATE (2026-08-06): branch `mdd/sorting-closeout`,
+> pre-merge.** The sorting close-out arc is CLOSED
+> (docs/audits/2026-08-05_sorting-closeout-close-report.md — predicates,
+> the second kill round, and the two-lane pre-merge audit outcome all
+> recorded there); the branch awaits merge sign-off. Open user
+> decisions: the fork batch review (7 items), B1's disposition
+> (complement close), R4 (ground-hyp carve-out scope). The arc records
+> below start near "SORTING CLOSE-OUT"; the SORTING-ABSOLUTE block
+> below is its predecessor, kept for history.
 
 > **SORTING-ABSOLUTE ARC (branch `mdd/sorting-absolute`, opened
-> 2026-08-01 at main 557c37b) — IN PROGRESS; GOVERNS THE CURRENT WORK.**
+> 2026-08-01 at main 557c37b) — CLOSED (superseded by the close-out
+> arc; kept for history).**
 > MDD-ratified charter: docs/plans/2026-08-01_sorting-absolute-arc.md.
 > Goal: the 11-book sorting family to ABSOLUTE completion,
 > generalization first. Phase 1 INDUSTRIALIZATION (1a
@@ -751,8 +762,11 @@ _Last updated: 2026-08-02._
 > **(1) VACUOUS ASSUMED GREEN FIXED (S1/S2/S4): termination:BSORT's
 > `REPLAYED ✓ cond[…ASSUMED:dp-fact]` was vacuous — the assumed
 > dp-fact hypothesis quantifies opaques INDEPENDENTLY, severing the
-> (BNEXT-SIZE (BNEXT X))/(BNEXT-SIZE X) link, and is machine-refutable
-> (`bsortDpFact_false`, [propext] only). `tryReplay` now renders any
+> (BNEXT-SIZE (BNEXT X))/(BNEXT-SIZE X) link, and can be FALSE.
+> (Correction 2026-08-06, pre-merge audit S3: the refutation constant
+> `bsortDpFact_false` originally cited here was never committed — the
+> structural fix stands on the severed-quantification argument alone.)
+> `tryReplay` now renders any
 > ASSUMED-conditioned composed replay `ASSUMED ◌` and refuses
 > registration (single choke point — no consumer can resolve the
 > condition); the DriverCoverage legend invariant is enforced; the
@@ -849,6 +863,36 @@ _Last updated: 2026-08-02._
 > MECHANICALLY against the log's :DEFUN BODY (parse-and-compare,
 > equal). Complement-tautology close re-commented as
 > inferred-from-absence (fork does not yet emit the close).**
+> **PRE-MERGE AUDIT — RUN + REMEDIATED (2026-08-06, two decorrelated
+> Opus lanes; full outcome in the close report's "Pre-merge audit —
+> RUN" section; the drift audit's committed record is
+> docs/audits/2026-08-05_branch-drift-audit.md). Fixed in the
+> remediation round: M1 (audit record committed), M2 (convert-perm
+> HOW-MANY-RM pin — P4 honestly 7/7 now), B2 (complement-close
+> children guard), N5 (explicit witnessDefun world-exclusion arm), N8
+> (:use topological guard fail-closed), S3 (phantom
+> `bsortDpFact_false` citations reworded), R4 marker at the
+> ground-hyp arm, close-report number corrections (P2/P3), this
+> header. OPEN USER DECISIONS: B1 disposition (the
+> inferred-from-absence complement close — emit [fork item 7] then
+> expiry-hold vs restore-throw vs ratify) and R4 (ground-hyp
+> carve-out scope). QUEUED HARDENING (pre-merge audit N-items, none
+> load-bearing today): (N4) a golden rendering distinction for green
+> rows whose conds cite RED rows (CONVERT-PERM-TO-HOW-MANY reads as ✓
+> while resting on rule:PERM-TLFIX + use:PCE from FAIL rows); (N6)
+> derive the mirror axiom-gate name list from liftCatalog instead of
+> the hand-maintained literal list (Mirrors/Catalog.lean ~275); (N7)
+> nested-:use cyclic-let robustness in dischargeUseHyp (unreachable
+> today; kernel would reject loudly); EVENS/ODDS in destructorChainOk
+> is a specialization watch item (pre-existing on main, extended to a
+> second consumer this branch — retire with R2/fork item 2). GENEQV
+> CONSUMER (pre-merge audit S2): the fork now emits `:GENEQV` on
+> with-lemma pushes (the honest net-step relation when the rhs chain
+> used a weaker R — emitted as the R-lane prerequisite, fork commit
+> 24e6dbc) and nothing parses it yet; the rung-3 R-lane arc is its
+> DESIGNATED consumer (the R-gate currently keys on the
+> under-reporting `:EQUIV` — a latent fidelity gap the rung-3 arc
+> must close; do not wire piecemeal before it).**
 > **PERM-TLFIX — CLASSIFICATION SHARPENED (2026-08-05, read off the
 > dump + the ratified equiv-lane design): the failing node is the
 > IH-as-rewriting-equivalence with equiv (PERM (TLFIX (CDR X))

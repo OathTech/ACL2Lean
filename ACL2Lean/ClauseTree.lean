@@ -253,6 +253,11 @@ def Development.toWorld : Development → World
     | .groundZeroDefun name formals body _ =>
       if builtinNames.contains name then w
       else { w with defs := w.defs.insert { name := name } (formals, body) }
+    -- Pre-merge audit fix N5 (2026-08-06): the witness-defun exclusion
+    -- from the certified world (BUG-019 resolution — :SOURCE
+    -- :LOCAL-WITNESS bodies are untrusted witness artifacts) is
+    -- LOAD-BEARING; write it explicitly rather than defaulting it.
+    | .witnessDefun .. => w
     | _ => w
 
 /-- A development's ground-zero SNAPSHOT defuns — (name, formals, emitted body)

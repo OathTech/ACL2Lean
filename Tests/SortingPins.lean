@@ -114,12 +114,20 @@ def bsortPinsDev : Development :=
   (((ProofLog.parse bsortLog).toOption.bind
     fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
 
+/-- The parsed convert-perm-to-how-many development (pre-merge audit fix
+    M2, 2026-08-06: the book had trees offered cross-book but NO
+    statement pin of its own — P4's "all 7 books" claim was 6/7). -/
+def convertPermPinsDev : Development :=
+  (((ProofLog.parse convertPermLog).toOption.bind
+    fun l => (ClauseTree.buildDevelopment l).toOption)).getD .done
+
 derive_world isortPinsWorld from isortPinsDev
 derive_world qsortPinsWorld from qsortPinsDev
 derive_world permPinsWorld from permPinsDev
 derive_world orderedPermsPinsWorld from orderedPermsPinsDev
 derive_world msortPinsWorld from msortPinsDev
 derive_world bsortPinsWorld from bsortPinsDev
+derive_world convertPermPinsWorld from convertPermPinsDev
 
 /-! ## The replay run — the exact sweep semantics (`runBook`), registering
     the replayed-statement constants the pins below are stated against. `upTo` the last
@@ -151,20 +159,27 @@ elab "sorting_statement_pins_run% " : term => do
     (upTo := some "ORDEREDP-MSORT")
   let (r6, _) ← Runner.runBook "pins/sorting/bsort" bsortLog
     (upTo := some "HOW-MANY-BNEXT") (crossTrees := convertPermPinsTrees)
+  -- M2 (2026-08-06): the book's OWN pin — earliest green row exercising
+  -- its own defuns (HOW-MANY, RM).
+  let (r7, _) ← Runner.runBook "pins/sorting/convert-perm-to-how-many"
+    convertPermLog (upTo := some "HOW-MANY-RM")
   unless r1.integrityFails.isEmpty && r2.integrityFails.isEmpty &&
       r3.integrityFails.isEmpty && r4.integrityFails.isEmpty &&
-      r5.integrityFails.isEmpty && r6.integrityFails.isEmpty do
+      r5.integrityFails.isEmpty && r6.integrityFails.isEmpty &&
+      r7.integrityFails.isEmpty do
     throwError "sorting statement pins: integrity failures \
       {r1.integrityFails.toList ++ r2.integrityFails.toList ++
        r3.integrityFails.toList ++ r4.integrityFails.toList ++
-       r5.integrityFails.toList ++ r6.integrityFails.toList}"
+       r5.integrityFails.toList ++ r6.integrityFails.toList ++
+       r7.integrityFails.toList}"
   let expected : List (String × Array String) :=
     [("pins/sorting/isort", r1.lines),
      ("pins/sorting/qsort", r2.lines),
      ("pins/sorting/perm", r3.lines),
      ("pins/sorting/ordered-perms", r4.lines),
      ("pins/sorting/msort", r5.lines),
-     ("pins/sorting/bsort", r6.lines)]
+     ("pins/sorting/bsort", r6.lines),
+     ("pins/sorting/convert-perm-to-how-many", r7.lines)]
   let mustHave : List (String × String) :=
     [("pins/sorting/isort",
       "    ORDEREDP-ISORT → REPLAYED ✓ cond[tp:INSERT]"),
@@ -199,7 +214,9 @@ rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
       "    ORDEREDP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, \
 tp:EVENS]"),
      ("pins/sorting/bsort",
-      "    HOW-MANY-BNEXT → REPLAYED ✓ cond[total:BNEXT, tp:HOW-MANY]")]
+      "    HOW-MANY-BNEXT → REPLAYED ✓ cond[total:BNEXT, tp:HOW-MANY]"),
+     ("pins/sorting/convert-perm-to-how-many",
+      "    HOW-MANY-RM → REPLAYED ✓ cond[tp:HOW-MANY]")]
   let goldenLines := sweepGolden.splitOn "\n"
   for (book, line) in mustHave do
     let some (_, lines) := expected.find? (·.1 == book)
@@ -515,6 +532,30 @@ example :
   ReplayedStatements.replayed_pins_sorting_bsort_HOW_MANY_BNEXT
 
 #print axioms ReplayedStatements.replayed_pins_sorting_bsort_HOW_MANY_BNEXT
+
+/-! ## convert-perm-to-how-many book
+    (acl2/books/sorting/convert-perm-to-how-many.lisp) -/
+
+/-- PIN the machine-generated statement of `HOW-MANY-RM`
+    (convert-perm-to-how-many.lisp:30): the mirror of
+      `(implies (not (equal a b)) (equal (how-many a (rm b x))
+                                          (how-many a x)))`
+    conditional on how-many's emitted non-negative-integer TP corollary
+    (source-true: it counts). Pre-merge audit fix M2 (2026-08-06): the
+    book's first own statement pin — P4's per-book coverage was 6/7
+    without it. -/
+example :
+    ∀ (env : Env),
+      tpNonnegInt2 convertPermPinsWorld "HOW-MANY" →
+      EvTrue convertPermPinsWorld env
+        (ap2 "IMPLIES" (ap1 "NOT" (ap2 "EQUAL" (sym "A") (sym "B")))
+          (ap2 "EQUAL"
+            (ap2 "HOW-MANY" (sym "A") (ap2 "RM" (sym "B") (sym "X")))
+            (ap2 "HOW-MANY" (sym "A") (sym "X")))) :=
+  ReplayedStatements.replayed_pins_sorting_convert_perm_to_how_many_HOW_MANY_RM
+
+#print axioms
+  ReplayedStatements.replayed_pins_sorting_convert_perm_to_how_many_HOW_MANY_RM
 
 /-! ## p3-conj-mid-literal (acl2_samples/pattern-tests/p3-conj-mid-literal.lisp)
 

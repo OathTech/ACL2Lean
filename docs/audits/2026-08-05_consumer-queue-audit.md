@@ -166,3 +166,17 @@ the `97190e1` designed route elaborates; tractability/cost of type-set
 emission (the survey's "clear hook points" is untested; ACL2's own comments
 flag type-set as 50–75% of prover time — emission volume unmeasured); remote
 CI.
+
+---
+
+> **CORRECTION (2026-08-06, pre-merge audit S3).** The line above citing
+> "`bsortDpFact_false` accepts with axioms `[propext]`" refers to a
+> refutation theorem that was run in-session but NEVER COMMITTED —
+> `git log -S` finds no commit containing the declaration, so the claim
+> is unreproducible as recorded. The structural finding it supported
+> (the assumed dp-fact hypothesis quantifies opaques independently and
+> can be false, so ASSUMED-conditioned composed replays must never
+> render ✓ or register) stands on the quantification argument alone and
+> its fix is in place (`Runner.lean` choke point + the golden's
+> `ASSUMED ◌`/FAIL rendering). The in-code and TODO citations of the
+> phantom constant were reworded the same day.

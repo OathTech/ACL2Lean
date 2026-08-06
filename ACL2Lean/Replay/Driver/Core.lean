@@ -1201,6 +1201,13 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       -- closes at this position. Consumed from the clause context — no
       -- fact is derived that the branch walk did not already establish.
       if branchSegs.isEmpty then
+        -- Pre-merge audit fix B2 (2026-08-06): this arm closes the WHOLE
+        -- clause, so a node with pushed children would have them silently
+        -- dropped — guard, don't assume.
+        unless children.isEmpty do
+          throwError "replayClauseSpine: complement close at {idStr} but \
+              the node has {children.length} pushed child(ren) — closing \
+              here would skip recorded tree nodes (frontier)"
         let notR : SExpr := .cons (.atom (.symbol { name := "NOT" }))
           (.cons lp.result .nil)
         let ctxC ← pinTermOpaques cfg cfg.envExpr ctx lp.result

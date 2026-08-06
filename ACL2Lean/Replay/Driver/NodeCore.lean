@@ -4059,6 +4059,14 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
               -- verdict-specific to anchor on; the arm keys on the closed
               -- term alone. A ground hyp whose value is not exactly t
               -- hard-fails inside replayExecGround (honest frontier).
+              -- UNDER OPEN MDD QUESTION R4 (branch drift audit
+              -- 2026-08-05; pre-merge audit 2026-08-06 S1/S3 concur):
+              -- the ratified carve-out text is CLAUSE-LEAF-scoped and
+              -- this is hypothesis relief inside a rewrite-rule
+              -- application — whether it sits inside the carve-out or
+              -- needs its own ratification is an unresolved user
+              -- decision. Merging this code does NOT settle R4; do not
+              -- extend the arm until R4 is answered.
               let conv ← replayExecGround cfg hσ SExpr.t
               mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
             else do

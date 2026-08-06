@@ -518,8 +518,14 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- one, and accepting it also opens a mutual-citation discharge
   -- cycle; cross-book dependency entries are earlier by construction.
   let useSameBook := congTrees.getD depProofs
+  -- Pre-merge audit fix N8 (2026-08-06): if cp.name is absent from
+  -- useSameBook, takeWhile returns the WHOLE list and the topological
+  -- guard admits everything — fail closed instead (offer nothing; the
+  -- arm then hard-fails honestly in-walk).
   let useEarlier :=
-    (useSameBook.takeWhile (fun (n, _) => n != cp.name)).map (·.1)
+    if useSameBook.any (fun (n, _) => n == cp.name) then
+      (useSameBook.takeWhile (fun (n, _) => n != cp.name)).map (·.1)
+    else []
   let useSpecs : List UseSpec :=
     (theoremUseCitedNames cp).filterMap fun n =>
       if n == cp.name then none

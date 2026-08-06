@@ -284,8 +284,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
       -- ASSUMED-conditioned composed replays are NEVER ✓ and NEVER
       -- registered (consumer-queue audit 2026-08-05 S1/S2/S4): the assumed
       -- dp-fact hypothesis is stated over INDEPENDENTLY-quantified opaques
-      -- and can be FALSE (machine-refuted for BSORT's linear leaf,
-      -- `bsortDpFact_false` with [propext]) — the conditional is then
+      -- and can be FALSE — the conditional is then
       -- vacuous. Render like `tryDischarge`'s ◌ (the legend's invariant:
       -- a composed row never carries an ASSUMED cond as ✓) and refuse
       -- registration at this single choke point so no consumer can ever
