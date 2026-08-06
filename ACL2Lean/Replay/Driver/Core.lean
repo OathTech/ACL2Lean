@@ -1194,24 +1194,39 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             ctx ← pinTermOpaques cfg cfg.envExpr ctx v
         return ← composeSplit rec cfg ctx idStr lp chainOpt clit restLits branchSegs
           accClause children [] tree
-      -- COMPLEMENT-TAUTOLOGY close (close-out 2026-08-05 — the
-      -- add-literal complement-recognition class the equiv-lane audit
-      -- F2/F3 recorded as a loud frontier). DRIFT MARKER, held under
-      -- EXPIRY (pre-merge audit 2026-08-06 B1; USER-RULED 2026-08-06:
-      -- "fine to keep but must be fixed soon"): this close is INFERRED
-      -- FROM ABSENCE — the log records no continuation for the literal,
-      -- and we read that absence as ACL2's `add-literal` having
-      -- recognized the rewritten result's COMPLEMENT among the earlier
-      -- assumed-false literals and dropped the clause as proved. The
-      -- fork does not yet emit the close itself. EXPIRES when fork-batch
-      -- item 7 (add-literal complement-close emission) lands: replace
-      -- this inference with a direct read of the emitted close record;
-      -- do NOT extend the arm to new shapes meanwhile. The replay: the in-scope FALSITY of `(NOT result)`
-      -- makes the result's value ≠ nil; the literal's own chain
-      -- transports that to the original literal; the whole disjunction
-      -- closes at this position. Consumed from the clause context — no
-      -- fact is derived that the branch walk did not already establish.
+      -- COMPLEMENT-TAUTOLOGY close (close-out 2026-08-05; RETIRED FROM
+      -- EXPIRY 2026-08-06 — the B1 user ruling discharged): the close is
+      -- now READ OFF a RECORDED event, no longer inferred from the
+      -- absence of a continuation. TWO recorded forms cover the class
+      -- (both live in the recaptured corpus): (a) the literal's clausify
+      -- decision-trace LEAF with :OUTCOME DROPPED on exactly this result
+      -- — if-interp under the clause assumptions recognized the
+      -- complement and dropped the clause (TRUE-LISTP-BNEXT's instance;
+      -- the record predated the batch but was never consumed here); (b)
+      -- the fork-batch item-7 (:COMPLEMENT-CLOSE :LIT …) event from
+      -- add-literal's member-complement-term branch. Absence of BOTH is
+      -- a frontier — a different silent close class to emit, never an
+      -- inference. The replay is unchanged: the in-scope FALSITY of
+      -- `(NOT result)` makes the result's value ≠ nil; the literal's own
+      -- chain transports that to the original literal; the whole
+      -- disjunction closes at this position. Consumed from the clause
+      -- context — no fact is derived that the branch walk did not
+      -- already establish.
       if branchSegs.isEmpty then
+        let droppedLeaf := lp.splitTrace.any fun
+          | .leaf v outcome _ _ => v == lp.result && outcome == "dropped"
+          | _ => false
+        let itemClose := lp.complementCloses.any (fun l =>
+          l == lp.result ||
+          l == .cons (.atom (.symbol { name := "NOT" }))
+                 (.cons lp.result .nil))
+        unless droppedLeaf || itemClose do
+          throwError "replayClauseSpine: non-closing literal {idx} at \
+              {idStr} has NO recorded close for its result \
+              {repr lp.result} — neither a DROPPED clausify leaf \
+              (trace: {repr lp.splitTrace}) nor a (:COMPLEMENT-CLOSE) \
+              event (closes: {repr lp.complementCloses}); a different \
+              silent close class (frontier — emit it)"
         -- Pre-merge audit fix B2 (2026-08-06): this arm closes the WHOLE
         -- clause, so a node with pushed children would have them silently
         -- dropped — guard, don't assume.
