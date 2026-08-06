@@ -4059,14 +4059,16 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
               -- verdict-specific to anchor on; the arm keys on the closed
               -- term alone. A ground hyp whose value is not exactly t
               -- hard-fails inside replayExecGround (honest frontier).
-              -- UNDER OPEN MDD QUESTION R4 (branch drift audit
-              -- 2026-08-05; pre-merge audit 2026-08-06 S1/S3 concur):
-              -- the ratified carve-out text is CLAUSE-LEAF-scoped and
-              -- this is hypothesis relief inside a rewrite-rule
-              -- application — whether it sits inside the carve-out or
-              -- needs its own ratification is an unresolved user
-              -- decision. Merging this code does NOT settle R4; do not
-              -- extend the arm until R4 is answered.
+              -- DRIFT MARKER, held under EXPIRY (R4 USER-RULED
+              -- 2026-08-06, option 2): NOT a carve-out extension — the
+              -- carve-out stays clause-leaf-scoped. The verdict's basis
+              -- (the recognizer-alist tuple) is emittable data in a
+              -- system we instrument, so "the artifact genuinely cannot
+              -- record it" does not hold and reconstruction is not
+              -- licensed. EXPIRES when fork-batch item 2 (:FALSETS +
+              -- recognizer-tuple snapshot) lands: gate this discharge on
+              -- the emitted tuple (the TP-corollary-gated-arm pattern);
+              -- do NOT extend the arm to new shapes meanwhile.
               let conv ← replayExecGround cfg hσ SExpr.t
               mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
             else do

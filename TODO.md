@@ -873,10 +873,18 @@ _Last updated: 2026-08-06._
 > (:use topological guard fail-closed), S3 (phantom
 > `bsortDpFact_false` citations reworded), R4 marker at the
 > ground-hyp arm, close-report number corrections (P2/P3), this
-> header. OPEN USER DECISIONS: B1 disposition (the
-> inferred-from-absence complement close — emit [fork item 7] then
-> expiry-hold vs restore-throw vs ratify) and R4 (ground-hyp
-> carve-out scope). QUEUED HARDENING (pre-merge audit N-items, none
+> header. B1 — USER-RULED (2026-08-06, post-merge): KEEP under expiry,
+> "must be fixed soon" — the arm carries a drift marker expiring at
+> fork-batch item 7 (add-literal complement-close emission); item 7 is
+> thereby PRIORITY within the batch. R4 — USER-RULED (2026-08-06,
+> option 2): NOT a carve-out extension; the ground-hyp arm is held
+> under expiry, retiring onto the emitted recognizer-tuple verdict
+> when fork-batch item 2 lands (rationale: ACL2 holds the verdict's
+> BASIS — the recognizer-alist tuple — as emittable data in a system
+> we instrument, so "the artifact genuinely cannot record it" fails
+> and reconstruction is not licensed; emission is). No open user
+> decisions remain from the pre-merge audit; the fork batch (7 items,
+> items 2 and 7 carrying expiries) awaits its review round-trip. QUEUED HARDENING (pre-merge audit N-items, none
 > load-bearing today): (N4) a golden rendering distinction for green
 > rows whose conds cite RED rows (CONVERT-PERM-TO-HOW-MANY reads as ✓
 > while resting on rule:PERM-TLFIX + use:PCE from FAIL rows); (N6)

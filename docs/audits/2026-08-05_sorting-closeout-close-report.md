@@ -265,3 +265,16 @@ mirror, exact at every hop).
 
 OPEN USER DECISIONS AT MERGE: (1) B1's disposition; (2) R4's answer —
 neither is settled by merging; both are marked in-code and queued.
+
+> **RESOLVED (2026-08-06, post-merge, user-ruled — recorded on
+> `mdd/b1-expiry`):** B1 — KEEP under expiry, "must be fixed soon";
+> the arm's drift marker expires at fork-batch item 7, which is
+> thereby the batch's priority item. R4 — option 2: NOT a carve-out
+> extension; the ground-hyp arm holds under expiry and retires onto
+> the emitted recognizer-tuple verdict at fork-batch item 2
+> (rationale: the verdict's basis is emittable data in a system we
+> instrument — "the artifact genuinely cannot record it" fails, so
+> emission, not reconstruction). The carve-out stays
+> clause-leaf-scoped. All four expiry-held mechanisms (R1→item 3,
+> R2→item 2, ground-hyp→item 2, complement-close→item 7) now retire
+> inside the SAME fork round-trip.

@@ -1189,13 +1189,17 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           accClause children [] tree
       -- COMPLEMENT-TAUTOLOGY close (close-out 2026-08-05 — the
       -- add-literal complement-recognition class the equiv-lane audit
-      -- F2/F3 recorded as a loud frontier). NOTE (branch drift audit
-      -- 2026-08-05): this close is INFERRED FROM ABSENCE — the log
-      -- records no continuation for the literal, and we read that
-      -- absence as ACL2's `add-literal` having recognized the rewritten
-      -- result's COMPLEMENT among the earlier assumed-false literals and
-      -- dropped the clause as proved. The fork does not yet emit the
-      -- close itself. The replay: the in-scope FALSITY of `(NOT result)`
+      -- F2/F3 recorded as a loud frontier). DRIFT MARKER, held under
+      -- EXPIRY (pre-merge audit 2026-08-06 B1; USER-RULED 2026-08-06:
+      -- "fine to keep but must be fixed soon"): this close is INFERRED
+      -- FROM ABSENCE — the log records no continuation for the literal,
+      -- and we read that absence as ACL2's `add-literal` having
+      -- recognized the rewritten result's COMPLEMENT among the earlier
+      -- assumed-false literals and dropped the clause as proved. The
+      -- fork does not yet emit the close itself. EXPIRES when fork-batch
+      -- item 7 (add-literal complement-close emission) lands: replace
+      -- this inference with a direct read of the emitted close record;
+      -- do NOT extend the arm to new shapes meanwhile. The replay: the in-scope FALSITY of `(NOT result)`
       -- makes the result's value ≠ nil; the literal's own chain
       -- transports that to the original literal; the whole disjunction
       -- closes at this position. Consumed from the clause context — no
