@@ -100,6 +100,13 @@ structure RewriteStep where
   typeSet : Option Int := none
   /-- True type-set of the recognizer (type-set bits where it returns T). -/
   trueTs : Option Int := none
+  /-- False type-set of the recognizer (`:FALSETS`, fork-batch item 2,
+      2026-08-06): type-set bits where it returns NIL — with `trueTs` and
+      `strongp`, the recognizer verdict's full emitted basis. -/
+  falseTs : Option Int := none
+  /-- `:STRONGP` (fork-batch item 2): T iff true-ts is exactly the
+      complement of false-ts. -/
+  strongp : Option Bool := none
   /-- The redex's congruence path within the literal (from `:PATH`),
       literal-root-first. Lets a replay lift this step by composing congruences
       along the path instead of locating the redex by subterm match. -/
@@ -140,6 +147,13 @@ inductive TraceEvent where
       :SUPPORTS). The Phase-6 consumer joins :CONCL with relieved
       hyps/entry terms. -/
   | fcDerivations (derivations : List SExpr)
+  /-- The add-literal COMPLEMENT close (`emit/complement-close`,
+      fork-batch item 7, 2026-08-06 — the B1 expiry's emission): adding
+      `lit` to the clause under construction found its complement among
+      the existing literals, so the clause is true. Replaces the
+      inferred-from-absence reading in the replay's complement-tautology
+      arm. -/
+  | complementClose (lit : SExpr)
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
   | beginInnerRewrite (kind : String) (swapped : Bool := false) (term : Option SExpr := none)
       (path : List PathFrame := [])
@@ -330,6 +344,20 @@ structure FcRuleSpec where
   matchFree : Option String := none
   deriving Repr, Inhabited
 
+/-- A RECOGNIZER-TUPLE snapshot entry
+    (`(:GROUND-ZERO-RECOGNIZER-TUPLES ((fn rune true-ts false-ts strongp)
+    …))`, fork-batch item 2, 2026-08-06): the recognizer-alist tuples of
+    cited symbols — the verdict basis of ACL2's `type-set-recognizer`.
+    Retires the Lean-side `builtinRecogFacts` registry (drift R2) and
+    gates the ground-hyp discharge (user ruling R4). -/
+structure RecognizerTupleSpec where
+  fn : String
+  rune : Rune
+  trueTs : Int
+  falseTs : Int
+  strongp : Bool
+  deriving Repr, Inhabited
+
 /-- A LINEAR-class ground-zero rule snapshot entry
     (`(:GROUND-ZERO-LINEAR-RULES ((rune hyps concl max-term) …))`,
     sorting-absolute 2b): the stored `linear-lemma` fields verbatim.
@@ -405,8 +433,24 @@ inductive ProofEvent where
       …)`, emission arc 2026-07-21): stored trigger/hyps/concls verbatim. -/
   | groundZeroFcRules (specs : List FcRuleSpec)
   /-- The cited ground-zero LINEAR rules (`(:GROUND-ZERO-LINEAR-RULES …)`,
-      sorting-absolute 2b): stored hyps/concl/max-term verbatim. -/
+      sorting-absolute 2b): stored hyps/concl/max-term verbatim. Since
+      fork-batch item 1 (2026-08-06) the snapshot also covers cited LOCAL
+      :LINEAR rules (the predefined-only gate dropped). -/
   | groundZeroLinearRules (specs : List LinearRuleSpec)
+  /-- The cited recognizer-alist tuples
+      (`(:GROUND-ZERO-RECOGNIZER-TUPLES …)`, fork-batch item 2). -/
+  | groundZeroRecognizerTuples (specs : List RecognizerTupleSpec)
+  /-- An include GRAPH edge (`(:INCLUDE-BOOK-EDGE :BOOK … :PARENT …)`,
+      fork-batch item 6): `book` is the included book's familiar name,
+      `parent` the including book (none at top level). One event per
+      ENCOUNTER — redundant includes still contribute their edge. -/
+  | includeBookEdge (book : String) (parent : Option String)
+  /-- The post-`ld` capture manifest (`(:CAPTURE-END :BOOKS … :STATUS
+      :COMPLETE)`, fork-batch item 8): ACL2's own record of the loaded
+      books (include-book-alist, kept opaque) + the explicit completion
+      marker. A parse REQUIRES `:STATUS :COMPLETE` — any other status
+      hard-fails. -/
+  | captureEnd (books : SExpr)
   /-- Pool-processing events (`emit/pool-consider` / `emit/pool-subsumed`):
       pop-clause CONSIDERS pool roots in its own (subsumption-reordered)
       order — the steps/induction after a `poolConsider` belong to that pool
@@ -605,6 +649,18 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let trueTs := match lookupKeyword "TRUETS" rest with
         | some (.atom (.number (.int n))) => some n
         | _ => none
+      let falseTs := match lookupKeyword "FALSETS" rest with
+        | some (.atom (.number (.int n))) => some n
+        | _ => none
+      -- :STRONGP (item 2): T/NIL; absent (pre-batch logs / non-recognizer
+      -- origins) reads none. Any other value is a malformed emission.
+      let strongp ← match lookupKeyword "STRONGP" rest with
+        | some (.atom (.symbol s)) =>
+          if s.name == "T" then pure (some true)
+          else throw s!"REWRITE-STEP: malformed :STRONGP {s.name}"
+        | some .nil => pure (some false)
+        | some other => throw s!"REWRITE-STEP: malformed :STRONGP {repr other}"
+        | none => pure none
       let path ← match lookupKeyword "PATH" rest with
         | some r => match r.toList? with
           | some items => items.mapM parsePathFrame
@@ -620,7 +676,7 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
         | some .nil => pure false
         | some other => throw s!"REWRITE-STEP: malformed :SWAPPED-P {repr other}"
         | none => pure false
-      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, typeSet, trueTs, path }
+      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, typeSet, trueTs, falseTs, strongp, path }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
@@ -961,6 +1017,11 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           (parseRune? r).elim
             (throw s!"CLAUSIFY-EXPAND: bad rune {repr r}") pure
         pure (.clausifyExpand fromTerm toTerm pos runes)
+    | .atom (.keyword "COMPLEMENT-CLOSE") :: rest =>
+        -- fork-batch item 7: the add-literal complement close.
+        let lit ← lookupKeyword "LIT" rest
+          |>.elim (throw "COMPLEMENT-CLOSE: missing :LIT") pure
+        pure (.complementClose lit)
     | _ => throw s!"Unknown trace event: {repr s}"
   | none => throw s!"Expected list trace event, got: {repr s}"
 
@@ -1132,6 +1193,34 @@ private def parseLinearRuleSpecEntry (e : SExpr) :
     (throw s!"GROUND-ZERO-LINEAR-RULES {rune.name}: :HYPS not a list: \
       {repr hypsS}") pure
   return { name := rune.name, hyps, concl := conclS, maxTerm := maxTermS }
+
+private def parseRecognizerTupleEntry (e : SExpr) :
+    Except String RecognizerTupleSpec := do
+  let some items := e.toList?
+    | throw s!"GROUND-ZERO-RECOGNIZER-TUPLES: bad entry (not a list): \
+        {repr e}"
+  let [fnS, runeS, trueTsS, falseTsS, strongpS] := items
+    | throw s!"GROUND-ZERO-RECOGNIZER-TUPLES: bad entry (want (fn rune \
+              true-ts false-ts strongp)): {repr e}"
+  let some fn := atomString? fnS
+    | throw s!"GROUND-ZERO-RECOGNIZER-TUPLES: bad fn: {repr fnS}"
+  let some rune := parseRune? runeS
+    | throw s!"GROUND-ZERO-RECOGNIZER-TUPLES: bad rune: {repr runeS}"
+  let .atom (.number (.int trueTs)) := trueTsS
+    | throw s!"GROUND-ZERO-RECOGNIZER-TUPLES {fn}: true-ts not an int: \
+        {repr trueTsS}"
+  let .atom (.number (.int falseTs)) := falseTsS
+    | throw s!"GROUND-ZERO-RECOGNIZER-TUPLES {fn}: false-ts not an int: \
+        {repr falseTsS}"
+  let strongp ← match strongpS with
+    | .atom (.symbol s) =>
+      if s.name == "T" then pure true
+      else throw s!"GROUND-ZERO-RECOGNIZER-TUPLES {fn}: bad strongp: \
+        {repr strongpS}"
+    | .nil => pure false
+    | _ => throw s!"GROUND-ZERO-RECOGNIZER-TUPLES {fn}: bad strongp: \
+        {repr strongpS}"
+  return { fn, rune, trueTs, falseTs, strongp }
 
 private def parseRuleSpecEntry (ctx : String) (withMatchFree : Bool)
     (e : SExpr) : Except String RuleSpec := do
@@ -1406,6 +1495,43 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
       return .groundZeroLinearRules (← entries.mapM parseLinearRuleSpecEntry)
     | _ => throw s!"GROUND-ZERO-LINEAR-RULES: expected a single payload \
                    list, got {repr rest}"
+  | .cons (.atom (.keyword "GROUND-ZERO-RECOGNIZER-TUPLES")) rest =>
+    match rest.toList? with
+    | some [tuplesList] =>
+      let some entries := tuplesList.toList?
+        | throw s!"GROUND-ZERO-RECOGNIZER-TUPLES: payload is not a list: \
+            {repr tuplesList}"
+      return .groundZeroRecognizerTuples
+        (← entries.mapM parseRecognizerTupleEntry)
+    | _ => throw s!"GROUND-ZERO-RECOGNIZER-TUPLES: expected a single \
+                   payload list, got {repr rest}"
+  | .cons (.atom (.keyword "INCLUDE-BOOK-EDGE")) rest =>
+    let items := rest.toList?.getD []
+    let some bookS := lookupKeyword "BOOK" items
+      | throw "INCLUDE-BOOK-EDGE: missing :BOOK"
+    let some book := atomString? bookS
+      | throw s!"INCLUDE-BOOK-EDGE: :BOOK not a string/symbol: {repr bookS}"
+    let parent ← match lookupKeyword "PARENT" items with
+      | some .nil => pure none
+      | some p => match atomString? p with
+        | some s => pure (some s)
+        | none => match p with
+          -- ACL2's SYSFILE form: an active book under the system books
+          -- dir prints as `(:SYSTEM . "relative/path.lisp")`.
+          | .cons (.atom (.keyword "SYSTEM")) (.atom (.string s)) =>
+            pure (some s)
+          | _ => throw s!"INCLUDE-BOOK-EDGE: bad :PARENT: {repr p}"
+      | none => throw "INCLUDE-BOOK-EDGE: missing :PARENT"
+    return .includeBookEdge book parent
+  | .cons (.atom (.keyword "CAPTURE-END")) rest =>
+    let items := rest.toList?.getD []
+    let some booksS := lookupKeyword "BOOKS" items
+      | throw "CAPTURE-END: missing :BOOKS"
+    match lookupKeyword "STATUS" items with
+    | some (.atom (.keyword "COMPLETE")) => return .captureEnd booksS
+    | some other => throw s!"CAPTURE-END: :STATUS is not :COMPLETE: \
+        {repr other} (incomplete capture)"
+    | none => throw "CAPTURE-END: missing :STATUS"
   | .cons (.atom (.keyword "POOL-CONSIDER")) rest =>
     let some nameS := lookupKeyword "NAME" (rest.toList?.getD [])
       | throw "POOL-CONSIDER: missing :NAME"

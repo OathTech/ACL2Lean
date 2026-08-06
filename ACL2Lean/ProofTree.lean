@@ -154,6 +154,22 @@ structure LiteralProof where
       RESHAPED the segment set — a replay consuming the decision trace must
       hard-fail when this is non-empty. -/
   splitReshaped : List String := []
+  /-- Recorded add-literal COMPLEMENT closes inside this literal's window
+      (`emit/complement-close`, fork-batch item 7): each is the literal
+      whose complement was already present, closing the clause. Consumed
+      by the replay's complement-tautology arm as the RECORDED close
+      (retiring the inferred-from-absence reading, user ruling B1). -/
+  complementCloses : List SExpr := []
+  /-- Literal-BOUNDARY type-set verdicts (`emit/atm/try-type-set`,
+      fork-batch item 5): rewrite-atm ABANDONS the chain's progress and
+      re-decides the ORIGINAL atom by type-set in isolation — so these
+      records are boundary data keyed to the literal's root atom, NOT
+      chain steps (their lhs is the original atom, never the chain
+      state; threading them as steps broke composition on 20 green rows,
+      recapture 2026-08-06). A chain that reaches the recorded result
+      without them never needs them; the PCE-class consumer reads them
+      where the chain alone cannot reach the recorded result. -/
+  boundaryVerdicts : List RewriteStep := []
   deriving Repr, Inhabited
 
 /-- One `expand-and-or` firing inside clausification (emit/clausify/expand,
@@ -198,6 +214,12 @@ structure ClausifyInfo where
       k-th split (0-based, log order — the expansions PRECEDE their split
       checkpoint). -/
   splitExpands : List (Nat × ClausifyExpansion) := []
+  /-- add-literal COMPLEMENT closes fired DURING this clausification
+      (fork-batch item 7): clausify assembles clauses through add-literal,
+      so a complement-true clause dropped from the out set records its
+      close here — provenance for the drop, position-indexed by the split
+      count at firing time. -/
+  complementCloses : List (Nat × SExpr) := []
   deriving Repr, Inhabited
 
 /-- One item in a clause-level proof step's branch tree (ACL2's `:REWRITES`), in
@@ -225,6 +247,8 @@ inductive ClauseItem where
       provenance, not chain steps); the Phase-6 consumer joins :CONCL with
       relieved hyps. -/
   | fcDerivations (derivations : List SExpr)
+  /-- A clause-level add-literal COMPLEMENT close (fork-batch item 7). -/
+  | complementClose (lit : SExpr)
   deriving Repr, Inhabited
 
 /-! ## Parser: flat trace → rewriter-detail tree
@@ -351,7 +375,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
       parseProofNodesAux rest pendingChildren nodes
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
   | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ _ :: _
-  | .fcDerivations _ :: _
+  | .fcDerivations _ :: _ | .complementClose _ :: _
   | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
   | .clausifyOut _ :: _ | .clausifyExpand _ _ _ _ :: _ =>
       -- A clause-structure boundary: stop and hand the remaining events back to
@@ -422,6 +446,11 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
       : List TraceEvent → Except String (List ClausifyExpansion × List TraceEvent)
     | .clausifyExpand fr to pos runes :: rest =>
         takeExpands (acc ++ [⟨fr, to, pos, runes, pend⟩]) [] rest
+    | .complementClose _ :: rest =>
+        -- item 7: an add-literal close during the whole-formula pass —
+        -- the dropped clause never reaches the out set; the record is
+        -- provenance, absorbed here (phase-2 closes are indexed below).
+        takeExpands acc pend rest
     | ev@(.rewriteStep st) :: rest =>
         -- origin whitelist (fold-back audit F4): only expand-abbreviations'
         -- own emitters may be absorbed as expansion detail — anything else
@@ -461,6 +490,10 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
           throw s!"collectClausify: rewrite step with origin {st.origin} \
             inside a clausify region is not an expand-abbreviations detail \
             step (unexplained interleaving)"
+    | .complementClose l :: rest =>
+        go acc sx pend rest |>.map fun (info, r) =>
+          ({ info with complementCloses :=
+              (acc.length, l) :: info.complementCloses }, r)
     | .clausifySplit lit cl :: rest =>
         match pend with
         | [] => go (acc ++ [(lit, cl)]) sx [] rest
@@ -522,15 +555,25 @@ partial def parseClauseItems (events : List TraceEvent)
         throw s!"parseClauseItems: (:FC-DERIVATIONS) inside literal \
           {index}'s window — unhandled emission shape (frontier; audit \
           2026-08-03 F7)"
+      let compCloses := litEvents.filterMap fun
+        | .complementClose l => some l
+        | _ => none
+      let boundaryVerdicts := litEvents.filterMap fun
+        | .rewriteStep st =>
+          if st.origin == "atm/try-type-set" then some st else none
+        | _ => none
       let chainEvents := litEvents.filter fun
         | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _
-        | .clausifyConjunction .. => false
+        | .clausifyConjunction .. | .complementClose _ => false
+        | .rewriteStep st => st.origin != "atm/try-type-set"
         | _ => true
       let nodes ← buildProofNodes chainEvents
       let litResult := findLiteralResult chainEvents literal
       let (more, rest'') ← parseClauseItems rest'
       return (.literal { index, literal, notFlg, nodes, result := litResult,
-                         splitTrace, splitReshaped } :: more, rest'')
+                         splitTrace, splitReshaped,
+                         complementCloses := compCloses,
+                         boundaryVerdicts } :: more, rest'')
   | .clausifyInput input :: rest =>
       -- collect the contiguous clausify block: [expand*] neg ([expand*] split)* out
       let (info, rest') ← collectClausify input rest
@@ -539,6 +582,9 @@ partial def parseClauseItems (events : List TraceEvent)
   | .fcDerivations derivs :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.fcDerivations derivs :: more, rest')
+  | .complementClose lit :: rest =>
+      let (more, rest') ← parseClauseItems rest
+      return (.complementClose lit :: more, rest')
   | .useHint hyps ccl appC lmis :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.useHint hyps ccl appC lmis :: more, rest')

@@ -57,6 +57,12 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- 4; the Phase-6 consumer reads them from the clause items) — skip in
     -- the spine walk, never a step
     replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
+  | .complementClose _ :: rest =>
+    -- The recorded add-literal complement close (fork-batch item 7) is
+    -- clause DATA consumed by the complement-tautology arm below via the
+    -- literal's complementCloses (retirement wiring lands with the
+    -- recaptured corpus) — skip in the spine walk, never a step
+    replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
   | [] =>
     -- SILENT TAUTOLOGY close (G2 rung 2): a branch-substitution can create a
     -- complementary literal pair (qsort's PERM-IMPLIES-EQUAL-ALL-REL-2
@@ -850,6 +856,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                             | some (.clausify _) => "clausify"
                             | some (.useHint ..) => "use-hint"
                             | some (.fcDerivations ..) => "fc-derivations"
+                            | some (.complementClose ..) => "complement-close"
                             | some (.branch ..) => "branch"
                             | none => "none"}"
       let (lhs, rhs) := nodeLhsRhs n

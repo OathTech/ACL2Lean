@@ -53,6 +53,7 @@ private partial def mapItem (f : ProofNode → ProofNode) : ClauseItem → Claus
   -- landed
   | .useHint h c a l => .useHint h c a l
   | .fcDerivations d => .fcDerivations d
+  | .complementClose lit => .complementClose lit
 
 private partial def mapClause (f : ProofNode → ProofNode) (n : ClauseNode) : ClauseNode :=
   { n with

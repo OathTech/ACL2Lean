@@ -59,9 +59,13 @@ for INPUT in "$@"; do
   # complete capture. A failed run leaves any previous artifacts
   # untouched (their sidecar hashes still bind them to the source that
   # produced them).
+  # emit-capture-manifest (fork-batch item 8): the post-ld manifest +
+  # explicit :STATUS :COMPLETE end record — the LAST event of a healthy
+  # capture; the completeness check below requires it.
   printf '(set-raw-proof-format :structured)
 (ld "%s")
 (emit-ground-zero-snapshots state)
+(emit-capture-manifest state)
 (good-bye)
 ' "$INPUT_ABS" | "$ACL2" --no-sysinit > "$OUTPUT.tmp" 2>&1
 
@@ -75,6 +79,13 @@ for INPUT in "$@"; do
   # event + post-ld manifest) is fork-batch item 8.
   if ! check_capture_complete "$INPUT_ABS" "$OUTPUT.tmp" >&2; then
     echo "Error: $(basename "$INPUT") capture INCOMPLETE — no log/sidecar written; ACL2 output kept at $OUTPUT.tmp for diagnosis." >&2
+    exit 1
+  fi
+  # UNCONDITIONAL at capture (fork-batch item 8): the image emits
+  # (:CAPTURE-END ... :STATUS :COMPLETE) as the last event — its absence
+  # means truncation ANYWHERE, including before any countable signal.
+  if ! tr -s ' \n' '  ' < "$OUTPUT.tmp" | grep -q '(:CAPTURE-END .*:STATUS :COMPLETE'; then
+    echo "Error: $(basename "$INPUT") capture has NO (:CAPTURE-END :STATUS :COMPLETE) end record — truncated or pre-item-8 image; no log/sidecar written (output kept at $OUTPUT.tmp)." >&2
     exit 1
   fi
 

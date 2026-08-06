@@ -1194,25 +1194,27 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
     for (spec, hypV) in ctx.linearHyps do
       for op in srcOps do
         if let some σ := oneWayMatch spec.maxTerm op then
-          let (lT, rT) ← match spec.concl with
+          -- v1 consumes EQUAL-headed single-hyp fully-bound rules ONLY.
+          -- A non-consumable matching rule SKIPS (contributes no premise
+          -- — completeness, never soundness: the DP prove fails loudly if
+          -- a needed premise is missing). Pre-fork-batch these were
+          -- throws, unreachable because the snapshot carried only the
+          -- predefined EQUAL-shaped rules; item 1's wider snapshot
+          -- (2026-08-06) legitimately includes LOCAL inequality-headed
+          -- rules (msort's own admission lemmas self-match here).
+          let some (lT, rT) := (match spec.concl with
             | .cons (.atom (.symbol eqS)) (.cons l (.cons r .nil)) =>
-              if eqS.name == "EQUAL" then pure (l, r)
-              else throwFrontier m!"replayDischargeNode: linear rule \
-                {spec.name} conclusion head {eqS.name} ≠ EQUAL (frontier)"
-            | _ => throwFrontier m!"replayDischargeNode: linear rule \
-                {spec.name} conclusion {repr spec.concl} not an equality \
-                (frontier)"
-          let hT ← match spec.hyps with
-            | [h] => pure h
-            | hs => throwFrontier m!"replayDischargeNode: linear rule \
-                {spec.name} has {hs.length} hyps (v1 supports exactly 1 — \
-                frontier)"
+              if eqS.name == "EQUAL" then some (l, r) else none
+            | _ => none)
+            | continue
+          let some hT := (match spec.hyps with
+            | [h] => some h
+            | _ => none)
+            | continue
           let ruleFrees := (ACL2.Replay.freeVars hT ++
             ACL2.Replay.freeVars spec.concl).eraseDups
-          for v in ruleFrees do
-            unless σ.any (fun (x, _) => x == v) do
-              throwFrontier m!"replayDischargeNode: linear rule {spec.name} \
-                variable {v.name} not bound by the max-term match (frontier)"
+          if ruleFrees.any (fun v => !σ.any (fun (x, _) => x == v)) then
+            continue
           let σvars := σ.map (·.1)
           let σterms := σ.map (·.2)
           let inst := ACL2.Replay.substTerm σvars σterms

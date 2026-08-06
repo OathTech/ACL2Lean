@@ -3095,6 +3095,33 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
   -- claim is sound; a genuinely-iff CHILD still gates at its own node, and a
   -- composite whose rhs needs an unrecorded iff-only normalization fails the
   -- rhs check — fail-closed either way).
+  -- ATM/TRY-TYPE-SET (fork-batch item 5, 2026-08-06): the literal-boundary
+  -- type-set verdict, now RECORDED (previously the silent-removal class the
+  -- boundary applied with no step). Consumed by recomputing the VALUE
+  -- toward the RECORDED rhs: the arm proves lhs's value IS the recorded
+  -- constant ('NIL; or 'T on the truthy polarity — emitted iff-strength
+  -- because type-set certifies only non-nil, but consumption demands the
+  -- exact constant). A truthy-but-not-'T value is an honest frontier,
+  -- never an inference; the recorded target is never chosen here.
+  if prov.origin == "atm/try-type-set" then
+    unless children.isEmpty do
+      throwError "atm/try-type-set: node has {children.length} child(ren) \
+          (frontier — the boundary verdict is atomic)"
+    let .cons (.atom (.symbol qS)) (.cons _ .nil) := rhs
+      | throwError "atm/try-type-set: rhs {repr rhs} is not a quoted \
+          constant (frontier)"
+    unless qS.name == "QUOTE" do
+      throwError "atm/try-type-set: rhs {repr rhs} is not a quoted \
+          constant (frontier)"
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
+    let vL ← ctxValExpr cfg ctx lhs
+    let vR ← ctxValExpr cfg ctx rhs
+    unless ← Lean.Meta.isDefEq vL vR do
+      throwError "atm/try-type-set: value of {repr lhs} does not reduce to \
+          the recorded {repr rhs} (truthy-but-not-'T class — frontier)"
+    let pL ← ctxValProof cfg ctx lhs
+    let pR ← ctxValProof cfg ctx rhs
+    return ← mkAppM ``fuel_eq_of_conv #[pL, pR, ← mkEqRefl vR]
   unless prov.equiv == "equal" || rty == "definition" || rty == "lambda-body" do
     throwError "replayNode: rune ({rty}, {rname}) applied under equivalence \
                 {prov.equiv} — R-parameterized recipe pending (G1 frontier)"
@@ -5876,6 +5903,7 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .clausify _ :: rest => flattenLiterals rest
   | .useHint _ _ _ _ :: rest => flattenLiterals rest
   | .fcDerivations _ :: rest => flattenLiterals rest
+  | .complementClose _ :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
 
 /-- A clause-context falsity demand: either an exact clause-literal TERM, or

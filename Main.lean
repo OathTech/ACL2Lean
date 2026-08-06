@@ -133,6 +133,12 @@ def main (args : List String) : IO Unit := do
                   {String.intercalate " " (sigs.map (·.name))}"
             | .encapsulateEnd =>
                 IO.println "  ENCAPSULATE-END"
+            | .groundZeroRecognizerTuples specs =>
+                IO.println s!"  GROUND-ZERO-RECOGNIZER-TUPLES:                   {specs.length} tuple(s)"
+            | .includeBookEdge book parent =>
+                IO.println s!"  INCLUDE-BOOK-EDGE {book} ←                   {parent.getD "<top>"}"
+            | .captureEnd _ =>
+                IO.println "  CAPTURE-END (complete)"
             | .constraints fns formulas =>
                 IO.println s!"  CONSTRAINTS for \
                   {String.intercalate " " (fns.map (·.name))}: \

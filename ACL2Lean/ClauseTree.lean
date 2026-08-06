@@ -128,6 +128,16 @@ inductive WorldEvent where
       hyps/concl/max-term verbatim; consumed as the DP obligation's
       premise where simplify's linear arithmetic cites the rune. -/
   | groundZeroLinearRules (specs : List LinearRuleSpec)
+  /-- The cited recognizer-alist tuples (fork-batch item 2, 2026-08-06)
+      — the recognizer/ground-hyp verdict basis. INERT until the R2/R4
+      retirement consumers wire them (this phase). -/
+  | groundZeroRecognizerTuples (specs : List RecognizerTupleSpec)
+  /-- An include GRAPH edge (fork-batch item 6): the provenance DAG the
+      cross-book offer gate consumes. -/
+  | includeBookEdge (book : String) (parent : Option String)
+  /-- The post-`ld` capture manifest (fork-batch item 8): parse already
+      requires `:STATUS :COMPLETE`; the books alist is kept opaque. -/
+  | captureEnd (books : SExpr)
   /-- A proved theorem and its clause-tree proof. -/
   | theorem (proof : ClauseProof)
   /-- An INCLUDE-BOOK'd theorem (R2): certified in its OWN book — no
@@ -324,6 +334,25 @@ def Development.groundZeroLinearRuleSpecs :
       specs ++ rest.groundZeroLinearRuleSpecs
     | _ => rest.groundZeroLinearRuleSpecs
 
+/-- All recognizer-tuple snapshot specs in the development (item 2). -/
+def Development.groundZeroRecognizerTupleSpecs :
+    Development → List RecognizerTupleSpec
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .groundZeroRecognizerTuples specs =>
+      specs ++ rest.groundZeroRecognizerTupleSpecs
+    | _ => rest.groundZeroRecognizerTupleSpecs
+
+/-- The include GRAPH edges in the development (item 6):
+    (book, parent) per include-book encounter. -/
+def Development.includeEdges : Development → List (String × Option String)
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .includeBookEdge b p => (b, p) :: rest.includeEdges
+    | _ => rest.includeEdges
+
 /-- The admission justifications of a development's RECURSIVE defuns
     (fn name ↦ measure/wfrel/measured-subset + the raw termination clauses),
     in development order — the data the totality prover consumes (#37).
@@ -485,6 +514,7 @@ private partial def collectHypEquivs : List ClauseItem → List (EquivSource × 
   | .clausify _ :: rest => collectHypEquivs rest
   | .useHint _ _ _ _ :: rest => collectHypEquivs rest
   | .fcDerivations _ :: rest => collectHypEquivs rest
+  | .complementClose _ :: rest => collectHypEquivs rest
   | .branch _ items :: rest => collectHypEquivs items ++ collectHypEquivs rest
 
 /-- The hypotheses a clausify-branch SEGMENT contributes inside its branch:
@@ -514,6 +544,8 @@ private partial def linkItems (cands : List (EquivSource × SExpr))
   | .step n :: rest => do return .step n :: (← linkItems cands rest)
   | .clausify info :: rest => do return .clausify info :: (← linkItems cands rest)
   | .useHint h c a l :: rest => do return .useHint h c a l :: (← linkItems cands rest)
+  | .complementClose lit :: rest => do
+      return .complementClose lit :: (← linkItems cands rest)
   | .fcDerivations d :: rest => do return .fcDerivations d :: (← linkItems cands rest)
   | .branch seg items :: rest => do
       return .branch seg (← linkItems (cands ++ segmentHypEquivs seg) items)
@@ -912,6 +944,15 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       events := events.push (.groundZeroFcRules specs)
     | .groundZeroLinearRules specs =>
       events := events.push (.groundZeroLinearRules specs)
+    | .groundZeroRecognizerTuples specs =>
+      events := events.push (.groundZeroRecognizerTuples specs)
+    | .includeBookEdge book parent =>
+      events := events.push (.includeBookEdge book parent)
+    | .captureEnd books =>
+      -- parse already validated :STATUS :COMPLETE; recorded so consumers
+      -- can gate on its presence (the strict at-EOF requirement flips
+      -- after the corpus-wide recapture — tracked in TODO).
+      events := events.push (.captureEnd books)
     | .typePrescription n cor bts leaves =>
       events := events.push (.typePrescription n cor bts leaves)
     | .rules specs =>
@@ -1010,6 +1051,7 @@ private partial def itemNodes : List ClauseItem → List ProofNode
   | .clausify _ :: rest => itemNodes rest
   | .useHint _ _ _ _ :: rest => itemNodes rest
   | .fcDerivations _ :: rest => itemNodes rest
+  | .complementClose _ :: rest => itemNodes rest
   | .branch _ items :: rest => itemNodes items ++ itemNodes rest
 
 private def allProofNodes (cp : ClauseProof) : List ProofNode :=
@@ -1135,6 +1177,8 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
         IO.println s!"{pad}  │      (expand-and-or fired — replay frontier)"
     | .fcDerivations derivs =>
       IO.println s!"{pad}  │    fc-derivations: {derivs.length} record(s)"
+    | .complementClose lit =>
+      IO.println s!"{pad}  │    complement-close: {lit}"
     | .useHint hyps ccl appC _lmis =>
       IO.println s!"{pad}  │    :use hint — {hyps.length} instantiated hyp(s):"
       for h in hyps do
@@ -1215,6 +1259,12 @@ partial def printDevelopment : ACL2.Development → IO Unit
         {String.intercalate " " (sigs.map (·.name))}) ──"
     | .encapsulateEnd =>
       IO.println "── encapsulate end ──"
+    | .groundZeroRecognizerTuples specs =>
+      IO.println s!"── ground-zero recognizer tuples: {specs.length} ──"
+    | .includeBookEdge book parent =>
+      IO.println s!"── include-book edge: {book} ←         {parent.getD "<top>"} ──"
+    | .captureEnd _ =>
+      IO.println "── capture end (complete) ──"
     | .constraints fns formulas =>
       IO.println s!"── constraints for \
         {String.intercalate " " (fns.map (·.name))}: \

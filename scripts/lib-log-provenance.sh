@@ -136,6 +136,18 @@ check_capture_complete() {
     echo "INCOMPLETE: $(basename "$log") — logged $got of $want source defthm proof(s): ACL2 halted before a later event ($qed :QED)"
     return 1
   fi
+  # The explicit END record (fork-batch item 8, 2026-08-06): a healthy
+  # capture ends with (:CAPTURE-END ... :STATUS :COMPLETE) — a log cut
+  # ANYWHERE before it fails here, closing the pairing walk's residual
+  # blind spot. Enforced only for logs that HAVE the event (post-item-8
+  # captures); pre-item-8 logs are caught by check-log-provenance's
+  # backfill marker until the recapture replaces them.
+  if grep -q '(:CAPTURE-END' "$log"; then
+    if ! tr -s ' \n' '  ' < "$log" | grep -q ':STATUS :COMPLETE'; then
+      echo "INCOMPLETE: $(basename "$log") — (:CAPTURE-END present but no :STATUS :COMPLETE"
+      return 1
+    fi
+  fi
   return 0
 }
 
