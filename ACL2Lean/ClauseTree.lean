@@ -263,11 +263,19 @@ def Development.toWorld : Development → World
     | .groundZeroDefun name formals body _ =>
       if builtinNames.contains name then w
       else { w with defs := w.defs.insert { name := name } (formals, body) }
-    -- Pre-merge audit fix N5 (2026-08-06): the witness-defun exclusion
-    -- from the certified world (BUG-019 resolution — :SOURCE
-    -- :LOCAL-WITNESS bodies are untrusted witness artifacts) is
-    -- LOAD-BEARING; write it explicitly rather than defaulting it.
-    | .witnessDefun .. => w
+    -- CANONICAL MODEL (Phase 2, the ratified R6 design item 2 — MDD
+    -- 2026-08-02; supersedes the exclusion arm): a constrained scope
+    -- contributes its WITNESS bodies — the witness IS the scope's
+    -- canonical model, and the sweep replays at it (pass 1 = the
+    -- conservativity evidence, kernel-checked). BUG-019's protection
+    -- MOVES to the statement layer: post-encapsulate theorems get the
+    -- PARAMETRIC form (∀ w, ScopeHolds S w → EvTrue w env Φ) via the
+    -- generic scope-abstraction builder, so a fact about the witness
+    -- can never masquerade as the constrained theorem; and a
+    -- witness-dereference inside a post-encapsulate proof tree is a
+    -- sanity-check HARD-FAIL (design item 5).
+    | .witnessDefun n formals body _ _ =>
+      { w with defs := w.defs.insert { name := n } (formals, body) }
     | _ => w
 
 /-- A development's ground-zero SNAPSHOT defuns — (name, formals, emitted body)
