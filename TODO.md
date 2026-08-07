@@ -107,10 +107,28 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > NodeCore into cohesive modules (edit-loop cost); (4) pins-vs-sweep
 > de-dup DEPRIORITIZED (highest risk — only if it buys a lot); (5)+(6)
 > two-tier gating + gate batching RATIFIED and recorded in CLAUDE.md.
-> Escape hatch: stop and report if a split changes any golden row
-> (beyond formatting), or if the module split hits a Lake/elab
-> constraint that demands a design change. THEN (ii) Phase 2
-> (equisort = parametric encapsulate).
+> Items 1+2 LANDED (70e259a: 29 per-book coverage modules, byte-exact
+> sections + tiling aggregate, cold sweep 6m28 vs ~15m, NO-OP 1.1s;
+> parallel capture). ITEM 3 + STRUCTURAL DEBT PASS (user-approved
+> 2026-08-07 — "make the structure support future build-out"): sizes:
+> NodeCore 6517, EvalLemmas 6356, Sorting.lean 5104, ProofLog 1697.
+> Plan, MOVE-ONLY (no body edits; fast-gate per step, ONE claim-gate
+> at the end, golden byte-identical): (3a) NodeCore → Driver/Ctx
+> (ReplayConfig/ReplayCtx/val helpers/tsAnd/recogVerdictGate/taBases),
+> Driver/TypeSetWalk (the walker + rung A/B′), Driver/Recognizer
+> (replayRecognizer + TP arms), Driver/Rewrites (window machinery +
+> replayRewrites), Driver/Literal (replayLiteral*/boundary validator),
+> Driver/Node (replayNodeWith dispatch) — split ALONG the existing
+> non-mutual boundaries; the one tied knot (NodeRec) stays in Node.
+> (3b) EvalLemmas → Replay/Lemmas/{Conv,If,Equal,List,Boundary}.lean
+> by subject (pure theorems — trivial moves, big parallel win).
+> (3c) Imported/Sorting.lean → per-book modules (the Mirrors/* pattern
+> already half-exists). (3d) record a soft module-size norm (~1500
+> lines; new lemma FAMILIES get their own module) in CLAUDE.md's
+> engineering-quality bullet. Escape hatch: stop and report if a split
+> changes any golden row (beyond formatting), hits a mutual-def knot
+> that demands real refactoring (not moves), or a Lake/elab
+> constraint. THEN (ii) Phase 2 (equisort = parametric encapsulate).
 > Exit criterion: gate green, all remaining drift markers gone,
 > bsort residue honestly classified. Then Phase 2 (equisort =
 > parametric encapsulate).
