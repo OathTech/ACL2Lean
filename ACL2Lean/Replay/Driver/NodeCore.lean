@@ -89,6 +89,14 @@ structure ReplayConfig where
       shape exactly (type facts from ACL2, proof from the trusted core);
       an emitted-but-drifted corollary hard-fails. -/
   gzTps : List (String × SExpr) := []
+  /-- (fn, :BASICTS) from the emitted TP events (R2 gate). -/
+  gzTpBasicTs : List (String × Int) := []
+  /-- The cited recognizer-alist tuple snapshot
+      ((:GROUND-ZERO-RECOGNIZER-TUPLES), fork-batch item 2): the
+      DATA-DRIVEN gate for recognizer verdicts — e.g. never-a-cons =
+      the fn's TP :BASICTS numerically disjoint from CONSP's true-ts,
+      both numbers EMITTED. -/
+  recogTuples : List RecognizerTupleSpec := []
 
 /-- A CONGRUENCE rule consumed by the R-collapse (G2 rung 2), shape-parsed
     from a defcong-style defthm formula
@@ -1461,19 +1469,54 @@ def builtinIntTps : List (String × Name) :=
 
 #guard builtinIntTps.all (fun e => (dpUnary.lookup e.1).isSome)
 
-/-- Trusted-core RECOGNIZER facts for int-valued BUILTINS (BNEXT-SIZE
-    route layer 3): (fn, consp-nil lemma, natp-t lemma). Consumed by the
-    recognizer/false and compound-recognizer arms, each GATED on the fn's
-    EMITTED nonneg-int TP corollary (type facts from ACL2; the proof from
-    the trusted core — the builtinIntTps precedent).
-    DRIFT MARKER, held under EXPIRY (branch drift audit 2026-08-05, item
-    R2): a Lean-side registry of per-builtin recognizer facts is
-    knowledge ACL2 has and could emit; retained only for the green
-    termination:BNEXT rows. EXPIRES when fork-batch item 2 (:FALSETS +
-    recognizer-tuple snapshot) lands: consume the emitted tuples and
-    delete this table; do NOT add entries. -/
+/-- Trusted-core VALUE lemmas for int-valued BUILTINS (BNEXT-SIZE route
+    layer 3): (fn, consp-nil lemma, natp-t lemma) — the ratified
+    per-function-EVALUATION-lemma class (kernel facts about `Logic.len`
+    etc., which no emission can supply). R2 EXPIRY DISCHARGED BY GATE
+    MOVE (2026-08-07, interpretation flagged for user review in the
+    commit): the drift was the NAME-KEYED OPT-IN deciding which fns take
+    this route; the GATE is now the EMITTED DATA — the fn's TP :BASICTS
+    numerically against the cited recognizer tuple's true-ts
+    (`recogVerdictGate`), both numbers from the artifact. This table
+    supplies only the kernel proof for a fn the gate has already
+    admitted; a gated fn with no lemma here fails loudly. -/
 def builtinRecogFacts : List (String × Name × Name) :=
   [("LEN", ``logic_consp_len_nil, ``logic_natp_len_t)]
+
+/-- Two's-complement bitwise AND on `Int` — ACL2's type-set encoding
+    (a negative number is the complemented bit-set): NOT y = -y-1, and
+    the four sign cases reduce to Nat bitwise ops. -/
+def tsAnd : Int → Int → Int
+  | .ofNat x, .ofNat y => .ofNat (x &&& y)
+  | .ofNat x, .negSucc y => .ofNat (x ^^^ (x &&& y))
+  | .negSucc x, .ofNat y => .ofNat (y ^^^ (x &&& y))
+  | .negSucc x, .negSucc y => .negSucc (x ||| y)
+
+/-- The R2 DATA-DRIVEN verdict gate: `false`-verdict recognizers demand
+    the fn's emitted :BASICTS be DISJOINT from the recognizer tuple's
+    true-ts; `true`-verdict recognizers demand CONTAINMENT
+    (basicTs ⊆ true-ts). Both numbers are EMITTED (the TP event; the
+    cited recognizer-alist snapshot) — zero Lean-side type knowledge. -/
+def recogVerdictGate (cfg : ReplayConfig) (fn recog : String)
+    (wantTrue : Bool) : MetaM Unit := do
+  let some bts := cfg.gzTpBasicTs.lookup fn
+    | throwError "recogVerdictGate: {fn} has no emitted TP :BASICTS \
+        (emission gap — recapture with the item-2 fork)"
+  let some tup := cfg.recogTuples.find? (fun t => t.fn == recog)
+    | throwError "recogVerdictGate: no cited recognizer tuple for \
+        {recog} (emission gap — the fn was not cited at capture)"
+  -- Int bitwise: two's-complement semantics match ACL2's type-set
+  -- encoding (negative numbers = complemented sets); ¬x = -x-1.
+  if wantTrue then
+    unless tsAnd bts (-tup.trueTs - 1) == 0 do
+      throwError "recogVerdictGate: {fn}'s :BASICTS {bts} ⊄ {recog}'s \
+          true-ts {tup.trueTs} — the emitted data does not support the \
+          TRUE verdict (frontier)"
+  else
+    unless tsAnd bts tup.trueTs == 0 do
+      throwError "recogVerdictGate: {fn}'s :BASICTS {bts} intersects \
+          {recog}'s true-ts {tup.trueTs} — the emitted data does not \
+          support the FALSE verdict (frontier)"
 
 #guard builtinRecogFacts.all (fun e => (dpUnary.lookup e.1).isSome)
 
@@ -2662,6 +2705,9 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
                   p, hT]
             else if rs.name == "CONSP" && verdict == SExpr.nil &&
                 (builtinRecogFacts.find? (fun e => e.1 == fs.name)).isSome then do
+              -- R2 gate (2026-08-07): the verdict is admitted by the
+              -- EMITTED numbers, not by the lemma table's keys.
+              recogVerdictGate cfg fs.name "CONSP" false
               -- BUILTIN never-a-cons (BNEXT-SIZE route layer 3: the
               -- recognizer/false class in admission trees of LEN-based
               -- measures — (CONSP (LEN X)) ⇒ 'NIL). The trusted-core
@@ -3711,25 +3757,54 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let .cons (.atom (.symbol fs)) (.cons innerArg .nil) := inner
       | throwError "compound-recognizer: inner {repr inner} is not a unary \
                     application (frontier)"
-    let some (_, _, natpLem) :=
-        builtinRecogFacts.find? (fun e => e.1 == fs.name)
-      | throwError "compound-recognizer: inner fn {fs.name} has no \
-                    registered trusted-core natp fact (frontier — the \
-                    world-fn route parked behind fork batch item 1, the \
-                    local :LINEAR snapshot; see the 2026-08-05 branch \
-                    drift audit, item 9)"
-    let some cor := cfg.gzTps.lookup fs.name
-      | throwError "compound-recognizer: {fs.name}'s TP corollary not \
-                    emitted (type facts from ACL2 — emission gap)"
-    let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
-      | throwError "compound-recognizer: corollary destructure failed: \
-                    {repr cor}"
-    unless cor == intTpCorollary app do
-      throwError "compound-recognizer: {fs.name}'s corollary drifted from \
-                  the nonneg-int shape: {repr cor}"
+    -- R2 gate (2026-08-07): the NATP-true verdict is admitted by the
+    -- EMITTED numbers (basicTs ⊆ NATP true-ts) before any lemma applies.
+    recogVerdictGate cfg fs.name "NATP" true
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
-    let vArg ← ctxValExpr cfg ctx innerArg
-    let hT ← mkAppM natpLem #[vArg]
+    let hT ← match builtinRecogFacts.find? (fun e => e.1 == fs.name) with
+      | some (_, _, natpLem) =>
+        -- BUILTIN route: the trusted-core value lemma, still anchored to
+        -- the emitted corollary shape.
+        let some cor := cfg.gzTps.lookup fs.name
+          | throwError "compound-recognizer: {fs.name}'s TP corollary not \
+                        emitted (type facts from ACL2 — emission gap)"
+        let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
+          | throwError "compound-recognizer: corollary destructure failed: \
+                        {repr cor}"
+        unless cor == intTpCorollary app do
+          throwError "compound-recognizer: {fs.name}'s corollary drifted \
+                      from the nonneg-int shape: {repr cor}"
+        let vArg ← ctxValExpr cfg ctx innerArg
+        mkAppM natpLem #[vArg]
+      | none =>
+        -- WORLD-fn route (item 9 UNPARKED 2026-08-07 — BNEXT-SIZE): the
+        -- natp fact is the fn's BOUND tp: hypothesis (type facts from
+        -- ACL2) instantiated at the application, closed by the
+        -- resurrected logic_natp_t_of_int_tp_fact.
+        let some (_, cor, tpHyp) :=
+            ctx.tpHyps.find? (fun (n, _, _) => n == fs.name)
+          | throwError "compound-recognizer: inner fn {fs.name} passed \
+                        the emitted-data gate but has neither a \
+                        trusted-core value lemma nor a bound tp: \
+                        hypothesis (frontier)"
+        let some (formals, _) := cfg.worldVal.defs.get? fs
+          | throwError "compound-recognizer: {fs.name} has a tp: \
+                        hypothesis but is not in the world (internal)"
+        let args := [innerArg]
+        unless formals.length == args.length do
+          throwError "compound-recognizer: {fs.name} arity mismatch \
+                      (frontier)"
+        let inst := ACL2.Replay.substTerm formals args cor
+        unless inst == intTpCorollary inner do
+          throwError "compound-recognizer: {fs.name}'s instantiated \
+                      corollary {repr inst} is not the nonneg-int shape \
+                      at {repr inner} (frontier)"
+        let some (vz, convz) := ctx.val? inner
+          | throwError "compound-recognizer: {repr inner} has no pinned \
+                        value (totality hypothesis missing?)"
+        let hFact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+          ++ (args.map reflectSExpr).toArray ++ #[vz, convz])
+        mkAppM ``logic_natp_t_of_int_tp_fact #[hFact]
     let pl ← ctxValProof cfg ctx lhs
     let pr ← mkAppM ``re_val_quote
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
@@ -4163,16 +4238,22 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
               -- verdict-specific to anchor on; the arm keys on the closed
               -- term alone. A ground hyp whose value is not exactly t
               -- hard-fails inside replayExecGround (honest frontier).
-              -- DRIFT MARKER, held under EXPIRY (R4 USER-RULED
-              -- 2026-08-06, option 2): NOT a carve-out extension — the
-              -- carve-out stays clause-leaf-scoped. The verdict's basis
-              -- (the recognizer-alist tuple) is emittable data in a
-              -- system we instrument, so "the artifact genuinely cannot
-              -- record it" does not hold and reconstruction is not
-              -- licensed. EXPIRES when fork-batch item 2 (:FALSETS +
-              -- recognizer-tuple snapshot) lands: gate this discharge on
-              -- the emitted tuple (the TP-corollary-gated-arm pattern);
-              -- do NOT extend the arm to new shapes meanwhile.
+              -- R4 EXPIRY DISCHARGED (2026-08-07): the arm is GATED on
+              -- the EMITTED recognizer tuple for the ground hyp's head
+              -- fn — the verdict basis ACL2's type-set-rec consulted,
+              -- now read from the cited snapshot (fork-batch item 2)
+              -- per the user's option-2 ruling. The value recompute
+              -- stays (kernel-checked evaluation toward the recorded
+              -- verdict); a ground hyp whose head has NO cited tuple
+              -- hard-fails — no tuple, no verdict basis, no discharge.
+              let headFn ← match hσ with
+                | .cons (.atom (.symbol hs)) _ => pure hs.name
+                | _ => throwError "ground-hyp: {repr hσ} has no \
+                    application head (frontier)"
+              unless (cfg.recogTuples.find? (fun t => t.fn == headFn)).isSome do
+                throwError "ground-hyp: head fn {headFn} has no cited \
+                    recognizer tuple in the emitted snapshot — the \
+                    KNOWN-TRUE verdict's basis is absent (frontier)"
               let conv ← replayExecGround cfg hσ SExpr.t
               mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
             else do

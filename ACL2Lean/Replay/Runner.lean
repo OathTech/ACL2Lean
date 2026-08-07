@@ -179,7 +179,9 @@ def mkBookConfig (dev : Development) (w : World) (wExpr envExpr : Expr)
     linearRules := dev.groundZeroLinearRuleSpecs,
     termReplayed := termReplayed,
     gzTps := dev.typePrescriptions.filter fun (n, _) =>
-      (w.defs.get? { name := n }).isNone }
+      (w.defs.get? { name := n }).isNone
+    gzTpBasicTs := dev.typePrescriptionBasicTs
+    recogTuples := dev.groundZeroRecognizerTupleSpecs }
 
 /-- Clause-ids of BLACK-BOX leaves under a clause node: a leaf clause (no child
     clauses, no induction) that ACL2 marks PROVED but for which NO replayable proof

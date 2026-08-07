@@ -286,6 +286,16 @@ def Development.groundZeroSnapshotDefs :
       ({ name := n }, formals, body) :: rest.groundZeroSnapshotDefs
     | _ => rest.groundZeroSnapshotDefs
 
+/-- (fn, :BASICTS) for every TP event that carries the emitted basic
+    type-set number (R2 gate, 2026-08-07). -/
+def Development.typePrescriptionBasicTs : Development → List (String × Int)
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .typePrescription n _ (some bts) _ =>
+      (n, bts) :: rest.typePrescriptionBasicTs
+    | _ => rest.typePrescriptionBasicTs
+
 /-- The emitted type-prescription corollaries of a development (fn name ↦
     corollary term) — the type facts the replay consumes as hypotheses. -/
 def Development.typePrescriptions : Development → List (String × SExpr)
