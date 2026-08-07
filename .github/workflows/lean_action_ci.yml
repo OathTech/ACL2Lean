@@ -97,17 +97,32 @@ jobs:
           # references, rather than a hardcoded list (a stale hardcoded list is
           # exactly what let isort's log go uncaptured). This picks up any new
           # sorting book the moment it's added to a Lean source, and captures
-          # ONLY what's needed — we deliberately do NOT capture the whole
-          # books.txt manifest, since qsort/equisort/sorts-equivalent
-          # include-book foreign system books (arithmetic-3) that aren't
-          # certified in a fresh checkout and so can't be `ld`'d uncertified.
+          # ONLY what's needed — we still do not capture the whole
+          # books.txt manifest (orderedp/how-many are defun-only, out of
+          # the coverage corpus by design). The old caveat that
+          # qsort/equisort/sorts-equivalent "can't be ld'd uncertified"
+          # (foreign arithmetic-3 includes) is STALE: this workflow has
+          # been capturing qsort/equisort successfully — the fork's ld
+          # resolves :dir :system includes against the submodule tree.
           # Sibling includes WITHIN sorting/ (e.g. isort→perm) do resolve
           # uncertified relative to the book dir, so `ld` loads them on the fly.
           # Build a proper array (mapfile reads line-by-line, no dependence on
           # IFS/glob word-splitting), then expand "${books[@]}" — robust and
           # shellcheck-clean, unlike an unquoted $var of space-joined paths.
-          mapfile -t logs < <(git grep -h 'include_str "[^"]*sorting/[^"]*proof-log"' -- '*.lean' \
-                                | grep -oE 'sorting/[a-z0-9-]+\.proof-log' | sort -u)
+          # UNION of two reference styles (fix-forward 2026-08-07: the
+          # per-book coverage modules read logs via covLogPath's COMPUTED
+          # paths — invisible to the include_str grep; sorts-equivalent
+          # was referenced ONLY that way and its capture was skipped,
+          # caught by check-proof-logs' A5 preflight):
+          #   1. include_str references (as before);
+          #   2. the coverage corpus's sorting books, from corpusOrder in
+          #      Tests/Coverage/Harness.lean — the SAME source the local
+          #      preflight derives from, so the two lists cannot desync.
+          mapfile -t logs < <( { git grep -h 'include_str "[^"]*sorting/[^"]*proof-log"' -- '*.lean' \
+                                | grep -oE 'sorting/[a-z0-9-]+\.proof-log'; \
+                                awk '/def corpusOrder/,/\]/' Tests/Coverage/Harness.lean \
+                                | grep -o '"sorting/[^"]*"' | tr -d '"' \
+                                | sed 's|$|.proof-log|'; } | sort -u)
           books=()
           for l in "${logs[@]}"; do books+=("acl2/books/${l%.proof-log}.lisp"); done
           echo "Sorting books to capture (derived from include_str refs):"
