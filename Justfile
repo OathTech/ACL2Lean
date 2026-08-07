@@ -27,6 +27,12 @@ test-provenance-gates:
 check-no-getd-done:
     ./scripts/check-no-getd-done.sh
 
+# Module-size RATCHET (perf arc 3d): new .lean files capped at the norm
+# (1500 lines); grandfathered giants pinned in
+# scripts/file-weight-baseline.txt and may only shrink. Static; in ci.
+check-file-weight:
+    ./scripts/check-file-weight.sh
+
 # Cross-check the canonical fidelity-bug index (docs/BUGS.md) against the
 # self-enforcing differential corpus, so a logged bug can't rot in prose or be
 # silently dropped. Static (no ACL2/Lean build needed), so it runs in `ci`.
@@ -45,7 +51,7 @@ check-no-shadow:
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
 # include_str's the gitignored .proof-log corpus; check-proof-logs runs first
 # so a missing log is a clear error, not a deep elaboration-trace failure.
-ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-dark-files check-proof-logs check-log-provenance test-provenance-gates check-no-getd-done check-pattern-map build test driver-coverage
+ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-dark-files check-file-weight check-proof-logs check-log-provenance test-provenance-gates check-no-getd-done check-pattern-map build test driver-coverage
 
 # Run the corpus report
 report:

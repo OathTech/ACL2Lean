@@ -304,6 +304,11 @@ against it structurally:
   instrumentation; and the rest of the pipeline). Update it whenever a milestone
   lands, scope changes, or a new gap/frontier is found — don't let it drift from
   reality.
+- **Module-size norm (perf arc 3d, 2026-08-07).** New `.lean` modules stay
+  under ~1500 lines and new LEMMA FAMILIES get their own module; the ci
+  ratchet (`just check-file-weight`, baseline in
+  `scripts/file-weight-baseline.txt`) enforces it — grandfathered giants
+  may only shrink.
 - **Take clean engineering-quality opportunities as you go.** Arc-by-arc buildout
   accumulates near-clones (the same helper re-derived in two walkers, the same
   composition idiom pasted at a third site). When a clean de-duplication /
