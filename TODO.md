@@ -99,7 +99,18 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > familiar name — emission normalization candidate); N8 .meta include
 > closure under-approximates on :BOOKS + no ci dirty-tree check; N10
 > golden-diff lacks an ASSUMED class. All byte-identical through the
-> round. NEXT: Phase 2 (equisort = parametric encapsulate).
+> round. NEXT: (i) the PERFORMANCE ARC (user-approved 2026-08-07,
+> short + focused, before Phase 2): (1) split DriverCoverage into
+> per-book Lake modules along the include DAG (parallel + incremental;
+> goldens split per book, ONE row-by-row review at the split); (2)
+> parallelize recapture-all (xargs -P; disjoint outputs); (3) split
+> NodeCore into cohesive modules (edit-loop cost); (4) pins-vs-sweep
+> de-dup DEPRIORITIZED (highest risk — only if it buys a lot); (5)+(6)
+> two-tier gating + gate batching RATIFIED and recorded in CLAUDE.md.
+> Escape hatch: stop and report if a split changes any golden row
+> (beyond formatting), or if the module split hits a Lake/elab
+> constraint that demands a design change. THEN (ii) Phase 2
+> (equisort = parametric encapsulate).
 > Exit criterion: gate green, all remaining drift markers gone,
 > bsort residue honestly classified. Then Phase 2 (equisort =
 > parametric encapsulate).

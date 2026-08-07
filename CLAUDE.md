@@ -279,6 +279,18 @@ against it structurally:
   green; it must be given at the moment of merge, for that specific merge. Same for
   `git push`. Prefer linear history (fast-forward merges); `--no-ff` is allowed but not
   the default.
+  **Two-tier gating (MDD-ratified 2026-08-07).** The FULL `just claim-gate`
+  (TRUE_EXIT=0 recorded in the commit) is REQUIRED at: phase/arc exits,
+  merge candidates, golden re-pins, and any commit claiming green or
+  complete. INTERMEDIATE commits inside a fix round may instead use a
+  FAST-GATE — static checks (`lint-sh`, the check-* recipes) + build of
+  the affected targets + focused `just replay` of the books the diff
+  touches — and MUST say `fast-gate` (never `TRUE_EXIT=0`) in the commit
+  message, so the tiers cannot masquerade. Batch gates within a fix
+  round: intermediate builds catch compile errors; one full gate at the
+  round's end is the honest claim point. (Rationale: the full gate is
+  ~30 min and was serializing every increment; the masked-red-build
+  incident that created the rule is covered by the claim-point tier.)
   **Sandbox protocol (MDD 2026-07-28): merges gate on LOCAL `just ci`, not remote CI.**
   Development runs inside a network-blocked sandbox, so autonomous remote-CI checks are
   impossible: a merge to local `main` requires local `just ci` green + sign-off, nothing
