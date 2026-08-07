@@ -1497,31 +1497,42 @@ def tsAnd : Int → Int → Int
   | .negSucc x, .ofNat y => .ofNat (y ^^^ (x &&& y))
   | .negSucc x, .negSucc y => .negSucc (x ||| y)
 
-/-- The R2 DATA-DRIVEN verdict gate: `false`-verdict recognizers demand
-    the fn's emitted :BASICTS be DISJOINT from the recognizer tuple's
-    true-ts; `true`-verdict recognizers demand CONTAINMENT
-    (basicTs ⊆ true-ts). Both numbers are EMITTED (the TP event; the
-    cited recognizer-alist snapshot) — zero Lean-side type knowledge. -/
+/-- The R2 DATA-DRIVEN verdict gate, rewired per audit 2026-08-07 S4 to
+    ACL2's OWN `type-set-recognizer` semantics: with `ts` the argument's
+    type-set — the STEP's recorded `:TYPESET` when present (the exact
+    value ACL2 consulted), else the fn's emitted TP `:BASICTS` — a TRUE
+    verdict demands `ts ∩ falseTs = ∅` (with a nonempty `ts ∩ trueTs`),
+    a FALSE verdict `ts ∩ trueTs = ∅`. Every number is EMITTED; zero
+    Lean-side type knowledge. -/
 def recogVerdictGate (cfg : ReplayConfig) (fn recog : String)
-    (wantTrue : Bool) : MetaM Unit := do
-  let some bts := cfg.gzTpBasicTs.lookup fn
-    | throwError "recogVerdictGate: {fn} has no emitted TP :BASICTS \
-        (emission gap — recapture with the item-2 fork)"
+    (wantTrue : Bool) (stepTs : Option Int := none) : MetaM Unit := do
+  let ts ← match stepTs with
+    | some t => pure t
+    | none =>
+      match cfg.gzTpBasicTs.lookup fn with
+      | some bts => pure bts
+      | none => throwError "recogVerdictGate: {fn} has no recorded step \
+          :TYPESET and no emitted TP :BASICTS (emission gap — recapture \
+          with the item-2 fork)"
   let some tup := cfg.recogTuples.find? (fun t => t.fn == recog)
     | throwError "recogVerdictGate: no cited recognizer tuple for \
         {recog} (emission gap — the fn was not cited at capture)"
   -- Int bitwise: two's-complement semantics match ACL2's type-set
-  -- encoding (negative numbers = complemented sets); ¬x = -x-1.
+  -- encoding (negative numbers = complemented sets).
   if wantTrue then
-    unless tsAnd bts (-tup.trueTs - 1) == 0 do
-      throwError "recogVerdictGate: {fn}'s :BASICTS {bts} ⊄ {recog}'s \
+    unless tsAnd ts tup.falseTs == 0 do
+      throwError "recogVerdictGate: ts {ts} intersects {recog}'s \
+          false-ts {tup.falseTs} — the emitted data does not support \
+          the TRUE verdict (frontier)"
+    unless tsAnd ts tup.trueTs != 0 do
+      throwError "recogVerdictGate: ts {ts} does not intersect {recog}'s \
           true-ts {tup.trueTs} — the emitted data does not support the \
           TRUE verdict (frontier)"
   else
-    unless tsAnd bts tup.trueTs == 0 do
-      throwError "recogVerdictGate: {fn}'s :BASICTS {bts} intersects \
-          {recog}'s true-ts {tup.trueTs} — the emitted data does not \
-          support the FALSE verdict (frontier)"
+    unless tsAnd ts tup.trueTs == 0 do
+      throwError "recogVerdictGate: ts {ts} intersects {recog}'s \
+          true-ts {tup.trueTs} — the emitted data does not support the \
+          FALSE verdict (frontier)"
 
 #guard builtinRecogFacts.all (fun e => (dpUnary.lookup e.1).isSome)
 
@@ -1869,60 +1880,72 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
         -- emission (subst-type-alist instrumentation — the same item
         -- HOW-MANY-RM-GENERAL's frontier names) lands in the next
         -- batch; do NOT extend this search.
-        let directed? ← do
-          match ctx.taBases.find? (fun (t', _, _, _) => t' == t || t' == flip) with
+        -- RUNG A restructure (audit 2026-08-07 S2: the try/catch that
+        -- swallowed every rung-A frontier is GONE). Applicability is
+        -- decided by DATA: a recorded basis whose :TA-ENTRY has an
+        -- in-scope falsity fact is a DIRECT entry — rung A is then
+        -- COMMITTED (its failures are real frontiers and THROW); a
+        -- basis whose entry has no in-scope fact is a DERIVED entry —
+        -- rung B′ consumes its ta-subst provenance below.
+        let mkEqT : SExpr → SExpr → SExpr := fun p q =>
+          .cons (.atom (.symbol { name := "EQUAL" }))
+            (.cons p (.cons q .nil))
+        let basis? := ctx.taBases.find? (fun (t', _, _, _) => t' == t || t' == flip)
+        let directFact? ← match basis? with
           | none => pure none
-          | some (tRec, c1, c2, entryOpt) =>
-            try
-              let some dt := entryOpt
-                | throwError "canon-collapse basis (no :TA-ENTRY)"
-              let (ca, cb) := if tRec == t then (c1, c2) else (c2, c1)
-              let eqs := inScopeEquations ctx
-              let .cons (.atom (.symbol _)) (.cons x (.cons y .nil)) := dt
-                | throwError "non-binary :TA-ENTRY"
-              let (xa, ya) ←
-                if x == ca && y == cb then pure (x, y)
-                else if x == cb && y == ca then pure (y, x)
-                else throwError "entry sides off the recorded canons"
-              match eqChain? eqs a xa, eqChain? eqs b ya with
-              | some chA, some chB =>
-                let mkEqT : SExpr → SExpr → SExpr := fun p q =>
-                  .cons (.atom (.symbol { name := "EQUAL" }))
-                    (.cons p (.cons q .nil))
-                let ctxD ← pinTermOpaques cfg cfg.envExpr ctx (mkEqT xa ya)
-                let vX ← ctxValExpr cfg ctxD xa
-                let vY ← ctxValExpr cfg ctxD ya
-                let hDirect? ← findFactChecked (falsitySources ctxD)
-                  (mkEqT xa ya)
-                  (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vX, vY])
-                    (mkConst ``SExpr.nil))
-                let hXY ← match hDirect? with
-                  | some h => pure h
-                  | none =>
-                    let hFlip? ← findFactChecked (falsitySources ctxD)
-                      (mkEqT ya xa)
-                      (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vY, vX])
-                        (mkConst ``SExpr.nil))
-                    match hFlip? with
-                    | some h => Lean.Meta.mkAppM ``logic_equal_nil_comm #[h]
-                    | none => throwError "derived entry (no in-scope fact)"
-                let pa ← match ← composeEqChain cfg ctxD chA with
-                  | some e => pure e
-                  | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD a)
-                let pb ← match ← composeEqChain cfg ctxD chB with
-                  | some e => pure e
-                  | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD b)
-                let hCong ← Lean.Meta.mkAppM ``congr
-                  #[← Lean.Meta.mkAppM ``congrArg
-                      #[mkConst ``Logic.equal, pa], pb]
-                let hNil ← Lean.Meta.mkAppM ``Eq.trans #[hCong, hXY]
-                if ← Lean.Meta.isDefEq (← Lean.Meta.inferType hNil) expected then
-                  pure (some hNil)
-                else
-                  throwError "directed composition type mismatch"
-              | _, _ => throwError "no chain to the recorded canons"
-            catch _ => pure none
-        if let some h := directed? then return some h
+          | some (_, _, _, none) => pure none
+          | some (tRec, c1, c2, some dt) => do
+            let (ca, cb) := if tRec == t then (c1, c2) else (c2, c1)
+            let .cons (.atom (.symbol _)) (.cons x (.cons y .nil)) := dt
+              | throwError "equal/type-alist-nil basis: :TA-ENTRY \
+                  {repr dt} is not binary (frontier)"
+            let (xa, ya) ←
+              if x == ca && y == cb then pure (x, y)
+              else if x == cb && y == ca then pure (y, x)
+              else throwError "equal/type-alist-nil basis: entry \
+                  {repr dt} sides off the recorded canons {repr ca} / \
+                  {repr cb} (frontier)"
+            let ctxD ← pinTermOpaques cfg cfg.envExpr ctx (mkEqT xa ya)
+            let vX ← ctxValExpr cfg ctxD xa
+            let vY ← ctxValExpr cfg ctxD ya
+            let hDirect? ← findFactChecked (falsitySources ctxD)
+              (mkEqT xa ya)
+              (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vX, vY])
+                (mkConst ``SExpr.nil))
+            match hDirect? with
+            | some h => pure (some (xa, ya, ctxD, h))
+            | none =>
+              let hFlip? ← findFactChecked (falsitySources ctxD)
+                (mkEqT ya xa)
+                (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vY, vX])
+                  (mkConst ``SExpr.nil))
+              match hFlip? with
+              | some h => pure (some (xa, ya, ctxD,
+                  ← Lean.Meta.mkAppM ``logic_equal_nil_comm #[h]))
+              | none => pure none  -- DERIVED entry → rung B′
+        if let some (xa, ya, ctxD, hXY) := directFact? then
+          -- COMMITTED rung A: every failure from here is a thrown frontier
+          let eqs := inScopeEquations ctx
+          match eqChain? eqs a xa, eqChain? eqs b ya with
+          | some chA, some chB =>
+            let pa ← match ← composeEqChain cfg ctxD chA with
+              | some e => pure e
+              | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD a)
+            let pb ← match ← composeEqChain cfg ctxD chB with
+              | some e => pure e
+              | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD b)
+            let hCong ← Lean.Meta.mkAppM ``congr
+              #[← Lean.Meta.mkAppM ``congrArg
+                  #[mkConst ``Logic.equal, pa], pb]
+            let hNil ← Lean.Meta.mkAppM ``Eq.trans #[hCong, hXY]
+            if ← Lean.Meta.isDefEq (← Lean.Meta.inferType hNil) expected then
+              return some hNil
+            throwError "equal/type-alist-nil rung A: directed composition \
+                for {repr t} did not produce the expected refutation type \
+                (frontier)"
+          | _, _ =>
+            throwError "equal/type-alist-nil rung A: no in-scope equation \
+                chain to the recorded canons for {repr t} (frontier)"
         -- RUNG B′ — DERIVED entries, DIRECTED (2026-08-07, user-approved
         -- ta-subst emission; the candidate×orientation SEARCH is fully
         -- RETIRED): the recorded (:TA-SUBST) provenance names the parent
@@ -1931,9 +1954,28 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
         -- composes exactly those recorded pieces; a class instance with
         -- no recorded provenance hard-falls-through to the generic
         -- frontier error (never a search).
-        match ctx.taSubsts.find? (fun (n, _, _, _, _) => n == t || n == flip) with
+        -- S1 (audit 2026-08-07): the recorded :TS binds the SELECTION —
+        -- this falsity rung consumes only *ts-nil* (128) records; a
+        -- truthy derived entry (ts 256) on the same term must never be
+        -- picked (both polarities coexist in real artifacts — qsort).
+        match ctx.taSubsts.find? (fun (n, _, ts, _, _) =>
+            (n == t || n == flip) && ts == 128) with
         | none => pure ()
         | some (newT, fromT, _, substNew, substOld) =>
+          -- S6 (audit 2026-08-07): JOIN the two recorded provenances —
+          -- when the verdict's own basis is in scope for this term, its
+          -- :TA-ENTRY must BE the derived entry we are about to replay.
+          match ctx.taBases.find? (fun (t', _, _, _) => t' == t || t' == flip) with
+          | some (_, _, _, some e) =>
+            let flipOf : SExpr → SExpr := fun x => match x with
+              | .cons h (.cons p (.cons q .nil)) =>
+                .cons h (.cons q (.cons p .nil))
+              | other => other
+            unless e == newT || e == flipOf newT do
+              throwError "ta-subst: the verdict basis's :TA-ENTRY \
+                  {repr e} is not the derived entry {repr newT} \
+                  (provenance mismatch — frontier)"
+          | _ => pure ()
           let .cons _ (.cons n1 (.cons n2 .nil)) := newT
             | throwError "ta-subst: derived entry {repr newT} not binary \
                 (frontier)"
@@ -2331,7 +2373,11 @@ partial def trueListpConsPeels (term : SExpr) : List SExpr :=
     `acl2-numberp`-of-pinned-int recipe (the TP bridge); a structurally-computing
     value (e.g. `consp (cons …) = t`, where the cast is definitional). -/
 partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (term : SExpr) (verdict : SExpr) : MetaM Expr := do
+    (term : SExpr) (verdict : SExpr)
+    -- the STEP's recorded :TYPESET when called from a recognizer node
+    -- (audit 2026-08-07 S4 — the exact value ACL2 consulted); none on
+    -- recursive/self calls (gate falls back to the emitted :BASICTS).
+    (stepTs : Option Int := none) : MetaM Expr := do
   let verdictE := reflectSExpr verdict
   if let some (v, p) := ctx.val? term then
     unless ← isDefEq v verdictE do
@@ -2749,37 +2795,70 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE,
                   p, hT]
             else if rs.name == "CONSP" && verdict == SExpr.nil &&
-                (builtinRecogFacts.find? (fun e => e.1 == fs.name)).isSome then do
-              -- R2 gate (2026-08-07): the verdict is admitted by the
-              -- EMITTED numbers, not by the lemma table's keys.
-              recogVerdictGate cfg fs.name "CONSP" false
+                ((cfg.gzTpBasicTs.lookup fs.name).isSome ||
+                 (builtinRecogFacts.find? (fun e => e.1 == fs.name)).isSome) then do
+              -- R2 gate (audit 2026-08-07 S3: the guard is now
+              -- DATA-DRIVEN — emitted TP presence, not the lemma
+              -- table's keys; the gate runs FIRST with the step's
+              -- recorded :TYPESET when present).
+              recogVerdictGate cfg fs.name "CONSP" false stepTs
               -- BUILTIN never-a-cons (BNEXT-SIZE route layer 3: the
               -- recognizer/false class in admission trees of LEN-based
               -- measures — (CONSP (LEN X)) ⇒ 'NIL). The trusted-core
               -- consp-nil lemma applies at the composed value, GATED on
               -- the fn's EMITTED nonneg-int TP corollary.
-              let some (_, conspLem, _) :=
-                  builtinRecogFacts.find? (fun e => e.1 == fs.name)
-                | throwError "replayRecognizer: internal — registry vanished"
-              let some cor := cfg.gzTps.lookup fs.name
-                | throwError "replayRecognizer: builtin {fs.name}'s TP \
-                    corollary not emitted (type facts from ACL2 — \
-                    emission gap)"
-              let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
-                | throwError "replayRecognizer: {fs.name} corollary \
-                    destructure failed: {repr cor}"
-              unless cor == intTpCorollary app do
-                throwError "replayRecognizer: {fs.name}'s emitted corollary \
-                    drifted from the nonneg-int shape: {repr cor}"
               let .cons _ (.cons inner .nil) := term
                 | throwError "replayRecognizer: internal — non-unary \
                     recognizer at the builtin arm"
               let .cons _ (.cons innerArg .nil) := inner
-                | throwError "replayRecognizer: builtin {fs.name} not \
+                | throwError "replayRecognizer: {fs.name} not \
                     applied to exactly one arg: {repr inner}"
               let ctxB ← pinTermOpaques cfg cfg.envExpr ctx innerArg
-              let vArg ← ctxValExpr cfg ctxB innerArg
-              let hT ← mkAppM conspLem #[vArg]
+              let hT ← match builtinRecogFacts.find? (fun e => e.1 == fs.name) with
+                | some (_, conspLem, _) =>
+                  -- BUILTIN route: trusted-core value lemma, anchored to
+                  -- the emitted corollary shape.
+                  let some cor := cfg.gzTps.lookup fs.name
+                    | throwError "replayRecognizer: builtin {fs.name}'s TP \
+                        corollary not emitted (type facts from ACL2 — \
+                        emission gap)"
+                  let .cons _ (.cons (.cons _ (.cons app _)) _) := cor
+                    | throwError "replayRecognizer: {fs.name} corollary \
+                        destructure failed: {repr cor}"
+                  unless cor == intTpCorollary app do
+                    throwError "replayRecognizer: {fs.name}'s emitted \
+                        corollary drifted from the nonneg-int shape: \
+                        {repr cor}"
+                  let vArg ← ctxValExpr cfg ctxB innerArg
+                  mkAppM conspLem #[vArg]
+                | none =>
+                  -- WORLD-fn route (audit 2026-08-07 S3, the compound
+                  -- arm's twin): the consp-nil fact from the fn's BOUND
+                  -- tp: hypothesis via logic_consp_nil_of_int_tp_fact.
+                  let ctxB2 ← pinTermOpaques cfg cfg.envExpr ctxB inner
+                  let some (_, cor, tpHyp) :=
+                      ctxB2.tpHyps.find? (fun (n, _, _) => n == fs.name)
+                    | throwError "replayRecognizer: {fs.name} passed the \
+                        emitted-data gate but has neither a trusted-core \
+                        value lemma nor a bound tp: hypothesis (frontier)"
+                  let some (formals, _) := cfg.worldVal.defs.get? fs
+                    | throwError "replayRecognizer: {fs.name} has a tp: \
+                        hypothesis but is not in the world (internal)"
+                  let args := [innerArg]
+                  unless formals.length == args.length do
+                    throwError "replayRecognizer: {fs.name} arity \
+                        mismatch (frontier)"
+                  let inst := ACL2.Replay.substTerm formals args cor
+                  unless inst == intTpCorollary inner do
+                    throwError "replayRecognizer: {fs.name}'s \
+                        instantiated corollary {repr inst} is not the \
+                        nonneg-int shape at {repr inner} (frontier)"
+                  let some (vz, convz) := ctxB2.val? inner
+                    | throwError "replayRecognizer: {repr inner} has no \
+                        pinned value (totality hypothesis missing?)"
+                  let hFact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+                    ++ (args.map reflectSExpr).toArray ++ #[vz, convz])
+                  mkAppM ``logic_consp_nil_of_int_tp_fact #[hFact]
               let pB ← ctxValProof cfg ctxB term
               let vB ← ctxValExpr cfg ctxB term
               mkAppM ``re_val_cast
@@ -3263,33 +3342,6 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
   -- claim is sound; a genuinely-iff CHILD still gates at its own node, and a
   -- composite whose rhs needs an unrecorded iff-only normalization fails the
   -- rhs check — fail-closed either way).
-  -- ATM/TRY-TYPE-SET (fork-batch item 5, 2026-08-06): the literal-boundary
-  -- type-set verdict, now RECORDED (previously the silent-removal class the
-  -- boundary applied with no step). Consumed by recomputing the VALUE
-  -- toward the RECORDED rhs: the arm proves lhs's value IS the recorded
-  -- constant ('NIL; or 'T on the truthy polarity — emitted iff-strength
-  -- because type-set certifies only non-nil, but consumption demands the
-  -- exact constant). A truthy-but-not-'T value is an honest frontier,
-  -- never an inference; the recorded target is never chosen here.
-  if prov.origin == "atm/try-type-set" then
-    unless children.isEmpty do
-      throwError "atm/try-type-set: node has {children.length} child(ren) \
-          (frontier — the boundary verdict is atomic)"
-    let .cons (.atom (.symbol qS)) (.cons _ .nil) := rhs
-      | throwError "atm/try-type-set: rhs {repr rhs} is not a quoted \
-          constant (frontier)"
-    unless qS.name == "QUOTE" do
-      throwError "atm/try-type-set: rhs {repr rhs} is not a quoted \
-          constant (frontier)"
-    let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
-    let vL ← ctxValExpr cfg ctx lhs
-    let vR ← ctxValExpr cfg ctx rhs
-    unless ← Lean.Meta.isDefEq vL vR do
-      throwError "atm/try-type-set: value of {repr lhs} does not reduce to \
-          the recorded {repr rhs} (truthy-but-not-'T class — frontier)"
-    let pL ← ctxValProof cfg ctx lhs
-    let pR ← ctxValProof cfg ctx rhs
-    return ← mkAppM ``fuel_eq_of_conv #[pL, pR, ← mkEqRefl vR]
   unless prov.equiv == "equal" || rty == "definition" || rty == "lambda-body" do
     throwError "replayNode: rune ({rty}, {rname}) applied under equivalence \
                 {prov.equiv} — R-parameterized recipe pending (G1 frontier)"
@@ -3623,7 +3675,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let verdictV := match rhs with
       | .cons (.atom (.symbol q)) (.cons v .nil) => if q.name == "QUOTE" then v else rhs
       | v => v
-    let fact ← replayRecognizer cfg ctx lhs verdictV
+    let fact ← replayRecognizer cfg ctx lhs verdictV prov.typeSet
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr verdictV]
     mkAppM ``fuel_eq_of_conv #[fact, hq, ← mkEqRefl (reflectSExpr verdictV)]
   | "if-simplification", _ =>
@@ -5988,6 +6040,32 @@ def nodeRec : NodeRec :=
    fun cfg ctx s ns => replayRewrites cfg ctx s ns⟩
 
 
+/-- CONSUME the literal's recorded boundary verdicts (`emit/atm/
+    try-type-set`; audit 2026-08-07 M2 — previously extracted but read
+    by NOTHING, and the node-path arm was unreachable dead code, now
+    deleted): each record asserts rewrite-atm ABANDONED the chain and
+    re-decided the ORIGINAL atom by type-set in isolation, to the
+    recorded constant. The replay VALIDATES each verdict at value level
+    (the value must BE the recorded constant — recompute toward the
+    recorded target) and hard-fails on mismatch; the chain composition
+    (also fully recorded) remains the proof route, with the verdict
+    record now a consumed cross-check rather than dropped data. -/
+def validateBoundaryVerdicts (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (lp : LiteralProof) : MetaM Unit := do
+  for st in lp.boundaryVerdicts do
+    let .cons (.atom (.symbol qS)) (.cons cv .nil) := st.rhs
+      | throwError "boundary verdict: rhs {repr st.rhs} is not a quoted \
+          constant (frontier)"
+    unless qS.name == "QUOTE" do
+      throwError "boundary verdict: rhs {repr st.rhs} is not a quoted \
+          constant (frontier)"
+    let ctxV ← pinTermOpaques cfg cfg.envExpr ctx st.lhs
+    let vL ← ctxValExpr cfg ctxV st.lhs
+    unless ← Lean.Meta.isDefEq vL (reflectSExpr cv) do
+      throwError "boundary verdict: value of {repr st.lhs} does not \
+          reduce to the recorded {repr st.rhs} (truthy-but-not-'T class \
+          — frontier)"
+
 /-- Replay a literal's rewrite chain at the LITERAL level. ACL2's rewriter works on
     the literal's ATOM (`rewrite-atm`): for a `:NOT-FLG T` literal `(not atm)` the
     node `:PATH`s are atom-relative, so chain on the atom and lift the composed
@@ -5997,6 +6075,7 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
     : MetaM (Option (Expr × Bool) × SExpr) := do
   let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases,
                         taSubsts := lp.taSubsts ++ ctx.taSubsts }
+  validateBoundaryVerdicts cfg ctx lp
   if lp.notFlg then
     let .cons (.atom (.symbol notS)) (.cons atm .nil) := lp.literal
       | throwError "replayLiteralChain: notFlg literal is not (not atm): {repr lp.literal}"
@@ -6089,6 +6168,7 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
   -- chain + the quote's evaluation.
   let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases,
                         taSubsts := lp.taSubsts ++ ctx.taSubsts }
+  validateBoundaryVerdicts cfg ctx lp
   if lp.nodes.isEmpty then
     throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
   let (chainOpt, finalT) ← replayRewrites cfg ctx lp.literal lp.nodes
@@ -6111,6 +6191,7 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .useHint _ _ _ _ :: rest => flattenLiterals rest
   | .fcDerivations _ :: rest => flattenLiterals rest
   | .complementClose _ :: rest => flattenLiterals rest
+  | .taSubst .. :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
 
 /-- A clause-context falsity demand: either an exact clause-literal TERM, or

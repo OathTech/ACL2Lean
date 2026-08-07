@@ -100,9 +100,20 @@ count_log_qeds() {
 # theorems) — only a SHORTFALL fails.
 check_capture_complete() {
   local src="$1" log="$2" want got qed
+  # N1 (audit 2026-08-07): fail CLOSED on a missing source/log — an
+  # empty count string previously produced a shell comparison error
+  # and EXIT=0.
+  if [ ! -f "$src" ] || [ ! -f "$log" ]; then
+    echo "INCOMPLETE: missing source ($src) or log ($log)"
+    return 1
+  fi
   want="$(count_source_defthms "$src")"
   got="$(count_log_local_defthms "$log")"
   qed="$(count_log_qeds "$log")"
+  if [ -z "$want" ] || [ -z "$got" ] || [ -z "$qed" ]; then
+    echo "INCOMPLETE: $(basename "$log") — counting failed (empty count)"
+    return 1
+  fi
   if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED\|proof attempt has failed\|HARD ACL2 ERROR" "$log"; then
     echo "INCOMPLETE: $(basename "$log") — ACL2 reported a FAILED/aborted/HARD-ERROR event"
     return 1
@@ -136,17 +147,22 @@ check_capture_complete() {
     echo "INCOMPLETE: $(basename "$log") — logged $got of $want source defthm proof(s): ACL2 halted before a later event ($qed :QED)"
     return 1
   fi
-  # The explicit END record (fork-batch item 8, 2026-08-06): a healthy
-  # capture ends with (:CAPTURE-END ... :STATUS :COMPLETE) — a log cut
-  # ANYWHERE before it fails here, closing the pairing walk's residual
-  # blind spot. Enforced only for logs that HAVE the event (post-item-8
-  # captures); pre-item-8 logs are caught by check-log-provenance's
-  # backfill marker until the recapture replaces them.
-  if grep -q '(:CAPTURE-END' "$log"; then
-    if ! tr -s ' \n' '  ' < "$log" | grep -q ':STATUS :COMPLETE'; then
-      echo "INCOMPLETE: $(basename "$log") — (:CAPTURE-END present but no :STATUS :COMPLETE"
-      return 1
-    fi
+  # The explicit END record (fork-batch item 8; UNCONDITIONAL since the
+  # 2026-08-07 audit M1 — the conditional form was a no-op against the
+  # truncation it was landed to catch, and the whole corpus is
+  # post-item-8): a healthy capture ends with (:CAPTURE-END ... :STATUS
+  # :COMPLETE); its absence means truncation ANYWHERE, including before
+  # any countable signal.
+  if ! tr -s ' \n' '  ' < "$log" | grep -q '(:CAPTURE-END .*:STATUS :COMPLETE'; then
+    echo "INCOMPLETE: $(basename "$log") — no (:CAPTURE-END :STATUS :COMPLETE) end record (truncated, or a pre-item-8 capture)"
+    return 1
+  fi
+  # S7 (audit 2026-08-07): an ACL2-level event failure emits
+  # (:EVENT-FAILED ...) and ld returns to the loop — the driver then
+  # stamps :STATUS :COMPLETE regardless. The event marker is the truth.
+  if grep -q '(:EVENT-FAILED' "$log"; then
+    echo "INCOMPLETE: $(basename "$log") — (:EVENT-FAILED) present: an event FAILED during capture"
+    return 1
   fi
   return 0
 }

@@ -5590,6 +5590,25 @@ theorem logic_natp_len_t (x : SExpr) :
   rw [logic_len_eq_lenNat]
   simp [Logic.natp]
 
+/-- CONSP-nil from a fn's lifted nonneg-int TP-corollary fact (the
+    recognizer/false world-fn route, audit 2026-08-07 S3): the corollary
+    known `= t` pins the value to an integer, and no integer is a cons. -/
+theorem logic_consp_nil_of_int_tp_fact {v : SExpr}
+    (hfact : cond (Logic.toBool (Logic.integerp v))
+        (Logic.not (Logic.lt v (SExpr.atom (.number (.int 0)))))
+        SExpr.nil
+      = SExpr.t) :
+    Logic.consp v = SExpr.nil := by
+  match v with
+  | .atom (.number (.int _)) => simp [Logic.consp]
+  | .atom (.number (.rational _ _ _)) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .atom (.symbol _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .atom (.keyword _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .atom (.char _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .atom (.string _) => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .nil => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+  | .cons _ _ => simp [Logic.integerp, Logic.toBool, SExpr.t] at hfact
+
 /-- NATP from a WORLD fn's lifted nonneg-int TP-corollary fact (the
     compound-recognizer world-fn route — BNEXT-SIZE): the corollary
     `(IF (INTEGERP app) (NOT (< app '0)) 'NIL)` lifted at the value and

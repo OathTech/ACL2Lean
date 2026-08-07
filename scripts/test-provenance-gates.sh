@@ -66,7 +66,14 @@ sed -i '/^source-provenance: /d; /^source-path: /d; /^source-sha256: /d; /^inclu
   "$FIX/no-provenance/cov-defun-sk.proof-log.meta"
 expect_fail no-provenance "NO-SOURCE-PROVENANCE"
 
-# 4. Control: an untouched copy must PASS (guards against the checker
+# 4. NO-END-RECORD (audit 2026-08-07 M1 — the class the conditional
+#    rung missed): strip (:CAPTURE-END ...); the ci-side check must now
+#    fail UNCONDITIONALLY.
+mk_case no-end-record
+grep -v '(:CAPTURE-END' "$REAL_LOG" > "$FIX/no-end-record/cov-defun-sk.proof-log"
+expect_fail no-end-record "CAPTURE-END"
+
+# 5. Control: an untouched copy must PASS (guards against the checker
 #    failing for fixture-environment reasons, which would make tests 1-3
 #    vacuous).
 mk_case control
@@ -78,10 +85,9 @@ else
   echo "  ok (control passes): untouched fixture"
 fi
 
-rm -rf "$FIX"
-
 if [ "$fails" -ne 0 ]; then
-  echo "test-provenance-gates: FAILED" >&2
+  echo "test-provenance-gates: FAILED — fixtures kept at $FIX for diagnosis" >&2
   exit 1
 fi
+rm -rf "$FIX"
 echo "test-provenance-gates: all gates fail closed."

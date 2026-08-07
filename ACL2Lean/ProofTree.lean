@@ -76,6 +76,10 @@ structure StepProvenance where
   typeSet : Option Int := none
   /-- True type-set of the recognizer (bits where it returns T). -/
   trueTs : Option Int := none
+  /-- `:FALSETS`/`:STRONGP` (audit 2026-08-07 S4: previously parsed and
+      dropped here — the recognizer tuple's full recorded basis). -/
+  falseTs : Option Int := none
+  strongp : Option Bool := none
   /-- The equal/type-alist verdict BASIS (R1 retirement, 2026-08-07):
       canonical representatives + the bound disequality entry, copied
       verbatim from the emitted step. -/
@@ -259,6 +263,12 @@ inductive ClauseItem where
   | fcDerivations (derivations : List SExpr)
   /-- A clause-level add-literal COMPLEMENT close (fork-batch item 7). -/
   | complementClose (lit : SExpr)
+  /-- Clause-level derived-entry provenance (`emit/ta-subst`) recorded
+      OUTSIDE any literal window (audit 2026-08-07 S5: previously
+      absorbed silently — 34 corpus records). Recorded, consumed by
+      nothing yet; the spine walk skips it as data. -/
+  | taSubst (new_ : SExpr) (from_ : SExpr) (ts : Int)
+      (substNew : SExpr) (substOld : SExpr)
   deriving Repr, Inhabited
 
 /-! ## Parser: flat trace → rewriter-detail tree
@@ -276,7 +286,8 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
       parents := step.parents, subst := step.subst, equivTerm := step.equivTerm,
       typeSet := step.typeSet, trueTs := step.trueTs, path := step.path,
       swapped := step.swapped, canon1 := step.canon1, canon2 := step.canon2,
-      taEntry := step.taEntry }
+      taEntry := step.taEntry, falseTs := step.falseTs,
+      strongp := step.strongp }
 
 /-- Parse the events of ONE literal's rewrite chain into proof nodes, returning
     the nodes and the events after this block. `BEGIN/END-INNER-REWRITE` and
@@ -605,12 +616,11 @@ partial def parseClauseItems (events : List TraceEvent)
   | .complementClose lit :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.complementClose lit :: more, rest')
-  | .taSubst .. :: rest =>
-      -- clause-level ta-subst provenance outside any literal window:
-      -- consumed nowhere yet (the derived-entry class fires inside
-      -- literal windows); absorbed so the stream parses — the record
-      -- remains in the raw log for future consumers.
-      parseClauseItems rest
+  | .taSubst n f ts sn so :: rest =>
+      -- clause-level ta-subst provenance outside any literal window
+      -- (audit S5): RECORDED as an item, not dropped.
+      let (more, rest') ← parseClauseItems rest
+      return (.taSubst n f ts sn so :: more, rest')
   | .useHint hyps ccl appC lmis :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.useHint hyps ccl appC lmis :: more, rest')

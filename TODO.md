@@ -74,7 +74,32 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > substituted pair) — the candidate×orientation SEARCH IS DELETED.
 > ALL FOUR expiry-held mechanisms are fully retired on recorded/
 > emitted content. Golden byte-identical at 86/116 throughout.
-> NEXT: Phase 2 (equisort = parametric encapsulate).
+> PHASE-1 AUDIT (2026-08-07, single Opus lane; remediated same day):
+> M1 the ci-side :CAPTURE-END rung was a no-op (conditional on its own
+> presence) — now UNCONDITIONAL + (:EVENT-FAILED) rung (S7) + the M1
+> fixture pinned in test-provenance-gates; M2 the boundary-verdict
+> records had NO consumer and a dead node arm — dead arm DELETED,
+> validateBoundaryVerdicts now consumes every record as a value-level
+> cross-check at literal replay; S1 rung B′ selects by recorded :TS
+> polarity (128 only — both polarities coexist in qsort); S2 rung A's
+> error-swallowing catch REPLACED by a data-driven direct/derived
+> branch (rung-A failures now THROW); S3 the never-a-cons guard is
+> TP-presence-driven with a world-fn consp fallback (twin lemma
+> logic_consp_nil_of_int_tp_fact); S4 recogVerdictGate rewired to
+> ACL2's type-set-recognizer semantics (step :TYPESET preferred,
+> falseTs consumed, TRUE = intersects-true ∧ disjoint-false);
+> S5 clause-level ta-subst records kept as ClauseItems (34 were
+> dropped); S6 rung B′ cross-checks the verdict basis's :TA-ENTRY
+> against the derived entry; N1/N9 script hardening. REMAINING
+> (recorded, not fixed): S8 include-edge fires before include failure
+> (fail-safe: the Lean parse throws on :EVENT-FAILED); N2 ta-subst
+> omits the entry's justification runes (next-batch candidate); N5
+> complement-close records carry no clause id (presence-test consumer);
+> N7 the DAG gate matches basenames, :PARENT asymmetric (sysfile vs
+> familiar name — emission normalization candidate); N8 .meta include
+> closure under-approximates on :BOOKS + no ci dirty-tree check; N10
+> golden-diff lacks an ASSUMED class. All byte-identical through the
+> round. NEXT: Phase 2 (equisort = parametric encapsulate).
 > Exit criterion: gate green, all remaining drift markers gone,
 > bsort residue honestly classified. Then Phase 2 (equisort =
 > parametric encapsulate).
