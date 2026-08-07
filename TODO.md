@@ -165,7 +165,12 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > exact-match/dup-fail/stale-fail/untracked-universe. Residual notes
 > (recorded, accepted): B1/B2 golden-format assumptions (safe today),
 > B4 counts-from-golden semantics, A6-note rm-list no longer
-> duplicated, C4 remaining fast-gate claims verified OK. THEN (ii) Phase 2
+> duplicated, C4 remaining fast-gate claims verified OK. EvalLemmas
+> SPLIT LANDED (68d2e92: five section-aligned slices, token-diff
+> proven 55,864 identical; facade preserved; user-ruled no further
+> audit — kernel-checked content). ARC-CLOSING claim-gate TRUE_EXIT=0
+> at the post-split tip; golden byte-identical. mdd/perf-arc READY
+> FOR MERGE on sign-off. THEN (ii) Phase 2
 > (equisort = parametric encapsulate).
 > Exit criterion: gate green, all remaining drift markers gone,
 > bsort residue honestly classified. Then Phase 2 (equisort =
