@@ -124,9 +124,16 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > (2026-08-07 — mechanical group-dependency analysis: the subject
 > groups are FULLY CYCLIC, Equal↔Conv↔ListNum↔If; a clean split needs
 > real dependency untangling, not moves). Fallback options for a later
-> increment: (i) POSITIONAL layered split (dependency-safe by
-> construction, but no parallelism — only partial recompile savings);
-> (ii) untangle as its own reviewed refactor. DEFERRED — 3a first.
+> increment — SUPERSEDED (2026-08-07, user discussion): the file's OWN
+> /-! sections are the true subjects (Layer 0/1/congruence/subst →
+> Layer 2/derived/D4/combinators/induction → totality walks → DP
+> leaves/clausify/TP → R-judgment/EvTrue/μ-pack) and sit in dependency
+> order — so a SECTION-ALIGNED POSITIONAL split (the NodeCore
+> technique, ~5 modules: Core/Derived/Totality/Discharge/Judgments) is
+> dependency-correct by construction, subject-coherent, token-diff
+> provable, facade-preserved. EXECUTES after the coverage-gate audit's
+> fix round (user-approved; no further audit — kernel-checked content,
+> not the gate/TCB).
 > (3c) Imported/Sorting.lean → per-book modules (the Mirrors/* pattern
 > already half-exists). (3d) record a soft module-size norm (~1500
 > lines; new lemma FAMILIES get their own module) in CLAUDE.md's
