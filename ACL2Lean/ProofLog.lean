@@ -107,6 +107,14 @@ structure RewriteStep where
   /-- `:STRONGP` (fork-batch item 2): T iff true-ts is exactly the
       complement of false-ts. -/
   strongp : Option Bool := none
+  /-- The equal/type-alist verdict BASIS (R1 retirement emission,
+      2026-08-07): the canonical representatives of the two sides under
+      the type-alist's equality equations. -/
+  canon1 : Option SExpr := none
+  canon2 : Option SExpr := none
+  /-- The bound disequality entry's term (`:TA-ENTRY`; none when the
+      verdict came from the quotep/canon-collapse shortcuts). -/
+  taEntry : Option SExpr := none
   /-- The redex's congruence path within the literal (from `:PATH`),
       literal-root-first. Lets a replay lift this step by composing congruences
       along the path instead of locating the redex by subterm match. -/
@@ -661,6 +669,11 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
         | some .nil => pure (some false)
         | some other => throw s!"REWRITE-STEP: malformed :STRONGP {repr other}"
         | none => pure none
+      let canon1 := lookupKeyword "CANON1" rest
+      let canon2 := lookupKeyword "CANON2" rest
+      let taEntry := match lookupKeyword "TA-ENTRY" rest with
+        | some .nil => none
+        | e => e
       let path ← match lookupKeyword "PATH" rest with
         | some r => match r.toList? with
           | some items => items.mapM parsePathFrame
@@ -676,7 +689,7 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
         | some .nil => pure false
         | some other => throw s!"REWRITE-STEP: malformed :SWAPPED-P {repr other}"
         | none => pure false
-      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, typeSet, trueTs, falseTs, strongp, path }
+      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, typeSet, trueTs, falseTs, strongp, canon1, canon2, taEntry, path }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
