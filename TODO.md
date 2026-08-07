@@ -28,7 +28,16 @@ _Last updated: 2026-08-07 (Phase 2 equisort OPEN)._
 > (c) ScopeHolds builder + parametric statements for STRONG/WEAK,
 > (d) witness-deref guard, (e) cov-encapsulate 2 rows, (f) gate +
 > golden re-pin per increment. Charter exit: 14/14 + 2/2 or named
-> frontiers.
+> frontiers. PROGRESS (3475546): (a)+(b) DONE — canonical model
+> landed, 86/116 → 100/116 (equisort 12/14 + cov-encapsulate 2/2,
+> zero regressions, gate TRUE_EXIT=0, catalog per the R6 doctrine).
+> REMAINING: (c) ScopeHolds parametric builder for STRONG/WEAK — the
+> charter's L3 requirement (world-parametric first-class constants);
+> (d) the witness-deref hard-fail guard in post-encapsulate trees
+> (design item 5); (e) the 2 capstone rows'
+> clause-context-resolution frontier (their :use composition; the
+> running term is (IMPLIES 'T 'NIL)-shaped where the recorded rhs is
+> 'NIL — diagnose off the real tree); then the exit assessment.
 
 > **CAPSTONE-DEMO ARC — LIVE STATE (branch mdd/capstone-demo-arc,
 > HEAD b611dfd).** Phase 0 DONE (ff70eb2). Phase 1: the 8-item fork
