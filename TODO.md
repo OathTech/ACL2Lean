@@ -120,8 +120,13 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > replayRewrites), Driver/Literal (replayLiteral*/boundary validator),
 > Driver/Node (replayNodeWith dispatch) — split ALONG the existing
 > non-mutual boundaries; the one tied knot (NodeRec) stays in Node.
-> (3b) EvalLemmas → Replay/Lemmas/{Conv,If,Equal,List,Boundary}.lean
-> by subject (pure theorems — trivial moves, big parallel win).
+> (3b) EvalLemmas: ESCAPE HATCH FIRED on the subject split
+> (2026-08-07 — mechanical group-dependency analysis: the subject
+> groups are FULLY CYCLIC, Equal↔Conv↔ListNum↔If; a clean split needs
+> real dependency untangling, not moves). Fallback options for a later
+> increment: (i) POSITIONAL layered split (dependency-safe by
+> construction, but no parallelism — only partial recompile savings);
+> (ii) untangle as its own reviewed refactor. DEFERRED — 3a first.
 > (3c) Imported/Sorting.lean → per-book modules (the Mirrors/* pattern
 > already half-exists). (3d) record a soft module-size norm (~1500
 > lines; new lemma FAMILIES get their own module) in CLAUDE.md's
