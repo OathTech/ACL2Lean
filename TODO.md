@@ -133,7 +133,15 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > engineering-quality bullet. Escape hatch: stop and report if a split
 > changes any golden row (beyond formatting), hits a mutual-def knot
 > that demands real refactoring (not moves), or a Lake/elab
-> constraint. THEN (ii) Phase 2 (equisort = parametric encapsulate).
+> constraint. PERF ARC COMPLETE (2026-08-07, sprint-closing claim-gate
+> TRUE_EXIT=0, golden byte-identical): 1 ✓ (per-book coverage: cold
+> 6m28 vs ~15m, NO-OP 1.1s), 2 ✓ (parallel capture), 3a ✓ (NodeCore →
+> six positional slices, move-only, import chain = def-before-use
+> order; facade preserved; Ctx/Node grandfathered), 3b escape-hatched
+> (cyclic subject groups — analysis recorded), 3d ✓ (size ratchet in
+> ci + CLAUDE.md norm), 4 deprioritized (user ruling). Branch
+> mdd/perf-arc READY FOR MERGE on sign-off. THEN (ii) Phase 2
+> (equisort = parametric encapsulate).
 > Exit criterion: gate green, all remaining drift markers gone,
 > bsort residue honestly classified. Then Phase 2 (equisort =
 > parametric encapsulate).
