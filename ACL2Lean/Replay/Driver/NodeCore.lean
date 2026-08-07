@@ -268,6 +268,17 @@ def equivReflSpecOfFormula? (name : String) (formula : SExpr) :
   guard (rel1 == rel2 && vx1 == vx2 && vx2 == vx3)
   return { name, rel := rel1, vx := vx1 }
 
+/-- Collect the RECORDED equal/type-alist verdict bases from a literal's
+    proof nodes (R1 retirement): (equal-term, canon1, canon2, taEntry)
+    for every equal/type-alist-nil step carrying the emitted basis. -/
+partial def taBasesOfNodes :
+    List ProofNode → List (SExpr × SExpr × SExpr × Option SExpr)
+  | [] => []
+  | .node _ lhs _ children prov :: rest =>
+    (match prov.origin, prov.canon1, prov.canon2 with
+     | "equal/type-alist-nil", some c1, some c2 => [(lhs, c1, c2, prov.taEntry)]
+     | _, _, _ => []) ++ taBasesOfNodes children ++ taBasesOfNodes rest
+
 /-- The proof context in scope at a node. All entries are VALUE-CHARACTERIZED
     facts over the ambient env, established by the surrounding structure (the
     induction scaffold, the clause spine) and consumed by the node replays:
@@ -303,6 +314,13 @@ structure ReplayCtx where
       Consumed by `litFactByTerm?` (recognizer/type-alist nodes) and by
       solidify `.segment` nodes (ACL2's `:CONTEXT-SUBST` hypotheses). -/
   segFacts : List (SExpr × Expr) := []
+  /-- RECORDED equal/type-alist verdict BASES in scope (R1 retirement,
+      2026-08-07): the (EQUAL a b) term ↦ (canon1, canon2, taEntry) read
+      off the emitted :CANON1/:CANON2/:TA-ENTRY fields — populated from
+      the literal's own equal/type-alist-nil steps before its chain
+      replays. The walker's equation rung is DIRECTED by these; no
+      recorded basis for the class means hard-fail, never search. -/
+  taBases : List (SExpr × SExpr × SExpr × Option SExpr) := []
   /-- Harness-offered DP-FACT hypotheses (condition threading): clause term ↦
       the `hdpfact` fvar whose type is that discharge leaf's obligation
       (`dpFactStmtOfClause`). Consulted by `replayDischargeNode` when the
@@ -1783,18 +1801,80 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
         let flip : SExpr := .cons (.atom (.symbol eqS)) (.cons b (.cons a .nil))
         if let some h ← typeSetWalk cfg ctx (.isNil flip) 0 then
           return some (← Lean.Meta.mkAppM ``logic_equal_nil_comm #[h])
-        -- EQUATION-CLOSURE DISEQUALITY — DRIFT MARKER, held under EXPIRY
-        -- (branch drift audit 2026-08-05, item R1): this rung is BOUNDED
-        -- DETERMINISTIC SEARCH (audit 2026-08-04 F7), not replay of a
-        -- recorded step — it re-derives which type-alist entry ACL2 used
-        -- (the equal/type-alist-nil class — MEMB-RM's (EQUAL A B) ⇒ 'NIL
-        -- from A ≠ (CAR X) ∧ B = (CAR X)) by connecting each side through
-        -- the in-scope equation closure to ONE in-scope DISEQUALITY.
-        -- Retained ONLY because 3 green rows depend on it and any valid
-        -- connection proves the same PINNED value (the node's emitted
-        -- verdict). EXPIRES when fork-batch item 3 (fc/type-alist
-        -- provenance at expunge sites) lands: replace with a direct read
-        -- of the emitted provenance; do NOT extend this search.
+        -- EQUATION-CLOSURE DISEQUALITY. Two rungs, tried in order:
+        --
+        -- RUNG A (directed, RETIRES the search where it applies —
+        -- 2026-08-07): read the RECORDED verdict basis
+        -- (:CANON1/:CANON2/:TA-ENTRY on the equal/type-alist-nil step,
+        -- assoc-equiv+'s own inputs). Each side chains through the
+        -- in-scope equations to its RECORDED canon; the RECORDED entry
+        -- is the disequality. Fully deterministic toward recorded
+        -- targets.
+        --
+        -- RUNG B — DRIFT MARKER, still held under EXPIRY (sharpened
+        -- 2026-08-07): the recorded basis is SHALLOW when the entry is a
+        -- DERIVED type-alist entry (subst-type-alist built it during
+        -- assume-true-false — MEMB-RM's (EQUAL B A) = nil from
+        -- A ≠ (CAR X) ∧ B = (CAR X)); its own derivation is not yet
+        -- emitted, so the bounded deterministic search survives for
+        -- exactly that class. EXPIRES when the derived-entry provenance
+        -- emission (subst-type-alist instrumentation — the same item
+        -- HOW-MANY-RM-GENERAL's frontier names) lands in the next
+        -- batch; do NOT extend this search.
+        let directed? ← do
+          match ctx.taBases.find? (fun (t', _, _, _) => t' == t || t' == flip) with
+          | none => pure none
+          | some (tRec, c1, c2, entryOpt) =>
+            try
+              let some dt := entryOpt
+                | throwError "canon-collapse basis (no :TA-ENTRY)"
+              let (ca, cb) := if tRec == t then (c1, c2) else (c2, c1)
+              let eqs := inScopeEquations ctx
+              let .cons (.atom (.symbol _)) (.cons x (.cons y .nil)) := dt
+                | throwError "non-binary :TA-ENTRY"
+              let (xa, ya) ←
+                if x == ca && y == cb then pure (x, y)
+                else if x == cb && y == ca then pure (y, x)
+                else throwError "entry sides off the recorded canons"
+              match eqChain? eqs a xa, eqChain? eqs b ya with
+              | some chA, some chB =>
+                let mkEqT : SExpr → SExpr → SExpr := fun p q =>
+                  .cons (.atom (.symbol { name := "EQUAL" }))
+                    (.cons p (.cons q .nil))
+                let ctxD ← pinTermOpaques cfg cfg.envExpr ctx (mkEqT xa ya)
+                let vX ← ctxValExpr cfg ctxD xa
+                let vY ← ctxValExpr cfg ctxD ya
+                let hDirect? ← findFactChecked (falsitySources ctxD)
+                  (mkEqT xa ya)
+                  (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vX, vY])
+                    (mkConst ``SExpr.nil))
+                let hXY ← match hDirect? with
+                  | some h => pure h
+                  | none =>
+                    let hFlip? ← findFactChecked (falsitySources ctxD)
+                      (mkEqT ya xa)
+                      (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vY, vX])
+                        (mkConst ``SExpr.nil))
+                    match hFlip? with
+                    | some h => Lean.Meta.mkAppM ``logic_equal_nil_comm #[h]
+                    | none => throwError "derived entry (no in-scope fact)"
+                let pa ← match ← composeEqChain cfg ctxD chA with
+                  | some e => pure e
+                  | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD a)
+                let pb ← match ← composeEqChain cfg ctxD chB with
+                  | some e => pure e
+                  | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD b)
+                let hCong ← Lean.Meta.mkAppM ``congr
+                  #[← Lean.Meta.mkAppM ``congrArg
+                      #[mkConst ``Logic.equal, pa], pb]
+                let hNil ← Lean.Meta.mkAppM ``Eq.trans #[hCong, hXY]
+                if ← Lean.Meta.isDefEq (← Lean.Meta.inferType hNil) expected then
+                  pure (some hNil)
+                else
+                  throwError "directed composition type mismatch"
+              | _, _ => throwError "no chain to the recorded canons"
+            catch _ => pure none
+        if let some h := directed? then return some h
         let eqs := inScopeEquations ctx
         let disCands : List SExpr :=
           (ctx.litFacts.map (·.2.1) ++ ctx.segFacts.map (·.1)).filter
@@ -1814,18 +1894,15 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
                 (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vX, vY])
                   (mkConst ``SExpr.nil))
               let some hDis := hDis? | continue
-              -- orient the disequality's value shape to (xa, ya)
               let hXY ← if useComm then
                   Lean.Meta.mkAppM ``logic_equal_nil_comm #[hDis]
                 else pure hDis
-              -- v(a) = v(xa), v(b) = v(ya) along the chains (refl on [])
               let pa ← match ← composeEqChain cfg ctxD chA with
                 | some e => pure e
                 | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD a)
               let pb ← match ← composeEqChain cfg ctxD chB with
                 | some e => pure e
                 | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD b)
-              -- Logic.equal v(a) v(b) = Logic.equal v(xa) v(ya) = nil
               let hCong ← Lean.Meta.mkAppM ``congr
                 #[← Lean.Meta.mkAppM ``congrArg
                     #[mkConst ``Logic.equal, pa], pb]
@@ -5792,6 +5869,7 @@ def nodeRec : NodeRec :=
     literal-level chain (if any) and the final literal. -/
 def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof)
     : MetaM (Option (Expr × Bool) × SExpr) := do
+  let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases }
   if lp.notFlg then
     let .cons (.atom (.symbol notS)) (.cons atm .nil) := lp.literal
       | throwError "replayLiteralChain: notFlg literal is not (not atm): {repr lp.literal}"
@@ -5882,6 +5960,7 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
   -- with-lemma-to-'t, clause-context-resolution reports are all ordinary
   -- node recipes now — must reduce the literal to `(quote t)`; close by the
   -- chain + the quote's evaluation.
+  let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases }
   if lp.nodes.isEmpty then
     throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
   let (chainOpt, finalT) ← replayRewrites cfg ctx lp.literal lp.nodes

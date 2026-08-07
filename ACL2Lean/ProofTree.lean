@@ -76,6 +76,12 @@ structure StepProvenance where
   typeSet : Option Int := none
   /-- True type-set of the recognizer (bits where it returns T). -/
   trueTs : Option Int := none
+  /-- The equal/type-alist verdict BASIS (R1 retirement, 2026-08-07):
+      canonical representatives + the bound disequality entry, copied
+      verbatim from the emitted step. -/
+  canon1 : Option SExpr := none
+  canon2 : Option SExpr := none
+  taEntry : Option SExpr := none
   /-- The redex's congruence path within the literal (from `:PATH`),
       literal-root-first — see `PathFrame`. The replay lifts this node by composing
       congruences along the path rather than locating the redex by subterm match. -/
@@ -265,7 +271,8 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
     { origin := step.origin, equiv := step.equiv, runes := step.runes,
       parents := step.parents, subst := step.subst, equivTerm := step.equivTerm,
       typeSet := step.typeSet, trueTs := step.trueTs, path := step.path,
-      swapped := step.swapped }
+      swapped := step.swapped, canon1 := step.canon1, canon2 := step.canon2,
+      taEntry := step.taEntry }
 
 /-- Parse the events of ONE literal's rewrite chain into proof nodes, returning
     the nodes and the events after this block. `BEGIN/END-INNER-REWRITE` and
