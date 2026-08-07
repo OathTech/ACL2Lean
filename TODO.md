@@ -30,9 +30,17 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > entries only (subst-type-alist builds them during assume-true-false;
 > MEMB-RM's class; the next-batch item is subst-type-alist provenance
 > — the same emission HOW-MANY-RM-GENERAL's frontier names);
-> R2 (builtinRecogFacts registry → consume
-> (:GROUND-ZERO-RECOGNIZER-TUPLES) — needs a ts-bit → Logic-predicate
-> decode layer); ground-hyp (same tuple consumer, per the R4 ruling).
+> R2 — CHEAPER DESIGN SETTLED (2026-08-07): the registry's per-fn
+> lemmas (logic_consp_len_nil/logic_natp_len_t) are DERIVABLE from the
+> already-required emitted nonneg-int TP corollary + GENERIC
+> trusted-core facts (integerp t ⇒ consp nil; integerp∧nonneg ⇒ natp)
+> — replace the name-keyed registry with the TP-hypothesis route +
+> two generic lemmas; NO ts-bit decode layer needed; the emitted
+> recognizer tuples remain the AUDIT cross-check (gate: the fn must
+> carry a snapshot tuple, read from
+> dev.groundZeroRecognizerTupleSpecs). ground-hyp (R4 ruling): gate
+> replayExecGround's arm on the hyp head fn having a snapshot tuple —
+> data-driven presence check, then the existing value recompute.
 > Exit criterion: gate green, all remaining drift markers gone,
 > bsort residue honestly classified. Then Phase 2 (equisort =
 > parametric encapsulate).
