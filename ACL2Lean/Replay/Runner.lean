@@ -403,6 +403,13 @@ structure BookResult where
 def runBook (name : String) (content : String) (upTo : Option String := none)
     (timings : Bool := false)
     (crossTrees : List (String × ClauseProof) := [])
+    -- Include-DAG-gated offers (review-1 P1-8, fork-batch item 6's
+    -- consumer, 2026-08-07): (source book key, its theorem trees) — the
+    -- book's OWN emitted :INCLUDE-BOOK-EDGE set decides which sources'
+    -- trees are offered (matched by path basename; a book with no edge
+    -- to a source gets NOTHING from it). `crossTrees` remains the
+    -- ungated channel for callers that pre-select (the pins).
+    (crossTreesByBook : List (String × List (String × ClauseProof)) := [])
     (crossRules : List ACL2.RuleSpec := []) :
     TermElabM (BookResult × List (String × ClauseProof)
       × List ACL2.RuleSpec) := do
@@ -425,6 +432,14 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
       let tRecon ← IO.monoMsNow
       if timings then IO.println s!"[t] recon: {tRecon - tParse1} ms"
       let w := dev.toWorld
+      -- the include-closure gate: every edge in this book's own log is in
+      -- its transitive include set (nested includes fire during ld)
+      let baseOf : String → String := fun p =>
+        ((p.splitOn "/").getLast?.getD p).replace ".lisp" ""
+      let includeBases := dev.includeEdges.map (fun (b, _) => baseOf b)
+      let crossTrees := crossTrees ++
+        (crossTreesByBook.filter (fun (src, _) =>
+          includeBases.contains (baseOf src))).flatMap (·.2)
       -- per-FILE hoists (A3): the reflected world and the leaf harness's
       -- totality environment are env-independent — build each ONCE here
       -- instead of per theorem / per leaf

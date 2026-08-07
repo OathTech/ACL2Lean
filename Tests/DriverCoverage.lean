@@ -75,15 +75,14 @@ def corpus : List (String × String) :=
    -- 2a: the dependency book carrying the include-book theorems the later
    -- sorting books cite (NOT-MEMB-IMPLIES-HOW-MANY-IS-0 & co.) — placed
    -- BEFORE its consumers so its trees are in the cross-book offer.
-   -- KNOWN MISMATCH (pre-merge seams audit F1, 2026-08-02): corpus order
-   -- is NOT the include graph — isort/bsort actually include
-   -- ordered-perms (which sits AFTER them here), so they never see its
-   -- offers (a silently missed capability, fail-closed), while every
-   -- sorting book sees the 19 unrelated recon-test books' rules
-   -- (over-offer; measured impact nil — deps=perm-only vs deps=all give
-   -- byte-identical rows). Reordering changes golden rows, so it rides
-   -- the include-book provenance gate (close-out arc Phase 7 debt)
-   -- rather than a quiet edit here.
+   -- INCLUDE-DAG GATE (2026-08-07, review-1 P1-8 resolved): tree offers
+   -- are now filtered inside runBook against each consumer's OWN emitted
+   -- :INCLUDE-BOOK-EDGE set — the OVER-offer half of the old KNOWN
+   -- MISMATCH (every book seeing every earlier book) is gone. The
+   -- residual half is ORDERING: isort/bsort include ordered-perms, which
+   -- sits AFTER them here, so its trees are not yet accumulated when
+   -- they run (a silently missed capability, fail-closed). Reordering
+   -- changes golden rows — a deliberate, separately-reviewed promotion.
    ("sorting/convert-perm-to-how-many",
     include_str "../acl2_samples/sorting/convert-perm-to-how-many.proof-log"),
    -- R2: the first include-book composition — included defuns re-emit with
@@ -153,7 +152,10 @@ elab "#driver_coverage" : command => do
     let mut agg : BookResult := {}
     -- 2a: prior books' theorem trees, accumulated in corpus order — the
     -- CROSS-BOOK dependency offer for each subsequent book
-    let mut priorTrees : List (String × ClauseProof) := []
+    -- include-DAG gating (2026-08-07): offers are TAGGED by source book
+    -- and filtered inside runBook against the consumer's own emitted
+    -- :INCLUDE-BOOK-EDGE set — corpus order no longer implies offer.
+    let mut priorTrees : List (String × List (String × ClauseProof)) := []
     -- P3 cross-rules: prior books' STORED RULES, same corpus-order
     -- accumulation — a dep tree re-replayed at a consumer world can cite
     -- rules the consumer's log never re-emits
@@ -163,8 +165,8 @@ elab "#driver_coverage" : command => do
     let mut timings : Array String := #[]
     for (name, content) in corpus do
       let tFile0 ← IO.monoMsNow
-      let (r, trees, rules) ← runBook name content (crossTrees := priorTrees)
-        (crossRules := priorRules)
+      let (r, trees, rules) ← runBook name content
+        (crossTreesByBook := priorTrees) (crossRules := priorRules)
       agg := { lines := agg.lines ++ r.lines,
                total := agg.total + r.total,
                replayed := agg.replayed + r.replayed,
@@ -174,7 +176,7 @@ elab "#driver_coverage" : command => do
                dpAssumed := agg.dpAssumed + r.dpAssumed,
                integrityFails := agg.integrityFails ++ r.integrityFails,
                emissionFrontiers := agg.emissionFrontiers ++ r.emissionFrontiers }
-      priorTrees := priorTrees ++ trees
+      priorTrees := priorTrees ++ [(name, trees)]
       priorRules := priorRules ++ rules.filter
         (fun r => !priorRules.any (fun o => o.runeKey == r.runeKey))
       let tFile1 ← IO.monoMsNow
