@@ -147,7 +147,25 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > order; facade preserved; Ctx/Node grandfathered), 3b escape-hatched
 > (cyclic subject groups — analysis recorded), 3d ✓ (size ratchet in
 > ci + CLAUDE.md norm), 4 deprioritized (user ruling). Branch
-> mdd/perf-arc READY FOR MERGE on sign-off. THEN (ii) Phase 2
+> mdd/perf-arc READY FOR MERGE on sign-off. RECORD CORRECTION +
+> GATE-AUDIT REMEDIATION (2026-08-07, the coverage-gate audit — 3
+> stale-pass routes DEMONSTRATED, all fixed): 0ec18cb's "closing
+> claim-gate TRUE_EXIT=0" claim was FALSE (its referent was a
+> fast-gate commit; the last true full gate was 70e259a, before
+> 3a/3d) and fe146a1's tree failed ci (ratchet red — the ls-files
+> miss) — both corrected by THIS round's genuine tip claim-gate.
+> Fixes: A1 invalidation now runs BEFORE capture (partial parallel
+> captures can't leave cached-green modules); A2 log-sha256 binds
+> every log's BYTES in the sidecar (out-of-band edits fail ci); A3
+> check-golden-current in ci (hand-edited golden vs assembled .actual)
+> + the repin recipe named in the harness error; A4 .actual sections
+> written BEFORE the golden throw; A5 check-proof-logs covers the
+> IO-read corpus; A6 one invalidation script (recursive) for capture +
+> repin; B3 zero-edge sentinel + corpus-list length tie; D1-D4 ratchet
+> exact-match/dup-fail/stale-fail/untracked-universe. Residual notes
+> (recorded, accepted): B1/B2 golden-format assumptions (safe today),
+> B4 counts-from-golden semantics, A6-note rm-list no longer
+> duplicated, C4 remaining fast-gate claims verified OK. THEN (ii) Phase 2
 > (equisort = parametric encapsulate).
 > Exit criterion: gate green, all remaining drift markers gone,
 > bsort residue honestly classified. Then Phase 2 (equisort =

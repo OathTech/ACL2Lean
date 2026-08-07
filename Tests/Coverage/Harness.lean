@@ -145,22 +145,28 @@ elab "coverage_book% " nameLit:str : command => do
       | .ok ls => pure ls
       | .error e => throwError "coverage_book% {name}: {e}"
     let got := r.lines.toList
+    -- Audit A4 (2026-08-07): the actual-section artifact is written
+    -- BEFORE the golden compare (the old monolith's deliberate
+    -- property) — a differing book still updates its section, so the
+    -- assembled .actual is exactly what the re-pin flow needs.
+    IO.FS.createDirAll "Tests/coverage-actual"
+    IO.FS.writeFile s!"Tests/coverage-actual/{covSanitize name}.section"
+      (String.intercalate "\n" got ++ "\n")
     unless got == want do
       let diff := (got.zipIdx.filterMap fun (l, i) =>
         if want.getD i "" != l then some s!"  line {i}:\n    want: \
           {want.getD i "<absent>"}\n    got:  {l}" else none)
       throwError "coverage_book% {name}: section DIFFERS from the \
         committed golden (Tests/driver-coverage.golden). If unintended \
-        this is a regression; if intended, update the golden and review \
-        row-by-row.\n{String.intercalate "\n" diff}\n\
+        this is a regression; if intended: rebuild the aggregate \
+        (Tests.DriverCoverage) to assemble Tests/driver-coverage.actual, \
+        review with `just golden-review`, then `just coverage-repin` \
+        (NEVER a hand edit or bare cp — the repin recipe also \
+        invalidates the IO-read caches; audit A3).\n\
+        {String.intercalate "\n" diff}\n\
         (want {want.length} line(s), got {got.length})"
     logInfo s!"coverage {name}: {r.replayed}/{r.total} replayed; \
       {t1 - t0} ms"
-    -- the actual-section artifact (re-pin flow): assembled into
-    -- Tests/driver-coverage.actual by the aggregate
-    IO.FS.createDirAll "Tests/coverage-actual"
-    IO.FS.writeFile s!"Tests/coverage-actual/{covSanitize name}.section"
-      (String.intercalate "\n" got ++ "\n")
   -- the small-data counts def for the aggregate, computed from the
   -- just-verified golden section (byte-identical to the live run)
   let golden2 ← IO.FS.readFile "Tests/driver-coverage.golden"

@@ -111,7 +111,11 @@ the golden ({rest.length} body line(s) vs Σ sections \
   -- dep table must equal {each book's own log edges} ∩ {earlier in
   -- corpus order} — recomputed here from the logs, so a changed include
   -- structure fails the build instead of silently rotting the offers.
+  unless all.length == corpusOrder.length do
+    throwError "coverage aggregate: {all.length} counts vs \
+      {corpusOrder.length} corpusOrder entries — the lists drifted"
   let mut earlier : List String := []
+  let mut anyEdges := false
   for k in corpusOrder do
     let content ← IO.FS.readFile (covLogPath k)
     let edgeBases := (content.splitOn "(:INCLUDE-BOOK-EDGE :BOOK \"").drop 1
@@ -124,7 +128,16 @@ the golden ({rest.length} body line(s) vs Σ sections \
       throwError "coverage aggregate: covDeps DRIFT for {k} — the log's \
         edges give {expect} but the table says {have_} (re-derive the \
         table)"
+    unless edgeBases.isEmpty do anyEdges := true
     earlier := earlier ++ [k]
+  -- B3 sentinel (audit 2026-08-07): if the edge-emission format ever
+  -- changes, EVERY book parses zero edges and the []-deps books would
+  -- false-pass — require that at least one book has edges (the sorting
+  -- consumers guarantee dozens today).
+  unless anyEdges do
+    throwError "coverage aggregate: NO book parsed any \
+      :INCLUDE-BOOK-EDGE — the emission format changed under the \
+      covDeps self-check (B3 sentinel)"
   logInfo s!"{hdr1}"
   logInfo s!"aggregate OK: {all.length} books, sections tile the golden; \
     covDeps verified against the logs"

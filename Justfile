@@ -49,9 +49,11 @@ check-no-shadow:
 # Full conformance: preflight + build + unit tests + driver-coverage (the last
 # gates on reconstruction integrity AND the black-box-leaf emission frontier —
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
-# include_str's the gitignored .proof-log corpus; check-proof-logs runs first
-# so a missing log is a clear error, not a deep elaboration-trace failure.
-ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-dark-files check-file-weight check-proof-logs check-log-provenance test-provenance-gates check-no-getd-done check-pattern-map build test driver-coverage
+# reads the gitignored .proof-log corpus (per-book modules via IO paths;
+# some tests via include_str); check-proof-logs runs first and covers BOTH
+# reference styles, so a missing log is a clear error, not a deep
+# elaboration-trace failure.
+ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-dark-files check-file-weight check-proof-logs check-log-provenance test-provenance-gates check-no-getd-done check-pattern-map build test driver-coverage check-golden-current
 
 # Run the corpus report
 report:
@@ -119,9 +121,17 @@ golden-review:
 # Re-pin the coverage golden from the assembled actual, invalidating the
 # per-book coverage modules (they read the golden via IO — Lake cannot
 # see the edit). Review the diff FIRST (just golden-review).
+# Audit A3 (2026-08-07): a HAND-EDITED golden with cached coverage
+# modules used to pass the whole gate. This static check (AFTER
+# driver-coverage in ci) compares the golden against the aggregate's
+# assembled .actual — a golden that no live run produced FAILS.
+check-golden-current:
+    cmp Tests/driver-coverage.golden Tests/driver-coverage.actual || { echo "check-golden-current: the GOLDEN does not match the assembled .actual — hand-edited golden or stale run; use 'just coverage-repin' (which invalidates) and re-run driver-coverage" >&2; exit 1; }
+    @echo "check-golden-current: golden matches the live assembly."
+
 coverage-repin:
     cp Tests/driver-coverage.actual Tests/driver-coverage.golden
-    rm -f .lake/build/lib/lean/Tests/Coverage/*.olean .lake/build/lib/lean/Tests/Coverage/*.ilean .lake/build/lib/lean/Tests/Coverage/*.trace .lake/build/lib/lean/Tests/DriverCoverage.olean .lake/build/lib/lean/Tests/DriverCoverage.ilean .lake/build/lib/lean/Tests/DriverCoverage.trace
+    ./scripts/invalidate-coverage.sh
 
 # CLAIM GATE (2026-08-03, the emission-cluster audit's F1 remedy): the
 # pipefail-honest full ci whose TRUE exit must be recorded in any commit

@@ -92,6 +92,18 @@ while IFS= read -r log; do
       fail=1
     fi
   done < <(sed -n 's/^include: //p' "$meta")
+  # LOG-BYTES binding (audit A2): the sidecar's log-sha256 must match
+  # the log's CURRENT bytes — out-of-band log changes fail here.
+  lsha="$(sed -n 's/^log-sha256: //p' "$meta")"
+  if [ -z "$lsha" ]; then
+    echo "NO-LOG-HASH log: $log — sidecar lacks log-sha256 (pre-A2 \
+sidecar; recapture, or run scripts/backfill-log-provenance.sh)" >&2
+    fail=1
+  elif [ "$(sha256_of "$log")" != "$lsha" ]; then
+    echo "LOG-DRIFT log: $log — the log's bytes changed after capture \
+(hash mismatch); recapture or restore" >&2
+    fail=1
+  fi
   # COMPLETENESS re-verification (review-1 P0-2, static half): the same
   # QED-per-DEFTHM/source-count invariant the capture script now enforces
   # fatally, recomputed in ci so a truncated log cannot survive however

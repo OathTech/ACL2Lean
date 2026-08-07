@@ -43,6 +43,14 @@ fi
 # (inheriting ACL2/OUTDIR); xargs exits nonzero if ANY worker fails
 # (fail-closed, no partial-success masking). The include_str consumer
 # invalidation below runs ONCE, in the parent, after all workers.
+# Audit A1 (2026-08-07): invalidate the coverage artifacts BEFORE any
+# capture runs — a PARTIAL parallel capture (one book fails after others
+# promoted) must never leave cached-green coverage modules. Workers skip
+# (the parent has already done it).
+if [ -z "${CAPTURE_WORKER:-}" ]; then
+  "$SCRIPT_DIR/invalidate-coverage.sh" || true
+fi
+
 if [ -z "${CAPTURE_WORKER:-}" ] && [ $# -gt 1 ]; then
   printf '%s\n' "$@" \
     | ACL2="$ACL2" OUTDIR="$OUTDIR" CAPTURE_WORKER=1 \
@@ -150,6 +158,10 @@ for INPUT in "$@"; do
         *) echo "include: $(repo_rel "$inc") $(sha256_of "$inc")";;
       esac
     done <<< "$closure"
+    # Audit A2 (2026-08-07): bind the LOG'S OWN BYTES — any
+    # out-of-band change to a promoted log (editor, cp, restore)
+    # fails check-log-provenance in ci.
+    echo "log-sha256: $(sha256_of "$OUTPUT.tmp")"
     echo "source-provenance: captured"
   } > "$OUTPUT.meta.tmp"
 
@@ -174,18 +186,8 @@ done
 # Workers skip the invalidation — the parent runs it ONCE after the fan-out.
 if [ -n "${CAPTURE_WORKER:-}" ]; then exit 0; fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Per-book coverage modules (perf arc item 1) read logs via IO, not
-# include_str — the grep below cannot see them. CONSERVATIVE: any
-# recapture invalidates ALL coverage modules + the aggregate (correct
-# over clever; per-book incrementality still applies to DRIVER edits,
-# the common loop).
-rm -f "$ROOT"/.lake/build/lib/lean/Tests/Coverage/*.olean \
-      "$ROOT"/.lake/build/lib/lean/Tests/Coverage/*.ilean \
-      "$ROOT"/.lake/build/lib/lean/Tests/Coverage/*.trace \
-      "$ROOT"/.lake/build/lib/lean/Tests/DriverCoverage.olean \
-      "$ROOT"/.lake/build/lib/lean/Tests/DriverCoverage.ilean \
-      "$ROOT"/.lake/build/lib/lean/Tests/DriverCoverage.trace 2>/dev/null || true
-echo "  invalidated: Tests/Coverage/* + Tests/DriverCoverage (IO-read logs)"
+# (Coverage invalidation now runs BEFORE capture — audit A1; see
+# scripts/invalidate-coverage.sh, the single source of the rm set.)
 echo "forcing rebuild of include_str consumers (Lake does not track embedded logs):"
 consumers="$(cd "$ROOT" && git grep -l 'include_str "[^"]*proof-log"' -- '*.lean' | sort -u)"
 if [ -z "$consumers" ]; then

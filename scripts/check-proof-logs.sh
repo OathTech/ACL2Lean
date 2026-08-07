@@ -54,3 +54,30 @@ if [ "$missing" -gt 0 ]; then
   echo "to acl2_samples/books.txt so capture-all-logs (and CI) produce its log."
   exit 1
 fi
+
+
+# Audit A5 (2026-08-07): the per-book coverage modules read logs via
+# COMPUTED paths (covLogPath in Tests/Coverage/Harness.lean), invisible
+# to the include_str grep above. Derive the corpus from corpusOrder in
+# the Harness (the quoted names between the corpusOrder brackets) and
+# apply covLogPath's convention here; a missing log fails loudly.
+harness="Tests/Coverage/Harness.lean"
+if [ -f "$harness" ]; then
+  names="$(awk '/def corpusOrder/,/\]/' "$harness" | grep -o '"[^"]*"' | tr -d '"')"
+  [ -n "$names" ] || { echo "check-proof-logs: could not derive corpusOrder from $harness" >&2; exit 1; }
+  miss=0
+  while IFS= read -r n; do
+    case "$n" in
+      simple) p="acl2_samples/simple.proof-log";;
+      cov-encapsulate) p="acl2_samples/pattern-tests/cov-encapsulate.proof-log";;
+      sorting/*) p="acl2_samples/$n.proof-log";;
+      *) p="acl2_samples/recon-tests/$n.proof-log";;
+    esac
+    if [ ! -f "$p" ]; then
+      echo "MISSING coverage log: $p (book $n; recapture: just recapture-all)" >&2
+      miss=1
+    fi
+  done <<< "$names"
+  [ "$miss" -eq 0 ] || { echo "check-proof-logs: coverage corpus incomplete." >&2; exit 1; }
+  echo "check-proof-logs: coverage corpus ($(echo "$names" | wc -l | tr -d ' ') books) present."
+fi

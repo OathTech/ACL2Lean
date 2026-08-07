@@ -27,6 +27,11 @@ while IFS= read -r log; do
     echo "Error: $log has no sidecar — recapture instead of backfilling" >&2
     exit 1
   fi
+  if ! grep -q '^log-sha256: ' "$meta"; then
+    # A2 one-time stamp: bind the CURRENT (gate-verified) log bytes.
+    echo "log-sha256: $(sha256_of "$log")" >> "$meta"
+    echo "log-hash stamped: $meta"
+  fi
   if grep -q '^source-provenance: ' "$meta"; then
     echo "skip (already stamped): $meta"
     continue
