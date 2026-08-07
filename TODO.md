@@ -23,15 +23,13 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > the canonical representatives + :TA-ENTRY the bound disequality,
 > recomputed at the verdict site from assoc-equiv+'s own inputs; live
 > in perm ×16 / convert-perm ×31; parsed into RewriteStep
-> canon1/canon2/taEntry). REMAINING R1 WIRING (next increment): thread
-> the recorded bases into the walker — add
-> `taBases : List (SExpr × SExpr × SExpr × Option SExpr)` to
-> ReplayCtx, populated from lp.nodes' equal/type-alist-nil steps where
-> the literal ctx is built (Core.lean spine), then make the NodeCore
-> ~1795 rung DIRECTED: look up t in taBases, eqChain? a→canon1 and
-> b→canon2 (known endpoints), entry as THE disequality; delete the
-> disCands×orientation candidate loops + the drift marker; absence of
-> a basis for the class → hard-fail;
+> canon1/canon2/taEntry). R1 WIRED as a TWO-RUNG structure
+> (2026-08-07, commit 3678b6d): rung A DIRECTED (recorded canons +
+> entry, deterministic toward recorded targets); rung B — the bounded
+> search SURVIVES under a SHARPENED expiry for DERIVED type-alist
+> entries only (subst-type-alist builds them during assume-true-false;
+> MEMB-RM's class; the next-batch item is subst-type-alist provenance
+> — the same emission HOW-MANY-RM-GENERAL's frontier names);
 > R2 (builtinRecogFacts registry → consume
 > (:GROUND-ZERO-RECOGNIZER-TUPLES) — needs a ts-bit → Logic-predicate
 > decode layer); ground-hyp (same tuple consumer, per the R4 ruling).
