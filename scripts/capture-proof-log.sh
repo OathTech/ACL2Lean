@@ -36,7 +36,24 @@ if [ ! -x "$ACL2" ]; then
   exit 1
 fi
 
+# PARALLEL capture (perf arc item 2, 2026-08-07): the per-book runs are
+# independent single-threaded ACL2 processes writing DISJOINT outputs
+# (log + sidecar per book), so with >1 input we fan out via xargs -P.
+# Each worker re-invokes this script on ONE input with CAPTURE_WORKER=1
+# (inheriting ACL2/OUTDIR); xargs exits nonzero if ANY worker fails
+# (fail-closed, no partial-success masking). The include_str consumer
+# invalidation below runs ONCE, in the parent, after all workers.
+if [ -z "${CAPTURE_WORKER:-}" ] && [ $# -gt 1 ]; then
+  printf '%s\n' "$@" \
+    | ACL2="$ACL2" OUTDIR="$OUTDIR" CAPTURE_WORKER=1 \
+      xargs -P "$(nproc)" -n 1 "$0" \
+    || { echo "Error: one or more parallel captures FAILED (see above)." >&2
+         exit 1; }
+  set -- ""  # skip the sequential loop; fall through to invalidation
+fi
+
 for INPUT in "$@"; do
+  [ -n "$INPUT" ] || continue
   INPUT_ABS="$(cd "$(dirname "$INPUT")" && pwd)/$(basename "$INPUT")"
   if [ -n "$OUTDIR" ]; then
     OUTPUT="$OUTDIR/$(basename "${INPUT%.lisp}").proof-log"
@@ -154,7 +171,21 @@ done
 # .proof-log), not hardcoded — a hardcoded list is one more thing to desync (the
 # same bug class as the CI capture list). We resolve the repo root and the module
 # path (repo-relative, no extension) for each match.
+# Workers skip the invalidation — the parent runs it ONCE after the fan-out.
+if [ -n "${CAPTURE_WORKER:-}" ]; then exit 0; fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Per-book coverage modules (perf arc item 1) read logs via IO, not
+# include_str — the grep below cannot see them. CONSERVATIVE: any
+# recapture invalidates ALL coverage modules + the aggregate (correct
+# over clever; per-book incrementality still applies to DRIVER edits,
+# the common loop).
+rm -f "$ROOT"/.lake/build/lib/lean/Tests/Coverage/*.olean \
+      "$ROOT"/.lake/build/lib/lean/Tests/Coverage/*.ilean \
+      "$ROOT"/.lake/build/lib/lean/Tests/Coverage/*.trace \
+      "$ROOT"/.lake/build/lib/lean/Tests/DriverCoverage.olean \
+      "$ROOT"/.lake/build/lib/lean/Tests/DriverCoverage.ilean \
+      "$ROOT"/.lake/build/lib/lean/Tests/DriverCoverage.trace 2>/dev/null || true
+echo "  invalidated: Tests/Coverage/* + Tests/DriverCoverage (IO-read logs)"
 echo "forcing rebuild of include_str consumers (Lake does not track embedded logs):"
 consumers="$(cd "$ROOT" && git grep -l 'include_str "[^"]*proof-log"' -- '*.lean' | sort -u)"
 if [ -z "$consumers" ]; then

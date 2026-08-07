@@ -110,6 +110,13 @@ recapture-all: capture-all-logs
 golden-review:
     bash scripts/golden-diff.sh
 
+# Re-pin the coverage golden from the assembled actual, invalidating the
+# per-book coverage modules (they read the golden via IO — Lake cannot
+# see the edit). Review the diff FIRST (just golden-review).
+coverage-repin:
+    cp Tests/driver-coverage.actual Tests/driver-coverage.golden
+    rm -f .lake/build/lib/lean/Tests/Coverage/*.olean .lake/build/lib/lean/Tests/Coverage/*.ilean .lake/build/lib/lean/Tests/Coverage/*.trace .lake/build/lib/lean/Tests/DriverCoverage.olean .lake/build/lib/lean/Tests/DriverCoverage.ilean .lake/build/lib/lean/Tests/DriverCoverage.trace
+
 # CLAIM GATE (2026-08-03, the emission-cluster audit's F1 remedy): the
 # pipefail-honest full ci whose TRUE exit must be recorded in any commit
 # claiming completion or green status. Exists because a completion commit
