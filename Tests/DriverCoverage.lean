@@ -107,8 +107,27 @@ the golden ({rest.length} body line(s) vs Σ sections \
     IO.FS.readFile s!"Tests/coverage-actual/{covSanitize k}.section"
   IO.FS.writeFile "Tests/driver-coverage.actual"
     (hdr1 ++ "\n" ++ hdr2 ++ "\n" ++ String.join sections)
+  -- covDeps SELF-CHECK (gate-integrity, 2026-08-07): the hand-derived
+  -- dep table must equal {each book's own log edges} ∩ {earlier in
+  -- corpus order} — recomputed here from the logs, so a changed include
+  -- structure fails the build instead of silently rotting the offers.
+  let mut earlier : List String := []
+  for k in corpusOrder do
+    let content ← IO.FS.readFile (covLogPath k)
+    let edgeBases := (content.splitOn "(:INCLUDE-BOOK-EDGE :BOOK \"").drop 1
+      |>.filterMap (fun seg => (seg.splitOn "\"").head?)
+      |>.map (fun b => ((b.splitOn "/").getLast?.getD b).replace ".lisp" "")
+    let expect := earlier.filter (fun e =>
+      edgeBases.contains ((e.splitOn "/").getLast?.getD e))
+    let have_ := ((covDeps.lookup k).getD [])
+    unless expect == have_ do
+      throwError "coverage aggregate: covDeps DRIFT for {k} — the log's \
+        edges give {expect} but the table says {have_} (re-derive the \
+        table)"
+    earlier := earlier ++ [k]
   logInfo s!"{hdr1}"
-  logInfo s!"aggregate OK: {all.length} books, sections tile the golden"
+  logInfo s!"aggregate OK: {all.length} books, sections tile the golden; \
+    covDeps verified against the logs"
 
 coverage_aggregate%
 
