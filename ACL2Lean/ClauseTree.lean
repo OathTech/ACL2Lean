@@ -384,6 +384,10 @@ def Development.justifications : Development → List (String × Justification)
     match ev with
     | .defun n _ _ (some j) _ => (n, j) :: rest.justifications
     | .groundZeroDefun n _ _ (some j) => (n, j) :: rest.justifications
+    -- CANONICAL MODEL (Phase 2): the witness's admission data is part
+    -- of the model — its justification feeds induction/totality exactly
+    -- like a defun's (the witness IS a defun of the model).
+    | .witnessDefun n _ _ (some j) _ => (n, j) :: rest.justifications
     | _ => rest.justifications
 
 namespace ClauseTree

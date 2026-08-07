@@ -148,6 +148,88 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/convert-perm-to-how-many", "PERM-COUNTER-EXAMPLE-TLFIX-2",
     .replayedOnly "tlfix normalization plumbing for the R7 functional \
       instantiation — no user-facing content"),
+  ("sorting/equisort", "ORDEREDP-SORTFN1",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "TRUE-LISTP-SORTFN1",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "ORDEREDP-SORTFN2",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "TRUE-LISTP-SORTFN2",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "HOW-MANY-SORTFN1",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "HOW-MANY-SORTFN2",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "ORDEREDP-SSORTFN1",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "TRUE-LISTP-SSORTFN1",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "ORDEREDP-SSORTFN2",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "TRUE-LISTP-SSORTFN2",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "HOW-MANY-SSORTFN1",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("sorting/equisort", "HOW-MANY-SSORTFN2",
+    .replayedOnly "canonical-model re-proof at the scope's witness (the \
+      R6 catalog doctrine, MDD 2026-08-02): the first-class artifact for \
+      this book is the PARAMETRIC constrained-theorem constant (Phase 2 \
+      ScopeHolds layer), not a witness-level native — no duplicate \
+      natives"),
+  ("cov-encapsulate", "CF-NUMBERP",
+    .replayedOnly "canonical-model replay of the adversarial encapsulate \
+      book (formerly the BUG-019 vacuity alarm — its protection now \
+      lives in the parametric-statement layer + the witness-deref \
+      hard-fail); coverage pin only, never a native"),
+  ("cov-encapsulate", "CF-PLUS-COMM",
+    .replayedOnly "canonical-model replay of the adversarial encapsulate \
+      book (formerly the BUG-019 vacuity alarm — its protection now \
+      lives in the parametric-statement layer + the witness-deref \
+      hard-fail); coverage pin only, never a native"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),

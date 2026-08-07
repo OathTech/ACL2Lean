@@ -1,5 +1,5 @@
-Driver coverage — REPLAYED 86/116 (31 unconditional + 55 conditional)
-Standalone DP probes (assumeFact — informational, NOT replay): ✓60 ◌11 ✗0 of 71:
+Driver coverage — REPLAYED 100/116 (33 unconditional + 67 conditional)
+Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -106,24 +106,24 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓60 ◌11 ✗
     CAR-RM → REPLAYED ✓
     TRUE-LISTP-RM → REPLAYED ✓  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]
     ORDERED-PERMS → REPLAYED ✓ cond[rule:CONS-CAR-CDR, rule:DEFAULT-CAR]  [DISCHARGE: Subgoal 2:simplify-clause/fc-contradiction ◌ assumed cond[total:(ORDEREDP A), total:(PERM A A), tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/6:preprocess/tau ◌ assumed cond[total:(ORDEREDP (RM (CAR A) B)), total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/4:preprocess/tau ◌ assumed cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM, ASSUMED:dp-fact], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A), total:(ORDEREDP B), total:(PERM A B), tp:ORDEREDP, tp:ORDEREDP, tp:PERM]]
-• sorting/equisort  (world: 25 defun(s), 14 theorem(s))
-    ORDEREDP-SORTFN1 → FAIL: replayInduction: scheme fn SORTFN1 neither in the world nor a ground-zero snapshot (frontier)
-    TRUE-LISTP-SORTFN1 → FAIL: dpValExpr: unary SORTFN1 is not a DP-lift primitive (frontier): (SORTFN1 X)  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(SORTFN1-INSERT X1 S1)], Subgoal *1.1/2'':preprocess/tau-contradiction ✓, Subgoal *1/2:preprocess/type-set-fc ✓ cond[total:(SORTFN1 X)]]
-    ORDEREDP-SORTFN2 → FAIL: proveConv: unary SORTFN2 not in the builtin registry (frontier): (SORTFN2 X)
-    TRUE-LISTP-SORTFN2 → FAIL: dpValExpr: unary SORTFN2 is not a DP-lift primitive (frontier): (SORTFN2 X)  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(SORTFN1 X), ASSUMED:dp-fact]]
-    HOW-MANY-SORTFN1 → FAIL: proveConv: unary SORTFN1 not in the builtin registry (frontier): (SORTFN1 (CDR X))
-    HOW-MANY-SORTFN2 → FAIL: proveConv: unary SORTFN2 not in the builtin registry (frontier): (SORTFN2 X)
-    WEAK-SORTFN1-IS-SORTFN2 → FAIL: proveConv: unary SORTFN1 not in the builtin registry (frontier): (SORTFN1 X)
-    ORDEREDP-SSORTFN1 → FAIL: replayInduction: scheme fn SSORTFN1 neither in the world nor a ground-zero snapshot (frontier)
-    TRUE-LISTP-SSORTFN1 → FAIL: replayInduction: scheme fn SSORTFN1 neither in the world nor a ground-zero snapshot (frontier)  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(SSORTFN1-INSERT X1 S1)], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
-    ORDEREDP-SSORTFN2 → FAIL: proveConv: unary SSORTFN2 not in the builtin registry (frontier): (SSORTFN2 X)
-    TRUE-LISTP-SSORTFN2 → FAIL: definition: SSORTFN2 is not defined in the world and has no registered D4 definition fact (frontier)
-    HOW-MANY-SSORTFN1 → FAIL: proveConv: unary SSORTFN1 not in the builtin registry (frontier): (SSORTFN1 (CDR X))
-    HOW-MANY-SSORTFN2 → FAIL: proveConv: unary SSORTFN2 not in the builtin registry (frontier): (SSORTFN2 X)
-    STRONG-SSORTFN1-IS-SSORTFN2 → FAIL: proveConv: unary SSORTFN1 not in the builtin registry (frontier): (SSORTFN1 X)
-• cov-encapsulate  (world: 1 defun(s), 2 theorem(s))
-    CF-NUMBERP → FAIL: replayDischargeNode: opaque (CF X) has no pinned value (totality hypothesis missing? frontier)  [DISCHARGE: Goal:preprocess/type-set-fc ◌ assumed cond[total:(CF X), ASSUMED:dp-fact]]
-    CF-PLUS-COMM → FAIL: replayDischargeNode: opaque (CF A) has no pinned value (totality hypothesis missing? frontier)  [DISCHARGE: Goal:preprocess/tau-contradiction ◌ assumed cond[total:(CF A), total:(CF B), ASSUMED:dp-fact]]
+• sorting/equisort  (world: 31 defun(s), 14 theorem(s))
+    ORDEREDP-SORTFN1 → REPLAYED ✓ cond[tp:SORTFN1-INSERT]
+    TRUE-LISTP-SORTFN1 → REPLAYED ✓ cond[tp:SORTFN1-INSERT, tp:SORTFN1]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(SORTFN1-INSERT X1 S1), tp:SORTFN1-INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓, Subgoal *1/2:preprocess/type-set-fc ✓ cond[total:(SORTFN1 X), tp:SORTFN1]]
+    ORDEREDP-SORTFN2 → REPLAYED ✓ cond[tp:SORTFN1-INSERT]
+    TRUE-LISTP-SORTFN2 → REPLAYED ✓ cond[tp:SORTFN1-INSERT, tp:SORTFN1]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(SORTFN1 X), tp:SORTFN1, ASSUMED:dp-fact]]
+    HOW-MANY-SORTFN1 → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+]
+    HOW-MANY-SORTFN2 → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+]
+    WEAK-SORTFN1-IS-SORTFN2 → FAIL: clause-context-resolution: rhs 'NIL ≠ running term (IMPLIES 'T 'NIL) (chain did not reach the reported net result)
+    ORDEREDP-SSORTFN1 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]
+    TRUE-LISTP-SSORTFN1 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(SSORTFN1-INSERT X1 S1), tp:SSORTFN1-INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
+    ORDEREDP-SSORTFN2 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]
+    TRUE-LISTP-SSORTFN2 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]
+    HOW-MANY-SSORTFN1 → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+]
+    HOW-MANY-SSORTFN2 → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+]
+    STRONG-SSORTFN1-IS-SSORTFN2 → FAIL: clause-context-resolution: rhs 'NIL ≠ running term (IMPLIES 'T 'NIL) (chain did not reach the reported net result)
+• cov-encapsulate  (world: 2 defun(s), 2 theorem(s))
+    CF-NUMBERP → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(CF X), tp:CF]]
+    CF-PLUS-COMM → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau-contradiction ✓ cond[total:(CF A), total:(CF B), tp:CF, tp:CF]]
 • sorting/msort  (world: 29 defun(s), 7 theorem(s))
     ACL2-COUNT-EVENS-STRONG → REPLAYED ✓ cond[tp:ACL2-COUNT, rule:DEFAULT-CDR, rule:FOLD-CONSTS-IN-+, linear:ACL2-COUNT-CAR-CDR-LINEAR]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ◌ assumed cond[total:(ACL2-COUNT (EVENS (CDR (CDR X)))), total:(ACL2-COUNT (CDR (CDR X))), total:(ACL2-COUNT (CAR X)), total:(ACL2-COUNT (CDR X)), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, ASSUMED:dp-fact], Subgoal *1/2.1.2':simplify-clause/linear-contradiction ◌ assumed cond[total:(ACL2-COUNT (CAR X)), total:(ACL2-COUNT (CAR (CDR (CDR X)))), total:(ACL2-COUNT (CDR X)), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, ASSUMED:dp-fact], Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(ACL2-COUNT (EVENS X)), total:(ACL2-COUNT X), tp:ACL2-COUNT, tp:ACL2-COUNT]]
     ACL2-COUNT-EVENS-WEAK → REPLAYED ✓ cond[tp:ACL2-COUNT, rule:DEFAULT-CDR, rule:FOLD-CONSTS-IN-+]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(ACL2-COUNT X1), total:(ACL2-COUNT X2), tp:ACL2-COUNT, tp:ACL2-COUNT], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(ACL2-COUNT X4), total:(ACL2-COUNT (EVENS X4)), total:(ACL2-COUNT X1), total:(ACL2-COUNT X3), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT], Subgoal *1/1'':preprocess/tau-contradiction ✓ cond[total:(ACL2-COUNT X), tp:ACL2-COUNT]]
