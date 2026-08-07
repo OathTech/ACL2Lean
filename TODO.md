@@ -56,6 +56,19 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > (consumer pending); (d) HOW-MANY-BAD-PAIRS-BNEXT: rewrite-equal CAR
 > phase recorded-decision gap; (e) ORDEREDP-WHEN-BNEXT-CONSTANT:
 > equal-cars generic-tail lift. All classified; none block Phase 2.
+> INCLUDE-DAG GATE WIRED (2026-08-07, 5cd2edd): sweep offers filtered
+> inside runBook against each consumer's own emitted
+> :INCLUDE-BOOK-EDGE set — review-1 P1-8's over-offer half RESOLVED,
+> byte-identical; the ordering half (ordered-perms after its
+> consumers) is a recorded promotion candidate. PHASE 1 EXIT
+> ASSESSMENT: gate green ✓; expiry markers — B1 retired ✓, R2
+> gate-retired ✓ (interpretation flagged for user review), ground-hyp
+> gate-retired ✓, R1 rung A directed ✓ / rung B under a SHARPENED
+> expiry blocked on an un-batched emission (early-exit (d) declared);
+> bsort residue classified ✓; item 9 unparked (bonus). Phase 1
+> COMPLETE up to the declared early-exit; next: the fork-batch review
+> of the subst-type-alist provenance item, then Phase 2 (equisort =
+> parametric encapsulate).
 > Exit criterion: gate green, all remaining drift markers gone,
 > bsort residue honestly classified. Then Phase 2 (equisort =
 > parametric encapsulate).
