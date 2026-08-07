@@ -329,6 +329,11 @@ structure ReplayCtx where
       replays. The walker's equation rung is DIRECTED by these; no
       recorded basis for the class means hard-fail, never search. -/
   taBases : List (SExpr × SExpr × SExpr × Option SExpr) := []
+  /-- RECORDED derived-entry provenance in scope (`emit/ta-subst`,
+      2026-08-07): (new, from, ts, substNew, substOld) — the
+      substitution that manufactured a derived type-alist entry. Directs
+      the equation-closure replay's derived-entry class (R1 rung B'). -/
+  taSubsts : List (SExpr × SExpr × Int × SExpr × SExpr) := []
   /-- Harness-offered DP-FACT hypotheses (condition threading): clause term ↦
       the `hdpfact` fvar whose type is that discharge leaf's obligation
       (`dpFactStmtOfClause`). Consulted by `replayDischargeNode` when the
@@ -1918,41 +1923,81 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
               | _, _ => throwError "no chain to the recorded canons"
             catch _ => pure none
         if let some h := directed? then return some h
-        let eqs := inScopeEquations ctx
-        let disCands : List SExpr :=
-          (ctx.litFacts.map (·.2.1) ++ ctx.segFacts.map (·.1)).filter
-            fun t2 => match t2 with
-              | .cons (.atom (.symbol e2)) (.cons _ (.cons _ .nil)) =>
-                e2.name == "EQUAL" && t2 != t
-              | _ => false
-        for dt in disCands do
-          let .cons _ (.cons x (.cons y .nil)) := dt | continue
-          for (xa, ya, useComm) in [(x, y, false), (y, x, true)] do
-            match eqChain? eqs a xa, eqChain? eqs b ya with
-            | some chA, some chB =>
-              let ctxD ← pinTermOpaques cfg cfg.envExpr ctx dt
-              let vX ← ctxValExpr cfg ctxD x
-              let vY ← ctxValExpr cfg ctxD y
-              let hDis? ← findFactChecked (falsitySources ctxD) dt
-                (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vX, vY])
+        -- RUNG B′ — DERIVED entries, DIRECTED (2026-08-07, user-approved
+        -- ta-subst emission; the candidate×orientation SEARCH is fully
+        -- RETIRED): the recorded (:TA-SUBST) provenance names the parent
+        -- entry (FROM, an in-scope fact) and the substituted pair
+        -- (SUBST-NEW for SUBST-OLD — the assumed equality). The proof
+        -- composes exactly those recorded pieces; a class instance with
+        -- no recorded provenance hard-falls-through to the generic
+        -- frontier error (never a search).
+        match ctx.taSubsts.find? (fun (n, _, _, _, _) => n == t || n == flip) with
+        | none => pure ()
+        | some (newT, fromT, _, substNew, substOld) =>
+          let .cons _ (.cons n1 (.cons n2 .nil)) := newT
+            | throwError "ta-subst: derived entry {repr newT} not binary \
+                (frontier)"
+          let .cons _ (.cons f1 (.cons f2 .nil)) := fromT
+            | throwError "ta-subst: parent entry {repr fromT} not binary \
+                (frontier)"
+          -- the substituted position: new differs from from exactly where
+          -- substOld became substNew
+          let pos1 := n1 == substNew && f1 == substOld && n2 == f2
+          let pos2 := n2 == substNew && f2 == substOld && n1 == f1
+          unless pos1 || pos2 do
+            throwError "ta-subst: recorded substitution does not relate \
+                {repr fromT} to {repr newT} via {repr substOld} ↦ \
+                {repr substNew} (frontier)"
+          let ctxD ← pinTermOpaques cfg cfg.envExpr ctx fromT
+          let ctxD ← pinTermOpaques cfg cfg.envExpr ctxD newT
+          let vF1 ← ctxValExpr cfg ctxD f1
+          let vF2 ← ctxValExpr cfg ctxD f2
+          -- (i) the parent entry's in-scope falsity — the clause literal
+          -- may carry either orientation of the recorded parent
+          let mkEqT : SExpr → SExpr → SExpr := fun p q =>
+            .cons (.atom (.symbol { name := "EQUAL" }))
+              (.cons p (.cons q .nil))
+          let hFrom? ← findFactChecked (falsitySources ctxD) fromT
+            (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vF1, vF2])
+              (mkConst ``SExpr.nil))
+          let hFrom ← match hFrom? with
+            | some h => pure h
+            | none =>
+              let hFlip? ← findFactChecked (falsitySources ctxD)
+                (mkEqT f2 f1)
+                (← mkEq (← Lean.Meta.mkAppM ``Logic.equal #[vF2, vF1])
                   (mkConst ``SExpr.nil))
-              let some hDis := hDis? | continue
-              let hXY ← if useComm then
-                  Lean.Meta.mkAppM ``logic_equal_nil_comm #[hDis]
-                else pure hDis
-              let pa ← match ← composeEqChain cfg ctxD chA with
-                | some e => pure e
-                | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD a)
-              let pb ← match ← composeEqChain cfg ctxD chB with
-                | some e => pure e
-                | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD b)
-              let hCong ← Lean.Meta.mkAppM ``congr
-                #[← Lean.Meta.mkAppM ``congrArg
-                    #[mkConst ``Logic.equal, pa], pb]
-              let hNil ← Lean.Meta.mkAppM ``Eq.trans #[hCong, hXY]
-              if ← Lean.Meta.isDefEq (← Lean.Meta.inferType hNil) expected then
-                return some hNil
-            | _, _ => pure ()
+              match hFlip? with
+              | some h => Lean.Meta.mkAppM ``logic_equal_nil_comm #[h]
+              | none =>
+                throwError "ta-subst: parent entry {repr fromT} has no \
+                    in-scope falsity fact in either orientation (frontier)"
+          -- (ii) the assumed equality v(substNew) = v(substOld)
+          let eqs := inScopeEquations ctx
+          let hSub ← match eqChain? eqs substNew substOld with
+            | some ch => match ← composeEqChain cfg ctxD ch with
+              | some e => pure e
+              | none => Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD substNew)
+            | none =>
+              throwError "ta-subst: no in-scope equation chain \
+                  {repr substNew} → {repr substOld} (frontier)"
+          -- (iii) v(n_i) = v(f_i): the substituted side via hSub, the
+          -- other by refl
+          let pa ← if pos1 then pure hSub
+            else Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD n1)
+          let pb ← if pos2 then pure hSub
+            else Lean.Meta.mkEqRefl (← ctxValExpr cfg ctxD n2)
+          let hCong ← Lean.Meta.mkAppM ``congr
+            #[← Lean.Meta.mkAppM ``congrArg
+                #[mkConst ``Logic.equal, pa], pb]
+          let hNilNew ← Lean.Meta.mkAppM ``Eq.trans #[hCong, hFrom]
+          -- orient to t
+          let hT ← if newT == t then pure hNilNew
+            else Lean.Meta.mkAppM ``logic_equal_nil_comm #[hNilNew]
+          if ← Lean.Meta.isDefEq (← Lean.Meta.inferType hT) expected then
+            return some hT
+          throwError "ta-subst: directed composition for {repr t} did not \
+              produce the expected refutation type (frontier)"
     -- TRUE-LISTP ∧ ¬CONSP → 'NIL (TRUE-LISTP-MSORT's `MT ⇒ 'NIL`): a
     -- TRUTHY true-listp fact (a false `(not (true-listp t))`) composed with
     -- consp-false evidence pins the value to exactly nil
@@ -5950,7 +5995,8 @@ def nodeRec : NodeRec :=
     literal-level chain (if any) and the final literal. -/
 def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof)
     : MetaM (Option (Expr × Bool) × SExpr) := do
-  let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases }
+  let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases,
+                        taSubsts := lp.taSubsts ++ ctx.taSubsts }
   if lp.notFlg then
     let .cons (.atom (.symbol notS)) (.cons atm .nil) := lp.literal
       | throwError "replayLiteralChain: notFlg literal is not (not atm): {repr lp.literal}"
@@ -6041,7 +6087,8 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
   -- with-lemma-to-'t, clause-context-resolution reports are all ordinary
   -- node recipes now — must reduce the literal to `(quote t)`; close by the
   -- chain + the quote's evaluation.
-  let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases }
+  let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases,
+                        taSubsts := lp.taSubsts ++ ctx.taSubsts }
   if lp.nodes.isEmpty then
     throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
   let (chainOpt, finalT) ← replayRewrites cfg ctx lp.literal lp.nodes

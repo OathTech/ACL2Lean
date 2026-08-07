@@ -66,9 +66,15 @@ _Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
 > gate-retired ✓, R1 rung A directed ✓ / rung B under a SHARPENED
 > expiry blocked on an un-batched emission (early-exit (d) declared);
 > bsort residue classified ✓; item 9 unparked (bonus). Phase 1
-> COMPLETE up to the declared early-exit; next: the fork-batch review
-> of the subst-type-alist provenance item, then Phase 2 (equisort =
-> parametric encapsulate).
+> COMPLETE (2026-08-07, both user rulings received): D1 — the R2
+> lemmas-stay interpretation RATIFIED; D2 — the ta-subst emission
+> APPROVED and LANDED (emit/ta-subst at subst-type-alist1's
+> substitution arm; corpus recaptured), and R1's rung B′ is now
+> DIRECTED off the recorded (:TA-SUBST) provenance (parent entry +
+> substituted pair) — the candidate×orientation SEARCH IS DELETED.
+> ALL FOUR expiry-held mechanisms are fully retired on recorded/
+> emitted content. Golden byte-identical at 86/116 throughout.
+> NEXT: Phase 2 (equisort = parametric encapsulate).
 > Exit criterion: gate green, all remaining drift markers gone,
 > bsort residue honestly classified. Then Phase 2 (equisort =
 > parametric encapsulate).

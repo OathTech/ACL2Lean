@@ -162,6 +162,14 @@ inductive TraceEvent where
       inferred-from-absence reading in the replay's complement-tautology
       arm. -/
   | complementClose (lit : SExpr)
+  /-- A DERIVED type-alist entry's provenance (`emit/ta-subst`,
+      user-approved 2026-08-07): assume-true-false's substitution pass
+      transformed the bound entry `from_` into `new_` by replacing
+      `substOld` with `substNew` (the equality being assumed); `ts` is
+      the entry's unchanged type-set. Directs the equation-closure
+      replay's derived-entry class (R1 rung B). -/
+  | taSubst (new_ : SExpr) (from_ : SExpr) (ts : Int)
+      (substNew : SExpr) (substOld : SExpr)
   | typeSetReasoning (term : SExpr) (result : SExpr) (notFlg : Bool) (justification : SExpr)
   | beginInnerRewrite (kind : String) (swapped : Bool := false) (term : Option SExpr := none)
       (path : List PathFrame := [])
@@ -1035,6 +1043,20 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
         let lit ← lookupKeyword "LIT" rest
           |>.elim (throw "COMPLEMENT-CLOSE: missing :LIT") pure
         pure (.complementClose lit)
+    | .atom (.keyword "TA-SUBST") :: rest =>
+        let new_ ← lookupKeyword "NEW" rest
+          |>.elim (throw "TA-SUBST: missing :NEW") pure
+        let from_ ← lookupKeyword "FROM" rest
+          |>.elim (throw "TA-SUBST: missing :FROM") pure
+        let ts ← match lookupKeyword "TS" rest with
+          | some (.atom (.number (.int n))) => pure n
+          | some other => throw s!"TA-SUBST: bad :TS {repr other}"
+          | none => throw "TA-SUBST: missing :TS"
+        let substNew ← lookupKeyword "SUBST-NEW" rest
+          |>.elim (throw "TA-SUBST: missing :SUBST-NEW") pure
+        let substOld ← lookupKeyword "SUBST-OLD" rest
+          |>.elim (throw "TA-SUBST: missing :SUBST-OLD") pure
+        pure (.taSubst new_ from_ ts substNew substOld)
     | _ => throw s!"Unknown trace event: {repr s}"
   | none => throw s!"Expected list trace event, got: {repr s}"
 

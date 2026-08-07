@@ -176,6 +176,10 @@ structure LiteralProof where
       without them never needs them; the PCE-class consumer reads them
       where the chain alone cannot reach the recorded result. -/
   boundaryVerdicts : List RewriteStep := []
+  /-- DERIVED type-alist entry provenance in this literal's window
+      (`emit/ta-subst`, 2026-08-07): (new, from, ts, substNew, substOld)
+      — directs the equation-closure replay's derived-entry class. -/
+  taSubsts : List (SExpr × SExpr × Int × SExpr × SExpr) := []
   deriving Repr, Inhabited
 
 /-- One `expand-and-or` firing inside clausification (emit/clausify/expand,
@@ -382,7 +386,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
       parseProofNodesAux rest pendingChildren nodes
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
   | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ _ :: _
-  | .fcDerivations _ :: _ | .complementClose _ :: _
+  | .fcDerivations _ :: _ | .complementClose _ :: _ | .taSubst .. :: _
   | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
   | .clausifyOut _ :: _ | .clausifyExpand _ _ _ _ :: _ =>
       -- A clause-structure boundary: stop and hand the remaining events back to
@@ -458,6 +462,10 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
         -- the dropped clause never reaches the out set; the record is
         -- provenance, absorbed here (phase-2 closes are indexed below).
         takeExpands acc pend rest
+    | .taSubst .. :: rest =>
+        -- ta-subst provenance during clausify's whole-formula pass —
+        -- absorbed (assume-true-false runs inside if-interp).
+        takeExpands acc pend rest
     | ev@(.rewriteStep st) :: rest =>
         -- origin whitelist (fold-back audit F4): only expand-abbreviations'
         -- own emitters may be absorbed as expansion detail — anything else
@@ -501,6 +509,8 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
         go acc sx pend rest |>.map fun (info, r) =>
           ({ info with complementCloses :=
               (acc.length, l) :: info.complementCloses }, r)
+    | .taSubst .. :: rest =>
+        go acc sx pend rest
     | .clausifySplit lit cl :: rest =>
         match pend with
         | [] => go (acc ++ [(lit, cl)]) sx [] rest
@@ -565,13 +575,16 @@ partial def parseClauseItems (events : List TraceEvent)
       let compCloses := litEvents.filterMap fun
         | .complementClose l => some l
         | _ => none
+      let taSubsts := litEvents.filterMap fun
+        | .taSubst n f ts sn so => some (n, f, ts, sn, so)
+        | _ => none
       let boundaryVerdicts := litEvents.filterMap fun
         | .rewriteStep st =>
           if st.origin == "atm/try-type-set" then some st else none
         | _ => none
       let chainEvents := litEvents.filter fun
         | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _
-        | .clausifyConjunction .. | .complementClose _ => false
+        | .clausifyConjunction .. | .complementClose _ | .taSubst .. => false
         | .rewriteStep st => st.origin != "atm/try-type-set"
         | _ => true
       let nodes ← buildProofNodes chainEvents
@@ -580,7 +593,7 @@ partial def parseClauseItems (events : List TraceEvent)
       return (.literal { index, literal, notFlg, nodes, result := litResult,
                          splitTrace, splitReshaped,
                          complementCloses := compCloses,
-                         boundaryVerdicts } :: more, rest'')
+                         boundaryVerdicts, taSubsts } :: more, rest'')
   | .clausifyInput input :: rest =>
       -- collect the contiguous clausify block: [expand*] neg ([expand*] split)* out
       let (info, rest') ← collectClausify input rest
@@ -592,6 +605,12 @@ partial def parseClauseItems (events : List TraceEvent)
   | .complementClose lit :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.complementClose lit :: more, rest')
+  | .taSubst .. :: rest =>
+      -- clause-level ta-subst provenance outside any literal window:
+      -- consumed nowhere yet (the derived-entry class fires inside
+      -- literal windows); absorbed so the stream parses — the record
+      -- remains in the raw log for future consumers.
+      parseClauseItems rest
   | .useHint hyps ccl appC lmis :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.useHint hyps ccl appC lmis :: more, rest')
