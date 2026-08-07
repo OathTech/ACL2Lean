@@ -5,7 +5,30 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-08-06 (capstone-demo arc Phase 1 in flight)._
+_Last updated: 2026-08-07 (Phase 2 equisort OPEN)._
+
+> **PHASE 2 — LIVE STATE (branch mdd/phase2-equisort, charter
+> docs/plans/2026-08-07_phase2-equisort-charter.md, goal running).**
+> Ground truth: the 14 equisort frontiers are all "constrained fn not
+> in the world/registry" classes — the ratified R6 design
+> (docs/notes/2026-08-02_r6-encapsulate-design.md, MDD 2026-08-02)
+> resolves them via: (1) toWorld = the CANONICAL MODEL — constrained
+> scopes contribute their WITNESS bodies (the witness IS the model);
+> BUG-019's protection MOVES to the parametric statement (∀ w,
+> ScopeHolds S w → EvTrue w env Φ) — witness facts can never
+> masquerade because post-encapsulate theorems get the parametric
+> form; (2) the sweep then replays equisort at the canonical model
+> with EXISTING machinery (pass-1 constraint rows = conservativity,
+> kernel-checked); (3) the generic ScopeHolds statement builder
+> (design item 3) for the post-encapsulate theorems; (4) a
+> witness-dereference in a post-encapsulate tree is a HARD-FAIL
+> sanity check (design item 5). EXECUTION ORDER: (a) toWorld
+> canonical-model change + scope bracketing (ClauseTree), (b) sweep +
+> row-by-row review (rows should flip green at the canonical model),
+> (c) ScopeHolds builder + parametric statements for STRONG/WEAK,
+> (d) witness-deref guard, (e) cov-encapsulate 2 rows, (f) gate +
+> golden re-pin per increment. Charter exit: 14/14 + 2/2 or named
+> frontiers.
 
 > **CAPSTONE-DEMO ARC — LIVE STATE (branch mdd/capstone-demo-arc,
 > HEAD b611dfd).** Phase 0 DONE (ff70eb2). Phase 1: the 8-item fork
