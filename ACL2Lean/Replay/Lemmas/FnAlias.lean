@@ -711,4 +711,100 @@ theorem evtrue_fnalias (σ : List (Symbol × List Symbol × SExpr))
     (substFnCalls σ t) hfree]
   exact h' f hf
 
+/-! ## The alias-world constructor (composition-site plumbing)
+
+`evtrue_fnalias`'s `hσdef`/`hagree` hypotheses quantify over all
+symbols, so a composition site cannot `decide` them; built through
+`withAliases`, both come out CONSTRUCTIVELY. -/
+
+/-- `get?` over a filtered-out foreign key is unchanged. -/
+theorem defMap_get?_go_filter (s s' : Symbol) (hne : (s' == s) = false) :
+    ∀ (l : List (Symbol × (List Symbol × SExpr))),
+      DefMap.get?.go s' (l.filter (fun kv => kv.1 != s))
+        = DefMap.get?.go s' l
+  | [] => rfl
+  | (k, v) :: rest => by
+    rw [List.filter_cons]
+    by_cases hk : (k != s) = true
+    · rw [if_pos (by simpa using hk)]
+      by_cases hks : (k == s') = true
+      · rw [DefMap.get?.go, if_pos hks, DefMap.get?.go, if_pos hks]
+      · rw [DefMap.get?.go, if_neg hks, DefMap.get?.go, if_neg hks]
+        exact defMap_get?_go_filter s s' hne rest
+    · rw [if_neg (by simpa using hk)]
+      have hkeq : k = s := by simpa [bne] using hk
+      have hks : (k == s') = false := by
+        subst hkeq
+        cases hb : (k == s') with
+        | false => rfl
+        | true => rw [eq_of_beq hb] at hne; simp at hne
+      rw [DefMap.get?.go, if_neg (by simp [hks])]
+      exact defMap_get?_go_filter s s' hne rest
+
+/-- `DefMap.insert` affects only its key. -/
+theorem defMap_get?_insert (m : DefMap) (s s' : Symbol)
+    (v : List Symbol × SExpr) :
+    (m.insert s v).get? s' = if s' == s then some v else m.get? s' := by
+  show DefMap.get?.go s' ((s, v) :: m.entries.filter (fun kv => kv.1 != s))
+    = _
+  by_cases h : (s' == s) = true
+  · rw [if_pos h, DefMap.get?.go, if_pos (by
+      rw [eq_of_beq h]; simp)]
+  · rw [if_neg h, DefMap.get?.go, if_neg (by
+      cases hb : (s == s') with
+      | false => simp
+      | true => rw [eq_of_beq hb] at h; simp at h)]
+    exact defMap_get?_go_filter s s'
+      (by cases hb : (s' == s) <;> simp_all) m.entries
+
+/-- Extend a world with alias definitions (head entry wins). -/
+def World.withAliases (w : World) :
+    List (Symbol × List Symbol × SExpr) → World
+  | [] => w
+  | e :: rest =>
+    let w' := World.withAliases w rest
+    { w' with defs := w'.defs.insert e.1 (e.2.1, e.2.2) }
+
+/-- Off the alias names, `withAliases` changes nothing. -/
+theorem withAliases_agree (w : World) :
+    ∀ (σ : List (Symbol × List Symbol × SExpr)) (s : Symbol),
+      (σ.map (·.1)).contains s = false →
+      (World.withAliases w σ).defs.get? s = w.defs.get? s
+  | [], _, _ => rfl
+  | e :: rest, s, h => by
+    have hs : (s == e.1) = false := by
+      simp [List.contains_cons] at h
+      cases hb : (s == e.1) with
+      | false => rfl
+      | true => rw [show s = e.1 from eq_of_beq hb] at h; simp at h
+    show ((World.withAliases w rest).defs.insert e.1 _).get? s = _
+    rw [defMap_get?_insert, if_neg (by simp [hs])]
+    refine withAliases_agree w rest s ?_
+    simp [List.contains_cons] at h
+    simpa using h.2
+
+/-- Each alias entry is defined in the extension (given DISTINCT names). -/
+theorem withAliases_get (w : World) :
+    ∀ (σ : List (Symbol × List Symbol × SExpr)),
+      (σ.map (·.1)).Nodup →
+      ∀ e ∈ σ, (World.withAliases w σ).defs.get? e.1
+        = some (e.2.1, e.2.2)
+  | [], _, e, he => absurd he (by simp)
+  | e0 :: rest, hnd, e, he => by
+    rcases List.mem_cons.mp he with rfl | hmem
+    · show ((World.withAliases w rest).defs.insert e.1 _).get? e.1 = _
+      rw [defMap_get?_insert, if_pos (by simp)]
+    · have hne : (e.1 == e0.1) = false := by
+        have h0 := (List.nodup_cons.mp hnd).1
+        cases hb : (e.1 == e0.1) with
+        | false => rfl
+        | true =>
+          have : e0.1 ∈ rest.map (·.1) := by
+            rw [← eq_of_beq hb]
+            exact List.mem_map_of_mem hmem
+          exact absurd this h0
+      show ((World.withAliases w rest).defs.insert e0.1 _).get? e.1 = _
+      rw [defMap_get?_insert, if_neg (by simp [hne])]
+      exact withAliases_get w rest (List.nodup_cons.mp hnd).2 e hmem
+
 end ACL2.Replay
