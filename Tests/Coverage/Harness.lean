@@ -139,6 +139,41 @@ elab "coverage_book% " nameLit:str : command => do
     let crossTreesByBook := payloads.map (fun (n, _, t, _) => (n, t))
     let crossRules := payloads.flatMap (fun (_, _, _, r) => r)
     let crossDevs := payloads.map (fun (n, d, _, _) => (n, d))
+    -- D2-a PRE-PASS: prepare the usefi constants in THIS shallow
+    -- context (the row telescopes overflow the worker stack if the
+    -- composition runs inside them); the callback below just applies.
+    let prepared ← do
+      let mut acc : List (String × Lean.Name × List Lean.Expr) := []
+      match ProofLog.parse content with
+      | .error _ => pure acc
+      | .ok log =>
+        match ClauseTree.buildDevelopment log with
+        | .error _ => pure acc
+        | .ok consumerDev =>
+          let wVal := consumerDev.toWorld
+          let wExpr ← ACL2.Replay.Driver.reflectWorld consumerDev.toWorld
+          for (cp, _) in
+              ACL2.Replay.Driver.developmentTheoremsWithRules consumerDev
+                |>.map (fun (c, r) => (c, r)) do
+            for (thmName, σ, hypI) in
+                ACL2.Replay.Driver.theoremFnInstanceCites cp do
+              let spec : ACL2.Replay.Driver.UseFiSpec :=
+                { name := thmName, subst := σ, formula := hypI }
+              let key := thmName ++ "|" ++
+                String.intercalate "," (σ.map (·.1.name))
+              unless acc.any (·.1 == key) do
+                try
+                  let (cName, argTys) ←
+                    ACL2.Replay.Driver.withRealMaxRecDepth 131072 <|
+                    ACL2.Imported.Mirrors.prepareUseFi crossDevs
+                      [``ACL2.Worlds.Sorting.dis_pce_total,
+                       ``ACL2.Worlds.Sorting.dis_how_many_tp]
+                      consumerDev wVal wExpr spec
+                  acc := acc ++ [(key, cName, argTys)]
+                catch e =>
+                  logInfo m!"usefi prepare {thmName}: SKIPPED \
+                    ({e.toMessageData})"
+          pure acc
     let t0 ← IO.monoMsNow
     let (r, _, _) ← runBook name content
       (crossTreesByBook := crossTreesByBook) (crossRules := crossRules)
@@ -153,7 +188,15 @@ elab "coverage_book% " nameLit:str : command => do
       --     ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
       --       [``ACL2.Worlds.Sorting.dis_pce_total,
       --        ``ACL2.Worlds.Sorting.dis_how_many_tp] dev cfg ctx spec)
-      (usefiDischarge := none)
+      (usefiDischarge := some (fun _dev _cfg ctx spec => do
+        let key := spec.name ++ "|" ++
+          String.intercalate "," (spec.subst.map (·.1.name))
+        match prepared.find? (·.1 == key) with
+        | some (_, cName, argTys) =>
+          ACL2.Imported.Mirrors.applyPreparedUseFi cName argTys ctx
+        | none => (ACL2.Replay.Driver.throwFrontier
+            m!"usefi: no prepared constant for {spec.name}" :
+            Lean.MetaM Lean.Expr)))
     let t1 ← IO.monoMsNow
     unless r.integrityFails.isEmpty do
       throwError "coverage_book% {name}: integrity failures \

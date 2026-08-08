@@ -12,6 +12,13 @@ name = "ACL2Lean"
 
 [[lean_lib]]
 name = "Tests"
+# D2 (2026-08-08): the usefi discharge composition legitimately nests a
+# parametric replay inside a row replay; withLocalDecls spends a native
+# frame per telescope binder and the default worker stack overflows
+# (the CLI main thread survives the same work). 512MB thread stacks for
+# the test lib until the compositional-replay pilot (the long-term
+# note) removes the depth. moreLeanArgs applies to these modules only.
+moreLeanArgs = ["--tstack=524288"]
 
 [[lean_exe]]
 name = "acl2lean"

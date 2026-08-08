@@ -521,8 +521,8 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
         | some cspec => do
           let pfW ← try
               dischargeRuleHyp cfg ctx cspec consumerDepProofs []
-            catch _ => Driver.throwFrontier m!"usefi bridge: consumer \
-              discharge of {cspec.name} failed"
+            catch e => Driver.throwFrontier m!"usefi bridge: consumer \
+              discharge of {cspec.name} failed: {e.toMessageData}"
           withLocalDeclD `envr (mkConst ``ACL2.Env) fun erV => do
             let hAtW := mkApp pfW erV
             let mkFnFreePf := fun (t : SExpr) (what : String) => do
@@ -701,5 +701,124 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
         { name := cName, levelParams := [],
           type := declTy, value := pfClosed }
       pure (mkAppN (mkConst cName) fvExprs)
+
+/-- D2-a PRE-PASS (the ReplayedTermination pattern, applied to usefi):
+    run the WHOLE discharge composition in a SHALLOW stack context —
+    before any row telescope exists — against FRESHLY DECLARED
+    replicas of the consumer-hypothesis surfaces, and capture the
+    declared constant plus its parameter types.  The row-time
+    discharger then just matches parameters to the row's own telescope
+    fvars and applies — constant work on the deep stack.  (Root cause:
+    `withLocalDecls` spends one native frame per binder; the row's
+    corpus-wide telescope keeps thousands live through every discharge
+    pass, and the composition on top overflowed the lake worker
+    thread.) -/
+def prepareUseFi (crossDevs : List (String × Development))
+    (totsNames : List Name) (consumerDev : Development)
+    (worldVal : World) (wExpr : Expr) (spec : UseFiSpec) :
+    Lean.MetaM (Lean.Name × List Expr) := do
+  Lean.Meta.withLocalDeclD `envDummy (mkConst ``ACL2.Env) fun envD => do
+    let cfg := ACL2.Replay.Runner.mkBookConfig consumerDev worldVal
+      wExpr envD
+    -- synthetic consumer surfaces: totality offers for every world fn,
+    -- rule offers for the full accumulation (correctness first; the
+    -- demand-filter tuning is a follow-up)
+    let fns := worldVal.defs.entries
+    let totalDecls : Array (Lean.Name × Lean.BinderInfo ×
+        (Array Expr → Lean.MetaM Expr)) :=
+      (fns.map fun (sy, formals, _) =>
+        (Lean.Name.mkSimple s!"ptot_{sy.name}", Lean.BinderInfo.default,
+         fun _ => Driver.mkTotalityHypType cfg sy formals.length)).toArray
+    let rules :=
+      (ACL2.Replay.Runner.allBookRules consumerDev)
+      ++ crossDevs.foldl (init := [])
+        (fun acc (_, d) => acc
+          ++ (ACL2.Replay.Runner.allBookRules d).filter
+            (fun r => !acc.any (fun o => o.runeKey == r.runeKey)))
+    let rules := rules.filter (fun r => r.equiv == "equal")
+    let ruleDecls : Array (Lean.Name × Lean.BinderInfo ×
+        (Array Expr → Lean.MetaM Expr)) :=
+      (rules.zipIdx.map fun (r, i) =>
+        (Lean.Name.mkSimple s!"prule_{i}", Lean.BinderInfo.default,
+         fun _ => Driver.mkRuleHypType cfg r)).toArray
+    -- tp offers (the liftable/args-valued split, replicated from
+    -- replayProofConditional's derivation)
+    let tps := consumerDev.typePrescriptions
+    let scrubbedFreeVars := fun (fn : Symbol) (formals : List Symbol)
+        (cor : SExpr) =>
+      let appPat : SExpr :=
+        .cons (.atom (.symbol fn))
+          ((formals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
+      let rec scrub : SExpr → SExpr := fun t =>
+        if t == appPat then .nil
+        else match t with
+          | .cons a b => .cons (scrub a) (scrub b)
+          | t => t
+      ACL2.Replay.freeVars (scrub cor)
+    let tpFns := fns.filterMap fun (sy, formals, _) =>
+      (tps.lookup sy.name).bind fun cor =>
+        if (scrubbedFreeVars sy formals cor).isEmpty then
+          some (sy, formals, cor)
+        else none
+    let tpAvFns := fns.filterMap fun (sy, formals, _) =>
+      (tps.lookup sy.name).bind fun cor =>
+        let vs := scrubbedFreeVars sy formals cor
+        if !vs.isEmpty && vs.all (formals.contains ·) then
+          some (sy, formals, cor)
+        else none
+    let tpDecls : Array (Lean.Name × Lean.BinderInfo ×
+        (Array Expr → Lean.MetaM Expr)) :=
+      (tpFns.map fun (sy, formals, cor) =>
+        (Lean.Name.mkSimple s!"ptp_{sy.name}", Lean.BinderInfo.default,
+         fun _ => Driver.mkTpHypType cfg sy formals cor)).toArray
+    let tpAvDecls : Array (Lean.Name × Lean.BinderInfo ×
+        (Array Expr → Lean.MetaM Expr)) :=
+      (tpAvFns.map fun (sy, formals, cor) =>
+        (Lean.Name.mkSimple s!"ptpav_{sy.name}", Lean.BinderInfo.default,
+         fun _ => Driver.mkTpHypTypeAv cfg sy formals cor)).toArray
+    Lean.Meta.withLocalDecls totalDecls fun totVs => do
+    Lean.Meta.withLocalDecls ruleDecls fun ruleVs => do
+    Lean.Meta.withLocalDecls tpDecls fun tpVs => do
+    Lean.Meta.withLocalDecls tpAvDecls fun tpAvVs => do
+      let ctx : ReplayCtx :=
+        { totalHyps := (fns.map (fun (sy, _, _) => sy.name)).zip
+            totVs.toList,
+          ruleHyps := rules.zip ruleVs.toList,
+          tpHyps := (tpFns.zip tpVs.toList).map
+            (fun ((sy, _, cor), h) => (sy.name, cor, h)),
+          tpHypsAv := (tpAvFns.zip tpAvVs.toList).map
+            (fun ((sy, _, cor), h) => (sy.name, cor, h)) }
+      let pf ← mkUseFiDischarger crossDevs totsNames consumerDev cfg
+        ctx spec
+      -- the result is `mkAppN (const) usedFVars`; capture the shape
+      let fn := pf.getAppFn
+      let some cName := fn.constName?
+        | throwError "prepareUseFi: discharge result is not a constant \
+            application"
+      let argTys ← pf.getAppArgs.toList.mapM fun a =>
+        Lean.Meta.inferType a
+      pure (cName, argTys)
+
+/-- Row-time applier for a prepared usefi constant: match each
+    parameter type against the row telescope's hypothesis fvars and
+    apply. -/
+def applyPreparedUseFi (cName : Lean.Name) (argTys : List Expr)
+    (ctx : ReplayCtx) : Lean.MetaM Expr := do
+  let pool := ctx.totalHyps.map (·.2)
+    ++ ctx.ruleHyps.map (·.2)
+    ++ ctx.tpHyps.map (·.2.2)
+    ++ ctx.tpHypsAv.map (·.2.2)
+    ++ ctx.useHyps.map (·.2)
+  let args ← argTys.mapM fun ty => do
+    let mut hit : Option Expr := none
+    for h in pool do
+      if hit.isNone then
+        if ← Lean.Meta.isDefEq (← Lean.Meta.inferType h) ty then
+          hit := some h
+    match hit with
+    | some h => pure h
+    | none => Driver.throwFrontier m!"usefi apply: no row hypothesis \
+        matches a prepared parameter"
+  pure (Lean.mkAppN (mkConst cName) args.toArray)
 
 end ACL2.Imported.Mirrors
