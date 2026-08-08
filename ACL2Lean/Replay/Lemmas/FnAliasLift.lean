@@ -327,4 +327,34 @@ theorem total_fnalias_transport (names : List Symbol) (w w' : World)
     ⟨Nb, hb'⟩
   exact ⟨N', v, h'⟩
 
+/-- A rule-shape fact with BOTH sides alias-free crosses worlds freely
+    (pointwise Lemma A on each side). -/
+theorem fuelEq_fnfree_cross (names : List Symbol) (w w' : World)
+    (hagree : ∀ s : Symbol, names.contains s = false →
+      w'.defs.get? s = w.defs.get? s)
+    (hw : aliasFreeWorld names w = true)
+    (lhs rhs : SExpr) (hfL : fnFreeTerm names lhs = true)
+    (hfR : fnFreeTerm names rhs = true) (env : Env)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env lhs = evalOpt f w env rhs) :
+    ∃ N, ∀ f ≥ N, evalOpt f w' env lhs = evalOpt f w' env rhs := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨N, fun f hf => ?_⟩
+  rw [evalOpt_fnfree_agree names w w' hagree hw f env lhs hfL,
+    evalOpt_fnfree_agree names w w' hagree hw f env rhs hfR]
+  exact hN f hf
+
+/-- A variable atom converges (to its lookup or the total-env default) —
+    in the ∃N ∃v packing the totality hypotheses consume. -/
+theorem var_conv_ex (w : World) (env : Env) (x : Symbol) :
+    ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env (.atom (.symbol x)) = some v := by
+  refine ⟨1, (match env.get? x with
+    | some u => u
+    | none => if x.isNamed "T" then SExpr.t else .nil), fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  show evalOptStep (evalOpt g) w env _ = _
+  simp only [evalOptStep]
+  cases env.get? x with
+  | some u => rfl
+  | none => cases x.isNamed "T" <;> rfl
+
 end ACL2.Replay
