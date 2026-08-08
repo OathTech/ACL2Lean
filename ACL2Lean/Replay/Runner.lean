@@ -244,7 +244,8 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
     (budget : Nat := 3000000)
     (termReplayed : List (String × Name × List String × List SExpr) := [])
     (crossTrees : List (String × ClauseProof) := [])
-    (crossRules : List ACL2.RuleSpec := []) :
+    (crossRules : List ACL2.RuleSpec := [])
+    (usefiDischarge : Option (ReplayConfig → UseFiSpec → MetaM Expr) := none) :
     TermElabM (String × Option (List String)) := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -273,6 +274,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
           ch.depProofs mirrors
           (equivRefls := ch.equivRefls) termReplayed
           (congTrees := some ch.localTrees)
+          (usefiDischarge := usefiDischarge.map (· cfg))
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts
@@ -410,7 +412,12 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
     -- to a source gets NOTHING from it). `crossTrees` remains the
     -- ungated channel for callers that pre-select (the pins).
     (crossTreesByBook : List (String × List (String × ClauseProof)) := [])
-    (crossRules : List ACL2.RuleSpec := []) :
+    (crossRules : List ACL2.RuleSpec := [])
+    -- R7b 2c (W4): the usefi: discharge composition, built by the CALLER
+    -- (layering: it needs ParametricInstantiate, which sits above this
+    -- module) and applied at each theorem's config; none = usefi conds
+    -- stay kept verbatim (all pre-2c behavior).
+    (usefiDischarge : Option (ReplayConfig → UseFiSpec → MetaM Expr) := none) :
     TermElabM (BookResult × List (String × ClauseProof)
       × List ACL2.RuleSpec) := do
   let mut res : BookResult := {}
@@ -524,7 +531,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let (status, reg?) ← tryReplay dev w wExpr cp rules
           (mirrors := mirrors) (replayedName? := some mName)
           (termReplayed := termReplayed) (crossTrees := crossTrees)
-          (crossRules := crossRules)
+          (crossRules := crossRules) (usefiDischarge := usefiDischarge)
         let tThm1 ← IO.monoMsNow
         if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"
         if let some conds := reg? then
