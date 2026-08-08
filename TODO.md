@@ -24,7 +24,28 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > defeq-checked dispatch to existing provers; generic `totals`
 > registered-discharger route consuming dis_pce_total/dis_how_many_tp;
 > keep-on-frontier for rule:/use: per D6); residual = deferral-log D1.
-> Now: item (2), the FI :USE-HINT arm.
+> Now: item (2), the FI :USE-HINT arm. DESIGN (pinned 2026-08-08,
+> from the emitted payload + Core.lean:1790-1893): the capstones'
+> :USE-HINT has :LMI-LST ((:FUNCTIONAL-INSTANCE STRONG-… (SSORTFN1
+> (LAMBDA (X) (MSORT X))) …)), :CONSTRAINT-CL = the IF-conjunction of
+> the constraint instances WITH ITS RECORDED DISCHARGE CHAIN (the
+> concrete rules HOW-MANY-ISORT etc. — replayPreprocessChainCore
+> already walks it to 't), :APPLICATION-CLAUSES NIL (tautology-dropped
+> — goal == the :HYPS instance). 2a (conditional green): (i)
+> lmiFnInstance? parser for the FI LMI shape; (ii) substFnCalls — the
+> functional substitution on SExpr (beta of the emitted LAMBDAs at
+> application sites), recomputed from the dep's translated Goal +
+> cross-checked VERBATIM vs the emitted :HYPS entry; (iii) UseFiSpec
+> offers (husefi_ binders, usefi:<name> conds) derived from the tree's
+> FI payloads; (iv) the arm: allow non-trivial :CONSTRAINT-CL iff its
+> recorded chain reaches 't; allow :APPLICATION-CLAUSES NIL iff hyps ==
+> inputClause (conclusion = the usefi hyp directly); (v) no discharge
+> initially — usefi: kept (D6), rows conditionally green. 2c (the a1
+> composition, closes usefi:): alias world w' = w + {sig ↦ emitted
+> lambda body}; commutation lemma evalOpt w' (t in sig names) ≐
+> evalOpt w (substFnCalls t) in the lemma library; parametric constant
+> applied at w'; its constraint premises fed by splitting the
+> :CONSTRAINT-CL chain's EvTrue conjunction.
 
 > **PHASE 2 — LIVE STATE (branch mdd/phase2-equisort, charter
 > docs/plans/2026-08-07_phase2-equisort-charter.md, goal running).**
