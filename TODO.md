@@ -145,7 +145,28 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > holds as VALUES by the 2a offer check, so the reflected conclusion
 > matches syntactically; (4) mkForallFVars [env'] + isDefEq-check
 > against mkUseHypType's shape (∀ env', EvTrue w env' ⟦formula⟧ —
-> read verbatim at Waterfall:181). W4b DONE (the discharger builds; e69df24+successor commits) + W4c: coverage WIRED with the callback DISABLED — the first live run STACK-OVERFLOWED (SIGABRT, deep withLocalDeclD/whnf frames inside tryReplay); NEXT: isolate the discharger OUTSIDE the sweep on the msort spec (a scratch elaboration calling mkUseFiDischarger directly), profile which decide/rebuild blows the stack (suspects: aliasFreeWorld decide over the 214-defun consumer world through the syntactic withAliases form — may need the REFLECTED-VALUE alias world (addDecl a constant) instead of the syntactic form for decide performance, trading the constructive withAliases lemmas for decided hσdef/hagree at the concrete value — BOTH routes sound; or the in-replay parametric rebuild depth needs withRealMaxRecDepth raised locally). THEN re-enable + coverage call sites build
+> read verbatim at Waterfall:181). W4b DONE (the discharger builds; e69df24+successor commits) + W4c: coverage WIRED with the callback DISABLED — the first live run STACK-OVERFLOWED (SIGABRT, deep withLocalDeclD/whnf frames inside tryReplay); NEXT: isolate the discharger OUTSIDE the sweep on the msort spec (a scratch elaboration calling mkUseFiDischarger directly), profile which decide/rebuild blows the stack (suspects: aliasFreeWorld decide over the 214-defun consumer world through the syntactic withAliases form — may need the REFLECTED-VALUE alias world (addDecl a constant) instead of the syntactic form for decide performance, trading the constructive withAliases lemmas for decided hσdef/hagree at the concrete value — BOTH routes sound; or the in-replay parametric rebuild depth needs withRealMaxRecDepth raised locally). W4d DONE (kernel-route decides fixed the
+> overflow; wrapper_total_1 + the alias-wrapper dispatch fallback
+> landed) — the PROBE (.tmp/pinscratch/usefi_probe.lean, maxRecDepth
+> 8192) now runs the WHOLE composition and stops at: 'wrapper
+> SSORTFN1's inner fn MSORT has no pool totality' — buildTotalEnv
+> cannot prove MSORT (recorded-termination class; even the sweep
+> keeps total:MSORT as the row's cond). W4e (the final link):
+> transport the CONSUMER TELESCOPE'S OWN total:MSORT hypothesis into
+> the alias world — (i) a tiny step-INVERSION lemma (app converges →
+> body converges under bindArgs, given hget/length — the evalOptStep
+> defn-arm read backward); (ii) total_fnalias_transport: consumer
+> totality hyp (at w) + alias-free body + hget at both worlds →
+> totality at wAlias — proof: given conv-a at wAlias to va, apply the
+> consumer hyp at a := (QUOTE va) (trivially converging), invert its
+> step to body-conv under bindArgs at w, cross by A (body
+> alias-free), reassemble by conv_defcall at wAlias; (iii) plumbing:
+> the usefi discharge pass hands ctx.totalHyps to the callback
+> (extend the callback signature or pass via cfg); the wrapper
+> fallback's inner-fn pool miss consults them through (ii). The
+> resulting usefi proof is CLOSED (the consumer telescope hyp is an
+> fvar the pass letBinds — same discipline as every other discharge).
+> THEN re-enable + coverage call sites build
 > the callback (depPayload already parses dep devs — extend its
 > return + pass crossDevs); sweep flips the two capstones' usefi:
 > conds to discharged; golden row-review; gate. REMAINING for 2c
