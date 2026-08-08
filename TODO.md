@@ -83,19 +83,27 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > letFreeWorld w (new quote-skipping predicates — the LET/LET* arm is
 > then unreachable and closes by contradiction; translated artifacts
 > are always let-free, decide-checked at composition). Case plan:
-> atoms/quote direct (⟨1, fuel-arith⟩); IF via conv_if_true/false
-> (exist); ALIAS CALL: hdef + step's own length check → IH(args) +
-> LEMMA A on the body + evalOpt_substTerm_substN + a
-> bindArgs-vs-bindArgsOver closed-body env-agreement lemma (find in
-> the totality module or write); NON-ALIAS defined fn: hagree + hw +
-> IH(args) + Lemma A on body + a defined-fn application conv assembly
-> (find near the totality prover); BUILTIN: IH(args) + the Core.lean
-> :1881 mapM-convergence helper + hand assembly; LAMBDA app: subst
-> descends generically, IH(args) + IH(body at bindArgsOver) + the
-> lam-beta conv lemma (Core.lean ~:1879). Fuel-lifting via the evalOpt
-> monotonicity lemma (find exact name). hagree/hfresh at composition
-> come from DefMap.insert get? lemmas (w' is built by insert), NOT
-> decide-over-all-symbols. (iii) the usefi: discharge pass in Harness (keyed
+> REFINED (post-A discovery sweep): split B into B' (SINGLE-WORLD
+> β-expansion, w' only) + A on the alias-free image — B' := WellScoped
+> t → evalOpt F w' env t = some v → ∃N ∀f≥N evalOpt f w' env
+> (substFnCalls σ t) = some v. WellScoped is THE side condition on t
+> (it already EXCLUDES surface LET/LET* and bare lambdas — Core.lean
+> :631 — killing the messy fold arm; spine/lam preservation via
+> WellScoped_of_mem_spine/WellScoped_lam_parts). NON-ALIAS defined-fn
+> bodies are UNTOUCHED by subst in B' → no conditions on the world at
+> all; bodies handled by evalOpt_ge_fuel only. σ side conditions
+> (decidable): defined-in-w' with the emitted formals/body; names not
+> special forms; body WellScoped + CLOSED (freeVars ⊆ formals).
+> INGREDIENTS ALL EXIST: evalOpt_ge_fuel/evalOpt_fuel_mono (EvalOpt
+> :519/:534), evalOpt_substTerm_substN (Core :1861, w'-world, needs
+> body WellScoped), evalOpt_freevar_congr (Core :821 — the
+> bindArgs↔bindArgsOver-env bridge on closed bodies, with
+> bindArgsOver_get_of_mem :802), conv_if_true/false, the spine mapM
+> conv helper (~Core :1881). COMPOSITION: EvTrue wAlias Φ --B'-->
+> EvTrue wAlias (substFn Φ) --A (fnFreeTerm (substFn Φ) decide +
+> aliasFreeWorld w decide + hagree from DefMap.insert get? lemmas)-->
+> EvTrue w (substFn Φ) = the usefi hypothesis. evalOpt_world_mono
+> (:712) covers the w→wAlias direction where premises transport. (iii) the usefi: discharge pass in Harness (keyed
 > like the use: pass): per kept usefi spec, rebuild the dep's
 > PARAMETRIC statement (replayProofParametric on the dep dev — or
 > import the registered constant when same-module), instantiate at
