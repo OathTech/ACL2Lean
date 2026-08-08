@@ -45,7 +45,17 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > lambda body}; commutation lemma evalOpt w' (t in sig names) ≐
 > evalOpt w (substFnCalls t) in the lemma library; parametric constant
 > applied at w'; its constraint premises fed by splitting the
-> :CONSTRAINT-CL chain's EvTrue conjunction.
+> :CONSTRAINT-CL chain's EvTrue conjunction. 2a RESULT (pre-repin):
+> MSORT-IS-ISORT + QSORT-IS-ISORT REPLAYED ✓ cond[total:<sort>,
+> usefi:STRONG-…] — 102→104/116 pending repin+gate. BSORT-IS-ISORT
+> sized from its emission: SAME tautology-dropped FI shape BUT the
+> weak constraint chain leaves a residual conjunct that ACL2
+> clausifies (((NOT (TRUE-LISTP X)) (TRUE-LISTP (BSORT X)))) and
+> closes by a TAU leaf that resolves ASSUMED:dp-fact (TRUE-LISTP-BSORT
+> is red in the bsort book) — so the useHint+clausify composition
+> (item 5 work, in-scope, Core.lean's clausify branch + the FI
+> hypothesis) lifts it to ASSUMED ◌ at BEST; ✓ needs the bsort book's
+> Phase-1 frontier family first (deferral-classifiable).
 
 > **PHASE 2 — LIVE STATE (branch mdd/phase2-equisort, charter
 > docs/plans/2026-08-07_phase2-equisort-charter.md, goal running).**

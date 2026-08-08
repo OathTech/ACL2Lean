@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 102/116 (33 unconditional + 69 conditional)
+Driver coverage — REPLAYED 104/116 (33 unconditional + 71 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
@@ -148,6 +148,6 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
 • sorting/sorts-equivalent  (world: 214 defun(s), 3 theorem(s))
-    MSORT-IS-ISORT → FAIL: use-hint: non-trivial :CONSTRAINT-CL [(IF (EQUAL (HOW-MANY E (ISORT X)) (HOW-MANY E X)) (IF (EQUAL (HOW-MANY E (MSORT X)) (HOW-MANY E X)) (IF (TRUE-LISTP (ISORT X)) (IF (ORDEREDP (ISORT X)) (IF (TRUE-LISTP (MSORT X)) (ORDEREDP (MSORT X)) 'NIL) 'NIL) 'NIL) 'NIL) 'NIL)] at Goal — functional-instantiation constraint obligations (R7b frontier)
-    QSORT-IS-ISORT → FAIL: use-hint: non-trivial :CONSTRAINT-CL [(IF (EQUAL (HOW-MANY E (ISORT X)) (HOW-MANY E X)) (IF (EQUAL (HOW-MANY E (QSORT X)) (HOW-MANY E X)) (IF (TRUE-LISTP (ISORT X)) (IF (ORDEREDP (ISORT X)) (IF (TRUE-LISTP (QSORT X)) (ORDEREDP (QSORT X)) 'NIL) 'NIL) 'NIL) 'NIL) 'NIL)] at Goal — functional-instantiation constraint obligations (R7b frontier)
+    MSORT-IS-ISORT → REPLAYED ✓ cond[total:MSORT, usefi:STRONG-SSORTFN1-IS-SSORTFN2]
+    QSORT-IS-ISORT → REPLAYED ✓ cond[total:QSORT, usefi:STRONG-SSORTFN1-IS-SSORTFN2]
     BSORT-IS-ISORT → FAIL: replayClause: a :USE-HINT payload alongside an effective clausify record at Goal — the useHint/clausify composition awaits functional-instantiation/:use soundness (R7 frontier; the constraint chain must walk CONSTRAINT-CL, not the goal)  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]

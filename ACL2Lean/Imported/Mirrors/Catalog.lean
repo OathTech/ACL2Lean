@@ -248,6 +248,18 @@ def liftCatalog : List (String × String × LiftStatus) := [
       as premises (pinned in Tests/ParametricPins.lean), which Phase \
       3's functional instantiation consumes; a \
       witness-level native is the banned masquerade"),
+  ("sorting/sorts-equivalent", "MSORT-IS-ISORT",
+    .pending "the capstone: FI of the equisort parametric theorem at \
+      msort/isort (Phase 3 2a — conditionally green on \
+      usefi:STRONG-SSORTFN1-IS-SSORTFN2 + total:MSORT; the 2c \
+      alias-world composition discharges the usefi:); its native \
+      mirror (msortL xs = isortL xs) is the Phase 4 demo artifact"),
+  ("sorting/sorts-equivalent", "QSORT-IS-ISORT",
+    .pending "the capstone: FI of the equisort parametric theorem at \
+      qsort/isort (Phase 3 2a — conditionally green on \
+      usefi:STRONG-SSORTFN1-IS-SSORTFN2 + total:QSORT; the 2c \
+      alias-world composition discharges the usefi:); its native \
+      mirror (qsortL xs = isortL xs) is the Phase 4 demo artifact"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),

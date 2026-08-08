@@ -87,6 +87,21 @@ partial def theoremUseCitedNames (cp : ClauseProof) : List String :=
     (n.steps.flatMap (·.items.flatMap itemNames)) ++ n.children.flatMap go
   ((cp.root.map go).getD []).eraseDups
 
+/-- FUNCTIONAL-INSTANCE citations of a theorem's tree (R7b): each
+    `(:USE-HINT … :LMI-LST ((:FUNCTIONAL-INSTANCE thm σ…)) :HYPS (h…))`
+    yields `(thm, σ, hypI)` — the LMI paired POSITIONALLY with its
+    emitted `:HYPS` instance (the arm's own zip discipline). -/
+partial def theoremFnInstanceCites (cp : ClauseProof) :
+    List (String × List (Symbol × List Symbol × SExpr) × SExpr) :=
+  let itemCites : ClauseItem → List (String × List (Symbol × List Symbol × SExpr) × SExpr) := fun
+    | .useHint hyps _ _ lmis =>
+      (lmis.zip hyps).filterMap fun (l, h) =>
+        (lmiFnInstance? l).map fun (n, σ) => (n, σ, h)
+    | _ => []
+  let rec go (n : ClauseNode) : List (String × List (Symbol × List Symbol × SExpr) × SExpr) :=
+    (n.steps.flatMap (·.items.flatMap itemCites)) ++ n.children.flatMap go
+  ((cp.root.map go).getD []).eraseDups
+
 /-- Split a disjoined clause's if-spine `(if l₁ 't (if l₂ 't … lₖ))` into
     `([l₁ … l_{k-1}], lₖ)`. A non-spine term is a singleton clause `([], l)`. -/
 partial def dpSpine : SExpr → List SExpr × SExpr

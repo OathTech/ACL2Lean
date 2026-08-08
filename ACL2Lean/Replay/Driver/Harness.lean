@@ -543,6 +543,30 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (useSpecs.map fun u =>
       (Name.mkSimple s!"husethm_{u.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkUseHypType cfg u)).toArray
+  -- usefi:<thm> offers (R7b, Phase 3 2a): one per FUNCTIONAL-INSTANCE
+  -- citation in THIS theorem's tree. The offered formula is RECOMPUTED —
+  -- `substFnCalls` of the dependency's translated Goal under the emitted
+  -- lambdas — and must equal the emitted `:HYPS` instance VERBATIM (a
+  -- divergence means mis-emission or a substitution-semantics bug: the
+  -- offer is not made, and the arm hard-fails honestly in-walk). No
+  -- discharge pass yet: a consumed offer stays a KEPT condition (D6) —
+  -- the (a1) alias-world composition is the tracked 2c follow-up.
+  let useFiSpecs : List UseFiSpec :=
+    (theoremFnInstanceCites cp).filterMap fun (n, σ, hypI) =>
+      match (depProofs.lookup n).bind (·.root) with
+      | some root =>
+        match root.inputClause with
+        | [f] =>
+          if substFnCalls σ f == hypI then
+            some { name := n, subst := σ, formula := hypI }
+          else none
+        | _ => none
+      | none => none
+  let useFiDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+    (useFiSpecs.zipIdx.map fun (u, i) =>
+      (Name.mkSimple s!"husefi_{u.name}_{i}", BinderInfo.default,
+       fun (_ : Array Expr) =>
+         mkUseHypType cfg { name := u.name, formula := u.formula })).toArray
   -- equivrefl:<thm> declarations (sorting-completion-2 Class A): every
   -- equivalence-SHAPED defthm formula in scope (incl. INCLUDE-BOOK'd —
   -- passed by the caller) offers its REFLEXIVITY component; include-book
@@ -613,6 +637,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     rules.map (fun r => s!"rule:{r.runeKey}") ++
     congs.map (fun c => s!"cong:{c.name}") ++
     useSpecs.map (fun u => s!"use:{u.name}") ++
+    useFiSpecs.map (fun u => s!"usefi:{u.name}") ++
     equivSpecs.map (fun c => s!"equivrefl:{c.name}") ++
     equivFullSpecs.map (fun e => s!"equivfull:{e.name}") ++
     linearSpecs.map (fun r => s!"linear:{r.name}") ++
@@ -622,6 +647,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
      withLocalDecls ruleDecls fun ruleVs => do
       withLocalDecls congDecls fun congVs => do
       withLocalDecls useDecls fun useVs => do
+      withLocalDecls useFiDecls fun useFiVs => do
       withLocalDecls equivDecls fun equivVs => do
       withLocalDecls equivFullDecls fun equivFullVs => do
       withLocalDecls linearDecls fun linearVs => do
@@ -635,6 +661,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           ruleHyps := rules.zip ruleVs.toList,
           congHyps := congs.zip congVs.toList,
           useHyps := useSpecs.zip useVs.toList,
+          useFiHyps := useFiSpecs.zip useFiVs.toList,
           -- audit F1 (linear-verdicts fold-back): the DECLARATION is
           -- content-deduped (hyps/concl determine the hypothesis; ONE
           -- fvar), but the OFFER carries EVERY emitted spec — max-term is
@@ -763,7 +790,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).
-      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs).toList).filter
+      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ useFiVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
       -- #37 LAZY discharge: prove admission totality only for the USED
       -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
@@ -775,7 +802,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let usedTpNames := used.filterMap fun (c, _) =>
         if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
       let neededFns := if discharge then usedTotalNames ++ usedTpNames else []
-      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs).toList)
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ useFiVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs).toList)
       let totalEnv ←
         if neededFns.isEmpty then pure []
         else

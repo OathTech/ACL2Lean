@@ -199,6 +199,64 @@ def lmiInstance? : SExpr → Option (String × List (Symbol × SExpr))
     some (s.name, σ)
   | _ => none
 
+/-- A FUNCTIONAL-INSTANCE LMI (R7b): `(:FUNCTIONAL-INSTANCE thm
+    (fn (LAMBDA (formals…) body)) …)` → the cited theorem's name and the
+    functional substitution. Non-lambda substituents are the frontier
+    (ACL2 also allows bare fn names — not in the corpus; hard-fail there,
+    never guess). -/
+def lmiFnInstance? : SExpr → Option (String × List (Symbol × List Symbol × SExpr))
+  | .cons (.atom (.keyword "FUNCTIONAL-INSTANCE"))
+      (.cons (.atom (.symbol s)) pairsS) => do
+    let pairs ← pairsS.toList?
+    let σ ← pairs.mapM fun p => match p with
+      | .cons (.atom (.symbol fn))
+          (.cons (.cons (.atom (.symbol lam))
+            (.cons formalsE (.cons body .nil))) .nil) => do
+        guard (lam.name == "LAMBDA")
+        let formals ← (← formalsE.toList?).mapM fun f => match f with
+          | .atom (.symbol v) => some v
+          | _ => none
+        some (fn, formals, body)
+      | _ => none
+    some (s.name, σ)
+  | _ => none
+
+/-- Apply a FUNCTIONAL substitution to a term: each application of a
+    substituted fn `(fn a₁ … aₙ)` becomes the lambda's body with formals
+    replaced by the (recursively substituted) arguments — ACL2's
+    fn-substitution semantics. Arity mismatch or a BARE occurrence of a
+    substituted fn symbol (non-application position) hard-fails via
+    `none` at the caller's verbatim cross-check (the recomputation can
+    then never equal the emitted instance). -/
+partial def substFnCalls (σ : List (Symbol × List Symbol × SExpr)) :
+    SExpr → SExpr
+  | .cons (.atom (.symbol fs)) args =>
+    let args' := match args.toList? with
+      | some l => (l.map (substFnCalls σ)).foldr SExpr.cons .nil
+      | none => args
+    match σ.find? (fun (fn, _, _) => fn == fs) with
+    | some (_, formals, body) =>
+      match args'.toList? with
+      | some actuals =>
+        if formals.length == actuals.length then
+          ACL2.Replay.substTerm formals actuals body
+        else .cons (.atom (.symbol fs)) args'
+      | none => .cons (.atom (.symbol fs)) args'
+    | none => .cons (.atom (.symbol fs)) args'
+  | .cons a b => .cons (substFnCalls σ a) (substFnCalls σ b)
+  | t => t
+
+/-- A functional-instance `use` offer (R7b): the cited theorem, the
+    EMITTED functional substitution (kept for keying/display), and the
+    INSTANTIATED formula (recomputed `substFnCalls` of the dependency's
+    translated Goal, verbatim-checked against the emitted `:HYPS`
+    instance at the offer-derivation site). -/
+structure UseFiSpec where
+  name : String
+  subst : List (Symbol × List Symbol × SExpr)
+  formula : SExpr
+  deriving BEq, Repr
+
 /-- An EQUIVALENCE rule's REFLEXIVITY component (sorting-completion-2
     Class A, ORDERED-PERMS): shape-parsed from the RAW equivalence defthm
     formula `(AND (BOOLEANP (R x y)) (R x x) …)` — ACL2's defequiv shape.
@@ -391,6 +449,7 @@ structure ReplayCtx where
       at an `apply-top-hints-clause` node; discharged lazily from the
       dependency's replayed statement like `cong:` hyps. -/
   useHyps : List (UseSpec × Expr) := []
+  useFiHyps : List (UseFiSpec × Expr) := []
   /-- FULL-defequiv hypotheses (`equivfull:<thm>`, the R-solidify lane):
       per equivalence theorem whose TRANSLATED Goal parses as the defequiv
       IF-conjunction, the spec and the bound whole-formula hypothesis.
