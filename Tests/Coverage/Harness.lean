@@ -142,17 +142,13 @@ elab "coverage_book% " nameLit:str : command => do
     let t0 ← IO.monoMsNow
     let (r, _, _) ← runBook name content
       (crossTreesByBook := crossTreesByBook) (crossRules := crossRules)
-      -- R7b 2c W4c: the discharger is WIRED but DISABLED (none) — the
-      -- first live run stack-overflowed (SIGABRT) inside the
-      -- composition (suspects: the aliasFreeWorld/decide reductions
-      -- over the 214-defun world through the withAliases form, or the
-      -- in-replay parametric rebuild depth). Isolate OUTSIDE the sweep
-      -- first (a scratch elaboration on the msort spec), then re-enable.
-      -- Enabling is: usefiDischarge := some (fun cfg spec =>
-      --   ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
-      --     [``ACL2.Worlds.Sorting.dis_pce_total,
-      --      ``ACL2.Worlds.Sorting.dis_how_many_tp] cfg spec)
-      (usefiDischarge := none)
+      -- R7b 2c W4f: the usefi discharge composition (parametric rebuild
+      -- at the alias world + consumer-side premise bridging + the
+      -- FnAlias transports); frontier failures keep the hypothesis.
+      (usefiDischarge := some (fun dev cfg ctx spec =>
+        ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
+          [``ACL2.Worlds.Sorting.dis_pce_total,
+           ``ACL2.Worlds.Sorting.dis_how_many_tp] dev cfg ctx spec))
     let t1 ← IO.monoMsNow
     unless r.integrityFails.isEmpty do
       throwError "coverage_book% {name}: integrity failures \

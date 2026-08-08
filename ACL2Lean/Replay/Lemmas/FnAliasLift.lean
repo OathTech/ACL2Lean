@@ -357,4 +357,12 @@ theorem var_conv_ex (w : World) (env : Env) (x : Symbol) :
   | some u => rfl
   | none => cases x.isNamed "T" <;> rfl
 
+/-- Repack `∃N ∃v ∀f` convergence into the `∃v ∃N ∀f` order
+    `fuelEq_fnalias_lift` consumes. -/
+theorem conv_repack {w : World} {env : Env} {t : SExpr}
+    (h : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v) :
+    ∃ v, ∃ N, ∀ f ≥ N, evalOpt f w env t = some v := by
+  obtain ⟨N, v, hh⟩ := h
+  exact ⟨v, N, hh⟩
+
 end ACL2.Replay

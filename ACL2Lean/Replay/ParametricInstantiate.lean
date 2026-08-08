@@ -334,10 +334,81 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       (names.map Driver.reflectSymbol)
     let hagree ← mkAppM ``ACL2.Replay.withAliases_agree
       #[cfg.worldExpr, σE]
-    let hw ← proveByDecideKernel
-      (← mkEq (← mkAppM ``ACL2.Replay.aliasFreeWorld
-        #[namesE, cfg.worldExpr]) (mkConst ``Bool.true))
-      "usefi aliasFreeWorld"
+    -- the ONE world-scale fact: declared ONCE per (world, names) and
+    -- referenced — an inline decide term makes tryReplay's Meta.check
+    -- whnf the whole 200+-defun traversal on the elaborator stack (the
+    -- W4f SIGABRT); as a constant the kernel checks it once at addDecl
+    let hwProp ← mkEq (← mkAppM ``ACL2.Replay.aliasFreeWorld
+      #[namesE, cfg.worldExpr]) (mkConst ``Bool.true)
+    let hwKey := (cfg.worldExpr.constName?.map (·.toString)).getD "anon"
+      ++ "_" ++ String.intercalate "_" (names.map (·.name))
+    let hwName := Lean.Name.mkStr2 "UsefiAliasFree"
+      (String.map (fun c => if c.isAlphanum then c else '_') hwKey)
+    let hw ← do
+      if (← Lean.getEnv).contains hwName then
+        pure (mkConst hwName)
+      else do
+        let b ← unsafe Lean.Meta.evalExpr Bool (mkConst ``Bool)
+          (← Lean.Meta.mkDecide hwProp)
+        unless b do
+          throwError "usefi: aliasFreeWorld evaluated FALSE"
+        Lean.addDecl <| .thmDecl
+          { name := hwName, levelParams := [], type := hwProp,
+            value := ← Lean.Meta.mkDecideProof hwProp }
+        pure (mkConst hwName)
+    -- hoisted σ-side conditions (shared by the crossing tail and the
+    -- Class-2 rule lifts)
+    let entryTy := (← inferType σE).appArg!
+    let mkMemAll := fun (prop : Expr → MetaM Expr) => do
+      withLocalDeclD `e entryTy fun eV => do
+        let body ← prop eV
+        let mem ← mkAppM ``Membership.mem #[σE, eV]
+        mkForallFVars #[eV] (← mkArrow mem body)
+    let hσdefTy ← mkMemAll fun eV => do
+      let fst ← mkAppM ``Prod.fst #[eV]
+      let sndFst ← mkAppM ``Prod.fst #[← mkAppM ``Prod.snd #[eV]]
+      let sndSnd ← mkAppM ``Prod.snd #[← mkAppM ``Prod.snd #[eV]]
+      mkEq (← mkAppM ``ACL2.DefMap.get?
+          #[← mkAppM ``ACL2.World.defs #[wAliasE], fst])
+        (← mkAppM ``Option.some
+          #[← mkAppM ``Prod.mk #[sndFst, sndSnd]])
+    let nodupTy ← mkAppM ``List.Nodup
+      #[← mkAppM ``List.map
+        #[← withLocalDeclD `e entryTy fun eV => do
+            mkLambdaFVars #[eV] (← mkAppM ``Prod.fst #[eV]), σE]]
+    let nodupPf ← proveByDecideKernel nodupTy "usefi nodup"
+    let hσdef ← do
+      let pf ← mkAppM ``ACL2.Replay.withAliases_get
+        #[cfg.worldExpr, σE, nodupPf]
+      unless ← isDefEq (← inferType pf) hσdefTy do
+        Driver.throwFrontier m!"usefi discharge: withAliases_get shape \
+          mismatch"
+      pure pf
+    let mkBoolMem := fun (mk : Expr → MetaM Expr) => do
+      let ty ← mkMemAll mk
+      proveByDecideKernel ty "usefi σ side condition"
+    let hσns ← mkBoolMem fun eV => do
+      let fst ← mkAppM ``Prod.fst #[eV]
+      let isN := fun (n : String) =>
+        mkAppM ``ACL2.Symbol.isNamed #[fst, Lean.mkStrLit n]
+      let ors ← [
+        ← isN "QUOTE", ← isN "IF", ← isN "LET", ← isN "LET*",
+        ← isN "LAMBDA"].foldlM
+        (fun acc e => match acc with
+          | none => pure (some e)
+          | some a => some <$> mkAppM ``Bool.or #[a, e]) none
+      mkEq ors.get! (mkConst ``Bool.false)
+    let hσws ← mkBoolMem fun eV => do
+      let sndSnd ← mkAppM ``Prod.snd #[← mkAppM ``Prod.snd #[eV]]
+      mkEq (← mkAppM ``ACL2.Replay.WellScoped #[sndSnd])
+        (mkConst ``Bool.true)
+    let hσcl ← mkBoolMem fun eV => do
+      let sndFst ← mkAppM ``Prod.fst #[← mkAppM ``Prod.snd #[eV]]
+      let sndSnd ← mkAppM ``Prod.snd #[← mkAppM ``Prod.snd #[eV]]
+      let fvs ← mkAppM ``ACL2.Replay.freeVars #[sndSnd]
+      let inner ← withLocalDeclD `x (mkConst ``ACL2.Symbol) fun xV => do
+        mkLambdaFVars #[xV] (← mkAppM ``List.contains #[sndFst, xV])
+      mkEq (← mkAppM ``List.all #[fvs, inner]) (mkConst ``Bool.true)
     -- W4e: transport a CONSUMER-telescope totality hypothesis into the
     -- alias world for a wrapper's inner fn the pool cannot prove
     let innerTotalFallback := fun (g : Symbol) (wantTy : Expr) => do
@@ -384,10 +455,153 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
             return none
           pure (some pf)
         | _ => pure none
+    -- W4f: the consumer-side premise bridges
+    let consumerRules :=
+      (ACL2.Replay.Runner.allBookRules consumerDev)
+      ++ crossDevs.flatMap (fun (_, d) =>
+          ACL2.Replay.Runner.allBookRules d)
+    let consumerDepProofs :=
+      (ACL2.Replay.Runner.bookTrees consumerDev)
+      ++ crossDevs.flatMap (fun (_, d) =>
+          ACL2.Replay.Runner.bookTrees d)
+    let fnFreeV := fun (t : SExpr) =>
+      ACL2.Replay.fnFreeTerm names t == true
+    let ruleBridge := fun (rspec : ACL2.RuleSpec) (bTy : Expr) => do
+      if fnFreeV rspec.lhs && fnFreeV rspec.rhs
+          && rspec.hyps.all fnFreeV then
+        -- CLASS 1: bind the CONSUMER telescope's matching rule fvar,
+        -- crossed by A (hypothesis-free equal shape only)
+        match ctx.ruleHyps.find? (fun (r, _) =>
+            r.name == rspec.name && r.hyps == rspec.hyps
+            && r.lhs == rspec.lhs && r.rhs == rspec.rhs
+            && r.equiv == rspec.equiv) with
+        | some (_, hFv) =>
+          if rspec.hyps.isEmpty && rspec.equiv == "equal" then do
+            let pf ← withLocalDeclD `envr (mkConst ``ACL2.Env)
+              fun erV => do
+                let hAtW := mkApp hFv erV
+                let pfc ← mkAppM ``ACL2.Replay.fuelEq_fnfree_cross
+                  #[namesE, cfg.worldExpr, wAliasE, hagree, hw,
+                    Driver.reflectSExpr rspec.lhs,
+                    Driver.reflectSExpr rspec.rhs,
+                    ← Driver.proveByDecide (← mkEq
+                      (← mkAppM ``ACL2.Replay.fnFreeTerm
+                        #[namesE, Driver.reflectSExpr rspec.lhs])
+                      (mkConst ``Bool.true)) "bridge fnFree lhs",
+                    ← Driver.proveByDecide (← mkEq
+                      (← mkAppM ``ACL2.Replay.fnFreeTerm
+                        #[namesE, Driver.reflectSExpr rspec.rhs])
+                      (mkConst ``Bool.true)) "bridge fnFree rhs",
+                    erV, hAtW]
+                mkForallFVars #[erV] pfc
+            if ← isDefEq (← inferType pf) bTy then pure (some pf)
+            else pure none
+          else pure none
+        | none => pure none
+      else
+        -- CLASS 2: alias-mentioning constraint rule — discharge the
+        -- SUBSTITUTED consumer rule at the consumer world, lift by the
+        -- W3 lemmas (hypothesis-free only; STRONG's six qualify)
+        if !rspec.hyps.isEmpty || rspec.equiv != "equal" then pure none
+        else do
+        let slhs := ACL2.Replay.substFnCalls σ rspec.lhs
+        let srhs := ACL2.Replay.substFnCalls σ rspec.rhs
+        match consumerRules.find? (fun r =>
+            r.hyps.isEmpty && r.equiv == "equal"
+            && r.lhs == slhs && r.rhs == srhs) with
+        | none => pure none
+        | some cspec => do
+          let pfW ← try
+              dischargeRuleHyp cfg ctx cspec consumerDepProofs []
+            catch _ => Driver.throwFrontier m!"usefi bridge: consumer \
+              discharge of {cspec.name} failed"
+          withLocalDeclD `envr (mkConst ``ACL2.Env) fun erV => do
+            let hAtW := mkApp pfW erV
+            let mkFnFreePf := fun (t : SExpr) (what : String) => do
+              Driver.proveByDecide (← mkEq
+                (← mkAppM ``ACL2.Replay.fnFreeTerm
+                  #[namesE, Driver.reflectSExpr t])
+                (mkConst ``Bool.true)) what
+            let hwsL ← Driver.proveByDecide (← mkEq
+              (← mkAppM ``ACL2.Replay.WellScoped
+                #[Driver.reflectSExpr rspec.lhs])
+              (mkConst ``Bool.true)) "bridge WS lhs"
+            let hsimpL ← Driver.proveByDecide (← mkEq
+              (← mkAppM ``ACL2.Replay.aliasArgsSimple
+                #[namesE, Driver.reflectSExpr rspec.lhs])
+              (mkConst ``Bool.true)) "bridge simple lhs"
+            let pfc ←
+              match rspec.rhs with
+              | .cons (.atom (.symbol q)) (.cons c .nil) =>
+                if q.name == "QUOTE" then
+                  mkAppM ``ACL2.Replay.fuelEq_fnalias_lift_const
+                    #[σE, cfg.worldExpr, wAliasE, hσdef, hσns, hσws,
+                      hσcl, hagree, hw, Driver.reflectSExpr rspec.lhs,
+                      Driver.reflectSExpr c, hwsL, hsimpL,
+                      ← mkFnFreePf slhs "bridge fnFree slhs",
+                      erV, hAtW]
+                else Driver.throwFrontier m!"usefi bridge: non-quote \
+                  symbol rhs (frontier)"
+              | _ => do
+                -- general rhs: convergence from the consumer totality
+                -- hypothesis probed at the (variable) arguments
+                let hconv ← match rspec.rhs with
+                  | .cons (.atom (.symbol g))
+                      (.cons (.atom (.symbol a1))
+                        (.cons (.atom (.symbol a2)) .nil)) => do
+                    let some (_, hTot) := ctx.totalHyps.find?
+                        (fun (n, _) => n == g.name)
+                      | Driver.throwFrontier m!"usefi bridge: no \
+                          consumer totality for {g.name}"
+                    let c1 ← mkAppM ``ACL2.Replay.var_conv_ex
+                      #[cfg.worldExpr, erV, Driver.reflectSymbol a1]
+                    let c2 ← mkAppM ``ACL2.Replay.var_conv_ex
+                      #[cfg.worldExpr, erV, Driver.reflectSymbol a2]
+                    let happ := mkAppN hTot #[erV,
+                      Lean.mkApp (Lean.mkApp (mkConst ``SExpr.atom)
+                        (Lean.mkApp (mkConst ``Atom.symbol)
+                          (Driver.reflectSymbol a1))) |> fun _ =>
+                        Driver.reflectSExpr (.atom (.symbol a1)),
+                      Driver.reflectSExpr (.atom (.symbol a2)), c1, c2]
+                    mkAppM ``ACL2.Replay.conv_repack #[happ]
+                  | _ => Driver.throwFrontier m!"usefi bridge: \
+                      unsupported general rhs shape"
+                mkAppM ``ACL2.Replay.fuelEq_fnalias_lift
+                  #[σE, cfg.worldExpr, wAliasE, hσdef, hσns, hσws,
+                    hσcl, hagree, hw, Driver.reflectSExpr rspec.lhs,
+                    Driver.reflectSExpr rspec.rhs, hwsL, hsimpL,
+                    ← mkFnFreePf slhs "bridge fnFree slhs",
+                    ← mkFnFreePf rspec.rhs "bridge fnFree rhs",
+                    erV, hAtW, hconv]
+            let pf ← mkForallFVars #[erV] pfc
+            if ← isDefEq (← inferType pf) bTy then pure (some pf)
+            else pure none
+    let useBridge := fun (uspec : UseSpec) (bTy : Expr) => do
+      -- alias-free cited theorem: discharge at the consumer world,
+      -- cross by the EvTrue iff
+      if !fnFreeV uspec.formula then pure none else do
+      let pfW ← try
+          dischargeUseHyp cfg ctx uspec consumerDepProofs []
+        catch _ => pure (Expr.const ``True [])
+      if pfW.isConst then pure none else do
+      withLocalDeclD `envr (mkConst ``ACL2.Env) fun erV => do
+        let hAtW := mkApp pfW erV
+        let hfree ← Driver.proveByDecide (← mkEq
+          (← mkAppM ``ACL2.Replay.fnFreeTerm
+            #[namesE, Driver.reflectSExpr uspec.formula])
+          (mkConst ``Bool.true)) "useBridge fnFree"
+        let iff ← mkAppM ``ACL2.Replay.evtrue_fnfree_agree_iff
+          #[namesE, cfg.worldExpr, wAliasE, hagree, hw, erV,
+            Driver.reflectSExpr uspec.formula, hfree]
+        let pfc ← mkAppM ``Iff.mpr #[iff, hAtW]
+        let pf ← mkForallFVars #[erV] pfc
+        if ← isDefEq (← inferType pf) bTy then pure (some pf)
+        else pure none
     let (pfAtAlias, kept, _concl) ← instantiateParametricAt depDev
       wAliasVal wAliasE spec.name depCrossTrees depCrossRules totsNames
       pfParamEnv envV (extraJusts := cfg.justs)
       (innerTotalFallback := innerTotalFallback)
+      (ruleBridge := ruleBridge) (useBridge := useBridge)
     unless kept.isEmpty do
       Driver.throwFrontier m!"usefi discharge: premises KEPT at the \
         alias world (bridging pending): [{", ".intercalate kept}]"
@@ -398,58 +612,6 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       | Driver.throwFrontier m!"usefi discharge: {spec.name}'s Goal is \
           not single-literal"
     let phiE := Driver.reflectSExpr phi
-    let entryTy := (← inferType σE).appArg!
-    -- ∀-mem side conditions, decided on the concrete σ
-    let mkMemAll (prop : Expr → MetaM Expr) : MetaM Expr := do
-      withLocalDeclD `e entryTy fun eV => do
-        let body ← prop eV
-        let mem ← mkAppM ``Membership.mem #[σE, eV]
-        mkForallFVars #[eV] (← mkArrow mem body)
-    let hσdefTy ← mkMemAll fun eV => do
-      let fst ← mkAppM ``Prod.fst #[eV]
-      let sndFst ← mkAppM ``Prod.fst #[← mkAppM ``Prod.snd #[eV]]
-      let sndSnd ← mkAppM ``Prod.snd #[← mkAppM ``Prod.snd #[eV]]
-      mkEq (← mkAppM ``ACL2.DefMap.get?
-          #[← mkAppM ``ACL2.World.defs #[wAliasE], fst])
-        (← mkAppM ``Option.some
-          #[← mkAppM ``Prod.mk #[sndFst, sndSnd]])
-    let nodupTy ← mkAppM ``List.Nodup
-      #[← mkAppM ``List.map
-        #[← withLocalDeclD `e entryTy fun eV => do
-            mkLambdaFVars #[eV] (← mkAppM ``Prod.fst #[eV]), σE]]
-    let nodupPf ← proveByDecideKernel nodupTy "usefi nodup"
-    let hσdef ← do
-      let pf ← mkAppM ``ACL2.Replay.withAliases_get
-        #[cfg.worldExpr, σE, nodupPf]
-      unless ← isDefEq (← inferType pf) hσdefTy do
-        Driver.throwFrontier m!"usefi discharge: withAliases_get shape \
-          mismatch"
-      pure pf
-    let mkBoolMem (mk : Expr → MetaM Expr) : MetaM Expr := do
-      let ty ← mkMemAll mk
-      proveByDecideKernel ty "usefi σ side condition"
-    let hσns ← mkBoolMem fun eV => do
-      let fst ← mkAppM ``Prod.fst #[eV]
-      let isN := fun (n : String) =>
-        mkAppM ``ACL2.Symbol.isNamed #[fst, Lean.mkStrLit n]
-      let ors ← [
-        ← isN "QUOTE", ← isN "IF", ← isN "LET", ← isN "LET*",
-        ← isN "LAMBDA"].foldlM
-        (fun acc e => match acc with
-          | none => pure (some e)
-          | some a => some <$> mkAppM ``Bool.or #[a, e]) none
-      mkEq ors.get! (mkConst ``Bool.false)
-    let hσws ← mkBoolMem fun eV => do
-      let sndSnd ← mkAppM ``Prod.snd #[← mkAppM ``Prod.snd #[eV]]
-      mkEq (← mkAppM ``ACL2.Replay.WellScoped #[sndSnd])
-        (mkConst ``Bool.true)
-    let hσcl ← mkBoolMem fun eV => do
-      let sndFst ← mkAppM ``Prod.fst #[← mkAppM ``Prod.snd #[eV]]
-      let sndSnd ← mkAppM ``Prod.snd #[← mkAppM ``Prod.snd #[eV]]
-      let fvs ← mkAppM ``ACL2.Replay.freeVars #[sndSnd]
-      let inner ← withLocalDeclD `x (mkConst ``ACL2.Symbol) fun xV => do
-        mkLambdaFVars #[xV] (← mkAppM ``List.contains #[sndFst, xV])
-      mkEq (← mkAppM ``List.all #[fvs, inner]) (mkConst ``Bool.true)
     let hws ← proveByDecideKernel
       (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[phiE])
         (mkConst ``Bool.true)) "usefi WellScoped Φ"
@@ -468,6 +630,36 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     unless ← isDefEq (← inferType pfCross) target do
       Driver.throwFrontier m!"usefi discharge: crossed conclusion does \
         not match the emitted instance (substFnCalls image drift)"
-    mkForallFVars #[envV] (← Lean.Meta.mkExpectedTypeHint pfCross target)
+    let pfAll ← mkForallFVars #[envV]
+      (← Lean.Meta.mkExpectedTypeHint pfCross target)
+    -- DECLARE the discharged hypothesis as a CONSTANT (the D1 pattern):
+    -- the row proof then references it small — an inline nesting of the
+    -- parametric proof inside the row proof doubled the term depth past
+    -- the elaborator checker's stack (the second W4f SIGABRT); the
+    -- kernel checks the constant once here. KEPT consumer-telescope
+    -- fvars would escape the declaration — this route requires the
+    -- discharge to be CLOSED (checked below); a conditional result
+    -- frontiers honestly.
+    let pfC ← Lean.instantiateMVars pfAll
+    -- consumer-telescope fvars (the transports/Class-1 bindings) are
+    -- λ-ABSTRACTED into the constant and re-applied at the reference,
+    -- so the constant is closed and the row proof stays conditional on
+    -- exactly those hypotheses (letBound by the pass like any other)
+    let fvIds ← Lean.Meta.sortFVarIds
+      ((Lean.collectFVars {} pfC).fvarSet.toList.toArray)
+    let fvExprs := fvIds.map Lean.mkFVar
+    let pfClosed ← mkLambdaFVars fvExprs pfC
+    let key := (cfg.worldExpr.constName?.map (·.toString)).getD "anon"
+      ++ "_" ++ spec.name
+      ++ "_" ++ String.intercalate "_" (names.map (·.name))
+    let cName := Lean.Name.mkStr2 "UsefiDischarged"
+      (String.map (fun c => if c.isAlphanum then c else '_') key)
+    if (← Lean.getEnv).contains cName then
+      pure (mkAppN (mkConst cName) fvExprs)
+    else do
+      Lean.addDecl <| .thmDecl
+        { name := cName, levelParams := [],
+          type := ← Lean.Meta.inferType pfClosed, value := pfClosed }
+      pure (mkAppN (mkConst cName) fvExprs)
 
 end ACL2.Imported.Mirrors
