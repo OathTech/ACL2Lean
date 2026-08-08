@@ -27,7 +27,19 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > composition against them, λ-abstract them into the declared
 > constant (Π-params). The row-time discharger = cache lookup +
 > per-param row-fvar match by type-isDefEq + application (cheap,
-> shallow). Then enable, sweep, golden row-review, gate.
+> shallow). D2-a LANDED + ENABLED (de629e9; safe: prepare failures
+> skip → usefi kept, rows unchanged). D2-b (the two named channel
+> gaps): (i) the Class-2 bridge must discharge a dep-book tree with
+> the OWNING dev's channel surfaces (find the owning dev in crossDevs
+> by findThm; cfg' := mkBookConfig owningDev consumerWorldVal wExpr
+> env — gz fc/tp/recog snapshots from the owner, world stays the
+> consumer's; ORDEREDP-MSORT's :TA-RUNES cite LEXORDER-TOTAL, absent
+> from the consumer snapshot); (ii) thread termReplayed: for the
+> owning dev's recordedTerminationDefuns run replayAdmission at the
+> consumer world (cached by name — the ReplayedTermination
+> discipline) and pass to the discharge (ORDEREDP-QSORT's FILTER
+> decrease). Then the STRONG prepares close; sweep, golden row-review
+> (capstone usefi: conds flip discharged), gate.
 
 _Last updated: 2026-08-08 (Phase 3 R7b: EARLY EXIT declared — exit report docs/notes/2026-08-08_phase3-exit-report.md; exit gate TRUE_EXIT=0; branch mdd/phase3-r7b is the merge candidate)._
 
