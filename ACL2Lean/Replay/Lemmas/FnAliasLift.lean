@@ -130,4 +130,43 @@ theorem fuelEq_fnalias_lift
   refine ⟨max N' Nr, fun f hf => ?_⟩
   rw [hN' f (by omega), hr' f (by omega)]
 
+/-- A defined-fn application converges when its arguments do and its
+    body does under the bound (fresh) env — the step reassembly of B″'s
+    non-alias arm as a standalone (consumed by the alias-WRAPPER
+    totality derivation: an alias fn `(fn X) := (g X)` is total because
+    `g` is). -/
+theorem conv_defcall (w : World) (env : Env) (s : Symbol)
+    (argsExpr : SExpr) (args vals : List SExpr)
+    (formals : List Symbol) (body : SExpr) (v : SExpr)
+    (hq : s.isNamed "QUOTE" = false) (hif : s.isNamed "IF" = false)
+    (hlet : (s.isNamed "LET" || s.isNamed "LET*") = false)
+    (hal : argsExpr.toList? = some args)
+    (hget : w.defs.get? s = some (formals, body))
+    (hlen : formals.length = vals.length)
+    (hlenA : args.length = vals.length)
+    (hargs : ∀ p ∈ args.zip vals,
+      ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
+    (hbody : ∃ N, ∀ f ≥ N,
+      evalOpt f w (bindArgs formals vals) body = some v) :
+    ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) argsExpr) = some v := by
+  obtain ⟨Nm, hm⟩ := mapM_conv_of_zip w env args vals hlenA hargs
+  obtain ⟨Nb, hb⟩ := hbody
+  refine ⟨max Nm Nb + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  show evalOptStep (evalOpt g) w env _ = some v
+  simp only [evalOptStep_cons_symbol,
+    if_neg (by simp [hq] : ¬(s.isNamed "QUOTE" = true)),
+    if_neg (by simp [hif] : ¬(s.isNamed "IF" = true)),
+    if_neg (by simp [Bool.or_eq_true] at hlet ⊢; exact hlet :
+      ¬((s.isNamed "LET" || s.isNamed "LET*") = true)), hal]
+  try dsimp only []
+  rw [hm g (by omega), hget]
+  have hfin : (if formals.length = vals.length then
+      evalOpt g w (bindArgs formals vals) body
+    else none) = some v := by
+    rw [if_pos hlen]
+    exact hb g (by omega)
+  exact hfin
+
 end ACL2.Replay
