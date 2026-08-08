@@ -73,7 +73,21 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > defined-fn conv composition; builtins/IF/quote/var structural.
 > Preconditions all DECIDE at the concrete alias world. NOTE
 > substFnCalls's QUOTE guard (d0f549b) is load-bearing for B.
-> LEMMA A PROVED (9fd9b87). LEMMA B-PRIME PROVED (see FnAlias commits): evalOpt_fnexpand_transport, zero sorries; substFnCalls gained a binder-respecting LAMBDA arm (substSafe apparatus deleted). 2c SEMANTIC LAYER COMPLETE + GATED (full claim-gate TRUE_EXIT=0 on the FnAlias round, 104/116 golden byte-identical, 2026-08-08; ed985c8/3d2b460): evtrue_fnalias (the kernel-checked functional-instantiation step) + World.withAliases with constructive hσdef/hagree. REMAINING for 2c (pure meta wiring): (i) refactor instantiate_parametric%s premise-dispatch core into a reusable MetaM function taking the parametric proof Expr + offer channels; (ii) dischargeUseFiHyp in Harness: build wAlias := (consumer world).withAliases σ (σ from the specs emitted lambdas; REFLECT the concrete value), rebuild the deps parametric statement (replayProofParametric on the dep dev), discharge its premises at wAlias via (i), apply evtrue_fnalias (side conditions decide at the concrete worlds; hσdef/hagree via withAliases lemmas; hfree/hws decide on the formula; the conclusion formula == spec.formula ALREADY holds by the 2a verbatim offer check since both use the same substFnCalls); wrap ∀env; letBindFVar; (iii) wire into the usefi kept-pass; sweep + golden review + gate. LEMMA B PLAN (pinned post-A): statement —
+> LEMMA A PROVED (9fd9b87). LEMMA B-PRIME PROVED (see FnAlias commits): evalOpt_fnexpand_transport, zero sorries; substFnCalls gained a binder-respecting LAMBDA arm (substSafe apparatus deleted). 2c SEMANTIC LAYER COMPLETE + GATED (full claim-gate TRUE_EXIT=0 on the FnAlias round, 104/116 golden byte-identical, 2026-08-08; ed985c8/3d2b460): evtrue_fnalias (the kernel-checked functional-instantiation step) + World.withAliases with constructive hσdef/hagree. WIRING DISCOVERY (2026-08-08, pinned
+> post-gate): premise discharge AT wAlias cannot re-replay the dep's
+> pass-1 constraint trees (they unfold the WITNESSES, absent from the
+> consumer world — the witness-deref guard would rightly fire).
+> The premises must come from the CONSUMER's concrete rules
+> (ORDEREDP-MSORT etc.) lifted INTO the alias world — which needs
+> LEMMA B'' — the CONVERSE transport (β-contraction: evalOpt f w
+> (substFnCalls σ t) = some v → eval wAlias t ≐ some v; the mirror
+> induction of B', roles swapped, same case skeleton and ingredient
+> lemmas; arity-mismatch/improper arms excluded by the converging
+> hypothesis on the IMAGE this time). Then each parametric premise at
+> wAlias = (dischargeRuleHyp at the CONSUMER world for the SUBSTITUTED
+> rule spec, e.g. ORDEREDP-MSORT) + B''/A statement-level bridging
+> (the rule-hyp fuel-EQ shapes transport value-exactly). REMAINING for
+> 2c (meta wiring + B''): (i) refactor instantiate_parametric%s premise-dispatch core into a reusable MetaM function taking the parametric proof Expr + offer channels; (ii) dischargeUseFiHyp in Harness: build wAlias := (consumer world).withAliases σ (σ from the specs emitted lambdas; REFLECT the concrete value), rebuild the deps parametric statement (replayProofParametric on the dep dev), discharge its premises at wAlias via (i), apply evtrue_fnalias (side conditions decide at the concrete worlds; hσdef/hagree via withAliases lemmas; hfree/hws decide on the formula; the conclusion formula == spec.formula ALREADY holds by the 2a verbatim offer check since both use the same substFnCalls); wrap ∀env; letBindFVar; (iii) wire into the usefi kept-pass; sweep + golden review + gate. LEMMA B PLAN (pinned post-A): statement —
 > ∀ F env t v, evalOpt F w' env t = some v → ∃N ∀f≥N, evalOpt f w env
 > (substFnCalls σ t) = some v; strong induction on F; NO condition on
 > t needed for fn-freedom (dead substFnCalls fallthroughs are excluded
