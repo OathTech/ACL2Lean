@@ -235,7 +235,8 @@ def liftCatalog : List (String × String × LiftStatus) := [
       artifact is the PARAMETRIC constant \
       `weakSortfn1IsSortfn2Parametric` (EquisortParametric.lean, landed \
       Phase 2 item c per the R6 catalog doctrine): the recorded tree \
-      over an abstract w with the scope constraints as premises, which \
+      over an abstract w with the constraints' STORED-RULE forms as \
+      premises (statement pinned in Tests/ParametricPins.lean), which \
       Phase 3's functional instantiation consumes; a witness-level \
       native is the banned masquerade"),
   ("sorting/equisort", "STRONG-SSORTFN1-IS-SSORTFN2",
@@ -243,8 +244,9 @@ def liftCatalog : List (String × String × LiftStatus) := [
       artifact is the PARAMETRIC constant \
       `strongSsortfn1IsSsortfn2Parametric` (EquisortParametric.lean, \
       landed Phase 2 item c per the R6 catalog doctrine): the recorded \
-      tree over an abstract w with the scope constraints as premises, \
-      which Phase 3's functional instantiation consumes; a \
+      tree over an abstract w with the constraints' STORED-RULE forms \
+      as premises (pinned in Tests/ParametricPins.lean), which Phase \
+      3's functional instantiation consumes; a \
       witness-level native is the banned masquerade"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \

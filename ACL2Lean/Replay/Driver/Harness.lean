@@ -832,25 +832,30 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     binder inventory is generated uniformly from the canonical model:
 
     - a definition-pinning hypothesis `w.defs.get? fn = some (formals, body)`
-      for every canonical-model defun EXCEPT the scope's signature fns —
-      the definitional-scope ScopeHolds shape;
+      OFFERED for every canonical-model defun EXCEPT `sigFns` (the scope's
+      signature fns AND witness defuns — the caller derives the set from
+      the emitted scope surface; audit 2026-08-08 inside F1);
     - a no-shadow hypothesis `w.defs.get? b = none` for every `builtinNames`
       entry (the canonical model never shadows a builtin — `toWorld` skips
       them — so these pins hold there by construction);
     - the ordinary conditional telescope, with `discharge := false`: every
-      used hypothesis is KEPT, so the scope's constraint theorems surface as
-      `rule:` premises and the sig fns' totality/TP facts as `total:`/`tp:`
-      premises — together the constrained-scope ScopeHolds components.
+      used hypothesis is KEPT, so the scope's constraint theorems surface
+      as `rule:` premises in ACL2's STORED-RULE form (which can be
+      strictly stronger than the bare truthy constraint over an abstract
+      w — see `parametric_replayed%`'s doc) and the sig fns' totality/TP
+      facts as `total:`/`tp:` premises.
 
-    A SIG fn deliberately gets NO definition pin: an unfold demand on it
-    inside the replay hard-fails (`deriveDefInfo` finds neither hypothesis
-    nor decidable world), which IS the witness-dereference guard (design
-    item 5) — a post-encapsulate tree that dereferences a witness is a
-    reconstruction bug, not a frontier. Only USED pins are bound in the
-    final statement (the used-filter discipline: an unconsumed offer must
-    not weaken the statement). Returns the proof
-    `∀ w, (pins…) → (no-shadows…) → ∀ env, (telescope…) → EvTrue w env Φ`
-    (env bound by the CALLER, as for `replayProofConditional`) and the
+    A scope-local fn deliberately gets NO definition pin: an unfold demand
+    on it inside the replay hard-fails (`deriveDefInfo` finds neither
+    hypothesis nor decidable world), which IS the witness-dereference
+    guard (design item 5) — a post-encapsulate tree that dereferences a
+    witness is a reconstruction bug, not a frontier. Only USED pins are
+    bound in the final statement (the used-filter discipline: an
+    unconsumed offer must not weaken the statement; a tree that never
+    unfolds keeps NO pins — both equisort capstones keep zero). Returns
+    the proof `∀ w, (used pins…) → (used no-shadows…) → (kept telescope…)
+    → EvTrue w env Φ` — `env` is the CALLER's binder, OUTSIDE `w` in the
+    final constant (semantically inert: no premise mentions it) — and the
     premise descriptions (`def:`/`noshadow:` + the telescope's). -/
 def replayProofParametric (cfg0 : ReplayConfig) (sigFns : List Symbol)
     (tps : List (String × SExpr)) (cp : ClauseProof)

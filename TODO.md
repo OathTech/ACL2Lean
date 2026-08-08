@@ -65,8 +65,45 @@ _Last updated: 2026-08-08 (Phase 2 equisort: items a-e ALL landed; exit assessme
 > the rule: premises; the telescope is WIDER than bare ScopeHolds
 > (pre-scope rule/total/tp + builtin no-shadow premises kept
 > undischarged) — the honest conditional form; Phase 3 (R7b)
-> discharges them at concrete worlds. AWAITING: merge sign-off
+> discharges them at concrete worlds. PRE-MERGE AUDIT (2026-08-08,
+> inside+outside, both Opus): NO soundness defect, NO blocker; fix
+> round applied on-branch — (I1 MAJOR) the unpinned set now excludes
+> witness HELPERS too, not just sigs (SORTFN1-INSERT would have been
+> offered a def-pin); (I3/O7 MAJOR) statement pins landed
+> (Tests/ParametricPins.lean — binder inventory, conclusion vs the
+> log's :TFORMULA, stored-rule lhs/rhs, no-witness tripwire);
+> (I2/O4 MAJOR) docs corrected: the constraint premises are ACL2's
+> STORED-RULE forms (EQUAL-to-'T — stronger than the bare truthy
+> constraints over unpinned ORDEREDP; model class = worlds satisfying
+> the stored rules); (O5/I5) docstrings now describe the actual types.
+> DEFERRED (tracked below): O6 non-vacuity → Phase 3's first work
+> item; I4 charter/R6 wording reconciliation → user; O13
+> gz-agreement-lemma ci check. AWAITING: merge sign-off
 > (mdd/phase2-equisort → main).
+
+> **AUDIT 2026-08-08 DEFERRED ITEMS (Phase 2 pre-merge).**
+> (1) NON-VACUITY of the capstone parametric telescopes (outside F6):
+> kernel-check satisfiability by instantiating both constants at the
+> equisort canonical world and discharging all premises — this IS
+> Phase 3 (R7b)'s first work item; until it lands the constants are
+> honest conditionals with no exhibited model (nothing in-repo claims
+> otherwise). (2) CHARTER RECONCILIATION (inside F4, user decision):
+> the Phase 2 charter's binding constraint says "toWorld EXCLUDES
+> .witnessDefun" but the MDD-ratified R6 design (2026-08-02, older!)
+> and the landed code make toWorld the CANONICAL MODEL including
+> witness bodies — the charter was drafted from a stale reading;
+> needs an explicit user note, not a silent doc edit. (3) GZ
+> AGREEMENT-LEMMA GAP (outside F13): builtin-named ground-zero defuns
+> (IMPLIES, IFF, LEXORDER, NATP, POSP, EQL) have no kernel-checked
+> agreement lemma vs their Logic.* builtins (TRUE-LISTP etc. do —
+> gz_def_true_listp); the parametric conclusions' meaning rides the
+> builtin under no-shadow, so add gz_def_implies + a ci check that
+> every emitted builtin-named gz snapshot has an agreement lemma or a
+> flag. (4) sig-set over-abstraction (outside F16): the unpinned set
+> is the UNION over all scopes; a post-scope-1 theorem legitimately
+> unfolding a scope-2 fn would spuriously hit the witness-deref guard
+> — refine to scopes-in-force when a book needs it (hard-fails
+> honestly today).
 
 > **CAPSTONE-DEMO ARC — LIVE STATE (branch mdd/capstone-demo-arc,
 > HEAD b611dfd).** Phase 0 DONE (ff70eb2). Phase 1: the 8-item fork

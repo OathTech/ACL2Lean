@@ -31,9 +31,19 @@ def equisortDev : Development :=
   load_development% equisortLog
 
 set_option maxHeartbeats 3200000 in
-/-- WEAK: any `w` in which the pre-scope world is pinned and the scope's
-    constraints hold satisfies `(IMPLIES (TRUE-LISTP X) (EQUAL (SORTFN1 X)
-    (SORTFN2 X)))` — the recorded tree, replayed over abstract `w`. -/
+/-- WEAK: `∀ env w`, given the kept premise telescope — 34 builtin
+    no-shadow facts, totality of the pre-scope fns and of
+    `SORTFN1`/`SORTFN2`, `tp:HOW-MANY`, the six scope-1 constraints in
+    STORED-RULE form (e.g. `(EQUAL (ORDEREDP (SORTFN1 X)) 'T)` — see
+    `parametric_replayed%`'s doc for why that is stronger than the bare
+    constraint over an abstract w), `rule:CONVERT-PERM-TO-HOW-MANY`, and
+    `use:ORDERED-PERMS` — then
+    `EvTrue w env (IMPLIES (TRUE-LISTP X) (EQUAL (SORTFN1 X) (SORTFN2 X)))`.
+    NOTHING is definition-pinned (the tree never unfolds a defun) and no
+    witness vocabulary appears (pinned by Tests/ParametricPins.lean).
+    NON-VACUITY (kernel-checked satisfiability of the telescope) is the
+    Phase 3 (R7b) instantiation at a concrete world — deliberately NOT
+    claimed here (audit 2026-08-08 outside F6). -/
 def weakSortfn1IsSortfn2Parametric := parametric_replayed% equisortDev
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 
@@ -41,7 +51,10 @@ def weakSortfn1IsSortfn2Parametric := parametric_replayed% equisortDev
 
 set_option maxHeartbeats 3200000 in
 /-- STRONG: the unconditional variant over the strongly-constrained scope
-    (`(EQUAL (SSORTFN1 X) (SSORTFN2 X))`), same abstraction. -/
+    — same telescope shape (4 no-shadows, sig totality, the six scope-2
+    constraints in stored-rule form, `use:ORDERED-PERMS`), conclusion
+    `EvTrue w env (EQUAL (SSORTFN1 X) (SSORTFN2 X))`. Same non-vacuity
+    deferral as WEAK. -/
 def strongSsortfn1IsSsortfn2Parametric := parametric_replayed% equisortDev
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 

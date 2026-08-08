@@ -157,18 +157,28 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     replayed statement (Phase 2 item c, the R6 scope abstraction): the
     named theorem's recorded tree replayed over an ABSTRACT `w : World`
     (`replayProofParametric`), yielding
-    `∀ env, ∀ w, (def-pins…) → (no-shadows…) → (telescope…) → EvTrue w env Φ`.
+    `∀ env, ∀ w, (USED pins/no-shadows…) → (kept telescope…) → EvTrue w env Φ`
+    (`env` outermost — bound here before `w`; no premise mentions it, so
+    the order is semantically inert).
 
     The abstraction set is READ OFF the development's emitted scope
-    surface (`Development.scopes`): every signature fn of every
-    `(:ENCAPSULATE-BEGIN :SIGS …)` scope is left UNPINNED — its witness
-    body never enters the statement (the R6 witness rule) and an unfold
-    demand on it hard-fails (the witness-dereference guard, design item
-    5). Every other canonical-model defun gets a definition-pinning
-    premise; the scope's constraint theorems surface as kept `rule:`
-    premises — the ScopeHolds components. NOT registered in the mirror
-    registry: the artifact's consumer is the R7b instantiation (Phase 3),
-    not same-world replay composition. -/
+    surface (`Development.scopes`): every signature fn AND witness defun
+    of every `(:ENCAPSULATE-BEGIN :SIGS …)` scope is UNPINNED — witness
+    bodies never enter the statement (the R6 witness rule) and an unfold
+    demand on one hard-fails (the witness-dereference guard, design item
+    5). Other canonical-model defuns are OFFERED definition pins; only
+    USED ones are bound (a tree that never unfolds keeps none). The
+    scope's constraint theorems surface as kept `rule:` premises in
+    ACL2's STORED-RULE form (audit 2026-08-08: e.g. `(EQUAL (ORDEREDP
+    (SORTFN1 X)) 'T)` — ACL2's iff→equal strengthening under the
+    pre-scope booleanp type-prescription; over an abstract `w` with
+    ORDEREDP unpinned this is STRONGER than the bare truthy constraint,
+    so the model class is "worlds satisfying the stored rules", a
+    subset of the bare-constraint models; concrete instantiations
+    discharge it since the concrete rule replay produces exactly this
+    shape). NOT registered in the mirror registry: the artifact's
+    consumer is the R7b instantiation (Phase 3), not same-world replay
+    composition. -/
 elab "parametric_replayed%" devId:ident nm:str
     deps:(depsClauseDR)? : term => do
   let devName ← Lean.resolveGlobalConstNoOverload devId
@@ -180,12 +190,24 @@ elab "parametric_replayed%" devId:ident nm:str
   let scopes ← match dev.scopes with
     | .ok ss => pure ss
     | .error e => throwError "parametric_replayed%: {e}"
-  let sigFns := ((scopes.flatMap (·.sigs)).eraseDups)
+  -- the UNPINNED set (audit 2026-08-08 inside F1): sigs AND the scopes'
+  -- witness defuns — a witness HELPER (e.g. SORTFN1-INSERT) is not a sig
+  -- but its body is scope-local material; offering it a definition pin
+  -- would let a tree-shape change silently condition the "parametric"
+  -- statement on the witness (the banned masquerade). With the helper
+  -- unpinned, such a demand hits the witness-dereference hard-fail.
+  let sigFns := ((scopes.flatMap (fun sc =>
+    sc.sigs ++ sc.witnesses.map (fun (n, _, _) => ({ name := n } : Symbol)))
+    ).eraseDups)
   if sigFns.isEmpty then
     throwError "parametric_replayed%: {devName} has no constrained scope — \
       the parametric form is the encapsulate artifact (use driver_replayed%)"
   let mut crossTrees : List (String × ClauseProof) := []
   let mut crossRules : List ACL2.RuleSpec := []
+  -- deps here feed OFFER derivation only (use:/rule: hypothesis types come
+  -- from the dep trees' translated Goal clauses); with `discharge := false`
+  -- nothing is ever discharged FROM them — cited dep theorems stay
+  -- premises of the parametric statement.
   if let some d := deps then
     for depId in (d.raw[2].getSepArgs.map (fun a => (⟨a⟩ : Ident))) do
       let depName ← Lean.resolveGlobalConstNoOverload depId
