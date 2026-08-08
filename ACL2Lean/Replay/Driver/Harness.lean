@@ -406,7 +406,8 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (equivRefls : List (String × SExpr) := [])
     (termReplayed : List (String × Name × List String × List SExpr) := [])
     (congTrees : Option (List (String × ClauseProof)) := none)
-    (discharge : Bool := true) :
+    (discharge : Bool := true)
+    (usefiDischarge : Option (UseFiSpec → MetaM Expr) := none) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
   -- hypothesis declarations: totality for every defined fn, TP where
@@ -739,6 +740,22 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           catch e =>
             unless isFrontierErr e do
               throw e
+      -- usefi:<thm> discharge (R7b 2c): the CALLER-provided composition —
+      -- parametric rebuild of the cited theorem at the alias world built
+      -- from the emitted lambdas, crossed to this world by the FnAlias
+      -- transports. Injected as a callback because the composition needs
+      -- Runner-layer channel builders (layering); a frontier failure
+      -- keeps the hypothesis (D6), and callers passing none (all
+      -- pre-2c call sites) keep usefi: conds verbatim.
+      if let some dfi := usefiDischarge then
+        for (spec, hypV) in (useFiSpecs.zip useFiVs.toList).reverse do
+          if discharge && prfR.containsFVar hypV.fvarId! then
+            try
+              let pf ← withRealMaxHeartbeats dischargeBudget <| dfi spec
+              prfR ← letBindFVar prfR hypV pf
+            catch e =>
+              unless isFrontierErr e do
+                throw e
       prfR ← dischargeCongs prfR
       -- equivfull:<thm> discharge (the R-solidify lane): whole-formula
       -- from the dependency's replayed statement; BEFORE the rule pass
