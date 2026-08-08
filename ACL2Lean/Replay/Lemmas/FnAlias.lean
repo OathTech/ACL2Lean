@@ -298,4 +298,45 @@ theorem evalOpt_fnfree_agree (names : List Symbol) (w w' : World)
                 | none => rfl
             | none => rfl
 
+/-! ## Auxiliaries for the β-expansion transport (Lemma B′) -/
+
+/-- `substFnList` commutes with proper-spine listing. -/
+theorem substFnList_toList? (σ : List (Symbol × List Symbol × SExpr)) :
+    ∀ (argsE : SExpr),
+      (substFnList σ argsE).toList?
+        = (argsE.toList?).map (List.map (substFnCalls σ))
+  | .nil => rfl
+  | .atom a => rfl
+  | .cons x d => by
+    simp only [substFnList, SExpr.toList?, substFnList_toList? σ d]
+    cases d.toList? with
+    | none => rfl
+    | some l => rfl
+
+mutual
+
+/-- Lambda-formals safety: no lambda application inside `t` binds a
+    formal named by the substitution (a substituted formal list would
+    corrupt the binder).  QUOTE bodies are data and skipped. -/
+def substSafe (names : List Symbol) : SExpr → Bool
+  | .cons (.atom (.symbol q)) args =>
+    if q.name == "QUOTE" then true else substSafeSpine names args
+  | .cons (.cons (.atom (.symbol lam))
+      (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+    if lam.isNamed "LAMBDA" then
+      (match lamFormals? formalsE with
+       | some formals => formals.all (fun x => !names.contains x)
+       | none => false)
+      && substSafe names lamBody && substSafeSpine names argsExpr
+    else false
+  | .cons a b => substSafe names a && substSafeSpine names b
+  | _ => true
+
+/-- Spine twin of `substSafe`. -/
+def substSafeSpine (names : List Symbol) : SExpr → Bool
+  | .cons a d => substSafe names a && substSafeSpine names d
+  | _ => true
+
+end
+
 end ACL2.Replay
