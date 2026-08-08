@@ -145,7 +145,7 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > holds as VALUES by the 2a offer check, so the reflected conclusion
 > matches syntactically; (4) mkForallFVars [env'] + isDefEq-check
 > against mkUseHypType's shape (∀ env', EvTrue w env' ⟦formula⟧ —
-> read verbatim at Waterfall:181). THEN: coverage call sites build
+> read verbatim at Waterfall:181). W4b DONE (the discharger builds; e69df24+successor commits) + W4c: coverage WIRED with the callback DISABLED — the first live run STACK-OVERFLOWED (SIGABRT, deep withLocalDeclD/whnf frames inside tryReplay); NEXT: isolate the discharger OUTSIDE the sweep on the msort spec (a scratch elaboration calling mkUseFiDischarger directly), profile which decide/rebuild blows the stack (suspects: aliasFreeWorld decide over the 214-defun consumer world through the syntactic withAliases form — may need the REFLECTED-VALUE alias world (addDecl a constant) instead of the syntactic form for decide performance, trading the constructive withAliases lemmas for decided hσdef/hagree at the concrete value — BOTH routes sound; or the in-replay parametric rebuild depth needs withRealMaxRecDepth raised locally). THEN re-enable + coverage call sites build
 > the callback (depPayload already parses dep devs — extend its
 > return + pass crossDevs); sweep flips the two capstones' usefi:
 > conds to discharged; golden row-review; gate. REMAINING for 2c
