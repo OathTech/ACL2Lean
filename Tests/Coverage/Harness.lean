@@ -1,4 +1,6 @@
 import ACL2Lean.Replay.Runner
+import ACL2Lean.Replay.ParametricInstantiate
+import ACL2Lean.Imported.Sorting
 import Lean
 
 /-! # Per-book coverage harness (perf arc item 1, 2026-08-07)
@@ -111,9 +113,12 @@ def goldenSection (golden : String) (name : String) : Except String (List String
       else go rest
   go lines
 
-/-- Parse a dep book's log to its offer payload — PARSE ONLY. -/
+/-- Parse a dep book's log to its offer payload — PARSE ONLY. The DEV
+    itself rides along (R7b 2c W4: the usefi discharge rebuilds the
+    cited theorem's parametric statement from it). -/
 def depPayload (dep : String) :
-    TermElabM (String × List (String × ClauseProof) × List ACL2.RuleSpec) := do
+    TermElabM (String × Development × List (String × ClauseProof)
+      × List ACL2.RuleSpec) := do
   let content ← IO.FS.readFile (covLogPath dep)
   let log ← match ProofLog.parse content with
     | .ok l => pure l
@@ -121,7 +126,7 @@ def depPayload (dep : String) :
   let dev ← match ClauseTree.buildDevelopment log with
     | .ok d => pure d
     | .error e => throwError "coverage_book%: dep {dep} RECON-FAIL {e}"
-  return (dep, bookTrees dev, allBookRules dev)
+  return (dep, dev, bookTrees dev, allBookRules dev)
 
 /-- Run ONE corpus book with the sweep's exact semantics and check its
     golden section byte-exactly; emits `covCounts_<sanitized>`. -/
@@ -131,11 +136,23 @@ elab "coverage_book% " nameLit:str : command => do
     let content ← IO.FS.readFile (covLogPath name)
     let deps := (covDeps.lookup name).getD []
     let payloads ← deps.mapM depPayload
-    let crossTreesByBook := payloads.map (fun (n, t, _) => (n, t))
-    let crossRules := payloads.flatMap (fun (_, _, r) => r)
+    let crossTreesByBook := payloads.map (fun (n, _, t, _) => (n, t))
+    let crossRules := payloads.flatMap (fun (_, _, _, r) => r)
+    let crossDevs := payloads.map (fun (n, d, _, _) => (n, d))
     let t0 ← IO.monoMsNow
     let (r, _, _) ← runBook name content
       (crossTreesByBook := crossTreesByBook) (crossRules := crossRules)
+      -- R7b 2c W4c: the discharger is WIRED but DISABLED (none) — the
+      -- first live run stack-overflowed (SIGABRT) inside the
+      -- composition (suspects: the aliasFreeWorld/decide reductions
+      -- over the 214-defun world through the withAliases form, or the
+      -- in-replay parametric rebuild depth). Isolate OUTSIDE the sweep
+      -- first (a scratch elaboration on the msort spec), then re-enable.
+      -- Enabling is: usefiDischarge := some (fun cfg spec =>
+      --   ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
+      --     [``ACL2.Worlds.Sorting.dis_pce_total,
+      --      ``ACL2.Worlds.Sorting.dis_how_many_tp] cfg spec)
+      (usefiDischarge := none)
     let t1 ← IO.monoMsNow
     unless r.integrityFails.isEmpty do
       throwError "coverage_book% {name}: integrity failures \
