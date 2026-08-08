@@ -210,4 +210,121 @@ theorem wrapper_total_1 (w : World) (fn g x : Symbol)
     ⟨Ng, hgv⟩
   exact ⟨N', vg, h'⟩
 
+/-- STEP INVERSION for a defined-fn call: a converging application
+    yields converging arguments and a converging body under the bound
+    env. -/
+theorem defcall_body_inversion (w : World) (env : Env) (s : Symbol)
+    (argsExpr : SExpr) (args : List SExpr)
+    (formals : List Symbol) (body : SExpr) (v : SExpr)
+    (hq : s.isNamed "QUOTE" = false) (hif : s.isNamed "IF" = false)
+    (hlet : (s.isNamed "LET" || s.isNamed "LET*") = false)
+    (hal : argsExpr.toList? = some args)
+    (hget : w.defs.get? s = some (formals, body))
+    (hconv : ∃ N, ∀ f ≥ N,
+      evalOpt f w env (.cons (.atom (.symbol s)) argsExpr) = some v) :
+    ∃ vals, formals.length = vals.length ∧
+      (∀ p ∈ args.zip vals,
+        ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2) ∧
+      ∃ N, ∀ f ≥ N,
+        evalOpt f w (bindArgs formals vals) body = some v := by
+  obtain ⟨N, hN⟩ := hconv
+  have h := hN (N + 1) (by omega)
+  rw [show evalOpt (N+1) w env (.cons (.atom (.symbol s)) argsExpr)
+    = evalOptStep (evalOpt N) w env _ from rfl] at h
+  simp only [evalOptStep_cons_symbol,
+    if_neg (by simp [hq] : ¬(s.isNamed "QUOTE" = true)),
+    if_neg (by simp [hif] : ¬(s.isNamed "IF" = true)),
+    if_neg (by simp [Bool.or_eq_true] at hlet ⊢; exact hlet :
+      ¬((s.isNamed "LET" || s.isNamed "LET*") = true)), hal] at h
+  revert h
+  cases hmap : args.mapM (fun a => evalOpt N w env a) with
+  | none => intro h; exact absurd h (by simp)
+  | some vals =>
+    intro h
+    rw [hget] at h
+    replace h : (if formals.length = vals.length then
+        evalOpt N w (bindArgs formals vals) body
+      else none) = some v := h
+    by_cases hlen : formals.length = vals.length
+    case neg => rw [if_neg hlen] at h; exact absurd h (by simp)
+    rw [if_pos hlen] at h
+    refine ⟨vals, hlen, ?_, ⟨N, fun f hf =>
+      evalOpt_ge_fuel N f w _ body v h hf⟩⟩
+    intro p hp
+    exact ⟨N, fun f hf => evalOpt_ge_fuel N f w env p.1 p.2
+      (mapM_some_zip hmap p hp) hf⟩
+
+/-- TOTALITY TRANSPORT into the alias world (unary): a consumer-world
+    totality fact for an alias-free-bodied fn lifts to the alias world —
+    the consumer hypothesis is probed at the QUOTED value, its step
+    inverted, the body crossed by Lemma A, and the call reassembled by
+    `conv_defcall`. -/
+theorem total_fnalias_transport (names : List Symbol) (w w' : World)
+    (hagree : ∀ s : Symbol, names.contains s = false →
+      w'.defs.get? s = w.defs.get? s)
+    (hw : aliasFreeWorld names w = true)
+    (fn x : Symbol) (body : SExpr)
+    (hq : fn.isNamed "QUOTE" = false) (hif : fn.isNamed "IF" = false)
+    (hlet : (fn.isNamed "LET" || fn.isNamed "LET*") = false)
+    (hget : w.defs.get? fn = some ([x], body))
+    (hfnFree : names.contains fn = false)
+    (hbodyFree : fnFreeTerm names body = true)
+    (htot : ∀ (env : Env) (a : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env a = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env
+        (.cons (.atom (.symbol fn)) (.cons a .nil)) = some v) :
+    ∀ (env : Env) (a : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w' env a = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w' env
+        (.cons (.atom (.symbol fn)) (.cons a .nil)) = some v := by
+  intro env a ⟨Na, va, ha⟩
+  -- probe the consumer fact at the QUOTED value
+  have hquote : ∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "QUOTE" })) (.cons va .nil))
+      = some u := by
+    refine ⟨1, va, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    rfl
+  obtain ⟨Nc, v, hc⟩ := htot env _ hquote
+  -- invert the converging call's step
+  obtain ⟨vals, hlen, hzip, hbody⟩ := defcall_body_inversion w env fn
+    (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons va .nil)) .nil)
+    [.cons (.atom (.symbol { name := "QUOTE" })) (.cons va .nil)]
+    [x] body v hq hif hlet (by simp [SExpr.toList?]) hget ⟨Nc, hc⟩
+  -- the single bound value IS va (quote determinism)
+  obtain ⟨u, rfl⟩ : ∃ u, vals = [u] := by
+    match vals, hlen with
+    | [u], _ => exact ⟨u, rfl⟩
+  have huv : u = va := by
+    have hq1 : ∃ N, ∀ f ≥ N, evalOpt f w env
+        (.cons (.atom (.symbol { name := "QUOTE" })) (.cons va .nil))
+        = some u := by
+      have := hzip (.cons (.atom (.symbol { name := "QUOTE" }))
+        (.cons va .nil), u) (by simp [List.zip_cons_cons])
+      exact this
+    have hq2 : ∃ N, ∀ f ≥ N, evalOpt f w env
+        (.cons (.atom (.symbol { name := "QUOTE" })) (.cons va .nil))
+        = some va := ⟨1, fun f hf => by
+          obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+          rfl⟩
+    exact conv_unique hq1 hq2
+  subst huv
+  -- cross the body evaluation by A, reassemble at the alias world
+  obtain ⟨Nb, hb⟩ := hbody
+  have hb' : ∀ f ≥ Nb, evalOpt f w' (bindArgs [x] [u]) body = some v :=
+    fun f hf => by
+      rw [evalOpt_fnfree_agree names w w' hagree hw f _ body hbodyFree]
+      exact hb f hf
+  obtain ⟨N', h'⟩ := conv_defcall w' env fn (.cons a .nil) [a] [u] [x]
+    body v hq hif hlet (by simp [SExpr.toList?])
+    (by rw [hagree fn hfnFree]; exact hget) (by simp) (by simp)
+    (by
+      intro p hp
+      have : p = (a, u) := by simpa [List.zip_cons_cons] using hp
+      subst this
+      exact ⟨Na, ha⟩)
+    ⟨Nb, hb'⟩
+  exact ⟨N', v, h'⟩
+
 end ACL2.Replay
