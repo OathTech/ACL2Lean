@@ -5,7 +5,26 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-08-08 (Phase 2 equisort: items a-e ALL landed; exit assessment pending)._
+_Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
+
+> **PHASE 3 — LIVE STATE (branch mdd/phase3-r7b, charter
+> docs/plans/2026-08-08_phase3-r7b-charter.md, ratified at goal-set
+> 2026-08-08; deferral log docs/notes/2026-08-08_phase3-deferral-log.md).**
+> Standing queue: (1) non-vacuity instantiation of the two parametric
+> constants at the equisort canonical world (audit O6); (2) the FI
+> :USE-HINT arm (emitted :LMI-LST/:CONSTRAINT-CL composition, route
+> a1 pre-ratified); (3) MSORT-IS-ISORT; (4) QSORT-IS-ISORT;
+> (5) BSORT-IS-ISORT (rides bsort's 6 red frontiers — partial OK);
+> (6) touched-if-relevant Phase 2 audit deferrals; (1b, ADDED
+> 2026-08-08) witness-TP `dis_*` hand lemmas (tp:SORTFN1-INSERT class)
+> + registry-composed constraint-premise discharge — narrows D1's
+> residual. Exit = every item DONE or DEFERRED (log entry) + full gate
+> + exit report. STATUS: (1) PARTIAL — AtCanonical constants landed
+> kernel-checked via the new `instantiate_parametric%` (name-guided,
+> defeq-checked dispatch to existing provers; generic `totals`
+> registered-discharger route consuming dis_pce_total/dis_how_many_tp;
+> keep-on-frontier for rule:/use: per D6); residual = deferral-log D1.
+> Now: item (2), the FI :USE-HINT arm.
 
 > **PHASE 2 — LIVE STATE (branch mdd/phase2-equisort, charter
 > docs/plans/2026-08-07_phase2-equisort-charter.md, goal running).**

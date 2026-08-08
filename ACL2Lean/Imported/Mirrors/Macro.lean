@@ -238,4 +238,195 @@ elab "parametric_replayed%" devId:ident nm:str
       [{", ".intercalate conds}]"
     Meta.mkLambdaFVars #[env] proof
 
+/-- `instantiate_parametric% const dev world "thm-name" [deps […]]` — the
+    R7b "apply at a model" move at the CANONICAL world (Phase 3 queue
+    item 1, audit O6 non-vacuity): apply the named PARAMETRIC constant
+    at the dev's derived world and DISCHARGE every premise binder with
+    the existing provers — no new proof machinery:
+
+    - `hnoshadow_*` → `proveNoShadow` (kernel decide at the concrete world);
+    - `htotal_*`    → `buildTotalEnv` (the admission-justification provers);
+    - `htp_*`       → `proveTp`;
+    - `hrule_*`     → `dischargeRuleHyp` (re-replays the dependency's
+                      recorded tree — the constraint theorems' pass-1
+                      chains, i.e. the R6 conservativity content);
+    - `husethm_*`   → `dischargeUseHyp`.
+
+    Dispatch is NAME-GUIDED but TYPE-CHECKED: the binder name selects the
+    candidate class/key, the recomputed offer type must be `isDefEq` to
+    the binder's instantiated type (a mismatch hard-fails — the name can
+    narrow the search but never lie), and each discharge proof is checked
+    against the binder type by application. Every binder must discharge —
+    an undischargeable premise is a hard failure (non-vacuity NOT
+    established), never a kept hypothesis. Result:
+    `∀ env, EvTrue world env ⟦the theorem's formula⟧` — the telescope's
+    kernel-checked satisfiability witness AND the instantiated theorem. -/
+syntax totalsClauseIP := &" totals " "[" ident,* "]"
+
+/-- The instantiation walk: peel the premise telescope, discharging each
+    binder via `dischargeOne` (`.none` = KEEP as an explicit hypothesis —
+    the D6 discipline for frontier-blocked rule:/use: premises). Returns
+    the proof λ-abstracted over the KEPT hypotheses (innermost-scope
+    lambda), the kept binder names, and the conclusion type. -/
+private partial def ipGo (dischargeOne : String → Expr → MetaM (Option Expr))
+    (ty acc : Expr) (kept : Array Expr) (keptNames : List String) :
+    MetaM (Expr × List String × Expr) := do
+  if ty.isForall then
+    let bName := ty.bindingName!.toString (escape := false)
+    match ← dischargeOne bName ty.bindingDomain! with
+    | some pf =>
+      ipGo dischargeOne (ty.bindingBody!.instantiate1 pf) (mkApp acc pf)
+        kept keptNames
+    | none =>
+      Meta.withLocalDeclD ty.bindingName! ty.bindingDomain! fun h =>
+        ipGo dischargeOne (ty.bindingBody!.instantiate1 h) (mkApp acc h)
+          (kept.push h) (keptNames ++ [bName])
+  else
+    return (← Meta.mkLambdaFVars kept acc, keptNames, ty)
+
+elab "instantiate_parametric%" constId:ident devId:ident worldId:ident
+    nm:str deps:(depsClauseDR)? tots:(totalsClauseIP)? : term => do
+  let constName ← Lean.resolveGlobalConstNoOverload constId
+  let devName ← Lean.resolveGlobalConstNoOverload devId
+  let worldName ← Lean.resolveGlobalConstNoOverload worldId
+  let dev ← unsafe Meta.evalExpr Development (mkConst ``ACL2.Development)
+    (mkConst devName)
+  let some cp := Driver.findThm dev nm.getString
+    | throwError "instantiate_parametric%: {nm.getString} not found"
+  let mut crossTrees : List (String × ClauseProof) := []
+  let mut crossRules : List ACL2.RuleSpec := []
+  if let some d := deps then
+    for depId in (d.raw[2].getSepArgs.map (fun a => (⟨a⟩ : Ident))) do
+      let depName ← Lean.resolveGlobalConstNoOverload depId
+      let depDev ← unsafe Meta.evalExpr Development
+        (mkConst ``ACL2.Development) (mkConst depName)
+      crossTrees := crossTrees ++ ACL2.Replay.Runner.bookTrees depDev
+      crossRules := crossRules
+        ++ (ACL2.Replay.Runner.allBookRules depDev).filter
+          (fun r => !crossRules.any (fun o => o.runeKey == r.runeKey))
+  Meta.withLocalDeclD `env (mkConst ``Env) fun envV => do
+    let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
+    let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
+      (mkConst worldName) envV
+    let rules := ACL2.Replay.Runner.combineRules
+      (Driver.rulesBefore dev nm.getString) ch.crossRules
+    let ctx : ReplayCtx := {}
+    let dischargeBudget : Nat := 3000000
+    -- totality proofs for every world fn (the total: premise pool)
+    let totalEnv ← withRealMaxHeartbeats dischargeBudget <|
+      buildTotalEnv cfg dev.justifications (tpCors := ch.tps)
+    -- registered world-parametric discharger route (`totals […]`, the
+    -- hand-mirror precedent — dis_pce_total, dis_how_many_tp): apply a
+    -- listed constant at this world, peel its decidable def-pin
+    -- hypotheses by kernel decision, accept iff the result inhabits the
+    -- binder type. Generic: no per-fn logic — the per-world content is
+    -- the call site's constant list. Serves htotal_/htp_ misses alike.
+    let tryRegistered := fun (bTy : Expr) => do
+      let mut viaReg : Option Expr := none
+      if let some t := tots then
+        for dId in (t.raw[2].getSepArgs.map (fun a => (⟨a⟩ : Ident))) do
+          if viaReg.isNone then
+            let dName ← Lean.resolveGlobalConstNoOverload dId
+            try
+              let mut cand := mkApp (mkConst dName) (mkConst worldName)
+              let mut n := 0
+              while n < 24 && !(← isDefEq (← inferType cand) bTy) do
+                let cTy ← Meta.whnf (← inferType cand)
+                unless cTy.isForall do break
+                cand := mkApp cand
+                  (← proveByDecide cTy.bindingDomain!
+                    s!"discharger pin ({dName})")
+                n := n + 1
+              if ← isDefEq (← inferType cand) bTy then
+                viaReg := some cand
+            catch _ => pure ()
+      pure viaReg
+    let constE := mkConst constName
+    let ty0 ← inferType constE
+    -- the constant's first two binders are env and w — instantiate both
+    let ty ← Meta.instantiateForall ty0 #[envV, mkConst worldName]
+    let acc := mkApp2 constE envV (mkConst worldName)
+    -- `.none` (KEEP) is returned ONLY for FRONTIER-blocked rule:/use:
+    -- discharges — the D6 discipline: the premise stays an explicit
+    -- hypothesis of the instantiated constant, reported below. Every
+    -- other failure is a hard error.
+    let dischargeOne := fun (bName : String) (bTy : Expr) =>
+        (do
+      let key := fun (pre : String) => (bName.drop pre.length).toString
+      let arg? ← withRealMaxHeartbeats dischargeBudget <| do
+        if bName.startsWith "hnoshadow_" then
+          some <$> proveNoShadow cfg { name := key "hnoshadow_" }
+        else if bName.startsWith "htotal_" then
+          match totalEnv.find? (fun (n, _, _) => n == key "htotal_") with
+          | some (_, _, pf) => pure (some pf)
+          | none =>
+            match ← tryRegistered bTy with
+            | some pf => pure (some pf)
+            | none => throwError "instantiate_parametric%: no totality \
+                proof for {key "htotal_"} (buildTotalEnv miss; no listed \
+                `totals` discharger matched)"
+        else if bName.startsWith "htp_" then
+          let fn := key "htp_"
+          match ch.tps.lookup fn with
+          | some cor =>
+            try some <$> proveTp cfg totalEnv dev.justifications fn cor
+            catch e =>
+              match ← tryRegistered bTy with
+              | some pf => pure (some pf)
+              | none => throw e
+          | none => throwError "instantiate_parametric%: no emitted TP \
+              corollary for {fn}"
+        else if bName.startsWith "hrule_" then
+          -- strip the positional disambiguation suffix (_NN) if present
+          let raw := key "hrule_"
+          let base := match (raw.splitOn "_") with
+            | parts@(_ :: _ :: _) =>
+              if (parts.getLast!).all Char.isDigit then
+                String.intercalate "_" (parts.dropLast) else raw
+            | _ => raw
+          let cands := rules.filter (·.name == base)
+          if cands.isEmpty then
+            throwError "instantiate_parametric%: no stored rule named \
+              {base} in scope"
+          let mut found : Option (Option Expr) := none
+          for spec in cands do
+            if found.isNone then
+              if ← isDefEq (← mkRuleHypType cfg spec) bTy then
+                found := some (← (some <$> dischargeRuleHyp cfg ctx spec
+                    ch.depProofs []) <|> pure none)
+          match found with
+          | some pf? => pure pf?
+          | none => throwError "instantiate_parametric%: no stored rule \
+              named {base} matches binder {bName}'s type (offer drift)"
+        else if bName.startsWith "husethm_" then
+          let n := key "husethm_"
+          match (ch.depProofs.lookup n).bind (·.root) with
+          | some root =>
+            match root.inputClause with
+            | [f] =>
+              let spec : UseSpec := { name := n, formula := f }
+              unless ← isDefEq (← mkUseHypType cfg spec) bTy do
+                throwError "instantiate_parametric%: use:{n} type mismatch"
+              (some <$> dischargeUseHyp cfg ctx spec ch.depProofs [])
+                <|> pure none
+            | _ => throwError "instantiate_parametric%: use:{n} dep Goal \
+                is not single-literal"
+          | none => throwError "instantiate_parametric%: no dependency \
+              tree for use:{n}"
+        else
+          throwError "instantiate_parametric%: unrecognized premise \
+            binder {bName} (class outside the instantiation's provers — \
+            investigate or defer, never skip)"
+      -- a produced proof must inhabit the binder type exactly
+      if let some arg := arg? then
+        unless ← isDefEq (← inferType arg) bTy do
+          throwError "instantiate_parametric%: discharge for {bName} does \
+            not inhabit the binder type"
+      pure arg? : MetaM (Option Expr))
+    let (pf, keptNames, concl) ← ipGo dischargeOne ty acc #[] []
+    logInfo m!"instantiate_parametric% {constName} @ {worldName}: \
+      conclusion {concl}; KEPT premises: \
+      [{", ".intercalate keptNames}] (empty = full non-vacuity witness)"
+    Meta.mkLambdaFVars #[envV] pf
+
 end ACL2.Imported.Mirrors
