@@ -117,8 +117,39 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > crossDevs: depPayload (Tests/Coverage/Harness) already parses dep
 > devs — extend its return + runBook params + the callback
 > construction at the coverage call sites; then sweep + golden
-> row-review + gate. REMAINING for 2c after W4: nothing (rows' usefi:
-> conds flip discharged). Prior pin (superseded detail kept below): (i) refactor instantiate_parametric%s premise-dispatch core into a reusable MetaM function taking the parametric proof Expr + offer channels; (ii) dischargeUseFiHyp in Harness: build wAlias := (consumer world).withAliases σ (σ from the specs emitted lambdas; REFLECT the concrete value), rebuild the deps parametric statement (replayProofParametric on the dep dev), discharge its premises at wAlias via (i), apply evtrue_fnalias (side conditions decide at the concrete worlds; hσdef/hagree via withAliases lemmas; hfree/hws decide on the formula; the conclusion formula == spec.formula ALREADY holds by the 2a verbatim offer check since both use the same substFnCalls); wrap ∀env; letBindFVar; (iii) wire into the usefi kept-pass; sweep + golden review + gate. LEMMA B PLAN (pinned post-A): statement —
+> row-review + gate. W4a DONE (91a2e54 — callback threaded runBook →
+> tryReplay → replayProofConditional, default none). W4b RECIPE
+> (pinned in full, 2026-08-08): mkUseFiDischarger (crossDevs) : cfg →
+> spec → proof of `∀ env', EvTrue w env' ⟦spec.formula⟧`; per spec:
+> find dep dev (findThm over crossDevs); σ := spec.subst;
+> wAliasVal := cfg.worldVal.withAliases σ (meta-side data);
+> wAliasE := mkAppM ``World.withAliases #[cfg.worldExpr, ⟦σ⟧] — the
+> SYNTACTIC form, so withAliases_get/_agree apply constructively AND
+> decide reduces through the consumer constant (NO addDecl needed);
+> withLocalDeclD env': (1) parametric proof := replayProofParametric
+> (dep cfg with envExpr := env'); (2) premises at wAlias via
+> instantiateParametricAt (worldVal := wAliasVal, worldExpr :=
+> wAliasE, extraJusts := consumer justs) EXTENDED with (a) a
+> ruleBridge fallback for constraint rules — consumer-side
+> dischargeRuleHyp on the SUBSTITUTED spec + the W3 lifts
+> (fuelEq_fnalias_lift_const / _lift with a totality-derived rhs
+> convergence; hyp-carrying rules cross their hyps by
+> evtrue_fnfree_agree_iff) — and (b) ALIAS-WRAPPER TOTALITY: the
+> total:SSORTFN1-at-wAlias premise needs a new small lemma
+> `conv_defcall` (hdef + args-conv + body-conv-under-bindArgs → app
+> conv; the B''-non-alias reassembly as a standalone) composed with
+> the inner fn's totality — buildTotalEnv has no justification for
+> alias wrappers; (3) evtrue_fnalias (side conditions by decide on
+> the CONCRETE values; hσdef/hagree via withAliases_get/_agree +
+> (σ.map ·.1).Nodup decide); spec.formula == substFnCalls σ Φdep
+> holds as VALUES by the 2a offer check, so the reflected conclusion
+> matches syntactically; (4) mkForallFVars [env'] + isDefEq-check
+> against mkUseHypType's shape (∀ env', EvTrue w env' ⟦formula⟧ —
+> read verbatim at Waterfall:181). THEN: coverage call sites build
+> the callback (depPayload already parses dep devs — extend its
+> return + pass crossDevs); sweep flips the two capstones' usefi:
+> conds to discharged; golden row-review; gate. REMAINING for 2c
+> after W4: nothing. Prior pin (superseded detail kept below): (i) refactor instantiate_parametric%s premise-dispatch core into a reusable MetaM function taking the parametric proof Expr + offer channels; (ii) dischargeUseFiHyp in Harness: build wAlias := (consumer world).withAliases σ (σ from the specs emitted lambdas; REFLECT the concrete value), rebuild the deps parametric statement (replayProofParametric on the dep dev), discharge its premises at wAlias via (i), apply evtrue_fnalias (side conditions decide at the concrete worlds; hσdef/hagree via withAliases lemmas; hfree/hws decide on the formula; the conclusion formula == spec.formula ALREADY holds by the 2a verbatim offer check since both use the same substFnCalls); wrap ∀env; letBindFVar; (iii) wire into the usefi kept-pass; sweep + golden review + gate. LEMMA B PLAN (pinned post-A): statement —
 > ∀ F env t v, evalOpt F w' env t = some v → ∃N ∀f≥N, evalOpt f w env
 > (substFnCalls σ t) = some v; strong induction on F; NO condition on
 > t needed for fn-freedom (dead substFnCalls fallthroughs are excluded
