@@ -807,4 +807,53 @@ theorem withAliases_get (w : World) :
       rw [defMap_get?_insert, if_neg (by simp [hne])]
       exact withAliases_get w rest (List.nodup_cons.mp hnd).2 e hmem
 
+/-! ## B″ prerequisites: simple alias arguments
+
+The CONVERSE transport (consumer-world truths lifted INTO the alias
+world) is false in general — a diverging alias-call argument that the
+alias body ignores lets the image converge while the original's step
+(which evaluates every argument) diverges.  The premise formulas only
+ever apply constrained fns to VARIABLES (`(ORDEREDP (SSORTFN1 X))`),
+so a decidable shape condition covers the use. -/
+
+/-- A term is a trivially-converging argument: a variable atom or a
+    quoted constant. -/
+def simpleArg : SExpr → Bool
+  | .atom _ => true
+  | .nil => true
+  | .cons (.atom (.symbol q)) (.cons _ .nil) => q.name == "QUOTE"
+  | _ => false
+
+/-- Argument-spine shape check for an alias call. -/
+def spineAllSimple : SExpr → Bool
+  | .cons a d => simpleArg a && spineAllSimple d
+  | .nil => true
+  | _ => false
+
+mutual
+
+/-- Every ALIAS application in the term has only `simpleArg` arguments
+    (QUOTE bodies are data; the lambda binder position is skipped as in
+    `substFnCalls`). -/
+def aliasArgsSimple (names : List Symbol) : SExpr → Bool
+  | .cons (.atom (.symbol fs)) args =>
+    if fs.name == "QUOTE" then true
+    else if names.contains fs then
+      spineAllSimple args
+    else aliasArgsSpine names args
+  | .cons (.cons (.atom (.symbol lam))
+      (.cons _formalsE (.cons lamBody .nil))) argsExpr =>
+    if lam.isNamed "LAMBDA" then
+      aliasArgsSimple names lamBody && aliasArgsSpine names argsExpr
+    else false
+  | .cons a b => aliasArgsSimple names a && aliasArgsSpine names b
+  | _ => true
+
+/-- Spine twin. -/
+def aliasArgsSpine (names : List Symbol) : SExpr → Bool
+  | .cons a d => aliasArgsSimple names a && aliasArgsSpine names d
+  | _ => true
+
+end
+
 end ACL2.Replay
