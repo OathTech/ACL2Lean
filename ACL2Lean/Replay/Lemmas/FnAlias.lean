@@ -917,4 +917,486 @@ theorem simpleArg_conv (σ : List (Symbol × List Symbol × SExpr))
     show evalOptStep (evalOpt g) w env _ = some u
     simp only [evalOptStep_cons_symbol, if_pos (show q.isNamed "QUOTE" = true from hq)]
 
+/-- `spineAllSimple` spines are proper and their elements simple. -/
+theorem spineAllSimple_toList? :
+    ∀ {argsE : SExpr}, spineAllSimple argsE = true →
+      ∃ args, argsE.toList? = some args ∧ ∀ a ∈ args, simpleArg a = true
+  | .nil, _ => ⟨[], rfl, by simp⟩
+  | .atom _, h => by simp [spineAllSimple] at h
+  | .cons a d, h => by
+    simp only [spineAllSimple, Bool.and_eq_true] at h
+    obtain ⟨args, hd, hall⟩ := spineAllSimple_toList? h.2
+    refine ⟨a :: args, ?_, ?_⟩
+    · simp [SExpr.toList?, hd]
+    · intro x hx
+      rcases List.mem_cons.mp hx with rfl | hm
+      · exact h.1
+      · exact hall x hm
+
+/-- Simple arguments all converge (to SOME value list) at fuel ≥ 1. -/
+theorem simpleArgs_vals (w : World) (env : Env) :
+    ∀ (args : List SExpr), (∀ a ∈ args, simpleArg a = true) →
+      ∃ vals, args.length = vals.length ∧
+        ∀ p ∈ args.zip vals, ∀ f ≥ 1, evalOpt f w env p.1 = some p.2
+  | [], _ => ⟨[], rfl, by simp⟩
+  | a :: rest, hall => by
+    obtain ⟨vals, hlen, hz⟩ := simpleArgs_vals w env rest
+      (fun x hx => hall x (List.mem_cons_of_mem _ hx))
+    obtain ⟨-, va, hva⟩ := simpleArg_conv [] w env a
+      (hall a (List.mem_cons_self ..))
+    refine ⟨va :: vals, by simp [hlen], ?_⟩
+    intro p hp
+    rcases List.mem_cons.mp (by simpa [List.zip_cons_cons] using hp)
+      with rfl | hm
+    · exact hva
+    · exact hz p hm
+
+/-- LEMMA B″ — the CONVERSE (β-contraction) transport: a converging
+    evaluation of the `substFnCalls` IMAGE lifts back to the original
+    term over the same (alias) world.  This is the direction that lets
+    CONSUMER-world truths about the instances discharge the parametric
+    premises at the alias world.  Side conditions: `WellScoped t` (as
+    in B′) and `aliasArgsSimple` — every alias application's arguments
+    are variables or quoted constants (a diverging ignored argument
+    would falsify the converse; the premise formulas are always of this
+    shape). -/
+theorem evalOpt_fncontract_transport
+    (σ : List (Symbol × List Symbol × SExpr)) (w' : World)
+    (hσdef : ∀ e ∈ σ, w'.defs.get? e.1 = some (e.2.1, e.2.2))
+    (hσns : ∀ e ∈ σ, (e.1.isNamed "QUOTE" || e.1.isNamed "IF" ||
+      e.1.isNamed "LET" || e.1.isNamed "LET*" ||
+      e.1.isNamed "LAMBDA") = false)
+    (hσws : ∀ e ∈ σ, WellScoped e.2.2 = true)
+    (hσcl : ∀ e ∈ σ, (freeVars e.2.2).all (fun x => e.2.1.contains x) = true) :
+    ∀ (F : Nat) (env : Env) (t : SExpr) (v : SExpr),
+      WellScoped t = true →
+      aliasArgsSimple (σ.map (·.1)) t = true →
+      evalOpt F w' env (substFnCalls σ t) = some v →
+      ∃ N, ∀ f ≥ N, evalOpt f w' env t = some v
+  | 0, _, _, _, _, _, h => by simp [evalOpt] at h
+  | F + 1, env, t, v, hws, hsimp, h => by
+    have IH := evalOpt_fncontract_transport σ w' hσdef hσns hσws hσcl F
+    match t with
+    | .nil | .atom (.number _) | .atom (.string _)
+    | .atom (.keyword _) | .atom (.char _) | .atom (.symbol _) =>
+      exact ⟨1, fun f hf => by
+        obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+        exact h⟩
+    | .cons (.cons (.atom (.symbol lam))
+        (.cons formalsE (.cons lamBody .nil))) argsExpr =>
+      obtain ⟨hlam, ⟨lformals, hform, hclosed⟩, hbws, hspineWs⟩ :=
+        WellScoped_lam_parts hws
+      simp only [aliasArgsSimple, hlam, if_true, Bool.and_eq_true] at hsimp
+      -- the image (the binder-preserving lambda arm)
+      rw [show substFnCalls σ (.cons (.cons (.atom (.symbol lam))
+            (.cons formalsE (.cons lamBody .nil))) argsExpr)
+          = .cons (.cons (.atom (.symbol lam))
+              (.cons formalsE (.cons (substFnCalls σ lamBody) .nil)))
+              (substFnList σ argsExpr) from rfl] at h
+      rw [show evalOpt (F+1) w' env (.cons (.cons (.atom (.symbol lam))
+            (.cons formalsE (.cons (substFnCalls σ lamBody) .nil)))
+            (substFnList σ argsExpr))
+          = evalOptStep (evalOpt F) w' env _ from rfl] at h
+      simp only [evalOptStep_cons_lam, hlam, if_true, hform] at h
+      revert h
+      match hal : argsExpr.toList? with
+      | none =>
+        rw [show (substFnList σ argsExpr).toList?
+            = (argsExpr.toList?).map (List.map (substFnCalls σ))
+          from substFnList_toList? σ argsExpr, hal]
+        simp only [Option.map_none]
+        intro h; exact absurd h (by simp)
+      | some args =>
+        rw [show (substFnList σ argsExpr).toList?
+            = (argsExpr.toList?).map (List.map (substFnCalls σ))
+          from substFnList_toList? σ argsExpr, hal]
+        simp only [Option.map_some]
+        try dsimp only []
+        intro h
+        cases hmap : (args.map (substFnCalls σ)).mapM
+            (fun a => evalOpt F w' env a) with
+        | none => rw [hmap] at h; exact absurd h (by simp)
+        | some argVals =>
+          rw [hmap] at h
+          by_cases hlen : lformals.length = argVals.length
+          case neg =>
+            rw [show ((some argVals >>= fun argVals =>
+              if lformals.length = argVals.length then
+                evalOpt F w' (bindArgsOver env lformals argVals)
+                  (substFnCalls σ lamBody)
+              else none) : Option SExpr)
+              = if lformals.length = argVals.length then
+                evalOpt F w' (bindArgsOver env lformals argVals)
+                  (substFnCalls σ lamBody)
+              else none from rfl, if_neg hlen] at h
+            exact absurd h (by simp)
+          case pos =>
+            rw [show ((some argVals >>= fun argVals =>
+              if lformals.length = argVals.length then
+                evalOpt F w' (bindArgsOver env lformals argVals)
+                  (substFnCalls σ lamBody)
+              else none) : Option SExpr)
+              = if lformals.length = argVals.length then
+                evalOpt F w' (bindArgsOver env lformals argVals)
+                  (substFnCalls σ lamBody)
+              else none from rfl, if_pos hlen] at h
+            have hlenA : args.length = argVals.length := by
+              have := mapM_some_length
+                (f := fun a => evalOpt F w' env a) hmap
+              simpa using this
+            have hconv : ∀ p ∈ args.zip argVals,
+                ∃ N, ∀ f ≥ N, evalOpt f w' env p.1 = some p.2 := by
+              intro ⟨a, u⟩ hp
+              have hpz : (substFnCalls σ a, u)
+                  ∈ (args.map (substFnCalls σ)).zip argVals := by
+                rw [List.zip_map_left]
+                exact List.mem_map_of_mem hp
+              exact IH env a u
+                (WellScoped_of_mem_spine hal hspineWs a
+                  (List.of_mem_zip hp).1)
+                (aliasArgs_of_mem_spine hsimp.2 hal a
+                  (List.of_mem_zip hp).1)
+                (mapM_some_zip hmap _ hpz)
+            have hbody : ∃ N, ∀ f ≥ N, evalOpt f w'
+                (bindArgsOver env lformals argVals) lamBody = some v :=
+              IH (bindArgsOver env lformals argVals) lamBody v hbws
+                hsimp.1 h
+            exact conv_lam w' env lam formalsE lamBody argsExpr lformals
+              args argVals v hlam hform hal hlenA hlen hconv hbody
+    | .cons (.atom (.number _)) _ | .cons (.atom (.string _)) _
+    | .cons (.atom (.keyword _)) _ | .cons (.atom (.char _)) _
+    | .cons .nil _ => exact absurd h (by
+        simp [evalOpt, evalOptStep, substFnCalls, substFnList])
+    | .cons (.cons .nil _) _ | .cons (.cons (.atom (.number _)) _) _
+    | .cons (.cons (.atom (.string _)) _) _
+    | .cons (.cons (.atom (.keyword _)) _) _
+    | .cons (.cons (.atom (.char _)) _) _
+    | .cons (.cons (.cons _ _) _) _ => exact absurd hws (by simp [WellScoped])
+    | .cons (.cons (.atom (.symbol lam)) .nil) _
+    | .cons (.cons (.atom (.symbol lam)) (.atom _)) _
+    | .cons (.cons (.atom (.symbol lam)) (.cons _ .nil)) _
+    | .cons (.cons (.atom (.symbol lam)) (.cons _ (.atom _))) _
+    | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ (.cons _ _)))) _
+    | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ (.atom _)))) _ =>
+      exact absurd hws (by simp [WellScoped])
+    | .cons (.atom (.symbol s)) argsExpr =>
+      by_cases hq : s.isNamed "QUOTE" = true
+      case pos =>
+        -- the guard leaves the image = t: h is already about t
+        rw [show substFnCalls σ (.cons (.atom (.symbol s)) argsExpr)
+            = .cons (.atom (.symbol s)) argsExpr from by
+          rw [substFnCalls, if_pos (show (s.name == "QUOTE") = true from hq)]]
+          at h
+        exact ⟨F + 1, fun f hf =>
+          evalOpt_ge_fuel (F + 1) f w' env _ v h hf⟩
+      case neg =>
+      have hqf : s.isNamed "QUOTE" = false := Bool.eq_false_iff.mpr hq
+      obtain ⟨hlet, hlam2, hspineWs⟩ := WellScoped_sym_parts hws hqf
+      have hqname : ¬((s.name == "QUOTE") = true) := by
+        simpa [Symbol.isNamed] using hq
+      cases hcont : (σ.map (·.1)).contains s with
+      | true =>
+        -- ALIAS call: the args are simple; β-contract via the substN
+        -- bridge run backward
+        have hfound : ∃ e ∈ σ, (e.1 == s) = true := by
+          rcases List.contains_iff_exists_mem_beq.mp hcont
+            with ⟨n, hn, hb⟩
+          rcases List.mem_map.mp hn with ⟨e, he, rfl⟩
+          exact ⟨e, he, by rw [← eq_of_beq hb]; simp⟩
+        have hσfs : (σ.find? (fun e => e.1 == s)).isSome := by
+          rcases hfound with ⟨e, he, hb⟩
+          exact List.find?_isSome.mpr ⟨e, he, hb⟩
+        match hσf : σ.find? (fun e => e.1 == s) with
+        | none => rw [hσf] at hσfs; simp at hσfs
+        | some (fn, formals, body) =>
+        have hmem := List.mem_of_find?_eq_some hσf
+        have hfs : fn = s := eq_of_beq (by
+          have := List.find?_some hσf; simpa using this)
+        subst hfs
+        have hsimp' : spineAllSimple argsExpr = true := by
+          simp only [aliasArgsSimple, if_neg hqname, hcont, if_pos] at hsimp
+          exact hsimp
+        obtain ⟨args, hal, hallSimple⟩ := spineAllSimple_toList? hsimp'
+        -- per-arg trivial convergence + substFn-invariance
+        have hargsId : args.map (substFnCalls σ) = args :=
+          (List.map_congr_left fun a ha =>
+            (simpleArg_conv σ w' env a (hallSimple a ha)).1).trans
+            (List.map_id args)
+        obtain ⟨vals, hlenAV, hzconv⟩ :=
+          simpleArgs_vals w' env args hallSimple
+        have hifF : ¬(fn.isNamed "IF" = true) := by
+          have := hσns _ hmem
+          simp only [Bool.or_eq_true] at this
+          intro hx
+          exact absurd this (by simp [hx])
+        -- reduce the image through the alias arm
+        have hspine' : (substFnList σ argsExpr).toList? = some args := by
+          rw [substFnList_toList?, hal]
+          simpa using hargsId
+        by_cases hlen : formals.length = args.length
+        case pos =>
+          have hid : substFnCalls σ (.cons (.atom (.symbol fn)) argsExpr)
+              = substTerm formals args body := by
+            rw [substFnCalls, if_neg hqname]
+            dsimp only []
+            rw [hσf, hspine']
+            dsimp only []
+            rw [if_pos (by simp [hlen])]
+          rw [hid] at h
+          have hlenFV : formals.length = vals.length := by omega
+          have hconvE : ∀ p ∈ args.zip vals,
+              ∃ N, ∀ f ≥ N, evalOpt f w' env p.1 = some p.2 :=
+            fun p hp => ⟨1, hzconv p hp⟩
+          obtain ⟨Ns, hsub⟩ := evalOpt_substTerm_substN w' env formals
+            args vals body (hσws _ hmem) hlenAV hconvE
+          have hcl : ∀ x ∈ freeVars body, x ∈ formals := by
+            intro x hx
+            have := List.all_eq_true.mp (hσcl _ hmem) x hx
+            simpa [List.contains_iff_exists_mem_beq] using this
+          have henvbr : ∀ n, evalOpt n w'
+              (bindArgsOver env formals vals) body
+              = evalOpt n w' (bindArgs formals vals) body := by
+            intro n
+            refine evalOpt_freevar_congr w' n _ _ body (hσws _ hmem)
+              (fun x hx => ?_)
+            show evalOptStep _ _ _ _ = evalOptStep _ _ _ _
+            simp only [evalOptStep]
+            rw [bindArgs_eq_bindArgsOver_empty formals vals,
+              bindArgsOver_get_of_mem x formals vals hlenFV (hcl x hx)
+                env ∅]
+          obtain ⟨Nm, hm⟩ := mapM_conv_of_zip w' env args vals hlenAV
+            hconvE
+          refine ⟨max (max Ns (F + 1)) Nm + 1, fun f hf => ?_⟩
+          obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+          show evalOptStep (evalOpt g) w' env _ = some v
+          simp only [evalOptStep_cons_symbol, if_neg hq, if_neg hifF,
+            if_neg (by simp [Bool.or_eq_true] at hlet ⊢; exact hlet :
+              ¬((fn.isNamed "LET" || fn.isNamed "LET*") = true)), hal]
+          try dsimp only []
+          rw [hm g (by omega), hσdef _ hmem]
+          have hbody : evalOpt g w' (bindArgs formals vals) body
+              = some v := by
+            rw [← henvbr g, ← hsub g (by omega)]
+            exact evalOpt_ge_fuel (F + 1) g w' env _ v h (by omega)
+          have hfin : (if formals.length = vals.length then
+              evalOpt g w' (bindArgs formals vals) body
+            else none) = some v := by
+            rw [if_pos hlenFV]; exact hbody
+          exact hfin
+        case neg =>
+          -- arity mismatch: the image is the REBUILT application, whose
+          -- step's own length check refutes the convergence hypothesis
+          have hid : substFnCalls σ (.cons (.atom (.symbol fn)) argsExpr)
+              = .cons (.atom (.symbol fn)) (substFnList σ argsExpr) := by
+            rw [substFnCalls, if_neg hqname]
+            dsimp only []
+            rw [hσf, hspine']
+            dsimp only []
+            rw [if_neg (by simpa using hlen)]
+          rw [hid, show evalOpt (F+1) w' env (.cons (.atom (.symbol fn))
+              (substFnList σ argsExpr))
+            = evalOptStep (evalOpt F) w' env _ from rfl] at h
+          simp only [evalOptStep_cons_symbol, if_neg hq, if_neg hifF,
+            if_neg (by simp [Bool.or_eq_true] at hlet ⊢; exact hlet :
+              ¬((fn.isNamed "LET" || fn.isNamed "LET*") = true)),
+            hspine'] at h
+          revert h
+          cases hmapF : args.mapM (fun a => evalOpt F w' env a) with
+          | none => intro h; exact absurd h (by simp [hmapF])
+          | some rvals =>
+            intro h
+            have : args.length = rvals.length :=
+              mapM_some_length (f := fun a => evalOpt F w' env a) hmapF
+            rw [hσdef _ hmem] at h
+            replace h : (if formals.length = rvals.length then
+                evalOpt F w' (bindArgs formals rvals) body
+              else none) = some v := h
+            rw [if_neg (by omega)] at h
+            exact absurd h (by simp)
+      | false =>
+        -- non-alias: bodies untouched; mirror of B′'s general arm
+        have hsimp' : aliasArgsSpine (σ.map (·.1)) argsExpr = true := by
+          simp only [aliasArgsSimple, if_neg hqname, hcont] at hsimp
+          simpa using hsimp
+        have hσf : σ.find? (fun e => e.1 == s) = none := by
+          rw [List.find?_eq_none]
+          intro e he hbeq
+          have : (σ.map (·.1)).contains s = true := by
+            rw [List.contains_iff_exists_mem_beq]
+            exact ⟨e.1, List.mem_map_of_mem he, by
+              rw [eq_of_beq hbeq]; simp⟩
+          rw [hcont] at this; exact absurd this (by simp)
+        have hid : substFnCalls σ (.cons (.atom (.symbol s)) argsExpr)
+            = .cons (.atom (.symbol s)) (substFnList σ argsExpr) := by
+          rw [substFnCalls, if_neg hqname]
+          dsimp only []
+          rw [hσf]
+        rw [hid, show evalOpt (F+1) w' env (.cons (.atom (.symbol s))
+            (substFnList σ argsExpr))
+          = evalOptStep (evalOpt F) w' env _ from rfl] at h
+        by_cases hif : s.isNamed "IF" = true
+        case pos =>
+          simp only [evalOptStep_cons_symbol, if_neg hq, if_pos hif] at h
+          revert h
+          match hal : argsExpr.toList? with
+          | some [c, tt, e] =>
+            rw [show (substFnList σ argsExpr).toList?
+                = (argsExpr.toList?).map (List.map (substFnCalls σ))
+              from substFnList_toList? σ argsExpr, hal]
+            simp only [Option.map_some, List.map_cons, List.map_nil]
+            try dsimp only []
+            intro h
+            have hels := WellScoped_of_mem_spine hal hspineWs
+            have hsimps := aliasArgs_of_mem_spine hsimp' hal
+            cases hc : evalOpt F w' env (substFnCalls σ c) with
+            | none => rw [hc] at h; exact absurd h (by simp)
+            | some cv =>
+              rw [hc] at h
+              replace h : (if Logic.toBool cv then
+                  evalOpt F w' env (substFnCalls σ tt)
+                else evalOpt F w' env (substFnCalls σ e)) = some v := h
+              obtain ⟨Nc, hcC⟩ := IH env c cv (hels c (by simp))
+                (hsimps c (by simp)) hc
+              cases htb : Logic.toBool cv with
+              | true =>
+                rw [if_pos htb] at h
+                obtain ⟨Nt, htC⟩ := IH env tt v (hels tt (by simp))
+                  (hsimps tt (by simp)) h
+                refine ⟨max Nc Nt + 1, fun f hf => ?_⟩
+                obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                show evalOptStep (evalOpt g) w' env _ = some v
+                simp only [evalOptStep_cons_symbol, if_neg hq,
+                  if_pos hif, hal]
+                rw [hcC g (by omega)]
+                have hbr : (if Logic.toBool cv then
+                    evalOpt g w' env tt
+                  else evalOpt g w' env e) = some v := by
+                  rw [if_pos htb]
+                  exact htC g (by omega)
+                exact hbr
+              | false =>
+                rw [if_neg (by rw [htb]; simp)] at h
+                obtain ⟨Ne, heC⟩ := IH env e v (hels e (by simp))
+                  (hsimps e (by simp)) h
+                refine ⟨max Nc Ne + 1, fun f hf => ?_⟩
+                obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                show evalOptStep (evalOpt g) w' env _ = some v
+                simp only [evalOptStep_cons_symbol, if_neg hq,
+                  if_pos hif, hal]
+                rw [hcC g (by omega)]
+                have hbr : (if Logic.toBool cv then
+                    evalOpt g w' env tt
+                  else evalOpt g w' env e) = some v := by
+                  rw [if_neg (by rw [htb]; simp)]
+                  exact heC g (by omega)
+                exact hbr
+          | some [] =>
+            rw [show (substFnList σ argsExpr).toList?
+                = (argsExpr.toList?).map (List.map (substFnCalls σ))
+              from substFnList_toList? σ argsExpr, hal]
+            intro h; exact absurd h (by simp)
+          | some [_] =>
+            rw [show (substFnList σ argsExpr).toList?
+                = (argsExpr.toList?).map (List.map (substFnCalls σ))
+              from substFnList_toList? σ argsExpr, hal]
+            intro h; exact absurd h (by simp)
+          | some [_, _] =>
+            rw [show (substFnList σ argsExpr).toList?
+                = (argsExpr.toList?).map (List.map (substFnCalls σ))
+              from substFnList_toList? σ argsExpr, hal]
+            intro h; exact absurd h (by simp)
+          | some (_ :: _ :: _ :: _ :: _) =>
+            rw [show (substFnList σ argsExpr).toList?
+                = (argsExpr.toList?).map (List.map (substFnCalls σ))
+              from substFnList_toList? σ argsExpr, hal]
+            intro h; exact absurd h (by simp)
+          | none =>
+            rw [show (substFnList σ argsExpr).toList?
+                = (argsExpr.toList?).map (List.map (substFnCalls σ))
+              from substFnList_toList? σ argsExpr, hal]
+            intro h; exact absurd h (by simp)
+        case neg =>
+          simp only [evalOptStep_cons_symbol, if_neg hq, if_neg hif,
+            if_neg (by simp [Bool.or_eq_true] at hlet ⊢; exact hlet :
+              ¬((s.isNamed "LET" || s.isNamed "LET*") = true))] at h
+          revert h
+          match hal : argsExpr.toList? with
+          | none =>
+            rw [show (substFnList σ argsExpr).toList?
+                = (argsExpr.toList?).map (List.map (substFnCalls σ))
+              from substFnList_toList? σ argsExpr, hal]
+            intro h; exact absurd h (by simp)
+          | some args =>
+            rw [show (substFnList σ argsExpr).toList?
+                = (argsExpr.toList?).map (List.map (substFnCalls σ))
+              from substFnList_toList? σ argsExpr, hal]
+            simp only [Option.map_some]
+            try dsimp only []
+            intro h
+            have hels := WellScoped_of_mem_spine hal hspineWs
+            have hsimps := aliasArgs_of_mem_spine hsimp' hal
+            cases hmap : (args.map (substFnCalls σ)).mapM
+                (fun a => evalOpt F w' env a) with
+            | none => rw [hmap] at h; exact absurd h (by simp)
+            | some argVals =>
+              rw [hmap] at h
+              have hlenAV : args.length = argVals.length := by
+                have := mapM_some_length
+                  (f := fun a => evalOpt F w' env a) hmap
+                simpa using this
+              have hconvT : ∀ p ∈ args.zip argVals,
+                  ∃ N, ∀ f ≥ N, evalOpt f w' env p.1 = some p.2 := by
+                intro ⟨a, u⟩ hp
+                have hpz : (substFnCalls σ a, u)
+                    ∈ (args.map (substFnCalls σ)).zip argVals := by
+                  rw [List.zip_map_left]
+                  exact List.mem_map_of_mem hp
+                exact IH env a u
+                  (hels a (List.of_mem_zip hp).1)
+                  (hsimps a (List.of_mem_zip hp).1)
+                  (mapM_some_zip hmap _ hpz)
+              obtain ⟨Nm, hm⟩ := mapM_conv_of_zip w' env args argVals
+                hlenAV hconvT
+              replace h : (match w'.defs.get? s with
+                | some (formals, body) =>
+                  if formals.length = argVals.length then
+                    evalOpt F w' (bindArgs formals argVals) body
+                  else none
+                | none => callBuiltin s.name argVals) = some v := h
+              match hget : w'.defs.get? s with
+              | some (formals, body) =>
+                rw [hget] at h
+                replace h : (if formals.length = argVals.length then
+                    evalOpt F w' (bindArgs formals argVals) body
+                  else none) = some v := h
+                by_cases hlen : formals.length = argVals.length
+                case neg => rw [if_neg hlen] at h; exact absurd h (by simp)
+                rw [if_pos hlen] at h
+                refine ⟨max Nm F + 1, fun f hf => ?_⟩
+                obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                show evalOptStep (evalOpt g) w' env _ = some v
+                simp only [evalOptStep_cons_symbol, if_neg hq, if_neg hif,
+                  if_neg (by simp [Bool.or_eq_true] at hlet ⊢; exact hlet :
+                    ¬((s.isNamed "LET" || s.isNamed "LET*") = true)), hal]
+                try dsimp only []
+                rw [hm g (by omega), hget]
+                have hfin : (if formals.length = argVals.length then
+                    evalOpt g w' (bindArgs formals argVals) body
+                  else none) = some v := by
+                  rw [if_pos hlen]
+                  exact evalOpt_ge_fuel F g w' _ body v h (by omega)
+                exact hfin
+              | none =>
+                rw [hget] at h
+                replace h : callBuiltin s.name argVals = some v := h
+                refine ⟨Nm + 1, fun f hf => ?_⟩
+                obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+                show evalOptStep (evalOpt g) w' env _ = some v
+                simp only [evalOptStep_cons_symbol, if_neg hq, if_neg hif,
+                  if_neg (by simp [Bool.or_eq_true] at hlet ⊢; exact hlet :
+                    ¬((s.isNamed "LET" || s.isNamed "LET*") = true)), hal]
+                try dsimp only []
+                rw [hm g (by omega), hget]
+                exact h
+
 end ACL2.Replay
