@@ -322,10 +322,19 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       (mkConst ``ACL2.World) envV
     let ch := ACL2.Replay.Runner.bookChannels depDev depCrossTrees
       depCrossRules
+    -- DEMAND-FILTER the rebuild's rule offers to the tree's cited
+    -- runes (the replayAdmission precedent): the full corpus
+    -- accumulation is thousands of offers, and withLocalDecls spends
+    -- one native stack frame PER BINDER — stacked on the consuming
+    -- row's own telescope frames this overflowed the lake worker
+    -- thread (the in-sweep SIGABRT; the CLI's larger main-thread
+    -- stack is why the isolation probe survived).
+    let cited := ACL2.Replay.Runner.citedRuneNames cp
+    let rebuildRules := (ACL2.Replay.Runner.combineRules
+      (Driver.rulesBefore depDev spec.name) ch.crossRules).filter
+      (fun r => cited.contains r.name)
     let (pfParam, _pconds) ← Driver.replayProofParametric cfgDep sigFns
-      ch.tps cp depDev.justifications
-      (ACL2.Replay.Runner.combineRules
-        (Driver.rulesBefore depDev spec.name) ch.crossRules)
+      ch.tps cp depDev.justifications rebuildRules
       ch.depProofs (equivRefls := ch.equivRefls)
       (congTrees := some ch.localTrees)
     -- (2) premises at the alias world via the shared engine

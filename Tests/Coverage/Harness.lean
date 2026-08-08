@@ -153,7 +153,10 @@ elab "coverage_book% " nameLit:str : command => do
       --     ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
       --       [``ACL2.Worlds.Sorting.dis_pce_total,
       --        ``ACL2.Worlds.Sorting.dis_how_many_tp] dev cfg ctx spec)
-      (usefiDischarge := none)
+      (usefiDischarge := some (fun dev cfg ctx spec =>
+        ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
+          [``ACL2.Worlds.Sorting.dis_pce_total,
+           ``ACL2.Worlds.Sorting.dis_how_many_tp] dev cfg ctx spec))
     let t1 ← IO.monoMsNow
     unless r.integrityFails.isEmpty do
       throwError "coverage_book% {name}: integrity failures \

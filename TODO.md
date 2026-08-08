@@ -10,7 +10,24 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > Per-node lemma decomposition as the eventual default emission shape +
 > fragment-local certified checkers per L1; D2 is its tactical first
 > step. Detailed design open for ratification (questions at the note's
-> end).
+> end). D2 ROOT CAUSE (2026-08-08, trace-confirmed): NOT term depth —
+> BINDER-COUNT live frames: withLocalDecls.loop spends one native
+> frame per telescope binder, the row's corpus-wide offer list is
+> thousands of binders whose frames stay LIVE through every discharge
+> pass, and lake worker threads have smaller stacks than the CLI
+> (why the probe survived). Demand-filtering the rebuild's offers
+> (landed, replayAdmission precedent) was necessary but insufficient.
+> D2-a — THE FIX (the ReplayedTermination pre-pass pattern): build
+> the usefi constants BEFORE the row replay at the COVERAGE layer
+> (coverage_book% pre-scans the parsed log for FI citations and calls
+> a new prepareUseFi in ParametricInstantiate — no runBook changes;
+> the coverage elaborator's stack is shallow): declare FRESH fvars
+> replicating the consumer-hyp surfaces the discharge consults
+> (totalHyps/ruleHyps/useHyps offer shapes), run the existing
+> composition against them, λ-abstract them into the declared
+> constant (Π-params). The row-time discharger = cache lookup +
+> per-param row-fvar match by type-isDefEq + application (cheap,
+> shallow). Then enable, sweep, golden row-review, gate.
 
 _Last updated: 2026-08-08 (Phase 3 R7b: EARLY EXIT declared — exit report docs/notes/2026-08-08_phase3-exit-report.md; exit gate TRUE_EXIT=0; branch mdd/phase3-r7b is the merge candidate)._
 
