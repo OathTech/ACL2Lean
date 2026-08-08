@@ -169,4 +169,45 @@ theorem conv_defcall (w : World) (env : Env) (s : Symbol)
     exact hb g (by omega)
   exact hfin
 
+/-- Unary alias-WRAPPER totality: a fn defined as `(fn x) := (g x)` is
+    total when `g` is (both statements in the driver\'s offered totality
+    shape `∀ env a, conv a → conv (fn a)` with `∃N ∃v ∀f`-packed
+    convergence). -/
+theorem wrapper_total_1 (w : World) (fn g x : Symbol)
+    (hdef : w.defs.get? fn = some ([x],
+      .cons (.atom (.symbol g)) (.cons (.atom (.symbol x)) .nil)))
+    (hq : fn.isNamed "QUOTE" = false) (hif : fn.isNamed "IF" = false)
+    (hlet : (fn.isNamed "LET" || fn.isNamed "LET*") = false)
+    (hg : ∀ (env : Env) (a : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env a = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env
+        (.cons (.atom (.symbol g)) (.cons a .nil)) = some v)) :
+    ∀ (env : Env) (a : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env a = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env
+        (.cons (.atom (.symbol fn)) (.cons a .nil)) = some v := by
+  intro env a ⟨Na, va, ha⟩
+  have hx : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [x] [va])
+      (.atom (.symbol x)) = some v := by
+    refine ⟨1, va, fun f hf => ?_⟩
+    obtain ⟨gg, rfl⟩ : ∃ gg, f = gg + 1 := ⟨f - 1, by omega⟩
+    show evalOptStep (evalOpt gg) w _ _ = some va
+    simp only [evalOptStep]
+    have : (bindArgs [x] [va]).get? x = some va := by
+      show ((bindArgs [] []).insert x va).get? x = some va
+      rw [Env.get?_insert]
+      simp
+    rw [this]
+  obtain ⟨Ng, vg, hgv⟩ := hg (bindArgs [x] [va]) (.atom (.symbol x)) hx
+  obtain ⟨N', h'⟩ := conv_defcall w env fn (.cons a .nil) [a] [va] [x]
+    (.cons (.atom (.symbol g)) (.cons (.atom (.symbol x)) .nil)) vg
+    hq hif hlet (by simp [SExpr.toList?]) hdef (by simp) (by simp)
+    (by
+      intro p hp
+      have : p = (a, va) := by simpa [List.zip_cons_cons] using hp
+      subst this
+      exact ⟨Na, ha⟩)
+    ⟨Ng, hgv⟩
+  exact ⟨N', vg, h'⟩
+
 end ACL2.Replay

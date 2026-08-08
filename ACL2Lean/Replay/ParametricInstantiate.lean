@@ -30,6 +30,17 @@ partial def ipGo (dischargeOne : String → Expr → MetaM (Option Expr))
   else
     return (← Meta.mkLambdaFVars kept acc, keptNames, ty)
 
+/-- WORLD-SCALE kernel decision: check the `Decidable` proposition by
+    COMPILED evaluation (fast, no deep symbolic reduction on the
+    elaborator's stack — the W4c overflow), then emit `mkDecideProof`,
+    verified by the kernel's own reducer at declaration. -/
+def proveByDecideKernel (p : Expr) (what : String) : MetaM Expr := do
+  let b ← unsafe Lean.Meta.evalExpr Bool (mkConst ``Bool)
+    (← Lean.Meta.mkAppM ``Decidable.decide #[p])
+  unless b do
+    throwError "proveByDecideKernel: {what} evaluated FALSE"
+  Lean.Meta.mkDecideProof p
+
 /-- The REUSABLE instantiation core (Phase 3 2c wiring): apply a
     parametric proof at an arbitrary WORLD (value + reflected Expr) and
     discharge its premise telescope with the existing provers — the
@@ -86,9 +97,56 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
         | none =>
           match ← tryRegistered bTy with
           | some pf => pure (some pf)
-          | none => throwError "instantiate_parametric%: no totality \
-              proof for {key "htotal_"} (buildTotalEnv miss; no listed \
-              `totals` discharger matched)"
+          | none =>
+            -- ALIAS-WRAPPER route (W4d): `(fn x) := (g x)` is total
+            -- because g is — wrapper_total_1 over g's pool proof
+            let fnSym : Symbol := { name := key "htotal_" }
+            match worldVal.defs.get? fnSym with
+            | some ([x], .cons (.atom (.symbol g))
+                (.cons (.atom (.symbol x')) .nil)) =>
+              if x' == x then
+                match totalEnv.find? (fun (n, _, _) => n == g.name) with
+                | some (_, _, hgPf) => do
+                  let body : SExpr := .cons (.atom (.symbol g))
+                    (.cons (.atom (.symbol x)) .nil)
+                  let hdefTy ← mkEq
+                    (← mkAppM ``ACL2.DefMap.get?
+                      #[← mkAppM ``ACL2.World.defs #[worldExpr],
+                        Driver.reflectSymbol fnSym])
+                    (← mkAppM ``Option.some #[← mkAppM ``Prod.mk
+                      #[← mkListLit (mkConst ``ACL2.Symbol)
+                          [Driver.reflectSymbol x],
+                        Driver.reflectSExpr body]])
+                  let hdef ← proveByDecideKernel hdefTy
+                    s!"wrapper hdef {fnSym.name}"
+                  let isN := fun (n : String) =>
+                    mkAppM ``ACL2.Symbol.isNamed
+                      #[Driver.reflectSymbol fnSym, Lean.mkStrLit n]
+                  let hq ← Driver.proveByDecide
+                    (← mkEq (← isN "QUOTE") (mkConst ``Bool.false))
+                    s!"wrapper hq {fnSym.name}"
+                  let hif ← Driver.proveByDecide
+                    (← mkEq (← isN "IF") (mkConst ``Bool.false))
+                    s!"wrapper hif {fnSym.name}"
+                  let hlet ← Driver.proveByDecide
+                    (← mkEq (← mkAppM ``HOr.hOr
+                      #[← isN "LET", ← isN "LET*"])
+                      (mkConst ``Bool.false))
+                    s!"wrapper hlet {fnSym.name}"
+                  let pf ← mkAppM ``ACL2.Replay.wrapper_total_1
+                    #[worldExpr, Driver.reflectSymbol fnSym,
+                      Driver.reflectSymbol g, Driver.reflectSymbol x,
+                      hdef, hq, hif, hlet, hgPf]
+                  pure (some pf)
+                | none => throwError "instantiate_parametric%: wrapper \
+                    {key "htotal_"}'s inner fn {g.name} has no pool \
+                    totality"
+              else throwError "instantiate_parametric%: {key "htotal_"} \
+                  is not a same-formal wrapper"
+            | _ => throwError "instantiate_parametric%: no totality \
+                proof for {key "htotal_"} (buildTotalEnv miss; no \
+                listed `totals` discharger matched; not a unary alias \
+                wrapper)"
       else if bName.startsWith "htp_" then
         let fn := key "htp_"
         match ch.tps.lookup fn with
@@ -253,7 +311,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       #[← mkAppM ``List.map
         #[← withLocalDeclD `e entryTy fun eV => do
             mkLambdaFVars #[eV] (← mkAppM ``Prod.fst #[eV]), σE]]
-    let nodupPf ← Driver.proveByDecide nodupTy "usefi nodup"
+    let nodupPf ← proveByDecideKernel nodupTy "usefi nodup"
     let hσdef ← do
       let pf ← mkAppM ``ACL2.Replay.withAliases_get
         #[cfg.worldExpr, σE, nodupPf]
@@ -265,7 +323,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       #[cfg.worldExpr, σE]
     let mkBoolMem (mk : Expr → MetaM Expr) : MetaM Expr := do
       let ty ← mkMemAll mk
-      Driver.proveByDecide ty "usefi σ side condition"
+      proveByDecideKernel ty "usefi σ side condition"
     let hσns ← mkBoolMem fun eV => do
       let fst ← mkAppM ``Prod.fst #[eV]
       let isN := fun (n : String) =>
@@ -288,17 +346,17 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       let inner ← withLocalDeclD `x (mkConst ``ACL2.Symbol) fun xV => do
         mkLambdaFVars #[xV] (← mkAppM ``List.contains #[sndFst, xV])
       mkEq (← mkAppM ``List.all #[fvs, inner]) (mkConst ``Bool.true)
-    let hw ← Driver.proveByDecide
+    let hw ← proveByDecideKernel
       (← mkEq (← mkAppM ``ACL2.Replay.aliasFreeWorld
         #[namesE, cfg.worldExpr]) (mkConst ``Bool.true))
       "usefi aliasFreeWorld"
-    let hws ← Driver.proveByDecide
+    let hws ← proveByDecideKernel
       (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[phiE])
         (mkConst ``Bool.true)) "usefi WellScoped Φ"
-    let hsimp ← Driver.proveByDecide
+    let hsimp ← proveByDecideKernel
       (← mkEq (← mkAppM ``ACL2.Replay.aliasArgsSimple #[namesE, phiE])
         (mkConst ``Bool.true)) "usefi aliasArgsSimple Φ"
-    let hfree ← Driver.proveByDecide
+    let hfree ← proveByDecideKernel
       (← mkEq (← mkAppM ``ACL2.Replay.fnFreeTerm
         #[namesE, ← mkAppM ``ACL2.Replay.substFnCalls #[σE, phiE]])
         (mkConst ``Bool.true)) "usefi fnFree image"
