@@ -73,7 +73,7 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > defined-fn conv composition; builtins/IF/quote/var structural.
 > Preconditions all DECIDE at the concrete alias world. NOTE
 > substFnCalls's QUOTE guard (d0f549b) is load-bearing for B.
-> LEMMA A PROVED (9fd9b87). LEMMA B PLAN (pinned post-A): statement —
+> LEMMA A PROVED (9fd9b87). LEMMA B-PRIME PROVED (see FnAlias commits): evalOpt_fnexpand_transport, zero sorries; substFnCalls gained a binder-respecting LAMBDA arm (substSafe apparatus deleted). REMAINING for 2c: the EvTrue-level composition corollary (B-prime + A), the usefi: discharge pass in Harness (rebuild dep parametric statement, instantiate at the alias world, commute), and the sweep/golden run. LEMMA B PLAN (pinned post-A): statement —
 > ∀ F env t v, evalOpt F w' env t = some v → ∃N ∀f≥N, evalOpt f w env
 > (substFnCalls σ t) = some v; strong induction on F; NO condition on
 > t needed for fn-freedom (dead substFnCalls fallthroughs are excluded
