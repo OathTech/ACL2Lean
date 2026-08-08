@@ -1,4 +1,4 @@
-import ACL2Lean.Replay.Lemmas.Core
+import ACL2Lean.Replay.Lemmas.Judgments
 
 /-! # Fn-alias commutation (Phase 3 2c — the R7b a1 route)
 
@@ -680,5 +680,35 @@ theorem evalOpt_fnexpand_transport
     | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ (.cons _ _)))) _
     | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ (.atom _)))) _ =>
       exact absurd hws (by simp [WellScoped])
+
+/-- THE R7b COMPOSITION at the `EvTrue` level: an alias-world truth
+    transports to the base world on the substituted image — B′ inside
+    the alias world, then Lemma A across (the image must be alias-free,
+    which the composition site checks by `decide`).  This is the
+    semantic content of ACL2's functional-instantiation step, made
+    kernel-checked. -/
+theorem evtrue_fnalias (σ : List (Symbol × List Symbol × SExpr))
+    (w w' : World)
+    (hσdef : ∀ e ∈ σ, w'.defs.get? e.1 = some (e.2.1, e.2.2))
+    (hσns : ∀ e ∈ σ, (e.1.isNamed "QUOTE" || e.1.isNamed "IF" ||
+      e.1.isNamed "LET" || e.1.isNamed "LET*" ||
+      e.1.isNamed "LAMBDA") = false)
+    (hσws : ∀ e ∈ σ, WellScoped e.2.2 = true)
+    (hσcl : ∀ e ∈ σ, (freeVars e.2.2).all (fun x => e.2.1.contains x) = true)
+    (hagree : ∀ s : Symbol, (σ.map (·.1)).contains s = false →
+      w'.defs.get? s = w.defs.get? s)
+    (hw : aliasFreeWorld (σ.map (·.1)) w = true)
+    (t : SExpr) (hws : WellScoped t = true)
+    (hfree : fnFreeTerm (σ.map (·.1)) (substFnCalls σ t) = true)
+    (env : Env) (h : EvTrue w' env t) :
+    EvTrue w env (substFnCalls σ t) := by
+  obtain ⟨N, hN⟩ := h
+  obtain ⟨v, hv, hne⟩ := hN N (Nat.le_refl _)
+  obtain ⟨N', h'⟩ := evalOpt_fnexpand_transport σ w' hσdef hσns hσws hσcl
+    N env t v hws hv
+  refine ⟨N', fun f hf => ⟨v, ?_, hne⟩⟩
+  rw [← evalOpt_fnfree_agree (σ.map (·.1)) w w' hagree hw f env
+    (substFnCalls σ t) hfree]
+  exact h' f hf
 
 end ACL2.Replay
