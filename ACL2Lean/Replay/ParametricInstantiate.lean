@@ -56,6 +56,10 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
     (constE : Expr) (envV : Expr)
     (extraJusts : List (String × ACL2.Justification) := [])
     (innerTotalFallback : Symbol → Expr → MetaM (Option Expr) :=
+      fun _ _ => pure none)
+    (ruleBridge : ACL2.RuleSpec → Expr → MetaM (Option Expr) :=
+      fun _ _ => pure none)
+    (useBridge : UseSpec → Expr → MetaM (Option Expr) :=
       fun _ _ => pure none) :
     MetaM (Expr × List String × Expr) := do
   let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
@@ -211,14 +215,18 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
         if cands.isEmpty then
           throwError "instantiate_parametric%: no stored rule named \
             {base} in scope"
-        let mut found : Option (Option Expr) := none
+        let mut found : Option (Option Expr × ACL2.RuleSpec) := none
         for spec in cands do
           if found.isNone then
             if ← isDefEq (← mkRuleHypType cfg spec) bTy then
               found := some (← (some <$> dischargeRuleHyp cfg ctx spec
-                  ch.depProofs []) <|> pure none)
+                  ch.depProofs []) <|> pure none, spec)
         match found with
-        | some pf? => pure pf?
+        | some (some pf, _) => pure (some pf)
+        | some (none, spec) =>
+          -- W4f: the consumer-side bridge (alias-free fvar crossing /
+          -- substituted-rule discharge + lift)
+          ruleBridge spec bTy
         | none => throwError "instantiate_parametric%: no stored rule \
             named {base} matches binder {bName}'s type (offer drift)"
       else if bName.startsWith "husethm_" then
@@ -230,8 +238,10 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
             let spec : UseSpec := { name := n, formula := f }
             unless ← isDefEq (← mkUseHypType cfg spec) bTy do
               throwError "instantiate_parametric%: use:{n} type mismatch"
-            (some <$> dischargeUseHyp cfg ctx spec ch.depProofs [])
-              <|> pure none
+            match ← (some <$> dischargeUseHyp cfg ctx spec
+                ch.depProofs []) <|> pure none with
+            | some pf => pure (some pf)
+            | none => useBridge spec bTy
           | _ => throwError "instantiate_parametric%: use:{n} dep Goal \
               is not single-literal"
         | none => throwError "instantiate_parametric%: no dependency \
@@ -279,7 +289,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     (totsNames : List Name := []) :
     Development → ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr :=
     fun consumerDev cfg ctx spec => do
-    let _ := consumerDev  -- consumed by the W4f bridging (next increment)
+  let _ := consumerDev  -- consumed by the W4f bridging (next increment)
   let some (_, depDev) := crossDevs.find? (fun (_, d) =>
       (Driver.findThm d spec.name).isSome)
     | Driver.throwFrontier m!"usefi discharge: no dep dev carries \
