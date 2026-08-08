@@ -55,7 +55,18 @@ _Last updated: 2026-08-08 (Phase 2 equisort: items a-e ALL landed; exit assessme
 > witness-dereference error (R6 item 5). Catalog entries updated to
 > .replayedOnly naming the constants. NodeCore re-slice: Ctx's tail →
 > Compose.lean (move-only; Ctx had regrown past its baseline).
-> REMAINING: exit assessment + merge proposal.
+> EXIT ASSESSMENT (3ae3f8e, gate TRUE_EXIT=0): the charter criterion
+> is MET — 14/14 + 2/2 rows green; the L3 world-parametric statements
+> exist for exactly the class the R6 design requires them for (the
+> post-encapsulate capstones — design item 5: the constraint theorems
+> need no parametric form, they ARE ScopeHolds' components). The
+> constants quantify over all implementations: sig existence/totality
+> rides the total:SORTFN1/total:SORTFN2 premises, the constraints ride
+> the rule: premises; the telescope is WIDER than bare ScopeHolds
+> (pre-scope rule/total/tp + builtin no-shadow premises kept
+> undischarged) — the honest conditional form; Phase 3 (R7b)
+> discharges them at concrete worlds. AWAITING: merge sign-off
+> (mdd/phase2-equisort → main).
 
 > **CAPSTONE-DEMO ARC — LIVE STATE (branch mdd/capstone-demo-arc,
 > HEAD b611dfd).** Phase 0 DONE (ff70eb2). Phase 1: the 8-item fork
