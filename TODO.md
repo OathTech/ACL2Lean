@@ -72,7 +72,30 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > case: body untouched by substFn (aliasFreeWorld) + the existing
 > defined-fn conv composition; builtins/IF/quote/var structural.
 > Preconditions all DECIDE at the concrete alias world. NOTE
-> substFnCalls's QUOTE guard (d0f549b) is load-bearing for B. (iii) the usefi: discharge pass in Harness (keyed
+> substFnCalls's QUOTE guard (d0f549b) is load-bearing for B.
+> LEMMA A PROVED (9fd9b87). LEMMA B PLAN (pinned post-A): statement —
+> ∀ F env t v, evalOpt F w' env t = some v → ∃N ∀f≥N, evalOpt f w env
+> (substFnCalls σ t) = some v; strong induction on F; NO condition on
+> t needed for fn-freedom (dead substFnCalls fallthroughs are excluded
+> by the converging hypothesis) BUT add decidable side conditions:
+> σ names not special forms (QUOTE/IF/LET/LET*), alias bodies
+> fnFree+WellScoped+CLOSED (free vars ⊆ formals), letFree t +
+> letFreeWorld w (new quote-skipping predicates — the LET/LET* arm is
+> then unreachable and closes by contradiction; translated artifacts
+> are always let-free, decide-checked at composition). Case plan:
+> atoms/quote direct (⟨1, fuel-arith⟩); IF via conv_if_true/false
+> (exist); ALIAS CALL: hdef + step's own length check → IH(args) +
+> LEMMA A on the body + evalOpt_substTerm_substN + a
+> bindArgs-vs-bindArgsOver closed-body env-agreement lemma (find in
+> the totality module or write); NON-ALIAS defined fn: hagree + hw +
+> IH(args) + Lemma A on body + a defined-fn application conv assembly
+> (find near the totality prover); BUILTIN: IH(args) + the Core.lean
+> :1881 mapM-convergence helper + hand assembly; LAMBDA app: subst
+> descends generically, IH(args) + IH(body at bindArgsOver) + the
+> lam-beta conv lemma (Core.lean ~:1879). Fuel-lifting via the evalOpt
+> monotonicity lemma (find exact name). hagree/hfresh at composition
+> come from DefMap.insert get? lemmas (w' is built by insert), NOT
+> decide-over-all-symbols. (iii) the usefi: discharge pass in Harness (keyed
 > like the use: pass): per kept usefi spec, rebuild the dep's
 > PARAMETRIC statement (replayProofParametric on the dep dev — or
 > import the registered constant when same-module), instantiate at
