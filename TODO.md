@@ -87,12 +87,10 @@ _Last updated: 2026-08-08 (Phase 2 equisort: items a-e ALL landed; exit assessme
 > equisort canonical world and discharging all premises — this IS
 > Phase 3 (R7b)'s first work item; until it lands the constants are
 > honest conditionals with no exhibited model (nothing in-repo claims
-> otherwise). (2) CHARTER RECONCILIATION (inside F4, user decision):
-> the Phase 2 charter's binding constraint says "toWorld EXCLUDES
-> .witnessDefun" but the MDD-ratified R6 design (2026-08-02, older!)
-> and the landed code make toWorld the CANONICAL MODEL including
-> witness bodies — the charter was drafted from a stale reading;
-> needs an explicit user note, not a silent doc edit. (3) GZ
+> otherwise). (2) CHARTER RECONCILIATION: RESOLVED
+> 2026-08-08 — Mike ratified the dated addendum now at the bottom of
+> the charter (mechanism sentence superseded by the older ratified R6
+> design; the intent clause binds and is pin-enforced). (3) GZ
 > AGREEMENT-LEMMA GAP (outside F13): builtin-named ground-zero defuns
 > (IMPLIES, IFF, LEXORDER, NATP, POSP, EQL) have no kernel-checked
 > agreement lemma vs their Logic.* builtins (TRUE-LISTP etc. do —

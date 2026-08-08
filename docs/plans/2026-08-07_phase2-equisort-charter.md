@@ -49,3 +49,26 @@ change to the ratified statement-derivation path or trusted core
 (TCB-adjacent — always a user decision); (d) signs of churn or
 per-case accretion (the drift tests override completion pressure);
 (e) soundness or correctness concerns of any kind.
+
+---
+
+## Addendum — constraint §1's mechanism sentence superseded (ratified by Mike, 2026-08-08)
+
+The first binding constraint above names the pre-R6 enforcement
+mechanism ("`Development.toWorld` excludes `.witnessDefun` (explicit
+arm)"). That sentence was drafted from the code as it stood at charter
+time and is SUPERSEDED by the R6 encapsulate design this charter itself
+cites as its input (docs/notes/2026-08-02_r6-encapsulate-design.md,
+ratified 2026-08-02 — five days before this charter): `toWorld` is the
+CANONICAL MODEL (witness bodies included, provenance-tagged), and
+BUG-019's protection lives at the statement layer instead —
+post-encapsulate theorems get the parametric `∀ w` form (witness
+vocabulary and definition-pins excluded there, mechanically pinned by
+`Tests/ParametricPins.lean`) plus the witness-dereference hard-fail.
+
+The constraint's INTENT clause — constrained fns are world parameters;
+the statements quantify over all implementations satisfying the emitted
+`:CONSTRAINTS` — binds unchanged and is what Phase 2 enforced.
+Canonical-model rows for post-encapsulate theorems are
+conservativity/scoreboard artifacts only (`.replayedOnly` per the
+catalog doctrine); the parametric constants are the first-class import.
