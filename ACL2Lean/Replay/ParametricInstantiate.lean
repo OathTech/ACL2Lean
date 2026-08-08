@@ -494,8 +494,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
                       (mkConst ``Bool.true)) "bridge fnFree rhs",
                     erV, hAtW]
                 mkForallFVars #[erV] pfc
-            if ← isDefEq (← inferType pf) bTy then pure (some pf)
-            else pure none
+            pure (some (← Lean.Meta.mkExpectedTypeHint pf bTy))
           else pure none
         | none => pure none
       else
@@ -574,8 +573,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
                     ← mkFnFreePf rspec.rhs "bridge fnFree rhs",
                     erV, hAtW, hconv]
             let pf ← mkForallFVars #[erV] pfc
-            if ← isDefEq (← inferType pf) bTy then pure (some pf)
-            else pure none
+            pure (some (← Lean.Meta.mkExpectedTypeHint pf bTy))
     let useBridge := fun (uspec : UseSpec) (bTy : Expr) => do
       -- alias-free cited theorem: discharge at the consumer world,
       -- cross by the EvTrue iff
@@ -595,8 +593,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
             Driver.reflectSExpr uspec.formula, hfree]
         let pfc ← mkAppM ``Iff.mpr #[iff, hAtW]
         let pf ← mkForallFVars #[erV] pfc
-        if ← isDefEq (← inferType pf) bTy then pure (some pf)
-        else pure none
+        pure (some (← Lean.Meta.mkExpectedTypeHint pf bTy))
     let (pfAtAlias, kept, _concl) ← instantiateParametricAt depDev
       wAliasVal wAliasE spec.name depCrossTrees depCrossRules totsNames
       pfParamEnv envV (extraJusts := cfg.justs)
@@ -605,6 +602,38 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     unless kept.isEmpty do
       Driver.throwFrontier m!"usefi discharge: premises KEPT at the \
         alias world (bridging pending): [{", ".intercalate kept}]"
+    -- DECLARE the alias-world proof as a constant NOW, at SINGLE
+    -- parametric depth (the scale the sweep's own registrations already
+    -- handle) — composing it inline doubled the term depth past every
+    -- recursive Expr walk downstream (the W4f SIGABRTs). Free vars
+    -- (envV + consumer-telescope hypotheses) are abstracted and
+    -- re-applied.
+    let pfA ← Lean.instantiateMVars pfAtAlias
+    let fvIdsA ← Lean.Meta.sortFVarIds
+      ((Lean.collectFVars {} pfA).fvarSet.toList.toArray)
+    let fvExprsA := fvIdsA.map Lean.mkFVar
+    let pfAClosed ← mkLambdaFVars fvExprsA pfA
+    let keyA := (cfg.worldExpr.constName?.map (·.toString)).getD "anon"
+      ++ "_atAlias_" ++ spec.name
+      ++ "_" ++ String.intercalate "_" (names.map (·.name))
+    let cNameA := Lean.Name.mkStr2 "UsefiDischarged"
+      (String.map (fun c => if c.isAlphanum then c else '_') keyA)
+    let pfAtAlias ← do
+      if (← Lean.getEnv).contains cNameA then
+        pure (mkAppN (mkConst cNameA) fvExprsA)
+      else do
+        let phi0 ← match cp.root with
+          | some r => match r.inputClause with
+            | [f] => pure f
+            | _ => Driver.throwFrontier m!"usefi: multi-literal Goal"
+          | none => Driver.throwFrontier m!"usefi: no tree"
+        let tyA ← mkForallFVars fvExprsA
+          (mkAppN (mkConst ``ACL2.Replay.EvTrue)
+            #[wAliasE, envV, Driver.reflectSExpr phi0])
+        Lean.addDecl <| .thmDecl
+          { name := cNameA, levelParams := [], type := tyA,
+            value := pfAClosed }
+        pure (mkAppN (mkConst cNameA) fvExprsA)
     -- (3) cross to the consumer world
     let some root := cp.root
       | Driver.throwFrontier m!"usefi discharge: {spec.name} has no tree"
@@ -627,9 +656,9 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
         hw, phiE, hws, hsimp, hfree, envV, pfAtAlias]
     let target := mkAppN (mkConst ``ACL2.Replay.EvTrue)
       #[cfg.worldExpr, envV, Driver.reflectSExpr spec.formula]
-    unless ← isDefEq (← inferType pfCross) target do
-      Driver.throwFrontier m!"usefi discharge: crossed conclusion does \
-        not match the emitted instance (substFnCalls image drift)"
+    -- NO elaborator-side type gate on the giant term (each inferType
+    -- walk is a stack overflow at this depth) — the kernel verifies
+    -- the whole value against the CONSTRUCTED type at addDecl below
     let pfAll ← mkForallFVars #[envV]
       (← Lean.Meta.mkExpectedTypeHint pfCross target)
     -- DECLARE the discharged hypothesis as a CONSTANT (the D1 pattern):
@@ -649,6 +678,8 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       ((Lean.collectFVars {} pfC).fvarSet.toList.toArray)
     let fvExprs := fvIds.map Lean.mkFVar
     let pfClosed ← mkLambdaFVars fvExprs pfC
+    let declTy ← mkForallFVars fvExprs
+      (← mkForallFVars #[envV] target)
     let key := (cfg.worldExpr.constName?.map (·.toString)).getD "anon"
       ++ "_" ++ spec.name
       ++ "_" ++ String.intercalate "_" (names.map (·.name))
@@ -659,7 +690,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     else do
       Lean.addDecl <| .thmDecl
         { name := cName, levelParams := [],
-          type := ← Lean.Meta.inferType pfClosed, value := pfClosed }
+          type := declTy, value := pfClosed }
       pure (mkAppN (mkConst cName) fvExprs)
 
 end ACL2.Imported.Mirrors
