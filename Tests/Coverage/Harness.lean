@@ -142,13 +142,18 @@ elab "coverage_book% " nameLit:str : command => do
     let t0 ← IO.monoMsNow
     let (r, _, _) ← runBook name content
       (crossTreesByBook := crossTreesByBook) (crossRules := crossRules)
-      -- R7b 2c W4f: the usefi discharge composition (parametric rebuild
-      -- at the alias world + consumer-side premise bridging + the
-      -- FnAlias transports); frontier failures keep the hypothesis.
-      (usefiDischarge := some (fun dev cfg ctx spec =>
-        ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
-          [``ACL2.Worlds.Sorting.dis_pce_total,
-           ``ACL2.Worlds.Sorting.dis_how_many_tp] dev cfg ctx spec))
+      -- R7b 2c W4f: the usefi discharge composition is FULLY BUILT and
+      -- WIRED but DISABLED — in-sweep runs SIGABRT on term depth
+      -- despite the kernel-route decides, the constant-declaration
+      -- pattern, and hint-only gates (three remediations, all
+      -- committed); the remaining debugging campaign (trace-symbol
+      -- profiling + composition bisection) is the Phase 3 close-out's
+      -- top continuation item. Enable by swapping none for:
+      --   some (fun dev cfg ctx spec =>
+      --     ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
+      --       [``ACL2.Worlds.Sorting.dis_pce_total,
+      --        ``ACL2.Worlds.Sorting.dis_how_many_tp] dev cfg ctx spec)
+      (usefiDischarge := none)
     let t1 ← IO.monoMsNow
     unless r.integrityFails.isEmpty do
       throwError "coverage_book% {name}: integrity failures \

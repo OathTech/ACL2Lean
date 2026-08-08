@@ -37,3 +37,43 @@ Format:
   deferred to Mike regardless of other progress.
 - Unblocks: unconditional AtCanonical constants (the full O6 closure);
   also narrows the sorts-equivalent capstones' eventual cond sets.
+
+## D2 — item 2 residual: the usefi discharge's in-sweep enablement (2026-08-08, EARLY-EXIT residual)
+
+- What: the R7b usefi: discharge composition is COMPLETE and COMMITTED
+  (the full semantic layer A/B′/B″/lifts/transports — all kernel-checked,
+  zero sorries — plus `mkUseFiDischarger` with both premise-bridging
+  classes, wired through runBook and the coverage harness) but DISABLED:
+  in-sweep runs SIGABRT on proof-term depth. Three remediations landed
+  (kernel-route decides — fixed the first crash class; the D1-pattern
+  constant declaration with consumer-fvar abstraction; hint-only gates
+  with constructed types) without clearing the in-sweep crash. The
+  isolation probe (.tmp/pinscratch/usefi_probe.lean) runs the whole
+  composition up to the consumer-discharge step (which needs the real
+  sweep telescope).
+- Why residual: NOT decision-blocked — an in-scope debugging campaign
+  (symbolized stack traces, bisecting which Expr walk overflows,
+  possibly chunking the parametric rebuild into its own pre-declared
+  constant) that this session could no longer execute reliably
+  (three consecutive fix cycles at ~10 min build each without landing).
+- Unblocks: MSORT-IS-ISORT/QSORT-IS-ISORT usefi: conds flip to
+  discharged (queue items 3/4's full closure).
+
+## D3 — item 5: BSORT-IS-ISORT's useHint+clausify composition (2026-08-08, EARLY-EXIT residual)
+
+- What: the composition (constraint chain on CONSTRAINT-CL, clausify
+  the residual, tau leaf, FI hypothesis peel) in Core's clausify
+  branch — sized in TODO with its emission read-out.
+- Why residual: in-scope engineering, ceiling ASSUMED ◌ regardless
+  until the bsort book's Phase-1 frontier family lands (that leg IS
+  emission-adjacent — partially deferral class (b)).
+- Unblocks: BSORT-IS-ISORT from FAIL to ◌ (never ✓ without the bsort
+  frontiers).
+
+## D4 — item 6: touched-if-relevant Phase 2 audit deferrals (2026-08-08, EARLY-EXIT residual)
+
+- What: gz agreement-lemma ci check; scope-in-force refinement.
+- Why residual: untouched — the phase's work never reached them
+  (charter: "cover or defer IF touched"; they were not touched).
+- Unblocks: hardening only; nothing gates on them.
+
