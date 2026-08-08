@@ -245,7 +245,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
     (termReplayed : List (String × Name × List String × List SExpr) := [])
     (crossTrees : List (String × ClauseProof) := [])
     (crossRules : List ACL2.RuleSpec := [])
-    (usefiDischarge : Option (ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr) := none) :
+    (usefiDischarge : Option (Development → ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr) := none) :
     TermElabM (String × Option (List String)) := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -274,7 +274,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
           ch.depProofs mirrors
           (equivRefls := ch.equivRefls) termReplayed
           (congTrees := some ch.localTrees)
-          (usefiDischarge := usefiDischarge.map (· cfg))
+          (usefiDischarge := usefiDischarge.map (fun mk => mk dev cfg))
         return (← Meta.mkLambdaFVars #[envFV] prf, conds)
       Meta.check p.1
       -- ✓ must mean AXIOM-CLEAN, not just type-correct: Meta.check accepts
@@ -417,7 +417,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
     -- (layering: it needs ParametricInstantiate, which sits above this
     -- module) and applied at each theorem's config; none = usefi conds
     -- stay kept verbatim (all pre-2c behavior).
-    (usefiDischarge : Option (ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr) := none) :
+    (usefiDischarge : Option (Development → ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr) := none) :
     TermElabM (BookResult × List (String × ClauseProof)
       × List ACL2.RuleSpec) := do
   let mut res : BookResult := {}

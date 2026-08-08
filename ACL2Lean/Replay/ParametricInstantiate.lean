@@ -277,8 +277,9 @@ def reflectSubst (σ : List (Symbol × List Symbol × SExpr)) :
     D6); the bridging extensions close them incrementally. -/
 def mkUseFiDischarger (crossDevs : List (String × Development))
     (totsNames : List Name := []) :
-    ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr :=
-    fun cfg ctx spec => do
+    Development → ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr :=
+    fun consumerDev cfg ctx spec => do
+    let _ := consumerDev  -- consumed by the W4f bridging (next increment)
   let some (_, depDev) := crossDevs.find? (fun (_, d) =>
       (Driver.findThm d spec.name).isSome)
     | Driver.throwFrontier m!"usefi discharge: no dep dev carries \
