@@ -71,7 +71,9 @@ ParametricInstantiate, which let one broken intermediate commit
 
 ## Continuation (in priority order)
 
-1. D2: symbolized-trace the in-sweep SIGABRT; bisect which Expr walk
+1. D2 (now governed by the long-term note
+   docs/notes/2026-08-08_compositional-replay-design.md — direction
+   agreed 2026-08-08): symbolized-trace the in-sweep SIGABRT; bisect which Expr walk
    overflows; likely chunk the parametric rebuild into its own
    pre-declared constant before composition. Then enable, sweep,
    golden row-review (the two capstone rows' `usefi:` conds flip

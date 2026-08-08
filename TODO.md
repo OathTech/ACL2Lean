@@ -5,6 +5,13 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
+> **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
+> REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
+> Per-node lemma decomposition as the eventual default emission shape +
+> fragment-local certified checkers per L1; D2 is its tactical first
+> step. Detailed design open for ratification (questions at the note's
+> end).
+
 _Last updated: 2026-08-08 (Phase 3 R7b: EARLY EXIT declared — exit report docs/notes/2026-08-08_phase3-exit-report.md; exit gate TRUE_EXIT=0; branch mdd/phase3-r7b is the merge candidate)._
 
 > **PHASE 3 — LIVE STATE (branch mdd/phase3-r7b, charter
