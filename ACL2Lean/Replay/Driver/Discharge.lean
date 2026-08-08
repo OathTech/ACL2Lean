@@ -598,8 +598,41 @@ def mkDpLiftBundle (cfg : ReplayConfig) (envExpr : Expr)
     let snd ← mkAppM ``Prod.snd #[pV]
     mkLambdaFVars #[pV] (← mkValConvPropE cfg.worldExpr envExpr fst snd)
   let (opqE, hopq) ← mkForallMemProof opqPairTy opqProp opqEntries
-  -- no-shadow: one decide on the (concrete) world
-  let hns ← mkDecideProof (mkApp (mkConst ``dpNoShadow) cfg.worldExpr)
+  -- no-shadow: one decide on the (concrete) world — or, on a PARAMETRIC
+  -- replay (Phase 2 item c; the world is an abstract fvar, so `decide`
+  -- would build a kernel-rejected term), the fold of the bound per-head
+  -- no-shadow hypotheses into `dpNoShadow`'s ∀-mem form (every
+  -- `dpLiftHeads` entry is a builtin, so the table covers it; the canon
+  -- field is settled by proof irrelevance).
+  let hns ←
+    if cfg.noShadowHyps.isEmpty then
+      mkDecideProof (mkApp (mkConst ``dpNoShadow) cfg.worldExpr)
+    else do
+      let strTy := mkConst ``String
+      let P ← withLocalDeclD `n strTy fun nV => do
+        let canonTy ← mkEq
+          (mkApp2 (mkConst ``ACL2.canonSym) (mkStrLit "ACL2") nV)
+          (mkConst ``Bool.true)
+        let canonPf ← mkExpectedTypeHint
+          (← mkEqRefl (mkConst ``Bool.true)) canonTy
+        let symE := mkApp3 (mkConst ``ACL2.Symbol.mk) (mkStrLit "ACL2") nV canonPf
+        let getApp ← mkAppM ``ACL2.DefMap.get?
+          #[← mkAppM ``ACL2.World.defs #[cfg.worldExpr], symE]
+        let elemTy := (← inferType getApp).appArg!
+        mkLambdaFVars #[nV]
+          (← mkEq getApp (mkApp (mkConst ``Option.none [0]) elemTy))
+      let entries ← ACL2.Replay.dpLiftHeads.mapM fun n => do
+        let some h := cfg.noShadowHyps.find?
+            (fun (t, _) => t == ({ name := n } : Symbol))
+          | throwError "mkDpLiftBundle (parametric): no no-shadow hypothesis \
+              for DP-lift head {n} (table/registry drift)"
+        return (mkStrLit n, h.2)
+      let (_, prf) ← mkForallMemProof strTy P entries
+      let target := mkApp (mkConst ``dpNoShadow) cfg.worldExpr
+      unless ← isDefEq (← inferType prf) target do
+        throwError "mkDpLiftBundle (parametric): folded no-shadow proof does \
+          not state dpNoShadow (shape drift)"
+      mkExpectedTypeHint prf target
   return { varsE, hvars, opqE, hopq, hns }
 
 /-- Does the term contain a lambda application (a translated `let`) anywhere

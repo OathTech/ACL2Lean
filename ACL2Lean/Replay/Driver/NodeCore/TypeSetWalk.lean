@@ -4,7 +4,7 @@
   file's own def-before-use order, so the import chain IS the
   dependency order.
 -/
-import ACL2Lean.Replay.Driver.NodeCore.Ctx
+import ACL2Lean.Replay.Driver.NodeCore.Compose
 
 namespace ACL2.Replay.Driver
 

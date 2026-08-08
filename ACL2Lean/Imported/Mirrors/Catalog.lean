@@ -231,17 +231,21 @@ def liftCatalog : List (String × String × LiftStatus) := [
       lives in the parametric-statement layer + the witness-deref \
       hard-fail); coverage pin only, never a native"),
   ("sorting/equisort", "WEAK-SORTFN1-IS-SORTFN2",
-    .pending "the abstract uniqueness capstone — its FIRST-CLASS \
-      artifact is the PARAMETRIC ScopeHolds constant (Phase 2 item c, \
-      the R6 catalog doctrine): ∀ w, ScopeHolds → EvTrue, which Phase \
-      3's functional instantiation consumes; a witness-level native is \
-      the banned masquerade"),
+    .replayedOnly "the abstract uniqueness capstone — its FIRST-CLASS \
+      artifact is the PARAMETRIC constant \
+      `weakSortfn1IsSortfn2Parametric` (EquisortParametric.lean, landed \
+      Phase 2 item c per the R6 catalog doctrine): the recorded tree \
+      over an abstract w with the scope constraints as premises, which \
+      Phase 3's functional instantiation consumes; a witness-level \
+      native is the banned masquerade"),
   ("sorting/equisort", "STRONG-SSORTFN1-IS-SSORTFN2",
-    .pending "the abstract uniqueness capstone — its FIRST-CLASS \
-      artifact is the PARAMETRIC ScopeHolds constant (Phase 2 item c, \
-      the R6 catalog doctrine): ∀ w, ScopeHolds → EvTrue, which Phase \
-      3's functional instantiation consumes; a witness-level native is \
-      the banned masquerade"),
+    .replayedOnly "the abstract uniqueness capstone — its FIRST-CLASS \
+      artifact is the PARAMETRIC constant \
+      `strongSsortfn1IsSsortfn2Parametric` (EquisortParametric.lean, \
+      landed Phase 2 item c per the R6 catalog doctrine): the recorded \
+      tree over an abstract w with the scope constraints as premises, \
+      which Phase 3's functional instantiation consumes; a \
+      witness-level native is the banned masquerade"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),

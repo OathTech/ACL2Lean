@@ -405,7 +405,8 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (mirrors : ReplayedRegistry := [])
     (equivRefls : List (String × SExpr) := [])
     (termReplayed : List (String × Name × List String × List SExpr) := [])
-    (congTrees : Option (List (String × ClauseProof)) := none) :
+    (congTrees : Option (List (String × ClauseProof)) := none)
+    (discharge : Bool := true) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
   -- hypothesis declarations: totality for every defined fn, TP where
@@ -684,7 +685,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let dischargeCongs (prf0 : Expr) : MetaM Expr := do
         let mut prfC := prf0
         for (spec, hypV) in (congs.zip congVs.toList).reverse do
-          if prfC.containsFVar hypV.fvarId! then
+          if discharge && prfC.containsFVar hypV.fvarId! then
             try
               let pf ← withRealMaxHeartbeats dischargeBudget <|
                 dischargeCongHyp cfg ctx spec depProofs mirrors
@@ -698,8 +699,12 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- equivrefl:/total:/tp: fvars — all caught by the passes below. A
       -- use-discharge that would itself need a use: fvar (nested :use
       -- chains) frontiers and stays kept (honest; single pass).
+      -- PARAMETRIC mode (Phase 2 item c): `discharge := false` keeps EVERY
+      -- used hypothesis — over an abstract world the dischargers' kernel
+      -- decisions cannot run, and the kept telescope IS the parametric
+      -- statement's premise inventory (ScopeHolds' components).
       for (spec, hypV) in (useSpecs.zip useVs.toList).reverse do
-        if prfR.containsFVar hypV.fvarId! then
+        if discharge && prfR.containsFVar hypV.fvarId! then
           try
             let pf ← withRealMaxHeartbeats dischargeBudget <|
               dischargeUseHyp cfg ctx spec depProofs mirrors
@@ -713,7 +718,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- (its re-replay can consume rule:/cong:/total:/tp: fvars, all
       -- caught below). Frontier failures keep the hypothesis (D6).
       for (spec, hypV) in (equivFullSpecs.zip equivFullVs.toList).reverse do
-        if prfR.containsFVar hypV.fvarId! then
+        if discharge && prfR.containsFVar hypV.fvarId! then
           try
             let pf ← withRealMaxHeartbeats dischargeBudget <|
               dischargeEquivFullHyp cfg ctx spec depProofs mirrors
@@ -726,7 +731,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- the dependency's replay can consume rule:/cong: fvars, caught by
       -- the passes below. Frontier failures keep the hypothesis (D6).
       for (spec, hypV) in (equivSpecs.zip equivVs.toList).reverse do
-        if prfR.containsFVar hypV.fvarId! then
+        if discharge && prfR.containsFVar hypV.fvarId! then
           try
             let pf ← withRealMaxHeartbeats dischargeBudget <|
               dischargeEquivReflHyp cfg ctx spec depProofs mirrors
@@ -735,7 +740,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             unless isFrontierErr e do
               throw e
       for (spec, hypV) in (rules.zip ruleVs.toList).reverse do
-        if prfR.containsFVar hypV.fvarId! then
+        if discharge && prfR.containsFVar hypV.fvarId! then
           try
             let pf ← withRealMaxHeartbeats dischargeBudget <|
               -- a GROUND-ZERO rule has no dependency theorem to replay
@@ -769,7 +774,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         if c.startsWith "total:" then some ((c.drop "total:".length).toString) else none
       let usedTpNames := used.filterMap fun (c, _) =>
         if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
-      let neededFns := usedTotalNames ++ usedTpNames
+      let neededFns := if discharge then usedTotalNames ++ usedTpNames else []
       let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs).toList)
       let totalEnv ←
         if neededFns.isEmpty then pure []
@@ -789,7 +794,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             (termReplayed := termReplayed) (hypFVars := hypFVarsAll)
             (tpCors := tps)
       let mut prf := prf
-      for (c, v) in used do
+      for (c, v) in (if discharge then used else []) do
         if c.startsWith "total:" then
           match totalEnv.find? (fun (n, _, _) => s!"total:{n}" == c) with
           | some (_, _, pf) => prf ← letBindFVar prf v pf
@@ -819,6 +824,84 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let kept := hypFVarsAll.filter (fun (_, v) => prfF.containsFVar v.fvarId!)
       let p ← mkLambdaFVars (kept.map (·.2)).toArray prfF
       return (p, kept.map (·.1))
+
+
+/-- The PARAMETRIC replay (Phase 2 item c — the R6 scope abstraction,
+    docs/notes/2026-08-02_r6-encapsulate-design.md §3/§5): replay a recorded
+    tree over an ABSTRACT `w : World` instead of the canonical model. The
+    binder inventory is generated uniformly from the canonical model:
+
+    - a definition-pinning hypothesis `w.defs.get? fn = some (formals, body)`
+      for every canonical-model defun EXCEPT the scope's signature fns —
+      the definitional-scope ScopeHolds shape;
+    - a no-shadow hypothesis `w.defs.get? b = none` for every `builtinNames`
+      entry (the canonical model never shadows a builtin — `toWorld` skips
+      them — so these pins hold there by construction);
+    - the ordinary conditional telescope, with `discharge := false`: every
+      used hypothesis is KEPT, so the scope's constraint theorems surface as
+      `rule:` premises and the sig fns' totality/TP facts as `total:`/`tp:`
+      premises — together the constrained-scope ScopeHolds components.
+
+    A SIG fn deliberately gets NO definition pin: an unfold demand on it
+    inside the replay hard-fails (`deriveDefInfo` finds neither hypothesis
+    nor decidable world), which IS the witness-dereference guard (design
+    item 5) — a post-encapsulate tree that dereferences a witness is a
+    reconstruction bug, not a frontier. Only USED pins are bound in the
+    final statement (the used-filter discipline: an unconsumed offer must
+    not weaken the statement). Returns the proof
+    `∀ w, (pins…) → (no-shadows…) → ∀ env, (telescope…) → EvTrue w env Φ`
+    (env bound by the CALLER, as for `replayProofConditional`) and the
+    premise descriptions (`def:`/`noshadow:` + the telescope's). -/
+def replayProofParametric (cfg0 : ReplayConfig) (sigFns : List Symbol)
+    (tps : List (String × SExpr)) (cp : ClauseProof)
+    (justs : List (String × Justification) := [])
+    (rules : List RuleSpec := [])
+    (depProofs : List (String × ClauseProof) := [])
+    (equivRefls : List (String × SExpr) := [])
+    (congTrees : Option (List (String × ClauseProof)) := none) :
+    MetaM (Expr × List String) := do
+  withLocalDeclD `w (mkConst ``ACL2.World) fun wE => do
+    let mkGet := fun (s : Symbol) => do
+      mkAppM ``ACL2.DefMap.get? #[← mkAppM ``ACL2.World.defs #[wE], reflectSymbol s]
+    let pins := cfg0.worldVal.defs.entries.filter fun (s, _, _) => !sigFns.contains s
+    let pinDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      (pins.map fun (s, formals, body) =>
+        (Name.mkSimple s!"hdef_{s.name}", BinderInfo.default,
+         fun (_ : Array Expr) => do
+           -- EXACTLY the fact shape deriveDefInfo/deriveDefInfoN state (the
+           -- hypothesis is consumed verbatim as `defFact`)
+           let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
+           let someE ← mkAppM ``Option.some
+             #[← mkAppM ``Prod.mk #[formalsE, reflectSExpr body]]
+           mkEq (← mkGet s) someE)).toArray
+    let shadowSyms := ACL2.builtinNames.map fun n => ({ name := n } : Symbol)
+    let shadowDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      (shadowSyms.map fun s =>
+        (Name.mkSimple s!"hnoshadow_{s.name}", BinderInfo.default,
+         fun (_ : Array Expr) => do
+           let lookup ← mkGet s
+           let elemTy := (← inferType lookup).appArg!
+           mkEq lookup (mkApp (mkConst ``Option.none [0]) elemTy))).toArray
+    withLocalDecls pinDecls fun pinVs => do
+    withLocalDecls shadowDecls fun shadowVs => do
+      let cfg := { cfg0 with
+        worldExpr := wE,
+        defFactHyps := (pins.map (·.1)).zip pinVs.toList,
+        noShadowHyps := shadowSyms.zip shadowVs.toList }
+      let (prf, conds) ← replayProofConditional cfg tps cp justs rules
+        depProofs [] equivRefls [] (congTrees := congTrees)
+        (discharge := false)
+      let prfI ← instantiateMVars prf
+      let pinKept := (pins.zip pinVs.toList).filter
+        fun (_, v) => prfI.containsFVar v.fvarId!
+      let shadowKept := (shadowSyms.zip shadowVs.toList).filter
+        fun (_, v) => prfI.containsFVar v.fvarId!
+      let p ← mkLambdaFVars
+        (#[wE] ++ (pinKept.map (·.2)).toArray ++ (shadowKept.map (·.2)).toArray) prfI
+      return (p,
+        pinKept.map (fun ((s, _, _), _) => s!"def:{s.name}")
+        ++ shadowKept.map (fun (s, _) => s!"noshadow:{s.name}")
+        ++ conds)
 
 
 /-! ## Importer front-end helpers (promoted from the test harness)

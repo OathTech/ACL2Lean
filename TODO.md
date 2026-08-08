@@ -5,7 +5,7 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-_Last updated: 2026-08-07 (Phase 2 equisort OPEN)._
+_Last updated: 2026-08-08 (Phase 2 equisort: items a-e ALL landed; exit assessment pending)._
 
 > **PHASE 2 — LIVE STATE (branch mdd/phase2-equisort, charter
 > docs/plans/2026-08-07_phase2-equisort-charter.md, goal running).**
@@ -35,19 +35,27 @@ _Last updated: 2026-08-07 (Phase 2 equisort OPEN)._
 > was a GROUND residue ((IMPLIES 'T 'NIL)) evaluated silently by
 > rewrite-atm; the arm recomputes toward the RECORDED rhs (ratified
 > class). equisort 14/14 + cov-encapsulate 2/2 — the charter's ROW
-> criterion is met. REMAINING FOR EXIT: (c) the ScopeHolds parametric
-> constants for WEAK/STRONG (the L3 'world-parametric statements'
-> requirement; catalog .pending entries point here). DESIGN READING
-> (R6 items 3-5): the parametric replay is DIRECT — the capstones'
-> recorded trees already live in the constrained theory, so replay
-> the SAME trees over an ABSTRACT w with the scope's constraint
-> EvTrues + arity facts as hypotheses (ScopeHolds = the R7-ratified
-> ConstraintsHold instance); the existing conditional-replay
-> telescope (tp:/total:/rule: hypotheses) is the shape — the new part
-> is w abstract instead of the canonical world, via the generic
-> scope-abstraction builder. (d) the witness-deref hard-fail in
-> post-encapsulate trees (design item 5) — wire where the parametric
-> replay walks. Then the exit assessment.
+> criterion is met. (c) DONE + (d) DONE: BOTH capstone parametric
+> constants LANDED, kernel-checked, axiom-clean —
+> `weakSortfn1IsSortfn2Parametric` /
+> `strongSsortfn1IsSsortfn2Parametric`
+> (Imported/Mirrors/EquisortParametric.lean, `parametric_replayed%`).
+> Mechanism (exactly the pinned design reading): `replayProofParametric`
+> replays the SAME recorded trees over an ABSTRACT `w` — the
+> conditional telescope with `discharge := false` (every used
+> hypothesis KEPT), def-pinning hypotheses for every canonical-model
+> fn EXCEPT the scope sigs, no-shadow hypotheses for all builtins;
+> on-demand world facts route through hypothesis tables
+> (ReplayConfig.defFactHyps/noShadowHyps in deriveDefInfo/N,
+> proveNoShadow, replayExecGround-via-dpValProof, dpNoShadow
+> fold). Premises = the six scope constraints as rule: hyps + sig
+> totality + pre-scope rule/total/tp conds — NO witness vocabulary,
+> NO def-pins consumed (the trees never dereference witnesses). (d):
+> a sig-fn unfold/no-shadow demand over abstract w now throws a NAMED
+> witness-dereference error (R6 item 5). Catalog entries updated to
+> .replayedOnly naming the constants. NodeCore re-slice: Ctx's tail →
+> Compose.lean (move-only; Ctx had regrown past its baseline).
+> REMAINING: exit assessment + merge proposal.
 
 > **CAPSTONE-DEMO ARC — LIVE STATE (branch mdd/capstone-demo-arc,
 > HEAD b611dfd).** Phase 0 DONE (ff70eb2). Phase 1: the 8-item fork

@@ -153,4 +153,67 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
         mirrorRegistryExt.addEntry e (worldName, cp.name, declName, conds)
     Meta.mkLambdaFVars #[env] proof
 
+/-- `parametric_replayed% dev "thm-name" [deps […]]` — the PARAMETRIC
+    replayed statement (Phase 2 item c, the R6 scope abstraction): the
+    named theorem's recorded tree replayed over an ABSTRACT `w : World`
+    (`replayProofParametric`), yielding
+    `∀ env, ∀ w, (def-pins…) → (no-shadows…) → (telescope…) → EvTrue w env Φ`.
+
+    The abstraction set is READ OFF the development's emitted scope
+    surface (`Development.scopes`): every signature fn of every
+    `(:ENCAPSULATE-BEGIN :SIGS …)` scope is left UNPINNED — its witness
+    body never enters the statement (the R6 witness rule) and an unfold
+    demand on it hard-fails (the witness-dereference guard, design item
+    5). Every other canonical-model defun gets a definition-pinning
+    premise; the scope's constraint theorems surface as kept `rule:`
+    premises — the ScopeHolds components. NOT registered in the mirror
+    registry: the artifact's consumer is the R7b instantiation (Phase 3),
+    not same-world replay composition. -/
+elab "parametric_replayed%" devId:ident nm:str
+    deps:(depsClauseDR)? : term => do
+  let devName ← Lean.resolveGlobalConstNoOverload devId
+  let dev ← unsafe Meta.evalExpr Development (mkConst ``ACL2.Development)
+    (mkConst devName)
+  let some cp := Driver.findThm dev nm.getString
+    | throwError "{nm.getString}: not found in the development (or ambiguous \
+                  up to case — findThm refuses to guess)"
+  let scopes ← match dev.scopes with
+    | .ok ss => pure ss
+    | .error e => throwError "parametric_replayed%: {e}"
+  let sigFns := ((scopes.flatMap (·.sigs)).eraseDups)
+  if sigFns.isEmpty then
+    throwError "parametric_replayed%: {devName} has no constrained scope — \
+      the parametric form is the encapsulate artifact (use driver_replayed%)"
+  let mut crossTrees : List (String × ClauseProof) := []
+  let mut crossRules : List ACL2.RuleSpec := []
+  if let some d := deps then
+    for depId in (d.raw[2].getSepArgs.map (fun a => (⟨a⟩ : Ident))) do
+      let depName ← Lean.resolveGlobalConstNoOverload depId
+      let depDev ← unsafe Meta.evalExpr Development
+        (mkConst ``ACL2.Development) (mkConst depName)
+      crossTrees := crossTrees ++ ACL2.Replay.Runner.bookTrees depDev
+      crossRules := crossRules
+        ++ (ACL2.Replay.Runner.allBookRules depDev).filter
+          (fun r => !crossRules.any (fun o => o.runeKey == r.runeKey))
+  Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
+    let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
+    -- worldExpr placeholder: `replayProofParametric` REPLACES it with the
+    -- bound `w` fvar before any use; the `World` type constant is not a
+    -- term, so an accidental leak fails elaboration instantly.
+    let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
+      (mkConst ``ACL2.World) env
+    let (proof, conds) ← replayProofParametric cfg sigFns ch.tps cp
+      dev.justifications
+      (ACL2.Replay.Runner.combineRules
+        (Driver.rulesBefore dev nm.getString) ch.crossRules) ch.depProofs
+      (equivRefls := ch.equivRefls) (congTrees := some ch.localTrees)
+    if conds.contains assumedDpFactCond then
+      throwError "parametric_replayed%: the replay is conditional on an \
+        ASSUMED dp-fact (an unproved, possibly-false obligation) — \
+        refusing to emit the parametric constant"
+    logInfo m!"parametric_replayed% {nm.getString}: sigs \
+      [{", ".intercalate (sigFns.map (·.name))}]; premises \
+      [{", ".intercalate conds}]"
+    Meta.mkLambdaFVars #[env] proof
+
 end ACL2.Imported.Mirrors
