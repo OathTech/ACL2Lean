@@ -41,11 +41,32 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > recorded chain reaches 't; allow :APPLICATION-CLAUSES NIL iff hyps ==
 > inputClause (conclusion = the usefi hyp directly); (v) no discharge
 > initially — usefi: kept (D6), rows conditionally green. 2c (the a1
-> composition, closes usefi:): alias world w' = w + {sig ↦ emitted
-> lambda body}; commutation lemma evalOpt w' (t in sig names) ≐
-> evalOpt w (substFnCalls t) in the lemma library; parametric constant
-> applied at w'; its constraint premises fed by splitting the
-> :CONSTRAINT-CL chain's EvTrue conjunction. 2a RESULT (pre-repin):
+> composition, closes usefi:) — IMPLEMENTATION PLAN (pinned
+> 2026-08-08, post-2a): (i) the alias world is built as a CONCRETE
+> VALUE — wAlias := (consumer dev).toWorld with (sig ↦ ([formals],
+> lambda-body)) inserted per the emitted :LMI-LST — and REFLECTED
+> (derive_world-style), so EVERY existing concrete prover
+> (proveNoShadow/buildTotalEnv/proveTp/dischargeRuleHyp/
+> instantiate_parametric%'s whole dispatch) applies at wAlias
+> UNCHANGED; the parametric constant instantiates at wAlias exactly
+> like the canonical-world instantiation (item 1 machinery reused
+> verbatim — same elaborator, different world + a commutation step).
+> (ii) THE NEW CONTENT is one lemma family (new module,
+> ACL2Lean/Replay/Lemmas/FnAlias.lean per the module norm): the
+> fn-alias commutation — for fn FRESH in w (w.defs.get? fn = none,
+> decide) with alias body containing no alias names,
+> `evalOpt f (w.insert fn (formals,body)) env t` agrees
+> fuel-eventually with `evalOpt f w env (substFnCalls σ t)` — the
+> fn-substitution analogue of the existing evalOpt_substTerm_substN
+> variable-substitution bridge (that proof's induction structure is
+> the template). (iii) the usefi: discharge pass in Harness (keyed
+> like the use: pass): per kept usefi spec, rebuild the dep's
+> PARAMETRIC statement (replayProofParametric on the dep dev — or
+> import the registered constant when same-module), instantiate at
+> wAlias, commute, letBindFVar. (iv) BSORT (item 5): the
+> useHint+clausify composition in Core's clausify branch — chain on
+> CONSTRAINT-CL, clausify the residual, post-step tau leaf, FI hyp
+> peel — ceiling ASSUMED ◌ until the bsort book frontiers. 2a RESULT (pre-repin):
 > MSORT-IS-ISORT + QSORT-IS-ISORT REPLAYED ✓ cond[total:<sort>,
 > usefi:STRONG-…] — 102→104/116 pending repin+gate. BSORT-IS-ISORT
 > sized from its emission: SAME tautology-dropped FI shape BUT the
