@@ -86,7 +86,18 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > hypothesis on the IMAGE this time). Then each parametric premise at
 > wAlias = (dischargeRuleHyp at the CONSUMER world for the SUBSTITUTED
 > rule spec, e.g. ORDEREDP-MSORT) + B''/A statement-level bridging
-> (the rule-hyp fuel-EQ shapes transport value-exactly). REMAINING for
+> (the rule-hyp fuel-EQ shapes transport value-exactly). B''
+> SUBTLETY (analyzed 2026-08-08): the naive converse is FALSE — a
+> diverging alias-call ARGUMENT that the alias body ignores lets the
+> image converge while the original's step (which evaluates ALL args
+> via mapM) diverges. B'' therefore carries a decidable side condition
+> `aliasArgsSimple σ t` — every alias application's arguments are
+> variables or quoted constants (trivially converging; exactly the
+> premise formulas' reality: (ORDEREDP (SSORTFN1 X)) etc.). Alias
+> case then: args converge trivially; evalOpt_substTerm_substN is an
+> EQUALITY so it bridges backward; freevar_congr closes the env gap;
+> reassemble the call step. All other cases mirror B' with roles
+> swapped. REMAINING for
 > 2c (meta wiring + B''): (i) refactor instantiate_parametric%s premise-dispatch core into a reusable MetaM function taking the parametric proof Expr + offer channels; (ii) dischargeUseFiHyp in Harness: build wAlias := (consumer world).withAliases σ (σ from the specs emitted lambdas; REFLECT the concrete value), rebuild the deps parametric statement (replayProofParametric on the dep dev), discharge its premises at wAlias via (i), apply evtrue_fnalias (side conditions decide at the concrete worlds; hσdef/hagree via withAliases lemmas; hfree/hws decide on the formula; the conclusion formula == spec.formula ALREADY holds by the 2a verbatim offer check since both use the same substFnCalls); wrap ∀env; letBindFVar; (iii) wire into the usefi kept-pass; sweep + golden review + gate. LEMMA B PLAN (pinned post-A): statement —
 > ∀ F env t v, evalOpt F w' env t = some v → ∃N ∀f≥N, evalOpt f w env
 > (substFnCalls σ t) = some v; strong induction on F; NO condition on
