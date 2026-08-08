@@ -230,6 +230,18 @@ def liftCatalog : List (String × String × LiftStatus) := [
       book (formerly the BUG-019 vacuity alarm — its protection now \
       lives in the parametric-statement layer + the witness-deref \
       hard-fail); coverage pin only, never a native"),
+  ("sorting/equisort", "WEAK-SORTFN1-IS-SORTFN2",
+    .pending "the abstract uniqueness capstone — its FIRST-CLASS \
+      artifact is the PARAMETRIC ScopeHolds constant (Phase 2 item c, \
+      the R6 catalog doctrine): ∀ w, ScopeHolds → EvTrue, which Phase \
+      3's functional instantiation consumes; a witness-level native is \
+      the banned masquerade"),
+  ("sorting/equisort", "STRONG-SSORTFN1-IS-SSORTFN2",
+    .pending "the abstract uniqueness capstone — its FIRST-CLASS \
+      artifact is the PARAMETRIC ScopeHolds constant (Phase 2 item c, \
+      the R6 catalog doctrine): ∀ w, ScopeHolds → EvTrue, which Phase \
+      3's functional instantiation consumes; a witness-level native is \
+      the banned masquerade"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),

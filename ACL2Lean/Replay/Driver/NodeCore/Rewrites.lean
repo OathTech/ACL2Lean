@@ -465,10 +465,33 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     if (runeOf n).ty == "clause-context-resolution" then
       unless rest.isEmpty do
         throwError "clause-context-resolution: non-terminal marker (frontier)"
-      unless rhs == start do
-        throwError "clause-context-resolution: rhs {repr rhs} ≠ running term {repr start} \
-                    (chain did not reach the reported net result)"
-      return (none, start)
+      if rhs == start then
+        return (none, start)
+      -- GROUND residue (Phase 2, WEAK/STRONG capstones, diagnosed off
+      -- the real tree 2026-08-07): rewrite-atm evaluates a GROUND
+      -- residual (the chain's (IMPLIES 'T 'NIL)) to the reported net
+      -- constant with no recorded step. Recompute toward the RECORDED
+      -- rhs at value level — the ratified recompute-dictated-by-the-
+      -- recorded-target class; a non-ground or non-matching residue
+      -- still hard-fails.
+      let .cons (.atom (.symbol qS)) (.cons cv .nil) := rhs
+        | throwError "clause-context-resolution: rhs {repr rhs} ≠ running \
+            term {repr start} (chain did not reach the reported net \
+            result, and the rhs is not a quoted constant)"
+      unless qS.name == "QUOTE" do
+        throwError "clause-context-resolution: rhs {repr rhs} ≠ running \
+            term {repr start} (chain did not reach the reported net \
+            result, and the rhs is not a quoted constant)"
+      unless (ACL2.Replay.freeVars start).isEmpty do
+        throwError "clause-context-resolution: rhs {repr rhs} ≠ running \
+            term {repr start} (chain did not reach the reported net \
+            result; the residue is not ground — frontier)"
+      let conv ← replayExecGround cfg start cv
+      let pr ← mkAppM ``re_val_quote
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
+      let step ← mkAppM ``fuel_eq_of_conv
+        #[conv, pr, ← mkEqRefl (reflectSExpr cv)]
+      return (some (step, false), rhs)
     -- `if-finish/combined`: rewrite-if FINISHED an if whose test stayed
     -- symbolic. Since the fold-back audit fix (2026-07-31 V2) the recorded
     -- lhs is the ACTUAL input to rewrite-if1 — `(if test rewritten-left

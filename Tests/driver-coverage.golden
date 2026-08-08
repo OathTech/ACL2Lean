@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 100/116 (33 unconditional + 67 conditional)
+Driver coverage — REPLAYED 102/116 (33 unconditional + 69 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
@@ -113,14 +113,14 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     TRUE-LISTP-SORTFN2 → REPLAYED ✓ cond[tp:SORTFN1-INSERT, tp:SORTFN1]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(SORTFN1 X), tp:SORTFN1, ASSUMED:dp-fact]]
     HOW-MANY-SORTFN1 → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+]
     HOW-MANY-SORTFN2 → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+]
-    WEAK-SORTFN1-IS-SORTFN2 → FAIL: clause-context-resolution: rhs 'NIL ≠ running term (IMPLIES 'T 'NIL) (chain did not reach the reported net result)
+    WEAK-SORTFN1-IS-SORTFN2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, tp:SORTFN1-INSERT, tp:SORTFN1, rule:CONS-CAR-CDR, rule:TRUE-LISTP-RM, rule:DEFAULT-CAR, rule:FOLD-CONSTS-IN-+, rule:LEXORDER-REFLEXIVE, rule:LEXORDER-TRANSITIVE, rule:CONVERT-PERM-TO-HOW-MANY]
     ORDEREDP-SSORTFN1 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]
     TRUE-LISTP-SSORTFN1 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(SSORTFN1-INSERT X1 S1), tp:SSORTFN1-INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
     ORDEREDP-SSORTFN2 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]
     TRUE-LISTP-SSORTFN2 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]
     HOW-MANY-SSORTFN1 → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+]
     HOW-MANY-SSORTFN2 → REPLAYED ✓ cond[tp:HOW-MANY, rule:FOLD-CONSTS-IN-+]
-    STRONG-SSORTFN1-IS-SSORTFN2 → FAIL: clause-context-resolution: rhs 'NIL ≠ running term (IMPLIES 'T 'NIL) (chain did not reach the reported net result)
+    STRONG-SSORTFN1-IS-SSORTFN2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, tp:SSORTFN1-INSERT, rule:CONS-CAR-CDR, rule:TRUE-LISTP-RM, rule:DEFAULT-CAR, rule:FOLD-CONSTS-IN-+, rule:LEXORDER-REFLEXIVE, rule:LEXORDER-TRANSITIVE, rule:CONVERT-PERM-TO-HOW-MANY]
 • cov-encapsulate  (world: 2 defun(s), 2 theorem(s))
     CF-NUMBERP → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(CF X), tp:CF]]
     CF-PLUS-COMM → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau-contradiction ✓ cond[total:(CF A), total:(CF B), tp:CF, tp:CF]]
