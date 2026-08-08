@@ -52,14 +52,27 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > like the canonical-world instantiation (item 1 machinery reused
 > verbatim — same elaborator, different world + a commutation step).
 > (ii) THE NEW CONTENT is one lemma family (new module,
-> ACL2Lean/Replay/Lemmas/FnAlias.lean per the module norm): the
-> fn-alias commutation — for fn FRESH in w (w.defs.get? fn = none,
-> decide) with alias body containing no alias names,
-> `evalOpt f (w.insert fn (formals,body)) env t` agrees
-> fuel-eventually with `evalOpt f w env (substFnCalls σ t)` — the
-> fn-substitution analogue of the existing evalOpt_substTerm_substN
-> variable-substitution bridge (that proof's induction structure is
-> the template). (iii) the usefi: discharge pass in Harness (keyed
+> ACL2Lean/Replay/Lemmas/FnAlias.lean; substFnCalls MOVES there from
+> Driver/NodeCore/Ctx — the Lemmas layer cannot import Driver; Ctx
+> opens ACL2.Replay so call sites keep working). FINALIZED DESIGN
+> (2026-08-08): decidable predicates `fnFreeTerm names t : Bool` (no
+> non-quoted occurrence of any alias name; skips QUOTE bodies — data)
+> and `aliasFreeWorld names w : Bool` (every defs-entry body fnFree).
+> LEMMA A (pointwise invariance, fuel induction mirroring
+> EvalOpt.evalOptStep_mono's case skeleton): hagree (∀ s ∉ names,
+> w'.defs.get? s = w.defs.get? s) + aliasFreeWorld names w +
+> fnFreeTerm names t → ∀ f env, evalOpt f w' env t = evalOpt f w env
+> t (SAME fuel — the extra defs are never consulted). LEMMA B (the
+> transport, ONE direction suffices for EvTrue): strong induction on
+> the CONVERGING fuel F: evalOpt F w' env t = some v → ∃N ∀f≥N,
+> evalOpt f w env (substFnCalls σ t) = some v; alias-call case
+> composes IH(args) + Lemma A on the alias body (fnFree, side
+> condition) + evalOpt_substTerm_substN (WellScoped bodyᵢ by decide,
+> lengths from the step's own bindArgs success); non-alias defined-fn
+> case: body untouched by substFn (aliasFreeWorld) + the existing
+> defined-fn conv composition; builtins/IF/quote/var structural.
+> Preconditions all DECIDE at the concrete alias world. NOTE
+> substFnCalls's QUOTE guard (d0f549b) is load-bearing for B. (iii) the usefi: discharge pass in Harness (keyed
 > like the use: pass): per kept usefi spec, rebuild the dep's
 > PARAMETRIC statement (replayProofParametric on the dep dev — or
 > import the registered constant when same-module), instantiate at
