@@ -6,3 +6,4 @@
   Importers of this module are unchanged.
 -/
 import ACL2Lean.Replay.Lemmas.Judgments
+import ACL2Lean.Replay.Lemmas.FnAlias

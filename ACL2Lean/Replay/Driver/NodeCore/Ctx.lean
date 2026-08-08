@@ -221,41 +221,6 @@ def lmiFnInstance? : SExpr → Option (String × List (Symbol × List Symbol × 
     some (s.name, σ)
   | _ => none
 
-/-- Apply a FUNCTIONAL substitution to a term: each application of a
-    substituted fn `(fn a₁ … aₙ)` becomes the lambda's body with formals
-    replaced by the (recursively substituted) arguments — ACL2's
-    fn-substitution semantics. Arity mismatch or a BARE occurrence of a
-    substituted fn symbol (non-application position) hard-fails via
-    `none` at the caller's verbatim cross-check (the recomputation can
-    then never equal the emitted instance). -/
-partial def substFnCalls (σ : List (Symbol × List Symbol × SExpr)) :
-    SExpr → SExpr
-  | t@(.cons (.atom (.symbol q)) _) =>
-    -- QUOTE bodies are DATA — fn-substitution never descends them
-    -- (ACL2's sublis-fn semantics; also load-bearing for the FnAlias
-    -- commutation lemma: the alias world evaluates quoted data
-    -- unchanged, so a substituted quote would falsify the transport)
-    if q.name == "QUOTE" then t else substFnCallsApp σ t
-  | .cons a b => .cons (substFnCalls σ a) (substFnCalls σ b)
-  | t => t
-where
-  substFnCallsApp (σ : List (Symbol × List Symbol × SExpr)) :
-      SExpr → SExpr
-  | .cons (.atom (.symbol fs)) args =>
-    let args' := match args.toList? with
-      | some l => (l.map (substFnCalls σ)).foldr SExpr.cons .nil
-      | none => args
-    match σ.find? (fun (fn, _, _) => fn == fs) with
-    | some (_, formals, body) =>
-      match args'.toList? with
-      | some actuals =>
-        if formals.length == actuals.length then
-          ACL2.Replay.substTerm formals actuals body
-        else .cons (.atom (.symbol fs)) args'
-      | none => .cons (.atom (.symbol fs)) args'
-    | none => .cons (.atom (.symbol fs)) args'
-  | t => substFnCalls σ t
-
 /-- A functional-instance `use` offer (R7b): the cited theorem, the
     EMITTED functional substitution (kept for keying/display), and the
     INSTANTIATED formula (recomputed `substFnCalls` of the dependency's
