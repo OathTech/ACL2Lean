@@ -97,8 +97,28 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > case then: args converge trivially; evalOpt_substTerm_substN is an
 > EQUALITY so it bridges backward; freevar_congr closes the env gap;
 > reassemble the call step. All other cases mirror B' with roles
-> swapped. REMAINING for
-> 2c (meta wiring + B''): (i) refactor instantiate_parametric%s premise-dispatch core into a reusable MetaM function taking the parametric proof Expr + offer channels; (ii) dischargeUseFiHyp in Harness: build wAlias := (consumer world).withAliases σ (σ from the specs emitted lambdas; REFLECT the concrete value), rebuild the deps parametric statement (replayProofParametric on the dep dev), discharge its premises at wAlias via (i), apply evtrue_fnalias (side conditions decide at the concrete worlds; hσdef/hagree via withAliases lemmas; hfree/hws decide on the formula; the conclusion formula == spec.formula ALREADY holds by the 2a verbatim offer check since both use the same substFnCalls); wrap ∀env; letBindFVar; (iii) wire into the usefi kept-pass; sweep + golden review + gate. LEMMA B PLAN (pinned post-A): statement —
+> swapped. WIRING PROGRESS (all rounds gated
+> TRUE_EXIT=0 2026-08-08): W1 DONE (631b035 — the instantiation engine
+> at Replay/ParametricInstantiate, Runner layer; namespace rename
+> queued cleanup); W2 DONE (c27736a — usefiDischarge callback param +
+> kept-pass in replayProofConditional, all sites none = byte-identical
+> sweep). W3 NEXT (the statement-level lift lemmas, FnAlias companion
+> module per the size norm): transport the consumer's rule-hyp shapes
+> (∀env', fuel-EQ of ⟦lhs⟧ vs ⟦rhs⟧) into the alias world — constant-
+> rhs rules are pure value transport (A on the image + B'' inside
+> wAlias); non-constant-rhs (the HOW-MANY pair) need a convergence
+> side-fact for one side from the totality machinery (the fuel-EQ
+> shape alone is convergence-free). W4 THEN: the callback builder in
+> ParametricInstantiate (find dep dev in crossDevs → σ from the
+> spec's emitted lambdas → wAlias := worldVal.withAliases σ,
+> REFLECTED → replayProofParametric on the dep theorem →
+> instantiateParametricAt at wAlias with the rule-premise dispatch
+> extended by the W3 bridging → evtrue_fnalias → ∀env' wrap); thread
+> crossDevs: depPayload (Tests/Coverage/Harness) already parses dep
+> devs — extend its return + runBook params + the callback
+> construction at the coverage call sites; then sweep + golden
+> row-review + gate. REMAINING for 2c after W4: nothing (rows' usefi:
+> conds flip discharged). Prior pin (superseded detail kept below): (i) refactor instantiate_parametric%s premise-dispatch core into a reusable MetaM function taking the parametric proof Expr + offer channels; (ii) dischargeUseFiHyp in Harness: build wAlias := (consumer world).withAliases σ (σ from the specs emitted lambdas; REFLECT the concrete value), rebuild the deps parametric statement (replayProofParametric on the dep dev), discharge its premises at wAlias via (i), apply evtrue_fnalias (side conditions decide at the concrete worlds; hσdef/hagree via withAliases lemmas; hfree/hws decide on the formula; the conclusion formula == spec.formula ALREADY holds by the 2a verbatim offer check since both use the same substFnCalls); wrap ∀env; letBindFVar; (iii) wire into the usefi kept-pass; sweep + golden review + gate. LEMMA B PLAN (pinned post-A): statement —
 > ∀ F env t v, evalOpt F w' env t = some v → ∃N ∀f≥N, evalOpt f w env
 > (substFnCalls σ t) = some v; strong induction on F; NO condition on
 > t needed for fn-freedom (dead substFnCalls fallthroughs are excluded
