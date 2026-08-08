@@ -7,3 +7,4 @@
 -/
 import ACL2Lean.Replay.Lemmas.Judgments
 import ACL2Lean.Replay.Lemmas.FnAlias
+import ACL2Lean.Replay.Lemmas.FnAliasLift
