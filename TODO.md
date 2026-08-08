@@ -31,13 +31,23 @@ _Last updated: 2026-08-07 (Phase 2 equisort OPEN)._
 > frontiers. PROGRESS (3475546): (a)+(b) DONE — canonical model
 > landed, 86/116 → 100/116 (equisort 12/14 + cov-encapsulate 2/2,
 > zero regressions, gate TRUE_EXIT=0, catalog per the R6 doctrine).
-> REMAINING: (c) ScopeHolds parametric builder for STRONG/WEAK — the
-> charter's L3 requirement (world-parametric first-class constants);
-> (d) the witness-deref hard-fail guard in post-encapsulate trees
-> (design item 5); (e) the 2 capstone rows'
-> clause-context-resolution frontier (their :use composition; the
-> running term is (IMPLIES 'T 'NIL)-shaped where the recorded rhs is
-> 'NIL — diagnose off the real tree); then the exit assessment.
+> (e) DONE (9622eb3): both capstones GREEN — 102/116; the frontier
+> was a GROUND residue ((IMPLIES 'T 'NIL)) evaluated silently by
+> rewrite-atm; the arm recomputes toward the RECORDED rhs (ratified
+> class). equisort 14/14 + cov-encapsulate 2/2 — the charter's ROW
+> criterion is met. REMAINING FOR EXIT: (c) the ScopeHolds parametric
+> constants for WEAK/STRONG (the L3 'world-parametric statements'
+> requirement; catalog .pending entries point here). DESIGN READING
+> (R6 items 3-5): the parametric replay is DIRECT — the capstones'
+> recorded trees already live in the constrained theory, so replay
+> the SAME trees over an ABSTRACT w with the scope's constraint
+> EvTrues + arity facts as hypotheses (ScopeHolds = the R7-ratified
+> ConstraintsHold instance); the existing conditional-replay
+> telescope (tp:/total:/rule: hypotheses) is the shape — the new part
+> is w abstract instead of the canonical world, via the generic
+> scope-abstraction builder. (d) the witness-deref hard-fail in
+> post-encapsulate trees (design item 5) — wire where the parametric
+> replay walks. Then the exit assessment.
 
 > **CAPSTONE-DEMO ARC — LIVE STATE (branch mdd/capstone-demo-arc,
 > HEAD b611dfd).** Phase 0 DONE (ff70eb2). Phase 1: the 8-item fork
