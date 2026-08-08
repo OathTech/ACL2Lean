@@ -856,4 +856,65 @@ def aliasArgsSpine (names : List Symbol) : SExpr → Bool
 
 end
 
+/-- Spine members inherit `aliasArgsSimple`. -/
+theorem aliasArgs_of_mem_spine {names : List Symbol} :
+    ∀ {argsE : SExpr} {l : List SExpr},
+      aliasArgsSpine names argsE = true → argsE.toList? = some l →
+      ∀ a ∈ l, aliasArgsSimple names a = true := by
+  intro argsE
+  induction argsE with
+  | nil => intro l _ hl a ha; simp [SExpr.toList?] at hl; simp [hl] at ha
+  | atom _ => intro l _ hl; simp [SExpr.toList?] at hl
+  | cons x d ihx ihd =>
+    intro l hs hl a ha
+    simp only [aliasArgsSpine, Bool.and_eq_true] at hs
+    simp only [SExpr.toList?] at hl
+    match hd : d.toList? with
+    | none => rw [hd] at hl; simp at hl
+    | some dl =>
+      rw [hd] at hl; simp at hl
+      subst hl
+      rcases List.mem_cons.mp ha with rfl | hmem
+      · exact hs.1
+      · exact ihd hs.2 hd a hmem
+
+/-- A `simpleArg` is `substFnCalls`-invariant and converges at any fuel
+    ≥ 1 (to its variable lookup / quoted constant / literal value). -/
+theorem simpleArg_conv (σ : List (Symbol × List Symbol × SExpr))
+    (w : World) (env : Env) :
+    ∀ (a : SExpr), simpleArg a = true →
+      substFnCalls σ a = a ∧
+      ∃ va, ∀ f ≥ 1, evalOpt f w env a = some va
+  | .nil, _ => ⟨rfl, .nil, fun f hf => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rfl⟩
+  | .atom (.number n), _ => ⟨rfl, _, fun f hf => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rfl⟩
+  | .atom (.string st), _ => ⟨rfl, _, fun f hf => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rfl⟩
+  | .atom (.keyword k), _ => ⟨rfl, _, fun f hf => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rfl⟩
+  | .atom (.char c), _ => ⟨rfl, _, fun f hf => by
+      obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+      rfl⟩
+  | .atom (.symbol x), _ => by
+    refine ⟨rfl, (match env.get? x with
+      | some u => u
+      | none => if x.isNamed "T" then SExpr.t else .nil), fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    show evalOptStep (evalOpt g) w env (.atom (.symbol x)) = _
+    simp only [evalOptStep]
+    cases env.get? x with
+    | some u => rfl
+    | none => cases x.isNamed "T" <;> rfl
+  | .cons (.atom (.symbol q)) (.cons u .nil), h => by
+    have hq : (q.name == "QUOTE") = true := by simpa [simpleArg] using h
+    refine ⟨by rw [substFnCalls, if_pos hq], u, fun f hf => ?_⟩
+    obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+    show evalOptStep (evalOpt g) w env _ = some u
+    simp only [evalOptStep_cons_symbol, if_pos (show q.isNamed "QUOTE" = true from hq)]
+
 end ACL2.Replay
