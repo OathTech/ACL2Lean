@@ -111,4 +111,5 @@ import ACL2Lean.Imported.Mirrors.Qsort
 import ACL2Lean.Imported.Mirrors.Msort
 import ACL2Lean.Imported.Mirrors.IsChain
 import ACL2Lean.Imported.Mirrors.EquisortParametric
+import ACL2Lean.Imported.EquisortWitness
 import ACL2Lean.Imported.Mirrors.Catalog
