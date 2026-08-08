@@ -73,7 +73,7 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > defined-fn conv composition; builtins/IF/quote/var structural.
 > Preconditions all DECIDE at the concrete alias world. NOTE
 > substFnCalls's QUOTE guard (d0f549b) is load-bearing for B.
-> LEMMA A PROVED (9fd9b87). LEMMA B-PRIME + B-DOUBLE-PRIME BOTH PROVED (17b0203 — the semantic layer is BIDIRECTIONAL; aliasArgsSimple side condition per the pinned subtlety): evalOpt_fnexpand_transport, zero sorries; substFnCalls gained a binder-respecting LAMBDA arm (substSafe apparatus deleted). 2c SEMANTIC LAYER COMPLETE + GATED (full claim-gate TRUE_EXIT=0 on the FnAlias round, 104/116 golden byte-identical, 2026-08-08; ed985c8/3d2b460): evtrue_fnalias (the kernel-checked functional-instantiation step) + World.withAliases with constructive hσdef/hagree. WIRING DISCOVERY (2026-08-08, pinned
+> LEMMA A PROVED (9fd9b87). LEMMA B-PRIME + B-DOUBLE-PRIME BOTH PROVED (17b0203, round gated TRUE_EXIT=0 2026-08-08 — the semantic layer is BIDIRECTIONAL; aliasArgsSimple side condition per the pinned subtlety): evalOpt_fnexpand_transport, zero sorries; substFnCalls gained a binder-respecting LAMBDA arm (substSafe apparatus deleted). 2c SEMANTIC LAYER COMPLETE + GATED (full claim-gate TRUE_EXIT=0 on the FnAlias round, 104/116 golden byte-identical, 2026-08-08; ed985c8/3d2b460): evtrue_fnalias (the kernel-checked functional-instantiation step) + World.withAliases with constructive hσdef/hagree. WIRING DISCOVERY (2026-08-08, pinned
 > post-gate): premise discharge AT wAlias cannot re-replay the dep's
 > pass-1 constraint trees (they unfold the WITNESSES, absent from the
 > consumer world — the witness-deref guard would rightly fire).
