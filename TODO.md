@@ -5,6 +5,16 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
+> **D2 RESOLVED (2026-08-08, 4c6eb6a, full claim-gate TRUE_EXIT=0):**
+> both STRONG capstones (MSORT-IS-ISORT, QSORT-IS-ISORT) discharge the
+> functional instantiation IN-SWEEP — usefi: gone from both rows,
+> conds now the applied consumer hypotheses; golden repinned (delta =
+> the two reviewed rows; 104/116 unchanged). The scaling machinery is
+> the first working instance of the compositional-replay architecture.
+> Phase 3 residuals remaining: D1 (witness-TP dis_* + the R-lane user
+> checkpoint), D3 (BSORT composition, ceiling ◌), D4 (audit-hardening
+> items). Branch mdd/phase3-r7b remains the merge candidate.
+
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
 > Per-node lemma decomposition as the eventual default emission shape +
