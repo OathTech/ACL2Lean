@@ -166,6 +166,36 @@ _Last updated: 2026-08-08 (Phase 2 MERGED at a1f0e07; Phase 3 R7b OPEN)._
 > fallback's inner-fn pool miss consults them through (ii). The
 > resulting usefi proof is CLOSED (the consumer telescope hyp is an
 > fvar the pass letBinds — same discipline as every other discharge).
+> W4e DONE (total_fnalias_transport +
+> defcall_body_inversion + the ctx-carrying callback + the wrapper
+> fallback consult — the PROBE now closes ALL no-shadow/totality/tp
+> premises including both alias wrappers and stops at exactly:
+> [hrule_CONVERT-PERM-TO-HOW-MANY, the six SSORTFN constraint rules,
+> husethm_ORDERED-PERMS]). W4f — THE FINAL BRIDGING (fully determined,
+> no unknowns): the discharger needs the CONSUMER Development (extend
+> the callback signature: Development → ReplayConfig → ReplayCtx →
+> UseFiSpec → …; runBook applies its parsed dev). Then per kept
+> premise at wAlias: (CLASS 1 — alias-free content, e.g.
+> rule:CONVERT-PERM-TO-HOW-MANY, use:ORDERED-PERMS): bind to the
+> MATCHING CONSUMER-TELESCOPE FVAR (ctx.ruleHyps/useHyps — these are
+> kept conds of the consumer row itself) crossed by Lemma A — needs a
+> tiny fuelEq/EvTrue A-crossing at the STATEMENT level (all terms
+> alias-free → pointwise rw of evalOpt_fnfree_agree inside the
+> ∀env'∃N∀f shape; evtrue_fnfree_agree_iff already covers the use:
+> shape). The resulting usefi proof stays CONDITIONAL on those
+> consumer fvars — which the usefi PASS letBinds like every other
+> discharge, so the row's cond set gains nothing new. (CLASS 2 —
+> alias-mentioning, the six constraint rules): build the SUBSTITUTED
+> RuleSpec (substFnCalls lhs/rhs; hyps — STRONG's six are all
+> hypothesis-free), CONTENT-MATCH it against the consumer's full rule
+> accumulation (developmentTheoremsWithRules — ORDEREDP-MSORT etc.
+> exist verbatim), discharge via dischargeRuleHyp at the consumer
+> world (cfg/ctx/consumer depProofs from the dev), lift via
+> fuelEq_fnalias_lift_const (4 rules, rhs 'T) /fuelEq_fnalias_lift
+> (the HOW-MANY pair — rhs convergence from the consumer totality
+> hyp probed at variable args). Note msort/qsort cite STRONG whose
+> constraints are ALL hypothesis-free — the with-hyp lift is only
+> needed for bsort's WEAK citation (ceiling ◌ anyway; frontier it).
 > THEN re-enable + coverage call sites build
 > the callback (depPayload already parses dep devs — extend its
 > return + pass crossDevs); sweep flips the two capstones' usefi:

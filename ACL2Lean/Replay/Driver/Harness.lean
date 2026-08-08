@@ -407,7 +407,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (termReplayed : List (String × Name × List String × List SExpr) := [])
     (congTrees : Option (List (String × ClauseProof)) := none)
     (discharge : Bool := true)
-    (usefiDischarge : Option (UseFiSpec → MetaM Expr) := none) :
+    (usefiDischarge : Option (ReplayCtx → UseFiSpec → MetaM Expr) := none) :
     MetaM (Expr × List String) := do
   let fns := cfg.worldVal.defs.entries
   -- hypothesis declarations: totality for every defined fn, TP where
@@ -751,7 +751,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         for (spec, hypV) in (useFiSpecs.zip useFiVs.toList).reverse do
           if discharge && prfR.containsFVar hypV.fvarId! then
             try
-              let pf ← withRealMaxHeartbeats dischargeBudget <| dfi spec
+              let pf ← withRealMaxHeartbeats dischargeBudget <| dfi ctx spec
               prfR ← letBindFVar prfR hypV pf
             catch e =>
               unless isFrontierErr e do

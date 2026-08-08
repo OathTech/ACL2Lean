@@ -245,7 +245,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
     (termReplayed : List (String × Name × List String × List SExpr) := [])
     (crossTrees : List (String × ClauseProof) := [])
     (crossRules : List ACL2.RuleSpec := [])
-    (usefiDischarge : Option (ReplayConfig → UseFiSpec → MetaM Expr) := none) :
+    (usefiDischarge : Option (ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr) := none) :
     TermElabM (String × Option (List String)) := do
   -- bounded per-theorem budget + runtime-exception capture, as for tryDischarge.
   -- REAL bound (P1): withOptions(maxHeartbeats) was a NO-OP — Core.Context
@@ -417,7 +417,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
     -- (layering: it needs ParametricInstantiate, which sits above this
     -- module) and applied at each theorem's config; none = usefi conds
     -- stay kept verbatim (all pre-2c behavior).
-    (usefiDischarge : Option (ReplayConfig → UseFiSpec → MetaM Expr) := none) :
+    (usefiDischarge : Option (ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr) := none) :
     TermElabM (BookResult × List (String × ClauseProof)
       × List ACL2.RuleSpec) := do
   let mut res : BookResult := {}

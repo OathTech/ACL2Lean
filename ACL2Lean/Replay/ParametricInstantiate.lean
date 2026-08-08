@@ -36,7 +36,7 @@ partial def ipGo (dischargeOne : String → Expr → MetaM (Option Expr))
     verified by the kernel's own reducer at declaration. -/
 def proveByDecideKernel (p : Expr) (what : String) : MetaM Expr := do
   let b ← unsafe Lean.Meta.evalExpr Bool (mkConst ``Bool)
-    (← Lean.Meta.mkAppM ``Decidable.decide #[p])
+    (← Lean.Meta.mkDecide p)
   unless b do
     throwError "proveByDecideKernel: {what} evaluated FALSE"
   Lean.Meta.mkDecideProof p
@@ -54,7 +54,9 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
     (crossRules : List ACL2.RuleSpec)
     (totsNames : List Name)
     (constE : Expr) (envV : Expr)
-    (extraJusts : List (String × ACL2.Justification) := []) :
+    (extraJusts : List (String × ACL2.Justification) := [])
+    (innerTotalFallback : Symbol → Expr → MetaM (Option Expr) :=
+      fun _ _ => pure none) :
     MetaM (Expr × List String × Expr) := do
   let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
   let cfg := ACL2.Replay.Runner.mkBookConfig dev worldVal worldExpr envV
@@ -129,7 +131,7 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
                     (← mkEq (← isN "IF") (mkConst ``Bool.false))
                     s!"wrapper hif {fnSym.name}"
                   let hlet ← Driver.proveByDecide
-                    (← mkEq (← mkAppM ``HOr.hOr
+                    (← mkEq (← mkAppM ``Bool.or
                       #[← isN "LET", ← isN "LET*"])
                       (mkConst ``Bool.false))
                     s!"wrapper hlet {fnSym.name}"
@@ -138,9 +140,48 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
                       Driver.reflectSymbol g, Driver.reflectSymbol x,
                       hdef, hq, hif, hlet, hgPf]
                   pure (some pf)
-                | none => throwError "instantiate_parametric%: wrapper \
-                    {key "htotal_"}'s inner fn {g.name} has no pool \
-                    totality"
+                | none =>
+                  -- consumer-telescope route (W4e): transport the
+                  -- CONSUMER's own total:g hypothesis into this world
+                  let gHypTy ← Driver.mkTotalityHypType
+                    { worldExpr := worldExpr, envExpr := envV,
+                      worldVal := worldVal } g 1
+                  match ← innerTotalFallback g gHypTy with
+                  | some hgPf => do
+                    let body : SExpr := .cons (.atom (.symbol g))
+                      (.cons (.atom (.symbol x)) .nil)
+                    let hdefTy ← mkEq
+                      (← mkAppM ``ACL2.DefMap.get?
+                        #[← mkAppM ``ACL2.World.defs #[worldExpr],
+                          Driver.reflectSymbol fnSym])
+                      (← mkAppM ``Option.some #[← mkAppM ``Prod.mk
+                        #[← mkListLit (mkConst ``ACL2.Symbol)
+                            [Driver.reflectSymbol x],
+                          Driver.reflectSExpr body]])
+                    let hdef ← proveByDecideKernel hdefTy
+                      s!"wrapper hdef {fnSym.name}"
+                    let isN := fun (n : String) =>
+                      mkAppM ``ACL2.Symbol.isNamed
+                        #[Driver.reflectSymbol fnSym, Lean.mkStrLit n]
+                    let hq ← Driver.proveByDecide
+                      (← mkEq (← isN "QUOTE") (mkConst ``Bool.false))
+                      s!"wrapper hq {fnSym.name}"
+                    let hif ← Driver.proveByDecide
+                      (← mkEq (← isN "IF") (mkConst ``Bool.false))
+                      s!"wrapper hif {fnSym.name}"
+                    let hlet ← Driver.proveByDecide
+                      (← mkEq (← mkAppM ``Bool.or
+                        #[← isN "LET", ← isN "LET*"])
+                        (mkConst ``Bool.false))
+                      s!"wrapper hlet {fnSym.name}"
+                    let pf ← mkAppM ``ACL2.Replay.wrapper_total_1
+                      #[worldExpr, Driver.reflectSymbol fnSym,
+                        Driver.reflectSymbol g, Driver.reflectSymbol x,
+                        hdef, hq, hif, hlet, hgPf]
+                    pure (some pf)
+                  | none => throwError "instantiate_parametric%: wrapper \
+                      {key "htotal_"}'s inner fn {g.name} has no pool \
+                      totality and no fallback"
               else throwError "instantiate_parametric%: {key "htotal_"} \
                   is not a same-formal wrapper"
             | _ => throwError "instantiate_parametric%: no totality \
@@ -236,7 +277,8 @@ def reflectSubst (σ : List (Symbol × List Symbol × SExpr)) :
     D6); the bridging extensions close them incrementally. -/
 def mkUseFiDischarger (crossDevs : List (String × Development))
     (totsNames : List Name := []) :
-    ReplayConfig → UseFiSpec → MetaM Expr := fun cfg spec => do
+    ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr :=
+    fun cfg ctx spec => do
   let some (_, depDev) := crossDevs.find? (fun (_, d) =>
       (Driver.findThm d spec.name).isSome)
     | Driver.throwFrontier m!"usefi discharge: no dep dev carries \
@@ -277,9 +319,64 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       (congTrees := some ch.localTrees)
     -- (2) premises at the alias world via the shared engine
     let pfParamEnv ← Lean.Meta.mkLambdaFVars #[envV] pfParam
+    let namesE ← mkListLit (mkConst ``ACL2.Symbol)
+      (names.map Driver.reflectSymbol)
+    let hagree ← mkAppM ``ACL2.Replay.withAliases_agree
+      #[cfg.worldExpr, σE]
+    let hw ← proveByDecideKernel
+      (← mkEq (← mkAppM ``ACL2.Replay.aliasFreeWorld
+        #[namesE, cfg.worldExpr]) (mkConst ``Bool.true))
+      "usefi aliasFreeWorld"
+    -- W4e: transport a CONSUMER-telescope totality hypothesis into the
+    -- alias world for a wrapper's inner fn the pool cannot prove
+    let innerTotalFallback := fun (g : Symbol) (wantTy : Expr) => do
+      match ctx.totalHyps.find? (fun (n, _) => n == g.name) with
+      | none => pure (Option.none (α := Expr))
+      | some (_, hFv) =>
+        match cfg.worldVal.defs.get? g with
+        | some ([x], body) => do
+          let isN := fun (n : String) =>
+            mkAppM ``ACL2.Symbol.isNamed
+              #[Driver.reflectSymbol g, Lean.mkStrLit n]
+          let hq ← Driver.proveByDecide
+            (← mkEq (← isN "QUOTE") (mkConst ``Bool.false))
+            s!"transport hq {g.name}"
+          let hif ← Driver.proveByDecide
+            (← mkEq (← isN "IF") (mkConst ``Bool.false))
+            s!"transport hif {g.name}"
+          let hlet ← Driver.proveByDecide
+            (← mkEq (← mkAppM ``Bool.or #[← isN "LET", ← isN "LET*"])
+              (mkConst ``Bool.false)) s!"transport hlet {g.name}"
+          let hget ← proveByDecideKernel
+            (← mkEq (← mkAppM ``ACL2.DefMap.get?
+                #[← mkAppM ``ACL2.World.defs #[cfg.worldExpr],
+                  Driver.reflectSymbol g])
+              (← mkAppM ``Option.some #[← mkAppM ``Prod.mk
+                #[← mkListLit (mkConst ``ACL2.Symbol)
+                    [Driver.reflectSymbol x],
+                  Driver.reflectSExpr body]]))
+            s!"transport hget {g.name}"
+          let hfnFree ← Driver.proveByDecide
+            (← mkEq (← mkAppM ``List.contains
+              #[namesE, Driver.reflectSymbol g]) (mkConst ``Bool.false))
+            s!"transport notAlias {g.name}"
+          let hbodyFree ← proveByDecideKernel
+            (← mkEq (← mkAppM ``ACL2.Replay.fnFreeTerm
+              #[namesE, Driver.reflectSExpr body])
+              (mkConst ``Bool.true)) s!"transport bodyFree {g.name}"
+          let pf ← mkAppM ``ACL2.Replay.total_fnalias_transport
+            #[namesE, cfg.worldExpr, wAliasE, hagree, hw,
+              Driver.reflectSymbol g, Driver.reflectSymbol x,
+              Driver.reflectSExpr body, hq, hif, hlet, hget,
+              hfnFree, hbodyFree, hFv]
+          unless ← isDefEq (← inferType pf) wantTy do
+            return none
+          pure (some pf)
+        | _ => pure none
     let (pfAtAlias, kept, _concl) ← instantiateParametricAt depDev
       wAliasVal wAliasE spec.name depCrossTrees depCrossRules totsNames
       pfParamEnv envV (extraJusts := cfg.justs)
+      (innerTotalFallback := innerTotalFallback)
     unless kept.isEmpty do
       Driver.throwFrontier m!"usefi discharge: premises KEPT at the \
         alias world (bridging pending): [{", ".intercalate kept}]"
@@ -290,8 +387,6 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       | Driver.throwFrontier m!"usefi discharge: {spec.name}'s Goal is \
           not single-literal"
     let phiE := Driver.reflectSExpr phi
-    let namesE ← mkListLit (mkConst ``ACL2.Symbol)
-      (names.map Driver.reflectSymbol)
     let entryTy := (← inferType σE).appArg!
     -- ∀-mem side conditions, decided on the concrete σ
     let mkMemAll (prop : Expr → MetaM Expr) : MetaM Expr := do
@@ -319,8 +414,6 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
         Driver.throwFrontier m!"usefi discharge: withAliases_get shape \
           mismatch"
       pure pf
-    let hagree ← mkAppM ``ACL2.Replay.withAliases_agree
-      #[cfg.worldExpr, σE]
     let mkBoolMem (mk : Expr → MetaM Expr) : MetaM Expr := do
       let ty ← mkMemAll mk
       proveByDecideKernel ty "usefi σ side condition"
@@ -333,7 +426,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
         ← isN "LAMBDA"].foldlM
         (fun acc e => match acc with
           | none => pure (some e)
-          | some a => some <$> mkAppM ``HOr.hOr #[a, e]) none
+          | some a => some <$> mkAppM ``Bool.or #[a, e]) none
       mkEq ors.get! (mkConst ``Bool.false)
     let hσws ← mkBoolMem fun eV => do
       let sndSnd ← mkAppM ``Prod.snd #[← mkAppM ``Prod.snd #[eV]]
@@ -346,10 +439,6 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       let inner ← withLocalDeclD `x (mkConst ``ACL2.Symbol) fun xV => do
         mkLambdaFVars #[xV] (← mkAppM ``List.contains #[sndFst, xV])
       mkEq (← mkAppM ``List.all #[fvs, inner]) (mkConst ``Bool.true)
-    let hw ← proveByDecideKernel
-      (← mkEq (← mkAppM ``ACL2.Replay.aliasFreeWorld
-        #[namesE, cfg.worldExpr]) (mkConst ``Bool.true))
-      "usefi aliasFreeWorld"
     let hws ← proveByDecideKernel
       (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[phiE])
         (mkConst ``Bool.true)) "usefi WellScoped Φ"
