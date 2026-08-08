@@ -286,7 +286,9 @@ def reflectSubst (σ : List (Symbol × List Symbol × SExpr)) :
     discharge at the alias world FRONTIER (the hypothesis stays kept —
     D6); the bridging extensions close them incrementally. -/
 def mkUseFiDischarger (crossDevs : List (String × Development))
-    (totsNames : List Name := []) :
+    (totsNames : List Name := [])
+    (termByFn : List (String × Lean.Name × List String × List SExpr)
+      := []) :
     Development → ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr :=
     fun consumerDev cfg ctx spec => do
   let _ := consumerDev  -- consumed by the W4f bridging (next increment)
@@ -519,8 +521,18 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
             && r.lhs == slhs && r.rhs == srhs) with
         | none => pure none
         | some cspec => do
+          -- discharge with the OWNING book's channel surfaces (its gz
+          -- fc/tp/recog snapshots carry what its trees cite) + the
+          -- consumer-world recorded-termination pre-pass results
+          let ownCfg := match crossDevs.find? (fun (_, d) =>
+              (Driver.findThm d cspec.name).isSome) with
+            | some (_, ownDev) =>
+              { ACL2.Replay.Runner.mkBookConfig ownDev cfg.worldVal
+                  cfg.worldExpr cfg.envExpr with
+                termReplayed := termByFn }
+            | none => { cfg with termReplayed := termByFn }
           let pfW ← try
-              dischargeRuleHyp cfg ctx cspec consumerDepProofs []
+              dischargeRuleHyp ownCfg ctx cspec consumerDepProofs []
             catch e => Driver.throwFrontier m!"usefi bridge: consumer \
               discharge of {cspec.name} failed: {e.toMessageData}"
           withLocalDeclD `envr (mkConst ``ACL2.Env) fun erV => do
@@ -587,10 +599,18 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       -- alias-free cited theorem: discharge at the consumer world,
       -- cross by the EvTrue iff
       if !fnFreeV uspec.formula then pure none else do
+      let ownCfg := match crossDevs.find? (fun (_, d) =>
+          (Driver.findThm d uspec.name).isSome) with
+        | some (_, ownDev) =>
+          { ACL2.Replay.Runner.mkBookConfig ownDev cfg.worldVal
+              cfg.worldExpr cfg.envExpr with
+            termReplayed := termByFn }
+        | none => { cfg with termReplayed := termByFn }
       let pfW ← try
-          dischargeUseHyp cfg ctx uspec consumerDepProofs []
-        catch _ => pure (Expr.const ``True [])
-      if pfW.isConst then pure none else do
+          dischargeUseHyp ownCfg ctx uspec consumerDepProofs []
+        catch e => Driver.throwFrontier m!"usefi useBridge: consumer \
+          discharge of {uspec.name} failed: {e.toMessageData}"
+      do
       withLocalDeclD `envr (mkConst ``ACL2.Env) fun erV => do
         let hAtW := mkApp pfW erV
         let hfree ← Driver.proveByDecide (← mkEq
@@ -715,7 +735,9 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     thread.) -/
 def prepareUseFi (crossDevs : List (String × Development))
     (totsNames : List Name) (consumerDev : Development)
-    (worldVal : World) (wExpr : Expr) (spec : UseFiSpec) :
+    (worldVal : World) (wExpr : Expr) (spec : UseFiSpec)
+    (termByFn : List (String × Lean.Name × List String × List SExpr)
+      := []) :
     Lean.MetaM (Lean.Name × List Expr) := do
   Lean.Meta.withLocalDeclD `envDummy (mkConst ``ACL2.Env) fun envD => do
     let cfg := ACL2.Replay.Runner.mkBookConfig consumerDev worldVal
@@ -735,7 +757,12 @@ def prepareUseFi (crossDevs : List (String × Development))
         (fun acc (_, d) => acc
           ++ (ACL2.Replay.Runner.allBookRules d).filter
             (fun r => !acc.any (fun o => o.runeKey == r.runeKey)))
-    let rules := rules.filter (fun r => r.equiv == "equal")
+    let rules := rules.filter fun r =>
+      r.equiv == "equal" ||
+      (r.equiv != "iff" &&
+       match worldVal.defs.get? { name := r.equiv.map Char.toUpper } with
+       | some (formals, _) => formals.length == 2
+       | none => false)
     let ruleDecls : Array (Lean.Name × Lean.BinderInfo ×
         (Array Expr → Lean.MetaM Expr)) :=
       (rules.zipIdx.map fun (r, i) =>
@@ -776,10 +803,67 @@ def prepareUseFi (crossDevs : List (String × Development))
       (tpAvFns.map fun (sy, formals, cor) =>
         (Lean.Name.mkSimple s!"ptpav_{sy.name}", Lean.BinderInfo.default,
          fun _ => Driver.mkTpHypTypeAv cfg sy formals cor)).toArray
+    -- congruence / equiv-refl / equiv-full offers from ALL books'
+    -- trees (over-offer; only USED fvars survive into the constant)
+    let allTrees :=
+      (ACL2.Replay.Runner.bookTrees consumerDev)
+      ++ crossDevs.flatMap (fun (_, d) => ACL2.Replay.Runner.bookTrees d)
+    let congs : List Driver.CongSpec := allTrees.foldl (init := [])
+      fun acc (n, cp) =>
+        if acc.any (·.name == n) then acc else
+        match cp.root with
+        | some root => match root.inputClause with
+          | [f] => match Driver.congSpecOfFormula? n f with
+            | some sp => acc ++ [sp]
+            | none => acc
+          | _ => acc
+        | none => acc
+    let equivRefls :=
+      (allTrees.filterMap fun (n, cp) =>
+        cp.root.bind fun r => match r.inputClause with
+          | [f] => some (n, f) | _ => none)
+      ++ consumerDev.includedTheorems
+      ++ crossDevs.flatMap (fun (_, d) => d.includedTheorems)
+    let equivSpecs : List Driver.EquivReflSpec :=
+      equivRefls.foldl (init := []) fun acc (n, f) =>
+        if acc.any (·.name == n) then acc else
+        match Driver.equivReflSpecOfFormula? n f with
+        | some sp => acc ++ [sp]
+        | none => acc
+    let equivFullSpecs : List Driver.EquivFullSpec :=
+      allTrees.foldl (init := []) fun acc (n, cp) =>
+        if acc.any (·.name == n) then acc else
+        match cp.root with
+        | some root => match root.inputClause with
+          | [f] => match Driver.equivFullSpecOfGoal? n f with
+            | some sp => acc ++ [sp]
+            | none => acc
+          | _ => acc
+        | none => acc
+    let congDecls : Array (Lean.Name × Lean.BinderInfo ×
+        (Array Expr → Lean.MetaM Expr)) :=
+      (congs.map fun c =>
+        (Lean.Name.mkSimple s!"pcong_{c.name}", Lean.BinderInfo.default,
+         fun _ => Driver.mkCongHypType cfg c)).toArray
+    let equivDecls : Array (Lean.Name × Lean.BinderInfo ×
+        (Array Expr → Lean.MetaM Expr)) :=
+      (equivSpecs.map fun c =>
+        (Lean.Name.mkSimple s!"pequivrefl_{c.name}",
+         Lean.BinderInfo.default,
+         fun _ => Driver.mkEquivReflHypType cfg c)).toArray
+    let equivFullDecls : Array (Lean.Name × Lean.BinderInfo ×
+        (Array Expr → Lean.MetaM Expr)) :=
+      (equivFullSpecs.map fun c =>
+        (Lean.Name.mkSimple s!"pequivfull_{c.name}",
+         Lean.BinderInfo.default,
+         fun _ => Driver.mkEquivFullHypType cfg c)).toArray
     Lean.Meta.withLocalDecls totalDecls fun totVs => do
     Lean.Meta.withLocalDecls ruleDecls fun ruleVs => do
     Lean.Meta.withLocalDecls tpDecls fun tpVs => do
     Lean.Meta.withLocalDecls tpAvDecls fun tpAvVs => do
+    Lean.Meta.withLocalDecls congDecls fun congVs => do
+    Lean.Meta.withLocalDecls equivDecls fun equivVs => do
+    Lean.Meta.withLocalDecls equivFullDecls fun equivFullVs => do
       let ctx : ReplayCtx :=
         { totalHyps := (fns.map (fun (sy, _, _) => sy.name)).zip
             totVs.toList,
@@ -787,9 +871,12 @@ def prepareUseFi (crossDevs : List (String × Development))
           tpHyps := (tpFns.zip tpVs.toList).map
             (fun ((sy, _, cor), h) => (sy.name, cor, h)),
           tpHypsAv := (tpAvFns.zip tpAvVs.toList).map
-            (fun ((sy, _, cor), h) => (sy.name, cor, h)) }
-      let pf ← mkUseFiDischarger crossDevs totsNames consumerDev cfg
-        ctx spec
+            (fun ((sy, _, cor), h) => (sy.name, cor, h)),
+          congHyps := congs.zip congVs.toList,
+          equivReflHyps := equivSpecs.zip equivVs.toList,
+          equivFullHyps := equivFullSpecs.zip equivFullVs.toList }
+      let pf ← mkUseFiDischarger crossDevs totsNames termByFn
+        consumerDev cfg ctx spec
       -- the result is `mkAppN (const) usedFVars`; capture the shape
       let fn := pf.getAppFn
       let some cName := fn.constName?
@@ -809,6 +896,9 @@ def applyPreparedUseFi (cName : Lean.Name) (argTys : List Expr)
     ++ ctx.tpHyps.map (·.2.2)
     ++ ctx.tpHypsAv.map (·.2.2)
     ++ ctx.useHyps.map (·.2)
+    ++ ctx.congHyps.map (·.2)
+    ++ ctx.equivReflHyps.map (·.2)
+    ++ ctx.equivFullHyps.map (·.2)
   let args ← argTys.mapM fun ty => do
     let mut hit : Option Expr := none
     for h in pool do

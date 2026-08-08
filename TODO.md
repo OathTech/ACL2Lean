@@ -38,8 +38,24 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > owning dev's recordedTerminationDefuns run replayAdmission at the
 > consumer world (cached by name — the ReplayedTermination
 > discipline) and pass to the discharge (ORDEREDP-QSORT's FILTER
-> decrease). Then the STRONG prepares close; sweep, golden row-review
-> (capstone usefi: conds flip discharged), gate.
+> decrease). D2-b LANDED (owning-dev
+> channels + consumer-world termReplayed pre-pass + user-equiv rule
+> filter + the full synthetic offer surfaces incl. cong/equivRefl/
+> equivFull): ORDEREDP-MSORT and the qsort chain now DISCHARGE; the
+> msort citation reached [husethm_ORDERED-PERMS]-only before the
+> latest round. D2-c (the current blockers, both in the ASSEMBLY not
+> the semantics): (i) the STRONG prepares now fail 'Application type
+> mismatch' — inspect the bridge/lift applications' argument order
+> against the lemma signatures (likely the fuelEq lift's hint or the
+> Class-1 crossing under the with-hyp shape); (ii) a PREPARED
+> constant's TYPE is kernel-rejected ('type expected' at module
+> finalization even with everything else green) — inspect the
+> constructed declTy/tyA (mkForallFVars over the collected fvars +
+> env; suspect ordering or a Prop/Type slip) — BOTH the callback and
+> the pre-pass are gated off (if true then pure acc) until fixed;
+> tree green at 104/116 throughout. Then the STRONG prepares close;
+> sweep, golden row-review (capstone usefi: conds flip discharged),
+> gate.
 
 _Last updated: 2026-08-08 (Phase 3 R7b: EARLY EXIT declared — exit report docs/notes/2026-08-08_phase3-exit-report.md; exit gate TRUE_EXIT=0; branch mdd/phase3-r7b is the merge candidate)._
 

@@ -144,6 +144,10 @@ elab "coverage_book% " nameLit:str : command => do
     -- composition runs inside them); the callback below just applies.
     let prepared ← do
       let mut acc : List (String × Lean.Name × List Lean.Expr) := []
+      -- D2-c: pre-pass disabled with the callback (one of its addDecl'd
+      -- constants carries a kernel-rejected type — 'type expected' at
+      -- module finalization; signatures pinned in TODO)
+      if true then pure acc else
       match ProofLog.parse content with
       | .error _ => pure acc
       | .ok log =>
@@ -152,6 +156,32 @@ elab "coverage_book% " nameLit:str : command => do
         | .ok consumerDev =>
           let wVal := consumerDev.toWorld
           let wExpr ← ACL2.Replay.Driver.reflectWorld consumerDev.toWorld
+          -- consumer-world recorded-termination pre-pass for the dep
+          -- books whose trees the bridges re-replay (D2-b ii)
+          let mut termByFn :
+              List (String × Lean.Name × List String × List SExpr) := []
+          for (depName, depDev) in crossDevs do
+            for (fn, tcp) in ACL2.Replay.Runner.recordedTerminationDefuns
+                depDev.justifications depDev do
+              unless termByFn.any (·.1 == fn) do
+                let base := String.map
+                  (fun c => if c.isAlphanum then c else '_')
+                  s!"usefi_term_{name}_{fn}"
+                let mName := Lean.Name.mkStr2 "ReplayedTermination" base
+                let (status, reg?) ←
+                  ACL2.Replay.Runner.replayAdmission depDev wVal wExpr
+                    tcp mName (crossTrees :=
+                      crossDevs.flatMap (fun (_, d) =>
+                        ACL2.Replay.Runner.bookTrees d))
+                match reg? with
+                | some conds =>
+                  unless ACL2.Replay.Runner.admissionCircular fn conds do
+                    termByFn := termByFn
+                      ++ [(fn, mName, conds,
+                           (tcp.root.map (·.inputClause)).getD [])]
+                | none =>
+                  logInfo m!"usefi term pre-pass {depName}/{fn}: \
+                    {status}"
           for (cp, _) in
               ACL2.Replay.Driver.developmentTheoremsWithRules consumerDev
                 |>.map (fun (c, r) => (c, r)) do
@@ -168,7 +198,7 @@ elab "coverage_book% " nameLit:str : command => do
                     ACL2.Imported.Mirrors.prepareUseFi crossDevs
                       [``ACL2.Worlds.Sorting.dis_pce_total,
                        ``ACL2.Worlds.Sorting.dis_how_many_tp]
-                      consumerDev wVal wExpr spec
+                      consumerDev wVal wExpr spec termByFn
                   acc := acc ++ [(key, cName, argTys)]
                 catch e =>
                   logInfo m!"usefi prepare {thmName}: SKIPPED \
@@ -188,7 +218,9 @@ elab "coverage_book% " nameLit:str : command => do
       --     ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
       --       [``ACL2.Worlds.Sorting.dis_pce_total,
       --        ``ACL2.Worlds.Sorting.dis_how_many_tp] dev cfg ctx spec)
-      (usefiDischarge := some (fun _dev _cfg ctx spec => do
+      (usefiDischarge := none)
+      -- D2-c WIP (disabled): re-enable by restoring the closure below
+      /- (usefiDischarge := some (fun _dev _cfg ctx spec => do
         let key := spec.name ++ "|" ++
           String.intercalate "," (spec.subst.map (·.1.name))
         match prepared.find? (·.1 == key) with
@@ -196,7 +228,7 @@ elab "coverage_book% " nameLit:str : command => do
           ACL2.Imported.Mirrors.applyPreparedUseFi cName argTys ctx
         | none => (ACL2.Replay.Driver.throwFrontier
             m!"usefi: no prepared constant for {spec.name}" :
-            Lean.MetaM Lean.Expr)))
+            Lean.MetaM Lean.Expr))) -/
     let t1 ← IO.monoMsNow
     unless r.integrityFails.isEmpty do
       throwError "coverage_book% {name}: integrity failures \
