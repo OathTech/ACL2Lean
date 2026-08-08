@@ -638,21 +638,24 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     rules.map (fun r => s!"rule:{r.runeKey}") ++
     congs.map (fun c => s!"cong:{c.name}") ++
     useSpecs.map (fun u => s!"use:{u.name}") ++
-    useFiSpecs.map (fun u => s!"usefi:{u.name}") ++
     equivSpecs.map (fun c => s!"equivrefl:{c.name}") ++
     equivFullSpecs.map (fun e => s!"equivfull:{e.name}") ++
     linearSpecs.map (fun r => s!"linear:{r.name}") ++
-    dpStmts.map (fun _ => assumedDpFactCond)
+    dpStmts.map (fun _ => assumedDpFactCond) ++
+    useFiSpecs.map (fun u => s!"usefi:{u.name}")
   withLocalDecls totalDecls fun totalVs => do
     withLocalDecls (tpDecls ++ tpAvDecls) fun tpAllVs => do
      withLocalDecls ruleDecls fun ruleVs => do
       withLocalDecls congDecls fun congVs => do
       withLocalDecls useDecls fun useVs => do
-      withLocalDecls useFiDecls fun useFiVs => do
       withLocalDecls equivDecls fun equivVs => do
       withLocalDecls equivFullDecls fun equivFullVs => do
       withLocalDecls linearDecls fun linearVs => do
       withLocalDecls dpDecls fun dpVs => do
+      -- usefi binders LAST: their discharge (the prepared-constant
+      -- application) references arbitrary earlier telescope fvars, and
+      -- letBindFVar requires every value fvar to PRECEDE the bound one
+      withLocalDecls useFiDecls fun useFiVs => do
       let tpVs := tpAllVs.extract 0 tpDecls.size
       let tpAvVs := tpAllVs.extract tpDecls.size tpAllVs.size
       let ctx : ReplayCtx :=
@@ -807,7 +810,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so
       -- dropping unused ones is well-formed).
-      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ useFiVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs).toList).filter
+      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs ++ useFiVs).toList).filter
         fun (_, v) => prf.containsFVar v.fvarId!
       -- #37 LAZY discharge: prove admission totality only for the USED
       -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
@@ -819,7 +822,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let usedTpNames := used.filterMap fun (c, _) =>
         if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
       let neededFns := if discharge then usedTotalNames ++ usedTpNames else []
-      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ useFiVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs).toList)
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ linearVs ++ dpVs ++ useFiVs).toList)
       let totalEnv ←
         if neededFns.isEmpty then pure []
         else

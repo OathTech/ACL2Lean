@@ -528,10 +528,17 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
           (String.map (fun c => if c.isAlphanum then c else '_')
             s!"replayed_{name}_{cp.name}")
         let tThm0 ← IO.monoMsNow
+        -- FI-citing rows carry the applied usefi constants through the
+        -- remaining passes — structurally larger by design, entitled to
+        -- the admission-class window (same budget-methodology note as
+        -- tryReplay's docstring)
+        let rowBudget := if (ACL2.Replay.Driver.theoremFnInstanceCites
+            cp).isEmpty then 3000000 else 10000000
         let (status, reg?) ← tryReplay dev w wExpr cp rules
           (mirrors := mirrors) (replayedName? := some mName)
           (termReplayed := termReplayed) (crossTrees := crossTrees)
           (crossRules := crossRules) (usefiDischarge := usefiDischarge)
+          (budget := rowBudget)
         let tThm1 ← IO.monoMsNow
         if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"
         if let some conds := reg? then

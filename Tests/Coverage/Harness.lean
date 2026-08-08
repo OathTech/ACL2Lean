@@ -143,11 +143,11 @@ elab "coverage_book% " nameLit:str : command => do
     -- context (the row telescopes overflow the worker stack if the
     -- composition runs inside them); the callback below just applies.
     let prepared ← do
-      let mut acc : List (String × Lean.Name × List Lean.Expr) := []
+      let mut acc : List (String × Lean.Name × List (String × String)) := []
       -- D2-c: pre-pass disabled with the callback (one of its addDecl'd
       -- constants carries a kernel-rejected type — 'type expected' at
       -- module finalization; signatures pinned in TODO)
-      if true then pure acc else
+      if false then pure acc else
       match ProofLog.parse content with
       | .error _ => pure acc
       | .ok log =>
@@ -190,7 +190,7 @@ elab "coverage_book% " nameLit:str : command => do
               let spec : ACL2.Replay.Driver.UseFiSpec :=
                 { name := thmName, subst := σ, formula := hypI }
               let key := thmName ++ "|" ++
-                String.intercalate "," (σ.map (·.1.name))
+                toString (hash (toString (repr hypI)))
               unless acc.any (·.1 == key) do
                 try
                   let (cName, argTys) ←
@@ -218,17 +218,19 @@ elab "coverage_book% " nameLit:str : command => do
       --     ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
       --       [``ACL2.Worlds.Sorting.dis_pce_total,
       --        ``ACL2.Worlds.Sorting.dis_how_many_tp] dev cfg ctx spec)
-      (usefiDischarge := none)
-      -- D2-c WIP (disabled): re-enable by restoring the closure below
-      /- (usefiDischarge := some (fun _dev _cfg ctx spec => do
+      (usefiDischarge := some (fun _dev _cfg ctx spec => do
         let key := spec.name ++ "|" ++
-          String.intercalate "," (spec.subst.map (·.1.name))
+          toString (hash (toString (repr spec.formula)))
         match prepared.find? (·.1 == key) with
         | some (_, cName, argTys) =>
-          ACL2.Imported.Mirrors.applyPreparedUseFi cName argTys ctx
+          try
+            ACL2.Imported.Mirrors.applyPreparedUseFi cName argTys ctx
+          catch e => do
+            Lean.logInfo m!"usefi apply {spec.name}: {e.toMessageData}"
+            throw e
         | none => (ACL2.Replay.Driver.throwFrontier
             m!"usefi: no prepared constant for {spec.name}" :
-            Lean.MetaM Lean.Expr))) -/
+            Lean.MetaM Lean.Expr)))
     let t1 ← IO.monoMsNow
     unless r.integrityFails.isEmpty do
       throwError "coverage_book% {name}: integrity failures \

@@ -363,6 +363,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
           (← Lean.Meta.mkDecide hwProp)
         unless b do
           throwError "usefi: aliasFreeWorld evaluated FALSE"
+        Lean.Meta.check hwProp
         Lean.addDecl <| .thmDecl
           { name := hwName, levelParams := [], type := hwProp,
             value := ← Lean.Meta.mkDecideProof hwProp }
@@ -504,7 +505,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
                         #[namesE, Driver.reflectSExpr rspec.rhs])
                       (mkConst ``Bool.true)) "bridge fnFree rhs",
                     erV, hAtW]
-                mkForallFVars #[erV] pfc
+                mkLambdaFVars #[erV] pfc
             pure (some (← Lean.Meta.mkExpectedTypeHint pf bTy))
           else pure none
         | none => pure none
@@ -593,7 +594,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
                     ← mkFnFreePf slhs "bridge fnFree slhs",
                     ← mkFnFreePf rspec.rhs "bridge fnFree rhs",
                     erV, hAtW, hconv]
-            let pf ← mkForallFVars #[erV] pfc
+            let pf ← mkLambdaFVars #[erV] pfc
             pure (some (← Lean.Meta.mkExpectedTypeHint pf bTy))
     let useBridge := fun (uspec : UseSpec) (bTy : Expr) => do
       -- alias-free cited theorem: discharge at the consumer world,
@@ -621,7 +622,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
           #[namesE, cfg.worldExpr, wAliasE, hagree, hw, erV,
             Driver.reflectSExpr uspec.formula, hfree]
         let pfc ← mkAppM ``Iff.mpr #[iff, hAtW]
-        let pf ← mkForallFVars #[erV] pfc
+        let pf ← mkLambdaFVars #[erV] pfc
         pure (some (← Lean.Meta.mkExpectedTypeHint pf bTy))
     let (pfAtAlias, kept, _concl) ← instantiateParametricAt depDev
       wAliasVal wAliasE spec.name depCrossTrees depCrossRules totsNames
@@ -644,7 +645,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     let pfAClosed ← mkLambdaFVars fvExprsA pfA
     let keyA := (cfg.worldExpr.constName?.map (·.toString)).getD "anon"
       ++ "_atAlias_" ++ spec.name
-      ++ "_" ++ String.intercalate "_" (names.map (·.name))
+      ++ "_" ++ toString (hash (toString (repr spec.formula)))
     let cNameA := Lean.Name.mkStr2 "UsefiDischarged"
       (String.map (fun c => if c.isAlphanum then c else '_') keyA)
     let pfAtAlias ← do
@@ -659,6 +660,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
         let tyA ← mkForallFVars fvExprsA
           (mkAppN (mkConst ``ACL2.Replay.EvTrue)
             #[wAliasE, envV, Driver.reflectSExpr phi0])
+        Lean.Meta.check tyA
         Lean.addDecl <| .thmDecl
           { name := cNameA, levelParams := [], type := tyA,
             value := pfAClosed }
@@ -673,22 +675,19 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     let hws ← proveByDecideKernel
       (← mkEq (← mkAppM ``ACL2.Replay.WellScoped #[phiE])
         (mkConst ``Bool.true)) "usefi WellScoped Φ"
-    let hsimp ← proveByDecideKernel
-      (← mkEq (← mkAppM ``ACL2.Replay.aliasArgsSimple #[namesE, phiE])
-        (mkConst ``Bool.true)) "usefi aliasArgsSimple Φ"
     let hfree ← proveByDecideKernel
       (← mkEq (← mkAppM ``ACL2.Replay.fnFreeTerm
         #[namesE, ← mkAppM ``ACL2.Replay.substFnCalls #[σE, phiE]])
         (mkConst ``Bool.true)) "usefi fnFree image"
     let pfCross ← mkAppM ``ACL2.Replay.evtrue_fnalias
       #[σE, cfg.worldExpr, wAliasE, hσdef, hσns, hσws, hσcl, hagree,
-        hw, phiE, hws, hsimp, hfree, envV, pfAtAlias]
+        hw, phiE, hws, hfree, envV, pfAtAlias]
     let target := mkAppN (mkConst ``ACL2.Replay.EvTrue)
       #[cfg.worldExpr, envV, Driver.reflectSExpr spec.formula]
     -- NO elaborator-side type gate on the giant term (each inferType
     -- walk is a stack overflow at this depth) — the kernel verifies
     -- the whole value against the CONSTRUCTED type at addDecl below
-    let pfAll ← mkForallFVars #[envV]
+    let pfAll ← mkLambdaFVars #[envV]
       (← Lean.Meta.mkExpectedTypeHint pfCross target)
     -- DECLARE the discharged hypothesis as a CONSTANT (the D1 pattern):
     -- the row proof then references it small — an inline nesting of the
@@ -698,7 +697,43 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     -- fvars would escape the declaration — this route requires the
     -- discharge to be CLOSED (checked below); a conditional result
     -- frontiers honestly.
-    let pfC ← Lean.instantiateMVars pfAll
+    let pfC0 ← Lean.instantiateMVars pfAll
+    -- prepare-time closure of parameters the ROW telescope cannot
+    -- supply: cross-book cong/equivRefl/equivFull hypotheses consumed
+    -- by the bridges' inner re-replays are discharged HERE (shallow
+    -- stack, owning-book channels) and let-bound into the constant;
+    -- a frontier leaves the parameter abstracted (row-match may then
+    -- keep the usefi hypothesis — honest)
+    let ownCfgFor := fun (n : String) =>
+      match crossDevs.find? (fun (_, d) =>
+          (Driver.findThm d n).isSome) with
+      | some (_, ownDev) =>
+        { ACL2.Replay.Runner.mkBookConfig ownDev cfg.worldVal
+            cfg.worldExpr cfg.envExpr with termReplayed := termByFn }
+      | none => { cfg with termReplayed := termByFn }
+    let mut pfCm := pfC0
+    for (cspec, hv) in ctx.congHyps do
+      if pfCm.containsFVar hv.fvarId! then
+        try
+          let pf ← Driver.dischargeCongHyp (ownCfgFor cspec.name) ctx
+            cspec consumerDepProofs []
+          pfCm ← Driver.letBindFVar pfCm hv pf
+        catch _ => pure ()
+    for (espec, hv) in ctx.equivReflHyps do
+      if pfCm.containsFVar hv.fvarId! then
+        try
+          let pf ← Driver.dischargeEquivReflHyp (ownCfgFor espec.name)
+            ctx espec consumerDepProofs []
+          pfCm ← Driver.letBindFVar pfCm hv pf
+        catch _ => pure ()
+    for (fspec, hv) in ctx.equivFullHyps do
+      if pfCm.containsFVar hv.fvarId! then
+        try
+          let pf ← Driver.dischargeEquivFullHyp (ownCfgFor fspec.name)
+            ctx fspec consumerDepProofs []
+          pfCm ← Driver.letBindFVar pfCm hv pf
+        catch _ => pure ()
+    let pfC ← Lean.instantiateMVars pfCm
     -- consumer-telescope fvars (the transports/Class-1 bindings) are
     -- λ-ABSTRACTED into the constant and re-applied at the reference,
     -- so the constant is closed and the row proof stays conditional on
@@ -711,12 +746,13 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       (← mkForallFVars #[envV] target)
     let key := (cfg.worldExpr.constName?.map (·.toString)).getD "anon"
       ++ "_" ++ spec.name
-      ++ "_" ++ String.intercalate "_" (names.map (·.name))
+      ++ "_" ++ toString (hash (toString (repr spec.formula)))
     let cName := Lean.Name.mkStr2 "UsefiDischarged"
       (String.map (fun c => if c.isAlphanum then c else '_') key)
     if (← Lean.getEnv).contains cName then
       pure (mkAppN (mkConst cName) fvExprs)
     else do
+      Lean.Meta.check declTy
       Lean.addDecl <| .thmDecl
         { name := cName, levelParams := [],
           type := declTy, value := pfClosed }
@@ -738,7 +774,7 @@ def prepareUseFi (crossDevs : List (String × Development))
     (worldVal : World) (wExpr : Expr) (spec : UseFiSpec)
     (termByFn : List (String × Lean.Name × List String × List SExpr)
       := []) :
-    Lean.MetaM (Lean.Name × List Expr) := do
+    Lean.MetaM (Lean.Name × List (String × String)) := do
   Lean.Meta.withLocalDeclD `envDummy (mkConst ``ACL2.Env) fun envD => do
     let cfg := ACL2.Replay.Runner.mkBookConfig consumerDev worldVal
       wExpr envD
@@ -877,38 +913,51 @@ def prepareUseFi (crossDevs : List (String × Development))
           equivFullHyps := equivFullSpecs.zip equivFullVs.toList }
       let pf ← mkUseFiDischarger crossDevs totsNames termByFn
         consumerDev cfg ctx spec
-      -- the result is `mkAppN (const) usedFVars`; capture the shape
+      -- the result is `mkAppN (const) usedFVars`; record each argument
+      -- as a (class, key) pair for DIRECT row-time lookup (blind
+      -- isDefEq matching over the row pool burned the row's heartbeat
+      -- budget)
       let fn := pf.getAppFn
       let some cName := fn.constName?
         | throwError "prepareUseFi: discharge result is not a constant \
             application"
-      let argTys ← pf.getAppArgs.toList.mapM fun a =>
-        Lean.Meta.inferType a
-      pure (cName, argTys)
+      let keyed ← pf.getAppArgs.toList.mapM fun a => do
+        let some fid := a.fvarId?
+          | throwError "prepareUseFi: non-fvar constant argument"
+        if let some (n, _) := ctx.totalHyps.find?
+            (fun (_, h) => h.fvarId! == fid) then
+          pure ("total", n)
+        else if let some (r, _) := ctx.ruleHyps.find?
+            (fun (_, h) => h.fvarId! == fid) then
+          pure ("rule", r.runeKey)
+        else if let some (n, _, _) := ctx.tpHyps.find?
+            (fun (_, _, h) => h.fvarId! == fid) then
+          pure ("tp", n)
+        else if let some (n, _, _) := ctx.tpHypsAv.find?
+            (fun (_, _, h) => h.fvarId! == fid) then
+          pure ("tpav", n)
+        else
+          throwError "prepareUseFi: constant argument outside the \
+            row-suppliable classes"
+      pure (cName, keyed)
 
 /-- Row-time applier for a prepared usefi constant: match each
     parameter type against the row telescope's hypothesis fvars and
     apply. -/
-def applyPreparedUseFi (cName : Lean.Name) (argTys : List Expr)
-    (ctx : ReplayCtx) : Lean.MetaM Expr := do
-  let pool := ctx.totalHyps.map (·.2)
-    ++ ctx.ruleHyps.map (·.2)
-    ++ ctx.tpHyps.map (·.2.2)
-    ++ ctx.tpHypsAv.map (·.2.2)
-    ++ ctx.useHyps.map (·.2)
-    ++ ctx.congHyps.map (·.2)
-    ++ ctx.equivReflHyps.map (·.2)
-    ++ ctx.equivFullHyps.map (·.2)
-  let args ← argTys.mapM fun ty => do
-    let mut hit : Option Expr := none
-    for h in pool do
-      if hit.isNone then
-        if ← Lean.Meta.isDefEq (← Lean.Meta.inferType h) ty then
-          hit := some h
-    match hit with
+def applyPreparedUseFi (cName : Lean.Name)
+    (keyed : List (String × String)) (ctx : ReplayCtx) :
+    Lean.MetaM Expr := do
+  let args ← keyed.mapM fun (cls, k) => do
+    let h? := match cls with
+      | "total" => (ctx.totalHyps.find? (·.1 == k)).map (·.2)
+      | "rule" => (ctx.ruleHyps.find? (·.1.runeKey == k)).map (·.2)
+      | "tp" => (ctx.tpHyps.find? (·.1 == k)).map (·.2.2)
+      | "tpav" => (ctx.tpHypsAv.find? (·.1 == k)).map (·.2.2)
+      | _ => none
+    match h? with
     | some h => pure h
     | none => Driver.throwFrontier m!"usefi apply: no row hypothesis \
-        matches a prepared parameter"
+        for prepared parameter {cls}:{k}"
   pure (Lean.mkAppN (mkConst cName) args.toArray)
 
 end ACL2.Imported.Mirrors
