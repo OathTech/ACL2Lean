@@ -182,21 +182,20 @@ elab "sorting_statement_pins_run% " : term => do
       -- probes; the full sweep's golden carries them)
       "    TRUE-LISTP-ISORT → REPLAYED ✓ cond[tp:INSERT]"),
      ("pins/sorting/isort",
-      "    HOW-MANY-ISORT → REPLAYED ✓ cond[tp:HOW-MANY, \
-rule:FOLD-CONSTS-IN-+]"),
+      "    HOW-MANY-ISORT → REPLAYED ✓ cond[tp:HOW-MANY]"),
      ("pins/sorting/qsort",
       "    PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, \
-tp:HOW-MANY, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, \
+tp:HOW-MANY, tp:ACL2-COUNT, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
      ("pins/sorting/qsort",
-      "    TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, tp:ACL2-COUNT, \
-rule:FOLD-CONSTS-IN-+]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
+      "    TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, \
+tp:ACL2-COUNT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
 cond[total:(QSORT X), tp:QSORT]]"),
      ("pins/sorting/qsort",
       "    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, \
-total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:FOLD-CONSTS-IN-+, \
+total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
@@ -317,19 +316,6 @@ private def ruleEqHyp1 (w : World) (hyp lhs rhs : SExpr) : Prop :=
   ∀ env' : Env, EvTrue w env' hyp →
     ∃ N, ∀ f ≥ N, evalOpt f w env' lhs = evalOpt f w env' rhs
 
-/-- `rule:FOLD-CONSTS-IN-+` (arithmetic-3/pass1/basic-arithmetic.lisp:109):
-    `(implies (and (syntaxp (quotep x)) (syntaxp (quotep y)))
-              (equal (+ x (+ y z)) (+ (+ x y) z)))`
-    — the two `syntaxp` hypotheses as truthy SYNP terms, exactly as ACL2
-    translates them. -/
-private def foldConstsHyp (w : World) : Prop :=
-  ∀ env' : Env,
-    EvTrue w env' (synpQuotep "X") →
-    EvTrue w env' (synpQuotep "Y") →
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) =
-      evalOpt f w env' (ap2 "BINARY-+" (ap2 "BINARY-+" (sym "X") (sym "Y")) (sym "Z"))
-
 /-! ## isort book (acl2/books/sorting/isort.lisp) -/
 
 /-- PIN the machine-generated statement of `ORDEREDP-ISORT`: the mirror of
@@ -352,8 +338,9 @@ example :
       is not yet auto-discharged on this row),
     - the emitted non-negative-integer TP corollaries of `how-many` and
       `acl2-count` (source-true: both count),
-    - the cited rules `fold-consts-in-+` (arithmetic-3),
-      `convert-perm-to-how-many` and `how-many-qsort` (transcribed from
+    - the cited rules `convert-perm-to-how-many` and `how-many-qsort`
+      (fold-consts-in-+ now discharges via its D5 prelude constant;
+      the rest transcribed from
       their books; `how-many-qsort` is a hypothesis because its own replay
       currently fails at the J6 solidify frontier — no mirror to apply). -/
 example :
@@ -362,7 +349,6 @@ example :
       totalHyp2 qsortPinsWorld "O<" →
       tpNonnegInt2 qsortPinsWorld "HOW-MANY" →
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
-      foldConstsHyp qsortPinsWorld →
       -- (the not-memb-implies-how-many-is-0 hypothesis is GONE: discharged
       -- CROSS-BOOK from the dependency book's replayed tree — 2a)
       -- convert-perm-to-how-many:
@@ -405,14 +391,14 @@ example :
     of the ACL2 defthm `(true-listp (qsort x))`, conditional on `o<`
     totality, qsort's own emitted TP corollary `(true-listp (qsort x))`
     (the recursive TP — consumed on IH positions, NOT a circular discharge
-    of the conclusion: the mirror still replays the tree), acl2-count's
-    non-negative-integer TP, and `fold-consts-in-+`. -/
+    of the conclusion: the mirror still replays the tree), and acl2-count's
+    non-negative-integer TP (fold-consts-in-+ now discharges via its D5
+    prelude constant). -/
 example :
     ∀ (env : Env),
       totalHyp2 qsortPinsWorld "O<" →
       tpPred1 qsortPinsWorld "QSORT" Logic.trueListp →
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
-      foldConstsHyp qsortPinsWorld →
       EvTrue qsortPinsWorld env (ap1 "TRUE-LISTP" (ap1 "QSORT" (sym "X"))) :=
   ReplayedStatements.replayed_pins_sorting_qsort_TRUE_LISTP_QSORT
 
@@ -445,7 +431,6 @@ example :
     ∀ (env : Env),
       totalHyp2 qsortPinsWorld "O<" →
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
-      foldConstsHyp qsortPinsWorld →
       EvTrue qsortPinsWorld env
         (ap3 "IF" (qsortDecreaseClause "GTE") (qsortDecreaseClause "LT") (qt .nil)) :=
   ReplayedTermination.term_pins_sorting_qsort_QSORT
@@ -565,9 +550,9 @@ example :
 
     under ACL2's standard translation (`and` → nested IFs, `or` →
     `(IF a a b)`), conditional on ins's emitted TP corollary
-    `(consp (ins e x))` (source-true: every branch conses) and the
-    ground-zero rule `default-cdr`
-    (`(implies (not (consp x)) (equal (cdr x) nil))`). -/
+    `(consp (ins e x))` (source-true: every branch conses); the
+    ground-zero rule `default-cdr` now discharges via its D5 prelude
+    constant. -/
 
 private def p3ConjLog : String :=
   include_str "../acl2_samples/pattern-tests/p3-conj-mid-literal.proof-log"
@@ -583,7 +568,7 @@ elab "p3_conj_statement_pin_run% " : term => do
     throwError "p3-conj statement pin: integrity failures \
       {r.integrityFails.toList}"
   unless r.lines.any (·.startsWith
-      "    ORDD-INS-MID → REPLAYED ✓ cond[tp:INS, rule:DEFAULT-CDR]") do
+      "    ORDD-INS-MID → REPLAYED ✓ cond[tp:INS]") do
     throwError "p3-conj statement pin: lost the pinned status prefix; got:\n\
       {"\n".intercalate r.lines.toList}"
   logInfo "p3-conj statement pin: replay status holds (ORDD-INS-MID)"
@@ -598,11 +583,6 @@ private def notOf (x : SExpr) : SExpr := .cons (sym "NOT") (.cons x .nil)
 example :
     ∀ (env : Env),
       tpPred2 p3ConjPinsWorld "INS" Logic.consp →
-      -- default-cdr: (implies (not (consp x)) (equal (cdr x) nil))
-      ruleEqHyp1 p3ConjPinsWorld
-        (notOf (ap1 "CONSP" (sym "X")))
-        (ap1 "CDR" (sym "X"))
-        (qt .nil) →
       EvTrue p3ConjPinsWorld env
         (ap2 "IMPLIES"
           (ap3 "IF" (ap1 "CONSP" (sym "IT"))
@@ -641,7 +621,7 @@ private def tpBool3 (w : World) (fn : String) : Prop :=
     - the emitted TP corollaries of `how-many`/`acl2-count` (non-negative
       integers — source-true: both count) and `all-rel` (boolean —
       source-true: every branch returns `t`/`nil`/a recursive call),
-    - the cited rules `fold-consts-in-+`, `convert-perm-to-how-many`,
+    - the cited rules `convert-perm-to-how-many`,
       `how-many-qsort` (as on PERM-QSORT's pin), and `orderedp-append`
       (qsort.lisp:85 — the IFF-stated defthm, stored with ACL2's
       iff→equal strengthening; hypothesis `(orderedp a)`, rhs the
@@ -663,7 +643,6 @@ example :
       tpNonnegInt2 qsortPinsWorld "HOW-MANY" →
       tpBool3 qsortPinsWorld "ALL-REL" →
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
-      foldConstsHyp qsortPinsWorld →
       -- (not-memb-implies-how-many-is-0: discharged cross-book, 2a)
       -- convert-perm-to-how-many:
       --   (equal (perm x y) (equal (how-many (perm-counter-example x y) x)
@@ -830,13 +809,13 @@ example :
 #print axioms ReplayedStatements.replayed_pins_sorting_isort_TRUE_LISTP_ISORT
 
 /-- PIN `HOW-MANY-ISORT`: `(equal (how-many e (isort x)) (how-many e x))`,
-    conditional on how-many's non-negative-integer TP and fold-consts-in-+
+    conditional on how-many's non-negative-integer TP (fold-consts-in-+
+    now discharges via its D5 prelude constant)
     (`not-memb-implies-how-many-is-0` now discharges CROSS-BOOK from the
     dependency book's replayed tree — 2a). -/
 example :
     ∀ (env : Env),
       tpNonnegInt2 isortPinsWorld "HOW-MANY" →
-      foldConstsHyp isortPinsWorld →
       EvTrue isortPinsWorld env
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (sym "E") (ap1 "ISORT" (sym "X")))

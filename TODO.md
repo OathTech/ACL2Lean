@@ -15,6 +15,30 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > checkpoint), D3 (BSORT composition, ceiling ◌), D4 (audit-hardening
 > items). Branch mdd/phase3-r7b remains the merge candidate.
 
+> **CLOSE-OUT queue item 1 DONE (2026-08-08): D1's in-scope half.**
+> Witness-TP kits landed (`Imported/EquisortWitness.lean`); ALL EIGHT
+> AtCanonical constraint `rule:` premises discharge (inner-ctx
+> augmentation: tp/total/equivrefl proof-term entries + demand-driven
+> iterated rule pre-discharge in `instantiateParametricAt`); FOUR new
+> D5 prelude constants (DEFAULT-CAR, DEFAULT-CDR, CONS-CAR-CDR,
+> FOLD-CONSTS-IN-+ in `Replay/GzRules.lean`, WP3-pinned) replace the
+> retired Imported/Sorting hand kits corpus-wide — sweep rows citing
+> those boot rules discharge them instead of keeping conds (golden
+> repinned). AtCanonical KEPT residue = 2 premises with named
+> out-of-scope blockers (PCE-chain/R-lane; ORDERED-PERMS tau dp-facts)
+> — see the deferral log's D1 close-out update.
+
+> **CLOSE-OUT queue item 2 DONE (2026-08-08): D4's gz agreement-lemma
+> half.** TEN new `gz_def_*` lemmas (Derived.lean: IMPLIES, IFF, EQL,
+> FORCE, HIDE, IFIX, NATP, POSP, ZP, EVENP) + the fail-closed
+> `check-gz-agreement` ci gate (script parses builtinNames + corpus
+> snapshots; LEXORDER/EXPT flagged with justification; flag-rot
+> detected). Scope-in-force refinement stays deferred (no driving
+> book). Queue item 3 (D3/BSORT): bounded attempt closed as
+> LOG-AND-MOVE-ON with the exact composition plan in the deferral log
+> (node anatomy dumped; the FI arm needs a chain→clausify→verdict
+> traversal — its own Core.lean arm; ceiling ◌ regardless).
+
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
 > Per-node lemma decomposition as the eventual default emission shape +

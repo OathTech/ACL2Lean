@@ -17,6 +17,35 @@ Format:
 
 ---
 
+> **D1 close-out update (2026-08-08, queue item 1 RESOLUTION — the
+> in-scope half is DONE).** The witness-TP `dis_*` kits landed
+> (`Imported/EquisortWitness.lean`: exec kits + `derive_exec_tp%`
+> dischargers for SORTFN1-INSERT/SORTFN1/SSORTFN1-INSERT/SSORTFN1,
+> bodies transcribed from the emitted `:DEFUN` events), and ALL EIGHT
+> constraint `rule:` premises now DISCHARGE at both AtCanonical
+> constants — via the inner-ctx augmentation in
+> `instantiateParametricAt` (tp/totality/equivrefl proof-term entries +
+> the demand-driven iterated rule pre-discharge) and FOUR NEW D5
+> prelude constants (`gz_rule_default_car`, `gz_rule_default_cdr`,
+> `gz_rule_cons_car_cdr`, `gz_rule_fold_consts_in_plus` in
+> `Replay/GzRules.lean`, registered in `d5GzRules`, WP3-pinned against
+> emitted snapshots; the old Imported/Sorting hand kits + their
+> consumer applications are retired — the registry is the single home).
+> KEPT residue (2 premises, each with a named out-of-scope blocker):
+> - `hrule_CONVERT-PERM-TO-HOW-MANY` — the PCE-IS-COUNTEREXAMPLE
+>   recognizer frontier + PERM-TLFIX R-lane chain, exactly as deferred
+>   below (the R-lane leg is Mike's pre-ratified checkpoint).
+> - `husethm_ORDERED-PERMS` — ORDERED-PERMS's own tree carries tau /
+>   fc-contradiction DP leaves that even its green sweep row holds as
+>   `◌ assumed` dp-facts; the inner re-replay has no assumed-hypothesis
+>   telescope to fall back to (tried: owning-book cfg retry — the
+>   usefi-bridge pattern — still unprovable). Closing it needs either
+>   the tau-frontier machinery or cross-WORLD mirror application
+>   (registry constant at `orderedPermsWorldD` + world-agreement
+>   crossing) — both outside this charter.
+> D1 therefore ends as **done-except-R-lane-and-PCE-chain-and-tau**,
+> the charter's anticipated form.
+
 ## D1 — full non-vacuity of the capstone telescopes (2026-08-08)
 
 - What: `weak/strongSsortfn1IsSsortfn2AtCanonical` landed as PARTIAL
@@ -59,6 +88,30 @@ Format:
 - Unblocks: MSORT-IS-ISORT/QSORT-IS-ISORT usefi: conds flip to
   discharged (queue items 3/4's full closure).
 
+> **Close-out bounded attempt (2026-08-08, queue item 3 — ANALYZED,
+> not landed; the charter's log-and-move-on clause).** The node's
+> anatomy is now exact (dump: sorts-equivalent BSORT-IS-ISORT Goal,
+> apply-top-hints-clause): ONE FI lmi whose `:HYPS` instance IS the
+> goal (tautology-dropped, `application clauses: []`), a non-trivial
+> 5-conjunct `:CONSTRAINT-CL`, and a recorded chain that rewrites the
+> constraint clause down to `(IF (TRUE-LISTP X) (TRUE-LISTP (BSORT X))
+> 'T)`, then a CLAUSIFY record (out:
+> `[(NOT (TRUE-LISTP X)), (TRUE-LISTP (BSORT X))]`) closed by an
+> executable-counterpart verdict (`⇒ 'T` — the tau/exec class, ◌
+> `ASSUMED:dp-fact` in the discharge probe). The pure-FI arm
+> (`Core.lean` useHint arm) requires the chain to reach `'T` directly
+> and hard-fails on `useHs ≠ []` in the clausify arm; the needed
+> composition extends the CONSTRAINT-CHAIN VALIDATION (not the
+> conclusion — the instance's truth still comes from the `usefi:`
+> hypothesis, which the WEAK prepare keeps because ORDEREDP-BSORT is
+> genuinely red) to walk chain → clausify checkpoint → verdict
+> closure. Landing it means teaching the FI arm's chain to traverse
+> the clausify record + a discharge-verdict tail — a Core.lean arm of
+> its own, judged past the bounded-attempt budget with the close-out
+> audit still ahead. Ceiling unchanged: ◌ at best (the row would keep
+> `usefi:` + `ASSUMED:dp-fact` conds) until the bsort book's
+> emission-family frontiers land.
+
 ## D3 — item 5: BSORT-IS-ISORT's useHint+clausify composition (2026-08-08, EARLY-EXIT residual)
 
 - What: the composition (constraint chain on CONSTRAINT-CL, clausify
@@ -71,6 +124,23 @@ Format:
   frontiers).
 
 ## D4 — item 6: touched-if-relevant Phase 2 audit deferrals (2026-08-08, EARLY-EXIT residual)
+
+> **Close-out update (2026-08-08, queue item 2 DONE — the gz
+> agreement-lemma half).** TEN new `gz_def_*` agreement lemmas landed
+> in `Replay/Lemmas/Derived.lean` (IMPLIES, IFF, EQL, FORCE, HIDE,
+> IFIX, NATP, POSP, ZP, EVENP — each stating the `callBuiltin`
+> primitive agrees pointwise with the EMITTED ground-zero defun body's
+> value composition; zero sorries), and the fail-closed ci gate
+> `scripts/check-gz-agreement.sh` (in `just ci` as
+> `check-gz-agreement`) enforces that every builtin-named ground-zero
+> snapshot across the corpus has an agreement lemma or an explicit
+> justified flag, with flag-rot detection. FLAGGED: LEXORDER (body
+> cites ALPHORDER, a World fn — fidelity rests on the LexorderOrder
+> theorems + differential corpus) and EXPT (body cites ZIP —
+> differential corpus, BUG-021 pin). The SCOPE-IN-FORCE refinement
+> stays DEFERRED: no book demands it (the over-abstraction hard-fails
+> honestly at the witness-deref guard today), and refining without a
+> driving book would be speculative generalization.
 
 - What: gz agreement-lemma ci check; scope-in-force refinement.
 - Why residual: untouched — the phase's work never reached them
