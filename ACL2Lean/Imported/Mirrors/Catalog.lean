@@ -327,6 +327,12 @@ def liftCatalog : List (String × String × LiftStatus) := [
       type-absorbed true-listp doctrine, the TRUE-LISTP-RM precedent)"),
   ("sorting/bsort", "HOW-MANY-BNEXT",
     .native ``how_many_bnext_native_driver ``howManyBnextReplayedCond),
+  ("sorting/bsort", "HOW-MANY-SMALLER-BNEXT",
+    .pending "count-below invariance across one bubble pass (final
+      close-out — greened by the fc-derivations relief + the
+      add-literal dedup arm); natural native over the bnext sim
+      (howManySmallerL (bnextExec l) e = howManySmallerL l e), queued
+      behind the bsort cluster's fork-batch greens"),
   ("sorting/msort", "HOW-MANY-MERGE2", .native ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
   ("sorting/msort", "ORDEREDP-MSORT", .native ``orderedp_msort_native_driver ``orderedpMsortReplayedCond),

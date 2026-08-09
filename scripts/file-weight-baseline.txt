@@ -1,4 +1,4 @@
-ACL2Lean/Replay/Driver/CoreSpine.lean 1546
+ACL2Lean/Replay/Driver/CoreSpine.lean 1540
 ACL2Lean/Imported/Sorting.lean 4986
 ACL2Lean/ProofLog.lean 1697
 ACL2Lean/Replay/Driver/NodeCore/Node.lean 1668

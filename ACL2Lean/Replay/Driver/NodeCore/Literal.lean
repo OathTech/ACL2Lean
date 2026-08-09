@@ -481,6 +481,55 @@ partial def evtrueOfLitTrue (cfg : ReplayConfig) (ctx : ReplayCtx)
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, reflectSExpr quoteT,
         reflectSExpr restTerm, vL, pL, hthen, helse]
 
+/-- The spine's SKIPPED-literal falsity collapse: given `hNil` (`v(clit) =
+    nil`), fold the head literal's if-frame out of the disjunction
+    (`re_if_false`) and re-enter the walk via `recur` on the renumbered
+    tail. Shared by the fact-backed skip and the add-literal dedup arm
+    (CoreSpine's walk-mismatch site). -/
+def litSkipCollapse (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (restLits : List (Nat × SExpr)) (clit : SExpr) (hNil : Expr)
+    (recur : ReplayCtx → List (Nat × SExpr) → MetaM Expr) : MetaM Expr := do
+  let restTerm := disjoinTerm (restLits.map (·.2))
+  let vC ← ctxValExpr cfg ctx clit
+  let pC ← ctxValProof cfg ctx clit
+  let hcNil ← mkAppM ``re_val_cast
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr clit, vC,
+      mkConst ``SExpr.nil, pC, hNil]
+  let hRest ← ctxValProof cfg ctx restTerm
+  let vRest ← ctxValExpr cfg ctx restTerm
+  let hIf ← mkAppM ``re_if_false
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr clit, reflectSExpr quoteT,
+      reflectSExpr restTerm, vRest, hcNil, hRest]
+  let p ← recur ctx (restLits.map fun (i, l) => (i - 1, l))
+  mkAppM ``evtrue_of_fuel_eq #[hIf, p]
+
+/-- add-literal DEDUP skip (the final close-out's known class,
+    HOW-MANY-SMALLER-BNEXT *1/4.5): upstream
+    `subst-equiv-and-maybe-delete-lit` (simplify.lisp) rebuilds the
+    substituted clause through `add-literal`, whose `member-term` check
+    drops a literal already present in the rebuilt TAIL — of a duplicated
+    literal only the LAST occurrence survives, and the recorded item walk
+    skips the earlier one. The recorded items disambiguate the drop (it
+    fires only when the walk item disagrees at the head AND the literal
+    recurs later); a spurious fire misaligns the walk and hard-fails
+    downstream — never a wrong proof. byCases on the literal's value:
+    truthy closes the whole disjunction at its head position; falsity is
+    the shared `litSkipCollapse`. -/
+def dedupSkipClose (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
+    (clauseLits restLits : List (Nat × SExpr)) (clit : SExpr)
+    (recur : ReplayCtx → List (Nat × SExpr) → MetaM Expr) : MetaM Expr := do
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx clit
+  let vC ← ctxValExpr cfg ctx clit
+  let nilC := mkConst ``SExpr.nil
+  let negL ← withLocalDeclD `hnil (← mkEq vC nilC) fun hNil => do
+    mkLambdaFVars #[hNil] (← litSkipCollapse cfg ctx restLits clit hNil recur)
+  let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
+    mkLambdaFVars #[hNe]
+      (← evtrueOfLitTrue cfg ctx (clauseLits.map (·.2)) 0 clit hNe)
+  (try mkAppM ``Classical.byCases #[negL, posL]
+    catch e => throwError "byCases compose failed (add-literal dedup) \
+        at {idStr}:\n{e.toMessageData}")
+
 /-- Close `EvTrue (disjoin lits)` for a TAUTOLOGOUS clause — one containing a
     complementary pair `L` / `(NOT L)`, or the COMMUTED-EQUAL pair
     `(EQUAL a b)` / `(NOT (EQUAL b a))` (ACL2's type-set treats the commuted

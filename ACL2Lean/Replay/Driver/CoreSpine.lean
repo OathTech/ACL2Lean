@@ -1010,21 +1010,15 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       -- hoisted later-literal fact) misaligns the walk and hard-fails
       -- downstream — never a wrong proof (audit 2026-07-06).
       if lp.literal != clit then
+        let recur := fun ctx' lits' =>
+          replayClauseSpineWith rec cfg ctx' idStr lits' items accClause children
         if let some hNil := ctx.litFactByTerm? clit then
-          let restTerm := disjoinTerm (restLits.map (·.2))
-          let vC ← ctxValExpr cfg ctx clit
-          let pC ← ctxValProof cfg ctx clit
-          let hcNil ← mkAppM ``re_val_cast
-            #[cfg.worldExpr, cfg.envExpr, reflectSExpr clit, vC,
-              mkConst ``SExpr.nil, pC, hNil]
-          let hRest ← ctxValProof cfg ctx restTerm
-          let vRest ← ctxValExpr cfg ctx restTerm
-          let hIf ← mkAppM ``re_if_false
-            #[cfg.worldExpr, cfg.envExpr, reflectSExpr clit, reflectSExpr quoteT,
-              reflectSExpr restTerm, vRest, hcNil, hRest]
-          let restLits' := restLits.map fun (i, l) => (i - 1, l)
-          let p ← replayClauseSpineWith rec cfg ctx idStr restLits' items accClause children
-          return ← mkAppM ``evtrue_of_fuel_eq #[hIf, p]
+          return ← litSkipCollapse cfg ctx restLits clit hNil recur
+        else if restLits.any (fun (_, l) => l == clit) then
+          -- add-literal DEDUP (the final close-out's known class; the
+          -- upstream anchor and the disambiguation argument are on
+          -- `dedupSkipClose`)
+          return ← dedupSkipClose cfg ctx idStr clauseLits restLits clit recur
       throwError "replayClauseSpine: literal item {idx} {repr lp.literal} does \
                   not walk the clause at {idStr} (next clause literal is {cidx} \
                   {repr clit})"

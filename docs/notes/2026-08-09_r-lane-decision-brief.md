@@ -69,3 +69,10 @@ designed if you prefer the complete close-out now.
 
 Ruling needed: 1 / 2 / 3 (or your own variant). The arc proceeds on
 all other queue items meanwhile; this gates only PERM-TLFIX.
+
+## RULED (Mike, 2026-08-09): option 2 — emission-only
+
+The per-step-relation emission fix (item D) joins the approved fork
+batch; the Lean-side composer threading is DEFERRED to its own
+charter. PERM-TLFIX stays red this arc (the charter's exit criterion
+counts this as success — the gate-log is this brief + the ruling).

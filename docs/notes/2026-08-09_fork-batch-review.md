@@ -85,6 +85,24 @@ collapse is provable with no emission. The consumer arm (a
 `bridgeEqualNilNorm`-class reconciliation at CoreSpine's
 reached≠recorded site) is Lean-side work.
 
+## Second post-review update (2026-08-09, the resumed arc): items B(i)
+## and C are FULLY LANDED consumer-side; the batch is A + B(ii) + D-if-ruled
+
+- Item B's HOW-MANY-RM-GENERAL half: RESOLVED consumer-side with NO
+  fork item and NO tiebreak — the drift round's stated completion
+  condition ("pin all three, or prove uniqueness") was met by
+  POSITION-CANONICAL UNIQUENESS (b95f14d) + synthesized branch
+  anchors (0307f13); the subsequent hyp-relief wall fell by mirroring
+  upstream `assoc-equiv`'s two-orientation lookup (212465e). The row
+  is at its arc ceiling (ASSUMED ◌ on the *1/3.2 tau leaf).
+- Item C's row (HOW-MANY-SMALLER-BNEXT) is GREEN: the fc-derivations
+  relief (69a26c6) + the add-literal dedup arm (this increment —
+  upstream `subst-equiv-and-maybe-delete-lit`/`add-literal` keep-last
+  semantics mirrored at the spine's walk-mismatch site).
+- Still open for the batch: item A (unchanged — the highest-value
+  emission), item B's ORDEREDP-WHEN-BNEXT-CONSTANT half (unchanged),
+  item D (R-lane-gated).
+
 ## Item D (GATED on the R-lane ruling): per-step relation at solidify
 
 Joins the batch ONLY on a 1/2 ruling per the R-lane brief
@@ -101,3 +119,27 @@ batch review covers it in principle, exact site+shape presented
 before the rebuild if it becomes a fork item. Recapture discipline
 per the charter: goldens reviewed row-by-row, any drift outside the
 bsort/convert reds is a mandatory stop.
+
+## APPROVED (Mike, 2026-08-09): items A + B(ii); D joins via the
+## R-lane ruling (option 2 — emission-only)
+
+The batch = A (equal-cars/cdrs decision records) + D (the per-step
+relation at the solidify site + the enclosing with-lemma record —
+the F12 fidelity fix) + B(ii)'s emission half if the build-time
+classification demands one. ONE rebuild+recapture round-trip. The
+D item's consumer-compat caveat governs the re-pin: the emission
+changes recorded fields existing consumers read, so the recaptured
+corpus must sweep green (outside the expected bsort/convert
+advances) before the golden re-pin.
+
+BUILD-TIME FINDING (2026-08-09): item D is ALREADY FULLY EMITTED —
+the solidify site records the true licensing relation
+(`:equiv (ffn-symb eterm)`, rewrite.lisp ~5248) and the with-lemma
+record carries the ambient `:GENEQV` relation symbols (~20731); both
+landed as "fork-batch item 3, the R-lane prerequisite" (24e6dbc, an
+ancestor of the fork HEAD). Under ruling 2 there is NO new fork work
+for D; the deferred piece is exclusively the Lean-side rung-3
+consumer. The executed fork edit is therefore ITEM A ALONE (three
+decision-record pushes in rewrite-equal's cons-cons arm, tags
+`emit/equal/cars-decision` / `emit/equal/cdrs-decision`,
+check-acl2-tags green); B(ii) classification follows the recapture.
