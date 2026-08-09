@@ -159,6 +159,32 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > immutable): the head commit is fully gated. Batch review item B's
 > HOW-MANY-RM-GENERAL half is now MOOT (consumer-side landed) — only
 > ORDEREDP-WHEN-BNEXT-CONSTANT's half remains open there.**
+> BRANCH-FACT DECOMPOSITION + SYNTHESIZED BRANCH ANCHORS LANDED
+> (0307f13, claim-gate TRUE_EXIT=0): the solidify equation-closure
+> wall fell (installBranchTrueFacts — ACL2's assume-true-false
+> decomposition of truthy composite (IF c t 'NIL) tests;
+> cond_tnil_ne_nil_test/_then); HOW-MANY-RM-GENERAL advanced to the
+> HOW-MANY-RM hyp-relief wall. THAT WALL FELL NEXT (uncommitted):
+> the relief's recorded basis is upstream `assoc-equiv`
+> (type-set-b.lisp — the type-alist lookup consults BOTH argument
+> orders of an equivalence-relation atom); mirrored as the
+> commuted-EQUAL arm of `notAtomFalsity?` (Compose.lean, extracted
+> from the Node.lean hyp-relief arm) + the commuted hoist demand
+> (Literal.lean). HOW-MANY-RM-GENERAL → ASSUMED ◌ (waterfall fully
+> mirrored; residual = the Subgoal *1/3.2 preprocess/tau DP leaf —
+> the D3 class). THE D3 ARM LANDED (uncommitted):
+> `replayUseHintClausify` (Core.lean) — chain on CONSTRAINT-CL →
+> recorded clausify checkpoint → post-clausify verdict leaves
+> (replayDischargeNode; ASSUMED:dp-fact surfaces honestly) → bridge →
+> the tautology-dropped FI instance route; the constraint proof is
+> LET-BOUND into the row term so its assumptions become row
+> conditions. BSORT-IS-ISORT expected ASSUMED ◌ (the plan's stated
+> ceiling until the bsort frontiers). Fixed en route: buildTotalEnv
+> (Runner) now runs under withRealMaxRecDepth 8192 like
+> tryReplay/tryDischarge — it sat ~1 frame under the default 512 and
+> warm meta caches from the in-node DP discharge pushed one defeq
+> path past it (runtime-class throw, uncatchable by plain catch).
+> Sweep + golden-review + repin + full gate pending.**
 
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**

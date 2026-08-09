@@ -699,4 +699,36 @@ partial def installBranchTrueFacts (cfg : ReplayConfig) (ctx : ReplayCtx)
     else pure ctx
   | _ => pure ctx
 
+/-- The clause-context falsity of a marker-relieved `(NOT atm)` hyp's ATOM
+    (extracted from the rule hyp-relief arm, weight ratchet): the spine
+    lit-fact keyed by the atom, an if-finish false-BRANCH assumption on it
+    (S1.3 2026-07-23 — HOW-MANY-EVENS-AND-ODDS' DEFAULT-CDR relief), or —
+    mirroring upstream `assoc-equiv` (type-set-b.lisp), which looks a
+    type-alist entry up under BOTH argument orders of an equivalence
+    relation — the COMMUTED `EQUAL` literal's falsity re-oriented by
+    `logic_equal_comm`. A deterministic two-orientation lookup, never a
+    search (final close-out: HOW-MANY-RM-GENERAL Subgoal *1/2.1's later
+    literal `(EQUAL B (CAR X))` relieving `(NOT (EQUAL (CAR X) B))`). -/
+def notAtomFalsity? (cfg : ReplayConfig) (ctx : ReplayCtx) (hσ : SExpr) :
+    MetaM (Option Expr) := do
+  let .cons (.atom (.symbol ns)) (.cons atm .nil) := hσ | return none
+  unless ns.name == "NOT" do return none
+  if let some h := ctx.litFactByTerm? atm then return some h
+  if let some (_, _, _, h) := ctx.branchFacts.find?
+      (fun (bf : SExpr × Expr × Bool × Expr) =>
+        bf.1 == atm && !bf.2.2.1) then
+    return some h
+  let .cons (.atom (.symbol es)) (.cons u (.cons v .nil)) := atm | return none
+  unless es.name == "EQUAL" do return none
+  let comm : SExpr := .cons (.atom (.symbol es)) (.cons v (.cons u .nil))
+  let vu ← ctxValExpr cfg ctx u
+  let vv ← ctxValExpr cfg ctx v
+  let vComm ← ctxValExpr cfg ctx comm
+  match ← ctx.litFactByTermChecked? comm
+      (← mkEq vComm (mkConst ``SExpr.nil)) with
+  | some hCommNil =>
+    let hComm ← mkAppM ``logic_equal_comm #[vu, vv]
+    return some (← mkAppM ``Eq.trans #[hComm, hCommNil])
+  | none => return none
+
 end ACL2.Replay.Driver

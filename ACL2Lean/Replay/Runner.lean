@@ -565,7 +565,14 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
               let te ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
                 let cfg : ReplayConfig :=
                   { worldExpr := wExpr, envExpr := envFV, worldVal := w }
-                buildTotalEnv cfg dev.justifications
+                -- same engineering limit as tryReplay/tryDischarge (the
+                -- helper's docstring): the totality sweep over a large
+                -- included world runs within ~1 frame of the default 512
+                -- (final close-out, sorts-equivalent: warm meta caches from
+                -- a preceding in-node DP discharge pushed one defeq path
+                -- past it — a runtime-class throw no plain catch intercepts)
+                ACL2.Replay.Driver.withRealMaxRecDepth 8192 <|
+                  buildTotalEnv cfg dev.justifications
               let tTE1 ← IO.monoMsNow
               if timings then IO.println s!"[t] buildTotalEnv (lazy): {tTE1 - tTE0} ms"
               pure te

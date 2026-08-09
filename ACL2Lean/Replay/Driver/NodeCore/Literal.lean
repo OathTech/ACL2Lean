@@ -288,7 +288,21 @@ partial def collectContextDemands (fcDerivs : List SExpr := []) :
        -- that is no clause literal is skipped harmlessly at the hoist site.
        (match l with
         | .cons (.atom (.symbol ns)) (.cons atm .nil) =>
-          if ns.name == "NOT" then [ContextDemand.term atm] else []
+          if ns.name == "NOT" then
+            [ContextDemand.term atm] ++
+            -- upstream `assoc-equiv` (type-set-b.lisp) consults the
+            -- type-alist under BOTH argument orders of an equivalence
+            -- relation — demand the COMMUTED EQUAL literal too (final
+            -- close-out: Subgoal *1/2.1's later literal (EQUAL B (CAR X))
+            -- relieves (NOT (EQUAL (CAR X) B)))
+            (match atm with
+             | .cons (.atom (.symbol es)) (.cons u (.cons v .nil)) =>
+               if es.name == "EQUAL" then
+                 [ContextDemand.term (.cons (.atom (.symbol es))
+                   (.cons v (.cons u .nil)))]
+               else []
+             | _ => [])
+          else []
         | _ => []) ++
        -- an FC-DERIVED relief consumes the COMMUTED lexorder
        -- application's falsity — demand that literal too so the walk

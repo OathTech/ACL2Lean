@@ -267,6 +267,14 @@ def liftCatalog : List (String × String × LiftStatus) := [
       usefi:STRONG-SSORTFN1-IS-SSORTFN2 + total:QSORT; the 2c \
       alias-world composition discharges the usefi:); its native \
       mirror (qsortL xs = isortL xs) is the Phase 4 demo artifact"),
+  ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
+    .pending "the capstone: FI of the equisort WEAK parametric theorem \
+      at bsort/isort (final close-out D3 — the useHint+clausify \
+      composition; conditionally green on usefi:WEAK-SORTFN1-IS-SORTFN2 \
+      + the red bsort rules rule:ORDEREDP-BSORT/TRUE-LISTP-BSORT/\
+      HOW-MANY-BSORT, which the bsort fork batch greens); its native \
+      mirror (bsortL xs = isortL xs under trueListp) is the Phase 4 \
+      demo artifact"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),

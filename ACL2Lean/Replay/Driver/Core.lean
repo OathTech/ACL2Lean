@@ -13,6 +13,121 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- D3 (final close-out item 4) — the useHint+clausify COMPOSITION: an FI
+    `:USE-HINT` whose NON-trivial constraint chain leaves a residual that
+    ACL2 clausifies and closes by verdict leaves IN-NODE (BSORT-IS-ISORT:
+    the weak constraint's `(IF (TRUE-LISTP X) (TRUE-LISTP (BSORT X)) 'T)`
+    residual, split by the recorded CLAUSIFY events and closed by the
+    recorded PREPROCESS/TAU verdict). The composition mirrors the recorded
+    node piece by piece: (1) the chain walks CONSTRAINT-CL to the clausify
+    input; (2) each clausify output clause closes by its post-clausify
+    discharge node (the ratified DP carve-out — an unprovable obligation
+    surfaces as ASSUMED:dp-fact); (3) the clausify bridge recomposes
+    `EvTrue ⟦constraint⟧`; (4) the goal is the tautology-dropped FI
+    instance (`:APPLICATION-CLAUSES NIL`, hyps == input clause), proved
+    from the `usefi:` offer exactly as the no-clausify arm does. The
+    constraint proof is LET-BOUND into the row term: ACL2's in-place
+    obligation discharge is part of THIS node, so its assumptions (the
+    dp-fact, the chain's rule hypotheses) must surface as row conditions —
+    dropping the proof would present a conditional validation as
+    unconditional. Every unexpected shape hard-fails. -/
+def replayUseHintClausify (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (cn : ClauseNode) (info : ClausifyInfo)
+    (preSteps postSteps : List ProofNode) (citedCongs citedEquivs : List String)
+    (lits : List (Nat × LiteralProof)) (hyps constraintCl : List SExpr)
+    (appClauses : List (List SExpr)) (lmis : List SExpr) :
+    MetaM Expr := do
+  unless lits.isEmpty do
+    throwError "use-hint+clausify: literal items alongside the :USE-HINT \
+        payload at {cn.idStr} (frontier — no consumer in this arm)"
+  unless lmis.all (fun l => (lmiFnInstance? l).isSome) do
+    throwError "use-hint+clausify: non-trivial :CONSTRAINT-CL at {cn.idStr} \
+        with a non-functional-instance LMI (frontier)"
+  unless appClauses.isEmpty && hyps == cn.inputClause do
+    throwError "use-hint+clausify: only the tautology-dropped application \
+        shape (:APPLICATION-CLAUSES NIL, :HYPS == the input clause) \
+        composes here at {cn.idStr} (frontier)"
+  unless cn.children.isEmpty do
+    throwError "use-hint+clausify: {cn.children.length} children at \
+        {cn.idStr} (frontier — the recorded constraint discharge is \
+        in-node)"
+  -- (1) the recorded chain walks the CONSTRAINT clause to the clausify input
+  let cFormula := disjoinTerm constraintCl
+  let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx cFormula preSteps
+    citedCongs citedEquivs
+  unless finalT == info.input do
+    throwError "use-hint+clausify: the constraint chain reached \
+        {repr finalT}, the clausify input is {repr info.input} at {cn.idStr}"
+  -- (2) every clausify output closes by a recorded post-clausify verdict
+  -- node (the ratified DP carve-out); child subgoals are a frontier here
+  let mut pOuts : List Expr := []
+  for cl in info.out do
+    if cl.length > 1 then
+      let dTerm := disjoinTerm cl
+      let some n := postSteps.find? (fun n =>
+          dischargeOrigins.contains (nodeOrigin n) && (nodeLhsRhs n).1 == dTerm)
+        | throwError "use-hint+clausify: constraint output {repr cl} has no \
+            whole-clause discharge node at {cn.idStr} (frontier)"
+      unless (nodeLhsRhs n).2 == quoteT do
+        throwError "use-hint+clausify: whole-clause discharge node rhs \
+            {repr (nodeLhsRhs n).2} ≠ (quote t) at {cn.idStr}"
+      pOuts := pOuts ++ [← replayDischargeNode cfg ctx dTerm]
+    else do
+      let [lit] := cl
+        | throwError "use-hint+clausify: constraint output {repr cl} is \
+            empty at {cn.idStr} (frontier)"
+      let some n := postSteps.find? (fun n =>
+          dischargeOrigins.contains (nodeOrigin n) && (nodeLhsRhs n).1 == lit)
+        | throwError "use-hint+clausify: constraint output {repr cl} has no \
+            post-clausify discharge node at {cn.idStr} (emission gap)"
+      unless (nodeLhsRhs n).2 == quoteT do
+        throwError "use-hint+clausify: discharge node for {repr lit} has \
+            rhs {repr (nodeLhsRhs n).2} ≠ (quote t) at {cn.idStr}"
+      pOuts := pOuts ++ [← replayDischargeNode cfg ctx lit]
+  -- (3) bridge the output proofs back through the clausify to the input
+  -- term, then compose the chain — `EvTrue ⟦constraint-cl⟧`
+  let pInput ←
+    match pOuts with
+    | [pOut] =>
+      if info.out.length == 1 then bridgeClausify cfg ctx info (some pOut)
+      else bridgeClausifyMulti cfg ctx info pOuts
+    | [] =>
+      if info.out.isEmpty then
+        bridgeClausify cfg ctx info none (tautDropped := true)
+      else bridgeClausifyMulti cfg ctx info pOuts
+    | _ => bridgeClausifyMulti cfg ctx info pOuts
+  let pConstraint ← match chainOpt with
+    | none => pure pInput
+    | some (ch, false) => mkAppM ``evtrue_of_fuel_eq #[ch, pInput]
+    | some (ch, true) => mkAppM ``evtrue_of_evrel_siff #[ch, pInput]
+  -- (4) the tautology-dropped instance route (the no-clausify arm's shape:
+  -- single FI lmi, the offer's formula IS the instance)
+  unless lmis.length == hyps.length do
+    throwError "use-hint+clausify: {lmis.length} :LMI-LST entries ≠ \
+        {hyps.length} :HYPS at {cn.idStr} (emission misalignment)"
+  let [(lmi, hypI)] := lmis.zip hyps
+    | throwError "use-hint+clausify: {lmis.length} instances at {cn.idStr} \
+        (frontier — single instance only)"
+  let some (thmName, σ) := lmiFnInstance? lmi
+    | throwError "use-hint+clausify: LMI {repr lmi} at {cn.idStr} is not a \
+        functional instance (internal — gated above)"
+  let [(spec, hypV)] := ctx.useFiHyps.filter
+      (fun (u, _) => u.name == thmName && u.subst == σ && u.formula == hypI)
+    | throwError "use-hint+clausify: no usefi:{thmName} hypothesis matching \
+        this substitution in scope at {cn.idStr} (offer derivation declined \
+        — dependency surface or substitution recompute mismatch; frontier)"
+  let (hL, ctxU) ← instantiateEvTrueHypAt cfg ctx hypV [] [] spec.formula
+  let ctxU ← pinTermOpaques cfg cfg.envExpr ctxU hypI
+  let conv ← ctxValProof cfg ctxU hypI
+  let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[hL, conv]
+  let p ← mkAppM ``evtrue_of_conv_ne_nil #[conv, hNe]
+  let p ← mkExpectedTypeHint p
+    (← mkAppM ``EvTrue
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr (disjoinTerm cn.inputClause)])
+  -- (5) bind the constraint discharge into the row term (see docstring)
+  withLetDecl `hConstraintCl (← inferType pConstraint) pConstraint fun x =>
+    mkLetFVars #[x] p (usedLetOnly := false)
+
 /-- Replay a clause node: prove `EvTrue w env (disjoinTerm inputClause)`
     (for a single-literal clause this IS the literal/formula statement).
     Induction nodes hard-fail (the scaffold lands next); a pushed clause delegates
@@ -124,20 +239,6 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- output clause (the pushed/pool-root child) back through the if-recursion
   match clausifyInfos with
   | [info] =>
-    -- never-silently-skip (fold-back audit F12): a :USE-HINT payload on a
-    -- clausify-bearing node was DISCARDED here (useHints is consumed only
-    -- by the no-clausify arm), and the constraint chain then walked the
-    -- GOAL — failing only incidentally on an lhs mismatch
-    -- (BSORT-IS-ISORT). Hard-fail precisely: the composition (constraint
-    -- chain on CONSTRAINT-CL, clausify on the application side) is the R7
-    -- work.
-    let useHs := (cn.steps.flatMap (·.items)).filterMap fun
-      | .useHint h c a l => some (h, c, a, l) | _ => none
-    unless useHs.isEmpty do
-      throwError "replayClause: a :USE-HINT payload alongside an effective \
-          clausify record at {cn.idStr} — the useHint/clausify composition \
-          awaits functional-instantiation/:use soundness (R7 frontier; the \
-          constraint chain must walk CONSTRAINT-CL, not the goal)"
     -- literal items on the same (merged) node: from a PUSH step's
     -- per-literal scan they are identity displays only; from a merged
     -- SAME-CLAUSE-ID SIMPLIFY step they are the REAL walk of a clausify
@@ -152,16 +253,25 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       | .step n => some n | _ => none
     let postSteps := (allItems.drop (clausifyIdx + 1)).filterMap fun
       | .step n => some n | _ => none
+    let citedCongs := (cn.steps.flatMap (·.runes)).filterMap
+      (fun r => if r.ty == "congruence" then some r.name else none)
+    let citedEquivs := (cn.steps.flatMap (·.runes)).filterMap
+      (fun r => if r.ty == "equivalence" then some r.name else none)
+    let useHs := (cn.steps.flatMap (·.items)).filterMap fun
+      | .useHint h c a l => some (h, c, a, l) | _ => none
+    if useHs.length > 1 then
+      throwError "replayClause: {useHs.length} :USE-HINT payloads at \
+          {cn.idStr} (frontier — one payload per apply-top-hints node)"
+    if let [(hyps, constraintCl, appClauses, lmis)] := useHs then
+      return ← replayUseHintClausify cfg ctx cn info preSteps postSteps
+        citedCongs citedEquivs lits hyps constraintCl appClauses lmis
     -- the formula is the clause's DISJUNCTION; for a multi-literal clause the
     -- preprocess steps rewrite individual literals, lifted into the disjunction
     -- by path-directed congruence (including the lazy `if`'s then/else branches,
     -- sound here because each step's eval-equality is unconditional)
     let formula := disjoinTerm cn.inputClause
     let (chainOpt, finalT) ← replayPreprocessChainCore cfg ctx formula preSteps
-      ((cn.steps.flatMap (·.runes)).filterMap
-        (fun r => if r.ty == "congruence" then some r.name else none))
-      ((cn.steps.flatMap (·.runes)).filterMap
-        (fun r => if r.ty == "equivalence" then some r.name else none))
+      citedCongs citedEquivs
     unless finalT == info.input do
       throwError "replayClause: preprocess chain reached {repr finalT}, the \
                   clausify input is {repr info.input}"
