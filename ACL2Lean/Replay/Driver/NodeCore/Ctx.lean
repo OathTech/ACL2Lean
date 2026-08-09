@@ -587,6 +587,19 @@ def runeOf : ProofNode → Rune | .node r _ _ _ _ => r
 def nodeLhsRhs : ProofNode → SExpr × SExpr | .node _ lhs rhs _ _ => (lhs, rhs)
 def nodePath : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 def nodeOrigin : ProofNode → String | .node _ _ _ _ p => p.origin
+
+/-- Is this literal item an IDENTITY display? Its result is the literal
+    unchanged and its nodes are at most UNRESOLVED equal-descent probe
+    records (fork-batch item A, 2026-08-09: `equal/{cars,cdrs}-decision`
+    with rhs == lhs — verdict-only DATA recording that ACL2 probed the
+    component equality and left it standing; no rewriting occurred).
+    Replaces the bare `lp.nodes.isEmpty` at the walkers' identity
+    guards. -/
+def identityLiteralItem (lp : LiteralProof) : Bool :=
+  lp.result == lp.literal && lp.nodes.all fun n =>
+    (nodeOrigin n == "equal/cars-decision" ||
+     nodeOrigin n == "equal/cdrs-decision") &&
+    (nodeLhsRhs n).1 == (nodeLhsRhs n).2
 /-- The node's enclosing-window kind ("" = none / literal level). -/
 def innerKindOf : ProofNode → String | .node _ _ _ _ p => p.innerKind
 /-- The node's enclosing-window input term (path-emission Phase 1). -/

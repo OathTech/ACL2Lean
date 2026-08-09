@@ -95,7 +95,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
       throwError "replayElim: processor {s.processor} alongside elim at \
                   {cn.idStr} (frontier)"
   for (_, lp) in flattenLiterals (cn.steps.flatMap (·.items)) do
-    unless lp.nodes.isEmpty && lp.result == lp.literal do
+    unless identityLiteralItem lp do
       throwError "replayElim: non-identity literal item at {cn.idStr} \
                   (frontier): {repr lp.literal}"
   -- the emitted justification: ONE round of ≥1 car-cdr-elim records

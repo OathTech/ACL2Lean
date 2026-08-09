@@ -152,7 +152,39 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
               match hFlip? with
               | some h => pure (some (xa, ya, ctxD,
                   ← Lean.Meta.mkAppM ``logic_equal_nil_comm #[h]))
-              | none => pure none  -- DERIVED entry → rung B′
+              | none => do
+                -- LEXORDER-ORDER closure (fork-batch item A consumer,
+                -- HOW-MANY-BAD-PAIRS-BNEXT *1/6-family): the recorded
+                -- entry's disequality is held by ACL2's type-alist from
+                -- the ground-zero lexorder ORDER AXIOMS (axioms.lisp,
+                -- lexorder-reflexive et al.) over an in-scope FALSE
+                -- lexorder application on the same sides — either
+                -- orientation refutes the equality (equal would force
+                -- `lexorder_refl`). Directed: only the recorded entry's
+                -- own sides are consulted, never a search.
+                let mkLex : SExpr → SExpr → SExpr := fun p q =>
+                  .cons (.atom (.symbol { name := "LEXORDER" }))
+                    (.cons p (.cons q .nil))
+                let tryLex : SExpr → SExpr → MetaM (Option Expr) :=
+                  fun p q => do
+                    let ctxL ← pinTermOpaques cfg cfg.envExpr ctxD (mkLex p q)
+                    let vP ← ctxValExpr cfg ctxL p
+                    let vQ ← ctxValExpr cfg ctxL q
+                    findFactChecked (falsitySources ctxL) (mkLex p q)
+                      (← mkEq (← Lean.Meta.mkAppM ``ACL2.lexorder #[vP, vQ])
+                        (mkConst ``SExpr.nil))
+                match ← tryLex xa ya with
+                | some hLex =>
+                  pure (some (xa, ya, ctxD, ← Lean.Meta.mkAppM
+                    ``logic_equal_nil_of_lexorder_nil #[hLex]))
+                | none =>
+                  match ← tryLex ya xa with
+                  | some hLex => do
+                    let hFlip ← Lean.Meta.mkAppM
+                      ``logic_equal_nil_of_lexorder_nil #[hLex]
+                    pure (some (xa, ya, ctxD, ← Lean.Meta.mkAppM
+                      ``logic_equal_nil_comm #[hFlip]))
+                  | none => pure none  -- DERIVED entry → rung B′
         if let some (xa, ya, ctxD, hXY) := directFact? then
           -- COMMITTED rung A: every failure from here is a thrown frontier
           let eqs := inScopeEquations ctx

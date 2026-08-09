@@ -25,7 +25,7 @@ partial def replayGeneralize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       throwError "replayGeneralize: processor {s.processor} alongside \
                   generalize at {cn.idStr} (frontier)"
   for (_, lp) in flattenLiterals (cn.steps.flatMap (·.items)) do
-    unless lp.nodes.isEmpty && lp.result == lp.literal do
+    unless identityLiteralItem lp do
       throwError "replayGeneralize: non-identity literal item at {cn.idStr} \
                   (frontier): {repr lp.literal}"
   let some genS := st.extraFields.lookup "generalize"

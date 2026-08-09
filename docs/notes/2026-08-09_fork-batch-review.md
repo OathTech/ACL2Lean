@@ -132,6 +132,28 @@ changes recorded fields existing consumers read, so the recaptured
 corpus must sweep green (outside the expected bsort/convert
 advances) before the golden re-pin.
 
+ROUND RESULT (2026-08-09, post-recapture): item A landed and
+round-tripped (rebuild + recapture-all; the log surface changed in
+EXACTLY the three expected books + one build-timestamp line — byte-
+identical elsewhere). Consumer side: (i) the decision-record
+INGESTION keeps the whole corpus green (the duplicate consumption in
+the decomposition protocol, the unresolved-probe block no-op in the
+chain walker, the identity-literal predicate at the four walker
+guards); (ii) HOW-MANY-BAD-PAIRS-BNEXT advanced TWO walls (the
+resolved cars-decision consumed; the recorded ta-entry's disequality
+closed by the new LEXORDER-ORDER rung — `logic_equal_nil_of_
+lexorder_nil` anchored on the ground-zero order axioms) and now
+stands at the NESTED equal-descent composition (an equal-self
+decision on a nested component pair — the decomposition protocol
+needs RECURSIVE phase decisions; a protocol restructure, named as
+the continuation, not attempted in this round). (iii) item B(ii)
+classification: CONSUMER-side — ORDEREDP-WHEN-BNEXT-CONSTANT's
+generic-tail lift needs the component-pair treatment over the
+already-emitted equal-cars window redexes; same nested-descent
+family, NO further emission needed. The bsort μ-route rows stay
+gated on HOW-MANY-BAD-PAIRS-BNEXT's completion (its :linear rule →
+termination:BSORT).
+
 BUILD-TIME FINDING (2026-08-09): item D is ALREADY FULLY EMITTED —
 the solidify site records the true licensing relation
 (`:equiv (ffn-symb eterm)`, rewrite.lisp ~5248) and the with-lemma

@@ -24,7 +24,7 @@ partial def replayEliminateIrrelevance (rec : ClauseRec) (cfg : ReplayConfig) (c
       throwError "replayEliminateIrrelevance: processor {s.processor} \
                   alongside eliminate-irrelevance at {cn.idStr} (frontier)"
   for (_, lp) in flattenLiterals (cn.steps.flatMap (·.items)) do
-    unless lp.nodes.isEmpty && lp.result == lp.literal do
+    unless identityLiteralItem lp do
       throwError "replayEliminateIrrelevance: non-identity literal item at \
                   {cn.idStr} (frontier): {repr lp.literal}"
   let [child] := cn.children

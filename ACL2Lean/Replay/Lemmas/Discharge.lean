@@ -424,6 +424,20 @@ theorem logic_equal_nil_comm {a b : SExpr}
     simp [Logic.equal, SExpr.t] at h
   · simp [Logic.equal, beq_eq_false_iff_ne.mpr hab]
 
+/-- A false `lexorder a b` refutes `equal a b` — equality would force
+    `lexorder_refl`. The type-set walker's LEXORDER-ORDER rung (fork-batch
+    item A consumer): the recorded assoc-equiv+ basis whose disequality
+    entry ACL2's type-alist holds from the ground-zero lexorder order
+    axioms (axioms.lisp: lexorder-reflexive et al.) over an in-scope
+    FALSE lexorder application. -/
+theorem logic_equal_nil_of_lexorder_nil {a b : SExpr}
+    (h : ACL2.lexorder a b = SExpr.nil) : Logic.equal a b = SExpr.nil := by
+  by_cases hab : a = b
+  · subst hab
+    rw [ACL2.lexorder_refl] at h
+    cases h
+  · simp [Logic.equal, beq_eq_false_iff_ne.mpr hab]
+
 /-- Component decode: a TRUE `equal` pins value equality. -/
 theorem logic_eq_of_equal_t {a b : SExpr} (h : Logic.equal a b = SExpr.t) :
     a = b := by

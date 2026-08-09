@@ -185,6 +185,26 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > warm meta caches from the in-node DP discharge pushed one defeq
 > path past it (runtime-class throw, uncatchable by plain catch).
 > Sweep + golden-review + repin + full gate pending.**
+> RULINGS + THE FORK BATCH ROUND (2026-08-09, ee35d88 + the batch
+> commits): Mike ruled R-lane = option 2 (emission-only — and item D
+> turned out ALREADY EMITTED at 24e6dbc, so the Lean rung-3 lane is
+> the only deferred piece; PERM-TLFIX gate-logged) and approved the
+> batch (A + B(ii)). Item A (equal-cars/cdrs decision records)
+> landed + round-tripped (recapture surface: exactly bsort/
+> ordered-perms/02-rev + a timestamp line). Consumer side landed:
+> record ingestion corpus-green (duplicate consumption in the
+> decomposition protocol; unresolved-probe no-op block in the chain
+> walker; identityLiteralItem at 4 walker guards) +
+> HOW-MANY-BAD-PAIRS-BNEXT advanced two walls (resolved decision
+> consumed; the LEXORDER-ORDER rung — logic_equal_nil_of_lexorder_nil
+> anchored on the recorded :TA-ENTRY basis + the ground-zero order
+> axioms). REMAINING NAMED CONTINUATION (not attempted): the NESTED
+> equal-descent composition — recursive phase decisions in the
+> decomposition protocol (HOW-MANY-BAD-PAIRS-BNEXT's equal-self on a
+> nested component pair; ORDEREDP-WHEN-BNEXT-CONSTANT's
+> component-pair generic-tail lift is the same family, B(ii)
+> classified CONSUMER-side, no emission needed). The bsort μ-route
+> rows ride HOW-MANY-BAD-PAIRS-BNEXT → :linear → termination:BSORT.**
 
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**

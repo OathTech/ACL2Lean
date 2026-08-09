@@ -337,7 +337,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     -- must be identity displays — real rewriting there is a frontier
     unless spineConsumed do
       for (_, lp) in lits do
-        unless lp.nodes.isEmpty && lp.result == lp.literal do
+        unless identityLiteralItem lp do
           throwError "replayClause: non-identity literal item alongside a \
                       clausify record at {cn.idStr} (frontier): {repr lp.literal}"
     -- the SPINE route consumes children itself (residual pushes,

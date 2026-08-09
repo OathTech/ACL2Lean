@@ -27,6 +27,36 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
   | [] => return (none, start)
   | n :: rest => do
     let (lhs, rhs) := nodeLhsRhs n
+    -- fork-batch item A (2026-08-09): an UNRESOLVED equal-descent probe
+    -- record (`equal/{cars,cdrs}-decision` with rhs == lhs — the recursive
+    -- rewrite-equal left the component equality standing; its windows were
+    -- empty, so the cons-decomposition protocol below never engages).
+    -- Verdict-only DATA: validate the record names the running equality's
+    -- own components and consume it as a no-op. A lone RESOLVED record
+    -- (constant rhs, no windowed scratch) stays a loud frontier until a
+    -- book exhibits one.
+    if nodeOrigin n == "equal/cars-decision" ||
+        nodeOrigin n == "equal/cdrs-decision" then
+      if rhs == lhs then do
+        let pfn := if nodeOrigin n == "equal/cars-decision" then "CAR"
+                   else "CDR"
+        let mkComp : SExpr → SExpr := fun t =>
+          .cons (.atom (.symbol { name := pfn })) (.cons t .nil)
+        let ok : Bool := match start, lhs with
+          | .cons (.atom (.symbol eqS)) (.cons a (.cons b .nil)),
+            .cons (.atom (.symbol eqS')) (.cons ca (.cons cb .nil)) =>
+            eqS.name == "EQUAL" && eqS'.name == "EQUAL" &&
+            ca == mkComp a && cb == mkComp b
+          | _, _ => false
+        unless ok do
+          throwError "replayRewrites: unresolved {nodeOrigin n} record \
+              {repr lhs} does not name the running equality \
+              {repr start}'s {pfn} components (frontier)"
+        return ← replayRewritesWith rec cfg ctx start rest (chainPrefix ++ [n])
+      else
+        throwError "replayRewrites: lone resolved {nodeOrigin n} record \
+            ({repr lhs} ⇒ {repr rhs}) outside the decomposition protocol \
+            (frontier)"
     -- INLINE branch-window group (path-emission Phase 1): nodes tagged
     -- if-left/if-right reaching the walk directly are the surviving
     -- branch's sub-chain after a rewrite-if constant-test collapse (the
@@ -974,6 +1004,46 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           -- (cdrs-first arises when the cars phase decided with no scratch
           -- rewrite — its window is empty and unseen here.)
           if innerKindOf n == "equal-cars" || innerKindOf n == "equal-cdrs" then do
+            -- UNRESOLVED PROBE block (fork-batch item A, 2026-08-09):
+            -- classify the descent by its FIRST decision record — an
+            -- identity record (rhs == lhs) means the whole descent resolved
+            -- NOTHING (ACL2 probed the component equalities, possibly
+            -- nesting further descents, and kept the running equality
+            -- unchanged; HOW-MANY-BAD-PAIRS-BNEXT *1/6' literal 5). The
+            -- honest consumption is the maximal block of window-tagged
+            -- scratch + identity decision records as a NO-OP on the running
+            -- term — the scratch rewrote SYNTHESIZED redexes only, and the
+            -- records are verdict-only data. A RESOLVED record inside such
+            -- a block is a frontier (no corpus witness); a resolved FIRST
+            -- record falls through to the decomposition protocol below.
+            let isDecision : ProofNode → Bool := fun m =>
+              nodeOrigin m == "equal/cars-decision" ||
+              nodeOrigin m == "equal/cdrs-decision"
+            let firstDec? := (n :: rest).find? isDecision
+            let unresolvedProbe := match firstDec? with
+              | some m => (nodeLhsRhs m).1 == (nodeLhsRhs m).2
+              | none => false
+            if unresolvedProbe then do
+              let mut restP : List ProofNode := n :: rest
+              let mut consumed : List ProofNode := []
+              let mut scanning := true
+              while scanning do
+                match restP with
+                | m :: r' =>
+                  if innerKindOf m == "equal-cars" ||
+                      innerKindOf m == "equal-cdrs" then
+                    consumed := consumed ++ [m]; restP := r'
+                  else if isDecision m then
+                    let (l', r'') := nodeLhsRhs m
+                    unless r'' == l' do
+                      throwError "replayRewrites: resolved {nodeOrigin m} \
+                          record ({repr l'} ⇒ {repr r''}) inside an \
+                          unresolved probe block (frontier)"
+                    consumed := consumed ++ [m]; restP := r'
+                  else scanning := false
+                | [] => scanning := false
+              return ← replayRewritesWith rec cfg ctx start restP
+                (chainPrefix ++ consumed)
             let mut ctx ← pinTermOpaques cfg cfg.envExpr ctx start
             let vs1 ← ctxValExpr cfg ctx s1
             let vs2 ← ctxValExpr cfg ctx s2
@@ -1087,6 +1157,32 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                   ``logic_equal_nil_of_car_components
                   else ``logic_equal_nil_of_cdr_components
                 verdict := some (← mkAppM lem #[h1, h2, hRef], SExpr.nil)
+              -- fork-batch item A (2026-08-09): the emitted
+              -- equal/{cars,cdrs}-decision record IS this phase's verdict,
+              -- recorded at the descent level. When the phase ALSO carried
+              -- an internal verdict node (the recursion's own
+              -- equal/type-alist-nil, consumed as `dec?` above), the
+              -- decision record re-states the same fact — consume it here,
+              -- cross-checking agreement; a disagreement is emission
+              -- divergence, hard-fail. (A LONE decision record is instead
+              -- consumed by `dec?` itself — the matcher is origin-agnostic.)
+              match nodesLeft with
+              | n' :: r' =>
+                let decOrigin := if pfn == "CAR" then "equal/cars-decision"
+                                 else "equal/cdrs-decision"
+                if nodeOrigin n' == decOrigin then
+                  let (l', rr') := nodeLhsRhs n'
+                  unless l' == decT do
+                    throwError "replayRewrites: {decOrigin} record lhs \
+                        {repr l'} ≠ the phase components {repr decT} \
+                        (emission divergence)"
+                  let expected := if verdict.isSome then quoteNil else quoteT
+                  unless rr' == expected do
+                    throwError "replayRewrites: {decOrigin} record verdict \
+                        {repr rr'} ≠ the phase outcome {repr expected} \
+                        (emission divergence)"
+                  nodesLeft := r'
+              | [] => pure ()
             let (hEq, cst) ← do
               match verdict with
               | some (h, c) => pure (h, c)
