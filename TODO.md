@@ -57,7 +57,9 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > application for QSORT-IS-ISORT's rule:HOW-MANY-QSORT cond — one of
 > its own FI obligations, green as a row in the same sweep (O-3, the
 > known Provers.lean:727 gap); addDecl name-key hash hardening
-> (m4b).
+> (m4b). Final report + merge proposal:
+> docs/notes/2026-08-09_phase3-closeout-final-report.md — the charter's
+> exit criterion is MET; merge sign-off requested (not assumed).
 
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
