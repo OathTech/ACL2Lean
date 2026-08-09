@@ -126,8 +126,12 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > reached≠recorded throw), NOT as parser nodes (parser adoption would
 > shift chain shapes corpus-wide). The (IF x 'T 'NIL)⇒x half needs
 > the boolean basis (inner is boolean by construction of the emitted
-> case-split shape) — check whether a second marker records it, else
-> it is the remaining PCE emission question for the batch review.
+> case-split shape) — RESOLVED (site read): value-level identity via
+> the two-valued primitives, NO emission needed; PCE drops out of the
+> fork batch entirely (batch review doc updated). The reconciliation
+> arm (bridgeEqualNilNorm-class, at CoreSpine's reached≠recorded
+> site, marker-anchored + trueListp-CDR closure for the test) is the
+> next Lean increment.
 > Golden repinned at fbb16f8 (0 flips, 5 red-row message churns).**
 
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL

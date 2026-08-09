@@ -69,6 +69,22 @@ D5-class prelude constant (boot FC rule — the two-class criterion's
 class (i); statement recompute-checked against the emitted record).
 NOT part of the fork batch; listed for completeness.
 
+## Post-review update (2026-08-09, after the tpthm resurrection):
+## PCE needs NO fork item
+
+With the tpthm stack resurrected (fbb16f8) PCE fails only at the
+chain-end reconciliation, and BOTH halves of the needed collapse are
+provable from emitted data + existing machinery: (i) the
+`(IF (TRUE-LISTP (CDR X)) 'T 'NIL) ⇒ 'T` half is anchored by the
+emitted `:IF-TEST-TRUE` marker (IF-FINISH/IF-TEST, type-set
+justification) with the test provable by the existing trueListp-CDR
+closure from the clause context; (ii) the `(IF inner 'T 'NIL) ⇒ inner`
+half is a VALUE-level identity — inner's branches are two-valued
+primitives (`Logic.equal`/the emitted case-split shape), so the
+collapse is provable with no emission. The consumer arm (a
+`bridgeEqualNilNorm`-class reconciliation at CoreSpine's
+reached≠recorded site) is Lean-side work.
+
 ## Item D (GATED on the R-lane ruling): per-step relation at solidify
 
 Joins the batch ONLY on a 1/2 ruling per the R-lane brief
