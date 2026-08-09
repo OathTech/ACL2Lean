@@ -46,6 +46,12 @@ check-bugs:
 check-no-shadow:
     ./scripts/check-no-shadow.sh
 
+# GZ agreement-lemma gate (close-out item 2): every builtin-named
+# ground-zero snapshot defun has a gz_def_* agreement lemma or an
+# explicit justified flag (fail-closed; flags checked for rot).
+check-gz-agreement:
+    ./scripts/check-gz-agreement.sh
+
 # Full conformance: preflight + build + unit tests + driver-coverage (the last
 # gates on reconstruction integrity AND the black-box-leaf emission frontier —
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
@@ -53,7 +59,7 @@ check-no-shadow:
 # some tests via include_str); check-proof-logs runs first and covers BOTH
 # reference styles, so a missing log is a clear error, not a deep
 # elaboration-trace failure.
-ci: lint-sh check-bugs check-no-shadow check-acl2-tags check-dark-files check-file-weight check-proof-logs check-log-provenance test-provenance-gates check-no-getd-done check-pattern-map build test driver-coverage check-golden-current
+ci: lint-sh check-bugs check-no-shadow check-gz-agreement check-acl2-tags check-dark-files check-file-weight check-proof-logs check-log-provenance test-provenance-gates check-no-getd-done check-pattern-map build test driver-coverage check-golden-current
 
 # Run the corpus report
 report:

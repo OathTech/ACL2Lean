@@ -204,6 +204,118 @@ theorem gz_def_atom (a : SExpr) :
       = cond (Logic.toBool (Logic.consp a)) SExpr.nil SExpr.t := by
   cases a <;> rfl
 
+/-! ### D4 close-out completion (Phase 3 close-out item 2): agreement
+lemmas for the REMAINING builtin-named ground-zero snapshot defuns
+(audit 2026-08-08 outside F13). `LEXORDER` and `EXPT` are FLAGGED
+instead (see `scripts/check-gz-agreement.sh`): their emitted bodies
+cite non-builtin fns (`ALPHORDER`, `ZIP`), so the pure-`Logic` value
+composition this family states does not exist for them; `LEXORDER`'s
+fidelity rests on the `LexorderOrder` theorems + the differential
+corpus. -/
+
+/-- `(DEFUN IMPLIES (P Q) (IF P (IF Q 'T 'NIL) 'T))`. -/
+theorem gz_def_implies (a b : SExpr) :
+    Logic.implies a b
+      = cond (Logic.toBool a)
+          (cond (Logic.toBool b) SExpr.t SExpr.nil) SExpr.t := by
+  cases ha : Logic.toBool a <;> cases hb : Logic.toBool b <;>
+    simp only [Logic.implies, ha, hb] <;> rfl
+
+/-- `(DEFUN IFF (P Q) (IF P (IF Q 'T 'NIL) (IF Q 'NIL 'T)))`. -/
+theorem gz_def_iff (a b : SExpr) :
+    Logic.iff a b
+      = cond (Logic.toBool a)
+          (cond (Logic.toBool b) SExpr.t SExpr.nil)
+          (cond (Logic.toBool b) SExpr.nil SExpr.t) := by
+  cases ha : Logic.toBool a <;> cases hb : Logic.toBool b <;>
+    simp only [Logic.iff, ha, hb] <;> rfl
+
+/-- `(DEFUN EQL (X Y) (EQUAL X Y))` — the `EQL` builtin dispatches to
+    `Logic.equal`, so the agreement is stated at the `callBuiltin`
+    level (there is no distinct `Logic` value fn to relate). -/
+theorem gz_def_eql (a b : SExpr) :
+    callBuiltin "EQL" [a, b] = some (Logic.equal a b) := rfl
+
+/-- `(DEFUN FORCE (X) X)` — identity. -/
+theorem gz_def_force (a : SExpr) :
+    callBuiltin "FORCE" [a] = some a := rfl
+
+/-- `(DEFUN HIDE (X) X)` — identity. -/
+theorem gz_def_hide (a : SExpr) :
+    callBuiltin "HIDE" [a] = some a := rfl
+
+/-- `(DEFUN IFIX (X) (IF (INTEGERP X) X '0))` — the `IFIX` builtin arm
+    is an inline match, so the agreement is stated at the `callBuiltin`
+    level. -/
+theorem gz_def_ifix (a : SExpr) :
+    callBuiltin "IFIX" [a]
+      = some (cond (Logic.toBool (Logic.integerp a)) a
+          (.atom (.number (.int 0)))) := by
+  cases a with
+  | atom x =>
+    cases x with
+    | number n => cases n <;> rfl
+    | _ => rfl
+  | _ => rfl
+
+/-- `(DEFUN NATP (X) (IF (INTEGERP X) (IF (< X '0) 'NIL 'T) 'NIL))`. -/
+theorem gz_def_natp (a : SExpr) :
+    Logic.natp a
+      = cond (Logic.toBool (Logic.integerp a))
+          (cond (Logic.toBool (Logic.lt a (.atom (.number (.int 0)))))
+            SExpr.nil SExpr.t)
+          SExpr.nil := by
+  cases a with
+  | atom x =>
+    cases x with
+    | number n =>
+      cases n with
+      | int k =>
+        rcases lt_or_ge k 0 with hk | hk <;>
+          simp [Logic.toRat, hk, Int.not_lt.mpr, Int.not_le.mpr]
+      | rational n d hc => rfl
+    | _ => rfl
+  | _ => rfl
+
+/-- `(DEFUN POSP (X) (IF (INTEGERP X) (< '0 X) 'NIL))`. -/
+theorem gz_def_posp (a : SExpr) :
+    Logic.posp a
+      = cond (Logic.toBool (Logic.integerp a))
+          (Logic.lt (.atom (.number (.int 0))) a) SExpr.nil := by
+  cases a with
+  | atom x =>
+    cases x with
+    | number n =>
+      cases n with
+      | int k =>
+        rcases lt_or_ge 0 k with hk | hk <;>
+          simp [Logic.toRat, hk, Int.not_lt.mpr]
+      | rational n d hc => rfl
+    | _ => rfl
+  | _ => rfl
+
+/-- `(DEFUN ZP (X) (IF (INTEGERP X) (IF (< '0 X) 'NIL 'T) 'T))` — a
+    non-integer coerces to `0` under `toInt`, agreeing with the body's
+    `'T` else-branch. -/
+theorem gz_def_zp (a : SExpr) :
+    Logic.zp a
+      = cond (Logic.toBool (Logic.integerp a))
+          (cond (Logic.toBool
+              (Logic.lt (.atom (.number (.int 0))) a))
+            SExpr.nil SExpr.t)
+          SExpr.t := by
+  cases a with
+  | atom x =>
+    cases x with
+    | number n =>
+      cases n with
+      | int k =>
+        rcases lt_or_ge 0 k with hk | hk <;>
+          simp [Logic.toRat, hk, Int.not_lt.mpr, Int.not_le.mpr]
+      | rational n d hc => rfl
+    | _ => rfl
+  | _ => rfl
+
 /-- T3: EQUAL-self — (EQUAL t t) evaluates to T when t converges. -/
 theorem evalOpt_equal_self (f : Nat) (w : World) (env : Env)
     (t : SExpr) (v : SExpr)
@@ -345,6 +457,71 @@ theorem mkNumber_scale (n : Int) (d k : Nat) (hk : 0 < k) :
       exact Int.mul_ediv_mul_of_pos_left n _ (by exact_mod_cast hk)
     simp only [Logic.mkNumber, Int.ofNat_eq_natCast, dif_neg hd, dif_neg hdk, hnat,
                Nat.gcd_mul_right, hd2, hn2]
+
+private theorem mkNumber_one (n : Int) :
+    Logic.mkNumber n 1 = .atom (.number (.int n)) := by
+  simp [Logic.mkNumber, Nat.gcd_one_right]
+
+private theorem integerp_mkNumber_two_even (n : Int) (h : n % 2 = 0) :
+    Logic.integerp (Logic.mkNumber n 2) = SExpr.t := by
+  have h2 : (2 : Nat) ∣ n.natAbs :=
+    Int.natAbs_dvd_natAbs.mpr (Int.dvd_of_emod_eq_zero h)
+  have hg : Nat.gcd n.natAbs 2 = 2 := Nat.gcd_eq_right h2
+  simp [Logic.mkNumber, hg]
+
+private theorem integerp_mkNumber_two_odd (n : Int) (h : n % 2 = 1) :
+    Logic.integerp (Logic.mkNumber n 2) = SExpr.nil := by
+  have hg : Nat.gcd n.natAbs 2 = 1 :=
+    Nat.coprime_two_right.mpr
+      (Int.natAbs_odd.mpr (Int.odd_iff.mpr h))
+  simp [Logic.mkNumber, hg]
+
+/-- `(DEFUN EVENP (X) (INTEGERP (BINARY-* X '1/2)))` — a non-number
+    coerces to `0` under `toRat` (so `(* x 1/2)` is the integer `0`),
+    agreeing with `Logic.evenp`'s `'T` on non-numbers; a canonical
+    non-integer rational `n/d` scales to `n/2d`, whose reduced
+    denominator still exceeds `1` (else `d ∣ gcd(|n|, d) = 1`). -/
+theorem gz_def_evenp (a : SExpr) :
+    Logic.evenp a
+      = Logic.integerp (Logic.times a
+          (.atom (.number (.rational 1 2 (by decide))))) := by
+  cases a with
+  | atom x =>
+    cases x with
+    | number n =>
+      cases n with
+      | int k =>
+        show (if k % 2 == 0 then SExpr.t else SExpr.nil)
+          = Logic.integerp (Logic.mkNumber (k * 1) (1 * 2))
+        rw [Int.mul_one k, show ((1 : Nat) * 2) = 2 from rfl]
+        rcases Int.emod_two_eq_zero_or_one k with h | h
+        · rw [integerp_mkNumber_two_even k h]; simp [h]
+        · rw [integerp_mkNumber_two_odd k h]; simp [h]
+      | rational n d hc =>
+        show SExpr.nil
+          = Logic.integerp (Logic.mkNumber (n * 1) (d * 2))
+        rw [Int.mul_one n]
+        have hcanon := hc
+        simp only [canonRat, Bool.and_eq_true, beq_iff_eq,
+          decide_eq_true_eq] at hcanon
+        obtain ⟨hd2, hg1⟩ := hcanon
+        have hne : ¬ (d * 2 / Nat.gcd n.natAbs (d * 2) = 1) := by
+          intro h1
+          set g := Nat.gcd n.natAbs (d * 2) with hgdef
+          have hgpos : 0 < g := Nat.gcd_pos_of_pos_right _ (by omega)
+          obtain ⟨c, hcq⟩ : g ∣ d * 2 := Nat.gcd_dvd_right _ _
+          rw [hcq, Nat.mul_div_cancel_left c hgpos] at h1
+          subst h1
+          have hgeq : g = d * 2 := by simpa using hcq.symm
+          have hdd : d ∣ n.natAbs :=
+            dvd_trans ⟨2, rfl⟩ (hgeq ▸ Nat.gcd_dvd_left n.natAbs (d * 2))
+          have hdg : d ∣ Nat.gcd n.natAbs d := Nat.dvd_gcd hdd dvd_rfl
+          rw [hg1] at hdg
+          have := Nat.le_of_dvd (by omega) hdg
+          omega
+        simp [Logic.mkNumber, hne, show ¬ (d * 2 = 0) by omega]
+    | _ => rfl
+  | _ => rfl
 
 /-- The UNREDUCED form of `plus (mkNumber n d) c`: scaling collapses `mkNumber`'s
     internal gcd reduction, so the result is `mkNumber (n·cd + cn·d) (d·cd)` with
