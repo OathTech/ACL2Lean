@@ -681,24 +681,33 @@ partial def flattenAnd : SExpr → List SExpr
     admits at boot with proofs SKIPPED (`ld-skip-proofsp`) — no replayable
     evidence exists, so each is proved ONCE in Lean about the trusted-core
     primitive (`GzRules.lean`), resting on the `LexorderOrder` theorems.
-    Entry: rule name ↦ (the constant, the primitive's no-shadow fn). A
-    ground-zero rule name can never collide with a user rule — ACL2 refuses
-    the redefinition at admission. -/
-def d5GzRules : List (String × Name × String) :=
-  [("LEXORDER-REFLEXIVE",  (``gz_rule_lexorder_reflexive,  "LEXORDER")),
-   ("LEXORDER-TRANSITIVE", (``gz_rule_lexorder_transitive, "LEXORDER"))]
+    Entry: rule name ↦ (the constant, the primitives' no-shadow fns, in
+    the constant's hypothesis order). A ground-zero rule name can never
+    collide with a user rule — ACL2 refuses the redefinition at
+    admission. -/
+def d5GzRules : List (String × Name × List String) :=
+  [("LEXORDER-REFLEXIVE",  (``gz_rule_lexorder_reflexive,  ["LEXORDER"])),
+   ("LEXORDER-TRANSITIVE", (``gz_rule_lexorder_transitive, ["LEXORDER"])),
+   ("DEFAULT-CAR",         (``gz_rule_default_car,
+                            ["CAR", "CONSP", "NOT"])),
+   ("DEFAULT-CDR",         (``gz_rule_default_cdr,
+                            ["CDR", "CONSP", "NOT"])),
+   ("CONS-CAR-CDR",        (``gz_rule_cons_car_cdr,
+                            ["CONSP", "CAR", "CDR", "CONS"])),
+   ("FOLD-CONSTS-IN-+",    (``gz_rule_fold_consts_in_plus, ["BINARY-+"]))]
 
 /-- Discharge a GROUND-ZERO rule's `rule:<name>` hypothesis by its D5
-    prelude constant: instantiate at the theorem's world + the primitive's
-    no-shadow fact, then type-hint against the hypothesis type built FROM
+    prelude constant: instantiate at the theorem's world + the primitives'
+    no-shadow facts, then type-hint against the hypothesis type built FROM
     THE EMITTED SPEC (`mkRuleHypType`) — a drifted emission or a mis-stated
     constant fails here (fail-closed recompute-check, kernel-backed at
     `Meta.check`). -/
 def dischargeGzRuleHyp (cfg : ReplayConfig) (spec : RuleSpec) (decl : Name)
-    (noShadowFn : String) : MetaM Expr := do
-  let hno ← proveNoShadow cfg { name := noShadowFn }
-  mkExpectedTypeHint (mkApp2 (mkConst decl) cfg.worldExpr hno)
-    (← mkRuleHypType cfg spec)
+    (noShadowFns : List String) : MetaM Expr := do
+  let mut e := mkApp (mkConst decl) cfg.worldExpr
+  for fn in noShadowFns do
+    e := mkApp e (← proveNoShadow cfg { name := fn })
+  mkExpectedTypeHint e (← mkRuleHypType cfg spec)
 
 /-- D1 MIRROR REGISTRY (design §D1, WP4): replayed theorems as per-theorem
     Lean CONSTANTS. Entry: theorem name ↦ (the `addDecl`'d constant — type

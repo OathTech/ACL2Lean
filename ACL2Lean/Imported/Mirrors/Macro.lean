@@ -275,6 +275,7 @@ elab "instantiate_parametric%" constId:ident devId:ident worldId:ident
     throwError "instantiate_parametric%: {nm.getString} not found"
   let mut crossTrees : List (String × ClauseProof) := []
   let mut crossRules : List ACL2.RuleSpec := []
+  let mut crossDevs : List (String × Development) := []
   if let some d := deps then
     for depId in (d.raw[2].getSepArgs.map (fun a => (⟨a⟩ : Ident))) do
       let depName ← Lean.resolveGlobalConstNoOverload depId
@@ -284,6 +285,7 @@ elab "instantiate_parametric%" constId:ident devId:ident worldId:ident
       crossRules := crossRules
         ++ (ACL2.Replay.Runner.allBookRules depDev).filter
           (fun r => !crossRules.any (fun o => o.runeKey == r.runeKey))
+      crossDevs := crossDevs ++ [(depName.toString, depDev)]
   let mut totsNames : List Name := []
   if let some t := tots then
     for dId in (t.raw[2].getSepArgs.map (fun a => (⟨a⟩ : Ident))) do
@@ -291,7 +293,7 @@ elab "instantiate_parametric%" constId:ident devId:ident worldId:ident
   Meta.withLocalDeclD `env (mkConst ``Env) fun envV => do
     let (pf, keptNames, concl) ← instantiateParametricAt dev dev.toWorld
       (mkConst worldName) nm.getString crossTrees crossRules totsNames
-      (mkConst constName) envV
+      (mkConst constName) envV (crossDevs := crossDevs)
     logInfo m!"instantiate_parametric% {constName} @ {worldName}: \
       conclusion {concl}; KEPT premises: \
       [{", ".intercalate keptNames}] (empty = full non-vacuity witness)"

@@ -773,14 +773,14 @@ theorem withAliases_agree (w : World) :
   | [], _, _ => rfl
   | e :: rest, s, h => by
     have hs : (s == e.1) = false := by
-      simp [List.contains_cons] at h
+      simp at h
       cases hb : (s == e.1) with
       | false => rfl
       | true => rw [show s = e.1 from eq_of_beq hb] at h; simp at h
     show ((World.withAliases w rest).defs.insert e.1 _).get? s = _
     rw [defMap_get?_insert, if_neg (by simp [hs])]
     refine withAliases_agree w rest s ?_
-    simp [List.contains_cons] at h
+    simp at h
     simpa using h.2
 
 /-- Each alias entry is defined in the extension (given DISTINCT names). -/
@@ -1066,7 +1066,7 @@ theorem evalOpt_fncontract_transport
     | .cons (.atom (.number _)) _ | .cons (.atom (.string _)) _
     | .cons (.atom (.keyword _)) _ | .cons (.atom (.char _)) _
     | .cons .nil _ => exact absurd h (by
-        simp [evalOpt, evalOptStep, substFnCalls, substFnList])
+        simp [evalOpt, evalOptStep, substFnCalls])
     | .cons (.cons .nil _) _ | .cons (.cons (.atom (.number _)) _) _
     | .cons (.cons (.atom (.string _)) _) _
     | .cons (.cons (.atom (.keyword _)) _) _
@@ -1126,7 +1126,6 @@ theorem evalOpt_fncontract_transport
           simpleArgs_vals w' env args hallSimple
         have hifF : ¬(fn.isNamed "IF" = true) := by
           have := hσns _ hmem
-          simp only [Bool.or_eq_true] at this
           intro hx
           exact absurd this (by simp [hx])
         -- reduce the image through the alias arm
@@ -1202,7 +1201,7 @@ theorem evalOpt_fncontract_transport
             hspine'] at h
           revert h
           cases hmapF : args.mapM (fun a => evalOpt F w' env a) with
-          | none => intro h; exact absurd h (by simp [hmapF])
+          | none => intro h; exact absurd h (by simp)
           | some rvals =>
             intro h
             have : args.length = rvals.length :=

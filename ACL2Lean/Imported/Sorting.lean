@@ -424,103 +424,6 @@ facts. Each type matches `mkRuleHypType` of the emitted spec exactly:
 
 private abbrev notT (a : SExpr) : SExpr := app1 "NOT" a
 
-/-- The value of the variable `X` in an arbitrary env (total — unbound
-    reads `nil`). -/
-private theorem conv_varX (w : World) (env' : Env) :
-    ∃ N, ∀ f ≥ N, evalOpt f w env' xT
-      = some ((env'.get? xS).getD .nil) :=
-  re_val_var w env' { name := "X" } (by decide)
-
-/-- `rule:DEFAULT-CAR` — `((NOT (CONSP X))) ⊢ (CAR X) ≡ 'NIL`. -/
-theorem dis_default_car (w : World)
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none) :
-    ∀ env' : Env, EvTrue w env' (notT (conspT xT)) →
-    ∃ N, ∀ f ≥ N, evalOpt f w env' (carT xT) = evalOpt f w env' qNil := by
-  intro env' hyp
-  obtain ⟨vx, hx⟩ : ∃ vx, ∃ N, ∀ f ≥ N, evalOpt f w env' xT = some vx :=
-    ⟨_, conv_varX w env'⟩
-  have hconsp := conv_builtin1 w env' { name := "CONSP" } xT vx
-    (Logic.consp vx) (by decide) h_no_consp hx (callBuiltin_consp _)
-  have hnot := conv_builtin1 w env' { name := "NOT" } (conspT xT)
-    (Logic.consp vx) (Logic.not (Logic.consp vx)) (by decide) h_no_not
-    hconsp (callBuiltin_not _)
-  have hne := ne_nil_of_evtrue_conv hyp hnot
-  have hcar0 : Logic.car vx = SExpr.nil := by
-    cases vx <;> simp_all [Logic.consp, Logic.not, Logic.car, Logic.toBool]
-  have hL := conv_builtin1 w env' { name := "CAR" } xT vx
-    (Logic.car vx) (by decide) h_no_car hx (callBuiltin_car _)
-  rw [hcar0] at hL
-  exact fuel_eq_of_conv hL (re_val_quote w env' SExpr.nil) rfl
-
-/-- `rule:DEFAULT-CDR` — `((NOT (CONSP X))) ⊢ (CDR X) ≡ 'NIL`. -/
-theorem dis_default_cdr (w : World)
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none) :
-    ∀ env' : Env, EvTrue w env' (notT (conspT xT)) →
-    ∃ N, ∀ f ≥ N, evalOpt f w env' (cdrT xT) = evalOpt f w env' qNil := by
-  intro env' hyp
-  obtain ⟨vx, hx⟩ : ∃ vx, ∃ N, ∀ f ≥ N, evalOpt f w env' xT = some vx :=
-    ⟨_, conv_varX w env'⟩
-  have hconsp := conv_builtin1 w env' { name := "CONSP" } xT vx
-    (Logic.consp vx) (by decide) h_no_consp hx (callBuiltin_consp _)
-  have hnot := conv_builtin1 w env' { name := "NOT" } (conspT xT)
-    (Logic.consp vx) (Logic.not (Logic.consp vx)) (by decide) h_no_not
-    hconsp (callBuiltin_not _)
-  have hne := ne_nil_of_evtrue_conv hyp hnot
-  have hcdr0 : Logic.cdr vx = SExpr.nil := by
-    cases vx <;> simp_all [Logic.consp, Logic.not, Logic.cdr, Logic.toBool]
-  have hL := conv_builtin1 w env' { name := "CDR" } xT vx
-    (Logic.cdr vx) (by decide) h_no_cdr hx (callBuiltin_cdr _)
-  rw [hcdr0] at hL
-  exact fuel_eq_of_conv hL (re_val_quote w env' SExpr.nil) rfl
-
-/-- `'(NIL)` — the CONS-CAR-CDR rule's else-value, `(cons nil nil)`
-    quoted. -/
-private def qNilList : SExpr :=
-  .cons (.atom (.symbol { name := "QUOTE" }))
-    (.cons (.cons SExpr.nil SExpr.nil) .nil)
-
-/-- `rule:CONS-CAR-CDR` — unconditional, the stored ground-zero form:
-    `(CONS (CAR X) (CDR X)) ≡ (IF (CONSP X) X '(NIL))`. -/
-theorem dis_cons_car_cdr (w : World)
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
-    ∀ env' : Env,
-    ∃ N, ∀ f ≥ N, evalOpt f w env' (consT (carT xT) (cdrT xT))
-      = evalOpt f w env' (ifT (conspT xT) xT qNilList) := by
-  intro env'
-  obtain ⟨vx, hx⟩ : ∃ vx, ∃ N, ∀ f ≥ N, evalOpt f w env' xT = some vx :=
-    ⟨_, conv_varX w env'⟩
-  have hconsp := conv_builtin1 w env' { name := "CONSP" } xT vx
-    (Logic.consp vx) (by decide) h_no_consp hx (callBuiltin_consp _)
-  have hcar := conv_builtin1 w env' { name := "CAR" } xT vx
-    (Logic.car vx) (by decide) h_no_car hx (callBuiltin_car _)
-  have hcdr := conv_builtin1 w env' { name := "CDR" } xT vx
-    (Logic.cdr vx) (by decide) h_no_cdr hx (callBuiltin_cdr _)
-  have hL := conv_builtin2 w env' { name := "CONS" } (carT xT) (cdrT xT)
-    (Logic.car vx) (Logic.cdr vx) (Logic.cons (Logic.car vx) (Logic.cdr vx))
-    (by decide) h_no_cons hcar hcdr rfl
-  match vx with
-  | .cons a d =>
-    have hR := conv_if_true w env' (conspT xT) xT qNilList
-      (Logic.consp (.cons a d)) (.cons a d) hconsp rfl hx
-    exact fuel_eq_of_conv hL hR (by simp [Logic.cons, Logic.car, Logic.cdr])
-  | .nil =>
-    have hR := conv_if_false' w env' (conspT xT) xT qNilList
-      (.cons SExpr.nil SExpr.nil) hconsp
-      (re_val_quote w env' (.cons SExpr.nil SExpr.nil))
-    exact fuel_eq_of_conv hL hR (by simp [Logic.cons, Logic.car, Logic.cdr])
-  | .atom a =>
-    have hR := conv_if_false' w env' (conspT xT) xT qNilList
-      (.cons SExpr.nil SExpr.nil) hconsp
-      (re_val_quote w env' (.cons SExpr.nil SExpr.nil))
-    exact fuel_eq_of_conv hL hR (by simp [Logic.cons, Logic.car, Logic.cdr])
-
 /-! ## EQUAL-CONS -/
 
 private def bS : Symbol := { package := "ACL2", name := "B" }
@@ -983,27 +886,6 @@ theorem dis_plus_assoc (w : World)
     (conv_plusT w env' xT (plusT yT zT) vx (Logic.plus vy vz) h_no_plus hx
       (conv_plusT w env' yT zT vy vz h_no_plus hy hz))
     (logic_plus_assoc vx vy vz)
-
-/-- `rule:FOLD-CONSTS-IN-+` — `(+ x (+ y z)) ≡ (+ (+ x y) z)` under two
-    `syntaxp` SYNP hypotheses (premises the value-level fact never
-    needs). -/
-theorem dis_fold_consts (w : World)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (synpX synpY : SExpr) :
-    ∀ env' : Env, EvTrue w env' synpX → EvTrue w env' synpY →
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (plusT xT (plusT yT zT))
-        = evalOpt f w env' (plusT (plusT xT yT) zT) := by
-  intro env' _ _
-  obtain ⟨vx, hx⟩ := conv_var w env' xS (by decide)
-  obtain ⟨vy, hy⟩ := conv_var w env' yS (by decide)
-  obtain ⟨vz, hz⟩ := conv_var w env' zS (by decide)
-  exact fuel_eq_of_conv
-    (conv_plusT w env' xT (plusT yT zT) vx (Logic.plus vy vz) h_no_plus hx
-      (conv_plusT w env' yT zT vy vz h_no_plus hy hz))
-    (conv_plusT w env' (plusT xT yT) zT (Logic.plus vx vy) vz h_no_plus
-      (conv_plusT w env' xT yT vx vy h_no_plus hx hy) hz)
-    (logic_plus_assoc vx vy vz).symm
 
 /-- `rule:(+ x (if a b c)) ≡ (if a (+ x b) (+ x c))` (if-lifting). -/
 theorem dis_plus_if_lift (w : World)

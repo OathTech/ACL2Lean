@@ -57,14 +57,12 @@ theorem car_rm_native_driver (ev : SExpr) (xs : List SExpr) :
 def equalConsReplayedCond := driver_replayed% orderedPermsDev
   orderedPermsWorldD "equal-cons"
 
-/-- The unconditional form — the ground-zero rule discharged
-    world-parametrically (`dis_cons_car_cdr`). -/
+/-- The unconditional form — the ground-zero rule now discharged inside
+    the driver via its D5 prelude constant (`gz_rule_cons_car_cdr`). -/
 theorem equalConsReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f orderedPermsWorldD env
       Worlds.Sorting.equal_consFormula = some v ∧ v ≠ SExpr.nil :=
   equalConsReplayedCond env
-    (Worlds.Sorting.dis_cons_car_cdr orderedPermsWorldD (by decide)
-      (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — EQUAL-CONS natively: equality with a cons decomposes
     componentwise (`==` over SExpr). -/
@@ -91,16 +89,12 @@ set_option maxHeartbeats 3200000 in
 def orderedPermsCapReplayedCond := driver_replayed% orderedPermsDev
   orderedPermsWorldD "ordered-perms" deps [permDev]
 
-/-- The unconditional form — the two ground-zero rules discharged
-    world-parametrically. -/
+/-- The unconditional form — the two ground-zero rules now discharged
+    inside the driver via their D5 prelude constants. -/
 theorem orderedPermsCapReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f orderedPermsWorldD env
       Worlds.Sorting.ordered_permsFormula = some v ∧ v ≠ SExpr.nil :=
   orderedPermsCapReplayedCond env
-    (Worlds.Sorting.dis_cons_car_cdr orderedPermsWorldD (by decide)
-      (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_default_car orderedPermsWorldD (by decide)
-      (by decide) (by decide))
 
 /-- ENTRY, PROVED — ORDERED-PERMS natively: for lexorder-sorted lists,
     equality IS permutation-equivalence (the Bool identity). -/
@@ -133,14 +127,12 @@ set_option maxHeartbeats 1600000 in
 def orderedpMembReplayedCond := driver_replayed% orderedPermsDev
   orderedPermsWorldD "orderedp-memb"
 
-/-- The unconditional form — `rule:DEFAULT-CAR` discharged
-    world-parametrically. -/
+/-- The unconditional form — `rule:DEFAULT-CAR` now discharged inside
+    the driver via its D5 prelude constant. -/
 theorem orderedpMembReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f orderedPermsWorldD env
       Worlds.Sorting.orderedp_membFormula = some v ∧ v ≠ SExpr.nil :=
   orderedpMembReplayedCond env
-    (Worlds.Sorting.dis_default_car orderedPermsWorldD (by decide)
-      (by decide) (by decide))
 
 /-- ENTRY, PROVED — ORDEREDP-MEMB natively: an element strictly below the
     head of a lexorder-sorted list is not in the list. -/

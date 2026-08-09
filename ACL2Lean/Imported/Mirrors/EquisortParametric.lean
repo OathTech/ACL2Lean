@@ -3,6 +3,7 @@ import ACL2Lean.Imported.Mirrors.PermBook
 import ACL2Lean.Imported.Mirrors.ConvertPerm
 import ACL2Lean.Imported.Mirrors.OrderedPerms
 import ACL2Lean.DevLoad
+import ACL2Lean.Imported.EquisortWitness
 
 namespace ACL2.Imported.Mirrors
 
@@ -80,7 +81,9 @@ set_option maxHeartbeats 12000000 in
 def weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
   weakSortfn1IsSortfn2Parametric equisortDev equisortMirrorsWorld
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
-  totals [ACL2.Worlds.Sorting.dis_pce_total, ACL2.Worlds.Sorting.dis_how_many_tp]
+  totals [ACL2.Worlds.Sorting.dis_pce_total, ACL2.Worlds.Sorting.dis_how_many_tp,
+   ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
+   ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
 
 #print axioms weakSortfn1IsSortfn2AtCanonical
 
@@ -89,7 +92,9 @@ set_option maxHeartbeats 12000000 in
 def strongSsortfn1IsSsortfn2AtCanonical := instantiate_parametric%
   strongSsortfn1IsSsortfn2Parametric equisortDev equisortMirrorsWorld
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
-  totals [ACL2.Worlds.Sorting.dis_pce_total, ACL2.Worlds.Sorting.dis_how_many_tp]
+  totals [ACL2.Worlds.Sorting.dis_pce_total, ACL2.Worlds.Sorting.dis_how_many_tp,
+   ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
+   ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
 
 #print axioms strongSsortfn1IsSsortfn2AtCanonical
 

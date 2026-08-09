@@ -54,14 +54,12 @@ set_option maxHeartbeats 1600000 in
 def notMembRmNoopReplayedCond := driver_replayed% convertPermDev
   convertPermWorldD "not-memb-implies-rm-is-no-op"
 
-/-- The unconditional form (the ground-zero rule discharged
-    world-parametrically). -/
+/-- The unconditional form (the ground-zero rule now discharged inside
+    the driver via its D5 prelude constant, `gz_rule_cons_car_cdr`). -/
 theorem notMembRmNoopReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
       Worlds.Sorting.not_memb_rm_noopFormula = some v ∧ v ≠ SExpr.nil :=
   notMembRmNoopReplayedCond env
-    (Worlds.Sorting.dis_cons_car_cdr convertPermWorldD (by decide)
-      (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — NOT-MEMB-IMPLIES-RM-IS-NO-OP natively: erasing an
     absent element is the identity (the `List.erase_of_not_mem` class). -/

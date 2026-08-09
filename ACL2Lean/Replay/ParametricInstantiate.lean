@@ -60,7 +60,8 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
     (ruleBridge : ACL2.RuleSpec → Expr → MetaM (Option Expr) :=
       fun _ _ => pure none)
     (useBridge : UseSpec → Expr → MetaM (Option Expr) :=
-      fun _ _ => pure none) :
+      fun _ _ => pure none)
+    (crossDevs : List (String × Development) := []) :
     MetaM (Expr × List String × Expr) := do
   let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
   let cfg := ACL2.Replay.Runner.mkBookConfig dev worldVal worldExpr envV
@@ -88,6 +89,87 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
             viaReg := some cand
         catch _ => pure ()
     pure viaReg
+  -- INNER-DISCHARGE tp augmentation (close-out item 1b): the rule/use
+  -- premises' re-replays consume ctx.tpHyps — witness-fn TP facts the
+  -- pool cannot prove get PROOF-TERM entries from the registered
+  -- dischargers (the dis_* family via the same generic peel), so the
+  -- inner replays close instead of keeping witness conds
+  let ch2 := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
+  let mut tpAug : List (String × SExpr × Expr) := []
+  for (fn, cor) in ch2.tps do
+    match worldVal.defs.get? { name := fn } with
+    | some (formals, _) =>
+      let tpTy ← try Driver.mkTpHypType cfg { name := fn } formals cor
+        catch _ => pure (mkConst ``True)
+      if !tpTy.isConst then
+        match ← (some <$> withRealMaxHeartbeats 3000000
+            (proveTp cfg totalEnv (dev.justifications ++ extraJusts)
+              fn cor)) <|> pure none with
+        | some pf => tpAug := tpAug ++ [(fn, cor, pf)]
+        | none =>
+          match ← tryRegistered tpTy with
+          | some pf => tpAug := tpAug ++ [(fn, cor, pf)]
+          | none => pure ()
+    | none => pure ()
+  -- likewise totality: the pool's proofs (and any registered-discharger
+  -- successes) become proof-term entries the inner replays can consume
+  let mut totAug : List (String × Expr) := []
+  for (n, _, pf) in totalEnv do
+    totAug := totAug ++ [(n, pf)]
+  for (sy, formals, _) in worldVal.defs.entries do
+    unless totAug.any (·.1 == sy.name) do
+      let totTy ← try Driver.mkTotalityHypType cfg sy formals.length
+        catch _ => pure (mkConst ``True)
+      if !totTy.isConst then
+        match ← tryRegistered totTy with
+        | some pf => totAug := totAug ++ [(sy.name, pf)]
+        | none => pure ()
+  -- DEMAND-DRIVEN rule pre-discharge (close-out 1b): the inner
+  -- re-replays cite gz rules (D5 prelude constants) and earlier
+  -- theorem rules — pre-discharge the DEMANDED set (citations of the
+  -- dep trees the telescope will re-replay) into proof-term entries,
+  -- iterating for citation chains; failures skip (the affected
+  -- premise then keeps, honest)
+  -- equivrefl entries (the type-alist's R-reflexivity evidence, e.g.
+  -- (PERM x x)): each equivalence-shaped theorem in scope offers its
+  -- reflexivity component, discharged from its dependency tree
+  let ctxRef ← IO.mkRef { ctx with
+    tpHyps := ctx.tpHyps ++ tpAug,
+    totalHyps := ctx.totalHyps ++ totAug }
+  let demand := (ch.depProofs.foldl (init := ([] : List String))
+    fun acc (_, cp) => acc ++ ACL2.Replay.Runner.citedRuneNames cp).eraseDups
+  let demandRules := rules.filter (fun r => demand.contains r.name)
+  let equivOffers := ch.equivRefls.filterMap
+    (fun (n, f) => Driver.equivReflSpecOfFormula? n f)
+  for _round in [0, 1, 2] do
+    for spec in demandRules do
+      let cur ← ctxRef.get
+      unless cur.ruleHyps.any (fun (r, _) => r.runeKey == spec.runeKey) do
+        let pf? ←
+          match Driver.d5GzRules.lookup spec.name with
+          | some (decl, nsFn) =>
+            (some <$> Driver.dischargeGzRuleHyp cfg spec decl nsFn)
+              <|> pure none
+          | none =>
+            (some <$> withRealMaxHeartbeats 3000000
+              (dischargeRuleHyp cfg cur spec ch.depProofs []))
+              <|> pure none
+        if let some pf := pf? then
+          ctxRef.modify fun c =>
+            { c with ruleHyps := c.ruleHyps ++ [(spec, pf)] }
+    -- equivrefl entries (the type-alist's R-reflexivity evidence, e.g.
+    -- (PERM x x)) join the same rounds: their dep trees cite theorem
+    -- rules (PERM-SYMMETRIC) and the use-theorem re-replays need them
+    for spec in equivOffers do
+      let cur ← ctxRef.get
+      unless cur.equivReflHyps.any (fun (sp, _) => sp.name == spec.name) do
+        let er? ← try
+            some <$> withRealMaxHeartbeats 3000000
+              (Driver.dischargeEquivReflHyp cfg cur spec ch.depProofs [])
+          catch _ => pure none
+        if let some pf := er? then
+          ctxRef.modify fun c =>
+            { c with equivReflHyps := c.equivReflHyps ++ [(spec, pf)] }
   let ty0 ← inferType constE
   let ty ← Meta.instantiateForall ty0 #[envV, worldExpr]
   let acc := mkApp2 constE envV worldExpr
@@ -219,8 +301,15 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
         for spec in cands do
           if found.isNone then
             if ← isDefEq (← mkRuleHypType cfg spec) bTy then
-              found := some (← (some <$> dischargeRuleHyp cfg ctx spec
-                  ch.depProofs []) <|> pure none, spec)
+              found := some (← try
+                  let pf ← dischargeRuleHyp cfg (← ctxRef.get) spec
+                    ch.depProofs []
+                  -- feed forward: later constraint rules cite earlier
+                  -- ones (ORDEREDP-SORTFN2 cites ORDEREDP-SORTFN1)
+                  ctxRef.modify fun c =>
+                    { c with ruleHyps := c.ruleHyps ++ [(spec, pf)] }
+                  pure (some pf)
+                catch _ => pure none, spec)
         match found with
         | some (some pf, _) => pure (some pf)
         | some (none, spec) =>
@@ -238,8 +327,25 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
             let spec : UseSpec := { name := n, formula := f }
             unless ← isDefEq (← mkUseHypType cfg spec) bTy do
               throwError "instantiate_parametric%: use:{n} type mismatch"
-            match ← (some <$> dischargeUseHyp cfg ctx spec
-                ch.depProofs []) <|> pure none with
+            let usePf? ← try
+                some <$> dischargeUseHyp cfg (← ctxRef.get) spec
+                  ch.depProofs []
+              catch _ =>
+                -- retry under the OWNING book's cfg at the consumer
+                -- world (the usefi-bridge pattern): the dependency's
+                -- justification/gz channels are what its tree's DP
+                -- leaves consume
+                match crossDevs.find? (fun (_, d) =>
+                    (Driver.findThm d n).isSome) with
+                | some (_, ownDev) =>
+                  let ownCfg := ACL2.Replay.Runner.mkBookConfig ownDev
+                    worldVal worldExpr envV
+                  try
+                    some <$> dischargeUseHyp ownCfg (← ctxRef.get) spec
+                      ch.depProofs []
+                  catch _ => pure none
+                | none => pure none
+            match usePf? with
             | some pf => pure (some pf)
             | none => useBridge spec bTy
           | _ => throwError "instantiate_parametric%: use:{n} dep Goal \

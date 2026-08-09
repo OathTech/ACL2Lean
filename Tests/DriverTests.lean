@@ -884,18 +884,43 @@ first future replaying consumer. -/
 
 derive_world isortWorld from isortDevelopment
 
+/-- Auxiliary snapshot sources for registry entries the isort book never
+    cites: `cov-mv-let` emits `CONS-CAR-CDR`; `cov-meta-rule` emits
+    `DEFAULT-CDR`. -/
+private def covMvLetLog : String :=
+  include_str "../acl2_samples/pattern-tests/cov-mv-let.proof-log"
+def covMvLetDevelopment : Development := load_development% covMvLetLog
+private def covMetaRuleLog : String :=
+  include_str "../acl2_samples/pattern-tests/cov-meta-rule.proof-log"
+def covMetaRuleDevelopment : Development :=
+  load_development% covMetaRuleLog
+
+derive_world covMvLetWorld from covMvLetDevelopment
+derive_world covMetaRuleWorld from covMetaRuleDevelopment
+
 elab "wp3_gz_discharge_pin% " : term => do
-  let dev ← unsafe evalExpr Development (mkConst ``ACL2.Development)
-    (mkConst ``isortDevelopment)
-  let specs := dev.groundZeroRuleSpecs
+  -- every REGISTERED gz rule is pinned against SOME book's EMITTED
+  -- snapshot entry (fail-closed: an entry emitted by no source book
+  -- fails the pin — the registry may never outrun the emission)
+  let sources : List (Name × Name) :=
+    [(``isortDevelopment, ``isortWorld),
+     (``covMvLetDevelopment, ``covMvLetWorld),
+     (``covMetaRuleDevelopment, ``covMetaRuleWorld)]
   withLocalDeclD `env (mkConst ``Env) fun env => do
-    let cfg : ReplayConfig :=
-      { worldExpr := mkConst ``isortWorld, envExpr := env,
-        worldVal := dev.toWorld, gzDefs := dev.groundZeroSnapshotDefs,
-        justs := dev.justifications }
+    let mut cfgs : List (String × ReplayConfig × List ACL2.RuleSpec) := []
+    for (devName, worldName) in sources do
+      let dev ← unsafe evalExpr Development
+        (mkConst ``ACL2.Development) (mkConst devName)
+      let cfg : ReplayConfig :=
+        { worldExpr := mkConst worldName, envExpr := env,
+          worldVal := dev.toWorld, gzDefs := dev.groundZeroSnapshotDefs,
+          justs := dev.justifications }
+      cfgs := cfgs ++ [(devName.toString, cfg, dev.groundZeroRuleSpecs)]
     for (nm, decl, nsFn) in d5GzRules do
-      let some spec := specs.find? (·.name == nm)
-        | throwError "WP3 pin: no emitted ground-zero rule {nm} in the isort snapshot"
+      let some (_, cfg, spec) := cfgs.findSome? (fun (b, cfg, specs) =>
+          (specs.find? (·.name == nm)).map (b, cfg, ·))
+        | throwError "WP3 pin: no emitted ground-zero rule {nm} in any \
+            source snapshot (isort / cov-mv-let / cov-meta-rule)"
       let pf ← dischargeGzRuleHyp cfg spec decl nsFn
       check pf
     logInfo "WP3 pin: D5 prelude constants discharge the EMITTED gz rule specs"

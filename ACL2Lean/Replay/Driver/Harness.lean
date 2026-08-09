@@ -863,6 +863,24 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
                 unless isFrontierErr e do
                   throw e
             | none => pure ()
+      -- SECOND ground-zero pass (close-out 2026-08-08): the totality/TP
+      -- discharge proofs above may pull in gz-rule hyp fvars the replay
+      -- itself never touched — they enter AFTER the rule-discharge pass,
+      -- so the D5 registry never saw them. Registry-covered rules are
+      -- dischargeable without a dependency tree; bind them here rather
+      -- than surfacing a prelude-constant fact as a kept condition.
+      if discharge then
+        let prfMid ← instantiateMVars prf
+        for (spec, hypV) in rules.zip ruleVs.toList do
+          if prfMid.containsFVar hypV.fvarId! then
+            if let some (decl, nsFns) := d5GzRules.lookup spec.name then
+              try
+                let pf ← withRealMaxHeartbeats dischargeBudget <|
+                  dischargeGzRuleHyp cfg spec decl nsFns
+                prf ← letBindFVar prf hypV pf
+              catch e =>
+                unless isFrontierErr e do
+                  throw e
       -- kept = the hypotheses STILL FREE in the final proof. Recomputed
       -- AFTER all discharges (sorting arc 2026-07-28): a recorded-
       -- termination totality proof may pull in tp:/rule: fvars the replay

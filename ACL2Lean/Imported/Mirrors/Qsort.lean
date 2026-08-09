@@ -271,7 +271,6 @@ theorem howManyQsortReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
 
     (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
@@ -315,7 +314,6 @@ theorem permQsortReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
 
     (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
@@ -369,7 +367,6 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_fold_consts qsortWorldD (by decide) _ _)
 
     (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)

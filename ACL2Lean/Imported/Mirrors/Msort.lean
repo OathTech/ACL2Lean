@@ -30,7 +30,6 @@ theorem howManyMerge2Replayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
 
 
 /-- ENTRY, PROVED — HOW-MANY-MERGE2 natively: merging adds
@@ -55,11 +54,6 @@ theorem howManyEvensOddsReplayed_uncond (env : Env) :
   howManyEvensOddsReplayedCond env
     (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_default_car msortWorldD (by decide) (by decide)
-      (by decide))
-    (Worlds.Sorting.dis_default_cdr msortWorldD (by decide) (by decide)
-      (by decide))
-    (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
 
 
 /-- ENTRY, PROVED — HOW-MANY-EVENS-AND-ODDS natively: the evens/odds
@@ -119,11 +113,6 @@ theorem howManyMsortReplayed_uncond (env : Env) :
       (by decide) (by decide))
     (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_default_car msortWorldD (by decide) (by decide)
-      (by decide))
-    (Worlds.Sorting.dis_default_cdr msortWorldD (by decide) (by decide)
-      (by decide))
-    (Worlds.Sorting.dis_fold_consts msortWorldD (by decide) _ _)
 
 
 /-- ENTRY, PROVED — HOW-MANY-MSORT natively: MERGE SORT PRESERVES

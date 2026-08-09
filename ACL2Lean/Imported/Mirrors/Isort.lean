@@ -62,7 +62,6 @@ theorem howManyIsortReplayed_uncond (env : Env) :
   howManyIsortReplayedCond env
     (Worlds.Sorting.dis_how_many_tp isortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_fold_consts isortWorldD (by decide) _ _)
 
 
 /-- ENTRY, PROVED — HOW-MANY-ISORT natively: INSERTION SORT PRESERVES
