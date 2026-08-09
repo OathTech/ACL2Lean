@@ -166,16 +166,70 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             {repr start} (entry path {repr wpath}, swapped {wswapped}) — \
             ambiguous position (frontier)"
       | cs => do
-        -- REVERTED to the hard-fail (branch drift audit item 15,
-        -- 2026-08-05): the earlier disambiguation canonicalized frames
-        -- but not preSwap?/branchAnchor across survivors, then PREFERRED
-        -- the branch-anchored reading — a preference among ambiguous
-        -- readings is search, not read-off. Complete it (pin all three,
-        -- or prove uniqueness) before re-landing.
-        throwError "replayRewrites: inline {kind} window term \
-            {repr wterm} admits {cs.length} distinct anchorings \
-            {repr (cs.map (·.1))} in the running term {repr start} (entry \
-            path {repr wpath}) — ambiguous position (frontier)"
+        -- POSITION-CANONICAL uniqueness (the drift round's stated
+        -- completion condition, item 15, COMPLETED at the final
+        -- close-out): canonicalize ALL THREE components — the frames
+        -- (validated PathSteps), preSwap? (navigated steps + subterm),
+        -- and branchAnchor (navigated steps + index) — across the
+        -- survivors. Distinct SPELLINGS of one reading collapse to
+        -- equality and the first is taken (no preference: they are
+        -- interchangeable); any canonicalization failure or genuine
+        -- disagreement still hard-fails.
+        let canonOf : (List PathFrame × Option (List PathFrame) ×
+            Option (List PathFrame × Nat)) →
+            Option (List PathStep × Option (List PathStep × SExpr) ×
+              Option ((List PathStep × SExpr) × Nat)) := fun (f, pre, br) =>
+          match pathStepsFromFrames start f wterm with
+          | .error _ => none
+          | .ok p =>
+            let preC : Option (Option (List PathStep × SExpr)) :=
+              match pre with
+              | none => some none
+              | some pf => match navigateFrames start pf with
+                | .error _ => none
+                | .ok (steps, sub) => some (some (steps, sub))
+            let brC : Option (Option ((List PathStep × SExpr) × Nat)) :=
+              match br with
+              | none => some none
+              | some (bf, i) => match navigateFrames start bf with
+                | .error _ => none
+                | .ok (steps, sub) => some (some ((steps, sub), i))
+            match preC, brC with
+            | some pc, some bc => some (p, pc, bc)
+            | _, _ => none
+        let canonPos := cs.map (fun c =>
+          (pathStepsFromFrames start c.1 wterm).toOption)
+        let posSame := match canonPos with
+          | some p0 :: rest => rest.all (· == some p0)
+          | _ => false
+        let canonMeta := fun (c : List PathFrame × Option (List PathFrame) ×
+            Option (List PathFrame × Nat)) =>
+          (canonOf c).map (fun (_, pc, bc) => (pc, bc))
+        if posSame then
+          -- ONE position, several anchoring modes: the BRANCH-anchored
+          -- reading is the faithful context (the ratified same-frames
+          -- dedup argument, extended along position-canonical equality:
+          -- an unanchored reading is the anchored one's hypothesis-free
+          -- specialization — a sub-chain needing no hypothesis composes
+          -- under the branch congruence unchanged). Multiple anchored
+          -- readings must agree on the canonical anchor+preSwap.
+          match cs.filter (·.2.2.isSome) with
+          | [] => chosen? := some cs.head!
+          | [a] => chosen? := some a
+          | a :: rest =>
+            if rest.all (fun c => canonMeta c == canonMeta a)
+                && (canonMeta a).isSome then
+              chosen? := some a
+            else
+              throwError "replayRewrites: inline {kind} window term \
+                  {repr wterm}: multiple branch-anchored readings with \
+                  differing canonical anchors at one position (genuine \
+                  ambiguity — frontier)"
+        else
+          throwError "replayRewrites: inline {kind} window term \
+              {repr wterm} admits {cs.length} distinct anchorings \
+              {repr (cs.map (·.1))} in the running term {repr start} (entry \
+              path {repr wpath}) — ambiguous position (frontier)"
       if let some (c, preSwap?, br?) := chosen? then
         frames := c
         branchAnchor := br?
