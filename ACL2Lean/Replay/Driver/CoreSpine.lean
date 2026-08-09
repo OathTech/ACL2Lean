@@ -601,8 +601,12 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           let before := curLits.take pos
           let after := curLits.drop (pos + 1)
           if after.isEmpty then
-            throwError "replayClauseSpine: literal folded to 'NIL in LAST \
-                position at {idStr} (frontier)"
+            let (innerL, ctx2') ← spineLastNilDrop cfg ctx2 idStr
+              before curLits
+            ctx2 := ctx2'
+            extraChains := extraChains ++ [innerL]
+            curLits := before
+            continue
           let afterT := disjoinTerm (after.map (·.2))
           -- ctx2, not ctx1: the tail contains SUBSTITUTED opaques (the
           -- stale-ctx class — ORDERED-PERMS *1/2.1.2's (RM A1 'NIL))
@@ -1032,7 +1036,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- FIRST — its truth closes the whole disjunction; its falsity joins
     -- litFacts and the walk re-enters (one fewer demand each time).
     let demanded := (lp.nodes.flatMap (collectContextDemands ctx.fcDerivs) ++
-      lp.nodes.flatMap (collectDefBodyDemands cfg)).eraseDups
+      lp.nodes.flatMap (collectDefBodyDemands cfg) ++
+      lp.ifMarkers.flatMap ifMarkerDemands).eraseDups
     -- "fact in scope" must mean a WELL-TYPED fact (sorting-completion-2
     -- class A: an env-crossed segFact leaked from a parent elim walk
     -- satisfies the UNCHECKED lookup, suppressing the hoist — and then the
@@ -1146,30 +1151,23 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           match swapOpt with
           | none => pure (chainOpt, finalT)
           | some sw =>
-            match chainOpt with
-            | none => pure (some ((sw, false) : Expr × Bool), finalT')
-            | some (ch, false) =>
-              pure (some (← mkAppM ``fuel_chain_eq #[ch, sw], false), finalT')
-            | some (ch, true) => do
-              let pConv ← ctxValProof cfg ctx finalT'
-              let swS ← mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, sw, pConv]
-              pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, ch, swS], true), finalT')
+            pure (← appendFuelBridge cfg ctx chainOpt sw finalT', finalT')
         else pure (chainOpt, finalT)
       let chainOpt ← do
         if finalT == lp.result then pure chainOpt else
         -- rewrite-equal's unrecorded NIL normalization at the chain end
         match ← bridgeEqualNilNorm cfg ctx finalT lp.result with
-        | some br => match chainOpt with
-          | none => pure (some ((br, false) : Expr × Bool))
-          | some (ch, false) =>
-            pure (some (← mkAppM ``fuel_chain_eq #[ch, br], false))
-          | some (ch, true) => do
-            -- append the eq bridge to an IFF chain (G1 inc-2b)
-            let pConv ← ctxValProof cfg ctx lp.result
-            let brS ← mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, br, pConv]
-            pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, ch, brS], true))
+        | some br => appendFuelBridge cfg ctx chainOpt br lp.result
         | none =>
-          throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
+          -- the PCE-class IF-COLLAPSE reconciliation (final-closeout arc):
+          -- rewrite-atm's boundary normalization collapsed ifs the chain
+          -- still carries; every collapse anchored on an emitted
+          -- :IF-TEST-TRUE marker or a two-valued branch range
+          match ← bridgeIfCollapseNorm cfg ctx lp.ifMarkers finalT
+              lp.result with
+          | some br => appendFuelBridge cfg ctx chainOpt br lp.result
+          | none =>
+            throwError "replayClauseSpine: literal {idx} chain reached {repr finalT} \
                       at {idStr}, recorded result is {repr lp.result}"
       -- does the clausify decision trace SPLIT?
       let hasSplit := lp.splitTrace.any fun

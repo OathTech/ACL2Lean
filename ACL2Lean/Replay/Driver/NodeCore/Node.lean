@@ -1158,14 +1158,43 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- inferred; anything else is a frontier.
     unless nodeOrigin n == "equal/type-set-nil" do
       throwError "type-set-equality: origin {nodeOrigin n} (frontier)"
-    let .cons (.atom (.symbol eqS)) (.cons x (.cons qc .nil)) := lhs
+    let .cons (.atom (.symbol eqS)) (.cons x0 (.cons qc0 .nil)) := lhs
       | throwError "type-set-equality: lhs {repr lhs} is not (equal x 'c) (frontier)"
     unless eqS.name == "EQUAL" do
       throwError "type-set-equality: lhs head {eqS.name} (frontier)"
     unless rhs == quoteNil do
       throwError "type-set-equality: rhs {repr rhs} ≠ 'nil (frontier)"
+    -- orientation-normalize (PCE *1/1.x; RESURRECTED at the final
+    -- close-out — killed at 910785a, its consumer now reachable): the
+    -- quoted constant may sit LEFT — (EQUAL '0 (BINARY-+ …)); the cells
+    -- below assume (term, constant) order, and a flip re-orients the
+    -- final value fact through logic_equal_comm.
+    let isQuoteS : SExpr → Bool := fun s => match s with
+      | .cons (.atom (.symbol q)) (.cons _ .nil) => q.name == "QUOTE"
+      | _ => false
+    let (x, qc, flippedEq) :=
+      if isQuoteS x0 && !isQuoteS qc0 then (qc0, x0, true)
+      else (x0, qc0, false)
+    -- TERM-vs-SUM disjointness (PCE *1/1.x; same resurrection):
+    -- `(EQUAL u (BINARY-+ '1 u))` (either orientation) ⇒ 'NIL off u's
+    -- emitted nonneg-int TP — `m ≠ 1 + m`.
+    let q1' : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons (.atom (.number (.int 1))) .nil)
+    let plus1Of : SExpr → Option SExpr := fun s => match s with
+      | .cons (.atom (.symbol pS)) (.cons oneT (.cons u .nil)) =>
+        if pS.name == "BINARY-+" && oneT == q1' then some u else none
+      | _ => none
+    let sumSelf? : Option (SExpr × Bool) :=
+      match plus1Of qc with
+      | some u => if u == x then some (x, false) else none
+      | none => match plus1Of x with
+        | some u => if u == qc then some (qc, true) else none
+        | none => none
+    if let some (u, flipped) := sumSelf? then do
+      return ← tseSumSelfCell cfg ctx lhs u flipped
     let .cons (.atom (.symbol q)) (.cons cv .nil) := qc
-      | throwError "type-set-equality: {repr qc} is not a quoted constant (frontier)"
+      | throwError "type-set-equality: {repr qc} is not a quoted constant \
+          (lhs-x {repr x}) (frontier)"
     unless q.name == "QUOTE" do
       throwError "type-set-equality: {repr qc} is not a quoted constant (frontier)"
     if cv matches .cons _ _ then
@@ -1218,16 +1247,28 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         -- the arm for non-BINARY-+ summands); only the NESTED-SUM cell is
         -- registered.
         if pS.name == "BINARY-+" && oneT == q1 then
-          match uT with
-          | .cons (.atom (.symbol pS2)) (.cons pT (.cons qT .nil)) =>
-            if pS2.name == "BINARY-+" then
-              match ← tpNonnegFactOf pT, ← tpNonnegFactOf qT with
-              | some fp, some fq =>
-                pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg
-                  #[fp, fq]))
-              | _, _ => pure none
-            else pure none
-          | _ => pure none
+          -- nested-sum sub-case (BINARY-+ '1 (BINARY-+ p q)) first; any
+          -- other summand (the PCE tower's HOW-MANY) takes the
+          -- SINGLE-SUMMAND sibling off its own emitted nonneg-int TP
+          -- (RESURRECTED at the final close-out — killed at 910785a with
+          -- the tpthm stack; its consumer is now reachable)
+          let nested? ← match uT with
+            | .cons (.atom (.symbol pS2)) (.cons pT (.cons qT .nil)) =>
+              if pS2.name == "BINARY-+" then
+                match ← tpNonnegFactOf pT, ← tpNonnegFactOf qT with
+                | some fp, some fq =>
+                  pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg
+                    #[fp, fq]))
+                | _, _ => pure none
+              else pure none
+            | _ => pure none
+          match nested? with
+          | some h => pure (some h)
+          | none =>
+            match ← tpNonnegFactOf uT with
+            | some fu =>
+              pure (some (← mkAppM ``logic_equal_nil_of_plus1_nonneg1 #[fu]))
+            | none => pure none
         else pure none
       | _, _ => pure none
     let hVal ←
@@ -1243,6 +1284,14 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             (mkConst ``SExpr.nil))
           "consp of the quoted constant is nil"
         mkAppM ``logic_equal_nil_of_consp_t_nil #[hConsp, hC]
+    let hVal ← do
+      if flippedEq then
+        -- re-orient: the cells prove (equal v_term v_const) = nil; the
+        -- lhs value composes in the ORIGINAL (const, term) order
+        let vx ← ctxValExpr cfg (← pinTermOpaques cfg cfg.envExpr ctx x) x
+        mkAppM ``Eq.trans
+          #[← mkAppM ``logic_equal_comm #[reflectSExpr cv, vx], hVal]
+      else pure hVal
     let pL ← ctxValProof cfg ctx lhs
     let pR ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
     mkAppM ``fuel_eq_of_conv #[pL, pR, hVal]

@@ -316,6 +316,80 @@ theorem gz_def_zp (a : SExpr) :
     | _ => rfl
   | _ => rfl
 
+/-! ### IF-collapse reconciliation value pack (final-closeout arc —
+the PCE-class chain-end bridge): boolean-RANGE facts for the emitted
+case-split shapes and the `(IF x 'T 'NIL) ⇒ x` collapse, plus
+converged-value uniqueness. -/
+
+/-- `Logic.equal` is two-valued. -/
+theorem logic_equal_range (a b : SExpr) :
+    Logic.equal a b = SExpr.t ∨ Logic.equal a b = SExpr.nil := by
+  by_cases h : a == b <;> simp [Logic.equal, h]
+
+/-- `Logic.not` is two-valued. -/
+theorem logic_not_range (a : SExpr) :
+    Logic.not a = SExpr.t ∨ Logic.not a = SExpr.nil := by
+  unfold Logic.not
+  by_cases h : Logic.toBool a = true
+  · rw [if_pos h]; right; rfl
+  · rw [if_neg h]; left; rfl
+
+/-- A `cond` of two-valued branches is two-valued. -/
+theorem cond_range {x y : SExpr} (b : Bool)
+    (hx : x = SExpr.t ∨ x = SExpr.nil)
+    (hy : y = SExpr.t ∨ y = SExpr.nil) :
+    cond b x y = SExpr.t ∨ cond b x y = SExpr.nil := by
+  cases b <;> simpa
+
+/-- The `(IF x 'T 'NIL)` collapse for a two-valued `x`: the value
+    composition `cond (toBool v) t nil` IS `v`. -/
+theorem cond_tnil_of_range {v : SExpr}
+    (h : v = SExpr.t ∨ v = SExpr.nil) :
+    cond (Logic.toBool v) SExpr.t SExpr.nil = v := by
+  rcases h with h | h <;> subst h <;> rfl
+
+/-- A `cond` on a test KNOWN `'t` takes its first branch. -/
+theorem cond_of_val_t {v x y : SExpr} (h : v = SExpr.t) :
+    cond (Logic.toBool v) x y = x := by subst h; rfl
+
+/-- Converged values are unique (fuel monotonicity's working form). -/
+theorem conv_val_eq {w : World} {env : Env} {t u v : SExpr}
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env t = some u)
+    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v) : u = v := by
+  obtain ⟨n1, h1⟩ := h1; obtain ⟨n2, h2⟩ := h2
+  have e1 := h1 (n1 + n2) (by omega)
+  have e2 := h2 (n1 + n2) (by omega)
+  exact Option.some.inj (e1.symm.trans e2)
+
+/-- The L-orientation call-stack fold's value identity (RESURRECTED at
+    the final close-out — killed at 910785a; the PCE tower is its now-
+    reachable consumer): `(equal 't (equal a b)) = (equal a b)`. -/
+theorem logic_equal_t_equal_l (a b : SExpr) :
+    Logic.equal SExpr.t (Logic.equal a b) = Logic.equal a b := by
+  by_cases h : (a == b) = true <;> simp [Logic.equal, h, SExpr.t]
+
+/-- The BOOLEAN-TP fold's value identity (RESURRECTED, same round): a
+    two-valued `v` (the emitted boolean TP corollary's lifted content)
+    satisfies `(equal v 't) = v`. -/
+theorem logic_equal_t_self_of_boolean_tp {v : SExpr}
+    (h : (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+          else Logic.equal v SExpr.nil) = SExpr.t) :
+    Logic.equal v SExpr.t = v := by
+  by_cases hv : (v == SExpr.t) = true
+  · have hveq : v = SExpr.t := eq_of_beq hv
+    subst hveq
+    simp [Logic.equal]
+  · have h1 : Logic.equal v SExpr.t = SExpr.nil := by
+      simp [Logic.equal, hv]
+    rw [h1]
+    rw [h1] at h
+    simp only [Logic.toBool, cond_false] at h
+    have hnil : v = SExpr.nil := by
+      by_cases h2 : (v == SExpr.nil) = true
+      · exact eq_of_beq h2
+      · simp [Logic.equal, h2, SExpr.t] at h
+    rw [hnil]
+
 /-- T3: EQUAL-self — (EQUAL t t) evaluates to T when t converges. -/
 theorem evalOpt_equal_self (f : Nat) (w : World) (env : Env)
     (t : SExpr) (v : SExpr)

@@ -184,6 +184,16 @@ structure LiteralProof where
       (`emit/ta-subst`, 2026-08-07): (new, from, ts, substNew, substOld)
       — directs the equation-closure replay's derived-entry class. -/
   taSubsts : List (SExpr × SExpr × Int × SExpr × SExpr) := []
+  /-- IF-test resolution markers in this literal's window
+      (`(:IF-TEST-TRUE/FALSE …)`, origin IF-FINISH/IF-TEST — the
+      if-interp resolving an IF's test from the type-alist): each is
+      (test, senseTrue, justification). BOUNDARY DATA like
+      `boundaryVerdicts`, never chain steps (adopting them as nodes
+      would shift chain shapes corpus-wide); the PCE-class chain-end
+      reconciliation consumes them as the anchor for the recorded
+      IF-collapse (final-closeout arc). `:IF-TEST-UNKNOWN` markers
+      claim no collapse and are not collected. -/
+  ifMarkers : List (SExpr × Bool × SExpr) := []
   deriving Repr, Inhabited
 
 /-- One `expand-and-or` firing inside clausification (emit/clausify/expand,
@@ -593,6 +603,10 @@ partial def parseClauseItems (events : List TraceEvent)
         | .rewriteStep st =>
           if st.origin == "atm/try-type-set" then some st else none
         | _ => none
+      let ifMarkers := litEvents.filterMap fun
+        | .ifTestTrue t _ j => some (t, true, j)
+        | .ifTestFalse t _ j => some (t, false, j)
+        | _ => none
       let chainEvents := litEvents.filter fun
         | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _
         | .clausifyConjunction .. | .complementClose _ | .taSubst .. => false
@@ -604,7 +618,7 @@ partial def parseClauseItems (events : List TraceEvent)
       return (.literal { index, literal, notFlg, nodes, result := litResult,
                          splitTrace, splitReshaped,
                          complementCloses := compCloses,
-                         boundaryVerdicts, taSubsts } :: more, rest'')
+                         boundaryVerdicts, taSubsts, ifMarkers } :: more, rest'')
   | .clausifyInput input :: rest =>
       -- collect the contiguous clausify block: [expand*] neg ([expand*] split)* out
       let (info, rest') ← collectClausify input rest

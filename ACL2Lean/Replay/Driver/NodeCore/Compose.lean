@@ -521,4 +521,149 @@ def composeEqChain (cfg : ReplayConfig) (ctx : ReplayCtx)
       | some p => mkAppM ``Eq.trans #[p, hEq])
   return acc
 
+/-- The TERM-vs-SUM disjointness cell (type-set-equality, PCE class;
+    extracted from the Node arm for the weight ratchet): `(EQUAL u
+    (BINARY-+ '1 u))` in either orientation ⇒ 'NIL off `u`'s emitted
+    nonneg-int TP. Throws on a missing TP (the honest frontier). -/
+def tseSumSelfCell (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (lhs u : SExpr) (flipped : Bool) : MetaM Expr := do
+  let ctxS ← pinTermOpaques cfg cfg.envExpr ctx u
+  let tpFact? ← do
+    match u with
+    | .cons (.atom (.symbol fs)) argsSpine =>
+      match ctxS.tpHyps.find? (fun (nm, _, _) => nm == fs.name) with
+      | none => pure none
+      | some (_, cor, tpHyp) => do
+        let some (formals, _) := cfg.worldVal.defs.get? fs | pure none
+        let args := (argsSpine.toList?).getD []
+        if formals.length != args.length then pure none
+        else do
+          let inst := ACL2.Replay.substTerm formals args cor
+          if inst == intTpCorollary u then
+            match ctxS.val? u with
+            | some (vu, convu) =>
+              pure (some (mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+                ++ (args.map reflectSExpr).toArray ++ #[vu, convu])))
+            | none => pure none
+          else pure none
+    | _ => pure none
+  let some fact := tpFact?
+    | throwError "type-set-equality: term-vs-sum {repr u} has no \
+        emitted nonneg-int TP in scope (frontier)"
+  let hVal ← if flipped then
+      mkAppM ``logic_equal_nil_of_plus1_self_l #[fact]
+    else
+      mkAppM ``logic_equal_nil_of_plus1_self_r #[fact]
+  let p ← ctxValProof cfg ctxS lhs
+  let v ← ctxValExpr cfg ctxS lhs
+  unless ← isDefEq v (← Lean.Meta.inferType hVal).appFn!.appArg! do
+    throwError "type-set-equality: term-vs-sum value mismatch at \
+        {repr lhs}"
+  pure <| ← mkAppM ``re_val_cast
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr lhs, v,
+      reflectSExpr SExpr.nil, p, hVal]
+
+
+/-- The LAST-position nil-drop completion (PCE *1/1.2; extracted from
+    the spine walk for the weight ratchet — see the in-block comment
+    for the soundness condition). Returns the fold chain plus the
+    (possibly pinned-extended) ctx. -/
+def spineLastNilDrop (cfg : ReplayConfig) (ctx2 : ReplayCtx)
+    (idStr : String) (before curLits : List (Nat × SExpr)) :
+    MetaM (Expr × ReplayCtx) := do
+  -- LAST-position drop (PCE *1/1.2; RESURRECTED at the final
+  -- close-out — killed at 910785a, its consumer now reachable):
+  -- the tail frame changes (IF lprev 'T 'NIL) → lprev —
+  -- EQUAL-sound exactly when lprev's value is TWO-VALUED
+  -- (Logic.equal/Logic.not range, the constant 'T, or the
+  -- emitted BOOLEAN TP corollary — consumed, not inferred);
+  -- otherwise the frontier stands.
+  let some (_, lprev) := before.getLast?
+    | throwError "replayClauseSpine: nil-only clause at {idStr} \
+        (frontier)"
+  let ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 lprev
+  let vP ← ctxValExpr cfg ctx2 lprev
+  let hP ← ctxValProof cfg ctx2 lprev
+  let isEq := vP.isAppOfArity ``Logic.equal 2
+  let isNot := vP.isAppOfArity ``Logic.not 1
+  let boolTpFact? : Option Expr ← do
+    match lprev with
+    | .cons (.atom (.symbol fs)) argsSpine =>
+      match ctx2.tpHyps.find? (fun (n, _, _) => n == fs.name) with
+      | none => pure none
+      | some (_, cor, tpHyp) => do
+        let some (formals, _) := cfg.worldVal.defs.get? fs
+          | pure none
+        let args := (argsSpine.toList?).getD []
+        if formals.length != args.length then pure none
+        else do
+          let eqT (x y : SExpr) : SExpr :=
+            .cons (.atom (.symbol { name := "EQUAL" }))
+              (.cons x (.cons y .nil))
+          let inst := ACL2.Replay.substTerm formals args cor
+          let expected : SExpr :=
+            .cons (.atom (.symbol { name := "IF" }))
+              (.cons (eqT lprev quoteT)
+                (.cons quoteT (.cons (eqT lprev quoteNil) .nil)))
+          if inst == expected then
+            match ctx2.val? lprev with
+            | some (vp, convp) =>
+              pure (some (mkAppN tpHyp
+                ((#[cfg.envExpr] : Array Expr)
+                  ++ (args.map reflectSExpr).toArray
+                  ++ #[vp, convp])))
+            | none => pure none
+          else pure none
+    | _ => pure none
+  let isQT := lprev == quoteT
+  unless isEq || isNot || isQT || boolTpFact?.isSome do
+    throwError "replayClauseSpine: literal folded to 'NIL in \
+        LAST position at {idStr} with a non-two-valued \
+        predecessor {repr lprev} (frontier)"
+  let hwrap ← mkAppM ``re_val_if_t_nil
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr lprev, vP, hP]
+  let hident ← if isEq then
+      mkAppM ``logic_boolwrap_self_equal
+        #[vP.appFn!.appArg!, vP.appArg!]
+    else if isNot then
+      mkAppM ``logic_boolwrap_self_not #[vP.appArg!]
+    else if isQT then
+      mkAppM ``logic_boolwrap_self_t #[]
+    else
+      mkAppM ``logic_boolwrap_self_of_boolean_tp
+        #[boolTpFact?.get!]
+  let stepEq ← mkAppM ``fuel_eq_of_conv #[hwrap, hP, hident]
+  let mut innerL := stepEq
+  let mut curLL : SExpr := .cons (.atom (.symbol { name := "IF" }))
+    (.cons lprev (.cons quoteT (.cons quoteNil .nil)))
+  let mut curRL : SExpr := lprev
+  for l in (before.dropLast.map (·.2)).reverse do
+    let stp : PathStep := { fn := { name := "IF" }, arity := 3,
+                            argIdx := 2, siblings := [l, quoteT] }
+    innerL ← applyStep cfg.worldExpr cfg.envExpr stp curLL curRL
+      innerL
+    curLL := rebuild stp curLL
+    curRL := rebuild stp curRL
+  unless curLL == disjoinTerm (curLits.map (·.2)) do
+    throwError "replayClauseSpine: last-nil drop reconstructed \
+        {repr curLL} ≠ the folded clause at {idStr}"
+  pure (innerL, ctx2)
+
+/-- Append a fuel-eq BRIDGE step to a literal chain (the spine's
+    thrice-repeated idiom, deduped at the final close-out): an eq
+    chain extends by `fuel_chain_eq`; an IFF chain lifts the bridge
+    through `evrel_of_fuel_eq` at the RESULT's pinned value. -/
+def appendFuelBridge (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (chainOpt : Option (Expr × Bool)) (br : Expr) (result : SExpr) :
+    MetaM (Option (Expr × Bool)) := do
+  match chainOpt with
+  | none => pure (some (br, false))
+  | some (ch, false) =>
+    pure (some (← mkAppM ``fuel_chain_eq #[ch, br], false))
+  | some (ch, true) => do
+    let pConv ← ctxValProof cfg ctx result
+    let brS ← mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, br, pConv]
+    pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, ch, brS],
+      true))
+
 end ACL2.Replay.Driver

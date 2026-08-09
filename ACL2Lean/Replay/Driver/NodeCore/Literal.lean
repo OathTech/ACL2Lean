@@ -235,6 +235,30 @@ partial def cdrSubterms : SExpr → List SExpr
       (if f.name == "CDR" then [t] else []) ++ argsOf args
   | _ => []
 
+/-- IF-marker test ingredient demands (the PCE-class reconciliation):
+    a TRUE-sense marker's `(TRUE-LISTP (CDR u))` test resolves by the
+    trueListp-CDR closure, whose ingredient `(NOT (TRUE-LISTP u))` may
+    sit LATER in the clause — demand it (skipped harmlessly when it is
+    no clause literal). -/
+def ifMarkerDemands : SExpr × Bool × SExpr → List ContextDemand
+  | (t, sense, _) =>
+    if sense then
+      match t with
+      | .cons (.atom (.symbol rs)) (.cons w .nil) =>
+        if rs.name == "TRUE-LISTP" then
+          (match w with
+           | .cons (.atom (.symbol fs)) (.cons u .nil) =>
+             if fs.name == "CDR" then
+               [ContextDemand.term (.cons
+                 (.atom (.symbol { name := "NOT" }))
+                 (.cons (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                   (.cons u .nil)) .nil))]
+             else []
+           | _ => [])
+        else []
+      | _ => []
+    else []
+
 /-- The CLAUSE-CONTEXT falsity demands of a literal's chain, as the exact
     clause-literal terms/indices whose falsity the chain's nodes consume
     (ACL2 rewrites literal i under the falsity of ALL other clause literals):
