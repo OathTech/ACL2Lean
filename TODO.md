@@ -148,6 +148,17 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > consumer-side anchoring completion (pin all three of
 > frames/preSwap/branchAnchor per the drift round's completion
 > condition); then the bsort chain via batch item A.**
+> ANCHORING COMPLETION LANDED (b95f14d): position-canonical
+> uniqueness + the ratified anchored-over-unanchored argument;
+> HOW-MANY-RM-GENERAL advances to the solidify equation-closure wall
+> (the R1-expiry class — consume the emitted ta-subst provenance,
+> batch-3 item, next). GATE RECORD CORRECTION: b95f14d's message says
+> the claim-gate run was interrupted by the maintenance reboot — it
+> in fact COMPLETED first, TRUE_EXIT=0, against exactly the tree
+> content b95f14d captured (recorded here since the commit is
+> immutable): the head commit is fully gated. Batch review item B's
+> HOW-MANY-RM-GENERAL half is now MOOT (consumer-side landed) — only
+> ORDEREDP-WHEN-BNEXT-CONSTANT's half remains open there.**
 
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
