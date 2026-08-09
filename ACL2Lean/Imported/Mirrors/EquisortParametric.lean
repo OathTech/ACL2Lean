@@ -62,22 +62,27 @@ def strongSsortfn1IsSsortfn2Parametric := parametric_replayed% equisortDev
 #print axioms strongSsortfn1IsSsortfn2Parametric
 
 /-! ## The canonical-world instantiations (Phase 3 queue item 1 — the
-non-vacuity witnesses, audit 2026-08-08 outside F6)
+PARTIAL non-vacuity witnesses; wording corrected per the close-out
+audit, inside M1 / outside O-4)
 
 Applying each parametric constant at the equisort canonical world with
-EVERY premise discharged kernel-checked: the no-shadows by decide, the
-totality/TP premises by the admission-justification provers, the six
-constraint premises by re-replaying their recorded pass-1 trees (the R6
-conservativity content), and `use:ORDERED-PERMS` by its recorded tree.
-This is simultaneously (a) the proof that the parametric telescopes are
-SATISFIABLE (the constants are not vacuous conditionals) and (b) the
-first exercise of the R7b "apply at a model" move the sorts-equivalent
+all but TWO premises discharged kernel-checked: the no-shadows by
+decide, the totality/TP premises by the admission-justification provers
++ the registered witness kits, and ALL SIX constraint `rule:` premises
+per constant by re-replaying their recorded pass-1 trees (the R6
+conservativity content). KEPT (honest hypotheses of the declared
+constants — full telescope satisfiability is therefore NOT yet
+established): `hrule_CONVERT-PERM-TO-HOW-MANY` (the PCE-chain/R-lane
+deferral) and `husethm_ORDERED-PERMS` (its dep tree's tau dp-facts) —
+see the deferral log's D1 close-out update. This remains the first
+exercise of the R7b "apply at a model" move the sorts-equivalent
 capstones need. -/
 
 derive_world equisortMirrorsWorld from equisortDev
 
 set_option maxHeartbeats 12000000 in
-/-- WEAK at the canonical world — every premise discharged. -/
+/-- WEAK at the canonical world — every premise discharged except the
+    two KEPT hypotheses named in the section header. -/
 def weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
   weakSortfn1IsSortfn2Parametric equisortDev equisortMirrorsWorld
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
@@ -88,7 +93,8 @@ def weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
 #print axioms weakSortfn1IsSortfn2AtCanonical
 
 set_option maxHeartbeats 12000000 in
-/-- STRONG at the canonical world — every premise discharged. -/
+/-- STRONG at the canonical world — every premise discharged except the
+    two KEPT hypotheses named in the section header. -/
 def strongSsortfn1IsSsortfn2AtCanonical := instantiate_parametric%
   strongSsortfn1IsSsortfn2Parametric equisortDev equisortMirrorsWorld
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]

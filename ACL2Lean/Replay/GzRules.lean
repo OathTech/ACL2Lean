@@ -7,9 +7,12 @@
   evidence exists in any capturable image. The prelude constants below
   prove, ONCE, the ∀-env replayed statement of each such rule about the
   trusted-core primitive itself (`ACL2.lexorder`), resting on the
-  `LexorderOrder` order theorems rather than on trust. This adds zero
-  trust assumptions beyond the wiring assumption already policed
-  differentially: the replayed statement's meaning is DEFINED by `Logic`/`evalOpt`.
+  `LexorderOrder` order theorems rather than on trust (the order
+  theorems are INTERNAL properties of `ACL2.lexorder`; its agreement
+  with ACL2's LEXORDER defun is policed by the differential corpus —
+  close-out audit m6). This adds zero trust assumptions beyond the
+  wiring assumption already policed differentially: the replayed
+  statement's meaning is DEFINED by `Logic`/`evalOpt`.
 
   Statement discipline: each constant's type is EXACTLY the
   `mkRuleHypType` instance of the rule's EMITTED ground-zero snapshot
@@ -99,9 +102,25 @@ theorem gz_rule_lexorder_transitive (w : World)
   exact lexorder_trans t1 t2
 
 /-! ### The list/arith boot rules (close-out D1: the constraint-theorem
-    trees' remaining gz citations — same admission class as the lexorder
-    pair: boot-strap `ld-skip-proofsp` rules with no replayable evidence,
-    proved once about the trusted-core primitives). -/
+    trees' remaining gz citations, proved once about the trusted-core
+    primitives).
+
+    D5 ADMISSION CRITERION (restated per close-out audit O-5 — the
+    original "boot rules only" wording was too narrow for one entry):
+    a rule is registry-eligible iff NO replayable ACL2 evidence exists
+    in the captured corpus, which today has two classes:
+    (i)  boot-strap `ld-skip-proofsp` rules (DEFAULT-CAR, DEFAULT-CDR,
+         CONS-CAR-CDR, the LEXORDER pair) — no proof exists in ANY
+         capturable image;
+    (ii) rules whose OWNING BOOK is outside the captured corpus —
+         FOLD-CONSTS-IN-+ is an ordinary certified-book theorem
+         (arithmetic-3/pass1/basic-arithmetic.lisp:109); its hand proof
+         here is retired the day that book is captured and its tree
+         replayed (tracked: the registry entry then becomes a
+         dependency-mirror discharge).
+    Every entry remains recompute-checked against the EMITTED spec at
+    each discharge site (`dischargeGzRuleHyp`) — the criterion governs
+    which rules may have prelude constants at all, not their trust. -/
 
 private def sym (n : String) : SExpr := .atom (.symbol { name := n })
 private def app1 (n : String) (a : SExpr) : SExpr :=

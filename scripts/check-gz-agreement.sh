@@ -25,10 +25,17 @@ EVALOPT="ACL2Lean/EvalOpt.lean"
 # ── FLAGGED entries: no pure-`Logic` value composition exists (the body
 #    cites a non-builtin fn), so the family's lemma shape cannot state
 #    them; each carries its alternative fidelity anchor. ──
-#   LEXORDER — body cites ALPHORDER (a World fn); fidelity rests on the
-#              LexorderOrder theorems + the differential corpus.
-#   EXPT     — body cites ZIP (a World fn); fidelity rests on the
-#              differential corpus (BUG-021 pin).
+#   LEXORDER — body cites ALPHORDER (a World fn); ACL2-agreement rests
+#              on the DIFFERENTIAL corpus (target-ordering.lisp); the
+#              LexorderOrder theorems supply the internal order
+#              properties the D5 constants consume, NOT agreement.
+#   EXPT     — body cites ZIP (a World fn); differential corpus
+#              (BUG-021 pin).
+# NOTE (audit O-6): this gate checks lemma EXISTENCE by name; the lemma
+# bodies are hand transcriptions reviewed against the emission — for
+# the d4DefFacts-registered subset a mis-transcription also fails at
+# the use-site recompute; a content-level pin for the rest is a
+# tracked follow-up (TODO).
 FLAGGED=("LEXORDER" "EXPT")
 
 fail=0
@@ -38,10 +45,12 @@ builtins=$(sed -n '/^def builtinNames : List String :=/,/^$/p' "$EVALOPT" \
   | grep -o '"[^"]*"' | tr -d '"')
 [[ -n "$builtins" ]] || { echo "FATAL: could not parse builtinNames" >&2; exit 2; }
 
-# ── Builtin-named gz snapshot defuns across the captured corpus. ──
-gz_names=$(grep -rhoE '\(:DEFUN [A-Z0-9<>=/+*-]+ [^\n]*:SOURCE :GROUND-ZERO' \
+# ── Builtin-named gz snapshot defuns across the captured corpus.
+#    The name class is ANY non-space token (audit m5: a restrictive
+#    character class silently dropped names like PAIRLIS$ — fail-open). ──
+gz_names=$(grep -rhoE '\(:DEFUN [^ ]+ [^\n]*:SOURCE :GROUND-ZERO' \
     acl2_samples --include='*.proof-log' 2>/dev/null \
-  | sed -E 's/^\(:DEFUN ([A-Z0-9<>=/+*-]+) .*/\1/' | sort -u)
+  | sed -E 's/^\(:DEFUN ([^ ]+) .*/\1/' | sort -u)
 [[ -n "$gz_names" ]] || { echo "FATAL: no ground-zero snapshots found" >&2; exit 2; }
 
 # name → lemma suffix: lower-case, '-' → '_'

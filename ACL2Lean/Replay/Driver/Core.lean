@@ -293,6 +293,14 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         (fun r => if r.ty == "congruence" then some r.name else none))
       ((cn.steps.flatMap (·.runes)).filterMap
         (fun r => if r.ty == "equivalence" then some r.name else none))
+    -- ROUTE NOTE (close-out audit O-1/m1, disclosed): the recorded
+    -- chain is VALIDATED (it must compose the constraint clause to 'T
+    -- against the offered rules) but its proof term is NOT part of the
+    -- row proof — the obligations' semantic content enters premise-wise
+    -- through the usefi discharge (the parametric rebuild at the alias
+    -- world discharges each constraint premise from its own recorded
+    -- tree). Whether the chain proof should instead be consumed here is
+    -- an open ratification question (compositional-replay note).
     let _ := chainOpt
     unless finalT == quoteT do
       throwError "use-hint: the constraint chain reached {repr finalT}, \

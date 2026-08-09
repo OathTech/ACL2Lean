@@ -16,8 +16,10 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > items). Branch mdd/phase3-r7b remains the merge candidate.
 
 > **CLOSE-OUT queue item 1 DONE (2026-08-08): D1's in-scope half.**
-> Witness-TP kits landed (`Imported/EquisortWitness.lean`); ALL EIGHT
-> AtCanonical constraint `rule:` premises discharge (inner-ctx
+> Witness-TP kits landed (`Imported/EquisortWitness.lean`); ALL SIX
+> AtCanonical constraint `rule:` premises PER CONSTANT discharge
+> (wording corrected per close-out audit m7 — the emitted
+> `(:CONSTRAINTS …)` events carry six formulas per scope) (inner-ctx
 > augmentation: tp/total/equivrefl proof-term entries + demand-driven
 > iterated rule pre-discharge in `instantiateParametricAt`); FOUR new
 > D5 prelude constants (DEFAULT-CAR, DEFAULT-CDR, CONS-CAR-CDR,
@@ -38,6 +40,24 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > LOG-AND-MOVE-ON with the exact composition plan in the deferral log
 > (node anatomy dumped; the FI arm needs a chain→clausify→verdict
 > traversal — its own Core.lean arm; ceiling ◌ regardless).
+
+> **CLOSE-OUT AUDIT (2026-08-09, 2 Opus reviewers inside/outside) —
+> fix round applied.** Convergent MAJOR (M1/O-4): the AtCanonical
+> docstrings claimed "every premise discharged"/non-vacuity with 2
+> premises KEPT — corrected (EquisortParametric + the Macro dispatch
+> doc). M2: two stale DISABLED comments on the LIVE usefi
+> callback/pre-pass — corrected. Also landed: Class-2 consumer-rule
+> lookup now refuses ambiguity (O-2); check-gz-agreement name
+> extraction fail-closed + flag justifications restated (m5/m6); the
+> D5 admission criterion restated as two classes with FOLD-CONSTS-IN-+
+> in the outside-corpus class (O-5); chain-validation route note at the
+> Core.lean discard site (O-1/m1). FOLLOW-UPS (tracked, not landed):
+> capstone-row statement pins in SortingPins (both reviewers);
+> content-level gz_def transcription pin (O-6); mirror-registry
+> application for QSORT-IS-ISORT's rule:HOW-MANY-QSORT cond — one of
+> its own FI obligations, green as a row in the same sweep (O-3, the
+> known Provers.lean:727 gap); addDecl name-key hash hardening
+> (m4b).
 
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**

@@ -83,3 +83,14 @@ ParametricInstantiate, which let one broken intermediate commit
 3. D3: the BSORT composition (ceiling ◌).
 4. Phase 4 per the arc plan: capstone native mirrors + mutation tests
    + tier-split (an MDD item) + the demo write-up.
+
+---
+
+ERRATUM (2026-08-09, close-out audit O-1/m1): where this report
+describes the FI discharge as consuming "the recorded constraint
+chains", read: the recorded chain is VALIDATED (its endpoint must be
+'T against the offered rules; `Core.lean` useHint arm) but its proof
+term is not part of the row proof — the obligations are discharged
+premise-wise through the parametric telescope at the alias world.
+Whether the chain proof should be consumed directly is an open
+question for the compositional-replay ratification.

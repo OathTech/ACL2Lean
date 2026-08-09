@@ -257,11 +257,11 @@ elab "parametric_replayed%" devId:ident nm:str
     candidate class/key, the recomputed offer type must be `isDefEq` to
     the binder's instantiated type (a mismatch hard-fails — the name can
     narrow the search but never lie), and each discharge proof is checked
-    against the binder type by application. Every binder must discharge —
-    an undischargeable premise is a hard failure (non-vacuity NOT
-    established), never a kept hypothesis. Result:
-    `∀ env, EvTrue world env ⟦the theorem's formula⟧` — the telescope's
-    kernel-checked satisfiability witness AND the instantiated theorem. -/
+    against the binder type by application. An undischargeable premise
+    is KEPT as an explicit hypothesis of the declared constant (the D6
+    discipline — the logged KEPT list is the honest satisfiability
+    frontier; an empty list is the full non-vacuity witness). Result:
+    `∀ env, <kept premises> → EvTrue world env ⟦the theorem's formula⟧`. -/
 syntax totalsClauseIP := &" totals " "[" ident,* "]"
 
 elab "instantiate_parametric%" constId:ident devId:ident worldId:ident

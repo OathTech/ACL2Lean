@@ -144,10 +144,10 @@ elab "coverage_book% " nameLit:str : command => do
     -- composition runs inside them); the callback below just applies.
     let prepared ← do
       let mut acc : List (String × Lean.Name × List (String × String)) := []
-      -- D2-c: pre-pass disabled with the callback (one of its addDecl'd
-      -- constants carries a kernel-rejected type — 'type expected' at
-      -- module finalization; signatures pinned in TODO)
-      if false then pure acc else
+      -- (comment corrected per close-out audit inside M2: the D2-c
+      -- disable described here was reverted when the kernel-rejected
+      -- constant type was fixed — mkLambdaFVars for proofs — and the
+      -- pre-pass is LIVE)
       match ProofLog.parse content with
       | .error _ => pure acc
       | .ok log =>
@@ -207,17 +207,13 @@ elab "coverage_book% " nameLit:str : command => do
     let t0 ← IO.monoMsNow
     let (r, _, _) ← runBook name content
       (crossTreesByBook := crossTreesByBook) (crossRules := crossRules)
-      -- R7b 2c W4f: the usefi discharge composition is FULLY BUILT and
-      -- WIRED but DISABLED — in-sweep runs SIGABRT on term depth
-      -- despite the kernel-route decides, the constant-declaration
-      -- pattern, and hint-only gates (three remediations, all
-      -- committed); the remaining debugging campaign (trace-symbol
-      -- profiling + composition bisection) is the Phase 3 close-out's
-      -- top continuation item. Enable by swapping none for:
-      --   some (fun dev cfg ctx spec =>
-      --     ACL2.Imported.Mirrors.mkUseFiDischarger crossDevs
-      --       [``ACL2.Worlds.Sorting.dis_pce_total,
-      --        ``ACL2.Worlds.Sorting.dis_how_many_tp] dev cfg ctx spec)
+      -- R7b 2c/D2 (comment corrected per close-out audit inside M2 —
+      -- it previously described the reverted disabled state): the usefi
+      -- discharge is ENABLED and runs in-sweep. The SIGABRT class was
+      -- resolved by the shallow-stack PRE-PASS (prepareUseFi above:
+      -- the whole discharge composition runs at the coverage layer
+      -- before any row telescope exists) + tstack for the Tests lib;
+      -- the callback here only APPLIES the prepared constant at O(1).
       (usefiDischarge := some (fun _dev _cfg ctx spec => do
         let key := spec.name ++ "|" ++
           toString (hash (toString (repr spec.formula)))

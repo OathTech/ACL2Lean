@@ -170,6 +170,17 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
         if let some pf := er? then
           ctxRef.modify fun c =>
             { c with equivReflHyps := c.equivReflHyps ++ [(spec, pf)] }
+  -- ERROR DISCIPLINE NOTE (close-out audit m2, deliberate): the
+  -- discharge ATTEMPTS in this function (the pre-discharge rounds, the
+  -- hrule_/husethm_ dispatches, the prepare-time closures) swallow
+  -- failures broadly rather than filtering by isFrontierErr, because
+  -- attempts may legitimately fail on COST grounds (heartbeat/rec-depth
+  -- runtime bounds) for premises that then stay honestly KEPT — a
+  -- failure here can only widen the declared constant's hypothesis
+  -- list, never produce a wrong proof. The trade-off (a real discharger
+  -- defect degrades to a KEPT premise instead of surfacing) is accepted
+  -- for this offer-attempt layer; the Harness discharge sites keep the
+  -- strict N1 typed-tag discipline.
   let ty0 ← inferType constE
   let ty ← Meta.instantiateForall ty0 #[envV, worldExpr]
   let acc := mkApp2 constE envV worldExpr
@@ -623,11 +634,22 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
         else do
         let slhs := ACL2.Replay.substFnCalls σ rspec.lhs
         let srhs := ACL2.Replay.substFnCalls σ rspec.rhs
-        match consumerRules.find? (fun r =>
+        -- exactly-one DISTINCT match (close-out audit O-2, refined in
+        -- the fix round: the pool can carry byte-identical copies of
+        -- one rule via the own/cross channels — those are not an
+        -- ambiguity; two DIFFERENT same-shaped rules are, and get
+        -- refused rather than silently resolved to the first)
+        let cands := (consumerRules.filter (fun r =>
             r.hyps.isEmpty && r.equiv == "equal"
-            && r.lhs == slhs && r.rhs == srhs) with
-        | none => pure none
-        | some cspec => do
+            && r.lhs == slhs && r.rhs == srhs)).eraseDups
+        if cands.length > 1 then
+          Driver.throwFrontier m!"usefi ruleBridge: {cands.length} \
+            distinct same-shaped consumer rules match the substituted \
+            constraint (ambiguous — refuse rather than guess)"
+        else
+        match cands with
+        | [] => pure none
+        | cspec :: _ => do
           -- discharge with the OWNING book's channel surfaces (its gz
           -- fc/tp/recog snapshots carry what its trees cite) + the
           -- consumer-world recorded-termination pre-pass results
@@ -685,10 +707,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
                     let c2 ← mkAppM ``ACL2.Replay.var_conv_ex
                       #[cfg.worldExpr, erV, Driver.reflectSymbol a2]
                     let happ := mkAppN hTot #[erV,
-                      Lean.mkApp (Lean.mkApp (mkConst ``SExpr.atom)
-                        (Lean.mkApp (mkConst ``Atom.symbol)
-                          (Driver.reflectSymbol a1))) |> fun _ =>
-                        Driver.reflectSExpr (.atom (.symbol a1)),
+                      Driver.reflectSExpr (.atom (.symbol a1)),
                       Driver.reflectSExpr (.atom (.symbol a2)), c1, c2]
                     mkAppM ``ACL2.Replay.conv_repack #[happ]
                   | _ => Driver.throwFrontier m!"usefi bridge: \

@@ -21,9 +21,9 @@ Format:
 > in-scope half is DONE).** The witness-TP `dis_*` kits landed
 > (`Imported/EquisortWitness.lean`: exec kits + `derive_exec_tp%`
 > dischargers for SORTFN1-INSERT/SORTFN1/SSORTFN1-INSERT/SSORTFN1,
-> bodies transcribed from the emitted `:DEFUN` events), and ALL EIGHT
-> constraint `rule:` premises now DISCHARGE at both AtCanonical
-> constants — via the inner-ctx augmentation in
+> bodies transcribed from the emitted `:DEFUN` events), and ALL SIX
+> constraint `rule:` premises PER CONSTANT now DISCHARGE at both
+> AtCanonical constants (wording per audit m7) — via the inner-ctx augmentation in
 > `instantiateParametricAt` (tp/totality/equivrefl proof-term entries +
 > the demand-driven iterated rule pre-discharge) and FOUR NEW D5
 > prelude constants (`gz_rule_default_car`, `gz_rule_default_cdr`,
@@ -43,6 +43,10 @@ Format:
 >   the tau-frontier machinery or cross-WORLD mirror application
 >   (registry constant at `orderedPermsWorldD` + world-agreement
 >   crossing) — both outside this charter.
+> (Attribution note, audit m2: the two blockers' reasons were read
+> from an INSTRUMENTED run during the close-out session — the shipped
+> code deliberately swallows attempt failures into KEPT premises, so
+> the attribution is not preserved by the build.)
 > D1 therefore ends as **done-except-R-lane-and-PCE-chain-and-tau**,
 > the charter's anticipated form.
 
@@ -134,7 +138,10 @@ Format:
 > `scripts/check-gz-agreement.sh` (in `just ci` as
 > `check-gz-agreement`) enforces that every builtin-named ground-zero
 > snapshot across the corpus has an agreement lemma or an explicit
-> justified flag, with flag-rot detection. FLAGGED: LEXORDER (body
+> justified flag, with flag-rot detection (the gate is NAME-level —
+> audit O-6; content fidelity is by review plus, for the
+> d4DefFacts-registered subset, the use-site recompute; a
+> content-level pin is a tracked follow-up). FLAGGED: LEXORDER (body
 > cites ALPHORDER, a World fn — fidelity rests on the LexorderOrder
 > theorems + differential corpus) and EXPT (body cites ZIP —
 > differential corpus, BUG-021 pin). The SCOPE-IN-FORCE refinement
