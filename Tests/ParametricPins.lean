@@ -134,4 +134,82 @@ run_cmd (checkPin ``ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2Parametric
          ("hrule_HOW-MANY-SSORTFN2_49", "(HOW-MANY E (SSORTFN2 X))", "(HOW-MANY E X)")]
         ["SORTFN1-INSERT", "SSORTFN1-INSERT"])
 
+/-! ## AtCanonical KEPT-inventory pins (final close-out arc increment
+0 — close-out audit n1). The two canonical-world instantiations are
+PARTIAL non-vacuity witnesses whose entire claim rides on the KEPT
+premise inventory being exactly the two named hypotheses; nothing
+else gated it (a silent regression from 2 kept premises to more would
+have passed `ci`). Pinned: the binder inventory (env + the two KEPT
+premises, in order), the conclusion over the CONCRETE
+`equisortMirrorsWorld` against the hand-pinned `:TFORMULA`, and the
+two premises' CONTENT — the CONVERT-PERM-TO-HOW-MANY stored-rule
+lhs/rhs and ORDERED-PERMS's hand-pinned `:TFORMULA`
+(acl2_samples/sorting/ordered-perms.proof-log, the `(:DEFTHM …)`
+event). A failure means the witnesses' strength CHANGED — review
+against the deferral log's D1 close-out entry, never blind-update. -/
+
+/-- Structural pin for a CONCRETE-world instantiation constant:
+    binder inventory, conclusion `EvTrue <worldConst> env ⟦tformula⟧`,
+    and per-premise content (formula strings that must appear verbatim
+    in the binder's type). -/
+private def checkPinAt (declName : Name) (worldConst : Name)
+    (binderNames : List String) (tformula : String)
+    (premisePins : List (String × List String)) :
+    Elab.Command.CommandElabM Unit :=
+  Elab.Command.liftTermElabM do
+    let ci ← getConstInfo declName
+    Meta.forallTelescope ci.type fun xs body => do
+      let names ← xs.toList.mapM fun x =>
+        return (← x.fvarId!.getUserName).toString (escape := false)
+      unless names == binderNames do
+        throwError "ParametricPins {declName}: KEPT inventory CHANGED.\n\
+          pinned: {binderNames}\ngot:    {names}"
+      unless body.isAppOfArity ``ACL2.Replay.EvTrue 3 do
+        throwError "ParametricPins {declName}: conclusion is not an \
+          EvTrue application: {body}"
+      let args := body.getAppArgs
+      unless args[0]! == mkConst worldConst && args[1]! == xs[0]! do
+        throwError "ParametricPins {declName}: conclusion is not over \
+          {worldConst}/the bound env"
+      let want := reflectSExpr (pinSExpr tformula)
+      unless args[2]! == want do
+        throwError "ParametricPins {declName}: conclusion formula differs \
+          from the pinned :TFORMULA.\nwant {want}\ngot  {args[2]!}"
+      for (binderName, pins) in premisePins do
+        let some i := names.findIdx? (· == binderName)
+          | throwError "ParametricPins {declName}: pinned premise binder \
+              {binderName} absent"
+        let ty ← inferType xs[i]!
+        for s in pins do
+          let e := reflectSExpr (pinSExpr s)
+          if (ty.find? (· == e)).isNone then
+            throwError "ParametricPins {declName}: {binderName} no longer \
+              carries its pinned content {s}"
+
+run_cmd (checkPinAt ``ACL2.Imported.Mirrors.weakSortfn1IsSortfn2AtCanonical
+        ``ACL2.Imported.Mirrors.equisortMirrorsWorld
+        ["env", "hrule_CONVERT-PERM-TO-HOW-MANY", "husethm_ORDERED-PERMS"]
+        "(IMPLIES (TRUE-LISTP X) (EQUAL (SORTFN1 X) (SORTFN2 X)))"
+        [("hrule_CONVERT-PERM-TO-HOW-MANY",
+          ["(PERM X Y)",
+           "(EQUAL (HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X) \
+             (HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y))"]),
+         ("husethm_ORDERED-PERMS",
+          ["(IMPLIES (IF (TRUE-LISTP A) (IF (TRUE-LISTP B) \
+             (IF (ORDEREDP A) (ORDEREDP B) 'NIL) 'NIL) 'NIL) \
+             (EQUAL (EQUAL A B) (PERM A B)))"])])
+
+run_cmd (checkPinAt ``ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2AtCanonical
+        ``ACL2.Imported.Mirrors.equisortMirrorsWorld
+        ["env", "hrule_CONVERT-PERM-TO-HOW-MANY", "husethm_ORDERED-PERMS"]
+        "(EQUAL (SSORTFN1 X) (SSORTFN2 X))"
+        [("hrule_CONVERT-PERM-TO-HOW-MANY",
+          ["(PERM X Y)",
+           "(EQUAL (HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X) \
+             (HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y))"]),
+         ("husethm_ORDERED-PERMS",
+          ["(IMPLIES (IF (TRUE-LISTP A) (IF (TRUE-LISTP B) \
+             (IF (ORDEREDP A) (ORDEREDP B) 'NIL) 'NIL) 'NIL) \
+             (EQUAL (EQUAL A B) (PERM A B)))"])])
+
 end ACL2.Tests.ParametricPins

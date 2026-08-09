@@ -45,6 +45,7 @@
 -/
 import ACL2Lean.Replay.Runner
 import ACL2Lean.DevLoad
+import Tests.Coverage.BSsortsEquivalent
 
 namespace ACL2.Tests.SortingPins
 
@@ -860,5 +861,125 @@ elab "equisort_scope_pins% " : term => do
   return Lean.mkConst ``True.intro
 
 def equisortScopePins : True := equisort_scope_pins%
+
+/-! ## sorts-equivalent CAPSTONE statement pins (final close-out arc
+    increment 0 — close-out audit follow-up, both reviewers). The two
+    FI capstone rows are the corpus's headline artifacts and had no
+    statement pin. These pin the MACHINE statements — the sweep's own
+    registered constants, imported from `Tests.Coverage.BSsortsEquivalent`
+    (no re-replay: the constants are reused, so the pin costs two
+    example elaborations) — against types hand-transcribed from
+    `acl2/books/sorting/sorts-equivalent.lisp`, so statement-derivation
+    drift through a RECAPTURE fails here at elaboration. HYPOTHESIS
+    discipline as above: every `cond[…]` entry transcribed in telescope
+    order; stored-rule forms from the emitted `(:RULES …)` entries
+    (TRUE-LISTP-RM is the ordered-perms book's cross entry). -/
+
+private def sortsEqLog : String :=
+  include_str "../acl2_samples/sorting/sorts-equivalent.proof-log"
+
+def sortsEqPinsDev : Development := load_development% sortsEqLog
+
+derive_world sortsEqPinsWorld from sortsEqPinsDev
+
+/-- `rule:TRUE-LISTP-RM` (ordered-perms.lisp:34, stored form):
+    `((TRUE-LISTP A)) ⊢ (TRUE-LISTP (RM E A)) ≡ 'T`. -/
+private def trueListpRmHyp (w : World) : Prop :=
+  ruleEqHyp1 w
+    (ap1 "TRUE-LISTP" (sym "A"))
+    (ap1 "TRUE-LISTP" (ap2 "RM" (sym "E") (sym "A")))
+    (qt (sym "T"))
+
+/-- `rule:CONVERT-PERM-TO-HOW-MANY` (convert-perm-to-how-many.lisp:92,
+    stored form, unconditional). -/
+private def convertPermHyp (w : World) : Prop :=
+  ruleEqHyp w
+    (ap2 "PERM" (sym "X") (sym "Y"))
+    (ap2 "EQUAL"
+      (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
+      (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y")))
+
+/-- PIN the machine statement of `MSORT-IS-ISORT`
+    (sorts-equivalent.lisp:12): the mirror of
+    `(equal (msort x) (isort x))`, conditional on merge2/msort
+    totality, the how-many/insert/evens emitted TPs, and the
+    true-listp-rm + convert-perm-to-how-many stored rules — the
+    row's exact cond[…] telescope, in order. -/
+example :
+    ∀ (env : Env),
+      totalHyp2 sortsEqPinsWorld "MERGE2" →
+      totalHyp1 sortsEqPinsWorld "MSORT" →
+      tpNonnegInt2 sortsEqPinsWorld "HOW-MANY" →
+      tpPred2 sortsEqPinsWorld "INSERT" Logic.consp →
+      tpPred1 sortsEqPinsWorld "EVENS" Logic.trueListp →
+      trueListpRmHyp sortsEqPinsWorld →
+      convertPermHyp sortsEqPinsWorld →
+      EvTrue sortsEqPinsWorld env
+        (ap2 "EQUAL" (ap1 "MSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
+  ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
+
+#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
+
+/-- PIN the machine statement of `QSORT-IS-ISORT`
+    (sorts-equivalent.lisp:18): the mirror of
+    `(equal (qsort x) (isort x))`, conditional on the row's exact
+    cond[…] telescope: perm-counter-example/qsort/o< totality, the
+    four emitted TPs, true-listp-rm + convert-perm-to-how-many, the
+    arithmetic-3 commutativity + two if-lifting rules, and the three
+    qsort-book rules (how-many-filter-1, how-many-qsort — the row's
+    disclosed own-obligation assumption, audit O-3 — and
+    orderedp-append), stored forms from the emitted entries. -/
+example :
+    ∀ (env : Env),
+      totalHyp2 sortsEqPinsWorld "PERM-COUNTER-EXAMPLE" →
+      totalHyp1 sortsEqPinsWorld "QSORT" →
+      totalHyp2 sortsEqPinsWorld "O<" →
+      tpNonnegInt2 sortsEqPinsWorld "HOW-MANY" →
+      tpPred2 sortsEqPinsWorld "INSERT" Logic.consp →
+      tpPred1 sortsEqPinsWorld "QSORT" Logic.trueListp →
+      tpBool3 sortsEqPinsWorld "ALL-REL" →
+      tpNonnegInt1 sortsEqPinsWorld "ACL2-COUNT" →
+      trueListpRmHyp sortsEqPinsWorld →
+      convertPermHyp sortsEqPinsWorld →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "BINARY-+" (sym "Y") (sym "X"))
+        (ap2 "BINARY-+" (sym "X") (sym "Y")) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "BINARY-+" (sym "Y") (ap2 "BINARY-+" (sym "X") (sym "Z")))
+        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "BINARY-+" (sym "X") (ap3 "IF" (sym "A") (sym "B") (sym "C")))
+        (ap3 "IF" (sym "A")
+          (ap2 "BINARY-+" (sym "X") (sym "B"))
+          (ap2 "BINARY-+" (sym "X") (sym "C"))) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "EQUAL" (ap3 "IF" (sym "A") (sym "B") (sym "C")) (sym "X"))
+        (ap3 "IF" (sym "A")
+          (ap2 "EQUAL" (sym "B") (sym "X"))
+          (ap2 "EQUAL" (sym "C") (sym "X"))) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "BINARY-+"
+          (ap2 "HOW-MANY" (sym "E")
+            (ap3 "FILTER" (qt (sym "LT")) (sym "X") (sym "D")))
+          (ap2 "HOW-MANY" (sym "E")
+            (ap3 "FILTER" (qt (sym "GTE")) (sym "X") (sym "D"))))
+        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "HOW-MANY" (sym "E") (ap1 "QSORT" (sym "X")))
+        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+      ruleEqHyp1 sortsEqPinsWorld
+        (ap1 "ORDEREDP" (sym "A"))
+        (ap1 "ORDEREDP"
+          (ap2 "BINARY-APPEND" (sym "A") (ap2 "CONS" (sym "E") (sym "B"))))
+        (ap3 "IF" (ap1 "ORDEREDP" (sym "B"))
+          (ap3 "IF" (ap3 "ALL-REL" (qt (sym "LTE")) (sym "A") (sym "E"))
+            (ap3 "ALL-REL" (qt (sym "GTE")) (sym "B") (sym "E"))
+            (qt .nil))
+          (qt .nil)) →
+      EvTrue sortsEqPinsWorld env
+        (ap2 "EQUAL" (ap1 "QSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
+  ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
+
+#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
 
 end ACL2.Tests.SortingPins
