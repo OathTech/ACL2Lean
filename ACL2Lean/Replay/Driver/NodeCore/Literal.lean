@@ -247,7 +247,8 @@ partial def cdrSubterms : SExpr → List SExpr
       reconciled constant-test class resolves such a test from the clause
       context with no emitted node (G2 rung 2). A demand that is no later
       clause literal is skipped harmlessly at the hoist site. -/
-partial def collectContextDemands : ProofNode → List ContextDemand
+partial def collectContextDemands (fcDerivs : List SExpr := []) :
+    ProofNode → List ContextDemand
   | .node ⟨rty, _, _⟩ l rh children prov =>
     let notOf : SExpr → SExpr := fun t =>
       .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
@@ -265,14 +266,25 @@ partial def collectContextDemands : ProofNode → List ContextDemand
         | .cons (.atom (.symbol ns)) (.cons atm .nil) =>
           if ns.name == "NOT" then [ContextDemand.term atm] else []
         | _ => []) ++
-       -- an FC-DERIVED relief (the LEXORDER-TOTAL registry, marker :TA-RUNES)
-       -- consumes the COMMUTED lexorder application's falsity — demand that
-       -- literal too so the walk hoists it when it sits later in the clause
-       -- (HOW-MANY-FILTER-1)
+       -- an FC-DERIVED relief consumes the COMMUTED lexorder
+       -- application's falsity — demand that literal too so the walk
+       -- hoists it when it sits later in the clause (HOW-MANY-FILTER-1).
+       -- Anchors, both emitted channels (final-closeout item C): the
+       -- marker's :TA-RUNES, or a clause-level (:FC-DERIVATIONS …)
+       -- record whose :CONCL is this hyp (HOW-MANY-SMALLER-BNEXT's
+       -- markers carry empty :TA-RUNES)
        (match l with
         | .cons (.atom (.symbol ls)) (.cons u (.cons v .nil)) =>
-          if ls.name == "LEXORDER" && prov.taRunes.any
-              (fun r => r.ty == "forward-chaining" && r.name == "LEXORDER-TOTAL")
+          if ls.name == "LEXORDER" &&
+              (prov.taRunes.any
+                (fun r => r.ty == "forward-chaining" && r.name == "LEXORDER-TOTAL")
+               || fcDerivs.any (fun d =>
+                    fcDerivField? d "CONCL" == some l &&
+                    (match fcDerivField? d "RUNE" with
+                     | some (.cons (.atom (.keyword cls))
+                         (.cons (.atom (.symbol nm)) .nil)) =>
+                       cls == "FORWARD-CHAINING" && nm.name == "LEXORDER-TOTAL"
+                     | _ => false)))
           then [ContextDemand.term (.cons (.atom (.symbol ls)) (.cons v (.cons u .nil)))]
           else []
         | _ => [])
@@ -346,7 +358,7 @@ partial def collectContextDemands : ProofNode → List ContextDemand
           else []
         | _ => [])
      else if prov.origin == "recognizer/false" then [ContextDemand.term l]
-     else []) ++ ifTestDemands ++ children.flatMap collectContextDemands
+     else []) ++ ifTestDemands ++ children.flatMap (collectContextDemands fcDerivs)
 
 /-- WORLD-AWARE demand augmentation: a DEFINITION node's unfolded body (read
     from the world's defun, formals substituted by the recorded call args)

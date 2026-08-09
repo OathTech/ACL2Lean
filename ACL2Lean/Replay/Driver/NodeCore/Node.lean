@@ -1053,8 +1053,22 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             let some marker := reliefMarkers.find? fun c => (nodeLhsRhs c).1 == hσ
               | throwError "rule {rname}: internal — marker vanished"
             let .node _ _ _ _ mprov := marker
-            unless mprov.taRunes.any
-                (fun r => r.ty == "forward-chaining" && r.name == "LEXORDER-TOTAL") do
+            -- ANCHOR (BUG-023 discipline), two emitted channels: the
+            -- marker's own :TA-RUNES, or — when those are empty (the
+            -- cumulative set adds nothing at some sites; final-closeout
+            -- item C, HOW-MANY-SMALLER-BNEXT) — a clause-level
+            -- (:FC-DERIVATIONS …) record whose :CONCL is EXACTLY this
+            -- hyp instance and whose rune is the registered FC rule.
+            let taAnchored := mprov.taRunes.any
+              (fun r => r.ty == "forward-chaining" && r.name == "LEXORDER-TOTAL")
+            let fcDeriv? := ctx.fcDerivs.find? fun d =>
+              (fcDerivField? d "CONCL" == some hσ) &&
+              (match fcDerivField? d "RUNE" with
+               | some (.cons (.atom (.keyword cls))
+                   (.cons (.atom (.symbol nm)) .nil)) =>
+                 cls == "FORWARD-CHAINING" && nm.name == "LEXORDER-TOTAL"
+               | _ => false)
+            unless taAnchored || fcDeriv?.isSome do
               throwError "rule {rname}: marker-relieved hyp {repr hσ} has no \
                           (not …)-falsity fact in scope, and its :TA-RUNES \
                           {repr (mprov.taRunes.map (·.name))} name no \
@@ -1092,6 +1106,15 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             -- instantiated FC hyp (NOT (LEXORDER v u)): its truth is the
             -- in-scope FALSITY of the clause literal (LEXORDER v u)
             let source := lexT v u
+            -- fc-derivations anchoring: the record's :TRIGGER must BE the
+            -- source instance (the emitted record corroborates exactly the
+            -- flip we are about to justify — never a shape guess)
+            if let some d := fcDeriv? then
+              unless fcDerivField? d "TRIGGER" == some source do
+                throwError "rule {rname}: the anchoring FC-derivation's \
+                            :TRIGGER {repr (fcDerivField? d "TRIGGER")} ≠ \
+                            the relief source {repr source} (emission/replay \
+                            instance drift — a defect, not a frontier)"
             let some hNilSrc := ctx.litFactByTerm? source
               | throwError "rule {rname}: FC relief via LEXORDER-TOTAL needs \
                             the falsity of {repr source} in scope (frontier)"

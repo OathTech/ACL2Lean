@@ -1031,7 +1031,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- later clause literal with no fact in scope, case-split on that literal
     -- FIRST — its truth closes the whole disjunction; its falsity joins
     -- litFacts and the walk re-enters (one fewer demand each time).
-    let demanded := (lp.nodes.flatMap collectContextDemands ++
+    let demanded := (lp.nodes.flatMap (collectContextDemands ctx.fcDerivs) ++
       lp.nodes.flatMap (collectDefBodyDemands cfg)).eraseDups
     -- "fact in scope" must mean a WELL-TYPED fact (sorting-completion-2
     -- class A: an env-crossed segFact leaked from a parent elim walk

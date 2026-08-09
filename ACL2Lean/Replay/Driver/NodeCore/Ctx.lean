@@ -436,9 +436,28 @@ structure ReplayCtx where
       spec and the bound hypothesis `∀ env', EvTrue w env' (R x x)`.
       Include-book instances stay KEPT conditions (D6-honest). -/
   equivReflHyps : List (EquivReflSpec × Expr) := []
+  /-- The clause's emitted `(:FC-DERIVATIONS …)` records (Phase-6
+      consumer, final-closeout item C): each derivation is the raw
+      plist `(:RUNE r :CONCL c :TRIGGER t :SUBST σ :FC-ROUND n
+      :PARENTS p :SUPPORTS s)` — the forward-chaining provenance that
+      put a fact on ACL2's type-alist. Consulted by the marker-relief
+      arm when a marker's own `:TA-RUNES` are empty (the cumulative
+      set adds nothing at some sites); the record anchors the relief
+      to the EMITTED instance (BUG-023 discipline). -/
+  fcDerivs : List SExpr := []
   ih : Option Expr := none
 
 def ReplayCtx.empty : ReplayCtx := {}
+
+/-- Read one field of an emitted FC-derivation plist (`:RUNE`,
+    `:CONCL`, `:TRIGGER`, …). `none` if the key is absent or the
+    plist shape is broken (callers hard-fail on their required
+    fields — never a silent default). -/
+partial def fcDerivField? (deriv : SExpr) (key : String) : Option SExpr :=
+  match deriv with
+  | .cons (.atom (.keyword k)) (.cons v rest) =>
+    if k == key then some v else fcDerivField? rest key
+  | _ => none
 
 /-- Look up a pinned value fact for `t` in the context. -/
 def ReplayCtx.val? (ctx : ReplayCtx) (t : SExpr) : Option (Expr × Expr) :=

@@ -113,6 +113,12 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   let mut ctx := ctx
   for tm in (clauseSubtreeTerms cn).eraseDups do
     ctx ← pinTermOpaques cfg cfg.envExpr ctx tm
+  -- the clause's emitted FC-derivation records enter the ctx here
+  -- (final-closeout item C): clause DATA, consumed by the
+  -- marker-relief arm's fc-derivations anchor — never a spine step
+  ctx := { ctx with fcDerivs := ctx.fcDerivs ++
+    ((cn.steps.flatMap (·.items)).filterMap
+      (fun | .fcDerivations d => some d | _ => none)).flatten }
   let lits := flattenLiterals (cn.steps.flatMap (·.items))
   -- a preprocess CLAUSIFY split: chain to the recorded input, bridge the proved
   -- output clause (the pushed/pool-root child) back through the if-recursion
