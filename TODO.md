@@ -114,6 +114,21 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > ProofTree.lean:392 (wall (a)); wall (b) equal/case-split emission
 > ALREADY LANDED. Then: the dedup-class spine composition (assess
 > bounded), the D3 arm, and the two Mike gates.**
+> PROGRESS (fbb16f8, claim-gate TRUE_EXIT=0): tpthm stack RESURRECTED
+> over the module split (all audit fixes preserved; offers at the
+> audited 9th telescope position); PCE advances past the recognizer
+> frontier to the IF-COLLAPSE RECONCILIATION — reached
+> (NOT (IF (IF (TRUE-LISTP (CDR X)) 'T 'NIL) (IF inner 'T 'NIL) 'T))
+> vs recorded (NOT inner); the emitted :IF-TEST-TRUE marker
+> (IF-FINISH/IF-TEST, :TEST (TRUE-LISTP (CDR X)), :JUSTIFICATION
+> fake-rune-for-type-set) carries the collapse's basis; design choice
+> pinned: consume at the CHAIN-END RECONCILIATION site (CoreSpine's
+> reached≠recorded throw), NOT as parser nodes (parser adoption would
+> shift chain shapes corpus-wide). The (IF x 'T 'NIL)⇒x half needs
+> the boolean basis (inner is boolean by construction of the emitted
+> case-split shape) — check whether a second marker records it, else
+> it is the remaining PCE emission question for the batch review.
+> Golden repinned at fbb16f8 (0 flips, 5 red-row message churns).**
 
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
