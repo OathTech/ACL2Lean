@@ -130,6 +130,13 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-HOW-MANY-IS-0",
     .native ``not_memb_how_many_0_native_driver
       ``notMembHowMany0ReplayedCond),
+  ("sorting/convert-perm-to-how-many",
+    "PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS",
+    .pending "GREENED at the final close-out (the tpthm resurrection + \
+      IF-collapse bridge round); the native mirror is the PCE MIRROR \
+      BUILD PLAN in TODO (pceExec on the perm_exec_corr template) — \
+      wire when the capstone consumer demands it, per the \
+      unwired-infrastructure ban"),
   ("sorting/convert-perm-to-how-many", "TRUE-LISTP-RM",
     .replayedOnly "subsumed by the rm simulation: `true-listp` restricts \
       the input to the enc image (exists_enc_of_trueListp), where \

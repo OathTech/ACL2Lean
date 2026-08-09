@@ -400,6 +400,47 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
         let p ← match litIdx? with
           | none => pure pRest
           | some i => do
+            if i + 1 == curClause.length then do
+              -- LAST-position re-insert (final-closeout, PCE *1/1.1'):
+              -- litV sits in the ELSE of the PRECEDING literal's frame —
+              -- (IF b 'T litV) ⟿ (IF b 'T 'NIL) ⟿ b, the boolean-wrap
+              -- collapse (boolwrapIdentFor: two-valued b only — consumed,
+              -- not inferred), lifted through the earlier frames.
+              let some b := (curClause.take i).getLast?
+                | throwError "replayElim: last-position reorder with no \
+                    preceding literal at {cn.idStr} (frontier)"
+              let litEqStep ← mkAppM ``fuel_eq_of_conv
+                #[pLitNil,
+                  ← mkAppM ``re_val_quote #[w, env, reflectSExpr SExpr.nil],
+                  ← mkEqRefl (mkConst ``SExpr.nil)]
+              let quoteNil' : SExpr := .cons
+                (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.nil .nil)
+              let tailStp : PathStep := { fn := { name := "IF" }, arity := 3,
+                                          argIdx := 2, siblings := [b, quoteT] }
+              let s1 ← applyStep w env tailStp notConspLit quoteNil' litEqStep
+              let ctxB ← pinTermOpaques cfgK env ctxK b
+              let vB ← ctxValExpr cfgK ctxB b
+              let hB ← ctxValProof cfgK ctxB b
+              let hident ← boolwrapIdentFor cfgK ctxB b vB
+              let hwrap ← mkAppM ``re_val_if_t_nil
+                #[w, env, reflectSExpr b, vB, hB]
+              let s2 ← mkAppM ``fuel_eq_of_conv #[hwrap, hB, hident]
+              let mut inner ← mkAppM ``fuel_chain_eq #[s1, s2]
+              let mut curL : SExpr := .cons (.atom (.symbol { name := "IF" }))
+                (.cons b (.cons quoteT (.cons notConspLit .nil)))
+              let mut curR : SExpr := b
+              for l in (curClause.take (i - 1)).reverse do
+                let stp : PathStep := { fn := { name := "IF" }, arity := 3,
+                                        argIdx := 2, siblings := [l, quoteT] }
+                inner ← applyStep w env stp curL curR inner
+                curL := rebuild stp curL
+                curR := rebuild stp curR
+              unless curL == disjoinTerm curClause &&
+                     curR == disjoinTerm restClause do
+                throwError "replayElim: last-position reorder lift \
+                    reconstructed {repr curL} / {repr curR} at {cn.idStr}"
+              mkAppM ``evtrue_of_fuel_eq #[inner, pRest]
+            else do
             -- eval(disjoin curClause) ≡ eval(disjoin restClause): the litV
             -- frame collapse at position i, lifted through i else-descents
             let mut inner ← mkAppM ``re_if_false

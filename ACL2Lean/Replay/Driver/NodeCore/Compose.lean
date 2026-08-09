@@ -564,26 +564,14 @@ def tseSumSelfCell (cfg : ReplayConfig) (ctx : ReplayCtx)
       reflectSExpr SExpr.nil, p, hVal]
 
 
-/-- The LAST-position nil-drop completion (PCE *1/1.2; extracted from
-    the spine walk for the weight ratchet — see the in-block comment
-    for the soundness condition). Returns the fold chain plus the
-    (possibly pinned-extended) ctx. -/
-def spineLastNilDrop (cfg : ReplayConfig) (ctx2 : ReplayCtx)
-    (idStr : String) (before curLits : List (Nat × SExpr)) :
-    MetaM (Expr × ReplayCtx) := do
-  -- LAST-position drop (PCE *1/1.2; RESURRECTED at the final
-  -- close-out — killed at 910785a, its consumer now reachable):
-  -- the tail frame changes (IF lprev 'T 'NIL) → lprev —
-  -- EQUAL-sound exactly when lprev's value is TWO-VALUED
-  -- (Logic.equal/Logic.not range, the constant 'T, or the
-  -- emitted BOOLEAN TP corollary — consumed, not inferred);
-  -- otherwise the frontier stands.
-  let some (_, lprev) := before.getLast?
-    | throwError "replayClauseSpine: nil-only clause at {idStr} \
-        (frontier)"
-  let ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 lprev
-  let vP ← ctxValExpr cfg ctx2 lprev
-  let hP ← ctxValProof cfg ctx2 lprev
+/-- Select the two-valuedness IDENTITY for the boolean-wrap collapse
+    `(bif toBool v then 't else 'nil) = v` (shared by the spine
+    nil-drop and the elim reorder's last-position case): `Logic.equal`
+    / `Logic.not` range, the constant `'T`, or the emitted BOOLEAN TP
+    corollary — consumed, not inferred; anything else is the honest
+    frontier. -/
+def boolwrapIdentFor (cfg : ReplayConfig) (ctx2 : ReplayCtx)
+    (lprev : SExpr) (vP : Expr) : MetaM Expr := do
   let isEq := vP.isAppOfArity ``Logic.equal 2
   let isNot := vP.isAppOfArity ``Logic.not 1
   let boolTpFact? : Option Expr ← do
@@ -617,21 +605,41 @@ def spineLastNilDrop (cfg : ReplayConfig) (ctx2 : ReplayCtx)
     | _ => pure none
   let isQT := lprev == quoteT
   unless isEq || isNot || isQT || boolTpFact?.isSome do
-    throwError "replayClauseSpine: literal folded to 'NIL in \
-        LAST position at {idStr} with a non-two-valued \
+    throwError "boolwrap collapse: a non-two-valued \
         predecessor {repr lprev} (frontier)"
+  if isEq then
+    mkAppM ``logic_boolwrap_self_equal
+      #[vP.appFn!.appArg!, vP.appArg!]
+  else if isNot then
+    mkAppM ``logic_boolwrap_self_not #[vP.appArg!]
+  else if isQT then
+    mkAppM ``logic_boolwrap_self_t #[]
+  else
+    mkAppM ``logic_boolwrap_self_of_boolean_tp #[boolTpFact?.get!]
+
+/-- The LAST-position nil-drop completion (PCE *1/1.2; extracted from
+    the spine walk for the weight ratchet — see the in-block comment
+    for the soundness condition). Returns the fold chain plus the
+    (possibly pinned-extended) ctx. -/
+def spineLastNilDrop (cfg : ReplayConfig) (ctx2 : ReplayCtx)
+    (idStr : String) (before curLits : List (Nat × SExpr)) :
+    MetaM (Expr × ReplayCtx) := do
+  -- LAST-position drop (PCE *1/1.2; RESURRECTED at the final
+  -- close-out — killed at 910785a, its consumer now reachable):
+  -- the tail frame changes (IF lprev 'T 'NIL) → lprev —
+  -- EQUAL-sound exactly when lprev's value is TWO-VALUED
+  -- (Logic.equal/Logic.not range, the constant 'T, or the
+  -- emitted BOOLEAN TP corollary — consumed, not inferred);
+  -- otherwise the frontier stands.
+  let some (_, lprev) := before.getLast?
+    | throwError "replayClauseSpine: nil-only clause at {idStr} \
+        (frontier)"
+  let ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 lprev
+  let vP ← ctxValExpr cfg ctx2 lprev
+  let hP ← ctxValProof cfg ctx2 lprev
+  let hident ← boolwrapIdentFor cfg ctx2 lprev vP
   let hwrap ← mkAppM ``re_val_if_t_nil
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr lprev, vP, hP]
-  let hident ← if isEq then
-      mkAppM ``logic_boolwrap_self_equal
-        #[vP.appFn!.appArg!, vP.appArg!]
-    else if isNot then
-      mkAppM ``logic_boolwrap_self_not #[vP.appArg!]
-    else if isQT then
-      mkAppM ``logic_boolwrap_self_t #[]
-    else
-      mkAppM ``logic_boolwrap_self_of_boolean_tp
-        #[boolTpFact?.get!]
   let stepEq ← mkAppM ``fuel_eq_of_conv #[hwrap, hP, hident]
   let mut innerL := stepEq
   let mut curLL : SExpr := .cons (.atom (.symbol { name := "IF" }))
