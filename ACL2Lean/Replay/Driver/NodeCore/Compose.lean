@@ -674,4 +674,29 @@ def appendFuelBridge (cfg : ReplayConfig) (ctx : ReplayCtx)
     pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, ch, brS],
       true))
 
+/-- Install a TRUTHY branch fact plus its assume-true-false
+    DECOMPOSITION: a truthy `(IF c t 'NIL)` test forces `c` truthy AND
+    `t` truthy (`cond_tnil_ne_nil_test`/`_then` on the composed
+    value) — recursively, so a composite if-test contributes every
+    conjunct ACL2's type-alist holds under it
+    (HOW-MANY-RM-GENERAL *1/2' literal 2; final-closeout). -/
+partial def installBranchTrueFacts (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (c : SExpr) (vC hNe : Expr) : MetaM ReplayCtx := do
+  let ctx := { ctx with
+    branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
+  match c with
+  | .cons (.atom (.symbol ifS)) (.cons c' (.cons t' (.cons e' .nil))) =>
+    if ifS.name == "IF" && e' == (.cons
+        (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.nil .nil)) then do
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx c'
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx t'
+      let hC ← mkAppM ``cond_tnil_ne_nil_test #[hNe]
+      let hT ← mkAppM ``cond_tnil_ne_nil_then #[hNe]
+      let vC' ← ctxValExpr cfg ctx c'
+      let vT' ← ctxValExpr cfg ctx t'
+      let ctx ← installBranchTrueFacts cfg ctx c' vC' hC
+      installBranchTrueFacts cfg ctx t' vT' hT
+    else pure ctx
+  | _ => pure ctx
+
 end ACL2.Replay.Driver

@@ -352,6 +352,23 @@ theorem cond_tnil_of_range {v : SExpr}
 theorem cond_of_val_t {v x y : SExpr} (h : v = SExpr.t) :
     cond (Logic.toBool v) x y = x := by subst h; rfl
 
+/-- A truthy `(IF c t 'NIL)` VALUE forces its test truthy (ACL2's
+    assume-true-false decomposition of a composite if-test — the
+    branch-fact derivation, final-closeout). -/
+theorem cond_tnil_ne_nil_test {vc vt : SExpr}
+    (h : cond (Logic.toBool vc) vt SExpr.nil ≠ SExpr.nil) :
+    vc ≠ SExpr.nil := by
+  intro hc; subst hc; exact h rfl
+
+/-- … and its then-branch truthy. -/
+theorem cond_tnil_ne_nil_then {vc vt : SExpr}
+    (h : cond (Logic.toBool vc) vt SExpr.nil ≠ SExpr.nil) :
+    vt ≠ SExpr.nil := by
+  intro ht; subst ht
+  cases hb : Logic.toBool vc
+  · exact h (by rw [hb]; rfl)
+  · exact h (by rw [hb]; rfl)
+
 /-- Converged values are unique (fuel monotonicity's working form). -/
 theorem conv_val_eq {w : World} {env : Env} {t u v : SExpr}
     (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env t = some u)

@@ -116,7 +116,27 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         Option (List PathFrame × Nat)) := []
       for base in [relW, wpath] do
         match pathStepsFromFrames start base wterm with
-        | .ok _ => cands := cands ++ [(base, none, none)]
+        | .ok _ =>
+          -- a DIRECT locate whose LAST frame descends into an IF branch
+          -- IS the branch anchor's position (the dedup principle below,
+          -- applied at generation): the sub-walk must carry the branch
+          -- hypothesis — plain congruence through a then/else position
+          -- would demand the sub-chain hold UNCONDITIONALLY, which a
+          -- solidify consuming the test does not (HOW-MANY-RM-GENERAL
+          -- *1/2' literal 2). Synthesize the anchor from the frames'
+          -- own shape; a non-IF tail stays a plain direct locate.
+          let anchored? : Option (List PathFrame × Nat) := do
+            let lastFr ← base.getLast?
+            let bidx ← match lastFr with
+              | .arg i _ => if i == 2 || i == 3 then some i else none
+              | _ => none
+            let pre := base.dropLast
+            match (navigateFrames start pre).toOption with
+            | some (_, .cons (.atom (.symbol ifS))
+                (.cons _ (.cons _ (.cons _ .nil)))) =>
+              if ifS.name == "IF" then some (pre, bidx) else none
+            | _ => none
+          cands := cands ++ [(base, none, anchored?)]
         | .error _ =>
           match (navigateFrames start base).toOption with
           | some (_, S) =>
@@ -267,7 +287,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let (lamT, lamE, thn', els') ←
           if bidx == 2 then do
             let (lamT, thn') ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
-              let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
+              let ctx' ← installBranchTrueFacts cfg ctx c vC hNe
               let (chT, thn') ← replayRewritesWith rec cfg ctx' wterm
                 (group.map clearWindowTag)
               let chT ← chainReqEq chT
@@ -637,7 +657,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             mkLambdaFVars #[fV] (mkApp4 (mkConst ``evalOpt) fV w e (reflectSExpr t))
           mkAppM ``fuel_eq_refl #[fn]
         let (lamT, thn') ← withLocalDeclD `hne (← mkAppM ``Ne #[vC, nilC]) fun hNe => do
-          let ctx' := { ctx with branchFacts := ctx.branchFacts ++ [(c, vC, true, hNe)] }
+          let ctx' ← installBranchTrueFacts cfg ctx c vC hNe
           let (chT, thn') ← replayRewritesWith rec cfg ctx' thn thenCh
           let chT ← chainReqEq chT
           let prf ← match chT with
