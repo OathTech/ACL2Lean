@@ -61,6 +61,43 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > docs/notes/2026-08-09_phase3-closeout-final-report.md — the charter's
 > exit criterion is MET; merge sign-off requested (not assumed).
 
+> **FINAL-CLOSEOUT ARC — LIVE STATE (branch mdd/sorting-final-closeout).**
+> Increment 0 LANDED (ba9f9bd): capstone statement pins (via the sweep's
+> registered constants — no re-replay), AtCanonical KEPT pins, the
+> R-lane brief (docs/notes/2026-08-09_r-lane-decision-brief.md — AWAITS
+> Mike's 1/2/3 ruling), weight baseline tightened. RED-ROW DEPENDENCY
+> MAP (2026-08-09, read off the current golden + TODO history — this
+> re-sequences the charter's queue 1↔2: the 8-item batch LANDED
+> emissions long ago; the reds are CONSUMER-side plus exactly TWO-THREE
+> small fork gaps):
+> - FORK GAPS (the whole batch for this arc): (i) the rewrite-equal
+>   `(equalityp rhs)` arm at rewrite.lisp:18434 — untagged/unlogged
+>   (blocks HOW-MANY-BAD-PAIRS-BNEXT and PCE's wall (b));
+>   (ii) :PATH coverage — HOW-MANY-RM-GENERAL's inline-window
+>   ambiguity (2 anchorings, entry-path recorded but window frames
+>   absent) + ORDEREDP-WHEN-BNEXT-CONSTANT (pathStepsFromFrames,
+>   frames []); (iii) investigate HOW-MANY-SMALLER-BNEXT's
+>   `:TA-RUNES []` (marker-relieved hyp names no FC relief — basis
+>   emission or consumer registration, TBD at the site). Per the
+>   standing rule the batch needs Mike's ITEM-BY-ITEM review before
+>   the rebuild; the R-lane solidify/with-lemma relation item joins
+>   ONLY on a 1/2 ruling (the with-lemma :GENEQV half already emits,
+>   fork 24e6dbc; rung-3 is its designated consumer — no piecemeal
+>   wiring).
+> - CONSUMER CHAIN (post-batch, no user input): HOW-MANY-BAD-PAIRS-
+>   BNEXT green → its :linear rule discharges termination:BSORT's
+>   ASSUMED dp-fact (the batch-1 :LINEAR snapshot emission is already
+>   in the corpus) → BSORT enters termReplayed → the three induction
+>   rows (ORDEREDP/TRUE-LISTP/HOW-MANY-BSORT) take the interpCount μ
+>   route (Induction.lean route discrimination; BNEXT-SIZE never needs
+>   a registry entry — it rides the recorded admission). PCE: resurrect
+>   the KILLED tpthm consumer stack (built+audited 2026-08-04, killed
+>   in the drift round for lacking a green consumer — the git history
+>   has it; its green consumer becomes reachable with wall (a) the
+>   IF-TEST-TRUE marker consumption in ProofTree ~346 (consumer-only)
+>   + wall (b) fork gap (i)). BSORT-IS-ISORT: the D3 FI-arm
+>   composition + the bsort cluster.**
+
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
 > Per-node lemma decomposition as the eventual default emission shape +
