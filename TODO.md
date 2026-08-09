@@ -97,6 +97,23 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 >   IF-TEST-TRUE marker consumption in ProofTree ~346 (consumer-only)
 >   + wall (b) fork gap (i)). BSORT-IS-ISORT: the D3 FI-arm
 >   composition + the bsort cluster.**
+> PROGRESS (69a26c6): item C LANDED — FC-relief anchored on the
+> emitted (:FC-DERIVATIONS …) channel (ReplayCtx.fcDerivs + the
+> widened marker anchor + the hoist demand thread; keyword plist
+> reader). HOW-MANY-SMALLER-BNEXT advances past its relief wall to
+> the KNOWN add-literal DEDUP class (*1/4.5: under the E=(CADR X)
+> context-subst, clause literals 3 and 6 coincide and ACL2 merges
+> them — the recorded item numbering shifts; the rung-2 build log's
+> acknowledged loud frontier). NOTE: bsort's golden section text
+> changed (red-row error text) — repin due at the next claim point.
+> NEXT: the tpthm RESURRECTION for PCE — source = the tpthm hunks of
+> `git show 910785a` (the kill) reversed, re-applied over the
+> NodeCore module split; spec = the audited worklist (this file,
+> TPTHM-CONSUMER SUB-ARC) + docs/audits/2026-08-04_tpthm-consumer-
+> audit.md; plus the IF-TEST-TRUE marker adoption at
+> ProofTree.lean:392 (wall (a)); wall (b) equal/case-split emission
+> ALREADY LANDED. Then: the dedup-class spine composition (assess
+> bounded), the D3 arm, and the two Mike gates.**
 
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
