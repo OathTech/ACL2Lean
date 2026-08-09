@@ -133,6 +133,21 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > site, marker-anchored + trueListp-CDR closure for the test) is the
 > next Lean increment.
 > Golden repinned at fbb16f8 (0 flips, 5 red-row message churns).**
+> PCE GREEN (c0cb74b, claim-gate TRUE_EXIT=0 — 105/116, sorting
+> 68/78, convert 11/13): the wall-demolition round (6939387) landed
+> the IF-collapse bridge + FIVE 910785a resurrections (L-fold,
+> boolean-TP fold, nil-drop, single-summand + term-vs-sum cells,
+> orientation normalization — each now with a live consumer), then
+> the elim reorder's LAST-POSITION case (the boolean-wrap collapse
+> via the shared boolwrapIdentFor) finished the row. The CONVERT
+> row's use:PCE cond discharged in cascade (now conditions on
+> rule:HOW-MANY-RM-GENERAL — the genuine remaining red). REMAINING
+> REDS (10): HOW-MANY-RM-GENERAL + PERM-TLFIX (convert), the bsort
+> six + termination:BSORT, BSORT-IS-ISORT. Next: HOW-MANY-RM-GENERAL
+> rides fork gap (ii) (:PATH coverage — batch review item B) OR a
+> consumer-side anchoring completion (pin all three of
+> frames/preSwap/branchAnchor per the drift round's completion
+> condition); then the bsort chain via batch item A.**
 
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
