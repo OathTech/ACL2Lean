@@ -183,6 +183,14 @@ def mkUseHypType (cfg : ReplayConfig) (spec : UseSpec) : MetaM Expr := do
     mkForallFVars #[envV]
       (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr spec.formula])
 
+/-- The `tpthm:<thm>` hypothesis TYPE (the first :CLASSES consumer): a
+    THEOREM-classed :TYPE-PRESCRIPTION rule's whole-formula replayed
+    statement, `∀ env', EvTrue w env' formula`. -/
+def mkTpThmHypType (cfg : ReplayConfig) (spec : TpThmSpec) : MetaM Expr := do
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    mkForallFVars #[envV]
+      (mkAppN (mkConst ``EvTrue) #[cfg.worldExpr, envV, reflectSExpr spec.formula])
+
 /-- The `equivfull:<thm>` hypothesis TYPE (the R-solidify lane): the
     equivalence theorem's whole TRANSLATED Goal statement,
     `∀ env', EvTrue w env' formula` — all four defequiv conjuncts, consumed

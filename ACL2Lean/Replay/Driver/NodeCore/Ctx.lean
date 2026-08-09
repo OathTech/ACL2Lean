@@ -172,6 +172,65 @@ def congSpecOfFormula? (name : String) (formula : SExpr) : Option CongSpec := do
   return { name, formula, rel, fn := fnL, pos, argVars, vy,
            hyp, lhsApp, rhsApp }
 
+/-- Deterministic ONE-WAY first-order matching of `term` against `pattern`:
+    bind the pattern's ARGUMENT-position variables (bare symbols) to
+    subterms so the instantiated pattern equals the term; application HEADS
+    must match exactly; QUOTE subterms are opaque constants; bindings must
+    be consistent. `none` on any mismatch — the consumer's loud frontier.
+    Used where ACL2 emits NO substitution (type-set TP-rule applications):
+    unique first-order matching is a read-off, not search, and the caller
+    recompute-checks `substTerm σ pattern == term`.
+    (RESURRECTED, final-closeout: killed at 910785a for lacking a green
+    consumer; its consumer chain is now reachable — the tpthm audit
+    2026-08-04 verified this matcher under 11 adversarial probes.) -/
+partial def matchPatternGo (p t : SExpr) (σ : List (Symbol × SExpr)) :
+    Option (List (Symbol × SExpr)) :=
+  match p, t with
+  | .atom (.symbol v), _ =>
+    match σ.find? (fun (w, _) => w == v) with
+    | some (_, t') => if t' == t then some σ else none
+    | none => some ((v, t) :: σ)
+  | .cons (.atom (.symbol pf)) pargs, .cons (.atom (.symbol tf)) targs =>
+    if pf.name == "QUOTE" then if p == t then some σ else none
+    else if pf != tf then none
+    else
+      pargs.toList?.bind fun pl =>
+      targs.toList?.bind fun tl =>
+      if pl.length != tl.length then none
+      else (pl.zip tl).foldlM (fun σ (pp, tt) => matchPatternGo pp tt σ) σ
+  | _, _ => if p == t then some σ else none
+
+def matchPattern? (pattern term : SExpr) :
+    Option (List (Symbol × SExpr)) :=
+  matchPatternGo pattern term []
+
+/-- A THEOREM-classed :TYPE-PRESCRIPTION rule's hypothesis surface
+    (`tpthm:<thm>`, the FIRST `:CLASSES` consumer): the theorem name and
+    its Goal-clause formula, offered as the whole-formula replayed
+    statement. Consumed by `replayRecognizer`'s cited-rune fallback (a
+    recognizer verdict whose ttree cites a `(:TYPE-PRESCRIPTION <thm>)`
+    rune naming a defthm, not a defun admission TP — RM has none;
+    TRUE-LISTP-RM is the anchor case). -/
+structure TpThmSpec where
+  name : String
+  formula : SExpr
+  deriving BEq, Repr
+
+/-- Does an emitted `:CLASSES` value name :TYPE-PRESCRIPTION — either the
+    bare keyword (TRUE-LISTP-RM's shape) or a member of the class list
+    (each entry a keyword or a `(keyword …)` spec)? -/
+def classesNameTP : Option SExpr → Bool
+  | some (.atom (.keyword k)) => k == "TYPE-PRESCRIPTION"
+  | some l =>
+    match l.toList? with
+    | some items => items.any fun it =>
+        match it with
+        | .atom (.keyword k) => k == "TYPE-PRESCRIPTION"
+        | .cons (.atom (.keyword k)) _ => k == "TYPE-PRESCRIPTION"
+        | _ => false
+    | none => false
+  | none => false
+
 /-- A `:use`-cited theorem's hypothesis surface (R7a, close-out Phase 2):
     the theorem NAME and its Goal-clause formula. The hypothesis states the
     WHOLE formula (`∀ env', EvTrue w env' formula` — `mkUseHypType`);
@@ -431,6 +490,12 @@ structure ReplayCtx where
       Consumed by the equivalence-rune own-position congruence
       (`equivOwnPosCongr`); discharged like `cong:` hyps. -/
   equivFullHyps : List (EquivFullSpec × Expr) := []
+  /-- THEOREM-classed :TYPE-PRESCRIPTION hypotheses (`tpthm:<thm>`): per
+      dependency theorem whose emitted `:CLASSES` names :TYPE-PRESCRIPTION,
+      the spec and the bound whole-formula hypothesis. Consumed by
+      `replayRecognizer`'s cited-rune fallback; discharged like `cong:`
+      hyps. -/
+  tpThmHyps : List (TpThmSpec × Expr) := []
   /-- Equivalence-REFLEXIVITY hypotheses (`equivrefl:<thm>`): per
       equivalence-shaped in-scope defthm (incl. INCLUDE-BOOK'd ones), the
       spec and the bound hypothesis `∀ env', EvTrue w env' (R x x)`.

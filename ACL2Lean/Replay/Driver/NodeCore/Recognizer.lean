@@ -20,7 +20,11 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
     -- the STEP's recorded :TYPESET when called from a recognizer node
     -- (audit 2026-08-07 S4 — the exact value ACL2 consulted); none on
     -- recursive/self calls (gate falls back to the emitted :BASICTS).
-    (stepTs : Option Int := none) : MetaM Expr := do
+    (stepTs : Option Int := none)
+    -- the node's cited (:TYPE-PRESCRIPTION <name>) runes — the tpthm
+    -- route's BUG-023 anchor (theorem-classed TP rules; defun-TP names
+    -- simply have no tpthm offer and fall through to the tp: routes)
+    (citedTpThms : List String := []) : MetaM Expr := do
   let verdictE := reflectSExpr verdict
   if let some (v, p) := ctx.val? term then
     unless ← isDefEq v verdictE do
@@ -507,9 +511,94 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
               mkAppM ``re_val_cast
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vB,
                   verdictE, pB, hT]
+            else if let some (spec, hypV) := citedTpThms.findSome? (fun tn =>
+                ctx.tpThmHyps.find? (fun (s, _) => s.name == tn)) then do
+              -- TP-CLASSED THEOREM route (tpthm sub-arc 2026-08-04,
+              -- RESURRECTED at the final close-out — the FIRST :CLASSES
+              -- consumer; killed at 910785a for lacking a green consumer,
+              -- now reachable): the node's ttree cites a
+              -- (:TYPE-PRESCRIPTION <defthm>) rune naming a theorem, not a
+              -- defun admission TP (RM has none; TRUE-LISTP-RM is
+              -- `:CLASSES :TYPE-PRESCRIPTION`). Match the theorem's
+              -- conclusion against the recognizer term (no σ is emitted
+              -- for type-set rule applications; one-way matching is
+              -- deterministic and recompute-checked), relieve the hyp
+              -- instance from the clause context, MP, and pin the exact
+              -- verdict by the recognizer's trusted-core two-valued
+              -- range. Anchored per BUG-023: CITED runes only.
+              let (hyp?, concl) := match spec.formula with
+                | .cons (.atom (.symbol imp)) (.cons h (.cons c .nil)) =>
+                  if imp.name == "IMPLIES" then (some h, c)
+                  else (none, spec.formula)
+                | f => (none, f)
+              let some σ := matchPattern? concl term
+                | throwError "replayRecognizer/tpthm: {spec.name}'s \
+                    conclusion {repr concl} does not match {repr term} \
+                    (frontier)"
+              let σvars := σ.map (·.1)
+              let σterms := σ.map (·.2)
+              unless ACL2.Replay.substTerm σvars σterms concl == term do
+                throwError "replayRecognizer/tpthm: match recompute failed \
+                    (internal)"
+              unless (ACL2.Replay.freeVars spec.formula).all
+                  (σvars.contains ·) do
+                throwError "replayRecognizer/tpthm: {spec.name} has free \
+                    variables outside the conclusion match (frontier — \
+                    free-variable TP hyps)"
+              unless verdict == SExpr.t do
+                throwError "replayRecognizer/tpthm: verdict {repr verdict} \
+                    ≠ 'T (frontier)"
+              let (hInst, ctx1) ← instantiateEvTrueHypAt cfg ctx hypV
+                σvars σterms spec.formula
+              let instF := ACL2.Replay.substTerm σvars σterms spec.formula
+              let ctx2 ← pinTermOpaques cfg cfg.envExpr ctx1 instF
+              let hFne ← mkAppM ``ne_nil_of_evtrue_conv
+                #[hInst, ← ctxValProof cfg ctx2 instF]
+              let (hCne, ctxF) ← match hyp? with
+                | none => pure (hFne, ctx2)
+                | some h => do
+                  let hσ := ACL2.Replay.substTerm σvars σterms h
+                  let notH : SExpr := .cons
+                    (.atom (.symbol { name := "NOT" })) (.cons hσ .nil)
+                  let ctx3 ← pinTermOpaques cfg cfg.envExpr ctx2 hσ
+                  let vH ← ctxValExpr cfg ctx3 hσ
+                  -- litFactByTermChecked? already scans litFacts THEN
+                  -- segFacts with a per-candidate type check; an unchecked
+                  -- segFacts fallback would re-open the cross-env-context
+                  -- hole that helper closes (tpthm audit F1 — a dead arm
+                  -- deleted)
+                  let hit ← ctx3.litFactByTermChecked? notH
+                    (← mkEq (mkApp (mkConst ``Logic.not) vH)
+                      (mkConst ``SExpr.nil))
+                  let some hNotNil := hit
+                    | throwError "replayRecognizer/tpthm: {spec.name}'s hyp \
+                        instance {repr hσ} has no (not …)-falsity fact in \
+                        scope (frontier)"
+                  let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
+                  pure (← mkAppM ``implies_value_mp #[hFne, hne], ctx3)
+              -- exact-'T pin: the recognizer's TRUSTED-CORE two-valued
+              -- range (same registry as dischargeRuleHyp's routeBool)
+              let coreBool? : Option (Name × Name) :=
+                if rs.name == "TRUE-LISTP" then
+                  some (``Logic.trueListp, ``logic_trueListp_ne_nil_t)
+                else if rs.name == "CONSP" then
+                  some (``Logic.consp, ``logic_consp_ne_nil_t)
+                else none
+              let some (liftC, neLemma) := coreBool?
+                | throwError "replayRecognizer/tpthm: {rs.name} has no \
+                    trusted-core two-valued range registered (frontier)"
+              let vC ← ctxValExpr cfg ctxF term
+              unless vC.isAppOfArity liftC 1 do
+                throwError "replayRecognizer/tpthm: value of {repr term} \
+                    is not ({liftC} _)"
+              let hT ← mkAppM neLemma #[vC.appArg!, hCne]
+              mkAppM ``re_val_cast
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vC,
+                  verdictE, ← ctxValProof cfg ctxF term, hT]
             else
               throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict} \
-                        (no TP hypothesis for {fs.name})"
+                        (no TP hypothesis for {fs.name}; cited TP runes \
+                        {citedTpThms})"
     else
       let p ← ctxValProof cfg ctx term
       let v ← ctxValExpr cfg ctx term
@@ -963,5 +1052,98 @@ partial def replayLambdaBody (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
   match chainOpt with
   | none => return unfold
   | some ch => mkAppM ``fuel_chain_eq #[unfold, ch]
+
+/-- The LEXORDER-TOTAL FC relief (extracted from the marker-relief arm,
+    weight ratchet): prove the marker-relieved hyp `hσ` (a LEXORDER
+    application) from the registered FC rule's kernel-proved core +
+    the in-scope falsity of the commuted application, anchored on
+    either emitted channel (marker `:TA-RUNES` or a clause-level
+    `(:FC-DERIVATIONS …)` record). `notH`/`vH` feed the frontier
+    message only. -/
+def fcReliefLexorderTotal (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (rname : String) (hσ notH : SExpr) (vH tNeNil : Expr)
+    (reliefMarkers : List ProofNode) : MetaM Expr := do
+  let some marker := reliefMarkers.find? fun c => (nodeLhsRhs c).1 == hσ
+    | throwError "rule {rname}: internal — marker vanished"
+  let .node _ _ _ _ mprov := marker
+  -- ANCHOR (BUG-023 discipline), two emitted channels: the
+  -- marker's own :TA-RUNES, or — when those are empty (the
+  -- cumulative set adds nothing at some sites; final-closeout
+  -- item C, HOW-MANY-SMALLER-BNEXT) — a clause-level
+  -- (:FC-DERIVATIONS …) record whose :CONCL is EXACTLY this
+  -- hyp instance and whose rune is the registered FC rule.
+  let taAnchored := mprov.taRunes.any
+    (fun r => r.ty == "forward-chaining" && r.name == "LEXORDER-TOTAL")
+  let fcDeriv? := ctx.fcDerivs.find? fun d =>
+    (fcDerivField? d "CONCL" == some hσ) &&
+    (match fcDerivField? d "RUNE" with
+     | some (.cons (.atom (.keyword cls))
+         (.cons (.atom (.symbol nm)) .nil)) =>
+       cls == "FORWARD-CHAINING" && nm.name == "LEXORDER-TOTAL"
+     | _ => false)
+  unless taAnchored || fcDeriv?.isSome do
+    throwError "rule {rname}: marker-relieved hyp {repr hσ} has no \
+                (not …)-falsity fact in scope, and its :TA-RUNES \
+                {repr (mprov.taRunes.map (·.name))} name no \
+                registered FC relief (frontier; \
+                lit-facts {repr (ctx.litFacts.map (·.2.1))}; \
+                seg-facts {repr (ctx.segFacts.map (·.1))}; \
+                candidate types: {← (ctx.segFacts.filterMap
+                  (fun (st, p) => if st == notH then some p else none)).mapM
+                  (fun p => do pure (← Lean.Meta.inferType p))}; \
+                expected: {← mkEq (mkApp (mkConst ``Logic.not) vH)
+                  (mkConst ``SExpr.nil)})"
+  let some spec := cfg.fcRules.find? (·.name == "LEXORDER-TOTAL")
+    | throwError "rule {rname}: :TA-RUNES cite LEXORDER-TOTAL but \
+                  the (:GROUND-ZERO-FC-RULES) snapshot lacks it \
+                  (stale log? recapture-all)"
+  let varX : SExpr := .atom (.symbol { name := "X" })
+  let varY : SExpr := .atom (.symbol { name := "Y" })
+  let lexT (p q : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "LEXORDER" })) (.cons p (.cons q .nil))
+  let notT (t : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
+  unless spec.trigger == lexT varX varY &&
+         spec.hyps == [notT (lexT varX varY)] &&
+         spec.concls == [lexT varY varX] do
+    throwError "rule {rname}: LEXORDER-TOTAL snapshot shape drifted \
+                from the pinned form: {repr spec.trigger} / \
+                {repr spec.hyps} / {repr spec.concls}"
+  -- unify the concl (LEXORDER Y X) with hσ: Y ↦ u, X ↦ v
+  let .cons (.atom (.symbol ls)) (.cons u (.cons v .nil)) := hσ
+    | throwError "rule {rname}: FC relief target {repr hσ} is not \
+                  a LEXORDER application (frontier)"
+  unless ls.name == "LEXORDER" do
+    throwError "rule {rname}: FC relief target {repr hσ} is not \
+                a LEXORDER application (frontier)"
+  -- instantiated FC hyp (NOT (LEXORDER v u)): its truth is the
+  -- in-scope FALSITY of the clause literal (LEXORDER v u)
+  let source := lexT v u
+  -- fc-derivations anchoring: the record's :TRIGGER must BE the
+  -- source instance (the emitted record corroborates exactly the
+  -- flip we are about to justify — never a shape guess)
+  if let some d := fcDeriv? then
+    unless fcDerivField? d "TRIGGER" == some source do
+      throwError "rule {rname}: the anchoring FC-derivation's \
+                  :TRIGGER {repr (fcDerivField? d "TRIGGER")} ≠ \
+                  the relief source {repr source} (emission/replay \
+                  instance drift — a defect, not a frontier)"
+  let some hNilSrc := ctx.litFactByTerm? source
+    | throwError "rule {rname}: FC relief via LEXORDER-TOTAL needs \
+                  the falsity of {repr source} in scope (frontier)"
+  let vu ← ctxValExpr cfg ctx u
+  let vv ← ctxValExpr cfg ctx v
+  let hTotal ← mkAppM ``ACL2.lexorder_total #[vv, vu]
+  -- left disjunct (lexorder vv vu = t) refuted by hNilSrc
+  let vSrc ← ctxValExpr cfg ctx source
+  let notLeft ← withLocalDeclD `h (← mkEq vSrc (mkConst ``SExpr.t))
+    fun h => do
+      let tEqNil ← mkAppM ``Eq.trans
+        #[← mkAppM ``Eq.symm #[h], hNilSrc]
+      mkLambdaFVars #[h] (mkApp tNeNil tEqNil)
+  let hT ← mkAppM ``Or.resolve_left #[hTotal, notLeft]
+  let hne ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
+  mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
+
 
 end ACL2.Replay.Driver

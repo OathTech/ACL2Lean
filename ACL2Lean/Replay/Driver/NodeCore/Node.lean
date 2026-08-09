@@ -363,7 +363,13 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let verdictV := match rhs with
       | .cons (.atom (.symbol q)) (.cons v .nil) => if q.name == "QUOTE" then v else rhs
       | v => v
+    -- the node's cited (:TYPE-PRESCRIPTION <name>) runes — the tpthm
+    -- route's BUG-023 anchor (theorem-classed TP rules; defun-TP names
+    -- simply have no tpthm offer and fall through to the tp: routes)
+    let citedTpThms := prov.runes.filterMap fun r =>
+      if r.ty == "type-prescription" then some r.name else none
     let fact ← replayRecognizer cfg ctx lhs verdictV prov.typeSet
+      (citedTpThms := citedTpThms)
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr verdictV]
     mkAppM ``fuel_eq_of_conv #[fact, hq, ← mkEqRefl (reflectSExpr verdictV)]
   | "if-simplification", _ =>
@@ -1050,87 +1056,8 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             -- instantiated FC hyp discharged from the in-scope falsity
             -- fact, the conclusion via the kernel-proved
             -- `ACL2.lexorder_total`.
-            let some marker := reliefMarkers.find? fun c => (nodeLhsRhs c).1 == hσ
-              | throwError "rule {rname}: internal — marker vanished"
-            let .node _ _ _ _ mprov := marker
-            -- ANCHOR (BUG-023 discipline), two emitted channels: the
-            -- marker's own :TA-RUNES, or — when those are empty (the
-            -- cumulative set adds nothing at some sites; final-closeout
-            -- item C, HOW-MANY-SMALLER-BNEXT) — a clause-level
-            -- (:FC-DERIVATIONS …) record whose :CONCL is EXACTLY this
-            -- hyp instance and whose rune is the registered FC rule.
-            let taAnchored := mprov.taRunes.any
-              (fun r => r.ty == "forward-chaining" && r.name == "LEXORDER-TOTAL")
-            let fcDeriv? := ctx.fcDerivs.find? fun d =>
-              (fcDerivField? d "CONCL" == some hσ) &&
-              (match fcDerivField? d "RUNE" with
-               | some (.cons (.atom (.keyword cls))
-                   (.cons (.atom (.symbol nm)) .nil)) =>
-                 cls == "FORWARD-CHAINING" && nm.name == "LEXORDER-TOTAL"
-               | _ => false)
-            unless taAnchored || fcDeriv?.isSome do
-              throwError "rule {rname}: marker-relieved hyp {repr hσ} has no \
-                          (not …)-falsity fact in scope, and its :TA-RUNES \
-                          {repr (mprov.taRunes.map (·.name))} name no \
-                          registered FC relief (frontier; \
-                          lit-facts {repr (ctx.litFacts.map (·.2.1))}; \
-                          seg-facts {repr (ctx.segFacts.map (·.1))}; \
-                          candidate types: {← (ctx.segFacts.filterMap
-                            (fun (st, p) => if st == notH then some p else none)).mapM
-                            (fun p => do pure (← Lean.Meta.inferType p))}; \
-                          expected: {← mkEq (mkApp (mkConst ``Logic.not) vH)
-                            (mkConst ``SExpr.nil)})"
-            let some spec := cfg.fcRules.find? (·.name == "LEXORDER-TOTAL")
-              | throwError "rule {rname}: :TA-RUNES cite LEXORDER-TOTAL but \
-                            the (:GROUND-ZERO-FC-RULES) snapshot lacks it \
-                            (stale log? recapture-all)"
-            let varX : SExpr := .atom (.symbol { name := "X" })
-            let varY : SExpr := .atom (.symbol { name := "Y" })
-            let lexT (p q : SExpr) : SExpr :=
-              .cons (.atom (.symbol { name := "LEXORDER" })) (.cons p (.cons q .nil))
-            let notT (t : SExpr) : SExpr :=
-              .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
-            unless spec.trigger == lexT varX varY &&
-                   spec.hyps == [notT (lexT varX varY)] &&
-                   spec.concls == [lexT varY varX] do
-              throwError "rule {rname}: LEXORDER-TOTAL snapshot shape drifted \
-                          from the pinned form: {repr spec.trigger} / \
-                          {repr spec.hyps} / {repr spec.concls}"
-            -- unify the concl (LEXORDER Y X) with hσ: Y ↦ u, X ↦ v
-            let .cons (.atom (.symbol ls)) (.cons u (.cons v .nil)) := hσ
-              | throwError "rule {rname}: FC relief target {repr hσ} is not \
-                            a LEXORDER application (frontier)"
-            unless ls.name == "LEXORDER" do
-              throwError "rule {rname}: FC relief target {repr hσ} is not \
-                          a LEXORDER application (frontier)"
-            -- instantiated FC hyp (NOT (LEXORDER v u)): its truth is the
-            -- in-scope FALSITY of the clause literal (LEXORDER v u)
-            let source := lexT v u
-            -- fc-derivations anchoring: the record's :TRIGGER must BE the
-            -- source instance (the emitted record corroborates exactly the
-            -- flip we are about to justify — never a shape guess)
-            if let some d := fcDeriv? then
-              unless fcDerivField? d "TRIGGER" == some source do
-                throwError "rule {rname}: the anchoring FC-derivation's \
-                            :TRIGGER {repr (fcDerivField? d "TRIGGER")} ≠ \
-                            the relief source {repr source} (emission/replay \
-                            instance drift — a defect, not a frontier)"
-            let some hNilSrc := ctx.litFactByTerm? source
-              | throwError "rule {rname}: FC relief via LEXORDER-TOTAL needs \
-                            the falsity of {repr source} in scope (frontier)"
-            let vu ← ctxValExpr cfg ctx u
-            let vv ← ctxValExpr cfg ctx v
-            let hTotal ← mkAppM ``ACL2.lexorder_total #[vv, vu]
-            -- left disjunct (lexorder vv vu = t) refuted by hNilSrc
-            let vSrc ← ctxValExpr cfg ctx source
-            let notLeft ← withLocalDeclD `h (← mkEq vSrc (mkConst ``SExpr.t))
-              fun h => do
-                let tEqNil ← mkAppM ``Eq.trans
-                  #[← mkAppM ``Eq.symm #[h], hNilSrc]
-                mkLambdaFVars #[h] (mkApp tNeNil tEqNil)
-            let hT ← mkAppM ``Or.resolve_left #[hTotal, notLeft]
-            let hne ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
-            mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
+            fcReliefLexorderTotal cfg ctx rname hσ notH vH tNeNil
+              reliefMarkers
         else if let some (notS, atm) := (match hσ with
             | .cons (.atom (.symbol s)) (.cons a .nil) =>
               if s.name == "NOT" then some (s, a) else none

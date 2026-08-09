@@ -331,7 +331,26 @@ partial def collectContextDemands (fcDerivs : List SExpr := []) :
                    (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
                      (.cons u .nil)))]
                else []
-             | _ => [])
+             | _ => []) ++
+            -- tpthm ingredients (the :CLASSES consumer, resurrected at
+            -- the final close-out): a THEOREM-classed TP rule's hyp
+            -- instance is typically the recognizer at an ARGUMENT of the
+            -- inner application ((TRUE-LISTP (RM E X))'s hyp is
+            -- (TRUE-LISTP X)) — demand each. GATED on the node citing a
+            -- :TYPE-PRESCRIPTION rune (tpthm audit F9 — cuts the
+            -- recognizer/true blast radius to the citing nodes) and
+            -- QUOTE-guarded (F10). A demand is hoisted only if its value
+            -- constructs in scope; over-approximation is bounded by both.
+            (if prov.runes.any (·.ty == "type-prescription") then
+              match w with
+              | .cons (.atom (.symbol wf)) argsS =>
+                if wf.name == "QUOTE" then []
+                else (argsS.toList?.getD []).map fun a =>
+                  ContextDemand.term (notOf
+                    (.cons (.atom (.symbol { name := "TRUE-LISTP" }))
+                      (.cons a .nil)))
+              | _ => []
+             else [])
           else if rs.name == "CONSP" then
             -- the CONSP-closure ingredients (ORDERED-PERMS *1/2.2 and the
             -- IF-split shapes): for EVERY (CDR u) subterm of w, the truthy
