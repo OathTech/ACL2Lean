@@ -10,6 +10,193 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- The rewrite-equal cons-decomposition DESCENT (extracted from the chain
+    walker, restructure charter item 1 — behavior-preserving): given the
+    running equality's sides `s1`/`s2` and the node stream positioned at
+    the descent's first window-tagged scratch node, replay the CAR phase
+    then (component-equal) the CDR phase — each phase folds its
+    window-tagged scratch into component-value equalities, then resolves
+    by the recorded decision at the components equality (a verdict node or
+    an item-A decision record; `dec?` is origin-agnostic) or the silent
+    type-set refutation, with the duplicate decision-record consumption
+    cross-checking agreement. Returns the value-level verdict
+    (`Logic.equal v(s1) v(s2) = cst`), the constant, the UNCONSUMED node
+    tail, and the threaded ctx — the caller decides what an unconsumed
+    tail means (the top-level chain requires it empty; a NESTED descent
+    (item 2) continues its enclosing phase from it). -/
+partial def replayEqualDescent (rec : NodeRec) (cfg : ReplayConfig)
+    (ctx0 : ReplayCtx) (s1 s2 : SExpr) (nodes : List ProofNode) :
+    MetaM (Expr × SExpr × List ProofNode × ReplayCtx) := do
+  let start : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+    (.cons s1 (.cons s2 .nil))
+  let mut ctx ← pinTermOpaques cfg cfg.envExpr ctx0 start
+  let vs1 ← ctxValExpr cfg ctx s1
+  let vs2 ← ctxValExpr cfg ctx s2
+  let _ := (vs1, vs2)
+  let mut nodesLeft : List ProofNode := nodes
+  -- verdict accumulator: none = still deciding; some hEq = the
+  -- final `Logic.equal vs1 vs2 = <const>` fact + the constant
+  let mut verdict : Option (Expr × SExpr) := none
+  let mut phaseComps : List Expr := []  -- car-, then cdr-phase
+  for pfn in ["CAR", "CDR"] do
+    if verdict.isSome then continue
+    let mut c1 : SExpr := .cons (.atom (.symbol { name := pfn }))
+      (.cons s1 .nil)
+    let mut c2 : SExpr := .cons (.atom (.symbol { name := pfn }))
+      (.cons s2 .nil)
+    ctx ← pinTermOpaques cfg cfg.envExpr ctx c1
+    ctx ← pinTermOpaques cfg cfg.envExpr ctx c2
+    let mut h1 ← mkEqRefl (← ctxValExpr cfg ctx c1)
+    let mut h2 ← mkEqRefl (← ctxValExpr cfg ctx c2)
+    -- consume this phase's scratch rewrites (either side, any
+    -- interleaving; each is a full node replayed by its own recipe)
+    let mut scanning := true
+    while scanning do
+      match nodesLeft with
+      | [] => scanning := false
+      | n' :: r' =>
+        let (l', r'') := nodeLhsRhs n'
+        let phaseKind := if pfn == "CAR" then "equal-cars"
+                         else "equal-cdrs"
+        let side? : Option Nat :=
+          if innerKindOf n' == phaseKind then
+            match nodePath n' with
+            | .arg k _ :: _ => some k
+            | _ => none
+          else none
+        match side? with
+        | some 1 =>
+          if l' == c1 then
+            let e ← rec.node cfg ctx n'
+            ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
+            let ve ← mkAppM ``val_eq_of_eval_eq
+              #[e, ← ctxValProof cfg ctx c1,
+                ← ctxValProof cfg ctx r'']
+            h1 ← mkAppM ``Eq.trans #[h1, ve]
+            c1 := r''; nodesLeft := r'
+          else scanning := false
+        | some 2 =>
+          if l' == c2 then
+            let e ← rec.node cfg ctx n'
+            ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
+            let ve ← mkAppM ``val_eq_of_eval_eq
+              #[e, ← ctxValProof cfg ctx c2,
+                ← ctxValProof cfg ctx r'']
+            h2 ← mkAppM ``Eq.trans #[h2, ve]
+            c2 := r''; nodesLeft := r'
+          else scanning := false
+        | _ => scanning := false
+    -- the phase decision: a recorded (EQUAL c1 c2) node at the
+    -- EQUAL's own path, or a silent type-alist refutation
+    let decT : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+      (.cons c1 (.cons c2 .nil))
+    let dec? ← match nodesLeft with
+      | n' :: r' => do
+        let (l', rr') := nodeLhsRhs n'
+        if l' == decT && (relativizeFrames (nodePath n')) == [] then
+          pure (some (n', rr', r'))
+        else pure none
+      | [] => pure none
+    match dec? with
+    | some (n', rr', r') =>
+      nodesLeft := r'
+      let e ← rec.node cfg ctx n'
+      ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
+      let vDec ← ctxValExpr cfg ctx decT
+      if rr' == quoteT then
+        let vq ← mkAppM ``re_val_quote
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+        let ve ← mkAppM ``val_eq_of_eval_eq
+          #[e, ← ctxValProof cfg ctx decT, vq]
+        -- vDec = t → vc1 = vc2 → component equality
+        let _ := vDec
+        let hc ← mkAppM ``logic_eq_of_equal_t #[ve]
+        let hcomp ← mkAppM ``Eq.trans
+          #[h1, ← mkAppM ``Eq.trans #[hc, ← mkAppM ``Eq.symm #[h2]]]
+        phaseComps := phaseComps ++ [hcomp]
+      else if rr' == quoteNil then
+        let vq ← mkAppM ``re_val_quote
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
+        let ve ← mkAppM ``val_eq_of_eval_eq
+          #[e, ← ctxValProof cfg ctx decT, vq]
+        let lem := if pfn == "CAR" then
+          ``logic_equal_nil_of_car_components
+          else ``logic_equal_nil_of_cdr_components
+        verdict := some (← mkAppM lem #[h1, h2, ve], SExpr.nil)
+      else
+        throwError "replayRewrites: rewrite-equal {pfn} decision \
+            node {repr decT} ⇒ {repr rr'} is not a constant \
+            verdict (frontier)"
+    | none =>
+      -- silent refutation from the in-scope context (the same
+      -- facts ACL2's type-set consulted)
+      ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
+      let hRef ← do
+        match ← typeSetWalk cfg ctx (.isNil decT) with
+        | some h => pure h
+        | none =>
+            throwError "replayRewrites: rewrite-equal {pfn} \
+                phase — no recorded decision and no in-scope \
+                refutation of {repr decT} (frontier)"
+      let lem := if pfn == "CAR" then
+        ``logic_equal_nil_of_car_components
+        else ``logic_equal_nil_of_cdr_components
+      verdict := some (← mkAppM lem #[h1, h2, hRef], SExpr.nil)
+    -- fork-batch item A (2026-08-09): the emitted
+    -- equal/{cars,cdrs}-decision record IS this phase's verdict,
+    -- recorded at the descent level. When the phase ALSO carried
+    -- an internal verdict node (the recursion's own
+    -- equal/type-alist-nil, consumed as `dec?` above), the
+    -- decision record re-states the same fact — consume it here,
+    -- cross-checking agreement; a disagreement is emission
+    -- divergence, hard-fail. (A LONE decision record is instead
+    -- consumed by `dec?` itself — the matcher is origin-agnostic.)
+    match nodesLeft with
+    | n' :: r' =>
+      let decOrigin := if pfn == "CAR" then "equal/cars-decision"
+                       else "equal/cdrs-decision"
+      if nodeOrigin n' == decOrigin then
+        let (l', rr') := nodeLhsRhs n'
+        unless l' == decT do
+          throwError "replayRewrites: {decOrigin} record lhs \
+              {repr l'} ≠ the phase components {repr decT} \
+              (emission divergence)"
+        -- Asymmetry note (audit 2026-08-09 inside C3): the fork's
+        -- NEGATIVE-side cdrs push shares this origin, and there a
+        -- *t* verdict is DISCARDED by ACL2 (only *nil* is usable —
+        -- rewrite.lisp's negative-side cond). That shape cannot
+        -- reach this check today (an unresolved cars phase either
+        -- takes the probe block or throws at dec?'s non-constant
+        -- verdict), so `expected` is sound for the reachable
+        -- positive-side records; if the negative side ever
+        -- becomes reachable, split the origins in the fork first.
+        let expected := if verdict.isSome then quoteNil else quoteT
+        unless rr' == expected do
+          throwError "replayRewrites: {decOrigin} record verdict \
+              {repr rr'} ≠ the phase outcome {repr expected} \
+              (emission divergence)"
+        nodesLeft := r'
+    | [] => pure ()
+  let (hEq, cst) ← do
+    match verdict with
+    | some (h, c) => pure (h, c)
+    | none => do
+      -- both phases component-equal: 'T by cons-extensionality;
+      -- consp evidence for BOTH sides from value shape/context
+      let [hcompCar, hcompCdr] := phaseComps
+        | throwError "replayRewrites: rewrite-equal decomposition \
+            finished with {phaseComps.length} component proofs \
+            (internal)"
+      let some hca ← typeSetWalk cfg ctx (.isConspT s1)
+        | throwError "replayRewrites: rewrite-equal — no consp \
+            evidence for {repr s1} (frontier)"
+      let some hcb ← typeSetWalk cfg ctx (.isConspT s2)
+        | throwError "replayRewrites: rewrite-equal — no consp \
+            evidence for {repr s2} (frontier)"
+      pure (← mkAppM ``logic_equal_t_of_components
+        #[hca, hcb, hcompCar, hcompCdr], SExpr.t)
+  return (hEq, cst, nodesLeft, ctx)
+
 /-- Replay a chain of rewrite nodes, lifting each through the chain's start term by
     path-directed congruence (window-local paths, drop-one relativization) and
     chaining. Returns the composed `∃N∀f≥N, eval start = eval finalTerm` (or
@@ -1059,178 +1246,18 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                 | [] => scanning := false
               return ← replayRewritesWith rec cfg ctx start restP
                 (chainPrefix ++ consumed)
-            let mut ctx ← pinTermOpaques cfg cfg.envExpr ctx start
-            let vs1 ← ctxValExpr cfg ctx s1
-            let vs2 ← ctxValExpr cfg ctx s2
-            let mut nodesLeft : List ProofNode := n :: rest
-            -- verdict accumulator: none = still deciding; some hEq = the
-            -- final `Logic.equal vs1 vs2 = <const>` fact + the constant
-            let mut verdict : Option (Expr × SExpr) := none
-            let mut phaseComps : List Expr := []  -- car-, then cdr-phase
-            for pfn in ["CAR", "CDR"] do
-              if verdict.isSome then continue
-              let mut c1 : SExpr := .cons (.atom (.symbol { name := pfn }))
-                (.cons s1 .nil)
-              let mut c2 : SExpr := .cons (.atom (.symbol { name := pfn }))
-                (.cons s2 .nil)
-              ctx ← pinTermOpaques cfg cfg.envExpr ctx c1
-              ctx ← pinTermOpaques cfg cfg.envExpr ctx c2
-              let mut h1 ← mkEqRefl (← ctxValExpr cfg ctx c1)
-              let mut h2 ← mkEqRefl (← ctxValExpr cfg ctx c2)
-              -- consume this phase's scratch rewrites (either side, any
-              -- interleaving; each is a full node replayed by its own
-              -- recipe)
-              let mut scanning := true
-              while scanning do
-                match nodesLeft with
-                | [] => scanning := false
-                | n' :: r' =>
-                  let (l', r'') := nodeLhsRhs n'
-                  let phaseKind := if pfn == "CAR" then "equal-cars"
-                                   else "equal-cdrs"
-                  let side? : Option Nat :=
-                    if innerKindOf n' == phaseKind then
-                      match nodePath n' with
-                      | .arg k _ :: _ => some k
-                      | _ => none
-                    else none
-                  match side? with
-                  | some 1 =>
-                    if l' == c1 then
-                      let e ← rec.node cfg ctx n'
-                      ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
-                      let ve ← mkAppM ``val_eq_of_eval_eq
-                        #[e, ← ctxValProof cfg ctx c1,
-                          ← ctxValProof cfg ctx r'']
-                      h1 ← mkAppM ``Eq.trans #[h1, ve]
-                      c1 := r''; nodesLeft := r'
-                    else scanning := false
-                  | some 2 =>
-                    if l' == c2 then
-                      let e ← rec.node cfg ctx n'
-                      ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
-                      let ve ← mkAppM ``val_eq_of_eval_eq
-                        #[e, ← ctxValProof cfg ctx c2,
-                          ← ctxValProof cfg ctx r'']
-                      h2 ← mkAppM ``Eq.trans #[h2, ve]
-                      c2 := r''; nodesLeft := r'
-                    else scanning := false
-                  | _ => scanning := false
-              -- the phase decision: a recorded (EQUAL c1 c2) node at the
-              -- EQUAL's own path, or a silent type-alist refutation
-              let decT : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
-                (.cons c1 (.cons c2 .nil))
-              let dec? ← match nodesLeft with
-                | n' :: r' => do
-                  let (l', rr') := nodeLhsRhs n'
-                  if l' == decT && (relativizeFrames (nodePath n')) == [] then
-                    pure (some (n', rr', r'))
-                  else pure none
-                | [] => pure none
-              match dec? with
-              | some (n', rr', r') =>
-                nodesLeft := r'
-                let e ← rec.node cfg ctx n'
-                ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
-                let vDec ← ctxValExpr cfg ctx decT
-                if rr' == quoteT then
-                  let vq ← mkAppM ``re_val_quote
-                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-                  let ve ← mkAppM ``val_eq_of_eval_eq
-                    #[e, ← ctxValProof cfg ctx decT, vq]
-                  -- vDec = t → vc1 = vc2 → component equality
-                  let _ := vDec
-                  let hc ← mkAppM ``logic_eq_of_equal_t #[ve]
-                  let hcomp ← mkAppM ``Eq.trans
-                    #[h1, ← mkAppM ``Eq.trans #[hc, ← mkAppM ``Eq.symm #[h2]]]
-                  phaseComps := phaseComps ++ [hcomp]
-                else if rr' == quoteNil then
-                  let vq ← mkAppM ``re_val_quote
-                    #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
-                  let ve ← mkAppM ``val_eq_of_eval_eq
-                    #[e, ← ctxValProof cfg ctx decT, vq]
-                  let lem := if pfn == "CAR" then
-                    ``logic_equal_nil_of_car_components
-                    else ``logic_equal_nil_of_cdr_components
-                  verdict := some (← mkAppM lem #[h1, h2, ve], SExpr.nil)
-                else
-                  throwError "replayRewrites: rewrite-equal {pfn} decision \
-                      node {repr decT} ⇒ {repr rr'} is not a constant \
-                      verdict (frontier)"
-              | none =>
-                -- silent refutation from the in-scope context (the same
-                -- facts ACL2's type-set consulted)
-                ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
-                let hRef ← do
-                  match ← typeSetWalk cfg ctx (.isNil decT) with
-                  | some h => pure h
-                  | none =>
-                      throwError "replayRewrites: rewrite-equal {pfn} \
-                          phase — no recorded decision and no in-scope \
-                          refutation of {repr decT} (frontier)"
-                let lem := if pfn == "CAR" then
-                  ``logic_equal_nil_of_car_components
-                  else ``logic_equal_nil_of_cdr_components
-                verdict := some (← mkAppM lem #[h1, h2, hRef], SExpr.nil)
-              -- fork-batch item A (2026-08-09): the emitted
-              -- equal/{cars,cdrs}-decision record IS this phase's verdict,
-              -- recorded at the descent level. When the phase ALSO carried
-              -- an internal verdict node (the recursion's own
-              -- equal/type-alist-nil, consumed as `dec?` above), the
-              -- decision record re-states the same fact — consume it here,
-              -- cross-checking agreement; a disagreement is emission
-              -- divergence, hard-fail. (A LONE decision record is instead
-              -- consumed by `dec?` itself — the matcher is origin-agnostic.)
-              match nodesLeft with
-              | n' :: r' =>
-                let decOrigin := if pfn == "CAR" then "equal/cars-decision"
-                                 else "equal/cdrs-decision"
-                if nodeOrigin n' == decOrigin then
-                  let (l', rr') := nodeLhsRhs n'
-                  unless l' == decT do
-                    throwError "replayRewrites: {decOrigin} record lhs \
-                        {repr l'} ≠ the phase components {repr decT} \
-                        (emission divergence)"
-                  -- Asymmetry note (audit 2026-08-09 inside C3): the fork's
-                  -- NEGATIVE-side cdrs push shares this origin, and there a
-                  -- *t* verdict is DISCARDED by ACL2 (only *nil* is usable —
-                  -- rewrite.lisp's negative-side cond). That shape cannot
-                  -- reach this check today (an unresolved cars phase either
-                  -- takes the probe block or throws at dec?'s non-constant
-                  -- verdict), so `expected` is sound for the reachable
-                  -- positive-side records; if the negative side ever
-                  -- becomes reachable, split the origins in the fork first.
-                  let expected := if verdict.isSome then quoteNil else quoteT
-                  unless rr' == expected do
-                    throwError "replayRewrites: {decOrigin} record verdict \
-                        {repr rr'} ≠ the phase outcome {repr expected} \
-                        (emission divergence)"
-                  nodesLeft := r'
-              | [] => pure ()
-            let (hEq, cst) ← do
-              match verdict with
-              | some (h, c) => pure (h, c)
-              | none => do
-                -- both phases component-equal: 'T by cons-extensionality;
-                -- consp evidence for BOTH sides from value shape/context
-                let [hcompCar, hcompCdr] := phaseComps
-                  | throwError "replayRewrites: rewrite-equal decomposition \
-                      finished with {phaseComps.length} component proofs \
-                      (internal)"
-                let some hca ← typeSetWalk cfg ctx (.isConspT s1)
-                  | throwError "replayRewrites: rewrite-equal — no consp \
-                      evidence for {repr s1} (frontier)"
-                let some hcb ← typeSetWalk cfg ctx (.isConspT s2)
-                  | throwError "replayRewrites: rewrite-equal — no consp \
-                      evidence for {repr s2} (frontier)"
-                pure (← mkAppM ``logic_equal_t_of_components
-                  #[hca, hcb, hcompCar, hcompCdr], SExpr.t)
+            -- the deciding protocol lives in `replayEqualDescent` (the
+            -- restructure extraction); at the TOP level the whole
+            -- remaining chain is the protocol — an unconsumed tail
+            -- hard-fails
+            let (hEq, cst, nodesLeft, ctxD) ←
+              replayEqualDescent rec cfg ctx s1 s2 (n :: rest)
             unless nodesLeft.isEmpty do
               throwError "replayRewrites: rewrite-equal decomposition left \
                   unconsumed nodes \
                   {repr (nodesLeft.map (fun m => (nodeLhsRhs m).1))} \
                   (frontier)"
-            let pl ← ctxValProof cfg ctx start
+            let pl ← ctxValProof cfg ctxD start
             let pr ← mkAppM ``re_val_quote
               #[cfg.worldExpr, cfg.envExpr, reflectSExpr cst]
             let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hEq]
