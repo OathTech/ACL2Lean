@@ -115,6 +115,14 @@ structure RewriteStep where
   /-- The bound disequality entry's term (`:TA-ENTRY`; none when the
       verdict came from the quotep/canon-collapse shortcuts). -/
   taEntry : Option SExpr := none
+  /-- The fn-restricted tau-database slice (`:TAU-BASIS`, fork-batch
+      item I, ruled 2026-08-10): on a `preprocess/tau` verdict record,
+      the raw per-fn slice — tau-pair, pos/neg-implicants, form-1/2
+      signature rules — for exactly the clause's fn symbols, read off
+      the tau database at the verdict site. The DP consumer takes the
+      slice's rules' instances as premises (read-off, not matcher
+      selection). `none` on every other origin and on pre-batch logs. -/
+  tauBasis : Option SExpr := none
   /-- The redex's congruence path within the literal (from `:PATH`),
       literal-root-first. Lets a replay lift this step by composing congruences
       along the path instead of locating the redex by subterm match. -/
@@ -162,6 +170,13 @@ inductive TraceEvent where
       inferred-from-absence reading in the replay's complement-tautology
       arm. -/
   | complementClose (lit : SExpr)
+  /-- The add-literal DUPLICATE drop (`emit/dedup-drop`, fork-batch
+      item E, 2026-08-10 — the close-out audit's D1 remedy): adding
+      `lit` to the clause under construction found it already among the
+      existing literals, so the clause is returned unchanged. Replaces
+      the inferred-from-shape trigger in the replay's dedup-skip arm
+      (`dedupSkipClose`, held under expiry until this record). -/
+  | dedupDrop (lit : SExpr)
   /-- A DERIVED type-alist entry's provenance (`emit/ta-subst`,
       user-approved 2026-08-07): assume-true-false's substitution pass
       transformed the bound entry `from_` into `new_` by replacing
@@ -319,6 +334,16 @@ structure Justification where
       BEFORE clean-up could drop trivially-true members). Each entry is one
       clause (a disjunction of literals, as an s-expression list). -/
   terminationClauses : List SExpr
+  /-- The admission's cited rune set (`:TERMINATION-RUNES`, fork-batch
+      item H, 2026-08-10): `all-runes-in-ttree` of the admission proof's
+      accumulated ttree, PER-ADMISSION granularity (one set for the whole
+      clique — the ttree is not per-clause). `none` = the channel is
+      absent (an include-book re-emission recomputes clauses without
+      re-running admission, so no ttree exists); `some []` = the
+      admission cited no rules (pure primitive reasoning). The DP
+      premise passes gate rule-premise injection on this set wherever
+      the channel exists. -/
+  terminationRunes : Option (List Rune) := none
   deriving Repr
 
 /-- A STORED rewrite rule exactly as ACL2 created it (`emit/rule` → the
@@ -679,6 +704,7 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
         | none => pure none
       let canon1 := lookupKeyword "CANON1" rest
       let canon2 := lookupKeyword "CANON2" rest
+      let tauBasis := lookupKeyword "TAU-BASIS" rest
       let taEntry := match lookupKeyword "TA-ENTRY" rest with
         | some .nil => none
         | e => e
@@ -697,7 +723,7 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
         | some .nil => pure false
         | some other => throw s!"REWRITE-STEP: malformed :SWAPPED-P {repr other}"
         | none => pure false
-      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, typeSet, trueTs, falseTs, strongp, canon1, canon2, taEntry, path }
+      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, typeSet, trueTs, falseTs, strongp, canon1, canon2, taEntry, tauBasis, path }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
@@ -1043,6 +1069,11 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
         let lit ← lookupKeyword "LIT" rest
           |>.elim (throw "COMPLEMENT-CLOSE: missing :LIT") pure
         pure (.complementClose lit)
+    | .atom (.keyword "DEDUP-DROP") :: rest =>
+        -- fork-batch item E: the add-literal duplicate drop.
+        let lit ← lookupKeyword "LIT" rest
+          |>.elim (throw "DEDUP-DROP: missing :LIT") pure
+        pure (.dedupDrop lit)
     | .atom (.keyword "TA-SUBST") :: rest =>
         let new_ ← lookupKeyword "NEW" rest
           |>.elim (throw "TA-SUBST: missing :NEW") pure
@@ -1438,10 +1469,13 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
                          lookupKeyword "MEASURED" fields with
           | none, none, none =>
             -- a non-recursive defun also has no obligations
-            match lookupKeyword "TERMINATION-CLAUSES" fields with
-            | none => pure none
-            | some c => throw s!"DEFUN {name}: :TERMINATION-CLAUSES without a \
-                                justification: {repr c}"
+            match lookupKeyword "TERMINATION-CLAUSES" fields,
+                  lookupKeyword "TERMINATION-RUNES" fields with
+            | none, none => pure none
+            | some c, _ => throw s!"DEFUN {name}: :TERMINATION-CLAUSES without \
+                                   a justification: {repr c}"
+            | _, some r => throw s!"DEFUN {name}: :TERMINATION-RUNES without \
+                                   a justification: {repr r}"
           | some m, some r, some sub => do
             let rel ← match r with
               | .atom (.symbol s) => pure s
@@ -1479,8 +1513,23 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
               let clauses ← clausesExpr.toList?.elim
                 (throw s!"DEFUN {name}: :TERMINATION-CLAUSES is not a list: \
                          {repr clausesExpr}") pure
+              -- :TERMINATION-RUNES (fork-batch item H): the admission's
+              -- cited rune set, per-admission. Absent = no channel (an
+              -- include-book re-emission, or a pre-batch log); a
+              -- present-but-malformed value hard-fails.
+              let termRunes ← match lookupKeyword "TERMINATION-RUNES" fields with
+                | none => pure none
+                | some rs => match rs.toList? with
+                  | some items => do
+                    let runes ← items.mapM fun r => (parseRune? r).elim
+                      (throw s!"DEFUN {name}: bad rune in \
+                               :TERMINATION-RUNES: {repr r}") pure
+                    pure (some runes)
+                  | none => throw s!"DEFUN {name}: :TERMINATION-RUNES is \
+                                    not a list: {repr rs}"
               pure (some { measure := m, wfRel := rel, measuredSubset := subSyms,
-                           terminationClauses := clauses })
+                           terminationClauses := clauses,
+                           terminationRunes := termRunes })
             | none, some _ =>
               throw s!"DEFUN {name}: :INCLUDED without :TERMINATION-CLAUSES \
                       — stale-fork capture (the include re-emission \

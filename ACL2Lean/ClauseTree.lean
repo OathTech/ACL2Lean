@@ -537,6 +537,7 @@ private partial def collectHypEquivs : List ClauseItem → List (EquivSource × 
   | .useHint _ _ _ _ :: rest => collectHypEquivs rest
   | .fcDerivations _ :: rest => collectHypEquivs rest
   | .complementClose _ :: rest => collectHypEquivs rest
+  | .dedupDrop _ :: rest => collectHypEquivs rest
   | .taSubst .. :: rest => collectHypEquivs rest
   | .branch _ items :: rest => collectHypEquivs items ++ collectHypEquivs rest
 
@@ -569,6 +570,8 @@ private partial def linkItems (cands : List (EquivSource × SExpr))
   | .useHint h c a l :: rest => do return .useHint h c a l :: (← linkItems cands rest)
   | .complementClose lit :: rest => do
       return .complementClose lit :: (← linkItems cands rest)
+  | .dedupDrop lit :: rest => do
+      return .dedupDrop lit :: (← linkItems cands rest)
   | .taSubst n f ts sn so :: rest => do
       return .taSubst n f ts sn so :: (← linkItems cands rest)
   | .fcDerivations d :: rest => do return .fcDerivations d :: (← linkItems cands rest)
@@ -1077,6 +1080,7 @@ private partial def itemNodes : List ClauseItem → List ProofNode
   | .useHint _ _ _ _ :: rest => itemNodes rest
   | .fcDerivations _ :: rest => itemNodes rest
   | .complementClose _ :: rest => itemNodes rest
+  | .dedupDrop _ :: rest => itemNodes rest
   | .taSubst .. :: rest => itemNodes rest
   | .branch _ items :: rest => itemNodes items ++ itemNodes rest
 
@@ -1205,6 +1209,8 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       IO.println s!"{pad}  │    fc-derivations: {derivs.length} record(s)"
     | .complementClose lit =>
       IO.println s!"{pad}  │    complement-close: {lit}"
+    | .dedupDrop lit =>
+      IO.println s!"{pad}  │    dedup-drop: {lit}"
     | .taSubst n f _ _ _ =>
       IO.println s!"{pad}  │    ta-subst: {f} ⇒ {n}"
     | .useHint hyps ccl appC _lmis =>

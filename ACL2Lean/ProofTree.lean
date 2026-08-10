@@ -170,6 +170,12 @@ structure LiteralProof where
       by the replay's complement-tautology arm as the RECORDED close
       (retiring the inferred-from-absence reading, user ruling B1). -/
   complementCloses : List SExpr := []
+  /-- Recorded add-literal DUPLICATE drops inside this literal's window
+      (`emit/dedup-drop`, fork-batch item E): each is the literal that
+      was already present in the clause under construction. Consumed by
+      the replay's dedup-skip arm as the RECORDED drop (retiring the
+      inferred-from-shape trigger). -/
+  dedupDrops : List SExpr := []
   /-- Literal-BOUNDARY type-set verdicts (`emit/atm/try-type-set`,
       fork-batch item 5): rewrite-atm ABANDONS the chain's progress and
       re-decides the ORIGINAL atom by type-set in isolation — so these
@@ -244,6 +250,11 @@ structure ClausifyInfo where
       close here — provenance for the drop, position-indexed by the split
       count at firing time. -/
   complementCloses : List (Nat × SExpr) := []
+  /-- add-literal DUPLICATE drops fired DURING this clausification
+      (fork-batch item E): provenance for a duplicate literal absorbed
+      by add-literal, position-indexed by the split count at firing
+      time (the complementCloses discipline). -/
+  dedupDrops : List (Nat × SExpr) := []
   deriving Repr, Inhabited
 
 /-- One item in a clause-level proof step's branch tree (ACL2's `:REWRITES`), in
@@ -273,6 +284,8 @@ inductive ClauseItem where
   | fcDerivations (derivations : List SExpr)
   /-- A clause-level add-literal COMPLEMENT close (fork-batch item 7). -/
   | complementClose (lit : SExpr)
+  /-- A clause-level add-literal DUPLICATE drop (fork-batch item E). -/
+  | dedupDrop (lit : SExpr)
   /-- Clause-level derived-entry provenance (`emit/ta-subst`) recorded
       OUTSIDE any literal window (audit 2026-08-07 S5: previously
       absorbed silently — 34 corpus records). Recorded, consumed by
@@ -407,7 +420,8 @@ partial def parseProofNodesAux (events : List TraceEvent)
       parseProofNodesAux rest pendingChildren nodes
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
   | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ _ :: _
-  | .fcDerivations _ :: _ | .complementClose _ :: _ | .taSubst .. :: _
+  | .fcDerivations _ :: _ | .complementClose _ :: _ | .dedupDrop _ :: _
+  | .taSubst .. :: _
   | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
   | .clausifyOut _ :: _ | .clausifyExpand _ _ _ _ :: _ =>
       -- A clause-structure boundary: stop and hand the remaining events back to
@@ -483,6 +497,10 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
         -- the dropped clause never reaches the out set; the record is
         -- provenance, absorbed here (phase-2 closes are indexed below).
         takeExpands acc pend rest
+    | .dedupDrop _ :: rest =>
+        -- item E: an add-literal duplicate drop during the whole-formula
+        -- pass — provenance, absorbed (phase-2 drops are indexed below).
+        takeExpands acc pend rest
     | .taSubst .. :: rest =>
         -- ta-subst provenance during clausify's whole-formula pass —
         -- absorbed (assume-true-false runs inside if-interp).
@@ -530,6 +548,10 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
         go acc sx pend rest |>.map fun (info, r) =>
           ({ info with complementCloses :=
               (acc.length, l) :: info.complementCloses }, r)
+    | .dedupDrop l :: rest =>
+        go acc sx pend rest |>.map fun (info, r) =>
+          ({ info with dedupDrops :=
+              (acc.length, l) :: info.dedupDrops }, r)
     | .taSubst .. :: rest =>
         go acc sx pend rest
     | .clausifySplit lit cl :: rest =>
@@ -596,6 +618,9 @@ partial def parseClauseItems (events : List TraceEvent)
       let compCloses := litEvents.filterMap fun
         | .complementClose l => some l
         | _ => none
+      let dedupDropsL := litEvents.filterMap fun
+        | .dedupDrop l => some l
+        | _ => none
       let taSubsts := litEvents.filterMap fun
         | .taSubst n f ts sn so => some (n, f, ts, sn, so)
         | _ => none
@@ -609,7 +634,8 @@ partial def parseClauseItems (events : List TraceEvent)
         | _ => none
       let chainEvents := litEvents.filter fun
         | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _
-        | .clausifyConjunction .. | .complementClose _ | .taSubst .. => false
+        | .clausifyConjunction .. | .complementClose _ | .dedupDrop _
+        | .taSubst .. => false
         | .rewriteStep st => st.origin != "atm/try-type-set"
         | _ => true
       let nodes ← buildProofNodes chainEvents
@@ -618,6 +644,7 @@ partial def parseClauseItems (events : List TraceEvent)
       return (.literal { index, literal, notFlg, nodes, result := litResult,
                          splitTrace, splitReshaped,
                          complementCloses := compCloses,
+                         dedupDrops := dedupDropsL,
                          boundaryVerdicts, taSubsts, ifMarkers } :: more, rest'')
   | .clausifyInput input :: rest =>
       -- collect the contiguous clausify block: [expand*] neg ([expand*] split)* out
@@ -630,6 +657,9 @@ partial def parseClauseItems (events : List TraceEvent)
   | .complementClose lit :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.complementClose lit :: more, rest')
+  | .dedupDrop lit :: rest =>
+      let (more, rest') ← parseClauseItems rest
+      return (.dedupDrop lit :: more, rest')
   | .taSubst n f ts sn so :: rest =>
       -- clause-level ta-subst provenance outside any literal window
       -- (audit S5): RECORDED as an item, not dropped.

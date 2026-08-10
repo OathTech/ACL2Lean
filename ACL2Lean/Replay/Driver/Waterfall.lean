@@ -227,6 +227,7 @@ partial def clauseSubtreeTerms (cn : ClauseNode) : List SExpr :=
       | .useHint hyps ccl appC _lmis => hyps ++ ccl ++ appC.flatMap id
       | .fcDerivations _ => []
       | .complementClose lit => [lit]
+      | .dedupDrop lit => [lit]
       | .taSubst n f _ sn so => [n, f, sn, so]
       | .branch _ items => items.flatMap goI
     goI it

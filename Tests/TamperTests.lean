@@ -54,6 +54,7 @@ private partial def mapItem (f : ProofNode → ProofNode) : ClauseItem → Claus
   | .useHint h c a l => .useHint h c a l
   | .fcDerivations d => .fcDerivations d
   | .complementClose lit => .complementClose lit
+  | .dedupDrop lit => .dedupDrop lit
   | .taSubst n f ts sn so => .taSubst n f ts sn so
 
 private partial def mapClause (f : ProofNode → ProofNode) (n : ClauseNode) : ClauseNode :=

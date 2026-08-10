@@ -58,6 +58,7 @@ def itemDischargeOrigins : ClauseItem → List (String × SExpr)
   | .useHint _ _ _ _ => []
   | .fcDerivations _ => []
   | .complementClose _ => []
+  | .dedupDrop _ => []
   | .taSubst .. => []
   | .branch _ items => items.flatMap itemDischargeOrigins
 

@@ -265,7 +265,7 @@ elab "coverage_book% " nameLit:str : command => do
     | .ok ls => pure ls
     | .error e => throwError "coverage_book% {name}: {e}"
   let rows := lines.filter (fun l => l.startsWith "    " && (l.splitOn " → ").length > 1)
-  let thmRows := rows.filter (fun l => !(l.trimLeft.startsWith "termination:"))
+  let thmRows := rows.filter (fun l => !(l.trimAsciiStart.startsWith "termination:"))
   let replayedRows := thmRows.filter (fun l => (l.splitOn " → REPLAYED ✓").length > 1)
   -- the COMPOSED row's cond only — strip the [DISCHARGE: …] suffix
   -- first (probe leaves carry their own cond[ text)

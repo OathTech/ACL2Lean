@@ -63,6 +63,12 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- literal's complementCloses (retirement wiring lands with the
     -- recaptured corpus) — skip in the spine walk, never a step
     replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
+  | .dedupDrop _ :: rest =>
+    -- The recorded add-literal duplicate drop (fork-batch item E) is
+    -- clause DATA consumed by the dedup-skip arm via the literal items
+    -- (retirement wiring lands with the recaptured corpus) — skip in
+    -- the spine walk, never a step
+    replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
   | .taSubst .. :: rest =>
     -- clause-level derived-entry provenance (audit S5): recorded DATA,
     -- consumed by nothing yet — skip in the spine walk, never a step
@@ -871,6 +877,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                             | some (.useHint ..) => "use-hint"
                             | some (.fcDerivations ..) => "fc-derivations"
                             | some (.complementClose ..) => "complement-close"
+                            | some (.dedupDrop ..) => "dedup-drop"
                             | some (.taSubst ..) => "ta-subst"
                             | some (.branch ..) => "branch"
                             | none => "none"}"

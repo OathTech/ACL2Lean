@@ -161,6 +161,7 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .useHint _ _ _ _ :: rest => flattenLiterals rest
   | .fcDerivations _ :: rest => flattenLiterals rest
   | .complementClose _ :: rest => flattenLiterals rest
+  | .dedupDrop _ :: rest => flattenLiterals rest
   | .taSubst .. :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
 
