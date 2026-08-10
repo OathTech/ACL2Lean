@@ -341,6 +341,12 @@ def liftCatalog : List (String × String × LiftStatus) := [
       decrease unless fixed) — greened by the recursive equal-descent
       protocol (restructure arc); natural native over the bnext sim,
       queued with the bsort cluster's natives"),
+  ("sorting/bsort", "ORDEREDP-WHEN-BNEXT-CONSTANT",
+    .pending "a bnext fixed point is ordered — GREENED in the endgame
+      arc (2e: the expansion detail chain consumed as value equalities,
+      the recorded-drop clausify relaxation, the positioned unresolved
+      probe); natural native over the bnext sim, queued with the bsort
+      cluster's natives"),
   ("sorting/bsort", "ORDEREDP-BSORT",
     .pending "bsort's output is ordered — the interpCount μ-route row
       (restructure arc); native (orderedpL (bsortL l)) over the exec

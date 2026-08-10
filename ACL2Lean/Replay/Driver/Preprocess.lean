@@ -535,6 +535,100 @@ construction entirely; its premises are the Fragment-A bundle, the input's
 lift fact (by reduction), and the opaque-key well-formedness (by kernel
 decision). -/
 
+/-- Consume an expansion's recorded DETAIL chain (2e, design ruled
+    2026-08-10): stepwise from the registry form `r0` to the recorded
+    `:TO`, each step by its own recipe — `preprocess/equal-self` at the
+    whole term or a direct IF branch (liftability of the discarded side
+    kernel-decided), and the `preprocess/if-iff` collapse at the whole
+    term over an EQUAL-headed (boolean) carrier, where the recorded
+    `:EQUIV IFF` step is a VALUE equality (`dpLiftF_if_t_nil_equal`) —
+    the approved nilEquiv weakening stays the fallback for a non-boolean
+    carrier (loud frontier until witnessed). Returns the final term and
+    `dpLiftF vars opq r0 = dpLiftF vars opq final`. -/
+def consumeExpandDetail (b : DpLiftBundle) (hwf : Expr)
+    (r0 : SExpr) (detail : List TraceEvent) : MetaM (SExpr × Expr) := do
+  let liftE : SExpr → Expr := fun t =>
+    mkApp3 (mkConst ``dpLiftF) b.varsE b.opqE (reflectSExpr t)
+  let mut cur := r0
+  let mut prf? : Option Expr := none
+  for ev in detail do
+    let .rewriteStep st := ev
+      | throwError "2e detail: non-step detail event (frontier)"
+    let (next, step) ←
+      if st.origin == "preprocess/equal-self" then do
+        let .cons (.atom (.symbol es)) (.cons u (.cons u' .nil)) := st.lhs
+          | throwError "2e detail: equal-self lhs {repr st.lhs} is not \
+              binary (frontier)"
+        unless es.name == "EQUAL" && u == u' && st.rhs == quoteT do
+          throwError "2e detail: equal-self step shape mismatch at \
+              {repr st.lhs} (frontier)"
+        let hu ← mkDecideProof (← mkEq
+          (← Lean.Meta.mkAppM ``Option.isSome #[liftE u])
+          (mkConst ``Bool.true))
+        let hSelf ← mkAppOptM ``dpLiftF_equal_self
+          #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr u),
+            some hu]
+        if cur == st.lhs then
+          pure (quoteT, hSelf)
+        else match cur with
+          | .cons (.atom (.symbol ifs))
+              (.cons c (.cons bb (.cons ee .nil))) =>
+            if ifs.name == "IF" && bb == st.lhs then do
+              let he ← Lean.Meta.mkEqRefl (liftE ee)
+              let p ← mkAppOptM ``dpLiftF_ifT_congr
+                #[some b.varsE, some b.opqE, some hwf,
+                  some (reflectSExpr c), none, none, none, none,
+                  some hSelf, some he]
+              pure ((ifT c quoteT ee : SExpr), p)
+            else if ifs.name == "IF" && ee == st.lhs then do
+              let hb ← Lean.Meta.mkEqRefl (liftE bb)
+              let p ← mkAppOptM ``dpLiftF_ifT_congr
+                #[some b.varsE, some b.opqE, some hwf,
+                  some (reflectSExpr c), none, none, none, none,
+                  some hb, some hSelf]
+              pure ((ifT c bb quoteT : SExpr), p)
+            else throwError "2e detail: equal-self lhs {repr st.lhs} is \
+                neither the current term nor a direct IF branch of \
+                {repr cur} (frontier)"
+          | _ => throwError "2e detail: equal-self lhs {repr st.lhs} \
+              does not match the current term {repr cur} (frontier)"
+      else if st.origin == "preprocess/if-iff" then do
+        unless cur == st.lhs do
+          throwError "2e detail: if-iff lhs {repr st.lhs} ≠ the current \
+              term {repr cur} (frontier)"
+        let .cons (.atom (.symbol ifs))
+            (.cons tst (.cons th (.cons el .nil))) := st.lhs
+          | throwError "2e detail: if-iff lhs {repr st.lhs} is not an IF \
+              (frontier)"
+        unless ifs.name == "IF" && th == quoteT && el == quoteNil &&
+            st.rhs == tst do
+          throwError "2e detail: if-iff step is not the (IF x 'T 'NIL) ⇒ x \
+              collapse at {repr st.lhs} (frontier)"
+        let .cons (.atom (.symbol es)) (.cons a (.cons bb .nil)) := tst
+          | throwError "2e detail: if-iff collapse over the non-EQUAL \
+              carrier {repr tst} — the value-equality recipe needs a \
+              boolean carrier; the approved nilEquiv fallback has no \
+              witness yet (frontier)"
+        unless es.name == "EQUAL" do
+          throwError "2e detail: if-iff collapse over the non-EQUAL \
+              carrier {repr tst} — the value-equality recipe needs a \
+              boolean carrier; the approved nilEquiv fallback has no \
+              witness yet (frontier)"
+        let p ← mkAppOptM ``dpLiftF_if_t_nil_equal
+          #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr a),
+            some (reflectSExpr bb)]
+        pure (tst, p)
+      else
+        throwError "2e detail: unrecognized detail origin {st.origin} \
+            (frontier)"
+    prf? := some (← match prf? with
+      | none => pure step
+      | some p => Lean.Meta.mkAppM ``Eq.trans #[p, step])
+    cur := next
+  let some prf := prf?
+    | throwError "2e detail: empty detail chain (internal)"
+  return (cur, prf)
+
 /-- The CHECKED expansion walk for one clausify pass (expand-and-or plan
     S3): every recorded firing must be REGISTRY-SHAPED (NOT/ENDP/ATOM
     def-body expansions with the exact emitted if-form target — anything
@@ -542,23 +636,17 @@ decision). -/
     Returns the expanded term t′ and the PROOF
     `dpLiftF vars opq t′ = dpLiftF vars opq input` (via the per-builtin
     registry lemmas + `expandTerm_liftEq`, with the walk itself
-    kernel-decided). `none` expansions short-circuit to (input, rfl-free). -/
+    kernel-decided). `none` expansions short-circuit to (input, rfl-free).
+    An expansion carrying recorded DETAIL steps (2e) composes its registry
+    identity with the stepwise detail chain (`consumeExpandDetail`). -/
 def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
     (exps : List ClausifyExpansion) (input : SExpr) (pos : Bool) :
     MetaM (SExpr × Option Expr) := do
   if exps.isEmpty then return (input, none)
-  -- NEVER-IGNORE (2e): an expansion carrying recorded DETAIL steps (the
-  -- expand-and-or internal abbreviation pass — the bsort/p4 class) is a
-  -- replay frontier until the detail-chain replay lands; consuming the
-  -- expansion while dropping its steps would misreplay the :TO derivation.
-  for e in exps do
-    unless e.detail.isEmpty do
-      throwError "runCheckedExpand: expansion {repr e.fromTerm} carries \
-          {e.detail.length} recorded detail step(s) (expand-and-or's \
-          internal abbreviation pass) — detail-chain replay is a frontier \
-          (2e; the recon now represents it, the replay does not yet \
-          consume it)"
-  -- registry shape validation (value-level, fail-closed)
+  -- registry shape validation (value-level, fail-closed); DETAIL-carrying
+  -- expansions (2e) defer their :TO check to the stepwise consumption in
+  -- the entry-proof pass — only the EQUAL lemma arm supports details
+  -- (the recorded class); a detailed unary expansion stays a frontier
   let mkIfT (c : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := "IF" }))
       (.cons c (.cons quoteNil (.cons quoteT .nil)))
@@ -567,6 +655,10 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
   for e in exps do
     match e.fromTerm with
     | .cons (.atom (.symbol h)) (.cons x .nil) =>
+      unless e.detail.isEmpty do
+        throwError "runCheckedExpand: unary expansion {repr e.fromTerm} \
+            carries detail steps — only the EQUAL lemma arm's detail class \
+            is recorded (frontier)"
       if h.name == "NOT" then
         unless e.toTerm == mkIfT x do
           throwError "runCheckedExpand: NOT expansion target {repr e.toTerm} \
@@ -634,9 +726,10 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
                       (.cons b .nil)) .nil)))
                     (.cons quoteNil .nil))))
                 (.cons quoteNil .nil)))
-      unless e.toTerm == expected do
-        throwError "runCheckedExpand: EQUAL-CONS expansion target \
-            {repr e.toTerm} ≠ the registry decomposition form (frontier)"
+      if e.detail.isEmpty then
+        unless e.toTerm == expected do
+          throwError "runCheckedExpand: EQUAL-CONS expansion target \
+              {repr e.toTerm} ≠ the registry decomposition form (frontier)"
     | _ =>
       throwError "runCheckedExpand: expansion FROM {repr e.fromTerm} is not \
           a registry application (frontier)"
@@ -685,24 +778,49 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
         else if h.name == "ENDP" then ``dpLiftF_endp_expand
         else ``dpLiftF_atom_expand
       mkAppOptM lem #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x)]
-    | .cons _ (.cons (.cons _ (.cons x (.cons y .nil))) (.cons z .nil)) =>
+    | .cons _ (.cons (.cons _ (.cons x (.cons y .nil))) (.cons z .nil)) => do
       -- the (EQUAL (CONS x y) z) lemma arm (validated above); the
       -- CONS-CONS variant takes its own registry identity
-      match z with
-      | .cons (.atom (.symbol zs)) (.cons x2 (.cons y2 .nil)) =>
-        if zs.name == "CONS" then
-          mkAppOptM ``dpLiftF_equal_cons_cons_expand
-            #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
-              some (reflectSExpr y), some (reflectSExpr x2),
-              some (reflectSExpr y2)]
-        else
-          mkAppOptM ``dpLiftF_equal_cons_expand
+      let (hReg, regForm) ←
+        match z with
+        | .cons (.atom (.symbol zs)) (.cons x2 (.cons y2 .nil)) =>
+          if zs.name == "CONS" then do
+            let p ← mkAppOptM ``dpLiftF_equal_cons_cons_expand
+              #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
+                some (reflectSExpr y), some (reflectSExpr x2),
+                some (reflectSExpr y2)]
+            let eqApp : SExpr → SExpr → SExpr := fun a bb =>
+              .cons (.atom (.symbol { name := "EQUAL" }))
+                (.cons a (.cons bb .nil))
+            pure (p, (.cons (.atom (.symbol { name := "IF" }))
+              (.cons (eqApp x x2) (.cons (eqApp y y2)
+                (.cons quoteNil .nil))) : SExpr))
+          else do
+            unless e.detail.isEmpty do
+              throwError "runCheckedExpand: detail steps on the \
+                  CONSP-guard EQUAL-CONS variant have no witness (frontier)"
+            let p ← mkAppOptM ``dpLiftF_equal_cons_expand
+              #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
+                some (reflectSExpr y), some (reflectSExpr z)]
+            pure (p, e.toTerm)
+        | _ => do
+          unless e.detail.isEmpty do
+            throwError "runCheckedExpand: detail steps on the CONSP-guard \
+                EQUAL-CONS variant have no witness (frontier)"
+          let p ← mkAppOptM ``dpLiftF_equal_cons_expand
             #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
               some (reflectSExpr y), some (reflectSExpr z)]
-      | _ =>
-        mkAppOptM ``dpLiftF_equal_cons_expand
-          #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
-            some (reflectSExpr y), some (reflectSExpr z)]
+          pure (p, e.toTerm)
+      if e.detail.isEmpty then
+        pure hReg
+      else do
+        -- 2e: compose the registry identity with the stepwise detail chain
+        let (finalT, hDet) ← consumeExpandDetail b hwf regForm e.detail
+        unless finalT == e.toTerm do
+          throwError "runCheckedExpand: detail chain from {repr regForm} \
+              ends at {repr finalT} ≠ the recorded target {repr e.toTerm} \
+              (frontier)"
+        Lean.Meta.mkAppM ``Eq.trans #[hReg, hDet]
     | _ => throwError "runCheckedExpand: internal — shape re-check"
   let (_, hexpRaw) ← mkForallMemProof cexpTy pFn (cexpEs.zip entryProofs)
   let memTy ← withLocalDeclD `e cexpTy fun eV => do
@@ -766,6 +884,19 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
   -- one). Any other divergence still hard-fails.
   let recomputedSplit := clausifyPure t' true
   let dedupHit := recomputedSplit != cl0 && dedupClause recomputedSplit == cl0
+  -- RECORDED-drop relaxation (2e + item E): add-literal's member-term
+  -- drop removes a COMMUTED duplicate the exact-dup `dedupClause` cannot
+  -- see; accepted ONLY when removing exactly the recorded (:DEDUP-DROP …)
+  -- literals (this split's index) from the recompute reproduces the
+  -- recorded clause — a read-off, and the proof needs only membership
+  -- (`clausifyPure_sound_sub`).
+  let removeOnce : List SExpr → SExpr → List SExpr := fun ls d =>
+    match ls.findIdx? (· == d) with
+    | some i => ls.eraseIdx i
+    | none => ls
+  let drops := (info.dedupDrops.filter (·.1 == 0)).map (·.2)
+  let recordedDropHit := recomputedSplit != cl0 && !dedupHit &&
+    !drops.isEmpty && drops.foldl removeOnce recomputedSplit == cl0
   -- TAUTOLOGY-DROPPED record (G1 inc-2c): if-interp folded the split
   -- clause's complementary pair to a 'T literal (the record shows ['T]) and
   -- remove-trivial-clauses dropped the output; the recompute keeps the full
@@ -773,11 +904,12 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
   -- RECOMPUTED clause from its complementary pair below (the same
   -- tautologyp reasoning ACL2 used).
   let tautHit := tautDropped && info.out == [] && cl0 == [quoteT]
-  unless recomputedSplit == cl0 || dedupHit || tautHit do
+  unless recomputedSplit == cl0 || dedupHit || tautHit || recordedDropHit do
     throwError "clausify bridge: recomputed split clause \
                 {repr recomputedSplit} ≠ recorded {repr cl0} \
                 (divergence: an unregistered expansion, disjoin-clauses \
-                literal merging, or an unmirrored dumb-negate-lit arm)"
+                literal merging, an unmirrored dumb-negate-lit arm, or a \
+                dropped literal with no recorded :DEDUP-DROP)"
   unless info.out == [cl0] || (tautDropped && info.out == []) do
     throwError "clausify bridge: output set {repr info.out} ≠ [the split clause] \
                 (multi-clause output — frontier)"
@@ -804,10 +936,22 @@ def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
       -- pair's excluded middle (the shared `tautClauseClose`)
       tautClauseClose cfg ctx recomputedSplit
         "clausify bridge: taut-dropped output"
-  let prfT' ← mkAppM
-    (if dedupHit then ``clausifyPure_sound_dedup else ``clausifyPure_sound)
-    #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
-      reflectSExpr t', mkConst ``Bool.true, hisSomeT', pOut]
+  let prfT' ←
+    if recordedDropHit then do
+      let cl0E ← mkListLit (mkConst ``SExpr) (cl0.map reflectSExpr)
+      let cpE ← mkAppM ``clausifyPure #[reflectSExpr t', mkConst ``Bool.true]
+      let f ← withLocalDeclD `l (mkConst ``SExpr) fun lV => do
+        mkLambdaFVars #[lV] (← mkAppM ``List.contains #[cpE, lV])
+      let hsub ← mkDecideProof
+        (← mkEq (← mkAppM ``List.all #[cl0E, f]) (mkConst ``Bool.true))
+      mkAppM ``clausifyPure_sound_sub
+        #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
+          reflectSExpr t', mkConst ``Bool.true, cl0E, hsub, hisSomeT', pOut]
+    else
+      mkAppM
+        (if dedupHit then ``clausifyPure_sound_dedup else ``clausifyPure_sound)
+        #[cfg.worldExpr, cfg.envExpr, b.hvars, b.hopq, b.hns, hwf,
+          reflectSExpr t', mkConst ``Bool.true, hisSomeT', pOut]
   let prf ← match heq? with
     | none => pure prfT'
     | some heq => do

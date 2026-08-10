@@ -338,7 +338,24 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             eqS.name == "EQUAL" && eqS'.name == "EQUAL" &&
             ca == mkComp a && cb == mkComp b
           | _, _ => false
-        unless ok do
+        -- POSITIONED probe (2e follow-through, ORDEREDP-WHEN *1/4): the
+        -- probed equality sits at the record's :PATH inside the literal
+        -- (the IH's antecedent under an IMPLIES literal) — navigate the
+        -- path past the literal-root frame and validate against THAT
+        -- equality's components; still a no-op consumption.
+        let okPos : Bool :=
+          if ok then false else
+          match (match n with | .node _ _ _ _ p => p.path) with
+          | _ :: restFrames =>
+            if restFrames.isEmpty then false else
+            match navigateFrames start restFrames with
+            | .ok (_, .cons (.atom (.symbol eqS)) (.cons a (.cons b .nil))) =>
+              eqS.name == "EQUAL" &&
+              lhs == SExpr.cons (.atom (.symbol { name := "EQUAL" }))
+                (.cons (mkComp a) (.cons (mkComp b) .nil))
+            | _ => false
+          | [] => false
+        unless ok || okPos do
           throwError "replayRewrites: unresolved {nodeOrigin n} record \
               {repr lhs} does not name the running equality \
               {repr start}'s {pfn} components (frontier)"
