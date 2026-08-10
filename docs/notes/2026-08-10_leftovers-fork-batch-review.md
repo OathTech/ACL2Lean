@@ -121,4 +121,23 @@ BATCH AS EXECUTED (endgame arc, 2026-08-10): **E + H + I** — item F
 dropped per its scout result above (the charter's pre-authorized
 drop class: the artifact already carries the derivation; the fix is
 consumer-side). E/H/I sites and shapes are all pinned and ruled;
-the review is complete.
+the review is complete. Fork 497b21a6b3; ingestion-first tolerance
+landed at 19caaed BEFORE the recapture.
+
+ROUND-TRIP DRIFT (mandatory stop, DIAGNOSED, fixed 2026-08-10):
+the first recapture ballooned every TAU-BASIS-carrying world by
+~90 defuns (ordered-perms 21→105, equisort 31→104,
+sorts-equivalent 214→279) and regressed MSORT/QSORT-IS-ISORT to
+ASSUMED (usefi prepare over maxRecDepth in the bloated world).
+Cause: the slice printed the GROUND-ZERO implicant universe (CONSP's
+pos/neg-implicants name ZPF, DFP, BAD-ATOM, …) through the
+cited-symbol collector (infra/cited-symbols), whose def-closure then
+gz-snapshot-emitted every named predicate clique. Fix (fork
+f9d4a99b68, the fertilize :DELETE-LIT-FLG remedy class —
+emission-side payload normalization): PREDEFINED fns contribute
+their tau-pair identity only (:GZ T); world-entering fns keep the
+full ruled slice. DEVIATION NOTE vs the ruled shape: gz fns' tau
+data is world-CONSTANT and lives Lean-side as ground-zero knowledge
+(fail-closed at any use site that lacks it) — the fn-restriction
+and the user-fn payload are exactly as ruled; flagged for the exit
+audit + Mike's review.
