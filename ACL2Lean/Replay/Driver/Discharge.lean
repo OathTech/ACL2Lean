@@ -28,6 +28,22 @@ totality/TP hypotheses. Two entry points:
   preprocess chains: opaque values come from the ambient `ReplayCtx` PINS, TP
   facts from the bound TP hypotheses; an unclosable fact is a frontier error. -/
 
+/-- The ASSUMED-dp-fact condition LABEL — one named constant for the
+    guard sites (verifier residual N2, 2026-08-05: a rename of the raw
+    string at any one site would silently disable the others' guards).
+    (Moved from NodeCore/Ctx, endgame-arc weight trim.) -/
+def assumedDpFactCond : String := "ASSUMED:dp-fact"
+
+/-- Reserved condition marker: a KEPT `usefi:` hypothesis whose formula IS
+    the row's own goal (the tautology-dropped FI shape with an undischarged
+    functional-instance license). The row's conditional statement is then
+    `… → (∀ env', ⟦goal⟧) → ⟦goal⟧` — vacuous — so the runner renders it
+    ASSUMED ◌ and refuses registration, exactly like `assumedDpFactCond`
+    (audit 2026-08-09, outside D1: BSORT-IS-ISORT verified `rfl`-equal to
+    hypothesis projection). The row turns ✓ when the alias-world
+    composition (2c) discharges the usefi. -/
+def assumedFiSelfCond : String := "ASSUMED:fi-self"
+
 /-- Discharge-node origins (the verdict-only sites instrumented in ACL2's
     preprocess; see the emission plan). -/
 def dischargeOrigins : List String :=
@@ -45,6 +61,91 @@ def dischargeOrigins : List String :=
    -- rides the gz snapshot into the replay-side linear: premises.
    "simplify-clause/linear-contradiction"]
 
+
+/-- One rule ALLOWANCE read off a recorded `:TAU-BASIS` slice (fork-batch
+    item I): the reconstructed stored-rule shape a slice signature rule
+    corresponds to — matched VERBATIM against `ctx.ruleHyps` specs
+    (hyps + lhs + rhs syntactic equality; both sides use the defthm's own
+    variables). Read-off, not matcher selection. -/
+structure TauSigAllow where
+  hyps : List SExpr
+  lhs : SExpr
+  rhs : SExpr
+  deriving Repr, BEq
+
+/-- Parse a recorded `:TAU-BASIS` slice into rule allowances. Per non-gz
+    fn entry, each form-1 signature rule
+    `(input-tau-list (vars . dhyps) sign recog)` with POSITIVE sign and
+    input taus that are empty or POS-PAIRS-ONLY reconstructs (per
+    `decode-tau-signature-rule`'s cases): each input tau's pos-pairs give
+    `(pred var)` hypotheses (ORDEREDP-RM's `(ORDEREDP A)` shape); then a
+    singleton-evg recog `(c)` → `lhs := (fn vars), rhs := 'c`; a tau-pair
+    recog `(i . pred)` → `lhs := (pred (fn vars)), rhs := 'T`. Every
+    other shape (evg/interval/neg-pair input constraints, negative sign,
+    `:LESSP-*` discriminators, form-2 rules, gz entries) contributes
+    NOTHING — completeness, never soundness: a leaf needing one falls
+    back to ASSUMED honestly and names the next extension. -/
+def parseTauBasisAllows (basis : SExpr) : List TauSigAllow := Id.run do
+  let quoteOf : SExpr → SExpr := fun c =>
+    .cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil)
+  -- an input tau with ONLY pos-pairs (or empty) decodes to recognizer
+  -- hypotheses on the corresponding variable; anything else refuses
+  let decodeInputTau : SExpr → SExpr → Option (List SExpr) := fun v tau =>
+    match tau with
+    | .cons (.cons SExpr.nil SExpr.nil)
+        (.cons SExpr.nil (.cons pp SExpr.nil)) =>
+      (pp.toList?).bind fun pairs =>
+        pairs.foldr (init := some []) fun p acc =>
+          match p, acc with
+          | .cons _ (.atom (.symbol pred)), some hs =>
+            some ((SExpr.cons (.atom (.symbol pred)) (.cons v .nil)) :: hs)
+          | _, _ => none
+    | _ => none
+  let mut allows : List TauSigAllow := []
+  let some entries := basis.toList? | return []
+  for entry in entries do
+    let some fields := entry.toList? | continue
+    let getF : String → Option SExpr := fun k => Id.run do
+      let mut rest := fields
+      repeat
+        match rest with
+        | .atom (.keyword k') :: v :: tail =>
+          if k' == k then return some v
+          rest := tail
+        | _ :: tail => rest := tail
+        | [] => return none
+      return none
+    if (getF "GZ").isSome then continue
+    let some (.atom (.symbol fn)) := getF "FN" | continue
+    let some sigs1 := getF "SIGS1" | continue
+    let some rules := sigs1.toList? | continue
+    for r in rules do
+      let some [itl, varsDhyps, sign, recog] := r.toList? | continue
+      unless sign == SExpr.t do continue
+      let .cons varsS dhypsS := varsDhyps | continue
+      let some varsL := varsS.toList? | continue
+      let some dhypsBase := dhypsS.toList? | continue
+      let some itlL := itl.toList? | continue
+      unless itlL.length == varsL.length do continue
+      let inHyps? := (varsL.zip itlL).foldr (init := some ([] : List SExpr))
+        fun (v, tau) acc =>
+          match decodeInputTau v tau, acc with
+          | some hs, some acc' => some (hs ++ acc')
+          | _, _ => none
+      let some inHyps := inHyps? | continue
+      let dhyps := inHyps ++ dhypsBase
+      let eterm : SExpr := .cons (.atom (.symbol fn)) varsS
+      match recog with
+      | .cons c .nil =>
+        let a : TauSigAllow := { hyps := dhyps, lhs := eterm, rhs := quoteOf c }
+        allows := allows ++ [a]
+      | .cons _ (.atom (.symbol pred)) =>
+        let predApp : SExpr := .cons (.atom (.symbol pred)) (.cons eterm .nil)
+        let a : TauSigAllow :=
+          { hyps := dhyps, lhs := predApp, rhs := quoteOf SExpr.t }
+        allows := allows ++ [a]
+      | _ => continue
+  return allows
 
 /-- Discharge-node occurrences in a clause item (the top-level verdict-only
     step nodes; single source — Runner and the conditional harness both

@@ -54,24 +54,21 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
   match items with
   | .fcDerivations _ :: rest =>
     -- FC provenance blocks are clause DATA, not spine steps (cluster item
-    -- 4; the Phase-6 consumer reads them from the clause items) — skip in
-    -- the spine walk, never a step
+    -- 4; the Phase-6 consumer reads them from the clause items)
     replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
   | .complementClose _ :: rest =>
-    -- The recorded add-literal complement close (fork-batch item 7) is
-    -- clause DATA consumed by the complement-tautology arm below via the
-    -- literal's complementCloses (retirement wiring lands with the
-    -- recaptured corpus) — skip in the spine walk, never a step
+    -- item 7's recorded complement close: clause DATA consumed by the
+    -- complement-tautology arm via the literal's complementCloses
     replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
-  | .dedupDrop _ :: rest =>
-    -- The recorded add-literal duplicate drop (fork-batch item E) is
-    -- clause DATA consumed by the dedup-skip arm via the literal items
-    -- (retirement wiring lands with the recaptured corpus) — skip in
-    -- the spine walk, never a step
-    replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
+  | .dedupDrop lit :: rest =>
+    -- item E's recorded duplicate drop: threaded into ctx to license the
+    -- dedup-skip arm; never a step
+    replayClauseSpineWith rec cfg
+      { ctx with dedupDrops := ctx.dedupDrops ++ [lit] }
+      idStr clauseLits rest accClause children
   | .taSubst .. :: rest =>
     -- clause-level derived-entry provenance (audit S5): recorded DATA,
-    -- consumed by nothing yet — skip in the spine walk, never a step
+    -- consumed by nothing yet; never a step
     replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
   | [] =>
     -- SILENT TAUTOLOGY close (G2 rung 2): a branch-substitution can create a
@@ -86,15 +83,12 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     if children.isEmpty && lits.any (fun l => lits.contains (notOfL l)) then
       return ← tautClauseClose cfg ctx lits s!"replayClauseSpine at {idStr}"
     -- LINEAR EQUATION-ADD close (2b increment 3; ACL2-COUNT-EVENS-STRONG
-    -- *1/2.3'''): process-equational-polys derives an equation from the
-    -- linear pot (verdict-only — fake-rune-for-linear-equalities + the
-    -- cited :LINEAR rules) and pushes ONE child = ¬eq ∨ (this clause,
-    -- UNCHANGED). byCases on the escape literal's value: false peels the
-    -- replayed child's head (no transport — the clause is unchanged);
-    -- true closes the parent by the DP obligation `eq ∨ clause`
-    -- (`replayDischargeNode`, carrying the cited gz :LINEAR rules'
-    -- instantiated premises — 3b-iv). Every non-matching shape falls
-    -- through to the loud frontier below.
+    -- *1/2.3'''): process-equational-polys derives a pot equation
+    -- (verdict-only) and pushes ONE child = ¬eq ∨ (this clause,
+    -- UNCHANGED). byCases on the escape literal: false peels the replayed
+    -- child's head; true closes the parent by the DP obligation
+    -- `eq ∨ clause` (`replayDischargeNode`, cited gz :LINEAR premises —
+    -- 3b-iv). Non-matching shapes fall through to the loud frontier.
     let tryEqAdd : MetaM (Option Expr) := do
       let [child] := children | return none
       let negEqL :: restL := child.inputClause | return none
@@ -172,7 +166,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         throwError "replayClauseSpine: items remain after a whole-clause \
                     discharge at {idStr}"
       if (nodeLhsRhs n).1 == dTerm then
-        return ← replayDischargeNode cfg ctx dTerm
+        return ← replayDischargeNode cfg
+          { ctx with tauBasis := nodeTauBasis n } dTerm
       -- PREFIX-shaped verdict node (see `prefixDischargeExtend` —
       -- add-literal dropped a trivially-nil tail; monotone weakening)
       return ← prefixDischargeExtend cfg ctx idStr allL (nodeLhsRhs n).1
@@ -1015,17 +1010,14 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       | throwError "replayClauseSpine: literal item {idx} beyond the clause's \
                     literals at {idStr} (item/clause walk divergence)"
     unless idx == cidx && lp.literal == clit do
-      -- a SKIPPED literal: fact-backed collapse (`litSkipCollapse` — audit
-      -- 2026-07-06's soundness note) or the add-literal DEDUP skip
-      -- (`dedupSkipClose` — the upstream anchor and disambiguation live
-      -- on the helper's docstring)
+      -- a SKIPPED literal — `spineSkippedLiteral` (fact-backed collapse, or
+      -- the item-E recorded dedup skip)
       if lp.literal != clit then
         let recur := fun ctx' lits' =>
           replayClauseSpineWith rec cfg ctx' idStr lits' items accClause children
-        if let some hNil := ctx.litFactByTerm? clit then
-          return ← litSkipCollapse cfg ctx restLits clit hNil recur
-        else if restLits.any (fun (_, l) => l == clit) then
-          return ← dedupSkipClose cfg ctx idStr clauseLits restLits clit recur
+        if let some p ← spineSkippedLiteral cfg ctx idStr clauseLits
+            restLits clit recur then
+          return p
       throwError "replayClauseSpine: literal item {idx} {repr lp.literal} does \
                   not walk the clause at {idStr} (next clause literal is {cidx} \
                   {repr clit})"

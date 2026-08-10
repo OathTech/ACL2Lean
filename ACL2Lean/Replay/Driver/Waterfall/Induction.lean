@@ -549,16 +549,29 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                 unless schemeActuals ==
                     schemeFormals.map (fun f => SExpr.atom (.symbol f)) do
                   throw eDec
+                -- ADMISSION-CHANNEL rune gating (item H consumer, the
+                -- ruled DP-scan direction): when the justification carries
+                -- the admission's cited rune set (:TERMINATION-RUNES,
+                -- per-admission), rule/linear offers narrow to the cited
+                -- rules — the bundle proves from what ACL2's admission
+                -- actually used (BSORT cites :LINEAR
+                -- HOW-MANY-BAD-PAIRS-BNEXT). Channel absent = ungated.
+                let allowRune : String → String → Bool := fun cls nm =>
+                  match just.terminationRunes with
+                  | none => true
+                  | some rs => rs.any (fun r => r.ty == cls && r.name == nm)
                 let hypFVars : List (String × Expr) :=
                   ctx.totalHyps.map (fun (n, e) => (s!"total:{n}", e))
                   ++ ctx.tpHyps.map (fun (n, _, e) => (s!"tp:{n}", e))
-                  ++ ctx.ruleHyps.map
+                  ++ (ctx.ruleHyps.filter
+                        (fun (r, _) => allowRune "rewrite" r.name)).map
                       (fun (r, e) => (s!"rule:{r.runeKey}", e))
                   -- linear: conditions (equal-descent restructure arc,
                   -- charter item 3): a recorded-termination bundle can be
                   -- conditional on a :LINEAR rule's content
                   -- (termination:BSORT on HOW-MANY-BAD-PAIRS-BNEXT)
-                  ++ ctx.linearHyps.map
+                  ++ (ctx.linearHyps.filter
+                        (fun (r, _) => allowRune "linear" r.name)).map
                       (fun (r, e) => (s!"linear:{r.name}", e))
                 let tpCors := ctx.tpHyps.map (fun (n, c, _) => (n, c))
                 let info ← mkRecTermInfo cfg' [] hypFVars tpCors just

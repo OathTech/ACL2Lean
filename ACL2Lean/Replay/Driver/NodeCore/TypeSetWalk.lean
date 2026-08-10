@@ -152,44 +152,17 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
               match hFlip? with
               | some h => pure (some (xa, ya, ctxD,
                   ← Lean.Meta.mkAppM ``logic_equal_nil_comm #[h]))
-              | none => do
-                -- LEXORDER-ORDER closure (fork-batch item A consumer,
-                -- HOW-MANY-BAD-PAIRS-BNEXT *1/6-family): the recorded
-                -- entry's disequality closes from an in-scope FALSE
-                -- lexorder application on the entry's own sides — either
-                -- orientation refutes the equality (equal would force
-                -- `lexorder_refl`). Directed: only the recorded entry's
-                -- own sides are consulted, never a search.
-                -- HELD UNDER EXPIRY (audit 2026-08-09 inside C1): the
-                -- record's :TA-RUNES are empty, so WHY ACL2's type-alist
-                -- held the entry is not recorded — this rung supplies a
-                -- kernel-checked justification (the ground-zero lexorder
-                -- order axioms, axioms.lisp 27194+) the artifact does not
-                -- name. Same class as rung B: expires when the entry's
-                -- derivation provenance is emitted; do not extend.
-                let mkLex : SExpr → SExpr → SExpr := fun p q =>
-                  .cons (.atom (.symbol { name := "LEXORDER" }))
-                    (.cons p (.cons q .nil))
-                let tryLex : SExpr → SExpr → MetaM (Option Expr) :=
-                  fun p q => do
-                    let ctxL ← pinTermOpaques cfg cfg.envExpr ctxD (mkLex p q)
-                    let vP ← ctxValExpr cfg ctxL p
-                    let vQ ← ctxValExpr cfg ctxL q
-                    findFactChecked (falsitySources ctxL) (mkLex p q)
-                      (← mkEq (← Lean.Meta.mkAppM ``ACL2.lexorder #[vP, vQ])
-                        (mkConst ``SExpr.nil))
-                match ← tryLex xa ya with
-                | some hLex =>
-                  pure (some (xa, ya, ctxD, ← Lean.Meta.mkAppM
-                    ``logic_equal_nil_of_lexorder_nil #[hLex]))
-                | none =>
-                  match ← tryLex ya xa with
-                  | some hLex => do
-                    let hFlip ← Lean.Meta.mkAppM
-                      ``logic_equal_nil_of_lexorder_nil #[hLex]
-                    pure (some (xa, ya, ctxD, ← Lean.Meta.mkAppM
-                      ``logic_equal_nil_comm #[hFlip]))
-                  | none => pure none  -- DERIVED entry → rung B′
+              | none =>
+                -- LEXORDER-ORDER rung RETIRED (endgame arc, 2026-08-10 —
+                -- the C1 expiry fired): scout F refuted the order-derived
+                -- theory — both serving witnesses' :TA-ENTRY is a verbatim
+                -- TAIL clause literal (rewrite-clause-type-alist item (a)),
+                -- and the spine now HOISTS the recorded entry as a demand
+                -- (collectContextDemands' type-alist arm), so the direct
+                -- lookup above finds ACL2's own justification. The retired
+                -- rung supplied a kernel order-axiom justification the
+                -- artifact never named.
+                pure none  -- DERIVED entry → rung B′
         if let some (xa, ya, ctxD, hXY) := directFact? then
           -- COMMITTED rung A: every failure from here is a thrown frontier
           let eqs := inScopeEquations ctx

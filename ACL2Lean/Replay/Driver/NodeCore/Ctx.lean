@@ -415,6 +415,14 @@ structure ReplayCtx where
       `= .nil`). Solidify nodes consume by `equivSource` index; recognizer nodes
       by term (directly, or through a `(not …)` wrapper). -/
   litFacts : List (Nat × SExpr × Expr) := []
+  /-- Recorded add-literal duplicate drops seen so far in the clause item
+      walk (`emit/dedup-drop`, item E): the spine's dedup-skip arm fires
+      ONLY for a literal recorded here (read-off, not inference). -/
+  dedupDrops : List SExpr := []
+  /-- The current discharge leaf's recorded `:TAU-BASIS` slice (item I) —
+      set by the discharge call sites from the verdict node; gates and
+      widens `replayDischargeNode`'s rule-premise pass. -/
+  tauBasis : Option SExpr := none
   /-- ENCLOSING UNRESOLVED-IF test facts (the if-finish branch context,
       ACL2's assume-true-false): the test term, its value expr, the branch
       sign (`true` = then-branch, value `≠ nil`; `false` = else-branch, value
@@ -572,21 +580,6 @@ partial def destructorChainOk (allowCons : Bool) : SExpr → Bool
       && destructorChainOk allowCons d
   | _ => false
 
-/-- The ASSUMED-dp-fact condition LABEL — one named constant for the
-    guard sites (verifier residual N2, 2026-08-05: a rename of the raw
-    string at any one site would silently disable the others' guards). -/
-def assumedDpFactCond : String := "ASSUMED:dp-fact"
-
-/-- Reserved condition marker: a KEPT `usefi:` hypothesis whose formula IS
-    the row's own goal (the tautology-dropped FI shape with an undischarged
-    functional-instance license). The row's conditional statement is then
-    `… → (∀ env', ⟦goal⟧) → ⟦goal⟧` — vacuous — so the runner renders it
-    ASSUMED ◌ and refuses registration, exactly like `assumedDpFactCond`
-    (audit 2026-08-09, outside D1: BSORT-IS-ISORT verified `rfl`-equal to
-    hypothesis projection). The row turns ✓ when the alias-world
-    composition (2c) discharges the usefi. -/
-def assumedFiSelfCond : String := "ASSUMED:fi-self"
-
 /-- View `(equal X X)` as `X`. -/
 def asEqualSelf : SExpr → Option SExpr
   | .cons (.atom (.symbol s)) (.cons x (.cons x' .nil)) =>
@@ -597,6 +590,10 @@ def runeOf : ProofNode → Rune | .node r _ _ _ _ => r
 def nodeLhsRhs : ProofNode → SExpr × SExpr | .node _ lhs rhs _ _ => (lhs, rhs)
 def nodePath : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 def nodeOrigin : ProofNode → String | .node _ _ _ _ p => p.origin
+
+/-- The recorded tau-database slice on a `preprocess/tau` discharge node
+    (`:TAU-BASIS`, fork-batch item I). -/
+def nodeTauBasis : ProofNode → Option SExpr | .node _ _ _ _ p => p.tauBasis
 
 /-- Is this literal item an IDENTITY display? Its result is the literal
     unchanged and its nodes are at most an equal-descent PROBE (item A +

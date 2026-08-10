@@ -86,6 +86,11 @@ structure StepProvenance where
   canon1 : Option SExpr := none
   canon2 : Option SExpr := none
   taEntry : Option SExpr := none
+  /-- The fn-restricted tau-database slice on a `preprocess/tau` verdict
+      record (`:TAU-BASIS`, fork-batch item I): raw per-fn entries, copied
+      verbatim from the emitted step; the DP consumer gates its rule
+      premises on the slice. -/
+  tauBasis : Option SExpr := none
   /-- The redex's congruence path within the literal (from `:PATH`),
       literal-root-first — see `PathFrame`. The replay lifts this node by composing
       congruences along the path rather than locating the redex by subterm match. -/
@@ -309,7 +314,8 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
       parents := step.parents, subst := step.subst, equivTerm := step.equivTerm,
       typeSet := step.typeSet, trueTs := step.trueTs, path := step.path,
       swapped := step.swapped, canon1 := step.canon1, canon2 := step.canon2,
-      taEntry := step.taEntry, falseTs := step.falseTs,
+      taEntry := step.taEntry, tauBasis := step.tauBasis,
+      falseTs := step.falseTs,
       strongp := step.strongp }
 
 /-- Parse the events of ONE literal's rewrite chain into proof nodes, returning

@@ -1265,10 +1265,8 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
     -- plus the (round-extended) opaque set — NOT opaques alone: a rule
     -- LHS headed by a lift primitive (`(TRUE-LISTP (RM E A))`) never
     -- appears as an opaque (only its inner `RM` application does), and
-    -- the opaque-only v1 silently missed exactly that trigger
-    -- (ORDERED-PERMS *1/4 vs *1/6). Non-matching rule shapes are simply
-    -- not offered here (they keep their with-lemma consumers); nothing
-    -- is inferred.
+    -- the opaque-only v1 silently missed exactly that trigger (ORDERED-PERMS
+    -- *1/4 vs *1/6). Non-matching rule shapes are simply not offered here.
     let ruleTargets := ((lits.flatMap collectAppSubterms) ++ srcOps).eraseDups
     -- SKIP-vs-HARD-FAIL policy (fold-back audit F5): non-qualifying rules are
     -- SILENTLY skipped here — deliberately unlike the linear pass's
@@ -1278,10 +1276,29 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
     -- error per non-tau rule would make every book fail. Skipping is
     -- fail-closed: an unmatched rule contributes nothing and the obligation
     -- either proves without it or falls back to ASSUMED honestly.
+    -- TAU-BASIS gating + EVG widening (item I consumer, ruled 2026-08-10):
+    -- a recorded slice GATES rule premises to slice-named rules (matched
+    -- verbatim against `parseTauBasisAllows`; the slice IS the shape
+    -- license, so `tauSigForm1` is not re-consulted) and admits EVG-output
+    -- rules (`'0` rhs — NOT-MEMB-IMPLIES-HOW-MANY-IS-0) via
+    -- `rule_premise_fact_evg`; a basis-less leaf keeps the Form-1 scan.
+    let sliceAllows? := ctx.tauBasis.map parseTauBasisAllows
+    let isQuoted : SExpr → Bool := fun t => match t with
+      | .cons (.atom (.symbol q)) (.cons _ .nil) => q.name == "QUOTE"
+      | _ => false
     for (spec, hypV) in ctx.ruleHyps do
-      if spec.equiv == "equal" && spec.rhs == quoteT then
+      let eligible := match sliceAllows? with
+        | some allows =>
+          spec.equiv == "equal" && isQuoted spec.rhs &&
+          allows.any (fun a =>
+            a.hyps == spec.hyps && a.lhs == spec.lhs && a.rhs == spec.rhs)
+        | none =>
+          spec.equiv == "equal" && spec.rhs == quoteT &&
+          (match spec.hyps with
+           | [hT] => tauSigForm1 spec.lhs hT
+           | _ => false)
+      if eligible then
         if let [hT] := spec.hyps then
-         if tauSigForm1 spec.lhs hT then
           for op in ruleTargets do
             if let some σ := oneWayMatch spec.lhs op then
               let ruleFrees := (ACL2.Replay.freeVars hT ++
@@ -1293,8 +1310,9 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
                 let σterms := σ.map (·.2)
                 let inst := ACL2.Replay.substTerm σvars σterms
                 let (hI, lI) := (inst hT, inst spec.lhs)
+                -- spec.rhs is a closed quote on both eligible shapes
                 let eqI : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
-                  (.cons lI (.cons quoteT .nil))
+                  (.cons lI (.cons spec.rhs .nil))
                 let premise : SExpr := .cons (.atom (.symbol { name := "IF" }))
                   (.cons hI (.cons eqI (.cons quoteT .nil)))
                 unless linData.any (fun (t, _) => t == premise) do
@@ -1306,7 +1324,7 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
                   let w := cfg.worldExpr
                   let env := cfg.envExpr
                   -- hypInst : EvTrue env (subst h) →
-                  --   eval env (subst lhs) ≐ eval env 'T
+                  --   eval env (subst lhs) ≐ eval env (spec.rhs quote)
                   let evT : SExpr → MetaM Expr := fun t =>
                     pure (mkAppN (mkConst ``EvTrue) #[w, env, reflectSExpr t])
                   let hypInst ← withLocalDeclD `hh (← evT hI) fun hhV => do
@@ -1320,7 +1338,9 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
                     mkLambdaFVars #[hhV] c2
                   let phC ← ctxValProof cfg ctxL hI
                   let plC ← ctxValProof cfg ctxL lI
-                  let fact ← mkAppM ``rule_premise_fact #[hypInst, phC, plC]
+                  let factLem := if spec.rhs == quoteT
+                    then ``rule_premise_fact else ``rule_premise_fact_evg
+                  let fact ← mkAppM factLem #[hypInst, phC, plC]
                   linData := linData ++ [(premise, fact)]
                   newOps := (newOps ++ collectOpaques premise).eraseDups
     -- EQUIVREFL premises (2c): a stored :EQUIVALENCE rule's reflexivity

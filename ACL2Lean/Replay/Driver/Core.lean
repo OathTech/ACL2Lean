@@ -71,7 +71,8 @@ def replayUseHintClausify (cfg : ReplayConfig) (ctx : ReplayCtx)
       unless (nodeLhsRhs n).2 == quoteT do
         throwError "use-hint+clausify: whole-clause discharge node rhs \
             {repr (nodeLhsRhs n).2} ≠ (quote t) at {cn.idStr}"
-      pOuts := pOuts ++ [← replayDischargeNode cfg ctx dTerm]
+      pOuts := pOuts ++ [← replayDischargeNode cfg
+        { ctx with tauBasis := nodeTauBasis n } dTerm]
     else do
       let [lit] := cl
         | throwError "use-hint+clausify: constraint output {repr cl} is \
@@ -83,7 +84,8 @@ def replayUseHintClausify (cfg : ReplayConfig) (ctx : ReplayCtx)
       unless (nodeLhsRhs n).2 == quoteT do
         throwError "use-hint+clausify: discharge node for {repr lit} has \
             rhs {repr (nodeLhsRhs n).2} ≠ (quote t) at {cn.idStr}"
-      pOuts := pOuts ++ [← replayDischargeNode cfg ctx lit]
+      pOuts := pOuts ++ [← replayDischargeNode cfg
+        { ctx with tauBasis := nodeTauBasis n } lit]
   -- (3) bridge the output proofs back through the clausify to the input
   -- term, then compose the chain — `EvTrue ⟦constraint-cl⟧`
   let pInput ←
@@ -316,7 +318,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
           unless (nodeLhsRhs n).2 == quoteT do
             throwError "replayClause: whole-clause discharge node rhs \
                         {repr (nodeLhsRhs n).2} ≠ (quote t) at {cn.idStr}"
-          pOuts := pOuts ++ [← replayDischargeNode cfg ctx dTerm]
+          pOuts := pOuts ++ [← replayDischargeNode cfg
+            { ctx with tauBasis := nodeTauBasis n } dTerm]
         else do
         -- (b) a singleton clause discharged by a post-clausify verdict node
         -- (the ratified DP carve-out)
@@ -332,7 +335,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         unless (nodeLhsRhs n).2 == quoteT do
           throwError "replayClause: discharge node for {repr lit} has rhs \
                       {repr (nodeLhsRhs n).2} ≠ (quote t) at {cn.idStr}"
-        pOuts := pOuts ++ [← replayDischargeNode cfg ctx lit]
+        pOuts := pOuts ++ [← replayDischargeNode cfg
+          { ctx with tauBasis := nodeTauBasis n } lit]
     -- when NOTHING consumed the literal items (the push-scan case), they
     -- must be identity displays — real rewriting there is a frontier
     unless spineConsumed do

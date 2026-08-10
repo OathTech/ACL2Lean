@@ -330,6 +330,20 @@ partial def collectContextDemands (fcDerivs : List SExpr := []) :
      else if rty == "type-alist" then
        if rh == quoteNil then
          [ContextDemand.term l] ++
+         -- the RECORDED type-alist entry, verbatim (scout F, endgame arc
+         -- 2026-08-10): an equal/type-alist-nil verdict's :TA-ENTRY is the
+         -- term ACL2's type-alist held — for a tail-literal assumption
+         -- (rewrite-clause-type-alist item (a), simplify.lisp:5065) that
+         -- is the LATER clause literal ITSELF, possibly COMMUTED vs this
+         -- node's lhs (HOW-MANY-BAD-PAIRS-BNEXT *1/6.1: lhs
+         -- (EQUAL (CAR X) (CADR X)), entry = literal 6
+         -- (EQUAL (CADR X) (CAR X))). Demanding the entry hoists exactly
+         -- ACL2's own justification; this retired the LEXORDER-ORDER
+         -- rung's kernel-supplied order-axiom justification (which the
+         -- artifact never named — the expiry fired as designed).
+         (match prov.taEntry with
+          | some e => [ContextDemand.term e]
+          | none => []) ++
          -- the nil-verdict closure's TRUE-LISTP∧¬CONSP ingredient: the
          -- truthy true-listp fact may sit in a LATER literal
          -- (ORDERED-PERMS *1/7'5' literal 5: `B ⇒ 'NIL` from segment
@@ -562,15 +576,14 @@ def litSkipCollapse (cfg : ReplayConfig) (ctx : ReplayCtx)
     truthy closes the whole disjunction at its head position; falsity is
     the shared `litSkipCollapse`.
 
-    HELD UNDER EXPIRY (audit 2026-08-09, inside D1): this infers the drop
-    from the clause shape, and its upstream twin — add-literal's
-    member-COMPLEMENT-term branch, 35 lines above the member-term drop in
-    the same `cond` — was user-ruled (2026-08-06) to require an EMISSION
-    (`emit/complement-close`) precisely because inference-from-absence was
-    judged insufficient there. The matching `emit/dedup-drop` record at
-    simplify.lisp's member-term branch is QUEUED for the next fork batch's
-    item-by-item review; when it lands this arm becomes a read-off. Do not
-    extend the inference. -/
+    EXPIRY RETIRED (endgame arc, 2026-08-10): the `emit/dedup-drop`
+    records landed (fork-batch item E — add-literal's member-term branch
+    AND add-literal-and-pt's own member-term drop, the
+    subst-equiv-and-maybe-delete-lit rebuild path this witness takes).
+    The spine's call site now fires this arm ONLY for a literal named by
+    a recorded (:DEDUP-DROP …) clause item (`ctx.dedupDrops`) — a
+    read-off, no longer an inference; an unrecorded skipped duplicate
+    hard-fails at the call site. -/
 def dedupSkipClose (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
     (clauseLits restLits : List (Nat × SExpr)) (clit : SExpr)
     (recur : ReplayCtx → List (Nat × SExpr) → MetaM Expr) : MetaM Expr := do
@@ -585,6 +598,28 @@ def dedupSkipClose (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
   (try mkAppM ``Classical.byCases #[negL, posL]
     catch e => throwError "byCases compose failed (add-literal dedup) \
         at {idStr}:\n{e.toMessageData}")
+
+/-- The spine's SKIPPED-literal handling (the walk-mismatch site): a
+    fact-backed collapse (`litSkipCollapse` — audit 2026-07-06's soundness
+    note), or the item-E recorded dedup skip (`dedupSkipClose`, gated on a
+    recorded (:DEDUP-DROP …) in `ctx.dedupDrops` — an unrecorded skipped
+    duplicate is an emission gap and hard-fails). `none` = the mismatch is
+    not a skip (the caller's frontier). -/
+def spineSkippedLiteral (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (idStr : String) (clauseLits restLits : List (Nat × SExpr))
+    (clit : SExpr)
+    (recur : ReplayCtx → List (Nat × SExpr) → MetaM Expr) :
+    MetaM (Option Expr) := do
+  if let some hNil := ctx.litFactByTerm? clit then
+    return some (← litSkipCollapse cfg ctx restLits clit hNil recur)
+  else if restLits.any (fun (_, l) => l == clit) then
+    if ctx.dedupDrops.contains clit then
+      return some (← dedupSkipClose cfg ctx idStr clauseLits restLits clit recur)
+    else
+      throwError "replayClauseSpine: skipped duplicate literal {repr clit} \
+                  at {idStr} has no recorded :DEDUP-DROP (emission gap — \
+                  recapture with the item-E fork)"
+  else return none
 
 /-- Close `EvTrue (disjoin lits)` for a TAUTOLOGOUS clause — one containing a
     complementary pair `L` / `(NOT L)`, or the COMMUTED-EQUAL pair

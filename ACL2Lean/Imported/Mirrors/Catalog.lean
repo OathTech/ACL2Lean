@@ -130,6 +130,14 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-HOW-MANY-IS-0",
     .native ``not_memb_how_many_0_native_driver
       ``notMembHowMany0ReplayedCond),
+  ("sorting/convert-perm-to-how-many", "HOW-MANY-RM-GENERAL",
+    .pending "GREENED in the endgame arc (item I's tau-basis consumer: \
+      the *1/3.2 leaf discharges from the recorded slice's \
+      NOT-MEMB-IMPLIES-HOW-MANY-IS-0 signature rule, its rule content \
+      discharged by that theorem's own replay); the native mirror is a \
+      how-many/rm correspondence over the existing rm + how-many sims — \
+      wire with the arc's statement-pin wave (item 5), per the \
+      unwired-infrastructure ban"),
   ("sorting/convert-perm-to-how-many",
     "PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS",
     .pending "GREENED at the final close-out (the tpthm resurrection + \

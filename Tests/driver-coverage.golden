@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 110/116 (45 unconditional + 65 conditional)
+Driver coverage — REPLAYED 111/116 (45 unconditional + 66 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
@@ -75,15 +75,15 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     NOT-MEMB-IMPLIES-RM-IS-NO-OP → REPLAYED ✓  [DISCHARGE: Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(MEMB A X), tp:MEMB]]
     TRUE-LISTP-RM → REPLAYED ✓  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]
     NOT-MEMB-IMPLIES-HOW-MANY-IS-0 → REPLAYED ✓ cond[tp:HOW-MANY]
-    HOW-MANY-RM-GENERAL → ASSUMED ◌ cond[tp:HOW-MANY, ASSUMED:dp-fact]  [DISCHARGE: Subgoal *1/3.2:preprocess/tau ◌ assumed cond[total:(MEMB A (CDR X)), total:(HOW-MANY A (RM B (CDR X))), total:(HOW-MANY A (CDR X)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
-    PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, rule:HOW-MANY-RM-GENERAL]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM]]
+    HOW-MANY-RM-GENERAL → REPLAYED ✓ cond[tp:HOW-MANY]  [DISCHARGE: Subgoal *1/3.2:preprocess/tau ◌ assumed cond[total:(MEMB A (CDR X)), total:(HOW-MANY A (RM B (CDR X))), total:(HOW-MANY A (CDR X)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
+    PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM]]
     PERM-TLFIX → FAIL: replayNode: rune (rewriting-equivalence, NIL) applied under equivalence perm — R-parameterized recipe pending (G1 frontier)
     PERM-COUNTER-EXAMPLE-TLFIX-1 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE]
     RM-TLFIX → REPLAYED ✓
     MEMB-TLFIX → REPLAYED ✓
     PERM-COUNTER-EXAMPLE-TLFIX-2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE]
     HOW-MANY-TLFIX → REPLAYED ✓ cond[tp:HOW-MANY]
-    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, tp:TLFIX, rule:HOW-MANY-RM-GENERAL, rule:PERM-TLFIX]  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
+    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, tp:TLFIX, rule:PERM-TLFIX]  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
 • sorting/isort  (world: 27 defun(s), 3 theorem(s))
     ORDEREDP-ISORT → REPLAYED ✓ cond[tp:INSERT]
     TRUE-LISTP-ISORT → REPLAYED ✓ cond[tp:INSERT]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(INSERT X1 IT), tp:INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]

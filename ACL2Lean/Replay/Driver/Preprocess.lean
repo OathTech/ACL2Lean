@@ -458,7 +458,8 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
           if isDischarge then do
             unless rhs == quoteT do
               throwError "discharge node: rhs {repr rhs} ≠ (quote t)"
-            let ev ← replayDischargeNode cfg ctx lhs
+            let ev ← replayDischargeNode cfg
+              { ctx with tauBasis := nodeTauBasis n } lhs
             mkAppM ``evrel_siff_qt_of_evtrue #[ev]
           else if isIffNode then replayIfIffNode cfg ctx n
           else replayPreprocessNode cfg ctx n
