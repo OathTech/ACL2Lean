@@ -221,6 +221,23 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > classified CONSUMER-side, no emission needed). The bsort μ-route
 > rows ride HOW-MANY-BAD-PAIRS-BNEXT → :linear → termination:BSORT.**
 
+> **TAU LANE — RULED (Mike, 2026-08-10): the MIDDLE PATH.** For
+> verdict-only tau leaves (the class behind HOW-MANY-RM-GENERAL's
+> *1/3.2 residual and the future tau-frontier family): emit the RULE
+> SET the tau verdict rested on (the ta-nil-basis / fc-derivations
+> emission precedent — ACL2 computes with these rules; the emission is
+> cheap), and discharge with the EXISTING DP kit taking exactly the
+> recorded runes' instances as premises — read-off, not matcher
+> selection. This dramatically downscopes Lean-side cleverness; full
+> tau derivation logging remains the possible END STATE for total-ACL2
+> masquerade, and the midpoint is to be WATCHED FOR CREEP (no widening
+> of premise selection beyond the recorded basis; when the basis
+> emission lands, tau-class leaves drop the broad premise scan for
+> recorded-runes-only). FIRST INCREMENT of the future tau charter: a
+> SCOUT — confirm the tau verdict site can cheaply report its fired
+> rule set (upstream tau is deliberately ttree-free, so this is the
+> one open implementation question).**
+
 > **LONG-TERM ARCHITECTURE (direction agreed 2026-08-08): COMPOSITIONAL
 > REPLAY AT SCALE — docs/notes/2026-08-08_compositional-replay-design.md.**
 > Per-node lemma decomposition as the eventual default emission shape +
