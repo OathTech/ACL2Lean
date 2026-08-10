@@ -702,6 +702,35 @@ partial def installBranchTrueFacts (cfg : ReplayConfig) (ctx : ReplayCtx)
     else pure ctx
   | _ => pure ctx
 
+/-- The spine's RESIDUAL-PUSH close on an EMPTY continuation
+    (equal-descent restructure arc — ORDEREDP-WHEN-BNEXT-CONSTANT
+    *1/4.1): the LAST literal's case branch accumulated its new-clause
+    and PUSHED it as a child with no further items; every accumulated
+    literal's falsity is an in-scope branch hypothesis, so the replayed
+    child closes the empty disjunction ex falso (the substitution arm's
+    vacuous-residual pattern at the plain-branch site). `none` when no
+    child matches (the caller's loud frontier stands). -/
+def residualPushClose (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (idStr : String) (accClause : List SExpr) (children : List ClauseNode)
+    (replayChild : ReplayCtx → ClauseNode → MetaM Expr) :
+    MetaM (Option Expr) := do
+  let some child := children.find? (·.inputClause == accClause)
+    | return none
+  let mut ctxV := ctx
+  for L in accClause do
+    ctxV ← pinTermOpaques cfg cfg.envExpr ctxV L
+  let pChild ← replayChild ctxV child
+  let ctxF := ctxV
+  return some (← vacuousResidualClose cfg ctxV accClause pChild
+    (disjoinTerm []) fun L => do
+      match ctxF.litFactByTerm? L with
+      | some hf => pure hf
+      | none =>
+        match ctxF.segFacts.find? (fun (st, _) => st == L) with
+        | some (_, hf) => pure hf
+        | none => throwError "replayClauseSpine: no falsity fact for \
+            the residual-push literal {repr L} at {idStr}")
+
 /-- The clause-context falsity of a marker-relieved `(NOT atm)` hyp's ATOM
     (extracted from the rule hyp-relief arm, weight ratchet): the spine
     lit-fact keyed by the atom, an if-finish false-BRANCH assumption on it

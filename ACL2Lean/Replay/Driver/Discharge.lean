@@ -210,6 +210,50 @@ def assertDpOrderFacts (g : MVarId) : MetaM MVarId := do
     i := i + 1
   return g
 
+/-- Assert the COMMUTED twin of every `Logic.equal a b = nil` hypothesis
+    (`logic_equal_nil_comm` — kernel-proved), the `assertDpOrderFacts`
+    pattern (equal-descent restructure arc, charter item 3): a clause
+    fact's disequality and a linear-rule premise's guard can carry the two
+    orientations of one equality (termination:BSORT — the clause's
+    `(EQUAL (BNEXT X) X)` falsity vs HOW-MANY-BAD-PAIRS-BNEXT's hyp
+    `(NOT (EQUAL X (BNEXT X)))`), and the bounded direct tactic has no
+    symmetry reasoning (a permutative simp lemma loops under the
+    unfolding set). Deterministic goal prep, never search. -/
+def assertDpEqualNilComm (g : MVarId) : MetaM MVarId := do
+  let pairs ← g.withContext do
+    let mut found : List (Expr × Expr) := []
+    for d in ← getLCtx do
+      unless d.isImplementationDetail do
+        let ty ← instantiateMVars d.type
+        if let some (_, lhs, rhs) := ty.eq? then
+          if rhs.isConstOf ``SExpr.nil && lhs.isAppOfArity ``Logic.equal 2 then
+            let a := lhs.appFn!.appArg!
+            let b := lhs.appArg!
+            unless found.any (fun (x, y) => x == a && y == b) do
+              found := found ++ [(a, b)]
+    pure found
+  let mut g := g
+  let mut i := 0
+  for (a, b) in pairs do
+    let hyp? ← g.withContext do
+      (← getLCtx).findDeclM? fun d => do
+        if d.isImplementationDetail then return none
+        let ty ← instantiateMVars d.type
+        if let some (_, lhs, rhs) := ty.eq? then
+          if rhs.isConstOf ``SExpr.nil && lhs.isAppOfArity ``Logic.equal 2 &&
+              lhs.appFn!.appArg! == a && lhs.appArg! == b then
+            return some d.fvarId
+        return none
+    let _ := (a, b)
+    if let some fv := hyp? then
+      let (prf, ty) ← g.withContext do
+        let prf ← mkAppM ``ACL2.Replay.logic_equal_nil_comm #[Expr.fvar fv]
+        pure (prf, ← inferType prf)
+      let (_, g') ← (← g.assert (Name.mkSimple s!"dpEqComm_{i}") ty prf).intro1P
+      g := g'
+      i := i + 1
+  return g
+
 /-- Recursively case-split every `Atom`/`Number` hypothesis (the components a
     value's one-level `SExpr` split introduced), then return the leaves. -/
 partial def dpSplitAtoms (g : MVarId) : MetaM (List MVarId) := do
@@ -500,6 +544,7 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
         let mv ← mkFreshExprMVar stmt
         let (_, g) ← mv.mvarId!.intros
         let g ← assertDpOrderFacts g
+        let g ← assertDpEqualNilComm g
         let g ← introDpIntValues g
         let remaining ← Lean.Elab.runTactic g tac
         if remaining.1.isEmpty then pure (some (← instantiateMVars mv)) else pure none
@@ -539,6 +584,7 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   -- order theory AFTER the cone clearing: pairs come from the surviving
   -- hypotheses only, so no asserted fact re-mentions a cleared value
   let g ← assertDpOrderFacts g
+  let g ← assertDpEqualNilComm g
   let leaves ← dpSplitVars g (splitIdxs.map (s!"dpv{·}"))
   for leaf in leaves do
     -- surface WHICH leaf failed (the raw tactic error names the tactic but

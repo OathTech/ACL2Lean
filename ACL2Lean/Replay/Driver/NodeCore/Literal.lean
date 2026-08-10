@@ -481,6 +481,51 @@ partial def evtrueOfLitTrue (cfg : ReplayConfig) (ctx : ReplayCtx)
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, reflectSExpr quoteT,
         reflectSExpr restTerm, vL, pL, hthen, helse]
 
+/-- Extend a proved disjunction PREFIX by dropped tail literals: from
+    `EvTrue ⟦disjoin pre⟧` to `EvTrue ⟦disjoin (pre ++ dropped)⟧`, by
+    byCases down the prefix spine — a truthy literal closes the full
+    disjunction at its own position (`evtrueOfLitTrue`); all-nil descends
+    and rebuilds each frame (`re_if_false`). Needs NO assumption about
+    the dropped literals (monotone weakening). Consumer: the whole-clause
+    discharge PREFIX arm — ACL2's verdict node covers the clause minus
+    literals its add-literal dropped as trivially nil
+    (ORDEREDP-WHEN-BNEXT-CONSTANT *1/4.1.3''s `(NOT (EQUAL X1 X1))`). -/
+partial def evtrueExtendTail (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (pre dropped : List SExpr) (p : Expr) : MetaM Expr := do
+  match pre with
+  | [] => throwError "evtrueExtendTail: empty prefix"
+  | [l] => do
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx l
+    let pL ← ctxValProof cfg ctx l
+    let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[p, pL]
+    evtrueOfLitTrue cfg ctx (l :: dropped) 0 l hNe
+  | l :: rest => do
+    let ctx ← pinTermOpaques cfg cfg.envExpr ctx l
+    let vL ← ctxValExpr cfg ctx l
+    let pL ← ctxValProof cfg ctx l
+    let nilC := mkConst ``SExpr.nil
+    let fullLits := pre ++ dropped
+    let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vL, nilC]) fun hNe => do
+      mkLambdaFVars #[hNe] (← evtrueOfLitTrue cfg ctx fullLits 0 l hNe)
+    let negL ← withLocalDeclD `hnil (← mkEq vL nilC) fun hNil => do
+      let hcNil ← mkAppM ``re_val_cast
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, vL, nilC, pL, hNil]
+      -- collapse l's frame in p (p : EvTrue ⟦IF l 'T (disjoin rest)⟧)
+      let pRest ← mkAppM ``evtrue_tail_of_if_head_nil #[hcNil, p]
+      let pFull ← evtrueExtendTail cfg ctx rest dropped pRest
+      -- rebuild the frame over the EXTENDED tail
+      let restFull := disjoinTerm (rest ++ dropped)
+      let ctx ← pinTermOpaques cfg cfg.envExpr ctx restFull
+      let vRest ← ctxValExpr cfg ctx restFull
+      let hRest ← ctxValProof cfg ctx restFull
+      let hIf ← mkAppM ``re_if_false
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, reflectSExpr quoteT,
+          reflectSExpr restFull, vRest, hcNil, hRest]
+      mkLambdaFVars #[hNil] (← mkAppM ``evtrue_of_fuel_eq #[hIf, pFull])
+    (try mkAppM ``Classical.byCases #[negL, posL]
+      catch e => throwError "byCases compose failed (extend-tail):\n\
+          {e.toMessageData}")
+
 /-- The spine's SKIPPED-literal falsity collapse: given `hNil` (`v(clit) =
     nil`), fold the head literal's if-frame out of the disjunction
     (`re_if_false`) and re-enter the walk via `recur` on the renumbered

@@ -324,6 +324,27 @@ def liftCatalog : List (String × String × LiftStatus) := [
       type-absorbed true-listp doctrine, the TRUE-LISTP-RM precedent)"),
   ("sorting/bsort", "HOW-MANY-BNEXT",
     .native ``how_many_bnext_native_driver ``howManyBnextReplayedCond),
+  ("sorting/bsort", "termination:BSORT",
+    .replayedOnly "an internal admission obligation (BSORT's BNEXT-SIZE
+      measure decrease, via HOW-MANY-BAD-PAIRS-BNEXT's :linear content),
+      not a user-facing theorem — the termination:QSORT doctrine"),
+  ("sorting/bsort", "HOW-MANY-BAD-PAIRS-BNEXT",
+    .pending "the bubble-pass progress measure (bad-pairs strictly
+      decrease unless fixed) — greened by the recursive equal-descent
+      protocol (restructure arc); natural native over the bnext sim,
+      queued with the bsort cluster's natives"),
+  ("sorting/bsort", "ORDEREDP-BSORT",
+    .pending "bsort's output is ordered — the interpCount μ-route row
+      (restructure arc); native (orderedpL (bsortL l)) over the exec
+      kit, queued with the cluster"),
+  ("sorting/bsort", "TRUE-LISTP-BSORT",
+    .replayedOnly "subsumed by the bsort simulation: the enc image is
+      closed under bsortExec (the type-absorbed true-listp doctrine,
+      the TRUE-LISTP-RM precedent)"),
+  ("sorting/bsort", "HOW-MANY-BSORT",
+    .pending "bsort permutes (counts preserved) — the μ-route row
+      (restructure arc); native (howManyL (bsortL l) e = howManyL l e),
+      queued with the cluster"),
   ("sorting/bsort", "HOW-MANY-SMALLER-BNEXT",
     .pending "count-below invariance across one bubble pass (final
       close-out — greened by the fc-derivations relief + the

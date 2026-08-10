@@ -221,6 +221,33 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > classified CONSUMER-side, no emission needed). The bsort μ-route
 > rows ride HOW-MANY-BAD-PAIRS-BNEXT → :linear → termination:BSORT.**
 
+> **EQUAL-DESCENT RESTRUCTURE ARC (2026-08-10, branch
+> mdd/equal-descent-restructure; charter
+> docs/plans/2026-08-10_equal-descent-restructure-charter.md).**
+> Item 1 DONE (46ac66b, claim-gate TRUE_EXIT=0): replayEqualDescent
+> extracted behavior-preserving (byte-identical sweep). Item 2 DONE
+> (this round): the RECURSIVE protocol — per-phase outcomes
+> (T/NIL/UNRESOLVED), nested descents at arm (c) (window-pair or
+> record detection, enclosing-record cross-check), the rewrite.lisp
+> outcome table incl. the negative-side *t* DISCARD (audit C3's
+> asymmetry, now reachable and mirrored at the outcome level); the
+> probe block subsumed by the none-outcome; HOW-MANY-BAD-PAIRS-BNEXT
+> REPLAYED ✓. Item 3 CASCADE LANDED: linear_premise_fact_lt (the
+> <-headed :LINEAR premise) + assertDpEqualNilComm (the DP goal-prep
+> comm twin — a permutative simp lemma loops, so the
+> assertDpOrderFacts pattern) greens termination:BSORT; the
+> Induction-route hypFVars gained linear:; the three μ-route rows
+> REPLAYED ✓ — bsort 7/8. ORDEREDP-WHEN-BNEXT-CONSTANT burned five
+> walls (positioned descent no-op; identityLiteralItem probe forms;
+> residual-push close at the spine's empty continuation; the
+> CONS-CONS registry arm dpLiftF_equal_cons_cons_expand; the PREFIX
+> whole-clause discharge + evtrueExtendTail) and now stands at the
+> NAMED 2e wall: the expansion's recorded DETAIL CHAIN contains an
+> IFF-class step ((IF x 'T 'NIL) ⇒ x), so consuming it needs the
+> expansion-walk composition weakened to nil-equivalence at
+> BOOL-tolerant positions — a real sub-project, logged, gates
+> nothing else. Sweep/review/repin/gate pending.**
+
 > **TAU LANE — RULED (Mike, 2026-08-10): the MIDDLE PATH.** For
 > verdict-only tau leaves (the class behind HOW-MANY-RM-GENERAL's
 > *1/3.2 residual and the future tau-frontier family): emit the RULE

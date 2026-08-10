@@ -131,6 +131,14 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             at {idStr}:\n{e.toMessageData}")
       return some p
     if let some p ← tryEqAdd then return p
+    -- RESIDUAL PUSH close on an EMPTY continuation (see
+    -- `residualPushClose` — the restructure arc's vacuous-residual
+    -- generalization; fail-closed on no child match)
+    if lits.isEmpty && !accClause.isEmpty then
+      if let some p ← residualPushClose cfg ctx idStr accClause children
+          (fun ctxV child =>
+            rec.clause cfg { ctxV with litFacts := [] } child) then
+        return p
     throwError "replayClauseSpine: ran out of items with no closer \
                 at {idStr}"
   | .clausify _ :: _ =>
@@ -145,25 +153,23 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- segFacts — no separate proof obligation here
     if (runeOf n).ty == "context-subst" then
       return ← replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
-    -- a WHOLE-CLAUSE verdict discharge at SIMPLIFY time (S1.3 2026-07-23:
-    -- the simplify-clause/fc-contradiction and rewrite-clause/type-alist-
-    -- contradiction emitters — forward chaining or type-alist construction
-    -- over the negated literals reached a contradiction; verdict-only, no
-    -- recorded derivation). The node's lhs is the clause's own disjunction,
-    -- rhs 't — the ratified DP carve-out discharges the leaf.
+    -- a WHOLE-CLAUSE verdict discharge at SIMPLIFY time (S1.3 2026-07-23;
+    -- verdict-only, the ratified DP carve-out): lhs is the clause's own
+    -- disjunction — or a PREFIX of it (`prefixDischargeExtend`).
     if dischargeOrigins.contains (nodeOrigin n) then
-      let dTerm := disjoinTerm (clauseLits.map (·.2))
-      unless (nodeLhsRhs n).1 == dTerm do
-        throwError "replayClauseSpine: whole-clause discharge node lhs \
-                    {repr (nodeLhsRhs n).1} ≠ the clause disjunction \
-                    {repr dTerm} at {idStr}"
+      let allL := clauseLits.map (·.2)
+      let dTerm := disjoinTerm allL
       unless (nodeLhsRhs n).2 == quoteT do
         throwError "replayClauseSpine: whole-clause discharge node rhs \
                     {repr (nodeLhsRhs n).2} ≠ (quote t) at {idStr}"
       unless rest.isEmpty do
         throwError "replayClauseSpine: items remain after a whole-clause \
                     discharge at {idStr}"
-      return ← replayDischargeNode cfg ctx dTerm
+      if (nodeLhsRhs n).1 == dTerm then
+        return ← replayDischargeNode cfg ctx dTerm
+      -- PREFIX-shaped verdict node (see `prefixDischargeExtend` —
+      -- add-literal dropped a trivially-nil tail; monotone weakening)
+      return ← prefixDischargeExtend cfg ctx idStr allL (nodeLhsRhs n).1
     -- a :BRANCH-SUBSTITUTION (remove-trivial-equivalences): ACL2 substitutes
     -- `var := val` THROUGHOUT the clause, justified by the clause's own
     -- `(not (equal var val))` literal, and scans the SUBSTITUTED literals.
@@ -1002,22 +1008,16 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       | throwError "replayClauseSpine: literal item {idx} beyond the clause's \
                     literals at {idStr} (item/clause walk divergence)"
     unless idx == cidx && lp.literal == clit do
-      -- a SKIPPED literal whose falsity is already an in-scope hypothesis —
-      -- chiefly a DUPLICATE (ACL2's add-literal drops a literal identical to
-      -- an earlier one; branch-substitution creates these), but sound for
-      -- ANY literal with a genuine falsity fact: collapsing its if-frame by
-      -- the fact preserves the disjunction. A spurious fire (e.g. on a
-      -- hoisted later-literal fact) misaligns the walk and hard-fails
-      -- downstream — never a wrong proof (audit 2026-07-06).
+      -- a SKIPPED literal: fact-backed collapse (`litSkipCollapse` — audit
+      -- 2026-07-06's soundness note) or the add-literal DEDUP skip
+      -- (`dedupSkipClose` — the upstream anchor and disambiguation live
+      -- on the helper's docstring)
       if lp.literal != clit then
         let recur := fun ctx' lits' =>
           replayClauseSpineWith rec cfg ctx' idStr lits' items accClause children
         if let some hNil := ctx.litFactByTerm? clit then
           return ← litSkipCollapse cfg ctx restLits clit hNil recur
         else if restLits.any (fun (_, l) => l == clit) then
-          -- add-literal DEDUP (the final close-out's known class; the
-          -- upstream anchor and the disambiguation argument are on
-          -- `dedupSkipClose`)
           return ← dedupSkipClose cfg ctx idStr clauseLits restLits clit recur
       throwError "replayClauseSpine: literal item {idx} {repr lp.literal} does \
                   not walk the clause at {idStr} (next clause literal is {cidx} \

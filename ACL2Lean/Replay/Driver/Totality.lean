@@ -6,6 +6,7 @@
 -/
 import ACL2Lean.Replay.Driver.Discharge
 import ACL2Lean.Replay.CountSim
+import ACL2Lean.Replay.Lemmas.DescentExt
 
 namespace ACL2.Replay.Driver
 
@@ -1194,17 +1195,19 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
     for (spec, hypV) in ctx.linearHyps do
       for op in srcOps do
         if let some σ := oneWayMatch spec.maxTerm op then
-          -- v1 consumes EQUAL-headed single-hyp fully-bound rules ONLY.
-          -- A non-consumable matching rule SKIPS (contributes no premise
-          -- — completeness, never soundness: the DP prove fails loudly if
-          -- a needed premise is missing). Pre-fork-batch these were
-          -- throws, unreachable because the snapshot carried only the
-          -- predefined EQUAL-shaped rules; item 1's wider snapshot
-          -- (2026-08-06) legitimately includes LOCAL inequality-headed
-          -- rules (msort's own admission lemmas self-match here).
-          let some (lT, rT) := (match spec.concl with
+          -- v1 consumed EQUAL-headed single-hyp fully-bound rules ONLY;
+          -- the equal-descent restructure arc (charter item 3) adds the
+          -- `<`-headed conclusions item 1's wider snapshot legitimately
+          -- carries (HOW-MANY-BAD-PAIRS-BNEXT's rule — the decrease
+          -- obligation of termination:BSORT consumes it). Any other
+          -- shape still SKIPS (contributes no premise — completeness,
+          -- never soundness: the DP prove fails loudly if a needed
+          -- premise is missing).
+          let some (headS, lT, rT) := (match spec.concl with
             | .cons (.atom (.symbol eqS)) (.cons l (.cons r .nil)) =>
-              if eqS.name == "EQUAL" then some (l, r) else none
+              if eqS.name == "EQUAL" || eqS.name == "<" then
+                some (eqS.name, l, r)
+              else none
             | _ => none)
             | continue
           let some hT := (match spec.hyps with
@@ -1219,7 +1222,7 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
           let σterms := σ.map (·.2)
           let inst := ACL2.Replay.substTerm σvars σterms
           let (hI, lI, rI) := (inst hT, inst lT, inst rT)
-          let eqI : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
+          let eqI : SExpr := .cons (.atom (.symbol { name := headS }))
             (.cons lI (.cons rI .nil))
           let premise : SExpr := .cons (.atom (.symbol { name := "IF" }))
             (.cons hI (.cons eqI (.cons quoteT .nil)))
@@ -1241,12 +1244,14 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
               let cBack ← mkAppM ``evtrue_of_fuel_eq
                 #[← sb.bridge spec.concl, cEnv']
               mkLambdaFVars #[hhV] cBack
-            -- the premise fact via linear_premise_fact
-            let hnd ← proveNoShadow cfg ({ name := "EQUAL" } : Symbol)
+            -- the premise fact via linear_premise_fact (per concl head)
+            let hnd ← proveNoShadow cfg ({ name := headS } : Symbol)
             let phC ← ctxValProof cfg ctxL hI
             let plC ← ctxValProof cfg ctxL lI
             let prC ← ctxValProof cfg ctxL rI
-            let fact ← mkAppM ``linear_premise_fact #[hnd, hypInst, phC, plC, prC]
+            let factLem := if headS == "EQUAL" then ``linear_premise_fact
+                           else ``linear_premise_fact_lt
+            let fact ← mkAppM factLem #[hnd, hypInst, phC, plC, prC]
             linData := linData ++ [(premise, fact)]
             newOps := (newOps ++ collectOpaques premise).eraseDups
     -- RULE-content premises (2c): boolean-strengthened stored rules
@@ -1438,5 +1443,23 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
             falling back to the offered hypothesis"
         catch e => hypFallback e)
     hypFallback
+
+/-- The whole-clause discharge with a PREFIX-shaped verdict node
+    (equal-descent restructure arc — ORDEREDP-WHEN-BNEXT-CONSTANT
+    *1/4.1.3''): ACL2's add-literal dropped a trivially-nil tail before
+    the contradiction fired, so the recorded obligation is the PREFIX
+    disjunction (a read-off); prefix-true ⇒ full-true is monotone
+    weakening (`evtrueExtendTail`, no assumption about the dropped
+    literals). -/
+def prefixDischargeExtend (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (idStr : String) (allL : List SExpr) (nodeLhs : SExpr) : MetaM Expr := do
+  let k? := (List.range allL.length).find? fun k =>
+    k > 0 && disjoinTerm (allL.take k) == nodeLhs
+  let some k := k?
+    | throwError "replayClauseSpine: whole-clause discharge node lhs \
+        {repr nodeLhs} ≠ the clause disjunction \
+        {repr (disjoinTerm allL)} (nor any prefix) at {idStr}"
+  let pPre ← replayDischargeNode cfg ctx (disjoinTerm (allL.take k))
+  evtrueExtendTail cfg ctx (allL.take k) (allL.drop k) pPre
 
 end ACL2.Replay.Driver

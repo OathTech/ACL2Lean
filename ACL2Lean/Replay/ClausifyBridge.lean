@@ -193,7 +193,7 @@ private theorem dpLiftF_prim1 {vars : List (Symbol × SExpr)}
   simp only [hnq, hnif, hprim, if_true, if_false, Bool.false_eq_true]
   cases hx : dpLiftF vars opq x <;> rfl
 
-private theorem dpLiftF_ifT {vars : List (Symbol × SExpr)}
+theorem dpLiftF_ifT {vars : List (Symbol × SExpr)}
     {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
     (c thn els : SExpr) :
     dpLiftF vars opq (ifT c thn els)
@@ -299,7 +299,7 @@ abbrev carAppCB (x : SExpr) : SExpr :=
 abbrev cdrAppCB (x : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "CDR" })) (.cons x .nil)
 
-private theorem dpLiftF_prim2 {vars : List (Symbol × SExpr)}
+theorem dpLiftF_prim2 {vars : List (Symbol × SExpr)}
     {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
     (n : String) (x y : SExpr)
     (hban : ((({ name := n } : Symbol)).isNamed "QUOTE" ||

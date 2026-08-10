@@ -554,6 +554,12 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                   ++ ctx.tpHyps.map (fun (n, _, e) => (s!"tp:{n}", e))
                   ++ ctx.ruleHyps.map
                       (fun (r, e) => (s!"rule:{r.runeKey}", e))
+                  -- linear: conditions (equal-descent restructure arc,
+                  -- charter item 3): a recorded-termination bundle can be
+                  -- conditional on a :LINEAR rule's content
+                  -- (termination:BSORT on HOW-MANY-BAD-PAIRS-BNEXT)
+                  ++ ctx.linearHyps.map
+                      (fun (r, e) => (s!"linear:{r.name}", e))
                 let tpCors := ctx.tpHyps.map (fun (n, c, _) => (n, c))
                 let info ← mkRecTermInfo cfg' [] hypFVars tpCors just
                   mc conds goalLits

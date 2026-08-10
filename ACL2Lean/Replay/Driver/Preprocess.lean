@@ -5,6 +5,7 @@
   Preprocess-chain replay and the clausify bridge (#53C).
 -/
 import ACL2Lean.Replay.Driver.Totality
+import ACL2Lean.Replay.ClausifyBridgeCons
 
 namespace ACL2.Replay.Driver
 
@@ -593,18 +594,45 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
             shape (frontier)"
       let .cons _ (.cons x (.cons y .nil)) := a
         | throwError "runCheckedExpand: internal — shape re-check"
+      -- CONS-CONS variant (equal-descent restructure arc — the
+      -- ground-zero `(:REWRITE CONS-EQUAL)` fired as a clausify
+      -- expansion, ORDEREDP-WHEN-BNEXT-CONSTANT *1/4.2'): when the
+      -- OTHER side is itself a cons application the decomposition
+      -- pairs components directly, no CONSP guard.
       let expected : SExpr :=
-        .cons (.atom (.symbol { name := "IF" }))
-          (.cons (mkConspT b)
-            (.cons (.cons (.atom (.symbol { name := "IF" }))
+        match b with
+        | .cons (.atom (.symbol bs)) (.cons x2 (.cons y2 .nil)) =>
+          if bs.name == "CONS" then
+            .cons (.atom (.symbol { name := "IF" }))
               (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
-                (.cons x (.cons (.cons (.atom (.symbol { name := "CAR" }))
-                  (.cons b .nil)) .nil)))
+                (.cons x (.cons x2 .nil)))
                 (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
-                  (.cons y (.cons (.cons (.atom (.symbol { name := "CDR" }))
+                  (.cons y (.cons y2 .nil)))
+                  (.cons quoteNil .nil)))
+          else
+            .cons (.atom (.symbol { name := "IF" }))
+              (.cons (mkConspT b)
+                (.cons (.cons (.atom (.symbol { name := "IF" }))
+                  (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+                    (.cons x (.cons (.cons (.atom (.symbol { name := "CAR" }))
+                      (.cons b .nil)) .nil)))
+                    (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+                      (.cons y (.cons (.cons (.atom (.symbol { name := "CDR" }))
+                        (.cons b .nil)) .nil)))
+                      (.cons quoteNil .nil))))
+                  (.cons quoteNil .nil)))
+        | _ =>
+          .cons (.atom (.symbol { name := "IF" }))
+            (.cons (mkConspT b)
+              (.cons (.cons (.atom (.symbol { name := "IF" }))
+                (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+                  (.cons x (.cons (.cons (.atom (.symbol { name := "CAR" }))
                     (.cons b .nil)) .nil)))
-                  (.cons quoteNil .nil))))
-              (.cons quoteNil .nil)))
+                  (.cons (.cons (.atom (.symbol { name := "EQUAL" }))
+                    (.cons y (.cons (.cons (.atom (.symbol { name := "CDR" }))
+                      (.cons b .nil)) .nil)))
+                    (.cons quoteNil .nil))))
+                (.cons quoteNil .nil)))
       unless e.toTerm == expected do
         throwError "runCheckedExpand: EQUAL-CONS expansion target \
             {repr e.toTerm} ≠ the registry decomposition form (frontier)"
@@ -657,10 +685,23 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
         else ``dpLiftF_atom_expand
       mkAppOptM lem #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x)]
     | .cons _ (.cons (.cons _ (.cons x (.cons y .nil))) (.cons z .nil)) =>
-      -- the (EQUAL (CONS x y) z) lemma arm (validated above)
-      mkAppOptM ``dpLiftF_equal_cons_expand
-        #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
-          some (reflectSExpr y), some (reflectSExpr z)]
+      -- the (EQUAL (CONS x y) z) lemma arm (validated above); the
+      -- CONS-CONS variant takes its own registry identity
+      match z with
+      | .cons (.atom (.symbol zs)) (.cons x2 (.cons y2 .nil)) =>
+        if zs.name == "CONS" then
+          mkAppOptM ``dpLiftF_equal_cons_cons_expand
+            #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
+              some (reflectSExpr y), some (reflectSExpr x2),
+              some (reflectSExpr y2)]
+        else
+          mkAppOptM ``dpLiftF_equal_cons_expand
+            #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
+              some (reflectSExpr y), some (reflectSExpr z)]
+      | _ =>
+        mkAppOptM ``dpLiftF_equal_cons_expand
+          #[some b.varsE, some b.opqE, some hwf, some (reflectSExpr x),
+            some (reflectSExpr y), some (reflectSExpr z)]
     | _ => throwError "runCheckedExpand: internal — shape re-check"
   let (_, hexpRaw) ← mkForallMemProof cexpTy pFn (cexpEs.zip entryProofs)
   let memTy ← withLocalDeclD `e cexpTy fun eV => do

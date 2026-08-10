@@ -10,40 +10,62 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
-/-- The rewrite-equal cons-decomposition DESCENT (extracted from the chain
-    walker, restructure charter item 1 — behavior-preserving): given the
-    running equality's sides `s1`/`s2` and the node stream positioned at
-    the descent's first window-tagged scratch node, replay the CAR phase
-    then (component-equal) the CDR phase — each phase folds its
-    window-tagged scratch into component-value equalities, then resolves
-    by the recorded decision at the components equality (a verdict node or
-    an item-A decision record; `dec?` is origin-agnostic) or the silent
-    type-set refutation, with the duplicate decision-record consumption
-    cross-checking agreement. Returns the value-level verdict
-    (`Logic.equal v(s1) v(s2) = cst`), the constant, the UNCONSUMED node
-    tail, and the threaded ctx — the caller decides what an unconsumed
-    tail means (the top-level chain requires it empty; a NESTED descent
-    (item 2) continues its enclosing phase from it). -/
+/-- The rewrite-equal cons-decomposition DESCENT (charter items 1+2 — the
+    RECURSIVE protocol): given the running equality's sides `s1`/`s2` and
+    the node stream positioned at the descent's first window-tagged
+    scratch node, replay the CAR phase then the CDR phase. Each phase
+    folds its window-tagged scratch into component-value equalities, then
+    resolves by, in order: (a) a recorded verdict NODE at the components
+    equality (equal-self, ta-nil, … — `dec?`, origin-agnostic), with the
+    duplicate item-A record consumed and cross-checked; (b) the item-A
+    decision RECORD alone — a resolved-NIL record anchors the type-set
+    refutation, an IDENTITY record marks the phase UNRESOLVED (the probe
+    outcome); (c) a NESTED descent — the head names decT's own CAR
+    components (window pair or record) — recurse, then consume the
+    enclosing record, cross-checked against the nested outcome; (d) the
+    silent type-set refutation (pre-item-A logs only).
+
+    The OUTCOME TABLE mirrors rewrite.lisp's cons-cons cond exactly:
+    cars NIL ⇒ NIL; cars T then cdrs T/NIL/unresolved ⇒ T/NIL/unresolved;
+    cars UNRESOLVED then cdrs NIL ⇒ NIL, but a cdrs *t* on that
+    negative side is DISCARDED by ACL2 (the audit-C3 asymmetry — now
+    reachable through nested descents, mirrored here at the outcome
+    level: the phase's own record is still verdict-consistent, the
+    DESCENT outcome is unresolved).
+
+    Returns `some (hEq, cst)` (`hEq : Logic.equal v(s1) v(s2) = cst`) for
+    a resolved descent, `none` for an UNRESOLVED one (a probe — the
+    consumed block rewrote synthesized redexes only and contributes
+    NOTHING to the enclosing chain), plus the unconsumed tail and the
+    threaded ctx. The top-level caller requires the tail empty on
+    resolved outcomes and continues the chain unchanged on `none`;
+    a nested call continues its enclosing phase from the tail. -/
 partial def replayEqualDescent (rec : NodeRec) (cfg : ReplayConfig)
     (ctx0 : ReplayCtx) (s1 s2 : SExpr) (nodes : List ProofNode) :
-    MetaM (Expr × SExpr × List ProofNode × ReplayCtx) := do
-  let start : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
-    (.cons s1 (.cons s2 .nil))
+    MetaM (Option (Expr × SExpr) × List ProofNode × ReplayCtx) := do
+  let mkEqT : SExpr → SExpr → SExpr := fun a b =>
+    .cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil))
+  let mkComp : String → SExpr → SExpr := fun pfn t =>
+    .cons (.atom (.symbol { name := pfn })) (.cons t .nil)
+  let isDecRecord : ProofNode → Bool := fun m =>
+    nodeOrigin m == "equal/cars-decision" ||
+    nodeOrigin m == "equal/cdrs-decision"
+  let start := mkEqT s1 s2
   let mut ctx ← pinTermOpaques cfg cfg.envExpr ctx0 start
   let vs1 ← ctxValExpr cfg ctx s1
   let vs2 ← ctxValExpr cfg ctx s2
   let _ := (vs1, vs2)
   let mut nodesLeft : List ProofNode := nodes
-  -- verdict accumulator: none = still deciding; some hEq = the
-  -- final `Logic.equal vs1 vs2 = <const>` fact + the constant
+  -- verdict: some hEq = refuted (`Logic.equal vs1 vs2 = nil`);
+  -- unresolved: some phase probed without resolving (a T on the CDR
+  -- phase after an unresolved CAR is discarded per the outcome table)
   let mut verdict : Option (Expr × SExpr) := none
+  let mut unresolved : Bool := false
   let mut phaseComps : List Expr := []  -- car-, then cdr-phase
   for pfn in ["CAR", "CDR"] do
     if verdict.isSome then continue
-    let mut c1 : SExpr := .cons (.atom (.symbol { name := pfn }))
-      (.cons s1 .nil)
-    let mut c2 : SExpr := .cons (.atom (.symbol { name := pfn }))
-      (.cons s2 .nil)
+    let mut c1 : SExpr := mkComp pfn s1
+    let mut c2 : SExpr := mkComp pfn s2
     ctx ← pinTermOpaques cfg cfg.envExpr ctx c1
     ctx ← pinTermOpaques cfg cfg.envExpr ctx c2
     let mut h1 ← mkEqRefl (← ctxValExpr cfg ctx c1)
@@ -86,14 +108,19 @@ partial def replayEqualDescent (rec : NodeRec) (cfg : ReplayConfig)
             c2 := r''; nodesLeft := r'
           else scanning := false
         | _ => scanning := false
-    -- the phase decision: a recorded (EQUAL c1 c2) node at the
-    -- EQUAL's own path, or a silent type-alist refutation
-    let decT : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
-      (.cons c1 (.cons c2 .nil))
+    -- the phase decision — arms (a)–(d) per the docstring
+    let decT : SExpr := mkEqT c1 c2
+    let nilLem := if pfn == "CAR" then
+      ``logic_equal_nil_of_car_components
+      else ``logic_equal_nil_of_cdr_components
+    -- (a): a recorded verdict NODE at the components equality —
+    -- origin-agnostic EXCEPT the item-A records (verdict-only DATA;
+    -- rec.node has no recipe for them — they are (b)'s arm)
     let dec? ← match nodesLeft with
       | n' :: r' => do
         let (l', rr') := nodeLhsRhs n'
-        if l' == decT && (relativizeFrames (nodePath n')) == [] then
+        if l' == decT && !isDecRecord n' &&
+            (relativizeFrames (nodePath n')) == [] then
           pure (some (n', rr', r'))
         else pure none
       | [] => pure none
@@ -108,94 +135,170 @@ partial def replayEqualDescent (rec : NodeRec) (cfg : ReplayConfig)
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
         let ve ← mkAppM ``val_eq_of_eval_eq
           #[e, ← ctxValProof cfg ctx decT, vq]
-        -- vDec = t → vc1 = vc2 → component equality
+        -- vDec = t → vc1 = vc2 → component equality. A *t* on a phase
+        -- run AFTER an unresolved one is the NEGATIVE side — ACL2
+        -- DISCARDS it (the outcome table); the node is consumed
+        -- identically, the component fact just doesn't count.
         let _ := vDec
         let hc ← mkAppM ``logic_eq_of_equal_t #[ve]
         let hcomp ← mkAppM ``Eq.trans
           #[h1, ← mkAppM ``Eq.trans #[hc, ← mkAppM ``Eq.symm #[h2]]]
-        phaseComps := phaseComps ++ [hcomp]
+        unless unresolved do phaseComps := phaseComps ++ [hcomp]
       else if rr' == quoteNil then
         let vq ← mkAppM ``re_val_quote
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
         let ve ← mkAppM ``val_eq_of_eval_eq
           #[e, ← ctxValProof cfg ctx decT, vq]
-        let lem := if pfn == "CAR" then
-          ``logic_equal_nil_of_car_components
-          else ``logic_equal_nil_of_cdr_components
-        verdict := some (← mkAppM lem #[h1, h2, ve], SExpr.nil)
+        verdict := some (← mkAppM nilLem #[h1, h2, ve], SExpr.nil)
       else
         throwError "replayRewrites: rewrite-equal {pfn} decision \
             node {repr decT} ⇒ {repr rr'} is not a constant \
             verdict (frontier)"
+      -- the duplicate item-A record after a verdict node: re-states
+      -- the same fact at the descent level — consume, cross-checking
+      -- agreement (lhs must be THIS phase's decT; a same-origin record
+      -- with a different lhs belongs to an ENCLOSING phase and stays)
+      match nodesLeft with
+      | m :: r'' =>
+        if isDecRecord m && (nodeLhsRhs m).1 == decT then
+          let expected := if verdict.isSome then quoteNil else quoteT
+          unless (nodeLhsRhs m).2 == expected do
+            throwError "replayRewrites: {nodeOrigin m} record verdict \
+                {repr (nodeLhsRhs m).2} ≠ the phase outcome \
+                {repr expected} (emission divergence)"
+          nodesLeft := r''
+      | [] => pure ()
     | none =>
-      -- silent refutation from the in-scope context (the same
-      -- facts ACL2's type-set consulted)
-      ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
-      let hRef ← do
-        match ← typeSetWalk cfg ctx (.isNil decT) with
-        | some h => pure h
-        | none =>
-            throwError "replayRewrites: rewrite-equal {pfn} \
-                phase — no recorded decision and no in-scope \
-                refutation of {repr decT} (frontier)"
-      let lem := if pfn == "CAR" then
-        ``logic_equal_nil_of_car_components
-        else ``logic_equal_nil_of_cdr_components
-      verdict := some (← mkAppM lem #[h1, h2, hRef], SExpr.nil)
-    -- fork-batch item A (2026-08-09): the emitted
-    -- equal/{cars,cdrs}-decision record IS this phase's verdict,
-    -- recorded at the descent level. When the phase ALSO carried
-    -- an internal verdict node (the recursion's own
-    -- equal/type-alist-nil, consumed as `dec?` above), the
-    -- decision record re-states the same fact — consume it here,
-    -- cross-checking agreement; a disagreement is emission
-    -- divergence, hard-fail. (A LONE decision record is instead
-    -- consumed by `dec?` itself — the matcher is origin-agnostic.)
-    match nodesLeft with
-    | n' :: r' =>
-      let decOrigin := if pfn == "CAR" then "equal/cars-decision"
-                       else "equal/cdrs-decision"
-      if nodeOrigin n' == decOrigin then
-        let (l', rr') := nodeLhsRhs n'
-        unless l' == decT do
-          throwError "replayRewrites: {decOrigin} record lhs \
-              {repr l'} ≠ the phase components {repr decT} \
-              (emission divergence)"
-        -- Asymmetry note (audit 2026-08-09 inside C3): the fork's
-        -- NEGATIVE-side cdrs push shares this origin, and there a
-        -- *t* verdict is DISCARDED by ACL2 (only *nil* is usable —
-        -- rewrite.lisp's negative-side cond). That shape cannot
-        -- reach this check today (an unresolved cars phase either
-        -- takes the probe block or throws at dec?'s non-constant
-        -- verdict), so `expected` is sound for the reachable
-        -- positive-side records; if the negative side ever
-        -- becomes reachable, split the origins in the fork first.
-        let expected := if verdict.isSome then quoteNil else quoteT
-        unless rr' == expected do
-          throwError "replayRewrites: {decOrigin} record verdict \
-              {repr rr'} ≠ the phase outcome {repr expected} \
-              (emission divergence)"
-        nodesLeft := r'
-    | [] => pure ()
-  let (hEq, cst) ← do
-    match verdict with
-    | some (h, c) => pure (h, c)
-    | none => do
-      -- both phases component-equal: 'T by cons-extensionality;
-      -- consp evidence for BOTH sides from value shape/context
-      let [hcompCar, hcompCdr] := phaseComps
-        | throwError "replayRewrites: rewrite-equal decomposition \
-            finished with {phaseComps.length} component proofs \
-            (internal)"
-      let some hca ← typeSetWalk cfg ctx (.isConspT s1)
-        | throwError "replayRewrites: rewrite-equal — no consp \
-            evidence for {repr s1} (frontier)"
-      let some hcb ← typeSetWalk cfg ctx (.isConspT s2)
-        | throwError "replayRewrites: rewrite-equal — no consp \
-            evidence for {repr s2} (frontier)"
-      pure (← mkAppM ``logic_equal_t_of_components
-        #[hca, hcb, hcompCar, hcompCdr], SExpr.t)
-  return (hEq, cst, nodesLeft, ctx)
+      let nestedStart : Bool := match nodesLeft with
+        | m :: _ =>
+          let cc1 := mkComp "CAR" c1
+          let cc2 := mkComp "CAR" c2
+          (innerKindOf m == "equal-cars" &&
+            innerTermOf m == some (.cons cc1 (.cons cc2 .nil)))
+          || (nodeOrigin m == "equal/cars-decision" &&
+              (nodeLhsRhs m).1 == mkEqT cc1 cc2)
+        | [] => false
+      match nodesLeft with
+      | m :: r' =>
+        if isDecRecord m && (nodeLhsRhs m).1 == decT then
+          -- (b): the item-A record IS the decision
+          let rr' := (nodeLhsRhs m).2
+          if rr' == decT then
+            -- identity — the phase PROBED and resolved nothing
+            nodesLeft := r'
+            unresolved := true
+          else if rr' == quoteNil then
+            -- resolved-NIL with no verdict node: the record ANCHORS
+            -- the refutation; the justification is the type-set
+            -- closure on the same facts (verdict-only granularity)
+            nodesLeft := r'
+            ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
+            let hRef ← do
+              match ← typeSetWalk cfg ctx (.isNil decT) with
+              | some h => pure h
+              | none =>
+                  throwError "replayRewrites: rewrite-equal {pfn} \
+                      phase — recorded NIL decision on {repr decT} \
+                      but no in-scope refutation (frontier)"
+            verdict := some (← mkAppM nilLem #[h1, h2, hRef], SExpr.nil)
+          else if rr' == quoteT then
+            throwError "replayRewrites: rewrite-equal {pfn} phase — \
+                lone resolved-T record on {repr decT} with no verdict \
+                node (frontier — no recorded witness)"
+          else
+            throwError "replayRewrites: rewrite-equal {pfn} phase — \
+                decision record {repr decT} ⇒ {repr rr'} is neither \
+                identity nor a constant verdict (emission divergence)"
+        else if nestedStart then
+          -- (c): a NESTED descent decides this phase's components
+          -- equality; the ENCLOSING record must follow the nested
+          -- block and agree with its outcome
+          let (out?, tail, ctx') ←
+            replayEqualDescent rec cfg ctx c1 c2 nodesLeft
+          ctx := ctx'
+          match tail with
+          | recNode :: tail' =>
+            unless isDecRecord recNode &&
+                (nodeLhsRhs recNode).1 == decT do
+              throwError "replayRewrites: rewrite-equal {pfn} phase — \
+                  nested descent on {repr decT} not followed by its \
+                  enclosing decision record (head: \
+                  {repr (nodeLhsRhs recNode).1}) (emission divergence)"
+            let rrr := (nodeLhsRhs recNode).2
+            nodesLeft := tail'
+            match out? with
+            | some (hEqN, cstN) =>
+              if cstN == SExpr.t then
+                unless rrr == quoteT do
+                  throwError "replayRewrites: nested descent resolved \
+                      T but the enclosing record says {repr rrr} \
+                      (emission divergence)"
+                let hc ← mkAppM ``logic_eq_of_equal_t #[hEqN]
+                let hcomp ← mkAppM ``Eq.trans
+                  #[h1, ← mkAppM ``Eq.trans
+                    #[hc, ← mkAppM ``Eq.symm #[h2]]]
+                unless unresolved do
+                  phaseComps := phaseComps ++ [hcomp]
+              else
+                unless rrr == quoteNil do
+                  throwError "replayRewrites: nested descent resolved \
+                      NIL but the enclosing record says {repr rrr} \
+                      (emission divergence)"
+                verdict := some (← mkAppM nilLem #[h1, h2, hEqN],
+                  SExpr.nil)
+            | none =>
+              unless rrr == decT do
+                throwError "replayRewrites: nested descent UNRESOLVED \
+                    but the enclosing record resolves {repr rrr} \
+                    (emission divergence)"
+              unresolved := true
+          | [] =>
+            throwError "replayRewrites: rewrite-equal {pfn} phase — \
+                nested descent on {repr decT} consumed the whole \
+                stream with no enclosing record (emission divergence)"
+        else
+          -- (d): silent refutation from the in-scope context (the
+          -- same facts ACL2's type-set consulted — pre-item-A logs)
+          ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
+          let hRef ← do
+            match ← typeSetWalk cfg ctx (.isNil decT) with
+            | some h => pure h
+            | none =>
+                throwError "replayRewrites: rewrite-equal {pfn} \
+                    phase — no recorded decision and no in-scope \
+                    refutation of {repr decT} (frontier)"
+          verdict := some (← mkAppM nilLem #[h1, h2, hRef], SExpr.nil)
+      | [] =>
+        -- stream ended with no decision — (d)
+        ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
+        let hRef ← do
+          match ← typeSetWalk cfg ctx (.isNil decT) with
+          | some h => pure h
+          | none =>
+              throwError "replayRewrites: rewrite-equal {pfn} \
+                  phase — no recorded decision and no in-scope \
+                  refutation of {repr decT} (frontier)"
+        verdict := some (← mkAppM nilLem #[h1, h2, hRef], SExpr.nil)
+  -- the descent outcome (the rewrite.lisp cons-cons cond)
+  if let some (h, c) := verdict then
+    return (some (h, c), nodesLeft, ctx)
+  if unresolved then
+    return (none, nodesLeft, ctx)
+  -- both phases component-equal: 'T by cons-extensionality; consp
+  -- evidence for BOTH sides from value shape/context
+  let [hcompCar, hcompCdr] := phaseComps
+    | throwError "replayRewrites: rewrite-equal decomposition \
+        finished with {phaseComps.length} component proofs \
+        (internal)"
+  let some hca ← typeSetWalk cfg ctx (.isConspT s1)
+    | throwError "replayRewrites: rewrite-equal — no consp \
+        evidence for {repr s1} (frontier)"
+  let some hcb ← typeSetWalk cfg ctx (.isConspT s2)
+    | throwError "replayRewrites: rewrite-equal — no consp \
+        evidence for {repr s2} (frontier)"
+  let hEqT ← mkAppM ``logic_equal_t_of_components
+    #[hca, hcb, hcompCar, hcompCdr]
+  return (some (hEqT, SExpr.t), nodesLeft, ctx)
 
 /-- Replay a chain of rewrite nodes, lifting each through the chain's start term by
     path-directed congruence (window-local paths, drop-one relativization) and
@@ -1206,64 +1309,70 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           -- (cdrs-first arises when the cars phase decided with no scratch
           -- rewrite — its window is empty and unseen here.)
           if innerKindOf n == "equal-cars" || innerKindOf n == "equal-cdrs" then do
-            -- UNRESOLVED PROBE block (fork-batch item A, 2026-08-09):
-            -- classify the descent by its FIRST decision record — an
-            -- identity record (rhs == lhs) means the whole descent resolved
-            -- NOTHING (ACL2 probed the component equalities, possibly
-            -- nesting further descents, and kept the running equality
-            -- unchanged; HOW-MANY-BAD-PAIRS-BNEXT *1/6' literal 5). The
-            -- honest consumption is the maximal block of window-tagged
-            -- scratch + identity decision records as a NO-OP on the running
-            -- term — the scratch rewrote SYNTHESIZED redexes only, and the
-            -- records are verdict-only data. A RESOLVED record inside such
-            -- a block is a frontier (no corpus witness); a resolved FIRST
-            -- record falls through to the decomposition protocol below.
-            let isDecision : ProofNode → Bool := fun m =>
-              nodeOrigin m == "equal/cars-decision" ||
-              nodeOrigin m == "equal/cdrs-decision"
-            let firstDec? := (n :: rest).find? isDecision
-            let unresolvedProbe := match firstDec? with
-              | some m => (nodeLhsRhs m).1 == (nodeLhsRhs m).2
-              | none => false
-            if unresolvedProbe then do
-              let mut restP : List ProofNode := n :: rest
-              let mut consumed : List ProofNode := []
-              let mut scanning := true
-              while scanning do
-                match restP with
-                | m :: r' =>
-                  if innerKindOf m == "equal-cars" ||
-                      innerKindOf m == "equal-cdrs" then
-                    consumed := consumed ++ [m]; restP := r'
-                  else if isDecision m then
-                    let (l', r'') := nodeLhsRhs m
-                    unless r'' == l' do
-                      throwError "replayRewrites: resolved {nodeOrigin m} \
-                          record ({repr l'} ⇒ {repr r''}) inside an \
-                          unresolved probe block (frontier)"
-                    consumed := consumed ++ [m]; restP := r'
-                  else scanning := false
-                | [] => scanning := false
-              return ← replayRewritesWith rec cfg ctx start restP
-                (chainPrefix ++ consumed)
-            -- the deciding protocol lives in `replayEqualDescent` (the
-            -- restructure extraction); at the TOP level the whole
-            -- remaining chain is the protocol — an unconsumed tail
-            -- hard-fails
-            let (hEq, cst, nodesLeft, ctxD) ←
+            -- the deciding protocol is `replayEqualDescent` (the
+            -- restructure): a RESOLVED descent must have consumed the
+            -- whole remaining chain (hard-fail otherwise); an UNRESOLVED
+            -- one is a probe — its block rewrote synthesized redexes
+            -- only, so the chain continues on the UNCHANGED running term
+            -- from the returned tail (this subsumes the former separate
+            -- probe-block consumption, nested probes included)
+            let (out?, nodesLeft, ctxD) ←
               replayEqualDescent rec cfg ctx s1 s2 (n :: rest)
-            unless nodesLeft.isEmpty do
-              throwError "replayRewrites: rewrite-equal decomposition left \
-                  unconsumed nodes \
-                  {repr (nodesLeft.map (fun m => (nodeLhsRhs m).1))} \
-                  (frontier)"
-            let pl ← ctxValProof cfg ctxD start
-            let pr ← mkAppM ``re_val_quote
-              #[cfg.worldExpr, cfg.envExpr, reflectSExpr cst]
-            let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hEq]
-            let resT : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
-              (.cons cst .nil)
-            return (some (step, false), resT)
+            match out? with
+            | none =>
+              let nAll := (n :: rest).length
+              let consumed := (n :: rest).take (nAll - nodesLeft.length)
+              return ← replayRewritesWith rec cfg ctxD start nodesLeft
+                (chainPrefix ++ consumed)
+            | some (hEq, cst) =>
+              unless nodesLeft.isEmpty do
+                throwError "replayRewrites: rewrite-equal decomposition \
+                    left unconsumed nodes \
+                    {repr (nodesLeft.map (fun m => (nodeLhsRhs m).1))} \
+                    (frontier)"
+              let pl ← ctxValProof cfg ctxD start
+              let pr ← mkAppM ``re_val_quote
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr cst]
+              let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hEq]
+              let resT : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons cst .nil)
+              return (some (step, false), resT)
+    -- POSITIONED equal descent (charter item 3, B(ii) — ORDEREDP-WHEN-
+    -- BNEXT-CONSTANT): window-tagged equal-cars/cdrs nodes reaching the
+    -- walk with a running term that is NOT the descended equality — the
+    -- descent targets an equality INSIDE the term (the window's entry
+    -- path names the position; the pair names the CAR/CDR components,
+    -- from which the sides reconstruct). An UNRESOLVED descent is the
+    -- probe no-op (running term unchanged); a RESOLVED one needs the
+    -- lifted-verdict composition, a loud frontier until a corpus
+    -- artifact exhibits it.
+    if innerKindOf n == "equal-cars" || innerKindOf n == "equal-cdrs" then do
+      let some (.cons r1 (.cons r2 .nil)) := innerTermOf n
+        | throwError "replayRewrites: positioned {innerKindOf n} window \
+            without a component pair (frontier)"
+      let sides? : Option (SExpr × SExpr) := match r1, r2 with
+        | .cons (.atom (.symbol f1)) (.cons e1 .nil),
+          .cons (.atom (.symbol f2)) (.cons e2 .nil) =>
+          if f1.name == f2.name && (f1.name == "CAR" || f1.name == "CDR")
+          then some (e1, e2) else none
+        | _, _ => none
+      let some (e1, e2) := sides?
+        | throwError "replayRewrites: positioned {innerKindOf n} window \
+            pair {repr r1} / {repr r2} does not name CAR/CDR components \
+            (frontier)"
+      let (out?, tail, ctxD) ←
+        replayEqualDescent rec cfg ctx e1 e2 (n :: rest)
+      match out? with
+      | none =>
+        let nAll := (n :: rest).length
+        let consumed := (n :: rest).take (nAll - tail.length)
+        return ← replayRewritesWith rec cfg ctxD start tail
+          (chainPrefix ++ consumed)
+      | some _ =>
+        throwError "replayRewrites: positioned equal descent on \
+            (EQUAL {repr e1} {repr e2}) at {repr (innerPathOf n)} \
+            RESOLVED — the lifted-verdict composition has no corpus \
+            witness yet (frontier)"
     let nodeEq ← rec.node cfg ctx n
     let (lifted, newTerm) ←
       try
