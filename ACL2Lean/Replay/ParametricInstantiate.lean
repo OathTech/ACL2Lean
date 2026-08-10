@@ -1018,6 +1018,20 @@ def prepareUseFi (crossDevs : List (String × Development))
         (Lean.Name.mkSimple s!"pequivfull_{c.name}",
          Lean.BinderInfo.default,
          fun _ => Driver.mkEquivFullHypType cfg c)).toArray
+    -- linear: offers (equal-descent restructure arc): the bridge's dep
+    -- re-replays can be conditional on :LINEAR content
+    -- (ORDEREDP-BSORT's recorded-termination bundle keeps
+    -- linear:HOW-MANY-BAD-PAIRS-BNEXT) — same dedup as the main harness
+    let linearSpecs := cfg.linearRules.foldl (init := [])
+      fun acc (r : ACL2.LinearRuleSpec) =>
+        if acc.any (fun (q : ACL2.LinearRuleSpec) =>
+            q.name == r.name && q.hyps == r.hyps && q.concl == r.concl)
+        then acc else acc ++ [r]
+    let linearDecls : Array (Lean.Name × Lean.BinderInfo ×
+        (Array Expr → Lean.MetaM Expr)) :=
+      (linearSpecs.map fun r =>
+        (Lean.Name.mkSimple s!"plinear_{r.name}", Lean.BinderInfo.default,
+         fun _ => Driver.mkLinearHypType cfg r)).toArray
     Lean.Meta.withLocalDecls totalDecls fun totVs => do
     Lean.Meta.withLocalDecls ruleDecls fun ruleVs => do
     Lean.Meta.withLocalDecls tpDecls fun tpVs => do
@@ -1025,6 +1039,7 @@ def prepareUseFi (crossDevs : List (String × Development))
     Lean.Meta.withLocalDecls congDecls fun congVs => do
     Lean.Meta.withLocalDecls equivDecls fun equivVs => do
     Lean.Meta.withLocalDecls equivFullDecls fun equivFullVs => do
+    Lean.Meta.withLocalDecls linearDecls fun linVs => do
       let ctx : ReplayCtx :=
         { totalHyps := (fns.map (fun (sy, _, _) => sy.name)).zip
             totVs.toList,
@@ -1035,7 +1050,8 @@ def prepareUseFi (crossDevs : List (String × Development))
             (fun ((sy, _, cor), h) => (sy.name, cor, h)),
           congHyps := congs.zip congVs.toList,
           equivReflHyps := equivSpecs.zip equivVs.toList,
-          equivFullHyps := equivFullSpecs.zip equivFullVs.toList }
+          equivFullHyps := equivFullSpecs.zip equivFullVs.toList,
+          linearHyps := linearSpecs.zip linVs.toList }
       let pf ← mkUseFiDischarger crossDevs totsNames termByFn
         consumerDev cfg ctx spec
       -- the result is `mkAppN (const) usedFVars`; record each argument
@@ -1061,6 +1077,9 @@ def prepareUseFi (crossDevs : List (String × Development))
         else if let some (n, _, _) := ctx.tpHypsAv.find?
             (fun (_, _, h) => h.fvarId! == fid) then
           pure ("tpav", n)
+        else if let some (r, _) := ctx.linearHyps.find?
+            (fun (_, h) => h.fvarId! == fid) then
+          pure ("linear", r.name)
         else
           throwError "prepareUseFi: constant argument outside the \
             row-suppliable classes"
@@ -1078,6 +1097,7 @@ def applyPreparedUseFi (cName : Lean.Name)
       | "rule" => (ctx.ruleHyps.find? (·.1.runeKey == k)).map (·.2)
       | "tp" => (ctx.tpHyps.find? (·.1 == k)).map (·.2.2)
       | "tpav" => (ctx.tpHypsAv.find? (·.1 == k)).map (·.2.2)
+      | "linear" => (ctx.linearHyps.find? (·.1.name == k)).map (·.2)
       | _ => none
     match h? with
     | some h => pure h
