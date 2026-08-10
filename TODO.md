@@ -262,7 +262,15 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > RATIFICATION QUESTION for Mike: the DP premise scan's breadth
 > (Totality's rule pass scans every stored rule and can cite rules
 > ACL2 did not — outside CONCERN 3; narrow to recorded-basis-only
-> per the tau ruling's creep-watch, or ratify as-is?).
+> per the tau ruling's creep-watch, or ratify as-is?). SHARPENED by
+> the restructure-arc audit's DEFECT 2 (the linear pass is
+> RUNE-BLIND — it supplied a rule at leaves whose recorded runes
+> cannot cite it): the concrete direction is leaf-rune gating where
+> a rune channel exists + EMITTING the rune channel for verdict-only
+> admission clauses (a future fork-batch item). Also QUEUED:
+> statement pins for the four new bsort greens (needs linear-hyp pin
+> helpers; the audit hand-verified all four goal terms are the full
+> ACL2 theorems meanwhile).
 > BSORT-IS-ISORT's next named wall (88e13fd): the W3 class-2 lift is
 > hypothesis-free-only; the WEAK parametric's premises are
 > ONE-HYPOTHESIS rules (TRUE-LISTP-SORTFN1/2) — the one-hyp lift

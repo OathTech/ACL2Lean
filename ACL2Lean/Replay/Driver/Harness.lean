@@ -684,7 +684,15 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- used-filter, consumed ones stay honest D6 conditions.
   let linearSpecs := cfg.linearRules.foldl (init := [])
     fun acc r =>
-      if acc.any (fun (q : LinearRuleSpec) =>
+      -- SELF-GATE (restructure-arc audit, convergent DEFECT 1 — verified
+      -- by the outside reviewer's guard experiment): the snapshot is the
+      -- END-OF-BOOK final world, so a theorem's own :LINEAR rule would be
+      -- offered to its own replay — a hypothesis that IS the theorem
+      -- (the tpthm/use gates' missing sibling; ACL2 cannot cite a
+      -- not-yet-admitted rule). The experiment showed the self-premise
+      -- was never load-bearing: the row proves without it, stronger.
+      if r.name == cp.name then acc
+      else if acc.any (fun (q : LinearRuleSpec) =>
           q.name == r.name && q.hyps == r.hyps && q.concl == r.concl)
       then acc else acc ++ [r]
   let linearDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=

@@ -599,14 +599,11 @@ def nodePath : ProofNode → List PathFrame | .node _ _ _ _ p => p.path
 def nodeOrigin : ProofNode → String | .node _ _ _ _ p => p.origin
 
 /-- Is this literal item an IDENTITY display? Its result is the literal
-    unchanged and its nodes are at most an UNRESOLVED equal-descent PROBE
-    (fork-batch item A + the restructure arc): `equal/{cars,cdrs}-decision`
-    records with rhs == lhs — verdict-only DATA recording that ACL2 probed
-    the component equality and left it standing — plus the probe's
-    window-tagged equal-cars/cdrs SCRATCH (rewrites of SYNTHESIZED
-    component redexes, which never touch the literal itself; the
-    `result == literal` conjunct pins the net effect). Replaces the bare
-    `lp.nodes.isEmpty` at the walkers' identity guards. -/
+    unchanged and its nodes are at most an equal-descent PROBE (item A +
+    the restructure arc): identity decision records, window-tagged
+    scratch (synthesized redexes only), and provenance-gated nested
+    verdict nodes — `result == literal` pins the net effect. Replaces
+    the bare `lp.nodes.isEmpty` at the walkers' identity guards. -/
 def identityLiteralItem (lp : LiteralProof) : Bool :=
   lp.result == lp.literal && lp.nodes.all fun n =>
     ((nodeOrigin n == "equal/cars-decision" ||
@@ -616,20 +613,24 @@ def identityLiteralItem (lp : LiteralProof) : Bool :=
     || (match n with
         | .node _ _ _ _ p =>
           p.innerKind == "equal-cars" || p.innerKind == "equal-cdrs")
-    -- a NESTED descent's verdict node inside the probe (equal-self ⇒ 'T,
-    -- ta-nil ⇒ 'NIL — components-equality-headed, constant or identity
-    -- rhs): rewrites of SYNTHESIZED component equalities, never the
-    -- literal (the `result == literal` conjunct pins the net effect;
-    -- ORDEREDP-WHEN-BNEXT-CONSTANT *1/4.1.3's 9-step probe)
-    || (match nodeLhsRhs n with
-        | (l@(.cons (.atom (.symbol eqS)) (.cons _ (.cons _ .nil))), r) =>
-          eqS.name == "EQUAL" &&
-          (r == l ||
-           r == .cons (.atom (.symbol { name := "QUOTE" }))
-             (.cons SExpr.t .nil) ||
-           r == .cons (.atom (.symbol { name := "QUOTE" }))
-             (.cons SExpr.nil .nil))
-        | _ => false)
+    -- a NESTED verdict node / resolved record inside the probe
+    -- (*1/4.1.3's 9-step shape). PROVENANCE-GATED (restructure audit,
+    -- both reviewers): verdict-class origins only — shape alone would
+    -- accept a real root-level refutation.
+    || (match n with
+        | .node _ l r _ p =>
+          (p.origin == "equal/self" || p.origin == "equal/type-alist-nil"
+           || p.origin == "equal/cars-decision"
+           || p.origin == "equal/cdrs-decision")
+          && (match l with
+              | .cons (.atom (.symbol eqS)) (.cons _ (.cons _ .nil)) =>
+                eqS.name == "EQUAL"
+              | _ => false)
+          && (r == l ||
+              r == .cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons SExpr.t .nil) ||
+              r == .cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons SExpr.nil .nil)))
 /-- The node's enclosing-window kind ("" = none / literal level). -/
 def innerKindOf : ProofNode → String | .node _ _ _ _ p => p.innerKind
 /-- The node's enclosing-window input term (path-emission Phase 1). -/

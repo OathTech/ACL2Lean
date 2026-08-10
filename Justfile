@@ -147,7 +147,7 @@ claim-gate:
     bash -c 'set -o pipefail; \
       mkdir -p .gate-runs; \
       stamp=".gate-runs/$(git rev-parse --short HEAD)-$(date -u +%Y%m%dT%H%M%SZ).log"; \
-      just ci 2>&1 | tee "$stamp"; ec=$?; \
+      just ci 2>&1 | tee "$stamp"; ec=${PIPESTATUS[0]}; \
       echo "TRUE_EXIT=$ec" | tee -a "$stamp"; \
       echo "gate artifact: $stamp"; \
       exit 0'

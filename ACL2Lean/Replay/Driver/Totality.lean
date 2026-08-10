@@ -1459,6 +1459,21 @@ def prefixDischargeExtend (cfg : ReplayConfig) (ctx : ReplayCtx)
     | throwError "replayClauseSpine: whole-clause discharge node lhs \
         {repr nodeLhs} ≠ the clause disjunction \
         {repr (disjoinTerm allL)} (nor any prefix) at {idStr}"
+  -- the DROPPED tail must be the class add-literal actually drops
+  -- (restructure-arc audit C5: syntactic prefix-hood alone would silently
+  -- absorb a reconstruction divergence as monotone weakening) — today's
+  -- sole witness class is the trivially-nil (NOT (EQUAL t t)); anything
+  -- else hard-fails
+  for L in allL.drop k do
+    let ok := match L with
+      | .cons (.atom (.symbol ns)) (.cons
+          (.cons (.atom (.symbol es)) (.cons a (.cons b .nil))) .nil) =>
+        ns.name == "NOT" && es.name == "EQUAL" && a == b
+      | _ => false
+    unless ok do
+      throwError "replayClauseSpine: prefix discharge would drop \
+          {repr L}, which is not the trivially-nil (NOT (EQUAL t t)) \
+          class at {idStr} (frontier — reconstruction divergence?)"
   let pPre ← replayDischargeNode cfg ctx (disjoinTerm (allL.take k))
   evtrueExtendTail cfg ctx (allL.take k) (allL.drop k) pPre
 

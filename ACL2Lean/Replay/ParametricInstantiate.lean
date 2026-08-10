@@ -1097,7 +1097,13 @@ def applyPreparedUseFi (cName : Lean.Name)
       | "rule" => (ctx.ruleHyps.find? (·.1.runeKey == k)).map (·.2)
       | "tp" => (ctx.tpHyps.find? (·.1 == k)).map (·.2.2)
       | "tpav" => (ctx.tpHypsAv.find? (·.1 == k)).map (·.2.2)
-      | "linear" => (ctx.linearHyps.find? (·.1.name == k)).map (·.2)
+      | "linear" =>
+        -- exactly-one (restructure-arc audit N6 — LinearRuleSpec has no
+        -- idx, so one rune can name content-distinct rules; refuse
+        -- ambiguity like depMirrorProofAt rather than take the first)
+        match ctx.linearHyps.filter (·.1.name == k) with
+        | [(_, h)] => some h
+        | _ => none
       | _ => none
     match h? with
     | some h => pure h
