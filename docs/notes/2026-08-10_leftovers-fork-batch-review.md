@@ -51,12 +51,40 @@ is NOT currently needed. Listed so the review covers it in principle;
 it joins only if a future consumer must distinguish the sides
 record-side.
 
+## Item H — the admission-clause RUNE CHANNEL (restructure-audit
+## DEFECT 2's emission half; user-agreed for this batch 2026-08-10)
+
+The emitted `:TERMINATION-CLAUSES` are verdict-only with NO rune
+channel, so the DP linear-premise supply cannot be leaf-rune-gated on
+the admission path (the ruled direction for the DP-scan question).
+Proposed: extend the defun emission to carry, per termination clause,
+the rune set ACL2's admission machinery consulted (site pinned during
+the build — the measure-conjecture proof path; presented before the
+edit if diffuse). Consumer: the linear/rule premise passes gate
+injection on the recorded runes wherever the channel exists.
+
+## Item I — the TAU RULE-SET-BASIS emission (the ruled tau middle
+## path's fork half; user-agreed for this batch 2026-08-10)
+
+Per the 2026-08-10 tau ruling: for verdict-only tau leaves, emit the
+rule set the verdict rested on (the ta-nil-basis/fc-derivations
+precedent); the existing DP kit then takes exactly those runes'
+instances as premises — read-off, not matcher selection. FIRST
+INCREMENT IS THE SCOUT: confirm the tau verdict site can cheaply
+report its fired rule set (upstream tau is deliberately ttree-free);
+the scout's find-out comes back before the fork edit. Unblocks
+HOW-MANY-RM-GENERAL's *1/3.2 leaf (the row's ✓).
+
 ## The ask
 
-Approve/amend items E and F for one fork edit + rebuild +
+Approve/amend items E, F, H, and I for ONE fork edit + rebuild +
 recapture-all round-trip (item G explicitly deferred unless ruled
-otherwise). Expected recapture surface: corpus-wide records of the
-two new classes appear wherever the sites fire; goldens reviewed
-row-by-row; expected row-status changes NONE (both consumers become
-read-offs of what the inference already concluded) — any status
-drift is a mandatory stop.
+otherwise). BATCHING AGREED (Mike, 2026-08-10) — the four items ride
+one round-trip; the item-by-item content review of each edit's exact
+site+shape still happens here before the rebuild (H and I carry
+scout-first caveats above). Expected recapture surface: corpus-wide
+records of the new classes appear wherever the sites fire; goldens
+reviewed row-by-row; expected row-status changes from E/F/H NONE
+(their consumers become read-offs of what the replay already
+concluded) and from I the HOW-MANY-RM-GENERAL tau-leaf advance —
+any OTHER status drift is a mandatory stop.
