@@ -248,6 +248,26 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > BOOL-tolerant positions — a real sub-project, logged, gates
 > nothing else. Sweep/review/repin/gate pending.**
 
+> **RESTRUCTURE-ARC LEFTOVERS (charter items 4–5, 2026-08-10):**
+> item 4 REVIEW-LOGGED — the leftovers fork batch awaits Mike's
+> item-by-item ruling (docs/notes/2026-08-10_leftovers-fork-batch-
+> review.md: E = emit/dedup-drop retiring dedupSkipClose's expiry;
+> F = the LEXORDER-class entry-derivation provenance retiring that
+> rung's expiry; G explicitly deferred). Item 5: the claim-gate now
+> tees a stamped LOCAL artifact (.gate-runs/<sha>-<utc>.log,
+> gitignored — session-scope verifiability for auditors without repo
+> bloat; the audit's could-not-verify remedy). REMAINING item-5
+> leftovers, logged not built: navigateFrames does not validate frame
+> fn symbols (pre-existing fail-open, both close-out auditors);
+> RATIFICATION QUESTION for Mike: the DP premise scan's breadth
+> (Totality's rule pass scans every stored rule and can cite rules
+> ACL2 did not — outside CONCERN 3; narrow to recorded-basis-only
+> per the tau ruling's creep-watch, or ratify as-is?).
+> BSORT-IS-ISORT's next named wall (88e13fd): the W3 class-2 lift is
+> hypothesis-free-only; the WEAK parametric's premises are
+> ONE-HYPOTHESIS rules (TRUE-LISTP-SORTFN1/2) — the one-hyp lift
+> extension is the row's ✓ path.**
+
 > **TAU LANE — RULED (Mike, 2026-08-10): the MIDDLE PATH.** For
 > verdict-only tau leaves (the class behind HOW-MANY-RM-GENERAL's
 > *1/3.2 residual and the future tau-frontier family): emit the RULE

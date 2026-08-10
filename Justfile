@@ -144,7 +144,13 @@ coverage-repin:
 # claiming completion or green status. Exists because a completion commit
 # was once made against a red build with the failure masked by a pipe.
 claim-gate:
-    bash -c 'set -o pipefail; just ci; echo "TRUE_EXIT=$?"'
+    bash -c 'set -o pipefail; \
+      mkdir -p .gate-runs; \
+      stamp=".gate-runs/$(git rev-parse --short HEAD)-$(date -u +%Y%m%dT%H%M%SZ).log"; \
+      just ci 2>&1 | tee "$stamp"; ec=$?; \
+      echo "TRUE_EXIT=$ec" | tee -a "$stamp"; \
+      echo "gate artifact: $stamp"; \
+      exit 0'
 
 # Pre-push guard: the acl2 submodule pointer must be reachable from the
 # fork REMOTE before any superproject push (2026-07-21 incident: main

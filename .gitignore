@@ -14,3 +14,5 @@ Tests/driver-coverage.actual
 .difftest.log
 *.proof-log.meta
 Tests/coverage-actual/
+.gate-runs/*.log
+!.gate-runs/.gitkeep
