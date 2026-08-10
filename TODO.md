@@ -185,6 +185,21 @@ This is a living index, not a spec — design detail lives in `docs/plans/` and
 > warm meta caches from the in-node DP discharge pushed one defeq
 > path past it (runtime-class throw, uncatchable by plain catch).
 > Sweep + golden-review + repin + full gate pending.**
+> AUDIT + FIX ROUND + EXIT (2026-08-09): the pre-approved 2-Opus
+> audit ran (synthesis: docs/audits/2026-08-09_final-closeout-audit.md).
+> Top finding (convergent, rfl-verified): BSORT-IS-ISORT's
+> conditionally-green row was VACUOUS (kept usefi == goal) — fixed by
+> the ASSUMED:fi-self choke point (Harness marker + Runner/Macro
+> guards); the row is ASSUMED ◌ and the corpus count is an honest
+> 106/116. Also landed: the anchoring resolver tightened to its
+> documented three-component contract; dedupSkipClose + the
+> LEXORDER-ORDER rung marked HELD UNDER EXPIRY (emit/dedup-drop and
+> entry-derivation provenance queued for the next batch review);
+> provenance wording corrections. FINAL REPORT + merge proposal:
+> docs/notes/2026-08-09_final-closeout-report.md. Open user gates
+> carried out: the emit/dedup-drop fork item; the R-lane rung-3 lane
+> (its own charter). Named continuations: the NESTED equal-descent
+> composition (→ the bsort cluster); the tau frontier family.**
 > RULINGS + THE FORK BATCH ROUND (2026-08-09, ee35d88 + the batch
 > commits): Mike ruled R-lane = option 2 (emission-only — and item D
 > turned out ALREADY EMITTED at 24e6dbc, so the Lean rung-3 lane is

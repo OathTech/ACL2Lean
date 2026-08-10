@@ -293,7 +293,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
       -- a composed row never carries an ASSUMED cond as ✓) and refuse
       -- registration at this single choke point so no consumer can ever
       -- resolve the condition to a hypothesis fvar.
-      if p.2.contains assumedDpFactCond then
+      if p.2.contains assumedDpFactCond || p.2.contains assumedFiSelfCond then
         let condStr := s!" cond[{", ".intercalate p.2}]"
         return (s!"ASSUMED ◌{condStr}", none)
       -- D1: emit the replayed-statement constant (checked + axiom-clean above)

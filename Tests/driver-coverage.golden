@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 107/116 (45 unconditional + 62 conditional)
+Driver coverage — REPLAYED 106/116 (45 unconditional + 61 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
@@ -150,4 +150,4 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
 • sorting/sorts-equivalent  (world: 214 defun(s), 3 theorem(s))
     MSORT-IS-ISORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, tp:HOW-MANY, tp:INSERT, tp:EVENS, rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY]
     QSORT-IS-ISORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:QSORT, total:O<, tp:HOW-MANY, tp:INSERT, tp:QSORT, tp:ALL-REL, tp:ACL2-COUNT, rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:HOW-MANY-FILTER-1, rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND]
-    BSORT-IS-ISORT → REPLAYED ✓ cond[total:BSORT, tp:HOW-MANY, tp:INSERT, rule:ORDEREDP-ISORT, rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT, usefi:WEAK-SORTFN1-IS-SORTFN2]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]
+    BSORT-IS-ISORT → ASSUMED ◌ cond[total:BSORT, tp:HOW-MANY, tp:INSERT, rule:ORDEREDP-ISORT, rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT, usefi:WEAK-SORTFN1-IS-SORTFN2, ASSUMED:fi-self]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]

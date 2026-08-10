@@ -261,14 +261,29 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
           -- dedup argument, extended along position-canonical equality:
           -- an unanchored reading is the anchored one's hypothesis-free
           -- specialization — a sub-chain needing no hypothesis composes
-          -- under the branch congruence unchanged). Multiple anchored
-          -- readings must agree on the canonical anchor+preSwap.
+          -- under the branch congruence unchanged). Audit 2026-08-09
+          -- (inside D2 / outside C4 — the earlier code compared metadata
+          -- only in the ≥2-anchored branch, weaker than this docstring):
+          -- EVERY survivor must canonicalize AND agree on the canonical
+          -- preSwap component; among the anchored ones the full metadata
+          -- must agree. The ONLY sanctioned preference is
+          -- anchored-over-unanchored (the ratified rule above); everything
+          -- else that differs hard-fails.
+          let metas := cs.map canonMeta
+          unless metas.all (·.isSome) do
+            throwError "replayRewrites: inline {kind} window term \
+                {repr wterm}: a survivor's anchoring metadata failed to \
+                canonicalize (frontier)"
+          let pcs := metas.map (·.map (·.1))
+          unless pcs.all (· == pcs.head!) do
+            throwError "replayRewrites: inline {kind} window term \
+                {repr wterm}: survivors disagree on the canonical preSwap \
+                at one position (genuine ambiguity — frontier)"
           match cs.filter (·.2.2.isSome) with
           | [] => chosen? := some cs.head!
           | [a] => chosen? := some a
           | a :: rest =>
-            if rest.all (fun c => canonMeta c == canonMeta a)
-                && (canonMeta a).isSome then
+            if rest.all (fun c => canonMeta c == canonMeta a) then
               chosen? := some a
             else
               throwError "replayRewrites: inline {kind} window term \
@@ -1176,6 +1191,15 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                     throwError "replayRewrites: {decOrigin} record lhs \
                         {repr l'} ≠ the phase components {repr decT} \
                         (emission divergence)"
+                  -- Asymmetry note (audit 2026-08-09 inside C3): the fork's
+                  -- NEGATIVE-side cdrs push shares this origin, and there a
+                  -- *t* verdict is DISCARDED by ACL2 (only *nil* is usable —
+                  -- rewrite.lisp's negative-side cond). That shape cannot
+                  -- reach this check today (an unresolved cars phase either
+                  -- takes the probe block or throws at dec?'s non-constant
+                  -- verdict), so `expected` is sound for the reachable
+                  -- positive-side records; if the negative side ever
+                  -- becomes reachable, split the origins in the fork first.
                   let expected := if verdict.isSome then quoteNil else quoteT
                   unless rr' == expected do
                     throwError "replayRewrites: {decOrigin} record verdict \

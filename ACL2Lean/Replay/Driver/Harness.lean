@@ -962,7 +962,22 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let prfF ← instantiateMVars prf
       let kept := hypFVarsAll.filter (fun (_, v) => prfF.containsFVar v.fvarId!)
       let p ← mkLambdaFVars (kept.map (·.2)).toArray prfF
-      return (p, kept.map (·.1))
+      -- FI SELF-VACUITY marker (audit 2026-08-09, outside D1 — verified by
+      -- an `rfl` probe on BSORT-IS-ISORT): a KEPT usefi hypothesis whose
+      -- formula IS the row's goal makes the conditional row `P → P`. Tag
+      -- it with the reserved marker; the runner's ASSUMED choke point
+      -- renders such rows ◌ and refuses registration (the
+      -- assumedDpFactCond doctrine's second instance). Discharged usefi
+      -- hypotheses are substituted away above and never reach `kept`.
+      let selfVacuous := kept.any fun (c, _) =>
+        c.startsWith "usefi:" && useFiSpecs.any fun u =>
+          s!"usefi:{u.name}" == c &&
+          (match cp.root with
+           | some root => root.inputClause == [u.formula]
+           | none => false)
+      let conds := kept.map (·.1) ++
+        (if selfVacuous then [assumedFiSelfCond] else [])
+      return (p, conds)
 
 
 /-- The PARAMETRIC replay (Phase 2 item c — the R6 scope abstraction,

@@ -145,9 +145,10 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     -- independently-quantified opaques that can be FALSE, so a mirror
     -- carrying it must never be registered (same policy as the sweep;
     -- the with_termination sub-path already fails loudly via reg? none).
-    if conds.contains assumedDpFactCond then
+    if conds.contains assumedDpFactCond || conds.contains assumedFiSelfCond then
       throwError "driver_replayed%: the replay is conditional on an \
-        ASSUMED dp-fact (an unproved, possibly-false obligation) — \
+        ASSUMED hypothesis (an unproved dp-fact, or a self-vacuous kept \
+        usefi — audit 2026-08-09 outside D1) — \
         refusing to register the mirror; fix the leaf's emission instead"
     if let some declName ← Lean.Elab.Term.getDeclName? then
       Lean.modifyEnv fun e =>
@@ -230,9 +231,9 @@ elab "parametric_replayed%" devId:ident nm:str
       (ACL2.Replay.Runner.combineRules
         (Driver.rulesBefore dev nm.getString) ch.crossRules) ch.depProofs
       (equivRefls := ch.equivRefls) (congTrees := some ch.localTrees)
-    if conds.contains assumedDpFactCond then
+    if conds.contains assumedDpFactCond || conds.contains assumedFiSelfCond then
       throwError "parametric_replayed%: the replay is conditional on an \
-        ASSUMED dp-fact (an unproved, possibly-false obligation) — \
+        ASSUMED hypothesis (dp-fact or self-vacuous kept usefi) — \
         refusing to emit the parametric constant"
     logInfo m!"parametric_replayed% {nm.getString}: sigs \
       [{", ".intercalate (sigFns.map (·.name))}]; premises \

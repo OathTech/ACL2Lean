@@ -514,7 +514,17 @@ def litSkipCollapse (cfg : ReplayConfig) (ctx : ReplayCtx)
     recurs later); a spurious fire misaligns the walk and hard-fails
     downstream — never a wrong proof. byCases on the literal's value:
     truthy closes the whole disjunction at its head position; falsity is
-    the shared `litSkipCollapse`. -/
+    the shared `litSkipCollapse`.
+
+    HELD UNDER EXPIRY (audit 2026-08-09, inside D1): this infers the drop
+    from the clause shape, and its upstream twin — add-literal's
+    member-COMPLEMENT-term branch, 35 lines above the member-term drop in
+    the same `cond` — was user-ruled (2026-08-06) to require an EMISSION
+    (`emit/complement-close`) precisely because inference-from-absence was
+    judged insufficient there. The matching `emit/dedup-drop` record at
+    simplify.lisp's member-term branch is QUEUED for the next fork batch's
+    item-by-item review; when it lands this arm becomes a read-off. Do not
+    extend the inference. -/
 def dedupSkipClose (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
     (clauseLits restLits : List (Nat × SExpr)) (clit : SExpr)
     (recur : ReplayCtx → List (Nat × SExpr) → MetaM Expr) : MetaM Expr := do

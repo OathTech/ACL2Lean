@@ -89,12 +89,22 @@ reached≠recorded site) is Lean-side work.
 ## and C are FULLY LANDED consumer-side; the batch is A + B(ii) + D-if-ruled
 
 - Item B's HOW-MANY-RM-GENERAL half: RESOLVED consumer-side with NO
-  fork item and NO tiebreak — the drift round's stated completion
-  condition ("pin all three, or prove uniqueness") was met by
-  POSITION-CANONICAL UNIQUENESS (b95f14d) + synthesized branch
-  anchors (0307f13); the subsequent hyp-relief wall fell by mirroring
-  upstream `assoc-equiv`'s two-orientation lookup (212465e). The row
-  is at its arc ceiling (ASSUMED ◌ on the *1/3.2 tau leaf).
+  fork item — the drift round's stated completion condition ("pin all
+  three, or prove uniqueness") was met by POSITION-CANONICAL
+  UNIQUENESS (b95f14d) + synthesized branch anchors (0307f13); the
+  subsequent hyp-relief wall fell by mirroring upstream
+  `assoc-equiv`'s two-orientation lookup (212465e). The row is at its
+  arc ceiling (ASSUMED ◌ on the *1/3.2 tau leaf).
+  WORDING CORRECTION (audit 2026-08-09 inside D2): "NO tiebreak" was
+  too strong — among survivors at ONE canonical position the resolver
+  applies the RATIFIED anchored-over-unanchored selection (the dedup
+  argument: the unanchored reading is the anchored one's
+  hypothesis-free specialization, identical conclusion). The audit
+  also found the agreement check weaker than documented on two of the
+  three exits; fixed in the audit fix round (all survivors must now
+  canonicalize and agree on the preSwap component, full-metadata
+  agreement among anchored ones — only the sanctioned
+  anchored-over-unanchored difference is tolerated).
 - Item C's row (HOW-MANY-SMALLER-BNEXT) is GREEN: the fc-derivations
   relief (69a26c6) + the add-literal dedup arm (this increment —
   upstream `subst-equiv-and-maybe-delete-lit`/`add-literal` keep-last

@@ -155,13 +155,18 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
               | none => do
                 -- LEXORDER-ORDER closure (fork-batch item A consumer,
                 -- HOW-MANY-BAD-PAIRS-BNEXT *1/6-family): the recorded
-                -- entry's disequality is held by ACL2's type-alist from
-                -- the ground-zero lexorder ORDER AXIOMS (axioms.lisp,
-                -- lexorder-reflexive et al.) over an in-scope FALSE
-                -- lexorder application on the same sides — either
+                -- entry's disequality closes from an in-scope FALSE
+                -- lexorder application on the entry's own sides — either
                 -- orientation refutes the equality (equal would force
                 -- `lexorder_refl`). Directed: only the recorded entry's
                 -- own sides are consulted, never a search.
+                -- HELD UNDER EXPIRY (audit 2026-08-09 inside C1): the
+                -- record's :TA-RUNES are empty, so WHY ACL2's type-alist
+                -- held the entry is not recorded — this rung supplies a
+                -- kernel-checked justification (the ground-zero lexorder
+                -- order axioms, axioms.lisp 27194+) the artifact does not
+                -- name. Same class as rung B: expires when the entry's
+                -- derivation provenance is emitted; do not extend.
                 let mkLex : SExpr → SExpr → SExpr := fun p q =>
                   .cons (.atom (.symbol { name := "LEXORDER" }))
                     (.cons p (.cons q .nil))

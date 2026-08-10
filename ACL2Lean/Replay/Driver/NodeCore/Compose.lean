@@ -674,12 +674,15 @@ def appendFuelBridge (cfg : ReplayConfig) (ctx : ReplayCtx)
     pure (some (← mkAppM ``evrel_trans #[mkConst ``siff_trans, ch, brS],
       true))
 
-/-- Install a TRUTHY branch fact plus its assume-true-false
-    DECOMPOSITION: a truthy `(IF c t 'NIL)` test forces `c` truthy AND
-    `t` truthy (`cond_tnil_ne_nil_test`/`_then` on the composed
-    value) — recursively, so a composite if-test contributes every
-    conjunct ACL2's type-alist holds under it
-    (HOW-MANY-RM-GENERAL *1/2' literal 2; final-closeout). -/
+/-- Install a truthy branch fact, DECOMPOSING a composite `(IF c t 'NIL)`
+    test into its entailed conjuncts (c-truthy and t-truthy, recursively —
+    `cond_tnil_ne_nil_test/_then`). PROVENANCE (corrected per audit
+    2026-08-09 inside C2): the conjuncts are value-level ENTAILMENTS of the
+    recorded branch assumption, kernel-proved here — NOT a read-off of an
+    ACL2 assume-true-false decomposition arm (upstream `normalize`
+    DISTRIBUTES composite if-tests instead; the type-alist ACL2 holds under
+    the branch is equivalent, but the mechanism differs and is not
+    recorded). -/
 partial def installBranchTrueFacts (cfg : ReplayConfig) (ctx : ReplayCtx)
     (c : SExpr) (vC hNe : Expr) : MetaM ReplayCtx := do
   let ctx := { ctx with
