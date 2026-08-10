@@ -41,6 +41,28 @@ the assume-true-false/type-set-rec path that binds equality entries
 from order facts). If the site turns out diffuse, we present the
 find-out before editing.
 
+SCOUT RESULT (endgame arc, 2026-08-10): **item F DROPS from the
+batch — no fork edit needed.** The order-derived theory is REFUTED
+by the artifact: both rung-serving witnesses (HOW-MANY-BAD-PAIRS-
+BNEXT Subgoals *1/6.1 and *1/5.1, bsort.proof-log 11518 / 14145,
+`:TA-RUNES NIL`) have the `:TA-ENTRY (EQUAL (CAR (CDR X)) (CAR X))`
+appearing VERBATIM as positive clause literal 6 of the input clause,
+while the verdict fires at literal 5. Upstream
+`rewrite-clause-type-alist` (simplify.lisp:5065) assumes "(a) the
+falsity of every literal in tail except the first" — the entry is a
+plain TAIL-LITERAL assumption, already fully recorded (the input
+clause + the entry term). The gap is CONSUMER-side: the driver's
+`falsitySources` = processed `litFacts` only, so tail literals are
+out of scope and the lexorder rung compensated with an order-axiom
+justification ACL2 never used (exactly the expiry's complaint).
+Remedy (joins the consumer wave in place of F's emission): tail-
+literal falsity in scope via byCases on the tail literal in the
+spine composition, gated on the recorded `:TA-ENTRY` matching a
+clause literal verbatim; the LEXORDER-ORDER rung then RETIRES. Any
+future record whose entry matches no clause literal is a frontier —
+if one appears, a real entry-provenance emission item can be
+designed then.
+
 ## Item G (CONDITIONAL — only if item 2's negative side becomes
 ## consumable): split `equal/cdrs-decision` origins
 
@@ -94,3 +116,9 @@ reviewed row-by-row; expected row-status changes from E/F/H NONE
 (their consumers become read-offs of what the replay already
 concluded) and from I the HOW-MANY-RM-GENERAL tau-leaf advance —
 any OTHER status drift is a mandatory stop.
+
+BATCH AS EXECUTED (endgame arc, 2026-08-10): **E + H + I** — item F
+dropped per its scout result above (the charter's pre-authorized
+drop class: the artifact already carries the derivation; the fix is
+consumer-side). E/H/I sites and shapes are all pinned and ruled;
+the review is complete.
