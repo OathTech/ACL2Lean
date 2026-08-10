@@ -57,11 +57,13 @@ record-side.
 The emitted `:TERMINATION-CLAUSES` are verdict-only with NO rune
 channel, so the DP linear-premise supply cannot be leaf-rune-gated on
 the admission path (the ruled direction for the DP-scan question).
-Proposed: extend the defun emission to carry, per termination clause,
-the rune set ACL2's admission machinery consulted (site pinned during
-the build — the measure-conjecture proof path; presented before the
-edit if diffuse). Consumer: the linear/rule premise passes gate
-injection on the recorded runes wherever the channel exists.
+SCOUTED + RULED (2026-08-10): the admission ttree is ALREADY in scope
+at the emit/defun site and discarded (`(declare (ignore ttree))`) —
+the edit is ~one line (`all-runes-in-ttree` alongside the clauses).
+Granularity ruled PER-ADMISSION (the ttree is not per-clause);
+premise gating on the admission's cited rune set. Consumer: the
+linear/rule premise passes gate injection on the recorded runes
+wherever the channel exists.
 
 ## Item I — the TAU RULE-SET-BASIS emission (the ruled tau middle
 ## path's fork half; user-agreed for this batch 2026-08-10)
@@ -69,10 +71,14 @@ injection on the recorded runes wherever the channel exists.
 Per the 2026-08-10 tau ruling: for verdict-only tau leaves, emit the
 rule set the verdict rested on (the ta-nil-basis/fc-derivations
 precedent); the existing DP kit then takes exactly those runes'
-instances as premises — read-off, not matcher selection. FIRST
-INCREMENT IS THE SCOUT: confirm the tau verdict site can cheaply
-report its fired rule set (upstream tau is deliberately ttree-free);
-the scout's find-out comes back before the fork edit. Unblocks
+instances as premises — read-off, not matcher selection.
+SCOUTED + RULED (2026-08-10): the verdict site is clean
+(tau-clausep → tau-clause1p, induct.lisp, where the discharge node
+already emits); the basis SHAPE is ruled the FN-RESTRICTED
+TAU-DATABASE SLICE (the pos/neg-implicants + signature rules for
+exactly the clause's fn symbols — deterministic read-off at the
+verdict site; exact-fired threading stays available as a later
+tightening if the slice proves too coarse). Unblocks
 HOW-MANY-RM-GENERAL's *1/3.2 leaf (the row's ✓).
 
 ## The ask

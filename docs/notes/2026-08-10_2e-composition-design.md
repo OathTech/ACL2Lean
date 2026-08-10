@@ -60,3 +60,5 @@ node consumed by an existing-recipe class.
 
 Ruling asked: approve this shape (build in the endgame arc, landing
 ORDEREDP-WHEN-BNEXT-CONSTANT), amend, or defer 2e past the arc.
+
+## RULED (Mike, 2026-08-10): APPROVED as designed.
