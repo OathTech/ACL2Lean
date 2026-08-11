@@ -35,6 +35,17 @@
 >   discharge with totality via `termByFn` ONLY (the replayed-
 >   admission route; the named-constant injection channel is deleted
 >   — ruled invariant). Census: `just mirror-metrics`.
+> **GATE-CRUFT AUDIT (Mike, 2026-08-11 — the gates-are-speedbumps
+> memory):** inventory EVERY gate (the catalog five + usage + shape +
+> extra-natives + the check-* scripts), rank by trust-value ÷
+> fragility, and RUTHLESSLY DELETE the fragile cruft: the load-bearing
+> trust is the DESIGN (small high-trust statements over the TCB —
+> axiom-exactness checks); everything else is a lightweight anti-cheat
+> speedbump, never adversarial-proof, kept only while cheap. Prime
+> suspects: count floors, name-pattern predicates, the enumerated
+> census, satellite filters. First pass = a dimension of THIS arc's
+> exit audit (it added three gates); recurring thereafter at family
+> boundaries. Never fix a crufty gate by adding another gate.
 > The capstone rows/pins/catalog entries return as these retire. The
 > mirror-wave arc (bsortL + pending mirrors) must follow the win
 > states: discharge via replay or stay honestly conditional/sorried —
