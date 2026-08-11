@@ -650,14 +650,18 @@ run_cmd Lean.Elab.Command.liftTermElabM do
     [`ACL2.Worlds, `ACL2.Imported, `ACL2.Lifting]
   let mut decodes : List Name :=
     [``ACL2.Worlds.Sorting.dis_rule_orderedp_append]
-  for (c, _) in env.constants.toList do
-    if mirrorNs.any (·.isPrefixOf c) then
-      let s := (c.componentsRev.headD Name.anonymous).toString
-      if s.endsWith "_native_of_replayed" then
-        decodes := decodes ++ [c]
-  if decodes.length < 38 then
+  for (c, ci) in env.constants.toList do
+    if mirrorNs.any (·.isPrefixOf c) && !c.isInternalDetail then
+      if let .thmInfo _ := ci then
+        let s := (c.componentsRev.headD Name.anonymous).toString
+        -- endsWith (not the narrower `_native_of_replayed`): the
+        -- R-instance decodes read `_native_<R>_of_replayed`
+        -- (perm_cons_native_perm_of_replayed) — census 2026-08-11
+        if s.endsWith "_of_replayed" then
+          decodes := decodes ++ [c]
+  if decodes.length < 39 then
     throwError "hreplayed-usage gate: only {decodes.length} decode \
-      constants found (expected ≥ 38) — the scan predicate rotted or \
+      constants found (expected ≥ 39) — the scan predicate rotted or \
       decodes were renamed; fix the scan, never lower the floor blindly"
   for c in decodes do
     let ci ← getConstInfo c
@@ -678,5 +682,145 @@ run_cmd Lean.Elab.Command.liftTermElabM do
       unless sawReplayed do
         throwError "hreplayed-usage gate: {c} has no evalOpt-shaped \
           hypothesis — a decode must consume a replayed statement"
+
+/-! ## SHAPE GATE (ruled 2026-08-11)
+
+Every AUTHORED theorem in the mirror content namespaces
+(`ACL2.Worlds.*`, `ACL2.Lifting`) must classify into one of the
+allowed thin-Lean classes, each with a shape signal:
+
+- DECODE (`*_of_replayed`) — content-checked by the hreplayed-usage
+  gate above;
+- ISO-corr (`*_exec_corr`) — type must mention `ConvTo`/`evalOpt`;
+- ISO-enc (`*_enc`) — type must mention an encoder
+  (`enc`/`boolEnc`/`intRep`);
+- discharger (`dis_*`/`drv_*`) — allowlisted by the provenance gate;
+- WORLD-FACT (`world_has_*`/`world_no_*`) — generated-world lookup
+  facts; type must mention `World`;
+- registered SUPPORT — the enumerated census below, each line
+  reviewed against the 2026-08-11 provenance audits at registration.
+
+Anything unclassifiable FAILS THE BUILD: register it here (with a
+justification a reviewer can check) or route its content through a
+replayed statement. This converts the formerly-invisible support
+bucket into a watched number — the carve-out drift test applied to
+the mirror layer. Compiler satellites (`.eq_*`, `._proof_*`,
+theorems nested under a constant) are excluded mechanically. -/
+open Lean in
+run_cmd Lean.Elab.Command.liftCoreM do
+  let env ← getEnv
+  let nss : List Name := [`ACL2.Worlds, `ACL2.Lifting]
+  -- The GENERIC TRANSPORT KIT (ACL2.Lifting): evaluation/transport
+  -- machinery, sorting-decoupled by construction — the layer the
+  -- ruling says to industrialize. Audited clean as a group
+  -- (verification audit 2026-08-11, completeness dimension).
+  let supportTransportKit : List Name :=
+    [``ACL2.Lifting.toBool_equal, ``ACL2.Lifting.enc_inj,
+     ``ACL2.Lifting.conv_unique, ``ACL2.Lifting.conv_plus_int,
+     ``ACL2.Lifting.exists_enc_of_trueListp,
+     ``ACL2.Lifting.implements_plus, ``ACL2.Lifting.conv_if_false',
+     ``ACL2.Lifting.conv_if3, ``ACL2.Lifting.booleanp_cond,
+     ``ACL2.Lifting.bool_true_of_cond_truthy,
+     ``ACL2.Lifting.implements_len, ``ACL2.Lifting.implements_times,
+     ``ACL2.Lifting.replayed_pins_ne_nil,
+     ``ACL2.Lifting.implies_t_of_ne_nil,
+     ``ACL2.Lifting.conv_and_conds, ``ACL2.Lifting.conv_equalT,
+     ``ACL2.Lifting.truthy_of_implies_t,
+     ``ACL2.Lifting.equal_truthy_of_eq,
+     ``ACL2.Lifting.cond_t_of_true, ``ACL2.Lifting.conv_var_of_get,
+     ``ACL2.Lifting.conv_fix, ``ACL2.Lifting.bool_of_cond_eq,
+     ``ACL2.Lifting.implements_append,
+     ``ACL2.Lifting.replayed_peel_guard,
+     ``ACL2.Lifting.int_atom_inj, ``ACL2.Lifting.conv_times_int,
+     ``ACL2.Lifting.conv_impliesT, ``ACL2.Lifting.bool_of_iff_truthy,
+     ``ACL2.Lifting.native_of_replayed_equal,
+     ``ACL2.Lifting.conv_qInt]
+  -- PER-BOOK SUPPORT (each line = the audit class that cleared it):
+  let supportBook : List (Name × String) :=
+    [-- two-valuedness of a single sim — allowed decode support (F5)
+     (``ACL2.Worlds.Sorting.allRelExec_t_or_nil, "two-valuedness"),
+     (``ACL2.Worlds.Sorting.relExec_t_or_nil, "two-valuedness"),
+     (``ACL2.Worlds.Sorting.orderedpExec_t_or_nil, "two-valuedness"),
+     (``ACL2.Worlds.Sorting.lexorder_t_or_nil, "two-valuedness"),
+     -- P2 definitional-termination measures (boundary note §P2 —
+     -- the named, accepted exception)
+     (``ACL2.Worlds.Sorting.evensExec_consCount_le, "P2 measure"),
+     (``ACL2.Worlds.Sorting.evensExec_consCount_lt, "P2 measure"),
+     (``ACL2.Worlds.Sorting.filterExec_consCount_le, "P2 measure"),
+     (``ACL2.Worlds.Sorting.consCount_bnext_swap_lt, "P2 measure"),
+     (``ACL2.Worlds.Sorting.evensL_length, "P2 measure (native)"),
+     -- definitional unfoldings of the relL case table (single-fn)
+     (``ACL2.Worlds.Sorting.relL_LT, "relL case unfolding"),
+     (``ACL2.Worlds.Sorting.relL_LTE, "relL case unfolding"),
+     (``ACL2.Worlds.Sorting.relL_GTE, "relL case unfolding"),
+     -- single-fn evaluation bridges / plumbing
+     (``ACL2.Worlds.Sorting.chain2Rec_iff_isChain,
+       "isChain recursion characterization (iso support)"),
+     (``ACL2.Worlds.Sorting.bnext_ns, "symbol plumbing"),
+     (``ACL2.Worlds.Sorting.lexorder_eq_boolEnc,
+       "builtin evaluation bridge"),
+     (``ACL2.Worlds.Sorting.callBuiltin_lexorder_boolEnc,
+       "builtin evaluation bridge"),
+     (``ACL2.Worlds.Sorting.toBool_relExec,
+       "toBool projection of a sim")]
+  -- staleness: registered names must exist (mirrors lift-coverage)
+  for n in supportTransportKit do
+    unless env.contains n do
+      throwError "shape gate: stale transport-kit entry {n}"
+  for (n, _) in supportBook do
+    unless env.contains n do
+      throwError "shape gate: stale support entry {n}"
+  let mentions (ty : Expr) (targets : List Name) : Bool :=
+    (ty.find? (fun e => targets.any e.isConstOf)).isSome
+  let mut offenders : List (Name × String) := []
+  let mut nCorr := 0
+  let mut nEnc := 0
+  for (c, ci) in env.constants.toList do
+    if nss.any (·.isPrefixOf c) && !c.isInternalDetail
+        && !env.contains c.getPrefix then
+      if let .thmInfo info := ci then
+        let s := (c.componentsRev.headD Name.anonymous).toString
+        if s.startsWith "eq_" || s == "eq_def" || s == "sizeOf_spec"
+            || s == "induct" || c.components.any (· == `_unary) then
+          pure ()
+        else if s.endsWith "_of_replayed" then
+          pure () -- content-checked by the hreplayed-usage gate
+        else if s.startsWith "dis_" || s.startsWith "drv_" then
+          pure () -- allowlisted by the provenance gate
+        else if s.endsWith "_exec_corr" then
+          nCorr := nCorr + 1
+          unless mentions info.type
+              [``ACL2.Replay.ConvTo, ``ACL2.evalOpt] do
+            offenders := offenders ++
+              [(c, "corr-named but no ConvTo/evalOpt in the type")]
+        else if s.endsWith "_enc" then
+          nEnc := nEnc + 1
+          unless mentions info.type
+              [``ACL2.Lifting.enc, ``ACL2.Lifting.boolEnc,
+               ``ACL2.Lifting.intRep] do
+            offenders := offenders ++
+              [(c, "enc-named but no encoder in the type")]
+        else if s.startsWith "world_has_" || s.startsWith "world_no_"
+            then
+          -- the lookup surfaces as the `World.defs` projection (or a
+          -- getElem instance over it) applied to a world constant
+          unless mentions info.type
+              [``ACL2.World, ``ACL2.World.defs, ``ACL2.Symbol] do
+            offenders := offenders ++
+              [(c, "world-fact-named but no World lookup in the type")]
+        else
+          unless supportTransportKit.contains c
+              || supportBook.any (·.1 == c) do
+            offenders := offenders ++ [(c, "UNCLASSIFIED")]
+  if nCorr < 25 || nEnc < 20 then
+    throwError "shape gate: class counts collapsed (corr {nCorr}, \
+      enc {nEnc}) — the scan predicate rotted; fix the scan, never \
+      lower the floors blindly"
+  unless offenders.isEmpty do
+    throwError "shape gate: mirror-layer theorem(s) outside the \
+      thin-Lean classes: {offenders.map (·.1)} — register as SUPPORT \
+      with a reviewable justification (if the audits class it clean) \
+      or route the content through a replayed statement (thin-Lean \
+      ruling 2026-08-11): {offenders}"
 
 end ACL2.Imported.Mirrors
