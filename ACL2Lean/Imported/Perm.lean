@@ -1,4 +1,4 @@
-import ACL2Lean.Imported.Lifting
+import ACL2Lean.Imported.SimGen
 
 /-! # Imported: the perm book — hand support for the `perm-cons` bridge
 
@@ -182,6 +182,8 @@ def membExec (a x : SExpr) : SExpr :=
 termination_by x.consCount
 decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
 
+register_exec_kit% "MEMB" => membExec arity 2
+
 /-- Stage 1: a `memb` call converges to `membExec` of its argument values.
     Strong induction on the measured formal's count; the body walk is the
     intended mechanized walk's exact move sequence. -/
@@ -236,20 +238,14 @@ theorem memb_exec_corr (w : World)
     memb_ns h_memb ha hx (hbody xv av)
 
 /-- Stage 2: `membExec` on an encoded list computes `List.contains` — pure
-    Lean, no evaluator, no fuel. -/
-theorem membExec_enc (a : SExpr) (xs : List SExpr) :
-    membExec a (enc xs) = bif xs.contains a then SExpr.t else SExpr.nil := by
-  induction xs with
-  | nil => rw [membExec.eq_def]; rfl
-  | cons hd tl ih =>
-    rw [membExec.eq_def]
-    have hencx : enc (hd :: tl) = .cons hd (enc tl) := rfl
-    cases hbeq : a == hd with
-    | true =>
-      simp [hencx, Logic.consp, Logic.car, Logic.equal, eq_of_beq hbeq]
-    | false =>
-      simp [hencx, Logic.consp, Logic.car, Logic.cdr, Logic.equal, hbeq,
-        ih, beq_eq_false_iff_ne.mp hbeq]
+    Lean, no evaluator, no fuel. GENERATED (`derive_sim%`): the reading is
+    the t-nil Bool reading of `List.contains`. -/
+derive_sim% membExec_enc for "MEMB"
+  vars (a : raw) (xs : list)
+  exec [a, xs]
+  native (bif xs.contains a then SExpr.t else SExpr.nil)
+  simp []
+  induct structural xs
 
 /-- `rm`'s body as a total Lean function. -/
 def rmExec (e x : SExpr) : SExpr :=
@@ -259,6 +255,8 @@ def rmExec (e x : SExpr) : SExpr :=
   else SExpr.nil
 termination_by x.consCount
 decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
+
+register_exec_kit% "RM" => rmExec arity 2
 
 /-- Stage 1: an `rm` call converges to `rmExec` of its argument values. -/
 theorem rm_exec_corr (w : World)
@@ -320,20 +318,14 @@ theorem rm_exec_corr (w : World)
   exact conv_defn_2 w env rm_sym a x av xv eS xS rmBody _
     rm_ns h_rm ha hx (hbody xv av)
 
-/-- Stage 2: `rmExec` on an encoded list computes `List.erase`. -/
-theorem rmExec_enc (a : SExpr) (xs : List SExpr) :
-    rmExec a (enc xs) = enc (xs.erase a) := by
-  induction xs with
-  | nil => rw [rmExec.eq_def]; rfl
-  | cons hd tl ih =>
-    rw [rmExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl]
-    cases hbeq : hd == a with
-    | true =>
-      simp [Logic.consp, Logic.car, Logic.cdr, Logic.equal, eq_of_beq hbeq]
-    | false =>
-      simp [Logic.consp, Logic.car, Logic.cdr, Logic.equal, hbeq, ih,
-        Ne.symm (beq_eq_false_iff_ne.mp hbeq)]
-      rfl
+/-- Stage 2: `rmExec` on an encoded list computes `List.erase` —
+    GENERATED (`derive_sim%`). -/
+derive_sim% rmExec_enc for "RM"
+  vars (a : raw) (xs : list)
+  exec [a, xs]
+  native (enc (xs.erase a))
+  simp [List.erase_cons]
+  induct structural xs
 
 /-- `perm`'s body as a total Lean function — calls the callees' exec
     functions at their call sites (D1 composition). -/
@@ -345,6 +337,8 @@ def permExec (x y : SExpr) : SExpr :=
   else if Logic.toBool (Logic.consp y) = true then SExpr.nil else SExpr.t
 termination_by x.consCount
 decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
+
+register_exec_kit% "PERM" => permExec arity 2
 
 /-- Stage 1: a `perm` call converges to `permExec` of its argument values.
     The walk cites `memb_exec_corr`/`rm_exec_corr` at the callee call sites
@@ -415,28 +409,15 @@ theorem perm_exec_corr (w : World)
   exact conv_defn_2 w env perm_sym x y xv yv xS yS permBody _
     perm_ns h_perm hx hy (hbody xv yv)
 
-/-- Stage 2: `permExec` on encoded lists computes `List.isPerm`. -/
-theorem permExec_enc (xs ys : List SExpr) :
-    permExec (enc xs) (enc ys)
-      = bif xs.isPerm ys then SExpr.t else SExpr.nil := by
-  induction xs generalizing ys with
-  | nil =>
-    rw [permExec.eq_def]
-    cases ys with
-    | nil => rfl
-    | cons h2 t2 =>
-      simp [show enc (h2 :: t2) = .cons h2 (enc t2) from rfl,
-        Logic.consp, List.isPerm, show enc [] = SExpr.nil from rfl]
-  | cons hd tl ih =>
-    rw [permExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl]
-    cases hc : ys.contains hd with
-    | true =>
-      have hm : hd ∈ ys := by simpa using hc
-      simp [Logic.consp, Logic.car, Logic.cdr, membExec_enc, rmExec_enc,
-        ih, List.isPerm, hm]
-    | false =>
-      have hm : ¬hd ∈ ys := by simpa using hc
-      simp [Logic.consp, Logic.car, membExec_enc, List.isPerm, hm]
+/-- Stage 2: `permExec` on encoded lists computes `List.isPerm` —
+    GENERATED (`derive_sim%`); the MEMB/RM callee isos resolve through the
+    exec-kit registry. -/
+derive_sim% permExec_enc for "PERM"
+  vars (xs : list) (ys : list)
+  exec [xs, ys]
+  native (bif xs.isPerm ys then SExpr.t else SExpr.nil)
+  simp [List.isPerm]
+  induct structural xs generalizing ys
 
 /-! ## Simulations under `enc` -/
 

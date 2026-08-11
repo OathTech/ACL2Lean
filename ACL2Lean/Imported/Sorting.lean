@@ -310,24 +310,15 @@ private theorem toBool_lexorder (e a : SExpr) :
     Logic.toBool (lexorder e a) = lexorderB e a := by
   rw [lexorder_eq_boolEnc]; cases lexorderB e a <;> rfl
 
-/-- Stage 2: `insertExec` on an encoded list computes `insertL`. -/
-theorem insertExec_enc (e : SExpr) (xs : List SExpr) :
-    insertExec e (enc xs) = enc (insertL e xs) := by
-  induction xs with
-  | nil => rw [insertExec.eq_def]; rfl
-  | cons hd tl ih =>
-    rw [insertExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl,
-        if_pos (show Logic.toBool (Logic.consp (.cons hd (enc tl))) = true
-          from rfl),
-        show Logic.car (SExpr.cons hd (enc tl)) = hd from rfl,
-        show Logic.cdr (SExpr.cons hd (enc tl)) = enc tl from rfl,
-        toBool_lexorder]
-    cases hb : lexorderB e hd with
-    | true => simp [hb, insertL, enc]
-    | false =>
-      simp only [hb, Bool.false_eq_true, if_false, insertL, cond_false]
-      rw [ih]
-      rfl
+/-- Stage 2: `insertExec` on an encoded list computes `insertL` —
+    GENERATED (`derive_sim%`, charter item 2): the iso is proved by the
+    fixed template off `insertL`'s own recursion. -/
+derive_sim% insertExec_enc for "INSERT"
+  vars (e : raw) (xs : list)
+  exec [e, xs]
+  native (enc (insertL e xs))
+  simp [insertL, lexorder_eq_boolEnc]
+  induct functional (insertL e xs)
 
 /-- `isort`'s body as a total Lean function — GENERATED (the INSERT call
     resolves through the kit registry). -/
@@ -339,14 +330,14 @@ def isortL : List SExpr → List SExpr
   | [] => []
   | a :: t => insertL a (isortL t)
 
-/-- Stage 2: `isortExec` on an encoded list computes `isortL`. -/
-theorem isortExec_enc (xs : List SExpr) :
-    isortExec (enc xs) = enc (isortL xs) := by
-  induction xs with
-  | nil => rw [isortExec.eq_def]; rfl
-  | cons hd tl ih =>
-    rw [isortExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl]
-    simp [Logic.consp, Logic.car, Logic.cdr, ih, insertExec_enc, isortL]
+/-- Stage 2: `isortExec` on an encoded list computes `isortL` —
+    GENERATED; the INSERT callee iso resolves through the kit registry. -/
+derive_sim% isortExec_enc for "ISORT"
+  vars (xs : list)
+  exec [xs]
+  native (enc (isortL xs))
+  simp [isortL]
+  induct functional (isortL xs)
 
 /-- `isort` over an encoded argument computes `isortL` under `enc`. -/
 theorem corr_isort_enc (w : World)
@@ -869,30 +860,14 @@ derive_exec% howManyExec corr how_many_exec_corr for how_many_sym
   formals [eS, xS] body howManyBody measured 1
 
 /-- Stage 2: `howManyExec` on an encoded list computes `List.count`
-    (as an SExpr integer). -/
-theorem howManyExec_enc (e : SExpr) (xs : List SExpr) :
-    howManyExec e (enc xs) = .atom (.number (.int (xs.count e))) := by
-  induction xs with
-  | nil => rw [howManyExec.eq_def]; rfl
-  | cons hd tl ih =>
-    rw [howManyExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl,
-        if_pos (show Logic.toBool (Logic.consp (.cons hd (enc tl))) = true
-          from rfl),
-        show Logic.car (SExpr.cons hd (enc tl)) = hd from rfl,
-        show Logic.cdr (SExpr.cons hd (enc tl)) = enc tl from rfl]
-    cases hbeq : e == hd with
-    | true =>
-      rw [if_pos (by simp [Logic.equal, hbeq, Logic.toBool, SExpr.t]), ih]
-      have : (hd :: tl).count e = tl.count e + 1 := by
-        simp [eq_of_beq hbeq]
-      rw [this]
-      simp [Logic.plus, Logic.toRat, Logic.mkNumber]
-      omega
-    | false =>
-      rw [if_neg (by simp [Logic.equal, hbeq, Logic.toBool]), ih]
-      have : (hd :: tl).count e = tl.count e := by
-        simp [Ne.symm (beq_eq_false_iff_ne.mp hbeq)]
-      rw [this]
+    (as an SExpr integer) — GENERATED; the result reading is the `intRep`
+    reading (an SExpr integer atom). -/
+derive_sim% howManyExec_enc for "HOW-MANY"
+  vars (e : raw) (xs : list)
+  exec [e, xs]
+  native (SExpr.atom (.number (.int (xs.count e))))
+  simp [Logic.plus, Logic.toRat, Logic.mkNumber, List.count_cons]
+  induct structural xs
 
 /-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
     `tp:HOW-MANY` — the emitted non-negative-integer corollary —
@@ -1451,27 +1426,15 @@ theorem toBool_relExec (fv a e : SExpr) :
 def allRelL (fv ev : SExpr) (xs : List SExpr) : Bool :=
   xs.all (fun a => relL fv a ev)
 
-/-- Stage 2: `allRelExec` on an encoded list computes `allRelL`. -/
-theorem allRelExec_enc (fv ev : SExpr) (xs : List SExpr) :
-    allRelExec fv (enc xs) ev = boolEnc (allRelL fv ev xs) := by
-  induction xs with
-  | nil => rw [allRelExec.eq_def]; rfl
-  | cons hd tl ih =>
-    rw [allRelExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl,
-        if_pos (show Logic.toBool (Logic.consp (.cons hd (enc tl))) = true
-          from rfl),
-        show Logic.car (SExpr.cons hd (enc tl)) = hd from rfl,
-        show Logic.cdr (SExpr.cons hd (enc tl)) = enc tl from rfl]
-    cases hb : relL fv hd ev with
-    | true =>
-      rw [if_pos (show Logic.toBool (relExec fv hd ev) = true from by
-        rw [toBool_relExec, hb]), ih]
-      simp only [allRelL, List.all_cons, hb, Bool.true_and]
-    | false =>
-      rw [if_neg (show ¬(Logic.toBool (relExec fv hd ev) = true) from by
-        rw [toBool_relExec, hb]; simp)]
-      simp only [allRelL, List.all_cons, hb, Bool.false_and, boolEnc,
-        cond_false]
+/-- Stage 2: `allRelExec` on an encoded list computes `allRelL` —
+    GENERATED; the REL dispatch has no iso of its own, so its `toBool`
+    bridge is declared. -/
+derive_sim% allRelExec_enc for "ALL-REL"
+  vars (fv : raw) (ev : raw) (xs : list)
+  exec [fv, xs, ev]
+  native (boolEnc (allRelL fv ev xs))
+  simp [allRelL, toBool_relExec]
+  induct structural xs
 
 /-- `allRelExec` is two-valued. -/
 theorem allRelExec_t_or_nil (fv x ev : SExpr) :
@@ -1750,28 +1713,14 @@ derive_exec% filterExec corr filter_exec_corr for filter_sym
 def filterL (fv ev : SExpr) (xs : List SExpr) : List SExpr :=
   xs.filter (fun a => relL fv a ev)
 
-/-- Stage 2: `filterExec` on an encoded list computes `filterL`. -/
-theorem filterExec_enc (fv ev : SExpr) (xs : List SExpr) :
-    filterExec fv (enc xs) ev = enc (filterL fv ev xs) := by
-  induction xs with
-  | nil => rw [filterExec.eq_def]; rfl
-  | cons hd tl ih =>
-    rw [filterExec.eq_def, show enc (hd :: tl) = .cons hd (enc tl) from rfl,
-        if_pos (show Logic.toBool (Logic.consp (.cons hd (enc tl))) = true
-          from rfl),
-        show Logic.car (SExpr.cons hd (enc tl)) = hd from rfl,
-        show Logic.cdr (SExpr.cons hd (enc tl)) = enc tl from rfl]
-    cases hb : relL fv hd ev with
-    | true =>
-      rw [if_pos (show Logic.toBool (relExec fv hd ev) = true from by
-        rw [toBool_relExec, hb]), ih]
-      simp only [filterL, List.filter_cons, hb, if_true]
-      rfl
-    | false =>
-      rw [if_neg (show ¬(Logic.toBool (relExec fv hd ev) = true) from by
-        rw [toBool_relExec, hb]; simp), ih]
-      simp only [filterL, List.filter_cons, hb, Bool.false_eq_true,
-        if_false]
+/-- Stage 2: `filterExec` on an encoded list computes `filterL` —
+    GENERATED. -/
+derive_sim% filterExec_enc for "FILTER"
+  vars (fv : raw) (ev : raw) (xs : list)
+  exec [fv, xs, ev]
+  native (enc (filterL fv ev xs))
+  simp [filterL, toBool_relExec]
+  induct structural xs
 
 /-! ## The concrete comparison modes (native vocabulary for the FILTER
 rows: the quoted mode symbols specialize `relL` to plain `lexorderB`
@@ -1992,6 +1941,8 @@ def appendExec (x y : SExpr) : SExpr :=
   else y
 termination_by x.consCount
 decreasing_by exact consCount_cdr_lt_of_consp (by assumption)
+
+register_exec_kit% "BINARY-APPEND" => appendExec arity 2
 
 /-- Stage 1: a `binary-append` call converges to `appendExec`. -/
 theorem append_exec_corr (w : World)
@@ -2238,41 +2189,16 @@ def merge2L : List SExpr → List SExpr → List SExpr
     else b :: merge2L (a :: xs) ys
 termination_by xs ys => xs.length + ys.length
 
-/-- Stage 2: `merge2Exec` on encoded lists computes `merge2L`. -/
-theorem merge2Exec_enc : ∀ (xs ys : List SExpr),
-    merge2Exec (enc xs) (enc ys) = enc (merge2L xs ys)
-  | [], ys => by
-    rw [merge2Exec.eq_def, show enc ([] : List SExpr) = SExpr.nil from rfl,
-        if_neg (by simp [Logic.consp, Logic.toBool])]
-    simp [merge2L]
-  | x :: xs, [] => by
-    rw [merge2Exec.eq_def,
-        if_pos (show Logic.toBool (Logic.consp (enc (x :: xs))) = true
-          from rfl),
-        show enc ([] : List SExpr) = SExpr.nil from rfl,
-        if_neg (by simp [Logic.consp, Logic.toBool])]
-    simp [merge2L]
-  | a :: xs, b :: ys => by
-    rw [merge2Exec.eq_def,
-        if_pos (show Logic.toBool (Logic.consp (enc (a :: xs))) = true
-          from rfl),
-        if_pos (show Logic.toBool (Logic.consp (enc (b :: ys))) = true
-          from rfl),
-        show Logic.car (enc (a :: xs)) = a from rfl,
-        show Logic.car (enc (b :: ys)) = b from rfl,
-        show Logic.cdr (enc (a :: xs)) = enc xs from rfl,
-        show Logic.cdr (enc (b :: ys)) = enc ys from rfl,
-        toBool_lexorder]
-    cases hb : lexorderB a b with
-    | true =>
-      rw [if_pos rfl, merge2Exec_enc xs (b :: ys)]
-      simp only [merge2L, hb, cond_true]
-      rfl
-    | false =>
-      rw [if_neg (by simp), merge2Exec_enc (a :: xs) ys]
-      simp only [merge2L, hb, cond_false]
-      rfl
-termination_by xs ys => xs.length + ys.length
+/-- Stage 2: `merge2Exec` on encoded lists computes `merge2L` —
+    GENERATED (a two-list reading; the native's own `length`-measure
+    recursion drives the induction while the exec recurses on the
+    `consCount` pair-sum). -/
+derive_sim% merge2Exec_enc for "MERGE2"
+  vars (xs : list) (ys : list)
+  exec [xs, ys]
+  native (enc (merge2L xs ys))
+  simp [merge2L, lexorder_eq_boolEnc]
+  induct functional (merge2L xs ys)
 
 /-- `evens`'s body as a total Lean function. -/
 derive_exec% evensExec corr evens_exec_corr for evens_sym
@@ -2288,28 +2214,15 @@ decreasing_by
   | nil => simp
   | cons b t' => simp
 
-/-- Stage 2: `evensExec` on an encoded list computes `evensL`. -/
-theorem evensExec_enc : ∀ xs : List SExpr,
-    evensExec (enc xs) = enc (evensL xs)
-  | [] => by
-    rw [evensExec.eq_def, show enc ([] : List SExpr) = SExpr.nil from rfl,
-        if_neg (by simp [Logic.consp, Logic.toBool])]
-    simp [evensL, enc]
-  | a :: t => by
-    rw [evensExec.eq_def,
-        if_pos (show Logic.toBool (Logic.consp (enc (a :: t))) = true
-          from rfl),
-        show Logic.car (enc (a :: t)) = a from rfl,
-        show Logic.cdr (enc (a :: t)) = enc t from rfl,
-        show Logic.cdr (enc t) = enc t.tail from by cases t <;> rfl,
-        evensExec_enc t.tail,
-        show evensL (a :: t) = a :: evensL t.tail from by simp [evensL]]
-    rfl
-termination_by xs => xs.length
-decreasing_by
-  cases t with
-  | nil => simp
-  | cons b t' => simp
+/-- Stage 2: `evensExec` on an encoded list computes `evensL` —
+    GENERATED (the T2 measure-change shape: the native recurses on
+    `List.length`, the exec on `consCount`). -/
+derive_sim% evensExec_enc for "EVENS"
+  vars (xs : list)
+  exec [xs]
+  native (enc (evensL xs))
+  simp [evensL]
+  induct functional (evensL xs)
 
 /-- `evensExec` never increases the count. -/
 theorem evensExec_consCount_le (l : SExpr) :
@@ -2364,6 +2277,8 @@ decreasing_by
   · calc (evensExec (Logic.cdr x)).consCount
         ≤ (Logic.cdr x).consCount := evensExec_consCount_le _
       _ < x.consCount := consCount_cdr_lt_of_consp _h1
+
+register_exec_kit% "MSORT" => msortExec arity 1
 
 /-- Stage 1: an `msort` call converges to `msortExec`. -/
 theorem msort_exec_corr (w : World)
@@ -2481,36 +2396,16 @@ decreasing_by
   · rw [evensL_length]; simp; omega
   · rw [evensL_length]; simp; omega
 
-/-- Stage 2: `msortExec` on an encoded list computes `msortL`. -/
-theorem msortExec_enc : ∀ xs : List SExpr,
-    msortExec (enc xs) = enc (msortL xs)
-  | [] => by
-    rw [msortExec.eq_def, show enc ([] : List SExpr) = SExpr.nil from rfl,
-        dif_neg (by simp [Logic.consp, Logic.toBool])]
-    simp [msortL, enc]
-  | [a] => by
-    rw [msortExec.eq_def,
-        dif_pos (show Logic.toBool (Logic.consp (enc [a])) = true from rfl),
-        dif_neg (show ¬(Logic.toBool (Logic.consp
-          (Logic.cdr (enc [a]))) = true) from by
-            simp [enc, Logic.cdr, Logic.consp, Logic.toBool]),
-        show Logic.car (enc [a]) = a from rfl]
-    simp [msortL, Logic.cons, enc]
-  | a :: b :: t => by
-    rw [msortExec.eq_def,
-        dif_pos (show Logic.toBool (Logic.consp (enc (a :: b :: t)))
-          = true from rfl),
-        dif_pos (show Logic.toBool (Logic.consp
-          (Logic.cdr (enc (a :: b :: t)))) = true from rfl),
-        show Logic.cdr (enc (a :: b :: t)) = enc (b :: t) from rfl,
-        evensExec_enc (a :: b :: t), evensExec_enc (b :: t),
-        msortExec_enc (evensL (a :: b :: t)), msortExec_enc (evensL (b :: t)),
-        merge2Exec_enc]
-    simp [msortL]
-termination_by xs => xs.length
-decreasing_by
-  · rw [evensL_length]; simp; omega
-  · rw [evensL_length]; simp; omega
+/-- Stage 2: `msortExec` on an encoded list computes `msortL` —
+    GENERATED (the exec is hand-written, an M3 measure beyond
+    `derive_exec%`, but its ISO is on the template: the EVENS/MERGE2
+    callee isos resolve through the kit registry). -/
+derive_sim% msortExec_enc for "MSORT"
+  vars (xs : list)
+  exec [xs]
+  native (enc (msortL xs))
+  simp [msortL]
+  induct functional (msortL xs)
 
 /-! ## The msort dischargers -/
 
@@ -3587,6 +3482,8 @@ decreasing_by
   · exact lt_of_le_of_lt (filterExec_consCount_le _ _ _)
       (consCount_cdr_lt_of_consp _h1)
 
+register_exec_kit% "QSORT" => qsortExec arity 1
+
 /-- Stage 1: a `qsort` call converges to `qsortExec`. -/
 theorem qsort_exec_corr (w : World)
     (h_qs : w.defs.get? qsort_sym = some ([xS], qsortBody))
@@ -3703,22 +3600,14 @@ theorem qsort_exec_corr (w : World)
   exact conv_defn_1 w env qsort_sym x xv xS qsortBody _
     qsort_ns h_qs hx (hbody xv)
 
-/-- Pure append on encodings (the world-free twin of
-    `corr_append_enc`). -/
-theorem appendExec_enc : ∀ (xs ys : List SExpr),
-    appendExec (enc xs) (enc ys) = enc (xs ++ ys)
-  | [], ys => by
-    rw [appendExec.eq_def, show enc ([] : List SExpr) = SExpr.nil from rfl,
-        if_neg (by simp [Logic.consp, Logic.toBool])]
-    rfl
-  | a :: t, ys => by
-    rw [appendExec.eq_def,
-        if_pos (show Logic.toBool (Logic.consp (enc (a :: t))) = true
-          from rfl),
-        show Logic.car (enc (a :: t)) = a from rfl,
-        show Logic.cdr (enc (a :: t)) = enc t from rfl,
-        appendExec_enc t ys]
-    rfl
+/-- Pure append on encodings (the world-free twin of `corr_append_enc`)
+    — GENERATED. -/
+derive_sim% appendExec_enc for "BINARY-APPEND"
+  vars (xs : list) (ys : list)
+  exec [xs, ys]
+  native (enc (xs ++ ys))
+  simp []
+  induct structural xs
 
 /-- The native quicksort. -/
 def qsortL (xs : List SExpr) : List SExpr :=
@@ -3733,46 +3622,15 @@ decreasing_by
   · exact Nat.lt_succ_of_le (List.length_filter_le _ _)
   · exact Nat.lt_succ_of_le (List.length_filter_le _ _)
 
-/-- Stage 2: `qsortExec` on an encoded list computes `qsortL`. -/
-theorem qsortExec_enc (xs : List SExpr) :
-    qsortExec (enc xs) = enc (qsortL xs) := by
-  induction hn : xs.length using Nat.strong_induction_on generalizing xs
-    with
-  | _ n ih =>
-    match xs with
-    | [] => rw [qsortExec.eq_def,
-        show enc ([] : List SExpr) = SExpr.nil from rfl,
-        dif_neg (by simp [Logic.consp, Logic.toBool])]; simp [qsortL, enc]
-    | [a] =>
-      rw [qsortExec.eq_def,
-          dif_pos (show Logic.toBool (Logic.consp (enc [a])) = true
-            from rfl),
-          if_neg (show ¬(Logic.toBool (Logic.consp
-            (Logic.cdr (enc [a]))) = true) from by
-              simp [enc, Logic.cdr, Logic.consp, Logic.toBool]),
-          show Logic.car (enc [a]) = a from rfl]
-      simp [qsortL, Logic.cons, enc]
-    | a :: b :: t =>
-      rw [qsortExec.eq_def,
-          dif_pos (show Logic.toBool (Logic.consp (enc (a :: b :: t)))
-            = true from rfl),
-          if_pos (show Logic.toBool (Logic.consp
-            (Logic.cdr (enc (a :: b :: t)))) = true from rfl),
-          show Logic.cdr (enc (a :: b :: t)) = enc (b :: t) from rfl,
-          show Logic.car (enc (a :: b :: t)) = a from rfl,
-          filterExec_enc, filterExec_enc,
-          ih (filterL (symV "LT") a (b :: t)).length
-            (by subst hn; simp only [filterL, List.length_cons]
-                exact Nat.lt_succ_of_le (List.length_filter_le _ _))
-            _ rfl,
-          ih (filterL (symV "GTE") a (b :: t)).length
-            (by subst hn; simp only [filterL, List.length_cons]
-                exact Nat.lt_succ_of_le (List.length_filter_le _ _))
-            _ rfl,
-          show Logic.cons a (enc (qsortL (filterL (symV "GTE") a (b :: t))))
-            = enc (a :: qsortL (filterL (symV "GTE") a (b :: t))) from rfl,
-          appendExec_enc]
-      simp only [filterL, qsortL]
+/-- Stage 2: `qsortExec` on an encoded list computes `qsortL` —
+    GENERATED (hand exec, M3 measure; the FILTER/BINARY-APPEND callee
+    isos resolve through the kit registry). -/
+derive_sim% qsortExec_enc for "QSORT"
+  vars (xs : list)
+  exec [xs]
+  native (enc (qsortL xs))
+  simp [qsortL, filterL]
+  induct functional (qsortL xs)
 
 /-! ## HOW-MANY-QSORT -/
 
@@ -4338,6 +4196,8 @@ decreasing_by
     | exact consCount_cdr_lt_of_consp _h1
     | exact consCount_bnext_swap_lt _h1 _h2
 
+register_exec_kit% "BNEXT" => bnextExec arity 1
+
 /-- The NATIVE bubble pass over Lean lists — self-contained (mirror
     criterion: `lexorderB` only, no evaluator vocabulary). -/
 def bnextL : List SExpr → List SExpr
@@ -4349,43 +4209,14 @@ def bnextL : List SExpr → List SExpr
 termination_by l => l.length
 
 /-- Stage 2: `bnextExec` on an encoded list computes the native bubble
-    pass. -/
-theorem bnextExec_enc : ∀ (xs : List SExpr),
-    bnextExec (enc xs) = enc (bnextL xs)
-  | [] => by
-    rw [bnextExec.eq_def]
-    simp [bnextL, enc, Logic.consp, Logic.toBool]
-  | [x] => by
-    rw [bnextExec.eq_def]
-    simp [bnextL, enc, Logic.consp, Logic.toBool, Logic.cdr]
-  | x1 :: x2 :: rest => by
-    rw [bnextExec.eq_def,
-        show enc (x1 :: x2 :: rest) = .cons x1 (.cons x2 (enc rest))
-          from rfl]
-    simp only [show Logic.consp (SExpr.cons x1 (.cons x2 (enc rest)))
-        = SExpr.t from rfl,
-      show Logic.cdr (SExpr.cons x1 (.cons x2 (enc rest)))
-        = .cons x2 (enc rest) from rfl,
-      show Logic.car (SExpr.cons x1 (.cons x2 (enc rest))) = x1 from rfl,
-      show Logic.consp (SExpr.cons x2 (enc rest)) = SExpr.t from rfl,
-      show Logic.car (SExpr.cons x2 (enc rest)) = x2 from rfl,
-      show Logic.cdr (SExpr.cons x2 (enc rest)) = enc rest from rfl]
-    rw [lexorder_eq_boolEnc,
-        dif_pos (show Logic.toBool SExpr.t = true from rfl),
-        dif_pos (show Logic.toBool SExpr.t = true from rfl)]
-    cases hlex : lexorderB x1 x2 with
-    | true =>
-      rw [if_pos (show Logic.toBool (boolEnc true) = true from rfl),
-          show SExpr.cons x2 (enc rest) = enc (x2 :: rest) from rfl,
-          bnextExec_enc (x2 :: rest)]
-      simp [bnextL, hlex, Logic.cons, enc]
-    | false =>
-      rw [if_neg (show ¬ Logic.toBool (boolEnc false) = true by decide),
-          show Logic.cons x1 (enc rest) = enc (x1 :: rest) from rfl,
-          bnextExec_enc (x1 :: rest)]
-      simp [bnextL, hlex, Logic.cons, enc]
-termination_by xs => xs.length
-decreasing_by all_goals simp
+    pass — GENERATED (hand exec: the CONS-argument recursion site is
+    beyond `derive_exec%`, but the ISO is on the template). -/
+derive_sim% bnextExec_enc for "BNEXT"
+  vars (xs : list)
+  exec [xs]
+  native (enc (bnextL xs))
+  simp [bnextL, lexorder_eq_boolEnc]
+  induct functional (bnextL xs)
 
 /-- Stage 1: a `bnext` call converges to `bnextExec`. -/
 theorem bnext_exec_corr (w : World)

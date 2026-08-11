@@ -109,6 +109,11 @@ structure KitInfo where
   defnHyps : List String := []
   /-- the corr's builtin no-def hypothesis names, telescope order -/
   builtinHyps : List String := []
+  /-- the stage-2 iso theorem `<fn>Exec_enc` (`.anonymous` = none
+      registered). Attached by `derive_sim%` (Imported/SimGen.lean); a
+      CALLER's generated iso resolves its callees' `_enc` rewrites through
+      this field exactly as its exec resolves callee execs. -/
+  encName : Name := .anonymous
   deriving Inhabited, Repr
 
 initialize execKitExt :
@@ -131,6 +136,22 @@ def registerKit (info : KitInfo) : CommandElabM Unit := do
         redirect callee resolution (fail-closed); scope the registry \
         before generating same-named kits from another book"
   modifyEnv fun env => execKitExt.addEntry env info
+
+/-- Attach a kit's stage-2 iso (`derive_sim%`, Imported/SimGen.lean).
+    Entries are prepended and lookup is first-match, so the updated copy
+    supersedes the original (which stays inert); re-attaching is refused
+    so an iso cannot be silently redirected. -/
+def registerKitEnc (aclName : String) (encName : Name) :
+    CommandElabM Unit := do
+  let some kit := findKit (← getEnv) aclName
+    | throwError "registerKitEnc: no registered exec kit for {aclName} \
+        (register the exec first)"
+  unless kit.encName == .anonymous do
+    throwError "registerKitEnc: {aclName} already has iso {kit.encName} \
+        — re-registration would silently redirect callee resolution \
+        (fail-closed)"
+  modifyEnv fun env =>
+    execKitExt.addEntry env { kit with encName := encName }
 
 /-- The builtin twin table: ACL2 builtin name → the `Logic`-level Lean
     function of the same semantics + the `callBuiltin` bridge lemma the
