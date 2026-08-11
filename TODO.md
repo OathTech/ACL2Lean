@@ -26,7 +26,15 @@
 >   item): `dis_insert_tp`, `dis_how_many_tp`, `dis_all_rel_tp`,
 >   `dis_append_tp`, `dis_evens_tp`, `dis_acl2_count_tp`,
 >   `drv_tp_len`, `drv_tp_mylen`, `dis_sortfn1_insert_tp`,
->   `dis_sortfn1_tp`, `dis_ssortfn1_insert_tp`, `dis_ssortfn1_tp`.
+>   `dis_sortfn1_tp`, `dis_ssortfn1_insert_tp`, `dis_ssortfn1_tp`,
+>   and — MINTED 2026-08-11 under the reuse-vs-mint ruling (cap:
+>   only classes that already HAVE an unlock) for the two
+>   bnext-level bsort rows — `dis_how_many_smaller_tp`,
+>   `dis_bnext_size_tp` (both registered in the provenance
+>   debtRegistry; same TP-replay unlock). NOT mintable and still
+>   blocking ORDEREDP-BSORT/HOW-MANY-BSORT:
+>   `linear:HOW-MANY-BAD-PAIRS-BNEXT` — the `linear:` class has NO
+>   existing unlock (route = linear/DP replay, or a ruling).
 > - R-lane class: `dis_convert_perm` (unlock = PERM-TLFIX replay →
 >   CONVERT-PERM-TO-HOW-MANY discharged via the replayed tree).
 > - usefi class (the THIRD unlock class, ruled 2026-08-11 — it is

@@ -128,4 +128,38 @@ theorem how_many_rm_general_native_driver (av bv : SExpr) (xs : List SExpr) :
 
 #print axioms how_many_rm_general_native_driver
 
+set_option maxHeartbeats 3200000 in
+/-- The driver's CONDITIONAL replayed statement for
+    PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS (hypotheses:
+    `total:PERM-COUNTER-EXAMPLE`, `tp:HOW-MANY`). -/
+def pceIsCounterexampleReplayedCond := driver_replayed% convertPermDev
+  convertPermWorldD "perm-counter-example-is-counterexample-for-true-lists"
+
+/-- The unconditional form — the counter-example function's totality from
+    the registered debt entry (`dis_pce_total`), how-many's TP by the
+    standard discharger. -/
+theorem pceIsCounterexampleReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
+      Worlds.Sorting.pce_is_counterexampleFormula = some v ∧ v ≠ SExpr.nil :=
+  pceIsCounterexampleReplayedCond env
+    (Worlds.Sorting.dis_pce_total convertPermWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_how_many_tp convertPermWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS
+    natively: `pceL xs ys` is a COMPLETE counterexample witness — the two
+    lists are permutations exactly when their counts agree at that one
+    element. -/
+theorem pce_is_counterexample_native_driver (xs ys : List SExpr) :
+    xs.isPerm ys
+      = (xs.count (Worlds.Sorting.pceL xs ys)
+          == ys.count (Worlds.Sorting.pceL xs ys)) :=
+  Worlds.Sorting.pce_is_counterexample_native_of_replayed convertPermWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) pceIsCounterexampleReplayed_uncond xs ys
+
+#print axioms pce_is_counterexample_native_driver
+
 end ACL2.Imported.Mirrors

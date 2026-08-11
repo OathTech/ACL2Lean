@@ -58,8 +58,8 @@
   NAMED HARD FRONTIERS (each a hard elaboration error naming itself, in
   `derive_exec%`'s style): mutual recursion (exec or native), a result
   reading outside the derived table (`enc` / `boolEnc` / `intRep` /
-  t-nil), a noncomputable native, an unregistered exec kit, an arity or
-  binder mismatch.
+  t-nil / the RAW ELEMENT reading), a noncomputable native, an
+  unregistered exec kit, an arity or binder mismatch.
 
   VALIDATION BY RETIREMENT (the charter's protocol): every hand `_enc` in
   `Imported/Sorting.lean` and `Imported/Perm.lean` is replaced by a
@@ -339,12 +339,39 @@ syntax (name := deriveSimCmd)
             mutual recursion is a named frontier of the iso template"
   let allowed : List Name :=
     [``ACL2.Lifting.enc, ``ACL2.Lifting.boolEnc, ``ACL2.SExpr.atom, ``cond]
+  -- THE RAW (ELEMENT) READING — ruled 2026-08-11. A program whose value
+  -- is an ELEMENT of the data rather than a structure over it (ACL2's
+  -- `perm-counter-example`: an element of the list, or the `car` of the
+  -- empty case) is read by a native that returns a bare `SExpr`, so the
+  -- reading is the IDENTITY and there is no encoder to name in the
+  -- table above. Admitted BY RESULT TYPE, not by head constant: the
+  -- native's own type must END in `ACL2.SExpr` — a `List SExpr`-valued
+  -- native still has to go under `enc`, a `Bool`-valued one under
+  -- `boolEnc`, an `Int`-valued one under `intRep`. Nothing about the
+  -- TEMPLATE changes; this is the table admitting a case the fixed
+  -- script already proves (the threat-model note above still governs:
+  -- the identity reading names no wrapper, so the frontier check's
+  -- discriminating power over such a native is its result type alone —
+  -- the template, not this check, is what rejects a misaligned
+  -- reading).
+  let rawReading : Bool :=
+    match rhsHead with
+    | some h =>
+      match env'.find? h with
+      | some ci => Id.run do
+          let mut t := ci.type
+          while t.isForall do
+            t := t.bindingBody!
+          return t.isConstOf ``ACL2.SExpr
+      | none => false
+    | none => false
   match rhsHead with
-  | some h => unless allowed.contains h do
+  | some h => unless allowed.contains h || rawReading do
       throwError "derive_sim%: the result reading of {thmId.getId} is \
           headed by {h}, outside the derived reading table (`enc` / \
           `boolEnc` / `intRep` (an SExpr integer atom) / the t-nil \
-          `bif`) — a named frontier"
+          `bif` / the RAW ELEMENT reading (an `SExpr`-valued native — \
+          the identity, no encoder)) — a named frontier"
   | none =>
       throwError "derive_sim%: {thmId.getId} is not an equation between \
           a program value and a reading of it (frontier)"

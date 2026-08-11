@@ -810,8 +810,8 @@ facts over `Logic.plus` (the SYNP `syntaxp` hypotheses of
 FOLD-CONSTS-IN-+ are premises we never need). Variables per the stored
 specs: X/Y/Z, and A/B/C in the if-lifting rules. -/
 
-private def yS : Symbol := { package := "ACL2", name := "Y" }
-private def yT : SExpr := .atom (.symbol { name := "Y" })
+def yS : Symbol := { package := "ACL2", name := "Y" }
+def yT : SExpr := .atom (.symbol { name := "Y" })
 private def zS : Symbol := { package := "ACL2", name := "Z" }
 private def zT : SExpr := .atom (.symbol { name := "Z" })
 private def cS : Symbol := { package := "ACL2", name := "C" }
@@ -3701,7 +3701,7 @@ def pceBody : SExpr :=
       (carT xT))
     (carT yT)
 
-private def pce_sym : Symbol :=
+def pce_sym : Symbol :=
   { package := "ACL2", name := "PERM-COUNTER-EXAMPLE" }
 
 private theorem pce_ns :

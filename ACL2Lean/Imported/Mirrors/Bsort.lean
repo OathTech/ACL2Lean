@@ -77,4 +77,73 @@ theorem orderedp_when_bnext_constant_native_driver (xs : List SExpr)
 
 #print axioms orderedp_when_bnext_constant_native_driver
 
+set_option maxHeartbeats 3200000 in
+/-- The driver's CONDITIONAL replayed statement for HOW-MANY-SMALLER-BNEXT
+    (hypotheses: `total:BNEXT`, `tp:HOW-MANY-SMALLER`). -/
+def howManySmallerBnextReplayedCond := driver_replayed% bsortDev
+  bsortMirrorsWorld "how-many-smaller-bnext"
+
+/-- The unconditional form — bnext's totality and how-many-smaller's TP
+    from the registered debt entries. -/
+theorem howManySmallerBnextReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortMirrorsWorld env
+      Worlds.Sorting.how_many_smaller_bnextFormula = some v ∧ v ≠ SExpr.nil :=
+  howManySmallerBnextReplayedCond env
+    (Worlds.Sorting.dis_bnext_total bsortMirrorsWorld (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_how_many_smaller_tp bsortMirrorsWorld (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-SMALLER-BNEXT natively: one bubble pass
+    preserves every counts-below (over the native pass `bnextL` and the
+    native count `howManySmallerL`). -/
+theorem how_many_smaller_bnext_native_driver (ev : SExpr) (xs : List SExpr) :
+    Worlds.Sorting.howManySmallerL ev (Worlds.Sorting.bnextL xs)
+      = Worlds.Sorting.howManySmallerL ev xs :=
+  Worlds.Sorting.how_many_smaller_bnext_native_of_replayed bsortMirrorsWorld
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide)
+    howManySmallerBnextReplayed_uncond ev xs
+
+#print axioms how_many_smaller_bnext_native_driver
+
+set_option maxHeartbeats 3200000 in
+/-- The driver's CONDITIONAL replayed statement for
+    HOW-MANY-BAD-PAIRS-BNEXT (hypotheses: `total:BNEXT`,
+    `tp:HOW-MANY-SMALLER`, `tp:BNEXT-SIZE`). -/
+def howManyBadPairsBnextReplayedCond := driver_replayed% bsortDev
+  bsortMirrorsWorld "how-many-bad-pairs-bnext"
+
+/-- The unconditional form — bnext's totality and the two count TPs from
+    the registered debt entries. -/
+theorem howManyBadPairsBnextReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortMirrorsWorld env
+      Worlds.Sorting.how_many_bad_pairs_bnextFormula = some v
+        ∧ v ≠ SExpr.nil :=
+  howManyBadPairsBnextReplayedCond env
+    (Worlds.Sorting.dis_bnext_total bsortMirrorsWorld (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+    (Worlds.Sorting.dis_how_many_smaller_tp bsortMirrorsWorld (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide))
+    (Worlds.Sorting.dis_bnext_size_tp bsortMirrorsWorld (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-BAD-PAIRS-BNEXT natively: a bubble pass that
+    CHANGES the list strictly decreases the bubble measure (bubble sort's
+    well-foundedness, over the native pass and measure). -/
+theorem how_many_bad_pairs_bnext_native_driver (xs : List SExpr)
+    (h : xs ≠ Worlds.Sorting.bnextL xs) :
+    Worlds.Sorting.bnextSizeL (Worlds.Sorting.bnextL xs)
+      < Worlds.Sorting.bnextSizeL xs :=
+  Worlds.Sorting.how_many_bad_pairs_bnext_native_of_replayed
+    bsortMirrorsWorld (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide)
+    howManyBadPairsBnextReplayed_uncond xs h
+
+#print axioms how_many_bad_pairs_bnext_native_driver
+
 end ACL2.Imported.Mirrors
