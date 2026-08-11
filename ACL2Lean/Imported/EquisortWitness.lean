@@ -26,8 +26,10 @@ open ACL2
 -- `eT`/`xT`/`eS`/`xS` come from `Imported/Sorting.lean` (same namespace,
 -- identical definitions): the local private copies were removed when the
 -- book layer's split-out modules needed them (mirror wave 2026-08-11).
-private def qNil : SExpr :=
-  .cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)
+-- `qNil` joined them in the demo-build split (2026-08-11): it became a
+-- non-private constant of `Imported/Sorting/Sims.lean` (the layer split
+-- needs it across modules), and the local copy — byte-identical — would
+-- now shadow it.
 private def app1 (n : String) (a : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := n })) (.cons a .nil)
 private def app2 (n : String) (a b : SExpr) : SExpr :=

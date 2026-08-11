@@ -10,6 +10,10 @@ waterfall produced, replayed step by step. Genuine, faithful replay is the
 product: a proof that passes the kernel but does not mirror ACL2's reasoning
 does not count here.
 
+**Start here:** [`docs/DEMO.md`](docs/DEMO.md) — a four-stop reader path for a
+Lean user who does not speak ACL2: the headline theorems, exactly what you have
+to trust, and one worked replay.
+
 ## How it works
 
 Importing a theorem runs through a pipeline; every stage except ACL2's own

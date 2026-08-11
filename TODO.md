@@ -101,6 +101,38 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
+> **DEMO BUILD (2026-08-11, branch mdd/thin-lean-boundary; design
+> `docs/plans/2026-08-11_demo-design.md`, RULED APPROVED).** The
+> presentation layer. (1) `Imported/Mirrors/Showcase.lean` — the front
+> door: the three-tier trust map, then 8 headline results restated by
+> APPLYING existing catalog constants (zero new proof content) plus the
+> 4 equisort capstone constants, each with a `#guard_msgs` axiom
+> receipt on the page. (2) `docs/DEMO.md` — the four-stop reader path
+> for a Lean visitor who does not speak ACL2 (linked from README).
+> (3) `Imported/Sorting.lean` (4406 lines) split into
+> `Imported/Sorting/{Sims,Iso,IsoAdmission,Decode,DecodeSorts,Debt}.lean`
+> behind a facade — FOUR LAYERS, six modules (Iso/Decode are each two
+> purely for the 1500-line norm). `Debt.lean` imports `Sims` ALONE: the
+> 12 assumed statements are stated over the definitions only.
+> (4) `scripts/check-trust-imports.sh` + `just check-trust-imports` (in
+> `ci`): pins each layer's direct imports and checks Sims/Debt never
+> reach the proof-log/clause-tree/driver modules. Behaviour-preserving:
+> statements byte-identical (verified by a `#check` diff over the 12
+> sorried + 5 spot decodes — the only delta is private→public name
+> RENDERING for the 50 constants that now cross module boundaries),
+> golden untouched, census unchanged, 20 sorries.
+> **FOLLOW-UPS.** (a) `Imported/Perm.lean` (986 lines) was NOT split —
+> under the norm and off the demo reader path; the same four-layer
+> treatment is available whenever it is wanted. (b) The trust-import
+> gate's honest limit: `Sims`' closure DOES reach
+> `Replay.EvalLemmas`/`Replay.Lemmas.*` through `Imported/Lifting.lean`,
+> which holds the encoders and imports the eval lemmas in one module.
+> Splitting Lifting's encoder half out would make "Sims knows nothing
+> of the replay" true at the IMPORT level, not just the content level.
+> (c) `Iso`/`Decode` inherited few `/-! ##` section markers in the split
+> (they travelled with the unit they preceded); `Sims`' were rewritten
+> for the demo, the others are worth a pass.
+
 > **SORTING-ENDGAME ARC (2026-08-10/11, branch mdd/sorting-endgame) —
 > 113/116, sorting 77/78; every claim point full-gated TRUE_EXIT=0.**
 > (1) Scout F REFUTED the order-derived-entry theory (the :TA-ENTRY is a

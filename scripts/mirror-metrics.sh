@@ -25,8 +25,17 @@ grep -o 'cond\[[^]]*\]' "$golden" \
 
 echo
 echo "== hand lines per catalog native =="
+# The sorting book's hand content is the six layer modules of
+# ACL2Lean/Imported/Sorting/ (split 2026-08-11, the demo build); the
+# facade ACL2Lean/Imported/Sorting.lean is imports + prose, not hand
+# content, so it is deliberately NOT counted.
 hand_files=(
-  ACL2Lean/Imported/Sorting.lean
+  ACL2Lean/Imported/Sorting/Sims.lean
+  ACL2Lean/Imported/Sorting/Iso.lean
+  ACL2Lean/Imported/Sorting/IsoAdmission.lean
+  ACL2Lean/Imported/Sorting/Decode.lean
+  ACL2Lean/Imported/Sorting/DecodeSorts.lean
+  ACL2Lean/Imported/Sorting/Debt.lean
   ACL2Lean/Imported/SortingBsort.lean
   ACL2Lean/Imported/SortingConvertPerm.lean
   ACL2Lean/Imported/Perm.lean
