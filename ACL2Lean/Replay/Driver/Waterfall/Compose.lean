@@ -265,7 +265,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         let mut ctx := ctx
         for L in expected do
           ctx ← pinTermOpaques cfg e ctx L
-        let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+        let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
         let ctxF := ctx
         return ← vacuousResidualClose cfg ctx expected pChild clauseLit fun L => do
           if let some hf := ctxF.litFactByTerm? L then return hf
@@ -325,7 +325,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         throwError "composeSplit: residual survivor is not last at {idStr}"
       -- litFacts are INDEX-keyed and clause-scoped — the residual child is
       -- a PUSHED clause with its own numbering; stale entries collide
-      let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+      let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
       let segFactsHere := segL.dropLast.zip segProofs
       let p ← peelToLast cfg ctx expected pChild fun L => do
         match ctx.litFactByTerm? L,
@@ -410,7 +410,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             unless outcome == "segment-open" && expected.getLast? == some value do
               throwError "composeSplit: residual branch's surviving literal is \
                           not the open leaf at {idStr} (frontier)"
-            let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+            let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
             -- peel every literal but the survivor
             let segFactsHere := segL.zip segProofs
             let p ← peelToLast cfg ctx expected pChild fun L => do

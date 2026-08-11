@@ -5,6 +5,51 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
+> **SORTING-ENDGAME ARC (2026-08-10/11, branch mdd/sorting-endgame) —
+> 113/116, sorting 77/78; every claim point full-gated TRUE_EXIT=0.**
+> (1) Scout F REFUTED the order-derived-entry theory (the :TA-ENTRY is a
+> verbatim tail clause literal — rewrite-clause-type-alist item (a));
+> item F became a CONSUMER fix (the taEntry demand hoist) and the
+> LEXORDER-ORDER rung retired. (2) Fork batch E+H+I landed (submodule
+> → 56de33b5a1): emit/dedup-drop at BOTH member-term drop sites;
+> :TERMINATION-RUNES (per-admission, boxed-empty distinguishable);
+> :TAU-BASIS (the fn-restricted slice, gz fns trimmed to tau-pair
+> identity after the cited-symbol-closure bloat diagnosis — deviation
+> documented). (3) Consumers: dedup read-off (expiry retired),
+> leaf-rune gating (tau slice gate + the admission-channel gate), the
+> tau EVG premise (rule_premise_fact_evg) → HOW-MANY-RM-GENERAL ✓
+> (ablation-verified). (4) 2e landed: consumeExpandDetail (detail
+> chains as VALUE equalities over EQUAL-headed carriers; nilEquiv
+> remains the designed fallback, loud frontier), the recorded-drop
+> clausify relaxation (clausifyPure_sound_sub), the positioned
+> unresolved probe → ORDEREDP-WHEN-BNEXT-CONSTANT ✓; the p8 pattern
+> book at its MDD completion criterion (green + native mirror
+> cons_neq_detail_native_driver). (5) W3 one-hyp lift (fn-free hyp
+> crossing + hyp-free-consumer weakening) → BSORT-IS-ISORT ✓ (usefi
+> DISCHARGED, fi-self gone); seven statement pins in
+> Tests/SortingPinsEndgame (a new architecture: pinned against the
+> sweep's own registered constants). REMAINING for sorting 78/78:
+> PERM-TLFIX only (the R-lane rung-3 arc, design pinned).
+> EXIT-AUDIT FOLLOW-UPS (tracked, not landed): (a) emit `:PATH` on the
+> two expand-and-or detail emitters (acl2/induct.lisp
+> preprocess/equal-self + preprocess/if-iff) so consumeExpandDetail's
+> position is READ, not located — the ambiguous both-branches case now
+> hard-fails (outside 3.1); (b) the tau leaf-rune gate is FN-granular,
+> not rune-granular (the slice does not record which rules FIRED —
+> exact-fired threading is the ruled later tightening, outside residual
+> 4); (c) TRUE-LISTP-RM name collision across ordered-perms (local
+> :REWRITE) and convert-perm (:TYPE-PRESCRIPTION) — the cond label
+> cannot distinguish them (outside 4.3); (d) allowRune matches only
+> :REWRITE/:LINEAR classes (over-filtering, fail-closed — inside 10);
+> (e) HOW-MANY-RM-GENERAL's native mirror (the catalog .pending) and
+> the bsort-cluster natives; (f) negative/tamper tests for the arc's
+> four new acceptance gates (inside 15) — the attempted p8-based
+> dedup-gate tamper turned out untestable there (p8's drop rides the
+> TAUTOLOGY path, out=NIL, so the recordedDropHit gate never fires);
+> the right vehicle is a dedicated pattern book whose clausify keeps a
+> commuted duplicate WITHOUT a complement close, authored + captured
+> per the synthetic-books amendment.
+
 > **D2 RESOLVED (2026-08-08, 4c6eb6a, full claim-gate TRUE_EXIT=0):**
 > both STRONG capstones (MSORT-IS-ISORT, QSORT-IS-ISORT) discharge the
 > functional instantiation IN-SWEEP — usefi: gone from both rows,

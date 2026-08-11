@@ -138,7 +138,7 @@ def replayFertilize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx)
       (disjoinTerm shortened) (disjoinTerm substituted)
     let chainAll ← chainWith inner chainSub
     -- the child replays STANDALONE (its own literal walk / processors)
-    let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+    let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
     let p ← mkAppM ``evtrue_of_fuel_eq #[chainAll, pChild]
     mkLambdaFVars #[hNil] p
   let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vLit, nilC]) fun hNe => do

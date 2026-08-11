@@ -289,7 +289,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         -- litFacts are INDEX-keyed and clause-scoped — clear at every
         -- child-CLAUSE descent (stale parent entries collide with the
         -- child's numbering); term-keyed channels flow through
-        pOuts := pOuts ++ [← replayClauseWith rec cfg { ctx with litFacts := [] } child]
+        pOuts := pOuts ++ [← replayClauseWith rec cfg { ctx with litFacts := [], dedupDrops := [] } child]
       | none =>
         -- (a) the out clause proved IN-NODE by a merged same-clause-id
         -- SIMPLIFY step's literal walk (preprocess split + simplify without
@@ -303,7 +303,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
           let litsIdx := cl.zipIdx.map fun (l, i) => (i + 1, l)
           spineConsumed := true
           pOuts := pOuts ++ [← replayClauseSpineWith rec cfg
-            { ctx with litFacts := [] } cn.idStr litsIdx postItems [] cn.children]
+            { ctx with litFacts := [], dedupDrops := [] } cn.idStr litsIdx postItems [] cn.children]
         else
         -- (b') a MULTI-literal clause discharged WHOLE by a verdict node on
         -- its disjunction (LINEAR-CHAIN's linear-arithmetic Goal; the
@@ -520,7 +520,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       unless c.idStr == child.idStr do
         throwError "use-hint: child {c.idStr} matches no application \
             clause at {cn.idStr} (linking gap)"
-    let pApp ← replayClauseWith rec cfg { ctxU with litFacts := [] } child
+    let pApp ← replayClauseWith rec cfg { ctxU with litFacts := [], dedupDrops := [] } child
     -- peel each ¬Lᵢ head: Lᵢ truthy (its instantiated statement) makes
     -- (NOT Lᵢ) nil, and evtrue_extract_else drops it from the disjunction
     let mut p := pApp
@@ -560,7 +560,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         throwError "replayClause: preprocess chain reached {repr finalT}, the \
                     single child's clause disjoins to \
                     {repr (disjoinTerm child.inputClause)} at {cn.idStr}"
-      let pChild ← replayClauseWith rec cfg { ctx with litFacts := [] } child
+      let pChild ← replayClauseWith rec cfg { ctx with litFacts := [], dedupDrops := [] } child
       match chainOpt with
       | none => return pChild
       | some (ch, false) => return ← mkAppM ``evtrue_of_fuel_eq #[ch, pChild]
@@ -594,7 +594,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         throwError "replayClause: preprocess chain reached {repr finalT}, the \
                     single child's clause disjoins to \
                     {repr (disjoinTerm child.inputClause)} at {cn.idStr}"
-      let pChild ← replayClauseWith rec cfg { ctx with litFacts := [] } child
+      let pChild ← replayClauseWith rec cfg { ctx with litFacts := [], dedupDrops := [] } child
       match chainOpt with
       | none => return pChild
       | some (ch, false) => return ← mkAppM ``evtrue_of_fuel_eq #[ch, pChild]

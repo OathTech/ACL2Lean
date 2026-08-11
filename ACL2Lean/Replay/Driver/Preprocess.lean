@@ -573,7 +573,15 @@ def consumeExpandDetail (b : DpLiftBundle) (hwf : Expr)
         else match cur with
           | .cons (.atom (.symbol ifs))
               (.cons c (.cons bb (.cons ee .nil))) =>
-            if ifs.name == "IF" && bb == st.lhs then do
+            -- position AMBIGUITY hard-fails (exit-audit outside 3.1: the
+            -- detail emitters carry no :PATH, so the position is located,
+            -- not read — a both-branches match must refuse rather than
+            -- tie-break; the :PATH emission is the tracked fork follow-up)
+            if ifs.name == "IF" && bb == st.lhs && ee == st.lhs then
+              throwError "2e detail: equal-self lhs {repr st.lhs} matches \
+                  BOTH branches of {repr cur} — position ambiguous with no \
+                  recorded :PATH (frontier; emit :PATH at the detail sites)"
+            else if ifs.name == "IF" && bb == st.lhs then do
               let he ← Lean.Meta.mkEqRefl (liftE ee)
               let p ← mkAppOptM ``dpLiftF_ifT_congr
                 #[some b.varsE, some b.opqE, some hwf,

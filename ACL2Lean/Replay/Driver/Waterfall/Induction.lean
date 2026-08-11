@@ -359,7 +359,7 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
     let inner ← withLocalDeclD `sih sihTy fun sihV => do
           let cfg' := { cfg with envExpr := eV }
           let ctx0 : ReplayCtx :=
-            { ctx with varVals := [], vals := [], litFacts := [] }
+            { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [] }
           -- ONE IH's truth: instantiate the strong IH at the UPDATED env —
           -- every alist pair is a plain env update (swaps and arbitrary
           -- ride-along terms included, design I3) — and bridge to this env
@@ -556,6 +556,11 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                 -- rules — the bundle proves from what ACL2's admission
                 -- actually used (BSORT cites :LINEAR
                 -- HOW-MANY-BAD-PAIRS-BNEXT). Channel absent = ungated.
+                -- Exit-audit inside 10: only :REWRITE/:LINEAR classes are
+                -- matched, so a :DEFINITION/:TYPE-PRESCRIPTION citation
+                -- cannot allow a ruleHyp — OVER-filtering, fail-closed
+                -- (the bundle fails loudly or keeps an unused binder;
+                -- never a weakened statement).
                 let allowRune : String → String → Bool := fun cls nm =>
                   match just.terminationRunes with
                   | none => true

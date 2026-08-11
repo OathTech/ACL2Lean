@@ -12,6 +12,7 @@
 -/
 import Tests.SortingPins
 import Tests.Coverage.BSbsort
+import Tests.Coverage.BSconvertPermToHowMany
 import Tests.Coverage.BSsortsEquivalent
 
 namespace ACL2.Tests.SortingPinsEndgame
@@ -141,11 +142,11 @@ example :
 /-- PIN `HOW-MANY-BSORT` (bsort.lisp:76): the mirror of
       `(equal (how-many e (bsort x)) (how-many e x))`
     under the μ-route set + how-many's TP corollary + the linear
-    snapshot. The row LABEL shows rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0,
-    but in the registered constant that hypothesis is DISCHARGED
-    cross-book (the convert-perm dependency trees in the sweep's bsort
-    surface), so the pinned statement is the STRONGER 7-hypothesis
-    form. -/
+    snapshot — exactly the golden row's seven conds (the cited
+    NOT-MEMB-IMPLIES-HOW-MANY-IS-0 rule discharges cross-book in the
+    sweep itself, so it appears in neither the row nor this pin; an
+    earlier docstring here claimed the label showed it — false against
+    the golden, corrected in the exit-audit fix round). -/
 example :
     ∀ (env : Env),
       totalHyp1 bsortSweepWorld "BNEXT" →
@@ -162,6 +163,40 @@ example :
   ReplayedStatements.replayed_sorting_bsort_HOW_MANY_BSORT
 
 #print axioms ReplayedStatements.replayed_sorting_bsort_HOW_MANY_BSORT
+
+/-! ## convert-perm-to-how-many book -/
+
+private def convertPermSweepLog : String :=
+  include_str "../acl2_samples/sorting/convert-perm-to-how-many.proof-log"
+def convertPermSweepDev : Development := load_development% convertPermSweepLog
+derive_world convertPermSweepWorld from convertPermSweepDev
+
+/-- PIN `HOW-MANY-RM-GENERAL` (convert-perm-to-how-many.lisp:50, the
+    endgame arc's tau-slice row — exit-audit fix round: the arc's plan
+    covered it but the first pin wave skipped it; the outside reviewer
+    hand-verified this exact shape): the mirror of
+      `(equal (how-many a (rm b x))
+              (if (and (equal a b) (memb a x))
+                  (1- (how-many a x))
+                (how-many a x)))`
+    under ACL2's translation (`and` → nested IF, `1-` → `(binary-+ -1 ·)`),
+    conditional on how-many's non-negative-integer TP corollary only. -/
+example :
+    ∀ (env : Env),
+      tpNonnegInt2 convertPermSweepWorld "HOW-MANY" →
+      EvTrue convertPermSweepWorld env
+        (ap2 "EQUAL"
+          (ap2 "HOW-MANY" (sym "A") (ap2 "RM" (sym "B") (sym "X")))
+          (ap3 "IF"
+            (ap3 "IF" (ap2 "EQUAL" (sym "A") (sym "B"))
+              (ap2 "MEMB" (sym "A") (sym "X")) (qt .nil))
+            (ap2 "BINARY-+" (qt (.atom (.number (.int (-1)))))
+              (ap2 "HOW-MANY" (sym "A") (sym "X")))
+            (ap2 "HOW-MANY" (sym "A") (sym "X")))) :=
+  ReplayedStatements.replayed_sorting_convert_perm_to_how_many_HOW_MANY_RM_GENERAL
+
+#print axioms
+  ReplayedStatements.replayed_sorting_convert_perm_to_how_many_HOW_MANY_RM_GENERAL
 
 /-! ## sorts-equivalent book (acl2/books/sorting/sorts-equivalent.lisp) -/
 

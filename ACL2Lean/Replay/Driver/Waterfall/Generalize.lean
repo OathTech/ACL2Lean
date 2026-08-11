@@ -106,7 +106,7 @@ partial def replayGeneralize (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- clear ALL env-bound fact channels (audit 2026-07-06: branchFacts/segFacts
   -- carry proofs about THIS env; stale ones at env\' would only kernel-fail,
   -- but must not be offered)
-  let ctx' := { ctx with varVals := [], vals := [], litFacts := [],
+  let ctx' := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                          branchFacts := [], segFacts := [] }
   let pChild ← rec.clause cfg' ctx' child
   -- DROP the restriction heads: each `(NOT (pred ESi))` is FALSE at env'

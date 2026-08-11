@@ -58,10 +58,13 @@ justification ACL2 never used (exactly the expiry's complaint).
 Remedy (joins the consumer wave in place of F's emission): tail-
 literal falsity in scope via byCases on the tail literal in the
 spine composition, gated on the recorded `:TA-ENTRY` matching a
-clause literal verbatim; the LEXORDER-ORDER rung then RETIRES. Any
-future record whose entry matches no clause literal is a frontier —
-if one appears, a real entry-provenance emission item can be
-designed then.
+clause literal verbatim; the LEXORDER-ORDER rung then RETIRES.
+(Exit-audit correction, inside 9: an entry matching no clause
+literal is NOT a distinct thrown frontier — the demand is skipped
+like every unresolvable ContextDemand and the failure surfaces
+downstream as a missing fact, fail-closed. If such a record ever
+appears, a real entry-provenance emission item can be designed
+then.)
 
 ## Item G (CONDITIONAL — only if item 2's negative side becomes
 ## consumable): split `equal/cdrs-decision` origins
@@ -136,8 +139,15 @@ gz-snapshot-emitted every named predicate clique. Fix (fork
 f9d4a99b68, the fertilize :DELETE-LIT-FLG remedy class —
 emission-side payload normalization): PREDEFINED fns contribute
 their tau-pair identity only (:GZ T); world-entering fns keep the
-full ruled slice. DEVIATION NOTE vs the ruled shape: gz fns' tau
-data is world-CONSTANT and lives Lean-side as ground-zero knowledge
-(fail-closed at any use site that lacks it) — the fn-restriction
-and the user-fn payload are exactly as ruled; flagged for the exit
-audit + Mike's review.
+full ruled slice. DEVIATION NOTE vs the ruled shape (WORDING
+CORRECTED per the exit audit, both reviewers): gz fns' slice entries
+carry tau-pair identity only. The original justification ("gz tau
+data is world-constant") is NOT true in general — a book can extend
+a predefined recognizer's implicants or hang a signature rule on a
+gz fn — and there is no Lean-side gz tau database standing in. The
+honest statement: no corpus leaf currently needs gz implicant data;
+the consumer treats :GZ entries as contributing NO allowances, so a
+leaf that needs one falls back to ASSUMED (fail-closed,
+completeness-only) and names the next extension. The fn-restriction
+and the user-fn payload are exactly as ruled; flagged for Mike's
+review.

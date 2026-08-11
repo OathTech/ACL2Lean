@@ -41,7 +41,7 @@ partial def replayEliminateIrrelevance (rec : ClauseRec) (cfg : ReplayConfig) (c
   let mut ctx := ctx
   for tm in child.inputClause do
     ctx ← pinTermOpaques cfg cfg.envExpr ctx tm
-  let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+  let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
   let nilC := mkConst ``SExpr.nil
   let closeAt (ctxW : ReplayCtx) (l : SExpr) (hne : Expr) : MetaM Expr := do
     let some m := cn.inputClause.findIdx? (· == l)

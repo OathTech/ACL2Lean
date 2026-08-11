@@ -203,7 +203,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
   let rec go (recs : List (Symbol × Symbol × Symbol × List Symbol)) (curClause : List SExpr)
       (cfgK : ReplayConfig) (isTop : Bool) : MetaM Expr := do
     let ctxK0 : ReplayCtx := if isTop then ctx
-      else { ctx with varVals := [], vals := [], litFacts := [],
+      else { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                       segFacts := [], branchFacts := [] }
     -- pin the level's clause opaques AGAINST THIS LEVEL'S ENV (a deeper
     -- level's fresh env has none of the outer pins)
@@ -216,7 +216,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
       let some child := cn.children.find? (·.inputClause == target)
         | throwError "replayElim: no child matches the fully-eliminated \
                       clause {repr target} at {cn.idStr}"
-      let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [],
+      let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                   segFacts := [], branchFacts := [] }
       let mut p ← rec.clause cfgK ctxFresh child
       -- STRIP each restriction literal: its value DUPLICATES a member
@@ -323,7 +323,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
               | throwError "replayElim: the clause has no \
                             (not (consp {v.name})) literal and no guard \
                             child matches {repr gClause} at {cn.idStr}"
-            let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [],
+            let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                         segFacts := [], branchFacts := [] }
             let pG ← rec.clause cfgK ctxFresh gChild
             let pNil ← mkAppM ``re_val_cast

@@ -111,7 +111,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       let va ← ctxValExpr cfg ctx1 aT
       let vb ← ctxValExpr cfg ctx1 bT
       let nilC := mkConst ``SExpr.nil
-      let pChild ← rec.clause cfg { ctx1 with litFacts := [] } child
+      let pChild ← rec.clause cfg { ctx1 with litFacts := [], dedupDrops := [] } child
       let negL ← withLocalDeclD `hnil (← mkEq vNeg nilC) fun hNil => do
         let hcNil ← mkAppM ``re_val_cast
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr negEqL,
@@ -137,7 +137,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     if lits.isEmpty && !accClause.isEmpty then
       if let some p ← residualPushClose cfg ctx idStr accClause children
           (fun ctxV child =>
-            rec.clause cfg { ctxV with litFacts := [] } child) then
+            rec.clause cfg { ctxV with litFacts := [], dedupDrops := [] } child) then
         return p
     throwError "replayClauseSpine: ran out of items with no closer \
                 at {idStr}"
@@ -492,7 +492,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                       | throwError "replayClauseSpine: linear-split — no \
                           child clause matches {repr expected} at {idStr} \
                           (frontier)"
-                    rec.clause cfg { ctx2 with litFacts := [] } child
+                    rec.clause cfg { ctx2 with litFacts := [], dedupDrops := [] } child
                   else
                     replayClauseSpineWith rec cfg ctx2 idStr newLits rest
                       accClause children
@@ -676,7 +676,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           let mut ctxV := ctx2
           for L in expected do
             ctxV ← pinTermOpaques cfg cfg.envExpr ctxV L
-          let pChild ← rec.clause cfg { ctxV with litFacts := [] } child
+          let pChild ← rec.clause cfg { ctxV with litFacts := [], dedupDrops := [] } child
           let ctxF := ctxV
           return ← vacuousResidualClose cfg ctxV expected pChild
             (disjoinTerm []) fun L => do
@@ -698,7 +698,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
               expected.getLast? == some (curLits.head!.2) do
             throwError "replayClauseSpine: post-substitution residual with \
                 {curLits.length} surviving literal(s) at {idStr} (frontier)"
-          let pChild ← rec.clause cfg { ctx2 with litFacts := [] } child
+          let pChild ← rec.clause cfg { ctx2 with litFacts := [], dedupDrops := [] } child
           let p ← peelToLast cfg ctx2 expected pChild fun L => do
             match ctx2.litFactByTerm? L with
             | some hf => pure hf
@@ -1346,7 +1346,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
               let some child := children.find? (·.inputClause == accClause')
                 | throwError "replayClauseSpine: no child clause matches the \
                     conjunction residual {repr accClause'} at {idStr}"
-              let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+              let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
               peelToLast cfg ctx accClause' pChild fun Lt => do
                 let some hf := ctx.litFactByTerm? Lt
                   | throwError "replayClauseSpine: no falsity fact for the \
@@ -1464,7 +1464,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           unless !accClause'.isEmpty do
             throwError "replayClauseSpine: vacuous residual with an EMPTY \
                         child clause at {idStr} (frontier)"
-          let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+          let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
           return ← vacuousResidualClose cfg ctx accClause' pChild lp.literal
             fun L => do
               let some hf := ctx.litFactByTerm? L
@@ -1474,7 +1474,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         unless accClause'.getLast? == some lp.result do
           throwError "replayClauseSpine: residual's surviving literal is not \
                       literal {idx}'s result at {idStr} (frontier)"
-        let pChild ← rec.clause cfg { ctx with litFacts := [] } child
+        let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
         let p ← peelToLast cfg ctx accClause' pChild fun L => do
           let some hf := ctx.litFactByTerm? L
             | throwError "replayClauseSpine: no falsity fact for the residual \

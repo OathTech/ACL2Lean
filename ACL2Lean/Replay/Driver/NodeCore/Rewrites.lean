@@ -346,8 +346,17 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let okPos : Bool :=
           if ok then false else
           match (match n with | .node _ _ _ _ p => p.path) with
-          | _ :: restFrames =>
-            if restFrames.isEmpty then false else
+          | rootFrame :: restFrames =>
+            -- the dropped first frame must BE the literal-root frame
+            -- (exit-audit inside 11: previously assumed from the
+            -- path-emission convention, now checked — its fn names the
+            -- literal atom's head)
+            let rootOk := match rootFrame, start with
+              | .arg _ f, .cons (.atom (.symbol hs)) _ => f.name == hs.name
+              | .boundary _ f, .cons (.atom (.symbol hs)) _ =>
+                f.name == hs.name
+              | _, _ => false
+            if !rootOk || restFrames.isEmpty then false else
             match navigateFrames start restFrames with
             | .ok (_, .cons (.atom (.symbol eqS)) (.cons a (.cons b .nil))) =>
               eqS.name == "EQUAL" &&

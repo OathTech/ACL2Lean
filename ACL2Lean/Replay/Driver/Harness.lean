@@ -160,7 +160,7 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
   let w := cfg.worldExpr
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     -- premises: EvTrue w env' hᵢ for each stored-rule hyp
@@ -282,7 +282,7 @@ def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
         offered congruence formula {repr spec.formula} (internal)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
@@ -311,7 +311,7 @@ def dischargeEquivFullHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
         the offered formula {repr spec.formula} (internal)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
@@ -337,7 +337,7 @@ def dischargeTpThmHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
         offered formula {repr spec.formula} (internal)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
@@ -367,7 +367,7 @@ def dischargeUseHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : UseSpec)
         offered use formula {repr spec.formula} (internal)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
@@ -413,7 +413,7 @@ def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
         {repr formula} is not an IF-conjunction (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [],
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors

@@ -246,7 +246,7 @@ def sortingStatementPinsRun : True := sorting_statement_pins_run%
 def sym (n : String) : SExpr := .atom (.symbol { name := n })
 def ap1 (f : String) (a : SExpr) : SExpr := .cons (sym f) (.cons a .nil)
 def ap2 (f : String) (a b : SExpr) : SExpr := .cons (sym f) (.cons a (.cons b .nil))
-private def ap3 (f : String) (a b c : SExpr) : SExpr :=
+def ap3 (f : String) (a b c : SExpr) : SExpr :=
   .cons (sym f) (.cons a (.cons b (.cons c .nil)))
 /-- `(QUOTE e)`. -/
 def qt (e : SExpr) : SExpr := .cons (sym "QUOTE") (.cons e .nil)
