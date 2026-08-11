@@ -9,6 +9,8 @@ import ACL2Lean.Imported.Mirrors.Qsort
 import ACL2Lean.Imported.Mirrors.Msort
 import ACL2Lean.Imported.Mirrors.IsChain
 import ACL2Lean.Imported.Mirrors.Bsort
+-- the extra-natives gate (audit F6) needs the pattern-pin native
+import ACL2Lean.Imported.Mirrors.P8ClausifyDetail
 -- the provenance gate scans the WHOLE mirror layer — the witness kits'
 -- debt entries must be visible here
 import ACL2Lean.Imported.EquisortWitness
@@ -627,6 +629,53 @@ run_cmd Lean.Elab.Command.liftCoreM do
       the mirror layer: {offenders} — Lean-side content dischargers are \
       forbidden (thin-Lean ruling 2026-08-11); register D5 gz content in \
       GzPrelude or route the fact through a replayed statement"
+
+/-! ## EXTRA-NATIVES GATE (audit F6, ruled 2026-08-11)
+
+Natives whose green row lives OUTSIDE the driver-coverage golden
+(pattern-pin books run by `Tests/PatternPins.lean`) cannot take a
+row-coupled catalog entry — this registry gives them the SAME
+axiom-exactness and seam-consumption checks, so no native mirror sits
+outside every gate. Each entry: (native, its replayed seam, the pin
+site that owns the row). -/
+open Lean in
+run_cmd Lean.Elab.Command.liftCoreM do
+  let extraNatives : List (Name × Name × String) :=
+    [(``ACL2.Imported.Mirrors.cons_neq_detail_native_driver,
+      ``ACL2.Imported.Mirrors.consNeqDetailReplayed,
+      "Tests/PatternPins.lean p8-clausify-detail")]
+  for (nat, seam, rowSite) in extraNatives do
+    let axs ← collectAxioms nat
+    let allowed : List Name :=
+      [``propext, ``Classical.choice, ``Quot.sound]
+    for a in axs do
+      unless allowed.contains a do
+        throwError "extra-natives gate: {nat} uses forbidden axiom \
+          {a} (row: {rowSite})"
+    -- seam: BFS through Mirrors-namespace constants from the native
+    -- must reach the replayed seam (same rule as the lift-coverage
+    -- seam gate)
+    let env ← getEnv
+    let mut frontier : List Name := [nat]
+    let mut seen : List Name := []
+    let mut found := false
+    while !frontier.isEmpty && !found do
+      let c := frontier.head!
+      frontier := frontier.tail!
+      unless seen.contains c do
+        seen := seen ++ [c]
+        if c == seam then
+          found := true
+        else if (`ACL2.Imported.Mirrors).isPrefixOf c then
+          if let some ci := env.find? c then
+            if let some v := ci.value? then
+              frontier := frontier
+                ++ (v.getUsedConstants.toList.filter
+                    (fun n => !seen.contains n))
+    unless found do
+      throwError "extra-natives gate: {nat} does not consume its \
+        replayed seam {seam} — the ornamental-import antipattern \
+        (row: {rowSite})"
 
 /-! ## DECODE hreplayed-USAGE GATE (ruled 2026-08-11)
 

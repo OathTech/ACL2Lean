@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# mirror-metrics: the ruled success metrics (2026-08-11) — MEASURED,
+# never asserted.
+#   1. Kept-condition census by class, from the driver-coverage golden
+#      (the headline metric — computed by the driver from the proof
+#      term, so Lean-side effort cannot move it).
+#   2. Hand lines per catalog native (the industrialization tell —
+#      must FALL as books land).
+# Written invariant (ruled): no constant defined in the mirror layer
+# may be injected into the coverage sweep (enforced structurally:
+# prepareUseFi has no injection parameter since 2026-08-11).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+golden=Tests/driver-coverage.golden
+
+echo "== kept-condition census (from ${golden}) =="
+head -1 "$golden"
+# bucket every kept condition in every cond[...] block by class prefix
+grep -o 'cond\[[^]]*\]' "$golden" \
+  | sed -e 's/^cond\[//' -e 's/\]$//' -e 's/, /\n/g' \
+  | sed -e 's/:.*$//' \
+  | sort | uniq -c | sort -rn \
+  | awk '{printf "  %-12s %s\n", $2":", $1}'
+
+echo
+echo "== hand lines per catalog native =="
+hand_files=(
+  ACL2Lean/Imported/Sorting.lean
+  ACL2Lean/Imported/Perm.lean
+  ACL2Lean/Imported/EquisortWitness.lean
+  ACL2Lean/Imported/SimpleWorld.lean
+  ACL2Lean/Imported/AppAssoc.lean
+  ACL2Lean/Imported/GzPrelude.lean
+)
+hand_lines=$(cat "${hand_files[@]}" | wc -l)
+catalog=ACL2Lean/Imported/Mirrors/Catalog.lean
+# entry statuses are followed by a double-backtick decl ref — prose
+# mentions of the status names never are
+n_native=$(grep -c '\.native ``' "$catalog" || true)
+n_sorried=$(grep -c '\.nativeSorried ``' "$catalog" || true)
+total=$((n_native + n_sorried))
+if [ "$total" -eq 0 ]; then
+  echo "  ERROR: zero catalog natives counted — the entry regex rotted" >&2
+  exit 1
+fi
+echo "  hand lines (per-book Imported files): ${hand_lines}"
+echo "  catalog natives: ${n_native} .native + ${n_sorried} .nativeSorried = ${total}"
+echo "  HAND LINES PER NATIVE: $((hand_lines / total))"

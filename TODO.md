@@ -29,6 +29,12 @@
 >   `dis_sortfn1_tp`, `dis_ssortfn1_insert_tp`, `dis_ssortfn1_tp`.
 > - R-lane class: `dis_convert_perm` (unlock = PERM-TLFIX replay →
 >   CONVERT-PERM-TO-HOW-MANY discharged via the replayed tree).
+> - usefi class (the THIRD unlock class, ruled 2026-08-11 — it is
+>   what regressed the capstones): the `usefi:` kept conditions on
+>   the three `*-IS-ISORT` rows. Unlock = the alias-world usefi
+>   discharge with totality via `termByFn` ONLY (the replayed-
+>   admission route; the named-constant injection channel is deleted
+>   — ruled invariant). Census: `just mirror-metrics`.
 > The capstone rows/pins/catalog entries return as these retire. The
 > mirror-wave arc (bsortL + pending mirrors) must follow the win
 > states: discharge via replay or stay honestly conditional/sorried —
