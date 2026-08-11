@@ -100,3 +100,12 @@ quarantine; (R2) the import-discipline script as a ci gate; (R3) the
 Showcase restating capstones from catalog constants (zero new proof
 content) with on-page axiom receipts incl. honest conditionals; (R4)
 DEMO.md as the canonical reader path.
+
+## RULED (Mike, 2026-08-11): APPROVED as a first pass — build it.
+Sequencing as proposed (Showcase first). Ruled in the same round:
+reuse-vs-mint ALLOWED capped to existing unlock classes (the bsort
+four land as .nativeSorried on minted debt); the derive_sim% ELEMENT
+reading APPROVED (PCE unlocks); the witness-free shape DECLINED as a
+mirror — the principle is the TIGHTEST AVAILABLE Lean-idiomatic
+mirror, with derived restatements as Showcase-level corollaries above
+an honest mirror, never as the mirror itself.
