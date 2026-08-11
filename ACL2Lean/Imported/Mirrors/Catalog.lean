@@ -148,20 +148,32 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .nativeSorried ``not_memb_how_many_0_native_driver ``notMembHowMany0ReplayedCond
       "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-RM-GENERAL",
-    .pending "GREENED in the endgame arc (item I's tau-basis consumer: \
-      the *1/3.2 leaf discharges from the recorded slice's \
-      NOT-MEMB-IMPLIES-HOW-MANY-IS-0 signature rule, its rule content \
-      discharged by that theorem's own replay); the native mirror is a \
-      how-many/rm correspondence over the existing rm + how-many sims — \
-      wire with the arc's statement-pin wave (item 5), per the \
-      unwired-infrastructure ban"),
+    .nativeSorried ``how_many_rm_general_native_driver
+      ``howManyRmGeneralReplayedCond
+      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
   ("sorting/convert-perm-to-how-many",
     "PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS",
-    .pending "GREENED at the final close-out (the tpthm resurrection + \
-      IF-collapse bridge round); the native mirror is the PCE MIRROR \
-      BUILD PLAN in TODO (pceExec on the perm_exec_corr template) — \
-      wire when the capstone consumer demands it, per the \
-      unwired-infrastructure ban"),
+    .pending "BLOCKED ON THE ISO GENERATOR'S RESULT-READING TABLE \
+      (mirror wave, 2026-08-11 — this replaces the earlier \
+      \"wire it later\" note, which named no frontier). The row's conds \
+      (total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY) both have registered \
+      debt dischargers (dis_pce_total, dis_how_many_tp), and the \
+      counterexample WITNESS reading `pceL : List → List → SExpr` DOES \
+      align with pceExec's recursion — `derive_sim%` proves the iso \
+      body under the fixed template (probed with the MEMB/RM callee \
+      isos plus `car_enc` as bridges) — but the generated theorem is \
+      then rejected by the generator's reading-table frontier check, \
+      verbatim: \"derive_sim%: the result reading of pceExec_enc is \
+      headed by ACL2.Worlds.Sorting.pceL, outside the derived reading \
+      table (`enc` / `boolEnc` / `intRep` (an SExpr integer atom) / \
+      the t-nil `bif`) — a named frontier\". A hand `_enc` is the \
+      ruled-banned fallback and weakening the frontier check to land a \
+      row is forbidden, so the native waits on an ELEMENT-reading \
+      extension of the generator's table (a ruled generator \
+      increment). A witness-FREE existential form (`∃ e, xs.isPerm ys \
+      = (xs.count e == ys.count e)`) needs no iso and would decode \
+      today, but it is a new native SHAPE with no catalog precedent — \
+      a ruling, not an executor's call"),
   ("sorting/convert-perm-to-how-many", "TRUE-LISTP-RM",
     .replayedOnly "subsumed by the rm simulation: `true-listp` restricts \
       the input to the enc image (exists_enc_of_trueListp), where \
@@ -291,16 +303,27 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),
   ("sorting/convert-perm-to-how-many", "CONVERT-PERM-TO-HOW-MANY",
-    .pending "the book's capstone (perm ↔ counts agree at the witness — \
-      the natural native mirror). The PCE exec kit exists (pceExec/\
-      pce_exec_corr/dis_pce_total) and the bnext build demonstrates the \
-      remaining sim pattern, but the row's conds include rule:PERM-TLFIX \
-      and use:PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS, whose ONLY \
-      criterion-clean dischargers are those theorems' replayed statements \
-      — and both rows are RED (the R-lane rung-2 wall; the spine \
-      literal-chain frontier). A hand bridge would be the banned \
-      ornamental-import pattern. DECLARED at the close-out arc's close \
-      (2026-08-05): blocked on those two rows, not on simulation work"),
+    .pending "BLOCKED ON A RED ROW — the R-lane rung-2 wall (restated \
+      against the CURRENT golden, mirror wave 2026-08-11; the previous \
+      text also cited use:PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS, which \
+      is STALE — that cond is gone and that row is now green). The \
+      row's conds are cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, \
+      tp:TLFIX, rule:PERM-TLFIX]. Two have registered debt \
+      (dis_pce_total, dis_how_many_tp); `tp:TLFIX` has no discharger \
+      (minting one is forbidden); and `rule:PERM-TLFIX`'s ONLY \
+      criterion-clean discharger is PERM-TLFIX's own replayed \
+      statement — whose row is RED, verbatim: \"PERM-TLFIX → FAIL: \
+      replayNode: rune (rewriting-equivalence, NIL) applied under \
+      equivalence perm — R-parameterized recipe pending (G1 \
+      frontier)\". A Lean-side bridge for either would be a new \
+      content discharger (banned) / the ornamental-import antipattern. \
+      NOT blocked on simulation work: the PCE kit \
+      (pceExec/pce_exec_corr/dis_pce_total) exists and its witness \
+      reading `pceL` aligns with the exec's recursion (see this book's \
+      PCE entry — that row is blocked one layer up, on the iso \
+      generator's reading table). UNLOCK: the R-lane arc (the \
+      R-parameterized rewriting-equivalence recipe) greens PERM-TLFIX, \
+      plus TP-replay discharge for tp:TLFIX"),
   ("sorting/isort", "ORDEREDP-ISORT", .nativeSorried ``orderedp_isort_native_driver ``orderedpIsortReplayedCond
       "tp:INSERT (dis_insert_tp; unlock: TP-replay discharge)"),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
@@ -347,34 +370,65 @@ def liftCatalog : List (String × String × LiftStatus) := [
       measure decrease, via HOW-MANY-BAD-PAIRS-BNEXT's :linear content),
       not a user-facing theorem — the termination:QSORT doctrine"),
   ("sorting/bsort", "HOW-MANY-BAD-PAIRS-BNEXT",
-    .pending "the bubble-pass progress measure (bad-pairs strictly
-      decrease unless fixed) — greened by the recursive equal-descent
-      protocol (restructure arc); natural native over the bnext sim,
-      queued with the bsort cluster's natives"),
+    .pending "BLOCKED ON UNREGISTERED KEPT CONDITIONS (mirror wave, \
+      2026-08-11). Golden conds: total:BNEXT, tp:HOW-MANY-SMALLER, \
+      tp:BNEXT-SIZE. Only total:BNEXT has a discharger \
+      (dis_bnext_total); `tp:HOW-MANY-SMALLER` and `tp:BNEXT-SIZE` \
+      have NONE, and minting them is forbidden (thin-Lean ruling: no \
+      new Lean-side content dischargers — the provenance gate's debt \
+      registry is closed). Carrying them as explicit native hypotheses \
+      is also impossible: they are evalOpt-shaped, which the \
+      criterion-1 gate bans from mirror statements. UNLOCK: TP-replay \
+      discharge (the class that retires dis_how_many_tp). Second \
+      frontier, behind it: the native reading needs HOW-MANY-SMALLER \
+      and BNEXT-SIZE exec kits (derive_exec%/derive_sim%; not built — \
+      the unwired-infrastructure ban)"),
   ("sorting/bsort", "ORDEREDP-WHEN-BNEXT-CONSTANT",
-    .pending "a bnext fixed point is ordered — GREENED in the endgame
-      arc (2e: the expansion detail chain consumed as value equalities,
-      the recorded-drop clausify relaxation, the positioned unresolved
-      probe); natural native over the bnext sim, queued with the bsort
-      cluster's natives"),
+    .nativeSorried ``orderedp_when_bnext_constant_native_driver
+      ``orderedpWhenBnextConstantReplayedCond
+      "total:BNEXT (dis_bnext_total; unlock: with_termination coverage \
+       — REQUIRED class)"),
   ("sorting/bsort", "ORDEREDP-BSORT",
-    .pending "bsort's output is ordered — the interpCount μ-route row
-      (restructure arc); native (orderedpL (bsortL l)) over the exec
-      kit, queued with the cluster"),
+    .pending "BLOCKED ON UNREGISTERED KEPT CONDITIONS (mirror wave, \
+      2026-08-11). Golden conds: total:BNEXT, total:BSORT, total:O<, \
+      total:O-P, tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT. Only \
+      total:BNEXT and total:O< have dischargers (dis_bnext_total, \
+      dis_o_lt_total); `total:BSORT`, `total:O-P`, `tp:BNEXT-SIZE` and \
+      `linear:HOW-MANY-BAD-PAIRS-BNEXT` have none, and minting them is \
+      forbidden (the closed debt registry). UNLOCKS: with_termination \
+      admission coverage (the total: class) + TP-replay discharge + a \
+      linear-rule replay route for HOW-MANY-BAD-PAIRS-BNEXT (whose own \
+      row is blocked — see its entry). Second frontier, behind them: \
+      the native `orderedpRec (bsortL l)` needs a bsort kit, whose \
+      Lean-side termination artifact IS the bubble-size decrease (P2 \
+      admits it by the MEASURE-ABSORBED precedent, but it is a \
+      substantial build) — not attempted in this wave"),
   ("sorting/bsort", "TRUE-LISTP-BSORT",
     .replayedOnly "subsumed by the bsort simulation: the enc image is
       closed under bsortExec (the type-absorbed true-listp doctrine,
       the TRUE-LISTP-RM precedent)"),
   ("sorting/bsort", "HOW-MANY-BSORT",
-    .pending "bsort permutes (counts preserved) — the μ-route row
-      (restructure arc); native (howManyL (bsortL l) e = howManyL l e),
-      queued with the cluster"),
+    .pending "BLOCKED ON UNREGISTERED KEPT CONDITIONS (mirror wave, \
+      2026-08-11) — the ORDEREDP-BSORT blocker set exactly, plus \
+      tp:HOW-MANY (which does have dis_how_many_tp). Golden conds: \
+      total:BNEXT, total:BSORT, total:O<, total:O-P, tp:HOW-MANY, \
+      tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT; `total:BSORT`, \
+      `total:O-P`, `tp:BNEXT-SIZE`, `linear:HOW-MANY-BAD-PAIRS-BNEXT` \
+      have no discharger and minting is forbidden. Same unlocks, same \
+      second frontier (the bsort kit) as ORDEREDP-BSORT; the native \
+      would be `(bsortL l).count e = l.count e`"),
   ("sorting/bsort", "HOW-MANY-SMALLER-BNEXT",
-    .pending "count-below invariance across one bubble pass (final
-      close-out — greened by the fc-derivations relief + the
-      add-literal dedup arm); natural native over the bnext sim
-      (howManySmallerL (bnextExec l) e = howManySmallerL l e), queued
-      behind the bsort cluster's fork-batch greens"),
+    .pending "BLOCKED ON AN UNREGISTERED KEPT CONDITION (mirror wave, \
+      2026-08-11). Golden conds: total:BNEXT, tp:HOW-MANY-SMALLER. \
+      total:BNEXT discharges from dis_bnext_total, but \
+      `tp:HOW-MANY-SMALLER` has NO discharger and minting one is \
+      forbidden (the closed debt registry); it cannot be carried as an \
+      explicit native hypothesis either (evalOpt-shaped — banned from \
+      mirror statements by the criterion-1 gate). UNLOCK: TP-replay \
+      discharge. Second frontier, behind it: a HOW-MANY-SMALLER exec \
+      kit (the bnext sim already exists, so the native \
+      `howManySmallerL (bnextL l) e = howManySmallerL l e` is one \
+      derive_exec%/derive_sim% pair away once the cond clears)"),
   ("sorting/msort", "HOW-MANY-MERGE2", .nativeSorried ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond
       "total:MERGE2 (dis_merge2_total; REQUIRED — with_termination coverage) + tp:HOW-MANY (dis_how_many_tp)"),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .nativeSorried ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond

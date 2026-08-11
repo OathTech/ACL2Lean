@@ -27,6 +27,8 @@ echo
 echo "== hand lines per catalog native =="
 hand_files=(
   ACL2Lean/Imported/Sorting.lean
+  ACL2Lean/Imported/SortingBsort.lean
+  ACL2Lean/Imported/SortingConvertPerm.lean
   ACL2Lean/Imported/Perm.lean
   ACL2Lean/Imported/EquisortWitness.lean
   ACL2Lean/Imported/SimpleWorld.lean

@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.Imported.SortingConvertPerm
 import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Mirrors
@@ -98,5 +99,33 @@ theorem how_many_rm_native_driver (av bv : SExpr) (xs : List SExpr)
     howManyRmReplayed_uncond av bv xs h
 
 #print axioms how_many_rm_native_driver
+
+set_option maxHeartbeats 1600000 in
+/-- The driver's CONDITIONAL replayed statement for HOW-MANY-RM-GENERAL
+    (hypothesis: `tp:HOW-MANY`). -/
+def howManyRmGeneralReplayedCond := driver_replayed% convertPermDev
+  convertPermWorldD "how-many-rm-general"
+
+/-- The unconditional form. -/
+theorem howManyRmGeneralReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
+      Worlds.Sorting.how_many_rm_generalFormula = some v ∧ v ≠ SExpr.nil :=
+  howManyRmGeneralReplayedCond env
+    (Worlds.Sorting.dis_how_many_tp convertPermWorldD (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — HOW-MANY-RM-GENERAL natively: the general
+    count-of-erase law (one fewer for the erased element when present,
+    unchanged otherwise). -/
+theorem how_many_rm_general_native_driver (av bv : SExpr) (xs : List SExpr) :
+    (xs.erase bv).count av
+      = bif (av == bv) && xs.contains av then xs.count av - 1
+        else xs.count av :=
+  Worlds.Sorting.how_many_rm_general_native_of_replayed convertPermWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide)
+    howManyRmGeneralReplayed_uncond av bv xs
+
+#print axioms how_many_rm_general_native_driver
 
 end ACL2.Imported.Mirrors

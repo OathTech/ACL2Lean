@@ -23,10 +23,9 @@ namespace ACL2.Worlds.Sorting
 
 open ACL2
 
-private def eT : SExpr := .atom (.symbol { name := "E" })
-private def xT : SExpr := .atom (.symbol { name := "X" })
-private def eS : Symbol := { package := "ACL2", name := "E" }
-private def xS : Symbol := { package := "ACL2", name := "X" }
+-- `eT`/`xT`/`eS`/`xS` come from `Imported/Sorting.lean` (same namespace,
+-- identical definitions): the local private copies were removed when the
+-- book layer's split-out modules needed them (mirror wave 2026-08-11).
 private def qNil : SExpr :=
   .cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)
 private def app1 (n : String) (a : SExpr) : SExpr :=

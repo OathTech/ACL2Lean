@@ -86,10 +86,10 @@ theorem corr_orderedp_enc (w : World)
 
 /-! ## The ordered-perms assemblies -/
 
-private def aS : Symbol := { package := "ACL2", name := "A" }
-private def eS : Symbol := { package := "ACL2", name := "E" }
-private def aT : SExpr := .atom (.symbol { name := "A" })
-private def eT : SExpr := .atom (.symbol { name := "E" })
+def aS : Symbol := { package := "ACL2", name := "A" }
+def eS : Symbol := { package := "ACL2", name := "E" }
+def aT : SExpr := .atom (.symbol { name := "A" })
+def eT : SExpr := .atom (.symbol { name := "E" })
 
 /-- The ORDEREDP-RM replayed-statement formula — the root Goal clause,
     exactly as the log emits it:
@@ -268,8 +268,8 @@ The two-stage lift (docs/plans/2026-07-06_two-stage-lift.md) for the
 isort book's defuns, plus the `tp:INSERT` discharger (`(CONSP (INSERT E
 X))` — every branch of the body is a `cons`). -/
 
-private def xS : Symbol := { package := "ACL2", name := "X" }
-private def xT : SExpr := .atom (.symbol { name := "X" })
+def xS : Symbol := { package := "ACL2", name := "X" }
+def xT : SExpr := .atom (.symbol { name := "X" })
 
 abbrev insertT (e x : SExpr) : SExpr := app2 "INSERT" e x
 abbrev isortT (x : SExpr) : SExpr := app1 "ISORT" x
@@ -422,8 +422,8 @@ private abbrev notT (a : SExpr) : SExpr := app1 "NOT" a
 
 /-! ## EQUAL-CONS -/
 
-private def bS : Symbol := { package := "ACL2", name := "B" }
-private def bT : SExpr := .atom (.symbol { name := "B" })
+def bS : Symbol := { package := "ACL2", name := "B" }
+def bT : SExpr := .atom (.symbol { name := "B" })
 
 /-- The EQUAL-CONS replayed-statement formula — the root Goal clause:
     `(EQUAL (EQUAL (CONS A B) X)
@@ -853,7 +853,7 @@ def howManyBody : SExpr :=
       (howManyT eT (cdrT xT)))
     q0
 
-private def how_many_sym : Symbol := { package := "ACL2", name := "HOW-MANY" }
+def how_many_sym : Symbol := { package := "ACL2", name := "HOW-MANY" }
 
 /-- `how-many`'s body as a total Lean function. -/
 derive_exec% howManyExec corr how_many_exec_corr for how_many_sym

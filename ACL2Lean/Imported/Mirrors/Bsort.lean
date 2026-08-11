@@ -1,5 +1,6 @@
 import ACL2Lean.Imported.Mirrors.Macro
 import ACL2Lean.Imported.Mirrors.ConvertPerm
+import ACL2Lean.Imported.SortingBsort
 import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Mirrors
@@ -46,5 +47,34 @@ theorem how_many_bnext_native_driver (ev : SExpr) (xs : List SExpr) :
     (by decide) (by decide) (by decide) howManyBnextReplayed_uncond ev xs
 
 #print axioms how_many_bnext_native_driver
+
+set_option maxHeartbeats 3200000 in
+/-- The driver's CONDITIONAL replayed statement for
+    ORDEREDP-WHEN-BNEXT-CONSTANT (hypothesis: `total:BNEXT`). -/
+def orderedpWhenBnextConstantReplayedCond := driver_replayed% bsortDev
+  bsortMirrorsWorld "orderedp-when-bnext-constant"
+
+/-- The unconditional form — bnext's totality from the registered debt
+    entry (`dis_bnext_total`). -/
+theorem orderedpWhenBnextConstantReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortMirrorsWorld env
+      Worlds.Sorting.orderedp_when_bnext_constantFormula = some v
+        ∧ v ≠ SExpr.nil :=
+  orderedpWhenBnextConstantReplayedCond env
+    (Worlds.Sorting.dis_bnext_total bsortMirrorsWorld (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide))
+
+/-- ENTRY, PROVED — ORDEREDP-WHEN-BNEXT-CONSTANT natively: a list the
+    bubble pass leaves unchanged is sorted (over the native pass `bnextL`
+    and the chain2 reading `orderedpRec`). -/
+theorem orderedp_when_bnext_constant_native_driver (xs : List SExpr)
+    (h : Worlds.Sorting.bnextL xs = xs) :
+    Worlds.Sorting.orderedpRec xs = true :=
+  Worlds.Sorting.orderedp_when_bnext_constant_native_of_replayed
+    bsortMirrorsWorld (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    orderedpWhenBnextConstantReplayed_uncond xs h
+
+#print axioms orderedp_when_bnext_constant_native_driver
 
 end ACL2.Imported.Mirrors
