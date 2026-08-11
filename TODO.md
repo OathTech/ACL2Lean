@@ -46,6 +46,21 @@
 > census, satellite filters. First pass = a dimension of THIS arc's
 > exit audit (it added three gates); recurring thereafter at family
 > boundaries. Never fix a crufty gate by adding another gate.
+> **THE TWO-STANDARD RULE (the process fix, same day):** gates are
+> reviewed to the DETERRENT standard — catches the honest mistake?
+> simple enough to never be wrong? could we delete it? — NEVER "can
+> a motivated construction evade it" (that question manufactures
+> infinite hardening; today's evasion-A/B → shape/usage gates was
+> generation 1 of that race — it stops here). Adversarial
+> refute-by-default review is reserved for semantics, claims, and
+> records. Every speedbump gate gets a threat-model comment ("a
+> speedbump against forgetting, not a barrier against circumvention;
+> do not harden it"). The gate-cruft audit is a DELETION review under
+> the honest-mistake standard, not an attack round. Immediate arc
+> items: threat-model comments on the usage/shape/extra-natives/
+> provenance gates (after the in-flight executor lands — inert files
+> meanwhile); propose the two-standard rule for CLAUDE.md's audit
+> section at the arc merge.
 > The capstone rows/pins/catalog entries return as these retire. The
 > mirror-wave arc (bsortL + pending mirrors) must follow the win
 > states: discharge via replay or stay honestly conditional/sorried —
