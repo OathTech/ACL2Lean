@@ -146,7 +146,12 @@ two premises' CONTENT — the CONVERT-PERM-TO-HOW-MANY stored-rule
 lhs/rhs and ORDERED-PERMS's hand-pinned `:TFORMULA`
 (acl2_samples/sorting/ordered-perms.proof-log, the `(:DEFTHM …)`
 event). A failure means the witnesses' strength CHANGED — review
-against the deferral log's D1 close-out entry, never blind-update. -/
+against the deferral log's D1 close-out entry, never blind-update.
+POST-PURGE (2026-08-11, audit fix F1): the AtCanonical witnesses are
+additionally SORRY-BACKED — their `totals` dischargers are
+FORBIDDEN-DEBT sorries — so the non-vacuity claim is conditional on
+that debt; the axiom pins in `EquisortParametric.lean` gate it
+(`sorryAx` REQUIRED there until the debt retires by replay). -/
 
 /-- Structural pin for a CONCRETE-world instantiation constant:
     binder inventory, conclusion `EvTrue <worldConst> env ⟦tformula⟧`,

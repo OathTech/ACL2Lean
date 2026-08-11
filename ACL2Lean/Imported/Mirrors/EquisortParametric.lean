@@ -48,6 +48,8 @@ set_option maxHeartbeats 3200000 in
 def weakSortfn1IsSortfn2Parametric := parametric_replayed% equisortDev
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 
+/-- info: 'ACL2.Imported.Mirrors.weakSortfn1IsSortfn2Parametric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
 #print axioms weakSortfn1IsSortfn2Parametric
 
 set_option maxHeartbeats 3200000 in
@@ -59,6 +61,8 @@ set_option maxHeartbeats 3200000 in
 def strongSsortfn1IsSsortfn2Parametric := parametric_replayed% equisortDev
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 
+/-- info: 'ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2Parametric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
 #print axioms strongSsortfn1IsSsortfn2Parametric
 
 /-! ## The canonical-world instantiations (Phase 3 queue item 1 — the
@@ -90,6 +94,19 @@ def weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
    ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
    ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
 
+/-! The AtCanonical witnesses are SORRY-BACKED since the thin-Lean purge
+(2026-08-11, audit fix F1): the `totals [...]` dischargers above are
+FORBIDDEN-DEBT sorries, so the non-vacuity claim these constants make
+is conditional on that debt. The pins below REQUIRE `sorryAx` — when
+the debt retires (TP-replay discharge / with_termination coverage),
+these pins fail and must be updated to the clean trio, which is the
+review point at which the witnesses become fully-backed again. The
+Parametric constants above stay trio-clean (the first-class artifacts,
+per the catalog's equisort entries). -/
+-- (whitespace := lax): the four-axiom list wraps in the generated
+-- message; the pin is content-exact on the axiom set.
+/-- info: 'ACL2.Imported.Mirrors.weakSortfn1IsSortfn2AtCanonical' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
 #print axioms weakSortfn1IsSortfn2AtCanonical
 
 set_option maxHeartbeats 12000000 in
@@ -102,6 +119,9 @@ def strongSsortfn1IsSsortfn2AtCanonical := instantiate_parametric%
    ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
    ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
 
+-- (whitespace := lax): see the WEAK pin's note.
+/-- info: 'ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2AtCanonical' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
 #print axioms strongSsortfn1IsSsortfn2AtCanonical
 
 end ACL2.Imported.Mirrors

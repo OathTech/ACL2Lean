@@ -93,6 +93,14 @@ sanctioned exception.
    conditional/ASSUMED state until legitimate discharge routes exist.
    The golden re-pin carrying this regression is REVIEWED as such —
    an intended, ruled flip, not silent drift.
-6. Enforcement: an in-Lean provenance gate — no `dis_*`-named
-   constant outside GzPrelude in the mirror layer; axiom-exactness per
-   catalog class — so the ban cannot drift back.
+6. Enforcement: an in-Lean provenance gate — every `dis_*`/`drv_*`
+   constant in the mirror namespaces must be on one of three name
+   allowlists (`d5Allowed` / `decodeAllowed` / `debtRegistry`, the
+   registry additionally requiring `sorryAx` on each entry so a Lean
+   re-proof cannot silently replace a sorry); axiom-exactness per
+   catalog class. LIMIT (verification audit 2026-08-11, F2,
+   probe-confirmed): the gate triggers on the NAME PREFIX — a content
+   lemma under a non-`dis_` name (incl. every deleted item's original
+   name) is invisible to it. The gate enforces the convention; renamed
+   regrowth is caught only by the shape-gate proposal (framing review
+   §4, pending ruling) and by per-book-family provenance audits.

@@ -33,6 +33,23 @@
 > mirror-wave arc (bsortL + pending mirrors) must follow the win
 > states: discharge via replay or stay honestly conditional/sorried —
 > never mint new dischargers.
+> **POST-PURGE AUDIT RESIDUE (2026-08-11 verification + framing
+> audits; fix round applied same day):**
+> - F2 (probe-confirmed limit): the provenance gate is name-prefix
+>   only — renamed content lemmas are invisible to it. Durable fix =
+>   the SHAPE GATE + `hreplayed`-usage check (framing review §4;
+>   pending Mike's ruling with the P1/P2/P3 boundary restatement,
+>   `.parametric` status, `derive_sim%`-as-gate, `totsNames`
+>   deletion, and the metric change).
+> - F6 (pre-existing hole): `Mirrors/P8ClausifyDetail.lean`'s
+>   `cons_neq_detail_native_driver` is a native mirror with no golden
+>   row and no catalog entry — outside the seam/axiom gates (clean
+>   trio today, verified 2026-08-11). Bring it under the catalog or
+>   rule it out of scope.
+> - F5 (note): the sim two-valuedness `*_t_or_nil` deletions were
+>   liveness-driven, not class-driven — `membExec_t_or_nil` died with
+>   its parent while four siblings survive; re-derive freely if a
+>   future decode needs one (allowed DECODE-support content).
 
 Running backlog across all tracks. Keep this current: update when a milestone lands,
 scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`).
