@@ -37,10 +37,13 @@
 > audits; fix round applied same day):**
 > - F2 (probe-confirmed limit): the provenance gate is name-prefix
 >   only — renamed content lemmas are invisible to it. Durable fix =
->   the SHAPE GATE + `hreplayed`-usage check (framing review §4;
->   pending Mike's ruling with the P1/P2/P3 boundary restatement,
->   `.parametric` status, `derive_sim%`-as-gate, `totsNames`
->   deletion, and the metric change).
+>   the SHAPE GATE + `hreplayed`-usage check — RULED/ADOPTED with the
+>   full framing package (Mike, 2026-08-11: P1/P2/P3 restatement,
+>   `.parametric` status, `derive_sim%`-as-gate BEFORE any
+>   accumulator book, `totsNames` deletion, kept-condition census
+>   metric, per-book-family audit cadence; M1/M2 ratified) — see
+>   docs/notes/2026-08-11_thin-lean-boundary.md; implementation =
+>   the next arc's opening increments.
 > - F6 (pre-existing hole): `Mirrors/P8ClausifyDetail.lean`'s
 >   `cons_neq_detail_native_driver` is a native mirror with no golden
 >   row and no catalog entry — outside the seam/axiom gates (clean
