@@ -104,6 +104,14 @@ a diagnosis in hand is a mandatory stop. Module-size ratchet on every
 new file. The win states govern all new mirror content; the provenance
 + shape + axiom gates are the enforcement, and weakening a gate to
 land an item is forbidden.
+THE TWO-STANDARD RULE (adopted mid-arc, 2026-08-11 — now in
+CLAUDE.md's audit section): adversarial review is reserved for
+semantics/claims/records; gates are reviewed to the deterrent
+standard (honest mistake / simple enough / deletable) and are NEVER
+hardened against motivated evasion. The exit audit's gate dimension
+is a DELETION review under that standard (the gate-cruft first
+pass), not an attack round; speedbump gates gain threat-model
+comments before the arc exits.
 
 ## Exit criterion + escape hatch
 

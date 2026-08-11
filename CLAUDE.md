@@ -323,6 +323,24 @@ against it structurally:
 
 Reviewers add the most value exactly where you cannot self-certify — and on this
 project self-certification has been unreliable, so audit early and adversarially.
+
+**The two-standard rule (MDD 2026-08-11) — what gets adversarial review.**
+Adversarial, refute-by-default review (the pattern below) is reserved for the
+things where wrongness matters regardless of intent: **semantics** (the
+interpreter/trusted core vs real ACL2), **claims** (statements, axiom receipts,
+goldens, anything reported as done), and **records** (proof logs, captured
+artifacts, provenance). **Gates/lints/speedbumps are reviewed to the DETERRENT
+standard instead**: does it catch the honest mistake, is it simple enough to
+never be wrong, could we delete it — never "can a motivated construction evade
+it" (it always can, by construction; that question manufactures infinite
+hardening — gate whack-a-mole, where each hired adversary's escape breeds the
+next, more fragile gate). Trust is discharged by DESIGN — kernel-checked
+statements over the small trusted core — not by gates: a gate is a lightweight
+speedbump against honest mistakes, never a barrier against circumvention, and
+each one carries a comment saying exactly that ("do not harden it"). Fragile
+gate cruft (count floors, name predicates, enumerated censuses that rot) is
+ruthlessly deleted, never fixed by adding another gate; gate-cruft audits are
+deletion reviews under the honest-mistake standard, not attack rounds.
 Run the audit *before* claiming a milestone, not after building a mountain on it.
 **Seek sign-off on the audit plan BEFORE triggering any subagent**: present the
 plan (dimensions, agent count, model choice) together with a clean read on the
