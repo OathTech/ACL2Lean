@@ -628,4 +628,55 @@ run_cmd Lean.Elab.Command.liftCoreM do
       forbidden (thin-Lean ruling 2026-08-11); register D5 gz content in \
       GzPrelude or route the fact through a replayed statement"
 
+/-! ## DECODE hreplayed-USAGE GATE (ruled 2026-08-11)
+
+Closes the post-purge audit's evasion B: a decode that TAKES a
+replayed hypothesis but never uses it would pass every other gate
+(the seam gate sees the consumer apply the replayed constant one hop
+before the decode) while its native content is proved from scratch —
+ornamental import in its purest form. This gate scans every
+`*_native_of_replayed` constant (plus the `decodeAllowed` transport)
+in the mirror namespaces and requires: (1) at least one hypothesis
+whose type mentions `evalOpt` (the replayed-statement shape), and
+(2) every such hypothesis actually OCCURRING in the proof term. A
+count floor guards the scan predicate itself against rot. KNOWN
+LIMIT: a proof that passes the hypothesis to an auxiliary that
+ignores it still counts as usage — the residual is an audit item
+(per-book-family cadence). -/
+open Lean Meta in
+run_cmd Lean.Elab.Command.liftTermElabM do
+  let env ← getEnv
+  let mirrorNs : List Name :=
+    [`ACL2.Worlds, `ACL2.Imported, `ACL2.Lifting]
+  let mut decodes : List Name :=
+    [``ACL2.Worlds.Sorting.dis_rule_orderedp_append]
+  for (c, _) in env.constants.toList do
+    if mirrorNs.any (·.isPrefixOf c) then
+      let s := (c.componentsRev.headD Name.anonymous).toString
+      if s.endsWith "_native_of_replayed" then
+        decodes := decodes ++ [c]
+  if decodes.length < 38 then
+    throwError "hreplayed-usage gate: only {decodes.length} decode \
+      constants found (expected ≥ 38) — the scan predicate rotted or \
+      decodes were renamed; fix the scan, never lower the floor blindly"
+  for c in decodes do
+    let ci ← getConstInfo c
+    let some val := ci.value?
+      | throwError "hreplayed-usage gate: {c} has no proof value"
+    lambdaTelescope val fun xs body => do
+      let mut sawReplayed := false
+      for x in xs do
+        let ty ← inferType x
+        if (ty.find? (·.isConstOf ``ACL2.evalOpt)).isSome then
+          sawReplayed := true
+          unless body.containsFVar x.fvarId! do
+            throwError "hreplayed-usage gate: {c} takes a replayed \
+              hypothesis it never USES — ornamental import (mirror \
+              criterion antipattern 2 / audit evasion B); the native \
+              content must be proved FROM the replayed statement, \
+              not beside it"
+      unless sawReplayed do
+        throwError "hreplayed-usage gate: {c} has no evalOpt-shaped \
+          hypothesis — a decode must consume a replayed statement"
+
 end ACL2.Imported.Mirrors
