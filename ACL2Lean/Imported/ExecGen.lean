@@ -120,7 +120,14 @@ initialize execKitExt :
     SimplePersistentEnvExtension KitInfo (List KitInfo) ←
   registerSimplePersistentEnvExtension {
     addEntryFn := fun s e => e :: s
-    addImportedFn := fun ess => (ess.map (·.toList)).toList.flatten
+    -- NEWEST-FIRST, matching `addEntryFn`'s prepend (audit F1). Lean
+    -- exports each module's entries oldest-first and hands them over in
+    -- import order, so the plain flatten is oldest-first: `findKit`'s
+    -- first match would return the STALE copy of a superseded kit
+    -- (a `registerKitEnc` update made in another module), silently
+    -- losing every callee `_enc` across a module boundary. The reverse
+    -- restores the local semantics globally.
+    addImportedFn := fun ess => ((ess.map (·.toList)).toList.flatten).reverse
   }
 
 def findKit (env : Environment) (aclName : String) : Option KitInfo :=
@@ -140,7 +147,11 @@ def registerKit (info : KitInfo) : CommandElabM Unit := do
 /-- Attach a kit's stage-2 iso (`derive_sim%`, Imported/SimGen.lean).
     Entries are prepended and lookup is first-match, so the updated copy
     supersedes the original (which stays inert); re-attaching is refused
-    so an iso cannot be silently redirected. -/
+    so an iso cannot be silently redirected. The supersede-invariant holds
+    ACROSS MODULES too — `addImportedFn` reverses the imported entries so
+    the imported order is newest-first like the local one (audit F1; it
+    used to be oldest-first, which silently handed every downstream
+    `findKit` the pre-iso copy). -/
 def registerKitEnc (aclName : String) (encName : Name) :
     CommandElabM Unit := do
   let some kit := findKit (← getEnv) aclName

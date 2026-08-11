@@ -26,7 +26,11 @@ def orderedp_when_bnext_constantFormula : SExpr :=
 
 /-- ORDEREDP-WHEN-BNEXT-CONSTANT, natively: A FIXED POINT OF THE BUBBLE
     PASS IS SORTED — if one pass of `bnextL` leaves the list unchanged,
-    every adjacent pair is lexorder-related. -/
+    every adjacent pair is lexorder-related.
+    SCOPE: the native quantifies over `List SExpr` — the `enc` IMAGE —
+    while the ACL2 theorem is over ALL objects, so this is strictly
+    WEAKER than the replayed statement (the standing type-absorbed
+    doctrine). -/
 theorem orderedp_when_bnext_constant_native_of_replayed (w : World)
     (h_bnext : w.defs.get? bnext_sym = some ([xS], bnextBody))
     (h_ord : w.defs.get? { package := "ACL2", name := "ORDEREDP" }

@@ -34,7 +34,12 @@ def how_many_rm_generalFormula : SExpr :=
 
 /-- HOW-MANY-RM-GENERAL, natively: erasing an element drops ITS count by
     one when it was present, and leaves every other count alone (the
-    general count-of-erase law; HOW-MANY-RM is its off-diagonal case). -/
+    general count-of-erase law; HOW-MANY-RM is its off-diagonal case).
+    SCOPE: the native quantifies over `List SExpr` — the `enc` IMAGE —
+    while the ACL2 theorem is over ALL objects, so this is strictly
+    WEAKER than the replayed statement (the standing type-absorbed
+    doctrine: the non-list cases are `tlfix` plumbing with no
+    user-facing content). -/
 theorem how_many_rm_general_native_of_replayed (w : World)
     (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
       = some ([{ package := "ACL2", name := "E" },

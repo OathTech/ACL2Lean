@@ -49,3 +49,11 @@ fi
 echo "  hand lines (per-book Imported files): ${hand_lines}"
 echo "  catalog natives: ${n_native} .native + ${n_sorried} .nativeSorried = ${total}"
 echo "  HAND LINES PER NATIVE: $((hand_lines / total))"
+
+echo
+echo "== decode coverage (hreplayed-usage gate's scan surface) =="
+# REPORTED, not a floor (gate-cruft review 2026-08-11, R2): the gate
+# itself checks each decode's content; the count of decodes it sees is a
+# watched number here instead of a build-failing floor in Catalog.lean.
+n_decode=$(cat "${hand_files[@]}" | grep -c '_of_replayed (' || true)
+echo "  decode theorems (_of_replayed) in the per-book Imported files: ${n_decode}"

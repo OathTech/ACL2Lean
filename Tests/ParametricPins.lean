@@ -150,8 +150,13 @@ against the deferral log's D1 close-out entry, never blind-update.
 POST-PURGE (2026-08-11, audit fix F1): the AtCanonical witnesses are
 additionally SORRY-BACKED — their `totals` dischargers are
 FORBIDDEN-DEBT sorries — so the non-vacuity claim is conditional on
-that debt; the axiom pins in `EquisortParametric.lean` gate it
-(`sorryAx` REQUIRED there until the debt retires by replay). -/
+that debt; the CATALOG AXIOM GATE
+(`ACL2Lean/Imported/Mirrors/Catalog.lean`) gates it — `sorryAx`
+REQUIRED there until the debt retires by replay. (That gate replaced
+the `#guard_msgs` axiom receipts that used to sit in
+`EquisortParametric.lean`; gate-cruft review 2026-08-11 R5. This
+module still owns the STATEMENT pins — axioms and statements are
+pinned in separate places on purpose.) -/
 
 /-- Structural pin for a CONCRETE-world instantiation constant:
     binder inventory, conclusion `EvTrue <worldConst> env ⟦tformula⟧`,

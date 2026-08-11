@@ -46,10 +46,14 @@
   CALLEE RESOLUTION is through the SAME kit registry `derive_exec%` uses:
   the callees of `<fn>Exec` are read off the compiled exec itself
   (transitively through its own satellites), looked up in the registry,
-  and their registered `_enc` theorems join the rewrite set. A callee
-  without a registered `_enc` is not an error — its bridge, if it needs
-  one, is a declared `simp` lemma (e.g. `toBool_relExec` for the REL
-  dispatch).
+  and their registered `_enc` theorems join the rewrite set. This resolves
+  CROSS-FILE as well as in-file (audit F1 fixed the imported-entry order
+  that used to hand a downstream module the pre-iso copy of every kit).
+  A callee whose exec carries no iso at all — a kit whose reading is a
+  declared `simp` lemma rather than a generated `_enc` (e.g.
+  `toBool_relExec` for the REL dispatch) — supplies its bridge through
+  the invocation's `simp [...]` list; that is the MANUAL OVERRIDE route,
+  not a licence to skip a registered iso.
 
   NAMED HARD FRONTIERS (each a hard elaboration error naming itself, in
   `derive_exec%`'s style): mutual recursion (exec or native), a result

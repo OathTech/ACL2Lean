@@ -68,14 +68,16 @@
 > **POST-PURGE AUDIT RESIDUE (2026-08-11 verification + framing
 > audits; fix round applied same day):**
 > - F2 (probe-confirmed limit): the provenance gate is name-prefix
->   only — renamed content lemmas are invisible to it. Durable fix =
->   the SHAPE GATE + `hreplayed`-usage check — RULED/ADOPTED with the
->   full framing package (Mike, 2026-08-11: P1/P2/P3 restatement,
->   `.parametric` status, `derive_sim%`-as-gate BEFORE any
->   accumulator book, `totsNames` deletion, kept-condition census
->   metric, per-book-family audit cadence; M1/M2 ratified) — see
->   docs/notes/2026-08-11_thin-lean-boundary.md; implementation =
->   the next arc's opening increments.
+>   only — renamed content lemmas are invisible to it. RESOLUTION
+>   HISTORY: the shape gate + `hreplayed`-usage check were built as
+>   ruled (2026-08-11), then the SHAPE GATE WAS DEMOTED the same day
+>   by the gate-cruft deletion review (two-standard rule) to the
+>   printed census in Tests/MirrorCensus.lean — a watched number
+>   reviewed at book-family audits, never a build failure. The usage
+>   check remains (floor deleted; EvTrue-migration tripwire: DELETE
+>   the gate when the predicate stops matching, never teach it
+>   EvTrue). See docs/notes/2026-08-11_thin-lean-boundary.md + the
+>   gate-cruft review in the arc exit report.
 > - F6 (pre-existing hole): `Mirrors/P8ClausifyDetail.lean`'s
 >   `cons_neq_detail_native_driver` is a native mirror with no golden
 >   row and no catalog entry — outside the seam/axiom gates (clean

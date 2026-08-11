@@ -9,8 +9,11 @@ import ACL2Lean.Imported.Mirrors.Qsort
 import ACL2Lean.Imported.Mirrors.Msort
 import ACL2Lean.Imported.Mirrors.IsChain
 import ACL2Lean.Imported.Mirrors.Bsort
--- the extra-natives gate (audit F6) needs the pattern-pin native
+-- the pattern-pin natives' seam check (audit F6) needs the native
 import ACL2Lean.Imported.Mirrors.P8ClausifyDetail
+-- the axiom gate carries the equisort parametric/at-canonical receipts
+-- (R5, gate-cruft review 2026-08-11 — they used to be #guard_msgs pins)
+import ACL2Lean.Imported.Mirrors.EquisortParametric
 -- the provenance gate scans the WHOLE mirror layer — the witness kits'
 -- debt entries must be visible here
 import ACL2Lean.Imported.EquisortWitness
@@ -310,7 +313,8 @@ def liftCatalog : List (String × String × LiftStatus) := [
       row's conds are cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, \
       tp:TLFIX, rule:PERM-TLFIX]. Two have registered debt \
       (dis_pce_total, dis_how_many_tp); `tp:TLFIX` has no discharger \
-      (minting one is forbidden); and `rule:PERM-TLFIX`'s ONLY \
+      (not minted — see the WHY-NOT-MINTED note on \
+      HOW-MANY-BAD-PAIRS-BNEXT); and `rule:PERM-TLFIX`'s ONLY \
       criterion-clean discharger is PERM-TLFIX's own replayed \
       statement — whose row is RED, verbatim: \"PERM-TLFIX → FAIL: \
       replayNode: rune (rewriting-equivalence, NIL) applied under \
@@ -374,9 +378,18 @@ def liftCatalog : List (String × String × LiftStatus) := [
       2026-08-11). Golden conds: total:BNEXT, tp:HOW-MANY-SMALLER, \
       tp:BNEXT-SIZE. Only total:BNEXT has a discharger \
       (dis_bnext_total); `tp:HOW-MANY-SMALLER` and `tp:BNEXT-SIZE` \
-      have NONE, and minting them is forbidden (thin-Lean ruling: no \
-      new Lean-side content dischargers — the provenance gate's debt \
-      registry is closed). Carrying them as explicit native hypotheses \
+      have NONE, and this wave did not mint them. WHY NOT MINTED (the \
+      canonical note; the other four blocked entries cite it): the \
+      constraint is ARC DISCIPLINE, not a ruling — TODO's mirror-wave \
+      clause, \"discharge via replay or stay honestly \
+      conditional/sorried — never mint new dischargers\". The \
+      thin-Lean ruling (docs/notes/2026-08-11_thin-lean-boundary.md) \
+      does NOT ban minting; it permits VISIBLE FORBIDDEN-DEBT sorries, \
+      which is what the existing registry entries are. The wave held \
+      the line CONSERVATIVELY, PENDING A RULING on reuse-vs-mint (the \
+      question is being put to Mike) — so this disposition may loosen \
+      without any new evidence. Carrying them as explicit native \
+      hypotheses \
       is also impossible: they are evalOpt-shaped, which the \
       criterion-1 gate bans from mirror statements. UNLOCK: TP-replay \
       discharge (the class that retires dis_how_many_tp). Second \
@@ -394,8 +407,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
       total:O-P, tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT. Only \
       total:BNEXT and total:O< have dischargers (dis_bnext_total, \
       dis_o_lt_total); `total:BSORT`, `total:O-P`, `tp:BNEXT-SIZE` and \
-      `linear:HOW-MANY-BAD-PAIRS-BNEXT` have none, and minting them is \
-      forbidden (the closed debt registry). UNLOCKS: with_termination \
+      `linear:HOW-MANY-BAD-PAIRS-BNEXT` have none, and this wave did \
+      not mint them (WHY NOT MINTED: see the note on \
+      HOW-MANY-BAD-PAIRS-BNEXT — arc discipline held pending a \
+      reuse-vs-mint ruling, not a ruling-level ban). UNLOCKS: \
+      with_termination \
       admission coverage (the total: class) + TP-replay discharge + a \
       linear-rule replay route for HOW-MANY-BAD-PAIRS-BNEXT (whose own \
       row is blocked — see its entry). Second frontier, behind them: \
@@ -414,15 +430,18 @@ def liftCatalog : List (String × String × LiftStatus) := [
       total:BNEXT, total:BSORT, total:O<, total:O-P, tp:HOW-MANY, \
       tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT; `total:BSORT`, \
       `total:O-P`, `tp:BNEXT-SIZE`, `linear:HOW-MANY-BAD-PAIRS-BNEXT` \
-      have no discharger and minting is forbidden. Same unlocks, same \
+      have no discharger and this wave did not mint them (WHY NOT \
+      MINTED: see the note on HOW-MANY-BAD-PAIRS-BNEXT). Same unlocks, \
+      same \
       second frontier (the bsort kit) as ORDEREDP-BSORT; the native \
       would be `(bsortL l).count e = l.count e`"),
   ("sorting/bsort", "HOW-MANY-SMALLER-BNEXT",
     .pending "BLOCKED ON AN UNREGISTERED KEPT CONDITION (mirror wave, \
       2026-08-11). Golden conds: total:BNEXT, tp:HOW-MANY-SMALLER. \
       total:BNEXT discharges from dis_bnext_total, but \
-      `tp:HOW-MANY-SMALLER` has NO discharger and minting one is \
-      forbidden (the closed debt registry); it cannot be carried as an \
+      `tp:HOW-MANY-SMALLER` has NO discharger and this wave did not \
+      mint one (WHY NOT MINTED: see the note on \
+      HOW-MANY-BAD-PAIRS-BNEXT); it cannot be carried as an \
       explicit native hypothesis either (evalOpt-shaped — banned from \
       mirror statements by the criterion-1 gate). UNLOCK: TP-replay \
       discharge. Second frontier, behind it: a HOW-MANY-SMALLER exec \
@@ -462,6 +481,30 @@ def liftCatalog : List (String × String × LiftStatus) := [
       "totals (REQUIRED) + tps + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm) + rule:ORDEREDP-APPEND rides the tainted orderedp_append wrapper; unlock: TP-replay + the R-lane"),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
+/-- SEAM REACHABILITY — the ONE copy (R4, gate-cruft review 2026-08-11;
+    there used to be two cosmetically-divergent inlines). Does `start`'s
+    proof term transitively consume `seam`? Only constants inside
+    `ACL2.Imported.Mirrors` are expanded; the seam itself is matched by
+    NAME and never expanded (its proof object is huge). Deterministic,
+    in-Lean. -/
+def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
+  Id.run do
+    let mut frontier : List Lean.Name := [start]
+    let mut visited : Lean.NameSet := {}
+    let mut found := false
+    while !found && !frontier.isEmpty do
+      let c := frontier.head!
+      frontier := frontier.tail!
+      unless visited.contains c do
+        visited := visited.insert c
+        if c == seam then
+          found := true
+        else if (`ACL2.Imported.Mirrors).isPrefixOf c then
+          if let some ci := env.find? c then
+            if let some v := ci.value? then
+              frontier := v.getUsedConstants.toList ++ frontier
+    return found
+
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   -- parse the golden's green rows, book-qualified
@@ -487,26 +530,9 @@ run_cmd Lean.Elab.Command.liftCoreM do
           throwError "lift-coverage gate: {b}/{n} claims native {decl}, \
             which does not exist"
         -- THE SEAM GATE (mirror criterion, antipattern 2): the native
-        -- proof must transitively CONSUME its replayed statement.
-        -- Deterministic in-Lean used-constants search; only constants
-        -- inside this namespace are expanded (the seam is matched by
-        -- name, never expanded — its proof object is huge).
-        let env ← getEnv
-        let mut frontier : List Name := [decl]
-        let mut visited : NameSet := {}
-        let mut found := false
-        while !found && !frontier.isEmpty do
-          let c := frontier.head!
-          frontier := frontier.tail!
-          unless visited.contains c do
-            visited := visited.insert c
-            if c == seam then
-              found := true
-            else if (`ACL2.Imported.Mirrors).isPrefixOf c then
-              if let some ci := env.find? c then
-                if let some v := ci.value? then
-                  frontier := v.getUsedConstants.toList ++ frontier
-        unless found do
+        -- proof must transitively CONSUME its replayed statement
+        -- (`seamReaches`, the shared helper).
+        unless seamReaches (← getEnv) decl seam do
           throwError "lift-coverage gate: {b}/{n}'s native proof does \
             not consume its replayed statement {seam} — the \
             ornamental-import antipattern (mirror criterion 2)"
@@ -526,50 +552,57 @@ run_cmd Lean.Elab.Command.liftCoreM do
 -- P2-12/N6): `#print axioms` only prints — this run_cmd THROWS if any
 -- native entry ever acquires an axiom beyond the classical trio (sorryAx,
 -- native_decide's ofReduceBool, …), so a future edit cannot smuggle a hole
--- into the native layer without failing CI. The `.native` set comes
--- straight from `liftCatalog` (a new entry is gated AUTOMATICALLY — the
--- earlier hand list was one more thing to desync); only the downstream
--- COROLLARIES, which are not catalog rows by design (Mathlib-form
--- restatements of catalog natives), remain enumerated.
+-- into the native layer without failing CI.
+--
+-- Two layers, no hand lists (gate-cruft review 2026-08-11, R3):
+--   (1) a WIDE SCAN over every `_driver`-suffixed theorem under
+--       `ACL2.Imported.Mirrors` — catalog natives, their Mathlib-form
+--       COROLLARIES, and the pattern-pin natives that live outside the
+--       driver-coverage golden alike — bounding all of them by the
+--       classical trio + `sorryAx`. This replaces the `corollaries` /
+--       `sorriedCorollaries` hand lists AND the extra-natives gate's
+--       axiom half; a new corollary is now gated by EXISTING, not by
+--       remembering to enumerate it.
+--   (2) the catalog-driven REFINEMENT: `.native` ⇒ no `sorryAx` at all,
+--       `.nativeSorried` ⇒ `sorryAx` REQUIRED (an entry that loses its
+--       debt must be PROMOTED, so the debt registry cannot overstate).
+-- The refinement's precision is what the wide scan cannot give: (1) is
+-- deliberately the loose outer bound.
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+  -- (1) THE WIDE `_driver` SCAN
+  let env ← getEnv
+  let mut drivers : List Name := []
+  for (c, ci) in env.constants.toList do
+    if (`ACL2.Imported.Mirrors).isPrefixOf c && !c.isInternalDetail then
+      if let .thmInfo _ := ci then
+        if (c.componentsRev.headD Name.anonymous).toString.endsWith
+            "_driver" then
+          drivers := drivers ++ [c]
+  for n in drivers do
+    let axs ← collectAxioms n
+    let bad := axs.filter (fun a =>
+      !allowed.contains a && a != ``sorryAx)
+    unless bad.isEmpty do
+      throwError "native-entry axiom gate: {n} uses forbidden axioms \
+        {bad} (a mirror `_driver` theorem may carry only the classical \
+        trio, plus sorryAx where a catalogued debt entry declares it)"
+  -- (2) THE CATALOG-DRIVEN REFINEMENT
   let catalogNatives : List Name := liftCatalog.filterMap fun (_, _, st) =>
     match st with
     | .native decl _ => some decl
     | _ => none
-  -- `.nativeSorried` (thin-Lean ruling 2026-08-11): sorryAx REQUIRED
-  -- (an entry that loses its debt must be PROMOTED to `.native`, so the
-  -- debt registry cannot silently overstate) and nothing else beyond
-  -- the classical trio.
   let catalogSorried : List Name := liftCatalog.filterMap fun (_, _, st) =>
     match st with
     | .nativeSorried decl _ _ => some decl
     | _ => none
-  let corollaries : List Name :=
-    [``ACL2.Imported.Mirrors.perm_cons_native_perm_driver,
-     ``ACL2.Imported.Mirrors.isPerm_equivalence_driver,
-     ``ACL2.Imported.Mirrors.perm_symm_perm_driver,
-     ``ACL2.Imported.Mirrors.perm_trans_perm_driver,
-     ``ACL2.Imported.Mirrors.perm_erase_perm_driver,
-     ``ACL2.Imported.Mirrors.mem_transport_perm_driver,
-     ``ACL2.Imported.Mirrors.ordered_perms_native_perm_driver,
-     ``ACL2.Imported.Mirrors.orderedp_rm_isChain_driver,
-     ``ACL2.Imported.Mirrors.orderedp_memb_isChain_driver,
-     ``ACL2.Imported.Mirrors.p5_dupp_prepend_native_driver]
-  -- Mathlib-form corollaries of SORRIED natives inherit the debt
-  let sorriedCorollaries : List Name :=
-    [``ACL2.Imported.Mirrors.perm_qsort_perm_driver,
-     ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,
-     ``ACL2.Imported.Mirrors.orderedp_msort_isChain_driver,
-     ``ACL2.Imported.Mirrors.orderedp_qsort_isChain_driver,
-     ``ACL2.Imported.Mirrors.p7_dub_len_native_driver]
-  for n in (catalogNatives ++ corollaries) do
+  for n in catalogNatives do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
       throwError "native-entry axiom gate: {n} uses forbidden axioms {bad}"
-  for n in (catalogSorried ++ sorriedCorollaries) do
+  for n in catalogSorried do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a =>
       !allowed.contains a && a != ``sorryAx)
@@ -580,6 +613,35 @@ run_cmd Lean.Elab.Command.liftCoreM do
       throwError "native-entry axiom gate: {n} is catalogued \
         .nativeSorried but carries NO sorryAx — its debt is retired; \
         PROMOTE the entry to .native"
+  -- (3) THE EQUISORT RECEIPTS (R5, gate-cruft review 2026-08-11): the
+  -- four capstone constants' axiom sets, moved here from the
+  -- `#guard_msgs` pins in `Mirrors/EquisortParametric.lean` (they are
+  -- axiom receipts, not statement pins — one home for axiom facts). The
+  -- Parametric pair is the first-class artifact and must stay clean; the
+  -- AtCanonical pair is sorry-backed through the `totals [...]`
+  -- FORBIDDEN-DEBT dischargers, and its `sorryAx` is REQUIRED so the
+  -- debt cannot retire unnoticed.
+  for n in [``ACL2.Imported.Mirrors.weakSortfn1IsSortfn2Parametric,
+            ``ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2Parametric] do
+    let axs ← collectAxioms n
+    let bad := axs.filter (fun a => !allowed.contains a)
+    unless bad.isEmpty do
+      throwError "equisort receipt: parametric constant {n} uses \
+        forbidden axioms {bad} — the parametric capstones are the \
+        first-class artifacts and must stay trio-clean"
+  for n in [``ACL2.Imported.Mirrors.weakSortfn1IsSortfn2AtCanonical,
+            ``ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2AtCanonical] do
+    let axs ← collectAxioms n
+    let bad := axs.filter (fun a =>
+      !allowed.contains a && a != ``sorryAx)
+    unless bad.isEmpty do
+      throwError "equisort receipt: {n} uses forbidden axioms {bad}"
+    unless axs.contains ``sorryAx do
+      throwError "equisort receipt: {n} carries NO sorryAx — its \
+        FORBIDDEN-DEBT backing (the `totals [...]` dischargers) is \
+        retired, so the constant is now fully backed: PROMOTE it (drop \
+        it to the trio-clean list above) and re-review the non-vacuity \
+        claim in EquisortParametric.lean"
 
 -- CRITERION-1 GATE (audit 2026-07-31, outside finding §8): mirror
 -- STATEMENT vocabulary, mechanized — every `.native` entry's TYPE must
@@ -687,53 +749,26 @@ run_cmd Lean.Elab.Command.liftCoreM do
       forbidden (thin-Lean ruling 2026-08-11); register D5 gz content in \
       GzPrelude or route the fact through a replayed statement"
 
-/-! ## EXTRA-NATIVES GATE (audit F6, ruled 2026-08-11)
+/-! ## EXTRA-NATIVES SEAM CHECK (audit F6, ruled 2026-08-11; reduced to
+the seam half by the gate-cruft review, R3)
 
 Natives whose green row lives OUTSIDE the driver-coverage golden
 (pattern-pin books run by `Tests/PatternPins.lean`) cannot take a
-row-coupled catalog entry — this registry gives them the SAME
-axiom-exactness and seam-consumption checks, so no native mirror sits
-outside every gate. Each entry: (native, its replayed seam, the pin
-site that owns the row).
-THREAT MODEL (two-standard rule): the axiom check is load-bearing
-(TCB claim); the seam BFS is a speedbump against forgetting to
+row-coupled catalog entry, so nothing pairs them with a seam. This
+one-entry list does. Their AXIOMS need no entry here — the wide
+`_driver` scan in the axiom gate above already covers them.
+THREAT MODEL (two-standard rule): a speedbump against forgetting to
 consume the replayed statement — not a barrier. DO NOT HARDEN. -/
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
-  let extraNatives : List (Name × Name × String) :=
+  let extraSeams : List (Name × Name × String) :=
     [(``ACL2.Imported.Mirrors.cons_neq_detail_native_driver,
       ``ACL2.Imported.Mirrors.consNeqDetailReplayed,
       "Tests/PatternPins.lean p8-clausify-detail")]
-  for (nat, seam, rowSite) in extraNatives do
-    let axs ← collectAxioms nat
-    let allowed : List Name :=
-      [``propext, ``Classical.choice, ``Quot.sound]
-    for a in axs do
-      unless allowed.contains a do
-        throwError "extra-natives gate: {nat} uses forbidden axiom \
-          {a} (row: {rowSite})"
-    -- seam: BFS through Mirrors-namespace constants from the native
-    -- must reach the replayed seam (same rule as the lift-coverage
-    -- seam gate)
-    let env ← getEnv
-    let mut frontier : List Name := [nat]
-    let mut seen : List Name := []
-    let mut found := false
-    while !frontier.isEmpty && !found do
-      let c := frontier.head!
-      frontier := frontier.tail!
-      unless seen.contains c do
-        seen := seen ++ [c]
-        if c == seam then
-          found := true
-        else if (`ACL2.Imported.Mirrors).isPrefixOf c then
-          if let some ci := env.find? c then
-            if let some v := ci.value? then
-              frontier := frontier
-                ++ (v.getUsedConstants.toList.filter
-                    (fun n => !seen.contains n))
-    unless found do
-      throwError "extra-natives gate: {nat} does not consume its \
+  let env ← getEnv
+  for (nat, seam, rowSite) in extraSeams do
+    unless seamReaches env nat seam do
+      throwError "extra-natives seam check: {nat} does not consume its \
         replayed seam {seam} — the ornamental-import antipattern \
         (row: {rowSite})"
 
@@ -747,12 +782,18 @@ ornamental import in its purest form. This gate scans every
 `*_native_of_replayed` constant (plus the `decodeAllowed` transport)
 in the mirror namespaces and requires: (1) at least one hypothesis
 whose type mentions `evalOpt` (the replayed-statement shape), and
-(2) every such hypothesis actually OCCURRING in the proof term. A
-count floor guards the scan predicate itself against rot.
+(2) every such hypothesis actually OCCURRING in the proof term.
 THREAT MODEL (two-standard rule, 2026-08-11): a speedbump against
 the honest mistake of proving beside the replayed statement instead
 of from it. The pass-to-an-ignoring-auxiliary construction evades it
-— known, accepted, PERMANENTLY a non-item. DO NOT HARDEN IT. -/
+— known, accepted, PERMANENTLY a non-item. DO NOT HARDEN IT.
+The scan's own coverage is a REPORTED NUMBER, not a floor: the decode
+count is a `scripts/mirror-metrics.sh` line (gate-cruft review, R2 —
+a build-failing floor over a name pattern buys nothing a watched
+metric does not).
+TRIPWIRE: when the G2 EvTrue migration lands and this evalOpt-shaped
+predicate stops matching, DELETE this gate — do not teach it
+EvTrue. -/
 open Lean Meta in
 run_cmd Lean.Elab.Command.liftTermElabM do
   let env ← getEnv
@@ -769,10 +810,6 @@ run_cmd Lean.Elab.Command.liftTermElabM do
         -- (perm_cons_native_perm_of_replayed) — census 2026-08-11
         if s.endsWith "_of_replayed" then
           decodes := decodes ++ [c]
-  if decodes.length < 39 then
-    throwError "hreplayed-usage gate: only {decodes.length} decode \
-      constants found (expected ≥ 39) — the scan predicate rotted or \
-      decodes were renamed; fix the scan, never lower the floor blindly"
   for c in decodes do
     let ci ← getConstInfo c
     let some val := ci.value?
@@ -792,151 +829,5 @@ run_cmd Lean.Elab.Command.liftTermElabM do
       unless sawReplayed do
         throwError "hreplayed-usage gate: {c} has no evalOpt-shaped \
           hypothesis — a decode must consume a replayed statement"
-
-/-! ## SHAPE GATE (ruled 2026-08-11)
-
-Every AUTHORED theorem in the mirror content namespaces
-(`ACL2.Worlds.*`, `ACL2.Lifting`) must classify into one of the
-allowed thin-Lean classes, each with a shape signal:
-
-- DECODE (`*_of_replayed`) — content-checked by the hreplayed-usage
-  gate above;
-- ISO-corr (`*_exec_corr`) — type must mention `ConvTo`/`evalOpt`;
-- ISO-enc (`*_enc`) — type must mention an encoder
-  (`enc`/`boolEnc`/`intRep`);
-- discharger (`dis_*`/`drv_*`) — allowlisted by the provenance gate;
-- WORLD-FACT (`world_has_*`/`world_no_*`) — generated-world lookup
-  facts; type must mention `World`;
-- registered SUPPORT — the enumerated census below, each line
-  reviewed against the 2026-08-11 provenance audits at registration.
-
-Anything unclassifiable FAILS THE BUILD: register it here (with a
-justification a reviewer can check) or route its content through a
-replayed statement. This converts the formerly-invisible support
-bucket into a watched number — the carve-out drift test applied to
-the mirror layer. Compiler satellites (`.eq_*`, `._proof_*`,
-theorems nested under a constant) are excluded mechanically.
-THREAT MODEL (two-standard rule, 2026-08-11): a speedbump against
-unnoticed support growth — the census-as-a-number is the value; the
-name patterns and floors are conveniences, not barriers, and a
-motivated construction passes them by design. DO NOT HARDEN IT; if
-it rots, prefer demoting the census to a mirror-metrics line over
-fixing the predicate. -/
-open Lean in
-run_cmd Lean.Elab.Command.liftCoreM do
-  let env ← getEnv
-  let nss : List Name := [`ACL2.Worlds, `ACL2.Lifting]
-  -- The GENERIC TRANSPORT KIT (ACL2.Lifting): evaluation/transport
-  -- machinery, sorting-decoupled by construction — the layer the
-  -- ruling says to industrialize. Audited clean as a group
-  -- (verification audit 2026-08-11, completeness dimension).
-  let supportTransportKit : List Name :=
-    [``ACL2.Lifting.toBool_equal, ``ACL2.Lifting.enc_inj,
-     ``ACL2.Lifting.conv_unique, ``ACL2.Lifting.conv_plus_int,
-     ``ACL2.Lifting.exists_enc_of_trueListp,
-     ``ACL2.Lifting.implements_plus, ``ACL2.Lifting.conv_if_false',
-     ``ACL2.Lifting.conv_if3, ``ACL2.Lifting.booleanp_cond,
-     ``ACL2.Lifting.bool_true_of_cond_truthy,
-     ``ACL2.Lifting.implements_len, ``ACL2.Lifting.implements_times,
-     ``ACL2.Lifting.replayed_pins_ne_nil,
-     ``ACL2.Lifting.implies_t_of_ne_nil,
-     ``ACL2.Lifting.conv_and_conds, ``ACL2.Lifting.conv_equalT,
-     ``ACL2.Lifting.truthy_of_implies_t,
-     ``ACL2.Lifting.equal_truthy_of_eq,
-     ``ACL2.Lifting.cond_t_of_true, ``ACL2.Lifting.conv_var_of_get,
-     ``ACL2.Lifting.conv_fix, ``ACL2.Lifting.bool_of_cond_eq,
-     ``ACL2.Lifting.implements_append,
-     ``ACL2.Lifting.replayed_peel_guard,
-     ``ACL2.Lifting.int_atom_inj, ``ACL2.Lifting.conv_times_int,
-     ``ACL2.Lifting.conv_impliesT, ``ACL2.Lifting.bool_of_iff_truthy,
-     ``ACL2.Lifting.native_of_replayed_equal,
-     ``ACL2.Lifting.conv_qInt]
-  -- PER-BOOK SUPPORT (each line = the audit class that cleared it):
-  let supportBook : List (Name × String) :=
-    [-- two-valuedness of a single sim — allowed decode support (F5)
-     (``ACL2.Worlds.Sorting.allRelExec_t_or_nil, "two-valuedness"),
-     (``ACL2.Worlds.Sorting.relExec_t_or_nil, "two-valuedness"),
-     (``ACL2.Worlds.Sorting.orderedpExec_t_or_nil, "two-valuedness"),
-     (``ACL2.Worlds.Sorting.lexorder_t_or_nil, "two-valuedness"),
-     -- P2 definitional-termination measures (boundary note §P2 —
-     -- the named, accepted exception)
-     (``ACL2.Worlds.Sorting.evensExec_consCount_le, "P2 measure"),
-     (``ACL2.Worlds.Sorting.evensExec_consCount_lt, "P2 measure"),
-     (``ACL2.Worlds.Sorting.filterExec_consCount_le, "P2 measure"),
-     (``ACL2.Worlds.Sorting.consCount_bnext_swap_lt, "P2 measure"),
-     (``ACL2.Worlds.Sorting.evensL_length, "P2 measure (native)"),
-     -- definitional unfoldings of the relL case table (single-fn)
-     (``ACL2.Worlds.Sorting.relL_LT, "relL case unfolding"),
-     (``ACL2.Worlds.Sorting.relL_LTE, "relL case unfolding"),
-     (``ACL2.Worlds.Sorting.relL_GTE, "relL case unfolding"),
-     -- single-fn evaluation bridges / plumbing
-     (``ACL2.Worlds.Sorting.chain2Rec_iff_isChain,
-       "isChain recursion characterization (iso support)"),
-     (``ACL2.Worlds.Sorting.bnext_ns, "symbol plumbing"),
-     (``ACL2.Worlds.Sorting.lexorder_eq_boolEnc,
-       "builtin evaluation bridge"),
-     (``ACL2.Worlds.Sorting.callBuiltin_lexorder_boolEnc,
-       "builtin evaluation bridge"),
-     (``ACL2.Worlds.Sorting.toBool_relExec,
-       "toBool projection of a sim")]
-  -- staleness: registered names must exist (mirrors lift-coverage)
-  for n in supportTransportKit do
-    unless env.contains n do
-      throwError "shape gate: stale transport-kit entry {n}"
-  for (n, _) in supportBook do
-    unless env.contains n do
-      throwError "shape gate: stale support entry {n}"
-  let mentions (ty : Expr) (targets : List Name) : Bool :=
-    (ty.find? (fun e => targets.any e.isConstOf)).isSome
-  let mut offenders : List (Name × String) := []
-  let mut nCorr := 0
-  let mut nEnc := 0
-  for (c, ci) in env.constants.toList do
-    if nss.any (·.isPrefixOf c) && !c.isInternalDetail
-        && !env.contains c.getPrefix then
-      if let .thmInfo info := ci then
-        let s := (c.componentsRev.headD Name.anonymous).toString
-        if s.startsWith "eq_" || s == "eq_def" || s == "sizeOf_spec"
-            || s == "induct" || c.components.any (· == `_unary) then
-          pure ()
-        else if s.endsWith "_of_replayed" then
-          pure () -- content-checked by the hreplayed-usage gate
-        else if s.startsWith "dis_" || s.startsWith "drv_" then
-          pure () -- allowlisted by the provenance gate
-        else if s.endsWith "_exec_corr" then
-          nCorr := nCorr + 1
-          unless mentions info.type
-              [``ACL2.Replay.ConvTo, ``ACL2.evalOpt] do
-            offenders := offenders ++
-              [(c, "corr-named but no ConvTo/evalOpt in the type")]
-        else if s.endsWith "_enc" then
-          nEnc := nEnc + 1
-          unless mentions info.type
-              [``ACL2.Lifting.enc, ``ACL2.Lifting.boolEnc,
-               ``ACL2.Lifting.intRep] do
-            offenders := offenders ++
-              [(c, "enc-named but no encoder in the type")]
-        else if s.startsWith "world_has_" || s.startsWith "world_no_"
-            then
-          -- the lookup surfaces as the `World.defs` projection (or a
-          -- getElem instance over it) applied to a world constant
-          unless mentions info.type
-              [``ACL2.World, ``ACL2.World.defs, ``ACL2.Symbol] do
-            offenders := offenders ++
-              [(c, "world-fact-named but no World lookup in the type")]
-        else
-          unless supportTransportKit.contains c
-              || supportBook.any (·.1 == c) do
-            offenders := offenders ++ [(c, "UNCLASSIFIED")]
-  if nCorr < 25 || nEnc < 20 then
-    throwError "shape gate: class counts collapsed (corr {nCorr}, \
-      enc {nEnc}) — the scan predicate rotted; fix the scan, never \
-      lower the floors blindly"
-  unless offenders.isEmpty do
-    throwError "shape gate: mirror-layer theorem(s) outside the \
-      thin-Lean classes: {offenders.map (·.1)} — register as SUPPORT \
-      with a reviewable justification (if the audits class it clean) \
-      or route the content through a replayed statement (thin-Lean \
-      ruling 2026-08-11): {offenders}"
 
 end ACL2.Imported.Mirrors

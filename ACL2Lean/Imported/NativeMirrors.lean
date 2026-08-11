@@ -89,8 +89,9 @@
     Mirrors.Qsort        the qsort book
     Mirrors.Msort        the msort book
     Mirrors.IsChain      `LexSorted` + the `List.IsChain` corollaries
-    Mirrors.Catalog      `liftCatalog` + the three build-failing gates
-                         (lift-coverage/seam, axioms, criterion-1) — and
+    Mirrors.Catalog      `liftCatalog` + the build-failing gates
+                         (lift-coverage/seam, axioms, criterion-1,
+                         provenance, hreplayed-usage) — and
                          THE MIRROR CRITERION text, which now sits next to
                          the gates that mechanize it.
 
