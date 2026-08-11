@@ -21,6 +21,16 @@
   escape is an ACL2 book theorem for the bridging fact, routed through
   replay; never a hand proof.
 
+  THREAT MODEL (two-standard rule, 2026-08-11): the template gate is a
+  speedbump, not a content classifier. Its discriminating power is
+  bounded by the closer's fixed lemma set: a reassociating reading
+  whose bridging fact sits in Lean's DEFAULT simp/grind set (e.g.
+  reverse_append) closes and therefore PASSES — known, accepted. The
+  ruled accumulator class (rev-acc generalization) is not in that set
+  and fails closed, which is the case the ruling needed decided. DO
+  NOT HARDEN IT — no semantic classifiers, no lemma-set audits; the
+  per-book-family provenance audit is the backstop.
+
   THE ONE TEMPLATE (measured off the 14 hand isos it retires, see the
   charter-item report): drive the induction off the NATIVE's own
   recursion, unfold ONE exec step, normalize to enc-normal form, close.

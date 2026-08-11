@@ -574,7 +574,10 @@ which MUST carry `sorryAx` (a from-scratch re-proof sneaking back in
 place of a sorry fails the build — the only legitimate retirement of a
 debt entry is deletion in favor of a replay route). A NEW `dis_*`/
 `drv_*` constant in the mirror namespaces matching neither list fails.
-In-Lean, deterministic (environment scan). -/
+In-Lean, deterministic (environment scan).
+THREAT MODEL (two-standard rule, 2026-08-11): a speedbump against
+forgetting the ban, not a barrier against circumvention (a renamed
+content lemma passes — known, accepted). DO NOT HARDEN IT. -/
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let d5Allowed : List Name :=
@@ -637,7 +640,10 @@ Natives whose green row lives OUTSIDE the driver-coverage golden
 row-coupled catalog entry — this registry gives them the SAME
 axiom-exactness and seam-consumption checks, so no native mirror sits
 outside every gate. Each entry: (native, its replayed seam, the pin
-site that owns the row). -/
+site that owns the row).
+THREAT MODEL (two-standard rule): the axiom check is load-bearing
+(TCB claim); the seam BFS is a speedbump against forgetting to
+consume the replayed statement — not a barrier. DO NOT HARDEN. -/
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let extraNatives : List (Name × Name × String) :=
@@ -688,10 +694,11 @@ ornamental import in its purest form. This gate scans every
 in the mirror namespaces and requires: (1) at least one hypothesis
 whose type mentions `evalOpt` (the replayed-statement shape), and
 (2) every such hypothesis actually OCCURRING in the proof term. A
-count floor guards the scan predicate itself against rot. KNOWN
-LIMIT: a proof that passes the hypothesis to an auxiliary that
-ignores it still counts as usage — the residual is an audit item
-(per-book-family cadence). -/
+count floor guards the scan predicate itself against rot.
+THREAT MODEL (two-standard rule, 2026-08-11): a speedbump against
+the honest mistake of proving beside the replayed statement instead
+of from it. The pass-to-an-ignoring-auxiliary construction evades it
+— known, accepted, PERMANENTLY a non-item. DO NOT HARDEN IT. -/
 open Lean Meta in
 run_cmd Lean.Elab.Command.liftTermElabM do
   let env ← getEnv
@@ -754,7 +761,13 @@ justification a reviewer can check) or route its content through a
 replayed statement. This converts the formerly-invisible support
 bucket into a watched number — the carve-out drift test applied to
 the mirror layer. Compiler satellites (`.eq_*`, `._proof_*`,
-theorems nested under a constant) are excluded mechanically. -/
+theorems nested under a constant) are excluded mechanically.
+THREAT MODEL (two-standard rule, 2026-08-11): a speedbump against
+unnoticed support growth — the census-as-a-number is the value; the
+name patterns and floors are conveniences, not barriers, and a
+motivated construction passes them by design. DO NOT HARDEN IT; if
+it rots, prefer demoting the census to a mirror-metrics line over
+fixing the predicate. -/
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let env ← getEnv
