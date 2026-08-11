@@ -193,19 +193,19 @@ elab "coverage_book% " nameLit:str : command => do
                 toString (hash (toString (repr hypI)))
               unless acc.any (·.1 == key) do
                 try
-                  -- thin-Lean purge (ruling 2026-08-11): the two
-                  -- Lean-side dischargers (dis_pce_total /
-                  -- dis_how_many_tp) formerly injected here are
-                  -- FORBIDDEN-DEBT (sorried) — passing them would mint
-                  -- sorry-tainted usefi constants the row filter
-                  -- rejects. With no injected dischargers the prepare
-                  -- declines where those facts are needed and the
-                  -- capstone rows regress to the honest offer route
-                  -- (the accepted, ruled consequence; unlocks = the
-                  -- with_termination coverage + TP-replay discharge).
+                  -- thin-Lean ruling (2026-08-11, adopted item):
+                  -- prepareUseFi's discharger-injection parameter is
+                  -- DELETED — the sweep structurally cannot consume a
+                  -- named Lean constant as a totality fact (the drift
+                  -- channel the purge closed is now unrepresentable).
+                  -- Totality arrives only via termByFn (replayed
+                  -- admissions); where facts are missing the prepare
+                  -- declines and the capstone rows stay on the honest
+                  -- offer route (unlocks = with_termination coverage +
+                  -- TP-replay discharge).
                   let (cName, argTys) ←
                     ACL2.Replay.Driver.withRealMaxRecDepth 131072 <|
-                    ACL2.Imported.Mirrors.prepareUseFi crossDevs []
+                    ACL2.Imported.Mirrors.prepareUseFi crossDevs
                       consumerDev wVal wExpr spec termByFn
                   acc := acc ++ [(key, cName, argTys)]
                 catch e =>

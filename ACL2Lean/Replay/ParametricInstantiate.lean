@@ -46,7 +46,12 @@ def proveByDecideKernel (p : Expr) (what : String) : MetaM Expr := do
     discharge its premise telescope with the existing provers — the
     engine behind both `instantiate_parametric%` (the canonical world)
     and the usefi: alias-world discharge. `totsNames`: registered
-    world-parametric discharger constants (the dis_* family). Returns
+    world-parametric discharger constants (the dis_* family) — RULED
+    INVARIANT (2026-08-11): the SWEEP path (mkUseFiDischarger /
+    prepareUseFi) passes `[]` by construction and has no parameter to
+    do otherwise; only `instantiate_parametric%`'s `totals` clause
+    feeds this slot, and everything it names is provenance-registered
+    sorryAx-gated debt. Returns
     (proof λ-abstracted over KEPT premises, kept names, conclusion). -/
 def instantiateParametricAt (dev : Development) (worldVal : World)
     (worldExpr : Expr) (nm : String)
@@ -403,7 +408,6 @@ def reflectSubst (σ : List (Symbol × List Symbol × SExpr)) :
     discharge at the alias world FRONTIER (the hypothesis stays kept —
     D6); the bridging extensions close them incrementally. -/
 def mkUseFiDischarger (crossDevs : List (String × Development))
-    (totsNames : List Name := [])
     (termByFn : List (String × Lean.Name × List String × List SExpr)
       := []) :
     Development → ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr :=
@@ -781,8 +785,14 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
         let pfc ← mkAppM ``Iff.mpr #[iff, hAtW]
         let pf ← mkLambdaFVars #[erV] pfc
         pure (some (← Lean.Meta.mkExpectedTypeHint pf bTy))
+    -- totsNames = [] BY CONSTRUCTION (ruled invariant, 2026-08-11):
+    -- the sweep path may never inject a named Lean constant as a
+    -- totality fact — the replayed-admission channel (termByFn) is
+    -- the only totality route here. Only `instantiate_parametric%`'s
+    -- `totals` clause feeds the engine's registered-discharger slot
+    -- (sorryAx-gated debt, provenance-registered).
     let (pfAtAlias, kept, _concl) ← instantiateParametricAt depDev
-      wAliasVal wAliasE spec.name depCrossTrees depCrossRules totsNames
+      wAliasVal wAliasE spec.name depCrossTrees depCrossRules []
       pfParamEnv envV (extraJusts := cfg.justs)
       (innerTotalFallback := innerTotalFallback)
       (ruleBridge := ruleBridge) (useBridge := useBridge)
@@ -927,7 +937,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     pass, and the composition on top overflowed the lake worker
     thread.) -/
 def prepareUseFi (crossDevs : List (String × Development))
-    (totsNames : List Name) (consumerDev : Development)
+    (consumerDev : Development)
     (worldVal : World) (wExpr : Expr) (spec : UseFiSpec)
     (termByFn : List (String × Lean.Name × List String × List SExpr)
       := []) :
@@ -1084,7 +1094,7 @@ def prepareUseFi (crossDevs : List (String × Development))
           equivReflHyps := equivSpecs.zip equivVs.toList,
           equivFullHyps := equivFullSpecs.zip equivFullVs.toList,
           linearHyps := linearSpecs.zip linVs.toList }
-      let pf ← mkUseFiDischarger crossDevs totsNames termByFn
+      let pf ← mkUseFiDischarger crossDevs termByFn
         consumerDev cfg ctx spec
       -- the result is `mkAppN (const) usedFVars`; record each argument
       -- as a (class, key) pair for DIRECT row-time lookup (blind
