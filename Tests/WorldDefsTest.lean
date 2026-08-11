@@ -47,13 +47,10 @@ private def w3 : World :=
 
 /-! ## Standing axiom-cleanliness gates for the integration nets.
 
-`#guard_msgs` turns `#print axioms` into a BUILD-FAILING assertion: if the
-refactor (or anything) leaks `sorryAx`/`native_decide` into these, the build
-breaks here instead of silently printing. The allowed set is exactly
-`{propext, Classical.choice, Quot.sound}`. -/
-
-/-- info: 'ACL2.Worlds.Simple.my_len_my_app_uncond' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ACL2.Worlds.Simple.my_len_my_app_uncond
-
-/-- info: 'ACL2.Worlds.AppAssoc.app_assoc_uncond' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ACL2.Worlds.AppAssoc.app_assoc_uncond
+The two `#print axioms` gates that stood here pinned
+`ACL2.Worlds.Simple.my_len_my_app_uncond` and
+`ACL2.Worlds.AppAssoc.app_assoc_uncond` — the HAND-REPLAY chain, which
+was PURGED under the thin-Lean ruling (2026-08-11) as Lean-side content
+ACL2 derives. The driver-based natives in `Imported/Mirrors/Basics`
+carry that content now, and the catalog's per-entry axiom-exactness
+check is where their cleanliness is gated. -/

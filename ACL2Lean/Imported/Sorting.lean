@@ -1,5 +1,6 @@
 import ACL2Lean.Imported.Perm
 import ACL2Lean.Imported.ExecGen
+import ACL2Lean.Imported.GzPrelude
 
 /-! # Imported: the sorting books — world-parametric support beyond perm
 
@@ -366,19 +367,23 @@ theorem corr_isort_enc (w : World)
 
 /-! ## The `tp:INSERT` discharger — `(CONSP (INSERT E X))` -/
 
-/-- Every branch of `insertExec` is a `cons`. -/
-theorem insertExec_consp (e x : SExpr) :
-    Logic.consp (insertExec e x) = SExpr.t := by
-  rw [insertExec.eq_def]
-  split
-  · split <;> rfl
-  · rfl
-
-/-- `tp:INSERT` — the emitted `(CONSP (INSERT E X))` corollary; wrapper
-    GENERATED (1c), value-shape ending human. -/
-derive_exec_tp% dis_insert_tp for "INSERT"
-  (v => Logic.consp v = SExpr.t)
-  ending exact insertExec_consp u0 u1
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:INSERT` — the emitted `(CONSP (INSERT E X))` corollary —
+    Lean-side; content ACL2 derives. Statement kept as the named
+    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
+theorem dis_insert_tp (w : World)
+    (h_insert : w.defs.get? insert_sym = some ([eS, xS], insertBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 a1 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol insert_sym))
+        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
+    Logic.consp v = SExpr.t := by
+  sorry
 
 /-! ## The ORDEREDP-ISORT assembly -/
 
@@ -837,115 +842,6 @@ private theorem conv_plusT (w : World) (env' : Env) (a b av bv : SExpr)
   conv_builtin2 w env' { name := "BINARY-+" } a b av bv _ (by decide)
     h_no_plus ha hb (callBuiltin_plus _ _)
 
-/-- `rule:(+ y x) ≡ (+ x y)` — the arithmetic-3 rune `|(+ y x)|`
-    (NOT ground-zero COMMUTATIVITY-OF-+, whose stored orientation is
-    the reverse — audit 2026-07-31 inside finding 1). -/
-theorem dis_plus_comm (w : World)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
-    ∀ env' : Env, ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (plusT yT xT) = evalOpt f w env' (plusT xT yT) := by
-  intro env'
-  obtain ⟨vx, hx⟩ := conv_var w env' xS (by decide)
-  obtain ⟨vy, hy⟩ := conv_var w env' yS (by decide)
-  exact fuel_eq_of_conv (conv_plusT w env' yT xT vy vx h_no_plus hy hx)
-    (conv_plusT w env' xT yT vx vy h_no_plus hx hy) (logic_plus_comm vy vx)
-
-/-- `rule:(+ y (+ x z)) ≡ (+ x (+ y z))` — the arithmetic-3 rune
-    `|(+ y (+ x z))|`. -/
-theorem dis_plus_comm2 (w : World)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
-    ∀ env' : Env, ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (plusT yT (plusT xT zT))
-        = evalOpt f w env' (plusT xT (plusT yT zT)) := by
-  intro env'
-  obtain ⟨vx, hx⟩ := conv_var w env' xS (by decide)
-  obtain ⟨vy, hy⟩ := conv_var w env' yS (by decide)
-  obtain ⟨vz, hz⟩ := conv_var w env' zS (by decide)
-  exact fuel_eq_of_conv
-    (conv_plusT w env' yT (plusT xT zT) vy (Logic.plus vx vz) h_no_plus hy
-      (conv_plusT w env' xT zT vx vz h_no_plus hx hz))
-    (conv_plusT w env' xT (plusT yT zT) vx (Logic.plus vy vz) h_no_plus hx
-      (conv_plusT w env' yT zT vy vz h_no_plus hy hz))
-    (logic_plus_comm2 vy vx vz)
-
-/-- `rule:(+ (+ x y) z) ≡ (+ x (+ y z))` — the arithmetic-3 rune
-    `|(+ (+ x y) z)|` (no ASSOCIATIVITY-OF-+ is stored in these
-    logs). -/
-theorem dis_plus_assoc (w : World)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
-    ∀ env' : Env, ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (plusT (plusT xT yT) zT)
-        = evalOpt f w env' (plusT xT (plusT yT zT)) := by
-  intro env'
-  obtain ⟨vx, hx⟩ := conv_var w env' xS (by decide)
-  obtain ⟨vy, hy⟩ := conv_var w env' yS (by decide)
-  obtain ⟨vz, hz⟩ := conv_var w env' zS (by decide)
-  exact fuel_eq_of_conv
-    (conv_plusT w env' (plusT xT yT) zT (Logic.plus vx vy) vz h_no_plus
-      (conv_plusT w env' xT yT vx vy h_no_plus hx hy) hz)
-    (conv_plusT w env' xT (plusT yT zT) vx (Logic.plus vy vz) h_no_plus hx
-      (conv_plusT w env' yT zT vy vz h_no_plus hy hz))
-    (logic_plus_assoc vx vy vz)
-
-/-- `rule:(+ x (if a b c)) ≡ (if a (+ x b) (+ x c))` (if-lifting). -/
-theorem dis_plus_if_lift (w : World)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
-    ∀ env' : Env, ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (plusT xT (ifT aT bT cT))
-        = evalOpt f w env' (ifT aT (plusT xT bT) (plusT xT cT)) := by
-  intro env'
-  obtain ⟨vx, hx⟩ := conv_var w env' xS (by decide)
-  obtain ⟨va, ha⟩ := conv_var w env' aS (by decide)
-  obtain ⟨vb, hb⟩ := conv_var w env' bS (by decide)
-  obtain ⟨vc, hc⟩ := conv_var w env' cS (by decide)
-  cases hta : Logic.toBool va with
-  | true =>
-    exact fuel_eq_of_conv
-      (conv_plusT w env' xT (ifT aT bT cT) vx vb h_no_plus hx
-        (conv_if_true w env' aT bT cT va vb ha hta hb))
-      (conv_if_true w env' aT (plusT xT bT) (plusT xT cT) va
-        (Logic.plus vx vb) ha hta
-        (conv_plusT w env' xT bT vx vb h_no_plus hx hb)) rfl
-  | false =>
-    have han : ∃ N, ∀ f ≥ N, evalOpt f w env' aT = some SExpr.nil :=
-      nil_of_toBool_false hta ▸ ha
-    exact fuel_eq_of_conv
-      (conv_plusT w env' xT (ifT aT bT cT) vx vc h_no_plus hx
-        (conv_if_false' w env' aT bT cT vc han hc))
-      (conv_if_false' w env' aT (plusT xT bT) (plusT xT cT)
-        (Logic.plus vx vc) han
-        (conv_plusT w env' xT cT vx vc h_no_plus hx hc)) rfl
-
-/-- `rule:(equal (if a b c) x) ≡ (if a (equal b x) (equal c x))`
-    (if-lifting through EQUAL). -/
-theorem dis_equal_if_lift (w : World)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none) :
-    ∀ env' : Env, ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (equalT (ifT aT bT cT) xT)
-        = evalOpt f w env' (ifT aT (equalT bT xT) (equalT cT xT)) := by
-  intro env'
-  obtain ⟨vx, hx⟩ := conv_var w env' xS (by decide)
-  obtain ⟨va, ha⟩ := conv_var w env' aS (by decide)
-  obtain ⟨vb, hb⟩ := conv_var w env' bS (by decide)
-  obtain ⟨vc, hc⟩ := conv_var w env' cS (by decide)
-  cases hta : Logic.toBool va with
-  | true =>
-    exact fuel_eq_of_conv
-      (conv_equalT w env' (ifT aT bT cT) xT vb vx h_no_equal
-        (conv_if_true w env' aT bT cT va vb ha hta hb) hx)
-      (conv_if_true w env' aT (equalT bT xT) (equalT cT xT) va
-        (Logic.equal vb vx) ha hta
-        (conv_equalT w env' bT xT vb vx h_no_equal hb hx)) rfl
-  | false =>
-    have han : ∃ N, ∀ f ≥ N, evalOpt f w env' aT = some SExpr.nil :=
-      nil_of_toBool_false hta ▸ ha
-    exact fuel_eq_of_conv
-      (conv_equalT w env' (ifT aT bT cT) xT vc vx h_no_equal
-        (conv_if_false' w env' aT bT cT vc han hc) hx)
-      (conv_if_false' w env' aT (equalT bT xT) (equalT cT xT)
-        (Logic.equal vc vx) han
-        (conv_equalT w env' cT xT vc vx h_no_equal hc hx)) rfl
-
 /-! ## The `how-many` exec kit -/
 
 abbrev howManyT (e x : SExpr) : SExpr := app2 "HOW-MANY" e x
@@ -998,45 +894,25 @@ theorem howManyExec_enc (e : SExpr) (xs : List SExpr) :
         simp [Ne.symm (beq_eq_false_iff_ne.mp hbeq)]
       rw [this]
 
-/-- `howManyExec` always yields a non-negative integer. -/
-theorem howManyExec_nat (e x : SExpr) :
-    ∃ n : Nat, howManyExec e x = .atom (.number (.int n)) := by
-  fun_induction howManyExec e x with
-  | case1 x _ _ ih =>
-    obtain ⟨n, hn⟩ := ih
-    exact ⟨n + 1, by rw [hn]; simp [Logic.plus, Logic.toRat,
-      Logic.mkNumber]; omega⟩
-  | case2 x _ _ ih => exact ih
-  | case3 x _ => exact ⟨0, rfl⟩
-
-/-- `tp:HOW-MANY` — the emitted non-negative-integer corollary; wrapper
-    GENERATED (1c). -/
-derive_exec_tp% dis_how_many_tp for "HOW-MANY"
-  (v => (bif Logic.toBool (Logic.integerp v) then
-      Logic.not (Logic.lt v (.atom (.number (.int 0))))
-    else SExpr.nil) = SExpr.t)
-  ending
-    obtain ⟨n, hn⟩ := howManyExec_nat u0 u1
-    rw [hn]
-    simp [Logic.integerp, Logic.lt, Logic.not, Logic.toRat, Logic.toBool,
-      show ¬((n : Int) < 0) from by omega]
-
-/-- `membExec = nil` forces `howManyExec = 0` — the value-level content
-    of NOT-MEMB-IMPLIES-HOW-MANY-IS-0, over ALL SExpr values. -/
-private theorem howManyExec_zero_of_membExec_nil (a x : SExpr) :
-    membExec a x = SExpr.nil →
-    howManyExec a x = .atom (.number (.int 0)) := by
-  fun_induction membExec a x with
-  | case1 x hc heq =>
-    intro h
-    exact absurd h (by simp [SExpr.t])
-  | case2 x hc heq ih =>
-    intro h
-    rw [howManyExec.eq_def, if_pos hc, if_neg heq]
-    exact ih h
-  | case3 x hc =>
-    intro _
-    rw [howManyExec.eq_def, if_neg hc]
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:HOW-MANY` — the emitted non-negative-integer corollary —
+    Lean-side; content ACL2 derives. Statement kept as the named
+    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
+theorem dis_how_many_tp (w : World)
+    (h_how_many : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_binary__ : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (e' : Env) (a0 a1 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol how_many_sym))
+        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
+    (bif Logic.toBool (Logic.integerp v) then
+        Logic.not (Logic.lt v (.atom (.number (.int 0))))
+      else SExpr.nil) = SExpr.t := by
+  sorry
 
 /-! ## HOW-MANY-ISORT -/
 
@@ -1605,14 +1481,26 @@ theorem allRelExec_t_or_nil (fv x ev : SExpr) :
   | case2 x _ _ => exact Or.inr rfl
   | case3 x _ => exact Or.inl rfl
 
-/-- `tp:ALL-REL` — the emitted boolean corollary; wrapper GENERATED (1c). -/
-derive_exec_tp% dis_all_rel_tp for "ALL-REL"
-  (v => (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
-     else Logic.equal v SExpr.nil) = SExpr.t)
-  ending
-    rcases allRelExec_t_or_nil u0 u1 u2 with ht | hn
-    · rw [ht]; simp [Logic.equal, Logic.toBool]
-    · rw [hn]; rfl
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:ALL-REL` — the emitted boolean corollary — Lean-side; content
+    ACL2 derives. Statement kept as the named premise; proof retired to
+    `sorry`. UNLOCK: TP-replay discharge. -/
+theorem dis_all_rel_tp (w : World)
+    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
+    (h_all_rel : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 a1 a2 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol all_rel_sym))
+        (SExpr.cons a0 (SExpr.cons a1 (SExpr.cons a2 SExpr.nil))))
+      = some v) :
+    (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
+      else Logic.equal v SExpr.nil) = SExpr.t := by
+  sorry
 
 /-! ## PERM-IMPLIES-EQUAL-ALL-REL-2 -/
 
@@ -2153,16 +2041,11 @@ theorem append_exec_corr (w : World)
   exact conv_defn_2 w env append_sym a b av bv xS yS
     (appendBody "BINARY-APPEND") _ append_ns h_app ha hb (hbody av bv)
 
-/-- `appendExec` is a cons or its second argument — the emitted TP
-    corollary's content. -/
-theorem appendExec_consp_or_eq (x y : SExpr) :
-    Logic.consp (appendExec x y) = SExpr.t ∨ appendExec x y = y := by
-  fun_induction appendExec x y with
-  | case1 x _ _ => exact Or.inl rfl
-  | case2 x _ => exact Or.inr rfl
-
-/-- `tp:BINARY-APPEND`, world-parametric — the args-valued TP hypothesis
-    (`(IF (CONSP (BINARY-APPEND X Y)) 'T (EQUAL (BINARY-APPEND X Y) Y))`). -/
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:BINARY-APPEND` — the args-valued TP hypothesis
+    (`(IF (CONSP (BINARY-APPEND X Y)) 'T (EQUAL (BINARY-APPEND X Y) Y))`)
+    — Lean-side; content ACL2 derives. Statement kept as the named
+    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
 theorem dis_append_tp (w : World)
     (h_app : w.defs.get? append_sym
       = some ([{ package := "ACL2", name := "X" },
@@ -2178,15 +2061,7 @@ theorem dis_append_tp (w : World)
     (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (appendT a0 a1) = some v) :
     (bif Logic.toBool (Logic.consp v) then SExpr.t else Logic.equal v u1)
       = SExpr.t := by
-  have happ := append_exec_corr w h_app h_no_consp h_no_car h_no_cdr
-    h_no_cons e' a0 a1 u0 u1 h0 h1
-  rw [val_unique h happ]
-  rcases appendExec_consp_or_eq u0 u1 with ht | heq
-  · rw [ht]; rfl
-  · rw [heq]
-    cases hb : Logic.toBool (Logic.consp u1) with
-    | true => rfl
-    | false => simp [Logic.equal]
+  sorry
 
 abbrev iffT (a b : SExpr) : SExpr := app2 "IFF" a b
 
@@ -2639,10 +2514,31 @@ decreasing_by
 
 /-! ## The msort dischargers -/
 
-/-- `total:MERGE2` — GENERATED (1c). -/
-derive_exec_total% dis_merge2_total for "MERGE2"
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `total:MERGE2` — the driver-shape totality premise — Lean-side;
+    content ACL2 derives at admission. Statement kept as the named
+    premise; proof retired to `sorry`. UNLOCK: `with_termination`
+    admission-replay coverage (REQUIRED-class debt). -/
+theorem dis_merge2_total (w : World)
+    (h_merge2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
+    ∀ (env' : Env) (a0 a1 : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env'
+        (SExpr.cons (SExpr.atom (Atom.symbol merge2_sym))
+          (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v := by
+  sorry
 
-/-- `total:MSORT` — the driver-shape totality statement. -/
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `total:MSORT` — the driver-shape totality premise — Lean-side;
+    content ACL2 derives at admission. Statement kept as the named
+    premise; proof retired to `sorry`. UNLOCK: `with_termination`
+    admission-replay coverage (REQUIRED-class debt). -/
 theorem dis_msort_total (w : World)
     (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
     (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
@@ -2656,23 +2552,24 @@ theorem dis_msort_total (w : World)
     ∀ (env' : Env) (a0 : SExpr),
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
       ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (msortT a0) = some v := by
-  intro env' a0 ⟨N0, v0, h0⟩
-  obtain ⟨N, h⟩ := msort_exec_corr w h_m2 h_evens h_odds h_msort h_no_consp
-    h_no_car h_no_cdr h_no_cons h_no_lexorder env' a0 v0 ⟨N0, h0⟩
-  exact ⟨N, msortExec v0, h⟩
+  sorry
 
-/-- `evensExec` always yields a true-list. -/
-theorem evensExec_trueListp (l : SExpr) :
-    Logic.trueListp (evensExec l) = SExpr.t := by
-  fun_induction evensExec l with
-  | case1 l _ ih => simpa [Logic.cons, Logic.trueListp] using ih
-  | case2 l _ => rfl
-
-/-- `tp:EVENS` — the emitted `(TRUE-LISTP (EVENS L))` corollary; wrapper
-    GENERATED (1c). -/
-derive_exec_tp% dis_evens_tp for "EVENS"
-  (v => Logic.trueListp v = SExpr.t)
-  ending exact evensExec_trueListp u0
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:EVENS` — the emitted `(TRUE-LISTP (EVENS L))` corollary —
+    Lean-side; content ACL2 derives. Statement kept as the named
+    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
+theorem dis_evens_tp (w : World)
+    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (e' : Env) (a0 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol evens_sym))
+        (SExpr.cons a0 SExpr.nil)) = some v) :
+    Logic.trueListp v = SExpr.t := by
+  sorry
 
 /-! ## The msort row assemblies -/
 
@@ -3224,7 +3121,11 @@ theorem o_lt_exec_corr (w : World)
   exact conv_defn_2 w env o_lt_sym a b av bv xS yS oLtBody _
     o_lt_ns h_lt ha hb (hbody av.consCount av bv rfl)
 
-/-- `total:O<` — the driver-shape totality statement. -/
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `total:O<` — the driver-shape totality premise — Lean-side; content
+    ACL2 derives at admission. Statement kept as the named premise;
+    proof retired to `sorry`. UNLOCK: `with_termination`
+    admission-replay coverage (REQUIRED-class debt). -/
 theorem dis_o_lt_total (w : World)
     (h_lt : w.defs.get? o_lt_sym = some ([xS, yS], oLtBody))
     (h_finp : w.defs.get? o_finp_sym = some ([xS], oFinpBody))
@@ -3240,11 +3141,7 @@ theorem dis_o_lt_total (w : World)
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
       ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (oLtT a0 a1) = some v := by
-  intro env' a0 a1 ⟨N0, v0, h0⟩ ⟨N1, v1, h1⟩
-  obtain ⟨N, h⟩ := o_lt_exec_corr w h_lt h_finp h_fe h_fc h_rst h_no_consp
-    h_no_equal h_no_car h_no_cdr h_no_ltb env' a0 a1 v0 v1
-    ⟨N0, h0⟩ ⟨N1, h1⟩
-  exact ⟨N, oLtExec v0 v1, h⟩
+  sorry
 
 /-! ## The `acl2-count` kit (`tp:ACL2-COUNT`): INTEGER-ABS / LENGTH /
 ACL2-COUNT. The COMPLEX-RATIONALP branch is DEAD in the model (the
@@ -3605,92 +3502,11 @@ theorem acl2_count_exec_corr (w : World)
   exact conv_defn_1 w env acl2_count_sym x xv xS acl2CountBody _
     acl2_count_ns h_ac hx (hbody xv)
 
-/-- `Logic.neg` of an integer atom. -/
-private theorem logic_neg_int (m : Int) :
-    Logic.neg (.atom (.number (.int m))) = .atom (.number (.int (-m))) := by
-  simp [Logic.neg, Logic.toRat, Logic.mkNumber]
-
-/-- `integerAbsExec` always yields a non-negative integer. -/
-theorem integerAbsExec_nat (x : SExpr) :
-    ∃ n : Nat, integerAbsExec x = .atom (.number (.int n)) := by
-  unfold integerAbsExec
-  match x with
-  | .nil => exact ⟨0, rfl⟩
-  | .cons a b => exact ⟨0, rfl⟩
-  | .atom (.symbol s) => exact ⟨0, rfl⟩
-  | .atom (.keyword k) => exact ⟨0, rfl⟩
-  | .atom (.char c) => exact ⟨0, rfl⟩
-  | .atom (.string s) => exact ⟨0, rfl⟩
-  | .atom (.number (.rational n d hc)) => exact ⟨0, rfl⟩
-  | .atom (.number (.int m)) =>
-    rw [if_pos (show Logic.toBool
-      (Logic.integerp (.atom (.number (.int m)))) = true from rfl)]
-    have hcond : Logic.lt (.atom (.number (.int m)))
-        (.atom (.number (.int 0)))
-        = (if m < 0 then SExpr.t else SExpr.nil) := by
-      simp [Logic.lt, Logic.toRat]
-    rcases lt_or_ge m 0 with hm | hm
-    · rw [if_pos (by rw [hcond, if_pos hm]; rfl), logic_neg_int]
-      exact ⟨(-m).toNat, by rw [Int.toNat_of_nonneg (by omega)]⟩
-    · rw [if_neg (by rw [hcond, if_neg (by omega)]; decide)]
-      exact ⟨m.toNat, by rw [Int.toNat_of_nonneg hm]⟩
-
-/-- `Logic.len` always yields a non-negative integer. -/
-private theorem logic_len_nat (x : SExpr) :
-    ∃ n : Nat, Logic.len x = .atom (.number (.int n)) := by
-  induction x with
-  | nil => exact ⟨0, rfl⟩
-  | atom a => exact ⟨0, rfl⟩
-  | cons a b iha ihb =>
-    obtain ⟨n, hn⟩ := ihb
-    exact ⟨n + 1, by rw [Logic.len, hn]; simp [Logic.toInt]⟩
-
-/-- `lengthExec` always yields a non-negative integer. -/
-theorem lengthExec_nat (x : SExpr) :
-    ∃ n : Nat, lengthExec x = .atom (.number (.int n)) := by
-  unfold lengthExec
-  by_cases h : Logic.toBool (Logic.stringp x) = true
-  · rw [if_pos h]; exact logic_len_nat _
-  · rw [if_neg h]; exact logic_len_nat _
-
-/-- `Logic.denominator` always yields a non-negative integer. -/
-private theorem logic_denominator_nat (x : SExpr) :
-    ∃ n : Nat, Logic.denominator x = .atom (.number (.int n)) := by
-  cases x with
-  | nil => exact ⟨1, rfl⟩
-  | cons a b => exact ⟨1, rfl⟩
-  | atom a =>
-    cases a with
-    | number nm =>
-      cases nm with
-      | int m => exact ⟨1, rfl⟩
-      | rational n d hc => exact ⟨d, rfl⟩
-    | _ => exact ⟨1, rfl⟩
-
-/-- `acl2CountExec` always yields a non-negative integer. -/
-theorem acl2CountExec_nat (x : SExpr) :
-    ∃ n : Nat, acl2CountExec x = .atom (.number (.int n)) := by
-  fun_induction acl2CountExec x with
-  | case1 x _ ih1 ih2 =>
-    obtain ⟨n1, h1⟩ := ih1
-    obtain ⟨n2, h2⟩ := ih2
-    rw [h1, h2, logic_plus_int,
-        show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
-        logic_plus_int]
-    exact ⟨1 + (n1 + n2), by push_cast; ring_nf⟩
-  | case2 x _ _ _ => exact integerAbsExec_nat _
-  | case3 x _ _ _ =>
-    obtain ⟨n1, h1⟩ := integerAbsExec_nat (Logic.numerator x)
-    obtain ⟨n2, h2⟩ := logic_denominator_nat x
-    rw [h1, h2, logic_plus_int]
-    exact ⟨n1 + n2, by push_cast; ring_nf⟩
-  | case4 x _ _ hc =>
-    exact absurd hc (by simp [Logic.complexRationalp, Logic.toBool])
-  | case5 x _ _ _ _ => exact lengthExec_nat _
-  | case6 x _ _ _ _ => exact ⟨0, rfl⟩
-
-/-- `tp:ACL2-COUNT`, world-parametric — the emitted non-negative-integer
-    TP corollary (unary). -/
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:ACL2-COUNT` — the emitted non-negative-integer TP corollary
+    (unary) — Lean-side; content ACL2 derives. Statement kept as the
+    named premise; proof retired to `sorry`. UNLOCK: TP-replay
+    discharge. -/
 theorem dis_acl2_count_tp (w : World)
     (h_ac : w.defs.get? acl2_count_sym = some ([xS], acl2CountBody))
     (h_ia : w.defs.get? integer_abs_sym = some ([xS], integerAbsBody))
@@ -3715,17 +3531,7 @@ theorem dis_acl2_count_tp (w : World)
     (bif Logic.toBool (Logic.integerp v) then
       Logic.not (Logic.lt v (.atom (.number (.int 0))))
     else SExpr.nil) = SExpr.t := by
-  obtain ⟨N0, u0, h0⟩ :=
-    conv_args1_of_conv_app w e' { name := "ACL2-COUNT" } a0 v (by decide) h
-  have happ := acl2_count_exec_corr w h_ac h_ia h_len h_no_consp h_no_car
-    h_no_cdr h_no_plus h_no_rationalp h_no_integerp h_no_num h_no_den
-    h_no_crp h_no_stringp h_no_len h_no_coerce h_no_ltb h_no_neg
-    e' a0 u0 ⟨N0, h0⟩
-  rw [val_unique h happ]
-  obtain ⟨n, hn⟩ := acl2CountExec_nat u0
-  rw [hn]
-  simp [Logic.integerp, Logic.lt, Logic.not, Logic.toRat, Logic.toBool,
-    show ¬((n : Int) < 0) from by omega]
+  sorry
 
 /-! ## The `qsort` exec kit -/
 
@@ -4123,7 +3929,11 @@ theorem pce_exec_corr (w : World)
   exact conv_defn_2 w env pce_sym a b av bv xS yS pceBody _
     pce_ns h_pce ha hb (hbody av bv)
 
-/-- `total:PERM-COUNTER-EXAMPLE` — the driver-shape totality statement. -/
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `total:PERM-COUNTER-EXAMPLE` — the driver-shape totality premise —
+    Lean-side; content ACL2 derives at admission. Statement kept as the
+    named premise; proof retired to `sorry`. UNLOCK: `with_termination`
+    admission-replay coverage (REQUIRED-class debt). -/
 theorem dis_pce_total (w : World)
     (h_pce : w.defs.get? pce_sym = some ([xS, yS], pceBody))
     (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
@@ -4141,223 +3951,14 @@ theorem dis_pce_total (w : World)
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
       ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (pceT a0 a1) = some v := by
-  intro env' a0 a1 ⟨N0, v0, h0⟩ ⟨N1, v1, h1⟩
-  obtain ⟨N, h⟩ := pce_exec_corr w h_pce h_memb h_rm h_no_consp h_no_equal
-    h_no_car h_no_cdr h_no_cons env' a0 a1 v0 v1 ⟨N0, h0⟩ ⟨N1, h1⟩
-  exact ⟨N, pceExec v0 v1, h⟩
+  sorry
 
-/-! ### The counting sub-lemmas (all at the exec level, over ALL
-values — the convert-perm book's ingredient facts) -/
-
-/-- `membExec` is two-valued. -/
-theorem membExec_t_or_nil (a x : SExpr) :
-    membExec a x = SExpr.t ∨ membExec a x = SExpr.nil := by
-  fun_induction membExec a x with
-  | case1 x _ _ => exact Or.inl rfl
-  | case2 x _ _ ih => exact ih
-  | case3 x _ => exact Or.inr rfl
-
-/-- The head counts itself: `how-many (car x) x ≥ 1` on a cons. -/
-private theorem howManyExec_head_pos (a d : SExpr) :
-    ∃ n : Nat, howManyExec (Logic.car (SExpr.cons a d)) (SExpr.cons a d)
-      = .atom (.number (.int (n + 1))) := by
-  rw [howManyExec.eq_def,
-      if_pos (show Logic.toBool (Logic.consp (SExpr.cons a d)) = true
-        from rfl),
-      if_pos (show Logic.toBool (Logic.equal (Logic.car (SExpr.cons a d))
-        (Logic.car (SExpr.cons a d))) = true from by
-          simp [Logic.equal, Logic.toBool, SExpr.t]),
-      show Logic.cdr (SExpr.cons a d) = d from rfl]
-  obtain ⟨n, hn⟩ := howManyExec_nat (Logic.car (SExpr.cons a d)) d
-  rw [hn, logic_plus_int]
-  refine ⟨n, ?_⟩
-  congr 3
-  omega
-
-/-- One cons step of the count. -/
-private theorem howManyExec_cons (e hd z : SExpr) :
-    howManyExec e (SExpr.cons hd z)
-      = (if (e == hd) = true then
-          Logic.plus int1 (howManyExec e z)
-         else howManyExec e z) := by
-  rw [howManyExec.eq_def,
-      if_pos (show Logic.toBool (Logic.consp (SExpr.cons hd z)) = true
-        from rfl),
-      show Logic.car (SExpr.cons hd z) = hd from rfl,
-      show Logic.cdr (SExpr.cons hd z) = z from rfl,
-      toBool_equal]
-  rfl
-
-/-- The count/erase interaction: erasing `b` decrements `e`'s count
-    exactly when `e = b` and `b` was present, else leaves it
-    unchanged. -/
-private theorem howManyExec_rmExec (e b y : SExpr) :
-    howManyExec e (rmExec b y)
-      = (if e == b ∧ Logic.toBool (membExec b y) = true then
-          .atom (.number (.int (Logic.toInt (howManyExec e y) - 1)))
-         else howManyExec e y) := by
-  fun_induction rmExec b y with
-  | case1 y hc heq =>
-    -- rm hit the head: b == car y
-    cases y with
-    | nil => simp [Logic.consp, Logic.toBool] at hc
-    | atom _ => simp [Logic.consp, Logic.toBool] at hc
-    | cons hd tl =>
-      rw [show Logic.car (SExpr.cons hd tl) = hd from rfl,
-          toBool_equal] at heq
-      have h2 := eq_of_beq heq
-      subst h2
-      rw [show Logic.cdr (SExpr.cons b tl) = tl from rfl]
-      have hmemb : Logic.toBool (membExec b (SExpr.cons b tl)) = true := by
-        rw [membExec.eq_def, if_pos hc,
-            if_pos (by rw [show Logic.car (SExpr.cons b tl) = b from rfl,
-              toBool_equal]; simp)]
-        rfl
-      by_cases heb : (e == b) = true
-      · rw [if_pos ⟨heb, hmemb⟩, howManyExec_cons,
-            if_pos (by rw [show e = b from eq_of_beq heb]; simp)]
-        obtain ⟨n, hn⟩ := howManyExec_nat e tl
-        rw [hn, show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
-            logic_plus_int]
-        simp [Logic.toInt]
-      · rw [if_neg (fun hcon => heb hcon.1), howManyExec_cons,
-            if_neg (by intro hcon; exact heb (by
-              rw [show (e == b) = (e == b) from rfl]
-              have := eq_of_beq hcon
-              subst this; simp))]
-  | case2 y hc heq ih =>
-    -- rm recursed past the head
-    cases y with
-    | nil => simp [Logic.consp, Logic.toBool] at hc
-    | atom _ => simp [Logic.consp, Logic.toBool] at hc
-    | cons hd tl =>
-      rw [show Logic.car (SExpr.cons hd tl) = hd from rfl,
-          toBool_equal] at heq
-      have hbhd : (b == hd) = false := by
-        cases h : b == hd with
-        | true => exact absurd h (by simpa using heq)
-        | false => rfl
-      rw [show Logic.cdr (SExpr.cons hd tl) = tl from rfl] at ih ⊢
-      rw [show Logic.car (SExpr.cons hd tl) = hd from rfl]
-      have hmembEq : membExec b (SExpr.cons hd tl) = membExec b tl := by
-        rw [membExec.eq_def, if_pos hc,
-            if_neg (by rw [show Logic.car (SExpr.cons hd tl) = hd from rfl,
-              toBool_equal, hbhd]; simp),
-            show Logic.cdr (SExpr.cons hd tl) = tl from rfl]
-      rw [show Logic.cons hd (rmExec b tl) = SExpr.cons hd (rmExec b tl)
-            from rfl,
-          howManyExec_cons, howManyExec_cons, ih, hmembEq]
-      by_cases hcond : e == b ∧ Logic.toBool (membExec b tl) = true
-      · rw [if_pos hcond, if_pos hcond]
-        cases hehd : e == hd with
-        | true =>
-          rw [if_pos rfl, if_pos rfl]
-          obtain ⟨n, hn⟩ := howManyExec_nat e tl
-          rw [hn, show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
-              logic_plus_int, logic_plus_int]
-          simp only [Logic.toInt]
-          congr 3
-          omega
-        | false =>
-          rw [if_neg (by simp), if_neg (by simp)]
-      · rw [if_neg hcond, if_neg hcond]
-  | case3 y hc =>
-    -- y non-cons: rm = nil, memb = nil
-    have hm : membExec b y = SExpr.nil := by
-      rw [membExec.eq_def, if_neg hc]
-    rw [hm,
-        if_neg (by intro hcon; exact absurd hcon.2 (by
-          simp [Logic.toBool])),
-        howManyExec.eq_def (x := y), if_neg hc,
-        howManyExec.eq_def (x := SExpr.nil),
-        if_neg (by simp [Logic.consp, Logic.toBool])]
-
-private theorem logic_equal_int (a b : Int) :
-    Logic.equal (.atom (.number (.int a))) (.atom (.number (.int b)))
-      = (if a = b then SExpr.t else SExpr.nil) := by
-  by_cases h : a = b
-  · subst h; simp [Logic.equal]
-  · simp [Logic.equal, h]
-
-/-- THE CONVERT-PERM-TO-HOW-MANY content, at the exec level over ALL
-    values: `perm` IS the count comparison at the counter-example
-    element. (The included book's main theorem, value-level.) -/
-theorem permExec_eq_convert (x y : SExpr) :
-    permExec x y
-      = Logic.equal (howManyExec (pceExec x y) x)
-          (howManyExec (pceExec x y) y) := by
-  fun_induction pceExec x y with
-  | case1 x y hc hm ih =>
-    -- x cons, (memb (car x) y) true
-    cases x with
-    | nil => simp [Logic.consp, Logic.toBool] at hc
-    | atom _ => simp [Logic.consp, Logic.toBool] at hc
-    | cons hd tl =>
-      rw [show Logic.car (SExpr.cons hd tl) = hd from rfl] at hm ih
-      rw [show Logic.cdr (SExpr.cons hd tl) = tl from rfl] at ih
-      rw [permExec.eq_def, if_pos hc,
-          show Logic.car (SExpr.cons hd tl) = hd from rfl,
-          show Logic.cdr (SExpr.cons hd tl) = tl from rfl,
-          if_pos hm, ih]
-      set p := pceExec tl (rmExec hd y) with hp
-      rw [howManyExec_cons, howManyExec_rmExec]
-      obtain ⟨m, hmv⟩ := howManyExec_nat p tl
-      obtain ⟨k, hkv⟩ := howManyExec_nat p y
-      by_cases hph : (p == hd) = true
-      · rw [if_pos ⟨hph, hm⟩, if_pos hph, hmv, hkv,
-            show int1 = (.atom (.number (.int 1)) : SExpr) from rfl,
-            logic_plus_int]
-        simp only [Logic.toInt]
-        rw [logic_equal_int, logic_equal_int]
-        by_cases hmk : (m : Int) = (k : Int) - 1
-        · rw [if_pos hmk, if_pos (by omega)]
-        · rw [if_neg hmk, if_neg (by omega)]
-      · rw [if_neg (fun hcon => hph hcon.1), if_neg hph]
-  | case2 x y hc hm =>
-    -- x cons, (memb (car x) y) false: perm is nil, and the counter-example
-    -- (car x) witnesses it
-    cases x with
-    | nil => simp [Logic.consp, Logic.toBool] at hc
-    | atom _ => simp [Logic.consp, Logic.toBool] at hc
-    | cons hd tl =>
-      rw [permExec.eq_def, if_pos hc, if_neg hm]
-      have hmnil : membExec (Logic.car (SExpr.cons hd tl)) y
-          = SExpr.nil := by
-        rcases membExec_t_or_nil (Logic.car (SExpr.cons hd tl)) y with
-          h | h
-        · rw [h] at hm; exact absurd rfl hm
-        · exact h
-      rw [howManyExec_zero_of_membExec_nil _ _ hmnil]
-      obtain ⟨n, hn⟩ := howManyExec_head_pos hd tl
-      rw [hn, logic_equal_int, if_neg (by omega)]
-  | case3 x y hc =>
-    -- x non-cons: perm is (if (consp y) nil t); the counter-example is
-    -- (car y)
-    have hx0 : howManyExec (Logic.car y) x = .atom (.number (.int 0)) := by
-      rw [howManyExec.eq_def, if_neg hc]
-    rw [permExec.eq_def, if_neg hc, hx0]
-    cases y with
-    | nil =>
-      rw [if_neg (by simp [Logic.consp, Logic.toBool]),
-          show howManyExec (Logic.car SExpr.nil) SExpr.nil
-            = .atom (.number (.int 0)) from by
-              rw [howManyExec.eq_def]; rfl,
-          logic_equal_int, if_pos rfl]
-    | atom a =>
-      rw [if_neg (by simp [Logic.consp, Logic.toBool]),
-          show howManyExec (Logic.car (SExpr.atom a)) (SExpr.atom a)
-            = .atom (.number (.int 0)) from by
-              rw [howManyExec.eq_def]
-              exact if_neg (by simp [Logic.consp, Logic.toBool]),
-          logic_equal_int, if_pos rfl]
-    | cons hd tl =>
-      rw [if_pos (show Logic.toBool (Logic.consp (SExpr.cons hd tl))
-        = true from rfl)]
-      obtain ⟨n, hn⟩ := howManyExec_head_pos hd tl
-      rw [hn, logic_equal_int, if_neg (by omega)]
-
-/-- `rule:CONVERT-PERM-TO-HOW-MANY` — the stored included-book rule,
-    world-parametric, from the exec-level characterization. -/
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `rule:CONVERT-PERM-TO-HOW-MANY` — the stored included-book rule's
+    content — Lean-side; content ACL2 derives. Statement kept as the
+    named premise; proof retired to `sorry`. UNLOCK: the R-lane arc
+    (PERM-TLFIX replay → CONVERT-PERM-TO-HOW-MANY discharge via the
+    replayed tree). -/
 theorem dis_convert_perm (w : World)
     (h_perm : w.defs.get? { package := "ACL2", name := "PERM" }
       = some ([{ package := "ACL2", name := "X" },
@@ -4381,20 +3982,7 @@ theorem dis_convert_perm (w : World)
         = evalOpt f w env'
             (equalT (howManyT (pceT xT yT) xT)
               (howManyT (pceT xT yT) yT)) := by
-  intro env'
-  obtain ⟨vx, hx⟩ := conv_var w env' xS (by decide)
-  obtain ⟨vy, hy⟩ := conv_var w env' yS (by decide)
-  have hperm := perm_exec_corr w h_perm h_memb h_rm h_no_consp h_no_equal
-    h_no_car h_no_cdr h_no_cons env' xT yT vx vy hx hy
-  have hpce := pce_exec_corr w h_pce h_memb h_rm h_no_consp h_no_equal
-    h_no_car h_no_cdr h_no_cons env' xT yT vx vy hx hy
-  have hhm1 := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
-    h_no_cdr h_no_plus env' (pceT xT yT) xT (pceExec vx vy) vx hpce hx
-  have hhm2 := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
-    h_no_cdr h_no_plus env' (pceT xT yT) yT (pceExec vx vy) vy hpce hy
-  have hEq := conv_builtin2 w env' { name := "EQUAL" } _ _ _ _ _
-    (by decide) h_no_equal hhm1 hhm2 (callBuiltin_equal _ _)
-  exact fuel_eq_of_conv hperm hEq (permExec_eq_convert vx vy)
+  sorry
 
 /-! ## PERM-QSORT -/
 
@@ -4921,7 +4509,11 @@ theorem bnext_exec_corr (w : World)
   exact conv_defn_1 w env bnext_sym x xv xS bnextBody _
     bnext_ns h_bnext hx (hbody xv)
 
-/-- The `total:BNEXT` discharger — bnext's totality from the corr. -/
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `total:BNEXT` — bnext's driver-shape totality premise — Lean-side;
+    content ACL2 derives at admission. Statement kept as the named
+    premise; proof retired to `sorry`. UNLOCK: `with_termination`
+    admission-replay coverage (REQUIRED-class debt). -/
 theorem dis_bnext_total (w : World)
     (h_bnext : w.defs.get? bnext_sym = some ([xS], bnextBody))
     (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
@@ -4932,10 +4524,7 @@ theorem dis_bnext_total (w : World)
     ∀ (env' : Env) (a0 : SExpr),
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
       ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (app1 "BNEXT" a0) = some v := by
-  intro env' a0 ⟨N0, v0, h0⟩
-  obtain ⟨N, h⟩ := bnext_exec_corr w h_bnext h_no_consp h_no_car h_no_cdr
-    h_no_cons h_no_lexorder env' a0 v0 ⟨N0, h0⟩
-  exact ⟨N, bnextExec v0, h⟩
+  sorry
 
 /-- The HOW-MANY-BNEXT replayed-statement formula:
     `(EQUAL (HOW-MANY E (BNEXT X)) (HOW-MANY E X))`. -/

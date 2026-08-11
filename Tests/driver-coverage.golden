@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 113/116 (45 unconditional + 68 conditional)
+Driver coverage — REPLAYED 110/116 (45 unconditional + 65 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
@@ -148,6 +148,6 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, tp:ACL2-COUNT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
 • sorting/sorts-equivalent  (world: 214 defun(s), 3 theorem(s))
-    MSORT-IS-ISORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, tp:HOW-MANY, tp:INSERT, tp:EVENS, rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY]
-    QSORT-IS-ISORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:QSORT, total:O<, tp:HOW-MANY, tp:INSERT, tp:QSORT, tp:ALL-REL, tp:ACL2-COUNT, rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:HOW-MANY-FILTER-1, rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND]
-    BSORT-IS-ISORT → REPLAYED ✓ cond[total:BNEXT, total:BSORT, total:O<, total:O-P, tp:HOW-MANY, tp:INSERT, tp:BNEXT-SIZE, rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY, rule:ORDEREDP-ISORT, rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BNEXT, rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT, linear:HOW-MANY-BAD-PAIRS-BNEXT]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]
+    MSORT-IS-ISORT → ASSUMED ◌ cond[total:MSORT, usefi:STRONG-SSORTFN1-IS-SSORTFN2, ASSUMED:fi-self]
+    QSORT-IS-ISORT → ASSUMED ◌ cond[total:QSORT, usefi:STRONG-SSORTFN1-IS-SSORTFN2, ASSUMED:fi-self]
+    BSORT-IS-ISORT → ASSUMED ◌ cond[total:BSORT, tp:HOW-MANY, tp:INSERT, rule:ORDEREDP-ISORT, rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT, usefi:WEAK-SORTFN1-IS-SORTFN2, ASSUMED:fi-self]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]

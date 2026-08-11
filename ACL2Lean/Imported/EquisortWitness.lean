@@ -9,9 +9,15 @@ corollaries (`tp:SORTFN1-INSERT` — `(CONSP …)`; `tp:SORTFN1` — the
 consp-or-nil `IF`) are the `proveTp` return-path-CONS frontier class
 kept on the equisort constraint rows and blocking the AtCanonical
 constants' full non-vacuity (deferral D1).  This module builds their
-exec kits and `derive_exec_tp%` dischargers on the established
+exec kits and (formerly `derive_exec_tp%`-generated) TP dischargers on
+the established
 hand-mirror pattern — bodies transcribed from the emitted `(:DEFUN …)`
-events (equisort.proof-log lines 123/127/13674/13678). -/
+events (equisort.proof-log lines 123/127/13674/13678).
+
+Thin-Lean ruling (2026-08-11): the four TP dischargers below keep their
+STATEMENTS (live consumers in `Mirrors/EquisortParametric`) but their
+Lean-side proofs are retired to `sorry` — see the per-theorem
+FORBIDDEN-DEBT markers. -/
 
 namespace ACL2.Worlds.Sorting
 
@@ -86,61 +92,88 @@ derive_exec% ssortfn1InsertExec corr ssortfn1_insert_exec_corr
 derive_exec% ssortfn1Exec corr ssortfn1_exec_corr
   for ssortfn1_sym formals [xS] body ssortfn1Body measured 0
 
-theorem sortfn1InsertExec_consp (e x : SExpr) :
-    Logic.consp (sortfn1InsertExec e x) = SExpr.t := by
-  rw [sortfn1InsertExec.eq_def]
-  split
-  · split <;> rfl
-  · rfl
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:SORTFN1-INSERT` — the emitted `(CONSP (SORTFN1-INSERT E X))`
+    corollary — Lean-side; content ACL2 derives. Statement kept as the
+    named premise; proof retired to `sorry`. UNLOCK: TP-replay
+    discharge for the witness fns. -/
+theorem dis_sortfn1_insert_tp (w : World)
+    (h_sortfn1_insert : w.defs.get? sortfn1_insert_sym
+      = some ([eS, xS], sortfn1InsertBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 a1 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol sortfn1_insert_sym))
+        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
+    Logic.consp v = SExpr.t := by
+  sorry
 
-theorem ssortfn1InsertExec_consp (e x : SExpr) :
-    Logic.consp (ssortfn1InsertExec e x) = SExpr.t := by
-  rw [ssortfn1InsertExec.eq_def]
-  split
-  · split <;> rfl
-  · rfl
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:SORTFN1` — the emitted consp-or-nil `IF` corollary — Lean-side;
+    content ACL2 derives. Statement kept as the named premise; proof
+    retired to `sorry`. UNLOCK: TP-replay discharge for the witness
+    fns. -/
+theorem dis_sortfn1_tp (w : World)
+    (h_sortfn1_insert : w.defs.get? sortfn1_insert_sym
+      = some ([eS, xS], sortfn1InsertBody))
+    (h_sortfn1 : w.defs.get? sortfn1_sym = some ([xS], sortfn1Body))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol sortfn1_sym))
+        (SExpr.cons a0 SExpr.nil)) = some v) :
+    (bif Logic.toBool (Logic.consp v) then SExpr.t
+      else Logic.equal v SExpr.nil) = SExpr.t := by
+  sorry
 
-theorem sortfn1Exec_consp_or_nil (x : SExpr) :
-    Logic.consp (sortfn1Exec x) = SExpr.t ∨ sortfn1Exec x = SExpr.nil := by
-  rw [sortfn1Exec.eq_def]
-  split
-  · exact Or.inl (sortfn1InsertExec_consp _ _)
-  · exact Or.inr rfl
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:SSORTFN1-INSERT` — the emitted `(CONSP (SSORTFN1-INSERT E X))`
+    corollary — Lean-side; content ACL2 derives. Statement kept as the
+    named premise; proof retired to `sorry`. UNLOCK: TP-replay
+    discharge for the witness fns. -/
+theorem dis_ssortfn1_insert_tp (w : World)
+    (h_ssortfn1_insert : w.defs.get? ssortfn1_insert_sym
+      = some ([eS, xS], ssortfn1InsertBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 a1 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol ssortfn1_insert_sym))
+        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
+    Logic.consp v = SExpr.t := by
+  sorry
 
-theorem ssortfn1Exec_consp_or_nil (x : SExpr) :
-    Logic.consp (ssortfn1Exec x) = SExpr.t
-      ∨ ssortfn1Exec x = SExpr.nil := by
-  rw [ssortfn1Exec.eq_def]
-  split
-  · exact Or.inl (ssortfn1InsertExec_consp _ _)
-  · exact Or.inr rfl
-
-/-- `tp:SORTFN1-INSERT` — the emitted `(CONSP (SORTFN1-INSERT E X))`. -/
-derive_exec_tp% dis_sortfn1_insert_tp for "SORTFN1-INSERT"
-  (v => Logic.consp v = SExpr.t)
-  ending exact sortfn1InsertExec_consp u0 u1
-
-/-- `tp:SORTFN1` — the emitted consp-or-nil `IF` corollary. -/
-derive_exec_tp% dis_sortfn1_tp for "SORTFN1"
-  (v => (bif Logic.toBool (Logic.consp v) then SExpr.t
-     else Logic.equal v SExpr.nil) = SExpr.t)
-  ending
-    rcases sortfn1Exec_consp_or_nil u0 with hc | hn
-    · rw [hc]; rfl
-    · rw [hn]; rfl
-
-/-- `tp:SSORTFN1-INSERT` — the emitted `(CONSP (SSORTFN1-INSERT E X))`. -/
-derive_exec_tp% dis_ssortfn1_insert_tp for "SSORTFN1-INSERT"
-  (v => Logic.consp v = SExpr.t)
-  ending exact ssortfn1InsertExec_consp u0 u1
-
-/-- `tp:SSORTFN1` — the emitted consp-or-nil `IF` corollary. -/
-derive_exec_tp% dis_ssortfn1_tp for "SSORTFN1"
-  (v => (bif Logic.toBool (Logic.consp v) then SExpr.t
-     else Logic.equal v SExpr.nil) = SExpr.t)
-  ending
-    rcases ssortfn1Exec_consp_or_nil u0 with hc | hn
-    · rw [hc]; rfl
-    · rw [hn]; rfl
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:SSORTFN1` — the emitted consp-or-nil `IF` corollary — Lean-side;
+    content ACL2 derives. Statement kept as the named premise; proof
+    retired to `sorry`. UNLOCK: TP-replay discharge for the witness
+    fns. -/
+theorem dis_ssortfn1_tp (w : World)
+    (h_ssortfn1_insert : w.defs.get? ssortfn1_insert_sym
+      = some ([eS, xS], ssortfn1InsertBody))
+    (h_ssortfn1 : w.defs.get? ssortfn1_sym = some ([xS], ssortfn1Body))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol ssortfn1_sym))
+        (SExpr.cons a0 SExpr.nil)) = some v) :
+    (bif Logic.toBool (Logic.consp v) then SExpr.t
+      else Logic.equal v SExpr.nil) = SExpr.t := by
+  sorry
 
 end ACL2.Worlds.Sorting

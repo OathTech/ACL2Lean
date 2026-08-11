@@ -9,6 +9,9 @@ import ACL2Lean.Imported.Mirrors.Qsort
 import ACL2Lean.Imported.Mirrors.Msort
 import ACL2Lean.Imported.Mirrors.IsChain
 import ACL2Lean.Imported.Mirrors.Bsort
+-- the provenance gate scans the WHOLE mirror layer — the witness kits'
+-- debt entries must be visible here
+import ACL2Lean.Imported.EquisortWitness
 
 namespace ACL2.Imported.Mirrors
 
@@ -65,14 +68,25 @@ private def liftCoverageGolden : String :=
 
 inductive LiftStatus where
   /-- A proved native mirror: the theorem constant + its SEAM (the
-      `driver_replayed%` constant its proof must consume). -/
+      `driver_replayed%` constant its proof must consume). Axioms must
+      be EXACTLY {propext, Classical.choice, Quot.sound} — unconditional
+      via replay, no debt (the thin-Lean ruling's REQUIRED win state). -/
   | native (decl : Lean.Name) (seam : Lean.Name)
+  /-- A native mirror carrying CLEAR-SORRY debt (thin-Lean ruling
+      2026-08-11): the decode consumes the replayed statement, but one
+      or more premises rest on sorried FORBIDDEN-DEBT statements whose
+      legitimate replay route does not exist yet. Axioms must be EXACTLY
+      the standard three + `sorryAx`; `debt` NAMES the sorried premises
+      and their unlocks. Retires to `.native` premise-by-premise as
+      coverage arcs land. -/
+  | nativeSorried (decl : Lean.Name) (seam : Lean.Name) (debt : String)
   | pending (blockedOn : String)
   | replayedOnly (why : String)
 
 /-- The catalog: one DECISION per green sweep row (book, theorem, status). -/
 def liftCatalog : List (String × String × LiftStatus) := [
-  ("simple", "MY-LEN-MY-APP", .native ``my_len_my_app_native_driver ``mylenReplayedCond),
+  ("simple", "MY-LEN-MY-APP", .nativeSorried ``my_len_my_app_native_driver ``mylenReplayedCond
+      "tp:MY-LEN (drv_tp_mylen; unlock: TP-replay discharge)"),
   ("00-direct", "GROUND-ARITH", .native ``ground_arith_native ``groundArithReplayedCond),
   ("00-direct", "SQ-OF-3", .native ``sq_of_3_native ``sqOf3ReplayedCond),
   ("00-direct", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
@@ -123,13 +137,14 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- CONVERT-PERM-TO-HOW-MANY; the three native-worthy count facts are
   -- PENDING (P3 decides), the tlfix/plumbing rows replayed-only.
   ("sorting/convert-perm-to-how-many", "HOW-MANY-RM",
-    .native ``how_many_rm_native_driver ``howManyRmReplayedCond),
+    .nativeSorried ``how_many_rm_native_driver ``howManyRmReplayedCond
+      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-RM-IS-NO-OP",
     .native ``not_memb_rm_noop_native_driver
       ``notMembRmNoopReplayedCond),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-HOW-MANY-IS-0",
-    .native ``not_memb_how_many_0_native_driver
-      ``notMembHowMany0ReplayedCond),
+    .nativeSorried ``not_memb_how_many_0_native_driver ``notMembHowMany0ReplayedCond
+      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-RM-GENERAL",
     .pending "GREENED in the endgame arc (item I's tau-basis consumer: \
       the *1/3.2 leaf discharges from the recorded slice's \
@@ -263,27 +278,13 @@ def liftCatalog : List (String × String × LiftStatus) := [
       as premises (pinned in Tests/ParametricPins.lean), which Phase \
       3's functional instantiation consumes; a \
       witness-level native is the banned masquerade"),
-  ("sorting/sorts-equivalent", "MSORT-IS-ISORT",
-    .pending "the capstone: FI of the equisort parametric theorem at \
-      msort/isort (Phase 3 2a — conditionally green on \
-      usefi:STRONG-SSORTFN1-IS-SSORTFN2 + total:MSORT; the 2c \
-      alias-world composition discharges the usefi:); its native \
-      mirror (msortL xs = isortL xs) is the Phase 4 demo artifact"),
-  ("sorting/sorts-equivalent", "QSORT-IS-ISORT",
-    .pending "the capstone: FI of the equisort parametric theorem at \
-      qsort/isort (Phase 3 2a — conditionally green on \
-      usefi:STRONG-SSORTFN1-IS-SSORTFN2 + total:QSORT; the 2c \
-      alias-world composition discharges the usefi:); its native \
-      mirror (qsortL xs = isortL xs) is the Phase 4 demo artifact"),
-  ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
-    .pending "the capstone: FI of the equisort parametric theorem at
-      bsort/isort — the usefi:WEAK-SORTFN1-IS-SORTFN2 DISCHARGED in the
-      endgame arc (the W3 one-hyp lift: TRUE-LISTP-SORTFN1/2's fn-free
-      hypothesis crosses worlds, and the unconditional consumer twin
-      may discharge the conditional constraint); the fi-self vacuity is
-      GONE (statement pin: Tests/SortingPinsEndgame). Its native mirror
-      (true-list xs → bsortL xs = isortL xs) is the bsort cluster's
-      capstone artifact"),
+  -- sorts-equivalent capstones (MSORT/QSORT/BSORT-IS-ISORT): NO entries —
+  -- their rows REGRESSED to ASSUMED under the thin-Lean purge
+  -- (2026-08-11: the usefi pre-pass lost its forbidden Lean-side
+  -- dischargers; the honest offer route carries usefi + fi-self
+  -- markers). The catalog tracks GREEN rows only; the entries (and the
+  -- retired statement pins) return when the REQUIRED-class admission
+  -- coverage + TP-replay discharge re-green the rows.
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),
@@ -298,9 +299,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
       literal-chain frontier). A hand bridge would be the banned \
       ornamental-import pattern. DECLARED at the close-out arc's close \
       (2026-08-05): blocked on those two rows, not on simulation work"),
-  ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
+  ("sorting/isort", "ORDEREDP-ISORT", .nativeSorried ``orderedp_isort_native_driver ``orderedpIsortReplayedCond
+      "tp:INSERT (dis_insert_tp; unlock: TP-replay discharge)"),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
-  ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),
+  ("sorting/isort", "HOW-MANY-ISORT", .nativeSorried ``how_many_isort_native_driver ``howManyIsortReplayedCond
+      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
   ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver ``orderedpRmReplayed),
   ("sorting/ordered-perms", "ORDEREDP-MEMB", .native ``orderedp_memb_native_driver ``orderedpMembReplayedCond),
   ("sorting/ordered-perms", "EQUAL-CONS", .native ``equal_cons_native_driver ``equalConsReplayedCond),
@@ -335,7 +338,8 @@ def liftCatalog : List (String × String × LiftStatus) := [
       yields an encoded List — no native content beyond the sim (the \
       type-absorbed true-listp doctrine, the TRUE-LISTP-RM precedent)"),
   ("sorting/bsort", "HOW-MANY-BNEXT",
-    .native ``how_many_bnext_native_driver ``howManyBnextReplayedCond),
+    .nativeSorried ``how_many_bnext_native_driver ``howManyBnextReplayedCond
+      "total:BNEXT (dis_bnext_total; unlock: with_termination coverage — REQUIRED class) + tp:HOW-MANY (dis_how_many_tp)"),
   ("sorting/bsort", "termination:BSORT",
     .replayedOnly "an internal admission obligation (BSORT's BNEXT-SIZE
       measure decrease, via HOW-MANY-BAD-PAIRS-BNEXT's :linear content),
@@ -369,23 +373,37 @@ def liftCatalog : List (String × String × LiftStatus) := [
       add-literal dedup arm); natural native over the bnext sim
       (howManySmallerL (bnextExec l) e = howManySmallerL l e), queued
       behind the bsort cluster's fork-batch greens"),
-  ("sorting/msort", "HOW-MANY-MERGE2", .native ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond),
-  ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
-  ("sorting/msort", "ORDEREDP-MSORT", .native ``orderedp_msort_native_driver ``orderedpMsortReplayedCond),
-  ("sorting/msort", "HOW-MANY-MSORT", .native ``how_many_msort_native_driver ``howManyMsortReplayedCond),
+  ("sorting/msort", "HOW-MANY-MERGE2", .nativeSorried ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond
+      "total:MERGE2 (dis_merge2_total; REQUIRED — with_termination coverage) + tp:HOW-MANY (dis_how_many_tp)"),
+  ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .nativeSorried ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond
+      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+  ("sorting/msort", "ORDEREDP-MSORT", .nativeSorried ``orderedp_msort_native_driver ``orderedpMsortReplayedCond
+      "total:MERGE2/MSORT (dis_merge2_total, dis_msort_total; REQUIRED) + tp:EVENS (dis_evens_tp)"),
+  ("sorting/msort", "HOW-MANY-MSORT", .nativeSorried ``how_many_msort_native_driver ``howManyMsortReplayedCond
+      "total:MERGE2/MSORT (REQUIRED) + tp:HOW-MANY (dis_how_many_tp)"),
   ("sorting/qsort", "termination:QSORT", .replayedOnly "an internal admission obligation, not a user-facing theorem: its native content (the filter-count decreases) IS qsortExec own kernel-checked Lean termination proof (filterExec_consCount_le)"),
-  ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
-  ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
-  ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
-  ("sorting/qsort", "HOW-MANY-QSORT", .native ``how_many_qsort_native_driver ``howManyQsortReplayedCond),
-  ("sorting/qsort", "PERM-QSORT", .native ``perm_qsort_native_driver ``permQsortReplayedCond),
+  ("sorting/qsort", "HOW-MANY-APPEND", .nativeSorried ``how_many_append_native_driver ``howManyAppendReplayedCond
+      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+  ("sorting/qsort", "ORDEREDP-APPEND", .nativeSorried ``orderedp_append_native_driver ``orderedpAppendReplayedCond
+      "tp:ALL-REL (dis_all_rel_tp) + tp:APPEND (dis_append_tp); unlock: TP-replay discharge"),
+  ("sorting/qsort", "HOW-MANY-FILTER-1", .nativeSorried ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond
+      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+  ("sorting/qsort", "HOW-MANY-QSORT", .nativeSorried ``how_many_qsort_native_driver ``howManyQsortReplayedCond
+      "total:O< (dis_o_lt_total; REQUIRED) + tp:HOW-MANY/ACL2-COUNT (dis_how_many_tp, dis_acl2_count_tp)"),
+  ("sorting/qsort", "PERM-QSORT", .nativeSorried ``perm_qsort_native_driver ``permQsortReplayedCond
+      "total:PCE/O< (dis_pce_total, dis_o_lt_total; REQUIRED) + tp:HOW-MANY/ACL2-COUNT + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the R-lane arc)"),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
-  ("sorting/qsort", "ALL-REL-FILTER-1", .native ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond),
-  ("sorting/qsort", "ALL-REL-FILTER-2", .native ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond),
-  ("sorting/qsort", "ALL-REL-RM-1", .native ``all_rel_rm_1_native_driver ``allRelRm1ReplayedCond),
-  ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
+  ("sorting/qsort", "ALL-REL-FILTER-1", .nativeSorried ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond
+      "tp:ALL-REL (dis_all_rel_tp; unlock: TP-replay discharge)"),
+  ("sorting/qsort", "ALL-REL-FILTER-2", .nativeSorried ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond
+      "tp:ALL-REL (dis_all_rel_tp; unlock: TP-replay discharge)"),
+  ("sorting/qsort", "ALL-REL-RM-1", .nativeSorried ``all_rel_rm_1_native_driver ``allRelRm1ReplayedCond
+      "tp:ALL-REL (dis_all_rel_tp; unlock: TP-replay discharge)"),
+  ("sorting/qsort", "ALL-REL-RM-2", .nativeSorried ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond
+      "tp:ALL-REL (dis_all_rel_tp; unlock: TP-replay discharge)"),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
-  ("sorting/qsort", "ORDEREDP-QSORT", .native ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond),
+  ("sorting/qsort", "ORDEREDP-QSORT", .nativeSorried ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond
+      "totals (REQUIRED) + tps + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm) + rule:ORDEREDP-APPEND rides the tainted orderedp_append wrapper; unlock: TP-replay + the R-lane"),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
 open Lean in
@@ -402,7 +420,13 @@ run_cmd Lean.Elab.Command.liftCoreM do
   for (b, n) in rows do
     match liftCatalog.filter (fun (cb, cn, _) => cb == b && cn == n) with
     | [(_, _, st)] =>
-      if let .native decl seam := st then
+      -- `.nativeSorried` (thin-Lean ruling 2026-08-11) rides the same
+      -- existence + seam checks; only the axiom gate distinguishes it
+      let declSeam? := match st with
+        | .native decl seam => some (decl, seam)
+        | .nativeSorried decl seam _ => some (decl, seam)
+        | _ => none
+      if let some (decl, seam) := declSeam? then
         unless (← getEnv).contains decl do
           throwError "lift-coverage gate: {b}/{n} claims native {decl}, \
             which does not exist"
@@ -458,6 +482,14 @@ run_cmd Lean.Elab.Command.liftCoreM do
     match st with
     | .native decl _ => some decl
     | _ => none
+  -- `.nativeSorried` (thin-Lean ruling 2026-08-11): sorryAx REQUIRED
+  -- (an entry that loses its debt must be PROMOTED to `.native`, so the
+  -- debt registry cannot silently overstate) and nothing else beyond
+  -- the classical trio.
+  let catalogSorried : List Name := liftCatalog.filterMap fun (_, _, st) =>
+    match st with
+    | .nativeSorried decl _ _ => some decl
+    | _ => none
   let corollaries : List Name :=
     [``ACL2.Imported.Mirrors.perm_cons_native_perm_driver,
      ``ACL2.Imported.Mirrors.isPerm_equivalence_driver,
@@ -466,19 +498,32 @@ run_cmd Lean.Elab.Command.liftCoreM do
      ``ACL2.Imported.Mirrors.perm_erase_perm_driver,
      ``ACL2.Imported.Mirrors.mem_transport_perm_driver,
      ``ACL2.Imported.Mirrors.ordered_perms_native_perm_driver,
-     ``ACL2.Imported.Mirrors.perm_qsort_perm_driver,
-     ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,
      ``ACL2.Imported.Mirrors.orderedp_rm_isChain_driver,
      ``ACL2.Imported.Mirrors.orderedp_memb_isChain_driver,
+     ``ACL2.Imported.Mirrors.p5_dupp_prepend_native_driver]
+  -- Mathlib-form corollaries of SORRIED natives inherit the debt
+  let sorriedCorollaries : List Name :=
+    [``ACL2.Imported.Mirrors.perm_qsort_perm_driver,
+     ``ACL2.Imported.Mirrors.orderedp_isort_isChain_driver,
      ``ACL2.Imported.Mirrors.orderedp_msort_isChain_driver,
      ``ACL2.Imported.Mirrors.orderedp_qsort_isChain_driver,
-     ``ACL2.Imported.Mirrors.p5_dupp_prepend_native_driver,
      ``ACL2.Imported.Mirrors.p7_dub_len_native_driver]
   for n in (catalogNatives ++ corollaries) do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
       throwError "native-entry axiom gate: {n} uses forbidden axioms {bad}"
+  for n in (catalogSorried ++ sorriedCorollaries) do
+    let axs ← collectAxioms n
+    let bad := axs.filter (fun a =>
+      !allowed.contains a && a != ``sorryAx)
+    unless bad.isEmpty do
+      throwError "native-entry axiom gate: sorried entry {n} uses \
+        forbidden axioms {bad}"
+    unless axs.contains ``sorryAx do
+      throwError "native-entry axiom gate: {n} is catalogued \
+        .nativeSorried but carries NO sorryAx — its debt is retired; \
+        PROMOTE the entry to .native"
 
 -- CRITERION-1 GATE (audit 2026-07-31, outside finding §8): mirror
 -- STATEMENT vocabulary, mechanized — every `.native` entry's TYPE must
@@ -500,7 +545,11 @@ run_cmd Lean.Elab.Command.liftCoreM do
   let exempt : List Name :=
     [``ACL2.Imported.Mirrors.true_listp_flatten_native_driver]
   for (b, n, st) in liftCatalog do
-    if let .native decl _ := st then
+    let decl? := match st with
+      | .native decl _ => some decl
+      | .nativeSorried decl _ _ => some decl
+      | _ => none
+    if let some decl := decl? then
       if exempt.contains decl then continue
       let some ci := (← getEnv).find? decl
         | throwError "criterion-1 gate: {decl} missing"
@@ -512,5 +561,71 @@ run_cmd Lean.Elab.Command.liftCoreM do
         if c.toString.endsWith "Exec" then
           throwError "criterion-1 gate: {b}/{n}'s statement mentions \
             the exec function {c} (mirror criterion 1)"
+
+/-! ## PROVENANCE GATE (thin-Lean ruling 2026-08-11)
+
+Mechanizes the ban that the mirror-provenance audit found unenforced:
+no Lean-side content discharger may exist in the mirror layer outside
+(a) the D5 GzPrelude (ground-zero rule content — the ratified
+carve-out) and (b) the registered FORBIDDEN-DEBT set, every member of
+which MUST carry `sorryAx` (a from-scratch re-proof sneaking back in
+place of a sorry fails the build — the only legitimate retirement of a
+debt entry is deletion in favor of a replay route). A NEW `dis_*`/
+`drv_*` constant in the mirror namespaces matching neither list fails.
+In-Lean, deterministic (environment scan). -/
+open Lean in
+run_cmd Lean.Elab.Command.liftCoreM do
+  let d5Allowed : List Name :=
+    [``ACL2.Worlds.Sorting.dis_plus_comm,
+     ``ACL2.Worlds.Sorting.dis_plus_comm2,
+     ``ACL2.Worlds.Sorting.dis_plus_assoc,
+     ``ACL2.Worlds.Sorting.dis_plus_if_lift,
+     ``ACL2.Worlds.Sorting.dis_equal_if_lift]
+  -- the DECODE exception: dis_rule_orderedp_append transports a
+  -- replayed statement (hreplayed-consuming) — audited clean
+  let decodeAllowed : List Name :=
+    [``ACL2.Worlds.Sorting.dis_rule_orderedp_append]
+  let debtRegistry : List Name :=
+    [``ACL2.Worlds.Sorting.dis_insert_tp,
+     ``ACL2.Worlds.Sorting.dis_how_many_tp,
+     ``ACL2.Worlds.Sorting.dis_all_rel_tp,
+     ``ACL2.Worlds.Sorting.dis_append_tp,
+     ``ACL2.Worlds.Sorting.dis_evens_tp,
+     ``ACL2.Worlds.Sorting.dis_acl2_count_tp,
+     ``ACL2.Worlds.Sorting.dis_merge2_total,
+     ``ACL2.Worlds.Sorting.dis_msort_total,
+     ``ACL2.Worlds.Sorting.dis_o_lt_total,
+     ``ACL2.Worlds.Sorting.dis_pce_total,
+     ``ACL2.Worlds.Sorting.dis_bnext_total,
+     ``ACL2.Worlds.Sorting.dis_convert_perm,
+     ``ACL2.Lifting.drv_tp_len,
+     ``ACL2.Worlds.Simple.drv_tp_mylen,
+     ``ACL2.Worlds.Sorting.dis_sortfn1_insert_tp,
+     ``ACL2.Worlds.Sorting.dis_sortfn1_tp,
+     ``ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp,
+     ``ACL2.Worlds.Sorting.dis_ssortfn1_tp]
+  for n in debtRegistry do
+    let axs ← collectAxioms n
+    unless axs.contains ``sorryAx do
+      throwError "provenance gate: debt entry {n} carries no sorryAx — \
+        a Lean-side proof has replaced the sorry. Forbidden (thin-Lean \
+        ruling): retire the entry via a replay route instead"
+  let env ← getEnv
+  let mirrorNs : List Name :=
+    [`ACL2.Worlds, `ACL2.Imported, `ACL2.Lifting]
+  let mut offenders : List Name := []
+  for (c, _) in env.constants.toList do
+    if mirrorNs.any (·.isPrefixOf c) then
+      let last := c.componentsRev.headD Name.anonymous
+      let s := last.toString
+      if s.startsWith "dis_" || s.startsWith "drv_" then
+        unless d5Allowed.contains c || decodeAllowed.contains c ||
+            debtRegistry.contains c do
+          offenders := offenders ++ [c]
+  unless offenders.isEmpty do
+    throwError "provenance gate: unregistered discharger constant(s) in \
+      the mirror layer: {offenders} — Lean-side content dischargers are \
+      forbidden (thin-Lean ruling 2026-08-11); register D5 gz content in \
+      GzPrelude or route the fact through a replayed statement"
 
 end ACL2.Imported.Mirrors

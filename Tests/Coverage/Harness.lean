@@ -193,11 +193,19 @@ elab "coverage_book% " nameLit:str : command => do
                 toString (hash (toString (repr hypI)))
               unless acc.any (·.1 == key) do
                 try
+                  -- thin-Lean purge (ruling 2026-08-11): the two
+                  -- Lean-side dischargers (dis_pce_total /
+                  -- dis_how_many_tp) formerly injected here are
+                  -- FORBIDDEN-DEBT (sorried) — passing them would mint
+                  -- sorry-tainted usefi constants the row filter
+                  -- rejects. With no injected dischargers the prepare
+                  -- declines where those facts are needed and the
+                  -- capstone rows regress to the honest offer route
+                  -- (the accepted, ruled consequence; unlocks = the
+                  -- with_termination coverage + TP-replay discharge).
                   let (cName, argTys) ←
                     ACL2.Replay.Driver.withRealMaxRecDepth 131072 <|
-                    ACL2.Imported.Mirrors.prepareUseFi crossDevs
-                      [``ACL2.Worlds.Sorting.dis_pce_total,
-                       ``ACL2.Worlds.Sorting.dis_how_many_tp]
+                    ACL2.Imported.Mirrors.prepareUseFi crossDevs []
                       consumerDev wVal wExpr spec termByFn
                   acc := acc ++ [(key, cName, argTys)]
                 catch e =>

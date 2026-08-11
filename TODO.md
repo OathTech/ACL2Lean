@@ -1,5 +1,39 @@
 # ACL2Lean — project TODO
 
+> **THIN-LEAN PURGE (2026-08-11, branch mdd/mirror-provenance-purge;
+> Mike's ruling — see docs/audits/2026-08-11_mirror-provenance-audit.md
+> and the mirror-criterion memory).** The mirror layer's Lean-side
+> content re-proofs are GONE: 41 forbidden theorems deleted, 18
+> sorried as FORBIDDEN-DEBT (statements kept, `sorryAx` visible), the
+> D5 gz five re-homed to `Imported/GzPrelude.lean` (predefined-only
+> scope guard), the `derive_exec_tp%`/`derive_exec_total%` macros
+> deleted, the hand-replay chain (SimpleWorld/AppAssoc) deleted in
+> favor of the driver route. Catalog: `.nativeSorried` status (axioms
+> = trio + sorryAx REQUIRED — losing the sorry forces promotion);
+> 20 natives reclassified with named debt; the PROVENANCE GATE
+> (in-Lean env scan) bans unregistered `dis_*`/`drv_*` in the mirror
+> layer and fails any debt entry whose sorry is replaced by a proof.
+> ACCEPTED REGRESSION (ruled): the three `*-IS-ISORT` capstone rows
+> fell to ASSUMED ◌ (110/116) — the usefi pre-pass lost its forbidden
+> dischargers; three capstone statement pins retired to git history.
+> **THE DEBT REGISTRY (each entry names its unlock):**
+> - REQUIRED class (replayable — must be wired, not left sorried):
+>   `dis_merge2_total`, `dis_msort_total`, `dis_o_lt_total`,
+>   `dis_pce_total`, `dis_bnext_total` — with_termination admission
+>   coverage for MERGE2/MSORT/O</PCE/BNEXT (the machinery exists;
+>   the admissions need replay rows + wiring).
+> - TP class (unlock = a TP-replay discharge route, a named coverage
+>   item): `dis_insert_tp`, `dis_how_many_tp`, `dis_all_rel_tp`,
+>   `dis_append_tp`, `dis_evens_tp`, `dis_acl2_count_tp`,
+>   `drv_tp_len`, `drv_tp_mylen`, `dis_sortfn1_insert_tp`,
+>   `dis_sortfn1_tp`, `dis_ssortfn1_insert_tp`, `dis_ssortfn1_tp`.
+> - R-lane class: `dis_convert_perm` (unlock = PERM-TLFIX replay →
+>   CONVERT-PERM-TO-HOW-MANY discharged via the replayed tree).
+> The capstone rows/pins/catalog entries return as these retire. The
+> mirror-wave arc (bsortL + pending mirrors) must follow the win
+> states: discharge via replay or stay honestly conditional/sorried —
+> never mint new dischargers.
+
 Running backlog across all tracks. Keep this current: update when a milestone lands,
 scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`).
 This is a living index, not a spec — design detail lives in `docs/plans/` and

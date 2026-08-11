@@ -984,101 +984,11 @@ theorem conv_fix {w : World} {e : Env} {t : SExpr}
   obtain ⟨av, hav⟩ := hM M (Nat.le_refl M)
   exact ⟨av, M, fun f hf => evalOpt_ge_fuel M f w e t av hav hf⟩
 
-/-- Any len-shaped defun returns a NON-NEGATIVE INTEGER on any converging
-    argument (induction on the argument VALUE — `acl2_induction_consp`,
-    the untyped analogue of `corr_len_enc`'s encoded-list induction). -/
-theorem dis_len_int_val (w : World) (fn : String)
-    (h_ns : ({ name := fn } : Symbol).isNamed "QUOTE" = false ∧
-            ({ name := fn } : Symbol).isNamed "IF" = false ∧
-            ({ name := fn } : Symbol).isNamed "LET" = false ∧
-            ({ name := fn } : Symbol).isNamed "LET*" = false)
-    (h_fn : w.defs.get? { package := "ACL2", name := fn }
-      = some ([{ package := "ACL2", name := "X" }], lenBody fn))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none) :
-    ∀ (av : SExpr) (e' : Env) (arg : SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f w e' arg = some av) →
-    ∃ N, ∃ k : Int, 0 ≤ k ∧
-      ∀ f ≥ N, evalOpt f w e' (app1 fn arg) = some (.atom (.number (.int k))) := by
-  refine acl2_induction_consp (fun av => ∀ (e' : Env) (arg : SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f w e' arg = some av) →
-    ∃ N, ∃ k : Int, 0 ≤ k ∧ ∀ f ≥ N, evalOpt f w e' (app1 fn arg)
-      = some (.atom (.number (.int k)))) ?base ?step
-  · intro av hconsp e' arg harg
-    have hx_ba : ∃ N, ∀ f ≥ N, evalOpt f w (bindArgs [xS] [av]) xT = some av :=
-      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g w _ xS av (bindArgs_x_x av)⟩
-    have hconspx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS] [av]) (conspT xT) = some .nil := by
-      have h := conv_builtin1 w _ { name := "CONSP" } xT av (Logic.consp av)
-        (by decide) h_no_consp hx_ba (callBuiltin_consp av)
-      rwa [hconsp] at h
-    have hq0_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS] [av]) q0 = some (.atom (.number (.int 0))) :=
-      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_quote g w _ _⟩
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS] [av]) (lenBody fn)
-        = some (.atom (.number (.int 0))) := by
-      obtain ⟨Ni, hi⟩ := re_if_false w (bindArgs [xS] [av]) (conspT xT)
-        (plusT q1 (app1 fn (cdrT xT))) q0 (.atom (.number (.int 0)))
-        hconspx_ba hq0_ba
-      obtain ⟨Nq, hq⟩ := hq0_ba
-      exact ⟨max Ni Nq, fun f hf => (hi f (by omega)).trans (hq f (by omega))⟩
-    obtain ⟨N, h⟩ := conv_defn_1 w e' { package := "ACL2", name := fn } arg av
-      xS (lenBody fn) (.atom (.number (.int 0))) h_ns h_fn harg hbody
-    exact ⟨N, 0, by omega, h⟩
-  · intro av hconsp ih e' arg harg
-    obtain ⟨hd, tl, rfl⟩ : ∃ hd tl, av = .cons hd tl := by
-      match av with
-      | .cons a d => exact ⟨a, d, rfl⟩
-      | .nil => exact absurd rfl hconsp
-      | .atom _ => exact absurd rfl hconsp
-    have hx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS] [.cons hd tl]) xT = some (.cons hd tl) :=
-      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_var g w _ xS _ (bindArgs_x_x _)⟩
-    have hconspx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS] [.cons hd tl]) (conspT xT)
-        = some (Logic.consp (.cons hd tl)) :=
-      conv_builtin1 w _ { name := "CONSP" } xT (.cons hd tl)
-        (Logic.consp (.cons hd tl)) (by decide) h_no_consp hx_ba
-        (callBuiltin_consp _)
-    have hcdrx_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS] [.cons hd tl]) (cdrT xT) = some tl := by
-      have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd tl)
-        (Logic.cdr (.cons hd tl)) (by decide) h_no_cdr hx_ba (callBuiltin_cdr _)
-      simpa [Logic.cdr] using h
-    have hq1_ba : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS] [.cons hd tl]) q1
-        = some (.atom (.number (.int 1))) :=
-      ⟨1, fun f hf => by obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
-                         exact evalOpt_quote g w _ _⟩
-    obtain ⟨Nk, k, hknn, hk⟩ := ih (bindArgs [xS] [.cons hd tl]) (cdrT xT) hcdrx_ba
-    have hsum : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS] [.cons hd tl]) (plusT q1 (app1 fn (cdrT xT)))
-        = some (.atom (.number (.int (1 + k)))) := by
-      have h := conv_builtin2 w _ { name := "BINARY-+" } q1 (app1 fn (cdrT xT))
-        (.atom (.number (.int 1))) (.atom (.number (.int k)))
-        (Logic.plus (.atom (.number (.int 1))) (.atom (.number (.int k))))
-        (by decide) h_no_plus hq1_ba ⟨Nk, hk⟩ (callBuiltin_plus _ _)
-      rwa [logic_plus_int] at h
-    have hbody : ∃ N, ∀ f ≥ N,
-        evalOpt f w (bindArgs [xS] [.cons hd tl]) (lenBody fn)
-        = some (.atom (.number (.int (1 + k)))) := by
-      obtain ⟨Ni, hi⟩ := re_if_true w (bindArgs [xS] [.cons hd tl]) (conspT xT)
-        (plusT q1 (app1 fn (cdrT xT))) q0 (Logic.consp (.cons hd tl))
-        (.atom (.number (.int (1 + k)))) hconspx_ba rfl hsum
-      obtain ⟨Ns, hs⟩ := hsum
-      exact ⟨max Ni Ns, fun f hf => (hi f (by omega)).trans (hs f (by omega))⟩
-    obtain ⟨N, h⟩ := conv_defn_1 w e' { package := "ACL2", name := fn } arg
-      (.cons hd tl) xS (lenBody fn) (.atom (.number (.int (1 + k))))
-      h_ns h_fn harg hbody
-    exact ⟨N, 1 + k, by omega, h⟩
-
-/-- The driver's `tp:<fn>` hypothesis for a len-shaped defun: the
-    non-negative-integer corollary at the value level. -/
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes the
+    driver's `tp:<fn>` hypothesis for a len-shaped defun (the
+    non-negative-integer corollary at the value level) Lean-side —
+    content ACL2 derives. Statement kept as the named premise; proof
+    retired to `sorry`. UNLOCK: TP-replay discharge. -/
 theorem drv_tp_len (w : World) (fn : String)
     (h_ns : ({ name := fn } : Symbol).isNamed "QUOTE" = false ∧
             ({ name := fn } : Symbol).isNamed "IF" = false ∧
@@ -1094,16 +1004,7 @@ theorem drv_tp_len (w : World) (fn : String)
     (bif Logic.toBool (Logic.integerp v) then
         Logic.not (Logic.lt v (.atom (.number (.int 0))))
       else SExpr.nil) = SExpr.t := by
-  have harg : ∃ N, ∀ f ≥ N, ∃ u, evalOpt f w e' a0 = some u :=
-    conv_arg1_of_conv_app w e' { package := "ACL2", name := fn } a0 v h_ns h
-  obtain ⟨av, hav⟩ := conv_fix harg
-  obtain ⟨M, k, hk0, hk⟩ :=
-    dis_len_int_val w fn h_ns h_fn h_no_consp h_no_plus h_no_cdr av e' a0 hav
-  have hv : v = .atom (.number (.int k)) := val_unique h ⟨M, hk⟩
-  subst hv
-  simp only [Logic.integerp, Logic.toBool, Logic.lt_int, Logic.not, cond_true]
-  rw [if_neg (by omega : ¬ k < 0)]
-  rfl
+  sorry
 
 /-! ## `Implements` instances — the operations lifted so far -/
 

@@ -899,87 +899,15 @@ private def convertPermHyp (w : World) : Prop :=
       (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
       (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y")))
 
-/-- PIN the machine statement of `MSORT-IS-ISORT`
-    (sorts-equivalent.lisp:12): the mirror of
-    `(equal (msort x) (isort x))`, conditional on merge2/msort
-    totality, the how-many/insert/evens emitted TPs, and the
-    true-listp-rm + convert-perm-to-how-many stored rules — the
-    row's exact cond[…] telescope, in order. -/
-example :
-    ∀ (env : Env),
-      totalHyp2 sortsEqPinsWorld "MERGE2" →
-      totalHyp1 sortsEqPinsWorld "MSORT" →
-      tpNonnegInt2 sortsEqPinsWorld "HOW-MANY" →
-      tpPred2 sortsEqPinsWorld "INSERT" Logic.consp →
-      tpPred1 sortsEqPinsWorld "EVENS" Logic.trueListp →
-      trueListpRmHyp sortsEqPinsWorld →
-      convertPermHyp sortsEqPinsWorld →
-      EvTrue sortsEqPinsWorld env
-        (ap2 "EQUAL" (ap1 "MSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
+/-! ## Capstone pins RETIRED (thin-Lean purge, 2026-08-11)
 
-#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
-
-/-- PIN the machine statement of `QSORT-IS-ISORT`
-    (sorts-equivalent.lisp:18): the mirror of
-    `(equal (qsort x) (isort x))`, conditional on the row's exact
-    cond[…] telescope: perm-counter-example/qsort/o< totality, the
-    four emitted TPs, true-listp-rm + convert-perm-to-how-many, the
-    arithmetic-3 commutativity + two if-lifting rules, and the three
-    qsort-book rules (how-many-filter-1, how-many-qsort — the row's
-    disclosed own-obligation assumption, audit O-3 — and
-    orderedp-append), stored forms from the emitted entries. -/
-example :
-    ∀ (env : Env),
-      totalHyp2 sortsEqPinsWorld "PERM-COUNTER-EXAMPLE" →
-      totalHyp1 sortsEqPinsWorld "QSORT" →
-      totalHyp2 sortsEqPinsWorld "O<" →
-      tpNonnegInt2 sortsEqPinsWorld "HOW-MANY" →
-      tpPred2 sortsEqPinsWorld "INSERT" Logic.consp →
-      tpPred1 sortsEqPinsWorld "QSORT" Logic.trueListp →
-      tpBool3 sortsEqPinsWorld "ALL-REL" →
-      tpNonnegInt1 sortsEqPinsWorld "ACL2-COUNT" →
-      trueListpRmHyp sortsEqPinsWorld →
-      convertPermHyp sortsEqPinsWorld →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "BINARY-+" (sym "Y") (sym "X"))
-        (ap2 "BINARY-+" (sym "X") (sym "Y")) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "BINARY-+" (sym "Y") (ap2 "BINARY-+" (sym "X") (sym "Z")))
-        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "BINARY-+" (sym "X") (ap3 "IF" (sym "A") (sym "B") (sym "C")))
-        (ap3 "IF" (sym "A")
-          (ap2 "BINARY-+" (sym "X") (sym "B"))
-          (ap2 "BINARY-+" (sym "X") (sym "C"))) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "EQUAL" (ap3 "IF" (sym "A") (sym "B") (sym "C")) (sym "X"))
-        (ap3 "IF" (sym "A")
-          (ap2 "EQUAL" (sym "B") (sym "X"))
-          (ap2 "EQUAL" (sym "C") (sym "X"))) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "BINARY-+"
-          (ap2 "HOW-MANY" (sym "E")
-            (ap3 "FILTER" (qt (sym "LT")) (sym "X") (sym "D")))
-          (ap2 "HOW-MANY" (sym "E")
-            (ap3 "FILTER" (qt (sym "GTE")) (sym "X") (sym "D"))))
-        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "HOW-MANY" (sym "E") (ap1 "QSORT" (sym "X")))
-        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
-      ruleEqHyp1 sortsEqPinsWorld
-        (ap1 "ORDEREDP" (sym "A"))
-        (ap1 "ORDEREDP"
-          (ap2 "BINARY-APPEND" (sym "A") (ap2 "CONS" (sym "E") (sym "B"))))
-        (ap3 "IF" (ap1 "ORDEREDP" (sym "B"))
-          (ap3 "IF" (ap3 "ALL-REL" (qt (sym "LTE")) (sym "A") (sym "E"))
-            (ap3 "ALL-REL" (qt (sym "GTE")) (sym "B") (sym "E"))
-            (qt .nil))
-          (qt .nil)) →
-      EvTrue sortsEqPinsWorld env
-        (ap2 "EQUAL" (ap1 "QSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
-
-#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
+The MSORT-IS-ISORT and QSORT-IS-ISORT statement pins consumed the
+sweep-registered constants, which no longer exist: the capstone rows
+regressed to ASSUMED (the honest offer route) when the forbidden
+Lean-side dischargers feeding the usefi pre-pass were sorried under the
+thin-Lean ruling. The pins RETURN verbatim when the REQUIRED-class debt
+(with_termination admission coverage for PCE/MERGE2/MSORT/O<) and the
+TP-replay discharge land and the rows re-green — the pin texts are in
+git history at this file's previous revision. -/
 
 end ACL2.Tests.SortingPins
