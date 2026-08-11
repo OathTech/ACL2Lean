@@ -629,18 +629,28 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
       else
         -- CLASS 2: alias-mentioning constraint rule — discharge the
         -- SUBSTITUTED consumer rule at the consumer world, lift by the
-        -- W3 lemmas (hypothesis-free only; STRONG's six qualify)
-        if !rspec.hyps.isEmpty || rspec.equiv != "equal" then pure none
+        -- W3 lemmas. Hypothesis-free (STRONG's six), or — the W3
+        -- ONE-HYP lift (endgame arc, charter item 5) — exactly one
+        -- FN-FREE hypothesis (TRUE-LISTP-SORTFN1/2's `(TRUE-LISTP X)`
+        -- shape): the hyp crosses worlds by `evtrue_fnfree_agree_iff`
+        -- and the conclusion lifts exactly as before.
+        if rspec.equiv != "equal" || rspec.hyps.length > 1 ||
+            !rspec.hyps.all fnFreeV then pure none
         else do
         let slhs := ACL2.Replay.substFnCalls σ rspec.lhs
         let srhs := ACL2.Replay.substFnCalls σ rspec.rhs
+        let shyps := rspec.hyps.map (ACL2.Replay.substFnCalls σ ·)
         -- exactly-one DISTINCT match (close-out audit O-2, refined in
         -- the fix round: the pool can carry byte-identical copies of
         -- one rule via the own/cross channels — those are not an
         -- ambiguity; two DIFFERENT same-shaped rules are, and get
         -- refused rather than silently resolved to the first)
+        -- a HYP-FREE consumer rule may discharge a one-hyp constraint
+        -- (strictly stronger; the premise's hyp binder is simply unused —
+        -- TRUE-LISTP-ISORT's unconditional `(TRUE-LISTP (ISORT X)) = 'T`
+        -- vs TRUE-LISTP-SORTFN2's conditional constraint)
         let cands := (consumerRules.filter (fun r =>
-            r.hyps.isEmpty && r.equiv == "equal"
+            (r.hyps == shyps || r.hyps.isEmpty) && r.equiv == "equal"
             && r.lhs == slhs && r.rhs == srhs)).eraseDups
         if cands.length > 1 then
           Driver.throwFrontier m!"usefi ruleBridge: {cands.length} \
@@ -665,7 +675,29 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
             catch e => Driver.throwFrontier m!"usefi bridge: consumer \
               discharge of {cspec.name} failed: {e.toMessageData}"
           withLocalDeclD `envr (mkConst ``ACL2.Env) fun erV => do
-            let hAtW := mkApp pfW erV
+            -- W3 one-hyp: bind the alias-world hypothesis binder and
+            -- cross it to the consumer world by fn-freeness
+            let hypDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+              (rspec.hyps.map fun h0 =>
+                (`hh, BinderInfo.default, fun (_ : Array Expr) => do
+                  mkAppM ``EvTrue #[wAliasE, erV, Driver.reflectSExpr h0])).toArray
+            withLocalDecls hypDecls fun hypVs => do
+            let hAtW ← do
+              let mut acc := mkApp pfW erV
+              -- apply exactly the CONSUMER rule's hypotheses (== the
+              -- substituted constraint's, or NONE when the consumer rule
+              -- is the stronger hyp-free form)
+              for (h0, hhV) in (rspec.hyps.zip hypVs.toList).take
+                  cspec.hyps.length do
+                let hfree ← Driver.proveByDecide (← mkEq
+                  (← mkAppM ``ACL2.Replay.fnFreeTerm
+                    #[namesE, Driver.reflectSExpr h0])
+                  (mkConst ``Bool.true)) "bridge fnFree hyp"
+                let iff ← mkAppM ``ACL2.Replay.evtrue_fnfree_agree_iff
+                  #[namesE, cfg.worldExpr, wAliasE, hagree, hw, erV,
+                    Driver.reflectSExpr h0, hfree]
+                acc := mkApp acc (← mkAppM ``Iff.mp #[iff, hhV])
+              pure acc
             let mkFnFreePf := fun (t : SExpr) (what : String) => do
               Driver.proveByDecide (← mkEq
                 (← mkAppM ``ACL2.Replay.fnFreeTerm
@@ -719,7 +751,7 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
                     ← mkFnFreePf slhs "bridge fnFree slhs",
                     ← mkFnFreePf rspec.rhs "bridge fnFree rhs",
                     erV, hAtW, hconv]
-            let pf ← mkLambdaFVars #[erV] pfc
+            let pf ← mkLambdaFVars (#[erV] ++ hypVs) pfc
             pure (some (← Lean.Meta.mkExpectedTypeHint pf bTy))
     let useBridge := fun (uspec : UseSpec) (bTy : Expr) => do
       -- alias-free cited theorem: discharge at the consumer world,

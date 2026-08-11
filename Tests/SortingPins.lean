@@ -243,13 +243,13 @@ def sortingStatementPinsRun : True := sorting_statement_pins_run%
 
 /-! ## Term helpers (transcription vocabulary) -/
 
-private def sym (n : String) : SExpr := .atom (.symbol { name := n })
-private def ap1 (f : String) (a : SExpr) : SExpr := .cons (sym f) (.cons a .nil)
-private def ap2 (f : String) (a b : SExpr) : SExpr := .cons (sym f) (.cons a (.cons b .nil))
+def sym (n : String) : SExpr := .atom (.symbol { name := n })
+def ap1 (f : String) (a : SExpr) : SExpr := .cons (sym f) (.cons a .nil)
+def ap2 (f : String) (a b : SExpr) : SExpr := .cons (sym f) (.cons a (.cons b .nil))
 private def ap3 (f : String) (a b c : SExpr) : SExpr :=
   .cons (sym f) (.cons a (.cons b (.cons c .nil)))
 /-- `(QUOTE e)`. -/
-private def qt (e : SExpr) : SExpr := .cons (sym "QUOTE") (.cons e .nil)
+def qt (e : SExpr) : SExpr := .cons (sym "QUOTE") (.cons e .nil)
 
 /-- ACL2's translation of a `(syntaxp (quotep v))` hypothesis:
     `(SYNP 'NIL '(SYNTAXP (QUOTEP v)) '(IF (QUOTEP v) 'T 'NIL))`. -/
@@ -265,13 +265,13 @@ private def synpQuotep (v : String) : SExpr :=
 
 /-- `total:<fn>` for a unary world fn: if the argument converges, the
     application converges. -/
-private def totalHyp1 (w : World) (fn : String) : Prop :=
+def totalHyp1 (w : World) (fn : String) : Prop :=
   ∀ (env' : Env) (a0 : SExpr),
     (∃ N v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
     ∃ N v, ∀ f ≥ N, evalOpt f w env' (ap1 fn a0) = some v
 
 /-- `total:<fn>` for a binary world fn. -/
-private def totalHyp2 (w : World) (fn : String) : Prop :=
+def totalHyp2 (w : World) (fn : String) : Prop :=
   ∀ (env' : Env) (a0 a1 : SExpr),
     (∃ N v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
     (∃ N v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
@@ -279,7 +279,7 @@ private def totalHyp2 (w : World) (fn : String) : Prop :=
 
 /-- `tp:<fn>` (unary), emitted corollary "a non-negative integer":
     `(and (integerp v) (not (< v 0)))` at the value level. -/
-private def tpNonnegInt1 (w : World) (fn : String) : Prop :=
+def tpNonnegInt1 (w : World) (fn : String) : Prop :=
   ∀ (env' : Env) (a0 v : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w env' (ap1 fn a0) = some v) →
     (bif Logic.toBool (Logic.integerp v) then
@@ -287,7 +287,7 @@ private def tpNonnegInt1 (w : World) (fn : String) : Prop :=
     else SExpr.nil) = SExpr.t
 
 /-- `tp:<fn>` (binary), non-negative-integer corollary. -/
-private def tpNonnegInt2 (w : World) (fn : String) : Prop :=
+def tpNonnegInt2 (w : World) (fn : String) : Prop :=
   ∀ (env' : Env) (a0 a1 v : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w env' (ap2 fn a0 a1) = some v) →
     (bif Logic.toBool (Logic.integerp v) then
@@ -301,7 +301,7 @@ private def tpPred1 (w : World) (fn : String) (pred : SExpr → SExpr) : Prop :=
     pred v = SExpr.t
 
 /-- `tp:<fn>` (binary), single-predicate corollary (e.g. `consp`). -/
-private def tpPred2 (w : World) (fn : String) (pred : SExpr → SExpr) : Prop :=
+def tpPred2 (w : World) (fn : String) (pred : SExpr → SExpr) : Prop :=
   ∀ (env' : Env) (a0 a1 v : SExpr),
     (∃ N, ∀ f ≥ N, evalOpt f w env' (ap2 fn a0 a1) = some v) →
     pred v = SExpr.t
@@ -309,11 +309,11 @@ private def tpPred2 (w : World) (fn : String) (pred : SExpr → SExpr) : Prop :=
 /-- `rule:<thm>` for an unconditional rewrite: lhs and rhs evaluate
     identically in every environment (over the rule's own variables, free
     in the term and bound by the env quantifier). -/
-private def ruleEqHyp (w : World) (lhs rhs : SExpr) : Prop :=
+def ruleEqHyp (w : World) (lhs rhs : SExpr) : Prop :=
   ∀ env' : Env, ∃ N, ∀ f ≥ N, evalOpt f w env' lhs = evalOpt f w env' rhs
 
 /-- `rule:<thm>` for a ONE-hypothesis conditional rewrite. -/
-private def ruleEqHyp1 (w : World) (hyp lhs rhs : SExpr) : Prop :=
+def ruleEqHyp1 (w : World) (hyp lhs rhs : SExpr) : Prop :=
   ∀ env' : Env, EvTrue w env' hyp →
     ∃ N, ∀ f ≥ N, evalOpt f w env' lhs = evalOpt f w env' rhs
 

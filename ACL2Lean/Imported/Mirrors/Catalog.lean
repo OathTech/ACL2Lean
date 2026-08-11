@@ -275,11 +275,15 @@ def liftCatalog : List (String × String × LiftStatus) := [
       usefi:STRONG-SSORTFN1-IS-SSORTFN2 + total:QSORT; the 2c \
       alias-world composition discharges the usefi:); its native \
       mirror (qsortL xs = isortL xs) is the Phase 4 demo artifact"),
-  -- BSORT-IS-ISORT: NO entry while ASSUMED ◌ (audit 2026-08-09 outside
-  -- D1 — the kept usefi:WEAK-SORTFN1-IS-SORTFN2 hypothesis IS the goal,
-  -- so the conditionally-green row was vacuous; the fi-self choke point
-  -- now classes it ASSUMED). The D3 composition stands; the entry (and
-  -- its statement pin) land when the usefi discharges (bsort cluster).
+  ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
+    .pending "the capstone: FI of the equisort parametric theorem at
+      bsort/isort — the usefi:WEAK-SORTFN1-IS-SORTFN2 DISCHARGED in the
+      endgame arc (the W3 one-hyp lift: TRUE-LISTP-SORTFN1/2's fn-free
+      hypothesis crosses worlds, and the unconditional consumer twin
+      may discharge the conditional constraint); the fi-self vacuity is
+      GONE (statement pin: Tests/SortingPinsEndgame). Its native mirror
+      (true-list xs → bsortL xs = isortL xs) is the bsort cluster's
+      capstone artifact"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),

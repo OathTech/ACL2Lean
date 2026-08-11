@@ -10,6 +10,7 @@ import Tests.TermOrderTest
 import Tests.DriverTests
 import Tests.PatternPins
 import Tests.SortingPins
+import Tests.SortingPinsEndgame
 import Tests.ParametricPins
 import Tests.TamperTests
 import Tests.SpikeTauOmega
