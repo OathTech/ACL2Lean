@@ -32,7 +32,10 @@ hand-written here that the transfer kit should generate or subsume):
 4. `encList_inj`/`map_inj` (injectivity plumbing) → transfer-kit
    lemma (C1).
 5. The transport assembly in `app_assoc_int` (rewrite-lift-pullback)
-   → `mirror transport`-generated (C3). -/
+   → `mirror transport`-generated (C3).
+6. `len_agree_length` + `len_map_invariant` (the len squares) →
+   mirror_iso%-generated (C2); the Nat-result transport pattern in
+   `len_app_int` (no injectivity needed — numeric conclusion) → C3. -/
 
 namespace ACL2Lean.MirrorProofs
 
@@ -114,5 +117,47 @@ theorem app_assoc_int : Basics.app_assoc Int := by
 /-- info: 'ACL2Lean.MirrorProofs.app_assoc_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms app_assoc_int
+
+/-! ## The stretch: `len_app` — the first honest debt inheritance -/
+
+/-- Square: our spec-layer `len` agrees with core `length`
+    (vocabulary alignment — the waypoint speaks `length`). -/
+theorem len_agree_length :
+    ∀ (xs : List SExpr), Basics.len xs = xs.length
+  | [] => rfl
+  | _ :: t => by simp only [Basics.len, List.length, len_agree_length t]
+
+/-- Square: mapping the embedding preserves our `len` (homomorphism
+    over OUR function's skeleton). -/
+theorem len_map_invariant (e : Acl2Embed α) :
+    ∀ (xs : List α), Basics.len (xs.map e.enc) = Basics.len xs
+  | [] => rfl
+  | _ :: t => by simp only [List.map, Basics.len, len_map_invariant e t]
+
+/-- `len`/`app` over `List SExpr`, FROM the replayed-backed waypoint
+    (three vocabulary rewrites, then exactly the waypoint theorem). -/
+theorem len_app_sexpr (xs ys : List SExpr) :
+    Basics.len (Basics.app xs ys) = Basics.len xs + Basics.len ys := by
+  rw [app_agree_append, len_agree_length, len_agree_length,
+      len_agree_length]
+  exact Imported.Waypoints.my_len_my_app_native_driver xs ys
+
+/-- **`len_app` at `Int`, via ACL2 replay** — the first mirror with
+    HONEST DEBT INHERITANCE: the MY-LEN-MY-APP waypoint is
+    `.nativeSorried` on `drv_tp_mylen` (a TP fact ACL2 discharged
+    whose replay route is the master plan's B1), so this receipt
+    carries `sorryAx` — stated here, retiring mechanically when B1
+    lands. Content enters via the waypoint and nowhere else. -/
+theorem len_app_int : Basics.len_app Int := by
+  intro xs ys
+  rw [show Basics.len (Basics.app xs ys)
+        = Basics.len ((Basics.app xs ys).map intEmbed.enc) from
+      (len_map_invariant intEmbed _).symm,
+    app_map_hom, len_app_sexpr,
+    len_map_invariant, len_map_invariant]
+
+/-- info: 'ACL2Lean.MirrorProofs.len_app_int' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms len_app_int
 
 end ACL2Lean.MirrorProofs
