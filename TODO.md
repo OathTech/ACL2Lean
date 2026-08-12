@@ -16,7 +16,10 @@
 > ACCEPTED REGRESSION (ruled): the three `*-IS-ISORT` capstone rows
 > fell to ASSUMED ◌ (110/116) — the usefi pre-pass lost its forbidden
 > dischargers; three capstone statement pins retired to git history.
-> **THE DEBT REGISTRY (each entry names its unlock):**
+> **THE DEBT REGISTRY (each entry names its unlock).** HOME (demo v2,
+> 2026-08-12): all 18 sorting-family entries live in
+> `ACL2Lean/Demo/Sorting/Assumptions.lean` — that file IS the list; the
+> other two (`drv_tp_len`, `drv_tp_mylen`) stay with their books.
 > - REQUIRED class (replayable — must be wired, not left sorried):
 >   `dis_merge2_total`, `dis_msort_total`, `dis_o_lt_total`,
 >   `dis_pce_total`, `dis_bnext_total` — with_termination admission
@@ -101,37 +104,52 @@ scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`
 This is a living index, not a spec — design detail lives in `docs/plans/` and
 `docs/notes/`.
 
-> **DEMO BUILD (2026-08-11, branch mdd/thin-lean-boundary; design
-> `docs/plans/2026-08-11_demo-design.md`, RULED APPROVED).** The
-> presentation layer. (1) `Imported/Mirrors/Showcase.lean` — the front
-> door: the three-tier trust map, then 8 headline results restated by
-> APPLYING existing catalog constants (zero new proof content) plus the
-> 4 equisort capstone constants, each with a `#guard_msgs` axiom
-> receipt on the page. (2) `docs/DEMO.md` — the four-stop reader path
-> for a Lean visitor who does not speak ACL2 (linked from README).
-> (3) `Imported/Sorting.lean` (4406 lines) split into
-> `Imported/Sorting/{Sims,Iso,IsoAdmission,Decode,DecodeSorts,Debt}.lean`
-> behind a facade — FOUR LAYERS, six modules (Iso/Decode are each two
-> purely for the 1500-line norm). `Debt.lean` imports `Sims` ALONE: the
-> 12 assumed statements are stated over the definitions only.
-> (4) `scripts/check-trust-imports.sh` + `just check-trust-imports` (in
-> `ci`): pins each layer's direct imports and checks Sims/Debt never
-> reach the proof-log/clause-tree/driver modules. Behaviour-preserving:
-> statements byte-identical (verified by a `#check` diff over the 12
-> sorried + 5 spot decodes — the only delta is private→public name
-> RENDERING for the 50 constants that now cross module boundaries),
-> golden untouched, census unchanged, 20 sorries.
-> **FOLLOW-UPS.** (a) `Imported/Perm.lean` (986 lines) was NOT split —
-> under the norm and off the demo reader path; the same four-layer
-> treatment is available whenever it is wanted. (b) The trust-import
-> gate's honest limit: `Sims`' closure DOES reach
-> `Replay.EvalLemmas`/`Replay.Lemmas.*` through `Imported/Lifting.lean`,
-> which holds the encoders and imports the eval lemmas in one module.
-> Splitting Lifting's encoder half out would make "Sims knows nothing
-> of the replay" true at the IMPORT level, not just the content level.
-> (c) `Iso`/`Decode` inherited few `/-! ##` section markers in the split
-> (they travelled with the unit they preceded); `Sims`' were rewritten
-> for the demo, the others are worth a pass.
+> **DEMO V2 — THE ROOT-AND-BRANCH REFACTOR (2026-08-12, branch
+> mdd/showcase-trust-fix; Mike's ruling: v1 smeared the trust base
+> across folders and muddled trust with mechanics — v2 is the FINAL
+> demo structure, only debt retirement changes it).** ONE folder is the
+> demo, and part 1 (trust) lives there wholly:
+> `ACL2Lean/Demo/Sorting/` = `TCB.lean` (the definitions the statements
+> mention — `isortL`/`msortL`/`qsortL`/`merge2L`/`evensL`/`insertL`/
+> `bnextL`/`bnextSizeL`/`howManySmallerL`/`pceL`/`orderedpRec`/
+> `LexSorted`/`chain2Rec`; imports `ACL2Lean.Lexorder` +
+> `Batteries.Data.List.Basic` and NOTHING else) + `AclSource.lean` (the
+> transcribed ACL2 defun data — bodies, symbols, term builders; imports
+> `ACL2Lean.Syntax` alone) + `Assumptions.lean` (ALL 18 sorting-family
+> FORBIDDEN-DEBT sorries — the 12 ex-`Sorting/Debt.lean`, the 2
+> ex-`SortingBsort`, the 4 ex-`EquisortWitness`; imports EvalOpt + TCB +
+> AclSource) + `Statements.lean` (ex-`Mirrors/Showcase.lean`, receipts
+> byte-identical, header rewritten to "the trust base is this folder").
+> THE ARROW: machinery imports demo, never the reverse — `Statements`
+> is the sole demo file importing machinery, and it is statements-only.
+> `Imported/Sorting/Sims.lean` and `Sorting/Debt.lean` DISSOLVED (the
+> remnant — `lexorder_t_or_nil`, `chain2Rec_iff_isChain`, the three
+> `relL_*` — folded into `Iso.lean`, 1095 lines); `Lifting.lean` and
+> `Perm.lean` gave up their pure term-builder/body data to
+> `AclSource.lean` and import it; `GzPrelude`'s duplicate rule-variable
+> privates deleted in favour of it.
+> **THE V1 CAVEAT IS RESOLVED.** `check-trust-imports.sh` v2 no longer
+> settles for "no proof-log/clause-tree/driver machinery": it enforces
+> a CLOSURE WHITELIST — the demo trust base reaches
+> `Syntax`/`Logic`/`Lexorder`/`Parser`/`EvalOpt` and each other, and
+> nothing else. No `Replay` module at all. (v1 could not claim this
+> because `Sims` reached `Replay.EvalLemmas` through `Lifting`; v2
+> moved the data OUT of Lifting instead of splitting Lifting.)
+> Behaviour-preserving: statements byte-identical (`#check` diff over
+> the 18 moved dischargers + 6 spot natives EMPTY after the
+> private→public normalization), the golden and every statement pin
+> untouched, census/catalog/decode counts unchanged, 20 sorries.
+> **DOCS.** `docs/demo/{1-tcb,2-replay,3-internals}.md` — part 1 the
+> folder tour + what you need not trust, part 2 the user manual (book →
+> capture → `load_development%` → `derive_world` → `driver_replayed%` →
+> native def → `derive_sim%` → decode → catalog entry, worked on
+> isort), part 3 the pipeline/gates/generators/metrics. `docs/DEMO.md`
+> is now a one-page INDEX of the three (README link unchanged).
+> **FOLLOW-UPS.** (a) `Imported/Perm.lean` (952 lines) was NOT split —
+> under the norm and off the demo reader path. (b) `Iso`/`Decode`
+> inherited few `/-! ##` section markers in the v1 split; worth a pass.
+> (c) `Assumptions.lean` imports `TCB` per the ruled pin although the
+> 18 statements reference only `AclSource` + the semantic core.
 
 > **SORTING-ENDGAME ARC (2026-08-10/11, branch mdd/sorting-endgame) —
 > 113/116, sorting 77/78; every claim point full-gated TRUE_EXIT=0.**

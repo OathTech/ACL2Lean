@@ -6,13 +6,13 @@ namespace ACL2.Imported.Mirrors
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
 /-! ## The idiomatic `List.IsChain` corollaries (mirror criterion 1):
-sortedness in Mathlib vocabulary — `IsChain (lexorderB · · = true)`,
-adjacent-pairs order over the imported total order (LexorderOrder.lean
-proves it reflexive/antisymmetric/transitive/total). -/
-
-/-- Sortedness, idiomatically. -/
-abbrev LexSorted (xs : List SExpr) : Prop :=
-  xs.IsChain (fun a b => Worlds.Sorting.lexorderB a b = true)
+sortedness in Mathlib vocabulary — `LexSorted`, i.e.
+`IsChain (lexorderB · · = true)`, adjacent-pairs order over the
+imported total order (LexorderOrder.lean proves it reflexive/
+antisymmetric/transitive/total). `LexSorted` itself is a DEFINITION the
+demo's statements mention, so it lives in `Demo/Sorting/TCB.lean` with
+the rest of the trust base; the corollaries below are the machinery
+that lands it. -/
 
 /-- ORDEREDP-ISORT, Mathlib form: insertion sort always sorts. -/
 theorem orderedp_isort_isChain_driver (xs : List SExpr) :

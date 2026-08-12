@@ -10,9 +10,9 @@ waterfall produced, replayed step by step. Genuine, faithful replay is the
 product: a proof that passes the kernel but does not mirror ACL2's reasoning
 does not count here.
 
-**Start here:** [`docs/DEMO.md`](docs/DEMO.md) — a four-stop reader path for a
-Lean user who does not speak ACL2: the headline theorems, exactly what you have
-to trust, and one worked replay.
+**Start here:** [`docs/DEMO.md`](docs/DEMO.md) — a three-part reader path for a
+Lean user who does not speak ACL2: what the trusted base is (one small folder),
+what you do to replay a book, and how the machinery works.
 
 ## How it works
 

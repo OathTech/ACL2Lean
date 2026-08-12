@@ -117,4 +117,4 @@ import ACL2Lean.Imported.Mirrors.P8ClausifyDetail
 import ACL2Lean.Imported.Mirrors.Catalog
 -- the DEMO front door: the headline results restated from the catalog
 -- constants, with their axiom receipts pinned on the page (docs/DEMO.md)
-import ACL2Lean.Imported.Mirrors.Showcase
+import ACL2Lean.Demo.Sorting.Statements

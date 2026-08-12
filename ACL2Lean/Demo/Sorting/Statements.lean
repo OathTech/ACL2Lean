@@ -1,15 +1,22 @@
 import ACL2Lean.Imported.Mirrors.Catalog
 
 /-!
-# THE SHOWCASE — what is proved, and what you have to trust
+# THE STATEMENTS — what is proved, and what you have to trust
 
-The demo's front door. Everything below is a RESTATEMENT of a catalog
-native (`Mirrors/Catalog.lean`): every proof on this page is a direct
+The demo's front door (`docs/demo/1-tcb.md` is the tour).
+
+**THE TRUST BASE IS THIS FOLDER.** For an entry whose receipt below is
+the clean trio, that means exactly two files: `TCB.lean` (the
+definitions) + this page (the statements). For an entry whose receipt
+carries `sorryAx`, add one more: `Assumptions.lean` (and, if you care
+about the ATTRIBUTION, the ACL2 transcripts those assumptions mention,
+in `AclSource.lean`). That is all.
+
+Everything below is a RESTATEMENT of a catalog native
+(`Mirrors/Catalog.lean`): every proof on this page is a direct
 application of an already-proved constant, so this file adds *zero*
-proof content. It exists so a Lean reader who does not speak ACL2 can
-see the headline results and their axiom receipts in one place.
-
-Reader path: `docs/DEMO.md`.
+proof content. It is the ONE demo file that imports machinery, and it
+imports it for statements only.
 
 ## THE TRUST MAP
 
@@ -19,20 +26,20 @@ Reader path: `docs/DEMO.md`.
 * **The statements on this page.** They are ordinary Lean propositions
   about ordinary Lean functions (`isortL`, `qsortL`, `msortL`,
   `List.count`, `List.Perm`, `List.IsChain`) whose definitions live in
-  `Imported/Sorting/Sims.lean`. No `evalOpt`, no `EvTrue`, no `World`,
-  no `boolEnc` and no `*Exec` function appears in any of them — the
+  `Demo/Sorting/TCB.lean`. No `evalOpt`, no `EvTrue`, no `World`, no
+  `boolEnc` and no `*Exec` function appears in any of them — the
   catalog's CRITERION-1 GATE mechanizes exactly that ban on the
   constants restated here. Read them; as *Lean theorems* they are the
   whole claim, and the kernel has checked every one.
 * **That the definitions are the ones you want.** `isortL`, `qsortL`,
-  `msortL` are ordinary Lean definitions in `Sims.lean` — read them
-  and satisfy yourself they are the sorting functions YOU mean,
-  exactly as you would for any Lean development. That is the whole
-  obligation. You do NOT need to trust — or care — what ACL2's
-  functions do: ACL2 is this project's untrusted proof-search oracle,
-  and its relationship to these definitions is an engineering
-  question (whether the replay route can construct the proofs below),
-  never a premise of the theorems.
+  `msortL` are ordinary Lean definitions in `TCB.lean` — read them and
+  satisfy yourself they are the sorting functions YOU mean, exactly as
+  you would for any Lean development. That is the whole obligation.
+  You do NOT need to trust — or care — what ACL2's functions do: ACL2
+  is this project's untrusted proof-search oracle, and its relationship
+  to these definitions is an engineering question (whether the replay
+  route can construct the proofs below), never a premise of the
+  theorems.
 
 **2. UNTRUSTED BUT KERNEL-CHECKED — a bug here CANNOT make a statement
 here false; it makes the build fail.**
@@ -41,12 +48,13 @@ All of ACL2's proof search, our ACL2 instrumentation (the `acl2/`
 fork's proof-log emission), the proof-log parser, the proof-tree
 reconstruction, the replay driver that turns a recorded ACL2 clause
 tree into a Lean `Expr` — and equally the **semantic core** (`SExpr`,
-`Logic`, `evalOpt`) and the **encoders** (`enc`/`boolEnc`/`intRep`)
-the route runs through. Each theorem below is a kernel-checked proof
-term; the pipeline only ever *proposes* one. A bug anywhere in it —
-including our transcriptions of the ACL2 functions simply being the
-wrong functions — can make a proof FAIL TO EXIST; it cannot make a
-statement on this page false.
+`Logic`, `evalOpt`), the **encoders** (`enc`/`boolEnc`/`intRep`) the
+route runs through, and our **transcriptions of the ACL2 defuns**
+(`AclSource.lean`). Each theorem below is a kernel-checked proof term;
+the pipeline only ever *proposes* one. A bug anywhere in it —
+including our transcriptions simply being the wrong functions — can
+make a proof FAIL TO EXIST; it cannot make a statement on this page
+false.
 
 The "imported" label is ATTRIBUTION, not a premise: it records how
 each proof was found (ACL2 searched; we replayed; the kernel
@@ -60,19 +68,16 @@ working and honestly attributed — not the truth of this page.
 
 **3. VISIBLE DEBT — what is assumed, and where it is written down.**
 
-Exactly **20** `sorry`s exist in the whole library. Each is a
-self-contained statement about our own semantic model, ASSUMED for
-now — the one place a falsehood COULD enter a `sorryAx`-marked entry
-below, which is why they are surfaced rather than hidden. (ACL2 did
-discharge every one; that is the evidence they are true and the
-reason each has a mechanical replay unlock — but on this page the
-honest word is: assumed.) They are quarantined and registered, never
-scattered:
-
-* 12 in `ACL2Lean/Imported/Sorting/Debt.lean` — the sorting books'
-  dischargers. That file IS the list.
-* 8 more in `Imported/SortingBsort.lean` (2), `Imported/EquisortWitness.lean`
-  (4), `Imported/SimpleWorld.lean` (1), `Imported/Lifting.lean` (1).
+Exactly **20** `sorry`s exist in the whole library, and **18 of them —
+every one this demo touches — are in `Demo/Sorting/Assumptions.lean`.
+That file IS the list.** (The other two belong to other books:
+`drv_tp_len` in `Imported/Lifting.lean`, `drv_tp_mylen` in
+`Imported/SimpleWorld.lean`.) Each is a self-contained statement about
+our own semantic model, ASSUMED for now — the one place a falsehood
+COULD enter a `sorryAx`-marked entry below, which is why they are
+surfaced rather than hidden. (ACL2 did discharge every one; that is the
+evidence they are true and the reason each has a mechanical replay
+unlock — but on this page the honest word is: assumed.)
 
 By CLASS (each class names its unlock; the authoritative registry is
 the DEBT REGISTRY block at the top of `TODO.md`, mechanized by the
@@ -105,7 +110,7 @@ open ACL2 ACL2.Worlds.Sorting ACL2.Imported.Mirrors
 /-! ## 1. Insertion sort
 
 Imported from `acl2/books/sorting/isort.lisp`. `isortL` is plain Lean
-(`Imported/Sorting/Sims.lean`); `lexorderB` is ACL2's total order on
+(`Demo/Sorting/TCB.lean`); `lexorderB` is ACL2's total order on
 the value universe, as a `Bool`. -/
 
 /-- **INSERTION SORT SORTS.** ACL2's `ORDEREDP-ISORT`, restated in
@@ -273,8 +278,9 @@ def sorts_equivalence_strong_at_canonical :=
   criterion-1 vocabulary, provenance).
 * The sweep itself is `just ci`'s `driver-coverage` against
   `Tests/driver-coverage.golden`.
-* The objects of study are `ACL2Lean/Imported/Sorting/Sims.lean`.
-* The assumed facts are `ACL2Lean/Imported/Sorting/Debt.lean`.
-* The reader path is `docs/DEMO.md`. -/
+* The objects of study are `ACL2Lean/Demo/Sorting/TCB.lean`.
+* The assumed facts are `ACL2Lean/Demo/Sorting/Assumptions.lean`.
+* The reader path is `docs/demo/` (index: `docs/DEMO.md`) — part 2 is
+  how to replay a book yourself, part 3 is how the machinery works. -/
 
 end ACL2.Imported.Showcase

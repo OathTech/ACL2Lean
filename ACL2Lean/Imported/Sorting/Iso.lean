@@ -1,4 +1,6 @@
-import ACL2Lean.Imported.Sorting.Sims
+import ACL2Lean.Demo.Sorting.TCB
+import ACL2Lean.Demo.Sorting.AclSource
+import ACL2Lean.Imported.Perm
 import ACL2Lean.Imported.ExecGen
 import ACL2Lean.Imported.SimGen
 
@@ -21,6 +23,11 @@ different ACL2 functions — that is the mirror criterion's "ornamental
 import" ban, and such facts may only arrive through a replayed
 statement (see `Decode.lean`).
 
+The DEFINITIONS on both sides come from the demo folder — the native
+readings from `Demo/Sorting/TCB.lean`, the ACL2 bodies/symbols from
+`Demo/Sorting/AclSource.lean`. Machinery imports the demo layer; the
+demo layer never imports machinery (`scripts/check-trust-imports.sh`).
+
 Split note: the ordinal/`acl2-count` half of this layer lives in
 `IsoAdmission.lean` purely to respect the 1500-line module norm.
 -/
@@ -28,6 +35,41 @@ Split note: the ordinal/`acl2-count` half of this layer lives in
 open ACL2 ACL2.Replay ACL2.Lifting ACL2.Worlds.Perm ACL2.ExecGen
 
 namespace ACL2.Worlds.Sorting
+
+/-! ## Elementary facts about the TCB definitions
+
+(The definitions themselves are `Demo/Sorting/TCB.lean`; these are the
+first lemmas ABOUT them, used by the correspondences below.) -/
+
+theorem lexorder_t_or_nil (x y : SExpr) :
+    lexorder x y = SExpr.t ∨ lexorder x y = SExpr.nil := by
+  fun_induction lexorder x y <;> first | assumption | simp
+
+/-- The chain2 fold IS Mathlib's `List.IsChain` — the fully idiomatic
+    reading of the ORDEREDP-shaped recognizers. -/
+theorem chain2Rec_iff_isChain (p : SExpr → SExpr → Bool) :
+    ∀ xs : List SExpr,
+      chain2Rec p xs = true ↔ xs.IsChain (fun a b => p a b = true)
+  | [] => by simp [chain2Rec]
+  | [_] => by simp [chain2Rec]
+  | a :: b :: t => by
+    rw [show chain2Rec p (a :: b :: t)
+          = (p a b && chain2Rec p (b :: t)) from rfl,
+        Bool.and_eq_true, chain2Rec_iff_isChain p (b :: t),
+        List.isChain_cons_cons]
+
+/-! ## The concrete comparison modes (native vocabulary for the FILTER
+rows: the quoted mode symbols specialize `relL` to plain `lexorderB`
+combinations). -/
+
+theorem relL_LT (a e : SExpr) : relL (symV "LT") a e = lexLtB a e := by
+  rw [relL, if_pos (by decide)]; rfl
+
+theorem relL_LTE (a e : SExpr) : relL (symV "LTE") a e = lexorderB a e := by
+  rw [relL, if_neg (by decide), if_pos (by decide)]
+
+theorem relL_GTE (a e : SExpr) : relL (symV "GTE") a e = lexorderB e a := by
+  rw [relL, if_neg (by decide), if_neg (by decide), if_neg (by decide)]
 
 theorem lexorder_eq_boolEnc (x y : SExpr) :
     lexorder x y = boolEnc (lexorderB x y) := by

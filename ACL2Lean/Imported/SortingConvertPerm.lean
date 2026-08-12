@@ -153,15 +153,6 @@ theorem how_many_rm_general_native_of_replayed (w : World)
 /-! ## PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS — the
 counterexample WITNESS row -/
 
-/-- The NATIVE counterexample witness: walk `xs`, erasing each element
-    from `ys` as it is matched; the first element of `xs` that `ys`
-    cannot match IS the witness, and when `xs` is exhausted the witness
-    is `ys`'s head (`nil` when both are). Self-contained (mirror
-    criterion: `List` vocabulary only). -/
-def pceL : List SExpr → List SExpr → SExpr
-  | [], ys => ys.headD SExpr.nil
-  | x :: xs, ys => bif ys.contains x then pceL xs (ys.erase x) else x
-
 -- The hand `pceExec` (Sorting.lean) enters the kit registry here — the
 -- iso below is its stage-2 reading.
 register_exec_kit% "PERM-COUNTER-EXAMPLE" => pceExec arity 2

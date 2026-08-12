@@ -38,6 +38,8 @@
 -/
 import ACL2Lean.EvalOpt
 import ACL2Lean.Replay.EvalLemmas
+import ACL2Lean.Demo.Sorting.TCB
+import ACL2Lean.Demo.Sorting.AclSource
 
 open ACL2 ACL2.Replay
 
@@ -60,29 +62,6 @@ theorem enc_inj : ∀ {l1 l2 : List SExpr}, enc l1 = enc l2 → l1 = l2 := by
       simp only [enc, List.foldr_cons, SExpr.cons.injEq] at h
       obtain ⟨rfl, htl⟩ := h
       rw [ih htl]
-
-/-! ## Term builders -/
-
-/-- `(quote <n>)` for an integer literal. -/
-def qInt (n : Int) : SExpr :=
-  .cons (.atom (.symbol { name := "QUOTE" })) (.cons (.atom (.number (.int n))) .nil)
-
-/-- 1-ary application `(fn a)`. -/
-def app1 (fn : String) (a : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := fn })) (.cons a .nil)
-
-/-- 2-ary application `(fn a b)`. -/
-def app2 (fn : String) (a b : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := fn })) (.cons a (.cons b .nil))
-
-abbrev plusT (a b : SExpr) : SExpr := app2 "BINARY-+" a b
-abbrev timesT (a b : SExpr) : SExpr := app2 "BINARY-*" a b
-abbrev equalT (a b : SExpr) : SExpr := app2 "EQUAL" a b
-abbrev impliesT (a b : SExpr) : SExpr := app2 "IMPLIES" a b
-abbrev consT (a b : SExpr) : SExpr := app2 "CONS" a b
-abbrev carT (a : SExpr) : SExpr := app1 "CAR" a
-abbrev cdrT (a : SExpr) : SExpr := app1 "CDR" a
-abbrev conspT (a : SExpr) : SExpr := app1 "CONSP" a
 
 /-- Peel the `atom/number/int` constructors off a value equation. -/
 theorem int_atom_inj {m n : Int}
@@ -395,34 +374,12 @@ theorem conv_and_conds (w : World) (e : Env) (A B : SExpr) (b1 b2 : Bool)
 
 /-! ## Name-generic structural correspondences
 
-The standard ACL2 list-recursion body shapes, parameterized by the function
-NAME. `appendBody fn` / `lenBody fn` are EXACTLY the macroexpanded bodies
-ACL2 emits for the two-formal append and one-formal length defuns, so a
-single `decide` on any world (hand or log-derived) instantiates the
-correspondence lemmas at that world's function. -/
-
-private def xS : Symbol := { package := "ACL2", name := "X" }
-private def yS : Symbol := { package := "ACL2", name := "Y" }
-private def xT : SExpr := .atom (.symbol { name := "X" })
-private def yT : SExpr := .atom (.symbol { name := "Y" })
-private def q0 : SExpr := qInt 0
-private def q1 : SExpr := qInt 1
-
-/-- `(if (consp x) (cons (car x) (fn (cdr x) y)) y)` — the standard append
-    body, the shape of `app`, `my-app`, …. -/
-def appendBody (fn : String) : SExpr :=
-  .cons (.atom (.symbol { name := "IF" }))
-    (.cons (conspT xT)
-      (.cons (consT (carT xT) (app2 fn (cdrT xT) yT))
-        (.cons yT .nil)))
-
-/-- `(if (consp x) (binary-+ '1 (fn (cdr x))) '0)` — the standard length
-    body, the shape of `my-len`, `len2`, …. -/
-def lenBody (fn : String) : SExpr :=
-  .cons (.atom (.symbol { name := "IF" }))
-    (.cons (conspT xT)
-      (.cons (plusT q1 (app1 fn (cdrT xT)))
-        (.cons q0 .nil)))
+The simulations for the standard ACL2 list-recursion body SHAPES. The
+shapes themselves (`appendBody` / `lenBody` / `mapConstBody` /
+`chain2Body`, and the term builders they are spelled in) are pure ACL2
+transcription data and live in `Demo/Sorting/AclSource.lean`; the
+NATIVE readings they compute (`chain2Rec`, …) live in
+`Demo/Sorting/TCB.lean`. -/
 
 private theorem bindArgs_xy_x (vx vy : SExpr) :
     (bindArgs [xS, yS] [vx, vy]).get? xS = some vx := by
@@ -620,17 +577,6 @@ theorem corr_len_enc (w : World) (fn : String)
     exact conv_defn_1 w e' { package := "ACL2", name := fn } a (.cons hd (enc tl)) xS (lenBody fn)
       (.atom (.number (.int ((hd :: tl).length : Int)))) h_ns h_fn ha hbody
 
-/-- `(if (consp x) (cons 'c (fn (cdr x))) 'nil)` — the standard MAP-CONST
-    body (p7's `dub`, …): rebuild the list with every element the quoted
-    constant `c` (validator/lifter arc inc-0). -/
-def mapConstBody (c : SExpr) (fn : String) : SExpr :=
-  .cons (.atom (.symbol { name := "IF" }))
-    (.cons (conspT xT)
-      (.cons (consT (.cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil))
-        (app1 fn (cdrT xT)))
-        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
-          .nil)))
-
 /-- SIMULATION, name-generic: any map-const-shaped defun over encoded lists
     computes `List.map (fun _ => c)` under `enc`. Induction on the Lean
     list (the `corr_len_enc` template with the CONS composition of
@@ -744,32 +690,6 @@ def boolEnc (b : Bool) : SExpr := bif b then SExpr.t else SExpr.nil
 -- (a `Rep Bool` instance was drafted here and DELETED unwired — audit F2,
 -- the banned build-now-wire-later anti-pattern; reintroduce it WITH its
 -- first consumer when a decode needs it. `boolEnc` below is used.)
-
-/-- `(if (consp x) (if (consp (cdr x)) (if (cmp (car x) (car (cdr x)))
-    (fn (cdr x)) 'nil) 't) 't)` — the ADJACENT-PAIRS recognizer body
-    (`dupp` with `cmp = EQUAL`; `ordd` with `LEXORDER`). -/
-def chain2Body (cmp fn : String) : SExpr :=
-  .cons (.atom (.symbol { name := "IF" }))
-    (.cons (conspT xT)
-      (.cons
-        (.cons (.atom (.symbol { name := "IF" }))
-          (.cons (conspT (cdrT xT))
-            (.cons
-              (.cons (.atom (.symbol { name := "IF" }))
-                (.cons (app2 cmp (carT xT) (carT (cdrT xT)))
-                  (.cons (app1 fn (cdrT xT))
-                    (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
-                      (.cons .nil .nil)) .nil))))
-              (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
-                (.cons SExpr.t .nil)) .nil))))
-        (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
-          (.cons SExpr.t .nil)) .nil)))
-
-/-- The native adjacent-pairs fold: every adjacent pair satisfies `p`. -/
-def chain2Rec (p : SExpr → SExpr → Bool) : List SExpr → Bool
-  | [] => true
-  | [_] => true
-  | a :: b :: t => p a b && chain2Rec p (b :: t)
 
 /-- SIMULATION, name- and comparison-generic: any chain2-shaped defun over
     encoded lists computes `chain2Rec cmpB` under `enc`/`boolEnc`, given the
@@ -1057,16 +977,6 @@ privates at 3+ consumers each: the boolEnc conjunction ladder
 (`conv_if3`), the false-branch collapse (`conv_if_false'`), the
 EQUAL/IFF Bool readings (`toBool_equal`, `bool_of_iff_truthy`,
 `eq_of_iff_truthy_two_valued`)). -/
-
-/-- `(IF c t e)` term builder (the decode kit's own copy — `ifT` lives in
-    the Replay namespace and aliasing it here would make every
-    open-both consumer ambiguous). -/
-abbrev appIf (c t e : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))
-
-/-- `(QUOTE NIL)`. -/
-abbrev qNilT : SExpr :=
-  .cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)
 
 
 /-- Value-level if-false composition (the `re_if_false` + else-value glue

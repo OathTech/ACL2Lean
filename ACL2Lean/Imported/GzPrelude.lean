@@ -13,25 +13,9 @@ namespace ACL2.Worlds.Sorting
 
 /-! ## Rule variables + the local convergence helpers
 
-Private copies of the term/symbol constants and the two convergence
-helpers the five gz dischargers need (they were file-local privates in
-`Imported/Sorting.lean` before the 2026-08-11 re-homing). -/
-
-private abbrev ifT (c t e : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))
-
-private def xS : Symbol := { package := "ACL2", name := "X" }
-private def yS : Symbol := { package := "ACL2", name := "Y" }
-private def zS : Symbol := { package := "ACL2", name := "Z" }
-private def aS : Symbol := { package := "ACL2", name := "A" }
-private def bS : Symbol := { package := "ACL2", name := "B" }
-private def cS : Symbol := { package := "ACL2", name := "C" }
-private def xT : SExpr := .atom (.symbol { name := "X" })
-private def yT : SExpr := .atom (.symbol { name := "Y" })
-private def zT : SExpr := .atom (.symbol { name := "Z" })
-private def aT : SExpr := .atom (.symbol { name := "A" })
-private def bT : SExpr := .atom (.symbol { name := "B" })
-private def cT : SExpr := .atom (.symbol { name := "C" })
+The rule variables (`xT`, `aS`, `ifT`, …) are ACL2 transcription data
+and come from `Demo/Sorting/AclSource.lean`; below are the two
+convergence helpers the five gz dischargers need. -/
 
 /-- Any variable converges in any env (unbound reads nil; none of the
     rule variables is `T`). -/

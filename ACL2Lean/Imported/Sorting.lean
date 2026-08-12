@@ -1,9 +1,10 @@
-import ACL2Lean.Imported.Sorting.Sims
+import ACL2Lean.Demo.Sorting.TCB
+import ACL2Lean.Demo.Sorting.AclSource
+import ACL2Lean.Demo.Sorting.Assumptions
 import ACL2Lean.Imported.Sorting.Iso
 import ACL2Lean.Imported.Sorting.IsoAdmission
 import ACL2Lean.Imported.Sorting.Decode
 import ACL2Lean.Imported.Sorting.DecodeSorts
-import ACL2Lean.Imported.Sorting.Debt
 import ACL2Lean.Imported.GzPrelude
 
 /-! # Imported: the sorting books — world-parametric support beyond perm
@@ -18,26 +19,28 @@ entries. The `memb`/`rm`/`perm` simulations are REUSED from
 (same formals, same bodies; the `by decide` world facts at each
 log-derived world enforce this at build time).
 
-## MODULE LAYOUT (split 2026-08-11, the demo build)
+## MODULE LAYOUT (demo v2, 2026-08-12)
 
-This file is now a FACADE: the book's content lives in
-`ACL2Lean/Imported/Sorting/`, layered so that the `import` lines ARE
-the trust story (design: `docs/plans/2026-08-11_demo-design.md`;
-reader path: `docs/DEMO.md`).
+This file is a FACADE. The layering IS the trust story, and it now
+splits across two trees — THE DEMO (what a reader must trust) and THE
+MACHINERY (what they need not) — with the arrow running one way:
+machinery imports the demo, never the reverse.
 
-| module | layer | what it is |
+| module | tree | what it is |
 | --- | --- | --- |
-| `Sorting/Sims.lean` | 1 | the definitions: native readings, measures, symbol/body constants. Knows nothing of the replay |
-| `Sorting/Iso.lean` | 2 | the `*_exec_corr` / `*Exec_enc` correspondence for the book programs |
-| `Sorting/IsoAdmission.lean` | 2 | the same for the ordinal / `acl2-count` admission substrate |
-| `Sorting/Decode.lean` | 3 | the `*_native_of_replayed` transports — ordered-perms / convert-perm / isort |
-| `Sorting/DecodeSorts.lean` | 3 | the same for qsort / msort / bsort |
-| `Sorting/Debt.lean` | 4 | the 12 quarantined FORBIDDEN-DEBT sorries |
+| `Demo/Sorting/TCB.lean` | demo | the DEFINITIONS: `isortL`, `msortL`, `qsortL`, `merge2L`, `bnextL`, `pceL`, `orderedpRec`, `LexSorted`, … Imports the value core alone |
+| `Demo/Sorting/AclSource.lean` | demo | the transcribed ACL2 `defun` DATA: bodies, symbols, term builders. Pure data; imports the syntax core alone |
+| `Demo/Sorting/Assumptions.lean` | demo | the 18 quarantined FORBIDDEN-DEBT sorries — the whole sorting family's assumed facts |
+| `Sorting/Iso.lean` | machinery | the `*_exec_corr` / `*Exec_enc` correspondence for the book programs |
+| `Sorting/IsoAdmission.lean` | machinery | the same for the ordinal / `acl2-count` admission substrate |
+| `Sorting/Decode.lean` | machinery | the `*_native_of_replayed` transports — ordered-perms / convert-perm / isort |
+| `Sorting/DecodeSorts.lean` | machinery | the same for qsort / msort / bsort |
 
-Four LAYERS, six modules: `Iso` and `Decode` are each two modules
-purely to respect the 1500-line module norm (`just check-file-weight`);
-`scripts/check-trust-imports.sh` pins the layer imports.
+`Demo/Sorting/Statements.lean` (the front door) sits above all of it and
+is the ONE demo file that imports machinery — statements only, zero
+proof content. `scripts/check-trust-imports.sh` pins every one of these
+import sets; the reader path is `docs/demo/`.
 
 Every existing `import ACL2Lean.Imported.Sorting` keeps working: this
-facade re-exports all six, plus `Imported/GzPrelude.lean` (the D5
+facade re-exports all seven, plus `Imported/GzPrelude.lean` (the D5
 ground-zero rule content downstream books reach through here). -/

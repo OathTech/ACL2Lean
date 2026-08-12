@@ -1,74 +1,189 @@
-import ACL2Lean.Imported.Lifting
-import ACL2Lean.Imported.Perm
-import ACL2Lean.Lexorder
+import ACL2Lean.Syntax
 
-/-! # The sorting books — LAYER 1 of 4: THE DEFINITIONS
+/-! # THE DEMO'S ACL2 SOURCE — the transcribed `defun` data
 
-**Read this file to know what the imported theorems are ABOUT.**
+**Part 1 of the demo (`docs/demo/1-tcb.md`); the trust base is this
+folder.**
 
-Everything here is plain Lean over `SExpr` (ACL2's value universe):
+PURE DATA. Every constant here is an `SExpr` term or a `Symbol`: the
+macroexpanded `defun` bodies of the ACL2 sorting books exactly as the
+proof logs carry them (`insertBody`, `msortBody`, `qsortBody`, …), the
+function symbols that name them, and the term builders those
+transcriptions are spelled in. Nothing here computes, proves, or
+asserts anything — it is the ACL2 side of the correspondence, written
+down.
 
-* the NATIVE READINGS — `isortL`, `msortL`, `qsortL`, `merge2L`,
-  `evensL`, `filterL`, `insertL`, `bnextL`, `relL`, `allRelL`,
-  `lexorderB`, `orderedpRec` — ordinary recursive functions, no
-  evaluator anywhere in sight;
-* the P2 MEASURE lemmas those definitions terminate by;
-* the ACL2 SYMBOL/BODY constants (`insertBody`, `msortBody`, …) — the
-  verbatim `defun` bodies as `SExpr` terms, and the term builders that
-  spell the books' formulas.
+You need this file only to check ONE thing, and only if you care about
+the ATTRIBUTION (that the theorems really came from ACL2's proofs of
+ACL2's functions): that these transcriptions match the `.lisp` books.
+They are NOT premises of the theorems — a wrong transcription can only
+make a replay fail to exist. See `Statements.lean`'s trust map.
 
-Nothing in this file mentions the replay: no proof logs, no clause
-trees, no `driver_replayed%`. `scripts/check-trust-imports.sh` (in
-`just ci`) keeps it that way — see that script's header for the exact,
-honest statement of what it does and does not check (the encoders in
-`Imported/Lifting.lean` do transitively pull the evaluation lemmas
-today; that is a known limitation, not a claim made here).
-
-Layer map: **Sims** → `Iso` (correspondence) → `Decode` (transports
-from replayed statements) → `Debt` (the assumed facts). The layering is
-the trust story; `Imported/Sorting.lean` is a facade re-exporting all
-of it, so `import ACL2Lean.Imported.Sorting` keeps working unchanged.
+IMPORTS: the syntax core alone (`ACL2Lean.Syntax` — `SExpr`, `Symbol`,
+`Atom`), pinned by `scripts/check-trust-imports.sh`.
 -/
 
-open ACL2 ACL2.Lifting ACL2.Worlds.Perm
+open ACL2
+
+namespace ACL2.Lifting
+
+/-! ## Term builders
+
+The application/quotation vocabulary every transcription below is
+spelled in. -/
+
+/-- `(quote <n>)` for an integer literal. -/
+def qInt (n : Int) : SExpr :=
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons (.atom (.number (.int n))) .nil)
+
+/-- 1-ary application `(fn a)`. -/
+def app1 (fn : String) (a : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := fn })) (.cons a .nil)
+
+/-- 2-ary application `(fn a b)`. -/
+def app2 (fn : String) (a b : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := fn })) (.cons a (.cons b .nil))
+
+abbrev plusT (a b : SExpr) : SExpr := app2 "BINARY-+" a b
+abbrev timesT (a b : SExpr) : SExpr := app2 "BINARY-*" a b
+abbrev equalT (a b : SExpr) : SExpr := app2 "EQUAL" a b
+abbrev impliesT (a b : SExpr) : SExpr := app2 "IMPLIES" a b
+abbrev consT (a b : SExpr) : SExpr := app2 "CONS" a b
+abbrev carT (a : SExpr) : SExpr := app1 "CAR" a
+abbrev cdrT (a : SExpr) : SExpr := app1 "CDR" a
+abbrev conspT (a : SExpr) : SExpr := app1 "CONSP" a
+
+/-- `(IF c t e)` term builder (the decode kit's own copy — `ifT` lives in
+    the Replay namespace and aliasing it here would make every
+    open-both consumer ambiguous). -/
+abbrev appIf (c t e : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))
+
+/-- `(QUOTE NIL)`. -/
+abbrev qNilT : SExpr :=
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)
+
+/-! ## Name-generic body SHAPES
+
+The standard ACL2 list-recursion body shapes, parameterized by the
+function NAME. `appendBody fn` / `lenBody fn` are EXACTLY the
+macroexpanded bodies ACL2 emits for the two-formal append and
+one-formal length defuns, so a single `decide` on any world (hand or
+log-derived) instantiates the correspondence lemmas at that world's
+function. -/
+
+def xS : Symbol := { package := "ACL2", name := "X" }
+def yS : Symbol := { package := "ACL2", name := "Y" }
+def xT : SExpr := .atom (.symbol { name := "X" })
+def yT : SExpr := .atom (.symbol { name := "Y" })
+def q0 : SExpr := qInt 0
+def q1 : SExpr := qInt 1
+
+/-- `(if (consp x) (cons (car x) (fn (cdr x) y)) y)` — the standard append
+    body, the shape of `app`, `my-app`, …. -/
+def appendBody (fn : String) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (conspT xT)
+      (.cons (consT (carT xT) (app2 fn (cdrT xT) yT))
+        (.cons yT .nil)))
+
+/-- `(if (consp x) (binary-+ '1 (fn (cdr x))) '0)` — the standard length
+    body, the shape of `my-len`, `len2`, …. -/
+def lenBody (fn : String) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (conspT xT)
+      (.cons (plusT q1 (app1 fn (cdrT xT)))
+        (.cons q0 .nil)))
+
+/-- `(if (consp x) (cons 'c (fn (cdr x))) 'nil)` — the standard MAP-CONST
+    body (p7's `dub`, …): rebuild the list with every element the quoted
+    constant `c` (validator/lifter arc inc-0). -/
+def mapConstBody (c : SExpr) (fn : String) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (conspT xT)
+      (.cons (consT (.cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil))
+        (app1 fn (cdrT xT)))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil))
+          .nil)))
+
+/-- `(if (consp x) (if (consp (cdr x)) (if (cmp (car x) (car (cdr x)))
+    (fn (cdr x)) 'nil) 't) 't)` — the ADJACENT-PAIRS recognizer body
+    (`dupp` with `cmp = EQUAL`; `ordd` with `LEXORDER`). -/
+def chain2Body (cmp fn : String) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" }))
+    (.cons (conspT xT)
+      (.cons
+        (.cons (.atom (.symbol { name := "IF" }))
+          (.cons (conspT (cdrT xT))
+            (.cons
+              (.cons (.atom (.symbol { name := "IF" }))
+                (.cons (app2 cmp (carT xT) (carT (cdrT xT)))
+                  (.cons (app1 fn (cdrT xT))
+                    (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                      (.cons .nil .nil)) .nil))))
+              (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+                (.cons SExpr.t .nil)) .nil))))
+        (.cons (.cons (.atom (.symbol { name := "QUOTE" }))
+          (.cons SExpr.t .nil)) .nil)))
+
+end ACL2.Lifting
+
+namespace ACL2.Worlds.Perm
+
+open ACL2.Lifting
+
+/-! ## The perm book's defuns, exactly as the log-derived world carries
+them -/
+
+def aS : Symbol := { package := "ACL2", name := "A" }
+def eS : Symbol := { package := "ACL2", name := "E" }
+def xS : Symbol := { package := "ACL2", name := "X" }
+def yS : Symbol := { package := "ACL2", name := "Y" }
+
+def aT : SExpr := .atom (.symbol { name := "A" })
+def eT : SExpr := .atom (.symbol { name := "E" })
+def xT : SExpr := .atom (.symbol { name := "X" })
+def yT : SExpr := .atom (.symbol { name := "Y" })
+
+def qT : SExpr :=
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)
+def qNil : SExpr :=
+  .cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.nil .nil)
+
+abbrev membT (a x : SExpr) : SExpr := app2 "MEMB" a x
+abbrev rmT (e x : SExpr) : SExpr := app2 "RM" e x
+abbrev permT (x y : SExpr) : SExpr := app2 "PERM" x y
+abbrev ifT (c t e : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))
+
+/-- `(defun rm (e x) …)`, macroexpanded. -/
+def rmBody : SExpr :=
+  ifT (conspT xT)
+    (ifT (equalT eT (carT xT)) (cdrT xT) (consT (carT xT) (rmT eT (cdrT xT))))
+    qNil
+
+/-- `(defun memb (a x) …)`, macroexpanded. -/
+def membBody : SExpr :=
+  ifT (conspT xT)
+    (ifT (equalT aT (carT xT)) qT (membT aT (cdrT xT)))
+    qNil
+
+/-- `(defun perm (x y) …)`, macroexpanded. -/
+def permBody : SExpr :=
+  ifT (conspT xT)
+    (ifT (membT (carT xT) yT) (permT (cdrT xT) (rmT (carT xT) yT)) qNil)
+    (ifT (conspT yT) qNil qT)
+
+end ACL2.Worlds.Perm
 
 namespace ACL2.Worlds.Sorting
 
-
-/-! ## The LEXORDER Bool kit
-
-`lexorder` (the trusted-core primitive, Lexorder.lean) is two-valued;
-`lexorderB` is its Bool reading, and the bridge lets the chain2
-schematic consume LEXORDER as its comparison. -/
-
-theorem lexorder_t_or_nil (x y : SExpr) :
-    lexorder x y = SExpr.t ∨ lexorder x y = SExpr.nil := by
-  fun_induction lexorder x y <;> first | assumption | simp
-
-/-- The Bool reading of the two-valued `lexorder`. -/
-def lexorderB (x y : SExpr) : Bool := lexorder x y == SExpr.t
-
-/-- The chain2 fold IS Mathlib's `List.IsChain` — the fully idiomatic
-    reading of the ORDEREDP-shaped recognizers. -/
-theorem chain2Rec_iff_isChain (p : SExpr → SExpr → Bool) :
-    ∀ xs : List SExpr,
-      chain2Rec p xs = true ↔ xs.IsChain (fun a b => p a b = true)
-  | [] => by simp [chain2Rec]
-  | [_] => by simp [chain2Rec]
-  | a :: b :: t => by
-    rw [show chain2Rec p (a :: b :: t)
-          = (p a b && chain2Rec p (b :: t)) from rfl,
-        Bool.and_eq_true, chain2Rec_iff_isChain p (b :: t),
-        List.isChain_cons_cons]
+open ACL2.Lifting ACL2.Worlds.Perm
 
 /-! ## ORDEREDP: the chain2 instance -/
 
 /-- `(orderedp x)`. -/
 abbrev orderedpT (x : SExpr) : SExpr := app1 "ORDEREDP" x
-
-/-- The native reading of ORDEREDP: every adjacent pair is
-    lexorder-related. -/
-abbrev orderedpRec (xs : List SExpr) : Bool := chain2Rec lexorderB xs
 
 /-! ## The ordered-perms book: symbol/term constants -/
 
@@ -90,11 +205,11 @@ def qNil : SExpr :=
 
 /-! ## The isort book: `insert` / `isort`
 
-The book's `defun` bodies as `SExpr` terms, and their NATIVE readings
-`insertL` / `isortL` — ordinary Lean recursion, nothing else. The
-correspondence between the two is `Iso.lean`'s two-stage lift
+The book's `defun` bodies as `SExpr` terms. Their NATIVE readings
+(`insertL` / `isortL`) are in `TCB.lean`; the correspondence between
+the two is `Imported/Sorting/Iso.lean`'s two-stage lift
 (docs/plans/2026-07-06_two-stage-lift.md); the book's one assumption
-(`tp:INSERT`) is `Debt.lean`'s `dis_insert_tp`. -/
+(`tp:INSERT`) is `Assumptions.lean`'s `dis_insert_tp`. -/
 
 def xS : Symbol := { package := "ACL2", name := "X" }
 
@@ -122,16 +237,6 @@ def isortBody : SExpr :=
 def insert_sym : Symbol := { package := "ACL2", name := "INSERT" }
 
 def isort_sym : Symbol := { package := "ACL2", name := "ISORT" }
-
-/-- `insert`'s native reading: ordered insertion by `lexorderB`. -/
-def insertL (e : SExpr) : List SExpr → List SExpr
-  | [] => [e]
-  | a :: t => bif lexorderB e a then e :: a :: t else a :: insertL e t
-
-/-- `isort`'s native reading: insertion sort by `lexorderB`. -/
-def isortL : List SExpr → List SExpr
-  | [] => []
-  | a :: t => insertL a (isortL t)
 
 /-! ## Ground-zero rule vocabulary
 
@@ -169,13 +274,13 @@ def yS : Symbol := { package := "ACL2", name := "Y" }
 
 def yT : SExpr := .atom (.symbol { name := "Y" })
 
-private def zS : Symbol := { package := "ACL2", name := "Z" }
+def zS : Symbol := { package := "ACL2", name := "Z" }
 
-private def zT : SExpr := .atom (.symbol { name := "Z" })
+def zT : SExpr := .atom (.symbol { name := "Z" })
 
-private def cS : Symbol := { package := "ACL2", name := "C" }
+def cS : Symbol := { package := "ACL2", name := "C" }
 
-private def cT : SExpr := .atom (.symbol { name := "C" })
+def cT : SExpr := .atom (.symbol { name := "C" })
 
 /-! ## `how-many`: the ACL2 body constants -/
 
@@ -227,10 +332,9 @@ def xEquivS : Symbol := { package := "ACL2", name := "X-EQUIV" }
 
 def xEquivT : SExpr := .atom (.symbol { name := "X-EQUIV" })
 
-def symV (s : String) : SExpr := .atom (.symbol { name := s })
-
 def qSym (s : String) : SExpr :=
-  .cons (.atom (.symbol { name := "QUOTE" })) (.cons (symV s) .nil)
+  .cons (.atom (.symbol { name := "QUOTE" }))
+    (.cons (.atom (.symbol { name := s })) .nil)
 
 def qT' : SExpr :=
   .cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)
@@ -264,20 +368,6 @@ def rel_sym : Symbol := { package := "ACL2", name := "REL" }
 
 def all_rel_sym : Symbol := { package := "ACL2", name := "ALL-REL" }
 
-/-- The NATIVE reading of one REL verdict — an ordinary Lean match on the
-    four comparison modes, in `lexorderB`/`==` vocabulary only (the mirror
-    criterion: no exec function in a mirror statement). -/
-def relL (fv a e : SExpr) : Bool :=
-  if fv == symV "LT" then lexorderB a e && !(a == e)
-  else if fv == symV "LTE" then lexorderB a e
-  else if fv == symV "GT" then lexorderB e a && !(a == e)
-  else lexorderB e a
-
-/-- The native reading of ALL-REL: every element is `relL`-related to
-    `ev`. -/
-def allRelL (fv ev : SExpr) (xs : List SExpr) : Bool :=
-  xs.all (fun a => relL fv a ev)
-
 /-! ## The FILTER kit -/
 
 abbrev filterT (f x e : SExpr) : SExpr :=
@@ -293,26 +383,6 @@ def filterBody : SExpr :=
     qNil
 
 def filter_sym : Symbol := { package := "ACL2", name := "FILTER" }
-
-/-- The native reading of FILTER: `List.filter` by the `relL` verdict. -/
-def filterL (fv ev : SExpr) (xs : List SExpr) : List SExpr :=
-  xs.filter (fun a => relL fv a ev)
-
-/-! ## The concrete comparison modes (native vocabulary for the FILTER
-rows: the quoted mode symbols specialize `relL` to plain `lexorderB`
-combinations). -/
-
-/-- Strict lexorder: `≤` and not equal. -/
-def lexLtB (a e : SExpr) : Bool := lexorderB a e && !(a == e)
-
-theorem relL_LT (a e : SExpr) : relL (symV "LT") a e = lexLtB a e := by
-  rw [relL, if_pos (by decide)]; rfl
-
-theorem relL_LTE (a e : SExpr) : relL (symV "LTE") a e = lexorderB a e := by
-  rw [relL, if_neg (by decide), if_pos (by decide)]
-
-theorem relL_GTE (a e : SExpr) : relL (symV "GTE") a e = lexorderB e a := by
-  rw [relL, if_neg (by decide), if_neg (by decide), if_neg (by decide)]
 
 /-! ## ORDEREDP-APPEND -/
 
@@ -366,48 +436,6 @@ def evens_sym : Symbol := { package := "ACL2", name := "EVENS" }
 def odds_sym : Symbol := { package := "ACL2", name := "ODDS" }
 
 def msort_sym : Symbol := { package := "ACL2", name := "MSORT" }
-
-/-- The native merge: Lean's ordinary two-list merge by `lexorderB`. -/
-def merge2L : List SExpr → List SExpr → List SExpr
-  | [], ys => ys
-  | x :: xs, [] => x :: xs
-  | a :: xs, b :: ys =>
-    bif lexorderB a b then a :: merge2L xs (b :: ys)
-    else b :: merge2L (a :: xs) ys
-termination_by xs ys => xs.length + ys.length
-
-/-- The native evens: every other element, starting at the head. -/
-def evensL : List SExpr → List SExpr
-  | [] => []
-  | a :: t => a :: evensL t.tail
-termination_by l => l.length
-decreasing_by
-  cases t with
-  | nil => simp
-  | cons b t' => simp
-
-/-- The evens split halves the length (rounding up). -/
-theorem evensL_length : ∀ l : List SExpr,
-    (evensL l).length = (l.length + 1) / 2
-  | [] => by simp [evensL]
-  | [_] => by simp [evensL]
-  | _ :: _ :: t => by
-    have := evensL_length t
-    simp only [evensL, List.tail_cons, List.length_cons, this]
-    omega
-termination_by l => l.length
-
-/-- The native merge sort. -/
-def msortL (xs : List SExpr) : List SExpr :=
-  match xs with
-  | [] => []
-  | [a] => [a]
-  | a :: b :: t =>
-    merge2L (msortL (evensL (a :: b :: t))) (msortL (evensL (b :: t)))
-termination_by xs.length
-decreasing_by
-  · rw [evensL_length]; simp; omega
-  · rw [evensL_length]; simp; omega
 
 /-! ## The ordinal kit (`total:O<`): O-FINP / O-FIRST-EXPT /
 O-FIRST-COEFF / O-RST / O< — the ground-zero ordinal fns the qsort
@@ -513,24 +541,11 @@ def qsortBody : SExpr :=
 
 def qsort_sym : Symbol := { package := "ACL2", name := "QSORT" }
 
-/-- The native quicksort. -/
-def qsortL (xs : List SExpr) : List SExpr :=
-  match xs with
-  | [] => []
-  | [a] => [a]
-  | a :: b :: t =>
-    qsortL ((b :: t).filter (fun c => relL (symV "LT") c a))
-      ++ a :: qsortL ((b :: t).filter (fun c => relL (symV "GTE") c a))
-termination_by xs.length
-decreasing_by
-  · exact Nat.lt_succ_of_le (List.length_filter_le _ _)
-  · exact Nat.lt_succ_of_le (List.length_filter_le _ _)
-
 /-! ## PERM-COUNTER-EXAMPLE — the perm-lane vocabulary of the qsort
 flagship: ACL2's witness function, which returns the one element at
-which two lists disagree. Its native reading `pceL` is in
-`Imported/SortingConvertPerm.lean` (with the book's own decodes); the
-`rule:CONVERT-PERM-TO-HOW-MANY` assumption is `Debt.lean`'s
+which two lists disagree. Its native reading `pceL` is in `TCB.lean`
+(the book's own decodes are `Imported/SortingConvertPerm.lean`); the
+`rule:CONVERT-PERM-TO-HOW-MANY` assumption is `Assumptions.lean`'s
 `dis_convert_perm`. -/
 
 abbrev pceT (x y : SExpr) : SExpr := app2 "PERM-COUNTER-EXAMPLE" x y
@@ -550,11 +565,11 @@ def orderedp_sym : Symbol := { package := "ACL2", name := "ORDEREDP" }
 
 /-! ## The bsort book: BNEXT — the bubble pass
 
-The body constant and its native reading `bnextL`. (`bnext`'s recursion
-carries a CONS-argument call site,
-`(BNEXT (CONS (CAR X) (CDR (CDR X))))`, which is beyond `derive_exec%`'s
-reach — so `Iso.lean` takes the hand route, on the `msortExec`
-precedent.) -/
+The body constant; its native reading `bnextL` is in `TCB.lean`.
+(`bnext`'s recursion carries a CONS-argument call site,
+`(BNEXT (CONS (CAR X) (CDR (CDR X))))`, which is beyond
+`derive_exec%`'s reach — so `Imported/Sorting/Iso.lean` takes the hand
+route, on the `msortExec` precedent.) -/
 
 /-- `(defun bnext (x) …)`, macroexpanded — the bubble pass: adjacent
     in-order heads keep, out-of-order heads swap; recursion continues past
@@ -571,14 +586,85 @@ def bnextBody : SExpr :=
 
 def bnext_sym : Symbol := { package := "ACL2", name := "BNEXT" }
 
-/-- The NATIVE bubble pass over Lean lists — self-contained (mirror
-    criterion: `lexorderB` only, no evaluator vocabulary). -/
-def bnextL : List SExpr → List SExpr
-  | [] => []
-  | [x] => [x]
-  | x1 :: x2 :: rest =>
-    bif lexorderB x1 x2 then x1 :: bnextL (x2 :: rest)
-    else x2 :: bnextL (x1 :: rest)
-termination_by l => l.length
+/-! ## The bsort book: the HOW-MANY-SMALLER / BNEXT-SIZE measure kit -/
+
+abbrev howManySmallerT (e x : SExpr) : SExpr := app2 "HOW-MANY-SMALLER" e x
+
+/-- `(defun how-many-smaller (e x) …)`, macroexpanded — count the
+    elements of `x` that are lexorder-below `e` and not `e` itself. -/
+def howManySmallerBody : SExpr :=
+  appIf (conspT xT)
+    (appIf (equalT eT (carT xT))
+      (howManySmallerT eT (cdrT xT))
+      (appIf (app2 "LEXORDER" (carT xT) eT)
+        (plusT (qInt 1) (howManySmallerT eT (cdrT xT)))
+        (howManySmallerT eT (cdrT xT))))
+    (qInt 0)
+
+def how_many_smaller_sym : Symbol :=
+  { package := "ACL2", name := "HOW-MANY-SMALLER" }
+
+abbrev bnextSizeT (x : SExpr) : SExpr := app1 "BNEXT-SIZE" x
+
+/-- `(defun bnext-size (x) …)`, macroexpanded — the number of
+    out-of-order pairs, summed down the list. -/
+def bnextSizeBody : SExpr :=
+  appIf (conspT xT)
+    (plusT (howManySmallerT (carT xT) (cdrT xT)) (bnextSizeT (cdrT xT)))
+    (qInt 0)
+
+def bnext_size_sym : Symbol := { package := "ACL2", name := "BNEXT-SIZE" }
+
+/-! ## The equisort scopes' `:LOCAL-WITNESS` defuns
+
+The `SORTFN1`/`SSORTFN1` insertion-sort clones (they differ from the
+isort book's `INSERT`/`ISORT` only in their self-call names),
+transcribed from the emitted `(:DEFUN …)` events (equisort.proof-log
+lines 123/127/13674/13678). -/
+
+private def app3 (n : String) (a b c : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := n }))
+    (.cons a (.cons b (.cons c .nil)))
+
+def sortfn1_insert_sym : Symbol :=
+  { package := "ACL2", name := "SORTFN1-INSERT" }
+def sortfn1_sym : Symbol :=
+  { package := "ACL2", name := "SORTFN1" }
+def ssortfn1_insert_sym : Symbol :=
+  { package := "ACL2", name := "SSORTFN1-INSERT" }
+def ssortfn1_sym : Symbol :=
+  { package := "ACL2", name := "SSORTFN1" }
+
+/-- `(defun sortfn1-insert (e x) …)` — the emitted witness body. -/
+def sortfn1InsertBody : SExpr :=
+  app3 "IF" (app1 "CONSP" xT)
+    (app3 "IF" (app2 "LEXORDER" eT (app1 "CAR" xT))
+      (app2 "CONS" eT xT)
+      (app2 "CONS" (app1 "CAR" xT)
+        (app2 "SORTFN1-INSERT" eT (app1 "CDR" xT))))
+    (app2 "CONS" eT xT)
+
+/-- `(defun sortfn1 (x) …)` — the emitted witness body. -/
+def sortfn1Body : SExpr :=
+  app3 "IF" (app1 "CONSP" xT)
+    (app2 "SORTFN1-INSERT" (app1 "CAR" xT)
+      (app1 "SORTFN1" (app1 "CDR" xT)))
+    qNil
+
+/-- `(defun ssortfn1-insert (e x) …)` — the emitted witness body. -/
+def ssortfn1InsertBody : SExpr :=
+  app3 "IF" (app1 "CONSP" xT)
+    (app3 "IF" (app2 "LEXORDER" eT (app1 "CAR" xT))
+      (app2 "CONS" eT xT)
+      (app2 "CONS" (app1 "CAR" xT)
+        (app2 "SSORTFN1-INSERT" eT (app1 "CDR" xT))))
+    (app2 "CONS" eT xT)
+
+/-- `(defun ssortfn1 (x) …)` — the emitted witness body. -/
+def ssortfn1Body : SExpr :=
+  app3 "IF" (app1 "CONSP" xT)
+    (app2 "SSORTFN1-INSERT" (app1 "CAR" xT)
+      (app1 "SSORTFN1" (app1 "CDR" xT)))
+    qNil
 
 end ACL2.Worlds.Sorting

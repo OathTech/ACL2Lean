@@ -25,17 +25,22 @@ grep -o 'cond\[[^]]*\]' "$golden" \
 
 echo
 echo "== hand lines per catalog native =="
-# The sorting book's hand content is the six layer modules of
-# ACL2Lean/Imported/Sorting/ (split 2026-08-11, the demo build); the
-# facade ACL2Lean/Imported/Sorting.lean is imports + prose, not hand
-# content, so it is deliberately NOT counted.
+# The sorting book's hand content is the demo trust base
+# (ACL2Lean/Demo/Sorting/{TCB,AclSource,Assumptions}.lean — the
+# definitions, the ACL2 transcripts and the assumptions, moved there by
+# the demo v2 refactor 2026-08-12) plus the four machinery layer
+# modules of ACL2Lean/Imported/Sorting/. The facade
+# ACL2Lean/Imported/Sorting.lean is imports + prose, and
+# Demo/Sorting/Statements.lean is the zero-proof-content front page, so
+# neither is counted.
 hand_files=(
-  ACL2Lean/Imported/Sorting/Sims.lean
+  ACL2Lean/Demo/Sorting/TCB.lean
+  ACL2Lean/Demo/Sorting/AclSource.lean
+  ACL2Lean/Demo/Sorting/Assumptions.lean
   ACL2Lean/Imported/Sorting/Iso.lean
   ACL2Lean/Imported/Sorting/IsoAdmission.lean
   ACL2Lean/Imported/Sorting/Decode.lean
   ACL2Lean/Imported/Sorting/DecodeSorts.lean
-  ACL2Lean/Imported/Sorting/Debt.lean
   ACL2Lean/Imported/SortingBsort.lean
   ACL2Lean/Imported/SortingConvertPerm.lean
   ACL2Lean/Imported/Perm.lean

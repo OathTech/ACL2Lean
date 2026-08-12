@@ -1,38 +1,46 @@
-import ACL2Lean.Imported.Sorting.Sims
+import ACL2Lean.EvalOpt
+import ACL2Lean.Demo.Sorting.TCB
+import ACL2Lean.Demo.Sorting.AclSource
 
-/-! # The sorting books — LAYER 4 of 4: THE DEBT (quarantined)
+/-! # THE DEMO'S ASSUMPTIONS — the complete list of what is ASSUMED
 
-**This file IS the complete list of facts the sorting imports ASSUME.**
+**Part 1 of the demo (`docs/demo/1-tcb.md`); the trust base is this
+folder.**
 
-Twelve statements, each `sorry`-ed, each carrying `FORBIDDEN-DEBT`
-(thin-Lean ruling 2026-08-11). Every one is a fact ACL2 itself
-discharged — a defun's admission (`total:`), a defun's emitted
-type-prescription corollary (`tp:`), or a previously-proved theorem
-used as a rewrite rule (`rule:`) — for which the REPLAY route does not
-exist yet. They are held here as visible `sorryAx`, never as a
-Lean-side re-proof: proving one in Lean would be doing ACL2's job in
-Lean, and the PROVENANCE GATE (`Mirrors/Catalog.lean`) fails the build
-if a registered entry stops carrying its `sorry`.
+**THIS FILE IS THE LIST.** Eighteen statements, each `sorry`-ed, each
+carrying `FORBIDDEN-DEBT` — every sorting-family assumption the
+imported theorems rest on. (Two further `sorry`s exist in the library
+and belong to other books, not to this demo: `drv_tp_len` in
+`Imported/Lifting.lean` and `drv_tp_mylen` in
+`Imported/SimpleWorld.lean` — 20 in total.)
+
+Every one is a fact ACL2 itself discharged — a defun's admission
+(`total:`), a defun's emitted type-prescription corollary (`tp:`), or a
+previously-proved theorem used as a rewrite rule (`rule:`) — for which
+the REPLAY route does not exist yet. They are held here as visible
+`sorryAx`, never as a Lean-side re-proof: proving one in Lean would be
+doing ACL2's job in Lean, and the PROVENANCE GATE
+(`Mirrors/Catalog.lean`) fails the build if a registered entry stops
+carrying its `sorry`. The receipts on `Statements.lean` show, per
+theorem, which headlines depend on this file at all.
 
 By class (the authoritative registry is `TODO.md`'s DEBT REGISTRY):
 
 | class | entries | unlock |
 | --- | --- | --- |
-| `tp:` | `dis_insert_tp`, `dis_how_many_tp`, `dis_all_rel_tp`, `dis_append_tp`, `dis_evens_tp`, `dis_acl2_count_tp` | a TP-replay discharge route |
+| `tp:` | `dis_insert_tp`, `dis_how_many_tp`, `dis_all_rel_tp`, `dis_append_tp`, `dis_evens_tp`, `dis_acl2_count_tp`, `dis_how_many_smaller_tp`, `dis_bnext_size_tp`, `dis_sortfn1_insert_tp`, `dis_sortfn1_tp`, `dis_ssortfn1_insert_tp`, `dis_ssortfn1_tp` | a TP-replay discharge route |
 | `total:` | `dis_merge2_total`, `dis_msort_total`, `dis_o_lt_total`, `dis_pce_total`, `dis_bnext_total` | `with_termination` admission coverage (REQUIRED class — the machinery exists, the rows need wiring) |
 | `rule:` | `dis_convert_perm` | the R-lane arc (PERM-TLFIX replay → CONVERT-PERM-TO-HOW-MANY) |
 
-Eight further sorries live outside the sorting books:
-`Imported/SortingBsort.lean` (2, `tp:`), `Imported/EquisortWitness.lean`
-(4, `tp:`), `Imported/SimpleWorld.lean` (1, `tp:`),
-`Imported/Lifting.lean` (1, `tp:`) — 20 in the whole library.
-
-NOTE the import line above: these statements are stated over the
-DEFINITIONS alone (`Sims`). Nothing assumed here depends on the
-correspondence or decode layers.
+NOTE the import lines above: these statements are stated over the
+DEFINITIONS and the TRANSCRIBED ACL2 SOURCE plus the semantic model
+(`evalOpt`) — nothing else. No correspondence layer, no decode layer,
+no driver, no proof log; `scripts/check-trust-imports.sh` pins that.
 -/
 
-open ACL2 ACL2.Replay ACL2.Lifting ACL2.Worlds.Perm
+-- (`ACL2.Replay` is deliberately NOT opened: it is replay machinery, and
+-- these statements do not mention it.)
+open ACL2 ACL2.Lifting ACL2.Worlds.Perm
 
 namespace ACL2.Worlds.Sorting
 
@@ -301,6 +309,145 @@ theorem dis_bnext_total (w : World)
     ∀ (env' : Env) (a0 : SExpr),
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
       ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (app1 "BNEXT" a0) = some v := by
+  sorry
+
+/-! ## The bsort measure kit's minted TPs -/
+
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11; minted under the
+    reuse-vs-mint ruling — existing-class cap): this establishes
+    `tp:HOW-MANY-SMALLER` — the emitted non-negative-integer corollary
+    `(IF (INTEGERP (HOW-MANY-SMALLER E X))
+         (NOT (< (HOW-MANY-SMALLER E X) '0)) 'NIL)` — Lean-side; content
+    ACL2 derives. Statement kept as the named premise; proof retired to
+    `sorry`. UNLOCK: TP-replay discharge. -/
+theorem dis_how_many_smaller_tp (w : World)
+    (h_how_many_smaller : w.defs.get? how_many_smaller_sym
+      = some ([eS, xS], howManySmallerBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_binary__ : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (e' : Env) (a0 a1 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol how_many_smaller_sym))
+        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
+    (bif Logic.toBool (Logic.integerp v) then
+        Logic.not (Logic.lt v (.atom (.number (.int 0))))
+      else SExpr.nil) = SExpr.t := by
+  sorry
+
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11; minted under the
+    reuse-vs-mint ruling — existing-class cap): this establishes
+    `tp:BNEXT-SIZE` — the emitted non-negative-integer corollary
+    `(IF (INTEGERP (BNEXT-SIZE X)) (NOT (< (BNEXT-SIZE X) '0)) 'NIL)` —
+    Lean-side; content ACL2 derives. Statement kept as the named
+    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
+theorem dis_bnext_size_tp (w : World)
+    (h_how_many_smaller : w.defs.get? how_many_smaller_sym
+      = some ([eS, xS], howManySmallerBody))
+    (h_bnext_size : w.defs.get? bnext_size_sym
+      = some ([xS], bnextSizeBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_binary__ : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (e' : Env) (a0 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol bnext_size_sym))
+        (SExpr.cons a0 SExpr.nil)) = some v) :
+    (bif Logic.toBool (Logic.integerp v) then
+        Logic.not (Logic.lt v (.atom (.number (.int 0))))
+      else SExpr.nil) = SExpr.t := by
+  sorry
+
+/-! ## The equisort `:LOCAL-WITNESS` TPs -/
+
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:SORTFN1-INSERT` — the emitted `(CONSP (SORTFN1-INSERT E X))`
+    corollary — Lean-side; content ACL2 derives. Statement kept as the
+    named premise; proof retired to `sorry`. UNLOCK: TP-replay
+    discharge for the witness fns. -/
+theorem dis_sortfn1_insert_tp (w : World)
+    (h_sortfn1_insert : w.defs.get? sortfn1_insert_sym
+      = some ([eS, xS], sortfn1InsertBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 a1 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol sortfn1_insert_sym))
+        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
+    Logic.consp v = SExpr.t := by
+  sorry
+
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:SORTFN1` — the emitted consp-or-nil `IF` corollary — Lean-side;
+    content ACL2 derives. Statement kept as the named premise; proof
+    retired to `sorry`. UNLOCK: TP-replay discharge for the witness
+    fns. -/
+theorem dis_sortfn1_tp (w : World)
+    (h_sortfn1_insert : w.defs.get? sortfn1_insert_sym
+      = some ([eS, xS], sortfn1InsertBody))
+    (h_sortfn1 : w.defs.get? sortfn1_sym = some ([xS], sortfn1Body))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol sortfn1_sym))
+        (SExpr.cons a0 SExpr.nil)) = some v) :
+    (bif Logic.toBool (Logic.consp v) then SExpr.t
+      else Logic.equal v SExpr.nil) = SExpr.t := by
+  sorry
+
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:SSORTFN1-INSERT` — the emitted `(CONSP (SSORTFN1-INSERT E X))`
+    corollary — Lean-side; content ACL2 derives. Statement kept as the
+    named premise; proof retired to `sorry`. UNLOCK: TP-replay
+    discharge for the witness fns. -/
+theorem dis_ssortfn1_insert_tp (w : World)
+    (h_ssortfn1_insert : w.defs.get? ssortfn1_insert_sym
+      = some ([eS, xS], ssortfn1InsertBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 a1 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol ssortfn1_insert_sym))
+        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
+    Logic.consp v = SExpr.t := by
+  sorry
+
+/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
+    `tp:SSORTFN1` — the emitted consp-or-nil `IF` corollary — Lean-side;
+    content ACL2 derives. Statement kept as the named premise; proof
+    retired to `sorry`. UNLOCK: TP-replay discharge for the witness
+    fns. -/
+theorem dis_ssortfn1_tp (w : World)
+    (h_ssortfn1_insert : w.defs.get? ssortfn1_insert_sym
+      = some ([eS, xS], ssortfn1InsertBody))
+    (h_ssortfn1 : w.defs.get? ssortfn1_sym = some ([xS], ssortfn1Body))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (e' : Env) (a0 v : SExpr)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
+      (SExpr.cons (SExpr.atom (Atom.symbol ssortfn1_sym))
+        (SExpr.cons a0 SExpr.nil)) = some v) :
+    (bif Logic.toBool (Logic.consp v) then SExpr.t
+      else Logic.equal v SExpr.nil) = SExpr.t := by
   sorry
 
 end ACL2.Worlds.Sorting

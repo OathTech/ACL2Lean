@@ -27,46 +27,12 @@ open ACL2 ACL2.Replay ACL2.Lifting
 
 namespace ACL2.Worlds.Perm
 
-/-! ## The defuns, exactly as the log-derived world carries them -/
+/-! ## The defuns, exactly as the log-derived world carries them
 
-private def aS : Symbol := { package := "ACL2", name := "A" }
-private def eS : Symbol := { package := "ACL2", name := "E" }
-private def xS : Symbol := { package := "ACL2", name := "X" }
-private def yS : Symbol := { package := "ACL2", name := "Y" }
-
-private def aT : SExpr := .atom (.symbol { name := "A" })
-private def eT : SExpr := .atom (.symbol { name := "E" })
-private def xT : SExpr := .atom (.symbol { name := "X" })
-private def yT : SExpr := .atom (.symbol { name := "Y" })
-
-private def qT : SExpr :=
-  .cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)
-private def qNil : SExpr :=
-  .cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.nil .nil)
-
-abbrev membT (a x : SExpr) : SExpr := app2 "MEMB" a x
-abbrev rmT (e x : SExpr) : SExpr := app2 "RM" e x
-abbrev permT (x y : SExpr) : SExpr := app2 "PERM" x y
-private abbrev ifT (c t e : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "IF" })) (.cons c (.cons t (.cons e .nil)))
-
-/-- `(defun rm (e x) …)`, macroexpanded. -/
-def rmBody : SExpr :=
-  ifT (conspT xT)
-    (ifT (equalT eT (carT xT)) (cdrT xT) (consT (carT xT) (rmT eT (cdrT xT))))
-    qNil
-
-/-- `(defun memb (a x) …)`, macroexpanded. -/
-def membBody : SExpr :=
-  ifT (conspT xT)
-    (ifT (equalT aT (carT xT)) qT (membT aT (cdrT xT)))
-    qNil
-
-/-- `(defun perm (x y) …)`, macroexpanded. -/
-def permBody : SExpr :=
-  ifT (conspT xT)
-    (ifT (membT (carT xT) yT) (permT (cdrT xT) (rmT (carT xT) yT)) qNil)
-    (ifT (conspT yT) qNil qT)
+The book's symbol/term vocabulary and the three macroexpanded bodies
+(`membBody` / `rmBody` / `permBody`) are ACL2 transcription data and
+live in `Demo/Sorting/AclSource.lean`; everything below consumes them
+from there. -/
 
 private def memb_sym : Symbol := { package := "ACL2", name := "MEMB" }
 private def rm_sym : Symbol := { package := "ACL2", name := "RM" }
