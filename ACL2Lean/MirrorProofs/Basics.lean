@@ -35,7 +35,11 @@ hand-written here that the transfer kit should generate or subsume):
    → `mirror transport`-generated (C3).
 6. `len_agree_length` + `len_map_invariant` (the len squares) →
    mirror_iso%-generated (C2); the Nat-result transport pattern in
-   `len_app_int` (no injectivity needed — numeric conclusion) → C3. -/
+   `len_app_int` (no injectivity needed — numeric conclusion) → C3.
+7. `app_assoc_sexpr`/`len_app_sexpr` (the waypoint crossings: three
+   vocabulary rewrites + the waypoint theorem) → C3-generated with
+   the transport; dissolve entirely if waypoint statements are ever
+   generated in mirror vocabulary (the item-3 design point). -/
 
 namespace ACL2Lean.MirrorProofs
 

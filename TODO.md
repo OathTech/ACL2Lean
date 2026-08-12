@@ -117,6 +117,16 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > sidecars, so a comment edit is a check-log-provenance SOURCE-DRIFT
 > failure; fix opportunistically at the next recapture of those books.
 
+> **THE FIRST MIRRORS (pathfinder arc, 2026-08-12):**
+> `MirrorProofs/Basics.lean` — app_assoc_int (trio-clean) +
+> len_app_int (honest sorryAx via drv_tp_mylen; retires with B1).
+> THE LIST (7 items, in the file header) = the transfer kit's
+> measured requirements: embed kit + injectivity plumbing (C1),
+> the hom/agreement squares (C2 mirror_iso%), waypoint crossings +
+> transport assembly (C3), the vocabulary-alignment design point
+> (B5/C3). Expectations-not-gates per Mike's ruling (the charter's
+> arc log has it verbatim).
+
 Running backlog across all tracks. Keep this current: update when a milestone lands,
 scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`).
 This is a living index, not a spec — design detail lives in `docs/plans/` and

@@ -101,3 +101,26 @@ Mike's look"). EARLY EXIT declared per the goal's exit condition:
 the remaining work gates on a user decision. Resuming = Mike's go on
 the design (or an amended design), then items 2–4 execute as
 presented.
+
+RULING RECEIVED (Mike, 2026-08-12 — closing the item-1 wall; recorded
+here per exit-audit CONCERN-1, which rightly noted the ruling
+previously existed only in agent prose): (1) the placement directory
+is `ACL2Lean/MirrorProofs/` (not the proposed `Proofs/`); (2) the
+proposed statement-purity pin is NOT adopted — "we are going to avoid
+doing the lazy thing by setting expectations right, rather than
+aggressive gating. These are small demos, easy enough to keep
+straight"; the content-flow shape approved as presented. The
+EXPECTATIONS header in MirrorProofs/Basics.lean implements (2); the
+exit audit's NOTE-2 speedbump suggestion is DECLINED under the same
+ruling (recorded for future reconsideration if MirrorProofs grows
+beyond small demos).
+
+ARC COMPLETION (2026-08-12): items 2–6 executed as designed — both
+mirror theorems landed first-try (app_assoc_int trio-clean;
+len_app_int with the honest drv_tp_mylen sorryAx receipt); the exit
+audit returned ZERO DEFECTS with the decisive checks (glue-only
+closure content-free; unplug test leaves exactly the waypoint
+statement; the transport is a complete reduction to the waypoint;
+hreplayed genuinely consumed one level down). NOTE-4 (credit): the
+proof is generic over any Acl2Embed α — the Int scoping is WEAKER
+than what is proved, the honest direction.
