@@ -33,6 +33,12 @@ echo "== hand lines per catalog native =="
 # ACL2Lean/Imported/Sorting.lean is imports + prose, and
 # Demo/Sorting/Statements.lean is the zero-proof-content front page, so
 # neither is counted.
+# TREND CAVEAT (2026-08-12): the 147 -> 151 step at the demo v2 refactor
+# is a REGROUPING artifact, not new hand content — Lifting's term
+# builders/body data and IsChain content moved INTO counted files
+# (Demo/Sorting/{TCB,AclSource}.lean) from files this list never
+# counted. The trend baseline resets there; only post-v2 numbers are
+# comparable with each other.
 hand_files=(
   ACL2Lean/Demo/Sorting/TCB.lean
   ACL2Lean/Demo/Sorting/AclSource.lean
@@ -71,3 +77,19 @@ echo "== decode coverage (hreplayed-usage gate's scan surface) =="
 # watched number here instead of a build-failing floor in Catalog.lean.
 n_decode=$(cat "${hand_files[@]}" | grep -c '_of_replayed (' || true)
 echo "  decode theorems (_of_replayed) in the per-book Imported files: ${n_decode}"
+
+echo
+echo "== visible debt (sorry count, whole library) =="
+# REPORTED, not a gate (the "exactly 20 sorries" claim on the demo pages
+# was prose; this measures it). The build-failing half already exists
+# elsewhere: the provenance gate requires each registered debt entry to
+# CARRY its sorryAx, and the axiom gate bounds every native's axioms.
+# The pattern is the SORRY AS A PROOF (a bare `sorry` line, or `:= by
+# sorry`) — prose/docstring mentions of the word are excluded, which is
+# why this is not a plain word grep.
+sorry_re='^[[:space:]]*sorry[[:space:]]*$|:= *by +sorry *$|:= *sorry *$'
+n_sorry=$(grep -rc --include='*.lean' -E "$sorry_re" ACL2Lean \
+  | awk -F: '{n+=$2} END {print n+0}')
+n_sorry_demo=$(grep -c -E "$sorry_re" \
+  ACL2Lean/Demo/Sorting/Assumptions.lean || true)
+echo "  sorries in ACL2Lean/: ${n_sorry} (${n_sorry_demo} in Demo/Sorting/Assumptions.lean)"

@@ -5,12 +5,39 @@ import ACL2Lean.Imported.Mirrors.Catalog
 
 The demo's front door (`docs/demo/1-tcb.md` is the tour).
 
-**THE TRUST BASE IS THIS FOLDER.** For an entry whose receipt below is
-the clean trio, that means exactly two files: `TCB.lean` (the
-definitions) + this page (the statements). For an entry whose receipt
-carries `sorryAx`, add one more: `Assumptions.lean` (and, if you care
-about the ATTRIBUTION, the ACL2 transcripts those assumptions mention,
-in `AclSource.lean`). That is all.
+**THE TRUST BASE IS THIS FOLDER — in two tiers.**
+
+*TIER A — you ACCEPT the assumptions as stated.* Then the trust base is
+this folder plus one file: `TCB.lean` (the definitions, 204) + this
+page (the statements, 405) + `Assumptions.lean` (the 18 assumed facts,
+566, needed only for an entry whose receipt carries `sorryAx`) +
+`ACL2Lean/Lexorder.lean` (104 — `lexorderB`, which `TCB.lean`'s
+`LexSorted` bottoms out in; you may instead take it on its kernel-
+checked order properties — `lexorder_refl`/`_antisymm`/`_trans`/
+`_total` in `ACL2Lean/LexorderOrder.lean` — and read the
+implementation no further). If you also care about the ATTRIBUTION —
+which ACL2 functions these came from — add the transcripts in
+`AclSource.lean` (670, pure data). **~710 lines of definitions +
+statements, ~1280 with the assumptions, ~1950 with the transcripts.**
+
+*TIER B — you want to VALIDATE the assumptions rather than accept
+them.* Their statements are written over the semantic core, so reading
+them for content means adding `ACL2Lean/EvalOpt.lean` (824),
+`ACL2Lean/Logic.lean` (764) and `ACL2Lean/Syntax.lean` (886) — plus
+`ACL2Lean/Parser.lean` (745), which rides into the import closure via
+`EvalOpt.lean` (it is a reader, not part of the semantics — but it IS
+in the closure, so it is named here rather than quietly excluded) — and
+the `AclSource.lean` bodies each assumption mentions. **~3200 further
+lines.** Note the fuel convention you will hit immediately: `evalOpt`
+is fuel-bounded, and every assumption states convergence in the
+`∃ N, ∀ f ≥ N, evalOpt f … = some v` form, which is well-defined
+because evaluation is fuel-MONOTONE (`evalOpt_fuel_mono` /
+`evalOpt_ge_fuel`, `ACL2Lean/EvalOpt.lean`) — machinery-side context
+for reading the statements, NOT part of either tier's trust base.
+
+Which assumptions a given headline actually rests on is not a guess:
+the ATTRIBUTION RECEIPT at the bottom of this page lists them
+per-theorem and fails the build if the list is wrong.
 
 Everything below is a RESTATEMENT of a catalog native
 (`Mirrors/Catalog.lean`): every proof on this page is a direct
@@ -26,10 +53,16 @@ imports it for statements only.
 * **The statements on this page.** They are ordinary Lean propositions
   about ordinary Lean functions (`isortL`, `qsortL`, `msortL`,
   `List.count`, `List.Perm`, `List.IsChain`) whose definitions live in
-  `Demo/Sorting/TCB.lean`. No `evalOpt`, no `EvTrue`, no `World`, no
-  `boolEnc` and no `*Exec` function appears in any of them — the
-  catalog's CRITERION-1 GATE mechanizes exactly that ban on the
-  constants restated here. Read them; as *Lean theorems* they are the
+  `Demo/Sorting/TCB.lean`. For the §1–4 NATIVE entries no `evalOpt`, no
+  `EvTrue`, no `World`, no `boolEnc` and no `*Exec` function appears in
+  any of them — the catalog's CRITERION-1 GATE mechanizes exactly that
+  ban, and it covers exactly those constants (the `.native`/
+  `.nativeSorried` catalog entries this page restates). §5's four
+  capstone entries are DIFFERENT and outside that gate's scope by
+  design: they are DEEP-EMBEDDED conditionals over `EvTrue`/`evalOpt`
+  at an abstract or canonical `World`, labelled as such where they
+  appear — `#check` them and read the telescope, do not read them as
+  native statements. Read them all; as *Lean theorems* they are the
   whole claim, and the kernel has checked every one.
 * **That the definitions are the ones you want.** `isortL`, `qsortL`,
   `msortL` are ordinary Lean definitions in `TCB.lean` — read them and
@@ -85,7 +118,7 @@ PROVENANCE GATE in `Mirrors/Catalog.lean`):
 
 | class | count | what it is | unlock |
 | --- | --- | --- | --- |
-| `tp:` type-prescription | 14 | ACL2-emitted type corollaries of a defun (e.g. "`(insert e x)` is a `consp`") | a TP-replay discharge route |
+| `tp:` type-prescription | 12 | ACL2-emitted type corollaries of a defun (e.g. "`(insert e x)` is a `consp`") | a TP-replay discharge route |
 | `total:` termination | 5 | a defun's admission (`MERGE2`, `MSORT`, `O<`, `PERM-COUNTER-EXAMPLE`, `BNEXT`) | `with_termination` admission coverage (machinery exists; the rows need wiring) |
 | `rule:` previously-proved | 1 | `CONVERT-PERM-TO-HOW-MANY` used as a rewrite rule | the R-lane arc (PERM-TLFIX replay) |
 
@@ -103,6 +136,11 @@ abstract uniqueness capstone, below, stated honestly with its kept
 premises.
 -/
 
+-- The `ACL2.Imported.Showcase` namespace is DELIBERATE and load-bearing
+-- (it predates the demo-v2 move of this file out of `Imported/`): every
+-- fully-qualified name below, and therefore all 12 `#guard_msgs` axiom
+-- receipts, is spelled with it. Renaming the namespace rewrites — and
+-- so silently re-pins — every receipt on the page. Don't.
 namespace ACL2.Imported.Showcase
 
 open ACL2 ACL2.Worlds.Sorting ACL2.Imported.Mirrors
@@ -225,6 +263,13 @@ theorems in stored-rule form, the signature functions' totality, the
 builtin no-shadow facts). Nothing is definition-pinned and no witness
 vocabulary appears — pinned separately in `Tests/ParametricPins.lean`.
 
+**These four entries are DEEP-EMBEDDED, unlike §§1–4.** Their
+statements are `EvTrue w env ⟦formula⟧` over `evalOpt` — the ACL2
+formula inside our semantic model, not a native Lean proposition about
+`isortL`-style functions — so reading them means reading `EvalOpt.lean`
+too (tier B above), and the criterion-1 vocabulary gate does not, and
+is not meant to, apply to them.
+
 `#check` them to read the telescope; the aliases below just name them
 on this page. -/
 
@@ -269,6 +314,80 @@ def sorts_equivalence_strong_at_canonical :=
 /-- info: 'ACL2.Imported.Showcase.sorts_equivalence_strong_at_canonical' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms sorts_equivalence_strong_at_canonical
+
+/-! ## WHICH ASSUMPTIONS DOES EACH THEOREM USE?
+
+The receipt below is the PER-THEOREM ATTRIBUTION: for every headline on
+this page, the exact set of `Assumptions.lean` statements its proof
+transitively consumes. **The expected lists are written out in the
+source below — that list IS the disclosure** ("this theorem assumes
+exactly these"), and the check recomputes them from the proof terms and
+FAILS THE BUILD naming the delta if a headline ever acquires or sheds
+one. So `isort_sorts` rests on ONE assumption (`dis_insert_tp`), not on
+all eighteen; the two parametric capstones rest on NONE, and an entry
+with `[]` that acquires debt fails here too.
+
+The measurement is a transitive walk of each proof term's constants
+(`Expr.getUsedConstants`), keeping those named `dis_*`/`drv_*` that
+carry `sorryAx` — exactly the registered FORBIDDEN-DEBT entries (the
+PROVENANCE GATE in `Mirrors/Catalog.lean` is what makes that naming
+exhaustive: an unregistered `dis_*`/`drv_*` constant fails the build
+there). Deterministic, no heuristics. -/
+
+open Lean in
+run_cmd Lean.Elab.Command.liftCoreM do
+  let attribution : List (Name × List Name) :=
+    [(``isort_sorts,               [``dis_insert_tp]),
+     (``isort_preserves_count,     [``dis_how_many_tp]),
+     (``msort_sorts,               [``dis_merge2_total, ``dis_msort_total,
+                                    ``dis_evens_tp]),
+     (``msort_preserves_count,     [``dis_merge2_total, ``dis_msort_total,
+                                    ``dis_how_many_tp]),
+     (``qsort_sorts,               [``dis_pce_total, ``dis_o_lt_total,
+                                    ``dis_how_many_tp, ``dis_all_rel_tp,
+                                    ``dis_acl2_count_tp, ``dis_convert_perm,
+                                    ``dis_append_tp]),
+     (``qsort_preserves_count,     [``dis_o_lt_total, ``dis_how_many_tp,
+                                    ``dis_acl2_count_tp]),
+     (``qsort_perm,                [``dis_pce_total, ``dis_o_lt_total,
+                                    ``dis_how_many_tp, ``dis_acl2_count_tp,
+                                    ``dis_convert_perm]),
+     (``pce_is_a_complete_witness, [``dis_pce_total, ``dis_how_many_tp]),
+     (``sorts_equivalence_weak,    []),
+     (``sorts_equivalence_strong,  []),
+     (``sorts_equivalence_weak_at_canonical,
+                                   [``dis_pce_total, ``dis_how_many_tp,
+                                    ``dis_sortfn1_insert_tp,
+                                    ``dis_sortfn1_tp]),
+     (``sorts_equivalence_strong_at_canonical,
+                                   [``dis_pce_total, ``dis_how_many_tp,
+                                    ``dis_ssortfn1_insert_tp])]
+  let env ← getEnv
+  for (head, expected) in attribution do
+    let mut frontier : List Name := [head]
+    let mut visited : NameSet := {}
+    let mut used : List Name := []
+    while !frontier.isEmpty do
+      let c := frontier.head!
+      frontier := frontier.tail!
+      unless visited.contains c do
+        visited := visited.insert c
+        let s := (c.componentsRev.headD Name.anonymous).toString
+        let mut isDebt := false
+        if s.startsWith "dis_" || s.startsWith "drv_" then
+          isDebt := (← collectAxioms c).contains ``sorryAx
+        if isDebt then
+          used := used ++ [c]
+        else if let some ci := env.find? c then
+          if let some v := ci.value? then
+            frontier := v.getUsedConstants.toList ++ frontier
+    let unlisted := used.filter (!expected.contains ·)
+    let stale := expected.filter (!used.contains ·)
+    unless unlisted.isEmpty && stale.isEmpty do
+      throwError "assumption-attribution receipt: {head}'s expected \
+        assumption list is wrong. CONSUMED BUT NOT LISTED: {unlisted}; \
+        LISTED BUT NOT CONSUMED: {stale}. (The list on this page is the \
+        per-theorem disclosure — fix the list, or explain the change.)"
 
 /-! ## Where to go next
 

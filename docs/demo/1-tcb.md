@@ -7,20 +7,57 @@ theorem about ordinary Lean functions. ACL2 is an *untrusted oracle*: it
 proposes proofs, the Lean kernel checks them.
 
 The first question a reader should ask is **what do I have to trust?** The
-answer is one folder, and it is small:
+answer is one folder plus a little, and it comes in **two tiers** — pick the
+one that matches what you want to do with the assumptions.
+
+### Tier A — you ACCEPT the assumed facts as stated
 
 ```
 ACL2Lean/Demo/Sorting/
-  TCB.lean          the definitions        ~200 lines
-  AclSource.lean    the ACL2 transcripts   ~670 lines (pure data)
-  Assumptions.lean  the 18 assumed facts   ~440 lines
-  Statements.lean   the theorems           ~290 lines
+  TCB.lean          the definitions        204 lines
+  Statements.lean   the theorems           405 lines
+  Assumptions.lean  the 18 assumed facts   566 lines  (only for a
+                                                       sorryAx receipt)
+  AclSource.lean    the ACL2 transcripts   670 lines  (pure data; only
+                                                       for attribution)
+ACL2Lean/Lexorder.lean                     104 lines
 ```
 
-Read those four files and you have read the whole trust base. Everything else
-in the repository — some tens of thousands of lines of parser, proof-tree
-reconstruction, replay driver, correspondence lemmas, gates and tests — is
-*untrusted*: a bug in any of it can only make a proof fail to typecheck.
+`Lexorder.lean` is in the tier because `TCB.lean`'s `LexSorted` bottoms out in
+`lexorderB`, ACL2's built-in total order. You may instead take that function on
+its kernel-checked order properties — `lexorder_refl` / `_antisymm` / `_trans`
+/ `_total` in `ACL2Lean/LexorderOrder.lean` — and not read the implementation.
+
+**~710 lines** of definitions + statements; **~1280** with the assumptions,
+**~1950** if you also want the ACL2 attribution.
+
+### Tier B — you want to VALIDATE the assumptions rather than accept them
+
+The 18 assumed statements are written over the semantic core, so reading them
+*for content* means adding the modules that give their vocabulary meaning:
+
+```
+ACL2Lean/EvalOpt.lean   824   the fuel-bounded interpreter
+ACL2Lean/Logic.lean     764   the ACL2 primitives
+ACL2Lean/Syntax.lean    886   SExpr, symbols, worlds
+ACL2Lean/Parser.lean    745   rides into the import closure via EvalOpt
+```
+
+**~3200 further lines.** `Parser.lean` is a reader, not part of the semantics,
+but it *is* in the closure, so it is named here rather than quietly excluded.
+Add to it the `AclSource.lean` bodies each assumption mentions.
+
+One convention to know before you read them: `evalOpt` is fuel-bounded, and
+every assumption states convergence as `∃ N, ∀ f ≥ N, evalOpt f … = some v`.
+That form is well-defined because evaluation is fuel-*monotone*
+(`evalOpt_fuel_mono` / `evalOpt_ge_fuel` in `ACL2Lean/EvalOpt.lean`) — a
+pointer for reading the statements, machinery-side context, not part of either
+tier's trust base.
+
+Everything else in the repository — some tens of thousands of lines of
+proof-log parsing, proof-tree reconstruction, replay driver, correspondence
+lemmas, gates and tests — is *untrusted*: a bug in any of it can only make a
+proof fail to typecheck.
 
 ---
 
@@ -45,6 +82,20 @@ axiom set is checked by the build and printed on the page:
 The page adds **zero proof content**: every proof on it is a bare application
 of a catalog constant. It is the one demo file that imports machinery, and it
 imports it for statements only.
+
+At the bottom of the page is the **attribution receipt**: for each headline,
+the exact set of `Assumptions.lean` statements its proof transitively consumes,
+written out in the source and recomputed from the proof terms by a
+build-failing check. So "18 assumptions" is never the per-theorem story —
+`isort_sorts` consumes exactly one of them (`dis_insert_tp`), and the two
+parametric capstones consume none.
+
+One scoping note, because the page states it too: the ban on evaluator
+vocabulary (`evalOpt`, `EvTrue`, `World`, `boolEnc`, `*Exec`) — mechanized by
+the catalog's criterion-1 gate — covers the **native** entries in §§1–4. The
+four §5 capstone entries are deep-embedded conditionals over `EvTrue`/`evalOpt`
+at an abstract or canonical `World`, labelled as such where they appear, and
+outside that gate's scope by design.
 
 ### `TCB.lean` — the definitions
 
@@ -81,11 +132,15 @@ belong to other books: `drv_tp_len` in `Imported/Lifting.lean`, `drv_tp_mylen`
 in `Imported/SimpleWorld.lean`.)
 
 Each is a fact ACL2 itself discharged, for which the replay route does not
-exist yet, held as a visible `sorryAx` rather than re-proved in Lean:
+exist yet, held as a visible `sorryAx` rather than re-proved in Lean. Each
+docstring carries an **EVIDENCE** line naming the ACL2 artifact it transcribes
+(the book plus the emitted `:TYPE-PRESCRIPTION` corollary, `:DEFUN` admission
+or `:DEFTHM`, quoted from the captured proof log) — evidence for believing
+them, not a proof of them:
 
 | class | count | what it is | unlock |
 | --- | --- | --- | --- |
-| `tp:` type-prescription | 14 | ACL2-emitted type corollaries of a defun ("`(insert e x)` is a `consp`") | a TP-replay discharge route |
+| `tp:` type-prescription | 12 | ACL2-emitted type corollaries of a defun ("`(insert e x)` is a `consp`") | a TP-replay discharge route |
 | `total:` termination | 5 | a defun's admission (`MERGE2`, `MSORT`, `O<`, `PERM-COUNTER-EXAMPLE`, `BNEXT`) | `with_termination` admission coverage |
 | `rule:` previously-proved | 1 | `CONVERT-PERM-TO-HOW-MANY` used as a rewrite rule | the R-lane arc (PERM-TLFIX replay) |
 
@@ -111,13 +166,20 @@ parser, the proof-tree reconstruction, the replay driver, the semantic core
 (`SExpr`, `Logic`, `evalOpt`), the encoders (`enc`/`boolEnc`/`intRep`), and the
 whole correspondence/decode layer.
 
+The one place the semantic core comes back is tier B above: the 18 assumed
+statements are *written in* `evalOpt` vocabulary, so judging whether they are
+TRUE means reading it. It is untrusted for what the page PROVES, and it is what
+you read if you want to check what the page ASSUMES.
+
 Two things to notice on the page, because they are where honesty lives:
 
 * Most receipts read `[propext, sorryAx, Classical.choice, Quot.sound]`. The
   `sorryAx` is not decoration: it is the visible debt, and it points at
   `Assumptions.lean`. A result whose receipt is the clean trio has *no*
-  assumptions beyond Lean's — and for those, the trust base is `TCB.lean` plus
-  the statement, full stop.
+  assumptions beyond Lean's — and for those, the trust base is `TCB.lean`
+  (with `Lexorder.lean` under it) plus the statement, full stop. Which
+  assumptions a `sorryAx` result actually uses is on the page, per theorem, in
+  the attribution receipt.
 * The sorts-equivalence capstone is presented as the **conditional it is**.
   ACL2 proves it in a constrained theory, so the artifact is the
   world-parametric constant with the scope's constraints as explicit premises;

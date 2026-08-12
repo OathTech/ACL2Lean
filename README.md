@@ -46,10 +46,14 @@ proof search is this repo's code:
    statement-identity gate).
 6. **ACL2-logic interpreter** (`ACL2Lean/EvalOpt.lean`,
    `ACL2Lean/Logic.lean`) — the fuel-bounded semantic model that defines what
-   the mirror theorem means (differential-tested against real ACL2).
+   the *replayed statement* means (differential-tested against real ACL2).
+   Terminology, fixed 2026-07-30: a **replayed statement** is the
+   deep-embedded theorem `EvTrue w env ⟦formula⟧` over `evalOpt`; a
+   **mirror** is only the Lean-idiomatic NATIVE theorem proved from one
+   (stage 8).
 7. **Proof replay** (`ACL2Lean/Replay/Driver.lean`,
    `ACL2Lean/Replay/EvalLemmas.lean`) — recurses the reconstructed tree and
-   emits a Lean proof object for the mirror theorem, node by node; the Lean
+   emits a Lean proof object for the replayed statement, node by node; the Lean
    kernel checks it. The replay does **no inference** as its governing
    rule: if the tree lacks the information to replay a step, the fix is
    more instrumentation at the ACL2 source, never a heuristic in Lean.
@@ -60,9 +64,10 @@ proof search is this repo's code:
    expiry-held mechanisms (marked `DRIFT MARKER` in
    `ACL2Lean/Replay/Driver/`, each retiring against a queued fork
    emission — see the 2026-08-05 branch drift audit).
-8. **Native bridge** (`ACL2Lean/Imported/`) — the mirror theorem is decoded
-   into a *native Lean statement* (e.g. `(xs ++ ys).length = xs.length +
-   ys.length`), so the imported fact is usable as an ordinary Lean theorem.
+8. **Native bridge** (`ACL2Lean/Imported/`) — the replayed statement is
+   decoded into a *native Lean statement* (e.g. `(xs ++ ys).length =
+   xs.length + ys.length`) — a MIRROR — so the imported fact is usable as an
+   ordinary Lean theorem.
    `Imported/Lifting.lean` is the lifting library: representations of Lean
    types in ACL2's value space (`Rep`, with ACL2 recognizers as the type
    discipline), correspondences between ACL2 functions and Lean operations
@@ -168,6 +173,7 @@ that embed them, so there is no silent staleness).
 | --- | --- |
 | `acl2/` | The instrumented ACL2 fork (submodule, branch `acl2-lean-output`) |
 | `ACL2Lean/` | Parser, s-expression core, interpreter, translator |
+| `ACL2Lean/Demo/` | The demo trust base and its front door (`Demo/Sorting/`: the definitions, the ACL2 transcripts, the assumed facts, the theorems) — start at `docs/DEMO.md` |
 | `ACL2Lean/Replay/` | The replay driver and its atomic evaluation lemmas |
 | `ACL2Lean/Imported/` | The lifting library and the native mirror catalog |
 | `Tests/` | Unit tests, driver tests, the corpus-wide coverage harness |
