@@ -194,10 +194,16 @@ elab "sorting_statement_pins_run% " : term => do
       -- probes; the full sweep's golden carries them)
       "    TRUE-LISTP-ISORT → REPLAYED ✓ cond[tp:INSERT]"),
      ("pins/sorting/isort",
-      "    HOW-MANY-ISORT → REPLAYED ✓ cond[tp:HOW-MANY]"),
+      -- tp:HOW-MANY DROPPED 2026-08-12 (TP-replay arc increment 1): the
+      -- driver's TP prover discharges HOW-MANY's emitted corollary from
+      -- its `:LEAVES` (the BINARY-+ return path), so the row is now
+      -- unconditional — an INTENTIONAL improvement, diagnosed row-by-row
+      -- against the golden, not a silent drift
+      "    HOW-MANY-ISORT → REPLAYED ✓"),
      ("pins/sorting/qsort",
+      -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above)
       "    PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, \
-tp:HOW-MANY, tp:ACL2-COUNT, \
+tp:ACL2-COUNT, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
@@ -206,8 +212,9 @@ rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
 tp:ACL2-COUNT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
 cond[total:(QSORT X), tp:QSORT]]"),
      ("pins/sorting/qsort",
+      -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above)
       "    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, \
-total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, \
+total:O<, tp:ALL-REL, tp:ACL2-COUNT, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
@@ -219,9 +226,11 @@ rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
       "    ORDEREDP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, \
 tp:EVENS]"),
      ("pins/sorting/bsort",
-      "    HOW-MANY-BNEXT → REPLAYED ✓ cond[total:BNEXT, tp:HOW-MANY]"),
+      -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above)
+      "    HOW-MANY-BNEXT → REPLAYED ✓ cond[total:BNEXT]"),
      ("pins/sorting/convert-perm-to-how-many",
-      "    HOW-MANY-RM → REPLAYED ✓ cond[tp:HOW-MANY]")]
+      -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above)
+      "    HOW-MANY-RM → REPLAYED ✓")]
   let goldenLines := sweepGolden.splitOn "\n"
   for (book, line) in mustHave do
     let some (_, lines) := expected.find? (·.1 == book)
@@ -359,7 +368,10 @@ example :
     ∀ (env : Env),
       totalHyp2 qsortPinsWorld "PERM-COUNTER-EXAMPLE" →
       totalHyp2 qsortPinsWorld "O<" →
-      tpNonnegInt2 qsortPinsWorld "HOW-MANY" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
+      -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
+      -- the hypothesis left the telescope, so the pinned type drops
+      -- it too. INTENTIONAL; diagnosed against the golden.)
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
       -- (the not-memb-implies-how-many-is-0 hypothesis is GONE: discharged
       -- CROSS-BOOK from the dependency book's replayed tree — 2a)
@@ -515,7 +527,10 @@ example :
 example :
     ∀ (env : Env),
       totalHyp1 bsortPinsWorld "BNEXT" →
-      tpNonnegInt2 bsortPinsWorld "HOW-MANY" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
+      -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
+      -- the hypothesis left the telescope, so the pinned type drops
+      -- it too. INTENTIONAL; diagnosed against the golden.)
       EvTrue bsortPinsWorld env
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (sym "E") (ap1 "BNEXT" (sym "X")))
@@ -537,7 +552,10 @@ example :
     without it. -/
 example :
     ∀ (env : Env),
-      tpNonnegInt2 convertPermPinsWorld "HOW-MANY" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
+      -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
+      -- the hypothesis left the telescope, so the pinned type drops
+      -- it too. INTENTIONAL; diagnosed against the golden.)
       EvTrue convertPermPinsWorld env
         (ap2 "IMPLIES" (ap1 "NOT" (ap2 "EQUAL" (sym "A") (sym "B")))
           (ap2 "EQUAL"
@@ -652,7 +670,10 @@ example :
     ∀ (env : Env),
       totalHyp2 qsortPinsWorld "PERM-COUNTER-EXAMPLE" →
       totalHyp2 qsortPinsWorld "O<" →
-      tpNonnegInt2 qsortPinsWorld "HOW-MANY" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
+      -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
+      -- the hypothesis left the telescope, so the pinned type drops
+      -- it too. INTENTIONAL; diagnosed against the golden.)
       tpBool3 qsortPinsWorld "ALL-REL" →
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
       -- (not-memb-implies-how-many-is-0: discharged cross-book, 2a)
@@ -750,9 +771,14 @@ elab "pattern_statement_pins_run% " : term => do
       {r5.integrityFails.toList ++ r7.integrityFails.toList}"
   let mustHave : List (String × Array String × String) :=
     [("pins/p5-flip", r5.lines, "    DUPP-REP-MID → REPLAYED ✓"),
-     ("pins/p7-cong", r7.lines, "    P7-TARGET → REPLAYED ✓ cond[tp:LN]"),
+     -- tp:LN DROPPED 2026-08-12 (TP-replay arc increment 1): LN is
+     -- len-shaped, so its emitted corollary + `:LEAVES` discharge through
+     -- the TP prover's BINARY-+ return-path arm — an INTENTIONAL
+     -- improvement (both rows became unconditional), diagnosed against
+     -- the sweep, not a silent drift
+     ("pins/p7-cong", r7.lines, "    P7-TARGET → REPLAYED ✓"),
      ("pins/p7-cong", r7.lines,
-      "    SAME-LN-IMPLIES-EQUAL-LN-1 → REPLAYED ✓ cond[tp:LN]")]
+      "    SAME-LN-IMPLIES-EQUAL-LN-1 → REPLAYED ✓")]
   for (book, lines, line) in mustHave do
     unless lines.any (· == line) do
       throwError "pattern statement pins: {book} lost pinned status line\n  \
@@ -786,7 +812,8 @@ example :
     `(equal (ln (dub x)) (ln x))` under ln's non-negative-integer TP. -/
 example :
     ∀ (env : Env),
-      tpNonnegInt1 p7CongPinsWorld "LN" →
+      -- (tp:LN RETIRED 2026-08-12 — same TP-replay route as
+      -- tp:HOW-MANY above: LN is len-shaped.)
       EvTrue p7CongPinsWorld env
         (ap2 "EQUAL" (ap1 "LN" (ap1 "DUB" (sym "X"))) (ap1 "LN" (sym "X"))) :=
   ReplayedStatements.replayed_pins_p7_cong_P7_TARGET
@@ -797,7 +824,8 @@ example :
     (the defcong's macro-expanded defthm). -/
 example :
     ∀ (env : Env),
-      tpNonnegInt1 p7CongPinsWorld "LN" →
+      -- (tp:LN RETIRED 2026-08-12 — same TP-replay route as
+      -- tp:HOW-MANY above: LN is len-shaped.)
       EvTrue p7CongPinsWorld env
         (ap2 "IMPLIES"
           (ap2 "SAME-LN" (sym "X") (sym "X-EQUIV"))
@@ -827,7 +855,10 @@ example :
     dependency book's replayed tree — 2a). -/
 example :
     ∀ (env : Env),
-      tpNonnegInt2 isortPinsWorld "HOW-MANY" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
+      -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
+      -- the hypothesis left the telescope, so the pinned type drops
+      -- it too. INTENTIONAL; diagnosed against the golden.)
       EvTrue isortPinsWorld env
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (sym "E") (ap1 "ISORT" (sym "X")))

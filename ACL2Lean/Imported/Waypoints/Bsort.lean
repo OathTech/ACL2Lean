@@ -35,8 +35,6 @@ theorem howManyBnextReplayed_uncond (env : Env) :
   howManyBnextReplayedCond env
     (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_tp bsortWaypointsWorld (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-BNEXT natively: the bubble pass preserves
     `List.count` (over the self-contained native pass `bnextL`). -/
@@ -91,9 +89,6 @@ theorem howManySmallerBnextReplayed_uncond (env : Env) :
   howManySmallerBnextReplayedCond env
     (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_smaller_tp bsortWaypointsWorld (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-SMALLER-BNEXT natively: one bubble pass
     preserves every counts-below (over the native pass `bnextL` and the
@@ -124,9 +119,6 @@ theorem howManyBadPairsBnextReplayed_uncond (env : Env) :
   howManyBadPairsBnextReplayedCond env
     (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_smaller_tp bsortWaypointsWorld (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide))
     (Worlds.Sorting.dis_bnext_size_tp bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide))

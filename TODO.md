@@ -25,15 +25,20 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   coverage for MERGE2/MSORT/O</PCE/BNEXT (the machinery exists;
 >   the admissions need replay rows + wiring).
 > - TP class (unlock = a TP-replay discharge route, a named coverage
->   item): `dis_insert_tp`, `dis_how_many_tp`, `dis_all_rel_tp`,
+>   item): `dis_insert_tp`, `dis_all_rel_tp`,
 >   `dis_append_tp`, `dis_evens_tp`, `dis_acl2_count_tp`,
->   `drv_tp_len`, `drv_tp_mylen`, `dis_sortfn1_insert_tp`,
+>   `dis_sortfn1_insert_tp`,
 >   `dis_sortfn1_tp`, `dis_ssortfn1_insert_tp`, `dis_ssortfn1_tp`,
 >   and — MINTED 2026-08-11 under the reuse-vs-mint ruling (cap:
->   only classes that already HAVE an unlock) for the two
->   bnext-level bsort rows — `dis_how_many_smaller_tp`,
->   `dis_bnext_size_tp` (both registered in the provenance
->   debtRegistry; same TP-replay unlock). NOT mintable and still
+>   only classes that already HAVE an unlock) for the
+>   bnext-level bsort rows — `dis_bnext_size_tp`
+>   (registered in the provenance
+>   debtRegistry; same TP-replay unlock).
+>   RETIRED 2026-08-12 (TP-replay arc increment 1 — the BINARY-+
+>   return-path shape, discharged from ACL2's emitted corollary +
+>   `:LEAVES`): `dis_how_many_tp`, `dis_how_many_smaller_tp`,
+>   `drv_tp_len`, `drv_tp_mylen` (20 registered sorries → 16).
+>   NOT mintable and still
 >   blocking ORDEREDP-BSORT/HOW-MANY-BSORT:
 >   `linear:HOW-MANY-BAD-PAIRS-BNEXT` — the `linear:` class has NO
 >   existing unlock (route = linear/DP replay, or a ruling).
@@ -119,13 +124,25 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 
 > **THE FIRST MIRRORS (pathfinder arc, 2026-08-12):**
 > `MirrorProofs/Basics.lean` — app_assoc_int (trio-clean) +
-> len_app_int (honest sorryAx via drv_tp_mylen; retires with B1).
+> len_app_int (TRIO-CLEAN since 2026-08-12: its inherited
+> `drv_tp_mylen` debt retired by the TP-replay route, B1 inc-1).
 > THE LIST (7 items, in the file header) = the transfer kit's
 > measured requirements: embed kit + injectivity plumbing (C1),
 > the hom/agreement squares (C2 mirror_iso%), waypoint crossings +
 > transport assembly (C3), the vocabulary-alignment design point
 > (B5/C3). Expectations-not-gates per Mike's ruling (the charter's
 > arc log has it verbatim).
+
+> **GATE-FLOW GAP (TP arc increment 1, needs a ruling or a recipe
+> fix):** the coverage repin flow is circular — a book whose section
+> differs ERRORS, so the aggregate never assembles
+> `driver-coverage.actual` for `coverage-repin` to copy. Increment 1
+> worked around it by mechanically assembling the candidate from the
+> per-book `.section` artifacts (replicating the aggregate's own
+> rules) and then having the re-run sweep VERIFY it byte-exactly. Fix
+> options: teach the aggregate to assemble-and-diverge instead of
+> erroring, or ship the assembly script; the current recipe text
+> cannot work as written.
 
 Running backlog across all tracks. Keep this current: update when a milestone lands,
 scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`).

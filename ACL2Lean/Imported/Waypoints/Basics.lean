@@ -37,10 +37,10 @@ theorem mylenReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f simpleWorldD env
       Worlds.Simple.my_len_my_appFormula = some v ∧ v ≠ SExpr.nil :=
   -- the total:my-len/my-app/fix hypotheses are AUTO-DISCHARGED by the driver
-  -- from the emitted admission data (#37); only the TP hypothesis remains
+  -- from the emitted admission data (#37), and tp:MY-LEN by the TP prover
+  -- from the emitted corollary + `:LEAVES` (TP-replay arc increment 1) —
+  -- the replayed statement is now UNCONDITIONAL as the driver emits it
   mylenReplayedCond env
-    (Worlds.Simple.drv_tp_mylen simpleWorldD (by decide) (by decide)
-      (by decide) (by decide))
 
 /-- ENTRY 1, PROVED — the native statement through the DRIVER's replayed
     replayed statement: log → parse → reconstruct → derived world → conditional replay →

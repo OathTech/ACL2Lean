@@ -148,7 +148,9 @@ elab "perm_arc_pattern_pins% " : term => do
   --   (stored :EQUIV SAME-LN, hyp-free) applied at LN's arg-1 under the
   --   defcong SAME-LN-IMPLIES-EQUAL-LN-1, with BOTH the `rule:` (the
   --   interpreted-relation shape) and `cong:` (whole-formula replayed statement)
-  --   hypotheses DISCHARGED from their replayed statements — only tp:LN kept;
+  --   hypotheses DISCHARGED from their replayed statements (tp:LN was
+  --   the last kept condition until 2026-08-12, when the TP prover's
+  --   return-path arm discharged it too — the row is unconditional now);
   -- - SAME-LN-IS-AN-EQUIVALENCE — the multi-clause clausify bridge's
   --   TAUT-DROPPED split (the sym conjunct, recorded :CLAUSE ('T)),
   --   closed by the COMMUTED-EQUAL tautology pair;

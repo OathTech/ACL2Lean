@@ -50,8 +50,9 @@
   zero hypotheses (lifter sprint 2026-07-06).
    17. p7-cong-collapse (l.map (fun _ => '0)).length = l.length
                         [FIRST VALIDATION-BOOK waypoint — rung 2's ground
-                        truth; name-generic drv_tp_len + corr_mapconst_enc,
-                        validator/lifter arc inc-0]
+                        truth; tp:LN discharged BY THE DRIVER (the TP
+                        prover's return-path arm) + corr_mapconst_enc,
+                        validator/lifter arc inc-0; TP-replay arc inc-1]
    18. p5-or-shape-flipped  duppRec (e::tl) → duppRec (e::e::tl)
                         [chain2 schematic (comparison-generic) + boolEnc +
                         implies decode + junk-disjunct elimination,

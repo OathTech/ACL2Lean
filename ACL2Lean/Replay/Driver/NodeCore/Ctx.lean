@@ -104,6 +104,11 @@ structure ReplayConfig where
   gzTps : List (String × SExpr) := []
   /-- (fn, :BASICTS) from the emitted TP events (R2 gate). -/
   gzTpBasicTs : List (String × Int) := []
+  /-- (fn, :LEAVES) from the emitted TP events, ALL fns (unlike `gzTps`):
+      ACL2's own return-path leaf enumeration + per-leaf type-set verdict.
+      The TP prover's return-path arms admit a leaf only when ACL2 emitted
+      it here with a verdict the corollary class covers. -/
+  tpLeaves : List (String × List (SExpr × Int)) := []
   /-- The cited recognizer-alist tuple snapshot
       ((:GROUND-ZERO-RECOGNIZER-TUPLES), fork-batch item 2): the
       DATA-DRIVEN gate for recognizer verdicts — e.g. never-a-cons =

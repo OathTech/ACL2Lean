@@ -34,8 +34,6 @@ theorem notMembHowMany0Replayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
       Worlds.Sorting.not_memb_how_many_0Formula = some v ∧ v ≠ SExpr.nil :=
   notMembHowMany0ReplayedCond env
-    (Worlds.Sorting.dis_how_many_tp convertPermWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — NOT-MEMB-IMPLIES-HOW-MANY-IS-0 natively: an absent
     element has `List.count` zero (the `List.count_eq_zero` class). -/
@@ -85,8 +83,6 @@ theorem howManyRmReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
       Worlds.Sorting.how_many_rmFormula = some v ∧ v ≠ SExpr.nil :=
   howManyRmReplayedCond env
-    (Worlds.Sorting.dis_how_many_tp convertPermWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-RM natively: erasing a different element
     preserves the count (the count-of-erase class). -/
@@ -111,8 +107,6 @@ theorem howManyRmGeneralReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
       Worlds.Sorting.how_many_rm_generalFormula = some v ∧ v ≠ SExpr.nil :=
   howManyRmGeneralReplayedCond env
-    (Worlds.Sorting.dis_how_many_tp convertPermWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-RM-GENERAL natively: the general
     count-of-erase law (one fewer for the erased element when present,
@@ -144,8 +138,6 @@ theorem pceIsCounterexampleReplayed_uncond (env : Env) :
   pceIsCounterexampleReplayedCond env
     (Worlds.Sorting.dis_pce_total convertPermWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_tp convertPermWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS
     natively: `pceL xs ys` is a COMPLETE counterexample witness — the two

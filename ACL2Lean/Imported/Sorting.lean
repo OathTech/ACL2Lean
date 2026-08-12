@@ -869,26 +869,6 @@ derive_sim% howManyExec_enc for "HOW-MANY"
   simp [Logic.plus, Logic.toRat, Logic.mkNumber, List.count_cons]
   induct structural xs
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `tp:HOW-MANY` — the emitted non-negative-integer corollary —
-    Lean-side; content ACL2 derives. Statement kept as the named
-    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
-theorem dis_how_many_tp (w : World)
-    (h_how_many : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_binary__ : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (e' : Env) (a0 a1 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
-      (SExpr.cons (SExpr.atom (Atom.symbol how_many_sym))
-        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
-    (bif Logic.toBool (Logic.integerp v) then
-        Logic.not (Logic.lt v (.atom (.number (.int 0))))
-      else SExpr.nil) = SExpr.t := by
-  sorry
-
 /-! ## HOW-MANY-ISORT -/
 
 /-- The HOW-MANY-ISORT replayed-statement formula:

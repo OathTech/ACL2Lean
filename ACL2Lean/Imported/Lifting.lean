@@ -968,13 +968,13 @@ theorem corr_chain2_enc (w : World) (cmp fn : String)
         (.cons hd (enc (b :: t2))) xS (chain2Body cmp fn)
         (boolEnc (chain2Rec cmpB (hd :: b :: t2))) h_ns h_fn ha hbody
 
-/-! ## Name-generic TP dischargers (validator/lifter arc inc-0)
+/-! ## Fuel bookkeeping
 
-`drv_tp_len` discharges the driver's `tp:<fn>` hypothesis for ANY
-len-shaped defun (`lenBody fn`) — the non-negative-integer corollary shape
-`(IF (INTEGERP v) (NOT (< v '0)) 'NIL) = t`. Generalized from
-`SimpleWorld.drv_tp_mylen` (the MY-LEN-hardcoded original; the p7 world's
-LN discharges from the same lemma — the industrialization dividend). -/
+The name-generic TP discharger that used to live here (`drv_tp_len`,
+validator/lifter arc inc-0) is RETIRED: the driver's TP prover discharges
+the `tp:<fn>` hypothesis of a len-shaped defun from ACL2's own emitted
+`:TYPE-PRESCRIPTION` corollary + `:LEAVES` (TP-replay arc increment 1,
+2026-08-12), so no Lean-side statement of that fact remains. -/
 
 /-- Fix a value out of a per-fuel existential (fuel monotonicity). -/
 theorem conv_fix {w : World} {e : Env} {t : SExpr}
@@ -983,28 +983,6 @@ theorem conv_fix {w : World} {e : Env} {t : SExpr}
   obtain ⟨M, hM⟩ := h
   obtain ⟨av, hav⟩ := hM M (Nat.le_refl M)
   exact ⟨av, M, fun f hf => evalOpt_ge_fuel M f w e t av hav hf⟩
-
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes the
-    driver's `tp:<fn>` hypothesis for a len-shaped defun (the
-    non-negative-integer corollary at the value level) Lean-side —
-    content ACL2 derives. Statement kept as the named premise; proof
-    retired to `sorry`. UNLOCK: TP-replay discharge. -/
-theorem drv_tp_len (w : World) (fn : String)
-    (h_ns : ({ name := fn } : Symbol).isNamed "QUOTE" = false ∧
-            ({ name := fn } : Symbol).isNamed "IF" = false ∧
-            ({ name := fn } : Symbol).isNamed "LET" = false ∧
-            ({ name := fn } : Symbol).isNamed "LET*" = false)
-    (h_fn : w.defs.get? { package := "ACL2", name := fn }
-      = some ([{ package := "ACL2", name := "X" }], lenBody fn))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (e' : Env) (a0 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (app1 fn a0) = some v) :
-    (bif Logic.toBool (Logic.integerp v) then
-        Logic.not (Logic.lt v (.atom (.number (.int 0))))
-      else SExpr.nil) = SExpr.t := by
-  sorry
 
 /-! ## `Implements` instances — the operations lifted so far -/
 

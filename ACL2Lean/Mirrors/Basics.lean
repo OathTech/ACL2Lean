@@ -15,7 +15,8 @@ content), properties as named `Prop`s until their proofs arrive via
 replay, no `sorry` ever.
 
 Waypoint status at drafting (the metric layer's scoreboard):
-MY-LEN-MY-APP green (TP debt), APP-ASSOC green CLEAN — the first
+MY-LEN-MY-APP green CLEAN (its TP debt retired by the replay route,
+TP-replay arc increment 1 2026-08-12), APP-ASSOC green CLEAN — the first
 end-to-end target — APP-NIL/REV-APP/REV-REV pending (named
 frontiers), LEN-REV-ACC green (the accumulator — the template gate's
 decisive case, now at mirror level). -/

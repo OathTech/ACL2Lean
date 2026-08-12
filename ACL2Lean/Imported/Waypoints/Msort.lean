@@ -28,8 +28,6 @@ theorem howManyMerge2Replayed_uncond (env : Env) :
   howManyMerge2ReplayedCond env
     (Worlds.Sorting.dis_merge2_total msortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 
 /-- ENTRY, PROVED — HOW-MANY-MERGE2 natively: merging adds
@@ -52,8 +50,6 @@ theorem howManyEvensOddsReplayed_uncond (env : Env) :
       Worlds.Sorting.how_many_evens_and_oddsFormula = some v ∧
       v ≠ SExpr.nil :=
   howManyEvensOddsReplayedCond env
-    (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 
 /-- ENTRY, PROVED — HOW-MANY-EVENS-AND-ODDS natively: the evens/odds
@@ -111,8 +107,6 @@ theorem howManyMsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_msort_total msortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_tp msortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 
 /-- ENTRY, PROVED — HOW-MANY-MSORT natively: MERGE SORT PRESERVES

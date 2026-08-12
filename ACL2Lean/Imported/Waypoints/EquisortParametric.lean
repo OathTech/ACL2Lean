@@ -82,7 +82,7 @@ set_option maxHeartbeats 12000000 in
 def weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
   weakSortfn1IsSortfn2Parametric equisortDev equisortWaypointsWorld
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
-  totals [ACL2.Worlds.Sorting.dis_pce_total, ACL2.Worlds.Sorting.dis_how_many_tp,
+  totals [ACL2.Worlds.Sorting.dis_pce_total,
    ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
    ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
 
@@ -97,7 +97,10 @@ entries). All four axiom sets are gated by the CATALOG AXIOM GATE
 2026-08-11 R5): it REQUIRES `sorryAx` on this pair, so when the debt
 retires (TP-replay discharge / with_termination coverage) the gate
 fails and forces the promotion review at which these witnesses become
-fully-backed again. -/
+fully-backed again. (TP-replay arc increment 1, 2026-08-12: the
+`dis_how_many_tp` entry left this list — `tp:HOW-MANY` now arrives by
+replay — but five debt dischargers remain, so the pair stays
+sorry-backed and the gate's requirement is unchanged.) -/
 
 set_option maxHeartbeats 12000000 in
 /-- STRONG at the canonical world — every premise discharged except the
@@ -105,7 +108,7 @@ set_option maxHeartbeats 12000000 in
 def strongSsortfn1IsSsortfn2AtCanonical := instantiate_parametric%
   strongSsortfn1IsSsortfn2Parametric equisortDev equisortWaypointsWorld
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
-  totals [ACL2.Worlds.Sorting.dis_pce_total, ACL2.Worlds.Sorting.dis_how_many_tp,
+  totals [ACL2.Worlds.Sorting.dis_pce_total,
    ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
    ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
 

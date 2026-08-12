@@ -354,20 +354,81 @@ def buildTotalEnv (cfg : ReplayConfig)
     pending := still
   return totalEnv
 
+/-- The EMITTED type-prescription corollary's CLASS — the shape of the
+    value predicate `P` the TP prover builds from it. A return-path
+    PRIMITIVE can only be admitted for a recognized class, because the
+    Lean-side content of such a step is exactly that class's value-CLOSURE
+    lemma (`tpClosure2`); an unrecognized corollary keeps the honest
+    frontier. -/
+inductive TpCorClass where
+  /-- `(IF (INTEGERP (f …)) (NOT (< (f …) '0)) 'NIL)` — ACL2's
+      `*ts-non-negative-integer*` (the emitted `:BASICTS 7`). -/
+  | nonNegInt
+  deriving BEq, Repr, Inhabited
+
+/-- ACL2's basic type-set MASK the class covers (`acl2/type-set-a.lisp`'s
+    `def-basic-type-sets` bit order: 2^0 zero, 2^1 one, 2^2 integer>1, 2^3
+    positive-ratio, …). A leaf whose EMITTED verdict has a bit outside the
+    mask is not covered by the corollary — frontier. -/
+def TpCorClass.tsMask : TpCorClass → Int
+  | .nonNegInt => 7
+
+/-- Is the emitted leaf verdict `ts` inside the class's type-set `mask`?
+    A NEGATIVE `ts` is a complement type-set (ACL2's `-1` = every type) and
+    is never inside a finite mask. -/
+def tsSubsumed (ts mask : Int) : Bool :=
+  0 ≤ ts && (Nat.land ts.toNat mask.toNat == ts.toNat)
+
+/-- Recognize the EMITTED corollary's class. `appPat` is the fn's own
+    application `(f formal…)` — the corollary's only non-constant part.
+    Exact-shape match: a corollary ACL2 emits in any other shape is
+    unrecognized (frontier), never approximated. -/
+def tpCorClass? (appPat cor : SExpr) : Option TpCorClass :=
+  let app1 (f : String) (a : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := f })) (.cons a .nil)
+  let app2 (f : String) (a b : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := f })) (.cons a (.cons b .nil))
+  let quo (v : SExpr) : SExpr := app1 "QUOTE" v
+  let ifE (c th e : SExpr) : SExpr :=
+    .cons (.atom (.symbol { name := "IF" }))
+      (.cons c (.cons th (.cons e .nil)))
+  if cor == ifE (app1 "INTEGERP" appPat)
+      (app1 "NOT" (app2 "<" appPat (quo (.atom (.number (.int 0))))))
+      (quo .nil) then some .nonNegInt
+  else none
+
+/-- Value-CLOSURE registry, (corollary class, 2-ary primitive) ↦ the Lean
+    fact `∀ u v, P u → P v → P (g u v)` for that class's predicate. The
+    driver RECOMPUTES the obligation from its own `P` and type-hints the
+    registered constant against it, so a drifted lift fails closed. -/
+def tpClosure2 : List ((TpCorClass × String) × Name) :=
+  [((.nonNegInt, "BINARY-+"), ``ACL2.Replay.nonNegIntCor_closed_plus)]
+
+/-- The per-function EMITTED type-prescription data the TP walk consumes on
+    its return paths (TP-replay arc increment 1, 2026-08-12): the fn's
+    name, ACL2's OWN `:LEAVES` enumeration (return-path leaf term + the
+    type-set verdict ACL2 computed for it), and the corollary's recognized
+    class. Nothing here is derived Lean-side. -/
+structure TpKit where
+  fnName : String
+  leaves : List (SExpr × Int)
+  cls : Option TpCorClass
+
 /-- The TP body walk: a proof of `ConvToP w envE t P` — the body converges
     to a value SATISFYING the lifted-corollary predicate `P` (the TP prover,
     lifter sprint 2026-07-06; the `memb_body_bool` route, mechanized).
     Return-path arms: quote leaves (`P` by kernel decision), `if`-splits
     (liftable or OPAQUE tests — tests need only CONVERGENCE, from the plain
-    walk over `totalEnv`), and self-calls (the admission-licensed strong
-    IH). Every other body shape is a tagged frontier (D6: the `tp:`
-    hypothesis stays). -/
+    walk over `totalEnv`), self-calls (the admission-licensed strong IH),
+    and 2-ary registered PRIMITIVES over ACL2's own emitted leaves (`kit`).
+    Every other body shape is a tagged frontier (D6: the `tp:` hypothesis
+    stays). -/
 partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
     (vals : List (Symbol × Expr × Expr))
     (facts : List (SExpr × Bool × Expr))
     (totalEnv : List (String × Nat × Expr))
     (self : Option (String × Symbol × Expr × Justification))
-    (P : Expr) (t : SExpr) : MetaM Expr := do
+    (kit : TpKit) (P : Expr) (t : SExpr) : MetaM Expr := do
   let varP : Symbol → Option (Expr × Expr) := fun s =>
     (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
   match t with
@@ -379,7 +440,7 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
       return ← mkAppM ``convP_quote
         #[cfg.worldExpr, envE, reflectSExpr qv, P, hP]
     else
-      tpWalkCall cfg envE vals facts totalEnv self P t
+      tpWalkCall cfg envE vals facts totalEnv self kit P t
   | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
     if fs.name == "IF" then
       if totLiftable c then
@@ -389,7 +450,7 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
         let mkB (bval : Name) (pos : Bool) (branch : SExpr) : MetaM Expr := do
           withLocalDeclD `hb (← mkEq toBoolVc (mkConst bval)) fun hb => do
             let p ← tpWalk cfg envE vals ((c, pos, hb) :: facts)
-              totalEnv self P branch
+              totalEnv self kit P branch
             mkLambdaFVars #[hb] p
         let ht ← mkB ``Bool.true true th
         let he ← mkB ``Bool.false false e
@@ -409,7 +470,7 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
               let hbTy ← mkEq (← mkAppM ``Logic.toBool #[vc]) (mkConst bval)
               withLocalDeclD `hb hbTy fun hb => do
                 let p ← tpWalk cfg envE vals ((c, pos, hb) :: facts)
-                  totalEnv self P branch
+                  totalEnv self kit P branch
                 mkLambdaFVars #[vc, hcv, hb] p
         let ht ← mkB ``Bool.true true th
         let he ← mkB ``Bool.false false e
@@ -417,8 +478,46 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
           #[cfg.worldExpr, envE, reflectSExpr c, reflectSExpr th,
             reflectSExpr e, P, hcEx, ht, he]
     else
-      tpWalkCall cfg envE vals facts totalEnv self P t
-  | _ => tpWalkCall cfg envE vals facts totalEnv self P t
+      tpWalkCall cfg envE vals facts totalEnv self kit P t
+  | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
+    -- RETURN-PATH PRIMITIVE (TP-replay arc increment 1, 2026-08-12): a
+    -- 2-ary registered builtin ACL2 itself enumerated as a return-path
+    -- LEAF of this fn's type prescription. ADMISSIBILITY IS ENTIRELY
+    -- EMITTED — the term must be one of ACL2's `:LEAVES` and the type-set
+    -- verdict ACL2 computed for it must lie inside the corollary class's
+    -- type-set. The Lean side contributes only the class's value CLOSURE
+    -- lemma; it never derives a type. Anything unregistered falls through
+    -- to the call arms (self-call, else frontier).
+    match dpBinary.lookup fs.name, kit.cls with
+    | some (fn, cb), some cls =>
+      let some closure := tpClosure2.lookup (cls, fs.name)
+        | throwFrontier m!"proveTp: return-path {fs.name} has no value-closure \
+            lemma for the {repr cls} corollary class (frontier)"
+      let some (_, ts) := kit.leaves.find? (fun (leaf, _) => leaf == t)
+        | throwFrontier m!"proveTp: {repr t} is not an emitted \
+            :TYPE-PRESCRIPTION leaf of {kit.fnName} (frontier)"
+      unless tsSubsumed ts cls.tsMask do
+        throwFrontier m!"proveTp: emitted leaf verdict {ts} of {repr t} is \
+            not inside the {repr cls} corollary class's type-set \
+            {cls.tsMask} (frontier)"
+      let pa ← tpWalk cfg envE vals facts totalEnv self kit P a
+      let pb ← tpWalk cfg envE vals facts totalEnv self kit P b
+      let hNs ← proveNotSpecial fs
+      let hNo ← proveNoShadow cfg fs
+      -- the CLOSURE obligation, RECOMPUTED from the driver's own `P` — a
+      -- registered lemma that does not state exactly this fails here
+      let clTy ← withLocalDeclD `u (mkConst ``SExpr) fun u =>
+        withLocalDeclD `v (mkConst ``SExpr) fun v => do
+          let pg := (mkApp P (mkApp2 (mkConst fn) u v)).headBeta
+          mkForallFVars #[u, v]
+            (← mkArrow (mkApp P u).headBeta
+              (← mkArrow (mkApp P v).headBeta pg))
+      let hcl ← mkExpectedTypeHint (mkConst closure) clTy
+      return ← mkAppM ``convP_builtin2
+        #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr a,
+          reflectSExpr b, mkConst fn, P, hNs, hNo, mkConst cb, hcl, pa, pb]
+    | _, _ => tpWalkCall cfg envE vals facts totalEnv self kit P t
+  | _ => tpWalkCall cfg envE vals facts totalEnv self kit P t
 where
   /-- Call arms: SELF-calls via the strong IH; everything else a frontier. -/
   tpWalkCall (cfg : ReplayConfig) (envE : Expr)
@@ -426,7 +525,7 @@ where
       (facts : List (SExpr × Bool × Expr))
       (totalEnv : List (String × Nat × Expr))
       (self : Option (String × Symbol × Expr × Justification))
-      (P : Expr) (t : SExpr) : MetaM Expr := do
+      (kit : TpKit) (P : Expr) (t : SExpr) : MetaM Expr := do
     let varP : Symbol → Option (Expr × Expr) := fun s =>
       (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
     let .cons (.atom (.symbol fs)) argsSpine := t
@@ -537,6 +636,11 @@ def proveTp (cfg : ReplayConfig)
       (fun s => throwFrontier m!"proveTp: corollary of {name} mentions the \
           free variable {s.name} outside the application (frontier)") cor
     mkLambdaFVars #[vV] (← mkEq lifted (mkConst ``SExpr.t))
+  -- the EMITTED return-path data this fn's walk may consume: ACL2's own
+  -- `:LEAVES` (leaf term + type-set verdict) and the corollary's class
+  let kit : TpKit :=
+    { fnName := name, leaves := (cfg.tpLeaves.lookup name).getD []
+      cls := tpCorClass? appPat cor }
   let mkEnvE (avs : List Expr) : MetaM Expr := do
     let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
     let avsE ← mkListLit (mkConst ``SExpr) avs
@@ -566,7 +670,7 @@ def proveTp (cfg : ReplayConfig)
       let hbody ← withLocalDeclD `av (mkConst ``SExpr) fun av => do
         let envE ← mkEnvE [av]
         let vals ← varProofs envE [av]
-        let p ← tpWalk cfg envE vals [] totalEnv none P body
+        let p ← tpWalk cfg envE vals [] totalEnv none kit P body
         mkLambdaFVars #[av] p
       mkAppM ``tp_hyp_1_of_body
         #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
@@ -576,7 +680,7 @@ def proveTp (cfg : ReplayConfig)
         withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
           let envE ← mkEnvE [av1, av2]
           let vals ← varProofs envE [av1, av2]
-          let p ← tpWalk cfg envE vals [] totalEnv none P body
+          let p ← tpWalk cfg envE vals [] totalEnv none kit P body
           mkLambdaFVars #[av1, av2] p
       mkAppM ``tp_hyp_2_of_body
         #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
@@ -610,7 +714,7 @@ def proveTp (cfg : ReplayConfig)
         withLocalDeclD `ih ihType fun ih => do
           let envE ← mkEnvE [av]
           let vals ← varProofs envE [av]
-          let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) P body
+          let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) kit P body
           mkLambdaFVars #[av, ih] p
       let hbody ← mkAppM ``tp_1_rec
         #[reflectSymbol f1, reflectSExpr body, cfg.worldExpr, P, step]
@@ -630,7 +734,7 @@ def proveTp (cfg : ReplayConfig)
               withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
                 let envE ← mkEnvE [av1, av2]
                 let vals ← varProofs envE [av1, av2]
-                let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) P body
+                let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) kit P body
                 mkLambdaFVars #[av1, ih, av2] p
         else if measuredFormal == f2 then
           withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
@@ -643,10 +747,14 @@ def proveTp (cfg : ReplayConfig)
               withLocalDeclD `av1 (mkConst ``SExpr) fun av1 => do
                 let envE ← mkEnvE [av1, av2]
                 let vals ← varProofs envE [av1, av2]
-                let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) P body
+                let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) kit P body
                 mkLambdaFVars #[av2, ih, av1] p
         else
-          throwError "proveTp: measured formal not among the formals (internal)"
+          -- (unreached: the 2-ary arm's measured formal is f1 or f2 by
+          -- construction) — TAGGED like proveTotality's twin, so a future
+          -- reachable path keeps the hypothesis instead of aborting
+          throwFrontier m!"proveTp: measured formal not among the formals \
+              (frontier)"
       let recLemma :=
         if measuredFormal == f1 then ``tp_2_rec else ``tp_2_rec_snd
       let hbody ← mkAppM recLemma

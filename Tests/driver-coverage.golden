@@ -1,7 +1,7 @@
-Driver coverage — REPLAYED 110/116 (45 unconditional + 65 conditional)
+Driver coverage — REPLAYED 110/116 (64 unconditional + 46 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
-    MY-LEN-MY-APP → REPLAYED ✓ cond[tp:MY-LEN]
+    MY-LEN-MY-APP → REPLAYED ✓
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
     GROUND-ARITH → REPLAYED ✓
     SQ-OF-3 → REPLAYED ✓
@@ -9,7 +9,7 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
 • 01-multi-theorem  (world: 12 defun(s), 3 theorem(s))
     APP-CONS-CAR → REPLAYED ✓
     APP-NIL → REPLAYED ✓  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(APP X 'NIL), tp:APP]]
-    LEN2-APP → REPLAYED ✓ cond[tp:LEN2]
+    LEN2-APP → REPLAYED ✓
 • 02-rev  (world: 12 defun(s), 5 theorem(s))
     APP-ASSOC → REPLAYED ✓
     TRUE-LISTP-REV → REPLAYED ✓  [DISCHARGE: Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(APP RV (CONS X1 'NIL)), tp:APP]]
@@ -17,17 +17,17 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     REV-APP → REPLAYED ✓
     REV-REV → REPLAYED ✓ cond[tp:REV]  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(REV (REV X)), tp:REV]]
 • 03-linear  (world: 12 defun(s), 3 theorem(s))
-    LEN2-NONNEG → REPLAYED ✓ cond[tp:LEN2]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(LEN2 X), tp:LEN2]]
-    LEN2-CDR-SMALLER → REPLAYED ✓ cond[tp:LEN2]  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(LEN2 (CDR X)), tp:LEN2]]
+    LEN2-NONNEG → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(LEN2 X), tp:LEN2]]
+    LEN2-CDR-SMALLER → REPLAYED ✓  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(LEN2 (CDR X)), tp:LEN2]]
     LINEAR-CHAIN → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau-contradiction ✓]
 • 04-multi-case-induction  (world: 12 defun(s), 2 theorem(s))
     EVENLEN-BOOLEANP → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(EVENLEN X), tp:EVENLEN]]
     CLASSIFY-POS → FAIL: type-set-equality: no consp evidence for N in the clause context, and the positive-sum cell does not apply (frontier)
 • 05-hints  (world: 12 defun(s), 4 theorem(s))
-    LEN2-APP-HELPER → REPLAYED ✓ cond[tp:LEN2]
-    LEN2-APP-VIA-USE → REPLAYED ✓ cond[tp:LEN2]
-    LEN2-APP-VIA-INDUCT → REPLAYED ✓ cond[tp:LEN2]
-    LEN2-APP-NO-HELPER → REPLAYED ✓ cond[tp:LEN2]
+    LEN2-APP-HELPER → REPLAYED ✓
+    LEN2-APP-VIA-USE → REPLAYED ✓
+    LEN2-APP-VIA-INDUCT → REPLAYED ✓
+    LEN2-APP-NO-HELPER → REPLAYED ✓
 • 06-measure  (world: 14 defun(s), 1 theorem(s))
     termination:COUNT-DOWN → FAIL: replayRecognizer: value of (CONSP (IF (INTEGERP N) (IF (< N '0) '0 N) '0)) does not reduce to NIL (no TP hypothesis for IF; cited TP runes [])
     COUNT-DOWN-ZERO → REPLAYED ✓
@@ -71,34 +71,34 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     PERM-TRANSITIVE → REPLAYED ✓
     PERM-IS-AN-EQUIVALENCE → REPLAYED ✓
 • sorting/convert-perm-to-how-many  (world: 18 defun(s), 13 theorem(s))
-    HOW-MANY-RM → REPLAYED ✓ cond[tp:HOW-MANY]
+    HOW-MANY-RM → REPLAYED ✓
     NOT-MEMB-IMPLIES-RM-IS-NO-OP → REPLAYED ✓  [DISCHARGE: Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(MEMB A X), tp:MEMB]]
     TRUE-LISTP-RM → REPLAYED ✓  [DISCHARGE: Subgoal *1/2:preprocess/type-set-fc ✓]
-    NOT-MEMB-IMPLIES-HOW-MANY-IS-0 → REPLAYED ✓ cond[tp:HOW-MANY]
-    HOW-MANY-RM-GENERAL → REPLAYED ✓ cond[tp:HOW-MANY]  [DISCHARGE: Subgoal *1/3.2:preprocess/tau ◌ assumed cond[total:(MEMB A (CDR X)), total:(HOW-MANY A (RM B (CDR X))), total:(HOW-MANY A (CDR X)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
-    PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM]]
+    NOT-MEMB-IMPLIES-HOW-MANY-IS-0 → REPLAYED ✓
+    HOW-MANY-RM-GENERAL → REPLAYED ✓  [DISCHARGE: Subgoal *1/3.2:preprocess/tau ◌ assumed cond[total:(MEMB A (CDR X)), total:(HOW-MANY A (RM B (CDR X))), total:(HOW-MANY A (CDR X)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
+    PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(PERM-COUNTER-EXAMPLE (CDR X) (RM (CAR X) Y)), total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM]]
     PERM-TLFIX → FAIL: replayNode: rune (rewriting-equivalence, NIL) applied under equivalence perm — R-parameterized recipe pending (G1 frontier)
     PERM-COUNTER-EXAMPLE-TLFIX-1 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE]
     RM-TLFIX → REPLAYED ✓
     MEMB-TLFIX → REPLAYED ✓
     PERM-COUNTER-EXAMPLE-TLFIX-2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE]
-    HOW-MANY-TLFIX → REPLAYED ✓ cond[tp:HOW-MANY]
-    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, tp:TLFIX, rule:PERM-TLFIX]  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
+    HOW-MANY-TLFIX → REPLAYED ✓
+    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:TLFIX, rule:PERM-TLFIX]  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
 • sorting/isort  (world: 27 defun(s), 3 theorem(s))
     ORDEREDP-ISORT → REPLAYED ✓ cond[tp:INSERT]
     TRUE-LISTP-ISORT → REPLAYED ✓ cond[tp:INSERT]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(INSERT X1 IT), tp:INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
-    HOW-MANY-ISORT → REPLAYED ✓ cond[tp:HOW-MANY]
+    HOW-MANY-ISORT → REPLAYED ✓
 • sorting/bsort  (world: 29 defun(s), 8 theorem(s))
     termination:BNEXT → REPLAYED ✓ cond[total:O<, total:O-P]
     termination:BSORT → REPLAYED ✓ cond[total:BNEXT, total:O<, total:O-P, tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT]
-    HOW-MANY-SMALLER-BNEXT → REPLAYED ✓ cond[total:BNEXT, tp:HOW-MANY-SMALLER]  [DISCHARGE: Subgoal *1/4.1:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY-SMALLER (CAR X) (BNEXT (CONS (CAR X) (CDR (CDR X))))), total:(HOW-MANY-SMALLER (CAR X) (CONS (CAR X) (CDR (CDR X)))), total:(HOW-MANY-SMALLER (CAR X) (CDR X)), tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER]]
-    HOW-MANY-BAD-PAIRS-BNEXT → REPLAYED ✓ cond[total:BNEXT, tp:HOW-MANY-SMALLER, tp:BNEXT-SIZE]  [DISCHARGE: Subgoal *1/6.1':simplify-clause/linear-contradiction ✓ cond[total:(BNEXT-SIZE (BNEXT (CONS (CAR X) (CDR (CDR X))))), total:(BNEXT-SIZE (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR X) (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR (CDR X)) (CDR (CDR X))), tp:BNEXT-SIZE, tp:BNEXT-SIZE, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER], Subgoal *1/5.1':simplify-clause/linear-contradiction ✓ cond[total:(BNEXT (CONS (CAR X) (CDR (CDR X)))), total:(BNEXT-SIZE (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR X) (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR (CDR X)) (CDR (CDR X))), tp:BNEXT, tp:BNEXT-SIZE, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER], Subgoal *1/4'':preprocess/tau-contradiction ✓ cond[total:(BNEXT-SIZE (BNEXT (CDR X))), total:(BNEXT-SIZE (CDR X)), total:(BNEXT (CDR X)), total:(HOW-MANY-SMALLER (CAR X) (CDR X)), tp:BNEXT-SIZE, tp:BNEXT-SIZE, tp:BNEXT, tp:HOW-MANY-SMALLER]]
+    HOW-MANY-SMALLER-BNEXT → REPLAYED ✓ cond[total:BNEXT]  [DISCHARGE: Subgoal *1/4.1:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY-SMALLER (CAR X) (BNEXT (CONS (CAR X) (CDR (CDR X))))), total:(HOW-MANY-SMALLER (CAR X) (CONS (CAR X) (CDR (CDR X)))), total:(HOW-MANY-SMALLER (CAR X) (CDR X)), tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER]]
+    HOW-MANY-BAD-PAIRS-BNEXT → REPLAYED ✓ cond[total:BNEXT, tp:BNEXT-SIZE]  [DISCHARGE: Subgoal *1/6.1':simplify-clause/linear-contradiction ✓ cond[total:(BNEXT-SIZE (BNEXT (CONS (CAR X) (CDR (CDR X))))), total:(BNEXT-SIZE (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR X) (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR (CDR X)) (CDR (CDR X))), tp:BNEXT-SIZE, tp:BNEXT-SIZE, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER], Subgoal *1/5.1':simplify-clause/linear-contradiction ✓ cond[total:(BNEXT (CONS (CAR X) (CDR (CDR X)))), total:(BNEXT-SIZE (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR X) (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR (CDR X)) (CDR (CDR X))), tp:BNEXT, tp:BNEXT-SIZE, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER], Subgoal *1/4'':preprocess/tau-contradiction ✓ cond[total:(BNEXT-SIZE (BNEXT (CDR X))), total:(BNEXT-SIZE (CDR X)), total:(BNEXT (CDR X)), total:(HOW-MANY-SMALLER (CAR X) (CDR X)), tp:BNEXT-SIZE, tp:BNEXT-SIZE, tp:BNEXT, tp:HOW-MANY-SMALLER]]
     ORDEREDP-WHEN-BNEXT-CONSTANT → REPLAYED ✓ cond[total:BNEXT]  [DISCHARGE: Subgoal *1/4.1.3'':simplify-clause/fc-contradiction ✓, Subgoal *1/4.1.2'':simplify-clause/fc-contradiction ✓ cond[total:(ORDEREDP (CONS X5 X6)), total:(BNEXT (CONS X5 X6)), tp:ORDEREDP, tp:BNEXT], Subgoal *1/4.1.1''':simplify-clause/fc-contradiction ✓]
     ORDEREDP-BSORT → REPLAYED ✓ cond[total:BNEXT, total:BSORT, total:O<, total:O-P, tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT]
     TRUE-LISTP-BNEXT → REPLAYED ✓ cond[total:BNEXT]  [DISCHARGE: Subgoal *1/5:preprocess/type-set-fc ✓ cond[total:(BNEXT X), tp:BNEXT], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(BNEXT X), tp:BNEXT]]
     TRUE-LISTP-BSORT → REPLAYED ✓ cond[total:BNEXT, total:BSORT, total:O<, total:O-P, tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT]  [DISCHARGE: Subgoal *1/2:preprocess/tau ◌ assumed cond[total:(BNEXT X), total:(BSORT X), tp:BNEXT, ASSUMED:dp-fact]]
-    HOW-MANY-BNEXT → REPLAYED ✓ cond[total:BNEXT, tp:HOW-MANY]
-    HOW-MANY-BSORT → REPLAYED ✓ cond[total:BNEXT, total:BSORT, total:O<, total:O-P, tp:HOW-MANY, tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT]
+    HOW-MANY-BNEXT → REPLAYED ✓ cond[total:BNEXT]
+    HOW-MANY-BSORT → REPLAYED ✓ cond[total:BNEXT, total:BSORT, total:O<, total:O-P, tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT]
 • sorting/ordered-perms  (world: 21 defun(s), 6 theorem(s))
     ORDEREDP-RM → REPLAYED ✓
     ORDEREDP-MEMB → REPLAYED ✓  [DISCHARGE: Subgoal *1/1.2:simplify-clause/fc-contradiction ✓, Subgoal *1/1.1:simplify-clause/fc-contradiction ✓ cond[total:(ORDEREDP (CDR A)), total:(MEMB (CAR (CDR A)) (CDR A)), tp:ORDEREDP, tp:MEMB]]
@@ -111,16 +111,16 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     TRUE-LISTP-SORTFN1 → REPLAYED ✓ cond[tp:SORTFN1-INSERT, tp:SORTFN1]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(SORTFN1-INSERT X1 S1), tp:SORTFN1-INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓, Subgoal *1/2:preprocess/type-set-fc ✓ cond[total:(SORTFN1 X), tp:SORTFN1]]
     ORDEREDP-SORTFN2 → REPLAYED ✓ cond[tp:SORTFN1-INSERT]
     TRUE-LISTP-SORTFN2 → REPLAYED ✓ cond[tp:SORTFN1-INSERT, tp:SORTFN1]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(SORTFN1 X), tp:SORTFN1, ASSUMED:dp-fact]]
-    HOW-MANY-SORTFN1 → REPLAYED ✓ cond[tp:HOW-MANY]
-    HOW-MANY-SORTFN2 → REPLAYED ✓ cond[tp:HOW-MANY]
-    WEAK-SORTFN1-IS-SORTFN2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, tp:SORTFN1-INSERT, tp:SORTFN1, rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY]
+    HOW-MANY-SORTFN1 → REPLAYED ✓
+    HOW-MANY-SORTFN2 → REPLAYED ✓
+    WEAK-SORTFN1-IS-SORTFN2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:SORTFN1-INSERT, tp:SORTFN1, rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY]
     ORDEREDP-SSORTFN1 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]
     TRUE-LISTP-SSORTFN1 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(SSORTFN1-INSERT X1 S1), tp:SSORTFN1-INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
     ORDEREDP-SSORTFN2 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]
     TRUE-LISTP-SSORTFN2 → REPLAYED ✓ cond[tp:SSORTFN1-INSERT]
-    HOW-MANY-SSORTFN1 → REPLAYED ✓ cond[tp:HOW-MANY]
-    HOW-MANY-SSORTFN2 → REPLAYED ✓ cond[tp:HOW-MANY]
-    STRONG-SSORTFN1-IS-SSORTFN2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, tp:SSORTFN1-INSERT, rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY]
+    HOW-MANY-SSORTFN1 → REPLAYED ✓
+    HOW-MANY-SSORTFN2 → REPLAYED ✓
+    STRONG-SSORTFN1-IS-SSORTFN2 → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, tp:SSORTFN1-INSERT, rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY]
 • cov-encapsulate  (world: 2 defun(s), 2 theorem(s))
     CF-NUMBERP → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(CF X), tp:CF]]
     CF-PLUS-COMM → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau-contradiction ✓ cond[total:(CF A), total:(CF B), tp:CF, tp:CF]]
@@ -129,15 +129,15 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     ACL2-COUNT-EVENS-WEAK → REPLAYED ✓ cond[tp:ACL2-COUNT]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(ACL2-COUNT X1), total:(ACL2-COUNT X2), tp:ACL2-COUNT, tp:ACL2-COUNT], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(ACL2-COUNT X4), total:(ACL2-COUNT (EVENS X4)), total:(ACL2-COUNT X1), total:(ACL2-COUNT X3), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT], Subgoal *1/1'':preprocess/tau-contradiction ✓ cond[total:(ACL2-COUNT X), tp:ACL2-COUNT]]
     ORDEREDP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, tp:EVENS]
     TRUE-LISTP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, tp:EVENS]  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2], Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2]]
-    HOW-MANY-MERGE2 → REPLAYED ✓ cond[total:MERGE2, tp:HOW-MANY]
-    HOW-MANY-EVENS-AND-ODDS → REPLAYED ✓ cond[tp:HOW-MANY]  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(HOW-MANY E (EVENS X)), total:(HOW-MANY E (EVENS (CDR X))), total:(HOW-MANY E X), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY]]
-    HOW-MANY-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, tp:HOW-MANY]
+    HOW-MANY-MERGE2 → REPLAYED ✓ cond[total:MERGE2]
+    HOW-MANY-EVENS-AND-ODDS → REPLAYED ✓  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(HOW-MANY E (EVENS X)), total:(HOW-MANY E (EVENS (CDR X))), total:(HOW-MANY E X), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY]]
+    HOW-MANY-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT]
 • sorting/qsort  (world: 204 defun(s), 13 theorem(s))
     termination:QSORT → REPLAYED ✓ cond[total:O<, tp:ACL2-COUNT]
-    HOW-MANY-APPEND → REPLAYED ✓ cond[tp:HOW-MANY]
-    HOW-MANY-FILTER-1 → REPLAYED ✓ cond[tp:HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z)]  [DISCHARGE: Subgoal *1/3.5:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/3.3:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), total:(HOW-MANY E (CONS (CAR X) (FILTER 'GTE (CDR X) D))), total:(HOW-MANY E (CONS (CAR X) (FILTER 'LT (CDR X) D))), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/3.1:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.5:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) D)), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) D)), total:(HOW-MANY (CAR X) (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.3:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) D)), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) D)), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) (CONS (CAR X) (FILTER 'GTE (CDR X) D))), total:(HOW-MANY (CAR X) (CONS (CAR X) (FILTER 'LT (CDR X) D))), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.1:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) (CAR X))), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) (CAR X))), total:(HOW-MANY (CAR X) (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY]]
-    HOW-MANY-QSORT → REPLAYED ✓ cond[total:O<, tp:HOW-MANY, tp:ACL2-COUNT, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x)]
-    PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:HOW-MANY, tp:ACL2-COUNT, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x)]
+    HOW-MANY-APPEND → REPLAYED ✓
+    HOW-MANY-FILTER-1 → REPLAYED ✓ cond[rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z)]  [DISCHARGE: Subgoal *1/3.5:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/3.3:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), total:(HOW-MANY E (CONS (CAR X) (FILTER 'GTE (CDR X) D))), total:(HOW-MANY E (CONS (CAR X) (FILTER 'LT (CDR X) D))), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/3.1:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.5:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) D)), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) D)), total:(HOW-MANY (CAR X) (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.3:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) D)), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) D)), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) (CONS (CAR X) (FILTER 'GTE (CDR X) D))), total:(HOW-MANY (CAR X) (CONS (CAR X) (FILTER 'LT (CDR X) D))), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.1:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) (CAR X))), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) (CAR X))), total:(HOW-MANY (CAR X) (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY]]
+    HOW-MANY-QSORT → REPLAYED ✓ cond[total:O<, tp:ACL2-COUNT, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x)]
+    PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:ACL2-COUNT, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x)]
     CAR-APPEND → REPLAYED ✓ cond[rule:(equal (if a b c) x)]
     ORDEREDP-APPEND → REPLAYED ✓ cond[tp:ALL-REL, tp:BINARY-APPEND, rule:(equal (if a b c) x)]  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP], Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP]]
     ALL-REL-FILTER-1 → REPLAYED ✓ cond[tp:ALL-REL]
@@ -145,9 +145,9 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     ALL-REL-RM-1 → REPLAYED ✓ cond[tp:ALL-REL]
     ALL-REL-RM-2 → REPLAYED ✓ cond[tp:ALL-REL]
     PERM-IMPLIES-EQUAL-ALL-REL-2 → REPLAYED ✓
-    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:HOW-MANY, tp:ALL-REL, tp:ACL2-COUNT, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]
+    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:ALL-REL, tp:ACL2-COUNT, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, tp:ACL2-COUNT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
 • sorting/sorts-equivalent  (world: 214 defun(s), 3 theorem(s))
     MSORT-IS-ISORT → ASSUMED ◌ cond[total:MSORT, usefi:STRONG-SSORTFN1-IS-SSORTFN2, ASSUMED:fi-self]
     QSORT-IS-ISORT → ASSUMED ◌ cond[total:QSORT, usefi:STRONG-SSORTFN1-IS-SSORTFN2, ASSUMED:fi-self]
-    BSORT-IS-ISORT → ASSUMED ◌ cond[total:BSORT, tp:HOW-MANY, tp:INSERT, rule:ORDEREDP-ISORT, rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT, usefi:WEAK-SORTFN1-IS-SORTFN2, ASSUMED:fi-self]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]
+    BSORT-IS-ISORT → ASSUMED ◌ cond[total:BSORT, tp:INSERT, rule:ORDEREDP-ISORT, rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT, usefi:WEAK-SORTFN1-IS-SORTFN2, ASSUMED:fi-self]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]

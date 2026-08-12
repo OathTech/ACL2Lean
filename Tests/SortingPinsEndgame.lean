@@ -62,7 +62,9 @@ derive_world sortsEqSweepWorld from sortsEqSweepDev
 example :
     ∀ (env : Env),
       totalHyp1 bsortSweepWorld "BNEXT" →
-      tpNonnegInt2 bsortSweepWorld "HOW-MANY-SMALLER" →
+      -- (tp:HOW-MANY-SMALLER RETIRED 2026-08-12 — the TP prover's
+      -- return-path arm discharges it from ACL2's emitted corollary
+      -- + `:LEAVES`; the hypothesis left the telescope. INTENTIONAL.)
       EvTrue bsortSweepWorld env
         (ap2 "EQUAL"
           (ap2 "HOW-MANY-SMALLER" (sym "E") (ap1 "BNEXT" (sym "X")))
@@ -80,7 +82,9 @@ example :
 example :
     ∀ (env : Env),
       totalHyp1 bsortSweepWorld "BNEXT" →
-      tpNonnegInt2 bsortSweepWorld "HOW-MANY-SMALLER" →
+      -- (tp:HOW-MANY-SMALLER RETIRED 2026-08-12 — the TP prover's
+      -- return-path arm discharges it from ACL2's emitted corollary
+      -- + `:LEAVES`; the hypothesis left the telescope. INTENTIONAL.)
       tpNonnegInt1 bsortSweepWorld "BNEXT-SIZE" →
       EvTrue bsortSweepWorld env
         (ap2 "IMPLIES"
@@ -158,7 +162,7 @@ example :
       totalHyp1 bsortSweepWorld "BSORT" →
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
-      tpNonnegInt2 bsortSweepWorld "HOW-MANY" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12 — same TP-replay route.)
       tpNonnegInt1 bsortSweepWorld "BNEXT-SIZE" →
       linearHMBPB bsortSweepWorld →
       EvTrue bsortSweepWorld env
@@ -188,7 +192,7 @@ derive_world convertPermSweepWorld from convertPermSweepDev
     conditional on how-many's non-negative-integer TP corollary only. -/
 example :
     ∀ (env : Env),
-      tpNonnegInt2 convertPermSweepWorld "HOW-MANY" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12 — same TP-replay route.)
       EvTrue convertPermSweepWorld env
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (sym "A") (ap2 "RM" (sym "B") (sym "X")))

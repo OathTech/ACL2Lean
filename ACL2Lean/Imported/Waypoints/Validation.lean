@@ -11,10 +11,12 @@ open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 Rung 2's ground truth: `P7-TARGET` — `(equal (ln (dub x)) (ln x))`, the
 theorem whose replay validates the congruence collapse — lifted to the
 native fact `(l.map (fun _ => '0)).length = l.length`. The chain: the real
-p7 log → parse → reconstruct → derived world → the driver's conditional
-replayed statement (`tp:LN` only) → discharged by the NAME-GENERIC
-`drv_tp_len` (the industrialization dividend: LN's body is exactly
-`lenBody "LN"`) → instantiated at an encoded list → `corr_mapconst_enc` ∘
+p7 log → parse → reconstruct → derived world → the driver's replayed
+statement, now UNCONDITIONAL (its `tp:LN` hypothesis is discharged by the
+driver's own TP prover from LN's emitted `:TYPE-PRESCRIPTION` corollary +
+`:LEAVES` — TP-replay arc increment 1, 2026-08-12; the hand-side
+`drv_tp_len` it used to consume is retired) → instantiated at an encoded
+list → `corr_mapconst_enc` ∘
 `corr_len_enc` → `native_of_replayed_equal intRep`. WAYPOINTS establish that
 a replayed theorem means what the user intends (CLAUDE.md terminology,
 2026-07-30) — this is the first for a pattern-test book. -/
@@ -36,13 +38,12 @@ private def lnDubT : SExpr := app1 "LN" (app1 "DUB" xVarT)
 private def lnXT : SExpr := app1 "LN" xVarT
 
 /-- The replayed statement, UNCONDITIONAL: the sole `tp:LN` hypothesis is
-    discharged by the name-generic len-class discharger. -/
+    discharged BY THE DRIVER (the TP prover's return-path arm, from LN's
+    emitted corollary + `:LEAVES` — TP-replay arc increment 1). -/
 theorem p7TargetReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f p7WorldD env
       (equalT lnDubT lnXT) = some v ∧ v ≠ SExpr.nil :=
   p7TargetReplayedCond env
-    (drv_tp_len p7WorldD "LN" (by decide) (by decide) (by decide)
-      (by decide) (by decide))
 
 /-- The WAYPOINT: `(l.map (fun _ => '0)).length = l.length` — proved FROM the
     replayed P7-TARGET (via `Int` lengths and `Nat.cast` injectivity).

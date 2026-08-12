@@ -108,8 +108,7 @@ inductive LiftStatus where
 
 /-- The catalog: one DECISION per green sweep row (book, theorem, status). -/
 def liftCatalog : List (String × String × LiftStatus) := [
-  ("simple", "MY-LEN-MY-APP", .nativeSorried ``my_len_my_app_native_driver ``mylenReplayedCond
-      "tp:MY-LEN (drv_tp_mylen; unlock: TP-replay discharge)"),
+  ("simple", "MY-LEN-MY-APP", .native ``my_len_my_app_native_driver ``mylenReplayedCond),
   ("00-direct", "GROUND-ARITH", .native ``ground_arith_native ``groundArithReplayedCond),
   ("00-direct", "SQ-OF-3", .native ``sq_of_3_native ``sqOf3ReplayedCond),
   ("00-direct", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
@@ -160,25 +159,21 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- CONVERT-PERM-TO-HOW-MANY; the three native-worthy count facts are
   -- PENDING (P3 decides), the tlfix/plumbing rows replayed-only.
   ("sorting/convert-perm-to-how-many", "HOW-MANY-RM",
-    .nativeSorried ``how_many_rm_native_driver ``howManyRmReplayedCond
-      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+    .native ``how_many_rm_native_driver ``howManyRmReplayedCond),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-RM-IS-NO-OP",
     .native ``not_memb_rm_noop_native_driver
       ``notMembRmNoopReplayedCond),
   ("sorting/convert-perm-to-how-many", "NOT-MEMB-IMPLIES-HOW-MANY-IS-0",
-    .nativeSorried ``not_memb_how_many_0_native_driver ``notMembHowMany0ReplayedCond
-      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+    .native ``not_memb_how_many_0_native_driver ``notMembHowMany0ReplayedCond),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-RM-GENERAL",
-    .nativeSorried ``how_many_rm_general_native_driver
-      ``howManyRmGeneralReplayedCond
-      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+    .native ``how_many_rm_general_native_driver
+      ``howManyRmGeneralReplayedCond),
   ("sorting/convert-perm-to-how-many",
     "PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS",
     .nativeSorried ``pce_is_counterexample_native_driver
       ``pceIsCounterexampleReplayedCond
       "total:PERM-COUNTER-EXAMPLE (dis_pce_total; unlock: \
-       with_termination coverage — REQUIRED class) + tp:HOW-MANY \
-       (dis_how_many_tp; unlock: TP-replay discharge)"),
+       with_termination coverage — REQUIRED class)"),
   ("sorting/convert-perm-to-how-many", "TRUE-LISTP-RM",
     .replayedOnly "subsumed by the rm simulation: `true-listp` restricts \
       the input to the enc image (exists_enc_of_trueListp), where \
@@ -312,9 +307,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
       against the CURRENT golden, mirror wave 2026-08-11; the previous \
       text also cited use:PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS, which \
       is STALE — that cond is gone and that row is now green). The \
-      row's conds are cond[total:PERM-COUNTER-EXAMPLE, tp:HOW-MANY, \
-      tp:TLFIX, rule:PERM-TLFIX]. Two have registered debt \
-      (dis_pce_total, dis_how_many_tp); `tp:TLFIX` has no discharger \
+      row's conds are cond[total:PERM-COUNTER-EXAMPLE, \
+      tp:TLFIX, rule:PERM-TLFIX] (tp:HOW-MANY was retired by the \
+      replay route, TP-replay arc increment 1 2026-08-12). \
+      total:PERM-COUNTER-EXAMPLE has registered debt \
+      (dis_pce_total); `tp:TLFIX` has no discharger \
       (not minted — see the WHY-NOT-MINTED note on \
       HOW-MANY-BAD-PAIRS-BNEXT); and `rule:PERM-TLFIX`'s ONLY \
       criterion-clean discharger is PERM-TLFIX's own replayed \
@@ -332,8 +329,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/isort", "ORDEREDP-ISORT", .nativeSorried ``orderedp_isort_native_driver ``orderedpIsortReplayedCond
       "tp:INSERT (dis_insert_tp; unlock: TP-replay discharge)"),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
-  ("sorting/isort", "HOW-MANY-ISORT", .nativeSorried ``how_many_isort_native_driver ``howManyIsortReplayedCond
-      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+  ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),
   ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver ``orderedpRmReplayed),
   ("sorting/ordered-perms", "ORDEREDP-MEMB", .native ``orderedp_memb_native_driver ``orderedpMembReplayedCond),
   ("sorting/ordered-perms", "EQUAL-CONS", .native ``equal_cons_native_driver ``equalConsReplayedCond),
@@ -369,7 +365,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
       type-absorbed true-listp doctrine, the TRUE-LISTP-RM precedent)"),
   ("sorting/bsort", "HOW-MANY-BNEXT",
     .nativeSorried ``how_many_bnext_native_driver ``howManyBnextReplayedCond
-      "total:BNEXT (dis_bnext_total; unlock: with_termination coverage — REQUIRED class) + tp:HOW-MANY (dis_how_many_tp)"),
+      "total:BNEXT (dis_bnext_total; unlock: with_termination coverage — REQUIRED class)"),
   ("sorting/bsort", "termination:BSORT",
     .replayedOnly "an internal admission obligation (BSORT's BNEXT-SIZE
       measure decrease, via HOW-MANY-BAD-PAIRS-BNEXT's :linear content),
@@ -378,10 +374,10 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .nativeSorried ``how_many_bad_pairs_bnext_native_driver
       ``howManyBadPairsBnextReplayedCond
       "total:BNEXT (dis_bnext_total; unlock: with_termination coverage \
-       — REQUIRED class) + tp:HOW-MANY-SMALLER \
-       (dis_how_many_smaller_tp, MINTED 2026-08-11) + tp:BNEXT-SIZE \
-       (dis_bnext_size_tp, MINTED 2026-08-11); both mints unlock with \
-       TP-replay discharge, the class that retires dis_how_many_tp"),
+       — REQUIRED class) + tp:BNEXT-SIZE (dis_bnext_size_tp, MINTED \
+       2026-08-11; unlock: TP-replay discharge — its emitted leaf sums \
+       a CALLEE's TP, a later increment than the one that retired \
+       tp:HOW-MANY-SMALLER)"),
   ("sorting/bsort", "ORDEREDP-WHEN-BNEXT-CONSTANT",
     .nativeSorried ``orderedp_when_bnext_constant_native_driver
       ``orderedpWhenBnextConstantReplayedCond
@@ -414,9 +410,9 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/bsort", "HOW-MANY-BSORT",
     .pending "BLOCKED ON A KEPT CONDITION WITH NO UNLOCK CLASS \
       (restated 2026-08-11 after the reuse-vs-mint ruling) — the \
-      ORDEREDP-BSORT blocker exactly, plus tp:HOW-MANY (which does \
-      have dis_how_many_tp). Golden conds: total:BNEXT, total:BSORT, \
-      total:O<, total:O-P, tp:HOW-MANY, tp:BNEXT-SIZE, \
+      ORDEREDP-BSORT blocker exactly (tp:HOW-MANY retired by the \
+      replay route, TP-replay arc increment 1). Golden conds: \
+      total:BNEXT, total:BSORT, total:O<, total:O-P, tp:BNEXT-SIZE, \
       linear:HOW-MANY-BAD-PAIRS-BNEXT; after this wave's mint only \
       `total:BSORT`, `total:O-P` and \
       `linear:HOW-MANY-BAD-PAIRS-BNEXT` are undischarged, and the \
@@ -427,29 +423,24 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/bsort", "HOW-MANY-SMALLER-BNEXT",
     .nativeSorried ``how_many_smaller_bnext_native_driver
       ``howManySmallerBnextReplayedCond
-      "total:BNEXT (dis_bnext_total; unlock: with_termination coverage \
-       — REQUIRED class) + tp:HOW-MANY-SMALLER \
-       (dis_how_many_smaller_tp, MINTED 2026-08-11 under the \
-       reuse-vs-mint ruling; unlock: TP-replay discharge)"),
+      "total:BNEXT (dis_bnext_total; unlock: with_termination \
+       coverage — REQUIRED class)"),
   ("sorting/msort", "HOW-MANY-MERGE2", .nativeSorried ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond
-      "total:MERGE2 (dis_merge2_total; REQUIRED — with_termination coverage) + tp:HOW-MANY (dis_how_many_tp)"),
-  ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .nativeSorried ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond
-      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+      "total:MERGE2 (dis_merge2_total; REQUIRED — with_termination coverage)"),
+  ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
   ("sorting/msort", "ORDEREDP-MSORT", .nativeSorried ``orderedp_msort_native_driver ``orderedpMsortReplayedCond
       "total:MERGE2/MSORT (dis_merge2_total, dis_msort_total; REQUIRED) + tp:EVENS (dis_evens_tp)"),
   ("sorting/msort", "HOW-MANY-MSORT", .nativeSorried ``how_many_msort_native_driver ``howManyMsortReplayedCond
-      "total:MERGE2/MSORT (REQUIRED) + tp:HOW-MANY (dis_how_many_tp)"),
+      "total:MERGE2/MSORT (REQUIRED)"),
   ("sorting/qsort", "termination:QSORT", .replayedOnly "an internal admission obligation, not a user-facing theorem: its native content (the filter-count decreases) IS qsortExec own kernel-checked Lean termination proof (filterExec_consCount_le)"),
-  ("sorting/qsort", "HOW-MANY-APPEND", .nativeSorried ``how_many_append_native_driver ``howManyAppendReplayedCond
-      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+  ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
   ("sorting/qsort", "ORDEREDP-APPEND", .nativeSorried ``orderedp_append_native_driver ``orderedpAppendReplayedCond
       "tp:ALL-REL (dis_all_rel_tp) + tp:APPEND (dis_append_tp); unlock: TP-replay discharge"),
-  ("sorting/qsort", "HOW-MANY-FILTER-1", .nativeSorried ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond
-      "tp:HOW-MANY (dis_how_many_tp; unlock: TP-replay discharge)"),
+  ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
   ("sorting/qsort", "HOW-MANY-QSORT", .nativeSorried ``how_many_qsort_native_driver ``howManyQsortReplayedCond
-      "total:O< (dis_o_lt_total; REQUIRED) + tp:HOW-MANY/ACL2-COUNT (dis_how_many_tp, dis_acl2_count_tp)"),
+      "total:O< (dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT (dis_acl2_count_tp)"),
   ("sorting/qsort", "PERM-QSORT", .nativeSorried ``perm_qsort_native_driver ``permQsortReplayedCond
-      "total:PCE/O< (dis_pce_total, dis_o_lt_total; REQUIRED) + tp:HOW-MANY/ACL2-COUNT + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the R-lane arc)"),
+      "total:PCE/O< (dis_pce_total, dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the R-lane arc)"),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-1", .nativeSorried ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond
       "tp:ALL-REL (dis_all_rel_tp; unlock: TP-replay discharge)"),
@@ -664,7 +655,6 @@ run_cmd Lean.Elab.Command.liftCoreM do
     [``ACL2.Worlds.Sorting.dis_rule_orderedp_append]
   let debtRegistry : List Name :=
     [``ACL2.Worlds.Sorting.dis_insert_tp,
-     ``ACL2.Worlds.Sorting.dis_how_many_tp,
      ``ACL2.Worlds.Sorting.dis_all_rel_tp,
      ``ACL2.Worlds.Sorting.dis_append_tp,
      ``ACL2.Worlds.Sorting.dis_evens_tp,
@@ -675,12 +665,11 @@ run_cmd Lean.Elab.Command.liftCoreM do
      ``ACL2.Worlds.Sorting.dis_pce_total,
      ``ACL2.Worlds.Sorting.dis_bnext_total,
      -- MINTED 2026-08-11 (reuse-vs-mint ruling, existing-class cap):
-     -- the two bsort-measure TPs, unlock = TP-replay discharge
-     ``ACL2.Worlds.Sorting.dis_how_many_smaller_tp,
+     -- the bsort-measure TP whose emitted leaf sums a CALLEE's TP
+     -- (`dis_how_many_smaller_tp` RETIRED by the replay route,
+     -- TP-replay arc increment 1, 2026-08-12)
      ``ACL2.Worlds.Sorting.dis_bnext_size_tp,
      ``ACL2.Worlds.Sorting.dis_convert_perm,
-     ``ACL2.Lifting.drv_tp_len,
-     ``ACL2.Worlds.Simple.drv_tp_mylen,
      ``ACL2.Worlds.Sorting.dis_sortfn1_insert_tp,
      ``ACL2.Worlds.Sorting.dis_sortfn1_tp,
      ``ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp,

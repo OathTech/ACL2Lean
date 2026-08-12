@@ -53,8 +53,9 @@ The two `#print axioms` gates that stood here pinned
 was PURGED under the thin-Lean ruling (2026-08-11) as Lean-side content
 ACL2 derives. The driver-based natives in `Imported/Waypoints/Basics`
 carry that content now, gated by the catalog's per-entry
-axiom-exactness check — but NOT at parity (audit fix F7): APP-ASSOC is
-`.native` (exact clean trio), while MY-LEN-MY-APP is `.nativeSorried`
-(carries `sorryAx` via the `drv_tp_mylen` FORBIDDEN-DEBT). The simple
-book's clean-axioms assertion is RETIRED by the ruling until that debt
-retires by replay, not relocated. -/
+axiom-exactness check. Since TP-replay arc increment 1 (2026-08-12)
+BOTH are `.native` (exact clean trio): MY-LEN-MY-APP's `tp:MY-LEN`
+debt (`drv_tp_mylen`) retired by the replay route, so the parity gap
+audit fix F7 recorded is closed. The simple book's clean-axioms
+assertion stays RETIRED-by-the-ruling here (the catalog gate is its
+single home), not relocated. -/

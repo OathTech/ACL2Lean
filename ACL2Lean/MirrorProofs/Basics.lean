@@ -146,12 +146,14 @@ theorem len_app_sexpr (xs ys : List SExpr) :
       len_agree_length]
   exact Imported.Waypoints.my_len_my_app_native_driver xs ys
 
-/-- **`len_app` at `Int`, via ACL2 replay** — the first mirror with
-    HONEST DEBT INHERITANCE: the MY-LEN-MY-APP waypoint is
-    `.nativeSorried` on `drv_tp_mylen` (a TP fact ACL2 discharged
-    whose replay route is the master plan's B1), so this receipt
-    carries `sorryAx` — stated here, retiring mechanically when B1
-    lands. Content enters via the waypoint and nowhere else. -/
+/-- **`len_app` at `Int`, via ACL2 replay** — the first mirror whose
+    inherited DEBT RETIRED: the MY-LEN-MY-APP waypoint carried
+    `sorryAx` via `drv_tp_mylen` (a TP fact ACL2 discharged, replayed
+    Lean-side as registered debt) until the TP prover's return-path arm
+    landed (TP-replay arc increment 1, 2026-08-12) — `tp:MY-LEN` now
+    arrives from ACL2's emitted `:TYPE-PRESCRIPTION` corollary +
+    `:LEAVES`, the waypoint is `.native`, and this receipt is the clean
+    trio. Content enters via the waypoint and nowhere else. -/
 theorem len_app_int : Basics.len_app Int := by
   intro xs ys
   rw [show Basics.len (Basics.app xs ys)
@@ -160,7 +162,7 @@ theorem len_app_int : Basics.len_app Int := by
     app_map_hom, len_app_sexpr,
     len_map_invariant, len_map_invariant]
 
-/-- info: 'ACL2Lean.MirrorProofs.len_app_int' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ACL2Lean.MirrorProofs.len_app_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms len_app_int
 

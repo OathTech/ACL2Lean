@@ -18,11 +18,12 @@ The BNEXT-LEVEL COUNT ROWS (HOW-MANY-SMALLER-BNEXT,
 HOW-MANY-BAD-PAIRS-BNEXT) need two more simulations, built here: the
 `how-many-smaller` count (elements strictly below a given one) and the
 `bnext-size` bubble measure (the sum of those counts down the list).
-Both are `derive_exec%`/`derive_sim%` pairs; their emitted
-non-negative-integer type-prescriptions are carried as MINTED
-FORBIDDEN-DEBT dischargers (`dis_how_many_smaller_tp`,
-`dis_bnext_size_tp` — reuse-vs-mint ruling 2026-08-11, capped to the
-existing TP-replay unlock class). -/
+Both are `derive_exec%`/`derive_sim%` pairs. `how-many-smaller`'s
+emitted non-negative-integer type-prescription now arrives by REPLAY
+(the TP prover's return-path arm, TP-replay arc increment 1); only
+`bnext-size`'s (`dis_bnext_size_tp`) is still carried as a MINTED
+FORBIDDEN-DEBT discharger — its emitted leaf is a sum over a CALLEE's
+TP, a later increment of the same unlock class. -/
 
 open ACL2 ACL2.Replay ACL2.Lifting ACL2.Worlds.Perm ACL2.ExecGen
 
@@ -123,31 +124,6 @@ derive_sim% howManySmallerExec_enc for "HOW-MANY-SMALLER"
   simp [howManySmallerL, Logic.plus, Logic.toRat, Logic.mkNumber,
     lexorder_eq_boolEnc]
   induct structural xs
-
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11; minted under the
-    reuse-vs-mint ruling — existing-class cap): this establishes
-    `tp:HOW-MANY-SMALLER` — the emitted non-negative-integer corollary
-    `(IF (INTEGERP (HOW-MANY-SMALLER E X))
-         (NOT (< (HOW-MANY-SMALLER E X) '0)) 'NIL)` — Lean-side; content
-    ACL2 derives. Statement kept as the named premise; proof retired to
-    `sorry`. UNLOCK: TP-replay discharge. -/
-theorem dis_how_many_smaller_tp (w : World)
-    (h_how_many_smaller : w.defs.get? how_many_smaller_sym
-      = some ([eS, xS], howManySmallerBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
-    (h_no_binary__ : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (e' : Env) (a0 a1 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
-      (SExpr.cons (SExpr.atom (Atom.symbol how_many_smaller_sym))
-        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
-    (bif Logic.toBool (Logic.integerp v) then
-        Logic.not (Logic.lt v (.atom (.number (.int 0))))
-      else SExpr.nil) = SExpr.t := by
-  sorry
 
 /-! ## The BNEXT-SIZE kit (the bubble measure) -/
 

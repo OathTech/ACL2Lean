@@ -304,6 +304,21 @@ def Development.typePrescriptionBasicTs : Development → List (String × Int)
       (n, bts) :: rest.typePrescriptionBasicTs
     | _ => rest.typePrescriptionBasicTs
 
+/-- (fn, :LEAVES) for every TP event: ACL2's OWN enumeration of the fn
+    body's return-path leaf terms, each with the type-set verdict ACL2
+    computed for it (the union of which is `:BASICTS`). The TP prover's
+    return-path arms consume this as the emitted authority for admitting a
+    non-self-call leaf (TP-replay arc increment 1, 2026-08-12) — the leaf
+    must be one ACL2 itself enumerated and verdicted; nothing here is
+    inferred Lean-side. -/
+def Development.typePrescriptionLeaves :
+    Development → List (String × List (SExpr × Int))
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .typePrescription n _ _ leaves => (n, leaves) :: rest.typePrescriptionLeaves
+    | _ => rest.typePrescriptionLeaves
+
 /-- The emitted type-prescription corollaries of a development (fn name ↦
     corollary term) — the type facts the replay consumes as hypotheses. -/
 def Development.typePrescriptions : Development → List (String × SExpr)

@@ -292,23 +292,6 @@ private theorem fixBody_conv (w : World)
     obtain ⟨g2, rfl⟩ : ∃ g2, g = g2 + 1 := ⟨g - 1, by omega⟩
     exact evalOpt_quote g2 w _ _
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes the
-    driver-shape type prescription for `my-len` (any value `(my-len a0)`
-    converges to satisfies the emitted TP corollary) Lean-side — content
-    ACL2 derives. Statement kept as the named premise; proof retired to
-    `sorry`. UNLOCK: TP-replay discharge. -/
-theorem drv_tp_mylen (w : World)
-    (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (e' : Env) (a0 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (lenOf a0) = some v) :
-    (bif Logic.toBool (Logic.integerp v) then
-        Logic.not (Logic.lt v (.atom (.number (.int 0))))
-      else SExpr.nil) = SExpr.t := by
-  sorry
-
 /-! ### The type morphism + simulation -/
 
 -- The TYPE morphism: the shared library's (`Imported/Lifting`).

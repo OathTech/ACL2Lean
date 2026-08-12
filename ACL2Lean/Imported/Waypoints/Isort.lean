@@ -60,8 +60,6 @@ theorem howManyIsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f isortWorldD env
       Worlds.Sorting.how_many_isortFormula = some v ∧ v ≠ SExpr.nil :=
   howManyIsortReplayedCond env
-    (Worlds.Sorting.dis_how_many_tp isortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 
 /-- ENTRY, PROVED — HOW-MANY-ISORT natively: INSERTION SORT PRESERVES

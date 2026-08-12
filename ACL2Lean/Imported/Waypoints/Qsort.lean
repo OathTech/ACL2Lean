@@ -28,8 +28,6 @@ theorem howManyAppendReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.how_many_appendFormula = some v ∧ v ≠ SExpr.nil :=
   howManyAppendReplayedCond env
-    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 
 /-- ENTRY, PROVED — HOW-MANY-APPEND natively: `List.count` distributes
@@ -194,8 +192,6 @@ theorem howManyFilter1Replayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.how_many_filter_1Formula = some v ∧ v ≠ SExpr.nil :=
   howManyFilter1ReplayedCond env
-    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
     (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
@@ -265,8 +261,6 @@ theorem howManyQsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_acl2_count_tp qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
@@ -308,8 +302,6 @@ theorem permQsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_acl2_count_tp qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
@@ -359,8 +351,6 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_acl2_count_tp qsortWorldD (by decide) (by decide)
