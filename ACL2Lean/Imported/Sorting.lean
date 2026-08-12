@@ -4,7 +4,7 @@ import ACL2Lean.Imported.GzPrelude
 
 /-! # Imported: the sorting books — world-parametric support beyond perm
 
-World-parametric (invariant L3) support for the SORTING MIRROR PROGRAM
+World-parametric (invariant L3) support for the SORTING WAYPOINT PROGRAM
 (the sorting-completion-2 amended criteria): the LEXORDER Bool kit, the
 ORDEREDP simulation (an instance of the `corr_chain2_enc` schematic —
 ORDEREDP is EXACTLY `chain2Body "LEXORDER" "ORDEREDP"` in every sorting
@@ -1384,8 +1384,8 @@ derive_exec% allRelExec corr all_rel_exec_corr for all_rel_sym
   formals [fnS, xS, eS] body allRelBody measured 1
 
 /-- The NATIVE reading of one REL verdict — an ordinary Lean match on the
-    four comparison modes, in `lexorderB`/`==` vocabulary only (the mirror
-    criterion: no exec function in a mirror statement). -/
+    four comparison modes, in `lexorderB`/`==` vocabulary only (the waypoint
+    criterion: no exec function in a waypoint statement). -/
 def relL (fv a e : SExpr) : Bool :=
   if fv == symV "LT" then lexorderB a e && !(a == e)
   else if fv == symV "LTE" then lexorderB a e
@@ -4198,7 +4198,7 @@ decreasing_by
 
 register_exec_kit% "BNEXT" => bnextExec arity 1
 
-/-- The NATIVE bubble pass over Lean lists — self-contained (mirror
+/-- The NATIVE bubble pass over Lean lists — self-contained (waypoint
     criterion: `lexorderB` only, no evaluator vocabulary). -/
 def bnextL : List SExpr → List SExpr
   | [] => []

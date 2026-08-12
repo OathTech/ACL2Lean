@@ -2,7 +2,7 @@
   THE NATIVE LIFTING LIBRARY (task #62; design doc §6 — "the accumulated
   patterns are the seed of a standard lifting library").
 
-  Built BY EXAMPLE from the catalog (`Imported/NativeMirrors.lean`): every
+  Built BY EXAMPLE from the catalog (`Imported/WaypointCatalog.lean`): every
   lemma here was first proved inline for a concrete catalog entry and then
   generalized when a second entry needed the same shape.
 
@@ -1070,7 +1070,7 @@ abbrev qNilT : SExpr :=
 
 
 /-- Value-level if-false composition (the `re_if_false` + else-value glue
-    used throughout the mirrors). -/
+    used throughout the waypoints). -/
 theorem conv_if_false' (w : World) (e : Env) (c t el ev : SExpr)
     (hc : ∃ N, ∀ f ≥ N, evalOpt f w e c = some SExpr.nil)
     (he : ∃ N, ∀ f ≥ N, evalOpt f w e el = some ev) :

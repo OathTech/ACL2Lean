@@ -1,12 +1,12 @@
-import ACL2Lean.Imported.Mirrors.Macro
-import ACL2Lean.Imported.Mirrors.PermBook
+import ACL2Lean.Imported.Waypoints.Macro
+import ACL2Lean.Imported.Waypoints.PermBook
 import ACL2Lean.DevLoad
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
-/-! ## The ordered-perms book — the SORTING MIRROR PROGRAM's first tranche
+/-! ## The ordered-perms book — the SORTING WAYPOINT PROGRAM's first tranche
 (sorting-completion-2 amended criteria). The `Imported/Sorting.lean`
 support: the LEXORDER Bool kit + the ORDEREDP chain2 instance; `rm`'s
 simulation is the perm book's, reused verbatim. -/
@@ -148,4 +148,4 @@ theorem orderedp_memb_native_driver (ev a : SExpr) (t : List SExpr)
 
 #print axioms orderedp_memb_native_driver
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

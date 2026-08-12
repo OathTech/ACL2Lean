@@ -1051,7 +1051,7 @@ def s2bBetaBooksPin : True := s2b_beta_books_pin%
 -- BUILD-FAILING axiom gate (validator/lifter arc W1 item 7, survey gap:
 -- the `#print axioms` above only PRINT — these constants bypass
 -- `Runner.tryReplay`'s axiom filter entirely, and their proofs route
--- through real tactics. The NativeMirrors throwing-run_cmd pattern.)
+-- through real tactics. The WaypointCatalog throwing-run_cmd pattern.)
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]

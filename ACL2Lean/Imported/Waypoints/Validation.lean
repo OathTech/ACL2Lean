@@ -1,11 +1,11 @@
-import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.DevLoad
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
-/-! ## Entry — `p7-cong-collapse`: the first VALIDATION-BOOK mirror
+/-! ## Entry — `p7-cong-collapse`: the first VALIDATION-BOOK waypoint
 (validator/lifter arc inc-0, 2026-07-30)
 
 Rung 2's ground truth: `P7-TARGET` — `(equal (ln (dub x)) (ln x))`, the
@@ -15,7 +15,7 @@ p7 log → parse → reconstruct → derived world → the driver's conditional
 replayed statement (`tp:LN` only) → discharged by the NAME-GENERIC
 `drv_tp_len` (the industrialization dividend: LN's body is exactly
 `lenBody "LN"`) → instantiated at an encoded list → `corr_mapconst_enc` ∘
-`corr_len_enc` → `native_of_replayed_equal intRep`. MIRRORS establish that
+`corr_len_enc` → `native_of_replayed_equal intRep`. WAYPOINTS establish that
 a replayed theorem means what the user intends (CLAUDE.md terminology,
 2026-07-30) — this is the first for a pattern-test book. -/
 
@@ -44,10 +44,10 @@ theorem p7TargetReplayed_uncond (env : Env) :
     (drv_tp_len p7WorldD "LN" (by decide) (by decide) (by decide)
       (by decide) (by decide))
 
-/-- The MIRROR: `(l.map (fun _ => '0)).length = l.length` — proved FROM the
+/-- The WAYPOINT: `(l.map (fun _ => '0)).length = l.length` — proved FROM the
     replayed P7-TARGET (via `Int` lengths and `Nat.cast` injectivity).
     NARROWING vs the book theorem (audit F6): the ACL2 statement holds for
-    ALL X (atoms, improper lists); the mirror quantifies over `List SExpr`
+    ALL X (atoms, improper lists); the waypoint quantifies over `List SExpr`
     — the true-listp fragment, inherent to native Lean lists. The
     discriminating content is the proof ROUTE through the replayed
     statement (the native statement alone is a simp one-liner — audit
@@ -76,7 +76,7 @@ theorem p7_dub_len_native_driver (l : List SExpr) :
       (by decide) hlhs hrhs (p7TargetReplayed_uncond e)
   exact_mod_cast hnat
 
-/-! ## Entry — `p5-or-shape-flipped`: the SECOND validation-book mirror
+/-! ## Entry — `p5-or-shape-flipped`: the SECOND validation-book waypoint
 (validator/lifter arc inc-1)
 
 `DUPP-REP-MID` — `(implies (and (consp x) (equal (car x) e) (dupp x))
@@ -122,12 +122,12 @@ private theorem corr_dupp (xs : List SExpr) (e' : Env) (a : SExpr)
     (by decide) (by decide) (by decide) (by decide) (by decide)
     callBuiltin_equal_bool xs e' a ha
 
-/-- ENTRY, PROVED — the p5 MIRROR: prepending an element equal to the head
+/-- ENTRY, PROVED — the p5 WAYPOINT: prepending an element equal to the head
     preserves the adjacent-equal chain, THROUGH the replayed DUPP-REP-MID
     (implies decode; the `junk` disjunct dies because an encoded list is
     never that symbol).
     NARROWING vs the book theorem (audit F6): the ACL2 statement holds for
-    ANY cons X including improper lists; this mirror quantifies over
+    ANY cons X including improper lists; this waypoint quantifies over
     `List SExpr` (the true-listp fragment — inherent to native Lean lists)
     and instantiates the `(equal (car x) e)` hypothesis at hd := e (faithful
     — EQUAL is identity here). -/
@@ -235,4 +235,4 @@ theorem p5_dupp_prepend_native_driver (e : SExpr) (tl : List SExpr)
   | true => rfl
   | false => rw [hc] at hconc; exact absurd hconc (by decide)
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

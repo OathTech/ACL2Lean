@@ -3,7 +3,7 @@
   ruled in `docs/notes/2026-08-11_thin-lean-boundary.md` §1).
 
   `derive_exec%` (Imported/ExecGen.lean) generates the two ACL2-side
-  artifacts of a mirror-consumed defun — the shape-exact `<fn>Exec` and the
+  artifacts of a waypoint-consumed defun — the shape-exact `<fn>Exec` and the
   stage-1 `<fn>_exec_corr`. This module generates the THIRD, the stage-2
   ISO (`<fn>Exec_enc`): `fooExec (enc xs) = <reading> (fooL xs)`.
 

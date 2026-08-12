@@ -1,9 +1,9 @@
-import ACL2Lean.Imported.Mirrors.Macro
-import ACL2Lean.Imported.Mirrors.ConvertPerm
+import ACL2Lean.Imported.Waypoints.Macro
+import ACL2Lean.Imported.Waypoints.ConvertPerm
 import ACL2Lean.Imported.SortingBsort
 import ACL2Lean.DevLoad
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
@@ -17,7 +17,7 @@ private def bsortLog : String :=
 def bsortDev : Development :=
   load_development% bsortLog
 
-derive_world bsortMirrorsWorld from bsortDev
+derive_world bsortWaypointsWorld from bsortDev
 
 set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-BNEXT
@@ -25,24 +25,24 @@ set_option maxHeartbeats 3200000 in
     `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` condition discharges from the
     convert-perm dependency trees — the 2a channel, matching the sweep). -/
 def howManyBnextReplayedCond := driver_replayed% bsortDev
-  bsortMirrorsWorld "how-many-bnext" deps [convertPermDev]
+  bsortWaypointsWorld "how-many-bnext" deps [convertPermDev]
 
 /-- The unconditional form — bnext's totality from its own corr
     (`dis_bnext_total`), how-many's TP by the standard discharger. -/
 theorem howManyBnextReplayed_uncond (env : Env) :
-    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortMirrorsWorld env
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortWaypointsWorld env
       Worlds.Sorting.how_many_bnextFormula = some v ∧ v ≠ SExpr.nil :=
   howManyBnextReplayedCond env
-    (Worlds.Sorting.dis_bnext_total bsortMirrorsWorld (by decide)
+    (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_tp bsortMirrorsWorld (by decide) (by decide)
+    (Worlds.Sorting.dis_how_many_tp bsortWaypointsWorld (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-BNEXT natively: the bubble pass preserves
     `List.count` (over the self-contained native pass `bnextL`). -/
 theorem how_many_bnext_native_driver (ev : SExpr) (xs : List SExpr) :
     (Worlds.Sorting.bnextL xs).count ev = xs.count ev :=
-  Worlds.Sorting.how_many_bnext_native_of_replayed bsortMirrorsWorld
+  Worlds.Sorting.how_many_bnext_native_of_replayed bsortWaypointsWorld
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) howManyBnextReplayed_uncond ev xs
 
@@ -52,16 +52,16 @@ set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for
     ORDEREDP-WHEN-BNEXT-CONSTANT (hypothesis: `total:BNEXT`). -/
 def orderedpWhenBnextConstantReplayedCond := driver_replayed% bsortDev
-  bsortMirrorsWorld "orderedp-when-bnext-constant"
+  bsortWaypointsWorld "orderedp-when-bnext-constant"
 
 /-- The unconditional form — bnext's totality from the registered debt
     entry (`dis_bnext_total`). -/
 theorem orderedpWhenBnextConstantReplayed_uncond (env : Env) :
-    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortMirrorsWorld env
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortWaypointsWorld env
       Worlds.Sorting.orderedp_when_bnext_constantFormula = some v
         ∧ v ≠ SExpr.nil :=
   orderedpWhenBnextConstantReplayedCond env
-    (Worlds.Sorting.dis_bnext_total bsortMirrorsWorld (by decide)
+    (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — ORDEREDP-WHEN-BNEXT-CONSTANT natively: a list the
@@ -71,7 +71,7 @@ theorem orderedp_when_bnext_constant_native_driver (xs : List SExpr)
     (h : Worlds.Sorting.bnextL xs = xs) :
     Worlds.Sorting.orderedpRec xs = true :=
   Worlds.Sorting.orderedp_when_bnext_constant_native_of_replayed
-    bsortMirrorsWorld (by decide) (by decide) (by decide) (by decide)
+    bsortWaypointsWorld (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide)
     orderedpWhenBnextConstantReplayed_uncond xs h
 
@@ -81,17 +81,17 @@ set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-SMALLER-BNEXT
     (hypotheses: `total:BNEXT`, `tp:HOW-MANY-SMALLER`). -/
 def howManySmallerBnextReplayedCond := driver_replayed% bsortDev
-  bsortMirrorsWorld "how-many-smaller-bnext"
+  bsortWaypointsWorld "how-many-smaller-bnext"
 
 /-- The unconditional form — bnext's totality and how-many-smaller's TP
     from the registered debt entries. -/
 theorem howManySmallerBnextReplayed_uncond (env : Env) :
-    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortMirrorsWorld env
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortWaypointsWorld env
       Worlds.Sorting.how_many_smaller_bnextFormula = some v ∧ v ≠ SExpr.nil :=
   howManySmallerBnextReplayedCond env
-    (Worlds.Sorting.dis_bnext_total bsortMirrorsWorld (by decide)
+    (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_smaller_tp bsortMirrorsWorld (by decide)
+    (Worlds.Sorting.dis_how_many_smaller_tp bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide))
 
@@ -101,7 +101,7 @@ theorem howManySmallerBnextReplayed_uncond (env : Env) :
 theorem how_many_smaller_bnext_native_driver (ev : SExpr) (xs : List SExpr) :
     Worlds.Sorting.howManySmallerL ev (Worlds.Sorting.bnextL xs)
       = Worlds.Sorting.howManySmallerL ev xs :=
-  Worlds.Sorting.how_many_smaller_bnext_native_of_replayed bsortMirrorsWorld
+  Worlds.Sorting.how_many_smaller_bnext_native_of_replayed bsortWaypointsWorld
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide)
     howManySmallerBnextReplayed_uncond ev xs
@@ -113,21 +113,21 @@ set_option maxHeartbeats 3200000 in
     HOW-MANY-BAD-PAIRS-BNEXT (hypotheses: `total:BNEXT`,
     `tp:HOW-MANY-SMALLER`, `tp:BNEXT-SIZE`). -/
 def howManyBadPairsBnextReplayedCond := driver_replayed% bsortDev
-  bsortMirrorsWorld "how-many-bad-pairs-bnext"
+  bsortWaypointsWorld "how-many-bad-pairs-bnext"
 
 /-- The unconditional form — bnext's totality and the two count TPs from
     the registered debt entries. -/
 theorem howManyBadPairsBnextReplayed_uncond (env : Env) :
-    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortMirrorsWorld env
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortWaypointsWorld env
       Worlds.Sorting.how_many_bad_pairs_bnextFormula = some v
         ∧ v ≠ SExpr.nil :=
   howManyBadPairsBnextReplayedCond env
-    (Worlds.Sorting.dis_bnext_total bsortMirrorsWorld (by decide)
+    (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_how_many_smaller_tp bsortMirrorsWorld (by decide)
+    (Worlds.Sorting.dis_how_many_smaller_tp bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide))
-    (Worlds.Sorting.dis_bnext_size_tp bsortMirrorsWorld (by decide)
+    (Worlds.Sorting.dis_bnext_size_tp bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide))
 
@@ -139,11 +139,11 @@ theorem how_many_bad_pairs_bnext_native_driver (xs : List SExpr)
     Worlds.Sorting.bnextSizeL (Worlds.Sorting.bnextL xs)
       < Worlds.Sorting.bnextSizeL xs :=
   Worlds.Sorting.how_many_bad_pairs_bnext_native_of_replayed
-    bsortMirrorsWorld (by decide) (by decide) (by decide) (by decide)
+    bsortWaypointsWorld (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide)
     howManyBadPairsBnextReplayed_uncond xs h
 
 #print axioms how_many_bad_pairs_bnext_native_driver
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

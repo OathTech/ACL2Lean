@@ -1,20 +1,29 @@
 /-
-  THE NATIVE MIRROR CATALOG (task #62; design doc §6).
+  THE CATALOG OF REPLAY WAYPOINTS (task #62; design doc §6).
 
-  One section per corpus theorem: the result stated in NATIVE Lean terms,
-  proved THROUGH the ACL2 replay — the driver's conditional replayed statement, its
-  hypotheses discharged for the log-derived world, decoded to the native
+  A WAYPOINT is the ACL2-like Lean restatement of a replayed fact: Lean
+  notions over `SExpr`/`lexorderB` — the ACL2 value universe in Lean
+  clothes. Waypoints are the replay METRIC's scoreboard (how far the
+  machinery reaches) and are NEVER a result. The PRODUCT is the MIRROR
+  layer (`ACL2Lean/Mirrors/`): Lean-idiomatic, zero-ACL2-notion theorems
+  mirroring a book's properties. (Naming restored 2026-08-12 — this
+  catalog and the narrative below long mis-used "mirror" for waypoints;
+  read every such occurrence as WAYPOINT.)
+
+  One section per corpus theorem: the waypoint stated in ACL2-like Lean
+  terms, proved THROUGH the ACL2 replay — the driver's conditional replayed statement, its
+  hypotheses discharged for the log-derived world, decoded to the waypoint
   statement via the `enc`/`corr_*` simulation layer. Each PROVED entry is a
   build-enforced regression; each PENDING entry names the blocking frontier.
   The accumulated patterns are the seed of a future standard lifting library
   (polymorphic `α ↪ SExpr` statements are deliberately deferred — TODO.md).
 
-  ── THE LIVE SCOREBOARD IS `liftCatalog` (Mirrors/Catalog.lean) ───────────
+  ── THE LIVE SCOREBOARD IS `liftCatalog` (Waypoints/Catalog.lean) ───────────
   (Correction 2026-08-06, overall-project audit P2-11: this header's table
-  below stops at entry 18 and predates the sorting-book mirrors — it is
+  below stops at entry 18 and predates the sorting-book waypoints — it is
   HISTORY, not status. The catalog module holds one decision per green
   sweep row, gated build-failing: lift-coverage/seam, axioms, and the
-  mirror criterion. Count entries there, not here.)
+  waypoint criterion. Count entries there, not here.)
 
   ── HISTORICAL SCOREBOARD (first 18 entries, kept as narrative) ───────────
   PROVED (via the driver's replayed statement):
@@ -40,7 +49,7 @@
   THE WHOLE PERM BOOK IS IMPORTED: 8 unconditional replayed statements, 8 native facts,
   zero hypotheses (lifter sprint 2026-07-06).
    17. p7-cong-collapse (l.map (fun _ => '0)).length = l.length
-                        [FIRST VALIDATION-BOOK mirror — rung 2's ground
+                        [FIRST VALIDATION-BOOK waypoint — rung 2's ground
                         truth; name-generic drv_tp_len + corr_mapconst_enc,
                         validator/lifter arc inc-0]
    18. p5-or-shape-flipped  duppRec (e::tl) → duppRec (e::e::tl)
@@ -50,7 +59,7 @@
   PROVED (via the HAND replayed statement — driver upgrade pending):
     -  my-len-my-app   ACL2Lean/Imported/SimpleWorld.lean (the original)
     -  nat-refl        Tests/DriverTests.lean `native_nat_refl` (trivial, driver)
-  MIRROR-ONLY (replayed by the driver — DriverCoverage regression — but the
+  WAYPOINT-ONLY (replayed by the driver — DriverCoverage regression — but the
   decode is REFLEXIVE: our own evaluation of both sides computes the same
   value, so no non-vacuous native fact exists to extract):
     -  sq-rewrites, idf-rewrites, count-down-zero, my-evenp-3-is-nil,
@@ -71,47 +80,47 @@
 
   ── MODULE LAYOUT (split 2026-08-02) ──────────────────────────────────────
   This file is now a FACADE. The catalog itself lives in per-book modules
-  under `ACL2Lean/Imported/Mirrors/`, so Lake confines rebuilds to the book
+  under `ACL2Lean/Imported/Waypoints/`, so Lake confines rebuilds to the book
   actually edited and elaborates the books in PARALLEL across cores:
 
-    Mirrors.Macro        the `driver_replayed%` elaborator (+ `depsClauseDR`)
-    Mirrors.Basics       entries 1–8 (simple / 02-rev / 00-direct /
-                         08-equality-reasoning / 01-multi-theorem)
-    Mirrors.PermBook     entries 9–16, the perm book + its `List.Perm`
-                         corollaries
-    Mirrors.Tree         entry 17, true-listp-flatten
-    Mirrors.Validation   the p7/p5 validation-book mirrors
-    Mirrors.ConvertPerm  the convert-perm-to-how-many DEPENDENCY dev
-                         (tree source only — no `derive_world`)
-    Mirrors.OrderedPerms the ordered-perms book (incl. the ORDERED-PERMS
-                         capstone; `deps [permDev]`)
-    Mirrors.Isort        the isort book
-    Mirrors.Qsort        the qsort book
-    Mirrors.Msort        the msort book
-    Mirrors.IsChain      `LexSorted` + the `List.IsChain` corollaries
-    Mirrors.Catalog      `liftCatalog` + the build-failing gates
-                         (lift-coverage/seam, axioms, criterion-1,
-                         provenance, hreplayed-usage) — and
-                         THE MIRROR CRITERION text, which now sits next to
-                         the gates that mechanize it.
+    Waypoints.Macro          the `driver_replayed%` elaborator (+ `depsClauseDR`)
+    Waypoints.Basics         entries 1–8 (simple / 02-rev / 00-direct /
+                             08-equality-reasoning / 01-multi-theorem)
+    Waypoints.PermBook       entries 9–16, the perm book + its `List.Perm`
+                             corollaries
+    Waypoints.Tree           entry 17, true-listp-flatten
+    Waypoints.Validation     the p7/p5 validation-book waypoints
+    Waypoints.ConvertPerm    the convert-perm-to-how-many DEPENDENCY dev
+                             (tree source only — no `derive_world`)
+    Waypoints.OrderedPerms   the ordered-perms book (incl. the ORDERED-PERMS
+                             capstone; `deps [permDev]`)
+    Waypoints.Isort          the isort book
+    Waypoints.Qsort          the qsort book
+    Waypoints.Msort          the msort book
+    Waypoints.IsChain        `LexSorted` + the `List.IsChain` corollaries
+    Waypoints.Catalog        `liftCatalog` + the build-failing gates
+                             (lift-coverage/seam, axioms, criterion-1,
+                             provenance, hreplayed-usage) — and
+                             THE WAYPOINT CRITERION text, which now sits next
+                             to the gates that mechanize it.
 
   Entries are grouped by the DEVELOPMENT/WORLD constants they use, not by
-  the old section headers: `driver_replayed%` consumes the mirror registry
+  the old section headers: `driver_replayed%` consumes the waypoint registry
   in ELABORATION ORDER, so every invocation over a given world stays in one
   module, in its original relative order.
 -/
-import ACL2Lean.Imported.Mirrors.Macro
-import ACL2Lean.Imported.Mirrors.Basics
-import ACL2Lean.Imported.Mirrors.PermBook
-import ACL2Lean.Imported.Mirrors.Tree
-import ACL2Lean.Imported.Mirrors.Validation
-import ACL2Lean.Imported.Mirrors.ConvertPerm
-import ACL2Lean.Imported.Mirrors.OrderedPerms
-import ACL2Lean.Imported.Mirrors.Isort
-import ACL2Lean.Imported.Mirrors.Qsort
-import ACL2Lean.Imported.Mirrors.Msort
-import ACL2Lean.Imported.Mirrors.IsChain
-import ACL2Lean.Imported.Mirrors.EquisortParametric
+import ACL2Lean.Imported.Waypoints.Macro
+import ACL2Lean.Imported.Waypoints.Basics
+import ACL2Lean.Imported.Waypoints.PermBook
+import ACL2Lean.Imported.Waypoints.Tree
+import ACL2Lean.Imported.Waypoints.Validation
+import ACL2Lean.Imported.Waypoints.ConvertPerm
+import ACL2Lean.Imported.Waypoints.OrderedPerms
+import ACL2Lean.Imported.Waypoints.Isort
+import ACL2Lean.Imported.Waypoints.Qsort
+import ACL2Lean.Imported.Waypoints.Msort
+import ACL2Lean.Imported.Waypoints.IsChain
+import ACL2Lean.Imported.Waypoints.EquisortParametric
 import ACL2Lean.Imported.EquisortWitness
-import ACL2Lean.Imported.Mirrors.P8ClausifyDetail
-import ACL2Lean.Imported.Mirrors.Catalog
+import ACL2Lean.Imported.Waypoints.P8ClausifyDetail
+import ACL2Lean.Imported.Waypoints.Catalog

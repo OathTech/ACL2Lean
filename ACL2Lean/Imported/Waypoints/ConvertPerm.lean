@@ -1,8 +1,8 @@
-import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.Imported.SortingConvertPerm
 import ACL2Lean.DevLoad
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
@@ -18,7 +18,7 @@ private def convertPermLog : String :=
 def convertPermDev : Development :=
   load_development% convertPermLog
 
-/-! ## The convert-perm book's own mirrors (Phase 7 of the close-out arc) -/
+/-! ## The convert-perm book's own waypoints (Phase 7 of the close-out arc) -/
 
 derive_world convertPermWorldD from convertPermDev
 
@@ -162,4 +162,4 @@ theorem pce_is_counterexample_native_driver (xs ys : List SExpr) :
 
 #print axioms pce_is_counterexample_native_driver
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

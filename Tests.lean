@@ -12,6 +12,6 @@ import Tests.PatternPins
 import Tests.SortingPins
 import Tests.SortingPinsEndgame
 import Tests.ParametricPins
-import Tests.MirrorCensus
+import Tests.WaypointCensus
 import Tests.TamperTests
 import Tests.SpikeTauOmega

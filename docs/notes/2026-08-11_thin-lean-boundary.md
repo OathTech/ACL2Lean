@@ -1,5 +1,7 @@
 # The thin-Lean boundary, restated (RULED — Mike, 2026-08-11)
 
+TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAYPOINT layer, not a mirror in the product sense (ACL2Lean/Mirrors/). The layer's files moved in the 2026-08-12 naming sweep: `Imported/Mirrors/` → `Imported/Waypoints/`, `Imported/NativeMirrors.lean` → `Imported/WaypointCatalog.lean`.
+
 Mike ratified the post-purge framing review's package in full
 ("Agree on all points", 2026-08-11). This note is the binding
 restatement of the mirror-layer boundary and the adoption record for

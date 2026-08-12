@@ -1,24 +1,24 @@
-import ACL2Lean.Imported.Mirrors.Basics
-import ACL2Lean.Imported.Mirrors.PermBook
-import ACL2Lean.Imported.Mirrors.Tree
-import ACL2Lean.Imported.Mirrors.Validation
-import ACL2Lean.Imported.Mirrors.ConvertPerm
-import ACL2Lean.Imported.Mirrors.OrderedPerms
-import ACL2Lean.Imported.Mirrors.Isort
-import ACL2Lean.Imported.Mirrors.Qsort
-import ACL2Lean.Imported.Mirrors.Msort
-import ACL2Lean.Imported.Mirrors.IsChain
-import ACL2Lean.Imported.Mirrors.Bsort
+import ACL2Lean.Imported.Waypoints.Basics
+import ACL2Lean.Imported.Waypoints.PermBook
+import ACL2Lean.Imported.Waypoints.Tree
+import ACL2Lean.Imported.Waypoints.Validation
+import ACL2Lean.Imported.Waypoints.ConvertPerm
+import ACL2Lean.Imported.Waypoints.OrderedPerms
+import ACL2Lean.Imported.Waypoints.Isort
+import ACL2Lean.Imported.Waypoints.Qsort
+import ACL2Lean.Imported.Waypoints.Msort
+import ACL2Lean.Imported.Waypoints.IsChain
+import ACL2Lean.Imported.Waypoints.Bsort
 -- the pattern-pin natives' seam check (audit F6) needs the native
-import ACL2Lean.Imported.Mirrors.P8ClausifyDetail
+import ACL2Lean.Imported.Waypoints.P8ClausifyDetail
 -- the axiom gate carries the equisort parametric/at-canonical receipts
 -- (R5, gate-cruft review 2026-08-11 — they used to be #guard_msgs pins)
-import ACL2Lean.Imported.Mirrors.EquisortParametric
--- the provenance gate scans the WHOLE mirror layer — the witness kits'
+import ACL2Lean.Imported.Waypoints.EquisortParametric
+-- the provenance gate scans the WHOLE waypoint layer — the witness kits'
 -- debt entries must be visible here
 import ACL2Lean.Imported.EquisortWitness
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
@@ -32,24 +32,27 @@ machinery reaches. It is "worthless, and completely forbidden, to
 treat these ACL2-like Lean definitions as top-level results": the
 statements here are over `SExpr`/`lexorderB` — the ACL2 value universe
 in Lean clothes — and are NEVER presented to a user as theorems. The
-PRODUCT is the MIRRORS layer (ACL2Lean/Mirrors/ — a MIRROR is a Lean-idiomatic, zero-ACL2 theorem mirroring a book property; THIS catalog long mis-used the word for waypoints): user-supplied, pure-idiomatic-Lean
-definitions and theorems, proved VIA this machinery, containing zero
-ACL2 notions. Historical docs below still say "mirror"/"native" for
-these entries — read those words as WAYPOINT. -/
+PRODUCT is the MIRRORS layer (`ACL2Lean/Mirrors/`): user-supplied,
+pure-idiomatic-Lean definitions and theorems, proved VIA this
+machinery, containing zero ACL2 notions. A MIRROR is ONLY that;
+everything catalogued here is a WAYPOINT (naming restored 2026-08-12
+— this catalog long mis-used "mirror" for waypoints). Historical
+prose below still says "mirror"/"native" for these entries — read
+those words as WAYPOINT. -/
 
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
-a native mirror (whose constant must exist), an explicit PENDING marker
+a waypoint (whose constant must exist), an explicit PENDING marker
 (the blocking work named), or replayed-only (no non-vacuous native fact —
 reflexive decodes and type-absorbed statements). A NEW green row without a
 catalog entry FAILS this build — "replayed but never lifted" can no longer
 accumulate silently (the survey's headline finding, now a ratchet). The
 golden is the input, so the catalog can never drift from the sweep.
 
-### THE MIRROR CRITERION (MDD-ratified 2026-07-31)
+### THE WAYPOINT CRITERION (MDD-ratified 2026-07-31)
 
-A mirror must be readable and trusted by a Lean user who does not speak
+A waypoint must be readable and trusted by a Lean user who does not speak
 ACL2, with minimal Lean-side trust obligations. Two BANNED antipatterns:
 
 1. **Mixed vocabulary.** The STATEMENT may use only Lean/Mathlib
@@ -87,12 +90,12 @@ private def liftCoverageGolden : String :=
   include_str "../../../Tests/driver-coverage.golden"
 
 inductive LiftStatus where
-  /-- A proved native mirror: the theorem constant + its SEAM (the
+  /-- A proved waypoint: the theorem constant + its SEAM (the
       `driver_replayed%` constant its proof must consume). Axioms must
       be EXACTLY {propext, Classical.choice, Quot.sound} — unconditional
       via replay, no debt (the thin-Lean ruling's REQUIRED win state). -/
   | native (decl : Lean.Name) (seam : Lean.Name)
-  /-- A native mirror carrying CLEAR-SORRY debt (thin-Lean ruling
+  /-- A waypoint carrying CLEAR-SORRY debt (thin-Lean ruling
       2026-08-11): the decode consumes the replayed statement, but one
       or more premises rest on sorried FORBIDDEN-DEBT statements whose
       legitimate replay route does not exist yet. Axioms must be EXACTLY
@@ -114,7 +117,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("01-multi-theorem", "APP-NIL", .pending "rule:CONS-CAR-CDR discharger + the true-listp hypothesis decode (the row replays green; audit F7 corrected the stale G5 reason)"),
   ("01-multi-theorem", "LEN2-APP", .pending "len2 world dischargers (entry-1 recipe over the 01 world)"),
   ("02-rev", "APP-ASSOC", .native ``app_assoc_native_driver ``appAssocReplayedCond),
-  ("02-rev", "TRUE-LISTP-REV", .pending "the flatten-recipe mirror (the image-of-enc fact, cf TRUE-LISTP-FLATTEN — unconditional, transfers directly)"),
+  ("02-rev", "TRUE-LISTP-REV", .pending "the flatten-recipe waypoint (the image-of-enc fact, cf TRUE-LISTP-FLATTEN — unconditional, transfers directly)"),
   ("02-rev", "APP-NIL", .pending "rule:CONS-CAR-CDR discharger + the true-listp hypothesis decode"),
   ("02-rev", "REV-APP", .pending "rev correspondence + tp:REV/rule:CONS-CAR-CDR dischargers"),
   ("02-rev", "REV-REV", .pending "rev correspondence + tp:REV/rule:CONS-CAR-CDR dischargers"),
@@ -134,7 +137,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("08-equality-reasoning", "EQUAL-TRANS", .native ``equal_trans_native ``equalTransReplayedCond),
   ("09-defn-unfold", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("09-defn-unfold", "IDF-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
-  ("10-tree-induction", "TRUE-LISTP-APP", .pending "the flatten-recipe mirror (unconditional — transfers directly)"),
+  ("10-tree-induction", "TRUE-LISTP-APP", .pending "the flatten-recipe waypoint (unconditional — transfers directly)"),
   ("10-tree-induction", "TRUE-LISTP-FLATTEN", .native ``true_listp_flatten_native_driver ``trueListpFlattenReplayed),
   ("12-multi-controller", "LEN-ZIP2", .pending "zip2 correspondence (validator/lifter backlog)"),
   ("13-multi-measured-var", "LEN-INTERLEAVE", .pending "interleave correspondence (backlog)"),
@@ -464,7 +467,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
 /-- SEAM REACHABILITY — the ONE copy (R4, gate-cruft review 2026-08-11;
     there used to be two cosmetically-divergent inlines). Does `start`'s
     proof term transitively consume `seam`? Only constants inside
-    `ACL2.Imported.Mirrors` are expanded; the seam itself is matched by
+    `ACL2.Imported.Waypoints` are expanded; the seam itself is matched by
     NAME and never expanded (its proof object is huge). Deterministic,
     in-Lean. -/
 def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
@@ -479,7 +482,7 @@ def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
         visited := visited.insert c
         if c == seam then
           found := true
-        else if (`ACL2.Imported.Mirrors).isPrefixOf c then
+        else if (`ACL2.Imported.Waypoints).isPrefixOf c then
           if let some ci := env.find? c then
             if let some v := ci.value? then
               frontier := v.getUsedConstants.toList ++ frontier
@@ -509,13 +512,13 @@ run_cmd Lean.Elab.Command.liftCoreM do
         unless (← getEnv).contains decl do
           throwError "lift-coverage gate: {b}/{n} claims native {decl}, \
             which does not exist"
-        -- THE SEAM GATE (mirror criterion, antipattern 2): the native
+        -- THE SEAM GATE (waypoint criterion, antipattern 2): the native
         -- proof must transitively CONSUME its replayed statement
         -- (`seamReaches`, the shared helper).
         unless seamReaches (← getEnv) decl seam do
           throwError "lift-coverage gate: {b}/{n}'s native proof does \
             not consume its replayed statement {seam} — the \
-            ornamental-import antipattern (mirror criterion 2)"
+            ornamental-import antipattern (waypoint criterion 2)"
     | [] => throwError "lift-coverage gate: green row {b}/{n} has NO \
         catalog decision — add a native entry, a PENDING marker, or a \
         replayed-only justification"
@@ -536,7 +539,7 @@ run_cmd Lean.Elab.Command.liftCoreM do
 --
 -- Two layers, no hand lists (gate-cruft review 2026-08-11, R3):
 --   (1) a WIDE SCAN over every `_driver`-suffixed theorem under
---       `ACL2.Imported.Mirrors` — catalog natives, their Mathlib-form
+--       `ACL2.Imported.Waypoints` — catalog natives, their Mathlib-form
 --       COROLLARIES, and the pattern-pin natives that live outside the
 --       driver-coverage golden alike — bounding all of them by the
 --       classical trio + `sorryAx`. This replaces the `corollaries` /
@@ -555,7 +558,7 @@ run_cmd Lean.Elab.Command.liftCoreM do
   let env ← getEnv
   let mut drivers : List Name := []
   for (c, ci) in env.constants.toList do
-    if (`ACL2.Imported.Mirrors).isPrefixOf c && !c.isInternalDetail then
+    if (`ACL2.Imported.Waypoints).isPrefixOf c && !c.isInternalDetail then
       if let .thmInfo _ := ci then
         if (c.componentsRev.headD Name.anonymous).toString.endsWith
             "_driver" then
@@ -566,7 +569,7 @@ run_cmd Lean.Elab.Command.liftCoreM do
       !allowed.contains a && a != ``sorryAx)
     unless bad.isEmpty do
       throwError "native-entry axiom gate: {n} uses forbidden axioms \
-        {bad} (a mirror `_driver` theorem may carry only the classical \
+        {bad} (a waypoint `_driver` theorem may carry only the classical \
         trio, plus sorryAx where a catalogued debt entry declares it)"
   -- (2) THE CATALOG-DRIVEN REFINEMENT
   let catalogNatives : List Name := liftCatalog.filterMap fun (_, _, st) =>
@@ -595,22 +598,22 @@ run_cmd Lean.Elab.Command.liftCoreM do
         PROMOTE the entry to .native"
   -- (3) THE EQUISORT RECEIPTS (R5, gate-cruft review 2026-08-11): the
   -- four capstone constants' axiom sets, moved here from the
-  -- `#guard_msgs` pins in `Mirrors/EquisortParametric.lean` (they are
+  -- `#guard_msgs` pins in `Waypoints/EquisortParametric.lean` (they are
   -- axiom receipts, not statement pins — one home for axiom facts). The
   -- Parametric pair is the first-class artifact and must stay clean; the
   -- AtCanonical pair is sorry-backed through the `totals [...]`
   -- FORBIDDEN-DEBT dischargers, and its `sorryAx` is REQUIRED so the
   -- debt cannot retire unnoticed.
-  for n in [``ACL2.Imported.Mirrors.weakSortfn1IsSortfn2Parametric,
-            ``ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2Parametric] do
+  for n in [``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric,
+            ``ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2Parametric] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
       throwError "equisort receipt: parametric constant {n} uses \
         forbidden axioms {bad} — the parametric capstones are the \
         first-class artifacts and must stay trio-clean"
-  for n in [``ACL2.Imported.Mirrors.weakSortfn1IsSortfn2AtCanonical,
-            ``ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2AtCanonical] do
+  for n in [``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2AtCanonical,
+            ``ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2AtCanonical] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a =>
       !allowed.contains a && a != ``sorryAx)
@@ -636,13 +639,13 @@ run_cmd Lean.Elab.Command.liftCoreM do
 /-! ## PROVENANCE GATE (thin-Lean ruling 2026-08-11)
 
 Mechanizes the ban that the mirror-provenance audit found unenforced:
-no Lean-side content discharger may exist in the mirror layer outside
+no Lean-side content discharger may exist in the waypoint layer outside
 (a) the D5 GzPrelude (ground-zero rule content — the ratified
 carve-out) and (b) the registered FORBIDDEN-DEBT set, every member of
 which MUST carry `sorryAx` (a from-scratch re-proof sneaking back in
 place of a sorry fails the build — the only legitimate retirement of a
 debt entry is deletion in favor of a replay route). A NEW `dis_*`/
-`drv_*` constant in the mirror namespaces matching neither list fails.
+`drv_*` constant in the waypoint namespaces matching neither list fails.
 In-Lean, deterministic (environment scan).
 THREAT MODEL (two-standard rule, 2026-08-11): a speedbump against
 forgetting the ban, not a barrier against circumvention (a renamed
@@ -689,11 +692,11 @@ run_cmd Lean.Elab.Command.liftCoreM do
         a Lean-side proof has replaced the sorry. Forbidden (thin-Lean \
         ruling): retire the entry via a replay route instead"
   let env ← getEnv
-  let mirrorNs : List Name :=
+  let waypointNs : List Name :=
     [`ACL2.Worlds, `ACL2.Imported, `ACL2.Lifting]
   let mut offenders : List Name := []
   for (c, _) in env.constants.toList do
-    if mirrorNs.any (·.isPrefixOf c) then
+    if waypointNs.any (·.isPrefixOf c) then
       let last := c.componentsRev.headD Name.anonymous
       let s := last.toString
       if s.startsWith "dis_" || s.startsWith "drv_" then
@@ -702,7 +705,7 @@ run_cmd Lean.Elab.Command.liftCoreM do
           offenders := offenders ++ [c]
   unless offenders.isEmpty do
     throwError "provenance gate: unregistered discharger constant(s) in \
-      the mirror layer: {offenders} — Lean-side content dischargers are \
+      the waypoint layer: {offenders} — Lean-side content dischargers are \
       forbidden (thin-Lean ruling 2026-08-11); register D5 gz content in \
       GzPrelude or route the fact through a replayed statement"
 
@@ -719,8 +722,8 @@ consume the replayed statement — not a barrier. DO NOT HARDEN. -/
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let extraSeams : List (Name × Name × String) :=
-    [(``ACL2.Imported.Mirrors.cons_neq_detail_native_driver,
-      ``ACL2.Imported.Mirrors.consNeqDetailReplayed,
+    [(``ACL2.Imported.Waypoints.cons_neq_detail_native_driver,
+      ``ACL2.Imported.Waypoints.consNeqDetailReplayed,
       "Tests/PatternPins.lean p8-clausify-detail")]
   let env ← getEnv
   for (nat, seam, rowSite) in extraSeams do
@@ -737,7 +740,7 @@ replayed hypothesis but never uses it would pass every other gate
 before the decode) while its native content is proved from scratch —
 ornamental import in its purest form. This gate scans every
 `*_native_of_replayed` constant (plus the `decodeAllowed` transport)
-in the mirror namespaces and requires: (1) at least one hypothesis
+in the waypoint namespaces and requires: (1) at least one hypothesis
 whose type mentions `evalOpt` (the replayed-statement shape), and
 (2) every such hypothesis actually OCCURRING in the proof term.
 THREAT MODEL (two-standard rule, 2026-08-11): a speedbump against
@@ -745,7 +748,7 @@ the honest mistake of proving beside the replayed statement instead
 of from it. The pass-to-an-ignoring-auxiliary construction evades it
 — known, accepted, PERMANENTLY a non-item. DO NOT HARDEN IT.
 The scan's own coverage is a REPORTED NUMBER, not a floor: the decode
-count is a `scripts/mirror-metrics.sh` line (gate-cruft review, R2 —
+count is a `scripts/waypoint-metrics.sh` line (gate-cruft review, R2 —
 a build-failing floor over a name pattern buys nothing a watched
 metric does not).
 TRIPWIRE: when the G2 EvTrue migration lands and this evalOpt-shaped
@@ -754,12 +757,12 @@ EvTrue. -/
 open Lean Meta in
 run_cmd Lean.Elab.Command.liftTermElabM do
   let env ← getEnv
-  let mirrorNs : List Name :=
+  let waypointNs : List Name :=
     [`ACL2.Worlds, `ACL2.Imported, `ACL2.Lifting]
   let mut decodes : List Name :=
     [``ACL2.Worlds.Sorting.dis_rule_orderedp_append]
   for (c, ci) in env.constants.toList do
-    if mirrorNs.any (·.isPrefixOf c) && !c.isInternalDetail then
+    if waypointNs.any (·.isPrefixOf c) && !c.isInternalDetail then
       if let .thmInfo _ := ci then
         let s := (c.componentsRev.headD Name.anonymous).toString
         -- endsWith (not the narrower `_native_of_replayed`): the
@@ -779,7 +782,7 @@ run_cmd Lean.Elab.Command.liftTermElabM do
           sawReplayed := true
           unless body.containsFVar x.fvarId! do
             throwError "hreplayed-usage gate: {c} takes a replayed \
-              hypothesis it never USES — ornamental import (mirror \
+              hypothesis it never USES — ornamental import (waypoint \
               criterion antipattern 2 / audit evasion B); the native \
               content must be proved FROM the replayed statement, \
               not beside it"
@@ -787,4 +790,4 @@ run_cmd Lean.Elab.Command.liftTermElabM do
         throwError "hreplayed-usage gate: {c} has no evalOpt-shaped \
           hypothesis — a decode must consume a replayed statement"
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

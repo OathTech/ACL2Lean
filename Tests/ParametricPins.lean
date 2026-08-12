@@ -1,4 +1,4 @@
-import ACL2Lean.Imported.Mirrors.EquisortParametric
+import ACL2Lean.Imported.Waypoints.EquisortParametric
 
 /-! # Parametric-constant STATEMENT pins (pre-merge audit 2026-08-08)
 
@@ -89,7 +89,7 @@ private def checkPin (declName : Name) (binderNames : List String)
           throwError "ParametricPins {declName}: witness vocabulary \
             {banned} appears in the statement (banned masquerade)"
 
-run_cmd (checkPin ``ACL2.Imported.Mirrors.weakSortfn1IsSortfn2Parametric
+run_cmd (checkPin ``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric
         ["env", "w",
          "hnoshadow_CONS", "hnoshadow_CAR", "hnoshadow_CDR", "hnoshadow_CONSP",
          "hnoshadow_ATOM", "hnoshadow_ENDP", "hnoshadow_EQUAL", "hnoshadow_NOT",
@@ -118,7 +118,7 @@ run_cmd (checkPin ``ACL2.Imported.Mirrors.weakSortfn1IsSortfn2Parametric
          ("hrule_HOW-MANY-SORTFN2_36", "(HOW-MANY E (SORTFN2 X))", "(HOW-MANY E X)")]
         ["SORTFN1-INSERT", "SSORTFN1-INSERT"])
 
-run_cmd (checkPin ``ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2Parametric
+run_cmd (checkPin ``ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2Parametric
         ["env", "w",
          "hnoshadow_EQUAL", "hnoshadow_NOT", "hnoshadow_IMPLIES",
          "hnoshadow_TRUE-LISTP",
@@ -146,7 +146,7 @@ premise inventory being exactly the two named hypotheses; nothing
 else gated it (a silent regression from 2 kept premises to more would
 have passed `ci`). Pinned: the binder inventory (env + the two KEPT
 premises, in order), the conclusion over the CONCRETE
-`equisortMirrorsWorld` against the hand-pinned `:TFORMULA`, and the
+`equisortWaypointsWorld` against the hand-pinned `:TFORMULA`, and the
 two premises' CONTENT — the CONVERT-PERM-TO-HOW-MANY stored-rule
 lhs/rhs and ORDERED-PERMS's hand-pinned `:TFORMULA`
 (acl2_samples/sorting/ordered-perms.proof-log, the `(:DEFTHM …)`
@@ -156,7 +156,7 @@ POST-PURGE (2026-08-11, audit fix F1): the AtCanonical witnesses are
 additionally SORRY-BACKED — their `totals` dischargers are
 FORBIDDEN-DEBT sorries — so the non-vacuity claim is conditional on
 that debt; the CATALOG AXIOM GATE
-(`ACL2Lean/Imported/Mirrors/Catalog.lean`) gates it — `sorryAx`
+(`ACL2Lean/Imported/Waypoints/Catalog.lean`) gates it — `sorryAx`
 REQUIRED there until the debt retires by replay. (That gate replaced
 the `#guard_msgs` axiom receipts that used to sit in
 `EquisortParametric.lean`; gate-cruft review 2026-08-11 R5. This
@@ -201,8 +201,8 @@ private def checkPinAt (declName : Name) (worldConst : Name)
             throwError "ParametricPins {declName}: {binderName} no longer \
               carries its pinned content {s}"
 
-run_cmd (checkPinAt ``ACL2.Imported.Mirrors.weakSortfn1IsSortfn2AtCanonical
-        ``ACL2.Imported.Mirrors.equisortMirrorsWorld
+run_cmd (checkPinAt ``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2AtCanonical
+        ``ACL2.Imported.Waypoints.equisortWaypointsWorld
         ["env", "hrule_CONVERT-PERM-TO-HOW-MANY", "husethm_ORDERED-PERMS"]
         "(IMPLIES (TRUE-LISTP X) (EQUAL (SORTFN1 X) (SORTFN2 X)))"
         [("hrule_CONVERT-PERM-TO-HOW-MANY",
@@ -214,8 +214,8 @@ run_cmd (checkPinAt ``ACL2.Imported.Mirrors.weakSortfn1IsSortfn2AtCanonical
              (IF (ORDEREDP A) (ORDEREDP B) 'NIL) 'NIL) 'NIL) \
              (EQUAL (EQUAL A B) (PERM A B)))"])])
 
-run_cmd (checkPinAt ``ACL2.Imported.Mirrors.strongSsortfn1IsSsortfn2AtCanonical
-        ``ACL2.Imported.Mirrors.equisortMirrorsWorld
+run_cmd (checkPinAt ``ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2AtCanonical
+        ``ACL2.Imported.Waypoints.equisortWaypointsWorld
         ["env", "hrule_CONVERT-PERM-TO-HOW-MANY", "husethm_ORDERED-PERMS"]
         "(EQUAL (SSORTFN1 X) (SSORTFN2 X))"
         [("hrule_CONVERT-PERM-TO-HOW-MANY",

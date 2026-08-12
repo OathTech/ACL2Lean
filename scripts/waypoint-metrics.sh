@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# mirror-metrics: the ruled success metrics (2026-08-11) — MEASURED,
+# waypoint-metrics: the ruled success metrics (2026-08-11) — MEASURED,
 # never asserted.
 #   1. Kept-condition census by class, from the driver-coverage golden
 #      (the headline metric — computed by the driver from the proof
 #      term, so Lean-side effort cannot move it).
 #   2. Hand lines per catalog native (the industrialization tell —
 #      must FALL as books land).
-# Written invariant (ruled): no constant defined in the mirror layer
+# Written invariant (ruled): no constant defined in the waypoint layer
 # may be injected into the coverage sweep (enforced structurally:
 # prepareUseFi has no injection parameter since 2026-08-11).
 set -euo pipefail
@@ -36,7 +36,7 @@ hand_files=(
   ACL2Lean/Imported/GzPrelude.lean
 )
 hand_lines=$(cat "${hand_files[@]}" | wc -l)
-catalog=ACL2Lean/Imported/Mirrors/Catalog.lean
+catalog=ACL2Lean/Imported/Waypoints/Catalog.lean
 # entry statuses are followed by a double-backtick decl ref — prose
 # mentions of the status names never are
 n_native=$(grep -c '\.native ``' "$catalog" || true)

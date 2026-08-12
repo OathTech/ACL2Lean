@@ -1,11 +1,11 @@
 /-
   Replay/ParametricInstantiate — the "apply a parametric statement at a
-  world" ENGINE (Phase 3 2c wiring W1, moved from Imported/Mirrors/Macro
+  world" ENGINE (Phase 3 2c wiring W1, moved from Imported/Waypoints/Macro
   so the Runner-layer usefi discharge can reach it; Macro re-imports).
 -/
 import ACL2Lean.Replay.Runner
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver Lean Lean.Meta Lean.Elab
 
@@ -1153,4 +1153,4 @@ def applyPreparedUseFi (cName : Lean.Name)
         for prepared parameter {cls}:{k}"
   pure (Lean.mkAppN (mkConst cName) args.toArray)
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

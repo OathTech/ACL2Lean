@@ -1,17 +1,17 @@
-import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.Imported.Lifting
 import ACL2Lean.DevLoad
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
-/-! ## p8-clausify-detail — the 2e completion criterion's mirror
+/-! ## p8-clausify-detail — the 2e completion criterion's waypoint
 
 The pattern book anchoring the expansion detail-chain replay (bsort
 *1/4.1.3''s synthetic twin). Per the MDD-ratified completion criterion
 (2026-08-01, the PatternPins pin): when the detail-chain replay lands,
-this book goes GREEN ROW + NATIVE MIRROR. Landed in the endgame arc
+this book goes GREEN ROW + WAYPOINT. Landed in the endgame arc
 (2026-08-10): the row replays 1/1 UNCONDITIONAL, and the native fact
 below is proved FROM the replayed statement (the bridge decode — never
 a native re-proof). -/
@@ -136,4 +136,4 @@ theorem cons_neq_detail_native_driver (av bv dv : SExpr) (h : av ≠ bv) :
 
 #print axioms cons_neq_detail_native_driver
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

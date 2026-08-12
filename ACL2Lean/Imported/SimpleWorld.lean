@@ -229,7 +229,7 @@ theorem world_has_fix :
 
 /-! ## Native-theorem bridge
 
-We lift the ACL2 replayed statement to an IDIOMATIC Lean theorem (the MIRROR) about `List`:
+We lift the ACL2 replayed statement to an ACL2-like Lean theorem (the WAYPOINT) about `List`:
 `(xs ++ ys).length = xs.length + ys.length`. The recipe (per
 `docs/comms/2026-03-22_acl2-lean-bridge.md`): a TYPE morphism `enc : List SExpr
 → SExpr` plus a SIMULATION over the function structure (correspondence lemmas:
@@ -241,7 +241,7 @@ The hand-replay chain and its Lean-side dischargers that used to sit here
 `my_len_my_app_native`, the `dis_*` value dischargers, the `drv_total_*`
 totality dischargers) were PURGED under the thin-Lean ruling
 (2026-08-11): the content they established is content ACL2 derives, and
-the driver-based natives in `Imported/Mirrors/Basics` carry it now. -/
+the driver-based natives in `Imported/Waypoints/Basics` carry it now. -/
 
 /-- Convergence to SOME value (value possibly per-fuel) ⇒ to a FIXED value. -/
 private theorem conv_fix {w : World} {e : Env} {t : SExpr}
@@ -251,7 +251,7 @@ private theorem conv_fix {w : World} {e : Env} {t : SExpr}
   obtain ⟨av, hav⟩ := hM M (Nat.le_refl M)
   exact ⟨av, M, fun f hf => evalOpt_ge_fuel M f w e t av hav hf⟩
 
-/-! ### Driver-form dischargers (consumed by `Imported/NativeMirrors`)
+/-! ### Driver-form dischargers (consumed by `Imported/WaypointCatalog`)
 
 The DRIVER's conditional replayed statement states its hypotheses in v-FIXED form
 (`∃ N v, ∀ f ≥ N, … = some v`) and its type-prescription hypothesis with the
@@ -343,10 +343,10 @@ private theorem corr_len_enc (w : World)
   ACL2.Lifting.corr_len_enc w "MY-LEN" (by decide) h_mylen
     h_no_consp h_no_plus h_no_cdr
 
-/-- The native assembly, PARAMETERIZED by the mirror: any proof of the mirror
-    statement over `w` (hand-built or driver-replayed) yields the native
+/-- The native assembly, PARAMETERIZED by the replayed statement: any proof of
+    that statement over `w` (hand-built or driver-replayed) yields the native
     theorem. The replayed statement is consumed at exactly ONE point — this is the seam the
-    catalog (`Imported/NativeMirrors`) plugs the driver's mirror into. -/
+    catalog (`Imported/WaypointCatalog`) plugs the driver's replayed statement into. -/
 theorem my_len_my_app_native_of_replayed (w : World)
     (h_mylen : w.defs.get? my_len_sym = some ([x_sym], my_lenBody))
     (h_myapp : w.defs.get? my_app_sym = some ([x_sym, y_sym], my_appBody))

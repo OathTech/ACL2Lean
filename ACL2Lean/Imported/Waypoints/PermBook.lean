@@ -1,7 +1,7 @@
-import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.DevLoad
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
@@ -155,4 +155,4 @@ theorem mem_transport_perm_driver {av : SExpr} {xs ys : List SExpr}
 #print axioms comm_rm_native_driver
 #print axioms perm_erase_perm_driver
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

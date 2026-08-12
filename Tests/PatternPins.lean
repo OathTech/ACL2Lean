@@ -111,8 +111,8 @@ chain still IFF at the literal root") do
   -- completion criterion (2026-08-01): the detail-chain replay LANDED
   -- (endgame arc, 2026-08-10 — the 2e stepwise consumption:
   -- `consumeExpandDetail` + the value-equality detail lemmas), so the
-  -- book is a GREEN ROW (1/1 unconditional) with the NATIVE MIRROR
-  -- `cons_neq_detail_native_driver` (Imported/Mirrors/P8ClausifyDetail,
+  -- book is a GREEN ROW (1/1 unconditional) with the WAYPOINT
+  -- `cons_neq_detail_native_driver` (Imported/Waypoints/P8ClausifyDetail,
   -- decoded FROM the replayed statement, axioms-clean). A regression in
   -- the detail attachment or its replay flips this pin back to FAIL.
   let (resP8, _) ← ACL2.Replay.Runner.runBook "p8-clausify-detail"

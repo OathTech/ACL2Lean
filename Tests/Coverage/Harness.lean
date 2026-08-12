@@ -205,7 +205,7 @@ elab "coverage_book% " nameLit:str : command => do
                   -- TP-replay discharge).
                   let (cName, argTys) ←
                     ACL2.Replay.Driver.withRealMaxRecDepth 131072 <|
-                    ACL2.Imported.Mirrors.prepareUseFi crossDevs
+                    ACL2.Imported.Waypoints.prepareUseFi crossDevs
                       consumerDev wVal wExpr spec termByFn
                   acc := acc ++ [(key, cName, argTys)]
                 catch e =>
@@ -228,7 +228,7 @@ elab "coverage_book% " nameLit:str : command => do
         match prepared.find? (·.1 == key) with
         | some (_, cName, argTys) =>
           try
-            ACL2.Imported.Mirrors.applyPreparedUseFi cName argTys ctx
+            ACL2.Imported.Waypoints.applyPreparedUseFi cName argTys ctx
           catch e => do
             Lean.logInfo m!"usefi apply {spec.name}: {e.toMessageData}"
             throw e

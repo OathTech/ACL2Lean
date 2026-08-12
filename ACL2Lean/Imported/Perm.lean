@@ -2,8 +2,8 @@ import ACL2Lean.Imported.SimGen
 
 /-! # Imported: the perm book — hand support for the `perm-cons` bridge
 
-World-parametric (invariant L3) support for lifting the driver-replayed
-`perm-cons` mirror to the native Lean statement
+World-parametric (invariant L3) support for lifting the driver's
+`perm-cons` replayed statement to the native Lean statement
 
     `xs.contains a → (xs.isPerm (a :: ys) = (xs.erase a).isPerm ys)`
 
@@ -18,10 +18,10 @@ Contents:
 - SIMULATIONS under `enc`: `memb` computes `List.contains`, `rm` computes
   `List.erase`, `perm` computes `List.isPerm` (all `BEq`-based, matching
   ACL2's `equal`).
-- THE ASSEMBLY `perm_cons_native_of_replayed`: any proof of the mirror
+- THE ASSEMBLY `perm_cons_native_of_replayed`: any proof of the replayed
   statement over a world carrying the three defuns yields the native
   theorem; the driver's replayed statement plugs in at exactly one seam
-  (`Imported/NativeMirrors`). -/
+  (`Imported/WaypointCatalog`). -/
 
 open ACL2 ACL2.Replay ACL2.Lifting
 
@@ -482,8 +482,8 @@ def perm_consFormula : SExpr :=
   impliesT (membT aT xT)
     (equalT (permT xT (consT aT yT)) (permT (rmT aT xT) yT))
 
-/-- The native theorem FROM the mirror: any proof of the (truthiness) mirror
-    statement over a world carrying the three defuns yields
+/-- The native theorem FROM the replayed statement: any proof of the
+    (truthiness) replayed statement over a world carrying the three defuns yields
     `xs.contains a → (xs.isPerm (a :: ys) = (xs.erase a).isPerm ys)`. The
     replayed statement is consumed at exactly one seam. -/
 theorem perm_cons_native_of_replayed (w : World)

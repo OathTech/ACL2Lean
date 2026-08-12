@@ -1,11 +1,11 @@
-import ACL2Lean.Imported.Mirrors.Macro
-import ACL2Lean.Imported.Mirrors.PermBook
-import ACL2Lean.Imported.Mirrors.ConvertPerm
-import ACL2Lean.Imported.Mirrors.OrderedPerms
+import ACL2Lean.Imported.Waypoints.Macro
+import ACL2Lean.Imported.Waypoints.PermBook
+import ACL2Lean.Imported.Waypoints.ConvertPerm
+import ACL2Lean.Imported.Waypoints.OrderedPerms
 import ACL2Lean.DevLoad
 import ACL2Lean.Imported.EquisortWitness
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver Lean Lean.Meta Lean.Elab
 
@@ -20,7 +20,7 @@ SAME recorded trees replayed over an ABSTRACT `w : World`, with the
 signature fns (`SORTFN1`/`SORTFN2`, `SSORTFN1`/`SSORTFN2`) unpinned and
 the scope's constraint theorems as explicit premises.  A witness body
 appearing anywhere in these statements would be the banned masquerade
-(the mirror criterion); an unfold demand on a sig fn inside the replay
+(the waypoint criterion); an unfold demand on a sig fn inside the replay
 hard-fails (the witness-dereference guard).  Phase 3 (R7b) instantiates
 these constants at concrete worlds. -/
 
@@ -74,13 +74,13 @@ see the deferral log's D1 close-out update. This remains the first
 exercise of the R7b "apply at a model" move the sorts-equivalent
 capstones need. -/
 
-derive_world equisortMirrorsWorld from equisortDev
+derive_world equisortWaypointsWorld from equisortDev
 
 set_option maxHeartbeats 12000000 in
 /-- WEAK at the canonical world — every premise discharged except the
     two KEPT hypotheses named in the section header. -/
 def weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
-  weakSortfn1IsSortfn2Parametric equisortDev equisortMirrorsWorld
+  weakSortfn1IsSortfn2Parametric equisortDev equisortWaypointsWorld
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
   totals [ACL2.Worlds.Sorting.dis_pce_total, ACL2.Worlds.Sorting.dis_how_many_tp,
    ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
@@ -92,7 +92,7 @@ FORBIDDEN-DEBT sorries, so the non-vacuity claim these constants make
 is conditional on that debt. The Parametric constants above stay
 trio-clean (the first-class artifacts, per the catalog's equisort
 entries). All four axiom sets are gated by the CATALOG AXIOM GATE
-(`Mirrors/Catalog.lean` — one home for axiom facts; the local
+(`Waypoints/Catalog.lean` — one home for axiom facts; the local
 `#guard_msgs` receipts were retired there by the gate-cruft review,
 2026-08-11 R5): it REQUIRES `sorryAx` on this pair, so when the debt
 retires (TP-replay discharge / with_termination coverage) the gate
@@ -103,10 +103,10 @@ set_option maxHeartbeats 12000000 in
 /-- STRONG at the canonical world — every premise discharged except the
     two KEPT hypotheses named in the section header. -/
 def strongSsortfn1IsSsortfn2AtCanonical := instantiate_parametric%
-  strongSsortfn1IsSsortfn2Parametric equisortDev equisortMirrorsWorld
+  strongSsortfn1IsSsortfn2Parametric equisortDev equisortWaypointsWorld
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
   totals [ACL2.Worlds.Sorting.dis_pce_total, ACL2.Worlds.Sorting.dis_how_many_tp,
    ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
    ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

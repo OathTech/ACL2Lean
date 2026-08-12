@@ -7,7 +7,7 @@ import ACL2Lean.Imported.Lifting
 import ACL2Lean.Imported.Perm
 import ACL2Lean.Imported.Sorting
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
@@ -300,4 +300,4 @@ elab "instantiate_parametric%" constId:ident devId:ident worldId:ident
       [{", ".intercalate keptNames}] (empty = full non-vacuity witness)"
     Meta.mkLambdaFVars #[envV] pf
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

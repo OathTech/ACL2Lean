@@ -1,8 +1,8 @@
-import ACL2Lean.Imported.Mirrors.Macro
-import ACL2Lean.Imported.Mirrors.ConvertPerm
+import ACL2Lean.Imported.Waypoints.Macro
+import ACL2Lean.Imported.Waypoints.ConvertPerm
 import ACL2Lean.DevLoad
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
@@ -400,4 +400,4 @@ theorem orderedp_qsort_isChain_driver (xs : List SExpr) :
 
 #print axioms orderedp_qsort_native_driver
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

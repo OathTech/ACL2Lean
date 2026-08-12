@@ -42,10 +42,10 @@ proof search is this repo's code:
    statement-identity gate).
 6. **ACL2-logic interpreter** (`ACL2Lean/EvalOpt.lean`,
    `ACL2Lean/Logic.lean`) — the fuel-bounded semantic model that defines what
-   the mirror theorem means (differential-tested against real ACL2).
+   the replayed statement means (differential-tested against real ACL2).
 7. **Proof replay** (`ACL2Lean/Replay/Driver.lean`,
    `ACL2Lean/Replay/EvalLemmas.lean`) — recurses the reconstructed tree and
-   emits a Lean proof object for the mirror theorem, node by node; the Lean
+   emits a Lean proof object for the replayed statement, node by node; the Lean
    kernel checks it. The replay does **no inference** as its governing
    rule: if the tree lacks the information to replay a step, the fix is
    more instrumentation at the ACL2 source, never a heuristic in Lean.
@@ -56,16 +56,16 @@ proof search is this repo's code:
    expiry-held mechanisms (marked `DRIFT MARKER` in
    `ACL2Lean/Replay/Driver/`, each retiring against a queued fork
    emission — see the 2026-08-05 branch drift audit).
-8. **Native bridge** (`ACL2Lean/Imported/`) — the mirror theorem is decoded
+8. **Native bridge** (`ACL2Lean/Imported/`) — the replayed statement is decoded
    into a *native Lean statement* (e.g. `(xs ++ ys).length = xs.length +
    ys.length`), so the imported fact is usable as an ordinary Lean theorem.
    `Imported/Lifting.lean` is the lifting library: representations of Lean
    types in ACL2's value space (`Rep`, with ACL2 recognizers as the type
    discipline), correspondences between ACL2 functions and Lean operations
    (`Implements`), and the generic decode lemmas. The LIVE catalog of
-   native theorems is `liftCatalog` in `Imported/Mirrors/Catalog.lean`
+   native theorems is `liftCatalog` in `Imported/Waypoints/Catalog.lean`
    (one decision per green sweep row, enforced by build-failing
-   coverage/seam/axiom/criterion gates); `Imported/NativeMirrors.lean` is
+   coverage/seam/axiom/criterion gates); `Imported/WaypointCatalog.lean` is
    the module facade, and its header narrative covers only the first 18
    entries (historical).
 
@@ -90,10 +90,10 @@ the overall-project audit — the earlier text conflated them):
    (`Tests/SortingPins.lean`), tamper tests, and adversarial audits.
 3. **Replay fidelity** — the proof follows ACL2's recorded reasoning
    rather than a stronger Lean-side derivation. Enforced by the replay
-   drivers' hard-fail frontiers, the mirror criterion + seam gates
-   (`Imported/Mirrors/Catalog.lean`), and the drift-test discipline.
+   drivers' hard-fail frontiers, the waypoint criterion + seam gates
+   (`Imported/Waypoints/Catalog.lean`), and the drift-test discipline.
 
-A native mirror narrows the API surface a reader must trust to the native
+A waypoint narrows the API surface a reader must trust to the native
 statement itself, but does NOT retroactively make stages 2–6 irrelevant:
 authenticity and fidelity remain separately-enforced invariants, and the
 current deviations from perfection are explicit (the expiry-held
@@ -165,7 +165,7 @@ that embed them, so there is no silent staleness).
 | `acl2/` | The instrumented ACL2 fork (submodule, branch `acl2-lean-output`) |
 | `ACL2Lean/` | Parser, s-expression core, interpreter, translator |
 | `ACL2Lean/Replay/` | The replay driver and its atomic evaluation lemmas |
-| `ACL2Lean/Imported/` | The lifting library and the native mirror catalog |
+| `ACL2Lean/Imported/` | The lifting library and the waypoint catalog |
 | `Tests/` | Unit tests, driver tests, the corpus-wide coverage harness |
 | `acl2_samples/` | Authored corpus sources (`recon-tests/` is the reconstruction suite) + captured logs; upstream books are referenced directly from the `acl2/` submodule (see `books.txt`) |
 | `docs/plans/` | Design plans — `2026-06-10_generality-design.md` is the governing plan |
@@ -188,11 +188,11 @@ theorems; every theorem it cannot yet replay stops at a **named frontier**
 (an explicit `throwError`, never a silent skip or a `sorry`) that maps to a
 specific backlog item. Multi-literal pushed clauses, cross-product induction
 schemes, pool subsumption, generalization, and previously-proved theorems
-used as rewrite rules (replayed as conditional mirrors with `rule:<thm>`
+used as rewrite rules (replayed as conditional statements with `rule:<thm>`
 hypotheses) all replay; the largest open areas are **induction-measure
 generality** (multi-variable and non-`acl2-count` measures, merged/mutual
 schemes), discharging the `rule:<thm>` hypotheses from their own replayed
-mirrors, some `:use`/`:induct` hint shapes, and a handful of
+statements, some `:use`/`:induct` hint shapes, and a handful of
 decision-procedure leaves awaiting an SMT backend.
 
 Beyond the corpus, the **translator** (stage 5) currently handles
@@ -204,7 +204,7 @@ fragment plus the ratified decision-procedure carve-out, with EXTENDED and
 OUT tiers) is set out in `docs/plans/2026-06-10_generality-design.md`.
 
 **Live status lives in the repo, not here:** the scoreboard at the top of
-`ACL2Lean/Imported/NativeMirrors.lean` lists the native theorems proved
+`ACL2Lean/Imported/WaypointCatalog.lean` lists the native theorems proved
 through the driver (each a build-enforced regression), the coverage table
 from `just driver-coverage` reports per-theorem replay status over the whole
 corpus, and `TODO.md` tracks the frontiers.

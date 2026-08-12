@@ -51,7 +51,7 @@ The two `#print axioms` gates that stood here pinned
 `ACL2.Worlds.Simple.my_len_my_app_uncond` and
 `ACL2.Worlds.AppAssoc.app_assoc_uncond` — the HAND-REPLAY chain, which
 was PURGED under the thin-Lean ruling (2026-08-11) as Lean-side content
-ACL2 derives. The driver-based natives in `Imported/Mirrors/Basics`
+ACL2 derives. The driver-based natives in `Imported/Waypoints/Basics`
 carry that content now, gated by the catalog's per-entry
 axiom-exactness check — but NOT at parity (audit fix F7): APP-ASSOC is
 `.native` (exact clean trio), while MY-LEN-MY-APP is `.nativeSorried`

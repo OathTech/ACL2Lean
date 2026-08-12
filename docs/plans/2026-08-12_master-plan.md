@@ -117,7 +117,7 @@ sorting-coupling (the old L-rules apply):
   (chains, counts, membership, erasure) over ANY embedding.
 - C2. **`mirror_iso%`**: the generator — user declares
   `mirror def ↔ waypoint def [via embedding]`; the template proves
-  it (the derive_sim% design one level up: same-recursion走 walk;
+  it (the derive_sim% design one level up: same-recursion walk;
   template failure = hard error = the reading reassociates;
   the escape is a book theorem, replayed).
 - C3. **Theorem transport assembly**: from waypoint theorem +

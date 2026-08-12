@@ -1,7 +1,7 @@
-import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.DevLoad
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
@@ -421,4 +421,4 @@ theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
     (by decide) hL ha
     (appConsCarReplayedCond e)
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

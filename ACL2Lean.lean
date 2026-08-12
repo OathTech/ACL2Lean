@@ -1,5 +1,6 @@
 -- Root `ACL2Lean` library entry point.
 -- THE MIRRORS (the product layer): pure-Lean specs/theorems, zero ACL2
+import ACL2Lean.Mirrors.Basics
 import ACL2Lean.Mirrors.Sorting
 import ACL2Lean.Syntax
 import ACL2Lean.Parser
@@ -17,7 +18,7 @@ import ACL2Lean.ProofTree
 import ACL2Lean.ClauseTree
 import ACL2Lean.Imported.Lifting
 import ACL2Lean.Imported.SimpleWorld
-import ACL2Lean.Imported.NativeMirrors
+import ACL2Lean.Imported.WaypointCatalog
 import ACL2Lean.Lexorder
 import ACL2Lean.LexorderOrder
 import ACL2Lean.TermOrder

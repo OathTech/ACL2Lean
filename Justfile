@@ -33,12 +33,12 @@ check-no-getd-done:
 check-file-weight:
     ./scripts/check-file-weight.sh
 
-# The ruled mirror success metrics (2026-08-11): kept-condition census
+# The ruled waypoint-layer success metrics (2026-08-11): kept-condition census
 # by class (the headline — the driver computes it, Lean-side effort
 # can't move it) + hand lines per catalog native (the
 # industrialization tell — must fall as books land). Informational.
-mirror-metrics:
-    ./scripts/mirror-metrics.sh
+waypoint-metrics:
+    ./scripts/waypoint-metrics.sh
 
 # Cross-check the canonical fidelity-bug index (docs/BUGS.md) against the
 # self-enforcing differential corpus, so a logged bug can't rot in prose or be

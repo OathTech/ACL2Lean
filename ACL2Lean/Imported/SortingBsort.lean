@@ -106,7 +106,7 @@ derive_exec% howManySmallerExec corr how_many_smaller_exec_corr
   formals [eS, xS] body howManySmallerBody measured 1
 
 /-- The NATIVE count of the elements strictly below `e` — self-contained
-    (mirror criterion: `lexorderB` and `List` vocabulary only). -/
+    (waypoint criterion: `lexorderB` and `List` vocabulary only). -/
 def howManySmallerL (e : SExpr) : List SExpr → Nat
   | [] => 0
   | a :: t =>

@@ -95,14 +95,21 @@ there today is a machinery gap:
    the METRIC and unblocks Track REAL's route breadth; it is not
    itself the product.
 
-## NAMING SWEEP (queued, mechanical)
+## NAMING SWEEP (EXECUTED 2026-08-12, mechanical)
 
 The machinery's co-opted "mirror" vocabulary is renamed:
-`Imported/Mirrors/` → `Imported/Waypoints/` (+ namespace,
-`NativeMirrors` → `WaypointCatalog`, doc language "native mirror" →
-"waypoint"); the canary pins re-pin once (their normal lifecycle);
-golden unaffected (no Lean names in it). One executor pass + full
-gate.
+`Imported/Mirrors/` → `Imported/Waypoints/` (+ namespace
+`ACL2.Imported.Mirrors` → `ACL2.Imported.Waypoints`),
+`Imported/NativeMirrors.lean` → `Imported/WaypointCatalog.lean`,
+`Tests/MirrorCensus.lean` → `Tests/WaypointCensus.lean`,
+`scripts/mirror-metrics.sh` + `just mirror-metrics` →
+`waypoint-metrics`; doc language "native mirror" → "waypoint".
+The golden was unaffected (no Lean names in it) and the coverage
+numbers are unchanged. Historical records (docs/audits, dated
+docs/notes, older docs/plans) were NOT rewritten — the two
+consulted-in-anger files (TODO.md, the thin-Lean boundary note)
+carry a one-line TERMINOLOGY header instead. `mirror` is now
+reserved for the product layer (`ACL2Lean/Mirrors/`).
 
 ## Standing constraints
 

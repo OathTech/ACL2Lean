@@ -11,11 +11,11 @@ kept on the equisort constraint rows and blocking the AtCanonical
 constants' full non-vacuity (deferral D1).  This module builds their
 exec kits and (formerly `derive_exec_tp%`-generated) TP dischargers on
 the established
-hand-mirror pattern — bodies transcribed from the emitted `(:DEFUN …)`
+hand-waypoint pattern — bodies transcribed from the emitted `(:DEFUN …)`
 events (equisort.proof-log lines 123/127/13674/13678).
 
 Thin-Lean ruling (2026-08-11): the four TP dischargers below keep their
-STATEMENTS (live consumers in `Mirrors/EquisortParametric`) but their
+STATEMENTS (live consumers in `Waypoints/EquisortParametric`) but their
 Lean-side proofs are retired to `sorry` — see the per-theorem
 FORBIDDEN-DEBT markers. -/
 

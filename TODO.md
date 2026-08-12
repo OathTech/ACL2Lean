@@ -1,5 +1,7 @@
 # ACL2Lean — project TODO
 
+TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAYPOINT layer, not a mirror in the product sense (ACL2Lean/Mirrors/). The 2026-08-12 naming sweep renamed those artifacts — the old `Imported/Mirrors/` directory is now `Imported/Waypoints/`, the old `Imported/NativeMirrors.lean` facade is now `Imported/WaypointCatalog.lean`, the old `Tests/MirrorCensus.lean` is now `Tests/WaypointCensus.lean`, and the old `just mirror-metrics` recipe is now `just waypoint-metrics`. PATH and COMMAND references below were updated to point at the real files; the surrounding narrative was left as the record it is.
+
 > **THIN-LEAN PURGE (2026-08-11, branch mdd/mirror-provenance-purge;
 > Mike's ruling — see docs/audits/2026-08-11_mirror-provenance-audit.md
 > and the mirror-criterion memory).** The mirror layer's Lean-side
@@ -42,7 +44,7 @@
 >   the three `*-IS-ISORT` rows. Unlock = the alias-world usefi
 >   discharge with totality via `termByFn` ONLY (the replayed-
 >   admission route; the named-constant injection channel is deleted
->   — ruled invariant). Census: `just mirror-metrics`.
+>   — ruled invariant). Census: `just waypoint-metrics`.
 > **GATE-CRUFT AUDIT (Mike, 2026-08-11 — the gates-are-speedbumps
 > memory):** inventory EVERY gate (the catalog five + usage + shape +
 > extra-natives + the check-* scripts), rank by trust-value ÷
@@ -80,13 +82,13 @@
 >   HISTORY: the shape gate + `hreplayed`-usage check were built as
 >   ruled (2026-08-11), then the SHAPE GATE WAS DEMOTED the same day
 >   by the gate-cruft deletion review (two-standard rule) to the
->   printed census in Tests/MirrorCensus.lean — a watched number
+>   printed census in Tests/WaypointCensus.lean — a watched number
 >   reviewed at book-family audits, never a build failure. The usage
 >   check remains (floor deleted; EvTrue-migration tripwire: DELETE
 >   the gate when the predicate stops matching, never teach it
 >   EvTrue). See docs/notes/2026-08-11_thin-lean-boundary.md + the
 >   gate-cruft review in the arc exit report.
-> - F6 (pre-existing hole): `Mirrors/P8ClausifyDetail.lean`'s
+> - F6 (pre-existing hole): `Waypoints/P8ClausifyDetail.lean`'s
 >   `cons_neq_detail_native_driver` is a native mirror with no golden
 >   row and no catalog entry — outside the seam/axiom gates (clean
 >   trio today, verified 2026-08-11). Bring it under the catalog or
@@ -95,6 +97,14 @@
 >   liveness-driven, not class-driven — `membExec_t_or_nil` died with
 >   its parent while four siblings survive; re-derive freely if a
 >   future decode needs one (allowed DECODE-support content).
+
+> **VOCABULARY FOLLOW-UP (naming sweep, 2026-08-12):** the replay
+> driver still uses "mirror" to mean REPLAYED STATEMENT (class D/E of
+> the sweep report: ~95 prose hits in Replay/**, the statement pins,
+> + identifiers depMirrorProofAt / mirrorRegistryExt / mirrorConst /
+> recMirror / term_mirror_); docs/BUGS.md's BUG-019/012 prose same.
+> Correct target = replayed-statement vocabulary (NOT waypoint). One
+> mechanical pass + rebuild; batch with the next machinery-wide arc.
 
 Running backlog across all tracks. Keep this current: update when a milestone lands,
 scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`).
@@ -762,7 +772,7 @@ _Last updated: 2026-08-08 (Phase 3 R7b: EARLY EXIT declared — exit report docs
 > constants LANDED, kernel-checked, axiom-clean —
 > `weakSortfn1IsSortfn2Parametric` /
 > `strongSsortfn1IsSsortfn2Parametric`
-> (Imported/Mirrors/EquisortParametric.lean, `parametric_replayed%`).
+> (Imported/Waypoints/EquisortParametric.lean, `parametric_replayed%`).
 > Mechanism (exactly the pinned design reading): `replayProofParametric`
 > replays the SAME recorded trees over an ABSTRACT `w` — the
 > conditional telescope with `discharge := false` (every used
@@ -1882,7 +1892,7 @@ _Last updated: 2026-08-08 (Phase 3 R7b: EARLY EXIT declared — exit report docs
 > rows whose conds cite RED rows (CONVERT-PERM-TO-HOW-MANY reads as ✓
 > while resting on rule:PERM-TLFIX + use:PCE from FAIL rows); (N6)
 > derive the mirror axiom-gate name list from liftCatalog instead of
-> the hand-maintained literal list (Mirrors/Catalog.lean ~275); (N7)
+> the hand-maintained literal list (Waypoints/Catalog.lean ~275); (N7)
 > nested-:use cyclic-let robustness in dischargeUseHyp (unreachable
 > today; kernel would reject loudly); EVENS/ODDS in destructorChainOk
 > is a specialization watch item (pre-existing on main, extended to a
@@ -1939,7 +1949,7 @@ _Last updated: 2026-08-08 (Phase 3 R7b: EARLY EXIT declared — exit report docs
 > (xs.count (pceL xs ys) == ys.count (pceL xs ys))` — corr_perm_enc
 > gives the bif-isPerm side, how_many_exec_corr both counts,
 > Logic.eq_of_equal_ne_nil then boolEnc-injectivity cases; (4) the
-> assembly in Mirrors/ConvertPerm.lean (the row's conds per the
+> assembly in Waypoints/ConvertPerm.lean (the row's conds per the
 > sweep golden line for CONVERT-PERM-TO-HOW-MANY — incl. the use:
 > and rule: conds discharged via deps [permDev?] / registry; READ
 > the golden line and mirror the qsort capstone's discharger set) +
@@ -3663,7 +3673,7 @@ primitive (`Logic.len`), just unregistered; the build investigation caught
 the error.
 
 Alongside the G-steps: **the NATIVE MIRROR CATALOG** (task #62, MDD-ratified) —
-`ACL2Lean/Imported/NativeMirrors.lean`, one section per corpus theorem: the
+`ACL2Lean/Imported/WaypointCatalog.lean`, one section per corpus theorem: the
 native Lean statement proved THROUGH the driver's mirror (mirror → hypothesis
 discharge → enc/`corr_*` simulation → native, axiom-gated), else an explicit
 PENDING(blocking frontier) marker; the header table is the native-layer
@@ -4020,7 +4030,7 @@ obligation is stated precisely in its conditional proof's type:
       most books are pairwise independent) — splitting into per-book
       modules with explicit dep imports would let Lake parallelize the
       independent books across cores, with the golden re-assembled from
-      per-book fragments. Similarly `Imported/NativeMirrors.lean` is one
+      per-book fragments. Similarly `Imported/WaypointCatalog.lean` is one
       giant module (every mirror re-elaborates on any harness change,
       ~15 min); per-book mirror modules would confine rebuilds and
       parallelize. Both are refactors of test/mirror ORGANIZATION only —

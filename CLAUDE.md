@@ -76,12 +76,23 @@ those failures are invisible to the Lean kernel (see the trust note below).
 
 **End goal — ACL2 as an untrusted Lean tactic.** The reason to produce the replayed
 statement is to discharge a *native Lean theorem* we actually want — a **MIRROR**.
-Terminology (fixed 2026-07-30): a *replayed statement* is the deep-embedded
-theorem `EvTrue w env ⟦formula⟧` over `evalOpt`; a *mirror* is ONLY and
-exclusively the Lean-idiomatic native theorem proved FROM a replayed statement
-(`Imported/`, `NativeMirrors`) — the sole first-class artifact establishing that
-a replayed theorem means what the user intends. (Dated docs/notes predating the
-fix use "mirror" for both.) Given a desired
+Terminology (restored 2026-08-12 to Mike's original meaning; the
+two-category model = METRIC vs PRODUCT). Three distinct things:
+- a *replayed statement* is the deep-embedded theorem
+  `EvTrue w env ⟦formula⟧` over `evalOpt` — the METRIC's unit;
+- a *WAYPOINT* is the ACL2-like Lean restatement of a replayed fact
+  (`Imported/Waypoints/`, catalogued by `Imported/WaypointCatalog.lean`):
+  Lean notions over `SExpr`/`lexorderB` — the ACL2 value universe in Lean
+  clothes. Waypoints are the METRIC's SCOREBOARD — how far the replay
+  machinery reaches — and are **never a result**: presenting one as a
+  top-level theorem is forbidden;
+- a *MIRROR* is ONLY and exclusively the PRODUCT: a Lean-idiomatic theorem
+  with **zero ACL2 notions** (`ACL2Lean/Mirrors/`, purity-gated by
+  `just check-mirrors-pure`), mirroring a property an ACL2 book proves and
+  proved VIA replay — the sole first-class artifact establishing that a
+  replayed theorem means what the user intends.
+(Dated docs/notes/audits predating this restoration use "mirror"/"native
+mirror" for the waypoint layer; read those as WAYPOINT.) Given a desired
 Lean statement (e.g. `1 + 1 = 2` in Lean's own terms), we prove **in Lean,
 kernel-checked**, that it follows from the replayed statement under the
 interpreter — turning an ACL2 proof into a Lean proof of the same fact. Because
@@ -92,7 +103,8 @@ false theorem. ACL2 then serves as a sound (if incomplete) untrusted tactic insi
 Lean proofs.
 
 **Trust note — read this.** That fully-untrusted property holds *only once the
-final native-theorem bridge exists*. Today the bridge covers only the imported entries: the replayed
+final MIRROR bridge exists*. Today it reaches only the WAYPOINT layer (the
+ACL2-like Lean restatements of `Imported/`, not the product): the replayed
 statement is stated in `evalOpt` terms, and the kernel certifies only that the proof
 object is valid *for the replayed statement exactly as stated in stages 5–6* — NOT
 that the replayed statement faithfully restates the ACL2 theorem, nor that `evalOpt` faithfully
@@ -112,7 +124,10 @@ replays whole theorems end-to-end from the real logs — including WF-induction
 (`my-len-my-app`, `app-assoc`), preprocess/clausify composition, and (under the
 ratified carve-out) DP leaves — kernel-checked, conditional on emitted
 totality/TP facts; the coverage harness (`just ci`) is the scoreboard. The
-native-theorem bridge exists as validated HAND proofs (`Imported/`).
+WAYPOINT layer — the ACL2-like Lean restatements the metric scores itself
+against — exists as validated HAND proofs (`Imported/`, catalogued in
+`Imported/WaypointCatalog.lean`); the PRODUCT layer (`ACL2Lean/Mirrors/`,
+Lean-idiomatic zero-ACL2 theorems) is the north star being built toward.
 **The governing plan is `docs/plans/2026-06-10_generality-design.md`** (ratified;
 built on `docs/notes/2026-06-10_acl2-architecture-survey.md`): the hybrid
 architecture (certifying walkers as the lane, fragment-local consolidation), the

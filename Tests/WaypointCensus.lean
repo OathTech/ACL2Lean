@@ -1,18 +1,18 @@
 /-
-  Tests/MirrorCensus — the MIRROR-LAYER SHAPE CENSUS.
+  Tests/WaypointCensus — the WAYPOINT-LAYER SHAPE CENSUS.
 
   A WATCHED NUMBER, reviewed at book-family audits — never a build
   failure. This is the demoted shape gate (gate-cruft review
-  2026-08-11): the gate classified every authored theorem in the mirror
+  2026-08-11): the gate classified every authored theorem in the waypoint
   content namespaces and threw on an unregistered one, which meant two
   hand registries and two count floors to maintain. The census-as-a-
   number was the whole value, so the number is all that survives: the
   same environment scan, printed. A growing `support/other` bucket is
   the signal an audit reads; nothing here can fail.
 -/
-import ACL2Lean.Imported.NativeMirrors
+import ACL2Lean.Imported.WaypointCatalog
 
-namespace ACL2.Tests.MirrorCensus
+namespace ACL2.Tests.WaypointCensus
 
 open Lean
 
@@ -42,7 +42,7 @@ run_cmd do
   let counts :=
     s!"corr {nCorr}, enc {nEnc}, decode {nDecode}, dis/drv {nDis}, "
       ++ s!"world-fact {nWorld}, support/other {other.length}"
-  logInfo m!"mirror census (watched number — never fails the build): \
+  logInfo m!"waypoint census (watched number — never fails the build): \
     {counts}\nsupport/other: {other}"
 
-end ACL2.Tests.MirrorCensus
+end ACL2.Tests.WaypointCensus

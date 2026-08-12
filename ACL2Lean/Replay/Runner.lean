@@ -6,7 +6,7 @@
 
   DELIBERATELY NOT imported by the root `ACL2Lean` module: the focused
   CLI's whole point is a minimal import cone (Driver + reconstruction, no
-  `Imported/NativeMirrors`, no `Tests`), so a driver edit rebuilds only
+  `Imported/WaypointCatalog`, no `Tests`), so a driver edit rebuilds only
   this cone and a single book replays at runtime in seconds instead of a
   full-corpus re-elaboration.
 

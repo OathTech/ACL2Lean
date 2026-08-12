@@ -156,7 +156,7 @@ counterexample WITNESS row -/
 /-- The NATIVE counterexample witness: walk `xs`, erasing each element
     from `ys` as it is matched; the first element of `xs` that `ys`
     cannot match IS the witness, and when `xs` is exhausted the witness
-    is `ys`'s head (`nil` when both are). Self-contained (mirror
+    is `ys`'s head (`nil` when both are). Self-contained (waypoint
     criterion: `List` vocabulary only). -/
 def pceL : List SExpr → List SExpr → SExpr
   | [], ys => ys.headD SExpr.nil

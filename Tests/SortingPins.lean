@@ -35,7 +35,7 @@
                                               2026-07-31 §10: how-many-qsort
                                               has NO pin — removed from this
                                               list, statement anchored via
-                                              the native mirror instead)
+                                              the waypoint instead)
   - acl2/books/sorting/convert-perm-to-how-many.lisp
                                              (convert-perm-to-how-many)
   - acl2/books/arithmetic-3/pass1/basic-arithmetic.lisp:109

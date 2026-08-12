@@ -25,7 +25,7 @@ unsafe def main (args : List String) : IO Unit := do
 <file.proof-log> [THEOREM-NAME] | --dump <file.proof-log>"
   -- --dump: print the reconstructed tree WITHOUT the Imported/ catalog
   -- import cone (the CLI's dump-proof-tree is unusable mid-migration when
-  -- NativeMirrors' compile-time replays are red — path-emission Phase 1)
+  -- WaypointCatalog's compile-time replays are red — path-emission Phase 1)
   match args.filter (· ≠ "") with
   | ["--dump", p] =>
     let contents ← IO.FS.readFile p

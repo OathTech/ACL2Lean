@@ -154,11 +154,11 @@ private theorem corr_app_enc (w : World)
   ACL2.Lifting.corr_append_enc w "APP" (by decide) h_app
     h_no_consp h_no_cdr h_no_car h_no_cons
 
-/-- The native assembly, PARAMETERIZED by the world and the mirror: any proof
+/-- The native assembly, PARAMETERIZED by the world and the replayed statement: any proof
     of the replayed statement over a world carrying the `app` definition (hand or
     log-derived, hand-proved or driver-replayed) yields the native theorem.
     The replayed statement is consumed at exactly ONE point — the seam the catalog
-    (`Imported/NativeMirrors`) plugs the driver's mirror into. -/
+    (`Imported/WaypointCatalog`) plugs the driver's replayed statement into. -/
 theorem app_assoc_native_of_replayed (w : World)
     (h_app : w.defs.get? app_sym = some ([x_sym, y_sym], appBody))
     (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)

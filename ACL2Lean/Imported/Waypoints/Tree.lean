@@ -1,7 +1,7 @@
-import ACL2Lean.Imported.Mirrors.Macro
+import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.DevLoad
 
-namespace ACL2.Imported.Mirrors
+namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
@@ -72,4 +72,4 @@ theorem true_listp_flatten_native_driver (env : Env) :
 
 #print axioms true_listp_flatten_native_driver
 
-end ACL2.Imported.Mirrors
+end ACL2.Imported.Waypoints

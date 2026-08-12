@@ -3,7 +3,7 @@
   industrialization item, docs/notes/2026-07-31_mirror-industrialization.md §1).
 
   `derive_exec%` mechanically emits, for one world defun, the two
-  hand-written artifacts every mirror-consumed defun needs:
+  hand-written artifacts every waypoint-consumed defun needs:
 
   - `<fn>Exec` — the shape-exact total Lean function: a pure syntax walk
     over the body (`IF` → `ite` on `Logic.toBool`, builtin call → the
@@ -32,14 +32,14 @@
   ACL2 quotation macro — note §5.)
 
   `<fn>Exec_enc` (the NATIVE reading) is deliberately NOT generated: the
-  choice of native counterpart is the mirror criterion's human fidelity
+  choice of native counterpart is the waypoint criterion's human fidelity
   judgment.
 
   VALIDATION PROTOCOL (the arc charter's 1b clause): the generator is
   validated by RETIREMENT — each hand kit's def/theorem is replaced by a
   generator invocation emitting the SAME NAME and SAME STATEMENT, so every
   existing consumer (assemblies, dischargers, `_enc` lemmas, golden
-  mirrors) re-elaborates against the generated artifact. The build is the
+  waypoints) re-elaborates against the generated artifact. The build is the
   gate. No kit is generated "for later".
 
   Fail-closed throughout: an unknown head symbol, a free variable, a
