@@ -77,7 +77,9 @@ those failures are invisible to the Lean kernel (see the trust note below).
 **End goal — ACL2 as an untrusted Lean tactic.** The reason to produce the replayed
 statement is to discharge a *native Lean theorem* we actually want — a **MIRROR**.
 Terminology (restored 2026-08-12 to Mike's original meaning; the
-two-category model = METRIC vs PRODUCT). Three distinct things:
+two-category model = METRIC vs PRODUCT; the canonical glossary is
+`docs/LEXICON.md` — where dated docs conflict with it, it wins).
+Three distinct things:
 - a *replayed statement* is the deep-embedded theorem
   `EvTrue w env ⟦formula⟧` over `evalOpt` — the METRIC's unit;
 - a *WAYPOINT* is the ACL2-like Lean restatement of a replayed fact

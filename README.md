@@ -10,6 +10,11 @@ waterfall produced, replayed step by step. Genuine, faithful replay is the
 product: a proof that passes the kernel but does not mirror ACL2's reasoning
 does not count here.
 
+**The words matter here** — *replayed statement* (the metric's unit),
+*waypoint* (ACL2-like Lean, the scoreboard, never a result), and
+*mirror* (the product: pure Lean theorems, zero ACL2 notions) name
+three different things: see [`docs/LEXICON.md`](docs/LEXICON.md).
+
 ## How it works
 
 Importing a theorem runs through a pipeline; every stage except ACL2's own
