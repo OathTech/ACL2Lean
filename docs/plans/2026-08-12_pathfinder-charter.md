@@ -83,3 +83,21 @@ completion pressure. MANDATORY-EXIT triggers: the placement design
 proceeding without Mike's look (item 1); any Lean induction closing
 mirror content; any purity-gate weakening to land a theorem; any
 golden/pin change at all.
+
+## ARC LOG — early exit at the item-1 wall (2026-08-12)
+
+Recon complete (the waypoint verified off the real artifact:
+`app_assoc_native_driver` over core `++`/`List SExpr`, unconditional,
+trio-clean). The item-1 checkpoint DELIVERED to Mike: the placement
+design (`Proofs/Basics.lean` + the Proofs/ statement-purity pin) and
+the content-flow design (Square A vocabulary alignment at SExpr; the
+waypoint as associativity's SOLE entry point; the Acl2Embed-Int lift
+by homomorphism square + injectivity), including the honesty note
+that core `List.append_assoc` makes a dishonest three-line proof
+available at all times — which is exactly what the exit audit checks
+against. Items 2–7 are gated on Mike's ruling per this charter's own
+mandatory-exit trigger ("the placement design proceeding without
+Mike's look"). EARLY EXIT declared per the goal's exit condition:
+the remaining work gates on a user decision. Resuming = Mike's go on
+the design (or an amended design), then items 2–4 execute as
+presented.
