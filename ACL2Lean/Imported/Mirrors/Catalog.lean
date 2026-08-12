@@ -22,6 +22,21 @@ namespace ACL2.Imported.Mirrors
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
+/-! # THIS CATALOG IS THE REPLAY METRIC, NOT THE PRODUCT
+(two-category ruling, Mike 2026-08-12)
+
+Everything in this module — the entries, the "native" decodes they
+point at, the gates — is the METRIC layer: ACL2 notions replayed into
+ACL2-like Lean notions, useful as the scoreboard of how far the replay
+machinery reaches. It is "worthless, and completely forbidden, to
+treat these ACL2-like Lean definitions as top-level results": the
+statements here are over `SExpr`/`lexorderB` — the ACL2 value universe
+in Lean clothes — and are NEVER presented to a user as theorems. The
+PRODUCT is the MIRRORS layer (ACL2Lean/Mirrors/ — a MIRROR is a Lean-idiomatic, zero-ACL2 theorem mirroring a book property; THIS catalog long mis-used the word for waypoints): user-supplied, pure-idiomatic-Lean
+definitions and theorems, proved VIA this machinery, containing zero
+ACL2 notions. Historical docs below still say "mirror"/"native" for
+these entries — read those words as WAYPOINT. -/
+
 /-! ## The LIFT-COVERAGE GATE (W2(a), validator/lifter arc)
 
 Every GREEN row of the sweep golden must carry an explicit lift DECISION:
@@ -608,42 +623,15 @@ run_cmd Lean.Elab.Command.liftCoreM do
         it to the trio-clean list above) and re-review the non-vacuity \
         claim in EquisortParametric.lean"
 
--- CRITERION-1 GATE (audit 2026-07-31, outside finding §8): mirror
--- STATEMENT vocabulary, mechanized — every `.native` entry's TYPE must
--- be free of the evaluator layer (evalOpt/EvTrue/World/boolEnc) and of
--- every `*Exec` function. (Value-VIEW helpers like `Logic.toRat`,
--- reached through `lexorderB`'s definition, are acceptable: the ban is
--- the interpreter/exec layer, not pure SExpr arithmetic views — the
--- criterion header wording matches.) In-Lean, deterministic.
-open Lean in
-run_cmd Lean.Elab.Command.liftCoreM do
-  let banned : List Name :=
-    [``ACL2.evalOpt, ``ACL2.Replay.EvTrue, ``ACL2.World,
-     ``ACL2.Lifting.boolEnc]
-  -- The ONE ratified exception: the FLATTEN-RECIPE class (entry 17's
-  -- doc) — for a recognizer theorem whose SUBJECT is the imported
-  -- program itself, `evalOpt` deliberately remains in the statement
-  -- (a fully native restatement would need a simulation that
-  -- subsumes, and so bypasses, the replayed theorem).
-  let exempt : List Name :=
-    [``ACL2.Imported.Mirrors.true_listp_flatten_native_driver]
-  for (b, n, st) in liftCatalog do
-    let decl? := match st with
-      | .native decl _ => some decl
-      | .nativeSorried decl _ _ => some decl
-      | _ => none
-    if let some decl := decl? then
-      if exempt.contains decl then continue
-      let some ci := (← getEnv).find? decl
-        | throwError "criterion-1 gate: {decl} missing"
-      for c in ci.type.getUsedConstants do
-        if banned.contains c then
-          throwError "criterion-1 gate: {b}/{n}'s statement mentions \
-            {c} — evaluator vocabulary in a mirror statement \
-            (mirror criterion 1)"
-        if c.toString.endsWith "Exec" then
-          throwError "criterion-1 gate: {b}/{n}'s statement mentions \
-            the exec function {c} (mirror criterion 1)"
+-- CRITERION-1 GATE — DELETED (two-category ruling, 2026-08-12).
+-- It policed the statement VOCABULARY of the waypoint layer as if
+-- waypoints were the product. They are not: this whole catalog is the
+-- REPLAY METRIC (ACL2-like Lean waypoints; useful as a scoreboard,
+-- never a top-level result), and the vocabulary of a metric layer is
+-- nobody's concern. It had also already grown an exemption list — the
+-- rot sign. The REAL vocabulary gate (zero ACL2 notions, enforced)
+-- belongs at the product layer (ACL2Lean/Mirrors/, `just check-mirrors-pure`), where any ACL2-side
+-- constant in a statement is definitionally a bug.
 
 /-! ## PROVENANCE GATE (thin-Lean ruling 2026-08-11)
 

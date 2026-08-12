@@ -59,6 +59,12 @@ check-no-shadow:
 check-gz-agreement:
     ./scripts/check-gz-agreement.sh
 
+# MIRROR PURITY (two-category model): the product layer ACL2Lean/Mirrors/
+# may import only Mathlib/Std/Batteries — an ACL2 notion in a mirror is
+# definitionally a bug. Claims-tier: a build gate, not a speedbump.
+check-mirrors-pure:
+    ./scripts/check-mirrors-pure.sh
+
 # Full conformance: preflight + build + unit tests + driver-coverage (the last
 # gates on reconstruction integrity AND the black-box-leaf emission frontier —
 # see docs/plans/2026-06-09_direct-proof-emission.md). driver-coverage
@@ -66,7 +72,7 @@ check-gz-agreement:
 # some tests via include_str); check-proof-logs runs first and covers BOTH
 # reference styles, so a missing log is a clear error, not a deep
 # elaboration-trace failure.
-ci: lint-sh check-bugs check-no-shadow check-gz-agreement check-acl2-tags check-dark-files check-file-weight check-proof-logs check-log-provenance test-provenance-gates check-no-getd-done check-pattern-map build test driver-coverage check-golden-current
+ci: lint-sh check-bugs check-no-shadow check-gz-agreement check-mirrors-pure check-acl2-tags check-dark-files check-file-weight check-proof-logs check-log-provenance test-provenance-gates check-no-getd-done check-pattern-map build test driver-coverage check-golden-current
 
 # Run the corpus report
 report:

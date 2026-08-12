@@ -1,4 +1,9 @@
 /-
+  ROLE (two-category ruling, 2026-08-12): REGRESSION CANARIES for the
+  metric layer, not trust anchors — they detect silent statement-content
+  drift the golden (status-only) cannot see. See Tests/SortingPins.lean's
+  header for the full relabeling.
+
   ENDGAME-ARC statement pins (charter item 5): the bsort greens the
   restructure arc landed (HOW-MANY-SMALLER-BNEXT, HOW-MANY-BAD-PAIRS-BNEXT,
   ORDEREDP/TRUE-LISTP/HOW-MANY-BSORT), the endgame greens

@@ -5,7 +5,18 @@
   pinning machine-generated replayed statements against types HAND-WRITTEN
   from the ACL2 `.lisp` sources.
 
-  WHY: the certified pipeline's statement derivation (stage 5) reads the
+  ROLE (relabeled under the two-category ruling, 2026-08-12): these are
+  REGRESSION CANARIES, not trust anchors. The replayed layer is the
+  METRIC, never the product, so nothing here carries product trust —
+  that enters only at the NorthStar layer's user-supplied definitions.
+  What the pins DETECT is silent statement-content drift: the coverage
+  golden watches row STATUS, not statement CONTENT, so a fork/parser/
+  recapture change that silently alters WHAT a row replays would pass
+  the golden — and fail here. They fire exactly when a pipeline change
+  alters statements, which is exactly when attention is warranted.
+
+  ORIGINAL RATIONALE (kept as history; the trust half is superseded):
+  the certified pipeline's statement derivation (stage 5) reads the
   same untrusted fork emission as the proof — the replayed statement is
   anchored to the `.lisp` source ONLY through pins like these. A pin
   assigns the machine constant (`runBook`'s ReplayedStatements /

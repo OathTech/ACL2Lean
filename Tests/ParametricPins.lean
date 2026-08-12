@@ -2,6 +2,11 @@ import ACL2Lean.Imported.Mirrors.EquisortParametric
 
 /-! # Parametric-constant STATEMENT pins (pre-merge audit 2026-08-08)
 
+ROLE (two-category ruling, 2026-08-12): REGRESSION CANARIES for the
+metric layer, not trust anchors — they detect silent statement-content
+drift the golden (status-only) cannot see. See Tests/SortingPins.lean's
+header for the full relabeling.
+
 Both audit reviewers (inside I3 / outside O7) flagged that the phase's
 headline artifacts — the two equisort capstone parametric constants —
 had no statement pin: a driver change could silently alter what they
