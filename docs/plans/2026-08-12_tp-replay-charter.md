@@ -69,3 +69,35 @@ reason or none; fidelity rules override completion pressure.
 MANDATORY-EXIT triggers: any per-function specialization in the
 walker; any Lean-side re-derivation of a TP fact; any golden flip
 without diagnosis; a fork item proceeding without the scout.
+
+## ARC LOG — item 1 complete: THE MEASURED WORK LIST (2026-08-12)
+
+The scout's inventory (empirical — every entry probe-verified against
+the real devs/worlds) CORRECTS this charter's assumptions:
+- C1: the real census target is **76** (main-row kept conds routed
+  through `proveTp`); the other 119 `tp:` conds live on standalone
+  informational DP probes (`replayDischargeLeaf` emits them
+  unconditionally — a separate optional lever, needs a ruling, not
+  taken here).
+- C2: the DOMINANT frontier is the RETURN-PATH CALL restriction
+  (`tpWalk`, Provers.lean:433-439) — not the charter's named
+  measure/WF frontiers, which bind ZERO entries. Three sub-shapes:
+  BINARY-+ over the IH value (46 census / 6 entries incl. the
+  len_app_int headline), CONS (17 / 4), callee-TP (5 / 2, downstream
+  of CONS). Plus arity-3 (7 / 1) and the args-valued G1 routing
+  (1 / 1). 1+2+3 = 12/14 entries; +4+5 = 76/76.
+- C3: NO FORK NEEDED — the emission's `:TYPE-PRESCRIPTION` events
+  carry `:LEAVES` (per-return-path-leaf terms + ACL2's type-set
+  verdicts), parsed (ProofLog.lean:1134) and stored (ClauseTree:97)
+  but not exposed (a one-line Development accessor). THE DESIGN
+  SPINE: the return-path extension consumes ACL2's own emitted leaf
+  verdicts — emitted-data-driven, never Lean-side type derivation.
+- Sequencing: dis_acl2_count_tp is the hardest (compound blockers
+  incl. non-destructor self-calls) — LAST. dis_bnext_size_tp needs
+  the callee shape too. The Provers.lean:649 throwError (unreached)
+  should become throwFrontier in passing (asymmetry with
+  proveTotality's tagged twin).
+- Open proof risk (the scout could not verify): that the extensions
+  CLOSE — the Logic-primitive preservation obligations
+  (P(plus '1 v) from P(v) for the emitted corollary shapes).
+  Increment 1 answers it empirically.
