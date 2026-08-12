@@ -19,28 +19,28 @@ def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
   | none => throwError "replayProof: theorem {cp.name} has no proof tree"
   | some root => replayClause cfg ReplayCtx.empty root
 
-/-- The dependency theorem's mirror at `envV` — by APPLYING its D1 registry
+/-- The dependency theorem's replayed statement at `envV` — by APPLYING its D1 registry
     constant at the consumer's own telescope fvars when registered, else by
     replaying the dependency inside the shared telescope. Shared by
     `dischargeRuleHyp` and `dischargeCongHyp` (verbatim extraction, G2
     rung 2 — plus the `cong:` condition arm). -/
-def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
+def depReplayedProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     (depRoot : ClauseNode) (envV : Expr) (ctxD : ReplayCtx)
-    (mirrors : ReplayedRegistry) : MetaM Expr := do
-  match mirrors.find? (fun (n, _, _) => n == name) with
+    (replayed : ReplayedRegistry) : MetaM Expr := do
+  match replayed.find? (fun (n, _, _) => n == name) with
   | some (_, decl, depConds) => do
     let condArgs ← depConds.toArray.mapM fun c => do
       if c.startsWith "total:" then
         let fn := (c.drop "total:".length).toString
         let some h := ctx.totalHyps.lookup fn
-          | throwError "depMirrorProofAt: registry dependency \
+          | throwError "depReplayedProofAt: registry dependency \
               {name} keeps {c}, absent from the consumer \
               telescope (internal)"
         pure h
       else if c.startsWith "tp:" then
         let fn := (c.drop "tp:".length).toString
         let some (_, _, h) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fn)
-          | throwError "depMirrorProofAt: registry dependency \
+          | throwError "depReplayedProofAt: registry dependency \
               {name} keeps {c}, absent from the consumer \
               telescope (internal)"
         pure h
@@ -48,10 +48,10 @@ def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         let rn := (c.drop "rule:".length).toString
         match ctx.ruleHyps.filter (fun (r, _) => r.runeKey == rn) with
         | [(_, h)] => pure h
-        | [] => throwError "depMirrorProofAt: registry dependency \
+        | [] => throwError "depReplayedProofAt: registry dependency \
             {name} keeps {c}, absent from the consumer \
             telescope (internal)"
-        | _ => throwError "depMirrorProofAt: registry dependency \
+        | _ => throwError "depReplayedProofAt: registry dependency \
             {name} keeps {c} but the consumer telescope offers \
             several same-named rules (ambiguous — refuse rather than \
             guess)"
@@ -59,14 +59,14 @@ def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         let rn := (c.drop "linear:".length).toString
         match ctx.linearHyps.filter (fun (r, _) => r.name == rn) with
         | [(_, h)] => pure h
-        | _ => throwError "depMirrorProofAt: registry dependency \
+        | _ => throwError "depReplayedProofAt: registry dependency \
             {name} keeps {c}, absent or ambiguous in the consumer \
             telescope (internal)"
       else if c.startsWith "cong:" then
         let cn := (c.drop "cong:".length).toString
         match ctx.congHyps.filter (fun (s, _) => s.name == cn) with
         | [(_, h)] => pure h
-        | _ => throwError "depMirrorProofAt: registry dependency \
+        | _ => throwError "depReplayedProofAt: registry dependency \
             {name} keeps {c}, absent or ambiguous in the consumer \
             telescope (internal)"
       else if c.startsWith "use:" then
@@ -77,38 +77,38 @@ def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         let un := (c.drop "use:".length).toString
         match ctx.useHyps.filter (fun (u, _) => u.name == un) with
         | [(_, h)] => pure h
-        | _ => throwError "depMirrorProofAt: registry dependency \
+        | _ => throwError "depReplayedProofAt: registry dependency \
             {name} keeps {c}, absent or ambiguous in the consumer \
             telescope (internal)"
       else if c.startsWith "equivfull:" then
         let en := (c.drop "equivfull:".length).toString
         match ctx.equivFullHyps.filter (fun (e, _) => e.name == en) with
         | [(_, h)] => pure h
-        | _ => throwError "depMirrorProofAt: registry dependency \
+        | _ => throwError "depReplayedProofAt: registry dependency \
             {name} keeps {c}, absent or ambiguous in the consumer \
             telescope (internal)"
       else if c.startsWith "tpthm:" then
         let tn := (c.drop "tpthm:".length).toString
         match ctx.tpThmHyps.filter (fun (s, _) => s.name == tn) with
         | [(_, h)] => pure h
-        | _ => throwError "depMirrorProofAt: registry dependency \
+        | _ => throwError "depReplayedProofAt: registry dependency \
             {name} keeps {c}, absent or ambiguous in the consumer \
             telescope (internal)"
-      else throwError "depMirrorProofAt: registry dependency \
+      else throwError "depReplayedProofAt: registry dependency \
           {name} keeps unrecognized condition {c} (internal)"
     pure (mkAppN (mkConst decl) (#[envV] ++ condArgs))
   | none =>
     try replayClause { cfg with envExpr := envV } ctxD depRoot
-    catch e => throwFrontier m!"depMirrorProofAt: dependency {name}'s \
+    catch e => throwFrontier m!"depReplayedProofAt: dependency {name}'s \
         replay failed (frontier): {e.toMessageData}"
 
 /-- DISCHARGE a `rule:<thm>` hypothesis from its dependency theorem's replayed
-    mirror (v1 step 5, docs/plans/2026-07-05_theorem-dependency-hypotheses.md):
+    statement (v1 step 5, docs/plans/2026-07-05_theorem-dependency-hypotheses.md):
     obtain the dependency's replayed statement — by APPLYING its D1 registry constant at
     the consumer's own telescope fvars (same world, identical hypothesis
     statements) when registered, else by replaying the dependency INSIDE the
     same hypothesis telescope (`ctx` — its own conditions stay as the shared
-    fvars, so transitive conditions compose) — then DECODE the mirror to the
+    fvars, so transitive conditions compose) — then DECODE the replayed statement to the
     stored-rule statement. The decode recomputes ACL2's create-rewrite-rule
     normalization between two EMITTED artifacts — the defthm formula (the
     dependency's Goal clause) and the stored rule — and hard-fails on any
@@ -119,7 +119,7 @@ def depMirrorProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     `Logic.implies`, two-valued `Logic.equal` decode, TP boolean pin. -/
 def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
     (depProofs : List (String × ClauseProof))
-    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
+    (replayed : ReplayedRegistry := []) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
     | throwFrontier m!"dischargeRuleHyp: no dependency proof for rule {spec.name}"
   let some depRoot := cp.root
@@ -178,7 +178,7 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
       -- telescope offers every total:/tp:/rule: the dependency could keep).
       -- Otherwise re-replay the dependency inside the shared telescope; a
       -- replay wall in its tree is a FRONTIER for the discharge (keep-hyp).
-      let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxDFixed mirrors
+      let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxDFixed replayed
       let convF ← ctxValProof cfgD ctxDFixed formula
       let hFne ← mkAppM ``ne_nil_of_evtrue_conv #[pDep, convF]
       -- conclusion-value truthiness: bare conclusion, or through MP
@@ -265,11 +265,11 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
 /-- DISCHARGE a `cong:<thm>` hypothesis from its dependency's replayed statement
     (G2 rung 2). No decode at all: the hypothesis states the WHOLE formula
     (`∀ env', EvTrue w env' formula`) and the dependency's Goal clause IS that
-    single-literal formula — recompute-and-checked, then the mirror applied
+    single-literal formula — recompute-and-checked, then the replayed statement applied
     at `env'`. -/
 def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
     (depProofs : List (String × ClauseProof))
-    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
+    (replayed : ReplayedRegistry := []) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
     | throwFrontier m!"dischargeCongHyp: no dependency proof for {spec.name}"
   let some depRoot := cp.root
@@ -285,7 +285,7 @@ def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
-    let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
+    let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let pf ← mkLambdaFVars #[envV] pDep
     mkExpectedTypeHint pf (← mkCongHypType cfg spec)
 
@@ -296,7 +296,7 @@ def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
     time in `equivFullSpecOfGoal?`). -/
 def dischargeEquivFullHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     (spec : EquivFullSpec) (depProofs : List (String × ClauseProof))
-    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
+    (replayed : ReplayedRegistry := []) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
     | throwFrontier m!"dischargeEquivFullHyp: no dependency proof for \
         {spec.name}"
@@ -314,7 +314,7 @@ def dischargeEquivFullHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
-    let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
+    let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let pf ← mkLambdaFVars #[envV] pDep
     mkExpectedTypeHint pf (← mkEquivFullHypType cfg spec)
 
@@ -323,7 +323,7 @@ def dischargeEquivFullHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     `dischargeCongHyp` shape (same-source formula assert). -/
 def dischargeTpThmHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     (spec : TpThmSpec) (depProofs : List (String × ClauseProof))
-    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
+    (replayed : ReplayedRegistry := []) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
     | throwFrontier m!"dischargeTpThmHyp: no dependency proof for {spec.name}"
   let some depRoot := cp.root
@@ -340,21 +340,21 @@ def dischargeTpThmHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
-    let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
+    let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let pf ← mkLambdaFVars #[envV] pDep
     mkExpectedTypeHint pf (← mkTpThmHypType cfg spec)
 
 /-- DISCHARGE a `use:<thm>` hypothesis from its dependency's replayed
     statement (R7a): identical to `dischargeCongHyp` — the hypothesis
     states the WHOLE formula and the dependency's Goal clause IS that
-    single-literal formula, the mirror applied at `env'`. The formula
+    single-literal formula, the replayed statement applied at `env'`. The formula
     equality below is a SAME-SOURCE consistency assert (offer and
     discharge read the same depProofs root — R7a audit F7), not an
     independent cross-check; the load-bearing check for `use:` is the
     verbatim σ/:HYPS comparison in the consuming arm. -/
 def dischargeUseHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : UseSpec)
     (depProofs : List (String × ClauseProof))
-    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
+    (replayed : ReplayedRegistry := []) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
     | throwFrontier m!"dischargeUseHyp: no dependency proof for {spec.name}"
   let some depRoot := cp.root
@@ -370,12 +370,12 @@ def dischargeUseHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : UseSpec)
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
-    let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
+    let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let pf ← mkLambdaFVars #[envV] pDep
     mkExpectedTypeHint pf (← mkUseHypType cfg spec)
 
 /-- DISCHARGE an `equivrefl:<thm>` hypothesis from its dependency's replayed
-    statement (P3, the ORDERED-PERMS mirror): the dependency is the
+    statement (P3, the ORDERED-PERMS replayed statement): the dependency is the
     defequiv-shaped theorem (e.g. PERM-IS-AN-EQUIVALENCE) whose translated
     Goal is `(IF (BOOLEANP (R x y)) (IF (R x x) rest 'NIL) 'NIL)` — the
     reflexivity conjunct sits SECOND. Project it at `env'` by the
@@ -386,7 +386,7 @@ def dischargeUseHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : UseSpec)
     the hypothesis (frontier). -/
 def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     (spec : EquivReflSpec) (depProofs : List (String × ClauseProof))
-    (mirrors : ReplayedRegistry := []) : MetaM Expr := do
+    (replayed : ReplayedRegistry := []) : MetaM Expr := do
   let some cp := depProofs.lookup spec.name
     | throwFrontier m!"dischargeEquivReflHyp: no dependency proof for \
         {spec.name}"
@@ -416,7 +416,7 @@ def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
                                branchFacts := [], segFacts := [] }
     ctxD ← pinTermOpaques cfgD envV ctxD formula
-    let pDep ← depMirrorProofAt cfg ctx spec.name depRoot envV ctxD mirrors
+    let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let conv1 ← ctxValProof cfgD ctxD c1
     let hne1 ← mkAppM ``evtrue_and_left #[conv1, pDep]
     let htb1 ← mkAppM ``toBool_true_of_ne_nil #[hne1]
@@ -427,7 +427,7 @@ def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     let pf ← mkLambdaFVars #[envV] body
     mkExpectedTypeHint pf (← mkEquivReflHypType cfg spec)
 
-/-- The CONDITIONAL generic mirror: bind the machine-generated hypothesis
+/-- The CONDITIONAL generic replayed statement: bind the machine-generated hypothesis
     telescope (per defined fn: totality; plus the lifted TP corollary when one was
     emitted), replay the theorem under it, and λ-abstract. Returns the proof and
     the condition descriptions (the c2 pattern — obligations explicit in the
@@ -435,7 +435,7 @@ def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
 def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     (cp : ClauseProof) (justs : List (String × Justification) := [])
     (rules : List RuleSpec := []) (depProofs : List (String × ClauseProof) := [])
-    (mirrors : ReplayedRegistry := [])
+    (replayed : ReplayedRegistry := [])
     (equivRefls : List (String × SExpr) := [])
     (termReplayed : List (String × Name × List String × List SExpr) := [])
     (congTrees : Option (List (String × ClauseProof)) := none)
@@ -518,7 +518,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
        fun (_ : Array Expr) => mkRuleHypType cfg r)).toArray
   -- cong:<thm> hypothesis declarations (G2 rung 2): every strictly-earlier
   -- LOCAL theorem whose formula is congruence-shaped is offered as its
-  -- whole-formula mirror (`mkCongHypType`); non-matching formulas are not
+  -- whole-formula replayed statement (`mkCongHypType`); non-matching formulas are not
   -- offered. The OFFER derives from `congTrees` — the SAME-BOOK
   -- earlier-theorems list in creation order (topological citations) —
   -- NOT the full depProofs, which since 2a also carries CROSS-BOOK trees
@@ -604,7 +604,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
   -- equivrefl:<thm> declarations (sorting-completion-2 Class A): every
   -- equivalence-SHAPED defthm formula in scope (incl. INCLUDE-BOOK'd —
   -- passed by the caller) offers its REFLEXIVITY component; include-book
-  -- instances have no dependency mirror and stay KEPT (D6-honest).
+  -- instances have no dependency replayed statement and stay KEPT (D6-honest).
   let equivSpecs : List EquivReflSpec := equivRefls.filterMap fun (n, f) =>
     equivReflSpecOfFormula? n f
   let equivDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
@@ -790,7 +790,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           if discharge && prfC.containsFVar hypV.fvarId! then
             try
               let pf ← withRealMaxHeartbeats dischargeBudget <|
-                dischargeCongHyp cfg ctx spec depProofs mirrors
+                dischargeCongHyp cfg ctx spec depProofs replayed
               prfC ← letBindFVar prfC hypV pf
             catch e =>
               unless isFrontierErr e do
@@ -809,7 +809,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         if discharge && prfR.containsFVar hypV.fvarId! then
           try
             let pf ← withRealMaxHeartbeats dischargeBudget <|
-              dischargeUseHyp cfg ctx spec depProofs mirrors
+              dischargeUseHyp cfg ctx spec depProofs replayed
             prfR ← letBindFVar prfR hypV pf
           catch e =>
             unless isFrontierErr e do
@@ -841,7 +841,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         if prfR.containsFVar hypV.fvarId! then
           try
             let pf ← withRealMaxHeartbeats dischargeBudget <|
-              dischargeTpThmHyp cfg ctx spec depProofs mirrors
+              dischargeTpThmHyp cfg ctx spec depProofs replayed
             prfR ← letBindFVar prfR hypV pf
           catch e =>
             unless isFrontierErr e do
@@ -850,12 +850,12 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         if discharge && prfR.containsFVar hypV.fvarId! then
           try
             let pf ← withRealMaxHeartbeats dischargeBudget <|
-              dischargeEquivFullHyp cfg ctx spec depProofs mirrors
+              dischargeEquivFullHyp cfg ctx spec depProofs replayed
             prfR ← letBindFVar prfR hypV pf
           catch e =>
             unless isFrontierErr e do
               throw e
-      -- equivrefl:<thm> discharge (P3, the ORDERED-PERMS mirror): projected
+      -- equivrefl:<thm> discharge (P3, the ORDERED-PERMS replayed statement): projected
       -- from the dependency's replayed statement; BEFORE the rule pass —
       -- the dependency's replay can consume rule:/cong: fvars, caught by
       -- the passes below. Frontier failures keep the hypothesis (D6).
@@ -863,7 +863,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         if discharge && prfR.containsFVar hypV.fvarId! then
           try
             let pf ← withRealMaxHeartbeats dischargeBudget <|
-              dischargeEquivReflHyp cfg ctx spec depProofs mirrors
+              dischargeEquivReflHyp cfg ctx spec depProofs replayed
             prfR ← letBindFVar prfR hypV pf
           catch e =>
             unless isFrontierErr e do
@@ -877,7 +877,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
               -- discharges it instead
               match d5GzRules.lookup spec.name with
               | some (decl, nsFn) => dischargeGzRuleHyp cfg spec decl nsFn
-              | none => dischargeRuleHyp cfg ctx spec depProofs mirrors
+              | none => dischargeRuleHyp cfg ctx spec depProofs replayed
             -- LET-bind, don't substitute: every use site shares one copy
             prfR ← letBindFVar prfR hypV pf
           catch e =>

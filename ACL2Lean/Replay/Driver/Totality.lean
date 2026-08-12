@@ -21,7 +21,7 @@ is CASE-SPLIT style (`conv_if_split`): each `if` branch proceeds under an
 explicit `toBool` fact, which is exactly what the decrease discharge consumes
 at recursive call sites. Scope (decision log D5): measure
 `(acl2-count <single-formal>)` under `o<`; everything else is a named
-frontier and the `total:` hypothesis stays in the mirror's type (D6). -/
+frontier and the `total:` hypothesis stays in the replayed statement's type (D6). -/
 
 /-- Is every head of `t` walk-liftable (vars/quote/dp-primitives only)? -/
 def totLiftable (t : SExpr) : Bool := (collectOpaques t).isEmpty
@@ -246,7 +246,7 @@ def conjoinDisjTerm : List SExpr → SExpr
 
 /-- Assemble the RECORDED-TERMINATION bundle for one defun (sorting arc
     2026-07-28): byte-check every world shape the decode consumes, resolve
-    the mirror's conditions against the consumer telescope's hypothesis
+    the replayed statement's conditions against the consumer telescope's hypothesis
     fvars, and validate the goal literal against the conjoin of the emitted
     clauses (non-`O-P` only or all, emission order or reversed — the goal
     pins which).
@@ -257,7 +257,7 @@ def mkRecTermInfo (cfg : ReplayConfig)
     (hypFVars : List (String × Expr))
     (tpCors : List (String × SExpr))
     (just : Justification)
-    (mirrorConst : Name) (conds : List String) (goalLits : List SExpr) :
+    (replayedConst : Name) (conds : List String) (goalLits : List SExpr) :
     MetaM RecTermInfo := do
   let [goalLit] := goalLits
     | throwFrontier m!"recorded route: multi-literal termination goal \
@@ -380,7 +380,7 @@ def mkRecTermInfo (cfg : ReplayConfig)
       | some fv => pure fv
       | none => throwFrontier m!"recorded route: condition {c} not offered \
           by the consumer telescope (frontier)"
-    let app := mkAppN (mkApp (mkConst mirrorConst) envE) condArgs.toArray
+    let app := mkAppN (mkApp (mkConst replayedConst) envE) condArgs.toArray
     -- condition resolution is by STRING key, positionally (audit 2026-08-05
     -- S3: "ASSUMED:dp-fact" is one key for many leaves; `tp:` can be
     -- offered twice per fn) — type-check the application here so a

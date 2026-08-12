@@ -75,7 +75,7 @@ where
 
 /-- EVERY replay channel the conditional harness consumes, derived from the
     development in ONE place (sorting-absolute arc 1a). The sweep runner
-    (`runBook`) and the `driver_replayed%` mirror macro BOTH consume this
+    (`runBook`) and the `driver_replayed%` macro BOTH consume this
     structure — a channel added for one is automatically seen by the other.
     The bug class this closes is real: `fcRules`, the termination pre-pass,
     and `equivRefls` each hard-failed the macro AFTER the runner had them
@@ -167,7 +167,7 @@ def bookChannels (dev : Development)
     crossRules := crossRules }
 
 /-- The canonical `ReplayConfig` of a book replay — the ONE construction
-    site for both the runner and the mirror macro. `gzTps`: BUILTIN-named
+    site for both the runner and the replayed-statement macro. `gzTps`: BUILTIN-named
     TP snapshots (world-defined fns get theirs as `tp:` hypotheses
     instead). -/
 def mkBookConfig (dev : Development) (w : World) (wExpr envExpr : Expr)
@@ -230,7 +230,7 @@ def collectProofAxioms (e : Expr) : MetaM (List Name) := do
 
 /-- Run the driver on one theorem over its derived world; return a one-line
     status, and — when `replayedName?` is given and the replay is green — the
-    kept condition strings of the freshly `addDecl`'d D1 MIRROR CONSTANT
+    kept condition strings of the freshly `addDecl`'d D1 REPLAYED CONSTANT
     (design §D1, WP4: subsequent same-book consumers apply the constant via
     the `ReplayedRegistry` instead of re-replaying this theorem's tree). The
     world is PROJECTED from the development and REFLECTED concretely (P4);
@@ -239,7 +239,7 @@ def collectProofAxioms (e : Expr) : MetaM (List Name) := do
     real bug in the new code, not an expected frontier. -/
 def tryReplay (dev : Development) (w : World) (wExpr : Expr)
     (cp : ClauseProof) (rules : List ACL2.RuleSpec := [])
-    (mirrors : ReplayedRegistry := [])
+    (replayed : ReplayedRegistry := [])
     (replayedName? : Option Name := none)
     (budget : Nat := 3000000)
     (termReplayed : List (String × Name × List String × List SExpr) := [])
@@ -271,7 +271,7 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
         let cfg := mkBookConfig dev w wExpr envFV termReplayed
         let (prf, conds) ← replayProofConditional cfg ch.tps cp
           dev.justifications (combineRules rules ch.crossRules)
-          ch.depProofs mirrors
+          ch.depProofs replayed
           (equivRefls := ch.equivRefls) termReplayed
           (congTrees := some ch.localTrees)
           (usefiDischarge := usefiDischarge.map (fun mk => mk dev cfg))
@@ -333,7 +333,7 @@ def replayAdmission (dev : Development) (w : World) (wExpr : Expr)
     (replayedName? := some mName) (budget := 10000000)
     (crossTrees := crossTrees)
 
-/-- The termination-mirror CIRCULARITY predicate (audit F3): an admission
+/-- The termination-replay CIRCULARITY predicate (audit F3): an admission
     proof conditional on the defun's OWN totality/TP facts must be
     discarded — `thmAt` would resolve the condition to the consumer's
     hypothesis fvar and silently accept the circle. One predicate, both
@@ -362,7 +362,7 @@ def tryDischarge (w : World) (wExpr : Expr) (tps : List (String × SExpr))
       Meta.check p
       -- axiom filter (audit F8 residue, 2026-07-26): Meta.check accepts
       -- sorryAx, so the ✓ column was type-checked only. This probe's proof
-      -- is never addDecl'd (the composed mirror path is separately filtered
+      -- is never addDecl'd (the composed replayed-statement path is separately filtered
       -- at tryReplay), so this is REPORTING accuracy for the DP scoreboard,
       -- not a trust gate — but ✓ should mean what tryReplay's ✓ means.
       let axs ← collectProofAxioms p
@@ -466,18 +466,18 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
       if thms.isEmpty then
         let zeroLine := s!"{name}: 0 theorems reconstructed (failed/empty capture?)"
         res := { res with integrityFails := res.integrityFails.push zeroLine }
-      -- D1 MIRROR REGISTRY, per book (WP4): theorems are replayed in
+      -- D1 REPLAYED REGISTRY, per book (WP4): theorems are replayed in
       -- creation order (topological in the citation DAG), each green one
       -- addDecl'd as a replayed-statement constant that later SAME-BOOK consumers
       -- apply instead of re-replaying its tree. Reset per book — the
       -- constants are stated over THIS book's world (cross-book reuse is
       -- WP5's transfer).
-      let mut mirrors : ReplayedRegistry := []
-      -- RECORDED-TERMINATION mirrors (sorting arc 2026-07-28): defuns whose
+      let mut replayed : ReplayedRegistry := []
+      -- RECORDED-TERMINATION replayed statements (sorting arc 2026-07-28): defuns whose
       -- admission decrease is beyond the destructor walk get their recorded
       -- admission waterfall replayed ONCE per book as a conditional replayed statement
       -- constant; the totality prover applies it at each consumer's
-      -- telescope (the D1 mirror pattern). A FAILED replay keeps the fn on
+      -- telescope (the D1 replayed-constant pattern). A FAILED replay keeps the fn on
       -- the destructor route's honest frontier — no silent change. The
       -- budget is the admission-class guard (see tryReplay's budget doc).
       let mut termReplayed : List (String × Name × List String × List SExpr) := []
@@ -500,13 +500,13 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         res := { res with lines := res.lines.push termRow }
         if let some conds := reg? then
           -- CIRCULARITY guard (audit F3): the admission proof precedes the
-          -- defun — a mirror conditional on the defun's OWN totality/TP
+          -- defun — a replayed statement conditional on the defun's OWN totality/TP
           -- would let `thmAt` resolve the condition to the consumer's
           -- hypothesis fvar and silently accept the circle as an "honest
           -- condition". Chronology makes it near-impossible (admission-time
           -- runes only), but the guard is structural, not probabilistic.
           if admissionCircular fn conds then
-            IO.println s!"    [termination {fn}: mirror DISCARDED — \
+            IO.println s!"    [termination {fn}: replayed statement DISCARDED — \
               conditional on its own {fn} facts (circularity guard)]"
           else
             let goalLits := (tcp.root.map (·.inputClause)).getD []
@@ -535,14 +535,14 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let rowBudget := if (ACL2.Replay.Driver.theoremFnInstanceCites
             cp).isEmpty then 3000000 else 10000000
         let (status, reg?) ← tryReplay dev w wExpr cp rules
-          (mirrors := mirrors) (replayedName? := some mName)
+          (replayed := replayed) (replayedName? := some mName)
           (termReplayed := termReplayed) (crossTrees := crossTrees)
           (crossRules := crossRules) (usefiDischarge := usefiDischarge)
           (budget := rowBudget)
         let tThm1 ← IO.monoMsNow
         if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"
         if let some conds := reg? then
-          mirrors := mirrors ++ [(cp.name, mName, conds)]
+          replayed := replayed ++ [(cp.name, mName, conds)]
         if status.startsWith "REPLAYED ✓" then
           res := { res with replayed := res.replayed + 1 }
           -- CONDITIONAL replays (undischarged cond[…] hypotheses) counted

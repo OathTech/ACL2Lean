@@ -1,5 +1,5 @@
 /-
-  J1(a) SPIKE — the TRUE-LISTP-FLATTEN mirror BY HAND
+  J1(a) SPIKE — the TRUE-LISTP-FLATTEN REPLAYED STATEMENT BY HAND
   (induction-generality design §6b; RATIFIED 2026-07-16).
 
   COMPLETE (sorry-free; axioms {propext, Classical.choice, Quot.sound}) —
@@ -11,7 +11,7 @@
   placeholders; audit F4.)
 
   What this spike validates (and what "done" means): the REAL
-  TRUE-LISTP-FLATTEN mirror statement — read off the real tree in
+  TRUE-LISTP-FLATTEN replayed statement — read off the real tree in
   acl2_samples/recon-tests/10-tree-induction.proof-log, over the world
   derived from that log, with the driver's own telescope hypothesis
   shapes — proved by hand in EXACTLY the shapes the generalized scaffold
@@ -43,7 +43,7 @@
     Subgoal *1/2 (base): FLATTEN unfolds to (CONS X 'NIL) under the
       recognizer/false chain; TRUE-LISTP closes by recognizer/true.
     Subgoal *1/1 (step): simplify cites definition:FLATTEN,
-      rewrite:TRUE-LISTP-APP, type-prescription:FLATTEN — so the mirror is
+      rewrite:TRUE-LISTP-APP, type-prescription:FLATTEN — so the replayed statement is
       CONDITIONAL on the rule:TRUE-LISTP-APP hypothesis (TRUE-LISTP-APP is
       itself a red row today), exactly as the driver's telescope offers it.
 -/
@@ -201,7 +201,7 @@ private theorem base_case (env : Env) (xv : SExpr)
       (SExpr.cons xv .nil) SExpr.t (by decide) (by decide) hflat
       (callBuiltin_true_listp (SExpr.cons xv .nil)))
 
-/-! ## The mirror (CONDITIONAL — the driver's own telescope shapes)
+/-! ## The replayed statement (CONDITIONAL — the driver's own telescope shapes)
 
 Hypothesis types are hand-instantiations of the driver's builders:
 `mkTotalityHypType` (total:FLATTEN, total:APP), `mkTpHypType`
@@ -210,7 +210,7 @@ value), `mkRuleHypType` (rule:TRUE-LISTP-APP — the stored rule verbatim
 from the log's `(:RULES)` entry: hyps `((TRUE-LISTP Y))`, `:EQUIV EQUAL`,
 lhs `(TRUE-LISTP (APP X Y))`, rhs `'T`). -/
 
-theorem true_listp_flatten_mirror
+theorem true_listp_flatten_replayed
     -- [driver: mkTotalityHypType FLATTEN 1]
     (htotal_flatten : ∀ (env : Env) (a : SExpr),
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f flattenWorld env a = some v) →
@@ -464,6 +464,6 @@ theorem true_listp_flatten_mirror
       exact base_case env .nil hshape rfl
 
 -- the standing verification (must print exactly the classical trio)
-#print axioms true_listp_flatten_mirror
+#print axioms true_listp_flatten_replayed
 
 end ACL2.Spike.Flatten

@@ -1,7 +1,7 @@
 ; Differential corpus: LAMBDA APPLICATIONS — ACL2's internal binding form.
 ; `let`/`mv-let` TRANSLATE to ((LAMBDA (formals) body) actuals), and the
 ; replay path consumes translated terms, so the interpreter's lambda
-; semantics are load-bearing for every mirror statement over a world whose
+; semantics are load-bearing for every replayed statement over a world whose
 ; defun bodies bind locals (S2 arc, 2026-07-24). Raw lambda applications are
 ; legal ACL2 top-level input, so the semantics pin differentially.
 ; SEMANTICS (header corrected per S2 audit F5/F6, 2026-07-25): our arm

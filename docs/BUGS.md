@@ -4,6 +4,10 @@ This is the SINGLE canonical list of known fidelity bugs: places where the Lean
 interpreter / trusted core diverges from real ACL2. Total faithfulness to ACL2
 is the goal, so every mismatch is definitionally a bug and belongs here.
 
+Terminology per `docs/LEXICON.md` (canonical): *replayed statement* /
+*waypoint* / *mirror* are three distinct things — entries below use them
+in that sense.
+
 **Robustness contract (enforced by `scripts/check-bugs.sh`, run in `just ci`):**
 every `open` bug that is `Pinned-by: differential` MUST have at least one live
 `;@ known-bug bug:BUG-NNN …` entry in the differential corpus, and every
@@ -482,7 +486,7 @@ moment gen-world output is wired into the certified pipeline
 use the same terminator set as `isCharTokChar`
 (`*acl2-read-character-terminators*`), then differential-pin the family.
 
-## BUG-019 — `local` witnesses entered the World: mirrors stated about the witness
+## BUG-019 — `local` witnesses entered the World: replayed statements stated about the witness
 Status: fixed
 Pinned-by: none (pattern-corpus pin: cov-encapsulate's log carries
 `:SOURCE :LOCAL-WITNESS` — sig-gated by check-pattern-map; a
@@ -500,21 +504,21 @@ Every `.defun` event entered the World unconditionally
 (ClauseTree.lean), and the fork emitted an encapsulate/defstub/
 defevaluator LOCAL witness's admission as a plain `(:DEFUN …)` — so the
 World bound the constrained function to its DISCARDED witness body, and
-every mirror statement (and every `total:`/`tp:` hypothesis) was about
+every replayed statement (and every `total:`/`tp:` hypothesis) was about
 the witness instead of the constrained function. cov-encapsulate
 reported 2/2 REPLAYED, unconditional and axiom-clean, about `λx. 0` —
 while the same world validated `(EQUAL (CF X) '0)`, which real ACL2
 refuses as a theorem (surfaced by the 2026-07-26 full-pipeline audit,
 F1/CONFIRMED; the mechanism was known as a design note since
 2026-07-20 — what the audit established is that it failed GREEN).
-Nothing false was kernel-certified (each mirror is a true statement
+Nothing false was kernel-certified (each replayed statement is a true statement
 about the witness world); the defect is STATEMENT SUBSTITUTION.
 Fix (2026-07-26): the fork emits explicit provenance on every
 world-entering `:DEFUN` (`:ADMITTED` / `:INCLUDE-BOOK` /
 `:GROUND-ZERO` / `:LOCAL-WITNESS` — detected via `in-local-flg`, the
 `local` macro's own binding), and the parser HARD-FAILS on
 `:LOCAL-WITNESS` (and on missing/unknown provenance) with the named
-frontier. Encapsulate SUPPORT (stating mirrors over the exported
+frontier. Encapsulate SUPPORT (stating replayed statements over the exported
 :CONSTRAINT list) remains an unbuilt frontier; the four S2b probe
 books were rewritten from defstubs to disabled real defuns (their
 green rows had been witness-substituted too). Known ADJACENT surface,
@@ -566,7 +570,7 @@ BUG-013 full fix — fold into it.
 Status: fixed
 Pinned-by: none (fixed 2026-07-11; the junk values were UNREACHABLE from
 the ACL2-visible surface, so no differential form could exhibit them — the
-divergence lived in the ∀-env quantification of mirror statements, and the
+divergence lived in the ∀-env quantification of replayed statements, and the
 fix makes them UNREPRESENTABLE)
 `Number` formerly admitted `.rational 2 4`, `.rational 1 1`, `.decimal …` —
 multiple representations of one rational value — while ACL2's value space
@@ -578,10 +582,10 @@ countermodel EXECUTED):
 (a) `lexorder` transitivity was FALSE over all SExpr — x=((2/4) . 5),
     y=((1/2) . nil), z=((2/4) . 3) gave lexorder x y = T, y z = T,
     x z = NIL (the cons branch's structural `==` vs value-compare on cars);
-(b) mirrors of canonicity-sensitive ACL2 theorems were FALSE as ∀-env
+(b) replayed statements of canonicity-sensitive ACL2 theorems were FALSE as ∀-env
     statements — verified `(equal (* 1 q) q)` = NIL for q = `.rational 2 4`,
     so e.g. `(implies (rationalp x) (equal (* 1 x) x))` (a true ACL2
-    theorem) had a false mirror.
+    theorem) had a false replayed statement.
 NOT a proof-of-false-statement unsoundness (a false hypothesis can never be
 discharged — fail-closed), but a statement-meaning divergence of the
 trust-note class, blocking the external-knowledge D5/WP3 order proofs.

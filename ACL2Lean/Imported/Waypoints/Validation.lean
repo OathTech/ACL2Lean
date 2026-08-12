@@ -87,11 +87,11 @@ the `chain2` schematic (comparison-generic — `dupp` is EQUAL's instance),
 `boolEnc`, the IMPLIES hypothesis decode, and the or-disjunct
 elimination (`enc l` is never the symbol `JUNK`). -/
 
-private def p5MirrorLog : String :=
+private def p5Log : String :=
   include_str "../../../acl2_samples/pattern-tests/p5-or-shape-flipped.proof-log"
 
 def p5Dev : Development :=
-  load_development% p5MirrorLog
+  load_development% p5Log
 
 derive_world p5WorldD from p5Dev
 

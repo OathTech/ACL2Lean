@@ -932,7 +932,7 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         -- event admitted under `local` (an encapsulate/certification
         -- witness): its world effects are DISCARDED from the scope's final
         -- world, so a World built over it substitutes the witness for the
-        -- constrained function in every mirror STATEMENT (BUG-019 — the
+        -- constrained function in every REPLAYED STATEMENT (BUG-019 — the
         -- statement-substitution class; cov-encapsulate reported 2/2
         -- replayed about the witness). HARD-FAIL, named. A missing or
         -- unrecognized :SOURCE also hard-fails (a pre-provenance log

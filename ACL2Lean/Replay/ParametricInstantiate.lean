@@ -1142,7 +1142,7 @@ def applyPreparedUseFi (cName : Lean.Name)
       | "linear" =>
         -- exactly-one (restructure-arc audit N6 — LinearRuleSpec has no
         -- idx, so one rune can name content-distinct rules; refuse
-        -- ambiguity like depMirrorProofAt rather than take the first)
+        -- ambiguity like depReplayedProofAt rather than take the first)
         match ctx.linearHyps.filter (·.1.name == k) with
         | [(_, h)] => some h
         | _ => none

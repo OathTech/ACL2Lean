@@ -709,7 +709,7 @@ def dischargeGzRuleHyp (cfg : ReplayConfig) (spec : RuleSpec) (decl : Name)
     e := mkApp e (← proveNoShadow cfg { name := fn })
   mkExpectedTypeHint e (← mkRuleHypType cfg spec)
 
-/-- D1 MIRROR REGISTRY (design §D1, WP4): replayed theorems as per-theorem
+/-- D1 REPLAYED REGISTRY (design §D1, WP4): replayed theorems as per-theorem
     Lean CONSTANTS. Entry: theorem name ↦ (the `addDecl`'d constant — type
     `∀ env, <kept-condition telescope> → EvTrue w ⟪Goal⟫` — and its kept
     condition strings, `total:`/`tp:`/`rule:` in telescope order).
@@ -727,9 +727,9 @@ abbrev ReplayedRegistry := List (String × Name × List String)
     route. The re-replay route can frontier where the standalone replay
     was green (TRUE-LISTP-RM inside the ORDERED-PERMS telescope); the
     registry route maps the dep's kept conds onto the consumer's own
-    telescope fvars (`depMirrorProofAt`). Lives here (upstream) because
+    telescope fvars (`depReplayedProofAt`). Lives here (upstream) because
     an `initialize` cannot be evaluated in its defining module. -/
-initialize mirrorRegistryExt :
+initialize replayedRegistryExt :
     Lean.SimplePersistentEnvExtension
       (Name × String × Name × List String)
       (List (Name × String × Name × List String)) ←

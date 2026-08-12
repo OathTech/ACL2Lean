@@ -330,7 +330,7 @@ def ruleEqHyp1 (w : World) (hyp lhs rhs : SExpr) : Prop :=
 
 /-! ## isort book (acl2/books/sorting/isort.lisp) -/
 
-/-- PIN the machine-generated statement of `ORDEREDP-ISORT`: the mirror of
+/-- PIN the machine-generated statement of `ORDEREDP-ISORT`: the replayed statement of
     the ACL2 defthm `(orderedp (isort x))`, conditional on exactly one
     hypothesis — insert's emitted TP corollary `(consp (insert e x))`
     (source-true: every branch of the `insert` defun is a `cons`). -/
@@ -344,7 +344,7 @@ example :
 
 /-! ## qsort book (acl2/books/sorting/qsort.lisp) -/
 
-/-- PIN the machine-generated statement of `PERM-QSORT`: the mirror of the
+/-- PIN the machine-generated statement of `PERM-QSORT`: the replayed statement of the
     ACL2 defthm `(perm (qsort x) x)`, conditional on
     - totality of `perm-counter-example` and `o<` (world fns whose totality
       is not yet auto-discharged on this row),
@@ -354,7 +354,7 @@ example :
       (fold-consts-in-+ now discharges via its D5 prelude constant;
       the rest transcribed from
       their books; `how-many-qsort` is a hypothesis because its own replay
-      currently fails at the J6 solidify frontier — no mirror to apply). -/
+      currently fails at the J6 solidify frontier — no replayed statement to apply). -/
 example :
     ∀ (env : Env),
       totalHyp2 qsortPinsWorld "PERM-COUNTER-EXAMPLE" →
@@ -399,11 +399,11 @@ example :
 
 #print axioms ReplayedStatements.replayed_pins_sorting_qsort_PERM_QSORT
 
-/-- PIN the machine-generated statement of `TRUE-LISTP-QSORT`: the mirror
+/-- PIN the machine-generated statement of `TRUE-LISTP-QSORT`: the replayed statement
     of the ACL2 defthm `(true-listp (qsort x))`, conditional on `o<`
     totality, qsort's own emitted TP corollary `(true-listp (qsort x))`
     (the recursive TP — consumed on IH positions, NOT a circular discharge
-    of the conclusion: the mirror still replays the tree), and acl2-count's
+    of the conclusion: the replay still walks the tree), and acl2-count's
     non-negative-integer TP (fold-consts-in-+ now discharges via its D5
     prelude constant). -/
 example :
@@ -427,7 +427,7 @@ example :
     termination clause "some ruler fails OR the argument's acl2-count
     decreases", i.e. `(if (endp x) 't (if (endp (cdr x)) 't (o< …)))`,
     conjoined over the two sites ((if c₁ c₂ 'nil) = (and c₁ c₂); the
-    GTE-site clause first, in ACL2's recorded order). The mirror is the
+    GTE-site clause first, in ACL2's recorded order). The replayed statement is the
     replayed waterfall's root — conditional on the same `o<` totality,
     `acl2-count` TP, and `fold-consts-in-+` classes as above. -/
 
@@ -452,7 +452,7 @@ example :
 /-! ## perm book (acl2/books/sorting/perm.lisp) -/
 
 /-- PIN the machine-generated statement of `PERM-CONS` (perm.lisp:32, a
-    local defthm): the mirror of
+    local defthm): the replayed statement of
       `(implies (memb a x) (equal (perm x (cons a y)) (perm (rm a x) y)))`
     — UNCONDITIONAL (the sweep row carries no cond). The pinned term is
     ACL2's translation: the IMPLIES form exactly as the source states it. -/
@@ -470,7 +470,7 @@ example :
 /-! ## ordered-perms book (acl2/books/sorting/ordered-perms.lisp) -/
 
 /-- PIN the machine-generated statement of `ORDEREDP-RM`
-    (ordered-perms.lisp:10, a local defthm): the mirror of
+    (ordered-perms.lisp:10, a local defthm): the replayed statement of
       `(implies (orderedp a) (orderedp (rm e a)))`
     — UNCONDITIONAL. -/
 example :
@@ -486,7 +486,7 @@ example :
 /-! ## msort book (acl2/books/sorting/msort.lisp) -/
 
 /-- PIN the machine-generated statement of `ORDEREDP-MSORT`
-    (msort.lisp:40): the mirror of `(orderedp (msort x))`, conditional on
+    (msort.lisp:40): the replayed statement of `(orderedp (msort x))`, conditional on
     - totality of `merge2` (binary) and `msort` (unary) — world fns whose
       totality is not auto-discharged on this row,
     - evens' emitted TP corollary `(true-listp (evens l))` (source-true:
@@ -505,7 +505,7 @@ example :
 /-! ## bsort book (acl2/books/sorting/bsort.lisp) -/
 
 /-- PIN the machine-generated statement of `HOW-MANY-BNEXT`
-    (bsort.lisp:72): the mirror of
+    (bsort.lisp:72): the replayed statement of
       `(equal (how-many e (bnext x)) (how-many e x))`
     conditional on `bnext` totality and how-many's emitted
     non-negative-integer TP corollary (source-true: it counts). The
@@ -528,7 +528,7 @@ example :
     (acl2/books/sorting/convert-perm-to-how-many.lisp) -/
 
 /-- PIN the machine-generated statement of `HOW-MANY-RM`
-    (convert-perm-to-how-many.lisp:30): the mirror of
+    (convert-perm-to-how-many.lisp:30): the replayed statement of
       `(implies (not (equal a b)) (equal (how-many a (rm b x))
                                           (how-many a x)))`
     conditional on how-many's emitted non-negative-integer TP corollary
@@ -627,7 +627,7 @@ private def tpBool3 (w : World) (fn : String) : Prop :=
     (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
      else Logic.equal v SExpr.nil) = SExpr.t
 
-/-- PIN the machine-generated statement of `ORDEREDP-QSORT`: the mirror of
+/-- PIN the machine-generated statement of `ORDEREDP-QSORT`: the replayed statement of
     the ACL2 defthm `(orderedp (qsort x))`, conditional on
     - totality of `perm-counter-example` and `o<`,
     - the emitted TP corollaries of `how-many`/`acl2-count` (non-negative
@@ -764,7 +764,7 @@ elab "pattern_statement_pins_run% " : term => do
 set_option maxHeartbeats 0 in
 def patternStatementPinsRun : True := pattern_statement_pins_run%
 
-/-- PIN the machine-generated statement of `DUPP-REP-MID` (p5): the mirror
+/-- PIN the machine-generated statement of `DUPP-REP-MID` (p5): the replayed statement
     of the book's defthm, unconditional. -/
 example :
     ∀ (env : Env),

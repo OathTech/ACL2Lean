@@ -6,7 +6,7 @@ same forms are fed to both interpreters and their output value streams are
 compared.
 
 **Why it matters (fidelity).** `evalOpt` is the semantic model that *defines*
-what our mirror theorems mean. If it diverges from ACL2, a kernel-checked proof
+what our replayed statements mean. If it diverges from ACL2, a kernel-checked proof
 can certify the wrong statement (see the trust note in the repo `CLAUDE.md`).
 So the interpreter's agreement with ACL2 is a load-bearing, non-negotiable
 property — this corpus is its acceptance gate.

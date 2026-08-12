@@ -55,7 +55,7 @@ derive_world sortsEqSweepWorld from sortsEqSweepDev
 
 /-! ## bsort book (acl2/books/sorting/bsort.lisp) -/
 
-/-- PIN `HOW-MANY-SMALLER-BNEXT` (bsort.lisp:28): the mirror of
+/-- PIN `HOW-MANY-SMALLER-BNEXT` (bsort.lisp:28): the replayed statement of
       `(equal (how-many-smaller e (bnext x)) (how-many-smaller e x))`
     conditional on bnext totality and how-many-smaller's emitted
     non-negative-integer TP corollary (source-true: it counts). -/
@@ -71,7 +71,7 @@ example :
 
 #print axioms ReplayedStatements.replayed_sorting_bsort_HOW_MANY_SMALLER_BNEXT
 
-/-- PIN `HOW-MANY-BAD-PAIRS-BNEXT` (bsort.lisp:45): the mirror of
+/-- PIN `HOW-MANY-BAD-PAIRS-BNEXT` (bsort.lisp:45): the replayed statement of
       `(implies (not (equal x (bnext x)))
                 (< (bnext-size (bnext x)) (bnext-size x)))`
     conditional on bnext totality and the emitted non-negative-integer TP
@@ -92,7 +92,7 @@ example :
 #print axioms ReplayedStatements.replayed_sorting_bsort_HOW_MANY_BAD_PAIRS_BNEXT
 
 /-- PIN `ORDEREDP-WHEN-BNEXT-CONSTANT` (bsort.lisp:57, the endgame arc's
-    2e row): the mirror of
+    2e row): the replayed statement of
       `(implies (equal (bnext x) x) (orderedp x))`
     conditional on bnext totality only. -/
 example :
@@ -107,7 +107,7 @@ example :
 #print axioms
   ReplayedStatements.replayed_sorting_bsort_ORDEREDP_WHEN_BNEXT_CONSTANT
 
-/-- PIN `ORDEREDP-BSORT` (bsort.lisp:61): the mirror of
+/-- PIN `ORDEREDP-BSORT` (bsort.lisp:61): the replayed statement of
       `(orderedp (bsort x))`
     conditional on the totalities the μ-route rides (bnext, bsort, o<,
     o-p), bnext-size's TP corollary, and the
@@ -126,7 +126,7 @@ example :
 
 #print axioms ReplayedStatements.replayed_sorting_bsort_ORDEREDP_BSORT
 
-/-- PIN `TRUE-LISTP-BSORT` (bsort.lisp:68): the mirror of
+/-- PIN `TRUE-LISTP-BSORT` (bsort.lisp:68): the replayed statement of
       `(implies (true-listp x) (true-listp (bsort x)))`
     under the same μ-route hypothesis set as ORDEREDP-BSORT. -/
 example :
@@ -144,7 +144,7 @@ example :
 
 #print axioms ReplayedStatements.replayed_sorting_bsort_TRUE_LISTP_BSORT
 
-/-- PIN `HOW-MANY-BSORT` (bsort.lisp:76): the mirror of
+/-- PIN `HOW-MANY-BSORT` (bsort.lisp:76): the replayed statement of
       `(equal (how-many e (bsort x)) (how-many e x))`
     under the μ-route set + how-many's TP corollary + the linear
     snapshot — exactly the golden row's seven conds (the cited
@@ -179,7 +179,7 @@ derive_world convertPermSweepWorld from convertPermSweepDev
 /-- PIN `HOW-MANY-RM-GENERAL` (convert-perm-to-how-many.lisp:50, the
     endgame arc's tau-slice row — exit-audit fix round: the arc's plan
     covered it but the first pin wave skipped it; the outside reviewer
-    hand-verified this exact shape): the mirror of
+    hand-verified this exact shape): the replayed statement of
       `(equal (how-many a (rm b x))
               (if (and (equal a b) (memb a x))
                   (1- (how-many a x))

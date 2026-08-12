@@ -98,13 +98,24 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   its parent while four siblings survive; re-derive freely if a
 >   future decode needs one (allowed DECODE-support content).
 
-> **VOCABULARY FOLLOW-UP (naming sweep, 2026-08-12):** the replay
-> driver still uses "mirror" to mean REPLAYED STATEMENT (class D/E of
-> the sweep report: ~95 prose hits in Replay/**, the statement pins,
-> + identifiers depMirrorProofAt / mirrorRegistryExt / mirrorConst /
-> recMirror / term_mirror_); docs/BUGS.md's BUG-019/012 prose same.
-> Correct target = replayed-statement vocabulary (NOT waypoint). One
-> mechanical pass + rebuild; batch with the next machinery-wide arc.
+> **VOCABULARY FOLLOW-UP (naming sweep, 2026-08-12) — DONE
+> 2026-08-12 (the replayed-statement pass).** The replay driver's
+> third co-opted sense ("mirror" = REPLAYED STATEMENT, class D/E of
+> the sweep report) is retired: identifiers renamed repo-wide
+> (depMirrorProofAt→depReplayedProofAt, mirrorRegistryExt→
+> replayedRegistryExt, mirrorConst→replayedConst, recMirror→
+> recReplayed, term_mirror_→term_replayed_, the `mirrors :
+> ReplayedRegistry` parameter→`replayed`, p5MirrorLog→p5Log, the two
+> spike theorems `*_mirror`→`*_replayed`), prose rewritten across
+> Replay/**, the statement pins, Imported/** residue, the root
+> modules and docs/BUGS.md (BUG-019/012; header now points at
+> docs/LEXICON.md). Every surviving "mirror" in the tree is
+> product-sense (ACL2Lean/Mirrors/, check-mirrors-pure), verb-sense
+> ("mirrors ACL2's X"), or inside a dated historical doc.
+> KNOWN RESIDUE (deliberate): `acl2_samples/**/*.lisp` book comments
+> still say "mirror" — those sources are SHA-pinned by the capture
+> sidecars, so a comment edit is a check-log-provenance SOURCE-DRIFT
+> failure; fix opportunistically at the next recapture of those books.
 
 Running backlog across all tracks. Keep this current: update when a milestone lands,
 scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`).

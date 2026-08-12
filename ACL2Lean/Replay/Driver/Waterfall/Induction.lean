@@ -170,10 +170,10 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
   let schemeFn? : Option Symbol := match ind.term with
     | .cons (.atom (.symbol f)) _ => some f
     | _ => none
-  let recMirror? := schemeFn?.bind fun f =>
+  let recReplayed? := schemeFn?.bind fun f =>
     cfg.termReplayed.find? (fun (n, _, _, _) => n == f.name)
   let μE ←
-    match recMirror?, ind.measure with
+    match recReplayed?, ind.measure with
     | some _, .cons (.atom (.symbol cnt)) (.cons (.atom (.symbol v)) .nil) =>
       -- ROUTE DISCRIMINATION (consumer-queue 2026-08-05, both directions
       -- regression-tested: BNEXT's newly-registered mirror must NOT flip
@@ -182,7 +182,7 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
       -- the registry μ applies iff the head is registry-covered AND every
       -- emitted decrease argument is destructor-chain dischargeable (the
       -- Count library's reach — the twin of the Runner's demand filter);
-      -- otherwise the recorded mirror's interpCount μ. The admission
+      -- otherwise the recorded replay's interpCount μ. The admission
       -- pre-pass demand stays WIDE (a replayed admission is its own
       -- scoreboard row) — this choice is only about the consuming
       -- induction's bookkeeping μ.
@@ -538,7 +538,7 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                   (alist.map (·.1)) (alist.map (·.2)) kit
               catch eDec =>
                 unless isFrontierErr eDec do throw eDec
-                let some (_, mc, conds, goalLits) := recMirror? | throw eDec
+                let some (_, mc, conds, goalLits) := recReplayed? | throw eDec
                 -- RECORDED IH-DECREASE fallback (sorting arc 2026-07-28):
                 -- the destructor walk cannot state this decrease (qsort's
                 -- (FILTER …) substitution); decode it from the scheme fn's

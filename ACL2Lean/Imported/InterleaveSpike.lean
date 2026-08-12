@@ -1,5 +1,5 @@
 /-
-  J1(b) SPIKE — the LEN-INTERLEAVE mirror BY HAND
+  J1(b) SPIKE — the LEN-INTERLEAVE REPLAYED STATEMENT BY HAND
   (induction-generality design §6b; RATIFIED 2026-07-16).
 
   COMPLETE (sorry-free; axioms {propext, Classical.choice, Quot.sound}) —
@@ -208,9 +208,9 @@ private theorem base_case (env : Env) (xv : SExpr)
   rw [harith] at hgoalVal
   exact evtrue_of_eq_t hgoalVal
 
-/-! ## The mirror (CONDITIONAL — the driver's telescope shapes) -/
+/-! ## The replayed statement (CONDITIONAL — the driver's telescope shapes) -/
 
-theorem len_interleave_mirror
+theorem len_interleave_replayed
     -- [driver: mkTotalityHypType INTERLEAVE 2]
     (htotal_iv : ∀ (env : Env) (a b : SExpr),
       (∃ N, ∃ v, ∀ f ≥ N, evalOpt f ivWorld env a = some v) →
@@ -446,6 +446,6 @@ theorem len_interleave_mirror
       exact base_case env .nil hshape rfl rfl
 
 -- the standing verification (must print exactly the classical trio)
-#print axioms len_interleave_mirror
+#print axioms len_interleave_replayed
 
 end ACL2.Spike.Interleave

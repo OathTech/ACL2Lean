@@ -117,7 +117,7 @@ theorem gz_rule_lexorder_transitive (w : World)
          (arithmetic-3/pass1/basic-arithmetic.lisp:109); its hand proof
          here is retired the day that book is captured and its tree
          replayed (tracked: the registry entry then becomes a
-         dependency-mirror discharge).
+         dependency-replayed-statement discharge).
     Every entry remains recompute-checked against the EMITTED spec at
     each discharge site (`dischargeGzRuleHyp`) — the criterion governs
     which rules may have prelude constants at all, not their trust. -/

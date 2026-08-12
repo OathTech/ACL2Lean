@@ -68,7 +68,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     for (fn, tcp) in ACL2.Replay.Runner.recordedTerminationDefuns
         dev.justifications dev do
       let base := String.map (fun c => if c.isAlphanum then c else '_')
-        s!"term_mirror_{worldName}_{fn}"
+        s!"term_replayed_{worldName}_{fn}"
       let mName := Name.mkStr2 "ReplayedTermination" base
       let condsName := Name.mkStr2 "ReplayedTermination" s!"{base}_conds"
       -- CACHE-KEY HAZARD (audit 2026-07-31 inside finding 2, same
@@ -122,15 +122,15 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
     let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
       (mkConst worldName) env termReplayed
-    let mirrors : ACL2.Replay.Driver.ReplayedRegistry :=
-      ((mirrorRegistryExt.getState (← getEnv)).filterMap
+    let replayed : ACL2.Replay.Driver.ReplayedRegistry :=
+      ((replayedRegistryExt.getState (← getEnv)).filterMap
         fun (wn, thm, decl, conds) =>
           if wn == worldName then some (thm, decl, conds) else none)
     let (proof, conds) ← replayProofConditional cfg ch.tps cp
       dev.justifications
       (ACL2.Replay.Runner.combineRules
         (Driver.rulesBefore dev nm.getString) ch.crossRules) ch.depProofs
-      mirrors
+      replayed
       (equivRefls := ch.equivRefls) (termReplayed := termReplayed)
       (congTrees := some ch.localTrees)
     -- register the enclosing definition for later same-world consumers.
@@ -142,17 +142,17 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     -- ASSUMED guard (remediation verifier N1, 2026-08-05): this path
     -- registers conds verbatim, bypassing `tryReplay`'s choke point — an
     -- ASSUMED:dp-fact condition states an obligation over
-    -- independently-quantified opaques that can be FALSE, so a mirror
+    -- independently-quantified opaques that can be FALSE, so a replayed statement
     -- carrying it must never be registered (same policy as the sweep;
     -- the with_termination sub-path already fails loudly via reg? none).
     if conds.contains assumedDpFactCond || conds.contains assumedFiSelfCond then
       throwError "driver_replayed%: the replay is conditional on an \
         ASSUMED hypothesis (an unproved dp-fact, or a self-vacuous kept \
         usefi — audit 2026-08-09 outside D1) — \
-        refusing to register the mirror; fix the leaf's emission instead"
+        refusing to register the replayed statement; fix the leaf's emission instead"
     if let some declName ← Lean.Elab.Term.getDeclName? then
       Lean.modifyEnv fun e =>
-        mirrorRegistryExt.addEntry e (worldName, cp.name, declName, conds)
+        replayedRegistryExt.addEntry e (worldName, cp.name, declName, conds)
     Meta.mkLambdaFVars #[env] proof
 
 /-- `parametric_replayed% dev "thm-name" [deps […]]` — the PARAMETRIC
@@ -178,7 +178,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     so the model class is "worlds satisfying the stored rules", a
     subset of the bare-constraint models; concrete instantiations
     discharge it since the concrete rule replay produces exactly this
-    shape). NOT registered in the mirror registry: the artifact's
+    shape). NOT registered in the replayed registry: the artifact's
     consumer is the R7b instantiation (Phase 3), not same-world replay
     composition. -/
 elab "parametric_replayed%" devId:ident nm:str

@@ -371,8 +371,8 @@ theorem boolean_biimpl_eq {va vb : SExpr}
 
 ACL2's notion of clause/theorem truth is *the term is non-nil*; the exact-t
 form is strictly stronger (they coincide only on boolean-valued terms, and
-the exact-t mirror is false-as-stated for non-boolean formulas). G2 states
-the CLAUSE and MIRROR judgments as `EvTrue`; exact-t facts survive at the
+the exact-t replayed statement is false-as-stated for non-boolean formulas). G2 states
+the CLAUSE and REPLAYED-STATEMENT judgments as `EvTrue`; exact-t facts survive at the
 VALUE level and inject at the clause boundary (`evtrue_of_eq_t`). The
 quantifier shape matches `EvRel` (∃N∀f∃v), so the G1 iff layer transports
 `EvTrue` directly (`evtrue_of_evrel_siff`) with no boolean-valuedness side

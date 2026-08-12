@@ -142,7 +142,7 @@ def builtinNames : List String :=
     provable (fail-closed audit 2026-07-06, F15; matches the already-`none`
     unknown-builtin/arity arms F13/F14). The one DELIBERATE total default
     that stays: an UNBOUND VARIABLE evaluates to `nil` (`t` to itself) —
-    that is the total-env modeling choice the `∀ env` mirror-statement form
+    that is the total-env modeling choice the `∀ env` replayed-statement form
     relies on (an env that omits a theorem variable behaves as binding it
     to `nil`), mirroring ACL2's total logical semantics, NOT a fail-open
     default. -/
@@ -542,7 +542,7 @@ theorem evalOpt_ge_fuel (N f : Nat) (w : World) (env : Env)
 /-! ## World monotonicity (external-knowledge design §D2, WP5)
 
 A convergent evaluation over `w1` transfers to an EXTENSION `w2` — the
-cross-book lemma (a mirror proved over an included book's world, used in a
+cross-book lemma (a replayed statement proved over an included book's world, used in a
 proof over the including book's larger world). `hnew` is NOT bureaucracy:
 world-FIRST dispatch means a `w2` def for a name that `w1` resolved via
 `callBuiltin` (e.g. `LEN`) would send the two evaluations down different

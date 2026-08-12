@@ -238,7 +238,7 @@ def equivOwnPosCongr (cfg : ReplayConfig) (ctx : ReplayCtx)
     equivalence R (`:EQUIV perm` — qsort's ORDEREDP-QSORT applying
     PERM-QSORT at ALL-REL's arg 2). The R-payload lives for exactly ONE
     frame: the emitted :PATH's innermost frame is the congruence position,
-    where the replayed defcong mirror converts it to an eval-EQUALITY of the
+    where the replayed defcong statement converts it to an eval-EQUALITY of the
     parent applications — everything outward lifts as ordinary equality.
     Mechanism, all value-level and premise-free:
     - the stored R-rule's hypothesis (the interpreted-relation shape,

@@ -62,7 +62,7 @@ def translateSymbol (s : Symbol) : String :=
 /-- Escape `\` and `"` for splicing text into a GENERATED Lean string
     literal. ACL2 `|…|`-symbols and strings may contain both characters
     (the parser reads them raw); splicing unescaped can silently produce a
-    *different* well-formed literal — a mirror statement over a corrupted
+    *different* well-formed literal — a replayed statement over a corrupted
     constant (fail-closed audit 2026-07-06, N6). -/
 def escapeStringLit (s : String) : String :=
   (s.replace "\\" "\\\\").replace "\"" "\\\""

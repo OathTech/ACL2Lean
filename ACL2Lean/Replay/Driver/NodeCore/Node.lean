@@ -785,7 +785,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
   | "rewrite", _ =>
     -- USER rewrite rule (with-lemma): the THEOREM-DEPENDENCY recipe
     -- (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). The node
-    -- consumes the bound `rule:<thm>` hypothesis — the STORED rule's mirror —
+    -- consumes the bound `rule:<thm>` hypothesis — the STORED rule's replayed statement —
     -- instantiated strictly by the emitted :SUBST; hypothesis relief comes
     -- from the recorded :KIND HYP chain or the clause context, never
     -- re-searched. (The built-in-axiom runes above keep their hand recipes —
@@ -1093,7 +1093,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let pB ← bridge h
       prems := prems.push
         (← mkAppM ``evtrue_of_fuel_eq #[← mkAppM ``fuel_eq_symm #[pB], evTrueEnv])
-    -- the rule's mirror at env', premises applied, bridged back to the node:
+    -- the rule's replayed statement at env', premises applied, bridged back to the node:
     -- eval env lhs ≡ eval env' rule.lhs ≡ eval env' rule.rhs ≡ eval env rhsσ
     -- [≡ eval env rhs, by the recorded RHS-block chain when one exists]
     let hRule := mkAppN (mkApp hypV env') prems

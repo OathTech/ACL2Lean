@@ -87,7 +87,7 @@ structure ReplayConfig where
       (verdict-only) — instantiated by max-term match against the
       obligation's opaques, backed by the `linear:` hypothesis class. -/
   linearRules : List LinearRuleSpec := []
-  /-- RECORDED-TERMINATION mirrors (sorting arc 2026-07-28): per defun with
+  /-- RECORDED-TERMINATION replayed statements (sorting arc 2026-07-28): per defun with
       a replayed admission waterfall, its replayed-statement constant, condition names,
       and root goal clause. Consumed by the totality prover (via the
       threaded `buildTotalEnv` params) AND the theorem-side induction's
@@ -452,7 +452,7 @@ structure ReplayCtx where
       (`dpFactStmtOfClause`). Consulted by `replayDischargeNode` when the
       obligation is unprovable — the row then reports ASSUMED:dp-fact. -/
   dpFactHyps : List (SExpr × Expr) := []
-  /-- The bound CONDITIONAL hypotheses (the generic mirror's telescope):
+  /-- The bound CONDITIONAL hypotheses (the generic replayed statement's telescope):
       per defined fn, its totality hypothesis; and — when the development emitted
       a :TYPE-PRESCRIPTION — its lifted-corollary hypothesis (with the corollary
       term). The pinning step consumes these. -/
@@ -466,7 +466,7 @@ structure ReplayCtx where
   tpHypsAv : List (String × SExpr × Expr) := []
   /-- Theorem-dependency hypotheses (`rule:<thm>`, the third telescope
       species): per emitted STORED rewrite rule, the spec and the bound
-      hypothesis stating its mirror (`mkRuleHypType`). Consumed by the
+      hypothesis stating its replayed statement (`mkRuleHypType`). Consumed by the
       with-lemma node recipe; discharged lazily from the dependency's own
       replayed statement (docs/plans/2026-07-05_theorem-dependency-hypotheses.md). -/
   ruleHyps : List (RuleSpec × Expr) := []
@@ -479,7 +479,7 @@ structure ReplayCtx where
   linearHyps : List (LinearRuleSpec × Expr) := []
   /-- Congruence-rule hypotheses (`cong:<thm>`, G2 rung 2): per
       congruence-shaped in-scope defthm, the spec and the bound hypothesis
-      stating its whole-formula mirror (`mkCongHypType`). Consumed by the
+      stating its whole-formula replayed statement (`mkCongHypType`). Consumed by the
       R-collapse at a user-equivalence step's congruence frame; discharged
       lazily from the dependency's replayed statement like `rule:` hyps. -/
   congHyps : List (CongSpec × Expr) := []
