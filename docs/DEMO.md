@@ -16,19 +16,22 @@ minutes; stop 4 is optional and goes downward, into the machinery.
 **Read: [`ACL2Lean/Imported/Mirrors/Showcase.lean`](../ACL2Lean/Imported/Mirrors/Showcase.lean)**
 
 The front door. Its header is the **trust map** in three tiers — what you must
-read and believe (the kernel; the statements themselves; and, for the word
-"imported" to mean anything, that our Lean `isortL` really is ACL2's `isort` —
-an *authenticity* question, resting on the semantic core and the encoders),
-what is untrusted-but-kernel-checked (all of ACL2, our instrumentation, the
-parser, the tree reconstruction, the replay driver), and what is assumed
-(exactly 20 `sorry`s, enumerated by class with each class's unlock).
+read and believe (the kernel; the statements themselves; and that the Lean
+definitions they mention — `isortL`, `qsortL`, … — are the sorting functions
+*you* mean, which you check by reading them, exactly as in any Lean
+development), what is untrusted-but-kernel-checked (all of ACL2, our
+instrumentation, the parser, the tree reconstruction, the replay driver, the
+semantic core, and the encoders), and what is assumed (exactly 20 `sorry`s,
+enumerated by class with each class's unlock).
 
-The split matters and the page is careful about it: **nothing in the pipeline
-can make a statement here false** — the kernel has checked each one. What a
-bug *can* do is leave a true Lean theorem that is not the ACL2 theorem it is
-presented as. Truth is the kernel's job; authenticity is enforced separately
-(source-hash provenance, per-book statement pins, differential testing of the
-interpreter, audits).
+The point the page is careful about: **you do not need to trust — or care —
+what ACL2 does.** ACL2 is the untrusted proof-search oracle; a bug anywhere in
+the import pipeline, including our transcriptions of ACL2's functions simply
+being the wrong functions, can only make a proof *fail to exist* — it cannot
+make a statement on the page false. "Imported" is *attribution* (how the proof
+was found), not a premise; the provenance hashes, statement pins, and
+differential harness keep the import route healthy and honestly attributed,
+not the theorems true — the kernel alone does that.
 
 Then the headline results, each a one-line restatement of an already-proved
 constant, each followed by a `#guard_msgs`-pinned axiom receipt so its exact

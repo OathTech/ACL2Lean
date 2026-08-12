@@ -24,45 +24,50 @@ Reader path: `docs/DEMO.md`.
   catalog's CRITERION-1 GATE mechanizes exactly that ban on the
   constants restated here. Read them; as *Lean theorems* they are the
   whole claim, and the kernel has checked every one.
-* **That those Lean functions really are ACL2's.** This is the extra
-  belief the word "imported" carries, and it is a question of
-  AUTHENTICITY, not of truth. `isortL` is OUR transcription of the
-  `isort` in `acl2/books/sorting/isort.lisp`; believing the headline
-  below is a statement *about ACL2's insertion sort* means trusting
-  (a) the `defun` body constants in `Sims.lean` against the `.lisp`
-  source, (b) the **semantic core** — `SExpr`, `Logic`, `evalOpt` —
-  as a faithful model of ACL2, and (c) the **encoders** of
-  `Imported/Lifting.lean` (`enc`/`boolEnc`/`intRep`). Those are
-  separately enforced, never by the kernel: source-hash provenance on
-  every proof log (`scripts/check-log-provenance.sh`), hand statement
-  pins per book (`Tests/SortingPins.lean`), differential testing of
-  the interpreter against real ACL2 (`just diff-test`), and audits.
+* **That the definitions are the ones you want.** `isortL`, `qsortL`,
+  `msortL` are ordinary Lean definitions in `Sims.lean` — read them
+  and satisfy yourself they are the sorting functions YOU mean,
+  exactly as you would for any Lean development. That is the whole
+  obligation. You do NOT need to trust — or care — what ACL2's
+  functions do: ACL2 is this project's untrusted proof-search oracle,
+  and its relationship to these definitions is an engineering
+  question (whether the replay route can construct the proofs below),
+  never a premise of the theorems.
 
 **2. UNTRUSTED BUT KERNEL-CHECKED — a bug here CANNOT make a statement
 here false; it makes the build fail.**
 
 All of ACL2's proof search, our ACL2 instrumentation (the `acl2/`
 fork's proof-log emission), the proof-log parser, the proof-tree
-reconstruction, and the replay driver that turns a recorded ACL2
-clause tree into a Lean `Expr`. Each theorem below is a kernel-checked
-proof term; the pipeline only ever *proposes* one. The same holds of
-tier 1's semantic core and encoders: a bug in either cannot falsify a
-statement here, it can only leave a TRUE statement that is not the
-ACL2 theorem it is presented as. That is exactly why tier 1 splits
-truth from authenticity.
+reconstruction, the replay driver that turns a recorded ACL2 clause
+tree into a Lean `Expr` — and equally the **semantic core** (`SExpr`,
+`Logic`, `evalOpt`) and the **encoders** (`enc`/`boolEnc`/`intRep`)
+the route runs through. Each theorem below is a kernel-checked proof
+term; the pipeline only ever *proposes* one. A bug anywhere in it —
+including our transcriptions of the ACL2 functions simply being the
+wrong functions — can make a proof FAIL TO EXIST; it cannot make a
+statement on this page false.
 
-The ACL2 seam is mechanized: the catalog's SEAM GATE requires each
-native's proof to consume its own `driver_replayed%` constant, so a
-"mirror" cannot quietly detach from the ACL2 proof it claims to
-import. Known limit, stated in the gate itself: it rules out
-DETACHMENT, not MIS-PAIRING (a proof reaching a *different* book's
-replayed statement would pass) — seam pairings stay an audit item.
+The "imported" label is ATTRIBUTION, not a premise: it records how
+each proof was found (ACL2 searched; we replayed; the kernel
+checked). The catalog's SEAM GATE keeps the attribution honest —
+each native's proof must consume its own `driver_replayed%` constant,
+so a "mirror" cannot quietly detach from the ACL2 proof it credits
+(known limit, stated in the gate: detachment, not mis-pairing). The
+source-hash provenance, per-book statement pins, and the differential
+harness likewise serve the import route's HEALTH — keeping replay
+working and honestly attributed — not the truth of this page.
 
 **3. VISIBLE DEBT — what is assumed, and where it is written down.**
 
-Exactly **20** `sorry`s exist in the whole library, all of them
-statements ACL2 *did* discharge but whose replay route is not wired
-yet. They are quarantined and registered, never scattered:
+Exactly **20** `sorry`s exist in the whole library. Each is a
+self-contained statement about our own semantic model, ASSUMED for
+now — the one place a falsehood COULD enter a `sorryAx`-marked entry
+below, which is why they are surfaced rather than hidden. (ACL2 did
+discharge every one; that is the evidence they are true and the
+reason each has a mechanical replay unlock — but on this page the
+honest word is: assumed.) They are quarantined and registered, never
+scattered:
 
 * 12 in `ACL2Lean/Imported/Sorting/Debt.lean` — the sorting books'
   dischargers. That file IS the list.
