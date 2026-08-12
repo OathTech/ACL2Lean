@@ -2,6 +2,8 @@
 -- THE MIRRORS (the product layer): pure-Lean specs/theorems, zero ACL2
 import ACL2Lean.Mirrors.Basics
 import ACL2Lean.Mirrors.Sorting
+-- MIRROR PROOFS: the Props proved via replay (placement ruled 2026-08-12)
+import ACL2Lean.MirrorProofs.Basics
 import ACL2Lean.Syntax
 import ACL2Lean.Parser
 import ACL2Lean.Import
