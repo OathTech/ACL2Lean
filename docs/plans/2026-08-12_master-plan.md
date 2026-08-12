@@ -34,18 +34,42 @@ universe (`SExpr`). The mirror Props are polymorphic over
 
 ## PHASE A — the pathfinder (prove the route, minimal scope)
 
-`insertionSort_sorted` + `insertionSort_perm` AT `Int`, end-to-end:
-- A1. `Acl2Embed Int` (intRep exists waypoint-side) + the core-logic
+RE-SCOPED (Mike, 2026-08-12 — the narrow-slice method): the pathfinder
+runs on `Mirrors/Basics.lean` (len/app/rev/revAcc — the project's
+original examples), NOT sorting. The basics slice has NO order
+dimension, so the transfer kit's core (refinement relation, relator,
+operation squares, skeleton-induction transport) is built on pure
+structure; sorting then widens the aperture by exactly one dimension
+(TotalOrder + the lexorder embedding).
+
+- A0. `Mirrors/Basics.lean` (DONE): our own len/app/rev/revAcc, six
+  book properties as Props. Waypoint rows: APP-ASSOC green CLEAN,
+  MY-LEN-MY-APP + LEN-REV-ACC green (TP debt), the rev family
+  pending (named frontiers).
+- A1. **`app_assoc` end-to-end FIRST** — its waypoint is already
+  unconditional and trio-clean, so the first mirror theorem lands
+  with zero inherited debt: the refinement relation (element-opaque
+  List relator + enc), the app square, theorem transport. THE
+  route-proof.
+- A2. `len_app` — adds the Nat-result reading (count/len transport)
+  and the honest debt inheritance (drv_tp_mylen, surfaced).
+- A3. `len_revAcc` — the ACCUMULATOR (def-acc, the original
+  example): the template gate's decisive case at mirror level;
+  industrialize what A1-A3 hand-built (the kit's first generated
+  squares) to north-star quality BEFORE sorting.
+- A4 (formerly the whole phase): sorting's `insertionSort_sorted` +
+  `insertionSort_perm` at `Int` — now the aperture-widening slice:
+  - `Acl2Embed Int` (intRep exists waypoint-side) + the core-logic
   restriction lemma (`lexorder` on int atoms ≡ `Int.≤` — belongs
   next to LexorderOrder.lean).
-- A2. The mirror-iso: `insertionSort`/`insertSorted` (mirror) ↔
+  - The mirror-iso: `insertionSort`/`insertSorted` (mirror) ↔
   `isortL`/`insertL` (waypoint) along the embedding — HAND-WRITTEN
   this once, template-shaped deliberately (it becomes the
   generator's T1 spec in Phase C).
-- A3. Predicate transport: mirror `Sorted` ↔ waypoint chain
+  - Predicate transport: mirror `Sorted` ↔ waypoint chain
   (`orderedpRec`), mirror `Permuted`/`count` ↔ waypoint
   `howManyL`/perm layer — same iso discipline.
-- A4. The theorems: derived from the ISORT waypoint theorems
+  - The theorems: derived from the ISORT waypoint theorems
   (replayed-backed) through A1–A3. Product discipline: content from
   replay only; glue only; no library lemmas (none exist for our
   predicates — by construction).
