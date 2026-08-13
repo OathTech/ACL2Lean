@@ -168,12 +168,15 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/convert-perm-to-how-many", "HOW-MANY-RM-GENERAL",
     .native ``how_many_rm_general_native_driver
       ``howManyRmGeneralReplayedCond),
+  -- PROMOTED to `.native` 2026-08-13 (the ATOM-leg increment): its last
+  -- debt, total:PERM-COUNTER-EXAMPLE / `dis_pce_total`, retired by the
+  -- replay route, so the row is unconditional and the axiom gate's
+  -- sorryAx REQUIREMENT (which fired on this entry) is satisfied by the
+  -- promotion.
   ("sorting/convert-perm-to-how-many",
     "PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS",
-    .nativeSorried ``pce_is_counterexample_native_driver
-      ``pceIsCounterexampleReplayedCond
-      "total:PERM-COUNTER-EXAMPLE (dis_pce_total; unlock: \
-       with_termination coverage — REQUIRED class)"),
+    .native ``pce_is_counterexample_native_driver
+      ``pceIsCounterexampleReplayedCond),
   ("sorting/convert-perm-to-how-many", "TRUE-LISTP-RM",
     .replayedOnly "subsumed by the rm simulation: `true-listp` restricts \
       the input to the enc image (exists_enc_of_trueListp), where \
@@ -292,13 +295,46 @@ def liftCatalog : List (String × String × LiftStatus) := [
       as premises (pinned in Tests/ParametricPins.lean), which Phase \
       3's functional instantiation consumes; a \
       witness-level native is the banned masquerade"),
-  -- sorts-equivalent capstones (MSORT/QSORT/BSORT-IS-ISORT): NO entries —
-  -- their rows REGRESSED to ASSUMED under the thin-Lean purge
-  -- (2026-08-11: the usefi pre-pass lost its forbidden Lean-side
-  -- dischargers; the honest offer route carries usefi + fi-self
-  -- markers). The catalog tracks GREEN rows only; the entries (and the
-  -- retired statement pins) return when the REQUIRED-class admission
-  -- coverage + TP-replay discharge re-green the rows.
+  -- sorts-equivalent capstones (MSORT/QSORT/BSORT-IS-ISORT): the
+  -- entries RETURN 2026-08-13. They were parked when the rows regressed
+  -- to ASSUMED under the thin-Lean purge (2026-08-11: the usefi pre-pass
+  -- lost its forbidden Lean-side dischargers). The ATOM-leg increment
+  -- re-greened all three — the usefi discharge succeeds now that PCE's
+  -- admission replays — so the lift-coverage gate demands a decision
+  -- again. HONEST STATUS: `.pending` for all three. No capstone waypoint
+  -- native exists (there is no `msortL xs = isortL xs` decode in the
+  -- layer, and inventing one to satisfy the gate would be exactly the
+  -- fake this catalog exists to prevent); the pre-purge entries were
+  -- `.pending` too, and their old text is superseded because the usefi
+  -- blocker it named is gone.
+  ("sorting/sorts-equivalent", "MSORT-IS-ISORT",
+    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13 \
+      — the FI of the equisort parametric theorem at msort/isort now \
+      replays; its row conds are total:MERGE2, total:MSORT, \
+      rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY). The waypoint \
+      native (`msortL xs = isortL xs`) is NOT BUILT — queued behind the \
+      mirror buildout; when built it would be `.nativeSorried` on the \
+      REQUIRED-class merge2/msort admission debt plus the R-lane's \
+      dis_convert_perm. Statement pin: Tests/SortingPins"),
+  ("sorting/sorts-equivalent", "QSORT-IS-ISORT",
+    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13; \
+      row conds total:QSORT, total:O<, tp:QSORT, tp:ACL2-COUNT, \
+      rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY, the three \
+      arithmetic/if-lift gz rules, rule:HOW-MANY-FILTER-1, \
+      rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND). The waypoint native \
+      (`qsortL xs = isortL xs`) is NOT BUILT — queued behind the mirror \
+      buildout; tp:QSORT and tp:ACL2-COUNT are the arc's named honest \
+      survivors (fork-emission items). Statement pin: Tests/SortingPins"),
+  ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
+    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13; \
+      row conds total:BNEXT/BSORT/O</O-P, rule:TRUE-LISTP-RM, \
+      rule:CONVERT-PERM-TO-HOW-MANY, rule:ORDEREDP-ISORT, \
+      rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BNEXT, rule:TRUE-LISTP-BSORT, \
+      rule:HOW-MANY-BSORT, linear:HOW-MANY-BAD-PAIRS-BNEXT — the \
+      linear: class still has no unlock, cf HOW-MANY-BSORT). The \
+      waypoint native (`true-listp xs → bsortL xs = isortL xs`) is NOT \
+      BUILT — queued behind the mirror buildout AND the bsort exec kit. \
+      Statement pin: Tests/SortingPinsEndgame"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),
@@ -307,25 +343,22 @@ def liftCatalog : List (String × String × LiftStatus) := [
       against the CURRENT golden, mirror wave 2026-08-11; the previous \
       text also cited use:PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS, which \
       is STALE — that cond is gone and that row is now green). The \
-      row's conds are cond[total:PERM-COUNTER-EXAMPLE, \
-      tp:TLFIX, rule:PERM-TLFIX] (tp:HOW-MANY was retired by the \
-      replay route, TP-replay arc increment 1 2026-08-12). \
-      total:PERM-COUNTER-EXAMPLE has registered debt \
-      (dis_pce_total); `tp:TLFIX` has no discharger \
-      (not minted — see the WHY-NOT-MINTED note on \
-      HOW-MANY-BAD-PAIRS-BNEXT); and `rule:PERM-TLFIX`'s ONLY \
+      row's conds are now cond[rule:PERM-TLFIX] — a SINGLE blocker \
+      (tp:HOW-MANY was retired by the replay route, TP-replay arc \
+      increment 1 2026-08-12; total:PERM-COUNTER-EXAMPLE by the \
+      ATOM-leg increment, 2026-08-13). `rule:PERM-TLFIX`'s ONLY \
       criterion-clean discharger is PERM-TLFIX's own replayed \
       statement — whose row is RED, verbatim: \"PERM-TLFIX → FAIL: \
       replayNode: rune (rewriting-equivalence, NIL) applied under \
       equivalence perm — R-parameterized recipe pending (G1 \
-      frontier)\". A Lean-side bridge for either would be a new \
+      frontier)\". A Lean-side bridge would be a new \
       content discharger (banned) / the ornamental-import antipattern. \
       NOT blocked on simulation work: the PCE kit \
-      (pceExec/pce_exec_corr/dis_pce_total/pceExec_enc) exists and the \
-      book's own PCE row is now a landed native (the ELEMENT reading, \
-      ruled 2026-08-11). UNLOCK: the R-lane arc (the \
-      R-parameterized rewriting-equivalence recipe) greens PERM-TLFIX, \
-      plus TP-replay discharge for tp:TLFIX"),
+      (pceExec/pce_exec_corr/pceExec_enc) exists — its \
+      `dis_pce_total` companion is GONE, retired by the replay route — \
+      and the book's own PCE row is now a landed native (the ELEMENT \
+      reading, ruled 2026-08-11). UNLOCK: the R-lane arc (the \
+      R-parameterized rewriting-equivalence recipe) greens PERM-TLFIX"),
   ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),
@@ -441,7 +474,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "HOW-MANY-QSORT", .nativeSorried ``how_many_qsort_native_driver ``howManyQsortReplayedCond
       "total:O< (dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT (dis_acl2_count_tp)"),
   ("sorting/qsort", "PERM-QSORT", .nativeSorried ``perm_qsort_native_driver ``permQsortReplayedCond
-      "total:PCE/O< (dis_pce_total, dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the R-lane arc)"),
+      "total:O< (dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the R-lane arc); total:PERM-COUNTER-EXAMPLE retired by the replay route, TP-replay arc's ATOM-leg increment 2026-08-13"),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-1", .native ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-2", .native ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond),
@@ -449,7 +482,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
   ("sorting/qsort", "ORDEREDP-QSORT", .nativeSorried ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond
-      "totals (REQUIRED) + tp:ACL2-COUNT (dis_acl2_count_tp) + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm); tp:ALL-REL retired by the replay route and rule:ORDEREDP-APPEND's wrapper is CLEAN as of TP-replay arc increments 4-5, 2026-08-13; unlock: the ACL2-COUNT tp + the R-lane"),
+      "total:O< (dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT (dis_acl2_count_tp) + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm); tp:ALL-REL retired by the replay route and rule:ORDEREDP-APPEND's wrapper is CLEAN as of TP-replay arc increments 4-5, and total:PERM-COUNTER-EXAMPLE by the ATOM-leg increment, 2026-08-13; unlock: the ACL2-COUNT tp + the R-lane"),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
 /-- SEAM REACHABILITY — the ONE copy (R4, gate-cruft review 2026-08-11;
@@ -587,32 +620,32 @@ run_cmd Lean.Elab.Command.liftCoreM do
   -- (3) THE EQUISORT RECEIPTS (R5, gate-cruft review 2026-08-11): the
   -- four capstone constants' axiom sets, moved here from the
   -- `#guard_msgs` pins in `Waypoints/EquisortParametric.lean` (they are
-  -- axiom receipts, not statement pins — one home for axiom facts). The
-  -- Parametric pair is the first-class artifact and must stay clean; the
-  -- AtCanonical pair is sorry-backed through the `totals [...]`
-  -- FORBIDDEN-DEBT dischargers, and its `sorryAx` is REQUIRED so the
-  -- debt cannot retire unnoticed.
+  -- axiom receipts, not statement pins — one home for axiom facts).
+  -- ALL FOUR are trio-clean as of 2026-08-13: the Parametric pair are
+  -- the first-class artifacts, and the AtCanonical pair — sorry-backed
+  -- from the thin-Lean purge until the ATOM-leg increment drained its
+  -- last debt — is now the FULLY-BACKED non-vacuity witness.
   for n in [``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric,
-            ``ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2Parametric] do
+            ``ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2Parametric,
+            -- PROMOTED 2026-08-13 (the ATOM-leg increment): the
+            -- AtCanonical pair's last FORBIDDEN-DEBT discharger
+            -- (`dis_pce_total`) retired, its `totals [...]` clause is
+            -- gone, and the sorryAx REQUIREMENT below duly failed the
+            -- build and forced this review — the promotion-forcing gate
+            -- working as designed. The NON-VACUITY WITNESSES ARE NOW
+            -- FULLY BACKED: every discharged premise of these two
+            -- instantiations arrives by replay.
+            ``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2AtCanonical,
+            ``ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2AtCanonical] do
     let axs ← collectAxioms n
     let bad := axs.filter (fun a => !allowed.contains a)
     unless bad.isEmpty do
-      throwError "equisort receipt: parametric constant {n} uses \
-        forbidden axioms {bad} — the parametric capstones are the \
-        first-class artifacts and must stay trio-clean"
-  for n in [``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2AtCanonical,
-            ``ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2AtCanonical] do
-    let axs ← collectAxioms n
-    let bad := axs.filter (fun a =>
-      !allowed.contains a && a != ``sorryAx)
-    unless bad.isEmpty do
-      throwError "equisort receipt: {n} uses forbidden axioms {bad}"
-    unless axs.contains ``sorryAx do
-      throwError "equisort receipt: {n} carries NO sorryAx — its \
-        FORBIDDEN-DEBT backing (the `totals [...]` dischargers) is \
-        retired, so the constant is now fully backed: PROMOTE it (drop \
-        it to the trio-clean list above) and re-review the non-vacuity \
-        claim in EquisortParametric.lean"
+      throwError "equisort receipt: {n} uses forbidden axioms {bad} — \
+        the parametric capstones are the first-class artifacts and the \
+        AtCanonical pair is their fully-backed non-vacuity witness; \
+        all four must stay trio-clean. A NEW debt under one of them \
+        must be registered and the constant moved back to a \
+        sorryAx-required list, never left here."
 
 -- CRITERION-1 GATE — DELETED (two-category ruling, 2026-08-12).
 -- It policed the statement VOCABULARY of the waypoint layer as if
@@ -656,11 +689,14 @@ run_cmd Lean.Elab.Command.liftCoreM do
     -- (`dis_all_rel_tp` RETIRED by the replay route, TP-replay arc
     -- increment 4, 2026-08-13 — the arity-3 assembly; `dis_append_tp`
     -- RETIRED by increment 5 — the ARGS-VALUED corollary shape)
+    -- (`dis_pce_total` RETIRED by the replay route, TP-replay arc's
+    -- ATOM-leg increment, 2026-08-13: PCE's emitted termination clause
+    -- rules on `(ATOM X)`, which the branch-fact coverage rule now
+    -- reads as `(not (consp X))` — the FIRST REQUIRED-class retirement)
     [``ACL2.Worlds.Sorting.dis_acl2_count_tp,
      ``ACL2.Worlds.Sorting.dis_merge2_total,
      ``ACL2.Worlds.Sorting.dis_msort_total,
      ``ACL2.Worlds.Sorting.dis_o_lt_total,
-     ``ACL2.Worlds.Sorting.dis_pce_total,
      ``ACL2.Worlds.Sorting.dis_bnext_total,
      -- (`dis_how_many_smaller_tp` RETIRED by the replay route,
      -- TP-replay arc increment 1, 2026-08-12; the MINTED

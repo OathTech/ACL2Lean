@@ -58,8 +58,7 @@ def strongSsortfn1IsSsortfn2Parametric := parametric_replayed% equisortDev
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 
 /-! ## The canonical-world instantiations (Phase 3 queue item 1 — the
-PARTIAL non-vacuity witnesses; wording corrected per the close-out
-audit, inside M1 / outside O-4)
+non-vacuity witnesses; FULLY BACKED as of 2026-08-13)
 
 Applying each parametric constant at the equisort canonical world with
 all but TWO premises discharged kernel-checked: the no-shadows by
@@ -72,7 +71,17 @@ established): `hrule_CONVERT-PERM-TO-HOW-MANY` (the PCE-chain/R-lane
 deferral) and `husethm_ORDERED-PERMS` (its dep tree's tau dp-facts) —
 see the deferral log's D1 close-out update. This remains the first
 exercise of the R7b "apply at a model" move the sorts-equivalent
-capstones need. -/
+capstones need.
+
+MILESTONE (2026-08-13, the TP-replay arc's ATOM-leg increment): both
+witnesses are now FULLY BACKED — every discharged premise arrives by
+replay, with NO sorry-backed discharger anywhere underneath. The
+`totals [ACL2.Worlds.Sorting.dis_pce_total]` clauses are GONE (the
+clause is optional, and its list is now empty): `dis_pce_total` was the
+last FORBIDDEN-DEBT discharger these constants consumed, and it was
+deleted when the ATOM leg let PCE's admission replay. The two KEPT
+hypotheses above are unchanged — they are honest premises of the
+declared constants, not debt. -/
 
 derive_world equisortWaypointsWorld from equisortDev
 
@@ -82,31 +91,36 @@ set_option maxHeartbeats 12000000 in
 def weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
   weakSortfn1IsSortfn2Parametric equisortDev equisortWaypointsWorld
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
-  totals [ACL2.Worlds.Sorting.dis_pce_total]
 
-/-! The AtCanonical witnesses are SORRY-BACKED since the thin-Lean purge
-(2026-08-11, audit fix F1): the `totals [...]` dischargers above are
-FORBIDDEN-DEBT sorries, so the non-vacuity claim these constants make
-is conditional on that debt. The Parametric constants above stay
-trio-clean (the first-class artifacts, per the catalog's equisort
-entries). All four axiom sets are gated by the CATALOG AXIOM GATE
+/-! The AtCanonical witnesses are TRIO-CLEAN as of 2026-08-13 — the
+non-vacuity witnesses these constants carry are now FULLY BACKED by
+replay, with no FORBIDDEN-DEBT anywhere underneath.
+
+THE ROUTE HERE (the record of how the debt drained, one shape per
+increment — every one of them a DELETION plus a replay route, never a
+Lean re-proof): the pair was SORRY-BACKED from the thin-Lean purge
+(2026-08-11, audit fix F1), when its `totals [...]` dischargers were
+FORBIDDEN-DEBT sorries. TP-replay arc increment 1 (2026-08-12) removed
+`dis_how_many_tp` (`tp:HOW-MANY` by the BINARY-+ return path);
+increment 2 removed `dis_sortfn1_insert_tp` / `dis_ssortfn1_insert_tp`
+(the CONS return-path shape); increment 3 (2026-08-13) removed
+`dis_sortfn1_tp` / `dis_ssortfn1_tp` (the CALLEE-TP shape), leaving
+exactly one — `dis_pce_total`, PERM-COUNTER-EXAMPLE's admission
+totality. The ATOM-leg increment (2026-08-13) removed that one too:
+PCE's emitted termination clause rules on `(ATOM X)`, which the
+branch-fact coverage rule now reads as `(not (consp X))`, so the
+admission replays and the whole `totals` clause disappears.
+
+The Parametric constants above stay trio-clean as ever (the
+first-class artifacts, per the catalog's equisort entries). All four
+axiom sets are gated by the CATALOG AXIOM GATE
 (`Waypoints/Catalog.lean` — one home for axiom facts; the local
 `#guard_msgs` receipts were retired there by the gate-cruft review,
-2026-08-11 R5): it REQUIRES `sorryAx` on this pair, so when the debt
-retires (TP-replay discharge / with_termination coverage) the gate
-fails and forces the promotion review at which these witnesses become
-fully-backed again. (TP-replay arc increment 1, 2026-08-12: the
-`dis_how_many_tp` entry left this list — `tp:HOW-MANY` now arrives by
-replay. Increment 2, same day: `dis_sortfn1_insert_tp` and
-`dis_ssortfn1_insert_tp` left it too — the CONS return-path shape.
-Increment 3, 2026-08-13: `dis_sortfn1_tp` and `dis_ssortfn1_tp` left it
-— the CALLEE-TP shape. ONE debt discharger remains, `dis_pce_total`
-(PERM-COUNTER-EXAMPLE's admission totality — the REQUIRED class, whose
-unlock is with_termination admission coverage, NOT this arc), so the
-pair stays sorry-backed and the gate's `sorryAx` requirement is
-unchanged; the receipts do NOT flip here. When `dis_pce_total` retires,
-these two constants become fully backed and the gate will force the
-promotion review.) -/
+2026-08-11 R5). That gate did its job here: it REQUIRED `sorryAx` on
+this pair, so the moment the last debt retired the build FAILED and
+forced this promotion review — the promotion-forcing design working
+exactly as intended. Both constants have now moved to the gate's
+trio-clean list. -/
 
 set_option maxHeartbeats 12000000 in
 /-- STRONG at the canonical world — every premise discharged except the
@@ -114,6 +128,5 @@ set_option maxHeartbeats 12000000 in
 def strongSsortfn1IsSsortfn2AtCanonical := instantiate_parametric%
   strongSsortfn1IsSsortfn2Parametric equisortDev equisortWaypointsWorld
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
-  totals [ACL2.Worlds.Sorting.dis_pce_total]
 
 end ACL2.Imported.Waypoints

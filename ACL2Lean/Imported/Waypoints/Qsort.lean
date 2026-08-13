@@ -287,9 +287,9 @@ theorem permQsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.perm_qsortFormula = some v ∧ v ≠ SExpr.nil :=
   permQsortReplayedCond env
-    (Worlds.Sorting.dis_pce_total qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide))
+    -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — the ATOM leg
+    -- covers PCE's emitted `(ATOM X)`-ruled decrease, so the hypothesis
+    -- left the telescope and `dis_pce_total` was deleted.)
     (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide))
@@ -337,9 +337,7 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.orderedp_qsortFormula = some v ∧ v ≠ SExpr.nil :=
   orderedpQsortReplayedCond env
-    (Worlds.Sorting.dis_pce_total qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide))
+    -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — see PERM-QSORT.)
     (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide))

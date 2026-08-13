@@ -214,12 +214,71 @@ example :
 
 /-! ## sorts-equivalent book (acl2/books/sorting/sorts-equivalent.lisp) -/
 
-/-! ## BSORT-IS-ISORT pin RETIRED (thin-Lean purge, 2026-08-11)
+/-- PIN `BSORT-IS-ISORT` (sorts-equivalent.lisp:24, the endgame arc's W3
+    one-hyp row — the functional-instance usefi DISCHARGED): the
+    mirror of
+      `(implies (true-listp x) (equal (bsort x) (isort x)))`
+    conditional on the sweep row's honest premise set — totalities,
+    the cited rules' content (each transcribed verbatim from its book's
+    emitted spec), and the linear snapshot.
 
-The row regressed to ASSUMED (offer route) when the usefi pre-pass lost
-its forbidden Lean-side dischargers; its sweep constant is not
-registered. The 15-hypothesis pin text is in git history and RETURNS
-verbatim when the REQUIRED-class debt (admission coverage) and the
-TP-replay discharge re-green the row. -/
+    RETURNED 2026-08-13 (the TP-replay arc's ATOM-leg increment) per the
+    return condition recorded at its retirement (thin-Lean purge,
+    2026-08-11): the row had regressed to ASSUMED ◌ so the sweep
+    registered no constant to pin; with `total:PERM-COUNTER-EXAMPLE`
+    retired by the replay route the usefi discharge succeeds and the row
+    is REPLAYED ✓ again. The 15-hypothesis git-history text returns with
+    THREE hypotheses gone — the TP corollaries whose conditions retired
+    across this arc (`tp:HOW-MANY` 2026-08-12, `tp:INSERT` and
+    `tp:BNEXT-SIZE` 2026-08-13) — marked in place below. -/
+example :
+    ∀ (env : Env),
+      totalHyp1 sortsEqSweepWorld "BNEXT" →
+      totalHyp1 sortsEqSweepWorld "BSORT" →
+      totalHyp2 sortsEqSweepWorld "O<" →
+      totalHyp1 sortsEqSweepWorld "O-P" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12 — the BINARY-+ return path;
+      -- tp:INSERT RETIRED 2026-08-13 — the CONS return-path shape;
+      -- tp:BNEXT-SIZE RETIRED 2026-08-13 — the CALLEE-TP shape. All
+      -- three left the telescope.)
+      -- true-listp-rm (ordered-perms' emitted spec):
+      --   (implies (true-listp a) (equal (true-listp (rm e a)) 't))
+      ruleEqHyp1 sortsEqSweepWorld
+        (ap1 "TRUE-LISTP" (sym "A"))
+        (ap1 "TRUE-LISTP" (ap2 "RM" (sym "E") (sym "A")))
+        (qt (sym "T")) →
+      -- convert-perm-to-how-many:
+      ruleEqHyp sortsEqSweepWorld
+        (ap2 "PERM" (sym "X") (sym "Y"))
+        (ap2 "EQUAL"
+          (ap2 "HOW-MANY"
+            (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
+          (ap2 "HOW-MANY"
+            (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y"))) →
+      -- orderedp-isort:
+      ruleEqHyp sortsEqSweepWorld
+        (ap1 "ORDEREDP" (ap1 "ISORT" (sym "X"))) (qt (sym "T")) →
+      -- orderedp-bsort:
+      ruleEqHyp sortsEqSweepWorld
+        (ap1 "ORDEREDP" (ap1 "BSORT" (sym "X"))) (qt (sym "T")) →
+      -- true-listp-bnext:
+      ruleEqHyp1 sortsEqSweepWorld
+        (ap1 "TRUE-LISTP" (sym "X"))
+        (ap1 "TRUE-LISTP" (ap1 "BNEXT" (sym "X"))) (qt (sym "T")) →
+      -- true-listp-bsort:
+      ruleEqHyp1 sortsEqSweepWorld
+        (ap1 "TRUE-LISTP" (sym "X"))
+        (ap1 "TRUE-LISTP" (ap1 "BSORT" (sym "X"))) (qt (sym "T")) →
+      -- how-many-bsort:
+      ruleEqHyp sortsEqSweepWorld
+        (ap2 "HOW-MANY" (sym "E") (ap1 "BSORT" (sym "X")))
+        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+      linearHMBPB sortsEqSweepWorld →
+      EvTrue sortsEqSweepWorld env
+        (ap2 "IMPLIES" (ap1 "TRUE-LISTP" (sym "X"))
+          (ap2 "EQUAL" (ap1 "BSORT" (sym "X")) (ap1 "ISORT" (sym "X")))) :=
+  ReplayedStatements.replayed_sorting_sorts_equivalent_BSORT_IS_ISORT
+
+#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_BSORT_IS_ISORT
 
 end ACL2.Tests.SortingPinsEndgame

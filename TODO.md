@@ -18,12 +18,24 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > ACCEPTED REGRESSION (ruled): the three `*-IS-ISORT` capstone rows
 > fell to ASSUMED ◌ (110/116) — the usefi pre-pass lost its forbidden
 > dischargers; three capstone statement pins retired to git history.
+> **REGRESSION REVERSED 2026-08-13** (the TP-replay arc's ATOM-leg
+> increment): all three rows are REPLAYED ✓ again (113/116) with real
+> cond sets, the three statement pins are back, and the capstone
+> catalog entries returned as honest `.pending` (no capstone waypoint
+> native exists — none was invented to satisfy the gate).
 > **THE DEBT REGISTRY (each entry names its unlock):**
 > - REQUIRED class (replayable — must be wired, not left sorried):
 >   `dis_merge2_total`, `dis_msort_total`, `dis_o_lt_total`,
->   `dis_pce_total`, `dis_bnext_total` — with_termination admission
->   coverage for MERGE2/MSORT/O</PCE/BNEXT (the machinery exists;
+>   `dis_bnext_total` — with_termination admission
+>   coverage for MERGE2/MSORT/O</BNEXT (the machinery exists;
 >   the admissions need replay rows + wiring).
+>   RETIRED 2026-08-13 (TP-replay arc, the ATOM-leg increment — the
+>   FIRST REQUIRED-class retirement): `dis_pce_total`. PCE's emitted
+>   termination clause rules on `(ATOM X)`, and the shared branch-fact
+>   coverage rule (`Replay/Driver/BranchFacts.lean`) knew only
+>   `CONSP`/`ENDP`; teaching it that `atom` IS `(not (consp …))` — one
+>   leg, ACL2's own axiom — makes PCE's admission REPLAY (7 sorries →
+>   6).
 > - TP class (unlock = a TP-replay discharge route, a named coverage
 >   item):
 >   `dis_acl2_count_tp` (`dis_all_rel_tp`/`dis_append_tp` RETIRED
@@ -45,8 +57,11 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   the first class IMPLICATION, `CONSP` ⇒ consp-or-nil):
 >   `dis_sortfn1_tp`, `dis_ssortfn1_tp`, and the 2026-08-11 MINTED
 >   `dis_bnext_size_tp` (12 registered sorries → 9). The equisort
->   AtCanonical witnesses now carry exactly ONE debt discharger,
->   `dis_pce_total` (REQUIRED class).
+>   AtCanonical witnesses then carried exactly ONE debt discharger,
+>   `dis_pce_total` (REQUIRED class) — RETIRED by the ATOM-leg
+>   increment, so **both AtCanonical non-vacuity witnesses are now
+>   FULLY BACKED** (trio-clean; the catalog axiom gate's
+>   sorryAx-REQUIRED entries duly failed and forced the promotion).
 >   RETIRED 2026-08-13 (TP-replay arc increment 4 — ARITY 3: the TP
 >   prover's 3-ary assembly, measured position read off the emitted
 >   justification): `dis_all_rel_tp` (9 registered sorries → 8).
@@ -65,6 +80,16 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   ACL2's INTERNAL type-set for append; the EMITTED corollary
 >   `(consp … ∨ = Y)` cannot give `TRUE-LISTP` — a FORK EMISSION item
 >   (scout first), never a Lean-side derivation).
+>   `tp:ZIP2`/`tp:ZIP3` CLEARED 2026-08-13 by the ATOM-leg increment
+>   (the IF-normal-form decomposition + the ATOM leg together read the
+>   disjunctive ruler); main-row `tp:` stays 10 because QSORT-IS-ISORT
+>   re-greened and brought qsort's two survivors (`tp:QSORT`,
+>   `tp:ACL2-COUNT`) onto a second row: 7+1 → 8+2. `total:ZIP2`
+>   cleared with it; `total:ZIP3` did NOT, on an UNRELATED frontier —
+>   `proveTotality`'s 3-ary self-call assembly requires the measured
+>   formal to be the SECOND formal, and ZIP3 measures its first
+>   (probe-verified message: "3-ary measured formal X is not the
+>   second formal").
 >   NOT mintable and still
 >   blocking ORDEREDP-BSORT/HOW-MANY-BSORT:
 >   `linear:HOW-MANY-BAD-PAIRS-BNEXT` — the `linear:` class has NO
@@ -76,7 +101,10 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   the three `*-IS-ISORT` rows. Unlock = the alias-world usefi
 >   discharge with totality via `termByFn` ONLY (the replayed-
 >   admission route; the named-constant injection channel is deleted
->   — ruled invariant). Census: `just waypoint-metrics`.
+>   — ruled invariant). **CLASS EMPTY 2026-08-13**: the ATOM-leg
+>   increment supplied PCE's totality by exactly that route, the usefi
+>   discharge succeeded, and `usefi:` + `ASSUMED:fi-self` both went
+>   3 → 0 on the main rows. Census: `just waypoint-metrics`.
 > **GATE-CRUFT AUDIT (Mike, 2026-08-11 — the gates-are-speedbumps
 > memory):** inventory EVERY gate (the catalog five + usage + shape +
 > extra-natives + the check-* scripts), rank by trust-value ÷

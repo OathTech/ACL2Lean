@@ -141,7 +141,7 @@ run_cmd (checkPin ``ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2Parametric
 
 /-! ## AtCanonical KEPT-inventory pins (final close-out arc increment
 0 — close-out audit n1). The two canonical-world instantiations are
-PARTIAL non-vacuity witnesses whose entire claim rides on the KEPT
+non-vacuity witnesses whose entire claim rides on the KEPT
 premise inventory being exactly the two named hypotheses; nothing
 else gated it (a silent regression from 2 kept premises to more would
 have passed `ci`). Pinned: the binder inventory (env + the two KEPT
@@ -152,12 +152,17 @@ lhs/rhs and ORDERED-PERMS's hand-pinned `:TFORMULA`
 (acl2_samples/sorting/ordered-perms.proof-log, the `(:DEFTHM …)`
 event). A failure means the witnesses' strength CHANGED — review
 against the deferral log's D1 close-out entry, never blind-update.
-POST-PURGE (2026-08-11, audit fix F1): the AtCanonical witnesses are
-additionally SORRY-BACKED — their `totals` dischargers are
-FORBIDDEN-DEBT sorries — so the non-vacuity claim is conditional on
-that debt; the CATALOG AXIOM GATE
-(`ACL2Lean/Imported/Waypoints/Catalog.lean`) gates it — `sorryAx`
-REQUIRED there until the debt retires by replay. (That gate replaced
+HISTORY: the thin-Lean purge (2026-08-11, audit fix F1) made the
+AtCanonical witnesses SORRY-BACKED — their `totals` dischargers were
+FORBIDDEN-DEBT sorries — so the non-vacuity claim was conditional on
+that debt. As of 2026-08-13 (the TP-replay arc's ATOM-leg increment)
+the last such discharger (`dis_pce_total`) is retired by the replay
+route, the `totals` clause is gone, and BOTH witnesses are FULLY
+BACKED and trio-clean; the KEPT inventory pinned below is unchanged
+(the two hypotheses were always honest premises, never debt). The
+CATALOG AXIOM GATE (`ACL2Lean/Imported/Waypoints/Catalog.lean`) now
+holds all four capstone constants to the classical trio. (That gate
+replaced
 the `#guard_msgs` axiom receipts that used to sit in
 `EquisortParametric.lean`; gate-cruft review 2026-08-11 R5. This
 module still owns the STATEMENT pins — axioms and statements are

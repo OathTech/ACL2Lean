@@ -3712,29 +3712,18 @@ theorem pce_exec_corr (w : World)
   exact conv_defn_2 w env pce_sym a b av bv xS yS pceBody _
     pce_ns h_pce ha hb (hbody av bv)
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `total:PERM-COUNTER-EXAMPLE` — the driver-shape totality premise —
-    Lean-side; content ACL2 derives at admission. Statement kept as the
-    named premise; proof retired to `sorry`. UNLOCK: `with_termination`
-    admission-replay coverage (REQUIRED-class debt). -/
-theorem dis_pce_total (w : World)
-    (h_pce : w.defs.get? pce_sym = some ([xS, yS], pceBody))
-    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
-      = some ([{ package := "ACL2", name := "A" },
-               { package := "ACL2", name := "X" }], membBody))
-    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
-      = some ([{ package := "ACL2", name := "E" },
-               { package := "ACL2", name := "X" }], rmBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none) :
-    ∀ (env' : Env) (a0 a1 : SExpr),
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (pceT a0 a1) = some v := by
-  sorry
+/- `dis_pce_total` — DELETED 2026-08-13 (TP-replay arc, the ATOM-leg
+   increment). It carried `total:PERM-COUNTER-EXAMPLE` as FORBIDDEN-DEBT
+   because the driver could not discharge PCE's admission: its EMITTED
+   termination clause rules on `(ATOM X)`
+   (`((ATOM X) (NOT (MEMB (CAR X) Y)) (O< (ACL2-COUNT (CDR X))
+   (ACL2-COUNT X)))`, convert-perm-to-how-many.proof-log), and the
+   branch-fact coverage rule knew only `CONSP`/`ENDP`. With the ATOM leg
+   (`Replay/Driver/BranchFacts.lean` — `atom` IS `(not (consp …))` by
+   ACL2's own axiom) the decrease obligation is covered on the branch and
+   the totality arrives BY REPLAY of the emitted admission data. Retired
+   by DELETION + consumer rewiring, never by a Lean re-proof (the
+   thin-Lean rule); every consumer simply drops the argument. -/
 
 /-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
     `rule:CONVERT-PERM-TO-HOW-MANY` — the stored included-book rule's

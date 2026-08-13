@@ -541,8 +541,9 @@ def dischargeDecrease (just : Justification)
   -- FALSE on this branch — `branchEstablishes` (Driver/BranchFacts) is the
   -- shared coverage rule: direct facts, recognizer duality
   -- (CONSP/ENDP/ATOM — sorting arc 2026-07-29, extended to ATOM by the
-  -- TP-replay arc's increment 7 because ACL2's or-normalized rulers spell
-  -- their leaves with `atom`), `NOT`, and ACL2's IF-NORMAL FORMS
+  -- TP-replay arc's ATOM-leg increment 2026-08-13, because ACL2 spells
+  -- rulers with `atom` both bare (PERM-COUNTER-EXAMPLE, REV-ACC) and as
+  -- the leaves of its or-normal forms), `NOT`, and ACL2's IF-NORMAL FORMS
   -- (`(IF a a c)` = or, `(IF a b 'NIL)` = and), decomposed recursively.
   -- This widens only the COVERAGE check: the decrease PROOF's
   -- conspTrueOf/endpFalseOf independently require the value facts.

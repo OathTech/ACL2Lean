@@ -123,21 +123,22 @@ theorem how_many_rm_general_native_driver (av bv : SExpr) (xs : List SExpr) :
 #print axioms how_many_rm_general_native_driver
 
 set_option maxHeartbeats 3200000 in
-/-- The driver's CONDITIONAL replayed statement for
-    PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS (hypotheses:
-    `total:PERM-COUNTER-EXAMPLE`, `tp:HOW-MANY`). -/
+/-- The driver's replayed statement for
+    PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS — now
+    UNCONDITIONAL (the row's last kept condition,
+    `total:PERM-COUNTER-EXAMPLE`, cleared with the ATOM leg: PCE's
+    emitted `(ATOM X)`-ruled decrease obligation is covered on the
+    branch, so the totality arrives by replayed admission). -/
 def pceIsCounterexampleReplayedCond := driver_replayed% convertPermDev
   convertPermWorldD "perm-counter-example-is-counterexample-for-true-lists"
 
-/-- The unconditional form — the counter-example function's totality from
-    the registered debt entry (`dis_pce_total`), how-many's TP by the
-    standard discharger. -/
+/-- The unconditional form — no telescope left to discharge (the
+    `dis_pce_total` application here was deleted with that debt entry,
+    TP-replay arc's ATOM-leg increment 2026-08-13). -/
 theorem pceIsCounterexampleReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
       Worlds.Sorting.pce_is_counterexampleFormula = some v ∧ v ≠ SExpr.nil :=
   pceIsCounterexampleReplayedCond env
-    (Worlds.Sorting.dis_pce_total convertPermWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS
     natively: `pceL xs ys` is a COMPLETE counterexample witness — the two

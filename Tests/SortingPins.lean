@@ -209,8 +209,13 @@ elab "sorting_statement_pins_run% " : term => do
       -- against the golden, not a silent drift
       "    HOW-MANY-ISORT → REPLAYED ✓"),
      ("pins/sorting/qsort",
-      -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above)
-      "    PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, \
+      -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above;
+      -- total:PERM-COUNTER-EXAMPLE dropped 2026-08-13 — the ATOM leg:
+      -- PCE's emitted termination clause rules on `(ATOM X)`, which the
+      -- branch-fact coverage rule now reads as `(not (consp X))`, so the
+      -- admission REPLAYS and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed row-by-row against the golden.)
+      "    PERM-QSORT → REPLAYED ✓ cond[total:O<, \
 tp:ACL2-COUNT, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
@@ -225,8 +230,10 @@ cond[total:(QSORT X), tp:QSORT]]"),
       -- ARITY-3 assembly: ALL-REL's emitted boolean corollary is proved
       -- from its `'T`/`'NIL` leaves and the admission-licensed IH, so
       -- the hypothesis left the telescope. INTENTIONAL; diagnosed
-      -- row-by-row against the golden.)
-      "    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, \
+      -- row-by-row against the golden.
+      -- total:PERM-COUNTER-EXAMPLE dropped 2026-08-13 — the ATOM leg,
+      -- see PERM-QSORT above.)
+      "    ORDEREDP-QSORT → REPLAYED ✓ cond[\
 total:O<, tp:ACL2-COUNT, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
@@ -373,8 +380,8 @@ example :
 
 /-- PIN the machine-generated statement of `PERM-QSORT`: the replayed statement of the
     ACL2 defthm `(perm (qsort x) x)`, conditional on
-    - totality of `perm-counter-example` and `o<` (world fns whose totality
-      is not yet auto-discharged on this row),
+    - totality of `o<` (the one world fn whose totality is still not
+      auto-discharged on this row),
     - the emitted non-negative-integer TP corollaries of `how-many` and
       `acl2-count` (source-true: both count),
     - the cited rules `convert-perm-to-how-many` and `how-many-qsort`
@@ -384,7 +391,10 @@ example :
       currently fails at the J6 solidify frontier — no replayed statement to apply). -/
 example :
     ∀ (env : Env),
-      totalHyp2 qsortPinsWorld "PERM-COUNTER-EXAMPLE" →
+      -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — PCE's emitted
+      -- termination clause rules on `(ATOM X)`, which the branch-fact
+      -- coverage rule now reads as `(not (consp X))`, so the admission
+      -- REPLAYS and the hypothesis left the telescope. INTENTIONAL.)
       totalHyp2 qsortPinsWorld "O<" →
       -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
       -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
@@ -668,7 +678,8 @@ example :
 
 /-- PIN the machine-generated statement of `ORDEREDP-QSORT`: the replayed statement of
     the ACL2 defthm `(orderedp (qsort x))`, conditional on
-    - totality of `perm-counter-example` and `o<`,
+    - totality of `o<` (perm-counter-example's left the telescope with
+      the ATOM leg, 2026-08-13),
     - the emitted TP corollary of `acl2-count` (non-negative integer —
       source-true: it counts); `how-many`'s and `all-rel`'s are now
       supplied by the driver's own TP prover (TP-replay arc increments 1
@@ -690,7 +701,8 @@ example :
       risk documented, discharged when the relief class lands. -/
 example :
     ∀ (env : Env),
-      totalHyp2 qsortPinsWorld "PERM-COUNTER-EXAMPLE" →
+      -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — the ATOM leg,
+      -- as on PERM-QSORT's pin above. INTENTIONAL.)
       totalHyp2 qsortPinsWorld "O<" →
       -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
       -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
@@ -968,15 +980,110 @@ private def convertPermHyp (w : World) : Prop :=
       (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
       (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y")))
 
-/-! ## Capstone pins RETIRED (thin-Lean purge, 2026-08-11)
+/-! ## Capstone pins — RETURNED 2026-08-13 (the TP-replay arc's ATOM-leg
+increment)
 
-The MSORT-IS-ISORT and QSORT-IS-ISORT statement pins consumed the
-sweep-registered constants, which no longer exist: the capstone rows
-regressed to ASSUMED (the honest offer route) when the forbidden
-Lean-side dischargers feeding the usefi pre-pass were sorried under the
-thin-Lean ruling. The pins RETURN verbatim when the REQUIRED-class debt
-(with_termination admission coverage for PCE/MERGE2/MSORT/O<) and the
-TP-replay discharge land and the rows re-green — the pin texts are in
-git history at this file's previous revision. -/
+They were retired by the thin-Lean purge (2026-08-11) with a recorded
+return condition: the rows had regressed to ASSUMED ◌ when the usefi
+pre-pass lost its forbidden Lean-side dischargers, so the sweep
+registered no constant for them to pin. That condition is now met —
+`total:PERM-COUNTER-EXAMPLE` retired by the replay route (the ATOM leg:
+PCE's emitted termination clause rules on `(ATOM X)`), the usefi
+discharge succeeds, and both rows are REPLAYED ✓ again.
+
+RESURRECTED, NOT RE-DERIVED: the conclusions and every surviving
+hypothesis are the git-history texts verbatim. What CHANGED is that
+hypotheses LEFT the telescopes as their conditions retired across this
+arc — each drop carries a diagnosis comment below, never a silent
+edit. MSORT loses three (`tp:HOW-MANY`, `tp:INSERT`, `tp:EVENS`);
+QSORT loses four (`total:PERM-COUNTER-EXAMPLE`, `tp:HOW-MANY`,
+`tp:INSERT`, `tp:ALL-REL`) and KEEPS `tp:QSORT` + `tp:ACL2-COUNT`, the
+arc's two named honest survivors. -/
+
+/-- PIN the machine statement of `MSORT-IS-ISORT`
+    (sorts-equivalent.lisp:12): the mirror of
+    `(equal (msort x) (isort x))`, conditional on merge2/msort
+    totality and the true-listp-rm + convert-perm-to-how-many stored
+    rules — the row's exact cond[…] telescope, in order. -/
+example :
+    ∀ (env : Env),
+      totalHyp2 sortsEqPinsWorld "MERGE2" →
+      totalHyp1 sortsEqPinsWorld "MSORT" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12 — the TP prover's BINARY-+
+      -- return path; tp:INSERT and tp:EVENS RETIRED 2026-08-13 — the
+      -- CONS return-path shape. All three left the telescope.)
+      trueListpRmHyp sortsEqPinsWorld →
+      convertPermHyp sortsEqPinsWorld →
+      EvTrue sortsEqPinsWorld env
+        (ap2 "EQUAL" (ap1 "MSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
+  ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
+
+#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
+
+/-- PIN the machine statement of `QSORT-IS-ISORT`
+    (sorts-equivalent.lisp:18): the mirror of
+    `(equal (qsort x) (isort x))`, conditional on the row's exact
+    cond[…] telescope: qsort/o< totality, the two surviving emitted TPs,
+    true-listp-rm + convert-perm-to-how-many, the arithmetic-3
+    commutativity + two if-lifting rules, and the three qsort-book
+    rules (how-many-filter-1, how-many-qsort — the row's disclosed
+    own-obligation assumption, audit O-3 — and orderedp-append),
+    stored forms from the emitted entries. -/
+example :
+    ∀ (env : Env),
+      -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — the ATOM leg;
+      -- it led this telescope in the pre-purge text.)
+      totalHyp1 sortsEqPinsWorld "QSORT" →
+      totalHyp2 sortsEqPinsWorld "O<" →
+      -- (tp:HOW-MANY RETIRED 2026-08-12; tp:INSERT 2026-08-13, the CONS
+      -- shape; tp:ALL-REL 2026-08-13, the arity-3 assembly.)
+      -- tp:QSORT and tp:ACL2-COUNT SURVIVE — the arc's two named
+      -- honest blockers (qsort's emitted BINARY-APPEND corollary is too
+      -- weak for TRUE-LISTP; acl2-count's leaves need context-refined
+      -- verdicts + primitive type facts). Both are FORK-EMISSION items.
+      tpPred1 sortsEqPinsWorld "QSORT" Logic.trueListp →
+      tpNonnegInt1 sortsEqPinsWorld "ACL2-COUNT" →
+      trueListpRmHyp sortsEqPinsWorld →
+      convertPermHyp sortsEqPinsWorld →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "BINARY-+" (sym "Y") (sym "X"))
+        (ap2 "BINARY-+" (sym "X") (sym "Y")) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "BINARY-+" (sym "Y") (ap2 "BINARY-+" (sym "X") (sym "Z")))
+        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "BINARY-+" (sym "X") (ap3 "IF" (sym "A") (sym "B") (sym "C")))
+        (ap3 "IF" (sym "A")
+          (ap2 "BINARY-+" (sym "X") (sym "B"))
+          (ap2 "BINARY-+" (sym "X") (sym "C"))) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "EQUAL" (ap3 "IF" (sym "A") (sym "B") (sym "C")) (sym "X"))
+        (ap3 "IF" (sym "A")
+          (ap2 "EQUAL" (sym "B") (sym "X"))
+          (ap2 "EQUAL" (sym "C") (sym "X"))) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "BINARY-+"
+          (ap2 "HOW-MANY" (sym "E")
+            (ap3 "FILTER" (qt (sym "LT")) (sym "X") (sym "D")))
+          (ap2 "HOW-MANY" (sym "E")
+            (ap3 "FILTER" (qt (sym "GTE")) (sym "X") (sym "D"))))
+        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "HOW-MANY" (sym "E") (ap1 "QSORT" (sym "X")))
+        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+      ruleEqHyp1 sortsEqPinsWorld
+        (ap1 "ORDEREDP" (sym "A"))
+        (ap1 "ORDEREDP"
+          (ap2 "BINARY-APPEND" (sym "A") (ap2 "CONS" (sym "E") (sym "B"))))
+        (ap3 "IF" (ap1 "ORDEREDP" (sym "B"))
+          (ap3 "IF" (ap3 "ALL-REL" (qt (sym "LTE")) (sym "A") (sym "E"))
+            (ap3 "ALL-REL" (qt (sym "GTE")) (sym "B") (sym "E"))
+            (qt .nil))
+          (qt .nil)) →
+      EvTrue sortsEqPinsWorld env
+        (ap2 "EQUAL" (ap1 "QSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
+  ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
+
+#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
 
 end ACL2.Tests.SortingPins

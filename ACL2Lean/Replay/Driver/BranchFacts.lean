@@ -25,21 +25,20 @@ def branchQuoteNil : SExpr :=
     in the logic). Used to compare a demanded literal against a branch
     fact spelled with the opposite recognizer — the RECOGNIZER DUALITY
     that the translated body (`(CONSP b)` tests) needs against ACL2's
-    recomputed obligations (`(ENDP b)` / `(ATOM b)` rulers). -/
+    recomputed obligations (`(ENDP b)` / `(ATOM b)` rulers).
+
+    THE ATOM LEG (landed 2026-08-13, the TP-replay arc's finale — it was
+    parked at the increment-7 stop because it is a CAPSTONE-FLIPPING
+    lever, not a ZIP-class detail): `(ATOM b)` is `(NOT (CONSP b))` by
+    ACL2's own definition (`axioms.lisp`: `(defun atom (x) (not (consp
+    x)))`), so it joins `ENDP` on the negative side. Enabling it retires
+    `dis_pce_total`, clears `total:PERM-COUNTER-EXAMPLE` corpus-wide, and
+    re-greens the three `*-IS-ISORT` capstones. -/
 def recogView (t : SExpr) : Option (SExpr × Bool) :=
   match t with
   | .cons (.atom (.symbol r)) (.cons b .nil) =>
     if r.name == "CONSP" then some (b, true)
-    else if r.name == "ENDP" then some (b, false)
-    -- NOTE (increment 7 stop, 2026-08-13): the ATOM leg (`|| r.name ==
-    -- "ATOM"`) is DELIBERATELY ABSENT. With it, this module retires
-    -- dis_pce_total (REQUIRED class), clears total:PERM-COUNTER-EXAMPLE
-    -- corpus-wide, and flips the three *-IS-ISORT capstones from
-    -- ASSUMED to REPLAYED — a whole increment of rewiring (4 consumer
-    -- sites, catalog promotions, receipt flips, reviewed repin) that
-    -- must land as its own reviewed unit, not as a side effect of a
-    -- ZIP-class fix. Without it, the decomposition below is verified
-    -- INERT on the whole corpus (probe A, byte-identical goldens).
+    else if r.name == "ENDP" || r.name == "ATOM" then some (b, false)
     else none
   | _ => none
 
@@ -123,11 +122,9 @@ private def zipFacts : List (SExpr × Bool) :=
   [(app1 "CONSP" sX, true), (app1 "CONSP" sY, true), (app1 "CONSP" sZ, true)]
 
 -- the or-shape decomposes to its leaves, recursively
--- PENDING THE ATOM-LEG INCREMENT (see recogView's note): these two
--- exercise ATOM leaves against CONSP facts and pass only with the
--- leg enabled — they are the ready-made tests for that increment.
--- #guard branchEstablishes zipFacts zip2Ruler false
--- #guard branchEstablishes zipFacts zip3Ruler false
+-- (these two exercise ATOM leaves against CONSP facts — the ATOM leg)
+#guard branchEstablishes zipFacts zip2Ruler false
+#guard branchEstablishes zipFacts zip3Ruler false
 #guard branchEstablishes
   [(app1 "ENDP" sX, false), (app1 "ENDP" sY, false)]
   (ifOf (app1 "ENDP" sX) (app1 "ENDP" sX) (app1 "ENDP" sY)) false
@@ -137,9 +134,8 @@ private def zipFacts : List (SExpr × Bool) :=
 -- the truthy side of the or needs only ONE leg
 #guard branchEstablishes [(app1 "ATOM" sY, true)] zip2Ruler true
 -- the AND-normal form is the exact dual
--- PENDING THE ATOM-LEG INCREMENT:
--- #guard branchEstablishes zipFacts
---   (ifOf (app1 "ATOM" sX) (app1 "ATOM" sY) branchQuoteNil) false
+#guard branchEstablishes zipFacts
+  (ifOf (app1 "ATOM" sX) (app1 "ATOM" sY) branchQuoteNil) false
 #guard branchEstablishes [(app1 "CONSP" sX, false), (app1 "CONSP" sY, false)]
   (ifOf (app1 "CONSP" sX) (app1 "CONSP" sY) branchQuoteNil) false
 #guard ! branchEstablishes [(app1 "CONSP" sX, true)]
@@ -150,12 +146,10 @@ private def zipFacts : List (SExpr × Bool) :=
 -- recognizer duality, both directions, all three recognizers
 #guard branchEstablishes [(app1 "CONSP" sX, true)] (app1 "ENDP" sX) false
 #guard branchEstablishes [(app1 "ENDP" sX, false)] (app1 "CONSP" sX) true
--- PENDING THE ATOM-LEG INCREMENT:
--- #guard branchEstablishes [(app1 "ATOM" sX, false)] (app1 "CONSP" sX) true
+#guard branchEstablishes [(app1 "ATOM" sX, false)] (app1 "CONSP" sX) true
 #guard ! branchEstablishes [(app1 "CONSP" sY, true)] (app1 "ATOM" sX) false
 -- NOT peels
--- PENDING THE ATOM-LEG INCREMENT:
--- #guard branchEstablishes [(app1 "CONSP" sX, true)] (app1 "NOT" (app1 "ATOM" sX)) true
+#guard branchEstablishes [(app1 "CONSP" sX, true)] (app1 "NOT" (app1 "ATOM" sX)) true
 #guard branchEstablishes [(app1 "CONSP" sX, true)] (app1 "NOT" (app1 "ENDP" sX)) true
 
 end ACL2.Replay.Driver
