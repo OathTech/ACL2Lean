@@ -26,15 +26,18 @@
   bounded by the closer's fixed lemma set: a reassociating reading
   whose bridging fact sits in Lean's DEFAULT simp/grind set (e.g.
   reverse_append) closes and therefore PASSES — known, accepted.
-  MEASURED BOUND (Basics-closeout arc probe P1, 2026-08-13,
-  correcting this note's earlier claim): the accumulator class fails
-  closed UNDER THE DOCUMENTED USAGE (induct functional off the
-  reading's own recursion — the misalignment error fires verbatim),
-  but `induct structural … generalizing <acc>` lets default-simp
-  (reverse_cons + append_assoc) close the reassociating reading.
-  Expectations-not-gates governs (Mike's standing ruling): the
-  documented usage IS the adjudicator; the structural+generalizing
-  route is a characterized speedbump bound, not a defect. DO
+  THE VOCABULARY RULE (Mike, 2026-08-13 — resolving probe P1, which
+  found `induct structural … generalizing` + a LIBRARY-vocabulary
+  reading (xs.reverse ++ acc) closable by default-simp lemmas ABOUT
+  THOSE LIBRARY NAMES): a native reading is an OWN-DEFINITION — its
+  body built from constructors and our own functions, NEVER library
+  functions — the same self-contained-vocabulary discipline the
+  mirror spec layer already carries, extended down to waypoint
+  readings. Under the rule the leak is unrepresentable: no library
+  lemma exists about our names, so the template fails closed
+  regardless of induct clause. Every shipped reading complies;
+  enforcement is expectations (the standing ruling), reviewable in
+  the def body at a glance. DO
   NOT HARDEN IT — no semantic classifiers, no lemma-set audits; the
   per-book-family provenance audit is the backstop.
 
