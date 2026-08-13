@@ -128,4 +128,41 @@ theorem trueListpCor_closed_cons (u v : SExpr) (_hu : TpArgAny u)
     (hv : Logic.trueListp v = SExpr.t) :
     Logic.trueListp (SExpr.cons u v) = SExpr.t := hv
 
+/-! ## The CALLEE-TP return path (TP-replay arc increment 3, 2026-08-13)
+
+A return path may END in a call to ANOTHER function — `SORTFN1`'s
+`(SORTFN1-INSERT (CAR X) (SORTFN1 (CDR X)))`, or the `BINARY-+` summand
+`(HOW-MANY-SMALLER (CAR X) (CDR X))` inside `BNEXT-SIZE`'s leaf. The
+value fact at such a position is the CALLEE's OWN emitted type
+prescription, proved by the same prover recursively; nothing about the
+callee is assumed or derived here. -/
+
+/-- The CALLEE-TP position move: the call CONVERGES (the plain totality
+    walk, which is what the callee's admission licenses), and the
+    callee's own type-prescription fact — a statement about ANY value
+    the call converges to (`mkTpHypType`'s shape) — supplies `P` there.
+    `P` is the OUTER corollary's predicate; the driver composes the
+    callee's predicate into it via the registered class implication (or
+    the identity, when the classes coincide). -/
+theorem convP_of_conv_ex {w : World} {env : Env} {t : SExpr}
+    {P : SExpr → Prop}
+    (h : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v)
+    (hP : ∀ v, (∃ N, ∀ f ≥ N, evalOpt f w env t = some v) → P v) :
+    ConvToP w env t P := by
+  obtain ⟨N, v, hv⟩ := h
+  exact ⟨v, hP v ⟨N, hv⟩, N, hv⟩
+
+/-- CLASS IMPLICATION, `CONSP` ⇒ `CONSP`-or-`NIL`: a callee whose emitted
+    corollary is the BARE `(CONSP (g …))` (`*ts-cons*`, 3072) satisfies
+    the weaker consp-or-nil `IF` corollary (`*ts-cons*` ∪ `*ts-nil*`,
+    3200) the caller's own type prescription states. This is the whole
+    Lean-side content of a cross-class callee step: both corollaries are
+    EMITTED, and this says our value model agrees that one implies the
+    other. The driver additionally recompute-checks the mask containment
+    3072 ⊆ 3200 against the same `TpCorClass.tsMask` data. -/
+theorem conspOrNilCor_of_conspCor (v : SExpr) (h : Logic.consp v = SExpr.t) :
+    (bif Logic.toBool (Logic.consp v) then SExpr.t
+     else Logic.equal v SExpr.nil) = SExpr.t := by
+  rw [h]; rfl
+
 end ACL2.Replay

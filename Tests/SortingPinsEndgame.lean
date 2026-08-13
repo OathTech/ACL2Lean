@@ -76,16 +76,19 @@ example :
 /-- PIN `HOW-MANY-BAD-PAIRS-BNEXT` (bsort.lisp:45): the replayed statement of
       `(implies (not (equal x (bnext x)))
                 (< (bnext-size (bnext x)) (bnext-size x)))`
-    conditional on bnext totality and the emitted non-negative-integer TP
-    corollaries of how-many-smaller and bnext-size (source-true: both
-    count). -/
+    conditional on bnext totality only. -/
 example :
     ∀ (env : Env),
       totalHyp1 bsortSweepWorld "BNEXT" →
       -- (tp:HOW-MANY-SMALLER RETIRED 2026-08-12 — the TP prover's
       -- return-path arm discharges it from ACL2's emitted corollary
       -- + `:LEAVES`; the hypothesis left the telescope. INTENTIONAL.)
-      tpNonnegInt1 bsortSweepWorld "BNEXT-SIZE" →
+      -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — TP-replay arc increment 3,
+      -- the CALLEE-TP return path: BNEXT-SIZE's single non-`'0` emitted
+      -- leaf is a BINARY-+ whose first summand is a HOW-MANY-SMALLER
+      -- CALL, and that callee's OWN emitted non-negative-integer
+      -- corollary supplies it. INTENTIONAL — diagnosed against the
+      -- golden row-by-row, not a silent drift.)
       EvTrue bsortSweepWorld env
         (ap2 "IMPLIES"
           (ap1 "NOT" (ap2 "EQUAL" (sym "X") (ap1 "BNEXT" (sym "X"))))
@@ -114,16 +117,16 @@ example :
 /-- PIN `ORDEREDP-BSORT` (bsort.lisp:61): the replayed statement of
       `(orderedp (bsort x))`
     conditional on the totalities the μ-route rides (bnext, bsort, o<,
-    o-p), bnext-size's TP corollary, and the
-    linear:HOW-MANY-BAD-PAIRS-BNEXT snapshot content (bsort's admitted
-    measure decrease). -/
+    o-p) and the linear:HOW-MANY-BAD-PAIRS-BNEXT snapshot content
+    (bsort's admitted measure decrease). -/
 example :
     ∀ (env : Env),
       totalHyp1 bsortSweepWorld "BNEXT" →
       totalHyp1 bsortSweepWorld "BSORT" →
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
-      tpNonnegInt1 bsortSweepWorld "BNEXT-SIZE" →
+      -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
+      -- above: the CALLEE-TP return path, increment 3. INTENTIONAL.)
       linearHMBPB bsortSweepWorld →
       EvTrue bsortSweepWorld env (ap1 "ORDEREDP" (ap1 "BSORT" (sym "X"))) :=
   ReplayedStatements.replayed_sorting_bsort_ORDEREDP_BSORT
@@ -139,7 +142,8 @@ example :
       totalHyp1 bsortSweepWorld "BSORT" →
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
-      tpNonnegInt1 bsortSweepWorld "BNEXT-SIZE" →
+      -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
+      -- above: the CALLEE-TP return path, increment 3. INTENTIONAL.)
       linearHMBPB bsortSweepWorld →
       EvTrue bsortSweepWorld env
         (ap2 "IMPLIES" (ap1 "TRUE-LISTP" (sym "X"))
@@ -150,8 +154,8 @@ example :
 
 /-- PIN `HOW-MANY-BSORT` (bsort.lisp:76): the replayed statement of
       `(equal (how-many e (bsort x)) (how-many e x))`
-    under the μ-route set + how-many's TP corollary + the linear
-    snapshot — exactly the golden row's seven conds (the cited
+    under the μ-route set + the linear
+    snapshot — exactly the golden row's five conds (the cited
     NOT-MEMB-IMPLIES-HOW-MANY-IS-0 rule discharges cross-book in the
     sweep itself, so it appears in neither the row nor this pin; an
     earlier docstring here claimed the label showed it — false against
@@ -163,7 +167,8 @@ example :
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
       -- (tp:HOW-MANY RETIRED 2026-08-12 — same TP-replay route.)
-      tpNonnegInt1 bsortSweepWorld "BNEXT-SIZE" →
+      -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
+      -- above: the CALLEE-TP return path, increment 3. INTENTIONAL.)
       linearHMBPB bsortSweepWorld →
       EvTrue bsortSweepWorld env
         (ap2 "EQUAL"

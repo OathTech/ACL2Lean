@@ -939,6 +939,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             | some cor =>
               try
                 let pf ← proveTp cfg totalEnv justs fnName cor
+                  (cors := tps)
                 let pf ← mkExpectedTypeHint pf (← inferType v)
                 prf ← letBindFVar prf v pf
               catch e =>

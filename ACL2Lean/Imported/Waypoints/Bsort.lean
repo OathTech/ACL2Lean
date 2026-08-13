@@ -105,13 +105,17 @@ theorem how_many_smaller_bnext_native_driver (ev : SExpr) (xs : List SExpr) :
 
 set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for
-    HOW-MANY-BAD-PAIRS-BNEXT (hypotheses: `total:BNEXT`,
-    `tp:HOW-MANY-SMALLER`, `tp:BNEXT-SIZE`). -/
+    HOW-MANY-BAD-PAIRS-BNEXT (hypothesis: `total:BNEXT`). `tp:BNEXT-SIZE`
+    left this telescope with TP-replay arc increment 3 (2026-08-13): the
+    CALLEE-TP return path — BNEXT-SIZE's emitted leaf
+    `(BINARY-+ (HOW-MANY-SMALLER (CAR X) (CDR X)) (BNEXT-SIZE (CDR X)))`
+    now closes with the `BINARY-+` summand's P-fact supplied by
+    HOW-MANY-SMALLER's OWN emitted non-negative-integer corollary. -/
 def howManyBadPairsBnextReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "how-many-bad-pairs-bnext"
 
-/-- The unconditional form — bnext's totality and the two count TPs from
-    the registered debt entries. -/
+/-- The unconditional form — bnext's totality from the registered debt
+    entry (the count TPs now arrive by replay). -/
 theorem howManyBadPairsBnextReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortWaypointsWorld env
       Worlds.Sorting.how_many_bad_pairs_bnextFormula = some v
@@ -119,9 +123,6 @@ theorem howManyBadPairsBnextReplayed_uncond (env : Env) :
   howManyBadPairsBnextReplayedCond env
     (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_bnext_size_tp bsortWaypointsWorld (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-BAD-PAIRS-BNEXT natively: a bubble pass that
     CHANGES the list strictly decreases the bubble measure (bubble sort's

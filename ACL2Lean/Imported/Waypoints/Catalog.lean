@@ -373,10 +373,10 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .nativeSorried ``how_many_bad_pairs_bnext_native_driver
       ``howManyBadPairsBnextReplayedCond
       "total:BNEXT (dis_bnext_total; unlock: with_termination coverage \
-       — REQUIRED class) + tp:BNEXT-SIZE (dis_bnext_size_tp, MINTED \
-       2026-08-11; unlock: TP-replay discharge — its emitted leaf sums \
-       a CALLEE's TP, a later increment than the one that retired \
-       tp:HOW-MANY-SMALLER)"),
+       — REQUIRED class); tp:BNEXT-SIZE retired by the replay route, \
+       TP-replay arc increment 3 2026-08-13 (the CALLEE-TP shape: its \
+       emitted leaf sums a HOW-MANY-SMALLER call, whose own emitted \
+       corollary supplies the summand)"),
   ("sorting/bsort", "ORDEREDP-WHEN-BNEXT-CONSTANT",
     .nativeSorried ``orderedp_when_bnext_constant_native_driver
       ``orderedpWhenBnextConstantReplayedCond
@@ -384,11 +384,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
        — REQUIRED class)"),
   ("sorting/bsort", "ORDEREDP-BSORT",
     .pending "BLOCKED ON A KEPT CONDITION WITH NO UNLOCK CLASS \
-      (restated 2026-08-11 after the reuse-vs-mint ruling). Golden \
+      (restated 2026-08-11 after the reuse-vs-mint ruling; tp:BNEXT-SIZE \
+      left the row with TP-replay arc increment 3, 2026-08-13). Golden \
       conds: total:BNEXT, total:BSORT, total:O<, total:O-P, \
-      tp:BNEXT-SIZE, linear:HOW-MANY-BAD-PAIRS-BNEXT. Three now \
-      discharge (dis_bnext_total, dis_o_lt_total, and the MINTED \
-      dis_bnext_size_tp); the blocker is \
+      linear:HOW-MANY-BAD-PAIRS-BNEXT. Two now \
+      discharge (dis_bnext_total, dis_o_lt_total); the blocker is \
       `linear:HOW-MANY-BAD-PAIRS-BNEXT`, whose CLASS has no existing \
       unlock — the ruling caps minting at the classes that already \
       have one (TP-replay, with_termination/total), and `linear:` has \
@@ -410,9 +410,10 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .pending "BLOCKED ON A KEPT CONDITION WITH NO UNLOCK CLASS \
       (restated 2026-08-11 after the reuse-vs-mint ruling) — the \
       ORDEREDP-BSORT blocker exactly (tp:HOW-MANY retired by the \
-      replay route, TP-replay arc increment 1). Golden conds: \
-      total:BNEXT, total:BSORT, total:O<, total:O-P, tp:BNEXT-SIZE, \
-      linear:HOW-MANY-BAD-PAIRS-BNEXT; after this wave's mint only \
+      replay route, TP-replay arc increment 1; tp:BNEXT-SIZE by \
+      increment 3). Golden conds: \
+      total:BNEXT, total:BSORT, total:O<, total:O-P, \
+      linear:HOW-MANY-BAD-PAIRS-BNEXT; only \
       `total:BSORT`, `total:O-P` and \
       `linear:HOW-MANY-BAD-PAIRS-BNEXT` are undischarged, and the \
       `linear:` class has no existing unlock (the mint cap excludes \
@@ -665,17 +666,15 @@ run_cmd Lean.Elab.Command.liftCoreM do
      ``ACL2.Worlds.Sorting.dis_o_lt_total,
      ``ACL2.Worlds.Sorting.dis_pce_total,
      ``ACL2.Worlds.Sorting.dis_bnext_total,
-     -- MINTED 2026-08-11 (reuse-vs-mint ruling, existing-class cap):
-     -- the bsort-measure TP whose emitted leaf sums a CALLEE's TP
      -- (`dis_how_many_smaller_tp` RETIRED by the replay route,
-     -- TP-replay arc increment 1, 2026-08-12)
-     ``ACL2.Worlds.Sorting.dis_bnext_size_tp,
-     ``ACL2.Worlds.Sorting.dis_convert_perm,
+     -- TP-replay arc increment 1, 2026-08-12; the MINTED
+     -- `dis_bnext_size_tp` — the bsort-measure TP whose emitted leaf
+     -- sums a CALLEE's TP — RETIRED by increment 3, 2026-08-13)
      -- (`dis_sortfn1_insert_tp` / `dis_ssortfn1_insert_tp` RETIRED with
-     -- the CONS shape, increment 2; the `*_tp` pair below is the
-     -- consp-or-nil class, a later increment)
-     ``ACL2.Worlds.Sorting.dis_sortfn1_tp,
-     ``ACL2.Worlds.Sorting.dis_ssortfn1_tp]
+     -- the CONS shape, increment 2; `dis_sortfn1_tp` /
+     -- `dis_ssortfn1_tp` — the consp-or-nil class — RETIRED with the
+     -- CALLEE-TP shape, increment 3)
+     ``ACL2.Worlds.Sorting.dis_convert_perm]
   for n in debtRegistry do
     let axs ← collectAxioms n
     unless axs.contains ``sorryAx do

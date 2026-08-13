@@ -26,13 +26,7 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   the admissions need replay rows + wiring).
 > - TP class (unlock = a TP-replay discharge route, a named coverage
 >   item): `dis_all_rel_tp`,
->   `dis_append_tp`, `dis_acl2_count_tp`,
->   `dis_sortfn1_tp`, `dis_ssortfn1_tp`,
->   and — MINTED 2026-08-11 under the reuse-vs-mint ruling (cap:
->   only classes that already HAVE an unlock) for the
->   bnext-level bsort rows — `dis_bnext_size_tp`
->   (registered in the provenance
->   debtRegistry; same TP-replay unlock).
+>   `dis_append_tp`, `dis_acl2_count_tp`.
 >   RETIRED 2026-08-12 (TP-replay arc increment 1 — the BINARY-+
 >   return-path shape, discharged from ACL2's emitted corollary +
 >   `:LEAVES`): `dis_how_many_tp`, `dis_how_many_smaller_tp`,
@@ -43,6 +37,15 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   OBLIGATIONS — none / tail-only): `dis_insert_tp`,
 >   `dis_sortfn1_insert_tp`, `dis_ssortfn1_insert_tp`,
 >   `dis_evens_tp` (16 registered sorries → 12).
+>   RETIRED 2026-08-13 (TP-replay arc increment 3 — the CALLEE-TP
+>   return path: a return-path call to ANOTHER fn, whose OWN emitted
+>   corollary supplies the position, proved by re-entering the
+>   prover; new corollary class `.conspOrNil` (`:BASICTS 3200`) and
+>   the first class IMPLICATION, `CONSP` ⇒ consp-or-nil):
+>   `dis_sortfn1_tp`, `dis_ssortfn1_tp`, and the 2026-08-11 MINTED
+>   `dis_bnext_size_tp` (12 registered sorries → 9). The equisort
+>   AtCanonical witnesses now carry exactly ONE debt discharger,
+>   `dis_pce_total` (REQUIRED class).
 >   NOT mintable and still
 >   blocking ORDEREDP-BSORT/HOW-MANY-BSORT:
 >   `linear:HOW-MANY-BAD-PAIRS-BNEXT` — the `linear:` class has NO

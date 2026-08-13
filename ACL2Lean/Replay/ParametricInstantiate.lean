@@ -109,7 +109,7 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
       if !tpTy.isConst then
         match ← (some <$> withRealMaxHeartbeats 3000000
             (proveTp cfg totalEnv (dev.justifications ++ extraJusts)
-              fn cor)) <|> pure none with
+              fn cor (cors := ch2.tps))) <|> pure none with
         | some pf => tpAug := tpAug ++ [(fn, cor, pf)]
         | none =>
           match ← tryRegistered tpTy with
@@ -294,7 +294,8 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
         let fn := key "htp_"
         match ch.tps.lookup fn with
         | some cor =>
-          try some <$> proveTp cfg totalEnv dev.justifications fn cor
+          try some <$> (proveTp cfg totalEnv dev.justifications fn cor
+            (cors := ch.tps))
           catch e =>
             match ← tryRegistered bTy with
             | some pf => pure (some pf)

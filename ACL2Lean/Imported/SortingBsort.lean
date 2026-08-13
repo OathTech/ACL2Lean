@@ -18,12 +18,13 @@ The BNEXT-LEVEL COUNT ROWS (HOW-MANY-SMALLER-BNEXT,
 HOW-MANY-BAD-PAIRS-BNEXT) need two more simulations, built here: the
 `how-many-smaller` count (elements strictly below a given one) and the
 `bnext-size` bubble measure (the sum of those counts down the list).
-Both are `derive_exec%`/`derive_sim%` pairs. `how-many-smaller`'s
-emitted non-negative-integer type-prescription now arrives by REPLAY
-(the TP prover's return-path arm, TP-replay arc increment 1); only
-`bnext-size`'s (`dis_bnext_size_tp`) is still carried as a MINTED
-FORBIDDEN-DEBT discharger — its emitted leaf is a sum over a CALLEE's
-TP, a later increment of the same unlock class. -/
+Both are `derive_exec%`/`derive_sim%` pairs. BOTH emitted
+non-negative-integer type-prescriptions now arrive by REPLAY:
+`how-many-smaller`'s with the `BINARY-+` return-path arm (TP-replay arc
+increment 1) and `bnext-size`'s with the CALLEE-TP arm (increment 3) —
+its emitted leaf is a sum whose first summand is a HOW-MANY-SMALLER
+call, and that callee's OWN emitted corollary supplies the summand's
+fact. -/
 
 open ACL2 ACL2.Replay ACL2.Lifting ACL2.Worlds.Perm ACL2.ExecGen
 
@@ -159,31 +160,17 @@ derive_sim% bnextSizeExec_enc for "BNEXT-SIZE"
   simp [bnextSizeL, Logic.plus, Logic.toRat, Logic.mkNumber]
   induct structural xs
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11; minted under the
-    reuse-vs-mint ruling — existing-class cap): this establishes
-    `tp:BNEXT-SIZE` — the emitted non-negative-integer corollary
-    `(IF (INTEGERP (BNEXT-SIZE X)) (NOT (< (BNEXT-SIZE X) '0)) 'NIL)` —
-    Lean-side; content ACL2 derives. Statement kept as the named
-    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
-theorem dis_bnext_size_tp (w : World)
-    (h_how_many_smaller : w.defs.get? how_many_smaller_sym
-      = some ([eS, xS], howManySmallerBody))
-    (h_bnext_size : w.defs.get? bnext_size_sym
-      = some ([xS], bnextSizeBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
-    (h_no_binary__ : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (e' : Env) (a0 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
-      (SExpr.cons (SExpr.atom (Atom.symbol bnext_size_sym))
-        (SExpr.cons a0 SExpr.nil)) = some v) :
-    (bif Logic.toBool (Logic.integerp v) then
-        Logic.not (Logic.lt v (.atom (.number (.int 0))))
-      else SExpr.nil) = SExpr.t := by
-  sorry
+/-! `dis_bnext_size_tp` is RETIRED (TP-replay arc increment 3,
+2026-08-13): `tp:BNEXT-SIZE` — the emitted non-negative-integer
+corollary `(IF (INTEGERP (BNEXT-SIZE X)) (NOT (< (BNEXT-SIZE X) '0))
+'NIL)` — now arrives from the driver's TP prover. Its single non-`'0`
+emitted leaf is
+`(BINARY-+ (HOW-MANY-SMALLER (CAR X) (CDR X)) (BNEXT-SIZE (CDR X)))`,
+ACL2's verdict `7` = `*ts-non-negative-integer*`: the `BINARY-+` arm
+(increment 1) constrains BOTH summands, the second is the self-call's
+strong IH, and the first is a CALLEE call whose OWN emitted
+non-negative-integer corollary — proved by the same prover, recursively
+— supplies the summand's fact (increment 3). -/
 
 /-! ## HOW-MANY-SMALLER-BNEXT -/
 

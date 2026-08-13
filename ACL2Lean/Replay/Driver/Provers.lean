@@ -368,6 +368,11 @@ inductive TpCorClass where
   | consp
   /-- `(TRUE-LISTP (f …))` — ACL2's `*ts-true-list*` (`:BASICTS 1152`). -/
   | trueListp
+  /-- `(IF (CONSP (f …)) 'T (EQUAL (f …) 'NIL))` — ACL2's
+      `*ts-cons*` ∪ `*ts-nil*` (the emitted `:BASICTS 3200`), the
+      "a list, possibly empty" prescription of a list-returning
+      recursion (TP-replay arc increment 3). -/
+  | conspOrNil
   deriving BEq, Repr, Inhabited
 
 /-- ACL2's basic type-set MASK the class covers (`acl2/type-set-a.lisp`'s
@@ -380,11 +385,13 @@ inductive TpCorClass where
     corollary — frontier. Each mask is the ACL2 constant the corollary's
     recognizer names: `*ts-non-negative-integer*` = 0|1|2 = 7,
     `*ts-cons*` = proper|improper = 1024|2048 = 3072, `*ts-true-list*` =
-    nil|proper-cons = 128|1024 = 1152. -/
+    nil|proper-cons = 128|1024 = 1152, and the consp-or-nil `IF` =
+    `*ts-cons*`|`*ts-nil*` = 3072|128 = 3200. -/
 def TpCorClass.tsMask : TpCorClass → Int
   | .nonNegInt => 7
   | .consp => 3072
   | .trueListp => 1152
+  | .conspOrNil => 3200
 
 /-- Is the emitted leaf verdict `ts` inside the class's type-set `mask`?
     A NEGATIVE `ts` is a complement type-set (ACL2's `-1` = every type) and
@@ -410,6 +417,8 @@ def tpCorClass? (appPat cor : SExpr) : Option TpCorClass :=
       (quo .nil) then some .nonNegInt
   else if cor == app1 "CONSP" appPat then some .consp
   else if cor == app1 "TRUE-LISTP" appPat then some .trueListp
+  else if cor == ifE (app1 "CONSP" appPat) (quo SExpr.t)
+      (app2 "EQUAL" appPat (quo .nil)) then some .conspOrNil
   else none
 
 /-- Which ARGUMENTS of a registered return-path primitive must themselves
@@ -452,6 +461,23 @@ def tpClosure2 : List ((TpCorClass × String) × TpArgProfile × Name) :=
    ((.trueListp, "CONS"), .sndOnly,
     ``ACL2.Replay.trueListpCor_closed_cons)]
 
+/-- CLASS-IMPLICATION registry (TP-replay arc increment 3, 2026-08-13):
+    (callee's corollary class, position's corollary class) ↦ the Lean
+    fact `∀ v, P_from v → P_to v`. A CALLEE-TP return-path step whose
+    callee's emitted corollary is in the SAME class as the caller's needs
+    nothing here (the predicates coincide); a callee in a STRICTLY
+    STRONGER class needs exactly one such fact — e.g. `SORTFN1`'s
+    consp-or-nil prescription is supplied at its `SORTFN1-INSERT` leaf by
+    that callee's bare `CONSP` prescription. Both corollaries are
+    EMITTED; the entry states only that our value model agrees the one
+    implies the other. The driver RECOMPUTES the obligation from its own
+    `P` and the callee's, type-hints the registered constant against it,
+    and separately checks the classes' emitted type-set MASKS are
+    contained the same way — a drifted lift or a backwards entry fails
+    closed. -/
+def tpClassImp : List ((TpCorClass × TpCorClass) × Name) :=
+  [((.consp, .conspOrNil), ``ACL2.Replay.conspOrNilCor_of_conspCor)]
+
 /-- The per-function EMITTED type-prescription data the TP walk consumes on
     its return paths (TP-replay arc increment 1, 2026-08-12): the fn's
     name, ACL2's OWN `:LEAVES` enumeration (return-path leaf term + the
@@ -461,6 +487,31 @@ structure TpKit where
   fnName : String
   leaves : List (SExpr × Int)
   cls : Option TpCorClass
+  /-- The development's admission justifications, as the CALLER passed
+      them to `proveTp` — threaded so the CALLEE-TP arm can invoke the
+      prover on a callee with exactly the same data (increment 3). -/
+  justs : List (String × Justification) := []
+  /-- The EMITTED `:TYPE-PRESCRIPTION` corollaries (fn ↦ corollary) the
+      caller offered as `tp:` hypotheses — the SAME table, so the
+      CALLEE-TP arm can only consume a corollary the harness itself
+      offered. Empty (the default) makes that arm a frontier. -/
+  cors : List (String × SExpr) := []
+  /-- The CALLEE-TP recursion stack, innermost last: the fns whose type
+      prescriptions are currently being proved. A call to a fn already on
+      the stack is a CYCLE (mutual/self TP dependence) and is a tagged
+      frontier — the prover never loops and never assumes. -/
+  seen : List String := []
+
+/-- Does `t` occur in `u` (as `u` itself or as a subterm)? The CALLEE-TP
+    arm's containment check against ACL2's emitted `:LEAVES`. -/
+def sexprOccurs (t : SExpr) : SExpr → Bool
+  | u@(.cons a d) => u == t || sexprOccurs t a || sexprOccurs t d
+  | u => u == t
+
+-- THE TP PROVER (mutual since increment 3): the body walk, its call
+-- arms, the CALLEE-TP arm, and `proveTp` itself — the callee arm proves
+-- the CALLEE's prescription by re-entering the prover.
+mutual
 
 /-- The TP body walk: a proof of `ConvToP w envE t P` — the body converges
     to a value SATISFYING the lifted-corollary predicate `P` (the TP prover,
@@ -468,9 +519,10 @@ structure TpKit where
     Return-path arms: quote leaves (`P` by kernel decision), `if`-splits
     (liftable or OPAQUE tests — tests need only CONVERGENCE, from the plain
     walk over `totalEnv`), self-calls (the admission-licensed strong IH),
-    and 2-ary registered PRIMITIVES over ACL2's own emitted leaves (`kit`).
-    Every other body shape is a tagged frontier (D6: the `tp:` hypothesis
-    stays). -/
+    2-ary registered PRIMITIVES over ACL2's own emitted leaves (`kit`), and
+    CALLEE calls whose own emitted type prescription supplies the position
+    (`tpWalkCallee`, increment 3). Every other body shape is a tagged
+    frontier (D6: the `tp:` hypothesis stays). -/
 partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
     (vals : List (Symbol × Expr × Expr))
     (facts : List (SExpr × Bool × Expr))
@@ -580,109 +632,218 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
           hcl, pa, pb]
     | _, _ => tpWalkCall cfg envE vals facts totalEnv self kit P t
   | _ => tpWalkCall cfg envE vals facts totalEnv self kit P t
-where
-  /-- Call arms: SELF-calls via the strong IH; everything else a frontier. -/
-  tpWalkCall (cfg : ReplayConfig) (envE : Expr)
-      (vals : List (Symbol × Expr × Expr))
-      (facts : List (SExpr × Bool × Expr))
-      (totalEnv : List (String × Nat × Expr))
-      (self : Option (String × Symbol × Expr × Justification))
-      (kit : TpKit) (P : Expr) (t : SExpr) : MetaM Expr := do
-    let varP : Symbol → Option (Expr × Expr) := fun s =>
-      (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
-    let .cons (.atom (.symbol fs)) argsSpine := t
-      | throwFrontier m!"proveTp: body shape {repr t} unsupported (frontier)"
-    let some (selfName, measuredFormal, ih, just) := self
-      | throwFrontier m!"proveTp: call to {fs.name} on the return path of a \
-          non-recursive body (frontier)"
-    unless fs.name == selfName do
-      throwFrontier m!"proveTp: return-path call to {fs.name} (not the \
-          self-call) unsupported (frontier)"
-    let args := (argsSpine.toList?).getD []
-    match cfg.worldVal.defs.get? fs with
-    | none => throwFrontier m!"proveTp: self {fs.name} not in world"
-    | some (formals, body) =>
-      unless args.length == formals.length do
-        throwFrontier m!"proveTp: self-call arity mismatch {repr t}"
-      let mIdx := formals.findIdx (· == measuredFormal)
-      unless totLiftable args[mIdx]! do
-        throwFrontier m!"proveTp: self-call MEASURED argument not liftable \
-            {repr t} (frontier)"
-      unless vals.any (fun (f, _, _) => f == measuredFormal) do
-        throwFrontier m!"proveTp: measured formal has no bound value"
-      let kit : DecreaseKit := {
-        cfg := cfg, envE := envE
-        facts := facts.map (fun (f, pos, _) => (f, pos))
-        valOf := fun u => dpValExpr [] (dpValProof.dpVarVal envE varP) u
-        convOf := fun u => dpValProof cfg envE [] [] varP u
-        conspTrueOf := fun b => do
-          let conspTest : SExpr :=
-            .cons (.atom (.symbol { name := "CONSP" })) (.cons b .nil)
-          match facts.find? (fun (f, pos, _) => f == conspTest && pos) with
-          | some (_, _, pf) => pure pf
-          | none => throwFrontier m!"dischargeDecrease: decrease at \
-              {repr b} needs an in-scope (consp {repr b}) fact (frontier)"
-        endpFalseOf := fun b => do
-          let endpTest : SExpr :=
-            .cons (.atom (.symbol { name := "ENDP" })) (.cons b .nil)
-          match facts.find? (fun (f, pos, _) => f == endpTest && !pos) with
-          | some (_, _, pf) => pure pf
-          | none => throwFrontier m!"dischargeDecrease: registry decrease \
-              at {repr b} needs a refuted (endp {repr b}) fact (frontier)" }
-      let dec ← dischargeDecrease just
-        formals (formals.map (fun f => .atom (.symbol f)))
-        formals args kit
-      let hNs ← proveNotSpecial fs
-      let hDef ← totWalk.totDefFact cfg fs formals body
-      match formals, args with
-      | [f1], [a1] =>
-        let av ← dpValExpr [] (dpValProof.dpVarVal envE varP) a1
-        let ap ← dpValProof cfg envE [] [] varP a1
-        let hbody ← mkAppM' ih #[av, dec]
-        return ← mkAppM ``convP_defn_1
-          #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr a1, av,
-            reflectSymbol f1, reflectSExpr body, P, hNs, hDef, ap, hbody]
-      | [f1, f2], [a1, a2] =>
-        let aM := args[mIdx]!
-        let vM ← dpValExpr [] (dpValProof.dpVarVal envE varP) aM
-        let pM ← dpValProof cfg envE [] [] varP aM
-        let aO := args[1 - mIdx]!
-        let assemble (vO pO : Expr) : MetaM Expr := do
-          let hbody ← mkAppM' ih #[vM, dec, vO]
-          let (v1, v2, p1, p2) :=
-            if mIdx == 0 then (vM, vO, pM, pO) else (vO, vM, pO, pM)
-          mkAppM ``convP_defn_2
-            #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr a1,
-              reflectSExpr a2, v1, v2, reflectSymbol f1, reflectSymbol f2,
-              reflectSExpr body, P, hNs, hDef, p1, p2, hbody]
-        if totLiftable aO then
-          let vO ← dpValExpr [] (dpValProof.dpVarVal envE varP) aO
-          let pO ← dpValProof cfg envE [] [] varP aO
-          return ← assemble vO pO
-        else
-          -- opaque non-measured argument: plain-walk convergence, value
-          -- bound by ∃-elimination (as in the totality prover)
-          let hcEx ← totWalk cfg envE vals facts totalEnv none aO
-          let k ← withLocalDeclD `vo (mkConst ``SExpr) fun vO => do
-            let convTy ← mkAppM ``ConvTo
-              #[cfg.worldExpr, envE, reflectSExpr aO, vO]
-            withLocalDeclD `hcv convTy fun hcv => do
-              mkLambdaFVars #[vO, hcv] (← assemble vO hcv)
-          return ← mkAppM ``exists_conv_elim #[hcEx, k]
-      | _, _ =>
-        throwFrontier m!"proveTp: self-call arity {args.length} unsupported \
-            (frontier)"
+/-- Call arms: the SELF-call via the strong IH; a call to ANOTHER
+    function via that callee's own type prescription (`tpWalkCallee`);
+    everything else a frontier. -/
+partial def tpWalkCall (cfg : ReplayConfig) (envE : Expr)
+    (vals : List (Symbol × Expr × Expr))
+    (facts : List (SExpr × Bool × Expr))
+    (totalEnv : List (String × Nat × Expr))
+    (self : Option (String × Symbol × Expr × Justification))
+    (kit : TpKit) (P : Expr) (t : SExpr) : MetaM Expr := do
+  let varP : Symbol → Option (Expr × Expr) := fun s =>
+    (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
+  let .cons (.atom (.symbol fs)) argsSpine := t
+    | throwFrontier m!"proveTp: body shape {repr t} unsupported (frontier)"
+  let args := (argsSpine.toList?).getD []
+  -- NOT the self-call: the only admissible route is the CALLEE's OWN
+  -- emitted type prescription (increment 3). Reachable from a
+  -- non-recursive body too — `self` is consulted only to recognize the
+  -- self-call, never to license the callee route.
+  let isSelfCall : Bool := match self with
+    | some (selfName, _, _, _) => fs.name == selfName
+    | none => false
+  unless isSelfCall do
+    return ← tpWalkCallee cfg envE vals facts totalEnv kit P t fs args
+  let some (selfName, measuredFormal, ih, just) := self
+    | throwFrontier m!"proveTp: call to {fs.name} on the return path of a \
+        non-recursive body (frontier)"
+  unless fs.name == selfName do
+    throwFrontier m!"proveTp: return-path call to {fs.name} (not the \
+        self-call) unsupported (frontier)"
+  match cfg.worldVal.defs.get? fs with
+  | none => throwFrontier m!"proveTp: self {fs.name} not in world"
+  | some (formals, body) =>
+    unless args.length == formals.length do
+      throwFrontier m!"proveTp: self-call arity mismatch {repr t}"
+    let mIdx := formals.findIdx (· == measuredFormal)
+    unless totLiftable args[mIdx]! do
+      throwFrontier m!"proveTp: self-call MEASURED argument not liftable \
+          {repr t} (frontier)"
+    unless vals.any (fun (f, _, _) => f == measuredFormal) do
+      throwFrontier m!"proveTp: measured formal has no bound value"
+    let kit : DecreaseKit := {
+      cfg := cfg, envE := envE
+      facts := facts.map (fun (f, pos, _) => (f, pos))
+      valOf := fun u => dpValExpr [] (dpValProof.dpVarVal envE varP) u
+      convOf := fun u => dpValProof cfg envE [] [] varP u
+      conspTrueOf := fun b => do
+        let conspTest : SExpr :=
+          .cons (.atom (.symbol { name := "CONSP" })) (.cons b .nil)
+        match facts.find? (fun (f, pos, _) => f == conspTest && pos) with
+        | some (_, _, pf) => pure pf
+        | none => throwFrontier m!"dischargeDecrease: decrease at \
+            {repr b} needs an in-scope (consp {repr b}) fact (frontier)"
+      endpFalseOf := fun b => do
+        let endpTest : SExpr :=
+          .cons (.atom (.symbol { name := "ENDP" })) (.cons b .nil)
+        match facts.find? (fun (f, pos, _) => f == endpTest && !pos) with
+        | some (_, _, pf) => pure pf
+        | none => throwFrontier m!"dischargeDecrease: registry decrease \
+            at {repr b} needs a refuted (endp {repr b}) fact (frontier)" }
+    let dec ← dischargeDecrease just
+      formals (formals.map (fun f => .atom (.symbol f)))
+      formals args kit
+    let hNs ← proveNotSpecial fs
+    let hDef ← totWalk.totDefFact cfg fs formals body
+    match formals, args with
+    | [f1], [a1] =>
+      let av ← dpValExpr [] (dpValProof.dpVarVal envE varP) a1
+      let ap ← dpValProof cfg envE [] [] varP a1
+      let hbody ← mkAppM' ih #[av, dec]
+      return ← mkAppM ``convP_defn_1
+        #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr a1, av,
+          reflectSymbol f1, reflectSExpr body, P, hNs, hDef, ap, hbody]
+    | [f1, f2], [a1, a2] =>
+      let aM := args[mIdx]!
+      let vM ← dpValExpr [] (dpValProof.dpVarVal envE varP) aM
+      let pM ← dpValProof cfg envE [] [] varP aM
+      let aO := args[1 - mIdx]!
+      let assemble (vO pO : Expr) : MetaM Expr := do
+        let hbody ← mkAppM' ih #[vM, dec, vO]
+        let (v1, v2, p1, p2) :=
+          if mIdx == 0 then (vM, vO, pM, pO) else (vO, vM, pO, pM)
+        mkAppM ``convP_defn_2
+          #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr a1,
+            reflectSExpr a2, v1, v2, reflectSymbol f1, reflectSymbol f2,
+            reflectSExpr body, P, hNs, hDef, p1, p2, hbody]
+      if totLiftable aO then
+        let vO ← dpValExpr [] (dpValProof.dpVarVal envE varP) aO
+        let pO ← dpValProof cfg envE [] [] varP aO
+        return ← assemble vO pO
+      else
+        -- opaque non-measured argument: plain-walk convergence, value
+        -- bound by ∃-elimination (as in the totality prover)
+        let hcEx ← totWalk cfg envE vals facts totalEnv none aO
+        let k ← withLocalDeclD `vo (mkConst ``SExpr) fun vO => do
+          let convTy ← mkAppM ``ConvTo
+            #[cfg.worldExpr, envE, reflectSExpr aO, vO]
+          withLocalDeclD `hcv convTy fun hcv => do
+            mkLambdaFVars #[vO, hcv] (← assemble vO hcv)
+        return ← mkAppM ``exists_conv_elim #[hcEx, k]
+    | _, _ =>
+      throwFrontier m!"proveTp: self-call arity {args.length} unsupported \
+          (frontier)"
+
+/-- The CALLEE-TP return-path arm (TP-replay arc increment 3, 2026-08-13):
+    a return-path call to a function OTHER than the one whose prescription
+    is being proved — `SORTFN1`'s `(SORTFN1-INSERT (CAR X) (SORTFN1 (CDR X)))`
+    leaf, or the `BINARY-+` summand `(HOW-MANY-SMALLER (CAR X) (CDR X))`
+    inside `BNEXT-SIZE`'s. ADMISSIBILITY IS ENTIRELY EMITTED:
+    * the callee is a world fn with its OWN emitted `:TYPE-PRESCRIPTION`
+      corollary (`kit.cors` — the caller's own offer table), in a
+      recognized class;
+    * that class either IS the position's class, or IMPLIES it by a
+      registered `tpClassImp` fact whose direction is cross-checked
+      against ACL2's own emitted type-set masks;
+    * the call OCCURS in ACL2's `:LEAVES` enumeration for the fn being
+      proved and — when the call IS one of those leaves — the verdict
+      ACL2 computed for it lies inside the position class's type-set (a
+      NESTED position is covered by the enclosing leaf's own check, in
+      the arm that admitted it).
+    The P-fact is not assumed: the prover runs RECURSIVELY on the callee
+    (cycle-guarded by `kit.seen`, with the caller's own justification and
+    totality data), so the callee's prescription is proved from ITS body
+    and ITS emitted corollary by exactly this machinery. The call's
+    CONVERGENCE is the plain totality walk. -/
+partial def tpWalkCallee (cfg : ReplayConfig) (envE : Expr)
+    (vals : List (Symbol × Expr × Expr))
+    (facts : List (SExpr × Bool × Expr))
+    (totalEnv : List (String × Nat × Expr))
+    (kit : TpKit) (P : Expr) (t : SExpr) (fs : Symbol) (args : List SExpr) :
+    MetaM Expr := do
+  let some cls := kit.cls
+    | throwFrontier m!"proveTp: return-path call to {fs.name} under an \
+        UNRECOGNIZED corollary class for {kit.fnName} (frontier)"
+  let some (gFormals, _) := cfg.worldVal.defs.get? fs
+    | throwFrontier m!"proveTp: return-path call to {fs.name}, which is not \
+        a world fn (frontier)"
+  unless args.length == gFormals.length do
+    throwFrontier m!"proveTp: return-path call arity mismatch {repr t} \
+        (frontier)"
+  let some gcor := kit.cors.lookup fs.name
+    | throwFrontier m!"proveTp: {fs.name} has no emitted \
+        :TYPE-PRESCRIPTION corollary (frontier)"
+  let gAppPat : SExpr :=
+    .cons (.atom (.symbol fs))
+      ((gFormals.map (SExpr.atom ∘ Atom.symbol)).foldr SExpr.cons .nil)
+  let some gcls := tpCorClass? gAppPat gcor
+    | throwFrontier m!"proveTp: {fs.name}'s emitted corollary {repr gcor} is \
+        not a recognized class (frontier)"
+  -- CLASS MATCH: same class, or a registered implication whose direction
+  -- ACL2's own emitted type-set masks confirm
+  let imp? : Option Name ←
+    if gcls == cls then pure none
+    else match tpClassImp.lookup (gcls, cls) with
+      | some n =>
+        if tsSubsumed gcls.tsMask cls.tsMask then pure (some n)
+        else throwFrontier m!"proveTp: registered class implication \
+            {repr gcls} ⇒ {repr cls} contradicts the emitted type-set masks \
+            ({gcls.tsMask} not inside {cls.tsMask}) (frontier)"
+      | none => throwFrontier m!"proveTp: {fs.name}'s corollary class \
+          {repr gcls} neither matches nor implies the {repr cls} class \
+          {kit.fnName}'s prescription needs (frontier)"
+  -- ACL2'S OWN LEAF DATA
+  match kit.leaves.find? (fun (leaf, _) => leaf == t) with
+  | some (_, ts) =>
+    unless tsSubsumed ts cls.tsMask do
+      throwFrontier m!"proveTp: emitted leaf verdict {ts} of {repr t} is not \
+          inside the {repr cls} corollary class's type-set {cls.tsMask} \
+          (frontier)"
+  | none =>
+    unless kit.leaves.any (fun (leaf, _) => sexprOccurs t leaf) do
+      throwFrontier m!"proveTp: {repr t} occurs in no emitted \
+          :TYPE-PRESCRIPTION leaf of {kit.fnName} (frontier)"
+  -- CYCLE GUARD: never re-enter a prescription already on the stack
+  if kit.seen.contains fs.name then
+    throwFrontier m!"proveTp: CYCLE in the callee-TP chain {kit.seen} → \
+        {fs.name} (frontier)"
+  let gTp ← proveTp cfg totalEnv kit.justs fs.name gcor
+    (cors := kit.cors) (seen := kit.seen)
+  let hEx ← totWalk cfg envE vals facts totalEnv none t
+  -- the position's obligation, RECOMPUTED from the driver's own `P`:
+  -- `∀ v, (the call converges to v) → P v`. A callee proof of the wrong
+  -- statement, or a class implication that does not close the gap, fails
+  -- at this type hint (kernel-backed at `Meta.check`).
+  let hP ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+    let convTy ← mkValConvPropEx cfg.worldExpr envE (reflectSExpr t) vV
+    withLocalDeclD `hc convTy fun hc => do
+      let inst := mkAppN gTp
+        (#[envE] ++ (args.map reflectSExpr).toArray ++ #[vV, hc])
+      let body := match imp? with
+        | none => inst
+        | some n => mkApp2 (mkConst n) vV inst
+      mkLambdaFVars #[vV, hc]
+        (← mkExpectedTypeHint body (mkApp P vV).headBeta)
+  return mkAppN (mkConst ``ACL2.Replay.convP_of_conv_ex)
+    #[cfg.worldExpr, envE, reflectSExpr t, P, hEx, hP]
 
 /-- Prove `tp:fn` (the `mkTpHypType` statement) from the fn's body and its
     EMITTED `:TYPE-PRESCRIPTION` corollary — the TP prover. The corollary is
     CONSUMED (ACL2's emitted type fact — never inferred); the walk proves the
     body's value satisfies it; argument strictness + determinism pin every
     convergence value (`tp_hyp_*_of_body`). Frontier failures are tagged
-    (D6: the hypothesis stays visible). -/
-def proveTp (cfg : ReplayConfig)
+    (D6: the hypothesis stays visible).
+    `seen` is the CALLEE-TP recursion stack (increment 3): the prescriptions
+    already being proved further up. An empty stack is the ordinary entry
+    point; `tpWalkCallee` re-enters with the caller's stack, and a fn that
+    is already on it is a cycle (frontier, never an assumption). -/
+partial def proveTp (cfg : ReplayConfig)
     (totalEnv : List (String × Nat × Expr))
     (justs : List (String × Justification))
-    (name : String) (cor : SExpr) : MetaM Expr := do
+    (name : String) (cor : SExpr)
+    (cors : List (String × SExpr) := []) (seen : List String := []) :
+    MetaM Expr := do
   let fs : Symbol := { name := name }
   let some (formals, body) := cfg.worldVal.defs.get? fs
     | throwFrontier m!"proveTp: {name} not defined in the world (frontier)"
@@ -702,7 +863,8 @@ def proveTp (cfg : ReplayConfig)
   -- `:LEAVES` (leaf term + type-set verdict) and the corollary's class
   let kit : TpKit :=
     { fnName := name, leaves := (cfg.tpLeaves.lookup name).getD []
-      cls := tpCorClass? appPat cor }
+      cls := tpCorClass? appPat cor
+      justs := justs, cors := cors, seen := name :: seen }
   let mkEnvE (avs : List Expr) : MetaM Expr := do
     let formalsE ← mkListLit (mkConst ``Symbol) (formals.map reflectSymbol)
     let avsE ← mkListLit (mkConst ``SExpr) avs
@@ -827,6 +989,8 @@ def proveTp (cfg : ReplayConfig)
           reflectSymbol f2, reflectSExpr body, P, hNs, hDef, hbody]
     | _ => throwFrontier m!"proveTp: recursive arity {formals.length} \
         unsupported (frontier)"
+
+end
 
 /-- Substitute a hypothesis fvar by LET-BINDING its discharge proof instead
     of textual replacement (`replaceFVar`): `k` uses of the hypothesis share
