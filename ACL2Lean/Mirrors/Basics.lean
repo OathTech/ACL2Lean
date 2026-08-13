@@ -18,8 +18,12 @@ Waypoint status at drafting (the metric layer's scoreboard):
 MY-LEN-MY-APP green CLEAN (its TP debt retired by the replay route,
 TP-replay arc increment 1 2026-08-12), APP-ASSOC green CLEAN — the first
 end-to-end target — APP-NIL/REV-APP/REV-REV pending (named
-frontiers), LEN-REV-ACC green (the accumulator — the template gate's
-decisive case, now at mirror level). -/
+frontiers), LEN-REV-ACC green CLEAN and CATALOGUED `.native` since the
+Basics-closeout arc (the accumulator — the template gate's decisive
+case; the ALIGNED reading passes the fixed iso template, the
+reassociating one is rejected). Three of the six Props are proved
+(`len_app`, `app_assoc`, `len_revAcc`); the other three have no
+replayed statement to transport yet. -/
 
 namespace ACL2Lean.Basics
 

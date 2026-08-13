@@ -177,16 +177,41 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > sidecars, so a comment edit is a check-log-provenance SOURCE-DRIFT
 > failure; fix opportunistically at the next recapture of those books.
 
-> **THE FIRST MIRRORS (pathfinder arc, 2026-08-12):**
-> `MirrorProofs/Basics.lean` — app_assoc_int (trio-clean) +
-> len_app_int (TRIO-CLEAN since 2026-08-12: its inherited
-> `drv_tp_mylen` debt retired by the TP-replay route, B1 inc-1).
-> THE LIST (7 items, in the file header) = the transfer kit's
+> **THE FIRST MIRRORS (pathfinder arc, 2026-08-12; third landed
+> 2026-08-13):** `MirrorProofs/Basics.lean` — app_assoc_int
+> (trio-clean) + len_app_int (TRIO-CLEAN since 2026-08-12: its
+> inherited `drv_tp_mylen` debt retired by the TP-replay route, B1
+> inc-1) + **len_revAcc_int** (trio-clean; Basics-closeout arc
+> increments A+B — the 14-accumulator book's LEN-REV-ACC row promoted
+> from `.pending` to `.native` on the back of a `derive_exec%` /
+> `derive_sim%` REV-ACC kit, `ACL2Lean/Imported/RevAcc.lean`).
+> THE LIST (now 8 items, in the file header) = the transfer kit's
 > measured requirements: embed kit + injectivity plumbing (C1),
 > the hom/agreement squares (C2 mirror_iso%), waypoint crossings +
 > transport assembly (C3), the vocabulary-alignment design point
-> (B5/C3). Expectations-not-gates per Mike's ruling (the charter's
-> arc log has it verbatim).
+> (B5/C3), and item 8's new structural demand — an accumulator
+> square GENERALIZES over the accumulator, so `mirror_iso%` must
+> quantify non-measured arguments inside the motive.
+> Expectations-not-gates per Mike's ruling (the charter's arc log has
+> it verbatim). Remaining three Basics Props (app_nil, rev_app,
+> rev_rev) are honest deferrals: their waypoint rows are `.pending`.
+
+> **TEMPLATE-GATE FINDING (Basics-closeout increment A, 2026-08-13 —
+> NEEDS A RULING).** The `derive_sim%` gate's decisive case was
+> exercised on REV-ACC both ways. Driving the induction off the
+> NATIVE READING'S OWN recursion (`induct functional`), the
+> reassociating reading `xs.reverse ++ acc` FAILS with the ruled
+> misalignment error — the gate works as ruled. But the same
+> reassociating reading PASSES when the invocation supplies
+> `induct structural xs generalizing acc`: the bridging facts are
+> `List.reverse_cons` + `List.append_assoc`, both in Lean's DEFAULT
+> simp set, which is precisely the bound `Imported/SimGen.lean`'s
+> threat-model note already declares known-and-accepted. So the
+> accumulator class is NOT categorically fail-closed — it is
+> fail-closed only under the `functional` induction clause. Options
+> (a ruling, not an executor call): restrict/derive the `induct`
+> clause, or record the caveat and keep the per-book-family
+> provenance audit as the backstop. DO NOT "harden" the closer.
 
 > **GATE-FLOW GAP (TP arc increment 1, needs a ruling or a recipe
 > fix):** the coverage repin flow is circular — a book whose section

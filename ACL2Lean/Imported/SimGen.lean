@@ -25,9 +25,16 @@
   speedbump, not a content classifier. Its discriminating power is
   bounded by the closer's fixed lemma set: a reassociating reading
   whose bridging fact sits in Lean's DEFAULT simp/grind set (e.g.
-  reverse_append) closes and therefore PASSES — known, accepted. The
-  ruled accumulator class (rev-acc generalization) is not in that set
-  and fails closed, which is the case the ruling needed decided. DO
+  reverse_append) closes and therefore PASSES — known, accepted.
+  MEASURED BOUND (Basics-closeout arc probe P1, 2026-08-13,
+  correcting this note's earlier claim): the accumulator class fails
+  closed UNDER THE DOCUMENTED USAGE (induct functional off the
+  reading's own recursion — the misalignment error fires verbatim),
+  but `induct structural … generalizing <acc>` lets default-simp
+  (reverse_cons + append_assoc) close the reassociating reading.
+  Expectations-not-gates governs (Mike's standing ruling): the
+  documented usage IS the adjudicator; the structural+generalizing
+  route is a characterized speedbump bound, not a defect. DO
   NOT HARDEN IT — no semantic classifiers, no lemma-set audits; the
   per-book-family provenance audit is the backstop.
 

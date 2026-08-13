@@ -33,6 +33,7 @@ hand_files=(
   ACL2Lean/Imported/EquisortWitness.lean
   ACL2Lean/Imported/SimpleWorld.lean
   ACL2Lean/Imported/AppAssoc.lean
+  ACL2Lean/Imported/RevAcc.lean
   ACL2Lean/Imported/GzPrelude.lean
 )
 hand_lines=$(cat "${hand_files[@]}" | wc -l)

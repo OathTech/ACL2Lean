@@ -140,7 +140,13 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("10-tree-induction", "TRUE-LISTP-FLATTEN", .native ``true_listp_flatten_native_driver ``trueListpFlattenReplayed),
   ("12-multi-controller", "LEN-ZIP2", .pending "zip2 correspondence (validator/lifter backlog)"),
   ("13-multi-measured-var", "LEN-INTERLEAVE", .pending "interleave correspondence (backlog)"),
-  ("14-accumulator", "LEN-REV-ACC", .pending "accumulator correspondence (backlog)"),
+  -- PROMOTED to `.native` 2026-08-13 (Basics-closeout increment A): the
+  -- accumulator correspondence exists now — `revAccExec`/`rev_acc_exec_corr`
+  -- (derive_exec%) plus the ALIGNED reading's iso `revAccExec_enc`
+  -- (derive_sim%, the template gate's decisive case). Zero debt: the row
+  -- has been unconditional since the TP finale.
+  ("14-accumulator", "LEN-REV-ACC",
+    .native ``len_rev_acc_native_driver ``lenRevAccReplayedCond),
   ("15-nested-induction", "NESTED-INDUCTION", .pending "backlog (validator/lifter survey)"),
   ("16-three-way", "LEN-ZIP3", .pending "zip3 correspondence (backlog)"),
   ("17-rule-application", "TLP-APP-NIL", .pending "rule-application family decode (backlog)"),

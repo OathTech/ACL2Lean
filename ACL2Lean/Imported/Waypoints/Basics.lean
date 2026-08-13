@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Waypoints.Macro
+import ACL2Lean.Imported.RevAcc
 import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Waypoints
@@ -420,5 +421,50 @@ theorem car_cons_native (u v : SExpr) : Logic.car (SExpr.cons u v) = u := by
     (carT (appT (consT aT bT) yT)) aT (Logic.car (SExpr.cons u v)) u
     (by decide) hL ha
     (appConsCarReplayedCond e)
+
+/-! ## Entry 9 — `len-rev-acc`: `(revAccL xs acc).length = xs.length + acc.length`
+
+From the REAL `recon-tests/14-accumulator.proof-log` — the ACCUMULATOR
+class, and the `derive_sim%` template gate's decisive case. The book's
+`REV-ACC` admits two candidate native readings; only the ALIGNED one
+(`Worlds.RevAcc.revAccL`, the exec's own recursion) passes the fixed iso
+template, so the decode's simulation step carries no reassociation
+content (the reassociating reading `xs.reverse ++ acc` is the fact ACL2
+states as a separate book theorem). `LEN` is a builtin — world-absent by
+the `builtinNames` exclusion — so the three `(LEN …)` calls dispatch
+straight to `Logic.len` (`logic_len_enc` is their sim step).
+
+The row is UNCONDITIONAL: the driver emits no hypotheses (its
+`total:REV-ACC` obligation is auto-discharged from the emitted admission
+data). -/
+
+private def accLog : String :=
+  include_str "../../../acl2_samples/recon-tests/14-accumulator.proof-log"
+
+/-- The parsed development — the ONLY input is the log. -/
+def accDev : Development :=
+  load_development% accLog
+
+derive_world accWorldD from accDev
+
+/-- The driver's replayed statement as a definition (the proof OBJECT). -/
+def lenRevAccReplayedCond := driver_replayed% accDev accWorldD "len-rev-acc"
+
+/-- The driver replayed statement — UNCONDITIONAL, and STATEMENT-PINNED to the
+    hand `len_rev_accFormula` (read off the log's root Goal clause:
+    `(EQUAL (LEN (REV-ACC X ACC)) (BINARY-+ (LEN X) (LEN ACC)))`); the two
+    are the same term, so the proof closes definitionally. -/
+theorem lenRevAccReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f accWorldD env
+      Worlds.RevAcc.len_rev_accFormula = some v ∧ v ≠ SExpr.nil :=
+  lenRevAccReplayedCond env
+
+/-- ENTRY 9, PROVED — the accumulator's length law through the DRIVER's
+    replayed statement. -/
+theorem len_rev_acc_native_driver (xs acc : List SExpr) :
+    (Worlds.RevAcc.revAccL xs acc).length = xs.length + acc.length :=
+  Worlds.RevAcc.len_rev_acc_native_of_replayed accWorldD (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) lenRevAccReplayed_uncond xs acc
 
 end ACL2.Imported.Waypoints
