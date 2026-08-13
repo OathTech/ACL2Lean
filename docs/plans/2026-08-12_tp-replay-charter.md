@@ -101,3 +101,35 @@ the real devs/worlds) CORRECTS this charter's assumptions:
   CLOSE — the Logic-primitive preservation obligations
   (P(plus '1 v) from P(v) for the emitted corollary shapes).
   Increment 1 answers it empirically.
+
+## ARC LOG — increments 6+7 ruled in (Mike, 2026-08-13)
+
+The two candidate survivors are CLOSED IN THIS ARC, both in general
+form — "no messy patches":
+- **Increment 6 — ACL2-COUNT** (after the 4+5 batch): two
+  generalizations, no per-function anything. (a) The IH family
+  generalizes from THE MEASURED POSITION to ANY self-call whose
+  argument is a destructor chain — the strong consCount induction
+  already justifies every such position; subsumes the existing
+  single-position case; every future tree recursion rides free.
+  (b) The callee arm's corollary source becomes OFFER-TABLE ∪
+  GROUND-ZERO TABLE — recon confirmed the emission already carries
+  gz TP events for NUMERATOR/DENOMINATOR/INTEGER-ABS (source-1 all
+  the way; the gzTps channel exists; no fork, no core-logic
+  fallback needed). The nested-sum composition is expected to close
+  once every leaf position is quote / IH-covered self-call /
+  table-backed callee; if not, named report.
+- **Increment 7 — the ZIP2 class**: the branch-fact tracker learns
+  ACL2's IF-normalization DECOMPOSITIONS — `(IF a a b) = NIL` yields
+  both `a = NIL` and `b = NIL` (the or-shape), dually the and-shape
+  when true — one principled rule about ACL2's own boolean normal
+  forms, enriching the fact set every downstream matcher (incl. the
+  shared decrease matcher) consults. General by construction; the
+  multi-controller book family (zip2/zip3/interleave) inherits a
+  working matcher. CAUTION: the seam is shared termination
+  machinery — wider blast surface than the TP walker; goldens
+  row-by-row with extra care; if less contained than it looks,
+  report and move to the book-family arc's opening item.
+- Revised exit target: TP debt class EMPTY (7 → 0 through incs 4-6);
+  main-row `tp:` → 0 expected (ZIP2's cond clears via inc 7's
+  decomposition feeding the decrease matcher).
