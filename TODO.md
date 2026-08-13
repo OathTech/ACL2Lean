@@ -254,6 +254,20 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > erroring, or ship the assembly script; the current recipe text
 > cannot work as written.
 
+> **VOCABULARY-RULE SCOPE (exit audit 2026-08-13, two items):**
+> (1) COMPLIANCE PASS: five pre-existing derive_sim% readings use
+> library functions in their bodies (Perm contains/erase/isPerm,
+> Sorting count/append) — the sim_iso_close lane (default simp +
+> grind) is vocabulary-dependent, so rewrite those readings in own
+> vocabulary (own contains/erase/count defs) at the next waypoint
+> touch; the isPerm reading is the exact P1 shape. (2) RULING
+> WANTED: does own-definitions bind mirror SPEC def bodies too?
+> Mirrors/Sorting.lean's defs use core List.tail/filter/range/
+> foldl/find? — idiomatic, and the mirror lane's closed ladder is
+> leak-free regardless (the load-bearing guard there); recommend:
+> REQUIRED for waypoint readings, recommended-not-required for spec
+> bodies, linter covers names. Present at the arc exit.
+
 Running backlog across all tracks. Keep this current: update when a milestone lands,
 scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`).
 This is a living index, not a spec — design detail lives in `docs/plans/` and

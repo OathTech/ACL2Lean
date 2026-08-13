@@ -35,9 +35,17 @@
   mirror spec layer already carries, extended down to waypoint
   readings. Under the rule the leak is unrepresentable: no library
   lemma exists about our names, so the template fails closed
-  regardless of induct clause. Every shipped reading complies;
-  enforcement is expectations (the standing ruling), reviewable in
-  the def body at a glance. DO
+  regardless of induct clause. MEASURED SCOPE (exit audit
+  2026-08-13, correcting this note's earlier over-claim): FIVE
+  pre-existing readings do NOT comply — Perm.lean's contains/erase/
+  isPerm readings, Sorting.lean's count and append readings — and
+  THIS module's closer (default simp_all + grind) is exactly the
+  vocabulary-dependent lane, so the rule binds FORWARD and those
+  five are a logged compliance pass (TODO). The three shipped
+  MIRRORS are unaffected (their glue verified content-free at the
+  exit audit). The newer mirror_iso% lane is leak-free by its
+  CLOSED ladder regardless of vocabulary. Enforcement remains
+  expectations, reviewable in the def body at a glance. DO
   NOT HARDEN IT — no semantic classifiers, no lemma-set audits; the
   per-book-family provenance audit is the backstop.
 
