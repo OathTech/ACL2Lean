@@ -326,8 +326,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
       ruled 2026-08-11). UNLOCK: the R-lane arc (the \
       R-parameterized rewriting-equivalence recipe) greens PERM-TLFIX, \
       plus TP-replay discharge for tp:TLFIX"),
-  ("sorting/isort", "ORDEREDP-ISORT", .nativeSorried ``orderedp_isort_native_driver ``orderedpIsortReplayedCond
-      "tp:INSERT (dis_insert_tp; unlock: TP-replay discharge)"),
+  ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),
   ("sorting/ordered-perms", "ORDEREDP-RM", .native ``orderedp_rm_native_driver ``orderedpRmReplayed),
@@ -429,7 +428,9 @@ def liftCatalog : List (String × String × LiftStatus) := [
       "total:MERGE2 (dis_merge2_total; REQUIRED — with_termination coverage)"),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
   ("sorting/msort", "ORDEREDP-MSORT", .nativeSorried ``orderedp_msort_native_driver ``orderedpMsortReplayedCond
-      "total:MERGE2/MSORT (dis_merge2_total, dis_msort_total; REQUIRED) + tp:EVENS (dis_evens_tp)"),
+      "total:MERGE2/MSORT (dis_merge2_total, dis_msort_total; \
+       REQUIRED — with_termination coverage); tp:EVENS retired by the \
+       replay route, TP-replay arc increment 2 2026-08-13"),
   ("sorting/msort", "HOW-MANY-MSORT", .nativeSorried ``how_many_msort_native_driver ``howManyMsortReplayedCond
       "total:MERGE2/MSORT (REQUIRED)"),
   ("sorting/qsort", "termination:QSORT", .replayedOnly "an internal admission obligation, not a user-facing theorem: its native content (the filter-count decreases) IS qsortExec own kernel-checked Lean termination proof (filterExec_consCount_le)"),
@@ -654,10 +655,10 @@ run_cmd Lean.Elab.Command.liftCoreM do
   let decodeAllowed : List Name :=
     [``ACL2.Worlds.Sorting.dis_rule_orderedp_append]
   let debtRegistry : List Name :=
-    [``ACL2.Worlds.Sorting.dis_insert_tp,
-     ``ACL2.Worlds.Sorting.dis_all_rel_tp,
+    -- (`dis_insert_tp` and `dis_evens_tp` RETIRED by the replay route,
+    -- TP-replay arc increment 2, 2026-08-13 — the CONS return-path shape)
+    [``ACL2.Worlds.Sorting.dis_all_rel_tp,
      ``ACL2.Worlds.Sorting.dis_append_tp,
-     ``ACL2.Worlds.Sorting.dis_evens_tp,
      ``ACL2.Worlds.Sorting.dis_acl2_count_tp,
      ``ACL2.Worlds.Sorting.dis_merge2_total,
      ``ACL2.Worlds.Sorting.dis_msort_total,
@@ -670,9 +671,10 @@ run_cmd Lean.Elab.Command.liftCoreM do
      -- TP-replay arc increment 1, 2026-08-12)
      ``ACL2.Worlds.Sorting.dis_bnext_size_tp,
      ``ACL2.Worlds.Sorting.dis_convert_perm,
-     ``ACL2.Worlds.Sorting.dis_sortfn1_insert_tp,
+     -- (`dis_sortfn1_insert_tp` / `dis_ssortfn1_insert_tp` RETIRED with
+     -- the CONS shape, increment 2; the `*_tp` pair below is the
+     -- consp-or-nil class, a later increment)
      ``ACL2.Worlds.Sorting.dis_sortfn1_tp,
-     ``ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp,
      ``ACL2.Worlds.Sorting.dis_ssortfn1_tp]
   for n in debtRegistry do
     let axs ← collectAxioms n

@@ -188,11 +188,19 @@ elab "sorting_statement_pins_run% " : term => do
      ("pins/sorting/convert-perm-to-how-many", r7.lines)]
   let mustHave : List (String × String) :=
     [("pins/sorting/isort",
-      "    ORDEREDP-ISORT → REPLAYED ✓ cond[tp:INSERT]"),
+      -- tp:INSERT DROPPED 2026-08-13 (TP-replay arc increment 2, the
+      -- CONS return-path shape): the driver's TP prover discharges
+      -- INSERT's emitted `(CONSP (INSERT E X))` corollary from its
+      -- `:LEAVES` (every emitted leaf a CONS, ACL2's verdict 3072 =
+      -- *ts-cons*), so BOTH isort rows are unconditional now — an
+      -- INTENTIONAL improvement, diagnosed row-by-row against the
+      -- golden, not a silent drift
+      "    ORDEREDP-ISORT → REPLAYED ✓"),
      ("pins/sorting/isort",
       -- (no DISCHARGE suffix here: upTo skips the earlier theorems' DP
       -- probes; the full sweep's golden carries them)
-      "    TRUE-LISTP-ISORT → REPLAYED ✓ cond[tp:INSERT]"),
+      -- (tp:INSERT dropped 2026-08-13 — see ORDEREDP-ISORT above)
+      "    TRUE-LISTP-ISORT → REPLAYED ✓"),
      ("pins/sorting/isort",
       -- tp:HOW-MANY DROPPED 2026-08-12 (TP-replay arc increment 1): the
       -- driver's TP prover discharges HOW-MANY's emitted corollary from
@@ -223,8 +231,11 @@ rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
      ("pins/sorting/ordered-perms",
       "    ORDEREDP-RM → REPLAYED ✓"),
      ("pins/sorting/msort",
-      "    ORDEREDP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT, \
-tp:EVENS]"),
+      -- (tp:EVENS dropped 2026-08-13 — the same CONS return-path shape,
+      -- via the TRUE-LISTP corollary class: EVENS's emitted leaves are a
+      -- CONS verdicted 1024 and 'NIL verdicted 128, both inside
+      -- *ts-true-list* = 1152)
+      "    ORDEREDP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT]"),
      ("pins/sorting/bsort",
       -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above)
       "    HOW-MANY-BNEXT → REPLAYED ✓ cond[total:BNEXT]"),
@@ -320,11 +331,11 @@ private def tpPred1 (w : World) (fn : String) (pred : SExpr → SExpr) : Prop :=
     (∃ N, ∀ f ≥ N, evalOpt f w env' (ap1 fn a0) = some v) →
     pred v = SExpr.t
 
-/-- `tp:<fn>` (binary), single-predicate corollary (e.g. `consp`). -/
-def tpPred2 (w : World) (fn : String) (pred : SExpr → SExpr) : Prop :=
-  ∀ (env' : Env) (a0 a1 v : SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f w env' (ap2 fn a0 a1) = some v) →
-    pred v = SExpr.t
+-- (`tpPred2` — the BINARY single-predicate corollary vocabulary, used by
+-- the `tp:INSERT`/`tp:INS` pins — DELETED 2026-08-13: every pin that
+-- spoke it retired with the CONS return-path shape, and a pin
+-- vocabulary with no pin is cruft. It comes back with the next binary
+-- single-predicate TP that a pin actually keeps.)
 
 /-- `rule:<thm>` for an unconditional rewrite: lhs and rhs evaluate
     identically in every environment (over the rule's own variables, free
@@ -340,12 +351,14 @@ def ruleEqHyp1 (w : World) (hyp lhs rhs : SExpr) : Prop :=
 /-! ## isort book (acl2/books/sorting/isort.lisp) -/
 
 /-- PIN the machine-generated statement of `ORDEREDP-ISORT`: the replayed statement of
-    the ACL2 defthm `(orderedp (isort x))`, conditional on exactly one
-    hypothesis — insert's emitted TP corollary `(consp (insert e x))`
-    (source-true: every branch of the `insert` defun is a `cons`). -/
+    the ACL2 defthm `(orderedp (isort x))`, UNCONDITIONAL. Its one-time
+    hypothesis — insert's emitted TP corollary `(consp (insert e x))` —
+    RETIRED 2026-08-13 (TP-replay arc increment 2, the CONS return-path
+    shape): the driver's TP prover discharges it from ACL2's own emitted
+    corollary + `:LEAVES`, so the hypothesis left the telescope and the
+    pinned type drops it too. INTENTIONAL; diagnosed against the golden. -/
 example :
     ∀ (env : Env),
-      tpPred2 isortPinsWorld "INSERT" Logic.consp →
       EvTrue isortPinsWorld env (ap1 "ORDEREDP" (ap1 "ISORT" (sym "X"))) :=
   ReplayedStatements.replayed_pins_sorting_isort_ORDEREDP_ISORT
 
@@ -501,14 +514,14 @@ example :
     (msort.lisp:40): the replayed statement of `(orderedp (msort x))`, conditional on
     - totality of `merge2` (binary) and `msort` (unary) — world fns whose
       totality is not auto-discharged on this row,
-    - evens' emitted TP corollary `(true-listp (evens l))` (source-true:
-      the nil branch is a true-list and the cons branch conses onto the
-      recursion). -/
+    - (evens' emitted TP corollary `(true-listp (evens l))` RETIRED
+      2026-08-13 — TP-replay arc increment 2's TRUE-LISTP corollary
+      class: the driver discharges it from ACL2's emitted `:LEAVES`, so
+      the hypothesis left the telescope. INTENTIONAL.) -/
 example :
     ∀ (env : Env),
       totalHyp2 msortPinsWorld "MERGE2" →
       totalHyp1 msortPinsWorld "MSORT" →
-      tpPred1 msortPinsWorld "EVENS" Logic.trueListp →
       EvTrue msortPinsWorld env (ap1 "ORDEREDP" (ap1 "MSORT" (sym "X"))) :=
   ReplayedStatements.replayed_pins_sorting_msort_ORDEREDP_MSORT
 
@@ -579,10 +592,11 @@ example :
                    (equal it 'junk)))
 
     under ACL2's standard translation (`and` → nested IFs, `or` →
-    `(IF a a b)`), conditional on ins's emitted TP corollary
-    `(consp (ins e x))` (source-true: every branch conses); the
-    ground-zero rule `default-cdr` now discharges via its D5 prelude
-    constant. -/
+    `(IF a a b)`), UNCONDITIONAL: ins's emitted TP corollary
+    `(consp (ins e x))` is discharged by the driver's TP prover from
+    ACL2's own `:LEAVES` (TP-replay arc increment 2, 2026-08-13 — the
+    CONS return-path shape); the ground-zero rule `default-cdr`
+    discharges via its D5 prelude constant. -/
 
 private def p3ConjLog : String :=
   include_str "../acl2_samples/pattern-tests/p3-conj-mid-literal.proof-log"
@@ -597,8 +611,13 @@ elab "p3_conj_statement_pin_run% " : term => do
   unless r.integrityFails.isEmpty do
     throwError "p3-conj statement pin: integrity failures \
       {r.integrityFails.toList}"
+  -- tp:INS DROPPED 2026-08-13 (TP-replay arc increment 2): INS is an
+  -- insert-shaped fn, so its emitted `(CONSP (INS E X))` corollary +
+  -- `:LEAVES` (three CONS leaves, ACL2 verdict 3072 = *ts-cons*)
+  -- discharge through the TP prover's CONS return-path arm — the row is
+  -- unconditional now. INTENTIONAL; same shape as ORDEREDP-ISORT.
   unless r.lines.any (·.startsWith
-      "    ORDD-INS-MID → REPLAYED ✓ cond[tp:INS]") do
+      "    ORDD-INS-MID → REPLAYED ✓") do
     throwError "p3-conj statement pin: lost the pinned status prefix; got:\n\
       {"\n".intercalate r.lines.toList}"
   logInfo "p3-conj statement pin: replay status holds (ORDD-INS-MID)"
@@ -612,7 +631,8 @@ private def notOf (x : SExpr) : SExpr := .cons (sym "NOT") (.cons x .nil)
 
 example :
     ∀ (env : Env),
-      tpPred2 p3ConjPinsWorld "INS" Logic.consp →
+      -- (tp:INS RETIRED 2026-08-13 — the CONS return-path shape; the
+      -- hypothesis left the telescope, so the pinned type drops it.)
       EvTrue p3ConjPinsWorld env
         (ap2 "IMPLIES"
           (ap3 "IF" (ap1 "CONSP" (sym "IT"))
@@ -838,11 +858,12 @@ example :
     book's remaining green rows (validator/lifter arc W1 item 3: the
     survey's near-zero-marginal-cost pins; completes the book). -/
 
-/-- PIN `TRUE-LISTP-ISORT`: `(true-listp (isort x))`, conditional on
-    insert's `(consp (insert e x))` TP (source-true: every branch conses). -/
+/-- PIN `TRUE-LISTP-ISORT`: `(true-listp (isort x))`, UNCONDITIONAL —
+    insert's `(consp (insert e x))` TP RETIRED 2026-08-13 (the CONS
+    return-path shape; the driver discharges it from ACL2's emitted
+    `:LEAVES`, so the hypothesis left the telescope). INTENTIONAL. -/
 example :
     ∀ (env : Env),
-      tpPred2 isortPinsWorld "INSERT" Logic.consp →
       EvTrue isortPinsWorld env (ap1 "TRUE-LISTP" (ap1 "ISORT" (sym "X"))) :=
   ReplayedStatements.replayed_pins_sorting_isort_TRUE_LISTP_ISORT
 

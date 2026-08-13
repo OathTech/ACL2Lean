@@ -83,8 +83,7 @@ def weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
   weakSortfn1IsSortfn2Parametric equisortDev equisortWaypointsWorld
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
   totals [ACL2.Worlds.Sorting.dis_pce_total,
-   ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
-   ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
+   ACL2.Worlds.Sorting.dis_sortfn1_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
 
 /-! The AtCanonical witnesses are SORRY-BACKED since the thin-Lean purge
 (2026-08-11, audit fix F1): the `totals [...]` dischargers above are
@@ -99,8 +98,11 @@ retires (TP-replay discharge / with_termination coverage) the gate
 fails and forces the promotion review at which these witnesses become
 fully-backed again. (TP-replay arc increment 1, 2026-08-12: the
 `dis_how_many_tp` entry left this list — `tp:HOW-MANY` now arrives by
-replay — but five debt dischargers remain, so the pair stays
-sorry-backed and the gate's requirement is unchanged.) -/
+replay. Increment 2, same day: `dis_sortfn1_insert_tp` and
+`dis_ssortfn1_insert_tp` left it too — the CONS return-path shape.
+THREE debt dischargers remain, `dis_pce_total` +
+`dis_s?sortfn1_tp`, so the pair stays sorry-backed and the gate's
+`sorryAx` requirement is unchanged; the receipts do NOT flip here.) -/
 
 set_option maxHeartbeats 12000000 in
 /-- STRONG at the canonical world — every premise discharged except the
@@ -109,7 +111,6 @@ def strongSsortfn1IsSsortfn2AtCanonical := instantiate_parametric%
   strongSsortfn1IsSsortfn2Parametric equisortDev equisortWaypointsWorld
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
   totals [ACL2.Worlds.Sorting.dis_pce_total,
-   ACL2.Worlds.Sorting.dis_sortfn1_insert_tp, ACL2.Worlds.Sorting.dis_sortfn1_tp,
-   ACL2.Worlds.Sorting.dis_ssortfn1_insert_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
+   ACL2.Worlds.Sorting.dis_sortfn1_tp, ACL2.Worlds.Sorting.dis_ssortfn1_tp]
 
 end ACL2.Imported.Waypoints

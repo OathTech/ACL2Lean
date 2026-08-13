@@ -364,14 +364,27 @@ inductive TpCorClass where
   /-- `(IF (INTEGERP (f …)) (NOT (< (f …) '0)) 'NIL)` — ACL2's
       `*ts-non-negative-integer*` (the emitted `:BASICTS 7`). -/
   | nonNegInt
+  /-- `(CONSP (f …))` — ACL2's `*ts-cons*` (the emitted `:BASICTS 3072`). -/
+  | consp
+  /-- `(TRUE-LISTP (f …))` — ACL2's `*ts-true-list*` (`:BASICTS 1152`). -/
+  | trueListp
   deriving BEq, Repr, Inhabited
 
 /-- ACL2's basic type-set MASK the class covers (`acl2/type-set-a.lisp`'s
-    `def-basic-type-sets` bit order: 2^0 zero, 2^1 one, 2^2 integer>1, 2^3
-    positive-ratio, …). A leaf whose EMITTED verdict has a bit outside the
-    mask is not covered by the corollary — frontier. -/
+    `def-basic-type-sets` bit order: 2^0 `*ts-zero*`, 2^1 `*ts-one*`, 2^2
+    `*ts-integer>1*`, 2^3 positive-ratio, 2^4 negative-integer, 2^5
+    negative-ratio, 2^6 complex-rational, 2^7 `*ts-nil*`, 2^8 `*ts-t*`,
+    2^9 non-t-non-nil-symbol, 2^10 `*ts-proper-cons*`, 2^11
+    `*ts-improper-cons*`, 2^12 string, 2^13 character). A leaf whose
+    EMITTED verdict has a bit outside the mask is not covered by the
+    corollary — frontier. Each mask is the ACL2 constant the corollary's
+    recognizer names: `*ts-non-negative-integer*` = 0|1|2 = 7,
+    `*ts-cons*` = proper|improper = 1024|2048 = 3072, `*ts-true-list*` =
+    nil|proper-cons = 128|1024 = 1152. -/
 def TpCorClass.tsMask : TpCorClass → Int
   | .nonNegInt => 7
+  | .consp => 3072
+  | .trueListp => 1152
 
 /-- Is the emitted leaf verdict `ts` inside the class's type-set `mask`?
     A NEGATIVE `ts` is a complement type-set (ACL2's `-1` = every type) and
@@ -395,14 +408,49 @@ def tpCorClass? (appPat cor : SExpr) : Option TpCorClass :=
   if cor == ifE (app1 "INTEGERP" appPat)
       (app1 "NOT" (app2 "<" appPat (quo (.atom (.number (.int 0))))))
       (quo .nil) then some .nonNegInt
+  else if cor == app1 "CONSP" appPat then some .consp
+  else if cor == app1 "TRUE-LISTP" appPat then some .trueListp
   else none
 
-/-- Value-CLOSURE registry, (corollary class, 2-ary primitive) ↦ the Lean
-    fact `∀ u v, P u → P v → P (g u v)` for that class's predicate. The
-    driver RECOMPUTES the obligation from its own `P` and type-hints the
-    registered constant against it, so a drifted lift fails closed. -/
-def tpClosure2 : List ((TpCorClass × String) × Name) :=
-  [((.nonNegInt, "BINARY-+"), ``ACL2.Replay.nonNegIntCor_closed_plus)]
+/-- Which ARGUMENTS of a registered return-path primitive must themselves
+    satisfy the corollary predicate (TP-replay arc increment 2,
+    2026-08-13). The profile is a property of the (class, primitive) PAIR,
+    not of any function: `CONSP`×`CONS` constrains NEITHER argument (any
+    cons is a cons), `TRUE-LISTP`×`CONS` constrains the TAIL only (the head
+    is arbitrary), `NON-NEGATIVE-INTEGER`×`BINARY-+` constrains BOTH.
+    Unconstrained positions still have to CONVERGE — they carry
+    `TpArgAny`, discharged by the plain walk. -/
+inductive TpArgProfile where
+  /-- neither argument constrained -/
+  | neither
+  /-- the second argument only (the constructor's tail) -/
+  | sndOnly
+  /-- both arguments -/
+  | both
+  deriving BEq, Repr, Inhabited
+
+/-- Is the FIRST argument constrained by the corollary predicate? -/
+def TpArgProfile.fstConstrained : TpArgProfile → Bool
+  | .both => true
+  | _ => false
+
+/-- Is the SECOND argument constrained by the corollary predicate? -/
+def TpArgProfile.sndConstrained : TpArgProfile → Bool
+  | .neither => false
+  | _ => true
+
+/-- Value-CLOSURE registry, (corollary class, 2-ary primitive) ↦ the
+    argument-obligation PROFILE plus the Lean fact
+    `∀ u v, Pa u → Pb v → P (g u v)` for that class's predicate (`Pa`/`Pb`
+    being `P` at the profile's constrained positions and `TpArgAny`
+    elsewhere). The driver RECOMPUTES the obligation from its own `P` and
+    the profile, then type-hints the registered constant against it, so a
+    drifted lift OR a mis-registered profile fails closed. -/
+def tpClosure2 : List ((TpCorClass × String) × TpArgProfile × Name) :=
+  [((.nonNegInt, "BINARY-+"), .both, ``ACL2.Replay.nonNegIntCor_closed_plus),
+   ((.consp, "CONS"), .neither, ``ACL2.Replay.conspCor_closed_cons),
+   ((.trueListp, "CONS"), .sndOnly,
+    ``ACL2.Replay.trueListpCor_closed_cons)]
 
 /-- The per-function EMITTED type-prescription data the TP walk consumes on
     its return paths (TP-replay arc increment 1, 2026-08-12): the fn's
@@ -480,17 +528,18 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
     else
       tpWalkCall cfg envE vals facts totalEnv self kit P t
   | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
-    -- RETURN-PATH PRIMITIVE (TP-replay arc increment 1, 2026-08-12): a
+    -- RETURN-PATH PRIMITIVE (TP-replay arc increments 1–2, 2026-08-12): a
     -- 2-ary registered builtin ACL2 itself enumerated as a return-path
     -- LEAF of this fn's type prescription. ADMISSIBILITY IS ENTIRELY
     -- EMITTED — the term must be one of ACL2's `:LEAVES` and the type-set
     -- verdict ACL2 computed for it must lie inside the corollary class's
     -- type-set. The Lean side contributes only the class's value CLOSURE
-    -- lemma; it never derives a type. Anything unregistered falls through
-    -- to the call arms (self-call, else frontier).
+    -- lemma and its ARG-OBLIGATION PROFILE; it never derives a type.
+    -- Anything unregistered falls through to the call arms (self-call,
+    -- else frontier).
     match dpBinary.lookup fs.name, kit.cls with
     | some (fn, cb), some cls =>
-      let some closure := tpClosure2.lookup (cls, fs.name)
+      let some (prof, closure) := tpClosure2.lookup (cls, fs.name)
         | throwFrontier m!"proveTp: return-path {fs.name} has no value-closure \
             lemma for the {repr cls} corollary class (frontier)"
       let some (_, ts) := kit.leaves.find? (fun (leaf, _) => leaf == t)
@@ -500,22 +549,35 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
         throwFrontier m!"proveTp: emitted leaf verdict {ts} of {repr t} is \
             not inside the {repr cls} corollary class's type-set \
             {cls.tsMask} (frontier)"
-      let pa ← tpWalk cfg envE vals facts totalEnv self kit P a
-      let pb ← tpWalk cfg envE vals facts totalEnv self kit P b
+      -- PER-ARGUMENT obligation, off the registered PROFILE: a constrained
+      -- position carries `P` (the TP walk); an unconstrained one carries
+      -- only `TpArgAny`, i.e. plain convergence by the totality walk — the
+      -- Lean side never invents a type for it
+      let argOf (constrained : Bool) (u : SExpr) : MetaM (Expr × Expr) := do
+        if constrained then
+          return (P, ← tpWalk cfg envE vals facts totalEnv self kit P u)
+        else
+          let hEx ← totWalk cfg envE vals facts totalEnv none u
+          return (mkConst ``ACL2.Replay.TpArgAny, ← mkAppM ``convP_any #[hEx])
+      let (pA, pa) ← argOf prof.fstConstrained a
+      let (pB, pb) ← argOf prof.sndConstrained b
       let hNs ← proveNotSpecial fs
       let hNo ← proveNoShadow cfg fs
-      -- the CLOSURE obligation, RECOMPUTED from the driver's own `P` — a
-      -- registered lemma that does not state exactly this fails here
+      -- the CLOSURE obligation, RECOMPUTED from the driver's own `P` and
+      -- the profile's per-argument predicates — a registered lemma that
+      -- does not state exactly this (wrong class, or a profile claiming
+      -- more/less than the lemma proves) fails here
       let clTy ← withLocalDeclD `u (mkConst ``SExpr) fun u =>
         withLocalDeclD `v (mkConst ``SExpr) fun v => do
           let pg := (mkApp P (mkApp2 (mkConst fn) u v)).headBeta
           mkForallFVars #[u, v]
-            (← mkArrow (mkApp P u).headBeta
-              (← mkArrow (mkApp P v).headBeta pg))
+            (← mkArrow (mkApp pA u).headBeta
+              (← mkArrow (mkApp pB v).headBeta pg))
       let hcl ← mkExpectedTypeHint (mkConst closure) clTy
       return ← mkAppM ``convP_builtin2
         #[cfg.worldExpr, envE, reflectSymbol fs, reflectSExpr a,
-          reflectSExpr b, mkConst fn, P, hNs, hNo, mkConst cb, hcl, pa, pb]
+          reflectSExpr b, mkConst fn, P, pA, pB, hNs, hNo, mkConst cb,
+          hcl, pa, pb]
     | _, _ => tpWalkCall cfg envE vals facts totalEnv self kit P t
   | _ => tpWalkCall cfg envE vals facts totalEnv self kit P t
 where

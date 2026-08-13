@@ -19,19 +19,41 @@ open ACL2
 
 /-! ## The return-path composition move -/
 
+/-- The UNCONSTRAINED argument obligation (TP-replay arc increment 2,
+    2026-08-13). A constructor closure need not constrain every argument:
+    `CONSP` of a `CONS` holds whatever the arguments are, and `TRUE-LISTP`
+    of a `CONS` constrains only the TAIL. The unconstrained positions carry
+    this trivial predicate, so a `ConvToP … TpArgAny` is exactly plain
+    evaluability (`convP_any`) — the walk's existing convergence machinery,
+    with no type content added Lean-side. -/
+def TpArgAny : SExpr → Prop := fun _ => True
+
+/-- An unconstrained argument position: plain convergence IS the
+    obligation. -/
+theorem convP_any {w : World} {env : Env} {t : SExpr}
+    (h : ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v) :
+    ConvToP w env t TpArgAny := by
+  obtain ⟨N, v, hv⟩ := h
+  exact ⟨v, trivial, N, hv⟩
+
 /-- A 2-ary registered BUILTIN on the TP return path: the value predicate
     carries from the arguments to the application. `g`/`hg` are the
     primitive's total value function and its `callBuiltin` characterization
     (the `dpBinary` rfl lemma); `hcl` is the corollary class's CLOSURE fact
-    for that primitive. The TP analogue of `conv_builtin2_ex`. -/
+    for that primitive. The TP analogue of `conv_builtin2_ex`.
+
+    `Pa`/`Pb` are the PER-ARGUMENT obligations, which are NOT in general
+    `P`: the driver reads them off the closure's registered ARG-OBLIGATION
+    PROFILE (`TpArgProfile`) and passes `TpArgAny` at every unconstrained
+    position. -/
 theorem convP_builtin2 (w : World) (env : Env) (s : Symbol) (a b : SExpr)
-    (g : SExpr → SExpr → SExpr) (P : SExpr → Prop)
+    (g : SExpr → SExpr → SExpr) (P Pa Pb : SExpr → Prop)
     (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
             s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
     (h_no : w.defs.get? s = none)
     (hg : ∀ u v, callBuiltin s.name [u, v] = some (g u v))
-    (hcl : ∀ u v, P u → P v → P (g u v))
-    (ha : ConvToP w env a P) (hb : ConvToP w env b P) :
+    (hcl : ∀ u v, Pa u → Pb v → P (g u v))
+    (ha : ConvToP w env a Pa) (hb : ConvToP w env b Pb) :
     ConvToP w env
       (.cons (.atom (.symbol s)) (.cons a (.cons b .nil))) P := by
   obtain ⟨av, hPa, ha'⟩ := ha
@@ -79,5 +101,31 @@ theorem nonNegIntCor_closed_plus (u v : SExpr)
   obtain ⟨n, rfl⟩ := dp_nonneg_int_of_tp hv
   rw [logic_plus_int, show (m : Int) + (n : Int) = ((m + n : Nat) : Int) by omega]
   exact nonNegIntCor_of_nat (m + n)
+
+/-! ### The CONSTRUCTOR classes (TP-replay arc increment 2, 2026-08-13)
+
+`CONSP` is ACL2's `*ts-cons*` (`:BASICTS 3072` = proper ∪ improper cons)
+and `TRUE-LISTP` is `*ts-true-list*` (`1152` = proper-cons ∪ nil); both are
+emitted as BARE corollaries — `(CONSP (f …))` / `(TRUE-LISTP (f …))` — so
+the lifted `P` is just the `Logic` recognizer at the value. Their `CONS`
+closures differ exactly in their ARG-OBLIGATION PROFILE: every cons is a
+cons (no obligation on either argument), while a cons is a true-list iff
+its TAIL is (the head arbitrary). -/
+
+/-- CLOSURE, `CONSP` × `CONS`, profile `neither`: a `CONS` is a `CONSP`
+    whatever its arguments are. The arguments carry only `TpArgAny` —
+    the walk still has to CONVERGE them, but nothing about their type is
+    used or claimed. -/
+theorem conspCor_closed_cons (u v : SExpr)
+    (_hu : TpArgAny u) (_hv : TpArgAny v) :
+    Logic.consp (SExpr.cons u v) = SExpr.t := rfl
+
+/-- CLOSURE, `TRUE-LISTP` × `CONS`, profile `sndOnly`: consing onto a
+    true-list gives a true-list; the HEAD is unconstrained (`TpArgAny`).
+    `Logic.trueListp` recurses straight into the tail, so the emitted
+    corollary's own lifted predicate is what carries. -/
+theorem trueListpCor_closed_cons (u v : SExpr) (_hu : TpArgAny u)
+    (hv : Logic.trueListp v = SExpr.t) :
+    Logic.trueListp (SExpr.cons u v) = SExpr.t := hv
 
 end ACL2.Replay

@@ -25,10 +25,9 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   coverage for MERGE2/MSORT/O</PCE/BNEXT (the machinery exists;
 >   the admissions need replay rows + wiring).
 > - TP class (unlock = a TP-replay discharge route, a named coverage
->   item): `dis_insert_tp`, `dis_all_rel_tp`,
->   `dis_append_tp`, `dis_evens_tp`, `dis_acl2_count_tp`,
->   `dis_sortfn1_insert_tp`,
->   `dis_sortfn1_tp`, `dis_ssortfn1_insert_tp`, `dis_ssortfn1_tp`,
+>   item): `dis_all_rel_tp`,
+>   `dis_append_tp`, `dis_acl2_count_tp`,
+>   `dis_sortfn1_tp`, `dis_ssortfn1_tp`,
 >   and — MINTED 2026-08-11 under the reuse-vs-mint ruling (cap:
 >   only classes that already HAVE an unlock) for the
 >   bnext-level bsort rows — `dis_bnext_size_tp`
@@ -38,6 +37,12 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   return-path shape, discharged from ACL2's emitted corollary +
 >   `:LEAVES`): `dis_how_many_tp`, `dis_how_many_smaller_tp`,
 >   `drv_tp_len`, `drv_tp_mylen` (20 registered sorries → 16).
+>   RETIRED 2026-08-13 (TP-replay arc increment 2 — the CONS
+>   return-path shape: the `(CONSP (f …))` and `(TRUE-LISTP (f …))`
+>   corollary classes, whose `CONS` closures carry per-class ARG
+>   OBLIGATIONS — none / tail-only): `dis_insert_tp`,
+>   `dis_sortfn1_insert_tp`, `dis_ssortfn1_insert_tp`,
+>   `dis_evens_tp` (16 registered sorries → 12).
 >   NOT mintable and still
 >   blocking ORDEREDP-BSORT/HOW-MANY-BSORT:
 >   `linear:HOW-MANY-BAD-PAIRS-BNEXT` — the `linear:` class has NO

@@ -66,7 +66,10 @@ theorem how_many_evens_and_odds_native_driver (ev a : SExpr)
 #print axioms how_many_evens_and_odds_native_driver
 
 set_option maxHeartbeats 1600000 in
-/-- ORDEREDP-MSORT's conditional replayed statement. -/
+/-- ORDEREDP-MSORT's conditional replayed statement (two `total:`
+    hypotheses; its former `tp:EVENS` hypothesis is now supplied by the
+    driver's TP prover from EVENS's emitted corollary + `:LEAVES` —
+    TP-replay arc increment 2, 2026-08-13). -/
 def orderedpMsortReplayedCond := driver_replayed% msortDev msortWorldD
   "orderedp-msort"
 
@@ -79,8 +82,6 @@ theorem orderedpMsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_msort_total msortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide))
-    (Worlds.Sorting.dis_evens_tp msortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — ORDEREDP-MSORT natively: MERGE SORT ALWAYS SORTS —
     `msortL` yields an adjacent-pair lexorder-sorted list for EVERY

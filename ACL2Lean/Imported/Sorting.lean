@@ -356,25 +356,11 @@ theorem corr_isort_enc (w : World)
     h_no_cons h_no_lexorder e' x (enc xs) hx
   rwa [isortExec_enc] at h
 
-/-! ## The `tp:INSERT` discharger — `(CONSP (INSERT E X))` -/
-
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `tp:INSERT` — the emitted `(CONSP (INSERT E X))` corollary —
-    Lean-side; content ACL2 derives. Statement kept as the named
-    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
-theorem dis_insert_tp (w : World)
-    (h_insert : w.defs.get? insert_sym = some ([eS, xS], insertBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
-    (e' : Env) (a0 a1 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
-      (SExpr.cons (SExpr.atom (Atom.symbol insert_sym))
-        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
-    Logic.consp v = SExpr.t := by
-  sorry
+/-! ## The `tp:INSERT` discharger — RETIRED (TP-replay arc increment 2,
+2026-08-13). `dis_insert_tp` is GONE: `(CONSP (INSERT E X))` now arrives
+from the driver's TP prover, off INSERT's own emitted
+`:TYPE-PRESCRIPTION` corollary + `:LEAVES` (every emitted return-path
+leaf is a `CONS` with ACL2's verdict `3072` = `*ts-cons*`). -/
 
 /-! ## The ORDEREDP-ISORT assembly -/
 
@@ -2429,22 +2415,12 @@ theorem dis_msort_total (w : World)
       ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (msortT a0) = some v := by
   sorry
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `tp:EVENS` — the emitted `(TRUE-LISTP (EVENS L))` corollary —
-    Lean-side; content ACL2 derives. Statement kept as the named
-    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
-theorem dis_evens_tp (w : World)
-    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (e' : Env) (a0 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
-      (SExpr.cons (SExpr.atom (Atom.symbol evens_sym))
-        (SExpr.cons a0 SExpr.nil)) = some v) :
-    Logic.trueListp v = SExpr.t := by
-  sorry
+/-! The `tp:EVENS` discharger is RETIRED (TP-replay arc increment 2,
+2026-08-13). `dis_evens_tp` is GONE: `(TRUE-LISTP (EVENS L))` now
+arrives from the driver's TP prover, off EVENS's own emitted
+`:TYPE-PRESCRIPTION` corollary + `:LEAVES` (the `CONS` leaf verdicted
+`1024` and the `'NIL` leaf verdicted `128` — both inside
+`*ts-true-list*` = `1152`). -/
 
 /-! ## The msort row assemblies -/
 

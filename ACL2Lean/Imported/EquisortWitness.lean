@@ -91,25 +91,11 @@ derive_exec% ssortfn1InsertExec corr ssortfn1_insert_exec_corr
 derive_exec% ssortfn1Exec corr ssortfn1_exec_corr
   for ssortfn1_sym formals [xS] body ssortfn1Body measured 0
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `tp:SORTFN1-INSERT` — the emitted `(CONSP (SORTFN1-INSERT E X))`
-    corollary — Lean-side; content ACL2 derives. Statement kept as the
-    named premise; proof retired to `sorry`. UNLOCK: TP-replay
-    discharge for the witness fns. -/
-theorem dis_sortfn1_insert_tp (w : World)
-    (h_sortfn1_insert : w.defs.get? sortfn1_insert_sym
-      = some ([eS, xS], sortfn1InsertBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
-    (e' : Env) (a0 a1 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
-      (SExpr.cons (SExpr.atom (Atom.symbol sortfn1_insert_sym))
-        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
-    Logic.consp v = SExpr.t := by
-  sorry
+/-! `dis_sortfn1_insert_tp` is RETIRED (TP-replay arc increment 2,
+2026-08-13): `(CONSP (SORTFN1-INSERT E X))` now arrives from the
+driver's TP prover, off the fn's own emitted `:TYPE-PRESCRIPTION`
+corollary + `:LEAVES` (all three emitted leaves are `CONS`es, verdict
+`3072` = `*ts-cons*`). -/
 
 /-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
     `tp:SORTFN1` — the emitted consp-or-nil `IF` corollary — Lean-side;
@@ -133,25 +119,10 @@ theorem dis_sortfn1_tp (w : World)
       else Logic.equal v SExpr.nil) = SExpr.t := by
   sorry
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `tp:SSORTFN1-INSERT` — the emitted `(CONSP (SSORTFN1-INSERT E X))`
-    corollary — Lean-side; content ACL2 derives. Statement kept as the
-    named premise; proof retired to `sorry`. UNLOCK: TP-replay
-    discharge for the witness fns. -/
-theorem dis_ssortfn1_insert_tp (w : World)
-    (h_ssortfn1_insert : w.defs.get? ssortfn1_insert_sym
-      = some ([eS, xS], ssortfn1InsertBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
-    (e' : Env) (a0 a1 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
-      (SExpr.cons (SExpr.atom (Atom.symbol ssortfn1_insert_sym))
-        (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v) :
-    Logic.consp v = SExpr.t := by
-  sorry
+/-! `dis_ssortfn1_insert_tp` is RETIRED (TP-replay arc increment 2,
+2026-08-13): same route as its SORTFN1 twin — the emitted
+`(CONSP (SSORTFN1-INSERT E X))` corollary + `:LEAVES` (three `CONS`
+leaves, verdict `3072`). -/
 
 /-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
     `tp:SSORTFN1` — the emitted consp-or-nil `IF` corollary — Lean-side;
