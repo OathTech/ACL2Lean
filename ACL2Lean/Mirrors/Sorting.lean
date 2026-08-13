@@ -26,6 +26,14 @@ unproved target is a named `Prop`, never a fake theorem. (The only
 proofs here are the termination measures Lean's kernel demands for
 the definitions to exist.)
 
+VOCABULARY PRACTICE (Mike, 2026-08-13 — disambiguate hard, as
+design practice): body constructs that MIRROR A BOOK FUNCTION are
+OWN-DEFINITIONS (`filterRel` = FILTER, `rm` = RM — their iso squares
+arrive with their mirrors); pure-Lean idiom is FULLY QUALIFIED
+(`List.find?`, `List.length`) or an own device (`iterate`); operator
+notation (`++`, `∈`) is permitted as unambiguous; names are
+collision-linted (Tests/MirrorNameCheck).
+
 SELF-CONTAINED VOCABULARY (deliberate): the predicates below —
 `Ordered`, `howMany`, `Permuted`, the witness — are OUR OWN idiomatic
 definitions, not Mathlib/Batteries notions. Mathlib proves plenty
@@ -99,8 +107,11 @@ theorem length_evens_le : ∀ (xs : List α), (evens xs).length ≤ xs.length
     have h := length_evens_le t
     simp [evens]; omega
 
-/-- The odd-position elements: `evens` of the tail. -/
-def odds (xs : List α) : List α := evens xs.tail
+/-- The odd-position elements: `evens` of the tail (own
+    pattern-match — the book's `(EVENS (CDR X))`). -/
+def odds : List α → List α
+  | [] => []
+  | _ :: t => evens t
 
 end Structural
 
@@ -146,20 +157,34 @@ def msort : List α → List α
     simp only [List.length_cons] at h
     simp [odds]; omega
 
+/-- Keep the elements satisfying the test (the book's `FILTER` — a
+    book function, so an own-definition per the vocabulary practice;
+    its iso square arrives with the sorting mirrors). -/
+def filterRel (keep : α → Bool) : List α → List α
+  | [] => []
+  | a :: t => if keep a then a :: filterRel keep t else filterRel keep t
+
+theorem length_filterRel_le (keep : α → Bool) :
+    ∀ (xs : List α), (filterRel keep xs).length ≤ xs.length
+  | [] => Nat.le_refl _
+  | a :: t => by
+    simp only [filterRel]
+    split
+    · exact Nat.succ_le_succ (length_filterRel_le keep t)
+    · exact Nat.le_succ_of_le (length_filterRel_le keep t)
+
 /-- Quicksort, first-element pivot (the book's `QSORT`). -/
 def qsort : List α → List α
   | [] => []
   | p :: t =>
-    qsort (t.filter fun x => decide (x < p))
-      ++ p :: qsort (t.filter fun x => !decide (x < p))
+    qsort (filterRel (fun x => decide (x < p)) t)
+      ++ p :: qsort (filterRel (fun x => !decide (x < p)) t)
   termination_by xs => xs.length
   decreasing_by
-  · simp only [List.length_unattach, List.length_cons]
-    refine Nat.lt_succ_of_le (Nat.le_trans (List.length_filter_le _ _) ?_)
-    simp [List.length_attach]
-  · simp only [List.length_unattach, List.length_cons]
-    refine Nat.lt_succ_of_le (Nat.le_trans (List.length_filter_le _ _) ?_)
-    simp [List.length_attach]
+  · simp only [List.length_cons]
+    exact Nat.lt_succ_of_le (length_filterRel_le _ t)
+  · simp only [List.length_cons]
+    exact Nat.lt_succ_of_le (length_filterRel_le _ t)
 
 /-- One bubble pass: swap adjacent out-of-order pairs, left to right
     (the book's `BNEXT`). -/
@@ -194,7 +219,7 @@ def Permuted [DecidableEq α] : List α → List α → Prop
     `PERM-COUNTER-EXAMPLE`): an element whose multiplicities differ,
     if one exists. -/
 def permWitness [DecidableEq α] (xs ys : List α) : Option α :=
-  (xs ++ ys).find? fun a => howMany a xs != howMany a ys
+  List.find? (fun a => howMany a xs != howMany a ys) (xs ++ ys)
 
 /-! ## The target properties — the definition of done
 

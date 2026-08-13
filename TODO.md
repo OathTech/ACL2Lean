@@ -260,13 +260,14 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > Sorting count/append) — the sim_iso_close lane (default simp +
 > grind) is vocabulary-dependent, so rewrite those readings in own
 > vocabulary (own contains/erase/count defs) at the next waypoint
-> touch; the isPerm reading is the exact P1 shape. (2) RULING
-> WANTED: does own-definitions bind mirror SPEC def bodies too?
-> Mirrors/Sorting.lean's defs use core List.tail/filter/range/
-> foldl/find? — idiomatic, and the mirror lane's closed ladder is
-> leak-free regardless (the load-bearing guard there); recommend:
-> REQUIRED for waypoint readings, recommended-not-required for spec
-> bodies, linter covers names. Present at the arc exit.
+> touch; the isPerm reading is the exact P1 shape. (2) RULED
+> (Mike, 2026-08-13 — disambiguate hard, as design practice): spec
+> body constructs mirroring a BOOK FUNCTION are own-definitions
+> (filterRel=FILTER, rm=RM — applied); pure-Lean idiom fully
+> qualified or an own device (iterate — applied); operators (++/∈)
+> permitted; waypoint READINGS own-definitions required (the
+> compliance pass stands); the linter covers names. Practice, not a
+> gate.
 
 Running backlog across all tracks. Keep this current: update when a milestone lands,
 scope changes, or a new gap/frontier is found (see the injunction in `CLAUDE.md`).
