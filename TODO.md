@@ -25,8 +25,9 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   coverage for MERGE2/MSORT/O</PCE/BNEXT (the machinery exists;
 >   the admissions need replay rows + wiring).
 > - TP class (unlock = a TP-replay discharge route, a named coverage
->   item): `dis_all_rel_tp`,
->   `dis_append_tp`, `dis_acl2_count_tp`.
+>   item):
+>   `dis_acl2_count_tp` (`dis_all_rel_tp`/`dis_append_tp` RETIRED
+>   2026-08-13 — increments 4 and 5, below).
 >   RETIRED 2026-08-12 (TP-replay arc increment 1 — the BINARY-+
 >   return-path shape, discharged from ACL2's emitted corollary +
 >   `:LEAVES`): `dis_how_many_tp`, `dis_how_many_smaller_tp`,
@@ -46,6 +47,24 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   `dis_bnext_size_tp` (12 registered sorries → 9). The equisort
 >   AtCanonical witnesses now carry exactly ONE debt discharger,
 >   `dis_pce_total` (REQUIRED class).
+>   RETIRED 2026-08-13 (TP-replay arc increment 4 — ARITY 3: the TP
+>   prover's 3-ary assembly, measured position read off the emitted
+>   justification): `dis_all_rel_tp` (9 registered sorries → 8).
+>   RETIRED 2026-08-13 (TP-replay arc increment 5 — the ARGS-VALUED
+>   corollary `(IF (CONSP (f X Y)) 'T (EQUAL (f X Y) Y))`: the
+>   prover's args-valued mode + the residue-argument leaf + the
+>   args-valued class implication that let REV's callee step through):
+>   `dis_append_tp` (8 registered sorries → 7). Main-row `tp:` census
+>   18 → 10; survivors with named blockers: `tp:ACL2-COUNT` (×7 —
+>   non-world callees `UNARY--`/`INTEGER-ABS` on its leaves),
+>   `tp:ZIP2`/`tp:ZIP3` (the DISJUNCTIVE ruling literal
+>   `(IF (ATOM X) (ATOM X) (IF (ATOM Y) …))` in the emitted
+>   termination clause — a `dischargeDecrease` matcher frontier, the
+>   same one that keeps `total:ZIP2`/`total:ZIP3`; outside TP scope),
+>   `tp:QSORT` (its `BINARY-APPEND` leaf's ACL2 verdict 1024 rests on
+>   ACL2's INTERNAL type-set for append; the EMITTED corollary
+>   `(consp … ∨ = Y)` cannot give `TRUE-LISTP` — a FORK EMISSION item
+>   (scout first), never a Lean-side derivation).
 >   NOT mintable and still
 >   blocking ORDEREDP-BSORT/HOW-MANY-BSORT:
 >   `linear:HOW-MANY-BAD-PAIRS-BNEXT` — the `linear:` class has NO

@@ -436,25 +436,20 @@ def liftCatalog : List (String × String × LiftStatus) := [
       "total:MERGE2/MSORT (REQUIRED)"),
   ("sorting/qsort", "termination:QSORT", .replayedOnly "an internal admission obligation, not a user-facing theorem: its native content (the filter-count decreases) IS qsortExec own kernel-checked Lean termination proof (filterExec_consCount_le)"),
   ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
-  ("sorting/qsort", "ORDEREDP-APPEND", .nativeSorried ``orderedp_append_native_driver ``orderedpAppendReplayedCond
-      "tp:ALL-REL (dis_all_rel_tp) + tp:APPEND (dis_append_tp); unlock: TP-replay discharge"),
+  ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
   ("sorting/qsort", "HOW-MANY-QSORT", .nativeSorried ``how_many_qsort_native_driver ``howManyQsortReplayedCond
       "total:O< (dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT (dis_acl2_count_tp)"),
   ("sorting/qsort", "PERM-QSORT", .nativeSorried ``perm_qsort_native_driver ``permQsortReplayedCond
       "total:PCE/O< (dis_pce_total, dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the R-lane arc)"),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
-  ("sorting/qsort", "ALL-REL-FILTER-1", .nativeSorried ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond
-      "tp:ALL-REL (dis_all_rel_tp; unlock: TP-replay discharge)"),
-  ("sorting/qsort", "ALL-REL-FILTER-2", .nativeSorried ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond
-      "tp:ALL-REL (dis_all_rel_tp; unlock: TP-replay discharge)"),
-  ("sorting/qsort", "ALL-REL-RM-1", .nativeSorried ``all_rel_rm_1_native_driver ``allRelRm1ReplayedCond
-      "tp:ALL-REL (dis_all_rel_tp; unlock: TP-replay discharge)"),
-  ("sorting/qsort", "ALL-REL-RM-2", .nativeSorried ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond
-      "tp:ALL-REL (dis_all_rel_tp; unlock: TP-replay discharge)"),
+  ("sorting/qsort", "ALL-REL-FILTER-1", .native ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond),
+  ("sorting/qsort", "ALL-REL-FILTER-2", .native ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond),
+  ("sorting/qsort", "ALL-REL-RM-1", .native ``all_rel_rm_1_native_driver ``allRelRm1ReplayedCond),
+  ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
   ("sorting/qsort", "ORDEREDP-QSORT", .nativeSorried ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond
-      "totals (REQUIRED) + tps + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm) + rule:ORDEREDP-APPEND rides the tainted orderedp_append wrapper; unlock: TP-replay + the R-lane"),
+      "totals (REQUIRED) + tp:ACL2-COUNT (dis_acl2_count_tp) + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm); tp:ALL-REL retired by the replay route and rule:ORDEREDP-APPEND's wrapper is CLEAN as of TP-replay arc increments 4-5, 2026-08-13; unlock: the ACL2-COUNT tp + the R-lane"),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
 /-- SEAM REACHABILITY — the ONE copy (R4, gate-cruft review 2026-08-11;
@@ -658,9 +653,10 @@ run_cmd Lean.Elab.Command.liftCoreM do
   let debtRegistry : List Name :=
     -- (`dis_insert_tp` and `dis_evens_tp` RETIRED by the replay route,
     -- TP-replay arc increment 2, 2026-08-13 — the CONS return-path shape)
-    [``ACL2.Worlds.Sorting.dis_all_rel_tp,
-     ``ACL2.Worlds.Sorting.dis_append_tp,
-     ``ACL2.Worlds.Sorting.dis_acl2_count_tp,
+    -- (`dis_all_rel_tp` RETIRED by the replay route, TP-replay arc
+    -- increment 4, 2026-08-13 — the arity-3 assembly; `dis_append_tp`
+    -- RETIRED by increment 5 — the ARGS-VALUED corollary shape)
+    [``ACL2.Worlds.Sorting.dis_acl2_count_tp,
      ``ACL2.Worlds.Sorting.dis_merge2_total,
      ``ACL2.Worlds.Sorting.dis_msort_total,
      ``ACL2.Worlds.Sorting.dis_o_lt_total,

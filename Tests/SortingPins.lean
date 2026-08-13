@@ -220,9 +220,14 @@ rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
 tp:ACL2-COUNT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
 cond[total:(QSORT X), tp:QSORT]]"),
      ("pins/sorting/qsort",
-      -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above)
+      -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above;
+      -- tp:ALL-REL dropped 2026-08-13 — TP-replay arc increment 4, the
+      -- ARITY-3 assembly: ALL-REL's emitted boolean corollary is proved
+      -- from its `'T`/`'NIL` leaves and the admission-licensed IH, so
+      -- the hypothesis left the telescope. INTENTIONAL; diagnosed
+      -- row-by-row against the golden.)
       "    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, \
-total:O<, tp:ALL-REL, tp:ACL2-COUNT, \
+total:O<, tp:ACL2-COUNT, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
@@ -657,20 +662,17 @@ example :
     their replayed statements, so neither appears below — the kept set is the
     pre-existing debt classes only. -/
 
-/-- `tp:<fn>` (ternary), boolean corollary
-    `(if (equal v 't) 't (equal v 'nil))` — ALL-REL's emitted TP. -/
-private def tpBool3 (w : World) (fn : String) : Prop :=
-  ∀ (env' : Env) (a0 a1 a2 v : SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f w env' (ap3 fn a0 a1 a2) = some v) →
-    (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
-     else Logic.equal v SExpr.nil) = SExpr.t
+-- (`tpBool3` — the ternary boolean-corollary vocabulary — DELETED as
+-- orphaned when `tp:ALL-REL` left this pin's telescope, TP-replay arc
+-- increment 4, 2026-08-13.)
 
 /-- PIN the machine-generated statement of `ORDEREDP-QSORT`: the replayed statement of
     the ACL2 defthm `(orderedp (qsort x))`, conditional on
     - totality of `perm-counter-example` and `o<`,
-    - the emitted TP corollaries of `how-many`/`acl2-count` (non-negative
-      integers — source-true: both count) and `all-rel` (boolean —
-      source-true: every branch returns `t`/`nil`/a recursive call),
+    - the emitted TP corollary of `acl2-count` (non-negative integer —
+      source-true: it counts); `how-many`'s and `all-rel`'s are now
+      supplied by the driver's own TP prover (TP-replay arc increments 1
+      and 4),
     - the cited rules `convert-perm-to-how-many`,
       `how-many-qsort` (as on PERM-QSORT's pin), and `orderedp-append`
       (qsort.lisp:85 — the IFF-stated defthm, stored with ACL2's
@@ -694,7 +696,11 @@ example :
       -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
       -- the hypothesis left the telescope, so the pinned type drops
       -- it too. INTENTIONAL; diagnosed against the golden.)
-      tpBool3 qsortPinsWorld "ALL-REL" →
+      -- (tp:ALL-REL RETIRED 2026-08-13 — TP-replay arc increment 4:
+      -- the driver's TP prover discharges ALL-REL's emitted boolean
+      -- corollary at arity 3, so the hypothesis left the telescope and
+      -- the pinned type drops it. INTENTIONAL; diagnosed against the
+      -- golden.)
       tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
       -- (not-memb-implies-how-many-is-0: discharged cross-book, 2a)
       -- convert-perm-to-how-many:

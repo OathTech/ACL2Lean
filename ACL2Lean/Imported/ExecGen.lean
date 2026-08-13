@@ -546,7 +546,11 @@ partial def corrTerm (ctx : CorrCtx) (path : String := "") :
 
 Moved (publicized) from `Imported/Sorting.lean`'s private copies so the
 generated dischargers can cite them; `conv_args2_of_conv_app` stays in
-EvalLemmas. -/
+EvalLemmas, and the 3-ary pair (`evalOpt_app3_args` /
+`conv_args3_of_conv_app`) moved UP to `Replay/Lemmas/TpClosure.lean` when
+the TP prover's arity-3 assembly needed it (TP-replay arc increment 4,
+2026-08-13) — same statements, `ACL2.Replay` namespace, no copy left
+behind. -/
 
 theorem evalOpt_app1_args (f : Nat) (w : World) (env : Env)
     (s : Symbol) (a1 v : SExpr)
@@ -569,37 +573,6 @@ theorem evalOpt_app1_args (f : Nat) (w : World) (env : Env)
   | none => simp [List.mapM, List.mapM.loop, hu1] at h
   | some u1 => exact ⟨u1, rfl⟩
 
-theorem evalOpt_app3_args (f : Nat) (w : World) (env : Env)
-    (s : Symbol) (a1 a2 a3 v : SExpr)
-    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
-            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
-    (h : evalOpt (f + 1) w env
-      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
-      = some v) :
-    (∃ u, evalOpt f w env a1 = some u) ∧
-    (∃ u, evalOpt f w env a2 = some u) ∧
-    (∃ u, evalOpt f w env a3 = some u) := by
-  rw [show evalOpt (f + 1) w env
-        (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
-        = evalOptStep (evalOpt f) w env
-            (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
-        from rfl] at h
-  unfold evalOptStep at h
-  simp only [Symbol.isNamed, SExpr.toList?] at h
-  obtain ⟨hq, hi, hl, hls⟩ := h_ns
-  simp only [Symbol.isNamed] at hq hi hl hls
-  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
-             ↓reduceIte] at h
-  cases hu1 : evalOpt f w env a1 with
-  | none => simp [List.mapM, List.mapM.loop, hu1] at h
-  | some u1 =>
-    cases hu2 : evalOpt f w env a2 with
-    | none => simp [List.mapM, List.mapM.loop, hu1, hu2] at h
-    | some u2 =>
-      cases hu3 : evalOpt f w env a3 with
-      | none => simp [List.mapM, List.mapM.loop, hu1, hu2, hu3] at h
-      | some u3 => exact ⟨⟨u1, rfl⟩, ⟨u2, rfl⟩, ⟨u3, rfl⟩⟩
-
 theorem conv_args1_of_conv_app (w : World) (env : Env) (s : Symbol)
     (a1 v : SExpr)
     (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
@@ -610,27 +583,6 @@ theorem conv_args1_of_conv_app (w : World) (env : Env) (s : Symbol)
   obtain ⟨N, hN⟩ := h
   exact ACL2.Replay.conv_fix ⟨N, fun f hf =>
     evalOpt_app1_args f w env s a1 v h_ns (hN (f + 1) (by omega))⟩
-
-theorem conv_args3_of_conv_app (w : World) (env : Env) (s : Symbol)
-    (a1 a2 a3 v : SExpr)
-    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
-            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w env
-      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
-      = some v) :
-    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u) ∧
-    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a2 = some u) ∧
-    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a3 = some u) := by
-  obtain ⟨N, hN⟩ := h
-  refine ⟨ACL2.Replay.conv_fix ⟨N, fun f hf => ?_⟩,
-          ACL2.Replay.conv_fix ⟨N, fun f hf => ?_⟩,
-          ACL2.Replay.conv_fix ⟨N, fun f hf => ?_⟩⟩
-  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
-      (hN (f + 1) (by omega))).1
-  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
-      (hN (f + 1) (by omega))).2.1
-  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
-      (hN (f + 1) (by omega))).2.2
 
 /-! ## The commands -/
 

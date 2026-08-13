@@ -81,8 +81,9 @@ theorem perm_implies_equal_all_rel_2_native_driver (fv ev : SExpr)
 #print axioms perm_implies_equal_all_rel_2_native_driver
 
 set_option maxHeartbeats 1600000 in
-/-- The driver's CONDITIONAL replayed statement for ALL-REL-RM-1 (one
-    hypothesis: `tp:ALL-REL`). -/
+/-- The driver's replayed statement for ALL-REL-RM-1, now
+    UNCONDITIONAL (its sole `tp:ALL-REL` hypothesis is supplied by the
+    driver's TP prover — TP-replay arc increment 4, 2026-08-13). -/
 def allRelRm1ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "all-rel-rm-1"
 
@@ -91,8 +92,6 @@ theorem allRelRm1Replayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.all_rel_rm_1Formula = some v ∧ v ≠ SExpr.nil :=
   allRelRm1ReplayedCond env
-    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — ALL-REL-RM-1 natively: a universally `relL`-related
     list stays so after erasing an element. -/
@@ -107,8 +106,8 @@ theorem all_rel_rm_1_native_driver (fv ev dv : SExpr) (xs : List SExpr)
 #print axioms all_rel_rm_1_native_driver
 
 set_option maxHeartbeats 1600000 in
-/-- The driver's CONDITIONAL replayed statement for ALL-REL-RM-2 (one
-    hypothesis: `tp:ALL-REL`). -/
+/-- The driver's replayed statement for ALL-REL-RM-2, now
+    UNCONDITIONAL (`tp:ALL-REL` supplied by the driver's TP prover). -/
 def allRelRm2ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "all-rel-rm-2"
 
@@ -117,8 +116,6 @@ theorem allRelRm2Replayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.all_rel_rm_2Formula = some v ∧ v ≠ SExpr.nil :=
   allRelRm2ReplayedCond env
-    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — ALL-REL-RM-2 natively: restoring an erased
     `relL`-related element keeps the list universally related. -/
@@ -134,8 +131,8 @@ theorem all_rel_rm_2_native_driver (fv ev dv : SExpr) (xs : List SExpr)
 #print axioms all_rel_rm_2_native_driver
 
 set_option maxHeartbeats 1600000 in
-/-- The driver's CONDITIONAL replayed statement for ALL-REL-FILTER-1 (one
-    hypothesis: `tp:ALL-REL`). -/
+/-- The driver's replayed statement for ALL-REL-FILTER-1, now
+    UNCONDITIONAL (`tp:ALL-REL` supplied by the driver's TP prover). -/
 def allRelFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "all-rel-filter-1"
 
@@ -143,8 +140,6 @@ theorem allRelFilter1Replayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.all_rel_filter_1Formula = some v ∧ v ≠ SExpr.nil :=
   allRelFilter1ReplayedCond env
-    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — ALL-REL-FILTER-1 natively: everything the
     strict-lexorder filter keeps is lexorder-below the pivot. -/
@@ -158,8 +153,8 @@ theorem all_rel_filter_1_native_driver (ev : SExpr) (xs : List SExpr) :
 #print axioms all_rel_filter_1_native_driver
 
 set_option maxHeartbeats 1600000 in
-/-- The driver's CONDITIONAL replayed statement for ALL-REL-FILTER-2 (one
-    hypothesis: `tp:ALL-REL`). -/
+/-- The driver's replayed statement for ALL-REL-FILTER-2, now
+    UNCONDITIONAL (`tp:ALL-REL` supplied by the driver's TP prover). -/
 def allRelFilter2ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "all-rel-filter-2"
 
@@ -167,8 +162,6 @@ theorem allRelFilter2Replayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.all_rel_filter_2Formula = some v ∧ v ≠ SExpr.nil :=
   allRelFilter2ReplayedCond env
-    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — ALL-REL-FILTER-2 natively: everything the
     reverse-lexorder filter keeps is lexorder-above the pivot. -/
@@ -212,9 +205,11 @@ theorem how_many_filter_1_native_driver (ev dv : SExpr)
 #print axioms how_many_filter_1_native_driver
 
 set_option maxHeartbeats 4000000 in
-/-- The driver's CONDITIONAL replayed statement for ORDEREDP-APPEND
-    (hypotheses: `tp:ALL-REL`, `tp:BINARY-APPEND`, and the if-lifting
-    rule `(equal (if a b c) x)`). -/
+/-- The driver's CONDITIONAL replayed statement for ORDEREDP-APPEND —
+    ONE hypothesis left, the if-lifting rule `(equal (if a b c) x)`:
+    both TP conditions (`tp:ALL-REL`, and `tp:BINARY-APPEND` in its
+    ARGS-VALUED shape) are now supplied by the driver's TP prover
+    (TP-replay arc increments 4 and 5, 2026-08-13). -/
 def orderedpAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
   "orderedp-append"
 
@@ -223,10 +218,6 @@ theorem orderedpAppendReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.orderedp_appendFormula = some v ∧ v ≠ SExpr.nil :=
   orderedpAppendReplayedCond env
-    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_append_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
 
 /-- ENTRY, PROVED — ORDEREDP-APPEND natively: for sorted `as`, the
@@ -335,8 +326,9 @@ theorem perm_qsort_perm_driver (xs : List SExpr) :
 
 set_option maxHeartbeats 4000000 in
 /-- ORDEREDP-QSORT's conditional replayed statement (THE HEADLINE —
-    fourteen hypotheses: PERM-QSORT's twelve plus `tp:ALL-REL` and the
-    in-book `rule:ORDEREDP-APPEND`). -/
+    PERM-QSORT's remaining hypotheses plus the in-book
+    `rule:ORDEREDP-APPEND`; `tp:ALL-REL` is now supplied by the
+    driver's TP prover). -/
 def orderedpQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
   "orderedp-qsort" with_termination deps [convertPermDev]
 
@@ -351,8 +343,6 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
     (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_all_rel_tp qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
     (Worlds.Sorting.dis_acl2_count_tp qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)

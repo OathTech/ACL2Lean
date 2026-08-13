@@ -1410,26 +1410,10 @@ theorem allRelExec_t_or_nil (fv x ev : SExpr) :
   | case2 x _ _ => exact Or.inr rfl
   | case3 x _ => exact Or.inl rfl
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `tp:ALL-REL` — the emitted boolean corollary — Lean-side; content
-    ACL2 derives. Statement kept as the named premise; proof retired to
-    `sorry`. UNLOCK: TP-replay discharge. -/
-theorem dis_all_rel_tp (w : World)
-    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
-    (h_all_rel : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
-    (e' : Env) (a0 a1 a2 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e'
-      (SExpr.cons (SExpr.atom (Atom.symbol all_rel_sym))
-        (SExpr.cons a0 (SExpr.cons a1 (SExpr.cons a2 SExpr.nil))))
-      = some v) :
-    (bif Logic.toBool (Logic.equal v SExpr.t) then SExpr.t
-      else Logic.equal v SExpr.nil) = SExpr.t := by
-  sorry
+-- (`dis_all_rel_tp` — the emitted BOOLEAN corollary of the 3-ary
+-- ALL-REL — RETIRED by the replay route, TP-replay arc increment 4,
+-- 2026-08-13: the TP prover's arity-3 assembly proves it from ACL2's
+-- own corollary, the `'T`/`'NIL` leaves and the admission-licensed IH.)
 
 /-! ## PERM-IMPLIES-EQUAL-ALL-REL-2 -/
 
@@ -1958,27 +1942,12 @@ theorem append_exec_corr (w : World)
   exact conv_defn_2 w env append_sym a b av bv xS yS
     (appendBody "BINARY-APPEND") _ append_ns h_app ha hb (hbody av bv)
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `tp:BINARY-APPEND` — the args-valued TP hypothesis
-    (`(IF (CONSP (BINARY-APPEND X Y)) 'T (EQUAL (BINARY-APPEND X Y) Y))`)
-    — Lean-side; content ACL2 derives. Statement kept as the named
-    premise; proof retired to `sorry`. UNLOCK: TP-replay discharge. -/
-theorem dis_append_tp (w : World)
-    (h_app : w.defs.get? append_sym
-      = some ([{ package := "ACL2", name := "X" },
-               { package := "ACL2", name := "Y" }],
-              appendBody "BINARY-APPEND"))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (e' : Env) (a0 a1 u0 u1 v : SExpr)
-    (h0 : ∃ N, ∀ f ≥ N, evalOpt f w e' a0 = some u0)
-    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w e' a1 = some u1)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (appendT a0 a1) = some v) :
-    (bif Logic.toBool (Logic.consp v) then SExpr.t else Logic.equal v u1)
-      = SExpr.t := by
-  sorry
+-- (`dis_append_tp` — the ARGS-VALUED corollary
+-- `(IF (CONSP (BINARY-APPEND X Y)) 'T (EQUAL (BINARY-APPEND X Y) Y))`
+-- — RETIRED by the replay route, TP-replay arc increment 5, 2026-08-13:
+-- the TP prover's args-valued mode proves it from that emitted
+-- corollary, its `CONS` leaf (verdict 3072) and its residue-argument
+-- leaf `Y`.)
 
 abbrev iffT (a b : SExpr) : SExpr := app2 "IFF" a b
 

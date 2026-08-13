@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 110/116 (74 unconditional + 36 conditional)
+Driver coverage — REPLAYED 110/116 (79 unconditional + 31 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓
@@ -15,7 +15,7 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     TRUE-LISTP-REV → REPLAYED ✓  [DISCHARGE: Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(APP RV (CONS X1 'NIL)), tp:APP]]
     APP-NIL → REPLAYED ✓  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(APP X 'NIL), tp:APP]]
     REV-APP → REPLAYED ✓
-    REV-REV → REPLAYED ✓ cond[tp:REV]  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(REV (REV X)), tp:REV]]
+    REV-REV → REPLAYED ✓  [DISCHARGE: Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(REV (REV X)), tp:REV]]
 • 03-linear  (world: 12 defun(s), 3 theorem(s))
     LEN2-NONNEG → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(LEN2 X), tp:LEN2]]
     LEN2-CDR-SMALLER → REPLAYED ✓  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(LEN2 (CDR X)), tp:LEN2]]
@@ -139,13 +139,13 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     HOW-MANY-QSORT → REPLAYED ✓ cond[total:O<, tp:ACL2-COUNT, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x)]
     PERM-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:ACL2-COUNT, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x)]
     CAR-APPEND → REPLAYED ✓ cond[rule:(equal (if a b c) x)]
-    ORDEREDP-APPEND → REPLAYED ✓ cond[tp:ALL-REL, tp:BINARY-APPEND, rule:(equal (if a b c) x)]  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP], Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP]]
-    ALL-REL-FILTER-1 → REPLAYED ✓ cond[tp:ALL-REL]
-    ALL-REL-FILTER-2 → REPLAYED ✓ cond[tp:ALL-REL]
-    ALL-REL-RM-1 → REPLAYED ✓ cond[tp:ALL-REL]
-    ALL-REL-RM-2 → REPLAYED ✓ cond[tp:ALL-REL]
+    ORDEREDP-APPEND → REPLAYED ✓ cond[rule:(equal (if a b c) x)]  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP], Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP]]
+    ALL-REL-FILTER-1 → REPLAYED ✓
+    ALL-REL-FILTER-2 → REPLAYED ✓
+    ALL-REL-RM-1 → REPLAYED ✓
+    ALL-REL-RM-2 → REPLAYED ✓
     PERM-IMPLIES-EQUAL-ALL-REL-2 → REPLAYED ✓
-    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:ALL-REL, tp:ACL2-COUNT, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]
+    ORDEREDP-QSORT → REPLAYED ✓ cond[total:PERM-COUNTER-EXAMPLE, total:O<, tp:ACL2-COUNT, rule:CONVERT-PERM-TO-HOW-MANY, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, tp:ACL2-COUNT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
 • sorting/sorts-equivalent  (world: 214 defun(s), 3 theorem(s))
     MSORT-IS-ISORT → ASSUMED ◌ cond[total:MSORT, usefi:STRONG-SSORTFN1-IS-SSORTFN2, ASSUMED:fi-self]

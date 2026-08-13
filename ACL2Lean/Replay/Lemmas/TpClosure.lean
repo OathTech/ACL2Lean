@@ -152,6 +152,153 @@ theorem convP_of_conv_ex {w : World} {env : Env} {t : SExpr}
   obtain ⟨N, v, hv⟩ := h
   exact ⟨v, hP v ⟨N, hv⟩, N, hv⟩
 
+/-! ## The 3-ARY assemblies (TP-replay arc increment 4, 2026-08-13)
+
+`Discharge.lean` carries the arity 1 and 2 `tp_*` family; the arity-3
+MIRRORS live here, in the TP arc's own module (Discharge is close to the
+weight ratchet's norm). Nothing new is claimed at arity 3: each statement
+is the arity-3 image of its 2-ary twin (`convP_defn_2`,
+`tp_hyp_2_of_body`, `tp_2_rec`, `tp_2_rec_snd`), and the
+argument-strictness pair is MOVED (not copied) from
+`Imported/ExecGen.lean`, which defined but never cited it. -/
+
+/-- 3-ary argument STRICTNESS at one fuel step. -/
+theorem evalOpt_app3_args (f : Nat) (w : World) (env : Env)
+    (s : Symbol) (a1 a2 a3 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : evalOpt (f + 1) w env
+      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+      = some v) :
+    (∃ u, evalOpt f w env a1 = some u) ∧
+    (∃ u, evalOpt f w env a2 = some u) ∧
+    (∃ u, evalOpt f w env a3 = some u) := by
+  rw [show evalOpt (f + 1) w env
+        (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+        = evalOptStep (evalOpt f) w env
+            (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+        from rfl] at h
+  unfold evalOptStep at h
+  simp only [Symbol.isNamed, SExpr.toList?] at h
+  obtain ⟨hq, hi, hl, hls⟩ := h_ns
+  simp only [Symbol.isNamed] at hq hi hl hls
+  simp only [hq, hi, hl, hls, Bool.or_eq_true, Bool.false_eq_true, or_self,
+             ↓reduceIte] at h
+  cases hu1 : evalOpt f w env a1 with
+  | none => simp [List.mapM, List.mapM.loop, hu1] at h
+  | some u1 =>
+    cases hu2 : evalOpt f w env a2 with
+    | none => simp [List.mapM, List.mapM.loop, hu1, hu2] at h
+    | some u2 =>
+      cases hu3 : evalOpt f w env a3 with
+      | none => simp [List.mapM, List.mapM.loop, hu1, hu2, hu3] at h
+      | some u3 => exact ⟨⟨u1, rfl⟩, ⟨u2, rfl⟩, ⟨u3, rfl⟩⟩
+
+/-- 3-ary argument strictness, convergence form. -/
+theorem conv_args3_of_conv_app (w : World) (env : Env) (s : Symbol)
+    (a1 a2 a3 v : SExpr)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol s)) (.cons a1 (.cons a2 (.cons a3 .nil))))
+      = some v) :
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a1 = some u) ∧
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a2 = some u) ∧
+    (∃ N, ∃ u, ∀ f ≥ N, evalOpt f w env a3 = some u) := by
+  obtain ⟨N, hN⟩ := h
+  refine ⟨conv_fix ⟨N, fun f _ => ?_⟩, conv_fix ⟨N, fun f _ => ?_⟩,
+          conv_fix ⟨N, fun f _ => ?_⟩⟩
+  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
+      (hN (f + 1) (by omega))).1
+  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
+      (hN (f + 1) (by omega))).2.1
+  · exact (evalOpt_app3_args f w env s a1 a2 a3 v h_ns
+      (hN (f + 1) (by omega))).2.2
+
+/-- A defined 3-ary call inherits the body's predicate (the 3-ary
+    self-call inside the TP walk). -/
+theorem convP_defn_3 (w : World) (env : Env) (s : Symbol)
+    (arg1 arg2 arg3 av1 av2 av3 : SExpr)
+    (formal1 formal2 formal3 : Symbol) (body : SExpr) (P : SExpr → Prop)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2, formal3], body))
+    (h1 : ∃ N, ∀ f ≥ N, evalOpt f w env arg1 = some av1)
+    (h2 : ∃ N, ∀ f ≥ N, evalOpt f w env arg2 = some av2)
+    (h3 : ∃ N, ∀ f ≥ N, evalOpt f w env arg3 = some av3)
+    (hbody : ConvToP w
+      (bindArgs [formal1, formal2, formal3] [av1, av2, av3]) body P) :
+    ConvToP w env
+      (.cons (.atom (.symbol s))
+        (.cons arg1 (.cons arg2 (.cons arg3 .nil)))) P := by
+  obtain ⟨v, hP, hv⟩ := hbody
+  exact ⟨v, hP, conv_defn_3 w env s arg1 arg2 arg3 av1 av2 av3
+    formal1 formal2 formal3 body v h_ns h_def h1 h2 h3 hv⟩
+
+/-- The TP-HYPOTHESIS assembly, 3-ary (`mkTpHypType`'s shape at arity 3):
+    argument strictness recovers the argument values, the walk pins ONE
+    convergent value with `P`, determinism identifies them. -/
+theorem tp_hyp_3_of_body (w : World) (s : Symbol)
+    (formal1 formal2 formal3 : Symbol) (body : SExpr) (P : SExpr → Prop)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2, formal3], body))
+    (hbody : ∀ av1 av2 av3 : SExpr,
+      ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
+        body P) :
+    ∀ (env' : Env) (a0 a1 a2 v : SExpr),
+      (∃ N, ∀ f ≥ N, evalOpt f w env'
+        (.cons (.atom (.symbol s))
+          (.cons a0 (.cons a1 (.cons a2 .nil)))) = some v) →
+      P v := by
+  intro env' a0 a1 a2 v h
+  obtain ⟨⟨N0, u0, h0⟩, ⟨N1, u1, h1⟩, ⟨N2, u2, h2⟩⟩ :=
+    conv_args3_of_conv_app w env' s a0 a1 a2 v h_ns h
+  obtain ⟨u, hPu, hu⟩ := hbody u0 u1 u2
+  have happ := conv_defn_3 w env' s a0 a1 a2 u0 u1 u2
+    formal1 formal2 formal3 body u h_ns h_def ⟨N0, h0⟩ ⟨N1, h1⟩ ⟨N2, h2⟩ hu
+  exact (val_unique h happ) ▸ hPu
+
+/-- The TP body induction at arity 3, measure on the FIRST formal. -/
+theorem tp_3_rec (formal1 formal2 formal3 : Symbol) (body : SExpr)
+    (w : World) (P : SExpr → Prop)
+    (step : ∀ av1 : SExpr,
+      (∀ bv : SExpr, bv.consCount < av1.consCount → ∀ cv dv : SExpr,
+        ConvToP w (bindArgs [formal1, formal2, formal3] [bv, cv, dv])
+          body P) →
+      ∀ av2 av3 : SExpr,
+        ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
+          body P) :
+    ∀ av1 av2 av3 : SExpr,
+      ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
+        body P :=
+  consCount_strong_induction
+    (fun av1 => ∀ av2 av3,
+      ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
+        body P)
+    step
+
+/-- The TP body induction at arity 3, measure on the SECOND formal (the
+    `(fn x e)` shape — `ALL-REL`/`FILTER`). -/
+theorem tp_3_rec_snd (formal1 formal2 formal3 : Symbol) (body : SExpr)
+    (w : World) (P : SExpr → Prop)
+    (step : ∀ av2 : SExpr,
+      (∀ cv : SExpr, cv.consCount < av2.consCount → ∀ bv dv : SExpr,
+        ConvToP w (bindArgs [formal1, formal2, formal3] [bv, cv, dv])
+          body P) →
+      ∀ av1 av3 : SExpr,
+        ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
+          body P) :
+    ∀ av1 av2 av3 : SExpr,
+      ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
+        body P :=
+  fun av1 av2 av3 =>
+    consCount_strong_induction
+      (fun av2 => ∀ av1 av3,
+        ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
+          body P)
+      step av2 av1 av3
+
 /-- CLASS IMPLICATION, `CONSP` ⇒ `CONSP`-or-`NIL`: a callee whose emitted
     corollary is the BARE `(CONSP (g …))` (`*ts-cons*`, 3072) satisfies
     the weaker consp-or-nil `IF` corollary (`*ts-cons*` ∪ `*ts-nil*`,
@@ -164,5 +311,129 @@ theorem conspOrNilCor_of_conspCor (v : SExpr) (h : Logic.consp v = SExpr.t) :
     (bif Logic.toBool (Logic.consp v) then SExpr.t
      else Logic.equal v SExpr.nil) = SExpr.t := by
   rw [h]; rfl
+
+/-! ## The ARGS-VALUED corollary (TP-replay arc increment 5, 2026-08-13)
+
+`BINARY-APPEND`/`APP` are prescribed by ACL2 as
+`(IF (CONSP (fn X Y)) 'T (EQUAL (fn X Y) Y))` — the else-disjunct names a
+FORMAL, so the lifted predicate is indexed by that argument's VALUE
+(`mkTpHypTypeAv`'s shape). The class's Lean-side content is three facts:
+its `CONS` closure, the fact AT the residue argument itself (the `Y`
+return leaf ACL2 enumerates with the unknown verdict `-1`, covered by the
+EQUALITY disjunct rather than by any type-set), and the implication into
+the value-only classes a CALLER's own prescription may need. -/
+
+/-- CLOSURE, args-valued × `CONS`, profile `neither`: a `CONS` takes the
+    corollary's `CONSP` disjunct whatever its arguments and whatever the
+    residue argument's value `y` is. -/
+theorem conspOrArgCor_closed_cons (y u v : SExpr)
+    (_hu : TpArgAny u) (_hv : TpArgAny v) :
+    (bif Logic.toBool (Logic.consp (SExpr.cons u v)) then SExpr.t
+     else Logic.equal (SExpr.cons u v) y) = SExpr.t := rfl
+
+/-- The args-valued corollary AT its residue argument: the return leaf that
+    IS the formal `Y` takes the EQUALITY disjunct, by reflexivity of
+    `Logic.equal`. This is why the leaf's emitted verdict (`-1`, unknown)
+    needs no mask check — the corollary covers that leaf by its equality
+    disjunct, not by a type-set. -/
+theorem conspOrArgCor_at_arg (y : SExpr) :
+    (bif Logic.toBool (Logic.consp y) then SExpr.t
+     else Logic.equal y y) = SExpr.t := by
+  cases h : Logic.toBool (Logic.consp y) with
+  | true => rfl
+  | false => exact logic_equal_self y
+
+/-- CLOSURE, `CONSP`-or-`NIL` × `CONS`, profile `neither` (needed by the
+    args-valued CALLEE step, which walks the residue ARGUMENT under the
+    CALLER's own predicate). -/
+theorem conspOrNilCor_closed_cons (u v : SExpr)
+    (_hu : TpArgAny u) (_hv : TpArgAny v) :
+    (bif Logic.toBool (Logic.consp (SExpr.cons u v)) then SExpr.t
+     else Logic.equal (SExpr.cons u v) SExpr.nil) = SExpr.t := rfl
+
+/-- CLASS IMPLICATION (args-valued form), args-valued ⇒ `CONSP`-or-`NIL`:
+    the callee's value is a cons OR it IS the residue argument's value `y`
+    — so the caller's consp-or-nil prescription holds of it as soon as it
+    holds of `y`. The `y` premise is NOT assumed: the driver proves it by
+    walking the residue ARGUMENT under the caller's own predicate (the
+    same machinery, no new class content). `REV`'s
+    `(APP (REV (CDR X)) (CONS (CAR X) 'NIL))` leaf is the customer. -/
+theorem conspOrNilCor_of_conspOrArgCor (y v : SExpr)
+    (hy : (bif Logic.toBool (Logic.consp y) then SExpr.t
+           else Logic.equal y SExpr.nil) = SExpr.t)
+    (h : (bif Logic.toBool (Logic.consp v) then SExpr.t
+          else Logic.equal v y) = SExpr.t) :
+    (bif Logic.toBool (Logic.consp v) then SExpr.t
+     else Logic.equal v SExpr.nil) = SExpr.t := by
+  cases hv : Logic.toBool (Logic.consp v) with
+  | true => rfl
+  | false =>
+    rw [hv] at h
+    simp only [cond_false] at h ⊢
+    have hvy : v = y := Logic.eq_of_equal_ne_nil (by rw [h]; simp)
+    subst hvy
+    rw [hv] at hy
+    simp only [cond_false] at hy
+    exact hy
+
+/-- A value with the predicate plus its convergence IS the strengthened
+    convergence (the args-valued residue-leaf arm's assembly). -/
+theorem convP_of_val {w : World} {env : Env} {t : SExpr} {P : SExpr → Prop}
+    {v : SExpr} (hP : P v)
+    (h : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v) : ConvToP w env t P :=
+  ⟨v, hP, h⟩
+
+/-- Transport a `ConvToP` onto an ALREADY-PINNED convergence value
+    (determinism): the walk's value and the driver's lifted value are the
+    same value, so the predicate holds of the latter. -/
+theorem convP_at_val {w : World} {env : Env} {t : SExpr} {P : SExpr → Prop}
+    {u : SExpr} (h : ConvToP w env t P)
+    (hu : ∃ N, ∀ f ≥ N, evalOpt f w env t = some u) : P u := by
+  obtain ⟨v, hP, hv⟩ := h
+  exact (val_unique hu hv) ▸ hP
+
+/-- The TP body induction at arity 2 with an ARGUMENT-INDEXED predicate
+    (measure on the first formal): the exact `tp_2_rec` statement with `P`
+    depending on the argument values, as the args-valued corollary's
+    lifted predicate does. -/
+theorem tp_2_rec_av (formal1 formal2 : Symbol) (body : SExpr) (w : World)
+    (P : SExpr → SExpr → SExpr → Prop)
+    (step : ∀ av1 : SExpr,
+      (∀ bv : SExpr, bv.consCount < av1.consCount → ∀ cv : SExpr,
+        ConvToP w (bindArgs [formal1, formal2] [bv, cv]) body (P bv cv)) →
+      ∀ av2 : SExpr,
+        ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body
+          (P av1 av2)) :
+    ∀ av1 av2 : SExpr,
+      ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body (P av1 av2) :=
+  consCount_strong_induction
+    (fun av1 => ∀ av2,
+      ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body (P av1 av2))
+    step
+
+/-- The ARGS-VALUED TP-hypothesis assembly, 2-ary — exactly
+    `mkTpHypTypeAv`'s conclusion at arity 2. Unlike the value-only twin
+    this needs no argument strictness: the argument VALUES are premises,
+    so the body walk applies at them directly and determinism identifies
+    the application's value with the body's. -/
+theorem tp_hyp_2_av_of_body (w : World) (s : Symbol)
+    (formal1 formal2 : Symbol) (body : SExpr)
+    (P : SExpr → SExpr → SExpr → Prop)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (hbody : ∀ av1 av2 : SExpr,
+      ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body (P av1 av2)) :
+    ∀ (env' : Env) (a0 a1 u0 u1 v : SExpr),
+      (∃ N, ∀ f ≥ N, evalOpt f w env' a0 = some u0) →
+      (∃ N, ∀ f ≥ N, evalOpt f w env' a1 = some u1) →
+      (∃ N, ∀ f ≥ N, evalOpt f w env'
+        (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil))) = some v) →
+      P u0 u1 v := by
+  intro env' a0 a1 u0 u1 v h0 h1 h
+  obtain ⟨u, hPu, hu⟩ := hbody u0 u1
+  have happ := conv_defn_2 w env' s a0 a1 u0 u1 formal1 formal2 body u
+    h_ns h_def h0 h1 hu
+  exact (val_unique h happ) ▸ hPu
 
 end ACL2.Replay

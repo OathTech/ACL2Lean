@@ -931,15 +931,19 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
         else if c.startsWith "tp:" then
           -- the TP prover: derive the emitted-corollary hypothesis from the
           -- fn's body (lifter sprint 2026-07-06); frontier → keep (D6).
-          -- ARGS-VALUED tp hypotheses (G1) stay hypothesis-backed: the
-          -- prover targets the value-only shape — an honest condition.
+          -- ARGS-VALUED tp hypotheses (G1) go to the SAME prover in its
+          -- args-valued mode (TP-replay arc increment 5, 2026-08-13) —
+          -- the corollary's bare-formal occurrences lift to the argument
+          -- values, exactly as `mkTpHypTypeAv` states them; a frontier
+          -- there keeps the hypothesis as before.
           let fnName := (c.drop "tp:".length).toString
-          if tpFns.any (fun (s, _, _) => s.name == fnName) then
+          let isAv := tpFnsAv.any (fun (s, _, _) => s.name == fnName)
+          if tpFns.any (fun (s, _, _) => s.name == fnName) || isAv then
             match tps.lookup fnName with
             | some cor =>
               try
                 let pf ← proveTp cfg totalEnv justs fnName cor
-                  (cors := tps)
+                  (cors := tps) (argValued := isAv)
                 let pf ← mkExpectedTypeHint pf (← inferType v)
                 prf ← letBindFVar prf v pf
               catch e =>
