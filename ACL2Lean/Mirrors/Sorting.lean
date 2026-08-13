@@ -13,8 +13,8 @@ via library lemmas). A user of these theorems knows nothing about
 ACL2 and never needs to.
 
 The DEFINITIONS below are the user's objects of study: the sorting
-book's four algorithms in Lean-native dress — polymorphic over a
-`LinearOrder`, recursing the way the ACL2 book's functions recurse
+book's four algorithms in Lean-native dress — polymorphic over our own
+`TotalOrder`, recursing the way the ACL2 book's functions recurse
 (that structural agreement is what the machinery-side isomorphisms
 will consume; the definitions remain fully idiomatic on their own
 terms). The PROPERTIES are stated as named `Prop`s — the definition
@@ -27,14 +27,30 @@ proofs here are the termination measures Lean's kernel demands for
 the definitions to exist.)
 
 SELF-CONTAINED VOCABULARY (deliberate): the predicates below —
-`Sorted`, `count`, `Permuted`, the witness — are OUR OWN idiomatic
+`Ordered`, `howMany`, `Permuted`, the witness — are OUR OWN idiomatic
 definitions, not Mathlib/Batteries notions. Mathlib proves plenty
 about ITS `Perm` and order theory; if the spec spoke that vocabulary,
 the properties could be closed by library lemmas instead of the ACL2
 replay, which would defeat the product (the import route working
-end-to-end). `LinearOrder` is used ONLY as the interface class for
-the order parameter; its lemma library is not to be leaned on when
-proving these properties — the proofs arrive via replay. -/
+end-to-end). `TotalOrder` is our own minimal interface class for the
+order parameter; no external order theory is leaned on when proving
+these properties — the proofs arrive via replay.
+
+THE NAMING RULE (Mike, 2026-08-13 — the naming pass): a mirror spec
+name must have ZERO overlap with a core/Std/Batteries/Mathlib name,
+neither at the root nor DOT-NOTATION-REACHABLE on a type the spec
+uses (`List.merge`, `List.mergeSort`, `List.insertionSort`,
+`List.count`, `List.mergeSort_perm`, `Nat.count`, `Option.merge` were
+the seven real overlaps this file carried). The reason is the
+vocabulary rule one level up (`Imported/SimGen.lean`): a shared name
+is the channel by which a library lemma — or a reader — can be
+mistaken for mirror content that must come via replay. The names are
+therefore taken from the ACL2 BOOK, Lean-cased (`isort`, `msort`,
+`qsort`, `bsort`, `bnext`, `merge2`, `insertOrd`, `Ordered`,
+`howMany`); the uppercase ACL2 rune names in the docstrings below are
+the cross-reference to the source book and are the point.
+`Tests/MirrorNameCheck.lean` enforces the rule over this namespace at
+build time. -/
 
 namespace ACL2Lean.Sorting
 
@@ -69,7 +85,7 @@ instance {α : Type u} [TotalOrder α] : DecidableRel (α := α) (· < ·) :=
 section Structural
 variable {α : Type u}
 
-/-- Every other element, starting with the first (the book's `evens` —
+/-- Every other element, starting with the first (the book's `EVENS` —
     its merge sort splits by ALTERNATION, not by halving). -/
 def evens : List α → List α
   | [] => []
@@ -90,38 +106,38 @@ end Structural
 
 variable {α : Type u} [TotalOrder α]
 
-/-- Sorted: each element ≤ its successor (the book's `orderedp`,
+/-- Ordered: each element ≤ its successor (the book's `ORDEREDP`,
     idiomatically — an adjacent chain; our own definition, so no
     library lemma speaks about it directly). -/
-def Sorted : List α → Prop
+def Ordered : List α → Prop
   | [] => True
   | [_] => True
-  | a :: b :: t => a ≤ b ∧ Sorted (b :: t)
+  | a :: b :: t => a ≤ b ∧ Ordered (b :: t)
 
-/-- Insert into a sorted list (the book's `insert`). -/
-def insertSorted (a : α) : List α → List α
+/-- Insert into an ordered list (the book's `INSERT`). -/
+def insertOrd (a : α) : List α → List α
   | [] => [a]
-  | b :: t => if a ≤ b then a :: b :: t else b :: insertSorted a t
+  | b :: t => if a ≤ b then a :: b :: t else b :: insertOrd a t
 
-/-- Insertion sort (the book's `isort`). -/
-def insertionSort : List α → List α
+/-- Insertion sort (the book's `ISORT`). -/
+def isort : List α → List α
   | [] => []
-  | a :: t => insertSorted a (insertionSort t)
+  | a :: t => insertOrd a (isort t)
 
-/-- Merge two sorted lists (the book's `merge2`). -/
-def merge : List α → List α → List α
+/-- Merge two ordered lists (the book's `MERGE2`). -/
+def merge2 : List α → List α → List α
   | [], ys => ys
   | xs, [] => xs
   | a :: xs, b :: ys =>
-    if a ≤ b then a :: merge xs (b :: ys) else b :: merge (a :: xs) ys
+    if a ≤ b then a :: merge2 xs (b :: ys) else b :: merge2 (a :: xs) ys
   termination_by xs ys => xs.length + ys.length
 
-/-- Merge sort by alternation split (the book's `msort`). -/
-def mergeSort : List α → List α
+/-- Merge sort by alternation split (the book's `MSORT`). -/
+def msort : List α → List α
   | [] => []
   | [a] => [a]
   | a :: b :: t =>
-    merge (mergeSort (evens (a :: b :: t))) (mergeSort (odds (a :: b :: t)))
+    merge2 (msort (evens (a :: b :: t))) (msort (odds (a :: b :: t)))
   termination_by xs => xs.length
   decreasing_by
   · have h := length_evens_le t
@@ -130,12 +146,12 @@ def mergeSort : List α → List α
     simp only [List.length_cons] at h
     simp [odds]; omega
 
-/-- Quicksort, first-element pivot (the book's `qsort`). -/
-def quickSort : List α → List α
+/-- Quicksort, first-element pivot (the book's `QSORT`). -/
+def qsort : List α → List α
   | [] => []
   | p :: t =>
-    quickSort (t.filter fun x => decide (x < p))
-      ++ p :: quickSort (t.filter fun x => !decide (x < p))
+    qsort (t.filter fun x => decide (x < p))
+      ++ p :: qsort (t.filter fun x => !decide (x < p))
   termination_by xs => xs.length
   decreasing_by
   · simp only [List.length_unattach, List.length_cons]
@@ -146,26 +162,26 @@ def quickSort : List α → List α
     simp [List.length_attach]
 
 /-- One bubble pass: swap adjacent out-of-order pairs, left to right
-    (the book's `bnext`). -/
-def bubblePass : List α → List α
+    (the book's `BNEXT`). -/
+def bnext : List α → List α
   | [] => []
   | [a] => [a]
   | a :: b :: t =>
-    if a ≤ b then a :: bubblePass (b :: t) else b :: bubblePass (a :: t)
+    if a ≤ b then a :: bnext (b :: t) else b :: bnext (a :: t)
   termination_by xs => xs.length
 
 /-- Bubble sort: `length`-many passes reach the fixpoint (the book's
-    `bsort`, whose measure is the bad-pair count). -/
-def bubbleSort (xs : List α) : List α :=
-  (List.range xs.length).foldl (fun acc _ => bubblePass acc) xs
+    `BSORT`, whose measure is the bad-pair count). -/
+def bsort (xs : List α) : List α :=
+  (List.range xs.length).foldl (fun acc _ => bnext acc) xs
 
-/-- Multiplicity of an element (the book's `how-many`; our own
+/-- Multiplicity of an element (the book's `HOW-MANY`; our own
     definition). -/
-def count [DecidableEq α] (a : α) : List α → Nat
+def howMany [DecidableEq α] (a : α) : List α → Nat
   | [] => 0
-  | b :: t => (if a = b then 1 else 0) + count a t
+  | b :: t => (if a = b then 1 else 0) + howMany a t
 
-/-- Permutation, the book's way (`perm`): every head occurs in the
+/-- Permutation, the book's way (`PERM`): every head occurs in the
     other list, and the tails-after-erasure are permutations. Our own
     definition — its equivalence with multiplicity agreement is a
     THEOREM of the book (`CONVERT-PERM-TO-HOW-MANY`), not a library
@@ -175,10 +191,10 @@ def Permuted [DecidableEq α] : List α → List α → Prop
   | a :: xs, ys => a ∈ ys ∧ Permuted xs (ys.erase a)
 
 /-- The permutation counterexample witness (the book's
-    `perm-counter-example`): an element whose multiplicities differ,
+    `PERM-COUNTER-EXAMPLE`): an element whose multiplicities differ,
     if one exists. -/
 def permWitness [DecidableEq α] (xs ys : List α) : Option α :=
-  (xs ++ ys).find? fun a => count a xs != count a ys
+  (xs ++ ys).find? fun a => howMany a xs != howMany a ys
 
 /-! ## The target properties — the definition of done
 
@@ -186,68 +202,69 @@ Each `Prop` below reflects a theorem the ACL2 sorting book proves.
 The buildout is DONE for sorting when every one is a `theorem`
 proved via replay. -/
 
-/-- ISORT sorts (the book's `ORDEREDP-ISORT`). -/
-def insertionSort_sorted (α : Type u) [TotalOrder α] : Prop :=
-  ∀ (xs : List α), Sorted (insertionSort xs)
+/-- ISORT orders (the book's `ORDEREDP-ISORT`). -/
+def isort_ordered (α : Type u) [TotalOrder α] : Prop :=
+  ∀ (xs : List α), Ordered (isort xs)
 
 /-- ISORT permutes (the book's `HOW-MANY-ISORT`, in its idiomatic
-    `Perm` form — multiplicity preservation and permutation coincide). -/
-def insertionSort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs : List α), Permuted (insertionSort xs) xs
+    permutation form — multiplicity preservation and permutation
+    coincide). -/
+def isort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (xs : List α), Permuted (isort xs) xs
 
-/-- MSORT sorts (`ORDEREDP-MSORT`). -/
-def mergeSort_sorted (α : Type u) [TotalOrder α] : Prop :=
-  ∀ (xs : List α), Sorted (mergeSort xs)
+/-- MSORT orders (`ORDEREDP-MSORT`). -/
+def msort_ordered (α : Type u) [TotalOrder α] : Prop :=
+  ∀ (xs : List α), Ordered (msort xs)
 
 /-- MSORT permutes (`HOW-MANY-MSORT`). -/
-def mergeSort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs : List α), Permuted (mergeSort xs) xs
+def msort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (xs : List α), Permuted (msort xs) xs
 
-/-- QSORT sorts (`ORDEREDP-QSORT`). -/
-def quickSort_sorted (α : Type u) [TotalOrder α] : Prop :=
-  ∀ (xs : List α), Sorted (quickSort xs)
+/-- QSORT orders (`ORDEREDP-QSORT`). -/
+def qsort_ordered (α : Type u) [TotalOrder α] : Prop :=
+  ∀ (xs : List α), Ordered (qsort xs)
 
 /-- QSORT permutes (`HOW-MANY-QSORT`). -/
-def quickSort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs : List α), Permuted (quickSort xs) xs
+def qsort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (xs : List α), Permuted (qsort xs) xs
 
-/-- BSORT sorts (`ORDEREDP-BSORT`; the book's route goes through
-    `ORDEREDP-WHEN-BNEXT-CONSTANT` — a bubble-pass fixpoint is sorted —
+/-- BSORT orders (`ORDEREDP-BSORT`; the book's route goes through
+    `ORDEREDP-WHEN-BNEXT-CONSTANT` — a bubble-pass fixpoint is ordered —
     and the bad-pair progress measure). -/
-def bubbleSort_sorted (α : Type u) [TotalOrder α] : Prop :=
-  ∀ (xs : List α), Sorted (bubbleSort xs)
+def bsort_ordered (α : Type u) [TotalOrder α] : Prop :=
+  ∀ (xs : List α), Ordered (bsort xs)
 
 /-- BSORT permutes (`HOW-MANY-BSORT`). -/
-def bubbleSort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs : List α), Permuted (bubbleSort xs) xs
+def bsort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (xs : List α), Permuted (bsort xs) xs
 
-/-- A sorted permutation is unique — the book's `ORDERED-PERMS`
+/-- An ordered permutation is unique — the book's `ORDERED-PERMS`
     content, and the lemma that powers every equivalence below. -/
-def sorted_perm_unique (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs ys : List α), Sorted xs → Sorted ys → Permuted xs ys → xs = ys
+def ordered_perm_unique (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (xs ys : List α), Ordered xs → Ordered ys → Permuted xs ys → xs = ys
 
 /-- All four sorts agree (the book's `MSORT-IS-ISORT`,
     `QSORT-IS-ISORT`, `BSORT-IS-ISORT` capstones). -/
 def sorts_agree (α : Type u) [TotalOrder α] : Prop :=
   ∀ (xs : List α),
-    mergeSort xs = insertionSort xs ∧
-    quickSort xs = insertionSort xs ∧
-    bubbleSort xs = insertionSort xs
+    msort xs = isort xs ∧
+    qsort xs = isort xs ∧
+    bsort xs = isort xs
 
 /-- The abstract capstone (the book's `SORTS-EQUIVALENT` /
-    encapsulate content): ANY function that sorts and permutes IS
+    encapsulate content): ANY function that orders and permutes IS
     insertion sort. -/
-def sortingFunction_unique (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+def sorter_unique (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
   ∀ (f : List α → List α),
-    (∀ xs, Sorted (f xs)) → (∀ xs, Permuted (f xs) xs) →
-    ∀ xs, f xs = insertionSort xs
+    (∀ xs, Ordered (f xs)) → (∀ xs, Permuted (f xs) xs) →
+    ∀ xs, f xs = isort xs
 
 /-- Permutation is exactly multiplicity agreement (the book's
     `CONVERT-PERM-TO-HOW-MANY` capstone; Mathlib states the same fact
-    as `List.perm_iff_count` — the book's proof arrives independently,
-    via replay). -/
-def perm_iff_counts (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs ys : List α), Permuted xs ys ↔ ∀ a, count a xs = count a ys
+    about ITS notions as `List.perm_iff_count` — the book's proof
+    arrives independently, via replay). -/
+def perm_iff_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (xs ys : List α), Permuted xs ys ↔ ∀ a, howMany a xs = howMany a ys
 
 /-- The witness is complete (the book's
     `PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE`): no witness means
@@ -255,6 +272,6 @@ def perm_iff_counts (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
 def permWitness_complete (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
   ∀ (xs ys : List α),
     (permWitness xs ys = none ↔ Permuted xs ys) ∧
-    ∀ a ∈ permWitness xs ys, count a xs ≠ count a ys
+    ∀ a ∈ permWitness xs ys, howMany a xs ≠ howMany a ys
 
 end ACL2Lean.Sorting

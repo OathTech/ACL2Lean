@@ -57,17 +57,17 @@ structure; sorting then widens the aperture by exactly one dimension
   example): the template gate's decisive case at mirror level;
   industrialize what A1-A3 hand-built (the kit's first generated
   squares) to north-star quality BEFORE sorting.
-- A4 (formerly the whole phase): sorting's `insertionSort_sorted` +
-  `insertionSort_perm` at `Int` — now the aperture-widening slice:
+- A4 (formerly the whole phase): sorting's `isort_ordered` +
+  `isort_perm` at `Int` — now the aperture-widening slice:
   - `Acl2Embed Int` (intRep exists waypoint-side) + the core-logic
   restriction lemma (`lexorder` on int atoms ≡ `Int.≤` — belongs
   next to LexorderOrder.lean).
-  - The mirror-iso: `insertionSort`/`insertSorted` (mirror) ↔
+  - The mirror-iso: `isort`/`insertOrd` (mirror) ↔
   `isortL`/`insertL` (waypoint) along the embedding — HAND-WRITTEN
   this once, template-shaped deliberately (it becomes the
   generator's T1 spec in Phase C).
-  - Predicate transport: mirror `Sorted` ↔ waypoint chain
-  (`orderedpRec`), mirror `Permuted`/`count` ↔ waypoint
+  - Predicate transport: mirror `Ordered` ↔ waypoint chain
+  (`orderedpRec`), mirror `Permuted`/`howMany` ↔ waypoint
   `howManyL`/perm layer — same iso discipline.
   - The theorems: derived from the ISORT waypoint theorems
   (replayed-backed) through A1–A3. Product discipline: content from
@@ -90,10 +90,10 @@ Ordered by what the pathfinder + mirrors actually consume:
 - B2. **with_termination coverage** (REQUIRED class, 5) + the usefi
   totality lift → the three `*-IS-ISORT` capstone rows re-green.
 - B3. **The R-lane** (PERM-TLFIX, G1) → CONVERT-PERM chain +
-  `dis_convert_perm` retires → `perm_iff_counts` +
+  `dis_convert_perm` retires → `perm_iff_howMany` +
   `permWitness_complete` mirrors become derivable.
 - B4. **The linear-class design** (ruling before build) → the bsort
-  rows → `bubbleSort_*` mirrors.
+  rows → `bsort_*` mirrors.
 - B5. **Auto-extraction**: generated body/symbol/formula constants
   from the logs (retire the hand transcriptions; the by-decide pins
   become generated canaries).
@@ -126,18 +126,18 @@ sorting-coupling (the old L-rules apply):
 - C4. **The product seam gate**: a mirror theorem's proof must
   transitively consume replayed constants (claims-tier, like
   check-mirrors-pure); plus the mirror purity gate already in ci.
-- ACCEPTANCE TEST: `mergeSort_sorted` + `mergeSort_perm` at Int land
+- ACCEPTANCE TEST: `msort_ordered` + `msort_perm` at Int land
   with user input ≈ the two iso declarations (count the user lines;
   publish the number — the Track REAL metric is USER-LINES PER
   MIRROR, and it must fall book over book).
 
 ## PHASE D — sorting close-out (all 14 Props become theorems)
 
-- quickSort/bubbleSort mirrors via C machinery as B3/B4 unlock rows.
-- `sorted_perm_unique` (ORDERED-PERMS) + `sorts_agree` (the three
-  capstones, post-B2) + `perm_iff_counts`/`permWitness_complete`
+- qsort/bsort mirrors via C machinery as B3/B4 unlock rows.
+- `ordered_perm_unique` (ORDERED-PERMS) + `sorts_agree` (the three
+  capstones, post-B2) + `perm_iff_howMany`/`permWitness_complete`
   (post-B3).
-- `sortingFunction_unique` (the abstract capstone) via the
+- `sorter_unique` (the abstract capstone) via the
   parametric/encapsulate lane — and the ORDER-GENERIC ruling: attempt
   route 2 (the constrained-order book variant) here if the
   encapsulate lane is strong enough; else instance-scope the Prop

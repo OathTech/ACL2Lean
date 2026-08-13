@@ -11,18 +11,18 @@ proved via replay. The demo work of 2026-08-11/12 is archived
 
 `ACL2Lean/Mirrors/Sorting.lean`: the sorting book's mirror spec.
 - The four algorithms in pure idiomatic Lean, polymorphic over OUR
-  OWN minimal `TotalOrder` class (insertionSort, alternation-split
-  mergeSort, quickSort, bubbleSort — recursing as the book's
+  OWN minimal `TotalOrder` class (`isort`, alternation-split
+  `msort`, `qsort`, `bsort` — recursing as the book's
   functions recurse). The file imports NOTHING — core prelude only.
-- SELF-CONTAINED predicate vocabulary — our own `Sorted` (adjacent
-  chain), `count`, `Permuted` (the book's mem+erase recursion),
+- SELF-CONTAINED predicate vocabulary — our own `Ordered` (adjacent
+  chain), `howMany`, `Permuted` (the book's mem+erase recursion),
   `permWitness` — so no Mathlib/Batteries lemma can close mirror
   content; the properties arrive via replay or not at all.
   The order class is ours (Mathlib removed entirely — off the purity
   allowlist; re-admitting it is a ruling).
 - 14 target properties as named `Prop`s (sorted ×4, permuted ×4,
   sorted-perm uniqueness, four-sorts-agree, the abstract
-  any-sorter-is-insertionSort capstone, perm↔counts, witness
+  any-sorter-is-`isort` capstone, perm↔`howMany`, witness
   completeness). No sorry; the only proofs are kernel-demanded
   termination measures.
 - `just check-mirrors-pure` (ci): the Mirrors/ imports are pinned to
@@ -56,7 +56,7 @@ is its QA).
 
 Per-book, user-authored (industrialized where patterns emerge):
 1. The isomorphisms from the mirror definitions down to the
-   ACL2-like layer (mirror `insertionSort` ↔ waypoint `isortL`/
+   ACL2-like layer (mirror `isort` ↔ waypoint `isortL`/
    `isortExec` — through the order instance: our `lexorder`
    restricted to the relevant atom fragment realizes OUR `TotalOrder`
    interface, backed by CORE-LOGIC theorems (source 2); design note needed on the instance
@@ -73,7 +73,7 @@ Per-book, user-authored (industrialized where patterns emerge):
    fine. Eventually gated seam-style (a mirror theorem's proof must
    consume replayed constants); audit-enforced until that gate
    exists.
-3. First increment: `insertionSort_sorted` + `insertionSort_perm`
+3. First increment: `isort_ordered` + `isort_perm`
    end-to-end — the route proven on the simplest sort before
    fan-out.
 
@@ -111,6 +111,25 @@ consulted-in-anger files (TODO.md, the thin-Lean boundary note)
 carry a one-line TERMINOLOGY header instead. `mirror` is now
 reserved for the product layer (`ACL2Lean/Mirrors/`).
 
+## NAMING PASS — the mirror spec names (EXECUTED 2026-08-13)
+
+The PRODUCT layer's names must not overlap core/Std/Batteries/Mathlib
+names, at the root or dot-notation-reachable (Mike, 2026-08-13). Seven
+real overlaps were carried by `Mirrors/Sorting.lean` (`List.merge`,
+`Option.merge`, `List.mergeSort`, `List.mergeSort_perm`,
+`List.insertionSort`, `List.count`, `Nat.count`); the names are now
+taken from the ACL2 book, Lean-cased: `insertionSort`→`isort`,
+`insertSorted`→`insertOrd`, `mergeSort`→`msort`, `merge`→`merge2`,
+`quickSort`→`qsort`, `bubbleSort`→`bsort`, `bubblePass`→`bnext`,
+`Sorted`→`Ordered`, `count`→`howMany` (and the Props follow:
+`isort_ordered`, `isort_perm`, `msort_*`, `qsort_*`, `bsort_*`,
+`ordered_perm_unique`, `sorter_unique`, `perm_iff_howMany`).
+`Mirrors/Basics.lean` was already compliant (incl. `app` — no root
+`app`, no `List.app`/`Function.app` in the library surface).
+`Tests/MirrorNameCheck.lean` (in `lake build Tests`) enforces the rule
+from here on. Text in DATED arc logs and audits keeps the old names as
+history; live plan text was updated.
+
 ## Standing constraints
 
 Thin-Lean boundary (metric layer); the two-standard rule; mirror
@@ -122,7 +141,7 @@ they are not trust anchors).
 ## Sequencing
 
 Step 0 review → the iso-instance design note (Track REAL 1, needs a
-ruling on the instance architecture) → Track REAL 3 (insertionSort
+ruling on the instance architecture) → Track REAL 3 (`isort`
 end-to-end) as the pathfinder arc, with Track FREE items pulled in
 exactly when the pathfinder hits them (a hand-written thing on the
 path = a Track FREE work item, not a workaround). The naming sweep
