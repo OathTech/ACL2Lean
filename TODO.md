@@ -196,8 +196,38 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > it verbatim). Remaining three Basics Props (app_nil, rev_app,
 > rev_rev) are honest deferrals: their waypoint rows are `.pending`.
 
+> **THE MIRROR GENERATORS ARE IN (Basics-closeout increments C+D,
+> 2026-08-13) — master-plan C2+C3 v1 landed for the basics slice.**
+> `ACL2Lean/MirrorProofs/IsoGen.lean`: `mirror_iso%` (the SQUARE
+> generator — `agree` / `hom list` / `hom scalar`, induction driven by
+> `fun_induction` off the mirror definition's OWN recursion, so item
+> 8's accumulator demand is met by construction) and
+> `mirror_transport%` (the CROSSING + the mirror theorem from one
+> declaration; the user still writes the statement and the receipt).
+> VALIDATED BY RETIREMENT: all six hand squares, all three hand
+> crossings and all three hand transports regenerated same-name with
+> BYTE-IDENTICAL `#check` types (15/15 declarations), zero hand proofs
+> left in `MirrorProofs/Basics.lean`; the transfer kit
+> (`Acl2Embed`/`intEmbed`/`map_inj`, LIST items 1+4) moved into IsoGen
+> unchanged. THE NUMBER (Track REAL's metric): USER LINES PER MIRROR
+> 23/20/26 → 9/9/10 (69 → 28 for the three, 2.5×); a fourth mirror
+> over already-squared functions costs 3 lines. The square closer's
+> fixed rungs are `rfl`-lemmas ONLY (pinned in the file) and the only
+> per-invocation input is DEFINITIONS to unfold — a lemma there is a
+> hard error, so the content channel stays shut. Gate probes recorded
+> and reverted: the reassociating `revAcc` reading, a drifted square
+> class, a lemma in `unfold`, a wrong arity, a mismatched waypoint
+> theorem, a missing hom square — all six fail closed with the ruled
+> messages. STILL OPEN for C: non-list argument/result readings, order
+> instances (C1's other embeddings), and the item-3/7 dissolve (waypoint
+> statements generated in mirror vocabulary).
+
 > **TEMPLATE-GATE FINDING (Basics-closeout increment A, 2026-08-13 —
-> NEEDS A RULING).** The `derive_sim%` gate's decisive case was
+> RULED 2026-08-13 by THE VOCABULARY RULE, commit a07d99d: native
+> readings and mirror definitions are OWN-DEFINITIONS, so the leak below
+> is unrepresentable and the gate is clause-independent; enforcement is
+> expectations, per the standing ruling. Kept for the record.)** The
+> `derive_sim%` gate's decisive case was
 > exercised on REV-ACC both ways. Driving the induction off the
 > NATIVE READING'S OWN recursion (`induct functional`), the
 > reassociating reading `xs.reverse ++ acc` FAILS with the ruled
