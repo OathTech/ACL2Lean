@@ -170,3 +170,23 @@ edits:
   means — a meaning-level ruling, not an executor call).
 - dis_acl2_count_tp stays (sorries remain 7); tp:ACL2-COUNT x7
   stays; both HONESTLY BLOCKED with the above named.
+
+## ARC LOG — EARLY EXIT at the decision wall (2026-08-13)
+
+Increments 1-5 landed in full; 6 stopped on probe-refuted premises;
+7 half-landed (the decomposition, verified inert alone; the ATOM leg
+discovered to be a capstone-flipping lever and deliberately parked).
+SCOREBOARD: sorries 20 → 7 (all 7 TP-class targets that were
+mechanically reachable, retired by deletion + rewiring); main-row
+tp: 76 → 10; catalog 24+25 → 38+11 (14 promotions); both
+product-layer receipts held or improved (len_app_int trio-clean —
+the arc's demanded headline, delivered in increment 1); every golden
+change machine-diagnosed; 12+ gate probes run and reverted
+byte-exact across the increments. HONEST SURVIVORS, each with its
+named blocker: tp:ACL2-COUNT x7 (GAP-1 context-free leaf verdicts +
+GAP-2 no primitive type facts — fork items), tp:QSORT x1 (the
+too-weak emitted BINARY-APPEND corollary — fork item), tp:ZIP2/ZIP3
+x2 (the parked ATOM leg). EXIT per the goal's discussion rule: the
+remaining work all gates on Mike's decisions (the package in the
+increment-6 log + the ATOM-leg increment). The exit audit + claim
+gate run when the decision-gated work concludes or is deferred.
