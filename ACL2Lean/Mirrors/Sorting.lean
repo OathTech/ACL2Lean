@@ -164,6 +164,7 @@ def filterRel (keep : α → Bool) : List α → List α
   | [] => []
   | a :: t => if keep a then a :: filterRel keep t else filterRel keep t
 
+omit [TotalOrder α] in
 theorem length_filterRel_le (keep : α → Bool) :
     ∀ (xs : List α), (filterRel keep xs).length ≤ xs.length
   | [] => Nat.le_refl _

@@ -18,6 +18,16 @@ fixes (the same exercise that produced the §D.1 if-simplification fix).
 | `05-hints.lisp` | Explicit `:hints` — `:use`, `:induct`, `:in-theory` provenance |
 | `06-measure.lisp` | Explicit **`:measure`** / termination proofs (simple, lexicographic `l<`, structural) |
 | `07-mutual-recursion.lisp` | `mutual-recursion` bundles; the induced mutual induction scheme |
+| `08-equality-reasoning.lisp` | Equality stepping stones toward transitivity; `:rule-classes nil` theorems (not stored as `:REWRITE`) |
+| `09-defn-unfold.lisp` | Non-inductive definition unfold then close — the `def-unfold` rune with no induction |
+| `10-tree-induction.lisp` | Binary-tree recursion → a step case with **two IHs** (one per recursive call); multi-`:ALISTS` per case |
+| `11-custom-measure.lisp` | An explicit **non-`acl2-count` measure** (`nfix n`) inducted on; step substitutes `n := (- n 2)` |
+| `12-multi-controller.lisp` | Simultaneous recursion on two args → **multiple `:CONTROLLERS`**; multi-variable IH alist |
+| `13-multi-measured-var.lisp` | A **compound measure over two vars** (`(+ (acl2-count x) (acl2-count y))`); the IH *swaps* variables |
+| `14-accumulator.lisp` | Tail-recursive accumulator: an IH substitution to a **constructed (growing)** term; controller + non-controller substituted together |
+| `15-nested-induction.lisp` | **Two inductions in one theorem** — a nested/sequential induction with a synthesized `*1.k` pool root |
+| `16-three-way.lisp` | Three-way simultaneous recursion → a **3-element IH alist** and a 3-disjunct governing test |
+| `17-rule-application.lisp` | **Theorem dependency** (`rule:<thm>`): citing a prior theorem as a `:REWRITE` rule; `(:RULES …)` emission, `:SUBST`, and `:HYP-RELIEF` |
 
 ## Regenerate
 

@@ -60,7 +60,7 @@ Ranking rule: corpus-need > obvious-deficiency > ACL2-importance;
 **missing features acceptable, baked-in bad design not** — inventory
 kills outrank new features.
 
-- **S1 — capture/emission hardening (one fork batch).** The halt
+- **S1 — DONE (2026-08-13).** capture/emission hardening (one fork batch). The halt
   family (defattach, local, ratio/#c-in-defthm, the two exotic rule
   classes — likely one shared emitter defect), untagged-prose
   suppression (fixes the forcing-round parse), guard-obligation
@@ -68,7 +68,7 @@ kills outrank new features.
   (:TA-RUNES/DEFAULT-CDR threading, FC-contradiction discharge nodes,
   strip-branches conjunction split). One build+recapture cycle
   covers corpus rows AND the P2 pins.
-- **S2 — LET/lambda.** Parse-layer LAMBDA path frames + the
+- **S2 — DONE (2026-08-13).** LET/lambda. Parse-layer LAMBDA path frames + the
   dpValExpr/world lambda story. Gates every real-book import;
   elevated to near-core.
 - **S3 — the L2 lane, designed from the captured artifacts.** MDD

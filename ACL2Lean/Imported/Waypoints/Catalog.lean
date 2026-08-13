@@ -113,13 +113,21 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("00-direct", "SQ-OF-3", .native ``sq_of_3_native ``sqOf3ReplayedCond),
   ("00-direct", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("01-multi-theorem", "APP-CONS-CAR", .native ``car_cons_native ``appConsCarReplayedCond),
-  ("01-multi-theorem", "APP-NIL", .pending "rule:CONS-CAR-CDR discharger + the true-listp hypothesis decode (the row replays green; audit F7 corrected the stale G5 reason)"),
+  ("01-multi-theorem", "APP-NIL", .pending "the true-listp hypothesis decode (appNil kit — decode-layer; the row replays green + unconditional; the old rule:CONS-CAR-CDR clause was stale — see the R0 note below)"),
   ("01-multi-theorem", "LEN2-APP", .pending "len2 world dischargers (entry-1 recipe over the 01 world)"),
   ("02-rev", "APP-ASSOC", .native ``app_assoc_native_driver ``appAssocReplayedCond),
   ("02-rev", "TRUE-LISTP-REV", .pending "the flatten-recipe waypoint (the image-of-enc fact, cf TRUE-LISTP-FLATTEN — unconditional, transfers directly)"),
-  ("02-rev", "APP-NIL", .pending "rule:CONS-CAR-CDR discharger + the true-listp hypothesis decode"),
-  ("02-rev", "REV-APP", .pending "rev correspondence + tp:REV/rule:CONS-CAR-CDR dischargers"),
-  ("02-rev", "REV-REV", .pending "rev correspondence + tp:REV/rule:CONS-CAR-CDR dischargers"),
+  ("02-rev", "APP-NIL", .pending "the true-listp hypothesis decode (appNil kit — decode-layer; the row replays green + unconditional)"),
+  -- R0 item 7 (2026-08-13; APP-NIL rows folded in post-flight — same
+  -- evidence): the previous blockedOn text ("tp:REV/
+  -- rule:CONS-CAR-CDR dischargers") was stale in BOTH halves — tp:REV was
+  -- cleared at bcb181d (the BINARY-APPEND→APP→REV cascade; the main-row
+  -- cond is gone and the header tally counts both rows unconditional) and
+  -- rule:CONS-CAR-CDR has a working discharger (gz_rule_cons_car_cdr,
+  -- Provers.lean) — it is a kept condition on NO golden row. Both rows
+  -- replay green and UNCONDITIONAL; the only thing missing is decode-layer.
+  ("02-rev", "REV-APP", .pending "no rev exec/iso kit — decode-layer work (the row replays green + unconditional)"),
+  ("02-rev", "REV-REV", .pending "no rev exec/iso kit — decode-layer work (the row replays green + unconditional)"),
   ("03-linear", "LEN2-NONNEG", .pending "len2 dischargers; Nat form is type-absorbed"),
   ("03-linear", "LEN2-CDR-SMALLER", .pending "len2 dischargers"),
   ("03-linear", "LINEAR-CHAIN", .pending "#50 DP tactic decode"),

@@ -685,22 +685,35 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                 let convTy ← mkValConvPropEx cfg.worldExpr envE
                   (reflectSExpr a1) vσ
                 withLocalDeclD `hcs convTy fun hconvσ => do
-                  -- CONSP/ENDP DUALITY (audit F1 — this gate's siblings got
-                  -- it, this one didn't and the whole route was dead): an
-                  -- emitted `(ENDP b)` ruler is refuted by the translated
-                  -- body's truthy `(CONSP b)` branch fact.
-                  let endpDualOf : SExpr → Option SExpr := fun lit =>
+                  -- NOT-CONSP DUALITY (audit F1): an emitted negative
+                  -- recognizer ruler is refuted by the translated body's
+                  -- truthy `(CONSP b)` branch fact. R0 item 9 (2026-08-13):
+                  -- this was a hand CLONE of `BranchFacts.recogView` that
+                  -- knew ENDP only, so emitted `(ATOM …)` rulers stayed
+                  -- uncovered here while every sibling gate handled them —
+                  -- now DELEGATED to `recogView` so the two cannot diverge.
+                  let notConspDualOf : SExpr → Option SExpr := fun lit =>
+                    match recogView lit with
+                    | some (b, false) =>
+                      some (.cons (.atom (.symbol { name := "CONSP" }))
+                        (.cons b .nil))
+                    | _ => none
+                  -- …and the matching VALUE-level nil lemma, per recognizer
+                  -- (the peel states `<recog> vb = nil`, so it must name the
+                  -- ruler's own recognizer, not ENDP always).
+                  let dualNilLemma : SExpr → Option Name := fun lit =>
                     match lit with
-                    | .cons (.atom (.symbol e)) (.cons b .nil) =>
-                      if e.name == "ENDP" then
-                        some (.cons (.atom (.symbol { name := "CONSP" }))
-                          (.cons b .nil))
+                    | .cons (.atom (.symbol r)) (.cons _ .nil) =>
+                      if r.name == "ENDP" then
+                        some ``logic_endp_nil_of_consp_toBool
+                      else if r.name == "ATOM" then
+                        some ``logic_atom_nil_of_consp_toBool
                       else none
                     | _ => none
                   let dec ← dischargeDecreaseRecorded cfg envE
                     (rulerCovered := fun lit =>
                       facts.any (fun (f, pos, _) => f == lit && !pos) ||
-                      (match endpDualOf lit with
+                      (match notConspDualOf lit with
                        | some dual =>
                          facts.any (fun (f, pos, _) => f == dual && pos)
                        | none => false))
@@ -717,16 +730,19 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                           #[← mkAppM ``Logic.toBool_eq_false #[vc], hb]
                         mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil]
                       | none =>
-                        let some dual := endpDualOf lit
+                        let some dual := notConspDualOf lit
                           | throwError "recorded decrease: internal — ruler \
                               fact vanished"
                         let some (_, _, hb) := facts.find?
                             (fun (f, pos, _) => f == dual && pos)
                           | throwError "recorded decrease: internal — dual \
                               ruler fact vanished"
-                        -- hb : toBool (consp vb) = true ⇒ endp vb = nil
-                        let hnil ← mkAppM
-                          ``logic_endp_nil_of_consp_toBool #[hb]
+                        let some nilLemma := dualNilLemma lit
+                          | throwFrontier m!"recorded decrease: not-consp \
+                              ruler {repr lit} has no value-level nil lemma \
+                              (frontier)"
+                        -- hb : toBool (consp vb) = true ⇒ <recog> vb = nil
+                        let hnil ← mkAppM nilLemma #[hb]
                         mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil])
                     (termConv := fun u => dpValProof cfg envE [] [] varP u)
                     (walkConv := fun u =>

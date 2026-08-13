@@ -416,22 +416,53 @@ private def mirrorFnShape (ty : Expr) : MetaM (Nat × Bool × Bool) :=
   -- TEMPLATE FAILURE = HARD ERROR (never a hand-proof fallback)
   let env' ← getEnv
   let thmName := (← getCurrNamespace) ++ thmId.getId
-  let bad :=
+  -- FAILURE REPORTING (R0 item 10, 2026-08-13): this message used to
+  -- ASSERT one cause ("the declared correspondence does not align with
+  -- the recursion"), which is wrong in every other failure mode — a
+  -- mis-chosen rung class, a missing instance, or an unregistered callee
+  -- square all land here too. State only what is OBSERVED and list the
+  -- candidates; the residual goals themselves are reported by Lean as
+  -- separate elaboration errors on this declaration.
+  let residual : String :=
     match env'.find? thmName with
-    | none => true
-    | some ci => (ci.value?.getD ci.type).hasSorry
-  if bad then
+    | none => "no declaration was produced"
+    | some ci =>
+      if (ci.value?.getD ci.type).hasSorry then
+        "the declaration was produced but carries `sorryAx` (the closer \
+         left goals open)"
+      else ""
+  if residual != "" then
+    let clsName : String :=
+      match cls with
+      | .agree => "agree"
+      | .homList => "homList"
+      | .homScalar => "homScalar"
     throwError "mirror_iso%: the square template did not close \
-        {thmId.getId} — THE DECLARED CORRESPONDENCE DOES NOT ALIGN WITH \
-        {fnName}'S OWN RECURSION, so a hand-written square would carry \
-        content ACL2 proves (thin-Lean ruling 2026-08-11, at the mirror \
-        level). Note what this failure is NOT: under the VOCABULARY RULE \
+        {thmId.getId}.\n\
+        OBSERVED: {residual}. Rung class `{clsName}`; target \
+        `{fnName}`; the closer was given the lemma set \
+        {lemmaNames.toList} (the definition's own equations, the \
+        declared unfoldings, and the registered squares of \
+        {fnName}'s callees). The residual GOALS are reported \
+        separately by Lean as elaboration errors on this \
+        declaration — read those first; this message does not \
+        diagnose them.\n\
+        CANDIDATE CAUSES (none asserted, not ranked): (a) the declared \
+        correspondence does not align with {fnName}'s own recursion; \
+        (b) the wrong rung CLASS for this statement (`agree` vs \
+        `homList` vs `homScalar`); (c) a missing instance needed to \
+        elaborate the statement or fire a lemma; (d) a MISSING \
+        REGISTERED SQUARE for a callee of {fnName} — generate that \
+        callee's square with `mirror_iso%` first, since only \
+        registered ones reach the closer.\n\
+        What this failure is NOT: under the VOCABULARY RULE \
         (2026-08-13) a mirror definition is an OWN-DEFINITION, so no \
-        library lemma about our names exists and no induction clause or \
-        default simp set could have closed it either. Either align the \
-        declared correspondence with the definition's recursion, or route \
-        the bridging fact through a REPLAYED ACL2 BOOK THEOREM. A hand \
-        square is NOT the escape."
+        library lemma about our names exists and no default simp set \
+        could have closed it either. Whatever the cause, the remedy is \
+        to fix the correspondence/class/registration, or to route the \
+        bridging fact through a REPLAYED ACL2 BOOK THEOREM. A hand \
+        square is NOT the escape (thin-Lean ruling 2026-08-11, at the \
+        mirror level)."
   registerSquare fnName cls thmName
 
 /-! ## `mirror_transport%`
@@ -557,19 +588,39 @@ syntax (name := mirrorTransportCmd)
   let ns ← getCurrNamespace
   for (nm, what) in [(ns ++ crossId.getId, "crossing"),
                      (ns ++ thmId.getId, "transport")] do
-    let bad :=
+    -- FAILURE REPORTING (R0 item 10, 2026-08-13): as with `mirror_iso%`,
+    -- this message used to ASSERT the cause per rung. State the OBSERVED
+    -- residual and list candidates; the goals themselves are reported by
+    -- Lean as separate elaboration errors on the declaration.
+    let residual : String :=
       match env3.find? nm with
-      | none => true
-      | some ci => (ci.value?.getD ci.type).hasSorry
-    if bad then
+      | none => "no declaration was produced"
+      | some ci =>
+        if (ci.value?.getD ci.type).hasSorry then
+          "the declaration was produced but carries `sorryAx` (the \
+           assembly left goals open)"
+        else ""
+    if residual != "" then
       throwError "mirror_transport%: the fixed {what} assembly did not \
-          close {nm}. On the CROSSING rung this means the registered \
-          agreement squares do not carry {specName} into {wpName}'s \
-          vocabulary (or the waypoint theorem is not this property); on \
-          the TRANSPORT rung, that a registered homomorphism square is \
-          missing for one of the definitions in {specName}. Generate the \
-          missing square with `mirror_iso%`, or route the fact through a \
-          replayed ACL2 book theorem — a hand assembly is NOT the escape."
+          close {nm}.\n\
+          OBSERVED: {residual}. Spec `{specName}`; waypoint theorem \
+          `{wpName}`; failing rung: {what}. The residual GOALS are \
+          reported separately by Lean as elaboration errors on this \
+          declaration — read those first; this message does not \
+          diagnose them.\n\
+          CANDIDATE CAUSES (none asserted, not ranked): (a) the \
+          registered agreement squares do not carry {specName} into \
+          {wpName}'s vocabulary (a MISSING or misaligned square); (b) \
+          `{wpName}` is not this property (the crossing cites it \
+          exactly, so a mismatched statement fails here); (c) a \
+          missing registered HOMOMORPHISM square for one of the \
+          definitions in {specName}; (d) a wrong square CLASS \
+          (scalar vs list) for one of those definitions; (e) a \
+          missing instance at the element type.\n\
+          Remedy: generate the missing square with `mirror_iso%`, fix \
+          the crossing's citation, or route the fact through a \
+          replayed ACL2 book theorem — a hand assembly is NOT the \
+          escape."
 
 /- DELIBERATELY ABSENT, exactly as in `derive_sim%`: a `register_square%`
    for HAND-written squares. Registering one so a transport could resolve

@@ -153,3 +153,19 @@ All 24 audits, ~48 of 50 notes, ~40 plans, `docs/comms/`. This project's append-
 **Everything else — dated record**, carrying one standard header. The rule to state in `docs/README.md`: *any file with a date in its name is a record of that date and is never current state; where it conflicts with the six above, the six win; where it uses "mirror" for a waypoint, read `LEXICON.md` first.*
 
 **The one systemic fix behind most of this worklist:** completion is recorded in git and in *other* documents, never written back into the document that made the claim. Adopting the `## ARC LOG` closure pattern (already proven twice) as a merge requirement would prevent the recurrence of items 7, 12, and 13.
+---
+
+## CORRECTIONS (R0 execution, 2026-08-13 — appended, record above unchanged)
+
+- **The CLAUDE.md `just replay` finding is REFUTED.** The recipe exists
+  and works (Justfile:110, wired to the real `acl2lean-replay` exe;
+  added at 84a6a47 and never removed — verified by `git log -S`).
+  CLAUDE.md :304 needed no change; the audit's "removed recipe" claim
+  was wrong.
+- **The "14 Props" site list was wrong both ways**: master-plan :145
+  and :170 carry no count; two-track-charter :68 (missed by the audit)
+  does. Real total fixed: 4 sites (master-plan :7, :134; two-track
+  :23, :68).
+
+Everything else in the Tier-1 list executed as written (see the R0
+commit on `mdd/r0-records`).

@@ -1391,7 +1391,9 @@ def dischargeGzRuleHyp (cfg : ReplayConfig) (spec : RuleSpec) (decl : Name)
     (the ≈557M-node perm-equivalence precedent, design §4). -/
 abbrev ReplayedRegistry := List (String × Name × List String)
 
-/-- Macro-side D1 registry (P3, the capstone-mirror finding): each
+/-- Macro-side D1 registry (P3, the capstone REPLAYED-STATEMENT finding —
+    the dated label said "capstone-mirror"; this layer is replayed
+    statements, not the product, per docs/LEXICON.md): each
     `driver_replayed%` invocation registers its enclosing definition
     (world, ACL2 theorem name, decl, kept conds) so LATER same-world
     invocations' dependency discharges APPLY the constant instead of

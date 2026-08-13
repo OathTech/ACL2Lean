@@ -17,7 +17,8 @@ those failures are invisible to the Lean kernel (see the trust note below).
    a proof. *(untrusted oracle — its proof search is taken as given, but ACL2 is
    not a trust anchor)*
 2. **ACL2 instrumentation** *(our addition — the `acl2/` submodule; logging points
-   in `rewrite.lisp` / `simplify.lisp` / `axioms.lisp`)* — emits a structured
+   across 12 files — 225 tags; see the tagging survey for the full map)* —
+   emits a structured
    **proof log** (`.proof-log`, e.g. `acl2_samples/simple.proof-log`): runes,
    lhs/rhs, `:SUBST`, the induction `:SCHEME`, `:TYPE-PRESCRIPTION` corollaries,
    and the per-literal rewrite chains.
@@ -69,10 +70,11 @@ those failures are invisible to the Lean kernel (see the trust note below).
    corpus classes document exactly how far the masquerade currently reaches.
    Growing a trusted-core primitive means pinning it there first (see the
    corpus README and the roadmap H3).
-7. **Proof-object builder** — `Replay/ProofProducer.lean` (a `MetaM` procedure,
-   the eventual `acl2_replay` tactic) + `Replay/EvalLemmas.lean` (atomic step
-   lemmas): recurses the proof tree and emits a Lean **`Expr`** discharging the
-   replayed statement; the **Lean kernel** then checks it.
+7. **Proof-object builder** — `Replay/Driver.lean` + the `Replay/Driver/`
+   modules (a `MetaM` procedure, the eventual `acl2_replay` tactic) +
+   `Replay/EvalLemmas.lean` (atomic step lemmas): recurses the proof tree and
+   emits a Lean **`Expr`** discharging the replayed statement; the **Lean
+   kernel** then checks it.
 
 **End goal — ACL2 as an untrusted Lean tactic.** The reason to produce the replayed
 statement is to discharge a *native Lean theorem* we actually want — a **MIRROR**.
@@ -93,6 +95,21 @@ Three distinct things:
   `just check-mirrors-pure`), mirroring a property an ACL2 book proves and
   proved VIA replay — the sole first-class artifact establishing that a
   replayed theorem means what the user intends.
+
+**Vocabulary practice (Mike, 2026-08-13 — disambiguate hard, as design
+practice).** A shared NAME is the channel by which a library lemma, or a
+reader, can be mistaken for content that must come via replay. Three layers,
+each binding: (1) **waypoint READINGS** (`derive_exec%` isos, `Imported/`)
+must be OWN-DEFINITIONS — a reading spelled in library names is closable by
+library simp lemmas, which is exactly the leak; (2) **mirror SPEC BODIES** —
+a construct that mirrors a BOOK FUNCTION is an own-definition (its iso square
+arrives with its mirror); pure-Lean idiom is FULLY QUALIFIED (`List.find?`,
+`List.length`) or an own device; operator notation (`++`, `∈`) is permitted as
+unambiguous; (3) **NAMES** — a mirror-spec name must have ZERO overlap with a
+core/Std/Batteries/Mathlib name, at the root or dot-notation-reachable on a
+type the spec uses; `Tests/MirrorNameCheck.lean` is the collision linter and
+enforces it at build time.
+
 (Dated docs/notes/audits predating this restoration use "mirror"/"native
 mirror" for the waypoint layer; read those as WAYPOINT.) Given a desired
 Lean statement (e.g. `1 + 1 = 2` in Lean's own terms), we prove **in Lean,
@@ -130,17 +147,21 @@ WAYPOINT layer — the ACL2-like Lean restatements the metric scores itself
 against — exists as validated HAND proofs (`Imported/`, catalogued in
 `Imported/WaypointCatalog.lean`); the PRODUCT layer (`ACL2Lean/Mirrors/`,
 Lean-idiomatic zero-ACL2 theorems) is the north star being built toward.
-**The governing plan is `docs/plans/2026-06-10_generality-design.md`** (ratified;
-built on `docs/notes/2026-06-10_acl2-architecture-survey.md`): the hybrid
-architecture (certifying walkers as the lane, fragment-local consolidation), the
-six-step sequencing, and the core/extended/out import tiers. The trust note still
+**The governing plan is `docs/plans/2026-08-12_master-plan.md`** (ruled
+2026-08-13): the two-category model (METRIC vs PRODUCT), Track FREE / Track
+REAL, and the phase sequencing to the sorting close-out.
+`docs/plans/2026-06-10_generality-design.md` is the **architecture
+reference** — its L1–L3 invariants (below) bind; its status and sequencing
+are superseded — carrying the hybrid architecture (certifying walkers as the
+lane, fragment-local consolidation) and the core/extended/out import tiers,
+built on `docs/notes/2026-06-10_acl2-architecture-survey.md`. The trust note still
 applies — a kernel-accepted proof object certifies only the replayed statement as
 stated, not that the replayed statement/`evalOpt` faithfully model ACL2 — so keep checking
 each stage against the real artifact.
 **The COVERAGE source of truth is the pattern map**
 (`docs/notes/2026-07-22_pattern-map.md`, ci-gated by
 `just check-pattern-map`): the top-down frame over ACL2's situation space,
-46 authored pattern books (`acl2_samples/pattern-tests/`), the pinned
+61 authored pattern books (`acl2_samples/pattern-tests/`), the pinned
 frontiers per pipeline layer, the driver fake-replay inventory, and the MDD
 support triage. Consult it BEFORE building support;
 `docs/notes/2026-07-23_mapping-plan-impact.md` carries the post-mapping
@@ -163,6 +184,11 @@ Lean-side reconstruction — retire, don't grow, the bridge inventory).
 
 ## Fidelity (non-negotiable)
 
+- **A verdict may gate ADMISSIBILITY (which lemma applies); it may NEVER
+  substitute for proof.** Trusting ACL2 is forbidden in all circumstances, no
+  exceptions. Assumed facts exist only as visible `sorryAx` debt (registered,
+  receipt-carried, gate-retired) — acceptable during buildout ONLY; the win
+  state is ZERO `sorryAx` anywhere (Mike, 2026-08-13).
 - **Known fidelity bugs go in `docs/BUGS.md` — the SINGLE canonical index.**
   Total faithfulness to ACL2 is the goal, so any interpreter/trusted-core
   divergence from real ACL2 is definitionally a bug. Log it in `docs/BUGS.md`

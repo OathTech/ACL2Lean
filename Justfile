@@ -60,8 +60,11 @@ check-gz-agreement:
     ./scripts/check-gz-agreement.sh
 
 # MIRROR PURITY (two-category model): the product layer ACL2Lean/Mirrors/
-# may import only Mathlib/Std/Batteries — an ACL2 notion in a mirror is
-# definitionally a bug. Claims-tier: a build gate, not a speedbump.
+# may import only Std/Batteries — an ACL2 notion in a mirror is
+# definitionally a bug. Mathlib is EXCLUDED from the allowlist (2026-08-12):
+# mirror content must arrive via replay, not via library lemmas, so
+# re-admitting it is a ruling, not a default.
+# Claims-tier: a build gate, not a speedbump.
 check-mirrors-pure:
     ./scripts/check-mirrors-pure.sh
 
@@ -148,6 +151,9 @@ check-golden-current:
     cmp Tests/driver-coverage.golden Tests/driver-coverage.actual || { echo "check-golden-current: the GOLDEN does not match the assembled .actual — hand-edited golden or stale run; use 'just coverage-repin' (which invalidates) and re-run driver-coverage" >&2; exit 1; }
     @echo "check-golden-current: golden matches the live assembly."
 
+# Re-pin the golden from the live .actual AND invalidate the per-book coverage
+# modules (they read the golden via IO, so Lake cannot see the edit). Review
+# the diff FIRST (just golden-review); a repin is a full-claim-gate event.
 coverage-repin:
     cp Tests/driver-coverage.actual Tests/driver-coverage.golden
     ./scripts/invalidate-coverage.sh

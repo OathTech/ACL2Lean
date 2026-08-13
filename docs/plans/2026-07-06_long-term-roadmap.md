@@ -1,5 +1,11 @@
 # Long-term roadmap — after the two-stage lift lands (PROPOSAL)
 
+> **SUPERSEDED 2026-08-13** — the governing plan is
+> `docs/plans/2026-08-12_master-plan.md` (two-category model: METRIC vs
+> PRODUCT; Track FREE / Track REAL). Read this file as a dated proposal
+> record; where it conflicts with the master plan or `docs/LEXICON.md`,
+> those win.
+
 *2026-07-06, branch `mdd/r2-isort`. Status: PROPOSAL for MDD review — nothing
 here is ratified except where it restates already-ratified decisions (the
 sorting-corpus roadmap, the obligation-log model, the two-stage lift design).

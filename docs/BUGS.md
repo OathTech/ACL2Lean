@@ -317,15 +317,19 @@ alone. Two defects in that:
    `geneqv-refinementp` returns the exact `cr-rune` at the fork's push
    site (acl2/induct.lisp:102-114) — neither was consumed. FIXED
    Lean-side: the registry match must be step-cited.
-2. The registry cannot distinguish a theorem STORED as :congruence from
-   a congruence-SHAPED :rewrite theorem, because the emitted `:DEFTHM`
-   event carries only :FORMULA and :SOURCE — no rule-classes. With the
-   citation anchoring this can no longer select a wrong license (the
-   cited name gates it), but the emission gap remains: a defthm's
-   rule-classes (and the per-step `cr-rune`) should be emitted.
-   OPEN (fork): emit `:RULE-CLASSES` on :DEFTHM events; emit
-   `:cong-rune` on abbreviation-expansion steps (one line at
-   acl2/induct.lisp:158-177).
+2. The registry could not distinguish a theorem STORED as :congruence
+   from a congruence-SHAPED :rewrite theorem, because the emitted
+   `:DEFTHM` event carried only :FORMULA and :SOURCE — no rule-classes.
+   With the citation anchoring this can no longer select a wrong
+   license (the cited name gates it).
+   **HALF LANDED (verified 2026-08-13):** the rule-classes ARE now
+   emitted — `:DEFTHM` events carry a `:CLASSES` field (e.g.
+   `acl2_samples/sorting/qsort.proof-log:39`:
+   `(:DEFTHM PERM-IS-AN-EQUIVALENCE … :CLASSES (:EQUIVALENCE) …)`; also
+   `:CLASSES (:REWRITE)`, `:CLASSES :TYPE-PRESCRIPTION`, `:CLASSES NIL`).
+   STILL OPEN (fork): emit `:cong-rune` on abbreviation-expansion steps
+   (one line at acl2/induct.lisp:158-177) — the per-step congruence
+   rune is the remaining emission gap.
 Related (same audit, tracked in the design note, not bugs): the
 :EQUIVALENCE-rule implicit self-congruences and :REFINEMENT rules are
 licensing mechanisms with no emitted defthm shape at all — rung-3 work.

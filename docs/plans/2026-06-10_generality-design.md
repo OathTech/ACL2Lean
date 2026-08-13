@@ -2,7 +2,11 @@
 
 _Created 2026-06-10. Companion to
 `docs/notes/2026-06-10_acl2-architecture-survey.md` (the inventory this doc
-reasons from). Status: DRAFT for MDD review; feature work paused until ratified._
+reasons from). **Status: ARCHITECTURE REFERENCE (L1–L3 binding; status and
+sequencing superseded by `docs/plans/2026-08-12_master-plan.md` — ruled
+2026-08-13).** The §7 design invariants L1/L2/L3 remain binding and are
+restated in CLAUDE.md; everything here about project STATUS, phase ordering,
+and what is built is historical._
 
 ## 0. What we are designing
 

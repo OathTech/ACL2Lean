@@ -70,8 +70,17 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   prover's args-valued mode + the residue-argument leaf + the
 >   args-valued class implication that let REV's callee step through):
 >   `dis_append_tp` (8 registered sorries → 7). Main-row `tp:` census
->   18 → 10; survivors with named blockers: `tp:ACL2-COUNT` (×7 —
->   non-world callees `UNARY--`/`INTEGER-ABS` on its leaves),
+>   18 → 10; survivors with named blockers: `tp:ACL2-COUNT` (×8 —
+>   **GAP-1**: `tp-collect-if-leaves` emits CONTEXT-FREE leaf verdicts
+>   (empty type-alist, `acl2/defuns.lisp:12029`), so `INTEGER-ABS`'s
+>   leaves cannot certify against its class, and refined verdicts would
+>   also need a fact-conditioned closure-lemma design (a ruling); plus
+>   **GAP-2**: no emitted type facts for ACL2 primitives at all. Both
+>   are fork-emission items. *(Corrected R0 item 7, 2026-08-13: the
+>   previous diagnosis — "non-world callees `UNARY--`/`INTEGER-ABS`" —
+>   is REFUTED. `INTEGER-ABS` IS a world fn: the logs carry
+>   `(:DEFUN INTEGER-ABS :FORMALS (X) … :SOURCE :GROUND-ZERO)`. The
+>   count was also ×7, measured ×8 on the current golden.)*),
 >   `tp:ZIP2`/`tp:ZIP3` (the DISJUNCTIVE ruling literal
 >   `(IF (ATOM X) (ATOM X) (IF (ATOM Y) …))` in the emitted
 >   termination clause — a `dischargeDecrease` matcher frontier, the

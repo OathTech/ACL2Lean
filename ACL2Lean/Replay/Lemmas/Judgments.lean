@@ -450,14 +450,10 @@ theorem logic_consp_t_of_tp_disj3 {v x y : SExpr}
       have hveq : v = y := Logic.eq_of_equal_ne_nil (by rw [h]; simp [SExpr.t])
       rw [hveq]; exact hy
 
-/-- A truthy `(consp v)` walk fact makes `endp v` NIL — the CONSP/ENDP
-    duality at the VALUE level (audit F1, sorting arc 2026-07-29: the
-    recorded route's ruler peel consumes emitted `(ENDP …)` rulers against
-    the translated body's `(CONSP …)` branch facts). -/
-theorem logic_endp_nil_of_consp_toBool {v : SExpr}
-    (h : Logic.toBool (Logic.consp v) = true) :
-    Logic.endp v = SExpr.nil := by
-  cases v <;> simp_all [Logic.endp, Logic.consp, Logic.toBool]
+-- The not-consp VALUE-level nil pair (`logic_endp_nil_of_consp_toBool` and
+-- its `ATOM` sibling) moved to `Replay/Lemmas/Totality.lean` (R0 item 9,
+-- 2026-08-13) — they belong with the totality/recorded-termination family
+-- and must stay ADJACENT, which is the whole point of that item.
 
 /-- Cast a convergence to nil along a value equation (the recorded-
     termination ruler peel: the walk's `toBool = false` fact decodes to the

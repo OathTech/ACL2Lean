@@ -4,7 +4,7 @@ End state: **Track FREE is genuinely nearly free** (a new ACL2 book's
 metric layer costs ~zero human work) and **Track REAL is maximally
 machine-assisted** (a user's mirror costs the definitions + the
 correspondence declarations, and little else). The mirror spec
-(`ACL2Lean/Mirrors/Sorting.lean`, 14 Props) is the definition of done
+(`ACL2Lean/Mirrors/Sorting.lean`, 13 Props) is the definition of done
 for sorting; the demo is the finished product presented honestly.
 
 ## The architecture question first: how mirrors meet the replay
@@ -131,7 +131,7 @@ sorting-coupling (the old L-rules apply):
   publish the number — the Track REAL metric is USER-LINES PER
   MIRROR, and it must fall book over book).
 
-## PHASE D — sorting close-out (all 14 Props become theorems)
+## PHASE D — sorting close-out (all 13 Props become theorems)
 
 - qsort/bsort mirrors via C machinery as B3/B4 unlock rows.
 - `ordered_perm_unique` (ORDERED-PERMS) + `sorts_agree` (the three

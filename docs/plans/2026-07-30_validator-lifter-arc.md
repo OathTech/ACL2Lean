@@ -1,5 +1,17 @@
 # The validator/lifter arc — draft charter
 
+> **TERMINOLOGY (added 2026-08-13).** This is a dated record. "Mirror"
+> below means **WAYPOINT** in today's vocabulary (`docs/LEXICON.md`).
+> Where this file conflicts with the lexicon, the lexicon wins.
+>
+> **RETRACTED — item 1's "ground truth" clause.** Its definition of
+> *mirror* ("the Lean-idiomatic native theorem … `Imported/`,
+> `NativeMirrors`") pointed at what is now the WAYPOINT layer, and a
+> waypoint is METRIC, **never a result** and never ground truth for the
+> reasoning. The canonical definitions are the lexicon's: a MIRROR lives
+> in `ACL2Lean/Mirrors/` with zero ACL2 notions. Item 1 is retained below
+> only as the dated record of what was believed on 2026-07-30.
+
 **Status: DRAFT (2026-07-30), to be ratified at arc start. Direction approved
 in the MDD conversation of 2026-07-30 ("audit, merge, then do the
 validator/lifter industrialization work"); the details below are the working

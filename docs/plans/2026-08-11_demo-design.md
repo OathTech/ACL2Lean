@@ -1,5 +1,10 @@
 # The sorting demo — design (FOR RULING, charter item 4)
 
+> **ROLLED BACK 2026-08-12** — the built demo was archived
+> (`archive/demo-2026-08`) and is **not on main**; superseded by the
+> two-category model + the mirror specs. Read this file as a dated design
+> record, not as a description of the tree.
+
 Goal (Mike, 2026-08-11): "someone can look at a particular area and
 see exactly what they need to trust, and have the untrusted pieces
 cleanly factored. Make this the nicest demo we can make it." The

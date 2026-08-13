@@ -1,5 +1,9 @@
 # The pattern map — anchored circles over the ACL2 situation space
 
+> **TERMINOLOGY (added 2026-08-13).** This is a dated record. "Mirror"
+> below means **WAYPOINT** in today's vocabulary (`docs/LEXICON.md`).
+> Where this file conflicts with the lexicon, the lexicon wins.
+
 Created 2026-07-22 (mapping arc increment 1; the arc spec is the TODO.md
 top block, MDD-ratified 2026-07-21). **Scope correction (MDD,
 2026-07-22): the arc maps COVERAGE of ACL2's situation/proof space —
@@ -264,9 +268,16 @@ Opus auditor's ranked findings; audit corrections applied):
 
 Coverage now records how DEEP the pipeline reaches per book — the
 focused replay CLI run over every reconstructing pattern book
-(observation only; nothing wired into the sweep). Result: **26
-pattern theorems REPLAY end-to-end kernel-checked; 23 fail at NAMED
-frontiers**, clustering into ~7 classes:
+(observation only; nothing wired into the sweep). Result **as of
+2026-07-23**: 26 pattern theorems REPLAYed end-to-end kernel-checked;
+23 failed at NAMED frontiers, clustering into ~7 classes.
+
+> **THESE TWO NUMBERS ARE A DATED SNAPSHOT, NOT LIVE (noted
+> 2026-08-13).** The LIVE replay count is the coverage golden —
+> `Tests/driver-coverage.golden` (header line), produced by
+> `just driver-coverage` and gated by `check-golden-current`. Read the
+> number there, never from this paragraph. The seven frontier CLASSES
+> below remain the useful content of this section.
 
 1. `clausify multi-bridge: splits/out/proofs mismatch` — ALL six
    defequiv/defrefinement/defcong OBLIGATION theorems (three books,

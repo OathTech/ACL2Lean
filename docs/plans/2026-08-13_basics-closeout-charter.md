@@ -38,6 +38,20 @@ D. **The transport assembly generator** — app_assoc_int /
 E. **Honest deferrals**: app_nil (G5 multi-literal frontier),
    rev_app/rev_rev (the rev-family discharger frontiers) — named in
    the spec file's docstrings, Track FREE items, NOT forced.
+
+   > **CORRECTION (appended 2026-08-13, R0 item 7 — the text above is
+   > left as the dated record).** Both stated reasons were STALE:
+   > - `app_nil` is **not** blocked by the G5 multi-literal frontier;
+   >   its sweep row replays green and UNCONDITIONAL.
+   > - `rev_app`/`rev_rev` are **not** blocked by "rev-family
+   >   dischargers": `tp:REV` was cleared at `bcb181d` (the
+   >   BINARY-APPEND→APP→REV cascade) and `rule:CONS-CAR-CDR` has a
+   >   working discharger (`gz_rule_cons_car_cdr`) — it is a kept
+   >   condition on no golden row. Both rows are green + unconditional.
+   >
+   > The REAL blocker for all three is the same and is **mirror-side**:
+   > there is no rev exec/iso kit, i.e. decode-layer work. The
+   > deferrals stand; only their stated reasons were wrong.
 F. **Exit audit** (one adversarial claims reviewer): the decisive
    checks — the revAcc template adjudication genuine both ways; the
    generated squares byte-equivalent to the retired hand ones; the
@@ -65,3 +79,31 @@ MANDATORY-EXIT triggers: the reassociating reading passing the
 template (the gate's decisive case failing); any Lean induction
 closing mirror content; any cond change in the golden; any purity
 weakening.
+
+## ARC LOG — COMPLETE (2026-08-13)
+
+**Exit: full claim-gate `TRUE_EXIT=0` on `d72bcb0` (artifact
+`.gate-runs/d72bcb0-20260813T191132Z.log`); merged at `4a600c8`.** The
+charter's exit criterion was MET.
+
+- **A — the revAcc slice.** The template's decisive case adjudicated
+  both ways (the reassociating reading genuinely fails the template;
+  the own-definition reading genuinely passes) — the mandatory-exit
+  trigger did NOT fire.
+- **B — the third mirror.** `len_revAcc_int` landed **trio-clean**
+  (axioms `{propext, Classical.choice, Quot.sound}`), taking
+  `ACL2Lean/Mirrors/Basics.lean` to 3 of 6 Props proved
+  (`app_assoc_int`, `len_app_int`, `len_revAcc_int`).
+- **C — `mirror_iso%`.** The rfl-only ladder, criterion pinned; all
+  **15/15** retired hand squares regenerated **byte-identical**.
+- **D — `mirror_transport%`.** User lines **69 → 28**; **3 lines per
+  future mirror** — the measured go/no-go number.
+- **Plus:** the naming pass (7 real collisions eliminated; the
+  collision linter live with its coverage arm) and the VOCABULARY
+  PRACTICE ruled and applied across all three layers (waypoint
+  readings / mirror spec bodies / names — now recorded in CLAUDE.md
+  and `docs/LEXICON.md`).
+- **F — exit audit.** One DEFECT found (an orchestrator over-claim),
+  corrected in place; strong verifications otherwise.
+- **E — deferrals.** Three named and NOT forced (see the correction
+  note appended to item E above).

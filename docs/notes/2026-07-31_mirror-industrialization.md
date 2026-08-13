@@ -1,5 +1,9 @@
 # Industrialization opportunities surfaced by the mirror program
 
+> **TERMINOLOGY (added 2026-08-13).** This is a dated record. "Mirror"
+> below means **WAYPOINT** in today's vocabulary (`docs/LEXICON.md`).
+> Where this file conflicts with the lexicon, the lexicon wins.
+
 (2026-07-31, mid-sorting-mirror-program — after ~15 hand-written
 assemblies and ~12 exec kits in `Imported/Sorting.lean`. Raised by Mike
 mid-arc: "are these mirror proofs revealing further opportunities for

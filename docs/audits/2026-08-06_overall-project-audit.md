@@ -1,5 +1,16 @@
 # ACL2Lean overall project audit — 2026-08-06
 
+> **CLOSURE NOTE (added 2026-08-13).** The two provenance/capture P0s —
+> "Source-to-log provenance is not closed" (§ below) and "Incomplete
+> proof-log capture exits successfully" — were **REMEDIATED in the
+> capstone-demo arc, Phase 0**: source/include-closure provenance hashes
+> plus fail-closed capture are now enforced in `just ci`
+> (`check-log-provenance`, `test-provenance-gates`, `check-proof-logs`).
+> Verified by the 2026-08-13 docs audit. The third P0 ("The README
+> overstates the native bridge's soundness envelope") was addressed by the
+> 2026-08-06 README trust-model rewrite, which now states the three
+> properties separately. This file is retained as the dated audit record.
+
 ## Executive verdict
 
 ACL2Lean is on a credible technical path, and its strongest engineering feature is

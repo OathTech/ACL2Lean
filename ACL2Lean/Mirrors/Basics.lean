@@ -64,16 +64,20 @@ def len_app (α : Type u) : Prop :=
 def app_assoc (α : Type u) : Prop :=
   ∀ (xs ys zs : List α), app (app xs ys) zs = app xs (app ys zs)
 
-/-- APP-NIL (the 01/02 books; waypoint row pending — the G5
-    multi-literal frontier). -/
+/-- APP-NIL (the 01/02 books). Its sweep row is green and
+    UNCONDITIONAL; what is missing is only the decode/lift (mirror-side).
+    (Corrected 2026-08-13: this docstring used to claim the G5
+    multi-literal frontier — false; the row replays.) -/
 def app_nil (α : Type u) : Prop :=
   ∀ (xs : List α), app xs [] = xs
 
-/-- REV-APP (the 02-rev book; row pending). -/
+/-- REV-APP (the 02-rev book). Row green + unconditional; needs only the
+    decode/lift (mirror-side) — no rev exec/iso kit yet. -/
 def rev_app (α : Type u) : Prop :=
   ∀ (xs ys : List α), rev (app xs ys) = app (rev ys) (rev xs)
 
-/-- REV-REV (the 02-rev book; row pending). -/
+/-- REV-REV (the 02-rev book). Row green + unconditional; needs only the
+    decode/lift (mirror-side) — no rev exec/iso kit yet. -/
 def rev_rev (α : Type u) : Prop :=
   ∀ (xs : List α), rev (rev xs) = xs
 

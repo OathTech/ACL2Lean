@@ -539,4 +539,32 @@ theorem re_acl2_numberp_int (w : World) (env : Env) (z : SExpr) (k : Int)
   conv_builtin1 w env { name := "ACL2-NUMBERP" } z (.atom (.number (.int k))) .t
     (by decide) h_no hz (by rfl)
 
+/-! ## The not-consp VALUE-level nil pair
+
+The recorded-termination route's ruler peel decodes an emitted NEGATIVE
+recognizer ruler against the translated body's truthy `(CONSP …)` branch
+fact. `BranchFacts.recogView` is the shared SHAPE rule (it duals `ENDP`
+and `ATOM` alike); these two are its VALUE-level counterparts, and they
+must be kept ADJACENT — the R0 item-9 bug was exactly a clone of the
+shape rule that knew `ENDP` only, so a matching value lemma was missing
+when the `ATOM` leg was enabled. Add a recognizer here and to `recogView`
+together. (Moved from `Lemmas/Judgments.lean`, 2026-08-13.) -/
+
+/-- A truthy `(consp v)` walk fact makes `endp v` NIL — the CONSP/ENDP
+    duality at the VALUE level (audit F1, sorting arc 2026-07-29: the
+    recorded route's ruler peel consumes emitted `(ENDP …)` rulers against
+    the translated body's `(CONSP …)` branch facts). -/
+theorem logic_endp_nil_of_consp_toBool {v : SExpr}
+    (h : Logic.toBool (Logic.consp v) = true) :
+    Logic.endp v = SExpr.nil := by
+  cases v <;> simp_all [Logic.endp, Logic.consp, Logic.toBool]
+
+/-- The `ATOM` sibling (R0 item 9, 2026-08-13): `(atom v)` is
+    `(not (consp v))` by ACL2's own definition (`axioms.lisp`), so a truthy
+    `(consp v)` fact makes it NIL exactly as it does `endp`. -/
+theorem logic_atom_nil_of_consp_toBool {v : SExpr}
+    (h : Logic.toBool (Logic.consp v) = true) :
+    Logic.atom v = SExpr.nil := by
+  cases v <;> simp_all [Logic.atom, Logic.consp, Logic.toBool]
+
 end ACL2.Replay

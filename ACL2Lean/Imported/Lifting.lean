@@ -1031,10 +1031,25 @@ theorem implements_len (w : World) (fn : String)
 
 
 /-! ## Decode-kit v2 (sorting-absolute 1d — promoted from Sorting.lean's
-privates at 3+ consumers each: the boolEnc conjunction ladder
-(`conv_if3`), the false-branch collapse (`conv_if_false'`), the
-EQUAL/IFF Bool readings (`toBool_equal`, `bool_of_iff_truthy`,
-`eq_of_iff_truthy_two_valued`)). -/
+privates): the boolEnc conjunction ladder (`conv_if3`), the false-branch
+collapse (`conv_if_false'`), the EQUAL/IFF Bool readings
+(`toBool_equal`, `bool_of_iff_truthy`, `eq_of_iff_truthy_two_valued`).
+
+CONSUMER COUNTS — CORRECTED (R0 item 11, 2026-08-13). This header used to
+claim "3+ consumers each", which was FALSE. Measured outside this module:
+
+| lemma                         | consumers |
+| ----------------------------- | --------- |
+| `toBool_equal`                | 10 (Sorting ×7, SimGen, SortingConvertPerm, Logic) |
+| `conv_if3`                    | 1 (Sorting) |
+| `bool_of_iff_truthy`          | 1 (Sorting) |
+| `eq_of_iff_truthy_two_valued` | 1 (Sorting) |
+| `conv_if_false'`              | 0 |
+
+Only `toBool_equal` met the extraction bar. The lemmas are KEPT — they are
+correct, used, and this is the right home for the kit; the defect was the
+CLAIM, not the code. Treat the n=1 entries as the decode kit's declared
+surface, not as evidence of duplication removed. -/
 
 /-- `(IF c t e)` term builder (the decode kit's own copy — `ifT` lives in
     the Replay namespace and aliasing it here would make every

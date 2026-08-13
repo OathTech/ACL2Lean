@@ -68,6 +68,18 @@ for same-skeleton recursions), and theorem transport across the
 relation comes mechanically. Template failure = the algorithms are
 not close enough = route the bridging fact through a replayed book
 theorem, never a hand proof.
+Its two elaborators, both in `ACL2Lean/MirrorProofs/IsoGen.lean`:
+**`mirror_iso%`** builds the refinement square/ladder for a datatype
+or operation, and **`mirror_transport%`** does the ASSEMBLY —
+transporting a waypoint theorem across a declared crossing to its
+mirror — the ~3 user lines a new mirror costs.
+Both obey the VOCABULARY PRACTICE (Mike,
+2026-08-13): waypoint readings are own-definitions, mirror spec
+bodies use own-definitions for book functions and fully-qualified
+names for pure-Lean idiom, and mirror-spec names must not collide
+with core/Std/Batteries/Mathlib names (`Tests/MirrorNameCheck.lean`
+is the collision linter). A shared name is how library content is
+mistaken for replayed content.
 
 **Debt / FORBIDDEN-DEBT** — a fact ACL2 discharged whose replay route
 is not wired yet, carried as a registered, `sorryAx`-visible `sorry`

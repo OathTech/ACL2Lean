@@ -66,9 +66,11 @@
     -  sq-rewrites, idf-rewrites, count-down-zero, my-evenp-3-is-nil,
        my-oddp-3-is-t
   PENDING:
-    -  app-nil          xs ++ [] = xs                        [G5: multi-literal
-                        pushed clause induction]
-    -  rev-rev          xs.reverse.reverse = xs              [G5 + rev corr]
+    -  app-nil          xs ++ [] = xs                        [decode/lift only —
+                        the row replays green + UNCONDITIONAL (corrected
+                        2026-08-13; the old "G5 multi-literal" reason was stale)]
+    -  rev-rev          xs.reverse.reverse = xs              [decode/lift only —
+                        row green + unconditional; no rev exec/iso kit yet]
     -  len2-app family  length_append via len2               [needs the len2
                         world's dischargers (totality inductions + TP) — the
                         entry-1 recipe over the 01 world]

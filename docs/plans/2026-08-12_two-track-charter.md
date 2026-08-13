@@ -20,7 +20,7 @@ proved via replay. The demo work of 2026-08-11/12 is archived
   content; the properties arrive via replay or not at all.
   The order class is ours (Mathlib removed entirely — off the purity
   allowlist; re-admitting it is a ruling).
-- 14 target properties as named `Prop`s (sorted ×4, permuted ×4,
+- 13 target properties as named `Prop`s (sorted ×4, permuted ×4,
   sorted-perm uniqueness, four-sorts-agree, the abstract
   any-sorter-is-`isort` capstone, perm↔`howMany`, witness
   completeness). No sorry; the only proofs are kernel-demanded
@@ -65,7 +65,7 @@ Per-book, user-authored (industrialized where patterns emerge):
    from a fixed-universe replay — likely: prove at the instance the
    replay supports, state the polymorphic Prop's instance-closure
    honestly, generalize as the machinery grows).
-2. Deriving the 14 mirror theorems from replayed content through
+2. Deriving the 13 mirror theorems from replayed content through
    those isos. DISCIPLINE (product-level ornamental-import ban):
    mirror content is closed from replayed facts — never by Mathlib
    lemma application, never by direct Lean induction on the mirror

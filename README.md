@@ -61,18 +61,34 @@ proof search is this repo's code:
    expiry-held mechanisms (marked `DRIFT MARKER` in
    `ACL2Lean/Replay/Driver/`, each retiring against a queued fork
    emission — see the 2026-08-05 branch drift audit).
-8. **Native bridge** (`ACL2Lean/Imported/`) — the replayed statement is decoded
-   into a *native Lean statement* (e.g. `(xs ++ ys).length = xs.length +
-   ys.length`), so the imported fact is usable as an ordinary Lean theorem.
-   `Imported/Lifting.lean` is the lifting library: representations of Lean
-   types in ACL2's value space (`Rep`, with ACL2 recognizers as the type
-   discipline), correspondences between ACL2 functions and Lean operations
-   (`Implements`), and the generic decode lemmas. The LIVE catalog of
-   native theorems is `liftCatalog` in `Imported/Waypoints/Catalog.lean`
-   (one decision per green sweep row, enforced by build-failing
-   coverage/seam/axiom/criterion gates); `Imported/WaypointCatalog.lean` is
-   the module facade, and its header narrative covers only the first 18
-   entries (historical).
+8. **Waypoint decode** (`ACL2Lean/Imported/`) — the replayed statement is
+   decoded into a **waypoint**: an ACL2-like Lean restatement (ACL2's own
+   notions in Lean clothes — `SExpr` lists, `isortL`). A waypoint is part
+   of the METRIC, the legible scoreboard of how far the machinery reaches;
+   per `docs/LEXICON.md` it is **never a result** and is never presented as
+   a top-level theorem. `Imported/Lifting.lean` is the lifting library:
+   representations of Lean types in ACL2's value space (`Rep`, with ACL2
+   recognizers as the type discipline), correspondences between ACL2
+   functions and Lean operations (`Implements`), and the generic decode
+   lemmas. The LIVE catalog is `liftCatalog` in
+   `Imported/Waypoints/Catalog.lean` (one decision per green sweep row,
+   enforced by build-failing coverage/seam/axiom/criterion gates);
+   `Imported/WaypointCatalog.lean` is the module facade, and its header
+   narrative covers only the first 18 entries (historical).
+9. **Mirror** (`ACL2Lean/Mirrors/` + `ACL2Lean/MirrorProofs/`) — **the
+   PRODUCT**, and the only stage whose output is a result: a Lean-idiomatic
+   theorem with ZERO ACL2 notions (e.g. `(xs ++ ys).length = xs.length +
+   ys.length`), mirroring a property an ACL2 book proves and proved VIA the
+   replay, through the transfer kit (`mirror_iso%` / `mirror_transport%`).
+   A user of a mirror knows nothing about ACL2 and never needs to;
+   `just check-mirrors-pure` pins the layer's imports, and an ACL2 notion
+   in a mirror is definitionally a bug. **Three mirrors are proved today** —
+   `app_assoc_int`, `len_app_int`, `len_revAcc_int` (all at `Int`,
+   trio-clean: axioms `{propext, Classical.choice, Quot.sound}`).
+
+The pipeline in the project's own words (`docs/LEXICON.md`):
+ACL2 book → proof log → **replayed statement** (metric) → **waypoint**
+(metric, legible) → **mirror** (product).
 
 ## Trust model
 
@@ -92,7 +108,9 @@ the overall-project audit — the earlier text conflated them):
    name (BUG-019 was a concrete incident of exactly this class). Enforced
    instead by: source/include-closure hash provenance + fatal capture
    (`scripts/check-log-provenance.sh`), hand statement pins per book
-   (`Tests/SortingPins.lean`), tamper tests, and adversarial audits.
+   (the `Tests/*Pins*.lean` class — `Tests/SortingPins.lean`,
+   `Tests/SortingPinsEndgame.lean`, `Tests/ParametricPins.lean`,
+   `Tests/PatternPins.lean`), tamper tests, and adversarial audits.
 3. **Replay fidelity** — the proof follows ACL2's recorded reasoning
    rather than a stronger Lean-side derivation. Enforced by the replay
    drivers' hard-fail frontiers, the waypoint criterion + seam gates
@@ -173,7 +191,9 @@ that embed them, so there is no silent staleness).
 | `ACL2Lean/Imported/` | The lifting library and the waypoint catalog |
 | `Tests/` | Unit tests, driver tests, the corpus-wide coverage harness |
 | `acl2_samples/` | Authored corpus sources (`recon-tests/` is the reconstruction suite) + captured logs; upstream books are referenced directly from the `acl2/` submodule (see `books.txt`) |
-| `docs/plans/` | Design plans — `2026-06-10_generality-design.md` is the governing plan |
+| `ACL2Lean/Mirrors/` | **The product layer**: pure Lean statements (specs), zero ACL2 notions — imports pinned by `just check-mirrors-pure` |
+| `ACL2Lean/MirrorProofs/` | The mirror proofs + the transfer kit (`mirror_iso%` / `mirror_transport%`) that discharge them from replayed statements |
+| `docs/plans/` | Design plans — `2026-08-12_master-plan.md` is the governing plan |
 | `docs/notes/` | Investigation notes and surveys |
 | `TODO.md` | The running backlog across all tracks |
 | `CLAUDE.md` | The working rules (fidelity requirements, audit practices) |
@@ -206,13 +226,20 @@ Beyond the corpus, the **translator** (stage 5) currently handles
 larger ACL2 books in `acl2_samples/` are aspirational targets, not passing
 imports. The intended scope (a CORE tier targeting roughly the Milawa
 fragment plus the ratified decision-procedure carve-out, with EXTENDED and
-OUT tiers) is set out in `docs/plans/2026-06-10_generality-design.md`.
+OUT tiers) is set out in `docs/plans/2026-06-10_generality-design.md`
+(the architecture reference — its L1–L3 invariants bind; its status and
+sequencing are superseded by `docs/plans/2026-08-12_master-plan.md`, the
+governing plan).
 
-**Live status lives in the repo, not here:** the scoreboard at the top of
-`ACL2Lean/Imported/WaypointCatalog.lean` lists the native theorems proved
-through the driver (each a build-enforced regression), the coverage table
-from `just driver-coverage` reports per-theorem replay status over the whole
-corpus, and `TODO.md` tracks the frontiers.
+**Live status lives in the repo, not here:** `liftCatalog` in
+`ACL2Lean/Imported/Waypoints/Catalog.lean` is the LIVE catalog (one entry
+per green sweep row, enforced by build-failing coverage/seam/axiom/
+criterion gates — the narrative header on `Imported/WaypointCatalog.lean`
+is historical and covers only the first 18 entries, so do not read status
+off it); `just driver-coverage` reports per-theorem replay status over the
+whole corpus; `just waypoint-metrics` reports the ruled waypoint-layer
+metrics (kept-condition census + hand lines per catalog native); and
+`TODO.md` tracks the frontiers.
 
 ## License
 

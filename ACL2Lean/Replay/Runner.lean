@@ -79,7 +79,9 @@ where
     structure — a channel added for one is automatically seen by the other.
     The bug class this closes is real: `fcRules`, the termination pre-pass,
     and `equivRefls` each hard-failed the macro AFTER the runner had them
-    (mirror program 2026-07-31), and the macro's hand-built config was
+    (the 2026-07-31 WAYPOINT program — that dated label said "mirror",
+    which per docs/LEXICON.md now names the product layer), and the
+    macro's hand-built config was
     missing `gzTps` outright when this builder landed. -/
 structure BookChannels where
   /-- theorems in creation order, each with the rules created before it -/
