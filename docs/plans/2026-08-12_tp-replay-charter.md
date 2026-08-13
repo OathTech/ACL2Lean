@@ -190,3 +190,24 @@ x2 (the parked ATOM leg). EXIT per the goal's discussion rule: the
 remaining work all gates on Mike's decisions (the package in the
 increment-6 log + the ATOM-leg increment). The exit audit + claim
 gate run when the decision-gated work concludes or is deferred.
+
+## ARC LOG — exit-audit fix round (2026-08-13, records only)
+
+Audit: ZERO DEFECTS across all seven claim sets (retirements traced
+to emitted data; anti-specialization literal-scanned; the capstones
+re-elaborated from scratch to the golden byte-exactly; the
+AtCanonical closures contain ZERO discharger constants; the masks
+cross-confirmed against emitted :BASICTS; both survivor gaps
+second-opinioned true). Fixes: CONCERN-1 — the finale's diagnosis
+list omitted LEN-REV-ACC's flip (diagnosed in code at
+Totality.lean:545, an omission from the COMMIT list only) and the
+linear: 5→6 movement (BSORT-IS-ISORT's return) — both recorded here;
+CONCERN-2 — the gate-probe's stale coverage sections (written before
+the golden compare, then cache-replayed) would have failed the exit
+claim-gate; the auditor restored via live re-elaboration, and the
+exit gate runs behind invalidate-coverage as standard practice
+henceforth; CONCERN-3 — TODO's superseded ACL2-COUNT blocker text
+corrected. NOTE-4 for future auditors: standalone coverage-book runs
+need --tstack=524288 (lake env lean omits the lakefile's
+moreLeanArgs; without it usefi silently degrades to the honest
+fallback — nearly a false DEFECT).
