@@ -4,6 +4,7 @@
 
   Totality from admission (#37): the decrease-clause prover.
 -/
+import ACL2Lean.Replay.Driver.BranchFacts
 import ACL2Lean.Replay.Driver.Discharge
 import ACL2Lean.Replay.CountSim
 import ACL2Lean.Replay.Lemmas.DescentExt
@@ -536,37 +537,18 @@ def dischargeDecrease (just : Justification)
   if matching.isEmpty then
     throwFrontier m!"dischargeDecrease: no emitted decrease obligation \
         matching {repr wanted} (emission gap or unsupported substitution)"
-  -- a ruling literal is COVERED by an in-scope fact: `(NOT tst)` needs
-  -- `(tst, true)`; a bare literal needs `(lit, false)`. Recognizer DUALITY
-  -- (sorting arc 2026-07-29): the RECOMPUTED ground-zero clauses spell
-  -- rulers `(ENDP b)` where the translated body tests `(CONSP b)` — an
-  -- `(ENDP b)`-false demand is covered by a `(CONSP b)`-true fact and vice
-  -- versa (endp IS the guard-relaxed not-consp; the decrease PROOF's
-  -- conspTrueOf/endpFalseOf independently require the value facts, so this
-  -- widens only the coverage check, never the proof).
-  let dualCovered (t : SExpr) (wantPos : Bool) : Bool :=
-    match t with
-    | .cons (.atom (.symbol e)) (.cons b .nil) =>
-      if e.name == "ENDP" then
-        facts.any (fun (f, pos) =>
-          f == .cons (.atom (.symbol { name := "CONSP" })) (.cons b .nil)
-          && pos == !wantPos)
-      else if e.name == "CONSP" then
-        facts.any (fun (f, pos) =>
-          f == .cons (.atom (.symbol { name := "ENDP" })) (.cons b .nil)
-          && pos == !wantPos)
-      else false
-    | _ => false
+  -- a ruling literal of the (disjunctive) obligation must be established
+  -- FALSE on this branch — `branchEstablishes` (Driver/BranchFacts) is the
+  -- shared coverage rule: direct facts, recognizer duality
+  -- (CONSP/ENDP/ATOM — sorting arc 2026-07-29, extended to ATOM by the
+  -- TP-replay arc's increment 7 because ACL2's or-normalized rulers spell
+  -- their leaves with `atom`), `NOT`, and ACL2's IF-NORMAL FORMS
+  -- (`(IF a a c)` = or, `(IF a b 'NIL)` = and), decomposed recursively.
+  -- This widens only the COVERAGE check: the decrease PROOF's
+  -- conspTrueOf/endpFalseOf independently require the value facts.
   let uncoveredOf (lits : List SExpr) : List SExpr :=
     lits.filter fun lit =>
-      if lit == wanted then false
-      else match lit with
-      | .cons (.atom (.symbol n)) (.cons tst .nil) =>
-        if n.name == "NOT" then
-          !(facts.any (fun (f, pos) => f == tst && pos) || dualCovered tst true)
-        else
-          !(facts.any (fun (f, pos) => f == lit && !pos) || dualCovered lit false)
-      | _ => !facts.any (fun (f, pos) => f == lit && !pos)
+      lit != wanted && !branchEstablishes facts lit false
   let uncov := matching.map uncoveredOf
   unless uncov.any (·.isEmpty) do
     -- MERGED-IH complementary pair (e.g. how-many: two call sites with the
