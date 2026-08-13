@@ -133,3 +133,40 @@ form — "no messy patches":
 - Revised exit target: TP debt class EMPTY (7 → 0 through incs 4-6);
   main-row `tp:` → 0 expected (ZIP2's cond clears via inc 7's
   decomposition feeding the decrease matcher).
+
+## ARC LOG — increment 6 STOPPED (2026-08-13; the stop is the finding)
+
+The executor probe-verified BOTH ruled premises wrong and made no
+edits:
+- 6(a) is a NO-OP: the IH mechanism is already general — the strong
+  consCount IH (∀ bv, count-smaller → ConvToP) instantiates at ANY
+  destructor-chain self-call position; ACL2-COUNT's nested dual-IH
+  sum WALKS TODAY. Nothing to refactor.
+- 6(b)'s premise was FALSE — an orchestrator recon error, owned: the
+  "gz TP events for NUMERATOR/DENOMINATOR" grep had matched RUNE
+  REFERENCES in rule listings, not events. ACL2 primitives have no
+  defun, so emit-structured-defuns never fires: NO type facts are
+  emitted for DENOMINATOR/UNARY--/NUMERATOR/REALPART/IMAGPART/
+  COERCE. The OFFER ∪ GZ union has exactly one real customer (LEN)
+  and it sits inside the blocked proof — not built (the banned
+  infrastructure-now pattern).
+- The REAL blockers, both fork-emission + scout-first (the
+  mandatory-exit trigger fired correctly):
+  GAP-1: tp-collect-if-leaves emits CONTEXT-FREE leaf verdicts
+  (empty type-alist; acl2/defuns.lisp:12029) — INTEGER-ABS's leaves
+  cannot certify against its class, and refined verdicts would ALSO
+  need a new fact-conditioned closure-lemma design (a ruling).
+  GAP-2: no emitted type facts for ACL2 primitives at all — a
+  primitive-snapshot emission item.
+- A non-blocker found en route: the complex-rational branch closes
+  by the EXISTING ratified vacuous-branch device (BUG-009's
+  dependency note names this exact case); adding it to tpWalk is an
+  extraction of a third clone — deferred with the proof it serves.
+- DECISION PACKAGE FOR MIKE (dependency order): the two fork scouts
+  (context-refined :LEAVES; primitive type snapshots); the
+  fact-conditioned closure design; and the ALTERNATIVE worth
+  weighing: treating an emitted TP as a verdict-only DP-carve-out
+  fact (closes ACL2-COUNT immediately but changes what the replay
+  means — a meaning-level ruling, not an executor call).
+- dis_acl2_count_tp stays (sorries remain 7); tp:ACL2-COUNT x7
+  stays; both HONESTLY BLOCKED with the above named.
