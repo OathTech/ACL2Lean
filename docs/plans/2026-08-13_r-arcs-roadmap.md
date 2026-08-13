@@ -42,7 +42,11 @@ A4/C work plus the audit remediation.
 
 ## Arc sequence
 
-- **R0 — records & hour-scale fixes** (in flight, `mdd/r0-records`).
+- **R0 — records & hour-scale fixes** — **DONE** (2026-08-13,
+  `mdd/r0-records` @ f6627a3; full claim-gate TRUE_EXIT=0, artifact
+  `.gate-runs/f6627a3-20260813T220936Z.log`; F19 landed golden
+  byte-unchanged; two audit findings refuted in execution — see the
+  corrections appendix on the documentation audit).
   Tier-1 doc fixes (AGENTS.md rewrite — it authorized `sorry`; the
   14→13 Props count ×5; README product layer + status pointers;
   CLAUDE.md dead refs + the verdict/sorryAx fidelity line + the
