@@ -214,15 +214,20 @@ elab "sorting_statement_pins_run% " : term => do
       -- PCE's emitted termination clause rules on `(ATOM X)`, which the
       -- branch-fact coverage rule now reads as `(not (consp X))`, so the
       -- admission REPLAYS and the hypothesis left the telescope.
-      -- INTENTIONAL; diagnosed row-by-row against the golden.)
+      -- INTENTIONAL; diagnosed row-by-row against the golden.
+      -- tp:ACL2-COUNT dropped 2026-08-14 — the D-A ts-algebra consumer:
+      -- ACL2's context-refined leaves + subterm verdicts now carry the
+      -- non-negative-integer corollary through ACL2-COUNT's non-world
+      -- return-path primitives, so the hypothesis left the telescope.)
       "    PERM-QSORT → REPLAYED ✓ cond[total:O<, \
-tp:ACL2-COUNT, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
      ("pins/sorting/qsort",
-      "    TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, tp:QSORT, \
-tp:ACL2-COUNT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
+      -- (tp:ACL2-COUNT dropped 2026-08-14 — the D-A consumer; see
+      -- PERM-QSORT above.)
+      "    TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, \
+tp:QSORT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
 cond[total:(QSORT X), tp:QSORT]]"),
      ("pins/sorting/qsort",
       -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above;
@@ -232,9 +237,10 @@ cond[total:(QSORT X), tp:QSORT]]"),
       -- the hypothesis left the telescope. INTENTIONAL; diagnosed
       -- row-by-row against the golden.
       -- total:PERM-COUNTER-EXAMPLE dropped 2026-08-13 — the ATOM leg,
-      -- see PERM-QSORT above.)
+      -- see PERM-QSORT above; tp:ACL2-COUNT dropped 2026-08-14 — the
+      -- D-A consumer, also see PERM-QSORT.)
       "    ORDEREDP-QSORT → REPLAYED ✓ cond[\
-total:O<, tp:ACL2-COUNT, \
+total:O<, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
@@ -320,14 +326,9 @@ def totalHyp2 (w : World) (fn : String) : Prop :=
     (∃ N v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
     ∃ N v, ∀ f ≥ N, evalOpt f w env' (ap2 fn a0 a1) = some v
 
-/-- `tp:<fn>` (unary), emitted corollary "a non-negative integer":
-    `(and (integerp v) (not (< v 0)))` at the value level. -/
-def tpNonnegInt1 (w : World) (fn : String) : Prop :=
-  ∀ (env' : Env) (a0 v : SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f w env' (ap1 fn a0) = some v) →
-    (bif Logic.toBool (Logic.integerp v) then
-      Logic.not (Logic.lt v (.atom (.number (.int 0))))
-    else SExpr.nil) = SExpr.t
+-- (`tpNonnegInt1` DELETED 2026-08-14 — orphaned vocabulary: its only
+-- customers were the four qsort ACL2-COUNT tp: pins, retired with the
+-- D-A ts-algebra consumer.)
 
 /-- `tp:<fn>` (binary), non-negative-integer corollary. -/
 def tpNonnegInt2 (w : World) (fn : String) : Prop :=
@@ -400,7 +401,13 @@ example :
       -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
       -- the hypothesis left the telescope, so the pinned type drops
       -- it too. INTENTIONAL; diagnosed against the golden.)
-      tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
+      -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra
+      -- consumer: the R2 fork batch's context-refined `:LEAVES` (each
+      -- leaf's governing tests + ACL2's derived type-alist) and per-leaf
+      -- SUBTERM VERDICTS carry the non-negative-integer corollary through
+      -- ACL2-COUNT's non-world return-path primitives, so the hypothesis
+      -- left the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (the not-memb-implies-how-many-is-0 hypothesis is GONE: discharged
       -- CROSS-BOOK from the dependency book's replayed tree — 2a)
       -- convert-perm-to-how-many:
@@ -450,7 +457,13 @@ example :
     ∀ (env : Env),
       totalHyp2 qsortPinsWorld "O<" →
       tpPred1 qsortPinsWorld "QSORT" Logic.trueListp →
-      tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
+      -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra
+      -- consumer: the R2 fork batch's context-refined `:LEAVES` (each
+      -- leaf's governing tests + ACL2's derived type-alist) and per-leaf
+      -- SUBTERM VERDICTS carry the non-negative-integer corollary through
+      -- ACL2-COUNT's non-world return-path primitives, so the hypothesis
+      -- left the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       EvTrue qsortPinsWorld env (ap1 "TRUE-LISTP" (ap1 "QSORT" (sym "X"))) :=
   ReplayedStatements.replayed_pins_sorting_qsort_TRUE_LISTP_QSORT
 
@@ -482,7 +495,13 @@ private def qsortDecreaseClause (fn : String) : SExpr :=
 example :
     ∀ (env : Env),
       totalHyp2 qsortPinsWorld "O<" →
-      tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
+      -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra
+      -- consumer: the R2 fork batch's context-refined `:LEAVES` (each
+      -- leaf's governing tests + ACL2's derived type-alist) and per-leaf
+      -- SUBTERM VERDICTS carry the non-negative-integer corollary through
+      -- ACL2-COUNT's non-world return-path primitives, so the hypothesis
+      -- left the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       EvTrue qsortPinsWorld env
         (ap3 "IF" (qsortDecreaseClause "GTE") (qsortDecreaseClause "LT") (qt .nil)) :=
   ReplayedTermination.term_pins_sorting_qsort_QSORT
@@ -713,7 +732,13 @@ example :
       -- corollary at arity 3, so the hypothesis left the telescope and
       -- the pinned type drops it. INTENTIONAL; diagnosed against the
       -- golden.)
-      tpNonnegInt1 qsortPinsWorld "ACL2-COUNT" →
+      -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra
+      -- consumer: the R2 fork batch's context-refined `:LEAVES` (each
+      -- leaf's governing tests + ACL2's derived type-alist) and per-leaf
+      -- SUBTERM VERDICTS carry the non-negative-integer corollary through
+      -- ACL2-COUNT's non-world return-path primitives, so the hypothesis
+      -- left the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (not-memb-implies-how-many-is-0: discharged cross-book, 2a)
       -- convert-perm-to-how-many:
       --   (equal (perm x y) (equal (how-many (perm-counter-example x y) x)
@@ -996,9 +1021,10 @@ hypothesis are the git-history texts verbatim. What CHANGED is that
 hypotheses LEFT the telescopes as their conditions retired across this
 arc — each drop carries a diagnosis comment below, never a silent
 edit. MSORT loses three (`tp:HOW-MANY`, `tp:INSERT`, `tp:EVENS`);
-QSORT loses four (`total:PERM-COUNTER-EXAMPLE`, `tp:HOW-MANY`,
-`tp:INSERT`, `tp:ALL-REL`) and KEEPS `tp:QSORT` + `tp:ACL2-COUNT`, the
-arc's two named honest survivors. -/
+QSORT loses five (`total:PERM-COUNTER-EXAMPLE`, `tp:HOW-MANY`,
+`tp:INSERT`, `tp:ALL-REL`, and — 2026-08-14, the D-A ts-algebra
+consumer — `tp:ACL2-COUNT`) and KEEPS `tp:QSORT`, the arc's one
+remaining named honest survivor. -/
 
 /-- PIN the machine statement of `MSORT-IS-ISORT`
     (sorts-equivalent.lisp:12): the mirror of
@@ -1037,12 +1063,15 @@ example :
       totalHyp2 sortsEqPinsWorld "O<" →
       -- (tp:HOW-MANY RETIRED 2026-08-12; tp:INSERT 2026-08-13, the CONS
       -- shape; tp:ALL-REL 2026-08-13, the arity-3 assembly.)
-      -- tp:QSORT and tp:ACL2-COUNT SURVIVE — the arc's two named
-      -- honest blockers (qsort's emitted BINARY-APPEND corollary is too
-      -- weak for TRUE-LISTP; acl2-count's leaves need context-refined
-      -- verdicts + primitive type facts). Both are FORK-EMISSION items.
+      -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra
+      -- consumer: the R2 fork batch's context-refined leaves carry
+      -- ACL2's own derivation, so the corollary is PROVED and the
+      -- hypothesis left the telescope.)
+      -- tp:QSORT SURVIVES — the arc's one named honest blocker: qsort's
+      -- emitted BINARY-APPEND corollary is too weak for TRUE-LISTP, and
+      -- the stored strengthening (TRUE-LISTP-APPEND, now visible in
+      -- :ALL-TPS) arrives without per-rule leaves. FORK-EMISSION item.
       tpPred1 sortsEqPinsWorld "QSORT" Logic.trueListp →
-      tpNonnegInt1 sortsEqPinsWorld "ACL2-COUNT" →
       trueListpRmHyp sortsEqPinsWorld →
       convertPermHyp sortsEqPinsWorld →
       ruleEqHyp sortsEqPinsWorld

@@ -923,11 +923,15 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             (termReplayed := termReplayed) (hypFVars := hypFVarsAll)
             (tpCors := tps)
       let mut prf := prf
-      for (c, v) in (if discharge then used else []) do
+      -- ONE hypothesis's discharge, shared by the `used` pass and the
+      -- SECOND pass below (extracted 2026-08-14 — the two were about to be
+      -- byte-identical copies).
+      let dischargeTotalOrTp (prf0 : Expr) (c : String) (v : Expr) :
+          MetaM Expr := do
         if c.startsWith "total:" then
           match totalEnv.find? (fun (n, _, _) => s!"total:{n}" == c) with
-          | some (_, _, pf) => prf ← letBindFVar prf v pf
-          | none => pure ()
+          | some (_, _, pf) => letBindFVar prf0 v pf
+          | none => pure prf0
         else if c.startsWith "tp:" then
           -- the TP prover: derive the emitted-corollary hypothesis from the
           -- fn's body (lifter sprint 2026-07-06); frontier → keep (D6).
@@ -945,11 +949,37 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
                 let pf ← proveTp cfg totalEnv justs fnName cor
                   (cors := tps) (argValued := isAv)
                 let pf ← mkExpectedTypeHint pf (← inferType v)
-                prf ← letBindFVar prf v pf
+                letBindFVar prf0 v pf
               catch e =>
                 unless isFrontierErr e do
                   throw e
-            | none => pure ()
+                pure prf0
+            | none => pure prf0
+          else pure prf0
+        else pure prf0
+      for (c, v) in (if discharge then used else []) do
+        prf ← dischargeTotalOrTp prf c v
+      -- SECOND total:/tp: PASS (T1+2 sprint phase 1, 2026-08-14). The pass
+      -- above iterates `used` — the hypotheses the REPLAY ITSELF touched.
+      -- A RECORDED-TERMINATION totality proof can pull in FURTHER
+      -- total:/tp: fvars (PERM-QSORT's `tp:ACL2-COUNT` arrives exactly that
+      -- way, via the admission waterfall's own ACL2-COUNT uses), and those
+      -- were surfaced as kept conditions without ever being ATTEMPTED. Same
+      -- discharge, same fail-closed type hint; a frontier still keeps the
+      -- hypothesis. `tp:` runs first, so a `total:` fvar a TP proof pulls in
+      -- is still caught by the second sub-pass.
+      if discharge then
+        let usedNames := used.map (·.1)
+        let mut prfMid ← instantiateMVars prf
+        for (c, v) in hypFVarsAll do
+          if c.startsWith "tp:" && !usedNames.contains c
+              && prfMid.containsFVar v.fvarId! then
+            prf ← dischargeTotalOrTp prf c v
+        prfMid ← instantiateMVars prf
+        for (c, v) in hypFVarsAll do
+          if c.startsWith "total:" && !usedNames.contains c
+              && prfMid.containsFVar v.fvarId! then
+            prf ← dischargeTotalOrTp prf c v
       -- SECOND ground-zero pass (close-out 2026-08-08): the totality/TP
       -- discharge proofs above may pull in gz-rule hyp fvars the replay
       -- itself never touched — they enter AFTER the rule-discharge pass,

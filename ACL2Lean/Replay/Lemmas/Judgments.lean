@@ -4,7 +4,7 @@
   are the file's own section-header layer boundaries, which sit in def-before-use
   order, so the import chain IS the dependency order.
 -/
-import ACL2Lean.Replay.Lemmas.TpClosure
+import ACL2Lean.Replay.Lemmas.TsAlgebra
 
 namespace ACL2.Replay
 

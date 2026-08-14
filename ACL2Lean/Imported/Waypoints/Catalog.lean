@@ -339,13 +339,15 @@ def liftCatalog : List (String × String × LiftStatus) := [
       dis_convert_perm. Statement pin: Tests/SortingPins"),
   ("sorting/sorts-equivalent", "QSORT-IS-ISORT",
     .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13; \
-      row conds total:QSORT, total:O<, tp:QSORT, tp:ACL2-COUNT, \
+      row conds total:QSORT, total:O<, tp:QSORT, \
       rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY, the three \
       arithmetic/if-lift gz rules, rule:HOW-MANY-FILTER-1, \
       rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND). The waypoint native \
       (`qsortL xs = isortL xs`) is NOT BUILT — queued behind the mirror \
-      buildout; tp:QSORT and tp:ACL2-COUNT are the arc's named honest \
-      survivors (fork-emission items). Statement pin: Tests/SortingPins"),
+      buildout; tp:QSORT is the arc's remaining named honest survivor \
+      (tp:ACL2-COUNT retired 2026-08-14 by the D-A ts-algebra consumer; \
+      tp:QSORT needs per-stored-rule leaves in :ALL-TPS -- fork \
+      round-trip 2). Statement pin: Tests/SortingPins"),
   ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
     .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13; \
       row conds total:BNEXT/BSORT/O</O-P, rule:TRUE-LISTP-RM, \
@@ -493,9 +495,9 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
   ("sorting/qsort", "HOW-MANY-QSORT", .nativeSorried ``how_many_qsort_native_driver ``howManyQsortReplayedCond
-      "total:O< (dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT (dis_acl2_count_tp)"),
+      "total:O< (dis_o_lt_total; REQUIRED); tp:ACL2-COUNT retired by the replay route, T1+2 sprint phase 1 2026-08-14 (the D-A ts-algebra consumer)"),
   ("sorting/qsort", "PERM-QSORT", .nativeSorried ``perm_qsort_native_driver ``permQsortReplayedCond
-      "total:O< (dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the R-lane arc); total:PERM-COUNTER-EXAMPLE retired by the replay route, TP-replay arc's ATOM-leg increment 2026-08-13"),
+      "total:O< (dis_o_lt_total; REQUIRED) + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the R-lane arc); total:PERM-COUNTER-EXAMPLE retired by the replay route, TP-replay arc's ATOM-leg increment 2026-08-13, and tp:ACL2-COUNT by the D-A ts-algebra consumer, T1+2 sprint phase 1 2026-08-14"),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-1", .native ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-2", .native ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond),
@@ -503,7 +505,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
   ("sorting/qsort", "ORDEREDP-QSORT", .nativeSorried ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond
-      "total:O< (dis_o_lt_total; REQUIRED) + tp:ACL2-COUNT (dis_acl2_count_tp) + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm); tp:ALL-REL retired by the replay route and rule:ORDEREDP-APPEND's wrapper is CLEAN as of TP-replay arc increments 4-5, and total:PERM-COUNTER-EXAMPLE by the ATOM-leg increment, 2026-08-13; unlock: the ACL2-COUNT tp + the R-lane"),
+      "total:O< (dis_o_lt_total; REQUIRED) + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm); tp:ALL-REL retired by the replay route and rule:ORDEREDP-APPEND's wrapper is CLEAN as of TP-replay arc increments 4-5, total:PERM-COUNTER-EXAMPLE by the ATOM-leg increment 2026-08-13, and tp:ACL2-COUNT by the D-A ts-algebra consumer 2026-08-14; unlock: the R-lane"),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
 /-- SEAM REACHABILITY — the ONE copy (R4, gate-cruft review 2026-08-11;
@@ -714,8 +716,10 @@ run_cmd Lean.Elab.Command.liftCoreM do
     -- ATOM-leg increment, 2026-08-13: PCE's emitted termination clause
     -- rules on `(ATOM X)`, which the branch-fact coverage rule now
     -- reads as `(not (consp X))` — the FIRST REQUIRED-class retirement)
-    [``ACL2.Worlds.Sorting.dis_acl2_count_tp,
-     ``ACL2.Worlds.Sorting.dis_merge2_total,
+    -- (`dis_acl2_count_tp` RETIRED by the replay route, T1+2 sprint
+    -- phase 1, 2026-08-14 — the D-A consumer: ACL2's context-refined
+    -- leaves + subterm verdicts + the proved ts-algebra)
+    [``ACL2.Worlds.Sorting.dis_merge2_total,
      ``ACL2.Worlds.Sorting.dis_msort_total,
      ``ACL2.Worlds.Sorting.dis_o_lt_total,
      ``ACL2.Worlds.Sorting.dis_bnext_total,

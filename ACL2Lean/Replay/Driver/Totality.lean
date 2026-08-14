@@ -884,21 +884,14 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
           mkLambdaFVars #[hb] p
         let ht ←
           if ← isDefEq vc (mkConst ``SExpr.nil) then do
-            -- VACUOUS truthy branch (sorting arc 2026-07-28): the test's
+            -- VACUOUS truthy branch (`mkVacuousTruthyBranch`): the test's
             -- value is DEFINITIONALLY nil — `(COMPLEX-RATIONALP _)` in
-            -- ACL2-COUNT's own admission body, constantly nil on the
-            -- complex-free value space — so the branch hypothesis refutes
-            -- itself; close by absurdity instead of walking a branch whose
-            -- self-call decrease (`(ACL2-COUNT (REALPART X))`) the walk
-            -- could never state. The pinned complex-free limitation.
-            let goalTy ← mkConvPropEx cfg.worldExpr envE (reflectSExpr th)
-            withLocalDeclD `hb tTrue fun hb => do
-              let ftTy ← mkEq (mkConst ``Bool.false) (mkConst ``Bool.true)
-              let hbF ← mkExpectedTypeHint hb ftTy
-              let hNot ← mkDecideProof (← mkAppM ``Not #[ftTy])
-              let body ← mkAppOptM ``absurd
-                #[some ftTy, some goalTy, some hbF, some hNot]
-              mkLambdaFVars #[hb] body
+            -- ACL2-COUNT's own admission body — so the branch hypothesis
+            -- refutes itself; close by absurdity instead of walking a
+            -- branch whose self-call decrease (`(ACL2-COUNT (REALPART X))`)
+            -- the walk could never state.
+            mkVacuousTruthyBranch toBoolVc
+              (← mkConvPropEx cfg.worldExpr envE (reflectSExpr th))
           else
             withLocalDeclD `hb tTrue fun hb => do
               let p ← totWalk cfg envE vals ((c, true, hb) :: facts)

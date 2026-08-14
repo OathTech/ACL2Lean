@@ -3322,36 +3322,19 @@ theorem acl2_count_exec_corr (w : World)
   exact conv_defn_1 w env acl2_count_sym x xv xS acl2CountBody _
     acl2_count_ns h_ac hx (hbody xv)
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `tp:ACL2-COUNT` — the emitted non-negative-integer TP corollary
-    (unary) — Lean-side; content ACL2 derives. Statement kept as the
-    named premise; proof retired to `sorry`. UNLOCK: TP-replay
-    discharge. -/
-theorem dis_acl2_count_tp (w : World)
-    (h_ac : w.defs.get? acl2_count_sym = some ([xS], acl2CountBody))
-    (h_ia : w.defs.get? integer_abs_sym = some ([xS], integerAbsBody))
-    (h_len : w.defs.get? length_sym = some ([xS], lengthBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (h_no_rationalp : w.defs.get? ({ name := "RATIONALP" } : Symbol) = none)
-    (h_no_integerp : w.defs.get? ({ name := "INTEGERP" } : Symbol) = none)
-    (h_no_num : w.defs.get? ({ name := "NUMERATOR" } : Symbol) = none)
-    (h_no_den : w.defs.get? ({ name := "DENOMINATOR" } : Symbol) = none)
-    (h_no_crp : w.defs.get?
-      ({ name := "COMPLEX-RATIONALP" } : Symbol) = none)
-    (h_no_stringp : w.defs.get? ({ name := "STRINGP" } : Symbol) = none)
-    (h_no_len : w.defs.get? ({ name := "LEN" } : Symbol) = none)
-    (h_no_coerce : w.defs.get? ({ name := "COERCE" } : Symbol) = none)
-    (h_no_ltb : w.defs.get? ({ name := "<" } : Symbol) = none)
-    (h_no_neg : w.defs.get? ({ name := "UNARY--" } : Symbol) = none)
-    (e' : Env) (a0 v : SExpr)
-    (h : ∃ N, ∀ f ≥ N, evalOpt f w e' (acl2CountT a0) = some v) :
-    (bif Logic.toBool (Logic.integerp v) then
-      Logic.not (Logic.lt v (.atom (.number (.int 0))))
-    else SExpr.nil) = SExpr.t := by
-  sorry
+/- `dis_acl2_count_tp` — DELETED 2026-08-14 (T1+2 sprint phase 1, the
+   D-A consumer). It carried `tp:ACL2-COUNT` as FORBIDDEN-DEBT because
+   the TP walk could not cross ACL2-COUNT's non-world return-path
+   primitives (`(UNARY-- X)` inside INTEGER-ABS, `(DENOMINATOR X)`, and
+   `LEN` inside LENGTH), for which ACL2 stores no type-prescription rule
+   at all. With the R2 fork batch's context-refined `:LEAVES` (each
+   leaf's governing tests + ACL2's derived TYPE-ALIST) and its per-leaf
+   SUBTERM VERDICTS, ACL2's own type-set derivation is emitted, and the
+   ts-algebra (`Replay/Lemmas/TsAlgebra.lean`) supplies the proved
+   model-side implications — so the corollary arrives BY REPLAY of the
+   emitted data. Retired by DELETION + consumer rewiring, never by a
+   Lean re-proof (the thin-Lean rule); every consumer simply drops the
+   argument. -/
 
 /-! ## The `qsort` exec kit -/
 

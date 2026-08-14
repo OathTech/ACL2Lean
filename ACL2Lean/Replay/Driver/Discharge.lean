@@ -455,6 +455,31 @@ def dpFactStmt (tests : List SExpr) (last : SExpr) (vars : List Symbol)
     let body ← (tpTys ++ hypTys).foldrM (fun h acc => mkArrow h acc) conclTy
     mkForallFVars fvars body
 
+/-- The VACUOUS TRUTHY BRANCH device (sorting arc 2026-07-28; EXTRACTED
+    2026-08-14, the T1+2 sprint's D-A consumer — the totality walk and the
+    TP walk want byte-identical copies differing only in the branch goal).
+
+    A test whose lifted value is DEFINITIONALLY `nil` —
+    `(COMPLEX-RATIONALP _)`, constantly nil on the complex-free value
+    space (BUG-009's pinned dependency note) — makes the truthy branch
+    hypothesis refute itself, so the branch closes by absurdity instead of
+    being walked. This is a DOMAIN RESTRICTION of the value model, never a
+    statement weakening, and it fails CLOSED under a future complex-number
+    fix: the caller's `isDefEq _ nil` guard stops matching and the branch
+    goes back to the ordinary walk.
+
+    `toBoolVc` is `Logic.toBool <lifted test value>`; `goalTy` the branch's
+    own goal. Returns `fun (hb : toBoolVc = true) => absurd …`. -/
+def mkVacuousTruthyBranch (toBoolVc goalTy : Expr) : MetaM Expr := do
+  let tTrue ← mkEq toBoolVc (mkConst ``Bool.true)
+  withLocalDeclD `hb tTrue fun hb => do
+    let ftTy ← mkEq (mkConst ``Bool.false) (mkConst ``Bool.true)
+    let hbF ← mkExpectedTypeHint hb ftTy
+    let hNot ← mkDecideProof (← mkAppM ``Not #[ftTy])
+    let body ← mkAppOptM ``absurd
+      #[some ftTy, some goalTy, some hbF, some hNot]
+    mkLambdaFVars #[hb] body
+
 /-- Run `x` under a REAL heartbeat bound of `n` USER units (×1000 internal).
     `withOptions (maxHeartbeats := …)` is a NO-OP for this purpose —
     `Core.Context.maxHeartbeats` is fixed when the command context is created
