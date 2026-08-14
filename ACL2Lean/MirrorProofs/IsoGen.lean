@@ -358,7 +358,20 @@ and a declaration cannot disagree with the definition it is about.
 Before R1 the shape walk collapsed the telescope to an `allList`
 boolean and hard-errored on anything else, which rejected every mirror
 definition with an ELEMENT argument (`insertOrd (a : α)`,
-`howMany (a : α)`) — audit F1. -/
+`howMany (a : α)`) — audit F1.
+
+THE PASS-THROUGH READING (R1-E, 2026-08-14). The FILTER re-render
+(Mike's ruling of the same day: a mirror is the closest idiomatic Lean
+analog of the BOOK, so `filterRel` takes the book's MODE argument
+`(fn : RelMode)` rather than a predicate closure) put a third kind of
+binder in front of the table: an argument whose type is CLOSED — it
+does not mention the element type at all. The embedding has no action
+on such an argument and needs none: it is the SAME value on both sides
+of every square (`.fixed`). The scope is deliberately tight — a closed
+type, i.e. one with no free variables, so in particular no occurrence
+of `α`. A FUNCTION over `α` (`α → Bool`) is still outside the table and
+still hard-errors: an `Acl2Embed` is an injection on ELEMENTS and has
+no derived action on a function position. -/
 
 /-- How one explicit binder of a mirror definition is READ when the
     square's statement is built. -/
@@ -368,7 +381,10 @@ private inductive ArgReading where
   | list
   /-- the embedded element type `α` itself — enters under `e.enc`. -/
   | elem
-  deriving BEq, Inhabited
+  /-- a CLOSED type the embedding does not act on (`RelMode`, `Bool`,
+      `Nat`, …) — the argument passes through both sides of the square
+      unchanged, at its own type. -/
+  | fixed (ty : Term)
 
 /-- The mirror definition's shape, as the generator must read it: the
     per-binder READING VECTOR of its explicit arguments (in order), and
@@ -438,24 +454,33 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         else if t.isAppOf ``List && t.getAppNumArgs == 1
             && t.appArg! == elemTy then
           readings := readings.push .list
+        else if !t.hasFVar then
+          -- a CLOSED type: no free variables at all, so in particular no
+          -- occurrence of the element type — the embedding has no action
+          -- on it and the argument passes through both sides unchanged
+          readings := readings.push (.fixed (← PrettyPrinter.delab t))
         else
           throwError "mirror_iso%: {fnName}'s explicit argument \
               `{(← x.fvarId!.getDecl).userName} : {t}` is outside the \
               ARGUMENT-READING table.\n\
               OBSERVED: binder type `{t}`; the definition's element type \
-              is `{elemTy}`. The two derived readings are `List {elemTy}` \
-              (the argument enters the homomorphism statement under \
-              `List.map e.enc`) and `{elemTy}` itself (it enters under \
-              `e.enc`).\n\
+              is `{elemTy}`, which OCCURS in that binder type. The three \
+              derived readings are `List {elemTy}` (the argument enters \
+              the homomorphism statement under `List.map e.enc`), \
+              `{elemTy}` itself (it enters under `e.enc`), and any \
+              CLOSED type (no free variables — the embedding does not \
+              act on it, so the argument passes through both sides \
+              unchanged).\n\
               CANDIDATE CAUSES (none asserted, not ranked): (a) a \
               FUNCTION-VALUED argument (e.g. `{elemTy} → Bool`) — an \
               `Acl2Embed` is an injection on ELEMENTS and has no action \
               on a function position, so reading one is a design \
               question, not something this generator may guess; (b) a \
-              NON-EMBEDDED scalar (`Nat`, `Int`, …) — the embedding does \
-              not act on it either, and whether the square should hold it \
-              fixed is the same design question; (c) a list over some \
-              OTHER type than `{elemTy}`.\n\
+              list over some OTHER type than `{elemTy}`; (c) any other \
+              type mentioning `{elemTy}` (`Option {elemTy}`, a product, \
+              …) — each such position needs its own derived action of \
+              the embedding, which is a design change to the square \
+              classes.\n\
               What this failure is NOT: a statement that the declared \
               correspondence is wrong. The declaration never reached the \
               statement builder — this is the reading table's own bound, \
@@ -541,7 +566,8 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
   | .agree => pure ()
   -- the statement (each var at its inferred READING: a `.list` binder is
   -- a list of the element type and enters under `List.map e.enc`; an
-  -- `.elem` binder is one element and enters under `e.enc`)
+  -- `.elem` binder is one element and enters under `e.enc`; a `.fixed`
+  -- binder has a CLOSED type and passes through both sides unchanged)
   let sexprC : Term := mkCIdent ``ACL2.SExpr
   let sexprTy : Term ← `(List $sexprC)
   let alphaId : Ident := mkIdent `α
@@ -555,6 +581,7 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         match r with
         | .list => `(bracketedBinderF| ($v:ident : $sexprTy))
         | .elem => `(bracketedBinderF| ($v:ident : $sexprC))
+        | .fixed ty => `(bracketedBinderF| ($v:ident : $ty))
     | _ =>
       -- the definition's OWN instance binders, re-bound at the user's
       -- element type (see `mirrorFnShape`): at `α` there is nothing to
@@ -566,11 +593,13 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         match r with
         | .list => `(bracketedBinderF| ($v:ident : List $alphaId:ident))
         | .elem => `(bracketedBinderF| ($v:ident : $alphaId:ident))
+        | .fixed ty => `(bracketedBinderF| ($v:ident : $ty))
       pure (iB ++ #[eB] ++ vB)
   let encoded : Array Term ← varsR.mapM fun (v, r) =>
     match r with
     | .list => `(List.map ($eId:ident).enc $v:ident)
     | .elem => `(($eId:ident).enc $v:ident)
+    | .fixed _ => pure v
   let reading : Term := ⟨specStx[1]⟩
   let stmt : Term ←
     match cls with

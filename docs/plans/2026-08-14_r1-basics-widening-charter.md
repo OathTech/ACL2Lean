@@ -199,3 +199,33 @@ Item 3 (`filterRel` re-render) was NOT in scope and is untouched.
   declaration changed route. Six mirror receipts green; sorries stay 6;
   golden matches live; tamper-probed (two misaligned readings still
   hard-error).
+
+### R1-E (2026-08-14) — the filterRel re-render (ruled item 3)
+
+- The spec re-rendered to the book's shape (`RelMode` four-mode enum +
+  `relMode` dispatch + `filterRel fn e`, qsort at `.lt`/`.gte` with the
+  book's argument correspondence verified at the source); 13 Prop
+  statements byte-unchanged (regression net, 598 lines, statements AND
+  proof terms). The `.fixed` pass-through reading landed tightly-scoped
+  (`!hasFVar` types only), tamper-probed both directions, positive
+  control closes live `[propext]`.
+- DEVIATION: `decEqOfOrder` (a `local` low-priority `DecidableEq`
+  derived from the order via antisymmetry) added to the spec so
+  `qsort`'s Props keep binding `[TotalOrder α]` only — flagged for
+  Mike's eyeball as a new product-layer declaration.
+- W3 outcome: the old function-argument frontier pin is GONE
+  (dissolved — nothing hard-errors pre-declaration any more); both
+  filterRel squares BUILD but neither CLOSES; nothing declared.
+  Measured closing condition for the agree square: (i) one ladder rung
+  `Bool.decide_eq_true` (a `cases`-lemma — outside the pinned
+  `rfl`-only criterion; removing it alone re-opens the squares) +
+  (ii) per-mode square declaration (the registry is fail-closed at one
+  `agree` square per definition; `relMode` is non-recursive so no
+  functional induction exists — a general bound shared with `odds`,
+  `permWitness`). Both are RULINGS, presented at exit. The hom square
+  waits on the order-field question (W1's, unchanged).
+- New compliance finding: `Worlds.Sorting.filterL` is spelled
+  `xs.filter (…)` — a SIXTH library-vocabulary reading the five-item
+  census missed; logged in TODO.
+- LEXICON gained the closest-idiomatic-Lean paragraph (the two-step
+  use pattern, Mike 2026-08-14).

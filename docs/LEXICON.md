@@ -27,6 +27,15 @@ kit). Lives in `ACL2Lean/Mirrors/` (`just check-mirrors-pure` pins
 the layer's imports; an ACL2 notion in a mirror is definitionally a
 bug). A user of mirrors knows nothing about ACL2 and never needs to.
 
+*Closest idiomatic Lean* (Mike, 2026-08-14): a mirror is what someone
+would write as a reasonably close Lean analog of the ACL2 theorem —
+step (1) of a TWO-STEP use, step (2) being ordinary Lean reasoning
+from the mirror to the theorem the user actually wants. So closeness
+to the BOOK beats maximal Lean-idiom polish: where the two pull apart,
+render what the book says (the 2026-08-14 `FILTER` re-render — a mode
+argument and a pivot element, not a predicate closure — is the
+worked example).
+
 The pipeline, in these words:
 ACL2 book → proof log → **replayed statement** (metric) →
 **waypoint** (metric, legible) → **mirror** (product).

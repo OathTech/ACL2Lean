@@ -262,7 +262,8 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > generated Basics artifacts re-`#check` BYTE-IDENTICAL. Witnesses read
 > off the sorting spec, landed in the new
 > `ACL2Lean/MirrorProofs/Sorting.lean`: `filterRel` (function-valued
-> argument) is the pinned frontier; `howMany`'s `agree` square now
+> argument) was the pinned frontier — DISSOLVED by R1-E, next entry;
+> `howMany`'s `agree` square now
 > ELABORATES (the widening's positive witness); `insertOrd` reaches the
 > ORDER-INSTANCE blocker (`TotalOrder SExpr` — R1 item C / R4), not a
 > shape one. OPEN, both needing a ruling (recorded on that page):
@@ -274,6 +275,40 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > The `hom scalar` class needed NOTHING for a `Nat` result — it carries
 > no result codec at all (scalar invariance), so that charter question
 > adjudicated clean.
+
+> **FILTER RE-RENDER + THE PASS-THROUGH READING (R1-E, 2026-08-14 —
+> ruling batch item 3).** Ruled principle, now in `docs/LEXICON.md`'s
+> mirror entry: a mirror is the CLOSEST IDIOMATIC LEAN analog of the
+> BOOK — step (1) of a two-step use, step (2) ordinary Lean reasoning —
+> so closeness to the book beats Lean-idiom polish. Applied:
+> `Mirrors/Sorting.lean`'s FILTER is now the book's `(filter fn x e)` —
+> `inductive RelMode` (all four of the book's modes) + `relMode` (=
+> `REL`) + `filterRel (fn : RelMode) (e : α)`, with `qsort` calling
+> `filterRel .lt p t` / `filterRel .gte p t` (pivot = `(car x)`, list =
+> `(cdr x)`, as the book does). The 13 target `Prop`s and every other
+> spec declaration are BYTE-IDENTICAL across the change (`#print`
+> baseline), which needed one new spec declaration: `decEqOfOrder`, a
+> `local`, low-priority `DecidableEq` derived from the order
+> (antisymmetry + decidable `≤`), so the book's `(not (equal i j))` can
+> be spelled without `qsort` acquiring a `[DecidableEq α]` binder.
+> `mirror_iso%` gained the third argument reading `.fixed` — an
+> explicit binder whose type is CLOSED (no free variables, so no
+> occurrence of `α`) passes through both sides of a square unchanged;
+> function-over-`α` arguments still hard-error (message now names three
+> derived readings). W3 is now a RECORDED frontier, not a pin: both
+> `filterRel` squares BUILD their statements and neither closes.
+> OPEN, needing a ruling (measured, recorded on the witness page):
+> (1) `hom list` wants the embedding to respect the ORDER — W1's
+> frontier in FILTER vocabulary; (2) `agree` wants (a) one ladder rung,
+> `Bool.decide_eq_true` (`decide (b = true) = b`, a `cases`-lemma, so
+> outside the pinned `rfl`-only criterion) and (b) a way to declare a
+> square at a SPECIFIC mode (`vars` takes identifiers, and
+> `registerSquare` is fail-closed at one `agree` square per definition,
+> so four per-mode squares cannot be registered). With a mode-
+> specialized reading + that one rung, the per-mode square CLOSES
+> (measured both ways, `.lt` and `.gte`). NOTE, for the compliance
+> census below: `Worlds.Sorting.filterL` is `xs.filter (…)` — a SIXTH
+> library-vocabulary reading the five-item census did not list.
 
 > **TEMPLATE-GATE FINDING (Basics-closeout increment A, 2026-08-13 —
 > RULED 2026-08-13 by THE VOCABULARY RULE, commit a07d99d: native

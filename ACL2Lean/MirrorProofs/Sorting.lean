@@ -10,9 +10,12 @@ widened `mirror_iso%`'s ARGUMENT-READING table (audit finding F1) and that
 widening had to land against REAL square declarations read off the sorting
 spec — not against a test fixture (the anti-"infrastructure now, wire it
 later" rule). It is therefore the landing zone for the sorting squares.
-After the R1-D ruling batch (2026-08-14) it carries FOUR declarations:
-three LIVE squares (each `#print axioms`-pinned) and the
-function-argument frontier, pinned as the honest bound.
+After the R1-E FILTER re-render (2026-08-14) it carries THREE
+declarations — all LIVE squares, each `#print axioms`-pinned — plus W3,
+a RECORDED frontier with no declaration (its statements now build; the
+closer does not close them, and a closer failure would leave a
+`sorryAx`-carrying declaration behind, which this tree does not
+accept).
 
 ## What R1-B changed
 
@@ -50,6 +53,28 @@ witnesses are this page's squares:
    `xs.count e` library spelling that surfaced in W2's agree residual as
    a demand for `List.count_cons`. One of the five logged
    vocabulary-compliance readings; four remain (`SimGen.lean`'s note).
+
+## What the R1-E FILTER re-render (2026-08-14) changed
+
+Mike's ruling (item 3 of the R1-D batch, taken separately): a mirror is
+the CLOSEST IDIOMATIC LEAN analog of the BOOK — step (1) of a two-step
+use, step (2) being ordinary Lean reasoning from it to the theorem the
+user actually wants — so closeness to the book beats maximal Lean-idiom
+polish. `Mirrors/Sorting.lean`'s `FILTER` was therefore re-rendered to
+the book's shape: `(filter fn x e)` is a MODE (`REL`'s `FN` argument,
+one of the book's four quoted symbols) and a PIVOT ELEMENT, not the
+predicate closure the spec carried until then. `RelMode`/`relMode` are
+the new spec definitions; the 13 target `Prop`s are byte-identical
+across the change (their statements do not mention `filterRel`).
+
+The machinery consequence is the reading table's third case, `.fixed`
+(`IsoGen.lean`): an explicit argument whose type is CLOSED — no free
+variables, so in particular no occurrence of the element type — is one
+the embedding has no action on, and it passes through both sides of a
+square unchanged, at its own type. That is what lets `filterRel`'s mode
+argument be read at all. A FUNCTION over the element type stays outside
+the table with the same F5-style message (now naming three derived
+readings instead of two).
 
 One thing the batch did NOT rule, found on contact and reported: the
 statement builder DROPPED the mirror definition's own instance binders,
@@ -122,20 +147,107 @@ from R1-B and still standing: the `hom scalar` CODEC is fine for a `Nat`
 result — that class asserts scalar INVARIANCE (`fn (encoded args) =
 fn (args)`) and carries no result codec at all.
 
-**W3 `filterRel (keep : α → Bool)`** — the expected named frontier,
-pinned below (it hard-errors in the shape table, before any declaration
-is produced, so pinning it adds no `sorryAx`). The pin is the
-deliverable: the honest statement of the reading table's bound.
+**W3 `filterRel`** — two recorded stages:
 
-The charter-note finding that goes WITH it: the function argument is the
-MIRROR SPEC's idiom, not the book's. The sorting book's FILTER is
-`(filter fn x e)` — a SYMBOL-valued comparison mode plus a PIVOT ELEMENT
-(`ACL2Lean/Imported/Sorting.lean`'s `filterL (fv ev : SExpr)`), and the
-mirror spec renders those two as one closure (`filterRel (fun x => decide
-(x < p))` in `qsort`). So "extend the reading table to function arguments"
-is not the only way to reach `filterRel`, and choosing between that and
-re-rendering the spec closer to the book is a PRODUCT-LAYER decision
-(ruling batch item 3, deliberately NOT taken here). Left open.
+*Stage 1 (R1-B):* with the spec's old signature `filterRel (keep : α →
+Bool)` this was the expected named frontier and was PINNED here: the
+shape table hard-errored on the function-valued argument before any
+declaration was produced, so the pin cost no `sorryAx`.
+
+*Stage 2 (R1-E):* that frontier is DISSOLVED — not widened. The
+function argument was the MIRROR SPEC's idiom, never the book's
+(`(filter fn x e)` is a mode symbol plus a pivot element), and the
+ruling above re-rendered the spec to the book. There is no
+function-valued argument left to reject, so the pin is gone with it;
+what stands in its place is a MEASURED state, recorded here because no
+declaration can carry it.
+
+The two statements now BUILD (verbatim `#check`, off the generator):
+
+```
+filterRel_agree_filterL : ∀ (fn : Sorting.RelMode) (ev : SExpr) (xs : List SExpr),
+  Sorting.filterRel fn ev xs = Worlds.Sorting.filterL (modeSym fn) ev xs
+
+@filterRel_map_hom : ∀ {α : Type u_1} [inst : Sorting.TotalOrder α]
+  [inst_1 : DecidableEq α] (e : Acl2Embed α) (fn : Sorting.RelMode) (ev : α)
+  (xs : List α),
+  List.map e.enc (Sorting.filterRel fn ev xs) = Sorting.filterRel fn (e.enc ev) (List.map e.enc xs)
+```
+
+(`modeSym : RelMode → SExpr` is the four-line machinery-side decode of
+the mode to the book's quoted symbol; the mode reads `.fixed` and so
+appears UNCHANGED on both sides of the homomorphism square, which is
+exactly what the pass-through reading claims.)
+
+Neither CLOSES, and the two failures are different:
+
+* `hom list` fails for W1's reason, in FILTER vocabulary — the
+  embedding would have to respect the ORDER. Residual verbatim (case 2
+  of the split; case 3 is its `¬` twin):
+
+  ```
+  h✝ : Sorting.relMode fn head✝ ev = true
+  ih1✝ : List.map e.enc (Sorting.filterRel fn ev t✝) = Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
+  ⊢ e.enc head✝ :: Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝) =
+      if Sorting.relMode fn (e.enc head✝) (e.enc ev) = true then
+        e.enc head✝ :: Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
+      else Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
+  ```
+
+  i.e. it wants `relMode fn (e.enc a) (e.enc ev) = relMode fn a ev`.
+  `enc_inj_iff` (ruling item 1) covers the mode's EQUALITY test; the
+  `≤` test is the order dimension `Acl2Embed` has no field for. Honest
+  frontier, unchanged in substance from W1's.
+
+* `agree` fails on VOCABULARY, three separate gaps, measured one at a
+  time (the whole residual is ~100 lines of stuck `match fn`/`if`
+  chain; the load-bearing lines are quoted):
+
+  1. the MODE DISPATCH. The reading's `relL` selects by comparing
+     symbols (`if fv == symV "LT" then …`), so the closer must both
+     case-split `fn` — `fun_induction` inducts on `filterRel`'s own
+     list recursion and never touches the mode — and then EVALUATE a
+     ground `Bool` comparison. `simp only` does neither: with the mode
+     bound it is stuck at
+     `(match fn with | RelMode.lt => SExpr.atom (Atom.symbol {name := "LT", …}) | …) == symV "LT"`,
+     and even at a CONCRETE mode the ground comparison does not reduce
+     (measured: `simp only []` does not fire `reduceIte` at all).
+  2. `decide (b = true)` vs `b`. The spec's `relMode` is Bool-valued
+     over `decide (i ≤ j)`, and under the order instance that is
+     `decide (lexorderB i j = true)`, while the reading has the plain
+     `lexorderB i j`:
+     `h✝ : (decide (Worlds.Sorting.lexorderB head✝ ev = true) && !decide (head✝ = ev)) = true`.
+     Closing that needs `Bool.decide_eq_true` — NOT a `rfl`-lemma (it
+     is `cases b <;> rfl`), so it is outside the ladder's pinned
+     admission criterion.
+  3. `==` vs `decide (· = ·)`. This one is already reachable under the
+     current rules: `instBEqOfDecidableEq` is a DEFINITION, so naming
+     it in the invocation's `unfold [...]` list turns the reading's
+     `!a == e` into the spec's `!decide (a = e)`.
+
+  The obvious repair — give `relMode` its own `agree` square, which the
+  closer would then pick up automatically as a REGISTERED CALLEE square
+  of `filterRel` — is not available: `relMode` is NOT RECURSIVE, and
+  Lean generates no functional induction principle for a non-recursive
+  definition, so the template's `fun_induction` fails outright
+  (`No functional induction theorem for 'relMode'`). That bound is
+  general, not a `relMode` quirk: `odds` and `permWitness` are
+  non-recursive spec definitions too.
+
+  MEASURED CLOSING CONDITION (against the real spec definitions, in
+  `.tmp`, not declared): with a MODE-SPECIALIZED reading — the one the
+  waypoint theorems actually speak, e.g. `xs.filter (fun a =>
+  lexLtB a ev)` for `'LT` and `xs.filter (fun a => lexorderB ev a)` for
+  `'GTE`, which have no symbol dispatch — gap 1 disappears, gap 3 is an
+  unfold-list entry, and the square closes IFF the fixed kit gains gap
+  2's single rung. Removing that rung alone re-opens it. So the whole
+  distance between here and a live `agree` square is: (i) one ladder
+  rung (`decide (b = true) = b`), plus (ii) a way to declare a square
+  at a SPECIFIC mode — `vars` takes identifiers, and `registerSquare`
+  is fail-closed at one `agree` square per mirror definition, so four
+  per-mode squares cannot be registered as things stand. Both are
+  design changes to the square classes, i.e. rulings, not edits — and
+  per the thin-Lean ruling the escape is never a hand square.
 -/
 
 namespace ACL2Lean.MirrorProofs
@@ -182,23 +294,15 @@ mirror_iso% howMany_map_invariant for ACL2Lean.Sorting.howMany
 #guard_msgs (whitespace := lax) in
 #print axioms howMany_map_invariant
 
-/-! ## W3 — the function-argument frontier (pinned)
+/-! ## W3 — `filterRel`: RECORDED, not declared
 
-The `hom list` class is the sharp form of the question: the homomorphism
-square is what an embedding has to commute with, and there is no derived
-action of an element embedding on a `α → Bool` position. The receipt below
-is the frontier message itself; it fires the day the reading table changes,
-which is exactly when this page's owner must revisit the decision above. -/
-
-/--
-error: mirror_iso%: ACL2Lean.Sorting.filterRel's explicit argument `keep : α → Bool` is outside the ARGUMENT-READING table.
-OBSERVED: binder type `α → Bool`; the definition's element type is `α`. The two derived readings are `List α` (the argument enters the homomorphism statement under `List.map e.enc`) and `α` itself (it enters under `e.enc`).
-CANDIDATE CAUSES (none asserted, not ranked): (a) a FUNCTION-VALUED argument (e.g. `α → Bool`) — an `Acl2Embed` is an injection on ELEMENTS and has no action on a function position, so reading one is a design question, not something this generator may guess; (b) a NON-EMBEDDED scalar (`Nat`, `Int`, …) — the embedding does not act on it either, and whether the square should hold it fixed is the same design question; (c) a list over some OTHER type than `α`.
-What this failure is NOT: a statement that the declared correspondence is wrong. The declaration never reached the statement builder — this is the reading table's own bound, and widening it is a design change to the square classes, never a hand square (thin-Lean ruling 2026-08-11).
--/
-#guard_msgs (whitespace := lax) in
-mirror_iso% filterRel_map_hom for ACL2Lean.Sorting.filterRel
-  vars [keep, xs]
-  square hom list
+Nothing is emitted here on purpose. Both of `filterRel`'s squares now
+build their STATEMENTS (the mode reads `.fixed`) and neither closes, and
+a closer failure leaves a `sorryAx`-carrying declaration behind — so the
+state lives in the module docstring above (statements verbatim,
+residuals verbatim, the measured closing condition) rather than in a
+`#guard_msgs` pin. The stage-1 pin that stood here guarded the
+function-argument message; the re-render deleted the function argument,
+so the pin went with it. -/
 
 end ACL2Lean.MirrorProofs

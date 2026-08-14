@@ -24,15 +24,25 @@ arrives VIA ACL2 REPLAY (the two-category workflow: user definitions
 No proof-of-property lives in this file and no `sorry` anywhere: an
 unproved target is a named `Prop`, never a fake theorem. (The only
 proofs here are the termination measures Lean's kernel demands for
-the definitions to exist.)
+the definitions to exist, plus the decidable-equality derivation
+`decEqOfOrder` — see its docstring.)
 
 VOCABULARY PRACTICE (Mike, 2026-08-13 — disambiguate hard, as
 design practice): body constructs that MIRROR A BOOK FUNCTION are
-OWN-DEFINITIONS (`filterRel` = FILTER, `rm` = RM — their iso squares
-arrive with their mirrors); pure-Lean idiom is FULLY QUALIFIED
+OWN-DEFINITIONS (`relMode` = REL, `filterRel` = FILTER — their iso
+squares arrive with their mirrors); pure-Lean idiom is FULLY QUALIFIED
 (`List.find?`, `List.length`) or an own device (`iterate`); operator
 notation (`++`, `∈`) is permitted as unambiguous; names are
 collision-linted (Tests/MirrorNameCheck).
+
+CLOSEST IDIOMATIC LEAN (Mike, 2026-08-14): a mirror is what someone
+would write as a reasonably close Lean analog of the ACL2 theorem —
+step (1) of a two-step use, step (2) being ordinary Lean reasoning
+from it to the theorem the user actually wants. CLOSENESS TO THE BOOK
+BEATS maximal Lean-idiom polish. That ruling is why `FILTER` is
+rendered below the way the book writes it — a MODE (`REL`'s `FN`
+argument: `'LT`/`'LTE`/`'GT`/`'GTE`) and a PIVOT ELEMENT — and not as
+the Lean-idiomatic predicate closure it carried until 2026-08-14.
 
 SELF-CONTAINED VOCABULARY (deliberate): the predicates below —
 `Ordered`, `howMany`, `Permuted`, the witness — are OUR OWN idiomatic
@@ -55,7 +65,10 @@ is the channel by which a library lemma — or a reader — can be
 mistaken for mirror content that must come via replay. The names are
 therefore taken from the ACL2 BOOK, Lean-cased (`isort`, `msort`,
 `qsort`, `bsort`, `bnext`, `merge2`, `insertOrd`, `Ordered`,
-`howMany`); the uppercase ACL2 rune names in the docstrings below are
+`howMany`, and — with the 2026-08-14 FILTER re-render — `relMode`,
+`RelMode`, `filterRel`, where the bare book names `REL`/`Rel` and
+`FILTER`/`filter` are both taken by the libraries the linter sees);
+the uppercase ACL2 rune names in the docstrings below are
 the cross-reference to the source book and are the point.
 `Tests/MirrorNameCheck.lean` enforces the rule over this namespace at
 build time. -/
@@ -87,6 +100,26 @@ instance (priority := low) {α : Type u} [TotalOrder α] : LT α :=
 
 instance {α : Type u} [TotalOrder α] : DecidableRel (α := α) (· < ·) :=
   fun _ _ => instDecidableNot
+
+/-- Decidable EQUALITY, derived from the order: `a = b` exactly when
+    `a ≤ b` and `b ≤ a` (antisymmetry), and `≤` is decidable — the same
+    bundling Lean's own `LinearOrder`-style interfaces carry.
+
+    It is `local` (and low priority) ON PURPOSE. It exists so the book's
+    `REL` below can spell `(not (equal i j))` as a decision of `i = j`
+    without `qsort` acquiring a `[DecidableEq α]` binder: the target
+    `Prop`s at the bottom of this file take the order alone, exactly as
+    they did before the 2026-08-14 FILTER re-render, and `local` keeps
+    the derivation from competing with any `DecidableEq` instance a
+    downstream file already has. -/
+local instance (priority := low) decEqOfOrder {α : Type u} [TotalOrder α] :
+    DecidableEq α := fun a b =>
+  if h : a ≤ b ∧ b ≤ a then
+    isTrue (TotalOrder.le_antisymm h.1 h.2)
+  else
+    isFalse fun hab => by
+      subst hab
+      exact h ⟨TotalOrder.le_refl a, TotalOrder.le_refl a⟩
 
 /-! ## The objects of study -/
 
@@ -157,35 +190,65 @@ def msort : List α → List α
     simp only [List.length_cons] at h
     simp [odds]; omega
 
-/-- Keep the elements satisfying the test (the book's `FILTER` — a
-    book function, so an own-definition per the vocabulary practice;
-    its iso square arrives with the sorting mirrors). -/
-def filterRel (keep : α → Bool) : List α → List α
-  | [] => []
-  | a :: t => if keep a then a :: filterRel keep t else filterRel keep t
+/-- The comparison MODE — `REL`'s `FN` argument, which the book passes
+    as one of the quoted symbols `'LT`, `'LTE`, `'GT`, `'GTE`. All four
+    are here because the book's `REL` has four cases; that `QSORT` uses
+    only two of them (`'LT` and `'GTE`) is the book's business, not the
+    mirror's. -/
+inductive RelMode where
+  /-- the book's `'LT`. -/
+  | lt
+  /-- the book's `'LTE`. -/
+  | lte
+  /-- the book's `'GT`. -/
+  | gt
+  /-- the book's `'GTE` (also `REL`'s `otherwise` branch). -/
+  | gte
 
-omit [TotalOrder α] in
-theorem length_filterRel_le (keep : α → Bool) :
-    ∀ (xs : List α), (filterRel keep xs).length ≤ xs.length
+/-- One comparison verdict (the book's `REL`: `(rel fn i j)` is
+    `(and (lexorder i j) (not (equal i j)))` for `'LT`, `(lexorder i j)`
+    for `'LTE`, `(and (lexorder j i) (not (equal i j)))` for `'GT`, and
+    `(lexorder j i)` otherwise). A book function, so an own-definition
+    per the vocabulary practice. -/
+def relMode [DecidableEq α] (fn : RelMode) (i j : α) : Bool :=
+  match fn with
+  | .lt => decide (i ≤ j) && !decide (i = j)
+  | .lte => decide (i ≤ j)
+  | .gt => decide (j ≤ i) && !decide (i = j)
+  | .gte => decide (j ≤ i)
+
+/-- Keep the elements the mode relates to the pivot (the book's
+    `FILTER`: `(filter fn x e)` — a MODE, the list, and the PIVOT
+    element `e`, keeping each `a` with `(rel fn a e)`). A book function,
+    so an own-definition per the vocabulary practice; its iso square
+    arrives with the sorting mirrors. -/
+def filterRel [DecidableEq α] (fn : RelMode) (e : α) : List α → List α
+  | [] => []
+  | a :: t =>
+    if relMode fn a e then a :: filterRel fn e t else filterRel fn e t
+
+theorem length_filterRel_le [DecidableEq α] (fn : RelMode) (e : α) :
+    ∀ (xs : List α), (filterRel fn e xs).length ≤ xs.length
   | [] => Nat.le_refl _
   | a :: t => by
     simp only [filterRel]
     split
-    · exact Nat.succ_le_succ (length_filterRel_le keep t)
-    · exact Nat.le_succ_of_le (length_filterRel_le keep t)
+    · exact Nat.succ_le_succ (length_filterRel_le fn e t)
+    · exact Nat.le_succ_of_le (length_filterRel_le fn e t)
 
-/-- Quicksort, first-element pivot (the book's `QSORT`). -/
+/-- Quicksort, first-element pivot (the book's `QSORT`: the pivot is
+    `(car x)` and the filtered list is `(cdr x)`, in the modes `'LT` and
+    `'GTE`). -/
 def qsort : List α → List α
   | [] => []
   | p :: t =>
-    qsort (filterRel (fun x => decide (x < p)) t)
-      ++ p :: qsort (filterRel (fun x => !decide (x < p)) t)
+    qsort (filterRel .lt p t) ++ p :: qsort (filterRel .gte p t)
   termination_by xs => xs.length
   decreasing_by
   · simp only [List.length_cons]
-    exact Nat.lt_succ_of_le (length_filterRel_le _ t)
+    exact Nat.lt_succ_of_le (length_filterRel_le _ _ t)
   · simp only [List.length_cons]
-    exact Nat.lt_succ_of_le (length_filterRel_le _ t)
+    exact Nat.lt_succ_of_le (length_filterRel_le _ _ t)
 
 /-- One bubble pass: swap adjacent out-of-order pairs, left to right
     (the book's `BNEXT`). -/
