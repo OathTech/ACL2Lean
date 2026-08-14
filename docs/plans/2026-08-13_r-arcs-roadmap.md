@@ -92,3 +92,26 @@ Any R-arc stops and reports early when its remaining work all gates on
 a user ruling, a fork round-trip it cannot run, or a ratified design
 boundary — grinding on touchable-but-out-of-scope work is the named
 failure mode.
+
+## Sequence refinement (2026-08-14, post-R1 — the sorting-book quest)
+
+Mike: the aim is closing out the sorting book, no qualifications;
+Tier 1 (+ the Tier-2 debt, which IS the qualifications) is home.
+Structural facts driving the order: SQUARES are replay-independent;
+TRANSPORTS inherit row qualifications (never lift a conditional row);
+G1 is the only frontier both novel and critical-path (convert-perm →
+equisort → the last 5 Props).
+
+Wave 0 (running) → **R2** fork batch (longest latency first; fold in
+the recognizer-under-IF trio + CLASSIFY-POS for one recapture) with
+the **G1 design scout in parallel** (read-only de-risking; ruling
+before R2 exits) → **R3** measure table (corpus unconditional except
+convert-perm chain) → **R4 wave 1** squares en masse + first
+transports (order-embedding ruling — the R1-C restriction lemma is
+intEmbed's witness — + instance threading vs the first real
+transport; exit: first sorting mirrors) → **G1 implementation** (the
+perm lane; retires dis_convert_perm) → **R4 wave 2** qsort (+ the
+driver self-call arm), bsort, then the meta-theorems needing G1
+(exit: 13/13) → **R5** close-out (pre-approved exit audit, STATUS,
+the scaffolding-decay story). Estimate at current velocity: ~7-8
+days; G1 is the variance driver.
