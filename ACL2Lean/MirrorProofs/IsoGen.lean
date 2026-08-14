@@ -297,18 +297,94 @@ syntax (name := mirrorIsoCmd)
   &" square " mirrorSquareSpec
   (&" unfold " "[" ident,* "]")? : command
 
+/-! ### The ARGUMENT READINGS (R1 item B, audit finding F1)
+
+How each explicit binder of a mirror definition enters the HOMOMORPHISM
+statement. This is the per-binder form of what `derive_sim%` carries one
+level down (`Imported/SimGen.lean`'s `raw`/`list` reading table) — but
+here it needs NO user syntax: at the mirror level the reading is a
+FUNCTION OF THE SPEC'S OWN LEAN BINDER TYPE, so the generator infers it
+and a declaration cannot disagree with the definition it is about.
+
+Before R1 the shape walk collapsed the telescope to an `allList`
+boolean and hard-errored on anything else, which rejected every mirror
+definition with an ELEMENT argument (`insertOrd (a : α)`,
+`howMany (a : α)`) — audit F1. -/
+
+/-- How one explicit binder of a mirror definition is READ when the
+    square's statement is built. -/
+private inductive ArgReading where
+  /-- `List α` — enters the homomorphism statement under
+      `List.map e.enc`. -/
+  | list
+  /-- the embedded element type `α` itself — enters under `e.enc`. -/
+  | elem
+  deriving BEq, Inhabited
+
 /-- The mirror definition's shape, as the generator must read it: the
-    explicit-argument count, whether every explicit argument is a `List`,
-    and whether the RESULT is a `List`. -/
-private def mirrorFnShape (ty : Expr) : MetaM (Nat × Bool × Bool) :=
+    per-binder READING VECTOR of its explicit arguments (in order), and
+    whether the RESULT is a `List`.
+
+    The readings are inferred from the binder TYPES against the
+    definition's own type variable `α` (the thing an `Acl2Embed`
+    embeds); anything else is a hard error naming the observed type —
+    the argument-reading frontier. Non-explicit binders (the type
+    variable, instance arguments) are skipped here exactly as they were
+    before R1: they are not statement positions, and an instance the
+    generated statement needs but cannot synthesise surfaces as an
+    elaboration error on the generated theorem (candidate cause (c) of
+    the failure message below). -/
+private def mirrorFnShape (fnName : Name) (ty : Expr) :
+    MetaM (Array ArgReading × Bool) :=
   forallTelescopeReducing ty fun xs body => do
-    let mut n := 0
-    let mut allList := true
+    -- the definition's own type variable: the sole binder that is a type
+    let mut elemTy? : Option Expr := none
+    for x in xs do
+      if (← whnf (← inferType x)).isSort then
+        if elemTy?.isSome then
+          throwError "mirror_iso%: {fnName} is polymorphic over MORE THAN \
+              ONE type variable — outside the square table, which reads \
+              each argument against the single element type an \
+              `Acl2Embed` embeds (a named frontier)"
+        elemTy? := some x
+    let mut readings : Array ArgReading := #[]
     for x in xs do
       if (← x.fvarId!.getDecl).binderInfo.isExplicit then
-        n := n + 1
-        unless (← whnf (← inferType x)).isAppOf ``List do allList := false
-    return (n, allList, (← whnf body).isAppOf ``List)
+        let t ← whnf (← inferType x)
+        let some elemTy := elemTy?
+          | throwError "mirror_iso%: {fnName} has explicit arguments but \
+              NO type variable — outside the square table, whose \
+              statements read every argument position against the element \
+              type an `Acl2Embed` embeds (a named frontier)"
+        if t == elemTy then
+          readings := readings.push .elem
+        else if t.isAppOf ``List && t.getAppNumArgs == 1
+            && t.appArg! == elemTy then
+          readings := readings.push .list
+        else
+          throwError "mirror_iso%: {fnName}'s explicit argument \
+              `{(← x.fvarId!.getDecl).userName} : {t}` is outside the \
+              ARGUMENT-READING table.\n\
+              OBSERVED: binder type `{t}`; the definition's element type \
+              is `{elemTy}`. The two derived readings are `List {elemTy}` \
+              (the argument enters the homomorphism statement under \
+              `List.map e.enc`) and `{elemTy}` itself (it enters under \
+              `e.enc`).\n\
+              CANDIDATE CAUSES (none asserted, not ranked): (a) a \
+              FUNCTION-VALUED argument (e.g. `{elemTy} → Bool`) — an \
+              `Acl2Embed` is an injection on ELEMENTS and has no action \
+              on a function position, so reading one is a design \
+              question, not something this generator may guess; (b) a \
+              NON-EMBEDDED scalar (`Nat`, `Int`, …) — the embedding does \
+              not act on it either, and whether the square should hold it \
+              fixed is the same design question; (c) a list over some \
+              OTHER type than `{elemTy}`.\n\
+              What this failure is NOT: a statement that the declared \
+              correspondence is wrong. The declaration never reached the \
+              statement builder — this is the reading table's own bound, \
+              and widening it is a design change to the square classes, \
+              never a hand square (thin-Lean ruling 2026-08-11)."
+    return (readings, (← whnf body).isAppOf ``List)
 
 /-- Generate one SQUARE for a mirror definition:
 
@@ -327,7 +403,9 @@ private def mirrorFnShape (ty : Expr) : MetaM (Nat × Bool × Bool) :=
     type carries) plus, for a reading that rests on a definition of ours,
     the `unfold [...]` list — DEFINITIONS ONLY, since a definitional
     unfolding cannot introduce content. Everything else — the statement's
-    left-hand side, the induction, the closer — is fixed. -/
+    left-hand side, EACH ARGUMENT'S READING (inferred from the
+    definition's own binder types, see `ArgReading`), the induction, the
+    closer — is fixed. -/
 @[command_elab mirrorIsoCmd] def elabMirrorIso : CommandElab := fun stx => do
   let doc? : Option (TSyntax ``Lean.Parser.Command.docComment) :=
     if stx[0].getNumArgs > 0 then some ⟨stx[0][0]⟩ else none
@@ -347,14 +425,10 @@ private def mirrorFnShape (ty : Expr) : MetaM (Nat × Bool × Bool) :=
     throwError "mirror_iso%: {fnName} is part of a MUTUAL recursion block \
         ({di.all}) — mutual recursion is a named frontier of the square \
         template (which inducts on ONE definition's recursion)"
-  let (nArgs, allList, resIsList) ← liftTermElabM <| mirrorFnShape di.type
-  unless vars.size == nArgs do
-    throwError "mirror_iso%: {fnName} takes {nArgs} explicit arguments but \
-        {vars.size} vars were given"
-  unless allList do
-    throwError "mirror_iso%: {fnName} has a non-list argument — outside the \
-        derived square table (the argument reading is `List α` under \
-        `List.map`; a named frontier)"
+  let (readings, resIsList) ← liftTermElabM <| mirrorFnShape fnName di.type
+  unless vars.size == readings.size do
+    throwError "mirror_iso%: {fnName} takes {readings.size} explicit \
+        arguments but {vars.size} vars were given"
   if vars.any (·.getId == `e) then
     throwError "mirror_iso%: `e` is the embedding binder's reserved name — \
         rename the var"
@@ -387,31 +461,42 @@ private def mirrorFnShape (ty : Expr) : MetaM (Nat × Bool × Bool) :=
           scalar` was declared — declare `hom list` (the declared class is \
           checked against the definition's type so a drift fails closed)"
   | .agree => pure ()
-  -- the statement
-  let sexprTy : Term ← `(List $(mkCIdent ``ACL2.SExpr))
+  -- the statement (each var at its inferred READING: a `.list` binder is
+  -- a list of the element type and enters under `List.map e.enc`; an
+  -- `.elem` binder is one element and enters under `e.enc`)
+  let sexprC : Term := mkCIdent ``ACL2.SExpr
+  let sexprTy : Term ← `(List $sexprC)
   let alphaId : Ident := mkIdent `α
   let eId : Ident := mkIdent `e
   let fnC : Term := mkCIdent fnName
+  let varsR : Array (Ident × ArgReading) := vars.zip readings
   let plainApp : Term := Syntax.mkApp fnC (vars.map (fun v => (v : Term)))
   let binders : Array (TSyntax ``bracketedBinderF) ← do
     match cls with
-    | .agree => vars.mapM fun v => `(bracketedBinderF| ($v:ident : $sexprTy))
+    | .agree => varsR.mapM fun (v, r) =>
+        match r with
+        | .list => `(bracketedBinderF| ($v:ident : $sexprTy))
+        | .elem => `(bracketedBinderF| ($v:ident : $sexprC))
     | _ =>
       let eB ← `(bracketedBinderF| ($eId:ident : Acl2Embed $alphaId:ident))
-      let vB ← vars.mapM fun v =>
-        `(bracketedBinderF| ($v:ident : List $alphaId:ident))
+      let vB ← varsR.mapM fun (v, r) =>
+        match r with
+        | .list => `(bracketedBinderF| ($v:ident : List $alphaId:ident))
+        | .elem => `(bracketedBinderF| ($v:ident : $alphaId:ident))
       pure (#[eB] ++ vB)
+  let encoded : Array Term ← varsR.mapM fun (v, r) =>
+    match r with
+    | .list => `(List.map ($eId:ident).enc $v:ident)
+    | .elem => `(($eId:ident).enc $v:ident)
   let reading : Term := ⟨specStx[1]⟩
   let stmt : Term ←
     match cls with
     | .agree => `($plainApp = $reading)
     | .homList =>
-      let mapped ← vars.mapM fun v => `(List.map ($eId:ident).enc $v:ident)
-      let rhs := Syntax.mkApp fnC mapped
+      let rhs := Syntax.mkApp fnC encoded
       `(List.map ($eId:ident).enc $plainApp = $rhs)
     | .homScalar =>
-      let mapped ← vars.mapM fun v => `(List.map ($eId:ident).enc $v:ident)
-      let lhs := Syntax.mkApp fnC mapped
+      let lhs := Syntax.mkApp fnC encoded
       `($lhs = $plainApp)
   -- the closer's lemmas: the definition's own equations, the declared
   -- unfoldings, and the registered squares of the definition's callees

@@ -247,6 +247,33 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > messages. STILL OPEN for C: non-list argument/result readings, order
 > instances (C1's other embeddings), and the item-3/7 dissolve (waypoint
 > statements generated in mirror vocabulary).
+> — the ARGUMENT half of that "still open" line LANDED with R1 item B
+> (next entry).
+
+> **PER-BINDER ARGUMENT READINGS (R1 item B, 2026-08-14 — audit finding
+> F1 closed).** `mirror_iso%` no longer collapses the binder telescope
+> to an `allList` boolean: `mirrorFnShape`
+> (`ACL2Lean/MirrorProofs/IsoGen.lean`) returns a per-binder READING
+> VECTOR inferred from the spec's own Lean binder types — `.list` for
+> `List α` (enters the hom statement under `List.map e.enc`), `.elem`
+> for the element type `α` itself (enters under `e.enc`), a hard error
+> naming the OBSERVED type for anything else. NO new user syntax (the
+> mirror level, unlike `derive_sim%`'s, can infer the reading). All 23
+> generated Basics artifacts re-`#check` BYTE-IDENTICAL. Witnesses read
+> off the sorting spec, landed in the new
+> `ACL2Lean/MirrorProofs/Sorting.lean`: `filterRel` (function-valued
+> argument) is the pinned frontier; `howMany`'s `agree` square now
+> ELABORATES (the widening's positive witness); `insertOrd` reaches the
+> ORDER-INSTANCE blocker (`TotalOrder SExpr` — R1 item C / R4), not a
+> shape one. OPEN, both needing a ruling (recorded on that page):
+> (1) instance binders are NOT threaded, so every `hom` square of an
+> instance-carrying spec fails at synthesis — R1 item C's substance;
+> (2) element arguments make the CLOSER want the embedding's
+> INJECTIVITY (`e.enc a = e.enc b → a = b`), which is not a `rfl`-lemma
+> and therefore not admissible to the fixed ladder as it stands.
+> The `hom scalar` class needed NOTHING for a `Nat` result — it carries
+> no result codec at all (scalar invariance), so that charter question
+> adjudicated clean.
 
 > **TEMPLATE-GATE FINDING (Basics-closeout increment A, 2026-08-13 —
 > RULED 2026-08-13 by THE VOCABULARY RULE, commit a07d99d: native
