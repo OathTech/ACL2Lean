@@ -417,6 +417,97 @@ structure LinearRuleSpec where
   maxTerm : SExpr
   deriving Repr, Inhabited
 
+/-- One IF-leaf entry of an emitted `(:TYPE-PRESCRIPTION … :LEAVES …)`
+    (R2 fork batch, 2026-08-14 — GAP-1/GAP-2): ACL2's own verdict for a
+    return-path leaf of the fn's body, computed IN CONTEXT by the
+    collector that mirrors `type-set-rec`'s `'if` case.
+
+    Nothing here is derived Lean-side. `ts` is the CONTEXT-REFINED
+    type-set (INTEGER-ABS's `(UNARY-- X)` leaf reads 6, not the
+    context-free 127); `tests` are the governing IF tests outermost-first
+    (negated on a false branch) — the leaf's ADDRESS, which distinguishes
+    two identical leaf terms in different branches; `typeAlist` is ACL2's
+    OWN derivation from those tests, emitted VERBATIM WITH SHADOWING
+    (lookup is `assoc-equal`: FIRST hit wins, so `List.lookup` on this
+    field is the faithful reader); `subterms` are the per-OCCURRENCE
+    verdicts for the leaf's proper function-call subterms — the only type
+    facts that exist for the primitives ACL2 stores no rule for
+    (`DENOMINATOR`/`NUMERATOR`/`REALPART`/`IMAGPART`), with `*ts-unknown*`
+    entries dropped at the emitter as carrying no fact.
+
+    `ts = 0` (`*ts-empty*`) marks a VACUOUS leaf: ACL2's own
+    contradictory-context encoding, emitted for the branches
+    `assume-true-false-rec` proved unreachable. -/
+structure TpLeaf where
+  term : SExpr
+  ts : Int
+  tests : List SExpr := []
+  typeAlist : List (SExpr × Int) := []
+  subterms : List (SExpr × Int) := []
+  deriving Repr, Inhabited, BEq
+
+/-- One entry of an emitted `(:TYPE-PRESCRIPTION … :ALL-TPS …)` (R2 fork
+    batch item 3, 2026-08-14): a STORED type-prescription rule of the fn,
+    verbatim. ACL2 keeps CONDITIONAL type-prescriptions (`hyps` is a field
+    of its `type-prescription` defrec) and the strong facts live exactly
+    there — `BINARY-APPEND` stores both its weak definitional
+    cons-or-second-argument rule and the boot-strap `TRUE-LISTP-APPEND`
+    (`(IMPLIES (TRUE-LISTP B) (TRUE-LISTP (BINARY-APPEND A B)))`), which
+    the emitters' one-of-N definitional selectors used to discard. The
+    event's `:COROLLARY`/`:BASICTS` fields still carry the DEFINITIONAL
+    rule alone; this list is additive. -/
+structure TpRuleSpec where
+  rune : Rune
+  hyps : List SExpr
+  basicTs : Int
+  corollary : SExpr
+  deriving Repr, Inhabited
+
+/-- `(term type-set-bits)` pairs — the shape the emitted leaf type-alists
+    and subterm verdicts share. Hard-fails on any other entry. -/
+private def tpTsPairs (fn what : String) (l : SExpr) :
+    Except String (List (SExpr × Int)) :=
+  match l.toList? with
+  | some items => items.mapM fun pair =>
+    match pair.toList? with
+    | some [term, .atom (.number (.int ts))] => pure (term, ts)
+    | _ => throw s!"TYPE-PRESCRIPTION {fn}: bad {what} entry: {repr pair}"
+  | none => throw s!"TYPE-PRESCRIPTION {fn}: {what} not a list: {repr l}"
+
+/-- Read a `:LEAVES` field: each entry is
+    `(term ts ruling-tests type-alist subterm-verdicts)`. -/
+def TpLeaf.parseList (fn : String) (l : SExpr) :
+    Except String (List TpLeaf) :=
+  match l.toList? with
+  | some items => items.mapM fun entry =>
+    match entry.toList? with
+    | some [term, .atom (.number (.int ts)), tests, ta, subs] => do
+      let some testL := tests.toList?
+        | throw s!"TYPE-PRESCRIPTION {fn}: leaf ruling tests not a list: \
+            {repr tests}"
+      pure { term := term, ts := ts, tests := testL,
+             typeAlist := ← tpTsPairs fn "leaf :type-alist" ta,
+             subterms := ← tpTsPairs fn "leaf subterm-verdict" subs }
+    | _ => throw s!"TYPE-PRESCRIPTION {fn}: bad leaf: {repr entry}"
+  | none => throw s!"TYPE-PRESCRIPTION {fn}: :LEAVES not a list: {repr l}"
+
+/-- Read an `:ALL-TPS` field: each entry is `(rune hyps basic-ts corollary)`.
+    `runeOf` is the log's ONE rune parser, passed in rather than cloned. -/
+def TpRuleSpec.parseList (fn : String) (runeOf : SExpr → Option Rune)
+    (l : SExpr) : Except String (List TpRuleSpec) :=
+  match l.toList? with
+  | some items => items.mapM fun entry =>
+    match entry.toList? with
+    | some [runeE, hypsE, .atom (.number (.int bts)), cor] => do
+      let some rune := runeOf runeE
+        | throw s!"TYPE-PRESCRIPTION {fn}: bad :ALL-TPS rune: {repr runeE}"
+      let some hyps := hypsE.toList?
+        | throw s!"TYPE-PRESCRIPTION {fn}: :ALL-TPS hyps not a list: \
+            {repr hypsE}"
+      pure { rune := rune, hyps := hyps, basicTs := bts, corollary := cor }
+    | _ => throw s!"TYPE-PRESCRIPTION {fn}: bad :ALL-TPS entry: {repr entry}"
+  | none => throw s!"TYPE-PRESCRIPTION {fn}: :ALL-TPS not a list: {repr l}"
+
 /-- The spec's identity key for name-keyed maps/tags: the rune name, with the
     multi-rule index appended in ACL2's own print form (`FOO . 2`). Distinct
     stored rules of one event get distinct keys (spaces cannot occur in an
@@ -462,7 +553,8 @@ inductive ProofEvent where
       -- present.
       (classes : Option SExpr := none)
   | typePrescription (name : String) (corollary : SExpr)
-      (basicTs : Option Int := none) (leaves : List (SExpr × Int) := [])
+      (basicTs : Option Int := none) (leaves : List TpLeaf := [])
+      (allTps : List TpRuleSpec := [])
   /-- The stored rewrite rules created since the previous flush (in creation
       order; emitted before the next :DEFTHM, hence before any use). -/
   | rules (specs : List RuleSpec)

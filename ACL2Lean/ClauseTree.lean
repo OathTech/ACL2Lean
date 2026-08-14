@@ -95,7 +95,8 @@ inductive WorldEvent where
       (termination : Option ClauseProof := none)
   /-- A type-prescription corollary ACL2 derived for a function. -/
   | typePrescription (name : String) (corollary : SExpr)
-          (basicTs : Option Int) (leaves : List (SExpr × Int))
+          (basicTs : Option Int) (leaves : List TpLeaf)
+          (allTps : List TpRuleSpec := [])
   /-- Stored rewrite rules created by preceding defthms (emitted before any
       use — the source for `rule:<thm>` dependency hypotheses). -/
   | rules (specs : List RuleSpec)
@@ -300,7 +301,7 @@ def Development.typePrescriptionBasicTs : Development → List (String × Int)
   | .done => []
   | .bind ev rest =>
     match ev with
-    | .typePrescription n _ (some bts) _ =>
+    | .typePrescription n _ (some bts) _ _ =>
       (n, bts) :: rest.typePrescriptionBasicTs
     | _ => rest.typePrescriptionBasicTs
 
@@ -312,11 +313,11 @@ def Development.typePrescriptionBasicTs : Development → List (String × Int)
     must be one ACL2 itself enumerated and verdicted; nothing here is
     inferred Lean-side. -/
 def Development.typePrescriptionLeaves :
-    Development → List (String × List (SExpr × Int))
+    Development → List (String × List TpLeaf)
   | .done => []
   | .bind ev rest =>
     match ev with
-    | .typePrescription n _ _ leaves => (n, leaves) :: rest.typePrescriptionLeaves
+    | .typePrescription n _ _ leaves _ => (n, leaves) :: rest.typePrescriptionLeaves
     | _ => rest.typePrescriptionLeaves
 
 /-- The emitted type-prescription corollaries of a development (fn name ↦
@@ -325,7 +326,7 @@ def Development.typePrescriptions : Development → List (String × SExpr)
   | .done => []
   | .bind ev rest =>
     match ev with
-    | .typePrescription n cor _ _ => (n, cor) :: rest.typePrescriptions
+    | .typePrescription n cor _ _ _ => (n, cor) :: rest.typePrescriptions
     | _ => rest.typePrescriptions
 
 /-- The STORED rewrite rules of a development, in creation order (rune name ↦
@@ -996,8 +997,8 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       -- can gate on its presence (the strict at-EOF requirement flips
       -- after the corpus-wide recapture — tracked in TODO).
       events := events.push (.captureEnd books)
-    | .typePrescription n cor bts leaves =>
-      events := events.push (.typePrescription n cor bts leaves)
+    | .typePrescription n cor bts leaves allTps =>
+      events := events.push (.typePrescription n cor bts leaves allTps)
     | .rules specs =>
       events := events.push (.rules specs)
     | .encapsulateBegin sigs =>
@@ -1357,7 +1358,7 @@ partial def printDevelopment : ACL2.Development → IO Unit
       for r in specs do
         let hs := String.intercalate " ∧ " (r.hyps.map (·.toString))
         IO.println s!"  {r.name}: hyps {hs} ⇒ {r.concl} (max-term {r.maxTerm})"
-    | .typePrescription name cor _ _ =>
+    | .typePrescription name cor _ _ _ =>
       IO.println s!"\n── type-prescription {name} ──"
       IO.println s!"  {cor}"
     | .rules specs =>

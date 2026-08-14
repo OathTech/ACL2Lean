@@ -566,7 +566,7 @@ def tpClassImpAv : List ((TpCorClass × TpCorClass) × Name) :=
     class. Nothing here is derived Lean-side. -/
 structure TpKit where
   fnName : String
-  leaves : List (SExpr × Int)
+  leaves : List TpLeaf
   cls : Option TpCorClass
   /-- The development's admission justifications, as the CALLER passed
       them to `proveTp` — threaded so the CALLEE-TP arm can invoke the
@@ -603,16 +603,22 @@ def sexprOccurs (t : SExpr) : SExpr → Bool
     inside its `(APP …)` leaf); a term in neither place is a frontier. -/
 def tpEmittedLeafOk (kit : TpKit) (cls : TpCorClass) (t : SExpr) :
     MetaM Unit := do
-  match kit.leaves.find? (fun (leaf, _) => leaf == t) with
-  | some (_, ts) =>
-    unless tsSubsumed ts cls.tsMask do
-      throwFrontier m!"proveTp: emitted leaf verdict {ts} of {repr t} is \
-          not inside the {repr cls} corollary class's type-set \
-          {cls.tsMask} (frontier)"
-  | none =>
-    unless kit.leaves.any (fun (leaf, _) => sexprOccurs t leaf) do
+  -- OCCURRENCE-CLOSED: the same leaf TERM can be emitted more than once,
+  -- once per branch, and (since the R2 fork batch) with DIFFERENT
+  -- context-refined verdicts. The walk does not carry the leaf's address,
+  -- so admitting on the first hit could ride a verdict ACL2 computed for
+  -- another occurrence: EVERY entry for the term must be inside the class.
+  match kit.leaves.filter (fun l => l.term == t) with
+  | [] =>
+    unless kit.leaves.any (fun l => sexprOccurs t l.term) do
       throwFrontier m!"proveTp: {repr t} occurs in no emitted \
           :TYPE-PRESCRIPTION leaf of {kit.fnName} (frontier)"
+  | hits =>
+    for l in hits do
+      unless tsSubsumed l.ts cls.tsMask do
+        throwFrontier m!"proveTp: emitted leaf verdict {l.ts} of {repr t} \
+            (under {repr l.tests}) is not inside the {repr cls} corollary \
+            class's type-set {cls.tsMask} (frontier)"
 
 /-- Pin every argument term of a return-path call to a VALUE plus its
     convergence proof, then run the continuation (TP-replay arc increment
@@ -795,7 +801,7 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
     unless kit.argVar == some vsym do
       throwFrontier m!"proveTp: return-path variable {vsym.name} is not \
           {kit.fnName}'s corollary residue argument (frontier)"
-    unless kit.leaves.any (fun (leaf, _) => leaf == t) do
+    unless kit.leaves.any (fun l => l.term == t) do
       throwFrontier m!"proveTp: {repr t} is not an emitted \
           :TYPE-PRESCRIPTION leaf of {kit.fnName} (frontier)"
     let some (av, hav) := varP vsym

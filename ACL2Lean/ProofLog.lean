@@ -1132,15 +1132,12 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | some (.atom (.number (.int n))) => some n
           | _ => none
         let leaves ← match lookupKeyword "LEAVES" fields with
-          | some l => match l.toList? with
-            | some items => items.mapM fun pair =>
-              -- Each leaf is a proper list (term type-set-bits)
-              match pair.toList? with
-              | some [term, .atom (.number (.int ts))] => pure (term, ts)
-              | _ => throw s!"TYPE-PRESCRIPTION {name}: bad leaf: {repr pair}"
-            | none => throw s!"TYPE-PRESCRIPTION {name}: :LEAVES not a list: {repr l}"
+          | some l => TpLeaf.parseList name l
           | none => pure []
-        return .typePrescription name corollary basicTs leaves
+        let allTps ← match lookupKeyword "ALL-TPS" fields with
+          | some l => TpRuleSpec.parseList name parseRune? l
+          | none => pure []
+        return .typePrescription name corollary basicTs leaves allTps
       | none => throw s!"TYPE-PRESCRIPTION: bad name: {repr nameExpr}"
     | _ => throw s!"TYPE-PRESCRIPTION: expected plist, got {repr rest}"
   | .cons (.atom (.keyword "EVENT-FAILED")) rest =>
