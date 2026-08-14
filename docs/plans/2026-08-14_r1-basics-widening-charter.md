@@ -58,6 +58,18 @@ it differently. `howMany`'s `Nat` RESULT is a result-class question
 (hom-scalar already exists) — check whether the scalar class's codec
 covers `Nat` or only `Int` before claiming the witness.
 
+### C design scout (2026-08-14, read-only, pre-execution)
+
+The restriction lemma is concrete and small:
+`Worlds… lexorderB` is `lexorder · · == SExpr.t` over the trusted-core
+`lexorder` (Lexorder.lean:91; two-valuedness already proved,
+Imported/Sorting.lean:26); on `intEmbed.enc` images (integer atoms,
+IsoGen.lean:106) `lexorder` reduces to the number-comparison arm, so
+the statement is `∀ m n : Int, lexorderB (intEmbed.enc m)
+(intEmbed.enc n) = decide (m ≤ n)` — machinery-side, kernel-checked,
+no new definitions. Instance threading in `mirror_transport%` remains
+the substantive part of C.
+
 ## Discipline
 
 - Real-artifact first: read the replayed statements off the live rows
