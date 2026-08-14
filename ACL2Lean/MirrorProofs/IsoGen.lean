@@ -201,12 +201,36 @@ criterion cannot rot silently):
 | `List.nil/cons_append` | `++`'s own two cases        | `List.append_assoc`, `List.append_nil` |
 | `List.length_nil/cons` | `List.length`'s own two cases | `List.length_append` |
 | `Bool.cond_true/false` | `cond`'s own two cases   | any `lexorderB`/order fact |
+| `ite_true`/`ite_false` | `ite`'s own two cases    | `if_pos`/`if_neg`, `List.map_eq_nil_iff`, any conditional-rewrite discharge |
 | `enc_inj_iff`       | `Acl2Embed.inj` as an iff   | any OTHER embedding property |
 | `Bool.decide_eq_true` | the `decide`/`= true` coercion | any OTHER `Bool`/`Prop` fact (`decide_eq_true_eq`, `Bool.and_eq_true`, …) |
 
+`ite_true`/`ite_false` (R4 wave 1, 2026-08-14) are the `ite` twin of the
+already-admitted `cond` pair and are admitted under the SAME clause of
+the criterion — they are `rfl` (pinned below, by the same `example`
+device as the other `rfl` rungs), they are one operation's own two
+cases, and they relate nothing. Their consumer is the ORDER-RESPECT
+route below: once the embedding's order field has rewritten a
+homomorphism square's `if e.enc a ≤ e.enc b` condition to the SOURCE
+condition, the split's own case hypothesis reduces it to `True`/`False`
+and these two rungs finish the branch. Measured on
+`insertOrd_map_hom`: without them the two cases survive as
+`⊢ … = if True then … else …` and its `False` twin, verbatim.
+
+THE LINE THIS EXECUTOR HELD (R4 wave 1): the kit grows by LEMMA rungs
+that meet the criterion (`rfl`-lemmas, the two plumbing families);
+the closer never grows a CAPABILITY. A capability — ground evaluation
+(W3's stage-3 record), or a CASE SPLIT on an argument the mirror
+definition's own equation left undestructured (W4's record, the
+`merge2` frontier) — is new in kind, outside the criterion as written,
+and is a ruling. Both are measured and recorded on the witness page
+rather than taken.
+
 (`Acl2Embed` has exactly two fields, `enc` and `inj`; there is no order
 field, so an element-position square that needs the embedding to RESPECT
-an order still fails closed — as W1's `hom list` does.)
+an order fails closed against `Acl2Embed` — which is why the ORDER
+dimension arrives as a SEPARATE, RICHER EMBEDDING declared per square,
+below, and not as another ladder rung.)
 
 The excluded column is exactly the content column: `append_assoc` IS the
 02-rev book's APP-ASSOC, `length_append` IS `simple.lisp`'s MY-LEN-MY-APP,
@@ -230,7 +254,62 @@ introduce content for the same reason any other definitional unfolding
 cannot; and the choice is VISIBLE in the invocation, not hidden in the
 generator. (Measured on W1 `insertOrd_agree_insertL`,
 `MirrorProofs/Sorting.lean`: without the instance in the unfold list the
-two `bif`/`≤` residuals survive verbatim; with it, the square closes.) -/
+two `bif`/`≤` residuals survive verbatim; with it, the square closes.)
+
+## THE ORDER-RESPECT ROUTE — a RICHER EMBEDDING, per square (R4 wave 1)
+
+A homomorphism square over an ORDER-USING mirror definition
+(`insertOrd`, `isort`, `merge2`, `msort`) is NOT TRUE for an arbitrary
+`Acl2Embed`: `List.map e.enc (insertOrd a xs) = insertOrd (e.enc a)
+(List.map e.enc xs)` says the encoded insertion takes the same branch as
+the source insertion, which holds exactly when the embedding RESPECTS
+the order. So the missing ingredient is not a lemma the closer may
+reach for — it is a HYPOTHESIS the square's own statement must carry.
+
+The route, therefore, is the SQUARE'S BINDER, declared per invocation:
+
+    mirror_iso% insertOrd_map_hom for ACL2Lean.Sorting.insertOrd
+      vars [a, xs]
+      square hom list
+      embed OrderedEmbed via [ord]
+
+`embed S via [f₁, …]` replaces the statement's embedding binder
+`(e : Acl2Embed α)` by `(e : S α)`, where `S` must be a structure
+EXTENDING `Acl2Embed` (checked; anything else is a hard error), and
+makes `S.fᵢ e` — and only those — available to THAT square's closer.
+`e.enc` still means `Acl2Embed.enc e.toAcl2Embed`, so a square declared
+over the richer embedding still resolves the REGISTERED squares of
+callees stated over the plain one (`msort` calling `evens`).
+
+WHY THIS IS NOT A LADDER RUNG, and why it is safe (the criterion-text
+addition ruled on at merge):
+
+* it is not GLOBAL. A ladder rung is available to every square forever;
+  `S.fᵢ` reaches exactly the one invocation that declares it. That is
+  the same scoping a REGISTERED CALLEE SQUARE has, and the same
+  visibility: the fact is named in the source of the square that uses
+  it, not hidden in the generator.
+* it is PROVED PER INSTANCE, not assumed. `S` is a structure; every
+  `S α` value in the tree is a definition whose fields are discharged
+  where it is declared (`intOrderedEmbed`, `MirrorProofs/OrderBridge.lean`
+  — its order field is `lexorderB_intEmbed`, itself proved from
+  `LexorderOrder.lean`'s core-logic theorems). Nothing is trusted.
+* it CANNOT rescue a misaligned square. `S`'s fields are facts about the
+  EMBEDDING — exactly the character of `Acl2Embed.inj`, the first
+  plumbing family. They mention no mirror definition and relate no two
+  operations, so they cannot supply a definitional correspondence that
+  is not there; they can only remove the encoding from a comparison.
+  (Measured: `insertOrd_map_hom` still requires `insertOrd`'s own
+  equations and `ite`'s two cases; the order field alone closes
+  nothing.)
+* it makes the square STRONGER-HYPOTHESISED, never weaker-concluded:
+  the statement is the same equation, over a smaller class of
+  embeddings — the class in which it is true.
+
+The gate stays fail-closed in both directions: `embed` on an `agree`
+square is a hard error (that statement has no embedding binder at all),
+a non-structure or a structure that does not extend `Acl2Embed` is a
+hard error, and a name that is not a field of `S` is a hard error. -/
 
 section LadderPins
 
@@ -249,6 +328,8 @@ example : ([] : List α).length = 0 := rfl
 example (a : α) (as : List α) : (a :: as).length = as.length + 1 := rfl
 example (x y : α) : (bif true then x else y) = x := rfl
 example (x y : α) : (bif false then x else y) = y := rfl
+example (x y : α) : (if True then x else y) = x := rfl
+example (x y : α) : (if False then x else y) = y := rfl
 
 /-- The SECOND plumbing family, pinned by its statement: the rung says
     exactly that `decide (b = true)` and `b` are two spellings of one
@@ -267,8 +348,8 @@ macro "mirror_square_close" "[" xs:simpLemma,* "]" : tactic =>
       | rfl
       | simp_all only [List.map_nil, List.map_cons, List.nil_append,
           List.cons_append, List.length_nil, List.length_cons,
-          Bool.cond_true, Bool.cond_false, enc_inj_iff,
-          Bool.decide_eq_true, $xs,*]))
+          Bool.cond_true, Bool.cond_false, ite_true, ite_false,
+          enc_inj_iff, Bool.decide_eq_true, $xs,*]))
 
 open Lean.Parser.Tactic in
 /-- The transport closer, two rungs — both plumbing (generated skeleton
@@ -392,6 +473,7 @@ syntax (name := mirrorIsoCmd)
   (docComment)? "mirror_iso% " ident &" for " ident
   &" vars " "[" ident,* "]"
   &" square " mirrorSquareSpec
+  (&" embed " ident &" via " "[" ident,* "]")?
   (&" unfold " "[" ident,* "]")? : command
 
 /-! ### The ARGUMENT READINGS (R1 item B, audit finding F1)
@@ -546,13 +628,22 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
     mirror_iso% app_map_hom for ACL2Lean.Basics.app
       vars [xs, ys]
       square hom list
+
+    mirror_iso% insertOrd_map_hom for ACL2Lean.Sorting.insertOrd
+      vars [a, xs]
+      square hom list
+      embed OrderedEmbed via [ord]
     ```
 
     The user supplies ONLY the correspondence judgment (which waypoint
     spelling this definition agrees with; which square class its result
     type carries) plus, for a reading that rests on a definition of ours,
     the `unfold [...]` list — DEFINITIONS ONLY, since a definitional
-    unfolding cannot introduce content. Everything else — the statement's
+    unfolding cannot introduce content — and, for a homomorphism square
+    over an ORDER-USING definition, the `embed S via [fields]` clause
+    (the square is only TRUE for an order-respecting embedding, so the
+    hypothesis belongs in its statement; see "the order-respect route").
+    Everything else — the statement's
     left-hand side, EACH ARGUMENT'S READING (inferred from the
     definition's own binder types, see `ArgReading`), the induction, the
     closer — is fixed. -/
@@ -563,8 +654,15 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
   let fnId : Ident := ⟨stx[4]⟩
   let vars : Array Ident := stx[7].getSepArgs.map (⟨·⟩)
   let specStx := stx[10]
+  -- the ORDER-RESPECT route (R4 wave 1): an optional RICHER EMBEDDING for
+  -- THIS square, plus the fields of it the closer may use. See "the
+  -- order-respect route" above for why this is a per-square binder and
+  -- not a ladder rung.
+  let embedSpec? : Option (Ident × Array Ident) :=
+    if stx[11].getNumArgs == 0 then none
+    else some (⟨stx[11][1]⟩, stx[11][4].getSepArgs.map (⟨·⟩))
   let unfolds : Array Ident :=
-    if stx[11].getNumArgs == 0 then #[] else stx[11][2].getSepArgs.map (⟨·⟩)
+    if stx[12].getNumArgs == 0 then #[] else stx[12][2].getSepArgs.map (⟨·⟩)
   -- the mirror definition
   let fnName ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo fnId
   let env ← getEnv
@@ -612,6 +710,42 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
           scalar` was declared — declare `hom list` (the declared class is \
           checked against the definition's type so a drift fails closed)"
   | .agree => pure ()
+  -- the EMBEDDING the statement binds, and the fields of it THIS square's
+  -- closer may use (the order-respect route — see the header). Default:
+  -- the plain `Acl2Embed`, no extra facts.
+  let mut embedStruct : Name := ``Acl2Embed
+  let mut embedFacts : Array Name := #[]
+  if let some (sId, fs) := embedSpec? then
+    if cls == .agree then
+      throwError "mirror_iso%: an `embed` clause was given for an \
+          AGREEMENT square, whose statement is at `SExpr` and binds NO \
+          embedding at all — there is nothing for the richer embedding's \
+          fields to be about (fail-closed). Declare the `embed` clause on \
+          the `hom` square instead."
+    let s ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo sId
+    unless isStructure env s do
+      throwError "mirror_iso%: `embed {s}` is not a STRUCTURE — the \
+          richer embedding must be a structure EXTENDING `Acl2Embed`, so \
+          that `e.enc` still means the embedding's own map and every \
+          registered callee square (stated over `Acl2Embed`) still \
+          resolves against it (fail-closed)"
+    let parents ← liftCoreM <| getAllParentStructures s
+    unless parents.contains ``Acl2Embed do
+      throwError "mirror_iso%: `embed {s}` does not EXTEND `Acl2Embed` \
+          (its parent structures are {parents.toList}). \
+          A homomorphism square's statement is built from `e.enc`, and its \
+          callees' registered squares are stated over `Acl2Embed`, so an \
+          unrelated structure could neither state the square nor reuse \
+          them (fail-closed)"
+    embedStruct := s
+    embedFacts ← fs.mapM fun f => do
+      let n := s ++ f.getId
+      unless env.contains n do
+        throwError "mirror_iso%: `via [{f.getId}]` is not a field of \
+            `{s}` (no constant `{n}`). Only `{s}`'s OWN fields may reach \
+            this square's closer — a free-standing lemma here would be \
+            the content channel the template gate closes (fail-closed)."
+      pure n
   -- the statement (each var at its inferred READING: a `.list` binder is
   -- a list of the element type and enters under `List.map e.enc`; an
   -- `.elem` binder is one element and enters under `e.enc`; a `.fixed`
@@ -636,7 +770,8 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
       -- synthesise, so without these the statement does not elaborate
       let iB ← instClasses.mapM fun c => do
         `(bracketedBinderF| [$(Syntax.mkApp (mkCIdent c) #[alphaId]):term])
-      let eB ← `(bracketedBinderF| ($eId:ident : Acl2Embed $alphaId:ident))
+      let eB ← `(bracketedBinderF|
+        ($eId:ident : $(Syntax.mkApp (mkCIdent embedStruct) #[alphaId])))
       let vB ← varsR.mapM fun (v, r) =>
         match r with
         | .list => `(bracketedBinderF| ($v:ident : List $alphaId:ident))
@@ -670,8 +805,13 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
       | none => none
   let lemmaNames : Array Name :=
     #[fnName] ++ unfoldNames ++ calleeSquares.eraseDups.toArray
-  let lemmas ← lemmaNames.mapM fun n =>
+  let mut lemmas ← lemmaNames.mapM fun n =>
     `(Lean.Parser.Tactic.simpLemma| $(mkCIdent n):term)
+  -- the declared embedding's own fields, AT THIS SQUARE'S BINDER: scoped
+  -- exactly like a registered callee square, never a ladder rung
+  for f in embedFacts do
+    lemmas := lemmas.push (← `(Lean.Parser.Tactic.simpLemma|
+      $(Syntax.mkApp (mkCIdent f) #[eId]):term))
   let proof ← `(by
       fun_induction $plainApp <;> mirror_square_close [$lemmas,*])
   let thm ← `($[$doc?:docComment]? theorem $thmId $binders* : $stmt := $proof)
@@ -703,7 +843,8 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
     throwError "mirror_iso%: the square template did not close \
         {thmId.getId}.\n\
         OBSERVED: {residual}. Rung class `{clsName}`; target \
-        `{fnName}`; the closer was given the lemma set \
+        `{fnName}`; embedding `{embedStruct}` with fields \
+        {embedFacts.toList}; the closer was given the lemma set \
         {lemmaNames.toList} (the definition's own equations, the \
         declared unfoldings, and the registered squares of \
         {fnName}'s callees). The residual GOALS are reported \

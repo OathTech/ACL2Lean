@@ -346,6 +346,50 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > `IsoGen.lean`'s header + `docs/LEXICON.md`. `hom list` re-probed:
 > residual byte-identical to R1-E's (order-field frontier, unchanged).
 
+> **R4 WAVE 1 — THE SQUARE WAVE: 5 new LIVE squares, the ORDER
+> DIMENSION landed, 3 new recorded frontiers (2026-08-14).** The
+> witness page `MirrorProofs/Sorting.lean` goes 3 → 8 live squares.
+> NEW MACHINERY (flagged for Mike at merge): `OrderedEmbed`
+> (`MirrorProofs/OrderBridge.lean`) — `Acl2Embed` plus
+> `ord : (enc a ≤ enc b) ↔ (a ≤ b)` — consumed through a new
+> `mirror_iso%` clause `embed S via [fields]`, which binds the richer
+> embedding in THAT square's statement and hands exactly the named
+> fields to THAT square's closer. The design point: an order-using
+> definition's homomorphism square is NOT TRUE for an arbitrary
+> embedding, so the order-respect fact is a HYPOTHESIS OF THE
+> STATEMENT, not a rung of the ladder — scoped and visible exactly
+> like a registered callee square, proved per instance
+> (`intOrderedEmbed`, off `lexorderB_intEmbed`), and unable to rescue
+> a misaligned square (tamper-probed: dropping the clause makes
+> `insertOrd`'s hom square FAIL). LADDER: `ite_true`/`ite_false`
+> added — `rfl`-lemmas, `ite`'s own two cases, the twin of the
+> already-admitted `cond` pair, pinned in `LadderPins`. THE LINE
+> HELD: lemma rungs that meet the criterion, never a closer
+> CAPABILITY (both capabilities measured this wave — W7's case split
+> and W3's ground evaluation — are recorded, not taken).
+> LIVE: `insertOrd_map_hom`, `isort_agree_isortL`, `isort_map_hom`,
+> `evens_agree_evensL`, `evens_map_hom` (all `#guard_msgs`-pinned).
+> FRONTIERS, recorded verbatim on the witness page: W7 `merge2`
+> (both classes; 3 of 4 cases close, case 2 is the book-faithful
+> UNDESTRUCTURED second arm `| xs, [] => xs`, whose guarded equation
+> the template cannot use — measured closing condition: ONE case
+> split on that argument, then the existing kit, both squares, all
+> cases); W8 `msort` (both classes; reduces to exactly `merge2`'s
+> corresponding square and nothing else — unblocked by W7 at two
+> four-line declarations); W9 `odds` (both classes; NON-RECURSIVE
+> spec definition, so `fun_induction` has no theorem — the same
+> general bound as `relMode`/`permWitness`; fix shape = a template
+> fallback to `fun_cases`. Second, independent gap: there is no
+> `oddsL` waypoint READING and no ODDS EXEC KIT to validate one
+> against, so the `odds` AGREE square needs an exec kit first).
+> OUT-OF-SCOPE MEASUREMENT worth a ruling: W3 `filterRel`'s `hom
+> list` frontier — recorded at wave 0 as "the order dimension
+> `Acl2Embed` has no field for" — is DISSOLVED by `OrderedEmbed`;
+> the residual is now one Bool coercion (`if false = true then …`),
+> and with `Bool.false_eq_true` (the already-admitted Bool/decide
+> family) the square CLOSES. Regression net: 1455 lines
+> BYTE-IDENTICAL, statements AND proof terms. Sorries 6.
+
 > **TEMPLATE-GATE FINDING (Basics-closeout increment A, 2026-08-13 —
 > RULED 2026-08-13 by THE VOCABULARY RULE, commit a07d99d: native
 > readings and mirror definitions are OWN-DEFINITIONS, so the leak below

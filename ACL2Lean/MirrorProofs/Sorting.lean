@@ -10,12 +10,33 @@ widened `mirror_iso%`'s ARGUMENT-READING table (audit finding F1) and that
 widening had to land against REAL square declarations read off the sorting
 spec — not against a test fixture (the anti-"infrastructure now, wire it
 later" rule). It is therefore the landing zone for the sorting squares.
-After the R1-E FILTER re-render (2026-08-14) it carries THREE
-declarations — all LIVE squares, each `#print axioms`-pinned — plus W3,
-a RECORDED frontier with no declaration (its statements now build; the
-closer does not close them, and a closer failure would leave a
-`sorryAx`-carrying declaration behind, which this tree does not
-accept).
+
+After R4 WAVE 1 (2026-08-14) it carries EIGHT declarations — all LIVE
+squares, each `#print axioms`-pinned:
+
+| witness | agree | hom |
+| ------- | ----- | --- |
+| W1 `insertOrd` | LIVE (R1-D) | **LIVE (wave 1 — the order dimension)** |
+| W2 `howMany`   | LIVE (R1-D) | LIVE (R1-D, scalar) |
+| W5 `isort`     | **LIVE**    | **LIVE** |
+| W6 `evens`     | **LIVE**    | **LIVE** |
+
+and FOUR RECORDED frontiers with no declaration — W3 `filterRel`, W7
+`merge2`, W8 `msort`, W9 `odds`. Nothing is emitted for a frontier on
+purpose: a closer failure leaves a `sorryAx`-carrying declaration
+behind, which this tree does not accept, so the state lives in this
+docstring (statements verbatim, residuals verbatim, the measured closing
+condition) rather than in a `#guard_msgs` pin.
+
+The wave-1 machinery both new squares rest on is in `IsoGen`'s "the
+order-respect route" (the `embed S via [...]` clause — an order-using
+definition's homomorphism square is only TRUE for an order-respecting
+embedding, so that hypothesis belongs in its statement) and in
+`OrderBridge`'s `OrderedEmbed`/`intOrderedEmbed`. The ladder also gained
+`ite`'s own two cases, the `rfl` twin of the already-admitted `cond`
+pair; the line wave 1 held is that the closer grows LEMMA rungs that
+meet the pinned criterion and never a CAPABILITY (W7 and W3 record the
+two capabilities that were measured and not taken).
 
 ## What R1-B changed
 
@@ -297,11 +318,37 @@ every previous kit change here was a ruling.) That is a ruling, not an
 executor call — and per the thin-Lean ruling the escape is never a hand
 square.
 
-The `hom list` square was RE-PROBED at R4 for the record: its residual is
-byte-identical to stage 2's (same two cases, same wanted fact
-`relMode fn (e.enc a) (e.enc ev) = relMode fn a ev`). Unchanged frontier:
-`enc_inj_iff` covers the mode's EQUALITY test, the `≤` test is the order
-dimension `Acl2Embed` has no field for.
+The `hom list` square was RE-PROBED at R4 wave 0 for the record: its
+residual was byte-identical to stage 2's (same two cases, same wanted
+fact `relMode fn (e.enc a) (e.enc ev) = relMode fn a ev`); frontier
+unchanged at that point — `enc_inj_iff` covers the mode's EQUALITY test,
+the `≤` test is the order dimension `Acl2Embed` has no field for.
+
+*Stage 4 (R4 wave 1, 2026-08-14) — the ORDER half of W3's `hom list`
+frontier is GONE; only a `Bool` coercion is left.* `filterRel` was out of
+wave 1's declared scope, so nothing is declared here, but the wave's
+`OrderedEmbed` bears directly on the residual above and the measurement
+belongs on the record. Measured (`.tmp`, not declared) with the square
+stated over `OrderedEmbed` and closed by the wave-1 kit plus `e.ord`:
+
+* the `≤` test is DISCHARGED — `ord` is a `Prop`-level iff, so it
+  rewrites under `decide` and the whole `relMode` dispatch follows; the
+  positive case CLOSES;
+* what survives is one case, and it is not about order at all:
+
+  ```
+  ⊢ Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝) =
+      if false = true then e.enc head✝ :: Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
+      else Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
+  ```
+
+* with `Bool.false_eq_true` added to the fixed kit — the same Bool/decide
+  coercion family as the already-admitted `Bool.decide_eq_true` — the
+  square CLOSES, all cases.
+
+So W3's `hom list` distance is now ONE rung of an already-admitted
+family, plus the declaration itself; the `agree` square's three gaps
+(stage 2/3) are untouched by this wave and stand as recorded.
 -/
 
 namespace ACL2Lean.MirrorProofs
@@ -348,7 +395,259 @@ mirror_iso% howMany_map_invariant for ACL2Lean.Sorting.howMany
 #guard_msgs (whitespace := lax) in
 #print axioms howMany_map_invariant
 
-/-! ## W3 — `filterRel`: RECORDED, not declared
+/-! ## W4 — `insertOrd`'s HOMOMORPHISM square (LIVE — the order dimension)
+
+The square W1 stage 3 recorded as an honest frontier ("it needs the
+embedding to RESPECT the order, and `Acl2Embed` has no order field by
+construction"). R4 wave 1 closes it the way the frontier said it had to
+be closed — by giving the embedding the field, not by giving the closer
+a rung: `OrderedEmbed` (`MirrorProofs/OrderBridge.lean`) extends
+`Acl2Embed` with `ord : (enc a ≤ enc b) ↔ (a ≤ b)`, and the
+`embed … via [...]` clause binds it in THIS square's statement and hands
+that one field to THIS square's closer (`IsoGen`'s "the order-respect
+route" carries the criterion text; `intOrderedEmbed` is the witness, its
+field proved by `lexorderB_intEmbed`).
+
+The square is not merely easier this way — it is only TRUE this way: for
+an embedding that does not respect the order the encoded insertion takes
+the other branch. Measured residual WITHOUT `ite`'s own two cases in the
+fixed kit (the ladder's other wave-1 addition), both cases verbatim:
+
+```
+h✝ : a ≤ head✝
+⊢ e.enc a :: e.enc head✝ :: List.map e.enc t✝ =
+    if True then e.enc a :: e.enc head✝ :: List.map e.enc t✝
+    else e.enc head✝ :: Sorting.insertOrd (e.enc a) (List.map e.enc t✝)
+```
+
+— i.e. the order field had already done its whole job; what was left was
+`ite`'s own two cases. -/
+
+mirror_iso% insertOrd_map_hom for ACL2Lean.Sorting.insertOrd
+  vars [a, xs]
+  square hom list
+  embed OrderedEmbed via [ord]
+
+/-- info: 'ACL2Lean.MirrorProofs.insertOrd_map_hom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms insertOrd_map_hom
+
+/-! ## W5 — `isort` (LIVE, both classes) — the first sorting chain
+
+Both squares resolve `insertOrd`'s REGISTERED squares out of the
+registry and would fail closed without them (the `rev`→`app` pattern of
+THE LIST item 9, one book up). The homomorphism square inherits the
+order dimension from its callee: it is declared over `OrderedEmbed` too,
+because `insertOrd_map_hom` — the rewrite its step case needs — is. -/
+
+mirror_iso% isort_agree_isortL for ACL2Lean.Sorting.isort
+  vars [xs]
+  square agree (Worlds.Sorting.isortL xs)
+  unfold [Worlds.Sorting.isortL]
+
+/-- info: 'ACL2Lean.MirrorProofs.isort_agree_isortL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms isort_agree_isortL
+
+mirror_iso% isort_map_hom for ACL2Lean.Sorting.isort
+  vars [xs]
+  square hom list
+  embed OrderedEmbed via [ord]
+
+/-- info: 'ACL2Lean.MirrorProofs.isort_map_hom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms isort_map_hom
+
+/-! ## W6 — `evens` (LIVE, both classes)
+
+The msort chain's structural half. `evens` uses no order at all, so its
+homomorphism square is over the PLAIN `Acl2Embed` — which is also the
+demonstration that the wave-1 `embed` clause is opt-in per square and
+changes nothing where it is not declared.
+
+The `agree` square carries ONE extra unfolding, `List.tail`, and it is
+worth saying why: the two sides destructure at different DEPTHS. The
+mirror `evens` matches three patterns (`[]`, `[a]`, `a :: _ :: t`,
+mirroring the book's `(cons (car l) (evens (cdr (cdr l))))`), while the
+waypoint reading `evensL` matches two and reaches the second element
+through `List.tail`. `List.tail` is a DEFINITION, so it is admissible in
+the `unfold [...]` list on the same terms as any other (a definitional
+unfolding cannot introduce content), and unfolding it is exactly what
+lets the reading's `evensL t.tail` meet the mirror's `evens t`. It is
+also a FINDING about the reading, recorded rather than fixed here:
+`evensL`'s body is spelled with a library function, which is the
+vocabulary-compliance class `Imported/SortingReadings.lean` tracks —
+re-spelling it would move `evensExec_enc`'s proof term and is out of
+wave 1's regression net. -/
+
+mirror_iso% evens_agree_evensL for ACL2Lean.Sorting.evens
+  vars [xs]
+  square agree (Worlds.Sorting.evensL xs)
+  unfold [Worlds.Sorting.evensL, List.tail]
+
+/-- info: 'ACL2Lean.MirrorProofs.evens_agree_evensL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms evens_agree_evensL
+
+mirror_iso% evens_map_hom for ACL2Lean.Sorting.evens
+  vars [xs]
+  square hom list
+
+/-- info: 'ACL2Lean.MirrorProofs.evens_map_hom' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms evens_map_hom
+
+/-! ## W7 — `merge2`: RECORDED, not declared (the UNDESTRUCTURED-ARM bound)
+
+THREE of the four cases of BOTH squares close with the wave-1 kit.
+Case 2 does not, in either, and it is the same cause in both — the one
+new frontier this wave found.
+
+CAUSE. The mirror `merge2` renders the book's `(if (consp x) (if (consp
+y) … x) y)` faithfully, so its second arm does NOT destructure the first
+list (`| xs, [] => xs`). Lean therefore generates that equation GUARDED:
+
+```
+Sorting.merge2.eq_2 : ∀ {α} [TotalOrder α] (x : List α),
+  (x = [] → False) → Sorting.merge2 x [] = x
+```
+
+and `fun_induction` hands the template a case whose scrutinee is a bare
+variable plus that guard. Neither square can get past it:
+
+* AGREE (residual verbatim; cases 1/3/4 close):
+
+  ```
+  xs✝ : List SExpr
+  x✝ : xs✝ = [] → False
+  ⊢ xs✝ = Worlds.Sorting.merge2L xs✝ []
+  ```
+
+  The waypoint reading DOES destructure (`| x :: xs, [] => x :: xs`), so
+  neither of `merge2L`'s equations applies to a variable — the goal is
+  stuck, and `simp_all` reports "made no progress".
+
+* HOM (residual verbatim; cases 1/3/4 close, the order field doing its
+  work in 3/4 exactly as in W4):
+
+  ```
+  xs✝ : List α
+  x✝ : xs✝ = [] → False
+  ⊢ List.map e.enc xs✝ = Sorting.merge2 (List.map e.enc xs✝) (List.map e.enc [])
+  ```
+
+  Here both sides are the MIRROR definition, so there is no reading to
+  blame: to fire `eq_2` on the right the closer must discharge
+  `List.map e.enc xs✝ = [] → False` from `xs✝ = [] → False`, i.e.
+  transport the guard through `List.map`.
+
+MEASURED CLOSING CONDITIONS (`.tmp`, not declared), in order of how much
+they ask for:
+
+1. ONE CASE SPLIT on the undestructured argument, then the EXISTING kit:
+   both squares close, all four cases, nothing else added — the `nil`
+   branch by the guard (`absurd rfl`), the `cons` branch by the kit.
+   Measured verbatim.
+2. `List.map_eq_nil_iff` in the fixed kit: does NOT close the hom square
+   (case 2 survives unchanged) and cannot touch the agree square at all.
+3. `merge2L.eq_def` in the `unfold` list: LOOPS (`Possibly looping simp
+   theorem: merge2L.eq_3`, then max recursion depth) — recorded so the
+   next reader does not re-try it.
+4. A `split` rung after the kit: no effect — there is no `match`/`ite`
+   in either residual to split.
+
+So the distance is ONE ingredient, and it is a CLOSER CAPABILITY, not a
+lemma: the template would have to case-split an argument the mirror
+definition's own recursion left alone. That is new in kind — the same
+class as W3 stage 3's GROUND EVALUATION, and outside the ladder's pinned
+criterion, which admits `rfl`-lemmas and the two plumbing families and
+nothing else. Wave 1 held that line (see `IsoGen`'s ladder section) and
+recorded the measurement instead of taking it; the shape of a ruling
+would be "when the mirror definition's equation leaves an argument
+undestructured, the closer may refine that case by the argument's own
+constructors". Per the thin-Lean ruling the escape is never a hand
+square.
+
+## W8 — `msort`: RECORDED, not declared (blocked ONLY on W7)
+
+Both `msort` squares reduce, under the wave-1 kit plus the REGISTERED
+`evens` squares and `unfold [ACL2Lean.Sorting.odds]`, to exactly
+`merge2`'s corresponding square — nothing else is missing. Cases 1 and 2
+close in both; case 3's residual, after the closer has run, is verbatim:
+
+* AGREE — literally `merge2 A B = merge2L A B` at the two recursive
+  results (i.e. `merge2_agree_merge2L` instantiated):
+
+  ```
+  ⊢ Sorting.merge2 (Worlds.Sorting.msortL (Worlds.Sorting.evensL (a✝ :: head✝ :: t✝)))
+        (Worlds.Sorting.msortL (Worlds.Sorting.evensL (head✝ :: t✝))) =
+      Worlds.Sorting.merge2L (Worlds.Sorting.msortL (Worlds.Sorting.evensL (a✝ :: head✝ :: t✝)))
+        (Worlds.Sorting.msortL (Worlds.Sorting.evensL (head✝ :: t✝)))
+  ```
+
+* HOM — `merge2`'s homomorphism square at the two recursive results,
+  with the two IHs in scope to finish it:
+
+  ```
+  ⊢ List.map e.enc
+        (Sorting.merge2 (Sorting.msort (Sorting.evens (a✝ :: head✝ :: t✝)))
+          (Sorting.msort (Sorting.evens (head✝ :: t✝)))) =
+      Sorting.merge2 (Sorting.msort (Sorting.evens (e.enc a✝ :: e.enc head✝ :: List.map e.enc t✝)))
+        (Sorting.msort (Sorting.evens (e.enc head✝ :: List.map e.enc t✝)))
+  ```
+
+Both are the registry doing its job: a missing callee square fails
+closed, and the failure names exactly the square that is missing. W7's
+ruling unblocks W8 with no further work — the `msort` invocations are
+two four-line declarations.
+
+(Recorded for the record: `msort`'s ODDS callee needs no square of its
+own on either route — `unfold [ACL2Lean.Sorting.odds]` carries
+`odds (a :: t)` to `evens t`, which is exactly where `msortL`'s own
+recursion goes. The `odds` SQUARES are a separate frontier, W9.)
+
+## W9 — `odds`: RECORDED, not declared (a NON-RECURSIVE spec definition)
+
+`odds` is `| [] => [] | _ :: t => evens t` — the book's `(EVENS (CDR
+L))`, and not recursive. The template inducts with `fun_induction`, and
+Lean generates no functional induction principle for a non-recursive
+definition, so BOTH classes fail before any goal exists. Verbatim, off
+the real generator (the hard error fires correctly, and its lemma-set
+line confirms `evens_map_hom` was resolved from the registry):
+
+```
+mirror_iso%: the square template did not close odds_map_hom.
+OBSERVED: the declaration was produced but carries `sorryAx` …
+```
+
+with Lean's own underlying error:
+
+```
+No functional induction theorem for `Sorting.odds`, or function is mutually recursive
+```
+
+This is the bound W3 stage 2 already named as GENERAL rather than a
+`relMode` quirk ("`odds` and `permWitness` are non-recursive spec
+definitions too"), now executed on a second member of the family. The
+shape of the fix is a template FALLBACK from `fun_induction` to
+`fun_cases` (which does exist for a non-recursive definition and
+supplies exactly the definition's own case analysis, with no induction
+hypotheses and no inference) — a template capability, so a ruling, and
+one that would unblock `relMode` and `permWitness` at the same time.
+
+A SECOND, independent gap sits behind the same frontier and is worth
+separating: there is no ODDS waypoint READING at all. `Imported/
+Sorting.lean` carries `insertL`/`isortL`/`merge2L`/`evensL`/`msortL` but
+no `oddsL`, and no waypoint driver speaks one (`how_many_evens_and_odds
+_native_driver` states the odds side as `evensL t`). Writing one is not
+wave-1 work: a reading is validated through `derive_sim%` against the
+book function's exec, and there is no ODDS EXEC KIT — `oddsBody` exists
+but there is no `oddsExec` and no `register_exec_kit% "ODDS"` (the
+`msort` correctness proof walks the ODDS body inline, as
+`evensExec (Logic.cdr xv)`). So the `odds` AGREE square needs an exec
+kit first; the `odds` HOM square needs only the `fun_cases` fallback.
+
+## W3 — `filterRel`: RECORDED, not declared
 
 Nothing is emitted here on purpose. Both of `filterRel`'s squares now
 build their STATEMENTS (the mode reads `.fixed`) and neither closes, and
