@@ -167,6 +167,55 @@ elab "perm_arc_pattern_pins% " : term => do
 set_option maxHeartbeats 0 in
 def permArcPatternPins : True := perm_arc_pattern_pins%
 
+/-! ## G1 R-lane (2026-08-14): the R-parameterized collapse's DECORRELATED
+    exerciser — a different relation (SAME-LEN2), a different licence
+    route (a real `defcong`), and a different R-fact source (a stored
+    rule) from the anchor case (PERM-TLFIX, whose R-fact is the induction
+    hypothesis and whose licence is the built-in own-position geneqv of an
+    `:EQUIVALENCE` rule). -/
+
+private def congConsumeLog : String :=
+  include_str "../acl2_samples/pattern-tests/cov-cong-consume.proof-log"
+
+elab "r_lane_pattern_pins% " : term => do
+  -- cov-cong-consume 3/4 — a FRONTIER pin (the tripwire flips loudly when
+  -- the blocking frontier lands). The three green rows are the pieces the
+  -- R-collapse consumes (the defequiv statement, the defcong statement,
+  -- the R-rule's own statement); the fourth, LEN-CONS-UNDER-CONG, is the
+  -- consumption itself and stops at a frontier the G1 lane does NOT
+  -- cover: the stored rule `CONS-NORM-SAME-LEN2` carries ONE hypothesis —
+  -- ACL2's `SYNP` syntactic guard, from the book's `syntaxp` (the
+  -- emitted :TFORMULA is `(IMPLIES (SYNP 'NIL '(SYNTAXP (NOT (QUOTEP A)))
+  -- …) (SAME-LEN2 …))`) — and the R-fact route replays hyp-free R-rules
+  -- only, exactly as the preprocess lane's collapse always has. SYNP
+  -- relief is a stored-rule HYPOTHESIS class, not a congruence question.
+  -- Second recorded finding (documented, not worked around): this
+  -- R-step's OWN `:RUNES` are `((:DEFINITION SYNP))` — the licensing
+  -- `(:CONGRUENCE SAME-LEN2-IMPLIES-EQUAL-LEN-1)` appears only in the
+  -- CLAUSE-level `:STEP :RUNES`, so even past SYNP the step-level BUG-023
+  -- anchor the walker uses would find no cited congruence. The queued
+  -- `:CR-RUNE` fork item (brief §Q2) is the tightening that fixes both
+  -- lanes' anchor at the source.
+  let (res, _) ← ACL2.Replay.Runner.runBook
+    "cov-cong-consume" congConsumeLog none
+  unless res.replayed == 3 && res.total == 4 && res.integrityFails.isEmpty do
+    throwError "pattern pin cov-cong-consume: replayed \
+      {res.replayed}/{res.total} (expected 3/4 — the SYNP-guarded R-rule \
+      frontier); integrity: {res.integrityFails.toList}\n      \
+      {"\n".intercalate res.lines.toList}"
+  unless res.lines.any (fun l => (l.splitOn
+      "LEN-CONS-UNDER-CONG → FAIL: R-step: rule CONS-NORM-SAME-LEN2 \
+carries 1 hyps").length ≥ 2) do
+    throwError "pattern pin cov-cong-consume: LEN-CONS-UNDER-CONG is not \
+      at the recorded SYNP frontier — the tripwire moved:\n      \
+      {"\n".intercalate res.lines.toList}"
+  logInfo "G1 R-lane pattern pins hold (cov-cong-consume 3/4 — the \
+    class-D consumption pinned at the SYNP-guarded R-rule frontier)"
+  return mkConst ``True.intro
+
+set_option maxHeartbeats 0 in
+def rLanePatternPins : True := r_lane_pattern_pins%
+
 /-! ## Swap family (fold-back audit fix round 2026-07-31): the books whose
     headers exist to pin rewrite-if's `(if x nil t)` branch swap — the
     audit found the family had NO Lean gate at all while carrying most of

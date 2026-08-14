@@ -91,6 +91,13 @@ structure StepProvenance where
       verbatim from the emitted step; the DP consumer gates its rule
       premises on the slice. -/
   tauBasis : Option SExpr := none
+  /-- The AMBIENT geneqv's relation symbols at this node's redex
+      (`:GENEQV`) — the relation the rewriter was allowed to preserve
+      there, and so the honest NET-step relation when the node's rhs
+      block ends under a weaker R. The R-collapse REQUIRES this list to
+      name the R it collapses (fail-closed). `[]` where the site emits
+      none. -/
+  geneqv : List String := []
   /-- The redex's congruence path within the literal (from `:PATH`),
       literal-root-first — see `PathFrame`. The replay lifts this node by composing
       congruences along the path rather than locating the redex by subterm match. -/
@@ -315,7 +322,7 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
       typeSet := step.typeSet, trueTs := step.trueTs, path := step.path,
       swapped := step.swapped, canon1 := step.canon1, canon2 := step.canon2,
       taEntry := step.taEntry, tauBasis := step.tauBasis,
-      falseTs := step.falseTs,
+      falseTs := step.falseTs, geneqv := step.geneqv,
       strongp := step.strongp }
 
 /-- Parse the events of ONE literal's rewrite chain into proof nodes, returning

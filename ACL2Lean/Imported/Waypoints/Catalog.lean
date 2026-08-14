@@ -371,17 +371,19 @@ def liftCatalog : List (String × String × LiftStatus) := [
       increment 1 2026-08-12; total:PERM-COUNTER-EXAMPLE by the \
       ATOM-leg increment, 2026-08-13). `rule:PERM-TLFIX`'s ONLY \
       criterion-clean discharger is PERM-TLFIX's own replayed \
-      statement — whose row is RED, verbatim: \"PERM-TLFIX → FAIL: \
-      replayNode: rune (rewriting-equivalence, NIL) applied under \
-      equivalence perm — R-parameterized recipe pending (G1 \
-      frontier)\". A Lean-side bridge would be a new \
+      statement — whose row was RED at the R-lane wall and is GREEN \
+      since the G1 lane landed (2026-08-14: PERM-TLFIX → REPLAYED ✓ \
+      unconditional, and cond[rule:PERM-TLFIX] retired from this row, \
+      which is now UNCONDITIONAL). The replay blocker is therefore \
+      GONE; what remains is the native itself, unbuilt. A Lean-side \
+      bridge would still be a new \
       content discharger (banned) / the ornamental-import antipattern. \
       NOT blocked on simulation work: the PCE kit \
       (pceExec/pce_exec_corr/pceExec_enc) exists — its \
       `dis_pce_total` companion is GONE, retired by the replay route — \
       and the book's own PCE row is now a landed native (the ELEMENT \
-      reading, ruled 2026-08-11). UNLOCK: the R-lane arc (the \
-      R-parameterized rewriting-equivalence recipe) greens PERM-TLFIX"),
+      reading, ruled 2026-08-11). UNLOCK: build the native (the replay \
+      side is done)"),
   ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),

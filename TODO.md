@@ -204,6 +204,42 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > Expectations-not-gates per Mike's ruling (the charter's arc log has
 > it verbatim).
 
+> **G1 R-LANE LANDED (T1+2 sprint Tier-1 item 1, 2026-08-14 — option M
+> per docs/notes/2026-08-14_g1-design-brief.md).** The
+> R-parameterized rewrite lane's MINIMAL form: an R payload lives for
+> exactly one frame and collapses at the node's own congruence frame.
+> Pieces: `:GENEQV` parsed (`RewriteStep`/`StepProvenance.geneqv`) and
+> REQUIRED to name the collapsed R (fail-closed); the solidify literal
+> decode generalized from EQUAL-headed to any in-scope equivalence head
+> (`solidifyRFact` — `logic_not_nil_ne` + `evtrue_of_conv_ne_nil`,
+> stopping at `EvTrue (R a b)` since there is no value equality);
+> `collapseAtCongruenceFrame` + `equivOwnPosCongr` FACTORED into the new
+> `Replay/Driver/NodeCore/Congruence.lean` so the preprocess chain and
+> the rewriter's literal-chain walker share ONE collapse; `NodeRec.node`
+> widened to `Expr × Option RPayload` with every non-collapsing consumer
+> hard-failing on `some` (`recNodeEq`). RESULT: **PERM-TLFIX → REPLAYED
+> ✓ UNCONDITIONAL** (was the golden's only R-class red) and
+> `cond[rule:PERM-TLFIX]` retired from CONVERT-PERM-TO-HOW-MANY.
+> Load-bearing check: with the cross-book `PERM-IS-AN-EQUIVALENCE`
+> replayed statement removed from the telescope the row FAILS at "0
+> step-cited equivfull hypotheses" — every property of PERM is consumed
+> from that REPLAYED theorem, none assumed.
+> OPEN (recorded, not worked around):
+> - the class-D consumption (`cov-cong-consume`, pinned 3/4 in
+>   `Tests/PatternPins.lean`) stops at a SYNP-guarded R-rule — ACL2's
+>   `syntaxp` becomes a stored-rule HYPOTHESIS (`(SYNP 'NIL '(SYNTAXP
+>   …) …)`) and the R-fact route replays hyp-free rules only. SYNP
+>   relief is a stored-rule hyp class, not a congruence question;
+> - that same R-step's own `:RUNES` are `((:DEFINITION SYNP))` — the
+>   licensing `(:CONGRUENCE …)` appears only in the CLAUSE-level
+>   `:STEP :RUNES`, so past SYNP the step-level BUG-023 anchor would
+>   still find nothing cited. The queued `:CR-RUNE` fork item (brief
+>   §Q2 — emit the licensing rune at `find-rewriting-equivalence`'s
+>   push site) fixes both lanes' anchor at the source;
+> - `dis_convert_perm` is NOT retired by this lane (its unlock is the
+>   discharge pass, not the replay row) — the R-lane class note above
+>   should be read with its replay blocker now GONE.
+
 > **BASICS 6/6 (R1 item A, 2026-08-14).** The remaining three Props —
 > `app_nil_int`, `rev_app_int`, `rev_rev_int` — are proved at `Int`,
 > all trio-clean, off the 02-rev book's APP-NIL / REV-APP / REV-REV

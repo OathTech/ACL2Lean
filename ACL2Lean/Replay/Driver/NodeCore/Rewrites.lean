@@ -4,7 +4,7 @@
   file's own def-before-use order, so the import chain IS the
   dependency order.
 -/
-import ACL2Lean.Replay.Driver.NodeCore.Node
+import ACL2Lean.Replay.Driver.NodeCore.Congruence
 
 namespace ACL2.Replay.Driver
 
@@ -89,7 +89,7 @@ partial def replayEqualDescent (rec : NodeRec) (cfg : ReplayConfig)
         match side? with
         | some 1 =>
           if l' == c1 then
-            let e ← rec.node cfg ctx n'
+            let e ← recNodeEq rec cfg ctx n' "rewrite-equal component"
             ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
             let ve ← mkAppM ``val_eq_of_eval_eq
               #[e, ← ctxValProof cfg ctx c1,
@@ -99,7 +99,7 @@ partial def replayEqualDescent (rec : NodeRec) (cfg : ReplayConfig)
           else scanning := false
         | some 2 =>
           if l' == c2 then
-            let e ← rec.node cfg ctx n'
+            let e ← recNodeEq rec cfg ctx n' "rewrite-equal component"
             ctx ← pinTermOpaques cfg cfg.envExpr ctx r''
             let ve ← mkAppM ``val_eq_of_eval_eq
               #[e, ← ctxValProof cfg ctx c2,
@@ -127,7 +127,7 @@ partial def replayEqualDescent (rec : NodeRec) (cfg : ReplayConfig)
     match dec? with
     | some (n', rr', r') =>
       nodesLeft := r'
-      let e ← rec.node cfg ctx n'
+      let e ← recNodeEq rec cfg ctx n' "rewrite-equal phase decision"
       ctx ← pinTermOpaques cfg cfg.envExpr ctx decT
       let vDec ← ctxValExpr cfg ctx decT
       if rr' == quoteT then
@@ -1399,7 +1399,17 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             (EQUAL {repr e1} {repr e2}) at {repr (innerPathOf n)} \
             RESOLVED — the lifted-verdict composition has no corpus \
             witness yet (frontier)"
-    let nodeEq ← rec.node cfg ctx n
+    let (nodeEq, rPay?) ← rec.node cfg ctx n
+    -- R-COLLAPSE (G1 lane, option M): the node's recorded chain ended
+    -- under a USER equivalence, so `nodeEq` reaches only the R-step's lhs
+    -- and the relation fact must be collapsed at the node's own innermost
+    -- congruence frame before the outward lift (`replayRCollapse`) — the
+    -- rewriter-side mirror of the preprocess chain's R arm.
+    if let some pay := rPay? then
+      let (lifted, newTerm) ← replayRCollapse cfg ctx start n nodeEq pay
+      let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx newTerm rest
+        (chainPrefix ++ [n])
+      return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
     let (lifted, newTerm) ←
       try
         emitCongruence cfg.worldExpr cfg.envExpr start (nodePath n) lhs rhs nodeEq
@@ -1414,13 +1424,15 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     return (some (← chainWithR cfg ctx lifted newTerm restProof), finalTerm)
 
 /- The tied node-level knot — the ONLY remaining mutual at this layer.
-   Public names/signatures identical to the pre-WP2 mutual members. -/
+   Public names as in the pre-WP2 mutual; `replayNode` additionally
+   returns the node's `RPayload` (G1 lane — `none` on every node whose
+   recorded step is an equality, which is all but the R classes). -/
 mutual
 
 partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
-    : MetaM Expr :=
-  replayNodeWith ⟨fun c x n' => replayNode c x n',
-                  fun c x s ns => replayRewrites c x s ns⟩ cfg ctx n
+    : MetaM (Expr × Option RPayload) :=
+  replayNodeR ⟨fun c x n' => replayNode c x n',
+               fun c x s ns => replayRewrites c x s ns⟩ cfg ctx n
 
 partial def replayRewrites (cfg : ReplayConfig) (ctx : ReplayCtx) (start : SExpr) :
     List ProofNode →

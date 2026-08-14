@@ -129,11 +129,37 @@ structure RewriteStep where
       slice's rules' instances as premises (read-off, not matcher
       selection). `none` on every other origin and on pre-batch logs. -/
   tauBasis : Option SExpr := none
+  /-- The AMBIENT geneqv's relation symbols at this step's redex
+      (`:GENEQV`, the R-lane prerequisite — `emit/with-lemma`,
+      acl2/rewrite.lisp): the relation the rewriter was ALLOWED to
+      preserve here, which is the honest NET-step relation when the rhs
+      chain used a weaker R (the rule's own `:EQUIV` under-reports that
+      case). Lower-cased symbol names, in emission order; `[]` when the
+      site emits none (non-with-lemma origins, pre-batch logs). The
+      R-collapse REQUIRES this list to name the R it collapses
+      (fail-closed) — see `NodeCore/Congruence.lean`. -/
+  geneqv : List String := []
   /-- The redex's congruence path within the literal (from `:PATH`),
       literal-root-first. Lets a replay lift this step by composing congruences
       along the path instead of locating the redex by subterm match. -/
   path : List PathFrame := []
   deriving Repr
+
+/-- Parse an emitted SYMBOL-LIST field (`:GENEQV (PERM)`) to lower-cased
+    names. Absent reads `[]` (sites that emit none); `NIL` reads `[]` (the
+    empty geneqv list). Any non-symbol element or improper list is a
+    malformed emission and hard-fails — the checker never guesses at a
+    relation name. -/
+def parseSymbolListField (fieldName : String) (v : Option SExpr) :
+    Except String (List String) :=
+  match v with
+  | none => .ok []
+  | some s =>
+    match s.toList? with
+    | some items => items.mapM fun e => match e with
+      | .atom (.symbol sym) => .ok (sym.name.map Char.toLower)
+      | other => .error s!"REWRITE-STEP: malformed :{fieldName} element {repr other}"
+    | none => .error s!"REWRITE-STEP: :{fieldName} not a list: {repr s}"
 
 /-- A trace event from ACL2's detailed rewriter output.
     These appear inside the :REWRITES field of a waterfall step. -/

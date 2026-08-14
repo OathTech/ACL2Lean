@@ -130,3 +130,33 @@ threat to project success, etc).
     non-representation).
   - **:CR-RUNE fork item now has TWO consumers** (class D's step-level
     anchor + the solidify-site tightening) — round-trip 2's list.
+
+- **PHASE 1 COMPLETE (b71e1be) — report verified ACCURATE at
+  collection** (golden 85+28 with the 8 diagnosed retirements,
+  committed; sorries 5). Phase-1 J-calls adopted: **J6**(=J-a)
+  DISCHARGE-bracket tp: (119) is probe-structural, informational per
+  charter, separate feasible item; **J7**(=J-b) demand-driven
+  ts-algebra inventory; **J8**(=J-c) the <-against-zero mask is a
+  Lean-side closure lemma about our model — the VERDICT stays ACL2's;
+  **J9**(=J-d) addressed-leaf admissibility is GAP-1's payoff;
+  **J10**(=J-e,f) shared extractions + module splits per ratchet.
+- **G1-M COLLECTED into the sprint branch** (9-file patch 3-way +
+  Congruence.lean copied — worktree `git diff` omits untracked new
+  files). Combined golden: phase-1 base + PERM-TLFIX ✓ + convert-perm
+  cond retired, header 114/116 (87+27), submitted to the verifying
+  sweep (downstream rule:CONVERT-PERM-TO-HOW-MANY retirements may
+  surface — the sweep arbitrates; retirement-class diffs extend the
+  candidate, anything else stops).
+- **ORCHESTRATION DEVIATION (logged for honesty): a `cd` into the
+  G1-M worktree persisted across shell calls** — several commands
+  (incl. a full verification sweep and a charter append) silently ran
+  in the worktree; one interim conclusion (an accusation that
+  phase-1's golden repin "did not survive") was drawn from the wrong
+  tree and was WRONG — phase-1's report was accurate. Corrected here;
+  the worktree copy of that text is discarded with the worktree.
+  Countermeasure recorded in memory: absolute paths whenever any
+  worktree exists.
+- **RT2 shortfall list (current):** per-:ALL-TPS-entry :LEAVES
+  (tp:QSORT); the recognizer-site channel (the trio); :CR-RUNE (two
+  consumers). Driver queue: hypothetical-TP mode; the FILTER-opaque
+  measured arg; SYNP hyp relief (class D).

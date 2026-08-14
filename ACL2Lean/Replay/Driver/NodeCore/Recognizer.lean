@@ -629,14 +629,39 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict}"
   | _ => throwError "replayRecognizer: not a recognizer application: {repr term}"
 
+/-- A node's R-PAYLOAD (the R-parameterized rewrite lane, option M
+    2026-08-14): what a node contributes when its recorded chain ENDS
+    under a user equivalence `rel` instead of `equal`. The node's own
+    claim then splits in two — an eval-EQUALITY `eval lhs = eval a`
+    (the returned `Expr`), and the relation fact `hR : EvTrue w env
+    (rel a b)` with `b` the node's recorded rhs. There is no eval
+    equality between `a` and `b`; the payload must be COLLAPSED at the
+    enclosing congruence frame (`collapseAtCongruenceFrame`) before it
+    can compose with anything, and every consumer that cannot collapse
+    it hard-fails on `some`. -/
+structure RPayload where
+  /-- The equivalence relation's fn symbol (`PERM`, `SAME-LEN2`, …). -/
+  rel : Symbol
+  /-- The R-step's sides: `hR : EvTrue w env (rel a b)`. `a` is where
+      the returned eval-equality lands; `b` is the node's recorded rhs. -/
+  a : SExpr
+  b : SExpr
+  /-- `EvTrue w env (rel a b)` — from a clause literal's falsity (the
+      solidify class) or a stored R-rule instance (the with-lemma class);
+      never assumed. -/
+  hR : Expr
+
 /-- The node-level recursion interface (WP2 Stage 2): the knot's entry
     points as a record, so node recipes are top-level defs taking `rec`
     instead of members of one `mutual` block (new recipes land additively).
     Tied ONCE below (`replayNode`/`replayRewrites` — the public names and
     signatures are unchanged from the pre-WP2 mutual). -/
 structure NodeRec where
-  /-- `replayNode` — the per-node rune dispatcher. -/
-  node : ReplayConfig → ReplayCtx → ProofNode → MetaM Expr
+  /-- `replayNode` — the per-node rune dispatcher. `some payload` = the
+      node's recorded chain ended under a user equivalence (see
+      `RPayload`); the `Expr` then proves `eval lhs = eval payload.a`,
+      NOT `eval lhs = eval rhs`. -/
+  node : ReplayConfig → ReplayCtx → ProofNode → MetaM (Expr × Option RPayload)
   /-- `replayRewrites` — the chain walker (the strip machinery and the
       write-only `depth` retired with gstack-coordinate emission —
       fold-back audit 2026-07-31 V7). -/

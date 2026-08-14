@@ -106,7 +106,7 @@ def replayPreprocessNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) 
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr X, hX, hNoEqual]
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
     mkAppM ``fuel_eq_of_conv #[closeProof, hq, ← mkEqRefl (reflectSExpr SExpr.t)]
-  | _ => replayNode cfg ctx n
+  | _ => recNodeEq nodeRec cfg ctx n "replayPreprocessNode"
 
 /-- The `PREPROCESS/IF-IFF` node: `(if A 't 'nil) ⇒ A` — IFF-only, NOT
     value-preserving (the chain runs under `*geneqv-iff*`). Returns
@@ -129,110 +129,11 @@ def replayIfIffNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     (`replayRewritesWith`) lifts or-shape SIff payloads with it, and
     NodeCore is upstream of this module. -/
 
-/-- The EQUIVALENCE-RUNE own-position congruence (the R-solidify lane,
-    close-out Phase 3): `v(R …a…) = v(R …a'…)` where the parent
-    application is the relation R ITSELF and the rewrite replaces the
-    argument at `argIdx` (0-based) by an R-equivalent term (`hR : EvTrue
-    env (R a a')`). ACL2's license is the :EQUIVALENCE rune — geneqv
-    treats an equivalence rule as a congruence at its own argument
-    positions, citing NO defcong — and the kernel content is the defequiv
-    conjuncts, all value-level: conjunct 1 (booleanp) pins both parent
-    applications two-valued (`booleanp_truthy_cases`); conjunct 3 (sym)
-    turns `hR` around; conjunct 4 (trans) gives each direction of the
-    mutual truthiness; `boolean_biimpl_eq` closes to the value equality.
-    Every instantiation rides `instantiateEvTrueHypAt` on the offered
-    whole-formula statement; the conjunct shapes were recompute-checked at
-    offer time (`equivFullSpecOfGoal?`). -/
-def equivOwnPosCongr (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (spec : EquivFullSpec) (hypV : Expr) (a a' other : SExpr)
-    (argIdx : Nat) (hR : Expr) : MetaM (Expr × ReplayCtx) := do
-  unless argIdx == 0 || argIdx == 1 do
-    throwError "equivOwnPosCongr: arg index {argIdx} out of range for the \
-                binary relation {spec.rel.name}"
-  let rApp (p q : SExpr) : SExpr :=
-    .cons (.atom (.symbol spec.rel)) (.cons p (.cons q .nil))
-  let (parentL, parentR) :=
-    if argIdx == 0 then (rApp a other, rApp a' other)
-    else (rApp other a, rApp other a')
-  let mut ctx := ctx
-  for t in [a, a', other, parentL, parentR, rApp a a', rApp a' a] do
-    ctx ← pinTermOpaques cfg cfg.envExpr ctx t
-  -- project conjunct k (1-4) of an instantiated defequiv conjunction
-  -- (IF c1 (IF c2 (IF c3 c4 'NIL) 'NIL) 'NIL) to its value-truthiness
-  let project (ctx0 : ReplayCtx) (instF : SExpr) (inst : Expr) (k : Nat) :
-      MetaM (Expr × ReplayCtx) := do
-    let ctx ← pinTermOpaques cfg cfg.envExpr ctx0 instF
-    let mut cur := instF
-    let mut curP := inst
-    for _ in [0:(k - 1)] do
-      let .cons _ (.cons c (.cons b _)) := cur
-        | throwError "equivOwnPosCongr: conjunction shape mismatch at \
-                      {repr cur} (internal — offer-time shape check missed)"
-      let convC ← ctxValProof cfg ctx c
-      let hne ← mkAppM ``evtrue_and_left #[convC, curP]
-      let htb ← mkAppM ``toBool_true_of_ne_nil #[hne]
-      curP ← mkAppM ``evtrue_and_right #[convC, htb, curP]
-      cur := b
-    if k == 4 then
-      -- after three descents `cur` IS conjunct 4 and `curP` its EvTrue
-      pure (← mkAppM ``ne_nil_of_evtrue_conv
-        #[curP, ← ctxValProof cfg ctx cur], ctx)
-    else
-      let .cons _ (.cons c _) := cur
-        | throwError "equivOwnPosCongr: conjunction shape mismatch at \
-                      {repr cur} (internal)"
-      pure (← mkAppM ``evtrue_and_left #[← ctxValProof cfg ctx c, curP], ctx)
-  let instProject (ctx0 : ReplayCtx) (tx ty tz : SExpr) (k : Nat) :
-      MetaM (Expr × ReplayCtx) := do
-    let σv := [spec.vx, spec.vy, spec.vz]
-    let σt := [tx, ty, tz]
-    let (h, ctx1) ← instantiateEvTrueHypAt cfg ctx0 hypV σv σt spec.formula
-    project ctx1 (ACL2.Replay.substTerm σv σt spec.formula) h k
-  -- v(R a a') ≠ nil from hR
-  let hRne ← mkAppM ``ne_nil_of_evtrue_conv
-    #[hR, ← ctxValProof cfg ctx (rApp a a')]
-  -- sym: conjunct 3 at (a, a') gives v(R a' a) ≠ nil
-  let (hSymImp, ctx1) ← instProject ctx a a' other 3
-  let hSymNe ← mkAppM ``implies_value_mp #[hSymImp, hRne]
-  -- booleanp pins for both parent applications (conjunct 1)
-  let (pL, qL) := if argIdx == 0 then (a, other) else (other, a)
-  let (pR, qR) := if argIdx == 0 then (a', other) else (other, a')
-  let (hbL, ctx2) ← instProject ctx1 pL qL other 1
-  let (hbR, ctx3) ← instProject ctx2 pR qR other 1
-  let pinL ← mkAppM ``booleanp_truthy_cases #[hbL]
-  let pinR ← mkAppM ``booleanp_truthy_cases #[hbR]
-  -- forward / backward truthiness implications via conjunct 4 (trans)
-  let vParentL ← ctxValExpr cfg ctx3 parentL
-  let vParentR ← ctxValExpr cfg ctx3 parentR
-  -- λ (h : assumedV ≠ nil), implies_value_mp trans₄ (and …) — one direction
-  -- of the mutual truthiness; `firstIsAssumed` orders the and-antecedent
-  let mkDir (ctx0 : ReplayCtx) (assumedV : Expr)
-      (txyz : SExpr × SExpr × SExpr) (hFirst : Expr)
-      (firstIsAssumed : Bool) : MetaM (Expr × ReplayCtx) := do
-    let (tx, ty, tz) := txyz
-    let (hTrans, ctxN) ← instProject ctx0 tx ty tz 4
-    let neTy ← mkAppM ``Ne #[assumedV, mkConst ``SExpr.nil]
-    let lam ← withLocalDeclD `hass neTy fun hAss => do
-      let hAnt ←
-        if firstIsAssumed then mkAppM ``and_value_ne_nil #[hAss, hFirst]
-        else mkAppM ``and_value_ne_nil #[hFirst, hAss]
-      mkLambdaFVars #[hAss] (← mkAppM ``implies_value_mp #[hTrans, hAnt])
-    pure (lam, ctxN)
-  let (hFwd, hBwd, ctxF) ←
-    if argIdx == 0 then do
-      -- fwd: trans (a', a, other): (R a' a) ∧ (R a other) → (R a' other)
-      let (f, ctxA) ← mkDir ctx3 vParentL (a', a, other) hSymNe false
-      -- bwd: trans (a, a', other): (R a a') ∧ (R a' other) → (R a other)
-      let (b, ctxB) ← mkDir ctxA vParentR (a, a', other) hRne false
-      pure (f, b, ctxB)
-    else do
-      -- fwd: trans (other, a, a'): (R other a) ∧ (R a a') → (R other a')
-      let (f, ctxA) ← mkDir ctx3 vParentL (other, a, a') hRne true
-      -- bwd: trans (other, a', a): (R other a') ∧ (R a' a) → (R other a)
-      let (b, ctxB) ← mkDir ctxA vParentR (other, a', a) hSymNe true
-      pure (f, b, ctxB)
-  let valueEq ← mkAppM ``boolean_biimpl_eq #[pinL, pinR, hFwd, hBwd]
-  pure (valueEq, ctxF)
+/-! `equivOwnPosCongr` — the EQUIVALENCE-RUNE own-position congruence —
+    moved to `NodeCore/Congruence.lean` (G1 lane, 2026-08-14) together
+    with the collapse it feeds (`collapseAtCongruenceFrame`): the
+    rewriter's literal-chain walker collapses R payloads with the SAME
+    two-armed dispatch, and NodeCore is upstream of this module. -/
 
 /-- The R-COLLAPSE step (G2 rung 2): a preprocess rewrite under a USER
     equivalence R (`:EQUIV perm` — qsort's ORDEREDP-QSORT applying
@@ -254,7 +155,6 @@ def equivOwnPosCongr (cfg : ReplayConfig) (ctx : ReplayCtx)
 def replayCongCollapse (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     (parentStep : PathStep) (citedCongs : List String)
     (citedEquivs : List String := []) : MetaM Expr := do
-  let (lhs, rhs) := nodeLhsRhs n
   let .node _ _ _ children prov := n
   let rune := runeOf n
   unless prov.origin == "abbreviation-expansion" do
@@ -263,129 +163,17 @@ def replayCongCollapse (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
   unless children.isEmpty do
     throwError "replayCongCollapse: rule {rune.name} step has \
         {children.length} children (frontier — hyp-free abbreviations only)"
-  let σvars ← prov.subst.mapM fun (v, _) => do
-    let .atom (.symbol s) := v
-      | throwError "replayCongCollapse: :SUBST binds a non-variable {repr v}"
-    pure s
-  let σterms := prov.subst.map (·.2)
-  let candidates := ctx.ruleHyps.filter fun (r, _) =>
-    r.name == rune.name && r.idx == rune.idx && r.equiv == prov.equiv
-  if candidates.isEmpty then
-    throwError "replayCongCollapse: rule {rune.name} (equiv {prov.equiv}): no \
-        stored-rule hypothesis in scope (no (:RULES …) entry — emission gap \
-        or missing telescope)"
-  let matched := candidates.filter fun (r, _) =>
-    ACL2.Replay.substTerm σvars σterms r.lhs == lhs
-  let (spec, hypV) ← match matched with
-    | [m] => pure m
-    | m :: restM =>
-      if restM.all (fun (r, _) => r == m.1) then pure m
-      else throwError "replayCongCollapse: rule {rune.name}: \
-          {matched.length} DISTINCT stored rules match (need exactly 1)"
-    | [] => throwError "replayCongCollapse: rule {rune.name}: 0 stored rules \
-        match substTerm(:SUBST, lhs) == {repr lhs}"
-  unless spec.hyps.isEmpty do
-    throwError "replayCongCollapse: rule {rune.name} carries \
-        {spec.hyps.length} hyps (frontier — hyp-free R-rules only)"
-  unless ACL2.Replay.substTerm σvars σterms spec.rhs == rhs do
-    throwError "replayCongCollapse: rule {rune.name}: node rhs {repr rhs} ≠ \
-        substTerm(:SUBST, rule rhs {repr spec.rhs}) (emission gap)"
-  let ruleFrees := ACL2.Replay.freeVars spec.lhs ++ ACL2.Replay.freeVars spec.rhs
-  for s in ruleFrees do
-    unless σvars.contains s do
-      throwError "replayCongCollapse: rule {rune.name}: rule variable \
-          {s.name} not bound by the emitted :SUBST (emission gap)"
   -- the interpreted-relation instance: EvTrue env (R lhsσ rhsσ)
-  let rSym : Symbol := { name := spec.equiv.map Char.toUpper }
-  let relApp : SExpr := .cons (.atom (.symbol rSym))
-    (.cons spec.lhs (.cons spec.rhs .nil))
-  let relAppσ := ACL2.Replay.substTerm σvars σterms relApp
-  let (hRel, ctx1) ← instantiateEvTrueHypAt cfg ctx hypV σvars σterms relApp
+  let (rSym, a, b, hRel, ctx1) ←
+    ruleRFact cfg ctx "replayCongCollapse" n
   -- the congruence: indexed at (fn, pos, R) AND anchored to the EMITTED
   -- citation (pre-merge audit 2026-07-30, both auditors converged): the
   -- processor-level :RUNES name the licensing rule ((:CONGRUENCE <name>)),
   -- so the shape-index alone would be an INFERENCE — a congruence-shaped
   -- earlier theorem ACL2 never used as the license could match (BUG-023).
   -- The matched spec's name must be step-cited; exactly one must survive.
-  let congMatches := ctx1.congHyps.filter fun (c, _) =>
-    c.fn == parentStep.fn && c.pos == parentStep.argIdx && c.rel == rSym &&
-    citedCongs.contains c.name
-  if congMatches.isEmpty && parentStep.fn == rSym then
-    -- EQUIVALENCE-RUNE own-position license (the R-solidify lane, Phase 3):
-    -- the parent application is R ITSELF — no defcong exists for R's own
-    -- argument positions; ACL2's geneqv built-in makes the :EQUIVALENCE
-    -- rule the congruence there and the step cites the equivalence rune.
-    -- Anchored exactly as BUG-023 demands: the matched equivfull spec must
-    -- be STEP-CITED (citedEquivs), never shape-matched alone.
-    let eqMatches := ctx1.equivFullHyps.filter fun (e, _) =>
-      e.rel == rSym && citedEquivs.contains e.name
-    let [(eSpec, eHyp)] := eqMatches
-      | throwError "replayCongCollapse: own-position rewrite under \
-          {rSym.name} at arg {parentStep.argIdx}: {eqMatches.length} \
-          step-cited equivfull hypotheses (need exactly 1; cited \
-          equivalence runes {citedEquivs}) (frontier)"
-    let parentL := rebuild parentStep lhs
-    let parentR := rebuild parentStep rhs
-    let some pArgs := (match parentL with
-        | .cons _ argsS => argsS.toList?
-        | _ => none)
-      | throwError "replayCongCollapse: parent {repr parentL} is not an \
-          application"
-    let [arg0, arg1] := pArgs
-      | throwError "replayCongCollapse: own-position parent {repr parentL} \
-          is not a binary application (frontier)"
-    unless pArgs[parentStep.argIdx]? == some lhs do
-      throwError "replayCongCollapse: the parent's arg at the rewrite \
-          position is not the node lhs (internal)"
-    let other := if parentStep.argIdx == 0 then arg1 else arg0
-    let (valueEq, ctxE) ← equivOwnPosCongr cfg ctx1 eSpec eHyp lhs rhs other
-      parentStep.argIdx hRel
-    return ← mkAppM ``fuel_eq_of_conv
-      #[← ctxValProof cfg ctxE parentL, ← ctxValProof cfg ctxE parentR,
-        valueEq]
-  let [(cSpec, cHyp)] := congMatches
-    | throwError "replayCongCollapse: {congMatches.length} congruence \
-        hypotheses match ({parentStep.fn.name} arg {parentStep.argIdx} under \
-        {rSym.name}) among the step-cited congruence runes \
-        {citedCongs} — need exactly 1 (frontier)"
-  let parentL := rebuild parentStep lhs
-  let parentR := rebuild parentStep rhs
-  let some pArgs := (match parentL with
-      | .cons _ argsS => argsS.toList?
-      | _ => none)
-    | throwError "replayCongCollapse: parent {repr parentL} is not an \
-        application"
-  unless pArgs.length == cSpec.argVars.length do
-    throwError "replayCongCollapse: congruence {cSpec.name} arity \
-        {cSpec.argVars.length} ≠ the parent's {pArgs.length}"
-  unless pArgs[cSpec.pos]? == some lhs do
-    throwError "replayCongCollapse: the parent's arg at the congruence \
-        position is not the node lhs (internal)"
-  let σcVars := cSpec.argVars ++ [cSpec.vy]
-  let σcTerms := pArgs ++ [rhs]
-  -- recompute-and-check the whole instance against the defcong pieces
-  unless ACL2.Replay.substTerm σcVars σcTerms cSpec.lhsApp == parentL &&
-         ACL2.Replay.substTerm σcVars σcTerms cSpec.rhsApp == parentR &&
-         ACL2.Replay.substTerm σcVars σcTerms cSpec.hyp == relAppσ do
-    throwError "replayCongCollapse: congruence {cSpec.name} instance does \
-        not reconstruct the parent applications / the relation fact \
-        (frontier)"
-  unless (ACL2.Replay.freeVars cSpec.formula).all (σcVars.contains ·) do
-    throwError "replayCongCollapse: congruence {cSpec.name} formula has \
-        variables outside its arg/vy set (internal)"
-  let (hImp, ctx2) ← instantiateEvTrueHypAt cfg ctx1 cHyp σcVars σcTerms
-    cSpec.formula
-  let implyσ := ACL2.Replay.substTerm σcVars σcTerms cSpec.formula
-  -- value-level MP + the two-valued EQUAL decode
-  let ctx3 ← pinTermOpaques cfg cfg.envExpr ctx2 implyσ
-  let hFne ← mkAppM ``ne_nil_of_evtrue_conv
-    #[hImp, ← ctxValProof cfg ctx3 implyσ]
-  let hvH ← mkAppM ``ne_nil_of_evtrue_conv
-    #[hRel, ← ctxValProof cfg ctx3 relAppσ]
-  let hvC ← mkAppM ``implies_value_mp #[hFne, hvH]
-  let hEq ← mkAppM ``Logic.eq_of_equal_ne_nil #[hvC]
-  mkAppM ``fuel_eq_of_conv
-    #[← ctxValProof cfg ctx3 parentL, ← ctxValProof cfg ctx3 parentR, hEq]
+  collapseAtCongruenceFrame cfg ctx1 "replayCongCollapse" parentStep rSym
+    a b hRel citedCongs citedEquivs
 
 /-- Replay a preprocess chain's CORE: the composed relation between the
     formula and the final term — `(proof, isIff)` where the proof is the
