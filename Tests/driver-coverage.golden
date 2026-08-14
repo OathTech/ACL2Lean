@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 113/116 (85 unconditional + 28 conditional)
+Driver coverage — REPLAYED 114/116 (87 unconditional + 27 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓
@@ -77,13 +77,13 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     NOT-MEMB-IMPLIES-HOW-MANY-IS-0 → REPLAYED ✓
     HOW-MANY-RM-GENERAL → REPLAYED ✓  [DISCHARGE: Subgoal *1/3.2:preprocess/tau ◌ assumed cond[total:(MEMB A (CDR X)), total:(HOW-MANY A (RM B (CDR X))), total:(HOW-MANY A (CDR X)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, ASSUMED:dp-fact]]
     PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS → REPLAYED ✓  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(MEMB (CAR X) Y), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) Y), total:(PERM (CDR X) (RM (CAR X) Y)), tp:MEMB, tp:HOW-MANY, tp:HOW-MANY, tp:PERM]]
-    PERM-TLFIX → FAIL: replayNode: rune (rewriting-equivalence, NIL) applied under equivalence perm — R-parameterized recipe pending (G1 frontier)
+    PERM-TLFIX → REPLAYED ✓
     PERM-COUNTER-EXAMPLE-TLFIX-1 → REPLAYED ✓
     RM-TLFIX → REPLAYED ✓
     MEMB-TLFIX → REPLAYED ✓
     PERM-COUNTER-EXAMPLE-TLFIX-2 → REPLAYED ✓
     HOW-MANY-TLFIX → REPLAYED ✓
-    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓ cond[rule:PERM-TLFIX]  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
+    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
 • sorting/isort  (world: 27 defun(s), 3 theorem(s))
     ORDEREDP-ISORT → REPLAYED ✓
     TRUE-LISTP-ISORT → REPLAYED ✓  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(INSERT X1 IT), tp:INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
