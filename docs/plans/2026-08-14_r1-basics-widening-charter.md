@@ -149,3 +149,6 @@ sign-off.
   vocabulary (`List.count` — one of the five logged compliance items)
   now surfaces in W2's residual. All four are widening questions
   ruling-1-sanctioned in principle; their concrete shapes are Mike's.
+- **EXIT:** full claim-gate TRUE_EXIT=0 on 636c2ed (artifact:
+  `.gate-runs/636c2ed-20260814T060311Z.log`) — 113/116 (84
+  unconditional), golden matches live. Merge candidate presented.
