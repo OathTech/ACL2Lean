@@ -290,7 +290,8 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > baseline), which needed one new spec declaration: `decEqOfOrder`, a
 > `local`, low-priority `DecidableEq` derived from the order
 > (antisymmetry + decidable `≤`), so the book's `(not (equal i j))` can
-> be spelled without `qsort` acquiring a `[DecidableEq α]` binder.
+> be spelled without `qsort` acquiring a `[DecidableEq α]` binder —
+> BLESSED as written (Mike, 2026-08-14); no review outstanding.
 > `mirror_iso%` gained the third argument reading `.fixed` — an
 > explicit binder whose type is CLOSED (no free variables, so no
 > occurrence of `α`) passes through both sides of a square unchanged;
@@ -309,6 +310,41 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > (measured both ways, `.lt` and `.gte`). NOTE, for the compliance
 > census below: `Worlds.Sorting.filterL` is `xs.filter (…)` — a SIXTH
 > library-vocabulary reading the five-item census did not list.
+> [R4 wave 0 refined (b): "mode-specialized" here means the READING is
+> dispatch-free — instantiating the mode ARGUMENT is not the same thing
+> and does NOT close. Next entry.]
+
+> **R4 WAVE 0 — the rung LANDED, the enum-refinement registry BLOCKED
+> (2026-08-14, branch `mdd/r4-wave0-refinement`; charter
+> `docs/plans/2026-08-14_r4-wave0-charter.md`).** Ruling 1 landed:
+> `Bool.decide_eq_true` is in `mirror_square_close`'s fixed kit and the
+> pinned criterion reads "`rfl`-lemmas + TWO named plumbing families —
+> the embedding's `inj` iff, and Bool/decide coercions", with the
+> content-free rationale (it collapses two spellings of ONE Bool;
+> it relates no operations and cannot rescue a misaligned square) and a
+> statement pin in `LadderPins`. Regression net byte-identical (598
+> lines, statements AND proof terms). Ruling 3 landed (`decEqOfOrder`
+> blessed, above). Ruling 2 — the ENUM-REFINEMENT registry — NOT BUILT:
+> the charter's ESCAPE HATCH fired on its own first trigger. Measured
+> (`.tmp`, four modes each, statement shape `filterRel <ctor> ev xs =
+> filterL <mapped literal> ev xs`): the ruled ladder FAILS all four;
+> the ruled ladder + ground evaluation (`decide := true`) + `ite`'s own
+> two cases CLOSES all four; R1-E's dispatch-free measurement
+> reproduces unchanged. Cause: `filterL`'s `relL` dispatches at runtime
+> (`fv == symV "LT"`), and the fixed closer cannot evaluate a ground
+> `SExpr` comparison — `Worlds.Sorting.symV` is PRIVATE, so it is
+> neither nameable in `unfold [...]` nor matchable by the existing
+> dispatch `rfl`-lemmas `relL_LT`/`_LTE`/`_GTE` (simp matches up to
+> REDUCIBLE defeq). OPEN, needing a ruling: admit GROUND EVALUATION to
+> rung 2 (new in kind — a closer capability, not a lemma; rung 1 is
+> bare `rfl` and already computes) plus `ite_true`/`ite_false`
+> (`rfl`-lemmas, the analogue of the admitted `cond` pair) — or rule
+> the reading side instead (a dispatch-free per-mode reading, which is
+> what the real waypoint drivers already speak). The registry was not
+> landed without a live consumer (the "infrastructure now, wire it
+> later" ban). Frame recorded per the ruling: DATA REFINEMENT, in
+> `IsoGen.lean`'s header + `docs/LEXICON.md`. `hom list` re-probed:
+> residual byte-identical to R1-E's (order-field frontier, unchanged).
 
 > **TEMPLATE-GATE FINDING (Basics-closeout increment A, 2026-08-13 —
 > RULED 2026-08-13 by THE VOCABULARY RULE, commit a07d99d: native

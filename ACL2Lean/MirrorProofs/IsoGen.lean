@@ -25,6 +25,32 @@ MIRROR-level artifacts that stood hand-written in `MirrorProofs/Basics.lean`:
   squares) and then the mirror theorem at the user's element type
   (`Basics.P Int`, via the homomorphism squares + injectivity).
 
+## THE FRAME: DATA REFINEMENT (Mike, 2026-08-14)
+
+What the square classes above ARE, named: per ACL2 datatype a Lean
+datatype plus a MAPPING to the ACL2 values (`Acl2Embed` is the mapping
+for an element type); the mirror definition runs the SAME ALGORITHM
+MODULO THAT REFINEMENT — the same ACCESS PATTERN, not the same code.
+A SQUARE is then exactly the statement that the algorithm commutes with
+the refinement, and the ARGUMENT-READING table below (`ArgReading`) is
+the refinement calculus: it says how each binder position is carried
+across. The consequence that makes the generator trustworthy is a
+consequence of the frame, not an extra gate: where the access patterns
+DIVERGE there is no commuting square to state, so the template fails
+CLOSED — which is the honest outcome, not a proof failure to work
+around.
+
+Ruled as the frame's next instance, and NOT BUILT: for a CLOSED ENUM in
+a `.fixed` position, a once-per-datatype constructor↦ACL2-value table
+(the finite sibling of `Acl2Embed`), off which the square generator
+would ENUMERATE the constructors and emit one square per constructor
+with the mapped ACL2 literal on the waypoint side. It is not built
+because its acceptance witness does not close: see W3 in
+`MirrorProofs/Sorting.lean` for the measurement (the waypoint reading
+`filterL` dispatches on a runtime symbol comparison that the fixed
+ladder cannot evaluate) and the ingredients a ruling would have to
+admit.
+
 ## WHY THESE MUST BE GENERATED (the thin-Lean ruling, at the mirror level)
 
 The squares are P3 content — statements about Lean objects that ACL2 cannot
@@ -56,10 +82,11 @@ is unrepresentable for a mirror definition.
 
 The closer is ALSO built so the leak cannot re-enter through the tactic
 script (see "the closing ladder" below): every fixed rung is a `rfl`-lemma
-(pinned as such in this file) except the ONE ruled addition, the
-embedding's own injectivity as an iff (`enc_inj_iff`, ruling 2026-08-14 —
-plumbing about our own definitions, see the ladder's criterion); and the
-only per-invocation input is a list of DEFINITIONS to unfold (a
+(pinned as such in this file) except the TWO ruled PLUMBING FAMILIES — the
+embedding's own injectivity as an iff (`enc_inj_iff`, ruling 2026-08-14)
+and the Bool/decide coercions (`Bool.decide_eq_true`, ruling 2026-08-14),
+both plumbing about our own definitions, see the ladder's criterion; and
+the only per-invocation input is a list of DEFINITIONS to unfold (a
 non-definition is a hard error). Definitional unfolding cannot introduce
 content.
 
@@ -137,13 +164,15 @@ definitional unfolding — it can close a base case, never an inductive
 content fact), then one `simp_all only` over a FIXED kit plus the
 per-invocation definitions.
 
-THE FIXED KIT'S ADMISSION CRITERION (as widened by ruling 2026-08-14):
-**`rfl`-lemmas + the embedding's `inj` iff** — nothing else. Concretely:
+THE FIXED KIT'S ADMISSION CRITERION (as widened by the two rulings of
+2026-08-14): **`rfl`-lemmas + TWO NAMED PLUMBING FAMILIES — the
+embedding's `inj` iff, and Bool/decide coercions** — nothing else.
+Concretely:
 
 * the `rfl`-lemmas are the constructor-case equations of a core
   operation, true by definitional unfolding. Nothing that RELATES two
   operations is admitted, because that is where content lives.
-* `enc_inj_iff` is the ONE non-`rfl` rung. It is PLUMBING, per the
+* `enc_inj_iff` is the FIRST plumbing family. It is PLUMBING, per the
   ruling: a square is a statement of DEFINITIONAL CORRESPONDENCE about
   OUR OWN definitions, and `Acl2Embed.inj` is the embedding's own
   defining field — admitting it lets an element-position homomorphism
@@ -152,6 +181,16 @@ THE FIXED KIT'S ADMISSION CRITERION (as widened by ruling 2026-08-14):
   still arrives ONLY via replay: injectivity says nothing about any
   mirror definition, so it cannot close a misaligned square — it only
   removes the encoding from an element comparison.
+* `Bool.decide_eq_true` (`decide (b = true) = b`) is the SECOND
+  plumbing family, admitted by ruling 2026-08-14. It is not a
+  `rfl`-lemma (it is `cases b <;> rfl`), and it is admitted for the
+  same reason: it is CONTENT-FREE. A mirror spec decides a `Bool`
+  through a `Prop` (`decide (a ≤ b)` under a `TotalOrder` instance)
+  where the waypoint reading has the plain `Bool` (`lexorderB a b`);
+  the two are TWO SPELLINGS OF ONE BOOL, and this rung collapses them.
+  It relates no two operations, mentions no mirror definition, and
+  says nothing about any recursion — so it cannot rescue a misaligned
+  square; it can only delete a `decide`/`= true` coercion.
 
 Admitted, each `rfl` rung pinned by the examples directly below (so the
 criterion cannot rot silently):
@@ -163,6 +202,7 @@ criterion cannot rot silently):
 | `List.length_nil/cons` | `List.length`'s own two cases | `List.length_append` |
 | `Bool.cond_true/false` | `cond`'s own two cases   | any `lexorderB`/order fact |
 | `enc_inj_iff`       | `Acl2Embed.inj` as an iff   | any OTHER embedding property |
+| `Bool.decide_eq_true` | the `decide`/`= true` coercion | any OTHER `Bool`/`Prop` fact (`decide_eq_true_eq`, `Bool.and_eq_true`, …) |
 
 (`Acl2Embed` has exactly two fields, `enc` and `inj`; there is no order
 field, so an element-position square that needs the embedding to RESPECT
@@ -195,9 +235,11 @@ two `bif`/`≤` residuals survive verbatim; with it, the square closes.) -/
 section LadderPins
 
 /-- The fixed kit's `rfl` rungs are DEFINITIONAL — pinned, so the
-    admission criterion above cannot rot silently. (`enc_inj_iff` is the
-    ruled exception and is NOT `rfl`; it is proved from the embedding's
-    own `inj` field above.) -/
+    admission criterion above cannot rot silently. (The two PLUMBING
+    FAMILIES are the ruled exceptions and are NOT `rfl`: `enc_inj_iff`
+    is proved from the embedding's own `inj` field above, and
+    `Bool.decide_eq_true` is a `cases`-lemma of core, whose STATEMENT is
+    pinned separately below.) -/
 example (f : α → β) : List.map f ([] : List α) = [] := rfl
 example (f : α → β) (a : α) (as : List α) :
     List.map f (a :: as) = f a :: List.map f as := rfl
@@ -207,6 +249,11 @@ example : ([] : List α).length = 0 := rfl
 example (a : α) (as : List α) : (a :: as).length = as.length + 1 := rfl
 example (x y : α) : (bif true then x else y) = x := rfl
 example (x y : α) : (bif false then x else y) = y := rfl
+
+/-- The SECOND plumbing family, pinned by its statement: the rung says
+    exactly that `decide (b = true)` and `b` are two spellings of one
+    `Bool`, and nothing more. -/
+example (b : Bool) : decide (b = true) = b := Bool.decide_eq_true
 
 end LadderPins
 
@@ -220,7 +267,8 @@ macro "mirror_square_close" "[" xs:simpLemma,* "]" : tactic =>
       | rfl
       | simp_all only [List.map_nil, List.map_cons, List.nil_append,
           List.cons_append, List.length_nil, List.length_cons,
-          Bool.cond_true, Bool.cond_false, enc_inj_iff, $xs,*]))
+          Bool.cond_true, Bool.cond_false, enc_inj_iff,
+          Bool.decide_eq_true, $xs,*]))
 
 open Lean.Parser.Tactic in
 /-- The transport closer, two rungs — both plumbing (generated skeleton

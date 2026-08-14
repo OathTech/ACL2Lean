@@ -33,10 +33,11 @@ Three machinery-side items, all recorded here because their acceptance
 witnesses are this page's squares:
 
 1. **`Acl2Embed.inj` admitted to the closing ladder** (as the iff
-   `enc_inj_iff`). The ladder's pinned criterion is now "`rfl`-lemmas +
-   the embedding's `inj` iff" — see `IsoGen.lean`'s ladder section for
-   why that is plumbing (a square is definitional correspondence about
-   OUR OWN definitions; content still arrives only via replay).
+   `enc_inj_iff`) — the FIRST of the two plumbing families the pinned
+   criterion now names (the second, `Bool.decide_eq_true`, arrived with
+   R4 wave 0 below). See `IsoGen.lean`'s ladder section for why both are
+   plumbing (a square is definitional correspondence about OUR OWN
+   definitions; content still arrives only via replay).
 2. **Hypothesis-directed closing.** The closer was ALREADY
    `simp_all`-class, so the case hypotheses of a split the template
    itself created were always in scope; what W1's residual actually
@@ -248,6 +249,59 @@ Neither CLOSES, and the two failures are different:
   per-mode squares cannot be registered as things stand. Both are
   design changes to the square classes, i.e. rulings, not edits — and
   per the thin-Lean ruling the escape is never a hand square.
+
+*Stage 3 (R4 wave 0, 2026-08-14):* rung (i) LANDED — `Bool.decide_eq_true`
+is in the fixed kit and the ladder's criterion now reads "`rfl`-lemmas +
+two named plumbing families" (`IsoGen.lean`). Route (ii) — the ruled
+ENUM-REFINEMENT registry, a once-per-datatype constructor↦ACL2-value
+table off which the generator would emit one square per constructor with
+the mapped LITERAL on the waypoint side — was NOT built, because its
+acceptance witness does not close. What was measured, four modes each
+(`.tmp`, not declared; `filterRel <ctor> ev xs = filterL <literal> ev xs`,
+the registry's own statement shape):
+
+* THE RULED LADDER (fixed kit incl. the new rung): FAILS, all four.
+* the ruled ladder + GROUND EVALUATION (`simp_all (config :=
+  { decide := true })`) + `ite`'s own two cases (`ite_true`/`ite_false`):
+  CLOSES, all four.
+* R1-E's stage-2 measurement REPRODUCES unchanged: against the
+  dispatch-free mode-specialized reading the square closes with the rung
+  and re-opens without it.
+
+The finding that separates them: R1-E's "mode specialization" was at the
+READING level — a reading with no symbol dispatch, which is also the
+vocabulary the REAL waypoint drivers speak (`Imported/Waypoints/
+Qsort.lean`: `all_rel_filter_1_native_driver`,
+`how_many_filter_1_native_driver` state `xs.filter (fun a => lexLtB a
+ev)`, never `filterL '<mode>`). The registry as ruled specializes the
+ARGUMENT VALUE instead, and hands that literal to `filterL`, whose
+`relL` still dispatches at runtime (`fv == symV "LT"`). The fixed closer
+cannot evaluate that ground comparison: `simp only`'s simprocs do not
+decide `SExpr` equality, and `Worlds.Sorting.symV` is PRIVATE — so it
+can neither be named in the invocation's `unfold [...]` list nor matched
+by the reading's own dispatch `rfl`-lemmas `relL_LT`/`relL_LTE`/
+`relL_GTE` (simp matches up to REDUCIBLE defeq, and `symV` is neither
+reducible nor nameable here). Gap 1 of stage 2 is therefore NOT removed
+by instantiating the mode; it is removed only by a dispatch-free reading.
+
+So the remaining distance is THREE ladder ingredients, not one:
+`Bool.decide_eq_true` (landed), `ite_true`/`ite_false` (`rfl`-lemmas —
+`ite`'s own two cases, the exact analogue of the already-admitted `cond`
+pair), and GROUND EVALUATION in rung 2, which is NEW IN KIND: not a
+lemma but a closer CAPABILITY, outside the pinned criterion as written.
+(The argument for it: rung 1 is bare `rfl`, which already computes
+without limit, so deciding CLOSED propositions inside rung 2 is no
+stronger, and a square over variables cannot be closed by ground
+evaluation. The argument against: the criterion says "nothing else", and
+every previous kit change here was a ruling.) That is a ruling, not an
+executor call — and per the thin-Lean ruling the escape is never a hand
+square.
+
+The `hom list` square was RE-PROBED at R4 for the record: its residual is
+byte-identical to stage 2's (same two cases, same wanted fact
+`relMode fn (e.enc a) (e.enc ev) = relMode fn a ev`). Unchanged frontier:
+`enc_inj_iff` covers the mode's EQUALITY test, the `≤` test is the order
+dimension `Acl2Embed` has no field for.
 -/
 
 namespace ACL2Lean.MirrorProofs

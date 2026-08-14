@@ -51,3 +51,46 @@ search; or a new product-layer declaration becomes necessary.
 Rulings 1–3 landed; the witness live; fast-gate per increment; this
 wave folds into R4's arc-level claim gate (no separate full gate
 unless it becomes a merge candidate on its own).
+
+## ARC LOG
+
+### Wave 0 (2026-08-14) — rulings 1 + 3 landed, ruling 2 ESCAPE-HATCHED
+
+- **Ruling 1 — LANDED.** `Bool.decide_eq_true` added to
+  `mirror_square_close`'s fixed kit (`MirrorProofs/IsoGen.lean`); the
+  pinned criterion now reads "`rfl`-lemmas + TWO named plumbing
+  families: the embedding's `inj` iff, and Bool/decide coercions", with
+  the content-free rationale (two spellings of ONE Bool; relates no
+  operations, mentions no mirror definition, so it cannot rescue a
+  misaligned square) plus a table row and a statement pin in
+  `LadderPins`. Regression net BYTE-IDENTICAL — 598 lines, statements
+  AND proof terms, over the 23 generated Basics artifacts, the 13
+  sorting Props, the other spec declarations, the three live sorting
+  squares and the order bridge: no pre-existing declaration changed
+  route.
+- **Ruling 3 — LANDED** (`decEqOfOrder` blessed; TODO flag retired).
+- **Ruling 2 — NOT BUILT; the escape hatch's FIRST trigger fired.** The
+  per-constructor squares do NOT close via the registry route. Measured
+  (`.tmp`, four modes each, the registry's own statement shape
+  `filterRel <ctor> ev xs = filterL <mapped literal> ev xs`):
+  * the RULED ladder (fixed kit incl. the new rung): FAILS, all four;
+  * ladder + ground evaluation (`simp_all (config := { decide := true })`)
+    + `ite_true`/`ite_false`: CLOSES, all four;
+  * R1-E's own measurement REPRODUCES unchanged (dispatch-free
+    mode-specialized reading closes with the rung, re-opens without it).
+  CAUSE: R1-E's "mode specialization" was at the READING level — a
+  reading with no symbol dispatch, which is also what the real waypoint
+  drivers speak (`Imported/Waypoints/Qsort.lean`). The registry as ruled
+  specializes the ARGUMENT VALUE and hands the literal to `filterL`,
+  whose `relL` still dispatches (`fv == symV "LT"`); the fixed closer
+  cannot evaluate a ground `SExpr` comparison, and
+  `Worlds.Sorting.symV` is PRIVATE — neither nameable in `unfold [...]`
+  nor matchable by `relL_LT`/`_LTE`/`_GTE` (simp matches up to REDUCIBLE
+  defeq). The registry was therefore not landed at all: with no live
+  consumer it would be the banned "infrastructure now, wire it later".
+  The ruled FRAME (data refinement) is recorded — `IsoGen.lean`'s header
+  + `docs/LEXICON.md` — with the blocker named in both.
+- The `hom list` square was re-probed for the record: residual
+  byte-identical to R1-E's; the order-field frontier is unchanged.
+- Gate: fast-gate (build `ACL2Lean`+`Tests` 3225 green, sorries 6,
+  statics + name linter + mirror purity + golden as reported at exit).

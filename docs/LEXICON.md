@@ -90,6 +90,20 @@ with core/Std/Batteries/Mathlib names (`Tests/MirrorNameCheck.lean`
 is the collision linter). A shared name is how library content is
 mistaken for replayed content.
 
+**Data refinement (the square's frame; Mike, 2026-08-14)** — the
+reading of the transfer kit that names what a square IS: per ACL2
+datatype a Lean datatype plus a MAPPING to the ACL2 values; the mirror
+runs the SAME ALGORITHM MODULO THE REFINEMENT (the same access
+pattern, not the same code); a SQUARE says the algorithm commutes with
+the refinement; the argument-READING table is the refinement calculus.
+Access-pattern divergence is therefore not a proof failure but a
+template failure — the generator fails CLOSED, which is the honest
+outcome. (A once-per-datatype constructor↦ACL2-value table for a
+closed enum in a `.fixed` position — the finite sibling of
+`Acl2Embed` — is the ruled next instance of this frame; it is NOT
+built, see `MirrorProofs/Sorting.lean`'s W3 for the measurement that
+blocks it.)
+
 **Debt / FORBIDDEN-DEBT** — a fact ACL2 discharged whose replay route
 is not wired yet, carried as a registered, `sorryAx`-visible `sorry`
 with its unlock named. Never silent; retirement is forced by gates.
