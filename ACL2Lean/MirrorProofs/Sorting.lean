@@ -25,26 +25,45 @@ inferred from the spec's own Lean binder types (`List α` ↦ enters under
 ## The three witnesses, and what each one established
 
 **W1 `insertOrd (a : α) : List α → List α`** — the audit's executed reject.
-It now passes the shape table (`.elem`, `.list`) and the statement builder;
-it stops at the FIRST REAL BLOCKER, which is an instance, not a shape:
-`ACL2Lean.Sorting.insertOrd` carries `[TotalOrder α]`, so its `agree`
-square at `List SExpr` demands a `TotalOrder SExpr` instance — the ORDER
-BRIDGE that does not exist yet (the R1 charter's item C / R4). Verbatim, at
-the point of writing:
+It passes the shape table (`.elem`, `.list`) and the statement builder. Its
+frontier MOVED during this arc, in two recorded stages:
+
+*Stage 1 (R1-B):* the first real blocker was an instance, not a shape —
+`insertOrd` carries `[TotalOrder α]`, so its `agree` square at `List SExpr`
+demanded a `TotalOrder SExpr` instance that did not then exist
+(`error: failed to synthesize instance of type class Sorting.TotalOrder
+SExpr`, then `mirror_iso%`'s hard error, candidate cause (c)).
+
+*Stage 2 (R1-C):* `MirrorProofs/OrderBridge.lean` now provides that
+instance by LEXORDER's Bool reading, backed by the CORE-LOGIC theorems of
+`LexorderOrder.lean` (trio-clean — nothing here trusts ACL2), plus the
+restriction lemma `lexorderB (intEmbed.enc m) (intEmbed.enc n) =
+decide (m ≤ n)` (the R4 order bridge). Re-probed with the instance, the
+`agree` square vs `Worlds.Sorting.insertL` ELABORATES its statement and
+the CLOSER leaves exactly two residuals (verbatim, the two cases of the
+comparison split):
 
 ```
-error: failed to synthesize instance of type class
-  Sorting.TotalOrder SExpr
+h✝ : a ≤ head✝
+⊢ a :: head✝ :: t✝ =
+    bif Worlds.Sorting.lexorderB a head✝ then a :: head✝ :: t✝
+    else head✝ :: Worlds.Sorting.insertL a t✝
 ```
 
-followed by `mirror_iso%`'s own hard error, whose candidate cause (c) is
-exactly "a missing instance needed to elaborate the statement". The `hom
-list` square stops on the same instance at BOTH types (`TotalOrder α` and
-`TotalOrder SExpr`), and would additionally need the embedding to RESPECT
-the order — `Acl2Embed` has no order field by construction ("that dimension
-arrives with sorting", `IsoGen`). NOT declared live here: a failing
-`mirror_iso%` leaves a `sorryAx`-carrying declaration behind, which this
-tree does not accept.
+(and its `¬` twin, with the `ih1✝` induction hypothesis available).
+Under the instance, `a ≤ head✝` IS `lexorderB a head✝ = true`
+definitionally — the residual needs the CASE HYPOTHESIS used as a rewrite
+to collapse the `bif`, and the fixed ladder is `rfl`-lemmas only,
+hypothesis-blind by its stated criterion. That is a LADDER-DESIGN
+question (does the closer gain a hypothesis-directed Bool-reading rung?),
+sanctioned in principle by the 2026-08-13 ruling ("widening seems fine" —
+a design-quality speedbump; trust is the kernel's), with its concrete
+shape left for the ruling batch this page's report carries. The `hom
+list` square additionally needs the embedding to RESPECT the order —
+`Acl2Embed` has no order field by construction ("that dimension arrives
+with sorting", `IsoGen`). NOT declared live: a failing `mirror_iso%`
+leaves a `sorryAx`-carrying declaration behind, which this tree does not
+accept.
 
 **W2 `howMany (a : α) : List α → Nat`** — the positive one. Its `agree`
 square ELABORATES: the element binder is read as `.elem` and typed `SExpr`,

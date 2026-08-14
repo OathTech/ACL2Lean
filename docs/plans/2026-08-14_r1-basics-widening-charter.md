@@ -100,3 +100,52 @@ A complete (6/6 trio-clean) + B landed with witnesses (or honestly
 frontiered per-witness) + C explicitly landed-or-dropped; claim-gate
 TRUE_EXIT=0; ARC LOG appended here; merge candidate presented for
 sign-off.
+
+## ARC LOG (2026-08-14)
+
+- **A — DONE** (commit 9cea7ce). Basics 6/6: `app_nil_int`,
+  `rev_app_int`, `rev_rev_int` trio-clean, receipts
+  `#guard_msgs`-pinned. New `Imported/Rev.lean` (APP/REV kit; 4
+  generated exec/sim pairs; TRUE-LISTP absorbed at the encoded
+  instance by the existing `Lifting.trueListp_enc` — the decoded
+  statements are the full conditionals ACL2 proved).
+  `mirror_transport%` gained one general closed-literal fallback rung;
+  the three pre-R1 transports verified unchanged on rung 1. Fork-audit
+  green+unconditional verdict CONFIRMED at the source. THE LIST 8→10;
+  16 user lines for the three mirrors. `revL` spelled with `++`
+  (forced by the registered `app_agree_append` square; inherits the
+  logged compliance-pass item).
+- **B — DONE** (commit bd14831). The reading vector landed (inferred
+  from spec binder types, no user syntax; hard errors F5-style). W1
+  `insertOrd`: past the shape gate to the honest instance frontier.
+  W2 `howMany`: the positive witness (agree square elaborates; the
+  hom-scalar codec question adjudicated CLEAN — the class asserts
+  invariance, `Nat` needs nothing). W3 `filterRel`: the expected
+  function-argument frontier, LIVE `#guard_msgs`-pinned
+  (tamper-probed). Regression net reconstructed and passed: 23/23
+  generated artifacts byte-identical.
+- **C — concrete half DONE, threading half DEFERRED.**
+  `MirrorProofs/OrderBridge.lean`: `TotalOrder SExpr` by LEXORDER's
+  Bool reading (laws = `LexorderOrder.lean`'s CORE-LOGIC theorems)
+  + the restriction lemma `lexorderB (enc m) (enc n) = decide (m ≤ n)`
+  — both trio-clean, no sorryAx despite importing the debt-carrying
+  `Imported/Sorting.lean`. W1 re-probed with the instance: statement
+  ELABORATES; the closer leaves the two `bif lexorderB`/`if ≤`
+  residuals (recorded verbatim on the witness page). Instance-THREADING
+  machinery deferred: no elaborating witness exists before R4's exec
+  kits, and W1's residual shows the next blocker is ladder design, not
+  threading plumbing — building it now would be the banned
+  wire-later pattern.
+- **EXIT TRIGGER (escape hatch, declared):** remaining scope gates
+  entirely on design rulings — the RULING BATCH: (1) ladder admission
+  of `Acl2Embed.inj` (element-position hom squares; it is the
+  embedding's defining field, list form `map_inj` already plumbing);
+  (2) a hypothesis-directed Bool-reading rung (W1's `bif`/`if`
+  residual; the ladder is currently hypothesis-blind by pinned
+  criterion); (3) `filterRel`: widen the reading table to function
+  arguments vs re-render the spec closer to the book's
+  `(filter fn x e)` (mode symbol + pivot element) — product-layer,
+  reader-facing; (4) the HOW-MANY waypoint reading's library
+  vocabulary (`List.count` — one of the five logged compliance items)
+  now surfaces in W2's residual. All four are widening questions
+  ruling-1-sanctioned in principle; their concrete shapes are Mike's.
