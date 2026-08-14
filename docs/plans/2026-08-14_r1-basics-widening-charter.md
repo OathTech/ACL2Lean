@@ -229,3 +229,14 @@ Item 3 (`filterRel` re-render) was NOT in scope and is untouched.
   census missed; logged in TODO.
 - LEXICON gained the closest-idiomatic-Lean paragraph (the two-step
   use pattern, Mike 2026-08-14).
+
+### FINAL EXIT (2026-08-14, post-D/E)
+
+Full claim-gate TRUE_EXIT=0 on a85edd2 (artifact:
+`.gate-runs/a85edd2-20260814T104942Z.log`) — 113/116 (84
+unconditional), golden matches live, all statics green. The branch
+(A through E) is the merge candidate. Open scope carried to the next
+arc: the two W3 closing rulings (`Bool.decide_eq_true` rung; per-mode
+square declaration), the `decEqOfOrder` review, the sixth
+library-vocabulary reading, and the deferred order-field/threading
+questions — all recorded above.
