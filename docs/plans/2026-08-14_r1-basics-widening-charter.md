@@ -39,6 +39,25 @@ mirror-side decode only).
    kernel-checked machinery-side lemma, R4's named bridge). Stretch:
    drop without ceremony if A+B consume the arc.
 
+### B design scout (2026-08-14, read-only, pre-execution)
+
+Verified shapes: `derive_sim%`'s reading table is USER-DECLARED syntax
+(`(x : raw) (xs : list)`, SimGen.lean:176-247) — necessary there
+because the waypoint layer is untyped SExpr. At the mirror level the
+reading is INFERABLE from the spec's Lean binder types:
+`mirrorFnShape` (IsoGen.lean:285-293) already walks the telescope and
+collapses to an `allList` boolean; F1 = return a per-binder reading
+vector instead (`.list` for `List α`, `.elem` for the embedded `α`,
+hard-error with the observed binder type for anything else), and the
+hom builder wraps `.elem` vars in `e.enc`, `.list` vars in
+`List.map e.enc`. No new user syntax. `filterRel`'s `keep : α → Bool`
+is outside this table by construction — expected outcome is a named
+frontier stating the real bound (function-valued arguments), unless
+the book side turns out to use fixed-predicate filters that adjudicate
+it differently. `howMany`'s `Nat` RESULT is a result-class question
+(hom-scalar already exists) — check whether the scalar class's codec
+covers `Nat` or only `Int` before claiming the witness.
+
 ## Discipline
 
 - Real-artifact first: read the replayed statements off the live rows
