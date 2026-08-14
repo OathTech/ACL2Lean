@@ -55,10 +55,13 @@ reading `xs.reverse ++ acc` closed by `reverse_cons`/`append_assoc`), and it
 is unrepresentable for a mirror definition.
 
 The closer is ALSO built so the leak cannot re-enter through the tactic
-script (see "the closing ladder" below): every fixed rung is a `rfl`-lemma,
-pinned as such in this file, and the only per-invocation input is a list of
-DEFINITIONS to unfold (a non-definition is a hard error). Definitional
-unfolding cannot introduce content.
+script (see "the closing ladder" below): every fixed rung is a `rfl`-lemma
+(pinned as such in this file) except the ONE ruled addition, the
+embedding's own injectivity as an iff (`enc_inj_iff`, ruling 2026-08-14 —
+plumbing about our own definitions, see the ladder's criterion); and the
+only per-invocation input is a list of DEFINITIONS to unfold (a
+non-definition is a hard error). Definitional unfolding cannot introduce
+content.
 
 Threat model, per the two-standard rule: this gate is a SPEEDBUMP, reviewed
 by "does it catch the honest mistake". DO NOT HARDEN it with semantic
@@ -107,6 +110,15 @@ def intEmbed : Acl2Embed Int where
   enc n := .atom (.number (.int n))
   inj h := by injection h with h1; injection h1 with h2; injection h2
 
+/-- The embedding's defining field IN ITS USEFUL FORM: `Acl2Embed.inj`
+    is a one-way implication, and a rewrite needs the `iff` (the
+    converse is `congrArg`). Admitted to the square closer's fixed kit
+    by ruling 2026-08-14 — see "the closing ladder" for why that is
+    plumbing and not content. -/
+theorem enc_inj_iff (e : Acl2Embed α) (a b : α) :
+    e.enc a = e.enc b ↔ a = b :=
+  ⟨e.inj, fun h => h ▸ rfl⟩
+
 /-- Injectivity lifts pointwise to lists (THE LIST item 4). -/
 theorem map_inj (e : Acl2Embed α) :
     ∀ {xs ys : List α}, xs.map e.enc = ys.map e.enc → xs = ys
@@ -125,17 +137,36 @@ definitional unfolding — it can close a base case, never an inductive
 content fact), then one `simp_all only` over a FIXED kit plus the
 per-invocation definitions.
 
-THE FIXED KIT'S ADMISSION CRITERION: **every rung is a `rfl`-lemma** — the
-constructor-case equation of a core list operation, true by definitional
-unfolding. Nothing that RELATES two operations is admitted, because that is
-where content lives. Concretely admitted, each pinned by the `rfl` examples
-directly below (so the criterion cannot rot silently):
+THE FIXED KIT'S ADMISSION CRITERION (as widened by ruling 2026-08-14):
+**`rfl`-lemmas + the embedding's `inj` iff** — nothing else. Concretely:
+
+* the `rfl`-lemmas are the constructor-case equations of a core
+  operation, true by definitional unfolding. Nothing that RELATES two
+  operations is admitted, because that is where content lives.
+* `enc_inj_iff` is the ONE non-`rfl` rung. It is PLUMBING, per the
+  ruling: a square is a statement of DEFINITIONAL CORRESPONDENCE about
+  OUR OWN definitions, and `Acl2Embed.inj` is the embedding's own
+  defining field — admitting it lets an element-position homomorphism
+  square rewrite `e.enc a = e.enc b` to `a = b` (the list form,
+  `map_inj`, was already plumbing in the transport closer). Content
+  still arrives ONLY via replay: injectivity says nothing about any
+  mirror definition, so it cannot close a misaligned square — it only
+  removes the encoding from an element comparison.
+
+Admitted, each `rfl` rung pinned by the examples directly below (so the
+criterion cannot rot silently):
 
 | rung                | is | deliberately NOT admitted    |
 | ------------------- | -- | ---------------------------- |
 | `List.map_nil/cons` | `List.map`'s own two cases     | `List.map_append` |
 | `List.nil/cons_append` | `++`'s own two cases        | `List.append_assoc`, `List.append_nil` |
 | `List.length_nil/cons` | `List.length`'s own two cases | `List.length_append` |
+| `Bool.cond_true/false` | `cond`'s own two cases   | any `lexorderB`/order fact |
+| `enc_inj_iff`       | `Acl2Embed.inj` as an iff   | any OTHER embedding property |
+
+(`Acl2Embed` has exactly two fields, `enc` and `inj`; there is no order
+field, so an element-position square that needs the embedding to RESPECT
+an order still fails closed — as W1's `hom list` does.)
 
 The excluded column is exactly the content column: `append_assoc` IS the
 02-rev book's APP-ASSOC, `length_append` IS `simple.lisp`'s MY-LEN-MY-APP,
@@ -144,14 +175,29 @@ misaligned reading one level down. None of them can be reached from here:
 they are not in the kit, `simp_all only` admits nothing else, and the
 per-invocation input is definitions-only.
 
-The IHs enter through `simp_all`'s use of the local hypotheses — which, in a
-`fun_induction` case, are exactly the mirror definition's own induction
-hypotheses. -/
+HYPOTHESIS-DIRECTED CLOSING (ruling 2026-08-14, item 2). The closer is
+`simp_all`-class, so the LOCAL CONTEXT of each case the template itself
+created participates: the IHs (in a `fun_induction` case, exactly the
+mirror definition's own induction hypotheses) AND the CASE HYPOTHESIS of
+an `if`-split in the mirror definition's body. For that case hypothesis
+to reach the goal it must speak the goal's vocabulary: where the split
+is on a CLASS operation (`a ≤ b` under a `TotalOrder` instance) the
+instance is a DEFINITION, so naming it in the invocation's
+`unfold [...]` list normalises the hypothesis to the reading's own Bool
+equation (`lexorderB a b = true`), which then rewrites the reading's
+`bif` — closed by `cond`'s own two cases. Unfolding an instance cannot
+introduce content for the same reason any other definitional unfolding
+cannot; and the choice is VISIBLE in the invocation, not hidden in the
+generator. (Measured on W1 `insertOrd_agree_insertL`,
+`MirrorProofs/Sorting.lean`: without the instance in the unfold list the
+two `bif`/`≤` residuals survive verbatim; with it, the square closes.) -/
 
 section LadderPins
 
-/-- The fixed kit's rungs are DEFINITIONAL — pinned, so the admission
-    criterion above cannot rot silently. -/
+/-- The fixed kit's `rfl` rungs are DEFINITIONAL — pinned, so the
+    admission criterion above cannot rot silently. (`enc_inj_iff` is the
+    ruled exception and is NOT `rfl`; it is proved from the embedding's
+    own `inj` field above.) -/
 example (f : α → β) : List.map f ([] : List α) = [] := rfl
 example (f : α → β) (a : α) (as : List α) :
     List.map f (a :: as) = f a :: List.map f as := rfl
@@ -159,6 +205,8 @@ example (as : List α) : [] ++ as = as := rfl
 example (a : α) (as bs : List α) : (a :: as) ++ bs = a :: (as ++ bs) := rfl
 example : ([] : List α).length = 0 := rfl
 example (a : α) (as : List α) : (a :: as).length = as.length + 1 := rfl
+example (x y : α) : (bif true then x else y) = x := rfl
+example (x y : α) : (bif false then x else y) = y := rfl
 
 end LadderPins
 
@@ -171,7 +219,8 @@ macro "mirror_square_close" "[" xs:simpLemma,* "]" : tactic =>
     (first
       | rfl
       | simp_all only [List.map_nil, List.map_cons, List.nil_append,
-          List.cons_append, List.length_nil, List.length_cons, $xs,*]))
+          List.cons_append, List.length_nil, List.length_cons,
+          Bool.cond_true, Bool.cond_false, enc_inj_iff, $xs,*]))
 
 open Lean.Parser.Tactic in
 /-- The transport closer, two rungs — both plumbing (generated skeleton
@@ -328,14 +377,21 @@ private inductive ArgReading where
     The readings are inferred from the binder TYPES against the
     definition's own type variable `α` (the thing an `Acl2Embed`
     embeds); anything else is a hard error naming the observed type —
-    the argument-reading frontier. Non-explicit binders (the type
-    variable, instance arguments) are skipped here exactly as they were
-    before R1: they are not statement positions, and an instance the
-    generated statement needs but cannot synthesise surfaces as an
-    elaboration error on the generated theorem (candidate cause (c) of
-    the failure message below). -/
+    the argument-reading frontier.
+
+    Also returned: the definition's INSTANCE-IMPLICIT binders, as the
+    class names they apply to `α` (`howMany` carries `[DecidableEq α]`,
+    `insertOrd` carries `[TotalOrder α]`). A HOMOMORPHISM square's
+    statement mentions the definition at the USER's element type `α`, so
+    it must re-bind them: at `SExpr` (the `agree` class, and the encoded
+    side of a homomorphism) the instance is synthesised from the
+    ambient environment, but at a bound `α` there is nothing to
+    synthesise and the statement would not elaborate at all. A class
+    applied to anything OTHER than the element type is a hard error
+    naming it (a frontier — the generator never guesses a binder it
+    cannot state). -/
 private def mirrorFnShape (fnName : Name) (ty : Expr) :
-    MetaM (Array ArgReading × Bool) :=
+    MetaM (Array ArgReading × Bool × Array Name) :=
   forallTelescopeReducing ty fun xs body => do
     -- the definition's own type variable: the sole binder that is a type
     let mut elemTy? : Option Expr := none
@@ -348,7 +404,28 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
               `Acl2Embed` embeds (a named frontier)"
         elemTy? := some x
     let mut readings : Array ArgReading := #[]
+    let mut instClasses : Array Name := #[]
     for x in xs do
+      if (← x.fvarId!.getDecl).binderInfo.isInstImplicit then
+        -- the RAW binder type (never `whnf`: `DecidableEq α` is itself a
+        -- definition and would unfold to its `∀ a b, Decidable …` body)
+        let t ← inferType x
+        let some cls := t.getAppFn.constName?
+          | throwError "mirror_iso%: {fnName}'s instance argument \
+              `{t}` is not a CLASS APPLICATION — outside the table of \
+              binders a homomorphism statement can re-bind at the user's \
+              element type (a named frontier)"
+        let some elemTy := elemTy?
+          | throwError "mirror_iso%: {fnName} has an instance argument \
+              but NO type variable (a named frontier)"
+        unless t.getAppNumArgs == 1 && t.appArg! == elemTy do
+          throwError "mirror_iso%: {fnName}'s instance argument `{t}` is \
+              not a ONE-PARAMETER class over the element type \
+              `{elemTy}` — the homomorphism statement re-binds the \
+              definition's instances at the user's element type, and a \
+              class over anything else is not something this generator \
+              may guess (a named frontier)"
+        instClasses := instClasses.push cls
       if (← x.fvarId!.getDecl).binderInfo.isExplicit then
         let t ← whnf (← inferType x)
         let some elemTy := elemTy?
@@ -384,7 +461,7 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
               statement builder — this is the reading table's own bound, \
               and widening it is a design change to the square classes, \
               never a hand square (thin-Lean ruling 2026-08-11)."
-    return (readings, (← whnf body).isAppOf ``List)
+    return (readings, (← whnf body).isAppOf ``List, instClasses)
 
 /-- Generate one SQUARE for a mirror definition:
 
@@ -425,7 +502,8 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
     throwError "mirror_iso%: {fnName} is part of a MUTUAL recursion block \
         ({di.all}) — mutual recursion is a named frontier of the square \
         template (which inducts on ONE definition's recursion)"
-  let (readings, resIsList) ← liftTermElabM <| mirrorFnShape fnName di.type
+  let (readings, resIsList, instClasses) ←
+    liftTermElabM <| mirrorFnShape fnName di.type
   unless vars.size == readings.size do
     throwError "mirror_iso%: {fnName} takes {readings.size} explicit \
         arguments but {vars.size} vars were given"
@@ -478,12 +556,17 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         | .list => `(bracketedBinderF| ($v:ident : $sexprTy))
         | .elem => `(bracketedBinderF| ($v:ident : $sexprC))
     | _ =>
+      -- the definition's OWN instance binders, re-bound at the user's
+      -- element type (see `mirrorFnShape`): at `α` there is nothing to
+      -- synthesise, so without these the statement does not elaborate
+      let iB ← instClasses.mapM fun c => do
+        `(bracketedBinderF| [$(Syntax.mkApp (mkCIdent c) #[alphaId]):term])
       let eB ← `(bracketedBinderF| ($eId:ident : Acl2Embed $alphaId:ident))
       let vB ← varsR.mapM fun (v, r) =>
         match r with
         | .list => `(bracketedBinderF| ($v:ident : List $alphaId:ident))
         | .elem => `(bracketedBinderF| ($v:ident : $alphaId:ident))
-      pure (#[eB] ++ vB)
+      pure (iB ++ #[eB] ++ vB)
   let encoded : Array Term ← varsR.mapM fun (v, r) =>
     match r with
     | .list => `(List.map ($eId:ident).enc $v:ident)

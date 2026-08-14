@@ -64,10 +64,11 @@ theorem howManyIsortReplayed_uncond (env : Env) :
 
 
 /-- ENTRY, PROVED — HOW-MANY-ISORT natively: INSERTION SORT PRESERVES
-    MULTIPLICITY — `List.count` of every element is unchanged by
-    `isortL`. -/
+    MULTIPLICITY — the `howManyL` multiplicity of every element is
+    unchanged by `isortL`. -/
 theorem how_many_isort_native_driver (ev : SExpr) (xs : List SExpr) :
-    (Worlds.Sorting.isortL xs).count ev = xs.count ev :=
+    Worlds.Sorting.howManyL ev (Worlds.Sorting.isortL xs)
+      = Worlds.Sorting.howManyL ev xs :=
   Worlds.Sorting.how_many_isort_native_of_replayed isortWorldD (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) howManyIsortReplayed_uncond ev xs

@@ -65,9 +65,9 @@ theorem how_many_rm_general_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env how_many_rm_generalFormula = some v ∧ v ≠ SExpr.nil)
     (av bv : SExpr) (xs : List SExpr) :
-    (xs.erase bv).count av
-      = bif (av == bv) && xs.contains av then xs.count av - 1
-        else xs.count av := by
+    howManyL av (xs.erase bv)
+      = bif (av == bv) && xs.contains av then howManyL av xs - 1
+        else howManyL av xs := by
   let e : Env := ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
   have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
     re_val_var_get w e { name := "A" } av (by
@@ -95,13 +95,13 @@ theorem how_many_rm_general_native_of_replayed (w : World)
     corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
       xs e bT xT bv hb hx
   have hL : ∃ N, ∀ f ≥ N, evalOpt f w e (howManyT aT (rmT bT xT))
-      = some (.atom (.number (.int ((xs.erase bv).count av)))) := by
+      = some (.atom (.number (.int (howManyL av (xs.erase bv))))) := by
     have hcorr := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
       h_no_cdr h_no_plus e aT (rmT bT xT) av (enc (xs.erase bv)) ha hRm
     rw [howManyExec_enc] at hcorr
     exact hcorr
   have hCount : ∃ N, ∀ f ≥ N, evalOpt f w e (howManyT aT xT)
-      = some (.atom (.number (.int (xs.count av)))) := by
+      = some (.atom (.number (.int (howManyL av xs)))) := by
     have hcorr := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
       h_no_cdr h_no_plus e aT xT av (enc xs) ha hx
     rw [howManyExec_enc] at hcorr
@@ -117,12 +117,12 @@ theorem how_many_rm_general_native_of_replayed (w : World)
   have hNeg1 : ∃ N, ∀ f ≥ N, evalOpt f w e (qInt (-1))
       = some (.atom (.number (.int (-1)))) := re_val_quote w e _
   have hPlus := conv_plus_int w e (qInt (-1)) (howManyT aT xT) (-1)
-    (xs.count av) h_no_plus hNeg1 hCount
+    (howManyL av xs) h_no_plus hNeg1 hCount
   have hOuter := conv_if_lift w e
     (appIf (equalT aT bT) (membT aT xT) qNilT)
     (plusT (qInt (-1)) (howManyT aT xT)) (howManyT aT xT) _
-    (.atom (.number (.int (-1 + (xs.count av : Int)))))
-    (.atom (.number (.int (xs.count av)))) hInner
+    (.atom (.number (.int (-1 + (howManyL av xs : Int)))))
+    (.atom (.number (.int (howManyL av xs)))) hInner
     (fun _ => hPlus) (fun _ => hCount)
   have hEq := conv_equalT w e _ _ _ _ h_no_equal hL hOuter
   have hval := Logic.eq_of_equal_ne_nil
@@ -139,15 +139,16 @@ theorem how_many_rm_general_native_of_replayed (w : World)
   cases h3 : ((av == bv) && xs.contains av) with
   | true =>
     rw [h3, if_pos rfl] at hval
-    have hint : ((xs.erase bv).count av : Int) = -1 + (xs.count av : Int) :=
+    have hint : (howManyL av (xs.erase bv) : Int)
+        = -1 + (howManyL av xs : Int) :=
       int_atom_inj hval
-    show (xs.erase bv).count av = xs.count av - 1
+    show howManyL av (xs.erase bv) = howManyL av xs - 1
     omega
   | false =>
     rw [h3, if_neg (by simp)] at hval
-    have hint : ((xs.erase bv).count av : Int) = (xs.count av : Int) :=
+    have hint : (howManyL av (xs.erase bv) : Int) = (howManyL av xs : Int) :=
       int_atom_inj hval
-    show (xs.erase bv).count av = xs.count av
+    show howManyL av (xs.erase bv) = howManyL av xs
     omega
 
 /-! ## PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS — the
@@ -223,7 +224,7 @@ theorem pce_is_counterexample_native_of_replayed (w : World)
       evalOpt f w env pce_is_counterexampleFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys : List SExpr) :
     xs.isPerm ys
-      = (xs.count (pceL xs ys) == ys.count (pceL xs ys)) := by
+      = (howManyL (pceL xs ys) xs == howManyL (pceL xs ys) ys) := by
   let e : Env := (({} : Env).insert yS (enc ys)).insert xS (enc xs)
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
     re_val_var_get w e { name := "X" } (enc xs) (by
@@ -282,16 +283,17 @@ theorem pce_is_counterexample_native_of_replayed (w : World)
   have hEq := eq_of_equal_truthy (truthy_of_implies_t hIt rfl)
   -- decode: `equal` on the two integer atoms IS the counts' `==`
   have hInt : Logic.equal
-      (SExpr.atom (.number (.int (xs.count (pceL xs ys)))))
-      (SExpr.atom (.number (.int (ys.count (pceL xs ys)))))
-      = (bif (xs.count (pceL xs ys) == ys.count (pceL xs ys)) then SExpr.t
+      (SExpr.atom (.number (.int (howManyL (pceL xs ys) xs))))
+      (SExpr.atom (.number (.int (howManyL (pceL xs ys) ys))))
+      = (bif (howManyL (pceL xs ys) xs == howManyL (pceL xs ys) ys) then SExpr.t
           else SExpr.nil) := by
-    by_cases h : xs.count (pceL xs ys) = ys.count (pceL xs ys)
+    by_cases h : howManyL (pceL xs ys) xs = howManyL (pceL xs ys) ys
     · rw [h]; simp
-    · have hi : ¬ ((xs.count (pceL xs ys) : Int)
-          = (ys.count (pceL xs ys) : Int)) := by
+    · have hi : ¬ ((howManyL (pceL xs ys) xs : Int)
+          = (howManyL (pceL xs ys) ys : Int)) := by
         intro hc; exact h (by omega)
-      have hne : (xs.count (pceL xs ys) == ys.count (pceL xs ys)) = false := by
+      have hne : (howManyL (pceL xs ys) xs
+          == howManyL (pceL xs ys) ys) = false := by
         simpa using h
       rw [hne]
       simp [Logic.equal, hi]

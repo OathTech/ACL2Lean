@@ -41,7 +41,12 @@
   isPerm readings, Sorting.lean's count and append readings — and
   THIS module's closer (default simp_all + grind) is exactly the
   vocabulary-dependent lane, so the rule binds FORWARD and those
-  five are a logged compliance pass (TODO). The three shipped
+  five were a logged compliance pass (TODO). FOUR REMAIN: the
+  HOW-MANY reading was converted to an own-definition
+  (`Worlds.Sorting.howManyL`, ruling 2026-08-14 — it had surfaced in
+  a mirror-square residual as `List.count_cons`); Perm.lean's
+  contains/erase/isPerm and Sorting.lean's append readings are still
+  library-spelled. The three shipped
   MIRRORS are unaffected (their glue verified content-free at the
   exit audit). The newer mirror_iso% lane is leak-free by its
   CLOSED ladder regardless of vocabulary. Enforcement remains

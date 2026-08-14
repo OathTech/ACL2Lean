@@ -33,7 +33,8 @@ theorem howManyMerge2Replayed_uncond (env : Env) :
 /-- ENTRY, PROVED — HOW-MANY-MERGE2 natively: merging adds
     multiplicities. -/
 theorem how_many_merge2_native_driver (ev : SExpr) (xs ys : List SExpr) :
-    (Worlds.Sorting.merge2L xs ys).count ev = xs.count ev + ys.count ev :=
+    Worlds.Sorting.howManyL ev (Worlds.Sorting.merge2L xs ys)
+      = Worlds.Sorting.howManyL ev xs + Worlds.Sorting.howManyL ev ys :=
   Worlds.Sorting.how_many_merge2_native_of_replayed msortWorldD (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) howManyMerge2Replayed_uncond ev xs ys
@@ -56,8 +57,9 @@ theorem howManyEvensOddsReplayed_uncond (env : Env) :
     split partitions every element's multiplicity. -/
 theorem how_many_evens_and_odds_native_driver (ev a : SExpr)
     (t : List SExpr) :
-    (Worlds.Sorting.evensL (a :: t)).count ev
-      + (Worlds.Sorting.evensL t).count ev = (a :: t).count ev :=
+    Worlds.Sorting.howManyL ev (Worlds.Sorting.evensL (a :: t))
+      + Worlds.Sorting.howManyL ev (Worlds.Sorting.evensL t)
+      = Worlds.Sorting.howManyL ev (a :: t) :=
   Worlds.Sorting.how_many_evens_and_odds_native_of_replayed msortWorldD
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) howManyEvensOddsReplayed_uncond
@@ -113,7 +115,8 @@ theorem howManyMsortReplayed_uncond (env : Env) :
 /-- ENTRY, PROVED — HOW-MANY-MSORT natively: MERGE SORT PRESERVES
     MULTIPLICITY. -/
 theorem how_many_msort_native_driver (ev : SExpr) (xs : List SExpr) :
-    (Worlds.Sorting.msortL xs).count ev = xs.count ev :=
+    Worlds.Sorting.howManyL ev (Worlds.Sorting.msortL xs)
+      = Worlds.Sorting.howManyL ev xs :=
   Worlds.Sorting.how_many_msort_native_of_replayed msortWorldD (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide)

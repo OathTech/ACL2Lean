@@ -30,10 +30,11 @@ theorem howManyAppendReplayed_uncond (env : Env) :
   howManyAppendReplayedCond env
 
 
-/-- ENTRY, PROVED — HOW-MANY-APPEND natively: `List.count` distributes
+/-- ENTRY, PROVED — HOW-MANY-APPEND natively: `howManyL` distributes
     over `++`. -/
 theorem how_many_append_native_driver (ev : SExpr) (xs ys : List SExpr) :
-    (xs ++ ys).count ev = xs.count ev + ys.count ev :=
+    Worlds.Sorting.howManyL ev (xs ++ ys)
+      = Worlds.Sorting.howManyL ev xs + Worlds.Sorting.howManyL ev ys :=
   Worlds.Sorting.how_many_append_native_of_replayed qsortWorldD (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) howManyAppendReplayed_uncond ev xs ys
@@ -194,9 +195,10 @@ theorem howManyFilter1Replayed_uncond (env : Env) :
     PARTITION every element's multiplicity. -/
 theorem how_many_filter_1_native_driver (ev dv : SExpr)
     (xs : List SExpr) :
-    (xs.filter (fun a => Worlds.Sorting.lexLtB a dv)).count ev
-      + (xs.filter (fun a => Worlds.Sorting.lexorderB dv a)).count ev
-      = xs.count ev :=
+    Worlds.Sorting.howManyL ev (xs.filter (fun a => Worlds.Sorting.lexLtB a dv))
+      + Worlds.Sorting.howManyL ev
+          (xs.filter (fun a => Worlds.Sorting.lexorderB dv a))
+      = Worlds.Sorting.howManyL ev xs :=
   Worlds.Sorting.how_many_filter_1_native_of_replayed qsortWorldD
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide)
@@ -267,7 +269,8 @@ set_option maxHeartbeats 1600000 in
 /-- ENTRY, PROVED — HOW-MANY-QSORT natively: QUICKSORT PRESERVES
     MULTIPLICITY. -/
 theorem how_many_qsort_native_driver (ev : SExpr) (xs : List SExpr) :
-    (Worlds.Sorting.qsortL xs).count ev = xs.count ev :=
+    Worlds.Sorting.howManyL ev (Worlds.Sorting.qsortL xs)
+      = Worlds.Sorting.howManyL ev xs :=
   Worlds.Sorting.how_many_qsort_native_of_replayed qsortWorldD (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide)

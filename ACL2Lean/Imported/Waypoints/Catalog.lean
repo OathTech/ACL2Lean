@@ -473,7 +473,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
       `linear:` class has no existing unlock (the mint cap excludes \
       it). Same unlocks, same second frontier (the bsort kit) as \
       ORDEREDP-BSORT; the native would be \
-      `(bsortL l).count e = l.count e`"),
+      `howManyL e (bsortL l) = howManyL e l`"),
   ("sorting/bsort", "HOW-MANY-SMALLER-BNEXT",
     .nativeSorried ``how_many_smaller_bnext_native_driver
       ``howManySmallerBnextReplayedCond

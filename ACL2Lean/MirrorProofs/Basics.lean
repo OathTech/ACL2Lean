@@ -44,7 +44,8 @@ straight by convention):
   close the theorem in one line; using it would make this file
   worthless (the route IS the product). Since C, the squares' closer
   cannot even reach such a lemma: its fixed rungs are `rfl`-lemmas
-  only (IsoGen's ladder table pins them).
+  plus the embedding's own injectivity (ruling 2026-08-14) — nothing
+  that relates two operations (IsoGen's ladder table pins them).
 - `#guard_msgs` receipts pin each theorem's axiom set on the page.
 
 THE LIST (the pathfinder's second deliverable — everything that was

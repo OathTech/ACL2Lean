@@ -37,9 +37,10 @@ theorem howManyBnextReplayed_uncond (env : Env) :
       (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-BNEXT natively: the bubble pass preserves
-    `List.count` (over the self-contained native pass `bnextL`). -/
+    `howManyL` (over the self-contained native pass `bnextL`). -/
 theorem how_many_bnext_native_driver (ev : SExpr) (xs : List SExpr) :
-    (Worlds.Sorting.bnextL xs).count ev = xs.count ev :=
+    Worlds.Sorting.howManyL ev (Worlds.Sorting.bnextL xs)
+      = Worlds.Sorting.howManyL ev xs :=
   Worlds.Sorting.how_many_bnext_native_of_replayed bsortWaypointsWorld
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) howManyBnextReplayed_uncond ev xs

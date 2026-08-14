@@ -36,10 +36,10 @@ theorem notMembHowMany0Replayed_uncond (env : Env) :
   notMembHowMany0ReplayedCond env
 
 /-- ENTRY, PROVED — NOT-MEMB-IMPLIES-HOW-MANY-IS-0 natively: an absent
-    element has `List.count` zero (the `List.count_eq_zero` class). -/
+    element has `howManyL` multiplicity zero. -/
 theorem not_memb_how_many_0_native_driver (av : SExpr) (xs : List SExpr)
     (h : xs.contains av = false) :
-    xs.count av = 0 :=
+    Worlds.Sorting.howManyL av xs = 0 :=
   Worlds.Sorting.not_memb_how_many_0_native_of_replayed convertPermWorldD
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) notMembHowMany0Replayed_uncond
@@ -88,7 +88,7 @@ theorem howManyRmReplayed_uncond (env : Env) :
     preserves the count (the count-of-erase class). -/
 theorem how_many_rm_native_driver (av bv : SExpr) (xs : List SExpr)
     (h : (av == bv) = false) :
-    (xs.erase bv).count av = xs.count av :=
+    Worlds.Sorting.howManyL av (xs.erase bv) = Worlds.Sorting.howManyL av xs :=
   Worlds.Sorting.how_many_rm_native_of_replayed convertPermWorldD
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide)
@@ -112,9 +112,9 @@ theorem howManyRmGeneralReplayed_uncond (env : Env) :
     count-of-erase law (one fewer for the erased element when present,
     unchanged otherwise). -/
 theorem how_many_rm_general_native_driver (av bv : SExpr) (xs : List SExpr) :
-    (xs.erase bv).count av
-      = bif (av == bv) && xs.contains av then xs.count av - 1
-        else xs.count av :=
+    Worlds.Sorting.howManyL av (xs.erase bv)
+      = bif (av == bv) && xs.contains av then Worlds.Sorting.howManyL av xs - 1
+        else Worlds.Sorting.howManyL av xs :=
   Worlds.Sorting.how_many_rm_general_native_of_replayed convertPermWorldD
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide)
@@ -146,8 +146,8 @@ theorem pceIsCounterexampleReplayed_uncond (env : Env) :
     element. -/
 theorem pce_is_counterexample_native_driver (xs ys : List SExpr) :
     xs.isPerm ys
-      = (xs.count (Worlds.Sorting.pceL xs ys)
-          == ys.count (Worlds.Sorting.pceL xs ys)) :=
+      = (Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) xs
+          == Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) ys) :=
   Worlds.Sorting.pce_is_counterexample_native_of_replayed convertPermWorldD
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)

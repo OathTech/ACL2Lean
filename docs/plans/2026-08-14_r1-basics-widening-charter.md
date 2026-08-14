@@ -152,3 +152,50 @@ sign-off.
 - **EXIT:** full claim-gate TRUE_EXIT=0 on 636c2ed (artifact:
   `.gate-runs/636c2ed-20260814T060311Z.log`) — 113/116 (84
   unconditional), golden matches live. Merge candidate presented.
+
+## R1-D — the ruling batch (items 1, 2, 4; ruled 2026-08-14)
+
+Item 3 (`filterRel` re-render) was NOT in scope and is untouched.
+
+- **Item 1 — `Acl2Embed.inj` ADMITTED to the ladder.** `enc_inj_iff`
+  (`IsoGen.lean`, the iff form, proved from the `inj` field) joins the
+  square closer's fixed kit; the pinned criterion is now "`rfl`-lemmas +
+  the embedding's `inj` iff", with the ruling's plumbing rationale and
+  the `Acl2Embed`-has-no-order-field note. Acceptance (W2's hom-scalar
+  residual): the residual CLOSES — but only after a gap the ruling did
+  not anticipate. The STATEMENT BUILDER dropped the mirror definition's
+  own instance binders, so `howMany`'s `hom scalar` statement did not
+  elaborate at all (`failed to synthesize instance of type class
+  DecidableEq α`). Reported as a deviation and fixed minimally
+  (`mirrorFnShape` now returns the instance-implicit binders and the hom
+  builder re-binds them at `α`, hard-erroring on any class that is not
+  one-parameter-over-the-element-type). `howMany_map_invariant` is LIVE,
+  `#print axioms` = [propext].
+- **Item 2 — HYPOTHESIS-DIRECTED CLOSING.** Finding first: the closer
+  was ALREADY `simp_all`-class, so case hypotheses always participated;
+  W1's real blocker was VOCABULARY — `h : a ≤ head` and the goal's
+  `bif lexorderB a head` never meet unless the order INSTANCE is
+  unfolded. Minimal extension: the instance goes in the invocation's
+  `unfold [...]` list (definitions only — already gated; an instance is
+  a definition), and the fixed kit gained `Bool.cond_true/false`
+  (`cond`'s own two cases, `rfl`, pinned in `LadderPins`). Deviation
+  from the ruled acceptance text: the invocation therefore reads
+  `unfold [Worlds.Sorting.insertL, instTotalOrderSExpr]`, not
+  `unfold [Worlds.Sorting.insertL]` — measured both ways (without the
+  instance the two residuals survive verbatim). W1's agree square
+  `insertOrd_agree_insertL` is LIVE, trio-clean.
+- **Item 4 — the HOW-MANY reading is an OWN-DEFINITION.**
+  `Worlds.Sorting.howManyL` (new module `Imported/SortingReadings.lean`
+  — `Imported/Sorting.lean` is at its ratchet cap), replacing
+  `xs.count e` at the `derive_sim%` invocation and at all 24 consumer
+  sites across 8 files. Every downstream statement changed ONLY in the
+  reading's spelling and NO downstream proof needed adjusting (nothing
+  was leaning on a `List.count` lemma). W2's agree square
+  `howMany_agree_howManyL` is LIVE, [propext]. Compliance pass 5 → 4
+  (`SimGen.lean` note + `TODO.md` updated).
+- **Regression net:** the 23 generated artifacts are byte-identical
+  before/after in BOTH statements and PROOF TERMS (the R1-B `#check`
+  baseline plus a `#print` extension of it) — no pre-existing
+  declaration changed route. Six mirror receipts green; sorries stay 6;
+  golden matches live; tamper-probed (two misaligned readings still
+  hard-error).

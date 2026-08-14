@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Perm
+import ACL2Lean.Imported.SortingReadings
 import ACL2Lean.Imported.ExecGen
 import ACL2Lean.Imported.GzPrelude
 
@@ -845,14 +846,13 @@ def how_many_sym : Symbol := { package := "ACL2", name := "HOW-MANY" }
 derive_exec% howManyExec corr how_many_exec_corr for how_many_sym
   formals [eS, xS] body howManyBody measured 1
 
-/-- Stage 2: `howManyExec` on an encoded list computes `List.count`
-    (as an SExpr integer) — GENERATED; the result reading is the `intRep`
-    reading (an SExpr integer atom). -/
+/-- Stage 2: `howManyExec` on an encoded list computes the OWN-DEF
+    reading `howManyL` — GENERATED; result reading `intRep`. -/
 derive_sim% howManyExec_enc for "HOW-MANY"
   vars (e : raw) (xs : list)
   exec [e, xs]
-  native (SExpr.atom (.number (.int (xs.count e))))
-  simp [Logic.plus, Logic.toRat, Logic.mkNumber, List.count_cons]
+  native (SExpr.atom (.number (.int (howManyL e xs))))
+  simp [Logic.plus, Logic.toRat, Logic.mkNumber, howManyL]
   induct structural xs
 
 /-! ## HOW-MANY-ISORT -/
@@ -863,7 +863,7 @@ def how_many_isortFormula : SExpr :=
   equalT (howManyT eT (isortT xT)) (howManyT eT xT)
 
 /-- HOW-MANY-ISORT, natively: INSERTION SORT PRESERVES MULTIPLICITY —
-    `List.count` of every element is unchanged by `isortL`. -/
+    every element's `howManyL` is unchanged by `isortL`. -/
 theorem how_many_isort_native_of_replayed (w : World)
     (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
     (h_insert : w.defs.get? insert_sym = some ([eS, xS], insertBody))
@@ -878,7 +878,7 @@ theorem how_many_isort_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env how_many_isortFormula = some v ∧ v ≠ SExpr.nil)
     (ev : SExpr) (xs : List SExpr) :
-    (isortL xs).count ev = xs.count ev := by
+    howManyL ev (isortL xs) = howManyL ev xs := by
   let e : Env := (({} : Env).insert xS (enc xs)).insert eS ev
   have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
     re_val_var_get w e { name := "E" } ev (by
@@ -900,7 +900,7 @@ theorem how_many_isort_native_of_replayed (w : World)
     h_no_cdr h_no_plus e eT xT ev (enc xs) he hx
   rw [howManyExec_enc] at hR
   have hnat := native_of_replayed_equal w e intRep _ _
-    ((isortL xs).count ev) (xs.count ev) h_no_equal hL hR (hreplayed e)
+    (howManyL ev (isortL xs)) (howManyL ev xs) h_no_equal hL hR (hreplayed e)
   omega
 
 /-! ## The convert-perm book: NOT-MEMB-IMPLIES-HOW-MANY-IS-0 -/
@@ -911,7 +911,7 @@ def not_memb_how_many_0Formula : SExpr :=
   impliesT (notT (membT aT xT)) (equalT (howManyT aT xT) q0)
 
 /-- NOT-MEMB-IMPLIES-HOW-MANY-IS-0, natively: an absent element has
-    `List.count` zero. -/
+    `howManyL` multiplicity zero. -/
 theorem not_memb_how_many_0_native_of_replayed (w : World)
     (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
       = some ([{ package := "ACL2", name := "A" },
@@ -927,7 +927,7 @@ theorem not_memb_how_many_0_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env not_memb_how_many_0Formula = some v ∧ v ≠ SExpr.nil)
     (av : SExpr) (xs : List SExpr) (hmem : xs.contains av = false) :
-    xs.count av = 0 := by
+    howManyL av xs = 0 := by
   let e : Env := (({} : Env).insert xS (enc xs)).insert aS av
   have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
     re_val_var_get w e { name := "A" } av (by
@@ -949,7 +949,7 @@ theorem not_memb_how_many_0_native_of_replayed (w : World)
     (by decide) h_no_not hMemb (callBuiltin_not _)
   -- the count side: (how-many a x) computes the int count; '0 is int 0
   have hHM : ∃ N, ∀ f ≥ N, evalOpt f w e (howManyT aT xT)
-      = some (.atom (.number (.int (xs.count av)))) := by
+      = some (.atom (.number (.int (howManyL av xs)))) := by
     have h := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
       h_no_cdr h_no_plus e aT xT av (enc xs) ha hx
     rw [howManyExec_enc] at h
@@ -962,12 +962,12 @@ theorem not_memb_how_many_0_native_of_replayed (w : World)
     h_no_implies hNot hEq (callBuiltin_implies _ _)
   have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
   have hconc := truthy_of_implies_t hIt (by rw [hmem]; rfl)
-  have hEqv : SExpr.atom (.number (.int (xs.count av)))
+  have hEqv : SExpr.atom (.number (.int (howManyL av xs)))
       = SExpr.atom (.number (.int 0)) := by
     refine Logic.eq_of_equal_ne_nil (fun hnil => ?_)
     rw [hnil] at hconc
     exact absurd hconc (by decide)
-  have : (xs.count av : Int) = 0 := by
+  have : (howManyL av xs : Int) = 0 := by
     injection hEqv with h1; injection h1 with h2; injection h2
   omega
 
@@ -1076,7 +1076,7 @@ theorem how_many_rm_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env how_many_rmFormula = some v ∧ v ≠ SExpr.nil)
     (av bv : SExpr) (xs : List SExpr) (h : (av == bv) = false) :
-    (xs.erase bv).count av = xs.count av := by
+    howManyL av (xs.erase bv) = howManyL av xs := by
   let e : Env := ((({} : Env).insert xS (enc xs)).insert bS bv).insert aS av
   have ha : ∃ N, ∀ f ≥ N, evalOpt f w e aT = some av :=
     re_val_var_get w e { name := "A" } av (by
@@ -1110,13 +1110,13 @@ theorem how_many_rm_native_of_replayed (w : World)
     corr_rm_enc w h_rm h_no_consp h_no_equal h_no_car h_no_cdr h_no_cons
       xs e bT xT bv hb hx
   have hL : ∃ N, ∀ f ≥ N, evalOpt f w e (howManyT aT (rmT bT xT))
-      = some (.atom (.number (.int ((xs.erase bv).count av)))) := by
+      = some (.atom (.number (.int (howManyL av (xs.erase bv))))) := by
     have hcorr := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
       h_no_cdr h_no_plus e aT (rmT bT xT) av (enc (xs.erase bv)) ha hRm
     rw [howManyExec_enc] at hcorr
     exact hcorr
   have hR : ∃ N, ∀ f ≥ N, evalOpt f w e (howManyT aT xT)
-      = some (.atom (.number (.int (xs.count av)))) := by
+      = some (.atom (.number (.int (howManyL av xs)))) := by
     have hcorr := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
       h_no_cdr h_no_plus e aT xT av (enc xs) ha hx
     rw [howManyExec_enc] at hcorr
@@ -1127,12 +1127,12 @@ theorem how_many_rm_native_of_replayed (w : World)
     h_no_implies hNot hEq (callBuiltin_implies _ _)
   have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
   have hconc := truthy_of_implies_t hIt (by rw [hNe]; rfl)
-  have hEqv : SExpr.atom (.number (.int ((xs.erase bv).count av)))
-      = SExpr.atom (.number (.int (xs.count av))) := by
+  have hEqv : SExpr.atom (.number (.int (howManyL av (xs.erase bv))))
+      = SExpr.atom (.number (.int (howManyL av xs))) := by
     refine Logic.eq_of_equal_ne_nil (fun hnil => ?_)
     rw [hnil] at hconc
     exact absurd hconc (by decide)
-  have : ((xs.erase bv).count av : Int) = (xs.count av : Int) := by
+  have : (howManyL av (xs.erase bv) : Int) = (howManyL av xs : Int) := by
     injection hEqv with h1; injection h1 with h2; injection h2
   omega
 
@@ -1152,7 +1152,7 @@ def how_many_appendFormula : SExpr :=
   equalT (howManyT eT (appendT xT yT))
     (plusT (howManyT eT xT) (howManyT eT yT))
 
-/-- HOW-MANY-APPEND, natively: `List.count` distributes over `++`. -/
+/-- HOW-MANY-APPEND, natively: `howManyL` distributes over `++`. -/
 theorem how_many_append_native_of_replayed (w : World)
     (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
     (h_app : w.defs.get? { package := "ACL2", name := "BINARY-APPEND" }
@@ -1168,7 +1168,7 @@ theorem how_many_append_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env how_many_appendFormula = some v ∧ v ≠ SExpr.nil)
     (ev : SExpr) (xs ys : List SExpr) :
-    (xs ++ ys).count ev = xs.count ev + ys.count ev := by
+    howManyL ev (xs ++ ys) = howManyL ev xs + howManyL ev ys := by
   let e : Env := ((({} : Env).insert yS (enc ys)).insert xS (enc xs)).insert
     eS ev
   have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
@@ -1206,7 +1206,7 @@ theorem how_many_append_native_of_replayed (w : World)
     hcx hcy
   rw [logic_plus_int] at hR
   have hnat := native_of_replayed_equal w e intRep _ _
-    ((xs ++ ys).count ev : Int) ((xs.count ev : Int) + (ys.count ev : Int))
+    (howManyL ev (xs ++ ys) : Int) ((howManyL ev xs : Int) + (howManyL ev ys : Int))
     h_no_equal hL hR (hreplayed e)
   omega
 
@@ -1804,9 +1804,9 @@ theorem how_many_filter_1_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env how_many_filter_1Formula = some v ∧ v ≠ SExpr.nil)
     (ev dv : SExpr) (xs : List SExpr) :
-    (xs.filter (fun a => lexLtB a dv)).count ev
-      + (xs.filter (fun a => lexorderB dv a)).count ev
-      = xs.count ev := by
+    howManyL ev (xs.filter (fun a => lexLtB a dv))
+      + howManyL ev (xs.filter (fun a => lexorderB dv a))
+      = howManyL ev xs := by
   let e' : Env := ((({} : Env).insert dS dv).insert eS ev).insert
     xS (enc xs)
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e' xT = some (enc xs) :=
@@ -1851,9 +1851,9 @@ theorem how_many_filter_1_native_of_replayed (w : World)
     h_no_cdr h_no_plus e' eT xT ev (enc xs) he hx
   rw [howManyExec_enc] at hR
   have hnat := native_of_replayed_equal w e' intRep _ _
-    (((filterL (symV "LT") dv xs).count ev : Int)
-      + ((filterL (symV "GTE") dv xs).count ev : Int))
-    ((xs.count ev : Int)) h_no_equal hL hR (hreplayed e')
+    ((howManyL ev (filterL (symV "LT") dv xs) : Int)
+      + (howManyL ev (filterL (symV "GTE") dv xs) : Int))
+    ((howManyL ev xs : Int)) h_no_equal hL hR (hreplayed e')
   have hLT : filterL (symV "LT") dv xs
       = xs.filter (fun a => lexLtB a dv) := by
     simp only [filterL, relL_LT]
@@ -2413,7 +2413,7 @@ theorem how_many_merge2_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env how_many_merge2Formula = some v ∧ v ≠ SExpr.nil)
     (ev : SExpr) (xs ys : List SExpr) :
-    (merge2L xs ys).count ev = xs.count ev + ys.count ev := by
+    howManyL ev (merge2L xs ys) = howManyL ev xs + howManyL ev ys := by
   let e : Env := ((({} : Env).insert yS (enc ys)).insert xS
     (enc xs)).insert eS ev
   have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
@@ -2451,8 +2451,8 @@ theorem how_many_merge2_native_of_replayed (w : World)
   have hR := conv_plusT w e _ _ _ _ h_no_plus hcx hcy
   rw [logic_plus_int] at hR
   have hnat := native_of_replayed_equal w e intRep _ _
-    ((merge2L xs ys).count ev : Int)
-    ((xs.count ev : Int) + (ys.count ev : Int)) h_no_equal hL hR
+    (howManyL ev (merge2L xs ys) : Int)
+    ((howManyL ev xs : Int) + (howManyL ev ys : Int)) h_no_equal hL hR
     (hreplayed e)
   omega
 
@@ -2482,8 +2482,8 @@ theorem how_many_evens_and_odds_native_of_replayed (w : World)
       evalOpt f w env how_many_evens_and_oddsFormula = some v ∧
       v ≠ SExpr.nil)
     (ev a : SExpr) (t : List SExpr) :
-    (evensL (a :: t)).count ev + (evensL t).count ev
-      = (a :: t).count ev := by
+    howManyL ev (evensL (a :: t)) + howManyL ev (evensL t)
+      = howManyL ev (a :: t) := by
   let e : Env := (({} : Env).insert eS ev).insert xS (enc (a :: t))
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc (a :: t)) :=
     re_val_var_get w e { name := "X" } (enc (a :: t)) (by
@@ -2589,7 +2589,7 @@ theorem how_many_msort_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env how_many_msortFormula = some v ∧ v ≠ SExpr.nil)
     (ev : SExpr) (xs : List SExpr) :
-    (msortL xs).count ev = xs.count ev := by
+    howManyL ev (msortL xs) = howManyL ev xs := by
   let e : Env := (({} : Env).insert xS (enc xs)).insert eS ev
   have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
     re_val_var_get w e { name := "E" } ev (by
@@ -2612,7 +2612,7 @@ theorem how_many_msort_native_of_replayed (w : World)
     h_no_cdr h_no_plus e eT xT ev (enc xs) he hx
   rw [howManyExec_enc] at hR
   have hnat := native_of_replayed_equal w e intRep _ _
-    ((msortL xs).count ev : Int) ((xs.count ev : Int)) h_no_equal hL hR
+    (howManyL ev (msortL xs) : Int) ((howManyL ev xs : Int)) h_no_equal hL hR
     (hreplayed e)
   omega
 
@@ -3583,7 +3583,7 @@ theorem how_many_qsort_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env how_many_qsortFormula = some v ∧ v ≠ SExpr.nil)
     (ev : SExpr) (xs : List SExpr) :
-    (qsortL xs).count ev = xs.count ev := by
+    howManyL ev (qsortL xs) = howManyL ev xs := by
   let e : Env := (({} : Env).insert xS (enc xs)).insert eS ev
   have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
     re_val_var_get w e { name := "E" } ev (by
@@ -3606,7 +3606,7 @@ theorem how_many_qsort_native_of_replayed (w : World)
     h_no_cdr h_no_plus e eT xT ev (enc xs) he hx
   rw [howManyExec_enc] at hR
   have hnat := native_of_replayed_equal w e intRep _ _
-    ((qsortL xs).count ev : Int) ((xs.count ev : Int)) h_no_equal hL hR
+    (howManyL ev (qsortL xs) : Int) ((howManyL ev xs : Int)) h_no_equal hL hR
     (hreplayed e)
   omega
 
@@ -4276,7 +4276,7 @@ theorem dis_bnext_total (w : World)
 def how_many_bnextFormula : SExpr :=
   equalT (howManyT eT (app1 "BNEXT" xT)) (howManyT eT xT)
 
-/-- HOW-MANY-BNEXT, natively: the bubble pass preserves `List.count`. -/
+/-- HOW-MANY-BNEXT, natively: the bubble pass preserves `howManyL`. -/
 theorem how_many_bnext_native_of_replayed (w : World)
     (h_bnext : w.defs.get? bnext_sym = some ([xS], bnextBody))
     (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
@@ -4290,7 +4290,7 @@ theorem how_many_bnext_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env how_many_bnextFormula = some v ∧ v ≠ SExpr.nil)
     (ev : SExpr) (xs : List SExpr) :
-    (bnextL xs).count ev = xs.count ev := by
+    howManyL ev (bnextL xs) = howManyL ev xs := by
   let e : Env := (({} : Env).insert xS (enc xs)).insert eS ev
   have he : ∃ N, ∀ f ≥ N, evalOpt f w e eT = some ev :=
     re_val_var_get w e { name := "E" } ev (by
@@ -4314,7 +4314,7 @@ theorem how_many_bnext_native_of_replayed (w : World)
     h_no_cdr h_no_plus e eT xT ev (enc xs) he hx
   rw [howManyExec_enc] at hR
   have hnat := native_of_replayed_equal w e intRep _ _
-    ((bnextL xs).count ev) (xs.count ev) h_no_equal hL hR (hreplayed e)
+    (howManyL ev (bnextL xs)) (howManyL ev xs) h_no_equal hL hR (hreplayed e)
   omega
 
 end ACL2.Worlds.Sorting

@@ -313,7 +313,14 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > Sorting count/append) — the sim_iso_close lane (default simp +
 > grind) is vocabulary-dependent, so rewrite those readings in own
 > vocabulary (own contains/erase/count defs) at the next waypoint
-> touch; the isPerm reading is the exact P1 shape. (2) RULED
+> touch; the isPerm reading is the exact P1 shape.
+> **FOUR REMAIN (R1-D, 2026-08-14):** the HOW-MANY reading is now the
+> own-definition `Worlds.Sorting.howManyL` (ruled after `List.count`
+> surfaced inside a mirror-square residual); every consumer respelled,
+> no statement changed beyond the reading's own spelling and no
+> downstream proof needed adjusting (nothing was leaning on a
+> `List.count` lemma). Left: Perm contains/erase/isPerm + Sorting
+> append. (2) RULED
 > (Mike, 2026-08-13 — disambiguate hard, as design practice): spec
 > body constructs mirroring a BOOK FUNCTION are own-definitions
 > (filterRel=FILTER, rm=RM — applied); pure-Lean idiom fully
