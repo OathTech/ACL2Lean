@@ -105,3 +105,28 @@ threat to project success, etc).
   (option M + 1a + 2a + `:GENEQV` consumer), adopted as recommended.
   Rationale: corpus-demand-driven minimality; no record demands the
   general lane; M does not corner it.
+
+- **G1-M lane COMPLETE in worktree (2026-08-14, pending collection):**
+  PERM-TLFIX FAIL → REPLAYED ✓ UNCONDITIONAL; cond[rule:PERM-TLFIX]
+  retired (golden floor: 2 lines, header → 114/116, 86+28); shapes
+  re-verified byte-identical post-recapture; the equivfull offer
+  verified LOAD-BEARING by tamper (could-not-verify #2 answered);
+  cov-cong-consume routes into the new arm, stops at the SYNP
+  stored-rule-hyp frontier, pinned 3/4 with verbatim tripwire.
+  Executor J-calls adopted into the log:
+  - **J2:** the widening landed as a WRAPPER (`replayNodeR`,
+    new NodeCore/Congruence.lean 523 lines) — Node.lean untouched at
+    its grandfathered weight cap; the old frontier gate still
+    fail-closes uncovered R shapes.
+  - **J3:** class C handled by SPLITTING the recorded node at its
+    R-step (a projection of the record, hard-checked to reach the
+    split point) — NodeRec.rewrites stays unwidened, 9 sites
+    untouched.
+  - **J4:** the cited-rune anchor reads the NODE's own :RUNES (the
+    tighter BUG-023 direction), NOT the clause-level set — class D's
+    anchor gap is a fork item, not a loosening.
+  - **J5:** collapseAtCongruenceFrame preserves the preprocess lane's
+    error text byte-for-byte (one added clause naming the R-out
+    non-representation).
+  - **:CR-RUNE fork item now has TWO consumers** (class D's step-level
+    anchor + the solidify-site tightening) — round-trip 2's list.
