@@ -8,16 +8,17 @@ The proofs of `ACL2Lean/Mirrors/Basics.lean`'s target Props, VIA
 REPLAY. Placement per Mike's ruling (2026-08-12): spec files stay
 zero-import; this layer imports the machinery and proves the Props.
 
-PROVED HERE (3 of the 6 Basics Props): `app_assoc_int` (02-rev's
-APP-ASSOC), `len_app_int` (simple.lisp's MY-LEN-MY-APP) and
-`len_revAcc_int` (the 14-accumulator book's LEN-REV-ACC — the
-accumulator class, landed with the Basics-closeout arc). The remaining
-three are HONEST DEFERRALS, not oversights: `app_nil` waits on the
-01/02 books' `rule:CONS-CAR-CDR` discharger + the true-listp hypothesis
-decode, and `rev_app`/`rev_rev` on the rev-family dischargers — all
-three waypoint rows are `.pending`, so there is no replayed statement
-to transport yet and a Lean-side proof would be exactly the banned
-route.
+PROVED HERE: ALL SIX Basics Props (6/6 since R1 item A, 2026-08-14).
+`app_assoc_int` (02-rev's APP-ASSOC), `len_app_int` (simple.lisp's
+MY-LEN-MY-APP) and `len_revAcc_int` (the 14-accumulator book's
+LEN-REV-ACC — the accumulator class) landed with the Basics-closeout
+arc; `app_nil_int`, `rev_app_int` and `rev_rev_int` (the 02-rev book's
+APP-NIL / REV-APP / REV-REV) landed with R1, once their decode-layer
+blockers were built: the APP/REV exec+iso kit (`Imported/Rev.lean`) and
+the true-listp hypothesis absorption. The absorption is NOT a weakening
+— ACL2 proved `(implies (true-listp x) …)` and the decode discharges
+that antecedent at the ENCODED instance via `Lifting.trueListp_enc`
+(every `enc` image is a true list, kernel-checked machinery-side).
 
 EVERY PROOF ON THIS PAGE IS NOW GENERATED (Basics-closeout increments
 C+D): the six squares by `mirror_iso%` and the three
@@ -47,7 +48,10 @@ straight by convention):
 - `#guard_msgs` receipts pin each theorem's axiom set on the page.
 
 THE LIST (the pathfinder's second deliverable — everything that was
-hand-written here, and what increments C+D turned each item into):
+hand-written here, and what increments C+D turned each item into).
+TEN items: 1–8 are the original inventory (the three pre-R1 mirrors);
+9–10 were ADDED by R1 item A and were never hand-written at all — they
+are what the fourth, fifth and sixth mirrors cost under the generators:
 1. `Acl2Embed` + the `Int` instance → **EXTRACTED** to the transfer
    kit (`MirrorProofs/IsoGen.lean`), unchanged in name and statement:
    the generators must build statements that mention them.
@@ -94,6 +98,26 @@ hand-written here, and what increments C+D turned each item into):
      length-SUM content still enters here and nowhere else.
    - the `len_revAcc_int` transport → **GENERATED** by the scalar path
      of item 5/6's assembly.
+9. THE REV SQUARES (`rev_agree_revL`, `rev_map_hom`) — R1 item A, and
+   the first mirror definition whose recursion CALLS another one
+   (`rev` calls `app`): both squares close only because the closer
+   resolves `app`'s REGISTERED squares out of the registry, so a
+   missing callee square fails closed rather than silently. Never
+   hand-written; **GENERATED** at 4 + 3 user lines.
+10. THE 02-REV TRANSPORTS (`app_nil_int`, `rev_app_int`,
+   `rev_rev_int`) — **GENERATED** by `mirror_transport%` at 3 lines
+   each, the list-conclusion path throughout. Two are the first
+   CONDITIONAL replayed rows to become mirrors (`(implies (true-listp
+   x) …)`), and their antecedent is discharged one layer DOWN, at the
+   waypoint decode's encoded instance (`Lifting.trueListp_enc`) — so
+   `mirror_transport%` needed no notion of hypotheses. What it did
+   need was a SECOND CLOSER RUNG: `app_nil`'s spec `Prop` carries a
+   closed list literal (`app xs [] = xs`), which rung 1 cannot pull a
+   `List.map` out of, so the closer now falls back to taking the
+   injectivity step first and pushing the map INTO the goal with the
+   same squares forwards plus `List.map_nil` (a `rfl`-lemma already in
+   the square closer's fixed kit). Rungs stay plumbing-only; the three
+   pre-R1 transports still close on rung 1, unchanged.
 
 USER LINES PER MIRROR (increment D's go/no-go measurement). The count
 is the SOURCE LINES A USER WRITES in this file for one mirror
@@ -115,6 +139,19 @@ square, the crossing, the transport — the crossing and the transport
 merge into ONE declaration under `mirror_transport%`.) A FOURTH mirror
 over functions that already carry squares costs THREE lines: the
 transport declaration alone.
+
+R1's three mirrors MEASURE that prediction, counted the same way (no
+`hand` column: they were never hand-written):
+
+| mirror     | generated  | what it is                          |
+| ---------- | ---------- | ----------------------------------- |
+| `app_nil`  | 3          | transport only (reuses `app`'s two) |
+| `rev_app`  | 10 = 4+3+3 | 2 new squares + 1 xport             |
+| `rev_rev`  | 3          | transport only (reuses `rev`'s two) |
+| ALL THREE  | 16         |                                     |
+
+— i.e. the predicted THREE lines, twice over, and one function's worth
+of squares for the one new mirror definition (`rev`).
 
 Per-mirror receipts (3 lines) and the spec `Prop` (2 lines in
 `Mirrors/Basics.lean`) are unchanged by C+D and excluded from both
@@ -256,5 +293,88 @@ mirror_transport% len_revAcc_int : ACL2Lean.Basics.len_revAcc Int
 /-- info: 'ACL2Lean.MirrorProofs.len_revAcc_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms len_revAcc_int
+
+/-! ## The squares — `rev` (THE LIST item 9)
+
+The 02-rev book's `REV`, the last mirror definition of the Basics slice
+and the first whose recursion CALLS another mirror definition (`app`):
+both squares resolve `app`'s registered squares out of the registry and
+would fail closed without them. -/
+
+/-- SQUARE (vocabulary alignment, THE LIST item 3/9): our spec-layer
+    `rev` at `List SExpr` IS the waypoint's `revL` — the same recursion
+    spelled in the two layers' vocabularies (`app` ↦ `++` on the waypoint
+    side, which is why `app_agree_append` is the rung that closes the
+    step case). Definitional agreement, not content. -/
+mirror_iso% rev_agree_revL for ACL2Lean.Basics.rev
+  vars [xs]
+  square agree (Worlds.Rev.revL xs)
+  unfold [Worlds.Rev.revL]
+
+/-- The homomorphism square for `rev`: mapping commutes with our `rev`.
+    About OUR function's skeleton — it says nothing about reversal, and
+    its step case is `app`'s homomorphism square applied under the
+    recursion. -/
+mirror_iso% rev_map_hom for ACL2Lean.Basics.rev
+  vars [xs]
+  square hom list
+
+/-! ## THE FOURTH MIRROR — `app_nil` (THE LIST item 10)
+
+The first CONDITIONAL replayed row to land as a mirror: ACL2 proved
+`(implies (true-listp x) (equal (app x nil) x))`, and the waypoint
+`app_nil_native_driver` is unconditional because the decode instantiates
+`X` at an ENCODED list, where `Lifting.trueListp_enc` discharges the
+antecedent (the machinery-side enc-image fact — the same one `listRep`'s
+`mem` field carries). The hypothesis is DISCHARGED at the seam, not
+dropped from the statement.
+
+It is also the first transport whose crossing instance carries a CLOSED
+list literal (`[]`), which is what the transport closer's second rung
+exists for (see `IsoGen`'s "the closing ladder"). -/
+
+/-- **`app_nil` at `Int`, via ACL2 replay** — the fourth mirror. Content
+    enters via the waypoint (through the generated crossing
+    `app_nil_sexpr`) and nowhere else. -/
+mirror_transport% app_nil_int : ACL2Lean.Basics.app_nil Int
+  embed intEmbed
+  crossing app_nil_sexpr from Imported.Waypoints.app_nil_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.app_nil_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms app_nil_int
+
+/-! ## THE FIFTH MIRROR — `rev_app` (THE LIST item 10) -/
+
+/-- **`rev_app` at `Int`, via ACL2 replay** — the fifth mirror, and the
+    first whose statement mentions TWO mirror definitions on each side.
+    Content enters via the waypoint `rev_app_native_driver` (the 02-rev
+    book's REV-APP) through the generated crossing `rev_app_sexpr`. -/
+mirror_transport% rev_app_int : ACL2Lean.Basics.rev_app Int
+  embed intEmbed
+  crossing rev_app_sexpr from Imported.Waypoints.rev_app_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.rev_app_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms rev_app_int
+
+/-! ## THE SIXTH MIRROR — `rev_rev` (THE LIST item 10)
+
+The book's capstone: ACL2 only gets REV-REV once APP-ASSOC, APP-NIL and
+REV-APP are available as rewrite rules, so this mirror sits on top of the
+whole chain — and, like `app_nil`, on a conditional row whose true-listp
+antecedent the decode discharges at the encoded instance. -/
+
+/-- **`rev_rev` at `Int`, via ACL2 replay** — the sixth mirror, closing
+    the Basics slice at 6/6. Content enters via the waypoint
+    `rev_rev_native_driver` through the generated crossing
+    `rev_rev_sexpr`. -/
+mirror_transport% rev_rev_int : ACL2Lean.Basics.rev_rev Int
+  embed intEmbed
+  crossing rev_rev_sexpr from Imported.Waypoints.rev_rev_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.rev_rev_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms rev_rev_int
 
 end ACL2Lean.MirrorProofs

@@ -202,8 +202,25 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > square GENERALIZES over the accumulator, so `mirror_iso%` must
 > quantify non-measured arguments inside the motive.
 > Expectations-not-gates per Mike's ruling (the charter's arc log has
-> it verbatim). Remaining three Basics Props (app_nil, rev_app,
-> rev_rev) are honest deferrals: their waypoint rows are `.pending`.
+> it verbatim).
+
+> **BASICS 6/6 (R1 item A, 2026-08-14).** The remaining three Props —
+> `app_nil_int`, `rev_app_int`, `rev_rev_int` — are proved at `Int`,
+> all trio-clean, off the 02-rev book's APP-NIL / REV-APP / REV-REV
+> rows (those catalog entries promoted `.pending` → `.native`).
+> Decode-layer only, as the fork audit predicted: a new APP/REV kit
+> (`ACL2Lean/Imported/Rev.lean` — `derive_exec%` × 2, `derive_sim%`
+> × 2, the ALIGNED reading `revL`) plus the three world-parametric
+> seam decodes. The two CONDITIONAL rows'
+> `(implies (true-listp x) …)` antecedent is DISCHARGED at the
+> encoded instance by `Lifting.trueListp_enc` — no transport-level
+> notion of hypotheses was needed. `mirror_transport%` grew ONE
+> general rung (push the map into the goal, for a spec `Prop`
+> carrying a closed list literal like `app xs [] = xs`); the three
+> pre-R1 transports still close on the original rung. THE LIST is
+> now TEN items. STILL OPEN nearby: the 01-multi-theorem APP-NIL row
+> stays `.pending` — the decode exists and is world-parametric, only
+> a waypoint entry over the 01 world is unbuilt.
 
 > **THE MIRROR GENERATORS ARE IN (Basics-closeout increments C+D,
 > 2026-08-13) — master-plan C2+C3 v1 landed for the basics slice.**

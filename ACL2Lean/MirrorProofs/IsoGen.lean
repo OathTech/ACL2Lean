@@ -174,21 +174,39 @@ macro "mirror_square_close" "[" xs:simpLemma,* "]" : tactic =>
           List.cons_append, List.length_nil, List.length_cons, $xs,*]))
 
 open Lean.Parser.Tactic in
-/-- The transport closer: normalise the crossing instance at encoded
-    arguments back to mirror vocabulary (the homomorphism squares, used
-    right-to-left to pull `List.map` outwards, then the invariance squares
-    to delete it), then land the goal — directly for a scalar conclusion,
-    through the embedding's injectivity for a list conclusion.
+/-- The transport closer, two rungs — both plumbing (generated skeleton
+    squares, `map_inj`, and `List.map_nil`), and NO content lemma in
+    either direction:
 
-    Every rung is plumbing: generated skeleton squares plus `map_inj`. NO
-    library lemma appears, in either direction. -/
+    1. PULL THE MAP OUT OF THE CROSSING INSTANCE: rewrite the homomorphism
+       squares right-to-left to pull `List.map` outwards, and the
+       invariance squares left-to-right to delete it, then land the goal —
+       directly for a scalar conclusion, through the embedding's
+       injectivity for a list conclusion.
+    2. PUSH THE MAP INTO THE GOAL (added by R1-A with its first consumer,
+       `app_nil_int`): when the spec `Prop` carries a CLOSED LIST LITERAL
+       (`app xs [] = xs`), rung 1 cannot fire — `[]` is not syntactically
+       `List.map e.enc []`, so the homomorphism square's reversed pattern
+       has nothing to match. Take the injectivity step first and rewrite
+       the GOAL with the same squares forwards, plus `List.map_nil` (a
+       `rfl`-lemma, already in the square closer's fixed kit and pinned in
+       `LadderPins`), which turns the literal into the form the crossing
+       instance has.
+
+    Rung 2 is a fallback, so the three pre-R1 transports keep their rung-1
+    proofs verbatim. -/
 macro "mirror_transport_close" "[" xs:simpLemma,* "]"
+    " fwd " "[" fs:simpLemma,* "]"
     " embed " e:term:max " in " h:ident : tactic =>
   `(tactic|
-    (simp only [$xs,*] at $h:ident
-     first
-       | exact $h
-       | exact map_inj $e $h))
+    (first
+      | (simp only [$xs,*] at $h:ident
+         first
+           | exact $h
+           | exact map_inj $e $h)
+      | (refine map_inj $e ?_
+         simp only [$fs,*, List.map_nil]
+         exact $h)))
 
 /-! ## The square registry
 
@@ -572,6 +590,12 @@ syntax (name := mirrorTransportCmd)
     else
       pure (some (← `(Lean.Parser.Tactic.simpLemma|
         ← $(mkCIdent s.homName):term)))
+  -- the same squares FORWARDS, for the closer's second rung (which
+  -- rewrites the GOAL rather than the crossing instance)
+  let homLemmasFwd ← (currentSquares env2).filterMapM fun s => do
+    if s.homName == .anonymous then pure none
+    else pure (some (← `(Lean.Parser.Tactic.simpLemma|
+      $(mkCIdent s.homName):term)))
   let hId : Ident := mkIdent `h
   let encArgs ← bs.mapM fun b => `(List.map ($embedStx).enc $b:ident)
   let crossApp := Syntax.mkApp crossId encArgs
@@ -579,6 +603,7 @@ syntax (name := mirrorTransportCmd)
       intro $bs*
       have $hId : _ := $crossApp
       mirror_transport_close [$(homLemmas.toArray),*]
+        fwd [$(homLemmasFwd.toArray),*]
         embed $embedStx in $hId)
   let mainStmt : Term ← `($(mkCIdent specName) $elemTy)
   elabCommand (←

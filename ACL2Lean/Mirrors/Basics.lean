@@ -14,16 +14,19 @@ imports (core prelude only), self-contained vocabulary (our own
 content), properties as named `Prop`s until their proofs arrive via
 replay, no `sorry` ever.
 
-Waypoint status at drafting (the metric layer's scoreboard):
-MY-LEN-MY-APP green CLEAN (its TP debt retired by the replay route,
-TP-replay arc increment 1 2026-08-12), APP-ASSOC green CLEAN — the first
-end-to-end target — APP-NIL/REV-APP/REV-REV pending (named
-frontiers), LEN-REV-ACC green CLEAN and CATALOGUED `.native` since the
-Basics-closeout arc (the accumulator — the template gate's decisive
-case; the ALIGNED reading passes the fixed iso template, the
-reassociating one is rejected). Three of the six Props are proved
-(`len_app`, `app_assoc`, `len_revAcc`); the other three have no
-replayed statement to transport yet. -/
+Waypoint status (the metric layer's scoreboard), updated 2026-08-14:
+ALL SIX rows are green CLEAN and catalogued `.native` — MY-LEN-MY-APP
+(its TP debt retired by the replay route, TP-replay arc increment 1
+2026-08-12), APP-ASSOC (the first end-to-end target), LEN-REV-ACC (the
+accumulator — the iso template gate's decisive case; the ALIGNED
+reading passes, the reassociating one is rejected), and
+APP-NIL/REV-APP/REV-REV (all three off the 02-rev book; R1 item A: the
+APP/REV exec+iso kit plus, for the two `(implies (true-listp x) …)`
+rows, the antecedent discharged at the encoded instance). All six Props
+below are therefore PROVED VIA REPLAY in
+`ACL2Lean/MirrorProofs/Basics.lean`. (The 01-multi-theorem book's
+second APP-NIL row is still `.pending` — a duplicate row for the same
+theorem, wanting only a waypoint entry over that world.) -/
 
 namespace ACL2Lean.Basics
 
@@ -64,20 +67,20 @@ def len_app (α : Type u) : Prop :=
 def app_assoc (α : Type u) : Prop :=
   ∀ (xs ys zs : List α), app (app xs ys) zs = app xs (app ys zs)
 
-/-- APP-NIL (the 01/02 books). Its sweep row is green and
-    UNCONDITIONAL; what is missing is only the decode/lift (mirror-side).
-    (Corrected 2026-08-13: this docstring used to claim the G5
-    multi-literal frontier — false; the row replays.) -/
+/-- APP-NIL (the 01/02 books). PROVED at `Int` (R1, 2026-08-14) off the
+    02-rev row; ACL2's theorem is conditional on `(true-listp x)` and the
+    decode discharges that antecedent at the encoded instance. -/
 def app_nil (α : Type u) : Prop :=
   ∀ (xs : List α), app xs [] = xs
 
-/-- REV-APP (the 02-rev book). Row green + unconditional; needs only the
-    decode/lift (mirror-side) — no rev exec/iso kit yet. -/
+/-- REV-APP (the 02-rev book). PROVED at `Int` (R1, 2026-08-14). -/
 def rev_app (α : Type u) : Prop :=
   ∀ (xs ys : List α), rev (app xs ys) = app (rev ys) (rev xs)
 
-/-- REV-REV (the 02-rev book). Row green + unconditional; needs only the
-    decode/lift (mirror-side) — no rev exec/iso kit yet. -/
+/-- REV-REV (the 02-rev book) — the book's capstone, which ACL2 only
+    gets once APP-ASSOC/APP-NIL/REV-APP are available as rewrite rules.
+    PROVED at `Int` (R1, 2026-08-14); conditional on `(true-listp x)` in
+    ACL2, discharged at the encoded instance. -/
 def rev_rev (α : Type u) : Prop :=
   ∀ (xs : List α), rev (rev xs) = xs
 

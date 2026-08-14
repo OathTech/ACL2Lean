@@ -113,11 +113,15 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("00-direct", "SQ-OF-3", .native ``sq_of_3_native ``sqOf3ReplayedCond),
   ("00-direct", "SQ-REWRITES", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("01-multi-theorem", "APP-CONS-CAR", .native ``car_cons_native ``appConsCarReplayedCond),
-  ("01-multi-theorem", "APP-NIL", .pending "the true-listp hypothesis decode (appNil kit — decode-layer; the row replays green + unconditional; the old rule:CONS-CAR-CDR clause was stale — see the R0 note below)"),
+  ("01-multi-theorem", "APP-NIL", .pending "a waypoint entry over the 01 world — the decode itself EXISTS since R1-A (Worlds.Rev.app_nil_native_of_replayed, world-parametric, landed on the 02-rev row below); nothing is blocking, it is unbuilt (the old rule:CONS-CAR-CDR clause was stale — see the R0 note below)"),
   ("01-multi-theorem", "LEN2-APP", .pending "len2 world dischargers (entry-1 recipe over the 01 world)"),
   ("02-rev", "APP-ASSOC", .native ``app_assoc_native_driver ``appAssocReplayedCond),
   ("02-rev", "TRUE-LISTP-REV", .pending "the flatten-recipe waypoint (the image-of-enc fact, cf TRUE-LISTP-FLATTEN — unconditional, transfers directly)"),
-  ("02-rev", "APP-NIL", .pending "the true-listp hypothesis decode (appNil kit — decode-layer; the row replays green + unconditional)"),
+  -- PROMOTED to `.native` 2026-08-14 (R1 item A): the APP/REV kit exists
+  -- now (`Imported/Rev.lean` — derive_exec%/derive_sim%), and the
+  -- `(TRUE-LISTP X)` antecedent is DISCHARGED at the encoded instance by
+  -- `Lifting.trueListp_enc` (every enc image is a true list), not assumed.
+  ("02-rev", "APP-NIL", .native ``app_nil_native_driver ``appNilReplayedCond),
   -- R0 item 7 (2026-08-13; APP-NIL rows folded in post-flight — same
   -- evidence): the previous blockedOn text ("tp:REV/
   -- rule:CONS-CAR-CDR dischargers") was stale in BOTH halves — tp:REV was
@@ -126,8 +130,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- rule:CONS-CAR-CDR has a working discharger (gz_rule_cons_car_cdr,
   -- Provers.lean) — it is a kept condition on NO golden row. Both rows
   -- replay green and UNCONDITIONAL; the only thing missing is decode-layer.
-  ("02-rev", "REV-APP", .pending "no rev exec/iso kit — decode-layer work (the row replays green + unconditional)"),
-  ("02-rev", "REV-REV", .pending "no rev exec/iso kit — decode-layer work (the row replays green + unconditional)"),
+  -- PROMOTED to `.native` 2026-08-14 (R1 item A): the rev exec/iso kit
+  -- landed (`Imported/Rev.lean`); REV's ALIGNED reading `Worlds.Rev.revL`
+  -- passes the fixed `derive_sim%` template.
+  ("02-rev", "REV-APP", .native ``rev_app_native_driver ``revAppReplayedCond),
+  ("02-rev", "REV-REV", .native ``rev_rev_native_driver ``revRevReplayedCond),
   ("03-linear", "LEN2-NONNEG", .pending "len2 dischargers; Nat form is type-absorbed"),
   ("03-linear", "LEN2-CDR-SMALLER", .pending "len2 dischargers"),
   ("03-linear", "LINEAR-CHAIN", .pending "#50 DP tactic decode"),
