@@ -53,6 +53,62 @@ theorem logic_nfix_eq_nfixNat (x : SExpr) :
   | .nil => rfl
   | .cons _ _ => rfl
 
+/-! ## The NFIX row's ARITHMETIC decrease (T1+2 sprint phase 3a)
+
+The `count`/`len` rows decrease along a DESTRUCTOR CHAIN; the NFIX row does
+not. Its emitted obligations are arithmetic — the three corpus witnesses
+(`recon-tests/11-custom-measure`'s `CD2`, `06-measure`'s `COUNT-DOWN`,
+`07-mutual-recursion`'s `MY-EVENP`/`MY-ODDP`) all emit
+
+    ((ZP N) … (O< (NFIX (BINARY-+ 'k N)) (NFIX N)))     with k < 0
+
+i.e. the recursive call adds a NEGATIVE integer literal, ruled by a
+REFUTED `(ZP N)`. These are the `nfixNat` twins the decrease walk
+(`chainLtNfix`, Driver/Decrease) consumes; the emitted clause remains the
+sole license (CLAUDE.md's admission carve-out extension) — this is only the
+arithmetic that discharges it. -/
+
+/-- A REFUTED `(ZP v)` ruler says exactly `0 < toInt v` (`Logic.zp` is
+    `toInt ≤ 0`, and `toBool` is nil-dichotomous). -/
+theorem toInt_pos_of_not_zp {v : SExpr}
+    (h : Logic.toBool (Logic.zp v) = false) : 0 < Logic.toInt v := by
+  by_cases hz : Logic.toInt v ≤ 0
+  · exfalso
+    have hzt : Logic.zp v = SExpr.t := if_pos hz
+    rw [hzt] at h
+    exact absurd h (by decide)
+  · omega
+
+/-- A value with a non-zero `toInt` IS an integer atom (everything else
+    coerces to `0`). -/
+theorem exists_int_of_toInt_ne_zero {x : SExpr} (h : Logic.toInt x ≠ 0) :
+    ∃ n : Int, x = .atom (.number (.int n)) := by
+  match x with
+  | .atom (.number (.int n)) => exact ⟨n, rfl⟩
+  | .atom (.number (.rational _ _ _)) => exact absurd rfl h
+  | .atom (.symbol _) => exact absurd rfl h
+  | .atom (.keyword _) => exact absurd rfl h
+  | .atom (.string _) => exact absurd rfl h
+  | .atom (.char _) => exact absurd rfl h
+  | .nil => exact absurd rfl h
+  | .cons _ _ => exact absurd rfl h
+
+/-- THE NFIX ROW'S DECREASE: adding a NEGATIVE integer to a value whose
+    `(ZP …)` ruler is refuted strictly decreases `nfixNat`. `c`'s negative
+    `toInt` forces it to be a negative integer atom, and the refuted `ZP`
+    forces `v` to be a POSITIVE one — so the sum is `< v` and its
+    zero-clipped natural is strictly below `v`'s. -/
+theorem nfixNat_plus_lt_of_not_zp {c v : SExpr} (hc : Logic.toInt c < 0)
+    (hz : Logic.toBool (Logic.zp v) = false) :
+    nfixNat (Logic.plus c v) < nfixNat v := by
+  have hv : 0 < Logic.toInt v := toInt_pos_of_not_zp hz
+  obtain ⟨m, rfl⟩ := exists_int_of_toInt_ne_zero (x := c) (by omega)
+  obtain ⟨n, rfl⟩ := exists_int_of_toInt_ne_zero (x := v) (by omega)
+  rw [Logic.plus_int]
+  simp only [nfixNat_int]
+  simp only [Logic.toInt_int] at hc hv
+  omega
+
 /-! ## The μ-registry row -/
 
 /-- THE μ-REGISTRY: each measure-table row's trusted-core `SExpr → Nat`

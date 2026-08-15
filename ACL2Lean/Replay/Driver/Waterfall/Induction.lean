@@ -537,7 +537,37 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                   mkAppM ``toBool_false_of_eq_nil #[hCast]
                 | none => throwFrontier m!"replayInduction: registry \
                     decrease needs a refuted (ENDP {repr b}) ruling fact \
-                    in scope (frontier)" }
+                    in scope (frontier)"
+              -- THE GENERAL accessor (T1+2 sprint phase 3a): an ARBITRARY
+              -- ruling test's case fact, normalized from the `TestFact`
+              -- sign shape (`≠ nil` / `= nil`) to `toBool … = <sign>`. The
+              -- value-alignment discipline is the recognizer accessors'
+              -- verbatim: recompute the term's value in THIS context and
+              -- isDefEq-check the fact against it, so a mis-aligned fact can
+              -- never be handed to a decrease lemma.
+              factOf? := fun test pos => do
+                match facts.find?
+                    (fun f => f.test == test && f.sign == pos) with
+                | none => pure none
+                | some cf => do
+                  let vT ← ctxValExpr cfg' ctxNow test
+                  let nilC := mkConst ``SExpr.nil
+                  if pos then
+                    let neTy ← mkAppM ``Ne #[vT, nilC]
+                    unless ← isDefEq (← inferType cf.signE) neTy do
+                      throwError "replayInduction: the truthy {repr test} \
+                          fact's value is not the term's value in this \
+                          context"
+                    pure (some (← mkAppM ``toBool_true_of_ne_nil
+                      #[← mkExpectedTypeHint cf.signE neTy]))
+                  else
+                    let eqTy ← mkEq vT nilC
+                    unless ← isDefEq (← inferType cf.signE) eqTy do
+                      throwError "replayInduction: the falsy {repr test} \
+                          fact's value is not the term's value in this \
+                          context"
+                    pure (some (← mkAppM ``toBool_false_of_eq_nil
+                      #[← mkExpectedTypeHint cf.signE eqTy])) }
             let hLtRaw ← try
                 dischargeDecrease just
                   schemeFormals schemeActuals

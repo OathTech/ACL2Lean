@@ -344,9 +344,9 @@ private def tsSubsumedProof (m m' : Int) : MetaM Expr := do
     FACTS — the Lean-side replay of what ACL2's `assume-true-false` did to
     reach the emitted type-alist entry `target`. One fact (weakened) or
     two (intersected); anything else is a frontier rather than a guess. -/
-def tsFromFacts (facts : List (SExpr × Bool × Expr)) (t : SExpr) (tv : Expr)
+def tsFromFacts (facts : TotFacts) (t : SExpr) (tv : Expr)
     (target : Int) : MetaM Expr := do
-  let cands := facts.filterMap fun (f, pos, hb) =>
+  let cands := facts.filterMap fun (f, pos, hb, _) =>
     match tsFactOf f pos with
     | some (a, m, nm) => if a == t then some (m, nm, hb) else none
     | none => none
@@ -376,7 +376,7 @@ def tsFromFacts (facts : List (SExpr × Bool × Expr)) (t : SExpr) (tv : Expr)
     derived HERE. Returns the leaf plus ACL2's verdict for `t` (the leaf's
     own verdict when `t` IS the leaf, else its emitted SUBTERM verdict —
     the GAP-2 payoff). -/
-def tpAddressedLeaf (kit : TpKit) (facts : List (SExpr × Bool × Expr))
+def tpAddressedLeaf (kit : TpKit) (facts : TotFacts)
     (t : SExpr) : Option (TpLeaf × Int) :=
   let fs := facts.map (fun (f, pos, _) => (f, pos))
   let ruled := kit.leaves.filter fun l =>
@@ -399,7 +399,7 @@ def tpAddressedLeaf (kit : TpKit) (facts : List (SExpr × Bool × Expr))
     so a drifted lift or a mis-registered mask fails closed. -/
 def tpTsLeaf (cfg : ReplayConfig) (envE : Expr)
     (vals : List (Symbol × Expr × Expr))
-    (facts : List (SExpr × Bool × Expr))
+    (facts : TotFacts)
     (kit : TpKit) (cls : TpCorClass) (P : Expr) (t : SExpr) : MetaM Expr := do
   let varP : Symbol → Option (Expr × Expr) := fun s =>
     (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))

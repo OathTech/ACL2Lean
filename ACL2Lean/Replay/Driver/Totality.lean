@@ -13,15 +13,29 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- ONE branch fact of the admission walk: the ruling test, its polarity,
+    the `Logic.toBool <the test's value> = <polarity>` proof, and — for an
+    OPAQUE test (the `conv_if_split_ex` arm, whose value is an
+    ∃-ELIMINATED fvar the walk cannot recompute) — that value together with
+    its convergence.
+
+    `none` = a LIFTABLE test, whose value and convergence the walk
+    recomputes on demand (`dpValExpr`/`dpValProof`). The pair exists
+    because the recorded-termination ruler peel must state the ruler's
+    NIL convergence, and for an opaque ruler (bsort's
+    `(EQUAL (BNEXT X) X)`) the split has ALREADY bound both — recomputing
+    is impossible, but nothing needs to be: T1+2 sprint phase 3a. -/
+abbrev TotFacts := List (SExpr × Bool × Expr × Option (Expr × Expr))
+
 /-- The body-convergence walk: a proof of `∃N∃v ∀f≥N, eval envE t = some v`.
     `vals` carries each formal's VALUE expr and var-convergence proof;
-    `facts` the branch context; `totalEnv` earlier functions' totality
-    proofs (hypothesis-shaped); `selfC` the recursion data (the IH, the
-    admission's MEASURE-TABLE ROW — R3, which fixes the IH's binder shape —
-    plus the justification whose emitted clauses license its use). -/
+    `facts` the branch context (`TotFacts`); `totalEnv` earlier functions'
+    totality proofs (hypothesis-shaped); `selfC` the recursion data (the IH,
+    the admission's MEASURE-TABLE ROW — R3, which fixes the IH's binder
+    shape — plus the justification whose emitted clauses license its use). -/
 partial def totWalk (cfg : ReplayConfig) (envE : Expr)
     (vals : List (Symbol × Expr × Expr))
-    (facts : List (SExpr × Bool × Expr))
+    (facts : TotFacts)
     (totalEnv : List (String × Nat × Expr))
     (selfC : Option (String × MeasureShape × Expr × Justification ×
       Option RecTermInfo))
@@ -122,14 +136,22 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                          facts.any (fun (f, pos, _) => f == dual && pos)
                        | none => false))
                     (rulerNilConv := fun lit => do
-                      unless totLiftable lit do
-                        throwFrontier m!"recorded decrease: non-liftable \
-                            ruler {repr lit} (frontier)"
-                      let hcnv ← dpValProof cfg envE [] [] varP lit
                       match facts.find?
                           (fun (f, pos, _) => f == lit && !pos) with
-                      | some (_, _, hb) =>
-                        let vc ← dpValExpr [] varVal lit
+                      | some (_, _, hb, carried?) =>
+                        -- the value/convergence pair: CARRIED by the split
+                        -- for an opaque test (T1+2 sprint phase 3a — bsort's
+                        -- `(EQUAL (BNEXT X) X)` ruler, which the walk cannot
+                        -- recompute), recomputed for a liftable one
+                        let (vc, hcnv) ← match carried? with
+                          | some (v, hcv) => pure (v, hcv)
+                          | none => do
+                            unless totLiftable lit do
+                              throwFrontier m!"recorded decrease: \
+                                  non-liftable ruler {repr lit} with no \
+                                  carried value (frontier)"
+                            pure (← dpValExpr [] varVal lit,
+                                  ← dpValProof cfg envE [] [] varP lit)
                         let hnil ← mkAppM ``Iff.mp
                           #[← mkAppM ``Logic.toBool_eq_false #[vc], hb]
                         mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil]
@@ -137,7 +159,7 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                         let some dual := notConspDualOf lit
                           | throwError "recorded decrease: internal — ruler \
                               fact vanished"
-                        let some (_, _, hb) := facts.find?
+                        let some (_, _, hb, _) := facts.find?
                             (fun (f, pos, _) => f == dual && pos)
                           | throwError "recorded decrease: internal — dual \
                               ruler fact vanished"
@@ -145,6 +167,13 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                           | throwFrontier m!"recorded decrease: not-consp \
                               ruler {repr lit} has no value-level nil lemma \
                               (frontier)"
+                        -- the dual route states the ruler's own value, so
+                        -- it must be liftable (a recognizer application)
+                        unless totLiftable lit do
+                          throwFrontier m!"recorded decrease: non-liftable \
+                              ruler {repr lit} on the recognizer-dual route \
+                              (frontier)"
+                        let hcnv ← dpValProof cfg envE [] [] varP lit
                         -- hb : toBool (consp vb) = true ⇒ <recog> vb = nil
                         let hnil ← mkAppM nilLemma #[hb]
                         mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil])
@@ -174,7 +203,7 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
           -- through ACL2's own `(atom x) = (not (consp x))` axiom.
           let factOf (test : SExpr) (pos : Bool) : Option Expr :=
             (facts.find? (fun (f, p, _) => f == test && p == pos)).map
-              (fun (_, _, pf) => pf)
+              (fun (_, _, pf, _) => pf)
           let recogTest (r : String) (b : SExpr) : SExpr :=
             .cons (.atom (.symbol { name := r })) (.cons b .nil)
           let kit : DecreaseKit := {
@@ -215,7 +244,12 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                     #[← mkAppM ``logic_endp_nil_of_consp_toBool #[hb]]
                 | none => throwFrontier m!"dischargeDecrease: registry \
                     decrease at {repr b} needs a refuted (endp {repr b}) \
-                    fact (frontier)" }
+                    fact (frontier)"
+            -- the GENERAL accessor: the admission walk's facts already
+            -- carry each ruling test's `toBool = <sign>` proof, so an
+            -- arbitrary ruler (the NFIX row's refuted `(ZP v)`) is a
+            -- direct lookup
+            factOf? := fun test pos => pure (factOf test pos) }
           let hNs ← proveNotSpecial fs
           let hDef ← totDefFact cfg fs formals body
           -- THE SUM-MEASURE ROW (R3; audit F6's single largest table cell —
@@ -384,7 +418,8 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
         let tTrue ← mkEq toBoolVc (mkConst ``Bool.true)
         let tFalse ← mkEq toBoolVc (mkConst ``Bool.false)
         let he ← withLocalDeclD `hb tFalse fun hb => do
-          let p ← totWalk cfg envE vals ((c, false, hb) :: facts) totalEnv selfC e
+          let p ← totWalk cfg envE vals ((c, false, hb, none) :: facts)
+            totalEnv selfC e
           mkLambdaFVars #[hb] p
         let ht ←
           if ← isDefEq vc (mkConst ``SExpr.nil) then do
@@ -398,7 +433,7 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
               (← mkConvPropEx cfg.worldExpr envE (reflectSExpr th))
           else
             withLocalDeclD `hb tTrue fun hb => do
-              let p ← totWalk cfg envE vals ((c, true, hb) :: facts)
+              let p ← totWalk cfg envE vals ((c, true, hb, none) :: facts)
                 totalEnv selfC th
               mkLambdaFVars #[hb] p
         return ← mkAppM ``conv_if_split
@@ -422,7 +457,7 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
             withLocalDeclD `hcv convTy fun hcv => do
               let hbTy ← mkEq (← mkAppM ``Logic.toBool #[vc]) (mkConst bval)
               withLocalDeclD `hb hbTy fun hb => do
-                let p ← totWalk cfg envE vals ((c, pos, hb) :: facts)
+                let p ← totWalk cfg envE vals ((c, pos, hb, some (vc, hcv)) :: facts)
                   totalEnv selfC branch
                 mkLambdaFVars #[vc, hcv, hb] p
         let ht ← mkBranch ``Bool.true true th

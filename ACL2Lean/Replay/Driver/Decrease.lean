@@ -66,6 +66,15 @@ structure DecreaseKit where
   /-- `toBool (endp (valOf b)) = false` for a term with a refuted
       `(ENDP b)` ruler fact in scope. -/
   endpFalseOf : SExpr → MetaM Expr
+  /-- THE GENERAL in-scope-fact accessor (T1+2 sprint phase 3a): the branch
+      fact for an ARBITRARY ruling test at the given polarity, normalized to
+      `Logic.toBool (valOf test) = <sign>`; `none` when the test is not ruled
+      on this branch. `conspTrueOf`/`endpFalseOf` above stay as the two
+      RECOGNIZER specializations (they additionally bridge the
+      CONSP/ENDP/ATOM duality, which is recognizer-specific); the ARITHMETIC
+      rows have no recognizer — the NFIX walk's license is a refuted
+      `(ZP v)`, and nothing but a general accessor can hand it over. -/
+  factOf? : SExpr → Bool → MetaM (Option Expr)
 
 /-- View `(ACL2-COUNT u)` → `u`. -/
 def countOfView (t : SExpr) : Option SExpr :=
@@ -79,6 +88,14 @@ def lenOfView (t : SExpr) : Option SExpr :=
   match t with
   | .cons (.atom (.symbol c)) (.cons u .nil) =>
     if c.name == "LEN" then some u else none
+  | _ => none
+
+/-- View `(NFIX u)` → `u` (the arithmetic-countdown family: `CD2`,
+    `COUNT-DOWN`, `MY-EVENP`/`MY-ODDP`). -/
+def nfixOfView (t : SExpr) : Option SExpr :=
+  match t with
+  | .cons (.atom (.symbol c)) (.cons u .nil) =>
+    if c.name == "NFIX" then some u else none
   | _ => none
 
 /-- LEN-measure decrease walk (the `lenNat` twin of `chainLt`, P3): prove
@@ -117,6 +134,40 @@ partial def chainLtLen (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
     mkAppM ``Nat.lt_of_le_of_lt #[← mkAppM ``Nat.le_of_eq #[hEq], hLt]
   | _ => throwFrontier m!"chainLtLen: shape {repr t} has no LEN decrease \
       arm (frontier)"
+
+/-- NFIX-measure decrease walk (T1+2 sprint phase 3a — the ARITHMETIC twin
+    of `chainLt`/`chainLtLen`): prove
+    `nfixNat (valOf t) < nfixNat (valOf base)`.
+
+    ONE arm, keyed to the emitted call-site shape the whole
+    arithmetic-countdown family uses — `(BINARY-+ '<negative int> base)`,
+    licensed by the SAME emitted clause's refuted `(ZP base)` ruler
+    (`chainLtNfix` is only ever reached after `dischargeDecrease` verified
+    that ruler against the branch facts). Anything else is a named
+    frontier: an NFIX decrease this walk cannot state is an honest gap,
+    never an inferred one. -/
+def chainLtNfix (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
+  let .cons (.atom (.symbol p)) (.cons klit (.cons u .nil)) := t
+    | throwFrontier m!"chainLtNfix: shape {repr t} has no NFIX decrease arm \
+        (frontier)"
+  unless p.name == "BINARY-+" do
+    throwFrontier m!"chainLtNfix: head {p.name} has no NFIX decrease arm \
+        (frontier): {repr t}"
+  unless u == base do
+    throwFrontier m!"chainLtNfix: the NFIX decrease's addend {repr u} is not \
+        the measured base {repr base} (frontier)"
+  let zpTest : SExpr :=
+    .cons (.atom (.symbol { name := "ZP" })) (.cons base .nil)
+  let some hzp ← kit.factOf? zpTest false
+    | throwFrontier m!"chainLtNfix: the NFIX decrease at {repr base} needs a \
+        refuted (ZP {repr base}) ruling fact in scope (frontier)"
+  -- the summand's negativity is a KERNEL decision on its own value (the
+  -- literal comes from the emitted clause; nothing is inferred)
+  let vk ← kit.valOf klit
+  let hNeg ← proveByDecide
+    (← mkAppM ``LT.lt #[← mkAppM ``Logic.toInt #[vk], Lean.toExpr (0 : Int)])
+    s!"the NFIX decrease summand {repr klit} is negative"
+  mkAppM ``ACL2.Replay.nfixNat_plus_lt_of_not_zp #[hNeg, hzp]
 
 /-- Count-walk ≤ leg: `(valOf t).consCount ≤ (valOf base).consCount` for `t`
     a (possibly empty) cdr/car chain over `base` — unconditional per-step
@@ -597,12 +648,13 @@ def dischargeDecrease (just : Justification)
           {repr measure'} lost its shape (frontier)"
     chainLtLen kit base (sub base)
   | .nfix _ =>
-    -- REGISTERED for μ (the induction lane's bookkeeping) but with no
-    -- decrease walk: an NFIX decrease is ARITHMETIC (`(NFIX (+ -2 N))
-    -- < (NFIX N)` under refuted `(ZP N)`), not a destructor chain.
-    throwFrontier m!"dischargeDecrease: the NFIX measure row has no \
-        decrease walk — an NFIX decrease is arithmetic, not a destructor \
-        chain (frontier): {repr measure'}"
+    -- the ARITHMETIC walk (T1+2 sprint phase 3a — `chainLtNfix`): an NFIX
+    -- decrease is `(NFIX (+ 'k v)) < (NFIX v)` under a refuted `(ZP v)`,
+    -- not a destructor chain.
+    let some base := nfixOfView measure'
+      | throwFrontier m!"dischargeDecrease: renamed NFIX measure \
+          {repr measure'} lost its shape (frontier)"
+    chainLtNfix kit base (sub base)
   | .userFn f _ =>
     throwFrontier m!"dischargeDecrease: user measure fn {f.name} has no \
         destructor-chain decrease walk — the recorded-termination route \

@@ -227,3 +227,32 @@ threat to project success, etc).
     1240-line ratchet cap instead of forcing a baseline loosening.
     `TpLeaf` + its reader moved above `RewriteStep` in the same file so
     `argLeaves : List TpLeaf` can be declared.
+
+- **P3a COLLECTED (2026-08-15):** item 1 DONE (TotFacts carries
+  value+convergence through the opaque-test arm; total:BSORT retired
+  ×3 — the 4th occurrence is :INCLUDE-BOOK-sourced, correctly
+  unmoved); item 4 ADVANCED (the .nfix decrease walk + DecreaseKit
+  factOf? + the proved arithmetic family; CD2-BOUND's new frontier =
+  the ZP compound-recognizer arm, cited-rune threading); items 3/5/6
+  STOPPED with one shared root cause diagnosed verbatim — **the
+  cross-book D1 transfer (WP5)**: the registry is per-book, cross-book
+  rule: deps re-replay in the consumer telescope and frontier
+  (measured: retiring rule:CONVERT-PERM swaps 1-for-1 to
+  rule:TRUE-LISTP-RM; exploratory chain REVERTED per the movement
+  rule). Item 2 dissolved (the offer already flows; the payoff is
+  dischargeLinearHyp — new machinery). Three latent defects recorded
+  for the transfer lane: no equivrefl: arm in depReplayedProofAt;
+  containsFVar on un-instantiated exprs; first-name-match dependency
+  selection (the two TRUE-LISTP-RMs).
+
+## THE REMAINING BILL (post-P3a inventory — all driver-side)
+
+- **P3b (consumption):** ordinal totality (total:O< ×12, O-P ×6,
+  dis_o_lt_total — ground-zero clauses EXIST, RT2-verified);
+  hypothetical-TP mode over per-entry :LEAVES (tp:QSORT ×2); the
+  trio's recognizer arm over :ARG-LEAVES; CLASSIFY-POS consumer over
+  :LHS-TS/:RHS-TS; CD2-BOUND's ZP arm.
+- **P3c (the transfer lane):** cross-book D1 transfer (WP5) — unlocks
+  the rule: chains (×10-class), total:QSORT/BSORT at sorts-equivalent
+  (:INCLUDE-BOOK sources), dis_convert_perm; + the three latent
+  defects; + dischargeLinearHyp (linear: ×4).

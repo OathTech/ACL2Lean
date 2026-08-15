@@ -426,7 +426,7 @@ def buildTotalEnv (cfg : ReplayConfig)
     argument VALUES, so a callee step must supply them. -/
 partial def tpArgValues (cfg : ReplayConfig) (envE : Expr)
     (vals : List (Symbol × Expr × Expr))
-    (facts : List (SExpr × Bool × Expr))
+    (facts : TotFacts)
     (totalEnv : List (String × Nat × Expr))
     (args : List SExpr) (acc : List (Expr × Expr))
     (k : List (Expr × Expr) → MetaM Expr) : MetaM Expr := do
@@ -467,7 +467,7 @@ mutual
     frontier (D6: the `tp:` hypothesis stays). -/
 partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
     (vals : List (Symbol × Expr × Expr))
-    (facts : List (SExpr × Bool × Expr))
+    (facts : TotFacts)
     (totalEnv : List (String × Nat × Expr))
     (self : Option (String × Symbol × Expr × Justification))
     (kit : TpKit) (P : Expr) (t : SExpr) : MetaM Expr := do
@@ -502,7 +502,7 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
         let toBoolVc ← mkAppM ``Logic.toBool #[vc]
         let mkB (bval : Name) (pos : Bool) (branch : SExpr) : MetaM Expr := do
           withLocalDeclD `hb (← mkEq toBoolVc (mkConst bval)) fun hb => do
-            let p ← tpWalk cfg envE vals ((c, pos, hb) :: facts)
+            let p ← tpWalk cfg envE vals ((c, pos, hb, none) :: facts)
               totalEnv self kit P branch
             mkLambdaFVars #[hb] p
         let ht ←
@@ -534,7 +534,8 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
             withLocalDeclD `hcv convTy fun hcv => do
               let hbTy ← mkEq (← mkAppM ``Logic.toBool #[vc]) (mkConst bval)
               withLocalDeclD `hb hbTy fun hb => do
-                let p ← tpWalk cfg envE vals ((c, pos, hb) :: facts)
+                let p ← tpWalk cfg envE vals
+                  ((c, pos, hb, some (vc, hcv)) :: facts)
                   totalEnv self kit P branch
                 mkLambdaFVars #[vc, hcv, hb] p
         let ht ← mkB ``Bool.true true th
@@ -645,7 +646,7 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
     everything else a frontier. -/
 partial def tpWalkCall (cfg : ReplayConfig) (envE : Expr)
     (vals : List (Symbol × Expr × Expr))
-    (facts : List (SExpr × Bool × Expr))
+    (facts : TotFacts)
     (totalEnv : List (String × Nat × Expr))
     (self : Option (String × Symbol × Expr × Justification))
     (kit : TpKit) (P : Expr) (t : SExpr) : MetaM Expr := do
@@ -689,16 +690,21 @@ partial def tpWalkCall (cfg : ReplayConfig) (envE : Expr)
         let conspTest : SExpr :=
           .cons (.atom (.symbol { name := "CONSP" })) (.cons b .nil)
         match facts.find? (fun (f, pos, _) => f == conspTest && pos) with
-        | some (_, _, pf) => pure pf
+        | some (_, _, pf, _) => pure pf
         | none => throwFrontier m!"dischargeDecrease: decrease at \
             {repr b} needs an in-scope (consp {repr b}) fact (frontier)"
       endpFalseOf := fun b => do
         let endpTest : SExpr :=
           .cons (.atom (.symbol { name := "ENDP" })) (.cons b .nil)
         match facts.find? (fun (f, pos, _) => f == endpTest && !pos) with
-        | some (_, _, pf) => pure pf
+        | some (_, _, pf, _) => pure pf
         | none => throwFrontier m!"dischargeDecrease: registry decrease \
-            at {repr b} needs a refuted (endp {repr b}) fact (frontier)" }
+            at {repr b} needs a refuted (endp {repr b}) fact (frontier)"
+      -- the GENERAL accessor: the TP walk's facts carry each ruling test's
+      -- `toBool = <sign>` proof, so an arbitrary ruler is a direct lookup
+      factOf? := fun test pos => pure
+        ((facts.find? (fun (f, p, _) => f == test && p == pos)).map
+          (fun (_, _, pf, _) => pf)) }
     let dec ← dischargeDecrease just
       formals (formals.map (fun f => .atom (.symbol f)))
       formals args kit
@@ -790,7 +796,7 @@ partial def tpWalkCall (cfg : ReplayConfig) (envE : Expr)
     CONVERGENCE is the plain totality walk. -/
 partial def tpWalkCallee (cfg : ReplayConfig) (envE : Expr)
     (vals : List (Symbol × Expr × Expr))
-    (facts : List (SExpr × Bool × Expr))
+    (facts : TotFacts)
     (totalEnv : List (String × Nat × Expr))
     (kit : TpKit) (P : Expr) (t : SExpr) (fs : Symbol) (args : List SExpr) :
     MetaM Expr := do

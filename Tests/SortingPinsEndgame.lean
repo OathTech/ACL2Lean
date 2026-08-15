@@ -138,7 +138,14 @@ example :
       -- registered ROW, so its totality REPLAYS from the emitted
       -- decrease clauses and the hypothesis left the telescope.
       -- INTENTIONAL; diagnosed against the golden.)
-      totalHyp1 bsortSweepWorld "BSORT" →
+      -- (total:BSORT RETIRED 2026-08-15 — T1+2 sprint phase 3a: BSORT's
+      -- RECORDED admission replay now reaches its decrease. Its emitted
+      -- ruler is (EQUAL (BNEXT X) X), an OPAQUE test whose value and
+      -- convergence the body walk's if-split had already bound and then
+      -- discarded; carrying that pair in the walk's branch facts lets the
+      -- ruler peel consume it, so total:BSORT REPLAYS from the emitted
+      -- admission data and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
       -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
@@ -159,7 +166,14 @@ example :
       -- registered ROW, so its totality REPLAYS from the emitted
       -- decrease clauses and the hypothesis left the telescope.
       -- INTENTIONAL; diagnosed against the golden.)
-      totalHyp1 bsortSweepWorld "BSORT" →
+      -- (total:BSORT RETIRED 2026-08-15 — T1+2 sprint phase 3a: BSORT's
+      -- RECORDED admission replay now reaches its decrease. Its emitted
+      -- ruler is (EQUAL (BNEXT X) X), an OPAQUE test whose value and
+      -- convergence the body walk's if-split had already bound and then
+      -- discarded; carrying that pair in the walk's branch facts lets the
+      -- ruler peel consume it, so total:BSORT REPLAYS from the emitted
+      -- admission data and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
       -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
@@ -187,7 +201,14 @@ example :
       -- registered ROW, so its totality REPLAYS from the emitted
       -- decrease clauses and the hypothesis left the telescope.
       -- INTENTIONAL; diagnosed against the golden.)
-      totalHyp1 bsortSweepWorld "BSORT" →
+      -- (total:BSORT RETIRED 2026-08-15 — T1+2 sprint phase 3a: BSORT's
+      -- RECORDED admission replay now reaches its decrease. Its emitted
+      -- ruler is (EQUAL (BNEXT X) X), an OPAQUE test whose value and
+      -- convergence the body walk's if-split had already bound and then
+      -- discarded; carrying that pair in the walk's branch facts lets the
+      -- ruler peel consume it, so total:BSORT REPLAYS from the emitted
+      -- admission data and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
       -- (tp:HOW-MANY RETIRED 2026-08-12 — same TP-replay route.)
