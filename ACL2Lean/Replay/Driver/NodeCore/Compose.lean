@@ -203,6 +203,7 @@ def closeOnTrueLit (cfg : ReplayConfig) (lit : SExpr) (restLits : List SExpr)
     mkAppM ``evtrue_of_eq_t #[hIf]
 
 
+
 /-- Unary BUILTINS whose ground-zero `:TYPE-PRESCRIPTION` corollary is the
     standard nonneg-int shape `(IF (INTEGERP (fn v)) (NOT (< (fn v) '0)) 'NIL)`,
     with the kernel lemma proving the lifted `Logic.integerp` fact against the
@@ -762,5 +763,62 @@ def notAtomFalsity? (cfg : ReplayConfig) (ctx : ReplayCtx) (hσ : SExpr) :
     let hComm ← mkAppM ``logic_equal_comm #[vu, vv]
     return some (← mkAppM ``Eq.trans #[hComm, hCommNil])
   | none => return none
+
+/-- GROUND-`'T` CLAUSE CLOSE (T1+2 sprint P4a) — the spine terminus'
+    fourth closer, alongside the silent tautology, the linear
+    equation-add and the residual push.
+
+    ACL2's `simplify-clause` can close a clause with NO literal window at
+    all: a `branch-substitution` grounds the literals and the recorded
+    `scons-term/exec` folds evaluate them, the last of them to `'T`. A
+    clause containing the literal `'T` IS the true clause, and ACL2 drops
+    it with no further record.
+
+    Mirrored exactly, never short-cut: the `'T` literal supplies the close
+    (`conv_if_true`, `closeOnTrueLit`'s own step) and each PRECEDING
+    literal is peeled by `conv_if_either` — both branches of
+    `(IF l 'T <rest>)` converge to `'t`, so the peel needs only that `l`
+    itself CONVERGES (its value is never assumed, and a literal the replay
+    cannot evaluate makes the whole close fail rather than be waved past).
+    Fail-closed: `none` unless a `'T` literal is present, and the peeled
+    reconstruction is checked to BE the clause's own disjunction before
+    the fact is returned.
+
+    Corpus witness: `CD2-BOUND`'s `Subgoal *1/2` and `*1/1`
+    (`acl2_samples/recon-tests/11-custom-measure`), whose fold runs end
+    `(NOT 'NIL) ⇒ 'T`. -/
+def groundConstClose (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (lits accClause : List SExpr) (children : List ClauseNode) :
+    MetaM (Option Expr) := do
+  -- fail-closed: a pushed child or an accumulated residual means the
+  -- clause is NOT closed here, whatever its literals say
+  unless children.isEmpty && accClause.isEmpty do return none
+  let some k := lits.idxOf? quoteT | return none
+  let hT ← quoteTFact cfg
+  let restLits := lits.drop (k + 1)
+  let cur0 ←
+    if restLits.isEmpty then pure hT
+    else
+      let hcv ← proveByDecide
+        (← mkEq (mkApp (mkConst ``Logic.toBool) (mkConst ``SExpr.t))
+                (mkConst ``Bool.true)) "toBool t"
+      mkAppM ``conv_if_true
+        #[cfg.worldExpr, cfg.envExpr, reflectSExpr quoteT,
+          reflectSExpr quoteT, reflectSExpr (disjoinTerm restLits),
+          mkConst ``SExpr.t, mkConst ``SExpr.t, hT, hcv, hT]
+  let mut cur := cur0
+  let mut curTerm := disjoinTerm (lits.drop k)
+  let mut ctxA := ctx
+  -- peel the preceding literals back on, outermost last
+  for l in (lits.take k).reverse do
+    ctxA ← pinTermOpaques cfg cfg.envExpr ctxA l
+    cur ← mkAppM ``conv_if_either
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, reflectSExpr quoteT,
+        reflectSExpr curTerm, ← ctxValExpr cfg ctxA l, mkConst ``SExpr.t,
+        ← ctxValProof cfg ctxA l, hT, cur]
+    curTerm := .cons (.atom (.symbol { name := "IF" }))
+      (.cons l (.cons quoteT (.cons curTerm .nil)))
+  unless curTerm == disjoinTerm lits do return none
+  return some (← mkAppM ``evtrue_of_eq_t #[cur])
 
 end ACL2.Replay.Driver

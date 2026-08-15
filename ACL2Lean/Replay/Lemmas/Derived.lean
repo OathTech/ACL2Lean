@@ -763,6 +763,33 @@ theorem re_if_true (w : World) (env : Env) (c t e cv tv : SExpr)
       = evalOpt f w env t :=
   fuel_eq_of_conv (conv_if_true w env c t e cv tv hc hcv ht) ht rfl
 
+/-- A clause-disjunction `IF` whose BOTH branches converge to the SAME
+    value converges to it whatever the test evaluates to. The shape a
+    clause close on a later `'T` literal takes: `disjoin (l :: rest)` is
+    `(IF l 'T (disjoin rest))`, so once `disjoin rest` is `'t` the leading
+    literal's own value is irrelevant — exactly ACL2's reading of a clause
+    that contains the literal `'T`. The test's CONVERGENCE is still
+    required (nothing is assumed about a term the replay cannot evaluate).
+    -/
+theorem conv_if_either (w : World) (env : Env) (c t el cv v : SExpr)
+    (hc : ∃ N, ∀ f ≥ N, evalOpt f w env c = some cv)
+    (ht : ∃ N, ∀ f ≥ N, evalOpt f w env t = some v)
+    (he : ∃ N, ∀ f ≥ N, evalOpt f w env el = some v) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env
+      (.cons (.atom (.symbol { name := "IF" }))
+        (.cons c (.cons t (.cons el .nil)))) = some v := by
+  obtain ⟨Nc, hc'⟩ := hc; obtain ⟨Nt, ht'⟩ := ht; obtain ⟨Ne, he'⟩ := he
+  refine ⟨max Nc (max Nt Ne) + 1, fun f hf => ?_⟩
+  obtain ⟨g, rfl⟩ : ∃ g, f = g + 1 := ⟨f - 1, by omega⟩
+  by_cases hb : Logic.toBool cv = true
+  · rw [evalOpt_if_true g w env c t el cv (hc' g (by omega)) hb]
+    exact ht' g (by omega)
+  · have hnil : cv = SExpr.nil :=
+      (Logic.toBool_eq_false cv).mp (by simpa using hb)
+    subst hnil
+    rw [evalOpt_if_false g w env c t el (hc' g (by omega))]
+    exact he' g (by omega)
+
 /-- RUNE `if-simplification` (false test): `(if c t e) ⇒ e` when the test
     converges to `nil`. Term-to-term; the else-branch's value stays existential. -/
 theorem re_if_false (w : World) (env : Env) (c t e ev : SExpr)

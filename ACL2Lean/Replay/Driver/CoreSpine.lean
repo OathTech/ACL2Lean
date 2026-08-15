@@ -139,8 +139,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           (fun ctxV child =>
             rec.clause cfg { ctxV with litFacts := [], dedupDrops := [] } child) then
         return p
-    throwError "replayClauseSpine: ran out of items with no closer \
-                at {idStr}"
+    if let some p ← groundConstClose cfg ctx lits accClause children then return p
+    throwError "replayClauseSpine: ran out of items with no closer at {idStr}"
   | .clausify _ :: _ =>
     throwError "replayClauseSpine: clausify record in the spine at {idStr} \
                 (frontier)"

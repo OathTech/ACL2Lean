@@ -1048,12 +1048,17 @@ partial def bridgeIfCollapseNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- TYPE-SET, by the D-A algebra: the test's own TRUE type-set is
   -- DISJOINT from the type-set the clause context gives its argument
   -- (`tsTestNilOf` + `inTsCandidates`). The marker is the ANCHOR; the
-  -- falsity is never assumed from it.
+  -- falsity is never assumed from it — and the typing probes the algebra
+  -- may use are gated on the MARKER'S OWN cited compound-recognizer
+  -- runes (`ifMarkerCitedCr`, the BUG-023 direction), so the reason ACL2
+  -- recorded for the collapse is the reason the replay is allowed to use.
   let valIsNil (t : SExpr) : MetaM (Option Expr) := do
     if t == quoteNil' then
       return some (← mkEqRefl (mkConst ``SExpr.nil))
-    unless ifMarkers.any (fun (mt, sense, _) => !sense && mt == t) do
-      return none
+    let some just := ifMarkers.findSome?
+        (fun (mt, sense, j) => if !sense && mt == t then some j else none)
+      | return none
+    let citedCr ← ofExcept (ifMarkerCitedCr just)
     let ctxT ← pinTermOpaques cfg cfg.envExpr ctx t
     match ← typeSetWalk cfg ctxT (.isNil t) with
     | some h => return some h
@@ -1061,7 +1066,7 @@ partial def bridgeIfCollapseNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
       let some (a, mT, lem) := tsTestNilOf t | return none
       let ctxA ← pinTermOpaques cfg cfg.envExpr ctxT a
       let va ← ctxValExpr cfg ctxA a
-      let cands ← inTsCandidates cfg ctxA [] [] a va
+      let cands ← inTsCandidates cfg ctxA [] citedCr a va
       for (m, hv) in cands do
         if ACL2.Replay.tsDisjointM m mT then
           let hd ← mkDecideProof (← mkEq

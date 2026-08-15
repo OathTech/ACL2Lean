@@ -24,10 +24,49 @@
 -/
 import ACL2Lean.Replay.Lemmas.TsAlgebra
 import ACL2Lean.Replay.Driver.BranchFacts
+import ACL2Lean.ProofLog
 
 namespace ACL2.Replay.Driver
 
 open ACL2
+
+/-- The COMPOUND-RECOGNIZER runes an `:IF-TEST-TRUE/FALSE` marker CITES,
+    read off the marker's OWN `:JUSTIFICATION` ttree.
+
+    ACL2's `rewrite-if-finish` resolves a test from the type-alist and
+    returns the surviving branch, recording the marker plus the ttree
+    that carried the decision. That ttree IS the basis, so a
+    marker-anchored collapse must consume exactly it — the BUG-023
+    direction (the RECORD's own runes, never the clause-level set) that
+    `Node.lean`'s recognizer site and `compoundRecogTsCell` already take.
+    Without it a compound-recognizer probe is never licensed and the
+    collapse fails closed even though ACL2 recorded its reason.
+
+    Three `:JUSTIFICATION` shapes are attested across all 5040 IF-test
+    markers in the corpus: `NIL` (the test was NOT resolved —
+    `:IF-TEST-UNKNOWN`), `:REWRITTEN-TO-CONSTANT` (the test rewrote to a
+    quoted constant, so the basis is the recorded chain and not a
+    ttree), and the type-set ttree `(:RUNES <runes> :PARENTS <parents>)`.
+    Anything else is a NEW emission shape to design for: hard-fail,
+    never swallow. -/
+def ifMarkerCitedCr (justification : SExpr) : Except String (List String) :=
+  match justification with
+  | .nil => pure []
+  | .atom (.keyword k) =>
+    if k == "REWRITTEN-TO-CONSTANT" then pure [] else
+      throw s!"ifMarkerCitedCr: unmodeled :IF-TEST :JUSTIFICATION \
+               keyword {repr justification}"
+  | .cons (.atom (.keyword k)) (.cons runes _) =>
+    if k == "RUNES" then do
+      let rs ← ProofLog.parseRunes runes
+      pure (rs.filterMap fun r =>
+        if r.ty == "compound-recognizer" then some r.name else none)
+    else
+      throw s!"ifMarkerCitedCr: unmodeled :IF-TEST :JUSTIFICATION \
+               ttree {repr justification}"
+  | _ =>
+    throw s!"ifMarkerCitedCr: unmodeled :IF-TEST :JUSTIFICATION shape \
+             {repr justification}"
 
 /-- `(QUOTE 0)` — the constant ACL2's `assume-true-false` splits `<` on. -/
 def tsQuotedZero : SExpr :=
@@ -114,6 +153,33 @@ def tsRecogNil : List (String × Int × Lean.Name) :=
     arguments. -/
 def tsBinaryOf (op : String) : Option (Int × Int × Lean.Name) :=
   if op == "BINARY-+" then some (23, 23, ``ACL2.Replay.inTs_plus_int)
+  else none
+
+/-- The QUOTED-CONSTANT reading of a term: `'k` ↦ `k`, for an INTEGER
+    `k`. The one shape `tsPlusConstOf` is keyed on. -/
+def quotedInt? (t : SExpr) : Option Int :=
+  match t with
+  | .cons (.atom (.symbol q)) (.cons (.atom (.number (.int k))) .nil) =>
+    if q.name == "QUOTE" then some k else none
+  | _ => none
+
+/-- ARITHMETIC-PRIMITIVE ts registry, the SHARP CONSTANT cells:
+    `(the quoted constant, the OTHER argument's mask)` ↦ `(the resulting
+    mask, the proved fact)`. Same rule as `tsBinaryOf` — ACL2's
+    `type-set-binary-+` mirrored ONE CELL AT A TIME, the verdict ACL2's
+    and the implication ours to prove — but keyed on the constant as
+    well, because ACL2's partition keeps `*ts-one*` precisely so that
+    adding `∓1` stays sharp where the plain integer cell (23 + 23 ⊆ 23)
+    would not.
+
+    `(-1, 6) ↦ 7`: mask 6 is `ZP-COMPOUND-RECOGNIZER`'s refuted branch
+    (the integers `≥ 1`) and mask 7 is the integers `≥ 0`.
+    Demand-driven, and the emission itself demonstrates the asymmetry:
+    `COUNT-DOWN` / `MY-EVENP` emit `:TYPESET 7` for `(BINARY-+ '-1 N)`
+    under that branch, while `CD2`'s `(BINARY-+ '-2 N)` gets the coarse
+    23 — so there is no `-2` cell to add. -/
+def tsPlusConstOf (k : Int) (m : Int) : Option (Int × Lean.Name) :=
+  if k == -1 && m == 6 then some (7, ``ACL2.Replay.inTs_plus_neg_one)
   else none
 
 /-- COMPOUND-RECOGNIZER probes — `(rune name, the recognizer fn, the mask

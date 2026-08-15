@@ -376,3 +376,97 @@ theorem class, likely the gz-discharger (D5) route; rule:ORDEREDP-APPEND
 + rule:TRUE-LISTP-BNEXT + linear:@sorts-equivalent (may cascade in the
 COMBINED quiescence sweep — P3c ran without P3b's retirements);
 tp:QSORT + the trio + CD2-BOUND (P4a, in flight).
+
+- **P4a (RT3 + CD2-BOUND) — 2026-08-15.** The trio's three termination
+  rows RETIRED (FAIL → REPLAYED ✓) with **ZERO fork changes**; CD2-BOUND
+  advanced through two frontiers to a third, diagnosed one. Item 2
+  (hypothetical-TP) NOT attempted — scouted and stopped on a ratified
+  design boundary (below). Golden: 3 status flips + 1 message churn,
+  header UNCHANGED (115/116, 99+16); verifying sweep green (29 books,
+  sections tile, `check-golden-current` PASS); 14 statics PASS; sorries
+  still 1 (`dis_convert_perm`, the other lane's).
+  - **J-P4a-a (RT3 PREMISE CONTRADICTED — no fork round-trip was made).**
+    P3b's J-P3b-g recorded "the corpus logs carry NO if-test record at
+    all" for the `NFIX` must-be-arm collapse. That is FALSE: all three
+    books emit
+    `(:IF-TEST-FALSE :ORIGIN IF-FINISH/IF-TEST :TEST (< … '0)
+     :JUSTIFICATION (:RUNES ((:FAKE-RUNE-FOR-TYPE-SET NIL)
+     (:COMPOUND-RECOGNIZER ZP-COMPOUND-RECOGNIZER)) :PARENTS NIL))`.
+    `11-custom-measure`'s copy is LINE-WRAPPED by ACL2's `fms` printer,
+    which is what a single-line grep misses. The gap was pure
+    CONSUMPTION, so the fork stayed at `e8d78e513d` and RT3 shipped as a
+    driver change. (Method note: scout the ARTIFACT with a
+    whitespace-normalized reader, never a raw line grep.)
+  - **J-P4a-b:** `ifMarkerCitedCr` (Driver/TsFacts) reads the MARKER'S OWN
+    `:JUSTIFICATION` ttree for its `(:COMPOUND-RECOGNIZER …)` runes — the
+    BUG-023 direction the recognizer step site already takes. Three
+    justification shapes are attested across all 5040 corpus IF-test
+    markers (`NIL`, `:REWRITTEN-TO-CONSTANT`, the `(:RUNES … :PARENTS …)`
+    ttree); a fourth HARD-FAILS rather than being swallowed.
+    `bridgeIfCollapseNorm`'s `valIsNil` had been passing `[]`, so the
+    compound-recognizer probe was never licensed and the collapse failed
+    closed even though ACL2 had recorded its reason.
+  - **J-P4a-c (the SHARP CONSTANT CELL).** `(BINARY-+ '-1 N)` under
+    `¬(ZP N)` needed mask 7, which `tsBinaryOf`'s integer cell (23+23⊆23)
+    loses. Added `tsPlusConstOf` + `inTs_plus_neg_one` (`InTs 6 a →
+    InTs 7 (plus '-1 a)`, proved), keyed on the CONSTANT as well as the
+    mask — ACL2's partition carries `*ts-one*` for exactly this. ONE cell,
+    the `tsBinaryOf` precedent; the emission itself shows there is no
+    `-2` cell to add (`CD2` emits the coarse `:TYPESET 23` for
+    `(BINARY-+ '-2 N)` where `COUNT-DOWN` emits 7 for `'-1`).
+  - **J-P4a-d:** `citedCr` threaded through `inTsFromArgLeaves` (it was
+    dropped at the recursion and at the leaf's `inTsFromCtx`), which is
+    what `termination:CD2` needed after its `(CONSP (IF …))` step.
+  - **J-P4a-e (the μ-ROUTE DISCRIMINATOR WAS ROW-BLIND — a latent defect
+    EXPOSED by the flip).** `replayInduction` chose between the registry μ
+    and the recorded replay's `interpCount` μ by applying
+    `destructorChainOk` to EVERY measure row. The moment `termination:CD2`
+    became REPLAYED, `CD2-BOUND` took the `recReplayed?` branch, the
+    row-blind test rejected `(BINARY-+ '-2 N)`, and the arithmetic
+    decrease `dischargeDecrease` now produces stopped matching μ.
+    Fixed at the source in the R3 shape: `decreaseArgInReach`
+    (Driver/Decrease) dispatches on `MeasureShape` — chains for
+    count/len/sum, `chainLtNfix`'s arm for `nfix`, nothing for `userFn`.
+    Behavior change is confined to the `nfix` row (the other rows'
+    conjunctions were already decided by `registryCovered`).
+  - **J-P4a-f (the spine terminus' FOURTH closer).** `groundConstClose`
+    (NodeCore/Compose) + `conv_if_either` (Lemmas/Derived): a clause whose
+    recorded `branch-substitution` + `scons-term/exec` folds end in a `'T`
+    literal IS the true clause. The `'T` closes (`conv_if_true`) and every
+    PRECEDING literal is peeled by `conv_if_either` — both branches of
+    `(IF l 'T rest)` converge to `'t`, so the peel needs only that `l`
+    CONVERGES. Fail-closed on children / a non-empty residual / no `'T`,
+    and the peeled reconstruction is checked to BE the clause's own
+    disjunction. Closed `CD2-BOUND`'s `Subgoal *1/2` AND `*1/1`.
+  - **J-P4a-g (CD2-BOUND STOPS — third frontier, diagnosed, OUT OF
+    CLASS).** Verbatim:
+    `compound-recognizer: no in-scope falsity fact for (INTEGERP N)
+    (frontier)`. Site: `Subgoal 1` (`((NOT (< N '0)) (NOT (< '0 (CD2 N))))`),
+    whose `(ZP N) ⇒ 'T` step is NOT the registered "refuted INTEGERP"
+    recipe but a TYPE-SET verdict (`:TYPESET 112`, `:TRUETS -7`). The ts
+    cell would need a `tsRecogTrue` entry for `ZP`, and it would then be
+    REFUSED by `recogVerdictFromTs`'s `acl2Ok` guard
+    (`tsSubsumedM stepTs m`): from `(< N '0)` true our model derives mask
+    48 while ACL2 emits 112 = 48 ∪ *ts-complex-rational*, because ACL2's
+    `<` orders complex rationals and our model has NO complex values
+    (BUG-009's domain restriction). We derive something STRICTLY STRONGER
+    than ACL2, and the guard — correctly written as "ACL2's verdict must
+    be INSIDE ours" — rejects it. Reconciling a model-domain restriction
+    with an emitted mask is a fidelity-sensitive design question, not a
+    consumption arm: STOPPED and recorded rather than loosened.
+  - **J-P4a-h (item 2, hypothetical-TP: NOT ATTEMPTED, scouted).**
+    `QSORT`'s OWN `:ALL-TPS` entry is UNCONDITIONAL (hyps NIL, basic-ts
+    1152) — the conditional rule that matters is `TRUE-LISTP-APPEND` on
+    `BINARY-APPEND` (hyps `((TRUE-LISTP B))`, leaves `(1024, 1152)` under
+    it). Reaching it needs a new data path end to end
+    (`Development.typePrescriptionAllTps` → a `ReplayConfig.allTps` field →
+    a widened `TpKit.cors`), and even then the 2026-08-13 fork-emission
+    audit's SECOND blocker stands: discharging `(TRUE-LISTP B)` at
+    `B = (CONS (CAR X) (QSORT (FILTER 'GTE …)))` routes into the self-call
+    arm, which frontiers at `totLiftable` because `QSORT`'s measured
+    argument calls the world fn `FILTER`. Two blockers, one of them new
+    machinery; `tp:QSORT` ×3 unmoved and the design map is recorded here.
+  - **J-P4a-i (RATCHET):** `CoreSpine.lean` was held at its 1539 baseline
+    by moving the closer's applicability GATE into `groundConstClose`
+    (which is where the fail-closed contract belongs), never by loosening
+    the baseline — the J-P3b-f/J-RT2e precedent.

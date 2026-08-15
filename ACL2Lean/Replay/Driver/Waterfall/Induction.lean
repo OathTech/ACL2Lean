@@ -190,12 +190,20 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
       -- X → (CONS (CAR X) (CDR (CDR X))) substitution replays on the
       -- registry route — its pre-widening green is the witness); the
       -- shared walk with the reach parameter is the S7/D7 dedupe.
-      let chainOk : SExpr → Bool := destructorChainOk true
       -- R3 (2026-08-14): "registry-covered" is now READ OFF the unified
       -- measure table (a row with a μ interpretation), not a hand list of
       -- head names that could drift from `buildMeasureFn`'s own rows.
+      -- T1+2 sprint P4a: the decrease-reach test is read off the row TOO
+      -- (`decreaseArgInReach`) — it used to be `destructorChainOk` for
+      -- EVERY row, which silently mis-routed the `nfix` row the moment
+      -- `chainLtNfix` (an ARITHMETIC walk, not a chain walk) existed.
+      let row? := measureShape? ind.measure
+      let chainOk : SExpr → Bool := fun d =>
+        match row? with
+        | some sh => decreaseArgInReach sh d
+        | none => false
       let registryCovered :=
-        match measureShape? ind.measure with
+        match row? with
         | some sh => sh.muHeads.isSome
         | none => false
       let decreasesChainOk :=
@@ -673,7 +681,8 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
               #[(mkApp μE e').headBeta, (mkApp μE eV).headBeta]
             unless ← isDefEq (← inferType hLtRaw) ltTy do
               throwError "replayInduction: the decrease fact does not match \
-                          μ's env-update reduction (internal)"
+                          μ's env-update reduction (internal): have \
+                          {← inferType hLtRaw}, want {ltTy}"
             let hLt ← mkExpectedTypeHint hLtRaw ltTy
             let pIH' := mkAppN sihV #[e', hLt]
             -- substN bridge: eval e (subst pushed) = eval e' pushed

@@ -681,6 +681,20 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
         out := out ++ [(outMask, ← mkExpectedTypeHint
           (← mkAppM nm #[ha, hb]) (← inTsTy outMask))]
       | _, _ => pure ()
+  -- (5) the SHARP CONSTANT cell of the same primitive: where one summand
+  -- is a quoted constant, ACL2's partition keeps the result sharp
+  -- (`*ts-one*`) and (4)'s integer cell loses it. The other argument's
+  -- masks come from the SAME sources (recursively), and the registry
+  -- decides — no cell, no candidate.
+  if let .cons (.atom (.symbol op)) (.cons c (.cons b .nil)) := t then
+    if op.name == "BINARY-+" then
+      if let some k := quotedInt? c then
+        let ctxB ← pinTermOpaques cfg cfg.envExpr ctx b
+        let vb ← ctxValExpr cfg ctxB b
+        for (m, hb) in ← inTsCandidates cfg ctxB localFacts citedCr b vb do
+          if let some (outMask, nm) := tsPlusConstOf k m then
+            out := out ++ [(outMask, ← mkExpectedTypeHint
+              (← mkAppM nm #[hb]) (← inTsTy outMask))]
   return out
 
 /-- Prove `InTs target tv` for `t` — ACL2's OWN emitted mask — from the
@@ -729,10 +743,15 @@ end
     verdict — the entry whose governing tests the branch establishes —
     proving it from the split's hypotheses. Every leaf verdict must land
     inside the step's emitted `:TYPESET` (the union ACL2 published), and
-    a leaf with no addressed entry is a frontier, never a guess. -/
+    a leaf with no addressed entry is a frontier, never a guess.
+
+    `citedCr` is the STEP'S OWN `(:COMPOUND-RECOGNIZER …)` runes (the
+    BUG-023 anchor), carried down so a leaf verdict may be proved from
+    exactly the rules ACL2's own ttree says carried it. -/
 partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
     (leaves : List TpLeaf) (localFacts : List (SExpr × Bool × Expr))
-    (t : SExpr) (target : Int) : MetaM (Option Expr) := do
+    (citedCr : List String) (t : SExpr) (target : Int) :
+    MetaM (Option Expr) := do
   let ctxT ← pinTermOpaques cfg cfg.envExpr ctx t
   let vT ← ctxValExpr cfg ctxT t
   let want ← mkAppM ``ACL2.Replay.InTs #[Lean.toExpr target, vT]
@@ -746,7 +765,7 @@ partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
         let hbTy ← mkEq bE (mkConst (if sign then ``Bool.true else ``Bool.false))
         withLocalDeclD `hb hbTy fun hb => do
           match ← inTsFromArgLeaves cfg ctx leaves
-              ((c, sign, hb) :: localFacts) br target with
+              ((c, sign, hb) :: localFacts) citedCr br target with
           | some p => pure (some (← mkLambdaFVars #[hb] p))
           | none => pure none
       let some hx ← branch true th | return none
@@ -766,7 +785,7 @@ partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
     | return none
   unless ACL2.Replay.tsSubsumedM leaf.ts target do
     return none
-  match ← inTsFromCtx cfg ctxT localFacts [] t vT leaf.ts with
+  match ← inTsFromCtx cfg ctxT localFacts citedCr t vT leaf.ts with
   | none => return none
   | some hLeaf =>
     return some (← mkExpectedTypeHint (← mkAppM ``ACL2.Replay.inTs_weaken
@@ -809,7 +828,7 @@ def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
       match stepTs with
       | none => pure []
       | some ts =>
-        match ← inTsFromArgLeaves cfg ctxA argLeaves [] arg ts with
+        match ← inTsFromArgLeaves cfg ctxA argLeaves [] citedCr arg ts with
         | some h => pure [(ts, h)]
         | none => pure []
     else inTsCandidates cfg ctxA [] citedCr arg va

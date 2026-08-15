@@ -1,5 +1,47 @@
 # ACL2Lean — project TODO
 
+> **P4a — THE TRIO'S TERMINATION ROWS RETIRED (LANDED 2026-08-15, T1+2
+> sprint; NO fork change).** `termination:COUNT-DOWN`,
+> `termination:MY-EVENP` and `termination:CD2` are all REPLAYED ✓.
+> P3b's "RT3 emission gap" premise was CONTRADICTED: the
+> `:IF-TEST-FALSE` / `IF-FINISH/IF-TEST` marker for the `NFIX` body's
+> inner collapse IS emitted by all three books, with the type-set
+> ttree as its `:JUSTIFICATION` (11-custom-measure's copy is
+> line-wrapped by `fms`, which is what the earlier grep missed). The
+> fix was CONSUMPTION, in five pieces: `ifMarkerCitedCr` (read the
+> marker's OWN cited compound-recognizer runes — the BUG-023 anchor),
+> the sharp `type-set-binary-+` constant cell
+> (`tsPlusConstOf (-1, 6) ↦ 7` + `inTs_plus_neg_one`), `citedCr`
+> threaded through `inTsFromArgLeaves`, the ROW-DISPATCHING
+> `decreaseArgInReach` (the μ-route discriminator had been applying
+> the destructor-chain test to the `nfix` row too — a latent defect
+> exposed the moment `termination:CD2` flipped), and
+> `groundConstClose` + `conv_if_either` (the spine terminus' fourth
+> closer: a clause whose recorded exec folds end in a `'T` literal).
+> Golden 115/116 (99+16) — header unchanged, 3 status flips, 1 message
+> churn. Charter: `docs/plans/2026-08-14_t12-sprint-charter.md` §P4a
+> (J-P4a-a..i).
+> OPEN AFTER IT:
+> - **CD2-BOUND** — advanced through `Subgoal *1/2` and `*1/1` to a
+>   THIRD frontier, verbatim: `compound-recognizer: no in-scope
+>   falsity fact for (INTEGERP N) (frontier)`. Diagnosed OUT OF CLASS
+>   (J-P4a-g): `Subgoal 1`'s `(ZP N) ⇒ 'T` is a TYPE-SET verdict
+>   (`:TYPESET 112`, `:TRUETS -7`), and a `tsRecogTrue` entry for `ZP`
+>   would be refused by `recogVerdictFromTs`'s `acl2Ok` guard —
+>   from `(< N '0)` true our model gives mask 48 while ACL2 emits
+>   112 = 48 ∪ *ts-complex-rational* (BUG-009: the model has no complex
+>   values). Reconciling a MODEL-DOMAIN restriction with an emitted
+>   mask is a fidelity design question, not a consumption arm.
+> - **`tp:QSORT` ×3 (hypothetical-TP mode)** — scouted, NOT attempted.
+>   `QSORT`'s own `:ALL-TPS` entry is UNCONDITIONAL; the conditional
+>   rule is `TRUE-LISTP-APPEND` on `BINARY-APPEND` (hyps
+>   `((TRUE-LISTP B))`, leaves `(1024, 1152)`). Needs a new data path
+>   end to end (`Development.typePrescriptionAllTps` → a
+>   `ReplayConfig.allTps` field → a widened `TpKit.cors`), and the
+>   2026-08-13 fork-emission audit's SECOND blocker still stands
+>   (discharging the hyp routes into the self-call arm, which frontiers
+>   at `totLiftable` because QSORT's measured argument calls `FILTER`).
+
 > **R3 — THE UNIFIED MEASURE/ARITY TABLE (LANDED 2026-08-14, T1+2 sprint
 > phase 2; overspecialization audit F6/F7/F8 + F13).** The shape of an
 > emitted `:MEASURE` used to be classified INDEPENDENTLY at five sites

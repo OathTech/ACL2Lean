@@ -767,4 +767,69 @@ theorem inTs_plus_int {a b : SExpr} (ha : InTs 23 a) (hb : InTs 23 b) :
   show tsMember 23 (tsIndex (.atom (.number (.int (n + m))))) = true
   simp only [tsIndex_int]; split_ifs <;> decide
 
+/-- Mask `6` = `*ts-one*` ∪ `*ts-integer>1*` — the type-set
+    `ZP-COMPOUND-RECOGNIZER`'s REFUTED branch gives its argument — is
+    exactly the integers `≥ 1`. -/
+theorem int_ge_one_of_inTs6 {v : SExpr} (h : InTs 6 v) :
+    ∃ n : Int, v = .atom (.number (.int n)) ∧ 1 ≤ n := by
+  match v with
+  | .atom (.number (.int n)) =>
+      refine ⟨n, rfl, ?_⟩
+      by_contra hlt
+      refine absurd h ?_
+      show ¬ (tsMember 6 (tsIndex (.atom (.number (.int n)))) = true)
+      simp only [tsIndex_int]
+      split_ifs with h1 h2 h3
+      · decide
+      · exact absurd h2 (by omega)
+      · exact absurd h3 (by omega)
+      · decide
+  | .nil => exact absurd h (by simp only [InTs, tsIndex_nil]; decide)
+  | .cons a d =>
+      refine absurd h ?_
+      show ¬ (tsMember 6 (tsIndex (.cons a d)) = true)
+      simp only [tsIndex_cons]; split_ifs <;> decide
+  | .atom (.symbol sy) =>
+      refine absurd h ?_
+      show ¬ (tsMember 6 (tsIndex (.atom (.symbol sy))) = true)
+      simp only [tsIndex_symbol]; split_ifs <;> decide
+  | .atom (.keyword _) =>
+      exact absurd h (by simp only [InTs, tsIndex_keyword]; decide)
+  | .atom (.string _) =>
+      exact absurd h (by simp only [InTs, tsIndex_string]; decide)
+  | .atom (.char _) =>
+      exact absurd h (by simp only [InTs, tsIndex_char]; decide)
+  | .atom (.number (.rational p q hc)) =>
+      refine absurd h ?_
+      show ¬ (tsMember 6 (tsIndex (.atom (.number (.rational p q hc))))
+        = true)
+      simp only [tsIndex_rat]; split_ifs <;> decide
+
+/-- ACL2's `type-set-binary-+` at the QUOTED CONSTANT `-1` — the SHARP
+    cell `*ts-one*` exists in ACL2's partition to make possible, and the
+    one the coarse integer cell (`inTs_plus_int`, 23 + 23 ⊆ 23) loses:
+    an argument in mask `6` (the integers `≥ 1`) lands in mask `7`
+    (`*ts-zero*` ∪ `6` — the integers `≥ 0`).
+
+    Model side only, as always: the driver supplies the summand's mask
+    from ACL2's OWN emitted data. Corpus witness: `COUNT-DOWN` /
+    `MY-EVENP`'s termination, where ACL2 resolves the `NFIX` body's
+    inner if-test `(< (BINARY-+ '-1 N) '0)` FALSE off exactly this
+    type-set (emitted `:TYPESET 7` under `ZP-COMPOUND-RECOGNIZER`). -/
+theorem inTs_plus_neg_one {a : SExpr} (ha : InTs 6 a) :
+    InTs 7 (Logic.plus (.atom (.number (.int (-1)))) a) := by
+  obtain ⟨n, rfl, hn⟩ := int_ge_one_of_inTs6 ha
+  rw [show Logic.plus (.atom (.number (.int (-1))))
+          (.atom (.number (.int n)))
+        = .atom (.number (.int (-1 + n))) from by
+      simp only [Logic.plus, Logic.toRat, Logic.mkNumber]
+      norm_num]
+  show tsMember 7 (tsIndex (.atom (.number (.int (-1 + n))))) = true
+  simp only [tsIndex_int]
+  split_ifs with h1 h2 h3
+  · decide
+  · decide
+  · decide
+  · exact absurd hn (by omega)
+
 end ACL2.Replay

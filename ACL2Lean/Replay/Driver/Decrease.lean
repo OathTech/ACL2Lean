@@ -172,6 +172,34 @@ partial def chainLtLen (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
   | _ => throwFrontier m!"chainLtLen: shape {repr t} has no LEN decrease \
       arm (frontier)"
 
+/-- Is the emitted decrease ARGUMENT `d` inside the decrease-walk reach of
+    a given measure-table ROW? Asked by `replayInduction`'s μ-ROUTE
+    DISCRIMINATOR to choose between the registry μ and the recorded
+    replay's `interpCount` μ.
+
+    R3-shaped (dispatch on the ROW), because the reach is PER ROW: the
+    count/len/sum rows walk DESTRUCTOR CHAINS, the `nfix` row walks
+    ARITHMETIC (`chainLtNfix`, below), and the `userFn` row has no walk at
+    all. The discriminator used to apply the destructor-chain test to
+    EVERY row, so widening one walk left the discriminator behind — that
+    row-blindness is what this dispatch removes.
+
+    BOOKKEEPING ONLY (design I1): μ appears in no statement, so a wrong
+    answer here can only select a route that then fails loudly. The walks
+    below re-check everything they use — this is a syntactic
+    pre-classification, never a license. -/
+def decreaseArgInReach : MeasureShape → SExpr → Bool
+  | .count _, d | .len _, d | .sumCount _ _, d => destructorChainOk true d
+  | .nfix _, d =>
+    -- `chainLtNfix`'s single arm: `(BINARY-+ '<int> base)`
+    match d with
+    | .cons (.atom (.symbol p))
+        (.cons (.cons (.atom (.symbol q))
+          (.cons (.atom (.number (.int _))) .nil)) (.cons _ .nil)) =>
+      p.name == "BINARY-+" && q.name == "QUOTE"
+    | _ => false
+  | .userFn _ _, _ => false
+
 /-- NFIX-measure decrease walk (T1+2 sprint phase 3a — the ARITHMETIC twin
     of `chainLt`/`chainLtLen`): prove
     `nfixNat (valOf t) < nfixNat (valOf base)`.
