@@ -219,14 +219,20 @@ elab "sorting_statement_pins_run% " : term => do
       -- ACL2's context-refined leaves + subterm verdicts now carry the
       -- non-negative-integer corollary through ACL2-COUNT's non-world
       -- return-path primitives, so the hypothesis left the telescope.)
-      "    PERM-QSORT → REPLAYED ✓ cond[total:O<, \
+      -- (total:O< dropped 2026-08-15 — T1+2 sprint P3b: the ORDINAL
+      -- registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the EQUAL-alias reading of the recomputed ground-zero
+      -- rulers make O<'s admission REPLAY from ACL2's own emitted
+      -- :TERMINATION-CLAUSES, so the hypothesis left the telescope.)
+      "    PERM-QSORT → REPLAYED ✓ cond[\
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
      ("pins/sorting/qsort",
       -- (tp:ACL2-COUNT dropped 2026-08-14 — the D-A consumer; see
       -- PERM-QSORT above.)
-      "    TRUE-LISTP-QSORT → REPLAYED ✓ cond[total:O<, \
+      -- (total:O< dropped 2026-08-15 — see PERM-QSORT above.)
+      "    TRUE-LISTP-QSORT → REPLAYED ✓ cond[\
 tp:QSORT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
 cond[total:(QSORT X), tp:QSORT]]"),
      ("pins/sorting/qsort",
@@ -239,8 +245,8 @@ cond[total:(QSORT X), tp:QSORT]]"),
       -- total:PERM-COUNTER-EXAMPLE dropped 2026-08-13 — the ATOM leg,
       -- see PERM-QSORT above; tp:ACL2-COUNT dropped 2026-08-14 — the
       -- D-A consumer, also see PERM-QSORT.)
+      -- (total:O< dropped 2026-08-15 — see PERM-QSORT above.)
       "    ORDEREDP-QSORT → REPLAYED ✓ cond[\
-total:O<, \
 rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
@@ -396,7 +402,13 @@ example :
       -- termination clause rules on `(ATOM X)`, which the branch-fact
       -- coverage rule now reads as `(not (consp X))`, so the admission
       -- REPLAYS and the hypothesis left the telescope. INTENTIONAL.)
-      totalHyp2 qsortPinsWorld "O<" →
+      -- (total:O< RETIRED 2026-08-15 — T1+2 sprint P3b: the ORDINAL
+      -- registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the world-read EQUAL-alias normalization of ACL2's
+      -- recomputed ground-zero rulers discharge O<'s admission from
+      -- its OWN emitted :TERMINATION-CLAUSES, so the hypothesis left
+      -- the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
       -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
       -- the hypothesis left the telescope, so the pinned type drops
@@ -455,7 +467,13 @@ example :
     prelude constant). -/
 example :
     ∀ (env : Env),
-      totalHyp2 qsortPinsWorld "O<" →
+      -- (total:O< RETIRED 2026-08-15 — T1+2 sprint P3b: the ORDINAL
+      -- registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the world-read EQUAL-alias normalization of ACL2's
+      -- recomputed ground-zero rulers discharge O<'s admission from
+      -- its OWN emitted :TERMINATION-CLAUSES, so the hypothesis left
+      -- the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       tpPred1 qsortPinsWorld "QSORT" Logic.trueListp →
       -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra
       -- consumer: the R2 fork batch's context-refined `:LEAVES` (each
@@ -494,7 +512,13 @@ private def qsortDecreaseClause (fn : String) : SExpr :=
 
 example :
     ∀ (env : Env),
-      totalHyp2 qsortPinsWorld "O<" →
+      -- (total:O< RETIRED 2026-08-15 — T1+2 sprint P3b: the ORDINAL
+      -- registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the world-read EQUAL-alias normalization of ACL2's
+      -- recomputed ground-zero rulers discharge O<'s admission from
+      -- its OWN emitted :TERMINATION-CLAUSES, so the hypothesis left
+      -- the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra
       -- consumer: the R2 fork batch's context-refined `:LEAVES` (each
       -- leaf's governing tests + ACL2's derived type-alist) and per-leaf
@@ -728,7 +752,13 @@ example :
     ∀ (env : Env),
       -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — the ATOM leg,
       -- as on PERM-QSORT's pin above. INTENTIONAL.)
-      totalHyp2 qsortPinsWorld "O<" →
+      -- (total:O< RETIRED 2026-08-15 — T1+2 sprint P3b: the ORDINAL
+      -- registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the world-read EQUAL-alias normalization of ACL2's
+      -- recomputed ground-zero rulers discharge O<'s admission from
+      -- its OWN emitted :TERMINATION-CLAUSES, so the hypothesis left
+      -- the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
       -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
       -- the hypothesis left the telescope, so the pinned type drops
@@ -1066,7 +1096,13 @@ example :
       -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — the ATOM leg;
       -- it led this telescope in the pre-purge text.)
       totalHyp1 sortsEqPinsWorld "QSORT" →
-      totalHyp2 sortsEqPinsWorld "O<" →
+      -- (total:O< RETIRED 2026-08-15 — T1+2 sprint P3b: the ORDINAL
+      -- registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the world-read EQUAL-alias normalization of ACL2's
+      -- recomputed ground-zero rulers discharge O<'s admission from
+      -- its OWN emitted :TERMINATION-CLAUSES, so the hypothesis left
+      -- the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (tp:HOW-MANY RETIRED 2026-08-12; tp:INSERT 2026-08-13, the CONS
       -- shape; tp:ALL-REL 2026-08-13, the arity-3 assembly.)
       -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra

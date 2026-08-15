@@ -312,27 +312,9 @@ def tpTsUnary : List (String × Option Int × Int × Name) :=
    ("DENOMINATOR", none, 6, ``ACL2.Replay.inTs_denominator),
    ("LEN", none, 7, ``ACL2.Replay.inTs_len)]
 
-/-- `(QUOTE 0)` — the constant ACL2's `assume-true-false` splits `<` on. -/
-private def tsQuotedZero : SExpr :=
-  .cons (.atom (.symbol { name := "QUOTE" }))
-    (.cons (.atom (.number (.int 0))) .nil)
-
-/-- Read an in-scope BRANCH FACT as a type-set statement about one term:
-    `(test-term, truth-value)` ↦ `(the term it types, the mask, the proved
-    fact)`. These are the ONLY way an `InTs` fact enters the walk — a
-    recognizer the body itself tested, on the branch the walk is in. -/
-def tsFactOf (f : SExpr) (pos : Bool) : Option (SExpr × Int × Name) :=
-  match f with
-  | .cons (.atom (.symbol r)) (.cons a .nil) =>
-    if r.name == "INTEGERP" && pos then
-      some (a, 23, ``ACL2.Replay.inTs_integerp_true)
-    else none
-  | .cons (.atom (.symbol r)) (.cons a (.cons b .nil)) =>
-    if r.name == "<" && b == tsQuotedZero then
-      if pos then some (a, 48, ``ACL2.Replay.inTs_lt_zero_true)
-      else some (a, -49, ``ACL2.Replay.inTs_lt_zero_false)
-    else none
-  | _ => none
+-- `tsQuotedZero` / `tsFactOf` MOVED to Driver/TsFacts (T1+2 sprint P3b):
+-- the clause-context consumer `inTsFromCtx` needs the SAME masks and
+-- proved facts, and it sits upstream of this module.
 
 /-- `tsSubsumedM m m' = true`, by ground kernel decision on the closed
     masks. -/

@@ -566,8 +566,16 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
             | none => do
               let tTE0 ← IO.monoMsNow
               let te ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
+                -- gzDefs (T1+2 sprint P3b): the DP-probe totality sweep
+                -- used the SAME prover as the main harness but from a
+                -- config with no ground-zero snapshot — so a fn whose
+                -- admission reads a builtin-EXCLUDED snapshot (`O-P`'s
+                -- `EQL` ruler; `gzDefs` is the only place such a body
+                -- lives) failed here while proving there. Same input,
+                -- same answer.
                 let cfg : ReplayConfig :=
-                  { worldExpr := wExpr, envExpr := envFV, worldVal := w }
+                  { worldExpr := wExpr, envExpr := envFV, worldVal := w,
+                    gzDefs := dev.groundZeroSnapshotDefs }
                 -- same engineering limit as tryReplay/tryDischarge (the
                 -- helper's docstring): the totality sweep over a large
                 -- included world runs within ~1 frame of the default 512

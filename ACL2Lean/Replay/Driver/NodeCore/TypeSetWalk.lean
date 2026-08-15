@@ -5,6 +5,7 @@
   dependency order.
 -/
 import ACL2Lean.Replay.Driver.NodeCore.Compose
+import ACL2Lean.Replay.Driver.TsFacts
 
 namespace ACL2.Replay.Driver
 
@@ -592,6 +593,243 @@ def replayBuiltinDefUnfold (cfg : ReplayConfig) (ctx : ReplayCtx)
   let unfold ← mkAppM ``fuel_eq_of_conv #[pL, pBody, valueEq]
   return ([f1], body, unfold)
 
+/-! ### The CLAUSE-CONTEXT `InTs` derivation (T1+2 sprint P3b)
+
+ACL2 closes an `EQUAL` (`:LHS-TS`/`:RHS-TS`) and a RECOGNIZER
+(`:TYPESET` vs `:TRUETS`/`:FALSETS`) by comparing TYPE-SETS it derived
+from the context. Replaying such a step needs the same entry, so the
+walk below reconstructs `InTs <ACL2's own emitted mask> <the term's
+value>` — and ONLY that: the target mask is never chosen here, it is
+read off the emission and the composition must land inside it.
+
+Fact sources, in order: (1) LOCAL hypotheses the caller introduced (the
+`IF` case-split of an `:ARG-LEAVES` walk), (2) the CLAUSE CONTEXT via
+`typeSetWalk`, over the shapes `tsCtxProbes` generates, (3) COMPOUND
+RECOGNIZERS the step's own ttree CITES. Everything is interpreted back
+through the `Driver/TsFacts` registry, so the masks and proved lemmas
+are the admission walk's. -/
+
+/-- `tsSubsumedM m m' = true`, by ground kernel decision. -/
+def tsSubsumedProofM (m m' : Int) : MetaM Expr := do
+  mkDecideProof (← mkEq (← mkAppM ``ACL2.Replay.tsSubsumedM
+    #[Lean.toExpr m, Lean.toExpr m']) (mkConst ``Bool.true))
+
+mutual
+
+/-- The `InTs` candidates for `t` the walk can see: `(mask, proof)`
+    pairs. `local` carries the caller's own `Logic.toBool <test value> =
+    <sign>` hypotheses (the `IF` split); `citedCr` the compound-recognizer
+    RUNE NAMES the step cites. -/
+partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (localFacts : List (SExpr × Bool × Expr)) (citedCr : List String)
+    (t : SExpr) (tv : Expr) : MetaM (List (Int × Expr)) := do
+  let inTsTy (m : Int) : MetaM Expr :=
+    mkAppM ``ACL2.Replay.InTs #[Lean.toExpr m, tv]
+  let mut out : List (Int × Expr) := []
+  -- (1) the caller's LOCAL branch hypotheses
+  for (f, pos, hb) in localFacts do
+    if let some (a, m, nm) := tsFactOf f pos then
+      if a == t then
+        out := out ++ [(m, ← mkExpectedTypeHint (← mkAppM nm #[hb])
+          (← inTsTy m))]
+  -- (2) the CLAUSE CONTEXT, over the registry's own test shapes
+  for p in tsCtxProbes t do
+    for pos in [true, false] do
+      if let some (a, m, nm) := tsFactOf p pos then
+        if a == t then
+          let ctxP ← pinTermOpaques cfg cfg.envExpr ctx p
+          let vP ← ctxValExpr cfg ctxP p
+          let hb? ←
+            if pos then
+              match ← typeSetWalk cfg ctxP (.isTruthy p) with
+              | some hNe => pure (some (← mkAppM ``toBool_true_of_ne_nil #[hNe]))
+              | none => pure none
+            else
+              match ← typeSetWalk cfg ctxP (.isNil p) with
+              | some hNil =>
+                pure (some (← mkAppM ``Iff.mpr
+                  #[← mkAppM ``Logic.toBool_eq_false #[vP], hNil]))
+              | none => pure none
+          if let some hb := hb? then
+            -- the proved fact's own statement pins the lifted test value's
+            -- shape; a drifted lift fails the hint rather than passing
+            out := out ++ [(m, ← mkExpectedTypeHint (← mkAppM nm #[hb])
+              (← inTsTy m))]
+  -- (3) COMPOUND RECOGNIZERS, gated on the step's OWN cited runes
+  for (rune, fn, m, nm) in tsCompoundRecogProbes do
+    if citedCr.contains rune then
+      let p : SExpr := .cons (.atom (.symbol { name := fn })) (.cons t .nil)
+      let ctxP ← pinTermOpaques cfg cfg.envExpr ctx p
+      if let some hNil ← typeSetWalk cfg ctxP (.isNil p) then
+        let vP ← ctxValExpr cfg ctxP p
+        let hb ← mkAppM ``Iff.mpr
+          #[← mkAppM ``Logic.toBool_eq_false #[vP], hNil]
+        out := out ++ [(m, ← mkExpectedTypeHint (← mkAppM nm #[hb])
+          (← inTsTy m))]
+  -- (4) ARITHMETIC PRIMITIVES: ACL2's `type-set-binary-+` cell — both
+  -- arguments typed (recursively, from the SAME sources) and the
+  -- registered closure fact applied
+  if let .cons (.atom (.symbol op)) (.cons a (.cons b .nil)) := t then
+    if let some (inMask, outMask, nm) := tsBinaryOf op.name then
+      let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
+      let va ← ctxValExpr cfg ctxA a
+      let ctxB ← pinTermOpaques cfg cfg.envExpr ctxA b
+      let vb ← ctxValExpr cfg ctxB b
+      match ← inTsFromCtx cfg ctxB localFacts citedCr a va inMask,
+            ← inTsFromCtx cfg ctxB localFacts citedCr b vb inMask with
+      | some ha, some hb =>
+        out := out ++ [(outMask, ← mkExpectedTypeHint
+          (← mkAppM nm #[ha, hb]) (← inTsTy outMask))]
+      | _, _ => pure ()
+  return out
+
+/-- Prove `InTs target tv` for `t` — ACL2's OWN emitted mask — from the
+    visible typing facts: one (weakened) or two (intersected), exactly as
+    `tsFromFacts` does on the admission side. Anything else is a frontier
+    rather than a guess. -/
+partial def inTsFromCtx (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (localFacts : List (SExpr × Bool × Expr)) (citedCr : List String)
+    (t : SExpr) (tv : Expr) (target : Int) : MetaM (Option Expr) := do
+  -- a QUOTED CONSTANT needs no fact at all: its value is closed, so
+  -- ACL2's verdict for it is a kernel decision
+  if let .cons (.atom (.symbol q)) (.cons _ .nil) := t then
+    if q.name == "QUOTE" then
+      let ty ← mkAppM ``ACL2.Replay.InTs #[Lean.toExpr target, tv]
+      try
+        return some (← mkExpectedTypeHint (← mkDecideProof (← mkEq
+          (← mkAppM ``ACL2.Replay.tsMember
+            #[Lean.toExpr target, ← mkAppM ``ACL2.Replay.tsIndex #[tv]])
+          (mkConst ``Bool.true))) ty)
+      catch _ => return none
+  let cands ← inTsCandidates cfg ctx localFacts citedCr t tv
+  for (m, h) in cands do
+    if ACL2.Replay.tsSubsumedM m target then
+      return some (← mkAppM ``ACL2.Replay.inTs_weaken
+        #[← tsSubsumedProofM m target, h])
+  for (m1, h1) in cands do
+    for (m2, h2) in cands do
+      if ACL2.Replay.tsInter2Subsumed m1 m2 target then
+        let hsub ← mkDecideProof (← mkEq
+          (← mkAppM ``ACL2.Replay.tsInter2Subsumed
+            #[Lean.toExpr m1, Lean.toExpr m2, Lean.toExpr target])
+          (mkConst ``Bool.true))
+        return some (← mkAppM ``ACL2.Replay.inTs_inter2 #[hsub, h1, h2])
+  return none
+
+end
+
+/-- THE `:ARG-LEAVES` WALK (T1+2 sprint P3b — the recognizer-under-`IF`
+    trio: `COUNT-DOWN` / `MY-EVENP` / `CD2`'s termination clauses, whose
+    `(CONSP (IF (INTEGERP N) (IF (< N '0) '0 N) '0))` argument ACL2
+    types by walking the `IF` and UNIONING the branch verdicts).
+
+    The union alone is not replayable, so this walk mirrors ACL2's own
+    `type-set-rec` `'if` case: case-split the `IF` at the VALUE level
+    (`inTs_cond`) and, at each LEAF, consume THAT branch's OWN emitted
+    verdict — the entry whose governing tests the branch establishes —
+    proving it from the split's hypotheses. Every leaf verdict must land
+    inside the step's emitted `:TYPESET` (the union ACL2 published), and
+    a leaf with no addressed entry is a frontier, never a guess. -/
+partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (leaves : List TpLeaf) (localFacts : List (SExpr × Bool × Expr))
+    (t : SExpr) (target : Int) : MetaM (Option Expr) := do
+  let ctxT ← pinTermOpaques cfg cfg.envExpr ctx t
+  let vT ← ctxValExpr cfg ctxT t
+  let want ← mkAppM ``ACL2.Replay.InTs #[Lean.toExpr target, vT]
+  match t with
+  | .cons (.atom (.symbol ifS)) (.cons c (.cons th (.cons el .nil))) =>
+    if ifS.name == "IF" then
+      let ctxC ← pinTermOpaques cfg cfg.envExpr ctxT c
+      let vC ← ctxValExpr cfg ctxC c
+      let bE ← mkAppM ``Logic.toBool #[vC]
+      let branch (sign : Bool) (br : SExpr) : MetaM (Option Expr) := do
+        let hbTy ← mkEq bE (mkConst (if sign then ``Bool.true else ``Bool.false))
+        withLocalDeclD `hb hbTy fun hb => do
+          match ← inTsFromArgLeaves cfg ctx leaves
+              ((c, sign, hb) :: localFacts) br target with
+          | some p => pure (some (← mkLambdaFVars #[hb] p))
+          | none => pure none
+      let some hx ← branch true th | return none
+      let some hy ← branch false el | return none
+      try
+        return some (← mkExpectedTypeHint (← mkAppM ``ACL2.Replay.inTs_cond
+          #[hx, hy]) want)
+      catch _ => return none
+    else pure ()
+  | _ => pure ()
+  -- a LEAF: ACL2's ADDRESSED entry for it — the emitted branch whose
+  -- governing tests THIS branch establishes
+  let fs := localFacts.map (fun (f, p, _) => (f, p))
+  let addressed := leaves.filter fun l =>
+    l.term == t && l.tests.all (fun cnd => branchEstablishes fs cnd true)
+  let some leaf := addressed.head?
+    | return none
+  unless ACL2.Replay.tsSubsumedM leaf.ts target do
+    return none
+  match ← inTsFromCtx cfg ctxT localFacts [] t vT leaf.ts with
+  | none => return none
+  | some hLeaf =>
+    return some (← mkExpectedTypeHint (← mkAppM ``ACL2.Replay.inTs_weaken
+      #[← tsSubsumedProofM leaf.ts target, hLeaf]) want)
+
+/-- ACL2'S RECOGNIZER VERDICT FROM ITS OWN TYPE-SETS (T1+2 sprint P3b):
+    a `recognizer/true` or `recognizer/false` step publishes the
+    argument's `:TYPESET` and the recognizer's `:TRUETS`, and closes the
+    verdict by comparing them. The replay does the same — derive `InTs m
+    <the argument's value>` from the facts it can see (the `:ARG-LEAVES`
+    walk for an `IF`-valued argument, otherwise the clause context and
+    the step's CITED compound recognizers), then apply the registered
+    model fact for the verdict side.
+
+    Two cross-checks, both against ACL2's OWN emitted numbers: the
+    step's `:TRUETS` must equal the registry's, and ACL2's emitted
+    `:TYPESET` must be INSIDE the mask we derived (we may prove something
+    weaker than ACL2 knew — never something it contradicts). -/
+def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (recog : String) (arg : SExpr) (verdict : SExpr)
+    (stepTs trueTs : Option Int) (argLeaves : List TpLeaf)
+    (citedCr : List String) : MetaM (Option Expr) := do
+  let entry? : Option (Int × Lean.Name) :=
+    if verdict == SExpr.t then
+      (tsRecogTrue.find? (fun (n, _, _) => n == recog)).map (fun (_, m, l) => (m, l))
+    else if verdict == SExpr.nil then
+      (tsRecogNil.find? (fun (n, _, _) => n == recog)).map (fun (_, m, l) => (m, l))
+    else none
+  let some (regTrueTs, lem) := entry? | return none
+  -- the step's OWN emitted true-ts must be the registry's number
+  match trueTs with
+  | some ts => unless ts == regTrueTs do return none
+  | none => return none
+  let ctxA ← pinTermOpaques cfg cfg.envExpr ctx arg
+  let va ← ctxValExpr cfg ctxA arg
+  -- the candidate masks: the `:ARG-LEAVES` walk (IF-valued argument) or
+  -- the ordinary context probes
+  let cands : List (Int × Expr) ←
+    if !argLeaves.isEmpty then
+      match stepTs with
+      | none => pure []
+      | some ts =>
+        match ← inTsFromArgLeaves cfg ctxA argLeaves [] arg ts with
+        | some h => pure [(ts, h)]
+        | none => pure []
+    else inTsCandidates cfg ctxA [] citedCr arg va
+  for (m, hv) in cands do
+    -- ACL2's own verdict for the argument must be INSIDE what we derived
+    let acl2Ok := match stepTs with
+      | some ts => ACL2.Replay.tsSubsumedM ts m
+      | none => false
+    unless acl2Ok do continue
+    if verdict == SExpr.t then
+      if ACL2.Replay.tsSubsumedM m regTrueTs then
+        return some (← mkAppM lem #[← tsSubsumedProofM m regTrueTs, hv])
+    else if ACL2.Replay.tsDisjointM m regTrueTs then
+      let hd ← mkDecideProof (← mkEq
+        (← mkAppM ``ACL2.Replay.tsDisjointM
+          #[Lean.toExpr m, Lean.toExpr regTrueTs])
+        (mkConst ``Bool.true))
+      return some (← mkAppM lem #[hd, hv])
+  return none
+
 /-- The `(TRUE-LISTP …)` term and its CONS-peels, outermost first:
     `(TRUE-LISTP (CONS a d))` also lists `(TRUE-LISTP d)` (recursively). Each
     peel is a DEFINITIONAL reduction on the value side (`trueListp (cons a d) =
@@ -606,5 +844,100 @@ partial def trueListpConsPeels (term : SExpr) : List SExpr :=
       trueListpConsPeels (.cons r (.cons d .nil))
     else []
   | _ => []
+
+/-- THE COMPOUND-RECOGNIZER TS CELL (T1+2 sprint P3b): a
+    `(:COMPOUND-RECOGNIZER …)` node is ACL2 closing a recognizer from
+    the argument's TYPE-SET — the record publishes both (`:TYPESET`,
+    `:TRUETS`), and where the argument is an `IF` it also publishes the
+    per-branch `:ARG-LEAVES`. Replay it by the same comparison
+    (`recogVerdictFromTs`, whose cross-checks are against ACL2's own
+    numbers); `none` leaves the recipe's existing routes and its honest
+    frontier untouched. -/
+def compoundRecogTsCell (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (prov : StepProvenance) (lhs rhs : SExpr) : MetaM (Option Expr) := do
+  let .cons (.atom (.symbol rs)) (.cons arg .nil) := lhs | return none
+  let verdict := match rhs with
+    | .cons (.atom (.symbol q)) (.cons v .nil) =>
+      if q.name == "QUOTE" then v else rhs
+    | v => v
+  let citedCr := prov.runes.filterMap fun r =>
+    if r.ty == "compound-recognizer" then some r.name else none
+  match ← recogVerdictFromTs cfg ctx rs.name arg verdict prov.typeSet
+      prov.trueTs prov.argLeaves citedCr with
+  | none => return none
+  | some hV =>
+    let ctxL ← pinTermOpaques cfg cfg.envExpr ctx lhs
+    let p ← ctxValProof cfg ctxL lhs
+    let pQ ← mkAppM ``re_val_quote
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr verdict]
+    return some (← mkAppM ``fuel_eq_of_conv #[p, pQ, hV])
+
+/-- THE `EQUAL`-VERDICT TS-DISJOINTNESS CELL (T1+2 sprint P3b): the R2
+    fold-in `:LHS-TS`/`:RHS-TS` are the two operand type-sets ACL2's
+    `type-set-equal` intersected to reach a `'NIL` verdict. DISJOINT
+    masks make the equality nil, and the replay proves exactly that —
+    each operand's membership in ACL2's OWN emitted mask (from the
+    clause context, never chosen here) plus the masks' disjointness by
+    kernel decision. Driving instance: `CLASSIFY-POS`'s `(EQUAL N '0)`,
+    `:LHS-TS 6` (positive integer, from the `(INTEGERP N)` / `(< '0 N)`
+    hypotheses) against `:RHS-TS 1` (zero). Stated in the ORIGINAL
+    operand order, so it needs no re-orientation. `none` (no emitted
+    pair, non-disjoint masks, an operand the context does not type) and
+    the recipe's other cells take over. -/
+def tseTsDisjointCell (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (prov : StepProvenance) (lhs x0 qc0 : SExpr) : MetaM (Option Expr) := do
+  let some mL := prov.lhsTs | return none
+  let some mR := prov.rhsTs | return none
+  unless ACL2.Replay.tsDisjointM mL mR do return none
+  let ctxL ← pinTermOpaques cfg cfg.envExpr ctx x0
+  let vL ← ctxValExpr cfg ctxL x0
+  let ctxR ← pinTermOpaques cfg cfg.envExpr ctxL qc0
+  let vR ← ctxValExpr cfg ctxR qc0
+  let some hL ← inTsFromCtx cfg ctxR [] [] x0 vL mL | return none
+  let some hR ← inTsFromCtx cfg ctxR [] [] qc0 vR mR | return none
+  let hd ← mkDecideProof (← mkEq
+    (← mkAppM ``ACL2.Replay.tsDisjointM #[Lean.toExpr mL, Lean.toExpr mR])
+    (mkConst ``Bool.true))
+  let hTs ← mkAppM ``ACL2.Replay.logic_equal_nil_of_ts_disjoint #[hd, hL, hR]
+  let pL ← ctxValProof cfg ctx lhs
+  let pR ← mkAppM ``re_val_quote
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.nil]
+  return some (← mkAppM ``fuel_eq_of_conv #[pL, pR, hTs])
+
+/-- The registered `ZP-COMPOUND-RECOGNIZER` recipe (moved out of
+    Driver/NodeCore/Node at the module-size ratchet, T1+2 sprint P3b —
+    MOVE-ONLY, body unchanged; `prov`/`lhs`/`rhs` are the node's). -/
+def replayZpCompoundRecog (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (prov : StepProvenance) (lhs rhs : SExpr) : MetaM Expr := do
+  -- registered COMPOUND-RECOGNIZER recipe, pinned to the one ground-zero
+  -- rule the corpus cites: `(ZP u) ⇒ 'T` believed by type-set from the
+  -- in-scope FALSITY of `(INTEGERP u)` (zp is t on non-integers — kernel
+  -- `logic_zp_of_integerp_nil`). Any other shape is a named frontier.
+  unless prov.origin == "recognizer/true" do
+    throwError "compound-recognizer: origin {prov.origin} ≠ recognizer/true \
+                (frontier)"
+  let .cons (.atom (.symbol zs)) (.cons u .nil) := lhs
+    | throwError "compound-recognizer: lhs {repr lhs} is not (zp u)"
+  unless zs.name == "ZP" && rhs == quoteT do
+    throwError "compound-recognizer: expected (zp u) ⇒ 't, got \
+                {repr lhs} ⇒ {repr rhs}"
+  let intU : SExpr :=
+    .cons (.atom (.symbol { name := "INTEGERP" })) (.cons u .nil)
+  let some hNil := ctx.litFactByTerm? intU
+    | throwError "compound-recognizer: no in-scope falsity fact for \
+                  {repr intU} (frontier)"
+  let vInt ← ctxValExpr cfg ctx intU
+  unless vInt.isAppOfArity ``Logic.integerp 1 do
+    throwError "compound-recognizer: value of {repr intU} is not \
+                (Logic.integerp _)"
+  let hT ← mkAppM ``logic_zp_of_integerp_nil #[vInt.appArg!, hNil]
+  let v ← ctxValExpr cfg ctx lhs
+  unless ← isDefEq v (mkApp (mkConst ``Logic.zp) vInt.appArg!) do
+    throwError "compound-recognizer: value of {repr lhs} does not match \
+                the (Logic.zp _) instance"
+  let p ← ctxValProof cfg ctx lhs
+  let pQ ← mkAppM ``re_val_quote
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
+  mkAppM ``fuel_eq_of_conv #[p, pQ, hT]
 
 end ACL2.Replay.Driver

@@ -178,15 +178,13 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
           | none => throw s!"REWRITE-STEP: :SUBST not a list: {repr r}"
         | none => pure []
       let equivTerm := lookupKeyword "EQUIV-TERM" rest
-      let typeSet := match lookupKeyword "TYPESET" rest with
-        | some (.atom (.number (.int n))) => some n
-        | _ => none
-      let trueTs := match lookupKeyword "TRUETS" rest with
-        | some (.atom (.number (.int n))) => some n
-        | _ => none
-      let falseTs := match lookupKeyword "FALSETS" rest with
-        | some (.atom (.number (.int n))) => some n
-        | _ => none
+      let typeSet := parseIntField (lookupKeyword "TYPESET" rest)
+      let trueTs := parseIntField (lookupKeyword "TRUETS" rest)
+      let falseTs := parseIntField (lookupKeyword "FALSETS" rest)
+      -- :LHS-TS/:RHS-TS (R2 fold-in): the EQUAL verdict's two operand
+      -- type-sets, read exactly like :TYPESET above.
+      let lhsTs := parseIntField (lookupKeyword "LHS-TS" rest)
+      let rhsTs := parseIntField (lookupKeyword "RHS-TS" rest)
       -- :STRONGP (item 2): T/NIL; absent (pre-batch logs / non-recognizer
       -- origins) reads none. Any other value is a malformed emission.
       let strongp ← match lookupKeyword "STRONGP" rest with
@@ -220,7 +218,7 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let geneqv ← parseSymbolListField "GENEQV" (lookupKeyword "GENEQV" rest)
       let crRune ← parseCrRuneField parseRune? (lookupKeyword "CR-RUNE" rest)
       let argLeaves ← parseArgLeavesField (lookupKeyword "ARG-LEAVES" rest)
-      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, crRune, typeSet, trueTs, falseTs, strongp, argLeaves, canon1, canon2, taEntry, tauBasis, geneqv, path }
+      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, crRune, typeSet, trueTs, falseTs, strongp, argLeaves, lhsTs, rhsTs, canon1, canon2, taEntry, tauBasis, geneqv, path }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 

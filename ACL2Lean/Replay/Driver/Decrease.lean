@@ -14,6 +14,7 @@
 import ACL2Lean.Replay.Driver.BranchFacts
 import ACL2Lean.Replay.Driver.Discharge
 import ACL2Lean.Replay.CountSim
+import ACL2Lean.Replay.OrdinalSim
 import ACL2Lean.Replay.Lemmas.DescentExt
 
 
@@ -46,6 +47,42 @@ def defGetFact (cfg : ReplayConfig) (fn : Symbol) (formals : List Symbol)
   let pairE ← mkAppM ``Prod.mk #[formalsE, reflectSExpr body]
   let rhs ← mkAppM ``Option.some #[pairE]
   mkDecideProof (← mkEq lhs rhs)
+
+/-- `w.defs.get? <fn> = some ([oltXSym], <bodyConst>)` with the SIM
+    LEMMAS' OWN CONSTANTS in the stated type, so `mkAppM` unifies against
+    their hypotheses (the `mkRecTermInfo` idiom). The proof itself is the
+    kernel decision on the reflected world — the constants only shape the
+    type. -/
+def ordDefFact (cfg : ReplayConfig) (fn : Symbol) (bodyC : Name)
+    (body : SExpr) : MetaM Expr := do
+  let h ← defGetFact cfg fn [ACL2.Replay.oltXSym] body
+  mkExpectedTypeHint h (← mkEq
+    (← mkAppM ``DefMap.get?
+      #[← mkAppM ``World.defs #[cfg.worldExpr], reflectSymbol fn])
+    (← mkAppM ``Option.some #[← mkAppM ``Prod.mk
+      #[← mkListLit (mkConst ``Symbol) [mkConst ``ACL2.Replay.oltXSym],
+        mkConst bodyC]]))
+
+/-- The DEFINITIONAL ALIASES of `EQUAL` among the given defun entries:
+    every entry `f (x y) := (EQUAL x y)`. ACL2's ground-zero `=` and
+    `EQL` are exactly that, and the recomputed ground-zero termination
+    clauses spell rulers with them where the normalized body says
+    `EQUAL` — see `normEqualAliases` (Driver/BranchFacts) for the full
+    statement of why. Read off the EMITTED entries, never a hard-coded
+    name list; the caller passes the world's defuns TOGETHER WITH the
+    ground-zero SNAPSHOT defuns, because a builtin-named snapshot
+    (`EQL` — trusted-core `callBuiltin "EQL" = Logic.equal`) is excluded
+    from the world by the no-shadow rule and `gzDefs` is the only place
+    its emitted body lives. -/
+def equalAliasNames (entries : List (Symbol × List Symbol × SExpr)) :
+    List String :=
+  entries.filterMap fun (s, formals, body) =>
+    match formals with
+    | [f1, f2] =>
+      if body == .cons (.atom (.symbol { name := "EQUAL" }))
+          (.cons (.atom (.symbol f1)) (.cons (.atom (.symbol f2)) .nil))
+      then some s.name else none
+    | _ => none
 
 /-- The value/proof plumbing a decrease discharge runs against — provided
     by each caller (admission walk: `dpVal*`; induction: `ctxVal*` + the
@@ -257,6 +294,64 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
         if d.name == "EVENS" then mkAppM ``ACL2.consCount_evens_lt #[h1, h2]
         else mkAppM ``ACL2.consCount_odds_lt #[h1, h2]
       mkAppM ``count_lt_of_eq #[hSim, hCnt]
+    else if d.name == "O-RST" || d.name == "O-FIRST-EXPT" then
+      -- THE ORDINAL REGISTRY ROW (T1+2 sprint P3b): `O<` and `O-P` are
+      -- ACL2's own RECURSIVE ground-zero defuns, and their emitted
+      -- termination clauses state the decrease over the ordinal
+      -- DESTRUCTOR COMPOSITES rather than a car/cdr chain
+      -- (`(O< (ACL2-COUNT (O-RST X)) (ACL2-COUNT X))`, likewise
+      -- `O-FIRST-EXPT`). Same S4 treatment as EVENS/ODDS: a proved sim
+      -- lemma (Replay/OrdinalSim) bridges the pinned value to the Lean
+      -- model of what the world's OWN body computes, and the Count
+      -- library gives the model-level strict decrease. Every world shape
+      -- the sim consumes is byte-checked first, so a world whose
+      -- ground-zero ordinals differ keeps the honest frontier.
+      -- Corpus witnesses: the `O<` / `O-P` ground-zero snapshots in every
+      -- sorting book (e.g. acl2_samples/sorting/bsort.proof-log).
+      unless u == base do
+        throwFrontier m!"dischargeDecrease: ordinal destructor {d.name} \
+            applied to {repr u} ≠ the measured base {repr base} (frontier)"
+      let checkShape (fn : Symbol) (expBody : SExpr) : MetaM Unit := do
+        match kit.cfg.worldVal.defs.get? fn with
+        | some (formals, body) =>
+          unless formals == [ACL2.Replay.oltXSym] && body == expBody do
+            throwFrontier m!"dischargeDecrease: the world's {fn.name} differs \
+                from the proved ordinal shape (frontier)"
+        | none =>
+          throwFrontier m!"dischargeDecrease: ordinal registry fn {fn.name} \
+              not in the world (frontier)"
+      -- the `(consp base)` evidence: on BOTH obligations ACL2's own ruler
+      -- is the REFUTED `(O-FINP base)` the kit's ordinal duality leg reads
+      let hConsp ← kit.conspTrueOf base
+      let vT ← kit.valOf t
+      let hvT ← kit.convOf t
+      let xvE ← kit.valOf base
+      let hxv ← kit.convOf base
+      if d.name == "O-RST" then
+        checkShape ACL2.Replay.oRstSym ACL2.Replay.oRstBodyShape
+        let hdef ← ordDefFact kit.cfg ACL2.Replay.oRstSym
+          ``ACL2.Replay.oRstBodyShape ACL2.Replay.oRstBodyShape
+        let hnCdr ← proveNoShadow kit.cfg { name := "CDR" }
+        let hSim ← mkAppM ``ACL2.Replay.orst_sim
+          #[kit.cfg.worldExpr, kit.envE, hdef, hnCdr, reflectSExpr u, xvE, vT,
+            hxv, hvT]
+        mkAppM ``count_lt_of_eq
+          #[hSim, ← mkAppM ``ACL2.consCount_cdr_lt_of_consp #[hConsp]]
+      else
+        checkShape ACL2.Replay.oFirstExptSym ACL2.Replay.oFirstExptBodyShape
+        checkShape ACL2.Replay.oFinpSym ACL2.Replay.oFinpBodyShape
+        let hdefE ← ordDefFact kit.cfg ACL2.Replay.oFirstExptSym
+          ``ACL2.Replay.oFirstExptBodyShape ACL2.Replay.oFirstExptBodyShape
+        let hdefF ← ordDefFact kit.cfg ACL2.Replay.oFinpSym
+          ``ACL2.Replay.oFinpBodyShape ACL2.Replay.oFinpBodyShape
+        let hnConsp ← proveNoShadow kit.cfg { name := "CONSP" }
+        let hnCar ← proveNoShadow kit.cfg { name := "CAR" }
+        let hSim ← mkAppM ``ACL2.Replay.ofirstexpt_sim_cons
+          #[kit.cfg.worldExpr, kit.envE, hdefE, hdefF, hnConsp, hnCar,
+            reflectSExpr u, xvE, vT, hConsp, hxv, hvT]
+        mkAppM ``count_lt_of_eq
+          #[hSim,
+            ← mkAppM ``ACL2.Replay.consCount_car_car_lt_of_consp #[hConsp]]
     else
       throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
           the destructor-chain walk over {repr base} (frontier: candidate \
@@ -606,9 +701,20 @@ def dischargeDecrease (just : Justification)
   -- (`(IF a a c)` = or, `(IF a b 'NIL)` = and), decomposed recursively.
   -- This widens only the COVERAGE check: the decrease PROOF's
   -- conspTrueOf/endpFalseOf independently require the value facts.
+  -- EQUAL-ALIAS normalization (T1+2 sprint P3b): the recomputed
+  -- ground-zero clauses spell rulers with the world's own definitional
+  -- aliases of EQUAL (`=`, `EQL`) where the NORMALIZED body the walk
+  -- built its facts from says `EQUAL`. The alias set comes from the
+  -- WORLD, and normalization touches only the COVERAGE comparison —
+  -- `wanted`/`matching` stay verbatim, and an unrecognized alias just
+  -- leaves the ruler uncovered.
+  let aliases :=
+    equalAliasNames (kit.cfg.worldVal.defs.entries ++ kit.cfg.gzDefs)
+  let factsN := facts.map (fun (f, p) => (normEqualAliases aliases f, p))
   let uncoveredOf (lits : List SExpr) : List SExpr :=
     lits.filter fun lit =>
-      lit != wanted && !branchEstablishes facts lit false
+      lit != wanted &&
+        !branchEstablishes factsN (normEqualAliases aliases lit) false
   let uncov := matching.map uncoveredOf
   unless uncov.any (·.isEmpty) do
     -- MERGED-IH complementary pair (e.g. how-many: two call sites with the

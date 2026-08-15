@@ -44,7 +44,12 @@ def validateBoundaryVerdicts (cfg : ReplayConfig) (ctx : ReplayCtx)
 def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof)
     : MetaM (Option (Expr × Bool) × SExpr) := do
   let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases,
-                        taSubsts := lp.taSubsts ++ ctx.taSubsts }
+                        taSubsts := lp.taSubsts ++ ctx.taSubsts,
+                        -- T1+2 sprint P3b: this literal's IF-test markers,
+                        -- so a NODE recipe's chain-end reconciliation can
+                        -- anchor on the same records the literal-level
+                        -- bridge uses
+                        ifMarkers := lp.ifMarkers ++ ctx.ifMarkers }
   validateBoundaryVerdicts cfg ctx lp
   if lp.notFlg then
     let .cons (.atom (.symbol notS)) (.cons atm .nil) := lp.literal
@@ -137,7 +142,9 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
   -- node recipes now — must reduce the literal to `(quote t)`; close by the
   -- chain + the quote's evaluation.
   let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases,
-                        taSubsts := lp.taSubsts ++ ctx.taSubsts }
+                        taSubsts := lp.taSubsts ++ ctx.taSubsts,
+                        -- see `replayLiteralChain` (T1+2 sprint P3b)
+                        ifMarkers := lp.ifMarkers ++ ctx.ifMarkers }
   validateBoundaryVerdicts cfg ctx lp
   if lp.nodes.isEmpty then
     throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"

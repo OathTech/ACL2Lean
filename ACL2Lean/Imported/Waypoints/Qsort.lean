@@ -251,9 +251,11 @@ theorem howManyQsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.how_many_qsortFormula = some v ∧ v ≠ SExpr.nil :=
   howManyQsortReplayedCond env
-    (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide))
+    -- (total:O< / total:O-P RETIRED, T1+2 sprint P3b 2026-08-15 — the
+    -- ordinal registry row (Replay/OrdinalSim) + the O-FINP recognizer
+    -- duality make the driver PROVE both admissions from ACL2's own
+    -- emitted ground-zero termination clauses, so the hypotheses left
+    -- the telescope and `dis_o_lt_total` was deleted.)
     (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
@@ -288,9 +290,11 @@ theorem permQsortReplayed_uncond (env : Env) :
     -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — the ATOM leg
     -- covers PCE's emitted `(ATOM X)`-ruled decrease, so the hypothesis
     -- left the telescope and `dis_pce_total` was deleted.)
-    (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide))
+    -- (total:O< / total:O-P RETIRED, T1+2 sprint P3b 2026-08-15 — the
+    -- ordinal registry row (Replay/OrdinalSim) + the O-FINP recognizer
+    -- duality make the driver PROVE both admissions from ACL2's own
+    -- emitted ground-zero termination clauses, so the hypotheses left
+    -- the telescope and `dis_o_lt_total` was deleted.)
     (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))
@@ -331,9 +335,11 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
       Worlds.Sorting.orderedp_qsortFormula = some v ∧ v ≠ SExpr.nil :=
   orderedpQsortReplayedCond env
     -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — see PERM-QSORT.)
-    (Worlds.Sorting.dis_o_lt_total qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide))
+    -- (total:O< / total:O-P RETIRED, T1+2 sprint P3b 2026-08-15 — the
+    -- ordinal registry row (Replay/OrdinalSim) + the O-FINP recognizer
+    -- duality make the driver PROVE both admissions from ACL2's own
+    -- emitted ground-zero termination clauses, so the hypotheses left
+    -- the telescope and `dis_o_lt_total` was deleted.)
     (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide))

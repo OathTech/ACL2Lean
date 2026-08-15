@@ -429,11 +429,12 @@ structure ReplayCtx where
       set by the discharge call sites from the verdict node; gates and
       widens `replayDischargeNode`'s rule-premise pass. -/
   tauBasis : Option SExpr := none
+  ifMarkers : List (SExpr × Bool × SExpr) := []  -- P3b: the literal's IF-test markers, `bridgeIfCollapseNorm`'s anchor
   /-- ENCLOSING UNRESOLVED-IF test facts (the if-finish branch context,
       ACL2's assume-true-false): the test term, its value expr, the branch
-      sign (`true` = then-branch, value `≠ nil`; `false` = else-branch, value
-      `= nil`), and the value fact. Solidify `.branchTest` nodes consume
-      these. -/
+      sign (`true` = then-branch, value `≠ nil`; `false` = else-branch,
+      value `= nil`), and the value fact. Solidify `.branchTest` nodes
+      consume these. -/
   branchFacts : List (SExpr × Expr × Bool × Expr) := []
   /-- ENCLOSING CLAUSIFY-BRANCH segment facts (the branch-split composer,
       W3): each entered branch's segment literal with the proof that its

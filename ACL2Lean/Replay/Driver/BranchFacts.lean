@@ -100,6 +100,57 @@ def branchEstablishes (facts : List (SExpr × Bool)) : SExpr → Bool → Bool
           else false
         | _ => false)
 
+/-! ### `EQUAL`-alias normalization (T1+2 sprint P3b)
+
+ACL2 emits a defun's `:BODY` NORMALIZED (abbreviations expanded) but
+recomputes the ground-zero `:TERMINATION-CLAUSES` from the UNNORMALIZED
+body (`gz-termination-clauses` reads `get-unnormalized-bodies`). So an
+emitted RULER can be spelled with a definitional alias of `EQUAL` where
+the body — and hence the branch fact the admission walk built from it —
+says `EQUAL`:
+
+    O<   ruler:  (NOT (= (O-FIRST-COEFF X) (O-FIRST-COEFF Y)))
+         fact:   (EQUAL (O-FIRST-COEFF X) (O-FIRST-COEFF Y))
+    O-P  ruler:  (EQL '0 (O-FIRST-EXPT X))
+         fact:   (EQUAL '0 (O-FIRST-EXPT X))
+
+Seeing that those are the SAME literal is a reading of the WORLD's own
+emitted definitions (`(:DEFUN = :FORMALS (X Y) :BODY (EQUAL X Y))`,
+likewise `EQL`) — the caller computes the alias set from the world and
+passes it in; nothing is assumed about any particular name. Fail-closed
+either way: an alias we do not recognize simply leaves the ruler
+uncovered and the decrease stays an honest frontier. -/
+
+mutual
+
+/-- Rewrite every application of an `EQUAL` ALIAS to its `EQUAL`
+    spelling, recursively. QUOTE bodies are DATA and are never
+    descended. -/
+partial def normEqualAliases (aliases : List String) : SExpr → SExpr
+  | .cons (.atom (.symbol h)) args =>
+    if h.name == "QUOTE" then .cons (.atom (.symbol h)) args
+    else
+      let args' := normEqualAliasesArgs aliases args
+      if aliases.contains h.name then
+        match args'.toList? with
+        | some [a, b] =>
+          .cons (.atom (.symbol { name := "EQUAL" })) (.cons a (.cons b .nil))
+        | _ => .cons (.atom (.symbol h)) args'
+      else .cons (.atom (.symbol h)) args'
+  | .cons a b =>
+    .cons (normEqualAliases aliases a) (normEqualAliasesArgs aliases b)
+  | t => t
+
+/-- The argument-spine walk of `normEqualAliases` (a cons chain, not an
+    application — kept separate so a variable in argument position is
+    never mistaken for a head). -/
+partial def normEqualAliasesArgs (aliases : List String) : SExpr → SExpr
+  | .cons a b =>
+    .cons (normEqualAliases aliases a) (normEqualAliasesArgs aliases b)
+  | t => t
+
+end
+
 /-! ### Pinned shapes (the real emitted rulers this rule was derived from) -/
 
 private def sX : SExpr := .atom (.symbol { name := "X" })
@@ -151,5 +202,30 @@ private def zipFacts : List (SExpr × Bool) :=
 -- NOT peels
 #guard branchEstablishes [(app1 "CONSP" sX, true)] (app1 "NOT" (app1 "ATOM" sX)) true
 #guard branchEstablishes [(app1 "CONSP" sX, true)] (app1 "NOT" (app1 "ENDP" sX)) true
+
+/-! Alias normalization, against `O<`/`O-P`'s real emitted rulers. -/
+private def app2 (f : String) (u v : SExpr) : SExpr :=
+  .cons (.atom (.symbol { name := f })) (.cons u (.cons v .nil))
+private def coeffX : SExpr := app1 "O-FIRST-COEFF" sX
+private def coeffY : SExpr := app1 "O-FIRST-COEFF" sY
+-- `(NOT (= …))` normalizes to `(NOT (EQUAL …))`; the alias set is the
+-- caller's (computed from the world), so an unlisted head is untouched
+#guard normEqualAliases ["=", "EQL"] (app1 "NOT" (app2 "=" coeffX coeffY))
+  == app1 "NOT" (app2 "EQUAL" coeffX coeffY)
+#guard normEqualAliases ["=", "EQL"] (app2 "EQL" branchQuoteNil coeffX)
+  == app2 "EQUAL" branchQuoteNil coeffX
+#guard normEqualAliases [] (app2 "=" coeffX coeffY) == app2 "=" coeffX coeffY
+-- a QUOTE body is DATA — never descended (a quoted `(= …)` stays put)
+#guard normEqualAliases ["="]
+    (.cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons (app2 "=" sX sY) .nil))
+  == .cons (.atom (.symbol { name := "QUOTE" }))
+      (.cons (app2 "=" sX sY) .nil)
+-- a variable in ARGUMENT position is not a head (the spine walk)
+#guard normEqualAliases ["="] (app2 "FOO" sX (app2 "=" sX sY))
+  == app2 "FOO" sX (app2 "EQUAL" sX sY)
+-- …and the normalized ruler is then established by the EQUAL-spelled fact
+#guard branchEstablishes [(app2 "EQUAL" coeffX coeffY, true)]
+  (normEqualAliases ["=", "EQL"] (app1 "NOT" (app2 "=" coeffX coeffY))) false
 
 end ACL2.Replay.Driver

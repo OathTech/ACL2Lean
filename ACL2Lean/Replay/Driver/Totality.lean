@@ -225,14 +225,42 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                     let hnil ← mkAppM ``Iff.mp
                       #[← mkAppM ``Logic.toBool_eq_false #[vc], hb]
                     pure (some (← mkAppM lem #[hnil]))
+                -- THE ORDINAL LEG (T1+2 sprint P3b): ACL2's ground-zero
+                -- ordinal bodies branch on `(O-FINP b)`, whose emitted
+                -- body is literally `(IF (CONSP X) 'NIL 'T)` — so the
+                -- REFUTED `(O-FINP b)` ruler IS the consp evidence `O<` /
+                -- `O-P`'s decreases need. The test is OPAQUE (a world
+                -- call), so its verdict VALUE and convergence come from
+                -- the split's CARRIED pair; nothing else can state it.
+                -- Byte-checked against the emitted body before use.
+                let fromOFinp : MetaM (Option Expr) := do
+                  let test := recogTest "O-FINP" b
+                  let some (_, _, hb, some (_, hcv)) :=
+                      facts.find? (fun (f, p, _, _) => f == test && !p)
+                    | return none
+                  let some (fml, bdy) :=
+                      cfg.worldVal.defs.get? { name := "O-FINP" } | return none
+                  unless fml == [ACL2.Replay.oltXSym] &&
+                      bdy == ACL2.Replay.oFinpBodyShape do
+                    return none
+                  unless totLiftable b do return none
+                  let hbv ← dpValProof cfg envE [] [] varP b
+                  let hnoConsp ← proveNoShadow cfg { name := "CONSP" }
+                  let hdefF ← ordDefFact cfg { name := "O-FINP" }
+                    ``ACL2.Replay.oFinpBodyShape ACL2.Replay.oFinpBodyShape
+                  pure (some (← mkAppM ``ACL2.Replay.consp_toBool_of_ofinp_false
+                    #[hnoConsp, hdefF, hbv, hcv, hb]))
                 match ← fromNil "ENDP" ``consp_toBool_of_endp_nil with
                 | some pf => pure pf
                 | none =>
                   match ← fromNil "ATOM" ``consp_toBool_of_atom_nil with
                   | some pf => pure pf
-                  | none => throwFrontier m!"dischargeDecrease: decrease at \
-                      {repr b} needs an in-scope (consp {repr b}) fact \
-                      (frontier)"
+                  | none =>
+                    match ← fromOFinp with
+                    | some pf => pure pf
+                    | none => throwFrontier m!"dischargeDecrease: decrease at \
+                        {repr b} needs an in-scope (consp {repr b}) fact \
+                        (frontier)"
             endpFalseOf := fun b => do
               match factOf (recogTest "ENDP" b) false with
               | some pf => pure pf
@@ -311,6 +339,45 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
                       vσ, hNs, hDef, hconvσ, hbody]
                   mkLambdaFVars #[vσ, hconvσ] p
               return ← mkAppM ``exists_conv_elim #[hcEx, kLam]
+            | [f1, f2], [a1, a2] =>
+              -- ARITY 2, opaque measured actual (T1+2 sprint P3b — the
+              -- ORDINAL family: `O<`'s own self-calls
+              -- `(O< (O-RST X) (O-RST Y))` / `(O< (O-FIRST-EXPT X)
+              -- (O-FIRST-EXPT Y))`, whose actuals are ground-zero DEFUN
+              -- applications and so not walk-liftable at EITHER position).
+              -- Same device as the 1-ary arm, applied per position: a
+              -- liftable actual is pinned by the DP lift, an opaque one by
+              -- ∃-elimination over its own convergence walk.
+              let pin (a : SExpr) (k : Expr → Expr → MetaM Expr) :
+                  MetaM Expr := do
+                if totLiftable a then
+                  k (← dpValExpr [] (dpValProof.dpVarVal envE varP) a)
+                    (← dpValProof cfg envE [] [] varP a)
+                else
+                  let hcEx ← totWalk cfg envE vals facts totalEnv selfC a
+                  let kLam ← withLocalDeclD `vs (mkConst ``SExpr) fun v => do
+                    let convTy ← mkValConvPropEx cfg.worldExpr envE
+                      (reflectSExpr a) v
+                    withLocalDeclD `hcs convTy fun hc => do
+                      mkLambdaFVars #[v, hc] (← k v hc)
+                  mkAppM ``exists_conv_elim #[hcEx, kLam]
+              return ← pin a1 fun v1 p1 => pin a2 fun v2 p2 => do
+                let kitO : DecreaseKit := { kit with
+                  valOf := fun u =>
+                    if u == a1 then pure v1
+                    else if u == a2 then pure v2 else kit.valOf u
+                  convOf := fun u =>
+                    if u == a1 then pure p1
+                    else if u == a2 then pure p2 else kit.convOf u }
+                let dec ← dischargeDecrease just
+                  formals (formals.map (fun f => .atom (.symbol f)))
+                  formals args kitO
+                let (vM, vO) := if mIdx == 0 then (v1, v2) else (v2, v1)
+                let hbody ← mkAppM' ih #[vM, dec, vO]
+                mkAppM ``conv_defn_2_ex
+                  #[cfg.worldExpr, envE, reflectSymbol fs, reflectSymbol f1,
+                    reflectSymbol f2, reflectSExpr body, reflectSExpr a1,
+                    reflectSExpr a2, v1, v2, hNs, hDef, p1, p2, hbody]
             | _, _ => pure ()
           -- the MEASURED argument must be value-characterized (the decrease
           -- and the IH's count argument are stated about its value)

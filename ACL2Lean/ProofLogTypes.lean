@@ -193,6 +193,17 @@ structure RewriteStep where
       argument (where the collector would only repeat `typeSet`) and on
       every non-recognizer origin. -/
   argLeaves : List TpLeaf := []
+  /-- `:LHS-TS`/`:RHS-TS` (R2 fold-in, 2026-08-14 —
+      `emit/equal/type-set-{true,nil}`, acl2/rewrite.lisp): on an
+      `EQUAL`-verdict step, the two OPERAND type-sets `type-set-equal`
+      actually intersected — ACL2's own derivation of the verdict. The
+      record used to omit it entirely (unlike the recognizer records,
+      which carry `:TYPESET`), so a replay had nothing to consume:
+      `CLASSIFY-POS`'s `(EQUAL N '0) ⇒ 'NIL` collapses because N's
+      in-context type-set is 6 and `'0`'s is 1. `none` on every other
+      origin. -/
+  lhsTs : Option Int := none
+  rhsTs : Option Int := none
   /-- The equal/type-alist verdict BASIS (R1 retirement emission,
       2026-08-07): the canonical representatives of the two sides under
       the type-alist's equality equations. -/
@@ -254,6 +265,14 @@ def parseCrRuneField (runeOf : SExpr → Option Rune) (v : Option SExpr) :
   | some r => match runeOf r with
     | some rune => .ok (some rune)
     | none => .error s!"REWRITE-STEP: malformed :CR-RUNE {repr r}"
+
+/-- Read an INTEGER keyword field (`:TYPESET`, `:TRUETS`, `:FALSETS`,
+    `:LHS-TS`, `:RHS-TS`): the emitted numeral, `none` when the field is
+    absent. -/
+def parseIntField (v : Option SExpr) : Option Int :=
+  match v with
+  | some (.atom (.number (.int n))) => some n
+  | _ => none
 
 /-- Read an `:ARG-LEAVES` field (RT2): the recognizer argument's per-branch
     derivation, in the same emitted entry shape as a `:TYPE-PRESCRIPTION`

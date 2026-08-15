@@ -80,6 +80,17 @@ structure StepProvenance where
       dropped here — the recognizer tuple's full recorded basis). -/
   falseTs : Option Int := none
   strongp : Option Bool := none
+  /-- `:LHS-TS`/`:RHS-TS` on an `EQUAL`-verdict step: the two OPERAND
+      type-sets ACL2's `type-set-equal` intersected (see `RewriteStep`).
+      Consumed by the `type-set-equality` DISJOINTNESS cell. -/
+  lhsTs : Option Int := none
+  rhsTs : Option Int := none
+  /-- `:ARG-LEAVES` on a recognizer step whose ARGUMENT is an `IF`: the
+      per-branch derivation behind the `typeSet` verdict (see
+      `RewriteStep`). `typeSet` is the UNION over these branches, and the
+      union alone is not replayable — the replay case-splits the `IF` and
+      uses each branch's own verdict. -/
+  argLeaves : List TpLeaf := []
   /-- The equal/type-alist verdict BASIS (R1 retirement, 2026-08-07):
       canonical representatives + the bound disequality entry, copied
       verbatim from the emitted step. -/
@@ -323,6 +334,8 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
       swapped := step.swapped, canon1 := step.canon1, canon2 := step.canon2,
       taEntry := step.taEntry, tauBasis := step.tauBasis,
       falseTs := step.falseTs, geneqv := step.geneqv,
+      lhsTs := step.lhsTs, rhsTs := step.rhsTs,
+      argLeaves := step.argLeaves,
       strongp := step.strongp }
 
 /-- Parse the events of ONE literal's rewrite chain into proof nodes, returning

@@ -352,6 +352,10 @@ theorem cond_tnil_of_range {v : SExpr}
 theorem cond_of_val_t {v x y : SExpr} (h : v = SExpr.t) :
     cond (Logic.toBool v) x y = x := by subst h; rfl
 
+/-- A `cond` on a test KNOWN `'nil` takes its second branch. -/
+theorem cond_of_val_nil {v x y : SExpr} (h : v = SExpr.nil) :
+    cond (Logic.toBool v) x y = y := by subst h; rfl
+
 /-- A truthy `(IF c t 'NIL)` VALUE forces its test truthy (ACL2's
     assume-true-false decomposition of a composite if-test — the
     branch-fact derivation, final-closeout). -/

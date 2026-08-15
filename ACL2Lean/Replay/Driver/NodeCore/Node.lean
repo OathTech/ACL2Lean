@@ -368,8 +368,14 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- simply have no tpthm offer and fall through to the tp: routes)
     let citedTpThms := prov.runes.filterMap fun r =>
       if r.ty == "type-prescription" then some r.name else none
+    -- the node's cited (:COMPOUND-RECOGNIZER <name>) runes — the
+    -- BUG-023 anchor for a compound-recognizer typing probe (T1+2
+    -- sprint P3b); `:ARG-LEAVES` and `:TRUETS` come off the same record
+    let citedCr := prov.runes.filterMap fun r =>
+      if r.ty == "compound-recognizer" then some r.name else none
     let fact ← replayRecognizer cfg ctx lhs verdictV prov.typeSet
-      (citedTpThms := citedTpThms)
+      (citedTpThms := citedTpThms) (argLeaves := prov.argLeaves)
+      (citedCr := citedCr) (stepTrueTs := prov.trueTs)
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr verdictV]
     mkAppM ``fuel_eq_of_conv #[fact, hq, ← mkEqRefl (reflectSExpr verdictV)]
   | "if-simplification", _ =>
@@ -494,37 +500,10 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let pQ ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
       mkAppM ``fuel_eq_of_conv #[pEq, pQ, ← mkEqRefl (mkConst ``SExpr.t)]
   | "compound-recognizer", "ZP-COMPOUND-RECOGNIZER" =>
-    -- registered COMPOUND-RECOGNIZER recipe, pinned to the one ground-zero
-    -- rule the corpus cites: `(ZP u) ⇒ 'T` believed by type-set from the
-    -- in-scope FALSITY of `(INTEGERP u)` (zp is t on non-integers — kernel
-    -- `logic_zp_of_integerp_nil`). Any other shape is a named frontier.
-    unless prov.origin == "recognizer/true" do
-      throwError "compound-recognizer: origin {prov.origin} ≠ recognizer/true \
-                  (frontier)"
-    let .cons (.atom (.symbol zs)) (.cons u .nil) := lhs
-      | throwError "compound-recognizer: lhs {repr lhs} is not (zp u)"
-    unless zs.name == "ZP" && rhs == quoteT do
-      throwError "compound-recognizer: expected (zp u) ⇒ 't, got \
-                  {repr lhs} ⇒ {repr rhs}"
-    let intU : SExpr :=
-      .cons (.atom (.symbol { name := "INTEGERP" })) (.cons u .nil)
-    let some hNil := ctx.litFactByTerm? intU
-      | throwError "compound-recognizer: no in-scope falsity fact for \
-                    {repr intU} (frontier)"
-    let vInt ← ctxValExpr cfg ctx intU
-    unless vInt.isAppOfArity ``Logic.integerp 1 do
-      throwError "compound-recognizer: value of {repr intU} is not \
-                  (Logic.integerp _)"
-    let hT ← mkAppM ``logic_zp_of_integerp_nil #[vInt.appArg!, hNil]
-    let v ← ctxValExpr cfg ctx lhs
-    unless ← isDefEq v (mkApp (mkConst ``Logic.zp) vInt.appArg!) do
-      throwError "compound-recognizer: value of {repr lhs} does not match \
-                  the (Logic.zp _) instance"
-    let p ← ctxValProof cfg ctx lhs
-    let pQ ← mkAppM ``re_val_quote
-      #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-    mkAppM ``fuel_eq_of_conv #[p, pQ, hT]
+    if let some p ← compoundRecogTsCell cfg ctx prov lhs rhs then return p
+    replayZpCompoundRecog cfg ctx prov lhs rhs
   | "compound-recognizer", rname =>
+    if let some p ← compoundRecogTsCell cfg ctx prov lhs rhs then return p
     -- ACL2's built-in COMPOUND-RECOGNIZER rules (BNEXT-SIZE route layer
     -- 3: (NATP (LEN X)) ⇒ 'T in non-ACL2-COUNT measure admissions).
     -- Registered rune → recognizer head (a read-off check, never
@@ -1178,6 +1157,9 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         | none => none
     if let some (u, flipped) := sumSelf? then do
       return ← tseSumSelfCell cfg ctx lhs u flipped
+    -- THIRD registered cell (T1+2 sprint P3b): ACL2'S OWN EMITTED
+    -- OPERAND TYPE-SETS (`:LHS-TS`/`:RHS-TS`) — see `tseTsDisjointCell`.
+    if let some p ← tseTsDisjointCell cfg ctx prov lhs x0 qc0 then return p
     let .cons (.atom (.symbol q)) (.cons cv .nil) := qc
       | throwError "type-set-equality: {repr qc} is not a quoted constant \
           (lhs-x {repr x}) (frontier)"

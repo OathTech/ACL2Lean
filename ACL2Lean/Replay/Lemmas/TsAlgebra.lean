@@ -442,4 +442,329 @@ theorem nonNegIntCor_of_inTs (m : Int) (v : SExpr)
   obtain ⟨n, rfl⟩ := hnat
   exact nonNegIntCor_of_nat n
 
+/-! ## Type-set DISJOINTNESS — the verdict side (T1+2 sprint P3b)
+
+ACL2's `type-set` closes an `EQUAL` (`:LHS-TS`/`:RHS-TS`) and a
+RECOGNIZER (`:TRUETS`/`:FALSETS`) by comparing type-sets: two values in
+DISJOINT type-sets cannot be equal, and a value outside a recognizer's
+true-ts cannot satisfy it. Both directions are pure partition algebra
+here; the masks themselves are always ACL2's OWN emitted numbers. -/
+
+/-- Mask DISJOINTNESS (`m1 ∩ m2 = ∅`) over the fourteen basic types.
+    Decidable by ground evaluation — the masks are closed numerals read
+    off the emission. -/
+def tsDisjointM (m1 m2 : Int) : Bool :=
+  (List.range 14).all fun i => !(tsMember m1 i && tsMember m2 i)
+
+/-- A value cannot inhabit two DISJOINT type-sets. -/
+theorem inTs_disjoint_absurd {m1 m2 : Int} {v : SExpr}
+    (h : tsDisjointM m1 m2 = true) (h1 : InTs m1 v) (h2 : InTs m2 v) :
+    False := by
+  have hmem : tsIndex v ∈ List.range 14 := List.mem_range.mpr (tsIndex_lt v)
+  have hi := (List.all_eq_true.mp h) _ hmem
+  simp only [Bool.not_eq_eq_eq_not, Bool.not_true,
+    Bool.and_eq_false_imp] at hi
+  exact absurd h2 (by simp only [InTs, hi (by exact h1)]; exact Bool.noConfusion)
+
+/-- Values in DISJOINT type-sets are unequal — ACL2's `equal/type-set-nil`
+    verdict, at the value level. -/
+theorem logic_equal_nil_of_ts_disjoint {m1 m2 : Int} {u v : SExpr}
+    (h : tsDisjointM m1 m2 = true) (h1 : InTs m1 u) (h2 : InTs m2 v) :
+    Logic.equal u v = SExpr.nil := by
+  have hne : u ≠ v := by
+    intro huv
+    subst huv
+    have hmem : tsIndex u ∈ List.range 14 := List.mem_range.mpr (tsIndex_lt u)
+    have hi := (List.all_eq_true.mp h) _ hmem
+    simp only [Bool.not_eq_eq_eq_not, Bool.not_true, Bool.and_eq_false_imp] at hi
+    exact absurd h2 (by simp only [InTs, hi (by exact h1)]; exact Bool.noConfusion)
+  simp only [Logic.equal]
+  exact if_neg (by simpa using hne)
+
+/-- A CONS inhabits `*ts-cons*` (3072 = proper ∪ improper) — the model
+    side of `CONSP`'s emitted `:TRUETS`. -/
+theorem inTs_consp_true {v : SExpr}
+    (h : Logic.toBool (Logic.consp v) = true) : InTs 3072 v := by
+  match v with
+  | .nil => simp [Logic.consp, Logic.toBool] at h
+  | .atom _ => simp [Logic.consp, Logic.toBool] at h
+  | .cons a d =>
+      show tsMember 3072 (tsIndex (.cons a d)) = true
+      simp only [tsIndex_cons]; split_ifs <;> decide
+
+/-- A value in a type-set DISJOINT from `*ts-cons*` is not a cons —
+    ACL2's `recognizer/false` verdict for `CONSP`, at the value level.
+    The driver supplies `3072` from the step's OWN emitted `:TRUETS`. -/
+theorem logic_consp_nil_of_ts_disjoint {m : Int} {v : SExpr}
+    (h : tsDisjointM m 3072 = true) (hv : InTs m v) :
+    Logic.consp v = SExpr.nil := by
+  by_contra hc
+  have ht : Logic.toBool (Logic.consp v) = true := by
+    match v with
+    | .nil => exact absurd rfl hc
+    | .atom _ => exact absurd rfl hc
+    | .cons _ _ => rfl
+  have h2 := inTs_consp_true ht
+  have hmem : tsIndex v ∈ List.range 14 := List.mem_range.mpr (tsIndex_lt v)
+  have hi := (List.all_eq_true.mp h) _ hmem
+  simp only [Bool.not_eq_eq_eq_not, Bool.not_true, Bool.and_eq_false_imp] at hi
+  exact absurd h2 (by simp only [InTs, hi (by exact hv)]; exact Bool.noConfusion)
+
+/-- A value inside `*ts-integer*` IS an integer — ACL2's
+    `recognizer/true` verdict for `INTEGERP`, at the value level. The
+    driver supplies `23` from the step's OWN emitted `:TRUETS`. -/
+theorem logic_integerp_t_of_inTs {m : Int} {v : SExpr}
+    (h : tsSubsumedM m 23 = true) (hv : InTs m v) :
+    Logic.integerp v = SExpr.t := by
+  have h23 : InTs 23 v := inTs_weaken h hv
+  match v with
+  | .atom (.number (.int _)) => rfl
+  | .nil => exact absurd h23 (by simp only [InTs, tsIndex_nil]; decide)
+  | .cons a d =>
+      refine absurd h23 ?_
+      show ¬ (tsMember 23 (tsIndex (.cons a d)) = true)
+      simp only [tsIndex_cons]; split_ifs <;> decide
+  | .atom (.symbol s) =>
+      refine absurd h23 ?_
+      show ¬ (tsMember 23 (tsIndex (.atom (.symbol s))) = true)
+      simp only [tsIndex_symbol]; split_ifs <;> decide
+  | .atom (.keyword _) =>
+      exact absurd h23 (by simp only [InTs, tsIndex_keyword]; decide)
+  | .atom (.string _) =>
+      exact absurd h23 (by simp only [InTs, tsIndex_string]; decide)
+  | .atom (.char _) =>
+      exact absurd h23 (by simp only [InTs, tsIndex_char]; decide)
+  | .atom (.number (.rational p q hc)) =>
+      refine absurd h23 ?_
+      show ¬ (tsMember 23 (tsIndex (.atom (.number (.rational p q hc))))
+        = true)
+      simp only [tsIndex_rat]; split_ifs <;> decide
+
+/-! ## Further typing tests the corpus's branch facts spell -/
+
+/-- `(< '0 v)` TRUE ⇒ the POSITIVE numerics (14 = one ∪ integer>1 ∪
+    positive-ratio) — ACL2's `assume-true-false` split for a
+    zero-compared `<` with the constant on the LEFT (`CLASSIFY-POS`'s
+    `(< '0 N)` hypothesis). -/
+theorem inTs_zero_lt_true {v : SExpr}
+    (h : Logic.toBool (Logic.lt (.atom (.number (.int 0))) v) = true) :
+    InTs 14 v := by
+  match v with
+  | .nil => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
+  | .cons _ _ => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
+  | .atom (.symbol _) => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
+  | .atom (.keyword _) => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
+  | .atom (.string _) => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
+  | .atom (.char _) => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
+  | .atom (.number (.int n)) =>
+      have hn : 0 < n := by
+        by_contra hc
+        rw [show Logic.lt (.atom (.number (.int 0)))
+              (.atom (.number (.int n))) = SExpr.nil from by
+            simp only [Logic.lt, Logic.toRat]
+            exact if_neg (by omega)] at h
+        exact Bool.noConfusion h
+      show tsMember 14 (tsIndex (.atom (.number (.int n)))) = true
+      simp only [tsIndex_int, if_neg (show ¬(n = 0) by omega)]
+      split_ifs with h1 h2
+      · decide
+      · decide
+      · omega
+  | .atom (.number (.rational p q hc)) =>
+      have hp : 0 < p := by
+        by_contra hcc
+        rw [show Logic.lt (.atom (.number (.int 0)))
+              (.atom (.number (.rational p q hc))) = SExpr.nil from by
+            simp only [Logic.lt, Logic.toRat]
+            exact if_neg (by
+              have : (0 : Int) * (q : Int) = 0 := by ring
+              omega)] at h
+        exact Bool.noConfusion h
+      show tsMember 14 (tsIndex (.atom (.number (.rational p q hc)))) = true
+      simp only [tsIndex_rat, if_pos hp]
+      decide
+
+/-- A REFUTED `(ZP v)` ⇒ a POSITIVE INTEGER (6 = one ∪ integer>1) — the
+    model side of ACL2's `ZP-COMPOUND-RECOGNIZER`, whose negative branch
+    is `(and (integerp v) (< 0 v))`. Consumed only where that rune is
+    CITED by the step (the BUG-023 anchor). -/
+theorem inTs_zp_false {v : SExpr}
+    (hb : Logic.toBool (Logic.zp v) = false) : InTs 6 v := by
+  have h : Logic.zp v = SExpr.nil := (Logic.toBool_eq_false _).mp hb
+  match v with
+  | .nil => exact absurd h (by decide)
+  | .cons _ _ => exact absurd h (by simp [Logic.zp, Logic.toInt])
+  | .atom (.symbol _) => exact absurd h (by simp [Logic.zp, Logic.toInt])
+  | .atom (.keyword _) => exact absurd h (by simp [Logic.zp, Logic.toInt])
+  | .atom (.string _) => exact absurd h (by simp [Logic.zp, Logic.toInt])
+  | .atom (.char _) => exact absurd h (by simp [Logic.zp, Logic.toInt])
+  | .atom (.number (.rational p q hc)) =>
+      exact absurd h (by simp [Logic.zp, Logic.toInt])
+  | .atom (.number (.int n)) =>
+      have hn : 0 < n := by
+        by_contra hc
+        simp only [Logic.zp, Logic.toInt, if_pos (show n ≤ 0 by omega)] at h
+        exact absurd h (by decide)
+      show tsMember 6 (tsIndex (.atom (.number (.int n)))) = true
+      simp only [tsIndex_int, if_neg (show ¬(n = 0) by omega)]
+      split_ifs with h1 h2
+      · decide
+      · decide
+      · omega
+
+/-- CASE SPLIT on an `IF`'s test at the VALUE level: a type-set holding
+    in BOTH branches holds of the `cond`. The recognizer-under-`IF`
+    walk's composition step (`:ARG-LEAVES`). -/
+theorem inTs_cond {m : Int} {b : Bool} {x y : SExpr}
+    (hx : b = true → InTs m x) (hy : b = false → InTs m y) :
+    InTs m (cond b x y) := by
+  cases b
+  · exact hy rfl
+  · exact hx rfl
+
+/-- A value in a type-set DISJOINT from `(< v '0)`'s TRUE type-set (48)
+    makes that test NIL — the `.isNil` direction of the same algebra
+    (`CLASSIFY-POS`'s outer `(< N '0)` if-test, which ACL2 resolves by
+    type-set and records only as an `:IF-TEST-FALSE` marker with a
+    `fake-rune-for-type-set` justification). -/
+theorem logic_lt_zero_nil_of_ts_disjoint {m : Int} {v : SExpr}
+    (h : tsDisjointM m 48 = true) (hv : InTs m v) :
+    Logic.lt v (.atom (.number (.int 0))) = SExpr.nil := by
+  by_contra hc
+  have ht : Logic.toBool (Logic.lt v (.atom (.number (.int 0)))) = true := by
+    simp only [Logic.lt] at hc ⊢
+    split_ifs at hc ⊢ <;> simp_all
+  exact inTs_disjoint_absurd h hv (inTs_lt_zero_true ht)
+
+/-- A value inside `*ts-non-negative-integer*` (7) IS a natural —
+    `NATP`'s emitted `:TRUETS`, at the value level. -/
+theorem logic_natp_t_of_inTs {m : Int} {v : SExpr}
+    (h : tsSubsumedM m 7 = true) (hv : InTs m v) :
+    Logic.natp v = SExpr.t := by
+  have h7 : InTs 7 v := inTs_weaken h hv
+  match v with
+  | .nil => exact absurd h7 (by simp only [InTs, tsIndex_nil]; decide)
+  | .cons a d =>
+      refine absurd h7 ?_
+      show ¬ (tsMember 7 (tsIndex (.cons a d)) = true)
+      simp only [tsIndex_cons]; split_ifs <;> decide
+  | .atom (.symbol s) =>
+      refine absurd h7 ?_
+      show ¬ (tsMember 7 (tsIndex (.atom (.symbol s))) = true)
+      simp only [tsIndex_symbol]; split_ifs <;> decide
+  | .atom (.keyword _) =>
+      exact absurd h7 (by simp only [InTs, tsIndex_keyword]; decide)
+  | .atom (.string _) =>
+      exact absurd h7 (by simp only [InTs, tsIndex_string]; decide)
+  | .atom (.char _) =>
+      exact absurd h7 (by simp only [InTs, tsIndex_char]; decide)
+  | .atom (.number (.rational p q hc)) =>
+      refine absurd h7 ?_
+      show ¬ (tsMember 7 (tsIndex (.atom (.number (.rational p q hc))))
+        = true)
+      simp only [tsIndex_rat]; split_ifs <;> decide
+  | .atom (.number (.int n)) =>
+      have h' : tsMember 7 (tsIndex (.atom (.number (.int n)))) = true := h7
+      simp only [tsIndex_int] at h'
+      have hn : 0 ≤ n := by
+        split_ifs at h' with h0 h1 h2
+        · omega
+        · omega
+        · omega
+        · exact absurd h' (by decide)
+      simp only [Logic.natp, if_pos (show n ≥ 0 by omega)]
+
+/-- A TRUE `(ZP v)` puts `v` outside the positive integers (`-7 = ~6`) —
+    the model side of `ZP-COMPOUND-RECOGNIZER`'s emitted `:TRUETS`. -/
+theorem inTs_zp_true {v : SExpr}
+    (h : Logic.toBool (Logic.zp v) = true) : InTs (-7) v := by
+  match v with
+  | .nil => show tsMember (-7) (tsIndex SExpr.nil) = true; decide
+  | .cons a d =>
+      show tsMember (-7) (tsIndex (.cons a d)) = true
+      simp only [tsIndex_cons]; split_ifs <;> decide
+  | .atom (.symbol s) =>
+      show tsMember (-7) (tsIndex (.atom (.symbol s))) = true
+      simp only [tsIndex_symbol]; split_ifs <;> decide
+  | .atom (.keyword k) =>
+      show tsMember (-7) (tsIndex (.atom (.keyword k))) = true
+      simp only [tsIndex_keyword]; decide
+  | .atom (.string str) =>
+      show tsMember (-7) (tsIndex (.atom (.string str))) = true
+      simp only [tsIndex_string]; decide
+  | .atom (.char c) =>
+      show tsMember (-7) (tsIndex (.atom (.char c))) = true
+      simp only [tsIndex_char]; decide
+  | .atom (.number (.rational p q hc)) =>
+      show tsMember (-7) (tsIndex (.atom (.number (.rational p q hc)))) = true
+      simp only [tsIndex_rat]; split_ifs <;> decide
+  | .atom (.number (.int n)) =>
+      have hn : n ≤ 0 := by
+        by_contra hcn
+        rw [show Logic.zp (.atom (.number (.int n))) = SExpr.nil from by
+              simp only [Logic.zp, Logic.toInt]
+              exact if_neg (by omega)] at h
+        exact Bool.noConfusion h
+      show tsMember (-7) (tsIndex (.atom (.number (.int n)))) = true
+      simp only [tsIndex_int]
+      split_ifs with h0 h1 h2
+      · decide
+      · omega
+      · omega
+      · decide
+
+/-- A value in a type-set DISJOINT from `(ZP v)`'s TRUE type-set (`-7`)
+    makes `ZP` NIL — `ZP-COMPOUND-RECOGNIZER`'s `recognizer/false`
+    verdict, at the value level. -/
+theorem logic_zp_nil_of_ts_disjoint {m : Int} {v : SExpr}
+    (h : tsDisjointM m (-7) = true) (hv : InTs m v) :
+    Logic.zp v = SExpr.nil := by
+  by_contra hc
+  have ht : Logic.toBool (Logic.zp v) = true := by
+    simp only [Logic.zp] at hc ⊢
+    split_ifs at hc ⊢ <;> simp_all
+  exact inTs_disjoint_absurd h hv (inTs_zp_true ht)
+
+/-- A value inside `*ts-integer*` (23) IS an integer atom. -/
+theorem int_of_inTs23 {v : SExpr} (h : InTs 23 v) :
+    ∃ n : Int, v = .atom (.number (.int n)) := by
+  match v with
+  | .atom (.number (.int n)) => exact ⟨n, rfl⟩
+  | .nil => exact absurd h (by simp only [InTs, tsIndex_nil]; decide)
+  | .cons a d =>
+      refine absurd h ?_
+      show ¬ (tsMember 23 (tsIndex (.cons a d)) = true)
+      simp only [tsIndex_cons]; split_ifs <;> decide
+  | .atom (.symbol sy) =>
+      refine absurd h ?_
+      show ¬ (tsMember 23 (tsIndex (.atom (.symbol sy))) = true)
+      simp only [tsIndex_symbol]; split_ifs <;> decide
+  | .atom (.keyword _) =>
+      exact absurd h (by simp only [InTs, tsIndex_keyword]; decide)
+  | .atom (.string _) =>
+      exact absurd h (by simp only [InTs, tsIndex_string]; decide)
+  | .atom (.char _) =>
+      exact absurd h (by simp only [InTs, tsIndex_char]; decide)
+  | .atom (.number (.rational p q hc)) =>
+      refine absurd h ?_
+      show ¬ (tsMember 23 (tsIndex (.atom (.number (.rational p q hc))))
+        = true)
+      simp only [tsIndex_rat]; split_ifs <;> decide
+
+/-- ACL2's `type-set-binary-+` on the INTEGER cell: the integers are
+    closed under `+`. The model side — the driver supplies each
+    summand's mask from ACL2's OWN emitted data and cross-checks the
+    result against the step's `:TYPESET`. Corpus witness: the
+    arithmetic-countdown trio's `(INTEGERP (BINARY-+ '-1 N)) ⇒ 'T`. -/
+theorem inTs_plus_int {a b : SExpr} (ha : InTs 23 a) (hb : InTs 23 b) :
+    InTs 23 (Logic.plus a b) := by
+  obtain ⟨n, rfl⟩ := int_of_inTs23 ha
+  obtain ⟨m, rfl⟩ := int_of_inTs23 hb
+  rw [show Logic.plus (.atom (.number (.int n))) (.atom (.number (.int m)))
+        = .atom (.number (.int (n + m))) from by
+      simp only [Logic.plus, Logic.toRat, Logic.mkNumber]
+      norm_num]
+  show tsMember 23 (tsIndex (.atom (.number (.int (n + m))))) = true
+  simp only [tsIndex_int]; split_ifs <;> decide
+
 end ACL2.Replay

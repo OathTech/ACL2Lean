@@ -2920,27 +2920,14 @@ theorem o_lt_exec_corr (w : World)
   exact conv_defn_2 w env o_lt_sym a b av bv xS yS oLtBody _
     o_lt_ns h_lt ha hb (hbody av.consCount av bv rfl)
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `total:O<` — the driver-shape totality premise — Lean-side; content
-    ACL2 derives at admission. Statement kept as the named premise;
-    proof retired to `sorry`. UNLOCK: `with_termination`
-    admission-replay coverage (REQUIRED-class debt). -/
-theorem dis_o_lt_total (w : World)
-    (h_lt : w.defs.get? o_lt_sym = some ([xS, yS], oLtBody))
-    (h_finp : w.defs.get? o_finp_sym = some ([xS], oFinpBody))
-    (h_fe : w.defs.get? o_fe_sym = some ([xS], oFirstExptBody))
-    (h_fc : w.defs.get? o_fc_sym = some ([xS], oFirstCoeffBody))
-    (h_rst : w.defs.get? o_rst_sym = some ([xS], oRstBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_ltb : w.defs.get? ({ name := "<" } : Symbol) = none) :
-    ∀ (env' : Env) (a0 a1 : SExpr),
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (oLtT a0 a1) = some v := by
-  sorry
+-- (`dis_o_lt_total` DELETED — T1+2 sprint P3b, 2026-08-15: `total:O<`
+-- and `total:O-P` are now PROVED by the driver's admission prover from
+-- ACL2's own emitted ground-zero `:TERMINATION-CLAUSES` (the ordinal
+-- registry row in `Replay/OrdinalSim`, the `O-FINP` recognizer duality,
+-- and the world-read EQUAL-alias normalization of the recomputed
+-- rulers), so the hypotheses left every consumer telescope and the
+-- named premise has no use site. Deletion+rewiring precedent:
+-- `dis_pce_total`, 2026-08-13.)
 
 /-! ## The `acl2-count` kit (`tp:ACL2-COUNT`): INTEGER-ABS / LENGTH /
 ACL2-COUNT. The COMPLEX-RATIONALP branch is DEAD in the model (the

@@ -24,7 +24,16 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
     -- the node's cited (:TYPE-PRESCRIPTION <name>) runes — the tpthm
     -- route's BUG-023 anchor (theorem-classed TP rules; defun-TP names
     -- simply have no tpthm offer and fall through to the tp: routes)
-    (citedTpThms : List String := []) : MetaM Expr := do
+    (citedTpThms : List String := [])
+    -- the step's `:ARG-LEAVES` (RT2) — the per-branch derivation behind an
+    -- IF-valued argument's `:TYPESET`; `[]` on every other record
+    (argLeaves : List TpLeaf := [])
+    -- the step's cited (:COMPOUND-RECOGNIZER <name>) runes — the
+    -- BUG-023 anchor for a compound-recognizer typing probe
+    (citedCr : List String := [])
+    -- the step's `:TRUETS` (the recognizer's own true type-set), needed
+    -- to cross-check the registered model fact against the emission
+    (stepTrueTs : Option Int := none) : MetaM Expr := do
   let verdictE := reflectSExpr verdict
   if let some (v, p) := ctx.val? term then
     unless ← isDefEq v verdictE do
@@ -107,6 +116,21 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         let p ← ctxValProof cfg ctx term
         return ← mkAppM ``re_val_cast
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hT]
+  -- THE `:ARG-LEAVES` ARM (T1+2 sprint P3b): emission-gated — it fires
+  -- ONLY on a record whose argument ACL2 walked as an `IF` and published
+  -- the per-branch verdicts for. Without `:ARG-LEAVES` nothing changes
+  -- (the old message stands); with it, the replay case-splits the `IF`
+  -- and closes the verdict by the same type-set comparison ACL2 made.
+  if !argLeaves.isEmpty then
+    if let .cons (.atom (.symbol rs)) (.cons z .nil) := term then
+      if let some hV ← recogVerdictFromTs cfg ctx rs.name z verdict
+          stepTs stepTrueTs argLeaves citedCr then
+        let ctxZ ← pinTermOpaques cfg cfg.envExpr ctx term
+        let v ← ctxValExpr cfg ctxZ term
+        let p ← ctxValProof cfg ctxZ term
+        return ← mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p,
+            hV]
   match term with
   | .cons (.atom (.symbol rs)) (.cons z .nil) =>
     if rs.name == "ACL2-NUMBERP" then
@@ -595,6 +619,20 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
               mkAppM ``re_val_cast
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vC,
                   verdictE, ← ctxValProof cfg ctxF term, hT]
+            else if let some hV ← recogVerdictFromTs cfg ctx rs.name z
+                verdict stepTs stepTrueTs argLeaves citedCr then
+              -- ACL2's TYPE-SET verdict over a COMPOSITE argument (T1+2
+              -- sprint P3b): the argument's mask composed from the
+              -- registered primitive cells and the clause context, then
+              -- compared against the step's own emitted `:TRUETS`.
+              -- Corpus witness: the arithmetic-countdown trio's
+              -- `(INTEGERP (BINARY-+ '-1 N)) ⇒ 'T`.
+              let ctxZ ← pinTermOpaques cfg cfg.envExpr ctx term
+              let vZ ← ctxValExpr cfg ctxZ term
+              let pZ ← ctxValProof cfg ctxZ term
+              mkAppM ``re_val_cast
+                #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, vZ,
+                  verdictE, pZ, hV]
             else
               throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict} \
                         (no TP hypothesis for {fs.name}; cited TP runes \
@@ -625,6 +663,15 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
               match (Logic.consp _)"
         mkAppM ``re_val_cast
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hT]
+      else if let some hV ← recogVerdictFromTs cfg ctx rs.name z verdict
+          stepTs stepTrueTs [] citedCr then
+        -- ACL2's TYPE-SET verdict, replayed (T1+2 sprint P3b): the
+        -- argument's mask from the clause context and the step's CITED
+        -- compound recognizers (BUG-023-anchored), compared against the
+        -- recognizer's emitted `:TRUETS`. `CD2-BOUND`'s `(INTEGERP N) ⇒
+        -- 'T` under a refuted `(ZP N)` is the corpus witness.
+        mkAppM ``re_val_cast
+          #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hV]
       else
         throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict}"
   | _ => throwError "replayRecognizer: not a recognizer application: {repr term}"
@@ -947,6 +994,194 @@ def normalizeSwapsToward (cfg : ReplayConfig) (cur0 target : SExpr) :
       cur := cur'
   return (chain, cur)
 
+/-- The PCE-class chain-end IF-COLLAPSE bridge (final-closeout arc):
+    when a literal's composed chain reaches an IF-nest whose recorded
+    result has the ifs COLLAPSED (rewrite-atm's boundary
+    normalization), prove the two terms' VALUES equal and bridge by
+    `fuel_eq_of_conv`. Every collapse is justified, never inferred:
+    a test resolves `'t` ONLY via an emitted `:IF-TEST-TRUE` marker
+    for that exact test (the type-set basis then PROVED by
+    `replayRecognizer`'s closure machinery) or by the recursive
+    structure; the `(IF x 'T 'NIL) ⇒ x` collapse ONLY by the branch
+    values' two-valued RANGE (the emitted case-split shapes'
+    primitives). `none` on any other shape — the caller's loud
+    frontier stays. -/
+partial def bridgeIfCollapseNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (ifMarkers : List (SExpr × Bool × SExpr))
+    (reached recorded : SExpr) : MetaM (Option Expr) := do
+  -- (no top-level marker gate: each collapse case carries its own
+  -- anchor — markers for test-true, the emitted TP corollary for the
+  -- boolean-TP fold, the two-valued primitives for the range collapse)
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx reached
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx recorded
+  let quoteT' : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+    (.cons SExpr.t .nil)
+  let quoteNil' : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
+    (.cons SExpr.nil .nil)
+  -- v(t) = 't, justified: quoted 'T; a marker-anchored test (the
+  -- type-set basis proved by the recognizer closure); or a
+  -- (IF x 'T 'NIL) whose x is itself so justified
+  let rec valIsT (t : SExpr) : MetaM (Option Expr) := do
+    if t == quoteT' then
+      return some (← mkEqRefl (mkConst ``SExpr.t))
+    if ifMarkers.any (fun (mt, sense, _) => sense && mt == t) then
+      let pT ← try some <$> replayRecognizer cfg ctx t SExpr.t
+        catch _ => pure none
+      match pT with
+      | some pT =>
+        let pV ← ctxValProof cfg ctx t
+        return some (← mkAppM ``conv_val_eq #[pV, pT])
+      | none => return none
+    match t with
+    | .cons (.atom (.symbol ifS)) (.cons c (.cons th (.cons el .nil))) =>
+      if ifS.name == "IF" && th == quoteT' && el == quoteNil' then
+        match ← valIsT c with
+        | some hc => return some (← Lean.Meta.mkAppOptM ``cond_of_val_t
+            #[none, some (mkConst ``SExpr.t), some (mkConst ``SExpr.nil),
+              some hc])
+        | none => return none
+      else return none
+    | _ => return none
+  -- v(t) = 'nil, justified: quoted 'NIL, or an emitted :IF-TEST-FALSE
+  -- marker for exactly this test whose falsity the walk can PROVE — from
+  -- the in-scope facts (`typeSetWalk`), or, for a test ACL2 resolved by
+  -- TYPE-SET, by the D-A algebra: the test's own TRUE type-set is
+  -- DISJOINT from the type-set the clause context gives its argument
+  -- (`tsTestNilOf` + `inTsCandidates`). The marker is the ANCHOR; the
+  -- falsity is never assumed from it.
+  let valIsNil (t : SExpr) : MetaM (Option Expr) := do
+    if t == quoteNil' then
+      return some (← mkEqRefl (mkConst ``SExpr.nil))
+    unless ifMarkers.any (fun (mt, sense, _) => !sense && mt == t) do
+      return none
+    let ctxT ← pinTermOpaques cfg cfg.envExpr ctx t
+    match ← typeSetWalk cfg ctxT (.isNil t) with
+    | some h => return some h
+    | none =>
+      let some (a, mT, lem) := tsTestNilOf t | return none
+      let ctxA ← pinTermOpaques cfg cfg.envExpr ctxT a
+      let va ← ctxValExpr cfg ctxA a
+      let cands ← inTsCandidates cfg ctxA [] [] a va
+      for (m, hv) in cands do
+        if ACL2.Replay.tsDisjointM m mT then
+          let hd ← mkDecideProof (← mkEq
+            (← mkAppM ``ACL2.Replay.tsDisjointM
+              #[Lean.toExpr m, Lean.toExpr mT])
+            (mkConst ``Bool.true))
+          return some (← mkAppM lem #[hd, hv])
+      return none
+  -- v(t) ∈ {'t, 'nil}: the two-valued RANGE by structure
+  let rec bRange (t : SExpr) : MetaM (Option Expr) := do
+    if t == quoteT' then
+      return some (← Lean.Meta.mkAppOptM ``Or.inl
+        #[none, some (← mkEq (mkConst ``SExpr.t) (mkConst ``SExpr.nil)),
+          some (← mkEqRefl (mkConst ``SExpr.t))])
+    if t == quoteNil' then
+      return some (← Lean.Meta.mkAppOptM ``Or.inr
+        #[some (← mkEq (mkConst ``SExpr.nil) (mkConst ``SExpr.t)), none,
+          some (← mkEqRefl (mkConst ``SExpr.nil))])
+    match t with
+    | .cons (.atom (.symbol hs)) (.cons a (.cons b .nil)) =>
+      if hs.name == "EQUAL" then
+        return some (← mkAppM ``logic_equal_range
+          #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b])
+      else return none
+    | .cons (.atom (.symbol hs)) (.cons a .nil) =>
+      if hs.name == "NOT" then
+        return some (← mkAppM ``logic_not_range #[← ctxValExpr cfg ctx a])
+      else return none
+    | .cons (.atom (.symbol ifS)) (.cons c (.cons th (.cons el .nil))) =>
+      if ifS.name == "IF" then
+        match ← bRange th, ← bRange el with
+        | some hx, some hy =>
+          return some (← mkAppM ``cond_range
+            #[mkApp (mkConst ``Logic.toBool) (← ctxValExpr cfg ctx c),
+              hx, hy])
+        | _, _ => return none
+      else return none
+    | _ => return none
+  -- v(a) = v(b), by justified collapses only
+  let rec go (a b : SExpr) : MetaM (Option Expr) := do
+    if a == b then
+      return some (← mkEqRefl (← ctxValExpr cfg ctx a))
+    match a, b with
+    | .cons (.atom (.symbol na)) (.cons xa .nil),
+      .cons (.atom (.symbol nb)) (.cons xb .nil) =>
+      if na.name == "NOT" && nb.name == "NOT" then
+        match ← go xa xb with
+        | some h =>
+          return some (← Lean.Meta.mkCongrArg (mkConst ``Logic.not) h)
+        | none => return none
+      else return none
+    | .cons (.atom (.symbol ifS)) (.cons c (.cons th (.cons el .nil))), _ =>
+      if ifS.name != "IF" then return none
+      -- (i) marker-justified test-true: take the then-branch
+      match ← valIsT c with
+      | some hc =>
+        let hstep ← Lean.Meta.mkAppOptM ``cond_of_val_t
+          #[none, some (← ctxValExpr cfg ctx th),
+            some (← ctxValExpr cfg ctx el), some hc]
+        match ← go th b with
+        | some hrest => return some (← mkAppM ``Eq.trans #[hstep, hrest])
+        | none => return none
+      | none =>
+        -- (i') marker-justified test-FALSE: take the else-branch (ACL2's
+        -- rewrite-if-finish returns the surviving branch directly and
+        -- records only the :IF-TEST-FALSE marker)
+        match ← valIsNil c with
+        | some hc =>
+          let hstep ← Lean.Meta.mkAppOptM ``cond_of_val_nil
+            #[none, some (← ctxValExpr cfg ctx th),
+              some (← ctxValExpr cfg ctx el), some hc]
+          match ← go el b with
+          | some hrest => return some (← mkAppM ``Eq.trans #[hstep, hrest])
+          | none => return none
+        | none =>
+        -- (ii) the boolean collapse (IF b 'T 'NIL) ⇒ b
+        if th == quoteT' && el == quoteNil' && c == b then
+          match ← bRange b with
+          | some hr => return some (← mkAppM ``cond_tnil_of_range #[hr])
+          | none => return none
+        else return none
+    | .cons (.atom (.symbol eqS)) (.cons p (.cons qt' .nil)), _ =>
+      -- (iii) the BOOLEAN-TP fold under composition: (EQUAL p 'T) vs p,
+      -- where p's fn carries the emitted boolean TP corollary
+      -- (IF (EQUAL p 'T) 'T (EQUAL p 'NIL)) — the value identity
+      -- logic_equal_t_self_of_boolean_tp (consumed, not inferred)
+      if eqS.name == "EQUAL" && qt' == quoteT' && p == b then
+        match p with
+        | .cons (.atom (.symbol fs)) argsSpine =>
+          match ctx.tpHyps.find? (fun (n, _, _) => n == fs.name) with
+          | none => return none
+          | some (_, cor, tpHyp) =>
+            let some (formals, _) := cfg.worldVal.defs.get? fs
+              | return none
+            let args := (argsSpine.toList?).getD []
+            if formals.length != args.length then return none
+            let eqT' (x y : SExpr) : SExpr :=
+              .cons (.atom (.symbol { name := "EQUAL" }))
+                (.cons x (.cons y .nil))
+            let inst := ACL2.Replay.substTerm formals args cor
+            let expected : SExpr :=
+              .cons (.atom (.symbol { name := "IF" }))
+                (.cons (eqT' p quoteT')
+                  (.cons quoteT' (.cons (eqT' p quoteNil') .nil)))
+            if inst != expected then return none
+            let some (vp, convp) := ctx.val? p | return none
+            let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+              ++ (args.map reflectSExpr).toArray ++ #[vp, convp])
+            return some (← mkAppM ``logic_equal_t_self_of_boolean_tp
+              #[fact])
+        | _ => return none
+      else return none
+    | _, _ => return none
+  match ← go reached recorded with
+  | none => return none
+  | some hval =>
+    let pA ← ctxValProof cfg ctx reached
+    let pB ← ctxValProof cfg ctx recorded
+    return some (← mkAppM ``fuel_eq_of_conv #[pA, pB, hval])
+
 /-- The DEFINITION-node recipe, UNIFORM: unfold `(fn args) ⇒ substTerm formals args
     body`, then chain the node's children (recognizer / if-simplification / deeper
     rewrites) over the substituted body via the ordinary path-directed congruence
@@ -1067,7 +1302,18 @@ partial def replayDefinition (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayC
       | none => pure (some br)
       | some ch => pure (some (← mkAppM ``fuel_chain_eq #[ch, br]))
     | none =>
-      throwError "definition: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
+      -- the IF-COLLAPSE reconciliation at the NODE level (T1+2 sprint
+      -- P3b): rewrite-if-finish resolved an enclosing test from the
+      -- type-alist and returned the surviving branch, recording only the
+      -- `:IF-TEST-TRUE/FALSE` marker — so the definition body's chain
+      -- still carries the if the node's recorded rhs has collapsed. Same
+      -- bridge, same anchoring rule, as the literal-level site.
+      match ← bridgeIfCollapseNorm cfg ctx ctx.ifMarkers finalTerm rhs with
+      | some br => match chainOpt with
+        | none => pure (some br)
+        | some ch => pure (some (← mkAppM ``fuel_chain_eq #[ch, br]))
+      | none =>
+        throwError "definition: children chain reached {repr finalTerm}, node rhs is {repr rhs}"
   match chainOpt with
   | none => return unfold
   | some ch => mkAppM ``fuel_chain_eq #[unfold, ch]
@@ -1222,152 +1468,5 @@ def fcReliefLexorderTotal (cfg : ReplayConfig) (ctx : ReplayCtx)
 
 
 
-/-- The PCE-class chain-end IF-COLLAPSE bridge (final-closeout arc):
-    when a literal's composed chain reaches an IF-nest whose recorded
-    result has the ifs COLLAPSED (rewrite-atm's boundary
-    normalization), prove the two terms' VALUES equal and bridge by
-    `fuel_eq_of_conv`. Every collapse is justified, never inferred:
-    a test resolves `'t` ONLY via an emitted `:IF-TEST-TRUE` marker
-    for that exact test (the type-set basis then PROVED by
-    `replayRecognizer`'s closure machinery) or by the recursive
-    structure; the `(IF x 'T 'NIL) ⇒ x` collapse ONLY by the branch
-    values' two-valued RANGE (the emitted case-split shapes'
-    primitives). `none` on any other shape — the caller's loud
-    frontier stays. -/
-partial def bridgeIfCollapseNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (ifMarkers : List (SExpr × Bool × SExpr))
-    (reached recorded : SExpr) : MetaM (Option Expr) := do
-  -- (no top-level marker gate: each collapse case carries its own
-  -- anchor — markers for test-true, the emitted TP corollary for the
-  -- boolean-TP fold, the two-valued primitives for the range collapse)
-  let ctx ← pinTermOpaques cfg cfg.envExpr ctx reached
-  let ctx ← pinTermOpaques cfg cfg.envExpr ctx recorded
-  let quoteT' : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
-    (.cons SExpr.t .nil)
-  let quoteNil' : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
-    (.cons SExpr.nil .nil)
-  -- v(t) = 't, justified: quoted 'T; a marker-anchored test (the
-  -- type-set basis proved by the recognizer closure); or a
-  -- (IF x 'T 'NIL) whose x is itself so justified
-  let rec valIsT (t : SExpr) : MetaM (Option Expr) := do
-    if t == quoteT' then
-      return some (← mkEqRefl (mkConst ``SExpr.t))
-    if ifMarkers.any (fun (mt, sense, _) => sense && mt == t) then
-      let pT ← try some <$> replayRecognizer cfg ctx t SExpr.t
-        catch _ => pure none
-      match pT with
-      | some pT =>
-        let pV ← ctxValProof cfg ctx t
-        return some (← mkAppM ``conv_val_eq #[pV, pT])
-      | none => return none
-    match t with
-    | .cons (.atom (.symbol ifS)) (.cons c (.cons th (.cons el .nil))) =>
-      if ifS.name == "IF" && th == quoteT' && el == quoteNil' then
-        match ← valIsT c with
-        | some hc => return some (← Lean.Meta.mkAppOptM ``cond_of_val_t
-            #[none, some (mkConst ``SExpr.t), some (mkConst ``SExpr.nil),
-              some hc])
-        | none => return none
-      else return none
-    | _ => return none
-  -- v(t) ∈ {'t, 'nil}: the two-valued RANGE by structure
-  let rec bRange (t : SExpr) : MetaM (Option Expr) := do
-    if t == quoteT' then
-      return some (← Lean.Meta.mkAppOptM ``Or.inl
-        #[none, some (← mkEq (mkConst ``SExpr.t) (mkConst ``SExpr.nil)),
-          some (← mkEqRefl (mkConst ``SExpr.t))])
-    if t == quoteNil' then
-      return some (← Lean.Meta.mkAppOptM ``Or.inr
-        #[some (← mkEq (mkConst ``SExpr.nil) (mkConst ``SExpr.t)), none,
-          some (← mkEqRefl (mkConst ``SExpr.nil))])
-    match t with
-    | .cons (.atom (.symbol hs)) (.cons a (.cons b .nil)) =>
-      if hs.name == "EQUAL" then
-        return some (← mkAppM ``logic_equal_range
-          #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b])
-      else return none
-    | .cons (.atom (.symbol hs)) (.cons a .nil) =>
-      if hs.name == "NOT" then
-        return some (← mkAppM ``logic_not_range #[← ctxValExpr cfg ctx a])
-      else return none
-    | .cons (.atom (.symbol ifS)) (.cons c (.cons th (.cons el .nil))) =>
-      if ifS.name == "IF" then
-        match ← bRange th, ← bRange el with
-        | some hx, some hy =>
-          return some (← mkAppM ``cond_range
-            #[mkApp (mkConst ``Logic.toBool) (← ctxValExpr cfg ctx c),
-              hx, hy])
-        | _, _ => return none
-      else return none
-    | _ => return none
-  -- v(a) = v(b), by justified collapses only
-  let rec go (a b : SExpr) : MetaM (Option Expr) := do
-    if a == b then
-      return some (← mkEqRefl (← ctxValExpr cfg ctx a))
-    match a, b with
-    | .cons (.atom (.symbol na)) (.cons xa .nil),
-      .cons (.atom (.symbol nb)) (.cons xb .nil) =>
-      if na.name == "NOT" && nb.name == "NOT" then
-        match ← go xa xb with
-        | some h =>
-          return some (← Lean.Meta.mkCongrArg (mkConst ``Logic.not) h)
-        | none => return none
-      else return none
-    | .cons (.atom (.symbol ifS)) (.cons c (.cons th (.cons el .nil))), _ =>
-      if ifS.name != "IF" then return none
-      -- (i) marker-justified test-true: take the then-branch
-      match ← valIsT c with
-      | some hc =>
-        let hstep ← Lean.Meta.mkAppOptM ``cond_of_val_t
-          #[none, some (← ctxValExpr cfg ctx th),
-            some (← ctxValExpr cfg ctx el), some hc]
-        match ← go th b with
-        | some hrest => return some (← mkAppM ``Eq.trans #[hstep, hrest])
-        | none => return none
-      | none =>
-        -- (ii) the boolean collapse (IF b 'T 'NIL) ⇒ b
-        if th == quoteT' && el == quoteNil' && c == b then
-          match ← bRange b with
-          | some hr => return some (← mkAppM ``cond_tnil_of_range #[hr])
-          | none => return none
-        else return none
-    | .cons (.atom (.symbol eqS)) (.cons p (.cons qt' .nil)), _ =>
-      -- (iii) the BOOLEAN-TP fold under composition: (EQUAL p 'T) vs p,
-      -- where p's fn carries the emitted boolean TP corollary
-      -- (IF (EQUAL p 'T) 'T (EQUAL p 'NIL)) — the value identity
-      -- logic_equal_t_self_of_boolean_tp (consumed, not inferred)
-      if eqS.name == "EQUAL" && qt' == quoteT' && p == b then
-        match p with
-        | .cons (.atom (.symbol fs)) argsSpine =>
-          match ctx.tpHyps.find? (fun (n, _, _) => n == fs.name) with
-          | none => return none
-          | some (_, cor, tpHyp) =>
-            let some (formals, _) := cfg.worldVal.defs.get? fs
-              | return none
-            let args := (argsSpine.toList?).getD []
-            if formals.length != args.length then return none
-            let eqT' (x y : SExpr) : SExpr :=
-              .cons (.atom (.symbol { name := "EQUAL" }))
-                (.cons x (.cons y .nil))
-            let inst := ACL2.Replay.substTerm formals args cor
-            let expected : SExpr :=
-              .cons (.atom (.symbol { name := "IF" }))
-                (.cons (eqT' p quoteT')
-                  (.cons quoteT' (.cons (eqT' p quoteNil') .nil)))
-            if inst != expected then return none
-            let some (vp, convp) := ctx.val? p | return none
-            let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
-              ++ (args.map reflectSExpr).toArray ++ #[vp, convp])
-            return some (← mkAppM ``logic_equal_t_self_of_boolean_tp
-              #[fact])
-        | _ => return none
-      else return none
-    | _, _ => return none
-  match ← go reached recorded with
-  | none => return none
-  | some hval =>
-    let pA ← ctxValProof cfg ctx reached
-    let pB ← ctxValProof cfg ctx recorded
-    return some (← mkAppM ``fuel_eq_of_conv #[pA, pB, hval])
 
 end ACL2.Replay.Driver

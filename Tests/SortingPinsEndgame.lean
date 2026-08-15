@@ -146,8 +146,13 @@ example :
       -- ruler peel consume it, so total:BSORT REPLAYS from the emitted
       -- admission data and the hypothesis left the telescope.
       -- INTENTIONAL; diagnosed against the golden.)
-      totalHyp2 bsortSweepWorld "O<" →
-      totalHyp1 bsortSweepWorld "O-P" →
+      -- (total:O< / total:O-P RETIRED 2026-08-15 — T1+2 sprint P3b: the
+      -- ORDINAL registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the world-read EQUAL-alias normalization of ACL2's
+      -- recomputed ground-zero rulers discharge both admissions from
+      -- their OWN emitted :TERMINATION-CLAUSES, so the hypotheses left
+      -- the telescope and the pinned types drop them. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
       -- above: the CALLEE-TP return path, increment 3. INTENTIONAL.)
       linearHMBPB bsortSweepWorld →
@@ -174,8 +179,13 @@ example :
       -- ruler peel consume it, so total:BSORT REPLAYS from the emitted
       -- admission data and the hypothesis left the telescope.
       -- INTENTIONAL; diagnosed against the golden.)
-      totalHyp2 bsortSweepWorld "O<" →
-      totalHyp1 bsortSweepWorld "O-P" →
+      -- (total:O< / total:O-P RETIRED 2026-08-15 — T1+2 sprint P3b: the
+      -- ORDINAL registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the world-read EQUAL-alias normalization of ACL2's
+      -- recomputed ground-zero rulers discharge both admissions from
+      -- their OWN emitted :TERMINATION-CLAUSES, so the hypotheses left
+      -- the telescope and the pinned types drop them. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
       -- above: the CALLEE-TP return path, increment 3. INTENTIONAL.)
       linearHMBPB bsortSweepWorld →
@@ -209,8 +219,13 @@ example :
       -- ruler peel consume it, so total:BSORT REPLAYS from the emitted
       -- admission data and the hypothesis left the telescope.
       -- INTENTIONAL; diagnosed against the golden.)
-      totalHyp2 bsortSweepWorld "O<" →
-      totalHyp1 bsortSweepWorld "O-P" →
+      -- (total:O< / total:O-P RETIRED 2026-08-15 — T1+2 sprint P3b: the
+      -- ORDINAL registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the world-read EQUAL-alias normalization of ACL2's
+      -- recomputed ground-zero rulers discharge both admissions from
+      -- their OWN emitted :TERMINATION-CLAUSES, so the hypotheses left
+      -- the telescope and the pinned types drop them. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (tp:HOW-MANY RETIRED 2026-08-12 — same TP-replay route.)
       -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
       -- above: the CALLEE-TP return path, increment 3. INTENTIONAL.)
@@ -284,8 +299,13 @@ example :
       -- decrease clauses and the hypothesis left the telescope.
       -- INTENTIONAL; diagnosed against the golden.)
       totalHyp1 sortsEqSweepWorld "BSORT" →
-      totalHyp2 sortsEqSweepWorld "O<" →
-      totalHyp1 sortsEqSweepWorld "O-P" →
+      -- (total:O< / total:O-P RETIRED 2026-08-15 — T1+2 sprint P3b: the
+      -- ORDINAL registry row (Replay/OrdinalSim) + the O-FINP recognizer
+      -- duality + the world-read EQUAL-alias normalization of ACL2's
+      -- recomputed ground-zero rulers discharge both admissions from
+      -- their OWN emitted :TERMINATION-CLAUSES, so the hypotheses left
+      -- the telescope and the pinned types drop them. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (tp:HOW-MANY RETIRED 2026-08-12 — the BINARY-+ return path;
       -- tp:INSERT RETIRED 2026-08-13 — the CONS return-path shape;
       -- tp:BNEXT-SIZE RETIRED 2026-08-13 — the CALLEE-TP shape. All

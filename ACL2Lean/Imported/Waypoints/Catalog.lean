@@ -139,6 +139,9 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("03-linear", "LEN2-CDR-SMALLER", .pending "len2 dischargers"),
   ("03-linear", "LINEAR-CHAIN", .pending "#50 DP tactic decode"),
   ("04-multi-case-induction", "EVENLEN-BOOLEANP", .pending "boolean-recognizer decode (near type-absorbed)"),
+  -- NEWLY GREEN 2026-08-15 (T1+2 sprint P3b: the `:LHS-TS`/`:RHS-TS`
+  -- disjointness cell plus the marker-anchored chain-end IF-collapse).
+  ("04-multi-case-induction", "CLASSIFY-POS", .pending "a waypoint entry over the 04 world — the classify decode is unbuilt, not blocked"),
   ("05-hints", "LEN2-APP-HELPER", .pending "len2 dischargers"),
   ("05-hints", "LEN2-APP-VIA-USE", .pending "len2 dischargers"),
   ("05-hints", "LEN2-APP-VIA-INDUCT", .pending "len2 dischargers"),
@@ -514,10 +517,14 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
   ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
   ("sorting/qsort", "HOW-MANY-FILTER-1", .native ``how_many_filter_1_native_driver ``howManyFilter1ReplayedCond),
-  ("sorting/qsort", "HOW-MANY-QSORT", .nativeSorried ``how_many_qsort_native_driver ``howManyQsortReplayedCond
-      "total:O< (dis_o_lt_total; REQUIRED); tp:ACL2-COUNT retired by the replay route, T1+2 sprint phase 1 2026-08-14 (the D-A ts-algebra consumer)"),
+  -- PROMOTED 2026-08-15 (T1+2 sprint P3b: `total:O<` retired by the
+  -- replay route — the ORDINAL registry row (Replay/OrdinalSim), the
+  -- `O-FINP` recognizer duality and the world-read EQUAL-alias
+  -- normalization of ACL2's recomputed ground-zero rulers — so its LAST
+  -- sorried premise went and the entry carries no debt).
+  ("sorting/qsort", "HOW-MANY-QSORT", .native ``how_many_qsort_native_driver ``howManyQsortReplayedCond),
   ("sorting/qsort", "PERM-QSORT", .nativeSorried ``perm_qsort_native_driver ``permQsortReplayedCond
-      "total:O< (dis_o_lt_total; REQUIRED) + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the R-lane arc); total:PERM-COUNTER-EXAMPLE retired by the replay route, TP-replay arc's ATOM-leg increment 2026-08-13, and tp:ACL2-COUNT by the D-A ts-algebra consumer, T1+2 sprint phase 1 2026-08-14"),
+      "rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the cross-book D1 transfer, P3c); total:PERM-COUNTER-EXAMPLE retired by the replay route, TP-replay arc's ATOM-leg increment 2026-08-13, tp:ACL2-COUNT by the D-A ts-algebra consumer, T1+2 sprint phase 1 2026-08-14, and total:O< by the ORDINAL registry row, P3b 2026-08-15"),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-1", .native ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-2", .native ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond),
@@ -525,7 +532,7 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
   ("sorting/qsort", "ORDEREDP-QSORT", .nativeSorried ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond
-      "total:O< (dis_o_lt_total; REQUIRED) + rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm); tp:ALL-REL retired by the replay route and rule:ORDEREDP-APPEND's wrapper is CLEAN as of TP-replay arc increments 4-5, total:PERM-COUNTER-EXAMPLE by the ATOM-leg increment 2026-08-13, and tp:ACL2-COUNT by the D-A ts-algebra consumer 2026-08-14; unlock: the R-lane"),
+      "rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm); tp:ALL-REL retired by the replay route and rule:ORDEREDP-APPEND's wrapper is CLEAN as of TP-replay arc increments 4-5, total:PERM-COUNTER-EXAMPLE by the ATOM-leg increment 2026-08-13, tp:ACL2-COUNT by the D-A ts-algebra consumer 2026-08-14, and total:O< by the ORDINAL registry row, P3b 2026-08-15; unlock: the cross-book D1 transfer, P3c"),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
 /-- SEAM REACHABILITY — the ONE copy (R4, gate-cruft review 2026-08-11;
@@ -746,8 +753,13 @@ run_cmd Lean.Elab.Command.liftCoreM do
     -- `(LEN X)`, already carried by the μ-registry and the decrease
     -- walk but not by the admission gate — audit F6), and MSORT's
     -- opaque EVENS/ODDS measured actual bound by ∃-elimination)
-    [``ACL2.Worlds.Sorting.dis_o_lt_total,
-     -- (`dis_how_many_smaller_tp` RETIRED by the replay route,
+    -- (`dis_o_lt_total` RETIRED by the replay route, T1+2 sprint P3b,
+    -- 2026-08-15 — the ORDINAL registry row (`Replay/OrdinalSim`: the
+    -- `O-RST`/`O-FIRST-EXPT` sims) plus the `O-FINP` recognizer duality
+    -- and the EQUAL-alias reading of the recomputed ground-zero
+    -- clauses, which together let the admission prover discharge `O<`
+    -- and `O-P` from ACL2's OWN emitted `:TERMINATION-CLAUSES`)
+    [-- (`dis_how_many_smaller_tp` RETIRED by the replay route,
      -- TP-replay arc increment 1, 2026-08-12; the MINTED
      -- `dis_bnext_size_tp` — the bsort-measure TP whose emitted leaf
      -- sums a CALLEE's TP — RETIRED by increment 3, 2026-08-13)

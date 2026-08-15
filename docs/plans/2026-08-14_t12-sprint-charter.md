@@ -256,3 +256,87 @@ threat to project success, etc).
   the rule: chains (×10-class), total:QSORT/BSORT at sorts-equivalent
   (:INCLUDE-BOOK sources), dis_convert_perm; + the three latent
   defects; + dischargeLinearHyp (linear: ×4).
+
+- **P3b (consumption) — 2026-08-15.** Two items DONE, two ADVANCED to a
+  named deeper frontier, one NOT ATTEMPTED.
+  - **Item 1 — ORDINAL TOTALITY: DONE.** `total:O<` (×12) and
+    `total:O-P` (×6) RETIRED corpus-wide; `dis_o_lt_total` DELETED
+    (deletion+rewiring precedent, `dis_pce_total`), sorries 2 → 1
+    (`dis_convert_perm`, P3c's). Three pieces, all consuming the emitted
+    ground-zero `:TERMINATION-CLAUSES` RT2 verified exist:
+    (a) the ORDINAL S4 REGISTRY ROW in `chainLt` — `(O-RST u)` IS
+    `(CDR u)` and, under the branch these obligations are emitted for,
+    `(O-FIRST-EXPT u)` IS `(CAR (CAR u))`, both proved as CALL-LEVEL sim
+    lemmas against the world's OWN byte-checked bodies (new
+    `ACL2Lean/Replay/OrdinalSim.lean`); (b) the `O-FINP` RECOGNIZER
+    DUALITY — a REFUTED `(O-FINP b)` IS the `(consp b)` evidence both
+    decreases need, read off ACL2's emitted `(IF (CONSP X) 'NIL 'T)`;
+    (c) the 2-ARY OPAQUE MEASURED-ARGUMENT arm (`O<`'s own self-calls
+    are ground-zero DEFUN applications at both positions).
+  - **Item 5 — CLASSIFY-POS: DONE.** FAIL → REPLAYED ✓ UNCONDITIONAL.
+    The `:LHS-TS`/`:RHS-TS` DISJOINTNESS cell (`tseTsDisjointCell`) plus,
+    behind it, the chain-end IF-COLLAPSE at NODE level: the literal's
+    emitted `:IF-TEST-FALSE` marker is now threaded into `ReplayCtx` as
+    an ANCHOR and the falsity itself PROVED by the same ts algebra.
+  - **Items 3 + 4 — the trio's `:ARG-LEAVES` arm and CD2-BOUND's ZP arm:
+    BUILT, rows NOT flipped.** Both mechanisms fire and are verified by
+    the frontier MOVING: `(CONSP (IF …))`, `(NATP (IF …))`,
+    `(INTEGERP N)`, `(INTEGERP (BINARY-+ '-1 N))` and `(ZP N) ⇒ 'NIL`
+    all replay now. The rows stop at a NEWLY EXPOSED frontier that is an
+    EMISSION GAP, not a consumption item — see J-P3b-g.
+  - **Item 2 — HYPOTHETICAL-TP MODE: NOT ATTEMPTED** (budget). `tp:QSORT`
+    ×3 unmoved.
+  - **J-P3b-a:** the ordinal decreases were resolved as an S4 REGISTRY
+    ROW (the EVENS/ODDS precedent), NOT a new measure-table row: the
+    MEASURE is already the `.count` row: what is new is the DECREASE
+    ARGUMENT. World-parametric (L3); every world shape byte-checked at
+    the use site, so a differing ground zero keeps the honest frontier.
+  - **J-P3b-b (EQUAL-ALIAS NORMALIZATION):** ACL2 emits a defun's
+    `:BODY` NORMALIZED but recomputes the ground-zero
+    `:TERMINATION-CLAUSES` from the UNNORMALIZED body
+    (`gz-termination-clauses` reads `get-unnormalized-bodies`), so `O<`'s
+    ruler is `(NOT (= …))` and `O-P`'s is `(EQL '0 …)` where the branch
+    facts say `EQUAL`. Resolved by reading the WORLD's OWN definitional
+    aliases of `EQUAL` and normalizing ONLY the coverage comparison
+    (`wanted`/`matching` stay verbatim). Not a hard-coded name list; the
+    alias source is `worldVal.defs.entries ++ cfg.gzDefs`, because a
+    builtin-named snapshot (`EQL`) is excluded from the world by the
+    no-shadow rule and `gzDefs` is the only place its emitted body lives.
+  - **J-P3b-c:** the DP-probe totality sweep (`Runner.lean`) built its
+    `ReplayConfig` WITHOUT `gzDefs`, so the SAME prover answered
+    differently in the two paths (`O-P` proved in the harness, failed in
+    the probe). Fixed at the source rather than worked around.
+  - **J-P3b-d:** `tsFactOf` MOVED from `Driver/TsConsumer` to a new leaf
+    module `Driver/TsFacts`, so the admission-side `tsFromFacts` and the
+    new clause-side `inTsFromCtx` read ONE table of masks and proved
+    lemmas — the near-clone the working discipline forbids. `TsFacts`
+    also carries the generating side (`tsCtxProbes`), the `.isNil`
+    direction (`tsTestNilOf`), the recognizer-verdict registries and the
+    arithmetic-primitive cell; every probe result is interpreted BACK
+    through the same table, so the directions cannot drift.
+  - **J-P3b-e:** the literal's `:IF-TEST-TRUE/FALSE` markers are
+    threaded into `ReplayCtx` so a NODE recipe's chain-end
+    reconciliation can anchor an unrecorded IF collapse on the same
+    records the literal-level bridge uses. The markers stay an ANCHOR
+    ONLY — `valIsNil` still PROVES the falsity (from the in-scope facts
+    or the ts algebra); a marker alone never licenses a collapse.
+  - **J-P3b-f (RATCHET):** the additions pushed `ProofLog`, `NodeCore/Ctx`
+    and `NodeCore/Node` over their caps. Resolved by MOVES, never
+    baseline loosening: the integer-field reader to `ProofLogTypes` (the
+    J-RT2e precedent), and `compoundRecogTsCell`, `tseTsDisjointCell`
+    and the ZP compound-recognizer recipe to `NodeCore/TypeSetWalk`.
+    Baselines TIGHTENED: `Node.lean` 1668 → 1650, `Sorting.lean`
+    4278 → 4265.
+  - **J-P3b-g (items 3/4 STOP — verbatim frontiers).** After the
+    `:ARG-LEAVES` arm the trio's terminations stop at
+    `definition: children chain reached (IF (< (BINARY-+ '-1 N) '0) '0
+    (BINARY-+ '-1 N)), node rhs is (BINARY-+ '-1 N)` (CD2:
+    `(IF (< N '0) '0 N)` vs `N`) — the `NFIX` body's inner
+    must-be-arm collapse, for which the corpus logs carry NO if-test
+    record at all (no `IF-FINISH/IF-TEST` marker for that test in
+    `06-measure` / `07-mutual-recursion` / `11-custom-measure`). That is
+    an EMISSION GAP (a fork item), not P3b consumption, so the item was
+    stopped rather than closed by Lean-side inference. CD2-BOUND
+    likewise advanced past its ZP arm to
+    `replayClauseSpine: ran out of items with no closer at Subgoal *1/2`
+    — a structural spine frontier, diagnosed but not pursued.
