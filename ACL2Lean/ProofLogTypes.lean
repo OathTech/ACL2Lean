@@ -66,6 +66,63 @@ def Rune.tag (r : Rune) : String :=
   | none => s!"{r.ty}:{r.name}"
   | some k => s!"{r.ty}:{r.name} . {k}"
 
+/-- One IF-leaf entry of an emitted `(:TYPE-PRESCRIPTION … :LEAVES …)`
+    (R2 fork batch, 2026-08-14 — GAP-1/GAP-2): ACL2's own verdict for a
+    return-path leaf of the fn's body, computed IN CONTEXT by the
+    collector that mirrors `type-set-rec`'s `'if` case.
+
+    Nothing here is derived Lean-side. `ts` is the CONTEXT-REFINED
+    type-set (INTEGER-ABS's `(UNARY-- X)` leaf reads 6, not the
+    context-free 127); `tests` are the governing IF tests outermost-first
+    (negated on a false branch) — the leaf's ADDRESS, which distinguishes
+    two identical leaf terms in different branches; `typeAlist` is ACL2's
+    OWN derivation from those tests, emitted VERBATIM WITH SHADOWING
+    (lookup is `assoc-equal`: FIRST hit wins, so `List.lookup` on this
+    field is the faithful reader); `subterms` are the per-OCCURRENCE
+    verdicts for the leaf's proper function-call subterms — the only type
+    facts that exist for the primitives ACL2 stores no rule for
+    (`DENOMINATOR`/`NUMERATOR`/`REALPART`/`IMAGPART`), with `*ts-unknown*`
+    entries dropped at the emitter as carrying no fact.
+
+    `ts = 0` (`*ts-empty*`) marks a VACUOUS leaf: ACL2's own
+    contradictory-context encoding, emitted for the branches
+    `assume-true-false-rec` proved unreachable. -/
+structure TpLeaf where
+  term : SExpr
+  ts : Int
+  tests : List SExpr := []
+  typeAlist : List (SExpr × Int) := []
+  subterms : List (SExpr × Int) := []
+  deriving Repr, Inhabited, BEq
+
+/-- `(term type-set-bits)` pairs — the shape the emitted leaf type-alists
+    and subterm verdicts share. Hard-fails on any other entry. -/
+private def tpTsPairs (fn what : String) (l : SExpr) :
+    Except String (List (SExpr × Int)) :=
+  match l.toList? with
+  | some items => items.mapM fun pair =>
+    match pair.toList? with
+    | some [term, .atom (.number (.int ts))] => pure (term, ts)
+    | _ => throw s!"TYPE-PRESCRIPTION {fn}: bad {what} entry: {repr pair}"
+  | none => throw s!"TYPE-PRESCRIPTION {fn}: {what} not a list: {repr l}"
+
+/-- Read a `:LEAVES` field: each entry is
+    `(term ts ruling-tests type-alist subterm-verdicts)`. -/
+def TpLeaf.parseList (fn : String) (l : SExpr) :
+    Except String (List TpLeaf) :=
+  match l.toList? with
+  | some items => items.mapM fun entry =>
+    match entry.toList? with
+    | some [term, .atom (.number (.int ts)), tests, ta, subs] => do
+      let some testL := tests.toList?
+        | throw s!"TYPE-PRESCRIPTION {fn}: leaf ruling tests not a list: \
+            {repr tests}"
+      pure { term := term, ts := ts, tests := testL,
+             typeAlist := ← tpTsPairs fn "leaf :type-alist" ta,
+             subterms := ← tpTsPairs fn "leaf subterm-verdict" subs }
+    | _ => throw s!"TYPE-PRESCRIPTION {fn}: bad leaf: {repr entry}"
+  | none => throw s!"TYPE-PRESCRIPTION {fn}: :LEAVES not a list: {repr l}"
+
 /-- A single rewrite application from ACL2's rewriter. -/
 structure RewriteStep where
   /-- The rune applied, e.g. ("rewrite", "car-cons"). -/
@@ -102,6 +159,17 @@ structure RewriteStep where
   subst : List (SExpr × SExpr) := []
   /-- The equivalence formula for rewriting-equivalence steps. -/
   equivTerm : Option SExpr := none
+  /-- `:CR-RUNE` (RT2, 2026-08-15 — `emit/solidify/rewriting-equiv`,
+      acl2/rewrite.lisp): the CONGRUENCE/EQUIVALENCE rune that licensed
+      THIS solidify step, i.e. ACL2's own
+      `(geneqv-refinementp (ffn-symb equiv-term) geneqv wrld)` — the rune
+      `find-rewriting-equivalence` computed and pushed into the ttree but
+      did not return. Without it a replay can only anchor on the
+      ENCLOSING step's cumulative `runes`, weaker than the BUG-023
+      per-step discipline. `none` on every other origin and where no
+      refinement rune exists (a lambda head); a consumer that needs the
+      anchor fails closed rather than falling back. -/
+  crRune : Option Rune := none
   /-- Type-set of the argument (for recognizer steps). -/
   typeSet : Option Int := none
   /-- True type-set of the recognizer (type-set bits where it returns T). -/
@@ -113,6 +181,18 @@ structure RewriteStep where
   /-- `:STRONGP` (fork-batch item 2): T iff true-ts is exactly the
       complement of false-ts. -/
   strongp : Option Bool := none
+  /-- `:ARG-LEAVES` (RT2, 2026-08-15 — `infra/recognizer-arg-leaves`,
+      acl2/rewrite.lisp): on a recognizer step whose ARGUMENT is an `IF`,
+      the per-branch derivation behind the `typeSet` verdict — the same
+      context-refined `TpLeaf` walk, run on the argument under the
+      REWRITER'S OWN type-alist. `typeSet` is the UNION over these
+      branches, and the union alone is not replayable: the replay must
+      case-split the `IF` and use each branch's own verdict (the
+      COUNT-DOWN / MY-EVENP / CD2 termination rows, argument
+      `(IF (INTEGERP N) (IF (< N '0) '0 N) '0)`). `[]` on every non-`IF`
+      argument (where the collector would only repeat `typeSet`) and on
+      every non-recognizer origin. -/
+  argLeaves : List TpLeaf := []
   /-- The equal/type-alist verdict BASIS (R1 retirement emission,
       2026-08-07): the canonical representatives of the two sides under
       the type-alist's equality equations. -/
@@ -160,6 +240,30 @@ def parseSymbolListField (fieldName : String) (v : Option SExpr) :
       | .atom (.symbol sym) => .ok (sym.name.map Char.toLower)
       | other => .error s!"REWRITE-STEP: malformed :{fieldName} element {repr other}"
     | none => .error s!"REWRITE-STEP: :{fieldName} not a list: {repr s}"
+
+/-- Read a `:CR-RUNE` field (RT2). Absent — every origin but
+    `solidify/rewriting-equiv` — reads `none`; `NIL` is the emitter's own
+    "no refinement rune" (a lambda head) and also reads `none`. A present
+    non-rune value is a malformed emission and hard-fails: the checker
+    never guesses a licensing rune. `runeOf` is the log's ONE rune parser,
+    passed in rather than cloned. -/
+def parseCrRuneField (runeOf : SExpr → Option Rune) (v : Option SExpr) :
+    Except String (Option Rune) :=
+  match v with
+  | none | some .nil => .ok none
+  | some r => match runeOf r with
+    | some rune => .ok (some rune)
+    | none => .error s!"REWRITE-STEP: malformed :CR-RUNE {repr r}"
+
+/-- Read an `:ARG-LEAVES` field (RT2): the recognizer argument's per-branch
+    derivation, in the same emitted entry shape as a `:TYPE-PRESCRIPTION`
+    event's `:LEAVES`. Absent (non-recognizer origins) and `NIL`
+    (non-`IF` arguments) both read `[]`; any other shape hard-fails in the
+    shared leaf reader. -/
+def parseArgLeavesField (v : Option SExpr) : Except String (List TpLeaf) :=
+  match v with
+  | none | some .nil => .ok []
+  | some r => TpLeaf.parseList "recognizer :ARG-LEAVES" r
 
 /-- A trace event from ACL2's detailed rewriter output.
     These appear inside the :REWRITES field of a waterfall step. -/
@@ -443,35 +547,6 @@ structure LinearRuleSpec where
   maxTerm : SExpr
   deriving Repr, Inhabited
 
-/-- One IF-leaf entry of an emitted `(:TYPE-PRESCRIPTION … :LEAVES …)`
-    (R2 fork batch, 2026-08-14 — GAP-1/GAP-2): ACL2's own verdict for a
-    return-path leaf of the fn's body, computed IN CONTEXT by the
-    collector that mirrors `type-set-rec`'s `'if` case.
-
-    Nothing here is derived Lean-side. `ts` is the CONTEXT-REFINED
-    type-set (INTEGER-ABS's `(UNARY-- X)` leaf reads 6, not the
-    context-free 127); `tests` are the governing IF tests outermost-first
-    (negated on a false branch) — the leaf's ADDRESS, which distinguishes
-    two identical leaf terms in different branches; `typeAlist` is ACL2's
-    OWN derivation from those tests, emitted VERBATIM WITH SHADOWING
-    (lookup is `assoc-equal`: FIRST hit wins, so `List.lookup` on this
-    field is the faithful reader); `subterms` are the per-OCCURRENCE
-    verdicts for the leaf's proper function-call subterms — the only type
-    facts that exist for the primitives ACL2 stores no rule for
-    (`DENOMINATOR`/`NUMERATOR`/`REALPART`/`IMAGPART`), with `*ts-unknown*`
-    entries dropped at the emitter as carrying no fact.
-
-    `ts = 0` (`*ts-empty*`) marks a VACUOUS leaf: ACL2's own
-    contradictory-context encoding, emitted for the branches
-    `assume-true-false-rec` proved unreachable. -/
-structure TpLeaf where
-  term : SExpr
-  ts : Int
-  tests : List SExpr := []
-  typeAlist : List (SExpr × Int) := []
-  subterms : List (SExpr × Int) := []
-  deriving Repr, Inhabited, BEq
-
 /-- One entry of an emitted `(:TYPE-PRESCRIPTION … :ALL-TPS …)` (R2 fork
     batch item 3, 2026-08-14): a STORED type-prescription rule of the fn,
     verbatim. ACL2 keeps CONDITIONAL type-prescriptions (`hyps` is a field
@@ -481,56 +556,55 @@ structure TpLeaf where
     (`(IMPLIES (TRUE-LISTP B) (TRUE-LISTP (BINARY-APPEND A B)))`), which
     the emitters' one-of-N definitional selectors used to discard. The
     event's `:COROLLARY`/`:BASICTS` fields still carry the DEFINITIONAL
-    rule alone; this list is additive. -/
+    rule alone; this list is additive.
+
+    RT2 (T1+2 sprint, 2026-08-15) added the last two fields, because
+    rune/hyps/basicTs/corollary let a consumer SEE a strengthening but not
+    ADMIT one. `term` is the rule's own pattern (`(BINARY-APPEND A B)`) —
+    a stored rule's `hyps` and `corollary` speak the RULE's variables, not
+    the fn's formals, and `leaves` is the fn's body instantiated through
+    the formals→term-args substitution, so all four speak the same
+    variables. `leaves` is the same context-refined `TpLeaf` shape as the
+    event's `:LEAVES`, computed under the type-alist THIS RULE'S
+    HYPOTHESES generate: `BINARY-APPEND`'s leaves are `(3072, *ts-unknown*)`
+    unconditionally but `(1024, 1152)` under `((TRUE-LISTP B))`, both
+    inside `TRUE-LISTP-APPEND`'s `basicTs` 1152.
+
+    Honest caveat (emitter tag `infra/tp-all`): a rule proved by a real
+    theorem rather than read off the body need NOT have its leaves inside
+    its `basicTs`. The field reports what ACL2's type-set says in that
+    context; a consumer that cannot admit a rule from it fails closed. -/
 structure TpRuleSpec where
   rune : Rune
   hyps : List SExpr
   basicTs : Int
   corollary : SExpr
+  /-- The rule's own pattern term, `(fn a₁ … aₙ)` — the variable space
+      `hyps`, `corollary` and `leaves` are stated in. -/
+  term : SExpr
+  /-- The fn's body leaves under this rule's hypotheses (see above). -/
+  leaves : List TpLeaf
   deriving Repr, Inhabited
 
-/-- `(term type-set-bits)` pairs — the shape the emitted leaf type-alists
-    and subterm verdicts share. Hard-fails on any other entry. -/
-private def tpTsPairs (fn what : String) (l : SExpr) :
-    Except String (List (SExpr × Int)) :=
-  match l.toList? with
-  | some items => items.mapM fun pair =>
-    match pair.toList? with
-    | some [term, .atom (.number (.int ts))] => pure (term, ts)
-    | _ => throw s!"TYPE-PRESCRIPTION {fn}: bad {what} entry: {repr pair}"
-  | none => throw s!"TYPE-PRESCRIPTION {fn}: {what} not a list: {repr l}"
-
-/-- Read a `:LEAVES` field: each entry is
-    `(term ts ruling-tests type-alist subterm-verdicts)`. -/
-def TpLeaf.parseList (fn : String) (l : SExpr) :
-    Except String (List TpLeaf) :=
-  match l.toList? with
-  | some items => items.mapM fun entry =>
-    match entry.toList? with
-    | some [term, .atom (.number (.int ts)), tests, ta, subs] => do
-      let some testL := tests.toList?
-        | throw s!"TYPE-PRESCRIPTION {fn}: leaf ruling tests not a list: \
-            {repr tests}"
-      pure { term := term, ts := ts, tests := testL,
-             typeAlist := ← tpTsPairs fn "leaf :type-alist" ta,
-             subterms := ← tpTsPairs fn "leaf subterm-verdict" subs }
-    | _ => throw s!"TYPE-PRESCRIPTION {fn}: bad leaf: {repr entry}"
-  | none => throw s!"TYPE-PRESCRIPTION {fn}: :LEAVES not a list: {repr l}"
-
-/-- Read an `:ALL-TPS` field: each entry is `(rune hyps basic-ts corollary)`.
-    `runeOf` is the log's ONE rune parser, passed in rather than cloned. -/
+/-- Read an `:ALL-TPS` field: each entry is
+    `(rune hyps basic-ts corollary term leaves)`. `runeOf` is the log's ONE
+    rune parser, passed in rather than cloned. The 4-field R2 shape is NOT
+    accepted: a half-read entry would silently drop the admissibility data
+    the last two fields carry, so an old log hard-fails here rather than
+    parsing into an entry that means less than it says. -/
 def TpRuleSpec.parseList (fn : String) (runeOf : SExpr → Option Rune)
     (l : SExpr) : Except String (List TpRuleSpec) :=
   match l.toList? with
   | some items => items.mapM fun entry =>
     match entry.toList? with
-    | some [runeE, hypsE, .atom (.number (.int bts)), cor] => do
+    | some [runeE, hypsE, .atom (.number (.int bts)), cor, term, leavesE] => do
       let some rune := runeOf runeE
         | throw s!"TYPE-PRESCRIPTION {fn}: bad :ALL-TPS rune: {repr runeE}"
       let some hyps := hypsE.toList?
         | throw s!"TYPE-PRESCRIPTION {fn}: :ALL-TPS hyps not a list: \
             {repr hypsE}"
-      pure { rune := rune, hyps := hyps, basicTs := bts, corollary := cor }
+      pure { rune := rune, hyps := hyps, basicTs := bts, corollary := cor,
+             term := term, leaves := ← TpLeaf.parseList fn leavesE }
     | _ => throw s!"TYPE-PRESCRIPTION {fn}: bad :ALL-TPS entry: {repr entry}"
   | none => throw s!"TYPE-PRESCRIPTION {fn}: :ALL-TPS not a list: {repr l}"
 

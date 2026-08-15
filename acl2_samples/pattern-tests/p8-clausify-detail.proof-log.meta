@@ -1,7 +1,7 @@
-acl2-commit: f86e56698fb480ce80c5e64b336b7332bb164deb
-image-mtime: 1786714463
-captured-at: 2026-08-14T13:34:34Z
+acl2-commit: e8d78e513d6867d04002f0df644da1723cc96e89
+image-mtime: 1786760465
+captured-at: 2026-08-15T02:21:41Z
 source-path: acl2_samples/pattern-tests/p8-clausify-detail.lisp
 source-sha256: 7b0935f8bd78ed30188636a03987348b7a07a1862652ac070519949771fa4f15
-log-sha256: c7a0229cc3e351356d15d466ad773e54c115dfb8b89108bb6cadc561b5fbce94
+log-sha256: fa8c546d4d21ca6ad3e7d426dcf8d44e101d194366216d90550547871a263642
 source-provenance: captured

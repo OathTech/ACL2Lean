@@ -8,8 +8,8 @@ distribution for more information.
 
  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
  + ACL2 Version 8.6+ (a development snapshot based on ACL2 Version 8.6) +
- +   built August 14, 2026  13:34:22.                                   +
- +   (Git commit hash: f86e56698fb480ce80c5e64b336b7332bb164deb)        +
+ +   built August 15, 2026  02:21:05.                                   +
+ +   (Git commit hash: e8d78e513d6867d04002f0df644da1723cc96e89)        +
  + Copyright (C) 2026, Regents of the University of Texas.              +
  + ACL2 comes with ABSOLUTELY NO WARRANTY.  This is free software and   +
  + you are welcome to redistribute it under certain conditions.  For    +
@@ -34,15 +34,15 @@ ACL2 !>
 
 (:DEFUN IMPLIES :FORMALS (P Q) :BODY (IF P (IF Q 'T 'NIL) 'T) :SOURCE :GROUND-ZERO)
 
-(:TYPE-PRESCRIPTION IMPLIES :COROLLARY (IF (EQUAL (IMPLIES P Q) 'T) 'T (EQUAL (IMPLIES P Q) 'NIL)) :BASICTS 384 :LEAVES (('T 256 (P Q) ((Q -129) (P -129)) NIL) ('NIL 128 (P (NOT Q)) ((Q 128) (P -129)) NIL) ('T 256 ((NOT P)) ((P 128)) NIL)) :ALL-TPS (((:TYPE-PRESCRIPTION IMPLIES) NIL 384 (IF (EQUAL (IMPLIES P Q) 'T) 'T (EQUAL (IMPLIES P Q) 'NIL)))))
+(:TYPE-PRESCRIPTION IMPLIES :COROLLARY (IF (EQUAL (IMPLIES P Q) 'T) 'T (EQUAL (IMPLIES P Q) 'NIL)) :BASICTS 384 :LEAVES (('T 256 (P Q) ((Q -129) (P -129)) NIL) ('NIL 128 (P (NOT Q)) ((Q 128) (P -129)) NIL) ('T 256 ((NOT P)) ((P 128)) NIL)) :ALL-TPS (((:TYPE-PRESCRIPTION IMPLIES) NIL 384 (IF (EQUAL (IMPLIES P Q) 'T) 'T (EQUAL (IMPLIES P Q) 'NIL)) (IMPLIES P Q) (('T 256 (P Q) ((Q -129) (P -129)) NIL) ('NIL 128 (P (NOT Q)) ((Q 128) (P -129)) NIL) ('T 256 ((NOT P)) ((P 128)) NIL)))))
 
 (:DEFUN NOT :FORMALS (P) :BODY (IF P 'NIL 'T) :SOURCE :GROUND-ZERO)
 
-(:TYPE-PRESCRIPTION NOT :COROLLARY (IF (EQUAL (NOT P) 'T) 'T (EQUAL (NOT P) 'NIL)) :BASICTS 384 :LEAVES (('NIL 128 (P) ((P -129)) NIL) ('T 256 ((NOT P)) ((P 128)) NIL)) :ALL-TPS (((:TYPE-PRESCRIPTION NOT) NIL 384 (IF (EQUAL (NOT P) 'T) 'T (EQUAL (NOT P) 'NIL)))))
+(:TYPE-PRESCRIPTION NOT :COROLLARY (IF (EQUAL (NOT P) 'T) 'T (EQUAL (NOT P) 'NIL)) :BASICTS 384 :LEAVES (('NIL 128 (P) ((P -129)) NIL) ('T 256 ((NOT P)) ((P 128)) NIL)) :ALL-TPS (((:TYPE-PRESCRIPTION NOT) NIL 384 (IF (EQUAL (NOT P) 'T) 'T (EQUAL (NOT P) 'NIL)) (NOT P) (('NIL 128 (P) ((P -129)) NIL) ('T 256 ((NOT P)) ((P 128)) NIL)))))
 
 (:DEFUN IFF :FORMALS (P Q) :BODY (IF P (IF Q 'T 'NIL) (IF Q 'NIL 'T)) :SOURCE :GROUND-ZERO)
 
-(:TYPE-PRESCRIPTION IFF :COROLLARY (IF (EQUAL (IFF P Q) 'T) 'T (EQUAL (IFF P Q) 'NIL)) :BASICTS 384 :LEAVES (('T 256 (P Q) ((Q -129) (P -129)) NIL) ('NIL 128 (P (NOT Q)) ((Q 128) (P -129)) NIL) ('NIL 128 ((NOT P) Q) ((Q -129) (P 128)) NIL) ('T 256 ((NOT P) (NOT Q)) ((Q 128) (P 128)) NIL)) :ALL-TPS (((:TYPE-PRESCRIPTION IFF) NIL 384 (IF (EQUAL (IFF P Q) 'T) 'T (EQUAL (IFF P Q) 'NIL)))))
+(:TYPE-PRESCRIPTION IFF :COROLLARY (IF (EQUAL (IFF P Q) 'T) 'T (EQUAL (IFF P Q) 'NIL)) :BASICTS 384 :LEAVES (('T 256 (P Q) ((Q -129) (P -129)) NIL) ('NIL 128 (P (NOT Q)) ((Q 128) (P -129)) NIL) ('NIL 128 ((NOT P) Q) ((Q -129) (P 128)) NIL) ('T 256 ((NOT P) (NOT Q)) ((Q 128) (P 128)) NIL)) :ALL-TPS (((:TYPE-PRESCRIPTION IFF) NIL 384 (IF (EQUAL (IFF P Q) 'T) 'T (EQUAL (IFF P Q) 'NIL)) (IFF P Q) (('T 256 (P Q) ((Q -129) (P -129)) NIL) ('NIL 128 (P (NOT Q)) ((Q 128) (P -129)) NIL) ('NIL 128 ((NOT P) Q) ((Q -129) (P 128)) NIL) ('T 256 ((NOT P) (NOT Q)) ((Q 128) (P 128)) NIL)))))
 
 (:GROUND-ZERO-RULES (((:REWRITE CONS-EQUAL) NIL EQUAL (EQUAL (CONS X1 Y1) (CONS X2 Y2)) (IF (EQUAL X1 X2) (EQUAL Y1 Y2) 'NIL) NIL)))
 

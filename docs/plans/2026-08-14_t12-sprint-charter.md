@@ -160,3 +160,70 @@ threat to project success, etc).
   (tp:QSORT); the recognizer-site channel (the trio); :CR-RUNE (two
   consumers). Driver queue: hypothetical-TP mode; the FILTER-opaque
   measured arg; SYNP hyp relief (class D).
+
+- **FORK ROUND-TRIP 2 SHIPPED (acl2 @ e8d78e513d, 2026-08-15).** Three
+  of the four asks landed; the fourth was scouted and skipped. Image
+  rebuilt POST-commit, `just recapture-all` 91/91 stamped at
+  e8d78e513d, golden movement ZERO (114/116, 98+16 — byte-identical
+  `.actual`; no world-header shift, no row status change), build green,
+  all 13 statics PASS, sorries unchanged (2), 15 `#guard_msgs` mirror
+  receipts green.
+  - **Ask 1 — per-`:ALL-TPS`-entry `:LEAVES`.** Entries are now
+    `(rune hyps basic-ts corollary term leaves)`. Prototyped in-image
+    BEFORE editing (the R2 discipline): `TRUE-LISTP-APPEND`'s leaves go
+    `(3072, *ts-unknown*)` → `(1024, 1152)` under `((TRUE-LISTP B))`,
+    both inside its basic-ts — the datum the admissibility gate needs.
+    Corpus cross-check: for all **1554** events whose definitional
+    stored rule has NIL hyps, the per-entry leaves reproduce the
+    existing top-level `:LEAVES` byte-for-byte.
+  - **Ask 2 — the recognizer-site channel** (`:ARG-LEAVES`, both
+    `rewrite-recognizer` records). Non-NIL on **12** records
+    corpus-wide, including all three trio books (06-measure,
+    07-mutual-recursion, 11-custom-measure). The trio's argument
+    `(IF (INTEGERP N) (IF (< N '0) '0 N) '0)` now carries leaves
+    `('0 1)`, `(N 7)`, `('0 1)` — union 7 = the emitted `:TYPESET`,
+    disjoint from CONSP's true-ts 3072.
+  - **Ask 3 — `:CR-RUNE`** on `solidify/rewriting-equiv`: 361 records,
+    all populated; the PERM-TLFIX step reads
+    `(:EQUIVALENCE PERM-IS-AN-EQUIVALENCE)` exactly as the G1 brief §2
+    predicted (the other 360 are EQUAL's fake anonymous rune).
+  - **Ask 4 — ground-zero admission clauses: SKIPPED, PREMISE
+    CONTRADICTED.** `emit-ground-zero-defuns` (ld.lisp) has emitted
+    `:MEASURE`/`:WFREL`/`:MEASURED` + `:TERMINATION-CLAUSES`
+    (recomputed fail-closed by `gz-termination-clauses`) since
+    006bebce9f. Corpus: 103 distinct ground-zero defun events, **zero**
+    recursive ones lacking clauses; O< and O-P carry full clause sets.
+    `total:O<` / `total:O-P` and `dis_o_lt_total` are therefore a
+    CONSUMPTION item, not an emission gap — the escape hatch was taken
+    and no fork edit was made.
+  - **J-RT2a:** the `infra/tp-leaves` collector family MOVED
+    `defuns.lisp` → `type-set-b.lisp`, bodies unchanged. rewrite.lisp
+    loads before defuns.lisp and ACL2 loads each source before
+    compiling it, so the recognizer channel's call would have been a
+    forward reference riding suppressed style warnings; a second copy
+    in rewrite.lisp is the near-clone the working discipline forbids.
+    type-set-b.lisp is also the collector's natural home — it mirrors
+    `type-set-rec`'s `'if` case, which lives there.
+  - **J-RT2b:** `:ALL-TPS` entries carry the rule's own `:term`. A
+    stored rule's hyps/corollary speak the RULE's variables
+    (`(BINARY-APPEND A B)`) not the fn's formals (`(X Y)`), so the body
+    is instantiated formals→term-args and all four fields share one
+    variable space. Fail-closed `er hard` if a `:term` is ever not a
+    call of matching arity.
+  - **J-RT2c:** `:ARG-LEAVES` is SCOPED to IF-valued arguments and
+    computed only inside the structured-log guard. For any other
+    argument the collector would merely repeat `:TYPESET` while
+    dragging the ambient type-alist into every recognizer record — the
+    item-I recapture incident's payload lesson.
+  - **J-RT2d:** the parser REFUSES the 4-field R2 `:ALL-TPS` shape
+    rather than half-reading it (`parse fully or hard-fail`); likewise
+    a present-but-non-rune `:CR-RUNE`. Honest caveat carried in both
+    the emitter tag and the Lean docstring: a stored rule proved by a
+    real theorem need not have its leaves inside its basic-ts, so a
+    consumer must fail closed rather than assume.
+  - **J-RT2e:** the two new field readers live in `ProofLogTypes.lean`
+    (`parseCrRuneField` / `parseArgLeavesField`), matching the existing
+    `parseSymbolListField` idiom, which keeps `ProofLog.lean` at its
+    1240-line ratchet cap instead of forcing a baseline loosening.
+    `TpLeaf` + its reader moved above `RewriteStep` in the same file so
+    `argLeaves : List TpLeaf` can be declared.

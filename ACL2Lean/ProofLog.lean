@@ -218,7 +218,9 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
         | some other => throw s!"REWRITE-STEP: malformed :SWAPPED-P {repr other}"
         | none => pure false
       let geneqv ← parseSymbolListField "GENEQV" (lookupKeyword "GENEQV" rest)
-      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, typeSet, trueTs, falseTs, strongp, canon1, canon2, taEntry, tauBasis, geneqv, path }
+      let crRune ← parseCrRuneField parseRune? (lookupKeyword "CR-RUNE" rest)
+      let argLeaves ← parseArgLeavesField (lookupKeyword "ARG-LEAVES" rest)
+      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, crRune, typeSet, trueTs, falseTs, strongp, argLeaves, canon1, canon2, taEntry, tauBasis, geneqv, path }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
