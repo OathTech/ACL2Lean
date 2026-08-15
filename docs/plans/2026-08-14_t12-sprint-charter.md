@@ -340,3 +340,39 @@ threat to project success, etc).
     likewise advanced past its ZP arm to
     `replayClauseSpine: ran out of items with no closer at Subgoal *1/2`
     — a structural spine frontier, diagnosed but not pursued.
+
+- **P3c COMPLETE in worktree (2026-08-15, pending collection):** the
+  EMERGENCY CHECK passed — worlds NEST (zero conflicting defun bodies
+  corpus-wide, verified pre-edit; equisort's encapsulate witnesses
+  correctly refused by the gate). The transfer = the dep's recorded
+  tree replayed ONCE at the consumer's world, addDecl'd, registered
+  (J-P3c-a: the evalOpt_world_mono transport route REJECTED —
+  callBuiltin's 55-arm match cannot produce equation lemmas at the
+  fixed whnf budget; re-replay is deterministic and sanctioned);
+  world-inclusion as a meta-level fail-closed gate (J-P3c-b: buys
+  principle, not soundness — the proof is a genuine replay);
+  cross-book misses are frontiers, same-book stay defects (J-P3c-c);
+  demand-only rune collector (J-P3c-d); diagnostics never in
+  res.lines (J-P3c-e). Three latent defects FIXED (equivrefl: arm;
+  usesFVar instantiates first; recompute-based candidate selection —
+  the two TRUE-LISTP-RMs verified genuinely distinct). Sweep to
+  quiescence (strict progress, cap 4). dischargeLinearHyp landed.
+  dis_convert_perm RETIRED → combined with P3b, SORRIES = 0.
+  Movement: rule:CONVERT-PERM ×7→0, rule:TRUE-LISTP-RM ×5→0,
+  linear: ×5→1, the :INCLUDE-BOOK totals retired, +6 more rule:
+  chains; ONE flagged addition (QSORT-IS-ISORT inherits
+  rule:(+ (+ x y) z) from its retired dep's own honest conds — net
+  −4/+1, reported not repinned, the arithmetic-rune family owns it).
+  COST: sorts-equivalent ~50→65 min elaboration (weigh at gate).
+  Known repin-time fixes: pins need crossDevs; two capstone pin
+  telescopes drop retired hypotheses (documented case).
+
+## POST-P3c REMAINING (pre-P4a-collection estimate)
+
+Rows conditional after merging P3b+P3c: the ARITHMETIC-RUNE FAMILY
+(rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z),
+rule:(+ x (if a b c)), rule:(equal (if a b c) x)) — ground-zero
+theorem class, likely the gz-discharger (D5) route; rule:ORDEREDP-APPEND
++ rule:TRUE-LISTP-BNEXT + linear:@sorts-equivalent (may cascade in the
+COMBINED quiescence sweep — P3c ran without P3b's retirements);
+tp:QSORT + the trio + CD2-BOUND (P4a, in flight).
