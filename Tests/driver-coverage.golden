@@ -47,7 +47,7 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     TRUE-LISTP-FLATTEN → REPLAYED ✓
 • 11-custom-measure  (world: 12 defun(s), 1 theorem(s))
     termination:CD2 → FAIL: replayRecognizer: value of (CONSP (IF (INTEGERP N) (IF (< N '0) '0 N) '0)) does not reduce to NIL (no TP hypothesis for IF; cited TP runes [])
-    CD2-BOUND → FAIL: dischargeDecrease: the NFIX measure row has no decrease walk — an NFIX decrease is arithmetic, not a destructor chain (frontier): (NFIX N)  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ✓ cond[total:(CD2 (BINARY-+ '-2 N)), tp:CD2], Subgoal *1/4:preprocess/tau-contradiction ✓ cond[total:(CD2 N), tp:CD2], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(CD2 N), tp:CD2]]
+    CD2-BOUND → FAIL: replayRecognizer: value of (INTEGERP N) does not reduce to T  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ✓ cond[total:(CD2 (BINARY-+ '-2 N)), tp:CD2], Subgoal *1/4:preprocess/tau-contradiction ✓ cond[total:(CD2 N), tp:CD2], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(CD2 N), tp:CD2]]
 • 12-multi-controller  (world: 12 defun(s), 1 theorem(s))
     LEN-ZIP2 → REPLAYED ✓  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ✓ cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2], Subgoal *1/1':preprocess/tau-contradiction ✓]
 • 13-multi-measured-var  (world: 11 defun(s), 1 theorem(s))
@@ -94,11 +94,11 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     HOW-MANY-SMALLER-BNEXT → REPLAYED ✓  [DISCHARGE: Subgoal *1/4.1:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY-SMALLER (CAR X) (BNEXT (CONS (CAR X) (CDR (CDR X))))), total:(HOW-MANY-SMALLER (CAR X) (CONS (CAR X) (CDR (CDR X)))), total:(HOW-MANY-SMALLER (CAR X) (CDR X)), tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER]]
     HOW-MANY-BAD-PAIRS-BNEXT → REPLAYED ✓  [DISCHARGE: Subgoal *1/6.1':simplify-clause/linear-contradiction ✓ cond[total:(BNEXT-SIZE (BNEXT (CONS (CAR X) (CDR (CDR X))))), total:(BNEXT-SIZE (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR X) (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR (CDR X)) (CDR (CDR X))), tp:BNEXT-SIZE, tp:BNEXT-SIZE, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER], Subgoal *1/5.1':simplify-clause/linear-contradiction ✓ cond[total:(BNEXT (CONS (CAR X) (CDR (CDR X)))), total:(BNEXT-SIZE (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR X) (CDR (CDR X))), total:(HOW-MANY-SMALLER (CAR (CDR X)) (CDR (CDR X))), tp:BNEXT, tp:BNEXT-SIZE, tp:HOW-MANY-SMALLER, tp:HOW-MANY-SMALLER], Subgoal *1/4'':preprocess/tau-contradiction ✓ cond[total:(BNEXT-SIZE (BNEXT (CDR X))), total:(BNEXT-SIZE (CDR X)), total:(BNEXT (CDR X)), total:(HOW-MANY-SMALLER (CAR X) (CDR X)), tp:BNEXT-SIZE, tp:BNEXT-SIZE, tp:BNEXT, tp:HOW-MANY-SMALLER]]
     ORDEREDP-WHEN-BNEXT-CONSTANT → REPLAYED ✓  [DISCHARGE: Subgoal *1/4.1.3'':simplify-clause/fc-contradiction ✓, Subgoal *1/4.1.2'':simplify-clause/fc-contradiction ✓ cond[total:(ORDEREDP (CONS X5 X6)), total:(BNEXT (CONS X5 X6)), tp:ORDEREDP, tp:BNEXT], Subgoal *1/4.1.1''':simplify-clause/fc-contradiction ✓]
-    ORDEREDP-BSORT → REPLAYED ✓ cond[total:BSORT, total:O<, total:O-P, linear:HOW-MANY-BAD-PAIRS-BNEXT]
+    ORDEREDP-BSORT → REPLAYED ✓ cond[total:O<, total:O-P, linear:HOW-MANY-BAD-PAIRS-BNEXT]
     TRUE-LISTP-BNEXT → REPLAYED ✓  [DISCHARGE: Subgoal *1/5:preprocess/type-set-fc ✓ cond[total:(BNEXT X), tp:BNEXT], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(BNEXT X), tp:BNEXT]]
-    TRUE-LISTP-BSORT → REPLAYED ✓ cond[total:BSORT, total:O<, total:O-P, linear:HOW-MANY-BAD-PAIRS-BNEXT]  [DISCHARGE: Subgoal *1/2:preprocess/tau ◌ assumed cond[total:(BNEXT X), total:(BSORT X), tp:BNEXT, ASSUMED:dp-fact]]
+    TRUE-LISTP-BSORT → REPLAYED ✓ cond[total:O<, total:O-P, linear:HOW-MANY-BAD-PAIRS-BNEXT]  [DISCHARGE: Subgoal *1/2:preprocess/tau ◌ assumed cond[total:(BNEXT X), total:(BSORT X), tp:BNEXT, ASSUMED:dp-fact]]
     HOW-MANY-BNEXT → REPLAYED ✓
-    HOW-MANY-BSORT → REPLAYED ✓ cond[total:BSORT, total:O<, total:O-P, linear:HOW-MANY-BAD-PAIRS-BNEXT]
+    HOW-MANY-BSORT → REPLAYED ✓ cond[total:O<, total:O-P, linear:HOW-MANY-BAD-PAIRS-BNEXT]
 • sorting/ordered-perms  (world: 21 defun(s), 6 theorem(s))
     ORDEREDP-RM → REPLAYED ✓
     ORDEREDP-MEMB → REPLAYED ✓  [DISCHARGE: Subgoal *1/1.2:simplify-clause/fc-contradiction ✓, Subgoal *1/1.1:simplify-clause/fc-contradiction ✓ cond[total:(ORDEREDP (CDR A)), total:(MEMB (CAR (CDR A)) (CDR A)), tp:ORDEREDP, tp:MEMB]]
