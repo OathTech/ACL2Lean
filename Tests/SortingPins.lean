@@ -97,6 +97,26 @@ def convertPermPinsTrees : List (String × ClauseProof) :=
     fun l => (ClauseTree.buildDevelopment l).toOption)).map
     Runner.bookTrees |>.getD []
 
+/-- The convert-perm DEVELOPMENT for the WP5 cross-book D1 transfer
+    (T1+2 sprint P3c collection, 2026-08-15): the pins' qsort run gets
+    the same dep development the sweep's crossDevs channel carries, so
+    the pinned rows match the sweep's transfer-era truth (the pinned
+    status lines below remain the drift detector). SCOPE: only this
+    dependency, per the trees note above. -/
+def convertPermPinsDevs : List (String × Development) :=
+  -- (the perm dev rides along because PERM-TLFIX's transfer replay
+  -- consumes the replayed PERM-IS-AN-EQUIVALENCE cross-book — the
+  -- sweep's accumulated crossDevs carry it; the pins mirror that
+  -- exactly and nothing more.)
+  (match (ProofLog.parse permLog).toOption.bind
+      fun l => (ClauseTree.buildDevelopment l).toOption with
+   | some d => [("sorting/perm", d)]
+   | none => []) ++
+  (match (ProofLog.parse convertPermLog).toOption.bind
+      fun l => (ClauseTree.buildDevelopment l).toOption with
+   | some d => [("sorting/convert-perm-to-how-many", d)]
+   | none => [])
+
 /-- The parsed isort development — the ONLY input is the log (as in the sweep). -/
 def isortPinsDev : Development :=
   load_development% isortLog
@@ -152,6 +172,7 @@ elab "sorting_statement_pins_run% " : term => do
     (upTo := some "HOW-MANY-ISORT") (crossTrees := convertPermPinsTrees)
   let (r2, _) ← Runner.runBook "pins/sorting/qsort" qsortLog
     (upTo := some "TRUE-LISTP-QSORT") (crossTrees := convertPermPinsTrees)
+    (crossDevs := convertPermPinsDevs)
   -- P4 books (Phase 7): each pinned at its earliest green row that
   -- exercises the book's own defuns; bsort gets the convert-perm trees
   -- like the sweep (the cross-book rule: discharge — without them the
@@ -224,8 +245,11 @@ elab "sorting_statement_pins_run% " : term => do
       -- duality + the EQUAL-alias reading of the recomputed ground-zero
       -- rulers make O<'s admission REPLAY from ACL2's own emitted
       -- :TERMINATION-CLAUSES, so the hypothesis left the telescope.)
+      -- (rule:CONVERT-PERM-TO-HOW-MANY dropped 2026-08-15 — T1+2
+      -- sprint P3c: the WP5 cross-book D1 transfer replays the
+      -- dependency at this world, so the hypothesis left the
+      -- telescope. INTENTIONAL; diagnosed row-by-row.)
       "    PERM-QSORT → REPLAYED ✓ cond[\
-rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
      ("pins/sorting/qsort",
@@ -246,8 +270,11 @@ cond[total:(QSORT X), tp:QSORT]]"),
       -- see PERM-QSORT above; tp:ACL2-COUNT dropped 2026-08-14 — the
       -- D-A consumer, also see PERM-QSORT.)
       -- (total:O< dropped 2026-08-15 — see PERM-QSORT above.)
+      -- (rule:CONVERT-PERM-TO-HOW-MANY dropped 2026-08-15 — T1+2
+      -- sprint P3c: the WP5 cross-book D1 transfer replays the
+      -- dependency at this world, so the hypothesis left the
+      -- telescope. INTENTIONAL; diagnosed row-by-row.)
       "    ORDEREDP-QSORT → REPLAYED ✓ cond[\
-rule:CONVERT-PERM-TO-HOW-MANY, \
 rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
 rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
      ("pins/sorting/perm",
@@ -422,14 +449,12 @@ example :
       -- diagnosed against the golden.)
       -- (the not-memb-implies-how-many-is-0 hypothesis is GONE: discharged
       -- CROSS-BOOK from the dependency book's replayed tree — 2a)
-      -- convert-perm-to-how-many:
-      --   (equal (perm x y) (equal (how-many (perm-counter-example x y) x)
-      --                            (how-many (perm-counter-example x y) y)))
-      ruleEqHyp qsortPinsWorld
-        (ap2 "PERM" (sym "X") (sym "Y"))
-        (ap2 "EQUAL"
-          (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
-          (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y"))) →
+      -- (rule:CONVERT-PERM-TO-HOW-MANY RETIRED 2026-08-15 — T1+2
+      -- sprint P3c collection: the WP5 cross-book D1 transfer replays
+      -- the dependency at this world (the pins run now carries the
+      -- same crossDevs channel as the sweep), so the hypothesis left
+      -- the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- the arithmetic-3 commutativity/associativity family + the two
       -- if-lifting rules (all unconditional; cited by HOW-MANY-QSORT's own
       -- replay, inherited since its rule: condition discharges from its
@@ -776,14 +801,12 @@ example :
       -- left the telescope and the pinned type drops it. INTENTIONAL;
       -- diagnosed against the golden.)
       -- (not-memb-implies-how-many-is-0: discharged cross-book, 2a)
-      -- convert-perm-to-how-many:
-      --   (equal (perm x y) (equal (how-many (perm-counter-example x y) x)
-      --                            (how-many (perm-counter-example x y) y)))
-      ruleEqHyp qsortPinsWorld
-        (ap2 "PERM" (sym "X") (sym "Y"))
-        (ap2 "EQUAL"
-          (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
-          (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y"))) →
+      -- (rule:CONVERT-PERM-TO-HOW-MANY RETIRED 2026-08-15 — T1+2
+      -- sprint P3c collection: the WP5 cross-book D1 transfer replays
+      -- the dependency at this world (the pins run now carries the
+      -- same crossDevs channel as the sweep), so the hypothesis left
+      -- the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- the arithmetic-3 commutativity/associativity family + the two
       -- if-lifting rules (all unconditional; cited by HOW-MANY-QSORT's own
       -- replay, inherited since its rule: condition discharges from its
@@ -1074,8 +1097,11 @@ example :
       -- (tp:HOW-MANY RETIRED 2026-08-12 — the TP prover's BINARY-+
       -- return path; tp:INSERT and tp:EVENS RETIRED 2026-08-13 — the
       -- CONS return-path shape. All three left the telescope.)
-      trueListpRmHyp sortsEqPinsWorld →
-      convertPermHyp sortsEqPinsWorld →
+      -- (rule:TRUE-LISTP-RM and rule:CONVERT-PERM-TO-HOW-MANY RETIRED
+      -- 2026-08-15 — T1+2 sprint P3c: the WP5 cross-book D1 transfer
+      -- replays both dependencies at this world, so both hypotheses
+      -- left the telescope and the row is UNCONDITIONAL. INTENTIONAL;
+      -- diagnosed row-by-row against the golden.)
       EvTrue sortsEqPinsWorld env
         (ap2 "EQUAL" (ap1 "MSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
   ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
@@ -1095,7 +1121,10 @@ example :
     ∀ (env : Env),
       -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — the ATOM leg;
       -- it led this telescope in the pre-purge text.)
-      totalHyp1 sortsEqPinsWorld "QSORT" →
+      -- (total:QSORT RETIRED 2026-08-15 — T1+2 sprint P3c: the
+      -- cross-book ADMISSION pre-pass replays QSORT's recorded
+      -- admission at this world (:INCLUDE-BOOK source), so the
+      -- hypothesis left the telescope. INTENTIONAL.)
       -- (total:O< RETIRED 2026-08-15 — T1+2 sprint P3b: the ORDINAL
       -- registry row (Replay/OrdinalSim) + the O-FINP recognizer
       -- duality + the world-read EQUAL-alias normalization of ACL2's
@@ -1114,13 +1143,20 @@ example :
       -- the stored strengthening (TRUE-LISTP-APPEND, now visible in
       -- :ALL-TPS) arrives without per-rule leaves. FORK-EMISSION item.
       tpPred1 sortsEqPinsWorld "QSORT" Logic.trueListp →
-      trueListpRmHyp sortsEqPinsWorld →
-      convertPermHyp sortsEqPinsWorld →
+      -- (rule:TRUE-LISTP-RM and rule:CONVERT-PERM-TO-HOW-MANY RETIRED
+      -- 2026-08-15 — the WP5 transfer, see MSORT-IS-ISORT above.)
       ruleEqHyp sortsEqPinsWorld
         (ap2 "BINARY-+" (sym "Y") (sym "X"))
         (ap2 "BINARY-+" (sym "X") (sym "Y")) →
       ruleEqHyp sortsEqPinsWorld
         (ap2 "BINARY-+" (sym "Y") (ap2 "BINARY-+" (sym "X") (sym "Z")))
+        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
+      -- (rule:(+ (+ x y) z) JOINED the telescope 2026-08-15 — P3c:
+      -- retiring rule:HOW-MANY-FILTER-1 inherits that dependency's own
+      -- honest kept condition (net −4/+1 premises). INTENTIONAL;
+      -- diagnosed — the arithmetic-rune family owns its retirement.)
+      ruleEqHyp sortsEqPinsWorld
+        (ap2 "BINARY-+" (ap2 "BINARY-+" (sym "X") (sym "Y")) (sym "Z"))
         (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
       ruleEqHyp sortsEqPinsWorld
         (ap2 "BINARY-+" (sym "X") (ap3 "IF" (sym "A") (sym "B") (sym "C")))
@@ -1132,16 +1168,10 @@ example :
         (ap3 "IF" (sym "A")
           (ap2 "EQUAL" (sym "B") (sym "X"))
           (ap2 "EQUAL" (sym "C") (sym "X"))) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "BINARY-+"
-          (ap2 "HOW-MANY" (sym "E")
-            (ap3 "FILTER" (qt (sym "LT")) (sym "X") (sym "D")))
-          (ap2 "HOW-MANY" (sym "E")
-            (ap3 "FILTER" (qt (sym "GTE")) (sym "X") (sym "D"))))
-        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "HOW-MANY" (sym "E") (ap1 "QSORT" (sym "X")))
-        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+      -- (rule:HOW-MANY-FILTER-1 and rule:HOW-MANY-QSORT RETIRED
+      -- 2026-08-15 — P3c: both are qsort-book theorems the transfer
+      -- now replays at this world; FILTER-1's own arithmetic premise
+      -- surfaces above. INTENTIONAL.)
       ruleEqHyp1 sortsEqPinsWorld
         (ap1 "ORDEREDP" (sym "A"))
         (ap1 "ORDEREDP"

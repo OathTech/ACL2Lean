@@ -1230,8 +1230,26 @@ def dischargeGzRuleHyp (cfg : ReplayConfig) (spec : RuleSpec) (decl : Name)
     `dischargeRuleHyp` APPLIES the constant instead of re-replaying the
     dependency's tree per consumer — the kernel checks each proof once and a
     reference is O(1), collapsing the multiplicative dependency-tree blowup
-    (the ≈557M-node perm-equivalence precedent, design §4). -/
-abbrev ReplayedRegistry := List (String × Name × List String)
+    (the ≈557M-node perm-equivalence precedent, design §4).
+
+    `formula` is the dependency's TRANSLATED Goal clause — the entry's
+    identity beyond its name (WP5, the cross-book transfer: two books can
+    each carry a theorem called TRUE-LISTP-RM, and a name-only lookup
+    picks whichever came first). `crossBook` marks an entry produced by
+    the WP5 pre-pass — a dependency book's tree replayed at the CONSUMER's
+    world. Such an entry's kept conditions were chosen by the DEPENDENCY
+    book's telescope, so the consumer need not offer them: a missing
+    mapping is a FRONTIER (hypothesis kept), where for a same-book entry
+    it stays an internal DEFECT. -/
+structure ReplayedEntry where
+  thm : String
+  decl : Name
+  conds : List String
+  formula : SExpr
+  crossBook : Bool := false
+  deriving Repr, Inhabited
+
+abbrev ReplayedRegistry := List ReplayedEntry
 
 /-- Macro-side D1 registry (P3, the capstone REPLAYED-STATEMENT finding —
     the dated label said "capstone-mirror"; this layer is replayed
@@ -1247,8 +1265,8 @@ abbrev ReplayedRegistry := List (String × Name × List String)
     an `initialize` cannot be evaluated in its defining module. -/
 initialize replayedRegistryExt :
     Lean.SimplePersistentEnvExtension
-      (Name × String × Name × List String)
-      (List (Name × String × Name × List String)) ←
+      (Name × String × Name × List String × SExpr)
+      (List (Name × String × Name × List String × SExpr)) ←
   Lean.registerSimplePersistentEnvExtension {
     addEntryFn := fun l e => e :: l
     addImportedFn := fun ess => (ess.map (·.toList)).toList.flatten }

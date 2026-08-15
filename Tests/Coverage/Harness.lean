@@ -214,7 +214,8 @@ elab "coverage_book% " nameLit:str : command => do
           pure acc
     let t0 ← IO.monoMsNow
     let (r, _, _) ← runBook name content
-      (crossTreesByBook := crossTreesByBook) (crossRules := crossRules)
+      (crossTreesByBook := crossTreesByBook) (crossDevs := crossDevs)
+      (crossRules := crossRules)
       -- R7b 2c/D2 (comment corrected per close-out audit inside M2 —
       -- it previously described the reverted disabled state): the usefi
       -- discharge is ENABLED and runs in-sweep. The SIGABRT class was

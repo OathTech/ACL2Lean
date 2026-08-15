@@ -3674,36 +3674,18 @@ theorem pce_exec_corr (w : World)
    by DELETION + consumer rewiring, never by a Lean re-proof (the
    thin-Lean rule); every consumer simply drops the argument. -/
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `rule:CONVERT-PERM-TO-HOW-MANY` — the stored included-book rule's
-    content — Lean-side; content ACL2 derives. Statement kept as the
-    named premise; proof retired to `sorry`. UNLOCK: the R-lane arc
-    (PERM-TLFIX replay → CONVERT-PERM-TO-HOW-MANY discharge via the
-    replayed tree). -/
-theorem dis_convert_perm (w : World)
-    (h_perm : w.defs.get? { package := "ACL2", name := "PERM" }
-      = some ([{ package := "ACL2", name := "X" },
-               { package := "ACL2", name := "Y" }], permBody))
-    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
-      = some ([{ package := "ACL2", name := "A" },
-               { package := "ACL2", name := "X" }], membBody))
-    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
-      = some ([{ package := "ACL2", name := "E" },
-               { package := "ACL2", name := "X" }], rmBody))
-    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
-    (h_pce : w.defs.get? pce_sym = some ([xS, yS], pceBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
-    ∀ env' : Env, ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (permT xT yT)
-        = evalOpt f w env'
-            (equalT (howManyT (pceT xT yT) xT)
-              (howManyT (pceT xT yT) yT)) := by
-  sorry
+/- `dis_convert_perm` — DELETED 2026-08-15 (T1+2 sprint P3c, the
+   CROSS-BOOK D1 TRANSFER / WP5). It carried
+   `rule:CONVERT-PERM-TO-HOW-MANY` as FORBIDDEN-DEBT because the rule's
+   dependency theorem lives in ANOTHER book: the D1 replayed registry was
+   per-book, so the cross-book discharge fell through to re-replaying
+   convert-perm-to-how-many's tree inside the qsort telescope, which
+   walled. With the transfer (`Runner.crossBookRegistry`) the dependency
+   book's recorded tree is replayed ONCE at the qsort world — in its OWN
+   book's channels, world-inclusion gated — and the discharge APPLIES
+   that constant. Retired by DELETION + consumer rewiring, never by a
+   Lean re-proof (the thin-Lean rule); the qsort waypoint rows simply
+   drop the argument and widen their `deps` to the sweep's set. -/
 
 /-! ## PERM-QSORT -/
 

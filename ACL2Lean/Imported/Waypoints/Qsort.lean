@@ -1,5 +1,6 @@
 import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.Imported.Waypoints.ConvertPerm
+import ACL2Lean.Imported.Waypoints.OrderedPerms
 import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Waypoints
@@ -280,7 +281,8 @@ set_option maxHeartbeats 4000000 in
     hypotheses: PCE/O< totality, the HOW-MANY/ACL2-COUNT TP corollaries,
     and the seven rule conditions incl. CONVERT-PERM-TO-HOW-MANY). -/
 def permQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
-  "perm-qsort" with_termination deps [convertPermDev]
+  "perm-qsort" with_termination
+  deps [permDev, convertPermDev, orderedPermsDev]
 
 set_option maxHeartbeats 1600000 in
 theorem permQsortReplayed_uncond (env : Env) :
@@ -295,9 +297,10 @@ theorem permQsortReplayed_uncond (env : Env) :
     -- duality make the driver PROVE both admissions from ACL2's own
     -- emitted ground-zero termination clauses, so the hypotheses left
     -- the telescope and `dis_o_lt_total` was deleted.)
-    (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
+    -- (rule:CONVERT-PERM-TO-HOW-MANY RETIRED, T1+2 sprint P3c
+    -- 2026-08-15 — the cross-book D1 transfer replays the dependency
+    -- at this world, so the hypothesis left the telescope and
+    -- `dis_convert_perm` was deleted.)
     (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
@@ -327,7 +330,8 @@ set_option maxHeartbeats 4000000 in
     `rule:ORDEREDP-APPEND`; `tp:ALL-REL` is now supplied by the
     driver's TP prover). -/
 def orderedpQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
-  "orderedp-qsort" with_termination deps [convertPermDev]
+  "orderedp-qsort" with_termination
+  deps [permDev, convertPermDev, orderedPermsDev]
 
 set_option maxHeartbeats 1600000 in
 theorem orderedpQsortReplayed_uncond (env : Env) :
@@ -340,9 +344,10 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
     -- duality make the driver PROVE both admissions from ACL2's own
     -- emitted ground-zero termination clauses, so the hypotheses left
     -- the telescope and `dis_o_lt_total` was deleted.)
-    (Worlds.Sorting.dis_convert_perm qsortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
+    -- (rule:CONVERT-PERM-TO-HOW-MANY RETIRED, T1+2 sprint P3c
+    -- 2026-08-15 — the cross-book D1 transfer replays the dependency
+    -- at this world, so the hypothesis left the telescope and
+    -- `dis_convert_perm` was deleted.)
     (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
     (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))

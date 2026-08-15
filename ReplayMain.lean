@@ -50,6 +50,10 @@ unsafe def main (args : List String) : IO Unit := do
     | _ => throw <| IO.userError usage
   let mut crossTrees : List (String × ACL2.ClauseProof) := []
   let mut crossRules : List ACL2.RuleSpec := []
+  -- WP5: the dep DEVELOPMENTS drive the cross-book D1 transfer pre-pass —
+  -- without them a focused row would differ from the sweep's again (the
+  -- exact parity property this CLI's docstring promises).
+  let mut crossDevs : List (String × ACL2.Development) := []
   for dp in depPaths do
     let c ← IO.FS.readFile dp
     match ACL2.ProofLog.parse c with
@@ -59,6 +63,7 @@ unsafe def main (args : List String) : IO Unit := do
       | .error e => throw (IO.userError s!"deps {dp}: recon error: {e}")
       | .ok ddev =>
         crossTrees := crossTrees ++ bookTrees ddev
+        crossDevs := crossDevs ++ [(dp, ddev)]
         crossRules := crossRules ++ (allBookRules ddev).filter
           (fun r => !crossRules.any (fun o => o.runeKey == r.runeKey))
   let tR0 ← IO.monoMsNow
@@ -84,7 +89,8 @@ unsafe def main (args : List String) : IO Unit := do
   let act : MetaM (BookResult × List (String × ACL2.ClauseProof)
       × List ACL2.RuleSpec) :=
     Elab.Term.TermElabM.run' (runBook name content upTo? (timings := true)
-      (crossTrees := crossTrees) (crossRules := crossRules))
+      (crossTrees := crossTrees) (crossDevs := crossDevs)
+      (crossRules := crossRules))
   let ((res, _), _) ← (act.run' {} {}).toIO coreCtx { env }
   let t1 ← IO.monoMsNow
   for l in res.lines do IO.println l

@@ -41,6 +41,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
   -- a missing tree keeps the hypothesis).
   let mut crossTrees : List (String × ClauseProof) := []
   let mut crossRules : List ACL2.RuleSpec := []
+  let mut crossDevs : List (String × Development) := []
   if let some d := deps then
     -- depsClauseDR children: [0] atom " deps " [1] "[" [2] sepBy [3] "]"
     for depId in (d.raw[2].getSepArgs.map (fun a => (⟨a⟩ : Ident))) do
@@ -48,6 +49,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
       let depDev ← unsafe Meta.evalExpr Development
         (mkConst ``ACL2.Development) (mkConst depName)
       crossTrees := crossTrees ++ ACL2.Replay.Runner.bookTrees depDev
+      crossDevs := crossDevs ++ [(depName.toString, depDev)]
       -- P3 cross-rules: the dep book's stored rules ride with its trees
       crossRules := crossRules
         ++ (ACL2.Replay.Runner.allBookRules depDev).filter
@@ -122,10 +124,27 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
     let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
       (mkConst worldName) env termReplayed
-    let replayed : ACL2.Replay.Driver.ReplayedRegistry :=
+    -- SAME-WORLD entries: earlier `driver_replayed%` definitions over THIS
+    -- world constant (the macro-side D1 registry).
+    let sameWorld : ACL2.Replay.Driver.ReplayedRegistry :=
       ((replayedRegistryExt.getState (← getEnv)).filterMap
-        fun (wn, thm, decl, conds) =>
-          if wn == worldName then some (thm, decl, conds) else none)
+        fun (wn, thm, decl, conds, formula) =>
+          if wn == worldName then
+            some { thm := thm, decl := decl, conds := conds,
+                   formula := formula }
+          else none)
+    -- WP5 CROSS-BOOK TRANSFER: the `deps [...]` books' demanded theorems
+    -- replayed at THIS world (world-inclusion gated, `addDecl`'d once and
+    -- cached by constant name across invocations in the same module).
+    let (crossReg, _crossTerm) ←
+      if crossDevs.isEmpty then
+        pure (([] : ACL2.Replay.Driver.ReplayedRegistry),
+              ([] : List (String × Name × List String × List SExpr)))
+      else
+        (ACL2.Replay.Runner.crossBookRegistry worldName.toString dev.toWorld
+          (mkConst worldName) crossDevs
+          (ACL2.Replay.Runner.bookCitedNames dev))
+    let replayed := sameWorld ++ crossReg
     let (proof, conds) ← replayProofConditional cfg ch.tps cp
       dev.justifications
       (ACL2.Replay.Runner.combineRules
@@ -152,7 +171,8 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
         refusing to register the replayed statement; fix the leaf's emission instead"
     if let some declName ← Lean.Elab.Term.getDeclName? then
       Lean.modifyEnv fun e =>
-        replayedRegistryExt.addEntry e (worldName, cp.name, declName, conds)
+        replayedRegistryExt.addEntry e (worldName, cp.name, declName, conds,
+          disjoinTerm ((cp.root.map (·.inputClause)).getD []))
     Meta.mkLambdaFVars #[env] proof
 
 /-- `parametric_replayed% dev "thm-name" [deps […]]` — the PARAMETRIC

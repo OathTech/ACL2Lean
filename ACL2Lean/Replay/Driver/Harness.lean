@@ -19,39 +19,77 @@ def replayProof (cfg : ReplayConfig) (cp : ClauseProof) : MetaM Expr := do
   | none => throwError "replayProof: theorem {cp.name} has no proof tree"
   | some root => replayClause cfg ReplayCtx.empty root
 
+/-- Select the D1 registry entry for a dependency by NAME **and** by its
+    translated Goal FORMULA (WP5): the corpus carries two distinct
+    `TRUE-LISTP-RM` theorems (convert-perm-to-how-many's and
+    ordered-perms'), and a name-only lookup silently takes whichever entry
+    was registered first. A name match whose formula differs is NOT this
+    dependency — skip it; several entries agreeing on both are the same
+    statement, so the first is used. -/
+def findReplayedEntry (replayed : ReplayedRegistry) (name : String)
+    (formula : SExpr) : Option ReplayedEntry :=
+  replayed.find? (fun e => e.thm == name && e.formula == formula)
+
+/-- Select the dependency tree named `name` whose single-literal translated
+    Goal IS `formula` (WP5, P3a latent defect 3). `depProofs` carries
+    same-book AND cross-book entries, so the former `List.lookup` could
+    hand back a DIFFERENT book's same-named theorem — the corpus's two
+    `TRUE-LISTP-RM`s are the live witness. The whole-formula dischargers
+    already asserted the formula afterwards, but as an untagged internal
+    error: selecting on it instead keeps the hypothesis (D6) when no
+    candidate matches. -/
+def findDepRoot? (depProofs : List (String × ClauseProof)) (name : String)
+    (formula : SExpr) : Option ClauseNode :=
+  depProofs.findSome? fun (n, c) =>
+    if n != name then none else
+    match c.root with
+    | some r => if r.inputClause == [formula] then some r else none
+    | none => none
+
 /-- The dependency theorem's replayed statement at `envV` — by APPLYING its D1 registry
     constant at the consumer's own telescope fvars when registered, else by
     replaying the dependency inside the shared telescope. Shared by
     `dischargeRuleHyp` and `dischargeCongHyp` (verbatim extraction, G2
-    rung 2 — plus the `cong:` condition arm). -/
+    rung 2 — plus the `cong:` condition arm).
+
+    WP5: an entry the CROSS-BOOK pre-pass produced (a dependency book's
+    tree replayed at THIS world) may keep conditions chosen by the
+    dependency book's own telescope — the consumer need not offer them.
+    Those mapping failures are FRONTIERS (the hypothesis stays visible,
+    D6); for a SAME-BOOK entry the consumer telescope does offer every
+    condition the dependency could keep, so a miss stays an internal
+    defect. -/
 def depReplayedProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     (depRoot : ClauseNode) (envV : Expr) (ctxD : ReplayCtx)
     (replayed : ReplayedRegistry) : MetaM Expr := do
-  match replayed.find? (fun (n, _, _) => n == name) with
-  | some (_, decl, depConds) => do
-    let condArgs ← depConds.toArray.mapM fun c => do
+  let formula := disjoinTerm depRoot.inputClause
+  match findReplayedEntry replayed name formula with
+  | some entry => do
+    let decl := entry.decl
+    -- fail-closed severity: cross-book entries frontier, same-book ones
+    -- surface as defects (see the docstring)
+    let miss : MessageData → MetaM Expr := fun m =>
+      if entry.crossBook then throwFrontier m else throwError m
+    let condArgs ← entry.conds.toArray.mapM fun c => do
       if c.startsWith "total:" then
         let fn := (c.drop "total:".length).toString
         let some h := ctx.totalHyps.lookup fn
-          | throwError "depReplayedProofAt: registry dependency \
-              {name} keeps {c}, absent from the consumer \
-              telescope (internal)"
+          | miss m!"depReplayedProofAt: registry dependency \
+              {name} keeps {c}, absent from the consumer telescope"
         pure h
       else if c.startsWith "tp:" then
         let fn := (c.drop "tp:".length).toString
         let some (_, _, h) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fn)
-          | throwError "depReplayedProofAt: registry dependency \
-              {name} keeps {c}, absent from the consumer \
-              telescope (internal)"
+          | miss m!"depReplayedProofAt: registry dependency \
+              {name} keeps {c}, absent from the consumer telescope"
         pure h
       else if c.startsWith "rule:" then
         let rn := (c.drop "rule:".length).toString
         match ctx.ruleHyps.filter (fun (r, _) => r.runeKey == rn) with
         | [(_, h)] => pure h
-        | [] => throwError "depReplayedProofAt: registry dependency \
-            {name} keeps {c}, absent from the consumer \
-            telescope (internal)"
-        | _ => throwError "depReplayedProofAt: registry dependency \
+        | [] => miss m!"depReplayedProofAt: registry dependency \
+            {name} keeps {c}, absent from the consumer telescope"
+        | _ => miss m!"depReplayedProofAt: registry dependency \
             {name} keeps {c} but the consumer telescope offers \
             several same-named rules (ambiguous — refuse rather than \
             guess)"
@@ -59,16 +97,14 @@ def depReplayedProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         let rn := (c.drop "linear:".length).toString
         match ctx.linearHyps.filter (fun (r, _) => r.name == rn) with
         | [(_, h)] => pure h
-        | _ => throwError "depReplayedProofAt: registry dependency \
-            {name} keeps {c}, absent or ambiguous in the consumer \
-            telescope (internal)"
+        | _ => miss m!"depReplayedProofAt: registry dependency \
+            {name} keeps {c}, absent or ambiguous in the consumer telescope"
       else if c.startsWith "cong:" then
         let cn := (c.drop "cong:".length).toString
         match ctx.congHyps.filter (fun (s, _) => s.name == cn) with
         | [(_, h)] => pure h
-        | _ => throwError "depReplayedProofAt: registry dependency \
-            {name} keeps {c}, absent or ambiguous in the consumer \
-            telescope (internal)"
+        | _ => miss m!"depReplayedProofAt: registry dependency \
+            {name} keeps {c}, absent or ambiguous in the consumer telescope"
       else if c.startsWith "use:" then
         -- a dependency replayed with a KEPT use: condition (R7a): the
         -- consumer's telescope offers it only when the same name is cited
@@ -77,25 +113,32 @@ def depReplayedProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         let un := (c.drop "use:".length).toString
         match ctx.useHyps.filter (fun (u, _) => u.name == un) with
         | [(_, h)] => pure h
-        | _ => throwError "depReplayedProofAt: registry dependency \
-            {name} keeps {c}, absent or ambiguous in the consumer \
-            telescope (internal)"
+        | _ => miss m!"depReplayedProofAt: registry dependency \
+            {name} keeps {c}, absent or ambiguous in the consumer telescope"
       else if c.startsWith "equivfull:" then
         let en := (c.drop "equivfull:".length).toString
         match ctx.equivFullHyps.filter (fun (e, _) => e.name == en) with
         | [(_, h)] => pure h
-        | _ => throwError "depReplayedProofAt: registry dependency \
-            {name} keeps {c}, absent or ambiguous in the consumer \
-            telescope (internal)"
+        | _ => miss m!"depReplayedProofAt: registry dependency \
+            {name} keeps {c}, absent or ambiguous in the consumer telescope"
+      else if c.startsWith "equivrefl:" then
+        -- LATENT DEFECT (P3a, fixed WP5): the arm was MISSING, so a
+        -- dependency keeping its equivalence rule's reflexivity component
+        -- fell through to the untagged catch-all below and ABORTED the
+        -- consumer's replay instead of keeping the hypothesis.
+        let en := (c.drop "equivrefl:".length).toString
+        match ctx.equivReflHyps.filter (fun (s, _) => s.name == en) with
+        | [(_, h)] => pure h
+        | _ => miss m!"depReplayedProofAt: registry dependency \
+            {name} keeps {c}, absent or ambiguous in the consumer telescope"
       else if c.startsWith "tpthm:" then
         let tn := (c.drop "tpthm:".length).toString
         match ctx.tpThmHyps.filter (fun (s, _) => s.name == tn) with
         | [(_, h)] => pure h
-        | _ => throwError "depReplayedProofAt: registry dependency \
-            {name} keeps {c}, absent or ambiguous in the consumer \
-            telescope (internal)"
-      else throwError "depReplayedProofAt: registry dependency \
-          {name} keeps unrecognized condition {c} (internal)"
+        | _ => miss m!"depReplayedProofAt: registry dependency \
+            {name} keeps {c}, absent or ambiguous in the consumer telescope"
+      else miss m!"depReplayedProofAt: registry dependency \
+          {name} keeps unrecognized condition {c}"
     pure (mkAppN (mkConst decl) (#[envV] ++ condArgs))
   | none =>
     try replayClause { cfg with envExpr := envV } ctxD depRoot
@@ -116,27 +159,22 @@ def depReplayedProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     rule's :HYPS), then either the equality conclusion IS (equal lhs rhs), or
     the boolean-strengthened form (conclusion = lhs, rhs = 'T) pinned by the
     head fn's EMITTED :TYPE-PRESCRIPTION. All value-level: MP on
-    `Logic.implies`, two-valued `Logic.equal` decode, TP boolean pin. -/
+    `Logic.implies`, two-valued `Logic.equal` decode, TP boolean pin.
+
+    DEPENDENCY SELECTION is RECOMPUTE-BASED (WP5, P3a latent defect 3): the
+    candidate set is EVERY tree named `spec.name` (`depProofs` carries
+    same-book AND cross-book entries, and the corpus really does hold two
+    distinct `TRUE-LISTP-RM` theorems), filtered to those whose translated
+    Goal recomputes to THIS stored rule. Zero survivors, or survivors
+    disagreeing on the formula, is a frontier — never a first-match
+    guess. -/
 def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
     (depProofs : List (String × ClauseProof))
     (replayed : ReplayedRegistry := []) : MetaM Expr := do
-  let some cp := depProofs.lookup spec.name
-    | throwFrontier m!"dischargeRuleHyp: no dependency proof for rule {spec.name}"
-  let some depRoot := cp.root
-    | throwFrontier m!"dischargeRuleHyp: dependency {spec.name} has no proof tree"
-  let [formula] := depRoot.inputClause
-    | throwFrontier m!"dischargeRuleHyp: dependency {spec.name}'s Goal is not a                   single-literal clause (frontier)"
-  -- recompute-and-check the create-rewrite-rule normalization
-  let (hypsF, concl) := match formula with
-    | .cons (.atom (.symbol impS)) (.cons h (.cons c .nil)) =>
-      if impS.name == "IMPLIES" then (flattenAnd h, c) else ([], formula)
-    | _ => ([], formula)
-  unless hypsF == spec.hyps do
-    throwFrontier m!"dischargeRuleHyp: {spec.name}'s flattened antecedent                 {repr hypsF} ≠ the stored rule's :HYPS {repr spec.hyps}                 (normalization divergence — frontier)"
+  -- the create-rewrite-rule normalization, RECOMPUTED from a candidate's
+  -- translated Goal and CHECKED against the stored rule
   let eqForm : SExpr := .cons (.atom (.symbol { name := "EQUAL" }))
     (.cons spec.lhs (.cons spec.rhs .nil))
-  let routeEqual := spec.equiv == "equal" && concl == eqForm
-  let routeBool := spec.equiv == "equal" && concl == spec.lhs && spec.rhs == quoteT
   -- USER-equivalence rule (G2 rung 2): the stored rule's faithful statement
   -- is the interpreted relation — its defthm conclusion must BE the
   -- R-application `(R lhs rhs)`; the hypothesis body is then that term's
@@ -144,7 +182,6 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
   let relForm : SExpr := .cons
     (.atom (.symbol { name := spec.equiv.map Char.toUpper }))
     (.cons spec.lhs (.cons spec.rhs .nil))
-  let routeRel := spec.equiv != "equal" && concl == relForm
   -- NEGATIVE boolean strengthening (P3, ORDEREDP-MEMB's shape): a defthm
   -- conclusion `(NOT lhs)` stores as `lhs = 'NIL` — the truthy NOT pins
   -- the lhs VALUE to exactly nil (Logic.not is nil-dichotomous; no TP
@@ -153,10 +190,39 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
     (.cons spec.lhs .nil)
   let quoteNilS : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
     (.cons .nil .nil)
-  let routeNotBool := spec.equiv == "equal" && concl == notForm
-    && spec.rhs == quoteNilS
-  unless routeEqual || routeBool || routeRel || routeNotBool do
-    throwFrontier m!"dischargeRuleHyp: {spec.name}'s conclusion {repr concl}                 matches neither (equal lhs rhs), the boolean-strengthened                 lhs ⇒ 'T shape, nor the stored-equivalence application                 (frontier)"
+  -- (hypsF, concl, routeEqual, routeRel, routeNotBool) of a candidate
+  let route? : SExpr → Option (SExpr × Bool × Bool × Bool) := fun formula =>
+    let (hypsF, concl) := match formula with
+      | .cons (.atom (.symbol impS)) (.cons h (.cons c .nil)) =>
+        if impS.name == "IMPLIES" then (flattenAnd h, c) else ([], formula)
+      | _ => ([], formula)
+    if hypsF != spec.hyps then none else
+    let routeEqual := spec.equiv == "equal" && concl == eqForm
+    let routeBool := spec.equiv == "equal" && concl == spec.lhs
+      && spec.rhs == quoteT
+    let routeRel := spec.equiv != "equal" && concl == relForm
+    let routeNotBool := spec.equiv == "equal" && concl == notForm
+      && spec.rhs == quoteNilS
+    if routeEqual || routeBool || routeRel || routeNotBool then
+      some (concl, routeEqual, routeRel, routeNotBool)
+    else none
+  let cands := depProofs.filterMap fun (n, c) =>
+    if n != spec.name then none else
+    match c.root with
+    | some r => match r.inputClause with
+      | [f] => (route? f).map (fun rt => (c, r, f, rt))
+      | _ => none
+    | none => none
+  let some (_cp, depRoot, formula, (concl, routeEqual, routeRel, routeNotBool)) :=
+      cands.head?
+    | throwFrontier m!"dischargeRuleHyp: no dependency proof whose \
+        single-literal Goal recomputes to the stored rule {spec.name} \
+        (:HYPS {repr spec.hyps}; candidates \
+        {(depProofs.filter (·.1 == spec.name)).length}) — frontier"
+  unless cands.all (fun (_, _, f, _) => f == formula) do
+    throwFrontier m!"dischargeRuleHyp: several DISTINCT dependency Goals \
+        named {spec.name} recompute to the stored rule — refuse to guess \
+        (frontier)"
   let w := cfg.worldExpr
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
@@ -270,16 +336,10 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
 def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
     (depProofs : List (String × ClauseProof))
     (replayed : ReplayedRegistry := []) : MetaM Expr := do
-  let some cp := depProofs.lookup spec.name
-    | throwFrontier m!"dischargeCongHyp: no dependency proof for {spec.name}"
-  let some depRoot := cp.root
-    | throwFrontier m!"dischargeCongHyp: dependency {spec.name} has no proof tree"
-  let [formula] := depRoot.inputClause
-    | throwFrontier m!"dischargeCongHyp: dependency {spec.name}'s Goal is not \
-        a single-literal clause (frontier)"
-  unless formula == spec.formula do
-    throwError "dischargeCongHyp: {spec.name}'s Goal {repr formula} ≠ the \
-        offered congruence formula {repr spec.formula} (internal)"
+  let formula := spec.formula
+  let some depRoot := findDepRoot? depProofs spec.name formula
+    | throwFrontier m!"dischargeCongHyp: no dependency proof for \
+        {spec.name} with the offered congruence formula (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
@@ -297,18 +357,10 @@ def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
 def dischargeEquivFullHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     (spec : EquivFullSpec) (depProofs : List (String × ClauseProof))
     (replayed : ReplayedRegistry := []) : MetaM Expr := do
-  let some cp := depProofs.lookup spec.name
+  let formula := spec.formula
+  let some depRoot := findDepRoot? depProofs spec.name formula
     | throwFrontier m!"dischargeEquivFullHyp: no dependency proof for \
-        {spec.name}"
-  let some depRoot := cp.root
-    | throwFrontier m!"dischargeEquivFullHyp: dependency {spec.name} has no \
-        proof tree"
-  let [formula] := depRoot.inputClause
-    | throwFrontier m!"dischargeEquivFullHyp: dependency {spec.name}'s Goal \
-        is not a single-literal clause (frontier)"
-  unless formula == spec.formula do
-    throwError "dischargeEquivFullHyp: {spec.name}'s Goal {repr formula} ≠ \
-        the offered formula {repr spec.formula} (internal)"
+        {spec.name} with the offered formula (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
@@ -324,17 +376,10 @@ def dischargeEquivFullHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
 def dischargeTpThmHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     (spec : TpThmSpec) (depProofs : List (String × ClauseProof))
     (replayed : ReplayedRegistry := []) : MetaM Expr := do
-  let some cp := depProofs.lookup spec.name
-    | throwFrontier m!"dischargeTpThmHyp: no dependency proof for {spec.name}"
-  let some depRoot := cp.root
-    | throwFrontier m!"dischargeTpThmHyp: dependency {spec.name} has no \
-        proof tree"
-  let [formula] := depRoot.inputClause
-    | throwFrontier m!"dischargeTpThmHyp: dependency {spec.name}'s Goal is \
-        not a single-literal clause (frontier)"
-  unless formula == spec.formula do
-    throwError "dischargeTpThmHyp: {spec.name}'s Goal {repr formula} ≠ the \
-        offered formula {repr spec.formula} (internal)"
+  let formula := spec.formula
+  let some depRoot := findDepRoot? depProofs spec.name formula
+    | throwFrontier m!"dischargeTpThmHyp: no dependency proof for \
+        {spec.name} with the offered formula (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
@@ -355,16 +400,10 @@ def dischargeTpThmHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
 def dischargeUseHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : UseSpec)
     (depProofs : List (String × ClauseProof))
     (replayed : ReplayedRegistry := []) : MetaM Expr := do
-  let some cp := depProofs.lookup spec.name
-    | throwFrontier m!"dischargeUseHyp: no dependency proof for {spec.name}"
-  let some depRoot := cp.root
-    | throwFrontier m!"dischargeUseHyp: dependency {spec.name} has no proof tree"
-  let [formula] := depRoot.inputClause
-    | throwFrontier m!"dischargeUseHyp: dependency {spec.name}'s Goal is not \
-        a single-literal clause (frontier)"
-  unless formula == spec.formula do
-    throwError "dischargeUseHyp: {spec.name}'s Goal {repr formula} ≠ the \
-        offered use formula {repr spec.formula} (internal)"
+  let formula := spec.formula
+  let some depRoot := findDepRoot? depProofs spec.name formula
+    | throwFrontier m!"dischargeUseHyp: no dependency proof for \
+        {spec.name} with the offered use formula (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
@@ -387,30 +426,28 @@ def dischargeUseHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : UseSpec)
 def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     (spec : EquivReflSpec) (depProofs : List (String × ClauseProof))
     (replayed : ReplayedRegistry := []) : MetaM Expr := do
-  let some cp := depProofs.lookup spec.name
-    | throwFrontier m!"dischargeEquivReflHyp: no dependency proof for \
-        {spec.name}"
-  let some depRoot := cp.root
-    | throwFrontier m!"dischargeEquivReflHyp: dependency {spec.name} has no \
-        proof tree"
-  let [formula] := depRoot.inputClause
-    | throwFrontier m!"dischargeEquivReflHyp: dependency {spec.name}'s Goal \
-        is not a single-literal clause (frontier)"
   let rxx : SExpr := .cons (.atom (.symbol spec.rel))
     (.cons (.atom (.symbol spec.vx)) (.cons (.atom (.symbol spec.vx)) .nil))
   let qNil : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
     (.cons .nil .nil)
-  let c1 ← match formula with
-    | .cons (.atom (.symbol if1)) (.cons c1
-        (.cons (.cons (.atom (.symbol if2)) (.cons r2
-          (.cons _rest (.cons e2 .nil)))) (.cons e1 .nil))) =>
-      if if1.isNamed "IF" && if2.isNamed "IF" && r2 == rxx
-          && e1 == qNil && e2 == qNil then pure c1
-      else throwFrontier m!"dischargeEquivReflHyp: {spec.name}'s Goal \
-          {repr formula} is not the defequiv and-shape with the OFFERED \
-          reflexivity conjunct {repr rxx} second (frontier)"
-    | _ => throwFrontier m!"dischargeEquivReflHyp: {spec.name}'s Goal \
-        {repr formula} is not an IF-conjunction (frontier)"
+  -- RECOMPUTE-BASED selection (WP5 defect 3): every tree named `spec.name`
+  -- whose Goal IS the defequiv and-shape carrying the OFFERED reflexivity
+  -- conjunct — not the first same-named entry of `depProofs`.
+  let cands := depProofs.filterMap fun (n, c) =>
+    if n != spec.name then none else
+    match c.root with
+    | some r => match r.inputClause with
+      | [f@(.cons (.atom (.symbol if1)) (.cons c1
+          (.cons (.cons (.atom (.symbol if2)) (.cons r2
+            (.cons _rest (.cons e2 .nil)))) (.cons e1 .nil))))] =>
+        if if1.isNamed "IF" && if2.isNamed "IF" && r2 == rxx
+            && e1 == qNil && e2 == qNil then some (r, f, c1) else none
+      | _ => none
+    | none => none
+  let some (depRoot, formula, c1) := cands.head?
+    | throwFrontier m!"dischargeEquivReflHyp: no dependency proof named \
+        {spec.name} whose Goal is the defequiv and-shape with the OFFERED \
+        reflexivity conjunct {repr rxx} second (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
     let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
@@ -426,6 +463,80 @@ def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
     let body ← mkAppM ``evtrue_of_conv_ne_nil #[convR, hneR]
     let pf ← mkLambdaFVars #[envV] body
     mkExpectedTypeHint pf (← mkEquivReflHypType cfg spec)
+
+/-- DISCHARGE a `linear:<rune>` hypothesis from its defthm's replayed
+    statement (WP5 item 4). ACL2 stores a `:LINEAR` rule as
+    `(hyps ⊢ (< a b))` — a `<`-conclusion, i.e. exactly the R-route shape
+    `dischargeRuleHyp` already decodes: no equality decode, the hypothesis
+    body IS the conclusion term's truthiness.
+
+    The decode is a RECOMPUTE between two EMITTED artifacts — the defthm's
+    translated Goal and the `(:GROUND-ZERO-LINEAR-RULES …)` snapshot entry
+    (`hyps`/`concl` verbatim; `maxTerm` is instantiation metadata, not
+    content, and is deliberately not consulted). Strip `implies`, flatten
+    the `and`-antecedent (must equal the stored `:HYPS`), and the
+    conclusion must be the stored one VERBATIM. Any divergence keeps the
+    hypothesis (D6). Dependency selection is recompute-based, like
+    `dischargeRuleHyp`'s. -/
+def dischargeLinearHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (spec : LinearRuleSpec) (depProofs : List (String × ClauseProof))
+    (replayed : ReplayedRegistry := []) : MetaM Expr := do
+  let route? : SExpr → Bool := fun formula =>
+    let (hypsF, concl) := match formula with
+      | .cons (.atom (.symbol impS)) (.cons h (.cons c .nil)) =>
+        if impS.name == "IMPLIES" then (flattenAnd h, c) else ([], formula)
+      | _ => ([], formula)
+    hypsF == spec.hyps && concl == spec.concl
+  let cands := depProofs.filterMap fun (n, c) =>
+    if n != spec.name then none else
+    match c.root with
+    | some r => match r.inputClause with
+      | [f] => if route? f then some (r, f) else none
+      | _ => none
+    | none => none
+  let some (depRoot, formula) := cands.head?
+    | throwFrontier m!"dischargeLinearHyp: no dependency proof whose \
+        single-literal Goal recomputes to the stored :LINEAR rule \
+        {spec.name} (:HYPS {repr spec.hyps}, concl {repr spec.concl}) — \
+        frontier"
+  unless cands.all (fun (_, f) => f == formula) do
+    throwFrontier m!"dischargeLinearHyp: several DISTINCT dependency Goals \
+        named {spec.name} recompute to the stored :LINEAR rule — refuse to \
+        guess (frontier)"
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let cfgD := { cfg with envExpr := envV }
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
+                               branchFacts := [], segFacts := [] }
+    ctxD ← pinTermOpaques cfgD envV ctxD formula
+    let premDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      (spec.hyps.zipIdx.map fun (h, i) =>
+        (Name.mkSimple s!"h{i}", BinderInfo.default,
+         fun (_ : Array Expr) => do
+           pure (← mkAppM ``EvTrue
+             #[cfg.worldExpr, envV, reflectSExpr h]))).toArray
+    let ctxDFixed := ctxD
+    withLocalDecls premDecls fun premVs => do
+      let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxDFixed
+        replayed
+      let convF ← ctxValProof cfgD ctxDFixed formula
+      let hFne ← mkAppM ``ne_nil_of_evtrue_conv #[pDep, convF]
+      let hvC ←
+        if spec.hyps.isEmpty then pure hFne
+        else do
+          let hvHs ← (spec.hyps.zipIdx.toArray.mapM fun (h, i) => do
+            let convH ← ctxValProof cfgD ctxDFixed h
+            mkAppM ``ne_nil_of_evtrue_conv #[premVs[i]!, convH])
+          let rec andNe (hs : List Expr) : MetaM Expr := do
+            match hs with
+            | [] => throwError "dischargeLinearHyp: internal — no hyps"
+            | [h1] => pure h1
+            | h1 :: rest => mkAppM ``and_value_ne_nil #[h1, ← andNe rest]
+          let hvH ← andNe hvHs.toList
+          mkAppM ``implies_value_mp #[hFne, hvH]
+      let body ← mkAppM ``evtrue_of_conv_ne_nil
+        #[← ctxValProof cfgD ctxDFixed spec.concl, hvC]
+      let pf ← mkLambdaFVars (#[envV] ++ premVs) body
+      mkExpectedTypeHint pf (← mkLinearHypType cfg spec)
 
 /-- The CONDITIONAL generic replayed statement: bind the machine-generated hypothesis
     telescope (per defined fn: totality; plus the lifted TP corollary when one was
@@ -784,110 +895,126 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- re-replay is at most a theorem replay) makes each outcome
       -- individually far from its bound.
       let dischargeBudget : Nat := 3000000
+      -- LATENT DEFECT 2 (P3a, fixed WP5): `containsFVar` reads the
+      -- expression AS GIVEN — an fvar reachable only through an unassigned
+      -- metavariable's assignment is INVISIBLE to it, so a pass could skip
+      -- a hypothesis the proof really does use (and, symmetrically, `kept`
+      -- could under-report). Every occurrence test below goes through this
+      -- helper, which instantiates first.
+      let usesFVar (e : Expr) (v : Expr) : MetaM Bool := do
+        pure ((← instantiateMVars e).containsFVar v.fvarId!)
+      -- ONE discharge attempt: run `mk` under a fresh heartbeat window and
+      -- let-bind the result (every use site shares one copy); a TAGGED
+      -- frontier-class failure keeps the hypothesis (D6, like totality),
+      -- anything else is a real defect and is re-thrown (typed tag, not
+      -- message prefix — fail-closed audit N1).
+      let attempt (prf0 : Expr) (hypV : Expr) (mk : MetaM Expr) :
+          MetaM Expr := do
+        if !(← usesFVar prf0 hypV) then pure prf0 else
+        try
+          let pf ← withRealMaxHeartbeats dischargeBudget mk
+          letBindFVar prf0 hypV pf
+        catch e =>
+          unless isFrontierErr e do
+            throw e
+          pure prf0
       let dischargeCongs (prf0 : Expr) : MetaM Expr := do
         let mut prfC := prf0
         for (spec, hypV) in (congs.zip congVs.toList).reverse do
-          if discharge && prfC.containsFVar hypV.fvarId! then
-            try
-              let pf ← withRealMaxHeartbeats dischargeBudget <|
-                dischargeCongHyp cfg ctx spec depProofs replayed
-              prfC ← letBindFVar prfC hypV pf
-            catch e =>
-              unless isFrontierErr e do
-                throw e
+          if discharge then
+            prfC ← attempt prfC hypV (dischargeCongHyp cfg ctx spec depProofs
+              replayed)
         pure prfC
-      -- use:<thm> discharge (R7a) FIRST: a use discharge re-replays the
-      -- cited theorem's whole tree, which can consume rule:/cong:/
-      -- equivrefl:/total:/tp: fvars — all caught by the passes below. A
-      -- use-discharge that would itself need a use: fvar (nested :use
-      -- chains) frontiers and stays kept (honest; single pass).
-      -- PARAMETRIC mode (Phase 2 item c): `discharge := false` keeps EVERY
-      -- used hypothesis — over an abstract world the dischargers' kernel
-      -- decisions cannot run, and the kept telescope IS the parametric
-      -- statement's premise inventory (ScopeHolds' components).
-      for (spec, hypV) in (useSpecs.zip useVs.toList).reverse do
-        if discharge && prfR.containsFVar hypV.fvarId! then
-          try
-            let pf ← withRealMaxHeartbeats dischargeBudget <|
-              dischargeUseHyp cfg ctx spec depProofs replayed
-            prfR ← letBindFVar prfR hypV pf
-          catch e =>
-            unless isFrontierErr e do
-              throw e
-      -- usefi:<thm> discharge (R7b 2c): the CALLER-provided composition —
-      -- parametric rebuild of the cited theorem at the alias world built
-      -- from the emitted lambdas, crossed to this world by the FnAlias
-      -- transports. Injected as a callback because the composition needs
-      -- Runner-layer channel builders (layering); a frontier failure
-      -- keeps the hypothesis (D6), and callers passing none (all
-      -- pre-2c call sites) keep usefi: conds verbatim.
-      if let some dfi := usefiDischarge then
-        for (spec, hypV) in (useFiSpecs.zip useFiVs.toList).reverse do
-          if discharge && prfR.containsFVar hypV.fvarId! then
-            try
-              let pf ← withRealMaxHeartbeats dischargeBudget <| dfi ctx spec
-              prfR ← letBindFVar prfR hypV pf
-            catch e =>
-              unless isFrontierErr e do
-                throw e
-      prfR ← dischargeCongs prfR
-      -- equivfull:<thm> discharge (the R-solidify lane): whole-formula
-      -- from the dependency's replayed statement; BEFORE the rule pass
-      -- (its re-replay can consume rule:/cong:/total:/tp: fvars, all
-      -- caught below). Frontier failures keep the hypothesis (D6).
-      -- tpthm:<thm> discharge (the first :CLASSES consumer): same
-      -- whole-formula shape and pass discipline.
-      for (spec, hypV) in (tpThmSpecs.zip tpThmVs.toList).reverse do
-        if prfR.containsFVar hypV.fvarId! then
-          try
-            let pf ← withRealMaxHeartbeats dischargeBudget <|
-              dischargeTpThmHyp cfg ctx spec depProofs replayed
-            prfR ← letBindFVar prfR hypV pf
-          catch e =>
-            unless isFrontierErr e do
-              throw e
-      for (spec, hypV) in (equivFullSpecs.zip equivFullVs.toList).reverse do
-        if discharge && prfR.containsFVar hypV.fvarId! then
-          try
-            let pf ← withRealMaxHeartbeats dischargeBudget <|
-              dischargeEquivFullHyp cfg ctx spec depProofs replayed
-            prfR ← letBindFVar prfR hypV pf
-          catch e =>
-            unless isFrontierErr e do
-              throw e
-      -- equivrefl:<thm> discharge (P3, the ORDERED-PERMS replayed statement): projected
-      -- from the dependency's replayed statement; BEFORE the rule pass —
-      -- the dependency's replay can consume rule:/cong: fvars, caught by
-      -- the passes below. Frontier failures keep the hypothesis (D6).
-      for (spec, hypV) in (equivSpecs.zip equivVs.toList).reverse do
-        if discharge && prfR.containsFVar hypV.fvarId! then
-          try
-            let pf ← withRealMaxHeartbeats dischargeBudget <|
-              dischargeEquivReflHyp cfg ctx spec depProofs replayed
-            prfR ← letBindFVar prfR hypV pf
-          catch e =>
-            unless isFrontierErr e do
-              throw e
-      for (spec, hypV) in (rules.zip ruleVs.toList).reverse do
-        if discharge && prfR.containsFVar hypV.fvarId! then
-          try
-            let pf ← withRealMaxHeartbeats dischargeBudget <|
+      -- ONE SWEEP of every dependency-hypothesis pass, in the order the
+      -- lane's topology needs (see the per-pass notes below).
+      let dischargeSweep (prf0 : Expr) : MetaM Expr := do
+        let mut prfR := prf0
+        -- use:<thm> discharge (R7a) FIRST: a use discharge re-replays the
+        -- cited theorem's whole tree, which can consume rule:/cong:/
+        -- equivrefl:/total:/tp: fvars — all caught by the passes below.
+        -- PARAMETRIC mode (Phase 2 item c): `discharge := false` keeps
+        -- EVERY used hypothesis — over an abstract world the dischargers'
+        -- kernel decisions cannot run, and the kept telescope IS the
+        -- parametric statement's premise inventory (ScopeHolds').
+        for (spec, hypV) in (useSpecs.zip useVs.toList).reverse do
+          if discharge then
+            prfR ← attempt prfR hypV (dischargeUseHyp cfg ctx spec depProofs
+              replayed)
+        -- usefi:<thm> discharge (R7b 2c): the CALLER-provided composition —
+        -- parametric rebuild of the cited theorem at the alias world built
+        -- from the emitted lambdas, crossed to this world by the FnAlias
+        -- transports. Injected as a callback because the composition needs
+        -- Runner-layer channel builders (layering); a frontier failure
+        -- keeps the hypothesis (D6), and callers passing none (all
+        -- pre-2c call sites) keep usefi: conds verbatim.
+        if let some dfi := usefiDischarge then
+          for (spec, hypV) in (useFiSpecs.zip useFiVs.toList).reverse do
+            if discharge then
+              prfR ← attempt prfR hypV (dfi ctx spec)
+        prfR ← dischargeCongs prfR
+        -- tpthm:<thm> discharge (the first :CLASSES consumer):
+        -- whole-formula shape, same pass discipline.
+        for (spec, hypV) in (tpThmSpecs.zip tpThmVs.toList).reverse do
+          prfR ← attempt prfR hypV (dischargeTpThmHyp cfg ctx spec depProofs
+            replayed)
+        -- equivfull:<thm> discharge (the R-solidify lane): whole-formula
+        -- from the dependency's replayed statement; BEFORE the rule pass
+        -- (its re-replay can consume rule:/cong:/total:/tp: fvars, all
+        -- caught below). Frontier failures keep the hypothesis (D6).
+        for (spec, hypV) in (equivFullSpecs.zip equivFullVs.toList).reverse do
+          if discharge then
+            prfR ← attempt prfR hypV (dischargeEquivFullHyp cfg ctx spec
+              depProofs replayed)
+        -- equivrefl:<thm> discharge (P3, the ORDERED-PERMS replayed
+        -- statement): projected from the dependency's replayed statement;
+        -- BEFORE the rule pass — the dependency's replay can consume
+        -- rule:/cong: fvars, caught by the passes below.
+        for (spec, hypV) in (equivSpecs.zip equivVs.toList).reverse do
+          if discharge then
+            prfR ← attempt prfR hypV (dischargeEquivReflHyp cfg ctx spec
+              depProofs replayed)
+        -- linear:<rune> discharge (WP5 item 4): the stored :LINEAR rule's
+        -- `<`-conclusion decoded from its defthm's replayed statement.
+        for (spec, hypV) in (linearSpecs.zip linearVs.toList).reverse do
+          if discharge then
+            prfR ← attempt prfR hypV (dischargeLinearHyp cfg ctx spec
+              depProofs replayed)
+        for (spec, hypV) in (rules.zip ruleVs.toList).reverse do
+          if discharge then
+            prfR ← attempt prfR hypV <|
               -- a GROUND-ZERO rule has no dependency theorem to replay
               -- (boot-admitted, proofs skipped): its D5 prelude constant
               -- discharges it instead
               match d5GzRules.lookup spec.name with
               | some (decl, nsFn) => dischargeGzRuleHyp cfg spec decl nsFn
               | none => dischargeRuleHyp cfg ctx spec depProofs replayed
-            -- LET-bind, don't substitute: every use site shares one copy
-            prfR ← letBindFVar prfR hypV pf
-          catch e =>
-            -- keep ONLY the discharger's TAGGED frontier-class failures (the
-            -- hypothesis stays visible in the type — D6, like totality);
-            -- anything else is a real defect: surface it (typed tag, not
-            -- message prefix — fail-closed audit N1)
-            unless isFrontierErr e do
-              throw e
-      prfR ← dischargeCongs prfR
+        prfR ← dischargeCongs prfR
+        pure prfR
+      -- SWEEP TO QUIESCENCE (WP5 item 3). One pass is not a fixed point:
+      -- a discharge introduces the DEPENDENCY's own hypothesis uses, and
+      -- with the cross-book transfer those can land on classes an EARLIER
+      -- pass already walked. Iterate while a condition actually retires,
+      -- with a hard cap; no progress (or the cap) stops. Termination is
+      -- structural anyway — every iteration strictly shrinks the free-fvar
+      -- set or stops — the cap is the honest-mistake speedbump against a
+      -- discharger that re-introduces what it retired. Do not harden it.
+      let hypVsAll := (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs
+        ++ equivVs ++ equivFullVs ++ tpThmVs ++ linearVs ++ dpVs
+        ++ useFiVs).toList
+      let freeCount (e : Expr) : MetaM Nat := do
+        let ei ← instantiateMVars e
+        pure (hypVsAll.filter (fun v => ei.containsFVar v.fvarId!)).length
+      let mut sweepIters : Nat := 0
+      let mut before ← freeCount prfR
+      let mut sweeping := true
+      while sweeping do
+        prfR ← dischargeSweep prfR
+        sweepIters := sweepIters + 1
+        let after ← freeCount prfR
+        if after >= before || sweepIters >= 4 then
+          sweeping := false
+        else
+          before := after
       let prf ← instantiateMVars prfR
       -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
       -- not weaken the statement (hypothesis types are mutually independent, so

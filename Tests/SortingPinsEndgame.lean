@@ -155,7 +155,11 @@ example :
       -- diagnosed against the golden.)
       -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
       -- above: the CALLEE-TP return path, increment 3. INTENTIONAL.)
-      linearHMBPB bsortSweepWorld →
+      -- (linear:HOW-MANY-BAD-PAIRS-BNEXT RETIRED 2026-08-15 — T1+2
+      -- sprint P3c collection: dischargeLinearHyp decodes the stored
+      -- :LINEAR rule from its defthm's replayed statement (source row
+      -- unconditional), so the hypothesis left the telescope and the
+      -- pinned type drops it. INTENTIONAL; diagnosed row-by-row.)
       EvTrue bsortSweepWorld env (ap1 "ORDEREDP" (ap1 "BSORT" (sym "X"))) :=
   ReplayedStatements.replayed_sorting_bsort_ORDEREDP_BSORT
 
@@ -188,7 +192,11 @@ example :
       -- diagnosed against the golden.)
       -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
       -- above: the CALLEE-TP return path, increment 3. INTENTIONAL.)
-      linearHMBPB bsortSweepWorld →
+      -- (linear:HOW-MANY-BAD-PAIRS-BNEXT RETIRED 2026-08-15 — T1+2
+      -- sprint P3c collection: dischargeLinearHyp decodes the stored
+      -- :LINEAR rule from its defthm's replayed statement (source row
+      -- unconditional), so the hypothesis left the telescope and the
+      -- pinned type drops it. INTENTIONAL; diagnosed row-by-row.)
       EvTrue bsortSweepWorld env
         (ap2 "IMPLIES" (ap1 "TRUE-LISTP" (sym "X"))
           (ap1 "TRUE-LISTP" (ap1 "BSORT" (sym "X")))) :=
@@ -229,7 +237,11 @@ example :
       -- (tp:HOW-MANY RETIRED 2026-08-12 — same TP-replay route.)
       -- (tp:BNEXT-SIZE RETIRED 2026-08-13 — see HOW-MANY-BAD-PAIRS-BNEXT
       -- above: the CALLEE-TP return path, increment 3. INTENTIONAL.)
-      linearHMBPB bsortSweepWorld →
+      -- (linear:HOW-MANY-BAD-PAIRS-BNEXT RETIRED 2026-08-15 — T1+2
+      -- sprint P3c collection: dischargeLinearHyp decodes the stored
+      -- :LINEAR rule from its defthm's replayed statement (source row
+      -- unconditional), so the hypothesis left the telescope and the
+      -- pinned type drops it. INTENTIONAL; diagnosed row-by-row.)
       EvTrue bsortSweepWorld env
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (sym "E") (ap1 "BSORT" (sym "X")))
@@ -298,7 +310,9 @@ example :
       -- registered ROW, so its totality REPLAYS from the emitted
       -- decrease clauses and the hypothesis left the telescope.
       -- INTENTIONAL; diagnosed against the golden.)
-      totalHyp1 sortsEqSweepWorld "BSORT" →
+      -- (total:BSORT RETIRED 2026-08-15 — T1+2 sprint P3c collection:
+      -- the cross-book ADMISSION pre-pass replays BSORT's recorded
+      -- admission at this world (:INCLUDE-BOOK source). INTENTIONAL.)
       -- (total:O< / total:O-P RETIRED 2026-08-15 — T1+2 sprint P3b: the
       -- ORDINAL registry row (Replay/OrdinalSim) + the O-FINP recognizer
       -- duality + the world-read EQUAL-alias normalization of ACL2's
@@ -310,38 +324,20 @@ example :
       -- tp:INSERT RETIRED 2026-08-13 — the CONS return-path shape;
       -- tp:BNEXT-SIZE RETIRED 2026-08-13 — the CALLEE-TP shape. All
       -- three left the telescope.)
-      -- true-listp-rm (ordered-perms' emitted spec):
-      --   (implies (true-listp a) (equal (true-listp (rm e a)) 't))
-      ruleEqHyp1 sortsEqSweepWorld
-        (ap1 "TRUE-LISTP" (sym "A"))
-        (ap1 "TRUE-LISTP" (ap2 "RM" (sym "E") (sym "A")))
-        (qt (sym "T")) →
-      -- convert-perm-to-how-many:
-      ruleEqHyp sortsEqSweepWorld
-        (ap2 "PERM" (sym "X") (sym "Y"))
-        (ap2 "EQUAL"
-          (ap2 "HOW-MANY"
-            (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
-          (ap2 "HOW-MANY"
-            (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y"))) →
-      -- orderedp-isort:
-      ruleEqHyp sortsEqSweepWorld
-        (ap1 "ORDEREDP" (ap1 "ISORT" (sym "X"))) (qt (sym "T")) →
-      -- orderedp-bsort:
-      ruleEqHyp sortsEqSweepWorld
-        (ap1 "ORDEREDP" (ap1 "BSORT" (sym "X"))) (qt (sym "T")) →
+      -- (rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY,
+      -- rule:ORDEREDP-ISORT, rule:ORDEREDP-BSORT RETIRED 2026-08-15 —
+      -- T1+2 sprint P3c: the WP5 cross-book D1 transfer replays each
+      -- dependency at this world, so all four hypotheses left the
+      -- telescope. INTENTIONAL; diagnosed row-by-row.)
       -- true-listp-bnext:
       ruleEqHyp1 sortsEqSweepWorld
         (ap1 "TRUE-LISTP" (sym "X"))
         (ap1 "TRUE-LISTP" (ap1 "BNEXT" (sym "X"))) (qt (sym "T")) →
-      -- true-listp-bsort:
-      ruleEqHyp1 sortsEqSweepWorld
-        (ap1 "TRUE-LISTP" (sym "X"))
-        (ap1 "TRUE-LISTP" (ap1 "BSORT" (sym "X"))) (qt (sym "T")) →
-      -- how-many-bsort:
-      ruleEqHyp sortsEqSweepWorld
-        (ap2 "HOW-MANY" (sym "E") (ap1 "BSORT" (sym "X")))
-        (ap2 "HOW-MANY" (sym "E") (sym "X")) →
+      -- (rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT RETIRED 2026-08-15
+      -- — the same transfer (bsort-book rows now unconditional).
+      -- INTENTIONAL. linear:HOW-MANY-BAD-PAIRS-BNEXT SURVIVES at this
+      -- world — the sorts-equivalent occurrence, the row's honest
+      -- residue.)
       linearHMBPB sortsEqSweepWorld →
       EvTrue sortsEqSweepWorld env
         (ap2 "IMPLIES" (ap1 "TRUE-LISTP" (sym "X"))

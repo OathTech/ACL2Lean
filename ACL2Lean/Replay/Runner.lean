@@ -326,15 +326,25 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
     the admission-class guard (see `tryReplay`'s budget doc). -/
 def replayAdmission (dev : Development) (w : World) (wExpr : Expr)
     (tcp : ClauseProof) (mName : Name)
-    (crossTrees : List (String × ClauseProof) := []) :
+    (crossTrees : List (String × ClauseProof) := [])
+    -- WP5: the D1 entries an admission's OWN dependency discharges may
+    -- apply. The rule offer here is DEMAND-filtered to the admission's
+    -- cited runes, so a dependency re-replayed INSIDE this telescope
+    -- walls on the rules the filter dropped (`HOW-MANY-BAD-PAIRS-BNEXT`
+    -- citing `HOW-MANY-SMALLER-BNEXT` is the measured case); with the
+    -- dependency's own replayed constant registered, the discharge
+    -- APPLIES it and the filter stops mattering.
+    (replayed : ReplayedRegistry := [])
+    (crossRules : List ACL2.RuleSpec := []) :
     TermElabM (String × Option (List String)) := do
   let thms := developmentTheoremsWithRules dev
   let cited := citedRuneNames tcp
   let termRules := ((thms.map (·.2)).flatten.filter
     (fun r => cited.contains r.name)).eraseDups
   tryReplay dev w wExpr tcp termRules
+    (replayed := replayed)
     (replayedName? := some mName) (budget := 10000000)
-    (crossTrees := crossTrees)
+    (crossTrees := crossTrees) (crossRules := crossRules)
 
 /-- The termination-replay CIRCULARITY predicate (audit F3): an admission
     proof conditional on the defun's OWN totality/TP facts must be
@@ -343,6 +353,209 @@ def replayAdmission (dev : Development) (w : World) (wExpr : Expr)
     call sites (runner discards; the macro skips loudly). -/
 def admissionCircular (fn : String) (conds : List String) : Bool :=
   conds.contains s!"total:{fn}" || conds.contains s!"tp:{fn}"
+
+/-- WORLD INCLUSION (WP5, the cross-book transfer's fail-closed gate): every
+    defun of `w1` is present in `w2` BYTE-IDENTICALLY (same formals, same
+    body). This is the honest precondition for replaying a dependency
+    book's recorded tree at the CONSUMER's world: the tree's unfoldings
+    are exactly the ones its own book admitted. Any mismatch — a
+    redefinition, a translation divergence between two captures of the
+    same book — refuses the transfer; it never adjusts anything. -/
+def worldIncludes (w1 w2 : World) : Bool :=
+  w1.defs.entries.all fun (s, v) => w2.defs.get? s == some v
+
+/-- Rune names cited ANYWHERE under a theorem's tree — the clause-level
+    `WaterfallStep.runes` that `citedRuneNames` reads PLUS the rewriter
+    detail's own per-step runes. The clause-level set is the ttree
+    snapshot and is NOT a superset: `ORDERED-PERMS` consumes its book's
+    `rule:TRUE-LISTP-RM` without the name appearing there. Used ONLY to
+    size the cross-book pre-pass's demand — never to filter an offer, so
+    it can only ever make the transfer reach further, never change what a
+    replay is allowed to use. -/
+partial def citedRuneNamesDeep (cp : ClauseProof) : List String :=
+  match cp.root with
+  | none => []
+  | some root => (goNode root).eraseDups
+where
+  goNode (n : ClauseNode) : List String :=
+    n.steps.flatMap (fun s =>
+      s.runes.map (·.name) ++ goItems s.items)
+    ++ n.children.flatMap goNode
+  goItems (is : List ClauseItem) : List String :=
+    is.flatMap fun i =>
+      match i with
+      | .literal lp => lp.nodes.flatMap goProof
+      | .step nd => goProof nd
+      | .branch _ sub => goItems sub
+      | _ => []
+  goProof : ProofNode → List String
+    | .node rune _ _ children _ => rune.name :: children.flatMap goProof
+
+/-- The names a book's proofs CITE — cited runes (deep) plus plain-`:use`
+    citations, over every theorem of the development. The demand seed for
+    the cross-book pre-pass. -/
+def bookCitedNames (dev : Development) : List String :=
+  ((developmentTheoremsWithRules dev).flatMap fun (cp, _) =>
+    citedRuneNamesDeep cp
+    ++ ACL2.Replay.Driver.theoremUseCitedNames cp).eraseDups
+
+/-- WP5 — THE CROSS-BOOK D1 TRANSFER. A dependency book's replayed
+    statement lives over ITS OWN world, so the D1 registry (whose entries
+    are Lean constants of type `∀ env, … → EvTrue w env Φ`) has always
+    been per-book: a cross-book `rule:`/`use:`/`linear:` hypothesis fell
+    through to the re-replay route, which replays the dependency's tree
+    INSIDE THE CONSUMER'S TELESCOPE and frontiers whenever that telescope
+    does not happen to offer what the dependency's own book did.
+
+    The transfer replays each DEMANDED dependency theorem at the
+    CONSUMER's world, in the DEPENDENCY BOOK's own channels — a full,
+    deterministic, kernel-checked replay of the recorded tree, `addDecl`'d
+    once and applied O(1) thereafter — and registers it. `depReplayedProofAt`
+    then takes the registry route for cross-book dependencies exactly as
+    it does for same-book ones.
+
+    Fail-closed at every layer: a dependency world not INCLUDED in the
+    consumer's (`worldIncludes`) is refused outright; an undemanded
+    theorem is never replayed; a replay that walls leaves no entry (the
+    consumer keeps its hypothesis); and the entry carries the
+    dependency's translated Goal, so the consumer matches it by STATEMENT
+    and not merely by name.
+
+    `depDevs` must be in dependency order (a dep book's own cross-book
+    citations resolve against the entries accumulated before it), which is
+    the corpus order the sweep already uses. -/
+def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
+    (depDevs : List (String × Development)) (demandSeed : List String) :
+    TermElabM (ReplayedRegistry
+      × List (String × Name × List String × List SExpr)) := do
+  -- DEMAND (bounded), computed GLOBALLY and BEFORE any replay: the seed
+  -- names closed over EVERY offered book's citations. Replaying a whole
+  -- dependency corpus at each consumer world would be quadratic and
+  -- pointless — only a CITED statement can ever be applied — but the
+  -- closure must be global, because a later book's tree can demand an
+  -- earlier book's theorem and the pre-pass itself runs in dependency
+  -- order (registering the earlier one first).
+  let cites : List (String × List String) :=
+    depDevs.flatMap fun (_, d) =>
+      (developmentTheoremsWithRules d).map fun (cp, _) =>
+        (cp.name, citedRuneNamesDeep cp
+          ++ ACL2.Replay.Driver.theoremUseCitedNames cp)
+  let mut demand := demandSeed
+  for _ in [0:cites.length] do
+    let mut grew := false
+    for (n, ns) in cites do
+      if demand.contains n then
+        for m in ns do
+          unless demand.contains m do
+            demand := demand ++ [m]
+            grew := true
+    unless grew do break
+  let mut reg : ReplayedRegistry := []
+  let mut xterm : List (String × Name × List String × List SExpr) := []
+  let mut trees : List (String × ClauseProof) := []
+  let mut earlierRules : List ACL2.RuleSpec := []
+  let condsTy := mkApp (mkConst ``List [.zero]) (mkConst ``String)
+  for (src, depDev) in depDevs do
+    let dw := depDev.toWorld
+    unless worldIncludes dw w do
+      IO.println s!"    [cross-book {src}: world NOT included in \
+        {bookKey} — transfer refused]"
+      continue
+    let thms := developmentTheoremsWithRules depDev
+    let crossRules := earlierRules
+    -- RECORDED ADMISSIONS of the dep book, at the CONSUMER's world. An
+    -- :INCLUDE-BOOK'd defun carries no admission proof in the consumer's
+    -- own log, so the consumer's totality prover walls on it and every
+    -- dependency theorem whose replay needs that totality walls with it
+    -- (`ORDEREDP-BSORT`/`HOW-MANY-QSORT` cross-replays, measured). The
+    -- admission is the dep book's OWN recorded waterfall — replayed here
+    -- exactly as its own book replays it, at the world that includes it.
+    for (fn, tcp) in recordedTerminationDefuns depDev.justifications depDev do
+      if xterm.any (·.1 == fn) then continue
+      let tBase := String.map (fun c => if c.isAlphanum then c else '_')
+        s!"xterm_{bookKey}_{src}_{fn}"
+      let tName := Name.mkStr2 "CrossBookTermination" tBase
+      let tCondsName := Name.mkStr2 "CrossBookTermination" s!"{tBase}_conds"
+      let conds? ←
+        if (← Lean.getEnv).contains tName then
+          unless (← Lean.getEnv).contains tCondsName do
+            throwError "crossBookRegistry: cached {tName} exists WITHOUT \
+              its companion {tCondsName} (partial cache state or \
+              sanitizer collision)"
+          some <$> (unsafe Meta.evalExpr (List String) condsTy
+            (mkConst tCondsName))
+        else do
+          let (status, r?) ← replayAdmission depDev w wExpr tcp tName
+            (crossTrees := trees ++ bookTrees depDev)
+            (replayed := reg) (crossRules := crossRules)
+          match r? with
+          | some cs =>
+            Lean.addAndCompile (.defnDecl {
+              name := tCondsName, levelParams := [], type := condsTy,
+              value := Lean.toExpr cs, hints := .opaque, safety := .safe })
+            pure (some cs)
+          | none =>
+            IO.println s!"    [cross-book termination {src}/{fn} @ \
+              {bookKey}: {status}]"
+            pure none
+      if let some cs := conds? then
+        -- the same circularity guard the in-book pre-pass uses
+        unless admissionCircular fn cs do
+          xterm := xterm ++
+            [(fn, tName, cs, (tcp.root.map (·.inputClause)).getD [])]
+    for (cp, rules) in thms do
+      if !demand.contains cp.name then continue
+      let some root := cp.root | continue
+      let base := String.map (fun c => if c.isAlphanum then c else '_')
+        s!"{bookKey}_{src}_{cp.name}"
+      let mName := Name.mkStr2 "CrossBookReplayed" base
+      let condsName := Name.mkStr2 "CrossBookReplayed" s!"{base}_conds"
+      let formula := disjoinTerm root.inputClause
+      -- CACHE (the `with_termination` pattern): a constant already
+      -- declared for this (consumer world, dep book, theorem) is reused —
+      -- the transfer is idempotent across the invocations of one module.
+      -- The sanitizer is not injective, so a collision is possible; it is
+      -- fail-closed (the constant is only ever APPLIED, and a type
+      -- mismatch fails unification), but a partial cache state is named.
+      if (← Lean.getEnv).contains mName then
+        unless (← Lean.getEnv).contains condsName do
+          throwError "crossBookRegistry: cached {mName} exists WITHOUT its \
+            companion {condsName} (partial cache state or sanitizer \
+            collision)"
+        let conds ← unsafe Meta.evalExpr (List String) condsTy
+          (mkConst condsName)
+        reg := reg ++ [{ thm := cp.name, decl := mName, conds := conds,
+                         formula := formula, crossBook := true }]
+        continue
+      let (status, reg?) ← tryReplay depDev w wExpr cp rules
+        (replayed := reg) (replayedName? := some mName)
+        (termReplayed := xterm)
+        (crossTrees := trees) (crossRules := crossRules)
+      match reg? with
+      | some conds =>
+        Lean.addAndCompile (.defnDecl {
+          name := condsName, levelParams := [], type := condsTy,
+          value := Lean.toExpr conds, hints := .opaque, safety := .safe })
+        -- a CONDITIONAL cross entry is the one that can still frontier at
+        -- the consumer (its kept conds must map onto the consumer's own
+        -- telescope) — name it; unconditional entries stay silent.
+        unless conds.isEmpty do
+          IO.println s!"    [cross-book {src}/{cp.name} @ {bookKey}: \
+            {status}]"
+        reg := reg ++ [{ thm := cp.name, decl := mName, conds := conds,
+                         formula := formula, crossBook := true }]
+      | none =>
+        IO.println s!"    [cross-book {src}/{cp.name} @ {bookKey}: \
+          {status}]"
+    -- the book's own trees/rules become OFFERS for the books after it —
+    -- never for itself (a book's own rules reach its theorems through
+    -- `rulesBefore`, which is creation-ordered; the whole-book set would
+    -- offer a theorem its OWN stored rule, the self-premise the linear
+    -- SELF-GATE documents)
+    trees := trees ++ bookTrees depDev
+    earlierRules := earlierRules ++ (allBookRules depDev).filter
+      (fun r => !earlierRules.any (fun o => o.runeKey == r.runeKey))
+  return (reg, xterm)
 
 /-- Attempt the DP-lift replay of one discharge leaf: prove the discharge node's
     claim `∃N∀f≥N, eval (disjoin clause) = some t` over a QUANTIFIED env (the
@@ -415,6 +628,13 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
     -- to a source gets NOTHING from it). `crossTrees` remains the
     -- ungated channel for callers that pre-select (the pins).
     (crossTreesByBook : List (String × List (String × ClauseProof)) := [])
+    -- WP5 CROSS-BOOK D1 TRANSFER: the dependency books' DEVELOPMENTS, in
+    -- dependency order. Each demanded dependency theorem is replayed ONCE
+    -- at THIS book's world, in its own book's channels, and registered
+    -- (`crossBookRegistry`); the consumer's dependency discharges then
+    -- apply the constant instead of re-replaying inside the consumer's
+    -- telescope. Callers passing none keep the pre-WP5 route verbatim.
+    (crossDevs : List (String × Development) := [])
     (crossRules : List ACL2.RuleSpec := [])
     -- R7b 2c (W4): the usefi: discharge composition, built by the CALLER
     -- (layering: it needs ParametricInstantiate, which sits above this
@@ -472,10 +692,16 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
       -- D1 REPLAYED REGISTRY, per book (WP4): theorems are replayed in
       -- creation order (topological in the citation DAG), each green one
       -- addDecl'd as a replayed-statement constant that later SAME-BOOK consumers
-      -- apply instead of re-replaying its tree. Reset per book — the
-      -- constants are stated over THIS book's world (cross-book reuse is
-      -- WP5's transfer).
-      let mut replayed : ReplayedRegistry := []
+      -- apply instead of re-replaying its tree. SEEDED (WP5) with the
+      -- cross-book transfer's entries — dependency-book trees replayed at
+      -- THIS book's world; the per-book reset otherwise stands, since a
+      -- constant is only ever stated over the world it was replayed at.
+      let (crossReg, crossTerm) ←
+        if crossDevs.isEmpty then
+          pure (([] : ReplayedRegistry),
+                ([] : List (String × Name × List String × List SExpr)))
+        else crossBookRegistry name w wExpr crossDevs (bookCitedNames dev)
+      let mut replayed : ReplayedRegistry := crossReg
       -- RECORDED-TERMINATION replayed statements (sorting arc 2026-07-28): defuns whose
       -- admission decrease is beyond the destructor walk get their recorded
       -- admission waterfall replayed ONCE per book as a conditional replayed statement
@@ -483,15 +709,58 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
       -- telescope (the D1 replayed-constant pattern). A FAILED replay keeps the fn on
       -- the destructor route's honest frontier — no silent change. The
       -- budget is the admission-class guard (see tryReplay's budget doc).
-      let mut termReplayed : List (String × Name × List String × List SExpr) := []
+      -- SEEDED (WP5) with the dependency books' admissions replayed at THIS
+      -- world: an :INCLUDE-BOOK'd defun has no admission proof in this
+      -- book's log, so its totality had no route at all — the transfer
+      -- supplies the dep book's own recorded waterfall.
       let recTermDefuns := recordedTerminationDefuns dev.justifications dev
+      let mut termReplayed : List (String × Name × List String × List SExpr)
+        := crossTerm.filter fun (fn, _, _, _) =>
+             !recTermDefuns.any (fun (g, _) => g == fn)
+      -- PRE-TERMINATION D1 REGISTRY (WP5): the SAME-BOOK theorems a recorded
+      -- admission cites, replayed BEFORE it and registered, so its
+      -- dependency discharges APPLY the constant. `replayAdmission`'s rule
+      -- offer is DEMAND-filtered to the admission's own cited runes, so a
+      -- dependency re-replayed inside that telescope walls on the rules the
+      -- filter dropped — HOW-MANY-BAD-PAIRS-BNEXT (bsort's `:LINEAR`
+      -- source) walls exactly there, on `rule:HOW-MANY-SMALLER-BNEXT`.
+      -- ACL2's own chronology is this order: it proves those theorems
+      -- BEFORE it admits the defun. Distinct constant names from the main
+      -- loop's, which replays and registers each theorem in its own right.
+      -- CIRCULARITY: a pre-entry conditional on a pre-passed defun's own
+      -- totality/TP is discarded (the `admissionCircular` rule, applied to
+      -- every recorded-termination fn — the admission telescope would
+      -- otherwise resolve it to its own hypothesis fvar).
+      let termCited := (recTermDefuns.flatMap fun (_, tcp) =>
+        citedRuneNamesDeep tcp).eraseDups
+      for (cp, rules) in thms do
+        if !termCited.contains cp.name then continue
+        let pName := Name.mkStr2 "PreTermReplayed"
+          (String.map (fun c => if c.isAlphanum then c else '_')
+            s!"pre_{name}_{cp.name}")
+        if (← Lean.getEnv).contains pName then continue
+        let (status, reg?) ← tryReplay dev w wExpr cp rules
+          (replayed := replayed) (replayedName? := some pName)
+          (crossTrees := crossTrees) (crossRules := crossRules)
+        match reg? with
+        | some conds =>
+          if recTermDefuns.any (fun (fn, _) => admissionCircular fn conds) then
+            IO.println s!"    [pre-termination {name}/{cp.name}: entry \
+              DISCARDED — conditional on a pre-passed defun's own facts \
+              (circularity guard)]"
+          else
+            replayed := replayed ++
+              [{ thm := cp.name, decl := pName, conds := conds,
+                 formula := disjoinTerm ((cp.root.map (·.inputClause)).getD []) }]
+        | none =>
+          IO.println s!"    [pre-termination {name}/{cp.name}: {status}]"
       for (fn, tcp) in recTermDefuns do
         let mName := Name.mkStr2 "ReplayedTermination"
           (String.map (fun c => if c.isAlphanum then c else '_')
             s!"term_{name}_{fn}")
         let tTm0 ← IO.monoMsNow
         let (status, reg?) ← replayAdmission dev w wExpr tcp mName
-          (crossTrees := crossTrees)
+          (crossTrees := crossTrees) (replayed := replayed)
         let tTm1 ← IO.monoMsNow
         if timings then
           IO.println s!"[t] termination {fn}: {tTm1 - tTm0} ms ({status})"
@@ -545,7 +814,9 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         let tThm1 ← IO.monoMsNow
         if timings then IO.println s!"[t] theorem {cp.name}: {tThm1 - tThm0} ms"
         if let some conds := reg? then
-          replayed := replayed ++ [(cp.name, mName, conds)]
+          replayed := replayed ++
+            [{ thm := cp.name, decl := mName, conds := conds,
+               formula := disjoinTerm ((cp.root.map (·.inputClause)).getD []) }]
         if status.startsWith "REPLAYED ✓" then
           res := { res with replayed := res.replayed + 1 }
           -- CONDITIONAL replays (undischarged cond[…] hypotheses) counted

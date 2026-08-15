@@ -147,8 +147,14 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("05-hints", "LEN2-APP-VIA-INDUCT", .pending "len2 dischargers"),
   ("05-hints", "LEN2-APP-NO-HELPER", .pending "len2 dischargers"),
   ("06-measure", "COUNT-DOWN-ZERO", .replayedOnly "reflexive decode — no non-vacuous native fact"),
+  -- (the trio's termination rows went green at P4a, T1+2 sprint
+  -- 2026-08-15 — the :ARG-LEAVES/:IF-TEST-FALSE consumption; same
+  -- doctrine as termination:QSORT.)
+  ("06-measure", "termination:COUNT-DOWN", .replayedOnly "an internal admission obligation, not a user-facing theorem — the termination:QSORT doctrine"),
   ("07-mutual-recursion", "MY-EVENP-3-IS-NIL", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("07-mutual-recursion", "MY-ODDP-3-IS-T", .replayedOnly "reflexive decode — no non-vacuous native fact"),
+  ("07-mutual-recursion", "termination:MY-EVENP", .replayedOnly "an internal admission obligation, not a user-facing theorem — the termination:QSORT doctrine"),
+  ("11-custom-measure", "termination:CD2", .replayedOnly "an internal admission obligation, not a user-facing theorem — the termination:QSORT doctrine"),
   ("08-equality-reasoning", "CDR-CONS-REFL", .native ``cdr_cons_native ``cdrConsReplayedCond),
   ("08-equality-reasoning", "EQUAL-SYMM", .native ``equal_symm_native ``equalSymmReplayedCond),
   ("08-equality-reasoning", "EQUAL-TRANS", .native ``equal_trans_native ``equalTransReplayedCond),
@@ -352,8 +358,9 @@ def liftCatalog : List (String × String × LiftStatus) := [
       rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY). The waypoint \
       native (`msortL xs = isortL xs`) is NOT BUILT — queued behind the \
       mirror buildout; when built it would be `.nativeSorried` on the \
-      REQUIRED-class merge2/msort admission debt plus the R-lane's \
-      dis_convert_perm. Statement pin: Tests/SortingPins"),
+      REQUIRED-class merge2/msort admission debt (dis_convert_perm \
+      RETIRED 2026-08-15 by the WP5 cross-book transfer). Statement \
+      pin: Tests/SortingPins"),
   ("sorting/sorts-equivalent", "QSORT-IS-ISORT",
     .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13; \
       row conds total:QSORT, total:O<, tp:QSORT, \
@@ -523,16 +530,20 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- normalization of ACL2's recomputed ground-zero rulers — so its LAST
   -- sorried premise went and the entry carries no debt).
   ("sorting/qsort", "HOW-MANY-QSORT", .native ``how_many_qsort_native_driver ``howManyQsortReplayedCond),
-  ("sorting/qsort", "PERM-QSORT", .nativeSorried ``perm_qsort_native_driver ``permQsortReplayedCond
-      "rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm; unlock: the cross-book D1 transfer, P3c); total:PERM-COUNTER-EXAMPLE retired by the replay route, TP-replay arc's ATOM-leg increment 2026-08-13, tp:ACL2-COUNT by the D-A ts-algebra consumer, T1+2 sprint phase 1 2026-08-14, and total:O< by the ORDINAL registry row, P3b 2026-08-15"),
+  -- (PERM-QSORT promoted at the P3b+P3c collection 2026-08-15: its last
+  -- two sorried premises retired in the SAME collection — dis_o_lt_total
+  -- by the ordinal registry row (P3b), dis_convert_perm by the WP5
+  -- cross-book D1 transfer (P3c); the gate forces the promotion.)
+  ("sorting/qsort", "PERM-QSORT", .native ``perm_qsort_native_driver ``permQsortReplayedCond),
   ("sorting/qsort", "CAR-APPEND", .native ``car_append_native_driver ``carAppendReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-1", .native ``all_rel_filter_1_native_driver ``allRelFilter1ReplayedCond),
   ("sorting/qsort", "ALL-REL-FILTER-2", .native ``all_rel_filter_2_native_driver ``allRelFilter2ReplayedCond),
   ("sorting/qsort", "ALL-REL-RM-1", .native ``all_rel_rm_1_native_driver ``allRelRm1ReplayedCond),
   ("sorting/qsort", "ALL-REL-RM-2", .native ``all_rel_rm_2_native_driver ``allRelRm2ReplayedCond),
   ("sorting/qsort", "PERM-IMPLIES-EQUAL-ALL-REL-2", .native ``perm_implies_equal_all_rel_2_native_driver ``permImpliesAllRel2Replayed),
-  ("sorting/qsort", "ORDEREDP-QSORT", .nativeSorried ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond
-      "rule:CONVERT-PERM-TO-HOW-MANY (dis_convert_perm); tp:ALL-REL retired by the replay route and rule:ORDEREDP-APPEND's wrapper is CLEAN as of TP-replay arc increments 4-5, total:PERM-COUNTER-EXAMPLE by the ATOM-leg increment 2026-08-13, tp:ACL2-COUNT by the D-A ts-algebra consumer 2026-08-14, and total:O< by the ORDINAL registry row, P3b 2026-08-15; unlock: the cross-book D1 transfer, P3c"),
+  -- (ORDEREDP-QSORT promoted at the same collection — same two premises,
+  -- same routes.)
+  ("sorting/qsort", "ORDEREDP-QSORT", .native ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
 /-- SEAM REACHABILITY — the ONE copy (R4, gate-cruft review 2026-08-11;
@@ -767,7 +778,12 @@ run_cmd Lean.Elab.Command.liftCoreM do
      -- the CONS shape, increment 2; `dis_sortfn1_tp` /
      -- `dis_ssortfn1_tp` — the consp-or-nil class — RETIRED with the
      -- CALLEE-TP shape, increment 3)
-     ``ACL2.Worlds.Sorting.dis_convert_perm]
+     -- (`dis_convert_perm` RETIRED by the replay route, T1+2 sprint
+     -- P3c 2026-08-15 — the CROSS-BOOK D1 TRANSFER (WP5): the
+     -- dependency book's recorded tree replayed at the consumer's
+     -- world, world-inclusion gated, and APPLIED as its own D1
+     -- constant)
+     ]
   for n in debtRegistry do
     let axs ← collectAxioms n
     unless axs.contains ``sorryAx do
