@@ -204,6 +204,20 @@ def liftCatalog : List (String × String × LiftStatus) := [
       corr_rm_enc already yields an encoded List — no native content \
       beyond the sim (the type-absorbed true-listp doctrine; the SAME \
       theorem in the ordered-perms book carries the identical decision)"),
+  -- SURFACED 2026-08-14 (T1+2 sprint phase 2): this row went GREEN with
+  -- the G1-M R-parameterized lane and its catalog decision was never
+  -- added — the gap only became visible when the phase-2 edits forced
+  -- Catalog to re-elaborate against the current golden (the module reads
+  -- the golden, which Lake does not track).
+  ("sorting/convert-perm-to-how-many", "PERM-TLFIX",
+    .pending "NO DECISION YET. The sibling tlfix-normalization rows \
+      (HOW-MANY-TLFIX, RM-TLFIX, MEMB-TLFIX, the two \
+      PERM-COUNTER-EXAMPLE-TLFIX rows) are all `.replayedOnly` \
+      plumbing and `(PERM (TLFIX X) X)` is plausibly the same class — \
+      but classifying a row as plumbing vs content is a MIRROR-side \
+      call, deliberately NOT taken by a driver-layer executor. UNLOCK: \
+      the next mirror wave decides (`.replayedOnly` with the plumbing \
+      justification, or a native)"),
   ("sorting/convert-perm-to-how-many", "RM-TLFIX",
     .replayedOnly "tlfix normalization plumbing (erase commutes with \
       tlfix) — no user-facing content"),
@@ -420,33 +434,35 @@ def liftCatalog : List (String × String × LiftStatus) := [
       restricts the input to the enc image, where bnextExec_enc already \
       yields an encoded List — no native content beyond the sim (the \
       type-absorbed true-listp doctrine, the TRUE-LISTP-RM precedent)"),
+  -- PROMOTED 2026-08-14 (T1+2 sprint phase 2, the R3 unified
+  -- measure/arity table): `total:BNEXT` now arrives BY REPLAY of BNEXT's
+  -- emitted `(LEN X)` admission — the measure gate was the last fragment
+  -- not carrying the LEN row (audit F6) — so `dis_bnext_total` is GONE
+  -- and this row's debt is drained.
   ("sorting/bsort", "HOW-MANY-BNEXT",
-    .nativeSorried ``how_many_bnext_native_driver ``howManyBnextReplayedCond
-      "total:BNEXT (dis_bnext_total; unlock: with_termination coverage — REQUIRED class)"),
+    .native ``how_many_bnext_native_driver ``howManyBnextReplayedCond),
   ("sorting/bsort", "termination:BSORT",
     .replayedOnly "an internal admission obligation (BSORT's BNEXT-SIZE
       measure decrease, via HOW-MANY-BAD-PAIRS-BNEXT's :linear content),
       not a user-facing theorem — the termination:QSORT doctrine"),
+  -- PROMOTED 2026-08-14 (the R3 measure table's LEN row retired
+  -- `total:BNEXT`; `tp:BNEXT-SIZE` had already gone by the replay route,
+  -- TP-replay arc increment 3 2026-08-13 — the CALLEE-TP shape).
   ("sorting/bsort", "HOW-MANY-BAD-PAIRS-BNEXT",
-    .nativeSorried ``how_many_bad_pairs_bnext_native_driver
-      ``howManyBadPairsBnextReplayedCond
-      "total:BNEXT (dis_bnext_total; unlock: with_termination coverage \
-       — REQUIRED class); tp:BNEXT-SIZE retired by the replay route, \
-       TP-replay arc increment 3 2026-08-13 (the CALLEE-TP shape: its \
-       emitted leaf sums a HOW-MANY-SMALLER call, whose own emitted \
-       corollary supplies the summand)"),
+    .native ``how_many_bad_pairs_bnext_native_driver
+      ``howManyBadPairsBnextReplayedCond),
+  -- PROMOTED 2026-08-14 (the R3 measure table's LEN row).
   ("sorting/bsort", "ORDEREDP-WHEN-BNEXT-CONSTANT",
-    .nativeSorried ``orderedp_when_bnext_constant_native_driver
-      ``orderedpWhenBnextConstantReplayedCond
-      "total:BNEXT (dis_bnext_total; unlock: with_termination coverage \
-       — REQUIRED class)"),
+    .native ``orderedp_when_bnext_constant_native_driver
+      ``orderedpWhenBnextConstantReplayedCond),
   ("sorting/bsort", "ORDEREDP-BSORT",
     .pending "BLOCKED ON A KEPT CONDITION WITH NO UNLOCK CLASS \
       (restated 2026-08-11 after the reuse-vs-mint ruling; tp:BNEXT-SIZE \
       left the row with TP-replay arc increment 3, 2026-08-13). Golden \
-      conds: total:BNEXT, total:BSORT, total:O<, total:O-P, \
-      linear:HOW-MANY-BAD-PAIRS-BNEXT. Two now \
-      discharge (dis_bnext_total, dis_o_lt_total); the blocker is \
+      conds (total:BNEXT RETIRED by replay 2026-08-14 — the R3 measure \
+      table's LEN row): total:BSORT, total:O<, total:O-P, \
+      linear:HOW-MANY-BAD-PAIRS-BNEXT. One now \
+      discharges (dis_o_lt_total); the blocker is \
       `linear:HOW-MANY-BAD-PAIRS-BNEXT`, whose CLASS has no existing \
       unlock — the ruling caps minting at the classes that already \
       have one (TP-replay, with_termination/total), and `linear:` has \
@@ -469,8 +485,8 @@ def liftCatalog : List (String × String × LiftStatus) := [
       (restated 2026-08-11 after the reuse-vs-mint ruling) — the \
       ORDEREDP-BSORT blocker exactly (tp:HOW-MANY retired by the \
       replay route, TP-replay arc increment 1; tp:BNEXT-SIZE by \
-      increment 3). Golden conds: \
-      total:BNEXT, total:BSORT, total:O<, total:O-P, \
+      increment 3; total:BNEXT by the R3 measure table 2026-08-14). \
+      Golden conds: total:BSORT, total:O<, total:O-P, \
       linear:HOW-MANY-BAD-PAIRS-BNEXT; only \
       `total:BSORT`, `total:O-P` and \
       `linear:HOW-MANY-BAD-PAIRS-BNEXT` are undischarged, and the \
@@ -478,20 +494,22 @@ def liftCatalog : List (String × String × LiftStatus) := [
       it). Same unlocks, same second frontier (the bsort kit) as \
       ORDEREDP-BSORT; the native would be \
       `howManyL e (bsortL l) = howManyL e l`"),
+  -- PROMOTED 2026-08-14 (the R3 measure table's LEN row).
   ("sorting/bsort", "HOW-MANY-SMALLER-BNEXT",
-    .nativeSorried ``how_many_smaller_bnext_native_driver
-      ``howManySmallerBnextReplayedCond
-      "total:BNEXT (dis_bnext_total; unlock: with_termination \
-       coverage — REQUIRED class)"),
-  ("sorting/msort", "HOW-MANY-MERGE2", .nativeSorried ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond
-      "total:MERGE2 (dis_merge2_total; REQUIRED — with_termination coverage)"),
+    .native ``how_many_smaller_bnext_native_driver
+      ``howManySmallerBnextReplayedCond),
+  -- PROMOTED 2026-08-14 (the R3 measure table's SUM row: MERGE2's
+  -- `(BINARY-+ (ACL2-COUNT X) (ACL2-COUNT Y))` measure over BOTH formals
+  -- is now assemblable, `dis_merge2_total` is GONE).
+  ("sorting/msort", "HOW-MANY-MERGE2", .native ``how_many_merge2_native_driver ``howManyMerge2ReplayedCond),
   ("sorting/msort", "HOW-MANY-EVENS-AND-ODDS", .native ``how_many_evens_and_odds_native_driver ``howManyEvensOddsReplayedCond),
-  ("sorting/msort", "ORDEREDP-MSORT", .nativeSorried ``orderedp_msort_native_driver ``orderedpMsortReplayedCond
-      "total:MERGE2/MSORT (dis_merge2_total, dis_msort_total; \
-       REQUIRED — with_termination coverage); tp:EVENS retired by the \
-       replay route, TP-replay arc increment 2 2026-08-13"),
-  ("sorting/msort", "HOW-MANY-MSORT", .nativeSorried ``how_many_msort_native_driver ``howManyMsortReplayedCond
-      "total:MERGE2/MSORT (REQUIRED)"),
+  -- PROMOTED 2026-08-14 (the R3 measure table: MERGE2's sum row plus
+  -- MSORT's opaque EVENS/ODDS measured actual, ∃-eliminated onto the
+  -- registry decrease; tp:EVENS had gone by the replay route,
+  -- TP-replay arc increment 2 2026-08-13).
+  ("sorting/msort", "ORDEREDP-MSORT", .native ``orderedp_msort_native_driver ``orderedpMsortReplayedCond),
+  -- PROMOTED 2026-08-14 (the R3 measure table, as ORDEREDP-MSORT).
+  ("sorting/msort", "HOW-MANY-MSORT", .native ``how_many_msort_native_driver ``howManyMsortReplayedCond),
   ("sorting/qsort", "termination:QSORT", .replayedOnly "an internal admission obligation, not a user-facing theorem: its native content (the filter-count decreases) IS qsortExec own kernel-checked Lean termination proof (filterExec_consCount_le)"),
   ("sorting/qsort", "HOW-MANY-APPEND", .native ``how_many_append_native_driver ``howManyAppendReplayedCond),
   ("sorting/qsort", "ORDEREDP-APPEND", .native ``orderedp_append_native_driver ``orderedpAppendReplayedCond),
@@ -721,10 +739,14 @@ run_cmd Lean.Elab.Command.liftCoreM do
     -- (`dis_acl2_count_tp` RETIRED by the replay route, T1+2 sprint
     -- phase 1, 2026-08-14 — the D-A consumer: ACL2's context-refined
     -- leaves + subterm verdicts + the proved ts-algebra)
-    [``ACL2.Worlds.Sorting.dis_merge2_total,
-     ``ACL2.Worlds.Sorting.dis_msort_total,
-     ``ACL2.Worlds.Sorting.dis_o_lt_total,
-     ``ACL2.Worlds.Sorting.dis_bnext_total,
+    -- (`dis_merge2_total`, `dis_msort_total` and `dis_bnext_total`
+    -- RETIRED by the replay route, T1+2 sprint phase 2, 2026-08-14 —
+    -- the R3 unified measure/arity table: the SUM row (MERGE2's
+    -- two-measured-formal `BINARY-+` measure), the LEN row (BNEXT's
+    -- `(LEN X)`, already carried by the μ-registry and the decrease
+    -- walk but not by the admission gate — audit F6), and MSORT's
+    -- opaque EVENS/ODDS measured actual bound by ∃-elimination)
+    [``ACL2.Worlds.Sorting.dis_o_lt_total,
      -- (`dis_how_many_smaller_tp` RETIRED by the replay route,
      -- TP-replay arc increment 1, 2026-08-12; the MINTED
      -- `dis_bnext_size_tp` — the bsort-measure TP whose emitted leaf

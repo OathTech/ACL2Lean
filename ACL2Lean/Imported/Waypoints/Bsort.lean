@@ -27,14 +27,14 @@ set_option maxHeartbeats 3200000 in
 def howManyBnextReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "how-many-bnext" deps [convertPermDev]
 
-/-- The unconditional form — bnext's totality from its own corr
-    (`dis_bnext_total`), how-many's TP by the standard discharger. -/
+/-- The unconditional form — bnext's totality now arrives BY REPLAY of
+    its emitted `(LEN X)` admission (the R3 measure table, 2026-08-14:
+    `dis_bnext_total` is GONE), how-many's TP by the standard
+    discharger. -/
 theorem howManyBnextReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortWaypointsWorld env
       Worlds.Sorting.how_many_bnextFormula = some v ∧ v ≠ SExpr.nil :=
   howManyBnextReplayedCond env
-    (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-BNEXT natively: the bubble pass preserves
     `howManyL` (over the self-contained native pass `bnextL`). -/
@@ -53,15 +53,13 @@ set_option maxHeartbeats 3200000 in
 def orderedpWhenBnextConstantReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "orderedp-when-bnext-constant"
 
-/-- The unconditional form — bnext's totality from the registered debt
-    entry (`dis_bnext_total`). -/
+/-- The unconditional form — bnext's totality by replay (the R3 measure
+    table's LEN row; the former debt entry is GONE). -/
 theorem orderedpWhenBnextConstantReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortWaypointsWorld env
       Worlds.Sorting.orderedp_when_bnext_constantFormula = some v
         ∧ v ≠ SExpr.nil :=
   orderedpWhenBnextConstantReplayedCond env
-    (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — ORDEREDP-WHEN-BNEXT-CONSTANT natively: a list the
     bubble pass leaves unchanged is sorted (over the native pass `bnextL`
@@ -83,13 +81,12 @@ def howManySmallerBnextReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "how-many-smaller-bnext"
 
 /-- The unconditional form — bnext's totality and how-many-smaller's TP
-    from the registered debt entries. -/
+    both arrive by replay (the R3 measure table's LEN row; the former debt
+    entries are GONE). -/
 theorem howManySmallerBnextReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortWaypointsWorld env
       Worlds.Sorting.how_many_smaller_bnextFormula = some v ∧ v ≠ SExpr.nil :=
   howManySmallerBnextReplayedCond env
-    (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-SMALLER-BNEXT natively: one bubble pass
     preserves every counts-below (over the native pass `bnextL` and the
@@ -115,15 +112,13 @@ set_option maxHeartbeats 3200000 in
 def howManyBadPairsBnextReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "how-many-bad-pairs-bnext"
 
-/-- The unconditional form — bnext's totality from the registered debt
-    entry (the count TPs now arrive by replay). -/
+/-- The unconditional form — bnext's totality and the count TPs all
+    arrive by replay (the R3 measure table's LEN row). -/
 theorem howManyBadPairsBnextReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f bsortWaypointsWorld env
       Worlds.Sorting.how_many_bad_pairs_bnextFormula = some v
         ∧ v ≠ SExpr.nil :=
   howManyBadPairsBnextReplayedCond env
-    (Worlds.Sorting.dis_bnext_total bsortWaypointsWorld (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide))
 
 /-- ENTRY, PROVED — HOW-MANY-BAD-PAIRS-BNEXT natively: a bubble pass that
     CHANGES the list strictly decreases the bubble measure (bubble sort's

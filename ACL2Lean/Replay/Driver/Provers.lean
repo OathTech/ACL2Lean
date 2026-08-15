@@ -105,41 +105,101 @@ def proveTotality (cfg : ReplayConfig)
           reflectSExpr body, hNs, hDef, hbody]
     | _ => throwFrontier m!"proveTotality: arity {formals.length} unsupported (frontier)"
   | some just =>
-    -- RECURSIVE (D5 scope): measure (acl2-count m), o<, single measured formal
+    -- RECURSIVE: the emitted justification classified through the UNIFIED
+    -- MEASURE TABLE (R3, 2026-08-14 — `Replay/MeasureTable.lean`). This
+    -- gate used to accept exactly ONE shape, `(acl2-count <single measured
+    -- formal>)`, which the overspecialization audit's F6 found blocking
+    -- 100% of the main-row `total:` debt — shapes the μ-registry and
+    -- `dischargeDecrease` already understood. The row now decides, and
+    -- every row is answered below (a walk or its own named frontier).
     unless just.wfRel.name == "O<" do
       throwFrontier m!"proveTotality: well-founded relation {just.wfRel.name} \
           unsupported (frontier: o< only)"
-    let some measuredFormal := just.measuredSubset.head?
-      | throwFrontier m!"proveTotality: empty measured subset"
-    unless just.measuredSubset.length == 1 do
-      throwFrontier m!"proveTotality: multi-formal measured subset unsupported \
-          (frontier)"
-    let wantedMeasure : SExpr :=
-      .cons (.atom (.symbol { name := "ACL2-COUNT" }))
-        (.cons (.atom (.symbol { name := measuredFormal.name })) .nil)
-    unless just.measure == wantedMeasure do
-      throwFrontier m!"proveTotality: measure {repr just.measure} unsupported \
-          (frontier: (acl2-count <measured-formal>) only)"
+    let some row := MeasureShape.ofJustification? just
+      | throwFrontier m!"proveTotality: measure {repr just.measure} with \
+          measured subset {repr (just.measuredSubset.map (·.name))} is not a \
+          registered measure-table row (frontier)"
     -- D9: the (o-p (measure)) obligation is absorbed by the Nat-typed
     -- measure; SHAPE-CHECK it (hard-fail on anything unexpected)
-    let opClause : SExpr :=
-      .cons (.cons (.atom (.symbol { name := "O-P" }))
-        (.cons wantedMeasure .nil)) .nil
-    unless just.terminationClauses.any (· == opClause) do
-      throwFrontier m!"proveTotality: expected (o-p {repr wantedMeasure}) \
+    unless just.terminationClauses.any
+        (· == ACL2.Replay.opObligationClause just.measure) do
+      throwFrontier m!"proveTotality: expected (o-p {repr just.measure}) \
           obligation not found (emission shape changed?)"
-    -- the induction MEASURE: `consCount` on the destructor route, the
-    -- INTERPRETED count on the recorded route (μ is proof bookkeeping —
-    -- design I1; the statement never mentions it). The recorded route is
-    -- 1-ary ONLY for now (audit F4: at other arities the wrapper lemmas
-    -- and the self-call decrease are consCount-typed, and a mismatched μ
-    -- aborts UNTAGGED instead of frontiering — gate it here).
+    -- the recorded route is 1-ary ONLY for now (audit F4: at other arities
+    -- the wrapper lemmas and the self-call decrease are μ-typed against
+    -- the table row, and a mismatched μ aborts UNTAGGED instead of
+    -- frontiering — gate it here).
     let recTerm? := if formals.length == 1 then recTerm? else none
+    match row with
+    | .sumCount v1 v2 =>
+      -- THE SUM ROW (audit F6's largest cell): both formals measured, so
+      -- the induction is over the PAIR (`totality_2_rec_sum_mu`).
+      match formals with
+      | [f1, f2] =>
+        unless v1 == f1 && v2 == f2 do
+          throwFrontier m!"proveTotality: sum measure over \
+              ({v1.name} {v2.name}) does not follow the formal order \
+              ({f1.name} {f2.name}) — μ and the emitted decrease would \
+              associate differently (frontier)"
+        let envEat := fun (bv cv : Expr) => do
+          let formalsE ← mkListLit (mkConst ``Symbol)
+            [reflectSymbol f1, reflectSymbol f2]
+          let avsE ← mkListLit (mkConst ``SExpr) [bv, cv]
+          mkAppM ``bindArgs #[formalsE, avsE]
+        let muAt := fun (a b : Expr) => do
+          mkAppM ``HAdd.hAdd #[← mkAppM ``SExpr.consCount #[a],
+            ← mkAppM ``SExpr.consCount #[b]]
+        let μE ← withLocalDeclD `u1 (mkConst ``SExpr) fun u1 =>
+          withLocalDeclD `u2 (mkConst ``SExpr) fun u2 => do
+            mkLambdaFVars #[u1, u2] (← muAt u1 u2)
+        let step ← withLocalDeclD `av1 (mkConst ``SExpr) fun av1 =>
+          withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+            let ihType ← withLocalDeclD `bv (mkConst ``SExpr) fun bv =>
+              withLocalDeclD `cv (mkConst ``SExpr) fun cv => do
+                let lt ← mkAppM ``Nat.lt #[← muAt bv cv, ← muAt av1 av2]
+                let envB ← envEat bv cv
+                let conv ← mkConvPropEx cfg.worldExpr envB (reflectSExpr body)
+                mkForallFVars #[bv, cv] (← mkArrow lt conv)
+            withLocalDeclD `ih ihType fun ih => do
+              let envE ← envEat av1 av2
+              let vals ← varProofs envE [av1, av2]
+              let p ← totWalk cfg envE vals [] totalEnv
+                (some (name, row, ih, just, none)) body
+              mkLambdaFVars #[av1, av2, ih] p
+        mkAppM ``totality_2_rec_sum_mu
+          #[μE, cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+            reflectSymbol f2, reflectSExpr body, hNs, hDef, step]
+      | _ =>
+        throwFrontier m!"proveTotality: sum measure at arity \
+            {formals.length} unsupported (frontier)"
+    | _ =>
+    let some measuredFormal := row.vars.head?
+      | throwFrontier m!"proveTotality: measure row {row.headName} has no \
+          measured variable (internal)"
+    -- the induction MEASURE: the table ROW's registered μ head on the
+    -- destructor route, the INTERPRETED count on the recorded route (μ is
+    -- proof bookkeeping — design I1; the statement never mentions it).
+    let muHead? : Option Lean.Name :=
+      match row.muHeads with
+      | some [h] => some h
+      | _ => none
     let countOf (e : Expr) : MetaM Expr :=
       match recTerm? with
       | some info => mkAppM ``ACL2.Replay.interpCount
           #[cfg.worldExpr, reflectSymbol info.cntSym, e]
-      | none => mkAppM ``SExpr.consCount #[e]
+      | none =>
+        match muHead? with
+        | some h => mkAppM h #[e]
+        | none => throwFrontier m!"proveTotality: measure row \
+            {row.headName} has no registered μ and no recorded admission \
+            replay to interpret it (frontier)"
+    -- ONE μ for every arity arm — the table row's registered head (or the
+    -- recorded route's `interpCount`), λ-abstracted. The `*_rec_mu` family
+    -- is used uniformly: the old consCount-hardcoded `totality_N_rec`
+    -- wrappers are exactly their `μ := consCount` instances.
+    let μ1E : MetaM Expr :=
+      withLocalDeclD `v (mkConst ``SExpr) fun v => do
+        mkLambdaFVars #[v] (← countOf v)
     match formals with
     | [f1] =>
       unless measuredFormal == f1 do
@@ -158,20 +218,11 @@ def proveTotality (cfg : ReplayConfig)
           let envE ← envEat av
           let vals ← varProofs envE [av]
           let p ← totWalk cfg envE vals [] totalEnv
-            (some (name, measuredFormal, ih, just, recTerm?)) body
+            (some (name, row, ih, just, recTerm?)) body
           mkLambdaFVars #[av, ih] p
-      match recTerm? with
-      | some info =>
-        let μE ← withLocalDeclD `v (mkConst ``SExpr) fun v => do
-          mkLambdaFVars #[v] (← mkAppM ``ACL2.Replay.interpCount
-            #[cfg.worldExpr, reflectSymbol info.cntSym, v])
-        mkAppM ``totality_1_rec_mu
-          #[μE, cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
-            reflectSExpr body, hNs, hDef, step]
-      | none =>
-        mkAppM ``totality_1_rec
-          #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
-            reflectSExpr body, hNs, hDef, step]
+      mkAppM ``totality_1_rec_mu
+        #[← μ1E, cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+          reflectSExpr body, hNs, hDef, step]
     | [f1, f2] =>
       let envEat := fun (bv cv : Expr) => do
         let formalsE ← mkListLit (mkConst ``Symbol)
@@ -192,11 +243,11 @@ def proveTotality (cfg : ReplayConfig)
               let envE ← envEat av1 av2
               let vals ← varProofs envE [av1, av2]
               let p ← totWalk cfg envE vals [] totalEnv
-                (some (name, measuredFormal, ih, just, none)) body
+                (some (name, row, ih, just, none)) body
               mkLambdaFVars #[av1, ih, av2] p
-        mkAppM ``totality_2_rec
-          #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1, reflectSymbol f2,
-            reflectSExpr body, hNs, hDef, step]
+        mkAppM ``totality_2_rec_mu
+          #[← μ1E, cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+            reflectSymbol f2, reflectSExpr body, hNs, hDef, step]
       else if measuredFormal == f2 then
         -- measured on the SECOND formal (e.g. (rm e x) / (memb a x) on x):
         -- strong induction on av2's count, av1 inner-∀ (totality_2_rec_snd)
@@ -213,54 +264,55 @@ def proveTotality (cfg : ReplayConfig)
               let envE ← envEat av1 av2
               let vals ← varProofs envE [av1, av2]
               let p ← totWalk cfg envE vals [] totalEnv
-                (some (name, measuredFormal, ih, just, none)) body
+                (some (name, row, ih, just, none)) body
               mkLambdaFVars #[av2, ih, av1] p
-        mkAppM ``totality_2_rec_snd
-          #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1, reflectSymbol f2,
-            reflectSExpr body, hNs, hDef, step]
+        mkAppM ``totality_2_rec_mu_snd
+          #[← μ1E, cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+            reflectSymbol f2, reflectSExpr body, hNs, hDef, step]
       else
         throwError "proveTotality: measured formal {measuredFormal.name} is \
             not among the formals (internal)"
     | [f1, f2, f3] =>
-      -- 3-ary, measured on the SECOND formal (sorting arc 2026-07-29 —
-      -- FILTER/ALL-REL's `(fn x e)` shape); other positions stay frontier
-      -- until a book demands them.
-      unless measuredFormal == f2 do
+      -- 3-ary, measured on the FIRST (`ZIP3`, `recon-tests/16-three-way`)
+      -- or SECOND (`FILTER`/`ALL-REL`'s `(fn x e)`) formal. Audit F7: the
+      -- second-formal restriction was fitted to FILTER's shape while ZIP3
+      -- sat in the corpus demanding the first — and the TP prover's twin
+      -- already accepted both, so the two provers disagreed about what
+      -- 3-ary meant. `totality_3_rec_fst_mu` (Lemmas/TotalityArity) is the
+      -- missing lemma; third-formal measures stay an honest frontier.
+      let fstMeasured := measuredFormal == f1
+      unless fstMeasured || measuredFormal == f2 do
         throwFrontier m!"proveTotality: 3-ary measured formal \
-            {measuredFormal.name} is not the second formal (frontier)"
+            {measuredFormal.name} is neither the first nor the second \
+            formal (frontier)"
       let envEat := fun (bv cv dv : Expr) => do
         let formalsE ← mkListLit (mkConst ``Symbol)
           [reflectSymbol f1, reflectSymbol f2, reflectSymbol f3]
         let avsE ← mkListLit (mkConst ``SExpr) [bv, cv, dv]
         mkAppM ``bindArgs #[formalsE, avsE]
-      let step ← withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
+      let step ← withLocalDeclD `avM (mkConst ``SExpr) fun avM => do
         let ihType ← withLocalDeclD `bv (mkConst ``SExpr) fun bv => do
-          let lt ← mkAppM ``Nat.lt #[← countOf bv, ← countOf av2]
-          let inner ← withLocalDeclD `av1 (mkConst ``SExpr) fun av1 =>
+          let lt ← mkAppM ``Nat.lt #[← countOf bv, ← countOf avM]
+          let inner ← withLocalDeclD `ax (mkConst ``SExpr) fun ax =>
             withLocalDeclD `av3 (mkConst ``SExpr) fun av3 => do
-              let envB ← envEat av1 bv av3
+              let envB ←
+                if fstMeasured then envEat bv ax av3 else envEat ax bv av3
               let conv ← mkConvPropEx cfg.worldExpr envB (reflectSExpr body)
-              mkForallFVars #[av1, av3] conv
+              mkForallFVars #[ax, av3] conv
           mkForallFVars #[bv] (← mkArrow lt inner)
         withLocalDeclD `ih ihType fun ih =>
-          withLocalDeclD `av1 (mkConst ``SExpr) fun av1 =>
+          withLocalDeclD `ax (mkConst ``SExpr) fun ax =>
             withLocalDeclD `av3 (mkConst ``SExpr) fun av3 => do
-              let envE ← envEat av1 av2 av3
-              let vals ← varProofs envE [av1, av2, av3]
+              let envE ←
+                if fstMeasured then envEat avM ax av3 else envEat ax avM av3
+              let vals ← varProofs envE
+                (if fstMeasured then [avM, ax, av3] else [ax, avM, av3])
               let p ← totWalk cfg envE vals [] totalEnv
-                (some (name, measuredFormal, ih, just, recTerm?)) body
-              mkLambdaFVars #[av2, ih, av1, av3] p
-      let μE ←
-        match recTerm? with
-        | some info =>
-          withLocalDeclD `v (mkConst ``SExpr) fun v => do
-            mkLambdaFVars #[v] (← mkAppM ``ACL2.Replay.interpCount
-              #[cfg.worldExpr, reflectSymbol info.cntSym, v])
-        | none =>
-          withLocalDeclD `v (mkConst ``SExpr) fun v => do
-            mkLambdaFVars #[v] (← mkAppM ``SExpr.consCount #[v])
-      mkAppM ``totality_3_rec_snd_mu
-        #[μE, cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
+                (some (name, row, ih, just, recTerm?)) body
+              mkLambdaFVars #[avM, ih, ax, av3] p
+      mkAppM (if fstMeasured then ``totality_3_rec_fst_mu
+              else ``totality_3_rec_snd_mu)
+        #[← μ1E, cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
           reflectSymbol f2, reflectSymbol f3, reflectSExpr body, hNs, hDef,
           step]
     | _ => throwFrontier m!"proveTotality: recursive arity {formals.length} \
@@ -909,20 +961,25 @@ partial def proveTp (cfg : ReplayConfig)
     bindArgsVarProofs cfg "proveTp" envE formals avs
   -- the D5 admission scope shared by both modes: `o<` on
   -- `(acl2-count <single measured formal>)`
+  -- classified through the SAME measure table as `proveTotality` (R3,
+  -- 2026-08-14) so the two provers cannot disagree about what a measure
+  -- shape IS. The TP assembly's `tp_*_rec` wrappers are `consCount`-typed
+  -- throughout, so only the `count` ROW is assemblable here; every other
+  -- registered row keeps its own honest frontier (widening it means
+  -- μ-generic `tp_*_rec_mu` twins, not a new classifier).
   let measuredOf (just : Justification) : MetaM Symbol := do
     unless just.wfRel.name == "O<" do
       throwFrontier m!"proveTp: well-founded relation {just.wfRel.name} \
           unsupported (frontier: o< only)"
-    let some measuredFormal := just.measuredSubset.head?
-      | throwFrontier m!"proveTp: empty measured subset"
-    unless just.measuredSubset.length == 1 do
-      throwFrontier m!"proveTp: multi-formal measured subset unsupported (frontier)"
-    unless just.measure ==
-        (.cons (.atom (.symbol { name := "ACL2-COUNT" }))
-          (.cons (.atom (.symbol { name := measuredFormal.name })) .nil)) do
-      throwFrontier m!"proveTp: measure {repr just.measure} unsupported \
-          (frontier: (acl2-count <measured-formal>) only)"
-    pure measuredFormal
+    let some row := MeasureShape.ofJustification? just
+      | throwFrontier m!"proveTp: measure {repr just.measure} with measured \
+          subset {repr (just.measuredSubset.map (·.name))} is not a \
+          registered measure-table row (frontier)"
+    match row with
+    | .count v => pure v
+    | _ =>
+      throwFrontier m!"proveTp: measure-table row {row.headName} has no \
+          consCount-typed TP assembly (frontier: the `count` row only)"
   if argValued then
     -- THE ARGS-VALUED ASSEMBLY (increment 5). Only the shape the corpus
     -- demands is covered — 2-ary, recursive, measured on the FIRST formal

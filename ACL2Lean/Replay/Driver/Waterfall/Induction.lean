@@ -191,7 +191,13 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
       -- registry route — its pre-widening green is the witness); the
       -- shared walk with the reach parameter is the S7/D7 dedupe.
       let chainOk : SExpr → Bool := destructorChainOk true
-      let registryCovered := cnt.name == "ACL2-COUNT" || cnt.name == "LEN"
+      -- R3 (2026-08-14): "registry-covered" is now READ OFF the unified
+      -- measure table (a row with a μ interpretation), not a hand list of
+      -- head names that could drift from `buildMeasureFn`'s own rows.
+      let registryCovered :=
+        match measureShape? ind.measure with
+        | some sh => sh.muHeads.isSome
+        | none => false
       let decreasesChainOk :=
         match schemeFn?.bind (fun f => cfg.justs.lookup f.name) with
         | some just => just.terminationClauses.all fun c =>

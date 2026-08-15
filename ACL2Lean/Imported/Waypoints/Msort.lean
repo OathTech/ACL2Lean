@@ -26,8 +26,6 @@ theorem howManyMerge2Replayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
       Worlds.Sorting.how_many_merge2Formula = some v ∧ v ≠ SExpr.nil :=
   howManyMerge2ReplayedCond env
-    (Worlds.Sorting.dis_merge2_total msortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
 
 
 /-- ENTRY, PROVED — HOW-MANY-MERGE2 natively: merging adds
@@ -68,10 +66,11 @@ theorem how_many_evens_and_odds_native_driver (ev a : SExpr)
 #print axioms how_many_evens_and_odds_native_driver
 
 set_option maxHeartbeats 1600000 in
-/-- ORDEREDP-MSORT's conditional replayed statement (two `total:`
-    hypotheses; its former `tp:EVENS` hypothesis is now supplied by the
-    driver's TP prover from EVENS's emitted corollary + `:LEAVES` —
-    TP-replay arc increment 2, 2026-08-13). -/
+/-- ORDEREDP-MSORT's replayed statement — now UNCONDITIONAL: its two
+    `total:` hypotheses (`MERGE2`'s sum measure, `MSORT`'s EVENS/ODDS
+    decrease) arrive by replay as of the R3 measure table (2026-08-14),
+    and its former `tp:EVENS` hypothesis from the driver's TP prover
+    (TP-replay arc increment 2, 2026-08-13). -/
 def orderedpMsortReplayedCond := driver_replayed% msortDev msortWorldD
   "orderedp-msort"
 
@@ -79,11 +78,6 @@ theorem orderedpMsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
       Worlds.Sorting.orderedp_msortFormula = some v ∧ v ≠ SExpr.nil :=
   orderedpMsortReplayedCond env
-    (Worlds.Sorting.dis_merge2_total msortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_msort_total msortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
 
 /-- ENTRY, PROVED — ORDEREDP-MSORT natively: MERGE SORT ALWAYS SORTS —
     `msortL` yields an adjacent-pair lexorder-sorted list for EVERY
@@ -105,11 +99,6 @@ theorem howManyMsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f msortWorldD env
       Worlds.Sorting.how_many_msortFormula = some v ∧ v ≠ SExpr.nil :=
   howManyMsortReplayedCond env
-    (Worlds.Sorting.dis_merge2_total msortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide))
-    (Worlds.Sorting.dis_msort_total msortWorldD (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide))
 
 
 /-- ENTRY, PROVED — HOW-MANY-MSORT natively: MERGE SORT PRESERVES

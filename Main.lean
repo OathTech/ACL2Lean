@@ -174,8 +174,15 @@ def main (args : List String) : IO Unit := do
                   | .includeBook => " [include-book]"
                   | .unknown => ""
                 IO.println s!"\n  DEFTHM {name}{srcStr}: {formula}"
-            | .typePrescription name corollary basicTs leaves =>
-                IO.println s!"\n  TYPE-PRESCRIPTION {name}: {corollary} (basicts={basicTs}, {leaves.length} leaves)"
+            | .typePrescription name corollary basicTs leaves allTps =>
+                -- `allTps` (the R2 fork batch's `:ALL-TPS` channel) was
+                -- added to the constructor without a display arm, which
+                -- left this match NON-EXHAUSTIVE and `lake build Main`
+                -- red (the sprint's fast-gates build ACL2Lean/Tests, not
+                -- Main, so it went unseen). Bound and displayed here.
+                IO.println s!"\n  TYPE-PRESCRIPTION {name}: {corollary} \
+                  (basicts={basicTs}, {leaves.length} leaves, \
+                  {allTps.length} all-tps)"
             | .poolConsider name =>
                 IO.println s!"  POOL-CONSIDER *{String.intercalate "." (name.map toString)}"
             | .poolSubsumed name byName =>

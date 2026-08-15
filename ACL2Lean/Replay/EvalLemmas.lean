@@ -6,5 +6,7 @@
   Importers of this module are unchanged.
 -/
 import ACL2Lean.Replay.Lemmas.Judgments
+import ACL2Lean.Replay.Lemmas.MeasureMu
+import ACL2Lean.Replay.Lemmas.TotalityArity
 import ACL2Lean.Replay.Lemmas.FnAlias
 import ACL2Lean.Replay.Lemmas.FnAliasLift

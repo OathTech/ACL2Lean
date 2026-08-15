@@ -1,5 +1,67 @@
 # ACL2Lean — project TODO
 
+> **R3 — THE UNIFIED MEASURE/ARITY TABLE (LANDED 2026-08-14, T1+2 sprint
+> phase 2; overspecialization audit F6/F7/F8 + F13).** The shape of an
+> emitted `:MEASURE` used to be classified INDEPENDENTLY at five sites
+> (`proveTotality`'s admission gate, `proveTp`'s `measuredOf`, the
+> μ-registry `buildMeasureFn` + `replayInduction`'s route
+> discriminator, `dischargeDecrease`'s walk dispatch, `derive_exec%`'s
+> `MeasureSpec`) with DIFFERENT row sets — F6 found the admission gate
+> alone blocking 100% of the main-row `total:` debt, on shapes its
+> siblings already understood. Now ONE classifier
+> (`ACL2Lean/Replay/MeasureTable.lean`: `MeasureShape` =
+> count / len / nfix / sumCount / userFn, `measureShape?`,
+> `MeasureShape.ofJustification?` which CHECKS the emitted `:MEASURED`
+> subset, `MeasurePos` = `derive_exec%`'s positional view) plus the
+> μ row (`Replay/Lemmas/MeasureMu.lean`, `MeasureShape.muHeads` —
+> `nfixNat` NEW), and every consumer dispatches on it with a TOTAL
+> match, so a new row forces a decision at each site.
+> Landed with it: `totality_2_rec_sum_mu` + `totality_3_rec_fst_mu`
+> (`Replay/Lemmas/TotalityArity.lean` — F6's sum cell and F7's missing
+> first-formal twin), the recognizer-duality bridge in `totWalk`'s
+> decrease kit (CONSP↔ENDP, the gap between the coverage rule and the
+> proof plumbing), and the opaque-measured-actual ∃-elimination on the
+> 1-ary destructor route (MSORT's `(MSORT (EVENS X))`).
+> RESULT: golden 87+27 → 98+16 (row-region `total:` 44 → 23
+> occurrences); `total:BNEXT` ×10, `total:MERGE2` ×5, `total:MSORT` ×4,
+> `total:INTERLEAVE`, `total:ZIP3` all RETIRED; three FORBIDDEN-DEBT
+> sorries deleted (5 → 2).
+> RESIDUE (→ RT2, verbatim frontiers):
+> - `total:BSORT` ×4 — the recorded route now REACHES BSORT (the
+>   userFn/BNEXT-SIZE row is admitted) and stops at
+>   `recorded decrease: non-liftable ruler (EQUAL (BNEXT X) X)`: the
+>   emitted ruler mentions an opaque call, and `rulerNilConv` only
+>   handles liftable rulers even though `totWalk`'s opaque-test arm has
+>   already bound that test's value AND its convergence. FIX SHAPE:
+>   carry the value+convergence in `totWalk`'s `facts` (today a
+>   `(term, sign, signProof)` triple) so the ruler peel can consume
+>   them. Secondary, on other rows:
+>   `recorded route: condition linear:HOW-MANY-BAD-PAIRS-BNEXT not
+>   offered by the consumer telescope`.
+> - `total:QSORT` ×1 — NOT a measure-table question (QSORT's measure is
+>   the plain `count` row): its decrease actual is the opaque
+>   `(FILTER 'LT (CDR X) (CAR X))`, which no destructor walk can state
+>   and which must NOT get a per-case registry arm (the carve-out-drift
+>   test — EVENS/ODDS are registered with PROVED `CountSim` models, and
+>   `consCount (FILTER …) < consCount x` is not even true in general).
+>   The recorded route is the right one and DOES fire for
+>   `termination:QSORT`; making it available at the consuming rows is
+>   the driver-queue item (hypothetical-TP mode).
+> - `total:O<` ×12 / `total:O-P` ×6 — the ordinal bootstrap (see the
+>   debt registry above).
+> - CD2-BOUND — NFIX is now REGISTERED for μ, and the row's frontier
+>   moved to its honest next one, recorded verbatim in the golden:
+>   `dischargeDecrease: the NFIX measure row has no decrease walk — an
+>   NFIX decrease is arithmetic, not a destructor chain (frontier):
+>   (NFIX N)`. The emitted obligation is
+>   `((ZP N) (EQUAL N '1) (O< (NFIX (BINARY-+ '-2 N)) (NFIX N)))`, so
+>   the walk needs (a) an arithmetic decrease lemma and (b) a general
+>   in-scope-fact accessor on `DecreaseKit` (today only
+>   `conspTrueOf`/`endpFalseOf`). This is the P1 arithmetic backlog's
+>   first concrete demand.
+> - PERM-TLFIX's catalog decision (a G1-M leftover surfaced here) is
+>   `.pending` — a MIRROR-side call, left to the mirror wave.
+
 TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAYPOINT layer, not a mirror in the product sense (ACL2Lean/Mirrors/). The 2026-08-12 naming sweep renamed those artifacts — the old `Imported/Mirrors/` directory is now `Imported/Waypoints/`, the old `Imported/NativeMirrors.lean` facade is now `Imported/WaypointCatalog.lean`, the old `Tests/MirrorCensus.lean` is now `Tests/WaypointCensus.lean`, and the old `just mirror-metrics` recipe is now `just waypoint-metrics`. PATH and COMMAND references below were updated to point at the real files; the surrounding narrative was left as the record it is.
 
 > **THIN-LEAN PURGE (2026-08-11, branch mdd/mirror-provenance-purge;
@@ -25,10 +87,23 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > native exists — none was invented to satisfy the gate).
 > **THE DEBT REGISTRY (each entry names its unlock):**
 > - REQUIRED class (replayable — must be wired, not left sorried):
->   `dis_merge2_total`, `dis_msort_total`, `dis_o_lt_total`,
->   `dis_bnext_total` — with_termination admission
->   coverage for MERGE2/MSORT/O</BNEXT (the machinery exists;
->   the admissions need replay rows + wiring).
+>   `dis_o_lt_total` ONLY — the ACL2 ORDINAL BOOTSTRAP. `O<` is a
+>   GROUND-ZERO defun whose emitted decreases run through
+>   `(O-FIRST-EXPT X)` / `(O-RST X)`, so no destructor walk states them,
+>   and ground-zero defuns carry NO admission clause proof (`:SOURCE
+>   :GROUND-ZERO` — nothing to replay), so the recorded route has no
+>   input either. Out of scope per the overspecialization audit's F6
+>   ("genuinely hard"); UNLOCK: a ground-zero admission emission (or a
+>   registered ordinal measure model).
+>   RETIRED 2026-08-14 (T1+2 sprint phase 2 — the R3 UNIFIED
+>   MEASURE/ARITY TABLE, audit F6/F7/F8): `dis_merge2_total`,
+>   `dis_msort_total`, `dis_bnext_total`. `proveTotality`'s admission
+>   gate accepted exactly ONE measure shape while the μ-registry and
+>   `dischargeDecrease` already carried more; with one shared classifier
+>   (`Replay/MeasureTable.lean`) the LEN row (BNEXT), the two-measured-
+>   formal SUM row (MERGE2, new lemma `totality_2_rec_sum_mu`) and
+>   MSORT's opaque EVENS/ODDS measured actual (∃-eliminated onto the
+>   existing registry decrease) all replay from the EMITTED clauses.
 >   RETIRED 2026-08-13 (TP-replay arc, the ATOM-leg increment — the
 >   FIRST REQUIRED-class retirement): `dis_pce_total`. PCE's emitted
 >   termination clause rules on `(ATOM X)`, and the shared branch-fact

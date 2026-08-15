@@ -253,10 +253,10 @@ rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
       -- via the TRUE-LISTP corollary class: EVENS's emitted leaves are a
       -- CONS verdicted 1024 and 'NIL verdicted 128, both inside
       -- *ts-true-list* = 1152)
-      "    ORDEREDP-MSORT → REPLAYED ✓ cond[total:MERGE2, total:MSORT]"),
+      "    ORDEREDP-MSORT → REPLAYED ✓"),
      ("pins/sorting/bsort",
       -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above)
-      "    HOW-MANY-BNEXT → REPLAYED ✓ cond[total:BNEXT]"),
+      "    HOW-MANY-BNEXT → REPLAYED ✓"),
      ("pins/sorting/convert-perm-to-how-many",
       -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above)
       "    HOW-MANY-RM → REPLAYED ✓")]
@@ -554,8 +554,13 @@ example :
       the hypothesis left the telescope. INTENTIONAL.) -/
 example :
     ∀ (env : Env),
-      totalHyp2 msortPinsWorld "MERGE2" →
-      totalHyp1 msortPinsWorld "MSORT" →
+      -- (total:MERGE2 and total:MSORT RETIRED 2026-08-14 — the R3
+      -- unified measure/arity table: MERGE2's two-measured-formal
+      -- `(BINARY-+ (ACL2-COUNT X) (ACL2-COUNT Y))` measure is a
+      -- registered ROW, and MSORT's opaque `(EVENS X)` measured actual
+      -- is ∃-eliminated onto the existing EVENS/ODDS registry decrease.
+      -- Both totalities REPLAY from the emitted clauses, so both
+      -- hypotheses left the telescope. INTENTIONAL.)
       EvTrue msortPinsWorld env (ap1 "ORDEREDP" (ap1 "MSORT" (sym "X"))) :=
   ReplayedStatements.replayed_pins_sorting_msort_ORDEREDP_MSORT
 
@@ -573,7 +578,8 @@ example :
     dependency trees like the sweep (2a cross-discharge). -/
 example :
     ∀ (env : Env),
-      totalHyp1 bsortPinsWorld "BNEXT" →
+      -- (total:BNEXT RETIRED 2026-08-14 — the R3 measure table's LEN
+      -- row; the hypothesis left the telescope. INTENTIONAL.)
       -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
       -- discharges HOW-MANY's emitted corollary from its `:LEAVES`;
       -- the hypothesis left the telescope, so the pinned type drops
@@ -1033,8 +1039,8 @@ remaining named honest survivor. -/
     rules — the row's exact cond[…] telescope, in order. -/
 example :
     ∀ (env : Env),
-      totalHyp2 sortsEqPinsWorld "MERGE2" →
-      totalHyp1 sortsEqPinsWorld "MSORT" →
+      -- (total:MERGE2 and total:MSORT RETIRED 2026-08-14 — the R3
+      -- unified measure/arity table; both left the telescope.)
       -- (tp:HOW-MANY RETIRED 2026-08-12 — the TP prover's BINARY-+
       -- return path; tp:INSERT and tp:EVENS RETIRED 2026-08-13 — the
       -- CONS return-path shape. All three left the telescope.)

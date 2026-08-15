@@ -2344,45 +2344,24 @@ derive_sim% msortExec_enc for "MSORT"
 
 /-! ## The msort dischargers -/
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `total:MERGE2` — the driver-shape totality premise — Lean-side;
-    content ACL2 derives at admission. Statement kept as the named
-    premise; proof retired to `sorry`. UNLOCK: `with_termination`
-    admission-replay coverage (REQUIRED-class debt). -/
-theorem dis_merge2_total (w : World)
-    (h_merge2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env' : Env) (a0 a1 : SExpr),
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env'
-        (SExpr.cons (SExpr.atom (Atom.symbol merge2_sym))
-          (SExpr.cons a0 (SExpr.cons a1 SExpr.nil))) = some v := by
-  sorry
-
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `total:MSORT` — the driver-shape totality premise — Lean-side;
-    content ACL2 derives at admission. Statement kept as the named
-    premise; proof retired to `sorry`. UNLOCK: `with_termination`
-    admission-replay coverage (REQUIRED-class debt). -/
-theorem dis_msort_total (w : World)
-    (h_m2 : w.defs.get? merge2_sym = some ([xS, yS], merge2Body))
-    (h_evens : w.defs.get? evens_sym = some ([lS], evensBody))
-    (h_odds : w.defs.get? odds_sym = some ([lS], oddsBody))
-    (h_msort : w.defs.get? msort_sym = some ([xS], msortBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env' : Env) (a0 : SExpr),
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (msortT a0) = some v := by
-  sorry
+/- `dis_merge2_total` and `dis_msort_total` — DELETED 2026-08-14 (T1+2
+   sprint phase 2, the R3 unified measure/arity table). They carried
+   `total:MERGE2` / `total:MSORT` as FORBIDDEN-DEBT because
+   `proveTotality`'s admission gate accepted exactly ONE measure shape,
+   `(ACL2-COUNT <single measured formal>)` — the overspecialization
+   audit's F6 — while MERGE2's emitted justification is
+   `:MEASURE (BINARY-+ (ACL2-COUNT X) (ACL2-COUNT Y)) :MEASURED (Y X)`
+   (two measured formals) and MSORT's decrease runs through EVENS/ODDS,
+   whose applications the gate's liftability check rejected before the
+   walk that already understood them could run. With the unified table
+   (`Replay/MeasureTable.lean`) the sum ROW is assemblable
+   (`totality_2_rec_sum_mu`, `Replay/Lemmas/TotalityArity.lean`) and the
+   opaque measured actual is bound by ∃-elimination over its own
+   convergence walk, so BOTH totalities arrive BY REPLAY of the emitted
+   admission data (the emitted decrease clauses + the branch facts —
+   the ratified carve-out extension, nothing ACL2 did not emit).
+   Retired by DELETION + consumer rewiring, never by a Lean re-proof
+   (the thin-Lean rule); every consumer simply drops the argument. -/
 
 /-! The `tp:EVENS` discharger is RETIRED (TP-replay arc increment 2,
 2026-08-13). `dis_evens_tp` is GONE: `(TRUE-LISTP (EVENS L))` now
@@ -4237,22 +4216,18 @@ theorem bnext_exec_corr (w : World)
   exact conv_defn_1 w env bnext_sym x xv xS bnextBody _
     bnext_ns h_bnext hx (hbody xv)
 
-/-- FORBIDDEN-DEBT (thin-Lean ruling 2026-08-11): this establishes
-    `total:BNEXT` — bnext's driver-shape totality premise — Lean-side;
-    content ACL2 derives at admission. Statement kept as the named
-    premise; proof retired to `sorry`. UNLOCK: `with_termination`
-    admission-replay coverage (REQUIRED-class debt). -/
-theorem dis_bnext_total (w : World)
-    (h_bnext : w.defs.get? bnext_sym = some ([xS], bnextBody))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none) :
-    ∀ (env' : Env) (a0 : SExpr),
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' (app1 "BNEXT" a0) = some v := by
-  sorry
+/- `dis_bnext_total` — DELETED 2026-08-14 (T1+2 sprint phase 2, the R3
+   unified measure/arity table). It carried `total:BNEXT` as
+   FORBIDDEN-DEBT because `proveTotality`'s admission gate accepted only
+   `(ACL2-COUNT <measured formal>)` while BNEXT's emitted justification is
+   `:MEASURE (LEN X)` — a row the μ-registry (`lenNat`) and the decrease
+   walk (`chainLtLen`, including the `(CONS (CAR X) (CDR (CDR X)))` swap
+   site) had ALREADY carried since P3; the gate was the only fragment that
+   had not been told (overspecialization audit F6). With the unified table
+   the LEN row is assemblable (`totality_1_rec_mu` at μ := `lenNat`) and
+   BNEXT's totality arrives BY REPLAY of its emitted decrease clauses.
+   Retired by DELETION + consumer rewiring, never by a Lean re-proof (the
+   thin-Lean rule); every consumer simply drops the argument. -/
 
 /-- The HOW-MANY-BNEXT replayed-statement formula:
     `(EQUAL (HOW-MANY E (BNEXT X)) (HOW-MANY E X))`. -/

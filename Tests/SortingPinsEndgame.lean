@@ -61,7 +61,11 @@ derive_world sortsEqSweepWorld from sortsEqSweepDev
     non-negative-integer TP corollary (source-true: it counts). -/
 example :
     ∀ (env : Env),
-      totalHyp1 bsortSweepWorld "BNEXT" →
+      -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
+      -- measure/arity table: BNEXT's emitted `:MEASURE (LEN X)` is a
+      -- registered ROW, so its totality REPLAYS from the emitted
+      -- decrease clauses and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       -- (tp:HOW-MANY-SMALLER RETIRED 2026-08-12 — the TP prover's
       -- return-path arm discharges it from ACL2's emitted corollary
       -- + `:LEAVES`; the hypothesis left the telescope. INTENTIONAL.)
@@ -79,7 +83,11 @@ example :
     conditional on bnext totality only. -/
 example :
     ∀ (env : Env),
-      totalHyp1 bsortSweepWorld "BNEXT" →
+      -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
+      -- measure/arity table: BNEXT's emitted `:MEASURE (LEN X)` is a
+      -- registered ROW, so its totality REPLAYS from the emitted
+      -- decrease clauses and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       -- (tp:HOW-MANY-SMALLER RETIRED 2026-08-12 — the TP prover's
       -- return-path arm discharges it from ACL2's emitted corollary
       -- + `:LEAVES`; the hypothesis left the telescope. INTENTIONAL.)
@@ -104,7 +112,11 @@ example :
     conditional on bnext totality only. -/
 example :
     ∀ (env : Env),
-      totalHyp1 bsortSweepWorld "BNEXT" →
+      -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
+      -- measure/arity table: BNEXT's emitted `:MEASURE (LEN X)` is a
+      -- registered ROW, so its totality REPLAYS from the emitted
+      -- decrease clauses and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       EvTrue bsortSweepWorld env
         (ap2 "IMPLIES"
           (ap2 "EQUAL" (ap1 "BNEXT" (sym "X")) (sym "X"))
@@ -121,7 +133,11 @@ example :
     (bsort's admitted measure decrease). -/
 example :
     ∀ (env : Env),
-      totalHyp1 bsortSweepWorld "BNEXT" →
+      -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
+      -- measure/arity table: BNEXT's emitted `:MEASURE (LEN X)` is a
+      -- registered ROW, so its totality REPLAYS from the emitted
+      -- decrease clauses and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       totalHyp1 bsortSweepWorld "BSORT" →
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
@@ -138,7 +154,11 @@ example :
     under the same μ-route hypothesis set as ORDEREDP-BSORT. -/
 example :
     ∀ (env : Env),
-      totalHyp1 bsortSweepWorld "BNEXT" →
+      -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
+      -- measure/arity table: BNEXT's emitted `:MEASURE (LEN X)` is a
+      -- registered ROW, so its totality REPLAYS from the emitted
+      -- decrease clauses and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       totalHyp1 bsortSweepWorld "BSORT" →
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
@@ -162,7 +182,11 @@ example :
     the golden, corrected in the exit-audit fix round). -/
 example :
     ∀ (env : Env),
-      totalHyp1 bsortSweepWorld "BNEXT" →
+      -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
+      -- measure/arity table: BNEXT's emitted `:MEASURE (LEN X)` is a
+      -- registered ROW, so its totality REPLAYS from the emitted
+      -- decrease clauses and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       totalHyp1 bsortSweepWorld "BSORT" →
       totalHyp2 bsortSweepWorld "O<" →
       totalHyp1 bsortSweepWorld "O-P" →
@@ -233,7 +257,11 @@ example :
     `tp:BNEXT-SIZE` 2026-08-13) — marked in place below. -/
 example :
     ∀ (env : Env),
-      totalHyp1 sortsEqSweepWorld "BNEXT" →
+      -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
+      -- measure/arity table: BNEXT's emitted `:MEASURE (LEN X)` is a
+      -- registered ROW, so its totality REPLAYS from the emitted
+      -- decrease clauses and the hypothesis left the telescope.
+      -- INTENTIONAL; diagnosed against the golden.)
       totalHyp1 sortsEqSweepWorld "BSORT" →
       totalHyp2 sortsEqSweepWorld "O<" →
       totalHyp1 sortsEqSweepWorld "O-P" →

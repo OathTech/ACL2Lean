@@ -309,37 +309,37 @@ where
 
 /-- I1 μ-REGISTRY (induction-generality design, J2): build the TOTAL
     meta-level `Env → Nat` interpretation of an emitted measure term.
-    Registered heads: `ACL2-COUNT` (of a variable) ↦ `SExpr.consCount` of
-    the env value; `BINARY-+` ↦ `Nat.add`. An UNKNOWN head hard-fails — a
-    loud frontier, never a default (extension is additive registration).
-    The measure appears in NO statement (design I1's trust observation):
-    μ is proof bookkeeping, so a registry gap can only fail a proof. -/
-partial def buildMeasureFn (measure : SExpr) : MetaM Expr := do
+
+    R3 (T1+2 sprint phase 2, 2026-08-14): the row set is the UNIFIED
+    measure table (`Replay/MeasureTable.lean` + `MeasureShape.muHeads`),
+    shared with `proveTotality`/`proveTp`'s admission gates,
+    `dischargeDecrease`'s walk dispatch and `derive_exec%`'s
+    `MeasurePos` — the four fragments the overspecialization audit's
+    F6/F7/F8 found classifying measures independently. An UNREGISTERED
+    shape hard-fails: a loud frontier, never a default. The measure
+    appears in NO statement (design I1's trust observation): μ is proof
+    bookkeeping, so a registry gap can only fail a proof. -/
+def buildMeasureFn (measure : SExpr) : MetaM Expr := do
+  let some sh := measureShape? measure
+    | throwError "μ-registry: measure shape {repr measure} not registered \
+                  (frontier)"
+  let some heads := sh.muHeads
+    | throwError "μ-registry: measure head {sh.headName} has no \
+                  trusted-core Nat interpretation — only the \
+                  recorded-termination route interprets a user measure fn \
+                  (frontier)"
+  unless heads.length == sh.vars.length do
+    throwError "μ-registry: row {sh.headName} has {heads.length} μ head(s) \
+                for {sh.vars.length} measured variable(s) (internal)"
   withLocalDeclD `env (mkConst ``ACL2.Env) fun envV => do
-    mkLambdaFVars #[envV] (← go envV measure)
-where
-  go (envV : Expr) : SExpr → MetaM Expr
-    | .cons (.atom (.symbol h)) (.cons arg .nil) => do
-      -- LEN registered (P3, bsort: BNEXT's `:MEASURE (LEN X)`) — the Nat
-      -- interpretation is the trusted-core `lenNat` twin (`Logic.len`
-      -- computes it as an int atom, `logic_len_eq_lenNat`); additive
-      -- registration exactly parallel to ACL2-COUNT/consCount.
-      let fn ← match h.name with
-        | "ACL2-COUNT" => pure ``SExpr.consCount
-        | "LEN" => pure ``ACL2.Replay.lenNat
-        | _ => throwError "μ-registry: unary measure head {h.name} not \
-                    registered (frontier)"
-      let .atom (.symbol v) := arg
-        | throwError "μ-registry: ({h.name} {repr arg}) — non-variable \
-                      measured argument (frontier)"
+    let comps ← (sh.vars.zip heads).mapM fun (v, fn) => do
       mkAppM fn #[← dpConcVar envV v]
-    | .cons (.atom (.symbol h)) (.cons m1 (.cons m2 .nil)) => do
-      unless h.name == "BINARY-+" do
-        throwError "μ-registry: binary measure head {h.name} not registered \
-                    (frontier)"
-      mkAppM ``HAdd.hAdd #[← go envV m1, ← go envV m2]
-    | m => throwError "μ-registry: measure shape {repr m} not registered \
-                       (frontier)"
+    match comps with
+    | [] => throwError "μ-registry: row {sh.headName} has no measured \
+                        variables (internal)"
+    | c0 :: rest => do
+      let body ← rest.foldlM (fun acc c => mkAppM ``HAdd.hAdd #[acc, c]) c0
+      mkLambdaFVars #[envV] body
 
 /-- I4 COVERING JOIN (J2): the IH's measured-subset substitution must be
     covered by an EMITTED termination clause of the scheme fn, instantiated

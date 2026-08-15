@@ -361,14 +361,21 @@ def decreaseScript (chain : List String) :
 
 /-! ## Corr-proof generation -/
 
-/-- The v1 measure classes: M1 = `(ACL2-COUNT formalᵢ)` with
-    destructor-chain recursion; M2 = `(+ (ACL2-COUNT formalᵢ)
-    (ACL2-COUNT formalⱼ))` with single-CDR one-side decreases (merge2's
-    shape). -/
-inductive MeasureSpec where
-  | m1 (idx : Nat)
-  | m2 (idx1 idx2 : Nat)
-  deriving Repr, BEq
+/-- The measure classes: M1 = one measured formal (`(ACL2-COUNT formalᵢ)`,
+    `(LEN formalᵢ)`, …) with destructor-chain recursion; M2 = two measured
+    formals (`(+ (ACL2-COUNT formalᵢ) (ACL2-COUNT formalⱼ))`, merge2's
+    shape) with single-CDR one-side decreases.
+
+    R3 (T1+2 sprint phase 2, 2026-08-14): this IS the shared measure
+    table's positional view (`ACL2.Replay.MeasurePos`,
+    `Replay/MeasureTable.lean`) — the audit's F13 found `derive_exec%`
+    carrying its own M1/M2 classification while `proveTotality` carried a
+    different one, so "same measure, two tables, opposite answers". One
+    datatype now; a new arity row is added to the table and every layer
+    sees it. (`derive_exec%` still TRANSCRIBES the emitted `:MEASURE` as
+    its `measured i (j)?` clause rather than parsing it — a fidelity claim
+    checked at the kit's consumers, per this module's header.) -/
+abbrev MeasureSpec := ACL2.Replay.MeasurePos
 
 /-- Context of the corr body walk. -/
 structure CorrCtx where
