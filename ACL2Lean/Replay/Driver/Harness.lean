@@ -188,10 +188,18 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
   -- needed, unlike the positive route's exact-t pin)
   let notForm : SExpr := .cons (.atom (.symbol { name := "NOT" }))
     (.cons spec.lhs .nil)
+  -- IFF-CONCLUSION rule (the DECODE class, P5a): ACL2's
+  -- `create-rewrite-rule` stores an `(IFF lhs rhs)` defthm conclusion as an
+  -- `:EQUIV EQUAL` rewrite rule when both sides are boolean. Recomputing
+  -- that normalization needs the same fact ACL2 used — the TWO-VALUEDNESS
+  -- of both sides — which is why the decode below DEMANDS the emitted
+  -- `:TYPE-PRESCRIPTION` disjunctions rather than assuming them.
+  let iffForm : SExpr := .cons (.atom (.symbol { name := "IFF" }))
+    (.cons spec.lhs (.cons spec.rhs .nil))
   let quoteNilS : SExpr := .cons (.atom (.symbol { name := "QUOTE" }))
     (.cons .nil .nil)
-  -- (hypsF, concl, routeEqual, routeRel, routeNotBool) of a candidate
-  let route? : SExpr → Option (SExpr × Bool × Bool × Bool) := fun formula =>
+  -- (concl, routeEqual, routeRel, routeNotBool, routeIff) of a candidate
+  let route? : SExpr → Option (SExpr × Bool × Bool × Bool × Bool) := fun formula =>
     let (hypsF, concl) := match formula with
       | .cons (.atom (.symbol impS)) (.cons h (.cons c .nil)) =>
         if impS.name == "IMPLIES" then (flattenAnd h, c) else ([], formula)
@@ -203,8 +211,9 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
     let routeRel := spec.equiv != "equal" && concl == relForm
     let routeNotBool := spec.equiv == "equal" && concl == notForm
       && spec.rhs == quoteNilS
-    if routeEqual || routeBool || routeRel || routeNotBool then
-      some (concl, routeEqual, routeRel, routeNotBool)
+    let routeIff := spec.equiv == "equal" && concl == iffForm
+    if routeEqual || routeBool || routeRel || routeNotBool || routeIff then
+      some (concl, routeEqual, routeRel, routeNotBool, routeIff)
     else none
   let cands := depProofs.filterMap fun (n, c) =>
     if n != spec.name then none else
@@ -213,7 +222,8 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
       | [f] => (route? f).map (fun rt => (c, r, f, rt))
       | _ => none
     | none => none
-  let some (_cp, depRoot, formula, (concl, routeEqual, routeRel, routeNotBool)) :=
+  let some (_cp, depRoot, formula,
+            (concl, routeEqual, routeRel, routeNotBool, routeIff)) :=
       cands.head?
     | throwFrontier m!"dischargeRuleHyp: no dependency proof whose \
         single-literal Goal recomputes to the stored rule {spec.name} \
@@ -273,6 +283,29 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
           let convL ← ctxValProof cfgD ctxDFixed spec.lhs
           let convR ← ctxValProof cfgD ctxDFixed spec.rhs
           mkAppM ``fuel_eq_of_conv #[convL, convR, hEq]
+        else if routeIff then do
+          -- the IFF DECODE: the conclusion's value is `Logic.iff vL vR`,
+          -- and a truthy iff of two TWO-VALUED values pins them equal.
+          -- Two-valuedness comes from `boolDisj?` — the emitted
+          -- `:TYPE-PRESCRIPTION` corollaries and the trusted core's own
+          -- boolean lifts, structurally through IF-nests. No source, no
+          -- decode: the hypothesis stays (D6), never a boolean assumption.
+          let vC ← ctxValExpr cfgD ctxDFixed concl
+          unless vC.isAppOfArity ``Logic.iff 2 do
+            throwFrontier m!"dischargeRuleHyp: value of {repr concl} is \
+                not (Logic.iff _ _) (frontier)"
+          let some hL ← boolDisj? cfgD ctxDFixed spec.lhs
+            | throwFrontier m!"dischargeRuleHyp: no two-valuedness source \
+                for the iff-rule lhs {repr spec.lhs} — the IFF⇒EQUAL decode \
+                needs it (frontier)"
+          let some hR ← boolDisj? cfgD ctxDFixed spec.rhs
+            | throwFrontier m!"dischargeRuleHyp: no two-valuedness source \
+                for the iff-rule rhs {repr spec.rhs} — the IFF⇒EQUAL decode \
+                needs it (frontier)"
+          let hEq ← mkAppM ``eq_of_iff_ne_nil_two_valued #[hL, hR, hvC]
+          mkAppM ``fuel_eq_of_conv
+            #[← ctxValProof cfgD ctxDFixed spec.lhs,
+              ← ctxValProof cfgD ctxDFixed spec.rhs, hEq]
         else if routeNotBool then do
           let vC ← ctxValExpr cfgD ctxDFixed concl
           unless vC.isAppOfArity ``Logic.not 1 do
@@ -536,6 +569,128 @@ def dischargeLinearHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
       let body ← mkAppM ``evtrue_of_conv_ne_nil
         #[← ctxValProof cfgD ctxDFixed spec.concl, hvC]
       let pf ← mkLambdaFVars (#[envV] ++ premVs) body
+      mkExpectedTypeHint pf (← mkLinearHypType cfg spec)
+
+/-- D5 GROUND-ZERO `:LINEAR` registry (T1+2 sprint P5a): the boot-stored
+    `:LINEAR` rules admitted for prelude discharge. A ground-zero `:LINEAR`
+    rule has NO defthm anywhere in the corpus, so `dischargeLinearHyp`'s
+    recompute-from-the-dependency route can never reach it — the
+    `d5GzRules` situation for the rewrite runes, under the same D5
+    admission criterion (class (i): no replayable evidence in ANY
+    capturable image).
+
+    A NAME list, not a name↦constant table: the discharge is by the
+    DEFINITIONAL-BRANCH class lemma (`gz_linear_defn_branch`), whose
+    instance is RECOMPUTED per rule from the cited fn's own emitted body
+    — nothing here is rule-specific. The list is the reviewable record of
+    WHICH gz rules may be discharged without replayable evidence; a rule
+    outside it keeps its honest condition.
+
+    LIVE-GATED BY THE GOLDEN (the J-P4b-c precedent, same reasoning): the
+    `sorting/msort` row `ACL2-COUNT-EVENS-STRONG` is unconditional ONLY
+    because this discharge fires, so an emission drift or a broken class
+    check turns that row conditional and the golden diff shows it —
+    a stronger check than a static pin, and one that costs no extra log
+    parse. (Honest-mistake standard — do not harden it.) -/
+def d5GzLinearRules : List String :=
+  -- `((CONSP X)) ⊢ (EQUAL (ACL2-COUNT X) (BINARY-+ '1 (BINARY-+
+  --  (ACL2-COUNT (CAR X)) (ACL2-COUNT (CDR X)))))` — verbatim the
+  -- CONSP branch of ACL2-COUNT's own `:SOURCE :GROUND-ZERO` `:DEFUN`
+  -- body, which is what the class check below re-derives.
+  ["ACL2-COUNT-CAR-CDR-LINEAR"]
+
+/-- DISCHARGE a GROUND-ZERO `linear:<rune>` hypothesis by the
+    DEFINITIONAL-BRANCH class (D5, the gz-linear family): the stored rule's
+    conclusion must BE `(EQUAL (fn x) rhs)` where `rhs` is the branch of
+    `fn`'s OWN world body selected by the rule's single hypothesis as
+    ruling test.
+
+    Everything is RECOMPUTED between two emitted artifacts — the `:DEFUN`
+    body in the world and the `(:GROUND-ZERO-LINEAR-RULES …)` snapshot
+    entry: `substTerm [formal] [x] body` is computed here, its `(IF test
+    rhs els)` shape read off, and `test`/`rhs` compared against the
+    emitted `:HYPS`/conclusion. Any divergence is a FRONTIER (the
+    hypothesis stays, D6), never a guess; the class lemma is then
+    instantiated and the result type-hinted against `mkLinearHypType`, so
+    a drifted emission fails at the kernel. -/
+def dischargeGzLinearHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (spec : LinearRuleSpec) : MetaM Expr := do
+  -- the emitted conclusion must be an EQUAL of a 1-ary call on a VARIABLE
+  let .cons (.atom (.symbol eqS)) (.cons lhsT (.cons rhsT .nil)) := spec.concl
+    | throwFrontier m!"dischargeGzLinearHyp: {spec.name}'s conclusion \
+        {repr spec.concl} is not an application (frontier)"
+  unless eqS.name == "EQUAL" do
+    throwFrontier m!"dischargeGzLinearHyp: {spec.name}'s conclusion head is \
+        {eqS.name}, not EQUAL (frontier)"
+  let .cons (.atom (.symbol fnS)) (.cons (.atom (.symbol xvS)) .nil) := lhsT
+    | throwFrontier m!"dischargeGzLinearHyp: {spec.name}'s conclusion lhs \
+        {repr lhsT} is not a 1-ary call on a variable (frontier)"
+  let [hypT] := spec.hyps
+    | throwFrontier m!"dischargeGzLinearHyp: {spec.name} has \
+        {spec.hyps.length} hypotheses; the definitional-branch class takes \
+        exactly one ruling test (frontier)"
+  let some (formals, body) := cfg.worldVal.defs.get? fnS
+    | throwFrontier m!"dischargeGzLinearHyp: {fnS.name} is not defined in \
+        the world (frontier)"
+  let [formal] := formals
+    | throwFrontier m!"dischargeGzLinearHyp: {fnS.name} has arity \
+        {formals.length}, not 1 (frontier)"
+  -- RECOMPUTE: the fn's own body at the rule's variable, and its branch shape
+  let xTerm : SExpr := .atom (.symbol xvS)
+  let inst := substTerm [formal] [xTerm] body
+  let .cons (.atom (.symbol ifS)) (.cons testT (.cons thenT (.cons elseT .nil))) :=
+      inst
+    | throwFrontier m!"dischargeGzLinearHyp: {fnS.name}'s body at the rule's \
+        variable is not an IF ({repr inst}) — outside the \
+        definitional-branch class (frontier)"
+  unless ifS.isNamed "IF" do
+    throwFrontier m!"dischargeGzLinearHyp: {fnS.name}'s body head is \
+        {ifS.name}, not IF (frontier)"
+  unless testT == hypT do
+    throwFrontier m!"dischargeGzLinearHyp: {spec.name}'s hypothesis \
+        {repr hypT} is not {fnS.name}'s own ruling test {repr testT} \
+        (frontier)"
+  unless thenT == rhsT do
+    throwFrontier m!"dischargeGzLinearHyp: {spec.name}'s conclusion rhs \
+        {repr rhsT} is not {fnS.name}'s own then-branch {repr thenT} \
+        (frontier)"
+  let some htot := ctx.totalHyps.lookup fnS.name
+    | throwFrontier m!"dischargeGzLinearHyp: no totality hypothesis for \
+        {fnS.name} in the telescope (frontier)"
+  let info ← deriveDefInfoN cfg fnS
+  let hns ← proveNotSpecial fnS
+  let hxvT ← proveByDecide
+    (← mkEq (mkApp2 (mkConst ``Symbol.isNamed) (reflectSymbol xvS)
+      (mkStrLit "T")) (mkConst ``Bool.false)) "rule variable is not T"
+  let hsubst ← proveByDecide
+    (← mkEq (← mkAppM ``ACL2.Replay.substTerm
+      #[← mkListLit (mkConst ``Symbol) [reflectSymbol formal],
+        ← mkListLit (mkConst ``SExpr) [reflectSExpr xTerm],
+        reflectSExpr body])
+      (reflectSExpr inst)) s!"{fnS.name} body branch"
+  let hnoEq ← proveNoShadow cfg { name := "EQUAL" }
+  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
+    let cfgD := { cfg with envExpr := envV }
+    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
+                               branchFacts := [], segFacts := [] }
+    ctxD ← pinTermOpaques cfgD envV ctxD spec.concl
+    ctxD ← pinTermOpaques cfgD envV ctxD hypT
+    let ctxDFixed := ctxD
+    let premDecl : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+      #[(`h0, BinderInfo.default, fun _ => do
+          pure (← mkAppM ``EvTrue
+            #[cfg.worldExpr, envV, reflectSExpr hypT]))]
+    withLocalDecls premDecl fun premVs => do
+      let htest ← ctxValProof cfgD ctxDFixed testT
+      let hrhs ← ctxValProof cfgD ctxDFixed rhsT
+      let inst ← mkAppM ``gz_linear_defn_branch
+        #[cfg.worldExpr, envV, reflectSymbol fnS, reflectSymbol formal,
+          reflectSymbol xvS, reflectSExpr info.body, reflectSExpr testT,
+          reflectSExpr rhsT, reflectSExpr elseT,
+          ← ctxValExpr cfgD ctxDFixed testT, ← ctxValExpr cfgD ctxDFixed rhsT,
+          hns, info.defFact, info.closedFact, info.wellScopedFact, hxvT,
+          hsubst, hnoEq, htot, htest, hrhs, premVs[0]!]
+      let pf ← mkLambdaFVars (#[envV] ++ premVs) inst
       mkExpectedTypeHint pf (← mkLinearHypType cfg spec)
 
 /-- The CONDITIONAL generic replayed statement: bind the machine-generated hypothesis
@@ -974,11 +1129,15 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             prfR ← attempt prfR hypV (dischargeEquivReflHyp cfg ctx spec
               depProofs replayed)
         -- linear:<rune> discharge (WP5 item 4): the stored :LINEAR rule's
-        -- `<`-conclusion decoded from its defthm's replayed statement.
+        -- `<`-conclusion decoded from its defthm's replayed statement —
+        -- or, for a GROUND-ZERO rule with no defthm anywhere in the
+        -- corpus (P5a), its D5 definitional-branch class discharge.
         for (spec, hypV) in (linearSpecs.zip linearVs.toList).reverse do
           if discharge then
-            prfR ← attempt prfR hypV (dischargeLinearHyp cfg ctx spec
-              depProofs replayed)
+            prfR ← attempt prfR hypV <|
+              if d5GzLinearRules.contains spec.name then
+                dischargeGzLinearHyp cfg ctx spec
+              else dischargeLinearHyp cfg ctx spec depProofs replayed
         for (spec, hypV) in (rules.zip ruleVs.toList).reverse do
           if discharge then
             prfR ← attempt prfR hypV <|
@@ -1123,6 +1282,21 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- so the D5 registry never saw them. Registry-covered rules are
       -- dischargeable without a dependency tree; bind them here rather
       -- than surfacing a prelude-constant fact as a kept condition.
+      -- NOT GENERALIZED to the DEPENDENCY dischargers (T1+2 sprint P5a,
+      -- item 2 — measured, not adopted). The same fvars arrive here for
+      -- `rule:`/`linear:` too: a RECORDED-ADMISSION totality proof
+      -- carries the admission's own kept conditions onto this telescope
+      -- (`buildTotalEnv`'s hypFVars mapping) after the sweep has run, so
+      -- `rule:TRUE-LISTP-BNEXT` / `linear:HOW-MANY-BAD-PAIRS-BNEXT` at
+      -- BSORT-IS-ISORT are kept without an attempt ever being made. A
+      -- dependency-discharger pass here (with the cross-book seed widened
+      -- so the registry entries exist) was BUILT AND MEASURED at
+      -- `sorting/sorts-equivalent`: it discharges both — and re-introduces
+      -- the dependency's own `total:BNEXT` + `total:BNEXT-SIZE` +
+      -- `tp:BNEXT-SIZE`, which arrive AFTER the totality/TP passes. Two
+      -- conditions out, three in, so it was reverted under the movement
+      -- rule. Closing it needs those passes run to QUIESCENCE (with
+      -- `totalEnv` rebuilt for the newly-freed names), not one more pass.
       if discharge then
         let prfMid ← instantiateMVars prf
         for (spec, hypV) in rules.zip ruleVs.toList do

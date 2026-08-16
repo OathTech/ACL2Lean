@@ -82,9 +82,10 @@ ACL2, with minimal Lean-side trust obligations. Two BANNED antipatterns:
    LIMITATION (audit 2026-07-31, outside finding §4): the seam is
    matched by NAME reachability, so within one book a mis-paired
    catalog seam that the proof reaches through an in-book rule
-   discharge (e.g. ORDEREDP-QSORT reaches orderedpAppendReplayedCond
-   via dis_rule_orderedp_append) would pass — the gate rules out
-   DETACHMENT, not MIS-PAIRING; seam pairings stay an audit item. -/
+   discharge (the ORDEREDP-QSORT/orderedpAppendReplayedCond pairing was
+   the live example until P5a retired its hand decode) would pass — the
+   gate rules out DETACHMENT, not MIS-PAIRING; seam pairings stay an
+   audit item. -/
 
 private def liftCoverageGolden : String :=
   include_str "../../../Tests/driver-coverage.golden"
@@ -155,6 +156,14 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("07-mutual-recursion", "MY-ODDP-3-IS-T", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("07-mutual-recursion", "termination:MY-EVENP", .replayedOnly "an internal admission obligation, not a user-facing theorem — the termination:QSORT doctrine"),
   ("11-custom-measure", "termination:CD2", .replayedOnly "an internal admission obligation, not a user-facing theorem — the termination:QSORT doctrine"),
+  -- BOOKKEEPING (T1+2 sprint P5a, 2026-08-16): CD2-BOUND went FAIL →
+  -- REPLAYED at P4b and its catalog decision was never added; the gap
+  -- surfaced only when this module was next REBUILT (P4b's ci run read a
+  -- cached `Catalog.olean` — the same golden-staleness the coverage
+  -- modules carry, see `just coverage-repin`). Recorded as PENDING: no
+  -- native waypoint is claimed, the row is a green replay and nothing
+  -- more.
+  ("11-custom-measure", "CD2-BOUND", .pending "cd2 correspondence (validator/lifter backlog) — the nfix-measure value bound"),
   ("08-equality-reasoning", "CDR-CONS-REFL", .native ``cdr_cons_native ``cdrConsReplayedCond),
   ("08-equality-reasoning", "EQUAL-SYMM", .native ``equal_symm_native ``equalSymmReplayedCond),
   ("08-equality-reasoning", "EQUAL-TRANS", .native ``equal_trans_native ``equalTransReplayedCond),
@@ -743,10 +752,13 @@ run_cmd Lean.Elab.Command.liftCoreM do
   -- reviewable place to be registered rather than being smuggled into
   -- `decodeAllowed`.
   let d5Allowed : List Name := []
-  -- the DECODE exception: dis_rule_orderedp_append transports a
-  -- replayed statement (hreplayed-consuming) — audited clean
-  let decodeAllowed : List Name :=
-    [``ACL2.Worlds.Sorting.dis_rule_orderedp_append]
+  -- EMPTY since the P5a retirement: `dis_rule_orderedp_append` was the
+  -- one DECODE exception (it transported a replayed statement by hand
+  -- because `dischargeRuleHyp` could not recompute ACL2's IFF⇒EQUAL
+  -- storage normalization); the driver now carries that as a registered
+  -- decode class, so the constant was DELETED. Kept as the named slot,
+  -- like `d5Allowed`.
+  let decodeAllowed : List Name := []
   let debtRegistry : List Name :=
     -- (`dis_insert_tp` and `dis_evens_tp` RETIRED by the replay route,
     -- TP-replay arc increment 2, 2026-08-13 — the CONS return-path shape)
@@ -862,8 +874,10 @@ run_cmd Lean.Elab.Command.liftTermElabM do
   let env ← getEnv
   let waypointNs : List Name :=
     [`ACL2.Worlds, `ACL2.Imported, `ACL2.Lifting]
-  let mut decodes : List Name :=
-    [``ACL2.Worlds.Sorting.dis_rule_orderedp_append]
+  -- the hand-written seed is EMPTY since the P5a retirement (see
+  -- `decodeAllowed` above); the scan below finds the `_of_replayed`
+  -- decodes on its own
+  let mut decodes : List Name := []
   for (c, ci) in env.constants.toList do
     if waypointNs.any (·.isPrefixOf c) && !c.isInternalDetail then
       if let .thmInfo _ := ci then

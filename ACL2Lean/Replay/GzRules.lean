@@ -489,4 +489,93 @@ theorem gz_rule_equal_if_lift (w : World)
         (Logic.equal vc vx) han (gz_conv_equal w env vC vX vc vx hno hc hx))
       rfl
 
+/-! ### The GROUND-ZERO `:LINEAR` family — the DEFINITIONAL-BRANCH class
+    (T1+2 sprint P5a, 2026-08-16).
+
+    A ground-zero `:LINEAR` rule has NO dependency theorem anywhere in the
+    corpus to replay (ACL2 stores it at boot), so `dischargeLinearHyp`'s
+    recompute-from-the-defthm route cannot reach it — the same situation
+    `d5GzRules` answers for the rewrite runes, and the same admission
+    criterion (D5 class (i): no replayable evidence exists in ANY
+    capturable image).
+
+    The class this lemma covers is the one the corpus actually holds:
+    a rule whose CONCLUSION is `(EQUAL (fn x) rhs)` where `rhs` IS the
+    THEN-branch of `fn`'s OWN emitted definition under the rule's single
+    hypothesis as ruling test — i.e. the rule says nothing beyond one
+    definitional unfold of the world's byte-checked body. Nothing about
+    the particular `fn` is baked in: the driver RECOMPUTES
+    `substTerm [formal] [x] body`, reads `(IF test rhs els)` off it, and
+    checks `test` against the emitted `:HYPS` and `rhs` against the
+    emitted conclusion before this lemma is instantiated — a mismatch is
+    a frontier, never a guess (`dischargeGzLinearHyp`). -/
+
+/-- DEFINITIONAL-BRANCH ground-zero `:LINEAR` rule: under a truthy ruling
+    test, `(fn x)` and the corresponding branch of `fn`'s world body have
+    the SAME value, so the stored `(EQUAL (fn x) rhs)` conclusion holds.
+
+    `htot` is the fn's own `total:` hypothesis in the driver's telescope
+    shape (`mkTotalityHypType`) — it supplies ONLY the body's convergence
+    at the formal binding, which is what reading the defn equation
+    backwards needs; the branch's value itself comes from `hrhs`, the
+    driver's own pinned convergence for the emitted right-hand side. -/
+theorem gz_linear_defn_branch (w : World) (env : Env) (fn formal xv : Symbol)
+    (body test rhs els tv rv : SExpr)
+    (hns : fn.isNamed "QUOTE" = false ∧ fn.isNamed "IF" = false ∧
+           fn.isNamed "LET" = false ∧ fn.isNamed "LET*" = false)
+    (hdef : w.defs.get? fn = some ([formal], body))
+    (hclosed : ∀ s ∈ freeVars body, s ∈ [formal])
+    (hws : WellScoped body = true)
+    (hxvT : xv.isNamed "T" = false)
+    (hsubst : substTerm [formal] [.atom (.symbol xv)] body
+      = .cons (.atom (.symbol { name := "IF" }))
+          (.cons test (.cons rhs (.cons els .nil))))
+    (hnoEq : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (htot : ∀ (e : Env) (a : SExpr),
+      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w e a = some v) →
+      ∃ N, ∃ v, ∀ f ≥ N,
+        evalOpt f w e (.cons (.atom (.symbol fn)) (.cons a .nil)) = some v)
+    (htest : ∃ N, ∀ f ≥ N, evalOpt f w env test = some tv)
+    (hrhs : ∃ N, ∀ f ≥ N, evalOpt f w env rhs = some rv)
+    (htrue : EvTrue w env test) :
+    EvTrue w env
+      (.cons (.atom (.symbol { name := "EQUAL" }))
+        (.cons (.cons (.atom (.symbol fn)) (.cons (.atom (.symbol xv)) .nil))
+          (.cons rhs .nil))) := by
+  -- the argument variable's value in the ambient env
+  have hxv := re_val_var w env xv hxvT
+  -- the BODY converges at the formal binding: the fn's totality at the
+  -- bound-argument env, read back through the defn equation
+  have hself := re_val_var_get w (bindArgs [formal] [(env.get? xv).getD .nil])
+    formal ((env.get? xv).getD .nil)
+    (bindArgs_single_get_self formal ((env.get? xv).getD .nil))
+  obtain ⟨_, u, hcall⟩ := htot (bindArgs [formal] [(env.get? xv).getD .nil])
+    (.atom (.symbol formal)) (conv_ex_of_vfix hself)
+  have hbody := re_body_conv1 w (bindArgs [formal] [(env.get? xv).getD .nil])
+    fn formal body (.atom (.symbol formal)) ((env.get? xv).getD .nil) u
+    hns hdef hself ⟨_, hcall⟩
+  -- the UNFOLD equation at the ambient env, with the recomputed branch shape
+  have hunf := evalOpt_unfold1_conv w env fn formal body
+    (.atom (.symbol xv)) ((env.get? xv).getD .nil) u hns hdef hclosed hws
+    hxv hbody
+  rw [hsubst] at hunf
+  -- the ruling test is truthy, so the call's value IS the branch's value
+  have htb := toBool_true_of_ne_nil (ne_nil_of_evtrue_conv htrue htest)
+  have hif := conv_if_true w env test rhs els tv rv htest htb hrhs
+  obtain ⟨N1, h1⟩ := hunf
+  obtain ⟨N2, h2⟩ := hif
+  have hlhs : ∃ N, ∀ f ≥ N,
+      evalOpt f w env
+        (.cons (.atom (.symbol fn)) (.cons (.atom (.symbol xv)) .nil))
+        = some rv :=
+    ⟨max N1 N2, fun f hf => by
+      rw [h1 f (le_trans (le_max_left _ _) hf)]
+      exact h2 f (le_trans (le_max_right _ _) hf)⟩
+  refine evtrue_of_conv_ne_nil
+    (conv_builtin2 w env { name := "EQUAL" }
+      (.cons (.atom (.symbol fn)) (.cons (.atom (.symbol xv)) .nil)) rhs
+      rv rv (Logic.equal rv rv) (by decide) hnoEq hlhs hrhs
+      (callBuiltin_equal _ _)) ?_
+  simp [Logic.equal, SExpr.t]
+
 end ACL2.Replay

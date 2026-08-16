@@ -3845,97 +3845,16 @@ theorem orderedp_exec_corr (w : World)
     { package := "ACL2", name := "X" } (chain2Body "LEXORDER" "ORDEREDP")
     _ orderedp_ns h_ord hx (hbody xv)
 
-/-- `rule:ORDEREDP-APPEND` — the in-book rule, discharged FROM the
-    theorem's own replayed statement (both sides two-valued, so the
-    replayed IFF pins the values EQUAL). -/
-theorem dis_rule_orderedp_append (w : World)
-    (h_ord : w.defs.get? orderedp_sym
-      = some ([{ package := "ACL2", name := "X" }],
-              chain2Body "LEXORDER" "ORDEREDP"))
-    (h_rel : w.defs.get? rel_sym = some ([fnS, iS, jS], relBody))
-    (h_ar : w.defs.get? all_rel_sym = some ([fnS, xS, eS], allRelBody))
-    (h_app : w.defs.get? append_sym
-      = some ([{ package := "ACL2", name := "X" },
-               { package := "ACL2", name := "Y" }],
-              appendBody "BINARY-APPEND"))
-    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
-    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
-    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
-    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
-    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
-    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
-    (h_no_iff : w.defs.get? ({ name := "IFF" } : Symbol) = none)
-    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
-      evalOpt f w env orderedp_appendFormula = some v ∧ v ≠ SExpr.nil) :
-    ∀ env' : Env, EvTrue w env' (orderedpT aT) →
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env' (orderedpT (appendT aT (consT eT bT)))
-        = evalOpt f w env'
-            (ifT (orderedpT bT)
-              (ifT (allRelT (qSym "LTE") aT eT)
-                (allRelT (qSym "GTE") bT eT) qNil)
-              qNil) := by
-  intro env' hyp
-  obtain ⟨va, ha⟩ := conv_var w env' aS (by decide)
-  obtain ⟨vb, hb⟩ := conv_var w env' bS (by decide)
-  obtain ⟨ve, he⟩ := conv_var w env' eS (by decide)
-  have hAnte := orderedp_exec_corr w h_ord h_no_consp h_no_car h_no_cdr
-    h_no_lexorder env' aT va ha
-  -- LHS: orderedp of the append
-  have hcons := conv_builtin2 w env' { name := "CONS" } eT bT ve vb
-    (Logic.cons ve vb) (by decide) h_no_cons he hb rfl
-  have happ := append_exec_corr w h_app h_no_consp h_no_car h_no_cdr
-    h_no_cons env' aT (consT eT bT) va (Logic.cons ve vb) ha hcons
-  have hL := orderedp_exec_corr w h_ord h_no_consp h_no_car h_no_cdr
-    h_no_lexorder env' (appendT aT (consT eT bT))
-    (appendExec va (Logic.cons ve vb)) happ
-  -- RHS: the if-nest
-  have hOrdB := orderedp_exec_corr w h_ord h_no_consp h_no_car h_no_cdr
-    h_no_lexorder env' bT vb hb
-  have hAr1 := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal
-    h_no_car h_no_cdr h_no_lexorder env' (qSym "LTE") aT eT (symV "LTE")
-    va ve (re_val_quote w env' (symV "LTE")) ha he
-  have hAr2 := all_rel_exec_corr w h_rel h_ar h_no_consp h_no_equal
-    h_no_car h_no_cdr h_no_lexorder env' (qSym "GTE") bT eT (symV "GTE")
-    vb ve (re_val_quote w env' (symV "GTE")) hb he
-  have hInner := conv_if_lift w env' (allRelT (qSym "LTE") aT eT)
-    (allRelT (qSym "GTE") bT eT) qNil (allRelExec (symV "LTE") va ve)
-    (allRelExec (symV "GTE") vb ve) SExpr.nil hAr1
-    (fun _ => hAr2) (fun _ => re_val_quote w env' SExpr.nil)
-  have hR := conv_if_lift w env' (orderedpT bT) _ qNil (orderedpExec vb)
-    (if Logic.toBool (allRelExec (symV "LTE") va ve) = true then
-      allRelExec (symV "GTE") vb ve
-     else SExpr.nil)
-    SExpr.nil hOrdB (fun _ => hInner)
-    (fun _ => re_val_quote w env' SExpr.nil)
-  -- the replayed IFF pins the two-valued sides equal
-  have hIff := conv_builtin2 w env' { name := "IFF" } _ _ _ _ _
-    (by decide) h_no_iff hL hR (callBuiltin_iff _ _)
-  have hImp := conv_builtin2 w env' { name := "IMPLIES" } _ _ _ _ _
-    (by decide) h_no_implies hAnte hIff (callBuiltin_implies _ _)
-  have hIt := implies_t_of_ne_nil
-    (replayed_pins_ne_nil (hreplayed env') hImp)
-  have hp : Logic.toBool (orderedpExec va) = true :=
-    toBool_true_of_ne_nil (ne_nil_of_evtrue_conv hyp hAnte)
-  have hiff := truthy_of_implies_t hIt hp
-  have hRtv : (if Logic.toBool (orderedpExec vb) = true then
-      (if Logic.toBool (allRelExec (symV "LTE") va ve) = true then
-        allRelExec (symV "GTE") vb ve
-       else SExpr.nil)
-     else SExpr.nil) = SExpr.t ∨
-      (if Logic.toBool (orderedpExec vb) = true then
-        (if Logic.toBool (allRelExec (symV "LTE") va ve) = true then
-          allRelExec (symV "GTE") vb ve
-         else SExpr.nil)
-       else SExpr.nil) = SExpr.nil := by
-    split
-    · split
-      · exact allRelExec_t_or_nil _ _ _
-      · exact Or.inr rfl
-    · exact Or.inr rfl
-  exact fuel_eq_of_conv hL hR
-    (eq_of_iff_truthy_two_valued (orderedpExec_t_or_nil _) hRtv hiff)
+-- (`dis_rule_orderedp_append` DELETED, T1+2 sprint P5a 2026-08-16 —
+-- the deletion+rewiring flow. It was the waypoint layer's registered
+-- DECODE EXCEPTION: ACL2 stores this defthm's `(IFF lhs rhs)`
+-- conclusion as an `:EQUIV EQUAL` rewrite rule, which
+-- `dischargeRuleHyp`'s decode could not recompute, so the transport
+-- was done by hand here. The driver now carries that normalization as
+-- a REGISTERED decode class (`routeIff`, taking the two-valuedness of
+-- both sides from the EMITTED :TYPE-PRESCRIPTION corollaries), so
+-- `rule:ORDEREDP-APPEND` never reaches a telescope and this theorem
+-- has no consumer.)
 
 /-! ## ORDEREDP-QSORT -/
 

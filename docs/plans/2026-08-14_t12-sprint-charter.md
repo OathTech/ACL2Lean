@@ -660,3 +660,139 @@ tp:QSORT + the trio + CD2-BOUND (P4a, in flight).
     corrected — RT2 emitted them). Ratchets TIGHTENED, never loosened:
     `Imported/Sorting.lean` 4265 → 4246, `Lemmas/Judgments.lean`
     1830 → 1820.
+
+- **P5a (the discharge-side closers) — 2026-08-16.** Items 1 and 3 DONE —
+  three of P4b's five remaining conditional rows RETIRED. Item 2
+  DIAGNOSED to its exact site, a fix BUILT and MEASURED at the real book,
+  then REVERTED under the movement rule (two conditions out, three in).
+  Golden: 3 row changes, all condition retirements, ZERO status flips and
+  ZERO message churn; header 116/116 (111+5 → **113 unconditional + 3
+  conditional**); `sorry`/`sorryAx` still 0.
+  - **Item 1 — `rule:ORDEREDP-APPEND` ×2: RETIRED (the DECODE class).**
+    P4b's diagnosis was right and the fix is one arm: ACL2's
+    `create-rewrite-rule` stores a defthm whose conclusion is
+    `(IFF lhs rhs)` as an `:EQUIV EQUAL` rewrite rule when both sides are
+    boolean, and `dischargeRuleHyp`'s decode had no route for that shape.
+    `routeIff` recomputes exactly that normalization — a REGISTERED route
+    beside `routeEqual`/`routeBool`/`routeRel`/`routeNotBool`, keyed on
+    the shape, with NOTHING about ORDEREDP-APPEND in it.
+    `ORDEREDP-QSORT` and `QSORT-IS-ISORT` each drop the condition
+    (QSORT-IS-ISORT keeps `tp:QSORT`, the other lane's). The waypoint
+    layer's registered DECODE EXCEPTION `dis_rule_orderedp_append` became
+    redundant and was RETIRED by the deletion+rewiring flow: the theorem
+    deleted from `Imported/Sorting.lean` (−81 lines), the hand-applied
+    argument dropped from `Waypoints/Qsort.lean` with a dated diagnosis,
+    and BOTH `Waypoints/Catalog.lean` registrations (`decodeAllowed` and
+    the hreplayed-usage scan's seed) emptied to named slots.
+  - **J-P5a-a (the decode's soundness content is TWO-VALUEDNESS, and it
+    is DEMANDED).** `(IFF a b)` truthy gives `a = b` only when both sides
+    are boolean — which is the very fact ACL2 used when it chose to store
+    the rule under EQUAL. The arm therefore requires a two-valuedness
+    SOURCE for each side (`boolDisj?`: the emitted `:TYPE-PRESCRIPTION`
+    corollaries, the trusted core's own boolean lifts, structurally
+    through IF-nests) and FRONTIERS when either is missing — no source,
+    no decode. The one new lemma (`eq_of_iff_ne_nil_two_valued`) takes
+    both disjunctions as premises, so the statement cannot be proved
+    without them. This is strictly tighter than the deleted hand decode,
+    which established the same two-valuedness by hand-written lemmas
+    about ORDEREDP/ALL-REL specifically (the BUG-023 direction).
+  - **Item 3 — `linear:ACL2-COUNT-CAR-CDR-LINEAR`: RETIRED (the gz-linear
+    family, a new discharger).** A ground-zero `:LINEAR` rule has no
+    defthm anywhere in the corpus, so `dischargeLinearHyp`'s
+    recompute-from-the-dependency route can never reach it. Reading the
+    emitted entry answered the design question outright: its conclusion
+    `(EQUAL (ACL2-COUNT X) (BINARY-+ '1 (BINARY-+ (ACL2-COUNT (CAR X))
+    (ACL2-COUNT (CDR X)))))` under `((CONSP X))` IS, verbatim, the
+    CONSP branch of `ACL2-COUNT`'s own `:SOURCE :GROUND-ZERO` `:DEFUN`
+    body — the rule says nothing beyond one definitional unfold.
+  - **J-P5a-b (a CLASS, not a per-rule prelude constant).** The D5
+    rewrite entries are (name ↦ constant) because each states a different
+    theorem. Here one lemma covers the whole class:
+    `gz_linear_defn_branch` (`Replay/GzRules.lean`) is parametric in the
+    fn, its formal, its body, the rule's variable and the branch, and
+    `dischargeGzLinearHyp` RECOMPUTES the instance — it computes
+    `substTerm [formal] [x] body` from the world's byte-checked `:DEFUN`,
+    reads `(IF test rhs els)` off the result, and checks `test` against
+    the emitted `:HYPS` and `rhs` against the emitted conclusion before
+    the lemma is applied. Every failure is a FRONTIER (kept hypothesis),
+    and the assembled proof is type-hinted against `mkLinearHypType` —
+    a drifted emission fails at the kernel, exactly as `dischargeGzRuleHyp`
+    does. `d5GzLinearRules` is therefore a NAME list: the reviewable
+    record of which boot-stored rules may be discharged without
+    replayable evidence, which is a policy question, not a proof one.
+  - **J-P5a-c (the totality hypothesis, not a re-derived exec-corr).**
+    The unfold needs the body's convergence at the formal binding. The
+    waypoint layer already has that for ACL2-COUNT
+    (`acl2_count_exec_corr`), but it lives ABOVE the Replay layer and
+    re-deriving it below would be the near-clone the working discipline
+    forbids. The lemma instead takes the fn's OWN `total:` hypothesis in
+    the driver's telescope shape (`mkTotalityHypType`) and reads the defn
+    equation backwards (`re_body_conv1`); the branch's value comes from
+    the driver's ordinary pinned convergence for the emitted rhs. The
+    hypothesis is then discharged by the totality prover in the same
+    pass every other consumer uses, so nothing new is trusted and no fn
+    is special-cased.
+  - **J-P5a-d (LIVE-GATED, not statically pinned — the J-P4b-c
+    precedent).** `sorting/msort`'s `ACL2-COUNT-EVENS-STRONG` row is
+    unconditional ONLY because this discharge fires, so an emission drift
+    or a broken class check turns the row conditional and the golden diff
+    shows it. A static pin would additionally need a telescope (the fn's
+    `total:` hypothesis), which the ctx-free WP3 pin shape does not
+    build, for a WEAKER check. Recorded at both sites.
+  - **Item 2 — the `TRUE-LISTP-BNEXT` + `HOW-MANY-BAD-PAIRS-BNEXT` pair
+    at sorts-equivalent: DIAGNOSED, BUILT, MEASURED, REVERTED.** P4b left
+    an open question ("the name IS demanded and still produced no entry
+    and no failure line"). Answered, and the answer is that it was NOT
+    demanded: the `[xbook-diag]` census (below) shows both names, plus 11
+    other dep theorems, dropped by `crossBookRegistry`'s demand filter,
+    and every name the seed DOES demand is registered (58 unregistered
+    demands, all of them "offered by: NO dep book" — fn/rune names, not
+    theorems). Widening the seed with the consumer's OFFER surfaces
+    (stored-rule + `:LINEAR` names) takes the undemanded dep-theorem
+    count 13 → 1, and with a second `rule:`/`linear:` discharge pass
+    (generalizing the existing D5-only one) BOTH conditions discharge.
+    Measured at `Tests/Coverage/BSsortsEquivalent` — the sweep's own
+    configuration, not the CLI's:
+    `BSORT-IS-ISORT → REPLAYED ✓ cond[rule:TRUE-LISTP-BNEXT,
+    linear:HOW-MANY-BAD-PAIRS-BNEXT]` became
+    `cond[total:BNEXT, total:BNEXT-SIZE, tp:BNEXT-SIZE]`. Two conditions
+    out, THREE in.
+  - **J-P5a-e (the pair REVERTED, and why the residue is now precise).**
+    The new conditions are the DEPENDENCY's own, mapped onto this
+    telescope by the discharge — and they arrive AFTER the totality/TP
+    passes have run, so nothing attempts them. That is the same
+    structural fact that stranded the pair in the first place, one level
+    up. A net cond increase is cost without payoff under the movement
+    rule, so both pieces were reverted (the seed widening and the second
+    dependency pass); the `[xbook-diag]` sink and the two dated
+    in-source notes STAY. The named next step is NOT another pass: it is
+    running the post-sweep passes to QUIESCENCE (rule/linear ⇄ total/tp,
+    with `totalEnv` REBUILT for the newly-freed names) — a change to
+    `replayProofConditional`'s discharge ordering, with a corpus-wide
+    cost that must be measured, not a local fix. COST datum for whoever
+    takes it: the widened seed added 12 cross-book theorem replays at
+    sorts-equivalent; the book elaborates in ~50 min either way (the
+    P3c-era "~52 dep theorems" estimate was pessimistic — the citation
+    closure already demands all but 13 of them).
+  - **J-P5a-f (the `[xbook-diag]` SINK — the J-P4b-g treatment, applied
+    to the pre-pass).** `crossBookRegistry`'s two `continue`s and its
+    demand filter said NOTHING, which is exactly why P4b could not close
+    item 2. `ACL2LEAN_XBOOK_DIAG=1` now prints one line per silent drop
+    (not demanded / no proof tree / book's world not included) plus a
+    closing census of demanded-but-unregistered names with the books that
+    offer them. stderr only, never a result line, never read by a gate,
+    off by default. Do not harden it.
+  - **J-P5a-g (a P4b BOOKKEEPING GAP, exposed and closed).** Rebuilding
+    `Waypoints/Catalog.lean` failed with `lift-coverage gate: green row
+    11-custom-measure/CD2-BOUND has NO catalog decision`. CD2-BOUND went
+    FAIL → REPLAYED at P4b and its catalog decision was never added; the
+    gate never fired because P4b's ci run read a CACHED `Catalog.olean`
+    (the same golden-staleness `just coverage-repin` exists to break, one
+    module further out). Recorded as `.pending` — no native waypoint is
+    claimed. Worth noting for the sprint: a green `just ci` does not
+    prove the catalog gate RAN.
+  - **J-P5a-h (RATCHET).** `Imported/Sorting.lean` shrank 4246 → 4165
+    with the decode exception's deletion; the baseline was TIGHTENED to
+    4165, never left loose. No module gained a baseline entry
+    (`Harness.lean` 1486 and `GzRules.lean` 581 are both under the 1500
+    norm).

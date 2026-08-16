@@ -367,10 +367,14 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
     -- T1+2 sprint P4b 2026-08-15 — the D5 registry discharges each at its
     -- CITED rune from the prelude constant, so the hypotheses left the
     -- telescope and the hand-applied `dis_*` arguments went with them.)
-    (Worlds.Sorting.dis_rule_orderedp_append qsortWorldD (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) orderedpAppendReplayed_uncond)
+    -- (rule:ORDEREDP-APPEND RETIRED, T1+2 sprint P5a 2026-08-16 — the
+    -- IFF-CONCLUSION DECODE class: ACL2 stores an `(IFF lhs rhs)` defthm
+    -- conclusion as an `:EQUIV EQUAL` rule when both sides are boolean,
+    -- and `dischargeRuleHyp` now recomputes exactly that normalization,
+    -- taking the two-valuedness from the EMITTED :TYPE-PRESCRIPTION
+    -- corollaries. The hypothesis left the telescope and the
+    -- hand-applied `dis_rule_orderedp_append` — the waypoint layer's
+    -- registered DECODE EXCEPTION — went with it, deleted.)
 
 set_option maxHeartbeats 1600000 in
 /-- ENTRY, PROVED — ORDEREDP-QSORT natively: QUICKSORT SORTS —

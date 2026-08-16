@@ -944,6 +944,20 @@ theorem logic_lt_t_or_nil (a b : SExpr) :
 theorem t_t_or_nil : SExpr.t = SExpr.t ∨ SExpr.t = SExpr.nil := Or.inl rfl
 theorem nil_t_or_nil : SExpr.nil = SExpr.t ∨ SExpr.nil = SExpr.nil := Or.inr rfl
 
+/-- The IFF-CONCLUSION DECODE (T1+2 sprint P5a): a truthy `iff` of two
+    TWO-VALUED values pins them EQUAL. This is the value-level content of
+    ACL2's `create-rewrite-rule` normalization that stores an
+    `(IFF lhs rhs)` defthm conclusion as an `:EQUIV EQUAL` rewrite rule —
+    sound exactly because both sides are boolean, which is why the
+    two-valuedness disjunctions (`boolDisj?`, from the EMITTED
+    `:TYPE-PRESCRIPTION` corollaries and the trusted core's own boolean
+    lifts) are REQUIRED and never assumed. -/
+theorem eq_of_iff_ne_nil_two_valued {a b : SExpr}
+    (ha : a = SExpr.t ∨ a = SExpr.nil) (hb : b = SExpr.t ∨ b = SExpr.nil)
+    (h : Logic.iff a b ≠ SExpr.nil) : a = b := by
+  rcases ha with rfl | rfl <;> rcases hb with rfl | rfl <;>
+    simp_all [Logic.iff, Logic.toBool, SExpr.t]
+
 /-- `lexorder` is BOOLEAN-VALUED: every branch returns `.t` or `.nil` (it is
     ACL2's total-order predicate). By `fun_induction` on `lexorder`'s own case
     structure: each leaf is a literal `.t`/`.nil` or an `if _ then .t else .nil`

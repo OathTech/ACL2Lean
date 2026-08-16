@@ -280,7 +280,16 @@ cond[total:(QSORT X), tp:QSORT]]"),
       -- 2026-08-15 — T1+2 sprint P4b: all five are registered in
       -- `d5GzRules` and discharged at their CITED runes from the D5
       -- prelude constants. INTENTIONAL; diagnosed row-by-row.)
-      "    ORDEREDP-QSORT → REPLAYED ✓ cond[rule:ORDEREDP-APPEND]"),
+      -- (rule:ORDEREDP-APPEND RETIRED 2026-08-16 — T1+2 sprint P5a: the
+      -- IFF-CONCLUSION DECODE class. ACL2 stores this defthm's
+      -- `(IFF lhs rhs)` conclusion as an `:EQUIV EQUAL` rewrite rule
+      -- because both sides are boolean; `dischargeRuleHyp` now
+      -- RECOMPUTES that normalization, taking the two-valuedness of each
+      -- side from the EMITTED :TYPE-PRESCRIPTION corollaries (never
+      -- assumed — no source, no decode). The waypoint layer's registered
+      -- DECODE EXCEPTION `dis_rule_orderedp_append` was deleted with it.
+      -- INTENTIONAL; diagnosed row-by-row.)
+      "    ORDEREDP-QSORT → REPLAYED ✓"),
      ("pins/sorting/perm",
       "    PERM-CONS → REPLAYED ✓"),
      ("pins/sorting/ordered-perms",
@@ -814,14 +823,16 @@ example :
       -- `(:RULES …)` entry). The hypotheses left the telescope and the
       -- pinned type drops them. INTENTIONAL; diagnosed against the
       -- golden.)
-      ruleEqHyp1 qsortPinsWorld
-        (ap1 "ORDEREDP" (sym "A"))
-        (ap1 "ORDEREDP" (ap2 "BINARY-APPEND" (sym "A") (ap2 "CONS" (sym "E") (sym "B"))))
-        (ap3 "IF" (ap1 "ORDEREDP" (sym "B"))
-          (ap3 "IF" (ap3 "ALL-REL" (qt (sym "LTE")) (sym "A") (sym "E"))
-            (ap3 "ALL-REL" (qt (sym "GTE")) (sym "B") (sym "E"))
-            (qt .nil))
-          (qt .nil)) →
+      -- (rule:ORDEREDP-APPEND RETIRED 2026-08-16 — T1+2 sprint P5a: the
+      -- IFF-CONCLUSION DECODE class. ACL2 stores this defthm's
+      -- `(IFF lhs rhs)` conclusion as an `:EQUIV EQUAL` rewrite rule
+      -- because both sides are boolean; `dischargeRuleHyp`'s `routeIff`
+      -- RECOMPUTES that normalization, taking each side's two-valuedness
+      -- from the EMITTED :TYPE-PRESCRIPTION corollaries (demanded, never
+      -- assumed). The hypothesis left the telescope and the pinned type
+      -- drops it; the waypoint layer's hand decode
+      -- `dis_rule_orderedp_append` was deleted with it. INTENTIONAL;
+      -- diagnosed against the golden.)
       EvTrue qsortPinsWorld env (ap1 "ORDEREDP" (ap1 "QSORT" (sym "X"))) :=
   ReplayedStatements.replayed_pins_sorting_qsort_ORDEREDP_QSORT
 
@@ -1148,15 +1159,16 @@ example :
       -- 2026-08-15 — P3c: both are qsort-book theorems the transfer
       -- now replays at this world; FILTER-1's own arithmetic premise
       -- surfaces above. INTENTIONAL.)
-      ruleEqHyp1 sortsEqPinsWorld
-        (ap1 "ORDEREDP" (sym "A"))
-        (ap1 "ORDEREDP"
-          (ap2 "BINARY-APPEND" (sym "A") (ap2 "CONS" (sym "E") (sym "B"))))
-        (ap3 "IF" (ap1 "ORDEREDP" (sym "B"))
-          (ap3 "IF" (ap3 "ALL-REL" (qt (sym "LTE")) (sym "A") (sym "E"))
-            (ap3 "ALL-REL" (qt (sym "GTE")) (sym "B") (sym "E"))
-            (qt .nil))
-          (qt .nil)) →
+      -- (rule:ORDEREDP-APPEND RETIRED 2026-08-16 — T1+2 sprint P5a: the
+      -- IFF-CONCLUSION DECODE class. ACL2 stores this defthm's
+      -- `(IFF lhs rhs)` conclusion as an `:EQUIV EQUAL` rewrite rule
+      -- because both sides are boolean; `dischargeRuleHyp`'s `routeIff`
+      -- RECOMPUTES that normalization, taking each side's two-valuedness
+      -- from the EMITTED :TYPE-PRESCRIPTION corollaries (demanded, never
+      -- assumed). The hypothesis left the telescope and the pinned type
+      -- drops it; the waypoint layer's hand decode
+      -- `dis_rule_orderedp_append` was deleted with it. INTENTIONAL;
+      -- diagnosed against the golden.)
       EvTrue sortsEqPinsWorld env
         (ap2 "EQUAL" (ap1 "QSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
   ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT

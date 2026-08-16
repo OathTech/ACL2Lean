@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 116/116 (111 unconditional + 5 conditional)
+Driver coverage — REPLAYED 116/116 (113 unconditional + 3 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓
@@ -125,7 +125,7 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     CF-NUMBERP → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(CF X), tp:CF]]
     CF-PLUS-COMM → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau-contradiction ✓ cond[total:(CF A), total:(CF B), tp:CF, tp:CF]]
 • sorting/msort  (world: 29 defun(s), 7 theorem(s))
-    ACL2-COUNT-EVENS-STRONG → REPLAYED ✓ cond[linear:ACL2-COUNT-CAR-CDR-LINEAR]  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ◌ assumed cond[total:(ACL2-COUNT (EVENS (CDR (CDR X)))), total:(ACL2-COUNT (CDR (CDR X))), total:(ACL2-COUNT (CAR X)), total:(ACL2-COUNT (CDR X)), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, ASSUMED:dp-fact], Subgoal *1/2.1.2':simplify-clause/linear-contradiction ◌ assumed cond[total:(ACL2-COUNT (CAR X)), total:(ACL2-COUNT (CAR (CDR (CDR X)))), total:(ACL2-COUNT (CDR X)), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, ASSUMED:dp-fact], Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(ACL2-COUNT (EVENS X)), total:(ACL2-COUNT X), tp:ACL2-COUNT, tp:ACL2-COUNT]]
+    ACL2-COUNT-EVENS-STRONG → REPLAYED ✓  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ◌ assumed cond[total:(ACL2-COUNT (EVENS (CDR (CDR X)))), total:(ACL2-COUNT (CDR (CDR X))), total:(ACL2-COUNT (CAR X)), total:(ACL2-COUNT (CDR X)), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, ASSUMED:dp-fact], Subgoal *1/2.1.2':simplify-clause/linear-contradiction ◌ assumed cond[total:(ACL2-COUNT (CAR X)), total:(ACL2-COUNT (CAR (CDR (CDR X)))), total:(ACL2-COUNT (CDR X)), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, ASSUMED:dp-fact], Subgoal *1/1:preprocess/type-set-fc ✓ cond[total:(ACL2-COUNT (EVENS X)), total:(ACL2-COUNT X), tp:ACL2-COUNT, tp:ACL2-COUNT]]
     ACL2-COUNT-EVENS-WEAK → REPLAYED ✓  [DISCHARGE: Subgoal *1/2.2':simplify-clause/linear-contradiction ✓ cond[total:(ACL2-COUNT X1), total:(ACL2-COUNT X2), tp:ACL2-COUNT, tp:ACL2-COUNT], Subgoal *1/2.1':simplify-clause/linear-contradiction ✓ cond[total:(ACL2-COUNT X4), total:(ACL2-COUNT (EVENS X4)), total:(ACL2-COUNT X1), total:(ACL2-COUNT X3), tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT, tp:ACL2-COUNT], Subgoal *1/1'':preprocess/tau-contradiction ✓ cond[total:(ACL2-COUNT X), tp:ACL2-COUNT]]
     ORDEREDP-MSORT → REPLAYED ✓
     TRUE-LISTP-MSORT → REPLAYED ✓  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2], Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(MERGE2 MT0 MT), tp:MERGE2]]
@@ -145,9 +145,9 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     ALL-REL-RM-1 → REPLAYED ✓
     ALL-REL-RM-2 → REPLAYED ✓
     PERM-IMPLIES-EQUAL-ALL-REL-2 → REPLAYED ✓
-    ORDEREDP-QSORT → REPLAYED ✓ cond[rule:ORDEREDP-APPEND]
+    ORDEREDP-QSORT → REPLAYED ✓
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[tp:QSORT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
 • sorting/sorts-equivalent  (world: 215 defun(s), 3 theorem(s))
     MSORT-IS-ISORT → REPLAYED ✓
-    QSORT-IS-ISORT → REPLAYED ✓ cond[tp:QSORT, rule:ORDEREDP-APPEND]
+    QSORT-IS-ISORT → REPLAYED ✓ cond[tp:QSORT]
     BSORT-IS-ISORT → REPLAYED ✓ cond[rule:TRUE-LISTP-BNEXT, linear:HOW-MANY-BAD-PAIRS-BNEXT]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]

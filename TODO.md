@@ -4807,6 +4807,37 @@ obligation is stated precisely in its conditional proof's type:
 
 ## Done (recent milestones, for context)
 
+- **2026-08-16 (T1+2 sprint P5a — the discharge-side closers, branch
+  `mdd/t12-sprint`):** three of the five remaining conditional golden rows
+  RETIRED; header 116/116 (111+5 → **113 unconditional + 3 conditional**),
+  zero status flips, zero message churn, sorries still 0.
+  - `rule:ORDEREDP-APPEND` ×2 (ORDEREDP-QSORT, QSORT-IS-ISORT) — the
+    IFF-CONCLUSION DECODE class: `dischargeRuleHyp`'s new `routeIff`
+    recomputes ACL2's `create-rewrite-rule` normalization that stores an
+    `(IFF lhs rhs)` defthm conclusion as an `:EQUIV EQUAL` rule, taking
+    each side's two-valuedness from the EMITTED `:TYPE-PRESCRIPTION`
+    corollaries (demanded, never assumed). The waypoint layer's registered
+    decode exception `dis_rule_orderedp_append` DELETED with it
+    (deletion+rewiring; `Waypoints/Catalog.lean`'s `decodeAllowed` and the
+    hreplayed-usage seed are now empty named slots).
+  - `linear:ACL2-COUNT-CAR-CDR-LINEAR` (ACL2-COUNT-EVENS-STRONG) — a NEW
+    discharger family: ground-zero `:LINEAR` rules have no defthm anywhere
+    to replay, and this one's conclusion IS the CONSP branch of
+    ACL2-COUNT's own emitted body. `gz_linear_defn_branch`
+    (`Replay/GzRules.lean`) + `dischargeGzLinearHyp` +
+    `d5GzLinearRules` — a recomputed CLASS, not a per-rule constant.
+  - REMAINING (both named, neither ours to claim): `tp:QSORT` ×2 (the
+    `allTps`/hypothesis-carrying-`proveTp` lane) and the
+    `rule:TRUE-LISTP-BNEXT` + `linear:HOW-MANY-BAD-PAIRS-BNEXT` pair at
+    BSORT-IS-ISORT — the latter DIAGNOSED, a fix built and MEASURED
+    (2 conditions out, 3 in) and reverted under the movement rule; see
+    J-P5a-e in `docs/plans/2026-08-14_t12-sprint-charter.md` for the
+    named next step (post-sweep passes to quiescence with `totalEnv`
+    rebuilt).
+  - `ACL2LEAN_XBOOK_DIAG=1` — a diagnostic sink for `crossBookRegistry`'s
+    silent drops (the J-P4b-g treatment applied to the cross-book
+    pre-pass); it answered P4b's open question directly.
+
 - **2026-06-09 (the measure/emission/discharge arc, merged to main):**
   - Measure emission: `(:INDUCTION …)` carries measure/rel/mp/controllers/per-case
     tests + IH substitutions, instantiated at the conjecture; dump renders it;

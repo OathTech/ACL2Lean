@@ -399,6 +399,20 @@ def bookCitedNames (dev : Development) : List String :=
     citedRuneNamesDeep cp
     ++ ACL2.Replay.Driver.theoremUseCitedNames cp).eraseDups
 
+/-! MEASURED AND NOT ADOPTED (T1+2 sprint P5a, item 2). Widening this
+    seed with the book's OFFER surfaces (`allBookRules` +
+    `groundZeroLinearRuleSpecs` names) DOES reach the two names
+    `BSORT-IS-ISORT` keeps — measured at `sorting/sorts-equivalent`, the
+    undemanded dep-theorem count drops 13 → 1 — but the resulting
+    discharge trades the row's `rule:TRUE-LISTP-BNEXT` +
+    `linear:HOW-MANY-BAD-PAIRS-BNEXT` for the dependency's OWN
+    `total:BNEXT` + `total:BNEXT-SIZE` + `tp:BNEXT-SIZE`, which arrive
+    after the totality/TP passes have run. Two conditions out, three in:
+    cost without payoff under the movement rule, so the widening is not
+    here. The remaining piece is named in the charter's ARC LOG (a
+    quiescence loop over the post-sweep passes, with `totalEnv` rebuilt
+    for the newly-freed names). -/
+
 /-- WP5 — THE CROSS-BOOK D1 TRANSFER. A dependency book's replayed
     statement lives over ITS OWN world, so the D1 registry (whose entries
     are Lean constants of type `∀ env, … → EvTrue w env Φ`) has always
@@ -455,11 +469,28 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
   let mut trees : List (String × ClauseProof) := []
   let mut earlierRules : List ACL2.RuleSpec := []
   let condsTy := mkApp (mkConst ``List [.zero]) (mkConst ``String)
+  -- DIAGNOSTIC SINK for the pre-pass's SILENT drops (T1+2 sprint P5a, the
+  -- J-P4b-g treatment applied here). P4b's item 2 could not answer why a
+  -- demanded name produced NEITHER a registry entry NOR a failure line,
+  -- because the two `continue`s below say nothing and the demand filter
+  -- says nothing either. `ACL2LEAN_XBOOK_DIAG=1` prints one line per
+  -- silent drop plus a closing census of demanded-but-unregistered names.
+  -- stderr only, never a result line, never read by a gate; off by
+  -- default. Do not harden it.
+  let xdiag := (← IO.getEnv "ACL2LEAN_XBOOK_DIAG").isSome
+  let mut offered : List String := []
   for (src, depDev) in depDevs do
     let dw := depDev.toWorld
+    for (cp, _) in developmentTheoremsWithRules depDev do
+      offered := offered ++ [s!"{src}/{cp.name}"]
     unless worldIncludes dw w do
       IO.println s!"    [cross-book {src}: world NOT included in \
         {bookKey} — transfer refused]"
+      if xdiag then
+        for (cp, _) in developmentTheoremsWithRules depDev do
+          if demand.contains cp.name then
+            IO.eprintln s!"[xbook-diag] {bookKey}: demanded {src}/{cp.name} \
+              DROPPED — its book's world is not included"
       continue
     let thms := developmentTheoremsWithRules depDev
     let crossRules := earlierRules
@@ -504,8 +535,16 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
           xterm := xterm ++
             [(fn, tName, cs, (tcp.root.map (·.inputClause)).getD [])]
     for (cp, rules) in thms do
-      if !demand.contains cp.name then continue
-      let some root := cp.root | continue
+      if !demand.contains cp.name then
+        if xdiag then
+          IO.eprintln s!"[xbook-diag] {bookKey}: {src}/{cp.name} not \
+            DEMANDED (the seed's transitive closure does not reach it)"
+        continue
+      let some root := cp.root
+        | if xdiag then
+            IO.eprintln s!"[xbook-diag] {bookKey}: demanded {src}/{cp.name} \
+              DROPPED — no reconstructed proof tree"
+          continue
       let base := String.map (fun c => if c.isAlphanum then c else '_')
         s!"{bookKey}_{src}_{cp.name}"
       let mName := Name.mkStr2 "CrossBookReplayed" base
@@ -555,6 +594,16 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
     trees := trees ++ bookTrees depDev
     earlierRules := earlierRules ++ (allBookRules depDev).filter
       (fun r => !earlierRules.any (fun o => o.runeKey == r.runeKey))
+  if xdiag then
+    -- the closing census: what the seed demanded and the pre-pass never
+    -- registered, and whether an offered book carries the name at all
+    for n in demand do
+      unless reg.any (·.thm == n) do
+        let carriers := offered.filter (fun o => o.endsWith s!"/{n}")
+        let carriedBy := if carriers.isEmpty then "NO dep book"
+                         else String.intercalate ", " carriers
+        IO.eprintln s!"[xbook-diag] {bookKey}: demanded {n} NOT registered \
+          (offered by: {carriedBy})"
   return (reg, xterm)
 
 /-- Attempt the DP-lift replay of one discharge leaf: prove the discharge node's

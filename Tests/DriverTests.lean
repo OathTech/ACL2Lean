@@ -928,6 +928,12 @@ elab "wp3_gz_discharge_pin% " : term => do
     -- rows conditional and the golden diff shows it. This pin covers the
     -- entries whose only consumers are outside the golden.
     -- (Honest-mistake standard, two-standard rule — do not harden it.)
+    -- The GZ-LINEAR family (`d5GzLinearRules`, T1+2 sprint P5a) is
+    -- live-gated the same way and for the same reason — `sorting/msort`'s
+    -- `ACL2-COUNT-EVENS-STRONG` row is unconditional only because
+    -- `dischargeGzLinearHyp` fires — and additionally needs a telescope
+    -- (the fn's `total:` hypothesis), which this pin's ctx-free shape
+    -- does not build.
     let liveGatedByGolden : List String :=
       ["(+ y x)", "(+ y (+ x z))", "(+ (+ x y) z)", "(+ x (if a b c))",
        "(equal (if a b c) x)"]
