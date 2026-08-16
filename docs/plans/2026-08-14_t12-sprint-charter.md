@@ -876,3 +876,21 @@ tp:QSORT + the trio + CD2-BOUND (P4a, in flight).
     because the discharge fires). The `BSORT-IS-ISORT` catalog entry's
     prose is corrected: `.pending` now stands on the missing waypoint
     native and the bsort exec kit ONLY, no longer on a replay condition.
+
+## SPRINT END STATE REACHED (2026-08-16, P6)
+
+Every Tier-1 mechanism closed (G1/PERM-TLFIX; the recognizer-under-IF
+trio; CD2-BOUND; CLASSIFY-POS). Every Tier-2 condition class retired
+(tp:/total:/rule:/linear: — including the four classes DISCOVERED
+during the sprint: the arithmetic-rune family, the gz-linear family,
+the decode class, the cross-book transfer demand). The hard metrics:
+
+- Golden: **116/116 REPLAYED, 116 unconditional + 0 conditional,
+  zero FAIL rows** (122 ✓ rows = 116 theorems + 6 terminations).
+- **Zero sorry/sorryAx/native_decide in the repository** — the win
+  state. The FORBIDDEN-DEBT class is EMPTY for the first time.
+- Full build zero warnings; all statics; mirror layer untouched and
+  green throughout (all receipts trio-clean).
+
+Remaining below: the claim gate (full invalidation first, per the
+P5 catalog-cache find) and its TRUE_EXIT=0 record.
