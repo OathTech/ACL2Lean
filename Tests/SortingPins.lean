@@ -357,49 +357,19 @@ def ap3 (f : String) (a b c : SExpr) : SExpr :=
 /-- `(QUOTE e)`. -/
 def qt (e : SExpr) : SExpr := .cons (sym "QUOTE") (.cons e .nil)
 
-/-- ACL2's translation of a `(syntaxp (quotep v))` hypothesis:
-    `(SYNP 'NIL '(SYNTAXP (QUOTEP v)) '(IF (QUOTEP v) 'T 'NIL))`. -/
-private def synpQuotep (v : String) : SExpr :=
-  ap3 "SYNP" (qt .nil)
-    (qt (ap1 "SYNTAXP" (ap1 "QUOTEP" (sym v))))
-    (qt (ap3 "IF" (ap1 "QUOTEP" (sym v)) (qt (sym "T")) (qt .nil)))
+-- (`synpQuotep` — ACL2's translation of a `(syntaxp (quotep v))`
+-- hypothesis — DELETED 2026-08-16: zero uses here, and a duplicate of
+-- the LIVE copy at `ACL2Lean/Replay/GzRules.lean`. A pin vocabulary
+-- with no pin is cruft; a second copy of a live definition is worse.)
 
 /-! ## Hypothesis shapes (the `cond[…]` classes, spelled out once)
 
     Each is the exact machine shape of one condition class; the per-pin
     instantiations below say WHICH fn/rule and are source-checked there. -/
 
-/-- `total:<fn>` for a unary world fn: if the argument converges, the
-    application converges. -/
-def totalHyp1 (w : World) (fn : String) : Prop :=
-  ∀ (env' : Env) (a0 : SExpr),
-    (∃ N v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-    ∃ N v, ∀ f ≥ N, evalOpt f w env' (ap1 fn a0) = some v
-
-/-- `total:<fn>` for a binary world fn. -/
-def totalHyp2 (w : World) (fn : String) : Prop :=
-  ∀ (env' : Env) (a0 a1 : SExpr),
-    (∃ N v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-    (∃ N v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
-    ∃ N v, ∀ f ≥ N, evalOpt f w env' (ap2 fn a0 a1) = some v
-
 -- (`tpNonnegInt1` DELETED 2026-08-14 — orphaned vocabulary: its only
 -- customers were the four qsort ACL2-COUNT tp: pins, retired with the
 -- D-A ts-algebra consumer.)
-
-/-- `tp:<fn>` (binary), non-negative-integer corollary. -/
-def tpNonnegInt2 (w : World) (fn : String) : Prop :=
-  ∀ (env' : Env) (a0 a1 v : SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f w env' (ap2 fn a0 a1) = some v) →
-    (bif Logic.toBool (Logic.integerp v) then
-      Logic.not (Logic.lt v (.atom (.number (.int 0))))
-    else SExpr.nil) = SExpr.t
-
-/-- `tp:<fn>` (unary), single-predicate corollary (e.g. `true-listp`). -/
-private def tpPred1 (w : World) (fn : String) (pred : SExpr → SExpr) : Prop :=
-  ∀ (env' : Env) (a0 v : SExpr),
-    (∃ N, ∀ f ≥ N, evalOpt f w env' (ap1 fn a0) = some v) →
-    pred v = SExpr.t
 
 -- (`tpPred2` — the BINARY single-predicate corollary vocabulary, used by
 -- the `tp:INSERT`/`tp:INS` pins — DELETED 2026-08-13: every pin that
@@ -407,16 +377,17 @@ private def tpPred1 (w : World) (fn : String) (pred : SExpr → SExpr) : Prop :=
 -- vocabulary with no pin is cruft. It comes back with the next binary
 -- single-predicate TP that a pin actually keeps.)
 
-/-- `rule:<thm>` for an unconditional rewrite: lhs and rhs evaluate
-    identically in every environment (over the rule's own variables, free
-    in the term and bound by the env quantifier). -/
-def ruleEqHyp (w : World) (lhs rhs : SExpr) : Prop :=
-  ∀ env' : Env, ∃ N, ∀ f ≥ N, evalOpt f w env' lhs = evalOpt f w env' rhs
-
-/-- `rule:<thm>` for a ONE-hypothesis conditional rewrite. -/
-def ruleEqHyp1 (w : World) (hyp lhs rhs : SExpr) : Prop :=
-  ∀ env' : Env, EvTrue w env' hyp →
-    ∃ N, ∀ f ≥ N, evalOpt f w env' lhs = evalOpt f w env' rhs
+-- (`totalHyp1`, `totalHyp2`, `tpNonnegInt2`, `tpPred1`, `ruleEqHyp`,
+-- `ruleEqHyp1` — the rest of the `cond[…]` hypothesis-shape vocabulary
+-- — DELETED 2026-08-16, same convention as the two tombstones above.
+-- The T1+2 sprint retired every condition these spelled and left every
+-- pin in this file premise-free: at the sprint's exit `totalHyp1` had
+-- 0 users (20 at the sprint base), `totalHyp2` 0 (12), `tpPred1` 0 (3),
+-- `tpNonnegInt2` 0 (already 0 at the base), and `ruleEqHyp`/`ruleEqHyp1`
+-- survived only inside `trueListpRmHyp`/`convertPermHyp`, themselves
+-- dead and deleted in the same pass. Each comes back the day a pin
+-- keeps a condition of its class again — a pin vocabulary with no pin
+-- is cruft.)
 
 /-! ## isort book (acl2/books/sorting/isort.lisp) -/
 
@@ -437,16 +408,11 @@ example :
 /-! ## qsort book (acl2/books/sorting/qsort.lisp) -/
 
 /-- PIN the machine-generated statement of `PERM-QSORT`: the replayed statement of the
-    ACL2 defthm `(perm (qsort x) x)`, conditional on
-    - totality of `o<` (the one world fn whose totality is still not
-      auto-discharged on this row),
-    - the emitted non-negative-integer TP corollaries of `how-many` and
-      `acl2-count` (source-true: both count),
-    - the cited rules `convert-perm-to-how-many` and `how-many-qsort`
-      (fold-consts-in-+ now discharges via its D5 prelude constant;
-      the rest transcribed from
-      their books; `how-many-qsort` is a hypothesis because its own replay
-      currently fails at the J6 solidify frontier — no replayed statement to apply). -/
+    ACL2 defthm `(perm (qsort x) x)`, **UNCONDITIONAL since 2026-08-15**
+    — the pinned type is premise-free; see the retirement log below,
+    where each former condition (`o<` totality; the `how-many` /
+    `acl2-count` TP corollaries; the cited rules) carries its own dated
+    diagnosis. -/
 example :
     ∀ (env : Env),
       -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — PCE's emitted
@@ -498,12 +464,11 @@ example :
 #print axioms ReplayedStatements.replayed_pins_sorting_qsort_PERM_QSORT
 
 /-- PIN the machine-generated statement of `TRUE-LISTP-QSORT`: the replayed statement
-    of the ACL2 defthm `(true-listp (qsort x))`, conditional on `o<`
-    totality, qsort's own emitted TP corollary `(true-listp (qsort x))`
-    (the recursive TP — consumed on IH positions, NOT a circular discharge
-    of the conclusion: the replay still walks the tree), and acl2-count's
-    non-negative-integer TP (fold-consts-in-+ now discharges via its D5
-    prelude constant). -/
+    of the ACL2 defthm `(true-listp (qsort x))`, **UNCONDITIONAL since
+    2026-08-16** — the pinned type is premise-free; see the retirement
+    log below, where `o<` totality, qsort's own recursive TP corollary
+    and acl2-count's non-negative-integer TP each carry a dated
+    diagnosis. -/
 example :
     ∀ (env : Env),
       -- (total:O< RETIRED 2026-08-15 — T1+2 sprint P3b: the ORDINAL
@@ -541,8 +506,9 @@ example :
     decreases", i.e. `(if (endp x) 't (if (endp (cdr x)) 't (o< …)))`,
     conjoined over the two sites ((if c₁ c₂ 'nil) = (and c₁ c₂); the
     GTE-site clause first, in ACL2's recorded order). The replayed statement is the
-    replayed waterfall's root — conditional on the same `o<` totality,
-    `acl2-count` TP, and `fold-consts-in-+` classes as above. -/
+    replayed waterfall's root — **UNCONDITIONAL since 2026-08-15**; the
+    `o<` totality, `acl2-count` TP and `fold-consts-in-+` classes it once
+    carried are retired, each with its dated diagnosis in the log below. -/
 
 /-- `(if (endp x) 't (if (endp (cdr x)) 't (o< (acl2-count (filter 'fn (cdr x) (car x))) (acl2-count x))))` -/
 private def qsortDecreaseClause (fn : String) : SExpr :=
@@ -611,9 +577,12 @@ example :
 /-! ## msort book (acl2/books/sorting/msort.lisp) -/
 
 /-- PIN the machine-generated statement of `ORDEREDP-MSORT`
-    (msort.lisp:40): the replayed statement of `(orderedp (msort x))`, conditional on
-    - totality of `merge2` (binary) and `msort` (unary) — world fns whose
-      totality is not auto-discharged on this row,
+    (msort.lisp:40): the replayed statement of `(orderedp (msort x))`,
+    **UNCONDITIONAL since 2026-08-14** — the pinned type is premise-free.
+    Retirement log:
+    - (totality of `merge2` (binary) and `msort` (unary) RETIRED
+      2026-08-14 — the R3 unified measure/arity table; both left the
+      telescope, and the corresponding debt sorries went with them.)
     - (evens' emitted TP corollary `(true-listp (evens l))` RETIRED
       2026-08-13 — TP-replay arc increment 2's TRUE-LISTP corollary
       class: the driver discharges it from ACL2's emitted `:LEAVES`, so
@@ -637,8 +606,9 @@ example :
 /-- PIN the machine-generated statement of `HOW-MANY-BNEXT`
     (bsort.lisp:72): the replayed statement of
       `(equal (how-many e (bnext x)) (how-many e x))`
-    conditional on `bnext` totality and how-many's emitted
-    non-negative-integer TP corollary (source-true: it counts). The
+    **UNCONDITIONAL since 2026-08-14** — the pinned type is premise-free;
+    `bnext` totality and how-many's emitted non-negative-integer TP
+    corollary are retired, each dated in the log below. The
     cross-book rule condition `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` is
     GONE from the row exactly because the pin run offers the convert-perm
     dependency trees like the sweep (2a cross-discharge). -/
@@ -665,8 +635,9 @@ example :
     (convert-perm-to-how-many.lisp:30): the replayed statement of
       `(implies (not (equal a b)) (equal (how-many a (rm b x))
                                           (how-many a x)))`
-    conditional on how-many's emitted non-negative-integer TP corollary
-    (source-true: it counts). Pre-merge audit fix M2 (2026-08-06): the
+    **UNCONDITIONAL since 2026-08-12** — the pinned type is premise-free;
+    how-many's emitted non-negative-integer TP corollary is retired, dated
+    in the log below. Pre-merge audit fix M2 (2026-08-06): the
     book's first own statement pin — P4's per-book coverage was 6/7
     without it. -/
 example :
@@ -768,7 +739,10 @@ example :
 -- increment 4, 2026-08-13.)
 
 /-- PIN the machine-generated statement of `ORDEREDP-QSORT`: the replayed statement of
-    the ACL2 defthm `(orderedp (qsort x))`, conditional on
+    the ACL2 defthm `(orderedp (qsort x))`, **UNCONDITIONAL since
+    2026-08-16** — the pinned type is premise-free; every item below is
+    RETIRED, and the dated diagnosis for each is in the retirement log in
+    the body. The former telescope was:
     - totality of `o<` (perm-counter-example's left the telescope with
       the ATOM leg, 2026-08-13),
     - the emitted TP corollary of `acl2-count` (non-negative integer —
@@ -883,8 +857,9 @@ derive_world p5FlipPinsWorld from p5FlipPinsDev
       pinned because this formula is EXACTLY what `congSpecOfFormula?`
       parses into the consumed congruence license (a drift here would move
       the license itself).
-    Both conditional on ln's emitted non-negative-integer TP corollary
-    (source-true: ln counts). -/
+    Both **UNCONDITIONAL since 2026-08-12** — both pinned types are
+    premise-free; ln's emitted non-negative-integer TP corollary, which
+    each once carried, is retired (dated in each body below). -/
 
 private def p7CongLog : String :=
   include_str "../acl2_samples/pattern-tests/p7-cong-collapse.proof-log"
@@ -981,10 +956,11 @@ example :
 #print axioms ReplayedStatements.replayed_pins_sorting_isort_TRUE_LISTP_ISORT
 
 /-- PIN `HOW-MANY-ISORT`: `(equal (how-many e (isort x)) (how-many e x))`,
-    conditional on how-many's non-negative-integer TP (fold-consts-in-+
-    now discharges via its D5 prelude constant)
-    (`not-memb-implies-how-many-is-0` now discharges CROSS-BOOK from the
-    dependency book's replayed tree — 2a). -/
+    **UNCONDITIONAL since 2026-08-12** — the pinned type is premise-free;
+    how-many's non-negative-integer TP is retired (dated in the body
+    below), fold-consts-in-+ discharges via its D5 prelude constant, and
+    `not-memb-implies-how-many-is-0` discharges CROSS-BOOK from the
+    dependency book's replayed tree (2a). -/
 example :
     ∀ (env : Env),
       -- (tp:HOW-MANY RETIRED 2026-08-12 — the driver's TP prover
@@ -1056,22 +1032,14 @@ def sortsEqPinsDev : Development := load_development% sortsEqLog
 
 derive_world sortsEqPinsWorld from sortsEqPinsDev
 
-/-- `rule:TRUE-LISTP-RM` (ordered-perms.lisp:34, stored form):
-    `((TRUE-LISTP A)) ⊢ (TRUE-LISTP (RM E A)) ≡ 'T`. -/
-private def trueListpRmHyp (w : World) : Prop :=
-  ruleEqHyp1 w
-    (ap1 "TRUE-LISTP" (sym "A"))
-    (ap1 "TRUE-LISTP" (ap2 "RM" (sym "E") (sym "A")))
-    (qt (sym "T"))
-
-/-- `rule:CONVERT-PERM-TO-HOW-MANY` (convert-perm-to-how-many.lisp:92,
-    stored form, unconditional). -/
-private def convertPermHyp (w : World) : Prop :=
-  ruleEqHyp w
-    (ap2 "PERM" (sym "X") (sym "Y"))
-    (ap2 "EQUAL"
-      (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "X"))
-      (ap2 "HOW-MANY" (ap2 "PERM-COUNTER-EXAMPLE" (sym "X") (sym "Y")) (sym "Y")))
+-- (`trueListpRmHyp` — `rule:TRUE-LISTP-RM`, ordered-perms.lisp:34 —
+-- and `convertPermHyp` — `rule:CONVERT-PERM-TO-HOW-MANY`,
+-- convert-perm-to-how-many.lisp:92 — DELETED 2026-08-16. Both had 3
+-- users each at the sprint base and 0 at its exit: the P3c cross-book
+-- D1 transfer retired both conditions from every telescope in this
+-- file (diagnosed in place at the capstone pins below). Same
+-- convention as the vocabulary tombstones above; they come back with
+-- the next pin that keeps their class.)
 
 /-! ## Capstone pins — RETURNED 2026-08-13 (the TP-replay arc's ATOM-leg
 increment)
@@ -1096,9 +1064,11 @@ the conditional stored-rule route), `tp:QSORT` as well. -/
 
 /-- PIN the machine statement of `MSORT-IS-ISORT`
     (sorts-equivalent.lisp:12): the mirror of
-    `(equal (msort x) (isort x))`, conditional on merge2/msort
-    totality and the true-listp-rm + convert-perm-to-how-many stored
-    rules — the row's exact cond[…] telescope, in order. -/
+    `(equal (msort x) (isort x))`, **UNCONDITIONAL since 2026-08-15** —
+    the pinned type is premise-free. Its former cond[…] telescope
+    (merge2/msort totality; the true-listp-rm and
+    convert-perm-to-how-many stored rules) is retired item by item in
+    the log below, each dated. -/
 example :
     ∀ (env : Env),
       -- (total:MERGE2 and total:MSORT RETIRED 2026-08-14 — the R3
@@ -1119,13 +1089,19 @@ example :
 
 /-- PIN the machine statement of `QSORT-IS-ISORT`
     (sorts-equivalent.lisp:18): the mirror of
-    `(equal (qsort x) (isort x))`, conditional on the row's exact
-    cond[…] telescope: qsort/o< totality, the two surviving emitted TPs,
-    true-listp-rm + convert-perm-to-how-many, the arithmetic-3
-    commutativity + two if-lifting rules, and the three qsort-book
-    rules (how-many-filter-1, how-many-qsort — the row's disclosed
-    own-obligation assumption, audit O-3 — and orderedp-append),
-    stored forms from the emitted entries. -/
+    `(equal (qsort x) (isort x))`, **UNCONDITIONAL since 2026-08-16** —
+    the pinned type is premise-free. Its former cond[…] telescope
+    (qsort/o< totality, the emitted TPs, true-listp-rm +
+    convert-perm-to-how-many, the arithmetic-3 commutativity + two
+    if-lifting rules, and the three qsort-book rules how-many-filter-1 /
+    how-many-qsort / orderedp-append) is retired item by item in the log
+    below, each dated.
+    DISCLOSURE RETIRED (2026-08-16): this docstring used to disclose
+    `how-many-qsort` as "the row's disclosed own-obligation assumption,
+    audit O-3". That assumption is GONE — it left the telescope with the
+    P5b/P6 retirements, the type no longer carries it, and a standing
+    disclosure of an assumption that no longer exists is itself a
+    records defect. -/
 example :
     ∀ (env : Env),
       -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — the ATOM leg;

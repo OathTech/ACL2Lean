@@ -158,7 +158,9 @@ theorem convP_of_conv_ex {w : World} {env : Env} {t : SExpr}
 MIRRORS live here, in the TP arc's own module (Discharge is close to the
 weight ratchet's norm). Nothing new is claimed at arity 3: each statement
 is the arity-3 image of its 2-ary twin (`convP_defn_2`,
-`tp_hyp_2_of_body`, `tp_2_rec`, `tp_2_rec_snd`), and the
+`tp_hyp_2_of_body`, `tp_2_rec_mu`, `tp_2_rec_snd_mu` — the non-`_mu`
+wrappers these once named were deleted at P4b's μ-generic widening), and
+the
 argument-strictness pair is MOVED (not copied) from
 `Imported/ExecGen.lean`, which defined but never cited it. -/
 

@@ -122,7 +122,16 @@ free-floating).
 
 Bonus, not incidental (design §D4): each lemma is a kernel-checked proof that
 the trusted-core primitive agrees with ACL2's own definition of the function —
-a fidelity validation the differential harness can only sample. -/
+a fidelity validation the differential harness can only sample.
+
+NOT DEAD CODE — read this before a dead-code sweep deletes any of them.
+Several `gz_def_*` lemmas are referenced by NO Lean file: their consumer is
+`scripts/check-gz-agreement.sh`, which REQUIRES a `gz_def_<fn>` theorem to
+exist for every builtin-named ground-zero defun in the corpus and builds the
+name by string interpolation, so no source file ever mentions it. They are
+registered in a registry, textbook-style; a scan that counts textual mentions
+will report them consumerless and be wrong (noted at the 2026-08-16 stale-
+material audit, which re-found them). -/
 
 /-- `(DEFUN TRUE-LISTP (X) (IF (CONSP X) (TRUE-LISTP (CDR X)) (EQ X NIL)))`
     (the snapshot body carries the translated `(EQUAL X 'NIL)`). -/

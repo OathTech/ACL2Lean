@@ -363,26 +363,34 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- blocker it named is gone.
   ("sorting/sorts-equivalent", "MSORT-IS-ISORT",
     .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13 \
-      — the FI of the equisort parametric theorem at msort/isort now \
-      replays; its row conds are total:MERGE2, total:MSORT, \
-      rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY). The waypoint \
-      native (`msortL xs = isortL xs`) is NOT BUILT — queued behind the \
-      mirror buildout; when built it would be `.nativeSorried` on the \
-      REQUIRED-class merge2/msort admission debt (dis_convert_perm \
-      RETIRED 2026-08-15 by the WP5 cross-book transfer). Statement \
-      pin: Tests/SortingPins"),
+      — the FI of the equisort parametric theorem at msort/isort \
+      replays) and UNCONDITIONAL since 2026-08-15 (T1+2 sprint P3c): \
+      the row's conditions total:MERGE2, total:MSORT (R3's measure \
+      table), rule:TRUE-LISTP-RM and rule:CONVERT-PERM-TO-HOW-MANY \
+      (the cross-book D1 transfer) are ALL retired, and the \
+      REQUIRED-class merge2/msort admission debt went with them \
+      (dis_merge2_total/dis_msort_total at R3, dis_convert_perm at \
+      P3c — the repository is at zero sorries). The waypoint native \
+      (`msortL xs = isortL xs`) is NOT BUILT — queued behind the \
+      mirror buildout; the decision stays `.pending` for THAT reason, \
+      not for a replay one. Statement pin: Tests/SortingPins"),
   ("sorting/sorts-equivalent", "QSORT-IS-ISORT",
-    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13; \
-      row conds total:QSORT, total:O<, tp:QSORT, \
-      rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY, the three \
-      arithmetic/if-lift gz rules, rule:HOW-MANY-FILTER-1, \
-      rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND). The waypoint native \
-      (`qsortL xs = isortL xs`) is NOT BUILT — queued behind the mirror \
-      buildout (tp:ACL2-COUNT retired 2026-08-14 by the D-A ts-algebra \
-      consumer; tp:QSORT retired 2026-08-16 by the CONDITIONAL \
-      stored-rule route over RT2's per-rule :ALL-TPS leaves -- the row \
-      now keeps only rule:ORDEREDP-APPEND). Statement pin: \
-      Tests/SortingPins"),
+    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13) \
+      and UNCONDITIONAL since 2026-08-16 (T1+2 sprint P5a+P5b): every \
+      condition the row once carried is retired — tp:ACL2-COUNT by the \
+      D-A ts-algebra consumer (P1, 2026-08-14); total:QSORT/total:O< \
+      by the R3 measure table and the ordinal route (P3b); \
+      rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY, \
+      rule:HOW-MANY-FILTER-1 and rule:HOW-MANY-QSORT by the cross-book \
+      D1 transfer (P3c); the three arithmetic/if-lift gz rules by the \
+      d5GzRules move (P4b); rule:ORDEREDP-APPEND by the routeIff \
+      registered decode (P5a); and tp:QSORT by the CONDITIONAL \
+      stored-rule route over RT2's per-rule :ALL-TPS leaves (P5b). \
+      The stale own-obligation disclosure (how-many-qsort, audit O-3) \
+      went with them. The waypoint native (`qsortL xs = isortL xs`) is \
+      NOT BUILT — queued behind the mirror buildout; the decision \
+      stays `.pending` for THAT reason, not for a replay one. \
+      Statement pin: Tests/SortingPins"),
   ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
     .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13) \
       and UNCONDITIONAL since 2026-08-16 (T1+2 sprint P6): the row's \
@@ -404,28 +412,24 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),
   ("sorting/convert-perm-to-how-many", "CONVERT-PERM-TO-HOW-MANY",
-    .pending "BLOCKED ON A RED ROW — the R-lane rung-2 wall (restated \
-      against the CURRENT golden, mirror wave 2026-08-11; the previous \
-      text also cited use:PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS, which \
-      is STALE — that cond is gone and that row is now green). The \
-      row's conds are now cond[rule:PERM-TLFIX] — a SINGLE blocker \
-      (tp:HOW-MANY was retired by the replay route, TP-replay arc \
-      increment 1 2026-08-12; total:PERM-COUNTER-EXAMPLE by the \
-      ATOM-leg increment, 2026-08-13). `rule:PERM-TLFIX`'s ONLY \
-      criterion-clean discharger is PERM-TLFIX's own replayed \
-      statement — whose row was RED at the R-lane wall and is GREEN \
-      since the G1 lane landed (2026-08-14: PERM-TLFIX → REPLAYED ✓ \
-      unconditional, and cond[rule:PERM-TLFIX] retired from this row, \
-      which is now UNCONDITIONAL). The replay blocker is therefore \
-      GONE; what remains is the native itself, unbuilt. A Lean-side \
-      bridge would still be a new \
-      content discharger (banned) / the ornamental-import antipattern. \
-      NOT blocked on simulation work: the PCE kit \
-      (pceExec/pce_exec_corr/pceExec_enc) exists — its \
-      `dis_pce_total` companion is GONE, retired by the replay route — \
-      and the book's own PCE row is now a landed native (the ELEMENT \
-      reading, ruled 2026-08-11). UNLOCK: build the native (the replay \
-      side is done)"),
+    .pending "UNCONDITIONAL since 2026-08-14 (T1+2 sprint G1-M) — the \
+      row has NO kept conditions and no replay blocker; the `.pending` \
+      stands on the missing waypoint native ALONE. History: this entry \
+      once read BLOCKED ON A RED ROW (the R-lane rung-2 wall) and \
+      earlier still cited use:PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS; \
+      the retirements were tp:HOW-MANY by the replay route (TP-replay \
+      arc increment 1, 2026-08-12), total:PERM-COUNTER-EXAMPLE by the \
+      ATOM-leg increment (2026-08-13), and finally rule:PERM-TLFIX \
+      when the G1 lane made PERM-TLFIX itself REPLAYED ✓ unconditional \
+      (2026-08-14) — its only criterion-clean discharger, now live. \
+      A Lean-side bridge would still be a new content discharger \
+      (banned) / the ornamental-import antipattern. NOT blocked on \
+      simulation work either: the PCE kit \
+      (pceExec/pce_exec_corr/pceExec_enc) exists, its `dis_pce_total` \
+      companion is GONE (retired by the replay route), and the book's \
+      own PCE row is a landed native (the ELEMENT reading, ruled \
+      2026-08-11). UNLOCK: build the native — the replay side is \
+      done"),
   ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),
@@ -484,44 +488,42 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .native ``orderedp_when_bnext_constant_native_driver
       ``orderedpWhenBnextConstantReplayedCond),
   ("sorting/bsort", "ORDEREDP-BSORT",
-    .pending "BLOCKED ON A KEPT CONDITION WITH NO UNLOCK CLASS \
-      (restated 2026-08-11 after the reuse-vs-mint ruling; tp:BNEXT-SIZE \
-      left the row with TP-replay arc increment 3, 2026-08-13). Golden \
-      conds (total:BNEXT RETIRED by replay 2026-08-14 — the R3 measure \
-      table's LEN row): total:BSORT, total:O<, total:O-P, \
-      linear:HOW-MANY-BAD-PAIRS-BNEXT. One now \
-      discharges (dis_o_lt_total); the blocker is \
-      `linear:HOW-MANY-BAD-PAIRS-BNEXT`, whose CLASS has no existing \
-      unlock — the ruling caps minting at the classes that already \
-      have one (TP-replay, with_termination/total), and `linear:` has \
-      neither, so minting it is out of scope for an executor. UNLOCK: \
-      the linear/DP replay route for the stored :LINEAR rule (or a \
-      ruling extending the mint cap); total:BSORT and total:O-P retire \
-      with with_termination admission coverage. Second frontier, \
-      behind them: the native `orderedpRec (bsortL l)` needs a bsort \
+    .pending "UNCONDITIONAL since 2026-08-16 (T1+2 sprint P5a+P6) — \
+      the `.pending` stands on the missing waypoint native and the \
+      bsort exec kit ONLY, not on any replay condition. The row's \
+      conditions retired in order: tp:BNEXT-SIZE (TP-replay arc \
+      increment 3, 2026-08-13), total:BNEXT (R3's measure table LEN \
+      row, 2026-08-14), total:O</total:O-P (the P3b ordinal route, \
+      which also DELETED dis_o_lt_total), total:BSORT (P3a's TotFacts \
+      value+convergence carry), and finally \
+      linear:HOW-MANY-BAD-PAIRS-BNEXT — the condition this entry long \
+      recorded as HAVING NO UNLOCK CLASS. It got one: \
+      `gz_linear_defn_branch`, a parametric CLASS lemma for \
+      ground-zero :LINEAR rules (P5a), reaching this telescope once \
+      the discharge lane ran to QUIESCENCE with totalEnv rebuilt \
+      between rounds (P6). (The carve-out class extension itself is a \
+      recorded open ruling — audit 2026-08-16, brief B2.) Remaining \
+      frontier: the native `orderedpRec (bsortL l)` needs a bsort \
       kit, whose Lean-side termination artifact IS the bubble-size \
       decrease (P2 admits it by the MEASURE-ABSORBED precedent — and \
-      the native measure `bnextSizeL` + its decrease now EXIST as this \
-      wave's HOW-MANY-BAD-PAIRS-BNEXT native, so the kit is a build, \
-      not a research question) — not attempted in this wave"),
+      the native measure `bnextSizeL` + its decrease EXIST as the \
+      HOW-MANY-BAD-PAIRS-BNEXT native, so the kit is a build, not a \
+      research question)"),
   ("sorting/bsort", "TRUE-LISTP-BSORT",
     .replayedOnly "subsumed by the bsort simulation: the enc image is
       closed under bsortExec (the type-absorbed true-listp doctrine,
       the TRUE-LISTP-RM precedent)"),
   ("sorting/bsort", "HOW-MANY-BSORT",
-    .pending "BLOCKED ON A KEPT CONDITION WITH NO UNLOCK CLASS \
-      (restated 2026-08-11 after the reuse-vs-mint ruling) — the \
-      ORDEREDP-BSORT blocker exactly (tp:HOW-MANY retired by the \
-      replay route, TP-replay arc increment 1; tp:BNEXT-SIZE by \
-      increment 3; total:BNEXT by the R3 measure table 2026-08-14). \
-      Golden conds: total:BSORT, total:O<, total:O-P, \
-      linear:HOW-MANY-BAD-PAIRS-BNEXT; only \
-      `total:BSORT`, `total:O-P` and \
-      `linear:HOW-MANY-BAD-PAIRS-BNEXT` are undischarged, and the \
-      `linear:` class has no existing unlock (the mint cap excludes \
-      it). Same unlocks, same second frontier (the bsort kit) as \
-      ORDEREDP-BSORT; the native would be \
-      `howManyL e (bsortL l) = howManyL e l`"),
+    .pending "UNCONDITIONAL since 2026-08-16 (T1+2 sprint P5a+P6) — \
+      ORDEREDP-BSORT's story exactly, condition for condition \
+      (tp:HOW-MANY by the replay route, TP-replay arc increment 1; \
+      tp:BNEXT-SIZE by increment 3; total:BNEXT by the R3 measure \
+      table 2026-08-14; total:O</total:O-P by the P3b ordinal route; \
+      total:BSORT by P3a; and linear:HOW-MANY-BAD-PAIRS-BNEXT by the \
+      P5a gz-linear CLASS lemma reached under P6's quiescence loop). \
+      The `.pending` stands on the missing waypoint native and the \
+      bsort exec kit ONLY — same second frontier as ORDEREDP-BSORT; \
+      the native would be `howManyL e (bsortL l) = howManyL e l`"),
   -- PROMOTED 2026-08-14 (the R3 measure table's LEN row).
   ("sorting/bsort", "HOW-MANY-SMALLER-BNEXT",
     .native ``how_many_smaller_bnext_native_driver

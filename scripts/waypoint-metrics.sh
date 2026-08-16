@@ -23,6 +23,27 @@ grep -o 'cond\[[^]]*\]' "$golden" \
   | sort | uniq -c | sort -rn \
   | awk '{printf "  %-12s %s\n", $2":", $1}'
 
+# THE TWO SURFACES (reconciliation, 2026-08-16 audit A3-T2-5). The census
+# above buckets EVERY cond[...] in the file, which mixes two different
+# things:
+#   ROW conditions            — the kept hypotheses of the replayed row.
+#                               This is what the golden's header counts
+#                               (Tests/Coverage/Harness.lean strips the
+#                               "  [DISCHARGE:" tail before it looks for
+#                               " cond["), and it is the metric.
+#   DISCHARGE-bracket conds   — the telescopes of the standalone,
+#                               INFORMATIONAL DP probe appended to a row.
+#                               Ruled probe-structural; they are not row
+#                               qualifications and never gate anything.
+# (both counts may legitimately be ZERO — grep's exit 1 must not abort
+#  the script under `set -e`/pipefail)
+all_blocks=$(grep -o 'cond\[' "$golden" | wc -l | tr -d ' ' || true)
+row_blocks=$(sed 's/  \[DISCHARGE:.*$//' "$golden" \
+  | { grep -o 'cond\[' || true; } | wc -l | tr -d ' ')
+echo "  --"
+echo "  cond[...] blocks on ROWS (the metric):        ${row_blocks}"
+echo "  cond[...] blocks inside [DISCHARGE: …]:       $((all_blocks - row_blocks))  (informational DP-probe telescopes)"
+
 echo
 echo "== hand lines per catalog native =="
 hand_files=(
@@ -34,7 +55,9 @@ hand_files=(
   ACL2Lean/Imported/SimpleWorld.lean
   ACL2Lean/Imported/AppAssoc.lean
   ACL2Lean/Imported/RevAcc.lean
-  ACL2Lean/Imported/GzPrelude.lean
+  # (GzPrelude.lean was deleted at T1+2 sprint P4b — its five statements
+  #  moved down to Replay/GzRules.lean; listing it here aborted the whole
+  #  script under `set -e` from 2026-08-15 until the 2026-08-16 audit.)
 )
 hand_lines=$(cat "${hand_files[@]}" | wc -l)
 catalog=ACL2Lean/Imported/Waypoints/Catalog.lean

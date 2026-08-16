@@ -77,23 +77,42 @@ structure; sorting then widens the aperture by exactly one dimension
   waypoint debt, honestly surfaced — ISORT's row is
   `.nativeSorried` on `dis_insert_tp`, so the mirror inherits
   `sorryAx` until the TP route lands; state it, don't hide it).
+  **UPDATE 2026-08-16: `dis_insert_tp` was RETIRED 2026-08-13** (the
+  TP-replay arc, CONS return-path increment) — ISORT's row is not
+  `.nativeSorried` and nothing inherits `sorryAx`; the whole
+  FORBIDDEN-DEBT class has been empty since 2026-08-15.
 - Every hand-written thing on this path gets logged as a Phase B/C
   work item at the moment it is written (the pathfinder's second
   deliverable is THE LIST).
 
 ## PHASE B — Track FREE to nearly-free (the metric layer)
 
-Ordered by what the pathfinder + mirrors actually consume:
-- B1. **The TP-replay route** (`tp:` = 195 kept conditions; retires
-  14 debt sorries incl. `dis_insert_tp` → the pathfinder mirrors go
-  trio-clean). The single biggest lever.
+Ordered by what the pathfinder + mirrors actually consume.
+**STATUS (added 2026-08-16 by the post-audit repair batch, A3-T2-3):
+B1–B4 all LANDED, via the T1+2 sprint** (`docs/plans/2026-08-14_t12-sprint-charter.md`).
+- B1. **The TP-replay route** — **DONE** (the TP-replay arc 2026-08-12/13
+  + T1+2 sprint P1 `b71e1be` and P5b `01faf39`). `tp:` row conditions
+  are **0/0**; `dis_insert_tp` and every other TP-class debt sorry are
+  retired. (The "195 kept conditions" figure was the
+  DISCHARGE-bracket surface, not the row surface — see the LEXICON's
+  ROW vs DISCHARGE-BRACKET entry.) The single biggest lever, and it
+  was.
 - B2. **with_termination coverage** (REQUIRED class, 5) + the usefi
-  totality lift → the three `*-IS-ISORT` capstone rows re-green.
+  totality lift → the three `*-IS-ISORT` capstone rows re-green —
+  **DONE** (R3 `b3f6174` for the measure table, P3b `9e5977e` for the
+  ordinal route). The REQUIRED class is empty.
 - B3. **The R-lane** (PERM-TLFIX, G1) → CONVERT-PERM chain +
   `dis_convert_perm` retires → `perm_iff_howMany` +
-  `permWitness_complete` mirrors become derivable.
+  `permWitness_complete` mirrors become derivable — **DONE**
+  (G1-M `90839d4`; `dis_convert_perm` retired at P3c `9f41bd3`).
 - B4. **The linear-class design** (ruling before build) → the bsort
-  rows → `bsort_*` mirrors.
+  rows → `bsort_*` mirrors — **the rows are DONE, the ruling was
+  NOT taken.** The `linear:` class was unlocked at P5a
+  (`gz_linear_defn_branch`, a parametric class lemma) and reached at
+  P6, as delegated sprint judgment calls, WITHOUT the pre-build ruling
+  this line reserved. Flagged in the end-of-branch audit's ruling
+  queue (A6-B2 / synthesis R-7); the ruling point below is therefore
+  still live, now retrospectively.
 - B5. **Auto-extraction**: generated body/symbol/formula constants
   from the logs (retire the hand transcriptions; the by-decide pins
   become generated canaries).

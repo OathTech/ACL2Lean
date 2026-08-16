@@ -107,6 +107,69 @@ blocks it.)
 **Debt / FORBIDDEN-DEBT** — a fact ACL2 discharged whose replay route
 is not wired yet, carried as a registered, `sorryAx`-visible `sorry`
 with its unlock named. Never silent; retirement is forced by gates.
+**The class is EMPTY as of 2026-08-15** (T1+2 sprint P3c): zero
+`sorry`/`sorryAx` in the repository — the win state.
+
+**THE TRANSFER (cross-book D1; T1+2 sprint P3c)** — how a book's
+replay uses a theorem another book proved. The dependency's recorded
+clause tree is REPLAYED AGAIN, once, at the CONSUMER's world, the
+resulting constant `addDecl`'d and matched to the demand BY STATEMENT.
+It is not a citation and not an assumption: the consumer's proof
+contains a real replay. Gated fail-closed by `worldIncludes`
+(`Replay/Runner.lean`) — byte-identity of the two worlds' `defs`,
+which is the only `World` field `evalOpt` reads; a world that does not
+byte-nest (equisort's encapsulate world is the live example) has its
+transfers REFUSED and printed, and the consumer keeps the honest
+hypothesis or takes the parametric route instead.
+
+**QUIESCENCE (T1+2 sprint P6)** — the discharge sweep's outer loop: a
+book's post-replay discharge passes (`total:` / `tp:` / the D5 gz
+pass) are re-run until a round retires nothing, rather than once.
+Needed because a condition can only become dischargeable after an
+EARLIER round's work (a hypothesis reachable only from a dependency's
+admission telescope, which the dependency sweep produces). Strict
+progress required each round, capped at 4 — the cap is an
+honest-mistake speedbump, not a semantic bound; round 1 is
+byte-identical to the pre-P6 behaviour by construction.
+
+**D5 / THE GZ CLASS** — the ratified carve-out for GROUND-ZERO rules:
+facts about ACL2's own boot-strap functions for which no replayable
+ACL2 evidence is available to us, discharged instead by a hand-proved
+Lean constant registered against the rule's CITED RUNE and
+recompute-checked against the emitted spec. `Replay/GzRules.lean`
+splits the class in two on its own terms: **(i) boot-skipped** — the
+evidence does not exist in ANY capturable image (the lexorder story);
+**(ii) uncaptured-book** — the evidence exists, in a book we have not
+captured (the arithmetic-rune family that moved down at P4b). Both are
+registry entries, never inference; an unregistered rune stays a kept
+condition. The `:LINEAR` sub-family (P5a's `gz_linear_defn_branch`, a
+parametric class lemma rather than a per-rune constant) is the model
+for growing this without per-rune accretion.
+
+**EMISSION-GATED PROVING / THE D-A PATTERN** — the shape every
+condition class retired in the T1+2 sprint has in common, and the
+operational reading of the fidelity rule "a verdict may gate
+ADMISSIBILITY; it may NEVER substitute for proof": ACL2's emitted data
+(a type-set verdict, a corollary's class, a stored rule's leaves, a
+cited rune) SELECTS which proved lemma is applicable; the selected
+lemma carries the actual proof, and the obligation is RECOMPUTED and
+kernel-type-hinted at the application site. Anything unemitted, or any
+shape not registered, stays a visible condition — it is never
+inferred.
+
+**ROW CONDITIONS vs DISCHARGE-BRACKET CONDITIONS** — the driver
+golden (`Tests/driver-coverage.golden`) prints `cond[…]` on TWO
+different surfaces, and only one of them is the metric.
+*ROW conditions* are the kept hypotheses of the replayed row itself —
+what the header counts (`Tests/Coverage/Harness.lean` strips the
+`  [DISCHARGE:` tail before it looks for ` cond[`), and what "116
+unconditional" means. *DISCHARGE-bracket conditions* are the
+telescopes of the standalone, INFORMATIONAL DP probe appended to a
+row; that probe's proof is never `addDecl`'d and never gates
+anything (ruled probe-structural, J6). `just waypoint-metrics` prints
+both surfaces separately. Also note the row arithmetic: the golden
+carries 122 ✓ rows = **116 theorems + 6 terminations**, and the
+headline 116/116 counts the theorem rows only.
 
 **Canary (statement pin)** — a regression detector pinning replayed-
 statement CONTENT (the golden watches only row status). Fires when a

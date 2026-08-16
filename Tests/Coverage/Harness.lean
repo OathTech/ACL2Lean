@@ -276,6 +276,23 @@ elab "coverage_book% " nameLit:str : command => do
   let rows := lines.filter (fun l => l.startsWith "    " && (l.splitOn " → ").length > 1)
   let thmRows := rows.filter (fun l => !(l.trimAsciiStart.startsWith "termination:"))
   let replayedRows := thmRows.filter (fun l => (l.splitOn " → REPLAYED ✓").length > 1)
+  -- THE GOLDEN ROW FORMAT — LEGEND (added 2026-08-16; this bracket has
+  -- now misled two reviewers into counting probe conditions as row
+  -- ones, so the legend lives here, beside the code that strips it):
+  --
+  --     <NAME> → REPLAYED ✓ cond[…]  [DISCHARGE: <leaf> ✓/◌/✗ cond[…]]
+  --     ^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  --     THE ROW — its status and its  THE PROBE — a standalone,
+  --     KEPT HYPOTHESES. This, and    INFORMATIONAL DP-leaf probe whose
+  --     only this, is what "116/116   proof is NEVER addDecl'd and never
+  --     (116 unconditional)" counts.  gates anything. Its cond[…]s are
+  --                                   probe telescopes, NOT row
+  --                                   qualifications (ruled J6).
+  --
+  -- Hence: strip the "  [DISCHARGE:" suffix BEFORE looking for
+  -- " cond[". Row-vs-bracket is also a LEXICON entry, and
+  -- `just waypoint-metrics` prints the two surfaces separately.
+  --
   -- the COMPOSED row's cond only — strip the [DISCHARGE: …] suffix
   -- first (probe leaves carry their own cond[ text)
   let condRows := replayedRows.filter (fun l =>

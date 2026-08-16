@@ -2,7 +2,21 @@
   D5 — ground-zero rules as PRELUDE CONSTANTS (external-knowledge design
   §D5, WP3; policy MDD-ratified 2026-07-10).
 
-  ACL2 admits the lexorder rules at boot with proofs SKIPPED
+  THE CLASS HAS TWO HALVES (header corrected 2026-08-16 — it used to
+  frame D5 solely as the boot-skipped lexorder story, which stopped
+  being the whole file at P4b). The criterion is "no replayable ACL2
+  evidence exists in the captured corpus", and that splits into:
+    (i)  BOOT-SKIPPED — the evidence exists in NO capturable image
+         (the lexorder/DEFAULT-CAR family, described next);
+    (ii) UNCAPTURED-BOOK — the evidence EXISTS, in a book we have not
+         captured (FOLD-CONSTS-IN-+ and the five arithmetic-3 runes
+         that moved down here at T1+2 sprint P4b); such an entry is
+         RETIRED the day that book is captured and its tree replayed.
+  Both halves are spelled out with their retirement conditions at the
+  D5 ADMISSION CRITERION below; read that before adding an entry.
+
+  Class (i), the original story. ACL2 admits the lexorder rules at boot
+  with proofs SKIPPED
   (`ld-skip-proofsp`, interface-raw.lisp:9638) — no replayable ACL2
   evidence exists in any capturable image. The prelude constants below
   prove, ONCE, the ∀-env replayed statement of each such rule about the

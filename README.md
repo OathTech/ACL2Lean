@@ -92,8 +92,27 @@ ACL2 book → proof log → **replayed statement** (metric) → **waypoint**
 
 ## Trust model
 
-Three DISTINCT properties, separately enforced (rewritten 2026-08-06 after
-the overall-project audit — the earlier text conflated them):
+**The two-sentence version** (adopted 2026-08-16 from the end-of-branch
+TCB audit, `docs/audits/2026-08-16_eob-audit-a1-tcb-trust.md` §Q4, whose
+wording this reproduces):
+
+> Every mirror theorem is a self-contained statement over its own
+> zero-import definitions, kernel-checked from exactly
+> propext/Classical.choice/Quot.sound — so nothing in the ACL2 pipeline,
+> however wrong, can make one false; you need only read that one spec
+> file and trust Lean's kernel. The further claim that these theorems
+> were proved *via ACL2 replay* rather than by a Lean-side shortcut is
+> not kernel-certified: it rests on generated proof templates,
+> build-failing seam/axiom gates at the waypoint layer (whose per-book
+> granularity and absence at the mirror level are known), and review —
+> that audit verified it holds today for all nine live artifacts by
+> direct proof-term inspection, and also demonstrated that a deliberate
+> author could evade the template gate, so treat "via replay" as
+> strongly-evidenced engineering, not mathematics.
+
+The long form — three DISTINCT properties, separately enforced (rewritten
+2026-08-06 after the overall-project audit — the earlier text conflated
+them):
 
 1. **Lean logical soundness** — the declared Lean theorem follows from
    Lean's trusted basis plus its listed axioms (`propext`,
@@ -160,6 +179,21 @@ lake build
 `just capture-all-logs` additionally recaptures the larger `books.txt` corpus
 (needed for the full coverage sweep); it is not required just to build.
 
+**Fresh-clone reproduction inventory** (what it actually takes to
+re-derive the coverage claim from nothing — measured by the
+end-of-branch claims audit, 2026-08-16):
+
+| you need | why |
+| --- | --- |
+| the `acl2/` submodule, checked out at its pinned commit (currently `e8d78e513d6867d04002f0df644da1723cc96e89`) | without it 3 of the 13 static checks cannot run (`check-acl2-tags`, `check-log-provenance`, `test-provenance-gates` — all three fail CLOSED, correctly) and the `sorting/*` logs' source identity cannot be checked |
+| the **91** `.proof-log` + `.proof-log.meta` files — **GITIGNORED** | a fresh clone has the claim without the corpus. Regenerate with `just recapture-all` against a fork image built from the pinned submodule commit, or copy them from a working tree. `check-proof-logs` fails loudly first, which is the right behaviour |
+| `.lake/packages` (mathlib/batteries/aesop/…) | network, or a pre-populated cache (`lake exe cache get`) |
+| ~2 h wall clock for the cold build | `Tests.Coverage.BSsortsEquivalent` alone is ~50 min and is single-threaded; `Tests.Coverage.BSqsort` ~8 min. Budget accordingly |
+
+Note also that `.gate-runs/*.log` — the claim-gate artifacts commit
+messages cite — is gitignored: a fresh clone of a branch has the claim
+but not that evidence, and must re-run `just claim-gate` to reproduce it.
+
 ## Building and commands
 
 The toolchain is pinned in `lean-toolchain`; build with
@@ -180,6 +214,19 @@ lake exe acl2lean eval "<expr>"         # evaluate an s-expression
 If a build fails with a missing-`.proof-log` error, regenerate the logs as in
 *Getting started* above (the capture script force-invalidates the Lean modules
 that embed them, so there is no silent staleness).
+
+**Diagnostics.** Two env-gated diagnostic sinks exist in the replay
+driver, both OFF by default, both `stderr`-only, and **neither is read by
+any gate, golden, or test** — they cannot affect a result, and per the
+two-standard rule they are not to be hardened into one:
+
+| variable | prints |
+| --- | --- |
+| `ACL2LEAN_TP_DIAG` | the `tp:`-prover frontier messages a kept condition would otherwise discard (the discard had blinded two audits) |
+| `ACL2LEAN_XBOOK_DIAG` | the cross-book pre-pass's otherwise-silent skips: demanded names offered by no book, and refused transfers |
+
+Set either to any value to enable, e.g.
+`ACL2LEAN_XBOOK_DIAG=1 lake build Tests.Coverage.BSqsort 2>diag.log`.
 
 ## Repository layout
 

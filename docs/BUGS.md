@@ -352,6 +352,18 @@ alone. Two defects in that:
    STILL OPEN (fork): emit `:cong-rune` on abbreviation-expansion steps
    (one line at acl2/induct.lisp:158-177) — the per-step congruence
    rune is the remaining emission gap.
+   **RT2 LANDING (2026-08-15, T1+2 sprint fork round-trip 2; acl2 @
+   `e8d78e513d`).** Ask 3 SHIPPED the OTHER half of defect 1's
+   emission: `:CR-RUNE` at the solidify site — the licensing rune the
+   fork's `geneqv-refinementp` returns is now emitted, 361 records
+   corpus-wide, and PERM-TLFIX's G1 replay reads the exact predicted
+   rune. Two things this did NOT do, stated so no reader infers them:
+   (a) the `acl2/induct.lisp` abbreviation-expansion site above is a
+   DIFFERENT site and remains open — the Status line stands; (b) it did
+   NOT fix class D's anchor (`cov-cong-consume`) — that step is a
+   STORED-RULE rewrite, not a solidify site, so the push `:CR-RUNE`
+   rides on never runs there, and its step-level `:RUNES` still carry
+   only `((:DEFINITION SYNP))`.
 Related (same audit, tracked in the design note, not bugs): the
 :EQUIVALENCE-rule implicit self-congruences and :REFINEMENT rules are
 licensing mechanisms with no emitted defthm shape at all — rung-3 work.

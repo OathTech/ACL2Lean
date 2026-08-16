@@ -43,8 +43,8 @@ with a real failing artifact in the golden):
   `rule:CONVERT-PERM-TO-HOW-MANY` ×7, `rule:TRUE-LISTP-RM`,
   `linear:HOW-MANY-BAD-PAIRS-BNEXT`, `rule:(equal (if a b c) x)`, …)
   → retire via their source rows + the discharge pass;
-- the QSORT measured self-call arm (Provers.lean:847-848), behind
-  `tp:QSORT`;
+- the QSORT measured self-call arm (pre-split; the arm now lives in
+  `Driver/TpProver.lean` — see P5b), behind `tp:QSORT`;
 - the SIX FORBIDDEN-DEBT sorries (`Imported/Sorting.lean:2352, 2372,
   2949, 3330, 3734, 4262`): `dis_merge2_total`, `dis_msort_total`,
   `dis_o_lt_total`, `dis_bnext_total`, `dis_acl2_count_tp`,
@@ -115,7 +115,7 @@ threat to project success, etc).
   stored-rule-hyp frontier, pinned 3/4 with verbatim tripwire.
   Executor J-calls adopted into the log:
   - **J2:** the widening landed as a WRAPPER (`replayNodeR`,
-    new NodeCore/Congruence.lean 523 lines) — Node.lean untouched at
+    new NodeCore/Congruence.lean 533 lines) — Node.lean untouched at
     its grandfathered weight cap; the old frontier gate still
     fail-closes uncovered R shapes.
   - **J3:** class C handled by SPLITTING the recorded node at its
@@ -364,6 +364,11 @@ threat to project success, etc).
   rule:(+ (+ x y) z) from its retired dep's own honest conds — net
   −4/+1, reported not repinned, the arithmetic-rune family owns it).
   COST: sorts-equivalent ~50→65 min elaboration (weigh at gate).
+  (Reconciliation, added at the 2026-08-16 audit: the 65-min figure is
+  P3c's own WORKTREE measurement; the main-tree sweep datum for the
+  same book was ~50 min either way — which is what J-P5a-e records —
+  and P6 later measured 36.6 min. The three numbers are three
+  measurement sites, not a drift.)
   Known repin-time fixes: pins need crossDevs; two capstone pin
   telescopes drop retired hypotheses (documented case).
 
@@ -471,7 +476,7 @@ tp:QSORT + the trio + CD2-BOUND (P4a, in flight).
     (which is where the fail-closed contract belongs), never by loosening
     the baseline — the J-P3b-f/J-RT2e precedent.
 
-- **P4b (the four-item close) — 2026-08-15.** Items 1 and 4 DONE; item 2
+- **P4b (the four-item close) — 2026-08-16.** Items 1 and 4 DONE; item 2
   DIAGNOSED, a bounded fix TRIED, MEASURED as insufficient and REVERTED;
   item 3 STOPPED with a verbatim frontier and a file:line map. FAIL rows
   1 → 0. Row-level conditional rows 10 → 4.
@@ -876,6 +881,118 @@ tp:QSORT + the trio + CD2-BOUND (P4a, in flight).
     because the discharge fires). The `BSORT-IS-ISORT` catalog entry's
     prose is corrected: `.pending` now stands on the missing waypoint
     native and the bsort exec kit ONLY, no longer on a replay condition.
+
+## R3 J-entries (restored at audit — orchestrator collection miss)
+
+Added 2026-08-16 by the post-audit repair batch (A6 §0, A3-T1-7): R3's
+judgment calls were named in commit `b3f6174`'s message and never
+appended to this log, which the delegation contract required. The
+entries below are transcribed FROM THAT COMMIT MESSAGE; **J-R3a–e carry
+only the summary that survived there — no fuller rationale exists on
+record**, and this note is the honest limit of the restoration.
+
+- **J-R3a–e (summary only, no recorded rationale).** The phase-2 build
+  as the commit records it: the unified measure/arity table —
+  `MeasureTable.lean` (shape classifier + emitted-`:MEASURED`
+  agreement) and `MeasureMu.lean` (μ-registry, one total match)
+  consumed by all FIVE audit-named fragments
+  (Waterfall / Induction / Decrease / the Provers gate / `proveTp` /
+  ExecGen M2 — each a compiler-enforced total match); `TotalityArity.lean`
+  (sum cell + first-formal twin, proved); the two between-fragment gap
+  closures (recognizer duality in the decrease kit; opaque-measured-actual
+  exists-elim); the `total:` ROW census 44→23 (BNEXT ×10, MERGE2 ×5,
+  MSORT ×4, INTERLEAVE, ZIP3 retired); SORRIES 5→2
+  (`dis_merge2_total`/`dis_msort_total`/`dis_bnext_total` retired by
+  deletion+rewiring; `dis_o_lt_total` ADJUDICATED to STAY pending the
+  ground-zero-admission RT2 ask; `dis_convert_perm` deferred to phase 3);
+  CD2-BOUND advanced to the honest arithmetic-decrease frontier; the
+  QSORT arm adjudicated NOT-a-measure-question (the recorded route
+  reaches — consumption is a driver item).
+- **J-R3f:** seven catalog promotions FORCED by the gate (the ATOM-leg
+  precedent).
+- **J-R3g:** the PERM-TLFIX catalog entry recorded `.pending` —
+  classifying a row as plumbing vs content is a MIRROR-side call,
+  deliberately not taken by a driver-layer executor.
+- **J-R3h:** a PRE-EXISTING RED FIXED — `Main.lean`'s display arm for
+  `allTps`; `just ci` had been unrunnable since R2 (fix-don't-disable).
+
+## P5b J-entries (restored at audit — orchestrator collection miss)
+
+Added 2026-08-16 by the post-audit repair batch (A6 §0/§B11): P5b —
+the lane that closed `tp:QSORT`, added `Driver/TpProver.lean` and the
+CONDITIONAL stored-rule TP route — landed with NO ARC LOG section and no
+J-entries at all. **Every entry below is RECONSTRUCTED at audit from the
+lane report's summary (as preserved in commit `01faf39`'s message) plus
+the code as it stands**; they are not the executor's contemporaneous
+words.
+
+- **J-P5b-a (the stored-rule route fires ONLY as a last resort) —
+  reconstructed from the lane report's summary + code, at audit.**
+  `TpProver.lean:524-545`: the conditional stored-rule route is attempted
+  only when the definitional corollary reaches the position's class by
+  NEITHER route (`defnReaches` = same class, or a registered
+  `tpClassImp`/`tpClassImpAv` implication). Every pre-existing step
+  therefore keeps its exact former route; the new surface is additive
+  by construction.
+- **J-P5b-b (leaves-in-`basicTs` fail-closed admissibility) —
+  reconstructed from the lane report's summary + code, at audit.**
+  `TsConsumer.lean:281-330`: a stored `:ALL-TPS` rule is admitted only if
+  every emitted leaf verdict lies inside the RULE's own `basicTs` and
+  that `basicTs` lies inside the wanted class's mask; the rule's own
+  context-refined leaves (not the event's unconditional ones) are what
+  the walk's return path is checked against. Consuming a rule is not
+  trusting it — the CONCLUSION is re-proved from the fn's body by the
+  same walker, and each HYPOTHESIS is proved at the call site; the
+  emission licenses ADMISSIBILITY only.
+- **J-P5b-c (the double-checked self-call H obligation) —
+  reconstructed from the lane report's summary + code, at audit.**
+  `TpProver.lean:304-322`: under a conditional rule the IH carries `H`
+  at its own argument values, so the self-call must RE-ESTABLISH it.
+  Two independent fail-closed checks: the rule's hypothesis TERMS must
+  be invariant under this call's own substitution (a named frontier
+  otherwise), and the ambient proof is then type-hinted against `H` at
+  the call's argument values (kernel-backed). That is what keeps a
+  conditional rule honest rather than assumed.
+- **J-P5b-d (the single-hypothesis / 2-ary bounds are TAGGED
+  FRONTIERS, not silent limits) — reconstructed from the lane report's
+  summary + code, at audit.** `TpProver.lean:770-801`: the
+  hypothesis-carrying assembly covers only the shape the corpus demands
+  — 2-ary, recursive, measured on the FIRST formal, ONE hypothesis
+  (`TRUE-LISTP-APPEND` on `BINARY-APPEND`). Multi-hypothesis and
+  higher-arity shapes throw named frontiers rather than growing untested
+  conjunction plumbing (the args-valued assembly's own rule).
+- **J-P5b-e (`recordedDecreaseAtCall` EXTRACTED at its second copy) —
+  reconstructed from the lane report's summary + code, at audit.**
+  QSORT's self-call passes an opaque measured actual
+  (`(FILTER 'GTE (CDR X) (CAR X))`) that the value lift cannot render;
+  the decrease is read off QSORT's own REPLAYED admission waterfall.
+  Rather than clone the totality side's plumbing, it was extracted to
+  `Driver/Decrease.lean:703` (upstream of both walkers, `walkConv`
+  passed in) and both `totWalk` and `proveTp` now read the one copy —
+  the take-the-dedup-when-noticed rule, at the second copy exactly.
+- **J-P5b-f (RATCHET — a MOVE).** The stored-rule route pushed the
+  combined `Driver/Provers.lean` past the 1500-line norm; resolved by
+  SPLITTING the TP prover out to `Driver/TpProver.lean` (Provers −775
+  lines), never by loosening a baseline. The J-RT2e / J-P3b-f /
+  J-P4a-i / J-P5a-h precedent.
+- **J-P5b-g (the CD2-BOUND catalog hole + the gate that masked it) —
+  reconstructed from the lane report's summary + code, at audit.**
+  CD2-BOUND went FAIL → REPLAYED at P4b and was never given a catalog
+  decision; BOTH P5 lanes independently surfaced the hole because the
+  catalog gate reads the golden through an IO read and
+  `invalidate-coverage.sh` did not invalidate `Catalog.olean`. Fixed at
+  this collection (the script now invalidates the catalog too, with a
+  speedbump comment saying DO NOT HARDEN it); the row itself recorded
+  `.pending` on the missing cd2 correspondence — a mirror-side call, per
+  the J-P5a-g/J-R3g precedent.
+
+**Correction carried here (audit A2-C6):** P5b's collection commit
+message claims "23 `#guard_msgs` mirror receipts". That figure counts
+the raw string, including 8 prose mentions and one non-mirror pin. **The
+real mirror-receipt count is 14** — 6 product theorems in
+`MirrorProofs/Basics.lean` and 8 iso squares in `MirrorProofs/Sorting.lean`,
+each immediately preceding a `#print axioms`. The commit message cannot
+be edited; this is the correction of record.
 
 ## SPRINT END STATE REACHED (2026-08-16, P6)
 

@@ -80,19 +80,37 @@ is precisely the leak probe P1 found one level down (a LIBRARY-vocabulary
 reading `xs.reverse ++ acc` closed by `reverse_cons`/`append_assoc`), and it
 is unrepresentable for a mirror definition.
 
-The closer is ALSO built so the leak cannot re-enter through the tactic
-script (see "the closing ladder" below): every fixed rung is a `rfl`-lemma
-(pinned as such in this file) except the TWO ruled PLUMBING FAMILIES — the
-embedding's own injectivity as an iff (`enc_inj_iff`, ruling 2026-08-14)
-and the Bool/decide coercions (`Bool.decide_eq_true`, ruling 2026-08-14),
-both plumbing about our own definitions, see the ladder's criterion; and
-the only per-invocation input is a list of DEFINITIONS to unfold (a
-non-definition is a hard error). Definitional unfolding cannot introduce
-content.
+The closer is built so the leak does not re-enter through the tactic
+script BY ACCIDENT (see "the closing ladder" below): every fixed rung is a
+`rfl`-lemma (pinned as such in this file) except the TWO ruled PLUMBING
+FAMILIES — the embedding's own injectivity as an iff (`enc_inj_iff`,
+ruling 2026-08-14) and the Bool/decide coercions (`Bool.decide_eq_true`,
+ruling 2026-08-14), both plumbing about our own definitions, see the
+ladder's criterion; and the only per-invocation input is a list of
+DEFINITIONS to unfold (a non-definition is a hard error).
+
+**BOUND, HONESTLY (audit 2026-08-16, `docs/audits/2026-08-16_eob-audit-a1-tcb-trust.md`
+F1 — this paragraph previously claimed "definitional unfolding cannot
+introduce content", and that claim is FALSIFIED by demonstration).** The
+unfold-list check accepts anything with `.defnInfo` — INCLUDING a
+Prop-valued `def`. A deliberately-authored oriented definition can
+therefore be handed to the closer and CAN smuggle content into a square's
+proof: the auditor closed the accumulator content square
+(`rev xs = revAccL xs []` — literally the standing example named above)
+with the fixed template plus one such `def`. What actually stopped the
+demonstration at the last hop was the fail-close in the registry
+(duplicate registration for an already-squared definition,
+`IsoGen.lean:443-460`) — not the unfold gate. The consequence is bounded
+to PROVENANCE: such a square is still kernel-true, so no false mirror is
+reachable; what is lost is the evidence that the content came via replay.
 
 Threat model, per the two-standard rule: this gate is a SPEEDBUMP, reviewed
-by "does it catch the honest mistake". DO NOT HARDEN it with semantic
-classifiers; the per-book provenance audit is the backstop.
+by "does it catch the honest mistake" — which it does; the route above is
+deliberate construction, not an honest mistake. DO NOT HARDEN it with
+semantic classifiers; the per-book provenance audit is the backstop. The
+one-line tightening the audit identified (reject `isProp`-typed unfold
+entries) is a RECORDED OPEN RULING (synthesis R-1) and is deliberately NOT
+implemented here.
 
 ## THE ONE SQUARE TEMPLATE
 

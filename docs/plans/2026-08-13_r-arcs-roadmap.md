@@ -8,6 +8,12 @@ mirrors trio-clean; sorries 6). Subordinate to the master plan
 (`docs/plans/2026-08-12_master-plan.md`) — this sequences its Phase
 A4/C work plus the audit remediation.
 
+> **STATUS (added 2026-08-16 by the post-audit repair batch, A3-T2-1).**
+> R0/R1/R2/R3 are DONE and R4 is through wave 1; **R5 is the only arc
+> not started**. The basis line above ("sorries 6") is the 2026-08-13
+> basis and is now historical — the repository has been at **zero
+> `sorry`/`sorryAx`** since 2026-08-15. Per-arc statuses inline below.
+
 ## The five rulings (Mike, 2026-08-13 — verbatim where quoted)
 
 1. **Ladder/transport widening (F2/F4) — widening is fine.** "This
@@ -57,34 +63,47 @@ A4/C work plus the audit remediation.
   clone-divergence bug, Totality.lean), F5 (false frontier messages in
   `mirror_iso%`/`mirror_transport%`), F17 (Lifting.lean promotion
   header overclaims consumers).
-- **R1 — Basics 6/6 + generator widening.** The rev/appNil decode kit
+- **R1 — Basics 6/6 + generator widening** — **DONE** (2026-08-14,
+  R1 final exit A–E at `15b016d`; full claim-gate TRUE_EXIT=0 on
+  `a85edd2`). The rev/appNil decode kit
   (rows already green unconditional; mirror-side lift only) → three
   more mirrors (app_nil, rev_app, rev_rev). F1: `mirror_iso%`
   per-argument readings (port SimGen's raw/list table up — blocks
   `insertOrd` today). F3: transport typeclass threading + the
   `TotalOrder SExpr`-restriction instance route.
-- **R2 — the fork round-trip** (one batch, commit-fork → build →
-  recapture-all). GAP-1 context-refined `:LEAVES` (prototype WORKS
+- **R2 — the fork round-trip** — **DONE** (2026-08-14, `e5d3fa1`;
+  submodule @ `f86e56698f`, recapture 91/91). (One batch, commit-fork →
+  build → recapture-all.) GAP-1 context-refined `:LEAVES` (prototype WORKS
   in-image: ~15 lines mirroring `type-set-rec`, acl2/defuns.lisp:12022
   + ld.lisp:5668 caller); GAP-2 per-leaf subterm verdicts (same
   collector; primitives store no TPs); item 3 `:ALL-TPS` (ACL2 stores
   the strong TRUE-LISTP-APPEND rule at axioms.lisp:3326; the fork
   discards it at ld.lisp:5601); parser at ProofLog.lean:1134.
   Consumers unblocked by ruling 2 (D-A ts-algebra).
-- **R3 — unified measure/arity table** (F6+F7+F8 + ExecGen M2
-  unification) = the master plan's B2; retires the REQUIRED-debt
-  measure gate (blocks 100% of `total:` debt today).
+- **R3 — unified measure/arity table** — **DONE** (2026-08-15, landed
+  as T1+2 sprint phase 2, `b3f6174`). (F6+F7+F8 + ExecGen M2
+  unification) = the master plan's B2; retired the REQUIRED-debt
+  measure gate. (The "blocks 100% of `total:` debt today" reading is
+  historical: `total:` row conditions are now **0**.)
 - **R4 — sorting mirrors** (the 13 Props of `Mirrors/Sorting.lean`):
-  order kit + widened ladder (ruling 1) + waves. Known driver-side
-  blocker: QSORT's non-liftable measured self-call arm
-  (Provers.lean:847-848).
-- **R5 — release normalization**: TODO restructure (ruling 5),
-  `docs/STATUS.md`, the docs index, CLAUDE.md status rewrite, the ARC
-  LOG convention.
+  order kit + widened ladder (ruling 1) + waves. **Wave 0 DONE**
+  (`fc06b33`), **wave 1 DONE** (`42d4d29`, 8 live squares); **wave 2
+  OPEN** — the rulings batch (W7/W9/enum registry/OrderedEmbed
+  review), squares en masse, the first sorting transports, the
+  meta-theorems. The old driver-side blocker — QSORT's non-liftable
+  measured self-call arm (recorded here as `Provers.lean:847-848`, a
+  dead ref since the P5b split; the arm now lives in
+  `Replay/Driver/TpProver.lean`) — is **CLOSED**: P5b's opaque
+  measured-actual route reads the decrease off QSORT's own replayed
+  admission.
+- **R5 — release normalization** — **OPEN** (the one genuinely
+  unstarted arc): TODO restructure (ruling 5), `docs/STATUS.md`, the
+  docs index, CLAUDE.md status rewrite, the ARC LOG convention.
 
 Standing side items (scout-first, not yet slotted): the relieve-hyp
-gap (own scout before batching); the remaining six FORBIDDEN-DEBT
-sorries (retirement routes via R2/R3).
+gap (own scout before batching). ~~the remaining six FORBIDDEN-DEBT
+sorries~~ — **retired: the count is ZERO as of 2026-08-15** (P1/R3/
+P3b/P3c; see `TODO.md`'s debt registry header).
 
 ## Escape hatch (goal-design rule)
 

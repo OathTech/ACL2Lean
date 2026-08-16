@@ -21,7 +21,13 @@
 > Golden 115/116 (99+16) — header unchanged, 3 status flips, 1 message
 > churn. Charter: `docs/plans/2026-08-14_t12-sprint-charter.md` §P4a
 > (J-P4a-a..i).
-> OPEN AFTER IT:
+> OPEN AFTER IT — **BOTH NOW CLOSED** (status added 2026-08-16 by the
+> post-audit repair batch; A3-T1-4): **CD2-BOUND closed at P4b** (the
+> BUG-009 mask discount — `tsAcl2MaskOk` discounts type index 6 and
+> nothing else; J-P4b-d, and see the audit's ruling queue R-2), and
+> **`tp:QSORT` closed at P5b** (the wired `allTps` path + the
+> hypothesis-carrying conditional stored-rule TP mode). The two items
+> below are kept as the record of what they looked like while open:
 > - **CD2-BOUND** — advanced through `Subgoal *1/2` and `*1/1` to a
 >   THIRD frontier, verbatim: `compound-recognizer: no in-scope
 >   falsity fact for (INTEGERP N) (frontier)`. Diagnosed OUT OF CLASS
@@ -104,6 +110,77 @@
 > - PERM-TLFIX's catalog decision (a G1-M leftover surfaced here) is
 >   `.pending` — a MIRROR-side call, left to the mirror wave.
 
+> **THE SIX MISSING T1+2 SPRINT LANES (added 2026-08-16 by the
+> post-audit repair batch — A3-T1-5 found RT2, P3a, P3b, P3c, P4b and
+> P5b had no `TODO.md` entry at all, though they are precisely the
+> lanes that retired the debt this file listed as open. One paragraph
+> each, from their commit messages. Full rationale: the charter's ARC
+> LOG, `docs/plans/2026-08-14_t12-sprint-charter.md`.)**
+>
+> - **RT2 — FORK ROUND-TRIP 2 (2026-08-15, `c5907e1`; acl2 @
+>   `e8d78e513d`).** Three of four emission asks SHIPPED: ask 1
+>   per-`:ALL-TPS`-entry `:LEAVES` (6-field entries, term-instantiated
+>   variable space, fail-closed; 1554-event regression cross-check
+>   byte-exact against the NIL-hyps definitional leaves); ask 2 the
+>   recognizer-site channel (`:ARG-LEAVES` on both RECOGNIZER records,
+>   12 non-NIL corpus-wide covering all three trio books); ask 3
+>   `:CR-RUNE` (361 records — PERM-TLFIX reads the exact predicted
+>   rune). Ask 4 SKIPPED, PREMISE CONTRADICTED (escape hatch):
+>   ground-zero defuns have carried full `:TERMINATION-CLAUSES` since
+>   `006bebce9f`, so `O<`/`O-P` totality and `dis_o_lt_total` are
+>   CONSUMPTION items, not emission gaps — phase 2's contrary
+>   adjudication corrected. Lean side is parser/storage only (parse
+>   fully or hard-fail; no consumer touched). Image rebuilt
+>   post-commit, recapture 91/91, GOLDEN ZERO MOVEMENT. J-RT2a..e.
+> - **P3a (2026-08-15, `279c2a7`).** `TotFacts` carries value +
+>   convergence (`total:BSORT` ×3 retired); the `.nfix` decrease walk +
+>   `DecreaseKit.factOf?` + a proved arithmetic family (CD2-BOUND
+>   advanced to the ZP compound-recognizer frontier). The WP5
+>   cross-book transfer's root cause diagnosed with three latent
+>   defects named; an exploratory chain honestly REVERTED. Golden: 2
+>   sections diagnosed, verifying sweep green.
+> - **P3b (2026-08-15, `9e5977e`).** ORDINAL TOTALITY DONE —
+>   `Replay/OrdinalSim.lean`'s S4 registry row (`O-RST` IS `CDR`,
+>   `O-FIRST-EXPT` IS `CAR-CAR` under the emitted branch, bodies
+>   byte-checked) + `O-FINP` recognizer duality + the 2-ary
+>   opaque-measured arm: `total:O<` 12→0, `total:O-P` 6→0,
+>   **`dis_o_lt_total` DELETED** (sorries 2→1). CLASSIFY-POS
+>   FAIL→REPLAYED unconditional (Tier-1 mechanism 4). Two items
+>   ADVANCED to honest new frontiers rather than closed by inference.
+>   J-P3b-a..g.
+> - **P3c — THE CROSS-BOOK D1 TRANSFER (2026-08-15, `9f41bd3`).** The
+>   dependency's recorded tree replayed ONCE at the consumer's world,
+>   `addDecl`'d and matched BY STATEMENT, behind a fail-closed
+>   `worldIncludes` gate (worlds verified nesting BEFORE any code;
+>   equisort's encapsulate world correctly REFUSED, and its consumer
+>   takes the parametric route). `rule:` chains + the `:INCLUDE-BOOK`
+>   totals retired; **`dis_convert_perm` retired → ZERO SORRIES IN THE
+>   REPOSITORY**. Three latent defects fixed. J-P3c-a..e.
+> - **P4b (2026-08-16, `c7aa470`).** The arithmetic-rune family
+>   RETIRED corpus-wide: the five proven statements MOVED DOWN from
+>   the hand-applied waypoint layer (`Imported/GzPrelude.lean`,
+>   deleted) into `Replay/GzRules.lean`'s `d5GzRules`, cited-rune
+>   anchored and recompute-checked; `d5Allowed` left as an empty named
+>   slot. CD2-BOUND FAIL→REPLAYED unconditional via the proved ZP cell
+>   + the **BUG-009 mask-discount decision** (`tsAcl2MaskOk` discounts
+>   type index 6 and only 6; third site recorded in `docs/BUGS.md`
+>   with its deletion condition) + the μ-generic `tp_*_rec_mu` twins.
+>   Two widenings measured and REVERTED; the `tp:QSORT` map CORRECTED
+>   and its unwired plumbing REVERTED per the wire-later ban. The
+>   `ACL2LEAN_TP_DIAG` sink landed (a kept condition had been
+>   DISCARDING its frontier message). J-P4b-a..g. **Note: J-P4b-d
+>   reversed P4a's own out-of-class stop on this question — it is
+>   R-2 in the end-of-branch audit's ruling queue.**
+> - **P5b (2026-08-16, `01faf39`).** `tp:QSORT` CLOSED at both
+>   occurrences: the wired `allTps` data path + the hypothesis-carrying
+>   CONDITIONAL stored-rule TP mode (`Driver/TpProver.lean`), with the
+>   leaves-in-`basicTs` fail-closed admissibility, the double-checked
+>   self-call H obligation, and `recordedDecreaseAtCall` extracted at
+>   its second copy. Every piece tamper-verified load-bearing.
+>   `invalidate-coverage.sh` now invalidates the Catalog gate (both P5
+>   lanes independently found the masking). J-entries RESTORED at the
+>   2026-08-16 audit — see the charter's "P5b J-entries" section.
+
 TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAYPOINT layer, not a mirror in the product sense (ACL2Lean/Mirrors/). The 2026-08-12 naming sweep renamed those artifacts — the old `Imported/Mirrors/` directory is now `Imported/Waypoints/`, the old `Imported/NativeMirrors.lean` facade is now `Imported/WaypointCatalog.lean`, the old `Tests/MirrorCensus.lean` is now `Tests/WaypointCensus.lean`, and the old `just mirror-metrics` recipe is now `just waypoint-metrics`. PATH and COMMAND references below were updated to point at the real files; the surrounding narrative was left as the record it is.
 
 > **THIN-LEAN PURGE (2026-08-11, branch mdd/mirror-provenance-purge;
@@ -112,7 +189,8 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > content re-proofs are GONE: 41 forbidden theorems deleted, 18
 > sorried as FORBIDDEN-DEBT (statements kept, `sorryAx` visible), the
 > D5 gz five re-homed to `Imported/GzPrelude.lean` (predefined-only
-> scope guard), the `derive_exec_tp%`/`derive_exec_total%` macros
+> scope guard) **(MOVED to `Replay/GzRules.lean`, P4b — GzPrelude.lean
+> is deleted)**, the `derive_exec_tp%`/`derive_exec_total%` macros
 > deleted, the hand-replay chain (SimpleWorld/AppAssoc) deleted in
 > favor of the driver route. Catalog: `.nativeSorried` status (axioms
 > = trio + sorryAx REQUIRED — losing the sorry forces promotion);
@@ -127,7 +205,21 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > cond sets, the three statement pins are back, and the capstone
 > catalog entries returned as honest `.pending` (no capstone waypoint
 > native exists — none was invented to satisfy the gate).
-> **THE DEBT REGISTRY (each entry names its unlock):**
+> **THE DEBT REGISTRY — CLOSED. The FORBIDDEN-DEBT class is EMPTY as of
+> 2026-08-15; there is ZERO `sorry`/`sorryAx` in the repository.**
+> (Status added 2026-08-16 by the post-audit repair batch, A3-T1-3: the
+> per-entry text below was left standing as the dated record of each
+> unlock, but every entry it describes as OPEN is retired. The five
+> remaining at sprint start, with the lane that retired each:
+> `dis_acl2_count_tp` → **P1** (the D-A ts-algebra consumer);
+> `dis_merge2_total` / `dis_msort_total` / `dis_bnext_total` → **R3**
+> (the unified measure/arity table); `dis_o_lt_total` → **P3b** (the
+> ordinal route, `Replay/OrdinalSim.lean`); `dis_convert_perm` →
+> **P3c** (the cross-book D1 transfer). Each went by
+> deletion+rewiring, never by re-proof in place. Also retired earlier:
+> `dis_insert_tp` at 2026-08-13.)
+>
+> The historical registry (each entry names its unlock):
 > - REQUIRED class (replayable — must be wired, not left sorried):
 >   `dis_o_lt_total` ONLY — the ACL2 ORDINAL BOOTSTRAP. `O<` is a
 >   GROUND-ZERO defun whose emitted decreases run through
@@ -220,8 +312,15 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 >   blocking ORDEREDP-BSORT/HOW-MANY-BSORT:
 >   `linear:HOW-MANY-BAD-PAIRS-BNEXT` — the `linear:` class has NO
 >   existing unlock (route = linear/DP replay, or a ruling).
+>   **RETIRED 2026-08-16 (T1+2 sprint P5a + P6):** the class DID get an
+>   unlock — `gz_linear_defn_branch`, a parametric CLASS lemma for
+>   ground-zero `:LINEAR` rules (P5a), composed with P6's quiescence
+>   sweep; ORDEREDP-BSORT and HOW-MANY-BSORT are both unconditional.
+>   (The class extension itself is A6's brief B2 in the audit's ruling
+>   queue.)
 > - R-lane class: `dis_convert_perm` (unlock = PERM-TLFIX replay →
 >   CONVERT-PERM-TO-HOW-MANY discharged via the replayed tree).
+>   **RETIRED 2026-08-15 (T1+2 sprint P3c, by exactly that route.)**
 > - usefi class (the THIRD unlock class, ruled 2026-08-11 — it is
 >   what regressed the capstones): the `usefi:` kept conditions on
 >   the three `*-IS-ISORT` rows. Unlock = the alias-world usefi
@@ -350,9 +449,14 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > - that same R-step's own `:RUNES` are `((:DEFINITION SYNP))` — the
 >   licensing `(:CONGRUENCE …)` appears only in the CLAUSE-level
 >   `:STEP :RUNES`, so past SYNP the step-level BUG-023 anchor would
->   still find nothing cited. The queued `:CR-RUNE` fork item (brief
->   §Q2 — emit the licensing rune at `find-rewriting-equivalence`'s
->   push site) fixes both lanes' anchor at the source;
+>   still find nothing cited. The `:CR-RUNE` fork item (brief §Q2 —
+>   emit the licensing rune at `find-rewriting-equivalence`'s push
+>   site) **SHIPPED 2026-08-15 at RT2 ask 3** (acl2 @ `e8d78e513d`,
+>   361 records; PERM-TLFIX reads the exact predicted rune) — it is no
+>   longer queued. **It did NOT fix class D's anchor** (correction
+>   2026-08-16, A3-T2-4): the SYNP-guarded step is a STORED-RULE
+>   rewrite, not a solidify site, so `find-rewriting-equivalence`'s
+>   push never runs there. Class D's anchor is still open;
 > - `dis_convert_perm` is NOT retired by this lane (its unlock is the
 >   discharge pass, not the replay row) — the R-lane class note above
 >   should be read with its replay blocker now GONE.
@@ -3714,6 +3818,15 @@ _Last updated: 2026-08-08 (Phase 3 R7b: EARLY EXIT declared — exit report docs
 > proof's axioms).
 
 ## CURRENT PRIORITIES (confirmed with MDD 2026-07-06, post-R1)
+
+> **SUPERSEDED — DO NOT READ THIS SECTION AS CURRENT** (marked
+> 2026-08-16 by the post-audit repair batch, A3-T2-7). The scoreboard
+> below reads "26/47 = 21 uncond + 5 cond"; the live figure is
+> **116/116, 116 unconditional** (`Tests/driver-coverage.golden`). The
+> governing plan is `docs/plans/2026-08-12_master-plan.md`; the live
+> state is the top of this file. The `TODO.md` RESTRUCTURE that would
+> retire this section was slated for roadmap ruling 5 / arc R5, which
+> has not run — **R5 remains OPEN**, and this marker is the interim.
 
 Ordered by project-wide leverage — general machinery over special-case walls:
 

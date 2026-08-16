@@ -422,7 +422,9 @@ partial def tpWalkCall (cfg : ReplayConfig) (envE : Expr)
       -- 3-ary self-call (TP-replay arc increment 4, 2026-08-13):
       -- `(ALL-REL FN (CDR X) E)` / `(ZIP3 (CDR X) (CDR Y) (CDR Z))`. The
       -- IH's argument order is (measured value, decrease, the remaining
-      -- values in FORMAL order) — the `tp_3_rec`/`tp_3_rec_snd` shape,
+      -- values in FORMAL order) — the `tp_3_rec_mu`/`tp_3_rec_snd_mu`
+      -- shape (the non-`_mu` wrappers this once named were deleted at
+      -- P4b's μ-generic widening),
       -- mirroring `proveTotality`'s 3-ary scaffold. A non-measured
       -- argument that is not liftable is a frontier here (the 2-ary
       -- opaque ∃-elimination has no 3-ary customer yet).

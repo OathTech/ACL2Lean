@@ -36,22 +36,11 @@ def nfixNat : SExpr → Nat
 @[simp] theorem nfixNat_int (n : Int) :
     nfixNat (.atom (.number (.int n))) = n.toNat := rfl
 
-/-- `Logic.nfix` computes `nfixNat` as an int atom. -/
-theorem logic_nfix_eq_nfixNat (x : SExpr) :
-    Logic.nfix x = .atom (.number (.int (nfixNat x))) := by
-  match x with
-  | .atom (.number (.int n)) =>
-    by_cases h : n ≥ 0
-    · simp [Logic.nfix, nfixNat, h, Int.toNat_of_nonneg h]
-    · simp [Logic.nfix, nfixNat, h]
-      omega
-  | .atom (.number (.rational _ _ _)) => rfl
-  | .atom (.symbol _) => rfl
-  | .atom (.keyword _) => rfl
-  | .atom (.string _) => rfl
-  | .atom (.char _) => rfl
-  | .nil => rfl
-  | .cons _ _ => rfl
+-- (`logic_nfix_eq_nfixNat` — the bridge `Logic.nfix x = int (nfixNat x)`
+-- — DELETED 2026-08-16: it landed with R3 and nothing ever consumed it.
+-- Its siblings are load-bearing and stay (`nfixNat_int` is `@[simp]`
+-- and used in-file; `nfixNat_plus_lt_of_not_zp` at Decrease.lean). It
+-- comes back the day a consumer needs the twin bridge stated.)
 
 /-! ## The NFIX row's ARITHMETIC decrease (T1+2 sprint phase 3a)
 

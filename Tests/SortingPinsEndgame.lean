@@ -49,8 +49,9 @@ derive_world sortsEqSweepWorld from sortsEqSweepDev
 
 /-- PIN `HOW-MANY-SMALLER-BNEXT` (bsort.lisp:28): the replayed statement of
       `(equal (how-many-smaller e (bnext x)) (how-many-smaller e x))`
-    conditional on bnext totality and how-many-smaller's emitted
-    non-negative-integer TP corollary (source-true: it counts). -/
+    **UNCONDITIONAL since 2026-08-14** — the pinned type is premise-free;
+    bnext totality and how-many-smaller's emitted non-negative-integer TP
+    corollary are retired, dated in the log below. -/
 example :
     ∀ (env : Env),
       -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
@@ -72,7 +73,9 @@ example :
 /-- PIN `HOW-MANY-BAD-PAIRS-BNEXT` (bsort.lisp:45): the replayed statement of
       `(implies (not (equal x (bnext x)))
                 (< (bnext-size (bnext x)) (bnext-size x)))`
-    conditional on bnext totality only. -/
+    **UNCONDITIONAL since 2026-08-14** — the pinned type is premise-free;
+    its one former condition, bnext totality, is retired and dated in the
+    log below. -/
 example :
     ∀ (env : Env),
       -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
@@ -101,7 +104,9 @@ example :
 /-- PIN `ORDEREDP-WHEN-BNEXT-CONSTANT` (bsort.lisp:57, the endgame arc's
     2e row): the replayed statement of
       `(implies (equal (bnext x) x) (orderedp x))`
-    conditional on bnext totality only. -/
+    **UNCONDITIONAL since 2026-08-14** — the pinned type is premise-free;
+    its one former condition, bnext totality, is retired and dated in the
+    log below. -/
 example :
     ∀ (env : Env),
       -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
@@ -120,9 +125,10 @@ example :
 
 /-- PIN `ORDEREDP-BSORT` (bsort.lisp:61): the replayed statement of
       `(orderedp (bsort x))`
-    conditional on the totalities the μ-route rides (bnext, bsort, o<,
-    o-p) and the linear:HOW-MANY-BAD-PAIRS-BNEXT snapshot content
-    (bsort's admitted measure decrease). -/
+    **UNCONDITIONAL since 2026-08-15** — the pinned type is premise-free;
+    the totalities the μ-route rides (bnext, bsort, o<, o-p) and the
+    linear:HOW-MANY-BAD-PAIRS-BNEXT snapshot content (bsort's admitted
+    measure decrease) are all retired, each dated in the log below. -/
 example :
     ∀ (env : Env),
       -- (total:BNEXT RETIRED 2026-08-14 — the R3 unified
@@ -258,7 +264,9 @@ derive_world convertPermSweepWorld from convertPermSweepDev
                   (1- (how-many a x))
                 (how-many a x)))`
     under ACL2's translation (`and` → nested IF, `1-` → `(binary-+ -1 ·)`),
-    conditional on how-many's non-negative-integer TP corollary only. -/
+    **UNCONDITIONAL since 2026-08-12** — the pinned type is premise-free;
+    its one former condition, how-many's non-negative-integer TP
+    corollary, is retired and dated in the log below. -/
 example :
     ∀ (env : Env),
       -- (tp:HOW-MANY RETIRED 2026-08-12 — same TP-replay route.)

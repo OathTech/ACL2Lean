@@ -18,7 +18,15 @@
   `replayNode : … → ProofNode → MetaM Expr` — reading every term/rune/subst/scheme
   FROM the tree. Nothing is transcribed or pre-staged: the only inputs are the
   parsed `Development`/`ClauseProof` (from `ProofLog.parse → buildDevelopment`) and
-  the `World` + replayed statement (from `gen-world`).
+  the `World` + replayed statement — which, as WIRED, come from the SAME
+  proof-log path, NOT from `gen-world`: the certified `World` is
+  `Development.toWorld` (built from the log's `:DEFUN` events,
+  provenance-gated per BUG-019) and the statement is
+  `EvTrue w env (disjoinTerm root.inputClause)` over the log's root Goal
+  clause (`Driver/Harness.lean`). `gen-world` is the INTENDED independent
+  frontend and is not in the certified pipeline. (Header corrected
+  2026-08-16 — the old "from `gen-world`" wording is exactly the mis-aim
+  audit 2026-07-26 F5b flagged and CLAUDE.md warns auditors about.)
 
   FAIL-CLOSED, NEVER `sorry`. Each `replay*` either returns a real, kernel-checkable
   `Expr` of the node's exact goal, or **throws** — so an unimplemented frontier makes

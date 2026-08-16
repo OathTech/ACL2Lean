@@ -23,6 +23,14 @@
   handles it or names its own honest frontier for it — the rows can no
   longer silently diverge.
 
+  SCOPE OF THE F13 REMEDY, honestly (2026-08-16): the shared TYPE landed
+  (`MeasurePos`, read by both ExecGen and the waterfall) but the shared
+  DERIVATION did not — `MeasureShape.positionsIn` shipped unused and was
+  deleted at the stale-material audit, so ExecGen still builds its
+  positions inline from its own transcribed `measured` clause. The two
+  layers therefore agree on a TYPE, not on a CONSTRUCTION; the shared
+  derivation for ExecGen's M2 remains OPEN (audit A4 #6).
+
   TRUST NOTE (design I1, unchanged): the measure appears in NO statement —
   μ is proof bookkeeping. A wrong or missing row can only FAIL a proof; it
   can never weaken one. This table is therefore not a trust-bearing
@@ -155,16 +163,10 @@ inductive MeasurePos where
   | m2 (idx1 idx2 : Nat)
   deriving Repr, BEq, Inhabited
 
-/-- The row's measured positions against a formal list (`none` when a
-    measured variable is not a formal — an emission/world divergence). -/
-def MeasureShape.positionsIn (sh : MeasureShape) (formals : List Symbol) :
-    Option MeasurePos :=
-  match sh.vars with
-  | [v] => (formals.findIdx? (· == v)).map .m1
-  | [v1, v2] => do
-    let i ← formals.findIdx? (· == v1)
-    let j ← formals.findIdx? (· == v2)
-    pure (.m2 i j)
-  | _ => none
+-- (`MeasureShape.positionsIn` — the derivation of a row's `MeasurePos`
+-- from a formal list — DELETED 2026-08-16: it shipped with R3 and was
+-- never called. `ExecGen.lean` builds its `MeasurePos` values inline
+-- from its own transcribed `measured` clause. See the header note on
+-- what that means for the F13 remedy.)
 
 end ACL2.Replay

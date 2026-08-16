@@ -4,22 +4,22 @@ The blow-by-blow record of the autonomous buildout that closed ALL
 replay frontiers (Tier 1) and ALL qualification debt (Tier 2) in one
 ~45.6-hour sprint, per the goal of 2026-08-14 and its charter
 (`docs/plans/2026-08-14_t12-sprint-charter.md`). Companion to the
-charter's ARC LOG (which carries the ~40 J-numbered judgment calls);
+charter's ARC LOG (which carries the J-numbered judgment calls);
 this report carries the narrative, the numbers, and the lessons.
 
 ## Start / end state
 
+Start-state figures MEASURED at 42d4d29 (post-audit correction,
+2026-08-16 — the column originally shipped here carried a mid-sprint
+(post-R3) state from memory; see the footguns section).
+
 | metric | sprint start (42d4d29) | sprint end (7b69166) |
 |---|---|---|
-| golden | 114/116 REPLAYED (98 uncond + 16 cond)* | **116/116 (116 uncond + 0 cond)** |
-| FAIL rows | 5 | **0** |
-| `tp:`/`total:`/`rule:`/`linear:` row conds | ~40 occurrences | **0** |
-| sorries (FORBIDDEN-DEBT) | 5 | **0** |
+| golden | 113/116 REPLAYED (84 uncond + 29 cond) | **116/116 (116 uncond + 0 cond)** |
+| FAIL rows | 6 | **0** |
+| `tp:`/`total:`/`rule:`/`linear:` row conds | 106 raw occurrences across 29 conditional rows (46 `rule:`, 44 `total:`, 10 `tp:`, 6 `linear:`) | **0** |
+| sorries (FORBIDDEN-DEBT) | 6 | **0** |
 | Tier-1 mechanisms open | 4 | **0** |
-
-\* the pre-sprint R2 fork batch + the G1 brief were banked on the same
-branch line before the goal was set; counting from the R-arc start
-(main @ 631c282, 2026-08-13): 113/116 (84+29), 6 sorries, 6 FAIL rows.
 
 ## Timeline (commit-stamped)
 
@@ -31,9 +31,9 @@ branch line before the goal was set; counting from the R-arc start
 | 08-15 02:08 | **R3** (unified measure table): `total:` 44→23, three more sorries down, five registry fragments → one compiler-enforced table; found+fixed `just ci` unrunnable since R2 |
 | 08-15 04:19 | **RT2** (fork round-trip 2): 3 of 4 emission asks shipped (ask 4 refuted by scout — the data already existed); golden zero-movement |
 | 08-15 07:28–08:18 | **P3a** (worktree, parallel with RT2): `total:BSORT` retired; the WP5 cross-book root cause diagnosed; exploratory chain honestly reverted |
-| 08-15 13:15 | **P3b**: ordinal totality retired (`total:O<`/`O-P` 18→0, sorry #4 down); CLASSIFY-POS green (Tier-1 #4); the trio's blocker re-diagnosed as an emission gap |
+| 08-15 13:15 | **P3b**: ordinal totality retired (`total:O<`/`O-P` 18→0, sorry #5 down); CLASSIFY-POS green (Tier-1 #4); the trio's blocker re-diagnosed as an emission gap |
 | 08-15 15:41 | **P4a**: the trio GREEN with ZERO fork changes — P3b's emission-gap premise refuted (the records were line-wrapped past a single-line grep); FAIL rows 4→1 |
-| 08-15 19:38 | **P3c** collected (worktree, ran ~7.2h): the cross-book D1 transfer — worlds verified nesting BEFORE any code; `rule:` chains + `:INCLUDE-BOOK` totals retired; sorry #5 down → **repository at zero sorries** |
+| 08-15 19:38 | **P3c** collected (worktree, ran ~7.2h): the cross-book D1 transfer — worlds verified nesting BEFORE any code; `rule:` chains + `:INCLUDE-BOOK` totals retired; sorry #6 down → **repository at zero sorries** |
 | 08-16 02:07 | **P4b**: arithmetic-rune family retired via d5GzRules; CD2-BOUND green (the BUG-009 mask-discount decision); 116/116, zero FAIL; the honest 5-row residue named |
 | 08-16 08:43 | **P5a**: routeIff decode + the gz-linear class; 5→3 rows; item-2 widening measured 2-out-3-in and reverted WITH the quiescence insight |
 | 08-16 11:05 | **P5b** collected: `tp:QSORT` closed (allTps path + hypothesis-carrying TP mode, every piece tamper-verified); 3→1 rows |
@@ -56,11 +56,12 @@ branch line before the goal was set; counting from the R-arc start
   (sweeps/gates) dominated wall-clock: the sorts-equivalent book cost
   ~50→65 min/pass after the transfer landed (P6 improved it to
   ~37 min).
-- **~40 J-numbered judgment calls**, all delegated per the goal, all
-  logged with rationale in the charter ARC LOG. Five significant
-  reverts (exploratory chains that violated the movement rule or the
-  wire-later ban) — all measured before reverting, so each revert
-  produced the next lane's map.
+- **≥63 judgment calls** (55 logged in the ARC LOG + 8 in
+  commit-message-only form at the time of the exit; repaired
+  post-audit), all delegated per the goal. At least three measured
+  reverts and two premise refutations (the exact count was not
+  instrumented) — each revert was measured before it was taken, so
+  each produced the next lane's map.
 
 ## What made it work (keep for future buildouts)
 
@@ -116,6 +117,11 @@ branch line before the goal was set; counting from the R-arc start
 - **Line-wrapped emissions defeat single-line greps** (the trio's
   "missing" records existed all along). Grep proof-logs with
   multiline-aware extraction.
+- **This report itself initially carried a mid-sprint state as its
+  baseline** (the post-R3 golden numbers, from memory, labelled
+  "sprint start"), understating the sprint's own delta; the end-of-branch
+  audit measured the real 42d4d29 figures. Write reports from measured
+  artifacts (`git show <base>:<path>`), never from remembered numbers.
 
 ## Numbers for calibration (future sprint budgeting)
 

@@ -294,58 +294,16 @@ theorem totality_2_of_body (w : World) (s : Symbol) (formal1 formal2 : Symbol)
   exact conv_defn_2_ex w env' s formal1 formal2 body a0 a1 av1 av2 h_ns h_def
     ⟨N0, h0'⟩ ⟨N1, h1'⟩ (hbody av1 av2)
 
-/-- TOTALITY of a RECURSIVE 1-ary defined fn by WELL-FOUNDED induction on the
-    argument value's `consCount` (the admitted measure, D5 scope): the driver
-    supplies `step` — the body walk under the inductive hypothesis, which it
-    applies at each self-call's argument value justified by the emitted
-    decrease obligation. -/
-theorem totality_1_rec (w : World) (s : Symbol) (formal : Symbol) (body : SExpr)
-    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
-            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
-    (h_def : w.defs.get? s = some ([formal], body))
-    (step : ∀ av : SExpr,
-      (∀ bv : SExpr, bv.consCount < av.consCount →
-        ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [bv]) body = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N, evalOpt f w (bindArgs [formal] [av]) body = some v) :
-    ∀ (env' : Env) (a0 : SExpr),
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N,
-        evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 .nil)) = some v := by
-  have hbody := consCount_strong_induction
-    (fun av => ∃ N, ∃ v, ∀ f ≥ N,
-      evalOpt f w (bindArgs [formal] [av]) body = some v) step
-  exact totality_1_of_body w s formal body h_ns h_def hbody
+-- (`totality_1_rec` and `totality_2_rec` — the pre-μ `consCount`-fixed
+-- recursive-totality wrappers — DELETED 2026-08-16. P4b's μ-generic
+-- widening landed `totality_1_rec_mu` / `totality_2_rec_mu` (Judgments)
+-- and moved every driver call site onto them; the old wrappers were
+-- left behind with zero references anywhere. The μ twins subsume them
+-- exactly: instantiate μ := `SExpr.consCount`.)
 
-/-- TOTALITY of a RECURSIVE 2-ary defined fn, measure on the FIRST formal
-    (the measured one; the driver permutes when the measured formal is the
-    second). The second argument's value is universally quantified INSIDE the
-    induction, so self-calls may pass any second argument. -/
-theorem totality_2_rec (w : World) (s : Symbol) (formal1 formal2 : Symbol)
-    (body : SExpr)
-    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
-            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
-    (h_def : w.defs.get? s = some ([formal1, formal2], body))
-    (step : ∀ av1 : SExpr,
-      (∀ bv : SExpr, bv.consCount < av1.consCount → ∀ cv : SExpr,
-        ∃ N, ∃ v, ∀ f ≥ N,
-          evalOpt f w (bindArgs [formal1, formal2] [bv, cv]) body = some v) →
-      ∀ av2 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
-        evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
-    ∀ (env' : Env) (a0 a1 : SExpr),
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N,
-        evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil)))
-          = some v := by
-  have hbody := consCount_strong_induction
-    (fun av1 => ∀ av2 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
-      evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) step
-  exact totality_2_of_body w s formal1 formal2 body h_ns h_def
-    (fun av1 av2 => hbody av1 av2)
-
-/-- `totality_2_rec` for a defun measured on its SECOND formal (e.g.
-    `(rm e x)` / `(memb a x)` recurring on `x`): strong induction on the
-    second argument's count, the first universally quantified inside. -/
+/-- Strong induction on the SECOND formal's count, the first universally
+    quantified inside (e.g. `(rm e x)` / `(memb a x)` recurring on `x`) —
+    the second-formal twin of the μ-generic `totality_2_rec_mu`. -/
 theorem totality_2_rec_snd (w : World) (s : Symbol) (formal1 formal2 : Symbol)
     (body : SExpr)
     (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧

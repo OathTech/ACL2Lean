@@ -17,7 +17,7 @@ those failures are invisible to the Lean kernel (see the trust note below).
    a proof. *(untrusted oracle — its proof search is taken as given, but ACL2 is
    not a trust anchor)*
 2. **ACL2 instrumentation** *(our addition — the `acl2/` submodule; logging points
-   across 12 files — 225 tags; see the tagging survey for the full map)* —
+   across 12 files — 228 tags; see the tagging survey for the full map)* —
    emits a structured
    **proof log** (`.proof-log`, e.g. `acl2_samples/simple.proof-log`): runes,
    lhs/rhs, `:SUBST`, the induction `:SCHEME`, `:TYPE-PRESCRIPTION` corollaries,
@@ -110,6 +110,15 @@ core/Std/Batteries/Mathlib name, at the root or dot-notation-reachable on a
 type the spec uses; `Tests/MirrorNameCheck.lean` is the collision linter and
 enforces it at build time.
 
+**THE FOUR-LINE CANON (Mike, 2026-08-14)** — persisted here 2026-08-16
+because it is cited as binding (charter priority ranks, delegated goals)
+and was defined nowhere:
+(1) NO Lean-side theorems specific to each example (generic lifting
+excepted);
+(2) ALL mirrors proved COMPLETELY;
+(3) mirrors are idiomatic Lean, ZERO ACL2 taint;
+(4) the proofs are accomplished BY REPLAYING the ACL2 theorems.
+
 (Dated docs/notes/audits predating this restoration use "mirror"/"native
 mirror" for the waypoint layer; read those as WAYPOINT.) Given a desired
 Lean statement (e.g. `1 + 1 = 2` in Lean's own terms), we prove **in Lean,
@@ -138,7 +147,7 @@ to look; only ACL2's proof *search* is off the table.
 justifications, preprocess chains + clausify checkpoints, and decision-procedure
 discharge nodes), proof-log parsing, and proof-tree reconstruction
 (`buildDevelopment`) — are built and validated against the sample corpus
-(`acl2_samples/`, incl. `recon-tests/` 00–16). The proof-object builder (stage 7)
+(`acl2_samples/`, incl. `recon-tests/` 00–17 (18 books)). The proof-object builder (stage 7)
 replays whole theorems end-to-end from the real logs — including WF-induction
 (`my-len-my-app`, `app-assoc`), preprocess/clausify composition, and (under the
 ratified carve-out) DP leaves — kernel-checked, conditional on emitted
