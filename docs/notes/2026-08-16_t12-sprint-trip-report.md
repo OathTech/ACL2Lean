@@ -48,7 +48,11 @@ branch line before the goal was set; counting from the R-arc start
   hand-resolved conflicts. Two lanes ran concurrently for most of the
   sprint's wall-clock.
 - Executor time: ~52 agent-hours across the 12 lanes (2.2h–7.9h
-  each). Subagent token spend: ≈4.7M output tokens. Verification
+  each). Token spend: ≈4.7M output tokens as reported by the 12
+  sprint executors alone — an UNDERCOUNT of the full buildout (it
+  excludes the orchestrator loop, the pre-sprint R0–R2/wave lanes,
+  and all verification builds; the true total is a multiple of this
+  figure). Verification
   (sweeps/gates) dominated wall-clock: the sorts-equivalent book cost
   ~50→65 min/pass after the transfer landed (P6 improved it to
   ~37 min).
