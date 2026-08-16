@@ -13,19 +13,9 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
-/-- ONE branch fact of the admission walk: the ruling test, its polarity,
-    the `Logic.toBool <the test's value> = <polarity>` proof, and — for an
-    OPAQUE test (the `conv_if_split_ex` arm, whose value is an
-    ∃-ELIMINATED fvar the walk cannot recompute) — that value together with
-    its convergence.
-
-    `none` = a LIFTABLE test, whose value and convergence the walk
-    recomputes on demand (`dpValExpr`/`dpValProof`). The pair exists
-    because the recorded-termination ruler peel must state the ruler's
-    NIL convergence, and for an opaque ruler (bsort's
-    `(EQUAL (BNEXT X) X)`) the split has ALREADY bound both — recomputing
-    is impossible, but nothing needs to be: T1+2 sprint phase 3a. -/
-abbrev TotFacts := List (SExpr × Bool × Expr × Option (Expr × Expr))
+-- `TotFacts` MOVED to Driver/Decrease (T1+2 sprint P5b): the shared
+-- recorded-decrease plumbing `recordedDecreaseAtCall` reads a walk's
+-- branch facts, and it sits upstream of both walkers.
 
 /-- The body-convergence walk: a proof of `∃N∃v ∀f≥N, eval envE t = some v`.
     `vals` carries each formal's VALUE expr and var-convergence proof;
@@ -95,89 +85,15 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
               let hNs ← proveNotSpecial fs
               let hDef ← totDefFact cfg fs formals body
               let hcEx ← totWalk cfg envE vals facts totalEnv selfC a1
-              let varP : Symbol → Option (Expr × Expr) := fun s =>
-                (vals.find? (fun (f, _, _) => f == s)).map
-                  (fun (_, v, p) => (v, p))
-              let varVal := dpValProof.dpVarVal envE varP
               let kLam ← withLocalDeclD `vs (mkConst ``SExpr) fun vσ => do
                 let convTy ← mkValConvPropEx cfg.worldExpr envE
                   (reflectSExpr a1) vσ
                 withLocalDeclD `hcs convTy fun hconvσ => do
-                  -- NOT-CONSP DUALITY (audit F1): an emitted negative
-                  -- recognizer ruler is refuted by the translated body's
-                  -- truthy `(CONSP b)` branch fact. R0 item 9 (2026-08-13):
-                  -- this was a hand CLONE of `BranchFacts.recogView` that
-                  -- knew ENDP only, so emitted `(ATOM …)` rulers stayed
-                  -- uncovered here while every sibling gate handled them —
-                  -- now DELEGATED to `recogView` so the two cannot diverge.
-                  let notConspDualOf : SExpr → Option SExpr := fun lit =>
-                    match recogView lit with
-                    | some (b, false) =>
-                      some (.cons (.atom (.symbol { name := "CONSP" }))
-                        (.cons b .nil))
-                    | _ => none
-                  -- …and the matching VALUE-level nil lemma, per recognizer
-                  -- (the peel states `<recog> vb = nil`, so it must name the
-                  -- ruler's own recognizer, not ENDP always).
-                  let dualNilLemma : SExpr → Option Name := fun lit =>
-                    match lit with
-                    | .cons (.atom (.symbol r)) (.cons _ .nil) =>
-                      if r.name == "ENDP" then
-                        some ``logic_endp_nil_of_consp_toBool
-                      else if r.name == "ATOM" then
-                        some ``logic_atom_nil_of_consp_toBool
-                      else none
-                    | _ => none
-                  let dec ← dischargeDecreaseRecorded cfg envE
-                    (rulerCovered := fun lit =>
-                      facts.any (fun (f, pos, _) => f == lit && !pos) ||
-                      (match notConspDualOf lit with
-                       | some dual =>
-                         facts.any (fun (f, pos, _) => f == dual && pos)
-                       | none => false))
-                    (rulerNilConv := fun lit => do
-                      match facts.find?
-                          (fun (f, pos, _) => f == lit && !pos) with
-                      | some (_, _, hb, carried?) =>
-                        -- the value/convergence pair: CARRIED by the split
-                        -- for an opaque test (T1+2 sprint phase 3a — bsort's
-                        -- `(EQUAL (BNEXT X) X)` ruler, which the walk cannot
-                        -- recompute), recomputed for a liftable one
-                        let (vc, hcnv) ← match carried? with
-                          | some (v, hcv) => pure (v, hcv)
-                          | none => do
-                            unless totLiftable lit do
-                              throwFrontier m!"recorded decrease: \
-                                  non-liftable ruler {repr lit} with no \
-                                  carried value (frontier)"
-                            pure (← dpValExpr [] varVal lit,
-                                  ← dpValProof cfg envE [] [] varP lit)
-                        let hnil ← mkAppM ``Iff.mp
-                          #[← mkAppM ``Logic.toBool_eq_false #[vc], hb]
-                        mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil]
-                      | none =>
-                        let some dual := notConspDualOf lit
-                          | throwError "recorded decrease: internal — ruler \
-                              fact vanished"
-                        let some (_, _, hb, _) := facts.find?
-                            (fun (f, pos, _) => f == dual && pos)
-                          | throwError "recorded decrease: internal — dual \
-                              ruler fact vanished"
-                        let some nilLemma := dualNilLemma lit
-                          | throwFrontier m!"recorded decrease: not-consp \
-                              ruler {repr lit} has no value-level nil lemma \
-                              (frontier)"
-                        -- the dual route states the ruler's own value, so
-                        -- it must be liftable (a recognizer application)
-                        unless totLiftable lit do
-                          throwFrontier m!"recorded decrease: non-liftable \
-                              ruler {repr lit} on the recognizer-dual route \
-                              (frontier)"
-                        let hcnv ← dpValProof cfg envE [] [] varP lit
-                        -- hb : toBool (consp vb) = true ⇒ <recog> vb = nil
-                        let hnil ← mkAppM nilLemma #[hb]
-                        mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil])
-                    (termConv := fun u => dpValProof cfg envE [] [] varP u)
+                  -- the ruler coverage / nil-convergence plumbing is SHARED
+                  -- with the TP prover's opaque-measured self-call arm
+                  -- (`recordedDecreaseAtCall`, Driver/Decrease — extracted
+                  -- at T1+2 sprint P5b when the second copy appeared)
+                  let dec ← recordedDecreaseAtCall cfg envE vals facts
                     (walkConv := fun u =>
                       totWalk cfg envE vals facts totalEnv none u)
                     recInfo measuredFormal a1 hconvσ

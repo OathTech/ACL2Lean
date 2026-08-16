@@ -36,6 +36,22 @@ frontier and the `total:` hypothesis stays in the replayed statement's type (D6)
 /-- Is every head of `t` walk-liftable (vars/quote/dp-primitives only)? -/
 def totLiftable (t : SExpr) : Bool := (collectOpaques t).isEmpty
 
+/-- ONE branch fact of the admission walk: the ruling test, its polarity,
+    the `Logic.toBool <the test's value> = <polarity>` proof, and — for an
+    OPAQUE test (the `conv_if_split_ex` arm, whose value is an
+    ∃-ELIMINATED fvar the walk cannot recompute) — that value together with
+    its convergence.
+
+    `none` = a LIFTABLE test, whose value and convergence the walk
+    recomputes on demand (`dpValExpr`/`dpValProof`). The pair exists
+    because the recorded-termination ruler peel must state the ruler's
+    NIL convergence, and for an opaque ruler (bsort's
+    `(EQUAL (BNEXT X) X)`) the split has ALREADY bound both — recomputing
+    is impossible, but nothing needs to be: T1+2 sprint phase 3a.
+    (Lives here since T1+2 sprint P5b: `recordedDecreaseAtCall`, the
+    plumbing BOTH walkers share, reads it.) -/
+abbrev TotFacts := List (SExpr × Bool × Expr × Option (Expr × Expr))
+
 /-- `w.defs.get? fn = some (formals, body)` by kernel decision on the
     reflected world (hoisted from `totWalk.totDefFact`; the S4 registry
     needs it ahead of the walk). -/
@@ -667,6 +683,91 @@ def dischargeDecreaseRecorded (cfg : ReplayConfig) (envE : Expr)
   mkAppM ``interp_decrease_decode
     #[info.hNsCnt, info.hDefCnt, info.hNoLt, info.hNoConsp, info.hDefF,
       info.hDefO, hconvσ, hm, hcσ, hcm, htpσ, htpm, curEv]
+
+/-- The RECORDED-ROUTE decrease AT A SELF-CALL SITE, with the branch-fact
+    plumbing `dischargeDecreaseRecorded` needs supplied from a walk's
+    `TotFacts` (T1+2 sprint P5b — EXTRACTED, not new: `totWalk`'s recorded
+    arm and the TP prover's opaque-measured self-call arm are the two
+    concrete copies, and a fix to one silently missing its twin is exactly
+    the near-clone the working discipline forbids).
+
+    The plumbing is: an emitted ruler is COVERED either by its own refuted
+    branch fact or through the recognizer duality (`recogView`: an emitted
+    `(ENDP b)`/`(ATOM b)` ruler is refuted by a truthy `(CONSP b)` fact),
+    and its nil-CONVERGENCE is stated from that fact — from the pair the
+    split CARRIED for an opaque test, recomputed for a liftable one.
+
+    `walkConv` is the caller's own convergence walk (the callers pass their
+    `totWalk` closure; passing it in rather than calling `totWalk` here is
+    what keeps this module upstream of the walkers). -/
+def recordedDecreaseAtCall (cfg : ReplayConfig) (envE : Expr)
+    (vals : List (Symbol × Expr × Expr)) (facts : TotFacts)
+    (walkConv : SExpr → MetaM Expr)
+    (info : RecTermInfo) (measuredFormal : Symbol) (aM : SExpr)
+    (hconvσ : Expr) : MetaM Expr := do
+  let varP : Symbol → Option (Expr × Expr) := fun s =>
+    (vals.find? (fun (f, _, _) => f == s)).map (fun (_, v, p) => (v, p))
+  let varVal := dpValProof.dpVarVal envE varP
+  -- NOT-CONSP DUALITY (audit F1): an emitted negative recognizer ruler is
+  -- refuted by the translated body's truthy `(CONSP b)` branch fact.
+  -- DELEGATED to `recogView` so this and every sibling gate agree about
+  -- which recognizers are the CONSP dual (R0 item 9, 2026-08-13).
+  let notConspDualOf : SExpr → Option SExpr := fun lit =>
+    match recogView lit with
+    | some (b, false) =>
+      some (.cons (.atom (.symbol { name := "CONSP" })) (.cons b .nil))
+    | _ => none
+  -- …and the matching VALUE-level nil lemma, per recognizer (the peel
+  -- states `<recog> vb = nil`, so it must name the ruler's OWN
+  -- recognizer, not ENDP always).
+  let dualNilLemma : SExpr → Option Name := fun lit =>
+    match lit with
+    | .cons (.atom (.symbol r)) (.cons _ .nil) =>
+      if r.name == "ENDP" then some ``logic_endp_nil_of_consp_toBool
+      else if r.name == "ATOM" then some ``logic_atom_nil_of_consp_toBool
+      else none
+    | _ => none
+  dischargeDecreaseRecorded cfg envE
+    (rulerCovered := fun lit =>
+      facts.any (fun (f, pos, _) => f == lit && !pos) ||
+      (match notConspDualOf lit with
+       | some dual => facts.any (fun (f, pos, _) => f == dual && pos)
+       | none => false))
+    (rulerNilConv := fun lit => do
+      match facts.find? (fun (f, pos, _) => f == lit && !pos) with
+      | some (_, _, hb, carried?) =>
+        let (vc, hcnv) ← match carried? with
+          | some (v, hcv) => pure (v, hcv)
+          | none => do
+            unless totLiftable lit do
+              throwFrontier m!"recorded decrease: non-liftable ruler \
+                  {repr lit} with no carried value (frontier)"
+            pure (← dpValExpr [] varVal lit,
+                  ← dpValProof cfg envE [] [] varP lit)
+        let hnil ← mkAppM ``Iff.mp
+          #[← mkAppM ``Logic.toBool_eq_false #[vc], hb]
+        mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil]
+      | none =>
+        let some dual := notConspDualOf lit
+          | throwError "recorded decrease: internal — ruler fact vanished"
+        let some (_, _, hb, _) := facts.find?
+            (fun (f, pos, _) => f == dual && pos)
+          | throwError "recorded decrease: internal — dual ruler fact \
+              vanished"
+        let some nilLemma := dualNilLemma lit
+          | throwFrontier m!"recorded decrease: not-consp ruler {repr lit} \
+              has no value-level nil lemma (frontier)"
+        -- the dual route states the ruler's own value, so it must be
+        -- liftable (a recognizer application)
+        unless totLiftable lit do
+          throwFrontier m!"recorded decrease: non-liftable ruler {repr lit} \
+              on the recognizer-dual route (frontier)"
+        let hcnv ← dpValProof cfg envE [] [] varP lit
+        let hnil ← mkAppM nilLemma #[hb]
+        mkAppM ``conv_nil_of_conv_eq #[hcnv, hnil])
+    (termConv := fun u => dpValProof cfg envE [] [] varP u)
+    (walkConv := walkConv)
+    info measuredFormal aM hconvσ
 
 /-- The GENERAL admission-decrease prover (#37 rework, design I4; plan
     `docs/plans/2026-07-18_decrease-prover-rework.md`). Proves the strict

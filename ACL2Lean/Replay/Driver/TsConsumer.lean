@@ -210,6 +210,164 @@ def tpClassImpAv : List ((TpCorClass × TpCorClass) × Name) :=
   [((.conspOrArg, .conspOrNil),
     ``ACL2.Replay.conspOrNilCor_of_conspOrArgCor)]
 
+/-! ### CONDITIONAL stored type-prescription rules (T1+2 sprint P5b)
+
+The event's `:COROLLARY`/`:LEAVES` report ONE stored rule — the
+definitional one. ACL2 keeps others, and the strong facts live exactly
+there: `BINARY-APPEND`'s definitional rule is the weak
+`(IF (CONSP …) 'T (EQUAL … Y))`, while the boot-strap `TRUE-LISTP-APPEND`
+— `(IMPLIES (TRUE-LISTP B) (TRUE-LISTP (BINARY-APPEND A B)))` — is a
+SECOND stored rule of the same fn, emitted in `:ALL-TPS` with its own
+hypotheses, its own `basicTs`, its own pattern `term`, and its own
+context-refined `leaves` (computed under those hypotheses).
+
+Consuming one is not trusting it: the rule's CONCLUSION is re-proved from
+the fn's body by the same walker, under its hypotheses, and each
+hypothesis is discharged at the call site by the same walker. What the
+emission licenses is ADMISSIBILITY — which rule may be attempted, and
+which leaves the walk may admit under it. -/
+
+/-- A stored `:ALL-TPS` rule, renamed into the fn's FORMAL variable space
+    and split into the parts the prover consumes. Built only by
+    `tpStoredRuleFor?`, which fail-closes on every shape it cannot
+    recompute. -/
+structure TpStoredRule where
+  /-- The rule's rune name (`TRUE-LISTP-APPEND`) — diagnostics only. -/
+  runeName : String
+  /-- The rule's HYPOTHESES, in the fn's formal variable space. -/
+  hyps : List SExpr
+  /-- The rule's CONCLUSION (the corollary's `IMPLIES` consequent, or the
+      corollary itself when there are no hypotheses), formal space. -/
+  concl : SExpr
+  /-- The recognized class of `concl` against the fn's own application
+      pattern. -/
+  cls : TpCorClass
+  /-- The rule's OWN context-refined body leaves, formal space — what the
+      walk's return-path admissibility is checked against under THIS rule
+      (the event's unconditional leaves do not apply). -/
+  leaves : List TpLeaf
+  /-- Per hypothesis, in `hyps` order: the formal it constrains and the
+      corollary CLASS its shape is. A hypothesis in any other shape makes
+      the rule inadmissible. -/
+  hypCls : List (Symbol × TpCorClass)
+  deriving Repr, Inhabited
+
+/-- Rename every `SExpr` field of an emitted leaf through `σ`. -/
+private def TpLeaf.rename (σ : SExpr → SExpr) (l : TpLeaf) : TpLeaf :=
+  { l with term := σ l.term, tests := l.tests.map σ,
+           typeAlist := l.typeAlist.map (fun (t, n) => (σ t, n)),
+           subterms := l.subterms.map (fun (t, n) => (σ t, n)) }
+
+/-- ACL2's `and`-antecedent spine, `(IF A rest 'NIL)` right-nested → the
+    conjunct list; anything else is a single hypothesis. (Same shape rule
+    as the rule-hypothesis flattener; kept here because the stored-rule
+    reader must run before the provers module.) -/
+private partial def tpFlattenAnd : SExpr → List SExpr
+  | t@(.cons (.atom (.symbol ifS)) (.cons a (.cons rest (.cons e .nil)))) =>
+    if ifS.name == "IF" && e == quoteNil then a :: tpFlattenAnd rest else [t]
+  | t => [t]
+
+/-- Select a stored `:ALL-TPS` rule of `fn` whose CONCLUSION is in the
+    class `want` — the CALLEE-TP arm's route when the fn's definitional
+    corollary does not reach the position's class.
+
+    Everything is recompute-checked against the emitted entry, and every
+    check fails CLOSED (returns `none`, so the caller keeps its honest
+    frontier):
+
+    * the rule's pattern `term` must be `(fn v₁ … vₙ)` at distinct
+      VARIABLES, and renaming those to the fn's formals must reproduce the
+      fn's own application pattern — that is what puts hyps/corollary/
+      leaves in one variable space (the emitter's J-RT2b invariant,
+      re-derived here rather than assumed);
+    * the corollary must RECONSTRUCT from the emitted `hyps` and the
+      conclusion (`(IMPLIES <and-spine> concl)`, or bare when there are
+      none) — a corollary that does not is not being read correctly;
+    * every emitted leaf verdict must lie inside the rule's OWN `basicTs`,
+      and that `basicTs` inside the wanted class's mask. The emitter's
+      honest caveat is that a rule proved by a REAL THEOREM need not have
+      its leaves inside its `basicTs` — such a rule is not re-provable from
+      the body by this walker, and this is where it is refused;
+    * every hypothesis must be a recognized CLASS shape over a single
+      formal (`(TRUE-LISTP B)`), which is what lets the call site discharge
+      it with the same walker. -/
+def tpStoredRuleFor? (allTps : List (String × List TpRuleSpec))
+    (fn : Symbol) (formals : List Symbol) (appPat : SExpr)
+    (want : TpCorClass) : Option TpStoredRule := do
+  let rules ← allTps.lookup fn.name
+  rules.findSome? fun r => do
+    -- the rule's pattern term: `(fn v₁ … vₙ)` at distinct variables
+    let .cons (.atom (.symbol rf)) argSpine := r.term | none
+    guard (rf == fn)
+    let args ← argSpine.toList?
+    let vars ← args.mapM fun a => match a with
+      | .atom (.symbol s) => some s
+      | _ => none
+    guard (vars.length == formals.length)
+    guard (vars.eraseDups.length == vars.length)
+    let σ : SExpr → SExpr :=
+      substTerm vars (formals.map (SExpr.atom ∘ Atom.symbol))
+    -- the renaming must reproduce the fn's OWN application pattern
+    guard (σ r.term == appPat)
+    let hyps := r.hyps.map σ
+    -- RECONSTRUCT the corollary from hyps + conclusion
+    let concl ←
+      match hyps with
+      | [] => some (σ r.corollary)
+      | _ =>
+        match σ r.corollary with
+        | .cons (.atom (.symbol impS)) (.cons ante (.cons c .nil)) =>
+          if impS.name == "IMPLIES" && tpFlattenAnd ante == hyps then some c
+          else none
+        | _ => none
+    let cls ← tpCorClass? appPat concl
+    guard (cls == want)
+    -- ADMISSIBILITY off the emitted numbers (see the docstring)
+    guard (tsSubsumed r.basicTs cls.tsMask)
+    let leaves := r.leaves.map (TpLeaf.rename σ)
+    guard (leaves.all (fun l => tsSubsumed l.ts r.basicTs))
+    -- every hypothesis a recognized class shape over ONE formal
+    let hypCls ← hyps.mapM fun h => do
+      let .cons _ (.cons (.atom (.symbol v)) .nil) := h | none
+      guard (formals.contains v)
+      let hc ← tpCorClass? (.atom (.symbol v)) h
+      some (v, hc)
+    some { runeName := r.rune.name, hyps, concl, cls, leaves, hypCls }
+
+/-- A stored-rule HYPOTHESIS as a value predicate: `fun v => <the
+    hypothesis lifted, its constrained formal ↦ v> = t`. The ONE builder —
+    `proveTp` uses it for the carrier's `H` and the callee arm for the
+    obligation it discharges at the argument's value, so the two cannot
+    state different things. A hypothesis mentioning anything but its own
+    formal is a frontier (`tpStoredRuleFor?` already refuses those; this
+    is the fail-closed twin). -/
+def tpHypPred (h : SExpr) (hv : Symbol) : MetaM Expr :=
+  withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+    let lifted ← dpValExpr [(.atom (.symbol hv), vV)]
+      (fun s => throwFrontier m!"proveTp: stored-rule hypothesis {repr h} \
+          mentions {s.name} outside its constrained formal (frontier)") h
+    mkLambdaFVars #[vV] (← mkEq lifted (mkConst ``SExpr.t))
+
+/-- The hypotheses of a conditional stored rule, IN FORCE inside the body
+    walk that proves it (T1+2 sprint P5b). Three consumers, all in the
+    walk: a return-path leaf that IS a constrained formal is closed by its
+    `facts` entry; a SELF-CALL must re-establish `hExpr` at the call's
+    argument values (checked twice — the hypothesis terms must be
+    invariant under the call's own substitution, and the ambient proof
+    must type-hint against the instantiated predicate); and nothing else
+    may use them. -/
+structure TpHypCarrier where
+  /-- The rule's hypothesis TERMS, in the fn's formal variable space. -/
+  hyps : List SExpr
+  /-- Per hypothesis, in `hyps` order: the constrained formal, its
+      corollary class, and the proof of that class's predicate at the
+      formal's bound VALUE. -/
+  facts : List (Symbol × TpCorClass × Expr)
+  /-- The hypothesis CONJUNCTION as a λ over the argument values (`H` of
+      `tp_2_rec_hyp_mu`), and its proof at the walk's own binders. -/
+  hExpr : Expr
+  hProof : Expr
+
 /-- The per-function EMITTED type-prescription data the TP walk consumes on
     its return paths (TP-replay arc increment 1, 2026-08-12): the fn's
     name, ACL2's OWN `:LEAVES` enumeration (return-path leaf term + the
@@ -237,6 +395,15 @@ structure TpKit where
       `tpCorArgVar?` of the fn's OWN emitted corollary. `none` for every
       value-only class, which makes the residue-leaf arm a frontier. -/
   argVar : Option Symbol := none
+  /-- The STORED-RULE hypotheses in force for this walk (T1+2 sprint P5b);
+      `none` for the ordinary unconditional walk. -/
+  hyp : Option TpHypCarrier := none
+  /-- The RECORDED-TERMINATION bundle of the fn being proved, when its
+      admission waterfall was replayed (T1+2 sprint P5b). Present ⇒ the
+      induction measure is the INTERPRETED count and a self-call whose
+      MEASURED actual is opaque (`QSORT`'s `(FILTER 'GTE (CDR X) (CAR X))`)
+      takes the recorded decrease route instead of the destructor walk. -/
+  recTerm : Option RecTermInfo := none
 
 /-- Does `t` occur in `u` (as `u` itself or as a subterm)? The CALLEE-TP
     arm's containment check against ACL2's emitted `:LEAVES`. -/

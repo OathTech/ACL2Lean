@@ -12,4 +12,9 @@ if [ -d "$ROOT/.lake/build/lib/lean/Tests/Coverage" ]; then
        -exec rm -f {} +
 fi
 rm -f "$ROOT"/.lake/build/lib/lean/Tests/DriverCoverage.{olean,ilean,trace}
-echo "coverage artifacts invalidated (Tests/Coverage/** + aggregate)"
+# The waypoint catalog ALSO reads the golden via IO (its lift-coverage
+# gate) — a stale Catalog.olean masks missing catalog decisions (found
+# independently by both T1+2 P5 lanes, 2026-08-16). Speedbump against
+# the honest mistake; do not harden further.
+rm -f "$ROOT"/.lake/build/lib/lean/ACL2Lean/Imported/Waypoints/Catalog.{olean,ilean,trace}
+echo "coverage artifacts invalidated (Tests/Coverage/** + aggregate + the catalog gate)"

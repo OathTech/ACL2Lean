@@ -320,6 +320,27 @@ def Development.typePrescriptionLeaves :
     | .typePrescription n _ _ leaves _ => (n, leaves) :: rest.typePrescriptionLeaves
     | _ => rest.typePrescriptionLeaves
 
+/-- (fn, `:ALL-TPS`) for every TP event: EVERY stored type-prescription rule
+    ACL2 keeps for the fn, not just the definitional one the event's
+    `:COROLLARY`/`:LEAVES` report (`TpRuleSpec` — rune, hyps, basic-ts,
+    corollary, the rule's own pattern `term`, and the fn body's leaves
+    computed under THAT rule's hypotheses).
+
+    The strengthenings live exactly here: `BINARY-APPEND`'s definitional
+    rule is the weak `(IF (CONSP …) 'T (EQUAL … Y))`, while the boot-strap
+    `TRUE-LISTP-APPEND` — `(IMPLIES (TRUE-LISTP B) (TRUE-LISTP (BINARY-APPEND
+    A B)))` — is a second stored rule of the same fn. The TP prover's
+    CALLEE arm consumes this when the callee's definitional corollary does
+    not reach the position's class (T1+2 sprint P5b). -/
+def Development.typePrescriptionAllTps :
+    Development → List (String × List TpRuleSpec)
+  | .done => []
+  | .bind ev rest =>
+    match ev with
+    | .typePrescription n _ _ _ allTps =>
+      (n, allTps) :: rest.typePrescriptionAllTps
+    | _ => rest.typePrescriptionAllTps
+
 /-- The emitted type-prescription corollaries of a development (fn name ↦
     corollary term) — the type facts the replay consumes as hypotheses. -/
 def Development.typePrescriptions : Development → List (String × SExpr)

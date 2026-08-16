@@ -439,4 +439,66 @@ theorem tp_hyp_2_av_of_body (w : World) (s : Symbol)
     h_ns h_def h0 h1 hu
   exact (val_unique h happ) ▸ hPu
 
+/-! ## The HYPOTHESIS-CARRYING assemblies (T1+2 sprint P5b, 2026-08-16)
+
+ACL2 stores CONDITIONAL type-prescription rules — `BINARY-APPEND` carries
+the boot-strap `TRUE-LISTP-APPEND`,
+`(IMPLIES (TRUE-LISTP B) (TRUE-LISTP (BINARY-APPEND A B)))`, alongside its
+weak definitional rule (the fork's `:ALL-TPS` channel emits both, each with
+its own hypotheses and its own context-refined `:LEAVES`). Consuming one
+means carrying its hypotheses through the body induction: `H` is the
+hypothesis conjunction lifted at the ARGUMENT VALUES, exactly as `P` is the
+conclusion lifted at the application's value.
+
+Nothing class-specific is claimed here — `H` is an arbitrary predicate on
+the argument values, and the driver builds it from the EMITTED hypotheses.
+Both statements are the `tp_2_rec_mu` / `tp_hyp_2_of_body` shapes with that
+premise threaded through. -/
+
+/-- The TP body induction at arity 2 with a HYPOTHESIS on the argument
+    values (measure on the first formal). The IH carries `H` at ITS
+    argument values, so a self-call must re-establish it — which is what
+    makes the hypothesis honest rather than assumed. -/
+theorem tp_2_rec_hyp_mu (μ : SExpr → Nat)
+    (formal1 formal2 : Symbol) (body : SExpr) (w : World)
+    (P : SExpr → Prop) (H : SExpr → SExpr → Prop)
+    (step : ∀ av1 : SExpr,
+      (∀ bv : SExpr, μ bv < μ av1 → ∀ cv : SExpr, H bv cv →
+        ConvToP w (bindArgs [formal1, formal2] [bv, cv]) body P) →
+      ∀ av2 : SExpr, H av1 av2 →
+        ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
+    ∀ av1 av2 : SExpr, H av1 av2 →
+      ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P :=
+  measure_strong_induction_val μ
+    (fun av1 => ∀ av2, H av1 av2 →
+      ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P)
+    step
+
+/-- The HYPOTHESIS-CARRYING TP assembly, 2-ary: the conditional stored
+    rule's statement — given the argument values, the hypothesis at them,
+    and any value the call converges to, the conclusion predicate holds of
+    that value. Argument strictness is not needed (the argument values are
+    premises); determinism identifies the application's value with the
+    body's. -/
+theorem tp_hyp_2_cond_of_body (w : World) (s : Symbol)
+    (formal1 formal2 : Symbol) (body : SExpr)
+    (P : SExpr → Prop) (H : SExpr → SExpr → Prop)
+    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
+            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
+    (h_def : w.defs.get? s = some ([formal1, formal2], body))
+    (hbody : ∀ av1 av2 : SExpr, H av1 av2 →
+      ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
+    ∀ (env' : Env) (a0 a1 u0 u1 v : SExpr),
+      (∃ N, ∀ f ≥ N, evalOpt f w env' a0 = some u0) →
+      (∃ N, ∀ f ≥ N, evalOpt f w env' a1 = some u1) →
+      H u0 u1 →
+      (∃ N, ∀ f ≥ N, evalOpt f w env'
+        (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil))) = some v) →
+      P v := by
+  intro env' a0 a1 u0 u1 v h0 h1 hH h
+  obtain ⟨u, hPu, hu⟩ := hbody u0 u1 hH
+  have happ := conv_defn_2 w env' s a0 a1 u0 u1 formal1 formal2 body u
+    h_ns h_def h0 h1 hu
+  exact (val_unique h happ) ▸ hPu
+
 end ACL2.Replay

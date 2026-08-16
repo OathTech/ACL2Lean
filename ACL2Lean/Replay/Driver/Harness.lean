@@ -6,7 +6,7 @@
   conditional-replayed-statement harness (replayProofConditional).
 -/
 import ACL2Lean.Replay.Driver.Core
-import ACL2Lean.Replay.Driver.Provers
+import ACL2Lean.Replay.Driver.TpProver
 
 namespace ACL2.Replay.Driver
 
@@ -1232,8 +1232,27 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             match tps.lookup fnName with
             | some cor =>
               try
+                -- the RECORDED-TERMINATION bundle, assembled exactly as
+                -- `buildTotalEnv` assembles it for `proveTotality` (T1+2
+                -- sprint P5b): with it, the TP induction runs over the
+                -- INTERPRETED count and a self-call with an OPAQUE measured
+                -- actual (`QSORT`'s `(FILTER 'GTE (CDR X) (CAR X))`) takes
+                -- the replayed admission's own decrease. A failed assembly
+                -- is a frontier there and simply leaves `recTerm? = none`,
+                -- i.e. the destructor route's pre-existing behaviour.
+                let recTerm? ←
+                  match termReplayed.find? (fun (n, _, _, _) => n == fnName),
+                        justs.lookup fnName with
+                  | some (_, dc, dconds, dgoal), some just =>
+                    try
+                      pure (some (← mkRecTermInfo cfg totalEnv hypFVarsAll
+                        tps just dc dconds dgoal))
+                    catch e =>
+                      unless isFrontierErr e do throw e
+                      pure none
+                  | _, _ => pure none
                 let pf ← proveTp cfg totalEnv justs fnName cor
-                  (cors := tps) (argValued := isAv)
+                  (cors := tps) (argValued := isAv) (recTerm? := recTerm?)
                 let pf ← mkExpectedTypeHint pf (← inferType v)
                 letBindFVar prf0 v pf
               catch e =>

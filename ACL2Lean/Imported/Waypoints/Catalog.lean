@@ -156,14 +156,15 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("07-mutual-recursion", "MY-ODDP-3-IS-T", .replayedOnly "reflexive decode — no non-vacuous native fact"),
   ("07-mutual-recursion", "termination:MY-EVENP", .replayedOnly "an internal admission obligation, not a user-facing theorem — the termination:QSORT doctrine"),
   ("11-custom-measure", "termination:CD2", .replayedOnly "an internal admission obligation, not a user-facing theorem — the termination:QSORT doctrine"),
-  -- BOOKKEEPING (T1+2 sprint P5a, 2026-08-16): CD2-BOUND went FAIL →
-  -- REPLAYED at P4b and its catalog decision was never added; the gap
-  -- surfaced only when this module was next REBUILT (P4b's ci run read a
-  -- cached `Catalog.olean` — the same golden-staleness the coverage
-  -- modules carry, see `just coverage-repin`). Recorded as PENDING: no
-  -- native waypoint is claimed, the row is a green replay and nothing
-  -- more.
-  ("11-custom-measure", "CD2-BOUND", .pending "cd2 correspondence (validator/lifter backlog) — the nfix-measure value bound"),
+  -- BOOKKEEPING (T1+2 sprint P5a+P5b collection, 2026-08-16): CD2-BOUND
+  -- went FAIL → REPLAYED at P4b but was never given a catalog decision;
+  -- BOTH P5 lanes independently surfaced the hole because the gate
+  -- reads the golden through an IO read and `invalidate-coverage.sh`
+  -- did not invalidate `Catalog.olean` (fixed at this collection).
+  -- `.pending`: the value bound `(<= (cd2 n) (nfix n))` needs a cd2
+  -- correspondence (exec kit + reading) that is not built — the
+  -- validator/lifter backlog class.
+  ("11-custom-measure", "CD2-BOUND", .pending "cd2 correspondence (validator/lifter backlog) — the row's value bound (<= (cd2 n) (nfix n)) has no built native reading; green since T1+2 sprint P4b"),
   ("08-equality-reasoning", "CDR-CONS-REFL", .native ``cdr_cons_native ``cdrConsReplayedCond),
   ("08-equality-reasoning", "EQUAL-SYMM", .native ``equal_symm_native ``equalSymmReplayedCond),
   ("08-equality-reasoning", "EQUAL-TRANS", .native ``equal_trans_native ``equalTransReplayedCond),
@@ -377,10 +378,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
       arithmetic/if-lift gz rules, rule:HOW-MANY-FILTER-1, \
       rule:HOW-MANY-QSORT, rule:ORDEREDP-APPEND). The waypoint native \
       (`qsortL xs = isortL xs`) is NOT BUILT — queued behind the mirror \
-      buildout; tp:QSORT is the arc's remaining named honest survivor \
-      (tp:ACL2-COUNT retired 2026-08-14 by the D-A ts-algebra consumer; \
-      tp:QSORT needs per-stored-rule leaves in :ALL-TPS -- fork \
-      round-trip 2). Statement pin: Tests/SortingPins"),
+      buildout (tp:ACL2-COUNT retired 2026-08-14 by the D-A ts-algebra \
+      consumer; tp:QSORT retired 2026-08-16 by the CONDITIONAL \
+      stored-rule route over RT2's per-rule :ALL-TPS leaves -- the row \
+      now keeps only rule:ORDEREDP-APPEND). Statement pin: \
+      Tests/SortingPins"),
   ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
     .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13; \
       row conds total:BNEXT/BSORT/O</O-P, rule:TRUE-LISTP-RM, \

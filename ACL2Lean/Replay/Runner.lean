@@ -184,6 +184,7 @@ def mkBookConfig (dev : Development) (w : World) (wExpr envExpr : Expr)
       (w.defs.get? { name := n }).isNone
     gzTpBasicTs := dev.typePrescriptionBasicTs
     tpLeaves := dev.typePrescriptionLeaves
+    tpAllTps := dev.typePrescriptionAllTps
     recogTuples := dev.groundZeroRecognizerTupleSpecs }
 
 /-- Clause-ids of BLACK-BOX leaves under a clause node: a leaf clause (no child

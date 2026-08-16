@@ -258,9 +258,20 @@ elab "sorting_statement_pins_run% " : term => do
       -- (tp:ACL2-COUNT dropped 2026-08-14 — the D-A consumer; see
       -- PERM-QSORT above.)
       -- (total:O< dropped 2026-08-15 — see PERM-QSORT above.)
-      "    TRUE-LISTP-QSORT → REPLAYED ✓ cond[\
-tp:QSORT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ \
-cond[total:(QSORT X), tp:QSORT]]"),
+      -- (tp:QSORT dropped 2026-08-16 — T1+2 sprint P5b: the CONDITIONAL
+      -- stored-rule route. ACL2 keeps `TRUE-LISTP-APPEND` —
+      -- `(IMPLIES (TRUE-LISTP B) (TRUE-LISTP (BINARY-APPEND A B)))` — as
+      -- a second stored rule of BINARY-APPEND, emitted in `:ALL-TPS`
+      -- with its own per-rule `:LEAVES`; the driver now re-proves that
+      -- rule from BINARY-APPEND's body under its hypothesis and
+      -- discharges the hypothesis at QSORT's own leaf, and the
+      -- self-call's FILTER-headed measured actual takes QSORT's
+      -- REPLAYED admission decrease. The ROW is unconditional;
+      -- the DISCHARGE probe's own telescope still carries `tp:QSORT`
+      -- (a separate accounting path — probe rows are informational).
+      -- INTENTIONAL; diagnosed against the golden.)
+      "    TRUE-LISTP-QSORT → REPLAYED ✓  [DISCHARGE: \
+Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]"),
      ("pins/sorting/qsort",
       -- (tp:HOW-MANY dropped 2026-08-12 — see HOW-MANY-ISORT above;
       -- tp:ALL-REL dropped 2026-08-13 — TP-replay arc increment 4, the
@@ -502,7 +513,10 @@ example :
       -- its OWN emitted :TERMINATION-CLAUSES, so the hypothesis left
       -- the telescope and the pinned type drops it. INTENTIONAL;
       -- diagnosed against the golden.)
-      tpPred1 qsortPinsWorld "QSORT" Logic.trueListp →
+      -- (tp:QSORT RETIRED 2026-08-16 — T1+2 sprint P5b: the CONDITIONAL
+      -- stored-rule route (see the pinned status line above), so the
+      -- hypothesis left the telescope and the pinned type drops it.
+      -- INTENTIONAL; diagnosed against the golden.)
       -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra
       -- consumer: the R2 fork batch's context-refined `:LEAVES` (each
       -- leaf's governing tests + ACL2's derived type-alist) and per-leaf
@@ -1077,8 +1091,8 @@ arc — each drop carries a diagnosis comment below, never a silent
 edit. MSORT loses three (`tp:HOW-MANY`, `tp:INSERT`, `tp:EVENS`);
 QSORT loses five (`total:PERM-COUNTER-EXAMPLE`, `tp:HOW-MANY`,
 `tp:INSERT`, `tp:ALL-REL`, and — 2026-08-14, the D-A ts-algebra
-consumer — `tp:ACL2-COUNT`) and KEEPS `tp:QSORT`, the arc's one
-remaining named honest survivor. -/
+consumer — `tp:ACL2-COUNT`) and, since 2026-08-16 (T1+2 sprint P5b,
+the conditional stored-rule route), `tp:QSORT` as well. -/
 
 /-- PIN the machine statement of `MSORT-IS-ISORT`
     (sorts-equivalent.lisp:12): the mirror of
@@ -1133,16 +1147,19 @@ example :
       -- consumer: the R2 fork batch's context-refined leaves carry
       -- ACL2's own derivation, so the corollary is PROVED and the
       -- hypothesis left the telescope.)
-      -- tp:QSORT SURVIVES — the arc's one named honest blocker. The
-      -- verbatim frontier (T1+2 sprint P4b, read off the new
-      -- ACL2LEAN_TP_DIAG sink): "proveTp: BINARY-APPEND's corollary
-      -- class …conspOrArg neither matches nor implies the …trueListp
-      -- class QSORT's prescription needs". NOT a fork-emission item —
-      -- fork round-trip 2 landed the per-rule `:LEAVES` and `:term`, so
-      -- the stored strengthening TRUE-LISTP-APPEND IS fully emitted.
-      -- It is a CONSUMPTION item: the `:ALL-TPS` data path plus a
-      -- hypothesis-carrying `proveTp` mode. Map in the sprint charter.
-      tpPred1 sortsEqPinsWorld "QSORT" Logic.trueListp →
+      -- (tp:QSORT RETIRED 2026-08-16 — T1+2 sprint P5b. P4b's verbatim
+      -- frontier here was "proveTp: BINARY-APPEND's corollary class
+      -- …conspOrArg neither matches nor implies the …trueListp class
+      -- QSORT's prescription needs", and it was a CONSUMPTION item
+      -- exactly as P4b's corrected map said: RT2 had already emitted the
+      -- stored strengthening TRUE-LISTP-APPEND with its own hypotheses,
+      -- `:term` and per-rule `:LEAVES`. The driver now takes the
+      -- `:ALL-TPS` route — re-proving that rule from BINARY-APPEND's
+      -- body under its hypothesis, discharging the hypothesis at
+      -- QSORT's own leaf, and taking the FILTER-headed self-call's
+      -- decrease from QSORT's REPLAYED admission. The hypothesis left
+      -- the telescope and the pinned type drops it. INTENTIONAL;
+      -- diagnosed against the golden.)
       -- (rule:TRUE-LISTP-RM and rule:CONVERT-PERM-TO-HOW-MANY RETIRED
       -- 2026-08-15 — the WP5 transfer, see MSORT-IS-ISORT above.)
       -- (the ARITHMETIC-3 family — rule:(+ y x), rule:(+ y (+ x z)),

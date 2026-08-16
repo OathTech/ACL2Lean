@@ -110,6 +110,13 @@ structure ReplayConfig where
       verdicts (see `TpLeaf`). The TP prover's return-path arms admit a
       leaf only when ACL2 emitted it here with a covering verdict. -/
   tpLeaves : List (String × List TpLeaf) := []
+  /-- (fn, `:ALL-TPS`) from the emitted TP events: EVERY stored
+      type-prescription rule of the fn, each with its own hyps, basic-ts,
+      corollary, pattern `term` and per-rule `leaves` (RT2). The CALLEE-TP
+      arm consumes a STRENGTHENING from here when the definitional
+      corollary does not reach the position's class — `TRUE-LISTP-APPEND`
+      on `BINARY-APPEND` (T1+2 sprint P5b). -/
+  tpAllTps : List (String × List TpRuleSpec) := []
   /-- The cited recognizer-alist tuple snapshot
       ((:GROUND-ZERO-RECOGNIZER-TUPLES), fork-batch item 2): the
       DATA-DRIVEN gate for recognizer verdicts — e.g. never-a-cons =
@@ -1447,46 +1454,13 @@ def replayExecGround (cfg : ReplayConfig) (lhs v : SExpr) : MetaM Expr := do
   mkAppM ``conv_of_eval_at
     #[mkNatLit F, cfg.worldExpr, cfg.envExpr, reflectSExpr lhs, reflectSExpr v, hAt]
 
-/-- Expr-level SExpr application `(fn a₁ … aₙ)` from argument `Expr`s. -/
-def mkAppListExpr (fn : Symbol) (args : Array Expr) : Expr :=
-  let spine := args.foldr (fun a acc => mkApp2 (mkConst ``SExpr.cons) a acc)
-    (mkConst ``SExpr.nil)
-  mkApp2 (mkConst ``SExpr.cons)
-    (mkApp (mkConst ``SExpr.atom) (mkApp (mkConst ``Atom.symbol) (reflectSymbol fn)))
-    spine
-
-/-- `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w e t = some v` with the term as an `Expr`. -/
-def mkConvPropEx (w e tE : Expr) : MetaM Expr := do
-  withLocalDeclD `N (mkConst ``Nat) fun nV => do
-    let inner ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
-      let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
-        let ge ← mkAppM ``GE.ge #[fV, nV]
-        let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
-        let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vV
-        mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
-      mkAppM ``Exists #[← mkLambdaFVars #[vV] body]
-    mkAppM ``Exists #[← mkLambdaFVars #[nV] inner]
-
-/-- `∃ N, ∀ f ≥ N, evalOpt f w e t = some v` with term and value as `Expr`s. -/
-def mkValConvPropEx (w e tE vE : Expr) : MetaM Expr := do
-  withLocalDeclD `N (mkConst ``Nat) fun nV => do
-    let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
-      let ge ← mkAppM ``GE.ge #[fV, nV]
-      let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
-      let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
-      mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
-    mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
-
-/-- `∃ N, ∀ f ≥ N, evalOpt f w e a = evalOpt f w e b` (the chain Prop) with
-    both terms as `Expr`s. -/
-def mkEvalEqPropEx (w e aE bE : Expr) : MetaM Expr := do
-  withLocalDeclD `N (mkConst ``Nat) fun nV => do
-    let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
-      let ge ← mkAppM ``GE.ge #[fV, nV]
-      let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, aE]
-      let rhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, bE]
-      mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
-    mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
+-- `mkAppListExpr` / `mkConvPropEx` / `mkValConvPropEx` / `mkEvalEqPropEx`
+-- MOVED to Driver/Reflect (T1+2 sprint P5b): they are pure Expr builders
+-- over `SExpr`/`evalOpt` with no `ReplayConfig`/`ReplayCtx` dependency, so
+-- they belong in the reflection kit, and this file is AT its 1500-line
+-- ratchet cap (the J-P3b-f / J-RT2e precedent: resolve by MOVES, never by
+-- loosening the baseline). Every importer of this module already imports
+-- Reflect, so nothing else changed.
 
 /-- `∃N∀f≥N, eval (quote t) = some SExpr.t` (the constant, not the reflection). -/
 def quoteTFact (cfg : ReplayConfig) : MetaM Expr := do

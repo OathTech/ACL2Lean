@@ -421,4 +421,49 @@ partial def diffCollapse (w e : Expr) (vT uT : SExpr) (nodeEq : Expr) :
         curArgs := curArgs.set! i b
     return acc
 
+/-! ## Expr-level statement builders (moved here from NodeCore/Ctx, T1+2
+    sprint P5b — pure `SExpr`/`evalOpt` shape builders with no
+    `ReplayConfig`/`ReplayCtx` dependency; see the note at their old site). -/
+
+/-- Expr-level SExpr application `(fn a₁ … aₙ)` from argument `Expr`s. -/
+def mkAppListExpr (fn : Symbol) (args : Array Expr) : Expr :=
+  let spine := args.foldr (fun a acc => mkApp2 (mkConst ``SExpr.cons) a acc)
+    (mkConst ``SExpr.nil)
+  mkApp2 (mkConst ``SExpr.cons)
+    (mkApp (mkConst ``SExpr.atom) (mkApp (mkConst ``Atom.symbol) (reflectSymbol fn)))
+    spine
+
+/-- `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w e t = some v` with the term as an `Expr`. -/
+def mkConvPropEx (w e tE : Expr) : MetaM Expr := do
+  withLocalDeclD `N (mkConst ``Nat) fun nV => do
+    let inner ← withLocalDeclD `v (mkConst ``SExpr) fun vV => do
+      let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+        let ge ← mkAppM ``GE.ge #[fV, nV]
+        let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
+        let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vV
+        mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
+      mkAppM ``Exists #[← mkLambdaFVars #[vV] body]
+    mkAppM ``Exists #[← mkLambdaFVars #[nV] inner]
+
+/-- `∃ N, ∀ f ≥ N, evalOpt f w e t = some v` with term and value as `Expr`s. -/
+def mkValConvPropEx (w e tE vE : Expr) : MetaM Expr := do
+  withLocalDeclD `N (mkConst ``Nat) fun nV => do
+    let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+      let ge ← mkAppM ``GE.ge #[fV, nV]
+      let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, tE]
+      let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``SExpr) vE
+      mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
+    mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
+
+/-- `∃ N, ∀ f ≥ N, evalOpt f w e a = evalOpt f w e b` (the chain Prop) with
+    both terms as `Expr`s. -/
+def mkEvalEqPropEx (w e aE bE : Expr) : MetaM Expr := do
+  withLocalDeclD `N (mkConst ``Nat) fun nV => do
+    let body ← withLocalDeclD `f (mkConst ``Nat) fun fV => do
+      let ge ← mkAppM ``GE.ge #[fV, nV]
+      let lhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, aE]
+      let rhs := mkAppN (mkConst ``evalOpt) #[fV, w, e, bE]
+      mkForallFVars #[fV] (← mkArrow ge (← mkEq lhs rhs))
+    mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
+
 end ACL2.Replay.Driver
