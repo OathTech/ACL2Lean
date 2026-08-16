@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 116/116 (115 unconditional + 1 conditional)
+Driver coverage — REPLAYED 116/116 (116 unconditional + 0 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓
@@ -150,4 +150,4 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
 • sorting/sorts-equivalent  (world: 215 defun(s), 3 theorem(s))
     MSORT-IS-ISORT → REPLAYED ✓
     QSORT-IS-ISORT → REPLAYED ✓
-    BSORT-IS-ISORT → REPLAYED ✓ cond[rule:TRUE-LISTP-BNEXT, linear:HOW-MANY-BAD-PAIRS-BNEXT]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]
+    BSORT-IS-ISORT → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]

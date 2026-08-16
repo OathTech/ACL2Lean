@@ -24,22 +24,14 @@ namespace ACL2.Tests.SortingPinsEndgame
 
 open ACL2 ACL2.Replay ACL2.Tests.SortingPins
 
-/-- `linear:<rune>` — the emitted ground-zero :LINEAR rule snapshot's
-    content (`mkLinearHypType`'s exact shape): `∀ env', EvTrue hyp →
-    EvTrue concl` over the recorded hyps/concl verbatim. The endgame
-    arc's "linear-hyp pin helper". -/
-def linearHyp1 (w : World) (hyp concl : SExpr) : Prop :=
-  ∀ env' : Env, EvTrue w env' hyp → EvTrue w env' concl
-
-/-- The linear:HOW-MANY-BAD-PAIRS-BNEXT snapshot, verbatim
-    (`(:GROUND-ZERO-LINEAR-RULES …)` in the bsort/sorts-equivalent logs):
-    hyp `(NOT (EQUAL X (BNEXT X)))`, concl
-    `(< (BNEXT-SIZE (BNEXT X)) (BNEXT-SIZE X))`. -/
-def linearHMBPB (w : World) : Prop :=
-  linearHyp1 w
-    (ap1 "NOT" (ap2 "EQUAL" (sym "X") (ap1 "BNEXT" (sym "X"))))
-    (ap2 "<" (ap1 "BNEXT-SIZE" (ap1 "BNEXT" (sym "X")))
-      (ap1 "BNEXT-SIZE" (sym "X")))
+-- (The endgame arc's `linearHyp1` / `linearHMBPB` pin helpers — the
+-- `mkLinearHypType` shape and the HOW-MANY-BAD-PAIRS-BNEXT snapshot's
+-- verbatim hyp/concl — were DELETED 2026-08-16 (T1+2 sprint P6) with
+-- their last use: `linear:HOW-MANY-BAD-PAIRS-BNEXT` retired from
+-- BSORT-IS-ISORT's telescope, so the shape no longer appears in any
+-- pinned type. The deletion+rewiring flow; the retirement is diagnosed
+-- in place at the pin below. Their content is still LIVE-checked — the
+-- golden row is unconditional only because the discharge fires.)
 
 /-- The bsort sweep world (same log as the coverage run — the registered
     constants' world expression is defeq to this). -/
@@ -290,9 +282,11 @@ example :
     one-hyp row — the functional-instance usefi DISCHARGED): the
     mirror of
       `(implies (true-listp x) (equal (bsort x) (isort x)))`
-    conditional on the sweep row's honest premise set — totalities,
-    the cited rules' content (each transcribed verbatim from its book's
-    emitted spec), and the linear snapshot.
+    — as of 2026-08-16 (T1+2 sprint P6) UNCONDITIONAL: the telescope is
+    empty, so what is pinned here is the replayed statement itself, with
+    no premise left to transcribe. Every hypothesis this pin once carried
+    is listed below with the date and mechanism of its retirement (the
+    file's running record of the row's descent from 15 premises to 0).
 
     RETURNED 2026-08-13 (the TP-replay arc's ATOM-leg increment) per the
     return condition recorded at its retirement (thin-Lean purge,
@@ -329,16 +323,24 @@ example :
       -- T1+2 sprint P3c: the WP5 cross-book D1 transfer replays each
       -- dependency at this world, so all four hypotheses left the
       -- telescope. INTENTIONAL; diagnosed row-by-row.)
-      -- true-listp-bnext:
-      ruleEqHyp1 sortsEqSweepWorld
-        (ap1 "TRUE-LISTP" (sym "X"))
-        (ap1 "TRUE-LISTP" (ap1 "BNEXT" (sym "X"))) (qt (sym "T")) →
       -- (rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT RETIRED 2026-08-15
       -- — the same transfer (bsort-book rows now unconditional).
-      -- INTENTIONAL. linear:HOW-MANY-BAD-PAIRS-BNEXT SURVIVES at this
-      -- world — the sorts-equivalent occurrence, the row's honest
-      -- residue.)
-      linearHMBPB sortsEqSweepWorld →
+      -- INTENTIONAL.)
+      -- (rule:TRUE-LISTP-BNEXT and linear:HOW-MANY-BAD-PAIRS-BNEXT —
+      -- the LAST TWO — RETIRED 2026-08-16, T1+2 sprint P6: both reach
+      -- this telescope from BSORT's RECORDED ADMISSION proof, i.e.
+      -- AFTER the dependency sweep had run, so nothing ever attempted
+      -- them. Two pieces land together: the cross-book demand seed is
+      -- widened with the consumer's own OFFER surfaces (so the transfer
+      -- registers the two bsort-book dependencies), and the post-replay
+      -- discharge lane runs to QUIESCENCE with `totalEnv` rebuilt as
+      -- names arrive (so the dependency's own total:BNEXT /
+      -- total:BNEXT-SIZE / tp:BNEXT-SIZE, which arrive after the
+      -- totality/TP passes, are attempted and discharged in the next
+      -- round). The row is REPLAYED ✓ UNCONDITIONAL and this pin's type
+      -- is now premise-free. INTENTIONAL; diagnosed against the golden —
+      -- the ONLY two golden lines that moved were this row and the
+      -- header.)
       EvTrue sortsEqSweepWorld env
         (ap2 "IMPLIES" (ap1 "TRUE-LISTP" (sym "X"))
           (ap2 "EQUAL" (ap1 "BSORT" (sym "X")) (ap1 "ISORT" (sym "X")))) :=

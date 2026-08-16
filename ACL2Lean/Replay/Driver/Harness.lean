@@ -7,6 +7,7 @@
 -/
 import ACL2Lean.Replay.Driver.Core
 import ACL2Lean.Replay.Driver.TpProver
+import ACL2Lean.Replay.Driver.DevQuery
 
 namespace ACL2.Replay.Driver
 
@@ -1033,7 +1034,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- dependency DAG (ACL2 admits a defthm only after the rules it cites
       -- exist), so a discharge proof can only introduce uses of STRICTLY
       -- EARLIER rules' fvars — one reverse pass substitutes them all.
-      let mut prfR := prf
+      let prfR := prf
       -- cong:<thm> discharge (G2 rung 2), BEFORE and AFTER the rule pass:
       -- a defcong cites strictly-earlier rules (its discharge replay can
       -- introduce rule-fvar uses, caught by the rule pass below), and a
@@ -1149,70 +1150,43 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
               | none => dischargeRuleHyp cfg ctx spec depProofs replayed
         prfR ← dischargeCongs prfR
         pure prfR
-      -- SWEEP TO QUIESCENCE (WP5 item 3). One pass is not a fixed point:
-      -- a discharge introduces the DEPENDENCY's own hypothesis uses, and
-      -- with the cross-book transfer those can land on classes an EARLIER
-      -- pass already walked. Iterate while a condition actually retires,
-      -- with a hard cap; no progress (or the cap) stops. Termination is
-      -- structural anyway — every iteration strictly shrinks the free-fvar
-      -- set or stops — the cap is the honest-mistake speedbump against a
-      -- discharger that re-introduces what it retired. Do not harden it.
-      let hypVsAll := (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs
-        ++ equivVs ++ equivFullVs ++ tpThmVs ++ linearVs ++ dpVs
-        ++ useFiVs).toList
+      -- THE POST-REPLAY DISCHARGE LANE, RUN TO QUIESCENCE (T1+2 sprint P6,
+      -- closing P5a's item 2). Two layers feed EACH OTHER:
+      --   • the DEPENDENCY dischargers (`dischargeSweep`: use:/usefi:/cong:/
+      --     tpthm:/equivfull:/equivrefl:/linear:/rule:) — a discharge
+      --     re-replays the dependency's tree and carries the DEPENDENCY's
+      --     OWN total:/tp: hypotheses onto this telescope;
+      --   • the total:/tp: provers — a RECORDED-ADMISSION totality proof
+      --     carries the ADMISSION's own rule:/linear: conditions onto this
+      --     telescope (`buildTotalEnv`'s hypFVars mapping).
+      -- One pass of each, in either order, therefore strands whatever the
+      -- later pass introduced: that is exactly what kept
+      -- `rule:TRUE-LISTP-BNEXT` + `linear:HOW-MANY-BAD-PAIRS-BNEXT` at
+      -- `BSORT-IS-ISORT` (they arrive from the admission proof, after the
+      -- sweep) and, when a lone extra dependency pass was tried at P5a,
+      -- what stranded the dependency's `total:BNEXT`/`total:BNEXT-SIZE`/
+      -- `tp:BNEXT-SIZE` (they arrive from that pass, after the totality/TP
+      -- passes). BOTH layers therefore run inside ONE outer loop, and
+      -- `totalEnv` is REBUILT whenever a needed fn appears that it does not
+      -- already cover — a hypothesis that arrives mid-loop must be attempted
+      -- with the CURRENT machinery, never a pass-1 snapshot.
+      -- Iterate while a condition actually retires, with a hard cap; no
+      -- progress (or the cap) stops. Termination is structural anyway —
+      -- every iteration strictly shrinks the free-fvar set or stops — the
+      -- cap is the honest-mistake speedbump against a discharger that
+      -- re-introduces what it retired. Do not harden it.
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ tpThmVs ++ linearVs ++ dpVs ++ useFiVs).toList)
+      let hypVsAll := hypFVarsAll.map (·.2)
       let freeCount (e : Expr) : MetaM Nat := do
         let ei ← instantiateMVars e
         pure (hypVsAll.filter (fun v => ei.containsFVar v.fvarId!)).length
-      let mut sweepIters : Nat := 0
-      let mut before ← freeCount prfR
-      let mut sweeping := true
-      while sweeping do
-        prfR ← dischargeSweep prfR
-        sweepIters := sweepIters + 1
-        let after ← freeCount prfR
-        if after >= before || sweepIters >= 4 then
-          sweeping := false
-        else
-          before := after
-      let prf ← instantiateMVars prfR
-      -- bind only the hypotheses the replay ACTUALLY USED: an unconsumed offer must
-      -- not weaken the statement (hypothesis types are mutually independent, so
-      -- dropping unused ones is well-formed).
-      let used := (condsAll.zip (totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ tpThmVs ++ linearVs ++ dpVs ++ useFiVs).toList).filter
-        fun (_, v) => prf.containsFVar v.fvarId!
-      -- #37 LAZY discharge: prove admission totality only for the USED
-      -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
-      -- tp: hypotheses (whose walks also need totality facts — the bound
-      -- covers both name sets). Frontier failures keep the hypothesis
-      -- (D6 — visible in the type).
-      let usedTotalNames := used.filterMap fun (c, _) =>
-        if c.startsWith "total:" then some ((c.drop "total:".length).toString) else none
-      let usedTpNames := used.filterMap fun (c, _) =>
-        if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
-      let neededFns := if discharge then usedTotalNames ++ usedTpNames else []
-      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ tpThmVs ++ linearVs ++ dpVs ++ useFiVs).toList)
-      let totalEnv ←
-        if neededFns.isEmpty then pure []
-        else
-          -- `defs.entries` is DEV order (user defuns first, ground zero at
-          -- the tail — see buildTotalEnv); the lazy bound is the needed fn
-          -- LATEST in dev order. RECORDED-TERMINATION fns need their
-          -- GROUND-ZERO dependencies (ACL2-COUNT/O<…, at the entries
-          -- tail), so the bound is dropped when one is in play.
-          let hasRecorded := neededFns.any
-            (fun n => termReplayed.any (·.1 == n))
-          let lastUsed? := (cfg.worldVal.defs.entries.filter
-            (fun (s, _, _) => neededFns.contains s.name)).getLast?
-          buildTotalEnv cfg justs
-            (upTo := if hasRecorded then none
-                     else lastUsed?.map (fun (s, _, _) => s.name))
-            (termReplayed := termReplayed) (hypFVars := hypFVarsAll)
-            (tpCors := tps)
-      let mut prf := prf
       -- ONE hypothesis's discharge, shared by the `used` pass and the
       -- SECOND pass below (extracted 2026-08-14 — the two were about to be
-      -- byte-identical copies).
-      let dischargeTotalOrTp (prf0 : Expr) (c : String) (v : Expr) :
+      -- byte-identical copies). `totalEnv` is a PARAMETER (P6): the loop
+      -- below rebuilds it as new names arrive, and both passes must read
+      -- the current one.
+      let dischargeTotalOrTp (totalEnv : List (String × Nat × Expr))
+          (prf0 : Expr) (c : String) (v : Expr) :
           MetaM Expr := do
         if c.startsWith "total:" then
           match totalEnv.find? (fun (n, _, _) => s!"total:{n}" == c) with
@@ -1272,62 +1246,132 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             | none => pure prf0
           else pure prf0
         else pure prf0
-      for (c, v) in (if discharge then used else []) do
-        prf ← dischargeTotalOrTp prf c v
-      -- SECOND total:/tp: PASS (T1+2 sprint phase 1, 2026-08-14). The pass
-      -- above iterates `used` — the hypotheses the REPLAY ITSELF touched.
-      -- A RECORDED-TERMINATION totality proof can pull in FURTHER
-      -- total:/tp: fvars (PERM-QSORT's `tp:ACL2-COUNT` arrives exactly that
-      -- way, via the admission waterfall's own ACL2-COUNT uses), and those
-      -- were surfaced as kept conditions without ever being ATTEMPTED. Same
-      -- discharge, same fail-closed type hint; a frontier still keeps the
-      -- hypothesis. `tp:` runs first, so a `total:` fvar a TP proof pulls in
-      -- is still caught by the second sub-pass.
-      if discharge then
-        let usedNames := used.map (·.1)
-        let mut prfMid ← instantiateMVars prf
-        for (c, v) in hypFVarsAll do
-          if c.startsWith "tp:" && !usedNames.contains c
-              && prfMid.containsFVar v.fvarId! then
-            prf ← dischargeTotalOrTp prf c v
-        prfMid ← instantiateMVars prf
-        for (c, v) in hypFVarsAll do
-          if c.startsWith "total:" && !usedNames.contains c
-              && prfMid.containsFVar v.fvarId! then
-            prf ← dischargeTotalOrTp prf c v
-      -- SECOND ground-zero pass (close-out 2026-08-08): the totality/TP
-      -- discharge proofs above may pull in gz-rule hyp fvars the replay
-      -- itself never touched — they enter AFTER the rule-discharge pass,
-      -- so the D5 registry never saw them. Registry-covered rules are
-      -- dischargeable without a dependency tree; bind them here rather
-      -- than surfacing a prelude-constant fact as a kept condition.
-      -- NOT GENERALIZED to the DEPENDENCY dischargers (T1+2 sprint P5a,
-      -- item 2 — measured, not adopted). The same fvars arrive here for
-      -- `rule:`/`linear:` too: a RECORDED-ADMISSION totality proof
-      -- carries the admission's own kept conditions onto this telescope
-      -- (`buildTotalEnv`'s hypFVars mapping) after the sweep has run, so
-      -- `rule:TRUE-LISTP-BNEXT` / `linear:HOW-MANY-BAD-PAIRS-BNEXT` at
-      -- BSORT-IS-ISORT are kept without an attempt ever being made. A
-      -- dependency-discharger pass here (with the cross-book seed widened
-      -- so the registry entries exist) was BUILT AND MEASURED at
-      -- `sorting/sorts-equivalent`: it discharges both — and re-introduces
-      -- the dependency's own `total:BNEXT` + `total:BNEXT-SIZE` +
-      -- `tp:BNEXT-SIZE`, which arrive AFTER the totality/TP passes. Two
-      -- conditions out, three in, so it was reverted under the movement
-      -- rule. Closing it needs those passes run to QUIESCENCE (with
-      -- `totalEnv` rebuilt for the newly-freed names), not one more pass.
-      if discharge then
-        let prfMid ← instantiateMVars prf
-        for (spec, hypV) in rules.zip ruleVs.toList do
-          if prfMid.containsFVar hypV.fvarId! then
-            if let some (decl, nsFns) := d5GzRules.lookup spec.name then
-              try
-                let pf ← withRealMaxHeartbeats dischargeBudget <|
-                  dischargeGzRuleHyp cfg spec decl nsFns
-                prf ← letBindFVar prf hypV pf
-              catch e =>
-                unless isFrontierErr e do
-                  throw e
+      -- `tp:` names that already frontiered UNDER THE CURRENT `totalEnv`
+      -- (cleared on every rebuild): re-running the TP prover against the
+      -- SAME environment can only frontier again, and it is the expensive
+      -- prover in this lane. A rebuild is the only thing that can change
+      -- the answer, so that is exactly when the memo is dropped.
+      let tpFailedRef ← IO.mkRef ([] : List String)
+      let attemptTotalOrTp (totalEnv : List (String × Nat × Expr))
+          (prf0 : Expr) (c : String) (v : Expr) : MetaM Expr := do
+        if c.startsWith "tp:" && (← tpFailedRef.get).contains c then
+          return prf0
+        let prf1 ← dischargeTotalOrTp totalEnv prf0 c v
+        if c.startsWith "tp:"
+            && (← instantiateMVars prf1).containsFVar v.fvarId! then
+          tpFailedRef.modify (· ++ [c])
+        pure prf1
+      let mut prf ← instantiateMVars prfR
+      -- the accumulated needed-fn set the CURRENT `totalEnv` was built for.
+      -- A smaller set is served by the same environment (lookups are by
+      -- name), so only a NEW name forces a rebuild — and the rebuild takes
+      -- the UNION, keeping the environment monotone across rounds.
+      let mut envFns : List String := []
+      let mut totalEnv : List (String × Nat × Expr) := []
+      let mut rounds : Nat := 0
+      let mut beforeR ← freeCount prf
+      let mut looping := true
+      while looping do
+        -- (1) the DEPENDENCY sweep, itself run to quiescence (WP5 item 3).
+        let mut sweepIters : Nat := 0
+        let mut before ← freeCount prf
+        let mut sweeping := true
+        while sweeping do
+          prf ← dischargeSweep prf
+          sweepIters := sweepIters + 1
+          let after ← freeCount prf
+          if after >= before || sweepIters >= 4 then
+            sweeping := false
+          else
+            before := after
+        prf ← instantiateMVars prf
+        -- (2) the total:/tp: passes. `used` = the hypotheses STILL FREE
+        -- here: the ones the replay itself touched, plus everything the
+        -- sweep's discharges introduced. An unconsumed offer is never bound
+        -- (hypothesis types are mutually independent, so dropping unused
+        -- ones is well-formed).
+        let used := hypFVarsAll.filter fun (_, v) => prf.containsFVar v.fvarId!
+        -- #37 LAZY discharge: prove admission totality only for the USED
+        -- total: hypotheses and SUBSTITUTE; likewise the TP prover for USED
+        -- tp: hypotheses (whose walks also need totality facts — the bound
+        -- covers both name sets). Frontier failures keep the hypothesis
+        -- (D6 — visible in the type).
+        let usedTotalNames := used.filterMap fun (c, _) =>
+          if c.startsWith "total:" then some ((c.drop "total:".length).toString) else none
+        let usedTpNames := used.filterMap fun (c, _) =>
+          if c.startsWith "tp:" then some ((c.drop "tp:".length).toString) else none
+        let neededFns := if discharge then usedTotalNames ++ usedTpNames else []
+        if neededFns.any (fun n => !envFns.contains n) then
+          envFns := envFns ++ neededFns.filter (fun n => !envFns.contains n)
+          -- `defs.entries` is DEV order (user defuns first, ground zero at
+          -- the tail — see buildTotalEnv); the lazy bound is the needed fn
+          -- LATEST in dev order. RECORDED-TERMINATION fns need their
+          -- GROUND-ZERO dependencies (ACL2-COUNT/O<…, at the entries
+          -- tail), so the bound is dropped when one is in play.
+          let hasRecorded := envFns.any
+            (fun n => termReplayed.any (·.1 == n))
+          let lastUsed? := (cfg.worldVal.defs.entries.filter
+            (fun (s, _, _) => envFns.contains s.name)).getLast?
+          totalEnv ← buildTotalEnv cfg justs
+            (upTo := if hasRecorded then none
+                     else lastUsed?.map (fun (s, _, _) => s.name))
+            (termReplayed := termReplayed) (hypFVars := hypFVarsAll)
+            (tpCors := tps)
+          tpFailedRef.set []
+        for (c, v) in (if discharge then used else []) do
+          prf ← attemptTotalOrTp totalEnv prf c v
+        -- SECOND total:/tp: PASS (T1+2 sprint phase 1, 2026-08-14). The pass
+        -- above iterates `used` — the hypotheses free when the round began.
+        -- A RECORDED-TERMINATION totality proof can pull in FURTHER
+        -- total:/tp: fvars (PERM-QSORT's `tp:ACL2-COUNT` arrives exactly that
+        -- way, via the admission waterfall's own ACL2-COUNT uses), and those
+        -- were surfaced as kept conditions without ever being ATTEMPTED. Same
+        -- discharge, same fail-closed type hint; a frontier still keeps the
+        -- hypothesis. `tp:` runs first, so a `total:` fvar a TP proof pulls in
+        -- is still caught by the second sub-pass. A name that arrives here
+        -- and is NOT covered by `totalEnv` is picked up by the next ROUND,
+        -- which rebuilds for it — that is the quiescence property.
+        if discharge then
+          let usedNames := used.map (·.1)
+          let mut prfMid ← instantiateMVars prf
+          for (c, v) in hypFVarsAll do
+            if c.startsWith "tp:" && !usedNames.contains c
+                && prfMid.containsFVar v.fvarId! then
+              prf ← attemptTotalOrTp totalEnv prf c v
+          prfMid ← instantiateMVars prf
+          for (c, v) in hypFVarsAll do
+            if c.startsWith "total:" && !usedNames.contains c
+                && prfMid.containsFVar v.fvarId! then
+              prf ← attemptTotalOrTp totalEnv prf c v
+        -- (3) the ground-zero rule pass (close-out 2026-08-08): the
+        -- totality/TP discharge proofs above may pull in gz-rule hyp fvars
+        -- the replay itself never touched — they enter AFTER the sweep's
+        -- rule pass, so the D5 registry never saw them. Registry-covered
+        -- rules are dischargeable without a dependency tree; bind them here
+        -- rather than surfacing a prelude-constant fact as a kept condition.
+        -- The DEPENDENCY dischargers no longer need a copy here: a
+        -- `rule:`/`linear:` fvar the admission proof carries in is picked up
+        -- by the NEXT round's sweep (P6 — this is what the P5a note asked
+        -- for, and what retires `rule:TRUE-LISTP-BNEXT` +
+        -- `linear:HOW-MANY-BAD-PAIRS-BNEXT` at BSORT-IS-ISORT).
+        if discharge then
+          let prfMid ← instantiateMVars prf
+          for (spec, hypV) in rules.zip ruleVs.toList do
+            if prfMid.containsFVar hypV.fvarId! then
+              if let some (decl, nsFns) := d5GzRules.lookup spec.name then
+                try
+                  let pf ← withRealMaxHeartbeats dischargeBudget <|
+                    dischargeGzRuleHyp cfg spec decl nsFns
+                  prf ← letBindFVar prf hypV pf
+                catch e =>
+                  unless isFrontierErr e do
+                    throw e
+        rounds := rounds + 1
+        let afterR ← freeCount prf
+        if afterR >= beforeR || rounds >= 4 then
+          looping := false
+        else
+          beforeR := afterR
       -- kept = the hypotheses STILL FREE in the final proof. Recomputed
       -- AFTER all discharges (sorting arc 2026-07-28): a recorded-
       -- termination totality proof may pull in tp:/rule: fvars the replay
@@ -1434,72 +1478,6 @@ def replayProofParametric (cfg0 : ReplayConfig) (sigFns : List Symbol)
         pinKept.map (fun ((s, _, _), _) => s!"def:{s.name}")
         ++ shadowKept.map (fun (s, _) => s!"noshadow:{s.name}")
         ++ conds)
-
-
-/-! ## Importer front-end helpers (promoted from the test harness)
-
-`derive_world` defines a `World` constant PROJECTED from a parsed
-`Development` (the world the replay reasons over is derived from the log, not
-hand-written); `findThm` extracts a theorem's reconstructed proof from a
-development by name. -/
-
-private partial def theoremsWithRulesGo (dev : Development)
-    (acc : List RuleSpec) : List (ClauseProof × List RuleSpec) :=
-  match dev with
-  | .bind (.theorem cp) rest => (cp, acc) :: theoremsWithRulesGo rest acc
-  | .bind (.rules specs) rest => theoremsWithRulesGo rest (acc ++ specs)
-  | .bind _ rest => theoremsWithRulesGo rest acc
-  | .done => []
-
-/-- Theorems of a development, each paired with the STORED rules created
-    BEFORE it — the rules its proof could cite (creation order; ACL2's
-    certification order makes citing a later rule impossible, so the offer
-    is exactly the citable set). GROUND-ZERO snapshot rules (D5) seed the
-    accumulator: boot-stored, they precede every theorem — the emitted
-    `(:GROUND-ZERO-RULES …)` event itself sits at the log's TAIL (capture
-    end), so it cannot be picked up by the in-order walk. -/
-def developmentTheoremsWithRules (dev : Development) :
-    List (ClauseProof × List RuleSpec) :=
-  theoremsWithRulesGo dev dev.groundZeroRuleSpecs
-
-/-- The stored rules created BEFORE the first theorem named `nm`
-    (case-insensitive) — the `rules` argument for replaying it by name. -/
-def rulesBefore (dev : Development) (nm : String) : List RuleSpec :=
-  match (developmentTheoremsWithRules dev).find?
-    (fun (cp, _) => cp.name.toLower == nm.toLower) with
-  | some (_, rules) => rules
-  | none => []
-
-/-- All theorems matching a name (case-insensitive), in development order. -/
-partial def findThms : Development → String → List ClauseProof
-  | .bind (.theorem cp) rest, nm =>
-    if cp.name.toLower == nm.toLower then cp :: findThms rest nm
-    else findThms rest nm
-  | .bind _ rest, nm => findThms rest nm
-  | .done, _ => []
-
-/-- The UNIQUE theorem named `nm` (case-insensitive). `none` when absent — and
-    also when AMBIGUOUS (two theorems differing only in case): selecting the
-    first match would silently pick a theorem the caller did not name, so we
-    refuse to guess (fail-closed; audited 2026-06-10). -/
-def findThm (dev : Development) (nm : String) : Option ClauseProof :=
-  match findThms dev nm with
-  | [cp] => some cp
-  | _ => none
-
-open Lean.Elab Lean.Elab.Command in
-/-- `derive_world name from devTerm` — define `name : World` as the world
-    PROJECTED from a `Development` (`Development.toWorld`), REFLECTED to a
-    concrete (fast-reducing) def. -/
-elab "derive_world " id:ident " from " t:term : command => do
-  let ns ← Lean.getCurrNamespace
-  liftTermElabM do
-    let devE ← Lean.Elab.Term.elabTermAndSynthesize t (some (mkConst ``ACL2.Development))
-    let dev ← unsafe Lean.Meta.evalExpr ACL2.Development (mkConst ``ACL2.Development) devE
-    Lean.addAndCompile <| .defnDecl
-      { name := ns ++ id.getId, levelParams := [], type := mkConst ``ACL2.World,
-        value := ← reflectWorld dev.toWorld, hints := .abbrev, safety := .safe }
-    Lean.enableRealizationsForConst (ns ++ id.getId)
 
 
 end ACL2.Replay.Driver

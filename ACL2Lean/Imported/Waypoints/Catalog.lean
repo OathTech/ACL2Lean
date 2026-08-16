@@ -384,15 +384,22 @@ def liftCatalog : List (String × String × LiftStatus) := [
       now keeps only rule:ORDEREDP-APPEND). Statement pin: \
       Tests/SortingPins"),
   ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
-    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13; \
-      row conds total:BNEXT/BSORT/O</O-P, rule:TRUE-LISTP-RM, \
+    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13) \
+      and UNCONDITIONAL since 2026-08-16 (T1+2 sprint P6): the row's \
+      last two conditions, rule:TRUE-LISTP-BNEXT and \
+      linear:HOW-MANY-BAD-PAIRS-BNEXT, retired together when the \
+      cross-book demand seed took in the consumer's OFFER surfaces and \
+      the post-replay discharge lane began running to QUIESCENCE with \
+      totalEnv rebuilt between rounds (both reach this telescope from \
+      BSORT's recorded ADMISSION proof, after the dependency sweep, so \
+      nothing had ever attempted them). Earlier retirements: \
+      total:BNEXT/BSORT/O</O-P, rule:TRUE-LISTP-RM, \
       rule:CONVERT-PERM-TO-HOW-MANY, rule:ORDEREDP-ISORT, \
-      rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BNEXT, rule:TRUE-LISTP-BSORT, \
-      rule:HOW-MANY-BSORT, linear:HOW-MANY-BAD-PAIRS-BNEXT — the \
-      linear: class still has no unlock, cf HOW-MANY-BSORT). The \
-      waypoint native (`true-listp xs → bsortL xs = isortL xs`) is NOT \
-      BUILT — queued behind the mirror buildout AND the bsort exec kit. \
-      Statement pin: Tests/SortingPinsEndgame"),
+      rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT. \
+      The waypoint native (`true-listp xs → bsortL xs = isortL xs`) is \
+      NOT BUILT — queued behind the mirror buildout AND the bsort exec \
+      kit; the decision stays `.pending` for that reason, not for a \
+      replay one. Statement pin: Tests/SortingPinsEndgame"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),

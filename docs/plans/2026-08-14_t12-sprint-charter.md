@@ -796,3 +796,83 @@ tp:QSORT + the trio + CD2-BOUND (P4a, in flight).
     4165, never left loose. No module gained a baseline entry
     (`Harness.lean` 1486 and `GzRules.lean` 581 are both under the 1500
     norm).
+
+- **P6 (the last row) — 2026-08-16. THE SPRINT'S END STATE REACHED:
+  golden header `REPLAYED 116/116 (116 unconditional + 0 conditional)`,
+  ZERO `cond[…]` on any row, ZERO FAIL rows, ZERO `sorry`/`sorryAx`.**
+  `BSORT-IS-ISORT`'s `cond[rule:TRUE-LISTP-BNEXT,
+  linear:HOW-MANY-BAD-PAIRS-BNEXT]` retired with NO new condition
+  anywhere: the measuring sweep moved EXACTLY TWO golden lines (that row
+  and the header); the other 28 books' sections compared byte-identical.
+  P5a's item 2 closed as its own note said it had to be — the widening
+  PLUS the quiescence composition, landed together.
+  - **Piece 1 — the demand seed widened (`Runner.bookDemandSeed`).**
+    P5a's measured widening, re-implemented verbatim in intent: the
+    cross-book demand seed is `bookCitedNames` PLUS the consumer's own
+    OFFER surfaces (`allBookRules` names + `groundZeroLinearRuleSpecs`
+    names). `TRUE-LISTP-BNEXT` is cited by NOTHING and
+    `HOW-MANY-BAD-PAIRS-BNEXT` only inside `BSORT`'s admission
+    waterfall, so neither was ever demanded and neither had a registry
+    entry to discharge against. DEMAND-SIDE ONLY: it can make the
+    pre-pass replay more dependency theorems (each a full,
+    deterministic, kernel-checked replay whose entry is matched by
+    STATEMENT), never change what a replay may use.
+  - **Piece 2 — the post-replay discharge lane runs to QUIESCENCE
+    (`replayProofConditional`).** The two layers FEED EACH OTHER: a
+    dependency discharge carries the dependency's own `total:`/`tp:`
+    hypotheses onto this telescope, and a recorded-admission totality
+    proof carries the admission's own `rule:`/`linear:` conditions onto
+    it. One pass of each, in either order, strands whatever the later
+    pass introduced — which is why the pair survived (they arrive from
+    the admission proof, AFTER the sweep) and why P5a's lone extra
+    dependency pass stranded the dependency's `total:BNEXT` +
+    `total:BNEXT-SIZE` + `tp:BNEXT-SIZE` (they arrive after the
+    totality/TP passes). Both layers now run inside ONE outer loop —
+    dependency sweep (itself to quiescence, cap 4) → `total:`/`tp:`
+    passes → the D5 ground-zero rule pass — with the P3c discipline
+    kept verbatim: STRICT PROGRESS (the free-hypothesis count must
+    fall) plus a hard cap (4), the honest-mistake speedbump, not
+    hardened. The LATE dependency-discharger copy P5a had tried is NOT
+    added: a `rule:`/`linear:` fvar the admission proof introduces is
+    picked up by the NEXT ROUND's sweep, which is the same fix without
+    a second code path.
+  - **J-P6-a (`totalEnv` REBUILT, but only on a NEW name).** The
+    quiescence property needs the environment the `total:`/`tp:` passes
+    consume to be CURRENT: a hypothesis that arrives mid-loop must be
+    attempted with the machinery the current round has, not a pass-1
+    snapshot. Rebuilding unconditionally each round would re-PROVE every
+    needed fn's totality (the expensive part) for no gain, so the
+    rebuild is keyed on the accumulated needed-fn set: a round that
+    introduces no new name reuses the environment (a smaller set is
+    served by the same one — lookups are by name), and a round that
+    does rebuild takes the UNION, keeping the environment monotone. Round
+    1 is byte-identical to the pre-P6 behaviour by construction.
+  - **J-P6-b (a `tp:` frontier MEMO, cleared on rebuild).** Re-running
+    `proveTp` against the SAME `totalEnv` can only frontier again, and it
+    is the expensive prover in the lane; a name that frontiered under the
+    current environment is skipped until a rebuild drops the memo. Cost
+    control only — it can never turn a discharge into a kept condition
+    that a re-attempt would have retired.
+  - **J-P6-c (the pins take the SAME seed).** `Waypoints/Macro.lean`'s
+    cross-book pre-pass was moved to `bookDemandSeed` too: a pin and its
+    golden row must demand the same dependency set, or the pin stops
+    being a check on what the sweep does.
+  - **J-P6-d (RATCHET — a MOVE, not a loosening).** The loop pushed
+    `Driver/Harness.lean` to 1548 lines, over the 1500 NORM (it has no
+    baseline entry and must not get one). Resolved by moving the five
+    DEVELOPMENT-query declarations (`developmentTheoremsWithRules`,
+    `rulesBefore`, `findThms`, `findThm`, `derive_world`) — which touch
+    none of the walker/discharge machinery — to a new leaf module
+    `Driver/DevQuery.lean` that Harness imports, so every existing
+    consumer resolves the names unchanged. Bodies byte-identical.
+    Harness 1548 → 1483. The J-RT2e / J-P3b-f / J-P4a-i / J-P5a-h
+    precedent.
+  - **PIN CONVERGENCE.** `Tests/SortingPinsEndgame.lean`'s
+    `BSORT-IS-ISORT` pin drops its last two premises (dated diagnosis in
+    place, the running record of the row's descent from 15 premises to
+    0); the now-unused `linearHyp1`/`linearHMBPB` pin helpers are
+    DELETED with their last use (the deletion+rewiring flow — the shape
+    is still LIVE-gated, since the golden row is unconditional only
+    because the discharge fires). The `BSORT-IS-ISORT` catalog entry's
+    prose is corrected: `.pending` now stands on the missing waypoint
+    native and the bsort exec kit ONLY, no longer on a replay condition.

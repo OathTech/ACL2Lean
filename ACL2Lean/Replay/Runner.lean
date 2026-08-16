@@ -400,19 +400,37 @@ def bookCitedNames (dev : Development) : List String :=
     citedRuneNamesDeep cp
     ++ ACL2.Replay.Driver.theoremUseCitedNames cp).eraseDups
 
-/-! MEASURED AND NOT ADOPTED (T1+2 sprint P5a, item 2). Widening this
-    seed with the book's OFFER surfaces (`allBookRules` +
-    `groundZeroLinearRuleSpecs` names) DOES reach the two names
-    `BSORT-IS-ISORT` keeps — measured at `sorting/sorts-equivalent`, the
-    undemanded dep-theorem count drops 13 → 1 — but the resulting
-    discharge trades the row's `rule:TRUE-LISTP-BNEXT` +
-    `linear:HOW-MANY-BAD-PAIRS-BNEXT` for the dependency's OWN
-    `total:BNEXT` + `total:BNEXT-SIZE` + `tp:BNEXT-SIZE`, which arrive
-    after the totality/TP passes have run. Two conditions out, three in:
-    cost without payoff under the movement rule, so the widening is not
-    here. The remaining piece is named in the charter's ARC LOG (a
-    quiescence loop over the post-sweep passes, with `totalEnv` rebuilt
-    for the newly-freed names). -/
+/-- The demand seed WIDENED with the consumer's OFFER surfaces (T1+2
+    sprint P6; built and measured at P5a, adopted here once the post-sweep
+    passes run to quiescence).
+
+    A cited rune is not the only way a dependency theorem reaches a
+    telescope: the consumer's own `(:RULES …)` / `(:GROUND-ZERO-LINEAR-RULES
+    …)` snapshots OFFER stored rules whose names never appear in any tree's
+    citations — `TRUE-LISTP-BNEXT` is cited by nothing at all, and
+    `HOW-MANY-BAD-PAIRS-BNEXT` only inside `BSORT`'s ADMISSION waterfall —
+    yet both arrive at `BSORT-IS-ISORT` as hypotheses (the recorded-admission
+    totality proof maps the admission's own kept conditions onto the
+    consumer's telescope). Without a registry entry the discharge falls to
+    the re-replay route, which walls inside the consumer's telescope; with
+    one it takes the transfer.
+
+    The widening is DEMAND-SIDE ONLY: it can make the cross-book pre-pass
+    replay more dependency theorems (each a full, deterministic,
+    kernel-checked replay whose entry is matched by STATEMENT), never change
+    what any replay is allowed to use. Measured cost at
+    `sorting/sorts-equivalent`: the undemanded dep-theorem count drops
+    13 → 1, i.e. 12 extra cross-book replays.
+
+    P5a measured this widening ALONE as two conditions out, three in (the
+    dependency's own `total:BNEXT`/`total:BNEXT-SIZE`/`tp:BNEXT-SIZE` arrive
+    after the totality/TP passes) and reverted it under the movement rule.
+    Its partner is `replayProofConditional`'s post-replay QUIESCENCE loop,
+    which attempts those with a rebuilt `totalEnv`; the two land together. -/
+def bookDemandSeed (dev : Development) : List String :=
+  (bookCitedNames dev
+    ++ (allBookRules dev).map (·.name)
+    ++ dev.groundZeroLinearRuleSpecs.map (·.name)).eraseDups
 
 /-- WP5 — THE CROSS-BOOK D1 TRANSFER. A dependency book's replayed
     statement lives over ITS OWN world, so the D1 registry (whose entries
@@ -750,7 +768,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         if crossDevs.isEmpty then
           pure (([] : ReplayedRegistry),
                 ([] : List (String × Name × List String × List SExpr)))
-        else crossBookRegistry name w wExpr crossDevs (bookCitedNames dev)
+        else crossBookRegistry name w wExpr crossDevs (bookDemandSeed dev)
       let mut replayed : ReplayedRegistry := crossReg
       -- RECORDED-TERMINATION replayed statements (sorting arc 2026-07-28): defuns whose
       -- admission decrease is beyond the destructor walk get their recorded

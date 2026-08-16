@@ -143,7 +143,10 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
       else
         (ACL2.Replay.Runner.crossBookRegistry worldName.toString dev.toWorld
           (mkConst worldName) crossDevs
-          (ACL2.Replay.Runner.bookCitedNames dev))
+          -- the SAME seed the sweep uses (P6's widening): a pin and its
+          -- golden row must demand the same dependency set, or the pin
+          -- stops being a check on what the sweep does.
+          (ACL2.Replay.Runner.bookDemandSeed dev))
     let replayed := sameWorld ++ crossReg
     let (proof, conds) ← replayProofConditional cfg ch.tps cp
       dev.justifications

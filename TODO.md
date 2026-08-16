@@ -4807,6 +4807,34 @@ obligation is stated precisely in its conditional proof's type:
 
 ## Done (recent milestones, for context)
 
+- **2026-08-16 (T1+2 sprint P6 — THE LAST ROW, branch
+  `mdd/t12-sprint`):** the golden reaches **REPLAYED 116/116 (116
+  unconditional + 0 conditional)** — zero `cond[…]` on any row, zero FAIL
+  rows, zero `sorry`/`sorryAx` in the repository. `BSORT-IS-ISORT`'s
+  `cond[rule:TRUE-LISTP-BNEXT, linear:HOW-MANY-BAD-PAIRS-BNEXT]` retired
+  with NO new condition anywhere: the measuring sweep moved EXACTLY TWO
+  golden lines (that row and the header), the other 28 sections
+  byte-identical. Two pieces, landed together as J-P5a-e said they had to
+  be:
+  - the cross-book DEMAND SEED widened with the consumer's own OFFER
+    surfaces (`Runner.bookDemandSeed` = cited names + `allBookRules` +
+    `groundZeroLinearRuleSpecs` names) — neither BNEXT rule is cited by
+    any tree, so neither ever had a registry entry to discharge against.
+    Demand-side only: it can make the pre-pass replay more dependency
+    theorems, never change what a replay may use;
+  - the post-replay discharge lane RUN TO QUIESCENCE: the dependency
+    sweep and the `total:`/`tp:` passes now iterate inside ONE loop (each
+    layer introduces the other's hypotheses — the pair arrives from
+    BSORT's recorded ADMISSION proof, after the sweep), with `totalEnv`
+    REBUILT when a new needed fn appears, strict progress and a hard cap
+    (the P3c discipline, unchanged).
+  - RATCHET: `Driver/Harness.lean` went over the 1500 norm and was
+    brought back by a MOVE (the five Development-query declarations to a
+    new leaf `Driver/DevQuery.lean`), never a baseline entry — 1548 →
+    1483.
+  - Charter: `docs/plans/2026-08-14_t12-sprint-charter.md` §P6
+    (J-P6-a..d).
+
 - **2026-08-16 (T1+2 sprint P5a — the discharge-side closers, branch
   `mdd/t12-sprint`):** three of the five remaining conditional golden rows
   RETIRED; header 116/116 (111+5 → **113 unconditional + 3 conditional**),
