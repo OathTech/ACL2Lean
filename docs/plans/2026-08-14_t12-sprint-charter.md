@@ -894,3 +894,7 @@ the decode class, the cross-book transfer demand). The hard metrics:
 
 Remaining below: the claim gate (full invalidation first, per the
 P5 catalog-cache find) and its TRUE_EXIT=0 record.
+
+## CLAIM GATE: TRUE_EXIT=0 on 7b69166
+(artifact: `.gate-runs/7b69166-20260816T135429Z.log`; full invalidation
+first — every IO-read gate provably ran). THE SPRINT IS COMPLETE.
