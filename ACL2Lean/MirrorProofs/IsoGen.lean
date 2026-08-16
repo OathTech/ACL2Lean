@@ -92,25 +92,38 @@ DEFINITIONS to unfold (a non-definition is a hard error).
 **BOUND, HONESTLY (audit 2026-08-16, `docs/audits/2026-08-16_eob-audit-a1-tcb-trust.md`
 F1 — this paragraph previously claimed "definitional unfolding cannot
 introduce content", and that claim is FALSIFIED by demonstration).** The
-unfold-list check accepts anything with `.defnInfo` — INCLUDING a
-Prop-valued `def`. A deliberately-authored oriented definition can
-therefore be handed to the closer and CAN smuggle content into a square's
+unfold-list check USED TO accept anything with `.defnInfo` — INCLUDING a
+Prop-valued `def`. A deliberately-authored oriented definition could
+therefore be handed to the closer and DID smuggle content into a square's
 proof: the auditor closed the accumulator content square
 (`rev xs = revAccL xs []` — literally the standing example named above)
-with the fixed template plus one such `def`. What actually stopped the
+with the fixed template plus one such `def`. What stopped the
 demonstration at the last hop was the fail-close in the registry
 (duplicate registration for an already-squared definition,
-`IsoGen.lean:443-460`) — not the unfold gate. The consequence is bounded
+`IsoGen.lean:443-460`) — not the unfold gate. The consequence was bounded
 to PROVENANCE: such a square is still kernel-true, so no false mirror is
 reachable; what is lost is the evidence that the content came via replay.
 
-Threat model, per the two-standard rule: this gate is a SPEEDBUMP, reviewed
-by "does it catch the honest mistake" — which it does; the route above is
-deliberate construction, not an honest mistake. DO NOT HARDEN it with
-semantic classifiers; the per-book provenance audit is the backstop. The
-one-line tightening the audit identified (reject `isProp`-typed unfold
-entries) is a RECORDED OPEN RULING (synthesis R-1) and is deliberately NOT
-implemented here.
+**THE REJECTION NOW EXISTS (R-1a, ruled by Mike 2026-08-16 — synthesis
+R-1 "both taken").** The unfold-list validation additionally rejects
+Prop-typed entries (`Lean.Meta.isProp` on the constant's type, at the
+`.defnInfo` check below), so the demonstrated route now fails AT THE GATE
+with a named error; the attack is pinned as a negative test
+(`Tests/IsoGenGateTests.lean`, the tamper-test convention) so the gate
+cannot silently regress.
+
+Threat model, per the two-standard rule: this gate remains a SPEEDBUMP,
+reviewed by "does it catch the honest mistake" — which it does; the route
+above was deliberate construction, not an honest mistake, and closing it
+does NOT make the generator's provenance story a proof. **A determined
+author still has other routes** — the same audit records one on the same
+page (A1-F9: an `embed S via [fields]` richer embedding's extra fields are
+unconstrained in content, so a field proved machinery-side can be carried
+into a closer), and the general point stands that no syntactic check on
+the invocation can classify content. The bound is A1-F1's bound and it is
+unchanged by this fix: PROVENANCE only — a smuggled square is still
+kernel-true, so no false mirror is reachable. DO NOT HARDEN this with
+semantic classifiers; the per-book provenance audit is the backstop.
 
 ## THE ONE SQUARE TEMPLATE
 
@@ -704,7 +717,22 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
   let unfoldNames ← unfolds.mapM fun u => do
     let n ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo u
     match env.find? n with
-    | some (.defnInfo _) => pure n
+    | some (.defnInfo ui) =>
+      -- R-1a (ruled 2026-08-16, off audit A1-F1): `.defnInfo` ALONE lets a
+      -- PROP-VALUED `def` through, and the auditor closed the accumulator
+      -- CONTENT square that way. Reject the Prop case by name. Speedbump,
+      -- honest-mistake standard (two-standard rule): this shuts the
+      -- demonstrated route, not every route (A1-F9's `embed … via
+      -- [fields]` is the other one on record) — DO NOT HARDEN it with
+      -- semantic classifiers. Negative test: `Tests/IsoGenGateTests.lean`.
+      if ← liftTermElabM (Lean.Meta.isProp ui.type) then
+        throwError "mirror_iso%: `unfold [{n}]` is a PROP-VALUED \
+          definition — a Prop-valued def in the unfold list is the \
+          content-smuggling channel the 2026-08-16 audit demonstrated \
+          (A1-F1) — rejected; unfold accepts non-Prop DEFINITIONS only. \
+          Route a bridging fact through a replayed ACL2 book theorem \
+          instead."
+      pure n
     | _ => throwError "mirror_iso%: `unfold [{n}]` is not a DEFINITION — \
         the square closer unfolds definitions only. A LEMMA here would be \
         exactly the content channel the template gate closes: route a \

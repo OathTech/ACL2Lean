@@ -6,6 +6,8 @@ import ACL2Lean.Mirrors.Sorting
 import ACL2Lean.MirrorProofs.Basics
 import ACL2Lean.MirrorProofs.OrderBridge
 import ACL2Lean.MirrorProofs.Sorting
+-- the MIRROR-LEVEL seam gate (R-1b, 2026-08-16 — audit A1-F2)
+import ACL2Lean.MirrorProofs.SeamGate
 import ACL2Lean.Syntax
 import ACL2Lean.Parser
 import ACL2Lean.Import

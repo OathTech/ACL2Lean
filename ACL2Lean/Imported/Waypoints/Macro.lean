@@ -11,6 +11,42 @@ namespace ACL2.Imported.Waypoints
 
 open ACL2 ACL2.Replay ACL2.Replay.Driver ACL2.Lifting Lean Lean.Meta Lean.Elab
 
+/-- SEAM REACHABILITY — the ONE copy (R4, gate-cruft review 2026-08-11;
+    there used to be two cosmetically-divergent inlines). Does `start`'s
+    proof term transitively consume one of `seams`, and if so which? Only
+    constants under one of `expandUnder` are expanded; a seam itself is
+    matched by NAME and never expanded (its proof object is huge).
+    Deterministic, in-Lean.
+
+    MOVED here from `Waypoints/Catalog.lean` (R-1b, 2026-08-16) so the
+    MIRROR-level gate (`MirrorProofs/SeamGate.lean`) can reuse it without
+    importing the catalog — this module is upstream of both. Same
+    namespace, so the catalog's call site is unchanged. -/
+def seamReachesAny? (env : Lean.Environment) (start : Lean.Name)
+    (seams : List Lean.Name)
+    (expandUnder : List Lean.Name := [`ACL2.Imported.Waypoints]) :
+    Option Lean.Name :=
+  Id.run do
+    let mut frontier : List Lean.Name := [start]
+    let mut visited : Lean.NameSet := {}
+    let mut found : Option Lean.Name := none
+    while found.isNone && !frontier.isEmpty do
+      let c := frontier.head!
+      frontier := frontier.tail!
+      unless visited.contains c do
+        visited := visited.insert c
+        if seams.contains c then
+          found := some c
+        else if expandUnder.any (·.isPrefixOf c) then
+          if let some ci := env.find? c then
+            if let some v := ci.value? then
+              frontier := v.getUsedConstants.toList ++ frontier
+    return found
+
+/-- The single-seam form — the waypoint-layer catalog gate's shape. -/
+def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
+  (seamReachesAny? env start [seam]).isSome
+
 /-- `driver_replayed% dev world "thm-name"` — the DRIVER's conditional replayed statement
     for the named theorem of the development `dev`, over the derived world
     constant `world`: a `∀ env, <hypotheses> → ∃N∀f≥N ∃v, eval = some v ∧

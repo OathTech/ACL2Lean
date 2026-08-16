@@ -566,29 +566,11 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/qsort", "ORDEREDP-QSORT", .native ``orderedp_qsort_native_driver ``orderedpQsortReplayedCond),
   ("sorting/qsort", "TRUE-LISTP-QSORT", .replayedOnly "subsumed by the qsort simulation (qsort_exec_corr/qsortExec_enc) — the type-absorbed true-listp doctrine")]
 
-/-- SEAM REACHABILITY — the ONE copy (R4, gate-cruft review 2026-08-11;
-    there used to be two cosmetically-divergent inlines). Does `start`'s
-    proof term transitively consume `seam`? Only constants inside
-    `ACL2.Imported.Waypoints` are expanded; the seam itself is matched by
-    NAME and never expanded (its proof object is huge). Deterministic,
-    in-Lean. -/
-def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
-  Id.run do
-    let mut frontier : List Lean.Name := [start]
-    let mut visited : Lean.NameSet := {}
-    let mut found := false
-    while !found && !frontier.isEmpty do
-      let c := frontier.head!
-      frontier := frontier.tail!
-      unless visited.contains c do
-        visited := visited.insert c
-        if c == seam then
-          found := true
-        else if (`ACL2.Imported.Waypoints).isPrefixOf c then
-          if let some ci := env.find? c then
-            if let some v := ci.value? then
-              frontier := v.getUsedConstants.toList ++ frontier
-    return found
+-- SEAM REACHABILITY (`seamReaches`) lives in `Waypoints/Macro.lean` since
+-- R-1b (2026-08-16) — same namespace, so the call sites below are
+-- unchanged. It moved UPSTREAM so the mirror-level seam gate
+-- (`MirrorProofs/SeamGate.lean`) reuses the one copy rather than cloning
+-- it: `MirrorProofs` cannot import this catalog.
 
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
