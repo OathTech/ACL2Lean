@@ -43,8 +43,9 @@ theorem how_many_append_native_driver (ev : SExpr) (xs ys : List SExpr) :
 #print axioms how_many_append_native_driver
 
 set_option maxHeartbeats 1600000 in
-/-- The driver's CONDITIONAL replayed statement for CAR-APPEND (one
-    hypothesis: the if-lifting rule `(equal (if a b c) x)`). -/
+/-- The driver's replayed statement for CAR-APPEND — now
+    UNCONDITIONAL (its one hypothesis, the if-lifting rule
+    `(equal (if a b c) x)`, is discharged by the D5 registry, P4b). -/
 def carAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
   "car-append"
 
@@ -53,7 +54,11 @@ theorem carAppendReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.car_appendFormula = some v ∧ v ≠ SExpr.nil :=
   carAppendReplayedCond env
-    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+    -- (the five arithmetic-3 runes rule:(+ y x) / (+ y (+ x z)) /
+    -- (+ (+ x y) z) / (+ x (if a b c)) / (equal (if a b c) x) RETIRED,
+    -- T1+2 sprint P4b 2026-08-15 — the D5 registry discharges each at its
+    -- CITED rune from the prelude constant, so the hypotheses left the
+    -- telescope and the hand-applied `dis_*` arguments went with them.)
 
 /-- ENTRY, PROVED — CAR-APPEND natively: the head of an append. -/
 theorem car_append_native_driver (xs ys : List SExpr) :
@@ -177,9 +182,11 @@ theorem all_rel_filter_2_native_driver (ev : SExpr) (xs : List SExpr) :
 #print axioms all_rel_filter_2_native_driver
 
 set_option maxHeartbeats 1600000 in
-/-- The driver's CONDITIONAL replayed statement for HOW-MANY-FILTER-1
-    (hypotheses: `tp:HOW-MANY`, `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0`,
-    and the three arithmetic-3 comm/assoc rules). -/
+/-- The driver's replayed statement for HOW-MANY-FILTER-1 — now
+    UNCONDITIONAL (`tp:HOW-MANY` and
+    `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` by the TP prover and the
+    dependency transfer; the three arithmetic-3 comm/assoc rules by the
+    D5 registry, P4b). -/
 def howManyFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "how-many-filter-1" deps [convertPermDev]
 
@@ -188,9 +195,11 @@ theorem howManyFilter1Replayed_uncond (env : Env) :
       Worlds.Sorting.how_many_filter_1Formula = some v ∧ v ≠ SExpr.nil :=
   howManyFilter1ReplayedCond env
 
-    (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
+    -- (the five arithmetic-3 runes rule:(+ y x) / (+ y (+ x z)) /
+    -- (+ (+ x y) z) / (+ x (if a b c)) / (equal (if a b c) x) RETIRED,
+    -- T1+2 sprint P4b 2026-08-15 — the D5 registry discharges each at its
+    -- CITED rune from the prelude constant, so the hypotheses left the
+    -- telescope and the hand-applied `dis_*` arguments went with them.)
 
 /-- ENTRY, PROVED — HOW-MANY-FILTER-1 natively: the LT/GTE filters
     PARTITION every element's multiplicity. -/
@@ -208,11 +217,12 @@ theorem how_many_filter_1_native_driver (ev dv : SExpr)
 #print axioms how_many_filter_1_native_driver
 
 set_option maxHeartbeats 4000000 in
-/-- The driver's CONDITIONAL replayed statement for ORDEREDP-APPEND —
-    ONE hypothesis left, the if-lifting rule `(equal (if a b c) x)`:
-    both TP conditions (`tp:ALL-REL`, and `tp:BINARY-APPEND` in its
-    ARGS-VALUED shape) are now supplied by the driver's TP prover
-    (TP-replay arc increments 4 and 5, 2026-08-13). -/
+/-- The driver's replayed statement for ORDEREDP-APPEND — now
+    UNCONDITIONAL: both TP conditions (`tp:ALL-REL`, and
+    `tp:BINARY-APPEND` in its ARGS-VALUED shape) come from the driver's
+    TP prover (TP-replay arc increments 4 and 5, 2026-08-13), and the
+    last one left, the if-lifting rule `(equal (if a b c) x)`, from the
+    D5 registry (P4b). -/
 def orderedpAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
   "orderedp-append"
 
@@ -221,7 +231,11 @@ theorem orderedpAppendReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.orderedp_appendFormula = some v ∧ v ≠ SExpr.nil :=
   orderedpAppendReplayedCond env
-    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+    -- (the five arithmetic-3 runes rule:(+ y x) / (+ y (+ x z)) /
+    -- (+ (+ x y) z) / (+ x (if a b c)) / (equal (if a b c) x) RETIRED,
+    -- T1+2 sprint P4b 2026-08-15 — the D5 registry discharges each at its
+    -- CITED rune from the prelude constant, so the hypotheses left the
+    -- telescope and the hand-applied `dis_*` arguments went with them.)
 
 /-- ENTRY, PROVED — ORDEREDP-APPEND natively: for sorted `as`, the
     append `as ++ ev :: bs` is sorted EXACTLY when `bs` is sorted,
@@ -257,11 +271,11 @@ theorem howManyQsortReplayed_uncond (env : Env) :
     -- duality make the driver PROVE both admissions from ACL2's own
     -- emitted ground-zero termination clauses, so the hypotheses left
     -- the telescope and `dis_o_lt_total` was deleted.)
-    (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_if_lift qsortWorldD (by decide))
-    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+    -- (the five arithmetic-3 runes rule:(+ y x) / (+ y (+ x z)) /
+    -- (+ (+ x y) z) / (+ x (if a b c)) / (equal (if a b c) x) RETIRED,
+    -- T1+2 sprint P4b 2026-08-15 — the D5 registry discharges each at its
+    -- CITED rune from the prelude constant, so the hypotheses left the
+    -- telescope and the hand-applied `dis_*` arguments went with them.)
 
 set_option maxHeartbeats 1600000 in
 /-- ENTRY, PROVED — HOW-MANY-QSORT natively: QUICKSORT PRESERVES
@@ -301,11 +315,11 @@ theorem permQsortReplayed_uncond (env : Env) :
     -- 2026-08-15 — the cross-book D1 transfer replays the dependency
     -- at this world, so the hypothesis left the telescope and
     -- `dis_convert_perm` was deleted.)
-    (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_if_lift qsortWorldD (by decide))
-    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+    -- (the five arithmetic-3 runes rule:(+ y x) / (+ y (+ x z)) /
+    -- (+ (+ x y) z) / (+ x (if a b c)) / (equal (if a b c) x) RETIRED,
+    -- T1+2 sprint P4b 2026-08-15 — the D5 registry discharges each at its
+    -- CITED rune from the prelude constant, so the hypotheses left the
+    -- telescope and the hand-applied `dis_*` arguments went with them.)
 
 set_option maxHeartbeats 1600000 in
 /-- ENTRY, PROVED — PERM-QSORT natively: QUICKSORT PERMUTES —
@@ -348,11 +362,11 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
     -- 2026-08-15 — the cross-book D1 transfer replays the dependency
     -- at this world, so the hypothesis left the telescope and
     -- `dis_convert_perm` was deleted.)
-    (Worlds.Sorting.dis_plus_comm qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_comm2 qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_assoc qsortWorldD (by decide))
-    (Worlds.Sorting.dis_plus_if_lift qsortWorldD (by decide))
-    (Worlds.Sorting.dis_equal_if_lift qsortWorldD (by decide))
+    -- (the five arithmetic-3 runes rule:(+ y x) / (+ y (+ x z)) /
+    -- (+ (+ x y) z) / (+ x (if a b c)) / (equal (if a b c) x) RETIRED,
+    -- T1+2 sprint P4b 2026-08-15 — the D5 registry discharges each at its
+    -- CITED rune from the prelude constant, so the hypotheses left the
+    -- telescope and the hand-applied `dis_*` arguments went with them.)
     (Worlds.Sorting.dis_rule_orderedp_append qsortWorldD (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide) (by decide) (by decide)

@@ -155,6 +155,28 @@ admits no complex values), not a statement weakening, and fail-closed
 under a future fix here (the `isDefEq _ nil` guards stop matching and
 those proofs stop elaborating, loudly).
 
+**Dependency note (2026-08-15, T1+2 sprint P4b) — THIRD SITE, the
+TYPE-SET comparison.** `ACL2Lean/Replay/Driver/TsFacts.lean`'s
+`tsAcl2MaskOk`, consumed by `recogVerdictFromTs`
+(`Replay/Driver/NodeCore/TypeSetWalk.lean`). ACL2 encodes basic type
+INDEX 6 as `*ts-complex-rational*`; `tsIndex`
+(`Replay/Lemmas/TsAlgebra.lean`) never returns 6, so `InTs m v` and
+`InTs (m ∪ {6}) v` are the SAME proposition on this model and a derived
+mask can never carry that bit. ACL2's `<` DOES order complex rationals,
+so `(< N '0)` true is emitted with `:TYPESET 112` where the model
+derives `48` — 112 = 48 ∪ {bit 6} exactly. The cross-check "ACL2's
+emitted mask must be inside the one we derived" therefore demanded the
+impossible and refused a strictly-STRONGER derivation (`CD2-BOUND`'s
+`Subgoal 1`, recorded as charter J-P4a-g). The comparison now discounts
+index 6 AND NOTHING ELSE — any other bit ACL2 has and we do not still
+fails, closed. The verdict is unchanged (still ACL2's) and the proof
+still runs on OUR mask and OUR `InTs` fact; this is the same domain
+restriction as the two sites above, applied at one more place. Fail
+direction under a future fix: index 6 becomes inhabited and the discount
+becomes unsound to keep, so `tsAcl2MaskOk` must be DELETED (reverting to
+`tsSubsumedM`) alongside any fix here — its docstring says so at the
+site.
+
 ## BUG-010 — mixed/partial escaping within a symbol token not implemented
 Status: open
 Pinned-by: differential

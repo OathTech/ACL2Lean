@@ -803,7 +803,9 @@ partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
     Two cross-checks, both against ACL2's OWN emitted numbers: the
     step's `:TRUETS` must equal the registry's, and ACL2's emitted
     `:TYPESET` must be INSIDE the mask we derived (we may prove something
-    weaker than ACL2 knew — never something it contradicts). -/
+    weaker than ACL2 knew — never something it contradicts), modulo the
+    model's PINNED complex-rational restriction (`tsAcl2MaskOk`,
+    BUG-009). -/
 def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
     (recog : String) (arg : SExpr) (verdict : SExpr)
     (stepTs trueTs : Option Int) (argLeaves : List TpLeaf)
@@ -834,8 +836,12 @@ def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
     else inTsCandidates cfg ctxA [] citedCr arg va
   for (m, hv) in cands do
     -- ACL2's own verdict for the argument must be INSIDE what we derived
+    -- BUG-009 discount (T1+2 sprint P4b): index 6 (*ts-complex-rational*)
+    -- is uninhabited in the model, so a derived mask can never carry it;
+    -- `tsAcl2MaskOk` discounts EXACTLY that bit and stays closed on every
+    -- other. See its docstring.
     let acl2Ok := match stepTs with
-      | some ts => ACL2.Replay.tsSubsumedM ts m
+      | some ts => tsAcl2MaskOk ts m
       | none => false
     unless acl2Ok do continue
     if verdict == SExpr.t then

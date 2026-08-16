@@ -1352,16 +1352,6 @@ theorem re_equal_nil_norm_r (w : World) (env : Env) (x : SExpr)
 
 private def intAtom (n : Int) : SExpr := .atom (.number (.int n))
 
-/-- Strong induction over an ARBITRARY Nat measure (μ is Lean bookkeeping —
-    design I1; the recorded-termination route instantiates the interpreted
-    ACL2-COUNT). -/
-theorem measure_strong_induction_val (μ : SExpr → Nat) (P : SExpr → Prop)
-    (step : ∀ x, (∀ y, μ y < μ x → P y) → P x) : ∀ x, P x := by
-  intro x
-  generalize h : μ x = n
-  induction n using Nat.strong_induction_on generalizing x with
-  | _ n ih => exact step x (fun y hy => ih (μ y) (h ▸ hy) y rfl)
-
 theorem totality_1_rec_mu (μ : SExpr → Nat)
     (w : World) (s : Symbol) (formal : Symbol) (body : SExpr)
     (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧

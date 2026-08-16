@@ -1,4 +1,4 @@
-Driver coverage — REPLAYED 115/116 (105 unconditional + 10 conditional)
+Driver coverage — REPLAYED 116/116 (111 unconditional + 5 conditional)
 Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓
@@ -47,7 +47,7 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     TRUE-LISTP-FLATTEN → REPLAYED ✓
 • 11-custom-measure  (world: 12 defun(s), 1 theorem(s))
     termination:CD2 → REPLAYED ✓
-    CD2-BOUND → FAIL: compound-recognizer: no in-scope falsity fact for (INTEGERP N) (frontier)  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ✓ cond[total:(CD2 (BINARY-+ '-2 N)), tp:CD2], Subgoal *1/4:preprocess/tau-contradiction ✓ cond[total:(CD2 N), tp:CD2], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(CD2 N), tp:CD2]]
+    CD2-BOUND → REPLAYED ✓  [DISCHARGE: Subgoal *1/5':preprocess/tau-contradiction ✓ cond[total:(CD2 (BINARY-+ '-2 N)), tp:CD2], Subgoal *1/4:preprocess/tau-contradiction ✓ cond[total:(CD2 N), tp:CD2], Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(CD2 N), tp:CD2]]
 • 12-multi-controller  (world: 12 defun(s), 1 theorem(s))
     LEN-ZIP2 → REPLAYED ✓  [DISCHARGE: Subgoal *1/2':preprocess/tau-contradiction ✓ cond[total:(ZIP2 (CDR X) (CDR Y)), tp:ZIP2], Subgoal *1/1':preprocess/tau-contradiction ✓]
 • 13-multi-measured-var  (world: 11 defun(s), 1 theorem(s))
@@ -135,19 +135,19 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
 • sorting/qsort  (world: 205 defun(s), 13 theorem(s))
     termination:QSORT → REPLAYED ✓
     HOW-MANY-APPEND → REPLAYED ✓
-    HOW-MANY-FILTER-1 → REPLAYED ✓ cond[rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z)]  [DISCHARGE: Subgoal *1/3.5:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/3.3:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), total:(HOW-MANY E (CONS (CAR X) (FILTER 'GTE (CDR X) D))), total:(HOW-MANY E (CONS (CAR X) (FILTER 'LT (CDR X) D))), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/3.1:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.5:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) D)), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) D)), total:(HOW-MANY (CAR X) (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.3:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) D)), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) D)), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) (CONS (CAR X) (FILTER 'GTE (CDR X) D))), total:(HOW-MANY (CAR X) (CONS (CAR X) (FILTER 'LT (CDR X) D))), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.1:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) (CAR X))), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) (CAR X))), total:(HOW-MANY (CAR X) (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY]]
-    HOW-MANY-QSORT → REPLAYED ✓ cond[rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x)]
-    PERM-QSORT → REPLAYED ✓ cond[rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x)]
-    CAR-APPEND → REPLAYED ✓ cond[rule:(equal (if a b c) x)]
-    ORDEREDP-APPEND → REPLAYED ✓ cond[rule:(equal (if a b c) x)]  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP], Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP]]
+    HOW-MANY-FILTER-1 → REPLAYED ✓  [DISCHARGE: Subgoal *1/3.5:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/3.3:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), total:(HOW-MANY E (CONS (CAR X) (FILTER 'GTE (CDR X) D))), total:(HOW-MANY E (CONS (CAR X) (FILTER 'LT (CDR X) D))), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/3.1:preprocess/tau-contradiction ✓ cond[total:(HOW-MANY E (FILTER 'LT (CDR X) D)), total:(HOW-MANY E (FILTER 'GTE (CDR X) D)), total:(HOW-MANY E (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.5:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) D)), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) D)), total:(HOW-MANY (CAR X) (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.3:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) D)), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) D)), total:(HOW-MANY (CAR X) (CDR X)), total:(HOW-MANY (CAR X) (CONS (CAR X) (FILTER 'GTE (CDR X) D))), total:(HOW-MANY (CAR X) (CONS (CAR X) (FILTER 'LT (CDR X) D))), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY], Subgoal *1/2.1:simplify-clause/fc-contradiction ✓ cond[total:(HOW-MANY (CAR X) (FILTER 'LT (CDR X) (CAR X))), total:(HOW-MANY (CAR X) (FILTER 'GTE (CDR X) (CAR X))), total:(HOW-MANY (CAR X) (CDR X)), tp:HOW-MANY, tp:HOW-MANY, tp:HOW-MANY]]
+    HOW-MANY-QSORT → REPLAYED ✓
+    PERM-QSORT → REPLAYED ✓
+    CAR-APPEND → REPLAYED ✓
+    ORDEREDP-APPEND → REPLAYED ✓  [DISCHARGE: Subgoal *1.1/5:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP], Subgoal *1.1/1:preprocess/type-set-fc ✓ cond[total:(ORDEREDP A4), total:(ORDEREDP (BINARY-APPEND A4 (CONS E B))), tp:ORDEREDP, tp:ORDEREDP]]
     ALL-REL-FILTER-1 → REPLAYED ✓
     ALL-REL-FILTER-2 → REPLAYED ✓
     ALL-REL-RM-1 → REPLAYED ✓
     ALL-REL-RM-2 → REPLAYED ✓
     PERM-IMPLIES-EQUAL-ALL-REL-2 → REPLAYED ✓
-    ORDEREDP-QSORT → REPLAYED ✓ cond[rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]
+    ORDEREDP-QSORT → REPLAYED ✓ cond[rule:ORDEREDP-APPEND]
     TRUE-LISTP-QSORT → REPLAYED ✓ cond[tp:QSORT]  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]
 • sorting/sorts-equivalent  (world: 215 defun(s), 3 theorem(s))
     MSORT-IS-ISORT → REPLAYED ✓
-    QSORT-IS-ISORT → REPLAYED ✓ cond[tp:QSORT, rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]
+    QSORT-IS-ISORT → REPLAYED ✓ cond[tp:QSORT, rule:ORDEREDP-APPEND]
     BSORT-IS-ISORT → REPLAYED ✓ cond[rule:TRUE-LISTP-BNEXT, linear:HOW-MANY-BAD-PAIRS-BNEXT]  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), ASSUMED:dp-fact]]

@@ -84,18 +84,31 @@ theorem conv_defn_2_ex (w : World) (env : Env) (s : Symbol)
     h_ns h_def h1 h2 ⟨Nb, hb⟩
   exact ⟨N, v, h⟩
 
-/-- WELL-FOUNDED (strong) induction on `consCount` — the spine of
-    admission-derived totality proofs (#37). The driver instantiates the
-    motive `P av := the function converges at argument VALUE av`; the
-    inductive hypothesis covers every value of strictly smaller `consCount`,
-    and the admission's emitted decrease obligations justify applying it at
-    each recursive call's argument value. -/
-theorem consCount_strong_induction (P : SExpr → Prop)
-    (step : ∀ x, (∀ y, y.consCount < x.consCount → P y) → P x) : ∀ x, P x := by
+/-- WELL-FOUNDED (strong) induction over an ARBITRARY Nat measure — the
+    spine of admission-derived totality proofs (#37) and of the TP body
+    inductions. The driver instantiates the motive `P av := the function
+    converges at argument VALUE av`; the inductive hypothesis covers every
+    value of strictly smaller μ, and the admission's emitted decrease
+    obligations justify applying it at each recursive call's argument
+    value. μ is proof bookkeeping only (design I1) — it appears in no
+    statement the driver produces.
+
+    THE ONE COPY (T1+2 sprint P4b): `consCount_strong_induction` below and
+    `Judgments`' copy of `measure_strong_induction_val` were the same
+    theorem stated twice; both are now this one, instantiated. (The
+    ENV-level `measure_strong_induction` below is a different lemma.) -/
+theorem measure_strong_induction_val (μ : SExpr → Nat) (P : SExpr → Prop)
+    (step : ∀ x, (∀ y, μ y < μ x → P y) → P x) : ∀ x, P x := by
   intro x
-  generalize h : x.consCount = n
+  generalize h : μ x = n
   induction n using Nat.strong_induction_on generalizing x with
-  | _ n ih => exact step x (fun y hy => ih y.consCount (h ▸ hy) y rfl)
+  | _ n ih => exact step x (fun y hy => ih (μ y) (h ▸ hy) y rfl)
+
+/-- Strong induction on `consCount` — `measure_strong_induction` at the
+    `count` measure-table row's μ. -/
+theorem consCount_strong_induction (P : SExpr → Prop)
+    (step : ∀ x, (∀ y, y.consCount < x.consCount → P y) → P x) : ∀ x, P x :=
+  measure_strong_induction_val SExpr.consCount P step
 
 /-- ENV-LEVEL strong induction over an interpreted MEASURE (the
     induction-generality scaffold lemma, design §I2 — J1-spike-validated).

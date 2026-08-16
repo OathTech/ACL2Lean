@@ -249,9 +249,11 @@ elab "sorting_statement_pins_run% " : term => do
       -- sprint P3c: the WP5 cross-book D1 transfer replays the
       -- dependency at this world, so the hypothesis left the
       -- telescope. INTENTIONAL; diagnosed row-by-row.)
-      "    PERM-QSORT → REPLAYED ✓ cond[\
-rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
-rule:(+ x (if a b c)), rule:(equal (if a b c) x)]"),
+      -- (the ARITHMETIC-3 family + the if-lifting rule RETIRED
+      -- 2026-08-15 — T1+2 sprint P4b: all five are registered in
+      -- `d5GzRules` and discharged at their CITED runes from the D5
+      -- prelude constants. INTENTIONAL; diagnosed row-by-row.)
+      "    PERM-QSORT → REPLAYED ✓"),
      ("pins/sorting/qsort",
       -- (tp:ACL2-COUNT dropped 2026-08-14 — the D-A consumer; see
       -- PERM-QSORT above.)
@@ -274,9 +276,11 @@ cond[total:(QSORT X), tp:QSORT]]"),
       -- sprint P3c: the WP5 cross-book D1 transfer replays the
       -- dependency at this world, so the hypothesis left the
       -- telescope. INTENTIONAL; diagnosed row-by-row.)
-      "    ORDEREDP-QSORT → REPLAYED ✓ cond[\
-rule:(+ y x), rule:(+ y (+ x z)), rule:(+ (+ x y) z), \
-rule:(+ x (if a b c)), rule:(equal (if a b c) x), rule:ORDEREDP-APPEND]"),
+      -- (the ARITHMETIC-3 family + the if-lifting rule RETIRED
+      -- 2026-08-15 — T1+2 sprint P4b: all five are registered in
+      -- `d5GzRules` and discharged at their CITED runes from the D5
+      -- prelude constants. INTENTIONAL; diagnosed row-by-row.)
+      "    ORDEREDP-QSORT → REPLAYED ✓ cond[rule:ORDEREDP-APPEND]"),
      ("pins/sorting/perm",
       "    PERM-CONS → REPLAYED ✓"),
      ("pins/sorting/ordered-perms",
@@ -459,25 +463,15 @@ example :
       -- if-lifting rules (all unconditional; cited by HOW-MANY-QSORT's own
       -- replay, inherited since its rule: condition discharges from its
       -- replayed statement)
-      ruleEqHyp qsortPinsWorld
-        (ap2 "BINARY-+" (sym "Y") (sym "X"))
-        (ap2 "BINARY-+" (sym "X") (sym "Y")) →
-      ruleEqHyp qsortPinsWorld
-        (ap2 "BINARY-+" (sym "Y") (ap2 "BINARY-+" (sym "X") (sym "Z")))
-        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
-      ruleEqHyp qsortPinsWorld
-        (ap2 "BINARY-+" (ap2 "BINARY-+" (sym "X") (sym "Y")) (sym "Z"))
-        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
-      ruleEqHyp qsortPinsWorld
-        (ap2 "BINARY-+" (sym "X") (ap3 "IF" (sym "A") (sym "B") (sym "C")))
-        (ap3 "IF" (sym "A")
-          (ap2 "BINARY-+" (sym "X") (sym "B"))
-          (ap2 "BINARY-+" (sym "X") (sym "C"))) →
-      ruleEqHyp qsortPinsWorld
-        (ap2 "EQUAL" (ap3 "IF" (sym "A") (sym "B") (sym "C")) (sym "X"))
-        (ap3 "IF" (sym "A")
-          (ap2 "EQUAL" (sym "B") (sym "X"))
-          (ap2 "EQUAL" (sym "C") (sym "X"))) →
+      -- (the ARITHMETIC-3 family — rule:(+ y x), rule:(+ y (+ x z)),
+      -- rule:(+ (+ x y) z), rule:(+ x (if a b c)) — and the if-lifting
+      -- rule:(equal (if a b c) x) RETIRED 2026-08-15, T1+2 sprint P4b:
+      -- the five are registered in `d5GzRules`, so the driver discharges
+      -- each at its CITED rune from its D5 prelude constant
+      -- (`Replay/GzRules.lean`, recompute-checked against the emitted
+      -- `(:RULES …)` entry). The hypotheses left the telescope and the
+      -- pinned type drops them. INTENTIONAL; diagnosed against the
+      -- golden.)
       EvTrue qsortPinsWorld env (ap2 "PERM" (ap1 "QSORT" (sym "X")) (sym "X")) :=
   ReplayedStatements.replayed_pins_sorting_qsort_PERM_QSORT
 
@@ -811,25 +805,15 @@ example :
       -- if-lifting rules (all unconditional; cited by HOW-MANY-QSORT's own
       -- replay, inherited since its rule: condition discharges from its
       -- replayed statement)
-      ruleEqHyp qsortPinsWorld
-        (ap2 "BINARY-+" (sym "Y") (sym "X"))
-        (ap2 "BINARY-+" (sym "X") (sym "Y")) →
-      ruleEqHyp qsortPinsWorld
-        (ap2 "BINARY-+" (sym "Y") (ap2 "BINARY-+" (sym "X") (sym "Z")))
-        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
-      ruleEqHyp qsortPinsWorld
-        (ap2 "BINARY-+" (ap2 "BINARY-+" (sym "X") (sym "Y")) (sym "Z"))
-        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
-      ruleEqHyp qsortPinsWorld
-        (ap2 "BINARY-+" (sym "X") (ap3 "IF" (sym "A") (sym "B") (sym "C")))
-        (ap3 "IF" (sym "A")
-          (ap2 "BINARY-+" (sym "X") (sym "B"))
-          (ap2 "BINARY-+" (sym "X") (sym "C"))) →
-      ruleEqHyp qsortPinsWorld
-        (ap2 "EQUAL" (ap3 "IF" (sym "A") (sym "B") (sym "C")) (sym "X"))
-        (ap3 "IF" (sym "A")
-          (ap2 "EQUAL" (sym "B") (sym "X"))
-          (ap2 "EQUAL" (sym "C") (sym "X"))) →
+      -- (the ARITHMETIC-3 family — rule:(+ y x), rule:(+ y (+ x z)),
+      -- rule:(+ (+ x y) z), rule:(+ x (if a b c)) — and the if-lifting
+      -- rule:(equal (if a b c) x) RETIRED 2026-08-15, T1+2 sprint P4b:
+      -- the five are registered in `d5GzRules`, so the driver discharges
+      -- each at its CITED rune from its D5 prelude constant
+      -- (`Replay/GzRules.lean`, recompute-checked against the emitted
+      -- `(:RULES …)` entry). The hypotheses left the telescope and the
+      -- pinned type drops them. INTENTIONAL; diagnosed against the
+      -- golden.)
       ruleEqHyp1 qsortPinsWorld
         (ap1 "ORDEREDP" (sym "A"))
         (ap1 "ORDEREDP" (ap2 "BINARY-APPEND" (sym "A") (ap2 "CONS" (sym "E") (sym "B"))))
@@ -1138,36 +1122,28 @@ example :
       -- consumer: the R2 fork batch's context-refined leaves carry
       -- ACL2's own derivation, so the corollary is PROVED and the
       -- hypothesis left the telescope.)
-      -- tp:QSORT SURVIVES — the arc's one named honest blocker: qsort's
-      -- emitted BINARY-APPEND corollary is too weak for TRUE-LISTP, and
-      -- the stored strengthening (TRUE-LISTP-APPEND, now visible in
-      -- :ALL-TPS) arrives without per-rule leaves. FORK-EMISSION item.
+      -- tp:QSORT SURVIVES — the arc's one named honest blocker. The
+      -- verbatim frontier (T1+2 sprint P4b, read off the new
+      -- ACL2LEAN_TP_DIAG sink): "proveTp: BINARY-APPEND's corollary
+      -- class …conspOrArg neither matches nor implies the …trueListp
+      -- class QSORT's prescription needs". NOT a fork-emission item —
+      -- fork round-trip 2 landed the per-rule `:LEAVES` and `:term`, so
+      -- the stored strengthening TRUE-LISTP-APPEND IS fully emitted.
+      -- It is a CONSUMPTION item: the `:ALL-TPS` data path plus a
+      -- hypothesis-carrying `proveTp` mode. Map in the sprint charter.
       tpPred1 sortsEqPinsWorld "QSORT" Logic.trueListp →
       -- (rule:TRUE-LISTP-RM and rule:CONVERT-PERM-TO-HOW-MANY RETIRED
       -- 2026-08-15 — the WP5 transfer, see MSORT-IS-ISORT above.)
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "BINARY-+" (sym "Y") (sym "X"))
-        (ap2 "BINARY-+" (sym "X") (sym "Y")) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "BINARY-+" (sym "Y") (ap2 "BINARY-+" (sym "X") (sym "Z")))
-        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
-      -- (rule:(+ (+ x y) z) JOINED the telescope 2026-08-15 — P3c:
-      -- retiring rule:HOW-MANY-FILTER-1 inherits that dependency's own
-      -- honest kept condition (net −4/+1 premises). INTENTIONAL;
-      -- diagnosed — the arithmetic-rune family owns its retirement.)
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "BINARY-+" (ap2 "BINARY-+" (sym "X") (sym "Y")) (sym "Z"))
-        (ap2 "BINARY-+" (sym "X") (ap2 "BINARY-+" (sym "Y") (sym "Z"))) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "BINARY-+" (sym "X") (ap3 "IF" (sym "A") (sym "B") (sym "C")))
-        (ap3 "IF" (sym "A")
-          (ap2 "BINARY-+" (sym "X") (sym "B"))
-          (ap2 "BINARY-+" (sym "X") (sym "C"))) →
-      ruleEqHyp sortsEqPinsWorld
-        (ap2 "EQUAL" (ap3 "IF" (sym "A") (sym "B") (sym "C")) (sym "X"))
-        (ap3 "IF" (sym "A")
-          (ap2 "EQUAL" (sym "B") (sym "X"))
-          (ap2 "EQUAL" (sym "C") (sym "X"))) →
+      -- (the ARITHMETIC-3 family — rule:(+ y x), rule:(+ y (+ x z)),
+      -- rule:(+ (+ x y) z), rule:(+ x (if a b c)) — and the if-lifting
+      -- rule:(equal (if a b c) x) RETIRED 2026-08-15, T1+2 sprint P4b:
+      -- all five are registered in `d5GzRules`, so the driver discharges
+      -- each at its CITED rune from its D5 prelude constant
+      -- (`Replay/GzRules.lean`, recompute-checked against the emitted
+      -- `(:RULES …)` entry). This ALSO closes P3c's flagged +1: the
+      -- rule:(+ (+ x y) z) that JOINED here when rule:HOW-MANY-FILTER-1
+      -- retired is gone with the rest. INTENTIONAL; diagnosed against
+      -- the golden.)
       -- (rule:HOW-MANY-FILTER-1 and rule:HOW-MANY-QSORT RETIRED
       -- 2026-08-15 — P3c: both are qsort-book theorems the transfer
       -- now replays at this world; FILTER-1's own arithmetic premise

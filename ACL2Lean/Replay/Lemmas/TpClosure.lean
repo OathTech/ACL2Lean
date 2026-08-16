@@ -260,10 +260,11 @@ theorem tp_hyp_3_of_body (w : World) (s : Symbol)
   exact (val_unique h happ) ▸ hPu
 
 /-- The TP body induction at arity 3, measure on the FIRST formal. -/
-theorem tp_3_rec (formal1 formal2 formal3 : Symbol) (body : SExpr)
+theorem tp_3_rec_mu (μ : SExpr → Nat)
+    (formal1 formal2 formal3 : Symbol) (body : SExpr)
     (w : World) (P : SExpr → Prop)
     (step : ∀ av1 : SExpr,
-      (∀ bv : SExpr, bv.consCount < av1.consCount → ∀ cv dv : SExpr,
+      (∀ bv : SExpr, μ bv < μ av1 → ∀ cv dv : SExpr,
         ConvToP w (bindArgs [formal1, formal2, formal3] [bv, cv, dv])
           body P) →
       ∀ av2 av3 : SExpr,
@@ -272,7 +273,7 @@ theorem tp_3_rec (formal1 formal2 formal3 : Symbol) (body : SExpr)
     ∀ av1 av2 av3 : SExpr,
       ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
         body P :=
-  consCount_strong_induction
+  measure_strong_induction_val μ
     (fun av1 => ∀ av2 av3,
       ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
         body P)
@@ -280,10 +281,11 @@ theorem tp_3_rec (formal1 formal2 formal3 : Symbol) (body : SExpr)
 
 /-- The TP body induction at arity 3, measure on the SECOND formal (the
     `(fn x e)` shape — `ALL-REL`/`FILTER`). -/
-theorem tp_3_rec_snd (formal1 formal2 formal3 : Symbol) (body : SExpr)
+theorem tp_3_rec_snd_mu (μ : SExpr → Nat)
+    (formal1 formal2 formal3 : Symbol) (body : SExpr)
     (w : World) (P : SExpr → Prop)
     (step : ∀ av2 : SExpr,
-      (∀ cv : SExpr, cv.consCount < av2.consCount → ∀ bv dv : SExpr,
+      (∀ cv : SExpr, μ cv < μ av2 → ∀ bv dv : SExpr,
         ConvToP w (bindArgs [formal1, formal2, formal3] [bv, cv, dv])
           body P) →
       ∀ av1 av3 : SExpr,
@@ -293,7 +295,7 @@ theorem tp_3_rec_snd (formal1 formal2 formal3 : Symbol) (body : SExpr)
       ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
         body P :=
   fun av1 av2 av3 =>
-    consCount_strong_induction
+    measure_strong_induction_val μ
       (fun av2 => ∀ av1 av3,
         ConvToP w (bindArgs [formal1, formal2, formal3] [av1, av2, av3])
           body P)
@@ -393,20 +395,21 @@ theorem convP_at_val {w : World} {env : Env} {t : SExpr} {P : SExpr → Prop}
   exact (val_unique hu hv) ▸ hP
 
 /-- The TP body induction at arity 2 with an ARGUMENT-INDEXED predicate
-    (measure on the first formal): the exact `tp_2_rec` statement with `P`
+    (measure on the first formal): the exact `tp_2_rec_mu` statement with `P`
     depending on the argument values, as the args-valued corollary's
     lifted predicate does. -/
-theorem tp_2_rec_av (formal1 formal2 : Symbol) (body : SExpr) (w : World)
+theorem tp_2_rec_av_mu (μ : SExpr → Nat)
+    (formal1 formal2 : Symbol) (body : SExpr) (w : World)
     (P : SExpr → SExpr → SExpr → Prop)
     (step : ∀ av1 : SExpr,
-      (∀ bv : SExpr, bv.consCount < av1.consCount → ∀ cv : SExpr,
+      (∀ bv : SExpr, μ bv < μ av1 → ∀ cv : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [bv, cv]) body (P bv cv)) →
       ∀ av2 : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body
           (P av1 av2)) :
     ∀ av1 av2 : SExpr,
       ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body (P av1 av2) :=
-  consCount_strong_induction
+  measure_strong_induction_val μ
     (fun av1 => ∀ av2,
       ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body (P av1 av2))
     step

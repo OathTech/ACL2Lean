@@ -1254,43 +1254,46 @@ theorem tp_hyp_1_of_body (w : World) (s : Symbol) (formal : Symbol)
 /-- The TP body induction, measure on the FIRST formal: strong induction on
     its count, the second argument inner-∀ (the `memb_body_bool` spine,
     predicate-generic). -/
-theorem tp_2_rec (formal1 formal2 : Symbol) (body : SExpr) (w : World)
+theorem tp_2_rec_mu (μ : SExpr → Nat)
+    (formal1 formal2 : Symbol) (body : SExpr) (w : World)
     (P : SExpr → Prop)
     (step : ∀ av1 : SExpr,
-      (∀ bv : SExpr, bv.consCount < av1.consCount → ∀ cv : SExpr,
+      (∀ bv : SExpr, μ bv < μ av1 → ∀ cv : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [bv, cv]) body P) →
       ∀ av2 : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
     ∀ av1 av2 : SExpr,
       ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P :=
-  consCount_strong_induction
+  measure_strong_induction_val μ
     (fun av1 => ∀ av2, ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P)
     step
 
 /-- The TP body induction, measure on the SECOND formal. -/
-theorem tp_2_rec_snd (formal1 formal2 : Symbol) (body : SExpr) (w : World)
+theorem tp_2_rec_snd_mu (μ : SExpr → Nat)
+    (formal1 formal2 : Symbol) (body : SExpr) (w : World)
     (P : SExpr → Prop)
     (step : ∀ av2 : SExpr,
-      (∀ cv : SExpr, cv.consCount < av2.consCount → ∀ bv : SExpr,
+      (∀ cv : SExpr, μ cv < μ av2 → ∀ bv : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [bv, cv]) body P) →
       ∀ av1 : SExpr,
         ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P) :
     ∀ av1 av2 : SExpr,
       ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P :=
   fun av1 av2 =>
-    consCount_strong_induction
+    measure_strong_induction_val μ
       (fun av2 => ∀ av1, ConvToP w (bindArgs [formal1, formal2] [av1, av2]) body P)
       step av2 av1
 
 /-- The TP body induction, 1-ary. -/
-theorem tp_1_rec (formal : Symbol) (body : SExpr) (w : World)
+theorem tp_1_rec_mu (μ : SExpr → Nat)
+    (formal : Symbol) (body : SExpr) (w : World)
     (P : SExpr → Prop)
     (step : ∀ av : SExpr,
-      (∀ bv : SExpr, bv.consCount < av.consCount →
+      (∀ bv : SExpr, μ bv < μ av →
         ConvToP w (bindArgs [formal] [bv]) body P) →
       ConvToP w (bindArgs [formal] [av]) body P) :
     ∀ av : SExpr, ConvToP w (bindArgs [formal] [av]) body P :=
-  consCount_strong_induction
+  measure_strong_induction_val μ
     (fun av => ConvToP w (bindArgs [formal] [av]) body P) step
 
 /-- Transport non-nil-ness along a value equation. -/

@@ -1080,6 +1080,16 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
               catch e =>
                 unless isFrontierErr e do
                   throw e
+                -- DIAGNOSTIC SINK (T1+2 sprint P4b). A kept `tp:` condition
+                -- discards its frontier message here, so the reason a row
+                -- stays conditional was invisible to every binary — the
+                -- 2026-08-13 fork-emission audit and this sprint's own
+                -- scouting both stalled on exactly that. Off unless
+                -- `ACL2LEAN_TP_DIAG` is set; stderr only, never a result
+                -- line, so no output any gate reads can change.
+                if (← IO.getEnv "ACL2LEAN_TP_DIAG").isSome then
+                  IO.eprintln s!"[tp-diag] {fnName}: \
+                    {← e.toMessageData.toString}"
                 pure prf0
             | none => pure prf0
           else pure prf0

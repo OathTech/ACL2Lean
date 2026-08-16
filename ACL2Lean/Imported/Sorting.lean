@@ -1,7 +1,6 @@
 import ACL2Lean.Imported.Perm
 import ACL2Lean.Imported.SortingReadings
 import ACL2Lean.Imported.ExecGen
-import ACL2Lean.Imported.GzPrelude
 
 /-! # Imported: the sorting books — world-parametric support beyond perm
 

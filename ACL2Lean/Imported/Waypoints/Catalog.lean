@@ -722,8 +722,12 @@ run_cmd Lean.Elab.Command.liftCoreM do
 
 Mechanizes the ban that the mirror-provenance audit found unenforced:
 no Lean-side content discharger may exist in the waypoint layer outside
-(a) the D5 GzPrelude (ground-zero rule content — the ratified
-carve-out) and (b) the registered FORBIDDEN-DEBT set, every member of
+(a) the D5 ground-zero rule content (the ratified carve-out — the list
+is EMPTY since T1+2 sprint P4b: the whole `Imported/GzPrelude.lean`
+family moved DOWN to `Replay/GzRules.lean` and is now applied by the
+driver's `d5GzRules` registry at each rule's CITED rune, so no
+waypoint-layer constant carries gz content any more) and
+(b) the registered FORBIDDEN-DEBT set, every member of
 which MUST carry `sorryAx` (a from-scratch re-proof sneaking back in
 place of a sorry fails the build — the only legitimate retirement of a
 debt entry is deletion in favor of a replay route). A NEW `dis_*`/
@@ -734,12 +738,11 @@ forgetting the ban, not a barrier against circumvention (a renamed
 content lemma passes — known, accepted). DO NOT HARDEN IT. -/
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
-  let d5Allowed : List Name :=
-    [``ACL2.Worlds.Sorting.dis_plus_comm,
-     ``ACL2.Worlds.Sorting.dis_plus_comm2,
-     ``ACL2.Worlds.Sorting.dis_plus_assoc,
-     ``ACL2.Worlds.Sorting.dis_plus_if_lift,
-     ``ACL2.Worlds.Sorting.dis_equal_if_lift]
+  -- EMPTY since the P4b re-homing (see the header): kept as the named
+  -- slot the carve-out lives in, so a future gz constant has an obvious,
+  -- reviewable place to be registered rather than being smuggled into
+  -- `decodeAllowed`.
+  let d5Allowed : List Name := []
   -- the DECODE exception: dis_rule_orderedp_append transports a
   -- replayed statement (hreplayed-consuming) — audited clean
   let decodeAllowed : List Name :=
@@ -805,8 +808,9 @@ run_cmd Lean.Elab.Command.liftCoreM do
   unless offenders.isEmpty do
     throwError "provenance gate: unregistered discharger constant(s) in \
       the waypoint layer: {offenders} — Lean-side content dischargers are \
-      forbidden (thin-Lean ruling 2026-08-11); register D5 gz content in \
-      GzPrelude or route the fact through a replayed statement"
+      forbidden (thin-Lean ruling 2026-08-11); D5 gz rule content now \
+      lives in Replay/GzRules.lean behind the d5GzRules registry — put it \
+      there, or route the fact through a replayed statement"
 
 /-! ## EXTRA-NATIVES SEAM CHECK (audit F6, ruled 2026-08-11; reduced to
 the seam half by the gate-cruft review, R3)

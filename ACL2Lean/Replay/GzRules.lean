@@ -117,7 +117,13 @@ theorem gz_rule_lexorder_transitive (w : World)
          (arithmetic-3/pass1/basic-arithmetic.lisp:109); its hand proof
          here is retired the day that book is captured and its tree
          replayed (tracked: the registry entry then becomes a
-         dependency-replayed-statement discharge).
+         dependency-replayed-statement discharge). The five ARITHMETIC-3
+         RUNES below (`|(+ y x)|`, `|(+ y (+ x z))|`, `|(+ (+ x y) z)|`,
+         `|(+ x (if a b c))|`, `|(equal (if a b c) x)|`) are the same
+         class and the same book family: the qsort log carries each as
+         `:SOURCE :INCLUDE-BOOK` with a `:RULES` entry but no tree, so
+         there is nothing to replay until arithmetic-3 itself is
+         captured. Same retirement condition as FOLD-CONSTS-IN-+.
     Every entry remains recompute-checked against the EMITTED spec at
     each discharge site (`dischargeGzRuleHyp`) — the criterion governs
     which rules may have prelude constants at all, not their trust. -/
@@ -320,5 +326,167 @@ theorem gz_rule_fold_consts_in_plus (w : World)
         (by decide) hno cx cy rfl)
       cz rfl)
     (logic_plus_assoc (envV env "X") (envV env "Y") (envV env "Z")).symm
+
+/-! ### The arithmetic-3 comm/assoc + if-lifting runes (D5 class (ii)).
+
+    MOVED here from `Imported/GzPrelude.lean` (T1+2 sprint P4b,
+    2026-08-15): the five constants were already the ratified D5 set,
+    but they were APPLIED BY HAND at the waypoint consumers'
+    telescopes. Re-homed at the Replay layer so `d5GzRules` can
+    discharge the `rule:` hypothesis at its cited rune — same proofs,
+    same statements (each is exactly the `mkRuleHypType` instance of
+    the emitted `(:RULES …)` entry), one consumer instead of ten. -/
+
+private def vA : SExpr := sym "A"
+private def vB : SExpr := sym "B"
+private def vC : SExpr := sym "C"
+
+/-- `(BINARY-+ a b)` converges to `Logic.plus` of the operands' values. -/
+private theorem gz_conv_plus (w : World) (env : Env) (a b av bv : SExpr)
+    (hno : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (app2 "BINARY-+" a b)
+      = some (Logic.plus av bv) :=
+  conv_builtin2 w env { name := "BINARY-+" } a b av bv _ (by decide) hno
+    ha hb (callBuiltin_plus _ _)
+
+/-- `(EQUAL a b)` converges to `Logic.equal` of the operands' values. -/
+private theorem gz_conv_equal (w : World) (env : Env) (a b av bv : SExpr)
+    (hno : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
+    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv) :
+    ∃ N, ∀ f ≥ N, evalOpt f w env (app2 "EQUAL" a b)
+      = some (Logic.equal av bv) :=
+  conv_builtin2 w env { name := "EQUAL" } a b av bv _ (by decide) hno
+    ha hb (callBuiltin_equal _ _)
+
+/-- A rule variable converges (unbound reads nil; none is `T`). -/
+private theorem gz_conv_var (w : World) (env : Env) (s : Symbol)
+    (h : s.isNamed "T" = false) :
+    ∃ v, ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol s)) = some v :=
+  ⟨_, re_val_var w env s h⟩
+
+/-- PRELUDE CONSTANT for arithmetic-3 rune `|(+ y x)|`
+    (emitted entry: no hyps, `:EQUIV EQUAL`, `(BINARY-+ Y X)` ⇒
+    `(BINARY-+ X Y)`). NOT ground-zero COMMUTATIVITY-OF-+, whose stored
+    orientation is the reverse (audit 2026-07-31 inside finding 1). -/
+theorem gz_rule_plus_comm (w : World)
+    (hno : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
+    ∀ env : Env, ∃ N, ∀ f ≥ N,
+      evalOpt f w env (app2 "BINARY-+" vY vX)
+        = evalOpt f w env (app2 "BINARY-+" vX vY) := by
+  intro env
+  obtain ⟨vx, hx⟩ := gz_conv_var w env { name := "X" } (by decide)
+  obtain ⟨vy, hy⟩ := gz_conv_var w env { name := "Y" } (by decide)
+  exact fuel_eq_of_conv (gz_conv_plus w env vY vX vy vx hno hy hx)
+    (gz_conv_plus w env vX vY vx vy hno hx hy) (logic_plus_comm vy vx)
+
+/-- PRELUDE CONSTANT for arithmetic-3 rune `|(+ y (+ x z))|`
+    (emitted entry: no hyps, `:EQUIV EQUAL`,
+    `(BINARY-+ Y (BINARY-+ X Z))` ⇒ `(BINARY-+ X (BINARY-+ Y Z))`). -/
+theorem gz_rule_plus_comm2 (w : World)
+    (hno : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
+    ∀ env : Env, ∃ N, ∀ f ≥ N,
+      evalOpt f w env (app2 "BINARY-+" vY (app2 "BINARY-+" vX vZ))
+        = evalOpt f w env (app2 "BINARY-+" vX (app2 "BINARY-+" vY vZ)) := by
+  intro env
+  obtain ⟨vx, hx⟩ := gz_conv_var w env { name := "X" } (by decide)
+  obtain ⟨vy, hy⟩ := gz_conv_var w env { name := "Y" } (by decide)
+  obtain ⟨vz, hz⟩ := gz_conv_var w env { name := "Z" } (by decide)
+  exact fuel_eq_of_conv
+    (gz_conv_plus w env vY (app2 "BINARY-+" vX vZ) vy (Logic.plus vx vz) hno
+      hy (gz_conv_plus w env vX vZ vx vz hno hx hz))
+    (gz_conv_plus w env vX (app2 "BINARY-+" vY vZ) vx (Logic.plus vy vz) hno
+      hx (gz_conv_plus w env vY vZ vy vz hno hy hz))
+    (logic_plus_comm2 vy vx vz)
+
+/-- PRELUDE CONSTANT for arithmetic-3 rune `|(+ (+ x y) z)|`
+    (emitted entry: no hyps, `:EQUIV EQUAL`,
+    `(BINARY-+ (BINARY-+ X Y) Z)` ⇒ `(BINARY-+ X (BINARY-+ Y Z))`; no
+    ASSOCIATIVITY-OF-+ is stored in these logs). -/
+theorem gz_rule_plus_assoc (w : World)
+    (hno : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
+    ∀ env : Env, ∃ N, ∀ f ≥ N,
+      evalOpt f w env (app2 "BINARY-+" (app2 "BINARY-+" vX vY) vZ)
+        = evalOpt f w env (app2 "BINARY-+" vX (app2 "BINARY-+" vY vZ)) := by
+  intro env
+  obtain ⟨vx, hx⟩ := gz_conv_var w env { name := "X" } (by decide)
+  obtain ⟨vy, hy⟩ := gz_conv_var w env { name := "Y" } (by decide)
+  obtain ⟨vz, hz⟩ := gz_conv_var w env { name := "Z" } (by decide)
+  exact fuel_eq_of_conv
+    (gz_conv_plus w env (app2 "BINARY-+" vX vY) vZ (Logic.plus vx vy) vz hno
+      (gz_conv_plus w env vX vY vx vy hno hx hy) hz)
+    (gz_conv_plus w env vX (app2 "BINARY-+" vY vZ) vx (Logic.plus vy vz) hno
+      hx (gz_conv_plus w env vY vZ vy vz hno hy hz))
+    (logic_plus_assoc vx vy vz)
+
+/-- PRELUDE CONSTANT for arithmetic-3 rune `|(+ x (if a b c))|`
+    (emitted entry: no hyps, `:EQUIV EQUAL`,
+    `(BINARY-+ X (IF A B C))` ⇒ `(IF A (BINARY-+ X B) (BINARY-+ X C))`
+    — if-lifting through `+`). -/
+theorem gz_rule_plus_if_lift (w : World)
+    (hno : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none) :
+    ∀ env : Env, ∃ N, ∀ f ≥ N,
+      evalOpt f w env (app2 "BINARY-+" vX (ifApp vA vB vC))
+        = evalOpt f w env
+            (ifApp vA (app2 "BINARY-+" vX vB) (app2 "BINARY-+" vX vC)) := by
+  intro env
+  obtain ⟨vx, hx⟩ := gz_conv_var w env { name := "X" } (by decide)
+  obtain ⟨va, ha⟩ := gz_conv_var w env { name := "A" } (by decide)
+  obtain ⟨vb, hb⟩ := gz_conv_var w env { name := "B" } (by decide)
+  obtain ⟨vc, hc⟩ := gz_conv_var w env { name := "C" } (by decide)
+  cases hta : Logic.toBool va with
+  | true =>
+    exact fuel_eq_of_conv
+      (gz_conv_plus w env vX (ifApp vA vB vC) vx vb hno hx
+        (conv_if_true w env vA vB vC va vb ha hta hb))
+      (conv_if_true w env vA (app2 "BINARY-+" vX vB) (app2 "BINARY-+" vX vC)
+        va (Logic.plus vx vb) ha hta (gz_conv_plus w env vX vB vx vb hno hx hb))
+      rfl
+  | false =>
+    have han : ∃ N, ∀ f ≥ N, evalOpt f w env vA = some SExpr.nil :=
+      nil_of_toBool_false hta ▸ ha
+    exact fuel_eq_of_conv
+      (gz_conv_plus w env vX (ifApp vA vB vC) vx vc hno hx
+        (gz_conv_if_false w env vA vB vC vc han hc))
+      (gz_conv_if_false w env vA (app2 "BINARY-+" vX vB)
+        (app2 "BINARY-+" vX vC) (Logic.plus vx vc) han
+        (gz_conv_plus w env vX vC vx vc hno hx hc))
+      rfl
+
+/-- PRELUDE CONSTANT for arithmetic-3 rune `|(equal (if a b c) x)|`
+    (emitted entry: no hyps, `:EQUIV EQUAL`,
+    `(EQUAL (IF A B C) X)` ⇒ `(IF A (EQUAL B X) (EQUAL C X))` —
+    if-lifting through `EQUAL`). -/
+theorem gz_rule_equal_if_lift (w : World)
+    (hno : w.defs.get? ({ name := "EQUAL" } : Symbol) = none) :
+    ∀ env : Env, ∃ N, ∀ f ≥ N,
+      evalOpt f w env (app2 "EQUAL" (ifApp vA vB vC) vX)
+        = evalOpt f w env
+            (ifApp vA (app2 "EQUAL" vB vX) (app2 "EQUAL" vC vX)) := by
+  intro env
+  obtain ⟨vx, hx⟩ := gz_conv_var w env { name := "X" } (by decide)
+  obtain ⟨va, ha⟩ := gz_conv_var w env { name := "A" } (by decide)
+  obtain ⟨vb, hb⟩ := gz_conv_var w env { name := "B" } (by decide)
+  obtain ⟨vc, hc⟩ := gz_conv_var w env { name := "C" } (by decide)
+  cases hta : Logic.toBool va with
+  | true =>
+    exact fuel_eq_of_conv
+      (gz_conv_equal w env (ifApp vA vB vC) vX vb vx hno
+        (conv_if_true w env vA vB vC va vb ha hta hb) hx)
+      (conv_if_true w env vA (app2 "EQUAL" vB vX) (app2 "EQUAL" vC vX)
+        va (Logic.equal vb vx) ha hta
+        (gz_conv_equal w env vB vX vb vx hno hb hx))
+      rfl
+  | false =>
+    have han : ∃ N, ∀ f ≥ N, evalOpt f w env vA = some SExpr.nil :=
+      nil_of_toBool_false hta ▸ ha
+    exact fuel_eq_of_conv
+      (gz_conv_equal w env (ifApp vA vB vC) vX vc vx hno
+        (gz_conv_if_false w env vA vB vC vc han hc) hx)
+      (gz_conv_if_false w env vA (app2 "EQUAL" vB vX) (app2 "EQUAL" vC vX)
+        (Logic.equal vc vx) han (gz_conv_equal w env vC vX vc vx hno hc hx))
+      rfl
 
 end ACL2.Replay

@@ -965,15 +965,20 @@ partial def proveTp (cfg : ReplayConfig)
   let varProofs (envE : Expr) (avs : List Expr) :
       MetaM (List (Symbol × Expr × Expr)) :=
     bindArgsVarProofs cfg "proveTp" envE formals avs
-  -- the D5 admission scope shared by both modes: `o<` on
-  -- `(acl2-count <single measured formal>)`
-  -- classified through the SAME measure table as `proveTotality` (R3,
-  -- 2026-08-14) so the two provers cannot disagree about what a measure
-  -- shape IS. The TP assembly's `tp_*_rec` wrappers are `consCount`-typed
-  -- throughout, so only the `count` ROW is assemblable here; every other
-  -- registered row keeps its own honest frontier (widening it means
-  -- μ-generic `tp_*_rec_mu` twins, not a new classifier).
-  let measuredOf (just : Justification) : MetaM Symbol := do
+  -- the D5 admission scope shared by both modes: `o<` on a measure the
+  -- UNIFIED MEASURE TABLE registers (R3, 2026-08-14), classified through
+  -- the SAME table as `proveTotality` so the two provers cannot disagree
+  -- about what a measure shape IS.
+  --
+  -- The `tp_*_rec_mu` wrappers are μ-GENERIC (T1+2 sprint P4b — they were
+  -- `consCount`-hardcoded, which is exactly the widening this comment used
+  -- to defer, and it frontiered every non-`count` row: `CD2`'s `nfix`
+  -- among them). So any row with a SINGLE measured variable and a
+  -- registered μ is assemblable; a `userFn` row (no μ at all — the
+  -- recorded-termination route interprets those) and the two-variable
+  -- `sumCount` row keep their own honest frontiers. μ is proof
+  -- bookkeeping (design I1): it appears in no statement produced here.
+  let measuredOf (just : Justification) : MetaM (Symbol × Lean.Name) := do
     unless just.wfRel.name == "O<" do
       throwFrontier m!"proveTp: well-founded relation {just.wfRel.name} \
           unsupported (frontier: o< only)"
@@ -981,11 +986,11 @@ partial def proveTp (cfg : ReplayConfig)
       | throwFrontier m!"proveTp: measure {repr just.measure} with measured \
           subset {repr (just.measuredSubset.map (·.name))} is not a \
           registered measure-table row (frontier)"
-    match row with
-    | .count v => pure v
-    | _ =>
+    match row.vars, row.muHeads with
+    | [v], some [h] => pure (v, h)
+    | _, _ =>
       throwFrontier m!"proveTp: measure-table row {row.headName} has no \
-          consCount-typed TP assembly (frontier: the `count` row only)"
+          single-variable registered μ for the TP assembly (frontier)"
   if argValued then
     -- THE ARGS-VALUED ASSEMBLY (increment 5). Only the shape the corpus
     -- demands is covered — 2-ary, recursive, measured on the FIRST formal
@@ -993,8 +998,11 @@ partial def proveTp (cfg : ReplayConfig)
     let some just := justs.lookup name
       | throwFrontier m!"proveTp: args-valued {name} is not recursive \
           (frontier)"
-    let measuredFormal ← measuredOf just
-    let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.consCount #[e]
+    let (measuredFormal, muHead) ← measuredOf just
+    let countOf (e : Expr) : MetaM Expr := mkAppM muHead #[e]
+    let μE : MetaM Expr :=
+      withLocalDeclD `u (mkConst ``SExpr) fun u => do
+        mkLambdaFVars #[u] (← countOf u)
     match formals with
     | [f1, f2] =>
       unless measuredFormal == f1 do
@@ -1019,8 +1027,8 @@ partial def proveTp (cfg : ReplayConfig)
               (some (name, measuredFormal, ih, just)) kit (← mkP [av1, av2])
               body
             mkLambdaFVars #[av1, ih, av2] p
-      let hbody ← mkAppM ``tp_2_rec_av
-        #[reflectSymbol f1, reflectSymbol f2, reflectSExpr body,
+      let hbody ← mkAppM ``tp_2_rec_av_mu
+        #[← μE, reflectSymbol f1, reflectSymbol f2, reflectSExpr body,
           cfg.worldExpr, Pav, step]
       return ← mkAppM ``tp_hyp_2_av_of_body
         #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
@@ -1059,8 +1067,11 @@ partial def proveTp (cfg : ReplayConfig)
     | _ => throwFrontier m!"proveTp: arity {formals.length} unsupported (frontier)"
   | some just =>
     -- RECURSIVE (D5 scope, as in proveTotality)
-    let measuredFormal ← measuredOf just
-    let countOf (e : Expr) : MetaM Expr := mkAppM ``SExpr.consCount #[e]
+    let (measuredFormal, muHead) ← measuredOf just
+    let countOf (e : Expr) : MetaM Expr := mkAppM muHead #[e]
+    let μE : MetaM Expr :=
+      withLocalDeclD `u (mkConst ``SExpr) fun u => do
+        mkLambdaFVars #[u] (← countOf u)
     let selfC := fun (ih : Expr) => some (name, measuredFormal, ih, just)
     match formals with
     | [f1] =>
@@ -1076,8 +1087,8 @@ partial def proveTp (cfg : ReplayConfig)
           let vals ← varProofs envE [av]
           let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) kit P body
           mkLambdaFVars #[av, ih] p
-      let hbody ← mkAppM ``tp_1_rec
-        #[reflectSymbol f1, reflectSExpr body, cfg.worldExpr, P, step]
+      let hbody ← mkAppM ``tp_1_rec_mu
+        #[← μE, reflectSymbol f1, reflectSExpr body, cfg.worldExpr, P, step]
       mkAppM ``tp_hyp_1_of_body
         #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
           reflectSExpr body, P, hNs, hDef, hbody]
@@ -1116,9 +1127,9 @@ partial def proveTp (cfg : ReplayConfig)
           throwFrontier m!"proveTp: measured formal not among the formals \
               (frontier)"
       let recLemma :=
-        if measuredFormal == f1 then ``tp_2_rec else ``tp_2_rec_snd
+        if measuredFormal == f1 then ``tp_2_rec_mu else ``tp_2_rec_snd_mu
       let hbody ← mkAppM recLemma
-        #[reflectSymbol f1, reflectSymbol f2, reflectSExpr body,
+        #[← μE, reflectSymbol f1, reflectSymbol f2, reflectSExpr body,
           cfg.worldExpr, P, step]
       mkAppM ``tp_hyp_2_of_body
         #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
@@ -1159,9 +1170,9 @@ partial def proveTp (cfg : ReplayConfig)
                   let vals ← varProofs envE avs
                   let p ← tpWalk cfg envE vals [] totalEnv (selfC ih) kit P body
                   mkLambdaFVars #[avm, ih, av1, av2] p
-      let recLemma := if mIdx3 == 0 then ``tp_3_rec else ``tp_3_rec_snd
+      let recLemma := if mIdx3 == 0 then ``tp_3_rec_mu else ``tp_3_rec_snd_mu
       let hbody ← mkAppM recLemma
-        #[reflectSymbol f1, reflectSymbol f2, reflectSymbol f3,
+        #[← μE, reflectSymbol f1, reflectSymbol f2, reflectSymbol f3,
           reflectSExpr body, cfg.worldExpr, P, step]
       mkAppM ``tp_hyp_3_of_body
         #[cfg.worldExpr, reflectSymbol fs, reflectSymbol f1,
@@ -1208,7 +1219,16 @@ def d5GzRules : List (String × Name × List String) :=
                             ["CDR", "CONSP", "NOT"])),
    ("CONS-CAR-CDR",        (``gz_rule_cons_car_cdr,
                             ["CONSP", "CAR", "CDR", "CONS"])),
-   ("FOLD-CONSTS-IN-+",    (``gz_rule_fold_consts_in_plus, ["BINARY-+"]))]
+   ("FOLD-CONSTS-IN-+",    (``gz_rule_fold_consts_in_plus, ["BINARY-+"])),
+   -- the arithmetic-3 comm/assoc + if-lifting runes (T1+2 sprint P4b):
+   -- criterion class (ii) — `:SOURCE :INCLUDE-BOOK`, no tree in any
+   -- captured log — the FOLD-CONSTS-IN-+ class exactly. The rune IS the
+   -- rule name here (ACL2's `|…|` bar-quoted symbols).
+   ("(+ y x)",             (``gz_rule_plus_comm,    ["BINARY-+"])),
+   ("(+ y (+ x z))",       (``gz_rule_plus_comm2,   ["BINARY-+"])),
+   ("(+ (+ x y) z)",       (``gz_rule_plus_assoc,   ["BINARY-+"])),
+   ("(+ x (if a b c))",    (``gz_rule_plus_if_lift, ["BINARY-+"])),
+   ("(equal (if a b c) x)", (``gz_rule_equal_if_lift, ["EQUAL"]))]
 
 /-- Discharge a GROUND-ZERO rule's `rule:<name>` hypothesis by its D5
     prelude constant: instantiate at the theorem's world + the primitives'

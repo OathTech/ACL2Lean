@@ -133,7 +133,35 @@ def tsTestNilOf (t : SExpr) : Option (SExpr × Int × Lean.Name) :=
     Demand-driven: `CD2-BOUND`'s `(INTEGERP N) ⇒ 'T`. -/
 def tsRecogTrue : List (String × Int × Lean.Name) :=
   [("INTEGERP", 23, ``ACL2.Replay.logic_integerp_t_of_inTs),
-   ("NATP", 7, ``ACL2.Replay.logic_natp_t_of_inTs)]
+   ("NATP", 7, ``ACL2.Replay.logic_natp_t_of_inTs),
+   ("ZP", -7, ``ACL2.Replay.logic_zp_t_of_inTs)]
+
+/-- ACL2'S MASK, READ AGAINST OURS UNDER THE MODEL'S PINNED DOMAIN
+    RESTRICTION (T1+2 sprint P4b, `CD2-BOUND`).
+
+    `recogVerdictFromTs`'s cross-check asks that ACL2's emitted
+    `:TYPESET` be INSIDE the mask the replay derived — "we may prove
+    something weaker than ACL2 knew, never something it contradicts".
+    Basic type INDEX 6 is `*ts-complex-rational*`, and the model has NO
+    complex values at all (BUG-009): `tsIndex` never returns 6, so
+    `InTs m v` and `InTs (m ∪ {6}) v` are the SAME proposition here and
+    a derived mask can never carry that bit. ACL2's `<` does order
+    complex rationals, so `(< N '0)` true gets `:TYPESET 112` where the
+    model derives `48` — 112 = 48 ∪ {bit 6} exactly.
+
+    So the comparison DISCOUNTS index 6 and nothing else: ACL2's mask
+    must be inside ours ∪ {complex-rational}. Any OTHER bit ACL2 has and
+    we do not still fails the check, closed. This is not a weaker
+    verdict — the proof still runs on OUR mask `m` and OUR `InTs` fact —
+    it is the BUG-009 domain restriction applied at one more site, the
+    same treatment `mkVacuousTruthyBranch` already gives ACL2's complex
+    admission case. Delete the discount the day complex rationals are
+    modeled (BUG-009's fix makes index 6 inhabited and this becomes
+    unsound to skip). -/
+def tsAcl2MaskOk (acl2Ts derived : Int) : Bool :=
+  (List.range 14).all fun i =>
+    i == 6 || !ACL2.Replay.tsMember acl2Ts i
+      || ACL2.Replay.tsMember derived i
 
 /-- RECOGNIZER-VERDICT registry, `'NIL` side: recognizer ↦ (its TRUE
     type-set, the proved fact

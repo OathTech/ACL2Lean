@@ -713,6 +713,37 @@ theorem inTs_zp_true {v : SExpr}
       · omega
       · decide
 
+/-- A value INSIDE `(ZP v)`'s TRUE type-set (`-7 = ~6`, i.e. anything
+    that is not a positive integer) makes `ZP` `'T` —
+    `ZP-COMPOUND-RECOGNIZER`'s `recognizer/true` verdict, at the value
+    level. The driver supplies `-7` from the step's OWN emitted
+    `:TRUETS`. Demand-driven: `CD2-BOUND`'s `Subgoal 1`. -/
+theorem logic_zp_t_of_inTs {m : Int} {v : SExpr}
+    (h : tsSubsumedM m (-7) = true) (hv : InTs m v) :
+    Logic.zp v = SExpr.t := by
+  have h7 : InTs (-7) v := inTs_weaken h hv
+  match v with
+  | .nil => rfl
+  | .cons _ _ => rfl
+  | .atom (.symbol _) => rfl
+  | .atom (.keyword _) => rfl
+  | .atom (.string _) => rfl
+  | .atom (.char _) => rfl
+  | .atom (.number (.rational _ _ _)) => rfl
+  | .atom (.number (.int n) ) =>
+      have hn : n ≤ 0 := by
+        by_contra hcn
+        have h' : tsMember (-7) (tsIndex (.atom (.number (.int n)))) = true :=
+          h7
+        simp only [tsIndex_int] at h'
+        split_ifs at h' with h0 h1 h2
+        · omega
+        · exact absurd h' (by decide)
+        · exact absurd h' (by decide)
+        · omega
+      simp only [Logic.zp, Logic.toInt]
+      exact if_pos (by omega)
+
 /-- A value in a type-set DISJOINT from `(ZP v)`'s TRUE type-set (`-7`)
     makes `ZP` NIL — `ZP-COMPOUND-RECOGNIZER`'s `recognizer/false`
     verdict, at the value level. -/

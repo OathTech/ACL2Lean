@@ -916,7 +916,23 @@ elab "wp3_gz_discharge_pin% " : term => do
           worldVal := dev.toWorld, gzDefs := dev.groundZeroSnapshotDefs,
           justs := dev.justifications }
       cfgs := cfgs ++ [(devName.toString, cfg, dev.groundZeroRuleSpecs)]
+    -- LIVE-GATED ELSEWHERE (T1+2 sprint P4b). The five arithmetic-3 runes
+    -- are emitted ONLY by `sorting/qsort` and `sorting/sorts-equivalent`
+    -- (as `:SOURCE :INCLUDE-BOOK` rules), whose logs are ~150k lines —
+    -- parsing one here would be a large build cost for a WEAKER check than
+    -- the one they already have. The coverage sweep replays those books
+    -- THROUGH `dischargeGzRuleHyp`: golden rows HOW-MANY-FILTER-1,
+    -- HOW-MANY-QSORT, PERM-QSORT, CAR-APPEND, ORDEREDP-APPEND,
+    -- ORDEREDP-QSORT and QSORT-IS-ISORT are UNCONDITIONAL only because it
+    -- fires, so an emission drift or a mis-stated constant turns those
+    -- rows conditional and the golden diff shows it. This pin covers the
+    -- entries whose only consumers are outside the golden.
+    -- (Honest-mistake standard, two-standard rule — do not harden it.)
+    let liveGatedByGolden : List String :=
+      ["(+ y x)", "(+ y (+ x z))", "(+ (+ x y) z)", "(+ x (if a b c))",
+       "(equal (if a b c) x)"]
     for (nm, decl, nsFn) in d5GzRules do
+      if liveGatedByGolden.contains nm then continue
       let some (_, cfg, spec) := cfgs.findSome? (fun (b, cfg, specs) =>
           (specs.find? (·.name == nm)).map (b, cfg, ·))
         | throwError "WP3 pin: no emitted ground-zero rule {nm} in any \

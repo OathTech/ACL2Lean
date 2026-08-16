@@ -470,3 +470,193 @@ tp:QSORT + the trio + CD2-BOUND (P4a, in flight).
     by moving the closer's applicability GATE into `groundConstClose`
     (which is where the fail-closed contract belongs), never by loosening
     the baseline — the J-P3b-f/J-RT2e precedent.
+
+- **P4b (the four-item close) — 2026-08-15.** Items 1 and 4 DONE; item 2
+  DIAGNOSED, a bounded fix TRIED, MEASURED as insufficient and REVERTED;
+  item 3 STOPPED with a verbatim frontier and a file:line map. FAIL rows
+  1 → 0. Row-level conditional rows 10 → 4.
+  - **Item 1 — THE ARITHMETIC-RUNE FAMILY: DONE.** All five runes
+    (`(+ y x)`, `(+ y (+ x z))`, `(+ (+ x y) z)`, `(+ x (if a b c))`,
+    `(equal (if a b c) x)`) RETIRED corpus-wide. The five PROVEN
+    statements already existed in `Imported/GzPrelude.lean` but were
+    APPLIED BY HAND at ten waypoint call sites; they MOVED DOWN to
+    `Replay/GzRules.lean` (same proofs, re-expressed over the Replay
+    layer's own `conv_builtin2`/`fuel_eq_of_conv` primitives — the
+    `gz_rule_fold_consts_in_plus` idiom) and were registered in
+    `d5GzRules`, so `dischargeGzRuleHyp` now discharges each at its CITED
+    rune, recompute-checked against the EMITTED `(:RULES …)` entry by
+    `mkRuleHypType` as every other registry entry is.
+    `ORDEREDP-QSORT` and `QSORT-IS-ISORT` each drop the five. The
+    further CASCADE PREDICTED at the outset did NOT happen, and is
+    recorded as a wrong prediction: `ORDEREDP-APPEND` is unconditional
+    now, yet `rule:ORDEREDP-APPEND` still survives on both rows.
+    Diagnosis (not pursued): that rule's stored form does not recompute
+    from its defthm Goal by `dischargeRuleHyp`'s standard decode — which
+    is exactly why the waypoint layer carries
+    `dis_rule_orderedp_append` as its registered DECODE exception. A
+    decode-class item, not a D5 one. `Imported/GzPrelude.lean`
+    DELETED; the waypoint telescopes in `Waypoints/Qsort.lean` dropped 20
+    hand-applied arguments (dated diagnosis comments kept, the
+    established deletion+rewiring flow).
+  - **J-P4b-a (D5 ADMISSION CRITERION — class (ii), not a new class).**
+    The five are arithmetic-3 theorems the qsort/sorts-equivalent logs
+    carry as `:SOURCE :INCLUDE-BOOK` with a `(:RULES …)` entry and NO
+    tree — exactly `FOLD-CONSTS-IN-+`'s situation (`GzRules.lean`'s
+    criterion (ii), ratified at close-out audit O-5), and exactly the
+    same retirement condition: the day arithmetic-3 is captured, the
+    entries become dependency-replayed discharges. Nothing new is
+    trusted: these five statements were ALREADY the ratified D5 set in
+    the waypoint provenance gate's `d5Allowed`. What changed is WHO
+    applies them — the driver at the cited rune instead of a human at a
+    telescope — which is strictly tighter (BUG-023 direction).
+  - **J-P4b-b (the provenance gate keeps an EMPTY slot).** With
+    `GzPrelude` gone, `Catalog.lean`'s `d5Allowed` list is `[]`. Kept as
+    a named, empty slot rather than deleted, so a future gz constant has
+    an obvious reviewable place instead of being smuggled into
+    `decodeAllowed`. Honest-mistake standard; not hardened.
+  - **J-P4b-c (the WP3 pin is SCOPED, and says why).** The five runes are
+    emitted only by the two ~150k-line sorting logs, so pinning them in
+    `Tests/DriverTests.lean` would mean parsing one there. They are
+    instead LIVE-gated by the golden — seven rows are unconditional only
+    because `dischargeGzRuleHyp` fires on them — which is a STRONGER
+    check than the pin. The pin skips exactly those five, by name, with
+    the rows listed at the site.
+  - **Item 4 — CD2-BOUND: DONE, FAIL → REPLAYED ✓ UNCONDITIONAL.** Three
+    pieces. (a) the `ZP` `recognizer/true` cell — `tsRecogTrue` gains
+    `("ZP", -7, logic_zp_t_of_inTs)`, the lemma PROVED (`-7 = ~6` is
+    "not a positive integer", which is exactly `Logic.zp`'s truth
+    condition). (b) the BUG-009 discount, below. (c) the μ-generic TP
+    assembly, below — the row then kept `tp:CD2` and needed it.
+  - **J-P4b-d (BUG-009 AT ONE MORE SITE — the guard, decided).**
+    `recogVerdictFromTs`'s cross-check ("ACL2's emitted `:TYPESET` must
+    be INSIDE the mask we derived") refused a STRICTLY STRONGER
+    derivation: from `(< N '0)` true the model derives 48, ACL2 emits
+    112 = 48 ∪ {bit 6}, and bit 6 is `*ts-complex-rational*`, which
+    `tsIndex` NEVER returns. The delta was verified to be EXACTLY that
+    bit and nothing else. `tsAcl2MaskOk` (Driver/TsFacts) therefore
+    discounts index 6 and only index 6; every other bit still fails
+    closed. Not a weakened verdict — the verdict stays ACL2's and the
+    proof still runs on OUR mask and OUR `InTs` fact — but the same
+    pinned domain restriction `mkVacuousTruthyBranch` and the induction
+    walk already apply. Appended as the THIRD SITE to BUG-009 in
+    `docs/BUGS.md`, with the deletion condition (a fix to BUG-009 makes
+    index 6 inhabited and `tsAcl2MaskOk` must go).
+  - **J-P4b-e (the μ-GENERIC TP ASSEMBLY — the widening `proveTp`'s own
+    comment deferred).** `proveTp` accepted ONLY the `count`
+    measure-table row because the `tp_*_rec` wrappers were
+    `consCount`-hardcoded; `CD2`'s `nfix` row frontiered with
+    "no consCount-typed TP assembly". Resolved exactly as that comment
+    said to (`μ-generic tp_*_rec_mu twins, not a new classifier`): the
+    six wrappers (`tp_1_rec`, `tp_2_rec`, `tp_2_rec_snd`, `tp_3_rec`,
+    `tp_3_rec_snd`, `tp_2_rec_av`) took a `(μ : SExpr → Nat)` parameter,
+    and `measuredOf` now yields the row's own registered μ head via
+    `MeasureShape.muHeads` — the SAME switch `proveTotality` already
+    makes, so the two provers still cannot disagree about a measure
+    shape. Behaviour-preserving at `μ := consCount` (every existing row
+    is the `count` row). Rows with no single-variable registered μ
+    (`userFn`, `sumCount`) keep their own honest frontiers.
+  - **J-P4b-f (DE-DUPLICATION taken while in these files).**
+    `consCount_strong_induction` (Lemmas/Totality) and
+    `measure_strong_induction_val` (Lemmas/Judgments) were the same
+    theorem stated twice. Now ONE copy, upstream in Totality, with the
+    `consCount` one an instance of it — the working discipline's
+    "extract what exists in 2–3 concrete copies", behaviour-preserving.
+  - **J-P4b-g (A DIAGNOSTIC SINK, env-gated).** A kept `tp:` condition
+    DISCARDED its frontier message (`Harness.lean`'s catch), so the
+    reason a row stays conditional was invisible to every binary. The
+    2026-08-13 fork-emission audit recorded that it "could not execute"
+    its check for this reason, this sprint's scouting hit the same wall,
+    and so did this executor. `ACL2LEAN_TP_DIAG=1` now prints
+    `[tp-diag] <fn>: <frontier>` to stderr. Never a result line, never
+    read by a gate; off by default.
+  - **Item 2 — `linear:HOW-MANY-BAD-PAIRS-BNEXT` at sorts-equivalent:
+    DIAGNOSED, FIX TRIED AND REVERTED, HONEST RESIDUE.** The discharge
+    machinery is NOT at fault. `crossBookRegistry`'s demand filter
+    (`Runner.lean`, `if !demand.contains cp.name then continue`) is: the
+    seed is `bookCitedNames`, whose own docstring says it is NOT a
+    superset of what a replay consumes, and neither
+    `HOW-MANY-BAD-PAIRS-BNEXT` nor `TRUE-LISTP-BNEXT` is cited by any
+    theorem tree in the corpus (the former is cited only inside BSORT's
+    ADMISSION waterfall; the latter by nothing at all — both reach a
+    telescope as OFFERS). With no registry entry, `depReplayedProofAt`
+    falls to the re-replay route, which walls, and the condition is kept
+    — where inside `bsort` the same discharge is unconditional because
+    the SAME-BOOK registry has no demand filter at all. TWO widenings
+    were implemented and MEASURED at the real book: (i) seeding the dep
+    books' recorded-ADMISSION citations — zero movement; (ii) seeding the
+    consumer's OFFERED `:LINEAR` rune names — reached FURTHER (a new
+    `msort/ACL2-COUNT-EVENS-STRONG` cross entry transferred) but STILL
+    did not register `HOW-MANY-BAD-PAIRS-BNEXT`, and the new entry
+    carries `cond[linear:ACL2-COUNT-CAR-CDR-LINEAR]`, i.e. it risks
+    ADDING conditions to the capstone rows. Both REVERTED under the
+    movement rule rather than left in as cost without payoff. The
+    unanswered question, for whoever takes this next: the name IS in
+    sorts-equivalent's `(:GROUND-ZERO-LINEAR-RULES)` snapshot and IS a
+    bsort theorem, so it was demanded and still produced no entry and no
+    failure line — the pre-pass is dropping it somewhere between
+    `developmentTheoremsWithRules` and the registration, and a
+    `continue`-site diagnostic (the J-P4b-g treatment, applied to
+    `Runner.lean`'s two silent `continue`s) is the cheap next step.
+  - **Item 3 — `tp:QSORT` ×2: STOPPED, verbatim frontier + map.** With
+    the diagnostic sink the frontier is now READABLE for the first time:
+    `proveTp: BINARY-APPEND's corollary class
+    ACL2.Replay.Driver.TpCorClass.conspOrArg neither matches nor implies
+    the ACL2.Replay.Driver.TpCorClass.trueListp class QSORT's
+    prescription needs (frontier)`. It is NOT the `totLiftable`/FILTER
+    blocker J-P4a-h named — that one is real but sits two steps LATER.
+    The corrected map, verified against the emitted artifacts:
+    (1) the `allTps` data path (`Development.typePrescriptionAllTps` → a
+    `ReplayConfig.allTps` field → the callee arm) — mechanical, 4 sites,
+    and the emitted data IS there (RT2 landed `term` + per-rule
+    `leaves`; the "arrives without per-rule leaves" notes in
+    `Tests/SortingPins.lean` and `Waypoints/Catalog.lean` are STALE);
+    (2) a HYPOTHESIS-CARRYING mode in `proveTp` — `TRUE-LISTP-APPEND`'s
+    conclusion class MATCHES `trueListp`, so no new class implication is
+    needed, but the rule's hypothesis must be seeded into the walk's
+    facts (its `(NOT (CONSP A))` leaf is closed BY the hypothesis) and
+    the IH's predicate becomes hypothesis-carrying (a `convToP_mp`-shaped
+    lemma); (3a) pinning the OPAQUE MEASURED ACTUAL in `tpWalkCall` —
+    the `Totality.lean` opaque-measured-arm device (`totWalk` +
+    `exists_conv_elim` + a `DecreaseKit` `valOf`/`convOf` override)
+    lifted to the measured position, which is where FILTER's proven
+    totality actually pays; (3b) the RECORDED-route decrease —
+    `dischargeDecreaseRecorded` + `RecTermInfo` plumbed into `proveTp` as
+    `buildTotalEnv` already does for `proveTotality`, because
+    `chainLt` cannot walk `(FILTER 'GTE (CDR X) (CAR X))` and QSORT's
+    admission is already replayed and green; (3c) the μ-generic TP
+    wrappers — **DELIVERED here** (J-P4b-e), and load-bearing for
+    CD2-BOUND right now. The `allTps` plumbing was written and then
+    REVERTED: unwired, it is exactly the "build the infrastructure now,
+    wire it into the real proof later" anti-pattern the working
+    discipline bans.
+  - **THE REMAINING CONDITIONAL ROWS (5), each named:**
+    `rule:ORDEREDP-APPEND` on `ORDEREDP-QSORT` and `QSORT-IS-ISORT`
+    (the decode-class item above); `tp:QSORT` on
+    `TRUE-LISTP-QSORT` and `QSORT-IS-ISORT` (item 3 above);
+    `rule:TRUE-LISTP-BNEXT` on `BSORT-IS-ISORT` (item 2's class — the
+    rewrite half; its bounded seed would demand ~52 dep theorems at
+    sorts-equivalent, a cost that must be weighed, unlike the 3-name
+    linear half); `linear:ACL2-COUNT-CAR-CDR-LINEAR` on
+    `ACL2-COUNT-EVENS-STRONG` — NOT in the four items and a DIFFERENT
+    class from item 2: it is a GROUND-ZERO `:LINEAR` rule (hyps
+    `((CONSP X))`, concl `(EQUAL (ACL2-COUNT X) (BINARY-+ '1 (BINARY-+
+    (ACL2-COUNT (CAR X)) (ACL2-COUNT (CDR X)))))`), so no dependency
+    theorem exists anywhere to replay. Closing it needs a D5-class
+    `dischargeGzLinearHyp` whose prelude constant is proved over the
+    world's OWN byte-checked `ACL2-COUNT` body (the `OrdinalSim` S4
+    registry-row precedent), which is a new discharger family.
+
+  - **P4b END STATE (measured; `just ci` run to completion, zero recipe
+    failures).** Golden header
+    `REPLAYED 116/116 (111 unconditional + 5 conditional)`; FAIL rows
+    **0** (was 1); row-level conditional rows **5** (was 10);
+    `sorry`/`sorryAx` **0**. Golden SPLICED from FRESH sections (all 29
+    books re-run under the new driver), then the VERIFYING sweep passed
+    byte-exactly and `check-golden-current` confirms the golden IS the
+    live assembly. Pins converged in the same pass
+    (`Tests/SortingPins.lean`: two telescopes and two pinned status
+    lines drop the five arithmetic runes, dated diagnoses in place; the
+    stale "arrives without per-rule leaves" note on `tp:QSORT`
+    corrected — RT2 emitted them). Ratchets TIGHTENED, never loosened:
+    `Imported/Sorting.lean` 4265 → 4246, `Lemmas/Judgments.lean`
+    1830 → 1820.
