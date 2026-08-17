@@ -1,4 +1,4 @@
-import ACL2Lean.MirrorProofs.IsoGen
+import ACL2Lean.MirrorProofs.TransportGen
 import ACL2Lean.Imported.Waypoints.Basics
 import ACL2Lean.Mirrors.Basics
 

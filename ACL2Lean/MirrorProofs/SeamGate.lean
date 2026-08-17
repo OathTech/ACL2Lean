@@ -59,6 +59,33 @@ private def declaredInPackageNonSpec (env : Environment) (n : Name) : Bool :=
   | some m => (`ACL2Lean).isPrefixOf m && !(`ACL2Lean.Mirrors).isPrefixOf m
   | none => false
 
+/-- THE ONE EXEMPTION (R4 wave 2c, a FALSE-NEGATIVE fix, not a widening).
+
+    `isort_ordered Int` — the first sorting product — mentions
+    `instTotalOrderInt`, the `TotalOrder Int` instance the spec's own
+    order CLASS needs at the user's element type. That instance is
+    declared in `MirrorProofs/OrderBridge.lean`, so the criterion above
+    called it "an ACL2 notion" and DROPPED the theorem from the product
+    set — i.e. the gate silently stopped checking the very mirrors this
+    wave adds. That is the dangerous direction for a gate, so it is
+    fixed rather than tolerated.
+
+    The exemption is one level deep and mechanical: a package constant is
+    admitted in a product's STATEMENT when its OWN TYPE is in product
+    vocabulary (mentions a `Mirrors/` spec constant and nothing else of
+    ours). `instTotalOrderInt : ACL2Lean.Sorting.TotalOrder Int` passes;
+    `intOrderedEmbed : OrderedEmbed Int` does not (`OrderedEmbed` is
+    ours and is not a spec constant), and neither does anything typed in
+    `SExpr`/`evalOpt` vocabulary — which is the property that matters.
+    Speedbump, honest-mistake standard: DO NOT HARDEN it. -/
+private def specTypedPackageConst (env : Environment) (n : Name) : Bool :=
+  match env.find? n with
+  | some ci =>
+    let used := ci.type.getUsedConstants.toList
+    used.any (declaredInMirrorSpec env) &&
+      !used.any (declaredInPackageNonSpec env)
+  | none => false
+
 open Lean.Elab.Command in
 run_cmd liftCoreM do
   let env ← getEnv
@@ -77,7 +104,8 @@ run_cmd liftCoreM do
       if let .thmInfo _ := ci then
         let used := ci.type.getUsedConstants.toList
         if used.any (declaredInMirrorSpec env) &&
-            !used.any (declaredInPackageNonSpec env) then
+            !used.any (fun u => declaredInPackageNonSpec env u &&
+              !specTypedPackageConst env u) then
           products := products ++ [c]
   if products.isEmpty then
     throwError "mirror seam gate: NO mirror product theorem found — either \

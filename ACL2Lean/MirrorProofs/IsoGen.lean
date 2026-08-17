@@ -242,6 +242,44 @@ Concretely:
   whole residual after the order field had done its work was
   `⊢ … = if false = true then … else …` (measured at R4 wave 1 stage 4
   and REPRODUCED VERBATIM at wave 2a before this rung was added).
+  `Bool.and_eq_true` (`((a && b) = true) = (a = true ∧ b = true)`, R4
+  wave 2c, DECISION O-3) is the THIRD member of the same family and
+  joins it as a MEMBER ADDITION to an already-ruled family rather than
+  as a new ruling. It says exactly that the `Bool` `&&` and the `Prop`
+  `∧` are two spellings of one conjunction: it relates no two
+  OPERATIONS (both sides are the same conjunction, once in each
+  universe), mentions no mirror definition and no recursion, so it
+  cannot rescue a misaligned square — it can only cross the
+  `Bool`/`Prop` seam a mirror `Prop` and a `Bool`-valued reading sit on
+  either side of. Its two MEASURED consumers (wave 2b recorded both
+  residuals verbatim before the rung existed) are `ordered_agree_
+  orderedpRec` — the mirror spells `Ordered`'s adjacent-pair chain as
+  `∧`, the `chain2Rec` reading as `&&` — and `Permuted`'s agree square.
+  HONESTLY, AND ON THE RECORD: the ladder's table below used to name
+  this lemma BY NAME in the deliberately-NOT-admitted column (as an
+  example of "any OTHER `Bool`/`Prop` fact"), which is why wave 2b
+  escalated it (J-2b-3) instead of taking it; the table row is corrected
+  in place below rather than silently, and `decide_eq_true_eq` — the
+  other name that column carried — is NOT admitted and stays named
+  there.
+
+  **THE RUNG IS ADMITTED IN ONE DIRECTION (`←`), AND THE OTHER
+  DIRECTION WAS MEASURED TO REGRESS TWO LIVE SQUARES** (R4 wave 2c,
+  recorded because it is the kind of thing that looks like a typo
+  later). Added FORWARDS (`(a && b) = true ↦ a = true ∧ b = true`) the
+  rung also rewrites HYPOTHESES, and a `bif`-splitting square's own case
+  hypothesis is exactly of that shape: `filterRel_lt_agree_filterLtL`
+  and `filterRel_gt_agree_filterGtL` STOP CLOSING, because `simp_all`
+  can no longer use the split conjunction on the goal's `bif (a && b)`
+  condition (measured residuals: case 2 becomes
+  `⊢ … = bif true && true then … else …` and case 3
+  `h✝ : ¬(lexorderB ev head✝ = true ∧ (!decide (head✝ = ev)) = true)`
+  with the `bif` untouched). Added BACKWARDS — merging a `Prop`
+  conjunction of `Bool` equations INTO the single `Bool` equation — it
+  closes `ordered_agree_orderedpRec` and leaves all 23 pre-existing
+  squares closing. Same lemma, same seam, and the `←` is the direction
+  that carries the mirror's `Prop` spelling to the reading's `Bool`
+  spelling, which is the direction every consumer wants.
 
 Admitted, each `rfl` rung pinned by the examples directly below (so the
 criterion cannot rot silently):
@@ -254,8 +292,9 @@ criterion cannot rot silently):
 | `Bool.cond_true/false` | `cond`'s own two cases   | any `lexorderB`/order fact |
 | `ite_true`/`ite_false` | `ite`'s own two cases    | `if_pos`/`if_neg`, `List.map_eq_nil_iff`, any conditional-rewrite discharge |
 | `enc_inj_iff`       | `Acl2Embed.inj` as an iff   | any OTHER embedding property |
-| `Bool.decide_eq_true` | the `decide`/`= true` coercion | any OTHER `Bool`/`Prop` fact (`decide_eq_true_eq`, `Bool.and_eq_true`, …) |
+| `Bool.decide_eq_true` | the `decide`/`= true` coercion | any OTHER `Bool`/`Prop` fact (`decide_eq_true_eq`, …) |
 | `Bool.false_eq_true` | the same family: `false`/`False` | as above — still nothing that relates two operations |
+| `← Bool.and_eq_true` | the same family: `&&`/`∧`, BACKWARDS ONLY (O-3, wave 2c) | as above — `decide_eq_true_eq` in particular; and the FORWARD direction of this very lemma (measured: it regresses two live squares) |
 
 `ite_true`/`ite_false` (R4 wave 1, 2026-08-14) are the `ite` twin of the
 already-admitted `cond` pair and are admitted under the SAME clause of
@@ -477,6 +516,12 @@ example (b : Bool) : decide (b = true) = b := Bool.decide_eq_true
     two spellings of one thing. -/
 example : (false = true) = False := Bool.false_eq_true
 
+/-- The same family's THIRD member (R4 wave 2c, decision O-3), pinned
+    the same way: it says exactly that the `Bool` `&&` and the `Prop`
+    `∧` are two spellings of one conjunction, and nothing more. -/
+example (a b : Bool) : ((a && b) = true) = (a = true ∧ b = true) :=
+  Bool.and_eq_true a b
+
 end LadderPins
 
 open Lean.Parser.Tactic in
@@ -490,7 +535,8 @@ macro "mirror_square_close" "[" xs:simpLemma,* "]" : tactic =>
       | simp_all only [List.map_nil, List.map_cons, List.nil_append,
           List.cons_append, List.length_nil, List.length_cons,
           Bool.cond_true, Bool.cond_false, ite_true, ite_false,
-          enc_inj_iff, Bool.decide_eq_true, Bool.false_eq_true, $xs,*]))
+          enc_inj_iff, Bool.decide_eq_true, Bool.false_eq_true,
+          ← Bool.and_eq_true, $xs,*]))
 
 /-- The CONSTRUCTOR that the definition's OWN match leaves an argument
     UNDESTRUCTURED against, in a GUARDED equation — `none` when no
@@ -590,41 +636,6 @@ macro "mirror_square_close_split " fnId:ident " guard " c:ident
       | (mirror_square_close [$xs,*]; done)
       | (mirror_definition_split $fnId guard $c <;>
           mirror_square_close [$xs,*])))
-
-open Lean.Parser.Tactic in
-/-- The transport closer, two rungs — both plumbing (generated skeleton
-    squares, `map_inj`, and `List.map_nil`), and NO content lemma in
-    either direction:
-
-    1. PULL THE MAP OUT OF THE CROSSING INSTANCE: rewrite the homomorphism
-       squares right-to-left to pull `List.map` outwards, and the
-       invariance squares left-to-right to delete it, then land the goal —
-       directly for a scalar conclusion, through the embedding's
-       injectivity for a list conclusion.
-    2. PUSH THE MAP INTO THE GOAL (added by R1-A with its first consumer,
-       `app_nil_int`): when the spec `Prop` carries a CLOSED LIST LITERAL
-       (`app xs [] = xs`), rung 1 cannot fire — `[]` is not syntactically
-       `List.map e.enc []`, so the homomorphism square's reversed pattern
-       has nothing to match. Take the injectivity step first and rewrite
-       the GOAL with the same squares forwards, plus `List.map_nil` (a
-       `rfl`-lemma, already in the square closer's fixed kit and pinned in
-       `LadderPins`), which turns the literal into the form the crossing
-       instance has.
-
-    Rung 2 is a fallback, so the three pre-R1 transports keep their rung-1
-    proofs verbatim. -/
-macro "mirror_transport_close" "[" xs:simpLemma,* "]"
-    " fwd " "[" fs:simpLemma,* "]"
-    " embed " e:term:max " in " h:ident : tactic =>
-  `(tactic|
-    (first
-      | (simp only [$xs,*] at $h:ident
-         first
-           | exact $h
-           | exact map_inj $e $h)
-      | (refine map_inj $e ?_
-         simp only [$fs,*, List.map_nil]
-         exact $h)))
 
 /-! ## The square registry
 
@@ -753,6 +764,57 @@ def registerSquare (fn : Name) (cls : SquareClass) (thm : Name)
             transport's rewrite set (fail-closed)"
       pure { cur with homName := thm, homIsScalar := cls == .homScalar }
   modifyEnv fun env => mirrorSquareExt.addEntry env next
+
+/-! ## CALLEE RESOLUTION THROUGH NOTATION (O-2, R4 wave 2c)
+
+Callee resolution reads the squared definition's VALUE and looks up each
+used constant in the registry. That misses a callee spelled as OPERATOR
+NOTATION: `Mirrors/Sorting.lean`'s `qsort` writes its append as `++`
+(permitted by the vocabulary practice as unambiguous operator notation),
+and its value therefore carries `HAppend.hAppend` and `List.instAppend`
+and NEVER `List.append` — so `qsort_map_hom`'s whole remaining distance
+(wave 2b: `List.map_append` and nothing else) sat behind a SPELLING.
+
+THE RULED ROUTE (O-2), and why it is this one rather than the other:
+admitting `List.map_append` as a LADDER RUNG would put a
+content-shaped library lemma — one that RELATES TWO OPERATIONS, the
+criterion's own content test — permanently in every square's closer.
+The append homomorphism square is not that: it is the SAME artifact
+`mirror_iso%` generates for any other callee, `List.append`'s own
+refinement square, and a library FUNCTION's square is legal machinery
+(it is not a spec NAME, so the collision rule is not in play). So the
+square is DECLARED and REGISTERED like any other, and resolution learns
+the notation.
+
+WHAT THE NORMALIZATION IS, exactly (`notationSpellings`): a fixed table
+from the NOTATION'S INSTANCE CONSTANT to the underlying function whose
+square is wanted, plus the projection constants that carry the
+notation's spelling to that function's. It fires only when
+
+* the instance constant is ACTUALLY PRESENT in this definition's own
+  value — never a general unfolding, and never a guess about what the
+  goal might contain; and
+* a square is ACTUALLY REGISTERED for the underlying function —
+  otherwise nothing at all is added, so a definition whose `++` callee
+  has no square is treated exactly as it was (which is why every
+  pre-existing square's proof term is unchanged by O-2).
+
+WHY IT IS NOT A CONTENT CHANNEL. The projections it adds
+(`HAppend.hAppend`, `Append.append`) are STRUCTURE PROJECTIONS of the
+notation classes — definitional unfoldings of the same character as the
+invocation's own `unfold [...]` list, and they relate no two operations;
+they only rewrite `xs ++ ys` to `List.append xs ys`. The content, such
+as it is, is in the SQUARE, which is generated and gated exactly like
+every other square. -/
+
+/-- The NOTATION table (O-2). Each row is
+    `(instance constant, underlying function, projections to unfold)`;
+    see "callee resolution through notation". Deliberately a fixed,
+    tiny, EXPLICIT table rather than a general "unfold any instance"
+    rule: the only entry is the one with a measured consumer
+    (`qsort`'s `++`), and a new one is a visible edit here. -/
+private def notationSpellings : List (Name × Name × List Name) :=
+  [(``List.instAppend, ``List.append, [``HAppend.hAppend, ``Append.append])]
 
 /-! ## `mirror_iso%` -/
 
@@ -1194,16 +1256,39 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
   -- (an agreement callee may carry a whole PER-CONSTRUCTOR FAMILY; each
   -- member is stated at a distinct literal, so the family cannot redirect
   -- a rewrite the way a second GENERAL square would — see `agreeSquares`)
-  let calleeSquares : List Name :=
-    di.value.getUsedConstants.toList.flatMap fun c =>
-      match cls with
-      | .agree => agreeSquares env c
-      | _ =>
-        match findSquares env c with
-        | some s => if s.homName == .anonymous then [] else [s.homName]
-        | none => []
+  let usedConsts : List Name := di.value.getUsedConstants.toList
+  let squaresOf (c : Name) : List Name :=
+    match cls with
+    | .agree => agreeSquares env c
+    | _ =>
+      match findSquares env c with
+      | some s => if s.homName == .anonymous then [] else [s.homName]
+      | none => []
+  let calleeSquares : List Name := usedConsts.flatMap squaresOf
+  -- THE NOTATION NORMALIZATION (O-2, R4 wave 2c) — see "callee
+  -- resolution through NOTATION" in the header. A mirror definition that
+  -- spells a callee as OPERATOR NOTATION (`xs ++ ys`) carries the
+  -- notation's INSTANCE in its value, never the underlying function, so
+  -- plain callee resolution cannot see the function's registered square.
+  -- The table below is keyed on the INSTANCE CONSTANT ACTUALLY PRESENT IN
+  -- THIS DEFINITION'S VALUE and does two things, both fail-closed:
+  -- resolve the square of the underlying function, and add the notation's
+  -- own PROJECTIONS to the closer's set so the goal's notation spelling
+  -- meets the square's. Both are added ONLY when a square is actually
+  -- registered for the underlying function, so a definition whose callee
+  -- has no square is treated exactly as before (and every pre-existing
+  -- square's proof term is unchanged).
+  let mut notationUnfolds : Array Name := #[]
+  let mut notationSquares : List Name := []
+  for (instC, fnUnder, projs) in notationSpellings do
+    if usedConsts.contains instC then
+      let sqs := squaresOf fnUnder
+      unless sqs.isEmpty do
+        notationSquares := notationSquares ++ sqs
+        notationUnfolds := notationUnfolds ++ projs.toArray
   let lemmaNames : Array Name :=
-    #[fnName] ++ unfoldNames ++ calleeSquares.eraseDups.toArray
+    #[fnName] ++ unfoldNames ++ notationUnfolds
+      ++ (calleeSquares ++ notationSquares).eraseDups.toArray
   let mut lemmas ← lemmaNames.mapM fun n =>
     `(Lean.Parser.Tactic.simpLemma| $(mkCIdent n):term)
   -- the declared embedding's own fields, AT THIS SQUARE'S BINDER: scoped
@@ -1286,173 +1371,5 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         square is NOT the escape (thin-Lean ruling 2026-08-11, at the \
         mirror level)."
   registerSquare fnName cls thmName squareKey
-
-/-! ## `mirror_transport%`
-
-The assembly measured off the three hand transports (`app_assoc_int`,
-`len_app_int`, `len_revAcc_int`): encode → cross → pull back, with the
-numeric variant differing only in the last step. Both artifacts are
-generated from one declaration:
-
-* the CROSSING `<name> : Basics.P SExpr` — the spec Prop at the ACL2 value
-  type, proved by rewriting mirror vocabulary into waypoint vocabulary with
-  the registered AGREEMENT squares and then citing the waypoint theorem
-  exactly. This is the SOLE entry point of the theorem's content, and it is
-  one `exact` of a replayed-backed theorem.
-* the MIRROR `<name> : Basics.P <T>` — the crossing instantiated at encoded
-  arguments, normalised by the registered HOMOMORPHISM squares, landed
-  through the embedding's injectivity.
-
-The user still WRITES the mirror statement (`Basics.app_assoc Int`): the
-product's statement is never generated out of sight, and the `#guard_msgs`
-receipt stays pinned per theorem in the consuming file. -/
-
-syntax (name := mirrorTransportCmd)
-  (docComment)? "mirror_transport% " ident " : " ident term:max
-  &" embed " term:max
-  &" crossing " ident &" from " ident : command
-
-/-- Generate the CROSSING + the MIRROR theorem for one spec Prop:
-
-    ```
-    mirror_transport% app_assoc_int : ACL2Lean.Basics.app_assoc Int
-      embed intEmbed
-      crossing app_assoc_sexpr from Imported.Waypoints.app_assoc_native_driver
-    ```
-
-    The proof is fixed on both rungs; the only inputs are the fidelity
-    judgments (which waypoint theorem IS this property, which embedding
-    reads the element type). -/
-@[command_elab mirrorTransportCmd] def elabMirrorTransport : CommandElab :=
-  fun stx => do
-  let doc? : Option (TSyntax ``Lean.Parser.Command.docComment) :=
-    if stx[0].getNumArgs > 0 then some ⟨stx[0][0]⟩ else none
-  let thmId : Ident := ⟨stx[2]⟩
-  let specId : Ident := ⟨stx[4]⟩
-  let elemTy : Term := ⟨stx[5]⟩
-  let embedStx : Term := ⟨stx[7]⟩
-  let crossId : Ident := ⟨stx[9]⟩
-  let wpId : Ident := ⟨stx[11]⟩
-  let specName ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo specId
-  let wpName ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo wpId
-  let env ← getEnv
-  let some (.defnInfo _) := env.find? specName
-    | throwError "mirror_transport%: {specName} is not a definition — the \
-        transported statement is a spec `Prop` of the mirror layer \
-        (frontier)"
-  -- the crossing's statement: the spec Prop at the ACL2 value type, in
-  -- UNFOLDED form (so the generated crossing states what the hand one did)
-  let sexprC : Term := mkCIdent ``ACL2.SExpr
-  let crossTyStx : Term ← `($(mkCIdent specName) $sexprC)
-  let (crossStmt, binderNames) ← liftTermElabM do
-    let ty ← whnf (← Term.elabType crossTyStx)
-    unless ty.isForall do
-      throwError "mirror_transport%: {specName} at SExpr is not a \
-          quantified statement (frontier — the transported spec is a \
-          `∀`-statement over lists)"
-    let names ← forallTelescopeReducing ty fun xs body => do
-      for x in xs do
-        let t ← whnf (← inferType x)
-        unless t.isAppOf ``List && (t.appArg!).isConstOf ``ACL2.SExpr do
-          throwError "mirror_transport%: {specName} binds a non-`List \
-              SExpr` argument — outside the derived transport table (a \
-              named frontier: every binder is encoded by `List.map`)"
-      if body.isForall then
-        throwError "mirror_transport%: {specName}'s body is not an \
-            equation between list/scalar terms (frontier)"
-      pure (← xs.mapM fun x => do pure (← x.fvarId!.getDecl).userName)
-    pure (← PrettyPrinter.delab ty, names)
-  let bs : Array Ident := binderNames.map mkIdent
-  -- the crossing: mirror vocabulary → waypoint vocabulary, then the
-  -- replayed-backed waypoint theorem EXACTLY
-  let agreeLemmas ← (currentSquares env).flatMap (·.agree.map (·.thmName))
-    |>.toArray.mapM fun n =>
-      `(Lean.Parser.Tactic.simpLemma| $(mkCIdent n):term)
-  let crossProof ← `(by
-      intro $bs*
-      simp only [$agreeLemmas,*]
-      exact $(mkCIdent wpName) $bs*)
-  elabCommand (← `(theorem $crossId : $crossStmt := $crossProof))
-  -- the crossing's docstring is GENERATED too: it says exactly what the
-  -- crossing is (the content's sole entry point) and names the replayed
-  -- theorem it cites, so the page stays readable without hand prose.
-  addDocStringCore ((← getCurrNamespace) ++ crossId.getId)
-    s!"THE CROSSING for `{specName}` (generated by `mirror_transport%`): \
-       the spec `Prop` at the ACL2 value type `SExpr`. Proved by rewriting \
-       mirror vocabulary into waypoint vocabulary with the REGISTERED \
-       agreement squares and then citing `{wpName}` exactly — so this is \
-       the SOLE entry point of the theorem's content, and that content is \
-       the replay's."
-  -- the mirror theorem: the crossing at encoded arguments, normalised
-  let env2 ← getEnv
-  let homLemmas ← (currentSquares env2).filterMapM fun s => do
-    if s.homName == .anonymous then pure none
-    else if s.homIsScalar then
-      pure (some (← `(Lean.Parser.Tactic.simpLemma|
-        $(mkCIdent s.homName):term)))
-    else
-      pure (some (← `(Lean.Parser.Tactic.simpLemma|
-        ← $(mkCIdent s.homName):term)))
-  -- the same squares FORWARDS, for the closer's second rung (which
-  -- rewrites the GOAL rather than the crossing instance)
-  let homLemmasFwd ← (currentSquares env2).filterMapM fun s => do
-    if s.homName == .anonymous then pure none
-    else pure (some (← `(Lean.Parser.Tactic.simpLemma|
-      $(mkCIdent s.homName):term)))
-  let hId : Ident := mkIdent `h
-  let encArgs ← bs.mapM fun b => `(List.map ($embedStx).enc $b:ident)
-  let crossApp := Syntax.mkApp crossId encArgs
-  let mainProof ← `(by
-      intro $bs*
-      have $hId : _ := $crossApp
-      mirror_transport_close [$(homLemmas.toArray),*]
-        fwd [$(homLemmasFwd.toArray),*]
-        embed $embedStx in $hId)
-  let mainStmt : Term ← `($(mkCIdent specName) $elemTy)
-  elabCommand (←
-    `($[$doc?:docComment]? theorem $thmId : $mainStmt := $mainProof))
-  -- TEMPLATE FAILURE = HARD ERROR, on either rung
-  let env3 ← getEnv
-  let ns ← getCurrNamespace
-  for (nm, what) in [(ns ++ crossId.getId, "crossing"),
-                     (ns ++ thmId.getId, "transport")] do
-    -- FAILURE REPORTING (R0 item 10, 2026-08-13): as with `mirror_iso%`,
-    -- this message used to ASSERT the cause per rung. State the OBSERVED
-    -- residual and list candidates; the goals themselves are reported by
-    -- Lean as separate elaboration errors on the declaration.
-    let residual : String :=
-      match env3.find? nm with
-      | none => "no declaration was produced"
-      | some ci =>
-        if (ci.value?.getD ci.type).hasSorry then
-          "the declaration was produced but carries `sorryAx` (the \
-           assembly left goals open)"
-        else ""
-    if residual != "" then
-      throwError "mirror_transport%: the fixed {what} assembly did not \
-          close {nm}.\n\
-          OBSERVED: {residual}. Spec `{specName}`; waypoint theorem \
-          `{wpName}`; failing rung: {what}. The residual GOALS are \
-          reported separately by Lean as elaboration errors on this \
-          declaration — read those first; this message does not \
-          diagnose them.\n\
-          CANDIDATE CAUSES (none asserted, not ranked): (a) the \
-          registered agreement squares do not carry {specName} into \
-          {wpName}'s vocabulary (a MISSING or misaligned square); (b) \
-          `{wpName}` is not this property (the crossing cites it \
-          exactly, so a mismatched statement fails here); (c) a \
-          missing registered HOMOMORPHISM square for one of the \
-          definitions in {specName}; (d) a wrong square CLASS \
-          (scalar vs list) for one of those definitions; (e) a \
-          missing instance at the element type.\n\
-          Remedy: generate the missing square with `mirror_iso%`, fix \
-          the crossing's citation, or route the fact through a \
-          replayed ACL2 book theorem — a hand assembly is NOT the \
-          escape."
-
-/- DELIBERATELY ABSENT, exactly as in `derive_sim%`: a `register_square%`
-   for HAND-written squares. Registering one so a transport could resolve
-   it would BE the hand-proof fallback the ruling forbids. If a future
-   frontier genuinely needs one, that is a ruling, not a convenience. -/
 
 end ACL2Lean.MirrorProofs
