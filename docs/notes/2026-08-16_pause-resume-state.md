@@ -54,3 +54,10 @@ REMAINING ITEMS (the executor's handoff, verbatim ranges):
    R-1a wording).
 7. Residuals: PatternPins:197 :CR-RUNE wording; Provers:253 comment
    name → _mu; totality_2_rec_snd liveness (build-verify; delete if dead).
+
+## RESOLVED (2026-08-17)
+
+All items landed; full claim gate TRUE_EXIT=0 on 36f01f2 (artifact:
+.gate-runs/36f01f2-20260817T180942Z.log); merged to main under Mike's
+sign-off scoped to THIS merge alone. Follow-on arcs (wave 2, perf)
+staged as charters, NOT approved, NOT launched.
