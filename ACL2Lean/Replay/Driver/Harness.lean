@@ -1269,6 +1269,10 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       let mut envFns : List String := []
       let mut totalEnv : List (String × Nat × Expr) := []
       let mut rounds : Nat := 0
+      -- PERF-ARC PHASE 1 instrumentation (2026-08-17, behavior-zero):
+      -- rounds-to-fixpoint + totalEnv rebuild count for the quiescence
+      -- loop, reported on the ACL2LEAN_TP_DIAG stderr sink below.
+      let mut envRebuilds : Nat := 0
       let mut beforeR ← freeCount prf
       let mut looping := true
       while looping do
@@ -1318,6 +1322,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
             (termReplayed := termReplayed) (hypFVars := hypFVarsAll)
             (tpCors := tps)
           tpFailedRef.set []
+          envRebuilds := envRebuilds + 1  -- perf-arc phase 1 instrumentation
         for (c, v) in (if discharge then used else []) do
           prf ← attemptTotalOrTp totalEnv prf c v
         -- SECOND total:/tp: PASS (T1+2 sprint phase 1, 2026-08-14). The pass
@@ -1372,6 +1377,12 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           looping := false
         else
           beforeR := afterR
+      -- PERF-ARC PHASE 1 instrumentation (2026-08-17, behavior-zero):
+      -- quiescence-loop census on the existing TP_DIAG stderr sink (off by
+      -- default; never a result line; no gate reads stderr). Do not harden.
+      if (← IO.getEnv "ACL2LEAN_TP_DIAG").isSome then
+        IO.eprintln s!"[tp-diag] quiescence {cp.name}: rounds={rounds} \
+          envRebuilds={envRebuilds}"
       -- kept = the hypotheses STILL FREE in the final proof. Recomputed
       -- AFTER all discharges (sorting arc 2026-07-28): a recorded-
       -- termination totality proof may pull in tp:/rule: fvars the replay

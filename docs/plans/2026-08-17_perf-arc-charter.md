@@ -63,3 +63,42 @@ Stop and report if the transport reconciliation fails both ways, if
 any optimization cannot be made golden-byte-identical, or if the
 profile contradicts the plan badly enough that the centerpiece
 changes (that re-scope is Mike's to see).
+
+## ARC LOG
+
+### Phase 1 (2026-08-17) — THE PROFILE (the measurement brief is the
+lane report; raw logs .tmp/perf1/; absolutes from the 36f01f2 gate log
+per the noise disclosure). Headlines: redundant re-derivation = ~59%
+of book elaboration (SE pre-pass 1086s incl. 3 admission re-replays;
+usefi layer ~700-760s; other pre-passes ~193s); the QSORT admission
+proved 3x/sweep; JUNE RE-TEST: the make-failure-cheap fix HELD, the
+regime inverted (assumed work 31s ≈ 1% — budget tuning DROPPED, no
+prize); quiescence/memo healthy (2 rounds typical, zero wasted
+re-attempts); NEW COST TIER: the edit cascade (Waypoints lib chain
+~1050s/edit, SortingPins 799s SERIAL after BSsortsEquivalent,
+PatternPins 652s) — post-edit gate critical path ~80 min explained.
+Dev-loop recipe LANDED (just replay-book, covDeps parsed from the
+Harness at runtime — no drift table; parity gaps documented in the
+recipe). Instrumentation: timings-gated [t] lines in crossBookRegistry
++ the quiescence census on the TP_DIAG sink — behavior-zero, sweep
+passes timings=false, golden verified untouched.
+
+### O-4 (orchestrator, 2026-08-17) — phase 2's order of attack,
+decided BY the profile per the binding methodology:
+1. THE TRANSPORT (D7 via the proven evalOpt_world_mono + module-DAG
+   sharing), EXTENDED TO ADMISSIONS (the profile's 3x-QSORT finding
+   makes admission sharing explicitly in scope). Prize ~24 min
+   CPU/sweep, confidence HIGH. First task: the hnew reconciliation
+   (P3c's equation-lemma failure vs A5's proveNoShadow route) settled
+   at build time; fallback = today's re-replay; golden byte-identity
+   the acceptance test.
+2. THE USEFI CONSUMPTION: prepareUseFi consumes the EquisortParametric
+   library constants; the admission constants share one namespace with
+   (or ride) the transport. Prize ~11-13 min/sweep.
+3. THE CASCADE TIER (new, flagged by the profile): investigate
+   breaking SortingPins' import of BSsortsEquivalent — CAUTION: the
+   capstone pins reference the sweep-registered constants, so the
+   decoupling must keep the pins binding the same constants or it is
+   refused; take only if honestly decoupled, fail-closed. Plus a look
+   at Waypoints/Qsort.lean's 564s elaboration.
+4. Budget tuning: DROPPED (the profile's verdict).

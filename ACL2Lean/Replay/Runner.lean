@@ -458,9 +458,15 @@ def bookDemandSeed (dev : Development) : List String :=
     citations resolve against the entries accumulated before it), which is
     the corpus order the sweep already uses. -/
 def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
-    (depDevs : List (String × Development)) (demandSeed : List String) :
+    (depDevs : List (String × Development)) (demandSeed : List String)
+    -- PERF-ARC PHASE 1 instrumentation (2026-08-17, behavior-zero): the
+    -- pre-pass was the profile's biggest UNTIMED gap (A5). `[t]` lines on
+    -- stdout, gated on the focused CLI's timings flag; the sweep passes
+    -- false and is untouched.
+    (timings : Bool := false) :
     TermElabM (ReplayedRegistry
       × List (String × Name × List String × List SExpr)) := do
+  let tXb0 ← IO.monoMsNow
   -- DEMAND (bounded), computed GLOBALLY and BEFORE any replay: the seed
   -- names closed over EVERY offered book's citations. Replaying a whole
   -- dependency corpus at each consumer world would be quadratic and
@@ -526,6 +532,7 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
         s!"xterm_{bookKey}_{src}_{fn}"
       let tName := Name.mkStr2 "CrossBookTermination" tBase
       let tCondsName := Name.mkStr2 "CrossBookTermination" s!"{tBase}_conds"
+      let tXa0 ← IO.monoMsNow  -- perf-arc phase 1 instrumentation
       let conds? ←
         if (← Lean.getEnv).contains tName then
           unless (← Lean.getEnv).contains tCondsName do
@@ -548,6 +555,8 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
             IO.println s!"    [cross-book termination {src}/{fn} @ \
               {bookKey}: {status}]"
             pure none
+      if timings then  -- perf-arc phase 1 instrumentation
+        IO.println s!"[t] xterm {src}/{fn}: {(← IO.monoMsNow) - tXa0} ms"
       if let some cs := conds? then
         -- the same circularity guard the in-book pre-pass uses
         unless admissionCircular fn cs do
@@ -585,10 +594,14 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
         reg := reg ++ [{ thm := cp.name, decl := mName, conds := conds,
                          formula := formula, crossBook := true }]
         continue
+      let tXt0 ← IO.monoMsNow  -- perf-arc phase 1 instrumentation
       let (status, reg?) ← tryReplay depDev w wExpr cp rules
         (replayed := reg) (replayedName? := some mName)
         (termReplayed := xterm)
         (crossTrees := trees) (crossRules := crossRules)
+      if timings then  -- perf-arc phase 1 instrumentation
+        IO.println s!"[t] xthm {src}/{cp.name}: \
+          {(← IO.monoMsNow) - tXt0} ms ({status})"
       match reg? with
       | some conds =>
         Lean.addAndCompile (.defnDecl {
@@ -613,6 +626,10 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
     trees := trees ++ bookTrees depDev
     earlierRules := earlierRules ++ (allBookRules depDev).filter
       (fun r => !earlierRules.any (fun o => o.runeKey == r.runeKey))
+  if timings then  -- perf-arc phase 1 instrumentation
+    IO.println s!"[t] cross-book pre-pass total: \
+      {(← IO.monoMsNow) - tXb0} ms ({xterm.length} admission(s), \
+      {reg.length} registered theorem(s))"
   if xdiag then
     -- the closing census: what the seed demanded and the pre-pass never
     -- registered, and whether an offered book carries the name at all
@@ -768,7 +785,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         if crossDevs.isEmpty then
           pure (([] : ReplayedRegistry),
                 ([] : List (String × Name × List String × List SExpr)))
-        else crossBookRegistry name w wExpr crossDevs (bookDemandSeed dev)
+        else crossBookRegistry name w wExpr crossDevs (bookDemandSeed dev) (timings := timings)
       let mut replayed : ReplayedRegistry := crossReg
       -- RECORDED-TERMINATION replayed statements (sorting arc 2026-07-28): defuns whose
       -- admission decrease is beyond the destructor walk get their recorded
@@ -807,9 +824,13 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
           (String.map (fun c => if c.isAlphanum then c else '_')
             s!"pre_{name}_{cp.name}")
         if (← Lean.getEnv).contains pName then continue
+        let tPt0 ← IO.monoMsNow  -- perf-arc phase 1 instrumentation
         let (status, reg?) ← tryReplay dev w wExpr cp rules
           (replayed := replayed) (replayedName? := some pName)
           (crossTrees := crossTrees) (crossRules := crossRules)
+        if timings then  -- perf-arc phase 1 instrumentation
+          IO.println s!"[t] pre-term {cp.name}: \
+            {(← IO.monoMsNow) - tPt0} ms"
         match reg? with
         | some conds =>
           if recTermDefuns.any (fun (fn, _) => admissionCircular fn conds) then
@@ -929,7 +950,11 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
           leafTotalEnv? := some leafTotalEnv
           for (id, o, clause) in dis do
             res := { res with dpTotal := res.dpTotal + 1 }
+            let tDp0 ← IO.monoMsNow  -- perf-arc phase 1 instrumentation
             let r ← tryDischarge w wExpr tps leafTotalEnv id o clause
+            if timings then  -- perf-arc phase 1 instrumentation
+              IO.println s!"[t] dp-leaf {cp.name} {id}:{o}: \
+                {(← IO.monoMsNow) - tDp0} ms"
             if (r.splitOn "✓").length > 1 then
               res := { res with dpReplayed := res.dpReplayed + 1 }
             if (r.splitOn "◌").length > 1 then

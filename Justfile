@@ -114,6 +114,51 @@ replay file thm="":
     lake build acl2lean-replay
     lake env .lake/build/bin/acl2lean-replay {{file}} {{thm}}
 
+# FOCUSED replay of ONE corpus book with its covDeps closure supplied
+# AUTOMATICALLY (perf arc phase 1, the pre-approved dev-loop item —
+# A5's gap: `just replay` cannot focus a consumer book at sweep parity
+# without hand-typing its dep log paths). Book names are the sweep's
+# corpus keys ("sorting/qsort", "11-custom-measure", "simple", …); deps
+# are parsed at runtime from covDeps in Tests/Coverage/Harness.lean
+# (the single source of truth — no second table to drift).
+# PARITY CAVEATS (honest, verified 2026-08-17): the CLI passes
+# usefiDischarge := none (runBook's default) and does not run the
+# coverage layer's usefi term/prepare pre-pass, so :FUNCTIONAL-INSTANCE
+# capstone rows (sorts-equivalent's *-IS-ISORT) keep their usefi conds /
+# come out ASSUMED where the sweep replays them; everything else —
+# cross-book registry, dep admissions, rules, include-gated trees — is
+# the sweep's route (covDeps ⊆ the book's own include edges, so the
+# CLI's ungated crossTrees channel offers the same set the harness's
+# include-DAG gate admits). The full sweep remains the only gate.
+replay-book name thm="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    book="{{name}}"
+    log_of() { case "$1" in
+      simple) echo "acl2_samples/simple.proof-log" ;;
+      cov-encapsulate) echo "acl2_samples/pattern-tests/cov-encapsulate.proof-log" ;;
+      sorting/*) echo "acl2_samples/$1.proof-log" ;;
+      *) echo "acl2_samples/recon-tests/$1.proof-log" ;;
+    esac; }
+    # covDeps block: from "def covDeps" to the next top-level def/comment;
+    # flatten, take the parenthesized entry for this book, keep its quoted
+    # dep names (drop the book's own name = the first quoted string).
+    deps=$(awk '/^def covDeps/{f=1} f&&/^def /&&!/covDeps/{exit} f{printf "%s ",$0}' \
+        Tests/Coverage/Harness.lean \
+      | grep -o '("[^)]*])' \
+      | grep -F "(\"$book\"," \
+      | grep -o '"[^"]*"' | tail -n +2 | tr -d '"' || true)
+    depargs=""
+    if [ -n "$deps" ]; then
+      paths=""
+      for d in $deps; do paths="$paths,$(log_of "$d")"; done
+      depargs="--deps ${paths#,}"
+      echo "replay-book: deps for $book: ${paths#,}"
+    fi
+    lake build acl2lean-replay
+    # shellcheck disable=SC2086  # depargs is deliberately word-split
+    lake env .lake/build/bin/acl2lean-replay $depargs "$(log_of "$book")" {{thm}}
+
 # Capture structured proof log for a single file
 capture-proof-log file:
     ./scripts/capture-proof-log.sh {{file}}
