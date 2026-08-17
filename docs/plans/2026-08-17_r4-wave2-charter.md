@@ -168,3 +168,145 @@ the `odds` squares on the witness page on purpose: that is the route wave
 1 measured (`unfold [ACL2Lean.Sorting.odds]`, no `odds` square
 registered). And `IsoGen.lean` is at 1466 lines against the 1500 norm —
 the next growth splits it.
+
+### Wave 2b (2026-08-17) — the COMPLETE definition inventory on the page; 19 → 23 live squares; ZERO machinery changed
+
+Executed in the same isolated worktree; nothing committed there. ONE file
+touched: `ACL2Lean/MirrorProofs/Sorting.lean` (declarations + prose). No
+generator, template, ladder, registry or reading was changed — every new
+square closes with the machinery wave 2a left, and every frontier below is
+recorded rather than forced.
+
+**Scope reached, and it is not the scope the charter predicted.** The
+charter's wave-2b line was "the qsort chain and the bsort chain (bnext,
+bnextSize, bsort — needs the bsort exec kit and the bnext-size measure
+row, the M3 widening)". Measured against the real spec, three of those
+premises are wrong and are corrected here: `Mirrors/Sorting.lean` has NO
+`bnextSize` and NO `iterate` definition (its `bsort` is
+`(List.range xs.length).foldl (fun acc _ => bnext acc) xs`); the M3
+widening is not what blocks `bsort`; and `qsort`'s two squares fail for
+two DIFFERENT reasons, neither of which is the keyed-family call-site
+wiring the brief anticipated. What wave 2b delivers instead is the
+COMPLETE inventory: all fifteen spec definitions × both square classes
+now appear on the witness page, LIVE or with a verbatim frontier.
+
+**LANDED — four squares, 19 → 23, all `#guard_msgs`-pinned:**
+`bnext` agree + hom (W10), `Ordered` hom scalar (W11), `relMode` hom
+scalar (W12). Receipts: trio (`[propext, Classical.choice, Quot.sound]`)
+for all four. `ordered_map_invariant` is the one wave 2c will consume
+directly — it is the map-invariance square `isort_ordered`'s transport
+needs.
+
+**Tamper-probed, four, all hard-error:** a `bnext` agree square against
+`evensL` (a misaligned reading); and each of the three new hom squares
+declared over the PLAIN `Acl2Embed` — the order-respect hypothesis is
+load-bearing in all three, `Ordered` and `relMode` included. No new
+build-time negative test was added, and the reason is stated rather than
+assumed: wave 2b introduced no new mechanism, so there is nothing new for
+a negative test to pin (the gate-cruft doctrine — do not grow gates that
+guard nothing).
+
+**Regression net.** Statements AND proof terms (pretty-printed hashes)
+over `ACL2Lean.MirrorProofs`, `ACL2Lean.Sorting`, `ACL2Lean.Basics`,
+`ACL2.Worlds.Sorting`, `ACL2.Worlds.Perm` — 702 declarations before, 721
+after, and the diff is 19 lines, ALL ADDITIONS: the four squares plus the
+equation/`fun_cases` lemmas Lean realizes on demand for the three newly
+squared definitions. ZERO pre-existing declarations changed.
+
+**THE FRONTIERS, and what each is actually blocked on** (full residuals
+verbatim on the witness page):
+
+* `qsort` hom — ONE lemma rung, `List.map_append`, and nothing else (the
+  two IHs are exactly the two halves of the goal). It is in the ladder's
+  deliberately-NOT-admitted column BY NAME, so it is a ruling.
+* `qsort` agree — TWO independent blockers: the reading `qsortL`
+  destructures at depth 2 where the mirror destructures at depth 1 (W6's
+  mismatch in the direction `unfold [List.tail]` cannot repair, with no
+  guarded equation for W7's split); and a dispatch-free depth-1 reading
+  cannot be VALIDATED, because `qsortExec` passes `symV "LT"`/`symV
+  "GTE"` and `symV` is `private` — wave 2a's route-around runs out here.
+* `bsort` both — the SPEC renders BSORT as `length`-many passes while the
+  book recurses to the FIXPOINT; different access patterns, so there is no
+  commuting square to state. Reader-facing, so Mike's.
+* `Ordered` agree — ONE rung, `Bool.and_eq_true` (the mirror spells the
+  adjacent-pair chain as `∧`, the reading as `&&`). Same Bool/`Prop`
+  family as the two admitted rungs, but named in the NOT-admitted column.
+* `relMode` agree family — a TEMPLATE finding: where the definition's own
+  match IS on the keyed position, `fun_cases` GENERALIZES the constructor
+  literal and emits the other three modes' (false) goals. Fail-closed and
+  correct; refining at the key would be a capability, i.e. a ruling.
+* `Permuted` both — the `∈`/`erase`/`isPerm` refinement squares, i.e. the
+  library-spelled readings that are three of the four logged
+  vocabulary-compliance items.
+* `permWitness` both — the mirror is a `List.find?` multiplicity scan and
+  the book's PCE is an erase-walk: a DIFFERENT ALGORITHM (the agree square
+  in `some (pceL …)` shape is FALSE at `xs = ys = []`). The hom square
+  does not elaborate at all: an `Option α` result needs a RESULT READING,
+  a third result class the square table does not have.
+
+**A FINDING ABOUT WAVE 2A, recorded on the page (W3's postscript).** The
+four per-mode `filterRel` agree squares are true and trio-clean, but they
+CANNOT FIRE AT THEIR ONLY CALL SITE: `qsort`'s body builds `filterRel` at
+the spec's `decEqOfOrder` (declared `local`/low-priority on purpose so
+`qsort` carries no `[DecidableEq α]` binder), while the squares are
+elaborated here and pick up `ACL2.instDecidableEqSExpr`. The two print
+identically without `pp.explicit`. Measured both ways: `simp only` with
+the square on the caller's spelling reports "made no progress", and
+restating the squares at `decEqOfOrder` breaks the two EQUALITY-testing
+modes (`.lt`, `.gt`) because the reading's `==` is at the other instance.
+Nothing on the page regresses (W13 is blocked independently), and the
+resolution is a spec-side ruling, not an edit.
+
+**J-CALLS (five, all of the form "measured, did not take, recorded").**
+
+* **J-2b-1 — the bsort exec kit / M3 widening: NOT BUILT.** Measured: a
+  Lean `bsortExec` recursing on `bnextExec x` needs
+  `bnextSizeExec (bnextExec x) < bnextSizeExec x`, which IS the book's
+  `HOW-MANY-BAD-PAIRS-BNEXT`; its only Lean form here
+  (`how_many_bad_pairs_bnext_native_of_replayed`) carries world and
+  `hreplayed` hypotheses a definition's termination proof cannot
+  discharge, so the kit is a HAND kit under the P2
+  Lean-termination-necessity exception. Decisive point: completing it
+  would leave BOTH `bsort` squares exactly where they are, because the
+  blocker is the spec's `foldl` rendering. Building it now is the banned
+  "infrastructure now, wire it later".
+* **J-2b-2 — `List.map_append` NOT admitted to the fixed kit.** The
+  alternative was measured too and is worse: `mirror_iso% … for
+  List.append` DOES elaborate and close by the template (receipt
+  `[propext]`), but `qsort`'s value carries `HAppend.hAppend` /
+  `List.instAppend` and never `List.append`, so callee resolution cannot
+  find it — and the generated `xs.append ys` spelling does not match the
+  `xs ++ ys` goal (`simp only` "made no progress"). Both routes are
+  rulings; escalated, not taken.
+* **J-2b-3 — `Bool.and_eq_true` NOT admitted.** It is the same Bool/`Prop`
+  coercion family as `Bool.decide_eq_true`/`Bool.false_eq_true`, which is
+  the argument FOR it; the table names it in the NOT-admitted column,
+  which is the argument against. Two consumers measured (`Ordered` agree,
+  `Permuted` agree). Escalated, not taken.
+* **J-2b-4 — the four wave-2a `filterRel` agree squares NOT re-stated at
+  `decEqOfOrder`.** Measured: the restatement breaks `.lt` and `.gt`. The
+  choice is between a square that FIRES at the call site and one that
+  CLOSES against the `==`-spelled reading, and it turns on a
+  reader-facing spec declaration. Recorded for ruling.
+* **J-2b-5 — `symV` NOT de-privatised.** It would rename the constant and
+  move every proof term mentioning it — a regression-net-wide decision,
+  not an executor edit. It is the ONLY route to a validated dispatch-free
+  `qsort` reading found so far.
+
+**No IsoGen split.** The charter flagged `IsoGen.lean` at 1466/1500 and
+said the next growth splits it. Wave 2b added ZERO lines to it (it is at
+1458 by `wc -l`), so the split is not performed and the flag stands for
+whichever wave next grows the file.
+
+**Gate (fast-gate, in-worktree).** Full `lake build` green, 6439 jobs,
+zero warnings; `just test` green (3228 jobs); the witness page elaborates
+clean; 12 of 14 statics PASS — `check-acl2-tags` and
+`check-log-provenance` fail ONLY because the `acl2/` submodule is not
+checked out in this worktree (same as wave 2a: submodule statics owed at
+collection); `just driver-coverage` 116/116 replayed, aggregate OK, and
+`just check-golden-current` "golden matches the live assembly" (the
+golden is byte-untouched — `git status` shows one modified file). The
+sweep was CACHE-VALID rather than re-run from cold: the only edited file
+is a leaf of the mirror layer that no coverage target imports. CPU was
+shared with the perf lane in the main tree throughout, so no timing here
+is a clean measurement.

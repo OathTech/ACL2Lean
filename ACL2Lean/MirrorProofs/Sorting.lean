@@ -13,9 +13,11 @@ widening had to land against REAL square declarations read off the sorting
 spec — not against a test fixture (the anti-"infrastructure now, wire it
 later" rule). It is therefore the landing zone for the sorting squares.
 
-After R4 WAVE 2a (2026-08-17) it carries NINETEEN declarations — all
-LIVE squares, each `#print axioms`-pinned, and NO frontier left
-undeclared on this page:
+After R4 WAVE 2b (2026-08-17) it carries TWENTY-THREE LIVE squares, each
+`#print axioms`-pinned, and covers the COMPLETE definition inventory of
+`Mirrors/Sorting.lean` — every one of its FIFTEEN definitions appears
+below in both square classes, LIVE or with its frontier recorded
+verbatim. Nothing is left undeclared and nothing is forced.
 
 | witness | agree | hom |
 | ------- | ----- | --- |
@@ -23,10 +25,17 @@ undeclared on this page:
 | W2 `howMany`   | LIVE (R1-D) | LIVE (R1-D, scalar) |
 | W5 `isort`     | LIVE (wave 1) | LIVE (wave 1) |
 | W6 `evens`     | LIVE (wave 1) | LIVE (wave 1) |
-| W7 `merge2`    | **LIVE (2a — the split)** | **LIVE (2a — the split)** |
-| W8 `msort`     | **LIVE (2a)** | **LIVE (2a)** |
-| W9 `odds`      | **LIVE (2a — kit + `fun_cases`)** | **LIVE (2a — `fun_cases`)** |
-| W3 `filterRel` | **LIVE ×4 (2a — the per-mode family)** | **LIVE (2a)** |
+| W7 `merge2`    | LIVE (2a — the split) | LIVE (2a — the split) |
+| W8 `msort`     | LIVE (2a) | LIVE (2a) |
+| W9 `odds`      | LIVE (2a — kit + `fun_cases`) | LIVE (2a — `fun_cases`) |
+| W3 `filterRel` | LIVE ×4 (2a — the per-mode family) | LIVE (2a) |
+| W10 `bnext`    | **LIVE (2b)** | **LIVE (2b)** |
+| W11 `Ordered`  | frontier (2b — one `Bool`/`Prop` rung) | **LIVE (2b, scalar)** |
+| W12 `relMode`  | frontier (2b — `fun_cases` generalizes the key) | **LIVE (2b, scalar)** |
+| W13 `qsort`    | frontier (2b — the reading's depth + `symV`) | frontier (2b — ONE rung, `List.map_append`) |
+| W14 `bsort`    | frontier (2b — no exec kit is constructible) | frontier (2b — the `foldl` rendering) |
+| W15 `Permuted` | frontier (2b — library-spelled reading) | frontier (2b — the `∈`/`erase` refinement) |
+| W16 `permWitness` | frontier (2b — a DIFFERENT algorithm) | frontier (2b — an `Option α` result class) |
 
 Wave 1's four RECORDED frontiers (W3, W7, W8, W9) are all closed by the
 four wave-2a decisions Mike endorsed on 2026-08-16 (the synthesis's R-6).
@@ -845,5 +854,445 @@ mirror_iso% filterRel_map_hom for ACL2Lean.Sorting.filterRel
 /-- info: 'ACL2Lean.MirrorProofs.filterRel_map_hom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms filterRel_map_hom
+
+/-! ## W3's POSTSCRIPT — the per-mode family does NOT fire at its only
+CALL SITE (R4 wave 2b, measured; recorded, not fixed)
+
+The four squares above are true and trio-clean, and each one is
+independently useful as a statement. What wave 2b measured, and what has
+to be on the record before anyone builds on them: **they cannot be
+resolved as CALLEE squares inside `qsort`'s closer**, because the two
+sides speak DIFFERENT `DecidableEq SExpr` instances.
+
+`Mirrors/Sorting.lean` derives `decEqOfOrder` from the order and declares
+it `local instance (priority := low)` on purpose — its docstring says
+why: so that `qsort` does not acquire a `[DecidableEq α]` binder. The
+mirror definitions therefore build their `filterRel` applications at
+`decEqOfOrder`; `qsort.eq_2` shows it verbatim (`pp.explicit`):
+
+```
+@ACL2Lean.Sorting.filterRel α inst
+  (fun a b => @ACL2Lean.Sorting.decEqOfOrder α inst a b)
+  ACL2Lean.Sorting.RelMode.lt head t
+```
+
+The squares' statements are built by the generator and elaborated HERE,
+where `decEqOfOrder`'s instance attribute is not in scope, so instance
+synthesis finds `ACL2.instDecidableEqSExpr`:
+
+```
+@ACL2Lean.Sorting.filterRel ACL2.SExpr instTotalOrderSExpr
+  ACL2.instDecidableEqSExpr ACL2Lean.Sorting.RelMode.lt ev xs
+```
+
+The two are propositionally equal (`Subsingleton`) but NOT definitionally
+equal, and they PRINT IDENTICALLY without `pp.explicit` — which is why
+the mismatch is worth a section. Measured, verbatim, on the caller's own
+spelling:
+
+```
+example (ev : SExpr) (t : List SExpr) :
+    @ACL2Lean.Sorting.filterRel SExpr instTotalOrderSExpr
+        (fun a b => @ACL2Lean.Sorting.decEqOfOrder SExpr instTotalOrderSExpr a b)
+        .lt ev t
+      = Worlds.Sorting.filterLtL ev t := by
+  simp only [filterRel_lt_agree_filterLtL]
+-- error: `simp` made no progress
+```
+
+THE OBVIOUS REPAIR WAS MEASURED AND DOES NOT WORK: putting
+`attribute [local instance 5000] ACL2Lean.Sorting.decEqOfOrder` above the
+four declarations restates them at the caller's instance, and then the
+TWO EQUALITY-TESTING modes STOP CLOSING (`.lt` and `.gt`; `.lte`/`.gte`
+still close, since they never test equality). The residual is the
+tell — the goal's `decide (head✝ = ev)` and the hypothesis's
+`decide (head✝ = ev)` print the same and are at different instances,
+so `simp_all` cannot use one on the other:
+
+```
+h✝ : (Worlds.Sorting.lexorderB ev head✝ && !decide (head✝ = ev)) = true
+⊢ head✝ :: Worlds.Sorting.filterGtL ev t✝ =
+    bif Worlds.Sorting.lexorderB ev head✝ && !decide (head✝ = ev) then
+      head✝ :: Worlds.Sorting.filterGtL ev t✝
+    else Worlds.Sorting.filterGtL ev t✝
+```
+
+(The reading's `==` comes from `instBEqOfDecidableEq ACL2.instDecidableEqSExpr`;
+the goal's `decide` from `decEqOfOrder`.) So the choice is between a
+square that FIRES at the call site and a square that CLOSES against the
+`==`-spelled reading, and the current machinery cannot have both. That is
+a SPEC-SIDE interaction (`decEqOfOrder`'s deliberate `local`/low-priority
+declaration is reader-facing), so it is recorded here and left for
+ruling rather than worked around. Nothing on this page depends on it —
+W13's `qsort` agree square is blocked on a second, independent thing
+(below), so no live square regresses.
+
+## W10 — `bnext` (LIVE, both classes) — the bubble pass
+
+The bsort chain's one clean square pair. `Mirrors/Sorting.lean`'s `bnext`
+renders the book's `BNEXT` (`(IF (CONSP X) (IF (CONSP (CDR X)) (IF
+(LEXORDER (CAR X) (CAR (CDR X))) …) X) X)`) at the same access pattern as
+the waypoint reading `Worlds.Sorting.bnextL`, three patterns each, so both
+squares close with the wave-1/2a kit and no new ingredient at all: the
+`agree` square by the order instance in the `unfold` list (W1's route,
+`bif` + `cond`'s own two cases), the `hom` square by `OrderedEmbed`'s
+`ord` field + `ite`'s own two cases (W4's route).
+
+Tamper-probed, both hard-error: `bnext`'s agree square declared against
+`evensL` (a misaligned reading), and the `hom` square declared over the
+PLAIN `Acl2Embed` — the order-respect hypothesis is load-bearing here
+exactly as it is for `insertOrd`/`merge2`. -/
+
+mirror_iso% bnext_agree_bnextL for ACL2Lean.Sorting.bnext
+  vars [xs]
+  square agree (Worlds.Sorting.bnextL xs)
+  unfold [Worlds.Sorting.bnextL, instTotalOrderSExpr]
+
+/-- info: 'ACL2Lean.MirrorProofs.bnext_agree_bnextL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms bnext_agree_bnextL
+
+mirror_iso% bnext_map_hom for ACL2Lean.Sorting.bnext
+  vars [xs]
+  square hom list
+  embed OrderedEmbed via [ord]
+
+/-- info: 'ACL2Lean.MirrorProofs.bnext_map_hom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms bnext_map_hom
+
+/-! ## W11 — `Ordered` (hom LIVE; agree is ONE `Bool`/`Prop` rung away)
+
+`Ordered` is the first PROP-VALUED mirror definition to get a square, and
+the scalar (map-INVARIANCE) class states exactly the right thing for it:
+`Ordered (List.map e.enc xs) = Ordered xs`, an equality of `Prop`s. It
+CLOSES over `OrderedEmbed` — the `ord` field is the whole content, as
+the tamper probe over the plain `Acl2Embed` confirms (hard error) — and
+it is the square the first sorting transport (`isort_ordered` at `Int`,
+wave 2c) consumes.
+
+THE AGREE SQUARE IS A RECORDED FRONTIER, one rung wide. The waypoint
+reading is `Worlds.Sorting.orderedpRec` (the `chain2Rec lexorderB` fold
+every ORDEREDP row speaks), and the square must be stated as the `Prop`
+`orderedpRec xs = true`. Declared and measured (`.tmp`, not declared
+here) as
+
+```
+  mirror_iso% ordered_agree_orderedpRec for ACL2Lean.Sorting.Ordered
+    vars [xs]
+    square agree (Worlds.Sorting.orderedpRec xs = true)
+    unfold [ACL2.Lifting.chain2Rec, instTotalOrderSExpr]
+```
+
+cases 1 and 2 close; case 3's residual is verbatim:
+
+```
+ih1✝ : Sorting.Ordered (head✝ :: t✝) = (Worlds.Sorting.orderedpRec (head✝ :: t✝) = true)
+⊢ (Worlds.Sorting.lexorderB a✝ head✝ = true ∧ Worlds.Sorting.orderedpRec (head✝ :: t✝) = true) =
+    ((Worlds.Sorting.lexorderB a✝ head✝ && Lifting.chain2Rec Worlds.Sorting.lexorderB (head✝ :: t✝)) = true)
+```
+
+— i.e. the two sides are the same statement modulo ONE rung,
+`Bool.and_eq_true` (`(a && b) = true ↔ a = true ∧ b = true`): the mirror
+spells the adjacent-pair chain as a `Prop` conjunction and the reading
+spells it as a `Bool` `&&`. That rung is the SAME Bool/`Prop` coercion
+family as the already-admitted `Bool.decide_eq_true` and
+`Bool.false_eq_true` — but the ladder's table lists it BY NAME in the
+deliberately-NOT-admitted column (`IsoGen.lean`), so taking it is a
+RULING and wave 2b does not take it. Recorded, with the measurement, so
+the ruling can be made on evidence. -/
+
+mirror_iso% ordered_map_invariant for ACL2Lean.Sorting.Ordered
+  vars [xs]
+  square hom scalar
+  embed OrderedEmbed via [ord]
+
+/-- info: 'ACL2Lean.MirrorProofs.ordered_map_invariant' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms ordered_map_invariant
+
+/-! ## W12 — `relMode` (hom LIVE; the agree FAMILY is a template frontier)
+
+The book's `REL`. Its map-INVARIANCE square — `relMode fn (e.enc i)
+(e.enc j) = relMode fn i j` — is the four-mode statement that the
+comparison verdict does not change under an order-respecting embedding,
+and it CLOSES: `ord` discharges the two `≤` tests, `enc_inj_iff` the two
+equality tests, and `fun_cases` (W9's fallback — `relMode` is
+NON-RECURSIVE) supplies the mode analysis. Over the plain `Acl2Embed` it
+fails closed (tamper-probed).
+
+THE PER-MODE AGREE FAMILY IS A RECORDED FRONTIER, and it is a NEW finding
+about the interaction of wave 2a's two mechanisms rather than a missing
+lemma. `vars [.lt, i, j]` keys the square at a constructor literal, and
+for `filterRel` that works because the induction runs on the LIST and the
+mode is only carried. For `relMode` the definition's OWN MATCH IS ON THE
+KEYED POSITION, and the `fun_cases` fallback GENERALIZES it: from the
+statement `relMode .lt i j = lexLtB i j` it produces FOUR cases, one per
+`RelMode` constructor, with the right-hand side left at `lexLtB`.
+Measured, verbatim — case 1 (`.lt`) closes, the other three are the other
+modes compared against `'LT`'s reading:
+
+```
+case case2  ⊢ Worlds.Sorting.lexorderB i j = (Worlds.Sorting.lexorderB i j && !decide (i = j))
+case case3  ⊢ (Worlds.Sorting.lexorderB j i && !decide (i = j)) = (Worlds.Sorting.lexorderB i j && !decide (i = j))
+case case4  ⊢ Worlds.Sorting.lexorderB j i = (Worlds.Sorting.lexorderB i j && !decide (i = j))
+```
+
+Those goals are FALSE, and the template is right to refuse them: the
+declaration as written asks for a statement about all four modes. Closing
+the family would need the template to REFINE the case analysis at the
+keyed literal instead of generalizing it — a template capability, i.e. a
+ruling, and the exact mirror image of the split ruled at W7. Nothing
+depends on it: `filterRel`'s own per-mode agree family already exists, so
+`relMode`'s would be a second route to the same place. -/
+
+mirror_iso% relMode_map_invariant for ACL2Lean.Sorting.relMode
+  vars [fn, i, j]
+  square hom scalar
+  embed OrderedEmbed via [ord]
+  unfold [ACL2Lean.Sorting.relMode]
+
+/-- info: 'ACL2Lean.MirrorProofs.relMode_map_invariant' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms relMode_map_invariant
+
+/-! ## W13 — `qsort`'s record: the hom square is ONE RUNG away; the agree
+square is blocked on the READING (R4 wave 2b, measured, nothing declared)
+
+**THE HOM SQUARE — one ingredient, and it is a LEMMA rung, not a
+capability.** Declared as
+
+```
+  mirror_iso% qsort_map_hom for ACL2Lean.Sorting.qsort
+    vars [xs]
+    square hom list
+    embed OrderedEmbed via [ord]
+```
+
+case 1 closes and case 2's residual is verbatim (the two IHs are exactly
+the two halves of the goal):
+
+```
+ih2✝ : List.map e.enc (Sorting.qsort (Sorting.filterRel Sorting.RelMode.lt head✝ t✝)) =
+    Sorting.qsort (Sorting.filterRel Sorting.RelMode.lt (e.enc head✝) (List.map e.enc t✝))
+ih1✝ : List.map e.enc (Sorting.qsort (Sorting.filterRel Sorting.RelMode.gte head✝ t✝)) =
+    Sorting.qsort (Sorting.filterRel Sorting.RelMode.gte (e.enc head✝) (List.map e.enc t✝))
+⊢ List.map e.enc
+      (Sorting.qsort (Sorting.filterRel Sorting.RelMode.lt head✝ t✝) ++
+        head✝ :: Sorting.qsort (Sorting.filterRel Sorting.RelMode.gte head✝ t✝)) =
+    Sorting.qsort (Sorting.filterRel Sorting.RelMode.lt (e.enc head✝) (List.map e.enc t✝)) ++
+      e.enc head✝ :: Sorting.qsort (Sorting.filterRel Sorting.RelMode.gte (e.enc head✝) (List.map e.enc t✝))
+```
+
+The whole distance is `List.map_append` — `List.map_cons` (already in the
+kit) handles the `head✝ ::`, the two IHs handle the recursive calls, and
+what is left is pushing `List.map e.enc` through the `++`. That is the
+MAP-HOMOMORPHISM SQUARE OF `++` itself, structurally identical to the
+generated `app_map_hom` one book up (`MirrorProofs/Basics.lean`) — but
+`Mirrors/Sorting.lean` writes the append as the LIBRARY `++` (permitted
+by the vocabulary practice as unambiguous operator notation), so its
+square is a library lemma and not something the registry can hold.
+
+Both repairs were measured and BOTH are rulings, so wave 2b took
+neither:
+
+1. `List.map_append` as a fixed-kit rung. It is named BY EXAMPLE in the
+   ladder's deliberately-NOT-admitted column (`IsoGen.lean`, the
+   `List.map_nil/cons` row) because it RELATES TWO OPERATIONS, which is
+   the criterion's content test. The counter-argument on the record: it
+   is precisely the refinement square of `++`, i.e. the same character as
+   a REGISTERED CALLEE SQUARE rather than a content lemma.
+2. A generated square FOR `List.append`. `mirror_iso% listAppend_map_hom
+   for List.append vars [xs, ys] square hom list` ELABORATES AND CLOSES
+   by the fixed template (receipt `[propext]`) — the template has no
+   trouble with a library definition. It does not help as things stand,
+   for two separate reasons, both measured: (a) `qsort`'s value does not
+   mention `List.append` at all (its used constants carry
+   `HAppend.hAppend` and `List.instAppend`), so callee resolution never
+   finds it; and (b) the generated statement is spelled `xs.append ys`
+   while the goal is spelled `xs ++ ys`, and `simp only` with it reports
+   "made no progress" on the `++` form. Making that route work is a
+   callee-resolution widening PLUS a notation decision — more machinery
+   than route 1, for the same square.
+
+**THE AGREE SQUARE — blocked on the READING, twice over.** Declared
+against the existing waypoint reading `Worlds.Sorting.qsortL`, case 1
+closes and case 2's residual is verbatim:
+
+```
+ih2✝ : Sorting.qsort (Sorting.filterRel Sorting.RelMode.lt head✝ t✝) =
+    Worlds.Sorting.qsortL (Sorting.filterRel Sorting.RelMode.lt head✝ t✝)
+ih1✝ : Sorting.qsort (Sorting.filterRel Sorting.RelMode.gte head✝ t✝) =
+    Worlds.Sorting.qsortL (Sorting.filterRel Sorting.RelMode.gte head✝ t✝)
+⊢ Worlds.Sorting.qsortL (Sorting.filterRel Sorting.RelMode.lt head✝ t✝) ++
+      head✝ :: Worlds.Sorting.qsortL (Sorting.filterRel Sorting.RelMode.gte head✝ t✝) =
+    Worlds.Sorting.qsortL (head✝ :: t✝)
+```
+
+Note what is NOT missing: no `List.map_append` here, because the `++` is
+on both sides. Two things are:
+
+* **DEPTH.** The mirror `qsort` matches TWO patterns (`[]`, `p :: t`);
+  `qsortL` matches THREE (`[]`, `[a]`, `a :: b :: t`, mirroring the
+  book's `(if (consp x) (if (consp (cdr x)) … ) …)`). So `qsortL (head✝
+  :: t✝)` is STUCK at a variable tail — the W6 (`evens`) mismatch again,
+  but in the direction the `unfold [List.tail]` trick cannot repair, and
+  with no guarded equation for the W7 split to fire on.
+* **THE PER-MODE FAMILY DOES NOT FIRE** (W3's postscript above): the four
+  `filterRel` agree squares are stated at `ACL2.instDecidableEqSExpr`
+  while `qsort`'s body builds `decEqOfOrder`, which is why `filterRel`
+  still appears un-rewritten in the residual above.
+
+A DISPATCH-FREE, depth-2 reading (`qsortRL | [] => [] | a :: t =>
+qsortRL (filterLtL a t) ++ a :: qsortRL (filterGteL a t)`) would fix the
+depth, and its agree square would close — but it cannot be VALIDATED,
+which is the gate that makes a reading admissible at all. `derive_sim%`
+proves a reading against the real exec, and `qsortExec`'s body passes its
+mode literals as `symV "LT"` / `symV "GTE"`, where `symV` is `private` to
+`Imported/Sorting.lean`. Wave 2a's per-mode FILTER isos are keyed on
+`modeLT`/`modeGTE` — the same VALUES, re-spelled in a new module, but not
+the same TERMS — so they cannot meet `qsortExec`'s literals, and no
+lemma bridging the two can even be STATED from outside that module.
+Wave 0 recorded the `symV` privacy blocker and wave 2a routed around it;
+`qsort` is where the route-around runs out. De-privatising `symV` renames
+the constant and moves every proof term that mentions it, which is a
+regression-net decision, not an executor edit. -/
+
+/-! ## W14 — `bsort`'s record: BOTH squares blocked, and NOT on the exec
+kit (R4 wave 2b, measured, nothing declared)
+
+The wave-0/A5 inventory said `bsort` "needs the bsort exec kit and the
+bnext-size measure row, the M3-class ExecGen widening or a hand kit".
+Wave 2b measured the chain and reports a different conclusion: **the exec
+kit is not on the critical path, and building it now would be the banned
+"infrastructure now, wire it later"** — because BOTH `bsort` squares fail
+for a reason the kit cannot touch.
+
+WHAT THE SPEC RENDERS. `Mirrors/Sorting.lean`'s `bsort` is
+`(List.range xs.length).foldl (fun acc _ => bnext acc) xs` — `length`-many
+bubble passes, a total definition needing no termination argument. The
+book's `BSORT` is the FIXPOINT recursion, verbatim from the log
+(`acl2_samples/sorting/bsort.proof-log`):
+
+```
+(:DEFUN BSORT :FORMALS (X) :BODY (IF (EQUAL (BNEXT X) X) X (BSORT (BNEXT X)))
+        :MEASURE (BNEXT-SIZE X) :WFREL O< :MEASURED (X)
+        :TERMINATION-RUNES (… (:LINEAR HOW-MANY-BAD-PAIRS-BNEXT) …))
+```
+
+Those are DIFFERENT ACCESS PATTERNS, and under the data-refinement frame
+(`IsoGen.lean`) that is exactly when there is no commuting square to
+state. The `hom` square shows it directly — `fun_cases` gives one case
+and the residual is the whole equation:
+
+```
+⊢ List.map e.enc (List.foldl (fun acc x => Sorting.bnext acc) xs (List.range xs.length)) =
+    List.foldl (fun acc x => Sorting.bnext acc) (List.map e.enc xs) (List.range (List.map e.enc xs).length)
+```
+
+— which needs `List.length_map` plus a `map`/`foldl` fusion lemma, i.e.
+library content about `foldl` and `range`, not a refinement square of
+anything the book defines. The `agree` square has no reading to be stated
+against at all: there is no `bsortL`, and the catalogue has said so for
+months (`Imported/Waypoints/Catalog.lean`, `BSORT-IS-ISORT` and
+`ORDEREDP-BSORT`: "the waypoint native … is NOT BUILT — queued behind the
+mirror buildout AND the bsort exec kit").
+
+WHY THE KIT IS NOT THE UNLOCK, measured against `Imported/ExecGen.lean`
+and `Replay/MeasureTable.lean`: `BNEXT-SIZE` is the `userFn` row's corpus
+witness, and `derive_exec%`'s M3 frontier is named for exactly this shape
+("a measure shape outside v1 (M3: decrease through a defined function)").
+But the M3 widening is not what is missing. A Lean `bsortExec` recursing
+on `bnextExec x` needs its OWN Lean termination proof, and the fact it
+needs is `bnextSizeExec (bnextExec x) < bnextSizeExec x` under the guard —
+which IS the book's `HOW-MANY-BAD-PAIRS-BNEXT`, and whose only Lean form
+in this tree is `how_many_bad_pairs_bnext_native_of_replayed`
+(`Imported/SortingBsort.lean`), carrying world and `hreplayed`
+hypotheses that a definition's termination proof cannot discharge. So the
+kit is a HAND kit under the P2 (Lean-termination-necessity) exception —
+a real, self-contained piece of work — and completing it would still
+leave BOTH squares above exactly where they are, because the blocker is
+the spec's rendering, not the kit.
+
+RECORDED AS A SPEC QUESTION, deliberately not touched: rendering the
+mirror `bsort` as the book's fixpoint recursion would make the squares
+stateable, and `Mirrors/Sorting.lean`'s own header permits the
+termination proof Lean's kernel would demand ("the only proofs here are
+the termination measures Lean's kernel demands for the definitions to
+exist"). That is reader-facing, so it is Mike's call, not this wave's.
+
+## W15/W16 — `Permuted` and `permWitness`: the two remaining definitions
+
+Both are recorded frontiers, and they are different in kind.
+
+**`Permuted` — the `∈`/`erase` refinement.** The `hom scalar` square
+(`Permuted (List.map e.enc xs) (List.map e.enc ys) = Permuted xs ys`)
+elaborates and leaves both cases:
+
+```
+case case1  ⊢ (List.map e.enc ys✝ = []) = (ys✝ = [])
+case case2  ⊢ (e.enc a✝ ∈ List.map e.enc ys✝ ∧ Sorting.Permuted (List.map e.enc xs✝) ((List.map e.enc ys✝).erase (e.enc a✝))) =
+    (a✝ ∈ ys✝ ∧ Sorting.Permuted xs✝ (ys✝.erase a✝))
+```
+
+— three library facts, each an ELEMENT-position refinement square of a
+library operation the spec body uses: `List.map_eq_nil_iff` (in the
+ladder's NOT-admitted column by name), `List.mem_map` + injectivity, and
+`(List.map f ys).erase (f a) = List.map f (ys.erase a)` under
+injectivity. The `agree` square against `List.isPerm` leaves
+
+```
+case case1  ⊢ (ys✝ = []) = (ys✝.isEmpty = true)
+case case2  ⊢ (a✝ ∈ ys✝ ∧ xs✝.isPerm (ys✝.erase a✝) = true) =
+    ((ys✝.contains a✝ && xs✝.isPerm (ys✝.erase a✝)) = true)
+```
+
+— `Bool.and_eq_true` again (W11's rung) plus `List.isEmpty_iff` and
+`List.contains_iff`, which are library lemmas about a LIBRARY-SPELLED
+READING: `List.isPerm`/`contains`/`erase` are three of the four logged
+vocabulary-compliance items (`Imported/SimGen.lean`'s note). This square
+is the first consumer that would justify converting them to
+own-definitions; that conversion moves `permExec_enc`'s proof term and is
+out of wave 2b's regression net.
+
+**`permWitness` — a DIFFERENT ALGORITHM, and no result class.** This one
+is not a lemma or a rung away, and it should be read as a spec finding.
+The mirror is
+`List.find? (fun a => howMany a xs != howMany a ys) (xs ++ ys)` — a
+multiplicity scan. The book's `PERM-COUNTER-EXAMPLE`, whose reading is
+`Worlds.Sorting.pceL` (`Imported/SortingConvertPerm.lean`), is the
+erase-walk: `| [], ys => ys.headD nil | x :: xs, ys => bif ys.contains x
+then pceL xs (ys.erase x) else x`. Declaring the agree square produces
+ONE case whose goal is the entire equation —
+
+```
+⊢ List.find? (fun a => Worlds.Sorting.howManyL a xs != Worlds.Sorting.howManyL a ys) (xs ++ ys) =
+    some (Worlds.Sorting.pceL xs ys)
+```
+
+— i.e. a THEOREM about two different algorithms agreeing, not a
+definitional correspondence, and the template is right to refuse it. The
+square in that shape is in fact FALSE, which is the cleanest statement of
+the gap: at `xs = ys = []` the left side is `none` (nothing differs) and
+the right side is `some SExpr.nil` (the book's witness function returns a
+VALUE, never an option), so no `some`-wrapped reading can be the mirror's
+correspondent. The `hom scalar` square does not even elaborate,
+and its failure names a real gap in the square classes:
+
+```
+Type mismatch
+  Sorting.permWitness xs ys
+has type
+  Option α
+but is expected to have type
+  Option SExpr
+```
+
+— the map-INVARIANCE class asserts `fn (encoded args) = fn args`, which
+types only when the result type is CLOSED (`Nat`, `Bool`, `Prop`). An
+`Option α` result needs a RESULT READING (`Option.map e.enc`), which is a
+third result class the square table does not have — the derived-reading
+frontier at the result position rather than the argument position. Both
+are recorded; neither is forced. -/
 
 end ACL2Lean.MirrorProofs
